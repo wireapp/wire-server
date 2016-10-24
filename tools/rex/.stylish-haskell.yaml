@@ -1,0 +1,20 @@
+steps:
+  - simple_align:
+      cases: true
+      top_level_patterns: true
+      records: true
+  - imports:
+      align: group
+      list_align: after_alias
+      long_list_align: new_line_multiline
+      empty_list_align: inherit
+      list_padding: 4
+      separate_lists: true
+  - language_pragmas:
+      style: vertical
+      align: true
+      remove_redundant: true
+  - tabs:
+      spaces: 4
+  - trailing_whitespace: {}
+columns: 80

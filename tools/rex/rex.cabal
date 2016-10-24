@@ -1,0 +1,40 @@
+name:                rex
+version:             0.1.0
+synopsis:            Scrape and expose restund metrics for prometheus
+description:         @rex@ = @restund-exporter@ in prometheus jargon
+author:              Kim Altintop
+maintainer:          kim@wire.com
+build-type:          Simple
+cabal-version:       >=1.10
+
+executable rex
+  main-is:
+    Main.hs
+
+  build-depends:
+      async
+    , attoparsec
+    , base           == 4.*
+    , bifunctors
+    , bytestring
+    , clock
+    , exceptions
+    , http-types
+    , mtl
+    , network
+    , optparse-applicative
+    , prometheus
+    , text
+    , tinylog
+    , unordered-containers
+    , wai
+    , warp
+
+  ghc-options:
+    -Wall -O1 -funbox-small-strict-fields
+
+  if os(linux)
+    ld-options: -static
+
+  default-language:
+    Haskell2010
