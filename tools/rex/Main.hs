@@ -5,36 +5,37 @@
 module Main (main) where
 
 import           Control.Concurrent.Async
-import           Control.Monad                    (void)
+import           Control.Monad                                  (void)
 import           Control.Monad.Catch
 import           Control.Monad.Trans
-import qualified Data.Attoparsec.ByteString.Char8 as Parser
+import qualified Data.Attoparsec.ByteString.Char8               as Parser
 import           Data.Bifunctor
 import           Data.Bitraversable
-import qualified Data.ByteString                  as ByteString
-import           Data.Char
+import           Data.ByteString                                (ByteString)
+import qualified Data.ByteString.Char8                          as ByteString
 import           Data.Foldable
-import           Data.HashMap.Strict              (HashMap)
-import qualified Data.HashMap.Strict              as HashMap
+import           Data.HashMap.Strict                            (HashMap)
+import qualified Data.HashMap.Strict                            as HashMap
 import           Data.Maybe
 import           Data.Monoid
-import           Data.Text                        (Text)
-import qualified Data.Text                        as Text
-import           Data.Text.Encoding               (decodeUtf8)
-import qualified Data.Text.IO                     as Text
-import qualified Data.Text.Read                   as Text
+import           Data.Text                                      (Text)
+import qualified Data.Text                                      as Text
+import           Data.Text.Encoding                             (decodeUtf8)
+import qualified Data.Text.IO                                   as Text
+import qualified Data.Text.Read                                 as Text
 import           Data.Traversable
 import           Data.Word
-import           Network.BSD                      (getHostName)
+import           Network.BSD                                    (getHostName)
 import           Network.HTTP.Types
-import           Network.Socket                   hiding (recvFrom)
+import           Network.Socket                                 hiding
+    (recvFrom)
 import           Network.Socket.ByteString
 import           Network.Wai
 import           Network.Wai.Handler.Warp
 import           Options.Applicative
 import           System.Clock
-import qualified System.Logger                    as Log
-import           System.Logger.Message            (msg, val)
+import qualified System.Logger                                  as Log
+import           System.Logger.Message                          (msg, val)
 
 -- this library sucks
 import           System.Metrics.Prometheus.Concurrent.RegistryT
@@ -120,29 +121,29 @@ main = withSocketsDo $ do
 
         liftIO . serveIO opts
                . handleAll (\e -> logError lgr errors e >> throwM e) $ do
+            Log.info lgr $ msg (val "Scraping ...")
             start <- getTime Monotonic
 
             void $ concurrently
                 (handleIOError (logError lgr errors) $ do
-                    Log.info lgr $ msg (val "Scraping Socket Stats...")
                     sockStats <- getSocketStats (optRestundUDPListenPort opts)
+                    Log.trace lgr $ msg (show sockStats)
                     for_ sockStats $ \SocketStats{..} -> do
                         Gauge.set (fromIntegral rxQueue) rxq
                         Gauge.set (fromIntegral txQueue) txq
                         Gauge.set (fromIntegral drops  ) drp
                 )
-                (handleIOError (logError lgr errors) $ do
-                    Log.info lgr $ msg (val "Scraping App Stats...")
-                    withSocket $ \ssock -> do
-                        appStats <- getAppStats (statusAddr opts) ssock
-                        for_ appStats $ \(k,v) ->
-                            maybe (Counter.inc unknown)
-                                  (Gauge.set v)
-                                  (HashMap.lookup k known)
+                (handleIOError (logError lgr errors) . withSocket $ \ssock -> do
+                    appStats <- getAppStats lgr (statusAddr opts) ssock
+                    Log.trace lgr $ msg (show appStats)
+                    for_ appStats $ \(k,v) ->
+                        maybe (Counter.inc unknown)
+                              (Gauge.set v)
+                              (HashMap.lookup k known)
                 )
 
             took <- toNanoSecs . (`diffTimeSpec` start) <$> getTime Monotonic
-            Log.debug lgr $ msg ("Scraping took: " <> show took)
+            Log.info lgr $ msg ("Done scaping in " <> show took <> "ns")
             Histo.observe (fromIntegral took) timing
 
             sampleIO
@@ -166,7 +167,7 @@ data SocketStats = SocketStats
     , rxQueue :: Word64
     , txQueue :: Word64
     , drops   :: Word64
-    }
+    } deriving Show
 
 -- nb. that this requires restund and rex to run in the same network namespace
 -- (ie. either both run with --net=host, or both run in the same pod)
@@ -190,25 +191,27 @@ getSocketStats port = do
     hex :: (Integral a, Bounded a) => Text -> a
     hex = either (const minBound) fst . Text.hexadecimal
 
-getAppStats :: SockAddr -> Socket -> IO [(Text, Double)]
-getAppStats addr sock = fmap mconcat . for cmds $ \cmd -> do
+getAppStats :: Log.Logger -> SockAddr -> Socket -> IO [(Text, Double)]
+getAppStats lgr addr sock = fmap mconcat . for cmds $ \cmd -> do
     sendAllTo sock cmd addr
     (reply,_) <- recvFrom sock 1024
-    return
-        . mapMaybe ( bitraverse Just id
-                   . bimap decodeUtf8
-                           ( either (const Nothing) Just
-                           . Parser.parseOnly Parser.double
-                           )
-                   . ByteString.break (== spc)
-                   )
-        . ByteString.split nl
-        $ reply
+    Log.trace lgr $ msg (ByteString.intercalate "\n" (ByteString.lines reply))
+    return $
+        parseAppStats reply
   where
-    spc = fromIntegral (ord ' ')
-    nl  = fromIntegral (ord '\n')
-
     cmds = [ "stat", "turnstats", "turnreply", "tcpstats", "authstats" ]
+
+parseAppStats :: ByteString -> [(Text,Double)]
+parseAppStats
+    = mapMaybe ( bitraverse Just id
+               . bimap decodeUtf8
+                       ( either (const Nothing) Just
+                       . Parser.parseOnly
+                           (Parser.skipWhile Parser.isSpace *> Parser.double)
+                       )
+               . ByteString.break (==' ')
+               )
+    . ByteString.lines
 
 knownStats :: Labels -> RegistryT IO (HashMap Text Gauge)
 knownStats def = HashMap.fromList <$> traverse (mk def)
