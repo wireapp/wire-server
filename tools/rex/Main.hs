@@ -115,25 +115,22 @@ main = withSocketsDo $ do
                                       , 1000000 -- 1 ms
                                       , 5000000 -- 5 ms
                                       ]
-        errors   <- registerCounter   "scrape_errors" labels
 
         sampleIO <- sample
 
-        liftIO . serveIO opts
-               . handleAll (\e -> logError lgr errors e >> throwM e) $ do
+        liftIO . serveIO opts $ do
             Log.info lgr $ msg (val "Scraping ...")
             start <- getTime Monotonic
 
             void $ concurrently
-                (handleIOError (logError lgr errors) $ do
-                    sockStats <- getSocketStats (optRestundUDPListenPort opts)
+                (do sockStats <- getSocketStats (optRestundUDPListenPort opts)
                     Log.trace lgr $ msg (show sockStats)
                     for_ sockStats $ \SocketStats{..} -> do
                         Gauge.set (fromIntegral rxQueue) rxq
                         Gauge.set (fromIntegral txQueue) txq
                         Gauge.set (fromIntegral drops  ) drp
                 )
-                (handleIOError (logError lgr errors) . withSocket $ \ssock -> do
+                (withSocket $ \ssock -> do
                     appStats <- getAppStats lgr (statusAddr opts) ssock
                     Log.trace lgr $ msg (show appStats)
                     for_ appStats $ \(k,v) ->
@@ -152,10 +149,6 @@ main = withSocketsDo $ do
 
     statusAddr Opts{optRestundUDPStatusPort=p}
         = SockAddrInet (fromIntegral p) localhost
-
-    logError lgr cnt e = do
-        Log.err lgr $ msg (show e)
-        Counter.inc cnt
 
     withSocket = bracket
         (socket AF_INET Datagram defaultProtocol)
