@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -5,37 +6,38 @@
 module Main (main) where
 
 import           Control.Concurrent.Async
-import           Control.Monad                                  (void)
 import           Control.Monad.Catch
 import           Control.Monad.Trans
-import qualified Data.Attoparsec.ByteString.Char8               as Parser
+import qualified Data.Attoparsec.ByteString.Char8 as Parser
 import           Data.Bifunctor
 import           Data.Bitraversable
-import           Data.ByteString                                (ByteString)
-import qualified Data.ByteString.Char8                          as ByteString
+import           Data.ByteString                  (ByteString)
+import qualified Data.ByteString.Char8            as ByteString
 import           Data.Foldable
-import           Data.HashMap.Strict                            (HashMap)
-import qualified Data.HashMap.Strict                            as HashMap
+import           Data.HashMap.Strict              (HashMap)
+import qualified Data.HashMap.Strict              as HashMap
+import           Data.IP
 import           Data.Maybe
 import           Data.Monoid
-import           Data.Text                                      (Text)
-import qualified Data.Text                                      as Text
-import           Data.Text.Encoding                             (decodeUtf8)
-import qualified Data.Text.IO                                   as Text
-import qualified Data.Text.Read                                 as Text
+import           Data.Text                        (Text)
+import qualified Data.Text                        as Text
+import           Data.Text.Encoding               (decodeUtf8, encodeUtf8)
+import qualified Data.Text.IO                     as Text
+import qualified Data.Text.Read                   as Text
 import           Data.Traversable
 import           Data.Word
-import           Network.BSD                                    (getHostName)
+import           Network.BSD                      (getHostName)
+import           Network.DNS                      hiding (header)
 import           Network.HTTP.Types
-import           Network.Socket                                 hiding
-    (recvFrom)
+import           Network.Socket                   hiding (recvFrom)
 import           Network.Socket.ByteString
 import           Network.Wai
 import           Network.Wai.Handler.Warp
 import           Options.Applicative
 import           System.Clock
-import qualified System.Logger                                  as Log
-import           System.Logger.Message                          (msg, val)
+import qualified System.Logger                    as Log
+import           System.Logger.Message            (msg, val)
+import           System.Timeout                   (timeout)
 
 -- this library sucks
 import           System.Metrics.Prometheus.Concurrent.RegistryT
@@ -53,6 +55,7 @@ data Opts = Opts
     , optRestundUDPStatusPort :: !Word16
     , optRestundUDPListenPort :: !Word16
     , optTier                 :: !Text
+    , optZone                 :: !ByteString
     } deriving Show
 
 parseOpts :: ParserInfo Opts
@@ -87,27 +90,43 @@ parseOpts = info (helper <*> parser) desc
                 ( long  "tier"
                <> help  "Deployment Tier"
                 )
+        <*> option bs
+                ( long  "zone"
+               <> value "wire.com"
+               <> help  "Deployment Zone"
+               <> showDefault
+                )
 
     txt = Text.pack <$> str
+    bs  = ByteString.pack <$> str
 
 main :: IO ()
 main = withSocketsDo $ do
     opts <- execParser parseOpts
     host <- getHostName
     lgr  <- Log.new Log.defSettings
+    rlv  <- makeResolvSeed defaultResolvConf
 
     let labels = fromList [ ("host", Text.pack host)
                           , ("tier", optTier opts)
                           , ("app", "restund")
                           , ("srv", "rex")
                           ]
+        dns    = mconcat  [ "_turn._tcp."
+                          , encodeUtf8 (optTier opts)
+                          , "."
+                          , optZone opts
+                          , "."
+                          ]
 
     runRegistryT $ do
         known    <- knownStats labels
-        unknown  <- registerCounter "UNKNOWN"      labels
-        rxq      <- registerGauge   "recv_queue"   labels
-        txq      <- registerGauge   "send_queue"   labels
-        drp      <- registerGauge   "packet_drops" labels
+        unknown  <- registerCounter "UNKNOWN"         labels
+        rxq      <- registerGauge   "recv_queue"      labels
+        txq      <- registerGauge   "send_queue"      labels
+        drp      <- registerGauge   "packet_drops"    labels
+        peers    <- registerGauge   "known_peers"     labels
+        rpeers   <- registerGauge   "reachable_peers" labels
 
         timing   <- registerHistogram "scrape_timing_ns"
                                       labels
@@ -122,24 +141,31 @@ main = withSocketsDo $ do
             Log.info lgr $ msg (val "Scraping ...")
             start <- getTime Monotonic
 
-            void $ concurrently
-                (do sockStats <- getSocketStats (optRestundUDPListenPort opts)
-                    Log.trace lgr $ msg (show sockStats)
-                    for_ sockStats $ \SocketStats{..} -> do
-                        Gauge.set (fromIntegral rxQueue) rxq
-                        Gauge.set (fromIntegral txQueue) txq
-                        Gauge.set (fromIntegral drops  ) drp
-                )
-                (withSocket $ \ssock -> do
-                    appStats <- getAppStats lgr (statusAddr opts) ssock
-                    Log.trace lgr $ msg (show appStats)
-                    for_ appStats $ \(k,v) ->
-                        maybe (Counter.inc unknown)
-                              (Gauge.set v)
-                              (HashMap.lookup k known)
-                )
+            (!_,!_,!_) <- runConcurrently $ (,,)
+                <$> Concurrently (do
+                        sockStats <- getSocketStats (optRestundUDPListenPort opts)
+                        Log.trace lgr $ msg (show sockStats)
+                        for_ sockStats $ \SocketStats{..} -> do
+                            Gauge.set (fromIntegral rxQueue) rxq
+                            Gauge.set (fromIntegral txQueue) txq
+                            Gauge.set (fromIntegral drops  ) drp
+                    )
+                <*> Concurrently (withSocket $ \ssock -> do
+                        appStats <- getAppStats lgr (statusAddr opts) ssock
+                        Log.trace lgr $ msg (show appStats)
+                        for_ appStats $ \(k,v) ->
+                            maybe (Counter.inc unknown)
+                                  (Gauge.set v)
+                                  (HashMap.lookup k known)
+                    )
+                <*> Concurrently (do
+                        peerStats <- getPeerConnectivityStats lgr rlv dns
+                        Log.trace lgr $ msg (show peerStats)
+                        Gauge.set (fromIntegral (peersDiscovered peerStats)) peers
+                        Gauge.set (fromIntegral (peersReachable  peerStats)) rpeers
+                    )
 
-            took <- toNanoSecs . (`diffTimeSpec` start) <$> getTime Monotonic
+            !took <- toNanoSecs . (`diffTimeSpec` start) <$> getTime Monotonic
             Log.info lgr $ msg ("Done scaping in " <> show took <> "ns")
             Histo.observe (fromIntegral took) timing
 
@@ -243,6 +269,47 @@ knownStats def = HashMap.fromList <$> traverse (mk def)
     mk labels name = do
         g <- registerGauge name labels
         pure (unName name, g)
+
+data PeerConnectivityStats = PeerConnectivityStats
+    { peersDiscovered :: Int
+    , peersReachable  :: Int
+    } deriving Show
+
+getPeerConnectivityStats
+    :: Log.Logger
+    -> ResolvSeed
+    -> Domain
+    -> IO PeerConnectivityStats
+getPeerConnectivityStats lgr seed dom = do
+    addrs <- disco
+    reach <- length . catMaybes <$> mapConcurrently shakehands addrs
+    pure PeerConnectivityStats
+        { peersDiscovered = length addrs
+        , peersReachable  = reach
+        }
+  where
+    disco = withResolver seed $ \rlv ->
+            lookupSRV rlv dom
+        >>= either (const $ pure [])
+               (\xs -> concatMap mkAddr . zip xs
+                   <$> traverse (lookupA rlv . _4) xs)
+
+    shakehands (addr,port)
+        = handleIOError (\e -> logUnreachable addr port e *> pure Nothing)
+        . timeout (5 * 1000000)
+        $ bracket
+            (socket AF_INET Stream defaultProtocol)
+            close
+            (`connect` SockAddrInet (fromIntegral port) (toHostAddress addr))
+
+    mkAddr (_ , Left  _  ) = mempty
+    mkAddr (rr, Right ips) = map (\ip -> (ip, _3 rr)) ips
+
+    _4 (_,_,_,x) = x
+    _3 (_,_,x,_) = x
+
+    logUnreachable addr port e = Log.warn lgr . msg $
+        "Peer " <> show addr <> ":" <> show port <> " unreachable: " <> show e
 
 
 

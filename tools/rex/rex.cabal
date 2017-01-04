@@ -18,8 +18,10 @@ executable rex
     , bifunctors
     , bytestring
     , clock
+    , dns            >= 2.0.8
     , exceptions
     , http-types
+    , iproute
     , mtl
     , network
     , optparse-applicative
