@@ -1,5 +1,5 @@
 name:                rex
-version:             0.1.2
+version:             0.2.0
 synopsis:            Scrape and expose restund metrics for prometheus
 description:         @rex@ = @restund-exporter@ in prometheus jargon
 author:              Kim Altintop
