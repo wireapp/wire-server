@@ -26,7 +26,6 @@ import qualified Data.Text.IO                     as Text
 import qualified Data.Text.Read                   as Text
 import           Data.Traversable
 import           Data.Word
-import           Network.BSD                      (getHostName)
 import           Network.DNS                      hiding (header)
 import           Network.HTTP.Types
 import           Network.Socket                   hiding (recvFrom)
@@ -103,12 +102,10 @@ parseOpts = info (helper <*> parser) desc
 main :: IO ()
 main = withSocketsDo $ do
     opts <- execParser parseOpts
-    host <- getHostName
     lgr  <- Log.new Log.defSettings
     rlv  <- makeResolvSeed defaultResolvConf
 
-    let labels = fromList [ ("host", Text.pack host)
-                          , ("tier", optTier opts)
+    let labels = fromList [ ("tier", optTier opts)
                           , ("app", "restund")
                           , ("srv", "rex")
                           ]
