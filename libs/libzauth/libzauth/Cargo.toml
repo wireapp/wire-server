@@ -1,0 +1,15 @@
+[package]
+name    = "zauth"
+version = "3.0.0"
+authors = ["Toralf Wittner <tw@dtex.org>"]
+
+[lib]
+name = "zauth"
+
+[dependencies]
+asexp           = ">= 0.3"
+rustc-serialize = ">= 0.3"
+sodiumoxide     = ">= 0.0.10"
+
+[dev-dependencies]
+clap = ">= 2.0"

@@ -1,0 +1,14 @@
+[package]
+name    = "zauth-c"
+version = "3.0.0"
+authors = ["Toralf Wittner <tw@dtex.org>"]
+
+[lib]
+name       = "zauth"
+crate-type = ["dylib"]
+
+[dependencies]
+libc = ">= 0.2"
+
+[dependencies.zauth]
+path = "../libzauth"

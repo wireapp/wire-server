@@ -1,0 +1,11 @@
+prefix=<<PREFIX>>
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: libzauth
+Version: <<VERSION>>
+Description: token parsing and verification
+
+Libs: -L${libdir} -lzauth
+Cflags: -I${includedir}
