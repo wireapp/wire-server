@@ -1,0 +1,41 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
+
+module Proxy.Proxy (Proxy, runProxy)  where
+
+import Bilge.Request (requestIdName)
+import Control.Lens hiding ((.=))
+import Control.Monad.Catch
+import Control.Monad.IO.Class
+import Control.Monad.Reader
+import Data.Id (RequestId (..))
+import Proxy.Env
+import Network.Wai
+import System.Logger.Class hiding (Error, info)
+
+import qualified System.Logger as Logger
+
+newtype Proxy a = Proxy
+    { unProxy :: ReaderT Env IO a
+    } deriving ( Functor
+               , Applicative
+               , Monad
+               , MonadIO
+               , MonadThrow
+               , MonadCatch
+               , MonadMask
+               , MonadReader Env
+               )
+
+instance MonadLogger Proxy where
+    log l m = ask >>= \e -> Logger.log (e^.applog) l (reqIdMsg (e^.reqId) . m)
+
+runProxy :: Env -> Request -> Proxy ResponseReceived -> IO ResponseReceived
+runProxy e r m = runReaderT (unProxy m) (reqId .~ lookupReqId r $ e)
+
+reqIdMsg :: RequestId -> Msg -> Msg
+reqIdMsg = ("request" .=) . unRequestId
+{-# INLINE reqIdMsg #-}
+
+lookupReqId :: Request -> RequestId
+lookupReqId = maybe mempty RequestId . lookup requestIdName . requestHeaders

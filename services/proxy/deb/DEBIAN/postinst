@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -e
+
+APP=proxy
+
+# Ensure expected dirs are created,
+# and ensure dpkg removes them on uninstall:
+{
+    # Create empty config directory for chpst -e.
+    mkdir -p /etc/$APP
+
+    # Create application directory
+    mkdir -p /opt/$APP
+
+    # Create log directory
+    mkdir -p /var/log/$APP
+
+    # Create runit service directory
+    mkdir -p /etc/sv/$APP
+}
+
+# Set permissions
+chown -R www-data:www-data /opt/$APP
+chown -R www-data:www-data /etc/$APP
+chown -R www-data:www-data /etc/sv/$APP
+
+# Notify runit.
+ln -s /etc/sv/$APP /etc/service/$APP
