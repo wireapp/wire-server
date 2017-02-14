@@ -1,0 +1,10 @@
+ngx_addon_name=zauth_module
+
+ngx_module_type=HTTP
+ngx_module_name=$ngx_addon_name
+ngx_module_srcs="$ngx_addon_dir/zauth_module.c"
+ngx_module_incs=$(pkg-config --variable includedir libzauth)
+ngx_module_libs=$(pkg-config --libs libzauth)
+
+. auto/module
+

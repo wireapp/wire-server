@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -e
+
+APP=nginz
+
+# If runit symlink exists for $APP, stop the service and remove the link.
+[[ -L /etc/service/$APP ]] && sv down $APP && rm /etc/service/$APP && sleep 5

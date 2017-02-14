@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+ulimit -n 131072
+
+exec 2>&1
+
+APP=nginz
+USER=${USER:-www-data}
+CONFIG=${CONFIG:-/etc/$APP/nginx.conf}
+
+chpst -u $USER get_config
+
+exec /opt/$APP/sbin/nginx -c $CONFIG -g "daemon off;"

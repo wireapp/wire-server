@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -e
+
+APP=nginz
+
+mkdir -p /var/log/$APP
+mkdir -p /etc/$APP
+
+chown -R www-data:www-data /var/log/$APP
+chown -R www-data:www-data /etc/$APP
+
+ln -s /etc/sv/$APP /etc/service/$APP

@@ -1,0 +1,6 @@
+Package: nginz
+Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
+Maintainer: Toralf Wittner <tw@wire.com>
+Architecture: amd64
+Depends: libglib2.0-0,libossp-uuid16,runit,libsodium18 (>= 1.0.8)
+Description: NGINX plus some extra modules.
