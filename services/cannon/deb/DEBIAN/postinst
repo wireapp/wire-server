@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -e
+
+APP=cannon
+
+# Ensure expected dirs are created,
+# and ensure dpkg removes them on uninstall:
+{
+    # Create empty config directory for chpst -e.
+    mkdir -p /etc/$APP
+
+    # Fake log directory which would otherwise created by Snap
+    mkdir -p /opt/$APP/log
+
+    # Create actual log directory for svlogd.
+    mkdir -p /var/log/$APP
+
+    # Create empty log directory for svlogd
+    mkdir -p /etc/sv/$APP/log/main
+}
+
+# Set permissions
+chown -R www-data:www-data /opt/$APP
+chown -R www-data:www-data /etc/$APP
+chown -R www-data:www-data /etc/sv/$APP
+
+# Notify runit.
+ln -s /etc/sv/$APP /etc/service/$APP
