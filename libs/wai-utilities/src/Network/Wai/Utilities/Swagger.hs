@@ -1,0 +1,52 @@
+{-# LANGUAGE OverloadedStrings #-}
+
+module Network.Wai.Utilities.Swagger where
+
+import Control.Monad
+import Data.Function (on)
+import Data.List (groupBy)
+import Data.Monoid
+import Data.Swagger
+import Data.Swagger.Build.Api
+import Data.Text (Text)
+import Data.Text.Lazy (toStrict)
+import Data.Text.Lazy.Builder
+import Data.Text.Encoding (decodeUtf8)
+import Network.HTTP.Types.Status (statusCode)
+import Network.Wai.Routing (Routes, Meta (..), attach, examine)
+import Network.Wai.Utilities.Error
+
+import qualified Data.Text as Text
+
+mkSwaggerApi :: Text -> [Model] -> Routes ApiBuilder m a -> ApiDecl
+mkSwaggerApi base models sitemap =
+    let routes = groupBy ((==) `on` routePath) (examine sitemap) in
+    declare base "1.2" $ do
+        resourcePath "/"
+        produces "application/json"
+        authorisation ApiKey
+        mapM_ model models
+        forM_ routes $ \r ->
+            api (fixVars . decodeUtf8 $ routePath (head r)) $
+                mapM_ routeMeta r
+  where
+    fixVars = Text.intercalate "/" . map var . Text.splitOn "/"
+
+    var t | Text.null t        = t
+          | Text.head t == ':' = "{" <> Text.tail t <> "}"
+          | otherwise          = t
+
+document :: Text -> Text -> OperationBuilder -> Routes ApiBuilder m ()
+document x y = attach . operation x y
+
+errorResponse :: Error -> OperationBuilder
+errorResponse e = errorResponse' e errorModel
+
+errorResponse' :: Error -> Model -> OperationBuilder
+errorResponse' e md = response (statusCode (code e)) (renderError e) (model md)
+
+renderError :: Error -> Text
+renderError e = toStrict . toLazyText $ "[label=" <> lbl <> "] " <> msg
+  where
+    lbl = fromLazyText (label e)
+    msg = fromLazyText (message e)
