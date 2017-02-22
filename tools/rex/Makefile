@@ -1,5 +1,5 @@
 SHELL        := /usr/bin/env bash
-SRC          := $(shell find . -name "*.hs")
+SRC          := Main.hs
 VERSION      := $(shell sed -n 's/^version: *\(.*\)$$/\1/p' $(CURDIR)/rex.cabal)
 BUILD_NUMBER ?= 0
 DOCKER       ?= true
@@ -31,7 +31,7 @@ $(ACI): rex
 	mv wire.com-rex-$(VERSION).aci $(ACI)
 
 ifeq ($(DOCKER),true)
-rex:
+rex: rex.cabal stack.yaml $(SRC)
 	docker run --rm \
 		-v $(CURDIR):/rex \
 		-v ~/.stack:/root/.stack \
