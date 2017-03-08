@@ -28,7 +28,7 @@ $(ACI): rex
 	docker build -t wire.com/rex:$(VERSION) .
 	docker save -o rex-$(VERSION).docker wire.com/rex:$(VERSION)
 	docker2aci -debug rex-$(VERSION).docker
-	mv wire.com-rex-$(VERSION).aci $(ACI)
+	mv rex-$(VERSION).aci $(ACI)
 
 ifeq ($(DOCKER),true)
 rex: rex.cabal stack.yaml $(SRC)
