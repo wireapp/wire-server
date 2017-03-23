@@ -1,0 +1,18 @@
+resolver: lts-8.5
+packages:
+- '.'
+extra-deps:
+- bilge-0.22.0
+- data-checked-0.3
+- data-textual-0.3.0.2
+- data-timeout-0.3
+- metrics-core-0.3.2
+- metrics-wai-0.5.7
+- text-latin1-0.3
+- text-printer-0.5
+- types-common-0.15.1
+- types-common-json-0.15.1
+- wai-utilities-0.16.1
+flags: {}
+extra-package-dbs: []
+

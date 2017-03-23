@@ -37,18 +37,19 @@ import qualified System.Logger               as Logger
 run :: Opts -> IO ()
 run o = do
     m <- metrics
+    g <- new (setOutput StdOut . setFormat Nothing $ defSettings)
     e <- mkEnv <$> pure m
                <*> pure o
-               <*> new (setOutput StdOut . setFormat Nothing $ defSettings)
+               <*> pure g
                <*> D.empty 128
                <*> newManager defaultManagerSettings { managerConnCount = 128 }
                <*> createSystemRandom
                <*> mkClock
     s <- newSettings $ Server (host o) (port o) (applog e) m (Just idleTimeout) [] []
     let rtree    = compile sitemap
-        measured = setupMetrics m rtree
+        measured = measureRequests m rtree
         app  r k = runCannon e (route rtree r k) r
-        start    = measured $ Gzip.gzip Gzip.def app
+        start    = measured . catchErrors g m $ Gzip.gzip Gzip.def app
     runSettings s start `finally` Logger.close (applog e)
   where
     idleTimeout = fromIntegral $ maxPingInterval + 3

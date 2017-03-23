@@ -30,6 +30,7 @@ import Control.Monad.Trans.Reader
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 (pack)
 import Data.Metrics.Middleware
+import Data.Monoid ((<>))
 import Data.Word
 import Network.Wai
 import Options.Applicative

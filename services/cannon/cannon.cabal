@@ -28,7 +28,7 @@ library
           Cannon.App
 
     build-depends:
-          base                  == 4.*
+          base                  >= 4.6
         , aeson                 >= 0.11
         , async                 >= 2.0
         , bilge                 >= 0.12
@@ -91,7 +91,8 @@ test-suite cannon-tests
         -with-rtsopts=-N
 
     other-modules:
-        Test.Cannon.Dict
+          Test.Cannon.Dict
+        , Bench
 
     build-depends:
           async
