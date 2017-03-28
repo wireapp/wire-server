@@ -10,13 +10,17 @@ module Data.ZAuth.Creation
     , mkEnv
     , runCreate
 
-    , withIndex
+      -- * Specific
     , accessToken
     , accessToken1
     , userToken
     , sessionToken
     , botToken
     , providerToken
+
+      -- * Generic
+    , withIndex
+    , newToken
     , renewToken
     ) where
 
@@ -72,25 +76,22 @@ withIndex k m = Create $ do
     e <- ask
     when (k < 1 || k > Vec.length (zSign e)) $
         error "withIndex: Key index out of range."
-    local (const $ (e { keyIdx = k })) (zauth m)
+    local (const (e { keyIdx = k })) (zauth m)
 
 userToken :: Integer -> UUID -> Word32 -> Create (Token User)
 userToken dur usr rnd = do
     d <- expiry dur
-    k <- Create $ asks keyIdx
-    newToken (mkHeader tokenVersion k d U Nothing) (mkUser usr rnd)
+    newToken d U Nothing (mkUser usr rnd)
 
 sessionToken :: Integer -> UUID -> Word32 -> Create (Token User)
 sessionToken dur usr rnd = do
     d <- expiry dur
-    k <- Create $ asks keyIdx
-    newToken (mkHeader tokenVersion k d U (Just S)) (mkUser usr rnd)
+    newToken d U (Just S) (mkUser usr rnd)
 
 accessToken :: Integer -> UUID -> Word64 -> Create (Token Access)
 accessToken dur usr con = do
     d <- expiry dur
-    k <- Create $ asks keyIdx
-    newToken (mkHeader tokenVersion k d A Nothing) (mkAccess usr con)
+    newToken d A Nothing (mkAccess usr con)
 
 accessToken1 :: Integer -> UUID -> Create (Token Access)
 accessToken1 dur usr = do
@@ -99,29 +100,32 @@ accessToken1 dur usr = do
     accessToken dur usr d
 
 botToken :: UUID -> UUID -> UUID -> Create (Token Bot)
-botToken pid bid cnv = do
-    k <- Create $ asks keyIdx
-    newToken (mkHeader tokenVersion k (-1) B Nothing) (mkBot pid bid cnv)
+botToken pid bid cnv = newToken (-1) B Nothing (mkBot pid bid cnv)
 
 providerToken :: Integer -> UUID -> Create (Token Provider)
 providerToken dur pid = do
     d <- expiry dur
-    k <- Create $ asks keyIdx
-    newToken (mkHeader tokenVersion k d P Nothing) (mkProvider pid)
+    newToken d P Nothing (mkProvider pid)
 
 renewToken :: ToByteString a => Integer -> Token a -> Create (Token a)
 renewToken dur tkn = do
     d <- expiry dur
-    newToken (time .~ d $ tkn^.header) (tkn^.body)
+    newToken d (tkn^.header.typ) (tkn^.header.tag) (tkn^.body)
+
+newToken :: ToByteString a => POSIXTime -> Type -> Maybe Tag -> a -> Create (Token a)
+newToken ti ty ta a = do
+    k <- Create $ asks keyIdx
+    let h = mkHeader tokenVersion k (floor ti) ty ta
+    s <- signToken h a
+    return $ mkToken s h a
 
 -----------------------------------------------------------------------------
 -- Internal
 
-newToken :: ToByteString a => Header -> a -> Create (Token a)
-newToken h a = Create $ do
-    f <- asks zSign
-    s <- liftIO . (f ! (h^.key - 1)) . toStrict . toLazyByteString $ writeData h a
-    return $ mkToken s h a
+signToken :: ToByteString a => Header -> a -> Create Signature
+signToken h a = Create $ do
+    f <- (! (h^.key - 1)) <$> asks zSign
+    liftIO . f . toStrict . toLazyByteString $ writeData h a
 
-expiry :: (Functor m, MonadIO m) => Integer -> m Integer
-expiry duration = (duration +) . floor <$> liftIO getPOSIXTime
+expiry :: (Functor m, MonadIO m) => Integer -> m POSIXTime
+expiry d = (fromInteger d +) <$> liftIO getPOSIXTime
