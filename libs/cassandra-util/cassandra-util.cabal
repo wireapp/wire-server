@@ -1,8 +1,11 @@
 name:                   cassandra-util
 version:                0.16.5
+author:                 Wire Swiss GmbH
+maintainer:             Wire Swiss GmbH <backend@wire.com>
+copyright:              (c) 2017 Wire Swiss GmbH
 license:                OtherLicense
 synopsis:               Cassandra Utilities
-category:               Database, Zeta
+category:               Database
 build-type:             Simple
 cabal-version:          >= 1.10
 
