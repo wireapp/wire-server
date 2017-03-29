@@ -41,7 +41,6 @@ import qualified Data.Configurator as Config
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Network.HTTP.Client as Client
-import qualified Network.TLS as TLS
 import qualified Network.Wai.Internal as I
 import qualified System.Logger as Logger
 
@@ -50,11 +49,10 @@ run o = do
     m <- metrics
     e <- createEnv m o
     s <- newSettings $ defaultServer (o^.hostname) (o^.port) (e^.applog) m
-    limited <- connLimit (o^.maxConns) [] m
     let rtree    = compile (sitemap e)
-    let measured = setupMetrics m rtree
+    let measured = measureRequests m rtree
     let app r k  = runProxy e r (route rtree r k)
-    let start    = limited . measured $ app
+    let start    = measured . catchErrors (e^.applog) m $ app
     runSettings s start `finally` destroyEnv e
 
 sitemap :: Env -> Routes a Proxy ()
@@ -187,10 +185,10 @@ soundcloudStream :: Text -> Proxy Response
 soundcloudStream url = do
     e <- view secrets
     s <- liftIO $ Config.require e "secrets.soundcloud"
-    req1 <- Req.queryItem "client_id" s <$> Client.parseUrl (Text.unpack url)
+    req1 <- Req.queryItem "client_id" s <$> Client.parseUrlThrow (Text.unpack url)
     unless (Client.secure req1 && Client.host req1 == "api.soundcloud.com") $
         failWith "insecure stream url"
-    let req2 = req1 { Client.redirectCount = 0, Client.checkStatus  = \_ _ _ -> Nothing }
+    let req2 = req1 { Client.redirectCount = 0 }
     mgr <- view manager
     res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs req2 mgr)
     unless (status302 == Client.responseStatus res) $ do
@@ -208,15 +206,11 @@ x2 = exponentialBackoff 5000 <> limitRetries 2
 
 handler :: (MonadIO m, MonadMask m) => RetryStatus -> Handler m Bool
 handler = const $ Handler $ \case
-    Client.NoResponseDataReceived        -> return True
-    Client.FailedConnectionException  {} -> return True
-    Client.FailedConnectionException2 {} -> return True
-    Client.TlsException               {} -> return True
-    Client.TlsExceptionHostPort x _ _    ->
-        case fromException x of
-            Just TLS.HandshakeFailed {} -> return True
-            _                           -> return False
-    _ -> return False
+    Client.HttpExceptionRequest _ Client.NoResponseDataReceived -> return True
+    Client.HttpExceptionRequest _ Client.IncompleteHeaders      -> return True
+    Client.HttpExceptionRequest _ (Client.ConnectionTimeout)    -> return True
+    Client.HttpExceptionRequest _ (Client.ConnectionFailure _)  -> return True
+    _                                                           -> return False
 
 safeQuery :: Query -> Query
 safeQuery = filter noAccessToken where

@@ -25,3 +25,4 @@ gen-hs
 log
 tags
 .stack-work
+.metadata

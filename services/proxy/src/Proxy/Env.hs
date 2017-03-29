@@ -40,11 +40,11 @@ makeLenses ''Env
 
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    g <- new (setOutput StdOut . setFormat "" $ defSettings)
+    g <- new (setOutput StdOut . setFormat Nothing $ defSettings)
     n <- newManager tlsManagerSettings
             { managerConnCount           = o^.httpPoolSize
             , managerIdleConnectionCount = 3 * (o^.httpPoolSize)
-            , managerResponseTimeout     = Just 5000000
+            , managerResponseTimeout     = responseTimeoutMicro 5000000
             }
     let ac = AutoConfig 60 (reloadError g)
     (c, t) <- autoReload ac [Required $ o^.config]

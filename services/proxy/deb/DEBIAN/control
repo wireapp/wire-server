@@ -1,6 +1,6 @@
 Package: proxy
 Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
-Maintainer: Toralf Wittner <tw@wire.com>
+Maintainer: Wire Swiss GmbH <backend@wire.com>
 Architecture: amd64
 Depends: runit
 Description: 3rd party proxy
