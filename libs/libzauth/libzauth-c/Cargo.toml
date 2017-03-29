@@ -1,7 +1,7 @@
 [package]
 name    = "zauth-c"
 version = "3.0.0"
-authors = ["Toralf Wittner <tw@dtex.org>"]
+authors = ["Wire Swiss GmbH <backend@wire.com>"]
 
 [lib]
 name       = "zauth"
