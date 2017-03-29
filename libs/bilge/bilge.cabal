@@ -14,10 +14,6 @@ extra-source-files:  README.md
 description:
     Library for constructing HTTP requests and asserting on their responses.
 
-source-repository head
-    type:             git
-    location:         git@github.com:wireapp/wire-server.git
-
 library
     default-language: Haskell2010
     hs-source-dirs:   src
