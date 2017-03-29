@@ -48,7 +48,6 @@ module Bilge.IO
     ) where
 
 import Prelude hiding (head)
-import Control.Applicative hiding (empty)
 import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
