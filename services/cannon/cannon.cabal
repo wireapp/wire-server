@@ -1,6 +1,9 @@
 name:                 cannon
 version:              0.28.0
 synopsis:             Push Notification API
+author:               Wire Swiss GmbH
+maintainer:           Wire Swiss GmbH <backend@wire.com>
+copyright:            (c) 2017 Wire Swiss GmbH
 license:              OtherLicense
 category:             Network
 build-type:           Simple
@@ -8,10 +11,6 @@ cabal-version:        >= 1.10
 
 description:
     Push Notification API Service.
-
-source-repository head
-    type:             git
-    location:         git://github.com/wearezeta/cannon.git
 
 library
     default-language: Haskell2010
@@ -28,7 +27,7 @@ library
           Cannon.App
 
     build-depends:
-          base                  >= 4.6
+          base                  >= 4.6   && < 5
         , aeson                 >= 0.11
         , async                 >= 2.0
         , bilge                 >= 0.12

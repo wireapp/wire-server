@@ -1,8 +1,9 @@
-resolver: lts-8.5
+resolver: lts-8.6
 packages:
 - '.'
+- ../../libs/bilge
+- ../../libs/wai-utilities
 extra-deps:
-- bilge-0.22.0
 - data-checked-0.3
 - data-textual-0.3.0.2
 - data-timeout-0.3
@@ -12,7 +13,6 @@ extra-deps:
 - text-printer-0.5
 - types-common-0.15.1
 - types-common-json-0.15.1
-- wai-utilities-0.16.1
 flags: {}
 extra-package-dbs: []
 

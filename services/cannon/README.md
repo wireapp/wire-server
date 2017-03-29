@@ -1,4 +1,2 @@
-cannon
-======
+# Cannon
 
-The new sexy pusher
