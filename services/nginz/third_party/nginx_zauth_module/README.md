@@ -44,8 +44,3 @@ access-token and set in upstream requests as headers "Z-User"/"Z-Connection".
         proxy_pass       http://localhost:9000;
     }
 
-## Building
-
-This module requires `glib`. If necessary edit the include and library paths
-in `config`. Including the module in NGINX's build requires the configure
-option `--add-module <path-to-nginx-zauth-module-directory>`.
