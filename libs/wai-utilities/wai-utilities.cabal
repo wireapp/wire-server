@@ -1,8 +1,9 @@
 name:                 wai-utilities
 version:              0.16.1
 synopsis:             Various helpers for WAI
-author:               Toralf Wittner
-maintainer:           Toralf Wittner <toralf.wittner@wearezeta.com>
+author:               Wire Swiss GmbH
+maintainer:           Wire Swiss GmbH <backend@wire.com>
+copyright:            (c) 2017 Wire Swiss GmbH
 license:              OtherLicense
 category:             Web
 build-type:           Simple
@@ -10,10 +11,6 @@ cabal-version:        >= 1.10
 
 description:
     Small helper functions useful when working with WAI.
-
-source-repository head
-    type:             git
-    location:         git://github.com/wearezeta/wai-utility.git
 
 library
     default-language: Haskell2010
