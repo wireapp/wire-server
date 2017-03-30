@@ -26,3 +26,4 @@ log
 tags
 .stack-work
 .metadata
+services/nginz/src
