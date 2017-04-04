@@ -1,14 +1,13 @@
 name:                 types-common-journal
 version:              0.16.0
 synopsis:             Event type definitions.
-homepage:             https://github.com/zinfra/types-common
+author:               Wire Swiss GmbH
+maintainer:           Wire Swiss GmbH <backend@wire.com>
+copyright:            (c) 2017 Wire Swiss GmbH
 license:              AllRightsReserved
-author:               Kim Altintop
-maintainer:           Kim Altintop <kim@wire.com>
-copyright:            (c) 2015 Zeta Project
 category:             Data
 build-type:           Simple
-cabal-version:        >=1.10
+cabal-version:        >= 1.10
 description:          Types used for the event system.
 extra-source-files:   proto/events.proto
 

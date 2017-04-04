@@ -1,16 +1,14 @@
-name:                 types-common
-version:              0.16.0
-synopsis:             Shared type definitions.
-author:               Toralf Wittner
-maintainer:           Toralf Wittner <tw@dtex.org>
-copyright:            (C) 2014-2016 Zeta Project
-license:              AllRightsReserved
-category:             System
-build-type:           Simple
-cabal-version:        >= 1.10
-
-description:
-    Types shared with many other projects.
+name:          types-common
+version:       0.16.0
+synopsis:      Shared type definitions.
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2017 Wire Swiss GmbH
+license:       AllRightsReserved
+category:      System
+build-type:    Simple
+cabal-version: >= 1.10
+description:   Types shared with many other projects.
 
 flag cql
     description: Enable cql instances
