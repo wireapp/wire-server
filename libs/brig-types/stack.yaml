@@ -1,0 +1,13 @@
+resolver: lts-8.6
+packages:
+- '.'
+- '../galley-types'
+- '../gundeck-types'
+- '../types-common'
+
+flags:
+  types-common:
+    protobuf: True
+
+extra-deps: []
+extra-package-dbs: []

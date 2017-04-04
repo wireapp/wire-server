@@ -1,0 +1,13 @@
+resolver: lts-8.6
+packages:
+- '.'
+- '../brig-types'
+- '../types-common'
+- '../gundeck-types'
+
+flags:
+  types-common:
+    protobuf: True
+
+extra-deps: []
+extra-package-dbs: []
