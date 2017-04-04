@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 {-# OPTIONS_GHC -fno-warn-orphans       #-} -- for UUID instances
 
 module Data.Id where
@@ -179,6 +180,10 @@ instance FromJSON ClientId where
             fail "Invalid ClientId"
         return (ClientId x)
 
+#ifdef WITH_CQL
+deriving instance Cql ClientId
+#endif
+
 #ifdef WITH_ARBITRARY
 instance Arbitrary ClientId where
     arbitrary = newClientId <$> arbitrary
@@ -213,6 +218,10 @@ instance Show BotId where
 
 instance Read BotId where
     readsPrec n = map (\(a, x) -> (BotId a, x)) . readsPrec n
+
+#ifdef WITH_CQL
+deriving instance Cql BotId
+#endif
 
 #ifdef WITH_ARBITRARY
 instance Arbitrary BotId where
