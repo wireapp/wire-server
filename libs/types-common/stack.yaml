@@ -1,7 +1,6 @@
 resolver: lts-8.6
 packages:
 - '.'
-- '../types-common'
 extra-deps: []
-extra-package-dbs: []
 flags: {}
+extra-package-dbs: []

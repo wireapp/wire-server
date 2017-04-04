@@ -1,0 +1,246 @@
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TypeOperators       #-}
+
+module Data.Range
+    ( Range
+    , LTE
+    , Within
+    , Bounds (..)
+    , checked
+    , checkedEither
+    , unsafeRange
+    , fromRange
+    , rcast
+    , rnil
+    , rcons, (<|)
+    , rinc
+    , rappend
+    , rsingleton
+    ) where
+
+import Control.DeepSeq (NFData (..))
+import Data.Aeson
+import Data.Aeson.Types as Aeson
+import Data.ByteString.Conversion
+import Data.HashMap.Strict (HashMap)
+import Data.HashSet (HashSet)
+import Data.Int
+import Data.List.NonEmpty (NonEmpty)
+import Data.List1 (List1, toNonEmpty)
+import Data.Map (Map)
+import Data.Maybe
+import Data.Monoid
+import Data.Sequence (Seq)
+import Data.Set (Set)
+import Data.Singletons.Prelude.Num
+import Data.Singletons
+import Data.Singletons.Prelude.Ord
+import Data.Singletons.TypeLits
+import Data.Text.Ascii (AsciiText)
+import Data.Word
+#ifdef WITH_CQL
+import Database.CQL.Protocol hiding (Set, Map)
+#endif
+
+import qualified Data.Attoparsec.ByteString as Atto
+import qualified Data.ByteString            as B
+import qualified Data.ByteString.Lazy       as BL
+import qualified Data.HashMap.Strict        as HashMap
+import qualified Data.HashSet               as HashSet
+import qualified Data.List.NonEmpty         as N
+import qualified Data.Map                   as Map
+import qualified Data.Text                  as T
+import qualified Data.Text.Ascii            as Ascii
+import qualified Data.Text.Lazy             as TL
+import qualified Data.Set                   as Set
+import qualified Data.Sequence              as Seq
+
+-----------------------------------------------------------------------------
+
+newtype Range (n :: Nat) (m :: Nat) a = Range
+    { fromRange :: a
+    } deriving (Eq, Ord, Show)
+
+instance NFData (Range n m a) where rnf (Range a) = seq a ()
+
+instance ToJSON a => ToJSON (Range n m a) where
+    toJSON = toJSON . fromRange
+
+instance (Within a n m, FromJSON a) => FromJSON (Range n m a) where
+    parseJSON v = parseJSON v >>= maybe (errorMsg sing sing) return . checked
+      where
+        errorMsg :: Bounds a => SNat n -> SNat m -> Aeson.Parser (Range n m a)
+        errorMsg n m = fail $ showString "outside range ["
+                            . shows (fromSing n)
+                            . showString ", "
+                            . shows (fromSing m)
+                            . showString "]"
+                            $ ""
+
+#ifdef WITH_CQL
+instance (Within a n m, Cql a) => Cql (Range n m a) where
+    ctype = retag (ctype :: Tagged a ColumnType)
+    toCql = toCql . fromRange
+    fromCql c = fromCql c >>= maybe (errorMsg sing sing) return . checked
+      where
+        errorMsg :: Bounds a => SNat n -> SNat m -> Either String (Range n m a)
+        errorMsg n m = Left $ showString "outside range ["
+                            . shows (fromSing n)
+                            . showString ", "
+                            . shows (fromSing m)
+                            . showString "]"
+                            $ ""
+#endif
+
+type LTE (n :: Nat) (m :: Nat)      = (SingI n, SingI m, (n :<= m) ~ 'True)
+type Within a (n :: Nat) (m :: Nat) = (Bounds a, LTE n m)
+
+checked :: Within a n m => a -> Maybe (Range n m a)
+checked x = either (const Nothing) Just (checkedEither x)
+
+checkedEither :: Within a n m => a -> Either String (Range n m a)
+checkedEither x = mk x sing sing
+  where
+    mk :: Bounds a => a -> SNat n -> SNat m -> Either String (Range n m a)
+    mk a sn sm =
+        let n = fromSing sn
+            m = fromSing sm
+        in if within a n m
+               then Right (Range a)
+               else Left (errorMsg n m)
+
+    errorMsg n m = showString "outside range ["
+                 . shows n
+                 . showString ", "
+                 . shows m
+                 . showString "]"
+                 $ ""
+
+unsafeRange :: (Show a, Within a n m) => a -> Range n m a
+unsafeRange x = fromMaybe (errorMsg sing sing) (checked x)
+  where
+    errorMsg :: SNat n -> SNat m -> Range n m a
+    errorMsg n m = error $ shows x
+                         . showString " is outside range ["
+                         . shows (fromSing n)
+                         . showString ", "
+                         . shows (fromSing m)
+                         . showString "]"
+                         $ ""
+
+rcast :: (LTE n m, (m :<= m') ~ 'True, (n :>= n') ~ 'True) => Range n m a -> Range n' m' a
+rcast (Range a) = Range a
+
+rnil :: Monoid a => Range 0 0 a
+rnil = Range mempty
+
+rcons, (<|) :: LTE n m => a -> Range n m [a] -> Range n (m :+ 1) [a]
+rcons a (Range aa) = Range (a:aa)
+
+infixr 5 <|
+(<|) = rcons
+
+rinc :: (Integral a, LTE n m ) => Range n m a -> Range n (m :+ 1) a
+rinc (Range a) = Range (a + 1)
+
+rappend :: (LTE n m, LTE n' m', Monoid a) => Range n m a -> Range n' m' a -> Range n (m :+ m') a
+rappend (Range a) (Range b) = Range (a <> b)
+
+rsingleton :: a -> Range 1 1 [a]
+rsingleton = Range . pure
+
+-----------------------------------------------------------------------------
+
+class Bounds a where
+    within :: a -> Integer -> Integer -> Bool
+
+rangeCheck :: (Integral a, Integral x, Integral y) => a -> x -> y -> Bool
+rangeCheck a x y = a >= fromIntegral x && a <= fromIntegral y
+{-# INLINE rangeCheck #-}
+
+instance Bounds Integer where within = rangeCheck
+instance Bounds Int     where within = rangeCheck
+instance Bounds Int8    where within = rangeCheck
+instance Bounds Int16   where within = rangeCheck
+instance Bounds Int32   where within = rangeCheck
+instance Bounds Int64   where within = rangeCheck
+instance Bounds Word    where within = rangeCheck
+instance Bounds Word8   where within = rangeCheck
+instance Bounds Word16  where within = rangeCheck
+instance Bounds Word32  where within = rangeCheck
+instance Bounds Word64  where within = rangeCheck
+
+instance Bounds T.Text where
+    within x y z = rangeCheck (T.length (T.take (fromIntegral z + 1) x)) y z
+
+instance Bounds TL.Text where
+    within x y z = rangeCheck (TL.length (TL.take (fromIntegral z + 1) x)) y z
+
+instance Bounds B.ByteString where
+    within x = rangeCheck (B.length x)
+
+instance Bounds BL.ByteString where
+    within x y z =  rangeCheck (BL.length (BL.take (fromIntegral z + 1) x)) y z
+
+instance Bounds [a] where
+    within x y z = rangeCheck (length (take (fromIntegral z + 1) x)) y z
+
+instance Bounds (NonEmpty a) where
+    within x y z = rangeCheck (length (N.take (fromIntegral z + 1) x)) y z
+
+instance Bounds (List a) where
+    within x = within (fromList x)
+
+instance Bounds (List1 a) where
+    within x = within (toNonEmpty x)
+
+instance Bounds (Set a) where
+    within x y z = rangeCheck (Set.size x) y z
+
+instance Bounds (Seq a) where
+    within x y z = rangeCheck (Seq.length x) y z
+
+instance Bounds (Map k a) where
+    within x y z = rangeCheck (Map.size x) y z
+
+instance Bounds (HashMap k a) where
+    within x y z = rangeCheck (length (take (fromIntegral z + 1) (HashMap.toList x))) y z
+
+instance Bounds (HashSet a) where
+    within x y z = rangeCheck (length (take (fromIntegral z + 1) (HashSet.toList x))) y z
+
+instance Bounds a => Bounds (Maybe a) where
+    within Nothing  _ _ = True
+    within (Just x) y z = within x y z
+
+instance Bounds (AsciiText r) where
+    within x y z = within (Ascii.toText x) y z
+
+-----------------------------------------------------------------------------
+
+instance (Within a n m, Read a) => Read (Range n m a) where
+    readsPrec p s = fromMaybe [] $ foldr f (Just []) (readsPrec p s)
+      where
+        f :: (Within a n m, Read a) => (a, String) -> Maybe [(Range n m a, String)] -> Maybe [(Range n m a, String)]
+        f _      Nothing    = Nothing
+        f (a, t) (Just acc) = (\a' -> (a',t):acc) <$> checked a
+
+-----------------------------------------------------------------------------
+
+instance (Within a n m, FromByteString a) => FromByteString (Range n m a) where
+    parser = parser >>= maybe (errorMsg sing sing) return . checked
+      where
+        errorMsg :: Bounds a => SNat n -> SNat m -> Atto.Parser (Range n m a)
+        errorMsg n m = fail $ showString "outside range ["
+                            . shows (fromSing n)
+                            . showString ", "
+                            . shows (fromSing m)
+                            . showString "]"
+                            $ ""
+
+instance ToByteString a => ToByteString (Range n m a) where
+    builder = builder . fromRange

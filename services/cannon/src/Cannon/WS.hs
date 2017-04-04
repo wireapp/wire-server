@@ -47,7 +47,6 @@ import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Hashable
 import Data.Id (ClientId, UserId, ConnId (..))
-import Data.Id.Json ()
 import Data.IORef
 import Data.Monoid
 import Data.Text.Encoding (decodeUtf8)

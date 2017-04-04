@@ -1,0 +1,110 @@
+name:                 types-common
+version:              0.16.0
+synopsis:             Shared type definitions.
+author:               Toralf Wittner
+maintainer:           Toralf Wittner <tw@dtex.org>
+copyright:            (C) 2014-2016 Zeta Project
+license:              AllRightsReserved
+category:             System
+build-type:           Simple
+cabal-version:        >= 1.10
+
+description:
+    Types shared with many other projects.
+
+flag cql
+    description: Enable cql instances
+    default:     False
+
+flag protobuf
+    description: Enable protocol buffers instances
+    default:     False
+
+flag arbitrary
+    description: Enable quickcheck's arbitrary instances
+    default:     False
+
+library
+    default-language: Haskell2010
+    hs-source-dirs:   src
+    ghc-options:      -Wall -O2 -fwarn-tabs
+    if impl(ghc >= 8)
+        ghc-options:  -fno-warn-redundant-constraints
+    ghc-prof-options: -fprof-auto-exported
+
+    exposed-modules:
+          Data.ETag
+          Data.Id
+          Data.Json.Util
+          Data.List1
+          Data.Misc
+          Data.Range
+          Data.Swagger
+          Data.Text.Ascii
+          Data.UUID.Tagged
+
+    build-depends:
+          attoparsec            >= 0.11
+        , aeson                 >= 1.0
+        , base                  == 4.*
+        , base16-bytestring     >= 0.1
+        , base64-bytestring     >= 1.0
+        , bytestring            >= 0.10
+        , bytestring-conversion >= 0.2
+        , containers            >= 0.5
+        , cryptohash-md5        >= 0.11.7.2
+        , cryptohash-sha1       >= 0.11.7.2
+        , deepseq               >= 1.4
+        , errors                >= 2.0
+        , hashable              >= 1.2
+        , iproute               >= 1.5
+        , lens                  >= 4.10
+        , semigroups            >= 0.12
+        , safe                  >= 0.3
+        , singletons            >= 2.0
+        , swagger               >= 0.3
+        , text                  >= 0.11
+        , time                  >= 1.6
+        , time-locale-compat    >= 0.1
+        , transformers          >= 0.3
+        , unordered-containers  >= 0.2
+        , uri-bytestring        >= 0.2
+        , uuid                  >= 1.3.11
+        , vector                >= 0.11
+
+    if flag(cql)
+        cpp-options:   "-DWITH_CQL"
+        build-depends: cql >= 3.0
+
+    if flag(protobuf)
+        cpp-options:   "-DWITH_PROTOBUF"
+        build-depends: protobuf >= 0.2
+
+    if flag(arbitrary)
+        cpp-options:   "-DWITH_ARBITRARY"
+        build-depends: QuickCheck >= 2.9
+
+test-suite tests
+    default-language: Haskell2010
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   test
+    main-is:          Main.hs
+    ghc-options:      -threaded
+    other-modules:    Test.Properties
+
+    build-depends:
+          base
+        , base16-bytestring
+        , base64-bytestring
+        , cereal
+        , bytestring
+        , bytestring-conversion
+        , protobuf
+        , QuickCheck
+        , tasty
+        , tasty-quickcheck
+        , text
+        , text-format
+        , types-common
+        , uuid
+

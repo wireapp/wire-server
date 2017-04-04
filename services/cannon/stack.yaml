@@ -1,8 +1,9 @@
 resolver: lts-8.6
 packages:
 - '.'
-- ../../libs/bilge
-- ../../libs/wai-utilities
+- '../../libs/bilge'
+- '../../libs/types-common'
+- '../../libs/wai-utilities'
 extra-deps:
 - data-checked-0.3
 - data-textual-0.3.0.2
@@ -11,8 +12,6 @@ extra-deps:
 - metrics-wai-0.5.7
 - text-latin1-0.3
 - text-printer-0.5
-- types-common-0.15.1
-- types-common-json-0.15.1
 flags: {}
 extra-package-dbs: []
 
