@@ -1,0 +1,5 @@
+Package: galley-integration
+Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
+Maintainer: Bjorn Nordbo <bjorn@wearezeta.com>
+Architecture: amd64
+Description: Integration Test for Galley

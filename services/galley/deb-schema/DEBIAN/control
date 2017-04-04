@@ -1,0 +1,5 @@
+Package: galley-schema
+Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
+Maintainer: Kim Altintop <kim@wearezeta.com>
+Architecture: all
+Description: Schema Definition / Migration for Galley

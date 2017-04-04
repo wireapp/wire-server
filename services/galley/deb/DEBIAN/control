@@ -1,0 +1,7 @@
+Package: galley
+Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
+Maintainer: Roman Borschel <roman@wire.com>
+Architecture: amd64
+Depends: runit
+Description: Conversation Service
+ Galley is a web service for managing conversations

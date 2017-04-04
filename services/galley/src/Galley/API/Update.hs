@@ -1,0 +1,416 @@
+{-# LANGUAGE ConstraintKinds   #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE MultiWayIf        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE TypeOperators     #-}
+
+module Galley.API.Update
+    ( -- * Managing Conversations
+      updateConversation
+    , acceptConv
+    , blockConv
+    , unblockConv
+    , joinConversation
+
+      -- * Managing Members
+    , addMembers
+    , updateMember
+    , removeMember
+
+      -- * Talking
+    , postOtrMessage
+    , postProtoOtrMessage
+    , isTyping
+
+      -- * External Services
+    , addService
+    , rmService
+    , Galley.API.Update.addBot
+    , rmBot
+    , postBotMessage
+    ) where
+
+import Control.Applicative hiding (empty)
+import Control.Concurrent.Lifted (fork)
+import Control.Lens ((&), (.~), (?~), (^.), (<&>), set)
+import Control.Monad
+import Control.Monad.Catch
+import Control.Monad.IO.Class
+import Data.Bool (bool)
+import Data.Foldable
+import Data.Id
+import Data.List1 (singleton)
+import Data.Maybe (fromMaybe, catMaybes)
+import Data.Range hiding ((<|))
+import Data.Text (Text)
+import Data.Time
+import Galley.App
+import Galley.API.Error
+import Galley.API.Mapping
+import Galley.API.Util
+import Galley.Data.Services as Data
+import Galley.Intra.Push
+import Galley.Intra.User
+import Galley.Types
+import Galley.Types.Bot
+import Galley.Types.Clients (Clients)
+import Galley.Validation
+import Network.HTTP.Types
+import Network.Wai
+import Network.Wai.Predicate hiding (setStatus, failure)
+import Network.Wai.Utilities
+import Prelude hiding (any, elem, head)
+
+import qualified Data.Map.Strict      as Map
+import qualified Data.Set             as Set
+import qualified Galley.Data          as Data
+import qualified Galley.External      as External
+import qualified Galley.Types.Clients as Clients
+import qualified Galley.Types.Proto   as Proto
+
+acceptConv :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
+acceptConv (usr ::: conn ::: cnv) = do
+    conv  <- Data.conversation cnv >>= ifNothing convNotFound
+    conv' <- acceptOne2One usr conv conn
+    setStatus status200 . json <$> conversationView usr conv'
+
+blockConv :: UserId ::: ConvId -> Galley Response
+blockConv (usr ::: cnv) = do
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
+        throwM $ invalidOp "block: invalid conversation type"
+    let mems  = Data.convMembers conv
+    if | usr `isMember` mems -> Data.deleteMember usr cnv
+       | otherwise           -> return ()
+    return empty
+
+unblockConv :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
+unblockConv (usr ::: conn ::: cnv) = do
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
+        throwM $ invalidOp "unblock: invalid conversation type"
+    conv' <- acceptOne2One usr conv conn
+    setStatus status200 . json <$> conversationView usr conv'
+
+joinConversation :: UserId ::: ConnId ::: ConvId ::: JSON -> Galley Response
+joinConversation (zusr ::: zcon ::: cnv ::: _) = do
+    c <- Data.conversation cnv >>= ifNothing convNotFound
+    unless (LinkAccess `elem` Data.convAccess c) $
+        throwM convNotFound
+    let new = filter (notIsMember c) [zusr]
+    ensureMemberLimit (toList $ Data.convMembers c) new
+    addToConversation (botsAndUsers (Data.convMembers c)) zusr zcon new c
+
+addMembers :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
+addMembers (zusr ::: zcon ::: cnv ::: req ::: _) = do
+    js <- fromBody req invalidPayload
+    cc <- Data.conversation cnv >>= ifNothing convNotFound
+    let mems@(_, users) = botsAndUsers (Data.convMembers cc)
+    unless (zusr `isMember` users) $
+        throwM convNotFound
+    unless (InviteAccess `elem` Data.convAccess cc) $
+        throwM accessDenied
+    new <- rangeChecked (toList $ invUsers js) :: Galley (Range 1 128 [UserId])
+    let us = filter (notIsMember cc) (fromRange new)
+    ensureMemberLimit (toList $ Data.convMembers cc) us
+    ensureConnected zusr new
+    addToConversation mems zusr zcon us cc
+
+updateMember :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
+updateMember (zusr ::: zcon ::: cnv ::: req ::: _) = do
+    j   <- fromBody req invalidPayload
+    m   <- Data.member cnv zusr >>= ifNothing convNotFound
+    up  <- Data.updateMember cnv zusr j
+    now <- liftIO getCurrentTime
+    let e = Event MemberStateUpdate cnv zusr now (Just $ EdMemberUpdate up)
+    let ms = applyChanges m up
+    for_ (newPush e [recipient ms]) $ \p ->
+        push1 $ p
+              & pushConn  ?~ zcon
+              & pushRoute .~ RouteDirect
+    return empty
+  where
+    applyChanges :: Member -> MemberUpdateData -> Member
+    applyChanges m u = m
+        { memOtrMuted       = fromMaybe (memOtrMuted m) (misOtrMuted u)
+        , memOtrMutedRef    = misOtrMutedRef u <|> memOtrMutedRef m
+        , memOtrArchived    = fromMaybe (memOtrArchived m) (misOtrArchived u)
+        , memOtrArchivedRef = misOtrArchivedRef u <|> memOtrArchivedRef m
+        , memHidden         = fromMaybe (memHidden m) (misHidden u)
+        , memHiddenRef      = misHiddenRef u <|> memHiddenRef m
+        }
+
+removeMember :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
+removeMember (zusr ::: zcon ::: cnv ::: victim) = do
+    cc <- Data.conversation cnv >>= ifNothing convNotFound
+    let (bots, users) = botsAndUsers (Data.convMembers cc)
+    unless (zusr `isMember` users) $
+        throwM convNotFound
+    case Data.convType cc of
+        SelfConv    -> throwM invalidSelfOp
+        One2OneConv -> throwM invalidOne2OneOp
+        ConnectConv -> throwM invalidConnectOp
+        _           -> return ()
+    if victim `isMember` users then do
+        e <- Data.rmMembers cc zusr (singleton victim)
+        for_ (newPush e (recipient <$> users)) $ \p ->
+            push1 $ p & pushConn ?~ zcon
+        void . fork $ void $ External.deliver (bots `zip` repeat e)
+        return $ json e & setStatus status200
+    else return $ empty & setStatus status204
+
+postBotMessage :: BotId ::: ConvId ::: OtrFilterMissing ::: Request ::: JSON ::: JSON -> Galley Response
+postBotMessage (zbot ::: zcnv ::: val ::: req ::: _) = do
+    msg <- fromBody req invalidPayload
+    postNewOtrMessage (botUserId zbot) Nothing zcnv val msg
+
+postProtoOtrMessage :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: Request ::: Media "application" "x-protobuf" -> Galley Response
+postProtoOtrMessage (zusr ::: zcon ::: cnv ::: val ::: req ::: _) =
+    Proto.toNewOtrMessage <$> fromProtoBody req invalidPayload >>=
+    postNewOtrMessage zusr (Just zcon) cnv val
+
+postOtrMessage :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: Request ::: JSON -> Galley Response
+postOtrMessage (zusr ::: zcon ::: cnv ::: val ::: req ::: _) =
+    postNewOtrMessage zusr (Just zcon) cnv val =<< fromBody req invalidPayload
+
+postNewOtrMessage :: UserId -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley Response
+postNewOtrMessage usr con cnv val msg = do
+    let sender = newOtrSender msg
+    let recvrs = newOtrRecipients msg
+    now <- liftIO getCurrentTime
+    withValidOtrRecipients usr sender cnv recvrs val now $ \rs -> do
+        let (toBots, toUsers) = foldr (newMessage now) ([],[]) rs
+        pushSome (catMaybes toUsers)
+        void . fork $ do
+            gone <- External.deliver toBots
+            mapM_ (deleteBot cnv . botMemId) gone
+  where
+    newMessage now (m, c, t) ~(toBots, toUsers) =
+        let o = OtrMessage
+              { otrSender     = newOtrSender msg
+              , otrRecipient  = c
+              , otrCiphertext = t
+              , otrData       = newOtrData msg
+              }
+            e = Event OtrMessageAdd cnv usr now (Just $ EdOtrMessage o)
+            r = recipient m & recipientClients .~ [c]
+        in case newBotMember m of
+            Just  b -> ((b,e):toBots, toUsers)
+            Nothing ->
+                let p = newPush e [r] <&>
+                        set pushConn con
+                      . set pushNativePriority (newOtrNativePriority msg)
+                      . set pushRoute          (bool RouteDirect RouteAny (newOtrNativePush msg))
+                      . set pushTransient      (newOtrTransient msg)
+                in (toBots, p:toUsers)
+
+updateConversation :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
+updateConversation (zusr ::: zcon ::: cnv ::: req ::: _) = do
+    j <- fromBody req invalidPayload
+    (bots, users) <- botsAndUsers <$> Data.members cnv
+    unless (zusr `isMember` users) $
+        throwM convNotFound
+    now <- liftIO getCurrentTime
+    cn  <- rangeChecked (cupName j)
+    Data.updateConversation cnv cn
+    let e = Event ConvRename cnv zusr now (Just $ EdConvRename j)
+    for_ (newPush e (recipient <$> users)) $ \p ->
+        push1 $ p & pushConn ?~ zcon
+    void . fork $ void $ External.deliver (bots `zip` repeat e)
+    return $ json e & setStatus status200
+
+isTyping :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
+isTyping (zusr ::: zcon ::: cnv ::: req ::: _) = do
+    j   <- fromBody req invalidPayload
+    mm  <- Data.members cnv
+    unless (zusr `isMember` mm) $
+        throwM convNotFound
+    now <- liftIO getCurrentTime
+    let e = Event Typing cnv zusr now (Just $ EdTyping j)
+    for_ (newPush e (recipient <$> mm)) $ \p ->
+        push1 $ p
+              & pushConn      ?~ zcon
+              & pushRoute     .~ RouteDirect
+              & pushTransient .~ True
+    return empty
+
+addService :: Request ::: JSON -> Galley Response
+addService (req ::: _) = do
+    Data.insertService =<< fromBody req invalidPayload
+    return empty
+
+rmService :: Request ::: JSON -> Galley Response
+rmService (req ::: _) = do
+    Data.deleteService =<< fromBody req invalidPayload
+    return empty
+
+addBot :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
+addBot (zusr ::: zcon ::: req ::: _) = do
+    b <- fromBody req invalidPayload
+    c <- Data.conversation (b^.addBotConv) >>= ifNothing convNotFound
+    let (bots, users) = botsAndUsers (Data.convMembers c)
+    unless (zusr `isMember` users) $
+        throwM convNotFound
+    ensureGroupConv c
+    unless (any ((== b^.addBotId) . botMemId) bots) $
+        ensureMemberLimit (toList $ Data.convMembers c) [botUserId (b^.addBotId)]
+    t <- liftIO getCurrentTime
+    Data.updateClient True (botUserId (b^.addBotId)) (b^.addBotClient)
+    (e, bm) <- Data.addBotMember zusr (b^.addBotService) (b^.addBotId) (b^.addBotConv) t
+    for_ (newPush e (recipient <$> users)) $ \p ->
+        push1 $ p & pushConn ?~ zcon
+    void . fork $ void $ External.deliver ((bm:bots) `zip` repeat e)
+    return (json e)
+
+rmBot :: UserId ::: Maybe ConnId ::: Request ::: JSON -> Galley Response
+rmBot (zusr ::: zcon ::: req ::: _) = do
+    b <- fromBody req invalidPayload
+    c <- Data.conversation (b^.rmBotConv) >>= ifNothing convNotFound
+    unless (zusr `isMember` Data.convMembers c) $
+        throwM convNotFound
+    let (bots, users) = botsAndUsers (Data.convMembers c)
+    if not (any ((== b^.rmBotId) . botMemId) bots)
+        then return $ setStatus status204 empty
+        else do
+            t <- liftIO getCurrentTime
+            let evd = Just (EdMembers (Members [botUserId (b^.rmBotId)]))
+            let e = Event MemberLeave (Data.convId c) zusr t evd
+            for_ (newPush e (recipient <$> users)) $ \p ->
+                push1 $ p & pushConn .~ zcon
+            Data.deleteMember (botUserId (b^.rmBotId)) (Data.convId c)
+            Data.eraseClients (botUserId (b^.rmBotId))
+            void . fork $ void $ External.deliver (bots `zip` repeat e)
+            return (json e)
+
+-------------------------------------------------------------------------------
+-- Helpers
+
+addToConversation :: ([BotMember], [Member]) -> UserId -> ConnId -> [UserId] -> Data.Conversation -> Galley Response
+addToConversation (bots, others) usr conn users c =
+    if null users then
+        return $ empty & setStatus status204
+    else do
+        ensureGroupConv c
+        now     <- liftIO getCurrentTime
+        (e, mm) <- Data.addMembers now (Data.convId c) usr (unsafeRange users)
+        for_ (newPush e (recipient <$> allMembers (toList mm))) $ \p ->
+            push1 $ p & pushConn ?~ conn
+        void . fork $ void $ External.deliver (bots `zip` repeat e)
+        return $ json e & setStatus status200
+  where
+    allMembers new = foldl' fn new others
+      where
+        fn acc m
+            | any ((== memId m) . memId) acc = acc
+            | otherwise                      = m : acc
+
+ensureGroupConv :: MonadThrow m => Data.Conversation -> m ()
+ensureGroupConv c = case Data.convType c of
+    SelfConv    -> throwM invalidSelfOp
+    One2OneConv -> throwM invalidOne2OneOp
+    ConnectConv -> throwM invalidConnectOp
+    _           -> return ()
+
+ensureMemberLimit :: MonadThrow m => [Member] -> [UserId] -> m ()
+ensureMemberLimit old new = do
+    when (length old + length new > 128) $
+        throwM tooManyMembers
+
+notIsMember :: Data.Conversation -> UserId -> Bool
+notIsMember cc u = not $ isMember u (Data.convMembers cc)
+
+-------------------------------------------------------------------------------
+-- OtrRecipients Validation
+
+data CheckedOtrRecipients
+    = ValidOtrRecipients !ClientMismatch [(Member, ClientId, Text)]
+        -- ^ Valid sender (user and client) and no missing recipients,
+        -- or missing recipients have been willfully ignored.
+    | MissingOtrRecipients !ClientMismatch
+        -- ^ Missing recipients.
+    | InvalidOtrSenderUser
+        -- ^ Invalid sender (user).
+    | InvalidOtrSenderClient
+        -- ^ Invalid sender (client).
+
+withValidOtrRecipients
+    :: UserId
+    -> ClientId
+    -> ConvId
+    -> OtrRecipients
+    -> OtrFilterMissing
+    -> UTCTime
+    -> ([(Member, ClientId, Text)] -> Galley ())
+    -> Galley Response
+withValidOtrRecipients usr clt cnv rcps val now go = do
+    membs <- Data.members cnv
+    clts  <- Data.lookupClients (map memId membs)
+    case checkOtrRecipients usr clt rcps membs clts val now of
+        ValidOtrRecipients   m r -> go r >> return (json m & setStatus status201)
+        MissingOtrRecipients m   -> return (json m & setStatus status412)
+        InvalidOtrSenderUser     -> throwM convNotFound
+        InvalidOtrSenderClient   -> throwM unknownClient
+
+-- | Check OTR sender and recipients for validity and completeness
+-- against a given list of valid members and clients, optionally
+-- ignoring missing clients. Returns 'ValidOtrRecipients' on success
+-- for further processing.
+checkOtrRecipients
+    :: UserId           -- ^ Proposed sender (user)
+    -> ClientId         -- ^ Proposed sender (client)
+    -> OtrRecipients    -- ^ Proposed recipients (users & clients).
+    -> [Member]         -- ^ Members to consider as valid recipients.
+    -> Clients          -- ^ Clients to consider as valid recipients.
+    -> OtrFilterMissing -- ^ How to filter missing clients.
+    -> UTCTime          -- ^ The current timestamp.
+    -> CheckedOtrRecipients
+checkOtrRecipients usr sid prs vms vcs val now
+    | not (Map.member usr vmembers)      = InvalidOtrSenderUser
+    | not (Clients.contains usr sid vcs) = InvalidOtrSenderClient
+    | not (Clients.null missing)         = MissingOtrRecipients mismatch
+    | otherwise                          = ValidOtrRecipients mismatch yield
+  where
+    yield = foldrOtrRecipients next [] prs
+
+    next u c t rs
+        | Just m <- member u c = (m, c, t) : rs
+        | otherwise            = rs
+
+    member u c
+        | Just m <- Map.lookup u vmembers
+        , Clients.contains u c vclients = Just m
+        | otherwise                     = Nothing
+
+    -- Valid recipient members & clients
+    vmembers   = Map.fromList $ map (\m -> (memId m, m)) vms
+    vclients   = Clients.rmClient usr sid vcs
+
+    -- Proposed (given) recipients
+    recipients = userClientMap (otrRecipientsMap prs)
+    given      = Clients.fromMap (Map.map Map.keysSet recipients)
+
+    -- Differences between valid and proposed recipients
+    missing   = filterMissing (Clients.diff vclients given)
+    unknown   = Clients.diff given vcs
+    deleted   = Clients.filter (`Map.member` vmembers) unknown
+    redundant = Clients.diff unknown deleted &
+                    if Clients.contains usr sid given
+                        then Clients.insert usr sid
+                        else id
+
+    mismatch = ClientMismatch
+             { cmismatchTime    = now
+             , missingClients   = UserClients (Clients.toMap missing)
+             , redundantClients = UserClients (Clients.toMap redundant)
+             , deletedClients   = UserClients (Clients.toMap deleted)
+             }
+
+    filterMissing miss = case val of
+        OtrReportAllMissing -> miss
+        OtrIgnoreAllMissing -> Clients.nil
+        OtrReportMissing us -> Clients.filter (`Set.member` us) miss
+        OtrIgnoreMissing us -> Clients.filter (`Set.notMember` us) miss
+
