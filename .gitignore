@@ -27,3 +27,4 @@ tags
 .stack-work
 .metadata
 services/nginz/src
+services/.env
