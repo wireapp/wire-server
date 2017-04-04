@@ -1,11 +1,6 @@
--- | Support for making connections via the OpenSSL library.
---
--- Based on http-client-openssl:
+-- | Extended version of http-client-openssl:
 --     https://github.com/snoyberg/http-client/tree/master/http-client-openssl
 --     (c) 2013 Michael Snoyman
---
--- Once this version proved useful we should send a
--- merge request to get our changes into upstream.
 module Network.HTTP.Client.OpenSSL
     ( -- * Settings
       opensslManagerSettings
