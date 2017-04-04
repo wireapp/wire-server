@@ -77,7 +77,7 @@ collectOne c s = Collector $ do
         atomicModifyIORef' r $ \t -> (a:t, ())
   where
     start mg mux = do
-        rq <- parseUrl (unpack $ url s)
+        rq <- parseUrlThrow (unpack $ url s)
         forever $ do
             tm <- getPOSIXTime
             rs <- httpLbs rq mg
