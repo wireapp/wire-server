@@ -1,0 +1,5 @@
+Package: makedeb
+Maintainer: Wire Swiss GmbH <backend@wire.com>
+Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
+Architecture: <<ARCHITECTURE>>
+Description: Create debian archives.
