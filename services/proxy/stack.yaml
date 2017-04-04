@@ -4,8 +4,13 @@ packages:
 - '../../libs/bilge'
 - '../../libs/types-common'
 - '../../libs/wai-utilities'
-extra-deps:
-- metrics-core-0.3.2
-- metrics-wai-0.5.7
-flags: {}
+- '../../libs/metrics-core'
+- '../../libs/metrics-wai'
+
+flags:
+  types-common:
+    protobuf: True
+    arbitrary: True
+
+extra-deps: []
 extra-package-dbs: []
