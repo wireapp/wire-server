@@ -1,6 +1,6 @@
 name:           http-client-openssl-ext
 version:        0.1.0
-synopsis:       Extensions to http-client-openssl.
+synopsis:       Extended version of http-client-openssl.
 license:        OtherLicense
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
