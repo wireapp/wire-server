@@ -2,16 +2,19 @@ resolver: lts-8.6
 packages:
 - '.'
 - '../../libs/bilge'
+- '../../libs/metrics-core'
+- '../../libs/metrics-wai'
 - '../../libs/types-common'
 - '../../libs/wai-utilities'
+flags:
+  types-common:
+    protobuf: True
+    arbitrary: True
 extra-deps:
 - data-checked-0.3
 - data-textual-0.3.0.2
 - data-timeout-0.3
-- metrics-core-0.3.2
-- metrics-wai-0.5.7
 - text-latin1-0.3
 - text-printer-0.5
-flags: {}
 extra-package-dbs: []
 

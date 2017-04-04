@@ -27,7 +27,6 @@ import Test.QuickCheck.Gen
 import qualified Cannon.Dict          as D
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.List            as List
-import qualified Data.UUID            as UUID
 
 tests :: TestTree
 tests = testGroup "Dict Tests"
@@ -111,14 +110,6 @@ runProp = monadicIO . forAllM arbitrary
 
 instance Arbitrary Key where
     arbitrary = mkKey <$> arbitrary <*> arbitrary
-
-instance Arbitrary (Id a) where
-    arbitrary = fmap Id
-              $ UUID.fromWords
-             <$> arbitrary
-             <*> arbitrary
-             <*> arbitrary
-             <*> arbitrary
 
 instance Arbitrary ConnId where
     arbitrary = ConnId <$> arbitrary
