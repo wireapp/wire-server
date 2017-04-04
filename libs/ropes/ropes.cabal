@@ -1,0 +1,91 @@
+name:            ropes
+version:         0.4.20
+synopsis:        Various ropes to tie together with external web services.
+license:         OtherLicense
+author:          Wire Swiss GmbH
+maintainer:      Wire Swiss GmbH <backend@wire.com>
+copyright:       (c) 2017 Wire Swiss GmbH
+build-type:      Simple
+category:        Network
+cabal-version:   >= 1.10
+
+library
+    hs-source-dirs:     src
+
+    exposed-modules:
+        Ropes.Aws
+      , Ropes.Aws.Ses
+      , Ropes.Nexmo
+      , Ropes.Twilio
+
+    default-language:   Haskell2010
+
+    build-depends:
+        aeson                 >= 0.6
+      , aws                   >= 0.10.2
+      , base                  == 4.*
+      , bytestring            >= 0.9
+      , errors                >= 1.4
+      , exceptions            >= 0.6
+      , http-client           >= 0.5
+      , http-types            >= 0.7
+      , iso3166-country-codes >= 0.20140203.7
+      , mime-mail             >= 0.4
+      , retry                 >= 0.7
+      , resourcet             >= 1.1
+      , semigroups            >= 0.11
+      , text                  >= 0.11
+      , transformers          >= 0.3
+      , time                  >= 1.1
+      , tinylog               >= 0.10.2
+
+    ghc-options:
+        -Wall
+        -fwarn-tabs
+
+test-suite ropes-aws-test
+    type:               exitcode-stdio-1.0
+    default-language:   Haskell2010
+    main-is:            Main.hs
+    hs-source-dirs:     test/integration-aws
+    other-modules:
+        Tests.Ropes.Aws.Ses
+    ghc-options:
+        -Wall
+        -fwarn-tabs
+        -threaded
+    build-depends:
+        base         >= 4    && < 5
+      , aws
+      , bytestring   >= 0.9
+      , errors       >= 2.0
+      , exceptions
+      , http-client
+      , http-client-tls
+      , HsOpenSSL    >= 0.10
+      , mime-mail    >= 0.4
+      , resourcet
+      , ropes
+      , semigroups   >= 0.11
+      , tasty        >= 0.2
+      , tasty-hunit  >= 0.2
+      , text         >= 0.11.3
+      , transformers
+      , tinylog
+
+-- Tiny test program that can be run on an AWS instance
+executable ropes-aws-auth-test
+    default-language:   Haskell2010
+    main-is:            Main.hs
+    hs-source-dirs:     test/integration-aws-auth
+    ghc-options:
+        -Wall
+        -fwarn-tabs
+        -threaded
+    build-depends:
+        base         >= 4    && < 5
+      , aws
+      , http-client
+      , ropes
+      , time
+      , tinylog
