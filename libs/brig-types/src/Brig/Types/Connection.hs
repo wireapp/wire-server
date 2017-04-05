@@ -8,7 +8,6 @@ module Brig.Types.Connection
     ) where
 
 import Brig.Types.Common as C
--- import Brig.Types.User (Name)
 import Control.Monad
 import Data.Aeson
 import Data.Aeson.Types (Parser)
@@ -53,7 +52,7 @@ data ConnectionUpdate = ConnectionUpdate
     } deriving (Eq, Show)
 
 data InvitationRequest = InvitationRequest
-    { irIdentity :: !(Either Email Phone)
+    { irEmail    :: !Email
     , irName     :: !Name
     , irMessage  :: !Message
     , irLocale   :: !(Maybe Locale)
@@ -143,14 +142,14 @@ instance ToJSON ConnectionRequest where
                       ]
 
 instance FromJSON InvitationRequest where
-    parseJSON = withObject "invitation-request" $ \o -> do
-        InvitationRequest <$> parseInvitationIdentity o
+    parseJSON = withObject "invitation-request" $ \o ->
+        InvitationRequest <$> o .:  "email"
                           <*> o .:  "invitee_name"
                           <*> o .:  "message"
                           <*> o .:? "locale"
 
 instance ToJSON InvitationRequest where
-    toJSON i = object [ either ("email" .=) ("phone" .=) (irIdentity i)
+    toJSON i = object [ "email"        .= irEmail i
                       , "invitee_name" .= irName i
                       , "message"      .= irMessage i
                       , "locale"       .= irLocale i

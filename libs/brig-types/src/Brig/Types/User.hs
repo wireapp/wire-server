@@ -413,8 +413,6 @@ data PasswordResetIdentity
         -- ^ A known phone number with a pending password reset.
 
 -- | The payload for completing a password reset.
--- TODO: Require additional secrets/verification
---       See: https://github.com/wearezeta/backend-issues/issues/155
 data CompletePasswordReset = CompletePasswordReset
     { cpwrIdent    :: !PasswordResetIdentity
     , cpwrCode     :: !PasswordResetCode

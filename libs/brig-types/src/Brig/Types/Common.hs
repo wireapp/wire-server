@@ -164,9 +164,8 @@ instance ToJSON PhoneBudgetTimeout where
 -----------------------------------------------------------------------------
 -- UserIdentity
 
--- | The private unique user identity that is used for login and account recovery
--- and is only shared with confirmed connections or those to whom a connection
--- request was sent.
+-- | The private unique user identity that is used for login and
+-- account recovery.
 data UserIdentity
     = FullIdentity  !Email !Phone
     | EmailIdentity !Email
