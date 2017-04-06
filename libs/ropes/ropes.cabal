@@ -1,10 +1,11 @@
 name:            ropes
 version:         0.4.20
 synopsis:        Various ropes to tie together with external web services.
-license:         OtherLicense
 author:          Wire Swiss GmbH
 maintainer:      Wire Swiss GmbH <backend@wire.com>
 copyright:       (c) 2017 Wire Swiss GmbH
+license:         AGPL-3
+license-file:    LICENSE
 build-type:      Simple
 category:        Network
 cabal-version:   >= 1.10

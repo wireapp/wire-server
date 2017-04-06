@@ -1,10 +1,11 @@
 name:                bilge
 version:             0.22.0
 synopsis:            Library for composing HTTP requests.
-license:             OtherLicense
 author:              Wire Swiss GmbH
 maintainer:          Wire Swiss GmbH <backend@wire.com>
 copyright:           (c) 2017 Wire Swiss GmbH
+license:             AGPL-3
+license-file:        LICENSE
 stability:           experimental
 category:            Network
 build-type:          Simple

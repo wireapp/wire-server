@@ -3,7 +3,8 @@ version:        1.21.7
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2017 Wire Swiss GmbH
-license:        OtherLicense
+license:        AGPL-3
+license-file:   LICENSE
 synopsis:       User Service
 category:       Network
 build-type:     Simple

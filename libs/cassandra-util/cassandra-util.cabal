@@ -1,13 +1,14 @@
-name:                   cassandra-util
-version:                0.16.5
-author:                 Wire Swiss GmbH
-maintainer:             Wire Swiss GmbH <backend@wire.com>
-copyright:              (c) 2017 Wire Swiss GmbH
-license:                OtherLicense
-synopsis:               Cassandra Utilities
-category:               Database
-build-type:             Simple
-cabal-version:          >= 1.10
+name:          cassandra-util
+version:       0.16.5
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2017 Wire Swiss GmbH
+license:       AGPL-3
+license-file:  LICENSE
+synopsis:      Cassandra Utilities
+category:      Database
+build-type:    Simple
+cabal-version: >= 1.10
 
 library
     hs-source-dirs:     src

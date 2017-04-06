@@ -1,10 +1,11 @@
 name:           http-client-openssl-ext
 version:        0.1.0
 synopsis:       Extended version of http-client-openssl.
-license:        OtherLicense
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
 stability:      experimental
 category:       Network
 build-type:     Simple

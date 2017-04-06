@@ -1,10 +1,11 @@
 name:           metrics-collectd
 version:        0.1.32
 synopsis:       Metrics collectd integration
-license:        OtherLicense
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2017 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
 category:       Data
 build-type:     Simple
 cabal-version:  >= 1.10

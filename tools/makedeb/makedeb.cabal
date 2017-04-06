@@ -1,10 +1,11 @@
 name:          makedeb
 version:       0.3.0
 synopsis:      Create debian archives with dpkg-deb.
-license:       OtherLicense
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
 copyright:     (c) 2017 Wire Swiss GmbH
+license:       AGPL-3
+license-file:  LICENSE
 category:      System
 build-type:    Simple
 cabal-version: >= 1.10
@@ -14,7 +15,6 @@ library
     default-language: Haskell2010
     hs-source-dirs:   src
     ghc-options:      -Wall -O2 -fwarn-tabs
-
     exposed-modules:  System.MakeDeb
     other-modules:    System.MakeDeb.FileUtils
 

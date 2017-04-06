@@ -4,7 +4,8 @@ synopsis:      Shared type definitions.
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
 copyright:     (c) 2017 Wire Swiss GmbH
-license:       AllRightsReserved
+license:       AGPL-3
+license-file:  LICENSE
 category:      System
 build-type:    Simple
 cabal-version: >= 1.10

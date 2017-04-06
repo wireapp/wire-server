@@ -4,7 +4,8 @@ synopsis:      Cannon Integration Testing Utilities
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
 copyright:     (c) 2017 Wire Swiss GmbH
-license:       OtherLicense
+license:       AGPL-3
+license-file:  LICENSE
 category:      Testing
 build-type:    Simple
 cabal-version: >= 1.10

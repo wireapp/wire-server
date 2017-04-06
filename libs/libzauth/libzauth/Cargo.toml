@@ -1,7 +1,9 @@
 [package]
-name    = "zauth"
-version = "3.0.0"
-authors = ["Wire Swiss GmbH <backend@wire.com>"]
+name         = "zauth"
+version      = "3.0.0"
+authors      = ["Wire Swiss GmbH <backend@wire.com>"]
+license      = "AGPL-3.0"
+license-file = "LICENSE"
 
 [lib]
 name = "zauth"
