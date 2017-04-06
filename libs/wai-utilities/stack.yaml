@@ -2,8 +2,5 @@ resolver: lts-8.6
 packages:
 - '.'
 - '../types-common'
-extra-deps:
-- metrics-core-0.3.2
-- metrics-wai-0.5.7
-flags: {}
-extra-package-dbs: []
+- '../metrics-wai'
+- '../metrics-core'
