@@ -18,10 +18,10 @@ This repository contains the source code for the Wire server. At the moment it c
 This repository contains:
 
 - **services**
- - **cannon**: handles communication with clients through websocket connections
- - **galley**: handles conversation creation and updates, connection requests and conversation participants
- - **nginz**: Wire's modules for nginx
- - **proxy**: proxies requests to third-party services so that clients do not need to connect to third-party directly
+   - **cannon**: handles communication with clients through websocket connections
+   - **galley**: handles conversation creation and updates, connection requests and conversation participants
+   - **nginz**: Wire's modules for nginx
+   - **proxy**: proxies requests to third-party services so that clients do not need to connect to third-party directly
 - **libs**: a collection of libraries used by various components for cross-service concerns (REST API, https, token generation, ...) 
 
 ## Roadmap
