@@ -24,7 +24,7 @@ This repository contains:
    - **brig**: Accounts (to be released)
    - **gundeck**: Push Notification Hub (to be released)
    - **cannon**: WebSocket Push Notifications
-   - **cargohold**: Asset Storage (to be released)
+   - **cargohold**: Asset Storage
 - **libs**: Shared libraries
 
 ## Roadmap
@@ -33,5 +33,4 @@ We are working on open sourcing the following components:
 - Search and discovery of users
 - Interaction with Apple's and Google's push services
 - Routing of messages and events
-- Asset storage and management
 - Profile and devices management
