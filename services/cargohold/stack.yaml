@@ -1,0 +1,20 @@
+flags: {}
+extra-package-dbs: []
+packages:
+- .
+- ../../libs/cargohold-types
+- ../../libs/types-common
+- ../../libs/ropes
+- ../../libs/wai-utilities
+- ../../libs/bilge
+- ../../libs/metrics-core
+- ../../libs/metrics-wai
+resolver: lts-8.8
+extra-deps:
+- aws-0.16
+- mime-0.4.0.2
+flags:
+  types-common:
+    arbitrary: True
+    protobuf: True
+

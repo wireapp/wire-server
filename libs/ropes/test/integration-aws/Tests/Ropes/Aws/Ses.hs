@@ -49,7 +49,7 @@ trySes = ExceptT . liftIO . try . runResourceT
 
 testMimeMail :: Mail
 testMimeMail = Mail
-    { mailFrom    = Address (Just "Mr. Test") "test@wearezeta.com"
+    { mailFrom    = Address (Just "Mr. Test") "backend-integration@wire.com"
     , mailTo      = [ Address (Just "Mr. Simulator") "success@simulator.amazonses.com" ]
     , mailCc      = []
     , mailBcc     = []

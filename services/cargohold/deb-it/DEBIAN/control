@@ -1,5 +1,5 @@
-Package: galley-integration
+Package: cargohold-integration
 Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
 Maintainer: Wire Swiss GmbH <backend@wire.com>
 Architecture: amd64
-Description: Integration Test for Galley
+Description: Integration Tests for Cargohold

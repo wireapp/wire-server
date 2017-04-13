@@ -1,7 +1,6 @@
-Package: galley
+Package: cargohold
 Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
 Maintainer: Wire Swiss GmbH <backend@wire.com>
 Architecture: amd64
 Depends: runit
-Description: Conversation Service
- Galley is a web service for managing conversations
+Description: CargoHold - Asset Service
