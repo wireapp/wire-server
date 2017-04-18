@@ -14,7 +14,6 @@ module Galley.App
     , applog
     , manager
     , cstate
-    , counter
     , createEnv
     , extEnv
 
@@ -44,16 +43,11 @@ import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Data.Aeson (FromJSON)
-import Data.Bits
 import Data.ByteString.Conversion (toByteString')
-import Data.IORef
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
-import Data.Word
 import Data.Serialize.Get (runGetLazy)
 import Data.String (fromString)
-import Data.UUID (toWords)
-import Data.UUID.V1
 import Galley.Options
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -79,7 +73,6 @@ data Env = Env
     , _applog  :: !Logger
     , _manager :: !Manager
     , _cstate  :: !ClientState
-    , _counter :: !(IORef Word64)
     , _extEnv  :: !ExtEnv
     }
 
@@ -129,7 +122,6 @@ createEnv m o = do
     l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
     Env mempty m o l <$> initHttpManager o
                      <*> initCassandra o l
-                     <*> initEventCounter
                      <*> initExtEnv
 
 initCassandra :: Opts -> Logger -> IO ClientState
@@ -156,18 +148,6 @@ initHttpManager o =
         , managerIdleConnectionCount = 3 * (o^.httpPoolSz)
         , managerResponseTimeout     = responseTimeoutMicro 10000000
         }
-
-initEventCounter :: IO (IORef Word64)
-initEventCounter = newIORef =<< seed
-  where
-    seed :: MonadIO m => m Word64
-    seed = liftIO $ do
-        (a, b, c, d) <- maybe (error "no UUID") toWords <$> nextUUID
-        let x =  fromIntegral a `shiftL` 96
-             .|. fromIntegral b `shiftL` 64
-             .|. fromIntegral c `shiftL` 32
-             .|. fromIntegral d
-        return $ x `mod` (maxBound :: Word64)
 
 initExtEnv :: IO ExtEnv
 initExtEnv = do
