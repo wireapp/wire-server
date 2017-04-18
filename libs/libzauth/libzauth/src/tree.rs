@@ -27,10 +27,7 @@ impl Tree {
         let mut tree = self;
         for p in s.split('/').filter(|s| !s.is_empty()) {
             match tree.subtree.get(p).or_else(|| tree.subtree.get("*")) {
-                None => match tree.subtree.get("**") {
-                    None    => return false,
-                    Some(_) => return true
-                },
+                None => return tree.subtree.get("**").is_some(),
                 Some(t) => tree = t
             }
         }
