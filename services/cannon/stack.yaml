@@ -16,5 +16,6 @@ extra-deps:
 - data-timeout-0.3
 - text-latin1-0.3
 - text-printer-0.5
+- websockets-0.11.1.0
 extra-package-dbs: []
 

@@ -24,7 +24,6 @@ import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Handler.WebSockets
-import Network.WebSockets (defaultConnectionOptions)
 import Prelude hiding (head)
 import System.Logger.Class hiding (Error)
 import System.Random.MWC (createSystemRandom)
@@ -32,6 +31,7 @@ import System.Random.MWC (createSystemRandom)
 import qualified Cannon.Dict                 as D
 import qualified Data.Metrics.Middleware     as Metrics
 import qualified Network.Wai.Middleware.Gzip as Gzip
+import qualified Network.WebSockets          as Ws
 import qualified System.Logger               as Logger
 
 run :: Opts -> IO ()
@@ -124,8 +124,12 @@ await :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
 await (u ::: a ::: c ::: r) = do
     l <- logger
     e <- wsenv
-    case websocketsApp defaultConnectionOptions (wsapp (mkKey u a) c l e) r of
+    case websocketsApp wsoptions (wsapp (mkKey u a) c l e) r of
         Nothing -> return $ errorRs status426 "request-error" "websocket upgrade required"
         Just rs -> return rs
   where
     status426 = mkStatus 426 "Upgrade Required"
+    wsoptions = Ws.defaultConnectionOptions
+        { Ws.connectionCompressionOptions = Ws.PermessageDeflateCompression Ws.defaultPermessageDeflate
+        , Ws.connectionStrictUnicode      = True
+        }
