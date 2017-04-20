@@ -8,6 +8,7 @@ packages:
 flags:
   types-common:
     protobuf: True
+    arbitrary: True
 
 extra-deps: []
 extra-package-dbs: []

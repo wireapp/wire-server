@@ -6,7 +6,8 @@ packages:
 
 flags:
   types-common:
-    protobuf: true
+    protobuf: True
+    arbitrary: True
 
 extra-deps:
 - data-checked-0.3

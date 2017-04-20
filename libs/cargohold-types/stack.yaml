@@ -2,6 +2,9 @@ resolver: lts-8.6
 packages:
 - '.'
 - '../types-common'
+flags:
+  types-common:
+    arbitrary: True
+    protobuf: True
 extra-deps: []
-extra-package-dbs: []
 
