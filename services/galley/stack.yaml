@@ -1,4 +1,4 @@
-resolver: lts-8.6
+resolver: lts-8.12
 packages:
 - '.'
 - '../../libs/bilge'
@@ -20,12 +20,6 @@ flags:
     arbitrary: True
 
 extra-deps:
-- aeson-1.1.1.0
-- data-checked-0.3
-- data-textual-0.3.0.2
 - data-timeout-0.3
-- raw-strings-qq-1.0.2
-- text-latin1-0.3
-- text-printer-0.5
 - wai-middleware-gunzip-0.0.2
 extra-package-dbs: []

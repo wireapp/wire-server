@@ -54,7 +54,7 @@ getConversationIds (zusr ::: start ::: size ::: _) = do
 getConversations :: UserId ::: Maybe (Either (Range 1 32 (List ConvId)) ConvId) ::: Range 1 500 Int32 ::: JSON -> Galley Response
 getConversations (zusr ::: range ::: size ::: _) =
     withConvIds zusr range size $ \more ids -> do
-        cs <- Data.conversations ids
+        cs <- filter (isMember zusr . Data.convMembers) <$> Data.conversations ids
         json . flip ConversationList more <$> mapM (conversationView zusr) cs
 
 getMember :: UserId ::: ConvId -> Galley Response
