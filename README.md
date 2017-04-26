@@ -22,7 +22,7 @@ This repository contains:
    - **galley**: Conversations
    - **proxy**: 3rd Party API Integration
    - **brig**: Accounts (to be released)
-   - **gundeck**: Push Notification Hub (to be released)
+   - **gundeck**: Push Notification Hub
    - **cannon**: WebSocket Push Notifications
    - **cargohold**: Asset Storage
 - **libs**: Shared libraries
@@ -30,7 +30,5 @@ This repository contains:
 ## Roadmap
 We are working on open sourcing the following components:
 
-- Search and discovery of users
-- Interaction with Apple's and Google's push services
-- Routing of messages and events
-- Profile and devices management
+- Search and contact discovery
+- Account management

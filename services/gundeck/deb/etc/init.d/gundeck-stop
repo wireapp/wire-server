@@ -1,0 +1,12 @@
+#! /bin/sh
+PATH=/usr/bin
+
+case "$1" in
+  stop)
+    sv -w60 stop gundeck
+    ;;
+  *)
+    echo "Usage: $0 stop" >&2
+    exit 3
+    ;;
+esac

@@ -1,0 +1,25 @@
+resolver: lts-8.12
+flags: {}
+extra-package-dbs: []
+packages:
+- .
+- ../../libs/bilge
+- ../../libs/brig-types
+- ../../libs/cassandra-util
+- ../../libs/galley-types
+- ../../libs/gundeck-types
+- ../../libs/metrics-core
+- ../../libs/metrics-wai
+- ../../libs/tasty-cannon
+- ../../libs/types-common
+- ../../libs/wai-utilities
+
+flags:
+  types-common:
+    cql: True
+    protobuf: True
+    arbitrary: True
+
+extra-deps:
+- data-timeout-0.3
+- wai-middleware-gunzip-0.0.2

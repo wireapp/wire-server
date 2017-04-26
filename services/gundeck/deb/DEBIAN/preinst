@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -e
+
+APP=gundeck
+
+# If runit symlink exists for $APP, stop the service.
+[[ -L /etc/service/$APP ]] && sv down $APP || exit 0

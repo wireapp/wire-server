@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -e
+
+APP=gundeck
+
+# Ensure expected dirs are created,
+# and ensure dpkg removes them on uninstall:
+{
+    # Create empty config directory for chpst -e.
+    mkdir -p /etc/$APP
+
+    # Fake log directory which would otherwise created by Snap
+    mkdir -p /opt/$APP/log
+
+    # Create actual log directory for svlogd.
+    mkdir -p /var/log/$APP
+
+    # Create empty log directory for svlogd
+    mkdir -p /etc/sv/$APP/log/main
+}
+
+# Set permissions
+chown -R www-data:www-data /opt/$APP
+chown -R www-data:www-data /etc/$APP
+chown -R www-data:www-data /etc/sv/$APP
+chown root:root /etc/init.d/$APP-stop
+chmod 0755 /etc/init.d/$APP-stop
+
+# Register also as LSB init script
+ln -s /usr/bin/sv /etc/init.d/$APP
+
+# Register shutdown link
+# nb. We use a dedicated stop script to get a larger timeout
+# than the default of 7 seconds.
+update-rc.d $APP-stop stop 95 0 6 .
+
+# Notify runit.
+ln -s /etc/sv/$APP /etc/service/$APP

@@ -9,6 +9,7 @@ EXE_SCHEMA   := dist/$(NAME)-schema
 DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT       := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA   := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
+KEIRETSU_ENV  ?= ../.env
 
 default: all
 
@@ -67,13 +68,13 @@ $(DEB_SCHEMA):
 
 .PHONY: integration
 integration: install
-	keiretsu --run $(EXE_IT)
+	keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV)
 
 integration-list:
-	keiretsu --run '$(EXE_IT) -l'
+	keiretsu --run '$(EXE_IT) -l' --env $(KEIRETSU_ENV)
 
 integration-%:
-	keiretsu --run '$(EXE_IT) --pattern="$*"'
+	keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
