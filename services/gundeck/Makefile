@@ -42,7 +42,7 @@ sdist: init $(SDIST)
 
 $(SDIST):
 	stack sdist
-	cp "../$(NAME)-types/$(shell stack path --dist-dir)/$(NAME)-types-$(VERSION).tar.gz" dist/
+	cp "../../libs/$(NAME)-types/$(shell stack path --dist-dir)/$(NAME)-types-$(VERSION).tar.gz" dist/
 	cp "$(shell stack path --dist-dir)/$(NAME)-$(VERSION).tar.gz" dist/
 
 .PHONY: dist
