@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -e
+
+etc=/etc/bonanza
+
+adduser --home $etc --system --group --no-create-home --quiet bonanza || true
+
+mkdir -p $etc
+chown -R bonanza:bonanza $etc
