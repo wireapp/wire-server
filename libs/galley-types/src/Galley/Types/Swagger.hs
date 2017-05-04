@@ -63,6 +63,7 @@ eventType = string $ enum
     , "conversation.member-update"
     , "conversation.rename"
     , "conversation.create"
+    , "conversation.delete"
     , "conversation.connect-request"
     , "conversation.typing"
     , "conversation.otr-message-add"

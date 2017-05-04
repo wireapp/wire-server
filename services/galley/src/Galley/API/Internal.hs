@@ -16,7 +16,7 @@ import Data.Maybe (catMaybes)
 import Data.Range
 import Galley.API.Util (isMember)
 import Galley.App
-import Galley.Types (ConvType (..))
+import Galley.Types (ConvType (..), evtFrom)
 import Network.Wai
 import Network.Wai.Predicate hiding (result)
 import Network.Wai.Utilities
@@ -37,12 +37,12 @@ rmUser (user ::: conn) = do
         cc <- Data.conversations (result ids)
         pp <- for cc $ \c -> case Data.convType c of
             SelfConv    -> return Nothing
-            One2OneConv -> Data.deleteMember user (Data.convId c) >> return Nothing
-            ConnectConv -> Data.deleteMember user (Data.convId c) >> return Nothing
+            One2OneConv -> Data.removeMember user (Data.convId c) >> return Nothing
+            ConnectConv -> Data.removeMember user (Data.convId c) >> return Nothing
             RegularConv
                 | isMember user (Data.convMembers c) -> do
-                      e <- Data.rmMembers c user u
-                      return $ (Intra.newPush e (Intra.recipient <$> Data.convMembers c)) <&>
+                      e <- Data.removeMembers c user u
+                      return $ (Intra.newPush (evtFrom e) (Intra.ConvEvent e) (Intra.recipient <$> Data.convMembers c)) <&>
                                      set Intra.pushConn conn
                                    . set Intra.pushRoute Intra.RouteDirect
                 | otherwise -> return Nothing

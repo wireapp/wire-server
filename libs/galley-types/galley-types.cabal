@@ -21,6 +21,8 @@ library
         Galley.Types.Bot.Service
         Galley.Types.Proto
         Galley.Types.Swagger
+        Galley.Types.Teams
+        Galley.Types.Teams.Swagger
 
     build-depends:
         aeson                 >= 0.6

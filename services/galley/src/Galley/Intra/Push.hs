@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE StrictData          #-}
 
 module Galley.Intra.Push
     ( -- * Push
@@ -11,6 +12,8 @@ module Galley.Intra.Push
     , push
     , push1
     , pushSome
+
+    , PushEvent (..)
 
       -- * Push Configuration
     , pushConn
@@ -22,8 +25,10 @@ module Galley.Intra.Push
       -- * Push Recipients
     , Recipient
     , recipient
-    , recipientMember
+    , userRecipient
+    , recipientUserId
     , recipientClients
+    , recipientMuted
 
       -- * Re-Exports
     , Gundeck.Route    (..)
@@ -62,45 +67,58 @@ import Prelude hiding (mapM_, foldr)
 import qualified Data.Set               as Set
 import qualified Data.Text.Lazy         as LT
 import qualified Gundeck.Types.Push.V2  as Gundeck
+import qualified Galley.Types.Teams     as Teams
+
+data PushEvent =
+      ConvEvent Event
+    | TeamEvent Teams.Event
+
+pushEventJson :: PushEvent -> Object
+pushEventJson (ConvEvent e) = toJSONObject e
+pushEventJson (TeamEvent e) = toJSONObject e
 
 data Recipient = Recipient
-    { _recipientMember  :: !Member
-    , _recipientClients :: ![ClientId]
+    { _recipientUserId  :: UserId
+    , _recipientMuted   :: Bool
+    , _recipientClients :: [ClientId]
     }
 
 makeLenses ''Recipient
 
 recipient :: Member -> Recipient
-recipient m = Recipient m []
+recipient m = Recipient (memId m) (memOtrMuted m) []
+
+userRecipient :: UserId -> Recipient
+userRecipient u = Recipient u False []
 
 data Push = Push
-    { _pushConn           :: !(Maybe ConnId)
-    , _pushTransient      :: !Bool
-    , _pushRoute          :: !Gundeck.Route
-    , _pushNativePriority :: !(Maybe Gundeck.Priority)
-    , _pushAsync          :: !Bool
-    ,  pushOrigin         :: !UserId
-    ,  pushRecipients     :: !(List1 Recipient)
-    ,  pushJson           :: !Object
+    { _pushConn           :: Maybe ConnId
+    , _pushTransient      :: Bool
+    , _pushRoute          :: Gundeck.Route
+    , _pushNativePriority :: Maybe Gundeck.Priority
+    , _pushAsync          :: Bool
+    ,  pushOrigin         :: UserId
+    ,  pushRecipients     :: List1 Recipient
+    ,  pushJson           :: Object
     }
 
 makeLenses ''Push
 
-newPush1 :: Event -> List1 Recipient -> Push
-newPush1 e rr = Push
+newPush1 :: UserId -> PushEvent -> List1 Recipient -> Push
+newPush1 from e rr = Push
     { _pushConn           = Nothing
     , _pushTransient      = False
     , _pushRoute          = Gundeck.RouteAny
     , _pushNativePriority = Nothing
     , _pushAsync          = False
-    ,  pushJson           = toJSONObject e
-    ,  pushOrigin         = evtFrom e
+    ,  pushJson           = pushEventJson e
+    ,  pushOrigin         = from
     ,  pushRecipients     = rr
     }
 
-newPush :: Event -> [Recipient] -> Maybe Push
-newPush _ []     = Nothing
-newPush e (r:rr) = Just $ newPush1 e (list1 r rr)
+newPush :: UserId -> PushEvent -> [Recipient] -> Maybe Push
+newPush _ _ []     = Nothing
+newPush u e (r:rr) = Just $ newPush1 u e (list1 r rr)
 
 -- | Asynchronously send a single push, chunking it into multiple
 -- requests if there are more than 128 recipients.
@@ -145,12 +163,10 @@ push ps = do
             & maybe id (set Gundeck.pushNativePriority) (_pushNativePriority p)
 
 
-    toRecipient p r = let m = _recipientMember r in
-          Gundeck.recipient (memId m) (_pushRoute p)
-        & Gundeck.recipientClients .~ _recipientClients r
-        & Gundeck.recipientFallback .~ not (muted m)
-
-    muted m = memOtrMuted m
+    toRecipient p r =
+          Gundeck.recipient (_recipientUserId r) (_pushRoute p)
+        & Gundeck.recipientClients  .~ _recipientClients r
+        & Gundeck.recipientFallback .~ not (_recipientMuted r)
 
 -----------------------------------------------------------------------------
 -- Helpers

@@ -26,8 +26,10 @@ module Test.Tasty.Cannon
     , awaitMatch
     , awaitMatchN
     , assertMatch
+    , assertMatch_
     , assertMatchN
     , assertSuccess
+    , assertNoEvent
 
       -- * Unpacking Notifications
     , unpackPayload
@@ -52,7 +54,7 @@ import Control.Monad.IO.Class
 import Data.Aeson (decodeStrict', FromJSON, fromJSON, Value (..))
 import Data.ByteString.Char8 (ByteString)
 import Data.ByteString.Conversion
-import Data.Foldable (mapM_)
+import Data.Foldable (mapM_, for_)
 import Data.Id
 import Data.List1
 import Data.Maybe
@@ -216,6 +218,13 @@ assertMatch :: (MonadIO m, MonadCatch m)
             -> m Notification
 assertMatch t ws f = awaitMatch t ws f >>= assertSuccess
 
+assertMatch_ :: (MonadIO m, MonadCatch m)
+             => Timeout
+             -> WebSocket
+             -> (Notification -> Assertion)
+             -> m ()
+assertMatch_ t w = void . assertMatch t w
+
 awaitMatchN :: MonadIO m
             => Timeout
             -> [WebSocket]
@@ -232,6 +241,14 @@ assertMatchN t wss f = awaitMatchN t wss f >>= mapM assertSuccess
 
 assertSuccess :: (MonadIO m, MonadThrow m) => Either MatchTimeout Notification -> m Notification
 assertSuccess = either throwM return
+
+assertNoEvent :: (MonadIO m, MonadCatch m) => Timeout -> [WebSocket] -> m ()
+assertNoEvent t ww = do
+    results <- awaitMatchN t ww (const $ pure ())
+    for_ results $
+        either (const $ pure ()) (liftIO . f)
+  where
+    f n = assertFailure $ "unexpected notification received: " ++ show n
 
 -----------------------------------------------------------------------------
 -- Unpacking Notifications

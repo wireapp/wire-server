@@ -28,6 +28,7 @@ import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
 
+import qualified API.Teams                as Teams
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List1               as List1
 import qualified Data.Map.Strict          as Map
@@ -38,7 +39,9 @@ import qualified Test.Tasty.Cannon        as WS
 tests :: Galley -> Brig -> Cannon -> IO TestTree
 tests g b c = do
     m <- newManager defaultManagerSettings
-    return $ testGroup "User API"
+    pure $ testGroup "Galley integration tests" [ mainTests m, teamTests m ]
+  where
+    mainTests m = testGroup "Main API"
         [ test m "status" (status g)
         , test m "monitoring" (monitor g)
         , test m "create conversation" (postConvOk g b c)
@@ -50,7 +53,7 @@ tests g b c = do
         , test m "fail to get >1000 conversation ids" (getConvIdsFailMaxSize g b)
         , test m "page through conversations" (getConvsPagingOk g b)
         , test m "fail to create conversation when not connected" (postConvFailNotConnected g b)
-        , test m "M:N conversation creation must have <65 members" (postConvFailNumMembers g b)
+        , test m "M:N conversation creation must have <129 members" (postConvFailNumMembers g b)
         , test m "create self conversation" (postSelfConvOk g b)
         , test m "create 1:1 conversation" (postO2OConvOk g b)
         , test m "fail to create 1:1 conversation with yourself" (postConvO2OFailWithSelf g b)
@@ -87,6 +90,7 @@ tests g b c = do
         , test m "cannot join private conversation" (postJoinConvFail g b)
         , test m "remove user" (removeUser g b c)
         ]
+    teamTests m = Teams.tests g b c m
 
 -------------------------------------------------------------------------------
 -- API Tests
@@ -447,7 +451,7 @@ postConvFailNotConnected g b = do
 postConvFailNumMembers :: Galley -> Brig -> Http ()
 postConvFailNumMembers g b = do
     alice <- randomUser b
-    bob:others <- replicateM 65 (randomUser b)
+    bob:others <- replicateM 128 (randomUser b)
     connectUsers b alice (list1 bob others)
     postConv g alice (bob:others) Nothing [] !!! do
         const 400 === statusCode
@@ -476,7 +480,7 @@ postO2OConvOk g b = do
 postConvO2OFailWithSelf :: Galley -> Brig -> Http ()
 postConvO2OFailWithSelf g b = do
     alice <- randomUser b
-    let inv = NewConv [alice] Nothing mempty
+    let inv = NewConv [alice] Nothing mempty Nothing
     post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
         const 403 === statusCode
         const (Just "invalid-op") === fmap label . decodeBody
@@ -653,7 +657,7 @@ accessConvMeta g b = do
     chuck <- randomUser b
     connectUsers b alice (list1 bob [chuck])
     conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") []
-    let meta = ConversationMeta conv RegularConv alice (singleton InviteAccess) (Just "gossip")
+    let meta = ConversationMeta conv RegularConv alice (singleton InviteAccess) (Just "gossip") Nothing
     get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
         const 200         === statusCode
         const (Just meta) === (decode <=< responseBody)

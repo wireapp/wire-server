@@ -29,6 +29,7 @@ library
         Galley.API.Internal
         Galley.API.Mapping
         Galley.API.Query
+        Galley.API.Teams
         Galley.API.Update
         Galley.API.Util
         Galley.Data
@@ -127,7 +128,7 @@ executable galley-schema
     default-language:   Haskell2010
     ghc-options:        -Wall -fwarn-tabs
     hs-source-dirs:     schema/src
-    other-modules:      V20
+    other-modules:      V20, V21
 
     build-depends:
         base
@@ -149,6 +150,7 @@ test-suite galley-integration
 
     other-modules:
         API
+        API.Teams
         API.Util
 
     build-depends:
@@ -175,6 +177,7 @@ test-suite galley-integration
       , lens
       , network
       , protobuf
+      , QuickCheck
       , transformers
       , tasty                >= 0.8
       , tasty-cannon         >= 0.3.2

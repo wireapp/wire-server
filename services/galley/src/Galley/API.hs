@@ -23,9 +23,11 @@ import Galley.App
 import Galley.API.Clients
 import Galley.API.Create
 import Galley.API.Update
+import Galley.API.Teams
 import Galley.API.Query
 import Galley.Options
 import Galley.Types (OtrFilterMissing (..))
+import Galley.Types.Teams (Perm (..))
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate
@@ -43,6 +45,7 @@ import qualified Galley.API.Error              as Error
 import qualified Galley.API.Internal           as Internal
 import qualified Galley.Data                   as Data
 import qualified Galley.Types.Swagger          as Model
+import qualified Galley.Types.Teams.Swagger    as TeamsModel
 import qualified Network.Wai.Predicate         as P
 import qualified Network.Wai.Middleware.Gzip   as GZip
 import qualified Network.Wai.Middleware.Gunzip as GZip
@@ -67,6 +70,167 @@ run o = do
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
+    post "/teams" (continue createTeam) $
+        zauthUserId
+        .&. zauthConnId
+        .&. request
+        .&. contentType "application" "json"
+
+    document "POST" "createTeam" $ do
+        summary "Create a new team"
+        body (ref TeamsModel.newTeam) $
+            description "JSON body"
+        response 201 "Team ID as `Location` header value" end
+        errorResponse Error.notConnected
+
+    put "/teams/:id" (continue updateTeam) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "id"
+        .&. request
+        .&. contentType "application" "json"
+
+    document "PUT" "updateTeam" $ do
+        summary "Update team properties"
+        parameter Path "id" bytes' $
+            description "Team ID"
+        body (ref TeamsModel.update) $
+            description "JSON body"
+        errorResponse Error.noTeamMember
+        errorResponse (Error.operationDenied SetTeamData)
+
+    --
+
+    get "/teams" (continue getManyTeams) $
+        zauthUserId
+        .&. opt (query "ids" ||| query "start")
+        .&. def (unsafeRange 100) (query "size")
+        .&. accept "application" "json"
+
+    document "GET" "getManyTeams" $ do
+        summary "Get teams"
+        returns (ref TeamsModel.teamList)
+        response 200 "Teams list" end
+
+    --
+
+    get "/teams/:id" (continue getTeam) $
+        zauthUserId
+        .&. capture "id"
+        .&. accept "application" "json"
+
+    document "GET" "getTeam" $ do
+        summary "Get a team by ID"
+        parameter Path "id" bytes' $
+            description "Team ID"
+        returns (ref TeamsModel.team)
+        response 200 "Team data" end
+        errorResponse Error.teamNotFound
+
+    --
+
+    delete "/teams/:id" (continue deleteTeam) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "id"
+        .&. accept "application" "json"
+
+    document "DELETE" "deleteTeam" $ do
+        summary "Get a team by ID"
+        parameter Path "id" bytes' $
+            description "Team ID"
+        response 200 "Team data" end
+        errorResponse Error.noTeamMember
+        errorResponse (Error.operationDenied DeleteTeam)
+    --
+
+    get "/teams/:id/members" (continue getTeamMembers) $
+        zauthUserId
+        .&. capture "id"
+        .&. accept "application" "json"
+
+    document "GET" "getTeamMembers" $ do
+        summary "Get team members"
+        parameter Path "id" bytes' $
+            description "Team ID"
+        returns (ref TeamsModel.teamMemberList)
+        response 200 "Team members" end
+        errorResponse Error.noTeamMember
+
+    --
+
+    post "/teams/:id/members" (continue addTeamMember) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "id"
+        .&. request
+        .&. accept "application" "json"
+
+    document "POST" "addTeamMember" $ do
+        summary "Add a new team member"
+        parameter Path "id" bytes' $
+            description "Team ID"
+        body (ref TeamsModel.newTeamMember) $
+            description "JSON body"
+        errorResponse Error.noTeamMember
+        errorResponse (Error.operationDenied AddTeamMember)
+        errorResponse Error.notConnected
+        errorResponse Error.invalidPermissions
+        errorResponse Error.tooManyMembers
+
+    --
+
+    delete "/teams/:tid/members/:uid" (continue deleteTeamMember) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "tid"
+        .&. capture "uid"
+        .&. accept "application" "json"
+
+    document "DELETE" "deleteTeamMember" $ do
+        summary "Remove an existing team member"
+        parameter Path "tid" bytes' $
+            description "Team ID"
+        parameter Path "uid" bytes' $
+            description "User ID"
+        errorResponse Error.noTeamMember
+        errorResponse (Error.operationDenied RemoveTeamMember)
+    --
+
+    get "/teams/:id/conversations" (continue getTeamConversations) $
+        zauthUserId
+        .&. capture "id"
+        .&. accept "application" "json"
+
+    document "GET" "getTeamConversations" $ do
+        summary "Get team conversations"
+        parameter Path "id" bytes' $
+            description "Team ID"
+        returns (ref TeamsModel.teamConversationList)
+        response 200 "Team conversations" end
+        errorResponse Error.teamNotFound
+        errorResponse (Error.operationDenied GetTeamConversations)
+
+    --
+
+    delete "/teams/:tid/conversations/:cid" (continue deleteTeamConversation) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "tid"
+        .&. capture "cid"
+        .&. accept "application" "json"
+
+    document "DELETE" "deleteTeamConversation" $ do
+        summary "Remove a team conversation"
+        parameter Path "tid" bytes' $
+            description "Team ID"
+        parameter Path "cid" bytes' $
+            description "Conversation ID"
+        errorResponse Error.noTeamMember
+        errorResponse (Error.operationDenied DeleteConversation)
+
+   --
+
     get "/bot/conversation" (continue getBotConversation) $
         zauth ZAuthBot
         .&> zauthBotId
@@ -433,9 +597,10 @@ sitemap = do
 type JSON = Media "application" "json"
 
 docs :: JSON ::: ByteString -> Galley Response
-docs (_ ::: url) =
-    let doc = encode $ mkSwaggerApi (decodeLatin1 url) Model.galleyModels sitemap
-    in return $ responseLBS status200 [jsonContent] doc
+docs (_ ::: url) = do
+    let models = Model.galleyModels ++ TeamsModel.teamsModels
+    let apidoc = encode $ mkSwaggerApi (decodeLatin1 url) models sitemap
+    pure $ responseLBS status200 [jsonContent] apidoc
 
 monitoring :: JSON -> Galley Response
 monitoring = const $ json <$> (render =<< view monitor)

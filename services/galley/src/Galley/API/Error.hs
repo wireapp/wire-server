@@ -2,7 +2,9 @@
 
 module Galley.API.Error where
 
+import Data.Monoid
 import Data.Text.Lazy
+import Galley.Types.Teams (Perm)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
@@ -38,3 +40,28 @@ invalidUUID4 = Error status400 "client-error" "Invalid UUID v4 format"
 
 unknownClient :: Error
 unknownClient = Error status403 "unknown-client" "Sending client not known"
+
+operationDenied :: Perm -> Error
+operationDenied p = Error
+    status403
+    "operation-denied"
+    ("Insufficient permissions (missing " <> (pack $ show p) <> ")")
+
+noTeamMember :: Error
+noTeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
+
+noAddToManaged :: Error
+noAddToManaged = Error status403 "no-add-to-managed" "Adding users directly to managed conversation is not allowed."
+
+teamNotFound :: Error
+teamNotFound = Error status404 "no-team" "team not found"
+
+noBotsInTeamConvs :: Error
+noBotsInTeamConvs = Error status403 "bots-not-allowed" "Adding bots to team conversations is not allowed."
+
+invalidPermissions :: Error
+invalidPermissions = Error status403 "invalid-permissions" "The specified permissions are invalid."
+
+tooManyTeamMembers :: Error
+tooManyTeamMembers = Error status403 "too-many-team-members" "Maximum number of members per team reached"
+
