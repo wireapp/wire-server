@@ -1,0 +1,45 @@
+resolver: lts-8.13
+
+packages:
+- libs/bilge
+- libs/brig-types
+- libs/cargohold-types
+- libs/cassandra-util
+- libs/galley-types
+- libs/gundeck-types
+- libs/http-client-openssl-ext
+- libs/metrics-collectd
+- libs/metrics-core
+- libs/metrics-wai
+- libs/ropes
+- libs/sodium-crypto-sign
+- libs/tasty-cannon
+- libs/types-common
+- libs/wai-utilities
+- libs/zauth
+- services/cannon
+- services/cargohold
+- services/galley
+- services/gundeck
+- services/proxy
+- tools/bonanza
+- tools/makedeb
+
+extra-deps:
+- aws-0.16
+- collectd-0.0.0.1
+- data-timeout-0.3
+- mime-0.4.0.2
+- snappy-0.2.0.2
+- snappy-framing-0.1.1
+- wai-middleware-gunzip-0.0.2
+- websockets-0.11.1.0
+
+flags:
+  types-common:
+    cql: True
+    protobuf: True
+    arbitrary: True
+
+extra-package-dbs: []
+
