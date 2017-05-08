@@ -7,6 +7,10 @@ maintainer:          kim@wire.com
 build-type:          Simple
 cabal-version:       >=1.10
 
+flag static
+    Description: Enable static linking
+    Default:     False
+
 executable rex
   main-is:
     Main.hs
@@ -35,7 +39,7 @@ executable rex
   ghc-options:
     -Wall -O1 -funbox-small-strict-fields
 
-  if os(linux)
+  if flag(static)
     ld-options: -static
 
   default-language:

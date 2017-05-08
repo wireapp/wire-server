@@ -35,9 +35,8 @@ ifeq ($(DOCKER),true)
 rex: rex.cabal stack.yaml $(SRC)
 	docker run --rm \
 		-v $(CURDIR):/rex \
-		-v ~/.stack:/root/.stack \
-		quay.io/kim1/alpine-haskell-build \
-		sh -c 'cd /rex && stack --system-ghc --local-bin-path . --allow-different-user install'
+		quay.io/wire/alpine-ghc-8 \
+		sh -c 'cd /rex && stack --system-ghc --local-bin-path . --allow-different-user install --flag rex:static'
 else
 rex: rex.cabal stack.yaml $(SRC)
 	stack --local-bin-path . install
