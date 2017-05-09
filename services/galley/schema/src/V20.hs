@@ -23,6 +23,7 @@ migration = Migration 20 "Initial schema" $ do
         CREATE TABLE member (
             conv             uuid,
             user             uuid,
+            status           int,
             hidden           boolean,
             hidden_ref       text,
             otr_archived     boolean,
