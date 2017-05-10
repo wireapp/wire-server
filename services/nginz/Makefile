@@ -1,6 +1,6 @@
 SHELL        := /usr/bin/env bash
 NAME         := nginz
-VERSION       = 1.10.1
+VERSION       = 1.12.0
 BUILD_NUMBER ?= 0
 BUILD_LABEL  ?= local
 BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
