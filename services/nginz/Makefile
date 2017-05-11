@@ -30,7 +30,6 @@ CONFIG_OPTIONS = \
 ADDITIONAL_MODULES = \
     --with-http_ssl_module \
     --with-http_stub_status_module \
-    --add-module=../third_party/nginx_x_rid_header \
     --add-module=../third_party/nginx_zauth_module \
     --add-module=../third_party/nginx_headers_more
 

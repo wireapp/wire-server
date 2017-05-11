@@ -1,5 +1,0 @@
-ngx_addon_name=ngx_x_rid_header_module
-HTTP_MODULES="$HTTP_MODULES ngx_x_rid_header_module"
-NGX_ADDON_SRCS="$NGX_ADDON_SRCS $ngx_addon_dir/ngx_x_rid_header_module.c"
-CFLAGS="$CFLAGS `pkg-config ossp-uuid --cflags`"
-CORE_LIBS="$CORE_LIBS `pkg-config ossp-uuid --libs`"
