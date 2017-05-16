@@ -69,8 +69,11 @@ $(DIST):
 BUNDLE=nginx-$(VERSION).tar.gz
 
 src: $(TMPDIR)/$(BUNDLE)
+	#Find keys on https://nginx.org/en/pgp_keys.html
+	gpg --verify $(TMPDIR)/$(BUNDLE).asc
 	tar zxf $(TMPDIR)/$(BUNDLE)
 	mv nginx-$(VERSION) src
 
 $(TMPDIR)/$(BUNDLE):
-	(cd $(TMPDIR); curl -O http://nginx.org/download/$(BUNDLE))
+	(cd $(TMPDIR); curl -O https://nginx.org/download/$(BUNDLE).asc)
+	(cd $(TMPDIR); curl -O https://nginx.org/download/$(BUNDLE))
