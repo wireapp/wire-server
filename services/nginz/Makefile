@@ -70,7 +70,7 @@ BUNDLE=nginx-$(VERSION).tar.gz
 
 src: $(TMPDIR)/$(BUNDLE)
 	#Find keys on https://nginx.org/en/pgp_keys.html
-	gpg --verify $(TMPDIR)/$(BUNDLE).asc
+	gpg --verify $(TMPDIR)/$(BUNDLE).asc $(TMPDIR)/$(BUNDLE)
 	tar zxf $(TMPDIR)/$(BUNDLE)
 	mv nginx-$(VERSION) src
 
