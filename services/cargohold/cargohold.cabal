@@ -1,5 +1,5 @@
 name:           cargohold
-version:        1.3.10
+version:        1.4.0
 synopsis:       Asset Storage API
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
