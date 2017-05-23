@@ -16,7 +16,6 @@ module Galley.Intra.Push
     , pushConn
     , pushTransient
     , pushRoute
-    , pushNativeEncrypt
     , pushNativePriority
     , pushAsync
 
@@ -78,7 +77,6 @@ data Push = Push
     { _pushConn           :: !(Maybe ConnId)
     , _pushTransient      :: !Bool
     , _pushRoute          :: !Gundeck.Route
-    , _pushNativeEncrypt  :: !Bool
     , _pushNativePriority :: !(Maybe Gundeck.Priority)
     , _pushAsync          :: !Bool
     ,  pushOrigin         :: !UserId
@@ -93,7 +91,6 @@ newPush1 e rr = Push
     { _pushConn           = Nothing
     , _pushTransient      = False
     , _pushRoute          = Gundeck.RouteAny
-    , _pushNativeEncrypt  = False
     , _pushNativePriority = Nothing
     , _pushAsync          = False
     ,  pushJson           = toJSONObject e
@@ -145,7 +142,6 @@ push ps = do
         Gundeck.newPush (pushOrigin p) (unsafeRange (Set.fromList r)) pload
             & Gundeck.pushOriginConnection .~ _pushConn p
             & Gundeck.pushTransient        .~ _pushTransient p
-            & Gundeck.pushNativeEncrypt    .~ _pushNativeEncrypt p
             & maybe id (set Gundeck.pushNativePriority) (_pushNativePriority p)
 
 
