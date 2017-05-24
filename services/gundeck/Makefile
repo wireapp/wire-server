@@ -37,16 +37,8 @@ clean:
 	-rm -rf dist
 	-rm -f .metadata
 
-.PHONY: sdist
-sdist: init $(SDIST)
-
-$(SDIST):
-	stack sdist
-	cp "../../libs/$(NAME)-types/$(shell stack path --dist-dir)/$(NAME)-types-$(VERSION).tar.gz" dist/
-	cp "$(shell stack path --dist-dir)/$(NAME)-$(VERSION).tar.gz" dist/
-
 .PHONY: dist
-dist: sdist install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
+dist: install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
 
 $(DEB):
 	makedeb --name=$(NAME) \
