@@ -65,10 +65,8 @@ teamList = defineModel "TeamList" $ do
 newTeamMember :: Model
 newTeamMember = defineModel "NewTeamMember" $ do
     description "Required data when creating new team members"
-    property "user" bytes' $
-        description "user ID"
-    property "permissions" (ref permissions) $
-        description "the permissions this user has in the given team"
+    property "member" (ref teamMember) $
+        description "the team member to add"
 
 teamMember :: Model
 teamMember = defineModel "TeamMember" $ do
