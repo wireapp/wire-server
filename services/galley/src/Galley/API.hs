@@ -136,7 +136,7 @@ sitemap = do
         .&. accept "application" "json"
 
     document "DELETE" "deleteTeam" $ do
-        summary "Get a team by ID"
+        summary "Delete a team"
         parameter Path "id" bytes' $
             description "Team ID"
         response 200 "Team data" end
@@ -176,7 +176,7 @@ sitemap = do
         errorResponse (Error.operationDenied AddTeamMember)
         errorResponse Error.notConnected
         errorResponse Error.invalidPermissions
-        errorResponse Error.tooManyMembers
+        errorResponse Error.tooManyTeamMembers
 
     --
 

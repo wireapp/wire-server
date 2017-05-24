@@ -166,6 +166,6 @@ update = defineModel "TeamUpdateData" $ do
     property "icon" string' $ do
         description "new icon asset id"
         optional
-    property "icon_key" bool' $ do
+    property "icon_key" string' $ do
         description "new icon asset key"
         optional
