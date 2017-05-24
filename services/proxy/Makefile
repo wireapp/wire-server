@@ -27,13 +27,8 @@ install: init
 compile:
 	stack build --pedantic --test --no-copy-bins
 
-.PHONY: sdist
-sdist: init
-	stack sdist
-	cp "$(shell stack path --dist-dir)/$(NAME)-$(VERSION).tar.gz" dist/
-
 .PHONY: dist
-dist: sdist install $(DEB) $(DEB_IT) .metadata
+dist: install $(DEB) $(DEB_IT) .metadata
 
 $(DEB):
 	makedeb --name=$(NAME) \
