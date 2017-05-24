@@ -11,15 +11,15 @@ module Galley.API.Create
     ) where
 
 import Control.Lens hiding ((??))
-import Control.Monad (when)
+import Control.Monad (when, void)
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Data.ByteString.Conversion
 import Data.Foldable (for_, toList)
 import Data.Id
 import Data.List1
 import Data.Monoid ((<>))
 import Data.Range
+import Data.Set ((\\))
 import Data.Time
 import Data.Traversable (mapM)
 import Galley.App
@@ -28,6 +28,7 @@ import Galley.API.Mapping
 import Galley.API.Util
 import Galley.Intra.Push
 import Galley.Types
+import Galley.Types.Teams hiding (EventType (..))
 import Galley.Validation (rangeChecked, rangeCheckedMaybe)
 import Network.HTTP.Types
 import Network.Wai
@@ -35,25 +36,46 @@ import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
 import Prelude hiding (head, mapM)
 
-import qualified Data.List         as List
-import qualified Data.Set          as Set
-import qualified Data.UUID.Tagged  as U
-import qualified Galley.Data       as Data
+import qualified Data.List          as List
+import qualified Data.Set           as Set
+import qualified Data.UUID.Tagged   as U
+import qualified Galley.Data        as Data
+import qualified Galley.Types.Teams as Teams
 
 createGroupConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 createGroupConversation (zusr::: zcon ::: req ::: _) = do
-    j <- fromBody req invalidPayload
-    case newConvUsers j of
-        [] -> fun j (rcast rnil)
-        xs -> do
-            uids <- rangeChecked xs :: Galley (Range 1 64 [UserId])
-            ensureConnected zusr uids
-            fun j (rcast uids)
+    body <- fromBody req invalidPayload
+    case newConvTeam body of
+        Nothing -> createRegularConv body
+        Just tm -> createTeamConv tm body
   where
-    fun j uids = do
-        n <- rangeCheckedMaybe (newConvName j)
-        c <- Data.createConversation zusr n (access j) uids
-        notifyCreatedConversation zusr (Just zcon) c
+    createTeamConv tinfo body = do
+        name <- rangeCheckedMaybe (newConvName body)
+        mems <- Data.teamMembers (cnvTeamId tinfo)
+        void $ permissionCheck zusr CreateConversation mems
+        uids <-
+            if cnvManaged tinfo then
+                rangeChecked . filter (/= zusr) $ map (view userId) mems
+            else do
+                void $ permissionCheck zusr AddConversationMember mems
+                uu <- rangeChecked (newConvUsers body)
+                ensureConnected zusr (notSameTeam (fromRange uu) mems)
+                pure uu
+        conv <- Data.createConversation zusr name (access body) uids (newConvTeam body)
+        now  <- liftIO getCurrentTime
+        let d = Teams.EdConvCreate (Data.convId conv)
+        let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
+        let notInConv = Set.fromList (map (view userId) mems) \\ Set.fromList (zusr : fromRange uids)
+        for_ (newPush zusr (TeamEvent e) (map userRecipient (Set.toList notInConv))) push1
+        notifyCreatedConversation (Just now) zusr (Just zcon) conv
+        conversationResponse status201 zusr conv
+
+    createRegularConv body = do
+        name <- rangeCheckedMaybe (newConvName body)
+        uids <- rangeChecked (newConvUsers body)
+        ensureConnected zusr (fromRange uids)
+        c <- Data.createConversation zusr name (access body) uids (newConvTeam body)
+        notifyCreatedConversation Nothing zusr (Just zcon) c
         conversationResponse status201 zusr c
 
     access a = case Set.toList (newConvAccess a) of
@@ -76,14 +98,14 @@ createOne2OneConversation (zusr ::: zcon ::: req ::: _) = do
     (x, y) <- toUUIDs zusr (List.head $ fromRange u)
     when (x == y) $
         throwM $ invalidOp "Cannot create a 1-1 with yourself"
-    ensureConnected zusr u
+    ensureConnected zusr (fromRange u)
     n <- rangeCheckedMaybe (newConvName j)
     c <- Data.conversation (Data.one2OneConvId x y)
     maybe (create x y n) (conversationResponse status200 zusr) c
   where
     create x y n = do
         c <- Data.createOne2OneConversation x y n
-        notifyCreatedConversation zusr (Just zcon) c
+        notifyCreatedConversation Nothing zusr (Just zcon) c
         conversationResponse status201 zusr c
 
 createConnectConversation :: UserId ::: Maybe ConnId ::: Request ::: JSON -> Galley Response
@@ -96,8 +118,8 @@ createConnectConversation (usr ::: conn ::: req ::: _) = do
   where
     create x y n j = do
         (c, e) <- Data.createConnectConversation x y n j
-        notifyCreatedConversation usr conn c
-        for_ (newPush e (recipient <$> Data.convMembers c)) $ \p ->
+        notifyCreatedConversation Nothing usr conn c
+        for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers c)) $ \p ->
             push1 $ p
                   & pushRoute .~ RouteDirect
                   & pushConn  .~ conn
@@ -129,7 +151,7 @@ createConnectConversation (usr ::: conn ::: req ::: _) = do
                 Nothing -> return $ Data.convName conv
             t <- liftIO getCurrentTime
             let e = Event ConvConnect (Data.convId conv) usr t (Just $ EdConnect j)
-            for_ (newPush e (recipient <$> Data.convMembers conv)) $ \p ->
+            for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> Data.convMembers conv)) $ \p ->
                 push1 $ p
                       & pushRoute .~ RouteDirect
                       & pushConn  .~ conn
@@ -144,9 +166,9 @@ conversationResponse s u c = do
     a <- conversationView u c
     return $ json a & setStatus s . location (cnvId a)
 
-notifyCreatedConversation :: UserId -> Maybe ConnId -> Data.Conversation -> Galley ()
-notifyCreatedConversation usr conn c = do
-    now  <- liftIO getCurrentTime
+notifyCreatedConversation :: Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Conversation -> Galley ()
+notifyCreatedConversation dtime usr conn c = do
+    now  <- maybe (liftIO getCurrentTime) pure dtime
     pushSome =<< mapM (toPush now) (Data.convMembers c)
   where
     route | Data.convType c == RegularConv = RouteAny
@@ -155,12 +177,9 @@ notifyCreatedConversation usr conn c = do
     toPush t m = do
         c' <- conversationView (memId m) c
         let e = Event ConvCreate (Data.convId c) usr t (Just $ EdConversation c')
-        return $ newPush1 e (list1 (recipient m) [])
+        return $ newPush1 (evtFrom e) (ConvEvent e) (list1 (recipient m) [])
                & pushConn  .~ conn
                & pushRoute .~ route
-
-location :: ConvId -> Response -> Response
-location = addHeader hLocation . toByteString'
 
 toUUIDs :: UserId -> UserId -> Galley (U.UUID U.V4, U.UUID U.V4)
 toUUIDs a b = do

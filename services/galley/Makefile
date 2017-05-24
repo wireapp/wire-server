@@ -9,7 +9,7 @@ EXE_SCHEMA   := dist/$(NAME)-schema
 DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT       := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA   := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
-KEIRETSU_ENV  ?= ../.env
+KEIRETSU_ENV ?= ../.env
 
 default: all
 
@@ -83,10 +83,10 @@ integration-%:
 db: db-reset
 
 .PHONY: db-reset
-db-reset: compile
+db-reset: install
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1 --reset
 
 .PHONY: db-migrate
-db-migrate: compile
+db-migrate: install
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1
 

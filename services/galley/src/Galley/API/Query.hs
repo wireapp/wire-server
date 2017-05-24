@@ -5,8 +5,10 @@
 module Galley.API.Query where
 
 import Cassandra (result, hasMore)
+import Control.Lens
 import Control.Monad
 import Control.Monad.Catch
+import Data.Aeson (Value (Null))
 import Data.ByteString.Conversion
 import Data.Foldable (toList)
 import Data.Id
@@ -25,9 +27,14 @@ import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result)
 import Network.Wai.Utilities
 
+import qualified Galley.Data.Types as Data
+
 getBotConversation :: BotId ::: ConvId ::: JSON -> Galley Response
 getBotConversation (zbot ::: zcnv :::  _) = do
     c <- Data.conversation zcnv >>= ifNothing convNotFound
+    when (Data.isConvDeleted c) $ do
+        Data.deleteConversation zcnv
+        throwM convNotFound
     unless (botUserId zbot `isMember` Data.convMembers c) $
         throwM convNotFound
     let cmems = mapMaybe mkMember (toList (Data.convMembers c))
@@ -41,6 +48,9 @@ getBotConversation (zbot ::: zcnv :::  _) = do
 getConversation :: UserId ::: ConvId ::: JSON -> Galley Response
 getConversation (zusr ::: cnv ::: _) = do
     c <- Data.conversation cnv >>= ifNothing convNotFound
+    when (Data.isConvDeleted c) $ do
+        Data.deleteConversation cnv
+        throwM convNotFound
     unless (zusr `isMember` Data.convMembers c) $
         throwM convNotFound
     a <- conversationView zusr c
@@ -54,17 +64,41 @@ getConversationIds (zusr ::: start ::: size ::: _) = do
 getConversations :: UserId ::: Maybe (Either (Range 1 32 (List ConvId)) ConvId) ::: Range 1 500 Int32 ::: JSON -> Galley Response
 getConversations (zusr ::: range ::: size ::: _) =
     withConvIds zusr range size $ \more ids -> do
-        cs <- filter (isMember zusr . Data.convMembers) <$> Data.conversations ids
+        cs <- Data.conversations ids  >>=
+                filterM removeDeleted >>=
+                filterM (pure . isMember zusr . Data.convMembers)
         json . flip ConversationList more <$> mapM (conversationView zusr) cs
+  where
+    removeDeleted c
+        | Data.isConvDeleted c = Data.deleteConversation (Data.convId c) >> pure False
+        | otherwise            = pure True
 
 getMember :: UserId ::: ConvId -> Galley Response
-getMember (zusr ::: cnv) = json <$> Data.member cnv zusr
+getMember (zusr ::: cnv) = do
+    alive <- Data.isConvAlive cnv
+    if alive then
+        json <$> Data.member cnv zusr
+    else do
+        Data.deleteConversation cnv
+        pure (json Null)
 
 internalGetMember :: ConvId ::: UserId -> Galley Response
-internalGetMember (cnv ::: usr) = json <$> Data.member cnv usr
+internalGetMember (cnv ::: usr) = do
+    alive <- Data.isConvAlive cnv
+    if alive then
+        json <$> Data.member cnv usr
+    else do
+        Data.deleteConversation cnv
+        pure (json Null)
 
 getConversationMeta :: ConvId -> Galley Response
-getConversationMeta cnv = maybe (setStatus status404 empty) json <$> Data.conversationMeta cnv
+getConversationMeta cnv = do
+    alive <- Data.isConvAlive cnv
+    if alive then
+        maybe (setStatus status404 empty) json <$> Data.conversationMeta cnv
+    else do
+        Data.deleteConversation cnv
+        pure (empty & setStatus status404)
 
 -----------------------------------------------------------------------------
 -- Internal

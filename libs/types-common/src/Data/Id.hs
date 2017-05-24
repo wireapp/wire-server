@@ -49,6 +49,7 @@ data I
 data U
 data P
 data S
+data T
 
 type AssetId      = Id A
 type ConvId       = Id C
@@ -56,6 +57,7 @@ type InvitationId = Id I
 type UserId       = Id U
 type ProviderId   = Id P
 type ServiceId    = Id S
+type TeamId       = Id T
 
 -- Id -------------------------------------------------------------------------
 
