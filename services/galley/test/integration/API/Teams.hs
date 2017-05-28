@@ -106,10 +106,10 @@ testAddTeamMember g b c = do
     post (g . paths ["teams", toByteString' tid, "members"] . zUser (mem1^.userId) . payload) !!!
         const 403 === statusCode
 
-    WS.bracketR3 c owner (mem1^.userId) (mem2^.userId) $ \(wsOwner, wsMem1, wsMem2) -> do
+    WS.bracketRN c [owner, (mem1^.userId), (mem2^.userId), (mem3^.userId)] $ \ws@[wsOwner, wsMem1, wsMem2, wsMem3] -> do
         -- `mem2` has `AddTeamMember` permission
         Util.addTeamMember g (mem2^.userId) tid mem3
-        liftIO . void $ mapConcurrently (checkJoinEvent tid (mem3^.userId)) [wsOwner, wsMem1, wsMem2]
+        liftIO . void $ mapConcurrently (checkJoinEvent tid (mem3^.userId)) [wsOwner, wsMem1, wsMem2, wsMem3]
   where
     checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
@@ -181,6 +181,7 @@ testAddTeamConv g b c = do
         Util.addTeamMember g owner tid mem1
 
         checkTeamMemberJoin tid (mem1^.userId) wsOwner
+        checkTeamMemberJoin tid (mem1^.userId) wsMem1
         checkTeamMemberJoin tid (mem1^.userId) wsMem2
 
         -- New team members are added automatically to managed conversations ...
