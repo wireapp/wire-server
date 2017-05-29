@@ -106,7 +106,7 @@ testAddTeamMember g b c = do
     post (g . paths ["teams", toByteString' tid, "members"] . zUser (mem1^.userId) . payload) !!!
         const 403 === statusCode
 
-    WS.bracketRN c [owner, (mem1^.userId), (mem2^.userId), (mem3^.userId)] $ \ws@[wsOwner, wsMem1, wsMem2, wsMem3] -> do
+    WS.bracketRN c [owner, (mem1^.userId), (mem2^.userId), (mem3^.userId)] $ \[wsOwner, wsMem1, wsMem2, wsMem3] -> do
         -- `mem2` has `AddTeamMember` permission
         Util.addTeamMember g (mem2^.userId) tid mem3
         liftIO . void $ mapConcurrently (checkJoinEvent tid (mem3^.userId)) [wsOwner, wsMem1, wsMem2, wsMem3]
