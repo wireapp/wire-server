@@ -139,7 +139,7 @@ addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
         Data.addMember (c^.conversationId) (body^.ntmNewTeamMember.userId)
     now <- liftIO getCurrentTime
     let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (body^.ntmNewTeamMember.userId))
-    let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) mems)
+    let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) ((body^.ntmNewTeamMember) : mems))
     push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
     pure empty
 
