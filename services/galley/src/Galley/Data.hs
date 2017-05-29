@@ -12,6 +12,7 @@ module Galley.Data
 
     -- * Teams
     , addTeamMember
+    , updateTeamMember
     , createTeam
     , removeTeamMember
     , team
@@ -187,6 +188,9 @@ addTeamMember t m =
         setConsistency Quorum
         addPrepQuery Cql.insertTeamMember (t, m^.userId, m^.permissions)
         addPrepQuery Cql.insertUserTeam   (m^.userId, t)
+
+updateTeamMember :: MonadClient m => TeamId -> UserId -> Permissions -> m ()
+updateTeamMember t u p = retry x5 $ write Cql.updatePermissions (params Quorum (p, t, u))
 
 removeTeamMember :: MonadClient m => TeamId -> UserId -> m ()
 removeTeamMember t m =

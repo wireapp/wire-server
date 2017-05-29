@@ -35,6 +35,7 @@ galleyModels =
     , userClients
     , clientMismatch
     , serviceRef
+    , teamInfo
     ]
 
 event :: Model
@@ -248,6 +249,17 @@ newConversation = defineModel "NewConversation" $ do
     property "name" string' $ do
         description "The conversation name"
         optional
+    property "team" (ref teamInfo) $ do
+        description "Team information of this conversation"
+        optional
+
+teamInfo :: Model
+teamInfo = defineModel "TeamInfo" $ do
+    description "Team information"
+    property "teamid" bytes' $
+        description "Team ID"
+    property "managed" bool' $
+        description "Is this a managed team conversation?"
 
 conversationIds :: Model
 conversationIds = defineModel "ConversationIds" $ do

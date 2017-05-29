@@ -65,3 +65,6 @@ invalidPermissions = Error status403 "invalid-permissions" "The specified permis
 tooManyTeamMembers :: Error
 tooManyTeamMembers = Error status403 "too-many-team-members" "Maximum number of members per team reached"
 
+teamMemberNotFound :: Error
+teamMemberNotFound = Error status404 "no-team-member" "team member not found"
+

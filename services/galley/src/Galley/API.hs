@@ -74,6 +74,7 @@ sitemap = do
         zauthUserId
         .&. zauthConnId
         .&. request
+        .&. accept "application" "json"
         .&. contentType "application" "json"
 
     document "POST" "createTeam" $ do
@@ -88,6 +89,7 @@ sitemap = do
         .&. zauthConnId
         .&. capture "id"
         .&. request
+        .&. accept "application" "json"
         .&. contentType "application" "json"
 
     document "PUT" "updateTeam" $ do
@@ -159,11 +161,31 @@ sitemap = do
 
     --
 
+    get "/teams/:tid/members/:uid" (continue getTeamMember) $
+        zauthUserId
+        .&. capture "tid"
+        .&. capture "uid"
+        .&. accept "application" "json"
+
+    document "GET" "getTeamMember" $ do
+        summary "Get single team member"
+        parameter Path "tid" bytes' $
+            description "Team ID"
+        parameter Path "uid" bytes' $
+            description "User ID"
+        returns (ref TeamsModel.teamMember)
+        response 200 "Team member" end
+        errorResponse Error.noTeamMember
+        errorResponse Error.teamMemberNotFound
+
+    --
+
     post "/teams/:id/members" (continue addTeamMember) $
         zauthUserId
         .&. zauthConnId
         .&. capture "id"
         .&. request
+        .&. contentType "application" "json"
         .&. accept "application" "json"
 
     document "POST" "addTeamMember" $ do
@@ -195,6 +217,27 @@ sitemap = do
             description "User ID"
         errorResponse Error.noTeamMember
         errorResponse (Error.operationDenied RemoveTeamMember)
+
+    --
+
+    put "/teams/:id/members" (continue updateTeamMember) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "id"
+        .&. request
+        .&. accept "application" "json"
+        .&. contentType "application" "json"
+
+    document "PUT" "updateTeamMember" $ do
+        summary "Update an existing team member"
+        parameter Path "id" bytes' $
+            description "Team ID"
+        body (ref TeamsModel.newTeamMember) $
+            description "JSON body"
+        errorResponse Error.noTeamMember
+        errorResponse Error.teamMemberNotFound
+        errorResponse (Error.operationDenied SetMemberPermissions)
+
     --
 
     get "/teams/:id/conversations" (continue getTeamConversations) $
@@ -209,6 +252,26 @@ sitemap = do
         returns (ref TeamsModel.teamConversationList)
         response 200 "Team conversations" end
         errorResponse Error.teamNotFound
+        errorResponse (Error.operationDenied GetTeamConversations)
+
+    --
+
+    get "/teams/:tid/conversations/:cid" (continue getTeamConversation) $
+        zauthUserId
+        .&. capture "tid"
+        .&. capture "cid"
+        .&. accept "application" "json"
+
+    document "GET" "getTeamConversation" $ do
+        summary "Get one team conversation"
+        parameter Path "tid" bytes' $
+            description "Team ID"
+        parameter Path "cid" bytes' $
+            description "Conversation ID"
+        returns (ref TeamsModel.teamConversation)
+        response 200 "Team conversation" end
+        errorResponse Error.teamNotFound
+        errorResponse Error.convNotFound
         errorResponse (Error.operationDenied GetTeamConversations)
 
     --

@@ -79,6 +79,11 @@ getTeamMembers g usr tid = do
     r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
     pure (fromJust (decodeBody r))
 
+getTeamMember :: Galley -> UserId -> TeamId -> UserId -> Http TeamMember
+getTeamMember g usr tid mid = do
+    r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' mid] . zUser usr) <!! const 200 === statusCode
+    pure (fromJust (decodeBody r))
+
 addTeamMember :: Galley -> UserId -> TeamId -> TeamMember -> Http ()
 addTeamMember g usr tid mem = do
     let payload = json (newNewTeamMember mem)

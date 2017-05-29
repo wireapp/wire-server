@@ -104,7 +104,7 @@ data Team = Team
     , _teamName    :: Text
     , _teamIcon    :: Text
     , _teamIconKey :: Maybe Text
-    } deriving Show
+    } deriving (Eq, Show)
 
 data Event = Event
     { _eventType :: EventType
@@ -119,16 +119,19 @@ data EventType =
     | TeamUpdate
     | MemberJoin
     | MemberLeave
+    | MemberUpdate
     | ConvCreate
     | ConvDelete
     deriving (Eq, Show)
 
 data EventData =
-      EdTeamUpdate  TeamUpdateData
-    | EdMemberJoin  UserId
-    | EdMemberLeave UserId
-    | EdConvCreate  ConvId
-    | EdConvDelete  ConvId
+      EdTeamCreate   Team
+    | EdTeamUpdate   TeamUpdateData
+    | EdMemberJoin   UserId
+    | EdMemberLeave  UserId
+    | EdMemberUpdate UserId
+    | EdConvCreate   ConvId
+    | EdConvDelete   ConvId
     deriving (Eq, Show)
 
 data TeamUpdateData = TeamUpdateData
@@ -176,6 +179,7 @@ data Perm =
     | SetBilling
     | SetTeamData
     | GetMemberPermissions
+    | SetMemberPermissions
     | GetTeamConversations
     | DeleteTeam
     deriving (Eq, Ord, Show)
@@ -245,33 +249,35 @@ hasPermission :: TeamMember -> Perm -> Bool
 hasPermission tm p = p `Set.member` (tm^.permissions.self)
 
 permToInt :: Perm -> Word64
-permToInt CreateConversation       = 0x001
-permToInt DeleteConversation       = 0x002
-permToInt AddTeamMember            = 0x004
-permToInt RemoveTeamMember         = 0x008
-permToInt AddConversationMember    = 0x010
-permToInt RemoveConversationMember = 0x020
-permToInt GetBilling               = 0x040
-permToInt SetBilling               = 0x080
-permToInt SetTeamData              = 0x100
-permToInt GetMemberPermissions     = 0x200
-permToInt GetTeamConversations     = 0x400
-permToInt DeleteTeam               = 0x800
+permToInt CreateConversation       = 0x0001
+permToInt DeleteConversation       = 0x0002
+permToInt AddTeamMember            = 0x0004
+permToInt RemoveTeamMember         = 0x0008
+permToInt AddConversationMember    = 0x0010
+permToInt RemoveConversationMember = 0x0020
+permToInt GetBilling               = 0x0040
+permToInt SetBilling               = 0x0080
+permToInt SetTeamData              = 0x0100
+permToInt GetMemberPermissions     = 0x0200
+permToInt GetTeamConversations     = 0x0400
+permToInt DeleteTeam               = 0x0800
+permToInt SetMemberPermissions     = 0x1000
 
 intToPerm :: Word64 -> Maybe Perm
-intToPerm 0x001 = Just CreateConversation
-intToPerm 0x002 = Just DeleteConversation
-intToPerm 0x004 = Just AddTeamMember
-intToPerm 0x008 = Just RemoveTeamMember
-intToPerm 0x010 = Just AddConversationMember
-intToPerm 0x020 = Just RemoveConversationMember
-intToPerm 0x040 = Just GetBilling
-intToPerm 0x080 = Just SetBilling
-intToPerm 0x100 = Just SetTeamData
-intToPerm 0x200 = Just GetMemberPermissions
-intToPerm 0x400 = Just GetTeamConversations
-intToPerm 0x800 = Just DeleteTeam
-intToPerm _     = Nothing
+intToPerm 0x0001 = Just CreateConversation
+intToPerm 0x0002 = Just DeleteConversation
+intToPerm 0x0004 = Just AddTeamMember
+intToPerm 0x0008 = Just RemoveTeamMember
+intToPerm 0x0010 = Just AddConversationMember
+intToPerm 0x0020 = Just RemoveConversationMember
+intToPerm 0x0040 = Just GetBilling
+intToPerm 0x0080 = Just SetBilling
+intToPerm 0x0100 = Just SetTeamData
+intToPerm 0x0200 = Just GetMemberPermissions
+intToPerm 0x0400 = Just GetTeamConversations
+intToPerm 0x0800 = Just DeleteTeam
+intToPerm 0x1000 = Just SetMemberPermissions
+intToPerm _      = Nothing
 
 intToPerms :: Word64 -> Set Perm
 intToPerms n =
@@ -385,19 +391,21 @@ instance FromJSON NewTeamMember where
         NewTeamMember <$> o .: "member"
 
 instance ToJSON EventType where
-    toJSON TeamCreate  = String "team.create"
-    toJSON TeamDelete  = String "team.delete"
-    toJSON TeamUpdate  = String "team.update"
-    toJSON MemberJoin  = String "team.member-join"
-    toJSON MemberLeave = String "team.member-leave"
-    toJSON ConvCreate  = String "team.conversation-create"
-    toJSON ConvDelete  = String "team.conversation-delete"
+    toJSON TeamCreate   = String "team.create"
+    toJSON TeamDelete   = String "team.delete"
+    toJSON TeamUpdate   = String "team.update"
+    toJSON MemberJoin   = String "team.member-join"
+    toJSON MemberUpdate = String "team.member-update"
+    toJSON MemberLeave  = String "team.member-leave"
+    toJSON ConvCreate   = String "team.conversation-create"
+    toJSON ConvDelete   = String "team.conversation-delete"
 
 instance FromJSON EventType where
     parseJSON (String "team.create")              = pure TeamCreate
     parseJSON (String "team.delete")              = pure TeamDelete
     parseJSON (String "team.update")              = pure TeamUpdate
     parseJSON (String "team.member-join")         = pure MemberJoin
+    parseJSON (String "team.member-update")       = pure MemberUpdate
     parseJSON (String "team.member-leave")        = pure MemberLeave
     parseJSON (String "team.conversation-create") = pure ConvCreate
     parseJSON (String "team.conversation-delete") = pure ConvDelete
@@ -423,17 +431,24 @@ instance FromJSON Event where
                  <*> parseEventData ty dt
 
 instance ToJSON EventData where
-    toJSON (EdMemberJoin  usr) = object ["user" .= usr]
-    toJSON (EdMemberLeave usr) = object ["user" .= usr]
-    toJSON (EdConvCreate  cnv) = object ["conv" .= cnv]
-    toJSON (EdConvDelete  cnv) = object ["conv" .= cnv]
-    toJSON (EdTeamUpdate  upd) = toJSON upd
+    toJSON (EdTeamCreate   tem) = toJSON tem
+    toJSON (EdMemberJoin   usr) = object ["user" .= usr]
+    toJSON (EdMemberUpdate usr) = object ["user" .= usr]
+    toJSON (EdMemberLeave  usr) = object ["user" .= usr]
+    toJSON (EdConvCreate   cnv) = object ["conv" .= cnv]
+    toJSON (EdConvDelete   cnv) = object ["conv" .= cnv]
+    toJSON (EdTeamUpdate   upd) = toJSON upd
 
 parseEventData :: EventType -> Maybe Value -> Parser (Maybe EventData)
 parseEventData MemberJoin Nothing  = fail "missing event data for type 'team.member-join'"
 parseEventData MemberJoin (Just j) = do
     let f o = Just . EdMemberJoin <$> o .: "user"
     withObject "member join data" f j
+
+parseEventData MemberUpdate Nothing  = fail "missing event data for type 'team.member-update"
+parseEventData MemberUpdate (Just j) = do
+    let f o = Just . EdMemberUpdate <$> o .: "user"
+    withObject "member update data" f j
 
 parseEventData MemberLeave Nothing  = fail "missing event data for type 'team.member-leave'"
 parseEventData MemberLeave (Just j) = do
@@ -449,6 +464,9 @@ parseEventData ConvDelete Nothing  = fail "missing event data for type 'team.con
 parseEventData ConvDelete (Just j) = do
     let f o = Just . EdConvDelete  <$> o .: "conv"
     withObject "conversation delete data" f j
+
+parseEventData TeamCreate Nothing  = fail "missing event data for type 'team.create'"
+parseEventData TeamCreate (Just j) = Just . EdTeamCreate <$> parseJSON j
 
 parseEventData TeamUpdate Nothing  = fail "missing event data for type 'team.update'"
 parseEventData TeamUpdate (Just j) = Just . EdTeamUpdate <$> parseJSON j
