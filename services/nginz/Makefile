@@ -1,22 +1,20 @@
-SHELL        := /usr/bin/env bash
-NAME         := nginz
-VERSION       = 1.12.0
-BUILD_NUMBER ?= 0
-BUILD_LABEL  ?= local
-BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-SHELL        := /usr/bin/env bash
-DIST         := build
-BIN          := src/objs/nginx
-DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
-TMPDIR       ?= /tmp
+SHELL          := /usr/bin/env bash
+NAME           := nginz
+NGINX_VERSION   = 1.12.0
+NGINZ_VERSION  ?=
+SHELL          := /usr/bin/env bash
+DIST           := build
+BIN            := src/objs/nginx
+DEB            := $(NAME)_$(NGINZ_VERSION)_amd64.deb
+TMPDIR         ?= /tmp
 ifeq ($(DEBUG), 1)
-WITH_DEBUG    = --with-debug
+WITH_DEBUG      = --with-debug
 endif
 
-DEST_PATH    ?= /opt/nginz
-LOG_PATH     ?= /var/log/nginz
-CONF_PATH    ?= /etc/nginz
-PID_PATH     ?= /var/run
+DEST_PATH      ?= /opt/nginz
+LOG_PATH       ?= /var/log/nginz
+CONF_PATH      ?= /etc/nginz
+PID_PATH       ?= /var/run
 
 CONFIG_OPTIONS = \
 	--prefix=$(DEST_PATH) \
@@ -33,6 +31,12 @@ ADDITIONAL_MODULES = \
     --add-module=../third_party/nginx_zauth_module \
     --add-module=../third_party/nginx_headers_more
 
+guard-%:
+	@ if [ "${${*}}" = "" ]; then \
+	      echo "Environment variable $* not set"; \
+	    exit 1; \
+	fi
+
 default: dist
 
 .PHONY: clean
@@ -41,7 +45,7 @@ clean:
 
 compile: $(BIN)
 
-dist: $(DIST)/$(DEB) .metadata
+dist: guard-NGINZ_VERSION $(DIST)/$(DEB)
 
 $(BIN): src
 	(cd src; ./configure $(CONFIG_OPTIONS) $(ADDITIONAL_MODULES))
@@ -49,15 +53,10 @@ $(BIN): src
 
 %.deb: $(BIN) $(DIST)
 	makedeb --name=$(NAME) \
-	 --version=$(VERSION) \
+	 --version=$(NGINZ_VERSION) \
 	 --debian-dir=deb \
-	 --build=$(BUILD) \
 	 --architecture=amd64 \
 	 --output-dir=$(DIST)
-
-.metadata:
-	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
-	 > .metadata
 
 $(DIST):
 	mkdir -p $(DIST)
@@ -66,13 +65,13 @@ $(DIST):
 # Dependencies
 #
 
-BUNDLE=nginx-$(VERSION).tar.gz
+BUNDLE=nginx-$(NGINX_VERSION).tar.gz
 
 src: $(TMPDIR)/$(BUNDLE)
 	#Find keys on https://nginx.org/en/pgp_keys.html
 	gpg --verify $(TMPDIR)/$(BUNDLE).asc $(TMPDIR)/$(BUNDLE)
 	tar zxf $(TMPDIR)/$(BUNDLE)
-	mv nginx-$(VERSION) src
+	mv nginx-$(NGINX_VERSION) src
 
 $(TMPDIR)/$(BUNDLE):
 	(cd $(TMPDIR); curl -O https://nginx.org/download/$(BUNDLE).asc)
