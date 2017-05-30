@@ -1,5 +1,5 @@
 name:          makedeb
-version:       0.3.0
+version:       0.3.1
 synopsis:      Create debian archives with dpkg-deb.
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
