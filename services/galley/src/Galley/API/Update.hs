@@ -57,7 +57,7 @@ import Galley.Intra.User
 import Galley.Types
 import Galley.Types.Bot
 import Galley.Types.Clients (Clients)
-import Galley.Types.Teams hiding (EventType (..))
+import Galley.Types.Teams hiding (EventType (..), EventData (..))
 import Galley.Validation
 import Network.HTTP.Types
 import Network.Wai

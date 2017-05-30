@@ -14,7 +14,7 @@ import Data.ByteString.Conversion
 import Data.Foldable (for_)
 import Data.List1
 import Data.Monoid
-import Galley.Types hiding (EventType (..), EventData (..))
+import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
 import Gundeck.Types.Notification
 import Test.Tasty
@@ -40,6 +40,7 @@ tests g b c m = testGroup "Teams API"
     , test m "delete team" (testDeleteTeam g b c)
     , test m "delete team conversation" (testDeleteTeamConv g b c)
     , test m "update team data" (testUpdateTeam g b c)
+    , test m "update team member" (testUpdateTeamMember g b c)
     ]
 
 timeout :: WS.Timeout
@@ -58,7 +59,7 @@ testCreateTeam g b c = do
                 let e = List1.head (WS.unpackPayload notif)
                 e^.eventType @?= TeamCreate
                 e^.eventTeam @?= tid
-                e^.eventData @?= Nothing
+                e^.eventData @?= Just (EdTeamCreate team)
             void $ WS.assertSuccess eventChecks
 
 testCreateTeamWithMembers :: Galley -> Brig -> Cannon -> Http ()
@@ -71,20 +72,21 @@ testCreateTeamWithMembers g b c = do
     let m2 = newTeamMember user2 pp
     Util.connectUsers b owner (list1 user1 [user2])
     WS.bracketR3 c owner user1 user2 $ \(wsOwner, wsUser1, wsUser2) -> do
-        tid <- Util.createTeam g "foo" owner [m1, m2]
-        mem <- Util.getTeamMembers g owner tid
+        tid  <- Util.createTeam g "foo" owner [m1, m2]
+        team <- Util.getTeam g owner tid
+        mem  <- Util.getTeamMembers g owner tid
         liftIO $ do
             assertEqual "members"
                 (Set.fromList [newTeamMember owner fullPermissions, m1, m2])
                 (Set.fromList (mem^.teamMembers))
-            void $ mapConcurrently (checkCreateEvent tid) [wsOwner, wsUser1, wsUser2]
+            void $ mapConcurrently (checkCreateEvent team) [wsOwner, wsUser1, wsUser2]
   where
-    checkCreateEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
+    checkCreateEvent team w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
         e^.eventType @?= TeamCreate
-        e^.eventTeam @?= tid
-        e^.eventData @?= Nothing
+        e^.eventTeam @?= (team^.teamId)
+        e^.eventData @?= Just (EdTeamCreate team)
 
 testAddTeamMember :: Galley -> Brig -> Cannon -> Http ()
 testAddTeamMember g b c = do
@@ -416,3 +418,32 @@ testUpdateTeam g b c = do
         e^.eventType @?= TeamUpdate
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdTeamUpdate upd)
+
+testUpdateTeamMember :: Galley -> Brig -> Cannon -> Http ()
+testUpdateTeamMember g b c = do
+    owner <- Util.randomUser b
+    let p = Util.symmPermissions [DeleteConversation]
+    member <- flip newTeamMember p <$> Util.randomUser b
+    Util.connectUsers b owner (list1 (member^.userId) [])
+    tid <- Util.createTeam g "foo" owner [member]
+    let change = newNewTeamMember (member & permissions .~ fullPermissions)
+    WS.bracketR2 c owner (member^.userId) $ \(wsOwner, wsMember) -> do
+        put ( g
+            . paths ["teams", toByteString' tid, "members"]
+            . zUser owner
+            . zConn "conn"
+            . json change
+            ) !!! const 200 === statusCode
+        member' <- Util.getTeamMember g owner tid (member^.userId)
+        liftIO $ assertEqual "permissions" (member'^.permissions) (change^.ntmNewTeamMember.permissions)
+        checkTeamMemberUpdateEvent tid (member^.userId) wsOwner
+        checkTeamMemberUpdateEvent tid (member^.userId) wsMember
+        WS.assertNoEvent timeout [wsOwner, wsMember]
+  where
+    checkTeamMemberUpdateEvent tid uid w = WS.assertMatch_ timeout w $ \notif -> do
+        ntfTransient notif @?= False
+        let e = List1.head (WS.unpackPayload notif)
+        e^.eventType @?= MemberUpdate
+        e^.eventTeam @?= tid
+        e^.eventData @?= Just (EdMemberUpdate uid)
+
