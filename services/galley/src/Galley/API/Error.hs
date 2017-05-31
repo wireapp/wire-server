@@ -68,3 +68,5 @@ tooManyTeamMembers = Error status403 "too-many-team-members" "Maximum number of 
 teamMemberNotFound :: Error
 teamMemberNotFound = Error status404 "no-team-member" "team member not found"
 
+noTeamConv :: Error
+noTeamConv = Error status400 "no-team-conv" "Team conversations are not allowed in this context."

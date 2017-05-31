@@ -378,6 +378,7 @@ sitemap = do
         notes "On 201, the conversation ID is the `Location` header"
         body (ref Model.newConversation) $
             description "JSON body"
+        response 201 "Conversation created" end
 
     ---
 
@@ -387,6 +388,7 @@ sitemap = do
     document "POST" "createSelfConversation" $ do
         summary "Create a self-conversation"
         notes "On 201, the conversation ID is the `Location` header"
+        response 201 "Conversation created" end
 
     ---
 
@@ -401,6 +403,8 @@ sitemap = do
         notes "On 201, the conversation ID is the `Location` header"
         body (ref Model.newConversation) $
             description "JSON body"
+        response 201 "Conversation created" end
+        errorResponse Error.noTeamConv
 
     ---
 

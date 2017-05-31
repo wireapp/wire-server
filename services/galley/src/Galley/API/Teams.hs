@@ -16,6 +16,7 @@ module Galley.API.Teams
     , getTeamConversation
     , deleteTeamConversation
     , updateTeamMember
+    , uncheckedRemoveTeamMember
     ) where
 
 import Cassandra (result, hasMore)
@@ -178,15 +179,29 @@ deleteTeamMember :: UserId ::: ConnId ::: TeamId ::: UserId ::: JSON -> Galley R
 deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: _) = do
     mems <- Data.teamMembers tid
     void $ permissionCheck zusr RemoveTeamMember mems
-    now <- liftIO getCurrentTime
-    let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave remove)
-    let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) mems)
-    push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
-    Data.removeTeamMember tid remove
-    cc <- Data.teamConversations tid
-    for_ cc $
-        Data.removeMember remove . view conversationId
+    uncheckedRemoveTeamMember zusr (Just zcon) tid remove mems
     pure empty
+
+-- This functions is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
+uncheckedRemoveTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> [TeamMember] -> Galley ()
+uncheckedRemoveTeamMember zusr zcon tid remove mems = do
+    now <- liftIO getCurrentTime
+    let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave $ newTeamMemberLeave remove)
+    let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) mems)
+    push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ zcon
+    Data.removeTeamMember tid remove
+    let tmids = Set.fromList $ map (view userId) mems
+    let edata = Conv.EdMembers (Conv.Members [remove])
+    cc <- Data.teamConversations tid
+    for_ cc $ \c -> do
+        Data.removeMember remove (c^.conversationId)
+        unless (c^.managedConversation) $ do
+            conv <- Data.conversation (c^.conversationId)
+            for_ conv $ \dc -> do
+                let x = filter (\m -> not (Conv.memId m `Set.member` tmids)) (Data.convMembers dc)
+                let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
+                for_ (newPush zusr (ConvEvent y) (recipient <$> x)) $ \p ->
+                    push1 $ p & pushConn .~ zcon
 
 getTeamConversations :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamConversations (zusr::: tid ::: _) = do
@@ -248,8 +263,4 @@ withTeamIds usr range size k = case range of
         ids <- Data.teamIdsOf usr cc
         k False ids
 {-# INLINE withTeamIds #-}
-
-membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
-membersToRecipients Nothing  = map (userRecipient . view userId)
-membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
 

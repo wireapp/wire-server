@@ -15,6 +15,7 @@ import Data.List1
 import Data.Maybe (catMaybes)
 import Data.Range
 import Galley.API.Util (isMember)
+import Galley.API.Teams (uncheckedRemoveTeamMember)
 import Galley.App
 import Galley.Types (ConvType (..), evtFrom)
 import Network.Wai
@@ -27,12 +28,19 @@ import qualified Galley.Intra.Push as Intra
 rmUser :: UserId ::: Maybe ConnId -> Galley Response
 rmUser (user ::: conn) = do
     let n = unsafeRange 100 :: Range 1 100 Int32
-    Data.ResultSet ids <- Data.conversationIdsFrom user Nothing (rcast n)
+    Data.ResultSet tids <- Data.teamIdsFrom user Nothing (rcast n)
+    leaveTeams tids
+    Data.ResultSet cids <- Data.conversationIdsFrom user Nothing (rcast n)
     let u = list1 user []
-    leaveConversations u ids
+    leaveConversations u cids
     Data.eraseClients user
     return empty
   where
+    leaveTeams tids = for_ (result tids) $ \tid -> do
+        Data.teamMembers tid >>= uncheckedRemoveTeamMember user conn tid user
+        when (hasMore tids) $
+            leaveTeams =<< liftClient (nextPage tids)
+
     leaveConversations u ids = do
         cc <- Data.conversations (result ids)
         pp <- for cc $ \c -> case Data.convType c of
