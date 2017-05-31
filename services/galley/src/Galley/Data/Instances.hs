@@ -1,4 +1,6 @@
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -6,10 +8,17 @@
 module Galley.Data.Instances where
 
 import Cassandra.CQL
+import Control.Lens ((^.))
+import Control.Error (note)
+import Data.Int
 import Galley.Types
 import Galley.Types.Bot
+import Galley.Types.Teams
+
+import qualified Data.Set
 
 deriving instance Cql ServiceToken
+
 
 instance Cql ConvType where
     ctype = Tagged IntColumn
@@ -27,6 +36,7 @@ instance Cql ConvType where
         n -> fail $ "unexpected conversation-type: " ++ show n
     fromCql _ = fail "conv-type: int expected"
 
+
 instance Cql Access where
     ctype = Tagged IntColumn
 
@@ -40,3 +50,33 @@ instance Cql Access where
         3 -> return LinkAccess
         n -> fail $ "Unexpected Access value: " ++ show n
     fromCql _ = fail "Access value: int expected"
+
+
+instance Cql Permissions where
+    ctype = Tagged $ UdtColumn "permissions" [("self", BigIntColumn), ("copy", BigIntColumn)]
+
+    toCql p =
+        let f = CqlBigInt . fromIntegral . permsToInt in
+        CqlUdt [("self", f (p^.self)), ("copy", f (p^.copy))]
+
+    fromCql (CqlUdt p) = do
+        let f = intToPerms . fromIntegral :: Int64 -> Data.Set.Set Perm
+        s <- note "missing 'self' permissions" ("self" `lookup` p) >>= fromCql
+        d <- note "missing 'copy' permissions" ("copy" `lookup` p) >>= fromCql
+        r <- note "invalid permissions" (newPermissions (f s) (f d))
+        pure r
+    fromCql _ = fail "permissions: udt expected"
+
+
+instance Cql ConvTeamInfo where
+    ctype = Tagged $ UdtColumn "teaminfo" [("teamid", UuidColumn), ("managed", BooleanColumn)]
+
+    toCql t = CqlUdt [("teamid", toCql (cnvTeamId t)), ("managed", toCql (cnvManaged t))]
+
+    fromCql (CqlUdt u) = do
+        t <- note "missing 'teamid' in teaminfo" ("teamid" `lookup` u) >>= fromCql
+        m <- note "missing 'managed' in teaminfo" ("managed" `lookup` u) >>= fromCql
+        pure (ConvTeamInfo t m)
+
+    fromCql _ = fail "teaminfo: udt expected"
+

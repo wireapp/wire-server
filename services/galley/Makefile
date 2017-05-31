@@ -9,7 +9,7 @@ EXE_SCHEMA   := dist/$(NAME)-schema
 DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT       := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA   := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
-KEIRETSU_ENV  ?= ../.env
+KEIRETSU_ENV ?= ../.env
 
 default: all
 
@@ -33,14 +33,8 @@ install: init
 compile:
 	stack build --pedantic --test --no-copy-bins
 
-.PHONY: sdist
-sdist: init
-	stack sdist
-	cp "../../libs/galley-types/$(shell stack path --dist-dir)/$(NAME)-types-$(VERSION).tar.gz" dist/
-	cp "$(shell stack path --dist-dir)/$(NAME)-$(VERSION).tar.gz" dist/
-
 .PHONY: dist
-dist: sdist install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
+dist: install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
 
 $(DEB):
 	makedeb --name=$(NAME) \
@@ -83,10 +77,10 @@ integration-%:
 db: db-reset
 
 .PHONY: db-reset
-db-reset: compile
+db-reset: install
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1 --reset
 
 .PHONY: db-migrate
-db-migrate: compile
+db-migrate: install
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1
 

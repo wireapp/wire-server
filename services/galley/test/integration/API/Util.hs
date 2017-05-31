@@ -7,7 +7,7 @@ import Bilge.Assert
 import Brig.Types
 import Control.Applicative hiding (empty)
 import Control.Error
-import Control.Lens ((&), (?~))
+import Control.Lens hiding ((.=), from, to)
 import Control.Monad hiding (mapM_)
 import Control.Monad.IO.Class
 import Data.Aeson hiding (json)
@@ -20,12 +20,14 @@ import Data.List1 as List1
 import Data.Maybe
 import Data.Monoid
 import Data.ProtocolBuffers (encodeMessage)
+import Data.Range
 import Data.Set (Set)
 import Data.Serialize (runPut)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V4
 import Galley.Types
+import Galley.Types.Teams hiding (EventType (..))
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
 import Prelude hiding (head, mapM_)
@@ -34,15 +36,16 @@ import Test.Tasty.HUnit
 
 import Debug.Trace (traceShow)
 
-import qualified Data.ByteString.Base64      as B64
-import qualified Data.ByteString.Char8       as C
-import qualified Data.ByteString.Lazy        as Lazy
-import qualified Data.HashMap.Strict         as HashMap
-import qualified Data.Map.Strict             as Map
-import qualified Data.Set                    as Set
-import qualified Data.UUID                   as UUID
-import qualified Galley.Types.Proto          as Proto
-import qualified Test.Tasty.Cannon           as WS
+import qualified Data.ByteString.Base64 as B64
+import qualified Data.ByteString.Char8  as C
+import qualified Data.ByteString.Lazy   as Lazy
+import qualified Data.HashMap.Strict    as HashMap
+import qualified Data.Map.Strict        as Map
+import qualified Data.Set               as Set
+import qualified Data.UUID              as UUID
+import qualified Galley.Types.Proto     as Proto
+import qualified Test.QuickCheck        as Q
+import qualified Test.Tasty.Cannon      as WS
 
 type Galley      = Request -> Request
 type Brig        = Request -> Request
@@ -54,9 +57,54 @@ test m s h = testCase s (runHttpT m h)
 -------------------------------------------------------------------------------
 -- API Operations
 
+symmPermissions :: [Perm] -> Permissions
+symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
+
+createTeam :: Galley -> Text -> UserId -> [TeamMember] -> Http TeamId
+createTeam g name owner mems = do
+    let mm = if null mems then Nothing else Just $ unsafeRange (take 127 mems)
+    let nt = newNewTeam (unsafeRange name) (unsafeRange "icon") & newTeamMembers .~ mm
+    resp <- post (g . path "/teams" . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
+        const 201  === statusCode
+        const True === isJust . getHeader "Location"
+    fromBS (getHeader' "Location" resp)
+
+getTeam :: Galley -> UserId -> TeamId -> Http Team
+getTeam g usr tid = do
+    r <- get (g . paths ["teams", toByteString' tid] . zUser usr) <!! const 200 === statusCode
+    pure (fromJust (decodeBody r))
+
+getTeamMembers :: Galley -> UserId -> TeamId -> Http TeamMemberList
+getTeamMembers g usr tid = do
+    r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
+    pure (fromJust (decodeBody r))
+
+getTeamMember :: Galley -> UserId -> TeamId -> UserId -> Http TeamMember
+getTeamMember g usr tid mid = do
+    r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' mid] . zUser usr) <!! const 200 === statusCode
+    pure (fromJust (decodeBody r))
+
+addTeamMember :: Galley -> UserId -> TeamId -> TeamMember -> Http ()
+addTeamMember g usr tid mem = do
+    let payload = json (newNewTeamMember mem)
+    post (g . paths ["teams", toByteString' tid, "members"] . zUser usr . zConn "conn" .payload) !!!
+        const 200 === statusCode
+
+createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Http ConvId
+createTeamConv g u tinfo us name = do
+    let conv = NewConv us name (Set.fromList []) (Just tinfo)
+    r <- post ( g
+              . path "/conversations"
+              . zUser u
+              . zConn "conn"
+              . zType "access"
+              . json conv
+              ) <!! const 201 === statusCode
+    fromBS (getHeader' "Location" r)
+
 postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Http ResponseLBS
 postConv g u us name a = do
-    let conv = NewConv us name (Set.fromList a)
+    let conv = NewConv us name (Set.fromList a) Nothing
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: Galley -> UserId -> Http ResponseLBS
@@ -64,7 +112,7 @@ postSelfConv g u = post $ g . path "/conversations/self" . zUser u . zConn "conn
 
 postO2OConv :: Galley -> UserId -> UserId -> Maybe Text -> Http ResponseLBS
 postO2OConv g u1 u2 n = do
-    let conv = NewConv [u2] n mempty
+    let conv = NewConv [u2] n mempty Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: Galley -> UserId -> UserId -> Text -> Text -> Maybe Text -> Http ResponseLBS
@@ -185,6 +233,18 @@ deleteClient g u c = delete $ g
 deleteUser :: Galley -> UserId -> Http ()
 deleteUser g u = delete (g . path "/i/user" . zUser u) !!! const 200 === statusCode
 
+assertConvMember :: Galley -> UserId -> ConvId -> Http ()
+assertConvMember g u c =
+    getSelfMember g u c !!! do
+        const 200      === statusCode
+        const (Just u) === (fmap memId <$> decodeBody)
+
+assertNotConvMember :: Galley -> UserId -> ConvId -> Http ()
+assertNotConvMember g u c =
+    getSelfMember g u c !!! do
+        const 200         === statusCode
+        const (Just Null) === decodeBody
+
 -------------------------------------------------------------------------------
 -- Common Assertions
 
@@ -212,19 +272,19 @@ assertConv :: Response (Maybe Lazy.ByteString)
 assertConv r t c s us n = do
     cId <- fromBS $ getHeader' "Location" r
     let cnv = decodeBody r :: Maybe Conversation
-    let self = cmSelf . cnvMembers <$> cnv
+    let _self = cmSelf . cnvMembers <$> cnv
     let others = cmOthers . cnvMembers <$> cnv
     liftIO $ do
         assertEqual "id" (Just cId) (cnvId <$> cnv)
         assertEqual "name" n (cnv >>= cnvName)
         assertEqual "type" (Just t) (cnvType <$> cnv)
         assertEqual "creator" (Just c) (cnvCreator <$> cnv)
-        assertEqual "self" (Just s) (memId <$> self)
+        assertEqual "self" (Just s) (memId <$> _self)
         assertEqual "others" (Just $ Set.fromList us) (Set.fromList . map omId . toList <$> others)
-        assertBool  "otr muted not false" (Just False == (memOtrMuted <$> self))
-        assertBool  "otr muted ref not empty" (isNothing (memOtrMutedRef =<< self))
-        assertBool  "otr archived not false" (Just False == (memOtrArchived <$> self))
-        assertBool  "otr archived ref not empty" (isNothing (memOtrArchivedRef =<< self))
+        assertBool  "otr muted not false" (Just False == (memOtrMuted <$> _self))
+        assertBool  "otr muted ref not empty" (isNothing (memOtrMutedRef =<< _self))
+        assertBool  "otr archived not false" (Just False == (memOtrArchived <$> _self))
+        assertBool  "otr archived ref not empty" (isNothing (memOtrArchivedRef =<< _self))
         case t of
             SelfConv    -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
             ConnectConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
@@ -409,3 +469,5 @@ encodeCiphertext = decodeUtf8 . B64.encode
 memberUpdate :: MemberUpdate
 memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing
 
+genRandom :: (Q.Arbitrary a, MonadIO m) => m a
+genRandom = liftIO . Q.generate $ Q.arbitrary

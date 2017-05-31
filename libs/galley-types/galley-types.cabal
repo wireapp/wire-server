@@ -1,5 +1,5 @@
 name:          galley-types
-version:       0.78.0
+version:       0.80.0
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
 copyright:     (c) 2017 Wire Swiss GmbH
@@ -21,6 +21,8 @@ library
         Galley.Types.Bot.Service
         Galley.Types.Proto
         Galley.Types.Swagger
+        Galley.Types.Teams
+        Galley.Types.Teams.Swagger
 
     build-depends:
         aeson                 >= 0.6

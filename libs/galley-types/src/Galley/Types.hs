@@ -17,6 +17,7 @@ module Galley.Types
     , OtrRecipients    (..)
     , foldrOtrRecipients
     , OtrFilterMissing (..)
+    , ConvTeamInfo     (..)
 
       -- * Events
     , Event            (..)
@@ -73,6 +74,7 @@ data Conversation = Conversation
     , cnvAccess    :: !(List1 Access)
     , cnvName      :: !(Maybe Text)
     , cnvMembers   :: !ConvMembers
+    , cnvTeam      :: !(Maybe TeamId)
     } deriving (Eq, Show)
 
 data ConvType
@@ -99,6 +101,7 @@ data ConversationMeta = ConversationMeta
     , cmCreator :: !UserId
     , cmAccess  :: !(List1 Access)
     , cmName    :: !(Maybe Text)
+    , cmTeam    :: !(Maybe TeamId)
     } deriving (Eq, Show)
 
 data ConversationList a = ConversationList
@@ -113,10 +116,16 @@ newtype ConversationRename = ConversationRename
 deriving instance Eq   ConversationRename
 deriving instance Show ConversationRename
 
+data ConvTeamInfo = ConvTeamInfo
+    { cnvTeamId  :: !TeamId
+    , cnvManaged :: !Bool
+    } deriving (Eq, Show)
+
 data NewConv = NewConv
     { newConvUsers  :: ![UserId]
     , newConvName   :: !(Maybe Text)
     , newConvAccess :: !(Set Access)
+    , newConvTeam   :: !(Maybe ConvTeamInfo)
     }
 
 deriving instance Eq   NewConv
@@ -237,6 +246,7 @@ data EventType
     | ConvRename
     | ConvCreate
     | ConvConnect
+    | ConvDelete
     | OtrMessageAdd
     | Typing
     deriving (Eq, Show)
@@ -433,16 +443,18 @@ instance ToJSON Conversation where
         , "members" .= cnvMembers c
         , "last_event"      .= ("0.0" :: Text)
         , "last_event_time" .= ("1970-01-01T00:00:00.000Z" :: Text)
+        , "team"    .= cnvTeam c
         ]
 
 instance FromJSON Conversation where
    parseJSON = withObject "conversation" $ \o ->
-       Conversation <$> o .: "id"
-                    <*> o .: "type"
-                    <*> o .: "creator"
-                    <*> o .: "access"
-                    <*> o .: "name"
-                    <*> o .: "members"
+       Conversation <$> o .:  "id"
+                    <*> o .:  "type"
+                    <*> o .:  "creator"
+                    <*> o .:  "access"
+                    <*> o .:? "name"
+                    <*> o .:  "members"
+                    <*> o .:? "team"
 
 instance ToJSON ConvMembers where
    toJSON mm = object
@@ -473,6 +485,7 @@ parseEventData ConvConnect v       = Just . EdConnect <$> parseJSON v
 parseEventData ConvCreate v        = Just . EdConversation <$> parseJSON v
 parseEventData Typing v            = Just . EdTyping <$> parseJSON v
 parseEventData OtrMessageAdd v     = Just . EdOtrMessage <$> parseJSON v
+parseEventData ConvDelete _        = pure Nothing
 
 instance ToJSON EventData where
     toJSON (EdMembers x)      = toJSON x
@@ -501,6 +514,7 @@ instance FromJSON EventType where
     parseJSON (String "conversation.rename")          = return ConvRename
     parseJSON (String "conversation.member-update")   = return MemberStateUpdate
     parseJSON (String "conversation.create")          = return ConvCreate
+    parseJSON (String "conversation.delete")          = return ConvDelete
     parseJSON (String "conversation.connect-request") = return ConvConnect
     parseJSON (String "conversation.typing")          = return Typing
     parseJSON (String "conversation.otr-message-add") = return OtrMessageAdd
@@ -512,6 +526,7 @@ instance ToJSON EventType where
     toJSON MemberStateUpdate      = String "conversation.member-update"
     toJSON ConvRename             = String "conversation.rename"
     toJSON ConvCreate             = String "conversation.create"
+    toJSON ConvDelete             = String "conversation.delete"
     toJSON ConvConnect            = String "conversation.connect-request"
     toJSON Typing                 = String "conversation.typing"
     toJSON OtrMessageAdd          = String "conversation.otr-message-add"
@@ -521,13 +536,25 @@ instance FromJSON NewConv where
         NewConv <$> i .:  "users"
                 <*> i .:? "name"
                 <*> i .:? "access" .!= mempty
+                <*> i .:? "team"
 
 instance ToJSON NewConv where
     toJSON i = object
-        [ "users"  .= newConvUsers i
-        , "name"   .= newConvName i
-        , "access" .= newConvAccess i
+        $ "users"  .= newConvUsers i
+        # "name"   .= newConvName i
+        # "access" .= newConvAccess i
+        # "team"   .= newConvTeam i
+        # []
+
+instance ToJSON ConvTeamInfo where
+    toJSON c = object
+        [ "teamid"   .= cnvTeamId c
+        , "managed"  .= cnvManaged c
         ]
+
+instance FromJSON ConvTeamInfo where
+    parseJSON = withObject "conversation team info" $ \o ->
+        ConvTeamInfo <$> o .: "teamid" <*> o .: "managed"
 
 instance FromJSON Invite where
     parseJSON = withObject "invite object"
@@ -538,20 +565,22 @@ instance ToJSON Invite where
 
 instance FromJSON ConversationMeta where
     parseJSON = withObject "conversation-meta" $ \o ->
-        ConversationMeta <$> o .: "id"
-                         <*> o .: "type"
-                         <*> o .: "creator"
-                         <*> o .: "access"
-                         <*> o .: "name"
+        ConversationMeta <$> o .:  "id"
+                         <*> o .:  "type"
+                         <*> o .:  "creator"
+                         <*> o .:  "access"
+                         <*> o .:  "name"
+                         <*> o .:? "team"
 
 instance ToJSON ConversationMeta where
     toJSON c = object
-        [ "id"      .= cmId c
-        , "type"    .= cmType c
-        , "creator" .= cmCreator c
-        , "access"  .= cmAccess c
-        , "name"    .= cmName c
-        ]
+        $ "id"      .= cmId c
+        # "type"    .= cmType c
+        # "creator" .= cmCreator c
+        # "access"  .= cmAccess c
+        # "name"    .= cmName c
+        # "team"    .= cmTeam c
+        # []
 
 instance FromJSON ConversationRename where
     parseJSON = withObject "conversation-rename object" $ \c ->

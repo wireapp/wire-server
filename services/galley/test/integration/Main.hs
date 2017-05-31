@@ -17,6 +17,5 @@ main = withOpenSSL $ do
         g <- (host "localhost" .) . port . read <$> getEnv "GALLEY_WEB_PORT"
         b <- (host "localhost" .) . port . read <$> getEnv "BRIG_WEB_PORT"
         c <- (host "localhost" .) . port . read <$> getEnv "CANNON_WEB_PORT"
-        api <- API.tests g b c
-        defaultMain $ testGroup "Galley API Integration" [api]
+        defaultMain =<< API.tests g b c
 
