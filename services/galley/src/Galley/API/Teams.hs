@@ -186,7 +186,7 @@ deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: _) = do
 uncheckedRemoveTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> [TeamMember] -> Galley ()
 uncheckedRemoveTeamMember zusr zcon tid remove mems = do
     now <- liftIO getCurrentTime
-    let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave $ newTeamMemberLeave remove)
+    let e = newEvent MemberLeave tid now & eventData .~ Just (EdMemberLeave remove)
     let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) mems)
     push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ zcon
     Data.removeTeamMember tid remove

@@ -1,8 +1,7 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE StrictData                 #-}
-{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData        #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module Galley.Types.Teams
     ( Team
@@ -23,11 +22,6 @@ module Galley.Types.Teams
     , userId
     , permissions
     , teamMemberJson
-
-    , TeamMemberLeave
-    , newTeamMemberLeave
-    , tmlUser
-    , tmlRemoved
 
     , TeamMemberList
     , newTeamMemberList
@@ -70,7 +64,6 @@ module Galley.Types.Teams
     , Event
     , newEvent
     , eventType
-    , eventVersion
     , eventTime
     , eventTeam
     , eventData
@@ -84,9 +77,6 @@ module Galley.Types.Teams
     , iconUpdate
     , iconKeyUpdate
 
-    , ConvScope (..)
-    , Version
-    , version
     ) where
 
 import Control.Lens (makeLenses, (^.))
@@ -96,13 +86,14 @@ import Data.Aeson.Types (Parser)
 import Data.Bits (testBit, (.|.))
 import Data.Id (TeamId, ConvId, UserId)
 import Data.Json.Util
-import Data.Monoid ((<>))
+import Data.Monoid
 import Data.Maybe (mapMaybe, isNothing)
 import Data.Range
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import Data.Word
+
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
@@ -116,11 +107,10 @@ data Team = Team
     } deriving (Eq, Show)
 
 data Event = Event
-    { _eventType    :: EventType
-    , _eventVersion :: Version
-    , _eventTeam    :: TeamId
-    , _eventTime    :: UTCTime
-    , _eventData    :: Maybe EventData
+    { _eventType :: EventType
+    , _eventTeam :: TeamId
+    , _eventTime :: UTCTime
+    , _eventData :: Maybe EventData
     } deriving Eq
 
 data EventType =
@@ -134,17 +124,11 @@ data EventType =
     | ConvDelete
     deriving (Eq, Show)
 
-newtype Version = Version Word8 deriving (Eq, Ord, Show, FromJSON, ToJSON)
-
--- Before changing this value, assess the potential impact on clients.
-version :: Version
-version = Version 1
-
 data EventData =
       EdTeamCreate   Team
     | EdTeamUpdate   TeamUpdateData
     | EdMemberJoin   UserId
-    | EdMemberLeave  TeamMemberLeave
+    | EdMemberLeave  UserId
     | EdMemberUpdate UserId
     | EdConvCreate   ConvId
     | EdConvDelete   ConvId
@@ -169,13 +153,6 @@ data TeamMember = TeamMember
 newtype TeamMemberList = TeamMemberList
     { _teamMembers :: [TeamMember]
     }
-
-data TeamMemberLeave = TeamMemberLeave
-    { _tmlUser    :: UserId
-    , _tmlRemoved :: ConvScope
-    } deriving (Eq, Show)
-
-data ConvScope = None | Managed | All deriving (Eq, Show)
 
 data TeamConversation = TeamConversation
     { _conversationId      :: ConvId
@@ -227,9 +204,6 @@ newTeamList = TeamList
 newTeamMember :: UserId -> Permissions -> TeamMember
 newTeamMember = TeamMember
 
-newTeamMemberLeave :: UserId -> TeamMemberLeave
-newTeamMemberLeave u = TeamMemberLeave u All
-
 newTeamMemberList :: [TeamMember] -> TeamMemberList
 newTeamMemberList = TeamMemberList
 
@@ -246,7 +220,7 @@ newNewTeamMember :: TeamMember -> NewTeamMember
 newNewTeamMember = NewTeamMember
 
 newEvent :: EventType -> TeamId -> UTCTime -> Event
-newEvent typ tid tme = Event typ version tid tme Nothing
+newEvent typ tid tme = Event typ tid tme Nothing
 
 newTeamUpdateData :: TeamUpdateData
 newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing
@@ -255,7 +229,6 @@ makeLenses ''Team
 makeLenses ''TeamList
 makeLenses ''TeamMember
 makeLenses ''TeamMemberList
-makeLenses ''TeamMemberLeave
 makeLenses ''TeamConversation
 makeLenses ''TeamConversationList
 makeLenses ''Permissions
@@ -390,28 +363,6 @@ instance FromJSON Permissions where
             Nothing -> fail "invalid permissions"
             Just ps -> pure ps
 
-instance FromJSON TeamMemberLeave where
-    parseJSON = withObject "team-member-leave" $ \o ->
-        TeamMemberLeave <$> o .: "user"
-                        <*> o .: "removed"
-
-instance ToJSON TeamMemberLeave where
-    toJSON x = object
-        $ "user"    .= _tmlUser x
-        # "removed" .= _tmlRemoved x
-        # []
-
-instance ToJSON ConvScope where
-    toJSON None    = Number 0
-    toJSON Managed = Number 1
-    toJSON All     = Number 2
-
-instance FromJSON ConvScope where
-    parseJSON (Number 0) = pure None
-    parseJSON (Number 1) = pure Managed
-    parseJSON (Number 2) = pure All
-    parseJSON _          = fail "invalid conversation scope"
-
 instance ToJSON NewTeam where
     toJSON t = object
         $ "name"     .= fromRange (_newTeamName t)
@@ -465,27 +416,25 @@ instance ToJSON Event where
 
 instance ToJSONObject Event where
     toJSONObject e = HashMap.fromList
-        [ "type"    .= _eventType e
-        , "version" .= _eventVersion e
-        , "team"    .= _eventTeam e
-        , "time"    .= _eventTime e
-        , "data"    .= _eventData e
+        [ "type" .= _eventType e
+        , "team" .= _eventTeam e
+        , "time" .= _eventTime e
+        , "data" .= _eventData e
         ]
 
 instance FromJSON Event where
     parseJSON = withObject "event" $ \o -> do
         ty <- o .:  "type"
-        vs <- o .:  "version"
         dt <- o .:? "data"
-        Event ty vs <$> o .: "team"
-                    <*> o .: "time"
-                    <*> parseEventData ty dt
+        Event ty <$> o .: "team"
+                 <*> o .: "time"
+                 <*> parseEventData ty dt
 
 instance ToJSON EventData where
     toJSON (EdTeamCreate   tem) = toJSON tem
     toJSON (EdMemberJoin   usr) = object ["user" .= usr]
     toJSON (EdMemberUpdate usr) = object ["user" .= usr]
-    toJSON (EdMemberLeave  tml) = toJSON tml
+    toJSON (EdMemberLeave  usr) = object ["user" .= usr]
     toJSON (EdConvCreate   cnv) = object ["conv" .= cnv]
     toJSON (EdConvDelete   cnv) = object ["conv" .= cnv]
     toJSON (EdTeamUpdate   upd) = toJSON upd
@@ -502,7 +451,9 @@ parseEventData MemberUpdate (Just j) = do
     withObject "member update data" f j
 
 parseEventData MemberLeave Nothing  = fail "missing event data for type 'team.member-leave'"
-parseEventData MemberLeave (Just j) = Just . EdMemberLeave <$> parseJSON j
+parseEventData MemberLeave (Just j) = do
+    let f o = Just . EdMemberLeave <$> o .: "user"
+    withObject "member leave data" f j
 
 parseEventData ConvCreate Nothing  = fail "missing event data for type 'team.conversation-create"
 parseEventData ConvCreate (Just j) = do

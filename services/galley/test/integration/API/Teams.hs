@@ -57,10 +57,9 @@ testCreateTeam g b c = do
             eventChecks <- WS.awaitMatch timeout wsOwner $ \notif -> do
                 ntfTransient notif @?= False
                 let e = List1.head (WS.unpackPayload notif)
-                e^.eventType    @?= TeamCreate
-                e^.eventVersion @?= version
-                e^.eventTeam    @?= tid
-                e^.eventData    @?= Just (EdTeamCreate team)
+                e^.eventType @?= TeamCreate
+                e^.eventTeam @?= tid
+                e^.eventData @?= Just (EdTeamCreate team)
             void $ WS.assertSuccess eventChecks
 
 testCreateTeamWithMembers :: Galley -> Brig -> Cannon -> Http ()
@@ -85,10 +84,9 @@ testCreateTeamWithMembers g b c = do
     checkCreateEvent team w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
-        e^.eventType    @?= TeamCreate
-        e^.eventVersion @?= version
-        e^.eventTeam    @?= (team^.teamId)
-        e^.eventData    @?= Just (EdTeamCreate team)
+        e^.eventType @?= TeamCreate
+        e^.eventTeam @?= (team^.teamId)
+        e^.eventData @?= Just (EdTeamCreate team)
 
 testAddTeamMember :: Galley -> Brig -> Cannon -> Http ()
 testAddTeamMember g b c = do
@@ -118,10 +116,9 @@ testAddTeamMember g b c = do
     checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
-        e^.eventType    @?= MemberJoin
-        e^.eventVersion @?= version
-        e^.eventTeam    @?= tid
-        e^.eventData    @?= Just (EdMemberJoin usr)
+        e^.eventType @?= MemberJoin
+        e^.eventTeam @?= tid
+        e^.eventData @?= Just (EdMemberJoin usr)
 
 testRemoveTeamMember :: Galley -> Brig -> Cannon -> Http ()
 testRemoveTeamMember g b c = do
@@ -161,10 +158,9 @@ testRemoveTeamMember g b c = do
     checkLeaveEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
-        e^.eventType    @?= MemberLeave
-        e^.eventVersion @?= version
-        e^.eventTeam    @?= tid
-        e^.eventData    @?= Just (EdMemberLeave $ newTeamMemberLeave usr)
+        e^.eventType @?= MemberLeave
+        e^.eventTeam @?= tid
+        e^.eventData @?= Just (EdMemberLeave usr)
 
     checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
@@ -230,10 +226,9 @@ testAddTeamConv g b c = do
     checkTeamConvCreateEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
-        e^.eventType    @?= ConvCreate
-        e^.eventVersion @?= version
-        e^.eventTeam    @?= tid
-        e^.eventData    @?= Just (EdConvCreate cid)
+        e^.eventType @?= ConvCreate
+        e^.eventTeam @?= tid
+        e^.eventData @?= Just (EdConvCreate cid)
 
     checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
@@ -246,10 +241,9 @@ testAddTeamConv g b c = do
     checkTeamMemberJoin tid uid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
-        e^.eventType    @?= MemberJoin
-        e^.eventVersion @?= version
-        e^.eventTeam    @?= tid
-        e^.eventData    @?= Just (EdMemberJoin uid)
+        e^.eventType @?= MemberJoin
+        e^.eventTeam @?= tid
+        e^.eventData @?= Just (EdMemberJoin uid)
 
 
 testAddTeamConvWithUsers :: Galley -> Brig -> Http ()
@@ -343,10 +337,9 @@ testDeleteTeam g b c = do
     checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
-        e^.eventType    @?= TeamDelete
-        e^.eventVersion @?= version
-        e^.eventTeam    @?= tid
-        e^.eventData    @?= Nothing
+        e^.eventType @?= TeamDelete
+        e^.eventTeam @?= tid
+        e^.eventData @?= Nothing
 
     checkConvDeletevent cid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
@@ -402,10 +395,9 @@ testDeleteTeamConv g b c = do
     checkTeamConvDeleteEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
-        e^.eventType    @?= ConvDelete
-        e^.eventVersion @?= version
-        e^.eventTeam    @?= tid
-        e^.eventData    @?= Just (EdConvDelete cid)
+        e^.eventType @?= ConvDelete
+        e^.eventTeam @?= tid
+        e^.eventData @?= Just (EdConvDelete cid)
 
     checkConvDeletevent cid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
@@ -440,10 +432,9 @@ testUpdateTeam g b c = do
     checkTeamUpdateEvent tid upd w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
-        e^.eventType    @?= TeamUpdate
-        e^.eventVersion @?= version
-        e^.eventTeam    @?= tid
-        e^.eventData    @?= Just (EdTeamUpdate upd)
+        e^.eventType @?= TeamUpdate
+        e^.eventTeam @?= tid
+        e^.eventData @?= Just (EdTeamUpdate upd)
 
 testUpdateTeamMember :: Galley -> Brig -> Cannon -> Http ()
 testUpdateTeamMember g b c = do
@@ -469,8 +460,7 @@ testUpdateTeamMember g b c = do
     checkTeamMemberUpdateEvent tid uid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
-        e^.eventType    @?= MemberUpdate
-        e^.eventVersion @?= version
-        e^.eventTeam    @?= tid
-        e^.eventData    @?= Just (EdMemberUpdate uid)
+        e^.eventType @?= MemberUpdate
+        e^.eventTeam @?= tid
+        e^.eventData @?= Just (EdMemberUpdate uid)
 
