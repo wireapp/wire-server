@@ -185,12 +185,11 @@ soundcloudStream :: Text -> Proxy Response
 soundcloudStream url = do
     e <- view secrets
     s <- liftIO $ Config.require e "secrets.soundcloud"
-    req1 <- Req.queryItem "client_id" s <$> Client.parseUrlThrow (Text.unpack url)
-    unless (Client.secure req1 && Client.host req1 == "api.soundcloud.com") $
+    req <- Req.noRedirect . Req.queryItem "client_id" s <$> Client.parseRequest (Text.unpack url)
+    unless (Client.secure req && Client.host req == "api.soundcloud.com") $
         failWith "insecure stream url"
-    let req2 = req1 { Client.redirectCount = 0 }
     mgr <- view manager
-    res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs req2 mgr)
+    res <- liftIO $ recovering x2 [handler] $ const (Client.httpLbs req mgr)
     unless (status302 == Client.responseStatus res) $ do
         debug $ msg (val "unexpected upstream response")
              ~~ "upstream" .= val "soundcloud::stream"
