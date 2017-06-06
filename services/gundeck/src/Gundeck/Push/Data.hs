@@ -2,11 +2,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Gundeck.Push.Data
-    ( select
-    , insert
+    ( insert
     , delete
     , Gundeck.Push.Data.lookup
     , erase
+    , Consistency (..)
     ) where
 
 import Cassandra
@@ -21,18 +21,8 @@ import System.Logger.Class (MonadLogger, val, msg, field, (~~))
 
 import qualified System.Logger.Class as Log
 
-select :: (MonadClient m, MonadLogger m)
-       => UserId -> Transport -> AppName -> Token -> m (Maybe (Address "no-keys"))
-select u t a p = do
-    row <- retry x1 (query1 q (params Quorum (u, t, a, p)))
-    maybe (return Nothing) mkAddr row
-  where
-    q :: PrepQuery R (UserId, Transport, AppName, Token) (UserId, Transport, AppName, Token, Maybe EndpointArn, ConnId, Maybe ClientId, Maybe Transport)
-    q = "select usr, transport, app, ptoken, arn, connection, client, fallback from user_push where usr = ? and transport = ? and app = ? and ptoken = ?"
-
-lookup :: (MonadClient m, MonadLogger m)
-       => UserId -> m [Address "no-keys"]
-lookup u = foldM mk [] =<< retry x1 (query q (params Quorum (Identity u)))
+lookup :: (MonadClient m, MonadLogger m) => UserId -> Consistency -> m [Address "no-keys"]
+lookup u c = foldM mk [] =<< retry x1 (query q (params c (Identity u)))
   where
     q :: PrepQuery R (Identity UserId) (UserId, Transport, AppName, Token, Maybe EndpointArn, ConnId, Maybe ClientId, Maybe Transport)
     q = "select usr, transport, app, ptoken, arn, connection, client, fallback from user_push where usr = ?"

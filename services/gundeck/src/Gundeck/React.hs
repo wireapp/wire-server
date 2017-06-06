@@ -31,7 +31,7 @@ import qualified Data.Set                  as Set
 import qualified Data.Text                 as Text
 import qualified Gundeck.Aws               as Aws
 import qualified Gundeck.Notification.Data as Stream
-import qualified Gundeck.Push.Data         as Data
+import qualified Gundeck.Push.Data         as Push
 import qualified Gundeck.Push.Websocket    as Web
 import qualified System.Logger.Class       as Log
 
@@ -86,7 +86,7 @@ withToken ev f = do
     e <- Aws.execute v (Aws.lookupEndpoint (ev^.evEndpoint))
     for_ e $ \ep -> do
         u  <- Aws.readEndpointData invalidData ep
-        as <- Data.lookup u
+        as <- Push.lookup u Push.Quorum
         case List.find ((== (ev^.evEndpoint)) . view addrEndpoint) as of
             Nothing -> do
                 logEvent u ev $ "token" .= Text.take 16 (tokenText (ep^.endpointToken))
@@ -111,7 +111,7 @@ deleteToken u ev tk cl = do
         r = singleton (target u & targetClients .~ [cl])
     void $ Web.push n r u Nothing Set.empty
     Stream.add i r p =<< view (options.notificationTTL)
-    Data.delete u (t^.tokenTransport) (t^.tokenApp) tk
+    Push.delete u (t^.tokenTransport) (t^.tokenApp) tk
 
 mkPushToken :: Event -> Token -> ClientId -> PushToken
 mkPushToken ev tk cl = let t = ev^.evEndpoint.snsTopic in
