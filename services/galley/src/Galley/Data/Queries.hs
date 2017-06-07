@@ -130,10 +130,10 @@ deleteUserConv = "delete from user where user = ? and conv = ?"
 
 type MemberStatus = Int32
 
-selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, MemberStatus, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
+selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
 selectMember = "select user, service, provider, status, otr_muted, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from member where conv = ? and user = ?"
 
-selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, MemberStatus, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
+selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text)
 selectMembers = "select conv, user, service, provider, status, otr_muted, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref from member where conv in ?"
 
 insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId) ()

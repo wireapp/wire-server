@@ -485,13 +485,13 @@ newMember u = Member
     , memHiddenRef      = Nothing
     }
 
-toMember :: ( UserId, Maybe ServiceId, Maybe ProviderId, Cql.MemberStatus
+toMember :: ( UserId, Maybe ServiceId, Maybe ProviderId, Maybe Cql.MemberStatus
             , Maybe Bool, Maybe Text -- otr muted
             , Maybe Bool, Maybe Text -- otr archived
             , Maybe Bool, Maybe Text -- hidden
             ) -> Maybe Member
 toMember (usr, srv, prv, sta, omu, omur, oar, oarr, hid, hidr) =
-    if sta /= 0
+    if sta /= Just 0
         then Nothing
         else Just $ Member
             { memId             = usr
