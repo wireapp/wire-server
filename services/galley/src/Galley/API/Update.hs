@@ -202,7 +202,8 @@ removeMember (zusr ::: zcon ::: cid ::: victim) = do
         unless (zusr `isMember` users) $ throwM convNotFound
 
     teamConvChecks tid = do
-        void $ permissionCheck zusr RemoveConversationMember =<< Data.teamMembers tid
+        unless (zusr == victim) $
+            void $ permissionCheck zusr RemoveConversationMember =<< Data.teamMembers tid
         tcv <- Data.teamConversation tid cid
         when (maybe False (view managedConversation) tcv) $
             throwM (invalidOp "Users can not be removed from managed conversations.")
