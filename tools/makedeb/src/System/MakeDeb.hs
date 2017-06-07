@@ -21,7 +21,7 @@ import qualified Data.Text.IO as Text
 data MakeDebOpts = MakeDebOpts
     { name    :: !Text
     , version :: !Text
-    , build   :: !Text
+    , build   :: !(Maybe Text)
     , arch    :: !Text
     , deb     :: !FilePath
     , out     :: !FilePath
@@ -48,13 +48,11 @@ options = MakeDebOpts
         <> metavar "STRING"
         <> help "artifact version"
 
-    optBuild = txtOption $
+    optBuild = optional $ txtOption $
            long "build"
         <> short 'b'
         <> metavar "STRING"
         <> help "build number"
-        <> value "0"
-        <> showDefault
 
     optArch = txtOption $
            long "architecture"
@@ -86,7 +84,7 @@ makeDeb opts = shelly . silently . withTmpDir $ \tmp -> do
 
 package :: MakeDebOpts -> Sh ()
 package MakeDebOpts {..} = do
-    let f = name <> "_" <> version <> "+" <> build <> "_" <> arch
+    let f = name <> "_" <> version <> plusBuild build <> "_" <> arch
     cmd "dpkg-deb" "-b" deb (out </> fromText f <.> "deb")
 
 substitute :: MakeDebOpts -> Sh ()
@@ -94,7 +92,7 @@ substitute MakeDebOpts {..} = flip traverseFiles (encodeString deb) $ \fname -> 
     mime <- cmd "file" "--brief" "--mime" (decodeString fname)
     when ("text/plain" `Text.isPrefixOf` mime) $
         replace [ ("<<VERSION_NUMBER>>", version)
-                , ("<<BUILD_NUMBER>>", build)
+                , ("+<<BUILD_NUMBER>>", plusBuild build)
                 , ("<<ARCHITECTURE>>", arch)
                 ]
                 fname
@@ -103,3 +101,6 @@ replace :: (MonadIO m) => [(Text, Text)] -> String -> m ()
 replace maps fname = liftIO $ do
     txt <- Text.readFile fname
     Text.writeFile fname $ foldl (\x (a, b) -> Text.replace a b x) txt maps
+
+plusBuild :: Maybe Text -> Text
+plusBuild = maybe "" (\x -> "+" <> x)
