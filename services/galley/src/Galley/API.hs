@@ -13,7 +13,7 @@ import Data.Aeson (encode)
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion (fromByteString, fromList)
 import Data.Id (UserId, ConvId)
-import Data.Metrics.Middleware
+import Data.Metrics.Middleware as Metrics
 import Data.Misc
 import Data.Range
 import Data.Set (Set)
@@ -39,11 +39,13 @@ import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.Server hiding (serverPort)
 import Prelude hiding (head)
 
+import qualified Control.Concurrent.Async      as Async
 import qualified Data.Predicate                as P
 import qualified Data.Set                      as Set
 import qualified Galley.API.Error              as Error
 import qualified Galley.API.Internal           as Internal
 import qualified Galley.Data                   as Data
+import qualified Galley.Queue                  as Q
 import qualified Galley.Types.Swagger          as Model
 import qualified Galley.Types.Teams.Swagger    as TeamsModel
 import qualified Network.Wai.Predicate         as P
@@ -59,11 +61,13 @@ run o = do
     s <- newSettings $ defaultServer (o^.hostname) (portNumber $ o^.serverPort) l m
     runClient (e^.cstate) $
         versionCheck Data.schemaVersion
+    d <- Async.async $ evalGalley e Internal.deleteLoop
     let rtree    = compile sitemap
         measured = measureRequests m rtree
         app r k  = runGalley e r (route rtree r k)
         start    = measured . catchErrors l m . GZip.gunzip . GZip.gzip GZip.def $ app
     runSettingsWithShutdown s start 5 `finally` do
+        Async.cancel d
         shutdown (e^.cstate)
         Log.flush l
         Log.close l
@@ -141,9 +145,11 @@ sitemap = do
         summary "Delete a team"
         parameter Path "id" bytes' $
             description "Team ID"
-        response 200 "Team data" end
+        response 202 "Team is scheduled for removal" end
         errorResponse Error.noTeamMember
         errorResponse (Error.operationDenied DeleteTeam)
+        errorResponse Error.deleteQueueFull
+
     --
 
     get "/teams/:id/members" (continue getTeamMembers) $
@@ -670,7 +676,11 @@ docs (_ ::: url) = do
     pure $ responseLBS status200 [jsonContent] apidoc
 
 monitoring :: JSON -> Galley Response
-monitoring = const $ json <$> (render =<< view monitor)
+monitoring _ = do
+    m <- view monitor
+    n <- Q.len =<< view deleteQueue
+    gaugeSet (fromIntegral n) (Metrics.path "galley.deletequeue.len") m
+    json <$> render m
 
 filterMissing :: HasQuery r => Predicate r P.Error OtrFilterMissing
 filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")

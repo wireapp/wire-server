@@ -311,28 +311,27 @@ testDeleteTeam g b c = do
 
     void $ WS.bracketR3 c owner extern (member^.userId) $ \(wsOwner, wsExtern, wsMember) -> do
         delete (g . paths ["teams", toByteString' tid] . zUser owner . zConn "conn") !!!
-            const 200 === statusCode
-
-        get (g . paths ["teams", toByteString' tid] . zUser owner) !!!
-            const 404 === statusCode
-
-        get (g . paths ["teams", toByteString' tid, "members"] . zUser owner) !!!
-            const 403 === statusCode
-
-        get (g . paths ["teams", toByteString' tid, "conversations"] . zUser owner) !!!
-            const 403 === statusCode
-
-        for_ [owner, extern, member^.userId] $ \u ->
-            for_ [cid1, cid2] $ \x -> do
-                Util.getConv g u x !!! const 404 === statusCode
-                Util.getSelfMember g u x !!! do
-                    const 200         === statusCode
-                    const (Just Null) === Util.decodeBody
-
+            const 202 === statusCode
         checkTeamDeleteEvent tid wsOwner
         checkTeamDeleteEvent tid wsMember
         checkConvDeletevent  cid1 wsExtern
         WS.assertNoEvent timeout [wsOwner, wsExtern, wsMember]
+
+    get (g . paths ["teams", toByteString' tid] . zUser owner) !!!
+        const 404 === statusCode
+
+    get (g . paths ["teams", toByteString' tid, "members"] . zUser owner) !!!
+        const 403 === statusCode
+
+    get (g . paths ["teams", toByteString' tid, "conversations"] . zUser owner) !!!
+        const 403 === statusCode
+
+    for_ [owner, extern, member^.userId] $ \u ->
+        for_ [cid1, cid2] $ \x -> do
+            Util.getConv g u x !!! const 404 === statusCode
+            Util.getSelfMember g u x !!! do
+                const 200         === statusCode
+                const (Just Null) === Util.decodeBody
   where
     checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False

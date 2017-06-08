@@ -8,6 +8,7 @@ module Galley.API.Teams
     , getTeam
     , getManyTeams
     , deleteTeam
+    , uncheckedDeleteTeam
     , addTeamMember
     , getTeamMembers
     , getTeamMember
@@ -46,9 +47,10 @@ import Prelude hiding (head, mapM)
 
 import qualified Data.Set as Set
 import qualified Galley.Data as Data
+import qualified Galley.Data.Types as Data
+import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
 import qualified Galley.Types.Teams as Teams
-import qualified Galley.Data.Types as Data
 
 getTeam :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeam (zusr::: tid ::: _) =
@@ -103,6 +105,17 @@ deleteTeam (zusr::: zcon ::: tid ::: _) = do
     membs <- Data.teamMembers tid
     when alive $
         void $ permissionCheck zusr DeleteTeam membs
+    q  <- view deleteQueue
+    ok <- Q.tryPush q (TeamItem tid zusr zcon)
+    if ok then
+        pure (empty & setStatus status202)
+    else
+        throwM deleteQueueFull
+
+-- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
+uncheckedDeleteTeam :: UserId -> ConnId -> TeamId -> Galley ()
+uncheckedDeleteTeam zusr zcon tid = do
+    membs  <- Data.teamMembers tid
     now    <- liftIO getCurrentTime
     convs  <- filter (not . view managedConversation) <$> Data.teamConversations tid
     events <- foldrM (pushEvents now membs) [] convs
@@ -110,7 +123,7 @@ deleteTeam (zusr::: zcon ::: tid ::: _) = do
     let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
     pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon) : events)
     Data.deleteTeam tid
-    pure empty
+    pure ()
   where
     pushEvents now membs c pp = do
         mm <- flip nonTeamMembers membs <$> Data.members (c^.conversationId)
@@ -182,7 +195,7 @@ deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: _) = do
     uncheckedRemoveTeamMember zusr (Just zcon) tid remove mems
     pure empty
 
--- This functions is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
+-- This function is "unchecked" because it does not validate that the user has the `RemoveTeamMember` permission.
 uncheckedRemoveTeamMember :: UserId -> Maybe ConnId -> TeamId -> UserId -> [TeamMember] -> Galley ()
 uncheckedRemoveTeamMember zusr zcon tid remove mems = do
     now <- liftIO getCurrentTime
