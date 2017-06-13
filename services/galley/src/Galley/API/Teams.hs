@@ -65,8 +65,12 @@ getManyTeams (zusr ::: range ::: size ::: _) =
 lookupTeam :: UserId -> TeamId -> Galley (Maybe Team)
 lookupTeam zusr tid = do
     tm <- Data.teamMember tid zusr
-    if isJust tm then
-        fmap Data.tdTeam <$> Data.team tid
+    if isJust tm then do
+        t <- Data.team tid
+        when (Just True == (Data.tdDeleted <$> t)) $ do
+            q <- view deleteQueue
+            void $ Q.tryPush q (TeamItem tid zusr Nothing)
+        pure (Data.tdTeam <$> t)
     else
         pure Nothing
 
@@ -106,30 +110,32 @@ deleteTeam (zusr::: zcon ::: tid ::: _) = do
     when alive $
         void $ permissionCheck zusr DeleteTeam membs
     q  <- view deleteQueue
-    ok <- Q.tryPush q (TeamItem tid zusr zcon)
+    ok <- Q.tryPush q (TeamItem tid zusr (Just zcon))
     if ok then
         pure (empty & setStatus status202)
     else
         throwM deleteQueueFull
 
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
-uncheckedDeleteTeam :: UserId -> ConnId -> TeamId -> Galley ()
+uncheckedDeleteTeam :: UserId -> Maybe ConnId -> TeamId -> Galley ()
 uncheckedDeleteTeam zusr zcon tid = do
-    membs  <- Data.teamMembers tid
-    now    <- liftIO getCurrentTime
-    convs  <- filter (not . view managedConversation) <$> Data.teamConversations tid
-    events <- foldrM (pushEvents now membs) [] convs
-    let e = newEvent TeamDelete tid now
-    let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
-    pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon) : events)
-    Data.deleteTeam tid
-    pure ()
+    team  <- Data.team tid
+    when (isJust team) $ do
+        membs  <- Data.teamMembers tid
+        now    <- liftIO getCurrentTime
+        convs  <- filter (not . view managedConversation) <$> Data.teamConversations tid
+        events <- foldrM (pushEvents now membs) [] convs
+        let e = newEvent TeamDelete tid now
+        let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
+        pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : events)
+        Data.deleteTeam tid
+        pure ()
   where
     pushEvents now membs c pp = do
         mm <- flip nonTeamMembers membs <$> Data.members (c^.conversationId)
         let e = Conv.Event Conv.ConvDelete (c^.conversationId) zusr now Nothing
         let p = newPush zusr (ConvEvent e) (map recipient mm)
-        pure (maybe pp (\x -> (x & pushConn .~ Just zcon) : pp) p)
+        pure (maybe pp (\x -> (x & pushConn .~ zcon) : pp) p)
 
 getTeamMembers :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamMembers (zusr::: tid ::: _) = do

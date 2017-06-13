@@ -71,7 +71,7 @@ import qualified Galley.Queue             as Q
 import qualified OpenSSL.X509.SystemStore as Ssl
 import qualified System.Logger            as Logger
 
-data DeleteItem = TeamItem TeamId UserId ConnId
+data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
     deriving (Eq, Ord, Show)
 
 -- | Main application environment.
