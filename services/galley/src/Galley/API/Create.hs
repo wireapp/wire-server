@@ -17,6 +17,7 @@ import Control.Monad.IO.Class
 import Data.Foldable (for_, toList)
 import Data.Id
 import Data.List1
+import Data.Maybe (isJust)
 import Data.Monoid ((<>))
 import Data.Range
 import Data.Set ((\\))
@@ -94,6 +95,8 @@ createSelfConversation zusr = do
 createOne2OneConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 createOne2OneConversation (zusr ::: zcon ::: req ::: _) = do
     j <- fromBody req invalidPayload
+    when (isJust (newConvTeam j)) $
+        throwM noTeamConv
     u <- rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId])
     (x, y) <- toUUIDs zusr (List.head $ fromRange u)
     when (x == y) $

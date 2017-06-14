@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE StrictData                 #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
@@ -14,6 +15,7 @@ module Galley.App
     , applog
     , manager
     , cstate
+    , deleteQueue
     , createEnv
     , extEnv
 
@@ -26,6 +28,8 @@ module Galley.App
     , evalGalley
     , ask
 
+    , DeleteItem (..)
+
       -- * Utilities
     , ifNothing
     , fromBody
@@ -34,7 +38,7 @@ module Galley.App
 
 import Bilge hiding (Request, header, statusCode, options)
 import Bilge.RPC
-import Cassandra hiding (Error)
+import Cassandra hiding (Error, Set)
 import Control.Error
 import Control.Lens hiding ((.=))
 import Control.Monad.Base
@@ -44,6 +48,7 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Data.Aeson (FromJSON)
 import Data.ByteString.Conversion (toByteString')
+import Data.Id (TeamId, UserId, ConnId)
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
 import Data.Serialize.Get (runGetLazy)
@@ -62,18 +67,23 @@ import qualified Cassandra.Settings       as C
 import qualified Data.List.NonEmpty       as NE
 import qualified Data.ProtocolBuffers     as Proto
 import qualified Data.Text.Lazy           as Lazy
+import qualified Galley.Queue             as Q
 import qualified OpenSSL.X509.SystemStore as Ssl
 import qualified System.Logger            as Logger
 
+data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
+    deriving (Eq, Ord, Show)
+
 -- | Main application environment.
 data Env = Env
-    { _reqId   :: !RequestId
-    , _monitor :: !Metrics
-    , _options :: !Opts
-    , _applog  :: !Logger
-    , _manager :: !Manager
-    , _cstate  :: !ClientState
-    , _extEnv  :: !ExtEnv
+    { _reqId       :: RequestId
+    , _monitor     :: Metrics
+    , _options     :: Opts
+    , _applog      :: Logger
+    , _manager     :: Manager
+    , _cstate      :: ClientState
+    , _deleteQueue :: Q.Queue DeleteItem
+    , _extEnv      :: ExtEnv
     }
 
 -- | Environment specific to the communication with external
@@ -122,6 +132,7 @@ createEnv m o = do
     l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
     Env mempty m o l <$> initHttpManager o
                      <*> initCassandra o l
+                     <*> Q.new 16000
                      <*> initExtEnv
 
 initCassandra :: Opts -> Logger -> IO ClientState
