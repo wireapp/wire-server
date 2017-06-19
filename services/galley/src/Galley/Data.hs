@@ -23,6 +23,8 @@ module Galley.Data
     , teamMember
     , teamMembers
     , userTeams
+    , oneUserTeam
+    , Galley.Data.teamBinding
     , isTeamAlive
     , deleteTeam
     , removeTeamConv
@@ -117,8 +119,8 @@ team :: MonadClient m => TeamId -> m (Maybe TeamData)
 team tid =
     fmap toTeam <$> retry x1 (query1 Cql.selectTeam (params Quorum (Identity tid)))
   where
-    toTeam (u, n, i, k, d) =
-        let t = newTeam tid u n i & teamIconKey .~ k in
+    toTeam (u, n, i, k, d, b) =
+        let t = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k in
         TeamData t d
 
 isTeamAlive :: MonadClient m => TeamId -> m Bool
@@ -161,16 +163,31 @@ userTeams :: MonadClient m => UserId -> m [TeamId]
 userTeams u = map runIdentity <$>
     retry x1 (query Cql.selectUserTeams (params Quorum (Identity u)))
 
+oneUserTeam :: MonadClient m => UserId -> m (Maybe TeamId)
+oneUserTeam u = fmap runIdentity <$>
+    retry x1 (query1 Cql.selectOneUserTeam (params Quorum (Identity u)))
+
+teamBinding :: MonadClient m => TeamId -> m (Maybe TeamBinding)
+teamBinding t = checkBinding . fmap runIdentity <$>
+    retry x1 (query1 Cql.selectTeamBinding (params Quorum (Identity t)))
+  where
+    checkBinding :: Maybe (Maybe TeamBinding) -> Maybe TeamBinding
+    checkBinding (Just (Just Binding)) = Just Binding
+    checkBinding (Just _             ) = Just NonBinding
+    checkBinding Nothing               = Nothing
+
 createTeam :: MonadClient m
-           => UserId
+           => Maybe TeamId
+           -> UserId
            -> Range 1 256 Text
            -> Range 1 256 Text
            -> Maybe (Range 1 256 Text)
+           -> TeamBinding
            -> m Team
-createTeam uid (fromRange -> n) (fromRange -> i) k = do
-    tid <- Id <$> liftIO nextRandom
-    retry x5 $ write Cql.insertTeam (params Quorum (tid, uid, n, i, fromRange <$> k))
-    pure (newTeam tid uid n i & teamIconKey .~ (fromRange <$> k))
+createTeam t uid (fromRange -> n) (fromRange -> i) k b = do
+    tid <- maybe (Id <$> liftIO nextRandom) return t
+    retry x5 $ write Cql.insertTeam (params Quorum (tid, uid, n, i, fromRange <$> k, b))
+    pure (newTeam tid uid n i b & teamIconKey .~ (fromRange <$> k))
 
 deleteTeam :: MonadClient m => TeamId -> m ()
 deleteTeam tid = do

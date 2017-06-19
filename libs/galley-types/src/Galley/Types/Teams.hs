@@ -1,16 +1,21 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StrictData        #-}
-{-# LANGUAGE TemplateHaskell   #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE StrictData                 #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
 module Galley.Types.Teams
     ( Team
+    , TeamBinding (..)
     , newTeam
     , teamId
     , teamCreator
     , teamName
     , teamIcon
     , teamIconKey
+    , teamBinding
 
     , TeamList
     , newTeamList
@@ -50,6 +55,8 @@ module Galley.Types.Teams
     , intToPerm
     , intToPerms
 
+    , BindingNewTeam (..)
+    , NonBindingNewTeam (..)
     , NewTeam
     , newNewTeam
     , newTeamName
@@ -82,7 +89,7 @@ module Galley.Types.Teams
 import Control.Lens (makeLenses, (^.))
 import Control.Monad (when)
 import Data.Aeson
-import Data.Aeson.Types (Parser)
+import Data.Aeson.Types (Parser, Pair)
 import Data.Bits (testBit, (.|.))
 import Data.Id (TeamId, ConvId, UserId)
 import Data.Json.Util
@@ -98,12 +105,18 @@ import Data.Word
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
 
+data TeamBinding =
+      Binding
+    | NonBinding
+    deriving (Eq, Show)
+
 data Team = Team
     { _teamId      :: TeamId
     , _teamCreator :: UserId
     , _teamName    :: Text
     , _teamIcon    :: Text
     , _teamIconKey :: Maybe Text
+    , _teamBinding :: TeamBinding
     } deriving (Eq, Show)
 
 data Event = Event
@@ -184,19 +197,22 @@ data Perm =
     | DeleteTeam
     deriving (Eq, Ord, Show)
 
-data NewTeam = NewTeam
+data NewTeam a = NewTeam
     { _newTeamName    :: Range 1 256 Text
     , _newTeamIcon    :: Range 1 256 Text
     , _newTeamIconKey :: Maybe (Range 1 256 Text)
-    , _newTeamMembers :: Maybe (Range 1 127 [TeamMember])
+    , _newTeamMembers :: Maybe a
     }
+
+newtype BindingNewTeam = BindingNewTeam (NewTeam ())
+newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
 
 newtype NewTeamMember = NewTeamMember
     { _ntmNewTeamMember :: TeamMember
     }
 
-newTeam :: TeamId -> UserId -> Text -> Text -> Team
-newTeam tid uid nme ico = Team tid uid nme ico Nothing
+newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
+newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
 
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
@@ -213,7 +229,7 @@ newTeamConversation = TeamConversation
 newTeamConversationList :: [TeamConversation] -> TeamConversationList
 newTeamConversationList = TeamConversationList
 
-newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam
+newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam a
 newNewTeam nme ico = NewTeam nme ico Nothing Nothing
 
 newNewTeamMember :: TeamMember -> NewTeamMember
@@ -287,6 +303,10 @@ intToPerms n =
 permsToInt :: Set Perm -> Word64
 permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0
 
+instance ToJSON TeamBinding where
+    toJSON Binding    = Bool True
+    toJSON NonBinding = Bool False
+
 instance ToJSON Team where
     toJSON t = object
         $ "id"       .= _teamId t
@@ -294,7 +314,13 @@ instance ToJSON Team where
         # "name"     .= _teamName t
         # "icon"     .= _teamIcon t
         # "icon_key" .= _teamIconKey t
+        # "binding"  .= _teamBinding t
         # []
+
+instance FromJSON TeamBinding where
+    parseJSON (Bool True)  = pure Binding
+    parseJSON (Bool False) = pure NonBinding
+    parseJSON other        = fail $ "Unknown binding type: " <> show other
 
 instance FromJSON Team where
     parseJSON = withObject "team" $ \o -> do
@@ -303,6 +329,7 @@ instance FromJSON Team where
              <*> o .:  "name"
              <*> o .:  "icon"
              <*> o .:? "icon_key"
+             <*> o .:? "binding" .!= NonBinding
 
 instance ToJSON TeamList where
     toJSON t = object
@@ -363,25 +390,35 @@ instance FromJSON Permissions where
             Nothing -> fail "invalid permissions"
             Just ps -> pure ps
 
-instance ToJSON NewTeam where
-    toJSON t = object
-        $ "name"     .= fromRange (_newTeamName t)
-        # "icon"     .= fromRange (_newTeamIcon t)
-        # "icon_key" .= (fromRange <$> _newTeamIconKey t)
-        # "members"  .= (map (teamMemberJson True) . fromRange <$> _newTeamMembers t)
+newTeamJson :: NewTeam a -> [Pair]
+newTeamJson (NewTeam n i ik _) = 
+          "name"     .= fromRange n
+        # "icon"     .= fromRange i
+        # "icon_key" .= (fromRange <$> ik)
         # []
 
-instance FromJSON NewTeam where
+instance ToJSON BindingNewTeam where
+    toJSON (BindingNewTeam t) = object $ newTeamJson t
+
+instance ToJSON NonBindingNewTeam where
+    toJSON (NonBindingNewTeam t) = 
+        object
+        $ "members" .= (map (teamMemberJson True) . fromRange <$> _newTeamMembers t)
+        # newTeamJson t
+
+deriving instance FromJSON BindingNewTeam
+deriving instance FromJSON NonBindingNewTeam
+
+instance (FromJSON a) => FromJSON (NewTeam a) where
     parseJSON = withObject "new-team" $ \o -> do
         name <- o .:  "name"
         icon <- o .:  "icon"
         key  <- o .:? "icon_key"
         mems <- o .:? "members"
-        either fail pure $
-            NewTeam <$> checkedEitherMsg "name" name
-                    <*> checkedEitherMsg "icon" icon
-                    <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") key
-                    <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "members") mems
+        either fail pure $ NewTeam <$> checkedEitherMsg "name" name
+                                   <*> checkedEitherMsg "icon" icon
+                                   <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") key
+                                   <*> pure mems
 
 instance ToJSON NewTeamMember where
     toJSON t = object ["member" .= teamMemberJson True (_ntmNewTeamMember t)]
@@ -487,4 +524,3 @@ instance FromJSON TeamUpdateData where
         when (isNothing (_nameUpdate x) && isNothing (_iconUpdate x) && isNothing (_iconKeyUpdate x)) $
             fail "no update data specified"
         pure x
-

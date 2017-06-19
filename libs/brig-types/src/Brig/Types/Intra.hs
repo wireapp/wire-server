@@ -115,5 +115,3 @@ instance ToJSON AutoConnect where
     toJSON ac = object
         [ "users" .= acUsrs ac
         ]
-
-

@@ -13,7 +13,8 @@ teamsModels =
     , teamMemberList
     , teamConversation
     , teamConversationList
-    , newTeam
+    , newBindingTeam
+    , newNonBindingTeam
     , newTeamMember
     , permissions
     , event
@@ -39,10 +40,23 @@ team = defineModel "Team" $ do
     property "icon_key" string' $ do
         description "team icon asset key"
         optional
+    property "binding" bool' $
+        description "user binding team"
 
-newTeam :: Model
-newTeam = defineModel "NewTeam" $ do
+newBindingTeam :: Model
+newBindingTeam = defineModel "NewBindingTeam" $ do
     description "Required data when creating new teams"
+    property "name" string' $
+        description "team name"
+    property "icon" string' $
+        description "team icon (asset ID)"
+    property "icon_key" string' $ do
+        description "team icon asset key"
+        optional
+
+newNonBindingTeam :: Model
+newNonBindingTeam = defineModel "newNonBindingTeam" $ do
+    description "Required data when creating new regular teams"
     property "name" string' $
         description "team name"
     property "icon" string' $
