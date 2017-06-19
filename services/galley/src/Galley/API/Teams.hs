@@ -17,6 +17,7 @@ module Galley.API.Teams
     , getTeamConversation
     , deleteTeamConversation
     , updateTeamMember
+    , uncheckedAddTeamMember
     , uncheckedRemoveTeamMember
     ) where
 
@@ -159,13 +160,24 @@ getTeamMember (zusr::: tid ::: uid ::: _) = do
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
     body <- fromBody req invalidPayload
+    addToTeam body zusr zcon tid True
+
+-- Does not check whether users are connected before adding to team
+uncheckedAddTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
+uncheckedAddTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
+    body <- fromBody req invalidPayload
+    addToTeam body zusr zcon tid False
+
+addToTeam :: NewTeamMember -> UserId -> ConnId -> TeamId -> Bool -> Galley Response
+addToTeam body zusr zcon tid checkConnection = do
     mems <- Data.teamMembers tid
     tmem <- permissionCheck zusr AddTeamMember mems
     unless ((body^.ntmNewTeamMember.permissions.self) `Set.isSubsetOf` (tmem^.permissions.copy)) $
         throwM invalidPermissions
     unless (length mems < 128) $
         throwM tooManyTeamMembers
-    ensureConnected zusr [body^.ntmNewTeamMember.userId]
+    when checkConnection $
+        ensureConnected zusr [body^.ntmNewTeamMember.userId]
     Data.addTeamMember tid (body^.ntmNewTeamMember)
     cc <- filter (view managedConversation) <$> Data.teamConversations tid
     for_ cc $ \c ->
