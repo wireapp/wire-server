@@ -79,7 +79,7 @@ execute nid prio (Candidates now queue) = do
             -- TODO: We could avoid looking up the addresses here again, if we
             --       retain the fallback addresses in `Gundeck.Push.nativeTargets`.
             addr <- List.find (fallbackAddress clt app trp)
-                <$> Push.lookup usr
+                <$> Push.lookup usr Push.One
             for_ addr $ \a -> do
                 Log.debug $ logMsg usr clt app trp "Sending fallback notification"
                     ~~ "arn" .= toText (a^.addrEndpoint)

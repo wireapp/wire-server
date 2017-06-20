@@ -139,7 +139,7 @@ nativeTargets p pres =
                  && (u^.recipientId /= p^.pushOrigin || p^.pushNativeIncludeOrigin)
 
     addresses u = do
-        addrs <- Data.lookup (u^.recipientId)
+        addrs <- Data.lookup (u^.recipientId) Data.One
         return $ preference
                . map (checkFallback u)
                . filter (eligible u)
@@ -196,7 +196,7 @@ addToken (uid ::: cid ::: req ::: _) = do
     t <- fromBody req (Error status400 "bad-request")
     unless (validFallback t) $
         throwM invalidFallback
-    (x, old) <- foldl' (matching t) (Nothing, []) <$> Data.lookup uid
+    (x, old) <- foldl' (matching t) (Nothing, []) <$> Data.lookup uid Data.Quorum
     e <- view awsEnv
     Log.info $ "user"  .= UUID.toASCIIBytes (toUUID uid)
             ~~ "token" .= Text.take 16 (tokenText (t^.token))
@@ -310,7 +310,7 @@ updateEndpoint uid cid t arn e = do
 
 deleteToken :: UserId ::: Token ::: JSON -> Gundeck Response
 deleteToken (uid ::: tok ::: _) = do
-    as <- filter (\x -> x^.addrToken == tok) <$> Data.lookup uid
+    as <- filter (\x -> x^.addrToken == tok) <$> Data.lookup uid Data.Quorum
     when (null as) $
         throwM (Error status404 "not-found" "Push token not found")
     deleteTokens as
@@ -340,7 +340,8 @@ notFound :: Response
 notFound = empty & setStatus status404
 
 listTokens :: UserId ::: JSON -> Gundeck Response
-listTokens (uid ::: _) = setStatus status200 . json . map toToken <$> Data.lookup uid
+listTokens (uid ::: _) =
+    setStatus status200 . json . map toToken <$> Data.lookup uid Data.Quorum
   where
     toToken a = pushToken (a^.addrTransport) (a^.addrApp) (a^.addrToken) (a^.addrClient)
 

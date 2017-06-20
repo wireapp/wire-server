@@ -129,7 +129,7 @@ removeUser s g c = do
     deleteUser g user
     liftIO $ do
         keys   <- Cql.runClient s (Clients.select user clt)
-        tokens <- Cql.runClient s (Push.lookup user)
+        tokens <- Cql.runClient s (Push.lookup user Push.Quorum)
         assertBool "clients gone" (isNothing keys)
         assertBool "tokens gone" (null tokens)
 
