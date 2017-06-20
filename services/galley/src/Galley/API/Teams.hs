@@ -18,6 +18,7 @@ module Galley.API.Teams
     , deleteTeamConversation
     , updateTeamMember
     , uncheckedAddTeamMember
+    , uncheckedGetTeamMember
     , uncheckedRemoveTeamMember
     ) where
 
@@ -156,6 +157,11 @@ getTeamMember (zusr::: tid ::: uid ::: _) = do
             let withPerm = m `hasPermission` GetMemberPermissions
             let member   = findTeamMember uid mems
             maybe (throwM teamMemberNotFound) (pure . json . teamMemberJson withPerm) member
+
+uncheckedGetTeamMember :: TeamId ::: UserId ::: JSON -> Galley Response
+uncheckedGetTeamMember (tid ::: uid ::: _) = do
+    mems <- Data.teamMembers tid
+    maybe (throwM teamMemberNotFound) (pure . json . teamMemberJson True) (findTeamMember uid mems)
 
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
