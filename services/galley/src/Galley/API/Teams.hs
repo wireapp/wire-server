@@ -4,6 +4,7 @@
 
 module Galley.API.Teams
     ( createTeam
+    , createTeamInternal
     , updateTeam
     , getTeam
     , getManyTeams
@@ -91,6 +92,23 @@ createTeam (zusr::: zcon ::: req ::: _) = do
     let e = newEvent TeamCreate (team^.teamId) now & eventData .~ Just (EdTeamCreate team)
     let r = membersToRecipients Nothing others
     push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ Just zcon
+    pure (empty & setStatus status201 . location (team^.teamId))
+
+createTeamInternal :: UserId ::: Request ::: JSON ::: JSON -> Galley Response
+createTeamInternal (zusr::: req ::: _) = do
+    body <- fromBody req invalidPayload
+    team <- Data.createTeam zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey)
+    let owner  = newTeamMember zusr fullPermissions
+    let others = filter ((zusr /=) . view userId)
+               . maybe [] fromRange
+               $ body^.newTeamMembers
+    ensureConnected zusr (map (view userId) others)
+    for_ (owner : others) $
+        Data.addTeamMember (team^.teamId)
+    now <- liftIO getCurrentTime
+    let e = newEvent TeamCreate (team^.teamId) now & eventData .~ Just (EdTeamCreate team)
+    let r = membersToRecipients Nothing others
+    push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r)
     pure (empty & setStatus status201 . location (team^.teamId))
 
 updateTeam :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response

@@ -88,6 +88,12 @@ sitemap = do
         response 201 "Team ID as `Location` header value" end
         errorResponse Error.notConnected
 
+    post "/i/teams" (continue createTeamInternal) $
+        zauthUserId
+        .&. request
+        .&. accept "application" "json"
+        .&. contentType "application" "json"
+
     put "/teams/:id" (continue updateTeam) $
         zauthUserId
         .&. zauthConnId
