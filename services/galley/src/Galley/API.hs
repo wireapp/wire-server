@@ -88,12 +88,6 @@ sitemap = do
         response 201 "Team ID as `Location` header value" end
         errorResponse Error.notConnected
 
-    post "/i/teams" (continue createTeamInternal) $
-        zauthUserId
-        .&. request
-        .&. accept "application" "json"
-        .&. contentType "application" "json"
-
     put "/teams/:id" (continue updateTeam) $
         zauthUserId
         .&. zauthConnId
@@ -639,9 +633,14 @@ sitemap = do
     get "/i/conversations/:cnv/meta" (continue getConversationMeta) $
         capture "cnv"
 
+    post "/i/teams" (continue createTeamInternal) $
+        zauthUserId
+        .&. request
+        .&. accept "application" "json"
+        .&. contentType "application" "json"
+
     post "/i/teams/:id/members" (continue uncheckedAddTeamMember) $
         zauthUserId
-        .&. zauthConnId
         .&. capture "id"
         .&. request
         .&. contentType "application" "json"

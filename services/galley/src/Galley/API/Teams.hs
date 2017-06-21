@@ -184,15 +184,15 @@ uncheckedGetTeamMember (tid ::: uid ::: _) = do
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
     body <- fromBody req invalidPayload
-    addToTeam body zusr zcon tid True
+    addToTeam body zusr (Just zcon) tid True
 
 -- Does not check whether users are connected before adding to team
-uncheckedAddTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
-uncheckedAddTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
+uncheckedAddTeamMember :: UserId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
+uncheckedAddTeamMember (zusr::: tid ::: req ::: _) = do
     body <- fromBody req invalidPayload
-    addToTeam body zusr zcon tid False
+    addToTeam body zusr Nothing tid False
 
-addToTeam :: NewTeamMember -> UserId -> ConnId -> TeamId -> Bool -> Galley Response
+addToTeam :: NewTeamMember -> UserId -> Maybe ConnId -> TeamId -> Bool -> Galley Response
 addToTeam body zusr zcon tid checkConnection = do
     mems <- Data.teamMembers tid
     tmem <- permissionCheck zusr AddTeamMember mems
@@ -209,7 +209,7 @@ addToTeam body zusr zcon tid checkConnection = do
     now <- liftIO getCurrentTime
     let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (body^.ntmNewTeamMember.userId))
     let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) ((body^.ntmNewTeamMember) : mems))
-    push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
+    push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ zcon
     pure empty
 
 updateTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
