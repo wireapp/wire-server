@@ -6,22 +6,23 @@ module Network.Wire.Client.API.Auth
     , refreshAuth
     , Auth (..)
     , AuthCookie
-    , AuthToken (..)
-    , TokenType
+    -- , AuthToken (..)
+    -- , AccessToken (..)
+    -- , TokenType
     , token
     , module Auth
     ) where
 
-import Bilge
-import Brig.Types.User.Auth as Auth (Login)
-import Control.Monad
+import Bilge -- hiding (Cookie)
+import Brig.Types.User.Auth as Auth hiding (Cookie)
+-- import Control.Monad
 import Control.Monad.IO.Class
-import Data.Aeson hiding (json)
-import Data.ByteString (ByteString)
+-- import Data.Aeson hiding (json)
+-- import Data.ByteString (ByteString)
 import Data.List.NonEmpty
 import Data.Monoid
 import Data.Time (getCurrentTime)
-import Data.Time.Clock (NominalDiffTime)
+-- import Data.Time.Clock (NominalDiffTime)
 import Network.HTTP.Client (generateCookie)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
@@ -35,28 +36,23 @@ import qualified Data.Text.Encoding    as T
 
 newtype AuthCookie = AuthCookie Cookie
 
-data AuthToken = AuthToken
-    { accessToken :: !ByteString
-    , tokenType   :: !TokenType
-    , expiresIn   :: !NominalDiffTime
-    }
+-- data AuthToken = AuthToken
+--     { authToken :: !ByteString
+--     , tokenType   :: !TokenType
+--     , expiresIn   :: !NominalDiffTime
+--     }
 
 data Auth = Auth
     { authCookie :: !AuthCookie
-    , authToken  :: !AuthToken
+    -- , authToken  :: !AuthToken
+    , authToken  :: !AccessToken
     }
 
-instance FromJSON AuthToken where
-    parseJSON = withObject "auth-token" $ \o ->
-        AuthToken <$> (T.encodeUtf8 <$> o .: "access_token")
-                  <*> o .: "token_type"
-                  <*> (fromInteger <$> o .: "expires_in")
-
-data TokenType = Bearer deriving (Show)
-
-instance FromJSON TokenType where
-    parseJSON (String "Bearer") = return Bearer
-    parseJSON _                 = mzero
+-- instance FromJSON AuthToken where
+--     parseJSON = withObject "auth-token" $ \o ->
+--         AuthToken <$> (T.encodeUtf8 <$> o .: "access_token")
+--                   <*> o .: "token_type"
+--                   <*> (fromInteger <$> o .: "expires_in")
 
 -------------------------------------------------------------------------------
 -- Unauthenticated
@@ -98,11 +94,11 @@ refreshAuth (Auth ac@(AuthCookie c) t) = do
 -------------------------------------------------------------------------------
 -- Utilities
 
-token :: AuthToken -> Request -> Request
+token :: AccessToken -> Request -> Request
 token t = header "Authorization" (tokType <> " " <> tokValue)
   where
-    tokType  = C.pack . show $ tokenType t
-    tokValue = accessToken t
+    tokType  = C.pack (show (tokenType t))
+    tokValue = Lazy.toStrict (access t)
 
 -- | Construct an 'Auth'orisation out of an access token response.
 tokenResponse :: Request

@@ -13,7 +13,7 @@ import Data.ByteString.Lazy (ByteString)
 import Data.String (IsString)
 import Data.Text (Text)
 import Data.Id (UserId)
-import Data.Text.Lazy.Encoding (decodeUtf8)
+import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Data.Word
 
@@ -123,7 +123,7 @@ data AccessToken = AccessToken
     , expiresIn :: !Integer    -- accessTokenExpiresIn
     }
 
-data TokenType = Bearer
+data TokenType = Bearer deriving Show
 
 bearerToken :: UserId -> ByteString -> Integer -> AccessToken
 bearerToken u a = AccessToken u a Bearer
@@ -181,8 +181,19 @@ instance ToJSON AccessToken where
                , "expires_in"   .= e
                ]
 
+instance FromJSON AccessToken where
+    parseJSON = withObject "AccessToken" $ \o ->
+        AccessToken <$> o .: "user"
+                    <*> (encodeUtf8 <$> o .: "access_token")
+                    <*> o .: "token_type"
+                    <*> o .: "expires_in"
+
 instance ToJSON TokenType where
     toJSON Bearer = toJSON ("Bearer" :: Text)
+
+instance FromJSON TokenType where
+    parseJSON (String "Bearer") = return Bearer
+    parseJSON _                 = fail "Invalid token type"
 
 instance FromJSON RemoveCookies where
     parseJSON = withObject "remove" $ \o ->

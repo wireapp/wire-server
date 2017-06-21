@@ -1,0 +1,83 @@
+name:                api-bot
+version:             0.4.2
+synopsis:            (Internal) API automation around wire-client.
+author:              Wire Swiss GmbH
+maintainer:          Wire Swiss GmbH <backend@wire.com>
+license:             AGPL-3
+license-file:        LICENSE
+stability:           experimental
+category:            Network
+build-type:          Simple
+cabal-version:       >= 1.14
+
+description:
+    (Internal) API automation around the wire-client.
+
+library
+    default-language: Haskell2010
+    hs-source-dirs:   src
+    ghc-options:      -Wall -O2 -fwarn-tabs
+
+    exposed-modules:
+        Network.Wire.Bot
+        Network.Wire.Bot.Assert
+        Network.Wire.Bot.Clients
+        Network.Wire.Bot.Crypto
+        Network.Wire.Bot.Email
+        Network.Wire.Bot.Metrics
+        Network.Wire.Bot.Monad
+        Network.Wire.Bot.Report
+        Network.Wire.Bot.Report.Text
+        Network.Wire.Bot.Settings
+
+    other-modules:
+        Network.Wire.Bot.Cache
+        Network.Wire.Bot.Crypto.Glue
+
+    build-depends:
+        aeson                 >= 0.11
+      , ansi-terminal         >= 0.6
+      , api-client
+      , async                 >= 2.0
+      , attoparsec            >= 0.13
+      , base                  >= 4.6   && < 5
+      , base64-bytestring     >= 1.0
+      , bilge                 >= 0.21
+      , bytestring            >= 0.10
+      , bytestring-conversion >= 0.2
+      , cereal                >= 0.5
+      , containers            >= 0.5
+      , cryptobox-haskell     >= 0.1.1
+      , cryptonite            >= 0.17
+      , directory             >= 1.2
+      , errors                >= 2.0
+      , exceptions            >= 0.8
+      , filepath              >= 1.3
+      , HaskellNet            >= 0.5
+      , HaskellNet-SSL        >= 0.3
+      , http-client           >= 0.4
+      , http-types            >= 0.8
+      , iso639                >= 0.1
+      , lens                  >= 4.1
+      , memory                >= 0.12
+      , metrics-core          >= 0.1.17
+      , mime                  >= 0.4
+      , monad-control         >= 1.0
+      , mtl                   >= 2.1
+      , mwc-random            >= 0.13
+      , old-locale            >= 1.0
+      , optparse-applicative  >= 0.11
+      , resource-pool         >= 0.2
+      , scientific            >= 0.3
+      , semigroups            >= 0.10
+      , singletons            >= 0.10
+      , stm                   >= 2.4
+      , text                  >= 0.11
+      , time                  >= 1.5
+      , transformers          >= 0.3
+      , transformers-base     >= 0.4
+      , tinylog               >= 0.14
+      , types-common          >= 0.11
+      , unordered-containers  >= 0.2
+      , uuid                  >= 1.3
+      , vector                >= 0.10

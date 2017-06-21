@@ -75,10 +75,10 @@ awaitNotifications :: (MonadSession m, Functor m)
 awaitNotifications f = do
     s <- getServer
     l <- getLogger
-    a <- accessToken . authToken <$> getAuth
+    a <- access . authToken <$> getAuth
     let hst = C.unpack $ fromMaybe (serverHost s) (serverWsHost s)
     let prt = fromIntegral $ fromMaybe (serverPort s) (serverWsPort s)
-    let pth = "/await?access_token=" ++ C.unpack a
+    let pth = "/await?access_token=" ++ C.unpack (L.toStrict a)
     liftIO $ do
         latch  <- newEmptyMVar
         worker <- async $ do

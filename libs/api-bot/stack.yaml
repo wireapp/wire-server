@@ -1,0 +1,19 @@
+resolver: lts-8.19
+packages:
+- '.'
+- location: '../api-client'
+  extra-dep: true
+- '../bilge'
+- '../brig-types'
+- '../cargohold-types'
+- '../galley-types'
+- '../gundeck-types'
+- '../metrics-core'
+- '../types-common'
+
+extra-deps:
+- mime-0.4.0.2
+- cryptobox-haskell-0.1.1
+flags:
+  types-common:
+    protobuf: True
