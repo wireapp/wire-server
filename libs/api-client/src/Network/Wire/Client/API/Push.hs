@@ -152,8 +152,6 @@ data Event
     | EConnect                (ConvEvent Connect)
     | EMemberLeave            (ConvEvent Members)
     | EConvRename             (ConvEvent ConversationRename)
-    | EVoiceChannelActivate   (ConvEvent NoData)
-    | EVoiceChannelDeactivate (ConvEvent NoData)
     | EMemberStateUpdate      (ConvEvent MemberUpdate)
     | EOtrMessage             (ConvEvent OtrMessage)
 
@@ -165,8 +163,6 @@ instance Show Event where
     show (EConnect x)                 = "EConnect: " ++ show x
     show (EMemberLeave x)             = "EMemberLeave: " ++ show x
     show (EConvRename x)              = "EConvRename: " ++ show x
-    show (EVoiceChannelActivate x)    = "EVoiceChannelActivate: " ++ show x
-    show (EVoiceChannelDeactivate x)  = "EVoiceChannelDeactivate: " ++ show x
     show (EMemberStateUpdate x)       = "EMemberStateUpdate: " ++ show x
     show (EOtrMessage x)              = "EOtrMessage: " ++ show x
 
@@ -194,8 +190,6 @@ data EventType
     | TConvConnect
     | TConvMemberLeave
     | TConvRename
-    | TConvVoiceChannelActivate
-    | TConvVoiceChannelDeactivate
     | TConvMemberStateUpdate
     | TConvOtrMessageAdd
     deriving (Eq, Enum, Bounded)
@@ -212,22 +206,18 @@ eventType (EMemberJoin             _) = TConvMemberJoin
 eventType (EMemberLeave            _) = TConvMemberLeave
 eventType (EConvRename             _) = TConvRename
 eventType (EMemberStateUpdate      _) = TConvMemberStateUpdate
-eventType (EVoiceChannelActivate   _) = TConvVoiceChannelActivate
-eventType (EVoiceChannelDeactivate _) = TConvVoiceChannelActivate
 eventType (EOtrMessage             _) = TConvOtrMessageAdd
 
 eventTypeText :: EventType -> Text
-eventTypeText TUserNew                    = "user.new"
-eventTypeText TUserConnection             = "user.connection"
-eventTypeText TConvCreate                 = "conversation.create"
-eventTypeText TConvConnect                = "conversation.connect-request"
-eventTypeText TConvMemberJoin             = "conversation.member-join"
-eventTypeText TConvMemberLeave            = "conversation.member-leave"
-eventTypeText TConvRename                 = "conversation.rename"
-eventTypeText TConvMemberStateUpdate      = "conversation.member-state-update"
-eventTypeText TConvVoiceChannelActivate   = "conversation.voice-channel-activate"
-eventTypeText TConvVoiceChannelDeactivate = "conversation.voice-channel-deactivate"
-eventTypeText TConvOtrMessageAdd          = "conversation.otr-message-add"
+eventTypeText TUserNew                 = "user.new"
+eventTypeText TUserConnection          = "user.connection"
+eventTypeText TConvCreate              = "conversation.create"
+eventTypeText TConvConnect             = "conversation.connect-request"
+eventTypeText TConvMemberJoin          = "conversation.member-join"
+eventTypeText TConvMemberLeave         = "conversation.member-leave"
+eventTypeText TConvRename              = "conversation.rename"
+eventTypeText TConvMemberStateUpdate   = "conversation.member-state-update"
+eventTypeText TConvOtrMessageAdd       = "conversation.otr-message-add"
 
 showEventType :: Event -> Text
 showEventType = eventTypeText . eventType
@@ -236,18 +226,16 @@ showEventType = eventTypeText . eventType
 -- JSON decoding
 
 parseEvent :: Object -> Text -> Parser Event
-parseEvent o "user.connection"                       = EConnection           <$> o .: "connection" <*> o .:? "user"
-parseEvent o "user.new"                              = ENewUser              <$> o .: "user"
-parseEvent o "conversation.create"                   = EConvCreate           <$> parseJSON (Object o)
-parseEvent o "conversation.connect-request"          = EConnect              <$> parseJSON (Object o)
-parseEvent o "conversation.otr-message-add"          = EOtrMessage           <$> parseJSON (Object o)
-parseEvent o "conversation.member-join"              = EMemberJoin           <$> parseJSON (Object o)
-parseEvent o "conversation.member-leave"             = EMemberLeave          <$> parseJSON (Object o)
-parseEvent o "conversation.rename"                   = EConvRename           <$> parseJSON (Object o)
-parseEvent o "conversation.member-state-update"      = EMemberStateUpdate    <$> parseJSON (Object o)
-parseEvent o "conversation.voice-channel-activate"   = EVoiceChannelActivate <$> parseJSON (Object o)
-parseEvent o "conversation.voice-channel-deactivate" = EVoiceChannelActivate <$> parseJSON (Object o)
-parseEvent _ t                                       = fail $ "Unknown event type: " ++ T.unpack t
+parseEvent o "user.connection"                   = EConnection           <$> o .: "connection" <*> o .:? "user"
+parseEvent o "user.new"                          = ENewUser              <$> o .: "user"
+parseEvent o "conversation.create"               = EConvCreate           <$> parseJSON (Object o)
+parseEvent o "conversation.connect-request"      = EConnect              <$> parseJSON (Object o)
+parseEvent o "conversation.otr-message-add"      = EOtrMessage           <$> parseJSON (Object o)
+parseEvent o "conversation.member-join"          = EMemberJoin           <$> parseJSON (Object o)
+parseEvent o "conversation.member-leave"         = EMemberLeave          <$> parseJSON (Object o)
+parseEvent o "conversation.rename"               = EConvRename           <$> parseJSON (Object o)
+parseEvent o "conversation.member-state-update"  = EMemberStateUpdate    <$> parseJSON (Object o)
+parseEvent _ t                                   = fail $ "Unknown event type: " ++ T.unpack t
 
 instance FromJSON Event where
     parseJSON = withObject "event" $ \o ->

@@ -65,5 +65,5 @@ getBoxDir uid label = do
     tmp <- getTemporaryDirectory
     let usrDir = show (toUUID uid)
     let cltDir = maybe "" Text.unpack label
-    return $ tmp </> "zeta-bot" </> usrDir </> cltDir
+    return $ tmp </> "wire-bot" </> usrDir </> cltDir
 

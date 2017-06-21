@@ -18,28 +18,17 @@ module Network.Wire.Client.API.Asset
 
 import Bilge
 import CargoHold.Types
--- import Crypto.Hash (Digest, hashlazy)
--- import Crypto.Hash.Algorithms (MD5 (..))
--- import CargoHold.Types.V3
 import Control.Monad.IO.Class
--- import Data.Aeson (encode, ToJSON)
--- import Data.ByteArray (convert)
--- import Data.ByteString (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
--- import Data.Id
 import Data.List.NonEmpty
--- import Data.Monoid ((<>))
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Session
--- import Network.Wire.Client.API.Push (ConvEvent)
 
-import qualified Codec.MIME.Type        as MIME
--- import qualified Data.ByteString.Base64 as B64
--- import qualified Data.ByteString.Char8  as C
-import qualified Data.ByteString.Lazy   as Lazy
+import qualified Codec.MIME.Type      as MIME
+import qualified Data.ByteString.Lazy as Lazy
 
 type AssetData = Lazy.ByteString
 

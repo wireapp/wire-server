@@ -6,23 +6,16 @@ module Network.Wire.Client.API.Auth
     , refreshAuth
     , Auth (..)
     , AuthCookie
-    -- , AuthToken (..)
-    -- , AccessToken (..)
-    -- , TokenType
     , token
     , module Auth
     ) where
 
-import Bilge -- hiding (Cookie)
-import Brig.Types.User.Auth as Auth hiding (Cookie)
--- import Control.Monad
+import Bilge
+import Brig.Types.User.Auth as Auth hiding (Cookie, user)
 import Control.Monad.IO.Class
--- import Data.Aeson hiding (json)
--- import Data.ByteString (ByteString)
 import Data.List.NonEmpty
 import Data.Monoid
 import Data.Time (getCurrentTime)
--- import Data.Time.Clock (NominalDiffTime)
 import Network.HTTP.Client (generateCookie)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
@@ -36,23 +29,10 @@ import qualified Data.Text.Encoding    as T
 
 newtype AuthCookie = AuthCookie Cookie
 
--- data AuthToken = AuthToken
---     { authToken :: !ByteString
---     , tokenType   :: !TokenType
---     , expiresIn   :: !NominalDiffTime
---     }
-
 data Auth = Auth
     { authCookie :: !AuthCookie
-    -- , authToken  :: !AuthToken
     , authToken  :: !AccessToken
     }
-
--- instance FromJSON AuthToken where
---     parseJSON = withObject "auth-token" $ \o ->
---         AuthToken <$> (T.encodeUtf8 <$> o .: "access_token")
---                   <*> o .: "token_type"
---                   <*> (fromInteger <$> o .: "expires_in")
 
 -------------------------------------------------------------------------------
 -- Unauthenticated

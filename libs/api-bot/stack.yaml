@@ -1,8 +1,7 @@
 resolver: lts-8.19
 packages:
 - '.'
-- location: '../api-client'
-  extra-dep: true
+- '../api-client'
 - '../bilge'
 - '../brig-types'
 - '../cargohold-types'

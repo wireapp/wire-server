@@ -1,6 +1,6 @@
 name:                api-bot
 version:             0.4.2
-synopsis:            (Internal) API automation around wire-client.
+synopsis:            (Internal) API automation around wire-client
 author:              Wire Swiss GmbH
 maintainer:          Wire Swiss GmbH <backend@wire.com>
 license:             AGPL-3

@@ -37,7 +37,6 @@ import Crypto.Hash.Algorithms (SHA256)
 import Crypto.MAC.HMAC
 import Data.ByteArray (convert)
 import Data.ByteString (ByteString)
-import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Maybe (fromMaybe)
@@ -48,12 +47,10 @@ import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Network.Wire.Bot.Clients
 import Network.Wire.Bot.Crypto.Glue (unwrap, randomBytes)
 import Network.Wire.Bot.Monad
-import Network.Wire.Client.API.Asset
 import Network.Wire.Client.API.Client
 import Network.Wire.Client.API.Conversation
 import Network.Wire.Client.API.Push
 
-import qualified Data.Attoparsec.ByteString as Parser
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Base64     as B64
 import qualified Data.Map.Strict            as Map
