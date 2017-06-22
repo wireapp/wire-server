@@ -633,15 +633,8 @@ sitemap = do
     get "/i/conversations/:cnv/meta" (continue getConversationMeta) $
         capture "cnv"
 
-    post "/i/teams" (continue createTeamInternal) $
-        zauthUserId
-        .&. request
-        .&. accept "application" "json"
-        .&. contentType "application" "json"
-
-    post "/i/teams/:id/members" (continue uncheckedAddTeamMember) $
-        zauthUserId
-        .&. capture "id"
+    post "/i/teams/:tid/members" (continue uncheckedAddTeamMember) $
+        capture "tid"
         .&. request
         .&. contentType "application" "json"
         .&. accept "application" "json"
