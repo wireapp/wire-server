@@ -2,7 +2,7 @@
 
 module API.Teams (tests) where
 
-import API.Util (Galley, Brig, test, zUser, zConn)
+import API.Util (Galley, Brig, test, zUser, zConn, zType)
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Concurrent.Async (mapConcurrently)
@@ -14,6 +14,7 @@ import Data.ByteString.Conversion
 import Data.Foldable (for_)
 import Data.List1
 import Data.Monoid
+import Data.Range
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
 import Gundeck.Types.Notification
@@ -31,6 +32,7 @@ import qualified Test.Tasty.Cannon as WS
 tests :: Galley -> Brig -> Cannon -> Manager -> TestTree
 tests g b c m = testGroup "Teams API"
     [ test m "create team" (testCreateTeam g b c)
+    , test m "create multiple bound teams fail" (testCreateMulitpleBoundTeam g b c)
     , test m "create team with members" (testCreateTeamWithMembers g b c)
     , test m "add new team member" (testAddTeamMember g b c)
     , test m "remove team member" (testRemoveTeamMember g b c)
@@ -61,6 +63,25 @@ testCreateTeam g b c = do
                 e^.eventTeam @?= tid
                 e^.eventData @?= Just (EdTeamCreate team)
             void $ WS.assertSuccess eventChecks
+
+testCreateMulitpleBoundTeam :: Galley -> Brig -> Cannon -> Http ()
+testCreateMulitpleBoundTeam g b c = do
+    owner <- Util.randomUser b
+    WS.bracketR c owner $ \wsOwner -> do
+        tid   <- Util.createTeam g "foo" owner []
+        team  <- Util.getTeam g owner tid
+        liftIO $ do
+            assertEqual "owner" owner (team^.teamCreator)
+            eventChecks <- WS.awaitMatch timeout wsOwner $ \notif -> do
+                ntfTransient notif @?= False
+                let e = List1.head (WS.unpackPayload notif)
+                e^.eventType @?= TeamCreate
+                e^.eventTeam @?= tid
+                e^.eventData @?= Just (EdTeamCreate team)
+            void $ WS.assertSuccess eventChecks
+        let nt = newNewTeam (unsafeRange "foo") (unsafeRange "icon")
+        void $ post (g . path "/teams" . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
+            const 403 === statusCode
 
 testCreateTeamWithMembers :: Galley -> Brig -> Cannon -> Http ()
 testCreateTeamWithMembers g b c = do
