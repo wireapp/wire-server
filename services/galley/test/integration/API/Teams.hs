@@ -35,6 +35,7 @@ tests g b c m = testGroup "Teams API"
     , test m "create multiple bound teams fail" (testCreateMulitpleBoundTeam g b c)
     , test m "create team with members" (testCreateTeamWithMembers g b c)
     , test m "add new team member" (testAddTeamMember g b c)
+    , test m "add new team member internal" (testAddTeamMemberInternal g b c)
     , test m "remove team member" (testRemoveTeamMember g b c)
     , test m "add team conversation" (testAddTeamConv g b c)
     , test m "add managed team conversation ignores given users" (testAddTeamConvWithUsers g b)
@@ -133,6 +134,25 @@ testAddTeamMember g b c = do
         -- `mem2` has `AddTeamMember` permission
         Util.addTeamMember g (mem2^.userId) tid mem3
         liftIO . void $ mapConcurrently (checkJoinEvent tid (mem3^.userId)) [wsOwner, wsMem1, wsMem2, wsMem3]
+  where
+    checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
+        ntfTransient notif @?= False
+        let e = List1.head (WS.unpackPayload notif)
+        e^.eventType @?= MemberJoin
+        e^.eventTeam @?= tid
+        e^.eventData @?= Just (EdMemberJoin usr)
+
+testAddTeamMemberInternal :: Galley -> Brig -> Cannon -> Http ()
+testAddTeamMemberInternal g b c = do
+    owner <- Util.randomUser b
+    tid <- Util.createTeam g "foo" owner []
+    let p1 = Util.symmPermissions [GetBilling] -- permissions are irrelevant on internal endpoint
+    mem1 <- flip newTeamMember p1 <$> Util.randomUser b
+
+    WS.bracketRN c [owner, mem1^.userId] $ \[wsOwner, wsMem1] -> do
+        Util.addTeamMemberInternal g tid mem1
+        liftIO . void $ mapConcurrently (checkJoinEvent tid (mem1^.userId)) [wsOwner, wsMem1]
+    void $ Util.getTeamMemberInternal g tid (mem1^.userId)
   where
     checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False

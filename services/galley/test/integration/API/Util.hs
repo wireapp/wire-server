@@ -84,10 +84,21 @@ getTeamMember g usr tid mid = do
     r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' mid] . zUser usr) <!! const 200 === statusCode
     pure (fromJust (decodeBody r))
 
+getTeamMemberInternal :: Galley -> TeamId -> UserId -> Http TeamMember
+getTeamMemberInternal g tid mid = do
+    r <- get (g . paths ["i", "teams", toByteString' tid, "members", toByteString' mid]) <!! const 200 === statusCode
+    pure (fromJust (decodeBody r))
+
 addTeamMember :: Galley -> UserId -> TeamId -> TeamMember -> Http ()
 addTeamMember g usr tid mem = do
     let payload = json (newNewTeamMember mem)
     post (g . paths ["teams", toByteString' tid, "members"] . zUser usr . zConn "conn" .payload) !!!
+        const 200 === statusCode
+
+addTeamMemberInternal :: Galley -> TeamId -> TeamMember -> Http ()
+addTeamMemberInternal g tid mem = do
+    let payload = json (newNewTeamMember mem)
+    post (g . paths ["i", "teams", toByteString' tid, "members"] . payload) !!!
         const 200 === statusCode
 
 createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Http ConvId

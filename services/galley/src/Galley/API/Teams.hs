@@ -4,7 +4,6 @@
 
 module Galley.API.Teams
     ( createTeam
-    , createTeamInternal
     , updateTeam
     , getTeam
     , getManyTeams
@@ -24,7 +23,6 @@ module Galley.API.Teams
     ) where
 
 import Brig.Types (userTeam)
-import Brig.Types.Intra (UserAccount (..))
 import Cassandra (result, hasMore)
 import Control.Lens
 import Control.Monad (unless, when, void)
@@ -50,7 +48,6 @@ import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result)
 import Network.Wai.Utilities
 import Prelude hiding (head, mapM)
-import System.Logger.Message (msg, val)
 
 import qualified Data.Set as Set
 import qualified Galley.Data as Data
@@ -58,7 +55,6 @@ import qualified Galley.Data.Types as Data
 import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
 import qualified Galley.Types.Teams as Teams
-import qualified System.Logger.Class as Log
 
 getTeam :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeam (zusr::: tid ::: _) =
@@ -85,8 +81,7 @@ lookupTeam zusr tid = do
 createTeam :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Galley Response
 createTeam (zusr::: zcon ::: req ::: _) = do
     body <- fromBody req invalidPayload
-    u    <- accountUser <$> getUser zusr
-    Log.info . msg $ val (toByteString' $ show u)
+    u    <- getUser zusr
     when (isJust $ userTeam u) $
         throwM userBindingExists
     team <- Data.createTeam zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey)
@@ -102,23 +97,6 @@ createTeam (zusr::: zcon ::: req ::: _) = do
     let e = newEvent TeamCreate (team^.teamId) now & eventData .~ Just (EdTeamCreate team)
     let r = membersToRecipients Nothing others
     push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ Just zcon
-    pure (empty & setStatus status201 . location (team^.teamId))
-
-createTeamInternal :: UserId ::: Request ::: JSON ::: JSON -> Galley Response
-createTeamInternal (zusr::: req ::: _) = do
-    body <- fromBody req invalidPayload
-    team <- Data.createTeam zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey)
-    let owner  = newTeamMember zusr fullPermissions
-    let others = filter ((zusr /=) . view userId)
-               . maybe [] fromRange
-               $ body^.newTeamMembers
-    ensureConnected zusr (map (view userId) others)
-    for_ (owner : others) $
-        Data.addTeamMember (team^.teamId)
-    now <- liftIO getCurrentTime
-    let e = newEvent TeamCreate (team^.teamId) now & eventData .~ Just (EdTeamCreate team)
-    let r = membersToRecipients Nothing others
-    push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r)
     pure (empty & setStatus status201 . location (team^.teamId))
 
 updateTeam :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
@@ -194,24 +172,13 @@ uncheckedGetTeamMember (tid ::: uid ::: _) = do
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
     body <- fromBody req invalidPayload
-    addToTeam body zusr (Just zcon) tid True
-
--- Does not check whether users are connected before adding to team
-uncheckedAddTeamMember :: UserId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
-uncheckedAddTeamMember (zusr::: tid ::: req ::: _) = do
-    body <- fromBody req invalidPayload
-    addToTeam body zusr Nothing tid False
-
-addToTeam :: NewTeamMember -> UserId -> Maybe ConnId -> TeamId -> Bool -> Galley Response
-addToTeam body zusr zcon tid checkConnection = do
     mems <- Data.teamMembers tid
     tmem <- permissionCheck zusr AddTeamMember mems
     unless ((body^.ntmNewTeamMember.permissions.self) `Set.isSubsetOf` (tmem^.permissions.copy)) $
         throwM invalidPermissions
     unless (length mems < 128) $
         throwM tooManyTeamMembers
-    when checkConnection $
-        ensureConnected zusr [body^.ntmNewTeamMember.userId]
+    ensureConnected zusr [body^.ntmNewTeamMember.userId]
     Data.addTeamMember tid (body^.ntmNewTeamMember)
     cc <- filter (view managedConversation) <$> Data.teamConversations tid
     for_ cc $ \c ->
@@ -219,7 +186,24 @@ addToTeam body zusr zcon tid checkConnection = do
     now <- liftIO getCurrentTime
     let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (body^.ntmNewTeamMember.userId))
     let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) ((body^.ntmNewTeamMember) : mems))
-    push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ zcon
+    push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ (Just zcon)
+    pure empty
+
+-- Does not check whether users are connected before adding to team
+uncheckedAddTeamMember :: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
+uncheckedAddTeamMember (tid ::: req ::: _) = do
+    body <- fromBody req invalidPayload
+    mems <- Data.teamMembers tid
+    unless (length mems < 128) $
+        throwM tooManyTeamMembers
+    Data.addTeamMember tid (body^.ntmNewTeamMember)
+    cc <- filter (view managedConversation) <$> Data.teamConversations tid
+    for_ cc $ \c ->
+        Data.addMember (c^.conversationId) (body^.ntmNewTeamMember.userId)
+    now <- liftIO getCurrentTime
+    let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (body^.ntmNewTeamMember.userId))
+    let r = list1 (userRecipient (body^.ntmNewTeamMember.userId)) (membersToRecipients Nothing mems)
+    push1 $ newPush1 (body^.ntmNewTeamMember.userId) (TeamEvent e) r
     pure empty
 
 updateTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
