@@ -3,17 +3,19 @@
 module Galley.Intra.User
     ( getConnections
     , deleteBot
+    , getUser
+    , bindUser
     ) where
 
 import Bilge hiding (options, getHeader)
 import Bilge.RPC
 import Bilge.Retry
-import Brig.Types.Intra (ConnectionStatus (..))
+import Brig.Types.Intra (ConnectionStatus (..), UserAccount (..))
 import Brig.Types.Connection (Relation (..))
 import Galley.App
 import Galley.Options
 import Control.Monad (void)
-import Control.Lens (view)
+import Control.Lens
 import Control.Retry
 import Data.ByteString.Char8 (pack, intercalate)
 import Data.ByteString.Conversion
@@ -22,7 +24,7 @@ import Data.Char (toLower)
 import Data.Id
 import Data.Misc (portNumber)
 import Network.HTTP.Types.Method
-import Network.HTTP.Types.Status (status502)
+import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
 import qualified Data.Text.Lazy as LT
@@ -52,6 +54,25 @@ deleteBot cid bot = do
         . header "Z-Type" "bot"
         . header "Z-Bot" (toByteString' bot)
         . header "Z-Conversation" (toByteString' cid)
+        . expect2xx
+
+getUser :: UserId -> Galley UserAccount
+getUser u = do
+    h <- view (options.brigHost)
+    p <- view (options.brigPort)
+    r <- call "brig"
+        $ method GET . host h . port (portNumber p)
+        . paths ["/i/users", toByteString' u]
+        . expect2xx
+    parseResponse (Error status502 "server-error") r
+
+bindUser :: UserId -> TeamId -> Galley ()
+bindUser u t = do
+    h <- view (options.brigHost)
+    p <- view (options.brigPort)
+    void $ call "brig"
+        $ method POST . host h . port (portNumber p)
+        . paths ["/i/teams", toByteString' t, "bind", toByteString' u]
         . expect2xx
 
 -----------------------------------------------------------------------------

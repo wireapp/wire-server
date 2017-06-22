@@ -56,6 +56,7 @@ module Galley.Types.Teams
     , newTeamIcon
     , newTeamIconKey
     , newTeamMembers
+    , newTeamBindUsr
 
     , NewTeamMember
     , newNewTeamMember
@@ -189,6 +190,7 @@ data NewTeam = NewTeam
     , _newTeamIcon    :: Range 1 256 Text
     , _newTeamIconKey :: Maybe (Range 1 256 Text)
     , _newTeamMembers :: Maybe (Range 1 127 [TeamMember])
+    , _newTeamBindUsr :: Bool
     }
 
 newtype NewTeamMember = NewTeamMember
@@ -214,7 +216,7 @@ newTeamConversationList :: [TeamConversation] -> TeamConversationList
 newTeamConversationList = TeamConversationList
 
 newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam
-newNewTeam nme ico = NewTeam nme ico Nothing Nothing
+newNewTeam nme ico = NewTeam nme ico Nothing Nothing True
 
 newNewTeamMember :: TeamMember -> NewTeamMember
 newNewTeamMember = NewTeamMember
@@ -365,10 +367,11 @@ instance FromJSON Permissions where
 
 instance ToJSON NewTeam where
     toJSON t = object
-        $ "name"     .= fromRange (_newTeamName t)
-        # "icon"     .= fromRange (_newTeamIcon t)
-        # "icon_key" .= (fromRange <$> _newTeamIconKey t)
-        # "members"  .= (map (teamMemberJson True) . fromRange <$> _newTeamMembers t)
+        $ "name"      .= fromRange (_newTeamName t)
+        # "icon"      .= fromRange (_newTeamIcon t)
+        # "icon_key"  .= (fromRange <$> _newTeamIconKey t)
+        # "members"   .= (map (teamMemberJson True) . fromRange <$> _newTeamMembers t)
+        # "bind_user" .= _newTeamBindUsr t
         # []
 
 instance FromJSON NewTeam where
@@ -377,11 +380,13 @@ instance FromJSON NewTeam where
         icon <- o .:  "icon"
         key  <- o .:? "icon_key"
         mems <- o .:? "members"
+        bind <- o .:? "bind_user" .!= True
         either fail pure $
             NewTeam <$> checkedEitherMsg "name" name
                     <*> checkedEitherMsg "icon" icon
                     <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") key
                     <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "members") mems
+                    <*> pure bind
 
 instance ToJSON NewTeamMember where
     toJSON t = object ["member" .= teamMemberJson True (_ntmNewTeamMember t)]

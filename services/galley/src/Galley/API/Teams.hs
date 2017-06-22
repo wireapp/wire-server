@@ -23,6 +23,8 @@ module Galley.API.Teams
     , uncheckedRemoveTeamMember
     ) where
 
+import Brig.Types (userTeam)
+import Brig.Types.Intra (UserAccount (..))
 import Cassandra (result, hasMore)
 import Control.Lens
 import Control.Monad (unless, when, void)
@@ -41,12 +43,14 @@ import Galley.App
 import Galley.API.Error
 import Galley.API.Util
 import Galley.Intra.Push
+import Galley.Intra.User (bindUser, getUser)
 import Galley.Types.Teams
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result)
 import Network.Wai.Utilities
 import Prelude hiding (head, mapM)
+import System.Logger.Message (msg, val)
 
 import qualified Data.Set as Set
 import qualified Galley.Data as Data
@@ -54,6 +58,7 @@ import qualified Galley.Data.Types as Data
 import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
 import qualified Galley.Types.Teams as Teams
+import qualified System.Logger.Class as Log
 
 getTeam :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeam (zusr::: tid ::: _) =
@@ -80,7 +85,12 @@ lookupTeam zusr tid = do
 createTeam :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Galley Response
 createTeam (zusr::: zcon ::: req ::: _) = do
     body <- fromBody req invalidPayload
+    u    <- accountUser <$> getUser zusr
+    Log.info . msg $ val (toByteString' $ show u)
+    when (isJust $ userTeam u) $
+        throwM userBindingExists
     team <- Data.createTeam zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey)
+    bindUser zusr (team^.teamId)
     let owner  = newTeamMember zusr fullPermissions
     let others = filter ((zusr /=) . view userId)
                . maybe [] fromRange
