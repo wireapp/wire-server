@@ -82,10 +82,9 @@ createTeam :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Galley Response
 createTeam (zusr::: zcon ::: req ::: _) = do
     body <- fromBody req invalidPayload
     u    <- getUser zusr
-    when (isJust $ userTeam u) $
+    when (body^.newTeamBindUsr && isJust (userTeam u)) $
         throwM userBindingExists
     team <- Data.createTeam zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey)
-    bindUser zusr (team^.teamId)
     let owner  = newTeamMember zusr fullPermissions
     let others = filter ((zusr /=) . view userId)
                . maybe [] fromRange
@@ -93,6 +92,10 @@ createTeam (zusr::: zcon ::: req ::: _) = do
     ensureConnected zusr (map (view userId) others)
     for_ (owner : others) $
         Data.addTeamMember (team^.teamId)
+    -- We bind the user at a later stage because of potential failures.
+    -- If we fail at this point, the user can still try to bind to other teams
+    when (body^.newTeamBindUsr) $
+        bindUser zusr (team^.teamId)
     now <- liftIO getCurrentTime
     let e = newEvent TeamCreate (team^.teamId) now & eventData .~ Just (EdTeamCreate team)
     let r = membersToRecipients Nothing others
@@ -189,7 +192,6 @@ addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
     push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
     pure empty
 
--- Does not check whether users are connected before adding to team
 uncheckedAddTeamMember :: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 uncheckedAddTeamMember (tid ::: req ::: _) = do
     body  <- fromBody req invalidPayload
