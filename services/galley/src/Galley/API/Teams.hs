@@ -20,7 +20,6 @@ module Galley.API.Teams
     , uncheckedAddTeamMember
     , uncheckedGetTeamMember
     , uncheckedRemoveTeamMember
-    , uncheckedLookupTeam
     ) where
 
 import Brig.Types (userTeam)
@@ -78,14 +77,6 @@ lookupTeam zusr tid = do
         pure (Data.tdTeam <$> t)
     else
         pure Nothing
-
-uncheckedLookupTeam :: TeamId ::: JSON -> Galley Response
-uncheckedLookupTeam (tid ::: _) = do
-    t <- Data.team tid
-    return . json $ if (Just True == (Data.tdDeleted <$> t))
-        then Nothing
-    else
-        Data.tdTeam <$> t
 
 createTeam :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Galley Response
 createTeam (zusr::: zcon ::: req ::: _) = do
