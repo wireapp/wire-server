@@ -12,6 +12,7 @@ import Control.Monad.IO.Class
 import Data.Aeson (Value (Null))
 import Data.ByteString.Conversion
 import Data.Foldable (for_)
+import Data.Id
 import Data.List1
 import Data.Monoid
 import Data.Range
@@ -52,38 +53,15 @@ timeout = 3 # Second
 testCreateTeam :: Galley -> Brig -> Cannon -> Http ()
 testCreateTeam g b c = do
     owner <- Util.randomUser b
-    WS.bracketR c owner $ \wsOwner -> do
-        tid   <- Util.createTeam g "foo" owner []
-        team  <- Util.getTeam g owner tid
-        liftIO $ do
-            assertEqual "owner" owner (team^.teamCreator)
-            eventChecks <- WS.awaitMatch timeout wsOwner $ \notif -> do
-                ntfTransient notif @?= False
-                let e = List1.head (WS.unpackPayload notif)
-                e^.eventType @?= TeamCreate
-                e^.eventTeam @?= tid
-                e^.eventData @?= Just (EdTeamCreate team)
-            void $ WS.assertSuccess eventChecks
-
+    verifyCreateTeam g c owner 
+    
 testCreateMulitpleBoundTeam :: Galley -> Brig -> Cannon -> Http ()
 testCreateMulitpleBoundTeam g b c = do
     owner <- Util.randomUser b
-    WS.bracketR c owner $ \wsOwner -> do
-        tid   <- Util.createTeam g "foo" owner []
-        team  <- Util.getTeam g owner tid
-        liftIO $ do
-            assertEqual "owner" owner (team^.teamCreator)
-            eventChecks <- WS.awaitMatch timeout wsOwner $ \notif -> do
-                ntfTransient notif @?= False
-                let e = List1.head (WS.unpackPayload notif)
-                e^.eventType @?= TeamCreate
-                e^.eventTeam @?= tid
-                e^.eventData @?= Just (EdTeamCreate team)
-            void $ WS.assertSuccess eventChecks
-        let nt = newNewTeam (unsafeRange "foo") (unsafeRange "icon")
-        WS.assertNoEvent timeout [wsOwner]
-        void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) <!! do
-            const 403 === statusCode
+    verifyCreateTeam g c owner
+    let nt = newNewTeam (unsafeRange "owner") (unsafeRange "icon")
+    void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) <!! do
+        const 403 === statusCode
 
 testCreateTeamWithMembers :: Galley -> Brig -> Cannon -> Http ()
 testCreateTeamWithMembers g b c = do
@@ -505,3 +483,19 @@ testUpdateTeamMember g b c = do
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberUpdate uid)
 
+-- Utilities
+verifyCreateTeam :: Galley -> Cannon -> UserId -> Http ()
+verifyCreateTeam g c owner = do
+    WS.bracketR c owner $ \wsOwner -> do
+        tid   <- Util.createTeam g "foo" owner []
+        team  <- Util.getTeam g owner tid
+        liftIO $ do
+            assertEqual "owner" owner (team^.teamCreator)
+            eventChecks <- WS.awaitMatch timeout wsOwner $ \notif -> do
+                ntfTransient notif @?= False
+                let e = List1.head (WS.unpackPayload notif)
+                e^.eventType @?= TeamCreate
+                e^.eventTeam @?= tid
+                e^.eventData @?= Just (EdTeamCreate team)
+            void $ WS.assertSuccess eventChecks
+            WS.assertNoEvent timeout [wsOwner]
