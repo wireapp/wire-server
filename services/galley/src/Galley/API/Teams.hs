@@ -186,7 +186,7 @@ addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
     now <- liftIO getCurrentTime
     let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (body^.ntmNewTeamMember.userId))
     let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) ((body^.ntmNewTeamMember) : mems))
-    push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ (Just zcon)
+    push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
     pure empty
 
 -- Does not check whether users are connected before adding to team
