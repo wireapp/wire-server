@@ -633,6 +633,10 @@ sitemap = do
     get "/i/conversations/:cnv/meta" (continue getConversationMeta) $
         capture "cnv"
 
+    get "/i/teams/:tid" (continue uncheckedLookupTeam) $
+        capture "tid"
+        .&. accept "application" "json"
+
     post "/i/teams/:tid/members" (continue uncheckedAddTeamMember) $
         capture "tid"
         .&. request

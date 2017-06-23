@@ -81,6 +81,7 @@ testCreateMulitpleBoundTeam g b c = do
                 e^.eventData @?= Just (EdTeamCreate team)
             void $ WS.assertSuccess eventChecks
         let nt = newNewTeam (unsafeRange "foo") (unsafeRange "icon")
+        WS.assertNoEvent timeout [wsOwner]
         void $ post (g . path "/teams" . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
             const 403 === statusCode
 
