@@ -16,7 +16,7 @@ import Brig.Types.Connection (Relation (..))
 import Galley.App
 import Galley.Options
 import Control.Monad (void)
-import Control.Lens
+import Control.Lens (view)
 import Control.Retry
 import Data.ByteString.Char8 (pack, intercalate)
 import Data.ByteString.Conversion
@@ -25,7 +25,7 @@ import Data.Char (toLower)
 import Data.Id
 import Data.Misc (portNumber)
 import Network.HTTP.Types.Method
-import Network.HTTP.Types.Status
+import Network.HTTP.Types.Status (status502)
 import Network.Wai.Utilities.Error
 
 import qualified Data.Text.Lazy as LT

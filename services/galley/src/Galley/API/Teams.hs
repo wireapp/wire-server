@@ -171,9 +171,9 @@ uncheckedGetTeamMember (tid ::: uid ::: _) = do
 
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
-    body  <- fromBody req invalidPayload
-    mems  <- Data.teamMembers tid
-    tmem  <- permissionCheck zusr AddTeamMember mems
+    body <- fromBody req invalidPayload
+    mems <- Data.teamMembers tid
+    tmem <- permissionCheck zusr AddTeamMember mems
     unless ((body^.ntmNewTeamMember.permissions.self) `Set.isSubsetOf` (tmem^.permissions.copy)) $
         throwM invalidPermissions
     unless (length mems < 128) $

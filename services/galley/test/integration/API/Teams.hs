@@ -2,7 +2,7 @@
 
 module API.Teams (tests) where
 
-import API.Util (Galley, Brig, test, zUser, zConn, zType)
+import API.Util (Galley, Brig, test, zUser, zConn)
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Concurrent.Async (mapConcurrently)
@@ -82,7 +82,7 @@ testCreateMulitpleBoundTeam g b c = do
             void $ WS.assertSuccess eventChecks
         let nt = newNewTeam (unsafeRange "foo") (unsafeRange "icon")
         WS.assertNoEvent timeout [wsOwner]
-        void $ post (g . path "/teams" . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
+        void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) <!! do
             const 403 === statusCode
 
 testCreateTeamWithMembers :: Galley -> Brig -> Cannon -> Http ()
