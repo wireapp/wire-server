@@ -180,9 +180,9 @@ uncheckedGetTeamMember (tid ::: uid ::: _) = do
 
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
-    body <- fromBody req invalidPayload
-    mems <- Data.teamMembers tid
-    tmem <- permissionCheck zusr AddTeamMember mems
+    body  <- fromBody req invalidPayload
+    mems  <- Data.teamMembers tid
+    tmem  <- permissionCheck zusr AddTeamMember mems
     unless ((body^.ntmNewTeamMember.permissions.self) `Set.isSubsetOf` (tmem^.permissions.copy)) $
         throwM invalidPermissions
     unless (length mems < 128) $
@@ -201,7 +201,10 @@ addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
 -- Does not check whether users are connected before adding to team
 uncheckedAddTeamMember :: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 uncheckedAddTeamMember (tid ::: req ::: _) = do
-    body <- fromBody req invalidPayload
+    body  <- fromBody req invalidPayload
+    alive <- Data.isTeamAlive tid
+    unless alive $
+        throwM teamNotFound
     mems <- Data.teamMembers tid
     unless (length mems < 128) $
         throwM tooManyTeamMembers
