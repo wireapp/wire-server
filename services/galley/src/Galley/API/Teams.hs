@@ -93,7 +93,7 @@ createTeam (zusr::: zcon ::: req ::: _) = do
     for_ (owner : others) $
         Data.addTeamMember (team^.teamId)
     -- We bind the user at a later stage because of potential failures.
-    -- If we fail at this point, the user can still try to bind to other teams
+    -- If we fail at this point, the user can still try to bind to another team
     when (body^.newTeamBindUsr) $
         bindUser zusr (team^.teamId)
     now <- liftIO getCurrentTime
