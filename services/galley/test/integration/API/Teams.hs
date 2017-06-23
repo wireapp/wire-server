@@ -12,7 +12,6 @@ import Control.Monad.IO.Class
 import Data.Aeson (Value (Null))
 import Data.ByteString.Conversion
 import Data.Foldable (for_)
-import Data.Id
 import Data.List1
 import Data.Monoid
 import Data.Range
@@ -33,7 +32,7 @@ import qualified Test.Tasty.Cannon as WS
 tests :: Galley -> Brig -> Cannon -> Manager -> TestTree
 tests g b c m = testGroup "Teams API"
     [ test m "create team" (testCreateTeam g b c)
-    , test m "create multiple bound teams fail" (testCreateMulitpleBoundTeam g b c)
+    , test m "create multiple bound teams fail" (testCreateMulitpleBoundTeam g b)
     , test m "create team with members" (testCreateTeamWithMembers g b c)
     , test m "add new team member" (testAddTeamMember g b c)
     , test m "add new team member internal" (testAddTeamMemberInternal g b c)
@@ -53,15 +52,32 @@ timeout = 3 # Second
 testCreateTeam :: Galley -> Brig -> Cannon -> Http ()
 testCreateTeam g b c = do
     owner <- Util.randomUser b
-    verifyCreateTeam g c owner 
+    WS.bracketR c owner $ \wsOwner -> do
+        tid   <- Util.createTeam g "foo" owner [] 
+        team  <- Util.getTeam g owner tid
+        liftIO $ do
+            assertEqual "owner" owner (team^.teamCreator)
+            eventChecks <- WS.awaitMatch timeout wsOwner $ \notif -> do
+                ntfTransient notif @?= False
+                let e = List1.head (WS.unpackPayload notif)
+                e^.eventType @?= TeamCreate
+                e^.eventTeam @?= tid
+                e^.eventData @?= Just (EdTeamCreate team)
+            void $ WS.assertSuccess eventChecks
+            WS.assertNoEvent timeout [wsOwner]
     
-testCreateMulitpleBoundTeam :: Galley -> Brig -> Cannon -> Http ()
-testCreateMulitpleBoundTeam g b c = do
+testCreateMulitpleBoundTeam :: Galley -> Brig -> Http ()
+testCreateMulitpleBoundTeam g b = do
     owner <- Util.randomUser b
-    verifyCreateTeam g c owner
-    let nt = newNewTeam (unsafeRange "owner") (unsafeRange "icon")
+    let nt = newNewTeam (unsafeRange "owner") (unsafeRange "icon") & newTeamBindUsr .~ True
+    void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) <!! do
+        const 201 === statusCode
     void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) <!! do
         const 403 === statusCode
+    -- Can create more teams if not bound
+    let nt' = nt & newTeamBindUsr .~ False
+    void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt') <!! do
+        const 201 === statusCode
 
 testCreateTeamWithMembers :: Galley -> Brig -> Cannon -> Http ()
 testCreateTeamWithMembers g b c = do
@@ -482,20 +498,3 @@ testUpdateTeamMember g b c = do
         e^.eventType @?= MemberUpdate
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberUpdate uid)
-
--- Utilities
-verifyCreateTeam :: Galley -> Cannon -> UserId -> Http ()
-verifyCreateTeam g c owner = do
-    WS.bracketR c owner $ \wsOwner -> do
-        tid   <- Util.createTeam g "foo" owner []
-        team  <- Util.getTeam g owner tid
-        liftIO $ do
-            assertEqual "owner" owner (team^.teamCreator)
-            eventChecks <- WS.awaitMatch timeout wsOwner $ \notif -> do
-                ntfTransient notif @?= False
-                let e = List1.head (WS.unpackPayload notif)
-                e^.eventType @?= TeamCreate
-                e^.eventTeam @?= tid
-                e^.eventData @?= Just (EdTeamCreate team)
-            void $ WS.assertSuccess eventChecks
-            WS.assertNoEvent timeout [wsOwner]

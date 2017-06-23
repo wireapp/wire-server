@@ -216,7 +216,7 @@ newTeamConversationList :: [TeamConversation] -> TeamConversationList
 newTeamConversationList = TeamConversationList
 
 newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam
-newNewTeam nme ico = NewTeam nme ico Nothing Nothing True
+newNewTeam nme ico = NewTeam nme ico Nothing Nothing False
 
 newNewTeamMember :: TeamMember -> NewTeamMember
 newNewTeamMember = NewTeamMember
@@ -380,7 +380,7 @@ instance FromJSON NewTeam where
         icon <- o .:  "icon"
         key  <- o .:? "icon_key"
         mems <- o .:? "members"
-        bind <- o .:? "bind_user" .!= True
+        bind <- o .:? "bind_user" .!= False
         either fail pure $
             NewTeam <$> checkedEitherMsg "name" name
                     <*> checkedEitherMsg "icon" icon
