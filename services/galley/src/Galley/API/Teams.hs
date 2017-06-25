@@ -84,6 +84,7 @@ createTeam (zusr::: zcon ::: req ::: _) = do
     u    <- getUser zusr
     when (body^.newTeamBindUsr && isJust (userTeam u)) $
         throwM userBindingExists
+    -- TODO: Need to check the other users as well as this point
     team <- Data.createTeam zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey)
     let owner  = newTeamMember zusr fullPermissions
     let others = filter ((zusr /=) . view userId)

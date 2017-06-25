@@ -75,7 +75,7 @@ testCreateMulitpleBoundTeam g b = do
     void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) <!! do
         const 403 === statusCode
     -- Can create more teams if not bound
-    let nt' = nt & newTeamBindUsr .~ False
+    let nt' = newNewTeam (unsafeRange "owner") (unsafeRange "icon")
     void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt') <!! do
         const 201 === statusCode
 
