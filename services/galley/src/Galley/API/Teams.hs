@@ -168,8 +168,8 @@ getTeamMember (zusr::: tid ::: uid ::: _) = do
 
 uncheckedGetTeamMember :: TeamId ::: UserId ::: JSON -> Galley Response
 uncheckedGetTeamMember (tid ::: uid ::: _) = do
-    mems <- Data.teamMembers tid
-    maybe (throwM teamMemberNotFound) (pure . json . teamMemberJson True) (findTeamMember uid mems)
+    mem <- Data.teamMember tid uid
+    maybe (throwM teamMemberNotFound) (pure . json . teamMemberJson True) mem
 
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
