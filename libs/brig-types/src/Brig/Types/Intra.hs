@@ -10,7 +10,8 @@ import Brig.Types.Connection
 import Brig.Types.User
 import Control.Monad (mzero)
 import Data.Aeson
-import Data.Id (UserId)
+import Data.Id (TeamId, UserId)
+import Data.Json.Util
 import Data.Set (Set)
 
 import qualified Data.HashMap.Strict as M
@@ -116,4 +117,23 @@ instance ToJSON AutoConnect where
         [ "users" .= acUsrs ac
         ]
 
+-------------------------------------------------------------------------------
+-- UserTeam
 
+-- | A UserTeam is targeted to be used by galley to check the team
+-- that the user is bound to
+data UserTeam = UserTeam
+    { utUser :: UserId
+    , utTeam :: Maybe TeamId
+    }
+
+instance FromJSON UserTeam where
+    parseJSON = withObject "UserTeam" $ \o -> do
+        UserTeam <$> o .:  "id"
+                 <*> o .:? "team"
+
+instance ToJSON UserTeam where
+    toJSON ut = object
+        $ "id"   .= utUser ut
+        # "team" .= utTeam ut
+        # []

@@ -113,7 +113,8 @@ data User = User
         -- ^ Set if the user represents an external service,
         -- i.e. it is a "bot".
     , userHandle   :: !(Maybe Handle)
-    }
+    , userTeam     :: !(Maybe TeamId)
+    } deriving Show
 
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
@@ -150,6 +151,7 @@ instance ToJSON User where
         # "locale"    .= userLocale u
         # "service"   .= userService u
         # "handle"    .= userHandle u
+        # "team"      .= userTeam u
         # []
 
 instance FromJSON User where
@@ -164,6 +166,7 @@ instance FromJSON User where
              <*> o .:  "locale"
              <*> o .:? "service"
              <*> o .:? "handle"
+             <*> o .:? "team"
 
 instance FromJSON UserProfile where
     parseJSON = withObject "UserProfile" $ \o ->
@@ -211,6 +214,7 @@ data NewUser = NewUser
     , newUserLabel          :: !(Maybe CookieLabel)
     , newUserLocale         :: !(Maybe Locale)
     , newUserPassword       :: !(Maybe PlainTextPassword)
+    , newUserTeamCode       :: !(Maybe InvitationCode)
     }
 
 newUserEmail :: NewUser -> Maybe Email
@@ -231,6 +235,7 @@ instance FromJSON NewUser where
                 <*> o .:? "label"
                 <*> o .:? "locale"
                 <*> o .:? "password"
+                <*> o .:? "team_code"
 
 instance ToJSON NewUser where
     toJSON u = object
@@ -246,6 +251,7 @@ instance ToJSON NewUser where
         # "label"           .= newUserLabel u
         # "locale"          .= newUserLocale u
         # "password"        .= newUserPassword u
+        # "team_code"       .= newUserTeamCode u
         # []
 
 parseIdentity :: FromJSON a => Object -> Parser (Maybe a)
