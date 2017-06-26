@@ -82,20 +82,20 @@ createTeam :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Galley Response
 createTeam (zusr::: zcon ::: req ::: _) = do
     body <- fromBody req invalidPayload
     u    <- getUser zusr
-    when (body^.newTeamBindUsr && isJust (userTeam u)) $
+    when (body^.newTeamBinding && isJust (userTeam u)) $
         throwM userBindingExists
     -- TODO: Need to check the other users as well as this point
-    team <- Data.createTeam zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey)
     let owner  = newTeamMember zusr fullPermissions
     let others = filter ((zusr /=) . view userId)
                . maybe [] fromRange
                $ body^.newTeamMembers
     ensureConnected zusr (map (view userId) others)
+    team <- Data.createTeam zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) (body^.newTeamBinding)
     for_ (owner : others) $
         Data.addTeamMember (team^.teamId)
     -- We bind the user at a later stage because of potential failures.
     -- If we fail at this point, the user can still try to bind to another team
-    when (body^.newTeamBindUsr) $
+    when (body^.newTeamBinding) $
         bindUser zusr (team^.teamId)
     now <- liftIO getCurrentTime
     let e = newEvent TeamCreate (team^.teamId) now & eventData .~ Just (EdTeamCreate team)
@@ -176,6 +176,9 @@ uncheckedGetTeamMember (tid ::: uid ::: _) = do
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
     body <- fromBody req invalidPayload
+    team <- maybe (throwM teamNotFound) return =<< Data.team tid
+    when ((Data.tdTeam team)^.teamBound) $
+        throwM noAddToBound
     mems <- Data.teamMembers tid
     tmem <- permissionCheck zusr AddTeamMember mems
     unless ((body^.ntmNewTeamMember.permissions.self) `Set.isSubsetOf` (tmem^.permissions.copy)) $

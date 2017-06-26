@@ -69,7 +69,7 @@ testCreateTeam g b c = do
 testCreateMulitpleBoundTeam :: Galley -> Brig -> Http ()
 testCreateMulitpleBoundTeam g b = do
     owner <- Util.randomUser b
-    let nt = newNewTeam (unsafeRange "owner") (unsafeRange "icon") & newTeamBindUsr .~ True
+    let nt = newNewTeam (unsafeRange "owner") (unsafeRange "icon") & newTeamBinding .~ True
     void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) <!! do
         const 201 === statusCode
     void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) <!! do
