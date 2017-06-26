@@ -11,6 +11,7 @@ module Galley.Types.Teams
     , teamName
     , teamIcon
     , teamIconKey
+    , teamBound
 
     , TeamList
     , newTeamList
@@ -56,7 +57,7 @@ module Galley.Types.Teams
     , newTeamIcon
     , newTeamIconKey
     , newTeamMembers
-    , newTeamBindUsr
+    , newTeamBinding
 
     , NewTeamMember
     , newNewTeamMember
@@ -105,6 +106,7 @@ data Team = Team
     , _teamName    :: Text
     , _teamIcon    :: Text
     , _teamIconKey :: Maybe Text
+    , _teamBound   :: Bool
     } deriving (Eq, Show)
 
 data Event = Event
@@ -190,15 +192,15 @@ data NewTeam = NewTeam
     , _newTeamIcon    :: Range 1 256 Text
     , _newTeamIconKey :: Maybe (Range 1 256 Text)
     , _newTeamMembers :: Maybe (Range 1 127 [TeamMember])
-    , _newTeamBindUsr :: Bool
+    , _newTeamBinding :: Bool
     }
 
 newtype NewTeamMember = NewTeamMember
     { _ntmNewTeamMember :: TeamMember
     }
 
-newTeam :: TeamId -> UserId -> Text -> Text -> Team
-newTeam tid uid nme ico = Team tid uid nme ico Nothing
+newTeam :: TeamId -> UserId -> Text -> Text -> Bool -> Team
+newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
 
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
@@ -305,6 +307,7 @@ instance FromJSON Team where
              <*> o .:  "name"
              <*> o .:  "icon"
              <*> o .:? "icon_key"
+             <*> o .:? "binding" .!= False
 
 instance ToJSON TeamList where
     toJSON t = object
@@ -371,7 +374,7 @@ instance ToJSON NewTeam where
         # "icon"      .= fromRange (_newTeamIcon t)
         # "icon_key"  .= (fromRange <$> _newTeamIconKey t)
         # "members"   .= (map (teamMemberJson True) . fromRange <$> _newTeamMembers t)
-        # "bind_user" .= _newTeamBindUsr t
+        # "binding"   .= _newTeamBinding t
         # []
 
 instance FromJSON NewTeam where
@@ -380,7 +383,7 @@ instance FromJSON NewTeam where
         icon <- o .:  "icon"
         key  <- o .:? "icon_key"
         mems <- o .:? "members"
-        bind <- o .:? "bind_user" .!= False
+        bind <- o .:? "binding" .!= False
         either fail pure $
             NewTeam <$> checkedEitherMsg "name" name
                     <*> checkedEitherMsg "icon" icon
