@@ -62,7 +62,7 @@ library
         , wai-utilities         >= 0.11
         , wai-websockets        >= 3.0
         , warp                  >= 3.0
-        , websockets            >= 0.11
+        , websockets            >= 0.11.2
 
 executable cannon
     main-is:            src/Main.hs

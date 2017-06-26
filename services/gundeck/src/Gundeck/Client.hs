@@ -39,7 +39,7 @@ unregister (uid ::: cid) = do
     keys <- Clients.select uid cid
     when (isNothing keys) $
         throwM (Error status404 "not-found" "Client not found")
-    aa <- filter byClient <$> Push.lookup uid
+    aa <- filter byClient <$> Push.lookup uid Push.Quorum
     for_ aa $ \a ->
         Push.delete (a^.addrUser) (a^.addrTransport) (a^.addrApp) (a^.addrToken)
     Clients.remove uid cid
@@ -56,7 +56,7 @@ removeUser :: UserId -> Gundeck Response
 removeUser user = do
     env <- view awsEnv
     let rm a = Aws.execute env (Aws.deleteEndpoint (a^.addrEndpoint))
-    Push.lookup user >>= mapM_ rm
+    Push.lookup user Push.Quorum >>= mapM_ rm
     Push.erase user
     Clients.erase user
     return empty

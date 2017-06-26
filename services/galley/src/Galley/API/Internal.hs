@@ -1,11 +1,18 @@
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeOperators     #-}
 
-module Galley.API.Internal (rmUser) where
+module Galley.API.Internal
+    ( rmUser
+    , deleteLoop
+    ) where
 
 import Cassandra
-import Control.Lens
+import Control.Concurrent (threadDelay)
+import Control.Exception.Safe (catchAny)
+import Control.Lens hiding ((.=))
 import Control.Monad
+import Control.Monad.IO.Class (liftIO)
 import Data.Foldable (for_)
 import Data.Traversable (for)
 import Data.Id
@@ -15,24 +22,35 @@ import Data.List1
 import Data.Maybe (catMaybes)
 import Data.Range
 import Galley.API.Util (isMember)
+import Galley.API.Teams (uncheckedRemoveTeamMember)
 import Galley.App
 import Galley.Types (ConvType (..), evtFrom)
 import Network.Wai
-import Network.Wai.Predicate hiding (result)
+import Network.Wai.Predicate hiding (err, result)
 import Network.Wai.Utilities
+import System.Logger.Class
 
-import qualified Galley.Data       as Data
-import qualified Galley.Intra.Push as Intra
+import qualified Galley.API.Teams   as Teams
+import qualified Galley.Data        as Data
+import qualified Galley.Queue       as Q
+import qualified Galley.Intra.Push  as Intra
 
 rmUser :: UserId ::: Maybe ConnId -> Galley Response
 rmUser (user ::: conn) = do
     let n = unsafeRange 100 :: Range 1 100 Int32
-    Data.ResultSet ids <- Data.conversationIdsFrom user Nothing (rcast n)
+    Data.ResultSet tids <- Data.teamIdsFrom user Nothing (rcast n)
+    leaveTeams tids
+    Data.ResultSet cids <- Data.conversationIdsFrom user Nothing (rcast n)
     let u = list1 user []
-    leaveConversations u ids
+    leaveConversations u cids
     Data.eraseClients user
     return empty
   where
+    leaveTeams tids = for_ (result tids) $ \tid -> do
+        Data.teamMembers tid >>= uncheckedRemoveTeamMember user conn tid user
+        when (hasMore tids) $
+            leaveTeams =<< liftClient (nextPage tids)
+
     leaveConversations u ids = do
         cc <- Data.conversations (result ids)
         pp <- for cc $ \c -> case Data.convType c of
@@ -50,3 +68,18 @@ rmUser (user ::: conn) = do
             Intra.push
         when (hasMore ids) $
             leaveConversations u =<< liftClient (nextPage ids)
+
+deleteLoop :: Galley ()
+deleteLoop = do
+    q <- view deleteQueue
+    forever $ do
+        i@(TeamItem tid usr con) <- Q.pop q
+        Teams.uncheckedDeleteTeam usr con tid `catchAny` someError q i
+  where
+    someError q i x = do
+        err $ "error" .= show x ~~ msg (val "failed to delete")
+        ok <- Q.tryPush q i
+        unless ok $
+            err (msg (val "delete queue is full, dropping item") ~~ "item" .= show i)
+        liftIO $ threadDelay 1000000
+

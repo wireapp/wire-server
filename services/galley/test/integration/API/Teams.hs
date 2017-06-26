@@ -127,10 +127,16 @@ testRemoveTeamMember g b c = do
     let p2 = Util.symmPermissions [AddConversationMember, RemoveTeamMember]
     mem1 <- flip newTeamMember p1 <$> Util.randomUser b
     mem2 <- flip newTeamMember p2 <$> Util.randomUser b
-    Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId])
+    mext <- Util.randomUser b
+    Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId, mext])
     tid <- Util.createTeam g "foo" owner [mem1, mem2]
 
-    WS.bracketR3 c owner (mem1^.userId) (mem2^.userId) $ \(wsOwner, wsMem1, wsMem2) -> do
+    -- Managed conversation:
+    void $ Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "gossip")
+    -- Regular conversation:
+    cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [mem1^.userId, mem2^.userId, mext] (Just "blaa")
+
+    WS.bracketRN c [owner, mem1^.userId, mem2^.userId, mext] $ \ws@[wsOwner, wsMem1, wsMem2, wsMext] -> do
         -- `mem1` lacks permission to remove team members
         delete ( g
                . paths ["teams", toByteString' tid, "members", toByteString' (mem2^.userId)]
@@ -146,6 +152,8 @@ testRemoveTeamMember g b c = do
                ) !!! const 200 === statusCode
 
         liftIO . void $ mapConcurrently (checkLeaveEvent tid (mem1^.userId)) [wsOwner, wsMem1, wsMem2]
+        checkConvMemberLeaveEvent cid2 (mem1^.userId) wsMext
+        WS.assertNoEvent timeout ws
   where
     checkLeaveEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
@@ -153,6 +161,15 @@ testRemoveTeamMember g b c = do
         e^.eventType @?= MemberLeave
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberLeave usr)
+
+    checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
+        ntfTransient notif @?= False
+        let e = List1.head (WS.unpackPayload notif)
+        evtConv e @?= cid
+        evtType e @?= Conv.MemberLeave
+        case evtData e of
+            Just (Conv.EdMembers mm) -> mm @?= Conv.Members [usr]
+            other                    -> assertFailure $ "Unexpected event data: " <> show other
 
 testAddTeamConv :: Galley -> Brig -> Cannon -> Http ()
 testAddTeamConv g b c = do
@@ -294,28 +311,27 @@ testDeleteTeam g b c = do
 
     void $ WS.bracketR3 c owner extern (member^.userId) $ \(wsOwner, wsExtern, wsMember) -> do
         delete (g . paths ["teams", toByteString' tid] . zUser owner . zConn "conn") !!!
-            const 200 === statusCode
-
-        get (g . paths ["teams", toByteString' tid] . zUser owner) !!!
-            const 404 === statusCode
-
-        get (g . paths ["teams", toByteString' tid, "members"] . zUser owner) !!!
-            const 403 === statusCode
-
-        get (g . paths ["teams", toByteString' tid, "conversations"] . zUser owner) !!!
-            const 403 === statusCode
-
-        for_ [owner, extern, member^.userId] $ \u ->
-            for_ [cid1, cid2] $ \x -> do
-                Util.getConv g u x !!! const 404 === statusCode
-                Util.getSelfMember g u x !!! do
-                    const 200         === statusCode
-                    const (Just Null) === Util.decodeBody
-
+            const 202 === statusCode
         checkTeamDeleteEvent tid wsOwner
         checkTeamDeleteEvent tid wsMember
         checkConvDeletevent  cid1 wsExtern
         WS.assertNoEvent timeout [wsOwner, wsExtern, wsMember]
+
+    get (g . paths ["teams", toByteString' tid] . zUser owner) !!!
+        const 404 === statusCode
+
+    get (g . paths ["teams", toByteString' tid, "members"] . zUser owner) !!!
+        const 403 === statusCode
+
+    get (g . paths ["teams", toByteString' tid, "conversations"] . zUser owner) !!!
+        const 403 === statusCode
+
+    for_ [owner, extern, member^.userId] $ \u ->
+        for_ [cid1, cid2] $ \x -> do
+            Util.getConv g u x !!! const 404 === statusCode
+            Util.getSelfMember g u x !!! do
+                const 200         === statusCode
+                const (Just Null) === Util.decodeBody
   where
     checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
