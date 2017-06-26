@@ -22,7 +22,6 @@ module Galley.API.Teams
     , uncheckedRemoveTeamMember
     ) where
 
-import Brig.Types (userTeam)
 import Cassandra (result, hasMore)
 import Control.Lens
 import Control.Monad (unless, when, void)
@@ -41,7 +40,7 @@ import Galley.App
 import Galley.API.Error
 import Galley.API.Util
 import Galley.Intra.Push
-import Galley.Intra.User (bindUser, getUser)
+import Galley.Intra.User (bindUser)
 import Galley.Types.Teams
 import Network.HTTP.Types
 import Network.Wai
@@ -81,22 +80,21 @@ lookupTeam zusr tid = do
 createTeam :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Galley Response
 createTeam (zusr::: zcon ::: req ::: _) = do
     body <- fromBody req invalidPayload
-    u    <- getUser zusr
-    when (body^.newTeamBinding && isJust (userTeam u)) $
-        throwM userBindingExists
-    -- TODO: Need to check the other users as well as this point
     let owner  = newTeamMember zusr fullPermissions
     let others = filter ((zusr /=) . view userId)
                . maybe [] fromRange
                $ body^.newTeamMembers
+    let uids   = zusr : map (view userId) others
+    when (body^.newTeamBinding) $
+        ensureNotBound uids
     ensureConnected zusr (map (view userId) others)
     team <- Data.createTeam zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) (body^.newTeamBinding)
     for_ (owner : others) $
         Data.addTeamMember (team^.teamId)
-    -- We bind the user at a later stage because of potential failures.
+    -- We bind the users at a later stage because of potential failures.
     -- If we fail at this point, the user can still try to bind to another team
     when (body^.newTeamBinding) $
-        bindUser zusr (team^.teamId)
+        void $ mapM (bindUser (team^.teamId)) uids
     now <- liftIO getCurrentTime
     let e = newEvent TeamCreate (team^.teamId) now & eventData .~ Just (EdTeamCreate team)
     let r = membersToRecipients Nothing others
