@@ -77,12 +77,6 @@ brigModels =
       -- Properties
     , propertyValue
 
-      -- Onboarding
-    , addressBook
-    , card
-    , match
-    , onboardingMatches
-
       -- Search
     , searchResult
     , searchContact

@@ -17,7 +17,6 @@ library
         Brig.Types
         Brig.Types.AddressBook
         Brig.Types.Activation
-        Brig.Types.AddressBook
         Brig.Types.Client
         Brig.Types.Client.Prekey
         Brig.Types.Code
@@ -28,7 +27,6 @@ library
         Brig.Types.Provider
         Brig.Types.Provider.External
         Brig.Types.Provider.Tag
-        Brig.Types.Search
         Brig.Types.Swagger
         Brig.Types.Team.Invitation
         Brig.Types.User
