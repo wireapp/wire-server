@@ -112,6 +112,9 @@ self = defineModel "Self" $ do
     property "deleted" bool' $ do
         description "Whether the account has been deleted."
         optional
+    property "team" bytes' $ do
+        description "The team that the user is bound to."
+        optional
 
 user :: Model
 user = defineModel "User" $ do
