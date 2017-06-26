@@ -117,9 +117,8 @@ team :: MonadClient m => TeamId -> m (Maybe TeamData)
 team tid =
     fmap toTeam <$> retry x1 (query1 Cql.selectTeam (params Quorum (Identity tid)))
   where
-    toTeam (u, n, i, k, d) =
-        let t = newTeam tid u n i & teamIconKey .~ k in
-        TeamData t d
+    toTeam (u, n, i, k, d, b) =
+        let t = newTeam tid u n i (fromMaybe False b) & teamIconKey .~ k in TeamData t d
 
 isTeamAlive :: MonadClient m => TeamId -> m Bool
 isTeamAlive tid = do
@@ -166,11 +165,12 @@ createTeam :: MonadClient m
            -> Range 1 256 Text
            -> Range 1 256 Text
            -> Maybe (Range 1 256 Text)
+           -> Bool
            -> m Team
-createTeam uid (fromRange -> n) (fromRange -> i) k = do
+createTeam uid (fromRange -> n) (fromRange -> i) k b = do
     tid <- Id <$> liftIO nextRandom
-    retry x5 $ write Cql.insertTeam (params Quorum (tid, uid, n, i, fromRange <$> k))
-    pure (newTeam tid uid n i & teamIconKey .~ (fromRange <$> k))
+    retry x5 $ write Cql.insertTeam (params Quorum (tid, uid, n, i, fromRange <$> k, b))
+    pure (newTeam tid uid n i b & teamIconKey .~ (fromRange <$> k))
 
 deleteTeam :: MonadClient m => TeamId -> m ()
 deleteTeam tid = do

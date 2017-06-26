@@ -20,8 +20,8 @@ import qualified Data.Text.Lazy as LT
 
 -- Teams --------------------------------------------------------------------
 
-selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Text, Maybe Text, Bool)
-selectTeam = "select creator, name, icon, icon_key, deleted from team where team = ?"
+selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Text, Maybe Text, Bool, Maybe Bool)
+selectTeam = "select creator, name, icon, icon_key, deleted, bound from team where team = ?"
 
 selectTeamConv :: PrepQuery R (TeamId, ConvId) (Identity Bool)
 selectTeamConv = "select managed from team_conv where team = ? and conv = ?"
@@ -44,8 +44,8 @@ selectUserTeamsIn = "select team from user_team where user = ? and team in ? ord
 selectUserTeamsFrom :: PrepQuery R (UserId, TeamId) (Identity TeamId)
 selectUserTeamsFrom = "select team from user_team where user = ? and team > ? order by team"
 
-insertTeam :: PrepQuery W (TeamId, UserId, Text, Text, Maybe Text) ()
-insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted) values (?, ?, ?, ?, ?, false)"
+insertTeam :: PrepQuery W (TeamId, UserId, Text, Text, Maybe Text, Bool) ()
+insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted, bound) values (?, ?, ?, ?, ?, false, ?)"
 
 insertTeamConv :: PrepQuery W (TeamId, ConvId, Bool) ()
 insertTeamConv = "insert into team_conv (team, conv, managed) values (?, ?, ?)"

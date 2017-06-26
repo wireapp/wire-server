@@ -6,7 +6,7 @@
 module Galley.API.Util where
 
 import Brig.Types (Relation (..))
-import Brig.Types.Intra (ConnectionStatus (..))
+import Brig.Types.Intra (ConnectionStatus (..), UserTeam (..))
 import Control.Lens (view, (&), (.~))
 import Control.Monad
 import Control.Monad.Catch
@@ -52,6 +52,12 @@ ensureConnected u uids = do
            csFrom   cs == u1
         && csTo     cs == u2
         && csStatus cs == Accepted
+
+ensureNotBound :: [UserId] -> Galley ()
+ensureNotBound uids = do
+    bound <- getUserTeams uids
+    when (any (isJust . utTeam) bound) $
+        throwM userBindingExists
 
 sameTeam :: [UserId] -> [TeamMember] -> [UserId]
 sameTeam uids tmms = Set.toList $

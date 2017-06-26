@@ -14,6 +14,7 @@ import Data.ByteString.Conversion
 import Data.Foldable (for_)
 import Data.List1
 import Data.Monoid
+import Data.Range
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
 import Gundeck.Types.Notification
@@ -31,8 +32,10 @@ import qualified Test.Tasty.Cannon as WS
 tests :: Galley -> Brig -> Cannon -> Manager -> TestTree
 tests g b c m = testGroup "Teams API"
     [ test m "create team" (testCreateTeam g b c)
+    , test m "create multiple bound teams fail" (testCreateMulitpleBoundTeam g b)
     , test m "create team with members" (testCreateTeamWithMembers g b c)
     , test m "add new team member" (testAddTeamMember g b c)
+    , test m "add new team member internal" (testAddTeamMemberInternal g b c)
     , test m "remove team member" (testRemoveTeamMember g b c)
     , test m "add team conversation" (testAddTeamConv g b c)
     , test m "add managed team conversation ignores given users" (testAddTeamConvWithUsers g b)
@@ -50,7 +53,7 @@ testCreateTeam :: Galley -> Brig -> Cannon -> Http ()
 testCreateTeam g b c = do
     owner <- Util.randomUser b
     WS.bracketR c owner $ \wsOwner -> do
-        tid   <- Util.createTeam g "foo" owner []
+        tid   <- Util.createTeam g "foo" owner [] 
         team  <- Util.getTeam g owner tid
         liftIO $ do
             assertEqual "owner" owner (team^.teamCreator)
@@ -61,6 +64,20 @@ testCreateTeam g b c = do
                 e^.eventTeam @?= tid
                 e^.eventData @?= Just (EdTeamCreate team)
             void $ WS.assertSuccess eventChecks
+            WS.assertNoEvent timeout [wsOwner]
+    
+testCreateMulitpleBoundTeam :: Galley -> Brig -> Http ()
+testCreateMulitpleBoundTeam g b = do
+    owner <- Util.randomUser b
+    let nt = newNewTeam (unsafeRange "owner") (unsafeRange "icon") & newTeamBinding .~ True
+    void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) <!! do
+        const 201 === statusCode
+    void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) <!! do
+        const 403 === statusCode
+    -- Can create more teams if not bound
+    let nt' = newNewTeam (unsafeRange "owner") (unsafeRange "icon")
+    void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt') <!! do
+        const 201 === statusCode
 
 testCreateTeamWithMembers :: Galley -> Brig -> Cannon -> Http ()
 testCreateTeamWithMembers g b c = do
@@ -112,6 +129,25 @@ testAddTeamMember g b c = do
         -- `mem2` has `AddTeamMember` permission
         Util.addTeamMember g (mem2^.userId) tid mem3
         liftIO . void $ mapConcurrently (checkJoinEvent tid (mem3^.userId)) [wsOwner, wsMem1, wsMem2, wsMem3]
+  where
+    checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
+        ntfTransient notif @?= False
+        let e = List1.head (WS.unpackPayload notif)
+        e^.eventType @?= MemberJoin
+        e^.eventTeam @?= tid
+        e^.eventData @?= Just (EdMemberJoin usr)
+
+testAddTeamMemberInternal :: Galley -> Brig -> Cannon -> Http ()
+testAddTeamMemberInternal g b c = do
+    owner <- Util.randomUser b
+    tid <- Util.createTeam g "foo" owner []
+    let p1 = Util.symmPermissions [GetBilling] -- permissions are irrelevant on internal endpoint
+    mem1 <- flip newTeamMember p1 <$> Util.randomUser b
+
+    WS.bracketRN c [owner, mem1^.userId] $ \[wsOwner, wsMem1] -> do
+        Util.addTeamMemberInternal g tid mem1
+        liftIO . void $ mapConcurrently (checkJoinEvent tid (mem1^.userId)) [wsOwner, wsMem1]
+    void $ Util.getTeamMemberInternal g tid (mem1^.userId)
   where
     checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
@@ -462,4 +498,3 @@ testUpdateTeamMember g b c = do
         e^.eventType @?= MemberUpdate
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberUpdate uid)
-

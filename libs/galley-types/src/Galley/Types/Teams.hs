@@ -11,6 +11,7 @@ module Galley.Types.Teams
     , teamName
     , teamIcon
     , teamIconKey
+    , teamBound
 
     , TeamList
     , newTeamList
@@ -56,6 +57,7 @@ module Galley.Types.Teams
     , newTeamIcon
     , newTeamIconKey
     , newTeamMembers
+    , newTeamBinding
 
     , NewTeamMember
     , newNewTeamMember
@@ -104,6 +106,7 @@ data Team = Team
     , _teamName    :: Text
     , _teamIcon    :: Text
     , _teamIconKey :: Maybe Text
+    , _teamBound   :: Bool
     } deriving (Eq, Show)
 
 data Event = Event
@@ -189,14 +192,15 @@ data NewTeam = NewTeam
     , _newTeamIcon    :: Range 1 256 Text
     , _newTeamIconKey :: Maybe (Range 1 256 Text)
     , _newTeamMembers :: Maybe (Range 1 127 [TeamMember])
+    , _newTeamBinding :: Bool
     }
 
 newtype NewTeamMember = NewTeamMember
     { _ntmNewTeamMember :: TeamMember
     }
 
-newTeam :: TeamId -> UserId -> Text -> Text -> Team
-newTeam tid uid nme ico = Team tid uid nme ico Nothing
+newTeam :: TeamId -> UserId -> Text -> Text -> Bool -> Team
+newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
 
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
@@ -214,7 +218,7 @@ newTeamConversationList :: [TeamConversation] -> TeamConversationList
 newTeamConversationList = TeamConversationList
 
 newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam
-newNewTeam nme ico = NewTeam nme ico Nothing Nothing
+newNewTeam nme ico = NewTeam nme ico Nothing Nothing False
 
 newNewTeamMember :: TeamMember -> NewTeamMember
 newNewTeamMember = NewTeamMember
@@ -303,6 +307,7 @@ instance FromJSON Team where
              <*> o .:  "name"
              <*> o .:  "icon"
              <*> o .:? "icon_key"
+             <*> o .:? "binding" .!= False
 
 instance ToJSON TeamList where
     toJSON t = object
@@ -365,10 +370,11 @@ instance FromJSON Permissions where
 
 instance ToJSON NewTeam where
     toJSON t = object
-        $ "name"     .= fromRange (_newTeamName t)
-        # "icon"     .= fromRange (_newTeamIcon t)
-        # "icon_key" .= (fromRange <$> _newTeamIconKey t)
-        # "members"  .= (map (teamMemberJson True) . fromRange <$> _newTeamMembers t)
+        $ "name"      .= fromRange (_newTeamName t)
+        # "icon"      .= fromRange (_newTeamIcon t)
+        # "icon_key"  .= (fromRange <$> _newTeamIconKey t)
+        # "members"   .= (map (teamMemberJson True) . fromRange <$> _newTeamMembers t)
+        # "binding"   .= _newTeamBinding t
         # []
 
 instance FromJSON NewTeam where
@@ -377,11 +383,13 @@ instance FromJSON NewTeam where
         icon <- o .:  "icon"
         key  <- o .:? "icon_key"
         mems <- o .:? "members"
+        bind <- o .:? "binding" .!= False
         either fail pure $
             NewTeam <$> checkedEitherMsg "name" name
                     <*> checkedEitherMsg "icon" icon
                     <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") key
                     <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "members") mems
+                    <*> pure bind
 
 instance ToJSON NewTeamMember where
     toJSON t = object ["member" .= teamMemberJson True (_ntmNewTeamMember t)]
