@@ -131,7 +131,7 @@ executable galley-schema
     default-language:   Haskell2010
     ghc-options:        -Wall -fwarn-tabs
     hs-source-dirs:     schema/src
-    other-modules:      V20, V21
+    other-modules:      V20, V21, V22
 
     build-depends:
         base
