@@ -12,6 +12,7 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy (ByteString)
 import Data.String (IsString)
 import Data.Text (Text)
+import Data.Id (UserId)
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Data.Word
@@ -116,15 +117,16 @@ instance ToJSON LoginCodeTimeout where
 
 -- | A temporary API access token.
 data AccessToken = AccessToken
-    { access    :: !ByteString -- accessTokenValue
+    { user      :: !UserId
+    , access    :: !ByteString -- accessTokenValue
     , tokenType :: !TokenType  -- accessTokenType
     , expiresIn :: !Integer    -- accessTokenExpiresIn
     }
 
 data TokenType = Bearer
 
-bearerToken :: ByteString -> Integer -> AccessToken
-bearerToken a = AccessToken a Bearer
+bearerToken :: UserId -> ByteString -> Integer -> AccessToken
+bearerToken u a = AccessToken u a Bearer
 
 data RemoveCookies = RemoveCookies
     { rmCookiesPassword :: !PlainTextPassword
@@ -172,8 +174,9 @@ data CookieType
     deriving (Eq, Show)
 
 instance ToJSON AccessToken where
-    toJSON (AccessToken t tt e) =
-        object [ "access_token" .= decodeUtf8 t
+    toJSON (AccessToken u t tt e) =
+        object [ "user"         .= u
+               , "access_token" .= decodeUtf8 t
                , "token_type"   .= tt
                , "expires_in"   .= e
                ]
@@ -221,4 +224,3 @@ instance FromJSON CookieType where
     parseJSON (String "session")    = return SessionCookie
     parseJSON (String "persistent") = return PersistentCookie
     parseJSON _                     = fail "Invalid cookie type"
-
