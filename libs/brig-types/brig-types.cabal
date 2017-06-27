@@ -1,5 +1,5 @@
 name:           brig-types
-version:        1.21.7
+version:        1.31.1
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2017 Wire Swiss GmbH
@@ -28,6 +28,7 @@ library
         Brig.Types.Provider.External
         Brig.Types.Provider.Tag
         Brig.Types.Swagger
+        Brig.Types.Team.Invitation
         Brig.Types.User
         Brig.Types.User.Auth
         Brig.Types.Search

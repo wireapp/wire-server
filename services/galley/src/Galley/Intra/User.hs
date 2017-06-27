@@ -3,9 +3,12 @@
 module Galley.Intra.User
     ( getConnections
     , deleteBot
+    , getUserTeams
+    , bindUser
     ) where
 
 import Bilge hiding (options, getHeader)
+import Brig.Types.Intra (UserTeam(..))
 import Bilge.RPC
 import Bilge.Retry
 import Brig.Types.Intra (ConnectionStatus (..))
@@ -52,6 +55,28 @@ deleteBot cid bot = do
         . header "Z-Type" "bot"
         . header "Z-Bot" (toByteString' bot)
         . header "Z-Conversation" (toByteString' cid)
+        . expect2xx
+
+getUserTeams :: [UserId] -> Galley [UserTeam]
+getUserTeams us = do
+    h <- view (options.brigHost)
+    p <- view (options.brigPort)
+    r <- call "brig"
+        $ method GET . host h . port (portNumber p)
+        . path "/i/users-teams"
+        . queryItem "ids" users
+        . expect2xx
+    parseResponse (Error status502 "server-error") r
+  where
+    users = intercalate "," $ toByteString' <$> us
+
+bindUser :: TeamId -> UserId -> Galley ()
+bindUser t u = do
+    h <- view (options.brigHost)
+    p <- view (options.brigPort)
+    void $ call "brig"
+        $ method POST . host h . port (portNumber p)
+        . paths ["/i/users", toByteString' u, "bind", toByteString' t]
         . expect2xx
 
 -----------------------------------------------------------------------------

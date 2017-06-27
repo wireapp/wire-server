@@ -112,6 +112,9 @@ self = defineModel "Self" $ do
     property "deleted" bool' $ do
         description "Whether the account has been deleted."
         optional
+    property "team" bytes' $ do
+        description "The team that the user is bound to."
+        optional
 
 user :: Model
 user = defineModel "User" $ do
@@ -194,6 +197,9 @@ newUser = defineModel "NewUser" $ do
     property "label" string' $ do
         description "An optional label to associate with the access cookie, \
                     \if one is granted during account creation."
+        optional
+    property "team_code" string' $ do
+        description "Team invitation code"
         optional
 
 userUpdate :: Model
@@ -378,6 +384,41 @@ connectionList = defineModel "UserConnectionList" $ do
 invitationList :: Model
 invitationList = defineModel "InvitationList" $ do
     description "A list of sent invitations."
+    property "invitations" (unique $ array (ref invitation)) end
+    property "has_more" bool' $
+        description "Indicator that the server has more invitations than returned."
+
+-------------------------------------------------------------------------------
+-- Team invitation Models
+
+teamInvitationRequest :: Model
+teamInvitationRequest = defineModel "InvitationRequest" $ do
+    description "A request to join a team on Wire."
+    property "inviter_name" string' $
+        description "Name of the inviter (1 - 128 characters)"
+    property "email" string' $
+        description "Email of the invitee"
+    property "locale" string' $ do
+        description "Locale to use for the invitation."
+        optional
+
+teamInvitation :: Model
+teamInvitation = defineModel "Invitation" $ do
+    description "An invitation to join a team on Wire"
+    property "team" bytes' $
+        description "Team ID of the inviting team"
+    property "id" bytes' $
+        description "UUID used to refer the invitation"
+    property "email" string' $
+        description "Email of the invitee"
+    property "created_at" dateTime' $
+        description "Timestamp of invitation creation"
+    property "name" string' $
+        description "Name of the invitee"
+
+teamInvitationList :: Model
+teamInvitationList = defineModel "InvitationList" $ do
+    description "A list of sent team invitations."
     property "invitations" (unique $ array (ref invitation)) end
     property "has_more" bool' $
         description "Indicator that the server has more invitations than returned."

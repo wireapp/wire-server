@@ -56,6 +56,9 @@ noAddToManaged = Error status403 "no-add-to-managed" "Adding users directly to m
 teamNotFound :: Error
 teamNotFound = Error status404 "no-team" "team not found"
 
+noAddToBound :: Error
+noAddToBound = Error status403 "no-add-to-bound" "Cannot add users to bound teams, invite only."
+
 noBotsInTeamConvs :: Error
 noBotsInTeamConvs = Error status403 "bots-not-allowed" "Adding bots to team conversations is not allowed."
 
@@ -70,6 +73,9 @@ teamMemberNotFound = Error status404 "no-team-member" "team member not found"
 
 noTeamConv :: Error
 noTeamConv = Error status400 "no-team-conv" "Team conversations are not allowed in this context."
+
+userBindingExists :: Error
+userBindingExists = Error status403 "binding-exists" "The user is already bound to a different team."
 
 deleteQueueFull :: Error
 deleteQueueFull = Error status503 "queue-full" "The delete queue is full. No further delete requests can be processed at the moment."
