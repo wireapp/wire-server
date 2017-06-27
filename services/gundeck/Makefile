@@ -1,6 +1,6 @@
 SHELL         := /usr/bin/env bash
 NAME          := gundeck
-VERSION       := $(shell sed -n 's/^version: *\(.*\)$$/\1/p' $(NAME).cabal)
+VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
@@ -13,6 +13,12 @@ DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 SDIST         := dist/$(NAME)-$(VERSION).tar.gz
 KEIRETSU_ENV  ?= ../.env
+
+guard-%:
+	@ if [ "${${*}}" = "" ]; then \
+	      echo "Environment variable $* not set"; \
+	    exit 1; \
+	fi
 
 default: clean install
 
@@ -38,7 +44,7 @@ clean:
 	-rm -f .metadata
 
 .PHONY: dist
-dist: install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
+dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
 
 $(DEB):
 	makedeb --name=$(NAME) \
