@@ -1,6 +1,6 @@
 SHELL        := /usr/bin/env bash
 NAME         := galley
-VERSION      := $(shell sed -n 's/^version: *\(.*\)$$/\1/p' $(NAME).cabal)
+VERSION      ?=
 BUILD_NUMBER ?= 0
 BUILD_LABEL  ?= local
 BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
@@ -10,6 +10,12 @@ DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT       := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA   := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 KEIRETSU_ENV ?= ../.env
+
+guard-%:
+	@ if [ "${${*}}" = "" ]; then \
+	      echo "Environment variable $* not set"; \
+	    exit 1; \
+	fi
 
 default: all
 
@@ -34,7 +40,7 @@ compile:
 	stack build --pedantic --test --no-copy-bins
 
 .PHONY: dist
-dist: install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
+dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
 
 $(DEB):
 	makedeb --name=$(NAME) \

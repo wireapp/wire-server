@@ -1,10 +1,16 @@
 SHELL        := /usr/bin/env bash
 NAME         := makedeb
-VERSION      := $(shell sed -n 's/^version: *\(.*\)$$/\1/p' $(NAME).cabal)
+VERSION      ?=
 BUILD_NUMBER ?= 0
 BUILD_LABEL  ?= local
 BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
 DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
+
+guard-%:
+	@ if [ "${${*}}" = "" ]; then \
+	      echo "Environment variable $* not set"; \
+	    exit 1; \
+	fi
 
 default: all
 
@@ -27,13 +33,8 @@ install: init
 compile:
 	stack build --pedantic --test --no-copy-bins
 
-.PHONY: sdist
-sdist: init
-	stack sdist
-	cp "$(shell stack path --dist-dir)/$(NAME)-$(VERSION).tar.gz" dist/
-
 .PHONY: dist
-dist: sdist install $(DEB) .metadata
+dist: guard-VERSION install $(DEB) .metadata
 
 $(DEB):
 	$(eval $@_DIR := $(shell mktemp -d -t makedeb.XXXXXXXXXX))

@@ -1,10 +1,16 @@
 SHELL        := /usr/bin/env bash
 NAME         := proxy
-VERSION      := $(shell sed -n 's/^version: *\(.*\)$$/\1/p' $(NAME).cabal)
+VERSION      ?=
 BUILD_NUMBER ?= 0
 BUILD_LABEL  ?= local
 BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
 DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
+
+guard-%:
+	@ if [ "${${*}}" = "" ]; then \
+	      echo "Environment variable $* not set"; \
+	    exit 1; \
+	fi
 
 default: all
 
@@ -28,7 +34,7 @@ compile:
 	stack build --pedantic --test --no-copy-bins
 
 .PHONY: dist
-dist: install $(DEB) $(DEB_IT) .metadata
+dist: guard-VERSION install $(DEB) $(DEB_IT) .metadata
 
 $(DEB):
 	makedeb --name=$(NAME) \
