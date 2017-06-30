@@ -71,5 +71,11 @@ teamMemberNotFound = Error status404 "no-team-member" "team member not found"
 noTeamConv :: Error
 noTeamConv = Error status400 "no-team-conv" "Team conversations are not allowed in this context."
 
+userBindingExists :: Error
+userBindingExists = Error status403 "binding-exists" "User already bound to a different team."
+
+noAddToBinding :: Error
+noAddToBinding = Error status403 "binding-team" "Cannot add users to binding teams, invite only."
+
 deleteQueueFull :: Error
 deleteQueueFull = Error status503 "queue-full" "The delete queue is full. No further delete requests can be processed at the moment."

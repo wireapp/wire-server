@@ -74,16 +74,16 @@ run o = do
 
 sitemap :: Routes ApiBuilder Galley ()
 sitemap = do
-    post "/teams" (continue createTeam) $
+    post "/teams" (continue createNonBindingTeam) $
         zauthUserId
         .&. zauthConnId
         .&. request
         .&. accept "application" "json"
         .&. contentType "application" "json"
 
-    document "POST" "createTeam" $ do
-        summary "Create a new team"
-        body (ref TeamsModel.newTeam) $
+    document "POST" "createNonBindingTeam" $ do
+        summary "Create a new non binding team"
+        body (ref TeamsModel.newNonBindingTeam) $
             description "JSON body"
         response 201 "Team ID as `Location` header value" end
         errorResponse Error.notConnected
@@ -632,6 +632,24 @@ sitemap = do
 
     get "/i/conversations/:cnv/meta" (continue getConversationMeta) $
         capture "cnv"
+
+    put "/i/teams/:tid" (continue createBindingTeam) $
+        zauthUserId
+        .&. capture "tid"
+        .&. request
+        .&. contentType "application" "json"
+        .&. accept "application" "json"
+
+    post "/i/teams/:tid/members" (continue uncheckedAddTeamMember) $
+        capture "tid"
+        .&. request
+        .&. contentType "application" "json"
+        .&. accept "application" "json"
+
+    get "/i/teams/:tid/members/:uid" (continue uncheckedGetTeamMember) $
+        capture "tid"
+        .&. capture "uid"
+        .&. accept "application" "json"
 
     get "/i/test/clients" (continue getClients)
         zauthUserId

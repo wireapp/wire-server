@@ -20,8 +20,11 @@ import qualified Data.Text.Lazy as LT
 
 -- Teams --------------------------------------------------------------------
 
-selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Text, Maybe Text, Bool)
-selectTeam = "select creator, name, icon, icon_key, deleted from team where team = ?"
+selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Text, Maybe Text, Bool, Maybe TeamBinding)
+selectTeam = "select creator, name, icon, icon_key, deleted, binding from team where team = ?"
+
+selectTeamBinding :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamBinding))
+selectTeamBinding = "select binding from team where team = ?"
 
 selectTeamConv :: PrepQuery R (TeamId, ConvId) (Identity Bool)
 selectTeamConv = "select managed from team_conv where team = ? and conv = ?"
@@ -38,14 +41,17 @@ selectTeamMembers = "select user, perms from team_member where team = ? order by
 selectUserTeams :: PrepQuery R (Identity UserId) (Identity TeamId)
 selectUserTeams = "select team from user_team where user = ? order by team"
 
+selectOneUserTeam :: PrepQuery R (Identity UserId) (Identity TeamId)
+selectOneUserTeam = "select team from user_team where user = ? limit 1"
+
 selectUserTeamsIn :: PrepQuery R (UserId, [TeamId]) (Identity TeamId)
 selectUserTeamsIn = "select team from user_team where user = ? and team in ? order by team"
 
 selectUserTeamsFrom :: PrepQuery R (UserId, TeamId) (Identity TeamId)
 selectUserTeamsFrom = "select team from user_team where user = ? and team > ? order by team"
 
-insertTeam :: PrepQuery W (TeamId, UserId, Text, Text, Maybe Text) ()
-insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted) values (?, ?, ?, ?, ?, false)"
+insertTeam :: PrepQuery W (TeamId, UserId, Text, Text, Maybe Text, TeamBinding) ()
+insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted, binding) values (?, ?, ?, ?, ?, false, ?)"
 
 insertTeamConv :: PrepQuery W (TeamId, ConvId, Bool) ()
 insertTeamConv = "insert into team_conv (team, conv, managed) values (?, ?, ?)"

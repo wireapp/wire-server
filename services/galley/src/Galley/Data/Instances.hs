@@ -80,3 +80,13 @@ instance Cql ConvTeamInfo where
 
     fromCql _ = fail "teaminfo: udt expected"
 
+
+instance Cql TeamBinding where
+    ctype = Tagged BooleanColumn
+
+    toCql Binding    = CqlBoolean True
+    toCql NonBinding = CqlBoolean False
+
+    fromCql (CqlBoolean True)  = pure Binding
+    fromCql (CqlBoolean False) = pure NonBinding
+    fromCql _                  = fail "teambinding: boolean expected"

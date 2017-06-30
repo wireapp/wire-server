@@ -63,8 +63,17 @@ symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 createTeam :: Galley -> Text -> UserId -> [TeamMember] -> Http TeamId
 createTeam g name owner mems = do
     let mm = if null mems then Nothing else Just $ unsafeRange (take 127 mems)
-    let nt = newNewTeam (unsafeRange name) (unsafeRange "icon") & newTeamMembers .~ mm
+    let nt = NonBindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon") & newTeamMembers .~ mm
     resp <- post (g . path "/teams" . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
+        const 201  === statusCode
+        const True === isJust . getHeader "Location"
+    fromBS (getHeader' "Location" resp)
+
+createTeamInternal :: Galley -> Text -> UserId -> Http TeamId
+createTeamInternal g name owner = do
+    tid <- randomId
+    let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
+    resp <- put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
         const 201  === statusCode
         const True === isJust . getHeader "Location"
     fromBS (getHeader' "Location" resp)
@@ -84,10 +93,21 @@ getTeamMember g usr tid mid = do
     r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' mid] . zUser usr) <!! const 200 === statusCode
     pure (fromJust (decodeBody r))
 
+getTeamMemberInternal :: Galley -> TeamId -> UserId -> Http TeamMember
+getTeamMemberInternal g tid mid = do
+    r <- get (g . paths ["i", "teams", toByteString' tid, "members", toByteString' mid]) <!! const 200 === statusCode
+    pure (fromJust (decodeBody r))
+
 addTeamMember :: Galley -> UserId -> TeamId -> TeamMember -> Http ()
 addTeamMember g usr tid mem = do
     let payload = json (newNewTeamMember mem)
     post (g . paths ["teams", toByteString' tid, "members"] . zUser usr . zConn "conn" .payload) !!!
+        const 200 === statusCode
+
+addTeamMemberInternal :: Galley -> TeamId -> TeamMember -> Http ()
+addTeamMemberInternal g tid mem = do
+    let payload = json (newNewTeamMember mem)
+    post (g . paths ["i", "teams", toByteString' tid, "members"] . payload) !!!
         const 200 === statusCode
 
 createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Http ConvId
