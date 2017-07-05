@@ -68,8 +68,19 @@ brigModels =
     , clientPrekey
     , prekey
 
+      -- Onboarding
+    , addressBook
+    , card
+    , match
+    , onboardingMatches
+
       -- Properties
     , propertyValue
+
+      -- Search
+    , searchResult
+    , searchContact
+    , searchableStatus
     ]
 
 -------------------------------------------------------------------------------
@@ -698,3 +709,76 @@ prekey = defineModel "Prekey" $ do
 propertyValue :: Model
 propertyValue = defineModel "PropertyValue" $
     description "A property value is any valid JSON value."
+
+-----------------------------------------------------------------------------
+-- Onboarding
+
+addressBook :: Model
+addressBook = defineModel "AddressBook" $ do
+    description "Address book of a user"
+    property "cards" (array (ref card)) $
+        description "List of cards"
+
+card :: Model
+card = defineModel "Card" $ do
+    description "A contact's card"
+    property "contact" (array string') $
+        description "List of base64-encoded SHA-256 of a normalised \
+                    \email address or phone number"
+    property "card_id" string' $ do
+        description "Unique card identifier, defined by clients."
+        optional
+
+match :: Model
+match = defineModel "Match" $ do
+    description "A user that got auto-connected as a result of the upload."
+    property "id" string' $
+        description "Matched user ID"
+    property "card_id" string' $ do
+        description "DEPRECATED! Use cards instead."
+        optional
+    property "cards" (array string') $
+        description "List of card ids for this match."
+
+onboardingMatches :: Model
+onboardingMatches = defineModel "onboardingMatches" $ do
+    description "Result of the address book matching"
+    property "results" (array (ref match)) $
+        description "List of matches."
+    property "auto-connects" (array (ref match)) $
+        description "List of user IDs matched. It's a bit redudant given 'results' \
+                    \but it is here for reasons of backwards compatibility."
+
+--------------------------------------------------------------------------------
+-- Search
+
+searchResult :: Model
+searchResult = defineModel "SearchResult" $ do
+    description "Search Result"
+    property "found" int32' $
+        description "Total number of hits"
+    property "returned" int32' $
+        description "Number of hits returned"
+    property "took" int32' $
+        description "Search time in ms"
+    property "documents" (array (ref searchContact)) $
+        description "List of contacts found"
+
+searchContact :: Model
+searchContact = defineModel "Contact" $ do
+    description "Contact discovered through search"
+    property "id" string' $
+        description "User ID"
+    property "name" string' $
+        description "Name"
+    property "handle" string' $
+        description "Handle"
+    property "accent_id" int32' $ do
+        description "Accent color"
+        optional
+
+searchableStatus :: Model
+searchableStatus = defineModel "SearchableStatus" $ do
+    description "Whether the user is discoverable via search"
+    property "enabled" bool' $
+        description "'true' if discoverable, 'false' otherwise"

@@ -1,10 +1,14 @@
 SHELL        := /usr/bin/env bash
 NAME         := bonanza
-VERSION      := $(shell sed -n 's/^version: *\(.*\)$$/\1/p' $(NAME).cabal)
+VERSION      ?=
 BUILD_NUMBER ?= 0
 DEB          := dist/$(NAME)_$(VERSION)+$(BUILD_NUMBER)_amd64.deb
-SDIST        := dist/$(NAME)-$(VERSION).tar.gz
 
+guard-%:
+	@ if [ "${${*}}" = "" ]; then \
+	      echo "Environment variable $* not set"; \
+	    exit 1; \
+	fi
 
 default: all
 
@@ -27,11 +31,7 @@ compile:
 	stack build --fast --pedantic --test --no-copy-bins
 
 .PHONY: dist
-dist: $(DEB) $(SDIST)
-
-$(SDIST): init
-	stack sdist
-	cp "$(shell stack path --dist-dir)/$(NAME)-$(VERSION).tar.gz" dist/
+dist: guard-VERSION $(DEB)
 
 $(DEB): install
 	makedeb --name=$(NAME) \

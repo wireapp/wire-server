@@ -10,6 +10,7 @@ import System.Logger hiding (info)
 
 import qualified V20
 import qualified V21
+import qualified V22
 
 main :: IO ()
 main = do
@@ -18,6 +19,7 @@ main = do
     migrateSchema l o
         [ V20.migration
         , V21.migration
+        , V22.migration
         ]
       `finally`
         close l

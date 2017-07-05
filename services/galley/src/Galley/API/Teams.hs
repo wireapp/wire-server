@@ -3,7 +3,8 @@
 {-# LANGUAGE TypeOperators     #-}
 
 module Galley.API.Teams
-    ( createTeam
+    ( createBindingTeam
+    , createNonBindingTeam
     , updateTeam
     , getTeam
     , getManyTeams
@@ -17,15 +18,18 @@ module Galley.API.Teams
     , getTeamConversation
     , deleteTeamConversation
     , updateTeamMember
+    , uncheckedAddTeamMember
+    , uncheckedGetTeamMember
     , uncheckedRemoveTeamMember
     ) where
 
 import Cassandra (result, hasMore)
+import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens
 import Control.Monad (unless, when, void)
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Data.ByteString.Conversion
+import Data.ByteString.Conversion hiding (fromList)
 import Data.Foldable (for_, foldrM)
 import Data.Int
 import Data.Id
@@ -34,6 +38,7 @@ import Data.Maybe (catMaybes, isJust)
 import Data.Range
 import Data.Time.Clock (getCurrentTime)
 import Data.Traversable (mapM)
+import Data.Set (fromList, toList)
 import Galley.App
 import Galley.API.Error
 import Galley.API.Util
@@ -41,7 +46,7 @@ import Galley.Intra.Push
 import Galley.Types.Teams
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (setStatus, result)
+import Network.Wai.Predicate hiding (setStatus, result, or)
 import Network.Wai.Utilities
 import Prelude hiding (head, mapM)
 
@@ -74,22 +79,25 @@ lookupTeam zusr tid = do
     else
         pure Nothing
 
-createTeam :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Galley Response
-createTeam (zusr::: zcon ::: req ::: _) = do
-    body <- fromBody req invalidPayload
-    team <- Data.createTeam zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey)
+createNonBindingTeam :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Galley Response
+createNonBindingTeam (zusr::: zcon ::: req ::: _) = do
+    NonBindingNewTeam body <- fromBody req invalidPayload
     let owner  = newTeamMember zusr fullPermissions
     let others = filter ((zusr /=) . view userId)
                . maybe [] fromRange
                $ body^.newTeamMembers
-    ensureConnected zusr (map (view userId) others)
-    for_ (owner : others) $
-        Data.addTeamMember (team^.teamId)
-    now <- liftIO getCurrentTime
-    let e = newEvent TeamCreate (team^.teamId) now & eventData .~ Just (EdTeamCreate team)
-    let r = membersToRecipients Nothing others
-    push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ Just zcon
-    pure (empty & setStatus status201 . location (team^.teamId))
+    let zothers = map (view userId) others
+    ensureUnboundUsers (zusr : zothers)
+    ensureConnected zusr zothers
+    team <- Data.createTeam Nothing zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) NonBinding
+    finishCreateTeam team owner others (Just zcon)
+
+createBindingTeam :: UserId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
+createBindingTeam (zusr ::: tid ::: req ::: _) = do
+    BindingNewTeam body <- fromBody req invalidPayload
+    let owner  = newTeamMember zusr fullPermissions
+    team <- Data.createTeam (Just tid) zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) Binding
+    finishCreateTeam team owner [] Nothing
 
 updateTeam :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 updateTeam (zusr::: zcon ::: tid ::: req ::: _) = do
@@ -156,25 +164,29 @@ getTeamMember (zusr::: tid ::: uid ::: _) = do
             let member   = findTeamMember uid mems
             maybe (throwM teamMemberNotFound) (pure . json . teamMemberJson withPerm) member
 
+uncheckedGetTeamMember :: TeamId ::: UserId ::: JSON -> Galley Response
+uncheckedGetTeamMember (tid ::: uid ::: _) = do
+    mem <- Data.teamMember tid uid >>= ifNothing teamMemberNotFound
+    return . json $ teamMemberJson True mem
+
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
-    body <- fromBody req invalidPayload
+    nmem <- fromBody req invalidPayload
     mems <- Data.teamMembers tid
     tmem <- permissionCheck zusr AddTeamMember mems
-    unless ((body^.ntmNewTeamMember.permissions.self) `Set.isSubsetOf` (tmem^.permissions.copy)) $
+    unless ((nmem^.ntmNewTeamMember.permissions.self) `Set.isSubsetOf` (tmem^.permissions.copy)) $
         throwM invalidPermissions
-    unless (length mems < 128) $
-        throwM tooManyTeamMembers
-    ensureConnected zusr [body^.ntmNewTeamMember.userId]
-    Data.addTeamMember tid (body^.ntmNewTeamMember)
-    cc <- filter (view managedConversation) <$> Data.teamConversations tid
-    for_ cc $ \c ->
-        Data.addMember (c^.conversationId) (body^.ntmNewTeamMember.userId)
-    now <- liftIO getCurrentTime
-    let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (body^.ntmNewTeamMember.userId))
-    let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) ((body^.ntmNewTeamMember) : mems))
-    push1 $ newPush1 zusr (TeamEvent e) r & pushConn .~ Just zcon
-    pure empty
+    ensureNonBindingTeam tid
+    ensureUnboundUsers [nmem^.ntmNewTeamMember.userId]
+    ensureConnected zusr [nmem^.ntmNewTeamMember.userId]
+    addTeamMemberInternal tid (Just zusr) (Just zcon) nmem mems
+
+-- This function is "unchecked" because there is no need to check for user binding (invite only).
+uncheckedAddTeamMember :: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
+uncheckedAddTeamMember (tid ::: req ::: _) = do
+    nmem <- fromBody req invalidPayload
+    mems <- Data.teamMembers tid
+    addTeamMemberInternal tid Nothing Nothing nmem mems
 
 updateTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 updateTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
@@ -283,3 +295,47 @@ withTeamIds usr range size k = case range of
         k False ids
 {-# INLINE withTeamIds #-}
 
+ensureUnboundUsers :: [UserId] -> Galley ()
+ensureUnboundUsers uids = do
+    e  <- ask
+    -- We check only 1 team because, by definition, users in binding teams
+    -- can only be part of one team.
+    ts <- liftIO $ mapConcurrently (evalGalley e . Data.oneUserTeam) uids
+    let teams = toList $ fromList (catMaybes ts)
+    binds <- liftIO $ mapConcurrently (evalGalley e . Data.teamBinding) teams
+    when (any ((==) (Just Binding)) binds) $
+        throwM userBindingExists
+
+ensureNonBindingTeam :: TeamId -> Galley ()
+ensureNonBindingTeam tid = do
+    team <- Data.team tid >>= ifNothing teamNotFound
+    when ((Data.tdTeam team)^.teamBinding == Binding) $
+        throwM noAddToBinding
+
+addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> [TeamMember] -> Galley Response
+addTeamMemberInternal tid origin originConn newMem mems = do
+    let new = newMem^.ntmNewTeamMember
+    unless (length mems < 128) $
+        throwM tooManyTeamMembers
+    Data.addTeamMember tid new
+    cc <- filter (view managedConversation) <$> Data.teamConversations tid
+    for_ cc $ \c ->
+        Data.addMember (c^.conversationId) (new^.userId)
+    now <- liftIO getCurrentTime
+    let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (new^.userId))
+    push1 $ newPush1 (new^.userId) (TeamEvent e) (r origin new) & pushConn .~ originConn
+    pure empty
+  where
+    r (Just o) n = list1 (userRecipient o)           (membersToRecipients (Just o) (n : mems))
+    r Nothing  n = list1 (userRecipient (n^.userId)) (membersToRecipients Nothing  (n : mems))
+
+finishCreateTeam :: Team -> TeamMember -> [TeamMember] -> Maybe ConnId -> Galley Response
+finishCreateTeam team owner others zcon = do
+    let zusr = owner^.userId
+    for_ (owner : others) $
+        Data.addTeamMember (team^.teamId)
+    now <- liftIO getCurrentTime
+    let e = newEvent TeamCreate (team^.teamId) now & eventData .~ Just (EdTeamCreate team)
+    let r = membersToRecipients Nothing others
+    push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
+    pure (empty & setStatus status201 . location (team^.teamId))
