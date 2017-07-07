@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP                        #-}
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -23,6 +24,9 @@ module Data.Misc
       -- * Fingerprint
     , Fingerprint (..)
     , Rsa
+
+      -- * PlainTextPassword
+    , PlainTextPassword (..)
     ) where
 
 import Control.DeepSeq (NFData (..))
@@ -35,6 +39,8 @@ import Data.ByteString.Conversion
 import Data.Char (isSpace)
 import Data.IP (IP)
 import Safe (readMay)
+import Data.Range
+import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Word
 #ifdef WITH_CQL
@@ -45,9 +51,10 @@ import GHC.Generics (Generic)
 import Text.Read (Read (..))
 import URI.ByteString hiding (Port)
 
+import qualified Data.Aeson.Types                 as Json
 import qualified Data.Attoparsec.ByteString.Char8 as Chars
-import qualified Data.ByteString.Base64 as B64
-import qualified Data.Text              as Text
+import qualified Data.ByteString.Base64           as B64
+import qualified Data.Text                        as Text
 
 --------------------------------------------------------------------------------
 -- IpAddr / Port
@@ -201,3 +208,13 @@ instance Cql (Fingerprint a) where
     fromCql _           = fail "Fingerprint: Expected CqlBlob"
 #endif
 
+--------------------------------------------------------------------------------
+-- Password
+
+newtype PlainTextPassword = PlainTextPassword
+    { fromPlainTextPassword :: Text }
+    deriving (ToJSON)
+
+instance FromJSON PlainTextPassword where
+    parseJSON x = PlainTextPassword . fromRange
+               <$> (parseJSON x :: Json.Parser (Range 6 1024 Text))

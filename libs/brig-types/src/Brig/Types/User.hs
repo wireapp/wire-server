@@ -17,6 +17,7 @@ import Data.Aeson.Types (Parser)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#))
+import Data.Misc (PlainTextPassword (..))
 import Data.Maybe (isJust)
 import Data.Range
 import Data.Text (Text)
