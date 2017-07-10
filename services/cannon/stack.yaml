@@ -7,7 +7,7 @@ packages:
 - '../../libs/types-common'
 - '../../libs/wai-utilities'
 - location:
-    git: git@github.com:romanb/websockets.git
+    git: https://github.com/romanb/websockets.git
     commit: 6f720ba5fa8ea7f5ada598ca762cb2c3096f83bc
   extra-dep: true
 flags:
