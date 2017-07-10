@@ -75,6 +75,7 @@ executable cannon
         -fwarn-tabs
         -with-rtsopts=-N
         -with-rtsopts=-T
+        -with-rtsopts=-ki4k
 
     build-depends: base, cannon
 
