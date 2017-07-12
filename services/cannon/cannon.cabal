@@ -73,9 +73,7 @@ executable cannon
         -O2
         -rtsopts
         -fwarn-tabs
-        -with-rtsopts=-N
-        -with-rtsopts=-T
-        -with-rtsopts=-ki4k
+        "-with-rtsopts=-N -T -M1g -ki4k"
 
     build-depends: base, cannon
 
