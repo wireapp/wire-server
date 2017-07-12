@@ -130,6 +130,3 @@ await (u ::: a ::: c ::: r) = do
   where
     status426 = mkStatus 426 "Upgrade Required"
     wsoptions = Ws.defaultConnectionOptions
-        { Ws.connectionCompressionOptions = Ws.PermessageDeflateCompression Ws.defaultPermessageDeflate
-        , Ws.connectionStrictUnicode      = True
-        }
