@@ -25,7 +25,7 @@ import Data.Id
 import Data.Int
 import Data.Json.Util ((#))
 import Data.List1 (List1)
-import Data.Misc (HttpsUrl (..))
+import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
 import Data.PEM
 import Data.Range
 import Data.Set (Set)

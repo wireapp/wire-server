@@ -15,7 +15,7 @@ import Data.Aeson
 import Data.Id
 import Data.IP
 import Data.Json.Util
-import Data.Misc (Location, IpAddr (..))
+import Data.Misc (Location, IpAddr (..), PlainTextPassword (..))
 import Data.Text (Text)
 import Data.Time (UTCTime)
 

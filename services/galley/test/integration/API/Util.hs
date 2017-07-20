@@ -18,6 +18,7 @@ import Data.Id
 import Data.Int
 import Data.List1 as List1
 import Data.Maybe
+import Data.Misc
 import Data.Monoid
 import Data.ProtocolBuffers (encodeMessage)
 import Data.Range
@@ -393,7 +394,7 @@ randomUsers b n = replicateM n (randomUser b)
 randomUser :: Brig -> Http UserId
 randomUser brig = do
     e <- liftIO mkEmail
-    let p = object [ "name" .= fromEmail e, "email" .= fromEmail e, "password" .= ("secret" :: Text) ]
+    let p = object [ "name" .= fromEmail e, "email" .= fromEmail e, "password" .= defPassword ]
     r <- post (brig . path "/i/users" . json p) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
   where
@@ -410,8 +411,16 @@ randomClient brig usr lk = do
     newClientBody =
         let sig = SignalingKeys (EncKey (C.replicate 32 'a')) (MacKey (C.replicate 32 'b'))
         in (newClient PermanentClient lk sig)
-            { newClientPassword = Just (PlainTextPassword "secret")
+            { newClientPassword = Just (PlainTextPassword defPassword)
             }
+
+ensureDeletedState :: Brig -> Bool -> UserId -> UserId -> Http ()
+ensureDeletedState b check from u =
+    get ( b
+        . paths ["users", toByteString' u]
+        . zUser from
+        . zConn "conn"
+        ) !!! const (Just check) === fmap profileDeleted . decodeBody
 
 isMember :: Galley -> UserId -> ConvId -> Http Bool
 isMember g usr cnv = do
@@ -491,3 +500,6 @@ memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing
 
 genRandom :: (Q.Arbitrary a, MonadIO m) => m a
 genRandom = liftIO . Q.generate $ Q.arbitrary
+
+defPassword :: Text
+defPassword = "secret"
