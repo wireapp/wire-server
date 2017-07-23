@@ -222,11 +222,11 @@ updateTeam tid u = retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
     for_ (u^.nameUpdate) $ \n ->
-        addPrepQuery Cql.updateTeamName (n, tid)
+        addPrepQuery Cql.updateTeamName (fromRange n, tid)
     for_ (u^.iconUpdate) $ \i ->
-        addPrepQuery Cql.updateTeamIcon (i, tid)
+        addPrepQuery Cql.updateTeamIcon (fromRange i, tid)
     for_ (u^.iconKeyUpdate) $ \k ->
-        addPrepQuery Cql.updateTeamIconKey (k, tid)
+        addPrepQuery Cql.updateTeamIconKey (fromRange k, tid)
 
 -- Conversations ------------------------------------------------------------
 
