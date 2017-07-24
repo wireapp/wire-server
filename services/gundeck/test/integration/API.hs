@@ -100,12 +100,13 @@ tests gu ca1 br cas = do
             [ test p "post and delete" $ testCallback gu
             ],
         testGroup "Clients"
-            [ test p "register / unregister a client" $ testRegisterClient gu
+            [ test p "(un)register a client" $ testRegisterClient gu
             ],
-        testGroup "Native Push Tokens"
-            [ test p "register a push token with a client"    $ testRegisterPushToken gu br
-            , test p "unregister a push token"                $ testUnregisterPushToken gu br
-            , test p "claim push token"                       $ testClaimPushToken gu br
+        testGroup "Tokens"
+            [ test p "register a push token"     $ testRegisterPushToken gu br
+            , test p "unregister a push token"   $ testUnregisterPushToken gu br
+            , test p "share push token"          $ testSharePushToken gu br
+            , test p "replace shared push token" $ testReplaceSharedPushToken gu br
             ]
         ]
 
@@ -628,8 +629,8 @@ testUnregisterPushToken g b = do
     unregisterPushToken uid (tkn^.token) g !!! const 204 === statusCode
     unregisterPushToken uid (tkn^.token) g !!! const 404 === statusCode
 
-testClaimPushToken :: Gundeck -> Brig -> Http ()
-testClaimPushToken g b = do
+testSharePushToken :: Gundeck -> Brig -> Http ()
+testSharePushToken g b = do
     gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
     apsTok <- Token . T.decodeUtf8 . B16.encode <$> randomBytes 32
     let tok1 = pushToken GCM "test" gcmTok
@@ -643,12 +644,42 @@ testClaimPushToken g b = do
         let t1 = tk c1
         let t2 = tk c2
         t1' <- registerPushToken u1 t1 g
-        t2' <- registerPushToken u2 t2 g -- claim the token from u1
+        t2' <- registerPushToken u2 t2 g -- share the token with u1
         liftIO $ assertEqual "token mismatch" (t1^.token) t1'
         liftIO $ assertEqual "token mismatch" (t2^.token) t2'
         liftIO $ assertEqual "token mismatch" t1' t2'
-        void $ retryWhile (not . null) (listPushTokens u1 g)
-        void $ retryWhile ((/= 1) . length) (listPushTokens u2 g)
+        ts1 <- retryWhile ((/= 1) . length) (listPushTokens u1 g)
+        ts2 <- retryWhile ((/= 1) . length) (listPushTokens u2 g)
+        liftIO $ assertEqual "token mismatch" [t1] ts1
+        liftIO $ assertEqual "token mismatch" [t2] ts2
+        unregisterPushToken u1 t1' g !!! const 204 === statusCode
+        unregisterPushToken u2 t2' g !!! const 204 === statusCode
+
+testReplaceSharedPushToken :: Gundeck -> Brig -> Http ()
+testReplaceSharedPushToken g b = do
+    u1 <- randomUser b
+    u2 <- randomUser b
+    c1 <- randomClient g u1
+    c2 <- randomClient g u2
+
+    -- Set up a shared token
+    t1 <- Token . T.decodeUtf8 . toByteString' <$> randomId
+    let pt1 = pushToken GCM "test" t1 c1
+    let pt2 = pt1 & tokenClient .~ c2 -- share the token
+    _ <- registerPushToken u1 pt1 g
+    _ <- registerPushToken u2 pt2 g
+
+    -- Update the shared token
+    t2 <- Token . T.decodeUtf8 . toByteString' <$> randomId
+    let new = pushToken GCM "test" t2 c1
+    _ <- registerPushToken u1 new g
+
+    -- Check both tokens
+    ts1 <- map (view token) <$> listPushTokens u1 g
+    ts2 <- map (view token) <$> listPushTokens u2 g
+    liftIO $ do
+        [t2] @=? ts1
+        [t2] @=? ts2
 
 -- * Helpers
 

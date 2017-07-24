@@ -6,15 +6,13 @@
 -- via SNS events.
 module Gundeck.React (onEvent) where
 
-import Control.Exception (ErrorCall (..))
 import Control.Lens ((^.), view, (.~), (&))
 import Control.Monad
-import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id (UserId, ClientId)
 import Data.List1
 import Data.Foldable (for_)
-import Gundeck.Aws (Endpoint, endpointEnabled, endpointToken)
+import Gundeck.Aws (Endpoint, endpointEnabled, endpointToken, endpointUsers)
 import Gundeck.Aws.Arn
 import Gundeck.Aws.Sns
 import Gundeck.Env
@@ -45,29 +43,42 @@ onEvent ev = case ev^.evType of
     _                                        -> return ()
 
 onUpdated :: Event -> Gundeck ()
-onUpdated ev = withToken ev $ \u e a ->
-    if | not (e^.endpointEnabled) -> do
-            logEvent u ev $ msg (val "Removing disabled endpoint and token")
-            deleteToken u ev (a^.addrToken) (a^.addrClient)
-            deleteEndpoint u ev
-       | e^.endpointToken /= a^.addrToken -> do
-            logEvent u ev $ msg (val "Removing superseded endpoint and token")
-            deleteToken u ev (a^.addrToken) (a^.addrClient)
-            deleteEndpoint u ev
-       | otherwise -> return ()
+onUpdated ev = withEndpoint ev $ \e as ->
+    if not (e^.endpointEnabled)
+        then do
+            forM_ as $ \a -> do
+                logUserEvent (a^.addrUser) ev $ msg (val "Removing disabled token")
+                deleteToken (a^.addrUser) ev (a^.addrToken) (a^.addrClient)
+            deleteEndpoint ev
+        else do
+            -- Note: The assumption is always that if the tokens differ, then
+            --       the token in the SNS endpoint has been updated due to provider
+            --       feedback (e.g. GCM canonical IDs) and the new token must
+            --       already have been registered by the client. Hence the
+            --       existing tokens are considered superseded and removed.
+            --       This is crucial for proper token curation.
+            let (sup, cur) = List.partition (\a -> e^.endpointToken /= a^.addrToken) as
+            forM_ sup $ \a -> do
+                logUserEvent (a^.addrUser) ev $ msg (val "Removing superseded token")
+                deleteToken (a^.addrUser) ev (a^.addrToken) (a^.addrClient)
+            if | null sup  -> return ()
+               | null cur  -> deleteEndpoint ev
+               | otherwise -> updateEndpoint ev e (map (view addrUser) cur)
 
 onFailure :: Event -> Gundeck ()
-onFailure ev = withToken ev $ \u e a ->
+onFailure ev = withEndpoint ev $ \e as ->
     unless (e^.endpointEnabled) $ do
-        logEvent u ev $ msg (val "Removing disabled endpoint and token")
-        deleteToken u ev (a^.addrToken) (a^.addrClient)
-        deleteEndpoint u ev
+        forM_ as $ \a -> do
+            logUserEvent (a^.addrUser) ev $ msg (val "Removing disabled token")
+            deleteToken (a^.addrUser) ev (a^.addrToken) (a^.addrClient)
+        deleteEndpoint ev
 
 onPermFailure :: Event -> Gundeck ()
-onPermFailure ev = withToken ev $ \u _ a -> do
-    logEvent u ev $ msg (val "Removing invalid endpoint and token")
-    deleteToken u ev (a^.addrToken) (a^.addrClient)
-    deleteEndpoint u ev
+onPermFailure ev = withEndpoint ev $ \_ as -> do
+    forM_ as $ \a -> do
+        logUserEvent (a^.addrUser) ev $ msg (val "Removing invalid token")
+        deleteToken (a^.addrUser) ev (a^.addrToken) (a^.addrClient)
+    deleteEndpoint ev
 
 onTTLExpired :: Event -> Gundeck ()
 onTTLExpired ev = Log.warn $
@@ -78,31 +89,38 @@ onTTLExpired ev = Log.warn $
 -------------------------------------------------------------------------------
 -- Utilities
 
-withToken :: Event
-          -> (UserId -> Endpoint -> Address "no-keys" -> Gundeck ())
-          -> Gundeck ()
-withToken ev f = do
+withEndpoint
+    :: Event
+    -> (Endpoint -> [Address "no-keys"] -> Gundeck ())
+    -> Gundeck ()
+withEndpoint ev f = do
     v <- view awsEnv
     e <- Aws.execute v (Aws.lookupEndpoint (ev^.evEndpoint))
     for_ e $ \ep -> do
-        u  <- Aws.readEndpointData invalidData ep
-        as <- Push.lookup u Push.Quorum
-        case List.find ((== (ev^.evEndpoint)) . view addrEndpoint) as of
-            Nothing -> do
-                logEvent u ev $ "token" .= Text.take 16 (tokenText (ep^.endpointToken))
-                             ~~ msg (val "Deleting orphaned platform endpoint")
+        let us = Set.toList (ep^.endpointUsers)
+        as <- concat <$> mapM (`Push.lookup` Push.Quorum) us
+        case List.filter ((== (ev^.evEndpoint)) . view addrEndpoint) as of
+            []  -> do
+                logEvent ev $ "token" .= Text.take 16 (tokenText (ep^.endpointToken))
+                           ~~ msg (val "Deleting orphaned SNS endpoint")
                 Aws.execute v (Aws.deleteEndpoint (ev^.evEndpoint))
-            Just  a -> f u ep a
+            as' -> f ep as'
 
-deleteEndpoint :: UserId -> Event -> Gundeck ()
-deleteEndpoint u ev = do
-    logEvent u ev $ msg (val "Deleting SNS endpoint")
+deleteEndpoint :: Event -> Gundeck ()
+deleteEndpoint ev = do
+    logEvent ev $ msg (val "Deleting SNS endpoint")
     v <- view awsEnv
     Aws.execute v (Aws.deleteEndpoint (ev^.evEndpoint))
 
+updateEndpoint :: Event -> Endpoint -> [UserId] -> Gundeck ()
+updateEndpoint ev ep us = do
+    logEvent ev $ msg (val "Updating SNS endpoint")
+    v <- view awsEnv
+    Aws.execute v (Aws.updateEndpoint (Set.fromList us) (ep^.endpointToken) (ev^.evEndpoint))
+
 deleteToken :: UserId -> Event -> Token -> ClientId -> Gundeck ()
 deleteToken u ev tk cl = do
-    logEvent u ev $ "token" .= Text.take 16 (tokenText tk)
+    logUserEvent u ev $ "token" .= Text.take 16 (tokenText tk)
                  ~~ msg (val "Deleting push token")
     i <- mkNotificationId
     let t = mkPushToken ev tk cl
@@ -117,12 +135,13 @@ mkPushToken :: Event -> Token -> ClientId -> PushToken
 mkPushToken ev tk cl = let t = ev^.evEndpoint.snsTopic in
     pushToken (t^.endpointTransport) (t^.endpointAppName) tk cl
 
-invalidData :: MonadThrow m => String -> m a
-invalidData m = throwM (ErrorCall $ "invalid endpoint data: " ++ m)
-
-logEvent :: UserId -> Event -> (Msg -> Msg) -> Gundeck ()
-logEvent u ev f = Log.info $
-       "user"  .= toByteString u
-    ~~ "arn"   .= toText (ev^.evEndpoint)
+logEvent :: Event -> (Msg -> Msg) -> Gundeck ()
+logEvent ev f = Log.info $
+       "arn"   .= toText (ev^.evEndpoint)
     ~~ "cause" .= toText (ev^.evType)
+    ~~ f
+
+logUserEvent :: UserId -> Event -> (Msg -> Msg) -> Gundeck ()
+logUserEvent u ev f = logEvent ev $
+       "user"  .= toByteString u
     ~~ f

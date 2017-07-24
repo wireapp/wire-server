@@ -29,8 +29,8 @@ serialise m a = do
     case rs of
         Left  failure        -> return $! Left $! failure
         Right (v, prio, aps) -> case renderText (a^.addrTransport) aps prio v of
-            Nothing  -> return $! Left  $! PayloadTooLarge
-            Just txt -> return $! Right $! txt
+            Nothing  -> return $ Left PayloadTooLarge
+            Just txt -> return $ Right txt
 
 prepare :: Message s -> Address s -> IO (Either Failure (Value, Priority, Maybe ApsData))
 prepare m a = case m of
@@ -40,36 +40,38 @@ prepare m a = case m of
               , "data" .= ntf
               , "user" .= (a^.addrUser)
               ]
-        in return $! Right (o, prio, aps)
+        in return $ Right (o, prio, aps)
 
     Ciphertext ntf ci dg prio aps -> case a^.addrKeys of
-        Nothing -> return $! Left MissingKeys
+        Nothing -> return $ Left MissingKeys
         Just  k -> do
             let o = object ["data" .= ntf]
             let j = encode o
             let l = maxPayloadSize (a^.addrTransport)
             if LB.length j > l
-                then return $! Left PayloadTooLarge
+                then return $ Left PayloadTooLarge
                 else do
                     c <- encrypt (LB.toStrict j) k ci dg
                     let mac = B64.encode (cipherMac c)
                     let dat = B64.encode (cipherData c)
                     if BS.length mac + BS.length dat > fromIntegral l
-                        then return $! Left PayloadTooLarge
+                        then return $ Left PayloadTooLarge
                         else do
                             let o' = object
                                    [ "type" .= ("cipher" :: Text)
                                    , "mac"  .= decodeUtf8 mac
                                    , "data" .= decodeUtf8 dat
+                                   , "user" .= (a^.addrUser)
                                    ]
-                            return $! Right (o', prio, aps)
+                            return $ Right (o', prio, aps)
 
     Notice nid prio aps ->
         let o = object
               [ "type" .= ("notice" :: Text)
               , "data" .= object ["id" .= nid]
+              , "user" .= (a^.addrUser)
               ]
-        in return $! Right (o, prio, aps)
+        in return $ Right (o, prio, aps)
 
 -- | Assemble a final SNS JSON string for transmission.
 renderText :: Transport -> Maybe ApsData -> Priority -> Value -> Maybe LT.Text

@@ -24,13 +24,12 @@ module Gundeck.Aws
     , Endpoint
     , endpointToken
     , endpointEnabled
-    , endpointData
+    , endpointUsers
 
     , createEndpoint
     , deleteEndpoint
     , lookupEndpoint
     , updateEndpoint
-    , readEndpointData
 
       -- * Publish
     , Attributes
@@ -57,17 +56,18 @@ import Control.Monad.Trans.Resource
 import Control.Retry (retrying, limitRetries)
 import Data.Aeson (decodeStrict)
 import Data.Attoparsec.Text
-import Data.ByteString.Conversion.To
 import Data.Foldable (for_)
 import Data.HashMap.Strict (HashMap)
 import Data.Id
 import Data.Monoid
+import Data.Set (Set)
 import Data.Text (Text)
 import Data.Typeable
 import Gundeck.Aws.Arn
 import Gundeck.Aws.Sns (Event, evType, evEndpoint)
+import Gundeck.Instances ()
 import Gundeck.Options
-import Gundeck.Types.Push (AppName (..), Transport (..), PushToken)
+import Gundeck.Types.Push (AppName (..), Transport (..), Token)
 import Network.AWS (AWSRequest, Rs)
 import Network.AWS (serviceCode, serviceMessage, serviceAbbrev, serviceStatus)
 import Network.AWS.SQS (rmrsMessages)
@@ -78,6 +78,8 @@ import System.Logger.Class
 
 import qualified Control.Monad.Trans.AWS as AWST
 import qualified Data.HashMap.Strict     as Map
+import qualified Data.Set                as Set
+import qualified Data.Text               as Text
 import qualified Data.Text.Encoding      as Text
 import qualified Data.Text.Lazy          as LT
 import qualified Gundeck.Types.Push      as Push
@@ -113,7 +115,7 @@ data Env = Env
 data Endpoint = Endpoint
     { _endpointToken   :: !Push.Token
     , _endpointEnabled :: !Bool
-    , _endpointData    :: !(Maybe Text)
+    , _endpointUsers   :: !(Set UserId)
     } deriving Show
 
 makeLenses ''Env
@@ -215,16 +217,12 @@ data CreateEndpointError
         -- ^ Invalid application name.
     deriving Show
 
-readEndpointData :: (Monad m, AWS.FromText a) => (String -> m a) -> Endpoint -> m a
-readEndpointData f e =
-    let d = maybe (Left "No data") fromText (e^.endpointData) in
-    either f return d
-
--- | Update endpoint with the given push token.
+-- | Update an endpoint with the given push token.
+--
 -- This will replace the current token, set the endpoint's user data to
--- the 'UserId' of the token and enable the endpoint.
-updateEndpoint :: UserId -> PushToken -> EndpointArn -> Amazon ()
-updateEndpoint u p arn = do
+-- the the list of given 'UserId's and enable the endpoint.
+updateEndpoint :: Set UserId -> Token -> EndpointArn -> Amazon ()
+updateEndpoint us tk arn = do
     let req = over SNS.seaAttributes fun (SNS.setEndpointAttributes (toText arn))
     res <- retrying (limitRetries 1) (const isTimeout) (const (sendCatch req))
     case res of
@@ -233,9 +231,11 @@ updateEndpoint u p arn = do
                                 then EndpointNotFound arn
                                 else GeneralError x
   where
-    fun = Map.insert "Token" (Push.tokenText (p^.Push.token))
-        . Map.insert "CustomUserData" (toText (toByteString' u))
+    fun = Map.insert "Token" (Push.tokenText tk)
+        . Map.insert "CustomUserData" (mkUsers us)
         . Map.insert "Enabled" "true"
+
+    mkUsers = Text.intercalate ":" . map toText . Set.toList
 
 deleteEndpoint :: EndpointArn -> Amazon ()
 deleteEndpoint arn = do
@@ -257,8 +257,10 @@ lookupEndpoint arn = do
     mkEndpoint a = do
         t <- maybe (throwM $ NoToken arn) return (Map.lookup "Token" a)
         let e = either (const Nothing) Just . fromText =<< Map.lookup "Enabled" a
-            d = Map.lookup "CustomUserData" a
+            d = maybe Set.empty mkUsers $ Map.lookup "CustomUserData" a
         return (Endpoint (Push.Token t) (fromMaybe False e) d)
+
+    mkUsers = Set.fromList . mapMaybe (hush . fromText) . Text.split (== ':')
 
 createEndpoint :: UserId -> Push.Transport -> ArnEnv -> AppName -> Push.Token -> Amazon (Either CreateEndpointError EndpointArn)
 createEndpoint u tr env app token = do
@@ -267,7 +269,7 @@ createEndpoint u tr env app token = do
     let arn = mkSnsArn (aws^.region) (aws^.account) top
     let tkn = Push.tokenText token
     let req = SNS.createPlatformEndpoint (toText arn) tkn
-            & set SNS.cpeCustomUserData (Just . toText $ toByteString' u)
+            & set SNS.cpeCustomUserData (Just (toText u))
             & set SNS.cpeAttributes (Map.insert "Enabled" "true" Map.empty)
     res <- retrying (limitRetries 2) (const isTimeout) (const (sendCatch req))
     case res of

@@ -3,6 +3,7 @@
 
 module Gundeck.Push.Native
     ( push
+    , deleteTokens
     , module Types
     ) where
 
@@ -10,9 +11,12 @@ import Control.Concurrent.Async.Lifted.Safe
 import Control.Exception (SomeAsyncException)
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens ((^.), view, (&), (.~))
+import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Data.ByteString.Conversion.To
+import Data.Foldable (for_)
+import Data.Id
 import Data.List1
 import Data.Maybe (isJust)
 import Data.Metrics (path, counterIncr)
@@ -27,6 +31,9 @@ import Gundeck.Util
 import Network.AWS.Data (toText)
 import System.Logger.Class (MonadLogger, (~~), msg, val, field)
 
+import qualified Data.Set                  as Set
+import qualified Data.Text                 as Text
+import qualified Data.UUID                 as UUID
 import qualified Gundeck.Aws               as Aws
 import qualified Gundeck.Notification.Data as Stream
 import qualified Gundeck.Push.Data         as Data
@@ -122,6 +129,55 @@ publish m a t = flip catches pushException $ do
         , Handler (\(ex ::      SomeException) ->
             return (Failure (PushException ex) a))
         ]
+
+-- | Delete a list of push addresses, optionally specifying as a cause
+-- a newly created address in the second argument. If such a new address
+-- is given, shared owners of the deleted tokens have their addresses
+-- migrated to the token and endpoint of the new address.
+deleteTokens :: [Address a] -> Maybe (Address a) -> Gundeck ()
+deleteTokens tokens new = do
+    aws <- view awsEnv
+    forM_ tokens $ \a -> do
+        Log.info $ field "user" (UUID.toASCIIBytes (toUUID (a^.addrUser)))
+                ~~ field "token" (Text.take 16 (tokenText (a^.addrToken)))
+                ~~ field "arn" (toText (a^.addrEndpoint))
+                ~~ msg (val "Deleting push token")
+        Data.delete (a^.addrUser) (a^.addrTransport) (a^.addrApp) (a^.addrToken)
+        ept <- Aws.execute aws (Aws.lookupEndpoint (a^.addrEndpoint))
+        for_ ept $ \ep ->
+            let us = Set.delete (a^.addrUser) (ep^.Aws.endpointUsers)
+            in if Set.null us
+                then delete aws a
+                else case new of
+                    Nothing -> update aws a us
+                    Just a' -> do
+                        mapM_ (migrate a a') us
+                        update aws a' (ep^.Aws.endpointUsers)
+                        delete aws a
+  where
+    delete aws a = do
+        Log.info $ field "user" (UUID.toASCIIBytes (toUUID (a^.addrUser)))
+                ~~ field "arn" (toText (a^.addrEndpoint))
+                ~~ msg (val "Deleting SNS endpoint")
+        Aws.execute aws (Aws.deleteEndpoint (a^.addrEndpoint))
+
+    update aws a us = do
+        Log.info $ field "user" (UUID.toASCIIBytes (toUUID (a^.addrUser)))
+                ~~ field "arn" (toText (a^.addrEndpoint))
+                ~~ msg (val "Updating SNS endpoint")
+        Aws.execute aws (Aws.updateEndpoint us (a^.addrToken) (a^.addrEndpoint))
+
+    migrate a a' u = do
+        let oldArn = a^.addrEndpoint
+        let oldTok = a^.addrToken
+        let newArn = a'^.addrEndpoint
+        let newTok = a'^.addrToken
+        xs <- Data.lookup u Data.Quorum
+        forM_ xs $ \x ->
+            when (x^.addrEndpoint == oldArn) $ do
+                Data.insert u (a^.addrTransport) (a^.addrApp) newTok newArn
+                              (a^.addrConn) (a^.addrClient) (a^.addrFallback)
+                Data.delete u (a^.addrTransport) (a^.addrApp) oldTok
 
 logError :: (Exception e, MonadLogger m) => Address s -> Text -> e -> m ()
 logError a m exn = Log.err $
