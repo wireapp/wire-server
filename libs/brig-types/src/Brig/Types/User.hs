@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
 
 module Brig.Types.User
     ( module Brig.Types.User
@@ -23,6 +24,7 @@ import Data.Range
 import Data.Text (Text)
 import Data.Text.Ascii
 import Galley.Types.Bot (ServiceRef)
+import Galley.Types.Teams hiding (userId)
 
 import qualified Brig.Types.Code     as Code
 import qualified Data.HashMap.Strict as HashMap
@@ -212,6 +214,7 @@ data NewUser = NewUser
     , newUserLabel          :: !(Maybe CookieLabel)
     , newUserLocale         :: !(Maybe Locale)
     , newUserPassword       :: !(Maybe PlainTextPassword)
+    , newUserTeam           :: !(Maybe NewUserTeam)
     }
 
 newUserEmail :: NewUser -> Maybe Email
@@ -221,17 +224,26 @@ newUserPhone :: NewUser -> Maybe Phone
 newUserPhone = phoneIdentity <=< newUserIdentity
 
 instance FromJSON NewUser where
-    parseJSON = withObject "new-user" $ \o ->
-        NewUser <$> o .:  "name"
-                <*> parseIdentity o
-                <*> o .:? "picture"
-                <*> o .:? "assets" .!= []
-                <*> o .:? "accent_id"
-                <*> o .:? "phone_code"
-                <*> o .:? "invitation_code"
-                <*> o .:? "label"
-                <*> o .:? "locale"
-                <*> o .:? "password"
+      parseJSON = withObject "new-user" $ \o -> do
+          newUserName           <- o .: "name"
+          newUserIdentity       <- parseIdentity o
+          newUserPict           <- o .:? "picture"
+          newUserAssets         <- o .:? "assets" .!= []
+          newUserAccentId       <- o .:? "accent_id"
+          newUserPhoneCode      <- o .:? "phone_code"
+          newUserInvitationCode <- o .:? "invitation_code"
+          newUserLabel          <- o .:? "label"
+          newUserLocale         <- o .:? "locale"
+          newUserPassword       <- o .:? "password"
+          newUserTeamCode       <- o .:? "team_code"
+          newUserNewTeam        <- o .:? "team"
+          newUserTeam <- case (newUserTeamCode, newUserNewTeam, newUserPassword, newUserInvitationCode) of
+                (Just a,  Nothing, Just _, Nothing) -> return $ Just (NewUserTeam (Left a))
+                (Nothing, Just b , Just _, Nothing) -> return $ Just (NewUserTeam (Right b))
+                (Nothing, Nothing,      _,       _) -> return $ Nothing
+                _                                   -> fail "team_code, team, invitation_code are mutually exclusive \
+                                                            \ and all team users must set a password on creation "
+          return NewUser{..}
 
 instance ToJSON NewUser where
     toJSON u = object
@@ -247,6 +259,7 @@ instance ToJSON NewUser where
         # "label"           .= newUserLabel u
         # "locale"          .= newUserLocale u
         # "password"        .= newUserPassword u
+        # maybe ("",Null) (either ("team_code" .= ) ("team" .=)) (nuTeam <$> newUserTeam u)
         # []
 
 parseIdentity :: FromJSON a => Object -> Parser (Maybe a)
@@ -258,6 +271,8 @@ parseIdentity o = if isJust (HashMap.lookup "email" o <|> HashMap.lookup "phone"
 newtype InvitationCode = InvitationCode
     { fromInvitationCode :: AsciiBase64Url }
     deriving (Eq, Show, FromJSON, ToJSON, ToByteString, FromByteString)
+
+newtype NewUserTeam = NewUserTeam { nuTeam :: Either InvitationCode BindingNewTeam}
 
 -----------------------------------------------------------------------------
 -- Profile Updates

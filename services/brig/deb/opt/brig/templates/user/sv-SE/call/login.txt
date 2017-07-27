@@ -1,0 +1,1 @@
+Hej, din inloggningskod för Wire är: ${code} En gång till, koden är: ${code}

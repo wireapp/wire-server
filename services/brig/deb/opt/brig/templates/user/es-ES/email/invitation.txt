@@ -1,0 +1,17 @@
+Wire
+
+
+Hi ${name},
+
+${inviter} has invited you to join Wire. Accept this invitation to join the conversation by following the link:
+
+${url}
+
+Please don't reply to this message.
+
+
+
+
+(c) Wire Swiss GmbH
+
+Privacy Policy  |  Report misuse

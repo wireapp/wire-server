@@ -5,7 +5,8 @@ module Brig.Types.Swagger where
 import Data.Swagger
 import Data.Swagger.Build.Api
 
-import qualified Galley.Types.Swagger as Galley
+import qualified Galley.Types.Swagger       as Galley
+import qualified Galley.Types.Teams.Swagger as Galley
 
 brigModels :: [Model]
 brigModels =
@@ -68,19 +69,24 @@ brigModels =
     , clientPrekey
     , prekey
 
+      -- Properties
+    , propertyValue
+
       -- Onboarding
     , addressBook
     , card
     , match
     , onboardingMatches
 
-      -- Properties
-    , propertyValue
-
       -- Search
     , searchResult
     , searchContact
     , searchableStatus
+
+      -- Team invitations
+    , teamInvitation
+    , teamInvitationList
+    , teamInvitationRequest
     ]
 
 -------------------------------------------------------------------------------
@@ -186,7 +192,7 @@ newUser = defineModel "NewUser" $ do
         description "Phone activation code"
         optional
     property "invitation_code" bytes' $ do
-        description "Invitation code"
+        description "Invitation code. Mutually exclusive with team|team_code"
         optional
     property "locale" string' $ do
         description "Locale in <ln-cc> format."
@@ -194,6 +200,12 @@ newUser = defineModel "NewUser" $ do
     property "label" string' $ do
         description "An optional label to associate with the access cookie, \
                     \if one is granted during account creation."
+        optional
+    property "team_code" string' $ do
+        description "Team invitation code. Mutually exclusive with team|invitation_code"
+        optional
+    property "team" (ref Galley.newBindingTeam) $ do
+        description "New team information. Mutually exclusive with team_code|invitation_code"
         optional
 
 userUpdate :: Model
@@ -378,6 +390,41 @@ connectionList = defineModel "UserConnectionList" $ do
 invitationList :: Model
 invitationList = defineModel "InvitationList" $ do
     description "A list of sent invitations."
+    property "invitations" (unique $ array (ref invitation)) end
+    property "has_more" bool' $
+        description "Indicator that the server has more invitations than returned."
+
+-------------------------------------------------------------------------------
+-- Team invitation Models
+
+teamInvitationRequest :: Model
+teamInvitationRequest = defineModel "TeamInvitationRequest" $ do
+    description "A request to join a team on Wire."
+    property "inviter_name" string' $
+        description "Name of the inviter (1 - 128 characters)"
+    property "email" string' $
+        description "Email of the invitee"
+    property "locale" string' $ do
+        description "Locale to use for the invitation."
+        optional
+
+teamInvitation :: Model
+teamInvitation = defineModel "TeamInvitation" $ do
+    description "An invitation to join a team on Wire"
+    property "team" bytes' $
+        description "Team ID of the inviting team"
+    property "id" bytes' $
+        description "UUID used to refer the invitation"
+    property "email" string' $
+        description "Email of the invitee"
+    property "created_at" dateTime' $
+        description "Timestamp of invitation creation"
+    property "name" string' $
+        description "Name of the invitee"
+
+teamInvitationList :: Model
+teamInvitationList = defineModel "TeamInvitationList" $ do
+    description "A list of sent team invitations."
     property "invitations" (unique $ array (ref invitation)) end
     property "has_more" bool' $
         description "Indicator that the server has more invitations than returned."
@@ -780,5 +827,5 @@ searchContact = defineModel "Contact" $ do
 searchableStatus :: Model
 searchableStatus = defineModel "SearchableStatus" $ do
     description "Whether the user is discoverable via search"
-    property "enabled" bool' $
+    property "searchable" bool' $
         description "'true' if discoverable, 'false' otherwise"

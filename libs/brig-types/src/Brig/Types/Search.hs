@@ -27,7 +27,6 @@ data Contact = Contact
 newtype SearchableStatus = SearchableStatus { isSearchable :: Bool }
     deriving Show
 
-
 instance ToJSON a => ToJSON (SearchResult a) where
     toJSON r = object
         [ "found"     .= searchFound r
@@ -64,4 +63,3 @@ instance ToJSON SearchableStatus where
 instance FromJSON SearchableStatus where
     parseJSON = withObject "SearchableStatus" $
         fmap SearchableStatus . (.: "searchable")
-

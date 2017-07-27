@@ -1,0 +1,17 @@
+Wire
+
+
+Hallo ${name},
+
+${inviter} hat dich zu Wire eingeladen. Bitte bestätige die Einladung, um dich an der Unterhaltung zu beteiligen.
+
+${url}
+
+Bitte antworte nicht auf diese E-Mail.
+
+
+
+
+(c) Wire Swiss GmbH
+
+Datenschutzrichtlinie  | Missbrauch melden

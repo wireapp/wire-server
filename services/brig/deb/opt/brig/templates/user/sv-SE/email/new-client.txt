@@ -1,0 +1,18 @@
+Wire
+
+
+Hej ${name},
+
+Ditt Wire-konto användes på:
+
+    ${date}
+    ${model}
+
+You may have installed Wire on a new device or installed it again on an existing one. If that was not the case, go to Wire Settings, remove the device and reset your password.
+
+Wire teamet
+
+
+(c) Wire Swiss GmbH
+
+Sekretesspolicy  |  Rapportera missbruk

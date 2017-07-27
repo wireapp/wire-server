@@ -17,6 +17,7 @@ packages:
 - libs/types-common
 - libs/wai-utilities
 - libs/zauth
+- services/brig
 - services/cannon
 - services/cargohold
 - services/galley
@@ -24,16 +25,28 @@ packages:
 - services/proxy
 - tools/bonanza
 - tools/makedeb
+- location:
+    git: https://github.com/tiago-loureiro/haskell-multihash.git
+    commit: 10a0d7d765d87fa937fafa42ee7a45f871c9758e
+  extra-dep: true
+- location:
+    git: https://github.com/wireapp/cryptobox-haskell
+    commit: 7546a1a25635ef65183e3d44c1052285e8401608
+  extra-dep: true
 
 extra-deps:
 - aws-0.16
+- base58-bytestring-0.1.0
+- bloodhound-0.13.0.0
 - collectd-0.0.0.1
 - data-timeout-0.3
+- geoip2-0.2.2.0
 - mime-0.4.0.2
 - snappy-0.2.0.2
 - snappy-framing-0.1.1
+- text-icu-translit-0.1.0.7
 - wai-middleware-gunzip-0.0.2
-- websockets-0.11.1.0
+- websockets-0.11.2.0
 
 flags:
   types-common:

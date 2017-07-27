@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+set -e
+
+exec 2>&1
+
+# defaults
+USER=${USER:-www-data}
+APP=brig
+CONFIG=${CONFIG:-/etc/$APP/.env}
+HOME=${APP_HOME:-/opt/$APP}
+BIN=$HOME/bin/$APP
+TEMPLATE_DIR=$HOME/templates
+
+if [ ! -f $CONFIG ]; then exec chpst -u $USER get_config; fi
+source $CONFIG
+
+source <(khan --silent metadata --multiline)
+
+DISCO_URL="http://${KHAN_ENV}-${KHAN_REGION_ABBREV}-klabautermann.${KHAN_DOMAIN}/describe-instances"
+
+AWS_ACCESS_KEY_ID=${BRIG_AWS_ACCESS_KEY_ID:+--aws-access-key-id=$BRIG_AWS_ACCESS_KEY_ID}
+AWS_SECRET_ACCESS_KEY=${BRIG_AWS_SECRET_ACCESS_KEY:+--aws-secret-access-key=$BRIG_AWS_SECRET_ACCESS_KEY}
+
+export LOG_LEVEL=${BRIG_LOG_LEVEL:-Info}
+export LOG_NETSTR=${BRIG_LOG_NETSTR:-True}
+
+if [ -n "$BRIG_WHITELIST_URL" ]; then
+    WHITELIST_URL="--whitelist-url=$BRIG_WHITELIST_URL"
+    WHITELIST_USER="--whitelist-user=$BRIG_WHITELIST_USER"
+    WHITELIST_PASS="--whitelist-pass=$BRIG_WHITELIST_PASS"
+else
+    WHITELIST_URL=""
+    WHITELIST_USER=""
+    WHITELIST_PASS=""
+fi
+
+if [ -n "$BRIG_GEOIP_DATABASE" ]; then
+    GEOIP_DB="--geodb=\"$BRIG_GEOIP_DATABASE\""
+else
+    GEOIP_DB=""
+fi
+
+cd $HOME
+
+ulimit -n 65536
+
+exec chpst -u $USER \
+    $BIN \
+    --host=${BRIG_HOST:-'127.0.0.1'} \
+    --port=${BRIG_PORT?'unset'} \
+    --galley-host=${BRIG_GALLEY_HOST?'unset'} \
+    --galley-port=${BRIG_GALLEY_PORT?'unset'} \
+    --gundeck-host=${BRIG_GUNDECK_HOST?'unset'} \
+    --gundeck-port=${BRIG_GUNDECK_PORT?'unset'} \
+    --cassandra-host=${BRIG_CASSANDRA_HOST?'unset'} \
+    --cassandra-port=${BRIG_CASSANDRA_PORT?'unset'} \
+    --cassandra-keyspace=${BRIG_CASSANDRA_KEYSPACE?'unset'} \
+    --activation-url=${BRIG_ACTIVATION_URL?'unset'} \
+    --activation-timeout=${BRIG_ACTIVATION_TIMEOUT?'unset'} \
+    --sms-activation-url=${BRIG_SMS_ACTIVATION_URL?'unset'} \
+    --password-reset-url=${BRIG_PASSWORD_RESET_URL?'unset'} \
+    --invitation-url=${BRIG_INVITATION_URL?'unset'} \
+    --deletion-url=${BRIG_DELETION_URL?'unset'} \
+    --team-invitation-url=${BRIG_TEAM_INVITATION_URL?'unset'} \
+    --aws-ses-queue=${BRIG_AWS_SES_QUEUE?'unset'} \
+    --aws-internal-queue=${BRIG_AWS_INTERNAL_QUEUE?'unset'} \
+    --aws-dynamo-blacklist=${BRIG_AWS_DYNAMO_BLACKLIST?'unset'} \
+    --aws-dynamo-prekeys=${BRIG_AWS_DYNAMO_PREKEYS?'unset'} \
+    --aws-account-id=${BRIG_AWS_ACCOUNT?'unset'} \
+    --twilio-sid=${BRIG_TWILIO_SID?'unset'} \
+    --twilio-token=${BRIG_TWILIO_TOKEN?'unset'} \
+    --twilio-sender=${BRIG_TWILIO_SENDER?'unset'} \
+    --nexmo-key=${BRIG_NEXMO_KEY?'unset'} \
+    --nexmo-secret=${BRIG_NEXMO_SECRET?'unset'} \
+    --template-dir=${TEMPLATE_DIR?'unset'} \
+    --email-sender=${BRIG_EMAIL_SENDER?'unset'} \
+    --disco-url=${DISCO_URL?'unset'} \
+    --default-locale=${BRIG_DEFAULT_LOCALE?'unset'} \
+    --cookie-domain=${BRIG_COOKIE_DOMAIN?'unset'} \
+    --provider-home-url=${BRIG_PROVIDER_HOME_URL?'unset'} \
+    --provider-activation-url=${BRIG_PROVIDER_ACTIVATION_URL?'unset'} \
+    --provider-approval-url=${BRIG_PROVIDER_APPROVAL_URL?'unset'} \
+    --provider-approval-to=${BRIG_PROVIDER_APPROVAL_TO?'unset'} \
+    --user-cookie-limit=${BRIG_USER_COOKIE_LIMIT?'unset'} \
+    --user-cookie-renew-age=${BRIG_USER_COOKIE_RENEW_AGE?'unset'} \
+    --user-cookie-min-deviation=${BRIG_USER_COOKIE_MIN_DEVIATION?'unset'} \
+    --user-cookie-retry-after=${BRIG_USER_COOKIE_RETRY_AFTER?'unset'} \
+    --zauth-private-keys=${BRIG_ZAUTH_PRIVKEYS?'unset'} \
+    --zauth-public-keys=${BRIG_ZAUTH_PUBKEYS?'unset'} \
+    --zauth-key-index=${BRIG_ZAUTH_KEY_INDEX?'unset'} \
+    --zauth-user-token-timeout=${BRIG_ZAUTH_USER_TOKEN_TIMEOUT?'unset'} \
+    --zauth-access-token-timeout=${BRIG_ZAUTH_ACCESS_TOKEN_TIMEOUT?'unset'} \
+    --zauth-session-token-timeout=${BRIG_ZAUTH_SESSION_TOKEN_TIMEOUT?'unset'} \
+    --zauth-provider-token-timeout=${BRIG_ZAUTH_PROVIDER_TOKEN_TIMEOUT?'unset'} \
+    --elasticsearch-url=${BRIG_ELASTICSEARCH_URL?'unset'} \
+    --elasticsearch-user-index=${BRIG_ELASTICSEARCH_USER_INDEX?'unset'} \
+    ${AWS_ACCESS_KEY_ID} \
+    ${AWS_SECRET_ACCESS_KEY} \
+    ${GEOIP_DB} \
+    ${WHITELIST_URL} \
+    ${WHITELIST_USER} \
+    ${WHITELIST_PASS}
+
