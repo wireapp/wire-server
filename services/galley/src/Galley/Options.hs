@@ -19,6 +19,7 @@ module Galley.Options
     , queueName
     , awsRegion
     , parseOptions
+    , journalOptsParser
     ) where
 
 import Cassandra hiding (Error)
@@ -132,24 +133,25 @@ parseOptions = execParser (info (helper <*> optsParser) desc)
 
         <*> optional journalOptsParser
 
-    journalOptsParser :: Parser JournalOpts
-    journalOptsParser = JournalOpts
+journalOptsParser :: Parser JournalOpts
+journalOptsParser = JournalOpts
+    <$> (textOption $
+            long "team-events-queue-name"
+            <> metavar "STRING"
+            <> help "sqs queue name to send team events")
 
-        <$> (textOption $
-                long "team-events-queue-name"
-                <> metavar "STRING"
-                <> help "sqs queue name to send team events")
+    <*> (option region $
+            long "aws-region"
+            <> metavar "STRING"
+            <> value Ireland
+            <> showDefault
+            <> help "aws region name")
 
-        <*> (option region $
-                long "aws-region"
-                <> metavar "STRING"
-                <> help "aws region name")
+bytesOption :: Mod OptionFields String -> Parser ByteString
+bytesOption = fmap pack . strOption
 
-    bytesOption :: Mod OptionFields String -> Parser ByteString
-    bytesOption = fmap pack . strOption
+textOption :: Mod OptionFields String -> Parser Text
+textOption = fmap Text.pack . strOption
 
-    textOption :: Mod OptionFields String -> Parser Text
-    textOption = fmap Text.pack . strOption
-
-    region :: ReadM Region
-    region = readerAsk >>= either readerError return . fromText . fromString
+region :: ReadM Region
+region = readerAsk >>= either readerError return . fromText . fromString
