@@ -1,0 +1,22 @@
+Wire
+
+
+Hallo,
+
+deine E-Mail-Adresse ${email} wurde benutzt, um ein Wire-Benutzerkonto zu erstellen. Wir möchten gerne sicherstellen, dass du ${name} bist.
+
+Bitte klicke auf den folgenden Link, um deine Identität zu bestätigen. Danach kannst du Wire nutzen.
+
+
+${url}
+
+Bitte antworte nicht auf diese E-Mail.
+
+Wenn du kein Wire-Benutzerkonto mit dieser E-Mail-Adresse erstellt hast, gehe bitte auf https://support.wire.com
+
+
+
+
+(c) Wire Swiss GmbH
+
+Datenschutzrichtlinie  | Missbrauch melden

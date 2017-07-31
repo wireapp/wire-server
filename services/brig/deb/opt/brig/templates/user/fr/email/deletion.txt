@@ -1,0 +1,17 @@
+Wire
+
+
+Bonjour ${name},
+
+Nous avons reçu une demande de suppression de votre compte Wire. Visitez le lien ci-dessous dans les 10 minutes pour supprimer toutes vos conversations, contenu et connexions
+
+${url}
+
+Si vous n'en avez pas fait la demande, réinitialisez votre mot de passe.
+
+L'équipe Wire
+
+
+(c) Wire Swiss GmbH
+
+Politique de confidentialité |  Signaler un abus

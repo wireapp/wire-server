@@ -1,0 +1,18 @@
+Wire
+
+
+Bonjour ${name},
+
+Votre compte Wire a été utilisé dernièrement:
+
+    ${date}
+    ${model}
+
+Il se peut que vous ayez installé Wire sur un nouvel appareil ou de nouveau sur le même. Si ce n'est pas le cas, allez dans les Paramètres de Wire, enlevez l'appareil et de réinitialisez votre mot de passe.
+
+L'équipe Wire
+
+
+(c) Wire Swiss GmbH
+
+Politique de confidentialité |  Signaler un abus

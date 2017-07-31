@@ -1,0 +1,3 @@
+Sinu Wire sisselogimiskood on ${code}
+
+Sisse logimiseks ava ${url}. Kui see ei tööta, siis sisesta kood ${code} käsitsi Wire rakenduses.

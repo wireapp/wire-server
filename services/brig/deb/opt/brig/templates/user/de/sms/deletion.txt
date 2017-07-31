@@ -1,0 +1,2 @@
+Klicke den Link, dein Wire-Benutzerkonto zu löschen.
+${url} 

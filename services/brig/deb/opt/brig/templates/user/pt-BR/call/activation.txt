@@ -1,0 +1,1 @@
+O seu código Wire é ${code} Mais uma vez, o seu código é: ${code}

@@ -1,0 +1,3 @@
+Sinu Wire kood on ${code}
+
+Konto kinnitamiseks ava ${url} Kui see ei tööta, siis sisesta kood käsitsi Wire rakenduses.

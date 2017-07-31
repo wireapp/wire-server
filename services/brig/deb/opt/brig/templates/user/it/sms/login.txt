@@ -1,0 +1,3 @@
+Il tuo codice di accesso Wire è ${code}.
+
+Apri ${url} per effettuare l'accesso, oppure inserisci questo codice nell'applicazione Wire: ${code}.

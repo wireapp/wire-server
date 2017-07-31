@@ -1,0 +1,47 @@
+extra-package-dbs: []
+packages:
+- .
+- '../../libs/brig-types'
+- '../../libs/types-common'
+- '../../libs/bilge'
+- '../../libs/cassandra-util'
+- '../../libs/gundeck-types'
+- '../../libs/ropes'
+- '../../libs/tasty-cannon'
+- '../../libs/galley-types'
+- '../../libs/http-client-openssl-ext'
+- '../../libs/metrics-core'
+- '../../libs/metrics-wai'
+- '../../libs/sodium-crypto-sign'
+- '../../libs/wai-utilities'
+- '../../libs/zauth'
+- location:
+    git: https://github.com/tiago-loureiro/haskell-multihash.git
+    commit: 10a0d7d765d87fa937fafa42ee7a45f871c9758e
+  extra-dep: true
+- location:
+    git: https://github.com/wireapp/cryptobox-haskell
+    commit: 7546a1a25635ef65183e3d44c1052285e8401608
+  extra-dep: true
+
+flags:
+  types-common:
+    cql: True
+    protobuf: True
+    arbitrary: True
+
+extra-deps:
+- aeson-1.1.1.0
+- aws-0.16
+- base58-bytestring-0.1.0
+- bloodhound-0.13.0.0
+- data-checked-0.3
+- data-textual-0.3.0.2
+- data-timeout-0.3
+- geoip2-0.2.2.0
+- raw-strings-qq-1.0.2
+- text-icu-translit-0.1.0.7
+- text-latin1-0.3
+- text-printer-0.5
+- wai-middleware-gunzip-0.0.2
+resolver: lts-8.8

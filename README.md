@@ -20,7 +20,7 @@ This repository contains:
 - **services**
    - **nginz**: Public API Reverse Proxy
    - **galley**: Conversations
-   - **brig**: Accounts (to be released)
+   - **brig**: Accounts
    - **gundeck**: Push Notification Hub
    - **cannon**: WebSocket Push Notifications
    - **cargohold**: Asset Storage
