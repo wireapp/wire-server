@@ -309,30 +309,17 @@ activateAccountKey (key ::: val) = do
     (pid, email) <- case (Code.codeAccount c, Code.codeForEmail c) of
         (Just p, Just e) -> return (Id p, e)
         _                -> throwStd invalidCode
-    (name, memail, url, descr) <- DB.lookupAccountData pid >>= maybeInvalidCode
+    (name, memail, _url, _descr) <- DB.lookupAccountData pid >>= maybeInvalidCode
     case memail of
         Just email' | email == email' -> return $ setStatus status204 empty
         Just _ -> do
             activate pid email
             return $ json (ProviderActivationResponse email)
-        -- Immediate approval for @wire.com addresses (for now).
-        Nothing | emailDomain email == "wire.com" -> do
+        -- Immediate approval for everybody (for now).
+        Nothing -> do
             activate pid email
             lift $ sendApprovalConfirmMail name email
             return $ json (ProviderActivationResponse email)
-        Nothing -> do
-            -- The first activation (i.e. account activation) requires approval
-            -- via another code sent to Wire staff.
-            gen <- Code.mkGen (Code.ForEmail email)
-            c'  <- Code.generate gen Code.AccountApproval
-                        (Code.Retries 3)
-                        (Code.Timeout (3600 * 24 * 3)) -- 3 days
-                        (Just (toUUID pid))
-            Code.insert c'
-            let key' = Code.codeKey c'
-            let val' = Code.codeValue c'
-            lift $ sendApprovalRequestMail name email url descr key' val'
-            return $ setStatus status202 empty
 
 approveAccountKey :: Code.Key ::: Code.Value -> Handler Response
 approveAccountKey (key ::: val) = do

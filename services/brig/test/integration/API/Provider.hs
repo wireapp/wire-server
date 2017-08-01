@@ -115,18 +115,9 @@ testRegisterProvider db brig = do
     -- Activate email
     Just vcode <- lookupCode db gen Code.IdentityVerification
     activateProvider brig (Code.codeKey vcode) (Code.codeValue vcode) !!!
-        const 202 === statusCode
-
-    -- No login possible directly after activation (pending approval)
-    loginProvider brig email defProviderPassword !!!
-        const 403 === statusCode
-
-    -- Approve email (and thus the new account)
-    Just acode <- lookupCode db gen Code.AccountApproval
-    approveProvider brig (Code.codeKey acode) (Code.codeValue acode) !!!
         const 200 === statusCode
 
-    -- Login succeeds after approval
+    -- Login succeeds after activation (due to auto-approval)
     loginProvider brig email defProviderPassword !!!
         const 200 === statusCode
 
@@ -595,16 +586,6 @@ activateProvider brig key val = get $ brig
     . queryItem "key" (toByteString' key)
     . queryItem "code" (toByteString' val)
 
-approveProvider
-    :: Brig
-    -> Code.Key
-    -> Code.Value
-    -> Http ResponseLBS
-approveProvider brig key val = get $ brig
-    . path "/provider/approve"
-    . queryItem "key" (toByteString' key)
-    . queryItem "code" (toByteString' val)
-
 loginProvider
     :: Brig
     -> Email
@@ -850,14 +831,11 @@ randomProvider db brig = do
     _rs <- registerProvider brig new <!!
         const 201 === statusCode
     let Just pid = rsNewProviderId <$> decodeBody _rs
-    -- Activate
+    -- Activate (auto-approval)
     Just vcode <- lookupCode db gen Code.IdentityVerification
     activateProvider brig (Code.codeKey vcode) (Code.codeValue vcode) !!!
-        const 202 === statusCode
-    -- Approve
-    Just acode <- lookupCode db gen Code.AccountApproval
-    approveProvider brig (Code.codeKey acode) (Code.codeValue acode) !!!
         const 200 === statusCode
+    -- Fetch
     _rs <- getProvider brig pid <!! const 200 === statusCode
     let Just prv = decodeBody _rs
     return prv
