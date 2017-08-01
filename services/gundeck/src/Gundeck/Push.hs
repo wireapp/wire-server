@@ -5,10 +5,10 @@
 
 module Gundeck.Push
     ( push
-    , cancelFallback
     , addToken
     , listTokens
     , deleteToken
+    , cancelFallback
     ) where
 
 import Control.Arrow ((&&&))
@@ -25,7 +25,7 @@ import Data.List1 (list1)
 import Data.Monoid
 import Data.Predicate ((:::)(..))
 import Data.Range
-import Gundeck.Aws (endpointData, endpointToken)
+import Gundeck.Aws (endpointUsers)
 import Gundeck.Aws.Arn
 import Gundeck.Env
 import Gundeck.Monad
@@ -40,6 +40,7 @@ import System.Logger.Class (msg, (.=), (~~), val, (+++))
 
 import qualified Data.List.Extra              as List
 import qualified Data.Sequence                as Seq
+import qualified Data.Set                     as Set
 import qualified Data.Text                    as Text
 import qualified Data.Text.Encoding           as Text
 import qualified Data.UUID                    as UUID
@@ -193,17 +194,16 @@ nativeTargets p pres =
 
 addToken :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Gundeck Response
 addToken (uid ::: cid ::: req ::: _) = do
-    t <- fromBody req (Error status400 "bad-request")
-    unless (validFallback t) $
+    new <- fromBody req (Error status400 "bad-request")
+    unless (validFallback new) $
         throwM invalidFallback
-    (x, old) <- foldl' (matching t) (Nothing, []) <$> Data.lookup uid Data.Quorum
-    e <- view awsEnv
+    (cur, old) <- foldl' (matching new) (Nothing, []) <$> Data.lookup uid Data.Quorum
     Log.info $ "user"  .= UUID.toASCIIBytes (toUUID uid)
-            ~~ "token" .= Text.take 16 (tokenText (t^.token))
+            ~~ "token" .= Text.take 16 (tokenText (new^.token))
             ~~ msg (val "Registering push token")
-    rsp <- upsertToken x e t
-    deleteTokens old
-    return rsp
+    continue new cur >>= either return (\a -> do
+        Native.deleteTokens old (Just a)
+        return (success new))
   where
     matching t (x, old) a
         | a^.addrTransport  == t^.tokenTransport &&
@@ -214,48 +214,56 @@ addToken (uid ::: cid ::: req ::: _) = do
                 else (x, a : old)
         | otherwise = (x, old)
 
-    upsertToken x e t =
-      case x of
-          Nothing -> fresh (0 :: Int) e t
-          Just  a -> update (0 :: Int) e t (a^.addrEndpoint)
+    continue t Nothing  = create (0 :: Int) t
+    continue t (Just a) = update (0 :: Int) t (a^.addrEndpoint)
 
-    fresh n aws t = do
+    create n t = do
         let trp = t^.tokenTransport
         let app = t^.tokenApp
         let tok = t^.token
+        aws <- view awsEnv
         env <- view (options.awsArnEnv)
         ept <- Aws.execute aws (Aws.createEndpoint uid trp env app tok)
         case ept of
-            Left (Aws.EndpointInUse e) -> do
-                Log.info $ "arn" .= toText e ~~ msg (val "ARN in use")
-                update (n + 1) aws t e
+            Left (Aws.EndpointInUse arn) -> do
+                Log.info $ "arn" .= toText arn ~~ msg (val "ARN in use")
+                update (n + 1) t arn
             Left (Aws.AppNotFound app') -> do
                 Log.info $ msg ("Push token of unknown application: '" <> appNameText app' <> "'")
-                return notFound
+                return (Left notFound)
             Left (Aws.InvalidToken _) -> do
                 Log.info $ "token" .= tokenText tok
                         ~~ msg (val "Invalid push token.")
-                return invalidToken
-            Right e -> do
-                Data.insert uid trp app tok e cid (t^.tokenClient) (t^.tokenFallback)
-                return (success t)
+                return (Left invalidToken)
+            Right arn -> do
+                Data.insert uid trp app tok arn cid (t^.tokenClient) (t^.tokenFallback)
+                return (Right (mkAddr t arn))
 
-    update n aws t x = do
+    update n t arn = do
         when (n >= 3) $ do
-            Log.err $ msg (val "AWS SNS inconsistency w.r.t. " +++ toText x)
+            Log.err $ msg (val "AWS SNS inconsistency w.r.t. " +++ toText arn)
             throwM (Error status500 "server-error" "Server Error")
-        ept <- Aws.execute aws (Aws.lookupEndpoint x)
+        aws <- view awsEnv
+        ept <- Aws.execute aws (Aws.lookupEndpoint arn)
         case ept of
-            Nothing -> fresh (n + 1) aws t
-            Just  e -> updateEndpoint uid cid t x e `catch` \case
+            Nothing -> create (n + 1) t
+            Just ep -> do
+                updateEndpoint uid t arn ep
+                Data.insert uid (t^.tokenTransport) (t^.tokenApp) (t^.token) arn cid
+                                (t^.tokenClient) (t^.tokenFallback)
+                return (Right (mkAddr t arn))
+              `catch` \case
                 -- Note: If the endpoint was recently deleted (not necessarily
                 -- concurrently), we may get an EndpointNotFound error despite
                 -- the previous lookup, i.e. endpoint lookups may exhibit eventually
                 -- consistent semantics with regards to endpoint deletion (or
-                -- possibly updates in general). We make another attempt at (re-)create
+                -- possibly updates in general). We make another attempt to (re-)create
                 -- the endpoint in these cases instead of failing immediately.
-                Aws.EndpointNotFound {} -> fresh (n + 1) aws t
+                Aws.EndpointNotFound {} -> create (n + 1) t
                 ex                      -> throwM ex
+
+    mkAddr t arn = Address uid (t^.tokenTransport) (t^.tokenApp) (t^.token)
+                           arn cid (t^.tokenClient) Nothing (t^.tokenFallback)
 
     validFallback t = case (t^.tokenTransport, t^.tokenFallback) of
         (              _,          Nothing) -> True
@@ -265,67 +273,33 @@ addToken (uid ::: cid ::: req ::: _) = do
 
     invalidFallback = Error status403 "invalid-fallback" "Invalid fallback transport."
 
-updateEndpoint :: UserId -> ConnId -> PushToken -> EndpointArn -> Aws.Endpoint -> Gundeck Response
-updateEndpoint uid cid t arn e = do
+-- | Update an SNS endpoint with the given user and token.
+updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.Endpoint -> Gundeck ()
+updateEndpoint uid t arn e = do
     env  <- view awsEnv
-    prev <- Aws.readEndpointData invalidData e
     unless (equalTransport && equalApp) $ do
-        Log.err $ logMessage uid prev arn (t^.token) "Transport or app mismatch"
-        throwM internalError
-    -- If the user changed, he must prove ownership of the token.
-    when (prev /= uid && e^.endpointToken /= t^.token) $ do
-        Log.err $ logMessage uid prev arn (t^.token) "Forbidden"
-        throwM forbidden
-    -- Only delete if the user or token changed, to avoid delete+insert races
-    -- on the same partition key which the previous delete might win (last
-    -- writer wins based on timestamps which are subject to inaccuracy).
-    when (prev /= uid || e^.endpointToken /= t^.token) $ do
-        Log.info $ logMessage uid prev arn (e^.endpointToken)
-                   "Deleting changed or claimed push token."
-        Data.delete prev (t^.tokenTransport) (t^.tokenApp) (e^.endpointToken)
-    -- Insert / Update the push token.
-    Log.info $ logMessage uid prev arn (t^.token) "Upserting push token."
-    Aws.execute env $ Aws.updateEndpoint uid t arn
-    Data.insert uid (t^.tokenTransport) (t^.tokenApp) (t^.token) arn cid (t^.tokenClient) (t^.tokenFallback)
-    return (success t)
+        Log.err $ logMessage uid arn (t^.token) "Transport or app mismatch"
+        throwM $ Error status500 "server-error" "Server Error"
+    Log.info $ logMessage uid arn (t^.token) "Upserting push token."
+    let users = Set.insert uid (e^.endpointUsers)
+    Aws.execute env $ Aws.updateEndpoint users (t^.token) arn
   where
     equalTransport = t^.tokenTransport == arn^.snsTopic.endpointTransport
     equalApp       = t^.tokenApp       == arn^.snsTopic.endpointAppName
 
-    invalidData reason = do
-        Log.err $  "arn"    .= toText arn
-                ~~ "error"  .= val "Invalid SNS user-data: " +++ fromMaybe "" (e^.endpointData)
-                ~~ "reason" .= reason
-        throwM (Error status500 "server-error" "Server Error")
-
-    logMessage a b r tk m =
+    logMessage a r tk m =
           "user"  .= UUID.toASCIIBytes (toUUID a)
-       ~~ "prev"  .= UUID.toASCIIBytes (toUUID b)
        ~~ "token" .= Text.take 16 (tokenText tk)
        ~~ "arn"   .= toText r
        ~~ msg (val m)
-
-    forbidden     = Error status403 "client-error" "Forbidden"
-    internalError = Error status500 "server-error" "Server Error"
 
 deleteToken :: UserId ::: Token ::: JSON -> Gundeck Response
 deleteToken (uid ::: tok ::: _) = do
     as <- filter (\x -> x^.addrToken == tok) <$> Data.lookup uid Data.Quorum
     when (null as) $
         throwM (Error status404 "not-found" "Push token not found")
-    deleteTokens as
+    Native.deleteTokens as Nothing
     return $ empty & setStatus status204
-
-deleteTokens :: [Address a] -> Gundeck ()
-deleteTokens tokens = do
-    env <- view awsEnv
-    forM_ tokens $ \a -> do
-        Log.info $ "user"  .= UUID.toASCIIBytes (toUUID (a^.addrUser))
-                ~~ "token" .= Text.take 16 (tokenText (a^.addrToken))
-                ~~ "arn"   .= toText (a^.addrEndpoint)
-                ~~ msg (val "Deleting push token and endpoint")
-        Data.delete (a^.addrUser) (a^.addrTransport) (a^.addrApp) (a^.addrToken)
-        Aws.execute env (Aws.deleteEndpoint (a^.addrEndpoint))
 
 success :: PushToken -> Response
 success t =

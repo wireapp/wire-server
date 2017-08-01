@@ -91,7 +91,7 @@ integration-list: install
 	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) -l; sleep 1' --env $(KEIRETSU_ENV)
 
 integration-%: install
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
+	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"; sleep 1' --env $(KEIRETSU_ENV)
 
 .PHONY: db
 db: db-reset
