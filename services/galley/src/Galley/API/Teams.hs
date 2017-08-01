@@ -235,15 +235,17 @@ uncheckedRemoveTeamMember zusr zcon tid remove mems = do
     let tmids = Set.fromList $ map (view userId) mems
     let edata = Conv.EdMembers (Conv.Members [remove])
     cc <- Data.teamConversations tid
-    for_ cc $ \c -> do
-        Data.removeMember remove (c^.conversationId)
-        unless (c^.managedConversation) $ do
-            conv <- Data.conversation (c^.conversationId)
-            for_ conv $ \dc -> do
-                let x = filter (\m -> not (Conv.memId m `Set.member` tmids)) (Data.convMembers dc)
-                let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
-                for_ (newPush zusr (ConvEvent y) (recipient <$> x)) $ \p ->
-                    push1 $ p & pushConn .~ zcon
+    for_ cc $ \c -> Data.conversation (c^.conversationId) >>= \conv ->
+        for_ conv $ \dc -> when (remove `isMember` Data.convMembers dc) $ do
+            Data.removeMember remove (c^.conversationId)
+            unless (c^.managedConversation) $
+                pushEvent tmids edata now dc
+  where
+    pushEvent tmids edata now dc = do
+        let x = filter (\m -> not (Conv.memId m `Set.member` tmids)) (Data.convMembers dc)
+        let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
+        for_ (newPush zusr (ConvEvent y) (recipient <$> x)) $ \p ->
+            push1 $ p & pushConn .~ zcon
 
 getTeamConversations :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamConversations (zusr::: tid ::: _) = do
