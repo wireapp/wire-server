@@ -6,10 +6,10 @@ import API.Util (Galley, Brig, test, zUser, zConn)
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Concurrent.Async (mapConcurrently)
-import Control.Lens hiding ((#))
+import Control.Lens hiding ((#), (.=))
 import Control.Monad (void)
 import Control.Monad.IO.Class
-import Data.Aeson (Value (Null))
+import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Foldable (for_)
 import Data.Id
@@ -27,6 +27,7 @@ import Test.Tasty.HUnit
 import qualified API.Util as Util
 import qualified Data.List1 as List1
 import qualified Data.Set as Set
+import qualified Data.Text as T
 import qualified Galley.Types as Conv
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon as WS
@@ -528,10 +529,17 @@ testUpdateTeam g b c = do
     member <- flip newTeamMember p <$> Util.randomUser b
     Util.connectUsers b owner (list1 (member^.userId) [])
     tid <- Util.createTeam g "foo" owner [member]
+    let bad = object ["name" .= T.replicate 100 "too large"]
+    put ( g
+        . paths ["teams", toByteString' tid]
+        . zUser owner
+        . zConn "conn"
+        . json bad
+        ) !!! const 400 === statusCode
     let u = newTeamUpdateData
-          & nameUpdate .~ (Just "bar")
-          & iconUpdate .~ (Just "xxx")
-          & iconKeyUpdate .~ (Just "yyy")
+          & nameUpdate .~ (Just $ unsafeRange "bar")
+          & iconUpdate .~ (Just $ unsafeRange "xxx")
+          & iconKeyUpdate .~ (Just $ unsafeRange "yyy")
     WS.bracketR2 c owner (member^.userId) $ \(wsOwner, wsMember) -> do
         put ( g
             . paths ["teams", toByteString' tid]

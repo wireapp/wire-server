@@ -156,9 +156,9 @@ data EventData =
     deriving (Eq, Show)
 
 data TeamUpdateData = TeamUpdateData
-    { _nameUpdate    :: Maybe Text
-    , _iconUpdate    :: Maybe Text
-    , _iconKeyUpdate :: Maybe Text
+    { _nameUpdate    :: Maybe (Range 1 256 Text)
+    , _iconUpdate    :: Maybe (Range 1 256 Text)
+    , _iconKeyUpdate :: Maybe (Range 1 256 Text)
     } deriving (Eq, Show)
 
 data TeamList = TeamList
@@ -544,10 +544,14 @@ instance ToJSON TeamUpdateData where
 
 instance FromJSON TeamUpdateData where
     parseJSON = withObject "team update data" $ \o -> do
-        x <- TeamUpdateData <$> o .:? "name" <*> o .:? "icon" <*> o .:? "icon_key"
-        when (isNothing (_nameUpdate x) && isNothing (_iconUpdate x) && isNothing (_iconKeyUpdate x)) $
-            fail "no update data specified"
-        pure x
+        name     <- o .:? "name"
+        icon     <- o .:? "icon"
+        icon_key <- o .:? "icon_key"
+        when (isNothing name && isNothing icon && isNothing icon_key) $
+            fail "TeamUpdateData: no update data specified"
+        either fail pure $ TeamUpdateData <$> maybe (pure Nothing) (fmap Just . checkedEitherMsg "name")     name
+                                          <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon")     icon
+                                          <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") icon_key
 
 instance FromJSON TeamMemberDeleteData where
     parseJSON = withObject "team-member-delete-data" $ \o ->
