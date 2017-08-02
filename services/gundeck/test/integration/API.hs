@@ -127,12 +127,15 @@ removeUser s g c = do
     clt  <- randomClient g user
     tok  <- randomGcmToken clt
     _    <- registerPushToken user tok g
+    _    <- sendPush g (buildPush user [(user, [])] (textPayload "data"))
     deleteUser g user
+    ntfs <- listNotifications user Nothing g
     liftIO $ do
         keys   <- Cql.runClient s (Clients.select user clt)
         tokens <- Cql.runClient s (Push.lookup user Push.Quorum)
-        assertBool "clients gone" (isNothing keys)
-        assertBool "tokens gone" (null tokens)
+        isNothing keys @?= True
+        null tokens    @?= True
+        ntfs           @?= []
 
 replacePresence :: Gundeck -> Cannon -> Http ()
 replacePresence gu ca = do
