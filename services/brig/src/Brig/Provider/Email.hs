@@ -15,7 +15,6 @@ import Brig.Types.Provider
 import Data.ByteString.Conversion
 import Data.Range
 import Data.Text (Text)
-import Data.Text.Template
 
 import qualified Brig.Types.Code    as Code
 import qualified Data.Text.Ascii    as Ascii
@@ -54,9 +53,9 @@ renderActivationMail ActivationEmail{..} ActivationEmailTemplate{..} =
 
     from = Address (Just "Wire") (fromEmail activationEmailSender)
     to   = mkMimeAddress acmName acmTo
-    txt  = render activationEmailBodyText replace
-    html = render activationEmailBodyHtml replace
-    subj = render activationEmailSubject  replace
+    txt  = renderText activationEmailBodyText replace
+    html = renderHtml activationEmailBodyHtml replace
+    subj = renderText activationEmailSubject  replace
 
     replace "url"   = renderActivationUrl activationEmailUrl acmKey acmCode
     replace "email" = fromEmail acmTo
@@ -65,7 +64,7 @@ renderActivationMail ActivationEmail{..} ActivationEmailTemplate{..} =
 
 renderActivationUrl :: Template -> Code.Key -> Code.Value -> Text
 renderActivationUrl t (Code.Key k) (Code.Value v) =
-    LT.toStrict $ render t replace
+    LT.toStrict $ renderText t replace
   where
     replace "key"  = Ascii.toText (fromRange k)
     replace "code" = Ascii.toText (fromRange v)
@@ -101,9 +100,9 @@ renderApprovalRequestMail ApprovalRequestEmail{..} ApprovalRequestEmailTemplate{
   where
     from = Address (Just "Wire")       (fromEmail approvalRequestEmailSender)
     to   = Address (Just "Wire Staff") (fromEmail approvalRequestEmailTo)
-    txt  = render approvalRequestEmailBodyText replace
-    html = render approvalRequestEmailBodyHtml replace
-    subj = render approvalRequestEmailSubject  replace
+    txt  = renderText approvalRequestEmailBodyText replace
+    html = renderHtml approvalRequestEmailBodyHtml replace
+    subj = renderText approvalRequestEmailSubject  replace
 
     replace "email"       = fromEmail aprTo
     replace "name"        = fromName aprName
@@ -115,7 +114,7 @@ renderApprovalRequestMail ApprovalRequestEmail{..} ApprovalRequestEmailTemplate{
 -- TODO: Unify with renderActivationUrl
 renderApprovalUrl :: Template -> Code.Key -> Code.Value -> Text
 renderApprovalUrl t (Code.Key k) (Code.Value v) =
-    LT.toStrict $ render t replace
+    LT.toStrict $ renderText t replace
   where
     replace "key"  = Ascii.toText (fromRange k)
     replace "code" = Ascii.toText (fromRange v)
@@ -147,9 +146,9 @@ renderApprovalConfirmMail ApprovalConfirmEmail{..} ApprovalConfirmEmailTemplate{
   where
     from = Address (Just "Wire") (fromEmail approvalConfirmEmailSender)
     to   = mkMimeAddress apcName apcTo
-    txt  = render approvalConfirmEmailBodyText replace
-    html = render approvalConfirmEmailBodyHtml replace
-    subj = render approvalConfirmEmailSubject  replace
+    txt  = renderText approvalConfirmEmailBodyText replace
+    html = renderHtml approvalConfirmEmailBodyHtml replace
+    subj = renderText approvalConfirmEmailSubject  replace
 
     replace "homeUrl" = Text.decodeUtf8 (toByteString' approvalConfirmEmailHomeUrl)
     replace "email"   = fromEmail apcTo

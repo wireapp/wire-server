@@ -34,7 +34,6 @@ import Brig.Types.User.Auth (LoginCode (..))
 import Data.Range
 import Data.Text (Text, chunksOf, intercalate, toLower)
 import Data.Text.Lazy (toStrict)
-import Data.Text.Template
 
 import qualified Brig.Types.Code as Code
 import qualified Data.Text.Ascii as Ascii
@@ -80,7 +79,7 @@ data ActivationSms = ActivationSms
 
 renderActivationSms :: ActivationSms -> ActivationSmsTemplate -> SMSMessage
 renderActivationSms ActivationSms{..} (ActivationSmsTemplate url t from) =
-    SMSMessage from (fromPhone actSmsTo) (toStrict $ render t replace)
+    SMSMessage from (fromPhone actSmsTo) (toStrict $ renderText t replace)
   where
     replace "code" = codeText
     replace "url"  = renderSmsActivationUrl url codeText
@@ -98,7 +97,7 @@ data PasswordResetSms = PasswordResetSms
 
 renderPasswordResetSms :: PasswordResetSms -> PasswordResetSmsTemplate -> SMSMessage
 renderPasswordResetSms PasswordResetSms{..} (PasswordResetSmsTemplate t from) =
-    SMSMessage from (fromPhone pwrSmsTo) (toStrict $ render t replace)
+    SMSMessage from (fromPhone pwrSmsTo) (toStrict $ renderText t replace)
   where
     replace "code" = Ascii.toText (fromPasswordResetCode pwrSmsCode)
     replace x      = x
@@ -113,7 +112,7 @@ data LoginSms = LoginSms
 
 renderLoginSms :: LoginSms -> LoginSmsTemplate -> SMSMessage
 renderLoginSms LoginSms{..} (LoginSmsTemplate url t from) =
-    SMSMessage from (fromPhone loginSmsTo) (toStrict $ render t replace)
+    SMSMessage from (fromPhone loginSmsTo) (toStrict $ renderText t replace)
   where
     replace "code" = fromLoginCode loginSmsCode
     replace "url"  = renderSmsActivationUrl url (fromLoginCode loginSmsCode)
@@ -130,10 +129,10 @@ data DeletionSms = DeletionSms
 
 renderDeletionSms :: DeletionSms -> DeletionSmsTemplate -> SMSMessage
 renderDeletionSms DeletionSms{..} (DeletionSmsTemplate url txt from) =
-    SMSMessage from (fromPhone delSmsTo) (toStrict $ render txt replace1)
+    SMSMessage from (fromPhone delSmsTo) (toStrict $ renderText txt replace1)
   where
     replace1 "code" = Ascii.toText (fromRange (Code.asciiValue delSmsCode))
-    replace1 "url"  = toStrict (render url replace2)
+    replace1 "url"  = toStrict (renderText url replace2)
     replace1 x      = x
 
     replace2 "key"  = Ascii.toText (fromRange (Code.asciiKey delSmsKey))
@@ -152,7 +151,7 @@ renderActivationCall :: ActivationCall -> ActivationCallTemplate -> Locale -> Ne
 renderActivationCall ActivationCall{..} (ActivationCallTemplate t) loc =
     Nexmo.Call Nothing
                (fromPhone actCallTo)
-               (toStrict $ render t replace)
+               (toStrict $ renderText t replace)
                (Just . toLower $ locToText loc)
                (Just 1)
   where
@@ -171,7 +170,7 @@ renderLoginCall :: LoginCall -> LoginCallTemplate -> Locale -> Nexmo.Call
 renderLoginCall LoginCall{..} (LoginCallTemplate t) loc =
     Nexmo.Call Nothing
                (fromPhone loginCallTo)
-               (toStrict $ render t replace)
+               (toStrict $ renderText t replace)
                (Just . toLower $ locToText loc)
                (Just 1)
   where
@@ -187,7 +186,7 @@ toPinPrompt = intercalate "<break time=\"750ms\"/>" . chunksOf 1
 
 renderSmsActivationUrl :: Template -> Text -> Text
 renderSmsActivationUrl t c =
-    toStrict $ render t replace
+    toStrict $ renderText t replace
   where
     replace "code" = c
     replace x      = x

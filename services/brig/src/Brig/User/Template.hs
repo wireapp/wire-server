@@ -16,6 +16,11 @@ module Brig.User.Template
     , DeletionEmailTemplate      (..)
     , NewClientEmailTemplate     (..)
     , loadUserTemplates
+
+      -- * Re-exports
+    , Template
+    , renderText
+    , renderHtml
     ) where
 
 import Brig.Options

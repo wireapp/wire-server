@@ -3,14 +3,16 @@
 
 -- | Common templating utilities.
 module Brig.Template
-    ( -- * Localised templates
+    ( -- * Reading templates
       Localised
     , forLocale
     , readLocalesDir
-
-      -- * Reading files
     , readTemplate
     , readText
+
+      -- * Rendering templates
+    , renderText
+    , renderHtml
 
       -- * Re-exports
     , Template
@@ -24,7 +26,7 @@ import Data.Map.Strict (Map)
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text, pack, unpack)
-import Data.Text.Template
+import Data.Text.Template (Template, template)
 import System.Directory (getDirectoryContents)
 import System.IO.Error (isDoesNotExistError)
 import Prelude hiding (readFile)
@@ -32,6 +34,9 @@ import Prelude hiding (readFile)
 import qualified Data.ByteString    as BS
 import qualified Data.Map.Strict    as Map
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Lazy     as Lazy
+import qualified Data.Text.Template as Template
+import qualified HTMLEntities.Text  as HTML
 
 -- | Localised templates.
 data Localised a = Localised
@@ -91,4 +96,10 @@ readText :: FilePath -> IO Text
 readText f = catchJust (\e -> if isDoesNotExistError e then Just () else Nothing)
                        (readFile f)
                        (\_ -> error $ "Missing file: '" ++ f)
+
+renderText :: Template -> (Text -> Text) -> Lazy.Text
+renderText = Template.render
+
+renderHtml :: Template -> (Text -> Text) -> Lazy.Text
+renderHtml tpl f = renderText tpl (HTML.text . f)
 

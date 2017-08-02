@@ -13,7 +13,6 @@ import Brig.Types
 import Data.Id (idToText, TeamId)
 import Data.Text (Text)
 import Data.Text.Lazy (toStrict)
-import Data.Text.Template
 
 import qualified Brig.Aws        as Aws
 import qualified Data.Text.Ascii as Ascii
@@ -49,9 +48,9 @@ renderInvitationEmail InvitationEmail{..} InvitationEmailTemplate{..} =
 
     from = Address (Just invitationEmailSenderName) (fromEmail invitationEmailSender)
     to   = mkMimeAddress invInviterName invTo
-    txt  = render invitationEmailBodyText replace
-    html = render invitationEmailBodyHtml replace
-    subj = render invitationEmailSubject  replace
+    txt  = renderText invitationEmailBodyText replace
+    html = renderHtml invitationEmailBodyHtml replace
+    subj = renderText invitationEmailSubject  replace
 
     replace "url"      = renderInvitationUrl invitationEmailUrl invTeamId invInvCode
     replace "email"    = fromEmail invTo
@@ -61,7 +60,7 @@ renderInvitationEmail InvitationEmail{..} InvitationEmailTemplate{..} =
 
 renderInvitationUrl :: Template -> TeamId -> InvitationCode -> Text
 renderInvitationUrl t tid (InvitationCode c) =
-    toStrict $ render t replace
+    toStrict $ renderText t replace
   where
     replace "team" = idToText tid
     replace "code" = Ascii.toText c

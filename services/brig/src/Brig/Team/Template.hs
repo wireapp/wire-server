@@ -5,6 +5,11 @@ module Brig.Team.Template
     ( TeamTemplates              (..)
     , InvitationEmailTemplate    (..)
     , loadTeamTemplates
+
+      -- * Re-exports
+    , Template
+    , renderText
+    , renderHtml
     ) where
 
 import Brig.Options
