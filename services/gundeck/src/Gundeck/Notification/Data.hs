@@ -9,6 +9,7 @@ module Gundeck.Notification.Data
     , fetch
     , fetchId
     , fetchLast
+    , deleteAll
     ) where
 
 import Cassandra
@@ -156,6 +157,12 @@ fetch u c since (fromRange -> size) = do
         \FROM notifications \
         \WHERE user = ? AND id >= ? \
         \ORDER BY id ASC"
+
+deleteAll :: MonadClient m => UserId -> m ()
+deleteAll u = write cql (params Quorum (Identity u)) & retry x5
+  where
+    cql :: PrepQuery W (Identity UserId) ()
+    cql = "DELETE FROM notifications WHERE user = ?"
 
 -------------------------------------------------------------------------------
 -- Conversions

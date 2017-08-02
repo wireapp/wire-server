@@ -23,8 +23,9 @@ import Network.HTTP.Types
 import Network.Wai (Request, Response)
 import Network.Wai.Utilities
 
-import qualified Gundeck.Client.Data as Clients
-import qualified Gundeck.Push.Data   as Push
+import qualified Gundeck.Client.Data       as Clients
+import qualified Gundeck.Notification.Data as Notifications
+import qualified Gundeck.Push.Data         as Push
 
 register :: UserId ::: ClientId ::: Request ::: JSON ::: JSON -> Gundeck Response
 register (uid ::: cid ::: req ::: _) = do
@@ -54,4 +55,5 @@ removeUser user = do
     deleteTokens toks Nothing
     Push.erase user
     Clients.erase user
+    Notifications.deleteAll user
     return empty
