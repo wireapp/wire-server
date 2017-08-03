@@ -34,10 +34,11 @@ import qualified Data.List1               as List1
 import qualified Data.Map.Strict          as Map
 import qualified Data.Set                 as Set
 import qualified Data.Text                as T
+import qualified Galley.Aws               as Aws
 import qualified Test.Tasty.Cannon        as WS
 
-tests :: Galley -> Brig -> Cannon -> IO TestTree
-tests g b c = do
+tests :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> IO TestTree
+tests g b c a = do
     m <- newManager defaultManagerSettings
     pure $ testGroup "Galley integration tests" [ mainTests m, teamTests m ]
   where
@@ -90,7 +91,7 @@ tests g b c = do
         , test m "cannot join private conversation" (postJoinConvFail g b)
         , test m "remove user" (removeUser g b c)
         ]
-    teamTests m = Teams.tests g b c m
+    teamTests m = Teams.tests g b c m a
 
 -------------------------------------------------------------------------------
 -- API Tests

@@ -1,0 +1,29 @@
+name:               types-common-journal
+version:            0.1.0
+synopsis:           Shared protobuf type definitions.
+author:             Wire Swiss GmbH
+maintainer:         Wire Swiss GmbH <backend@wire.com>
+copyright:          (c) 2017 Wire Swiss GmbH
+license:            AGPL-3
+license-file:       LICENSE
+category:           System
+build-type:         Custom
+cabal-version:      >= 1.10
+description:        Shared protobuf type definitions for journaling.
+extra-source-files: proto/TeamEvents.proto
+
+custom-setup
+    setup-depends: base, Cabal, proto-lens-protoc
+
+library
+    default-language: Haskell2010
+    hs-source-dirs:   src
+    ghc-options:      -Wall -O2 -fwarn-tabs -fno-warn-redundant-constraints
+    ghc-prof-options: -fprof-auto-exported
+
+    exposed-modules:
+        Proto.TeamEvents
+
+    build-depends:
+          base                  == 4.*
+        , proto-lens-protoc     >= 0.2

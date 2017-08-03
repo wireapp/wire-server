@@ -118,9 +118,10 @@ team :: MonadClient m => TeamId -> m (Maybe TeamData)
 team tid =
     fmap toTeam <$> retry x1 (query1 Cql.selectTeam (params Quorum (Identity tid)))
   where
-    toTeam (u, n, i, k, d, b) =
-        let t = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k in
-        TeamData t d
+    toTeam (u, n, i, k, d, s, b) =
+        let t       = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k
+            status  = if d then PendingDelete else fromMaybe Alive s
+        in TeamData t status
 
 teamIdsOf :: MonadClient m => UserId -> Range 1 32 (List TeamId) -> m [TeamId]
 teamIdsOf usr (fromList . fromRange -> tids) =
@@ -177,17 +178,17 @@ createTeam :: MonadClient m
            -> m Team
 createTeam t uid (fromRange -> n) (fromRange -> i) k b = do
     tid <- maybe (Id <$> liftIO nextRandom) return t
-    retry x5 $ write Cql.insertTeam (params Quorum (tid, uid, n, i, fromRange <$> k, b))
+    retry x5 $ write Cql.insertTeam (params Quorum (tid, uid, n, i, fromRange <$> k, Alive, b))
     pure (newTeam tid uid n i b & teamIconKey .~ (fromRange <$> k))
 
 deleteTeam :: MonadClient m => TeamId -> m ()
 deleteTeam tid = do
-    retry x5 $ write Cql.markTeamDeleted (params Quorum (Identity tid))
+    retry x5 $ write Cql.markTeamDeleted (params Quorum (PendingDelete, tid))
     mm <- teamMembers tid
     for_ mm $ removeTeamMember tid . view userId
     cc <- teamConversations tid
     for_ cc $ removeTeamConv tid . view conversationId
-    retry x5 $ write Cql.deleteTeam (params Quorum (Identity tid))
+    retry x5 $ write Cql.deleteTeam (params Quorum (Deleted, tid))
 
 addTeamMember :: MonadClient m => TeamId -> TeamMember -> m ()
 addTeamMember t m =
