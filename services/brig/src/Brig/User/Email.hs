@@ -30,7 +30,6 @@ import Data.Maybe (fromMaybe, isNothing)
 import Data.Range
 import Data.Text (Text)
 import Data.Text.Lazy (toStrict)
-import Data.Text.Template
 
 import qualified Brig.Aws        as Aws
 import qualified Brig.Types.Code as Code
@@ -91,9 +90,9 @@ renderNewClientEmail NewClientEmailTemplate{..} NewClientEmail{..} =
   where
     from = Address (Just newClientEmailSenderName) (fromEmail newClientEmailSender)
     to   = mkMimeAddress nclName nclTo
-    txt  = render newClientEmailBodyText replace
-    html = render newClientEmailBodyHtml replace
-    subj = render newClientEmailSubject  replace
+    txt  = renderText newClientEmailBodyText replace
+    html = renderHtml newClientEmailBodyHtml replace
+    subj = renderText newClientEmailSubject  replace
 
     replace "name"  = fromName nclName
     replace "label" = fromMaybe "N/A" (clientLabel nclClient)
@@ -128,14 +127,14 @@ renderDeletionEmail DeletionEmailTemplate{..} DeletionEmail{..} =
     from = Address (Just deletionEmailSenderName) (fromEmail deletionEmailSender)
     to   = mkMimeAddress delName delTo
 
-    txt  = render deletionEmailBodyText replace1
-    html = render deletionEmailBodyHtml replace1
-    subj = render deletionEmailSubject  replace1
+    txt  = renderText deletionEmailBodyText replace1
+    html = renderHtml deletionEmailBodyHtml replace1
+    subj = renderText deletionEmailSubject  replace1
 
     key  = Ascii.toText (fromRange (Code.asciiKey delKey))
     code = Ascii.toText (fromRange (Code.asciiValue delCode))
 
-    replace1 "url"   = toStrict (render deletionEmailUrl replace2)
+    replace1 "url"   = toStrict (renderText deletionEmailUrl replace2)
     replace1 "email" = fromEmail delTo
     replace1 "name"  = fromName delName
     replace1 x       = x
@@ -169,9 +168,9 @@ renderActivationMail ActivationEmail{..} ActivationEmailTemplate{..} =
 
     from = Address (Just activationEmailSenderName) (fromEmail activationEmailSender)
     to   = mkMimeAddress acmName acmTo
-    txt  = render activationEmailBodyText replace
-    html = render activationEmailBodyHtml replace
-    subj = render activationEmailSubject  replace
+    txt  = renderText activationEmailBodyText replace
+    html = renderHtml activationEmailBodyHtml replace
+    subj = renderText activationEmailSubject  replace
 
     replace "url"   = renderActivationUrl activationEmailUrl acmPair
     replace "email" = fromEmail acmTo
@@ -180,7 +179,7 @@ renderActivationMail ActivationEmail{..} ActivationEmailTemplate{..} =
 
 renderActivationUrl :: Template -> ActivationPair -> Text
 renderActivationUrl t (ActivationKey k, ActivationCode c) =
-    toStrict $ render t replace
+    toStrict $ renderText t replace
   where
     replace "key"  = Ascii.toText k
     replace "code" = Ascii.toText c
@@ -210,16 +209,16 @@ renderPwResetMail PasswordResetEmail{..} PasswordResetEmailTemplate{..} =
 
     from = Address (Just passwordResetEmailSenderName) (fromEmail passwordResetEmailSender)
     to   = Address Nothing (fromEmail pwrTo)
-    txt  = render passwordResetEmailBodyText replace
-    html = render passwordResetEmailBodyHtml replace
-    subj = render passwordResetEmailSubject  replace
+    txt  = renderText passwordResetEmailBodyText replace
+    html = renderHtml passwordResetEmailBodyHtml replace
+    subj = renderText passwordResetEmailSubject  replace
 
     replace "url" = renderPwResetUrl passwordResetEmailUrl pwrPair
     replace x     = x
 
 renderPwResetUrl :: Template -> PasswordResetPair -> Text
 renderPwResetUrl t (PasswordResetKey k, PasswordResetCode c) =
-    toStrict $ render t replace
+    toStrict $ renderText t replace
   where
     replace "key"  = Ascii.toText k
     replace "code" = Ascii.toText c
@@ -251,9 +250,9 @@ renderInvitationEmail InvitationEmail{..} InvitationEmailTemplate{..} =
 
     from = Address (Just invitationEmailSenderName) (fromEmail invitationEmailSender)
     to   = mkMimeAddress invInviteeName invTo
-    txt  = render invitationEmailBodyText replace
-    html = render invitationEmailBodyHtml replace
-    subj = render invitationEmailSubject  replace
+    txt  = renderText invitationEmailBodyText replace
+    html = renderHtml invitationEmailBodyHtml replace
+    subj = renderText invitationEmailSubject  replace
 
     replace "url"      = renderInvitationUrl invitationEmailUrl invInvCode
     replace "email"    = fromEmail invTo
@@ -264,7 +263,7 @@ renderInvitationEmail InvitationEmail{..} InvitationEmailTemplate{..} =
 
 renderInvitationUrl :: Template -> InvitationCode -> Text
 renderInvitationUrl t (InvitationCode c) =
-    toStrict $ render t replace
+    toStrict $ renderText t replace
   where
     replace "code" = Ascii.toText c
     replace x      = x

@@ -119,6 +119,7 @@ library
       , fsnotify                  >= 0.2
       , iso639                    >= 0.1
       , hashable                  >= 1.2
+      , html-entities             >= 1.1
       , http-client               >= 0.5
       , http-client-openssl-ext   >= 0.1
       , http-types                >= 0.8

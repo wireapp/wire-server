@@ -39,6 +39,7 @@ extra-deps:
 - data-textual-0.3.0.2
 - data-timeout-0.3
 - geoip2-0.2.2.0
+- html-entities-1.1.4.1
 - raw-strings-qq-1.0.2
 - text-icu-translit-0.1.0.7
 - text-latin1-0.3

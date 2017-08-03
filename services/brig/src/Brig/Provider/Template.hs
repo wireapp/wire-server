@@ -8,6 +8,11 @@ module Brig.Provider.Template
     , ApprovalConfirmEmailTemplate (..)
     -- , TODO: NewServiceEmailTemplate   (..)
     , loadProviderTemplates
+
+      -- * Re-exports
+    , Template
+    , renderText
+    , renderHtml
     ) where
 
 import Brig.Options
