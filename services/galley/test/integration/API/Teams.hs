@@ -186,16 +186,22 @@ testRemoveTeamMember g b c = do
     let p2 = Util.symmPermissions [AddConversationMember, RemoveTeamMember]
     mem1 <- flip newTeamMember p1 <$> Util.randomUser b
     mem2 <- flip newTeamMember p2 <$> Util.randomUser b
-    mext <- Util.randomUser b
-    Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId, mext])
+    mext1 <- Util.randomUser b
+    mext2 <- Util.randomUser b
+    mext3 <- Util.randomUser b
+    Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId, mext1, mext2, mext3])
     tid <- Util.createTeam g "foo" owner [mem1, mem2]
 
     -- Managed conversation:
     void $ Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "gossip")
     -- Regular conversation:
-    cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [mem1^.userId, mem2^.userId, mext] (Just "blaa")
+    cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [mem1^.userId, mem2^.userId, mext1] (Just "blaa")
+    -- Member external 2 is a guest and not a part of any conversation that mem1 is a part of
+    void $ Util.createTeamConv g owner (ConvTeamInfo tid False) [mem2^.userId, mext2] (Just "blaa")
+    -- Member external 3 is a guest and part of a conversation that mem1 is a part of
+    cid3 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [mem1^.userId, mext3] (Just "blaa")
 
-    WS.bracketRN c [owner, mem1^.userId, mem2^.userId, mext] $ \ws@[wsOwner, wsMem1, wsMem2, wsMext] -> do
+    WS.bracketRN c [owner, mem1^.userId, mem2^.userId, mext1, mext2, mext3] $ \ws@[wsOwner, wsMem1, wsMem2, wsMext1, _wsMext2, wsMext3] -> do
         -- `mem1` lacks permission to remove team members
         delete ( g
                . paths ["teams", toByteString' tid, "members", toByteString' (mem2^.userId)]
@@ -214,7 +220,8 @@ testRemoveTeamMember g b c = do
         Util.ensureDeletedState b False owner (mem1^.userId)
 
         liftIO . void $ mapConcurrently (checkLeaveEvent tid (mem1^.userId)) [wsOwner, wsMem1, wsMem2]
-        checkConvMemberLeaveEvent cid2 (mem1^.userId) wsMext
+        checkConvMemberLeaveEvent cid2 (mem1^.userId) wsMext1
+        checkConvMemberLeaveEvent cid3 (mem1^.userId) wsMext3
         WS.assertNoEvent timeout ws
   where
     checkLeaveEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
@@ -233,7 +240,7 @@ testRemoveBindingTeamMember g b c = do
     mem1 <- flip newTeamMember p1 <$> Util.randomUser b
     Util.addTeamMemberInternal g tid mem1
     Util.connectUsers b owner (singleton mext)
-    cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [mext] (Just "blaa")
+    cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [(mem1^.userId), mext] (Just "blaa")
     
     -- Deleting from a binding team without a password is a bad request
     delete ( g
