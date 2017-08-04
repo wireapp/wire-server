@@ -1,0 +1,22 @@
+syntax = "proto2";
+
+option java_package = "com.wire.events";
+option java_outer_classname = "TeamEvents";
+
+message TeamEvent {
+    required EventType event_type = 1;
+    required bytes team_id = 2;
+    required int64 utc_time = 3;
+    optional EventData event_data = 4;
+
+    message EventData {
+        required int32 member_count = 1;
+        repeated bytes billing_user = 2;
+    }
+
+    enum EventType {
+        TEAM_CREATE = 0;
+        TEAM_DELETE = 1;
+        TEAM_UPDATE = 2;
+    }
+}

@@ -393,14 +393,10 @@ randomUsers b n = replicateM n (randomUser b)
 
 randomUser :: Brig -> Http UserId
 randomUser brig = do
-    e <- liftIO mkEmail
+    e <- liftIO randomEmail
     let p = object [ "name" .= fromEmail e, "email" .= fromEmail e, "password" .= defPassword ]
     r <- post (brig . path "/i/users" . json p) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
-  where
-    mkEmail = do
-        uid <- nextRandom
-        return $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
 
 randomClient :: Brig -> UserId -> LastPrekey -> Http ClientId
 randomClient brig usr lk = do
@@ -503,3 +499,8 @@ genRandom = liftIO . Q.generate $ Q.arbitrary
 
 defPassword :: Text
 defPassword = "secret"
+
+randomEmail :: MonadIO m => m Email
+randomEmail = do
+    uid <- liftIO nextRandom
+    return $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"

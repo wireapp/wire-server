@@ -11,6 +11,7 @@ packages:
 - '../../libs/metrics-wai'
 - '../../libs/tasty-cannon'
 - '../../libs/types-common'
+- '../../libs/types-common-journal'
 - '../../libs/wai-utilities'
 
 flags:
