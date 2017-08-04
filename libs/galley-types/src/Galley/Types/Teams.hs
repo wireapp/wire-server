@@ -84,6 +84,13 @@ module Galley.Types.Teams
     , iconUpdate
     , iconKeyUpdate
 
+    , TeamMemberDeleteData
+    , tmdAuthPassword
+    , newTeamMemberDeleteData
+    , TeamDeleteData
+    , tdAuthPassword
+    , newTeamDeleteData
+
     ) where
 
 import Control.Lens (makeLenses, (^.))
@@ -93,6 +100,7 @@ import Data.Aeson.Types (Parser, Pair)
 import Data.Bits (testBit, (.|.))
 import Data.Id (TeamId, ConvId, UserId)
 import Data.Json.Util
+import Data.Misc (PlainTextPassword (..))
 import Data.Monoid
 import Data.Maybe (mapMaybe, isNothing)
 import Data.Range
@@ -148,9 +156,9 @@ data EventData =
     deriving (Eq, Show)
 
 data TeamUpdateData = TeamUpdateData
-    { _nameUpdate    :: Maybe Text
-    , _iconUpdate    :: Maybe Text
-    , _iconKeyUpdate :: Maybe Text
+    { _nameUpdate    :: Maybe (Range 1 256 Text)
+    , _iconUpdate    :: Maybe (Range 1 256 Text)
+    , _iconKeyUpdate :: Maybe (Range 1 256 Text)
     } deriving (Eq, Show)
 
 data TeamList = TeamList
@@ -211,6 +219,14 @@ newtype NewTeamMember = NewTeamMember
     { _ntmNewTeamMember :: TeamMember
     }
 
+newtype TeamMemberDeleteData = TeamMemberDeleteData
+    { _tmdAuthPassword :: PlainTextPassword
+    }
+
+newtype TeamDeleteData = TeamDeleteData
+    { _tdAuthPassword :: PlainTextPassword
+    }
+
 newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
 newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
 
@@ -241,6 +257,12 @@ newEvent typ tid tme = Event typ tid tme Nothing
 newTeamUpdateData :: TeamUpdateData
 newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing
 
+newTeamMemberDeleteData :: PlainTextPassword -> TeamMemberDeleteData
+newTeamMemberDeleteData = TeamMemberDeleteData
+
+newTeamDeleteData :: PlainTextPassword -> TeamDeleteData
+newTeamDeleteData = TeamDeleteData
+
 makeLenses ''Team
 makeLenses ''TeamList
 makeLenses ''TeamMember
@@ -252,6 +274,8 @@ makeLenses ''NewTeam
 makeLenses ''NewTeamMember
 makeLenses ''Event
 makeLenses ''TeamUpdateData
+makeLenses ''TeamMemberDeleteData
+makeLenses ''TeamDeleteData
 
 newPermissions :: Set Perm -> Set Perm -> Maybe Permissions
 newPermissions a b
@@ -520,7 +544,29 @@ instance ToJSON TeamUpdateData where
 
 instance FromJSON TeamUpdateData where
     parseJSON = withObject "team update data" $ \o -> do
-        x <- TeamUpdateData <$> o .:? "name" <*> o .:? "icon" <*> o .:? "icon_key"
-        when (isNothing (_nameUpdate x) && isNothing (_iconUpdate x) && isNothing (_iconKeyUpdate x)) $
-            fail "no update data specified"
-        pure x
+        name     <- o .:? "name"
+        icon     <- o .:? "icon"
+        icon_key <- o .:? "icon_key"
+        when (isNothing name && isNothing icon && isNothing icon_key) $
+            fail "TeamUpdateData: no update data specified"
+        either fail pure $ TeamUpdateData <$> maybe (pure Nothing) (fmap Just . checkedEitherMsg "name")     name
+                                          <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon")     icon
+                                          <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") icon_key
+
+instance FromJSON TeamMemberDeleteData where
+    parseJSON = withObject "team-member-delete-data" $ \o ->
+        TeamMemberDeleteData <$> o .: "password"
+
+instance ToJSON TeamMemberDeleteData where
+    toJSON tmd = object
+        [ "password" .= _tmdAuthPassword tmd
+        ]
+
+instance FromJSON TeamDeleteData where
+    parseJSON = withObject "team-delete-data" $ \o ->
+        TeamDeleteData <$> o .: "password"
+
+instance ToJSON TeamDeleteData where
+    toJSON tdd = object
+        [ "password" .= _tdAuthPassword tdd
+        ]

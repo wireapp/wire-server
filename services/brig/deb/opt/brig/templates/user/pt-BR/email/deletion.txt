@@ -1,0 +1,17 @@
+Wire
+
+
+Olá ${name},
+
+Nós recebemos uma solicitação para excluir sua conta Wire. Visite o link abaixo, dentro de 10 minutos para apagar todas as suas conversas, conteúdo e conexões
+
+${url}
+
+Se você não solicitou isso, redefina sua senha.
+
+Atenciosamente, Equipe Wire
+
+
+(c) Wire Swiss GmbH
+
+Política de privacidade |  Reportar Abuso

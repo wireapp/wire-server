@@ -82,4 +82,3 @@ deleteLoop = do
         unless ok $
             err (msg (val "delete queue is full, dropping item") ~~ "item" .= show i)
         liftIO $ threadDelay 1000000
-

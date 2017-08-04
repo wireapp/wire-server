@@ -20,15 +20,26 @@ This repository contains:
 - **services**
    - **nginz**: Public API Reverse Proxy
    - **galley**: Conversations
-   - **proxy**: 3rd Party API Integration
-   - **brig**: Accounts (to be released)
+   - **brig**: Accounts
    - **gundeck**: Push Notification Hub
    - **cannon**: WebSocket Push Notifications
    - **cargohold**: Asset Storage
+   - **proxy**: 3rd Party API Integration
 - **libs**: Shared libraries
 
-## Roadmap
-We are working on open sourcing the following components:
+## Architecture Overview
 
-- Search and contact discovery
-- Account management
+The following diagram gives a high-level outline of the (deployment) architecture
+of the components that make up a Wire Server as well as the main internal and
+external dependencies between components.
+
+![wire-arch](doc/arch/wire-arch-2.png)
+
+Communication between internal components is currently not guarded by
+dedicated authentication or encryption and is assumed to be confined to a
+private network.
+
+## Roadmap
+
+- Release of remaining services (see above).
+- Documentation on development, build and deployment options.

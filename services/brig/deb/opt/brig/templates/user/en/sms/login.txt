@@ -1,0 +1,3 @@
+Your Wire login code is ${code}.
+
+Open ${url} to log in.

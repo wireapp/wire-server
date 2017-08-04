@@ -95,4 +95,3 @@ instance ToJSON MatchingResult where
         [ "results"       .= mrMatches r
         , "auto-connects" .= mrAuto r
         ]
-

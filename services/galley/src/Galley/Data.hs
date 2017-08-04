@@ -25,7 +25,6 @@ module Galley.Data
     , userTeams
     , oneUserTeam
     , Galley.Data.teamBinding
-    , isTeamAlive
     , deleteTeam
     , removeTeamConv
     , updateTeam
@@ -122,14 +121,6 @@ team tid =
     toTeam (u, n, i, k, d, b) =
         let t = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k in
         TeamData t d
-
-isTeamAlive :: MonadClient m => TeamId -> m Bool
-isTeamAlive tid = do
-    t <- team tid
-    case tdDeleted <$> t of
-        Nothing    -> pure False
-        Just True  -> pure False
-        Just False -> pure True
 
 teamIdsOf :: MonadClient m => UserId -> Range 1 32 (List TeamId) -> m [TeamId]
 teamIdsOf usr (fromList . fromRange -> tids) =
@@ -231,11 +222,11 @@ updateTeam tid u = retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
     for_ (u^.nameUpdate) $ \n ->
-        addPrepQuery Cql.updateTeamName (n, tid)
+        addPrepQuery Cql.updateTeamName (fromRange n, tid)
     for_ (u^.iconUpdate) $ \i ->
-        addPrepQuery Cql.updateTeamIcon (i, tid)
+        addPrepQuery Cql.updateTeamIcon (fromRange i, tid)
     for_ (u^.iconKeyUpdate) $ \k ->
-        addPrepQuery Cql.updateTeamIconKey (k, tid)
+        addPrepQuery Cql.updateTeamIconKey (fromRange k, tid)
 
 -- Conversations ------------------------------------------------------------
 

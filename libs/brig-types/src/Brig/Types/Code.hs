@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 
@@ -7,16 +8,17 @@ module Brig.Types.Code where
 import Data.Aeson hiding (Value)
 import Data.ByteString.Conversion
 import Data.Int
+import Data.Range
 import Data.Scientific (toBoundedInteger)
 import Data.Text.Ascii
 import Data.Time.Clock
 
 -- | A scoped identifier for a 'Value' with an associated 'Timeout'.
-newtype Key = Key { asciiKey :: AsciiBase64Url }
+newtype Key = Key { asciiKey :: Range 20 20 AsciiBase64Url }
     deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
 
 -- | A secret value bound to a 'Key' and a 'Timeout'.
-newtype Value = Value { asciiValue :: AsciiBase64Url }
+newtype Value = Value { asciiValue :: Range 6 20 AsciiBase64Url }
     deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
 
 newtype Timeout = Timeout

@@ -72,17 +72,6 @@ newtype ColourId = ColourId { fromColourId :: Int32 }
 defaultAccentId :: ColourId
 defaultAccentId = ColourId 0
 
---------------------------------------------------------------------------------
--- Password
-
-newtype PlainTextPassword = PlainTextPassword
-    { fromPlainTextPassword :: Text }
-    deriving (ToJSON)
-
-instance FromJSON PlainTextPassword where
-    parseJSON x = PlainTextPassword . fromRange
-               <$> (parseJSON x :: Json.Parser (Range 6 1024 Text))
-
 -----------------------------------------------------------------------------
 -- Email
 

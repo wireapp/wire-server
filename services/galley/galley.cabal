@@ -121,7 +121,6 @@ executable galley
         -fwarn-tabs
         -threaded
         -with-rtsopts=-T
-        -with-rtsopts=-N1
 
     if flag(static)
         ld-options: -static

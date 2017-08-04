@@ -1,0 +1,1 @@
+Selam, Wire doğrulama kodunuz: ${code}. Bir kez daha, kodunuz: ${code}

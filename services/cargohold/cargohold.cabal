@@ -103,9 +103,8 @@ executable cargohold
         -O2
         -fwarn-tabs
         -threaded
-        -with-rtsopts=-N1
-        -with-rtsopts=-T
         -rtsopts
+        -with-rtsopts=-T
 
     build-depends:
         base

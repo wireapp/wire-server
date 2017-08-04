@@ -35,6 +35,9 @@ tooManyMembers = Error status403 "too-many-members" "Maximum number of members p
 accessDenied :: Error
 accessDenied = Error status403 "access-denied" "Conversation access denied"
 
+reAuthFailed :: Error
+reAuthFailed = Error status403 "access-denied" "This operation requires reauthentication"
+
 invalidUUID4 :: Error
 invalidUUID4 = Error status400 "client-error" "Invalid UUID v4 format"
 

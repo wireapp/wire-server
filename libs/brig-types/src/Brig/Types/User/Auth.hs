@@ -10,9 +10,10 @@ import Control.Applicative
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (ByteString)
+import Data.Id (UserId)
+import Data.Misc (PlainTextPassword (..))
 import Data.String (IsString)
 import Data.Text (Text)
-import Data.Id (UserId)
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Data.Word

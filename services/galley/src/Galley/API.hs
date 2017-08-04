@@ -139,16 +139,23 @@ sitemap = do
         zauthUserId
         .&. zauthConnId
         .&. capture "id"
+        .&. request
+        .&. opt (contentType "application" "json")
         .&. accept "application" "json"
 
     document "DELETE" "deleteTeam" $ do
         summary "Delete a team"
         parameter Path "id" bytes' $
             description "Team ID"
+        body (ref TeamsModel.teamDelete) $ do
+            optional
+            description "JSON body, required only for binding teams."
         response 202 "Team is scheduled for removal" end
         errorResponse Error.noTeamMember
         errorResponse (Error.operationDenied DeleteTeam)
         errorResponse Error.deleteQueueFull
+        errorResponse Error.reAuthFailed
+        errorResponse Error.teamNotFound
 
     --
 
@@ -213,6 +220,8 @@ sitemap = do
         .&. zauthConnId
         .&. capture "tid"
         .&. capture "uid"
+        .&. request
+        .&. opt (contentType "application" "json")
         .&. accept "application" "json"
 
     document "DELETE" "deleteTeamMember" $ do
@@ -221,8 +230,12 @@ sitemap = do
             description "Team ID"
         parameter Path "uid" bytes' $
             description "User ID"
+        body (ref TeamsModel.teamMemberDelete) $ do
+            optional
+            description "JSON body, required only for binding teams."
         errorResponse Error.noTeamMember
         errorResponse (Error.operationDenied RemoveTeamMember)
+        errorResponse Error.reAuthFailed
 
     --
 
