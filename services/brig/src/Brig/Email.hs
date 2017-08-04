@@ -61,7 +61,7 @@ validateEmail (fromEmail -> e) =
     validateDomain e' = hush (parseOnly parser (Email.domainPart e'))
       where
         parser = label *> many1 (char '.' *> label) *> endOfInput *> pure e'
-        label  = satisfy (inClass "a-zA-Z")
+        label  = satisfy (inClass "a-zA-Z0-9")
               *> count 61 (optional (satisfy (inClass "-a-zA-Z0-9")))
               *> optional (satisfy (inClass "a-zA-Z0-9"))
 
