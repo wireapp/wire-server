@@ -60,7 +60,7 @@ getCallsConfig (_ ::: _ ::: _) = json <$> lift newConfig
                     pure $
                         rtcIceServer (List1.singleton $ turnURI (_TurnHost # srv) 3478)
                                      u
-                                     (hmac (view turnSHA512 env) (view turnSecret env) u)
+                                     (computeCred (view turnSHA512 env) (view turnSecret env) u)
         pure $ rtcConfiguration srvs (Just (view turnTTL env))
       where
         genUsername :: Word32 -> MWC.GenIO -> IO TurnUsername
@@ -69,5 +69,5 @@ getCallsConfig (_ ::: _ ::: _) = json <$> lift newConfig
             t   <- fromIntegral . (+ ttl) . round <$> getPOSIXTime
             pure $ turnUsername t rnd
 
-        hmac :: Digest -> ByteString -> TurnUsername -> AsciiBase64
-        hmac dig secret = encodeBase64 . hmacBS dig secret . toByteString'
+        computeCred :: Digest -> ByteString -> TurnUsername -> AsciiBase64
+        computeCred dig secret = encodeBase64 . hmacBS dig secret . toByteString'

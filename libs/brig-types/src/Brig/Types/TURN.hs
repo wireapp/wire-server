@@ -72,7 +72,7 @@ data RTCIceServer = RTCIceServer
     { _iceURLs       :: List1 TurnURI
     , _iceUsername   :: TurnUsername
     , _iceCredential :: AsciiBase64
-    } deriving Show
+    } deriving (Show, Generic)
 
 -- | TURN server URI of the form \"turn:<addr>:<port>\"
 data TurnURI = TurnURI
@@ -134,11 +134,11 @@ instance FromJSON RTCConfiguration where
 
 
 instance ToJSON RTCIceServer where
-    toJSON (RTCIceServer urls name cred) = object
-        [ "urls"       .= urls
-        , "username"   .= name
-        , "credential" .= cred
-        ]
+    toEncoding (RTCIceServer urls name cred) = pairs
+        (  "urls"       .= urls
+        <> "username"   .= name
+        <> "credential" .= cred
+        )
 
 instance FromJSON RTCIceServer where
     parseJSON = withObject "RTCIceServer" $ \o ->

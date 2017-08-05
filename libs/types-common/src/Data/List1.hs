@@ -54,6 +54,7 @@ head = N.head . toNonEmpty
 
 instance ToJSON a => ToJSON (List1 a) where
     toJSON = toJSON . toList
+    toEncoding = toEncoding . toList
 
 instance FromJSON a => FromJSON (List1 a) where
     parseJSON a@(Array v)
