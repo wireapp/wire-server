@@ -46,6 +46,7 @@ import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import Prelude hiding (head)
 
 import qualified Data.Text.Ascii               as Ascii
+import qualified Data.List1                    as List1
 import qualified Control.Concurrent.Async      as Async
 import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
@@ -1219,7 +1220,7 @@ updateUser (_ ::: uid ::: conn ::: req) = do
 changeAccountStatus :: JSON ::: UserId ::: Request -> Handler Response
 changeAccountStatus (_ ::: usr ::: req) = do
     status <- suStatus <$> parseJsonBody req
-    API.changeAccountStatus usr status !>> accountStatusError
+    API.changeAccountStatus (List1.singleton usr) status !>> accountStatusError
     return empty
 
 getAccountStatus :: JSON ::: UserId -> Handler Response

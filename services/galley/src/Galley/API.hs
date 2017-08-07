@@ -659,6 +659,10 @@ sitemap = do
         .&. contentType "application" "json"
         .&. accept "application" "json"
 
+    get "/i/teams/:tid/members" (continue uncheckedGetTeamMembers) $
+        capture "tid"
+        .&. accept "application" "json"
+
     get "/i/teams/:tid/members/:uid" (continue uncheckedGetTeamMember) $
         capture "tid"
         .&. capture "uid"

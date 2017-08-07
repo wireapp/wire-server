@@ -20,6 +20,7 @@ module Galley.API.Teams
     , updateTeamMember
     , uncheckedAddTeamMember
     , uncheckedGetTeamMember
+    , uncheckedGetTeamMembers
     , uncheckedRemoveTeamMember
     ) where
 
@@ -181,6 +182,11 @@ uncheckedGetTeamMember :: TeamId ::: UserId ::: JSON -> Galley Response
 uncheckedGetTeamMember (tid ::: uid ::: _) = do
     mem <- Data.teamMember tid uid >>= ifNothing teamMemberNotFound
     return . json $ teamMemberJson True mem
+
+uncheckedGetTeamMembers :: TeamId ::: JSON -> Galley Response
+uncheckedGetTeamMembers (tid ::: _) = do
+    mems <- Data.teamMembers tid
+    return . json $ teamMemberListJson True (newTeamMemberList mems)
 
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do

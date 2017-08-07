@@ -34,6 +34,7 @@ module Brig.IO.Intra
     , addTeamMember
     , createTeam
     , getTeamMember
+    , getTeamMembers
     , getTeam
     ) where
 
@@ -528,6 +529,14 @@ getTeamMember u tid = do
     req = paths ["i", "teams", toByteString' tid, "members", toByteString' u]
         . zUser u
         . expect [status200, status404]
+
+getTeamMembers :: TeamId -> AppIO Team.TeamMemberList
+getTeamMembers tid = do
+    debug $ remote "galley" . msg (val "Get team members")
+    galleyRequest GET req >>= decodeBody "galley"
+  where
+    req = paths ["i", "teams", toByteString' tid, "members"]
+        . expect2xx
 
 getTeam :: UserId -> TeamId -> AppIO Team.Team
 getTeam u tid = do
