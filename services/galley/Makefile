@@ -1,15 +1,16 @@
-SHELL        := /usr/bin/env bash
-NAME         := galley
-VERSION      ?=
-BUILD_NUMBER ?= 0
-BUILD_LABEL  ?= local
-BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT       := dist/$(NAME)-integration
-EXE_SCHEMA   := dist/$(NAME)-schema
-DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
-DEB_IT       := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
-DEB_SCHEMA   := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
-KEIRETSU_ENV ?= ../.env
+SHELL         := /usr/bin/env bash
+NAME          := galley
+VERSION       ?=
+BUILD_NUMBER  ?= 0
+BUILD_LABEL   ?= local
+BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
+EXE_IT        := dist/$(NAME)-integration
+EXE_SCHEMA    := dist/$(NAME)-schema
+DEB           := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
+DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
+DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
+DEB_JOURNALER := $(NAME)-journaler_$(VERSION)+$(BUILD)_amd64.deb
+KEIRETSU_ENV  ?= ../.env
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -40,7 +41,7 @@ compile:
 	stack build --pedantic --test --no-copy-bins
 
 .PHONY: dist
-dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
+dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) $(DEB_JOURNALER) .metadata
 
 $(DEB):
 	makedeb --name=$(NAME) \
@@ -62,6 +63,14 @@ $(DEB_SCHEMA):
 	makedeb --name=$(NAME)-schema \
 	 --version=$(VERSION) \
 	 --debian-dir=deb-schema \
+	 --build=$(BUILD) \
+	 --architecture=amd64 \
+	 --output-dir=dist
+
+$(DEB_JOURNALER):
+	makedeb --name=$(NAME)-journaler \
+	 --version=$(VERSION) \
+	 --debian-dir=deb-journaler \
 	 --build=$(BUILD) \
 	 --architecture=amd64 \
 	 --output-dir=dist

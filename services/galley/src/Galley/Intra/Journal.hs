@@ -6,6 +6,9 @@ module Galley.Intra.Journal
     ( teamCreate
     , teamUpdate
     , teamDelete
+    , bytes
+    , evData
+    , nowInt
     ) where
 
 import Control.Lens

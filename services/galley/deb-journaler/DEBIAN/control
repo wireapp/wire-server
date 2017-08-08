@@ -1,5 +1,5 @@
-Package: galley-schema
+Package: galley-journaler
 Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
 Maintainer: Wire Swiss GmbH <backend@wire.com>
 Architecture: amd64
-Description: Schema Definition / Migration for Galley
+Description: Journaler script for team events
