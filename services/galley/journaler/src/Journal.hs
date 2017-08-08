@@ -13,6 +13,7 @@ import Data.Id
 import Data.ByteString.Conversion
 import Data.Monoid ((<>))
 import Data.Int
+import Data.Maybe (fromMaybe)
 import Proto.TeamEvents
 import Galley.Types.Teams
 import System.Logger (Logger)
@@ -42,9 +43,9 @@ runCommand l env c start = void $ C.runClient c $ do
 
     journal :: Row -> C.Client ()
     journal (tid, _, s, time) = C.runClient c $ case s of
-          PendingDelete -> liftIO $ journalTeamDelete tid
-          Deleted       -> liftIO $ journalTeamDelete tid
-          Alive         -> do
+          Just PendingDelete -> liftIO $ journalTeamDelete tid
+          Just Deleted       -> liftIO $ journalTeamDelete tid
+          _                  -> do
               mems <- Data.teamMembers tid
               liftIO $ journalTeamCreate tid mems time
 
@@ -54,9 +55,10 @@ runCommand l env c start = void $ C.runClient c $ do
         let event = TeamEvent TeamEvent'TEAM_DELETE (Journal.bytes tid) now Nothing
         Aws.execute env (Aws.enqueue event)
 
-    journalTeamCreate :: TeamId -> [TeamMember] -> Int64 -> IO ()
+    journalTeamCreate :: TeamId -> [TeamMember] -> Maybe Int64 -> IO ()
     journalTeamCreate tid mems time = do
-        let creationTimeSeconds = time `div` 1000000 -- writetime is in microseconds on cassandra 2.1
+        now <- Journal.nowInt
+        let creationTimeSeconds = maybe now (`div` 1000000) time  -- writetime is in microseconds in cassandra 2.1
         let bUsers = view userId <$> filter (`hasPermission` SetBilling) mems
         let eData = Journal.evData (fromIntegral $ length mems) bUsers
         let event = TeamEvent TeamEvent'TEAM_CREATE (Journal.bytes tid) creationTimeSeconds (Just eData)
@@ -71,7 +73,7 @@ teamSelectFrom = "SELECT team, binding, status, writetime(binding) FROM team WHE
 
 -- Utils
 
-type Row = (TeamId, Bool, TeamStatus, Int64)
+type Row = (TeamId, Maybe Bool, Maybe TeamStatus, Maybe Int64)
 
 filterBinding :: [Row] -> [Row]
-filterBinding = filter (\(_, b, _, _) -> b)
+filterBinding = filter (\(_, b, _, _) -> fromMaybe False b)
