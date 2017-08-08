@@ -54,6 +54,7 @@ library
       , lens-aeson
       , network-uri           >= 2.6
       , pem                   >= 0.2
+      , safe                  >= 0.3
       , scientific            >= 0.3.4
       , singletons            >= 2.0
       , swagger               >= 0.1

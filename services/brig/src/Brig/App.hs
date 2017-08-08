@@ -158,7 +158,7 @@ newEnv o = do
     zau <- initZAuth o
     clock <- mkAutoUpdate defaultUpdateSettings { updateAction = getCurrentTime }
     w   <- FS.startManagerConf
-         $ FS.defaultConfig { FS.confDebounce = FS.Debounce 5, FS.confPollInterval = 10000000 }
+         $ FS.defaultConfig { FS.confDebounce = FS.Debounce 0.5, FS.confPollInterval = 10000000 }
     g   <- geoSetup lgr w (optGeoDb o)
     t   <- turnSetup lgr w sha512 (optTurnServers o) (optTurnLifetime o)
             =<< (Text.encodeUtf8 . Text.strip <$> Text.readFile (optTurnSecret o))
@@ -399,7 +399,7 @@ locationOf ip = view geoDb >>= \case
     Nothing -> return Nothing
 
 readTurnList :: FilePath -> IO (Maybe (List1 IpAddr))
-readTurnList = readFile >=> return . fn . mapMaybe readMay . lines
+readTurnList = Text.readFile >=> return . fn . mapMaybe readMay . fmap Text.unpack . Text.lines
   where
     fn []     = Nothing
     fn (x:xs) = Just (list1 x xs)

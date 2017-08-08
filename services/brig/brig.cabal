@@ -294,6 +294,7 @@ test-suite brig-integration
         API.Search
         API.Search.Util
         API.Team
+        API.TURN
         API.User.Auth
         Util
 
@@ -314,6 +315,7 @@ test-suite brig-integration
       , directory             >= 1.2
       , errors                >= 1.4
       , exceptions            >= 0.5
+      , filepath              >= 1.4
       , galley-types
       , gundeck-types
       , http-client
@@ -330,10 +332,12 @@ test-suite brig-integration
       , random                >= 1.0
       , safe                  >= 0.3
       , semigroups
+      , shelly
       , tasty                 >= 0.3.1
       , tasty-cannon          >= 0.3.4
       , tasty-hunit           >= 0.2
       , time                  >= 1.5
+      , temporary             >= 1.2.1
       , text                  >= 0.11
       , tinylog
       , transformers          >= 0.3
@@ -346,6 +350,6 @@ test-suite brig-integration
       , wai-route
       , wai-utilities         >= 0.9
       , warp
-      , warp-tls             >= 3.2
+      , warp-tls              >= 3.2
       , zauth
 

@@ -31,7 +31,7 @@ module Brig.Types.TURN
     , tuT
     , tuRandom
     )
-where
+    where
 
 import           Control.Lens               hiding ((.=))
 import           Data.Aeson
@@ -52,6 +52,7 @@ import           Data.Text.Strict.Lens      (utf8)
 import           Data.Time.Clock.POSIX
 import           Data.Word
 import           GHC.Generics               (Generic)
+import           Safe                       (readMay)
 
 -- | A configuration object resembling \"RTCConfiguration\"
 --
@@ -61,7 +62,7 @@ import           GHC.Generics               (Generic)
 --
 data RTCConfiguration = RTCConfiguration
     { _rtcConfIceServers :: List1 RTCIceServer
-    , _rtcConfTTL        :: Maybe Word32
+    , _rtcConfTTL        :: Word32
     } deriving (Show, Generic)
 
 -- | A configuration object resembling \"RTCIceServer\"
@@ -79,11 +80,11 @@ data TurnURI = TurnURI
     { _turiHost :: TurnHost
     , _turiPort :: Port
     }
-    deriving (Show, Generic)
+    deriving (Eq, Show, Generic)
 
 -- future versions may allow using a hostname
 newtype TurnHost = TurnHost IpAddr
-    deriving (Show, Generic)
+    deriving (Eq, Show, Generic)
 
 data TurnUsername = TurnUsername
     { _tuExpiresAt :: POSIXTime
@@ -94,7 +95,7 @@ data TurnUsername = TurnUsername
     } deriving (Show, Generic)
 
 
-rtcConfiguration :: List1 RTCIceServer -> Maybe Word32 -> RTCConfiguration
+rtcConfiguration :: List1 RTCIceServer -> Word32 -> RTCConfiguration
 rtcConfiguration = RTCConfiguration
 
 rtcIceServer :: List1 TurnURI -> TurnUsername -> AsciiBase64 -> RTCIceServer
@@ -130,7 +131,7 @@ instance ToJSON RTCConfiguration where
 
 instance FromJSON RTCConfiguration where
     parseJSON = withObject "RTCConfiguration" $ \o ->
-        RTCConfiguration <$> o .: "ice_servers" <*> o .:? "ttl"
+        RTCConfiguration <$> o .: "ice_servers" <*> o .: "ttl"
 
 
 instance ToJSON RTCIceServer where
@@ -153,12 +154,18 @@ instance ToJSON TurnURI where
        <> TB.decimal (portNumber (view turiPort uri))
 
 instance FromJSON TurnURI where
-    parseJSON = withText "TurnURI" $ \t -> do
-        (h,p) <- maybe (fail "Invalid scheme")
-                       (pure . bimap String (String . T.dropWhile (==':'))
-                             . T.span (/=':'))
-                       (T.stripPrefix "turn:" t)
-        TurnURI <$> parseJSON h <*> parseJSON p
+    parseJSON = withText "TurnURI" $
+        either fail pure . parseOnly (parseTurnURI <* endOfInput)
+
+parseTurnURI :: Parser TurnURI
+parseTurnURI = TurnURI 
+    <$> ((string "turn:" *> takeWhile1 (/=':') <* char ':') >>= txtToTurnHost)
+    <*> decimal
+
+txtToTurnHost :: Text -> Parser TurnHost
+txtToTurnHost t = case readMay (T.unpack t) of
+    Just h  -> return (TurnHost h)
+    Nothing -> fail ("txtToTurnHost: Could not parse as IpAddr: " ++ show t)
 
 
 instance ToJSON   TurnHost

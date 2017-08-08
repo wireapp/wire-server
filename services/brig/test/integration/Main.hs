@@ -16,6 +16,7 @@ import qualified API           as User
 import qualified API.Provider  as Provider
 import qualified API.Search    as Search
 import qualified API.Team      as Team
+import qualified API.TURN      as TURN
 import qualified API.User.Auth as UserAuth
 import qualified System.Logger as Logger
 
@@ -23,9 +24,10 @@ main :: IO ()
 main = lookupEnv "INTEGRATION_TEST" >>= maybe (return ()) (const run)
   where
     run = withOpenSSL $ do
-        brig    <- mkEndpoint . read <$> getEnv "BRIG_WEB_PORT"
-        cannon  <- mkEndpoint . read <$> getEnv "CANNON_WEB_PORT"
-        galley  <- mkEndpoint . read <$> getEnv "GALLEY_WEB_PORT"
+        brig     <- mkEndpoint . read <$> getEnv "BRIG_WEB_PORT"
+        cannon   <- mkEndpoint . read <$> getEnv "CANNON_WEB_PORT"
+        galley   <- mkEndpoint . read <$> getEnv "GALLEY_WEB_PORT"
+        turnFile <- getEnv "TURN_SERVERS"
 
         lg <- Logger.new Logger.defSettings
         db <- initCassandra lg
@@ -36,6 +38,7 @@ main = lookupEnv "INTEGRATION_TEST" >>= maybe (return ()) (const run)
         providerApi <- Provider.tests mg db brig cannon galley
         searchApis  <- Search.tests mg brig
         teamApis    <- Team.tests mg brig galley
+        turnApi     <- TURN.tests mg brig turnFile
 
         defaultMain $ testGroup "Brig API Integration"
             [ userApi
@@ -43,6 +46,7 @@ main = lookupEnv "INTEGRATION_TEST" >>= maybe (return ()) (const run)
             , providerApi
             , searchApis
             , teamApis
+            , turnApi
             ]
 
 initCassandra :: Logger -> IO Cql.ClientState

@@ -41,6 +41,7 @@ import Test.Tasty.Cannon hiding (Cannon)
 import Test.Tasty.HUnit
 import Safe
 import System.Environment (getEnv)
+import System.Random (randomIO)
 import Web.Cookie (parseSetCookie, setCookieName)
 import Util
 
@@ -69,7 +70,7 @@ tests p b c g = do
             , test p "post /register - 201 anonymous"           $ testCreateUserAnon b g
             , test p "post /register - 201 pending"             $ testCreateUserPending b
             , test p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey b
-            , test p "post /register - 409"                     $ testCreateUserConflict b
+            , test p "post /register - 409 conflict"            $ testCreateUserConflict b
             , test p "post /register - 400"                     $ testCreateUserInvalidPhone b
             , test p "post /register - 403"                     $ testCreateUserBlacklist b
             , test p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b
@@ -258,7 +259,7 @@ testCreateUserNoEmailNoPassword brig = do
 
 testCreateUserConflict :: Brig -> Http ()
 testCreateUserConflict brig = do
-    u <- createUser "conflict" "test@wearezeta.com" brig
+    u <- createUser "conflict" "test@simulator.amazonses.com" brig
     let p = RequestBodyLBS . encode $ object
             [ "name"     .= ("conflict1" :: Text)
             , "email"    .= (fromEmail <$> userEmail u) -- dup. email
@@ -268,10 +269,11 @@ testCreateUserConflict brig = do
         const 409 === statusCode
         const (Just "key-exists") === fmap Error.label . decodeBody
 
-    -- Untrusted domain and thus "<uuid>@zinfra.io" considered equal
-    -- to "<uuid>+<anything>@zinfra.io"
-    rd <- liftIO UUID.nextRandom
-    let email = UUID.toText rd <> "@zinfra.io"
+    -- Untrusted domain and thus "<anything>@zinfra.io" considered equal
+    -- to "<anything>+<uuid>@zinfra.io"
+    -- NOTE: local part cannot be longer than 64 octets
+    rd <- liftIO (randomIO :: IO Integer)
+    let email = (T.pack $ show rd) <> "@zinfra.io"
     u2 <- createUser "conflict" email brig
     let Just (Email loc dom) = userEmail u2
     let p2 = RequestBodyLBS . encode $ object

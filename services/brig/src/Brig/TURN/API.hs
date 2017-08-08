@@ -18,6 +18,8 @@ import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lens
 import Data.Id
 import Data.IORef
+import Data.List1 (List1)
+import Data.Misc (IpAddr)
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
 import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -26,7 +28,7 @@ import Data.Word
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (setStatus, result, and, (#))
-import Network.Wai.Routing
+import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities hiding (message, code)
 import Network.Wai.Utilities.Swagger (document)
 import Prelude hiding (head)
@@ -55,14 +57,17 @@ getCallsConfig (_ ::: _ ::: _) = json <$> lift newConfig
     newConfig :: (MonadIO m, MonadReader Env m) => m RTCConfiguration
     newConfig = do
         env  <- liftIO =<< readIORef <$> view turnEnv
-        srvs <- for (env^.turnServers) $ \srv -> do
+        srvs <- for (randomize 2 (env^.turnServers)) $ \srv -> do
                     u <- liftIO $ genUsername (env^.turnTTL) (env^.turnPrng)
                     pure $
                         rtcIceServer (List1.singleton $ turnURI (_TurnHost # srv) 3478)
                                      u
-                                     (computeCred (view turnSHA512 env) (view turnSecret env) u)
-        pure $ rtcConfiguration srvs (Just (view turnTTL env))
+                                     (computeCred (env^.turnSHA512) (env^.turnSecret) u)
+        pure $ rtcConfiguration srvs (env^.turnTTL)
       where
+        randomize :: Int -> List1 IpAddr -> List1 IpAddr
+        randomize _ xs = xs
+
         genUsername :: Word32 -> MWC.GenIO -> IO TurnUsername
         genUsername ttl prng = do
             rnd <- view (packedBytes . utf8) <$> replicateM 16 (MWC.uniformR (97, 122) prng)

@@ -27,6 +27,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import System.Environment
 import System.Logger (Logger)
+import System.Random (randomIO)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
@@ -158,8 +159,9 @@ testHandleLogin brig = do
 
 testLoginUntrustedDomain :: Brig -> Http ()
 testLoginUntrustedDomain brig = do
-    rd <- liftIO UUID.nextRandom
-    let email = UUID.toText rd <> "@zinfra.io"
+    -- NOTE: local part cannot be longer than 64 octets
+    rd <- liftIO (randomIO :: IO Integer)
+    let email = (Text.pack $ show rd) <> "@zinfra.io"
     Just (Email loc dom) <- userEmail <$> createUser "Homer" email brig
     -- login without "+" suffix
     let email' = Email (Text.takeWhile (/= '+') loc) dom
