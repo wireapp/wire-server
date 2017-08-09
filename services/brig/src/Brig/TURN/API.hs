@@ -21,6 +21,7 @@ import Data.Id
 import Data.IORef
 import Data.List1 (List1)
 import Data.Foldable (toList)
+import Data.Range
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
 import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -60,7 +61,7 @@ getCallsConfig (_ ::: _ ::: _) = json <$> lift newConfig
     newConfig = do
         env  <- liftIO =<< readIORef <$> view turnEnv
         let (sha, secret, ttl, prng) = ((env^.turnSHA512), (env^.turnSecret), (env^.turnTTL), (env^.turnPrng))
-        uris <- liftIO $ randomize 2 (env^.turnServers)
+        uris <- liftIO $ randomize (unsafeRange 2) (env^.turnServers)
         srvs <- for uris $ \uri -> do
                     u <- liftIO $ genUsername ttl prng
                     pure $ rtcIceServer (List1.singleton uri) u (computeCred sha secret u)
@@ -68,9 +69,9 @@ getCallsConfig (_ ::: _ ::: _) = json <$> lift newConfig
       where
         -- TODO: Ideally, we should group these by host and return a [[TurnURI]] but
         -- in reality we only advertise/check the UDP port
-        randomize :: MonadRandom m => Int -> List1 TurnURI -> m (List1 TurnURI)
+        randomize :: MonadRandom m => Range 1 8 Int -> List1 TurnURI -> m (List1 TurnURI)
         randomize n xs = do
-            (f:fs) <- take n <$> shuffleM (toList xs)
+            (f:fs) <- take (fromRange n) <$> shuffleM (toList xs)
             return $ List1.list1 f fs
 
         genUsername :: Word32 -> MWC.GenIO -> IO TurnUsername
