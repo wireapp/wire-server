@@ -53,7 +53,7 @@ import Brig.Provider.Template
 import Brig.Team.Template
 import Brig.User.Search.Index (runIndexIO, IndexEnv (..), MonadIndexIO (..))
 import Brig.User.Template
-import Brig.Types (Locale (..))
+import Brig.Types (Locale (..), TurnURI)
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import Cassandra (MonadClient (..), Keyspace (..), runClient)
 import Cassandra.Schema (versionCheck)
@@ -398,8 +398,8 @@ locationOf ip = view geoDb >>= \case
             return (location (Latitude lat) (Longitude lon))
     Nothing -> return Nothing
 
-readTurnList :: FilePath -> IO (Maybe (List1 IpAddr))
-readTurnList = Text.readFile >=> return . fn . mapMaybe readMay . fmap Text.unpack . Text.lines
+readTurnList :: FilePath -> IO (Maybe (List1 TurnURI))
+readTurnList = Text.readFile >=> return . fn . mapMaybe fromByteString . fmap Text.encodeUtf8 . Text.lines
   where
     fn []     = Nothing
     fn (x:xs) = Just (list1 x xs)

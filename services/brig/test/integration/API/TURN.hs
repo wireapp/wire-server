@@ -37,7 +37,7 @@ tests m b (T.pack -> t) = do
         , test m "multiple servers /calls/config - 200" $ resetTurn >> testCallsConfigMultiple b (setTurn t)
         ]
   where
-    resetTurn = liftIO $ setTurn t "127.0.0.1"
+    resetTurn = liftIO $ setTurn t "turn:127.0.0.1:3478"
 
 testCallsConfig :: Brig -> Http ()
 testCallsConfig b = do
@@ -54,14 +54,14 @@ testCallsConfigMultiple b st = do
     assertConfiguration cfg expected
 
     -- Change server list
-    liftIO $ st "127.0.0.2\n127.0.0.3"
+    liftIO $ st "turn:127.0.0.2:3478\nturn:127.0.0.3:3478"
     let expected' = List1.list1 (toTurnURI "127.0.0.2" 3478)
                                [(toTurnURI "127.0.0.3" 3478)]
     cfg' <- getTurnConfiguration uid b
     assertConfiguration cfg' expected'
 
     -- Revert the config file back to the original
-    liftIO $ st "127.0.0.1"
+    liftIO $ st "turn:127.0.0.1:3478"
     cfg'' <- getTurnConfiguration uid b
     assertConfiguration cfg'' expected
 

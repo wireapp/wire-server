@@ -11,7 +11,7 @@ import Brig.App
 import Brig.TURN hiding (Env)
 import Brig.Types.TURN 
 import Brig.API.Handler
-import Control.Lens (view, (^.), (#))
+import Control.Lens (view, (^.))
 import Control.Monad.Reader
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion (toByteString')
@@ -19,7 +19,6 @@ import Data.ByteString.Lens
 import Data.Id
 import Data.IORef
 import Data.List1 (List1)
-import Data.Misc (IpAddr)
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
 import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -57,15 +56,14 @@ getCallsConfig (_ ::: _ ::: _) = json <$> lift newConfig
     newConfig :: (MonadIO m, MonadReader Env m) => m RTCConfiguration
     newConfig = do
         env  <- liftIO =<< readIORef <$> view turnEnv
-        srvs <- for (randomize 2 (env^.turnServers)) $ \srv -> do
-                    u <- liftIO $ genUsername (env^.turnTTL) (env^.turnPrng)
-                    pure $
-                        rtcIceServer (List1.singleton $ turnURI (_TurnHost # srv) 3478)
-                                     u
-                                     (computeCred (env^.turnSHA512) (env^.turnSecret) u)
-        pure $ rtcConfiguration srvs (env^.turnTTL)
+        let (sha, secret, ttl, prng) = ((env^.turnSHA512), (env^.turnSecret), (env^.turnTTL), (env^.turnPrng))
+        srvs <- for (randomize 2 (env^.turnServers)) $ \uri -> do
+                    u <- liftIO $ genUsername ttl prng
+                    pure $ rtcIceServer (List1.singleton uri) u (computeCred sha secret u)
+        pure $ rtcConfiguration srvs ttl
       where
-        randomize :: Int -> List1 IpAddr -> List1 IpAddr
+        -- TODO: Ideally, we should group these by host and return a (List1 (List1 TurnURI))
+        randomize :: Int -> List1 TurnURI -> List1 TurnURI
         randomize _ xs = xs
 
         genUsername :: Word32 -> MWC.GenIO -> IO TurnUsername

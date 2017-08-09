@@ -38,7 +38,6 @@ import qualified Bilge                as Http
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Brig.ZAuth           as ZAuth
 import qualified Data.Text            as Text
-import qualified Data.UUID            as UUID
 import qualified Data.UUID.V4         as UUID
 
 import qualified Network.Wai.Utilities.Error as Error

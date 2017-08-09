@@ -31,7 +31,7 @@ module Brig.Types.TURN
     , tuT
     , tuRandom
     )
-    where
+where
 
 import           Control.Lens               hiding ((.=))
 import           Data.Aeson
@@ -152,6 +152,9 @@ instance ToJSON TurnURI where
        <> view (turiHost . re (_JSON :: Prism' Value TurnHost) . _String . lazy . builder) uri
        <> ":"^.builder
        <> TB.decimal (portNumber (view turiPort uri))
+
+instance BC.FromByteString TurnURI where
+    parser = BC.parser >>= either (fail "Invalid TurnURI") pure . parseOnly (parseTurnURI <* endOfInput)
 
 instance FromJSON TurnURI where
     parseJSON = withText "TurnURI" $
