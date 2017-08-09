@@ -154,21 +154,21 @@ instance ToJSON TurnURI where
        <> TB.decimal (portNumber (view turiPort uri))
 
 instance BC.FromByteString TurnURI where
-    parser = BC.parser >>= either (fail "Invalid TurnURI") pure . parseOnly (parseTurnURI <* endOfInput)
+    parser = BC.parser >>= either fail pure . parseTurnURI
 
 instance FromJSON TurnURI where
-    parseJSON = withText "TurnURI" $
-        either fail pure . parseOnly (parseTurnURI <* endOfInput)
+    parseJSON = withText "TurnURI" $ either fail pure . parseTurnURI
 
-parseTurnURI :: Parser TurnURI
-parseTurnURI = TurnURI 
-    <$> ((string "turn:" *> takeWhile1 (/=':') <* char ':') >>= txtToTurnHost)
-    <*> decimal
+parseTurnURI :: Text -> Either String TurnURI
+parseTurnURI = parseOnly (parser <* endOfInput)
+  where
+    parser = TurnURI
+          <$> ((string "turn:" *> takeWhile1 (/=':') <* char ':') >>= parseHost)
+          <*> decimal
 
-txtToTurnHost :: Text -> Parser TurnHost
-txtToTurnHost t = case readMay (T.unpack t) of
-    Just h  -> return (TurnHost h)
-    Nothing -> fail ("txtToTurnHost: Could not parse as IpAddr: " ++ show t)
+    parseHost t = case readMay (T.unpack t) of
+        Just h  -> return (TurnHost h)
+        Nothing -> fail ("txtToTurnHost: Could not parse as IpAddr: " ++ show t)
 
 
 instance ToJSON   TurnHost
