@@ -13,12 +13,14 @@ import Brig.Types.TURN
 import Brig.API.Handler
 import Control.Lens (view, (^.))
 import Control.Monad.Reader
+import Control.Monad.Random.Class
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lens
 import Data.Id
 import Data.IORef
 import Data.List1 (List1)
+import Data.Foldable (toList)
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
 import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX (getPOSIXTime)
@@ -31,6 +33,7 @@ import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities hiding (message, code)
 import Network.Wai.Utilities.Swagger (document)
 import Prelude hiding (head)
+import System.Random.Shuffle
 
 import qualified Brig.Types.Swagger            as Doc
 import qualified Data.List1                    as List1
@@ -57,14 +60,18 @@ getCallsConfig (_ ::: _ ::: _) = json <$> lift newConfig
     newConfig = do
         env  <- liftIO =<< readIORef <$> view turnEnv
         let (sha, secret, ttl, prng) = ((env^.turnSHA512), (env^.turnSecret), (env^.turnTTL), (env^.turnPrng))
-        srvs <- for (randomize 2 (env^.turnServers)) $ \uri -> do
+        uris <- liftIO $ randomize 2 (env^.turnServers)
+        srvs <- for uris $ \uri -> do
                     u <- liftIO $ genUsername ttl prng
                     pure $ rtcIceServer (List1.singleton uri) u (computeCred sha secret u)
         pure $ rtcConfiguration srvs ttl
       where
-        -- TODO: Ideally, we should group these by host and return a (List1 (List1 TurnURI))
-        randomize :: Int -> List1 TurnURI -> List1 TurnURI
-        randomize _ xs = xs
+        -- TODO: Ideally, we should group these by host and return a [[TurnURI]] but
+        -- in reality we only advertise/check the UDP port
+        randomize :: MonadRandom m => Int -> List1 TurnURI -> m (List1 TurnURI)
+        randomize n xs = do
+            (f:fs) <- take n <$> shuffleM (toList xs)
+            return $ List1.list1 f fs
 
         genUsername :: Word32 -> MWC.GenIO -> IO TurnUsername
         genUsername ttl prng = do

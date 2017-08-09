@@ -134,6 +134,7 @@ library
       , mime-mail                 >= 0.4
       , metrics-core              >= 0.3
       , metrics-wai               >= 0.3
+      , MonadRandom               >= 0.5
       , mtl                       >= 2.1
       , multihash                 >= 0.1.3
       , mwc-random
@@ -147,6 +148,7 @@ library
       , scrypt                    >= 0.5
       , semigroups                >= 0.15
       , singletons                >= 2.0
+      , random-shuffle            >= 0.0.3
       , sodium-crypto-sign        >= 0.1
       , statistics                >= 0.13
       , swagger                   >= 0.1
