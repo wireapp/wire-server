@@ -334,7 +334,6 @@ test-suite brig-integration
       , random                >= 1.0
       , safe                  >= 0.3
       , semigroups
-      , shelly
       , tasty                 >= 0.3.1
       , tasty-cannon          >= 0.3.4
       , tasty-hunit           >= 0.2

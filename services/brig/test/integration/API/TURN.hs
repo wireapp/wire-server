@@ -15,23 +15,21 @@ import Data.List ((\\))
 import Data.List1 (List1)
 import Data.Maybe (fromMaybe)
 import Data.Misc (Port)
-import Data.Text (Text)
 import Network.HTTP.Client (Manager)
 import Safe (readMay)
 import System.IO.Temp (writeTempFile)
 import System.FilePath.Posix (FilePath)
+import System.Directory (copyFile, removeFile, getTemporaryDirectory)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 
 import qualified Data.List1   as List1
-import qualified Data.Text    as T
-import qualified Shelly
 
 type TurnUpdater = String -> IO ()
 
 tests :: Manager -> Brig -> FilePath -> IO TestTree
-tests m b (T.pack -> t) = do
+tests m b t = do
     return $ testGroup "turn"
         [ test m "basic /calls/config - 200"            $ resetTurn >> testCallsConfig b
         , test m "multiple servers /calls/config - 200" $ resetTurn >> testCallsConfigMultiple b (setTurn t)
@@ -80,8 +78,11 @@ assertConfiguration cfg turns =
     checkIceServer :: RTCIceServer -> [TurnURI] -> Http [TurnURI]
     checkIceServer srv uris = do
         let iceURIs = toList (srv^.iceURLs)
-        liftIO $ assertBool "Some advertised URIs not expected" (all (`elem` uris) iceURIs)
+        liftIO $ assertBool (diff iceURIs uris) (all (`elem` uris) iceURIs)
         return (uris \\ iceURIs)
+      where
+        diff advertised expected = "Some advertised URIs not expected, advertised: "
+            ++ show advertised ++ " expected: " ++ show expected
 
 getTurnConfiguration :: UserId -> Brig -> Http RTCConfiguration
 getTurnConfiguration u b = do
@@ -97,12 +98,14 @@ toTurnURI h p = turnURI (_TurnHost # ip) p
     ip = fromMaybe (error "Failed to parse ip address")
        $ readMay h
 
-setTurn :: Text -> String -> IO ()
+setTurn :: FilePath -> String -> IO ()
 setTurn cfgDest newConf = do
-    tmpPathFile <- T.pack <$> writeTempFile "/tmp" ".turn.tmp" newConf
-    let cfgPath = Shelly.fromText cfgDest
-        tmpPath = Shelly.fromText tmpPathFile
-    Shelly.shelly $! Shelly.mv tmpPath cfgPath
+    tmpDir <- getTemporaryDirectory
+    tmpPathFile <- writeTempFile tmpDir "-turn.tmp" newConf
+    copyFile tmpPathFile cfgDest
     -- TODO: This must be higher than the value specified
     -- in the watcher in Brig.App (currently, 0.5 seconds)
     threadDelay 1000000
+    -- Note that this may leave temporary files behind in
+    -- case of some exceptions
+    removeFile tmpPathFile

@@ -41,8 +41,9 @@ extra-deps:
 - geoip2-0.2.2.0
 - html-entities-1.1.4.1
 - raw-strings-qq-1.0.2
+- temporary-1.2.1.1
 - text-icu-translit-0.1.0.7
 - text-latin1-0.3
 - text-printer-0.5
 - wai-middleware-gunzip-0.0.2
-resolver: lts-9.0
+resolver: lts-8.8
