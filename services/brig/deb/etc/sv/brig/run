@@ -41,7 +41,7 @@ else
 fi
 
 if [ -n "$BRIG_TURN_TOKEN_LIFETIME" ]; then
-    TURN_TOKEN_LIFETIME="--turn-token-lifetime=\"$BRIG_TURN_TOKEN_LIFETIME\""
+    TURN_TOKEN_LIFETIME="--turn-token-lifetime=$BRIG_TURN_TOKEN_LIFETIME"
 else
     TURN_TOKEN_LIFETIME=""
 fi
