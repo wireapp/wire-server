@@ -87,6 +87,10 @@ brigModels =
     , teamInvitation
     , teamInvitationList
     , teamInvitationRequest
+
+      -- TURN
+    , rtcConfiguration
+    , rtcIceServer
     ]
 
 -------------------------------------------------------------------------------
@@ -829,3 +833,24 @@ searchableStatus = defineModel "SearchableStatus" $ do
     description "Whether the user is discoverable via search"
     property "searchable" bool' $
         description "'true' if discoverable, 'false' otherwise"
+
+--------------------------------------------------------------------------------
+-- TURN
+
+rtcConfiguration :: Model
+rtcConfiguration = defineModel "RTCConfiguration" $ do
+    description "A subset of the WebRTC 'RTCConfiguration' dictionary"
+    property "ice_servers" (array (ref rtcIceServer)) $
+        description "Array of 'RTCIceServer' objects"
+    property "ttl" int32' $
+        description "Number of seconds after which the configuration should be refreshed (advisory)"
+
+rtcIceServer :: Model
+rtcIceServer = defineModel "RTCIceServer" $ do
+    description "A subset of the WebRTC 'RTCIceServer' object"
+    property "urls" (array string') $
+        description "Array of TURN server addresses of the form 'turn:<addr>:<port>'"
+    property "username" string' $
+        description "Username to use for authenticating against the given TURN servers"
+    property "credential" string' $
+        description "Password to use for authenticating against the given TURN servers"

@@ -17,7 +17,7 @@ packages:
 - '../../libs/zauth'
 - location:
     git: https://github.com/tiago-loureiro/haskell-multihash.git
-    commit: 10a0d7d765d87fa937fafa42ee7a45f871c9758e
+    commit: ad23c413571f78e58a217a52eda1da4f87fe7084
   extra-dep: true
 - location:
     git: https://github.com/wireapp/cryptobox-haskell
@@ -41,6 +41,7 @@ extra-deps:
 - geoip2-0.2.2.0
 - html-entities-1.1.4.1
 - raw-strings-qq-1.0.2
+- temporary-1.2.1.1
 - text-icu-translit-0.1.0.7
 - text-latin1-0.3
 - text-printer-0.5

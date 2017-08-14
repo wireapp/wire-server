@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StrictData                 #-}
@@ -32,6 +33,7 @@ module Brig.App
     , digestMD5
     , metrics
     , applog
+    , turnEnv
 
       -- * App Monad
     , AppT
@@ -49,9 +51,9 @@ import Brig.Options (Opts (..), Settings (..))
 import Brig.Template (Localised, forLocale)
 import Brig.Provider.Template
 import Brig.Team.Template
-import Brig.User.Template
 import Brig.User.Search.Index (runIndexIO, IndexEnv (..), MonadIndexIO (..))
-import Brig.Types (Locale (..))
+import Brig.User.Template
+import Brig.Types (Locale (..), TurnURI)
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import Cassandra (MonadClient (..), Keyspace (..), runClient)
 import Cassandra.Schema (versionCheck)
@@ -60,22 +62,24 @@ import Control.Concurrent (forkIO)
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding ((.=))
-import Control.Monad (liftM2, void)
+import Control.Monad (liftM2, void, (>=>))
 import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
 import Control.Monad.IO.Class
 import Control.Monad.Reader.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader (ReaderT (..), runReaderT)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
+import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
-import Data.Foldable (for_)
 import Data.Id (UserId)
 import Data.IP
+import Data.List1 (list1, List1)
 import Data.Metrics (Metrics)
 import Data.Misc
 import Data.Int (Int32)
 import Data.IORef
 import Data.Time.Clock
+import Data.Word
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (getDigestByName, Digest)
@@ -85,6 +89,7 @@ import System.Logger.Class hiding (Settings, settings)
 
 import qualified Bilge                    as RPC
 import qualified Brig.Aws.Types           as Aws
+import qualified Brig.TURN                as TURN
 import qualified Brig.ZAuth               as ZAuth
 import qualified Cassandra                as Cas
 import qualified Cassandra.Settings       as Cas
@@ -92,6 +97,9 @@ import qualified Data.GeoIP2              as GeoIp
 import qualified Data.List.NonEmpty       as NE
 import qualified Data.Metrics.Middleware  as Metrics
 import qualified Database.V5.Bloodhound   as ES
+import qualified Data.Text                as Text
+import qualified Data.Text.Encoding       as Text
+import qualified Data.Text.IO             as Text
 import qualified OpenSSL.Session          as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import qualified Ropes.Aws                as Aws
@@ -122,7 +130,8 @@ data Env = Env
     , _extGetManager :: [Fingerprint Rsa] -> Manager
     , _settings      :: Settings
     , _geoDb         :: Maybe (IORef GeoIp.GeoDB)
-    , _fsWatcher     :: Maybe FS.WatchManager
+    , _fsWatcher     :: FS.WatchManager
+    , _turnEnv       :: IORef TURN.Env
     , _currentTime   :: IO UTCTime
     , _zauthEnv      :: ZAuth.Env
     , _digestSHA256  :: Digest
@@ -134,8 +143,9 @@ makeLenses ''Env
 
 newEnv :: Opts -> IO Env
 newEnv o = do
-    Just sha <- getDigestByName "SHA256"
     Just md5 <- getDigestByName "MD5"
+    Just sha256 <- getDigestByName "SHA256"
+    Just sha512 <- getDigestByName "SHA512"
     mtr <- Metrics.metrics
     lgr <- Log.new $ defSettings & setOutput StdOut . setFormat Nothing
     cas <- initCassandra o lgr
@@ -147,7 +157,11 @@ newEnv o = do
     aws <- initAws o lgr mgr
     zau <- initZAuth o
     clock <- mkAutoUpdate defaultUpdateSettings { updateAction = getCurrentTime }
-    (g, w) <- geoSetup lgr (optGeoDb o)
+    w   <- FS.startManagerConf
+         $ FS.defaultConfig { FS.confDebounce = FS.Debounce 0.5, FS.confPollInterval = 10000000 }
+    g   <- geoSetup lgr w (optGeoDb o)
+    t   <- turnSetup lgr w sha512 (optTurnServers o) (optTurnLifetime o)
+            =<< (Text.encodeUtf8 . Text.strip <$> Text.readFile (optTurnSecret o))
     return $! Env
         { _galley        = endpoint (optGalleyHost  o) (optGalleyPort  o)
         , _gundeck       = endpoint (optGundeckHost o) (optGundeckPort o)
@@ -164,11 +178,12 @@ newEnv o = do
         , _extGetManager = ext
         , _settings      = optSettings o
         , _geoDb         = g
+        , _turnEnv       = t
         , _fsWatcher     = w
         , _currentTime   = clock
         , _zauthEnv      = zau
-        , _digestSHA256  = sha
         , _digestMD5     = md5
+        , _digestSHA256  = sha256
         , _indexEnv      = mkIndexEnv o lgr mgr mtr
         }
   where
@@ -180,15 +195,21 @@ mkIndexEnv o lgr mgr mtr =
         lgr' = Log.clone (Just "index.brig") lgr
     in IndexEnv mtr lgr' bhe Nothing (optUserIndex o)
 
-geoSetup :: Logger -> Maybe FilePath -> IO (Maybe (IORef GeoIp.GeoDB), Maybe FS.WatchManager)
-geoSetup _   Nothing   = return (Nothing, Nothing)
-geoSetup lgr (Just db) = do
-    let cfg = FS.defaultConfig { FS.confDebounce = FS.Debounce 5, FS.confPollInterval = 10000000 }
+geoSetup :: Logger -> FS.WatchManager -> Maybe FilePath -> IO (Maybe (IORef GeoIp.GeoDB))
+geoSetup _   _ Nothing   = return Nothing
+geoSetup lgr w (Just db) = do
     path  <- canonicalizePath db
     geodb <- newIORef =<< GeoIp.openGeoDB path
-    watch <- FS.startManagerConf cfg
-    startWatching watch path (replaceGeoDb lgr geodb)
-    return (Just geodb, Just watch)
+    startWatching w path (replaceGeoDb lgr geodb)
+    return $ Just geodb
+
+turnSetup :: Logger -> FS.WatchManager -> Digest -> FilePath -> Word32 -> ByteString -> IO (IORef TURN.Env)
+turnSetup lgr w dig f ttl secret = do
+    path    <- canonicalizePath f
+    servers <- fromMaybe (error "Empty TURN list, check turn file!") <$> readTurnList path
+    te      <- newIORef =<< TURN.newEnv dig servers ttl secret
+    startWatching w path (replaceTurnServers lgr te)
+    return te
 
 startWatching :: FS.WatchManager -> FilePath -> FS.Action -> IO ()
 startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
@@ -203,6 +224,15 @@ replaceGeoDb g ref e = do
     handleAny logErr $ do
         GeoIp.openGeoDB (FS.eventPath e) >>= atomicWriteIORef ref
         Log.info g (msg $ val "New GeoIP database loaded.")
+
+replaceTurnServers :: Logger -> IORef TURN.Env -> FS.Event -> IO ()
+replaceTurnServers g ref e = do
+    let logErr x = Log.err g (msg $ val "Error loading turn servers: " +++ show x)
+    handleAny logErr $ readTurnList (FS.eventPath e) >>= \case
+        Just servers -> readIORef ref >>= \old -> do
+            atomicWriteIORef ref (old & TURN.turnServers .~ servers)
+            Log.info g (msg $ val "New turn servers loaded.")
+        Nothing -> Log.warn g (msg $ val "Empty or malformed turn servers list, ignoring!")
 
 initAws :: Opts -> Logger -> Manager -> IO (Aws.Env, Aws.Config)
 initAws o l m = do
@@ -290,7 +320,7 @@ teamTemplates l = forLocale l <$> view tmTemplates
 closeEnv :: Env -> IO ()
 closeEnv e = do
     Cas.shutdown $ e^.casClient
-    for_ (e^.fsWatcher) FS.stopManager
+    FS.stopManager $ e^.fsWatcher
     Log.flush    $ e^.applog
     Log.close    $ e^.applog
 
@@ -360,7 +390,7 @@ forkAppIO u ma = do
     user    = maybe id (field "user" . toByteString)
 
 locationOf :: (MonadIO m, MonadReader Env m) => IP -> m (Maybe Location)
-locationOf ip = view geoDb >>= \geodb -> case geodb of
+locationOf ip = view geoDb >>= \case
     Just g -> do
         database <- liftIO $ readIORef g
         return $! do
@@ -368,3 +398,8 @@ locationOf ip = view geoDb >>= \geodb -> case geodb of
             return (location (Latitude lat) (Longitude lon))
     Nothing -> return Nothing
 
+readTurnList :: FilePath -> IO (Maybe (List1 TurnURI))
+readTurnList = Text.readFile >=> return . fn . mapMaybe fromByteString . fmap Text.encodeUtf8 . Text.lines
+  where
+    fn []     = Nothing
+    fn (x:xs) = Just (list1 x xs)

@@ -16,7 +16,7 @@ import Data.Misc (HttpsUrl)
 import Data.Monoid
 import Data.Text (Text)
 import Data.Time.Clock (DiffTime, secondsToDiffTime)
-import Data.Word (Word16)
+import Data.Word (Word16, Word32)
 import Database.V5.Bloodhound (IndexName (..))
 import Network.HTTP.Client (Request, parseRequest)
 import Options.Applicative
@@ -97,6 +97,11 @@ data Opts = Opts
       -- Misc.
     , optDiscoUrl :: Maybe String
     , optGeoDb    :: Maybe FilePath
+
+      -- TURN
+    , optTurnServers  :: !FilePath
+    , optTurnSecret   :: !FilePath
+    , optTurnLifetime :: !Word32
 
       -- Runtime settings
     , optSettings :: !Settings
@@ -333,6 +338,25 @@ parseOptions = execParser (info (helper <*> optsParser) desc)
                 <> metavar "FILE"
                 <> help "GeoDB file path")
 
+        <*> (strOption $
+                long "turn-servers"
+                <> metavar "FILE"
+                <> help "Line separated file with IP addresses of the available turn servers"
+                <> action "file")
+
+        <*> (strOption $
+                long "turn-secret"
+                <> metavar "FILE"
+                <> help "TURN shared secret file path"
+                <> action "file")
+
+        <*> (option auto $
+                long "turn-token-lifetime"
+                <> metavar "INT"
+                <> value 3600
+                <> showDefault
+                <> help "Number of seconds TURN credentials should be valid.")
+        
         <*> settingsParser
 
     settingsParser :: Parser Settings

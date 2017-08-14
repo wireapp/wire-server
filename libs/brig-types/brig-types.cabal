@@ -30,6 +30,7 @@ library
         Brig.Types.Search
         Brig.Types.Swagger
         Brig.Types.Team.Invitation
+        Brig.Types.TURN
         Brig.Types.User
         Brig.Types.User.Auth
 
@@ -49,8 +50,11 @@ library
       , iproute               >= 1.5
       , iso3166-country-codes >= 0.2
       , iso639                >= 0.1
+      , lens
+      , lens-aeson
       , network-uri           >= 2.6
       , pem                   >= 0.2
+      , safe                  >= 0.3
       , scientific            >= 0.3.4
       , singletons            >= 2.0
       , swagger               >= 0.1

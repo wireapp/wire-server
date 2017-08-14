@@ -7,3 +7,4 @@ import Brig.Types.Connection  as M
 import Brig.Types.Properties  as M
 import Brig.Types.Search      as M
 import Brig.Types.User        as M
+import Brig.Types.TURN        as M
