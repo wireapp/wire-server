@@ -90,3 +90,18 @@ instance Cql TeamBinding where
     fromCql (CqlBoolean True)  = pure Binding
     fromCql (CqlBoolean False) = pure NonBinding
     fromCql _                  = fail "teambinding: boolean expected"
+
+
+instance Cql TeamStatus where
+    ctype = Tagged IntColumn
+
+    toCql Alive           = CqlInt 0
+    toCql PendingDelete   = CqlInt 1
+    toCql Deleted         = CqlInt 2
+
+    fromCql (CqlInt i) = case i of
+        0 -> return Alive
+        1 -> return PendingDelete
+        2 -> return Deleted
+        n -> fail $ "unexpected team-status: " ++ show n
+    fromCql _ = fail "team-status: int expected"

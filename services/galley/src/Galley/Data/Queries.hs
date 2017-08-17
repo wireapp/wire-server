@@ -20,8 +20,8 @@ import qualified Data.Text.Lazy as LT
 
 -- Teams --------------------------------------------------------------------
 
-selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Text, Maybe Text, Bool, Maybe TeamBinding)
-selectTeam = "select creator, name, icon, icon_key, deleted, binding from team where team = ?"
+selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Text, Maybe Text, Bool, Maybe TeamStatus, Maybe TeamBinding)
+selectTeam = "select creator, name, icon, icon_key, deleted, status, binding from team where team = ?"
 
 selectTeamBinding :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamBinding))
 selectTeamBinding = "select binding from team where team = ?"
@@ -50,8 +50,8 @@ selectUserTeamsIn = "select team from user_team where user = ? and team in ? ord
 selectUserTeamsFrom :: PrepQuery R (UserId, TeamId) (Identity TeamId)
 selectUserTeamsFrom = "select team from user_team where user = ? and team > ? order by team"
 
-insertTeam :: PrepQuery W (TeamId, UserId, Text, Text, Maybe Text, TeamBinding) ()
-insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted, binding) values (?, ?, ?, ?, ?, false, ?)"
+insertTeam :: PrepQuery W (TeamId, UserId, Text, Text, Maybe Text, TeamStatus, TeamBinding) ()
+insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted, status, binding) values (?, ?, ?, ?, ?, false, ?, ?)"
 
 insertTeamConv :: PrepQuery W (TeamId, ConvId, Bool) ()
 insertTeamConv = "insert into team_conv (team, conv, managed) values (?, ?, ?)"
@@ -74,11 +74,11 @@ insertUserTeam = "insert into user_team (user, team) values (?, ?)"
 deleteUserTeam :: PrepQuery W (UserId, TeamId) ()
 deleteUserTeam = "delete from user_team where user = ? and team = ?"
 
-markTeamDeleted :: PrepQuery W (Identity TeamId) ()
-markTeamDeleted = "update team set deleted = true where team = ?"
+markTeamDeleted :: PrepQuery W (TeamStatus, TeamId) ()
+markTeamDeleted = "update team set status = ? where team = ?"
 
-deleteTeam :: PrepQuery W (Identity TeamId) ()
-deleteTeam = "delete from team using timestamp 32503680000000000 where team = ?"
+deleteTeam :: PrepQuery W (TeamStatus, TeamId) ()
+deleteTeam = "update team using timestamp 32503680000000000 set status = ? where team = ? "
 
 updateTeamName :: PrepQuery W (Text, TeamId) ()
 updateTeamName = "update team set name = ? where team = ?"

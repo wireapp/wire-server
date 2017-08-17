@@ -9,6 +9,7 @@
 module Galley.Types.Teams
     ( Team
     , TeamBinding (..)
+    , TeamStatus (..)
     , newTeam
     , teamId
     , teamCreator
@@ -90,7 +91,6 @@ module Galley.Types.Teams
     , TeamDeleteData
     , tdAuthPassword
     , newTeamDeleteData
-
     ) where
 
 import Control.Lens (makeLenses, (^.))
@@ -100,18 +100,23 @@ import Data.Aeson.Types (Parser, Pair)
 import Data.Bits (testBit, (.|.))
 import Data.Id (TeamId, ConvId, UserId)
 import Data.Json.Util
+import Data.Maybe (mapMaybe, isNothing)
 import Data.Misc (PlainTextPassword (..))
 import Data.Monoid
-import Data.Maybe (mapMaybe, isNothing)
 import Data.Range
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import Data.Word
 
-
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
+
+data TeamStatus
+    = Alive
+    | PendingDelete
+    | Deleted
+    deriving (Eq, Show)
 
 data TeamBinding =
       Binding

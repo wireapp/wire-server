@@ -23,6 +23,7 @@ import Gundeck.Types.Notification
 import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
+import API.SQS
 
 import qualified API.Util as Util
 import qualified Data.List1 as List1
@@ -31,36 +32,38 @@ import qualified Data.Text as T
 import qualified Galley.Types as Conv
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon as WS
+import qualified Galley.Aws as Aws
 
-tests :: Galley -> Brig -> Cannon -> Manager -> TestTree
-tests g b c m = testGroup "Teams API"
-    [ test m "create team" (testCreateTeam g b c)
-    , test m "create multiple binding teams fail" (testCreateMulitpleBindingTeams g b)
+tests :: Galley -> Brig -> Cannon -> Manager -> Maybe Aws.Env -> TestTree
+tests g b c m a = testGroup "Teams API"
+    [ test m "create team" (testCreateTeam g b c a)
+    , test m "create multiple binding teams fail" (testCreateMulitpleBindingTeams g b a)
     , test m "create team with members" (testCreateTeamWithMembers g b c)
     , test m "add new team member" (testAddTeamMember g b c)
-    , test m "add new team member binding teams" (testAddTeamMemberCheckBound g b)
-    , test m "add new team member internal" (testAddTeamMemberInternal g b c)
+    , test m "add new team member binding teams" (testAddTeamMemberCheckBound g b a)
+    , test m "add new team member internal" (testAddTeamMemberInternal g b c a)
     , test m "remove team member" (testRemoveTeamMember g b c)
-    , test m "remove team member (binding)" (testRemoveBindingTeamMember g b c)
+    , test m "remove team member (binding)" (testRemoveBindingTeamMember g b c a)
     , test m "add team conversation" (testAddTeamConv g b c)
     , test m "add managed team conversation ignores given users" (testAddTeamConvWithUsers g b)
     , test m "add team member to conversation without connection" (testAddTeamMemberToConv g b)
-    , test m "delete team" (testDeleteTeam g b c)
-    , test m "delete team (binding)" (testDeleteBindingTeam g b c)
+    , test m "delete non-binding team" (testDeleteTeam g b c a)
+    , test m "delete binding team" (testDeleteBindingTeam g b c a)
     , test m "delete team conversation" (testDeleteTeamConv g b c)
     , test m "update team data" (testUpdateTeam g b c)
-    , test m "update team member" (testUpdateTeamMember g b c)
+    , test m "update team member" (testUpdateTeamMember g b c a)
     ]
 
 timeout :: WS.Timeout
 timeout = 3 # Second
 
-testCreateTeam :: Galley -> Brig -> Cannon -> Http ()
-testCreateTeam g b c = do
+testCreateTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testCreateTeam g b c a = do
     owner <- Util.randomUser b
     WS.bracketR c owner $ \wsOwner -> do
         tid   <- Util.createTeam g "foo" owner []
         team  <- Util.getTeam g owner tid
+        assertQueueEmpty a
         liftIO $ do
             assertEqual "owner" owner (team^.teamCreator)
             eventChecks <- WS.awaitMatch timeout wsOwner $ \notif -> do
@@ -70,11 +73,12 @@ testCreateTeam g b c = do
                 e^.eventTeam @?= tid
                 e^.eventData @?= Just (EdTeamCreate team)
             void $ WS.assertSuccess eventChecks
-    
-testCreateMulitpleBindingTeams :: Galley -> Brig -> Http ()
-testCreateMulitpleBindingTeams g b = do
+
+testCreateMulitpleBindingTeams :: Galley -> Brig -> Maybe Aws.Env -> Http ()
+testCreateMulitpleBindingTeams g b a = do
     owner <- Util.randomUser b
     _     <- Util.createTeamInternal g "foo" owner
+    assertQueue a tCreate
     -- Cannot create more teams if bound (used internal API)
     let nt = NonBindingNewTeam $ newNewTeam (unsafeRange "owner") (unsafeRange "icon")
     void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) <!! do
@@ -143,10 +147,11 @@ testAddTeamMember g b c = do
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberJoin usr)
 
-testAddTeamMemberCheckBound :: Galley -> Brig -> Http ()
-testAddTeamMemberCheckBound g b = do
+testAddTeamMemberCheckBound :: Galley -> Brig -> Maybe Aws.Env -> Http ()
+testAddTeamMemberCheckBound g b a = do
     ownerBound <- Util.randomUser b
     tidBound   <- Util.createTeamInternal g "foo" ownerBound
+    assertQueue a tCreate
 
     rndMem <- flip newTeamMember (Util.symmPermissions []) <$> Util.randomUser b
     -- Cannot add any users to bound teams
@@ -160,8 +165,8 @@ testAddTeamMemberCheckBound g b = do
     post (g . paths ["teams", toByteString' tid, "members"] . zUser owner . zConn "conn" . json (newNewTeamMember boundMem)) !!!
         const 403 === statusCode
 
-testAddTeamMemberInternal :: Galley -> Brig -> Cannon -> Http ()
-testAddTeamMemberInternal g b c = do
+testAddTeamMemberInternal :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testAddTeamMemberInternal g b c a = do
     owner <- Util.randomUser b
     tid <- Util.createTeam g "foo" owner []
     let p1 = Util.symmPermissions [GetBilling] -- permissions are irrelevant on internal endpoint
@@ -170,6 +175,7 @@ testAddTeamMemberInternal g b c = do
     WS.bracketRN c [owner, mem1^.userId] $ \[wsOwner, wsMem1] -> do
         Util.addTeamMemberInternal g tid mem1
         liftIO . void $ mapConcurrently (checkJoinEvent tid (mem1^.userId)) [wsOwner, wsMem1]
+        assertQueue a $ tUpdate 2 [owner]
     void $ Util.getTeamMemberInternal g tid (mem1^.userId)
   where
     checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
@@ -231,14 +237,16 @@ testRemoveTeamMember g b c = do
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberLeave usr)
 
-testRemoveBindingTeamMember :: Galley -> Brig -> Cannon -> Http ()
-testRemoveBindingTeamMember g b c = do
+testRemoveBindingTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testRemoveBindingTeamMember g b c a = do
     owner <- Util.randomUser b
     tid   <- Util.createTeamInternal g "foo" owner
+    assertQueue a tCreate
     mext  <- Util.randomUser b
     let p1 = Util.symmPermissions [AddConversationMember]
     mem1 <- flip newTeamMember p1 <$> Util.randomUser b
     Util.addTeamMemberInternal g tid mem1
+    assertQueue a $ tUpdate 2 [owner]
     Util.connectUsers b owner (singleton mext)
     cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [(mem1^.userId), mext] (Just "blaa")
     
@@ -270,6 +278,7 @@ testRemoveBindingTeamMember g b c = do
                ) !!! const 202 === statusCode
 
         checkConvMemberLeaveEvent cid1 (mem1^.userId) wsMext
+        assertQueue a $ tUpdate 1 [owner]
         WS.assertNoEvent timeout [wsMext]
         -- Mem1 is now gone from Wire
         Util.ensureDeletedState b True owner (mem1^.userId)
@@ -391,8 +400,8 @@ testAddTeamMemberToConv g b = do
         const 403                === statusCode
         const "operation-denied" === (Error.label . Util.decodeBody' "error label")
 
-testDeleteTeam :: Galley -> Brig -> Cannon -> Http ()
-testDeleteTeam g b c = do
+testDeleteTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testDeleteTeam g b c a = do
     owner <- Util.randomUser b
     let p = Util.symmPermissions [AddConversationMember]
     member <- flip newTeamMember p <$> Util.randomUser b
@@ -437,14 +446,17 @@ testDeleteTeam g b c = do
             Util.getSelfMember g u x !!! do
                 const 200         === statusCode
                 const (Just Null) === Util.decodeBody
+    assertQueueEmpty a
 
-testDeleteBindingTeam :: Galley -> Brig -> Cannon -> Http ()
-testDeleteBindingTeam g b c = do
+testDeleteBindingTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testDeleteBindingTeam g b c a = do
     owner  <- Util.randomUser b
     tid    <- Util.createTeamInternal g "foo" owner
+    assertQueue a tCreate
     let p1 = Util.symmPermissions [AddConversationMember]
     mem1 <- flip newTeamMember p1 <$> Util.randomUser b
     Util.addTeamMemberInternal g tid mem1
+    assertQueue a $ tUpdate 2 [owner]
     extern <- Util.randomUser b
 
     delete ( g
@@ -468,6 +480,7 @@ testDeleteBindingTeam g b c = do
         -- TODO: Due to the async nature of the deletion, we should actually check for
         --       the user deletion event to avoid race conditions at this point
         WS.assertNoEvent timeout [wsExtern]
+        assertQueue a tDelete
 
     mapM_ (Util.ensureDeletedState b True extern) [owner, (mem1^.userId)]
 
@@ -566,8 +579,8 @@ testUpdateTeam g b c = do
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdTeamUpdate upd)
 
-testUpdateTeamMember :: Galley -> Brig -> Cannon -> Http ()
-testUpdateTeamMember g b c = do
+testUpdateTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testUpdateTeamMember g b c a = do
     owner <- Util.randomUser b
     let p = Util.symmPermissions [DeleteConversation]
     member <- flip newTeamMember p <$> Util.randomUser b
@@ -586,6 +599,7 @@ testUpdateTeamMember g b c = do
         checkTeamMemberUpdateEvent tid (member^.userId) wsOwner
         checkTeamMemberUpdateEvent tid (member^.userId) wsMember
         WS.assertNoEvent timeout [wsOwner, wsMember]
+        assertQueueEmpty a
   where
     checkTeamMemberUpdateEvent tid uid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False

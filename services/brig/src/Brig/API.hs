@@ -70,6 +70,7 @@ import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Brig.Provider.API             as Provider
 import qualified Brig.Team.API                 as Team
+import qualified Brig.TURN.API                 as TURN
 
 runServer :: Opts -> IO ()
 runServer o = do
@@ -980,6 +981,7 @@ sitemap o = do
     Auth.routes
     Search.routes
     Team.routes
+    TURN.routes
 
 ---------------------------------------------------------------------------
 -- Handlers

@@ -18,6 +18,7 @@ module Galley.App
     , deleteQueue
     , createEnv
     , extEnv
+    , aEnv
 
     , ExtEnv
     , extGetManager
@@ -67,6 +68,7 @@ import qualified Cassandra.Settings       as C
 import qualified Data.List.NonEmpty       as NE
 import qualified Data.ProtocolBuffers     as Proto
 import qualified Data.Text.Lazy           as Lazy
+import qualified Galley.Aws               as Aws
 import qualified Galley.Queue             as Q
 import qualified OpenSSL.X509.SystemStore as Ssl
 import qualified System.Logger            as Logger
@@ -84,6 +86,7 @@ data Env = Env
     , _cstate      :: ClientState
     , _deleteQueue :: Q.Queue DeleteItem
     , _extEnv      :: ExtEnv
+    , _aEnv        :: Maybe Aws.Env
     }
 
 -- | Environment specific to the communication with external
@@ -129,11 +132,12 @@ instance HasRequestId Galley where
 
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
-    Env mempty m o l <$> initHttpManager o
-                     <*> initCassandra o l
-                     <*> Q.new 16000
-                     <*> initExtEnv
+    l   <- new $ setOutput StdOut . setFormat Nothing $ defSettings
+    mgr <- initHttpManager o
+    Env mempty m o l mgr <$> initCassandra o l
+                         <*> Q.new 16000
+                         <*> initExtEnv
+                         <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o^.journalOpts)
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
@@ -153,11 +157,18 @@ initCassandra o l = do
             $ C.defSettings
 
 initHttpManager :: Opts -> IO Manager
-initHttpManager o =
-    newManager defaultManagerSettings
-        { managerConnCount           = o^.httpPoolSz
+initHttpManager o = do
+    ctx <- Ssl.context
+    Ssl.contextSetVerificationMode ctx $ Ssl.VerifyPeer True True Nothing
+    Ssl.contextAddOption ctx SSL_OP_NO_SSLv2
+    Ssl.contextAddOption ctx SSL_OP_NO_SSLv3
+    Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
+    Ssl.contextSetCiphers ctx rsaCiphers
+    Ssl.contextLoadSystemCerts ctx
+    newManager (opensslManagerSettings ctx)
+        { managerResponseTimeout     = responseTimeoutMicro 10000000
+        , managerConnCount           = o^.httpPoolSz
         , managerIdleConnectionCount = 3 * (o^.httpPoolSz)
-        , managerResponseTimeout     = responseTimeoutMicro 10000000
         }
 
 initExtEnv :: IO ExtEnv

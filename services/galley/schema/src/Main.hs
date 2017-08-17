@@ -11,6 +11,7 @@ import System.Logger hiding (info)
 import qualified V20
 import qualified V21
 import qualified V22
+import qualified V23
 
 main :: IO ()
 main = do
@@ -20,6 +21,7 @@ main = do
         [ V20.migration
         , V21.migration
         , V22.migration
+        , V23.migration
         ]
       `finally`
         close l
