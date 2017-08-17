@@ -7,7 +7,7 @@
 
 module Brig.Team.API where
 
-import Brig.App (currentTime, Env, runAppT)
+import Brig.App (currentTime)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.User (fetchUserIdentity)
@@ -22,7 +22,6 @@ import Control.Lens (view, (^.))
 import Control.Monad (when, void, unless)
 import Control.Monad.Trans
 import Control.Monad.Reader
-import Control.Concurrent.Async (mapConcurrently)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
@@ -214,20 +213,8 @@ getInvitationByCode (_ ::: c) = do
 suspendTeam :: JSON ::: TeamId -> Handler Response
 suspendTeam (_ ::: tid) = do
     changeTeamAccountStatuses tid Suspended
-    rs <- lift $ DB.lookupInvitations tid Nothing (unsafeRange 100)
-    deleteInvitations rs
+    DB.deleteInvitations tid
     return empty
-  where
-    deleteInvitations :: DB.ResultPage Invitation -> Handler ()
-    deleteInvitations page = do
-        e <- ask
-        let iids = inInvitation <$> DB.resultList page
-        void $ liftIO $ mapConcurrently (del e) iids
-        when (DB.resultHasMore page) $
-            lift (DB.lookupInvitations tid (Just $ last iids) (unsafeRange 100)) >>= deleteInvitations
-
-    del :: Env -> InvitationId -> IO ()
-    del e iid = runAppT e $ DB.deleteInvitation tid iid
 
 unsuspendTeam :: JSON ::: TeamId -> Handler Response
 unsuspendTeam (_ ::: tid) = do
@@ -239,7 +226,7 @@ unsuspendTeam (_ ::: tid) = do
 
 changeTeamAccountStatuses :: TeamId -> AccountStatus -> Handler ()
 changeTeamAccountStatuses tid s = do
-    uids <- toList1 =<< (lift $ fmap (view Team.userId) . view Team.teamMembers <$> Intra.getTeamMembers tid)
+    uids <- toList1 =<< lift (fmap (view Team.userId) . view Team.teamMembers <$> Intra.getTeamMembers tid)
     team <- lift $ Intra.getTeam (List1.head uids) tid
     unless (team^.Team.teamBinding == Team.Binding) $
         throwStd (badRequest "non-binding team")

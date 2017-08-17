@@ -8,6 +8,7 @@ module Brig.Team.DB
     ( module T
     , insertInvitation
     , deleteInvitation
+    , deleteInvitations
     , lookupInvitation
     , lookupInvitationCode
     , lookupInvitations
@@ -26,8 +27,10 @@ import Brig.Types.Common
 import Brig.Types.User
 import Brig.Types.Team.Invitation
 import Cassandra
+import Control.Concurrent.Async.Lifted.Safe (mapConcurrently_)
 import Control.Lens
 import Control.Monad.IO.Class
+import Control.Monad (when)
 import Data.Id
 import Data.Int
 import Data.Range
@@ -97,7 +100,7 @@ lookupInvitations team start (fromRange -> size) = do
                                                          , hasMore = more
                                                          }
     cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, InvitationId, Email, UTCTime)
-    cqlSelect = "SELECT team, id, email, created_at FROM team_invitation WHERE team = ?"
+    cqlSelect = "SELECT team, id, email, created_at FROM team_invitation WHERE team = ? ORDER BY id ASC"
 
     cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, InvitationId, Email, UTCTime)
     cqlSelectFrom = "SELECT team, id, email, created_at FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
@@ -119,6 +122,21 @@ deleteInvitation t i = do
 
     cqlInvitationInfo :: PrepQuery W (Identity InvitationCode) ()
     cqlInvitationInfo = "DELETE FROM team_invitation_info WHERE code = ?"
+
+
+deleteInvitations :: MonadClient m => TeamId -> m ()
+deleteInvitations t = do
+    page <- retry x1 $ paginate cqlSelect (paramsP Quorum (Identity t) 100)
+    deleteAll page
+  where
+    deleteAll page = do
+        liftClient $ mapConcurrently_ (deleteInvitation t . runIdentity) (result page)
+        when (hasMore page) $
+            liftClient (nextPage page) >>= deleteAll
+
+    cqlSelect :: PrepQuery R (Identity TeamId) (Identity InvitationId)
+    cqlSelect = "SELECT id FROM team_invitation WHERE team = ? ORDER BY id ASC"
+
 
 lookupInvitationInfo :: MonadClient m => InvitationCode -> m (Maybe InvitationInfo)
 lookupInvitationInfo ic@(InvitationCode c)
