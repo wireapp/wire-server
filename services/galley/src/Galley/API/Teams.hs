@@ -6,6 +6,7 @@ module Galley.API.Teams
     ( createBindingTeam
     , createNonBindingTeam
     , updateTeam
+    , updateTeamStatus
     , getTeam
     , getManyTeams
     , deleteTeam
@@ -103,6 +104,12 @@ createBindingTeam (zusr ::: tid ::: req ::: _) = do
     Journal.teamCreate tid zusr
     finishCreateTeam team owner [] Nothing
 
+updateTeamStatus :: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
+updateTeamStatus (tid ::: req ::: _) = do
+    body <- fromBody req invalidPayload
+    Data.updateTeamStatus tid body
+    return empty
+
 updateTeam :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 updateTeam (zusr::: zcon ::: tid ::: req ::: _) = do
     body <- fromBody req invalidPayload
@@ -121,7 +128,7 @@ deleteTeam (zusr::: zcon ::: tid ::: req ::: _ ::: _) = do
     case Data.tdStatus team of
         Deleted -> throwM teamNotFound
         PendingDelete -> queueDelete
-        Alive -> do
+        _ -> do
             void $ permissionCheck zusr DeleteTeam =<< Data.teamMembers tid
             when ((Data.tdTeam team)^.teamBinding == Binding) $ do
                 body <- fromBody req invalidPayload

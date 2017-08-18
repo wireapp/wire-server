@@ -36,6 +36,7 @@ module Brig.IO.Intra
     , getTeamMember
     , getTeamMembers
     , getTeam
+    , changeTeamStatus
     ) where
 
 import Bilge hiding (head, options, requestId)
@@ -547,3 +548,14 @@ getTeam u tid = do
     req = paths ["teams", toByteString' tid]
         . zUser u
         . expect2xx
+
+changeTeamStatus :: TeamId -> Team.TeamStatus -> AppIO ()
+changeTeamStatus tid s = do
+    debug $ remote "galley"
+            . msg (val "Change Team status")
+    void $ galleyRequest PUT req
+  where
+    req = paths ["i", "teams", toByteString' tid, "status"]
+        . header "Content-Type" "application/json"
+        . expect2xx
+        . lbytes (encode s)

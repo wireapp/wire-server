@@ -113,9 +113,10 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
 
 data TeamStatus
-    = Alive
+    = Active
     | PendingDelete
     | Deleted
+    | Suspended
     deriving (Eq, Show)
 
 data TeamBinding =
@@ -335,6 +336,19 @@ permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0
 instance ToJSON TeamBinding where
     toJSON Binding    = Bool True
     toJSON NonBinding = Bool False
+
+instance ToJSON TeamStatus where
+    toJSON Active        = String "active"
+    toJSON PendingDelete = String "pending_delete"
+    toJSON Deleted       = String "deleted"
+    toJSON Suspended     = String "suspended"
+
+instance FromJSON TeamStatus where
+    parseJSON (String "active")         = pure Active
+    parseJSON (String "pending_delete") = pure PendingDelete
+    parseJSON (String "deleted")        = pure Deleted
+    parseJSON (String "suspended")      = pure Suspended
+    parseJSON other                     = fail $ "Unknown TeamStatus: " <> show other
 
 instance ToJSON Team where
     toJSON t = object

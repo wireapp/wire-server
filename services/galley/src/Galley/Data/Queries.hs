@@ -89,6 +89,9 @@ updateTeamIcon = "update team set icon = ? where team = ?"
 updateTeamIconKey :: PrepQuery W (Text, TeamId) ()
 updateTeamIconKey = "update team set icon_key = ? where team = ?"
 
+updateTeamStatus :: PrepQuery W (TeamStatus, TeamId) ()
+updateTeamStatus = "update team set status = ? where team = ?"
+
 -- Conversations ------------------------------------------------------------
 
 selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (Set Access), Maybe Text, Maybe TeamId, Maybe Bool)

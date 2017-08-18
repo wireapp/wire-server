@@ -28,6 +28,7 @@ module Galley.Data
     , deleteTeam
     , removeTeamConv
     , updateTeam
+    , updateTeamStatus
 
     -- * Conversations
     , Conversation (..)
@@ -120,7 +121,7 @@ team tid =
   where
     toTeam (u, n, i, k, d, s, b) =
         let t       = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k
-            status  = if d then PendingDelete else fromMaybe Alive s
+            status  = if d then PendingDelete else fromMaybe Active s
         in TeamData t status
 
 teamIdsOf :: MonadClient m => UserId -> Range 1 32 (List TeamId) -> m [TeamId]
@@ -178,7 +179,7 @@ createTeam :: MonadClient m
            -> m Team
 createTeam t uid (fromRange -> n) (fromRange -> i) k b = do
     tid <- maybe (Id <$> liftIO nextRandom) return t
-    retry x5 $ write Cql.insertTeam (params Quorum (tid, uid, n, i, fromRange <$> k, Alive, b))
+    retry x5 $ write Cql.insertTeam (params Quorum (tid, uid, n, i, fromRange <$> k, Active, b))
     pure (newTeam tid uid n i b & teamIconKey .~ (fromRange <$> k))
 
 deleteTeam :: MonadClient m => TeamId -> m ()
@@ -217,6 +218,9 @@ removeTeamConv tid cid = do
         addPrepQuery Cql.markConvDeleted (Identity cid)
         addPrepQuery Cql.deleteTeamConv (tid, cid)
     deleteConversation cid
+
+updateTeamStatus :: MonadClient m => TeamId -> TeamStatus -> m ()
+updateTeamStatus t s = retry x5 $ write Cql.updateTeamStatus (params Quorum (s, t))
 
 updateTeam :: MonadClient m => TeamId -> TeamUpdateData -> m ()
 updateTeam tid u = retry x5 $ batch $ do

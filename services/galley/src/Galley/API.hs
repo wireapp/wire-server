@@ -653,6 +653,12 @@ sitemap = do
         .&. contentType "application" "json"
         .&. accept "application" "json"
 
+    put "/i/teams/:tid/status" (continue updateTeamStatus) $
+        capture "tid"
+        .&. request
+        .&. contentType "application" "json"
+        .&. accept "application" "json"
+
     post "/i/teams/:tid/members" (continue uncheckedAddTeamMember) $
         capture "tid"
         .&. request

@@ -214,11 +214,13 @@ suspendTeam :: JSON ::: TeamId -> Handler Response
 suspendTeam (_ ::: tid) = do
     changeTeamAccountStatuses tid Suspended
     DB.deleteInvitations tid
+    lift $ Intra.changeTeamStatus tid Team.Suspended
     return empty
 
 unsuspendTeam :: JSON ::: TeamId -> Handler Response
 unsuspendTeam (_ ::: tid) = do
     changeTeamAccountStatuses tid Active
+    lift $ Intra.changeTeamStatus tid Team.Active
     return empty
 
 -------------------------------------------------------------------------------
