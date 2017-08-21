@@ -16,6 +16,7 @@ import Data.Int
 import Data.Maybe (fromMaybe)
 import Proto.TeamEvents
 import Galley.Types.Teams
+import Galley.Types.Teams.Intra
 import System.Logger (Logger)
 
 import qualified System.Logger          as Log

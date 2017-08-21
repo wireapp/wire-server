@@ -123,7 +123,6 @@ deleteInvitation t i = do
     cqlInvitationInfo :: PrepQuery W (Identity InvitationCode) ()
     cqlInvitationInfo = "DELETE FROM team_invitation_info WHERE code = ?"
 
-
 deleteInvitations :: MonadClient m => TeamId -> m ()
 deleteInvitations t = do
     page <- retry x1 $ paginate cqlSelect (paramsP Quorum (Identity t) 100)
@@ -136,7 +135,6 @@ deleteInvitations t = do
 
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity InvitationId)
     cqlSelect = "SELECT id FROM team_invitation WHERE team = ? ORDER BY id ASC"
-
 
 lookupInvitationInfo :: MonadClient m => InvitationCode -> m (Maybe InvitationInfo)
 lookupInvitationInfo ic@(InvitationCode c)

@@ -8,6 +8,7 @@ module Galley.API.Teams
     , updateTeam
     , updateTeamStatus
     , getTeam
+    , getTeamInternal
     , getManyTeams
     , deleteTeam
     , uncheckedDeleteTeam
@@ -47,6 +48,7 @@ import Galley.API.Util
 import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Types.Teams
+import Galley.Types.Teams.Intra
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result, or)
@@ -55,7 +57,6 @@ import Prelude hiding (head, mapM)
 
 import qualified Data.Set as Set
 import qualified Galley.Data as Data
-import qualified Galley.Data.Types as Data
 import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
 import qualified Galley.Types.Teams as Teams
@@ -64,6 +65,10 @@ import qualified Galley.Intra.Journal as Journal
 getTeam :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeam (zusr::: tid ::: _) =
     maybe (throwM teamNotFound) (pure . json) =<< lookupTeam zusr tid
+
+getTeamInternal :: TeamId ::: JSON -> Galley Response
+getTeamInternal (tid ::: _) =
+    maybe (throwM teamNotFound) (pure . json) =<< Data.team tid
 
 getManyTeams :: UserId ::: Maybe (Either (Range 1 32 (List TeamId)) TeamId) ::: Range 1 100 Int32 ::: JSON -> Galley Response
 getManyTeams (zusr ::: range ::: size ::: _) =
@@ -76,10 +81,10 @@ lookupTeam zusr tid = do
     tm <- Data.teamMember tid zusr
     if isJust tm then do
         t <- Data.team tid
-        when (Just PendingDelete == (Data.tdStatus <$> t)) $ do
+        when (Just PendingDelete == (tdStatus <$> t)) $ do
             q <- view deleteQueue
             void $ Q.tryPush q (TeamItem tid zusr Nothing)
-        pure (Data.tdTeam <$> t)
+        pure (tdTeam <$> t)
     else
         pure Nothing
 
@@ -106,7 +111,7 @@ createBindingTeam (zusr ::: tid ::: req ::: _) = do
 
 updateTeamStatus :: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 updateTeamStatus (tid ::: req ::: _) = do
-    body <- fromBody req invalidPayload
+    TeamStatusUpdate body <- fromBody req invalidPayload
     Data.updateTeamStatus tid body
     return empty
 
@@ -125,12 +130,12 @@ updateTeam (zusr::: zcon ::: tid ::: req ::: _) = do
 deleteTeam :: UserId ::: ConnId ::: TeamId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
 deleteTeam (zusr::: zcon ::: tid ::: req ::: _ ::: _) = do
     team <- Data.team tid >>= ifNothing teamNotFound
-    case Data.tdStatus team of
+    case tdStatus team of
         Deleted -> throwM teamNotFound
         PendingDelete -> queueDelete
         _ -> do
             void $ permissionCheck zusr DeleteTeam =<< Data.teamMembers tid
-            when ((Data.tdTeam team)^.teamBinding == Binding) $ do
+            when ((tdTeam team)^.teamBinding == Binding) $ do
                 body <- fromBody req invalidPayload
                 ensureReAuthorised zusr (body^.tdAuthPassword)
             queueDelete
@@ -155,7 +160,7 @@ uncheckedDeleteTeam zusr zcon tid = do
         let e = newEvent TeamDelete tid now
         let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
         pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : events)
-        when ((view teamBinding . Data.tdTeam <$> team) == Just Binding) $ do
+        when ((view teamBinding . tdTeam <$> team) == Just Binding) $ do
             mapM_ (deleteUser . view userId) membs
             Journal.teamDelete tid
         Data.deleteTeam tid
@@ -228,7 +233,7 @@ updateTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
     unless (isTeamMember user members) $
         throwM teamMemberNotFound
     Data.updateTeamMember tid user perm
-    team <- Data.tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
+    team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
     when (team^.teamBinding == Binding) $
         Journal.teamUpdate tid (body^.ntmNewTeamMember : filter (\u -> u^.userId /= user) members)
     now <- liftIO getCurrentTime
@@ -241,7 +246,7 @@ deleteTeamMember :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Mayb
 deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
     mems <- Data.teamMembers tid
     void $ permissionCheck zusr RemoveTeamMember mems
-    team <- Data.tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
+    team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
     if team^.teamBinding == Binding && isTeamMember remove mems then do
         body <- fromBody req invalidPayload
         ensureReAuthorised zusr (body^.tmdAuthPassword)
@@ -350,7 +355,7 @@ ensureUnboundUsers uids = do
 ensureNonBindingTeam :: TeamId -> Galley ()
 ensureNonBindingTeam tid = do
     team <- Data.team tid >>= ifNothing teamNotFound
-    when ((Data.tdTeam team)^.teamBinding == Binding) $
+    when ((tdTeam team)^.teamBinding == Binding) $
         throwM noAddToBinding
 
 addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> [TeamMember] -> Galley Response

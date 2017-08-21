@@ -46,6 +46,7 @@ import qualified Data.List1                    as List1
 import qualified Data.Swagger.Build.Api        as Doc
 import qualified Brig.IO.Intra                 as Intra
 import qualified Galley.Types.Teams            as Team
+import qualified Galley.Types.Teams.Intra      as Team
 
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
@@ -176,7 +177,7 @@ createInvitation (_ ::: uid ::: _ ::: tid ::: req) = do
         Nothing -> doInvite email (irName body) (irLocale body)
   where
     doInvite email nm lc = lift $ do
-        team <- Intra.getTeam uid tid
+        team <- Team.tdTeam <$> Intra.getTeam tid
         now  <- liftIO =<< view currentTime
         (newInv, code) <- DB.insertInvitation tid email now
         void $ sendInvitationMail email tid nm (team^.Team.teamName) code lc
@@ -228,10 +229,10 @@ unsuspendTeam (_ ::: tid) = do
 
 changeTeamAccountStatuses :: TeamId -> AccountStatus -> Handler ()
 changeTeamAccountStatuses tid s = do
-    uids <- toList1 =<< lift (fmap (view Team.userId) . view Team.teamMembers <$> Intra.getTeamMembers tid)
-    team <- lift $ Intra.getTeam (List1.head uids) tid
+    team <- Team.tdTeam <$> (lift $ Intra.getTeam tid)
     unless (team^.Team.teamBinding == Team.Binding) $
-        throwStd (badRequest "non-binding team")
+        throwStd noBindingTeam
+    uids <- toList1 =<< lift (fmap (view Team.userId) . view Team.teamMembers <$> Intra.getTeamMembers tid)
     API.changeAccountStatus uids s !>> accountStatusError
   where
     toList1 (x:xs) = return $ List1.list1 x xs

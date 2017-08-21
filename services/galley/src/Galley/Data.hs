@@ -66,6 +66,7 @@ module Galley.Data
     ) where
 
 import Cassandra
+import Cassandra.Util
 import Control.Applicative
 import Control.Arrow (second)
 import Control.Concurrent.Async.Lifted.Safe
@@ -90,6 +91,7 @@ import Galley.Types hiding (Conversation)
 import Galley.Types.Bot (newServiceRef)
 import Galley.Types.Clients (Clients)
 import Galley.Types.Teams hiding (teamMembers, teamConversations, Event, EventType (..))
+import Galley.Types.Teams.Intra
 import Prelude hiding (max)
 import System.Logger.Class (MonadLogger)
 import System.Logger.Message (msg, (+++), val)
@@ -119,10 +121,10 @@ team :: MonadClient m => TeamId -> m (Maybe TeamData)
 team tid =
     fmap toTeam <$> retry x1 (query1 Cql.selectTeam (params Quorum (Identity tid)))
   where
-    toTeam (u, n, i, k, d, s, b) =
+    toTeam (u, n, i, k, d, s, st, b) =
         let t       = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k
             status  = if d then PendingDelete else fromMaybe Active s
-        in TeamData t status
+        in TeamData t status (writeTimeToUTC <$> st)
 
 teamIdsOf :: MonadClient m => UserId -> Range 1 32 (List TeamId) -> m [TeamId]
 teamIdsOf usr (fromList . fromRange -> tids) =

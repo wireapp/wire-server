@@ -76,6 +76,7 @@ import qualified Data.HashMap.Strict         as M
 import qualified Data.Set                    as Set
 import qualified Gundeck.Types.Push.V2       as Push
 import qualified Galley.Types.Teams          as Team
+import qualified Galley.Types.Teams.Intra    as Team
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -539,14 +540,12 @@ getTeamMembers tid = do
     req = paths ["i", "teams", toByteString' tid, "members"]
         . expect2xx
 
-getTeam :: UserId -> TeamId -> AppIO Team.Team
-getTeam u tid = do
-    debug $ remote "galley"
-            . msg (val "Get team info")
+getTeam :: TeamId -> AppIO Team.TeamData
+getTeam tid = do
+    debug $ remote "galley" . msg (val "Get team info")
     galleyRequest GET req >>= decodeBody "galley"
   where
-    req = paths ["teams", toByteString' tid]
-        . zUser u
+    req = paths ["i", "teams", toByteString' tid]
         . expect2xx
 
 changeTeamStatus :: TeamId -> Team.TeamStatus -> AppIO ()
@@ -558,4 +557,4 @@ changeTeamStatus tid s = do
     req = paths ["i", "teams", toByteString' tid, "status"]
         . header "Content-Type" "application/json"
         . expect2xx
-        . lbytes (encode s)
+        . lbytes (encode $ Team.TeamStatusUpdate s)

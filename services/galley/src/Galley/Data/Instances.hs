@@ -14,6 +14,7 @@ import Data.Int
 import Galley.Types
 import Galley.Types.Bot
 import Galley.Types.Teams
+import Galley.Types.Teams.Intra
 
 import qualified Data.Set
 
