@@ -7,7 +7,7 @@ module Galley.Data.Types
     , isO2OConv
     , isTeamConv
     , isConvDeleted
-        ) where
+    ) where
 
 import Data.Id
 import Data.List1
