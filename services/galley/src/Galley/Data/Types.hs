@@ -7,8 +7,6 @@ module Galley.Data.Types
     , isO2OConv
     , isTeamConv
     , isConvDeleted
-
-    , TeamData (..)
     ) where
 
 import Data.Id
@@ -16,7 +14,6 @@ import Data.List1
 import Data.Text
 import Data.Maybe (fromMaybe, isJust)
 import Galley.Types (ConvType (..), Access, Member (..))
-import Galley.Types.Teams (Team, TeamStatus)
 
 data Conversation = Conversation
     { convId      :: ConvId
@@ -40,8 +37,3 @@ isTeamConv = isJust . convTeam
 
 isConvDeleted :: Conversation -> Bool
 isConvDeleted = fromMaybe False . convDeleted
-
-data TeamData = TeamData
-    { tdTeam    :: Team
-    , tdStatus  :: TeamStatus
-    }

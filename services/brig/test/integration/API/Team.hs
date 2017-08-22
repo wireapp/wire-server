@@ -9,6 +9,7 @@ import Bilge.Assert
 import Brig.Types hiding (Invitation (..), InvitationRequest (..), InvitationList (..))
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth
+import Brig.Types.Intra
 import Control.Arrow ((&&&))
 import Control.Lens ((^.), (^?), view)
 import Control.Monad
@@ -50,6 +51,7 @@ tests m b g =
             , test m "get /teams/:tid/invitations - 200 (paging)"        $ testInvitationPaging b g
             , test m "get /teams/:tid/invitations/info - 200"            $ testInvitationInfo b g
             , test m "get /teams/:tid/invitations/info - 400"            $ testInvitationInfoBadCode b
+            , test m "post /i/teams/:tid/suspend - 200"                  $ testSuspendTeam b g
             ]
         ]
 
@@ -263,6 +265,46 @@ testInvitationInfoBadCode brig = do
     get (brig . path ("/teams/invitations/info?code=" <> icode)) !!!
         const 400 === statusCode
 
+
+testSuspendTeam :: Brig -> Galley -> Http ()
+testSuspendTeam brig galley = do
+    inviteeEmail  <- randomEmail
+    inviteeEmail2 <- randomEmail
+    inviter       <- userId <$> randomUser brig
+    tid           <- createTeam inviter galley
+
+    -- invite and register invitee
+    let invite  = InvitationRequest inviteeEmail (Name "Bob") Nothing
+    Just inv <- decodeBody <$> postInvitation brig tid inviter invite
+    Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+    rsp2 <- post (brig . path "/register"
+                       . contentJson
+                       . body (accept inviteeEmail inviteeCode))
+                  <!! const 201 === statusCode
+    let Just (invitee, Just email) = (userId &&& userEmail) <$> decodeBody rsp2
+
+    -- invite invitee2 (don't register)
+    let invite2 = InvitationRequest inviteeEmail2 (Name "Bob") Nothing
+    Just inv2 <- decodeBody <$> postInvitation brig tid inviter invite2
+    Just _ <- getInvitationCode brig tid (inInvitation inv2)
+
+    -- suspend team
+    suspendTeam brig tid !!! const 200 === statusCode
+    -- login fails
+    login brig (defEmailLogin email) PersistentCookie !!! do
+       const 403 === statusCode
+       const (Just "suspended") === fmap Error.label . decodeBody
+    -- check status
+    chkStatus brig inviter Suspended
+    chkStatus brig invitee Suspended
+    assertNoInvitationCode brig tid (inInvitation inv2)
+
+    -- unsuspend
+    unsuspendTeam brig tid !!! const 200 === statusCode
+    chkStatus brig inviter Active
+    chkStatus brig invitee Active
+    login brig (defEmailLogin email) PersistentCookie !!! const 200 === statusCode
+
 -------------------------------------------------------------------------------
 -- Utilities
 
@@ -287,6 +329,16 @@ postInvitation brig t u i = post $ brig
     . body (RequestBodyLBS $ encode i)
     . zAuthAccess u "conn"
 
+suspendTeam :: Brig -> TeamId -> HttpT IO (Response (Maybe ByteString))
+suspendTeam brig t = post $ brig
+    . paths ["i", "teams", toByteString' t, "suspend"]
+    . contentJson
+
+unsuspendTeam :: Brig -> TeamId -> Http ResponseLBS
+unsuspendTeam brig t = post $ brig
+    . paths ["i", "teams", toByteString' t, "unsuspend"]
+    . contentJson
+
 getInvitationCode :: Brig -> TeamId -> InvitationId -> Http (Maybe InvitationCode)
 getInvitationCode brig t ref = do
     r <- get ( brig
@@ -296,6 +348,16 @@ getInvitationCode brig t ref = do
              )
     let lbs   = fromMaybe "" $ responseBody r
     return $ fromByteString . fromMaybe (error "No code?") $ T.encodeUtf8 <$> (lbs ^? key "code"  . _String)
+
+assertNoInvitationCode :: Brig -> TeamId -> InvitationId -> Http ()
+assertNoInvitationCode brig t i =
+    get ( brig
+        . path "/i/teams/invitation-code"
+        . queryItem "team" (toByteString' t)
+        . queryItem "invitation_id" (toByteString' i)
+        ) !!! do
+          const 400 === statusCode
+          const (Just "invalid-invitation-code") === fmap Error.label . decodeBody
 
 randomTeamId :: MonadIO m => m TeamId
 randomTeamId = Id <$> liftIO UUID.nextRandom

@@ -526,7 +526,7 @@ testSuspendUser brig = do
         const 403 === statusCode
         const (Just "suspended") === fmap Error.label . decodeBody
     -- check status
-    chkStatus uid Suspended
+    chkStatus brig uid Suspended
     -- should not appear in search
     suid <- userId <$> randomUser brig
     Search.refreshIndex brig
@@ -534,7 +534,7 @@ testSuspendUser brig = do
 
     -- re-activate
     setStatus uid Active
-    chkStatus uid Active
+    chkStatus brig uid Active
     -- should appear in search again
     Search.refreshIndex brig
     Search.assertCanFind brig suid uid (fromName (userName u))
@@ -544,11 +544,6 @@ testSuspendUser brig = do
         in put ( brig . paths ["i", "users", toByteString' u, "status"]
                . contentJson . body js
                ) !!! const 200 === statusCode
-
-    chkStatus u s =
-        get (brig . paths ["i", "users", toByteString' u, "status"]) !!! do
-            const 200 === statusCode
-            const (Just (toJSON s)) === ((^? key "status") <=< responseBody)
 
 testGetByIdentity :: Brig -> Http ()
 testGetByIdentity brig = do

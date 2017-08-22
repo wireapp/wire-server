@@ -6,6 +6,7 @@
 module Galley.Data.Queries where
 
 import Cassandra
+import Cassandra.Util
 import Data.Functor.Identity
 import Data.Id
 import Data.Int
@@ -15,13 +16,14 @@ import Data.Text (Text)
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot
 import Galley.Types.Teams
+import Galley.Types.Teams.Intra
 
 import qualified Data.Text.Lazy as LT
 
 -- Teams --------------------------------------------------------------------
 
-selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Text, Maybe Text, Bool, Maybe TeamStatus, Maybe TeamBinding)
-selectTeam = "select creator, name, icon, icon_key, deleted, status, binding from team where team = ?"
+selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Text, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding)
+selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(status), binding from team where team = ?"
 
 selectTeamBinding :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamBinding))
 selectTeamBinding = "select binding from team where team = ?"
@@ -88,6 +90,9 @@ updateTeamIcon = "update team set icon = ? where team = ?"
 
 updateTeamIconKey :: PrepQuery W (Text, TeamId) ()
 updateTeamIconKey = "update team set icon_key = ? where team = ?"
+
+updateTeamStatus :: PrepQuery W (TeamStatus, TeamId) ()
+updateTeamStatus = "update team set status = ? where team = ?"
 
 -- Conversations ------------------------------------------------------------
 

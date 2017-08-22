@@ -9,6 +9,7 @@ import Brig.Types.Connection
 import Brig.Types.Client
 import Brig.Types.User
 import Brig.Types.User.Auth
+import Brig.Types.Intra
 import Control.Lens ((^?))
 import Control.Monad
 import Control.Monad.IO.Class
@@ -194,6 +195,12 @@ isMember g usr cnv = do
     case decodeBody res of
         Nothing -> return False
         Just  m -> return (usr == memId m)
+
+chkStatus :: Brig -> UserId -> AccountStatus -> Http ()
+chkStatus brig u s =
+    get (brig . paths ["i", "users", toByteString' u, "status"]) !!! do
+        const 200 === statusCode
+        const (Just (toJSON s)) === ((^? key "status") <=< responseBody)
 
 --------------------------------------------------------------------------------
 -- Utilities

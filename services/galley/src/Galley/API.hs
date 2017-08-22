@@ -646,9 +646,19 @@ sitemap = do
     get "/i/conversations/:cnv/meta" (continue getConversationMeta) $
         capture "cnv"
 
+    get "/i/teams/:tid" (continue getTeamInternal) $
+        capture "tid"
+        .&. accept "application" "json"
+
     put "/i/teams/:tid" (continue createBindingTeam) $
         zauthUserId
         .&. capture "tid"
+        .&. request
+        .&. contentType "application" "json"
+        .&. accept "application" "json"
+
+    put "/i/teams/:tid/status" (continue updateTeamStatus) $
+        capture "tid"
         .&. request
         .&. contentType "application" "json"
         .&. accept "application" "json"
@@ -657,6 +667,10 @@ sitemap = do
         capture "tid"
         .&. request
         .&. contentType "application" "json"
+        .&. accept "application" "json"
+
+    get "/i/teams/:tid/members" (continue uncheckedGetTeamMembers) $
+        capture "tid"
         .&. accept "application" "json"
 
     get "/i/teams/:tid/members/:uid" (continue uncheckedGetTeamMember) $

@@ -22,6 +22,7 @@ library
         Galley.Types.Proto
         Galley.Types.Swagger
         Galley.Types.Teams
+        Galley.Types.Teams.Intra
         Galley.Types.Teams.Swagger
 
     build-depends:
