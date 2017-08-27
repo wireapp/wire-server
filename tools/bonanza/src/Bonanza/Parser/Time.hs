@@ -51,7 +51,7 @@ isoTime = do
     m <- decimal <* char ':'
     s <- decimal
     u <- option 0 (char '.' *> decimal)
-    _ <- optional (char 'Z')
+    _ <- optional (string "Z" <|> string "+0000")
     return . picosecondsToDiffTime
            $ toPico h fHour
            + toPico m fMinute
