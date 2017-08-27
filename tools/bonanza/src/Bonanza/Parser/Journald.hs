@@ -3,12 +3,11 @@
 module Bonanza.Parser.Journald
     ( JournaldLogRecord (..)
     , journaldLogRecordWith
-    , jdTimestamp
     )
 where
 
 import Bonanza.Parser.Internal
-import Bonanza.Parser.Time
+import Bonanza.Parser.Svlogd
 import Bonanza.Types
 import Control.Applicative
 import Control.Lens                     ((&), (.~))
@@ -33,13 +32,7 @@ instance ToLogEvent a => ToLogEvent (JournaldLogRecord a) where
 
 journaldLogRecordWith :: Parser a -> Parser (JournaldLogRecord a)
 journaldLogRecordWith p = JournaldLogRecord
-    <$> optional (skipSpace *> jdTimestamp <* skipSpace)
+    <$> optional (skipSpace *> svTimestamp <* skipSpace)
     <*> (toText <$> takeTill (== '['))
     <*> (char '[' *> decimal <* char ']' <* char ':' <* skipSpace)
     <*> p
-
-jdTimestamp :: Parser UTCTime
-jdTimestamp = tai <|> iso8601UTC <|> tt
-  where
-    tai = char '@' *> tai64N
-    tt  = UTCTime <$> isoDay <* char '_' <*> isoTime
