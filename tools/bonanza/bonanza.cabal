@@ -19,8 +19,10 @@ library
     , Bonanza.Parser.CommonLog
     , Bonanza.Parser.IP
     , Bonanza.Parser.Internal
+    , Bonanza.Parser.Journald
     , Bonanza.Parser.Netstrings
     , Bonanza.Parser.Nginz
+    , Bonanza.Parser.Rkt
     , Bonanza.Parser.Socklog
     , Bonanza.Parser.Svlogd
     , Bonanza.Parser.Time

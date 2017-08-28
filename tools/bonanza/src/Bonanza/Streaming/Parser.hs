@@ -9,7 +9,9 @@ module Bonanza.Streaming.Parser
 where
 
 import           Bonanza.Parser.CommonLog
+import           Bonanza.Parser.Journald
 import           Bonanza.Parser.Nginz
+import           Bonanza.Parser.Rkt
 import           Bonanza.Parser.Socklog
 import           Bonanza.Parser.Svlogd
 import           Bonanza.Parser.Tinylog
@@ -35,12 +37,16 @@ byName "svlogd"  = MkParser svLogRecord
 byName "tinylog" = MkParser tinyLogRecord
 byName "common"  = MkParser $ commonLogRecord []
 byName "nginz"   = MkParser nginzLogRecord
+byName "rkt"     = MkParser rktLogRecord
 byName ('s':'v':'l':'o':'g':'d':'+':xs) =
     let p = byName xs in case p of
         MkParser p' -> MkParser $ svLogRecordWith p'
 byName ('s':'o':'c':'k':'l':'o':'g':'+':xs) =
     let p = byName xs in case p of
         MkParser p' -> MkParser $ sockLogRecordWith p'
+byName ('j':'o':'u':'r':'n':'a':'l':'d':'+':xs) =
+    let p = byName xs in case p of
+        MkParser p' -> MkParser $ journaldLogRecordWith p'
 byName x = error $ "Unknown parser: " ++ x
 
 
