@@ -1,6 +1,6 @@
 SHELL          := /usr/bin/env bash
 NAME           := nginz
-NGINX_VERSION   = 1.12.0
+NGINX_VERSION   = 1.12.1
 NGINZ_VERSION  ?=
 SHELL          := /usr/bin/env bash
 DIST           := build
