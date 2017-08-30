@@ -41,5 +41,4 @@ private network.
 
 ## Roadmap
 
-- Release of remaining services (see above).
 - Documentation on development, build and deployment options.

@@ -21,6 +21,7 @@ library
       , Cassandra.Exec
       , Cassandra.Schema
       , Cassandra.Settings
+      , Cassandra.Util
 
     build-depends:
         aeson                >= 0.7

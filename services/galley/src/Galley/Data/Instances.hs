@@ -14,6 +14,7 @@ import Data.Int
 import Galley.Types
 import Galley.Types.Bot
 import Galley.Types.Teams
+import Galley.Types.Teams.Intra
 
 import qualified Data.Set
 
@@ -95,13 +96,15 @@ instance Cql TeamBinding where
 instance Cql TeamStatus where
     ctype = Tagged IntColumn
 
-    toCql Alive           = CqlInt 0
+    toCql Active          = CqlInt 0
     toCql PendingDelete   = CqlInt 1
     toCql Deleted         = CqlInt 2
+    toCql Suspended       = CqlInt 3
 
     fromCql (CqlInt i) = case i of
-        0 -> return Alive
+        0 -> return Active
         1 -> return PendingDelete
         2 -> return Deleted
+        3 -> return Suspended
         n -> fail $ "unexpected team-status: " ++ show n
     fromCql _ = fail "team-status: int expected"

@@ -330,6 +330,9 @@ incorrectPermissions = Wai.Error status403 "invalid-permissions" "Copy permissio
 insufficientTeamPermissions :: Wai.Error
 insufficientTeamPermissions = Wai.Error status403 "insufficient-permissions" "Insufficient team permissions"
 
+noBindingTeam :: Wai.Error
+noBindingTeam = Wai.Error status403 "no-binding-team" "Operation allowed only on binding teams"
+
 loginsTooFrequent :: Wai.Error
 loginsTooFrequent = Wai.Error status429 "client-error" "Logins too frequent"
 

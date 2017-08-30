@@ -9,7 +9,6 @@
 module Galley.Types.Teams
     ( Team
     , TeamBinding (..)
-    , TeamStatus (..)
     , newTeam
     , teamId
     , teamCreator
@@ -111,12 +110,6 @@ import Data.Word
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
-
-data TeamStatus
-    = Alive
-    | PendingDelete
-    | Deleted
-    deriving (Eq, Show)
 
 data TeamBinding =
       Binding

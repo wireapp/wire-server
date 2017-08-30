@@ -79,16 +79,18 @@ import Brig.User.Handle.Blacklist
 import Brig.User.Phone
 import Control.Applicative ((<|>))
 import Control.Arrow ((&&&))
+import Control.Concurrent.Async (mapConcurrently, mapConcurrently_)
 import Control.Error
 import Control.Lens (view)
 import Control.Monad (mfilter, when, unless, void, join)
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
+import Control.Monad.Reader
 import Data.ByteString.Conversion
 import Data.Foldable
 import Data.Id
 import Data.List (nub)
+import Data.List1 (List1)
 import Data.Misc (PlainTextPassword (..))
 import Data.Traversable (for)
 import Network.Wai.Utilities
@@ -416,14 +418,19 @@ revokeIdentity key = do
 -------------------------------------------------------------------------------
 -- Change Account Status
 
-changeAccountStatus :: UserId -> AccountStatus -> ExceptT AccountStatusError AppIO ()
-changeAccountStatus usr status = do
+changeAccountStatus :: List1 UserId -> AccountStatus -> ExceptT AccountStatusError AppIO ()
+changeAccountStatus usrs status = do
+    e <- ask
     ev <- case status of
-        Active    -> return (UserResumed usr)
-        Suspended -> lift $ revokeAllCookies usr >> return (UserSuspended usr)
+        Active    -> return UserResumed
+        Suspended -> liftIO $ mapConcurrently (runAppT e . revokeAllCookies) usrs >> return UserSuspended
         Deleted   -> throwE InvalidAccountStatus
-    lift $ Data.updateStatus usr status
-    lift $ Intra.onUserEvent usr Nothing ev
+    liftIO $ mapConcurrently_ (runAppT e . (update ev)) usrs
+  where
+    update :: (UserId -> UserEvent) -> UserId -> AppIO ()
+    update ev u = do
+        Data.updateStatus u status
+        Intra.onUserEvent u Nothing (ev u)
 
 -------------------------------------------------------------------------------
 -- Activation
