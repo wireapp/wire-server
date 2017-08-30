@@ -677,7 +677,9 @@ deleteAccount account@(accountUser -> user) = do
         return $ account
             { accountStatus     = Deleted
             , accountUser       = user
-                { userPict     = noPict
+                { userName     = Name "default"
+                , userAccentId = defaultAccentId
+                , userPict     = noPict
                 , userAssets   = []
                 , userHandle   = Nothing
                 , userLocale   = defLoc

@@ -80,7 +80,7 @@ markTeamDeleted :: PrepQuery W (TeamStatus, TeamId) ()
 markTeamDeleted = "update team set status = ? where team = ?"
 
 deleteTeam :: PrepQuery W (TeamStatus, TeamId) ()
-deleteTeam = "update team using timestamp 32503680000000000 set status = ? where team = ? "
+deleteTeam = "update team using timestamp 32503680000000000 set name = 'default', icon = 'default', status = ? where team = ? "
 
 updateTeamName :: PrepQuery W (Text, TeamId) ()
 updateTeamName = "update team set name = ? where team = ?"
