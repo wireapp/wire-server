@@ -19,7 +19,8 @@ import Brig.Types.Client
 import Brig.Types.User
 import Brig.Types.Provider
 import Control.Lens (view)
-import Control.Monad (when, unless, (>=>))
+import Control.Exception.Enclosed (handleAny)
+import Control.Monad (join, when, unless, (>=>))
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.ByteString.Conversion
@@ -680,9 +681,8 @@ deleteBot zusr zcon bid cid = do
     return ev
 
 validateServiceKey :: MonadIO m => ServiceKeyPEM -> m (Maybe (ServiceKey, Fingerprint Rsa))
-validateServiceKey pem = liftIO $ do
-    pk <- SSL.readPublicKey (LC8.unpack (toByteString pem))
-    case SSL.toPublicKey pk of
+validateServiceKey pem = liftIO $ readPublicKey >>= \pk ->
+    case join (SSL.toPublicKey <$> pk) of
         Nothing  -> return Nothing
         Just pk' -> do
             Just sha <- SSL.getDigestByName "SHA256"
@@ -694,6 +694,10 @@ validateServiceKey pem = liftIO $ do
                     let bits = fromIntegral size * 8
                     let key = ServiceKey RsaServiceKey bits pem
                     return $ Just (key, fpr)
+  where
+    readPublicKey = handleAny
+        (const $ return Nothing)
+        (SSL.readPublicKey (LC8.unpack (toByteString pem)) >>= return . Just)
 
 mkBotUserView :: User -> Ext.BotUserView
 mkBotUserView u = Ext.BotUserView

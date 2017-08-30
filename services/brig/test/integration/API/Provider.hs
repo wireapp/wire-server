@@ -76,11 +76,12 @@ tests p db b c g =
             , test p "delete"   $ testDeleteProvider db b
             ]
         , testGroup "service"
-            [ test p "add-get"     $ testAddGetService db b
-            , test p "update"      $ testUpdateService db b
-            , test p "update-conn" $ testUpdateServiceConn db b
-            , test p "list-by-tag" $ testListServicesByTag db b
-            , test p "delete"      $ testDeleteService db b
+            [ test p "add-get fail (bad key)" $ testAddGetServiceBadKey db b
+            , test p "add-get"                $ testAddGetService db b
+            , test p "update"                 $ testUpdateService db b
+            , test p "update-conn"            $ testUpdateServiceConn db b
+            , test p "list-by-tag"            $ testListServicesByTag db b
+            , test p "delete"                 $ testDeleteService db b
             ]
         , testGroup "bot"
             [ test p "add-remove" $ testAddRemoveBot db b g c
@@ -192,6 +193,17 @@ testDeleteProvider db brig = do
 
 -------------------------------------------------------------------------------
 -- Provider Services
+
+testAddGetServiceBadKey :: DB.ClientState -> Brig -> Http ()
+testAddGetServiceBadKey db brig = do
+    prv <- randomProvider db brig
+    let pid = providerId prv
+    -- Add service
+    new <- defNewService
+    -- Specially crafted key that passes basic validation
+    let Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
+    let newBad = new { newServiceKey = ServiceKeyPEM k }
+    addService brig pid newBad !!! const 400 === statusCode
 
 testAddGetService :: DB.ClientState -> Brig -> Http ()
 testAddGetService db brig = do
