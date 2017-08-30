@@ -35,7 +35,7 @@ maxAttempts :: Int32
 maxAttempts = 3
 
 ttl :: NominalDiffTime
-ttl = 600 -- 10 minutes
+ttl = 3600 -- 60 minutes
 
 createPasswordResetCode :: UserId -> Either Email Phone -> AppIO PasswordResetPair
 createPasswordResetCode u target = do
