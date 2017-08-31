@@ -1,0 +1,3 @@
+[submodule "services/nginz/third_party/headers-more-nginx-module"]
+	path = services/nginz/third_party/headers-more-nginx-module
+	url = git@github.com:openresty/headers-more-nginx-module.git
