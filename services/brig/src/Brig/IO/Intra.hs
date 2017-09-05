@@ -36,6 +36,7 @@ module Brig.IO.Intra
     , getTeamMember
     , getTeamMembers
     , getTeam
+    , getTeamContacts
     , changeTeamStatus
     ) where
 

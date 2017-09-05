@@ -46,6 +46,8 @@ module Galley.Types.Teams
     , newPermissions
     , fullPermissions
     , hasPermission
+    , isOwner
+    , isOnlyOwner
     , self
     , copy
 
@@ -92,7 +94,7 @@ module Galley.Types.Teams
     , newTeamDeleteData
     ) where
 
-import Control.Lens (makeLenses, (^.))
+import Control.Lens (makeLenses, view, (^.))
 import Control.Monad (when)
 import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
@@ -285,6 +287,18 @@ fullPermissions = let p = intToPerms maxBound in Permissions p p
 
 hasPermission :: TeamMember -> Perm -> Bool
 hasPermission tm p = p `Set.member` (tm^.permissions.self)
+
+--------------------------------------------------------
+-- NOTE: By convention, we define an _owner_ as a member
+--       with full permissions
+--------------------------------------------------------
+isOwner :: TeamMember -> Bool
+isOwner = (== fullPermissions) . view permissions
+
+isOnlyOwner :: Foldable m => UserId -> m TeamMember -> Bool
+isOnlyOwner u =  not . any otherOwner
+  where
+    otherOwner x = isOwner x && x^.userId /= u
 
 permToInt :: Perm -> Word64
 permToInt CreateConversation       = 0x0001
