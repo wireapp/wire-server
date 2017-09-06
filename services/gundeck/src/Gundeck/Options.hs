@@ -29,6 +29,7 @@ module Gundeck.Options
     , notificationTTL
 
       -- * Fallback Notification Queue
+    , fbNoQueue
     , fbQueueLimit
     , fbQueueDelay
     , fbQueueBurst
@@ -64,6 +65,7 @@ data Opts = Opts
     , _awsAccount      :: !Account
     , _awsArnEnv       :: !ArnEnv
     , _notificationTTL :: !NotificationTTL
+    , _fbNoQueue       :: !Bool
     , _fbQueueDelay    :: !Word64
     , _fbQueueLimit    :: !Int
     , _fbQueueBurst    :: !Word16
@@ -155,12 +157,18 @@ parseOptions = execParser (info (helper <*> optsParser) desc)
                 <> help "TTL (seconds) of stored notifications"
                 <> value 86400)
 
+        <*> (switch $
+                long "no-fallback-queue"
+                <> help "Use this option if you wish to never send delayed fallback notifications. \
+                   \If set, the following fallback-queue options are irrelevant.")
+
         <*> (option auto $
                 long "fallback-queue-delay"
                 <> metavar "SIZE"
                 <> showDefault
-                <> help "Delay (seconds) of notifications in the fallback queue."
-                <> value 30)
+                <> help "Delay (seconds) of notifications in the fallback queue. \
+                   \Should be higher than the values defined in the AWS module."
+                <> value 60)
 
         <*> (option auto $
                 long "fallback-queue-limit"

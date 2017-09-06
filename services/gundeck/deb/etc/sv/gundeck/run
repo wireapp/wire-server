@@ -40,4 +40,5 @@ exec chpst -u $USER \
     --notification-ttl=${GUNDECK_NOTIFICATION_TTL?'unset'} \
     --aws-region=${KHAN_REGION?'unset'} \
     --aws-account=${AWS_ACCOUNT_ID?'unset'} \
-    --aws-arn-env=${KHAN_ENV?'unset'}
+    --aws-arn-env=${KHAN_ENV?'unset'} \
+    --no-fallback-queue

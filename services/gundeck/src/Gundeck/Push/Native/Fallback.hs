@@ -16,6 +16,7 @@ import Data.Foldable (for_)
 import Data.Id
 import Gundeck.Aws.Arn (toText)
 import Gundeck.Monad
+import Gundeck.Options (fbNoQueue)
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
 import Gundeck.Push.Native.Types
@@ -57,9 +58,10 @@ execute :: NotificationId -- ^ The ID of the fallback notification.
         -> Candidates s   -- ^ The candidates for receiving the fallback notification.
         -> Gundeck [Result s]
 execute nid prio (Candidates now queue) = do
+    o <- view options
     let m = Native.Notice nid prio (Just apsFallback)
     r <- Native.push m now
-    unless (null queue) $ do
+    unless (null queue || o^.fbNoQueue) $ do
         e <- ask
         n <- foldM (schedule e m) (0 :: Word) queue
         Metrics.counterAdd n (Metrics.path "push.fallback.schedule") (e^.monitor)
