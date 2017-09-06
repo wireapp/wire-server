@@ -57,3 +57,6 @@ integration-%:
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
 
+.PHONY: docker
+docker:
+	docker build -t $(NAME) -f ../../build/alpine/Dockerfile --build-arg service=$(NAME) ../..

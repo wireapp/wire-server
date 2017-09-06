@@ -103,3 +103,7 @@ db-reset: install
 .PHONY: db-migrate
 db-migrate: install
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1
+
+.PHONY: docker
+docker:
+	docker build -t $(NAME) -f ../../build/alpine/Dockerfile --build-arg service=$(NAME) ../..
