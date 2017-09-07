@@ -346,8 +346,8 @@ timeToLive t s = Attributes (Endo (ttlAttr s))
     ttlNow GCM             = "0"
     ttlNow APNS            = "0"
     ttlNow APNSSandbox     = "0"
-    ttlNow APNSVoIP        = "45" -- See note [VoIP TTLs]
-    ttlNow APNSVoIPSandbox = "45" -- See note [VoIP TTLs]
+    ttlNow APNSVoIP        = "15" -- See note [VoIP TTLs]
+    ttlNow APNSVoIPSandbox = "15" -- See note [VoIP TTLs]
 
     ttlKey GCM             = "AWS.SNS.MOBILE.GCM.TTL"
     ttlKey APNS            = "AWS.SNS.MOBILE.APNS.TTL"

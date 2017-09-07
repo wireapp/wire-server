@@ -29,7 +29,7 @@ module Gundeck.Options
     , notificationTTL
 
       -- * Fallback Notification Queue
-    , fbNoQueue
+    , fbNoFallback
     , fbQueueLimit
     , fbQueueDelay
     , fbQueueBurst
@@ -65,7 +65,7 @@ data Opts = Opts
     , _awsAccount      :: !Account
     , _awsArnEnv       :: !ArnEnv
     , _notificationTTL :: !NotificationTTL
-    , _fbNoQueue       :: !Bool
+    , _fbNoFallback    :: !Bool
     , _fbQueueDelay    :: !Word64
     , _fbQueueLimit    :: !Int
     , _fbQueueBurst    :: !Word16
@@ -157,18 +157,21 @@ parseOptions = execParser (info (helper <*> optsParser) desc)
                 <> help "TTL (seconds) of stored notifications"
                 <> value 86400)
 
+        -- NOTE: If set, notifications are still queued to be sent, etc. but never actually
+        --       end up getting sent out. This allows us to still keep track of how successful
+        --       we are with cancelling the fallback notifications and thus get a feeling of
+        --       where we stand today.
         <*> (switch $
-                long "no-fallback-queue"
-                <> help "Use this option if you wish to never send delayed fallback notifications. \
-                   \If set, the following fallback-queue options are irrelevant.")
+                long "dont-send-fallback"
+                <> help "Use this option if you wish to never send delayed fallback notifications.")
 
-        <*> (option auto $
+        <*> (delayOption $
                 long "fallback-queue-delay"
                 <> metavar "SIZE"
                 <> showDefault
-                <> help "Delay (seconds) of notifications in the fallback queue. \
-                   \Should be higher than the values defined in the AWS module."
-                <> value 60)
+                <> help "Delay (seconds) of notifications before sending a fallback. \
+                   \MUST be higher than 30 seconds."
+                <> value 300)
 
         <*> (option auto $
                 long "fallback-queue-limit"
@@ -188,3 +191,7 @@ parseOptions = execParser (info (helper <*> optsParser) desc)
 
     textOption :: Mod OptionFields String -> Parser Text
     textOption = fmap pack . strOption
+
+    delayOption = fmap check . option auto
+      where
+        check x = if x < 30 then error "Delay must > 30" else x
