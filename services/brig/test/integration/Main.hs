@@ -37,7 +37,7 @@ main = lookupEnv "INTEGRATION_TEST" >>= maybe (return ()) (const run)
         userAuthApi <- UserAuth.tests mg lg brig
         providerApi <- Provider.tests mg db brig cannon galley
         searchApis  <- Search.tests mg brig
-        teamApis    <- Team.tests mg brig galley
+        teamApis    <- Team.tests mg brig cannon galley
         turnApi     <- TURN.tests mg brig turnFile
 
         defaultMain $ testGroup "Brig API Integration"

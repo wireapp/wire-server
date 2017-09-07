@@ -11,6 +11,7 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
+import Control.Concurrent.Async.Lifted.Safe (mapConcurrently_)
 import Control.Lens ((^.), (^?), view)
 import Control.Monad
 import Control.Monad.IO.Class
@@ -34,9 +35,10 @@ import qualified Data.Text.Encoding          as T
 import qualified Data.UUID.V4                as UUID
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Galley.Types.Teams          as Team
+import qualified Test.Tasty.Cannon           as WS
 
-tests :: Manager -> Brig -> Galley -> IO TestTree
-tests m b g =
+tests :: Manager -> Brig -> Cannon -> Galley -> IO TestTree
+tests m b c g =
     return $ testGroup "team"
         [ testGroup "invitation"
             [ test m "post /teams/:tid/invitations - 201"                $ testInvitationEmail b g
@@ -52,11 +54,46 @@ tests m b g =
             , test m "get /teams/:tid/invitations/info - 200"            $ testInvitationInfo b g
             , test m "get /teams/:tid/invitations/info - 400"            $ testInvitationInfoBadCode b
             , test m "post /i/teams/:tid/suspend - 200"                  $ testSuspendTeam b g
+            , test m "put /self - 200 update events"                     $ testUpdateEvents b g c
             ]
         ]
 
 -------------------------------------------------------------------------------
 -- Invitation Tests
+
+testUpdateEvents :: Brig -> Galley -> Cannon -> Http ()
+testUpdateEvents brig galley cannon = do
+    inviteeEmail  <- randomEmail
+    alice         <- userId <$> randomUser brig
+    tid           <- createTeam alice galley
+
+    -- invite and register Bob
+    let invite  = InvitationRequest inviteeEmail (Name "Bob") Nothing
+    Just inv <- decodeBody <$> postInvitation brig tid alice invite
+    Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+    rsp2 <- post (brig . path "/register"
+                       . contentJson
+                       . body (accept inviteeEmail inviteeCode))
+                  <!! const 201 === statusCode
+    let Just bob   = userId <$> decodeBody rsp2
+
+    -- ensure Alice and Bob are not connected
+    void $ getConnection brig bob alice <!! const 404 === statusCode
+    void $ getConnection brig alice bob <!! const 404 === statusCode
+
+    -- Alice updates her profile
+    let newColId   = Just 5
+        newAssets  = Just [ImageAsset "abc" (Just AssetComplete)]
+        newName    = Just $ Name "Alice in Wonderland"
+        newPic     = Nothing -- Legacy
+        userUpdate = UserUpdate newName newPic newAssets newColId
+        update     = RequestBodyLBS . encode $ userUpdate
+
+    -- Update profile & receive notification
+    WS.bracketRN cannon [alice, bob] $ \[aliceWS, bobWS] -> do
+        put (brig . path "/self" . contentJson . zUser alice . zConn "c" . body update) !!!
+            const 200 === statusCode
+        liftIO $ mapConcurrently_ (\ws -> assertUpdateNotification ws alice userUpdate) [aliceWS, bobWS]
 
 testInvitationEmail :: Brig -> Galley -> Http ()
 testInvitationEmail brig galley = do

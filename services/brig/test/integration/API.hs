@@ -11,7 +11,7 @@ import Brig.Types.User.Auth hiding (user)
 import Brig.Data.PasswordReset
 import Control.Arrow ((&&&))
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
+import Control.Concurrent.Async.Lifted.Safe (mapConcurrently, mapConcurrently_)
 import Control.Lens ((^?), (^?!), preview)
 import Control.Monad
 import Control.Monad.Catch
@@ -25,7 +25,7 @@ import Data.Function (on)
 import Data.Id hiding (client)
 import Data.Int (Int64)
 import Data.List (sort, sortBy, nub)
-import Data.List1 (List1)
+import Data.List1 (List1, singleton)
 import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
 import Data.Monoid ((<>))
@@ -390,28 +390,25 @@ testMultipleUsers brig = do
 
 testUserUpdate :: Brig -> Cannon -> Http ()
 testUserUpdate brig cannon = do
-    uid <- userId <$> randomUser brig
-    let newColId  = Just 5
-        newAssets = Just [ImageAsset "abc" (Just AssetComplete)]
-        newName   = Just $ Name "dogbert"
-        newPic    = Nothing -- Legacy
-        update    = RequestBodyLBS . encode $ UserUpdate newName newPic newAssets newColId
+    alice <- userId <$> randomUser brig
+    bob <- userId <$> randomUser brig
+    connectUsers brig alice (singleton bob)
+    let newColId   = Just 5
+        newAssets  = Just [ImageAsset "abc" (Just AssetComplete)]
+        newName    = Just $ Name "dogbert"
+        newPic     = Nothing -- Legacy
+        userUpdate = UserUpdate newName newPic newAssets newColId
+        update     = RequestBodyLBS . encode $ userUpdate
 
     -- Update profile & receive notification
-    WS.bracketR cannon uid $ \ws -> do
-        put (brig . path "/self" . contentJson . zUser uid . zConn "c" . body update) !!!
+    WS.bracketRN cannon [alice, bob] $ \[aliceWS, bobWS] -> do
+        put (brig . path "/self" . contentJson . zUser alice . zConn "c" . body update) !!!
             const 200 === statusCode
-        void . liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
-            let j = Object $ List1.head (ntfPayload n)
-            j ^? key "type" . _String @?= Just "user.update"
-            let u = j ^?! key "user"
-            u ^? key "id"   . _String        @?= Just (UUID.toText (toUUID uid))
-            u ^? key "name" . _String        @?= Just "dogbert"
-            u ^? key "accent_id" . _Integral @?= fromColourId <$> newColId
-            u ^? key "assets"                @?= Just (toJSON newAssets)
+
+        liftIO $ mapConcurrently_ (\ws -> assertUpdateNotification ws alice userUpdate) [aliceWS, bobWS]
 
     -- get the updated profile
-    get (brig . path "/self" . zUser uid) !!! do
+    get (brig . path "/self" . zUser alice) !!! do
         const 200 === statusCode
         const (newName, newColId, newAssets) === (\u ->
             ( fmap userName u
@@ -420,7 +417,7 @@ testUserUpdate brig cannon = do
             )) . decodeBody
 
     -- get only the new name
-    get (brig . path "/self/name" . zUser uid) !!! do
+    get (brig . path "/self/name" . zUser alice) !!! do
         const 200 === statusCode
         const (String . fromName <$> newName) === (\r -> do
             b <- responseBody r
@@ -429,7 +426,7 @@ testUserUpdate brig cannon = do
     -- should appear in search by 'newName'
     suid <- userId <$> randomUser brig
     Search.refreshIndex brig
-    Search.assertCanFind brig suid uid "dogbert"
+    Search.assertCanFind brig suid alice "dogbert"
 
 testEmailUpdate :: Brig -> Http ()
 testEmailUpdate brig = do
@@ -2025,12 +2022,6 @@ deleteClient brig u c pw = delete $ brig
     payload = RequestBodyLBS . encode $ object
         [ "password" .= pw
         ]
-
-getConnection :: Brig -> UserId -> UserId -> Http ResponseLBS
-getConnection brig from to = get $ brig
-    . paths ["/connections", toByteString' to]
-    . zUser from
-    . zConn "conn"
 
 listConnections :: Brig -> UserId -> Http ResponseLBS
 listConnections brig u = get $ brig
