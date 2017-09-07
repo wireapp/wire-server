@@ -23,7 +23,7 @@ import Data.Metrics (path, counterIncr)
 import Data.Text (Text)
 import Gundeck.Env
 import Gundeck.Monad
-import Gundeck.Options (notificationTTL)
+import Gundeck.Options (fbNoQueue, notificationTTL)
 import Gundeck.Push.Native.Serialise
 import Gundeck.Push.Native.Types as Types
 import Gundeck.Types
@@ -47,7 +47,8 @@ push m addrs = mapConcurrently (push1 m) addrs
 push1 :: Message s -> Address s -> Gundeck (Result s)
 push1 m a = do
     e <- view awsEnv
-    r <- Aws.execute e (publish m a ttl)
+    o <- view options
+    r <- Aws.execute e (publish m a $ ttl (not (o^.fbNoQueue)))
     case r of
         Success _                    -> do
             Log.debug $ field "user" (toByteString (a^.addrUser))
@@ -63,10 +64,11 @@ push1 m a = do
             view monitor >>= counterIncr (path "push.native.errors")
     return r
   where
-    -- Transient notifications as well as those with a fallback
-    -- transport must be delivered "now or never".
-    ttl | msgTransient m || hasFallback = Just (Aws.Seconds 0)
-        | otherwise                     = Nothing
+    -- Transient notifications as well as those with a fallback transport (in
+    -- case we are using a fallback queue) must be delivered "now or never".
+    ttl hasFbQueue
+        | msgTransient m || (hasFallback && hasFbQueue) = Just (Aws.Seconds 0)
+        | otherwise                                     = Nothing
 
     hasFallback = isJust (a^.addrFallback)
 
