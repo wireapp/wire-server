@@ -29,7 +29,7 @@ module Gundeck.Options
     , notificationTTL
 
       -- * Fallback Notification Queue
-    , fbNoFallback
+    , fbSkipFallbacks
     , fbQueueLimit
     , fbQueueDelay
     , fbQueueBurst
@@ -65,7 +65,7 @@ data Opts = Opts
     , _awsAccount      :: !Account
     , _awsArnEnv       :: !ArnEnv
     , _notificationTTL :: !NotificationTTL
-    , _fbNoFallback    :: !Bool
+    , _fbSkipFallbacks :: !Bool
     , _fbQueueDelay    :: !Word64
     , _fbQueueLimit    :: !Int
     , _fbQueueBurst    :: !Word16
@@ -162,7 +162,7 @@ parseOptions = execParser (info (helper <*> optsParser) desc)
         --       we are with cancelling the fallback notifications and thus get a feeling of
         --       where we stand today.
         <*> (switch $
-                long "dont-send-fallback"
+                long "skip-fallbacks"
                 <> help "Use this option if you wish to never send delayed fallback notifications.")
 
         <*> (delayOption $
