@@ -10,33 +10,38 @@ import Brig.Types.Client
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.Types.Intra
-import Control.Lens ((^?))
+import Control.Lens ((^?), (^?!))
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Aeson
-import Data.Aeson.Lens (key, _String)
+import Data.Aeson.Lens (key, _String, _Integral)
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Char
 import Data.Id
+import Data.List1 (List1)
 import Data.Misc (PlainTextPassword(..))
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 import Galley.Types (Member (..))
+import Gundeck.Types.Notification
 import Gundeck.Types.Push (SignalingKeys (..), EncKey (..), MacKey (..))
 import System.Random (randomRIO, randomIO)
 import Test.Tasty (TestName, TestTree)
-import Test.Tasty.HUnit (testCase)
+import Test.Tasty.HUnit
+import Test.Tasty.Cannon
 
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.List1 as List1
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import qualified Test.Tasty.Cannon as WS
 
 type Brig    = Request -> Request
 type Cannon  = Request -> Request
@@ -78,8 +83,24 @@ getPhoneLoginCode brig p = do
     let lbs   = fromMaybe "" $ responseBody r
     return (LoginCode <$> (lbs ^? key "code" . _String))
 
+assertUpdateNotification :: WS.WebSocket -> UserId -> UserUpdate -> IO Notification
+assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
+    let j = Object $ List1.head (ntfPayload n)
+    j ^? key "type" . _String @?= Just "user.update"
+    let u = j ^?! key "user"
+    u ^? key "id"   . _String        @?= Just (UUID.toText (toUUID uid))
+    u ^? key "name" . _String        @?= fromName <$> uupName upd
+    u ^? key "accent_id" . _Integral @?= fromColourId <$> uupAccentId upd
+    u ^? key "assets"                @?= Just (toJSON (uupAssets upd))
+
 --------------------------------------------------------------------------------
 -- API Operations
+
+getConnection :: Brig -> UserId -> UserId -> Http ResponseLBS
+getConnection brig from to = get $ brig
+    . paths ["/connections", toByteString' to]
+    . zUser from
+    . zConn "conn"
 
 -- TODO: createUser
 postUser :: Text -> Text -> Maybe InvitationCode -> Brig -> Http ResponseLBS
@@ -147,6 +168,13 @@ putConnection brig from to r = put $ brig
     . zConn "conn"
   where
     payload = RequestBodyLBS . encode $ object [ "status" .= r ]
+
+connectUsers :: Brig -> UserId -> List1 UserId -> Http ()
+connectUsers b u = mapM_ connectTo
+  where
+    connectTo v = do
+        void $ postConnection b u v
+        void $ putConnection b v u Accepted
 
 putHandle :: Brig -> UserId -> Text -> Http ResponseLBS
 putHandle brig usr h = put $ brig

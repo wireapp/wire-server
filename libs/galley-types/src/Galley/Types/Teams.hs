@@ -171,7 +171,7 @@ data TeamMember = TeamMember
 
 newtype TeamMemberList = TeamMemberList
     { _teamMembers :: [TeamMember]
-    }
+    } deriving (Monoid)
 
 data TeamConversation = TeamConversation
     { _conversationId      :: ConvId

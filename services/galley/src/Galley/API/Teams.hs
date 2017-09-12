@@ -9,6 +9,7 @@ module Galley.API.Teams
     , updateTeamStatus
     , getTeam
     , getTeamInternal
+    , getBindingTeamMembers
     , getManyTeams
     , deleteTeam
     , uncheckedDeleteTeam
@@ -385,3 +386,13 @@ finishCreateTeam team owner others zcon = do
     let r = membersToRecipients Nothing others
     push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
     pure (empty & setStatus status201 . location (team^.teamId))
+
+getBindingTeamMembers :: UserId -> Galley Response
+getBindingTeamMembers zusr = do
+    tid <- Data.oneUserTeam zusr >>= ifNothing teamNotFound
+    binding <- Data.teamBinding tid >>= ifNothing teamNotFound
+    case binding of
+        Binding -> do
+            members <- Data.teamMembers tid
+            pure $ json $ teamMemberListJson True (newTeamMemberList members)
+        NonBinding -> throwM nonBindingTeam
