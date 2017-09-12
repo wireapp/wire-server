@@ -1,0 +1,6 @@
+[submodule "services/nginz/third_party/headers-more-nginx-module"]
+	path = services/nginz/third_party/headers-more-nginx-module
+	url = https://github.com/openresty/headers-more-nginx-module.git 
+[submodule "services/nginz/third_party/nginx-module-vts"]
+	path = services/nginz/third_party/nginx-module-vts
+	url = https://github.com/vozlt/nginx-module-vts.git

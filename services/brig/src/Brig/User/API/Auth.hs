@@ -95,6 +95,8 @@ routes = do
             Doc.description "Request a persistent cookie instead of a session cookie."
             Doc.optional
         Doc.errorResponse badCredentials
+        Doc.errorResponse accountSuspended
+        Doc.errorResponse accountPending
         Doc.errorResponse loginsTooFrequent
 
     --

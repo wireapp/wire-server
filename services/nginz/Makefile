@@ -28,8 +28,9 @@ CONFIG_OPTIONS = \
 ADDITIONAL_MODULES = \
     --with-http_ssl_module \
     --with-http_stub_status_module \
-    --add-module=../third_party/nginx_zauth_module \
-    --add-module=../third_party/nginx_headers_more
+    --add-module=../third_party/nginx-zauth-module \
+    --add-module=../third_party/headers-more-nginx-module \
+    --add-module=../third_party/nginx-module-vts
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -48,6 +49,7 @@ compile: $(BIN)
 dist: guard-NGINZ_VERSION $(DIST)/$(DEB)
 
 $(BIN): src
+	git submodule update --init
 	(cd src; ./configure $(CONFIG_OPTIONS) $(ADDITIONAL_MODULES))
 	make -C src
 
