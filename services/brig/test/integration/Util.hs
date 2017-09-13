@@ -115,6 +115,13 @@ postUser name email invCode brig = do
             ]
     post (brig . path "/i/users" . contentJson . body p)
 
+deleteUser :: UserId -> Maybe PlainTextPassword -> Brig -> Http ResponseLBS
+deleteUser u p brig = delete $ brig
+    . path "/self"
+    . contentJson
+    . zUser u
+    . body (RequestBodyLBS (encode (mkDeleteUser p)))
+
 activate :: Brig -> ActivationPair -> Http ResponseLBS
 activate brig (k, c) = get $ brig
     . path "activate"

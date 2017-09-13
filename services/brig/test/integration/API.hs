@@ -1890,13 +1890,6 @@ testOnboarding brig = do
 -------------------------------------------------------------------------------
 -- Utilities
 
-deleteUser :: UserId -> Maybe PlainTextPassword -> Brig -> Http ResponseLBS
-deleteUser u p brig = delete $ brig
-    . path "/self"
-    . contentJson
-    . zUser u
-    . body (RequestBodyLBS (encode (mkDeleteUser p)))
-
 checkHandles :: Brig -> UserId -> [Text] -> Word -> Http ResponseLBS
 checkHandles brig uid hs num =
     let hs'  = unsafeRange hs
