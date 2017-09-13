@@ -91,6 +91,10 @@ brigModels =
       -- TURN
     , rtcConfiguration
     , rtcIceServer
+
+      -- Re-Exports
+    , Galley.newBindingTeam
+    , Galley.serviceRef
     ]
 
 -------------------------------------------------------------------------------
