@@ -78,3 +78,8 @@ src: $(TMPDIR)/$(BUNDLE)
 $(TMPDIR)/$(BUNDLE):
 	(cd $(TMPDIR); curl -O https://nginx.org/download/$(BUNDLE).asc)
 	(cd $(TMPDIR); curl -O https://nginx.org/download/$(BUNDLE))
+
+.PHONY: docker
+docker:
+	git submodule update --init
+	docker build -f ../../services/nginz/Dockerfile -t nginz ../..
