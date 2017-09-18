@@ -12,7 +12,12 @@ No license is granted to the Wire trademark and its associated logos, all of whi
 
 ## Wire server
 
-This repository contains the source code for the Wire server. At the moment it contains a subset of the libraries and services used by Wire. We will keep releasing more libraries and services over time as we finish cleaning up and documenting the source code. Our goal is to publish the source code of the entire Wire server. 
+This repository contains the source code for the Wire server. It contains all libraries and services necessary to run Wire.
+
+Exact description on how to build the different services is coming up soon.
+Self hosting and federation is on our long term roadmap.
+
+See more in "[Open sourcing Wire server code](https://medium.com/@wireapp/open-sourcing-wire-server-code-ef7866a731d5)".
 
 ## Content of the repository
 This repository contains:
@@ -41,4 +46,5 @@ private network.
 
 ## Roadmap
 
-- Documentation on development, build and deployment options.
+Documentation on development
+Build and deployment options
