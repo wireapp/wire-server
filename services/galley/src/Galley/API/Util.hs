@@ -60,6 +60,13 @@ ensureReAuthorised u secret = do
     unless reAuthed $
         throwM reAuthFailed
 
+bindingTeamMembers :: TeamId -> Galley [TeamMember]
+bindingTeamMembers tid = do
+    binding <- Data.teamBinding tid >>= ifNothing teamNotFound
+    case binding of
+        Binding -> Data.teamMembers tid
+        NonBinding -> throwM nonBindingTeam
+
 sameTeam :: [UserId] -> [TeamMember] -> [UserId]
 sameTeam uids tmms = Set.toList $
     Set.fromList uids `Set.intersection` Set.fromList (map (view userId) tmms)

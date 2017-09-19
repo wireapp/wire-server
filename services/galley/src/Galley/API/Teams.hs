@@ -409,4 +409,3 @@ getBindingTeamMembers :: UserId -> Galley Response
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
     members <- Data.teamMembers tid
     pure $ json $ teamMemberListJson True (newTeamMemberList members)
-
