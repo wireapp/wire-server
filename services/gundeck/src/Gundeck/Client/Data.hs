@@ -15,8 +15,9 @@ import Gundeck.Instances ()
 import Gundeck.Types
 import Prelude hiding (max)
 
+-- | Note: Consistency: 'One'
 select :: MonadClient m => UserId -> ClientId -> m (Maybe SignalingKeys)
-select u c = fmap (uncurry SignalingKeys) <$> query1 q (params Quorum (u, c))
+select u c = fmap (uncurry SignalingKeys) <$> query1 q (params One (u, c))
   where
     q :: QueryString R (UserId, ClientId) (EncKey, MacKey)
     q = "select enckey, mackey from clients where user = ? and client = ?"
