@@ -46,5 +46,5 @@ private network.
 
 ## Roadmap
 
-Documentation on development
-Build and deployment options
+- Documentation on development
+- Build and deployment options
