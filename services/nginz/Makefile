@@ -82,4 +82,4 @@ $(TMPDIR)/$(BUNDLE):
 .PHONY: docker
 docker:
 	git submodule update --init
-	docker build -f ../../services/nginz/Dockerfile -t nginz ../..
+	docker build -f Dockerfile -t nginz ../..
