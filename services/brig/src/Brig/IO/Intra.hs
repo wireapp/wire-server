@@ -36,6 +36,7 @@ module Brig.IO.Intra
     , getTeamMember
     , getTeamMembers
     , getTeam
+    , getTeamContacts
     , changeTeamStatus
     ) where
 
@@ -49,7 +50,9 @@ import Brig.RPC
 import Brig.Types
 import Brig.Types.Intra
 import Brig.User.Event
+import Control.Applicative (liftA2)
 import Control.Lens (view, (.~), (?~), (&))
+import Control.Lens.Prism (_Just)
 import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Retry
@@ -224,9 +227,19 @@ notifyContacts :: List1 Event
                -> Maybe ConnId -- ^ Origin device connection, if any.
                -> AppIO ()
 notifyContacts events orig route conn = do
-    e <- ask
+    env <- ask
     notify events orig route conn $
-        runAppT e $ list1 orig <$> lookupContactList orig
+        runAppT env $ list1 orig <$> liftA2 (++) contacts teamContacts
+
+  where
+    contacts :: AppIO [UserId]
+    contacts = lookupContactList orig
+
+    teamContacts :: AppIO [UserId]
+    teamContacts = getUids <$> getTeamContacts orig
+
+    getUids :: Maybe Team.TeamMemberList -> [UserId]
+    getUids = fmap (view Team.userId) . view (_Just . Team.teamMembers)
 
 -- Event Serialisation:
 
@@ -539,6 +552,17 @@ getTeamMembers tid = do
   where
     req = paths ["i", "teams", toByteString' tid, "members"]
         . expect2xx
+
+getTeamContacts :: UserId -> AppIO (Maybe Team.TeamMemberList)
+getTeamContacts u = do
+    debug $ remote "galley" . msg (val "Get team contacts")
+    rs <- galleyRequest GET req
+    case Bilge.statusCode rs of
+        200 -> Just <$> decodeBody "galley" rs
+        _   -> return Nothing
+  where
+    req = paths ["i", "users", toByteString' u, "team", "members"]
+        . expect [status200, status404]
 
 getTeam :: TeamId -> AppIO Team.TeamData
 getTeam tid = do

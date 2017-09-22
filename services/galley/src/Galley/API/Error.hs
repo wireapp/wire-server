@@ -53,6 +53,10 @@ operationDenied p = Error
 noTeamMember :: Error
 noTeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
 
+noOtherOwner :: Error
+noOtherOwner = Error status403 "no-other-owner" "You are trying to remove or downgrade\
+                            \ an owner. Promote another team member before proceeding."
+
 noAddToManaged :: Error
 noAddToManaged = Error status403 "no-add-to-managed" "Adding users directly to managed conversation is not allowed."
 
@@ -82,3 +86,6 @@ noAddToBinding = Error status403 "binding-team" "Cannot add users to binding tea
 
 deleteQueueFull :: Error
 deleteQueueFull = Error status503 "queue-full" "The delete queue is full. No further delete requests can be processed at the moment."
+
+nonBindingTeam :: Error
+nonBindingTeam = Error status404 "non-binding-team" "not member of a binding team"

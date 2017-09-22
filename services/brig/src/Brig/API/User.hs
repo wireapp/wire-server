@@ -81,7 +81,7 @@ import Control.Applicative ((<|>))
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async (mapConcurrently, mapConcurrently_)
 import Control.Error
-import Control.Lens (view)
+import Control.Lens (view, (^.))
 import Control.Monad (mfilter, when, unless, void, join)
 import Control.Monad.Catch
 import Control.Monad.IO.Class
@@ -110,6 +110,7 @@ import qualified Brig.IO.Intra              as Intra
 import qualified Brig.Types.Team.Invitation as Team
 import qualified Brig.Team.DB               as Team
 import qualified Data.Map.Strict            as Map
+import qualified Galley.Types.Teams         as Team
 import qualified System.Logger.Class        as Log
 
 -------------------------------------------------------------------------------
@@ -595,9 +596,14 @@ deleteUser uid pwd = do
         Nothing -> throwE DeleteUserInvalid
         Just  a -> case accountStatus a of
             Deleted   -> return Nothing
-            Suspended -> go a
-            Active    -> go a
+            Suspended -> ensureNotOnlyOwner >> go a
+            Active    -> ensureNotOnlyOwner >> go a
   where
+    ensureNotOnlyOwner = lift (Intra.getTeamContacts uid) >>= \case
+         Just mems | Team.isOnlyOwner uid (mems^.Team.teamMembers) ->
+            throwE DeleteUserOnlyOwner
+         _ -> return ()
+
     go a = maybe (byIdentity a) (byPassword a) pwd
 
     byIdentity a = case userIdentity (accountUser a) of

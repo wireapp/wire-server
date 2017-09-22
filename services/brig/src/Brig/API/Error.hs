@@ -145,6 +145,7 @@ deleteUserError DeleteUserInvalidCode     = StdError invalidCode
 deleteUserError DeleteUserInvalidPassword = StdError badCredentials
 deleteUserError DeleteUserMissingPassword = StdError missingAuthError
 deleteUserError (DeleteUserPendingCode t) = RichError deletionCodePending (DeletionCodeTimeout t) []
+deleteUserError DeleteUserOnlyOwner       = StdError noOtherOwner
 
 accountStatusError :: AccountStatusError -> Error
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
@@ -332,6 +333,10 @@ insufficientTeamPermissions = Wai.Error status403 "insufficient-permissions" "In
 
 noBindingTeam :: Wai.Error
 noBindingTeam = Wai.Error status403 "no-binding-team" "Operation allowed only on binding teams"
+
+noOtherOwner :: Wai.Error
+noOtherOwner = Wai.Error status403 "no-other-owner" "You are trying to remove or downgrade\
+                                \ an owner. Promote another team member before proceeding."
 
 loginsTooFrequent :: Wai.Error
 loginsTooFrequent = Wai.Error status429 "client-error" "Logins too frequent"

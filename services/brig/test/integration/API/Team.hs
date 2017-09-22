@@ -11,6 +11,7 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
+import Control.Concurrent.Async.Lifted.Safe (mapConcurrently_)
 import Control.Lens ((^.), (^?), view)
 import Control.Monad
 import Control.Monad.IO.Class
@@ -34,9 +35,10 @@ import qualified Data.Text.Encoding          as T
 import qualified Data.UUID.V4                as UUID
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Galley.Types.Teams          as Team
+import qualified Test.Tasty.Cannon           as WS
 
-tests :: Manager -> Brig -> Galley -> IO TestTree
-tests m b g =
+tests :: Manager -> Brig -> Cannon -> Galley -> IO TestTree
+tests m b c g =
     return $ testGroup "team"
         [ testGroup "invitation"
             [ test m "post /teams/:tid/invitations - 201"                $ testInvitationEmail b g
@@ -52,11 +54,47 @@ tests m b g =
             , test m "get /teams/:tid/invitations/info - 200"            $ testInvitationInfo b g
             , test m "get /teams/:tid/invitations/info - 400"            $ testInvitationInfoBadCode b
             , test m "post /i/teams/:tid/suspend - 200"                  $ testSuspendTeam b g
+            , test m "put /self - 200 update events"                     $ testUpdateEvents b g c
+            , test m "delete /self - 200 (ensure no orphan teams)"       $ testDeleteTeamUser b g
             ]
         ]
 
 -------------------------------------------------------------------------------
 -- Invitation Tests
+
+testUpdateEvents :: Brig -> Galley -> Cannon -> Http ()
+testUpdateEvents brig galley cannon = do
+    inviteeEmail  <- randomEmail
+    alice         <- userId <$> randomUser brig
+    tid           <- createTeam alice galley
+
+    -- invite and register Bob
+    let invite  = InvitationRequest inviteeEmail (Name "Bob") Nothing
+    Just inv <- decodeBody <$> postInvitation brig tid alice invite
+    Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+    rsp2 <- post (brig . path "/register"
+                       . contentJson
+                       . body (accept inviteeEmail inviteeCode))
+                  <!! const 201 === statusCode
+    let Just bob   = userId <$> decodeBody rsp2
+
+    -- ensure Alice and Bob are not connected
+    void $ getConnection brig bob alice <!! const 404 === statusCode
+    void $ getConnection brig alice bob <!! const 404 === statusCode
+
+    -- Alice updates her profile
+    let newColId   = Just 5
+        newAssets  = Just [ImageAsset "abc" (Just AssetComplete)]
+        newName    = Just $ Name "Alice in Wonderland"
+        newPic     = Nothing -- Legacy
+        userUpdate = UserUpdate newName newPic newAssets newColId
+        update     = RequestBodyLBS . encode $ userUpdate
+
+    -- Update profile & receive notification
+    WS.bracketRN cannon [alice, bob] $ \[aliceWS, bobWS] -> do
+        put (brig . path "/self" . contentJson . zUser alice . zConn "c" . body update) !!!
+            const 200 === statusCode
+        liftIO $ mapConcurrently_ (\ws -> assertUpdateNotification ws alice userUpdate) [aliceWS, bobWS]
 
 testInvitationEmail :: Brig -> Galley -> Http ()
 testInvitationEmail brig galley = do
@@ -92,12 +130,12 @@ testInvitationEmailAccepted brig galley = do
 testCreateTeam :: Brig -> Galley -> Http ()
 testCreateTeam brig galley = do
     email <- randomEmail
-    rsp <- register email newTeam
+    rsp <- register email newTeam brig
     let Just uid = userId <$> decodeBody rsp
     -- Verify that the user is part of exactly one (binding) team
     teams <- view Team.teamListTeams <$> getTeams uid galley
     liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
-    let team = head teams
+    let team = fromMaybe (error "No team??") $ listToMaybe teams
     liftIO $ assertBool "Team not binding" (team^.Team.teamBinding == Team.Binding)
     mem <- getTeamMember uid (team^.Team.teamId) galley
     liftIO $ assertBool "Member not part of the team" (uid == mem ^. Team.userId)
@@ -105,16 +143,6 @@ testCreateTeam brig galley = do
     inviteeEmail <- randomEmail
     let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
     postInvitation brig (team^.Team.teamId) uid invite !!! const 403 === statusCode
-  where
-    register :: Email -> Team.BindingNewTeam -> HttpT IO (Response (Maybe ByteString))
-    register e t = post (brig . path "/register" . contentJson . body (
-        RequestBodyLBS . encode  $ object
-            [ "name"            .= ("Bob" :: Text)
-            , "email"           .= fromEmail e
-            , "password"        .= defPassword
-            , "team"            .= t
-            ]
-        ))
 
 testInvitationNoPermission :: Brig -> Http ()
 testInvitationNoPermission brig = do
@@ -265,7 +293,6 @@ testInvitationInfoBadCode brig = do
     get (brig . path ("/teams/invitations/info?code=" <> icode)) !!!
         const 400 === statusCode
 
-
 testSuspendTeam :: Brig -> Galley -> Http ()
 testSuspendTeam brig galley = do
     inviteeEmail  <- randomEmail
@@ -304,6 +331,38 @@ testSuspendTeam brig galley = do
     chkStatus brig inviter Active
     chkStatus brig invitee Active
     login brig (defEmailLogin email) PersistentCookie !!! const 200 === statusCode
+
+testDeleteTeamUser :: Brig -> Galley -> Http ()
+testDeleteTeamUser brig galley = do
+    creator <- userId <$> randomUser brig
+    tid     <- createTeam creator galley
+    -- Cannot delete the user since it will make the team orphan
+    deleteUser creator (Just defPassword) brig !!! do
+        const 403 === statusCode
+        const (Just "no-other-owner") === fmap Error.label . decodeBody
+    -- We need to invite another user to a full permission member
+    invitee <- inviteAndRegisterUser creator tid brig
+    -- Still cannot delete, need to make this a full permission member
+    deleteUser creator (Just defPassword) brig !!! do
+        const 403 === statusCode
+        const (Just "no-other-owner") === fmap Error.label . decodeBody
+    -- Let's promote the other user
+    updatePermissions creator tid (invitee, Team.fullPermissions) galley
+    -- Now the creator can delete the account
+    deleteUser creator (Just defPassword) brig !!! const 200 === statusCode
+    -- The new full permission member cannot
+    deleteUser invitee (Just defPassword) brig !!! const 403 === statusCode
+    -- We can still invite new users who can delete their account, regardless of status
+    inviteeFull <- inviteAndRegisterUser invitee tid brig
+    updatePermissions invitee tid (inviteeFull, Team.fullPermissions) galley
+    deleteUser inviteeFull (Just defPassword) brig !!! const 200 === statusCode
+
+    inviteeMember <- inviteAndRegisterUser invitee tid brig
+    deleteUser inviteeMember (Just defPassword) brig !!! const 200 === statusCode
+
+    deleteUser invitee (Just defPassword) brig !!! do
+        const 403 === statusCode
+        const (Just "no-other-owner") === fmap Error.label . decodeBody
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -400,6 +459,40 @@ accept email code = RequestBodyLBS . encode $ object
     , "password"  .= defPassword
     , "team_code" .= code
     ]
+
+register :: Email -> Team.BindingNewTeam -> Brig -> HttpT IO (Response (Maybe ByteString))
+register e t brig = post (brig . path "/register" . contentJson . body (
+    RequestBodyLBS . encode  $ object
+        [ "name"            .= ("Bob" :: Text)
+        , "email"           .= fromEmail e
+        , "password"        .= defPassword
+        , "team"            .= t
+        ]
+    ))
+
+inviteAndRegisterUser :: UserId -> TeamId -> Brig -> HttpT IO UserId
+inviteAndRegisterUser u tid brig = do
+    inviteeEmail <- randomEmail
+    let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
+    Just inv <- decodeBody <$> postInvitation brig tid u invite
+    Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+    rspInvitee <- post (brig . path "/register"
+                             . contentJson
+                             . body (accept inviteeEmail inviteeCode)) <!! const 201 === statusCode
+
+    let Just invitee = userId <$> decodeBody rspInvitee
+    return invitee
+
+updatePermissions :: UserId -> TeamId -> (UserId, Team.Permissions) -> Galley -> HttpT IO ()
+updatePermissions from tid (to, perm) galley =
+    put ( galley
+        . paths ["teams", toByteString' tid, "members"]
+        . zUser from
+        . zConn "conn"
+        . Bilge.json changeMember
+        ) !!! const 200 === statusCode
+  where
+    changeMember = Team.newNewTeamMember $ Team.newTeamMember to perm
 
 newTeam :: Team.BindingNewTeam
 newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")

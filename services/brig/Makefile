@@ -112,3 +112,7 @@ index: index-reset
 .PHONY: index-reset
 index-reset: install
 	$(EXE_INDEX) reset
+
+.PHONY: docker
+docker:
+	docker build -t $(NAME) -f ../../build/alpine/Dockerfile --build-arg service=$(NAME) ../..

@@ -9,6 +9,7 @@ module Galley.API.Teams
     , updateTeamStatus
     , getTeam
     , getTeamInternal
+    , getBindingTeamMembers
     , getManyTeams
     , deleteTeam
     , uncheckedDeleteTeam
@@ -232,6 +233,8 @@ updateTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
         throwM invalidPermissions
     unless (isTeamMember user members) $
         throwM teamMemberNotFound
+    when (user `isOnlyOwner` members && perm /= fullPermissions) $
+        throwM noOtherOwner
     Data.updateTeamMember tid user perm
     team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
     when (team^.teamBinding == Binding) $
@@ -246,6 +249,8 @@ deleteTeamMember :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Mayb
 deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
     mems <- Data.teamMembers tid
     void $ permissionCheck zusr RemoveTeamMember mems
+    when (remove `isOnlyOwner` mems) $
+        throwM noOtherOwner
     team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
     if team^.teamBinding == Binding && isTeamMember remove mems then do
         body <- fromBody req invalidPayload
@@ -385,3 +390,13 @@ finishCreateTeam team owner others zcon = do
     let r = membersToRecipients Nothing others
     push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
     pure (empty & setStatus status201 . location (team^.teamId))
+
+getBindingTeamMembers :: UserId -> Galley Response
+getBindingTeamMembers zusr = do
+    tid <- Data.oneUserTeam zusr >>= ifNothing teamNotFound
+    binding <- Data.teamBinding tid >>= ifNothing teamNotFound
+    case binding of
+        Binding -> do
+            members <- Data.teamMembers tid
+            pure $ json $ teamMemberListJson True (newTeamMemberList members)
+        NonBinding -> throwM nonBindingTeam

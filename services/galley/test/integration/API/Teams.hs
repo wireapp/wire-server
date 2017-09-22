@@ -582,24 +582,47 @@ testUpdateTeam g b c = do
 testUpdateTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testUpdateTeamMember g b c a = do
     owner <- Util.randomUser b
-    let p = Util.symmPermissions [DeleteConversation]
+    let p = Util.symmPermissions [SetMemberPermissions]
     member <- flip newTeamMember p <$> Util.randomUser b
     Util.connectUsers b owner (list1 (member^.userId) [])
     tid <- Util.createTeam g "foo" owner [member]
-    let change = newNewTeamMember (member & permissions .~ fullPermissions)
+    -- Must have at least 1 member with full permissions
+    let changeOwner = newNewTeamMember (newTeamMember owner p)
+    put ( g
+        . paths ["teams", toByteString' tid, "members"]
+        . zUser (member^.userId)
+        . zConn "conn"
+        . json changeOwner
+        ) !!! do
+        const 403 === statusCode
+        const "no-other-owner" === (Error.label . Util.decodeBody' "error label")
+    let changeMember = newNewTeamMember (member & permissions .~ fullPermissions)
     WS.bracketR2 c owner (member^.userId) $ \(wsOwner, wsMember) -> do
         put ( g
             . paths ["teams", toByteString' tid, "members"]
             . zUser owner
             . zConn "conn"
-            . json change
+            . json changeMember
             ) !!! const 200 === statusCode
         member' <- Util.getTeamMember g owner tid (member^.userId)
-        liftIO $ assertEqual "permissions" (member'^.permissions) (change^.ntmNewTeamMember.permissions)
+        liftIO $ assertEqual "permissions" (member'^.permissions) (changeMember^.ntmNewTeamMember.permissions)
         checkTeamMemberUpdateEvent tid (member^.userId) wsOwner
         checkTeamMemberUpdateEvent tid (member^.userId) wsMember
         WS.assertNoEvent timeout [wsOwner, wsMember]
-        assertQueueEmpty a
+    -- Now that the other member has full permissions, it can demote the owner
+    WS.bracketR2 c (member^.userId) owner $ \(wsMember, wsOwner) -> do
+        put ( g
+            . paths ["teams", toByteString' tid, "members"]
+            . zUser (member^.userId)
+            . zConn "conn"
+            . json changeOwner
+            ) !!! const 200 === statusCode
+        owner' <- Util.getTeamMember g (member^.userId) tid owner
+        liftIO $ assertEqual "permissions" (owner'^.permissions) (changeOwner^.ntmNewTeamMember.permissions)
+        checkTeamMemberUpdateEvent tid owner wsOwner
+        checkTeamMemberUpdateEvent tid owner wsMember
+        WS.assertNoEvent timeout [wsOwner, wsMember]
+    assertQueueEmpty a
   where
     checkTeamMemberUpdateEvent tid uid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
