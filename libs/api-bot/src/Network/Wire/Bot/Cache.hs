@@ -16,6 +16,7 @@ import Data.ByteString.Conversion
 import Data.IORef
 import Data.LanguageCodes
 import Data.Maybe (fromMaybe)
+import Data.Misc
 import Data.Monoid
 import Data.Text.Encoding
 import Data.Text.Lazy hiding (length, map)
