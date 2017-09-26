@@ -39,6 +39,7 @@ tests g b c m a = testGroup "Teams API"
     [ test m "create team" (testCreateTeam g b c a)
     , test m "create multiple binding teams fail" (testCreateMulitpleBindingTeams g b a)
     , test m "create team with members" (testCreateTeamWithMembers g b c)
+    , test m "create 1-1 conversation between binding team members (fail)" (testCreateOne2OneFailNonBindingTeamMembers g b a)
     , test m "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers g b c a)
     , test m "add new team member" (testAddTeamMember g b c)
     , test m "add new team member binding teams" (testAddTeamMemberCheckBound g b a)
@@ -116,12 +117,32 @@ testCreateTeamWithMembers g b c = do
         e^.eventTeam @?= (team^.teamId)
         e^.eventData @?= Just (EdTeamCreate team)
 
+testCreateOne2OneFailNonBindingTeamMembers :: Galley -> Brig -> Maybe Aws.Env -> Http ()
+testCreateOne2OneFailNonBindingTeamMembers g b a = do
+    owner <- Util.randomUser b
+    let p1 = Util.symmPermissions [CreateConversation, AddConversationMember]
+    let p2 = Util.symmPermissions [CreateConversation, AddConversationMember, AddTeamMember]
+    mem1 <- flip newTeamMember p1 <$> Util.randomUser b
+    mem2 <- flip newTeamMember p2 <$> Util.randomUser b
+    Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId])
+    tid <- Util.createTeam g "foo" owner [mem1, mem2]
+    -- Cannot create a 1-1 conversation, not connected and in the same team but not binding
+    Util.createOne2OneTeamConv g (mem1^.userId) (mem2^.userId) Nothing tid !!! do
+        const 404 === statusCode
+        const "non-binding-team" === (Error.label . Util.decodeBody' "error label")
+    -- Both have a binding team but not the same team
+    owner1 <- Util.randomUser b
+    tid1 <- Util.createTeamInternal g "foo" owner1
+    assertQueue a tCreate
+    owner2 <- Util.randomUser b
+    void $ Util.createTeamInternal g "foo" owner2
+    assertQueue a tCreate
+    Util.createOne2OneTeamConv g owner1 owner2 Nothing tid1 !!! do
+        const 403 === statusCode
+        const "non-binding-team-members" === (Error.label . Util.decodeBody' "error label")
+
 testCreateOne2OneWithMembers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testCreateOne2OneWithMembers g b c a = do
-    -- Negative tests first
-    ensureNoOne2OneUnlessSameBindingTeam
-    
-    -- Test with binding teams
     owner <- Util.randomUser b
     tid   <- Util.createTeamInternal g "foo" owner
     assertQueue a tCreate
@@ -133,30 +154,7 @@ testCreateOne2OneWithMembers g b c a = do
         checkTeamMemberJoin tid (mem1^.userId) wsMem1
         WS.assertNoEvent timeout [wsMem1]
 
-    Util.createO2OTeamConv g owner (mem1^.userId) Nothing tid !!! const 201 === statusCode
-  where
-    ensureNoOne2OneUnlessSameBindingTeam = do
-        owner <- Util.randomUser b
-        let p1 = Util.symmPermissions [CreateConversation, AddConversationMember]
-        let p2 = Util.symmPermissions [CreateConversation, AddConversationMember, AddTeamMember]
-        mem1 <- flip newTeamMember p1 <$> Util.randomUser b
-        mem2 <- flip newTeamMember p2 <$> Util.randomUser b
-        Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId])
-        tid <- Util.createTeam g "foo" owner [mem1, mem2]
-        -- Cannot create a 1-1 conversation, not connected and in the same team but not binding
-        Util.createO2OTeamConv g (mem1^.userId) (mem2^.userId) Nothing tid !!! do
-            const 404 === statusCode
-            const "non-binding-team" === (Error.label . Util.decodeBody' "error label")
-        -- Both have a binding team but not the same team
-        owner1 <- Util.randomUser b
-        tid1 <- Util.createTeamInternal g "foo" owner1
-        assertQueue a tCreate
-        owner2 <- Util.randomUser b
-        void $ Util.createTeamInternal g "foo" owner2
-        assertQueue a tCreate
-        Util.createO2OTeamConv g owner1 owner2 Nothing tid1 !!! do
-            const 403 === statusCode
-            const "non-binding-team-members" === (Error.label . Util.decodeBody' "error label")
+    Util.createOne2OneTeamConv g owner (mem1^.userId) Nothing tid !!! const 201 === statusCode
 
 testAddTeamMember :: Galley -> Brig -> Cannon -> Http ()
 testAddTeamMember g b c = do

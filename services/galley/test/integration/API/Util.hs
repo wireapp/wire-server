@@ -123,8 +123,8 @@ createTeamConv g u tinfo us name = do
               ) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
-createO2OTeamConv :: Galley -> UserId -> UserId -> Maybe Text -> TeamId -> Http ResponseLBS
-createO2OTeamConv g u1 u2 n tid = do
+createOne2OneTeamConv :: Galley -> UserId -> UserId -> Maybe Text -> TeamId -> Http ResponseLBS
+createOne2OneTeamConv g u1 u2 n tid = do
     let conv = NewConv [u2] n mempty (Just $ ConvTeamInfo tid False)
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
