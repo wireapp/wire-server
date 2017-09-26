@@ -29,6 +29,10 @@ module Galley.Types.Teams
     , teamMemberJson
 
     , TeamMemberList
+    , sameTeam
+    , notSameTeam
+    , findTeamMember
+    , isTeamMember
     , newTeamMemberList
     , teamMembers
     , teamMemberListJson
@@ -101,7 +105,8 @@ import Data.Aeson.Types (Parser, Pair)
 import Data.Bits (testBit, (.|.))
 import Data.Id (TeamId, ConvId, UserId)
 import Data.Json.Util
-import Data.Maybe (mapMaybe, isNothing)
+import Data.List (find)
+import Data.Maybe (mapMaybe, isJust, isNothing)
 import Data.Misc (PlainTextPassword (..))
 import Data.Monoid
 import Data.Range
@@ -276,6 +281,20 @@ makeLenses ''Event
 makeLenses ''TeamUpdateData
 makeLenses ''TeamMemberDeleteData
 makeLenses ''TeamDeleteData
+
+sameTeam :: [UserId] -> [TeamMember] -> [UserId]
+sameTeam uids tmms = Set.toList $
+    Set.fromList uids `Set.intersection` Set.fromList (map (view userId) tmms)
+
+notSameTeam :: [UserId] -> [TeamMember] -> [UserId]
+notSameTeam uids tmms = Set.toList $
+    Set.fromList uids `Set.difference` Set.fromList (sameTeam uids tmms)
+
+isTeamMember :: Foldable m => UserId -> m TeamMember -> Bool
+isTeamMember u = isJust . findTeamMember u
+
+findTeamMember :: Foldable m => UserId -> m TeamMember -> Maybe TeamMember
+findTeamMember u = find ((u ==) . view userId)
 
 newPermissions :: Set Perm -> Set Perm -> Maybe Permissions
 newPermissions a b

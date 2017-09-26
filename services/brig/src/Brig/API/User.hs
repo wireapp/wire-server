@@ -615,9 +615,9 @@ deleteUser uid pwd = do
             Active    -> ensureNotOnlyOwner >> go a
   where
     ensureNotOnlyOwner = lift (Intra.getTeamContacts uid) >>= \case
-         Just mems | Team.isOnlyOwner uid (mems^.Team.teamMembers) ->
+        Just mems | Team.isOnlyOwner uid (mems^.Team.teamMembers) ->
             throwE DeleteUserOnlyOwner
-         _ -> return ()
+        _ -> return ()
 
     go a = maybe (byIdentity a) (byPassword a) pwd
 

@@ -84,6 +84,8 @@ data ConnectionError
         -- ^ An attempt at creating an invitation to an invalid email address.
     | ConnectInvalidPhone Phone
         -- ^ An attempt at creating an invitation to an invalid phone nbumber.
+    | ConnectSameBindingTeamUsers
+        -- ^ An attempt at creating a connection with another user from the same binding team.
 
 data PasswordResetError
     = PasswordResetInProgress

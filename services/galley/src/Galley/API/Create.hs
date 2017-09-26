@@ -109,8 +109,7 @@ createOne2OneConversation (zusr ::: zcon ::: req ::: _) = do
     checkBindingTeamPermissions x y tid = do
         mems <- bindingTeamMembers tid
         void $ permissionCheck zusr CreateConversation mems
-        let users = x : [y]
-        unless (sameTeam users mems == users) $
+        unless (all (flip isTeamMember mems) [x, y]) $
             throwM noBindingTeamMembers
 
     create x y n tinfo = do
