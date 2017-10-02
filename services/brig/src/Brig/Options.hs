@@ -75,6 +75,7 @@ data Opts = Opts
 
       -- Email & SMS (User)
     , optUserActivationUrl     :: !ByteString
+    , optUserTeamActivationUrl :: !ByteString
     , optUserSmsActivationUrl  :: !ByteString
     , optUserPasswordResetUrl  :: !ByteString
     , optUserInvitationUrl     :: !ByteString
@@ -246,6 +247,11 @@ parseOptions = execParser (info (helper <*> optsParser) desc)
                 long "activation-url"
                 <> metavar "URL"
                 <> help "Activation URL template")
+
+        <*> (bytesOption $
+                long "team-activation-url"
+                <> metavar "URL"
+                <> help "Team Activation URL template")
 
         <*> (bytesOption $
                 long "sms-activation-url"

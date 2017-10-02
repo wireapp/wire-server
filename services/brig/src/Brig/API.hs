@@ -62,6 +62,7 @@ import qualified Brig.Types.Swagger            as Doc
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Data.Swagger.Build.Api        as Doc
 import qualified Galley.Types.Swagger          as Doc
+import qualified Galley.Types.Teams            as Team
 import qualified Network.Wai.Middleware.Gzip   as GZip
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified Data.ByteString.Lazy          as Lazy
@@ -1104,7 +1105,7 @@ createUser (_ ::: _ ::: req) = do
     let lang  = userLocale usr
     lift $ do
         for_ (liftM2 (,) (userEmail usr) epair) $ \(e, p) ->
-            sendActivationMail e (userName usr) p (Just lang) Nothing
+            sendActivationEmail e (userName usr) p (Just lang) (newUserTeam new)
         for_ (liftM2 (,) (userPhone usr) ppair) $ \(p, c) ->
             sendActivationSms p c (Just lang)
     cok <- lift $ Auth.newCookie (userId usr) PersistentCookie (newUserLabel new)
@@ -1112,6 +1113,11 @@ createUser (_ ::: _ ::: req) = do
         $ setStatus status201
         . addHeader "Location" (toByteString' (userId usr))
         $ json (SelfProfile usr)
+  where
+    sendActivationEmail e u p l (Just (NewUserTeam (Right (Team.BindingNewTeam t)))) =
+        sendTeamActivationMail e u p l (fromRange $ t^.Team.newTeamName)
+    sendActivationEmail e u p l _ =
+        sendActivationMail e u p l Nothing
 
 createUserNoVerify :: JSON ::: JSON ::: Request -> Handler Response
 createUserNoVerify (_ ::: _ ::: req) = do

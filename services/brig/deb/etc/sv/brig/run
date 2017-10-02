@@ -62,6 +62,7 @@ exec chpst -u $USER \
     --cassandra-port=${BRIG_CASSANDRA_PORT?'unset'} \
     --cassandra-keyspace=${BRIG_CASSANDRA_KEYSPACE?'unset'} \
     --activation-url=${BRIG_ACTIVATION_URL?'unset'} \
+    --team-activation-url=${BRIG_TEAM_ACTIVATION_URL?'unset'} \
     --activation-timeout=${BRIG_ACTIVATION_TIMEOUT?'unset'} \
     --sms-activation-url=${BRIG_SMS_ACTIVATION_URL?'unset'} \
     --password-reset-url=${BRIG_PASSWORD_RESET_URL?'unset'} \
