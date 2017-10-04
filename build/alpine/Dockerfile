@@ -8,15 +8,15 @@
 FROM wire-server-builder:alpine as builder
 
 ARG service
-COPY . /src
+COPY . /src/wire-server/
 
-RUN cd /src/services/${service} && make install
+RUN cd /src/wire-server/services/${service} && make install
 
 #--- Minified stage ---
 FROM wire-server-deps:alpine
 
 ARG service
-COPY --from=builder /src/services/${service}/dist/${service} /usr/local/bin/${service}
+COPY --from=builder /src/wire-server/services/${service}/dist/${service} /usr/local/bin/${service}
 
 # ARGs are not available at runtime, create symlink at build time
 # more info: https://stackoverflow.com/questions/40902445/using-variable-interpolation-in-string-in-docker
