@@ -1,0 +1,24 @@
+Wire
+
+
+Hallo,
+
+
+Ein Wire Benutzerkonto in einem neuen Wire Team namens '${team}' wurde mit der E-Mail-Adresse ${email} erstellt. Wir möchten gerne sicherstellen, dass du ${name} bist.
+
+Bitte klicke auf den folgenden Link, um deine Identität zu bestätigen. Erst danach kannst du Wire nutzen.
+
+
+${url}
+
+Bitte antworte nicht auf diese E-Mail.
+
+Wenn du kein Wire-Benutzerkonto mit dieser E-Mail-Adresse erstellt hast, gehe bitte auf https://support.wire.com
+
+
+
+
+(c) Wire Swiss GmbH
+
+Datenschutzrichtlinie  | Missbrauch melden
+
