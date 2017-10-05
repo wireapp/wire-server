@@ -1,1 +1,1 @@
-Delete account?
+../../en/email/deletion-subject.txt

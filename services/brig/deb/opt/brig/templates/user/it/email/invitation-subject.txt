@@ -1,1 +1,1 @@
-${inviter} wants to connect on Wire
+../../en/email/invitation-subject.txt
