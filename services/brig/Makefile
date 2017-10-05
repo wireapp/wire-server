@@ -12,6 +12,7 @@ DEB_IT        := dist/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := dist/$(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 DEB_INDEX     := dist/$(NAME)-index_$(VERSION)+$(BUILD)_amd64.deb
 KEIRETSU_ENV  ?= ../.env
+EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema $(NAME)-index
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -115,4 +116,11 @@ index-reset: install
 
 .PHONY: docker
 docker:
-	docker build -t $(NAME) -f ../../build/alpine/Dockerfile --build-arg service=$(NAME) ../..
+	$(foreach executable,$(EXECUTABLES),\
+	docker build -t $(executable) \
+	-f ../../build/alpine/Dockerfile \
+	--build-arg service=$(NAME) \
+	--build-arg executable=$(executable) \
+	../.. \
+	;)
+

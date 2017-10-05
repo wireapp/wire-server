@@ -9,6 +9,7 @@ DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := dist/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 SDIST         := dist/$(NAME)-$(VERSION).tar.gz
 KEIRETSU_ENV  ?= ../.env
+EXECUTABLES   := $(NAME) $(NAME)-integration
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -66,4 +67,10 @@ integration: install
 
 .PHONY: docker
 docker:
-	docker build -t $(NAME) -f ../../build/alpine/Dockerfile --build-arg service=$(NAME) ../..
+	$(foreach executable,$(EXECUTABLES),\
+	docker build -t $(executable) \
+	-f ../../build/alpine/Dockerfile \
+	--build-arg service=$(NAME) \
+	--build-arg executable=$(executable) \
+	../.. \
+	;)

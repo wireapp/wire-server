@@ -16,9 +16,10 @@ RUN cd /src/wire-server/services/${service} && make install
 FROM wire-server-deps:alpine
 
 ARG service
-COPY --from=builder /src/wire-server/services/${service}/dist/${service} /usr/local/bin/${service}
+ARG executable
+COPY --from=builder /src/wire-server/services/${service}/dist/${executable} /usr/bin/${exectuable}
 
 # ARGs are not available at runtime, create symlink at build time
 # more info: https://stackoverflow.com/questions/40902445/using-variable-interpolation-in-string-in-docker
-RUN ln -s /usr/local/bin/${service} /usr/local/bin/service
-ENTRYPOINT ["/usr/local/bin/service"]
+RUN ln -s /usr/bin/${executable} /usr/bin/service
+ENTRYPOINT ["/usr/bin/service"]

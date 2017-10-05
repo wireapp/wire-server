@@ -5,6 +5,7 @@ BUILD_NUMBER ?= 0
 BUILD_LABEL  ?= local
 BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
 DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
+EXECUTABLES  := $(NAME)
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -59,4 +60,10 @@ integration-%:
 
 .PHONY: docker
 docker:
-	docker build -t $(NAME) -f ../../build/alpine/Dockerfile --build-arg service=$(NAME) ../..
+	$(foreach executable,$(EXECUTABLES),\
+	docker build -t $(executable) \
+	-f ../../build/alpine/Dockerfile \
+	--build-arg service=$(NAME) \
+	--build-arg executable=$(executable) \
+	../.. \
+	;)
