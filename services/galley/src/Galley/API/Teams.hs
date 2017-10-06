@@ -393,10 +393,6 @@ finishCreateTeam team owner others zcon = do
 
 getBindingTeamMembers :: UserId -> Galley Response
 getBindingTeamMembers zusr = do
-    tid <- Data.oneUserTeam zusr >>= ifNothing teamNotFound
-    binding <- Data.teamBinding tid >>= ifNothing teamNotFound
-    case binding of
-        Binding -> do
-            members <- Data.teamMembers tid
-            pure $ json $ teamMemberListJson True (newTeamMemberList members)
-        NonBinding -> throwM nonBindingTeam
+    tid  <- Data.oneUserTeam zusr >>= ifNothing teamNotFound
+    mems <- bindingTeamMembers tid
+    pure $ json $ teamMemberListJson True (newTeamMemberList mems)
