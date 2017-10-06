@@ -494,14 +494,17 @@ rmClient u c = do
 -------------------------------------------------------------------------------
 -- Team Management
 
-addTeamMember :: UserId -> TeamId -> AppIO ()
+addTeamMember :: UserId -> TeamId -> AppIO Bool
 addTeamMember u tid = do
     debug $ remote "galley"
             . msg (val "Adding member to team")
     permissions <- maybe (throwM incorrectPermissions)
                          return
                          (Team.newPermissions perms perms)
-    void $ galleyRequest POST (req permissions)
+    rs <- galleyRequest POST (req permissions)
+    return $ case Bilge.statusCode rs of
+        200 -> True
+        _   -> False
   where
     perms = Set.fromList [ Team.CreateConversation
                          , Team.DeleteConversation
@@ -514,7 +517,7 @@ addTeamMember u tid = do
     req p = paths ["i", "teams", toByteString' tid, "members"]
           . header "Content-Type" "application/json"
           . zUser u
-          . expect2xx
+          . expect [status200, status403]
           . lbytes (encode $ t p)
 
 createTeam :: UserId -> Team.BindingNewTeam -> AppIO TeamId

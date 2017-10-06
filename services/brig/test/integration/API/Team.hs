@@ -11,7 +11,7 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently_)
+import Control.Concurrent.Async.Lifted.Safe (mapConcurrently_, replicateConcurrently_)
 import Control.Lens ((^.), (^?), view)
 import Control.Monad
 import Control.Monad.IO.Class
@@ -50,6 +50,7 @@ tests m b c g =
             , test m "post /register - 400 bad code"                     $ testInvitationInvalidCode b
             , test m "post /register - 400 no wireless"                  $ testInvitationCodeNoIdentity b
             , test m "post /register - 400 mutually exclusive"           $ testInvitationMutuallyExclusive b
+            , test m "post /register - 403 too many members"             $ testInvitationTooManyMembers b g
             , test m "get /teams/:tid/invitations - 200 (paging)"        $ testInvitationPaging b g
             , test m "get /teams/:tid/invitations/info - 200"            $ testInvitationInfo b g
             , test m "get /teams/:tid/invitations/info - 400"            $ testInvitationInfoBadCode b
@@ -247,6 +248,22 @@ testInvitationMutuallyExclusive brig = do
             , "invitation_code" .= i
             ]
         ))
+
+testInvitationTooManyMembers :: Brig -> Galley -> Http ()
+testInvitationTooManyMembers brig galley = do
+    creator <- userId <$> randomUser brig
+    tid     <- createTeam creator galley
+    replicateConcurrently_ 127 $ inviteAndRegisterUser creator tid brig
+
+    em <- randomEmail
+    let invite  = InvitationRequest em (Name "Bob") Nothing
+    Just inv <- decodeBody <$> postInvitation brig tid creator invite
+    Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+    post (brig . path "/register"
+               . contentJson
+               . body (accept em inviteeCode)) !!! do
+        const 403 === statusCode
+        const (Just "too-many-team-members") === fmap Error.label . decodeBody
 
 testInvitationPaging :: Brig -> Galley -> Http ()
 testInvitationPaging b g = do

@@ -238,8 +238,10 @@ createUser new@NewUser{..} = do
         ok <- lift $ Data.claimKey uk uid
         unless ok $
             throwE $ DuplicateUserKey uk
+        added <- lift $ Intra.addTeamMember uid (Team.iiTeam ii)
+        unless added $
+            throwE TooManyTeamMembers
         lift $ do
-            Intra.addTeamMember uid (Team.iiTeam ii)
             activateUser uid ident
             void $ onActivated (AccountActivated account)
             Log.info $ field "user" (toByteString uid)

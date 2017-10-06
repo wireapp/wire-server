@@ -58,6 +58,7 @@ data CreateUserError
     | InvalidPhone Phone
     | DuplicateUserKey UserKey
     | BlacklistedUserKey UserKey
+    | TooManyTeamMembers
 
 data InvitationError
     = InviteeEmailExists UserId
