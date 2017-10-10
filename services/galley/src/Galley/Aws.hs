@@ -31,7 +31,8 @@ import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
-import Control.Retry (retrying, limitRetries)
+import Control.Retry (retrying, limitRetries, exponentialBackoff)
+import Data.Monoid ((<>))
 import Data.ProtoLens.Encoding
 import Data.Text (Text)
 import Data.Text.Encoding (decodeLatin1)
@@ -154,7 +155,7 @@ execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 enqueue :: E.TeamEvent -> Amazon ()
 enqueue e = do
     QueueUrl url <- view eventQueue
-    res <- retrying (limitRetries 1) (const isTimeout) $ const (sendCatch (req url))
+    res <- retrying (limitRetries 5 <> exponentialBackoff 1000000) (const canRetry) $ const (sendCatch (req url))
     either (throwM . GeneralError) (const (return ())) res
   where
     event = decodeLatin1 $ B64.encode $ encodeMessage e
@@ -166,8 +167,10 @@ enqueue e = do
 sendCatch :: AWS.AWSRequest r => r -> Amazon (Either AWS.Error (AWS.Rs r))
 sendCatch = AWST.trying AWS._Error . AWS.send
 
-isTimeout :: MonadIO m => Either AWS.Error a -> m Bool
-isTimeout (Right _) = pure False
-isTimeout (Left  e) = case e of
-    AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
-    _                                                           -> pure False
+canRetry :: MonadIO m => Either AWS.Error a -> m Bool
+canRetry (Right _) = pure False
+canRetry (Left  e) = case e of
+    AWS.TransportError (HttpExceptionRequest _ ResponseTimeout)                   -> pure True
+    AWS.ServiceError se | se^.AWS.serviceCode == AWS.ErrorCode "RequestThrottled" -> pure True
+    _                                                                             -> pure False
+
