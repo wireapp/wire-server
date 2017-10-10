@@ -230,17 +230,25 @@ createUser new@NewUser{..} = do
         Just ii -> do
             inv <- lift $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii)
             case (inv, Team.inIdentity <$> inv) of
-                (Just invite, Just em) | e == userEmailKey em -> return $ Just (invite, ii)
+                (Just invite, Just em) | e == userEmailKey em -> ensureMemberCanJoin (Team.iiTeam ii) >>
+                                                                 (return $ Just (invite, ii))
                 _                                             -> throwE InvalidInvitationCode
         Nothing -> throwE InvalidInvitationCode
+
+    ensureMemberCanJoin tid = do
+        mems <- lift $ Intra.getTeamMembers tid
+        when (length (mems^.Team.teamMembers) >= 128) $
+            throwE TooManyTeamMembers
 
     acceptTeamInvitation account inv ii uk ident = do
         let uid = userId (accountUser account)
         ok <- lift $ Data.claimKey uk uid
         unless ok $
             throwE $ DuplicateUserKey uk
+        added <- lift $ Intra.addTeamMember uid (Team.iiTeam ii)
+        unless added $
+            throwE TooManyTeamMembers
         lift $ do
-            Intra.addTeamMember uid (Team.iiTeam ii)
             activateUser uid ident
             void $ onActivated (AccountActivated account)
             Log.info $ field "user" (toByteString uid)
