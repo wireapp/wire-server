@@ -35,6 +35,7 @@ import qualified Data.Text.Encoding          as T
 import qualified Data.UUID.V4                as UUID
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Galley.Types.Teams          as Team
+import qualified Galley.Types.Teams.Intra    as Team
 import qualified Test.Tasty.Cannon           as WS
 
 tests :: Manager -> Brig -> Cannon -> Galley -> IO TestTree
@@ -113,7 +114,7 @@ testInvitationEmailAccepted brig galley = do
     Just inv <- decodeBody <$> postInvitation brig tid inviter invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <- post (brig . path "/register"
-                       . contentJson 
+                       . contentJson
                        . body (accept inviteeEmail inviteeCode))
                   <!! const 201 === statusCode
     let Just (invitee, Just email2) = (userId &&& userEmail) <$> decodeBody rsp2
@@ -143,6 +144,17 @@ testCreateTeam brig galley = do
     inviteeEmail <- randomEmail
     let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
     postInvitation brig (team^.Team.teamId) uid invite !!! const 403 === statusCode
+    -- Verify that the team is still in status "pending"
+    team2 <- getTeam galley (team^.Team.teamId)
+    liftIO $ assertEqual "status" Team.PendingActive (Team.tdStatus team2)
+    -- Activate account
+    act <- getActivationCode brig (Left email)
+    case act of
+        Nothing -> liftIO $ assertFailure "activation key/code not found"
+        Just kc -> activate brig kc !!! const 200 === statusCode
+    -- Verify that Team has status Active now
+    team3 <- getTeam galley (team^.Team.teamId)
+    liftIO $ assertEqual "status" Team.Active (Team.tdStatus team3)
 
 testInvitationNoPermission :: Brig -> Http ()
 testInvitationNoPermission brig = do
@@ -398,6 +410,11 @@ unsuspendTeam brig t = post $ brig
     . paths ["i", "teams", toByteString' t, "unsuspend"]
     . contentJson
 
+getTeam :: Galley -> TeamId -> Http Team.TeamData
+getTeam galley t = do
+    r <- get $ galley . paths ["i", "teams", toByteString' t]
+    return $ fromMaybe (error "getTeam: failed to parse response") (decodeBody r)
+
 getInvitationCode :: Brig -> TeamId -> InvitationId -> Http (Maybe InvitationCode)
 getInvitationCode brig t ref = do
     r <- get ( brig
@@ -496,3 +513,4 @@ updatePermissions from tid (to, perm) galley =
 
 newTeam :: Team.BindingNewTeam
 newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
+

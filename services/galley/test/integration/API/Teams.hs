@@ -81,8 +81,7 @@ testCreateMulitpleBindingTeams g b a = do
     assertQueue a tCreate
     -- Cannot create more teams if bound (used internal API)
     let nt = NonBindingNewTeam $ newNewTeam (unsafeRange "owner") (unsafeRange "icon")
-    void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) <!! do
-        const 403 === statusCode
+    void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) !!! const 403 === statusCode
 
     -- If never used the internal API, can create multiple teams
     owner' <- Util.randomUser b
@@ -249,7 +248,7 @@ testRemoveBindingTeamMember g b c a = do
     assertQueue a $ tUpdate 2 [owner]
     Util.connectUsers b owner (singleton mext)
     cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [(mem1^.userId), mext] (Just "blaa")
-    
+
     -- Deleting from a binding team without a password is a bad request
     delete ( g
            . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
@@ -656,3 +655,4 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
         case evtData e of
             Just (Conv.EdMembers mm) -> mm @?= Conv.Members [usr]
             other                    -> assertFailure $ "Unexpected event data: " <> show other
+

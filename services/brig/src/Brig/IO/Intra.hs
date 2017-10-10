@@ -36,6 +36,7 @@ module Brig.IO.Intra
     , getTeamMember
     , getTeamMembers
     , getTeam
+    , getTeamId
     , getTeamContacts
     , changeTeamStatus
     ) where
@@ -564,6 +565,17 @@ getTeamContacts u = do
     req = paths ["i", "users", toByteString' u, "team", "members"]
         . expect [status200, status404]
 
+getTeamId :: UserId -> AppIO (Maybe TeamId)
+getTeamId u = do
+    debug $ remote "galley" . msg (val "Get team from user")
+    rs <- galleyRequest GET req
+    case Bilge.statusCode rs of
+        200 -> Just <$> decodeBody "galley" rs
+        _   -> return Nothing
+  where
+    req = paths ["i", "users", toByteString' u, "team"]
+        . expect [status200, status404]
+
 getTeam :: TeamId -> AppIO Team.TeamData
 getTeam tid = do
     debug $ remote "galley" . msg (val "Get team info")
@@ -582,3 +594,4 @@ changeTeamStatus tid s = do
         . header "Content-Type" "application/json"
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s)
+

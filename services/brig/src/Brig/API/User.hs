@@ -111,6 +111,7 @@ import qualified Brig.Types.Team.Invitation as Team
 import qualified Brig.Team.DB               as Team
 import qualified Data.Map.Strict            as Map
 import qualified Galley.Types.Teams         as Team
+import qualified Galley.Types.Teams.Intra   as Team
 import qualified System.Logger.Class        as Log
 
 -------------------------------------------------------------------------------
@@ -469,6 +470,7 @@ onActivated (AccountActivated account) = do
     let uid = userId (accountUser account)
     Log.info $ field "user" (toByteString uid) . msg (val "User activated")
     Intra.onUserEvent uid Nothing $ UserActivated account
+    activateTeam uid
     return (userIdentity (accountUser account), True)
 onActivated (EmailActivated uid email) = do
     Intra.onUserEvent uid Nothing (emailUpdated uid email)
@@ -476,6 +478,11 @@ onActivated (EmailActivated uid email) = do
 onActivated (PhoneActivated uid phone) = do
     Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
     return (Just (PhoneIdentity phone), False)
+
+activateTeam :: UserId -> AppIO ()
+activateTeam uid = do
+    tid <- Intra.getTeamId uid
+    for_ tid $ flip Intra.changeTeamStatus Team.Active
 
 sendActivationCode :: Either Email Phone -> Maybe Locale -> Bool -> ExceptT SendActivationCodeError AppIO ()
 sendActivationCode emailOrPhone loc call = case emailOrPhone of
@@ -774,3 +781,4 @@ fetchUserIdentity :: UserId -> AppIO (Maybe UserIdentity)
 fetchUserIdentity uid = lookupSelfProfile uid >>= maybe
     (throwM $ UserProfileNotFound uid)
     (return . userIdentity . selfUser)
+

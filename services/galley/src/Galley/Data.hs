@@ -181,8 +181,11 @@ createTeam :: MonadClient m
            -> m Team
 createTeam t uid (fromRange -> n) (fromRange -> i) k b = do
     tid <- maybe (Id <$> liftIO nextRandom) return t
-    retry x5 $ write Cql.insertTeam (params Quorum (tid, uid, n, i, fromRange <$> k, Active, b))
+    retry x5 $ write Cql.insertTeam (params Quorum (tid, uid, n, i, fromRange <$> k, initialStatus b, b))
     pure (newTeam tid uid n i b & teamIconKey .~ (fromRange <$> k))
+  where
+    initialStatus Binding = PendingActive -- Team becomes Active after User account activation
+    initialStatus NonBinding = Active
 
 deleteTeam :: MonadClient m => TeamId -> m ()
 deleteTeam tid = do

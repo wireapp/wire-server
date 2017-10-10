@@ -100,11 +100,14 @@ instance Cql TeamStatus where
     toCql PendingDelete   = CqlInt 1
     toCql Deleted         = CqlInt 2
     toCql Suspended       = CqlInt 3
+    toCql PendingActive   = CqlInt 4
 
     fromCql (CqlInt i) = case i of
         0 -> return Active
         1 -> return PendingDelete
         2 -> return Deleted
         3 -> return Suspended
+        4 -> return PendingActive
         n -> fail $ "unexpected team-status: " ++ show n
     fromCql _ = fail "team-status: int expected"
+

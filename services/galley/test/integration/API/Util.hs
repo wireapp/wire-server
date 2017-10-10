@@ -29,6 +29,7 @@ import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V4
 import Galley.Types
 import Galley.Types.Teams hiding (EventType (..))
+import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
 import Prelude hiding (head, mapM_)
@@ -70,14 +71,21 @@ createTeam g name owner mems = do
         const True === isJust . getHeader "Location"
     fromBS (getHeader' "Location" resp)
 
+changeTeamStatus :: Galley -> TeamId -> TeamStatus -> Http ()
+changeTeamStatus g tid s = put
+        ( g . paths ["i", "teams", toByteString' tid, "status"]
+        . json (TeamStatusUpdate s)
+        ) !!! const 200 === statusCode
+
 createTeamInternal :: Galley -> Text -> UserId -> Http TeamId
 createTeamInternal g name owner = do
     tid <- randomId
     let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
-    resp <- put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
+    _ <- put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
         const 201  === statusCode
         const True === isJust . getHeader "Location"
-    fromBS (getHeader' "Location" resp)
+    changeTeamStatus g tid Active
+    return tid
 
 getTeam :: Galley -> UserId -> TeamId -> Http Team
 getTeam g usr tid = do
