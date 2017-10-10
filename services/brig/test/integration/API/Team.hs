@@ -11,7 +11,7 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently_, replicateConcurrently_)
+import Control.Concurrent.Async.Lifted.Safe (mapConcurrently_, replicateConcurrently)
 import Control.Lens ((^.), (^?), view)
 import Control.Monad
 import Control.Monad.IO.Class
@@ -20,6 +20,7 @@ import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Internal (ByteString)
 import Data.Id hiding (client)
+import Data.List.Extra (chunksOf)
 import Data.Maybe
 import Data.Monoid ((<>))
 import Data.Range
@@ -253,7 +254,8 @@ testInvitationTooManyMembers :: Brig -> Galley -> Http ()
 testInvitationTooManyMembers brig galley = do
     creator <- userId <$> randomUser brig
     tid     <- createTeam creator galley
-    replicateConcurrently_ 127 $ inviteAndRegisterUser creator tid brig
+    uids    <- fmap toNewMember <$> replicateConcurrently 127 randomId
+    mapM_ (mapConcurrently_ (addTeamMember galley tid)) $ chunksOf 16 uids
 
     em <- randomEmail
     let invite  = InvitationRequest em (Name "Bob") Nothing
@@ -264,6 +266,8 @@ testInvitationTooManyMembers brig galley = do
                . body (accept em inviteeCode)) !!! do
         const 403 === statusCode
         const (Just "too-many-team-members") === fmap Error.label . decodeBody
+  where
+    toNewMember u = Team.newNewTeamMember $ Team.newTeamMember u Team.fullPermissions
 
 testInvitationPaging :: Brig -> Galley -> Http ()
 testInvitationPaging b g = do
@@ -450,6 +454,15 @@ createTeam u galley = do
               )
     maybe (error "invalid team id") return $
         fromByteString $ getHeader' "Location" r
+
+addTeamMember :: Galley -> TeamId -> Team.NewTeamMember -> Http ()
+addTeamMember galley tid mem =
+    void $ post ( galley
+                . paths ["i", "teams", toByteString' tid, "members"]
+                . contentJson
+                . expect2xx
+                . lbytes (encode mem)
+                )
 
 getTeamMember :: UserId -> TeamId -> Galley -> Http Team.TeamMember
 getTeamMember u tid galley = do
