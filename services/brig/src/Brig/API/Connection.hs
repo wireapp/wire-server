@@ -289,7 +289,7 @@ autoConnect from (Set.toList -> to) conn = do
   where
     filterOutTeamMembers us = do
         mems <- lift $ Intra.getTeamContacts from
-        return $ maybe us (Team.notSameTeam us . view Team.teamMembers) mems
+        return $ maybe us (Team.notTeamMember us . view Team.teamMembers) mems
 
     connectAll activeOthers = do
         others <- selectOthers activeOthers

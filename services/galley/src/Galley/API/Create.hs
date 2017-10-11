@@ -59,7 +59,7 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
             else do
                 void $ permissionCheck zusr AddConversationMember mems
                 uu <- rangeChecked (newConvUsers body)
-                ensureConnected zusr (notSameTeam (fromRange uu) mems)
+                ensureConnected zusr (notTeamMember (fromRange uu) mems)
                 pure uu
         conv <- Data.createConversation zusr name (access body) uids (newConvTeam body)
         now  <- liftIO getCurrentTime

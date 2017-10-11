@@ -203,6 +203,7 @@ test-suite galley-integration
       , protobuf
       , proto-lens
       , QuickCheck
+      , retry
       , transformers
       , tasty                >= 0.8
       , tasty-cannon         >= 0.3.2

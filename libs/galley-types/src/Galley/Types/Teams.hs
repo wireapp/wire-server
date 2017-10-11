@@ -29,8 +29,7 @@ module Galley.Types.Teams
     , teamMemberJson
 
     , TeamMemberList
-    , sameTeam
-    , notSameTeam
+    , notTeamMember
     , findTeamMember
     , isTeamMember
     , newTeamMemberList
@@ -282,13 +281,9 @@ makeLenses ''TeamUpdateData
 makeLenses ''TeamMemberDeleteData
 makeLenses ''TeamDeleteData
 
-sameTeam :: [UserId] -> [TeamMember] -> [UserId]
-sameTeam uids tmms = Set.toList $
-    Set.fromList uids `Set.intersection` Set.fromList (map (view userId) tmms)
-
-notSameTeam :: [UserId] -> [TeamMember] -> [UserId]
-notSameTeam uids tmms = Set.toList $
-    Set.fromList uids `Set.difference` Set.fromList (sameTeam uids tmms)
+notTeamMember :: [UserId] -> [TeamMember] -> [UserId]
+notTeamMember uids tmms = Set.toList $
+    Set.fromList uids `Set.difference` Set.fromList (map (view userId) tmms)
 
 isTeamMember :: Foldable m => UserId -> m TeamMember -> Bool
 isTeamMember u = isJust . findTeamMember u
