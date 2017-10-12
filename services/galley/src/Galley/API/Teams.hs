@@ -9,6 +9,7 @@ module Galley.API.Teams
     , updateTeamStatus
     , getTeam
     , getTeamInternal
+    , getBindingTeamId
     , getBindingTeamMembers
     , getManyTeams
     , deleteTeam
@@ -107,12 +108,14 @@ createBindingTeam (zusr ::: tid ::: req ::: _) = do
     BindingNewTeam body <- fromBody req invalidPayload
     let owner  = newTeamMember zusr fullPermissions
     team <- Data.createTeam (Just tid) zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) Binding
-    Journal.teamCreate tid zusr
     finishCreateTeam team owner [] Nothing
 
 updateTeamStatus :: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 updateTeamStatus (tid ::: req ::: _) = do
     TeamStatusUpdate body <- fromBody req invalidPayload
+    team <- Data.team tid >>= ifNothing teamNotFound
+    when (body == Active && tdStatus team == PendingActive) $
+        Journal.teamCreate tid $ (tdTeam team)^.teamCreator
     Data.updateTeamStatus tid body
     return empty
 
@@ -391,12 +394,19 @@ finishCreateTeam team owner others zcon = do
     push1 $ newPush1 zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
     pure (empty & setStatus status201 . location (team^.teamId))
 
-getBindingTeamMembers :: UserId -> Galley Response
-getBindingTeamMembers zusr = do
+withBindingTeam :: UserId -> (TeamId -> Galley b) -> Galley b
+withBindingTeam zusr callback = do
     tid <- Data.oneUserTeam zusr >>= ifNothing teamNotFound
     binding <- Data.teamBinding tid >>= ifNothing teamNotFound
     case binding of
-        Binding -> do
-            members <- Data.teamMembers tid
-            pure $ json $ teamMemberListJson True (newTeamMemberList members)
+        Binding -> callback tid
         NonBinding -> throwM nonBindingTeam
+
+getBindingTeamId :: UserId -> Galley Response
+getBindingTeamId zusr = withBindingTeam zusr $ pure . json
+
+getBindingTeamMembers :: UserId -> Galley Response
+getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
+    members <- Data.teamMembers tid
+    pure $ json $ teamMemberListJson True (newTeamMemberList members)
+

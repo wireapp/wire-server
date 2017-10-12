@@ -11,6 +11,7 @@ DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 DEB_JOURNALER := $(NAME)-journaler_$(VERSION)+$(BUILD)_amd64.deb
 KEIRETSU_ENV  ?= ../.env
+EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema $(NAME)-journaler
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -101,4 +102,11 @@ db-migrate: install
 
 .PHONY: docker
 docker:
-	docker build -t $(NAME) -f ../../build/alpine/Dockerfile --build-arg service=$(NAME) ../..
+	$(foreach executable,$(EXECUTABLES),\
+	docker build -t $(executable) \
+	-f ../../build/alpine/Dockerfile \
+	--build-arg service=$(NAME) \
+	--build-arg executable=$(executable) \
+	../.. \
+	;)
+

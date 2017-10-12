@@ -20,3 +20,4 @@ extra-deps:
 flags:
   types-common:
     protobuf: True
+    arbitrary: True

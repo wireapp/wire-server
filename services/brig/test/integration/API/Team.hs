@@ -11,7 +11,7 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently_)
+import Control.Concurrent.Async.Lifted.Safe (mapConcurrently_, replicateConcurrently)
 import Control.Lens ((^.), (^?), view)
 import Control.Monad
 import Control.Monad.IO.Class
@@ -20,6 +20,7 @@ import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Internal (ByteString)
 import Data.Id hiding (client)
+import Data.List.Extra (chunksOf)
 import Data.Maybe
 import Data.Monoid ((<>))
 import Data.Range
@@ -35,6 +36,7 @@ import qualified Data.Text.Encoding          as T
 import qualified Data.UUID.V4                as UUID
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Galley.Types.Teams          as Team
+import qualified Galley.Types.Teams.Intra    as Team
 import qualified Test.Tasty.Cannon           as WS
 
 tests :: Manager -> Brig -> Cannon -> Galley -> IO TestTree
@@ -50,6 +52,7 @@ tests m b c g =
             , test m "post /register - 400 bad code"                     $ testInvitationInvalidCode b
             , test m "post /register - 400 no wireless"                  $ testInvitationCodeNoIdentity b
             , test m "post /register - 400 mutually exclusive"           $ testInvitationMutuallyExclusive b
+            , test m "post /register - 403 too many members"             $ testInvitationTooManyMembers b g
             , test m "get /teams/:tid/invitations - 200 (paging)"        $ testInvitationPaging b g
             , test m "get /teams/:tid/invitations/info - 200"            $ testInvitationInfo b g
             , test m "get /teams/:tid/invitations/info - 400"            $ testInvitationInfoBadCode b
@@ -113,7 +116,7 @@ testInvitationEmailAccepted brig galley = do
     Just inv <- decodeBody <$> postInvitation brig tid inviter invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <- post (brig . path "/register"
-                       . contentJson 
+                       . contentJson
                        . body (accept inviteeEmail inviteeCode))
                   <!! const 201 === statusCode
     let Just (invitee, Just email2) = (userId &&& userEmail) <$> decodeBody rsp2
@@ -143,6 +146,17 @@ testCreateTeam brig galley = do
     inviteeEmail <- randomEmail
     let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
     postInvitation brig (team^.Team.teamId) uid invite !!! const 403 === statusCode
+    -- Verify that the team is still in status "pending"
+    team2 <- getTeam galley (team^.Team.teamId)
+    liftIO $ assertEqual "status" Team.PendingActive (Team.tdStatus team2)
+    -- Activate account
+    act <- getActivationCode brig (Left email)
+    case act of
+        Nothing -> liftIO $ assertFailure "activation key/code not found"
+        Just kc -> activate brig kc !!! const 200 === statusCode
+    -- Verify that Team has status Active now
+    team3 <- getTeam galley (team^.Team.teamId)
+    liftIO $ assertEqual "status" Team.Active (Team.tdStatus team3)
 
 testInvitationNoPermission :: Brig -> Http ()
 testInvitationNoPermission brig = do
@@ -247,6 +261,25 @@ testInvitationMutuallyExclusive brig = do
             , "invitation_code" .= i
             ]
         ))
+
+testInvitationTooManyMembers :: Brig -> Galley -> Http ()
+testInvitationTooManyMembers brig galley = do
+    creator <- userId <$> randomUser brig
+    tid     <- createTeam creator galley
+    uids    <- fmap toNewMember <$> replicateConcurrently 127 randomId
+    mapM_ (mapConcurrently_ (addTeamMember galley tid)) $ chunksOf 16 uids
+
+    em <- randomEmail
+    let invite  = InvitationRequest em (Name "Bob") Nothing
+    Just inv <- decodeBody <$> postInvitation brig tid creator invite
+    Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+    post (brig . path "/register"
+               . contentJson
+               . body (accept em inviteeCode)) !!! do
+        const 403 === statusCode
+        const (Just "too-many-team-members") === fmap Error.label . decodeBody
+  where
+    toNewMember u = Team.newNewTeamMember $ Team.newTeamMember u Team.fullPermissions
 
 testInvitationPaging :: Brig -> Galley -> Http ()
 testInvitationPaging b g = do
@@ -398,6 +431,11 @@ unsuspendTeam brig t = post $ brig
     . paths ["i", "teams", toByteString' t, "unsuspend"]
     . contentJson
 
+getTeam :: Galley -> TeamId -> Http Team.TeamData
+getTeam galley t = do
+    r <- get $ galley . paths ["i", "teams", toByteString' t]
+    return $ fromMaybe (error "getTeam: failed to parse response") (decodeBody r)
+
 getInvitationCode :: Brig -> TeamId -> InvitationId -> Http (Maybe InvitationCode)
 getInvitationCode brig t ref = do
     r <- get ( brig
@@ -433,6 +471,15 @@ createTeam u galley = do
               )
     maybe (error "invalid team id") return $
         fromByteString $ getHeader' "Location" r
+
+addTeamMember :: Galley -> TeamId -> Team.NewTeamMember -> Http ()
+addTeamMember galley tid mem =
+    void $ post ( galley
+                . paths ["i", "teams", toByteString' tid, "members"]
+                . contentJson
+                . expect2xx
+                . lbytes (encode mem)
+                )
 
 getTeamMember :: UserId -> TeamId -> Galley -> Http Team.TeamMember
 getTeamMember u tid galley = do
@@ -496,3 +543,4 @@ updatePermissions from tid (to, perm) galley =
 
 newTeam :: Team.BindingNewTeam
 newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
+

@@ -5,6 +5,8 @@ module Brig.User.Email
     ( ActivationEmail (..)
     , sendActivationMail
 
+    , sendTeamActivationMail
+
     , PasswordResetEmail (..)
     , sendPasswordResetMail
 
@@ -67,6 +69,12 @@ sendNewClientEmail :: Name -> Email -> Client -> Locale -> AppIO ()
 sendNewClientEmail name email client locale = do
     tpl <- newClientEmail . snd <$> userTemplates (Just locale)
     Aws.sendMail $ renderNewClientEmail tpl (NewClientEmail locale email name client)
+
+sendTeamActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Text -> AppIO ()
+sendTeamActivationMail to name pair loc team = do
+    tpl <- teamActivationEmail . snd <$> userTemplates loc
+    let mail = TeamActivationEmail to name team pair
+    Aws.sendMail $ renderTeamActivationMail mail tpl
 
 -------------------------------------------------------------------------------
 -- New Client Email
@@ -184,6 +192,42 @@ renderActivationUrl t (ActivationKey k, ActivationCode c) =
     replace "key"  = Ascii.toText k
     replace "code" = Ascii.toText c
     replace x      = x
+
+-------------------------------------------------------------------------------
+-- Team Activation Email
+
+data TeamActivationEmail = TeamActivationEmail
+    { tacmTo       :: !Email
+    , tacmName     :: !Name
+    , tacmTeamName :: !Text
+    , tacmPair     :: !ActivationPair
+    }
+
+renderTeamActivationMail :: TeamActivationEmail -> TeamActivationEmailTemplate -> Mail
+renderTeamActivationMail TeamActivationEmail{..} TeamActivationEmailTemplate{..} =
+    (emptyMail from)
+        { mailTo      = [ to ]
+        , mailHeaders = [ ("Subject", toStrict subj)
+                        , ("X-Zeta-Purpose", "Activation")
+                        , ("X-Zeta-Key", Ascii.toText key)
+                        , ("X-Zeta-Code", Ascii.toText code)
+                        ]
+        , mailParts   = [ [ plainPart txt, htmlPart html ] ]
+        }
+  where
+    (ActivationKey key, ActivationCode code) = tacmPair
+
+    from = Address (Just teamActivationEmailSenderName) (fromEmail teamActivationEmailSender)
+    to   = mkMimeAddress tacmName tacmTo
+    txt  = renderText teamActivationEmailBodyText replace
+    html = renderHtml teamActivationEmailBodyHtml replace
+    subj = renderText teamActivationEmailSubject replace
+
+    replace "url"   = renderActivationUrl teamActivationEmailUrl tacmPair
+    replace "email" = fromEmail tacmTo
+    replace "name"  = fromName tacmName
+    replace "team"  = tacmTeamName
+    replace x       = x
 
 -------------------------------------------------------------------------------
 -- Password Reset Email

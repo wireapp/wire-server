@@ -1,0 +1,22 @@
+Wire
+
+
+Hello,
+
+A new Wire team called ${team} was created with ${email}. We want to verify that you are indeed ${name}.
+
+Follow the link below to verify your address. You won't be able to use Wire until you do.
+
+
+${url}
+
+Please don't reply to this message.
+
+If you didn't create a Wire account using this email address, please visit https://support.wire.com
+
+
+
+
+(c) Wire Swiss GmbH
+
+Privacy Policy  |  Report misuse

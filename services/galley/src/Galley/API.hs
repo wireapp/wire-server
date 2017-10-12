@@ -681,6 +681,9 @@ sitemap = do
     get "/i/users/:uid/team/members" (continue getBindingTeamMembers) $
         capture "uid"
 
+    get "/i/users/:uid/team" (continue getBindingTeamId) $
+        capture "uid"
+
     get "/i/test/clients" (continue getClients)
         zauthUserId
 

@@ -130,7 +130,7 @@ library
       , iproute                   >= 1.5
       , lens                      >= 3.8
       , lens-aeson                >= 1.0
-      , lifted-async              >= 0.8
+      , lifted-async              >= 0.9.3
       , mime-mail                 >= 0.4
       , metrics-core              >= 0.3
       , metrics-wai               >= 0.3
@@ -317,6 +317,7 @@ test-suite brig-integration
       , directory             >= 1.2
       , errors                >= 1.4
       , exceptions            >= 0.5
+      , extra
       , filepath              >= 1.4
       , galley-types
       , gundeck-types
@@ -326,7 +327,7 @@ test-suite brig-integration
       , HsOpenSSL
       , lens                  >= 3.9
       , lens-aeson            >= 1.0
-      , lifted-async          >= 0.7
+      , lifted-async          >= 0.9.3
       , mtl                   >= 2.1
       , network
       , options               >= 0.1

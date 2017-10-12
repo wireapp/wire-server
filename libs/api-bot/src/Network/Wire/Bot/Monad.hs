@@ -84,6 +84,7 @@ import Data.Id
 import Data.IORef
 import Data.List (foldl', partition)
 import Data.Maybe (fromMaybe, isNothing)
+import Data.Misc
 import Data.Metrics (Metrics)
 import Data.Monoid ((<>))
 import Data.String (IsString)
@@ -861,6 +862,7 @@ randUser (Email loc dom) (BotTag tag) = do
         , newUserInvitationCode = Nothing
         , newUserLabel          = Nothing
         , newUserLocale         = Nothing
+        , newUserTeam           = Nothing
         }, passw)
 
 randMailbox :: BotNet Mailbox

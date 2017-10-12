@@ -71,6 +71,7 @@ newUserError (InvalidPhone _)         = StdError invalidPhone
 newUserError (DuplicateUserKey _)     = StdError userKeyExists
 newUserError (PhoneActivationError e) = actError e
 newUserError (BlacklistedUserKey k)   = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
+newUserError TooManyTeamMembers       = StdError tooManyTeamMembers
 
 sendLoginCodeError :: SendLoginCodeError -> Error
 sendLoginCodeError (SendLoginInvalidPhone _) = StdError invalidPhone
@@ -337,6 +338,9 @@ noBindingTeam = Wai.Error status403 "no-binding-team" "Operation allowed only on
 noOtherOwner :: Wai.Error
 noOtherOwner = Wai.Error status403 "no-other-owner" "You are trying to remove or downgrade\
                                 \ an owner. Promote another team member before proceeding."
+
+tooManyTeamMembers :: Wai.Error
+tooManyTeamMembers = Wai.Error status403 "too-many-team-members" "Too many members in this team."
 
 loginsTooFrequent :: Wai.Error
 loginsTooFrequent = Wai.Error status429 "client-error" "Logins too frequent"
