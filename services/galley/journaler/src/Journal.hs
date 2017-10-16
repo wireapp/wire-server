@@ -44,21 +44,23 @@ runCommand l env c start = void $ C.runClient c $ do
 
     journal :: Row -> C.Client ()
     journal (tid, _, s, time) = C.runClient c $ case s of
-          Just PendingDelete -> liftIO $ journalTeamDelete tid
-          Just Deleted       -> liftIO $ journalTeamDelete tid
-          _                  -> do
-              mems <- Data.teamMembers tid
-              liftIO $ journalTeamCreate tid mems time
+          Just Active        -> journalTeamCreate tid time
+          Just PendingDelete -> journalTeamDelete tid
+          Just Deleted       -> journalTeamDelete tid
+          Just Suspended     -> journalTeamCreate tid time
+          Just PendingActive -> return ()
+          Nothing            -> journalTeamCreate tid time
 
-    journalTeamDelete :: TeamId -> IO ()
+    journalTeamDelete :: TeamId -> C.Client ()
     journalTeamDelete tid = do
         now <- Journal.nowInt
         let event = TeamEvent TeamEvent'TEAM_DELETE (Journal.bytes tid) now Nothing
         Aws.execute env (Aws.enqueue event)
 
-    journalTeamCreate :: TeamId -> [TeamMember] -> Maybe Int64 -> IO ()
-    journalTeamCreate tid mems time = do
+    journalTeamCreate :: TeamId -> Maybe Int64 -> C.Client ()
+    journalTeamCreate tid time = do
         now <- Journal.nowInt
+        mems <- Data.teamMembers tid
         let creationTimeSeconds = maybe now (`div` 1000000) time  -- writetime is in microseconds in cassandra 2.1
         let bUsers = view userId <$> filter (`hasPermission` SetBilling) mems
         let eData = Journal.evData (fromIntegral $ length mems) bUsers
