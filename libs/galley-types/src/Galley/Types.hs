@@ -554,7 +554,7 @@ instance ToJSON ConvTeamInfo where
 
 instance FromJSON ConvTeamInfo where
     parseJSON = withObject "conversation team info" $ \o ->
-        ConvTeamInfo <$> o .: "teamid" <*> o .: "managed"
+        ConvTeamInfo <$> o .: "teamid" <*> o .:? "managed" .!= False
 
 instance FromJSON Invite where
     parseJSON = withObject "invite object"

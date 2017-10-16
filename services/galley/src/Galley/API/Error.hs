@@ -75,8 +75,8 @@ tooManyTeamMembers = Error status403 "too-many-team-members" "Maximum number of 
 teamMemberNotFound :: Error
 teamMemberNotFound = Error status404 "no-team-member" "team member not found"
 
-noTeamConv :: Error
-noTeamConv = Error status400 "no-team-conv" "Team conversations are not allowed in this context."
+noManagedTeamConv :: Error
+noManagedTeamConv = Error status400 "no-managed-team-conv" "Managed team conversations are not allowed in this context."
 
 userBindingExists :: Error
 userBindingExists = Error status403 "binding-exists" "User already bound to a different team."
@@ -89,3 +89,6 @@ deleteQueueFull = Error status503 "queue-full" "The delete queue is full. No fur
 
 nonBindingTeam :: Error
 nonBindingTeam = Error status404 "non-binding-team" "not member of a binding team"
+
+noBindingTeamMembers :: Error
+noBindingTeamMembers = Error status403 "non-binding-team-members" "Both users must be members of the same binding team."

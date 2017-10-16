@@ -32,7 +32,6 @@ import Network.Wai.Predicate
 import Network.Wai.Utilities
 
 import qualified Data.Text.Lazy as LT
-import qualified Data.Set       as Set
 import qualified Galley.Data    as Data
 
 type JSON = Media "application" "json"
@@ -60,13 +59,12 @@ ensureReAuthorised u secret = do
     unless reAuthed $
         throwM reAuthFailed
 
-sameTeam :: [UserId] -> [TeamMember] -> [UserId]
-sameTeam uids tmms = Set.toList $
-    Set.fromList uids `Set.intersection` Set.fromList (map (view userId) tmms)
-
-notSameTeam :: [UserId] -> [TeamMember] -> [UserId]
-notSameTeam uids tmms = Set.toList $
-    Set.fromList uids `Set.difference` Set.fromList (sameTeam uids tmms)
+bindingTeamMembers :: TeamId -> Galley [TeamMember]
+bindingTeamMembers tid = do
+    binding <- Data.teamBinding tid >>= ifNothing teamNotFound
+    case binding of
+        Binding -> Data.teamMembers tid
+        NonBinding -> throwM nonBindingTeam
 
 permissionCheck :: Foldable m => UserId -> Perm -> m TeamMember -> Galley TeamMember
 permissionCheck u p t =
@@ -113,12 +111,6 @@ acceptOne2One usr conv conn = case Data.convType conv of
                  $ "Connect conversation with more than 2 members: "
                 <> LT.pack (show cid)
 
-isTeamMember :: Foldable m => UserId -> m TeamMember -> Bool
-isTeamMember u = isJust . findTeamMember u
-
-findTeamMember :: Foldable m => UserId -> m TeamMember -> Maybe TeamMember
-findTeamMember u = find ((u ==) . view userId)
-
 isBot :: Member -> Bool
 isBot = isJust . memService
 
@@ -144,4 +136,3 @@ nonTeamMembers cm tm = filter (not . flip isTeamMember tm . memId) cm
 membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
 membersToRecipients Nothing  = map (userRecipient . view userId)
 membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
-

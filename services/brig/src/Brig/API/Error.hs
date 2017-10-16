@@ -51,6 +51,7 @@ connError ConnectNoIdentity{}           = StdError noIdentity
 connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
 connError ConnectInvalidEmail{}         = StdError invalidEmail
 connError ConnectInvalidPhone{}         = StdError invalidPhone
+connError ConnectSameBindingTeamUsers   = StdError sameBindingTeamUsers
 
 actError :: ActivationError -> Error
 actError (UserKeyExists          _) = StdError userKeyExists
@@ -334,6 +335,9 @@ insufficientTeamPermissions = Wai.Error status403 "insufficient-permissions" "In
 
 noBindingTeam :: Wai.Error
 noBindingTeam = Wai.Error status403 "no-binding-team" "Operation allowed only on binding teams"
+
+sameBindingTeamUsers :: Wai.Error
+sameBindingTeamUsers = Wai.Error status403 "same-binding-team-users" "Operation not allowed to binding team users."
 
 noOtherOwner :: Wai.Error
 noOtherOwner = Wai.Error status403 "no-other-owner" "You are trying to remove or downgrade\
