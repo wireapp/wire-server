@@ -76,10 +76,10 @@ updateClient u c r = do
     ok <- lift $ Data.hasClient u c
     unless ok $
         throwE ClientNotFound
-    lift $ Data.updateClientLabel u c (updateClientLabel r)
+    for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
     let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
     Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError
-    lift $ for_ (updateClientSigKeys r) (Intra.updateSignalingKeys u c)
+    for_ (updateClientSigKeys r) $ lift . Intra.updateSignalingKeys u c
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.

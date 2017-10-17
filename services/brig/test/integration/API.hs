@@ -1553,6 +1553,21 @@ testUpdateClient brig = do
         const (Just PhoneClient)  === (pubClientClass <=< decodeBody)
         const Nothing             === (preview (key "label") <=< asValue)
 
+    let update' = UpdateClient [] Nothing (Nothing :: Maybe SignalingKeys) Nothing
+
+    -- empty update should be a no-op
+    put ( brig
+        . paths ["clients", toByteString' (clientId c)]
+        . zUser (userId u)
+        . contentJson
+        . body (RequestBodyLBS $ encode update')
+        ) !!! const 200 === statusCode
+
+    -- check if label is still present
+    getClient brig (userId u) (clientId c) !!! do
+        const 200            === statusCode
+        const (Just "label") === (clientLabel <=< decodeBody)
+
 -- Legacy (galley)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()
 testAddMultipleTemporary brig galley = do
