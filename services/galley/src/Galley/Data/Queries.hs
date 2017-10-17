@@ -28,6 +28,9 @@ selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(s
 selectTeamBinding :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamBinding))
 selectTeamBinding = "select binding from team where team = ?"
 
+selectTeamBindingWritetime :: PrepQuery R (Identity TeamId) (Identity (Maybe Int64))
+selectTeamBindingWritetime = "select writetime(binding) from team where team = ?"
+
 selectTeamConv :: PrepQuery R (TeamId, ConvId) (Identity Bool)
 selectTeamConv = "select managed from team_conv where team = ? and conv = ?"
 

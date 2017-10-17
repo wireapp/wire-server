@@ -15,8 +15,9 @@ message TeamEvent {
     }
 
     enum EventType {
-        TEAM_CREATE = 0;
-        TEAM_DELETE = 1;
-        TEAM_UPDATE = 2;
+        TEAM_ACTIVATE = 0;
+        TEAM_DELETE   = 1;
+        TEAM_UPDATE   = 2;
+        TEAM_SUSPEND  = 3;
     }
 }
