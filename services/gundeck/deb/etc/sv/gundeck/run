@@ -21,6 +21,12 @@ export LOG_LEVEL=${GUNDECK_LOG_LEVEL:-Debug}
 export LOG_BUFFER=${GUNDECK_LOG_BUFFER:-4096}
 export LOG_NETSTR=${GUNDECK_LOG_NETSTR:-True}
 
+if [ -n "$GUNDECK_PREFER_NOTICE" ]; then
+    GUNDECK_PREFER_NOTICE="--prefer-notice"
+else
+    GUNDECK_PREFER_NOTICE=""
+fi
+
 cd $HOME
 
 ulimit -n 65536
@@ -41,4 +47,5 @@ exec chpst -u $USER \
     --aws-region=${KHAN_REGION?'unset'} \
     --aws-account=${AWS_ACCOUNT_ID?'unset'} \
     --aws-arn-env=${KHAN_ENV?'unset'} \
-    --skip-fallbacks
+    --skip-fallbacks \
+    ${GUNDECK_PREFER_NOTICE}

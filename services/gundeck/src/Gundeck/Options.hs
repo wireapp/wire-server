@@ -7,6 +7,11 @@ module Gundeck.Options where
 
 import Control.Lens
 import Data.Aeson.TH
+import Cassandra hiding (Error)
+import Control.Lens hiding ((.=))
+import Data.Text (Text, pack)
+import Data.Word
+import Data.Misc
 import Data.Monoid
 import Data.String
 import Data.Text (Text)
@@ -35,6 +40,7 @@ makeLenses ''AWSOpts
 
 data FallbackOpts = FallbackOpts
     { _fbSkipFallbacks :: !Bool
+    , _fbPreferNotice  :: !Bool
     , _fbQueueDelay    :: !Word64
     , _fbQueueLimit    :: !Int
     , _fbQueueBurst    :: !Word16
@@ -73,7 +79,7 @@ optsParser :: Parser Opts
 optsParser = Opts <$>
     (Endpoint <$>
         (textOption $
-            long "host" 
+            long "host"
             <> value "*4"
             <> showDefault
             <> metavar "HOSTNAME"
@@ -94,7 +100,7 @@ optsParser = Opts <$>
     redisParser :: Parser Endpoint
     redisParser = Endpoint <$>
         (textOption $
-            long "redis-host" 
+            long "redis-host"
             <> metavar "HOSTNAME"
             <> help "Redis hostname")
         <*>
@@ -109,7 +115,7 @@ optsParser = Opts <$>
             long "aws-account"
             <> metavar "STRING"
             <> help "aws account")
-        <*> 
+        <*>
         (option parseRegion $
             long "aws-region"
             <> metavar "STRING"
@@ -134,6 +140,10 @@ optsParser = Opts <$>
         (switch $
             long "skip-fallbacks"
             <> help "Use this option if you wish to never send delayed fallback notifications.")
+
+        <*> (switch $
+                long "prefer-notice"
+                <> help "Use this option if you always wish to send notifications of type notice.")
 
         <*> (delayOption $
                 long "fallback-queue-delay"
