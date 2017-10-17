@@ -42,13 +42,16 @@ assertQueueEmpty :: MonadIO m => Maybe Aws.Env -> m ()
 assertQueueEmpty (Just env) = liftIO $ Aws.execute env ensureNoMessages
 assertQueueEmpty Nothing = return ()
 
-tCreate :: E.TeamEvent -> IO ()
-tCreate e = do
-    assertEqual "eventType" E.TeamEvent'TEAM_CREATE (e^.E.eventType)
+tActivate :: E.TeamEvent -> IO ()
+tActivate e = do
+    assertEqual "eventType" E.TeamEvent'TEAM_ACTIVATE (e^.E.eventType)
     assertEqual "count" 1 (e^.E.eventData^.E.memberCount)
 
 tDelete :: E.TeamEvent -> IO ()
 tDelete e = assertEqual "eventType" E.TeamEvent'TEAM_DELETE (e^.E.eventType)
+
+tSuspend :: E.TeamEvent -> IO ()
+tSuspend e = assertEqual "eventType" E.TeamEvent'TEAM_SUSPEND (e^.E.eventType)
 
 tUpdate :: Int32 -> [UserId] -> E.TeamEvent -> IO ()
 tUpdate c uids e = do

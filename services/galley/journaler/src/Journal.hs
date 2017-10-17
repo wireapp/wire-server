@@ -15,14 +15,13 @@ import Data.Monoid ((<>))
 import Data.Int
 import Data.Maybe (fromMaybe)
 import Proto.TeamEvents
-import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import System.Logger (Logger)
 
-import qualified System.Logger          as Log
-import qualified Galley.Data            as Data
-import qualified Galley.Intra.Journal   as Journal
-import qualified Galley.Aws             as Aws
+import qualified System.Logger        as Log
+import qualified Galley.Data          as Data
+import qualified Galley.Intra.Journal as Journal
+import qualified Galley.Aws           as Aws
 
 
 runCommand :: Logger -> Aws.Env -> ClientState -> Maybe TeamId -> IO ()
@@ -44,27 +43,32 @@ runCommand l env c start = void $ C.runClient c $ do
 
     journal :: Row -> C.Client ()
     journal (tid, _, s, time) = C.runClient c $ case s of
-          Just Active        -> journalTeamCreate tid time
+          Just Active        -> journalTeamActivate tid time
           Just PendingDelete -> journalTeamDelete tid
           Just Deleted       -> journalTeamDelete tid
-          Just Suspended     -> journalTeamCreate tid time
+          Just Suspended     -> journalTeamSuspend tid
           Just PendingActive -> return ()
-          Nothing            -> journalTeamCreate tid time
+          -- Nothing addresses teams that are "pre status"
+          Nothing            -> journalTeamActivate tid time
 
     journalTeamDelete :: TeamId -> C.Client ()
-    journalTeamDelete tid = do
-        now <- Journal.nowInt
-        let event = TeamEvent TeamEvent'TEAM_DELETE (Journal.bytes tid) now Nothing
-        Aws.execute env (Aws.enqueue event)
+    journalTeamDelete tid = publish tid TeamEvent'TEAM_DELETE Nothing Nothing
 
-    journalTeamCreate :: TeamId -> Maybe Int64 -> C.Client ()
-    journalTeamCreate tid time = do
-        now <- Journal.nowInt
+    journalTeamSuspend :: TeamId -> C.Client ()
+    journalTeamSuspend tid = publish tid TeamEvent'TEAM_SUSPEND Nothing Nothing
+
+    journalTeamActivate :: TeamId -> Maybe Int64 -> C.Client ()
+    journalTeamActivate tid time = do
         mems <- Data.teamMembers tid
-        let creationTimeSeconds = maybe now (`div` 1000000) time  -- writetime is in microseconds in cassandra 2.1
-        let bUsers = view userId <$> filter (`hasPermission` SetBilling) mems
-        let eData = Journal.evData (fromIntegral $ length mems) bUsers
-        let event = TeamEvent TeamEvent'TEAM_CREATE (Journal.bytes tid) creationTimeSeconds (Just eData)
+        let dat = Journal.evData mems
+        publish tid TeamEvent'TEAM_ACTIVATE time (Just dat)
+
+    publish :: TeamId -> TeamEvent'EventType -> Maybe Int64 -> Maybe TeamEvent'EventData -> C.Client ()
+    publish tid typ time dat = do
+        now <- Journal.nowInt
+        -- writetime is in microseconds in cassandra 2.1 and 3.7
+        let creationTimeSeconds = maybe now (`div` 1000000) time
+        let event = TeamEvent typ (Journal.bytes tid) creationTimeSeconds dat
         Aws.execute env (Aws.enqueue event)
 
 -- CQL queries

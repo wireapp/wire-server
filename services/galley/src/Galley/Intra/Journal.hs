@@ -3,9 +3,10 @@
 {-# LANGUAGE TypeOperators     #-}
 
 module Galley.Intra.Journal
-    ( teamCreate
+    ( teamActivate
     , teamUpdate
     , teamDelete
+    , teamSuspend
     , bytes
     , evData
     , nowInt
@@ -32,31 +33,23 @@ import qualified Galley.Aws as Aws
 -- Team journal operations to SQS are a no-op when the service
 -- is started without journaling arguments
 
-teamCreate :: TeamId -> UserId -> Galley ()
-teamCreate tid uid = do
-    mEnv <- view aEnv
-    for_ mEnv $ \e -> do
-        now <- nowInt
-        let event = TeamEvent TeamEvent'TEAM_CREATE (bytes tid) now (Just (evData 1 [uid]))
-        Aws.execute e (Aws.enqueue event)
+teamActivate :: TeamId -> [TeamMember] -> Galley ()
+teamActivate tid mems = journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData mems)
 
 teamUpdate :: TeamId -> [TeamMember] -> Galley ()
-teamUpdate tid mems = do
-    mEnv <- view aEnv
-    for_ mEnv $ \e -> do
-        now <- nowInt
-        let bUsers = view userId <$> filter (`hasPermission` SetBilling) mems
-        let eData = evData (fromIntegral $ length mems) bUsers
-        let event = TeamEvent TeamEvent'TEAM_UPDATE (bytes tid) now (Just eData)
-        Aws.execute e (Aws.enqueue event)
+teamUpdate tid mems = journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData mems)
 
 teamDelete :: TeamId -> Galley ()
-teamDelete tid = do
-    mEnv <- view aEnv
-    for_ mEnv $ \e -> do
-        now <- nowInt
-        let event = TeamEvent TeamEvent'TEAM_DELETE (bytes tid) now Nothing
-        Aws.execute e (Aws.enqueue event)
+teamDelete tid = journalEvent TeamEvent'TEAM_DELETE tid Nothing
+
+teamSuspend :: TeamId -> Galley ()
+teamSuspend tid = journalEvent TeamEvent'TEAM_SUSPEND tid Nothing
+
+journalEvent :: TeamEvent'EventType -> TeamId -> Maybe TeamEvent'EventData -> Galley ()
+journalEvent typ tid dat = view aEnv >>= \mEnv -> for_ mEnv $ \e -> do
+    now <- nowInt
+    let ev = TeamEvent typ (bytes tid) now dat
+    Aws.execute e (Aws.enqueue ev)
 
 ----------------------------------------------------------------------------
 -- utils
@@ -64,8 +57,11 @@ teamDelete tid = do
 bytes :: Id a -> ByteString
 bytes = toStrict . UUID.toByteString . toUUID
 
-evData :: Int32 -> [UserId] -> TeamEvent'EventData
-evData c uids = TeamEvent'EventData c (bytes <$> uids)
+evData :: [TeamMember] -> TeamEvent'EventData
+evData mems = TeamEvent'EventData count (bytes <$> uids)
+  where
+    uids  = view userId <$> filter (`hasPermission` SetBilling) mems
+    count = fromIntegral $ length mems
 
 nowInt :: MonadIO m => m Int64
 nowInt = liftIO $ round . utcTimeToPOSIXSeconds <$> getCurrentTime

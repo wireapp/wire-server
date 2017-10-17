@@ -112,12 +112,14 @@ createBindingTeam (zusr ::: tid ::: req ::: _) = do
 
 updateTeamStatus :: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 updateTeamStatus (tid ::: req ::: _) = do
-    TeamStatusUpdate body <- fromBody req invalidPayload
-    team <- Data.team tid >>= ifNothing teamNotFound
-    when (body == Active && tdStatus team == PendingActive) $
-        Journal.teamCreate tid $ (tdTeam team)^.teamCreator
-    Data.updateTeamStatus tid body
+    TeamStatusUpdate ts <- fromBody req invalidPayload
+    journal ts
+    Data.updateTeamStatus tid ts
     return empty
+  where
+    journal Suspended = Journal.teamSuspend tid
+    journal Active    = Journal.teamActivate tid =<< Data.teamMembers tid
+    journal _         = throwM invalidTeamStatusUpdate
 
 updateTeam :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 updateTeam (zusr::: zcon ::: tid ::: req ::: _) = do

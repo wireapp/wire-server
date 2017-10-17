@@ -92,3 +92,6 @@ nonBindingTeam = Error status404 "non-binding-team" "not member of a binding tea
 
 noBindingTeamMembers :: Error
 noBindingTeamMembers = Error status403 "non-binding-team-members" "Both users must be members of the same binding team."
+
+invalidTeamStatusUpdate :: Error
+invalidTeamStatusUpdate = Error status403 "invalid-team-status-update" "Cannot use this endpoint to update the team to the given status."
