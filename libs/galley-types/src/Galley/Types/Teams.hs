@@ -16,6 +16,8 @@ module Galley.Types.Teams
     , teamIcon
     , teamIconKey
     , teamBinding
+    , TeamCreationTime (..)
+    , tcTime
 
     , TeamList
     , newTeamList
@@ -103,6 +105,7 @@ import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
 import Data.Bits (testBit, (.|.))
 import Data.Id (TeamId, ConvId, UserId)
+import Data.Int (Int64)
 import Data.Json.Util
 import Data.List (find)
 import Data.Maybe (mapMaybe, isJust, isNothing)
@@ -231,6 +234,11 @@ newtype TeamDeleteData = TeamDeleteData
     { _tdAuthPassword :: PlainTextPassword
     }
 
+-- This is the cassandra timestamp of writetime(binding)
+newtype TeamCreationTime = TeamCreationTime
+    { _tcTime :: Int64
+    }
+
 newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
 newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
 
@@ -280,6 +288,7 @@ makeLenses ''Event
 makeLenses ''TeamUpdateData
 makeLenses ''TeamMemberDeleteData
 makeLenses ''TeamDeleteData
+makeLenses ''TeamCreationTime
 
 notTeamMember :: [UserId] -> [TeamMember] -> [UserId]
 notTeamMember uids tmms = Set.toList $

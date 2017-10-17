@@ -59,4 +59,3 @@ instance FromJSON TeamStatusUpdate where
 
 instance ToJSON TeamStatusUpdate where
     toJSON s = object ["status" .= tuStatus s]
-

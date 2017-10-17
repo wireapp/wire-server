@@ -683,9 +683,12 @@ testUpdateTeamStatus :: Galley -> Brig -> Maybe Aws.Env -> Http ()
 testUpdateTeamStatus g b a = do
     owner <- Util.randomUser b
     tid   <- Util.createTeamInternal g "foo" owner
+    assertQueue a tActivate
     -- Check for idempotency
     Util.changeTeamStatus g tid Active
     assertQueue a tActivate
+    Util.changeTeamStatus g tid Suspended
+    assertQueue a tSuspend
     Util.changeTeamStatus g tid Suspended
     assertQueue a tSuspend
     Util.changeTeamStatus g tid Suspended

@@ -25,6 +25,7 @@ module Galley.Data
     , userTeams
     , oneUserTeam
     , Galley.Data.teamBinding
+    , teamCreationTime
     , deleteTeam
     , removeTeamConv
     , updateTeam
@@ -162,6 +163,13 @@ oneUserTeam :: MonadClient m => UserId -> m (Maybe TeamId)
 oneUserTeam u = fmap runIdentity <$>
     retry x1 (query1 Cql.selectOneUserTeam (params Quorum (Identity u)))
 
+teamCreationTime :: MonadClient m => TeamId -> m (Maybe TeamCreationTime)
+teamCreationTime t = checkCreation . fmap runIdentity <$>
+    retry x1 (query1 Cql.selectTeamBindingWritetime (params Quorum (Identity t)))
+  where
+    checkCreation (Just (Just ts)) = Just $ TeamCreationTime ts
+    checkCreation _                = Nothing
+
 teamBinding :: MonadClient m => TeamId -> m (Maybe TeamBinding)
 teamBinding t = checkBinding . fmap runIdentity <$>
     retry x1 (query1 Cql.selectTeamBinding (params Quorum (Identity t)))
@@ -184,7 +192,7 @@ createTeam t uid (fromRange -> n) (fromRange -> i) k b = do
     retry x5 $ write Cql.insertTeam (params Quorum (tid, uid, n, i, fromRange <$> k, initialStatus b, b))
     pure (newTeam tid uid n i b & teamIconKey .~ (fromRange <$> k))
   where
-    initialStatus Binding = PendingActive -- Team becomes Active after User account activation
+    initialStatus Binding    = PendingActive -- Team becomes Active after User account activation
     initialStatus NonBinding = Active
 
 deleteTeam :: MonadClient m => TeamId -> m ()

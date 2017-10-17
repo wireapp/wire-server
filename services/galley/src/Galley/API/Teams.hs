@@ -118,7 +118,8 @@ updateTeamStatus (tid ::: req ::: _) = do
     return empty
   where
     journal Suspended = Journal.teamSuspend tid
-    journal Active    = Journal.teamActivate tid =<< Data.teamMembers tid
+    journal Active    = Data.teamMembers tid >>= \mems ->
+                        Journal.teamActivate tid mems =<< Data.teamCreationTime tid
     journal _         = throwM invalidTeamStatusUpdate
 
 updateTeam :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response

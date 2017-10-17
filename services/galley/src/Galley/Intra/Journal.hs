@@ -33,22 +33,23 @@ import qualified Galley.Aws as Aws
 -- Team journal operations to SQS are a no-op when the service
 -- is started without journaling arguments
 
-teamActivate :: TeamId -> [TeamMember] -> Galley ()
-teamActivate tid mems = journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData mems)
+teamActivate :: TeamId -> [TeamMember] -> Maybe TeamCreationTime -> Galley ()
+teamActivate tid mems time = journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData mems) time
 
 teamUpdate :: TeamId -> [TeamMember] -> Galley ()
-teamUpdate tid mems = journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData mems)
+teamUpdate tid mems = journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData mems) Nothing
 
 teamDelete :: TeamId -> Galley ()
-teamDelete tid = journalEvent TeamEvent'TEAM_DELETE tid Nothing
+teamDelete tid = journalEvent TeamEvent'TEAM_DELETE tid Nothing Nothing
 
 teamSuspend :: TeamId -> Galley ()
-teamSuspend tid = journalEvent TeamEvent'TEAM_SUSPEND tid Nothing
+teamSuspend tid = journalEvent TeamEvent'TEAM_SUSPEND tid Nothing Nothing
 
-journalEvent :: TeamEvent'EventType -> TeamId -> Maybe TeamEvent'EventData -> Galley ()
-journalEvent typ tid dat = view aEnv >>= \mEnv -> for_ mEnv $ \e -> do
-    now <- nowInt
-    let ev = TeamEvent typ (bytes tid) now dat
+journalEvent :: TeamEvent'EventType -> TeamId -> Maybe TeamEvent'EventData -> Maybe TeamCreationTime -> Galley ()
+journalEvent typ tid dat tim = view aEnv >>= \mEnv -> for_ mEnv $ \e -> do
+    -- writetime is in microseconds in cassandra 3.11
+    ts <- maybe nowInt (return . (`div` 1000000) . view tcTime) tim
+    let ev = TeamEvent typ (bytes tid) ts dat
     Aws.execute e (Aws.enqueue ev)
 
 ----------------------------------------------------------------------------
