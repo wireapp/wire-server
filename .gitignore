@@ -30,3 +30,4 @@ services/nginz/src
 services/.env
 tools/api-simulations/mailboxes.json
 tools/api-simulations/reports
+.DS_Store

@@ -59,6 +59,7 @@ tests m b c g =
             , test m "post /i/teams/:tid/suspend - 200"                  $ testSuspendTeam b g
             , test m "put /self - 200 update events"                     $ testUpdateEvents b g c
             , test m "delete /self - 200 (ensure no orphan teams)"       $ testDeleteTeamUser b g
+            , test m "post /connections - 403 (same binding team)"       $ testConnectionSameTeam b g
             ]
         ]
 
@@ -396,6 +397,26 @@ testDeleteTeamUser brig galley = do
     deleteUser invitee (Just defPassword) brig !!! do
         const 403 === statusCode
         const (Just "no-other-owner") === fmap Error.label . decodeBody
+
+testConnectionSameTeam :: Brig -> Galley -> Http ()
+testConnectionSameTeam brig galley = do
+    creatorA <- userId <$> randomUser brig
+    tidA     <- createTeam creatorA galley
+    inviteeA <- inviteAndRegisterUser creatorA tidA brig
+
+    postConnection brig creatorA inviteeA !!! do
+        const 403 === statusCode
+        const (Just "same-binding-team-users") === fmap Error.label . decodeBody
+
+    creatorB <- userId <$> randomUser brig
+
+    -- Can connect across teams
+    postConnection brig creatorA creatorB !!! const 201 === statusCode
+
+    external <- userId <$> randomUser brig
+    -- Externals are also ok
+    postConnection brig creatorA external !!! const 201 === statusCode
+    postConnection brig creatorB external !!! const 201 === statusCode
 
 -------------------------------------------------------------------------------
 -- Utilities

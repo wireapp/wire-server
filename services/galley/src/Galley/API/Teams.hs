@@ -30,7 +30,7 @@ module Galley.API.Teams
 
 import Cassandra (result, hasMore)
 import Control.Concurrent.Async (mapConcurrently)
-import Control.Lens
+import Control.Lens hiding (from, to)
 import Control.Monad (unless, when, void)
 import Control.Monad.Catch
 import Control.Monad.IO.Class
@@ -112,12 +112,24 @@ createBindingTeam (zusr ::: tid ::: req ::: _) = do
 
 updateTeamStatus :: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 updateTeamStatus (tid ::: req ::: _) = do
-    TeamStatusUpdate body <- fromBody req invalidPayload
+    TeamStatusUpdate to <- fromBody req invalidPayload
     team <- Data.team tid >>= ifNothing teamNotFound
-    when (body == Active && tdStatus team == PendingActive) $
-        Journal.teamCreate tid $ (tdTeam team)^.teamCreator
-    Data.updateTeamStatus tid body
+    validateTransition (tdStatus team) to >> journal to
+    Data.updateTeamStatus tid to
     return empty
+  where
+    journal Suspended = Journal.teamSuspend tid
+    journal Active    = Data.teamMembers tid >>= \mems ->
+                        Journal.teamActivate tid mems =<< Data.teamCreationTime tid
+    journal _         = throwM invalidTeamStatusUpdate
+
+    validateTransition from to = case (from, to) of
+        ( PendingActive, Active    ) -> return ()
+        ( Active       , Active    ) -> return ()
+        ( Active       , Suspended ) -> return ()
+        ( Suspended    , Active    ) -> return ()
+        ( Suspended    , Suspended ) -> return ()
+        ( _            , _         ) -> throwM invalidTeamStatusUpdate
 
 updateTeam :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 updateTeam (zusr::: zcon ::: tid ::: req ::: _) = do
@@ -409,4 +421,3 @@ getBindingTeamMembers :: UserId -> Galley Response
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
     members <- Data.teamMembers tid
     pure $ json $ teamMemberListJson True (newTeamMemberList members)
-

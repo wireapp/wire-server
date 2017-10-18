@@ -37,6 +37,8 @@ import Data.ProtoLens.Encoding
 import Data.Text (Text)
 import Data.Text.Encoding (decodeLatin1)
 import Data.Typeable
+import Data.UUID.V4
+import Data.UUID (toText)
 import Galley.Options
 import Network.HTTP.Client
        (Manager, HttpException(..), HttpExceptionContent(..))
@@ -155,11 +157,13 @@ execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 enqueue :: E.TeamEvent -> Amazon ()
 enqueue e = do
     QueueUrl url <- view eventQueue
-    res <- retrying (limitRetries 5 <> exponentialBackoff 1000000) (const canRetry) $ const (sendCatch (req url))
+    rnd <- liftIO nextRandom
+    res <- retrying (limitRetries 5 <> exponentialBackoff 1000000) (const canRetry) $ const (sendCatch (req url rnd))
     either (throwM . GeneralError) (const (return ())) res
   where
     event = decodeLatin1 $ B64.encode $ encodeMessage e
-    req url = SQS.sendMessage url event & SQS.smMessageGroupId .~ Just "team.events"
+    req url dedup = SQS.sendMessage url event & SQS.smMessageGroupId .~ Just "team.events"
+                                              & SQS.smMessageDeduplicationId .~ Just (toText dedup)
 
 --------------------------------------------------------------------------------
 -- Utilities

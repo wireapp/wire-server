@@ -144,7 +144,7 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
         when (maybe True (view managedConversation) tcv) $
             throwM (invalidOp "Users can not be added to managed conversations.")
         ensureMemberLimit (toList $ Data.convMembers conv) new_users
-        ensureConnected zusr (notSameTeam (fromRange to_add) tms)
+        ensureConnected zusr (notTeamMember (fromRange to_add) tms)
 
 updateMember :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateMember (zusr ::: zcon ::: cid ::: req ::: _) = do

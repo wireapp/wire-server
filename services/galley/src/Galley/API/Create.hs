@@ -11,13 +11,12 @@ module Galley.API.Create
     ) where
 
 import Control.Lens hiding ((??))
-import Control.Monad (when, void)
+import Control.Monad (when, void, unless)
 import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Data.Foldable (for_, toList)
 import Data.Id
 import Data.List1
-import Data.Maybe (isJust)
 import Data.Monoid ((<>))
 import Data.Range
 import Data.Set ((\\))
@@ -60,7 +59,7 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
             else do
                 void $ permissionCheck zusr AddConversationMember mems
                 uu <- rangeChecked (newConvUsers body)
-                ensureConnected zusr (notSameTeam (fromRange uu) mems)
+                ensureConnected zusr (notTeamMember (fromRange uu) mems)
                 pure uu
         conv <- Data.createConversation zusr name (access body) uids (newConvTeam body)
         now  <- liftIO getCurrentTime
@@ -94,20 +93,27 @@ createSelfConversation zusr = do
 
 createOne2OneConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 createOne2OneConversation (zusr ::: zcon ::: req ::: _) = do
-    j <- fromBody req invalidPayload
-    when (isJust (newConvTeam j)) $
-        throwM noTeamConv
-    u <- rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId])
-    (x, y) <- toUUIDs zusr (List.head $ fromRange u)
+    j      <- fromBody req invalidPayload
+    other  <- List.head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
+    (x, y) <- toUUIDs zusr other
     when (x == y) $
         throwM $ invalidOp "Cannot create a 1-1 with yourself"
-    ensureConnected zusr (fromRange u)
+    case newConvTeam j of
+        Just ti | cnvManaged ti -> throwM noManagedTeamConv
+                | otherwise     -> checkBindingTeamPermissions zusr other (cnvTeamId ti)
+        Nothing -> ensureConnected zusr [other]
     n <- rangeCheckedMaybe (newConvName j)
     c <- Data.conversation (Data.one2OneConvId x y)
-    maybe (create x y n) (conversationResponse status200 zusr) c
+    maybe (create x y n $ newConvTeam j) (conversationResponse status200 zusr) c
   where
-    create x y n = do
-        c <- Data.createOne2OneConversation x y n
+    checkBindingTeamPermissions x y tid = do
+        mems <- bindingTeamMembers tid
+        void $ permissionCheck zusr CreateConversation mems
+        unless (all (flip isTeamMember mems) [x, y]) $
+            throwM noBindingTeamMembers
+
+    create x y n tinfo = do
+        c <- Data.createOne2OneConversation x y n (cnvTeamId <$> tinfo)
         notifyCreatedConversation Nothing zusr (Just zcon) c
         conversationResponse status201 zusr c
 

@@ -16,6 +16,8 @@ module Galley.Types.Teams
     , teamIcon
     , teamIconKey
     , teamBinding
+    , TeamCreationTime (..)
+    , tcTime
 
     , TeamList
     , newTeamList
@@ -29,6 +31,9 @@ module Galley.Types.Teams
     , teamMemberJson
 
     , TeamMemberList
+    , notTeamMember
+    , findTeamMember
+    , isTeamMember
     , newTeamMemberList
     , teamMembers
     , teamMemberListJson
@@ -100,8 +105,10 @@ import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
 import Data.Bits (testBit, (.|.))
 import Data.Id (TeamId, ConvId, UserId)
+import Data.Int (Int64)
 import Data.Json.Util
-import Data.Maybe (mapMaybe, isNothing)
+import Data.List (find)
+import Data.Maybe (mapMaybe, isJust, isNothing)
 import Data.Misc (PlainTextPassword (..))
 import Data.Monoid
 import Data.Range
@@ -227,6 +234,11 @@ newtype TeamDeleteData = TeamDeleteData
     { _tdAuthPassword :: PlainTextPassword
     }
 
+-- This is the cassandra timestamp of writetime(binding)
+newtype TeamCreationTime = TeamCreationTime
+    { _tcTime :: Int64
+    }
+
 newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
 newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
 
@@ -276,6 +288,17 @@ makeLenses ''Event
 makeLenses ''TeamUpdateData
 makeLenses ''TeamMemberDeleteData
 makeLenses ''TeamDeleteData
+makeLenses ''TeamCreationTime
+
+notTeamMember :: [UserId] -> [TeamMember] -> [UserId]
+notTeamMember uids tmms = Set.toList $
+    Set.fromList uids `Set.difference` Set.fromList (map (view userId) tmms)
+
+isTeamMember :: Foldable m => UserId -> m TeamMember -> Bool
+isTeamMember u = isJust . findTeamMember u
+
+findTeamMember :: Foldable m => UserId -> m TeamMember -> Maybe TeamMember
+findTeamMember u = find ((u ==) . view userId)
 
 newPermissions :: Set Perm -> Set Perm -> Maybe Permissions
 newPermissions a b

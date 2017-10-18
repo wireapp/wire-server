@@ -9,6 +9,7 @@ import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens hiding ((#), (.=))
 import Control.Monad (void)
 import Control.Monad.IO.Class
+import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Foldable (for_)
@@ -19,6 +20,7 @@ import Data.Monoid
 import Data.Range
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
+import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
 import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
@@ -39,6 +41,8 @@ tests g b c m a = testGroup "Teams API"
     [ test m "create team" (testCreateTeam g b c a)
     , test m "create multiple binding teams fail" (testCreateMulitpleBindingTeams g b a)
     , test m "create team with members" (testCreateTeamWithMembers g b c)
+    , test m "create 1-1 conversation between binding team members (fail)" (testCreateOne2OneFailNonBindingTeamMembers g b a)
+    , test m "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers g b c a)
     , test m "add new team member" (testAddTeamMember g b c)
     , test m "add new team member binding teams" (testAddTeamMemberCheckBound g b a)
     , test m "add new team member internal" (testAddTeamMemberInternal g b c a)
@@ -52,6 +56,7 @@ tests g b c m a = testGroup "Teams API"
     , test m "delete team conversation" (testDeleteTeamConv g b c)
     , test m "update team data" (testUpdateTeam g b c)
     , test m "update team member" (testUpdateTeamMember g b c a)
+    , test m "update team status" (testUpdateTeamStatus g b a)
     ]
 
 timeout :: WS.Timeout
@@ -78,10 +83,11 @@ testCreateMulitpleBindingTeams :: Galley -> Brig -> Maybe Aws.Env -> Http ()
 testCreateMulitpleBindingTeams g b a = do
     owner <- Util.randomUser b
     _     <- Util.createTeamInternal g "foo" owner
-    assertQueue a tCreate
+    assertQueue a tActivate
     -- Cannot create more teams if bound (used internal API)
     let nt = NonBindingNewTeam $ newNewTeam (unsafeRange "owner") (unsafeRange "icon")
-    void $ post (g . path "/teams" . zUser owner . zConn "conn" . json nt) !!! const 403 === statusCode
+    post (g . path "/teams" . zUser owner . zConn "conn" . json nt) !!!
+        const 403 === statusCode
 
     -- If never used the internal API, can create multiple teams
     owner' <- Util.randomUser b
@@ -113,6 +119,57 @@ testCreateTeamWithMembers g b c = do
         e^.eventType @?= TeamCreate
         e^.eventTeam @?= (team^.teamId)
         e^.eventData @?= Just (EdTeamCreate team)
+
+testCreateOne2OneFailNonBindingTeamMembers :: Galley -> Brig -> Maybe Aws.Env -> Http ()
+testCreateOne2OneFailNonBindingTeamMembers g b a = do
+    owner <- Util.randomUser b
+    let p1 = Util.symmPermissions [CreateConversation, AddConversationMember]
+    let p2 = Util.symmPermissions [CreateConversation, AddConversationMember, AddTeamMember]
+    mem1 <- flip newTeamMember p1 <$> Util.randomUser b
+    mem2 <- flip newTeamMember p2 <$> Util.randomUser b
+    Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId])
+    tid <- Util.createTeam g "foo" owner [mem1, mem2]
+    -- Cannot create a 1-1 conversation, not connected and in the same team but not binding
+    Util.createOne2OneTeamConv g (mem1^.userId) (mem2^.userId) Nothing tid !!! do
+        const 404 === statusCode
+        const "non-binding-team" === (Error.label . Util.decodeBody' "error label")
+    -- Both have a binding team but not the same team
+    owner1 <- Util.randomUser b
+    tid1 <- Util.createTeamInternal g "foo" owner1
+    assertQueue a tActivate
+    owner2 <- Util.randomUser b
+    void $ Util.createTeamInternal g "foo" owner2
+    assertQueue a tActivate
+    Util.createOne2OneTeamConv g owner1 owner2 Nothing tid1 !!! do
+        const 403 === statusCode
+        const "non-binding-team-members" === (Error.label . Util.decodeBody' "error label")
+
+testCreateOne2OneWithMembers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testCreateOne2OneWithMembers g b c a = do
+    owner <- Util.randomUser b
+    tid   <- Util.createTeamInternal g "foo" owner
+    assertQueue a tActivate
+    let p1 = Util.symmPermissions [CreateConversation]
+    mem1 <- flip newTeamMember p1 <$> Util.randomUser b
+
+    WS.bracketR c (mem1^.userId) $ \wsMem1 -> do
+        Util.addTeamMemberInternal g tid mem1
+        checkTeamMemberJoin tid (mem1^.userId) wsMem1
+        assertQueue a $ tUpdate 2 [owner]
+        WS.assertNoEvent timeout [wsMem1]
+
+    void $ retryWhileN 10 repeatIf (Util.createOne2OneTeamConv g owner (mem1^.userId) Nothing tid)
+
+    -- Recreating a One2One is a no-op, returns a 200
+    Util.createOne2OneTeamConv g owner (mem1^.userId) Nothing tid !!! const 200 === statusCode
+  where
+    repeatIf :: Util.ResponseLBS -> Bool
+    repeatIf r = statusCode r /= 201
+
+    retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
+    retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
+                                 (const (return . f))
+                                 (const m)
 
 testAddTeamMember :: Galley -> Brig -> Cannon -> Http ()
 testAddTeamMember g b c = do
@@ -150,7 +207,7 @@ testAddTeamMemberCheckBound :: Galley -> Brig -> Maybe Aws.Env -> Http ()
 testAddTeamMemberCheckBound g b a = do
     ownerBound <- Util.randomUser b
     tidBound   <- Util.createTeamInternal g "foo" ownerBound
-    assertQueue a tCreate
+    assertQueue a tActivate
 
     rndMem <- flip newTeamMember (Util.symmPermissions []) <$> Util.randomUser b
     -- Cannot add any users to bound teams
@@ -240,7 +297,7 @@ testRemoveBindingTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http
 testRemoveBindingTeamMember g b c a = do
     owner <- Util.randomUser b
     tid   <- Util.createTeamInternal g "foo" owner
-    assertQueue a tCreate
+    assertQueue a tActivate
     mext  <- Util.randomUser b
     let p1 = Util.symmPermissions [AddConversationMember]
     mem1 <- flip newTeamMember p1 <$> Util.randomUser b
@@ -349,14 +406,6 @@ testAddTeamConv g b c = do
             Just (Conv.EdConversation x) -> cnvId x @?= cid
             other                        -> assertFailure $ "Unexpected event data: " <> show other
 
-    checkTeamMemberJoin tid uid w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
-        let e = List1.head (WS.unpackPayload notif)
-        e^.eventType @?= MemberJoin
-        e^.eventTeam @?= tid
-        e^.eventData @?= Just (EdMemberJoin uid)
-
-
 testAddTeamConvWithUsers :: Galley -> Brig -> Http ()
 testAddTeamConvWithUsers g b = do
     owner  <- Util.randomUser b
@@ -451,7 +500,7 @@ testDeleteBindingTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testDeleteBindingTeam g b c a = do
     owner  <- Util.randomUser b
     tid    <- Util.createTeamInternal g "foo" owner
-    assertQueue a tCreate
+    assertQueue a tActivate
     let p1 = Util.symmPermissions [AddConversationMember]
     mem1 <- flip newTeamMember p1 <$> Util.randomUser b
     Util.addTeamMemberInternal g tid mem1
@@ -629,6 +678,38 @@ testUpdateTeamMember g b c a = do
         e^.eventType @?= MemberUpdate
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberUpdate uid)
+
+testUpdateTeamStatus :: Galley -> Brig -> Maybe Aws.Env -> Http ()
+testUpdateTeamStatus g b a = do
+    owner <- Util.randomUser b
+    tid   <- Util.createTeamInternal g "foo" owner
+    assertQueue a tActivate
+    -- Check for idempotency
+    Util.changeTeamStatus g tid Active
+    assertQueue a tActivate
+    Util.changeTeamStatus g tid Suspended
+    assertQueue a tSuspend
+    Util.changeTeamStatus g tid Suspended
+    assertQueue a tSuspend
+    Util.changeTeamStatus g tid Suspended
+    assertQueue a tSuspend
+    Util.changeTeamStatus g tid Active
+    assertQueue a tActivate
+
+    void $ put ( g
+               . paths ["i", "teams", toByteString' tid, "status"]
+               . json (TeamStatusUpdate Deleted)
+               ) !!! do
+        const 403 === statusCode
+        const "invalid-team-status-update" === (Error.label . Util.decodeBody' "error label")
+
+checkTeamMemberJoin :: TeamId -> UserId -> WS.WebSocket -> Http ()
+checkTeamMemberJoin tid uid w = WS.assertMatch_ timeout w $ \notif -> do
+    ntfTransient notif @?= False
+    let e = List1.head (WS.unpackPayload notif)
+    e^.eventType @?= MemberJoin
+    e^.eventTeam @?= tid
+    e^.eventData @?= Just (EdMemberJoin uid)
 
 checkTeamDeleteEvent :: TeamId -> WS.WebSocket -> Http ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do

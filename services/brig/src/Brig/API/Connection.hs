@@ -37,7 +37,7 @@ import Brig.User.Email (sendInvitationMail, validateEmail)
 import Brig.User.Event
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Error
-import Control.Lens (view)
+import Control.Lens (view, (^.))
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Reader.Class
@@ -53,15 +53,16 @@ import Data.Traversable (for)
 import Galley.Types (cnvType, ConvType (..))
 import System.Logger.Message
 
-import qualified Brig.Blacklist         as Blacklist
-import qualified Brig.Data.Connection   as Data
-import qualified Brig.Data.Invitation   as Data
-import qualified Brig.Data.User         as Data
-import qualified Brig.Data.UserKey      as Data
-import qualified Brig.IO.Intra          as Intra
-import qualified Brig.User.Event.Log    as Log
-import qualified Data.Set               as Set
-import qualified System.Logger.Class    as Log
+import qualified Brig.Blacklist       as Blacklist
+import qualified Brig.Data.Connection as Data
+import qualified Brig.Data.Invitation as Data
+import qualified Brig.Data.User       as Data
+import qualified Brig.Data.UserKey    as Data
+import qualified Brig.IO.Intra        as Intra
+import qualified Brig.User.Event.Log  as Log
+import qualified Data.Set             as Set
+import qualified Galley.Types.Teams   as Team
+import qualified System.Logger.Class  as Log
 
 createConnection :: UserId
                  -> ConnectionRequest
@@ -78,7 +79,11 @@ createConnection self ConnectionRequest{..} conn = do
     otherActive <- lift $ Data.isActivated crUser
     unless otherActive $
         throwE $ InvalidUser crUser
-
+    
+    sameTeam <- lift $ belongSameTeam
+    when sameTeam $
+        throwE ConnectSameBindingTeamUsers
+    
     s2o <- lift $ Data.lookupConnection self   crUser
     o2s <- lift $ Data.lookupConnection crUser self
 
@@ -135,6 +140,10 @@ createConnection self ConnectionRequest{..} conn = do
         return $ ConnectionExists s2o'
 
     change c s = ConnectionExists <$> lift (Data.updateConnection c s)
+
+    belongSameTeam = Intra.getTeamContacts self >>= \case
+        Just mems -> return $ Team.isTeamMember crUser (mems^.Team.teamMembers)
+        _         -> return False
 
 updateConnection :: UserId       -- ^ From
                  -> UserId       -- ^ To
@@ -274,9 +283,14 @@ autoConnect from (Set.toList -> to) conn = do
     -- for this code path and needs to be optimised / rethought.
     unless selfActive $
         throwE ConnectNoIdentity
-    othersActive <- lift $ Data.filterActive to
-    lift $ connectAll othersActive
+    othersActive   <- lift $ Data.filterActive to
+    nonTeamMembers <- filterOutTeamMembers othersActive
+    lift $ connectAll nonTeamMembers
   where
+    filterOutTeamMembers us = do
+        mems <- lift $ Intra.getTeamContacts from
+        return $ maybe us (Team.notTeamMember us . view Team.teamMembers) mems
+
     connectAll activeOthers = do
         others <- selectOthers activeOthers
         convs  <- mapM (createConv from) others
