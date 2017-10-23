@@ -139,12 +139,14 @@ library
       , multihash                 >= 0.1.3
       , mwc-random
       , network                   >= 2.4
+      , network-uri               >= 2.6
       , old-locale                >= 1.0
       , optparse-applicative      >= 0.11
       , pem                       >= 0.2
       , resourcet                 >= 1.1
       , ropes                     >= 0.4.20
       , safe                      >= 0.3
+      , scientific                >= 0.3.4
       , scrypt                    >= 0.5
       , semigroups                >= 0.15
       , singletons                >= 2.0
@@ -173,6 +175,7 @@ library
       , wai-routing               >= 0.12
       , wai-utilities             >= 0.16
       , warp                      >= 3.0.12.1
+      , yaml                      >= 0.8.22
       , zauth                     >= 0.10.3
 
     ghc-options:
@@ -188,8 +191,11 @@ executable brig
     build-depends:
         base
       , brig
+      , directory            >= 1.3
       , HsOpenSSL            >= 0.10
       , optparse-applicative >= 0.10
+      , types-common
+      , yaml                 >= 0.8.22
 
     ghc-options:
         -Wall
@@ -244,10 +250,13 @@ executable brig-schema
     build-depends:
         base
       , cassandra-util       >= 0.12
+      , directory            >= 1.3
       , optparse-applicative >= 0.10
       , raw-strings-qq       >= 1.0
       , text
       , tinylog              >= 0.10
+      , types-common
+      , yaml                 >= 0.8.22
 
 executable brig-index
     main-is:            Main.hs
@@ -279,16 +288,13 @@ executable brig-index
       , types-common
       , uri-bytestring
 
-test-suite brig-integration
-    type:               exitcode-stdio-1.0
+executable brig-integration
     default-language:   Haskell2010
     main-is:            Main.hs
     hs-source-dirs:     test/integration
     ghc-options:
-        -threaded
         -Wall
         -fwarn-tabs
-        -with-rtsopts=-N
 
     other-modules:
         API
@@ -330,6 +336,7 @@ test-suite brig-integration
       , lifted-async          >= 0.9.3
       , mtl                   >= 2.1
       , network
+      , optparse-applicative  >= 0.11
       , options               >= 0.1
       , pem
       , random                >= 1.0
@@ -354,4 +361,5 @@ test-suite brig-integration
       , warp
       , warp-tls              >= 3.2
       , zauth
+      , yaml                  >= 0.8.22
 

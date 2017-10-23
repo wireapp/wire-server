@@ -3,5 +3,12 @@ module Main (main) where
 import Brig.API
 import OpenSSL (withOpenSSL)
 
+import Brig.Options
+import Util.Options
+
 main :: IO ()
-main = withOpenSSL $ parseOptions >>= runServer
+main = withOpenSSL $ do
+  let desc = "Brig - User Service"
+      defaultPath = "/etc/wire/brig/conf/brig.yaml"
+  options <- getOptions desc optsParser defaultPath
+  runServer options

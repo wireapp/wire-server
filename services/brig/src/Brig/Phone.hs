@@ -37,6 +37,7 @@ import Data.Foldable (for_)
 import Data.LanguageCodes
 import Data.Monoid
 import Data.Text (Text, isPrefixOf)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Data.Typeable (Typeable)
 import Network.HTTP.Client (HttpException)
@@ -69,11 +70,10 @@ instance Exception PhoneException
 sendCall :: Nexmo.Call -> AppIO ()
 sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
     m <- view httpManager
-    k <- setNexmoKey    <$> view settings
-    s <- setNexmoSecret <$> view settings
+    cred <- getNexmoCredentials
     withCallBudget (Nexmo.callTo call) $ do
         r <- liftIO . try . recovering x3 nexmoHandlers $ const $
-                Nexmo.sendCall (k, s) m call
+                Nexmo.sendCall cred m call
         case r of
             Left ex -> case Nexmo.caStatus ex of
                 Nexmo.CallDestinationNotPermitted   -> unreachable ex
@@ -198,15 +198,15 @@ validatePhone (Phone p)
 
 getNexmoCredentials :: AppIO Nexmo.Credentials
 getNexmoCredentials = do
-    apikey <- setNexmoKey    <$> view settings
-    secret <- setNexmoSecret <$> view settings
-    return (apikey, secret)
+    apikey <- encodeUtf8 . setNexmoKey <$> view settings
+    secret <- encodeUtf8 . setNexmoSecret <$> view settings
+    return (Nexmo.ApiKey apikey, Nexmo.ApiSecret secret)
 
 getTwilioCredentials :: AppIO Twilio.Credentials
 getTwilioCredentials = do
-    sid <- setTwilioSID   <$> view settings
-    tok <- setTwilioToken <$> view settings
-    return (sid, tok)
+    sid <- encodeUtf8 . setTwilioSID <$> view settings
+    tok <- encodeUtf8 . setTwilioToken <$> view settings
+    return (Twilio.SID sid, Twilio.AccessToken tok)
 
 isTestPhone :: Text -> Bool
 isTestPhone = isPrefixOf "+0"
