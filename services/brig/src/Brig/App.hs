@@ -47,7 +47,7 @@ module Brig.App
 
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
-import Brig.Options (Opts (..), Settings (..))
+import Brig.Options (Opts, Settings)
 import Brig.Template (Localised, forLocale)
 import Brig.Provider.Template
 import Brig.Team.Template
@@ -61,7 +61,7 @@ import Control.AutoUpdate
 import Control.Concurrent (forkIO)
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
-import Control.Lens hiding ((.=))
+import Control.Lens hiding ((.=), index)
 import Control.Monad (liftM2, void, (>=>))
 import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
 import Control.Monad.IO.Class
@@ -78,6 +78,8 @@ import Data.Metrics (Metrics)
 import Data.Misc
 import Data.Int (Int32)
 import Data.IORef
+import Data.Text (unpack)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Data.Word
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
@@ -89,6 +91,7 @@ import System.Logger.Class hiding (Settings, settings)
 
 import qualified Bilge                    as RPC
 import qualified Brig.Aws.Types           as Aws
+import qualified Brig.Options             as Opt
 import qualified Brig.TURN                as TURN
 import qualified Brig.ZAuth               as ZAuth
 import qualified Cassandra                as Cas
@@ -143,6 +146,7 @@ makeLenses ''Env
 
 newEnv :: Opts -> IO Env
 newEnv o = do
+    let tOpts = Opt.turn o
     Just md5 <- getDigestByName "MD5"
     Just sha256 <- getDigestByName "SHA256"
     Just sha512 <- getDigestByName "SHA512"
@@ -159,12 +163,12 @@ newEnv o = do
     clock <- mkAutoUpdate defaultUpdateSettings { updateAction = getCurrentTime }
     w   <- FS.startManagerConf
          $ FS.defaultConfig { FS.confDebounce = FS.Debounce 0.5, FS.confPollInterval = 10000000 }
-    g   <- geoSetup lgr w (optGeoDb o)
-    t   <- turnSetup lgr w sha512 (optTurnServers o) (optTurnLifetime o)
-            =<< (Text.encodeUtf8 . Text.strip <$> Text.readFile (optTurnSecret o))
+    g   <- geoSetup lgr w $ Opt.geoDb o
+    t   <- turnSetup lgr w sha512 (Opt.servers tOpts) (Opt.lifetime tOpts)
+            =<< (Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret tOpts))
     return $! Env
-        { _galley        = endpoint (optGalleyHost  o) (optGalleyPort  o)
-        , _gundeck       = endpoint (optGundeckHost o) (optGundeckPort o)
+        { _galley        = mkEndpoint $ Opt.galley o
+        , _gundeck       = mkEndpoint $ Opt.gundeck o
         , _casClient     = cas
         , _awsEnv        = fst aws
         , _awsConfig     = snd aws
@@ -176,7 +180,7 @@ newEnv o = do
         , _tmTemplates   = ttp
         , _httpManager   = mgr
         , _extGetManager = ext
-        , _settings      = optSettings o
+        , _settings      = Opt.optSettings o
         , _geoDb         = g
         , _turnEnv       = t
         , _fsWatcher     = w
@@ -187,13 +191,13 @@ newEnv o = do
         , _indexEnv      = mkIndexEnv o lgr mgr mtr
         }
   where
-    endpoint h p = RPC.host h . RPC.port p $ RPC.empty
+    mkEndpoint service = RPC.host (encodeUtf8 (Opt.host service)) . RPC.port (Opt.port service) $ RPC.empty
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> IndexEnv
 mkIndexEnv o lgr mgr mtr =
-    let bhe  = ES.mkBHEnv (ES.Server (optElasticsearchUrl o)) mgr
+    let bhe  = ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr
         lgr' = Log.clone (Just "index.brig") lgr
-    in IndexEnv mtr lgr' bhe Nothing (optUserIndex o)
+    in IndexEnv mtr lgr' bhe Nothing (ES.IndexName $ Opt.index (Opt.elasticsearch o))
 
 geoSetup :: Logger -> FS.WatchManager -> Maybe FilePath -> IO (Maybe (IORef GeoIp.GeoDB))
 geoSetup _   _ Nothing   = return Nothing
@@ -236,19 +240,26 @@ replaceTurnServers g ref e = do
 
 initAws :: Opts -> Logger -> Manager -> IO (Aws.Env, Aws.Config)
 initAws o l m = do
-    e <- Aws.newEnv l m (liftM2 (,) (optAwsKeyId o) (optAwsSecretKey o))
-    let c = Aws.config (optAwsAccount o) (optAwsSesQueue o) (optAwsInternalQueue o)
-                       (optAwsBlacklistTable o) (optAwsPreKeyTable o)
+    let a = Opt.aws o
+    e <- Aws.newEnv l m (liftM2 (,) (Opt.awsKeyId a) (Opt.awsSecretKey a))
+    let c = Aws.config (Aws.Account (Opt.account a))
+                       (Aws.SesQueue (Opt.sesQueue a))
+                       (Aws.InternalQueue (Opt.internalQueue a))
+                       (Aws.BlacklistTable (Opt.blacklistTable a))
+                       (Aws.PreKeyTable (Opt.prekeyTable a))
     return (e, c)
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do
-    sk <- ZAuth.readKeys (optZAuthPrivateKeys o)
-    pk <- ZAuth.readKeys (optZAuthPublicKeys o)
+    let zOpts = Opt.zauth o
+        privateKeys = Opt.privateKeys zOpts
+        publicKeys = Opt.publicKeys zOpts
+    sk <- ZAuth.readKeys privateKeys
+    pk <- ZAuth.readKeys publicKeys
     case (sk, pk) of
-        (Nothing,     _) -> error ("No private key in: " ++ optZAuthPrivateKeys o)
-        (_,     Nothing) -> error ("No public key in: " ++ optZAuthPublicKeys o)
-        (Just s, Just p) -> ZAuth.mkEnv s p (optZAuthSettings o)
+        (Nothing,     _) -> error ("No private key in: " ++ privateKeys)
+        (_,     Nothing) -> error ("No public key in: " ++ publicKeys)
+        (Just s, Just p) -> ZAuth.mkEnv s p $ Opt.authSettings zOpts
 
 initHttpManager :: IO Manager
 initHttpManager = do
@@ -292,13 +303,13 @@ initExtGetManager = do
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g = do
-    c <- maybe (return $ NE.fromList [optCassHost o])
+    c <- maybe (return $ NE.fromList [unpack (Opt.host (Opt.endpoint (Opt.cassandra o)))])
                (Cas.initialContacts "cassandra_brig")
-               (optDiscoUrl o)
+               (unpack <$> Opt.discoUrl o)
     p <- Cas.init (Log.clone (Just "cassandra.brig") g)
             $ Cas.setContacts (NE.head c) (NE.tail c)
-            . Cas.setPortNumber (fromIntegral (optCassPort o))
-            . Cas.setKeyspace (Keyspace (optCassKeyspace o))
+            . Cas.setPortNumber (fromIntegral (Opt.port (Opt.endpoint (Opt.cassandra o))))
+            . Cas.setKeyspace (Keyspace (Opt.keyspace (Opt.cassandra o)))
             . Cas.setMaxConnections 4
             . Cas.setPoolStripes 4
             . Cas.setSendTimeout 3

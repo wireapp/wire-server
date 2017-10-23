@@ -1,11 +1,16 @@
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE OverloadedStrings          #-}
+
 module Brig.User.Auth.Cookie.Limit where
 
+import Data.Aeson
 import Brig.Types.User.Auth
 import Data.Int
 import Data.List (sortBy)
 import Data.Ord (comparing)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
+import GHC.Generics
 
 import qualified Data.Vector       as Vector
 import qualified Statistics.Sample as Stats
@@ -46,13 +51,21 @@ limitCookies lim now cs
 
 data CookieThrottle
     = StdDevThrottle StdDev RetryAfter
+    deriving (Show)
 
 newtype StdDev = StdDev Double
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Generic)
 
 newtype RetryAfter = RetryAfter
     { retryAfterSeconds :: Int64 }
     deriving (Eq, Show)
+
+instance FromJSON StdDev where
+instance FromJSON CookieThrottle where
+  parseJSON = withObject "User.Auth.Cookie.Limit.CookieThrottle" $ \o ->
+    StdDevThrottle <$>
+    o .: "stdDev" <*>
+    (RetryAfter <$> o .: "retryAfter")
 
 -- | Check that the standard deviation of cookie creation dates is /higher/
 -- than the specified minimum. If the standard deviation is below the

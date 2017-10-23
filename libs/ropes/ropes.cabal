@@ -39,6 +39,7 @@ library
       , transformers          >= 0.3
       , time                  >= 1.1
       , tinylog               >= 0.10.2
+      , yaml                  >= 0.8.22
 
     ghc-options:
         -Wall

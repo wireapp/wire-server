@@ -14,7 +14,7 @@ import Brig.Types.Common
 import Brig.Types.Provider
 import Data.ByteString.Conversion
 import Data.Range
-import Data.Text (Text)
+import Data.Text (Text, pack)
 
 import qualified Brig.Types.Code    as Code
 import qualified Data.Text.Ascii    as Ascii
@@ -150,7 +150,7 @@ renderApprovalConfirmMail ApprovalConfirmEmail{..} ApprovalConfirmEmailTemplate{
     html = renderHtml approvalConfirmEmailBodyHtml replace
     subj = renderText approvalConfirmEmailSubject  replace
 
-    replace "homeUrl" = Text.decodeUtf8 (toByteString' approvalConfirmEmailHomeUrl)
+    replace "homeUrl" = pack $ show approvalConfirmEmailHomeUrl
     replace "email"   = fromEmail apcTo
     replace "name"    = fromName apcName
     replace x         = x

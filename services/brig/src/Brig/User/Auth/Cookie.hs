@@ -25,13 +25,14 @@ module Brig.User.Auth.Cookie
     ) where
 
 import Brig.App
-import Brig.Options
+import Brig.Options hiding (user)
 import Brig.Types.User.Auth hiding (user)
 import Brig.User.Auth.Cookie.Limit
 import Control.Lens (view)
 import Control.Monad.IO.Class
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Network.Wai (Response)
 import Network.Wai.Utilities.Response (addHeader)
@@ -162,7 +163,7 @@ newCookieLimited
 newCookieLimited u typ label = do
     cs  <- filter ((typ ==) . cookieType) <$> DB.listCookies u
     now <- liftIO =<< view currentTime
-    lim <- setUserCookieLimit <$> view settings
+    lim <- CookieLimit . setUserCookieLimit <$> view settings
     thr <- setUserCookieThrottle <$> view settings
     let evict = map cookieId (limitCookies lim now cs)
     if null evict
@@ -189,7 +190,7 @@ setResponseCookie c r = do
     cookie s = WebCookie.def
         { WebCookie.setCookieName     = "zuid"
         , WebCookie.setCookieValue    = toByteString' (cookieValue c)
-        , WebCookie.setCookieDomain   = Just (setCookieDomain s)
+        , WebCookie.setCookieDomain   = Just $ encodeUtf8 . setCookieDomain $ s
         , WebCookie.setCookiePath     = Just "/access"
         , WebCookie.setCookieExpires  = if cookieType c == PersistentCookie
                                             then Just (cookieExpires c)

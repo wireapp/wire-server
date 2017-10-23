@@ -49,6 +49,7 @@ extra-deps:
 - mime-0.4.0.2
 - snappy-0.2.0.2
 - snappy-framing-0.1.1
+- temporary-1.2.1.1
 - text-icu-translit-0.1.0.7
 - wai-middleware-gunzip-0.0.2
 - websockets-0.11.2.0

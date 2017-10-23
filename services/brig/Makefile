@@ -28,7 +28,6 @@ init:
 .PHONY: install
 install: init
 	stack install --pedantic --test --local-bin-path=dist
-	cp "$(shell stack path --dist-dir)/build/$(NAME)-integration/$(NAME)-integration" dist/
 
 .PHONY: clean
 clean:
@@ -118,8 +117,7 @@ index-reset: install
 docker:
 	$(foreach executable,$(EXECUTABLES),\
 	docker build -t $(executable) \
-	-f ../../build/alpine/Dockerfile \
-	--build-arg service=$(NAME) \
+	-f Dockerfile \
 	--build-arg executable=$(executable) \
 	../.. \
 	;)

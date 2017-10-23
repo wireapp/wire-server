@@ -40,12 +40,12 @@ import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import Test.Tasty.HUnit
 import Safe
-import System.Environment (getEnv)
 import System.Random (randomIO)
 import Web.Cookie (parseSetCookie, setCookieName)
 import Util
 
 import qualified API.Search.Util             as Search
+import qualified Brig.Options                as Opt
 import qualified Data.ByteString.Char8       as C
 import qualified Data.List1                  as List1
 import qualified Data.Set                    as Set
@@ -60,9 +60,9 @@ import qualified Test.Tasty.Cannon           as WS
 
 newtype ConnectionLimit = ConnectionLimit Int64
 
-tests :: Manager -> Brig -> Cannon -> Galley -> IO TestTree
-tests p b c g = do
-    l <- ConnectionLimit . read <$> getEnv "USER_CONNECTION_LIMIT"
+tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> IO TestTree
+tests conf p b c g = do
+    l <- Opt.optOrEnv (ConnectionLimit . Opt.setUserMaxConnections . Opt.optSettings) conf (ConnectionLimit . read) "USER_CONNECTION_LIMIT"
     return $ testGroup "user"
         [ testGroup "account"
             [ test p "post /register - 201"                     $ testCreateUser b g

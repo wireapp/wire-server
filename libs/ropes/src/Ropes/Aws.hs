@@ -58,11 +58,22 @@ import Prelude
 
 newtype AccessKeyId = AccessKeyId
     { unAccessKeyId :: ByteString }
-    deriving (Eq, Show)
+    deriving (Read, Eq, Show)
+
+instance FromJSON AccessKeyId where
+  parseJSON = withText "Aws.AccessKeyId" $
+    pure . AccessKeyId . encodeUtf8
 
 newtype SecretAccessKey = SecretAccessKey
     { unSecretAccessKey :: ByteString }
-    deriving (Eq)
+    deriving (Read, Eq)
+
+instance Show SecretAccessKey where
+  show _ = "AWS Secret hidden"
+
+instance FromJSON SecretAccessKey where
+  parseJSON = withText "Aws.SecretAccessKey" $
+    pure . SecretAccessKey . encodeUtf8
 
 data Auth
     = PermAuth Configuration
