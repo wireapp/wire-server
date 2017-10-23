@@ -23,7 +23,7 @@ See more in "[Open sourcing Wire server code](https://medium.com/@wireapp/open-s
 This repository contains:
 
 - **services**
-   - **nginz**: Public API Reverse Proxy
+   - **nginx**: Public API Reverse Proxy
    - **galley**: Conversations
    - **brig**: Accounts
    - **gundeck**: Push Notification Hub
