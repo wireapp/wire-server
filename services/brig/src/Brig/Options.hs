@@ -325,7 +325,7 @@ optsParser =
        long "zauth-provider-token-timeout" <> metavar "INT" <>
        help "Access token validity timeout"))) <*>
     (optional $
-     option auto $ long "disco-url" <> metavar "URL" <> help "klabautermann url") <*>
+     textOption $ long "disco-url" <> metavar "URL" <> help "klabautermann url") <*>
     (optional $
      option auto $ long "geodb" <> metavar "FILE" <> help "GeoDB file path") <*>
     (TurnOpts <$>
