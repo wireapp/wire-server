@@ -20,9 +20,10 @@ COPY --from=libzauth-builder /usr/lib/pkgconfig/libzauth.pc /usr/lib/pkgconfig/l
 
 COPY services/nginz/third_party /src/third_party
 
-# Install nginz (nginx including the zauth module)
-# (taken mostly from https://github.com/nginxinc/docker-nginx/blob/master/stable/alpine/Dockerfile)
-RUN GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
+RUN apk add --no-cache inotify-tools dumb-init bash curl && \
+    # Install nginz (nginx including the zauth module)
+    # (taken mostly from https://github.com/nginxinc/docker-nginx/blob/master/stable/alpine/Dockerfile)
+    export GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
     && CONFIG="\
         --prefix=/etc/nginx \
         --sbin-path=/usr/sbin/nginx \
@@ -122,4 +123,7 @@ RUN GPG_KEYS=B0F4253373F8F6F510D42178520A9993A1C052F8 \
     && ln -sf /dev/stdout /var/log/nginx/access.log \
     && ln -sf /dev/stderr /var/log/nginx/error.log
 
-CMD ["nginx", "-g", "daemon off;"]
+COPY services/nginz/nginz_reload.sh /usr/bin/nginz_reload.sh
+
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+CMD ["/usr/bin/nginz_reload.sh", "-g", "daemon off;", "-c", "/etc/wire/nginz/conf/nginx.conf"]
