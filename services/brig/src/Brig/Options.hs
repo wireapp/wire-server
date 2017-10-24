@@ -10,7 +10,6 @@ import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
 import Data.Aeson.Types (typeMismatch)
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Int (Int64)
 import Data.Maybe
@@ -20,15 +19,15 @@ import Data.Scientific (toBoundedInteger)
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (DiffTime, secondsToDiffTime)
-import Data.Word (Word16, Word32)
+import Data.Word (Word32)
 import Data.Yaml (FromJSON(..))
 import GHC.Generics
 import Network.HTTP.Client (Request, parseRequest)
 import Options.Applicative
 import Options.Applicative.Types (readerAsk)
-import System.Environment
+import Util.Options
+import Util.Options.Common
 
-import qualified Data.ByteString.Char8 as C
 import qualified Data.Text             as T
 import qualified Data.Yaml             as Y
 import qualified Ropes.Aws             as Aws
@@ -44,20 +43,6 @@ instance Read ActivationTimeout where
         case readsPrec i s of
             [(x, s')] -> [(ActivationTimeout (secondsToDiffTime x), s')]
             _ -> []
-
-data Endpoint = Endpoint
-    { host :: !Text
-    , port :: !Word16
-    } deriving (Show, Generic)
-
-instance FromJSON Endpoint
-
-data CassandraOpts = CassandraOpts
-    { endpoint :: !Endpoint
-    , keyspace :: !Text
-    } deriving (Show, Generic)
-
-instance FromJSON CassandraOpts
 
 data ElasticSearchOpts = ElasticSearchOpts
     { url   :: !Text
@@ -219,15 +204,7 @@ optsParser =
      (textOption $
       long "gundeck-host" <> metavar "HOSTNAME" <> help "Gundeck hostname") <*>
      (option auto $ long "gundeck-port" <> metavar "PORT" <> help "Gundeck port")) <*>
-    (CassandraOpts <$>
-     (Endpoint <$>
-      (textOption $
-       long "cassandra-host" <> metavar "HOSTNAME" <>
-       help "Cassandra hostname or address") <*>
-      (option auto $
-       long "cassandra-port" <> metavar "PORT" <> help "Cassandra port")) <*>
-     (textOption $
-      long "cassandra-keyspace" <> metavar "STRING" <> help "Cassandra keyspace")) <*>
+    cassandraParser <*>
     (ElasticSearchOpts <$>
      (textOption $
       long "elasticsearch-url" <> metavar "URL" <> help "Elasticsearch URL") <*>
@@ -324,8 +301,7 @@ optsParser =
       (fmap ZAuth.ProviderTokenTimeout . option auto $
        long "zauth-provider-token-timeout" <> metavar "INT" <>
        help "Access token validity timeout"))) <*>
-    (optional $
-     textOption $ long "disco-url" <> metavar "URL" <> help "klabautermann url") <*>
+    (optional discoUrlParser) <*>
     (optional $
      option auto $ long "geodb" <> metavar "FILE" <> help "GeoDB file path") <*>
     (TurnOpts <$>
@@ -402,12 +378,6 @@ settingsParser =
      long "default-locale" <> metavar "STRING" <> value "en" <> showDefault <>
      help "Default locale to use (e.g. when selecting templates)")
 
-bytesOption :: Mod OptionFields String -> Parser ByteString
-bytesOption = fmap C.pack . strOption
-
-textOption :: Mod OptionFields String -> Parser Text
-textOption = fmap T.pack . strOption
-
 httpsUrlOption :: Mod OptionFields String -> Parser HttpsUrl
 httpsUrlOption =
     fmap (fromMaybe (error "Invalid HTTPS URL") . fromByteString) . bytesOption
@@ -437,9 +407,3 @@ toNexmoEndpoint =
 requestUrl :: ReadM Request
 requestUrl =
     readerAsk >>= maybe (fail "Invalid request URL") pure . parseRequest
-
-optOrEnv :: (a -> b) -> (Maybe a) -> (String -> b) -> String -> IO b
-optOrEnv getter conf reader var =
-    case conf of
-        Nothing -> reader <$> getEnv var
-        Just c -> pure $ getter c

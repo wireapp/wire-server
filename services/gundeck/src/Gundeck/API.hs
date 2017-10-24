@@ -12,9 +12,9 @@ import Control.Monad
 import Data.Aeson (encode)
 import Data.ByteString (ByteString)
 import Data.Metrics.Middleware
-import Data.Misc
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response)
+import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Gundeck.API.Error
 import Gundeck.Env
@@ -29,6 +29,7 @@ import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.Server hiding (serverPort)
 import Prelude hiding (head)
+import Util.Options
 
 import qualified Control.Concurrent.Async as Async
 import qualified Data.Metrics as Metrics
@@ -44,19 +45,19 @@ import qualified Network.Wai.Middleware.Gzip as GZip
 import qualified Network.Wai.Middleware.Gunzip as GZip
 import qualified System.Logger as Log
 
-run :: Opts -> IO ()
-run o = do
+runServer :: Opts -> IO ()
+runServer o = do
     m <- metrics
     e <- createEnv m o
     runClient (e^.cstate) $
         versionCheck schemaVersion
     let l = e^.applog
-    s <- newSettings $ defaultServer (o^.hostname) (portNumber $ o^.serverPort) l m
+    s <- newSettings $ defaultServer (unpack $ o^.gundeck.epHost) (o^.gundeck.epPort) l m
     app <- pipeline e
     lst <- Async.async $ Aws.execute (e^.awsEnv) (Aws.listen (runDirect e . onEvent))
     runSettingsWithShutdown s app 5 `finally` do
         Log.info l $ Log.msg (Log.val "Draining fallback queue ...")
-        Fallback.drainQueue (e^.fbQueue) (fromIntegral (o^.fbQueueDelay) + 1)
+        Fallback.drainQueue (e^.fbQueue) (fromIntegral (o^.fallback.fbQueueDelay) + 1)
         Log.info l $ Log.msg (Log.val "Shutting down ...")
         shutdown (e^.cstate)
         Async.cancel lst
@@ -196,16 +197,6 @@ sitemap = do
 
     delete "/i/presences/:uid/devices/:did/cannons/:cannon" (continue Presence.remove) $
         param "uid" .&. param "did" .&. param "cannon"
-
-    -- Callback API (Legacy)--------------------------------------------------
-
-    post "/i/callbacks"
-        (continue $ const (return (empty & setStatus status201)))
-        true
-
-    delete "/i/callbacks/:uid/devices/:did"
-        (continue $ const (return (empty & setStatus status204)))
-        true
 
     -- User-Client API -------------------------------------------------------
 

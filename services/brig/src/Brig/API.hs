@@ -44,6 +44,7 @@ import Network.Wai.Utilities
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import Prelude hiding (head)
+import Util.Options
 
 import qualified Data.Text.Ascii               as Ascii
 import qualified Data.List1                    as List1
@@ -87,7 +88,7 @@ runServer o = do
   where
     rtree      = compile (sitemap o)
     endpoint   = brig o
-    server   e = defaultServer (unpack . host $ endpoint) (port endpoint) (e^.applog) (e^.metrics)
+    server   e = defaultServer (unpack $ endpoint^.epHost) (endpoint^.epPort) (e^.applog) (e^.metrics)
     pipeline e = measureRequests (e^.metrics) rtree
                . catchErrors (e^.applog) (e^.metrics)
                . GZip.gunzip . GZip.gzip GZip.def

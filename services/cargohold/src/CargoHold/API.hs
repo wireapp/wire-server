@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators     #-}
 
-module CargoHold.API (start, parseOptions) where
+module CargoHold.API (runServer, parseOptions) where
 
 import CargoHold.App
 import CargoHold.Options
@@ -17,6 +17,7 @@ import Data.Id
 import Data.Metrics.Middleware hiding (metrics)
 import Data.Monoid
 import Data.Predicate
+import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, Request, responseLBS)
@@ -29,6 +30,7 @@ import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import Network.Wai.Utilities.ZAuth
 import Prelude hiding (head)
 import URI.ByteString
+import Util.Options
 
 import qualified CargoHold.API.V3              as V3
 import qualified CargoHold.API.V3.Resumable    as Resumable
@@ -42,15 +44,15 @@ import qualified Network.Wai.Middleware.Gzip   as GZip
 import qualified Network.Wai.Utilities.Server  as Server
 import qualified Network.Wai.Utilities.Swagger as Doc
 
-start :: Opts -> IO ()
-start o = do
+runServer :: Opts -> IO ()
+runServer o = do
     e <- newEnv o
     s <- Server.newSettings (server e)
     runSettingsWithShutdown s (pipeline e) 5
         `finally` closeEnv e
   where
     rtree      = compile sitemap
-    server   e = defaultServer (optHost o) (optPort o) (e^.appLogger) (e^.metrics)
+    server   e = defaultServer (unpack $ o^.cargohold.epHost) (o^.cargohold.epPort) (e^.appLogger) (e^.metrics)
     pipeline e = measureRequests (e^.metrics) rtree
                . catchErrors (e^.appLogger) (e^.metrics)
                . GZip.gzip GZip.def

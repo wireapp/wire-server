@@ -29,6 +29,7 @@ import System.Random (randomIO)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
+import Util.Options.Common
 
 import qualified Brig.Options         as Opts
 import qualified Brig.Types.User.Auth as Auth
@@ -79,8 +80,8 @@ tests conf m _ b = do
 
 mkZAuthEnv :: Maybe Opts.Opts -> IO ZAuth.Env
 mkZAuthEnv config = do
-    Just (sk :| sks) <- join $ Opts.optOrEnv (ZAuth.readKeys . Opts.privateKeys . Opts.zauth) config ZAuth.readKeys "ZAUTH_PRIVKEYS"
-    Just (pk :| pks) <- join $ Opts.optOrEnv (ZAuth.readKeys . Opts.privateKeys . Opts.zauth) config ZAuth.readKeys "ZAUTH_PUBKEYS"
+    Just (sk :| sks) <- join $ optOrEnv (ZAuth.readKeys . Opts.privateKeys . Opts.zauth) config ZAuth.readKeys "ZAUTH_PRIVKEYS"
+    Just (pk :| pks) <- join $ optOrEnv (ZAuth.readKeys . Opts.privateKeys . Opts.zauth) config ZAuth.readKeys "ZAUTH_PUBKEYS"
     ZAuth.mkEnv (sk :| sks) (pk :| pks) ZAuth.defSettings
 
 randomAccessToken :: ZAuth ZAuth.AccessToken
@@ -233,7 +234,7 @@ testLoginFailure brig = do
 
 testThrottleLogins :: Maybe Opts.Opts -> Brig -> Http ()
 testThrottleLogins conf b = do
-    l <- liftIO $ Opts.optOrEnv (Opts.setUserCookieLimit . Opts.optSettings) conf read "USER_COOKIE_LIMIT"
+    l <- liftIO $ optOrEnv (Opts.setUserCookieLimit . Opts.optSettings) conf read "USER_COOKIE_LIMIT"
     u <- randomUser b
     let Just e = userEmail u
     replicateM_ l (login b (defEmailLogin e) SessionCookie)
@@ -303,7 +304,7 @@ testUnknownCookie z r = do
 testNewPersistentCookie :: Maybe Opts.Opts -> Brig -> Http ()
 testNewPersistentCookie config b = do
     u <- randomUser b
-    renewAge <- liftIO $ Opts.optOrEnv (Opts.setUserCookieRenewAge . Opts.optSettings) config read "USER_COOKIE_RENEW_AGE"
+    renewAge <- liftIO $ optOrEnv (Opts.setUserCookieRenewAge . Opts.optSettings) config read "USER_COOKIE_RENEW_AGE"
     let minAge = fromIntegral $  renewAge * 1000000 + 1
         Just email = userEmail u
     _rs <- login b (emailLogin email defPassword (Just "nexus1")) PersistentCookie
@@ -355,7 +356,7 @@ testNewPersistentCookie config b = do
 testNewSessionCookie :: Maybe Opts.Opts -> Brig -> Http ()
 testNewSessionCookie config b = do
     u <- randomUser b
-    renewAge <- liftIO $ Opts.optOrEnv (Opts.setUserCookieRenewAge . Opts.optSettings) config read "USER_COOKIE_RENEW_AGE"
+    renewAge <- liftIO $ optOrEnv (Opts.setUserCookieRenewAge . Opts.optSettings) config read "USER_COOKIE_RENEW_AGE"
     let minAge = fromIntegral $  renewAge * 1000000 + 1
         Just email = userEmail u
     _rs <- login b (emailLogin email defPassword (Just "nexus1")) SessionCookie
@@ -437,7 +438,7 @@ testRemoveCookiesByLabelAndId b = do
 testTooManyCookies :: Maybe Opts.Opts -> Brig -> Http ()
 testTooManyCookies config b = do
     u <- randomUser b
-    l <- liftIO $ Opts.optOrEnv (Opts.setUserCookieLimit . Opts.optSettings) config read "USER_COOKIE_LIMIT"
+    l <- liftIO $ optOrEnv (Opts.setUserCookieLimit . Opts.optSettings) config read "USER_COOKIE_LIMIT"
     let Just e = userEmail u
         carry = 4
         pwl = emailLogin e defPassword (Just "nexus1")

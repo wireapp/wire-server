@@ -1,0 +1,87 @@
+brig:
+  host: 0.0.0.0
+  port: 8080
+
+cassandra:
+  endpoint:
+    host: 127.0.0.1
+    port: 9042
+  keyspace: brig_test
+
+elasticsearch:
+  url: http://127.0.0.1:9200
+  index: directory_test
+
+galley:
+  host: 127.0.01
+  port: 8081
+
+gundeck:
+  host: 127.0.0.1
+  port: 8082
+
+aws:
+  account: "<insert-account-number-here>"
+  sesQueue: integration-brig-events
+  internalQueue: integration-brig-events-internal
+  blacklistTable: integration-brig-userkey-blacklist
+  prekeyTable: integration-brig-prekeys
+  # TODO: Check AWS loadCredentialsFromEnv
+  awsKeyId: <insert-key-id-here>
+  awsSecretKey: <insert-secret-key-here>
+
+emailSMS:
+  general:
+    templateDir: deb/opt/brig/templates
+    emailSender: backend-integration@wire.com
+    smsSender: "<insert-sender-number-here>"
+
+  user:
+    activationUrl: http://127.0.0.1:8080/activate?key=\${key}\&code=\${code}
+    smsActivationUrl: http://127.0.0.1:8080/v/\${code}
+    passwordResetUrl: http://127.0.0.1:8080/password-reset/\${key}?code=\${code}
+    invitationUrl: http://127.0.0.1:8080/register?invitation_code=\${code}
+    deletionUrl: http://127.0.0.1:8080/users/delete?key=\${key}\&code=\${code}
+
+  provider:
+    homeUrl: https://provider.localhost/
+    providerActivationUrl: http://127.0.0.1:8080/provider/activate?key=\${key}\&code=\${code}
+    approvalUrl: http://127.0.0.1:8080/provider/approve?key=\${key}\&code=\${code}
+    approvalTo: success@simulator.amazonses.com
+
+  team:
+    tInvitationUrl: http://127.0.0.1:8080/register?team=\${team}\&team_code=\${code}
+    tActivationUrl: http://127.0.0.1:8080/register?team=\${team}\&team_code=\${code}
+
+zauth:
+  privateKeys: test/resources/zauth/privkeys.txt
+  publicKeys: test/resources/zauth/pubkeys.txt
+  authSettings:
+    keyIndex: 1
+    userTokenTimeout: 120
+    sessionTokenTimeout: 60
+    accessTokenTimeout: 30
+    providerTokenTimeout: 60
+
+turn:
+  servers: test/resources/turn/servers.txt
+  secret: test/resources/turn/secret.txt
+  lifetime: 3600
+
+optSettings:
+  setActivationTimeout: 5
+  setTwilioSID: <insert-twilio-sid-here>     # TODO: Read from a file instead
+  setTwilioToken: <insert-twilio-token-here> # TODO: Read from a file instead
+  setNexmoKey: <insert-nexmo-key-here>       # TODO: Read from a file instead
+  setNexmoSecret: <insert-nexmo-secret-here> # TODO: Read from a file instead
+  setNexmoEndpoint: sandbox
+  setTwilioEndpoint: sandbox
+  setUserMaxConnections: 129
+  setCookieDomain: 127.0.0.1
+  setCookieInsecure: true
+  setUserCookieRenewAge: 2
+  setUserCookieLimit: 5
+  setUserCookieThrottle:
+    stdDev: 5
+    retryAfter: 1
+  setDefaultLocale: en

@@ -43,6 +43,7 @@ import Safe
 import System.Random (randomIO)
 import Web.Cookie (parseSetCookie, setCookieName)
 import Util
+import Util.Options.Common
 
 import qualified API.Search.Util             as Search
 import qualified Brig.Options                as Opt
@@ -62,7 +63,7 @@ newtype ConnectionLimit = ConnectionLimit Int64
 
 tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> IO TestTree
 tests conf p b c g = do
-    l <- Opt.optOrEnv (ConnectionLimit . Opt.setUserMaxConnections . Opt.optSettings) conf (ConnectionLimit . read) "USER_CONNECTION_LIMIT"
+    l <- optOrEnv (ConnectionLimit . Opt.setUserMaxConnections . Opt.optSettings) conf (ConnectionLimit . read) "USER_CONNECTION_LIMIT"
     return $ testGroup "user"
         [ testGroup "account"
             [ test p "post /register - 201"                     $ testCreateUser b g

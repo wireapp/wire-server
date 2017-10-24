@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module API.V3 (tests) where
+module API.V3 where
 
 import Bilge hiding (body)
 import Bilge.Assert
@@ -20,8 +20,7 @@ import Data.Text.Encoding (decodeLatin1)
 import Data.Time.Clock
 import Data.Time.Format
 import Data.UUID.V4
-import Network.HTTP.Client (parseUrlThrow, responseTimeoutMicro)
-import Network.HTTP.Client.TLS
+import Network.HTTP.Client (parseUrlThrow)
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status200, status204)
@@ -40,34 +39,40 @@ import qualified Data.UUID                    as UUID
 
 type CargoHold = Request -> Request
 
-test :: Manager -> TestName -> Http a -> TestTree
-test m n h = testCase n (void $ runHttpT m h)
+data TestSetup = TestSetup
+  { manager   :: Manager
+  , cargohold :: CargoHold
+  }
 
-tests :: String -> IO TestTree
-tests cp = do
-    let cg = host "127.0.0.1" . port (read cp)
-    p <- newManager tlsManagerSettings {
-        managerResponseTimeout = responseTimeoutMicro 300000000
-    }
-    return $ testGroup "v3"
-        [ testGroup "simple"
-            [ test p "roundtrip"          (testSimpleRoundtrip cg)
-            , test p "tokens"             (testSimpleTokens cg)
-            , test p "s3-upstream-closed" (testSimpleS3ClosedConnectionReuse cg)
-            ]
-        , testGroup "resumable"
-            [ test p "small"          (testResumableSmall cg)
-            , test p "large"          (testResumableBig cg)
-            , test p "last-small"     (testResumableLastSmall cg)
-            , test p "stepwise-small" (testResumableStepSmall cg)
-            , test p "stepwise-big"   (testResumableStepBig cg)
-            ]
+type TestSignature a = CargoHold -> Http a
+
+test :: IO TestSetup -> TestName -> (TestSignature a) -> TestTree
+test s n h = testCase n runTest
+  where
+    runTest = do
+        setup <- s
+        (void $ runHttpT (manager setup) (h (cargohold setup)))
+
+tests :: IO TestSetup -> TestTree
+tests s = testGroup "v3"
+    [ testGroup "simple"
+        [ test s "roundtrip"          testSimpleRoundtrip
+        , test s "tokens"             testSimpleTokens
+        , test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse
         ]
+    , testGroup "resumable"
+        [ test s "small"          testResumableSmall
+        , test s "large"          testResumableBig
+        , test s "last-small"     testResumableLastSmall
+        , test s "stepwise-small" testResumableStepSmall
+        , test s "stepwise-big"   testResumableStepBig
+        ]
+    ]
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
 
-testSimpleRoundtrip :: CargoHold -> Http ()
+testSimpleRoundtrip :: TestSignature ()
 testSimpleRoundtrip c = do
     uid <- liftIO $ Id <$> nextRandom
     uid2 <- liftIO $ Id <$> nextRandom
@@ -109,7 +114,7 @@ testSimpleRoundtrip c = do
     let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
     liftIO $ assertBool "bad date" (utc' >= utc)
 
-testSimpleTokens :: CargoHold -> Http ()
+testSimpleTokens :: TestSignature ()
 testSimpleTokens c = do
     uid <- liftIO $ Id <$> nextRandom
     uid2 <- liftIO $ Id <$> nextRandom
@@ -182,7 +187,7 @@ testSimpleTokens c = do
 -- S3 closes idle connections after ~5 seconds, before the http-client 'Manager'
 -- does. If such a closed connection is reused for an upload, no problems should
 -- occur (i.e. the closed connection should be detected before sending any data).
-testSimpleS3ClosedConnectionReuse :: CargoHold -> Http ()
+testSimpleS3ClosedConnectionReuse :: TestSignature ()
 testSimpleS3ClosedConnectionReuse c = go >> wait >> go
   where
     wait = liftIO $ putStrLn "Waiting for S3 idle timeout ..." >> threadDelay 7000000
@@ -196,32 +201,32 @@ testSimpleS3ClosedConnectionReuse c = go >> wait >> go
 --------------------------------------------------------------------------------
 -- Resumable (multi-step) uploads
 
-testResumableSmall :: CargoHold -> Http ()
+testResumableSmall :: TestSignature ()
 testResumableSmall c = assertRandomResumable c totalSize chunkSize UploadFull
   where
     totalSize = 100        -- 100 B
     chunkSize = 100 * 1024 -- 100 KiB
 
-testResumableBig :: CargoHold -> Http ()
+testResumableBig :: TestSignature ()
 testResumableBig c = assertRandomResumable c totalSize chunkSize UploadFull
   where
     totalSize = 25 * 1024 * 1024 -- 25 MiB
     chunkSize =  1 * 1024 * 1024 --  1 MiB
 
-testResumableLastSmall :: CargoHold -> Http ()
+testResumableLastSmall :: TestSignature ()
 testResumableLastSmall c = assertRandomResumable c totalSize chunkSize UploadFull
   where
     totalSize = 250 * 1024 + 12345 -- 250 KiB + 12345 B
     chunkSize = 100 * 1024         -- 100 KiB
 
-testResumableStepSmall :: CargoHold -> Http ()
+testResumableStepSmall :: TestSignature ()
 testResumableStepSmall c = assertRandomResumable c totalSize chunkSize UploadStepwise
   where
     totalSize = 500 * 1024 + 12345 -- 500 KiB + 12345 B
     chunkSize = 100 * 1024         -- 100 KiB
 
 -- This should use the S3 multipart upload behind the scenes.
-testResumableStepBig :: CargoHold -> Http ()
+testResumableStepBig :: TestSignature ()
 testResumableStepBig c = assertRandomResumable c totalSize chunkSize UploadStepwise
   where
     totalSize = 26 * 1024 * 1024 -- 26 MiB
