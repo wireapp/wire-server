@@ -2,6 +2,10 @@ module Main (main) where
 
 import Cannon.API
 import Cannon.Types
+import Util.Options
 
 main :: IO ()
-main = parseOptions >>= run
+main = getOptions desc optsParser defaultPath >>= run
+  where
+    desc = "Cannon - Websocket Push Service"
+    defaultPath = "/etc/wire/cannon/conf/cannon.yaml"

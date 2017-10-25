@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
@@ -10,7 +11,7 @@ module Cannon.Types
     , dict
     , env
     , logger
-    , parseOptions
+    , optsParser
     , Cannon
     , mkEnv
     , runCannon
@@ -27,18 +28,22 @@ import Cannon.WS (Key, Websocket, Clock)
 import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
-import Data.ByteString (ByteString)
+import Data.Aeson
 import Data.ByteString.Char8 (pack)
 import Data.Metrics.Middleware
 import Data.Monoid ((<>))
+import Data.Text (Text)
+import Data.Text.Encoding
 import Data.Word
+import GHC.Generics
 import Network.Wai
 import Options.Applicative
 import System.Logger.Class hiding (info)
 import System.Random.MWC (GenIO)
 
-import qualified Cannon.WS     as WS
-import qualified System.Logger as Logger
+import qualified Cannon.WS          as WS
+import qualified System.Logger      as Logger
+import qualified Data.Text          as T
 
 -----------------------------------------------------------------------------
 -- Cannon monad
@@ -81,7 +86,7 @@ mkEnv :: Metrics
       -> Clock
       -> Env
 mkEnv m o l d p g t = Env m o l d mempty $
-    WS.env (pack $ externalHost o) (port o) (gundeckHost o) (gundeckPort o) l p d g t
+    WS.env (pack $ externalHost o) (port o) (encodeUtf8 $ gundeckHost o) (gundeckPort o) l p d g t
 
 runCannon :: Env -> Cannon a -> Request -> IO a
 runCannon e c r = let e' = e { reqId = lookupReqId r } in
@@ -113,46 +118,42 @@ logger = Cannon $ asks applog
 -- Command line options
 
 data Opts = Opts
-    { host         :: String
-    , externalHost :: String
+    { host         :: !String
+    , externalHost :: !String
     , port         :: !Word16
-    , gundeckHost  :: !ByteString
+    , gundeckHost  :: !Text
     , gundeckPort  :: !Word16
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
-parseOptions :: IO Opts
-parseOptions = execParser (info (helper <*> optsParser) desc)
-  where
-    desc = header "Cannon - Websocket Push Service" <> fullDesc
+instance FromJSON Opts
 
-    optsParser :: Parser Opts
-    optsParser = Opts
-        <$> (strOption $
-                long "host"
-                <> metavar "HOSTNAME"
-                <> help "host to listen on")
+optsParser :: Parser Opts
+optsParser = Opts
+    <$> (strOption $
+            long "host"
+            <> metavar "HOSTNAME"
+            <> help "host to listen on")
 
-        <*> (strOption $
-                long "external-host"
-                <> metavar "HOSTNAME"
-                <> help "host address to report to other services")
+    <*> (strOption $
+            long "external-host"
+            <> metavar "HOSTNAME"
+            <> help "host address to report to other services")
 
-        <*> (option auto $
-                long "port"
-                <> short 'p'
-                <> metavar "PORT"
-                <> help "port to listen on")
+    <*> (option auto $
+            long "port"
+            <> short 'p'
+            <> metavar "PORT"
+            <> help "port to listen on")
 
-        <*> (bytesOption $
-                long "gundeck-host"
-                <> metavar "HOSTNAME"
-                <> help "Gundeck host")
+    <*> (textOption $
+            long "gundeck-host"
+            <> metavar "HOSTNAME"
+            <> help "Gundeck host")
 
-        <*> (option auto $
-                long "gundeck-port"
-                <> metavar "PORT"
-                <> help "Gundeck port")
+    <*> (option auto $
+            long "gundeck-port"
+            <> metavar "PORT"
+            <> help "Gundeck port")
 
-    bytesOption :: Mod OptionFields String -> Parser ByteString
-    bytesOption = fmap pack . strOption
-
+textOption :: Mod OptionFields String -> Parser Text
+textOption = fmap T.pack . strOption
