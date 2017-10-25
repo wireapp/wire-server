@@ -47,7 +47,7 @@ createEnv m o = do
             , managerResponseTimeout     = responseTimeoutMicro 5000000
             }
     let ac = AutoConfig 60 (reloadError g)
-    (c, t) <- autoReload ac [Required $ o^.config]
+    (c, t) <- autoReload ac [Required $ o^.secretsConfig]
     return $! Env mempty m o g n c t
   where
     reloadError g x =
