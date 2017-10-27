@@ -316,8 +316,10 @@ createEndpoint u tr env app token = do
 
     isLengthError Nothing = False
     isLengthError (Just s) = isRight . flip parseOnly (toText s) $ do
-        _ <-  (string "Invalid parameter: Token Reason: must be at most 8192 bytes long in UTF-8 encoding")
-          <|> (string "Invalid parameter: Token Reason: iOS device tokens must be no more than 400 hexadecimal characters")
+        let pre = "Invalid parameter: Token Reason: "
+        _ <-  string pre
+        _ <-  string "must be at most 8192 bytes long in UTF-8 encoding"
+          <|> string "Token Reason: iOS device tokens must be no more than 400 hexadecimal characters"
         return ()
 
 --------------------------------------------------------------------------------
