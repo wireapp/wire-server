@@ -4,7 +4,7 @@
 
 module Proxy.Options
     ( Opts
-    , hostname
+    , host
     , port
     , secretsConfig
     , httpPoolSize
@@ -21,7 +21,7 @@ import Data.Aeson.TH
 import GHC.Generics
 
 data Opts = Opts
-    { _hostname      :: !String
+    { _host          :: !String
     , _port          :: !Word16
     , _secretsConfig :: !FilePath
     , _httpPoolSize  :: !Int
