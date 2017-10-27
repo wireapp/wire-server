@@ -31,3 +31,14 @@ services/.env
 tools/api-simulations/mailboxes.json
 tools/api-simulations/reports
 .DS_Store
+
+brig-schema.yaml
+brig.yaml
+cannon.yaml
+cargohold.yaml
+galley-schema.yaml
+galley.yaml
+integration.yaml
+gundeck-schema.yaml
+gundeck.yaml
+proxy.yaml
