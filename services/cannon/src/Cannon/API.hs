@@ -7,15 +7,20 @@ module Cannon.API (run) where
 import Bilge (newManager, defaultManagerSettings, ManagerSettings (..))
 import Cannon.App
 import Cannon.Types
+import Cannon.Options
 import Cannon.WS hiding (env)
 import Control.Applicative hiding (empty, optional)
+import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.Aeson (encode)
+import Data.ByteString (ByteString)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
 import Data.Swagger.Build.Api hiding (def, Response)
-import Data.Text (Text)
+import Data.Text (Text, strip, pack)
+import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types
+import Data.Maybe
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
@@ -33,19 +38,22 @@ import qualified Data.Metrics.Middleware     as Metrics
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified Network.WebSockets          as Ws
 import qualified System.Logger               as Logger
+import qualified System.IO.Strict            as Strict
 
 run :: Opts -> IO ()
 run o = do
+    ext <- loadExternal
     m <- metrics
     g <- new (setOutput StdOut . setFormat Nothing $ defSettings)
     e <- mkEnv <$> pure m
+               <*> pure ext
                <*> pure o
                <*> pure g
                <*> D.empty 128
                <*> newManager defaultManagerSettings { managerConnCount = 128 }
                <*> createSystemRandom
                <*> mkClock
-    s <- newSettings $ Server (host o) (port o) (applog e) m (Just idleTimeout) [] []
+    s <- newSettings $ Server (o^.cannon.host) (o^.cannon.port) (applog e) m (Just idleTimeout) [] []
     let rtree    = compile sitemap
         measured = measureRequests m rtree
         app  r k = runCannon e (route rtree r k) r
@@ -53,6 +61,17 @@ run o = do
     runSettings s start `finally` Logger.close (applog e)
   where
     idleTimeout = fromIntegral $ maxPingInterval + 3
+
+    -- Each cannon instance advertises its own location (ip or dns name) to gundeck.
+    -- Either externalHost or externalHostFile must be set (externalHost takes precedence if both are defined)
+    loadExternal :: IO ByteString
+    loadExternal = do
+      let extFile = fromMaybe (error "One of externalHost or externalHostFile must be defined") (o^.cannon.externalHostFile)
+      fromMaybe (readExternal extFile) (return . encodeUtf8 <$> o^.cannon.externalHost)
+
+    readExternal :: FilePath -> IO ByteString
+    readExternal f = encodeUtf8 . strip . pack <$> Strict.readFile f
+
 
 sitemap :: Routes ApiBuilder Cannon ()
 sitemap = do

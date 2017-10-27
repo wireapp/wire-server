@@ -1,7 +1,7 @@
 module Main (main) where
 
 import Cannon.API
-import Cannon.Types
+import Cannon.Options
 import Util.Options
 
 main :: IO ()

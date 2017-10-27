@@ -24,6 +24,7 @@ library
         , Cannon.Dict
         , Cannon.Types
         , Cannon.WS
+        , Cannon.Options
 
     other-modules:
           Cannon.App
@@ -31,6 +32,7 @@ library
     build-depends:
           base                  >= 4.6   && < 5
         , aeson                 >= 0.11
+        , api-field-json-th     >= 0.1.0.2
         , async                 >= 2.0
         , bilge                 >= 0.12
         , bytestring            >= 0.10
@@ -40,6 +42,7 @@ library
         , exceptions            >= 0.6
         , hashable              >= 1.2
         , http-types            >= 0.8
+        , lens                  >= 4.4
         , lens-family-core      >= 1.1
         , metrics-wai           >= 0.4
         , mwc-random            >= 0.13
@@ -47,6 +50,7 @@ library
         , retry                 >= 0.7
         , singletons            >= 2.0
         , swagger               >= 0.2
+        , strict                >= 0.3.2
         , text                  >= 1.1
         , tinylog               >= 0.10
         , transformers          >= 0.3
