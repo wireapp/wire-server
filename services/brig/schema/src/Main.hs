@@ -23,7 +23,6 @@ import qualified V21
 import qualified V22
 import qualified V23
 import qualified V24
-import qualified V25
 import qualified V28
 import qualified V29
 import qualified V30
@@ -64,7 +63,6 @@ main = do
         , V22.migration
         , V23.migration
         , V24.migration
-        , V25.migration
         , V28.migration
         , V29.migration
         , V30.migration
