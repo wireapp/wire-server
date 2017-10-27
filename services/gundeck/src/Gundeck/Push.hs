@@ -235,6 +235,9 @@ addToken (uid ::: cid ::: req ::: _) = do
                 Log.info $ "token" .= tokenText tok
                         ~~ msg (val "Invalid push token.")
                 return (Left invalidToken)
+            Left (Aws.TokenTooLong l) -> do
+                Log.info $ msg ("Push token is too long: token length = " ++ show l)
+                return (Left tokenTooLong)
             Right arn -> do
                 Data.insert uid trp app tok arn cid (t^.tokenClient) (t^.tokenFallback)
                 return (Right (mkAddr t arn))
@@ -309,6 +312,10 @@ success t =
 invalidToken :: Response
 invalidToken = json (Error status400 "invalid-token" "Invalid push token")
              & setStatus status404
+
+tokenTooLong :: Response
+tokenTooLong = json (Error status400 "token-too-long" "Push token length must be < 2048 for GCM or 400 for APNS")
+             & setStatus status413
 
 notFound :: Response
 notFound = empty & setStatus status404
