@@ -92,8 +92,6 @@ import qualified Network.AWS.SQS         as SQS
 import qualified Network.TLS             as TLS
 import qualified System.Logger           as Logger
 
-import Debug.Trace
-
 data Error where
     EndpointNotFound :: EndpointArn -> Error
     NoEndpointArn    :: Error
