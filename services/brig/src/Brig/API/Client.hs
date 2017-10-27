@@ -56,7 +56,7 @@ addClient :: UserId -> ConnId -> Maybe IP -> NewClient SignalingKeys -> ExceptT 
 addClient u con ip new = do
     acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
     loc <- maybe (return Nothing) locationOf ip
-    (clt, old, count) <- Data.addClient u newId new ip loc !>> ClientDataError
+    (clt, old, count) <- Data.addClient u newId new loc !>> ClientDataError
     let usr = accountUser acc
     lift $ do
         for_ old $ execDelete u (Just con)
