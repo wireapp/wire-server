@@ -1,0 +1,14 @@
+host: 0.0.0.0
+port: 8080
+
+cassandra-host: cassandra.default.svc.cluster.local
+cassandra-port: 9042
+cassandra-keyspace: galley_test
+
+brig-host: brig.default.svc.cluster.local
+brig-port: 8080
+
+gundeck-host: gundeck.default.svc.cluster.local
+gundeck-port: 8080
+
+http-pool-size: 4

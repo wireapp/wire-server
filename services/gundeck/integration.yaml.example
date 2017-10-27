@@ -1,0 +1,37 @@
+# service endpoints
+confBrig:
+  epHost: brig.default.svc.cluster.local
+  epPort: 8080
+
+confCannon:
+  epHost: cannon.default.svc.cluster.local
+  epPort: 8080
+
+confGalley:
+  epHost: galley.default.svc.cluster.local
+  epPort: 8080
+
+confTurnFile: /etc/wire/secrets/servers.txt
+
+# database endpoints
+confCassandra:
+  epHost: cassandra.default.svc.cluster.local
+  epPort: 9042
+
+# integration test configurations
+# TODO: this should perhaps be read from application conf?
+user:
+  connection_limit: 4
+
+auth:
+  user_cookie:
+    limit: 4
+    renew_age: 10
+  zauth:
+    pubkeys: /etc/wire/brig/secrets/pubkeys.txt
+    privkeys: /etc/wire/brig/secrets/privkeys.txt
+
+provider:
+  pubkey: /etc/wire/brig/secrets/pubkey.pem
+  privkey: /etc/wire/brig/secrets/privkey.pem
+  cert: /etc/wire/brig/secrets/cert.pem

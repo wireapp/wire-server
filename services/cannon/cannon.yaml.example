@@ -1,0 +1,6 @@
+host: 0.0.0.0
+external-host: cannon.default.svc.cluster.local
+port: 8080
+
+gundeck-host: gundeck.default.svc.cluster.local
+gundeck-port: 8080

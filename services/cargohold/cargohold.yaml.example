@@ -1,0 +1,13 @@
+host: 127.0.0.1
+port: 8080
+
+aws-key-id: <insert AWS key ID here>
+aws-sec-key: <insert AWS secret key here>
+  
+
+aws-s3-bucket: <insert S3 bucket here>
+aws-cf-domain: <insert CloudFront domain here>
+aws-cf-keypair-id: <insert CloudFront keypair ID here>
+aws-cf-private-key: <insert CloudFront private key here>
+
+max-total-bytes: 1024

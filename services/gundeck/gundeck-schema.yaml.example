@@ -1,0 +1,5 @@
+host: cassandra.default.svc.cluster.local
+port: 9042
+keyspace: gundeck_test
+replication-strategy: 1
+reset: true

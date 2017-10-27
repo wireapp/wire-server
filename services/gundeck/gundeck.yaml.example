@@ -1,0 +1,24 @@
+host: 0.0.0.0
+port: 8080
+
+cassandra-host: cassandra.default.svc.cluster.local
+cassandra-port: 9042
+cassandra-keyspace: gundeck_test
+
+redis-host: redis.default.svc.cluster.local
+redis-port: 6379
+
+http-pool-size: 4
+
+queue-name: integration-gundeck-events
+
+aws-region: <insert AWS region here>
+aws-account: <insert AWS account ID here>
+aws-arn-env: <insert AWS ARN env here>
+
+notification-ttl: 3600
+
+fb-skip-fallbacks: true
+fb-queue-delay: 3600
+fb-queue-limit: 10
+fb-queue-burst: 10
