@@ -107,6 +107,7 @@ tests gu ca1 br cas = do
             , test p "unregister a push token"   $ testUnregisterPushToken gu br
             , test p "share push token"          $ testSharePushToken gu br
             , test p "replace shared push token" $ testReplaceSharedPushToken gu br
+            , test p "fail on long push token" $ testLongPushToken gu br
             ]
         ]
 
@@ -125,7 +126,7 @@ removeUser :: Cql.ClientState -> Gundeck -> Cannon -> Http ()
 removeUser s g c = do
     user <- fst <$> registerUser g c
     clt  <- randomClient g user
-    tok  <- randomGcmToken clt
+    tok  <- randomGcmToken clt defTS
     _    <- registerPushToken user tok g
     _    <- sendPush g (buildPush user [(user, [])] (textPayload "data"))
     deleteUser g user
@@ -214,7 +215,7 @@ sendMultipleUsers gu ca = do
     uid2 <- randomId -- online
     uid3 <- randomId -- offline and native push
     clt  <- randomClient gu uid3
-    tok  <- randomGcmToken clt
+    tok  <- randomGcmToken clt defTS
     _    <- registerPushToken uid3 tok gu
 
     ws <- connectUser gu ca uid2 =<< randomConnId
@@ -582,16 +583,16 @@ testRegisterPushToken g b = do
 
     -- Client 1 with 4 distinct tokens
     c1   <- randomClient g uid
-    t11  <- randomToken c1 APNSSandbox appName
-    t11' <- randomToken c1 APNSSandbox appName -- overlaps
-    t12  <- randomToken c1 APNSSandbox (AppName "com.wire.ent") -- different app
-    t13  <- randomToken c1 GCM appName -- different transport
+    t11  <- randomApnsToken c1 defTS
+    t11' <- randomApnsToken c1 defTS -- overlaps
+    t12  <- randomApnsToken c1 defTS{tName = (AppName "com.wire.ent")} -- different app
+    t13  <- randomGcmToken c1 defTS  -- different transport
 
     -- Client 2 with 1 token
     c2   <- randomClient g uid
-    t21  <- randomToken c2 APNSSandbox appName
-    t22  <- randomToken c2 GCM appName -- different transport
-    t22' <- randomToken c2 GCM appName -- overlaps
+    t21  <- randomApnsToken c2 defTS
+    t22  <- randomGcmToken c2 defTS -- different transport
+    t22' <- randomGcmToken c2 defTS -- overlaps
 
     -- Register non-overlapping tokens
     _ <- registerPushToken uid t11 g
@@ -627,7 +628,7 @@ testUnregisterPushToken :: Gundeck -> Brig -> Http ()
 testUnregisterPushToken g b = do
     uid <- randomUser b
     clt <- randomClient g uid
-    tkn <- randomGcmToken clt
+    tkn <- randomGcmToken clt defTS
     void $ registerPushToken uid tkn g
     unregisterPushToken uid (tkn^.token) g !!! const 204 === statusCode
     unregisterPushToken uid (tkn^.token) g !!! const 404 === statusCode
@@ -683,6 +684,27 @@ testReplaceSharedPushToken g b = do
     liftIO $ do
         [t2] @=? ts1
         [t2] @=? ts2
+
+testLongPushToken :: Gundeck -> Brig -> Http ()
+testLongPushToken g b = do
+    uid <- randomUser b
+    clt <- randomClient g uid
+    
+    -- normal size APNS token should succeed
+    tkn1 <- randomApnsToken clt defTS
+    registerPushTokenRequest uid tkn1 g !!! const 201 === statusCode
+
+    -- APNS token over 400 bytes should fail (actual token sizes are twice the tSize)
+    tkn2 <- randomApnsToken clt defTS{tSize=256}
+    registerPushTokenRequest uid tkn2 g !!! const 413 === statusCode
+
+    -- normal size APNS token should succeed
+    tkn3 <- randomGcmToken clt defTS
+    registerPushTokenRequest uid tkn3 g !!! const 201 === statusCode
+
+    -- APNS token over 8192 bytes should fail
+    tkn4 <- randomGcmToken clt defTS{tSize=10000}
+    registerPushTokenRequest uid tkn4 g !!! const 413 === statusCode
 
 -- * Helpers
 
@@ -746,15 +768,19 @@ unregisterClient g uid cid = delete $ runGundeck g
 
 registerPushToken :: UserId -> PushToken -> Gundeck -> Http Token
 registerPushToken u t g = do
-    let p = RequestBodyLBS (encode t)
-    r <- post ( runGundeck g
-              . path "/push/tokens"
-              . contentJson
-              . zUser u
-              . zConn "random"
-              . body p
-              )
+    r <- registerPushTokenRequest u t g
     return $ Token (T.decodeUtf8 $ getHeader' "Location" r)
+
+registerPushTokenRequest :: UserId -> PushToken -> Gundeck -> Http (Response (Maybe BL.ByteString))
+registerPushTokenRequest u t g = do
+    let p = RequestBodyLBS (encode t)
+    post ( runGundeck g
+         . path "/push/tokens"
+         . contentJson
+         . zUser u
+         . zConn "random"
+         . body p
+         )
 
 unregisterPushToken :: UserId -> Token -> Gundeck -> Http (Response (Maybe BL.ByteString))
 unregisterPushToken u t g = do
@@ -770,10 +796,10 @@ unregisterPushToken u t g = do
 listPushTokens :: UserId -> Gundeck -> Http [PushToken]
 listPushTokens u g = do
     rs <- get ( runGundeck g
-             . path "/i/push/tokens"
-             . zUser u
-             . zConn "random"
-             )
+              . path "/i/push/tokens"
+              . zUser u
+              . zConn "random"
+              )
     maybe (error "Failed to decode push tokens")
           return
           (responseBody rs >>= decode)
@@ -810,15 +836,29 @@ buildPush sdr rcps pload =
   where
     rcpt u c = recipient u RouteAny & recipientClients .~ c
 
-randomGcmToken :: MonadIO m => ClientId -> m PushToken
-randomGcmToken c = randomToken c GCM appName
+data TokenSpec = TokenSpec {tSize :: Int, tName :: AppName}
 
-randomToken :: MonadIO m => ClientId -> Transport -> AppName -> m PushToken
-randomToken c trans name = liftIO $ do
+defTS :: TokenSpec
+defTS = TokenSpec 32 appName
+
+randomGcmToken :: MonadIO m => ClientId -> TokenSpec -> m PushToken
+randomGcmToken c ts = randomToken c (tSize ts) GCM (tName ts)
+
+randomApnsToken :: MonadIO m => ClientId -> TokenSpec -> m PushToken
+randomApnsToken c ts = randomToken c (tSize ts) APNSSandbox (tName ts)
+
+randomToken :: MonadIO m => ClientId -> Int -> Transport -> AppName -> m PushToken
+randomToken c size trans name = liftIO $ do
     tok <- Token . T.decodeUtf8 <$> case trans of
-        GCM -> toByteString' <$> randomId
-        _   -> B16.encode    <$> randomBytes 32
+        GCM -> multipleUuids size randomId
+        _   -> B16.encode    <$> randomBytes size
     return (pushToken trans name tok c)
+
+multipleUuids :: Control.Monad.IO.Class.MonadIO m => Int -> m (Id a) -> m ByteString
+multipleUuids size u = BS.concat <$> Prelude.replicate (numberOfUuids size) <$> toByteString' <$> u
+
+numberOfUuids :: Int -> Int
+numberOfUuids size = (quot (size - 1) 36) + 1
 
 showUser :: UserId -> ByteString
 showUser = C.pack . show
