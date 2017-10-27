@@ -6,6 +6,7 @@ BUILD_LABEL  ?= local
 BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
 DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 EXECUTABLES  := $(NAME)
+EXE_IT		 := dist/$(NAME)
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
