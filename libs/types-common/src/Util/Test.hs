@@ -16,28 +16,30 @@ newtype ServiceConfigFile = ServiceConfigFile String
     deriving (Eq, Ord, Typeable)
 
 instance IsOption ServiceConfigFile where
-    defaultValue = ServiceConfigFile "/etc/wire/service/conf/service.yaml"
+    defaultValue = ServiceConfigFile "/etc/wire/service/service.yaml"
     parseValue = fmap ServiceConfigFile . safeRead
-    optionName = return "service-config-file"
+    optionName = return "service-config"
     optionHelp = return "Service config file to read from"
     optionCLParser =
       fmap ServiceConfigFile $ strOption $
-        (  long (untag (optionName :: Tagged ServiceConfigFile String))
-        <> help (untag (optionHelp :: Tagged ServiceConfigFile String))
+        (  short (untag (return 's' :: Tagged ServiceConfigFile Char))
+        <> long  (untag (optionName :: Tagged ServiceConfigFile String))
+        <> help  (untag (optionHelp :: Tagged ServiceConfigFile String))
         )
 
 newtype IntegrationConfigFile = IntegrationConfigFile String
     deriving (Eq, Ord, Typeable)
 
 instance IsOption IntegrationConfigFile where
-    defaultValue = IntegrationConfigFile "/etc/wire/conf/integration.yaml"
+    defaultValue = IntegrationConfigFile "/etc/wire/integration/integration.yaml"
     parseValue = fmap IntegrationConfigFile . safeRead
     optionName = return "integration-config-file"
     optionHelp = return "Integration config file to read from"
     optionCLParser =
       fmap IntegrationConfigFile $ strOption $
-        (  long (untag (optionName :: Tagged IntegrationConfigFile String))
-        <> help (untag (optionHelp :: Tagged IntegrationConfigFile String))
+        (  short (untag (return 'i' :: Tagged ServiceConfigFile Char))
+        <> long  (untag (optionName :: Tagged IntegrationConfigFile String))
+        <> help  (untag (optionHelp :: Tagged IntegrationConfigFile String))
         )
 
 runTests :: (String -> String -> TestTree) -> IO ()

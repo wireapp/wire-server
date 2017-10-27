@@ -27,14 +27,14 @@ data AWSOpts = AWSOpts
     , _awsCfPrivateKey :: FilePath
     } deriving (Show, Generic)
 
-deriveFromJSON (toFieldName 4) ''AWSOpts
+deriveFromJSON toFieldName ''AWSOpts
 makeLenses ''AWSOpts
 
 data Settings = Settings
     { _setMaxTotalBytes :: !Int
     } deriving (Show, Generic)
 
-deriveFromJSON (toFieldName 4) ''Settings
+deriveFromJSON toFieldName ''Settings
 makeLenses ''Settings
 
 data Opts = Opts
@@ -43,7 +43,7 @@ data Opts = Opts
     , _settings    :: !Settings
     } deriving (Show, Generic)
 
-deriveFromJSON (toFieldName 1) ''Opts
+deriveFromJSON toFieldName ''Opts
 makeLenses ''Opts
 
 parseOptions :: IO Opts

@@ -1,6 +1,6 @@
 brig:
   host: 0.0.0.0
-  port: 8080
+  port: 8082
 
 cassandra:
   endpoint:
@@ -14,11 +14,11 @@ elasticsearch:
 
 galley:
   host: 127.0.01
-  port: 8081
+  port: 8085
 
 gundeck:
   host: 127.0.0.1
-  port: 8082
+  port: 8086
 
 aws:
   account: "<insert-account-number-here>"

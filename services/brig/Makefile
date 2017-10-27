@@ -27,8 +27,7 @@ init:
 
 .PHONY: install
 install: init
-	stack install --test --local-bin-path=dist
-	#stack install --pedantic --test --local-bin-path=dist
+	stack install --pedantic --test --local-bin-path=dist
 
 .PHONY: clean
 clean:

@@ -23,7 +23,7 @@ data Endpoint = Endpoint
     , _epPort :: !Word16
     } deriving (Show, Generic)
 
-deriveFromJSON (toFieldName 3) ''Endpoint
+deriveFromJSON toFieldName ''Endpoint
 makeLenses ''Endpoint
 
 data CassandraOpts = CassandraOpts
@@ -31,7 +31,7 @@ data CassandraOpts = CassandraOpts
     , _casKeyspace :: !Text
     } deriving (Show, Generic)
 
-deriveFromJSON (toFieldName 4) ''CassandraOpts
+deriveFromJSON toFieldName ''CassandraOpts
 makeLenses ''CassandraOpts
 
 getOptions :: (FromJSON a) => String -> Parser a -> FilePath -> IO a

@@ -30,7 +30,7 @@ data AWSOpts = AWSOpts
     , _awsQueueName :: !Text
     } deriving (Show, Generic)
 
-deriveFromJSON (toFieldName 4) ''AWSOpts
+deriveFromJSON toFieldName ''AWSOpts
 makeLenses ''AWSOpts
 
 data FallbackOpts = FallbackOpts
@@ -40,7 +40,7 @@ data FallbackOpts = FallbackOpts
     , _fbQueueBurst    :: !Word16
     } deriving (Show, Generic)
 
-deriveFromJSON (toFieldName 3) ''FallbackOpts
+deriveFromJSON toFieldName ''FallbackOpts
 makeLenses ''FallbackOpts
 
 data Settings = Settings
@@ -48,7 +48,7 @@ data Settings = Settings
     , _notificationTTL :: !NotificationTTL
     } deriving (Show, Generic)
 
-deriveFromJSON (toFieldName 1) ''Settings
+deriveFromJSON toFieldName ''Settings
 makeLenses ''Settings
 
 data Opts = Opts
@@ -61,7 +61,7 @@ data Opts = Opts
     , _optSettings :: !Settings
     } deriving (Show, Generic)
 
-deriveFromJSON (toFieldName 1) ''Opts
+deriveFromJSON toFieldName ''Opts
 makeLenses ''Opts
 
 parseOptions :: IO Opts

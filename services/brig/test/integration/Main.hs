@@ -19,8 +19,8 @@ import OpenSSL (withOpenSSL)
 import Options.Applicative
 import System.Environment (getArgs)
 import Test.Tasty
-import Util.Options as Opts
-import Util.Options.Common as Opts
+import Util.Options
+import Util.Options.Common
 import Util.Test hiding (runTests)
 
 import qualified API                 as User
@@ -34,9 +34,9 @@ import qualified System.Logger       as Logger
 
 data Config = Config
   -- internal endpoints
-  { brig     :: Opts.Endpoint
-  , cannon   :: Opts.Endpoint
-  , galley   :: Opts.Endpoint
+  { brig     :: Endpoint
+  , cannon   :: Endpoint
+  , galley   :: Endpoint
   -- external provider
   , provider :: Provider.Config
   } deriving (Show, Generic)
@@ -45,13 +45,13 @@ instance FromJSON Config
 
 runTests :: Maybe Config -> Maybe Opts.Opts -> IO ()
 runTests iConf bConf = do
-    let local p = Opts.Endpoint { _epHost = "127.0.0.1", _epPort = p }
-    b <- mkRequest <$> Opts.optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
-    c <- mkRequest <$> Opts.optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
-    g <- mkRequest <$> Opts.optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
-    turnFile <- Opts.optOrEnv (Opts.servers . Opts.turn) bConf id "TURN_SERVERS"
-    casHost  <- Opts.optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epHost) bConf pack "BRIG_CASSANDRA_HOST"
-    casPort  <- Opts.optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epPort) bConf read "BRIG_CASSANDRA_PORT"
+    let local p = Endpoint { _epHost = "127.0.0.1", _epPort = p }
+    b <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
+    c <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
+    g <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
+    turnFile <- optOrEnv (Opts.servers . Opts.turn) bConf id "TURN_SERVERS"
+    casHost  <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epHost) bConf pack "BRIG_CASSANDRA_HOST"
+    casPort  <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epPort) bConf read "BRIG_CASSANDRA_PORT"
 
     lg <- Logger.new Logger.defSettings
     db <- defInitCassandra "brig_test" casHost casPort lg
