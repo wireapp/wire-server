@@ -1,7 +1,0 @@
-host: 127.0.0.1
-port: 8080
-
-config: doc/example.config
-
-http-pool-size: 4
-max-conns: 4
