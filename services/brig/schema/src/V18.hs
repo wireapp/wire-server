@@ -12,7 +12,7 @@ migration = Migration 18 "Add prekeys" $ do
     void $ schema' [r|
         create columnfamily if not exists clients
             ( user   uuid
-            , client ascii
+            , client text
             , tstamp timestamp
             , type   int
             , label  text
@@ -23,7 +23,7 @@ migration = Migration 18 "Add prekeys" $ do
     void $ schema' [r|
         create columnfamily if not exists prekeys
             ( user   uuid
-            , client ascii
+            , client text
             , key    int
             , data   text
             , primary key (user, client, key)
