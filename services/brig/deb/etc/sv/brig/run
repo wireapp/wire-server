@@ -46,6 +46,13 @@ else
     TURN_TOKEN_LIFETIME=""
 fi
 
+if [ -n "$BRIG_TURN_CONFIG_TTL" ]; then
+    TURN_CONFIG_TTL="--turn-config-ttl=$BRIG_TURN_CONFIG_TTL"
+else
+    TURN_CONFIG_TTL=""
+fi
+
+
 cd $HOME
 
 ulimit -n 65536
@@ -104,6 +111,7 @@ exec chpst -u $USER \
     --turn-servers=${BRIG_TURN_SERVERS?'unset'} \
     --turn-secret=${BRIG_TURN_SECRET?'unset'} \
     ${TURN_TOKEN_LIFETIME} \
+    ${TURN_CONFIG_TTL} \
     ${AWS_ACCESS_KEY_ID} \
     ${AWS_SECRET_ACCESS_KEY} \
     ${GEOIP_DB} \
