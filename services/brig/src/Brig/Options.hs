@@ -130,9 +130,10 @@ data ZAuthOpts = ZAuthOpts
 instance FromJSON ZAuthOpts
 
 data TurnOpts = TurnOpts
-    { servers  :: !FilePath
-    , secret   :: !FilePath
-    , lifetime :: !Word32
+    { servers   :: !FilePath
+    , secret    :: !FilePath
+    , tokenTTL  :: !Word32
+    , configTTL :: !Word32
     } deriving (Show, Generic)
 
 instance FromJSON TurnOpts
@@ -338,8 +339,11 @@ optsParser =
       help "TURN shared secret file path" <>
       action "file") <*>
      (option auto $
-      long "turn-token-lifetime" <> metavar "INT" <> value 3600 <> showDefault <>
-      help "Number of seconds TURN credentials should be valid.")) <*>
+      long "turn-token-lifetime" <> metavar "INT" <> value 21600 <> showDefault <>
+      help "Number of seconds TURN credentials should be valid.") <*>
+     (option auto $
+      long "turn-config-ttl" <> metavar "INT" <> value 3600 <> showDefault <>
+      help "Number of seconds until a new TURN configuration should be fetched.")) <*>
     settingsParser
 
 settingsParser :: Parser Settings

@@ -69,7 +69,6 @@ import Control.Monad.Reader.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Reader (ReaderT (..), runReaderT)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id (UserId)
 import Data.IP
@@ -81,7 +80,6 @@ import Data.IORef
 import Data.Text (unpack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
-import Data.Word
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (getDigestByName, Digest)
@@ -146,7 +144,6 @@ makeLenses ''Env
 
 newEnv :: Opts -> IO Env
 newEnv o = do
-    let tOpts = Opt.turn o
     Just md5 <- getDigestByName "MD5"
     Just sha256 <- getDigestByName "SHA256"
     Just sha512 <- getDigestByName "SHA512"
@@ -164,8 +161,7 @@ newEnv o = do
     w   <- FS.startManagerConf
          $ FS.defaultConfig { FS.confDebounce = FS.Debounce 0.5, FS.confPollInterval = 10000000 }
     g   <- geoSetup lgr w $ Opt.geoDb o
-    t   <- turnSetup lgr w sha512 (Opt.servers tOpts) (Opt.lifetime tOpts)
-            =<< (Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret tOpts))
+    t   <- turnSetup lgr w sha512 (Opt.turn o)
     return $! Env
         { _galley        = mkEndpoint $ Opt.galley o
         , _gundeck       = mkEndpoint $ Opt.gundeck o
@@ -207,11 +203,12 @@ geoSetup lgr w (Just db) = do
     startWatching w path (replaceGeoDb lgr geodb)
     return $ Just geodb
 
-turnSetup :: Logger -> FS.WatchManager -> Digest -> FilePath -> Word32 -> ByteString -> IO (IORef TURN.Env)
-turnSetup lgr w dig f ttl secret = do
-    path    <- canonicalizePath f
+turnSetup :: Logger -> FS.WatchManager -> Digest -> Opt.TurnOpts -> IO (IORef TURN.Env)
+turnSetup lgr w dig o = do
+    secret  <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret o)
+    path    <- canonicalizePath (Opt.servers o)
     servers <- fromMaybe (error "Empty TURN list, check turn file!") <$> readTurnList path
-    te      <- newIORef =<< TURN.newEnv dig servers ttl secret
+    te      <- newIORef =<< TURN.newEnv dig servers (Opt.tokenTTL o) (Opt.configTTL o) secret
     startWatching w path (replaceTurnServers lgr te)
     return te
 
