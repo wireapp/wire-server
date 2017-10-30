@@ -42,6 +42,7 @@ module Gundeck.Aws
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
+import Control.Applicative
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Concurrent.Lifted (threadDelay)
 import Control.Error hiding (err)
@@ -213,6 +214,8 @@ data CreateEndpointError
         -- ^ Endpoint exists with the same token but different attributes.
     | InvalidToken !Push.Token
         -- ^ Invalid push token.
+    | TokenTooLong !Integer
+        -- ^ Token is length is greater than 8192 for GCM, or 400 for APNS
     | AppNotFound !AppName
         -- ^ Invalid application name.
     deriving Show
@@ -282,6 +285,9 @@ createEndpoint u tr env app token = do
             , Just ep <- parseExistsError (e^.serviceMessage) ->
                 return (Left (EndpointInUse ep))
             | is "SNS" 400 x && AWS.errorCode "InvalidParameter" == e^.serviceCode
+                             && isLengthError (e^.serviceMessage) ->
+                return (Left (TokenTooLong $ tokenLength token))
+            | is "SNS" 400 x && AWS.errorCode "InvalidParameter" == e^.serviceCode
                              && isTokenError (e^.serviceMessage) ->
                 return (Left (InvalidToken token))
             | is "SNS" 404 x ->
@@ -293,7 +299,9 @@ createEndpoint u tr env app token = do
   where
     readArn r = either (throwM . InvalidArn r) return (fromText r)
 
-    -- Thank you Amazon for not having granular error codes!
+    tokenLength = toInteger . Text.length . Push.tokenText
+
+    -- Thank you Amazon for not having granul\ar error codes!
     parseExistsError Nothing  = Nothing
     parseExistsError (Just s) = hush . flip parseOnly (toText s) $ do
         _ <- string "Invalid parameter: Token Reason: Endpoint "
@@ -304,6 +312,14 @@ createEndpoint u tr env app token = do
     isTokenError Nothing  = False
     isTokenError (Just s) = isRight . flip parseOnly (toText s) $ do
         _ <- string "Invalid parameter: Token"
+        return ()
+
+    isLengthError Nothing = False
+    isLengthError (Just s) = isRight . flip parseOnly (toText s) $ do
+        let prefix = "Invalid parameter: Token Reason: "
+        _ <-  string prefix
+        _ <-  string "must be at most 8192 bytes long in UTF-8 encoding"
+          <|> string "iOS device tokens must be no more than 400 hexadecimal characters"
         return ()
 
 --------------------------------------------------------------------------------
