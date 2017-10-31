@@ -19,7 +19,7 @@ import Gundeck.Aws.Sns
 import Gundeck.Env
 import Gundeck.Instances ()
 import Gundeck.Monad
-import Gundeck.Options (notificationTTL, optSettings)
+import Gundeck.Options (setNotificationTTL, optSettings)
 import Gundeck.Push.Native.Types
 import Gundeck.Types
 import Gundeck.Util
@@ -143,7 +143,7 @@ deleteToken u ev tk cl = do
         n = Notification i False p
         r = singleton (target u & targetClients .~ [cl])
     void $ Web.push n r u Nothing Set.empty
-    Stream.add i r p =<< view (options.optSettings.notificationTTL)
+    Stream.add i r p =<< view (options.optSettings.setNotificationTTL)
     Push.delete u (t^.tokenTransport) (t^.tokenApp) tk
 
 mkPushToken :: Event -> Token -> ClientId -> PushToken

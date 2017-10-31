@@ -38,9 +38,9 @@ deriveFromJSON toFieldName ''Settings
 makeLenses ''Settings
 
 data Opts = Opts
-    { _cargohold   :: !Endpoint
-    , _aws         :: !AWSOpts
-    , _settings    :: !Settings
+    { _optCargohold :: !Endpoint
+    , _optAws       :: !AWSOpts
+    , _optSettings  :: !Settings
     } deriving (Show, Generic)
 
 deriveFromJSON toFieldName ''Opts

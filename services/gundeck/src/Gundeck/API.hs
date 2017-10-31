@@ -52,12 +52,12 @@ runServer o = do
     runClient (e^.cstate) $
         versionCheck schemaVersion
     let l = e^.applog
-    s <- newSettings $ defaultServer (unpack $ o^.gundeck.epHost) (o^.gundeck.epPort) l m
+    s <- newSettings $ defaultServer (unpack $ o^.optGundeck.epHost) (o^.optGundeck.epPort) l m
     app <- pipeline e
     lst <- Async.async $ Aws.execute (e^.awsEnv) (Aws.listen (runDirect e . onEvent))
     runSettingsWithShutdown s app 5 `finally` do
         Log.info l $ Log.msg (Log.val "Draining fallback queue ...")
-        Fallback.drainQueue (e^.fbQueue) (fromIntegral (o^.fallback.fbQueueDelay) + 1)
+        Fallback.drainQueue (e^.fbQueue) (fromIntegral (o^.optFallback.fbQueueDelay) + 1)
         Log.info l $ Log.msg (Log.val "Shutting down ...")
         shutdown (e^.cstate)
         Async.cancel lst

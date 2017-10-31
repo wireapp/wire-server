@@ -52,7 +52,7 @@ runServer o = do
         `finally` closeEnv e
   where
     rtree      = compile sitemap
-    server   e = defaultServer (unpack $ o^.cargohold.epHost) (o^.cargohold.epPort) (e^.appLogger) (e^.metrics)
+    server   e = defaultServer (unpack $ o^.optCargohold.epHost) (o^.optCargohold.epPort) (e^.appLogger) (e^.metrics)
     pipeline e = measureRequests (e^.metrics) rtree
                . catchErrors (e^.appLogger) (e^.metrics)
                . GZip.gzip GZip.def

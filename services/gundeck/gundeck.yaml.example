@@ -21,12 +21,12 @@ aws:
   account: "<insert-account-number-here>"
   arnEnv: test
 
-optSettings:
-  httpPoolSize: 4
-  notificationTTL: 3600
-
 fallback:
   skipFallbacks: true
   queueDelay: 3600
   queueLimit: 10
   queueBurst: 10
+
+settings:
+  httpPoolSize: 4
+  notificationTTL: 86400

@@ -44,21 +44,21 @@ deriveFromJSON toFieldName ''FallbackOpts
 makeLenses ''FallbackOpts
 
 data Settings = Settings
-    { _httpPoolSize    :: !Int
-    , _notificationTTL :: !NotificationTTL
+    { _setHttpPoolSize    :: !Int
+    , _setNotificationTTL :: !NotificationTTL
     } deriving (Show, Generic)
 
 deriveFromJSON toFieldName ''Settings
 makeLenses ''Settings
 
 data Opts = Opts
-    { _gundeck     :: !Endpoint
-    , _cassandra   :: !CassandraOpts
-    , _redis       :: !Endpoint
-    , _aws         :: !AWSOpts
-    , _discoUrl    :: !(Maybe Text)
-    , _fallback    :: !FallbackOpts
-    , _optSettings :: !Settings
+    { _optGundeck   :: !Endpoint
+    , _optCassandra :: !CassandraOpts
+    , _optRedis     :: !Endpoint
+    , _optAws       :: !AWSOpts
+    , _optDiscoUrl  :: !(Maybe Text)
+    , _optFallback  :: !FallbackOpts
+    , _optSettings  :: !Settings
     } deriving (Show, Generic)
 
 deriveFromJSON toFieldName ''Opts

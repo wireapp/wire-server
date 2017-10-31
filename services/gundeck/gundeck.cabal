@@ -249,6 +249,7 @@ executable gundeck-integration
       , retry
       , safe
       , stm
+      , tagged
       , tasty                 >= 0.9
       , tasty-hunit           >= 0.9
       , text

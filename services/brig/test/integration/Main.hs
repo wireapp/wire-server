@@ -21,7 +21,7 @@ import System.Environment (getArgs)
 import Test.Tasty
 import Util.Options
 import Util.Options.Common
-import Util.Test hiding (runTests)
+import Util.Test
 
 import qualified API                 as User
 import qualified API.Provider        as Provider

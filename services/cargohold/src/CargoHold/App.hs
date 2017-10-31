@@ -34,7 +34,7 @@ module CargoHold.App
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import CargoHold.CloudFront
-import CargoHold.Options as O
+import CargoHold.Options
 import Control.Applicative
 import Control.Error (ExceptT, exceptT)
 import Control.Lens (view, makeLenses, set, (^.))
@@ -92,14 +92,14 @@ newEnv o = do
                     $ Log.defSettings
     mgr  <- initHttpManager
     awe  <- initAws o lgr mgr
-    return $ Env awe met lgr mgr mempty (o^.settings.setMaxTotalBytes)
+    return $ Env awe met lgr mgr mempty (o^.optSettings.setMaxTotalBytes)
 
 initAws :: Opts -> Logger -> Manager -> IO AwsEnv
 initAws o l m = do
     -- TODO: The AWS package can also load them from the env, check the latest API
     -- https://hackage.haskell.org/package/aws-0.17.1/docs/src/Aws-Core.html#loadCredentialsFromFile
     -- which would avoid the need to specify them in a config file when running tests
-    let awsOpts = o^.(O.aws)
+    let awsOpts = o^.optAws
     amz  <- Aws.newEnv l m $ liftM2 (,) (awsOpts^.awsKeyId) (awsOpts^.awsSecretKey)
     sig  <- initCloudFront (awsOpts^.awsCfPrivateKey) (awsOpts^.awsCfKeyPairId) (awsOpts^.awsCfDomain)
     let s3c  = Aws.s3 Aws.HTTPS Aws.s3EndpointEu False

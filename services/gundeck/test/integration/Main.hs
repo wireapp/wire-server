@@ -7,21 +7,27 @@ import Bilge hiding (header, body)
 import Control.Lens
 import Cassandra.Util
 import Data.Aeson
+import Data.Monoid
+import Data.Proxy
+import Data.Tagged
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
+import Data.Typeable
 import Data.Yaml (decodeFileEither)
 import GHC.Generics
+import Gundeck.Options
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS
 import OpenSSL (withOpenSSL)
+import Options.Applicative
 import Test.Tasty
+import Test.Tasty.Options
 import Types
 import Util.Options
 import Util.Options.Common
 import Util.Test
 
 import qualified API
-import qualified Gundeck.Options as Opts
 import qualified System.Logger   as Logger
 
 data IntegrationConfig = IntegrationConfig
@@ -32,6 +38,33 @@ data IntegrationConfig = IntegrationConfig
   } deriving (Show, Generic)
 
 instance FromJSON IntegrationConfig
+
+newtype ServiceConfigFile = ServiceConfigFile String
+    deriving (Eq, Ord, Typeable)
+
+instance IsOption ServiceConfigFile where
+    defaultValue = ServiceConfigFile "/etc/wire/gundeck/conf/gundeck.yaml"
+    parseValue = fmap ServiceConfigFile . safeRead
+    optionName = return "service-config"
+    optionHelp = return "Service config file to read from"
+    optionCLParser =
+      fmap ServiceConfigFile $ strOption $
+        (  short (untag (return 's' :: Tagged ServiceConfigFile Char))
+        <> long  (untag (optionName :: Tagged ServiceConfigFile String))
+        <> help  (untag (optionHelp :: Tagged ServiceConfigFile String))
+        )
+
+runTests :: (String -> String -> TestTree) -> IO ()
+runTests run = defaultMainWithIngredients ings $
+    askOption $ \(ServiceConfigFile c) ->
+    askOption $ \(IntegrationConfigFile i) -> run c i
+  where
+    ings =
+      includingOptions
+        [Option (Proxy :: Proxy ServiceConfigFile)
+        ,Option (Proxy :: Proxy IntegrationConfigFile)
+        ]
+      : defaultIngredients
 
 main :: IO ()
 main = withOpenSSL $ runTests go
@@ -48,8 +81,8 @@ main = withOpenSSL $ runTests go
         g <- Gundeck . mkRequest <$> optOrEnv gundeck iConf (local . read) "GUNDECK_WEB_PORT"
         c <- Cannon  . mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
         b <- Brig    . mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
-        ch <- optOrEnv (\v -> v^.Opts.cassandra.casEndpoint.epHost) gConf pack "GUNDECK_CASSANDRA_HOST"
-        cp <- optOrEnv (\v -> v^.Opts.cassandra.casEndpoint.epPort) gConf read "GUNDECK_CASSANDRA_PORT"
+        ch <- optOrEnv (\v -> v^.optCassandra.casEndpoint.epHost) gConf pack "GUNDECK_CASSANDRA_HOST"
+        cp <- optOrEnv (\v -> v^.optCassandra.casEndpoint.epPort) gConf read "GUNDECK_CASSANDRA_PORT"
 
         lg <- Logger.new Logger.defSettings
         db <- defInitCassandra "gundeck_test" ch cp lg

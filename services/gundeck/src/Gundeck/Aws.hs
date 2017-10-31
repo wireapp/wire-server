@@ -150,11 +150,11 @@ mkEnv :: Logger -> Opts -> Manager -> IO Env
 mkEnv lgr opts mgr = do
     let g = Logger.clone (Just "aws.gundeck") lgr
     e <- configure <$> mkAwsEnv g
-    q <- getQueueUrl e (opts^.aws.awsQueueName)
-    return (Env e g q (opts^.aws.awsRegion) (opts^.aws.awsAccount))
+    q <- getQueueUrl e (opts^.optAws.awsQueueName)
+    return (Env e g q (opts^.optAws.awsRegion) (opts^.optAws.awsAccount))
   where
     mkAwsEnv g =  set AWS.envLogger (awsLogger g)
-               .  set AWS.envRegion (opts^.aws.awsRegion)
+               .  set AWS.envRegion (opts^.optAws.awsRegion)
               <$> AWS.newEnvWith AWS.Discover Nothing mgr
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString

@@ -51,17 +51,17 @@ schemaVersion = 7
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
     l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
-    c <- maybe (return $ NE.fromList [unpack (o^.cassandra.casEndpoint.epHost)])
+    c <- maybe (return $ NE.fromList [unpack (o^.optCassandra.casEndpoint.epHost)])
                (C.initialContacts "cassandra_gundeck")
-               (unpack <$> o^.discoUrl)
+               (unpack <$> o^.optDiscoUrl)
     n <- newManager tlsManagerSettings
-            { managerConnCount           = (o^.optSettings.httpPoolSize)
-            , managerIdleConnectionCount = 3 * (o^.optSettings.httpPoolSize)
+            { managerConnCount           = (o^.optSettings.setHttpPoolSize)
+            , managerIdleConnectionCount = 3 * (o^.optSettings.setHttpPoolSize)
             , managerResponseTimeout     = responseTimeoutMicro 5000000
             }
     r <- Redis.mkPool (Logger.clone (Just "redis.gundeck") l) $
-              Redis.setHost (unpack $ o^.redis.epHost)
-            . Redis.setPort (o^.redis.epPort)
+              Redis.setHost (unpack $ o^.optRedis.epHost)
+            . Redis.setPort (o^.optRedis.epPort)
             . Redis.setMaxConnections 100
             . Redis.setPoolStripes 4
             . Redis.setConnectTimeout 3
@@ -69,8 +69,8 @@ createEnv m o = do
             $ Redis.defSettings
     p <- C.init (Logger.clone (Just "cassandra.gundeck") l) $
               C.setContacts (NE.head c) (NE.tail c)
-            . C.setPortNumber (fromIntegral $ o^.cassandra.casEndpoint.epPort)
-            . C.setKeyspace (Keyspace (o^.cassandra.casKeyspace))
+            . C.setPortNumber (fromIntegral $ o^.optCassandra.casEndpoint.epPort)
+            . C.setKeyspace (Keyspace (o^.optCassandra.casKeyspace))
             . C.setMaxConnections 4
             . C.setMaxStreams 128
             . C.setPoolStripes 4
@@ -89,9 +89,9 @@ createEnv m o = do
 
 initFallbackQueue :: Opts -> IO Fallback.Queue
 initFallbackQueue o =
-    let delay = Fallback.Delay (o^.fallback.fbQueueDelay)
-        limit = Fallback.Limit (o^.fallback.fbQueueLimit)
-        burst = Fallback.Burst (o^.fallback.fbQueueBurst)
+    let delay = Fallback.Delay (o^.optFallback.fbQueueDelay)
+        limit = Fallback.Limit (o^.optFallback.fbQueueLimit)
+        burst = Fallback.Burst (o^.optFallback.fbQueueBurst)
     in Fallback.newQueue delay limit burst
 
 reqIdMsg :: RequestId -> Msg -> Msg

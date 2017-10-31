@@ -5,15 +5,21 @@ module Main (main) where
 
 import Bilge hiding (header, body)
 import Control.Lens
+import Data.Monoid
+import Data.Proxy
+import Data.Tagged
+import Data.Typeable
 import Data.Yaml hiding (Parser)
 import GHC.Generics
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS
 import OpenSSL
+import Options.Applicative
 import Util.Options
 import Util.Options.Common
 import Util.Test
 import Test.Tasty
+import Test.Tasty.Options
 
 import qualified API.V3
 
@@ -23,6 +29,33 @@ data IntegrationConfig = IntegrationConfig
   } deriving (Show, Generic)
 
 instance FromJSON IntegrationConfig
+
+newtype ServiceConfigFile = ServiceConfigFile String
+    deriving (Eq, Ord, Typeable)
+
+instance IsOption ServiceConfigFile where
+    defaultValue = ServiceConfigFile "/etc/wire/cargohold/conf/cargohold.yaml"
+    parseValue = fmap ServiceConfigFile . safeRead
+    optionName = return "service-config"
+    optionHelp = return "Service config file to read from"
+    optionCLParser =
+      fmap ServiceConfigFile $ strOption $
+        (  short (untag (return 's' :: Tagged ServiceConfigFile Char))
+        <> long  (untag (optionName :: Tagged ServiceConfigFile String))
+        <> help  (untag (optionHelp :: Tagged ServiceConfigFile String))
+        )
+
+runTests :: (String -> String -> TestTree) -> IO ()
+runTests run = defaultMainWithIngredients ings $
+    askOption $ \(ServiceConfigFile c) ->
+    askOption $ \(IntegrationConfigFile i) -> run c i
+  where
+    ings =
+      includingOptions
+        [Option (Proxy :: Proxy ServiceConfigFile)
+        ,Option (Proxy :: Proxy IntegrationConfigFile)
+        ]
+      : defaultIngredients
 
 main :: IO ()
 main = withOpenSSL $ runTests go
