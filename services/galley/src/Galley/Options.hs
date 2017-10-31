@@ -1,67 +1,51 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
-module Galley.Options
-    ( Opts
-    , brigHost
-    , brigPort
-    , cassHost
-    , cassPort
-    , discoUrl
-    , gundeckHost
-    , gundeckPort
-    , hostname
-    , keyspace
-    , serverPort
-    , httpPoolSz
-    , JournalOpts (..)
-    , journalOpts
-    , queueName
-    , awsRegion
-    , parseOptions
-    , journalOptsParser
-    ) where
+module Galley.Options where
 
-import Cassandra hiding (Error)
 import Control.Lens hiding ((.=))
-import Data.ByteString (ByteString)
-import Data.ByteString.Char8 (pack)
+import Data.Aeson.TH (deriveFromJSON)
 import Data.Text (Text)
-import Data.Word
-import Data.Misc
 import Data.Monoid
+import GHC.Generics
 import Network.AWS (Region (..))
 import Network.AWS.Data
 import Data.String
 import Options.Applicative
 import Options.Applicative.Types
+import Util.Options
+import Util.Options.Common
 
-import qualified Data.Text as Text
+data Settings = Settings
+    { _setHttpPoolSize :: !Int
+    } deriving (Show, Generic)
 
-data Opts = Opts
-    { _hostname    :: !String
-    , _serverPort  :: !Port
-    , _cassHost    :: !String
-    , _cassPort    :: !Word16
-    , _keyspace    :: !Keyspace
-    , _brigHost    :: !ByteString
-    , _brigPort    :: !Port
-    , _gundeckHost :: !ByteString
-    , _gundeckPort :: !Port
-    , _discoUrl    :: !(Maybe String)
-    , _httpPoolSz  :: !Int
-    , _journalOpts :: !(Maybe JournalOpts)
-    }
+deriveFromJSON toFieldName ''Settings
+makeLenses ''Settings
 
 -- [Note: journaling]
 -- Journaling can be disabled simply by not passing the JournalOpts when starting the service
 
 data JournalOpts = JournalOpts
-    { _queueName :: !Text
-    , _awsRegion :: !Region
+    { _awsQueueName :: !Text
+    , _awsRegion    :: !Region
+    } deriving (Show, Generic)
+
+deriveFromJSON toFieldName ''JournalOpts
+makeLenses ''JournalOpts
+
+data Opts = Opts
+    { _optGalley    :: !Endpoint
+    , _optCassandra :: !CassandraOpts
+    , _optBrig      :: !Endpoint
+    , _optGundeck   :: !Endpoint
+    , _optDiscoUrl  :: !(Maybe Text)
+    , _optSettings  :: !Settings
+    , _optJournal   :: !(Maybe JournalOpts)
     }
 
-makeLenses ''JournalOpts
+deriveFromJSON toFieldName ''Opts
 makeLenses ''Opts
 
 parseOptions :: IO Opts
@@ -69,69 +53,58 @@ parseOptions = execParser (info (helper <*> optsParser) desc)
   where
     desc = header "Galley - Conversation Service" <> fullDesc
 
-    optsParser :: Parser Opts
-    optsParser = Opts
-        <$> (strOption $
-                long "host"
-                <> value "*4"
-                <> showDefault
-                <> metavar "HOSTNAME"
-                <> help "host to listen on")
-
-        <*> (option auto $
-                long "port"
-                <> short 'p'
-                <> metavar "PORT"
-                <> help "listen port")
-
-        <*> (strOption $
-                long "cassandra-host"
-                <> metavar "HOSTNAME"
-                <> help "cassandra hostname")
-
-        <*> (option auto $
-                long "cassandra-port"
-                <> metavar "PORT"
-                <> help "cassandra port")
-
-        <*> (fmap Keyspace . textOption $
-                long "keyspace"
-                <> metavar "STRING"
-                <> help "database keyspace to use")
-
-        <*> (bytesOption $
+optsParser :: Parser Opts
+optsParser = Opts <$>
+    (Endpoint <$>
+        (textOption $
+            long "host"
+            <> value "*4"
+            <> showDefault
+            <> metavar "HOSTNAME"
+            <> help "Hostname or address to bind to")
+        <*>
+        (option auto $
+            long "port"
+            <> short 'p'
+            <> metavar "PORT"
+            <> help "Port to listen on"))
+  <*> cassandraParser
+  <*> brigParser
+  <*> gundeckParser
+  <*> optional discoUrlParser
+  <*> settingsParser
+  <*> optional journalOptsParser
+  where
+    brigParser :: Parser Endpoint
+    brigParser = Endpoint
+        <$> (textOption $
                 long "brig-host"
                 <> metavar "HOSTNAME"
-                <> help "brig hostname")
-
-        <*> (option auto $
+                <> help "Brig hostname")
+        <*>  (option auto $
                 long "brig-port"
                 <> metavar "PORT"
-                <> help "brig port")
+                <> help "Brig port")
 
-        <*> (bytesOption $
+    gundeckParser :: Parser Endpoint
+    gundeckParser = Endpoint
+        <$> (textOption $
                 long "gundeck-host"
                 <> metavar "HOSTNAME"
-                <> help "gundeck hostname")
-
+                <> help "Gundeck hostname")
         <*> (option auto $
                 long "gundeck-port"
                 <> metavar "PORT"
-                <> help "gundeck port")
+                <> help "Gundeck port")
 
-        <*> (optional $ strOption $
-                long "disco-url"
-                <> metavar "URL"
-                <> help "klabautermann url")
-
-        <*> (option auto $
+    settingsParser :: Parser Settings
+    settingsParser = Settings
+        <$> (option auto $
                 long "http-pool-size"
                 <> metavar "SIZE"
                 <> showDefault
-                <> help "number of connections for the http pool"
+                <> help "number of connections for the http client pool"
                 <> value 128)
-
-        <*> optional journalOptsParser
 
 journalOptsParser :: Parser JournalOpts
 journalOptsParser = JournalOpts
@@ -139,19 +112,12 @@ journalOptsParser = JournalOpts
             long "team-events-queue-name"
             <> metavar "STRING"
             <> help "sqs queue name to send team events")
-
     <*> (option region $
             long "aws-region"
             <> metavar "STRING"
             <> value Ireland
             <> showDefault
             <> help "aws region name")
-
-bytesOption :: Mod OptionFields String -> Parser ByteString
-bytesOption = fmap pack . strOption
-
-textOption :: Mod OptionFields String -> Parser Text
-textOption = fmap Text.pack . strOption
-
-region :: ReadM Region
-region = readerAsk >>= either readerError return . fromText . fromString
+  where
+    region :: ReadM Region
+    region = readerAsk >>= either readerError return . fromText . fromString
