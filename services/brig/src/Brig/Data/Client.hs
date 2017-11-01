@@ -40,7 +40,6 @@ import Control.Monad.Trans.Class
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Foldable (for_)
 import Data.Id
-import Data.IP (IP)
 import Data.Misc
 import Data.Monoid ((<>))
 import Data.Text (Text)
@@ -70,10 +69,9 @@ data ClientDataError
 addClient :: UserId
           -> ClientId
           -> NewClient a
-          -> Maybe IP
           -> Maybe Location
           -> ExceptT ClientDataError AppIO (Client, [Client], Word)
-addClient u newId c ip loc = do
+addClient u newId c loc = do
     clients   <- lift $ lookupClients u
     let typed  = filter ((== newClientType c) . clientType) clients
     let count  = length typed
@@ -102,9 +100,9 @@ addClient u newId c ip loc = do
         let lat = Latitude . view latitude <$> loc
             lon = Longitude . view longitude <$> loc
             mdl = newClientModel c
-            prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, ip, lat, lon, mdl)
+            prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl)
         retry x5 $ write insertClient (params Quorum prm)
-        return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) ip loc mdl
+        return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl
 
 lookupClient :: UserId -> ClientId -> AppIO (Maybe Client)
 lookupClient u c = fmap toClient <$>
@@ -166,8 +164,8 @@ claimPrekey u c = withOptLock u c $ do
 -------------------------------------------------------------------------------
 -- Queries
 
-insertClient :: PrepQuery W (UserId, ClientId, UTCTime, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe IP, Maybe Latitude, Maybe Longitude, Maybe Text) ()
-insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, ip, lat, lon, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+insertClient :: PrepQuery W (UserId, ClientId, UTCTime, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) ()
+insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, lat, lon, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 updateClientLabelQuery :: PrepQuery W (Maybe Text, UserId, ClientId) ()
 updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client = ?"
@@ -175,11 +173,11 @@ updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"
 
-selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe IP, Maybe Latitude, Maybe Longitude, Maybe Text)
-selectClients = "SELECT client, type, tstamp, label, class, cookie, ip, lat, lon, model from clients where user = ?"
+selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
+selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ?"
 
-selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe IP, Maybe Latitude, Maybe Longitude, Maybe Text)
-selectClient = "SELECT client, type, tstamp, label, class, cookie, ip, lat, lon, model from clients where user = ? and client = ?"
+selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
+selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ? and client = ?"
 
 insertClientKey :: PrepQuery W (UserId, ClientId, PrekeyId, Text) ()
 insertClientKey = "INSERT INTO prekeys (user, client, key, data) VALUES (?, ?, ?, ?)"
@@ -205,15 +203,14 @@ checkClient = "SELECT client from clients where user = ? and client = ?"
 -------------------------------------------------------------------------------
 -- Conversions
 
-toClient :: (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe IP, Maybe Latitude, Maybe Longitude, Maybe Text) -> Client
-toClient (cid, cty, tme, lbl, cls, cok, ip, lat, lon, mdl) = Client
+toClient :: (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) -> Client
+toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl) = Client
     { clientId       = cid
     , clientType     = cty
     , clientTime     = tme
     , clientClass    = cls
     , clientLabel    = lbl
     , clientCookie   = cok
-    , clientAddress  = ip
     , clientLocation = location <$> lat <*> lon
     , clientModel    = mdl
     }

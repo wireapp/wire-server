@@ -564,7 +564,7 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
                { newClientPrekeys = Ext.rsNewBotPrekeys rs
                }
     lift $ User.insertAccount (UserAccount usr Active) Nothing True
-    (clt, _, _) <- User.addClient (botUserId bid) bcl newClt Nothing Nothing
+    (clt, _, _) <- User.addClient (botUserId bid) bcl newClt Nothing
                    !>> const (StdError badGateway) -- MalformedPrekeys
 
     -- Add the bot to the conversation
