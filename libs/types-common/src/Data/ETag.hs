@@ -3,6 +3,7 @@
 {-# LANGUAGE GADTs              #-}
 {-# LANGUAGE KindSignatures     #-}
 {-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE PackageImports     #-}
 {-# LANGUAGE TemplateHaskell    #-}
 
 module Data.ETag
@@ -26,8 +27,11 @@ where
 
 import           Control.Applicative
 import           Control.Lens
-import qualified Crypto.Hash.MD5                  as MD5
-import qualified Crypto.Hash.SHA1                 as SHA1
+-- TODO: These package imports are only needed due to the
+-- use of GHCI. They should be removed by moving everything
+-- from cryptohash (which is deprecated) to cryptonite
+import qualified "cryptohash-md5"  Crypto.Hash.MD5  as MD5
+import qualified "cryptohash-sha1" Crypto.Hash.SHA1 as SHA1
 import           Data.Attoparsec.ByteString.Char8
 import qualified Data.ByteString.Base16           as Hex
 import           Data.ByteString.Builder          (byteString)

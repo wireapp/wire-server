@@ -41,12 +41,13 @@ import Data.Char
 import Data.Attoparsec.Text
 import Data.Monoid ((<>))
 import Data.Text (Text, intercalate)
+import Data.Yaml (FromJSON)
 import Gundeck.Types (AppName (..), Transport (..))
 import Network.AWS (Region (..))
 import Network.AWS.Data
 
-newtype ArnEnv     = ArnEnv  { arnEnvText  :: Text } deriving (Show, ToText)
-newtype Account    = Account { fromAccount :: Text } deriving (Eq, Show, ToText)
+newtype ArnEnv     = ArnEnv  { arnEnvText  :: Text } deriving (Show, ToText, FromJSON)
+newtype Account    = Account { fromAccount :: Text } deriving (Eq, Show, ToText, FromJSON)
 newtype EndpointId = EndpointId Text deriving (Eq, Show, ToText)
 
 data SnsArn a = SnsArn

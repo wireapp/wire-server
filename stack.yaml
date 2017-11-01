@@ -46,6 +46,7 @@ extra-deps:
 - data-timeout-0.3
 - geoip2-0.2.2.0
 - html-entities-1.1.4.1
+- lifted-async-0.9.3
 - mime-0.4.0.2
 - snappy-0.2.0.2
 - snappy-framing-0.1.1

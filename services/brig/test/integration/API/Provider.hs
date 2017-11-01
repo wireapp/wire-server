@@ -8,7 +8,6 @@ module API.Provider (tests, Config) where
 
 import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
-import Brig.Options (optOrEnv)
 import Brig.Types
 import Brig.Types.Provider
 import Brig.Types.Provider.Tag
@@ -48,6 +47,7 @@ import Test.Tasty.HUnit
 import Text.Printf (printf)
 import Web.Cookie (SetCookie (..), parseSetCookie)
 import Util
+import Util.Options.Common (optOrEnv)
 
 import qualified Brig.Code                         as Code
 import qualified Brig.Types.Provider.External      as Ext

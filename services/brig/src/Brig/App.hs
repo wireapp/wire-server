@@ -86,6 +86,7 @@ import OpenSSL.EVP.Digest (getDigestByName, Digest)
 import OpenSSL.Session (SSLOption (..))
 import System.Directory (canonicalizePath)
 import System.Logger.Class hiding (Settings, settings)
+import Util.Options
 
 import qualified Bilge                    as RPC
 import qualified Brig.Aws.Types           as Aws
@@ -187,7 +188,7 @@ newEnv o = do
         , _indexEnv      = mkIndexEnv o lgr mgr mtr
         }
   where
-    mkEndpoint service = RPC.host (encodeUtf8 (Opt.host service)) . RPC.port (Opt.port service) $ RPC.empty
+    mkEndpoint service = RPC.host (encodeUtf8 (service^.epHost)) . RPC.port (service^.epPort) $ RPC.empty
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> IndexEnv
 mkIndexEnv o lgr mgr mtr =
@@ -238,6 +239,9 @@ replaceTurnServers g ref e = do
 initAws :: Opts -> Logger -> Manager -> IO (Aws.Env, Aws.Config)
 initAws o l m = do
     let a = Opt.aws o
+    -- TODO: The AWS package can also load them from the env, check the latest API
+    -- https://hackage.haskell.org/package/aws-0.17.1/docs/src/Aws-Core.html#loadCredentialsFromFile
+    -- which would avoid the need to specify them in a config file when running tests
     e <- Aws.newEnv l m (liftM2 (,) (Opt.awsKeyId a) (Opt.awsSecretKey a))
     let c = Aws.config (Aws.Account (Opt.account a))
                        (Aws.SesQueue (Opt.sesQueue a))
@@ -300,13 +304,13 @@ initExtGetManager = do
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g = do
-    c <- maybe (return $ NE.fromList [unpack (Opt.host (Opt.endpoint (Opt.cassandra o)))])
+    c <- maybe (return $ NE.fromList [unpack ((Opt.cassandra o)^.casEndpoint.epHost)])
                (Cas.initialContacts "cassandra_brig")
                (unpack <$> Opt.discoUrl o)
     p <- Cas.init (Log.clone (Just "cassandra.brig") g)
             $ Cas.setContacts (NE.head c) (NE.tail c)
-            . Cas.setPortNumber (fromIntegral (Opt.port (Opt.endpoint (Opt.cassandra o))))
-            . Cas.setKeyspace (Keyspace (Opt.keyspace (Opt.cassandra o)))
+            . Cas.setPortNumber (fromIntegral ((Opt.cassandra o)^.casEndpoint.epPort))
+            . Cas.setKeyspace (Keyspace ((Opt.cassandra o)^.casKeyspace))
             . Cas.setMaxConnections 4
             . Cas.setPoolStripes 4
             . Cas.setSendTimeout 3

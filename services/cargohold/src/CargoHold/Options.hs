@@ -1,55 +1,81 @@
-{-# LANGUAGE StrictData #-}
+{-# LANGUAGE DeriveGeneric   #-}
+{-# LANGUAGE StrictData      #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-module CargoHold.Options (Opts (..), parseOptions) where
+module CargoHold.Options where
 
 import CargoHold.CloudFront (Domain (..), KeyPairId (..))
 import Control.Applicative
-import Data.ByteString (ByteString)
+import Control.Lens
+import Data.Aeson.TH
 import Data.Monoid
 import Data.Text (Text)
-import Data.Word
+import GHC.Generics
 import Options.Applicative
-import Ropes.Aws (AccessKeyId (..), SecretAccessKey (..))
+import Util.Options
+import Util.Options.Common
 
-import qualified Data.ByteString.Char8 as C
-import qualified Data.Text             as T
+import qualified Data.Text as T
+import qualified Ropes.Aws as Aws
+
+data AWSOpts = AWSOpts
+    { _awsKeyId        :: !(Maybe Aws.AccessKeyId)
+    , _awsSecretKey    :: !(Maybe Aws.SecretAccessKey)
+    , _awsS3Bucket     :: Text
+    , _awsCfDomain     :: Domain
+    , _awsCfKeyPairId  :: KeyPairId
+    , _awsCfPrivateKey :: FilePath
+    } deriving (Show, Generic)
+
+deriveFromJSON toFieldName ''AWSOpts
+makeLenses ''AWSOpts
+
+data Settings = Settings
+    { _setMaxTotalBytes :: !Int
+    } deriving (Show, Generic)
+
+deriveFromJSON toFieldName ''Settings
+makeLenses ''Settings
 
 data Opts = Opts
-    { optHost            :: String
-    , optPort            :: Word16
-    , optAwsKeyId        :: Maybe AccessKeyId
-    , optAwsSecKey       :: Maybe SecretAccessKey
-    , optAwsS3Bucket     :: Text
-    , optAwsCFDomain     :: Domain
-    , optAwsCFKeyPairId  :: KeyPairId
-    , optAwsCFPrivateKey :: FilePath
-    , optMaxTotalBytes   :: Int
-    } deriving (Eq)
+    { _optCargohold :: !Endpoint
+    , _optAws       :: !AWSOpts
+    , _optSettings  :: !Settings
+    } deriving (Show, Generic)
+
+deriveFromJSON toFieldName ''Opts
+makeLenses ''Opts
 
 parseOptions :: IO Opts
 parseOptions = execParser (info (helper <*> optsParser) desc)
   where
     desc = header "CargoHold - Asset Service" <> fullDesc
 
-    optsParser :: Parser Opts
-    optsParser = Opts
-        <$> strOption
-                (long "host"
-                <> metavar "HOSTNAME"
-                <> help "hostname or address to bind to")
-
-        <*> option auto
-                (long "port"
-                <> short 'p'
-                <> metavar "PORT"
-                <> help "port to listen on")
-
-        <*> (optional . fmap AccessKeyId . bytesOption $
+optsParser :: Parser Opts
+optsParser = Opts <$>
+    (Endpoint <$>
+        (textOption $
+            long "host" 
+            <> value "*4"
+            <> showDefault
+            <> metavar "HOSTNAME"
+            <> help "Hostname or address to bind to")
+        <*>
+        (option auto $
+            long "port"
+            <> short 'p'
+            <> metavar "PORT"
+            <> help "Port to listen on"))
+    <*> awsParser
+    <*> settingsParser
+  where
+    awsParser :: Parser AWSOpts
+    awsParser = AWSOpts <$>
+            (optional . fmap Aws.AccessKeyId . bytesOption $
                 long "aws-key-id"
                 <> metavar "STRING"
                 <> help "AWS Access Key ID")
-
-        <*> (optional . fmap SecretAccessKey . bytesOption $
+        <*> (optional . fmap Aws.SecretAccessKey . bytesOption $
                 long "aws-secret-key"
                 <> metavar "STRING"
                 <> help "AWS Secret Access Key")
@@ -59,12 +85,12 @@ parseOptions = execParser (info (helper <*> optsParser) desc)
                 <> metavar "STRING"
                 <> help "S3 bucket name")
 
-        <*> (fmap Domain . bytesOption $
+        <*> (fmap Domain . textOption $
                 long "aws-cloudfront-domain"
                 <> metavar "STRING"
                 <> help "AWS CloudFront Domain")
 
-        <*> (fmap KeyPairId . bytesOption $
+        <*> (fmap KeyPairId . textOption $
                 long "aws-cloudfront-keypair-id"
                 <> metavar "STRING"
                 <> help "AWS CloudFront Keypair ID")
@@ -74,13 +100,11 @@ parseOptions = execParser (info (helper <*> optsParser) desc)
                 <> metavar "FILE"
                 <> help "AWS CloudFront Private Key")
 
-        <*> option auto
-                (long "max-total-bytes"
-                <> metavar "INT"
-                <> value (25 * 1024 * 1024)
-                <> showDefault
-                <> help "Maximum allowed size in bytes for uploads")
-
-    bytesOption :: Mod OptionFields String -> Parser ByteString
-    bytesOption = fmap C.pack . strOption
-
+    settingsParser :: Parser Settings
+    settingsParser = Settings <$>
+        option auto
+            (long "max-total-bytes"
+            <> metavar "INT"
+            <> value (25 * 1024 * 1024)
+            <> showDefault
+            <> help "Maximum allowed size in bytes for uploads")

@@ -30,7 +30,7 @@ import Gundeck.Aws.Arn
 import Gundeck.Env
 import Gundeck.Monad
 import Gundeck.Push.Native.Types
-import Gundeck.Options (awsArnEnv, notificationTTL)
+import Gundeck.Options
 import Gundeck.Types
 import Gundeck.Util
 import Network.HTTP.Types
@@ -72,7 +72,7 @@ push (req ::: _) = do
         let uniq  = uncurry list1 $ head &&& tail $ toList rcps
         let tgts  = mkTarget <$> uniq
         unless (p^.pushTransient) $
-            Stream.add i tgts pload =<< view (options.notificationTTL)
+            Stream.add i tgts pload =<< view (options.optSettings.setNotificationTTL)
         void . fork $ do
             prs <- Web.push notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
             pushNative notif p =<< nativeTargets p prs
@@ -221,8 +221,8 @@ addToken (uid ::: cid ::: req ::: _) = do
         let trp = t^.tokenTransport
         let app = t^.tokenApp
         let tok = t^.token
+        env <- view (options.optAws.awsArnEnv)
         aws <- view awsEnv
-        env <- view (options.awsArnEnv)
         ept <- Aws.execute aws (Aws.createEndpoint uid trp env app tok)
         case ept of
             Left (Aws.EndpointInUse arn) -> do
@@ -274,7 +274,7 @@ addToken (uid ::: cid ::: req ::: _) = do
     invalidFallback = Error status403 "invalid-fallback" "Invalid fallback transport."
 
 -- | Update an SNS endpoint with the given user and token.
-updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.Endpoint -> Gundeck ()
+updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.SNSEndpoint -> Gundeck ()
 updateEndpoint uid t arn e = do
     env  <- view awsEnv
     unless (equalTransport && equalApp) $ do
