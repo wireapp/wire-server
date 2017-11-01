@@ -48,7 +48,7 @@ run :: Opts -> IO ()
 run o = do
     m <- metrics
     e <- createEnv m o
-    s <- newSettings $ defaultServer (o^.hostname) (o^.port) (e^.applog) m
+    s <- newSettings $ defaultServer (o^.host) (o^.port) (e^.applog) m
     let rtree    = compile (sitemap e)
     let measured = measureRequests m rtree
     let app r k  = runProxy e r (route rtree r k)
@@ -251,4 +251,3 @@ instance ToBytes S where
         +++ val ","
         +++ statusMessage s
         +++ val ")"
-
