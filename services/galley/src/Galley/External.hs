@@ -96,8 +96,8 @@ deliver1 s bm e
         let HttpsUrl url = u
         recovering x3 httpHandlers $ const $
             sendMessage (s^.serviceFingerprints) $ method POST
-                . maybe   id host (urlHost u)
-                . maybe   id port (urlPort u)
+                . maybe   id         host (urlHost u)
+                . maybe   (port 443) port (urlPort u)
                 . paths   [url^.pathL, "bots", toByteString' b, "messages"]
                 . header  "Authorization" ("Bearer " <> t)
                 . json    e
