@@ -34,74 +34,79 @@ import qualified Data.List1               as List1
 import qualified Data.Map.Strict          as Map
 import qualified Data.Set                 as Set
 import qualified Data.Text                as T
-import qualified Galley.Aws               as Aws
 import qualified Test.Tasty.Cannon        as WS
 
-tests :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> IO TestTree
-tests g b c a = do
-    m <- newManager defaultManagerSettings
-    pure $ testGroup "Galley integration tests" [ mainTests m, teamTests m ]
+type TestSignature a = Galley -> Brig -> Cannon -> Http a
+
+test :: IO TestSetup -> TestName -> (TestSignature a) -> TestTree
+test s n h = testCase n runTest
   where
-    mainTests m = testGroup "Main API"
-        [ test m "status" (status g)
-        , test m "monitoring" (monitor g)
-        , test m "create conversation" (postConvOk g b c)
-        , test m "get empty conversations" (getConvsOk g b)
-        , test m "get conversations by ids" (getConvsOk2 g b)
-        , test m "fail to get >100 conversations" (getConvsFailMaxSize g b)
-        , test m "get conversation ids" (getConvIdsOk g b)
-        , test m "paginate through conversation ids" (paginateConvIds g b)
-        , test m "fail to get >1000 conversation ids" (getConvIdsFailMaxSize g b)
-        , test m "page through conversations" (getConvsPagingOk g b)
-        , test m "fail to create conversation when not connected" (postConvFailNotConnected g b)
-        , test m "M:N conversation creation must have <129 members" (postConvFailNumMembers g b)
-        , test m "create self conversation" (postSelfConvOk g b)
-        , test m "create 1:1 conversation" (postO2OConvOk g b)
-        , test m "fail to create 1:1 conversation with yourself" (postConvO2OFailWithSelf g b)
-        , test m "create connect conversation" (postConnectConvOk g b)
-        , test m "create connect conversation with email" (postConnectConvOk2 g b)
-        , test m "upgrade connect/invite conversation" (putConvAcceptOk g b)
-        , test m "upgrade conversation retries" (putConvAcceptRetry g b)
-        , test m "create mutual connect conversation" (postMutualConnectConvOk g b)
-        , test m "repeat / cancel connect requests" (postRepeatConnectConvCancel g b)
-        , test m "block/unblock a connect/1-1 conversation" (putBlockConvOk g b)
-        , test m "get conversation" (getConvOk g b)
-        , test m "conversation meta access" (accessConvMeta g b)
-        , test m "add members" (postMembersOk g b)
-        , test m "add existing members" (postMembersOk2 g b)
-        , test m "add past members" (postMembersOk3 g b)
-        , test m "fail to add members when not connected" (postMembersFail g b)
-        , test m "fail to add too many members" (postTooManyMembersFail g b)
-        , test m "remove members" (deleteMembersOk g b)
-        , test m "fail to remove members from self conv." (deleteMembersFailSelf g b)
-        , test m "fail to remove members from 1:1 conv." (deleteMembersFailO2O g b)
-        , test m "rename conversation" (putConvRenameOk g b c)
-        , test m "member update (otr mute)" (putMemberOtrMuteOk g b c)
-        , test m "member update (otr archive)" (putMemberOtrArchiveOk g b c)
-        , test m "member update (hidden)" (putMemberHiddenOk g b c)
-        , test m "member update (everything b)" (putMemberAllOk g b c)
-        , test m "send typing indicators" (postTypingIndicators g b)
-        , test m "leave connect conversation" (leaveConnectConversation g b)
-        , test m "post cryptomessage 1" (postCryptoMessage1 g b c)
-        , test m "post cryptomessage 2" (postCryptoMessage2 g b)
-        , test m "post cryptomessage 3" (postCryptoMessage3 g b)
-        , test m "post cryptomessage 4" (postCryptoMessage4 g b)
-        , test m "post cryptomessage 5" (postCryptoMessage5 g b)
-        , test m "join conversation" (postJoinConvOk g b c)
-        , test m "cannot join private conversation" (postJoinConvFail g b)
-        , test m "remove user" (removeUser g b c)
+    runTest = do
+        setup <- s
+        (void $ runHttpT (manager setup) (h (galley setup) (brig setup) (cannon setup)))
+
+tests :: IO TestSetup -> TestTree
+tests s = testGroup "Galley integration tests" [ mainTests, Teams.tests s ]
+  where
+    mainTests = testGroup "Main API"
+        [ test s "status" status
+        , test s "monitoring" monitor
+        , test s "create conversation" postConvOk
+        , test s "get empty conversations" getConvsOk
+        , test s "get conversations by ids" getConvsOk2
+        , test s "fail to get >100 conversations" getConvsFailMaxSize
+        , test s "get conversation ids" getConvIdsOk
+        , test s "paginate through conversation ids" paginateConvIds
+        , test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize
+        , test s "page through conversations" getConvsPagingOk
+        , test s "fail to create conversation when not connected" postConvFailNotConnected
+        , test s "M:N conversation creation must have <129 members" postConvFailNumMembers
+        , test s "create self conversation" postSelfConvOk
+        , test s "create 1:1 conversation" postO2OConvOk
+        , test s "fail to create 1:1 conversation with yourself" postConvO2OFailWithSelf
+        , test s "create connect conversation" postConnectConvOk
+        , test s "create connect conversation with email" postConnectConvOk2
+        , test s "upgrade connect/invite conversation" putConvAcceptOk
+        , test s "upgrade conversation retries" putConvAcceptRetry
+        , test s "create mutual connect conversation" postMutualConnectConvOk
+        , test s "repeat / cancel connect requests" postRepeatConnectConvCancel
+        , test s "block/unblock a connect/1-1 conversation" putBlockConvOk
+        , test s "get conversation" getConvOk
+        , test s "conversation meta access" accessConvMeta
+        , test s "add members" postMembersOk
+        , test s "add existing members" postMembersOk2
+        , test s "add past members" postMembersOk3
+        , test s "fail to add members when not connected" postMembersFail
+        , test s "fail to add too many members" postTooManyMembersFail
+        , test s "remove members" deleteMembersOk
+        , test s "fail to remove members from self conv." deleteMembersFailSelf
+        , test s "fail to remove members from 1:1 conv." deleteMembersFailO2O
+        , test s "rename conversation" putConvRenameOk
+        , test s "member update (otr mute)" putMemberOtrMuteOk
+        , test s "member update (otr archive)" putMemberOtrArchiveOk
+        , test s "member update (hidden)" putMemberHiddenOk
+        , test s "member update (everything b)" putMemberAllOk
+        , test s "send typing indicators" postTypingIndicators
+        , test s "leave connect conversation" leaveConnectConversation
+        , test s "post cryptomessage 1" postCryptoMessage1
+        , test s "post cryptomessage 2" postCryptoMessage2
+        , test s "post cryptomessage 3" postCryptoMessage3
+        , test s "post cryptomessage 4" postCryptoMessage4
+        , test s "post cryptomessage 5" postCryptoMessage5
+        , test s "join conversation" postJoinConvOk
+        , test s "cannot join private conversation" postJoinConvFail
+        , test s "remove user" removeUser
         ]
-    teamTests m = Teams.tests g b c m a
 
 -------------------------------------------------------------------------------
 -- API Tests
 
-status :: Galley -> Http ()
-status g = get (g . path "/i/status") !!!
+status :: Galley -> Brig -> Cannon -> Http ()
+status g _ _ = get (g . path "/i/status") !!!
     const 200 === statusCode
 
-monitor :: Galley -> Http ()
-monitor g =
+monitor :: Galley -> Brig -> Cannon -> Http ()
+monitor g _ _ =
     get (g . path "/i/monitoring") !!! do
         const 200 === statusCode
         const (Just "application/json") =~= getHeader "Content-Type"
@@ -222,8 +227,8 @@ postCryptoMessage1 g b c = do
             Left  _ -> return () -- expected
             Right _ -> assertFailure "Unexpected message"
 
-postCryptoMessage2 :: Galley -> Brig -> Http ()
-postCryptoMessage2 g b = do
+postCryptoMessage2 :: Galley -> Brig -> Cannon -> Http ()
+postCryptoMessage2 g b _ = do
     (alice, ac) <- randomUserWithClient b (someLastPrekeys !! 0)
     (bob,   bc) <- randomUserWithClient b (someLastPrekeys !! 1)
     (eve,   ec) <- randomUserWithClient b (someLastPrekeys !! 2)
@@ -243,8 +248,8 @@ postCryptoMessage2 g b = do
         Map.keys (userClientMap p) @=? [eve]
         Map.keys <$> Map.lookup eve (userClientMap p) @=? Just [ec]
 
-postCryptoMessage3 :: Galley -> Brig -> Http ()
-postCryptoMessage3 g b = do
+postCryptoMessage3 :: Galley -> Brig -> Cannon -> Http ()
+postCryptoMessage3 g b _ = do
     (alice, ac) <- randomUserWithClient b (someLastPrekeys !! 0)
     (bob,   bc) <- randomUserWithClient b (someLastPrekeys !! 1)
     (eve,   ec) <- randomUserWithClient b (someLastPrekeys !! 2)
@@ -265,8 +270,8 @@ postCryptoMessage3 g b = do
         Map.keys (userClientMap p) @=? [eve]
         Map.keys <$> Map.lookup eve (userClientMap p) @=? Just [ec]
 
-postCryptoMessage4 :: Galley -> Brig -> Http ()
-postCryptoMessage4 g b = do
+postCryptoMessage4 :: Galley -> Brig -> Cannon -> Http ()
+postCryptoMessage4 g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     bc    <- randomClient b bob (someLastPrekeys !! 0)
@@ -278,8 +283,8 @@ postCryptoMessage4 g b = do
     postProtoOtrMessage g alice (ClientId "172618352518396") conv m !!!
         const 403 === statusCode
 
-postCryptoMessage5 :: Galley -> Brig -> Http ()
-postCryptoMessage5 g b = do
+postCryptoMessage5 :: Galley -> Brig -> Cannon -> Http ()
+postCryptoMessage5 g b _ = do
     (alice, ac) <- randomUserWithClient b (someLastPrekeys !! 0)
     (bob,   bc) <- randomUserWithClient b (someLastPrekeys !! 1)
     (eve,   ec) <- randomUserWithClient b (someLastPrekeys !! 2)
@@ -330,22 +335,22 @@ postJoinConvOk g b c = do
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
             wsAssertMemberJoin conv bob [bob]
 
-postJoinConvFail :: Galley -> Brig -> Http ()
-postJoinConvFail g b = do
+postJoinConvFail :: Galley -> Brig -> Cannon -> Http ()
+postJoinConvFail g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") []
     void $ postJoinConv g bob conv !!! const 404 === statusCode
 
-getConvsOk :: Galley -> Brig -> Http ()
-getConvsOk g b = do
+getConvsOk :: Galley -> Brig -> Cannon -> Http ()
+getConvsOk g b _ = do
     usr <- randomUser b
     getConvs g usr Nothing Nothing !!! do
         const 200           === statusCode
         const [toUUID usr]  === map (toUUID . cnvId) . decodeConvList
 
-getConvsOk2 :: Galley -> Brig -> Http ()
-getConvsOk2 g b = do
+getConvsOk2 :: Galley -> Brig -> Cannon -> Http ()
+getConvsOk2 g b _ = do
     [alice, bob] <- randomUsers b 2
     connectUsers b alice (singleton bob)
     -- create & get one2one conv
@@ -375,14 +380,14 @@ getConvsOk2 g b = do
         assertEqual "other members mismatch" (Just [])
             ((\c -> cmOthers (cnvMembers c) \\ cmOthers (cnvMembers expected)) <$> actual)
 
-getConvsFailMaxSize :: Galley -> Brig -> Http ()
-getConvsFailMaxSize g b = do
+getConvsFailMaxSize :: Galley -> Brig -> Cannon -> Http ()
+getConvsFailMaxSize g b _ = do
     usr <- randomUser b
     getConvs g usr Nothing (Just 501) !!!
         const 400 === statusCode
 
-getConvIdsOk :: Galley -> Brig -> Http ()
-getConvIdsOk g b = do
+getConvIdsOk :: Galley -> Brig -> Cannon -> Http ()
+getConvIdsOk g b _ = do
     [alice, bob] <- randomUsers b 2
     connectUsers b alice (singleton bob)
     void $ postO2OConv g alice bob (Just "gossip")
@@ -393,8 +398,8 @@ getConvIdsOk g b = do
         const 200 === statusCode
         const 2   === length . decodeConvIdList
 
-paginateConvIds :: Galley -> Brig -> Http ()
-paginateConvIds g b = do
+paginateConvIds :: Galley -> Brig -> Cannon -> Http ()
+paginateConvIds g b _ = do
     [alice, bob, eve] <- randomUsers b 3
     connectUsers b alice (singleton bob)
     connectUsers b alice (singleton eve)
@@ -411,14 +416,14 @@ paginateConvIds g b = do
             convHasMore c       @?= n > 0
         return (Just (Right (last (convList c))))
 
-getConvIdsFailMaxSize :: Galley -> Brig -> Http ()
-getConvIdsFailMaxSize g b = do
+getConvIdsFailMaxSize :: Galley -> Brig -> Cannon -> Http ()
+getConvIdsFailMaxSize g b _ = do
     usr <- randomUser b
     getConvIds g usr Nothing (Just 1001) !!!
         const 400 === statusCode
 
-getConvsPagingOk :: Galley -> Brig -> Http ()
-getConvsPagingOk g b = do
+getConvsPagingOk :: Galley -> Brig -> Cannon -> Http ()
+getConvsPagingOk g b _ = do
     [ally, bill, carl] <- randomUsers b 3
     connectUsers b ally (list1 bill [carl])
     replicateM_ 11 $ postConv g ally [bill, carl] (Just "gossip") []
@@ -440,8 +445,8 @@ getConvsPagingOk g b = do
 
         return $ ids1 >>= listToMaybe . reverse
 
-postConvFailNotConnected :: Galley -> Brig -> Http ()
-postConvFailNotConnected g b = do
+postConvFailNotConnected :: Galley -> Brig -> Cannon -> Http ()
+postConvFailNotConnected g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     jane  <- randomUser b
@@ -449,8 +454,8 @@ postConvFailNotConnected g b = do
         const 403 === statusCode
         const (Just "not-connected") === fmap label . decodeBody
 
-postConvFailNumMembers :: Galley -> Brig -> Http ()
-postConvFailNumMembers g b = do
+postConvFailNumMembers :: Galley -> Brig -> Cannon -> Http ()
+postConvFailNumMembers g b _ = do
     alice <- randomUser b
     bob:others <- replicateM 128 (randomUser b)
     connectUsers b alice (list1 bob others)
@@ -458,8 +463,8 @@ postConvFailNumMembers g b = do
         const 400 === statusCode
         const (Just "client-error") === fmap label . decodeBody
 
-postSelfConvOk :: Galley -> Brig  -> Http ()
-postSelfConvOk g b = do
+postSelfConvOk :: Galley -> Brig -> Cannon -> Http ()
+postSelfConvOk g b _ = do
     alice <- randomUser b
     m <- postSelfConv g alice <!! const 200 === statusCode
     n <- postSelfConv g alice <!! const 200 === statusCode
@@ -467,8 +472,8 @@ postSelfConvOk g b = do
     nId <- assertConv n SelfConv alice alice [] Nothing
     liftIO $ mId @=? nId
 
-postO2OConvOk :: Galley -> Brig -> Http ()
-postO2OConvOk g b = do
+postO2OConvOk :: Galley -> Brig -> Cannon -> Http ()
+postO2OConvOk g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     connectUsers b alice (singleton bob)
@@ -478,16 +483,16 @@ postO2OConvOk g b = do
     cId <- assertConv c One2OneConv alice alice [bob] (Just "chat")
     liftIO $ aId @=? cId
 
-postConvO2OFailWithSelf :: Galley -> Brig -> Http ()
-postConvO2OFailWithSelf g b = do
+postConvO2OFailWithSelf :: Galley -> Brig -> Cannon -> Http ()
+postConvO2OFailWithSelf g b _ = do
     alice <- randomUser b
     let inv = NewConv [alice] Nothing mempty Nothing
     post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
         const 403 === statusCode
         const (Just "invalid-op") === fmap label . decodeBody
 
-postConnectConvOk :: Galley -> Brig  -> Http ()
-postConnectConvOk g b = do
+postConnectConvOk :: Galley -> Brig -> Cannon -> Http ()
+postConnectConvOk g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     m <- postConnectConv g alice bob "Alice" "connect with me!" Nothing <!!
@@ -498,8 +503,8 @@ postConnectConvOk g b = do
     nId <- assertConv n ConnectConv alice alice [] (Just "Alice")
     liftIO $ mId @=? nId
 
-postConnectConvOk2 :: Galley -> Brig  -> Http ()
-postConnectConvOk2 g b = do
+postConnectConvOk2 :: Galley -> Brig -> Cannon -> Http ()
+postConnectConvOk2 g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     m <- decodeConvId <$> request alice bob
@@ -509,8 +514,8 @@ postConnectConvOk2 g b = do
     request alice bob =
         postConnectConv g alice bob "Alice" "connect with me!" (Just "me@me.com")
 
-putConvAcceptOk :: Galley -> Brig  -> Http ()
-putConvAcceptOk g b = do
+putConvAcceptOk :: Galley -> Brig -> Cannon -> Http ()
+putConvAcceptOk g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     cnv   <- decodeConvId <$> postConnectConv g alice bob "Alice" "come to zeta!" Nothing
@@ -522,8 +527,8 @@ putConvAcceptOk g b = do
         const 200 === statusCode
         const (Just One2OneConv) === fmap cnvType . decodeBody
 
-putConvAcceptRetry :: Galley -> Brig -> Http ()
-putConvAcceptRetry g b = do
+putConvAcceptRetry :: Galley -> Brig -> Cannon -> Http ()
+putConvAcceptRetry g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     connectUsers b alice (singleton bob)
@@ -531,8 +536,8 @@ putConvAcceptRetry g b = do
     -- If the conversation type is already One2One, everything is 200 OK
     putConvAccept g bob cnv !!! const 200 === statusCode
 
-postMutualConnectConvOk :: Galley -> Brig -> Http ()
-postMutualConnectConvOk g b = do
+postMutualConnectConvOk :: Galley -> Brig -> Cannon -> Http ()
+postMutualConnectConvOk g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     ac <- postConnectConv g alice bob "A" "a" Nothing <!!
@@ -545,8 +550,8 @@ postMutualConnectConvOk g b = do
     bcId <- assertConv bc One2OneConv alice bob [alice] (Just "A")
     liftIO $ acId @=? bcId
 
-postRepeatConnectConvCancel :: Galley -> Brig -> Http ()
-postRepeatConnectConvCancel g b = do
+postRepeatConnectConvCancel :: Galley -> Brig -> Cannon -> Http ()
+postRepeatConnectConvCancel g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
 
@@ -603,8 +608,8 @@ postRepeatConnectConvCancel g b = do
             const 200 === statusCode
         getConv g u (cnvId c) !!! const 404 === statusCode
 
-putBlockConvOk :: Galley -> Brig  -> Http ()
-putBlockConvOk g b = do
+putBlockConvOk :: Galley -> Brig -> Cannon -> Http ()
+putBlockConvOk g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     conv  <- decodeBody' "conversation" <$> postConnectConv g alice bob "Alice" "connect with me!" (Just "me@me.com")
@@ -640,8 +645,8 @@ putBlockConvOk g b = do
     getConv g bob (cnvId conv) !!! do
         const 200 === statusCode
 
-getConvOk :: Galley -> Brig -> Http ()
-getConvOk g b = do
+getConvOk :: Galley -> Brig -> Cannon -> Http ()
+getConvOk g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     chuck <- randomUser b
@@ -651,8 +656,8 @@ getConvOk g b = do
     getConv g bob   conv !!! const 200 === statusCode
     getConv g chuck conv !!! const 200 === statusCode
 
-accessConvMeta :: Galley -> Brig -> Http ()
-accessConvMeta g b = do
+accessConvMeta :: Galley -> Brig -> Cannon -> Http ()
+accessConvMeta g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     chuck <- randomUser b
@@ -663,16 +668,16 @@ accessConvMeta g b = do
         const 200         === statusCode
         const (Just meta) === (decode <=< responseBody)
 
-leaveConnectConversation :: Galley -> Brig -> Http ()
-leaveConnectConversation g b = do
+leaveConnectConversation :: Galley -> Brig -> Cannon -> Http ()
+leaveConnectConversation g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     bdy   <- postConnectConv g alice bob "alice" "ni" Nothing <!! const 201 === statusCode
     let c = fromMaybe (error "invalid connect conversation") (cnvId <$> decodeBody bdy)
     deleteMember g alice alice c !!! const 403 === statusCode
 
-postMembersOk :: Galley -> Brig -> Http ()
-postMembersOk g b = do
+postMembersOk :: Galley -> Brig -> Cannon -> Http ()
+postMembersOk g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     chuck <- randomUser b
@@ -686,8 +691,8 @@ postMembersOk g b = do
         _ <- getSelfMember g u conv <!! const 200 === statusCode
         return ()
 
-postMembersOk2 :: Galley -> Brig -> Http ()
-postMembersOk2 g b = do
+postMembersOk2 :: Galley -> Brig -> Cannon -> Http ()
+postMembersOk2 g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     chuck <- randomUser b
@@ -699,8 +704,8 @@ postMembersOk2 g b = do
     liftIO $
         assertEqual "wrong self member" (memId <$> chuck') (Just chuck)
 
-postMembersOk3 :: Galley -> Brig -> Http ()
-postMembersOk3 g b = do
+postMembersOk3 :: Galley -> Brig -> Cannon -> Http ()
+postMembersOk3 g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     eve   <- randomUser b
@@ -719,8 +724,8 @@ postMembersOk3 g b = do
     -- Fetch bob again
     getSelfMember g bob conv !!! const 200 === statusCode
 
-postMembersFail :: Galley -> Brig -> Http ()
-postMembersFail g b = do
+postMembersFail :: Galley -> Brig -> Cannon -> Http ()
+postMembersFail g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     chuck <- randomUser b
@@ -736,8 +741,8 @@ postMembersFail g b = do
     void $ connectUsers b chuck (singleton eve)
     postMembers g chuck (singleton eve) conv !!! const 204 === statusCode
 
-postTooManyMembersFail :: Galley -> Brig -> Http ()
-postTooManyMembersFail g b = do
+postTooManyMembersFail :: Galley -> Brig -> Cannon -> Http ()
+postTooManyMembersFail g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     chuck <- randomUser b
@@ -748,8 +753,8 @@ postTooManyMembersFail g b = do
         const 403 === statusCode
         const (Just "too-many-members") === fmap label . decodeBody
 
-deleteMembersOk :: Galley -> Brig -> Http ()
-deleteMembersOk g b = do
+deleteMembersOk :: Galley -> Brig -> Cannon -> Http ()
+deleteMembersOk g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     eve   <- randomUser b
@@ -762,14 +767,14 @@ deleteMembersOk g b = do
     deleteMember g alice alice conv !!! const 200 === statusCode
     deleteMember g alice alice conv !!! const 404 === statusCode
 
-deleteMembersFailSelf :: Galley -> Brig  -> Http ()
-deleteMembersFailSelf g b = do
+deleteMembersFailSelf :: Galley -> Brig -> Cannon -> Http ()
+deleteMembersFailSelf g b _ = do
     alice <- randomUser b
     self  <- decodeConvId <$> postSelfConv g alice
     deleteMember g alice alice self !!! const 403 === statusCode
 
-deleteMembersFailO2O :: Galley -> Brig -> Http ()
-deleteMembersFailO2O g b = do
+deleteMembersFailO2O :: Galley -> Brig -> Cannon -> Http ()
+deleteMembersFailO2O g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     connectUsers b alice (singleton bob)
@@ -878,8 +883,8 @@ putMemberOk update g b ca = do
         assertEqual  "hidden"           (memHidden memberBob)         (memHidden newBob)
         assertEqual  "hidden__ref"      (memHiddenRef memberBob)      (memHiddenRef newBob)
 
-postTypingIndicators :: Galley -> Brig -> Http ()
-postTypingIndicators g b = do
+postTypingIndicators :: Galley -> Brig -> Cannon -> Http ()
+postTypingIndicators g b _ = do
     alice <- randomUser b
     bob   <- randomUser b
     connectUsers b alice (singleton bob)

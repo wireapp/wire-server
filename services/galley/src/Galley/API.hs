@@ -18,6 +18,7 @@ import Data.Misc
 import Data.Range
 import Data.Set (Set)
 import Data.Swagger.Build.Api hiding (def, min, Response)
+import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Galley.App
 import Galley.API.Clients
@@ -38,6 +39,7 @@ import Network.Wai.Utilities.ZAuth
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.Server hiding (serverPort)
 import Prelude hiding (head)
+import Util.Options
 
 import qualified Control.Concurrent.Async      as Async
 import qualified Data.Predicate                as P
@@ -58,7 +60,10 @@ run o = do
     m <- metrics
     e <- createEnv m o
     let l = e^.applog
-    s <- newSettings $ defaultServer (o^.hostname) (portNumber $ o^.serverPort) l m
+    s <- newSettings $ defaultServer (unpack $ o^.optGalley.epHost)
+                                     (portNumber $ fromIntegral $ o^.optGalley.epPort)
+                                     l
+                                     m
     runClient (e^.cstate) $
         versionCheck Data.schemaVersion
     d <- Async.async $ evalGalley e Internal.deleteLoop

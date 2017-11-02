@@ -35,7 +35,7 @@ exec chpst -u $USER \
     --gundeck-port=${GALLEY_GUNDECK_PORT?'unset'} \
     --cassandra-host=${GALLEY_CASSANDRA_HOST?'unset'} \
     --cassandra-port=${GALLEY_CASSANDRA_PORT?'unset'} \
-    --keyspace=${GALLEY_CASSANDRA_KEYSPACE?'unset'} \
+    --cassandra-keyspace=${GALLEY_CASSANDRA_KEYSPACE?'unset'} \
     --disco-url=${GALLEY_DISCO_URL?'unset'} \
     --http-pool-size=${GALLEY_HTTP_POOL_SIZE:-128} \
     --team-events-queue-name=${GALLEY_SQS_TEAM_EVENTS?'unset'} \
