@@ -66,7 +66,8 @@ zauth:
 turn:
   servers: test/resources/turn/servers.txt
   secret: test/resources/turn/secret.txt
-  lifetime: 3600
+  configTTL: 3600
+  tokenTTL: 21600
 
 optSettings:
   setActivationTimeout: 5
