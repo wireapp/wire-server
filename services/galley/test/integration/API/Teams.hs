@@ -663,8 +663,8 @@ testUpdateTeamMember g b c a = do
             ) !!! const 200 === statusCode
         member' <- Util.getTeamMember g owner tid (member^.userId)
         liftIO $ assertEqual "permissions" (member'^.permissions) (changeMember^.ntmNewTeamMember.permissions)
-        checkTeamMemberUpdateEvent tid (member^.userId) wsOwner
-        checkTeamMemberUpdateEvent tid (member^.userId) wsMember
+        checkTeamMemberUpdateEvent tid (member^.userId) wsOwner (pure fullPermissions)
+        checkTeamMemberUpdateEvent tid (member^.userId) wsMember (pure fullPermissions)
         WS.assertNoEvent timeout [wsOwner, wsMember]
     -- Now that the other member has full permissions, it can demote the owner
     WS.bracketR2 c (member^.userId) owner $ \(wsMember, wsOwner) -> do
@@ -676,17 +676,18 @@ testUpdateTeamMember g b c a = do
             ) !!! const 200 === statusCode
         owner' <- Util.getTeamMember g (member^.userId) tid owner
         liftIO $ assertEqual "permissions" (owner'^.permissions) (changeOwner^.ntmNewTeamMember.permissions)
-        checkTeamMemberUpdateEvent tid owner wsOwner
-        checkTeamMemberUpdateEvent tid owner wsMember
+        -- owner no longer has GetPermissions so can't see actual update
+        checkTeamMemberUpdateEvent tid owner wsOwner Nothing
+        checkTeamMemberUpdateEvent tid owner wsMember (pure p)
         WS.assertNoEvent timeout [wsOwner, wsMember]
     assertQueueEmpty a
   where
-    checkTeamMemberUpdateEvent tid uid w = WS.assertMatch_ timeout w $ \notif -> do
+    checkTeamMemberUpdateEvent tid uid w mPerm = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
         e^.eventType @?= MemberUpdate
         e^.eventTeam @?= tid
-        e^.eventData @?= Just (EdMemberUpdate uid)
+        e^.eventData @?= Just (EdMemberUpdate uid mPerm)
 
 testUpdateTeamStatus :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testUpdateTeamStatus g b _ a = do
