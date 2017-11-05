@@ -1,0 +1,212 @@
+# This version reuses our services from quay
+# version: '3'
+# services:
+# cassandra:
+#   hostname: cassandra
+#   image: cassandra:3.11.0
+#   command: /bin/bash -c "sleep 1 && echo ' -- Pausing to let system catch up ... -->' && /docker-entrypoint.sh cassandra -f"
+#   ports:
+#     - 7000:7000
+#     - 7001:7001
+#     - 7199:7199
+#     - 9042:9042
+#     - 9160:9160
+# gundeck-redis:
+#   image: "redis:alpine"
+# gundeck:
+#   env_file: services/.env
+#   image: "quay.io/wire/gundeck"
+#   TODO: Use wait-for
+#   entrypoint: 'sh -c "while true; do gundeck -c /config/gundeck.yaml.example; sleep 5; done"'
+#   ports:
+#     - 8001:8001
+#   volumes:
+#     - ./services/gundeck:/config
+
+# This version builds the service from scratch
+version: '3'
+services:
+  # Data services
+  # cassandra:
+  #   hostname: cassandra
+  #   image: cassandra:3.11
+  #   command: /bin/bash -c "sleep 1 && echo ' -- Pausing to let system catch up ... -->' && /docker-entrypoint.sh cassandra -f"
+  #   ports:
+  #     - 5000:7000
+  #     - 5001:7001
+  #     - 5199:7199
+  #     - 7042:9042
+  #     - 7160:9160
+  # redis:
+  #   image: "redis:alpine"
+
+  localstack_s3:
+    image: localstack/localstack
+    ports:
+      - "10000:8080"
+      - "11000:443"
+    environment:
+      - USE_SSL=TRUE
+      - DEBUG=1
+      - DEFAULT_REGION=eu-west-1
+      - SERVICES=s3:443
+
+  localstack_sqs:
+    image: localstack/localstack
+    ports:
+      - "10001:8080"
+      - "11001:443"
+    environment:
+      - USE_SSL=TRUE
+      - DEBUG=1
+      - DEFAULT_REGION=eu-west-1
+      - SERVICES=sqs:443
+
+  localstack_dynamodb:
+    image: localstack/localstack
+    ports:
+      - "10002:8080"
+      - "11002:443"
+    environment:
+      - USE_SSL=TRUE
+      - DEBUG=1
+      - DEFAULT_REGION=eu-west-1
+      - SERVICES=dynamodb:443
+
+  localstack_ses:
+    image: localstack/localstack
+    ports:
+      - "10003:8080"
+      - "11003:443"
+    environment:
+      - USE_SSL=TRUE
+      - DEBUG=1
+      - DEFAULT_REGION=eu-west-1
+      - SERVICES=ses:443
+
+  # aws_cli:
+  #   image: mesosphere/aws-cli
+  #   links:
+  #     - localstack_sqs:sqs
+  #     - localstack_dynamodb:dynamodb
+  #     - localstack_s3:s3
+  #   depends_on:
+  #     - localstack_s3
+  #     - localstack_ses
+  #     - localstack_sqs
+  #     - localstack_dynamodb
+  #   entrypoint: /scripts/aws.sh
+  #   volumes:
+  #     - ./init:/scripts
+
+  # #  
+  # # Cassandra init containers
+  # #
+  # brig-schema:
+  #   env_file: ../../services/.env
+  #   build:
+  #     context: ../..
+  #     dockerfile: services/brig/Dockerfile
+  #     args:
+  #       service: brig
+  #       executable: brig-schema
+  #   entrypoint: 'sh -c "until brig-schema --host cassandra --keyspace brig_test --replication-factor 1; do echo \"DB still not up, retrying in 5 secs\"; sleep 5; done"'
+  # galley-schema:
+  #   env_file: ../../services/.env
+  #   build:
+  #     context: ../..
+  #     dockerfile: build/alpine/Dockerfile
+  #     args:
+  #       service: galley
+  #       executable: galley-schema
+  #   entrypoint: 'sh -c "until galley-schema --host cassandra --keyspace galley_test --replication-factor 1; do echo \"DB still not up, retrying in 5 secs\"; sleep 5; done"'
+  # gundeck-schema:
+  #   env_file: ../../services/.env
+  #   build:
+  #     context: ../..
+  #     dockerfile: build/alpine/Dockerfile
+  #     args:
+  #       service: gundeck
+  #       executable: gundeck-schema
+  #   entrypoint: 'sh -c "until gundeck-schema --host cassandra --keyspace gundeck_test --replication-factor 1; do echo \"DB still not up, retrying in 5 secs\"; sleep 5; done"'
+
+  #
+  # Stateless services
+  #
+  # brig:
+  #   env_file: ../../services/.env
+  #   build:
+  #     context: ../..
+  #     dockerfile: services/brig/Dockerfile
+  #     args:
+  #       service: brig
+  #   #TODO: Create some random keys and turn secrets
+  #   entrypoint: 'sh -c "while true; do brig -c /config/brig.yml; sleep 5; done"'
+  #   links:
+  #     # NOTE: the used aws library uses the "old" name eu-west-1.queue.amazonaws.com
+  #     - localstack_sqs:sqs.eu-west-1.amazonaws.com
+  #     - localstack_sqs:eu-west-1.queue.amazonaws.com
+  #     - localstack_dynamodb:dynamodb.eu-west-1.amazonaws.com
+  #     - localstack_ses:email.eu-west-1.amazonaws.com
+  #   ports:
+  #     - 8082:8082
+  #   volumes:
+  #     - ./conf:/config
+
+  # cannon:
+  #   env_file: ../../services/.env
+  #   build:
+  #     context: ../..
+  #     dockerfile: build/alpine/Dockerfile
+  #     args:
+  #       service: cannon
+  #   entrypoint: 'sh -c "while true; do cannon -c /config/cannon.yml; sleep 5; done"'
+  #   ports:
+  #     - 8081:8081
+  #   volumes:
+  #     - ./conf:/config
+
+  # cargohold:
+  #   env_file: ../../services/.env
+  #   build:
+  #     context: ../..
+  #     dockerfile: build/alpine/Dockerfile
+  #     args:
+  #       service: cargohold
+  #   entrypoint: 'sh -c "while true; do cargohold -c /config/cargohold.yml; sleep 5; done"'
+  #   # TODO: Allow skipping cloudfront and getting an S3 link only
+  #   links:
+  #     - localstack_s3:local-cargohold.s3-eu-west-1.amazonaws.com
+  #   ports:
+  #     - 8084:8084
+  #   volumes:
+  #     - ./conf:/config
+
+  # galley:
+  #   env_file: ../../services/.env
+  #   build:
+  #     context: ../..
+  #     dockerfile: build/alpine/Dockerfile
+  #     args:
+  #       service: galley
+  #   entrypoint: 'sh -c "while true; do galley -c /config/galley.yml; sleep 5; done"'
+  #   ports:
+  #     - 8085:8085
+  #   volumes:
+  #     - ./conf:/config
+
+  # gundeck:
+  #   env_file: ../../services/.env
+  #   build:
+  #     context: ../..
+  #     dockerfile: build/alpine/Dockerfile
+  #     args:
+  #       service: gundeck
+  #       executable: gundeck
+  #   entrypoint: 'sh -c "while true; do gundeck -c /config/gundeck.yml; sleep 5; done"'
+  #   links:
+  #     - localstack_sqs:sqs.eu-west-1.amazonaws.com
+  #   ports:
+  #     - 8086:8086
+  #   volumes:
+  #     - ./conf:/config

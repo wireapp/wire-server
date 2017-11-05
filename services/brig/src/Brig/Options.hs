@@ -155,6 +155,9 @@ data Opts = Opts
 
     -- Runtime settings
     , optSettings :: !Settings
+
+    -- For testing purposes
+    , optSkipVerifySSL :: !Bool
     } deriving (Show, Generic)
 
 -- | Options that persist as runtime settings.
@@ -336,7 +339,9 @@ optsParser =
      (option auto $
       long "turn-config-ttl" <> metavar "INT" <> value 3600 <> showDefault <>
       help "Number of seconds until a new TURN configuration should be fetched.")) <*>
-    settingsParser
+    settingsParser <*>
+    switch ( long "skip-verify-ssl"
+          <> help "For testing purposes only!!! Skips certificate verification for TLS connections")
 
 settingsParser :: Parser Settings
 settingsParser =

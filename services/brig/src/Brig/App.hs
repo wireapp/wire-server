@@ -110,6 +110,13 @@ import qualified System.FSNotify          as FS
 import qualified System.Logger            as Log
 import qualified System.Logger.Class      as LC
 
+import qualified Aws
+import qualified Aws.Aws as Aws
+import qualified Aws.Core
+import qualified Aws.Sqs as Sqs
+import qualified Data.Text.IO as T
+import qualified Data.Text    as T
+
 schemaVersion :: Int32
 schemaVersion = 44
 
@@ -151,12 +158,22 @@ newEnv o = do
     mtr <- Metrics.metrics
     lgr <- Log.new $ defSettings & setOutput StdOut . setFormat Nothing
     cas <- initCassandra o lgr
-    mgr <- initHttpManager
+    mgr <- initHttpManager (Opt.optSkipVerifySSL o)
     ext <- initExtGetManager
     utp <- loadUserTemplates o
     ptp <- loadProviderTemplates o
     ttp <- loadTeamTemplates o
     aws <- initAws o lgr mgr
+    -- cfg <- Aws.baseConfiguration
+    -- let sqscfg = Sqs.sqs Aws.Core.HTTPS Sqs.sqsEndpointEu False :: Sqs.SqsConfiguration Aws.NormalQuery
+    -- Sqs.ListQueuesResponse qUrls <- Aws.memoryAws cfg sqscfg mgr $ Sqs.ListQueues Nothing
+    -- let origQUrlCount = length qUrls
+    -- putStrLn $ "originally had " ++ show origQUrlCount ++ " queue urls"
+    -- mapM_ print qUrls
+    -- let qName = "scaledsoftwaretest1"
+    -- let createQReq = Sqs.CreateQueue (Just 8400) qName
+    -- Sqs.CreateQueueResponse qUrl <- Aws.memoryAws cfg sqscfg mgr createQReq
+    -- T.putStrLn $ T.concat ["queue was created with Url: ", qUrl]
     zau <- initZAuth o
     clock <- mkAutoUpdate defaultUpdateSettings { updateAction = getCurrentTime }
     w   <- FS.startManagerConf
@@ -263,14 +280,16 @@ initZAuth o = do
         (_,     Nothing) -> error ("No public key in: " ++ publicKeys)
         (Just s, Just p) -> ZAuth.mkEnv s p $ Opt.authSettings zOpts
 
-initHttpManager :: IO Manager
-initHttpManager = do
+initHttpManager :: Bool -> IO Manager
+initHttpManager skipVerify = do
     ctx <- SSL.context
     SSL.contextAddOption ctx SSL_OP_NO_SSLv2
     SSL.contextAddOption ctx SSL_OP_NO_SSLv3
     SSL.contextSetCiphers ctx "HIGH"
     SSL.contextSetVerificationMode ctx $
-        SSL.VerifyPeer True True Nothing
+        if skipVerify
+            then SSL.VerifyNone
+            else SSL.VerifyPeer True True Nothing
     SSL.contextLoadSystemCerts ctx
     -- Unfortunately, there are quite some AWS services we talk to
     -- (e.g. SES, Dynamo) that still only support TLSv1.

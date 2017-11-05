@@ -14,8 +14,9 @@ import Data.Time.Clock.POSIX
 import Util.Options
 import Gundeck.Options as Opt
 import Gundeck.Types.Presence (Milliseconds (..))
+import Network.Connection      (TLSSettings (..))
+import Network.HTTP.Client.TLS (mkManagerSettings,tlsManagerSettings)
 import Network.HTTP.Client (responseTimeoutMicro)
-import Network.HTTP.Client.TLS (tlsManagerSettings)
 import OpenSSL.EVP.Cipher (Cipher, getCipherByName)
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import System.Logger.Class hiding (Error, info)
@@ -54,11 +55,12 @@ createEnv m o = do
     c <- maybe (return $ NE.fromList [unpack (o^.optCassandra.casEndpoint.epHost)])
                (C.initialContacts "cassandra_gundeck")
                (unpack <$> o^.optDiscoUrl)
-    n <- newManager tlsManagerSettings
+    _ <- newManager tlsManagerSettings
             { managerConnCount           = (o^.optSettings.setHttpPoolSize)
             , managerIdleConnectionCount = 3 * (o^.optSettings.setHttpPoolSize)
             , managerResponseTimeout     = responseTimeoutMicro 5000000
             }
+    n <- newManager $ mkManagerSettings (TLSSettingsSimple True False False) Nothing
     r <- Redis.mkPool (Logger.clone (Just "redis.gundeck") l) $
               Redis.setHost (unpack $ o^.optRedis.epHost)
             . Redis.setPort (o^.optRedis.epPort)

@@ -106,17 +106,17 @@ config reg acc squ iqu blt pkt =
         -- https://github.com/wireapp/wire-server/blob/develop/services/brig/src/Brig/Aws.hs#L144-L149
         -- Currently SES is only available in eu-west-1, us-east-1 and us-west-2 so not allowing it
         -- to be configured and is hardcoded to `eu-west-1` and `us-east-1` as a fallback
-        ses = [Aws.sesHttpsPost Aws.sesEuWest1, Aws.sesHttpsPost Aws.sesUsEast1]
+        ses = [Aws.sesHttpsGet Aws.sesEuWest1, Aws.sesHttpsPost Aws.sesUsEast1]
         sqq = Aws.QueueName (fromSesQueue squ) (fromAccount acc)
         iqq = Aws.QueueName (fromInternalQueue iqu) (fromAccount acc)
     in Config ses sqs ddb sqq iqq blt pkt
   where
     regionSettings Ireland =
-        ( Aws.sqs Aws.HTTPS Aws.sqsEndpointEu False
+        ( Aws.sqs Aws.HTTPS Aws.sqsEndpointEu { Aws.endpointHost = "sqs.eu-west-1.amazonaws.com" } False
         , Aws.ddbHttps Aws.ddbEuWest1
         )
     regionSettings Frankfurt =
-        ( Aws.sqs Aws.HTTPS Aws.sqsEndpointEu { Aws.endpointHost = "eu-central-1.queue.amazonaws.com" } False
+        ( Aws.sqs Aws.HTTPS Aws.sqsEndpointEu { Aws.endpointHost = "sqs.eu-central-1.amazonaws.com" } False
         , Aws.ddbHttps Aws.ddbEuCentral1
         )
 

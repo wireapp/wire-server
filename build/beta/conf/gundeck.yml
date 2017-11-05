@@ -9,21 +9,20 @@ cassandra:
   keyspace: gundeck_test
 
 redis:
-  host: 127.0.0.1
+  host: redis
   port: 6379
 
 # Gundeck uses discovery for AWS access key / secrets 
 # For more details, check amazonka's documentation at:
 # https://hackage.haskell.org/package/amazonka-1.4.5/docs/Network-AWS.html#t:Credentials
 aws:
-  queueName: integration-gundeck-events
+  queueName: local-gundeck-events
   region: eu-west-1
-  account: "<insert-account-number-here>"
-  arnEnv: test
+  account: local
+  arnEnv: local
 
 fallback:
   skipFallbacks: true
-  preferNotice: true
   queueDelay: 3600
   queueLimit: 10
   queueBurst: 10

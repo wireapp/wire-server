@@ -49,7 +49,7 @@ import Network.HTTP.Client.OpenSSL
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities (Error (..), lookupRequestId)
-import OpenSSL.Session (SSLContext, SSLOption (..))
+import OpenSSL.Session (SSLOption (..))
 import System.Logger.Class hiding (settings)
 import Prelude hiding (log)
 
@@ -90,7 +90,7 @@ newEnv o = do
     lgr  <- Log.new $ Log.setOutput Log.StdOut
                     . Log.setFormat Nothing
                     $ Log.defSettings
-    mgr  <- initHttpManager
+    mgr  <- initHttpManager (o^.optSkipVerifySSL)
     awe  <- initAws o lgr mgr
     return $ Env awe met lgr mgr mempty (o^.optSettings.setMaxTotalBytes)
 
@@ -105,24 +105,25 @@ initAws o l m = do
     let s3c  = Aws.s3 Aws.HTTPS Aws.s3EndpointEu False
     return $! AwsEnv amz s3c (awsOpts^.awsS3Bucket) sig
 
-initHttpManager :: IO Manager
-initHttpManager =
+initHttpManager :: Bool -> IO Manager
+initHttpManager skipVerify =
     newManager (opensslManagerSettings initSSLContext)
         { managerConnCount           = 1024
         , managerIdleConnectionCount = 2048
         , managerResponseTimeout     = responseTimeoutMicro 10000000
         }
-
-initSSLContext :: IO SSLContext
-initSSLContext = do
-    ctx <- SSL.context
-    SSL.contextAddOption ctx SSL_OP_NO_SSLv2
-    SSL.contextAddOption ctx SSL_OP_NO_SSLv3
-    SSL.contextSetCiphers ctx "HIGH"
-    SSL.contextLoadSystemCerts ctx
-    SSL.contextSetVerificationMode ctx $
-        SSL.VerifyPeer True True Nothing
-    return ctx
+  where
+    initSSLContext = do
+        ctx <- SSL.context
+        SSL.contextAddOption ctx SSL_OP_NO_SSLv2
+        SSL.contextAddOption ctx SSL_OP_NO_SSLv3
+        SSL.contextSetCiphers ctx "HIGH"
+        SSL.contextLoadSystemCerts ctx
+        SSL.contextSetVerificationMode ctx $
+            if skipVerify
+                then SSL.VerifyNone
+                else SSL.VerifyPeer True True Nothing
+        return ctx
 
 closeEnv :: Env -> IO ()
 closeEnv e = Log.close $ e^.appLogger

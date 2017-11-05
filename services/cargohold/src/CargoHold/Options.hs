@@ -38,9 +38,10 @@ deriveFromJSON toOptionFieldName ''Settings
 makeLenses ''Settings
 
 data Opts = Opts
-    { _optCargohold :: !Endpoint
-    , _optAws       :: !AWSOpts
-    , _optSettings  :: !Settings
+    { _optCargohold     :: !Endpoint
+    , _optAws           :: !AWSOpts
+    , _optSettings      :: !Settings
+    , _optSkipVerifySSL :: !Bool
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Opts
@@ -68,6 +69,8 @@ optsParser = Opts <$>
             <> help "Port to listen on"))
     <*> awsParser
     <*> settingsParser
+    <*> switch ( long "skip-verify-ssl"
+                 <> help "For testing purposes only!!! Skips certificate verification for TLS connections")
   where
     awsParser :: Parser AWSOpts
     awsParser = AWSOpts <$>

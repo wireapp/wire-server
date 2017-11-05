@@ -69,6 +69,7 @@ library
         , case-insensitive      >= 1.0
         , cassandra-util        >= 0.16.2
         , conduit               >= 1.1
+        , connection            >= 0.2
         , containers            >= 0.5
         , data-default          >= 0.5
         , enclosed-exceptions   >= 1.0

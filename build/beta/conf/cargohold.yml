@@ -4,12 +4,12 @@ cargohold:
 
 aws:
   # TODO: Check AWS loadCredentialsFromEnv
-  keyId: <insert-key-id-here>
-  secretKey: <insert-secret-key-here>
-  s3Bucket: <insert-bucket-name-here>
-  cfDomain: <insert-cloudfront-domain-here>
-  cfKeyPairId: <insert-keypair-id-here>
-  cfPrivateKey: cf-pk.pem
+  keyId: foo
+  secretKey: bar
+  s3Bucket: local-cargohold
+  cfDomain: local-cargohold
+  cfKeyPairId: local-cargohold
+  cfPrivateKey: config/cf.pem
 
 settings:
   maxTotalBytes: 27262976

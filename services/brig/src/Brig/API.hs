@@ -80,11 +80,11 @@ runServer :: Opts -> IO ()
 runServer o = do
     e <- newEnv o
     s <- Server.newSettings (server e)
-    f <- Async.async $ runAppT e (Aws.listen (e^.awsConfig.Aws.sqsSesQueue) SesNotification.onEvent)
-    g <- Async.async $ runAppT e (Aws.listen (e^.awsConfig.Aws.sqsInternalQueue) InternalNotification.onEvent)
+    -- f <- Async.async $ runAppT e (Aws.listen (e^.awsConfig.Aws.sqsSesQueue) SesNotification.onEvent)
+    -- g <- Async.async $ runAppT e (Aws.listen (e^.awsConfig.Aws.sqsInternalQueue) InternalNotification.onEvent)
     runSettingsWithShutdown s (pipeline e) 5 `finally` do
-        Async.cancel f
-        Async.cancel g
+        -- Async.cancel f
+        -- Async.cancel g
         closeEnv e
   where
     rtree      = compile (sitemap o)

@@ -52,6 +52,10 @@ runServer o = do
     runClient (e^.cstate) $
         versionCheck schemaVersion
     let l = e^.applog
+    Log.info l $ Log.msg (Log.val "The new gundeck!!!!!! 1...")
+    Log.info l $ Log.msg (Log.val "The new gundeck!!!!!! 2...")
+    Log.info l $ Log.msg (Log.val "The new gundeck!!!!!! 3...")
+    Log.info l $ Log.msg (Log.val "The new gundeck!!!!!! 4...")
     s <- newSettings $ defaultServer (unpack $ o^.optGundeck.epHost) (o^.optGundeck.epPort) l m
     app <- pipeline e
     lst <- Async.async $ Aws.execute (e^.awsEnv) (Aws.listen (runDirect e . onEvent))

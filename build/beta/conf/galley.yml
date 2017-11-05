@@ -1,0 +1,24 @@
+galley:
+  host: 0.0.0.0
+  port: 8085
+
+cassandra:
+  endpoint:
+    host: cassandra
+    port: 9042
+  keyspace: galley_test
+
+brig:
+  host: brig
+  port: 8082
+
+gundeck:
+  host: gundeck
+  port: 8086
+
+# journal:
+#   queueName: integration-team-events.fifo
+#   region: eu-west-1
+
+settings:
+  httpPoolSize: 128
