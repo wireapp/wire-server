@@ -246,6 +246,7 @@ executable brig-schema
         V41
         V42
         V43
+        V44
 
     build-depends:
         base
