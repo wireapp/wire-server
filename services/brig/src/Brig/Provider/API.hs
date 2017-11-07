@@ -564,7 +564,7 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
                { newClientPrekeys = Ext.rsNewBotPrekeys rs
                }
     lift $ User.insertAccount (UserAccount usr Active) Nothing True
-    (clt, _, _) <- User.addClient (botUserId bid) bcl newClt Nothing Nothing
+    (clt, _, _) <- User.addClient (botUserId bid) bcl newClt Nothing
                    !>> const (StdError badGateway) -- MalformedPrekeys
 
     -- Add the bot to the conversation
@@ -716,7 +716,7 @@ setProviderCookie t r = do
     cookie s = Cookie.def
         { Cookie.setCookieName     = "zprovider"
         , Cookie.setCookieValue    = toByteString' t
-        , Cookie.setCookieDomain   = Just (setCookieDomain s)
+        , Cookie.setCookieDomain   = Just $ Text.encodeUtf8 . setCookieDomain $ s
         , Cookie.setCookiePath     = Just "/provider"
         , Cookie.setCookieExpires  = Just (ZAuth.tokenExpiresUTC t)
         , Cookie.setCookieSecure   = not (setCookieInsecure s)

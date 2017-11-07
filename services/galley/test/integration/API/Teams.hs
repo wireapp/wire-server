@@ -2,7 +2,7 @@
 
 module API.Teams (tests) where
 
-import API.Util (Galley, Brig, test, zUser, zConn)
+import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Concurrent.Async (mapConcurrently)
@@ -36,27 +36,36 @@ import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon as WS
 import qualified Galley.Aws as Aws
 
-tests :: Galley -> Brig -> Cannon -> Manager -> Maybe Aws.Env -> TestTree
-tests g b c m a = testGroup "Teams API"
-    [ test m "create team" (testCreateTeam g b c a)
-    , test m "create multiple binding teams fail" (testCreateMulitpleBindingTeams g b a)
-    , test m "create team with members" (testCreateTeamWithMembers g b c)
-    , test m "create 1-1 conversation between binding team members (fail)" (testCreateOne2OneFailNonBindingTeamMembers g b a)
-    , test m "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers g b c a)
-    , test m "add new team member" (testAddTeamMember g b c)
-    , test m "add new team member binding teams" (testAddTeamMemberCheckBound g b a)
-    , test m "add new team member internal" (testAddTeamMemberInternal g b c a)
-    , test m "remove team member" (testRemoveTeamMember g b c)
-    , test m "remove team member (binding)" (testRemoveBindingTeamMember g b c a)
-    , test m "add team conversation" (testAddTeamConv g b c)
-    , test m "add managed team conversation ignores given users" (testAddTeamConvWithUsers g b)
-    , test m "add team member to conversation without connection" (testAddTeamMemberToConv g b)
-    , test m "delete non-binding team" (testDeleteTeam g b c a)
-    , test m "delete binding team" (testDeleteBindingTeam g b c a)
-    , test m "delete team conversation" (testDeleteTeamConv g b c)
-    , test m "update team data" (testUpdateTeam g b c)
-    , test m "update team member" (testUpdateTeamMember g b c a)
-    , test m "update team status" (testUpdateTeamStatus g b a)
+type TestSignature a = Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http a
+
+test :: IO TestSetup -> TestName -> TestSignature a -> TestTree
+test s n h = testCase n runTest
+  where
+    runTest = do
+        setup <- s
+        void $ runHttpT (manager setup) (h (galley setup) (brig setup) (cannon setup) (awsEnv setup))
+
+tests :: IO TestSetup -> TestTree
+tests s = testGroup "Teams API"
+    [ test s "create team" testCreateTeam
+    , test s "create multiple binding teams fail" testCreateMulitpleBindingTeams
+    , test s "create team with members" testCreateTeamWithMembers
+    , test s "create 1-1 conversation between binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers
+    , test s "create 1-1 conversation between binding team members" testCreateOne2OneWithMembers
+    , test s "add new team member" testAddTeamMember
+    , test s "add new team member binding teams" testAddTeamMemberCheckBound
+    , test s "add new team member internal" testAddTeamMemberInternal
+    , test s "remove team member" testRemoveTeamMember
+    , test s "remove team member (binding)" testRemoveBindingTeamMember
+    , test s "add team conversation" testAddTeamConv
+    , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
+    , test s "add team member to conversation without connection" testAddTeamMemberToConv
+    , test s "delete non-binding team" testDeleteTeam
+    , test s "delete binding team" testDeleteBindingTeam
+    , test s "delete team conversation" testDeleteTeamConv
+    , test s "update team data" testUpdateTeam
+    , test s "update team member" testUpdateTeamMember
+    , test s "update team status" testUpdateTeamStatus
     ]
 
 timeout :: WS.Timeout
@@ -79,8 +88,8 @@ testCreateTeam g b c a = do
                 e^.eventData @?= Just (EdTeamCreate team)
             void $ WS.assertSuccess eventChecks
 
-testCreateMulitpleBindingTeams :: Galley -> Brig -> Maybe Aws.Env -> Http ()
-testCreateMulitpleBindingTeams g b a = do
+testCreateMulitpleBindingTeams :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testCreateMulitpleBindingTeams g b _ a = do
     owner <- Util.randomUser b
     _     <- Util.createTeamInternal g "foo" owner
     assertQueue a tActivate
@@ -94,8 +103,8 @@ testCreateMulitpleBindingTeams g b a = do
     void $ Util.createTeam g "foo" owner' []
     void $ Util.createTeam g "foo" owner' []
 
-testCreateTeamWithMembers :: Galley -> Brig -> Cannon -> Http ()
-testCreateTeamWithMembers g b c = do
+testCreateTeamWithMembers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testCreateTeamWithMembers g b c _ = do
     owner <- Util.randomUser b
     user1 <- Util.randomUser b
     user2 <- Util.randomUser b
@@ -120,8 +129,8 @@ testCreateTeamWithMembers g b c = do
         e^.eventTeam @?= (team^.teamId)
         e^.eventData @?= Just (EdTeamCreate team)
 
-testCreateOne2OneFailNonBindingTeamMembers :: Galley -> Brig -> Maybe Aws.Env -> Http ()
-testCreateOne2OneFailNonBindingTeamMembers g b a = do
+testCreateOne2OneFailNonBindingTeamMembers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testCreateOne2OneFailNonBindingTeamMembers g b _ a = do
     owner <- Util.randomUser b
     let p1 = Util.symmPermissions [CreateConversation, AddConversationMember]
     let p2 = Util.symmPermissions [CreateConversation, AddConversationMember, AddTeamMember]
@@ -171,8 +180,8 @@ testCreateOne2OneWithMembers g b c a = do
                                  (const (return . f))
                                  (const m)
 
-testAddTeamMember :: Galley -> Brig -> Cannon -> Http ()
-testAddTeamMember g b c = do
+testAddTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testAddTeamMember g b c _ = do
     owner <- Util.randomUser b
     let p1 = Util.symmPermissions [CreateConversation, AddConversationMember]
     let p2 = Util.symmPermissions [CreateConversation, AddConversationMember, AddTeamMember]
@@ -203,8 +212,8 @@ testAddTeamMember g b c = do
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberJoin usr)
 
-testAddTeamMemberCheckBound :: Galley -> Brig -> Maybe Aws.Env -> Http ()
-testAddTeamMemberCheckBound g b a = do
+testAddTeamMemberCheckBound :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testAddTeamMemberCheckBound g b _ a = do
     ownerBound <- Util.randomUser b
     tidBound   <- Util.createTeamInternal g "foo" ownerBound
     assertQueue a tActivate
@@ -241,8 +250,8 @@ testAddTeamMemberInternal g b c a = do
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberJoin usr)
 
-testRemoveTeamMember :: Galley -> Brig -> Cannon -> Http ()
-testRemoveTeamMember g b c = do
+testRemoveTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testRemoveTeamMember g b c _ = do
     owner <- Util.randomUser b
     let p1 = Util.symmPermissions [AddConversationMember]
     let p2 = Util.symmPermissions [AddConversationMember, RemoveTeamMember]
@@ -339,8 +348,8 @@ testRemoveBindingTeamMember g b c a = do
         -- Mem1 is now gone from Wire
         Util.ensureDeletedState b True owner (mem1^.userId)
 
-testAddTeamConv :: Galley -> Brig -> Cannon -> Http ()
-testAddTeamConv g b c = do
+testAddTeamConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testAddTeamConv g b c _ = do
     owner  <- Util.randomUser b
     extern <- Util.randomUser b
 
@@ -406,8 +415,8 @@ testAddTeamConv g b c = do
             Just (Conv.EdConversation x) -> cnvId x @?= cid
             other                        -> assertFailure $ "Unexpected event data: " <> show other
 
-testAddTeamConvWithUsers :: Galley -> Brig -> Http ()
-testAddTeamConvWithUsers g b = do
+testAddTeamConvWithUsers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testAddTeamConvWithUsers g b _ _ = do
     owner  <- Util.randomUser b
     extern <- Util.randomUser b
     Util.connectUsers b owner (list1 extern [])
@@ -419,8 +428,8 @@ testAddTeamConvWithUsers g b = do
     -- Team members are present.
     Util.assertConvMember g owner cid
 
-testAddTeamMemberToConv :: Galley -> Brig -> Http ()
-testAddTeamMemberToConv g b = do
+testAddTeamMemberToConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testAddTeamMemberToConv g b _ _ = do
     owner <- Util.randomUser b
     let p = Util.symmPermissions [AddConversationMember]
     mem1 <- flip newTeamMember p <$> Util.randomUser b
@@ -532,8 +541,8 @@ testDeleteBindingTeam g b c a = do
 
     mapM_ (Util.ensureDeletedState b True extern) [owner, (mem1^.userId)]
 
-testDeleteTeamConv :: Galley -> Brig -> Cannon -> Http ()
-testDeleteTeamConv g b c = do
+testDeleteTeamConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testDeleteTeamConv g b c _ = do
     owner <- Util.randomUser b
     let p = Util.symmPermissions [DeleteConversation]
     member <- flip newTeamMember p <$> Util.randomUser b
@@ -590,8 +599,8 @@ testDeleteTeamConv g b c = do
         evtConv e @?= cid
         evtData e @?= Nothing
 
-testUpdateTeam :: Galley -> Brig -> Cannon -> Http ()
-testUpdateTeam g b c = do
+testUpdateTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testUpdateTeam g b c _ = do
     owner <- Util.randomUser b
     let p = Util.symmPermissions [DeleteConversation]
     member <- flip newTeamMember p <$> Util.randomUser b
@@ -679,8 +688,8 @@ testUpdateTeamMember g b c a = do
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdMemberUpdate uid)
 
-testUpdateTeamStatus :: Galley -> Brig -> Maybe Aws.Env -> Http ()
-testUpdateTeamStatus g b a = do
+testUpdateTeamStatus :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testUpdateTeamStatus g b _ a = do
     owner <- Util.randomUser b
     tid   <- Util.createTeamInternal g "foo" owner
     assertQueue a tActivate

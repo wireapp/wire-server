@@ -32,7 +32,7 @@ import Data.Metrics.Middleware hiding (metrics)
 import Data.Misc (IpAddr (..))
 import Data.Monoid ((<>))
 import Data.Range
-import Data.Text (Text)
+import Data.Text (Text, unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import Galley.Types (UserClients (..))
@@ -44,6 +44,7 @@ import Network.Wai.Utilities
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import Prelude hiding (head)
+import Util.Options
 
 import qualified Data.Text.Ascii               as Ascii
 import qualified Data.List1                    as List1
@@ -86,7 +87,8 @@ runServer o = do
         closeEnv e
   where
     rtree      = compile (sitemap o)
-    server   e = defaultServer (optHost o) (optPort o) (e^.applog) (e^.metrics)
+    endpoint   = brig o
+    server   e = defaultServer (unpack $ endpoint^.epHost) (endpoint^.epPort) (e^.applog) (e^.metrics)
     pipeline e = measureRequests (e^.metrics) rtree
                . catchErrors (e^.applog) (e^.metrics)
                . GZip.gunzip . GZip.gzip GZip.def

@@ -1,9 +1,10 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 
-module API.Provider (tests) where
+module API.Provider (tests, Config) where
 
 import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
@@ -28,46 +29,59 @@ import Data.PEM
 import Data.Range
 import Data.Set (Set)
 import Data.Text (Text)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
 import Galley.Types (NewConv (..), Conversation (..), Members (..))
 import Galley.Types (ConvMembers (..), OtherMember (..))
 import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
+import GHC.Generics hiding (to, from)
 import Gundeck.Types.Notification
 import Network.HTTP.Types.Status (status200, status201, status400)
-import Network.Socket (close)
 import Network.Wai (Application, responseLBS, strictRequestBody)
 import OpenSSL.PEM (writePublicKey)
 import OpenSSL.RSA (generateRSAKey')
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Text.Printf (printf)
-import System.Environment
 import Web.Cookie (SetCookie (..), parseSetCookie)
 import Util
+import Util.Options.Common (optOrEnv)
 
-import qualified Brig.Code                    as Code
-import qualified Brig.Types.Provider.External as Ext
-import qualified Cassandra                    as DB
-import qualified Control.Concurrent.Async     as Async
-import qualified Data.ByteString              as BS
-import qualified Data.ByteString.Char8        as C8
-import qualified Data.ByteString.Lazy.Char8   as LC8
-import qualified Data.HashMap.Strict          as HashMap
-import qualified Data.List1                   as List1
-import qualified Data.Set                     as Set
-import qualified Data.Text.Ascii              as Ascii
-import qualified Data.Text.Encoding           as Text
-import qualified Data.UUID                    as UUID
-import qualified Data.ZAuth.Token             as ZAuth
-import qualified Network.Wai.Handler.Warp     as Warp
-import qualified Network.Wai.Handler.WarpTLS  as Warp
-import qualified Network.Wai.Route            as Wai
-import qualified Test.Tasty.Cannon            as WS
+import qualified Brig.Code                         as Code
+import qualified Brig.Types.Provider.External      as Ext
+import qualified Cassandra                         as DB
+import qualified Control.Concurrent.Async          as Async
+import qualified Data.ByteString                   as BS
+import qualified Data.ByteString.Char8             as C8
+import qualified Data.ByteString.Lazy.Char8        as LC8
+import qualified Data.HashMap.Strict               as HashMap
+import qualified Data.List1                        as List1
+import qualified Data.Set                          as Set
+import qualified Data.Text.Ascii                   as Ascii
+import qualified Data.Text.Encoding                as Text
+import qualified Data.UUID                         as UUID
+import qualified Data.ZAuth.Token                  as ZAuth
+import qualified Network.Wai.Handler.Warp          as Warp
+import qualified Network.Wai.Handler.WarpTLS       as Warp
+import qualified Network.Wai.Handler.Warp.Internal as Warp
+import qualified Network.Wai.Route                 as Wai
+import qualified Test.Tasty.Cannon                 as WS
 
-tests :: Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
-tests p db b c g =
+data Config = Config
+    { privateKey   :: FilePath
+    , publicKey    :: FilePath
+    , cert         :: FilePath
+    , botHost      :: Text
+    , botPort      :: Int
+    } deriving (Show, Generic)
+
+instance FromJSON Config
+
+tests :: Maybe Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
+tests conf p db b c g = do
+    crt <- optOrEnv cert conf id "TEST_CERT"
     return $ testGroup "provider"
         [ testGroup "account"
             [ test p "register" $ testRegisterProvider db b
@@ -76,16 +90,16 @@ tests p db b c g =
             , test p "delete"   $ testDeleteProvider db b
             ]
         , testGroup "service"
-            [ test p "add-get fail (bad key)" $ testAddGetServiceBadKey db b
-            , test p "add-get"                $ testAddGetService db b
-            , test p "update"                 $ testUpdateService db b
-            , test p "update-conn"            $ testUpdateServiceConn db b
-            , test p "list-by-tag"            $ testListServicesByTag db b
-            , test p "delete"                 $ testDeleteService db b
+            [ test p "add-get fail (bad key)" $ testAddGetServiceBadKey conf db b
+            , test p "add-get"                $ testAddGetService conf db b
+            , test p "update"                 $ testUpdateService conf db b
+            , test p "update-conn"            $ testUpdateServiceConn conf db b
+            , test p "list-by-tag"            $ testListServicesByTag conf db b
+            , test p "delete"                 $ testDeleteService conf db b
             ]
         , testGroup "bot"
-            [ test p "add-remove" $ testAddRemoveBot db b g c
-            , test p "message"    $ testMessageBot db b g c
+            [ test p "add-remove" $ testAddRemoveBot conf crt db b g c
+            , test p "message"    $ testMessageBot conf crt db b g c
             ]
         ]
 
@@ -194,23 +208,23 @@ testDeleteProvider db brig = do
 -------------------------------------------------------------------------------
 -- Provider Services
 
-testAddGetServiceBadKey :: DB.ClientState -> Brig -> Http ()
-testAddGetServiceBadKey db brig = do
+testAddGetServiceBadKey :: Maybe Config -> DB.ClientState -> Brig -> Http ()
+testAddGetServiceBadKey config db brig = do
     prv <- randomProvider db brig
     let pid = providerId prv
     -- Add service
-    new <- defNewService
+    new <- defNewService config
     -- Specially crafted key that passes basic validation
     let Right [k] = pemParseBS "-----BEGIN PUBLIC KEY-----\n\n-----END PUBLIC KEY-----"
     let newBad = new { newServiceKey = ServiceKeyPEM k }
     addService brig pid newBad !!! const 400 === statusCode
 
-testAddGetService :: DB.ClientState -> Brig -> Http ()
-testAddGetService db brig = do
+testAddGetService :: Maybe Config -> DB.ClientState -> Brig -> Http ()
+testAddGetService config db brig = do
     prv <- randomProvider db brig
     let pid = providerId prv
     -- Add service
-    new <- defNewService
+    new <- defNewService config
     _rs <- addService brig pid new <!! const 201 === statusCode
     let Just srs = decodeBody _rs
     let sid = rsNewServiceId srs
@@ -242,11 +256,11 @@ testAddGetService db brig = do
     -- TODO: Check that disabled services can not be found via tag search?
     --       Need to generate a unique service name for that.
 
-testUpdateService :: DB.ClientState -> Brig -> Http ()
-testUpdateService db brig = do
+testUpdateService :: Maybe Config -> DB.ClientState -> Brig -> Http ()
+testUpdateService config db brig = do
     prv <- randomProvider db brig
     let pid = providerId prv
-    _svc <- addGetService brig pid =<< defNewService
+    _svc <- addGetService brig pid =<< defNewService config
     let sid = serviceId _svc
     let newTags   = Set.fromList [QuizTag, EducationTag]
     let newName   = Name "x"
@@ -276,11 +290,11 @@ testUpdateService db brig = do
         let Just _svc = decodeBody _rs
         liftIO $ assertEqual "tags" t (serviceTags _svc)
 
-testUpdateServiceConn :: DB.ClientState -> Brig -> Http ()
-testUpdateServiceConn db brig = do
+testUpdateServiceConn :: Maybe Config -> DB.ClientState -> Brig -> Http ()
+testUpdateServiceConn config db brig = do
     prv <- randomProvider db brig
     let pid = providerId prv
-    _svc <- addGetService brig pid =<< defNewService
+    _svc <- addGetService brig pid =<< defNewService config
     let sid = serviceId _svc
     let Just newUrl = fromByteString "https://other.localhost/test"
     key <- randServiceKey
@@ -304,8 +318,8 @@ testUpdateServiceConn db brig = do
         assertEqual "token" newTokens (serviceTokens _svc)
         assertBool  "enabled" (serviceEnabled _svc)
 
-testListServicesByTag :: DB.ClientState -> Brig -> Http ()
-testListServicesByTag db brig = do
+testListServicesByTag :: Maybe Config -> DB.ClientState -> Brig -> Http ()
+testListServicesByTag config db brig = do
     prv <- randomProvider db brig
     let pid = providerId prv
     uid <- randomId
@@ -316,7 +330,7 @@ testListServicesByTag db brig = do
     uniq <- UUID.toText . toUUID <$> randomId
     let taggedNames = mkTaggedNames uniq
     let names = fst (unzip taggedNames)
-    new <- defNewService
+    new <- defNewService config
     svcs <- mapM (addGetService brig pid . mkNew new) (reverse taggedNames)
     mapM_ (enableService brig pid . serviceId) svcs
 
@@ -407,11 +421,11 @@ testListServicesByTag db brig = do
 
     select f = map snd . filter (f . fst) . zip [(1 :: Int)..]
 
-testDeleteService :: DB.ClientState -> Brig -> Http ()
-testDeleteService db brig = do
+testDeleteService :: Maybe Config -> DB.ClientState -> Brig -> Http ()
+testDeleteService config db brig = do
     prv <- randomProvider db brig
     let pid = providerId prv
-    svc <- addGetService brig pid =<< defNewService
+    svc <- addGetService brig pid =<< defNewService config
     let sid = serviceId svc
     deleteService brig pid sid defProviderPassword !!!
         const 200 === statusCode
@@ -421,8 +435,8 @@ testDeleteService db brig = do
     getServiceProfile brig uid pid sid !!!
         const 404 === statusCode
 
-testAddRemoveBot :: DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
-testAddRemoveBot db brig galley cannon = withTestService db brig defServiceApp $ \sref buf -> do
+testAddRemoveBot :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testAddRemoveBot config crt db brig galley cannon = withTestService config crt db brig defServiceApp $ \sref buf -> do
     let pid = sref^.serviceRefProvider
     let sid = sref^.serviceRefId
 
@@ -509,8 +523,8 @@ testAddRemoveBot db brig galley cannon = withTestService db brig defServiceApp $
     -- Check that the bot no longer has access to the conversation
     getBotConv galley bid cid !!! const 404 === statusCode
 
-testMessageBot :: DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
-testMessageBot db brig galley cannon = withTestService db brig defServiceApp $ \sref buf -> do
+testMessageBot :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testMessageBot config crt db brig galley cannon = withTestService config crt db brig defServiceApp $ \sref buf -> do
     let pid = sref^.serviceRefProvider
     let sid = sref^.serviceRefId
 
@@ -869,9 +883,9 @@ enableService brig pid sid = do
     updateServiceConn brig pid sid upd !!!
         const 200 === statusCode
 
-defNewService :: MonadIO m => m NewService
-defNewService = liftIO $ do
-    key <- readServiceKey =<< getEnv "TEST_PUBKEY"
+defNewService :: MonadIO m => Maybe Config -> m NewService
+defNewService config = liftIO $ do
+    key <- join $ optOrEnv (readServiceKey . publicKey) config readServiceKey "TEST_PUBKEY"
     return NewService
         { newServiceName   = defServiceName
         , newServiceDescr  = defServiceDescr
@@ -943,36 +957,36 @@ waitFor t f ma = do
 
 -- | Run a test case with an external service application.
 withTestService
-    :: DB.ClientState
+    :: Maybe Config
+    -> FilePath
+    -> DB.ClientState
     -> Brig
     -> (Chan e -> Application)
     -> (ServiceRef -> Chan e -> Http a)
     -> Http a
-withTestService db brig mkApp go = bracket
-    (liftIO Warp.openFreePort)
-    (liftIO . close . snd)
-    (\(_port, sock) -> do
-        sref <- registerService _port
-        runService sref sock)
+withTestService config crt db brig mkApp go = do
+    sref <- registerService
+    runService sref
   where
-    registerService sport = do
+    h = fromMaybe "https://localhost" (encodeUtf8 . botHost <$> config)
+    p = fromMaybe 9000 (botPort <$> config)
+    registerService = do
         prv <- randomProvider db brig
-        new <- defNewService
-        let Just url = fromByteString ("https://localhost:" <> C8.pack (show sport))
+        new <- defNewService config
+        let Just url = fromByteString $ h <> ":" <> (C8.pack . show $ p)
         svc <- addGetService brig (providerId prv) (new { newServiceUrl = url })
         let pid = providerId prv
         let sid = serviceId svc
         enableService brig pid sid
         return (newServiceRef sid pid)
 
-    runService sref sock = do
-        key <- liftIO $ getEnv "TEST_KEY"
-        crt <- liftIO $ getEnv "TEST_CERT"
+    runService sref = do
+        key <- liftIO $ optOrEnv privateKey config id "TEST_KEY"
         let tlss = Warp.tlsSettings crt key
-        let defs = Warp.defaultSettings
+        let defs = Warp.defaultSettings { Warp.settingsPort = p }
         buf <- liftIO newChan
         srv <- liftIO . Async.async $
-            Warp.runTLSSocket tlss defs sock $
+            Warp.runTLS tlss defs $
                 mkApp buf
         go sref buf `finally` liftIO (Async.cancel srv)
 

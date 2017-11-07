@@ -180,4 +180,3 @@ validateTokens ut at = do
                 unless (e == ZAuth.Expired) (throwE e)
     ck <- lift (lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) return
     return (ZAuth.userTokenOf ut, ck)
-

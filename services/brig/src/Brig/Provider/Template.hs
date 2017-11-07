@@ -18,10 +18,11 @@ module Brig.Provider.Template
 import Brig.Options
 import Brig.Template
 import Brig.Types
+import Data.ByteString.Conversion (fromByteString)
 import Data.Misc (HttpsUrl)
+import Data.Maybe (fromMaybe)
 import Data.Monoid
-
-import qualified Data.Text.Encoding as Text
+import Data.Text.Encoding (encodeUtf8)
 
 data ProviderTemplates = ProviderTemplates
     { activationEmail      :: !ActivationEmailTemplate
@@ -64,30 +65,33 @@ data ApprovalConfirmEmailTemplate = ApprovalConfirmEmailTemplate
 --     }
 
 loadProviderTemplates :: Opts -> IO (Localised ProviderTemplates)
-loadProviderTemplates o = readLocalesDir defLocale templateDir $ \fp ->
+loadProviderTemplates o = readLocalesDir defLocale templates $ \fp ->
     ProviderTemplates
-        <$> (ActivationEmailTemplate activationUrl
+        <$> (ActivationEmailTemplate activationUrl'
                 <$> readTemplate (fp <> "/email/activation-subject.txt")
                 <*> readTemplate (fp <> "/email/activation.txt")
                 <*> readTemplate (fp <> "/email/activation.html")
-                <*> pure (optEmailSender o))
-        <*> (ApprovalRequestEmailTemplate approvalUrl
+                <*> pure (emailSender gOptions))
+        <*> (ApprovalRequestEmailTemplate approvalUrl'
                 <$> readTemplate (fp <> "/email/approval-request-subject.txt")
                 <*> readTemplate (fp <> "/email/approval-request.txt")
                 <*> readTemplate (fp <> "/email/approval-request.html")
-                <*> pure (optEmailSender o)
-                <*> pure (optProviderApprovalTo o))
+                <*> pure (emailSender gOptions)
+                <*> pure (approvalTo pOptions))
         <*> (ApprovalConfirmEmailTemplate
                 <$> readTemplate (fp <> "/email/approval-confirm-subject.txt")
                 <*> readTemplate (fp <> "/email/approval-confirm.txt")
                 <*> readTemplate (fp <> "/email/approval-confirm.html")
-                <*> pure (optEmailSender o)
-                <*> pure (optProviderHomeUrl o))
+                <*> pure (emailSender gOptions)
+                <*> pure (fromMaybe (error "Invalid HTTPS URL") maybeUrl))
   where
-    templateDir = optTemplateDir o <> "/provider"
-    defLocale   = setDefaultLocale (optSettings o)
+    maybeUrl  = fromByteString $ encodeUtf8 $ homeUrl pOptions
+    gOptions  = general $ emailSMS o
+    pOptions  = provider $ emailSMS o
+    templates = templateDir gOptions <> "/provider"
+    defLocale = setDefaultLocale (optSettings o)
 
     -- URL templates
-    activationUrl = template . Text.decodeLatin1 $ optProviderActivationUrl o
-    approvalUrl   = template . Text.decodeLatin1 $ optProviderApprovalUrl o
+    activationUrl' = template $ providerActivationUrl pOptions
+    approvalUrl'   = template $ approvalUrl pOptions
 

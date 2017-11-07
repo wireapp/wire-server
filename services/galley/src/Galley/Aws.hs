@@ -102,7 +102,7 @@ mkEnv :: Logger -> Manager -> JournalOpts -> IO Env
 mkEnv lgr mgr opts = do
     let g = Logger.clone (Just "aws.galley") lgr
     e <- configure <$> mkAwsEnv g
-    q <- getQueueUrl e (opts^.queueName)
+    q <- getQueueUrl e (opts^.awsQueueName)
     return (Env e g q (opts^.awsRegion))
   where
     mkAwsEnv g =  set AWS.envLogger (awsLogger g)

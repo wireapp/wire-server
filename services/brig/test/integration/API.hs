@@ -40,12 +40,13 @@ import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import Test.Tasty.HUnit
 import Safe
-import System.Environment (getEnv)
 import System.Random (randomIO)
 import Web.Cookie (parseSetCookie, setCookieName)
 import Util
+import Util.Options.Common
 
 import qualified API.Search.Util             as Search
+import qualified Brig.Options                as Opt
 import qualified Data.ByteString.Char8       as C
 import qualified Data.List1                  as List1
 import qualified Data.Set                    as Set
@@ -60,9 +61,9 @@ import qualified Test.Tasty.Cannon           as WS
 
 newtype ConnectionLimit = ConnectionLimit Int64
 
-tests :: Manager -> Brig -> Cannon -> Galley -> IO TestTree
-tests p b c g = do
-    l <- ConnectionLimit . read <$> getEnv "USER_CONNECTION_LIMIT"
+tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> IO TestTree
+tests conf p b c g = do
+    l <- optOrEnv (ConnectionLimit . Opt.setUserMaxConnections . Opt.optSettings) conf (ConnectionLimit . read) "USER_CONNECTION_LIMIT"
     return $ testGroup "user"
         [ testGroup "account"
             [ test p "post /register - 201"                     $ testCreateUser b g
@@ -1552,6 +1553,21 @@ testUpdateClient brig = do
         const (Just $ clientId c) === (fmap pubClientId . decodeBody)
         const (Just PhoneClient)  === (pubClientClass <=< decodeBody)
         const Nothing             === (preview (key "label") <=< asValue)
+
+    let update' = UpdateClient [] Nothing (Nothing :: Maybe SignalingKeys) Nothing
+
+    -- empty update should be a no-op
+    put ( brig
+        . paths ["clients", toByteString' (clientId c)]
+        . zUser (userId u)
+        . contentJson
+        . body (RequestBodyLBS $ encode update')
+        ) !!! const 200 === statusCode
+
+    -- check if label is still present
+    getClient brig (userId u) (clientId c) !!! do
+        const 200            === statusCode
+        const (Just "label") === (clientLabel <=< decodeBody)
 
 -- Legacy (galley)
 testAddMultipleTemporary :: Brig -> Galley -> Http ()

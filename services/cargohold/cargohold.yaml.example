@@ -1,0 +1,15 @@
+cargohold:
+  host: 0.0.0.0
+  port: 8084
+
+aws:
+  # TODO: Check AWS loadCredentialsFromEnv
+  keyId: <insert-key-id-here>
+  secretKey: <insert-secret-key-here>
+  s3Bucket: <insert-bucket-name-here>
+  cfDomain: <insert-cloudfront-domain-here>
+  cfKeyPairId: <insert-keypair-id-here>
+  cfPrivateKey: cf-pk.pem
+
+settings:
+  maxTotalBytes: 27262976

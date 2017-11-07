@@ -126,6 +126,7 @@ executable galley
       , galley
       , galley-types
       , HsOpenSSL
+      , types-common
 
     ghc-options:
         -Wall
@@ -147,6 +148,7 @@ executable galley-schema
         V21
         V22
         V23
+        V24
 
     build-depends:
         base
@@ -159,8 +161,7 @@ executable galley-schema
     if flag(static)
         ld-options: -static
 
-test-suite galley-integration
-    type:               exitcode-stdio-1.0
+executable galley-integration
     default-language:   Haskell2010
     main-is:            Main.hs
     hs-source-dirs:     test/integration
@@ -196,14 +197,17 @@ test-suite galley-integration
       , HsOpenSSL-x509-system
       , http-client
       , http-client-openssl-ext
+      , http-client-tls
       , http-types
       , lens
       , mtl
       , network
+      , optparse-applicative
       , protobuf
       , proto-lens
       , QuickCheck
       , retry
+      , tagged
       , transformers
       , tasty                >= 0.8
       , tasty-cannon         >= 0.3.2
@@ -221,6 +225,7 @@ test-suite galley-integration
       , wai-route
       , wai-utilities
       , warp
+      , yaml
 
 executable galley-journaler
     main-is:            Main.hs

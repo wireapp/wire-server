@@ -20,5 +20,5 @@ extra-deps:
 - data-timeout-0.3
 - text-latin1-0.3
 - text-printer-0.5
+- api-field-json-th-0.1.0.2
 extra-package-dbs: []
-

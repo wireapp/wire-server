@@ -59,10 +59,12 @@ import Data.Json.Util
 import Data.Misc
 import Data.Monoid
 import Data.Range
+import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types.Method
 import Safe (headDef, tailDef)
 import System.Logger.Class hiding (new)
 import Prelude hiding (mapM_, foldr)
+import Util.Options
 
 import qualified Data.Set               as Set
 import qualified Data.Text.Lazy         as LT
@@ -135,8 +137,8 @@ pushSome (x:xs) = push (list1 x xs)
 push :: List1 Push -> Galley ()
 push ps = do
     let (async, sync) = partition _pushAsync (toList ps)
-    forM_ (pushes async) $ gundeck >=> callAsync "gundeck"
-    void $ mapConcurrently (gundeck >=> call "gundeck") (pushes sync)
+    forM_ (pushes async) $ gundeckReq >=> callAsync "gundeck"
+    void $ mapConcurrently (gundeckReq >=> call "gundeck") (pushes sync)
     return ()
   where
     pushes = fst . foldr chunk ([], 0)
@@ -171,12 +173,12 @@ push ps = do
 -----------------------------------------------------------------------------
 -- Helpers
 
-gundeck :: [Gundeck.Push] -> Galley (Request -> Request)
-gundeck ps = do
+gundeckReq :: [Gundeck.Push] -> Galley (Request -> Request)
+gundeckReq ps = do
     o <- view options
     return
-        $ host (o^.gundeckHost)
-        . port (portNumber (o^.gundeckPort))
+        $ host (encodeUtf8 $ o^.optGundeck.epHost)
+        . port (portNumber $ fromIntegral (o^.optGundeck.epPort))
         . method POST
         . path "/i/push/v2"
         . json ps

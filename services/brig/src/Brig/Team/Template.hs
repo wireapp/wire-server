@@ -18,8 +18,6 @@ import Brig.Types
 import Data.Monoid
 import Data.Text (Text)
 
-import qualified Data.Text.Encoding as Text
-
 data InvitationEmailTemplate = InvitationEmailTemplate
     { invitationEmailUrl        :: !Template
     , invitationEmailSubject    :: !Template
@@ -34,16 +32,18 @@ data TeamTemplates = TeamTemplates
     }
 
 loadTeamTemplates :: Opts -> IO (Localised TeamTemplates)
-loadTeamTemplates o = readLocalesDir defLocale templateDir $ \fp ->
+loadTeamTemplates o = readLocalesDir defLocale templates $ \fp ->
     TeamTemplates
-        <$> (InvitationEmailTemplate invitationUrl
+        <$> (InvitationEmailTemplate tUrl
                 <$> readTemplate (fp <> "/email/invitation-subject.txt")
                 <*> readTemplate (fp <> "/email/invitation.txt")
                 <*> readTemplate (fp <> "/email/invitation.html")
-                <*> pure (optEmailSender o)
+                <*> pure (emailSender gOptions)
                 <*> readText (fp <> "/email/sender.txt"))
   where
-    invitationUrl = template . Text.decodeLatin1 $ optTeamInvitationUrl o
+    gOptions = general (emailSMS o)
+    tOptions = team (emailSMS o)
+    tUrl     = template $ tInvitationUrl tOptions
 
     defLocale = setDefaultLocale (optSettings o)
-    templateDir = optTemplateDir o <> "/team"
+    templates = templateDir gOptions <> "/team"

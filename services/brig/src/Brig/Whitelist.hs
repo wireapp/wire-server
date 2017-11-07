@@ -1,7 +1,9 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Brig.Whitelist (Whitelist (..), verify) where
 
+import Data.Aeson
 import Bilge.IO
 import Bilge.Request
 import Bilge.Response
@@ -10,21 +12,25 @@ import Brig.Types
 import Control.Monad.Catch (MonadMask, throwM)
 import Control.Monad.IO.Class
 import Control.Retry
-import Data.ByteString (ByteString)
 import Data.Monoid
+import Data.Text
 import Data.Text.Encoding (encodeUtf8)
-import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..))
+import GHC.Generics
+import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), parseRequest)
 
 data Whitelist = Whitelist
-    { whitelistReq  :: !Request
-    , whitelistUser :: !ByteString
-    , whitelistPass :: !ByteString
-    } deriving Show
+    { whitelistUrl  :: !Text
+    , whitelistUser :: !Text
+    , whitelistPass :: !Text
+    } deriving (Show, Generic)
+
+instance FromJSON Whitelist
 
 verify :: (MonadIO m, MonadMask m, MonadHttp m) => Whitelist -> Either Email Phone -> m Bool
-verify (Whitelist rq user pass) key =
+verify (Whitelist url user pass) key =
     recovering x3 httpHandlers . const $ do
-        rsp <- get' rq (req user pass)
+        rq <- parseRequest $ unpack url
+        rsp <- get' rq $ req (encodeUtf8 user) (encodeUtf8 pass)
         case statusCode rsp of
             200 -> return True
             404 -> return False

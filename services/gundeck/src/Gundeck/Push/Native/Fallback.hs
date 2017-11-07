@@ -16,7 +16,7 @@ import Data.Foldable (for_)
 import Data.Id
 import Gundeck.Aws.Arn (toText)
 import Gundeck.Monad
-import Gundeck.Options (fbSkipFallbacks)
+import Gundeck.Options
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
 import Gundeck.Push.Native.Types
@@ -69,7 +69,7 @@ execute nid prio (Candidates now queue) = do
     schedule e msg !n (usr, clt, app, trp) = do
         Log.debug $ logMsg usr clt app trp "Scheduling fallback notification"
         ok <- Q.schedule (e^.fbQueue) usr nid $
-            runDirect e (send usr clt app trp msg (e^.options^.fbSkipFallbacks))
+            runDirect e (send usr clt app trp msg (e^.options.optFallback.fbSkipFallbacks))
         if ok then return (n + 1) else do
             Log.err $ logMsg usr clt app trp "Failed to schedule fallback notification"
             return n

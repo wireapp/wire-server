@@ -32,6 +32,7 @@ tests :: Manager -> Brig -> FilePath -> IO TestTree
 tests m b t = do
     return $ testGroup "turn"
         [ test m "basic /calls/config - 200"            $ resetTurn >> testCallsConfig b
+        -- FIXME: requires tests to run on same host as brig
         , test m "multiple servers /calls/config - 200" $ resetTurn >> testCallsConfigMultiple b (setTurn t)
         ]
   where

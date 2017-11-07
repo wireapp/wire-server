@@ -60,12 +60,12 @@ getCallsConfig (_ ::: _ ::: _) = json <$> lift newConfig
     newConfig :: (MonadIO m, MonadReader Env m) => m RTCConfiguration
     newConfig = do
         env  <- liftIO =<< readIORef <$> view turnEnv
-        let (sha, secret, ttl, prng) = ((env^.turnSHA512), (env^.turnSecret), (env^.turnTTL), (env^.turnPrng))
+        let (sha, secret, tTTL, cTTL, prng) = (env^.turnSHA512, env^.turnSecret, env^.turnTokenTTL, env^.turnConfigTTL, env^.turnPrng)
         uris <- liftIO $ randomize (unsafeRange 2) (env^.turnServers)
         srvs <- for uris $ \uri -> do
-                    u <- liftIO $ genUsername ttl prng
+                    u <- liftIO $ genUsername tTTL prng
                     pure $ rtcIceServer (List1.singleton uri) u (computeCred sha secret u)
-        pure $ rtcConfiguration srvs ttl
+        pure $ rtcConfiguration srvs cTTL
       where
         -- TODO: Ideally, we should group these by host and return a [[TurnURI]] but
         -- in reality we only advertise/check the UDP port

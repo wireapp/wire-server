@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
@@ -22,6 +23,7 @@ import Control.Monad.Catch
 import Control.Error
 import Control.Monad
 import Control.Monad.IO.Class
+import Data.Aeson
 import Data.Int
 import Data.IORef
 import Data.Functor.Identity
@@ -35,6 +37,7 @@ import Data.Time.Clock
 import Data.Word
 import Database.CQL.IO
 import Database.CQL.Protocol (Request (..), Query (..), Response(..), Result (..))
+import GHC.Generics hiding (to, from, S)
 import Options.Applicative hiding (info)
 import Prelude hiding (log)
 import System.Logger (Logger, Level (..), log, msg)
@@ -50,21 +53,26 @@ data Migration = Migration
 data MigrationOpts = MigrationOpts
     { migHost     :: String
     , migPort     :: Word16
-    , migKeyspace :: Keyspace
+    , migKeyspace :: Text
     , migRepl     :: ReplicationStrategy
     , migReset    :: Bool
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Generic)
 
 data ReplicationStrategy
     = SimpleStrategy { replicationFactor :: ReplicationFactor }
     | NetworkTopologyStrategy { dataCenters :: ReplicationMap }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 newtype ReplicationFactor = ReplicationFactor Word16
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 newtype ReplicationMap = ReplicationMap [(Text, ReplicationFactor)]
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
+
+instance FromJSON ReplicationMap
+instance FromJSON ReplicationFactor
+instance FromJSON ReplicationStrategy
+instance FromJSON MigrationOpts
 
 instance Read ReplicationMap where
     -- ReplicationMap ::= DataCenter [("," DataCenter)*]
@@ -142,11 +150,12 @@ migrateSchema l o ms = do
           . setProtocolVersion V3
           $ defSettings
     runClient p $ do
+        let keyspace = Keyspace . migKeyspace $ o
         when (migReset o) $ do
             info "Dropping keyspace."
-            void $ schema (dropKeyspace (migKeyspace o)) (params All ())
-        createKeyspace (migKeyspace o) (migRepl o)
-        useKeyspace (migKeyspace o)
+            void $ schema (dropKeyspace keyspace) (params All ())
+        createKeyspace keyspace (migRepl o)
+        useKeyspace keyspace
         void $ schema metaCreate (params All ())
         migrations <- newer <$> schemaVersion
         if null migrations
@@ -203,7 +212,7 @@ migrationOptsParser = MigrationOpts
             <> value 9042
             <> help "Cassandra port")
 
-    <*> (fmap (Keyspace . pack) . strOption $
+    <*> ((fmap pack) . strOption $
             long "keyspace"
             <> metavar "STRING"
             <> help "Cassandra Keyspace")

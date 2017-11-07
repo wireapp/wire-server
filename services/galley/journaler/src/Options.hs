@@ -29,7 +29,7 @@ import Options.Applicative
 import qualified Data.UUID as UUID
 import qualified Cassandra as C
 
-data Settings = Settings
+data JournalSettings = JournalSettings
     { _rStart           :: !(Maybe TeamId)
     , _rCasSettings     :: !CassandraSettings
     , _rJournalSettings :: !JournalOpts
@@ -41,11 +41,11 @@ data CassandraSettings = CassandraSettings
     , _cKeyspace :: !C.Keyspace
     } deriving Show
 
-makeLenses ''Settings
+makeLenses ''JournalSettings
 makeLenses ''CassandraSettings
 
-settingsParser :: Parser Settings
-settingsParser = Settings
+settingsParser :: Parser JournalSettings
+settingsParser = JournalSettings
     <$> optional ( teamIdOption
         ( long "start-team-id"
         <> help "starting TeamId"))

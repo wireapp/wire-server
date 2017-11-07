@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns               #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -19,7 +20,11 @@ import Data.ByteString.Builder
 import Data.ByteString.Lazy (toStrict)
 import Data.ByteString.Conversion
 import Data.Monoid
+import Data.Text (Text)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock.POSIX
+import Data.Yaml (FromJSON)
+import GHC.Generics
 import OpenSSL.EVP.Digest (getDigestByName)
 import OpenSSL.PEM (readPrivateKey, PemPasswordSupply (PwNone))
 import URI.ByteString
@@ -28,11 +33,11 @@ import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8  as C8
 import qualified OpenSSL.EVP.Sign       as SSL
 
-newtype KeyPairId = KeyPairId ByteString
-    deriving (Eq, Show, ToByteString)
+newtype KeyPairId = KeyPairId Text
+    deriving (Eq, Show, ToByteString, Generic, FromJSON)
 
-newtype Domain = Domain ByteString
-    deriving (Eq, Show, ToByteString)
+newtype Domain = Domain Text
+    deriving (Eq, Show, ToByteString, Generic, FromJSON)
 
 data CloudFront = CloudFront
     { _baseUrl   :: URI
@@ -47,7 +52,7 @@ initCloudFront kfp kid (Domain dom) = liftIO $
   where
     baseUrl = URI
         { uriScheme = Scheme "https"
-        , uriAuthority = Just (Authority Nothing (Host dom) Nothing)
+        , uriAuthority = Just (Authority Nothing (Host (encodeUtf8 dom)) Nothing)
         , uriPath = "/"
         , uriQuery = Query []
         , uriFragment = Nothing

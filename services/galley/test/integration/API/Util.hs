@@ -33,7 +33,7 @@ import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
 import Prelude hiding (head, mapM_)
-import Test.Tasty
+import Test.Tasty.Cannon (Cannon)
 import Test.Tasty.HUnit
 
 import Debug.Trace (traceShow)
@@ -45,6 +45,7 @@ import qualified Data.HashMap.Strict    as HashMap
 import qualified Data.Map.Strict        as Map
 import qualified Data.Set               as Set
 import qualified Data.UUID              as UUID
+import qualified Galley.Aws             as Aws
 import qualified Galley.Types.Proto     as Proto
 import qualified Test.QuickCheck        as Q
 import qualified Test.Tasty.Cannon      as WS
@@ -53,8 +54,13 @@ type Galley      = Request -> Request
 type Brig        = Request -> Request
 type ResponseLBS = Response (Maybe Lazy.ByteString)
 
-test :: Manager -> String -> Http () -> TestTree
-test m s h = testCase s (runHttpT m h)
+data TestSetup = TestSetup
+  { manager   :: Manager
+  , galley    :: Galley
+  , brig      :: Brig
+  , cannon    :: Cannon
+  , awsEnv    :: Maybe Aws.Env
+  }
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -405,15 +411,15 @@ randomUsers :: Brig -> Int -> Http [UserId]
 randomUsers b n = replicateM n (randomUser b)
 
 randomUser :: Brig -> Http UserId
-randomUser brig = do
+randomUser b = do
     e <- liftIO randomEmail
     let p = object [ "name" .= fromEmail e, "email" .= fromEmail e, "password" .= defPassword ]
-    r <- post (brig . path "/i/users" . json p) <!! const 201 === statusCode
+    r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
 randomClient :: Brig -> UserId -> LastPrekey -> Http ClientId
-randomClient brig usr lk = do
-    q <- post (brig . path "/clients" . zUser usr . zConn "conn" . json newClientBody)
+randomClient b usr lk = do
+    q <- post (b . path "/clients" . zUser usr . zConn "conn" . json newClientBody)
             <!! const 201 === statusCode
     fromBS $ getHeader' "Location" q
   where

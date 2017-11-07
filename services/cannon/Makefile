@@ -45,16 +45,6 @@ $(DEB):
 	 --architecture=amd64 \
 	 --output-dir=dist
 
-.PHONY: integration
-integration: install
-	keiretsu --run $(EXE_IT)
-
-integration-list:
-	keiretsu --run '$(EXE_IT) -l'
-
-integration-%:
-	keiretsu --run '$(EXE_IT) --pattern="$*"'
-
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
 
