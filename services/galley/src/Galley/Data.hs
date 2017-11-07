@@ -114,7 +114,7 @@ import qualified System.Logger.Class  as Log
 newtype ResultSet a = ResultSet { page :: Page a }
 
 schemaVersion :: Int32
-schemaVersion = 21
+schemaVersion = 24
 
 -- Teams --------------------------------------------------------------------
 
@@ -549,4 +549,3 @@ lookupClients usrs = Clients.fromList . map (second fromSet) <$>
 
 eraseClients :: MonadClient m => UserId -> m ()
 eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)))
-
