@@ -12,6 +12,7 @@ import qualified V20
 import qualified V21
 import qualified V22
 import qualified V23
+import qualified V24
 
 main :: IO ()
 main = do
@@ -22,6 +23,7 @@ main = do
         , V21.migration
         , V22.migration
         , V23.migration
+        , V24.migration
         ]
       `finally`
         close l

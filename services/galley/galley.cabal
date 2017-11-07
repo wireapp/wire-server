@@ -148,6 +148,7 @@ executable galley-schema
         V21
         V22
         V23
+        V24
 
     build-depends:
         base
