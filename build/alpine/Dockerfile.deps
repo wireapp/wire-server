@@ -24,4 +24,5 @@ RUN apk add --no-cache \
             icu \
             geoip \
             llvm-libunwind \
-            ca-certificates
+            ca-certificates \
+            dumb-init

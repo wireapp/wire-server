@@ -22,4 +22,4 @@ COPY --from=builder /src/wire-server/services/${service}/dist/${executable} /usr
 # ARGs are not available at runtime, create symlink at build time
 # more info: https://stackoverflow.com/questions/40902445/using-variable-interpolation-in-string-in-docker
 RUN ln -s /usr/bin/${executable} /usr/bin/service
-ENTRYPOINT ["/usr/bin/service"]
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "/usr/bin/service"]
