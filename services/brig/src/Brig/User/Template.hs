@@ -4,6 +4,7 @@
 module Brig.User.Template
     ( UserTemplates              (..)
     , ActivationSmsTemplate      (..)
+    , VerificationEmailTemplate  (..)
     , ActivationEmailTemplate    (..)
     , TeamActivationEmailTemplate(..)
     , ActivationCallTemplate     (..)
@@ -34,6 +35,7 @@ import qualified Brig.Options       as Opt
 data UserTemplates = UserTemplates
     { activationSms         :: !ActivationSmsTemplate
     , activationCall        :: !ActivationCallTemplate
+    , verificationEmail     :: !VerificationEmailTemplate
     , activationEmail       :: !ActivationEmailTemplate
     , activationEmailUpdate :: !ActivationEmailTemplate
     , teamActivationEmail   :: !TeamActivationEmailTemplate
@@ -56,6 +58,15 @@ data ActivationSmsTemplate = ActivationSmsTemplate
 
 data ActivationCallTemplate = ActivationCallTemplate
     { activationCallText  :: !Template
+    }
+
+data VerificationEmailTemplate = VerificationEmailTemplate
+    { verificationEmailUrl        :: !Template
+    , verificationEmailSubject    :: !Template
+    , verificationEmailBodyText   :: !Template
+    , verificationEmailBodyHtml   :: !Template
+    , verificationEmailSender     :: !Email
+    , verificationEmailSenderName :: !Text
     }
 
 data ActivationEmailTemplate = ActivationEmailTemplate
@@ -146,6 +157,12 @@ loadUserTemplates o = readLocalesDir defLocale templateDir $ \fp ->
                 <*> pure smsSender)
         <*> (ActivationCallTemplate
                 <$> readTemplate (fp <> "/call/activation.txt"))
+        <*> (VerificationEmailTemplate activationUrl
+                <$> readTemplate (fp <> "/email/verification-subject.txt")
+                <*> readTemplate (fp <> "/email/verification.txt")
+                <*> readTemplate (fp <> "/email/verification.html")
+                <*> pure emailSender
+                <*> readText (fp <> "/email/sender.txt"))
         <*> (ActivationEmailTemplate activationUrl
                 <$> readTemplate (fp <> "/email/activation-subject.txt")
                 <*> readTemplate (fp <> "/email/activation.txt")

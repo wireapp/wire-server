@@ -65,7 +65,7 @@ data ActivationEvent
 
 -- | Max. number of activation attempts per 'ActivationKey'.
 maxAttempts :: Int32
-maxAttempts = 5
+maxAttempts = 3
 
 activateKey :: ActivationKey
             -> ActivationCode
