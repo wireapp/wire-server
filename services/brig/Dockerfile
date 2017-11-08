@@ -1,15 +1,20 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
 # Requires to have created the wire-server-builder and wire-server-deps docker images
 
+ARG builder=wire-server-builder:alpine
+ARG deps=wire-server-deps:alpine
+
 #--- Builder stage ---
-FROM wire-server-builder:alpine as builder
+FROM ${builder} as builder
+
+ARG target=install
 
 COPY . /src/wire-server/
 
-RUN cd /src/wire-server/services/brig && make install
+RUN cd /src/wire-server/services/brig && make ${target}
 
 #--- Minified stage ---
-FROM wire-server-deps:alpine
+FROM ${deps}
 
 ARG executable
 COPY --from=builder /src/wire-server/services/brig/dist/${executable} /usr/bin/${exectuable}
