@@ -855,10 +855,10 @@ randomToken c size trans name = liftIO $ do
     return (pushToken trans name tok c)
 
 multipleUuids :: Control.Monad.IO.Class.MonadIO m => Int -> m (Id a) -> m ByteString
-multipleUuids size u = BS.concat <$> Prelude.replicate (numberOfUuids size) <$> toByteString' <$> u
+multipleUuids size u = BS.intercalate (C.pack ":") <$> Prelude.replicate (numberOfUuids size) <$> toByteString' <$> u
 
 numberOfUuids :: Int -> Int
-numberOfUuids size = (quot (size - 1) 36) + 1
+numberOfUuids size = (quot (size) 37) + 1
 
 showUser :: UserId -> ByteString
 showUser = C.pack . show

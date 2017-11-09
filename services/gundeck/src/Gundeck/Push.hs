@@ -202,8 +202,12 @@ addToken (uid ::: cid ::: req ::: _) = do
             ~~ "token" .= Text.take 16 (tokenText (new^.token))
             ~~ msg (val "Registering push token")
     continue new cur >>= either return (\a -> do
-        Native.deleteTokens old (Just a)
-        return (success new))
+        status <- Native.deleteTokens old (Just a)
+        case status of
+            Left (Aws.MetadataTooLong l) -> do 
+                Log.info $ msg ("Push token is too long: token length = " ++ show l)
+                return (metadataTooLong)
+            Right () -> return (success new))
   where
     matching t (x, old) a
         | a^.addrTransport  == t^.tokenTransport &&
@@ -251,10 +255,15 @@ addToken (uid ::: cid ::: req ::: _) = do
         case ept of
             Nothing -> create (n + 1) t
             Just ep -> do
-                updateEndpoint uid t arn ep
-                Data.insert uid (t^.tokenTransport) (t^.tokenApp) (t^.token) arn cid
+                status <- updateEndpoint uid t arn ep
+                case status of
+                    Left (Aws.MetadataTooLong l) -> do
+                        Log.info $ msg ("Push token metadata is too long: token length = " ++ show l)
+                        return (Left metadataTooLong)
+                    Right () -> do
+                        Data.insert uid (t^.tokenTransport) (t^.tokenApp) (t^.token) arn cid
                                 (t^.tokenClient) (t^.tokenFallback)
-                return (Right (mkAddr t arn))
+                        return (Right (mkAddr t arn))
               `catch` \case
                 -- Note: If the endpoint was recently deleted (not necessarily
                 -- concurrently), we may get an EndpointNotFound error despite
@@ -277,7 +286,7 @@ addToken (uid ::: cid ::: req ::: _) = do
     invalidFallback = Error status403 "invalid-fallback" "Invalid fallback transport."
 
 -- | Update an SNS endpoint with the given user and token.
-updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.Endpoint -> Gundeck ()
+updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.Endpoint -> Gundeck (Either Aws.UpdateEndpointError ())
 updateEndpoint uid t arn e = do
     env  <- view awsEnv
     unless (equalTransport && equalApp) $ do
@@ -301,8 +310,12 @@ deleteToken (uid ::: tok ::: _) = do
     as <- filter (\x -> x^.addrToken == tok) <$> Data.lookup uid Data.Quorum
     when (null as) $
         throwM (Error status404 "not-found" "Push token not found")
-    Native.deleteTokens as Nothing
-    return $ empty & setStatus status204
+    status <- Native.deleteTokens as Nothing
+    case status of
+        Left (Aws.MetadataTooLong l) -> do 
+            Log.info $ msg ("Push token is too long: token length = " ++ show l)
+            return (metadataTooLong)
+        Right () -> return $ empty & setStatus status204
 
 success :: PushToken -> Response
 success t =
@@ -314,7 +327,11 @@ invalidToken = json (Error status400 "invalid-token" "Invalid push token")
              & setStatus status404
 
 tokenTooLong :: Response
-tokenTooLong = json (Error status400 "token-too-long" "Push token length must be < 2048 for GCM or 400 for APNS")
+tokenTooLong = json (Error status400 "token-too-long" "Push token length must be < 8192 for GCM or 400 for APNS")
+             & setStatus status413
+
+metadataTooLong :: Response
+metadataTooLong = json (Error status400 "metadata-too-long" "Tried to add token to endpoint resulting in metadata length > 2048")
              & setStatus status413
 
 notFound :: Response

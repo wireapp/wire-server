@@ -18,6 +18,7 @@ module Gundeck.Aws
       -- * Errors
     , Error               (..)
     , CreateEndpointError (..)
+    , UpdateEndpointError (..)
     , PublishError        (..)
 
       -- * Endpoints
@@ -220,16 +221,25 @@ data CreateEndpointError
         -- ^ Invalid application name.
     deriving Show
 
+data UpdateEndpointError
+    = MetadataTooLong !Integer
+        -- ^ Metadata is length is greater than 2048
+    deriving Show
+
 -- | Update an endpoint with the given push token.
 --
 -- This will replace the current token, set the endpoint's user data to
 -- the the list of given 'UserId's and enable the endpoint.
-updateEndpoint :: Set UserId -> Token -> EndpointArn -> Amazon ()
+updateEndpoint :: Set UserId -> Token -> EndpointArn -> Amazon (Either UpdateEndpointError ())
 updateEndpoint us tk arn = do
     let req = over SNS.seaAttributes fun (SNS.setEndpointAttributes (toText arn))
     res <- retrying (limitRetries 1) (const isTimeout) (const (sendCatch req))
     case res of
-        Right _ -> return ()
+        Right _ -> return $ Right ()
+        Left x@(AWS.ServiceError e)
+            | is "SNS" 400 x && AWS.errorCode "InvalidParameter" == e^.serviceCode
+                             && isMetadataLengthError (e^.serviceMessage) ->
+                return (Left (MetadataTooLong $ tokenLength tk))
         Left  x -> throwM $ if is "SNS" 404 x
                                 then EndpointNotFound arn
                                 else GeneralError x
@@ -239,6 +249,15 @@ updateEndpoint us tk arn = do
         . Map.insert "Enabled" "true"
 
     mkUsers = Text.intercalate ":" . map toText . Set.toList
+
+    tokenLength = toInteger . Text.length . Push.tokenText
+
+    isMetadataLengthError Nothing = False
+    isMetadataLengthError (Just s) = isRight . flip parseOnly (toText s) $ do
+        let prefix = "Invalid parameter: Attributes Reason: "
+        _ <-  string prefix
+        _ <-  string "Invalid value for attribute: CustomUserData: must be at most 2048 bytes long in UTF-8 encoding"
+        return ()
 
 deleteEndpoint :: EndpointArn -> Amazon ()
 deleteEndpoint arn = do
