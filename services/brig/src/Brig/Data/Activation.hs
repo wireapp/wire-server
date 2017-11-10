@@ -37,7 +37,6 @@ import Data.Int (Int32)
 import Data.Text (Text, pack)
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (getDigestByName, digestBS)
-import OpenSSL.Random (randBytes)
 import Text.Printf (printf)
 
 import qualified Data.Text.Ascii    as Ascii
@@ -111,8 +110,8 @@ newActivation :: UserKey
               -> AppIO Activation
 newActivation uk timeout u = do
     (typ, key, code) <- liftIO $ foldKey
-        (\e -> ("email", fromEmail e,) <$> genEmailCode)
-        (\p -> ("phone", fromPhone p,) <$> genPhoneCode)
+        (\e -> ("email", fromEmail e,) <$> genCode)
+        (\p -> ("phone", fromPhone p,) <$> genCode)
         uk
     insert typ key code
   where
@@ -121,9 +120,8 @@ newActivation uk timeout u = do
         retry x5 . write keyInsert $ params Quorum (key, t, k, c, u, maxAttempts, round timeout)
         return $ Activation key c
 
-    genEmailCode = ActivationCode . Ascii.encodeBase64Url <$> randBytes 24
-    genPhoneCode = ActivationCode . Ascii.unsafeFromText . pack . printf "%06d"
-                <$> randIntegerZeroToNMinusOne 1000000
+    genCode = ActivationCode . Ascii.unsafeFromText . pack . printf "%06d"
+           <$> randIntegerZeroToNMinusOne 1000000
 
 -- | Lookup an activation code and it's associated owner (if any) for a 'UserKey'.
 lookupActivationCode :: UserKey -> AppIO (Maybe (Maybe UserId, ActivationCode))

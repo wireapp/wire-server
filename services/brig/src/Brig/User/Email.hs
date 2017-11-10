@@ -21,7 +21,7 @@ import Brig.User.Template
 import Brig.Types
 import Data.Maybe (fromMaybe, isNothing)
 import Data.Range
-import Data.Text (Text)
+import Data.Text (Text, chunksOf, intercalate)
 import Data.Text.Lazy (toStrict)
 
 import qualified Brig.Aws        as Aws
@@ -176,17 +176,10 @@ renderVerificationMail VerificationEmail{..} VerificationEmailTemplate{..} =
     html = renderHtml verificationEmailBodyHtml replace
     subj = renderText verificationEmailSubject  replace
 
-    replace "url"   = renderVerificationUrl verificationEmailUrl vfPair
+    -- Digits can be better read in groups of 3
+    replace "code"  = intercalate " " . chunksOf 3 $ Ascii.toText code
     replace "email" = fromEmail vfTo
     replace x       = x
-
-renderVerificationUrl :: Template -> ActivationPair -> Text
-renderVerificationUrl t (ActivationKey k, ActivationCode c) =
-    toStrict $ renderText t replace
-  where
-    replace "key"  = Ascii.toText k
-    replace "code" = Ascii.toText c
-    replace x      = x
 
 -------------------------------------------------------------------------------
 -- Activation Email

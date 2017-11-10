@@ -176,14 +176,19 @@ createUser new@NewUser{..} = do
     -- Handle e-mail activation
     edata <- if emailInvited || teamEmailInvited
             then return Nothing
-            else fmap join . for emKey $ \ek -> do
-                timeout <- setActivationTimeout <$> view settings
-                edata   <- lift $ Data.newActivation ek timeout (Just uid)
-                Log.info $ field "user"            (toByteString uid)
-                         . field "activation.key"  (toByteString $ activationKey edata)
-                         . field "activation.code" (toByteString $ activationCode edata)
-                         . msg (val "Created email activation key/code pair")
-                return $ Just edata
+            else fmap join . for emKey $ \ek -> case newUserEmailCode of
+                Nothing -> do
+                    timeout <- setActivationTimeout <$> view settings
+                    edata   <- lift $ Data.newActivation ek timeout (Just uid)
+                    Log.info $ field "user"            (toByteString uid)
+                             . field "activation.key"  (toByteString $ activationKey edata)
+                             . field "activation.code" (toByteString $ activationCode edata)
+                             . msg (val "Created email activation key/code pair")
+                    return $ Just edata
+                Just c -> do
+                    ak <- liftIO $ Data.mkActivationKey ek
+                    void $ activate (ActivateKey ak) c (Just uid) !>> EmailActivationError
+                    return Nothing
 
     -- Handle phone activation
     pdata <- if phoneInvited

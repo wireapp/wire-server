@@ -53,6 +53,7 @@ data ActivationResult
 data CreateUserError
     = InvalidInvitationCode
     | MissingIdentity
+    | EmailActivationError ActivationError
     | PhoneActivationError ActivationError
     | InvalidEmail Email
     | InvalidPhone Phone
