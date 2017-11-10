@@ -177,8 +177,7 @@ testCreateTeamPreverified brig galley = do
             mem <- getTeamMember uid (team^.Team.teamId) galley
             liftIO $ assertBool "Member not part of the team" (uid == mem ^. Team.userId)
             team2 <- getTeam galley (team^.Team.teamId)
-            -- Team should already be active
-            liftIO $ assertEqual "status" Team.Active (Team.tdStatus team2)
+            liftIO $ assertEqual "Team should already be active" Team.Active (Team.tdStatus team2)
             -- Verify that the user can already send invitations before activating their account
             inviteeEmail <- randomEmail
             let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
