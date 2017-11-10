@@ -510,7 +510,10 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
         when blacklisted $
             throwE (ActivationBlacklistedUserKey ek)
         uc <- lift $ Data.lookupActivationCode ek
-        maybe (sendVerificationEmail ek) (sendActivationEmail ek) uc
+        case uc of
+            Nothing            -> sendVerificationEmail ek Nothing      -- Fresh code request, no user
+            Just (Nothing , c) -> sendVerificationEmail ek (Just c)     -- Re-requesting existing code
+            Just (Just uid, c) -> sendActivationEmail   ek c        uid -- User re-requesting activation
 
     Right phone -> do
         pk <- maybe (throwE $ InvalidRecipient (userPhoneKey phone))
@@ -538,15 +541,14 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
                 dat <- Data.newActivation k timeout u
                 return (activationKey dat, activationCode dat)
 
-    sendVerificationEmail ek = do
-        p <- mkPair ek Nothing Nothing
+    sendVerificationEmail ek uc = do
+        p <- mkPair ek uc Nothing
         void . forEmailKey ek $ \em -> lift $
             sendVerificationMail em p loc
 
-    sendActivationEmail ek uc = do
-        uid <- maybe (throwE $ InvalidRecipient ek) return (fst uc)
+    sendActivationEmail ek uc uid = do
         u   <- maybe (notFound uid) return =<< lift (Data.lookupUser uid)
-        p   <- mkPair ek (Just $ snd uc) (Just uid)
+        p   <- mkPair ek (Just uc) (Just uid)
         let ident = userIdentity u
         let name  = userName u
         let loc'  = loc <|> Just (userLocale u)
