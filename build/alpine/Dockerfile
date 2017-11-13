@@ -4,16 +4,20 @@
 #   (from wire-server root directory)
 #   SERVICE=galley; docker build -f build/alpine/Dockerfile -t $SERVICE --build-arg service=$SERVICE .
 
+ARG builder=wire-server-builder:alpine
+ARG deps=wire-server-deps:alpine
+
 #--- Builder stage ---
-FROM wire-server-builder:alpine as builder
+FROM ${builder} as builder
 
 ARG service
+ARG target=install
 COPY . /src/wire-server/
 
-RUN cd /src/wire-server/services/${service} && make install
+RUN cd /src/wire-server/services/${service} && make ${target}
 
 #--- Minified stage ---
-FROM wire-server-deps:alpine
+FROM ${deps}
 
 ARG service
 ARG executable
