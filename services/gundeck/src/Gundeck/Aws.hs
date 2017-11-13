@@ -320,7 +320,7 @@ createEndpoint u tr env app token = do
 
     tokenLength = toInteger . Text.length . Push.tokenText
 
-    -- Thank you Amazon for not having granul\ar error codes!
+    -- Thank you Amazon for not having granular error codes!
     parseExistsError Nothing  = Nothing
     parseExistsError (Just s) = hush . flip parseOnly (toText s) $ do
         _ <- string "Invalid parameter: Token Reason: Endpoint "
