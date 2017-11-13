@@ -116,7 +116,7 @@ updateEndpoint :: Event -> Endpoint -> [UserId] -> Gundeck ()
 updateEndpoint ev ep us = do
     logEvent ev $ msg (val "Updating SNS endpoint")
     v <- view awsEnv
-    Aws.execute v (Aws.updateEndpoint (Set.fromList us) (ep^.endpointToken) (ev^.evEndpoint))
+    _ <- Aws.execute v (Aws.updateEndpoint (Set.fromList us) (ep^.endpointToken) (ev^.evEndpoint))
     return ()
 
 deleteToken :: UserId -> Event -> Token -> ClientId -> Gundeck ()
