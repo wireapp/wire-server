@@ -196,6 +196,9 @@ newUser = defineModel "NewUser" $ do
     property "accent_id" int32' $ do
         description "Accent colour ID"
         optional
+    property "email_code" bytes' $ do
+        description "Email activation code"
+        optional
     property "phone_code" bytes' $ do
         description "Phone activation code"
         optional
