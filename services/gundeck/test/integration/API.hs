@@ -73,41 +73,42 @@ tests gu ca1 br cas = do
     p <- newManager tlsManagerSettings
     return $ testGroup "Gundeck integration tests" [
         testGroup "Push"
-            [ test p "Register a user"       $ void (registerUser gu ca1)
-            , test p "Delete a user"         $ removeUser cas gu ca1
-            , test p "Replace presence"      $ replacePresence gu ca1
-            , test p "Remove stale presence" $ removeStalePresence gu ca1
-            , test p "Single user push"      $ singleUserPush gu ca1
+            [ test p "Register a user"                  $ void (registerUser gu ca1)
+            , test p "Delete a user"                    $ removeUser cas gu ca1
+            , test p "Replace presence"                 $ replacePresence gu ca1
+            , test p "Remove stale presence"            $ removeStalePresence gu ca1
+            , test p "Single user push"                 $ singleUserPush gu ca1
             , test p "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback gu ca1
             , test p "Send a push to online and offline users" $ sendMultipleUsers gu ca1
-            , test p "Targeted push by connection" $ targetConnectionPush gu ca1
-            , test p "Targeted push by client" $ targetClientPush gu ca1
+            , test p "Targeted push by connection"      $ targetConnectionPush gu ca1
+            , test p "Targeted push by client"          $ targetClientPush gu ca1
             ],
         testGroup "Notifications"
-            [ test p "No notifications" $ testNoNotifs gu
-            , test p "Fetch all notifications" $ testFetchAllNotifs gu
-            , test p "Fetch new notifications" $ testFetchNewNotifs gu
-            , test p "No new notifications" $ testNoNewNotifs gu
-            , test p "Missing notifications" $ testMissingNotifs gu
-            , test p "Fetch last notification" $ testFetchLastNotif gu
-            , test p "No last notification" $ testNoLastNotif gu
-            , test p "Bad 'since' parameter" $ testFetchNotifBadSince gu
-            , test p "Fetch notification by ID" $ testFetchNotifById gu
-            , test p "Filter notifications by client" $ testFilterNotifByClient gu
-            , test p "Paging" $ testNotificationPaging gu
+            [ test p "No notifications"                 $ testNoNotifs gu
+            , test p "Fetch all notifications"          $ testFetchAllNotifs gu
+            , test p "Fetch new notifications"          $ testFetchNewNotifs gu
+            , test p "No new notifications"             $ testNoNewNotifs gu
+            , test p "Missing notifications"            $ testMissingNotifs gu
+            , test p "Fetch last notification"          $ testFetchLastNotif gu
+            , test p "No last notification"             $ testNoLastNotif gu
+            , test p "Bad 'since' parameter"            $ testFetchNotifBadSince gu
+            , test p "Fetch notification by ID"         $ testFetchNotifById gu
+            , test p "Filter notifications by client"   $ testFilterNotifByClient gu
+            , test p "Paging"                           $ testNotificationPaging gu
             ],
         testGroup "Callbacks"
-            [ test p "post and delete" $ testCallback gu
+            [ test p "post and delete"                  $ testCallback gu
             ],
         testGroup "Clients"
-            [ test p "(un)register a client" $ testRegisterClient gu
+            [ test p "(un)register a client"            $ testRegisterClient gu
             ],
         testGroup "Tokens"
-            [ test p "register a push token"     $ testRegisterPushToken gu br
-            , test p "unregister a push token"   $ testUnregisterPushToken gu br
-            , test p "share push token"          $ testSharePushToken gu br
-            , test p "replace shared push token" $ testReplaceSharedPushToken gu br
-            , test p "fail on long push token" $ testLongPushToken gu br
+            [ test p "register a push token"            $ testRegisterPushToken gu br
+            , test p "unregister a push token"          $ testUnregisterPushToken gu br
+            , test p "register too many push tokens"    $ testRegisterTooManyTokens gu br
+            , test p "share push token"                 $ testSharePushToken gu br
+            , test p "replace shared push token"        $ testReplaceSharedPushToken gu br
+            , test p "fail on long push token"          $ testLongPushToken gu br
             ]
         ]
 
@@ -622,6 +623,34 @@ testRegisterPushToken g b = do
     unregisterClient g uid c2 !!! const 200 === statusCode
     unregisterClient g uid c2 !!! const 404 === statusCode
     _tokens <- listPushTokens uid g
+    liftIO $ assertEqual "unexpected tokens" [] _tokens
+
+testRegisterTooManyTokens :: Gundeck -> Brig -> Http ()
+testRegisterTooManyTokens g b = do
+    apsTok <- Token . T.decodeUtf8 . B16.encode <$> randomBytes 32
+    gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
+    let tka = pushToken APNS "com.wire.int.ent" apsTok
+    let tkg = pushToken GCM "test" gcmTok 
+
+    -- try to add 56 uids to an endpoint
+    uids <- replicateM 56 $ randomUser b
+    cs <- forM (zip uids [1::Int ..]) $ \(uid, i) -> do
+        c <- randomClient g uid
+        let ta = tka c
+        let tg = tkg c
+        -- should run out of space in UserData and fail with a 413 on number 56
+        let errcode = if i > 55
+            then const 413
+            else const 201
+        _ <- registerPushTokenRequest uid ta g !!! errcode === statusCode
+        _ <- registerPushTokenRequest uid tg g !!! errcode === statusCode
+        return c
+        
+    -- clean up by deleting clients and their tokens
+    forM_ (zip uids cs) (\(uid, c) -> unregisterClient g uid c !!! const 200 === statusCode)
+    forM_ (zip uids cs) (\(uid, c) -> unregisterClient g uid c !!! const 404 === statusCode)
+    uidsM <- forM uids (\uid -> listPushTokens uid g)
+    let _tokens = concat uidsM
     liftIO $ assertEqual "unexpected tokens" [] _tokens
 
 testUnregisterPushToken :: Gundeck -> Brig -> Http ()
