@@ -727,11 +727,11 @@ testLongPushToken g b = do
     tkn2 <- randomApnsToken clt defTS{tSize=256}
     registerPushTokenRequest uid tkn2 g !!! const 413 === statusCode
 
-    -- normal size APNS token should succeed
+    -- normal size GCM token should succeed
     tkn3 <- randomGcmToken clt defTS
     registerPushTokenRequest uid tkn3 g !!! const 201 === statusCode
 
-    -- APNS token over 8192 bytes should fail
+    -- GCM token over 8192 bytes should fail
     tkn4 <- randomGcmToken clt defTS{tSize=10000}
     registerPushTokenRequest uid tkn4 g !!! const 413 === statusCode
 
