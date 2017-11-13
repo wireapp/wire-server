@@ -16,7 +16,7 @@ import Control.Concurrent
 import Control.Concurrent.Async       (Async, async, wait)
 import Control.Concurrent.STM.TChan
 import Control.Lens                   ((&), (.~), (^.), (^?), view)
-import Control.Monad.IO.Class
+import Control.Monad.IO.Class         (MonadIO)
 import Control.Monad.Reader
 import Control.Monad.STM       hiding (retry)
 import Control.Retry
@@ -638,7 +638,7 @@ testRegisterTooManyTokens g b = do
         c <- randomClient g uid
         let ta = tka c
         let tg = tkg c
-        -- should run out of space in UserData and fail with a 413 on number 56
+        -- should run out of space in endpoint metadata and fail with a 413 on number 56
         let errcode = if i > 55
             then const 413
             else const 201
@@ -883,7 +883,7 @@ randomToken c size trans name = liftIO $ do
         _   -> B16.encode    <$> randomBytes size
     return (pushToken trans name tok c)
 
-multipleUuids :: Control.Monad.IO.Class.MonadIO m => Int -> m (Id a) -> m ByteString
+multipleUuids :: MonadIO m => Int -> m (Id a) -> m ByteString
 multipleUuids size u = BS.intercalate (C.pack ":") <$> Prelude.replicate (numberOfUuids size) <$> toByteString' <$> u
 
 numberOfUuids :: Int -> Int
