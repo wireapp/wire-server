@@ -47,6 +47,7 @@ tests m b c g =
             , test m "post /teams/:tid/invitations - 403 no permission"  $ testInvitationNoPermission b
             , test m "post /register - 201 accepted"                     $ testInvitationEmailAccepted b g
             , test m "post /register user & team - 201 accepted"         $ testCreateTeam b g
+            , test m "post /register user & team - 201 preverified"      $ testCreateTeamPreverified b g
             , test m "post /register - 400 no passwordless"              $ testTeamNoPassword b
             , test m "post /register - 400 code already used"            $ testInvitationCodeExists b g
             , test m "post /register - 400 bad code"                     $ testInvitationInvalidCode b
@@ -158,6 +159,29 @@ testCreateTeam brig galley = do
     -- Verify that Team has status Active now
     team3 <- getTeam galley (team^.Team.teamId)
     liftIO $ assertEqual "status" Team.Active (Team.tdStatus team3)
+
+testCreateTeamPreverified :: Brig -> Galley -> Http ()
+testCreateTeamPreverified brig galley = do
+    email <- randomEmail
+    requestActivationCode brig (Left email)
+    act <- getActivationCode brig (Left email)
+    case act of
+        Nothing     -> liftIO $ assertFailure "activation key/code not found"
+        Just (_, c) -> do
+            rsp <- register' email newTeam c brig <!! const 201 === statusCode
+            let Just uid = userId <$> decodeBody rsp
+            teams <- view Team.teamListTeams <$> getTeams uid galley
+            liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
+            let team = fromMaybe (error "No team??") $ listToMaybe teams
+            liftIO $ assertBool "Team not binding" (team^.Team.teamBinding == Team.Binding)
+            mem <- getTeamMember uid (team^.Team.teamId) galley
+            liftIO $ assertBool "Member not part of the team" (uid == mem ^. Team.userId)
+            team2 <- getTeam galley (team^.Team.teamId)
+            liftIO $ assertEqual "Team should already be active" Team.Active (Team.tdStatus team2)
+            -- Verify that the user can already send invitations before activating their account
+            inviteeEmail <- randomEmail
+            let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
+            postInvitation brig (team^.Team.teamId) uid invite !!! const 201 === statusCode
 
 testInvitationNoPermission :: Brig -> Http ()
 testInvitationNoPermission brig = do
@@ -533,6 +557,17 @@ register e t brig = post (brig . path "/register" . contentJson . body (
     RequestBodyLBS . encode  $ object
         [ "name"            .= ("Bob" :: Text)
         , "email"           .= fromEmail e
+        , "password"        .= defPassword
+        , "team"            .= t
+        ]
+    ))
+
+register' :: Email -> Team.BindingNewTeam -> ActivationCode -> Brig -> HttpT IO (Response (Maybe ByteString))
+register' e t c brig = post (brig . path "/register" . contentJson . body (
+    RequestBodyLBS . encode  $ object
+        [ "name"            .= ("Bob" :: Text)
+        , "email"           .= fromEmail e
+        , "email_code"      .= c
         , "password"        .= defPassword
         , "team"            .= t
         ]

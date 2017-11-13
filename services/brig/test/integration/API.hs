@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
 
 module API (tests, ConnectionLimit (..)) where
 
@@ -66,7 +67,8 @@ tests conf p b c g = do
     l <- optOrEnv (ConnectionLimit . Opt.setUserMaxConnections . Opt.optSettings) conf (ConnectionLimit . read) "USER_CONNECTION_LIMIT"
     return $ testGroup "user"
         [ testGroup "account"
-            [ test p "post /register - 201"                     $ testCreateUser b g
+            [ test p "post /register - 201 (with preverified)"  $ testCreateUserWithPreverified b
+            , test p "post /register - 201"                     $ testCreateUser b g
             , test p "post /register - 201 + no email"          $ testCreateUserNoEmailNoPassword b
             , test p "post /register - 201 anonymous"           $ testCreateUserAnon b g
             , test p "post /register - 201 pending"             $ testCreateUserPending b
@@ -158,6 +160,48 @@ tests conf p b c g = do
 
 -------------------------------------------------------------------------------
 -- User Account/Profile Tests
+
+testCreateUserWithPreverified :: Brig -> Http ()
+testCreateUserWithPreverified brig = do
+    -- Register (pre verified) user with phone
+    p <- randomPhone
+    let phoneReq = RequestBodyLBS . encode $ object [ "phone" .= fromPhone p ]
+    post (brig . path "/activate/send" . contentJson . body phoneReq) !!!
+        (const 200 === statusCode)
+    getActivationCode brig (Right p) >>= \case
+        Nothing     -> liftIO $ assertFailure "missing activation key/code"
+        Just (_, c) -> do
+            let reg = RequestBodyLBS . encode $ object
+                    [ "name"       .= Name "Alice"
+                    , "phone"      .= fromPhone p
+                    , "phone_code" .= c
+                    ]
+            rs <- post (brig . path "/register" . contentJson . body reg) <!!
+                const 201 === statusCode
+            let Just uid = userId <$> decodeBody rs
+            get (brig . path "/self" . zUser uid) !!! do
+                const 200 === statusCode
+                const (Just p) === (userPhone <=< decodeBody)
+
+    -- Register (pre verified) user with email
+    e <- randomEmail
+    let emailReq = RequestBodyLBS . encode $ object [ "email" .= fromEmail e ]
+    post (brig . path "/activate/send" . contentJson . body emailReq) !!!
+        (const 200 === statusCode)
+    getActivationCode brig (Left e) >>= \case
+        Nothing     -> liftIO $ assertFailure "missing activation key/code"
+        Just (_, c) -> do
+            let reg = RequestBodyLBS . encode $ object
+                    [ "name"       .= Name "Alice"
+                    , "email"      .= fromEmail e
+                    , "email_code" .= c
+                    ]
+            rs <- post (brig . path "/register" . contentJson . body reg) <!!
+                const 201 === statusCode
+            let Just uid = userId <$> decodeBody rs
+            get (brig . path "/self" . zUser uid) !!! do
+                const 200 === statusCode
+                const (Just e) === (userEmail <=< decodeBody)
 
 testCreateUser :: Brig -> Galley -> Http ()
 testCreateUser brig galley = do
@@ -595,16 +639,26 @@ testPasswordChange brig = do
         [ "new_password" .= newPass
         ]
 
+-- requestActivationCode :: Brig -> Either Email Phone -> Http ()
+-- requestActivationCode brig ep =
+--     post (brig . path "/activate/send" . contentJson . body (RequestBodyLBS . encode $ bdy ep)) !!!
+--         const 200 === statusCode
+--   where
+--     bdy (Left e)  = object [ "email" .= fromEmail e ]
+--     bdy (Right p) = object [ "phone" .= fromPhone p ]
+
+
 testSendActivationCode :: Brig -> Http ()
 testSendActivationCode brig = do
-    p <- randomPhone
-    send $ RequestBodyLBS . encode $ object ["phone" .= fromPhone p]
+    -- Code for phone pre-verification
+    requestActivationCode brig . Right =<< randomPhone
+    -- Code for email pre-verification
+    requestActivationCode brig . Left =<< randomEmail
+    -- Standard email registration flow
     r <- registerUser "Alice" "success@simulator.amazonses.com" brig <!! const 201 === statusCode
     let Just email = userEmail =<< decodeBody r
-    send $ RequestBodyLBS . encode $ object ["email" .= fromEmail email]
-  where
-    send p = post (brig . path "/activate/send" . contentJson . body p) !!!
-        const 200 === statusCode
+    -- Re-request existing activation code
+    requestActivationCode brig (Left email)
 
 testEmailPhoneDelete :: Brig -> Cannon -> Http ()
 testEmailPhoneDelete brig cannon = do

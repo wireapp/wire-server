@@ -68,6 +68,14 @@ createAnonUser name brig = do
     r <- post (brig . path "/register" . contentJson . body p) <!! const 201 === statusCode
     return $ fromMaybe (error "createAnonUser: failed to parse response") (decodeBody r)
 
+requestActivationCode :: Brig -> Either Email Phone -> Http ()
+requestActivationCode brig ep =
+    post (brig . path "/activate/send" . contentJson . body (RequestBodyLBS . encode $ bdy ep)) !!!
+        const 200 === statusCode
+  where
+    bdy (Left e)  = object [ "email" .= fromEmail e ]
+    bdy (Right p) = object [ "phone" .= fromPhone p ]
+
 getActivationCode :: Brig -> Either Email Phone -> Http (Maybe (ActivationKey, ActivationCode))
 getActivationCode brig ep = do
     let qry = either (queryItem "email" . toByteString') (queryItem "phone" . toByteString') ep

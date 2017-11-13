@@ -176,14 +176,18 @@ createUser new@NewUser{..} = do
     -- Handle e-mail activation
     edata <- if emailInvited || teamEmailInvited
             then return Nothing
-            else fmap join . for emKey $ \ek -> do
-                timeout <- setActivationTimeout <$> view settings
-                edata   <- lift $ Data.newActivation ek timeout (Just uid)
-                Log.info $ field "user"            (toByteString uid)
-                         . field "activation.key"  (toByteString $ activationKey edata)
-                         . field "activation.code" (toByteString $ activationCode edata)
-                         . msg (val "Created email activation key/code pair")
-                return $ Just edata
+            else fmap join . for emKey $ \ek -> case newUserEmailCode of
+                Nothing -> do
+                    timeout <- setActivationTimeout <$> view settings
+                    edata   <- lift $ Data.newActivation ek timeout (Just uid)
+                    Log.info $ field "user"            (toByteString uid)
+                             . field "activation.key"  (toByteString $ activationKey edata)
+                             . msg (val "Created email activation key/code pair")
+                    return $ Just edata
+                Just c -> do
+                    ak <- liftIO $ Data.mkActivationKey ek
+                    void $ activate (ActivateKey ak) c (Just uid) !>> EmailActivationError
+                    return Nothing
 
     -- Handle phone activation
     pdata <- if phoneInvited
@@ -194,7 +198,6 @@ createUser new@NewUser{..} = do
                     pdata   <- lift $ Data.newActivation pk timeout (Just uid)
                     Log.info $ field "user"            (toByteString uid)
                              . field "activation.key"  (toByteString $ activationKey pdata)
-                             . field "activation.code" (toByteString $ activationCode pdata)
                              . msg (val "Created phone activation key/code pair")
                     return $ Just pdata
                 Just c -> do
@@ -504,15 +507,12 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
         blacklisted <- lift $ Blacklist.exists ek
         when blacklisted $
             throwE (ActivationBlacklistedUserKey ek)
-        uc  <- lift $ Data.lookupActivationCode ek
-        uid <- maybe (throwE $ InvalidRecipient ek) return (uc >>= fst)
-        u   <- maybe (notFound uid) return =<< lift (Data.lookupUser uid)
-        p   <- mkPair ek (snd <$> uc) (Just uid)
-        let ident = userIdentity u
-        let name  = userName u
-        let loc'  = loc <|> Just (userLocale u)
-        void . forEmailKey ek $ \em -> lift $
-            sendActivationMail em name p loc' ident
+        uc <- lift $ Data.lookupActivationCode ek
+        case uc of
+            Nothing            -> sendVerificationEmail ek Nothing      -- Fresh code request, no user
+            Just (Nothing , c) -> sendVerificationEmail ek (Just c)     -- Re-requesting existing code
+            Just (Just uid, c) -> sendActivationEmail   ek c        uid -- User re-requesting activation
+
     Right phone -> do
         pk <- maybe (throwE $ InvalidRecipient (userPhoneKey phone))
                     (return . userPhoneKey)
@@ -538,6 +538,20 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
             Nothing  -> lift $ do
                 dat <- Data.newActivation k timeout u
                 return (activationKey dat, activationCode dat)
+
+    sendVerificationEmail ek uc = do
+        p <- mkPair ek uc Nothing
+        void . forEmailKey ek $ \em -> lift $
+            sendVerificationMail em p loc
+
+    sendActivationEmail ek uc uid = do
+        u   <- maybe (notFound uid) return =<< lift (Data.lookupUser uid)
+        p   <- mkPair ek (Just uc) (Just uid)
+        let ident = userIdentity u
+        let name  = userName u
+        let loc'  = loc <|> Just (userLocale u)
+        void . forEmailKey ek $ \em -> lift $
+            sendActivationMail em name p loc' ident
 
 mkActivationKey :: ActivationTarget -> ExceptT ActivationError AppIO ActivationKey
 mkActivationKey (ActivateKey   k) = return k

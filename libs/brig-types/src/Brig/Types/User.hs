@@ -209,6 +209,7 @@ data NewUser = NewUser
     , newUserPict           :: !(Maybe Pict) -- ^ DEPRECATED
     , newUserAssets         :: [Asset]
     , newUserAccentId       :: !(Maybe ColourId)
+    , newUserEmailCode      :: !(Maybe ActivationCode)
     , newUserPhoneCode      :: !(Maybe ActivationCode)
     , newUserInvitationCode :: !(Maybe InvitationCode)
     , newUserLabel          :: !(Maybe CookieLabel)
@@ -230,6 +231,7 @@ instance FromJSON NewUser where
           newUserPict           <- o .:? "picture"
           newUserAssets         <- o .:? "assets" .!= []
           newUserAccentId       <- o .:? "accent_id"
+          newUserEmailCode      <- o .:? "email_code"
           newUserPhoneCode      <- o .:? "phone_code"
           newUserInvitationCode <- o .:? "invitation_code"
           newUserLabel          <- o .:? "label"
@@ -249,6 +251,7 @@ instance ToJSON NewUser where
     toJSON u = object
         $ "name"            .= newUserName u
         # "email"           .= newUserEmail u
+        # "email_code"      .= newUserEmailCode u
         # "password"        .= newUserPassword u
         # "picture"         .= newUserPict u
         # "assets"          .= newUserAssets u
