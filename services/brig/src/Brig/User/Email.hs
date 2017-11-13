@@ -162,13 +162,12 @@ renderVerificationMail VerificationEmail{..} VerificationEmailTemplate{..} =
         { mailTo      = [ to ]
         , mailHeaders = [ ("Subject", toStrict subj)
                         , ("X-Zeta-Purpose", "Verification")
-                        , ("X-Zeta-Key", Ascii.toText key)
                         , ("X-Zeta-Code", Ascii.toText code)
                         ]
         , mailParts   = [ [ plainPart txt, htmlPart html ] ]
         }
   where
-    (ActivationKey key, ActivationCode code) = vfPair
+    (ActivationKey _, ActivationCode code) = vfPair
 
     from = Address (Just verificationEmailSenderName) (fromEmail verificationEmailSender)
     to   = Address Nothing (fromEmail vfTo)

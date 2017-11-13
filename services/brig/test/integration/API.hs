@@ -639,21 +639,26 @@ testPasswordChange brig = do
         [ "new_password" .= newPass
         ]
 
+-- requestActivationCode :: Brig -> Either Email Phone -> Http ()
+-- requestActivationCode brig ep =
+--     post (brig . path "/activate/send" . contentJson . body (RequestBodyLBS . encode $ bdy ep)) !!!
+--         const 200 === statusCode
+--   where
+--     bdy (Left e)  = object [ "email" .= fromEmail e ]
+--     bdy (Right p) = object [ "phone" .= fromPhone p ]
+
+
 testSendActivationCode :: Brig -> Http ()
 testSendActivationCode brig = do
-    p <- randomPhone
-    -- Code for pre-verification
-    send $ RequestBodyLBS . encode $ object ["phone" .= fromPhone p]
-    e <- randomEmail
-    -- Code for pre-verification
-    send $ RequestBodyLBS . encode $ object ["email" .= fromEmail e]
+    -- Code for phone pre-verification
+    requestActivationCode brig . Right =<< randomPhone
+    -- Code for email pre-verification
+    requestActivationCode brig . Left =<< randomEmail
+    -- Standard email registration flow
     r <- registerUser "Alice" "success@simulator.amazonses.com" brig <!! const 201 === statusCode
     let Just email = userEmail =<< decodeBody r
     -- Re-request existing activation code
-    send $ RequestBodyLBS . encode $ object ["email" .= fromEmail email]
-  where
-    send p = post (brig . path "/activate/send" . contentJson . body p) !!!
-        const 200 === statusCode
+    requestActivationCode brig (Left email)
 
 testEmailPhoneDelete :: Brig -> Cannon -> Http ()
 testEmailPhoneDelete brig cannon = do

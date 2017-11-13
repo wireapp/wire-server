@@ -182,7 +182,6 @@ createUser new@NewUser{..} = do
                     edata   <- lift $ Data.newActivation ek timeout (Just uid)
                     Log.info $ field "user"            (toByteString uid)
                              . field "activation.key"  (toByteString $ activationKey edata)
-                             . field "activation.code" (toByteString $ activationCode edata)
                              . msg (val "Created email activation key/code pair")
                     return $ Just edata
                 Just c -> do
@@ -199,7 +198,6 @@ createUser new@NewUser{..} = do
                     pdata   <- lift $ Data.newActivation pk timeout (Just uid)
                     Log.info $ field "user"            (toByteString uid)
                              . field "activation.key"  (toByteString $ activationKey pdata)
-                             . field "activation.code" (toByteString $ activationCode pdata)
                              . msg (val "Created phone activation key/code pair")
                     return $ Just pdata
                 Just c -> do
