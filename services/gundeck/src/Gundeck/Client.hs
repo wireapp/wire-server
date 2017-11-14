@@ -38,7 +38,7 @@ unregister (uid ::: cid) = do
     when (isNothing keys) $
         throwM (Error status404 "not-found" "Client not found")
     toks <- filter byClient <$> Push.lookup uid Push.Quorum
-    _ <- deleteTokens toks Nothing
+    deleteTokens toks Nothing
     Clients.remove uid cid
     return empty
   where
@@ -52,7 +52,7 @@ lookupKeys = mapConcurrently $ \a -> do
 removeUser :: UserId -> Gundeck Response
 removeUser user = do
     toks <- Push.lookup user Push.Quorum
-    _ <- deleteTokens toks Nothing
+    deleteTokens toks Nothing
     Push.erase user
     Clients.erase user
     Notifications.deleteAll user
