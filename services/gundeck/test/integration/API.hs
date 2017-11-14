@@ -611,31 +611,32 @@ testRegisterPushToken g _ b _ = do
 
 testRegisterTooManyTokens :: TestSignature ()
 testRegisterTooManyTokens g _ b _ = do
+    -- create tokens for reuse with multiple users
     apsTok <- Token . T.decodeUtf8 . B16.encode <$> randomBytes 32
     gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
-    let tka = pushToken APNS "com.wire.int.ent" apsTok
-    let tkg = pushToken GCM "test" gcmTok 
+    
+    -- create 55 users with these tokens, which should succeed
+    userClients <- replicateM 55 $ registerToken 201 apsTok gcmTok
 
-    -- try to add 56 uids to an endpoint
-    uids <- replicateM 56 $ randomUser b
-    cs <- forM (zip uids [1::Int ..]) $ \(uid, i) -> do
-        c <- randomClient g uid
-        let ta = tka c
-        let tg = tkg c
-        -- should run out of space in endpoint metadata and fail with a 413 on number 56
-        let errcode = if i > 55
-            then const 413
-            else const 201
-        _ <- registerPushTokenRequest uid ta g !!! errcode === statusCode
-        _ <- registerPushTokenRequest uid tg g !!! errcode === statusCode
-        return c
+    -- should run out of space in endpoint metadata and fail with a 413 on number 56
+    _           <- registerToken 413 apsTok gcmTok
 
     -- clean up by deleting clients and their tokens
-    forM_ (zip uids cs) (\(uid, c) -> unregisterClient g uid c !!! const 200 === statusCode)
-    forM_ (zip uids cs) (\(uid, c) -> unregisterClient g uid c !!! const 404 === statusCode)
-    uidsM <- forM uids (\uid -> listPushTokens uid g)
-    let _tokens = concat uidsM
-    liftIO $ assertEqual "unexpected tokens" [] _tokens
+    forM_ userClients (\(uid, c) -> unregisterClient g uid c !!! const 200 === statusCode)
+    forM_ userClients (\(uid, c) -> unregisterClient g uid c !!! const 404 === statusCode)
+    tokens <- forM (map fst userClients) (\uid -> listPushTokens uid g)
+    liftIO $ assertEqual "unexpected tokens" [] (concat tokens)
+  where
+    registerToken status apsTok gcmTok = do
+        let tka = pushToken APNS "com.wire.int.ent" apsTok
+        let tkg = pushToken GCM "test" gcmTok
+        uid <- randomUser b
+        c   <- randomClient g uid
+        let ta = tka c
+        let tg = tkg c
+        registerPushTokenRequest uid ta g !!! const status === statusCode
+        registerPushTokenRequest uid tg g !!! const status === statusCode
+        return (uid, c)
 
 testUnregisterPushToken :: TestSignature ()
 testUnregisterPushToken g _ b _ = do
