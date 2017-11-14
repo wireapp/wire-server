@@ -251,8 +251,6 @@ updateEndpoint us tk arn = do
 
     mkUsers = Text.intercalate ":" . map toText . Set.toList
 
-    tokenLength = toInteger . Text.length . Push.tokenText
-
     isMetadataLengthError Nothing = False
     isMetadataLengthError (Just s) = isRight . flip parseOnly (toText s) $ do
         let prefix = "Invalid parameter: Attributes Reason: "
