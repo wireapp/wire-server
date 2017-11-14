@@ -26,6 +26,7 @@ aws:
   internalQueue: integration-brig-events-internal
   blacklistTable: integration-brig-userkey-blacklist
   prekeyTable: integration-brig-prekeys
+  awsRegion: eu-west-1
   # TODO: Check AWS loadCredentialsFromEnv
   awsKeyId: <insert-key-id-here>
   awsSecretKey: <insert-secret-key-here>

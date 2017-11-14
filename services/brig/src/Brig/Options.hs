@@ -6,10 +6,12 @@
 
 module Brig.Options where
 
+import Brig.Aws.Types (Region (..))
 import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
 import Data.Aeson.Types (typeMismatch)
+import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Int (Int64)
 import Data.Maybe
@@ -57,6 +59,7 @@ data AWSOpts = AWSOpts
     , internalQueue   :: !Text
     , blacklistTable  :: !Text
     , prekeyTable     :: !Text
+    , awsRegion       :: !Region
     , awsKeyId        :: !(Maybe Aws.AccessKeyId)
     , awsSecretKey    :: !(Maybe Aws.SecretAccessKey)
     } deriving (Show, Generic)
@@ -229,6 +232,10 @@ optsParser =
      (textOption $
       long "aws-dynamo-prekeys" <> metavar "STRING" <>
       help "Dynamo table for storing prekey data") <*>
+     (option regionOption $
+      long "aws-region" <> metavar "STRING" <> value Ireland <> showDefault <>
+      help "Region to use for SQS queues and Dynamo only. SES is hardcoded to \
+           \eu-west-1 and us-east-1 as a fallback") <*>
      (fmap (Aws.AccessKeyId . encodeUtf8) <$>
       (optional . textOption $
        long "aws-access-key-id" <> metavar "STRING" <> help "AWS Access Key ID")) <*>
@@ -409,5 +416,9 @@ toNexmoEndpoint =
             other -> readerError $ "Unsupported Nexmo environment: " <> other
 
 requestUrl :: ReadM Request
-requestUrl =
-    readerAsk >>= maybe (fail "Invalid request URL") pure . parseRequest
+requestUrl = readerAsk >>=
+    maybe (fail "Invalid request URL") pure . parseRequest
+
+regionOption :: ReadM Region
+regionOption = readerAsk >>=
+    maybe (fail "Failed to parse ") pure . fromByteString . pack
