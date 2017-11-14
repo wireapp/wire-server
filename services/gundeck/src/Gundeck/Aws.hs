@@ -94,11 +94,12 @@ import qualified Network.TLS             as TLS
 import qualified System.Logger           as Logger
 
 data Error where
-    EndpointNotFound :: EndpointArn -> Error
-    NoEndpointArn    :: Error
-    NoToken          :: EndpointArn -> Error
-    InvalidArn       :: Text -> String -> Error
-    GeneralError     :: (Show e, AWS.AsError e) => e -> Error
+    EndpointNotFound  :: EndpointArn -> Error
+    InvalidCustomData :: EndpointArn -> Error
+    NoEndpointArn     :: Error
+    NoToken           :: EndpointArn -> Error
+    InvalidArn        :: Text -> String -> Error
+    GeneralError      :: (Show e, AWS.AsError e) => e -> Error
 
 deriving instance Show     Error
 deriving instance Typeable Error
@@ -230,16 +231,16 @@ data UpdateEndpointError
 --
 -- This will replace the current token, set the endpoint's user data to
 -- the the list of given 'UserId's and enable the endpoint.
-updateEndpoint :: Set UserId -> Token -> EndpointArn -> Amazon (Either UpdateEndpointError ())
+updateEndpoint :: Set UserId -> Token -> EndpointArn -> Amazon ()
 updateEndpoint us tk arn = do
     let req = over SNS.seaAttributes fun (SNS.setEndpointAttributes (toText arn))
     res <- retrying (limitRetries 1) (const isTimeout) (const (sendCatch req))
     case res of
-        Right _ -> return $ Right ()
+        Right _ -> return ()
         Left x@(AWS.ServiceError e)
             | is "SNS" 400 x && AWS.errorCode "InvalidParameter" == e^.serviceCode
                              && isMetadataLengthError (e^.serviceMessage) ->
-                return (Left (MetadataTooLong $ tokenLength tk))
+                throwM $ InvalidCustomData arn
         Left  x -> throwM $ if is "SNS" 404 x
                                 then EndpointNotFound arn
                                 else GeneralError x

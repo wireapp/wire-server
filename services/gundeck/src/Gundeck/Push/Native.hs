@@ -15,13 +15,12 @@ import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Data.ByteString.Conversion.To
-import Data.Either (lefts)
+import Data.Foldable (for_)
 import Data.Id
 import Data.List1
-import Data.Maybe (isJust, listToMaybe)
+import Data.Maybe (isJust)
 import Data.Metrics (path, counterIncr)
 import Data.Text (Text)
-import Data.Traversable (for)
 import Gundeck.Env
 import Gundeck.Monad
 import Gundeck.Options
@@ -141,39 +140,26 @@ publish m a t = flip catches pushException $ do
 -- a newly created address in the second argument. If such a new address
 -- is given, shared owners of the deleted tokens have their addresses
 -- migrated to the token and endpoint of the new address.
-deleteTokens :: [Address a] -> Maybe (Address a) -> Gundeck (Either Aws.UpdateEndpointError ())
+deleteTokens :: [Address a] -> Maybe (Address a) -> Gundeck ()
 deleteTokens tokens new = do
     aws <- view awsEnv
-    statuses <- forM tokens $ \a -> do
+    forM_ tokens $ \a -> do
         Log.info $ field "user" (UUID.toASCIIBytes (toUUID (a^.addrUser)))
                 ~~ field "token" (Text.take 16 (tokenText (a^.addrToken)))
                 ~~ field "arn" (toText (a^.addrEndpoint))
                 ~~ msg (val "Deleting push token")
         Data.delete (a^.addrUser) (a^.addrTransport) (a^.addrApp) (a^.addrToken)
         ept <- Aws.execute aws (Aws.lookupEndpoint (a^.addrEndpoint))
-        status <- for ept $ \ep ->
+        for_ ept $ \ep ->
             let us = Set.delete (a^.addrUser) (ep^.Aws.endpointUsers)
             in if Set.null us
-                then do
-                    delete aws a
-                    return (Right ())
+                then delete aws a
                 else case new of
                     Nothing -> update aws a us
                     Just a' -> do
                         mapM_ (migrate a a') us
-                        status <- update aws a' (ep^.Aws.endpointUsers)
-                        case status of
-                            Left (Aws.MetadataTooLong _) -> return status
-                            Right () -> do
-                                delete aws a
-                                return (Right ())
-        return $ case status of
-            Just e -> e
-            Nothing -> Right ()
-    let err = listToMaybe $ lefts statuses
-    return $ case err of
-        Just e -> Left e
-        Nothing -> Right ()
+                        update aws a' (ep^.Aws.endpointUsers)
+                        delete aws a
   where
     delete aws a = do
         Log.info $ field "user" (UUID.toASCIIBytes (toUUID (a^.addrUser)))
