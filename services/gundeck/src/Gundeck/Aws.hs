@@ -18,7 +18,6 @@ module Gundeck.Aws
       -- * Errors
     , Error               (..)
     , CreateEndpointError (..)
-    , UpdateEndpointError (..)
     , PublishError        (..)
 
       -- * Endpoints
@@ -220,11 +219,6 @@ data CreateEndpointError
         -- ^ Token is length is greater than 8192 for GCM, or 400 for APNS
     | AppNotFound !AppName
         -- ^ Invalid application name.
-    deriving Show
-
-data UpdateEndpointError
-    = MetadataTooLong !Integer
-        -- ^ Metadata is length is greater than 2048
     deriving Show
 
 -- | Update an endpoint with the given push token.
