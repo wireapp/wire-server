@@ -243,7 +243,8 @@ initAws o l m = do
     -- https://hackage.haskell.org/package/aws-0.17.1/docs/src/Aws-Core.html#loadCredentialsFromFile
     -- which would avoid the need to specify them in a config file when running tests
     e <- Aws.newEnv l m (liftM2 (,) (Opt.awsKeyId a) (Opt.awsSecretKey a))
-    let c = Aws.config (Aws.Account (Opt.account a))
+    let c = Aws.config (Opt.region a)
+                       (Aws.Account (Opt.account a))
                        (Aws.SesQueue (Opt.sesQueue a))
                        (Aws.InternalQueue (Opt.internalQueue a))
                        (Aws.BlacklistTable (Opt.blacklistTable a))
