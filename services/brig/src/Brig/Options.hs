@@ -59,7 +59,7 @@ data AWSOpts = AWSOpts
     , internalQueue   :: !Text
     , blacklistTable  :: !Text
     , prekeyTable     :: !Text
-    , awsRegion       :: !Region
+    , region          :: !Region
     , awsKeyId        :: !(Maybe Aws.AccessKeyId)
     , awsSecretKey    :: !(Maybe Aws.SecretAccessKey)
     } deriving (Show, Generic)
