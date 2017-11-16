@@ -146,13 +146,19 @@ createUser new@NewUser{..} = do
     invitation <- maybe (return Nothing) (findInvitation emKey phKey) newUserInvitationCode
     (newTeam, teamInvitation) <- handleTeam (nuTeam <$> newUserTeam) emKey
 
+    -- team members are by default not searchable
+    let searchable = SearchableStatus $ case (newTeam, teamInvitation) of
+            (Nothing, Nothing) -> True
+            _                  -> False
+
     -- Create account
     (account, pw) <- lift $ newAccount new { newUserIdentity = ident } (Team.inInvitation . fst <$> teamInvitation)
     let uid = userId (accountUser account)
 
     Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
     lift $ do
-        Data.insertAccount account pw False >> Intra.createSelfConv uid
+        Data.insertAccount account pw False searchable
+        Intra.createSelfConv uid
         Intra.onUserEvent uid Nothing (UserCreated account)
         for_ newTeam $ Intra.createTeam uid
 
@@ -698,7 +704,7 @@ deleteAccount account@(accountUser -> user) = do
     -- Wipe data
     Data.clearProperties uid
     tombstone <- mkTombstone
-    Data.insertAccount tombstone Nothing False
+    Data.insertAccount tombstone Nothing False (SearchableStatus False)
     Intra.rmUser uid
     Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
     Intra.onUserEvent uid Nothing (UserDeleted uid)

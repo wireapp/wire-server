@@ -108,8 +108,8 @@ reauthenticate u pw = lift (lookupAuth u) >>= \case
             unless (verifyPassword p pw') $
                 throwE (ReAuthError AuthInvalidCredentials)
 
-insertAccount :: UserAccount -> Maybe Password -> Bool -> AppIO ()
-insertAccount (UserAccount u status) password activated = do
+insertAccount :: UserAccount -> Maybe Password -> Bool -> SearchableStatus -> AppIO ()
+insertAccount (UserAccount u status) password activated searchable = do
     let Locale l c = userLocale u
     retry x5 $ write userInsert $ params Quorum
         ( userId u, userName u, userPict u, userAssets u, userEmail u
@@ -118,7 +118,7 @@ insertAccount (UserAccount u status) password activated = do
         , view serviceRefProvider <$> userService u
         , view serviceRefId <$> userService u
         , userHandle u
-        , SearchableStatus True
+        , searchable
         )
 
 updateLocale :: UserId -> Locale -> AppIO ()
