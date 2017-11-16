@@ -42,6 +42,7 @@ module Gundeck.Aws
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
+import Control.Applicative
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Concurrent.Lifted (threadDelay)
 import Control.Error hiding (err)
@@ -92,11 +93,12 @@ import qualified Network.TLS             as TLS
 import qualified System.Logger           as Logger
 
 data Error where
-    EndpointNotFound :: EndpointArn -> Error
-    NoEndpointArn    :: Error
-    NoToken          :: EndpointArn -> Error
-    InvalidArn       :: Text -> String -> Error
-    GeneralError     :: (Show e, AWS.AsError e) => e -> Error
+    EndpointNotFound  :: EndpointArn -> Error
+    InvalidCustomData :: EndpointArn -> Error
+    NoEndpointArn     :: Error
+    NoToken           :: EndpointArn -> Error
+    InvalidArn        :: Text -> String -> Error
+    GeneralError      :: (Show e, AWS.AsError e) => e -> Error
 
 deriving instance Show     Error
 deriving instance Typeable Error
@@ -213,6 +215,8 @@ data CreateEndpointError
         -- ^ Endpoint exists with the same token but different attributes.
     | InvalidToken !Push.Token
         -- ^ Invalid push token.
+    | TokenTooLong !Integer
+        -- ^ Token is length is greater than 8192 for GCM, or 400 for APNS
     | AppNotFound !AppName
         -- ^ Invalid application name.
     deriving Show
@@ -227,6 +231,10 @@ updateEndpoint us tk arn = do
     res <- retrying (limitRetries 1) (const isTimeout) (const (sendCatch req))
     case res of
         Right _ -> return ()
+        Left x@(AWS.ServiceError e)
+            | is "SNS" 400 x && AWS.errorCode "InvalidParameter" == e^.serviceCode
+                             && isMetadataLengthError (e^.serviceMessage) ->
+                throwM $ InvalidCustomData arn
         Left  x -> throwM $ if is "SNS" 404 x
                                 then EndpointNotFound arn
                                 else GeneralError x
@@ -236,6 +244,13 @@ updateEndpoint us tk arn = do
         . Map.insert "Enabled" "true"
 
     mkUsers = Text.intercalate ":" . map toText . Set.toList
+
+    isMetadataLengthError Nothing = False
+    isMetadataLengthError (Just s) = isRight . flip parseOnly (toText s) $ do
+        let prefix = "Invalid parameter: Attributes Reason: "
+        _ <-  string prefix
+        _ <-  string "Invalid value for attribute: CustomUserData: must be at most 2048 bytes long in UTF-8 encoding"
+        return ()
 
 deleteEndpoint :: EndpointArn -> Amazon ()
 deleteEndpoint arn = do
@@ -282,6 +297,9 @@ createEndpoint u tr env app token = do
             , Just ep <- parseExistsError (e^.serviceMessage) ->
                 return (Left (EndpointInUse ep))
             | is "SNS" 400 x && AWS.errorCode "InvalidParameter" == e^.serviceCode
+                             && isLengthError (e^.serviceMessage) ->
+                return (Left (TokenTooLong $ tokenLength token))
+            | is "SNS" 400 x && AWS.errorCode "InvalidParameter" == e^.serviceCode
                              && isTokenError (e^.serviceMessage) ->
                 return (Left (InvalidToken token))
             | is "SNS" 404 x ->
@@ -292,6 +310,8 @@ createEndpoint u tr env app token = do
         Left x -> throwM (GeneralError x)
   where
     readArn r = either (throwM . InvalidArn r) return (fromText r)
+
+    tokenLength = toInteger . Text.length . Push.tokenText
 
     -- Thank you Amazon for not having granular error codes!
     parseExistsError Nothing  = Nothing
@@ -304,6 +324,14 @@ createEndpoint u tr env app token = do
     isTokenError Nothing  = False
     isTokenError (Just s) = isRight . flip parseOnly (toText s) $ do
         _ <- string "Invalid parameter: Token"
+        return ()
+
+    isLengthError Nothing = False
+    isLengthError (Just s) = isRight . flip parseOnly (toText s) $ do
+        let prefix = "Invalid parameter: Token Reason: "
+        _ <-  string prefix
+        _ <-  string "must be at most 8192 bytes long in UTF-8 encoding"
+          <|> string "iOS device tokens must be no more than 400 hexadecimal characters"
         return ()
 
 --------------------------------------------------------------------------------
