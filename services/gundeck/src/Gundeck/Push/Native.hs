@@ -88,10 +88,11 @@ push1 m a = do
             e <- view awsEnv
             Aws.execute e (Aws.deleteEndpoint (a^.addrEndpoint))
 
-    onPayloadTooLarge =
-        Log.warn $ field "user" (toByteString (a^.addrUser))
-                ~~ field "arn" (toText (a^.addrEndpoint))
-                ~~ msg (val "Payload too large")
+    onPayloadTooLarge = do
+        view monitor >>= counterIncr (path "push.native.too_large")
+        Log.debug $ field "user" (toByteString (a^.addrUser))
+                 ~~ field "arn" (toText (a^.addrEndpoint))
+                 ~~ msg (val "Payload too large")
 
     onInvalidEndpoint =
         handleAny (logError a "Failed to cleanup orphaned push token") $ do

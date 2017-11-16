@@ -26,6 +26,7 @@ import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..))
 import Network.HTTP.Types (StdMethod (POST), status200, status410)
 import System.Logger.Class ((~~), val, (+++))
 
+import qualified Data.Metrics                 as Metrics
 import qualified Data.Set                     as Set
 import qualified Gundeck.Presence.Data        as Presence
 import qualified Network.HTTP.Client.Internal as Http
@@ -78,9 +79,9 @@ push notif (toList -> tgts) originUser originConn conns = do
         Log.debug $ logPresence p ~~ Log.msg (val "WebSocket presence gone")
         return (ok, p:gone)
 
-    onResult (ok, gone) (PushFailure p e) = do
+    onResult (ok, gone) (PushFailure p _) = do
+        view monitor >>= Metrics.counterIncr (Metrics.path "push.ws.unreachable")
         Log.info $ logPresence p
-            ~~ Log.field "error"  (show e)
             ~~ Log.field "created_at" (ms $ createdAt p)
             ~~ Log.msg (val "WebSocket presence unreachable: " +++ toByteString (resource p))
         now <- posixTime
