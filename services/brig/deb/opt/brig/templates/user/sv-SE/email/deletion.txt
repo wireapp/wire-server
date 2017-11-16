@@ -3,7 +3,7 @@ Wire
 
 Hej ${name},
 
-Vi har mottagit en begäran att radera ditt Wire konto. Visit the link below within 10 minutes to delete all your conversations, content and connections. 
+Vi har mottagit en begäran att radera ditt Wire konto. Besök länken nedan inom 10 minuter att ta bort alla dina konversationer, innehåll och anslutningar
 
 ${url}
 

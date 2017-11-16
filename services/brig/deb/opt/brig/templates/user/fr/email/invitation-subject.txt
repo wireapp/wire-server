@@ -1,1 +1,1 @@
-${inviter} veut se connecter sur Wire
+${inviter} veut se connecter avec vous sur Wire

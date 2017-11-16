@@ -3,7 +3,7 @@ Wire
 
 Hello,
 
-Your email address ${email} was used to create a Wire account. We want to verify that you are indeed ${name}.
+Your email address ${email} was used to create a Wire account. Please, verify your email.
 
 Follow the link below to verify your address. You won't be able to use Wire until you do.
 

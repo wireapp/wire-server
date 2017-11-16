@@ -3,12 +3,12 @@ Wire
 
 Hallo ${name},
 
-ein neues Gerät wurde deinem Wire-Benutzerkonto hinzugefügt:
+Ein neues Gerät wurde deinem Wire-Benutzerkonto hinzugefügt:
 
     ${date}
     ${model}
 
-Hast du Wire auf einem neuen Gerät installiert oder dich auf einem bestehenden Gerät erneut eingeloggt? Wenn dies nicht der Fall ist, gehe in der Wire-App in die Einstellungen, entferne das Gerät und setze dein Passwort zurück.
+Du hast Wire vermutlich auf einem neuen Gerät installiert oder dich auf einem bestehenden Gerät erneut eingeloggt. Wenn dies nicht der Fall ist, gehe in der Wire-App in die Einstellungen, entferne das Gerät und setze dein Passwort zurück.
 
 Das Team von Wire
 

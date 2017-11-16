@@ -1,1 +1,1 @@
-../../en/email/deletion-subject.txt
+Eliminare l'account?

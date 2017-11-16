@@ -1,1 +1,1 @@
-../../en/email/verification-subject.txt
+Codice di attivazione Wire: ${code}

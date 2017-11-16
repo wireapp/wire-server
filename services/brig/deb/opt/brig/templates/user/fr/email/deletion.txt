@@ -3,11 +3,11 @@ Wire
 
 Bonjour ${name},
 
-Nous avons reçu une demande de suppression de votre compte Wire. Visitez le lien ci-dessous dans les 10 minutes pour supprimer toutes vos conversations, contenu et connexions
+Nous avons reçu une demande de suppression de votre compte Wire. Cliquez sur le lien ci-dessous dans les 10 minutes pour supprimer toutes vos conversations, contenus et connexions.
 
 ${url}
 
-Si vous n'en avez pas fait la demande, réinitialisez votre mot de passe.
+Si vous n'êtes pas à l'origine de la demande, réinitialisez votre mot de passe.
 
 L'équipe Wire
 
