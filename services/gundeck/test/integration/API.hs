@@ -130,7 +130,7 @@ removeUser :: TestSignature ()
 removeUser g c _ s = do
     user <- fst <$> registerUser g c
     clt  <- randomClient g user
-    tok  <- randomGcmToken clt defTS
+    tok  <- randomToken clt gcmToken
     _    <- registerPushToken user tok g
     _    <- sendPush g (buildPush user [(user, [])] (textPayload "data"))
     deleteUser g user
@@ -219,7 +219,7 @@ sendMultipleUsers gu ca _ _ = do
     uid2 <- randomId -- online
     uid3 <- randomId -- offline and native push
     clt  <- randomClient gu uid3
-    tok  <- randomGcmToken clt defTS
+    tok  <- randomToken clt gcmToken
     _    <- registerPushToken uid3 tok gu
 
     ws <- connectUser gu ca uid2 =<< randomConnId
@@ -568,16 +568,16 @@ testRegisterPushToken g _ b _ = do
 
     -- Client 1 with 4 distinct tokens
     c1   <- randomClient g uid
-    t11  <- randomApnsToken c1 defTS
-    t11' <- randomApnsToken c1 defTS -- overlaps
-    t12  <- randomApnsToken c1 defTS{tName = (AppName "com.wire.ent")} -- different app
-    t13  <- randomGcmToken c1 defTS  -- different transport
+    t11  <- randomToken c1 apnsToken
+    t11' <- randomToken c1 apnsToken -- overlaps
+    t12  <- randomToken c1 apnsToken{tName = (AppName "com.wire.ent")} -- different app
+    t13  <- randomToken c1 gcmToken  -- different transport
 
     -- Client 2 with 1 token
     c2   <- randomClient g uid
-    t21  <- randomApnsToken c2 defTS
-    t22  <- randomGcmToken c2 defTS -- different transport
-    t22' <- randomGcmToken c2 defTS -- overlaps
+    t21  <- randomToken c2 apnsToken
+    t22  <- randomToken c2 gcmToken -- different transport
+    t22' <- randomToken c2 gcmToken -- overlaps
 
     -- Register non-overlapping tokens
     _ <- registerPushToken uid t11 g
@@ -642,7 +642,7 @@ testUnregisterPushToken :: TestSignature ()
 testUnregisterPushToken g _ b _ = do
     uid <- randomUser b
     clt <- randomClient g uid
-    tkn <- randomGcmToken clt defTS
+    tkn <- randomToken clt gcmToken
     void $ registerPushToken uid tkn g
     unregisterPushToken uid (tkn^.token) g !!! const 204 === statusCode
     unregisterPushToken uid (tkn^.token) g !!! const 404 === statusCode
@@ -705,19 +705,19 @@ testLongPushToken g _ b _ = do
     clt <- randomClient g uid
     
     -- normal size APNS token should succeed
-    tkn1 <- randomApnsToken clt defTS
+    tkn1 <- randomToken clt apnsToken
     registerPushTokenRequest uid tkn1 g !!! const 201 === statusCode
 
     -- APNS token over 400 bytes should fail (actual token sizes are twice the tSize)
-    tkn2 <- randomApnsToken clt defTS{tSize=256}
+    tkn2 <- randomToken clt apnsToken{tSize=256}
     registerPushTokenRequest uid tkn2 g !!! const 413 === statusCode
 
     -- normal size GCM token should succeed
-    tkn3 <- randomGcmToken clt defTS
+    tkn3 <- randomToken clt gcmToken
     registerPushTokenRequest uid tkn3 g !!! const 201 === statusCode
 
-    -- GCM token over 8192 bytes should fail
-    tkn4 <- randomGcmToken clt defTS{tSize=10000}
+    -- GCM token over 8192 bytes should fail (actual token sizes are twice the tSize)
+    tkn4 <- randomToken clt gcmToken{tSize=5000}
     registerPushTokenRequest uid tkn4 g !!! const 413 === statusCode
 
 -- * Helpers
@@ -858,29 +858,18 @@ buildPush sdr rcps pload =
   where
     rcpt u c = recipient u RouteAny & recipientClients .~ c
 
-data TokenSpec = TokenSpec {tSize :: Int, tName :: AppName}
+data TokenSpec = TokenSpec {trans:: Transport, tSize :: Int, tName :: AppName}
 
-defTS :: TokenSpec
-defTS = TokenSpec 32 appName
+gcmToken :: TokenSpec
+gcmToken = TokenSpec GCM 16 appName
 
-randomGcmToken :: MonadIO m => ClientId -> TokenSpec -> m PushToken
-randomGcmToken c ts = randomToken c (tSize ts) GCM (tName ts)
+apnsToken :: TokenSpec
+apnsToken = TokenSpec APNSSandbox 32 appName
 
-randomApnsToken :: MonadIO m => ClientId -> TokenSpec -> m PushToken
-randomApnsToken c ts = randomToken c (tSize ts) APNSSandbox (tName ts)
-
-randomToken :: MonadIO m => ClientId -> Int -> Transport -> AppName -> m PushToken
-randomToken c size trans name = liftIO $ do
-    tok <- Token . T.decodeUtf8 <$> case trans of
-        GCM -> multipleUuids size randomId
-        _   -> B16.encode    <$> randomBytes size
-    return (pushToken trans name tok c)
-
-multipleUuids :: MonadIO m => Int -> m (Id a) -> m ByteString
-multipleUuids size u = BS.intercalate (C.pack ":") <$> Prelude.replicate (numberOfUuids size) <$> toByteString' <$> u
-
-numberOfUuids :: Int -> Int
-numberOfUuids size = (quot (size) 37) + 1
+randomToken :: MonadIO m => ClientId -> TokenSpec -> m PushToken
+randomToken c ts = liftIO $ do
+    tok <- Token . T.decodeUtf8 <$> B16.encode <$> randomBytes (tSize ts)
+    return $ pushToken (trans ts) (tName ts) tok c
 
 showUser :: UserId -> ByteString
 showUser = C.pack . show
