@@ -57,7 +57,7 @@ import Prelude
 -- Config
 
 newtype AccessKeyId = AccessKeyId
-    { unAccessKeyId :: ByteString }
+    { unKey :: ByteString }
     deriving (Read, Eq, Show)
 
 instance FromJSON AccessKeyId where
@@ -65,7 +65,7 @@ instance FromJSON AccessKeyId where
     pure . AccessKeyId . encodeUtf8
 
 newtype SecretAccessKey = SecretAccessKey
-    { unSecretAccessKey :: ByteString }
+    { unSecret :: ByteString }
     deriving (Read, Eq)
 
 instance Show SecretAccessKey where
@@ -89,9 +89,14 @@ data Env = Env
 newEnv :: Logger -> Manager -> Maybe (AccessKeyId, SecretAccessKey) -> IO Env
 newEnv lgr mgr ks = do
     auth <- case ks of
-        Just (k, s) -> PermAuth <$> newPermConfig lgr k s
-        Nothing     -> TempAuth <$> newTempConfig lgr mgr
+        Just (k, s) -> permAuth =<< makeCredentials (unKey k) (unSecret s)
+        Nothing     -> discover
     return $ Env auth mgr
+  where
+    permAuth creds = PermAuth <$> newPermConfig lgr creds
+    tempAuth       = TempAuth <$> newTempConfig lgr mgr
+
+    discover = loadCredentialsDefault >>= maybe tempAuth permAuth
 
 -- | Get the currently used 'Credentials' from the current
 -- 'Configuration' used by the given 'Env'.
@@ -120,11 +125,8 @@ sendRequest env scfg req = transResourceT liftIO $ do
 -------------------------------------------------------------------------------
 -- Internals
 
-newPermConfig :: Logger -> AccessKeyId -> SecretAccessKey -> IO Configuration
-newPermConfig lgr (AccessKeyId k) (SecretAccessKey s) = do
-    keys <- newIORef [] -- V4 signing keys used by the 'aws' package
-    let creds = Credentials k s keys Nothing
-    return $ Configuration Timestamp creds (awsLog lgr)
+newPermConfig :: Logger -> Credentials -> IO Configuration
+newPermConfig lgr creds = return $ Configuration Timestamp creds (awsLog lgr)
 
 newTempConfig :: Logger -> Manager -> IO (IORef Configuration)
 newTempConfig lgr mgr = do
