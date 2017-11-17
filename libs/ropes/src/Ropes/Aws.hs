@@ -86,6 +86,9 @@ data Env = Env
         -- ^ Get the HTTP 'Manager' used by an 'Env'ironment.
     }
 
+-- | If credentials are supplied to this function, they are used to create the 'Env'
+-- | Otherwise, it tries to discover AWS credentials by calling the underlying
+-- | loadCredentialsDefault. If that does not succeed, if fallsback to instance metadata
 newEnv :: Logger -> Manager -> Maybe (AccessKeyId, SecretAccessKey) -> IO Env
 newEnv lgr mgr ks = do
     auth <- case ks of
