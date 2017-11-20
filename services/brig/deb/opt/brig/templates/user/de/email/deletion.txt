@@ -3,7 +3,7 @@ Wire
 
 Hallo ${name},
 
-wir haben eine Anfrage zur Löschung deines Wire-Benutzerkontos bekommen.  Klicke innerhalb von 10 Minuten unterhalb auf den Link, um alle deine Unterhaltungen, Nachrichten und Kontakte zu löschen
+Wir haben eine Anfrage zur Löschung deines Wire-Benutzerkontos erhalten. Klicke innerhalb von 10 Minuten unterhalb auf den Link, um alle deine Unterhaltungen, Nachrichten und Kontakte zu löschen
 
 ${url}
 

@@ -3,9 +3,9 @@ Wire
 
 Hallo,
 
-deine E-Mail-Adresse ${email} wurde benutzt, um ein Wire-Benutzerkonto zu erstellen. Wir möchten gerne sicherstellen, dass du ${name} bist.
+deine E-Mail-Adresse ${email} wurde benutzt, um ein Wire-Benutzerkonto zu erstellen. Bitte verifiziere deine E-Mail-Adresse.
 
-Bitte klicke auf den folgenden Link, um deine Identität zu bestätigen. Danach kannst du Wire nutzen.
+Bitte klicke auf den folgenden Link, um deine Identität zu bestätigen. Anschließend kannst du Wire nutzen.
 
 
 ${url}

@@ -1,1 +1,1 @@
-../../en/email/verification-subject.txt
+Code de vérification Wire : ${code}

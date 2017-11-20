@@ -3,7 +3,7 @@ Wire
 
 Hello,
 
-A new Wire team called ${team} was created with ${email}. We want to verify that you are indeed ${name}.
+A new Wire team was created with ${email}. Please, verify your email.
 
 Follow the link below to verify your address. You won't be able to use Wire until you do.
 

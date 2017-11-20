@@ -1,22 +1,22 @@
 Wire
 
 
-Hello,
+Hallo,
 
-${email} was registered as your new email address on Wire. We want to verify that you are indeed ${name}.
+${email} wurde als deine neue E-Mail-Adresse auf Wire registriert. Bitte verifiziere deine E-Mail-Adresse.
 
-Follow the link below to verify your new address.
+Bitte klicke auf den folgenden Link, um deine neue Adresse zu bestätigen.
 
 
 ${url}
 
-Please don't reply to this message.
+Bitte antworte nicht auf diese E-Mail.
 
-If you didn't request this change, you can ignore this email or visit https://support.wire.com
+Wenn du diese Änderung nicht vorgenommen hast, kannst du diese E-Mail ignorieren oder https://support.wire.com besuchen
 
 
 
 
 (c) Wire Swiss GmbH
 
-Privacy Policy  |  Report misuse
+Datenschutzrichtlinie  | Missbrauch melden

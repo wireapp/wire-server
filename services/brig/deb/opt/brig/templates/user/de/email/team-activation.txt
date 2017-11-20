@@ -3,10 +3,9 @@ Wire
 
 Hallo,
 
+Ein neues Wire Team wurde mit ${email} erstellt. Bitte verifiziere deine E-Mail-Adresse.
 
-Ein Wire Benutzerkonto in einem neuen Wire Team namens '${team}' wurde mit der E-Mail-Adresse ${email} erstellt. Wir möchten gerne sicherstellen, dass du ${name} bist.
-
-Bitte klicke auf den folgenden Link, um deine Identität zu bestätigen. Erst danach kannst du Wire nutzen.
+Bitte klicke auf den folgenden Link, um deine Identität zu bestätigen. Danach kannst du Wire nutzen.
 
 
 ${url}
@@ -21,4 +20,3 @@ Wenn du kein Wire-Benutzerkonto mit dieser E-Mail-Adresse erstellt hast, gehe bi
 (c) Wire Swiss GmbH
 
 Datenschutzrichtlinie  | Missbrauch melden
-
