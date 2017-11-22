@@ -28,6 +28,7 @@ CONFIG_OPTIONS = \
 ADDITIONAL_MODULES = \
     --with-http_ssl_module \
     --with-http_stub_status_module \
+    --with-http_realip_module \
     --add-module=../third_party/nginx-zauth-module \
     --add-module=../third_party/headers-more-nginx-module \
     --add-module=../third_party/nginx-module-vts
