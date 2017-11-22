@@ -40,6 +40,7 @@ import qualified V41
 import qualified V42
 import qualified V43
 import qualified V44
+import qualified V45
 
 main :: IO ()
 main = do
@@ -81,4 +82,5 @@ main = do
         , V42.migration
         , V43.migration
         , V44.migration
+        , V45.migration
         ] `finally` close l

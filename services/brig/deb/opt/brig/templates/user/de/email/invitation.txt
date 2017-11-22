@@ -3,7 +3,7 @@ Wire
 
 Hallo ${name},
 
-${inviter} hat dich zu Wire eingeladen. Bitte bestätige die Einladung, um dich an der Unterhaltung zu beteiligen.
+${inviter} hat dich zu Wire eingeladen. Bitte bestätige die Einladung, um die Unterhaltung zu betreten:
 
 ${url}
 

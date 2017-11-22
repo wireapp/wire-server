@@ -18,6 +18,7 @@ import Brig.Types.Intra (UserAccount (..), AccountStatus (..))
 import Brig.Types.Client
 import Brig.Types.User
 import Brig.Types.Provider
+import Brig.Types.Search
 import Control.Lens (view)
 import Control.Exception.Enclosed (handleAny)
 import Control.Monad (join, when, unless, (>=>))
@@ -563,7 +564,7 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let newClt = (newClient PermanentClient (Ext.rsNewBotLastPrekey rs) ())
                { newClientPrekeys = Ext.rsNewBotPrekeys rs
                }
-    lift $ User.insertAccount (UserAccount usr Active) Nothing True
+    lift $ User.insertAccount (UserAccount usr Active) Nothing True (SearchableStatus True)
     (clt, _, _) <- User.addClient (botUserId bid) bcl newClt Nothing
                    !>> const (StdError badGateway) -- MalformedPrekeys
 

@@ -49,16 +49,19 @@ reindex brig =
 randomUserWithHandle :: Brig -> Http User
 randomUserWithHandle brig = do
     u <- randomUser brig
+    setRandomHandle brig u
+
+setRandomHandle :: Brig -> User -> Http User
+setRandomHandle brig user = do
     h <- randomHandle
     put ( brig
         . path "/self/handle"
         . contentJson
-        . zUser (userId u)
+        . zUser (userId user)
         . zConn "c"
         . body (RequestBodyLBS . encode $ HandleUpdate h)
         ) !!!  const 200 === statusCode
-    return u { userHandle = Just (Handle h) }
-
+    return user { userHandle = Just (Handle h) }
 
 assertCanFind :: Brig -> UserId -> UserId -> Text -> Http ()
 assertCanFind brig self expected q = do
@@ -74,3 +77,9 @@ assertCan'tFind brig self expected q = do
     Just r <- (fmap . fmap) searchResults $ executeSearch brig self q
     liftIO .  assertBool ("User unexpectedly in results for query: " <> show q) $
         notElem expected . map contactUserId $ r
+
+assertSearchable :: String -> (Request -> Request) -> UserId -> Bool -> Http ()
+assertSearchable label brig uid status = do
+    response <- get (brig . path "/self/searchable" . zUser uid)
+    liftIO $ assertEqual (label ++ ", statuscode") 200 (statusCode response)
+    liftIO $ assertEqual label (Just status) (isSearchable <$> decodeBody response)

@@ -3,7 +3,7 @@ Wire
 
 Olá,
 
-Seu endereço de e-mail ${email} foi usado para criar uma conta Wire. Nós gostaríamos de verificar se você realmente é ${name}.
+Seu endereço de e-mail ${email} foi usado para criar uma conta Wire. Por favor, confirme o seu email.
 
 Siga o link abaixo para verificar o seu e-mail. Você não será capaz de usar o Wire até que você confirme sua conta.
 

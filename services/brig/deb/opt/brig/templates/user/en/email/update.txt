@@ -3,7 +3,7 @@ Wire
 
 Hello,
 
-${email} was registered as your new email address on Wire. We want to verify that you are indeed ${name}.
+${email} was registered as your new email address on Wire. Please, verify your email.
 
 Follow the link below to verify your new address.
 

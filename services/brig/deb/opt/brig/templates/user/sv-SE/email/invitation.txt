@@ -3,7 +3,7 @@ Wire
 
 Hej ${name},
 
-${inviter} has invited you to join Wire. Accept this invitation to join the conversation by following the link:
+${inviter} har bjudit in dig att gå med Wire. Acceptera denna inbjudan för att delta i konversationen genom att följa länken:
 
 ${url}
 

@@ -157,7 +157,7 @@ data EventData =
     | EdTeamUpdate   TeamUpdateData
     | EdMemberJoin   UserId
     | EdMemberLeave  UserId
-    | EdMemberUpdate UserId
+    | EdMemberUpdate UserId (Maybe Permissions)
     | EdConvCreate   ConvId
     | EdConvDelete   ConvId
     deriving (Eq, Show)
@@ -527,13 +527,15 @@ instance FromJSON Event where
                  <*> parseEventData ty dt
 
 instance ToJSON EventData where
-    toJSON (EdTeamCreate   tem) = toJSON tem
-    toJSON (EdMemberJoin   usr) = object ["user" .= usr]
-    toJSON (EdMemberUpdate usr) = object ["user" .= usr]
-    toJSON (EdMemberLeave  usr) = object ["user" .= usr]
-    toJSON (EdConvCreate   cnv) = object ["conv" .= cnv]
-    toJSON (EdConvDelete   cnv) = object ["conv" .= cnv]
-    toJSON (EdTeamUpdate   upd) = toJSON upd
+    toJSON (EdTeamCreate   tem)       = toJSON tem
+    toJSON (EdMemberJoin   usr)       = object ["user" .= usr]
+    toJSON (EdMemberUpdate usr mPerm) = object $ "user" .= usr
+                                               # "permissions" .= mPerm
+                                               # []
+    toJSON (EdMemberLeave  usr)       = object ["user" .= usr]
+    toJSON (EdConvCreate   cnv)       = object ["conv" .= cnv]
+    toJSON (EdConvDelete   cnv)       = object ["conv" .= cnv]
+    toJSON (EdTeamUpdate   upd)       = toJSON upd
 
 parseEventData :: EventType -> Maybe Value -> Parser (Maybe EventData)
 parseEventData MemberJoin Nothing  = fail "missing event data for type 'team.member-join'"
@@ -543,7 +545,7 @@ parseEventData MemberJoin (Just j) = do
 
 parseEventData MemberUpdate Nothing  = fail "missing event data for type 'team.member-update"
 parseEventData MemberUpdate (Just j) = do
-    let f o = Just . EdMemberUpdate <$> o .: "user"
+    let f o = Just <$> (EdMemberUpdate <$> o .: "user" <*> o .:? "permissions")
     withObject "member update data" f j
 
 parseEventData MemberLeave Nothing  = fail "missing event data for type 'team.member-leave'"

@@ -4,6 +4,7 @@
 
 module API.Team (tests) where
 
+import API.Search.Util
 import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
 import Brig.Types hiding (Invitation (..), InvitationRequest (..), InvitationList (..))
@@ -47,6 +48,7 @@ tests m b c g =
             , test m "post /teams/:tid/invitations - 403 no permission"  $ testInvitationNoPermission b
             , test m "post /register - 201 accepted"                     $ testInvitationEmailAccepted b g
             , test m "post /register user & team - 201 accepted"         $ testCreateTeam b g
+            , test m "post /register user & team - 201 preverified"      $ testCreateTeamPreverified b g
             , test m "post /register - 400 no passwordless"              $ testTeamNoPassword b
             , test m "post /register - 400 code already used"            $ testInvitationCodeExists b g
             , test m "post /register - 400 bad code"                     $ testInvitationInvalidCode b
@@ -60,6 +62,9 @@ tests m b c g =
             , test m "put /self - 200 update events"                     $ testUpdateEvents b g c
             , test m "delete /self - 200 (ensure no orphan teams)"       $ testDeleteTeamUser b g
             , test m "post /connections - 403 (same binding team)"       $ testConnectionSameTeam b g
+            ]
+        , testGroup "search"
+            [ test m "post /register members are unsearchable"           $ testNonSearchableDefault b g
             ]
         ]
 
@@ -158,6 +163,29 @@ testCreateTeam brig galley = do
     -- Verify that Team has status Active now
     team3 <- getTeam galley (team^.Team.teamId)
     liftIO $ assertEqual "status" Team.Active (Team.tdStatus team3)
+
+testCreateTeamPreverified :: Brig -> Galley -> Http ()
+testCreateTeamPreverified brig galley = do
+    email <- randomEmail
+    requestActivationCode brig (Left email)
+    act <- getActivationCode brig (Left email)
+    case act of
+        Nothing     -> liftIO $ assertFailure "activation key/code not found"
+        Just (_, c) -> do
+            rsp <- register' email newTeam c brig <!! const 201 === statusCode
+            let Just uid = userId <$> decodeBody rsp
+            teams <- view Team.teamListTeams <$> getTeams uid galley
+            liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
+            let team = fromMaybe (error "No team??") $ listToMaybe teams
+            liftIO $ assertBool "Team not binding" (team^.Team.teamBinding == Team.Binding)
+            mem <- getTeamMember uid (team^.Team.teamId) galley
+            liftIO $ assertBool "Member not part of the team" (uid == mem ^. Team.userId)
+            team2 <- getTeam galley (team^.Team.teamId)
+            liftIO $ assertEqual "Team should already be active" Team.Active (Team.tdStatus team2)
+            -- Verify that the user can already send invitations before activating their account
+            inviteeEmail <- randomEmail
+            let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
+            postInvitation brig (team^.Team.teamId) uid invite !!! const 201 === statusCode
 
 testInvitationNoPermission :: Brig -> Http ()
 testInvitationNoPermission brig = do
@@ -375,7 +403,7 @@ testDeleteTeamUser brig galley = do
         const 403 === statusCode
         const (Just "no-other-owner") === fmap Error.label . decodeBody
     -- We need to invite another user to a full permission member
-    invitee <- inviteAndRegisterUser creator tid brig
+    invitee <- userId <$> inviteAndRegisterUser creator tid brig
     -- Still cannot delete, need to make this a full permission member
     deleteUser creator (Just defPassword) brig !!! do
         const 403 === statusCode
@@ -387,11 +415,11 @@ testDeleteTeamUser brig galley = do
     -- The new full permission member cannot
     deleteUser invitee (Just defPassword) brig !!! const 403 === statusCode
     -- We can still invite new users who can delete their account, regardless of status
-    inviteeFull <- inviteAndRegisterUser invitee tid brig
+    inviteeFull <- userId <$> inviteAndRegisterUser invitee tid brig
     updatePermissions invitee tid (inviteeFull, Team.fullPermissions) galley
     deleteUser inviteeFull (Just defPassword) brig !!! const 200 === statusCode
 
-    inviteeMember <- inviteAndRegisterUser invitee tid brig
+    inviteeMember <- userId <$> inviteAndRegisterUser invitee tid brig
     deleteUser inviteeMember (Just defPassword) brig !!! const 200 === statusCode
 
     deleteUser invitee (Just defPassword) brig !!! do
@@ -402,7 +430,7 @@ testConnectionSameTeam :: Brig -> Galley -> Http ()
 testConnectionSameTeam brig galley = do
     creatorA <- userId <$> randomUser brig
     tidA     <- createTeam creatorA galley
-    inviteeA <- inviteAndRegisterUser creatorA tidA brig
+    inviteeA <- userId <$> inviteAndRegisterUser creatorA tidA brig
 
     postConnection brig creatorA inviteeA !!! do
         const 403 === statusCode
@@ -417,6 +445,47 @@ testConnectionSameTeam brig galley = do
     -- Externals are also ok
     postConnection brig creatorA external !!! const 201 === statusCode
     postConnection brig creatorB external !!! const 201 === statusCode
+
+-------------------------------------------------------------------------------
+-- Search
+
+testNonSearchableDefault :: Brig -> Galley -> Http ()
+testNonSearchableDefault brig galley = do
+    nonMember <- randomUserWithHandle brig
+    email     <- randomEmail
+    rsp       <- register email newTeam brig
+
+    act <- getActivationCode brig (Left email)
+    case act of
+      Nothing -> liftIO $ assertFailure "activation key/code not found"
+      Just kc -> activate brig kc !!! const 200 === statusCode
+
+    let Just creator = decodeBody rsp
+    [team]  <- view Team.teamListTeams <$> getTeams (userId creator) galley
+    let tid = view Team.teamId team
+    invitee <- inviteAndRegisterUser (userId creator) tid brig
+    creatorWithHandle <- setRandomHandle brig creator
+    inviteeWithHandle <- setRandomHandle brig invitee
+    refreshIndex brig
+
+    let uid1 = userId nonMember
+        uid2 = userId creatorWithHandle
+        uid3 = userId inviteeWithHandle
+        Just uHandle = fromHandle <$> userHandle nonMember
+        Just cHandle = fromHandle <$> userHandle creatorWithHandle
+        Just iHandle = fromHandle <$> userHandle inviteeWithHandle
+
+    -- users are searchable by default
+    assertSearchable "user is searchable" brig uid1 True
+    assertCanFind brig uid2 uid1 uHandle
+
+    -- team owners are not searchable by default
+    assertSearchable "owner isn't searchable" brig uid2 False
+    assertCan'tFind brig uid1 uid2 cHandle
+
+    -- team members are not searchable by default
+    assertSearchable "member isn't searchable" brig uid3 False
+    assertCan'tFind brig uid1 uid3 iHandle
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -538,7 +607,18 @@ register e t brig = post (brig . path "/register" . contentJson . body (
         ]
     ))
 
-inviteAndRegisterUser :: UserId -> TeamId -> Brig -> HttpT IO UserId
+register' :: Email -> Team.BindingNewTeam -> ActivationCode -> Brig -> HttpT IO (Response (Maybe ByteString))
+register' e t c brig = post (brig . path "/register" . contentJson . body (
+    RequestBodyLBS . encode  $ object
+        [ "name"            .= ("Bob" :: Text)
+        , "email"           .= fromEmail e
+        , "email_code"      .= c
+        , "password"        .= defPassword
+        , "team"            .= t
+        ]
+    ))
+
+inviteAndRegisterUser :: UserId -> TeamId -> Brig -> HttpT IO User
 inviteAndRegisterUser u tid brig = do
     inviteeEmail <- randomEmail
     let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
@@ -548,7 +628,7 @@ inviteAndRegisterUser u tid brig = do
                              . contentJson
                              . body (accept inviteeEmail inviteeCode)) <!! const 201 === statusCode
 
-    let Just invitee = userId <$> decodeBody rspInvitee
+    let Just invitee = decodeBody rspInvitee
     return invitee
 
 updatePermissions :: UserId -> TeamId -> (UserId, Team.Permissions) -> Galley -> HttpT IO ()
@@ -564,4 +644,3 @@ updatePermissions from tid (to, perm) galley =
 
 newTeam :: Team.BindingNewTeam
 newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
-

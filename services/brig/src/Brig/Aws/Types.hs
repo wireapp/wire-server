@@ -4,6 +4,7 @@
 module Brig.Aws.Types
     ( -- * Config
       Account (..)
+    , Region (..)
     , SesQueue (..)
     , InternalQueue (..)
     , BlacklistTable (..)
@@ -28,9 +29,12 @@ module Brig.Aws.Types
 import Brig.Types (Email (..))
 import Control.Lens (makeLenses)
 import Data.Aeson
+import Data.ByteString.Char8 (unpack)
+import Data.ByteString.Conversion
 import Data.Id
 import Data.Monoid ((<>))
 import Data.Text (Text)
+import Data.Text.Encoding (encodeUtf8)
 
 import qualified Aws.Core     as Aws
 import qualified Aws.DynamoDb as Aws
@@ -39,6 +43,23 @@ import qualified Aws.Sqs      as Aws
 
 -------------------------------------------------------------------------------
 -- Config
+
+data Region = Ireland
+            | Frankfurt
+
+instance FromByteString Region where
+    parser = parser >>= \t -> case t of
+        "eu-west-1"    -> pure Ireland
+        "eu-central-1" -> pure Frankfurt
+        x              -> fail $ "Unsupported region " <> unpack x
+
+instance Show Region where
+    show Ireland   = "eu-west-1"
+    show Frankfurt = "eu-central-1"
+
+instance FromJSON Region where
+    parseJSON = withText "aws-region" $
+        maybe (fail "invalid region") return . fromByteString . encodeUtf8
 
 newtype SesQueue = SesQueue
     { fromSesQueue :: Text }
@@ -72,19 +93,32 @@ data Config = Config
 
 makeLenses ''Config
 
-config :: Account
+config :: Region
+       -> Account
        -> SesQueue
        -> InternalQueue
        -> BlacklistTable
        -> PreKeyTable
        -> Config
-config acc squ iqu blt pkt =
-    let ses = [Aws.sesHttpsPost Aws.sesEuWest1, Aws.sesHttpsPost Aws.sesUsEast1]
-        sqs = Aws.sqs Aws.HTTPS Aws.sqsEndpointEu False
-        ddb = Aws.ddbHttps (Aws.Region "dynamodb.eu-west-1.amazonaws.com" "eu-west-1")
+config reg acc squ iqu blt pkt =
+    let (sqs, ddb) = regionSettings reg
+        -- Note that `sesUsEast1` acts as a backup, in case `sesEuWest1` is down for some reason
+        -- https://github.com/wireapp/wire-server/blob/develop/services/brig/src/Brig/Aws.hs#L144-L149
+        -- Currently SES is only available in eu-west-1, us-east-1 and us-west-2 so not allowing it
+        -- to be configured and is hardcoded to `eu-west-1` and `us-east-1` as a fallback
+        ses = [Aws.sesHttpsPost Aws.sesEuWest1, Aws.sesHttpsPost Aws.sesUsEast1]
         sqq = Aws.QueueName (fromSesQueue squ) (fromAccount acc)
         iqq = Aws.QueueName (fromInternalQueue iqu) (fromAccount acc)
     in Config ses sqs ddb sqq iqq blt pkt
+  where
+    regionSettings Ireland =
+        ( Aws.sqs Aws.HTTPS Aws.sqsEndpointEu False
+        , Aws.ddbHttps Aws.ddbEuWest1
+        )
+    regionSettings Frankfurt =
+        ( Aws.sqs Aws.HTTPS Aws.sqsEndpointEu { Aws.endpointHost = "eu-central-1.queue.amazonaws.com" } False
+        , Aws.ddbHttps Aws.ddbEuCentral1
+        )
 
 -------------------------------------------------------------------------------
 -- Notifications

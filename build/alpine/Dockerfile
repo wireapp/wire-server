@@ -4,16 +4,20 @@
 #   (from wire-server root directory)
 #   SERVICE=galley; docker build -f build/alpine/Dockerfile -t $SERVICE --build-arg service=$SERVICE .
 
+ARG builder=wire-server-builder:alpine
+ARG deps=wire-server-deps:alpine
+
 #--- Builder stage ---
-FROM wire-server-builder:alpine as builder
+FROM ${builder} as builder
 
 ARG service
+ARG target=install
 COPY . /src/wire-server/
 
-RUN cd /src/wire-server/services/${service} && make install
+RUN cd /src/wire-server/services/${service} && make ${target}
 
 #--- Minified stage ---
-FROM wire-server-deps:alpine
+FROM ${deps}
 
 ARG service
 ARG executable
@@ -22,4 +26,4 @@ COPY --from=builder /src/wire-server/services/${service}/dist/${executable} /usr
 # ARGs are not available at runtime, create symlink at build time
 # more info: https://stackoverflow.com/questions/40902445/using-variable-interpolation-in-string-in-docker
 RUN ln -s /usr/bin/${executable} /usr/bin/service
-ENTRYPOINT ["/usr/bin/service"]
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "/usr/bin/service"]

@@ -16,7 +16,7 @@ import Control.Concurrent
 import Control.Concurrent.Async       (Async, async, wait)
 import Control.Concurrent.STM.TChan
 import Control.Lens                   ((&), (.~), (^.), (^?), view)
-import Control.Monad.IO.Class
+import Control.Monad.IO.Class         (MonadIO)
 import Control.Monad.Reader
 import Control.Monad.STM       hiding (retry)
 import Control.Retry
@@ -113,13 +113,16 @@ tests s = testGroup "Gundeck integration tests" [
     testGroup "Tokens"
         [ test s "register a push token"     $ testRegisterPushToken
         , test s "unregister a push token"   $ testUnregisterPushToken
+        , test s "register too many push tokens" $ testRegisterTooManyTokens
         , test s "share push token"          $ testSharePushToken
         , test s "replace shared push token" $ testReplaceSharedPushToken
+        , test s "fail on long push token"   $ testLongPushToken
         ]
     ]
 
 -----------------------------------------------------------------------------
 -- Push
+
 addUser :: TestSignature (UserId, ByteString)
 addUser gu ca _ _ = registerUser gu ca
 
@@ -127,7 +130,7 @@ removeUser :: TestSignature ()
 removeUser g c _ s = do
     user <- fst <$> registerUser g c
     clt  <- randomClient g user
-    tok  <- randomGcmToken clt
+    tok  <- randomToken clt gcmToken
     _    <- registerPushToken user tok g
     _    <- sendPush g (buildPush user [(user, [])] (textPayload "data"))
     deleteUser g user
@@ -216,7 +219,7 @@ sendMultipleUsers gu ca _ _ = do
     uid2 <- randomId -- online
     uid3 <- randomId -- offline and native push
     clt  <- randomClient gu uid3
-    tok  <- randomGcmToken clt
+    tok  <- randomToken clt gcmToken
     _    <- registerPushToken uid3 tok gu
 
     ws <- connectUser gu ca uid2 =<< randomConnId
@@ -565,16 +568,16 @@ testRegisterPushToken g _ b _ = do
 
     -- Client 1 with 4 distinct tokens
     c1   <- randomClient g uid
-    t11  <- randomToken c1 APNSSandbox appName
-    t11' <- randomToken c1 APNSSandbox appName -- overlaps
-    t12  <- randomToken c1 APNSSandbox (AppName "com.wire.ent") -- different app
-    t13  <- randomToken c1 GCM appName -- different transport
+    t11  <- randomToken c1 apnsToken
+    t11' <- randomToken c1 apnsToken -- overlaps
+    t12  <- randomToken c1 apnsToken{tName = (AppName "com.wire.ent")} -- different app
+    t13  <- randomToken c1 gcmToken  -- different transport
 
     -- Client 2 with 1 token
     c2   <- randomClient g uid
-    t21  <- randomToken c2 APNSSandbox appName
-    t22  <- randomToken c2 GCM appName -- different transport
-    t22' <- randomToken c2 GCM appName -- overlaps
+    t21  <- randomToken c2 apnsToken
+    t22  <- randomToken c2 gcmToken -- different transport
+    t22' <- randomToken c2 gcmToken -- overlaps
 
     -- Register non-overlapping tokens
     _ <- registerPushToken uid t11 g
@@ -606,11 +609,40 @@ testRegisterPushToken g _ b _ = do
     _tokens <- listPushTokens uid g
     liftIO $ assertEqual "unexpected tokens" [] _tokens
 
+testRegisterTooManyTokens :: TestSignature ()
+testRegisterTooManyTokens g _ b _ = do
+    -- create tokens for reuse with multiple users
+    apsTok <- Token . T.decodeUtf8 . B16.encode <$> randomBytes 32
+    gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
+    
+    -- create 55 users with these tokens, which should succeed
+    userClients <- replicateM 55 $ registerToken 201 apsTok gcmTok
+
+    -- should run out of space in endpoint metadata and fail with a 413 on number 56
+    _           <- registerToken 413 apsTok gcmTok
+
+    -- clean up by deleting clients and their tokens
+    forM_ userClients (\(uid, c) -> unregisterClient g uid c !!! const 200 === statusCode)
+    forM_ userClients (\(uid, c) -> unregisterClient g uid c !!! const 404 === statusCode)
+    tokens <- forM (map fst userClients) (\uid -> listPushTokens uid g)
+    liftIO $ assertEqual "unexpected tokens" [] (concat tokens)
+  where
+    registerToken status apsTok gcmTok = do
+        let tka = pushToken APNS "com.wire.int.ent" apsTok
+        let tkg = pushToken GCM "test" gcmTok
+        uid <- randomUser b
+        c   <- randomClient g uid
+        let ta = tka c
+        let tg = tkg c
+        registerPushTokenRequest uid ta g !!! const status === statusCode
+        registerPushTokenRequest uid tg g !!! const status === statusCode
+        return (uid, c)
+
 testUnregisterPushToken :: TestSignature ()
 testUnregisterPushToken g _ b _ = do
     uid <- randomUser b
     clt <- randomClient g uid
-    tkn <- randomGcmToken clt
+    tkn <- randomToken clt gcmToken
     void $ registerPushToken uid tkn g
     unregisterPushToken uid (tkn^.token) g !!! const 204 === statusCode
     unregisterPushToken uid (tkn^.token) g !!! const 404 === statusCode
@@ -666,6 +698,27 @@ testReplaceSharedPushToken g _ b _ = do
     liftIO $ do
         [t2] @=? ts1
         [t2] @=? ts2
+
+testLongPushToken :: TestSignature ()
+testLongPushToken g _ b _ = do
+    uid <- randomUser b
+    clt <- randomClient g uid
+    
+    -- normal size APNS token should succeed
+    tkn1 <- randomToken clt apnsToken
+    registerPushTokenRequest uid tkn1 g !!! const 201 === statusCode
+
+    -- APNS token over 400 bytes should fail (actual token sizes are twice the tSize)
+    tkn2 <- randomToken clt apnsToken{tSize=256}
+    registerPushTokenRequest uid tkn2 g !!! const 413 === statusCode
+
+    -- normal size GCM token should succeed
+    tkn3 <- randomToken clt gcmToken
+    registerPushTokenRequest uid tkn3 g !!! const 201 === statusCode
+
+    -- GCM token over 8192 bytes should fail (actual token sizes are twice the tSize)
+    tkn4 <- randomToken clt gcmToken{tSize=5000}
+    registerPushTokenRequest uid tkn4 g !!! const 413 === statusCode
 
 -- * Helpers
 
@@ -737,15 +790,19 @@ unregisterClient g uid cid = delete $ runGundeck g
 
 registerPushToken :: UserId -> PushToken -> Gundeck -> Http Token
 registerPushToken u t g = do
-    let p = RequestBodyLBS (encode t)
-    r <- post ( runGundeck g
-              . path "/push/tokens"
-              . contentJson
-              . zUser u
-              . zConn "random"
-              . body p
-              )
+    r <- registerPushTokenRequest u t g
     return $ Token (T.decodeUtf8 $ getHeader' "Location" r)
+
+registerPushTokenRequest :: UserId -> PushToken -> Gundeck -> Http (Response (Maybe BL.ByteString))
+registerPushTokenRequest u t g = do
+    let p = RequestBodyLBS (encode t)
+    post ( runGundeck g
+         . path "/push/tokens"
+         . contentJson
+         . zUser u
+         . zConn "random"
+         . body p
+         )
 
 unregisterPushToken :: UserId -> Token -> Gundeck -> Http (Response (Maybe BL.ByteString))
 unregisterPushToken u t g = do
@@ -761,10 +818,10 @@ unregisterPushToken u t g = do
 listPushTokens :: UserId -> Gundeck -> Http [PushToken]
 listPushTokens u g = do
     rs <- get ( runGundeck g
-             . path "/i/push/tokens"
-             . zUser u
-             . zConn "random"
-             )
+              . path "/i/push/tokens"
+              . zUser u
+              . zConn "random"
+              )
     maybe (error "Failed to decode push tokens")
           return
           (responseBody rs >>= decode)
@@ -801,15 +858,18 @@ buildPush sdr rcps pload =
   where
     rcpt u c = recipient u RouteAny & recipientClients .~ c
 
-randomGcmToken :: MonadIO m => ClientId -> m PushToken
-randomGcmToken c = randomToken c GCM appName
+data TokenSpec = TokenSpec {trans:: Transport, tSize :: Int, tName :: AppName}
 
-randomToken :: MonadIO m => ClientId -> Transport -> AppName -> m PushToken
-randomToken c trans name = liftIO $ do
-    tok <- Token . T.decodeUtf8 <$> case trans of
-        GCM -> toByteString' <$> randomId
-        _   -> B16.encode    <$> randomBytes 32
-    return (pushToken trans name tok c)
+gcmToken :: TokenSpec
+gcmToken = TokenSpec GCM 16 appName
+
+apnsToken :: TokenSpec
+apnsToken = TokenSpec APNSSandbox 32 appName
+
+randomToken :: MonadIO m => ClientId -> TokenSpec -> m PushToken
+randomToken c ts = liftIO $ do
+    tok <- Token . T.decodeUtf8 <$> B16.encode <$> randomBytes (tSize ts)
+    return $ pushToken (trans ts) (tName ts) tok c
 
 showUser :: UserId -> ByteString
 showUser = C.pack . show
@@ -900,4 +960,3 @@ fromJSON' :: FromJSON a => Value -> Maybe a
 fromJSON' v = case fromJSON v of
     Success a -> Just a
     _         -> Nothing
-

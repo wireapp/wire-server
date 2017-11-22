@@ -70,6 +70,7 @@ newUserError MissingIdentity          = StdError missingIdentity
 newUserError (InvalidEmail _)         = StdError invalidEmail
 newUserError (InvalidPhone _)         = StdError invalidPhone
 newUserError (DuplicateUserKey _)     = StdError userKeyExists
+newUserError (EmailActivationError e) = actError e
 newUserError (PhoneActivationError e) = actError e
 newUserError (BlacklistedUserKey k)   = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
 newUserError TooManyTeamMembers       = StdError tooManyTeamMembers

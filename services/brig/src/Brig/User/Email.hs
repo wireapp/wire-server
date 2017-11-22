@@ -2,21 +2,12 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 module Brig.User.Email
-    ( ActivationEmail (..)
-    , sendActivationMail
-
+    ( sendActivationMail
+    , sendVerificationMail
     , sendTeamActivationMail
-
-    , PasswordResetEmail (..)
     , sendPasswordResetMail
-
-    , InvitationEmail (..)
     , sendInvitationMail
-
-    , DeletionEmail (..)
     , sendDeletionEmail
-
-    , NewClientEmail (..)
     , sendNewClientEmail
 
       -- * Re-exports
@@ -36,6 +27,12 @@ import Data.Text.Lazy (toStrict)
 import qualified Brig.Aws        as Aws
 import qualified Brig.Types.Code as Code
 import qualified Data.Text.Ascii as Ascii
+
+sendVerificationMail :: Email -> ActivationPair -> Maybe Locale -> AppIO ()
+sendVerificationMail to pair loc = do
+    tpl <- verificationEmail . snd <$> userTemplates loc
+    let mail = VerificationEmail to pair
+    Aws.sendMail $ renderVerificationMail mail tpl
 
 sendActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Maybe UserIdentity -> AppIO ()
 sendActivationMail to name pair loc ident = do
@@ -150,6 +147,37 @@ renderDeletionEmail DeletionEmailTemplate{..} DeletionEmail{..} =
     replace2 "key"  = key
     replace2 "code" = code
     replace2 x      = x
+
+-------------------------------------------------------------------------------
+-- Verification Email
+
+data VerificationEmail = VerificationEmail
+    { vfTo   :: !Email
+    , vfPair :: !ActivationPair
+    }
+
+renderVerificationMail :: VerificationEmail -> VerificationEmailTemplate -> Mail
+renderVerificationMail VerificationEmail{..} VerificationEmailTemplate{..} =
+    (emptyMail from)
+        { mailTo      = [ to ]
+        , mailHeaders = [ ("Subject", toStrict subj)
+                        , ("X-Zeta-Purpose", "Verification")
+                        , ("X-Zeta-Code", Ascii.toText code)
+                        ]
+        , mailParts   = [ [ plainPart txt, htmlPart html ] ]
+        }
+  where
+    (ActivationKey _, ActivationCode code) = vfPair
+
+    from = Address (Just verificationEmailSenderName) (fromEmail verificationEmailSender)
+    to   = Address Nothing (fromEmail vfTo)
+    txt  = renderText verificationEmailBodyText replace
+    html = renderHtml verificationEmailBodyHtml replace
+    subj = renderText verificationEmailSubject  replace
+
+    replace "code"  = Ascii.toText code
+    replace "email" = fromEmail vfTo
+    replace x       = x
 
 -------------------------------------------------------------------------------
 -- Activation Email

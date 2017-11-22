@@ -122,3 +122,9 @@ docker:
 	../.. \
 	;)
 
+.PHONY: time
+time: clean
+	-rm -f .stack-work/logs/*
+	stack build --pedantic --no-run-benchmarks --no-copy-bins --ghc-options="-j +RTS -s -RTS"
+	@echo -e "\nTotal wall-clock times taken to compile each module (see logs for more detail):"
+	@grep Total .stack-work/logs/* | tr -s ' ' | awk -F' ' '{gsub(/s$$/, "", $$6); a[$$1] += $$6}END{for (i in a) {m=gensub(/^.*\/logs\//,"",1,i); m=gensub(/-[0-9].*\.log/,"",1,m); print m, a[i] ++ "s"}}' | sort -grk2

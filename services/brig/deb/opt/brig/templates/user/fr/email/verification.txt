@@ -1,0 +1,18 @@
+Wire
+
+
+Bonjour,
+
+${email} a été utilisée pour vous inscrire sur Wire. Entrez ce code afin de vérifier votre adresse email et créer votre compte.
+
+${code}
+
+Merci de ne pas répondre à ce message.
+
+Si vous n'avez pas créé de compte Wire en utilisant cette adresse email, merci de visiter https://support.wire.com
+
+
+
+(c) Wire Swiss GmbH
+
+Politique de confidentialité |  Signaler un abus

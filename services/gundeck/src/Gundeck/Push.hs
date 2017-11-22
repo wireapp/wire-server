@@ -235,6 +235,9 @@ addToken (uid ::: cid ::: req ::: _) = do
                 Log.info $ "token" .= tokenText tok
                         ~~ msg (val "Invalid push token.")
                 return (Left invalidToken)
+            Left (Aws.TokenTooLong l) -> do
+                Log.info $ msg ("Push token is too long: token length = " ++ show l)
+                return (Left tokenTooLong)
             Right arn -> do
                 Data.insert uid trp app tok arn cid (t^.tokenClient) (t^.tokenFallback)
                 return (Right (mkAddr t arn))
@@ -259,8 +262,9 @@ addToken (uid ::: cid ::: req ::: _) = do
                 -- consistent semantics with regards to endpoint deletion (or
                 -- possibly updates in general). We make another attempt to (re-)create
                 -- the endpoint in these cases instead of failing immediately.
-                Aws.EndpointNotFound {} -> create (n + 1) t
-                ex                      -> throwM ex
+                Aws.EndpointNotFound  {} -> create (n + 1) t
+                Aws.InvalidCustomData {} -> return (Left metadataTooLong)
+                ex                       -> throwM ex
 
     mkAddr t arn = Address uid (t^.tokenTransport) (t^.tokenApp) (t^.token)
                            arn cid (t^.tokenClient) Nothing (t^.tokenFallback)
@@ -310,6 +314,14 @@ invalidToken :: Response
 invalidToken = json (Error status400 "invalid-token" "Invalid push token")
              & setStatus status404
 
+tokenTooLong :: Response
+tokenTooLong = json (Error status400 "token-too-long" "Push token length must be < 8192 for GCM or 400 for APNS")
+             & setStatus status413
+
+metadataTooLong :: Response
+metadataTooLong = json (Error status400 "metadata-too-long" "Tried to add token to endpoint resulting in metadata length > 2048")
+             & setStatus status413
+
 notFound :: Response
 notFound = empty & setStatus status404
 
@@ -321,4 +333,3 @@ listTokens (uid ::: _) =
 
 cancelFallback :: UserId ::: NotificationId -> Gundeck Response
 cancelFallback (u ::: n) = Fallback.cancel u n >> return empty
-

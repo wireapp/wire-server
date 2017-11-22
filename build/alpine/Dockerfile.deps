@@ -2,7 +2,7 @@
 
 FROM alpine:3.6 as cryptobox-builder
 
-# compile cryptobox
+# compile cryptobox-c
 RUN apk add --no-cache cargo libsodium-dev git && \
     cd /tmp && \
     git clone https://github.com/wireapp/cryptobox-c.git && \
@@ -24,4 +24,5 @@ RUN apk add --no-cache \
             icu \
             geoip \
             llvm-libunwind \
-            ca-certificates
+            ca-certificates \
+            dumb-init
