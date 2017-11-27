@@ -115,8 +115,10 @@ updateTeamStatus :: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 updateTeamStatus (tid ::: req ::: _) = do
     TeamStatusUpdate to <- fromBody req invalidPayload
     team <- Data.team tid >>= ifNothing teamNotFound
-    validateTransition (tdStatus team) to >> journal to
-    Data.updateTeamStatus tid to
+    valid <- validateTransition (tdStatus team) to
+    when valid $ do
+      journal to
+      Data.updateTeamStatus tid to
     return empty
   where
     journal Suspended = Journal.teamSuspend tid
@@ -125,11 +127,11 @@ updateTeamStatus (tid ::: req ::: _) = do
     journal _         = throwM invalidTeamStatusUpdate
 
     validateTransition from to = case (from, to) of
-        ( PendingActive, Active    ) -> return ()
-        ( Active       , Active    ) -> return ()
-        ( Active       , Suspended ) -> return ()
-        ( Suspended    , Active    ) -> return ()
-        ( Suspended    , Suspended ) -> return ()
+        ( PendingActive, Active    ) -> return True
+        ( Active       , Active    ) -> return False
+        ( Active       , Suspended ) -> return True
+        ( Suspended    , Active    ) -> return True
+        ( Suspended    , Suspended ) -> return False
         ( _            , _         ) -> throwM invalidTeamStatusUpdate
 
 updateTeam :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
