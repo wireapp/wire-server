@@ -13,6 +13,8 @@ import Control.Monad.Reader
 import Data.Foldable (for_)
 import Data.Id
 import Data.Int
+import Data.Monoid ((<>))
+import Safe (headDef)
 import Data.ByteString.Lazy (toStrict)
 import Data.ProtoLens.Encoding
 import Data.Text (Text)
@@ -34,30 +36,34 @@ import qualified OpenSSL.X509.SystemStore as Ssl
 import qualified Proto.TeamEvents as E
 import qualified System.Logger as L
 
-assertQueue :: MonadIO m => Maybe Aws.Env -> (E.TeamEvent -> IO ()) -> m ()
-assertQueue (Just env) check = liftIO $ Aws.execute env $ fetchMessage check
-assertQueue Nothing _ = return ()
+assertQueue :: MonadIO m => String -> Maybe Aws.Env -> (String -> Maybe E.TeamEvent -> IO ()) -> m ()
+assertQueue label (Just env) check = liftIO $ Aws.execute env $ fetchMessage label check
+assertQueue _ Nothing _ = return ()
 
 assertQueueEmpty :: MonadIO m => Maybe Aws.Env -> m ()
 assertQueueEmpty (Just env) = liftIO $ Aws.execute env ensureNoMessages
 assertQueueEmpty Nothing = return ()
 
-tActivate :: E.TeamEvent -> IO ()
-tActivate e = do
-    assertEqual "eventType" E.TeamEvent'TEAM_ACTIVATE (e^.E.eventType)
+tActivate :: String -> Maybe E.TeamEvent -> IO ()
+tActivate l (Just e) = do
+    assertEqual (l <> ": eventType") E.TeamEvent'TEAM_ACTIVATE (e^.E.eventType)
     assertEqual "count" 1 (e^.E.eventData^.E.memberCount)
+tActivate l Nothing = assertFailure $ l <> ": Expected 1 TeamActivate, got nothing"
 
-tDelete :: E.TeamEvent -> IO ()
-tDelete e = assertEqual "eventType" E.TeamEvent'TEAM_DELETE (e^.E.eventType)
+tDelete :: String -> Maybe E.TeamEvent -> IO ()
+tDelete l (Just e) = assertEqual (l <> ": eventType") E.TeamEvent'TEAM_DELETE (e^.E.eventType)
+tDelete l Nothing = assertFailure $ l <> ": Expected 1 TeamDelete, got nothing"
 
-tSuspend :: E.TeamEvent -> IO ()
-tSuspend e = assertEqual "eventType" E.TeamEvent'TEAM_SUSPEND (e^.E.eventType)
+tSuspend :: String -> Maybe E.TeamEvent -> IO ()
+tSuspend l (Just e) = assertEqual (l  <> "eventType") E.TeamEvent'TEAM_SUSPEND (e^.E.eventType)
+tSuspend l Nothing = assertFailure $ l <> ": Expected 1 TeamSuspend, got nothing"
 
-tUpdate :: Int32 -> [UserId] -> E.TeamEvent -> IO ()
-tUpdate c uids e = do
-    assertEqual "eventType" E.TeamEvent'TEAM_UPDATE (e^.E.eventType)
+tUpdate :: Int32 -> [UserId] -> String -> Maybe E.TeamEvent -> IO ()
+tUpdate c uids l (Just e) = do
+    assertEqual (l <> "eventType") E.TeamEvent'TEAM_UPDATE (e^.E.eventType)
     assertEqual "count" c (e^.E.eventData^.E.memberCount)
     assertEqual "billing users" (toStrict . UUID.toByteString . toUUID <$> uids) (e^.E.eventData^.E.billingUser)
+tUpdate _ _ l Nothing = assertFailure $ l <> ": Expected 1 TeamUpdate, got nothing"
 
 ensureNoMessages :: Amazon ()
 ensureNoMessages = do
@@ -65,26 +71,28 @@ ensureNoMessages = do
     msgs <- view SQS.rmrsMessages <$> AWS.send (receive url)
     liftIO $ assertEqual "length" 0 (length msgs)
 
-fetchMessage :: (E.TeamEvent -> IO ()) -> Amazon ()
-fetchMessage callback = do
+fetchMessage :: String -> (String -> Maybe E.TeamEvent -> IO()) -> Amazon ()
+fetchMessage label callback = do
     QueueUrl url <- view eventQueue
     msgs <- view SQS.rmrsMessages <$> AWS.send (receive url)
-    liftIO $ assertEqual "expected 1 message" 1 (length msgs)
-    mapM_ (onMessage url callback) msgs
+    events <- mapM (parseDeleteMessage url) msgs
+    liftIO $ callback label (headDef Nothing events)
 
 receive :: Text -> SQS.ReceiveMessage
 receive url = SQS.receiveMessage url
                 & set SQS.rmWaitTimeSeconds (Just 5)
                 . set SQS.rmMaxNumberOfMessages (Just 1)
 
-onMessage :: Text -> (E.TeamEvent -> IO()) -> SQS.Message -> Amazon ()
-onMessage url callback m =
+parseDeleteMessage :: Text -> SQS.Message -> Amazon (Maybe E.TeamEvent)
+parseDeleteMessage url m =
   case (>>= decodeMessage) . B64.decode . Text.encodeUtf8 <$> (m^.SQS.mBody) of
       Just (Right e) -> do
-          debug $ msg $ val "SQS event received"
-          liftIO $ callback e
+          trace $ msg $ val "SQS event received"
           for_ (m ^. SQS.mReceiptHandle) (void . AWS.send . SQS.deleteMessage url)
-      _ -> err . msg $ val "Failed to parse SQS event"
+          return (Just e)
+      _ -> do
+          err . msg $ val "Failed to parse SQS event"
+          return Nothing
 
 initHttpManager :: IO Manager
 initHttpManager = do

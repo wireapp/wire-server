@@ -92,7 +92,7 @@ testCreateMulitpleBindingTeams :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> H
 testCreateMulitpleBindingTeams g b _ a = do
     owner <- Util.randomUser b
     _     <- Util.createTeamInternal g "foo" owner
-    assertQueue a tActivate
+    assertQueue "" a tActivate
     -- Cannot create more teams if bound (used internal API)
     let nt = NonBindingNewTeam $ newNewTeam (unsafeRange "owner") (unsafeRange "icon")
     post (g . path "/teams" . zUser owner . zConn "conn" . json nt) !!!
@@ -145,10 +145,10 @@ testCreateOne2OneFailNonBindingTeamMembers g b _ a = do
     -- Both have a binding team but not the same team
     owner1 <- Util.randomUser b
     tid1 <- Util.createTeamInternal g "foo" owner1
-    assertQueue a tActivate
+    assertQueue "" a tActivate
     owner2 <- Util.randomUser b
     void $ Util.createTeamInternal g "foo" owner2
-    assertQueue a tActivate
+    assertQueue "" a tActivate
     Util.createOne2OneTeamConv g owner1 owner2 Nothing tid1 !!! do
         const 403 === statusCode
         const "non-binding-team-members" === (Error.label . Util.decodeBody' "error label")
@@ -157,14 +157,14 @@ testCreateOne2OneWithMembers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Htt
 testCreateOne2OneWithMembers g b c a = do
     owner <- Util.randomUser b
     tid   <- Util.createTeamInternal g "foo" owner
-    assertQueue a tActivate
+    assertQueue "" a tActivate
     let p1 = Util.symmPermissions [CreateConversation]
     mem1 <- flip newTeamMember p1 <$> Util.randomUser b
 
     WS.bracketR c (mem1^.userId) $ \wsMem1 -> do
         Util.addTeamMemberInternal g tid mem1
         checkTeamMemberJoin tid (mem1^.userId) wsMem1
-        assertQueue a $ tUpdate 2 [owner]
+        assertQueue "" a $ tUpdate 2 [owner]
         WS.assertNoEvent timeout [wsMem1]
 
     void $ retryWhileN 10 repeatIf (Util.createOne2OneTeamConv g owner (mem1^.userId) Nothing tid)
@@ -216,7 +216,7 @@ testAddTeamMemberCheckBound :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http
 testAddTeamMemberCheckBound g b _ a = do
     ownerBound <- Util.randomUser b
     tidBound   <- Util.createTeamInternal g "foo" ownerBound
-    assertQueue a tActivate
+    assertQueue "" a tActivate
 
     rndMem <- flip newTeamMember (Util.symmPermissions []) <$> Util.randomUser b
     -- Cannot add any users to bound teams
@@ -240,7 +240,7 @@ testAddTeamMemberInternal g b c a = do
     WS.bracketRN c [owner, mem1^.userId] $ \[wsOwner, wsMem1] -> do
         Util.addTeamMemberInternal g tid mem1
         liftIO . void $ mapConcurrently (checkJoinEvent tid (mem1^.userId)) [wsOwner, wsMem1]
-        assertQueue a $ tUpdate 2 [owner]
+        assertQueue "" a $ tUpdate 2 [owner]
     void $ Util.getTeamMemberInternal g tid (mem1^.userId)
   where
     checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
@@ -306,12 +306,12 @@ testRemoveBindingTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http
 testRemoveBindingTeamMember g b c a = do
     owner <- Util.randomUser b
     tid   <- Util.createTeamInternal g "foo" owner
-    assertQueue a tActivate
+    assertQueue "" a tActivate
     mext  <- Util.randomUser b
     let p1 = Util.symmPermissions [AddConversationMember]
     mem1 <- flip newTeamMember p1 <$> Util.randomUser b
     Util.addTeamMemberInternal g tid mem1
-    assertQueue a $ tUpdate 2 [owner]
+    assertQueue "" a $ tUpdate 2 [owner]
     Util.connectUsers b owner (singleton mext)
     cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [(mem1^.userId), mext] (Just "blaa")
 
@@ -343,7 +343,7 @@ testRemoveBindingTeamMember g b c a = do
                ) !!! const 202 === statusCode
 
         checkConvMemberLeaveEvent cid1 (mem1^.userId) wsMext
-        assertQueue a $ tUpdate 1 [owner]
+        assertQueue "" a $ tUpdate 1 [owner]
         WS.assertNoEvent timeout [wsMext]
         -- Mem1 is now gone from Wire
         Util.ensureDeletedState b True owner (mem1^.userId)
@@ -509,11 +509,11 @@ testDeleteBindingTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testDeleteBindingTeam g b c a = do
     owner  <- Util.randomUser b
     tid    <- Util.createTeamInternal g "foo" owner
-    assertQueue a tActivate
+    assertQueue "" a tActivate
     let p1 = Util.symmPermissions [AddConversationMember]
     mem1 <- flip newTeamMember p1 <$> Util.randomUser b
     Util.addTeamMemberInternal g tid mem1
-    assertQueue a $ tUpdate 2 [owner]
+    assertQueue "" a $ tUpdate 2 [owner]
     extern <- Util.randomUser b
 
     delete ( g
@@ -537,7 +537,7 @@ testDeleteBindingTeam g b c a = do
         -- TODO: Due to the async nature of the deletion, we should actually check for
         --       the user deletion event to avoid race conditions at this point
         WS.assertNoEvent timeout [wsExtern]
-        assertQueue a tDelete
+        assertQueue "" a tDelete
 
     mapM_ (Util.ensureDeletedState b True extern) [owner, (mem1^.userId)]
 
@@ -693,18 +693,18 @@ testUpdateTeamStatus :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testUpdateTeamStatus g b _ a = do
     owner <- Util.randomUser b
     tid   <- Util.createTeamInternal g "foo" owner
-    assertQueue a tActivate
+    assertQueue "create team" a tActivate
     -- Check for idempotency
     Util.changeTeamStatus g tid Active
-    assertQueue a tActivate
+    assertQueueEmpty a
     Util.changeTeamStatus g tid Suspended
-    assertQueue a tSuspend
+    assertQueue "suspend first time" a tSuspend
     Util.changeTeamStatus g tid Suspended
-    assertQueue a tSuspend
+    assertQueueEmpty a
     Util.changeTeamStatus g tid Suspended
-    assertQueue a tSuspend
+    assertQueueEmpty a
     Util.changeTeamStatus g tid Active
-    assertQueue a tActivate
+    assertQueue "activate again" a tActivate
 
     void $ put ( g
                . paths ["i", "teams", toByteString' tid, "status"]
@@ -746,4 +746,3 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
         case evtData e of
             Just (Conv.EdMembers mm) -> mm @?= Conv.Members [usr]
             other                    -> assertFailure $ "Unexpected event data: " <> show other
-
