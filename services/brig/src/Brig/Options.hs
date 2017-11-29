@@ -171,6 +171,7 @@ data Settings = Settings
     , setUserCookieLimit    :: !Int
     , setUserCookieThrottle :: !CookieThrottle
     , setDefaultLocale      :: !Locale
+    , setMaxTeamSize        :: !Int -- NOTE: This must be in sync with galley
     } deriving (Show, Generic)
 
 instance FromJSON ActivationTimeout where
@@ -387,7 +388,10 @@ settingsParser =
       help "Wait time when the min deviation is violated")) <*>
     (localeOption $
      long "default-locale" <> metavar "STRING" <> value "en" <> showDefault <>
-     help "Default locale to use (e.g. when selecting templates)")
+     help "Default locale to use (e.g. when selecting templates)") <*>
+    (option auto $
+     long "team-max-size" <> metavar "INT" <> value 128 <> showDefault <>
+     help "Max. # of members in a team.")
 
 httpsUrlOption :: Mod OptionFields String -> Parser HttpsUrl
 httpsUrlOption =

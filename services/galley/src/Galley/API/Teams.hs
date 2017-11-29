@@ -50,6 +50,7 @@ import Galley.API.Error
 import Galley.API.Util
 import Galley.Intra.Push
 import Galley.Intra.User
+import Galley.Options
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Network.HTTP.Types
@@ -424,9 +425,10 @@ ensureNotElevated targetPermissions member =
 
 addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> [TeamMember] -> Galley Response
 addTeamMemberInternal tid origin originConn newMem mems = do
-    let new = newMem^.ntmNewTeamMember
-    unless (length mems < 128) $
+    o <- view options
+    unless (length mems < o^.optSettings.setMaxTeamSize) $
         throwM tooManyTeamMembers
+    let new = newMem^.ntmNewTeamMember
     Data.addTeamMember tid new
     cc <- filter (view managedConversation) <$> Data.teamConversations tid
     for_ cc $ \c ->

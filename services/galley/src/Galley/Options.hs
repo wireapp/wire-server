@@ -19,6 +19,7 @@ import Util.Options.Common
 
 data Settings = Settings
     { _setHttpPoolSize :: !Int
+    , _setMaxTeamSize  :: !Int -- NOTE: This must be in sync with brig
     } deriving (Show, Generic)
 
 deriveFromJSON toFieldName ''Settings
@@ -104,6 +105,13 @@ optsParser = Opts <$>
                 <> metavar "SIZE"
                 <> showDefault
                 <> help "number of connections for the http client pool"
+                <> value 128)
+        <*>
+            (option auto $
+                long "team-max-size"
+                <> metavar "INT"
+                <> showDefault
+                <> help "Max. # of members in a team."
                 <> value 128)
 
 journalOptsParser :: Parser JournalOpts

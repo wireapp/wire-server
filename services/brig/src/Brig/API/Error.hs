@@ -344,6 +344,9 @@ noOtherOwner :: Wai.Error
 noOtherOwner = Wai.Error status403 "no-other-owner" "You are trying to remove or downgrade\
                                 \ an owner. Promote another team member before proceeding."
 
+tooManyTeamInvitations :: Wai.Error
+tooManyTeamInvitations = Wai.Error status403 "too-many-team-invitations" "Too many team invitations for this team."
+
 tooManyTeamMembers :: Wai.Error
 tooManyTeamMembers = Wai.Error status403 "too-many-team-members" "Too many members in this team."
 
