@@ -7,12 +7,13 @@
 
 module Brig.Team.API where
 
-import Brig.App (currentTime)
+import Brig.App (currentTime, settings)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.User (fetchUserIdentity)
 import Brig.Data.UserKey (userEmailKey)
 import Brig.Email
+import Brig.Options (setMaxTeamSize)
 import Brig.Team.Email
 import Brig.Types.Team.Invitation
 import Brig.Types.User (InvitationCode)
@@ -60,13 +61,15 @@ routes = do
 
     document "POST" "sendTeamInvitation" $ do
         Doc.summary "Create and send a new team invitation."
-        Doc.notes "Invitations are sent by email."
+        Doc.notes "Invitations are sent by email. The maximum allowed number of \
+                  \pending team invitations is equal to the team size."
         Doc.parameter Doc.Path "tid" Doc.bytes' $
             Doc.description "Team ID"
         Doc.body (Doc.ref Doc.teamInvitationRequest) $
             Doc.description "JSON body"
         Doc.returns (Doc.ref Doc.teamInvitation)
         Doc.response 201 "Invitation was created and sent." Doc.end
+        Doc.errorResponse tooManyTeamInvitations
 
     ---
 
@@ -171,6 +174,10 @@ createInvitation (_ ::: uid ::: _ ::: tid ::: req) = do
     blacklisted <- lift $ Blacklist.exists uk
     when blacklisted $
         throwStd blacklistedEmail
+    maxSize <- setMaxTeamSize <$> view settings
+    pending <- lift $ DB.countInvitations tid
+    when (fromIntegral pending >= maxSize) $
+        throwStd tooManyTeamInvitations
     user <- lift $ Data.lookupKey uk
     case user of
         Just _  -> throwStd emailExists

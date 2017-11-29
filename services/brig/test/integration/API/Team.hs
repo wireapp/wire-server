@@ -44,24 +44,25 @@ tests :: Manager -> Brig -> Cannon -> Galley -> IO TestTree
 tests m b c g =
     return $ testGroup "team"
         [ testGroup "invitation"
-            [ test m "post /teams/:tid/invitations - 201"                $ testInvitationEmail b g
-            , test m "post /teams/:tid/invitations - 403 no permission"  $ testInvitationNoPermission b
-            , test m "post /register - 201 accepted"                     $ testInvitationEmailAccepted b g
-            , test m "post /register user & team - 201 accepted"         $ testCreateTeam b g
-            , test m "post /register user & team - 201 preverified"      $ testCreateTeamPreverified b g
-            , test m "post /register - 400 no passwordless"              $ testTeamNoPassword b
-            , test m "post /register - 400 code already used"            $ testInvitationCodeExists b g
-            , test m "post /register - 400 bad code"                     $ testInvitationInvalidCode b
-            , test m "post /register - 400 no wireless"                  $ testInvitationCodeNoIdentity b
-            , test m "post /register - 400 mutually exclusive"           $ testInvitationMutuallyExclusive b
-            , test m "post /register - 403 too many members"             $ testInvitationTooManyMembers b g
-            , test m "get /teams/:tid/invitations - 200 (paging)"        $ testInvitationPaging b g
-            , test m "get /teams/:tid/invitations/info - 200"            $ testInvitationInfo b g
-            , test m "get /teams/:tid/invitations/info - 400"            $ testInvitationInfoBadCode b
-            , test m "post /i/teams/:tid/suspend - 200"                  $ testSuspendTeam b g
-            , test m "put /self - 200 update events"                     $ testUpdateEvents b g c
-            , test m "delete /self - 200 (ensure no orphan teams)"       $ testDeleteTeamUser b g
-            , test m "post /connections - 403 (same binding team)"       $ testConnectionSameTeam b g
+            [ test m "post /teams/:tid/invitations - 201"                  $ testInvitationEmail b g
+            , test m "post /teams/:tid/invitations - 403 no permission"    $ testInvitationNoPermission b
+            , test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b g
+            , test m "post /register - 201 accepted"                       $ testInvitationEmailAccepted b g
+            , test m "post /register user & team - 201 accepted"           $ testCreateTeam b g
+            , test m "post /register user & team - 201 preverified"        $ testCreateTeamPreverified b g
+            , test m "post /register - 400 no passwordless"                $ testTeamNoPassword b
+            , test m "post /register - 400 code already used"              $ testInvitationCodeExists b g
+            , test m "post /register - 400 bad code"                       $ testInvitationInvalidCode b
+            , test m "post /register - 400 no wireless"                    $ testInvitationCodeNoIdentity b
+            , test m "post /register - 400 mutually exclusive"             $ testInvitationMutuallyExclusive b
+            , test m "post /register - 403 too many members"               $ testInvitationTooManyMembers b g
+            , test m "get /teams/:tid/invitations - 200 (paging)"          $ testInvitationPaging b g
+            , test m "get /teams/:tid/invitations/info - 200"              $ testInvitationInfo b g
+            , test m "get /teams/:tid/invitations/info - 400"              $ testInvitationInfoBadCode b
+            , test m "post /i/teams/:tid/suspend - 200"                    $ testSuspendTeam b g
+            , test m "put /self - 200 update events"                       $ testUpdateEvents b g c
+            , test m "delete /self - 200 (ensure no orphan teams)"         $ testDeleteTeamUser b g
+            , test m "post /connections - 403 (same binding team)"         $ testConnectionSameTeam b g
             ]
         , testGroup "search"
             [ test m "post /register members are unsearchable"           $ testNonSearchableDefault b g
@@ -112,6 +113,19 @@ testInvitationEmail brig galley = do
     tid     <- createTeam inviter galley
     let invite = InvitationRequest invitee (Name "Bob") Nothing
     void $ postInvitation brig tid inviter invite
+
+-- TODO: Use max team size from options
+testInvitationTooManyPending :: Brig -> Galley -> Http ()
+testInvitationTooManyPending brig galley = do
+    inviter <- userId <$> randomUser brig
+    tid     <- createTeam inviter galley
+    emails  <- replicateConcurrently 128 randomEmail
+    let invite e = InvitationRequest e (Name "Bob") Nothing
+    mapM_ (mapConcurrently_ $ postInvitation brig tid inviter . invite) (chunksOf 16 emails)
+    e <- randomEmail
+    postInvitation brig tid inviter (invite e) !!! do
+        const 403 === statusCode
+        const (Just "too-many-team-invitations") === fmap Error.label . decodeBody
 
 testInvitationEmailAccepted :: Brig -> Galley -> Http ()
 testInvitationEmailAccepted brig galley = do

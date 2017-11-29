@@ -6,6 +6,7 @@
 
 module Brig.Team.DB
     ( module T
+    , countInvitations
     , insertInvitation
     , deleteInvitation
     , deleteInvitations
@@ -33,6 +34,7 @@ import Control.Monad.IO.Class
 import Control.Monad (when)
 import Data.Id
 import Data.Int
+import Data.Maybe (fromMaybe)
 import Data.Range
 import Data.UUID.V4
 import Data.Text.Ascii (encodeBase64Url)
@@ -146,6 +148,13 @@ lookupInvitationInfo ic@(InvitationCode c)
 
     cqlInvitationInfo :: PrepQuery R (Identity InvitationCode) (TeamId, InvitationId)
     cqlInvitationInfo = "SELECT team, id FROM team_invitation_info WHERE code = ?"
+
+countInvitations :: MonadClient m => TeamId -> m Int64
+countInvitations t = fromMaybe 0 . fmap runIdentity <$>
+    retry x1 (query1 cqlSelect (params Quorum (Identity t)))
+  where
+    cqlSelect :: PrepQuery R (Identity TeamId) (Identity Int64)
+    cqlSelect = "SELECT count(*) FROM team_invitation WHERE team = ?"
 
 -- Helper
 toInvitation :: (TeamId, InvitationId, Email, UTCTime) -> Invitation
