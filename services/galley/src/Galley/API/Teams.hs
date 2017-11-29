@@ -26,6 +26,7 @@ module Galley.API.Teams
     , uncheckedGetTeamMember
     , uncheckedGetTeamMembers
     , uncheckedRemoveTeamMember
+    , withBindingTeam
     ) where
 
 import Cassandra (result, hasMore)
