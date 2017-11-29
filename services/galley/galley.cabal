@@ -207,6 +207,7 @@ executable galley-integration
       , proto-lens
       , QuickCheck
       , retry
+      , safe                 >= 0.3
       , tagged
       , transformers
       , tasty                >= 0.8

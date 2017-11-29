@@ -4,10 +4,10 @@
 module Main (main) where
 
 import Bilge hiding (header, body)
-import Control.Lens
 import Data.Monoid
 import Data.Proxy
 import Data.Tagged
+import Data.Text.Encoding (encodeUtf8)
 import Data.Typeable
 import Data.Yaml hiding (Parser)
 import GHC.Generics
@@ -73,8 +73,9 @@ main = withOpenSSL $ runTests go
         }
         let local p = Endpoint { _epHost = "127.0.0.1", _epPort = p }
         iConf <- handleParseError =<< decodeFileEither i
-        cp <- optOrEnv cargohold iConf (local . read) "CARGOHOLD_WEB_PORT"
-        let cg = host "127.0.0.1" . port (cp^.epPort)
-        return $ API.V3.TestSetup m cg
+        cargo <- mkRequest <$> optOrEnv cargohold iConf (local . read) "CARGOHOLD_WEB_PORT"
+        return $ API.V3.TestSetup m cargo
+
+    mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
 
     releaseOpts _ = return ()

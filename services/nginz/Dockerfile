@@ -42,6 +42,7 @@ RUN apk add --no-cache inotify-tools dumb-init bash curl && \
         --group=nginx \
         --with-http_ssl_module \
         --with-http_stub_status_module \
+        --with-http_realip_module \
         --add-module=/src/third_party/nginx-zauth-module \
         --add-module=/src/third_party/headers-more-nginx-module \
         --add-module=/src/third_party/nginx-module-vts \
