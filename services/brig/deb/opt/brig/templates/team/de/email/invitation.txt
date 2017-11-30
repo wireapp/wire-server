@@ -1,0 +1,18 @@
+Wire
+
+Hallo,
+
+${inviter} hat dich zu einem Team bei Wire eingeladen.
+
+Klicke auf den folgenden Button um die Einladung zu akzeptieren:
+
+${url}
+
+Bitte antworte nicht auf diese E-Mail.
+
+
+
+
+(c) Wire Swiss GmbH
+
+Datenschutzrichtlinie  | Missbrauch melden

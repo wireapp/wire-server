@@ -196,6 +196,9 @@ notConnected = Wai.Error status403 "no-connection" "No connection exists between
 noIdentity :: Wai.Error
 noIdentity = Wai.Error status403 "no-identity" "The user has no verified identity (email or phone number)."
 
+noEmail :: Wai.Error
+noEmail = Wai.Error status403 "no-email" "This operation requires the user to have a verified email address."
+
 lastIdentity :: Wai.Error
 lastIdentity = Wai.Error status403 "last-identity" "The last user identity (email or phone number) cannot be removed."
 
