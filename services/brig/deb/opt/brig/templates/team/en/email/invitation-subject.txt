@@ -1,1 +1,1 @@
-${inviter} has invited you to join the ${team} team on Wire
+You have been invited to join a team on Wire
