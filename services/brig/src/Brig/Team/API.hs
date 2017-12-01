@@ -16,7 +16,7 @@ import Brig.Email
 import Brig.Options (setMaxTeamSize)
 import Brig.Team.Email
 import Brig.Types.Team.Invitation
-import Brig.Types.User (InvitationCode)
+import Brig.Types.User (InvitationCode, emailIdentity)
 import Brig.Types.Intra (AccountStatus (..))
 import Control.Error
 import Control.Lens (view, (^.))
@@ -69,6 +69,10 @@ routes = do
             Doc.description "JSON body"
         Doc.returns (Doc.ref Doc.teamInvitation)
         Doc.response 201 "Invitation was created and sent." Doc.end
+        Doc.errorResponse noEmail
+        Doc.errorResponse noIdentity
+        Doc.errorResponse invalidEmail
+        Doc.errorResponse blacklistedEmail
         Doc.errorResponse tooManyTeamInvitations
 
     ---
@@ -165,9 +169,8 @@ getInvitationCode (_ ::: t ::: r) = do
 createInvitation :: JSON ::: UserId ::: ConnId ::: TeamId ::: Request -> Handler Response
 createInvitation (_ ::: uid ::: _ ::: tid ::: req) = do
     body <- parseJsonBody req
-    idt  <- lift $ fetchUserIdentity uid
-    when (isNothing idt) $
-        throwStd noIdentity
+    idt  <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
+    from <- maybe (throwStd noEmail)    return (emailIdentity idt)
     ensurePermissions uid tid [Team.AddTeamMember]
     email <- maybe (throwStd invalidEmail) return (validateEmail (irEmail body))
     let uk = userEmailKey email
@@ -181,13 +184,12 @@ createInvitation (_ ::: uid ::: _ ::: tid ::: req) = do
     user <- lift $ Data.lookupKey uk
     case user of
         Just _  -> throwStd emailExists
-        Nothing -> doInvite email (irName body) (irLocale body)
+        Nothing -> doInvite email from (irLocale body)
   where
-    doInvite email nm lc = lift $ do
-        team <- Team.tdTeam <$> Intra.getTeam tid
+    doInvite to from lc = lift $ do
         now  <- liftIO =<< view currentTime
-        (newInv, code) <- DB.insertInvitation tid email now
-        void $ sendInvitationMail email tid nm (team^.Team.teamName) code lc
+        (newInv, code) <- DB.insertInvitation tid to now
+        void $ sendInvitationMail to tid from code lc
         return . setStatus status201 . loc (inInvitation newInv) $ json newInv
 
     loc iid = addHeader "Location"

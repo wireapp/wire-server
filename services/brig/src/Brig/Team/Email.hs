@@ -19,18 +19,17 @@ import qualified Data.Text.Ascii as Ascii
 -------------------------------------------------------------------------------
 -- Invitation Email
 
-sendInvitationMail :: Email -> TeamId -> Name -> Text -> InvitationCode -> Maybe Locale -> AppIO ()
-sendInvitationMail email tid inviterName teamName code loc = do
+sendInvitationMail :: Email -> TeamId -> Email -> InvitationCode -> Maybe Locale -> AppIO ()
+sendInvitationMail to tid from code loc = do
     tpl <- invitationEmail . snd <$> teamTemplates loc
-    let mail = InvitationEmail email tid code inviterName teamName
+    let mail = InvitationEmail to tid code from
     Aws.sendMail $ renderInvitationEmail mail tpl
 
 data InvitationEmail = InvitationEmail
-    { invTo          :: !Email
-    , invTeamId      :: !TeamId
-    , invInvCode     :: !InvitationCode
-    , invInviterName :: !Name
-    , invTeam        :: !Text
+    { invTo      :: !Email
+    , invTeamId  :: !TeamId
+    , invInvCode :: !InvitationCode
+    , invInviter :: !Email
     }
 
 renderInvitationEmail :: InvitationEmail -> InvitationEmailTemplate -> Mail
@@ -47,15 +46,13 @@ renderInvitationEmail InvitationEmail{..} InvitationEmailTemplate{..} =
     (InvitationCode code) = invInvCode
 
     from = Address (Just invitationEmailSenderName) (fromEmail invitationEmailSender)
-    to   = mkMimeAddress invInviterName invTo
+    to   = Address Nothing (fromEmail invTo)
     txt  = renderText invitationEmailBodyText replace
     html = renderHtml invitationEmailBodyHtml replace
     subj = renderText invitationEmailSubject  replace
 
     replace "url"      = renderInvitationUrl invitationEmailUrl invTeamId invInvCode
-    replace "email"    = fromEmail invTo
-    replace "inviter"  = fromName invInviterName
-    replace "team"     = invTeam
+    replace "inviter"  = fromEmail invInviter
     replace x          = x
 
 renderInvitationUrl :: Template -> TeamId -> InvitationCode -> Text
