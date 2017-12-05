@@ -1,0 +1,14 @@
+*Title:*
+Welcome to "Team Name".
+
+*Body:*
+You have just joined a team called **Acme Inc.** on Wire with this email address.
+
+Wire combines strong encryption, a rich feature set and ease-of-use in one app like never before. Works on all popular platforms.
+
+*Button:*
+DOWNLOAD WIRE
+
+*Small type*
+If you have any questions, please contact us.
+Team ID: 387638764-28973983793-3837389737-39383038
