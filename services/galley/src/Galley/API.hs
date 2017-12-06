@@ -592,7 +592,7 @@ sitemap = do
             description "Force message delivery even when clients are missing."
             optional
         body (ref Model.newOtrMessage) $
-            description "JSON body"
+            description "Protobuf body"
         returns (ref Model.clientMismatch)
         response 201 "Message posted" end
         response 412 "Missing clients" end
