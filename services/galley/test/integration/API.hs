@@ -220,12 +220,6 @@ postCryptoMessage1 g b c = do
             void . liftIO $ WS.assertMatch t wsB2 (wsAssertOtr conv alice ac bc2 cipher)
             liftIO $ assertBool "unexpected equal clients" (bc /= bc2)
             assertNoMsg wsB2 (wsAssertOtr conv alice ac bc cipher)
-  where
-    assertNoMsg ws f = do
-        x <- WS.awaitMatch (1 # Second) ws f
-        liftIO $ case x of
-            Left  _ -> return () -- expected
-            Right _ -> assertFailure "Unexpected message"
 
 postCryptoMessage2 :: Galley -> Brig -> Cannon -> Http ()
 postCryptoMessage2 g b _ = do
@@ -940,4 +934,3 @@ removeUser g b ca = do
         evtType      e @?= MemberLeave
         evtFrom      e @?= u
         evtData      e @?= Just (EdMembers (Members [u]))
-

@@ -54,6 +54,7 @@ import Galley.API.Error
 import Galley.API.Mapping
 import Galley.API.Util
 import Galley.Data.Services as Data
+import Galley.Data.Types
 import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Types
@@ -437,9 +438,9 @@ withValidOtrBroadcastRecipients
 withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
     tMembers <- fmap (view userId) <$> Data.teamMembers tid
     contacts <- getContactList usr
-    let users = tMembers ++ contacts
-    let membs = Data.newMember <$> users
+    let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
     clts  <- Data.lookupClients users
+    let membs = Data.newMember <$> users
     handleOtrResponse usr clt rcps membs clts val now go
 
 withValidOtrRecipients
@@ -535,6 +536,3 @@ checkOtrRecipients usr sid prs vms vcs val now
         OtrIgnoreAllMissing -> Clients.nil
         OtrReportMissing us -> Clients.filter (`Set.member` us) miss
         OtrIgnoreMissing us -> Clients.filter (`Set.notMember` us) miss
-
-selfConv :: UserId -> ConvId
-selfConv uid = Id (toUUID uid)

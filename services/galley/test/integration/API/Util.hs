@@ -7,7 +7,7 @@ import Bilge.Assert
 import Brig.Types
 import Control.Applicative hiding (empty)
 import Control.Error
-import Control.Lens hiding ((.=), from, to)
+import Control.Lens hiding ((.=), from, to, (#))
 import Control.Monad hiding (mapM_)
 import Control.Monad.IO.Class
 import Data.Aeson hiding (json)
@@ -33,7 +33,7 @@ import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
 import Prelude hiding (head, mapM_)
-import Test.Tasty.Cannon (Cannon)
+import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
 
 import Debug.Trace (traceShow)
@@ -382,6 +382,12 @@ wsAssertMemberLeave conv usr old n = do
     evtFrom      e @?= usr
     evtData      e @?= Just (EdMembers (Members old))
 
+assertNoMsg :: WS.WebSocket -> (Notification -> Assertion) -> Http ()
+assertNoMsg ws f = do
+    x <- WS.awaitMatch (1 # Second) ws f
+    liftIO $ case x of
+        Left  _ -> return () -- expected
+        Right _ -> assertFailure "Unexpected message"
 -------------------------------------------------------------------------------
 -- Helpers
 

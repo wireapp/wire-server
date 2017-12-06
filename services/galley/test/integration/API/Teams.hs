@@ -766,22 +766,28 @@ postCryptoBroadcastMessageJson g b c a = do
     _ <- createTeamInternal g "foo" charlie
     assertQueue "" a tActivate
     connectUsers b alice (list1 charlie [dan])
-    -- Complete: Alice broadcasts a message to Bob,Charlie,Dan
+    -- A second client for Alice
+    ac2 <- randomClient b alice (someLastPrekeys !! 4)
+    -- Complete: Alice broadcasts a message to Bob,Charlie,Dan and herself
     let t = 1 # Second -- WS receive timeout
-    WS.bracketRN c [alice, bob, charlie, dan] $ \ws@[_, wsB, wsC, wsD] -> do
-        let msg = [(bob, bc, "ciphertext1"), (charlie, cc, "ciphertext2"), (dan, dc, "ciphertext3")]
-        Util.postOtrBroadcastMessage id g alice ac msg !!! do
-            const 201 === statusCode
-            assertTrue_ (eqMismatch [] [] [] . decodeBody)
-        -- Bob should get the broadcast (team member of alice)
-        void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext1")
-        -- Charlie should get the broadcast (contact of alice and user of teams feature)
-        void . liftIO $ WS.assertMatch t wsC (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext2")
-        -- Dan should get the broadcast (contact of alice and not user of teams feature)
-        void . liftIO $ WS.assertMatch t wsD (wsAssertOtr (selfConv dan) alice ac dc "ciphertext3")
-        -- Alice should not get her own broadcast
-        WS.assertNoEvent timeout ws
-
+    let msg = [(alice, ac2, "ciphertext0"), (bob, bc, "ciphertext1"), (charlie, cc, "ciphertext2"), (dan, dc, "ciphertext3")]
+    WS.bracketRN c [bob, charlie, dan] $ \[wsB, wsC, wsD] ->
+        -- Alice's clients 1 and 2 listen to their own messages only
+        WS.bracketR (c . queryItem "client" (toByteString' ac2)) alice $ \wsA2 ->
+            WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
+                Util.postOtrBroadcastMessage id g alice ac msg !!! do
+                    const 201 === statusCode
+                    assertTrue_ (eqMismatch [] [] [] . decodeBody)
+                -- Bob should get the broadcast (team member of alice)
+                void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext1")
+                -- Charlie should get the broadcast (contact of alice and user of teams feature)
+                void . liftIO $ WS.assertMatch t wsC (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext2")
+                -- Dan should get the broadcast (contact of alice and not user of teams feature)
+                void . liftIO $ WS.assertMatch t wsD (wsAssertOtr (selfConv dan) alice ac dc "ciphertext3")
+                -- Alice's first client should not get the broadcast
+                assertNoMsg wsA1 (wsAssertOtr (selfConv alice) alice ac ac "ciphertext0")
+                -- Alice's second client should get the broadcast
+                void . liftIO $ WS.assertMatch t wsA2 (wsAssertOtr (selfConv alice) alice ac ac2 "ciphertext0")
 
 postCryptoBroadcastMessageJson2 :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 postCryptoBroadcastMessageJson2 g b c a = do
@@ -832,16 +838,10 @@ postCryptoBroadcastMessageJson2 g b c a = do
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext4")
         -- charlie should not get it
         assertNoMsg wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext4")
-  where
-    assertNoMsg ws f = do
-        x <- WS.awaitMatch (1 # Second) ws f
-        liftIO $ case x of
-            Left  _ -> return () -- expected
-            Right _ -> assertFailure "Unexpected message"
 
 postCryptoBroadcastMessageProto :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 postCryptoBroadcastMessageProto g b c a = do
-    -- same as postCryptoBroadcastMessageJson except uses protobuf
+    -- similar to postCryptoBroadcastMessageJson except uses protobuf
 
     -- Team1: Alice, Bob. Team2: Charlie. Regular user: Dan. Connect Alice,Charlie,Dan
     (alice,  ac) <- randomUserWithClient b (someLastPrekeys !! 0)
