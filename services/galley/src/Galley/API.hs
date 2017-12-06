@@ -557,6 +557,50 @@ sitemap = do
 
     ---
 
+    post "/broadcast/otr/messages" (continue postOtrBroadcast) $
+        zauthUserId
+        .&. zauthConnId
+        .&. def OtrReportAllMissing filterMissing
+        .&. request
+        .&. contentType "application" "json"
+
+    document "POST" "postOtrBroadcast" $ do
+        summary "Broadcast an encrypted message to all team members and all contacts"
+        parameter Query "ignore_missing" bool' $ do
+            description "Force message delivery even when clients are missing."
+            optional
+        body (ref Model.newOtrMessage) $
+            description "JSON body"
+        returns (ref Model.clientMismatch)
+        response 201 "Message posted" end
+        response 412 "Missing clients" end
+        errorResponse Error.teamNotFound
+        errorResponse Error.nonBindingTeam
+
+    ---
+
+    post "/broadcast/otr/messages" (continue postProtoOtrBroadcast) $
+        zauthUserId
+        .&. zauthConnId
+        .&. def OtrReportAllMissing filterMissing
+        .&. request
+        .&. contentType "application" "x-protobuf"
+
+    document "POST" "postOtrBroadcast" $ do
+        summary "Broadcast an encrypted message to all team members and all contacts"
+        parameter Query "ignore_missing" bool' $ do
+            description "Force message delivery even when clients are missing."
+            optional
+        body (ref Model.newOtrMessage) $
+            description "JSON body"
+        returns (ref Model.clientMismatch)
+        response 201 "Message posted" end
+        response 412 "Missing clients" end
+        errorResponse Error.teamNotFound
+        errorResponse Error.nonBindingTeam
+
+    ---
+
     post "/conversations/:cnv/otr/messages" (continue postOtrMessage) $
         zauthUserId
         .&. zauthConnId
@@ -758,4 +802,3 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
                           $ P.setSource src
                           $ P.err status400
         Just  l -> P.Okay 0 (Set.fromList (fromList l))
-

@@ -5,9 +5,11 @@ module Galley.Intra.User
     , deleteBot
     , reAuthUser
     , deleteUser
+    , getContactList
     ) where
 
 import Bilge hiding (options, getHeader, statusCode)
+import Brig.Types.Connection (UserIds (..))
 import Bilge.RPC
 import Bilge.Retry
 import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
@@ -85,6 +87,15 @@ deleteUser uid = do
         $ method DELETE . host h . port p
         . paths ["/i/users", toByteString' uid]
         . expect2xx
+
+getContactList :: UserId -> Galley [UserId]
+getContactList uid = do
+    (h, p) <- brigReq
+    r <- call "brig"
+        $ method GET . host h . port p
+        . paths ["/i/users", toByteString' uid, "contacts"]
+        . expect2xx
+    cUsers <$> parseResponse (Error status502 "server-error") r
 
 -----------------------------------------------------------------------------
 -- Helpers

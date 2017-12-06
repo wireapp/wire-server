@@ -7,6 +7,7 @@ module Galley.Data.Types
     , isO2OConv
     , isTeamConv
     , isConvDeleted
+    , selfConv
     ) where
 
 import Data.Id
@@ -37,3 +38,6 @@ isTeamConv = isJust . convTeam
 
 isConvDeleted :: Conversation -> Bool
 isConvDeleted = fromMaybe False . convDeleted
+
+selfConv :: UserId -> ConvId
+selfConv uid = Id (toUUID uid)

@@ -14,6 +14,7 @@ module Brig.API.Connection
     , lookupConnections
     , Data.lookupConnection
     , Data.lookupConnectionStatus
+    , Data.lookupContactList
 
       -- * Invitations
     , createInvitation

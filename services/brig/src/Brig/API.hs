@@ -146,6 +146,10 @@ sitemap o = do
         accept "application" "json"
         .&. capture "id"
 
+    get "/i/users/:id/contacts" (continue getContactList) $
+        accept "application" "json"
+        .&. capture "id"
+
     get "/i/users/activation-code" (continue getActivationCode) $
         accept "application" "json"
         .&. (param "email" ||| param "phone")
@@ -1449,6 +1453,11 @@ onboarding (_ ::: _ ::: uid ::: r) = do
     ab <- parseJsonBody r
     json <$> API.onboarding uid ab !>> connError
 
+getContactList :: JSON ::: UserId -> Handler Response
+getContactList (_ ::: uid) = do
+    contacts <- lift $ API.lookupContactList uid
+    return $ json $ (UserIds contacts)
+
 -- Deprecated
 
 deprecatedCompletePasswordReset :: JSON ::: JSON ::: PasswordResetKey ::: Request -> Handler Response
@@ -1478,4 +1487,3 @@ activate (Activate tgt code dryrun)
 
 validateHandle :: Text -> Handler Handle
 validateHandle = maybe (throwE (StdError invalidHandle)) return . parseHandle
-

@@ -78,6 +78,11 @@ fetchMessage label callback = do
     events <- mapM (parseDeleteMessage url) msgs
     liftIO $ callback label (headDef Nothing events)
 
+purgeQueue :: Amazon ()
+purgeQueue = do
+    QueueUrl url <- view eventQueue
+    void $ AWS.send (SQS.purgeQueue url)
+
 receive :: Text -> SQS.ReceiveMessage
 receive url = SQS.receiveMessage url
                 & set SQS.rmWaitTimeSeconds (Just 5)
