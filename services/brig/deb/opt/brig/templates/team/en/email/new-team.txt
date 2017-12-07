@@ -1,0 +1,12 @@
+Your new team
+
+You have just created a team called **${new-team-name}** on Wire with this email address.
+Your 30–day free trial starts today.
+
+Wire combines strong encryption, a rich feature set and ease-of-use in one app like never before.
+
+Manager your team: ${new-team-manage}
+
+*Small type*
+If you have any questions, please contact us.
+Team ID: ${new-team-id}
