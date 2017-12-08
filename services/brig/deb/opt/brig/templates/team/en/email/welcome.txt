@@ -6,6 +6,5 @@ Wire combines strong encryption, a rich feature set and ease-of-use in one app l
 
 ${welcome-download}
 
-*Small type*
 If you have any questions, please contact us.
 Team ID: ${welcome-team-id}
