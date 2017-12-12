@@ -81,7 +81,9 @@ push (req ::: _) = do
     mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
 
     pushNative sendNotice notif p rcps
-        | ntfTransient notif = pushData p notif rcps
+        | ntfTransient notif = if sendNotice
+            then pushNotice p notif rcps
+            else pushData p notif rcps
         | otherwise = case partition (preferNotice sendNotice (p^.pushOrigin)) rcps of
             (xs, []) -> pushNotice p notif xs
             ([], ys) -> pushData p notif ys
