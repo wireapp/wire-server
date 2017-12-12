@@ -59,6 +59,7 @@ module Galley.Data
     -- * Clients
     , eraseClients
     , lookupClients
+    , lookupClients'
     , updateClient
 
     -- * Utilities
@@ -544,7 +545,10 @@ updateClient add usr cls = do
     retry x5 $ write (q cls) (params Quorum (Identity usr))
 
 lookupClients :: MonadClient m => [UserId] -> m Clients
-lookupClients usrs = Clients.fromList . map (second fromSet) <$>
+lookupClients = fmap Clients.fromList . lookupClients'
+
+lookupClients' :: MonadClient m => [UserId] -> m [(UserId, [ClientId])]
+lookupClients' usrs = map (second fromSet) <$>
     retry x1 (query Cql.selectClients (params Quorum (Identity usrs)))
 
 eraseClients :: MonadClient m => UserId -> m ()
