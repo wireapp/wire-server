@@ -1,11 +1,10 @@
 Welcome to "Team Name".
 
-You have just joined a team called **${welcome-team-name}** on Wire with this email address.
+You have just joined a team called ${team-name} on Wire with ${email}.
 
 Wire combines strong encryption, a rich feature set and ease-of-use in one app like never before. Works on all popular platforms.
 
 ${welcome-download}
 
-*Small type*
 If you have any questions, please contact us.
 Team ID: ${welcome-team-id}
