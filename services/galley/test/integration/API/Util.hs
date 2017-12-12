@@ -7,7 +7,7 @@ import Bilge.Assert
 import Brig.Types
 import Control.Applicative hiding (empty)
 import Control.Error
-import Control.Lens hiding ((.=), from, to)
+import Control.Lens hiding ((.=), from, to, (#))
 import Control.Monad hiding (mapM_)
 import Control.Monad.IO.Class
 import Data.Aeson hiding (json)
@@ -33,7 +33,7 @@ import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
 import Prelude hiding (head, mapM_)
-import Test.Tasty.Cannon (Cannon)
+import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
 
 import Debug.Trace (traceShow)
@@ -176,31 +176,50 @@ postOtrMessage f g u d c rec = post $ g
     . paths ["conversations", toByteString' c, "otr", "messages"]
     . zUser u . zConn "conn"
     . zType "access"
-    . json msg
-  where
-    msg = object
-        [ "sender"     .= d
+    . json (mkOtrPayload d rec)
+
+postOtrBroadcastMessage :: (Request -> Request) -> Galley -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> Http ResponseLBS
+postOtrBroadcastMessage f g u d rec = post $ g
+    . f
+    . paths ["broadcast", "otr", "messages"]
+    . zUser u . zConn "conn"
+    . zType "access"
+    . json (mkOtrPayload d rec)
+
+mkOtrPayload :: ClientId -> [(UserId, ClientId, Text)] -> Value
+mkOtrPayload sender rec = object
+        [ "sender"     .= sender
         , "recipients" .= (HashMap.map toJSON . HashMap.fromListWith HashMap.union $ map mkOtrMessage rec)
         , "data"       .= Just ("data" :: Text)
         ]
 
-    mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
-
+mkOtrMessage :: (UserId, ClientId, Text) -> (Text, HashMap.HashMap Text Text)
+mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
+  where
     fn :: (FromByteString a, ToByteString a) => a -> Text
     fn = fromJust . fromByteString . toByteString'
 
 postProtoOtrMessage :: Galley -> UserId -> ClientId -> ConvId -> OtrRecipients -> Http ResponseLBS
-postProtoOtrMessage g u d c rec = let m = runPut (encodeMessage otrMessage) in post $ g
+postProtoOtrMessage g u d c rec = let m = runPut (encodeMessage $ mkOtrProtoMessage d rec) in post $ g
     . paths ["conversations", toByteString' c, "otr", "messages"]
     . zUser u . zConn "conn"
     . zType "access"
     . contentProtobuf
     . bytes m
-  where
-    otrMessage =
-        let rcps = Proto.fromOtrRecipients rec
-            sndr = Proto.fromClientId d
-        in Proto.newOtrMessage sndr rcps & Proto.newOtrMessageData ?~ "data"
+
+postProtoOtrBroadcast :: Galley -> UserId -> ClientId -> OtrRecipients -> Http ResponseLBS
+postProtoOtrBroadcast g u d rec = let m = runPut (encodeMessage $ mkOtrProtoMessage d rec) in post $ g
+    . paths ["broadcast", "otr", "messages"]
+    . zUser u . zConn "conn"
+    . zType "access"
+    . contentProtobuf
+    . bytes m
+
+mkOtrProtoMessage :: ClientId -> OtrRecipients -> Proto.NewOtrMessage
+mkOtrProtoMessage sender rec =
+    let rcps = Proto.fromOtrRecipients rec
+        sndr = Proto.fromClientId sender
+    in Proto.newOtrMessage sndr rcps & Proto.newOtrMessageData ?~ "data"
 
 getConvs :: Galley -> UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Http ResponseLBS
 getConvs g u r s = get $ g
@@ -332,14 +351,18 @@ assertConv r t c s us n = do
             _           -> return ()
     return cId
 
+
 wsAssertOtr :: ConvId -> UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
-wsAssertOtr conv usr from to txt n = do
+wsAssertOtr = wsAssertOtr' "data"
+
+wsAssertOtr' :: Text -> ConvId -> UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
+wsAssertOtr' evData conv usr from to txt n = do
     let e = List1.head (WS.unpackPayload n)
     ntfTransient n @?= False
     evtConv      e @?= conv
     evtType      e @?= OtrMessageAdd
     evtFrom      e @?= usr
-    evtData      e @?= Just (EdOtrMessage (OtrMessage from to txt (Just "data")))
+    evtData      e @?= Just (EdOtrMessage (OtrMessage from to txt (Just evData)))
 
 wsAssertMemberJoin :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
 wsAssertMemberJoin conv usr new n = do
@@ -359,6 +382,12 @@ wsAssertMemberLeave conv usr old n = do
     evtFrom      e @?= usr
     evtData      e @?= Just (EdMembers (Members old))
 
+assertNoMsg :: WS.WebSocket -> (Notification -> Assertion) -> Http ()
+assertNoMsg ws f = do
+    x <- WS.awaitMatch (1 # Second) ws f
+    liftIO $ case x of
+        Left  _ -> return () -- expected
+        Right _ -> assertFailure "Unexpected message"
 -------------------------------------------------------------------------------
 -- Helpers
 
@@ -523,3 +552,6 @@ randomEmail :: MonadIO m => m Email
 randomEmail = do
     uid <- liftIO nextRandom
     return $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
+
+selfConv :: UserId -> Id C
+selfConv u = Id (toUUID u)

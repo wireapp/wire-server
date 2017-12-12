@@ -7,7 +7,7 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens hiding ((#), (.=))
-import Control.Monad (void)
+import Control.Monad (void, replicateM)
 import Control.Monad.IO.Class
 import Control.Retry
 import Data.Aeson hiding (json)
@@ -66,6 +66,11 @@ tests s = testGroup "Teams API"
     , test s "update team data" testUpdateTeam
     , test s "update team member" testUpdateTeamMember
     , test s "update team status" testUpdateTeamStatus
+    , test s "post crypto broadcast message json" postCryptoBroadcastMessageJson
+    , test s "post crypto broadcast message protobuf" postCryptoBroadcastMessageProto
+    , test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2
+    , test s "post crypto broadcast message no-team" postCryptoBroadcastMessageNoTeam
+    , test s "post crypto broadcast message 100" postCryptoBroadcastMessage100
     ]
 
 timeout :: WS.Timeout
@@ -746,3 +751,149 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
         case evtData e of
             Just (Conv.EdMembers mm) -> mm @?= Conv.Members [usr]
             other                    -> assertFailure $ "Unexpected event data: " <> show other
+
+postCryptoBroadcastMessageJson :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+postCryptoBroadcastMessageJson g b c a = do
+    -- Team1: Alice, Bob. Team2: Charlie. Regular user: Dan. Connect Alice,Charlie,Dan
+    (alice,  ac) <- randomUserWithClient b (someLastPrekeys !! 0)
+    (bob,    bc) <- randomUserWithClient b (someLastPrekeys !! 1)
+    (charlie,cc) <- randomUserWithClient b (someLastPrekeys !! 2)
+    (dan,    dc) <- randomUserWithClient b (someLastPrekeys !! 3)
+    tid1 <- createTeamInternal g "foo" alice
+    assertQueue "" a tActivate
+    addTeamMemberInternal g tid1 $ newTeamMember bob (symmPermissions [])
+    assertQueue "" a $ tUpdate 2 [alice]
+    _ <- createTeamInternal g "foo" charlie
+    assertQueue "" a tActivate
+    connectUsers b alice (list1 charlie [dan])
+    -- A second client for Alice
+    ac2 <- randomClient b alice (someLastPrekeys !! 4)
+    -- Complete: Alice broadcasts a message to Bob,Charlie,Dan and herself
+    let t = 1 # Second -- WS receive timeout
+    let msg = [(alice, ac2, "ciphertext0"), (bob, bc, "ciphertext1"), (charlie, cc, "ciphertext2"), (dan, dc, "ciphertext3")]
+    WS.bracketRN c [bob, charlie, dan] $ \[wsB, wsC, wsD] ->
+        -- Alice's clients 1 and 2 listen to their own messages only
+        WS.bracketR (c . queryItem "client" (toByteString' ac2)) alice $ \wsA2 ->
+            WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
+                Util.postOtrBroadcastMessage id g alice ac msg !!! do
+                    const 201 === statusCode
+                    assertTrue_ (eqMismatch [] [] [] . decodeBody)
+                -- Bob should get the broadcast (team member of alice)
+                void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext1")
+                -- Charlie should get the broadcast (contact of alice and user of teams feature)
+                void . liftIO $ WS.assertMatch t wsC (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext2")
+                -- Dan should get the broadcast (contact of alice and not user of teams feature)
+                void . liftIO $ WS.assertMatch t wsD (wsAssertOtr (selfConv dan) alice ac dc "ciphertext3")
+                -- Alice's first client should not get the broadcast
+                assertNoMsg wsA1 (wsAssertOtr (selfConv alice) alice ac ac "ciphertext0")
+                -- Alice's second client should get the broadcast
+                void . liftIO $ WS.assertMatch t wsA2 (wsAssertOtr (selfConv alice) alice ac ac2 "ciphertext0")
+
+postCryptoBroadcastMessageJson2 :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+postCryptoBroadcastMessageJson2 g b c a = do
+    -- Team1: Alice, Bob. Team2: Charlie. Connect Alice,Charlie
+    (alice,  ac) <- randomUserWithClient b (someLastPrekeys !! 0)
+    (bob,    bc) <- randomUserWithClient b (someLastPrekeys !! 1)
+    (charlie,cc) <- randomUserWithClient b (someLastPrekeys !! 2)
+    tid1 <- createTeamInternal g "foo" alice
+    assertQueue "" a tActivate
+    addTeamMemberInternal g tid1 $ newTeamMember bob (symmPermissions [])
+    assertQueue "" a $ tUpdate 2 [alice]
+    connectUsers b alice (list1 charlie [])
+
+    let t = 3 # Second -- WS receive timeout
+    -- Missing charlie
+    let m1 = [(bob, bc, "ciphertext1")]
+    Util.postOtrBroadcastMessage id g alice ac m1 !!! do
+        const 412 === statusCode
+        assertTrue_ (eqMismatch [(charlie, Set.singleton cc)] [] [] . decodeBody)
+
+    -- Complete
+    WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
+        let m2 = [(bob, bc, "ciphertext2"), (charlie, cc, "ciphertext2")]
+        Util.postOtrBroadcastMessage id g alice ac m2 !!! do
+            const 201 === statusCode
+            assertTrue_ (eqMismatch [] [] [] . decodeBody)
+        void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext2")
+        void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext2")
+
+    -- Redundant self
+    WS.bracketR3 c alice bob charlie $ \(wsA, wsB, wsE) -> do
+        let m3 = [(alice, ac, "ciphertext3"), (bob, bc, "ciphertext3"), (charlie, cc, "ciphertext3")]
+        Util.postOtrBroadcastMessage id g alice ac m3 !!! do
+            const 201 === statusCode
+            assertTrue_ (eqMismatch [] [(alice, Set.singleton ac)] [] . decodeBody)
+        void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext3")
+        void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext3")
+        -- Alice should not get it
+        assertNoMsg wsA (wsAssertOtr (selfConv alice) alice ac ac "ciphertext3")
+
+    -- Deleted charlie
+    WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
+        deleteClient g charlie cc !!! const 200 === statusCode
+        let m4 = [(bob, bc, "ciphertext4"), (charlie, cc, "ciphertext4")]
+        Util.postOtrBroadcastMessage id g alice ac m4 !!! do
+            const 201 === statusCode
+            assertTrue_ (eqMismatch [] [] [(charlie, Set.singleton cc)] . decodeBody)
+        void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext4")
+        -- charlie should not get it
+        assertNoMsg wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext4")
+
+postCryptoBroadcastMessageProto :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+postCryptoBroadcastMessageProto g b c a = do
+    -- similar to postCryptoBroadcastMessageJson except uses protobuf
+
+    -- Team1: Alice, Bob. Team2: Charlie. Regular user: Dan. Connect Alice,Charlie,Dan
+    (alice,  ac) <- randomUserWithClient b (someLastPrekeys !! 0)
+    (bob,    bc) <- randomUserWithClient b (someLastPrekeys !! 1)
+    (charlie,cc) <- randomUserWithClient b (someLastPrekeys !! 2)
+    (dan,    dc) <- randomUserWithClient b (someLastPrekeys !! 3)
+    tid1 <- createTeamInternal g "foo" alice
+    assertQueue "" a tActivate
+    addTeamMemberInternal g tid1 $ newTeamMember bob (symmPermissions [])
+    assertQueue "" a $ tUpdate 2 [alice]
+    _ <- createTeamInternal g "foo" charlie
+    assertQueue "" a tActivate
+    connectUsers b alice (list1 charlie [dan])
+    -- Complete: Alice broadcasts a message to Bob,Charlie,Dan
+    let t = 1 # Second -- WS receive timeout
+    let ciphertext = encodeCiphertext "hello bob"
+    WS.bracketRN c [alice, bob, charlie, dan] $ \ws@[_, wsB, wsC, wsD] -> do
+        let msg = otrRecipients [(bob, [(bc, ciphertext)]), (charlie, [(cc, ciphertext)]), (dan, [(dc, ciphertext)])]
+        Util.postProtoOtrBroadcast g alice ac msg !!! do
+            const 201 === statusCode
+            assertTrue_ (eqMismatch [] [] [] . decodeBody)
+        -- Bob should get the broadcast (team member of alice)
+        void . liftIO $ WS.assertMatch t wsB (wsAssertOtr' (encodeCiphertext "data") (selfConv bob) alice ac bc ciphertext)
+        -- Charlie should get the broadcast (contact of alice and user of teams feature)
+        void . liftIO $ WS.assertMatch t wsC (wsAssertOtr' (encodeCiphertext "data") (selfConv charlie) alice ac cc ciphertext)
+        -- Dan should get the broadcast (contact of alice and not user of teams feature)
+        void . liftIO $ WS.assertMatch t wsD (wsAssertOtr' (encodeCiphertext "data") (selfConv dan) alice ac dc ciphertext)
+        -- Alice should not get her own broadcast
+        WS.assertNoEvent timeout ws
+
+postCryptoBroadcastMessageNoTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+postCryptoBroadcastMessageNoTeam g b _ _ = do
+    (alice, ac) <- randomUserWithClient b (someLastPrekeys !! 0)
+    (bob,   bc) <- randomUserWithClient b (someLastPrekeys !! 1)
+    connectUsers b alice (list1 bob [])
+    let msg = [(bob, bc, "ciphertext1")]
+    Util.postOtrBroadcastMessage id g alice ac msg !!! const 404 === statusCode
+
+postCryptoBroadcastMessage100 :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+postCryptoBroadcastMessage100 g b c a = do
+    (alice, ac) <- randomUserWithClient b (someLastPrekeys !! 0)
+    _ <- createTeamInternal g "foo" alice
+    assertQueue "" a tActivate
+    (bob, bc):others <- replicateM 100 (randomUserWithClient b (someLastPrekeys !! 1))
+    connectUsers b alice (list1 bob (fst <$> others))
+    let t = 3 # Second -- WS receive timeout
+    WS.bracketRN c (bob : (fst <$> others)) $ \ws -> do
+        let f (u, clt) = (u, clt, "ciphertext")
+        let msg = (bob, bc, "ciphertext") : (f <$> others)
+        Util.postOtrBroadcastMessage id g alice ac msg !!! do
+            const 201 === statusCode
+            assertTrue_ (eqMismatch [] [] [] . decodeBody)
+        void . liftIO $ WS.assertMatch t (Prelude.head ws) (wsAssertOtr (selfConv bob) alice ac bc "ciphertext")
+        for_ (zip (tail ws) others) $ \(wsU, (u, clt)) ->
+            liftIO $ WS.assertMatch t wsU (wsAssertOtr (selfConv u) alice ac clt "ciphertext")

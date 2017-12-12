@@ -65,6 +65,7 @@ push (req ::: _) = do
             throwM (Error status500 "server-error" "Server Error")
   where
     pushAny p = do
+        sendNotice <- view (options.optFallback.fbPreferNotice)
         i <- mkNotificationId
         let pload = p^.pushPayload
         let notif = Notification i (p^.pushTransient) pload
@@ -75,13 +76,15 @@ push (req ::: _) = do
             Stream.add i tgts pload =<< view (options.optSettings.setNotificationTTL)
         void . fork $ do
             prs <- Web.push notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
-            pushNative notif p =<< nativeTargets p prs
+            pushNative sendNotice notif p =<< nativeTargets p prs
 
     mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
 
-    pushNative notif p rcps
-        | ntfTransient notif = pushData p notif rcps
-        | otherwise = case partition (preferNotice (p^.pushOrigin)) rcps of
+    pushNative sendNotice notif p rcps
+        | ntfTransient notif = if sendNotice
+            then pushNotice p notif rcps
+            else pushData p notif rcps
+        | otherwise = case partition (preferNotice sendNotice (p^.pushOrigin)) rcps of
             (xs, []) -> pushNotice p notif xs
             ([], ys) -> pushData p notif ys
             (xs, ys) -> do
@@ -96,8 +99,8 @@ push (req ::: _) = do
     -- case, which it can combine with fetching the notification in a single
     -- request. We can thus save the effort of encrypting and decrypting native
     -- push payloads to such addresses.
-    preferNotice orig a = isJust (a^.addrFallback)
-                       && orig /= (a^.addrUser)
+    preferNotice sendNotice orig a = sendNotice
+                                  || (isJust (a^.addrFallback) && orig /= (a^.addrUser))
 
     pushNotice _     _   [] = return ()
     pushNotice p notif rcps = do

@@ -331,7 +331,7 @@ createConversation usr name acc others tinfo = do
 
 createSelfConversation :: UserId -> Maybe (Range 1 256 Text) -> Galley Conversation
 createSelfConversation usr name = do
-    let conv = Id (toUUID usr)
+    let conv = selfConv usr
     now <- liftIO getCurrentTime
     retry x5 $
         write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, fromRange <$> name, Nothing))
