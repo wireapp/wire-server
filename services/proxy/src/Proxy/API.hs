@@ -68,7 +68,7 @@ sitemap e = do
         (proxy e "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
         return
 
-    get "/proxy/giphy/v1/gifs/:id"
+    get "/proxy/giphy/v1/gifs/:path"
         (proxy e "api_key" "secrets.giphy" Prefix "/v1/gifs" giphy)
         return
 
