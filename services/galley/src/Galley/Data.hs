@@ -59,7 +59,6 @@ module Galley.Data
     -- * Clients
     , eraseClients
     , lookupClients
-    , lookupClients'
     , updateClient
 
     -- * Utilities
@@ -73,13 +72,14 @@ import Control.Applicative
 import Control.Arrow (second)
 import Control.Concurrent.Async.Lifted.Safe
 import Control.Lens hiding ((<|))
-import Control.Monad (join)
+import Control.Monad (join, forM)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
 import Data.ByteString.Conversion hiding (parser)
 import Data.Foldable (toList, foldrM, for_)
 import Data.Id
 import Data.Range
+import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
 import Data.Int
 import Data.Maybe (fromMaybe)
@@ -544,12 +544,14 @@ updateClient add usr cls = do
     let q = if add then Cql.addMemberClient else Cql.rmMemberClient
     retry x5 $ write (q cls) (params Quorum (Identity usr))
 
-lookupClients :: MonadClient m => [UserId] -> m Clients
-lookupClients = fmap Clients.fromList . lookupClients'
-
-lookupClients' :: MonadClient m => [UserId] -> m [(UserId, [ClientId])]
-lookupClients' usrs = map (second fromSet) <$>
-    retry x1 (query Cql.selectClients (params Quorum (Identity usrs)))
+-- Do, at most, 16 parallel lookups of up to 128 users each
+lookupClients :: (MonadClient m, MonadBaseControl IO m, Forall (Pure m)) 
+              => [UserId] -> m Clients
+lookupClients users = Clients.fromList . concat . concat <$>
+    forM (chunksOf 2048 users) (mapConcurrently getClients . chunksOf 128)
+  where
+    getClients us = map (second fromSet) <$>
+        retry x1 (query Cql.selectClients (params Quorum (Identity us)))
 
 eraseClients :: MonadClient m => UserId -> m ()
 eraseClients user = retry x5 (write Cql.rmClients (params Quorum (Identity user)))
