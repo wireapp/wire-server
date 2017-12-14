@@ -41,7 +41,6 @@ import Control.Lens ((&), (.~), (?~), (^.), (<&>), set, view)
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Data.Bool (bool)
 import Data.Foldable
 import Data.Id
@@ -50,7 +49,6 @@ import Data.Maybe (fromMaybe, catMaybes)
 import Data.Range hiding ((<|))
 import Data.Text (Text)
 import Data.Time
-import Data.List.Split (chunksOf)
 import Galley.App
 import Galley.API.Error
 import Galley.API.Mapping
@@ -441,13 +439,9 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
     tMembers <- fmap (view userId) <$> Data.teamMembers tid
     contacts <- getContactList usr
     let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
-    clts  <- lookupClientsAsync users
+    clts <- Data.lookupClients users
     let membs = Data.newMember <$> users
     handleOtrResponse usr clt rcps membs clts val now go
-  where
-    -- do a maximum of 16 parallel lookups of up to 128 users each
-    lookupClientsAsync users = Clients.fromList . concat . concat <$>
-          forM (chunksOf 2048 users) (mapConcurrently Data.lookupClients' . chunksOf 128)
 
 withValidOtrRecipients
     :: UserId
