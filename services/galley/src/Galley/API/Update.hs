@@ -23,6 +23,8 @@ module Galley.API.Update
       -- * Talking
     , postOtrMessage
     , postProtoOtrMessage
+    , postOtrBroadcast
+    , postProtoOtrBroadcast
     , isTyping
 
       -- * External Services
@@ -39,6 +41,7 @@ import Control.Lens ((&), (.~), (?~), (^.), (<&>), set, view)
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Data.Bool (bool)
 import Data.Foldable
 import Data.Id
@@ -47,17 +50,19 @@ import Data.Maybe (fromMaybe, catMaybes)
 import Data.Range hiding ((<|))
 import Data.Text (Text)
 import Data.Time
+import Data.List.Split (chunksOf)
 import Galley.App
 import Galley.API.Error
 import Galley.API.Mapping
 import Galley.API.Util
 import Galley.Data.Services as Data
+import Galley.Data.Types
 import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Types
 import Galley.Types.Bot
 import Galley.Types.Clients (Clients)
-import Galley.Types.Teams hiding (EventType (..), EventData (..))
+import Galley.Types.Teams hiding (EventType (..), EventData (..), Event)
 import Galley.Validation
 import Network.HTTP.Types
 import Network.Wai
@@ -72,6 +77,7 @@ import qualified Galley.Data.Types    as Data
 import qualified Galley.External      as External
 import qualified Galley.Types.Clients as Clients
 import qualified Galley.Types.Proto   as Proto
+import qualified Galley.API.Teams     as Teams
 
 acceptConv :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConv (usr ::: conn ::: cnv) = do
@@ -222,36 +228,65 @@ postOtrMessage :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: Request 
 postOtrMessage (zusr ::: zcon ::: cnv ::: val ::: req ::: _) =
     postNewOtrMessage zusr (Just zcon) cnv val =<< fromBody req invalidPayload
 
+postOtrBroadcast :: UserId ::: ConnId ::: OtrFilterMissing ::: Request ::: JSON -> Galley Response
+postOtrBroadcast (zusr ::: zcon ::: val ::: req ::: _) =
+    postNewOtrBroadcast zusr (Just zcon) val =<< fromBody req invalidPayload
+
+postProtoOtrBroadcast :: UserId ::: ConnId ::: OtrFilterMissing ::: Request ::: JSON -> Galley Response
+postProtoOtrBroadcast (zusr ::: zcon ::: val ::: req ::: _) =
+    Proto.toNewOtrMessage <$> fromProtoBody req invalidPayload >>=
+    postNewOtrBroadcast zusr (Just zcon) val
+
+postNewOtrBroadcast :: UserId -> Maybe ConnId -> OtrFilterMissing -> NewOtrMessage -> Galley Response
+postNewOtrBroadcast usr con val msg = do
+    let sender = newOtrSender msg
+    let recvrs = newOtrRecipients msg
+    now <- liftIO getCurrentTime
+    withValidOtrBroadcastRecipients usr sender recvrs val now $ \rs -> do
+        let (_, toUsers) = foldr (newMessage usr con Nothing msg now) ([],[]) rs
+        pushSome (catMaybes toUsers)
+        -- bots are not supported on broadcast
+
 postNewOtrMessage :: UserId -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley Response
 postNewOtrMessage usr con cnv val msg = do
     let sender = newOtrSender msg
     let recvrs = newOtrRecipients msg
     now <- liftIO getCurrentTime
     withValidOtrRecipients usr sender cnv recvrs val now $ \rs -> do
-        let (toBots, toUsers) = foldr (newMessage now) ([],[]) rs
+        let (toBots, toUsers) = foldr (newMessage usr con (Just cnv) msg now) ([],[]) rs
         pushSome (catMaybes toUsers)
         void . fork $ do
             gone <- External.deliver toBots
             mapM_ (deleteBot cnv . botMemId) gone
-  where
-    newMessage now (m, c, t) ~(toBots, toUsers) =
-        let o = OtrMessage
-              { otrSender     = newOtrSender msg
-              , otrRecipient  = c
-              , otrCiphertext = t
-              , otrData       = newOtrData msg
-              }
-            e = Event OtrMessageAdd cnv usr now (Just $ EdOtrMessage o)
-            r = recipient m & recipientClients .~ [c]
-        in case newBotMember m of
-            Just  b -> ((b,e):toBots, toUsers)
-            Nothing ->
-                let p = newPush (evtFrom e) (ConvEvent e) [r] <&>
-                        set pushConn con
-                      . set pushNativePriority (newOtrNativePriority msg)
-                      . set pushRoute          (bool RouteDirect RouteAny (newOtrNativePush msg))
-                      . set pushTransient      (newOtrTransient msg)
-                in (toBots, p:toUsers)
+
+newMessage
+    :: UserId
+    -> Maybe ConnId
+    -> Maybe ConvId  -- ^ Conversation Id (if Nothing, recipient's self conversation is used)
+    -> NewOtrMessage
+    -> UTCTime
+    -> (Member, ClientId, Text)
+    -> ([(BotMember, Event)], [Maybe Push])
+    -> ([(BotMember, Event)], [Maybe Push])
+newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
+    let o = OtrMessage
+          { otrSender     = newOtrSender msg
+          , otrRecipient  = c
+          , otrCiphertext = t
+          , otrData       = newOtrData msg
+          }
+        conv = fromMaybe (selfConv $ memId m) cnv -- use recipient's client's self conversation on broadcast
+        e = Event OtrMessageAdd conv usr now (Just $ EdOtrMessage o)
+        r = recipient m & recipientClients .~ [c]
+    in case newBotMember m of
+        Just  b -> ((b,e):toBots, toUsers)
+        Nothing ->
+            let p = newPush (evtFrom e) (ConvEvent e) [r] <&>
+                    set pushConn con
+                  . set pushNativePriority (newOtrNativePriority msg)
+                  . set pushRoute          (bool RouteDirect RouteAny (newOtrNativePush msg))
+                  . set pushTransient      (newOtrTransient msg)
+            in (toBots, p:toUsers)
 
 updateConversation :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateConversation (zusr ::: zcon ::: cnv ::: req ::: _) = do
@@ -394,6 +429,26 @@ data CheckedOtrRecipients
     | InvalidOtrSenderClient
         -- ^ Invalid sender (client).
 
+withValidOtrBroadcastRecipients
+    :: UserId
+    -> ClientId
+    -> OtrRecipients
+    -> OtrFilterMissing
+    -> UTCTime
+    -> ([(Member, ClientId, Text)] -> Galley ())
+    -> Galley Response
+withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
+    tMembers <- fmap (view userId) <$> Data.teamMembers tid
+    contacts <- getContactList usr
+    let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
+    clts  <- lookupClientsAsync users
+    let membs = Data.newMember <$> users
+    handleOtrResponse usr clt rcps membs clts val now go
+  where
+    -- do a maximum of 16 parallel lookups of up to 128 users each
+    lookupClientsAsync users = Clients.fromList . concat . concat <$>
+          forM (chunksOf 2048 users) (mapConcurrently Data.lookupClients' . chunksOf 128)
+
 withValidOtrRecipients
     :: UserId
     -> ClientId
@@ -410,7 +465,19 @@ withValidOtrRecipients usr clt cnv rcps val now go = do
         throwM convNotFound
     membs <- Data.members cnv
     clts  <- Data.lookupClients (map memId membs)
-    case checkOtrRecipients usr clt rcps membs clts val now of
+    handleOtrResponse usr clt rcps membs clts val now go
+
+handleOtrResponse
+    :: UserId           -- ^ Proposed sender (user)
+    -> ClientId         -- ^ Proposed sender (client)
+    -> OtrRecipients    -- ^ Proposed recipients (users & clients).
+    -> [Member]         -- ^ Members to consider as valid recipients.
+    -> Clients          -- ^ Clients to consider as valid recipients.
+    -> OtrFilterMissing -- ^ How to filter missing clients.
+    -> UTCTime          -- ^ The current timestamp.
+    -> ([(Member, ClientId, Text)] -> Galley ()) -- ^ Callback if OtrRecipients are valid
+    -> Galley Response
+handleOtrResponse usr clt rcps membs clts val now go = case checkOtrRecipients usr clt rcps membs clts val now of
         ValidOtrRecipients   m r -> go r >> return (json m & setStatus status201)
         MissingOtrRecipients m   -> return (json m & setStatus status412)
         InvalidOtrSenderUser     -> throwM convNotFound
@@ -475,4 +542,3 @@ checkOtrRecipients usr sid prs vms vcs val now
         OtrIgnoreAllMissing -> Clients.nil
         OtrReportMissing us -> Clients.filter (`Set.member` us) miss
         OtrIgnoreMissing us -> Clients.filter (`Set.notMember` us) miss
-

@@ -23,6 +23,7 @@ aws:
 
 fallback:
   skipFallbacks: true
+  preferNotice: true
   queueDelay: 3600
   queueLimit: 10
   queueBurst: 10

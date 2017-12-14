@@ -76,6 +76,9 @@ data InvitationList = InvitationList
     , ilHasMore     :: !Bool
     } deriving (Eq, Show)
 
+data UserIds = UserIds
+    { cUsers :: [UserId] }
+
 -- * JSON Instances:
 
 instance FromJSON Message where
@@ -201,3 +204,11 @@ instance FromJSON InvitationList where
     parseJSON = withObject "InvitationList" $ \o ->
         InvitationList <$> o .: "invitations"
                        <*> o .: "has_more"
+
+instance FromJSON UserIds where
+    parseJSON = withObject "userids" $ \o ->
+        UserIds <$> o .: "ids"
+
+instance ToJSON UserIds where
+    toJSON (UserIds us) = object
+        [ "ids" .= us ]

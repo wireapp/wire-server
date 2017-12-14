@@ -59,6 +59,7 @@ module Galley.Data
     -- * Clients
     , eraseClients
     , lookupClients
+    , lookupClients'
     , updateClient
 
     -- * Utilities
@@ -331,7 +332,7 @@ createConversation usr name acc others tinfo = do
 
 createSelfConversation :: UserId -> Maybe (Range 1 256 Text) -> Galley Conversation
 createSelfConversation usr name = do
-    let conv = Id (toUUID usr)
+    let conv = selfConv usr
     now <- liftIO getCurrentTime
     retry x5 $
         write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, fromRange <$> name, Nothing))
@@ -544,7 +545,10 @@ updateClient add usr cls = do
     retry x5 $ write (q cls) (params Quorum (Identity usr))
 
 lookupClients :: MonadClient m => [UserId] -> m Clients
-lookupClients usrs = Clients.fromList . map (second fromSet) <$>
+lookupClients = fmap Clients.fromList . lookupClients'
+
+lookupClients' :: MonadClient m => [UserId] -> m [(UserId, [ClientId])]
+lookupClients' usrs = map (second fromSet) <$>
     retry x1 (query Cql.selectClients (params Quorum (Identity usrs)))
 
 eraseClients :: MonadClient m => UserId -> m ()
