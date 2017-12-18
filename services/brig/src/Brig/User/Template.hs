@@ -234,4 +234,3 @@ loadUserTemplates o = readLocalesDir defLocale templateDir $ \fp ->
 
     defLocale = Opt.setDefaultLocale (Opt.optSettings o)
     templateDir = Opt.templateDir gOptions <> "/user"
-
