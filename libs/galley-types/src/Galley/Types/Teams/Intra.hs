@@ -5,6 +5,7 @@ module Galley.Types.Teams.Intra where
 import Data.Aeson
 import Data.Json.Util
 import Data.Monoid
+import Data.Text (Text)
 import Data.Time (UTCTime)
 import Galley.Types.Teams (Team)
 
@@ -59,3 +60,13 @@ instance FromJSON TeamStatusUpdate where
 
 instance ToJSON TeamStatusUpdate where
     toJSON s = object ["status" .= tuStatus s]
+
+newtype TeamName = TeamName
+    { tnName :: Text }
+
+instance FromJSON TeamName where
+    parseJSON = withObject "team-name" $ \o ->
+        TeamName <$> o .: "name"
+
+instance ToJSON TeamName where
+    toJSON s = object ["name" .= tnName s]

@@ -76,6 +76,8 @@ exec chpst -u $USER \
     --invitation-url=${BRIG_INVITATION_URL?'unset'} \
     --deletion-url=${BRIG_DELETION_URL?'unset'} \
     --team-invitation-url=${BRIG_TEAM_INVITATION_URL?'unset'} \
+    --team-creator-welcome-url=${BRIG_TEAM_CREATOR_WELCOME_URL?'unset'} \
+    --team-member-welcome-url=${BRIG_TEAM_MEMBER_WELCOME_URL?'unset'} \
     --aws-ses-queue=${BRIG_AWS_SES_QUEUE?'unset'} \
     --aws-internal-queue=${BRIG_AWS_INTERNAL_QUEUE?'unset'} \
     --aws-dynamo-blacklist=${BRIG_AWS_DYNAMO_BLACKLIST?'unset'} \

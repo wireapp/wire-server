@@ -9,6 +9,7 @@ module Galley.API.Teams
     , updateTeamStatus
     , getTeam
     , getTeamInternal
+    , getTeamNameInternal
     , getBindingTeamId
     , getBindingTeamMembers
     , getManyTeams
@@ -74,6 +75,10 @@ getTeam (zusr::: tid ::: _) =
 getTeamInternal :: TeamId ::: JSON -> Galley Response
 getTeamInternal (tid ::: _) =
     maybe (throwM teamNotFound) (pure . json) =<< Data.team tid
+
+getTeamNameInternal :: TeamId ::: JSON -> Galley Response
+getTeamNameInternal (tid ::: _) =
+    maybe (throwM teamNotFound) (pure . json . TeamName) =<< Data.teamName tid
 
 getManyTeams :: UserId ::: Maybe (Either (Range 1 32 (List TeamId)) TeamId) ::: Range 1 100 Int32 ::: JSON -> Galley Response
 getManyTeams (zusr ::: range ::: size ::: _) =
