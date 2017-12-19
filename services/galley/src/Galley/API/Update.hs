@@ -337,8 +337,6 @@ addBot (zusr ::: zcon ::: req ::: _) = do
     when (Data.isConvDeleted c) $ do
         Data.deleteConversation (b^.addBotConv)
         throwM convNotFound
-    when (Data.isTeamConv c) $
-        throwM noBotsInTeamConvs
     let (bots, users) = botsAndUsers (Data.convMembers c)
     unless (zusr `isMember` users) $
         throwM convNotFound

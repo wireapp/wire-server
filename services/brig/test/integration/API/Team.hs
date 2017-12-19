@@ -5,6 +5,7 @@
 module API.Team (tests) where
 
 import API.Search.Util
+import API.Team.Util
 import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
 import Brig.Types hiding (Invitation (..), InvitationRequest (..), InvitationList (..))
@@ -24,7 +25,6 @@ import Data.Id hiding (client)
 import Data.List.Extra (chunksOf)
 import Data.Maybe
 import Data.Monoid ((<>))
-import Data.Range
 import Data.Text (Text)
 import Network.HTTP.Client             (Manager)
 import Test.Tasty hiding (Timeout)
@@ -563,28 +563,6 @@ assertNoInvitationCode brig t i =
 randomTeamId :: MonadIO m => m TeamId
 randomTeamId = Id <$> liftIO UUID.nextRandom
 
-createTeam :: UserId -> Galley -> Http TeamId
-createTeam u galley = do
-    tid <- randomId
-    r <- put ( galley
-              . paths ["i", "teams", toByteString' tid]
-              . contentJson
-              . zAuthAccess u "conn"
-              . expect2xx
-              . lbytes (encode newTeam)
-              )
-    maybe (error "invalid team id") return $
-        fromByteString $ getHeader' "Location" r
-
-addTeamMember :: Galley -> TeamId -> Team.NewTeamMember -> Http ()
-addTeamMember galley tid mem =
-    void $ post ( galley
-                . paths ["i", "teams", toByteString' tid, "members"]
-                . contentJson
-                . expect2xx
-                . lbytes (encode mem)
-                )
-
 getTeamMember :: UserId -> TeamId -> Galley -> Http Team.TeamMember
 getTeamMember u tid galley = do
     r <- get ( galley
@@ -655,6 +633,3 @@ updatePermissions from tid (to, perm) galley =
         ) !!! const 200 === statusCode
   where
     changeMember = Team.newNewTeamMember $ Team.newTeamMember to perm
-
-newTeam :: Team.BindingNewTeam
-newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")

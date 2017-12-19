@@ -63,9 +63,6 @@ noAddToManaged = Error status403 "no-add-to-managed" "Adding users directly to m
 teamNotFound :: Error
 teamNotFound = Error status404 "no-team" "team not found"
 
-noBotsInTeamConvs :: Error
-noBotsInTeamConvs = Error status403 "bots-not-allowed" "Adding bots to team conversations is not allowed."
-
 invalidPermissions :: Error
 invalidPermissions = Error status403 "invalid-permissions" "The specified permissions are invalid."
 
