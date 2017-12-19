@@ -19,7 +19,7 @@ import Brig.User.Email
 import Brig.User.Phone
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad (liftM2, unless, void, when)
+import Control.Monad (liftM2, liftM3, unless, void, when)
 import Control.Monad.Catch (finally)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
@@ -73,6 +73,7 @@ import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Brig.Provider.API             as Provider
 import qualified Brig.Team.API                 as Team
+import qualified Brig.Team.Email               as Team
 import qualified Brig.TURN.API                 as TURN
 
 runServer :: Opts -> IO ()
@@ -1114,6 +1115,8 @@ createUser (_ ::: _ ::: req) = do
             sendActivationEmail e (userName usr) p (Just lang) (newUserTeam new)
         for_ (liftM2 (,) (userPhone usr) ppair) $ \(p, c) ->
             sendActivationSms p c (Just lang)
+        for_ (liftM3 (,,) (userEmail usr) (createdUserTeam result) (newUserTeam new)) $ \(e, ct, ut) ->
+            sendWelcomeEmail e ct (nuTeam ut) (Just lang)
     cok <- lift $ Auth.newCookie (userId usr) PersistentCookie (newUserLabel new)
     lift $ Auth.setResponseCookie cok
         $ setStatus status201
@@ -1124,6 +1127,10 @@ createUser (_ ::: _ ::: req) = do
         sendTeamActivationMail e u p l (fromRange $ t^.Team.newTeamName)
     sendActivationEmail e u p l _ =
         sendActivationMail e u p l Nothing
+
+    sendWelcomeEmail :: Email -> CreateUserTeam -> Either InvitationCode Team.BindingNewTeam -> Maybe Locale -> AppIO ()
+    sendWelcomeEmail e (CreateUserTeam t n) (Right _) l = Team.sendCreatorWelcomeMail e t n l
+    sendWelcomeEmail e (CreateUserTeam t n) (Left  _) l = Team.sendMemberWelcomeMail e t n l
 
 createUserNoVerify :: JSON ::: JSON ::: Request -> Handler Response
 createUserNoVerify (_ ::: _ ::: req) = do

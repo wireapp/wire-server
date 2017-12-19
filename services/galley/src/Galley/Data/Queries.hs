@@ -25,6 +25,9 @@ import qualified Data.Text.Lazy as LT
 selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Text, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding)
 selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(status), binding from team where team = ?"
 
+selectTeamName :: PrepQuery R (Identity TeamId) (Identity Text)
+selectTeamName = "select name from team where team = ?"
+
 selectTeamBinding :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamBinding))
 selectTeamBinding = "select binding from team where team = ?"
 
