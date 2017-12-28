@@ -6,6 +6,7 @@ module Galley.Options where
 
 import Control.Lens hiding ((.=))
 import Data.Aeson.TH (deriveFromJSON)
+import Data.Json.Util (toFieldName)
 import Data.Text (Text)
 import Data.Monoid
 import GHC.Generics

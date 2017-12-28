@@ -3,13 +3,16 @@
 
 module Data.Json.Util
     ( append
+    , toFieldName
     , (#)
     , UTCTimeMillis (..)
     , ToJSONObject  (..)
     ) where
 
 import Data.Aeson
+import Data.Aeson.TH
 import Data.Aeson.Types
+import Data.Char (toLower, isUpper)
 import Data.Time.Clock
 import Data.Time.Format (formatTime)
 import Data.Time.Locale.Compat (defaultTimeLocale)
@@ -50,3 +53,27 @@ class ToJSONObject a where
 
 instance ToJSONObject Object where
     toJSONObject = id
+
+-----------------------------------------------------------------------------
+-- toFieldName
+
+-- | Convenient helper to convert field names to use as JSON fields.
+-- it removes the prefix (assumed to be anything before an uppercase
+-- character) and lowers the first character
+--
+-- Example:
+-- newtype TeamName = TeamName { tnName :: Text }
+-- deriveJSON toFieldName ''TeamName
+--
+-- would generate {To/From}JSON instances where
+-- the field name is "name"
+
+toFieldName :: Options
+toFieldName = defaultOptions{ fieldLabelModifier = lowerFirst . dropPrefix }
+  where
+    lowerFirst :: String -> String
+    lowerFirst (x:xs) = toLower x : xs
+    lowerFirst []     = ""
+
+    dropPrefix :: String -> String
+    dropPrefix = dropWhile (not . isUpper)

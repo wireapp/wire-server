@@ -7,6 +7,7 @@ module Gundeck.Options where
 
 import Control.Lens
 import Data.Aeson.TH
+import Data.Json.Util (toFieldName)
 import Data.Monoid
 import Data.String
 import Data.Text (Text)
