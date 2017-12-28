@@ -487,33 +487,16 @@ testMessageBot config crt db brig galley cannon = withTestService config crt db 
     testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon
 
 testAddRemoveBotTeam :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
-testAddRemoveBotTeam config crt db brig galley cannon =
-    withTestService config crt db brig defServiceApp $ \sref buf -> do
-    let pid = sref^.serviceRefProvider
-    let sid = sref^.serviceRefId
-
-    -- Prepare users
-    u1 <- createUser "Ernie" "success@simulator.amazonses.com" brig
-    u2 <- createUser "Bert"  "success@simulator.amazonses.com" brig
-    let uid1 = userId u1
-    let uid2 = userId u2
-    h <- randomHandle
-
-    tid <- Team.createTeam uid1 galley
-    Team.addTeamMember galley tid $ Team.newNewTeamMember $ Team.newTeamMember uid2 Team.fullPermissions 
-
-    putHandle brig uid1 h !!! const 200 === statusCode
-
+testAddRemoveBotTeam config crt db brig galley cannon = withTestService config crt db brig defServiceApp $ \sref buf -> do
+    (u1, u2, h, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
+    let (uid1, uid2) = (userId u1, userId u2)
     -- Ensure cannot add bots to managed conversations
     cidFail <- Team.createTeamConv galley tid uid1 [uid2] True
     addBot brig uid1 pid sid cidFail !!! do
         const 403 === statusCode
         const (Just "invalid-conversation") === fmap Error.label . decodeBody
 
-    -- Create conversation
-    cidOk <- Team.createTeamConv galley tid uid1 [uid2] False
-
-    testAddRemoveBotUtil pid sid cidOk u1 u2 h sref buf brig galley cannon
+    testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon
 
 testMessageBotTeam :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testMessageBotTeam config crt db brig galley cannon = withTestService config crt db brig defServiceApp $ \sref buf -> do
@@ -534,41 +517,11 @@ testMessageBotTeam config crt db brig galley cannon = withTestService config crt
     testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon
 
 testDeleteConvBotTeam :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
-testDeleteConvBotTeam config crt db brig galley cannon =
-    withTestService config crt db brig defServiceApp $ \sref buf -> do
-
-    let pid = sref^.serviceRefProvider
-    let sid = sref^.serviceRefId
-
-    -- Prepare users
-    u1 <- createUser "Ernie" "success@simulator.amazonses.com" brig
-    u2 <- createUser "Bert"  "success@simulator.amazonses.com" brig
-    let uid1 = userId u1
-    let uid2 = userId u2
-    h <- randomHandle
-
-    tid <- Team.createTeam uid1 galley
-    Team.addTeamMember galley tid $ Team.newNewTeamMember $ Team.newTeamMember uid2 Team.fullPermissions
-
-    putHandle brig uid1 h !!! const 200 === statusCode
-
-    -- Create conversation
-    cid <- Team.createTeamConv galley tid uid1 [uid2] False
-
-    -- Add the bot and check that everyone is notified via an event,
-    -- including the bot itself.
-    bid <- WS.bracketR2 cannon uid1 uid2 $ \(ws1, ws2) -> do
-        _rs <- addBot brig uid1 pid sid cid <!! const 201 === statusCode
-        let Just rs = decodeBody _rs
-        let bid = rsAddBotId rs
-        bot <- svcAssertBotCreated buf bid cid
-        liftIO $ assertEqual "bot client" (rsAddBotClient rs) (testBotClient bot)
-        liftIO $ assertEqual "bot event" MemberJoin (evtType (rsAddBotEvent rs))
-        -- Member join event for both users
-        forM_ [ws1, ws2] $ \ws -> wsAssertMemberJoin ws cid uid1 [botUserId bid]
-        -- Member join event for the bot
-        svcAssertMemberJoin buf uid1 [botUserId bid] cid
-        return (rsAddBotId rs)
+testDeleteConvBotTeam config crt db brig galley cannon = withTestService config crt db brig defServiceApp $ \sref buf -> do
+    -- Prepare users and the bot
+    (u1, u2, _, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
+    let (uid1, uid2) = (userId u1, userId u2)
+    bid <- addBotConv brig cannon uid1 uid2 cid pid sid buf
 
     -- Delete the conversation and check that everyone is notified
     -- via an event, including the bot itself.
@@ -586,59 +539,27 @@ testDeleteConvBotTeam config crt db brig galley cannon =
     getBotConv galley bid cid !!! const 404 === statusCode
 
 testDeleteTeamBotTeam :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
-testDeleteTeamBotTeam config crt db brig galley cannon =
-    withTestService config crt db brig defServiceApp $ \sref buf -> do
+testDeleteTeamBotTeam config crt db brig galley cannon = withTestService config crt db brig defServiceApp $ \sref buf -> do
+    -- Prepare users and the bot
+    (u1, u2, _, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
+    let (uid1, uid2) = (userId u1, userId u2)
+    bid <- addBotConv brig cannon uid1 uid2 cid pid sid buf
 
-    let pid = sref^.serviceRefProvider
-    let sid = sref^.serviceRefId
-
-    -- Prepare users
-    u1 <- createUser "Ernie" "success@simulator.amazonses.com" brig
-    u2 <- createUser "Bert"  "success@simulator.amazonses.com" brig
-    let uid1 = userId u1
-    let uid2 = userId u2
-    h <- randomHandle
-
-    tid <- Team.createTeam uid1 galley
-    Team.addTeamMember galley tid $ Team.newNewTeamMember $ Team.newTeamMember uid2 Team.fullPermissions
-
-    putHandle brig uid1 h !!! const 200 === statusCode
-
-    -- Create conversation
-    cid <- Team.createTeamConv galley tid uid1 [uid2] False
-
-    -- Add the bot and check that everyone is notified via an event,
-    -- including the bot itself.
-    bid <- WS.bracketR2 cannon uid1 uid2 $ \(ws1, ws2) -> do
-        _rs <- addBot brig uid1 pid sid cid <!! const 201 === statusCode
-        let Just rs = decodeBody _rs
-        let bid = rsAddBotId rs
-        bot <- svcAssertBotCreated buf bid cid
-        liftIO $ assertEqual "bot client" (rsAddBotClient rs) (testBotClient bot)
-        liftIO $ assertEqual "bot event" MemberJoin (evtType (rsAddBotEvent rs))
-        -- Member join event for both users
-        forM_ [ws1, ws2] $ \ws -> wsAssertMemberJoin ws cid uid1 [botUserId bid]
-        -- Member join event for the bot
-        svcAssertMemberJoin buf uid1 [botUserId bid] cid
-        return (rsAddBotId rs)
-
-    -- Delete the team, and check that the bot receives
-    -- a notification via event
+    -- Delete the team, and check that the bot (eventually)
+    -- receives a notification via event
     Team.deleteTeam galley tid uid1
-
-    -- Ensure users have been deleted
-    forM_ [uid1, uid2] $ \uid ->
-        retryWhileN 10 (/= Intra.Deleted) (getStatus brig uid)
-
     -- NOTE: Due to the async nature of a team deletion, some
     -- events may or may not be sent (for instance, team members)
     -- leaving a conversation. Thus, we check _only_ for the relevant
     -- ones for the bot, which are the ConvDelete event
     svcAssertEventuallyConvDelete buf uid1 cid
 
-    -- Check that the conversation no longer exists
-    forM_ [uid1, uid2] $ \uid ->
+    -- Wait until all users have been deleted (can take a while)
+    forM_ [uid1, uid2] $ \uid -> do
+        void $ retryWhileN 20 (/= Intra.Deleted) (getStatus brig uid)
+        chkStatus brig uid Intra.Deleted
         getConversation galley uid cid !!! const 404 === statusCode
+    -- Check the bot cannot see the conversation either
     getBotConv galley bid cid !!! const 404 === statusCode
 
 --------------------------------------------------------------------------------
@@ -1369,3 +1290,52 @@ testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
         getBotConv galley bid cid !!!
             const 404 === statusCode
         wsAssertMemberLeave ws cid buid [buid]
+
+prepareBotUsersTeam :: Brig
+                    -> Galley
+                    -> ServiceRef
+                    -> Http (User, User, Text, TeamId, ConvId, ProviderId, ServiceId)
+prepareBotUsersTeam brig galley sref = do
+    let pid = sref^.serviceRefProvider
+    let sid = sref^.serviceRefId
+
+    -- Prepare users
+    u1 <- createUser "Ernie" "success@simulator.amazonses.com" brig
+    u2 <- createUser "Bert"  "success@simulator.amazonses.com" brig
+    let uid1 = userId u1
+    let uid2 = userId u2
+    h <- randomHandle
+    putHandle brig uid1 h !!! const 200 === statusCode
+
+    tid <- Team.createTeam uid1 galley
+    Team.addTeamMember galley tid $ Team.newNewTeamMember $ Team.newTeamMember uid2 Team.fullPermissions
+
+    -- Create conversation
+    cid <- Team.createTeamConv galley tid uid1 [uid2] False
+
+    return (u1, u2, h, tid, cid, pid, sid)
+
+addBotConv :: Brig
+           -> WS.Cannon
+           -> UserId
+           -> UserId
+           -> ConvId
+           -> ProviderId
+           -> ServiceId
+           -> Chan TestBotEvent
+           -> Http BotId
+addBotConv brig cannon uid1 uid2 cid pid sid buf =
+    -- Add the bot and check that everyone is notified via an event,
+    -- including the bot itself.
+    WS.bracketR2 cannon uid1 uid2 $ \(ws1, ws2) -> do
+        _rs <- addBot brig uid1 pid sid cid <!! const 201 === statusCode
+        let Just rs = decodeBody _rs
+        let bid = rsAddBotId rs
+        bot <- svcAssertBotCreated buf bid cid
+        liftIO $ assertEqual "bot client" (rsAddBotClient rs) (testBotClient bot)
+        liftIO $ assertEqual "bot event" MemberJoin (evtType (rsAddBotEvent rs))
+        -- Member join event for both users
+        forM_ [ws1, ws2] $ \ws -> wsAssertMemberJoin ws cid uid1 [botUserId bid]
+        -- Member join event for the bot
+        svcAssertMemberJoin buf uid1 [botUserId bid] cid
+        return (rsAddBotId rs)

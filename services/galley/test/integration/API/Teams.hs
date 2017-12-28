@@ -9,10 +9,9 @@ import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens hiding ((#), (.=))
 import Control.Monad (void, replicateM)
 import Control.Monad.IO.Class
-import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import Data.Foldable (for_)
+import Data.Foldable (forM_, for_)
 import Data.Id
 import Data.List1
 import Data.Misc (PlainTextPassword (..))
@@ -179,11 +178,6 @@ testCreateOne2OneWithMembers g b c a = do
   where
     repeatIf :: Util.ResponseLBS -> Bool
     repeatIf r = statusCode r /= 201
-
-    retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
-    retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
-                                 (const (return . f))
-                                 (const m)
 
 testAddTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testAddTeamMember g b c _ = do
@@ -517,8 +511,12 @@ testDeleteBindingTeam g b c a = do
     assertQueue "create team" a tActivate
     let p1 = Util.symmPermissions [AddConversationMember]
     mem1 <- flip newTeamMember p1 <$> Util.randomUser b
+    let p2 = Util.symmPermissions [AddConversationMember]
+    mem2 <- flip newTeamMember p2 <$> Util.randomUser b
     Util.addTeamMemberInternal g tid mem1
     assertQueue "team member join" a $ tUpdate 2 [owner]
+    Util.addTeamMemberInternal g tid mem2
+    assertQueue "team member join" a $ tUpdate 3 [owner]
     extern <- Util.randomUser b
 
     delete ( g
@@ -530,7 +528,7 @@ testDeleteBindingTeam g b c a = do
         const 403 === statusCode
         const "access-denied" === (Error.label . Util.decodeBody' "error label")
 
-    void $ WS.bracketR3 c owner (mem1^.userId) extern $ \(wsOwner, wsMember, wsExtern) -> do
+    void $ WS.bracketRN c [owner, (mem1^.userId), (mem2^.userId), extern] $ \[wsOwner, wsMember1, wsMember2, wsExtern] -> do
         delete ( g
                . paths ["teams", toByteString' tid]
                . zUser owner
@@ -538,13 +536,17 @@ testDeleteBindingTeam g b c a = do
                . json (newTeamDeleteData (PlainTextPassword Util.defPassword))
                ) !!! const 202 === statusCode
         checkTeamDeleteEvent tid wsOwner
-        checkTeamDeleteEvent tid wsMember
+        checkTeamDeleteEvent tid wsMember1
+        checkTeamDeleteEvent tid wsMember2
         -- TODO: Due to the async nature of the deletion, we should actually check for
         --       the user deletion event to avoid race conditions at this point
         WS.assertNoEvent timeout [wsExtern]
         assertQueue "team delete" a tDelete
 
-    mapM_ (Util.ensureDeletedState b True extern) [owner, (mem1^.userId)]
+    forM_ [owner, (mem1^.userId), (mem2^.userId)] $ \uid -> do
+        -- Wait until the users are marked as deleted
+        void $ retryWhileN 20 (not . id) $ isUserDeleted b uid
+        Util.ensureDeletedState b True extern uid
 
 testDeleteTeamConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testDeleteTeamConv g b c _ = do
