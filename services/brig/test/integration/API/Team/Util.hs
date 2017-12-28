@@ -11,7 +11,6 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Data.Range
-import Data.Text (Text)
 import Galley.Types (ConvTeamInfo (..), NewConv (..))
 import Util
 
@@ -40,10 +39,10 @@ addTeamMember galley tid mem =
                 . lbytes (encode mem)
                 )
 
-createTeamConv :: Galley -> TeamId -> UserId -> [UserId] -> Maybe Text -> Http ConvId
-createTeamConv g tid u us name = do
-    let tinfo = Just $ ConvTeamInfo tid False
-    let conv = NewConv us name (Set.fromList []) tinfo
+createTeamConv :: Galley -> TeamId -> UserId -> [UserId] -> Bool -> Http ConvId
+createTeamConv g tid u us managed = do
+    let tinfo = Just $ ConvTeamInfo tid managed
+    let conv = NewConv us Nothing (Set.fromList []) tinfo
     r <- post ( g
               . path "/conversations"
               . zUser u

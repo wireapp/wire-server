@@ -58,7 +58,7 @@ noOtherOwner = Error status403 "no-other-owner" "You are trying to remove or dow
                             \ an owner. Promote another team member before proceeding."
 
 noAddToManaged :: Error
-noAddToManaged = Error status403 "no-add-to-managed" "Adding users directly to managed conversation is not allowed."
+noAddToManaged = Error status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."
 
 teamNotFound :: Error
 teamNotFound = Error status404 "no-team" "team not found"

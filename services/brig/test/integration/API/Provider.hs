@@ -70,6 +70,7 @@ import qualified Network.Wai.Handler.Warp          as Warp
 import qualified Network.Wai.Handler.WarpTLS       as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified Network.Wai.Route                 as Wai
+import qualified Network.Wai.Utilities.Error       as Error
 import qualified Test.Tasty.Cannon                 as WS
 
 data Config = Config
@@ -503,10 +504,16 @@ testAddRemoveBotTeam config crt db brig galley cannon =
 
     putHandle brig uid1 h !!! const 200 === statusCode
 
-    -- Create conversation
-    cid <- Team.createTeamConv galley tid uid1 [uid2] Nothing
+    -- Ensure cannot add bots to managed conversations
+    cidFail <- Team.createTeamConv galley tid uid1 [uid2] True
+    addBot brig uid1 pid sid cidFail !!! do
+        const 403 === statusCode
+        const (Just "invalid-conversation") === fmap Error.label . decodeBody
 
-    testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon
+    -- Create conversation
+    cidOk <- Team.createTeamConv galley tid uid1 [uid2] False
+
+    testAddRemoveBotUtil pid sid cidOk u1 u2 h sref buf brig galley cannon
 
 testMessageBotTeam :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testMessageBotTeam config crt db brig galley cannon = withTestService config crt db brig defServiceApp $ \sref buf -> do
@@ -522,7 +529,7 @@ testMessageBotTeam config crt db brig galley cannon = withTestService config crt
     tid <- Team.createTeam uid galley
 
     -- Create conversation
-    cid <- Team.createTeamConv galley tid uid [] Nothing
+    cid <- Team.createTeamConv galley tid uid [] False
 
     testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon
 
@@ -546,7 +553,7 @@ testDeleteConvBotTeam config crt db brig galley cannon =
     putHandle brig uid1 h !!! const 200 === statusCode
 
     -- Create conversation
-    cid <- Team.createTeamConv galley tid uid1 [uid2] Nothing
+    cid <- Team.createTeamConv galley tid uid1 [uid2] False
 
     -- Add the bot and check that everyone is notified via an event,
     -- including the bot itself.
@@ -598,7 +605,7 @@ testDeleteTeamBotTeam config crt db brig galley cannon =
     putHandle brig uid1 h !!! const 200 === statusCode
 
     -- Create conversation
-    cid <- Team.createTeamConv galley tid uid1 [uid2] Nothing
+    cid <- Team.createTeamConv galley tid uid1 [uid2] False
 
     -- Add the bot and check that everyone is notified via an event,
     -- including the bot itself.
