@@ -36,6 +36,7 @@ module Brig.IO.Intra
     , getTeamMember
     , getTeamMembers
     , getTeam
+    , getTeamConv
     , getTeamId
     , getTeamContacts
     , changeTeamStatus
@@ -421,6 +422,20 @@ getConv usr cnv = do
         _   -> return Nothing
   where
     req = paths ["conversations", toByteString' cnv]
+        . zUser usr
+        . expect [status200, status404]
+
+getTeamConv :: UserId -> TeamId -> ConvId -> AppIO (Maybe Team.TeamConversation)
+getTeamConv usr tid cnv = do
+    debug $ remote "galley"
+          . field "conv" (toByteString cnv)
+          . msg (val "Getting team conversation")
+    rs <- galleyRequest GET req
+    case Bilge.statusCode rs of
+        200 -> Just <$> decodeBody "galley" rs
+        _   -> return Nothing
+  where
+    req = paths ["teams", toByteString' tid, "conversations", toByteString' cnv]
         . zUser usr
         . expect [status200, status404]
 

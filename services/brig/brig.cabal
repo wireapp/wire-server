@@ -304,6 +304,7 @@ executable brig-integration
         API.Search
         API.Search.Util
         API.Team
+        API.Team.Util
         API.TURN
         API.User.Auth
         Util
@@ -342,6 +343,7 @@ executable brig-integration
       , options               >= 0.1
       , pem
       , random                >= 1.0
+      , retry                 >= 0.6
       , safe                  >= 0.3
       , semigroups
       , tasty                 >= 0.3.1
