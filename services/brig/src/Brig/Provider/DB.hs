@@ -23,7 +23,7 @@ import Data.List (unfoldr, minimumBy, uncons)
 import Data.Maybe (catMaybes, mapMaybe)
 import Data.Misc (Fingerprint, Rsa)
 import Data.Range (Range, fromRange, rnil, rcast)
-import Data.Text (Text, toLower)
+import Data.Text (Text, toLower, isPrefixOf)
 
 import qualified Data.Set as Set
 
@@ -406,10 +406,16 @@ paginateServiceTags tags start size = liftClient $ do
     let start' = Name (maybe "" (toLower . fromName) start)
     let size'  = size + 1
     let tags'  = unpackTags tags
-    p <- queryAll start' size' tags'
+    p <- filterPrefix (fromName start') <$> queryAll start' size' tags'
     r <- mapConcurrently resolveRow (result p)
     return $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
+    filterPrefix :: Text -> Page TagRow -> Page TagRow
+    filterPrefix prefix p = do
+        let prefixed = filter (\(Name n, _, _) -> prefix `isPrefixOf` (toLower n)) (result p)
+            more     = hasMore p && length prefixed == length (result p)
+         in p { hasMore = more, result = prefixed }
+
     unpackTags :: QueryAnyTags 1 3 -> [QueryAllTags 1 3]
     unpackTags = Set.toList . fromRange . queryAnyTagsRange
 

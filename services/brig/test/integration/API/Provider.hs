@@ -99,6 +99,7 @@ tests conf p db b c g = do
             , test p "update"                 $ testUpdateService conf db b
             , test p "update-conn"            $ testUpdateServiceConn conf db b
             , test p "list-by-tag"            $ testListServicesByTag conf db b
+            , test p "search-by-prefix"       $ testSearchServicesByPrefix conf db b
             , test p "delete"                 $ testDeleteService conf db b
             ]
         , testGroup "bot"
@@ -430,6 +431,83 @@ testListServicesByTag config db brig = do
                            }
 
     select f = map snd . filter (f . fst) . zip [(1 :: Int)..]
+
+testSearchServicesByPrefix :: Maybe Config -> DB.ClientState -> Brig -> Http ()
+testSearchServicesByPrefix config db brig = do
+    prv <- randomProvider db brig
+    let pid = providerId prv
+    uid <- randomId
+
+    -- nb. We use a random name prefix so tests can run concurrently
+    -- (and repeatedly) against a shared database and thus a shared
+    -- "name index" per tag.
+    uniq <- UUID.toText . toUUID <$> randomId
+    let taggedNames = mkTaggedNames uniq
+    let names = fst (unzip taggedNames)
+    new <- defNewService config
+    svcs <- mapM (addGetService brig pid . mkNew new) (reverse taggedNames)
+    mapM_ (enableService brig pid . serviceId) svcs
+
+    let _tags = match1 SocialTag
+
+    -- Generically list services with different start names.
+    -- nb. We only go through 10 of the 20 possible start values to retain a
+    -- minimum requested result 'size' of 10, as enforced by the API.
+    forM_ ((Name uniq : names) `zip` (0:[0..9])) $ \(n, i) -> do
+        let num = length names - i
+        _ls <- getPage uid _tags (Just n) num
+        liftIO $ assertEqual (printf "num (%d)" i) num (length _ls)
+        let _names = map serviceProfileName _ls
+        liftIO $ assertEqual (printf "names (%d)" i) (drop i names) _names
+
+    -- Chosen prefixes
+
+    _ls <- getPage uid _tags (Just (mkName uniq "Bjø")) 17
+    let _names = map serviceProfileName _ls
+    liftIO $ assertEqual "names (>= Bjø)" (select (> 3) names) _names
+
+    _ls <- getPage uid _tags (Just (mkName uniq "chris")) 16
+    let _names = map serviceProfileName _ls
+    liftIO $ assertEqual "names (>= chris)" (select (> 4) names) _names
+  where
+    getPage uid tag start size = do
+        rs <- listServiceProfilesByTag brig uid tag start size <!!
+            const 200 === statusCode
+        let Just ls = serviceProfilePageResults <$> decodeBody rs
+        return ls
+
+    -- 20 names, all using the given unique prefix
+    mkTaggedNames uniq =
+        [ (mkName uniq "Alpha",     [SocialTag, QuizTag, BusinessTag])
+        , (mkName uniq "Beta",      [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "Bjorn",     [SocialTag, QuizTag, TravelTag])
+        , (mkName uniq "Bjørn",     [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "CHRISTMAS", [SocialTag, QuizTag, WeatherTag])
+        , (mkName uniq "Delta",     [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "Epsilon",   [SocialTag, QuizTag, BusinessTag])
+        , (mkName uniq "Freer",     [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "Gamma",     [SocialTag, QuizTag, WeatherTag])
+        , (mkName uniq "Gramma",    [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "Hera",      [SocialTag, QuizTag, TravelTag])
+        , (mkName uniq "Io",        [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "Jojo",      [SocialTag, QuizTag, WeatherTag])
+        , (mkName uniq "Kuba",      [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "Lawn",      [SocialTag, QuizTag, TravelTag])
+        , (mkName uniq "Mango",     [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "North",     [SocialTag, QuizTag, WeatherTag])
+        , (mkName uniq "Yak",       [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "Zeta",      [SocialTag, QuizTag, TravelTag])
+        , (mkName uniq "Zulu",      [SocialTag, MusicTag, LifestyleTag])
+        ]
+
+    mkName uniq n = Name (uniq <> n)
+
+    mkNew new (n, t) = new { newServiceName = n
+                           , newServiceTags = unsafeRange (Set.fromList t)
+                           }
+
+    select f = map snd . filter (f . fst) . zip [(1 :: Int)..]
+
 
 testDeleteService :: Maybe Config -> DB.ClientState -> Brig -> Http ()
 testDeleteService config db brig = do
