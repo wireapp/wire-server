@@ -6,7 +6,6 @@ module Galley.Options where
 
 import Control.Lens hiding ((.=))
 import Data.Aeson.TH (deriveFromJSON)
-import Data.Json.Util (toFieldName)
 import Data.Text (Text)
 import Data.Monoid
 import GHC.Generics
@@ -23,7 +22,7 @@ data Settings = Settings
     , _setMaxTeamSize  :: !Int -- NOTE: This must be in sync with brig
     } deriving (Show, Generic)
 
-deriveFromJSON toFieldName ''Settings
+deriveFromJSON toOptionFieldName ''Settings
 makeLenses ''Settings
 
 -- [Note: journaling]
@@ -34,7 +33,7 @@ data JournalOpts = JournalOpts
     , _awsRegion    :: !Region
     } deriving (Show, Generic)
 
-deriveFromJSON toFieldName ''JournalOpts
+deriveFromJSON toOptionFieldName ''JournalOpts
 makeLenses ''JournalOpts
 
 data Opts = Opts
@@ -47,7 +46,7 @@ data Opts = Opts
     , _optJournal   :: !(Maybe JournalOpts)
     }
 
-deriveFromJSON toFieldName ''Opts
+deriveFromJSON toOptionFieldName ''Opts
 makeLenses ''Opts
 
 parseOptions :: IO Opts

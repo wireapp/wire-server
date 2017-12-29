@@ -8,7 +8,6 @@ import CargoHold.CloudFront (Domain (..), KeyPairId (..))
 import Control.Applicative
 import Control.Lens
 import Data.Aeson.TH
-import Data.Json.Util (toFieldName)
 import Data.Monoid
 import Data.Text (Text)
 import GHC.Generics
@@ -28,14 +27,14 @@ data AWSOpts = AWSOpts
     , _awsCfPrivateKey :: FilePath
     } deriving (Show, Generic)
 
-deriveFromJSON toFieldName ''AWSOpts
+deriveFromJSON toOptionFieldName ''AWSOpts
 makeLenses ''AWSOpts
 
 data Settings = Settings
     { _setMaxTotalBytes :: !Int
     } deriving (Show, Generic)
 
-deriveFromJSON toFieldName ''Settings
+deriveFromJSON toOptionFieldName ''Settings
 makeLenses ''Settings
 
 data Opts = Opts
@@ -44,7 +43,7 @@ data Opts = Opts
     , _optSettings  :: !Settings
     } deriving (Show, Generic)
 
-deriveFromJSON toFieldName ''Opts
+deriveFromJSON toOptionFieldName ''Opts
 makeLenses ''Opts
 
 parseOptions :: IO Opts

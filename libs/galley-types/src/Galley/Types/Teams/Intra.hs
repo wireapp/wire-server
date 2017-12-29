@@ -66,4 +66,4 @@ instance ToJSON TeamStatusUpdate where
 newtype TeamName = TeamName
     { tnName :: Text }
 
-deriveJSON toFieldName ''TeamName
+deriveJSON toJSONFieldName ''TeamName
