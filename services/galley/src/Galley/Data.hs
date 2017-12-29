@@ -16,6 +16,7 @@ module Galley.Data
     , createTeam
     , removeTeamMember
     , team
+    , Galley.Data.teamName
     , teamConversation
     , teamConversations
     , teamIdsFrom
@@ -127,6 +128,10 @@ team tid =
         let t       = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k
             status  = if d then PendingDelete else fromMaybe Active s
         in TeamData t status (writeTimeToUTC <$> st)
+
+teamName :: MonadClient m => TeamId -> m (Maybe Text)
+teamName tid = fmap runIdentity <$>
+    retry x1 (query1 Cql.selectTeamName (params Quorum (Identity tid)))
 
 teamIdsOf :: MonadClient m => UserId -> Range 1 32 (List TeamId) -> m [TeamId]
 teamIdsOf usr (fromList . fromRange -> tids) =

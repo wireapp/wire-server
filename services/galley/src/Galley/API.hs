@@ -699,6 +699,10 @@ sitemap = do
         capture "tid"
         .&. accept "application" "json"
 
+    get "/i/teams/:tid/name" (continue getTeamNameInternal) $
+        capture "tid"
+        .&. accept "application" "json"
+
     put "/i/teams/:tid" (continue createBindingTeam) $
         zauthUserId
         .&. capture "tid"
