@@ -1124,12 +1124,12 @@ createUser (_ ::: _ ::: req) = do
         . addHeader "Location" (toByteString' (userId usr))
         $ json (SelfProfile usr)
   where
-    sendActivationEmail e u p l (Just (NewUserTeam (Right (Team.BindingNewTeam t)))) =
+    sendActivationEmail e u p l (Just (NewUserTeam (Right (BindingNewUserTeam (Team.BindingNewTeam t) _)))) =
         sendTeamActivationMail e u p l (fromRange $ t^.Team.newTeamName)
     sendActivationEmail e u p l _ =
         sendActivationMail e u p l Nothing
 
-    sendWelcomeEmail :: Email -> CreateUserTeam -> Either InvitationCode Team.BindingNewTeam -> Maybe Locale -> AppIO ()
+    sendWelcomeEmail :: Email -> CreateUserTeam -> Either InvitationCode BindingNewUserTeam -> Maybe Locale -> AppIO ()
     sendWelcomeEmail e (CreateUserTeam t n) (Right _) l = Team.sendCreatorWelcomeMail e t n l
     sendWelcomeEmail e (CreateUserTeam t n) (Left  _) l = Team.sendMemberWelcomeMail e t n l
 
@@ -1145,7 +1145,7 @@ createUserNoVerify (_ ::: _ ::: req) = do
     forM_ (catMaybes [eac, pac]) $ \adata ->
         let key  = ActivateKey $ activationKey adata
             code = activationCode adata
-        in API.activate key code (Just uid) !>> actError
+        in API.activate key code (Just uid) Nothing !>> actError
     return . setStatus status201
            . addHeader "Location" (toByteString' uid)
            $ json (SelfProfile usr)
@@ -1488,7 +1488,7 @@ activate (Activate tgt code dryrun)
         API.preverify tgt code !>> actError
         return empty
     | otherwise = do
-        result <- API.activate tgt code Nothing !>> actError
+        result <- API.activate tgt code Nothing Nothing !>> actError
         return $ case result of
             ActivationSuccess ident first -> respond ident first
             ActivationPass                -> setStatus status204 empty

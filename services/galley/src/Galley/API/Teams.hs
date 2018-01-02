@@ -123,18 +123,18 @@ createBindingTeam (zusr ::: tid ::: req ::: _) = do
 
 updateTeamStatus :: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 updateTeamStatus (tid ::: req ::: _) = do
-    TeamStatusUpdate to <- fromBody req invalidPayload
+    TeamStatusUpdate to cur <- fromBody req invalidPayload
     team <- Data.team tid >>= ifNothing teamNotFound
     valid <- validateTransition (tdStatus team) to
     when valid $ do
-      journal to
+      journal to cur
       Data.updateTeamStatus tid to
     return empty
   where
-    journal Suspended = Journal.teamSuspend tid
-    journal Active    = Data.teamMembers tid >>= \mems ->
-                        Journal.teamActivate tid mems =<< Data.teamCreationTime tid
-    journal _         = throwM invalidTeamStatusUpdate
+    journal Suspended _ = Journal.teamSuspend tid
+    journal Active    c = Data.teamMembers tid >>= \mems ->
+                          Journal.teamActivate tid mems c =<< Data.teamCreationTime tid
+    journal _         _ = throwM invalidTeamStatusUpdate
 
     validateTransition from to = case (from, to) of
         ( PendingActive, Active    ) -> return True

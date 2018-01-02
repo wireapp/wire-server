@@ -26,6 +26,7 @@ import Galley.App
 import Prelude hiding (head, mapM)
 import Proto.TeamEvents
 
+import qualified Data.Currency as Currency
 import qualified Data.UUID as UUID
 import qualified Galley.Aws as Aws
 
@@ -33,8 +34,9 @@ import qualified Galley.Aws as Aws
 -- Team journal operations to SQS are a no-op when the service
 -- is started without journaling arguments
 
-teamActivate :: TeamId -> [TeamMember] -> Maybe TeamCreationTime -> Galley ()
-teamActivate tid mems time = journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData mems) time
+-- TODO: Make actual use of the currency
+teamActivate :: TeamId -> [TeamMember] -> Maybe Currency.Alpha -> Maybe TeamCreationTime -> Galley ()
+teamActivate tid mems _ time = journalEvent TeamEvent'TEAM_ACTIVATE tid (Just $ evData mems) time
 
 teamUpdate :: TeamId -> [TeamMember] -> Galley ()
 teamUpdate tid mems = journalEvent TeamEvent'TEAM_UPDATE tid (Just $ evData mems) Nothing

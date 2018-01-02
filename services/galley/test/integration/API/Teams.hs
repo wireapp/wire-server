@@ -715,7 +715,7 @@ testUpdateTeamStatus g b _ a = do
 
     void $ put ( g
                . paths ["i", "teams", toByteString' tid, "status"]
-               . json (TeamStatusUpdate Deleted)
+               . json (TeamStatusUpdate Deleted Nothing)
                ) !!! do
         const 403 === statusCode
         const "invalid-team-status-update" === (Error.label . Util.decodeBody' "error label")

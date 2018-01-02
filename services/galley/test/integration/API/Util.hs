@@ -82,7 +82,7 @@ createTeam g name owner mems = do
 changeTeamStatus :: Galley -> TeamId -> TeamStatus -> Http ()
 changeTeamStatus g tid s = put
         ( g . paths ["i", "teams", toByteString' tid, "status"]
-        . json (TeamStatusUpdate s)
+        . json (TeamStatusUpdate s Nothing)
         ) !!! const 200 === statusCode
 
 createTeamInternal :: Galley -> Text -> UserId -> Http TeamId

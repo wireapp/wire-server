@@ -27,6 +27,7 @@ import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
 
 import qualified Brig.Types.Code     as Code
+import qualified Data.Currency       as Currency
 import qualified Data.HashMap.Strict as HashMap
 
 -----------------------------------------------------------------------------
@@ -275,7 +276,27 @@ newtype InvitationCode = InvitationCode
     { fromInvitationCode :: AsciiBase64Url }
     deriving (Eq, Show, FromJSON, ToJSON, ToByteString, FromByteString)
 
-newtype NewUserTeam = NewUserTeam { nuTeam :: Either InvitationCode BindingNewTeam}
+data BindingNewUserTeam = BindingNewUserTeam
+    { bnuTeam     :: BindingNewTeam
+    -- TODO: Remove Currency selection once billing supports
+    --       currency changes after team creation
+    , bnuCurrency :: Maybe Currency.Alpha
+    }
+
+instance FromJSON BindingNewUserTeam where
+    parseJSON j@(Object o) = do
+        c <- o .:? "currency"
+        t <- parseJSON j
+        return $ BindingNewUserTeam t c
+    parseJSON _ = fail "parseJSON BindingNewUserTeam: must be an object"
+
+instance ToJSON BindingNewUserTeam where
+    toJSON (BindingNewUserTeam c t) = do
+        let (Object c') = toJSON c
+            (Object t') = toJSON t
+         in Object (HashMap.union c' t')
+
+newtype NewUserTeam = NewUserTeam { nuTeam :: Either InvitationCode BindingNewUserTeam}
 
 -----------------------------------------------------------------------------
 -- Profile Updates
