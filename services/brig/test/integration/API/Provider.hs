@@ -44,7 +44,6 @@ import OpenSSL.PEM (writePublicKey)
 import OpenSSL.RSA (generateRSAKey')
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
-import Text.Printf (printf)
 import Web.Cookie (SetCookie (..), parseSetCookie)
 import Util
 import Util.Options.Common (optOrEnv)
@@ -375,9 +374,9 @@ testListServicesByTagAndPrefix config db brig = do
 
     searchAndAssert uid tags qry size expects = do
         _ls <- getPage uid tags (Just qry) size
-        liftIO $ assertEqual (printf "size: %s" $ show qry) (length expects) (length _ls)
+        liftIO $ assertEqual ("size: " ++ show qry) (length expects) (length _ls)
         let _names = map serviceProfileName _ls
-        liftIO $ assertEqual (printf "str: %s" $ show qry) expects _names
+        liftIO $ assertEqual ("str: " ++ show qry) expects _names
 
     -- 20 names, all using the given unique prefix
     mkTaggedNames uniq =

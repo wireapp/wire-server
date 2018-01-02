@@ -413,7 +413,9 @@ paginateServiceTags tags start size = liftClient $ do
     filterPrefix :: Text -> Page TagRow -> Page TagRow
     filterPrefix prefix p = do
         let prefixed = filter (\(Name n, _, _) -> prefix `isPrefixOf` (toLower n)) (result p)
-            more     = hasMore p && length prefixed == length (result p)
+            -- if they were all valid prefixes, there may be more in Cassandra
+            allValid = length prefixed == length (result p)
+            more     = allValid && hasMore p
          in p { hasMore = more, result = prefixed }
 
     unpackTags :: QueryAnyTags 1 3 -> [QueryAllTags 1 3]
