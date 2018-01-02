@@ -278,9 +278,8 @@ newtype InvitationCode = InvitationCode
 
 data BindingNewUserTeam = BindingNewUserTeam
     { bnuTeam     :: BindingNewTeam
-    -- TODO: Remove Currency selection once billing supports
-    --       currency changes after team creation
     , bnuCurrency :: Maybe Currency.Alpha
+    -- TODO: Remove Currency selection once billing supports currency changes after team creation
     }
 
 instance FromJSON BindingNewUserTeam where
@@ -291,10 +290,10 @@ instance FromJSON BindingNewUserTeam where
     parseJSON _ = fail "parseJSON BindingNewUserTeam: must be an object"
 
 instance ToJSON BindingNewUserTeam where
-    toJSON (BindingNewUserTeam c t) = do
-        let (Object c') = toJSON c
-            (Object t') = toJSON t
-         in Object (HashMap.union c' t')
+    toJSON (BindingNewUserTeam t c) = do
+        let (Object t') = toJSON t
+         in object $ "currency" .= c
+                   # HashMap.toList t'
 
 newtype NewUserTeam = NewUserTeam { nuTeam :: Either InvitationCode BindingNewUserTeam}
 

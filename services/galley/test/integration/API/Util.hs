@@ -43,6 +43,7 @@ import Debug.Trace (traceShow)
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8  as C
 import qualified Data.ByteString.Lazy   as Lazy
+import qualified Data.Currency          as Currency
 import qualified Data.HashMap.Strict    as HashMap
 import qualified Data.Map.Strict        as Map
 import qualified Data.Set               as Set
@@ -93,6 +94,17 @@ createTeamInternal g name owner = do
         const 201  === statusCode
         const True === isJust . getHeader "Location"
     changeTeamStatus g tid Active
+    return tid
+
+createTeamInternalWithCurrency :: Galley -> Text -> UserId -> Currency.Alpha -> Http TeamId
+createTeamInternalWithCurrency g name owner cur = do
+    tid <- randomId
+    let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
+    _ <- put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
+        const 201  === statusCode
+        const True === isJust . getHeader "Location"
+    _ <- put (g . paths ["i", "teams", toByteString' tid, "status"] . json (TeamStatusUpdate Active $ Just cur)) !!!
+        const 200 === statusCode
     return tid
 
 getTeam :: Galley -> UserId -> TeamId -> Http Team

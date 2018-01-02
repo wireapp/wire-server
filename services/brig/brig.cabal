@@ -103,6 +103,7 @@ library
       , bytestring                >= 0.10
       , bytestring-conversion     >= 0.2
       , cassandra-util            >= 0.16.2
+      , currency-codes            >= 2.0
       , cookie                    >= 0.4
       , containers                >= 0.5
       , cryptobox-haskell         >= 0.1.1

@@ -187,6 +187,7 @@ executable galley-integration
       , bytestring-conversion
       , cereal
       , containers
+      , currency-codes
       , data-default-class
       , data-timeout
       , errors
