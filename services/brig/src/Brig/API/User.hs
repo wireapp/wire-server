@@ -109,6 +109,7 @@ import qualified Brig.Data.UserKey          as Data
 import qualified Brig.IO.Intra              as Intra
 import qualified Brig.Types.Team.Invitation as Team
 import qualified Brig.Team.DB               as Team
+import qualified Brig.Team.Util             as Team
 import qualified Data.Map.Strict            as Map
 import qualified Galley.Types.Teams         as Team
 import qualified Galley.Types.Teams.Intra   as Team
@@ -642,10 +643,10 @@ deleteUser uid pwd = do
             Suspended -> ensureNotOnlyOwner >> go a
             Active    -> ensureNotOnlyOwner >> go a
   where
-    ensureNotOnlyOwner = lift (Intra.getTeamContacts uid) >>= \case
-        Just mems | Team.isOnlyOwner uid (mems^.Team.teamMembers) ->
+    ensureNotOnlyOwner = do
+        onlyOwner <- lift $ Team.isOnlyTeamOwner uid
+        when onlyOwner $
             throwE DeleteUserOnlyOwner
-        _ -> return ()
 
     go a = maybe (byIdentity a) (byPassword a) pwd
 

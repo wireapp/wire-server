@@ -64,6 +64,7 @@ library
       , Brig.Team.DB
       , Brig.Team.Email
       , Brig.Team.Template
+      , Brig.Team.Util
       , Brig.Template
       , Brig.TURN
       , Brig.TURN.API
