@@ -62,6 +62,7 @@ import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result, or)
 import Network.Wai.Utilities
 import Prelude hiding (head, mapM)
+import System.Logger.Message
 
 import qualified Data.Set as Set
 import qualified Galley.Data as Data
@@ -70,6 +71,7 @@ import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
 import qualified Galley.Types.Teams as Teams
 import qualified Galley.Intra.Journal as Journal
+import qualified System.Logger.Class as Log
 
 getTeam :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeam (zusr::: tid ::: _) =
@@ -124,8 +126,10 @@ createBindingTeam (zusr ::: tid ::: req ::: _) = do
 updateTeamStatus :: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 updateTeamStatus (tid ::: req ::: _) = do
     TeamStatusUpdate to cur <- fromBody req invalidPayload
-    team <- Data.team tid >>= ifNothing teamNotFound
-    valid <- validateTransition (tdStatus team) to
+    from <- tdStatus <$> (Data.team tid >>= ifNothing teamNotFound)
+    Log.info $ field "team" (toByteString tid)
+             . msg ("Updating from: " ++ show from ++ " to: " ++ show to)
+    valid <- validateTransition from to
     when valid $ do
       journal to cur
       Data.updateTeamStatus tid to
