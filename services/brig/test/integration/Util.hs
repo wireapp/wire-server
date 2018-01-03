@@ -131,6 +131,10 @@ deleteUser u p brig = delete $ brig
     . zUser u
     . body (RequestBodyLBS (encode (mkDeleteUser p)))
 
+deleteUserInternal :: UserId -> Brig -> Http ResponseLBS
+deleteUserInternal u brig = delete $ brig
+    . paths ["/i/users", toByteString' u]
+
 activate :: Brig -> ActivationPair -> Http ResponseLBS
 activate brig (k, c) = get $ brig
     . path "activate"
