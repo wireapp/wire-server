@@ -61,7 +61,7 @@ tests m b c g =
             , test m "get /teams/:tid/invitations/info - 400"              $ testInvitationInfoBadCode b
             , test m "post /i/teams/:tid/suspend - 200"                    $ testSuspendTeam b g
             , test m "put /self - 200 update events"                       $ testUpdateEvents b g c
-            , test m "delete /self - 200 (ensure no orphan teams)"         $ testDeleteTeamUser b g
+            , test m "delete {/self,/i/users/:id} - 200 (no orphan teams)" $ testDeleteTeamUser b g
             , test m "post /connections - 403 (same binding team)"         $ testConnectionSameTeam b g
             ]
         , testGroup "search"
@@ -414,6 +414,10 @@ testDeleteTeamUser brig galley = do
     tid     <- createTeam creator galley
     -- Cannot delete the user since it will make the team orphan
     deleteUser creator (Just defPassword) brig !!! do
+        const 403 === statusCode
+        const (Just "no-other-owner") === fmap Error.label . decodeBody
+    -- Ensure internal endpoints are also exercised
+    deleteUserInternal creator brig !!! do
         const 403 === statusCode
         const (Just "no-other-owner") === fmap Error.label . decodeBody
     -- We need to invite another user to a full permission member
