@@ -58,6 +58,7 @@ instance FromJSON TeamData where
 data TeamStatusUpdate = TeamStatusUpdate
     { tuStatus   :: TeamStatus
     , tuCurrency :: Maybe Currency.Alpha
+    -- TODO: Remove Currency selection once billing supports currency changes after team creation
     }
 
 instance FromJSON TeamStatusUpdate where

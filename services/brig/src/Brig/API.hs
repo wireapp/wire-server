@@ -1145,7 +1145,7 @@ createUserNoVerify (_ ::: _ ::: req) = do
     forM_ (catMaybes [eac, pac]) $ \adata ->
         let key  = ActivateKey $ activationKey adata
             code = activationCode adata
-        in API.activate key code (Just uid) Nothing !>> actError
+        in API.activate key code (Just uid) !>> actError
     return . setStatus status201
            . addHeader "Location" (toByteString' uid)
            $ json (SelfProfile usr)
@@ -1488,7 +1488,7 @@ activate (Activate tgt code dryrun)
         API.preverify tgt code !>> actError
         return empty
     | otherwise = do
-        result <- API.activate tgt code Nothing Nothing !>> actError
+        result <- API.activate tgt code Nothing !>> actError
         return $ case result of
             ActivationSuccess ident first -> respond ident first
             ActivationPass                -> setStatus status204 empty
