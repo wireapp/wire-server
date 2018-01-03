@@ -28,7 +28,7 @@ import Data.Monoid ((<>))
 import Data.PEM
 import Data.Range
 import Data.Set (Set)
-import Data.Text (Text)
+import Data.Text (Text, isPrefixOf, toLower)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
@@ -44,7 +44,6 @@ import OpenSSL.PEM (writePublicKey)
 import OpenSSL.RSA (generateRSAKey')
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
-import Text.Printf (printf)
 import Web.Cookie (SetCookie (..), parseSetCookie)
 import Util
 import Util.Options.Common (optOrEnv)
@@ -98,7 +97,7 @@ tests conf p db b c g = do
             , test p "add-get"                $ testAddGetService conf db b
             , test p "update"                 $ testUpdateService conf db b
             , test p "update-conn"            $ testUpdateServiceConn conf db b
-            , test p "list-by-tag"            $ testListServicesByTag conf db b
+            , test p "search"                 $ testListServicesByTagAndPrefix conf db b
             , test p "delete"                 $ testDeleteService conf db b
             ]
         , testGroup "bot"
@@ -328,8 +327,8 @@ testUpdateServiceConn config db brig = do
         assertEqual "token" newTokens (serviceTokens _svc)
         assertBool  "enabled" (serviceEnabled _svc)
 
-testListServicesByTag :: Maybe Config -> DB.ClientState -> Brig -> Http ()
-testListServicesByTag config db brig = do
+testListServicesByTagAndPrefix :: Maybe Config -> DB.ClientState -> Brig -> Http ()
+testListServicesByTagAndPrefix config db brig = do
     prv <- randomProvider db brig
     let pid = providerId prv
     uid <- randomId
@@ -346,58 +345,38 @@ testListServicesByTag config db brig = do
 
     let _tags = match1 SocialTag
 
-    -- Generically list services with different start names.
-    -- nb. We only go through 10 of the 20 possible start values to retain a
-    -- minimum requested result 'size' of 10, as enforced by the API.
-    forM_ ((Name uniq : names) `zip` (0:[0..9])) $ \(n, i) -> do
-        let num = length names - i
-        _ls <- getPage uid _tags (Just n) num
-        liftIO $ assertEqual (printf "num (%d)" i) num (length _ls)
-        let _names = map serviceProfileName _ls
-        liftIO $ assertEqual (printf "names (%d)" i) (drop i names) _names
+    -- List services with different start names, that all start with the
+    -- same prefix.
+    searchAndAssert uid _tags (Name uniq) 20 names
+
+    -- Search by exact name
+    forM_ names $ \n -> searchAndAssert uid _tags n 10 [n]
 
     -- Chosen prefixes
 
-    _ls <- getPage uid _tags (Just (mkName uniq "Bjø")) 17
-    let _names = map serviceProfileName _ls
-    liftIO $ assertEqual "names (>= Bjø)" (select (> 3) names) _names
+    -- Only Bjørn should be returned
+    let _search = mkName uniq "Bjø"
+    searchAndAssert uid _tags _search 10 (select _search names)
 
-    _ls <- getPage uid _tags (Just (mkName uniq "chris")) 16
-    let _names = map serviceProfileName _ls
-    liftIO $ assertEqual "names (>= chris)" (select (> 4) names) _names
+    -- Both Bjørn and Bjorn should be returned
+    let _search = mkName uniq "Bj"
+    searchAndAssert uid _tags _search 10 (select _search names)
 
-    -- Multiple tags (conjunction)
-
-    let _tags = matchAll (match SocialTag .&&. match QuizTag)
-    _ls <- getPage uid _tags (Just (mkName uniq "Alp")) 10
-    let _names = map serviceProfileName _ls
-    liftIO $ assertEqual "names (social*quiz)" (select odd names) _names
-
-    let _tags = matchAll (match MusicTag .&&. match SocialTag .&&. match LifestyleTag)
-    _ls <- getPage uid _tags (Just (mkName uniq "A")) 10
-    let _names = map serviceProfileName _ls
-    liftIO $ assertEqual "names (music*social*lifestyle)" (select even names) _names
-
-    -- Multiple tags (disjunction + conjunction)
-
-    let _tags = match1 MusicTag .||. matchAll (match BusinessTag .&&. match QuizTag)
-    _ls <- getPage uid _tags (Just (mkName uniq "A")) 12
-    let _names = map serviceProfileName _ls
-    let _idx i = i `elem` [1,7] || even i
-    liftIO $ assertEqual "names (music+business*quiz)" (select _idx names) _names
-
-    let _tags = matchAll (match QuizTag .&&. match BusinessTag) .||.
-                matchAll (match QuizTag .&&. match TravelTag)   .||.
-                matchAll (match QuizTag .&&. match WeatherTag)
-    _ls <- getPage uid _tags (Just (mkName uniq "A")) 10
-    let _names = map serviceProfileName _ls
-    liftIO $ assertEqual "names (quiz*(business+travel+weather))" (select odd names) _names
+    -- CHRISTMAS should be returned
+    let _search = mkName uniq "chris"
+    searchAndAssert uid _tags _search 10 (select _search names)
   where
     getPage uid tag start size = do
         rs <- listServiceProfilesByTag brig uid tag start size <!!
             const 200 === statusCode
         let Just ls = serviceProfilePageResults <$> decodeBody rs
         return ls
+
+    searchAndAssert uid tags qry size expects = do
+        _ls <- getPage uid tags (Just qry) size
+        liftIO $ assertEqual ("size: " ++ show qry) (length expects) (length _ls)
+        let _names = map serviceProfileName _ls
+        liftIO $ assertEqual ("str: " ++ show qry) expects _names
 
     -- 20 names, all using the given unique prefix
     mkTaggedNames uniq =
@@ -429,7 +408,7 @@ testListServicesByTag config db brig = do
                            , newServiceTags = unsafeRange (Set.fromList t)
                            }
 
-    select f = map snd . filter (f . fst) . zip [(1 :: Int)..]
+    select (Name prefix) nm = filter (isPrefixOf (toLower prefix) . toLower . fromName) nm
 
 testDeleteService :: Maybe Config -> DB.ClientState -> Brig -> Http ()
 testDeleteService config db brig = do
