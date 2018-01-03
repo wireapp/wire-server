@@ -277,8 +277,8 @@ newtype InvitationCode = InvitationCode
     deriving (Eq, Show, FromJSON, ToJSON, ToByteString, FromByteString)
 
 data BindingNewUserTeam = BindingNewUserTeam
-    { bnuTeam     :: BindingNewTeam
-    , bnuCurrency :: Maybe Currency.Alpha
+    { bnuTeam     :: !BindingNewTeam
+    , bnuCurrency :: !(Maybe Currency.Alpha)
     -- TODO: Remove Currency selection once billing supports currency changes after team creation
     }
 

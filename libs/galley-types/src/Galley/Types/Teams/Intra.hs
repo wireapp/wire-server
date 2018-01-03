@@ -56,8 +56,8 @@ instance FromJSON TeamData where
                  <*> o .:? "status_time"
 
 data TeamStatusUpdate = TeamStatusUpdate
-    { tuStatus   :: TeamStatus
-    , tuCurrency :: Maybe Currency.Alpha
+    { tuStatus   :: !TeamStatus
+    , tuCurrency :: !(Maybe Currency.Alpha)
     -- TODO: Remove Currency selection once billing supports currency changes after team creation
     }
 
