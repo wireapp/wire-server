@@ -1,6 +1,8 @@
 resolver: lts-8.13
 
 packages:
+- libs/api-bot
+- libs/api-client
 - libs/bilge
 - libs/brig-types
 - libs/cargohold-types
@@ -26,6 +28,7 @@ packages:
 - services/proxy
 - tools/bonanza
 - tools/makedeb
+- tools/api-simulations
 - location:
     git: https://github.com/tiago-loureiro/haskell-multihash.git
     commit: 10a0d7d765d87fa937fafa42ee7a45f871c9758e
