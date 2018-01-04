@@ -1117,21 +1117,21 @@ createUser (_ ::: _ ::: req) = do
         for_ (liftM2 (,) (userPhone usr) ppair) $ \(p, c) ->
             sendActivationSms p c (Just lang)
         for_ (liftM3 (,,) (userEmail usr) (createdUserTeam result) (newUserTeam new)) $ \(e, ct, ut) ->
-            sendWelcomeEmail e ct (nuTeam ut) (Just lang)
+            sendWelcomeEmail e ct ut (Just lang)
     cok <- lift $ Auth.newCookie (userId usr) PersistentCookie (newUserLabel new)
     lift $ Auth.setResponseCookie cok
         $ setStatus status201
         . addHeader "Location" (toByteString' (userId usr))
         $ json (SelfProfile usr)
   where
-    sendActivationEmail e u p l (Just (NewUserTeam (Right (BindingNewUserTeam (Team.BindingNewTeam t) _)))) =
+    sendActivationEmail e u p l (Just (NewTeamCreator (BindingNewTeamUser (Team.BindingNewTeam t) _))) =
         sendTeamActivationMail e u p l (fromRange $ t^.Team.newTeamName)
     sendActivationEmail e u p l _ =
         sendActivationMail e u p l Nothing
 
-    sendWelcomeEmail :: Email -> CreateUserTeam -> Either InvitationCode BindingNewUserTeam -> Maybe Locale -> AppIO ()
-    sendWelcomeEmail e (CreateUserTeam t n) (Right _) l = Team.sendCreatorWelcomeMail e t n l
-    sendWelcomeEmail e (CreateUserTeam t n) (Left  _) l = Team.sendMemberWelcomeMail e t n l
+    sendWelcomeEmail :: Email -> CreateUserTeam -> NewTeamUser -> Maybe Locale -> AppIO ()
+    sendWelcomeEmail e (CreateUserTeam t n) (NewTeamCreator _) l = Team.sendCreatorWelcomeMail e t n l
+    sendWelcomeEmail e (CreateUserTeam t n) (NewTeamMember  _) l = Team.sendMemberWelcomeMail e t n l
 
 createUserNoVerify :: JSON ::: JSON ::: Request -> Handler Response
 createUserNoVerify (_ ::: _ ::: req) = do

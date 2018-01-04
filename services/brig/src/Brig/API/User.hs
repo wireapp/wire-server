@@ -146,7 +146,7 @@ createUser new@NewUser{..} = do
 
     -- Look for an invitation, if a code is given
     invitation <- maybe (return Nothing) (findInvitation emKey phKey) newUserInvitationCode
-    (newTeam, teamInvitation) <- handleTeam (nuTeam <$> newUserTeam) emKey
+    (newTeam, teamInvitation) <- handleTeam newUserTeam emKey
 
     -- team members are by default not searchable
     let searchable = SearchableStatus $ case (newTeam, teamInvitation) of
@@ -196,7 +196,7 @@ createUser new@NewUser{..} = do
                     return $ Just edata
                 Just c -> do
                     ak <- liftIO $ Data.mkActivationKey ek
-                    void $ activate' (ActivateKey ak) c (Just uid) (join (bnuCurrency <$> newTeam)) !>> EmailActivationError
+                    void $ activateWithCurrency (ActivateKey ak) c (Just uid) (join (bnuCurrency <$> newTeam)) !>> EmailActivationError
                     return Nothing
 
     -- Handle phone activation
@@ -212,7 +212,7 @@ createUser new@NewUser{..} = do
                     return $ Just pdata
                 Just c -> do
                     ak <- liftIO $ Data.mkActivationKey pk
-                    void $ activate' (ActivateKey ak) c (Just uid) (join (bnuCurrency <$> newTeam)) !>> PhoneActivationError
+                    void $ activate (ActivateKey ak) c (Just uid) !>> PhoneActivationError
                     return Nothing
 
     return $! CreateUserResult account edata pdata (activatedTeam <|> joinedTeam)
@@ -228,9 +228,9 @@ createUser new@NewUser{..} = do
                     then Just created
                     else Nothing
 
-    handleTeam (Just (Left i))  e = (Nothing, ) <$> findTeamInvitation e i
-    handleTeam (Just (Right t)) _ = return (Just t, Nothing)
-    handleTeam Nothing          _ = return (Nothing, Nothing)
+    handleTeam (Just (NewTeamMember i))  e = (Nothing, ) <$> findTeamInvitation e i
+    handleTeam (Just (NewTeamCreator t)) _ = return (Just t, Nothing)
+    handleTeam Nothing                   _ = return (Nothing, Nothing)
 
     findInvitation :: Maybe UserKey -> Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe (Invitation, InvitationInfo))
     findInvitation Nothing Nothing _ = throwE MissingIdentity
@@ -468,15 +468,15 @@ activate :: ActivationTarget
          -> ActivationCode
          -> Maybe UserId -- ^ The user for whom to activate the key.
          -> ExceptT ActivationError AppIO ActivationResult
-activate tgt code usr = activate' tgt code usr Nothing
+activate tgt code usr = activateWithCurrency tgt code usr Nothing
 
-activate' :: ActivationTarget
-         -> ActivationCode
-         -> Maybe UserId         -- ^ The user for whom to activate the key.
-         -> Maybe Currency.Alpha -- ^ Potential currency update.
-         -- ^ TODO: to be removed once billing supports currency changes after team creation
-         -> ExceptT ActivationError AppIO ActivationResult
-activate' tgt code usr cur = do
+activateWithCurrency :: ActivationTarget
+                     -> ActivationCode
+                     -> Maybe UserId         -- ^ The user for whom to activate the key.
+                     -> Maybe Currency.Alpha -- ^ Potential currency update.
+                     -- ^ TODO: to be removed once billing supports currency changes after team creation
+                     -> ExceptT ActivationError AppIO ActivationResult
+activateWithCurrency tgt code usr cur = do
     key <- mkActivationKey tgt
     Log.info $ field "activation.key"  (toByteString key)
              . field "activation.code" (toByteString code)
