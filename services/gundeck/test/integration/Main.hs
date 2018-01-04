@@ -83,9 +83,10 @@ main = withOpenSSL $ runTests go
         b <- Brig    . mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
         ch <- optOrEnv (\v -> v^.optCassandra.casEndpoint.epHost) gConf pack "GUNDECK_CASSANDRA_HOST"
         cp <- optOrEnv (\v -> v^.optCassandra.casEndpoint.epPort) gConf read "GUNDECK_CASSANDRA_PORT"
+        ck <- optOrEnv (\v -> v^.optCassandra.casKeyspace) gConf pack "GUNDECK_CASSANDRA_KEYSPACE"
 
         lg <- Logger.new Logger.defSettings
-        db <- defInitCassandra "gundeck_test" ch cp lg
+        db <- defInitCassandra ck ch cp lg
 
         return $ API.TestSetup m g c b db 
 

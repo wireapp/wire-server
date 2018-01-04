@@ -52,9 +52,10 @@ runTests iConf bConf = do
     turnFile <- optOrEnv (Opts.servers . Opts.turn) bConf id "TURN_SERVERS"
     casHost  <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epHost) bConf pack "BRIG_CASSANDRA_HOST"
     casPort  <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epPort) bConf read "BRIG_CASSANDRA_PORT"
+    casKey   <- optOrEnv (\v -> (Opts.cassandra v)^.casKeyspace) bConf pack "BRIG_CASSANDRA_KEYSPACE"
 
     lg <- Logger.new Logger.defSettings
-    db <- defInitCassandra "brig_test" casHost casPort lg
+    db <- defInitCassandra casKey casHost casPort lg
     mg <- newManager tlsManagerSettings
 
     userApi     <- User.tests bConf mg b c g
