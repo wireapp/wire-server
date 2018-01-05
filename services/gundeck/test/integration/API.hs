@@ -250,7 +250,7 @@ sendMultipleUsers gu ca _ _ = do
     ntfs3 <- listNotifications uid3 Nothing gu
     liftIO $ do
         assertBool "Not at least 2 notifications" (length ntfs3 >= 2)
-        let (n1:nx) = ntfs3
+        let (n1,nx) = checkNotifications ntfs3
         -- The first notification must be the test payload
         let p1 = view queuedNotificationPayload n1
         assertEqual "Wrong events in 1st notification" pload p1
@@ -259,6 +259,9 @@ sendMultipleUsers gu ca _ _ = do
             let p2 = fromJSON (Object (List1.head (n^.queuedNotificationPayload)))
             in assertEqual "Wrong events in notification" (Success (PushRemove tok)) p2
   where
+    checkNotifications []     = error "No notifications received!"
+    checkNotifications (x:xs) = (x,xs)
+
     pload     = List1.singleton pevent
     pevent    = HashMap.fromList [ "foo" .= (42 :: Int) ]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
@@ -609,6 +612,7 @@ testRegisterPushToken g _ b _ = do
     _tokens <- listPushTokens uid g
     liftIO $ assertEqual "unexpected tokens" [] _tokens
 
+-- TODO: Try to make this test more performant, this test takes too long right now
 testRegisterTooManyTokens :: TestSignature ()
 testRegisterTooManyTokens g _ b _ = do
     -- create tokens for reuse with multiple users
