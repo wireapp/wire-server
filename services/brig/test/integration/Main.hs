@@ -92,7 +92,7 @@ parseConfigPaths = do
   pure $ fromMaybe (defaultIntPath, defaultBrigPath) res
   where
     defaultBrigPath = "/etc/wire/brig/conf/brig.yaml"
-    defaultIntPath = "/etc/wire/brig/conf/integration.yaml"
+    defaultIntPath = "/etc/wire/integration/integration.yaml"
     pathParser :: Parser (String, String)
     pathParser = (,) <$>
                  (strOption $
