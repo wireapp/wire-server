@@ -53,6 +53,8 @@ emailSMS:
   team:
     tInvitationUrl: http://brig:8082/register?team=\${team}\&team_code=\${code}
     tActivationUrl: http://brig:8082/register?team=\${team}\&team_code=\${code}
+    tCreatorWelcomeUrl: http://localhost/creator
+    tMemberWelcomeUrl: http://localhost/member
 
 zauth:
   privateKeys: /config/.resources/zauth/privkeys.txt
@@ -87,6 +89,7 @@ optSettings:
     stdDev: 5
     retryAfter: 1
   setDefaultLocale: en
+  setMaxTeamSize: 128
 
 # TODO: Set this to true _ONLY_ for testing purposes
 #       as this causes SSL certicates not to be verified

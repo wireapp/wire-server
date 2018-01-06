@@ -40,6 +40,12 @@ services:
   # redis:
   #   image: "redis:alpine"
 
+  elasticsearch:
+      hostname: elasticsearch
+      image: elasticsearch:5.6
+      ports:
+        - 9200:9200
+
   localstack_s3:
     image: localstack/localstack
     ports:
@@ -84,20 +90,21 @@ services:
       - DEFAULT_REGION=eu-west-1
       - SERVICES=ses:443
 
-  # aws_cli:
-  #   image: mesosphere/aws-cli
-  #   links:
-  #     - localstack_sqs:sqs
-  #     - localstack_dynamodb:dynamodb
-  #     - localstack_s3:s3
-  #   depends_on:
-  #     - localstack_s3
-  #     - localstack_ses
-  #     - localstack_sqs
-  #     - localstack_dynamodb
-  #   entrypoint: /scripts/aws.sh
-  #   volumes:
-  #     - ./init:/scripts
+  aws_cli:
+    image: mesosphere/aws-cli
+    links:
+      - localstack_sqs:sqs
+      - localstack_dynamodb:dynamodb
+      - localstack_s3:s3
+      - localstack_ses:ses
+    depends_on:
+      - localstack_s3
+      - localstack_ses
+      - localstack_sqs
+      - localstack_dynamodb
+    entrypoint: /scripts/aws.sh
+    volumes:
+      - ./init:/scripts
 
   # #  
   # # Cassandra init containers
@@ -133,80 +140,84 @@ services:
   #
   # Stateless services
   #
-  # brig:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../..
-  #     dockerfile: services/brig/Dockerfile
-  #     args:
-  #       service: brig
-  #   #TODO: Create some random keys and turn secrets
-  #   entrypoint: 'sh -c "while true; do brig -c /config/brig.yml; sleep 5; done"'
-  #   links:
-  #     # NOTE: the used aws library uses the "old" name eu-west-1.queue.amazonaws.com
-  #     - localstack_sqs:sqs.eu-west-1.amazonaws.com
-  #     - localstack_sqs:eu-west-1.queue.amazonaws.com
-  #     - localstack_dynamodb:dynamodb.eu-west-1.amazonaws.com
-  #     - localstack_ses:email.eu-west-1.amazonaws.com
-  #   ports:
-  #     - 8082:8082
-  #   volumes:
-  #     - ./conf:/config
+  brig:
+    env_file: ../../services/.env
+    build:
+      context: ../..
+      dockerfile: services/brig/Dockerfile
+      args:
+        service: brig
+    #TODO: Create some random keys and turn secrets
+    entrypoint: 'sh -c "sleep 10; while true; do brig -c /config/brig.yml; sleep 5; done"'
+    links:
+      # NOTE: the used aws library uses the "old" name eu-west-1.queue.amazonaws.com
+      - localstack_sqs:sqs.eu-west-1.amazonaws.com
+      - localstack_sqs:eu-west-1.queue.amazonaws.com
+      - localstack_dynamodb:dynamodb.eu-west-1.amazonaws.com
+      - localstack_ses:email.eu-west-1.amazonaws.com
+    depends_on:
+      - aws_cli
+    ports:
+      - 8082:8082
+    volumes:
+      - ./conf:/config
 
-  # cannon:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../..
-  #     dockerfile: build/alpine/Dockerfile
-  #     args:
-  #       service: cannon
-  #   entrypoint: 'sh -c "while true; do cannon -c /config/cannon.yml; sleep 5; done"'
-  #   ports:
-  #     - 8081:8081
-  #   volumes:
-  #     - ./conf:/config
+  cannon:
+    env_file: ../../services/.env
+    build:
+      context: ../..
+      dockerfile: build/alpine/Dockerfile
+      args:
+        service: cannon
+    entrypoint: 'sh -c "while true; do cannon -c /config/cannon.yml; sleep 5; done"'
+    ports:
+      - 8081:8081
+    volumes:
+      - ./conf:/config
 
-  # cargohold:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../..
-  #     dockerfile: build/alpine/Dockerfile
-  #     args:
-  #       service: cargohold
-  #   entrypoint: 'sh -c "while true; do cargohold -c /config/cargohold.yml; sleep 5; done"'
-  #   # TODO: Allow skipping cloudfront and getting an S3 link only
-  #   links:
-  #     - localstack_s3:local-cargohold.s3-eu-west-1.amazonaws.com
-  #   ports:
-  #     - 8084:8084
-  #   volumes:
-  #     - ./conf:/config
+  cargohold:
+    env_file: ../../services/.env
+    build:
+      context: ../..
+      dockerfile: build/alpine/Dockerfile
+      args:
+        service: cargohold
+    entrypoint: 'sh -c "while true; do cargohold -c /config/cargohold.yml; sleep 5; done"'
+    # TODO: Allow skipping cloudfront and getting an S3 link only
+    links:
+      - localstack_s3:local-cargohold.s3-eu-west-1.amazonaws.com
+    ports:
+      - 8084:8084
+    volumes:
+      - ./conf:/config
 
-  # galley:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../..
-  #     dockerfile: build/alpine/Dockerfile
-  #     args:
-  #       service: galley
-  #   entrypoint: 'sh -c "while true; do galley -c /config/galley.yml; sleep 5; done"'
-  #   ports:
-  #     - 8085:8085
-  #   volumes:
-  #     - ./conf:/config
+  galley:
+    env_file: ../../services/.env
+    build:
+      context: ../..
+      dockerfile: build/alpine/Dockerfile
+      args:
+        service: galley
+    entrypoint: 'sh -c "while true; do galley -c /config/galley.yml; sleep 5; done"'
+    ports:
+      - 8085:8085
+    volumes:
+      - ./conf:/config
 
-  # gundeck:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../..
-  #     dockerfile: build/alpine/Dockerfile
-  #     args:
-  #       service: gundeck
-  #       executable: gundeck
-  #   entrypoint: 'sh -c "while true; do gundeck -c /config/gundeck.yml; sleep 5; done"'
-  #   links:
-  #     - localstack_sqs:sqs.eu-west-1.amazonaws.com
-  #   ports:
-  #     - 8086:8086
-  #   volumes:
-  #     - ./conf:/config
+  gundeck:
+    env_file: ../../services/.env
+    build:
+      context: ../..
+      dockerfile: build/alpine/Dockerfile
+      args:
+        service: gundeck
+        executable: gundeck
+    entrypoint: 'sh -c "while true; do gundeck -c /config/gundeck.yml; sleep 5; done"'
+    depends_on:
+      - aws_cli
+    links:
+      - localstack_sqs:sqs.eu-west-1.amazonaws.com
+    ports:
+      - 8086:8086
+    volumes:
+      - ./conf:/config

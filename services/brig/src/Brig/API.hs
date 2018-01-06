@@ -48,7 +48,6 @@ import Util.Options
 
 import qualified Data.Text.Ascii               as Ascii
 import qualified Data.List1                    as List1
-import qualified Control.Concurrent.Async      as Async
 import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
 import qualified Brig.API.Properties           as API
@@ -57,6 +56,7 @@ import qualified Brig.User.API.Auth            as Auth
 import qualified Brig.User.API.Search          as Search
 import qualified Brig.User.Auth.Cookie         as Auth
 import qualified Brig.Aws                      as Aws
+import qualified Control.Concurrent.Async      as Async
 import qualified Brig.Aws.SesNotification      as SesNotification
 import qualified Brig.Aws.InternalNotification as InternalNotification
 import qualified Brig.Types.Swagger            as Doc
@@ -80,11 +80,11 @@ runServer :: Opts -> IO ()
 runServer o = do
     e <- newEnv o
     s <- Server.newSettings (server e)
-    -- f <- Async.async $ runAppT e (Aws.listen (e^.awsConfig.Aws.sqsSesQueue) SesNotification.onEvent)
-    -- g <- Async.async $ runAppT e (Aws.listen (e^.awsConfig.Aws.sqsInternalQueue) InternalNotification.onEvent)
+    f <- Async.async $ runAppT e (Aws.listen (e^.awsConfig.Aws.sqsSesQueue) SesNotification.onEvent)
+    g <- Async.async $ runAppT e (Aws.listen (e^.awsConfig.Aws.sqsInternalQueue) InternalNotification.onEvent)
     runSettingsWithShutdown s (pipeline e) 5 `finally` do
-        -- Async.cancel f
-        -- Async.cancel g
+        Async.cancel f
+        Async.cancel g
         closeEnv e
   where
     rtree      = compile (sitemap o)

@@ -110,12 +110,12 @@ import qualified System.FSNotify          as FS
 import qualified System.Logger            as Log
 import qualified System.Logger.Class      as LC
 
-import qualified Aws
-import qualified Aws.Aws as Aws
-import qualified Aws.Core
-import qualified Aws.Sqs as Sqs
-import qualified Data.Text.IO as T
-import qualified Data.Text    as T
+-- import qualified Aws
+-- import qualified Aws.Aws as Aws
+-- import qualified Aws.Core
+-- import qualified Aws.Sqs as Sqs
+-- import qualified Data.Text.IO as T
+-- import qualified Data.Text    as T
 
 schemaVersion :: Int32
 schemaVersion = 44
