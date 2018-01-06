@@ -73,7 +73,6 @@ import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
 import qualified Brig.Provider.API             as Provider
 import qualified Brig.Team.API                 as Team
-import qualified Brig.Team.Util                as Team
 import qualified Brig.Team.Email               as Team
 import qualified Brig.TURN.API                 as TURN
 
@@ -1155,9 +1154,6 @@ deleteUserNoVerify uid = do
     acc <- lift $ API.lookupAccount uid
     unless (isJust acc) $
         throwStd userNotFound
-    onlyTeamOwner <- lift $ Team.isOnlyTeamOwner uid
-    when onlyTeamOwner $
-        throwStd noOtherOwner
     ok <- lift $ InternalNotification.publish (Aws.DeleteUser uid)
     unless ok $
         throwStd failedQueueEvent
