@@ -94,8 +94,10 @@ data ProviderOpts = ProviderOpts
 instance FromJSON ProviderOpts
 
 data TeamOpts = TeamOpts
-    { tInvitationUrl :: !Text
-    , tActivationUrl :: !Text
+    { tInvitationUrl     :: !Text
+    , tActivationUrl     :: !Text
+    , tCreatorWelcomeUrl :: !Text
+    , tMemberWelcomeUrl  :: !Text
     } deriving (Show, Generic)
 
 instance FromJSON TeamOpts
@@ -285,7 +287,13 @@ optsParser =
        help "Team Invitation URL template") <*>
       (textOption $
        long "team-activation-url" <> metavar "URL" <>
-       help "Team Activation URL template"))) <*>
+       help "Team Activation URL template") <*>
+      (textOption $
+       long "team-creator-welcome-url" <> metavar "URL" <>
+       help "Team Creator Welcome URL") <*>
+      (textOption $
+       long "team-member-welcome-url" <> metavar "URL" <>
+       help "Team Member Welcome URL"))) <*>
     (ZAuthOpts <$>
      (strOption $
       long "zauth-private-keys" <> metavar "FILE" <>

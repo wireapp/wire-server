@@ -41,7 +41,6 @@ import Control.Lens ((&), (.~), (?~), (^.), (<&>), set, view)
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Data.Bool (bool)
 import Data.Foldable
 import Data.Id
@@ -50,7 +49,6 @@ import Data.Maybe (fromMaybe, catMaybes)
 import Data.Range hiding ((<|))
 import Data.Text (Text)
 import Data.Time
-import Data.List.Split (chunksOf)
 import Galley.App
 import Galley.API.Error
 import Galley.API.Mapping
@@ -148,7 +146,7 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
         void $ permissionCheck zusr AddConversationMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
-            throwM (invalidOp "Users can not be added to managed conversations.")
+            throwM noAddToManaged
         ensureMemberLimit (toList $ Data.convMembers conv) new_users
         ensureConnected zusr (notTeamMember (fromRange to_add) tms)
 
@@ -339,14 +337,10 @@ addBot (zusr ::: zcon ::: req ::: _) = do
     when (Data.isConvDeleted c) $ do
         Data.deleteConversation (b^.addBotConv)
         throwM convNotFound
-    when (Data.isTeamConv c) $
-        throwM noBotsInTeamConvs
-    let (bots, users) = botsAndUsers (Data.convMembers c)
-    unless (zusr `isMember` users) $
-        throwM convNotFound
-    ensureGroupConv c
-    unless (any ((== b^.addBotId) . botMemId) bots) $
-        ensureMemberLimit (toList $ Data.convMembers c) [botUserId (b^.addBotId)]
+    -- Check some preconditions on adding bots to a conversation
+    for_ (Data.convTeam c) $ teamConvChecks (b^.addBotConv)
+    (bots, users) <- regularConvChecks b c
+
     t <- liftIO getCurrentTime
     Data.updateClient True (botUserId (b^.addBotId)) (b^.addBotClient)
     (e, bm) <- Data.addBotMember zusr (b^.addBotService) (b^.addBotId) (b^.addBotConv) t
@@ -354,6 +348,22 @@ addBot (zusr ::: zcon ::: req ::: _) = do
         push1 $ p & pushConn ?~ zcon
     void . fork $ void $ External.deliver ((bm:bots) `zip` repeat e)
     return (json e)
+  where
+    regularConvChecks b c = do
+        let (bots, users) = botsAndUsers (Data.convMembers c)
+        unless (zusr `isMember` users) $
+            throwM convNotFound
+        ensureGroupConv c
+        unless (any ((== b^.addBotId) . botMemId) bots) $
+            ensureMemberLimit (toList $ Data.convMembers c) [botUserId (b^.addBotId)]
+        return (bots, users)
+
+    teamConvChecks cid tid = do
+        tms <- Data.teamMembers tid
+        void $ permissionCheck zusr AddConversationMember tms
+        tcv <- Data.teamConversation tid cid
+        when (maybe True (view managedConversation) tcv) $
+            throwM noAddToManaged
 
 rmBot :: UserId ::: Maybe ConnId ::: Request ::: JSON -> Galley Response
 rmBot (zusr ::: zcon ::: req ::: _) = do
@@ -441,13 +451,9 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
     tMembers <- fmap (view userId) <$> Data.teamMembers tid
     contacts <- getContactList usr
     let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
-    clts  <- lookupClientsAsync users
+    clts <- Data.lookupClients users
     let membs = Data.newMember <$> users
     handleOtrResponse usr clt rcps membs clts val now go
-  where
-    -- do a maximum of 16 parallel lookups of up to 128 users each
-    lookupClientsAsync users = Clients.fromList . concat . concat <$>
-          forM (chunksOf 2048 users) (mapConcurrently Data.lookupClients' . chunksOf 128)
 
 withValidOtrRecipients
     :: UserId

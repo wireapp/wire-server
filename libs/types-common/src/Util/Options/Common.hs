@@ -14,8 +14,23 @@ import System.Environment
 import qualified Data.ByteString.Char8 as C
 import qualified Data.Text             as T
 
-toFieldName :: Options
-toFieldName = defaultOptions{ fieldLabelModifier = lowerFirst . dropPrefix }
+-- toOptionFieldName
+
+-- | Convenient helper to convert record field names to use as YAML fields.
+-- NOTE: We typically use this for options in the configuration files!
+-- If you are looking into converting record field name to JSON to be used
+-- over the API, look for toJSONFieldName in the Data.Json.Util module. 
+-- It removes the prefix (assumed to be anything before an uppercase
+-- character) and lowers the first character
+--
+-- Example:
+-- newtype TeamName = TeamName { tnTeamName :: Text }
+-- deriveJSON toJSONFieldName ''tnTeamName
+--
+-- would generate {To/From}JSON instances where
+-- the field name is "teamName"
+toOptionFieldName :: Options
+toOptionFieldName = defaultOptions{ fieldLabelModifier = lowerFirst . dropPrefix }
   where
     lowerFirst :: String -> String
     lowerFirst (x:xs) = toLower x : xs

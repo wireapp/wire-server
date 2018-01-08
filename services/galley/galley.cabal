@@ -200,6 +200,7 @@ executable galley-integration
       , http-client-tls
       , http-types
       , lens
+      , lens-aeson
       , mtl
       , network
       , optparse-applicative
