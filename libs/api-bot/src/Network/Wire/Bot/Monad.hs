@@ -858,6 +858,7 @@ randUser (Email loc dom) (BotTag tag) = do
         , newUserPict           = Nothing
         , newUserAssets         = []
         , newUserAccentId       = Nothing
+        , newUserEmailCode      = Nothing
         , newUserPhoneCode      = Nothing
         , newUserInvitationCode = Nothing
         , newUserLabel          = Nothing
