@@ -9,6 +9,7 @@ module Galley.API.Teams
     , updateTeamStatus
     , getTeam
     , getTeamInternal
+    , getTeamNameInternal
     , getBindingTeamId
     , getBindingTeamMembers
     , getManyTeams
@@ -31,6 +32,7 @@ module Galley.API.Teams
 
 import Cassandra (result, hasMore)
 import Control.Concurrent.Async (mapConcurrently)
+import Control.Concurrent.Lifted (fork)
 import Control.Lens hiding (from, to)
 import Control.Monad (unless, when, void)
 import Control.Monad.Catch
@@ -43,12 +45,13 @@ import Data.List1 (list1)
 import Data.List (partition)
 import Data.Maybe (catMaybes, isJust)
 import Data.Range
-import Data.Time.Clock (getCurrentTime)
+import Data.Time.Clock (getCurrentTime, UTCTime (..))
 import Data.Traversable (mapM)
 import Data.Set (fromList, toList)
 import Galley.App
 import Galley.API.Error
 import Galley.API.Util
+import Galley.Data.Services (BotMember)
 import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Options
@@ -62,6 +65,7 @@ import Prelude hiding (head, mapM)
 
 import qualified Data.Set as Set
 import qualified Galley.Data as Data
+import qualified Galley.External as External
 import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
 import qualified Galley.Types.Teams as Teams
@@ -74,6 +78,10 @@ getTeam (zusr::: tid ::: _) =
 getTeamInternal :: TeamId ::: JSON -> Galley Response
 getTeamInternal (tid ::: _) =
     maybe (throwM teamNotFound) (pure . json) =<< Data.team tid
+
+getTeamNameInternal :: TeamId ::: JSON -> Galley Response
+getTeamNameInternal (tid ::: _) =
+    maybe (throwM teamNotFound) (pure . json . TeamName) =<< Data.teamName tid
 
 getManyTeams :: UserId ::: Maybe (Either (Range 1 32 (List TeamId)) TeamId) ::: Range 1 100 Int32 ::: JSON -> Galley Response
 getManyTeams (zusr ::: range ::: size ::: _) =
@@ -174,23 +182,28 @@ uncheckedDeleteTeam :: UserId -> Maybe ConnId -> TeamId -> Galley ()
 uncheckedDeleteTeam zusr zcon tid = do
     team <- Data.team tid
     when (isJust team) $ do
-        membs  <- Data.teamMembers tid
-        now    <- liftIO getCurrentTime
-        convs  <- filter (not . view managedConversation) <$> Data.teamConversations tid
-        events <- foldrM (pushEvents now membs) [] convs
+        membs    <- Data.teamMembers tid
+        now      <- liftIO getCurrentTime
+        convs    <- filter (not . view managedConversation) <$> Data.teamConversations tid
+        (ue, be) <- foldrM (pushEvents now membs) ([],[]) convs
         let e = newEvent TeamDelete tid now
         let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
-        pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : events)
+        pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : ue)
+        void . fork $ void $ External.deliver be
         when ((view teamBinding . tdTeam <$> team) == Just Binding) $ do
             mapM_ (deleteUser . view userId) membs
             Journal.teamDelete tid
         Data.deleteTeam tid
   where
-    pushEvents now membs c pp = do
-        mm <- flip nonTeamMembers membs <$> Data.members (c^.conversationId)
+    pushEvents :: UTCTime -> [TeamMember] -> TeamConversation -> ([Push],[(BotMember, Conv.Event)]) -> Galley ([Push],[(BotMember, Conv.Event)])
+    pushEvents now membs c (pp, ee) = do
+        (bots, users) <- botsAndUsers <$> Data.members (c^.conversationId)
+        let mm = nonTeamMembers users membs
         let e = Conv.Event Conv.ConvDelete (c^.conversationId) zusr now Nothing
         let p = newPush zusr (ConvEvent e) (map recipient mm)
-        pure (maybe pp (\x -> (x & pushConn .~ zcon) : pp) p)
+        let ee' = bots `zip` repeat e
+        let pp' = maybe pp (\x -> (x & pushConn .~ zcon) : pp) p
+        pure (pp', ee' ++ ee)
 
 getTeamMembers :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamMembers (zusr::: tid ::: _) = do
@@ -335,10 +348,12 @@ uncheckedRemoveTeamMember zusr zcon tid remove mems = do
                 pushEvent tmids edata now dc
   where
     pushEvent tmids edata now dc = do
-        let x = filter (\m -> not (Conv.memId m `Set.member` tmids)) (Data.convMembers dc)
+        let (bots, users) = botsAndUsers (Data.convMembers dc)
+        let x = filter (\m -> not (Conv.memId m `Set.member` tmids)) users
         let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
         for_ (newPush zusr (ConvEvent y) (recipient <$> x)) $ \p ->
             push1 $ p & pushConn .~ zcon
+        void . fork $ void $ External.deliver (bots `zip` repeat y)
 
 getTeamConversations :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamConversations (zusr::: tid ::: _) = do
@@ -358,7 +373,7 @@ deleteTeamConversation :: UserId ::: ConnId ::: TeamId ::: ConvId ::: JSON -> Ga
 deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
     tmems <- Data.teamMembers tid
     void $ permissionCheck zusr DeleteConversation tmems
-    cmems <- Data.members cid
+    (bots, cmems) <- botsAndUsers <$> Data.members cid
     now <- liftIO getCurrentTime
     let te = newEvent Teams.ConvDelete tid now & eventData .~ Just (Teams.EdConvDelete cid)
     let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
@@ -367,6 +382,7 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
     case map recipient (nonTeamMembers cmems tmems) of
         []     -> push1 p
         (m:mm) -> pushSome [p, newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
+    void . fork $ void $ External.deliver (bots `zip` repeat ce)
     Data.removeTeamConv tid cid
     pure empty
 

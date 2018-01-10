@@ -13,6 +13,7 @@ import Brig.Types.Intra
 import Control.Lens ((^?), (^?!))
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Retry
 import Data.Aeson
 import Data.Aeson.Lens (key, _String, _Integral)
 import Data.ByteString (ByteString)
@@ -130,6 +131,10 @@ deleteUser u p brig = delete $ brig
     . zUser u
     . body (RequestBodyLBS (encode (mkDeleteUser p)))
 
+deleteUserInternal :: UserId -> Brig -> Http ResponseLBS
+deleteUserInternal u brig = delete $ brig
+    . paths ["/i/users", toByteString' u]
+
 activate :: Brig -> ActivationPair -> Http ResponseLBS
 activate brig (k, c) = get $ brig
     . path "activate"
@@ -238,6 +243,17 @@ isMember g usr cnv = do
     case decodeBody res of
         Nothing -> return False
         Just  m -> return (usr == memId m)
+
+getStatus :: Brig -> UserId -> Http AccountStatus
+getStatus brig u = do
+    r <- get (brig . paths ["i", "users", toByteString' u, "status"]) <!!
+        const 200 === statusCode
+
+    case responseBody r of
+        Nothing -> error $ "getStatus: failed to parse response: " ++ show r
+        Just  j -> do
+            let st = maybeFromJSON =<< (j ^? key "status")
+            return $ fromMaybe (error $ "getStatus: failed to decode status" ++ show j) st
 
 chkStatus :: Brig -> UserId -> AccountStatus -> Http ()
 chkStatus brig u s =
@@ -409,3 +425,7 @@ randomName = liftIO $ do
             then return c
             else randLetter
 
+retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
+retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
+                             (const (return . f))
+                             (const m)

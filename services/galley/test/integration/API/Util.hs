@@ -10,7 +10,9 @@ import Control.Error
 import Control.Lens hiding ((.=), from, to, (#))
 import Control.Monad hiding (mapM_)
 import Control.Monad.IO.Class
+import Control.Retry
 import Data.Aeson hiding (json)
+import Data.Aeson.Lens (key)
 import Data.ByteString.Char8 (pack, ByteString, intercalate)
 import Data.ByteString.Conversion
 import Data.Foldable (toList, mapM_)
@@ -466,6 +468,24 @@ ensureDeletedState b check from u =
         . zConn "conn"
         ) !!! const (Just check) === fmap profileDeleted . decodeBody
 
+-- TODO: Refactor, as used also in brig
+isUserDeleted :: Brig -> UserId -> Http Bool
+isUserDeleted b u = do
+    r <- get (b . paths ["i", "users", toByteString' u, "status"]) <!!
+        const 200 === statusCode
+
+    case responseBody r of
+        Nothing -> error $ "getStatus: failed to parse response: " ++ show r
+        Just  j -> do
+            let st = maybeFromJSON =<< (j ^? key "status")
+            let decoded = fromMaybe (error $ "getStatus: failed to decode status" ++ show j) st
+            return $ decoded == Deleted
+  where
+    maybeFromJSON :: FromJSON a => Value -> Maybe a
+    maybeFromJSON v = case fromJSON v of
+        Success a -> Just a
+        _         -> Nothing
+
 isMember :: Galley -> UserId -> ConvId -> Http Bool
 isMember g usr cnv = do
     res <- get $ g
@@ -555,3 +575,9 @@ randomEmail = do
 
 selfConv :: UserId -> Id C
 selfConv u = Id (toUUID u)
+
+-- TODO: Refactor, as used also in other services
+retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
+retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
+                             (const (return . f))
+                             (const m)

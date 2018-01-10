@@ -25,7 +25,7 @@ import Control.Monad (join, when, unless, (>=>))
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.ByteString.Conversion
-import Data.Foldable (forM_)
+import Data.Foldable (for_, forM_)
 import Data.Hashable (hash)
 import Data.Id
 import Data.Int
@@ -39,6 +39,7 @@ import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..))
 import Galley.Types (OtherMember (..))
 import Galley.Types (Event, userClients)
 import Galley.Types.Bot (newServiceRef)
+import Galley.Types.Teams (managedConversation)
 import Data.Traversable (forM)
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)
@@ -532,6 +533,7 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
         throwStd invalidConv
     unless (length (cmOthers mems) < 127) $
         throwStd tooManyMembers
+    for_ (cnvTeam cnv) $ ensureNotManagedConv
 
     -- Lookup the relevant service data
     scon <- DB.lookupServiceConn pid sid >>= maybeServiceNotFound
@@ -579,6 +581,11 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
         , rsAddBotAssets = assets
         , rsAddBotEvent  = ev
         }
+  where
+    ensureNotManagedConv tid = do
+        tc <- lift (RPC.getTeamConv zuid tid cid) >>= maybeConvNotFound
+        when (view managedConversation tc) $
+            throwStd invalidConv
 
 removeBot :: UserId ::: ConnId ::: ConvId ::: BotId -> Handler Response
 removeBot (zusr ::: zcon ::: cid ::: bid) = do

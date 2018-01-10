@@ -5,6 +5,7 @@
 module API.Team (tests) where
 
 import API.Search.Util
+import API.Team.Util
 import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
 import Brig.Types hiding (Invitation (..), InvitationRequest (..), InvitationList (..))
@@ -24,7 +25,6 @@ import Data.Id hiding (client)
 import Data.List.Extra (chunksOf)
 import Data.Maybe
 import Data.Monoid ((<>))
-import Data.Range
 import Data.Text (Text)
 import Network.HTTP.Client             (Manager)
 import Test.Tasty hiding (Timeout)
@@ -439,6 +439,11 @@ testDeleteTeamUser brig galley = do
     deleteUser invitee (Just defPassword) brig !!! do
         const 403 === statusCode
         const (Just "no-other-owner") === fmap Error.label . decodeBody
+    -- Ensure internal endpoints are also exercised
+    deleteUserInternal invitee brig !!! const 202 === statusCode
+    -- Eventually the user will be deleted, leaving the team orphan
+    void $ retryWhileN 20 (/= Deleted) (getStatus brig invitee)
+    chkStatus brig invitee Deleted
 
 testConnectionSameTeam :: Brig -> Galley -> Http ()
 testConnectionSameTeam brig galley = do
@@ -563,28 +568,6 @@ assertNoInvitationCode brig t i =
 randomTeamId :: MonadIO m => m TeamId
 randomTeamId = Id <$> liftIO UUID.nextRandom
 
-createTeam :: UserId -> Galley -> Http TeamId
-createTeam u galley = do
-    tid <- randomId
-    r <- put ( galley
-              . paths ["i", "teams", toByteString' tid]
-              . contentJson
-              . zAuthAccess u "conn"
-              . expect2xx
-              . lbytes (encode newTeam)
-              )
-    maybe (error "invalid team id") return $
-        fromByteString $ getHeader' "Location" r
-
-addTeamMember :: Galley -> TeamId -> Team.NewTeamMember -> Http ()
-addTeamMember galley tid mem =
-    void $ post ( galley
-                . paths ["i", "teams", toByteString' tid, "members"]
-                . contentJson
-                . expect2xx
-                . lbytes (encode mem)
-                )
-
 getTeamMember :: UserId -> TeamId -> Galley -> Http Team.TeamMember
 getTeamMember u tid galley = do
     r <- get ( galley
@@ -655,6 +638,3 @@ updatePermissions from tid (to, perm) galley =
         ) !!! const 200 === statusCode
   where
     changeMember = Team.newNewTeamMember $ Team.newTeamMember to perm
-
-newTeam :: Team.BindingNewTeam
-newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")

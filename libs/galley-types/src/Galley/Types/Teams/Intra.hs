@@ -1,10 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module Galley.Types.Teams.Intra where
 
 import Data.Aeson
+import Data.Aeson.TH
 import Data.Json.Util
 import Data.Monoid
+import Data.Text (Text)
 import Data.Time (UTCTime)
 import Galley.Types.Teams (Team)
 
@@ -59,3 +62,8 @@ instance FromJSON TeamStatusUpdate where
 
 instance ToJSON TeamStatusUpdate where
     toJSON s = object ["status" .= tuStatus s]
+
+newtype TeamName = TeamName
+    { tnName :: Text }
+
+deriveJSON toJSONFieldName ''TeamName
