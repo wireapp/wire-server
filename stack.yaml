@@ -46,6 +46,7 @@ extra-deps:
 - aws-0.16
 - base58-bytestring-0.1.0
 - bloodhound-0.13.0.0
+- currency-codes-2.0.0.0
 - data-timeout-0.3
 - geoip2-0.2.2.0
 - html-entities-1.1.4.1
