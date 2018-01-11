@@ -34,6 +34,7 @@ library
       , bytestring            >= 0.9
       , bytestring-conversion >= 0.2
       , containers            >= 0.5
+      , currency-codes        >= 2.0
       , data-default          >= 0.5
       , gundeck-types         >= 1.15.13
       , lens                  >= 4.12

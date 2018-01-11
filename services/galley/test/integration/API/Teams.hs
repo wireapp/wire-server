@@ -27,6 +27,7 @@ import Test.Tasty.HUnit
 import API.SQS
 
 import qualified API.Util as Util
+import qualified Data.Currency as Currency
 import qualified Data.List1 as List1
 import qualified Data.Set as Set
 import qualified Data.Text as T
@@ -48,6 +49,7 @@ tests :: IO TestSetup -> TestTree
 tests s = testGroup "Teams API"
     [ test s "create team" testCreateTeam
     , test s "create multiple binding teams fail" testCreateMulitpleBindingTeams
+    , test s "create binding team with currency" testCreateBindingTeamWithCurrency
     , test s "create team with members" testCreateTeamWithMembers
     , test s "create 1-1 conversation between binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers
     , test s "create 1-1 conversation between binding team members" testCreateOne2OneWithMembers
@@ -106,6 +108,18 @@ testCreateMulitpleBindingTeams g b _ a = do
     owner' <- Util.randomUser b
     void $ Util.createTeam g "foo" owner' []
     void $ Util.createTeam g "foo" owner' []
+
+testCreateBindingTeamWithCurrency :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testCreateBindingTeamWithCurrency g b _ a = do
+    _owner <- Util.randomUser b
+    _      <- Util.createTeamInternal g "foo" _owner
+    -- Backwards compatible
+    assertQueue "create team" a (tActivateWithCurrency Nothing)
+
+    -- Ensure currency is properly journaled
+    _owner <- Util.randomUser b
+    _      <- Util.createTeamInternalWithCurrency g "foo" _owner Currency.USD
+    assertQueue "create team" a (tActivateWithCurrency $ Just Currency.USD)
 
 testCreateTeamWithMembers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testCreateTeamWithMembers g b c _ = do
@@ -715,7 +729,7 @@ testUpdateTeamStatus g b _ a = do
 
     void $ put ( g
                . paths ["i", "teams", toByteString' tid, "status"]
-               . json (TeamStatusUpdate Deleted)
+               . json (TeamStatusUpdate Deleted Nothing)
                ) !!! do
         const 403 === statusCode
         const "invalid-team-status-update" === (Error.label . Util.decodeBody' "error label")

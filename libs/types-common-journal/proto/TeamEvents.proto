@@ -10,8 +10,9 @@ message TeamEvent {
     optional EventData event_data = 4;
 
     message EventData {
-        required int32 member_count = 1;
-        repeated bytes billing_user = 2;
+        required int32  member_count = 1;
+        repeated bytes  billing_user = 2;
+        optional string currency     = 3; // ISO_4217
     }
 
     enum EventType {

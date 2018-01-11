@@ -61,7 +61,7 @@ runCommand l env c start = void $ C.runClient c $ do
     journalTeamActivate :: TeamId -> Maybe TeamCreationTime -> C.Client ()
     journalTeamActivate tid time = do
         mems <- Data.teamMembers tid
-        let dat = Journal.evData mems
+        let dat = Journal.evData mems Nothing
         publish tid TeamEvent'TEAM_ACTIVATE time (Just dat)
 
     publish :: TeamId -> TeamEvent'EventType -> Maybe TeamCreationTime -> Maybe TeamEvent'EventData -> C.Client ()

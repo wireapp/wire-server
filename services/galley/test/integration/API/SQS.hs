@@ -14,6 +14,7 @@ import Data.Foldable (for_)
 import Data.Id
 import Data.Int
 import Data.Monoid ((<>))
+import Data.Text (pack)
 import Safe (headDef)
 import Data.ByteString.Lazy (toStrict)
 import Data.ProtoLens.Encoding
@@ -27,6 +28,7 @@ import System.Logger.Class
 import Test.Tasty.HUnit
 
 import qualified Data.ByteString.Base64 as B64
+import qualified Data.Currency as Currency
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import qualified Galley.Aws as Aws
@@ -43,6 +45,15 @@ assertQueue _ Nothing _ = return ()
 assertQueueEmpty :: MonadIO m => Maybe Aws.Env -> m ()
 assertQueueEmpty (Just env) = liftIO $ Aws.execute env ensureNoMessages
 assertQueueEmpty Nothing = return ()
+
+tActivateWithCurrency :: Maybe Currency.Alpha -> String -> Maybe E.TeamEvent -> IO ()
+tActivateWithCurrency c l (Just e) = do
+    assertEqual (l <> ": eventType") E.TeamEvent'TEAM_ACTIVATE (e^.E.eventType)
+    assertEqual "count" 1 (e^.E.eventData^.E.memberCount)
+    -- NOTE: protobuf decodes absent, optional fields as (Just "")
+    let cur = maybe "" (pack . show) c
+    assertEqual "currency" (Just cur) (e^.E.eventData^?E.currency)
+tActivateWithCurrency _ l Nothing = assertFailure $ l <> ": Expected 1 TeamActivate, got nothing"
 
 tActivate :: String -> Maybe E.TeamEvent -> IO ()
 tActivate l (Just e) = do

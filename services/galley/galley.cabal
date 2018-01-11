@@ -67,6 +67,7 @@ library
       , cassandra-util          >= 0.16.2
       , cereal                  >= 0.4
       , containers              >= 0.5
+      , currency-codes          >= 2.0
       , enclosed-exceptions     >= 1.0
       , errors                  >= 2.0
       , safe-exceptions         >= 0.1
@@ -186,6 +187,7 @@ executable galley-integration
       , bytestring-conversion
       , cereal
       , containers
+      , currency-codes
       , data-default-class
       , data-timeout
       , errors

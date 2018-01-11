@@ -45,7 +45,7 @@ tests m b c g =
     return $ testGroup "team"
         [ testGroup "invitation"
             [ test m "post /teams/:tid/invitations - 201"                  $ testInvitationEmail b g
-            , test m "post /teams/:tid/invitations - 403 no permission"    $ testInvitationNoPermission b
+            , test m "post /teams/:tid/invitations - 403 no permission"    $ testInvitationNoPermission b g
             , test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b g
             , test m "post /register - 201 accepted"                       $ testInvitationEmailAccepted b g
             , test m "post /register user & team - 201 accepted"           $ testCreateTeam b g
@@ -74,9 +74,8 @@ tests m b c g =
 
 testUpdateEvents :: Brig -> Galley -> Cannon -> Http ()
 testUpdateEvents brig galley cannon = do
-    inviteeEmail  <- randomEmail
-    alice         <- userId <$> randomUser brig
-    tid           <- createTeam alice galley
+    (alice, tid) <- createUserWithTeam brig galley
+    inviteeEmail <- randomEmail
 
     -- invite and register Bob
     let invite  = InvitationRequest inviteeEmail (Name "Bob") Nothing
@@ -108,17 +107,15 @@ testUpdateEvents brig galley cannon = do
 
 testInvitationEmail :: Brig -> Galley -> Http ()
 testInvitationEmail brig galley = do
+    (inviter, tid) <- createUserWithTeam brig galley
     invitee <- randomEmail
-    inviter <- userId <$> randomUser brig
-    tid     <- createTeam inviter galley
     let invite = InvitationRequest invitee (Name "Bob") Nothing
     void $ postInvitation brig tid inviter invite
 
 -- TODO: Use max team size from options
 testInvitationTooManyPending :: Brig -> Galley -> Http ()
 testInvitationTooManyPending brig galley = do
-    inviter <- userId <$> randomUser brig
-    tid     <- createTeam inviter galley
+    (inviter, tid) <- createUserWithTeam brig galley
     emails  <- replicateConcurrently 128 randomEmail
     let invite e = InvitationRequest e (Name "Bob") Nothing
     mapM_ (mapConcurrently_ $ postInvitation brig tid inviter . invite) (chunksOf 16 emails)
@@ -129,9 +126,8 @@ testInvitationTooManyPending brig galley = do
 
 testInvitationEmailAccepted :: Brig -> Galley -> Http ()
 testInvitationEmailAccepted brig galley = do
+    (inviter, tid) <- createUserWithTeam brig galley
     inviteeEmail <- randomEmail
-    inviter <- userId <$> randomUser brig
-    tid     <- createTeam inviter galley
     let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
     Just inv <- decodeBody <$> postInvitation brig tid inviter invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
@@ -201,10 +197,10 @@ testCreateTeamPreverified brig galley = do
             let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
             postInvitation brig (team^.Team.teamId) uid invite !!! const 201 === statusCode
 
-testInvitationNoPermission :: Brig -> Http ()
-testInvitationNoPermission brig = do
+testInvitationNoPermission :: Brig -> Galley -> Http ()
+testInvitationNoPermission brig galley = do
+    (_, tid) <- createUserWithTeam brig galley
     alice <- userId <$> randomUser brig
-    tid   <- randomTeamId
     email <- randomEmail
     let invite = InvitationRequest email (Name "Bob") Nothing
     postInvitation brig tid alice invite !!! do
@@ -235,8 +231,7 @@ testTeamNoPassword brig = do
 testInvitationCodeExists :: Brig -> Galley -> Http ()
 testInvitationCodeExists brig galley = do
     email <- randomEmail
-    uid   <- userId <$> randomUser brig
-    tid   <- createTeam uid galley
+    (uid, tid) <- createUserWithTeam brig galley
     rsp   <- postInvitation brig tid uid (invite email) <!! const 201 === statusCode
 
     let Just invId = inInvitation <$> decodeBody rsp
@@ -307,13 +302,12 @@ testInvitationMutuallyExclusive brig = do
 
 testInvitationTooManyMembers :: Brig -> Galley -> Http ()
 testInvitationTooManyMembers brig galley = do
-    creator <- userId <$> randomUser brig
-    tid     <- createTeam creator galley
+    (creator, tid) <- createUserWithTeam brig galley
     uids    <- fmap toNewMember <$> replicateConcurrently 127 randomId
     mapM_ (mapConcurrently_ (addTeamMember galley tid)) $ chunksOf 16 uids
 
     em <- randomEmail
-    let invite  = InvitationRequest em (Name "Bob") Nothing
+    let invite = InvitationRequest em (Name "Bob") Nothing
     Just inv <- decodeBody <$> postInvitation brig tid creator invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     post (brig . path "/register"
@@ -325,12 +319,11 @@ testInvitationTooManyMembers brig galley = do
     toNewMember u = Team.newNewTeamMember $ Team.newTeamMember u Team.fullPermissions
 
 testInvitationPaging :: Brig -> Galley -> Http ()
-testInvitationPaging b g = do
-    u     <- userId <$> randomUser b
-    tid   <- createTeam u g
+testInvitationPaging brig galley = do
+    (u, tid) <- createUserWithTeam brig galley
     replicateM_ total $ do
         email <- randomEmail
-        postInvitation b tid u (invite email) !!! const 201 === statusCode
+        postInvitation brig tid u (invite email) !!! const 201 === statusCode
     foldM_ (next u tid 2) (0, Nothing) [2,2,1,0]
     foldM_ (next u tid total) (0, Nothing) [total,0]
   where
@@ -340,7 +333,7 @@ testInvitationPaging b g = do
     next u t step (count, start) n = do
         let count' = count + step
         let range = queryRange (toByteString' <$> start) (Just step)
-        r <- get (b . paths ["teams", toByteString' t, "invitations"] . zUser u . range) <!!
+        r <- get (brig . paths ["teams", toByteString' t, "invitations"] . zUser u . range) <!!
             const 200 === statusCode
         let (invs, more) = (fmap ilInvitations &&& fmap ilHasMore) $ decodeBody r
         liftIO $ assertEqual "page size" (Just n) (length <$> invs)
@@ -352,8 +345,7 @@ testInvitationPaging b g = do
 testInvitationInfo :: Brig -> Galley -> Http ()
 testInvitationInfo brig galley = do
     email    <- randomEmail
-    uid      <- userId <$> randomUser brig
-    tid      <- createTeam uid galley
+    (uid, tid) <- createUserWithTeam brig galley
     let invite = InvitationRequest email (Name "Bob") Nothing
     Just inv <- decodeBody <$> postInvitation brig tid uid invite
 
@@ -373,8 +365,7 @@ testSuspendTeam :: Brig -> Galley -> Http ()
 testSuspendTeam brig galley = do
     inviteeEmail  <- randomEmail
     inviteeEmail2 <- randomEmail
-    inviter       <- userId <$> randomUser brig
-    tid           <- createTeam inviter galley
+    (inviter, tid) <- createUserWithTeam brig galley
 
     -- invite and register invitee
     let invite  = InvitationRequest inviteeEmail (Name "Bob") Nothing
@@ -410,8 +401,7 @@ testSuspendTeam brig galley = do
 
 testDeleteTeamUser :: Brig -> Galley -> Http ()
 testDeleteTeamUser brig galley = do
-    creator <- userId <$> randomUser brig
-    tid     <- createTeam creator galley
+    (creator, tid) <- createUserWithTeam brig galley
     -- Cannot delete the user since it will make the team orphan
     deleteUser creator (Just defPassword) brig !!! do
         const 403 === statusCode
@@ -447,8 +437,7 @@ testDeleteTeamUser brig galley = do
 
 testConnectionSameTeam :: Brig -> Galley -> Http ()
 testConnectionSameTeam brig galley = do
-    creatorA <- userId <$> randomUser brig
-    tidA     <- createTeam creatorA galley
+    (creatorA, tidA) <- createUserWithTeam brig galley
     inviteeA <- userId <$> inviteAndRegisterUser creatorA tidA brig
 
     postConnection brig creatorA inviteeA !!! do
@@ -565,9 +554,6 @@ assertNoInvitationCode brig t i =
           const 400 === statusCode
           const (Just "invalid-invitation-code") === fmap Error.label . decodeBody
 
-randomTeamId :: MonadIO m => m TeamId
-randomTeamId = Id <$> liftIO UUID.nextRandom
-
 getTeamMember :: UserId -> TeamId -> Galley -> Http Team.TeamMember
 getTeamMember u tid galley = do
     r <- get ( galley
@@ -576,15 +562,6 @@ getTeamMember u tid galley = do
              . expect2xx
              )
     return $ fromMaybe (error "getTeamMember: failed to parse response") (decodeBody r)
-
-getTeams :: UserId -> Galley -> Http Team.TeamList
-getTeams u galley = do
-    r <- get ( galley
-             . paths ["teams"]
-             . zAuthAccess u "conn"
-             . expect2xx
-             )
-    return $ fromMaybe (error "getTeams: failed to parse response") (decodeBody r)
 
 accept :: Email -> InvitationCode -> RequestBody
 accept email code = RequestBodyLBS . encode $ object

@@ -44,6 +44,7 @@ library
       , bytestring            >= 0.9
       , bytestring-conversion >= 0.2
       , containers            >= 0.5
+      , currency-codes        >= 2.0
       , galley-types          >= 0.45.7
       , errors                >= 1.4
       , hashable

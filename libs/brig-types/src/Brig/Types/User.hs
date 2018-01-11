@@ -14,7 +14,7 @@ import Brig.Types.Common as C
 import Control.Applicative
 import Control.Monad ((<=<))
 import Data.Aeson
-import Data.Aeson.Types (Parser)
+import Data.Aeson.Types (Parser, Pair)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#))
@@ -27,6 +27,7 @@ import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
 
 import qualified Brig.Types.Code     as Code
+import qualified Data.Currency       as Currency
 import qualified Data.HashMap.Strict as HashMap
 
 -----------------------------------------------------------------------------
@@ -215,7 +216,7 @@ data NewUser = NewUser
     , newUserLabel          :: !(Maybe CookieLabel)
     , newUserLocale         :: !(Maybe Locale)
     , newUserPassword       :: !(Maybe PlainTextPassword)
-    , newUserTeam           :: !(Maybe NewUserTeam)
+    , newUserTeam           :: !(Maybe NewTeamUser)
     }
 
 newUserEmail :: NewUser -> Maybe Email
@@ -240,8 +241,8 @@ instance FromJSON NewUser where
           newUserTeamCode       <- o .:? "team_code"
           newUserNewTeam        <- o .:? "team"
           newUserTeam <- case (newUserTeamCode, newUserNewTeam, newUserPassword, newUserInvitationCode) of
-                (Just a,  Nothing, Just _, Nothing) -> return $ Just (NewUserTeam (Left a))
-                (Nothing, Just b , Just _, Nothing) -> return $ Just (NewUserTeam (Right b))
+                (Just a,  Nothing, Just _, Nothing) -> return $ Just (NewTeamMember a)
+                (Nothing, Just b , Just _, Nothing) -> return $ Just (NewTeamCreator b)
                 (Nothing, Nothing,      _,       _) -> return $ Nothing
                 _                                   -> fail "team_code, team, invitation_code are mutually exclusive \
                                                             \ and all team users must set a password on creation "
@@ -262,8 +263,12 @@ instance ToJSON NewUser where
         # "label"           .= newUserLabel u
         # "locale"          .= newUserLocale u
         # "password"        .= newUserPassword u
-        # maybe ("",Null) (either ("team_code" .= ) ("team" .=)) (nuTeam <$> newUserTeam u)
+        # maybe ("", Null) encodeNewTeamUser (newUserTeam u)
         # []
+
+encodeNewTeamUser :: NewTeamUser -> Pair
+encodeNewTeamUser (NewTeamMember m)  = "team_code" .= m
+encodeNewTeamUser (NewTeamCreator c) = "team" .= c
 
 parseIdentity :: FromJSON a => Object -> Parser (Maybe a)
 parseIdentity o = if isJust (HashMap.lookup "email" o <|> HashMap.lookup "phone" o)
@@ -275,7 +280,27 @@ newtype InvitationCode = InvitationCode
     { fromInvitationCode :: AsciiBase64Url }
     deriving (Eq, Show, FromJSON, ToJSON, ToByteString, FromByteString)
 
-newtype NewUserTeam = NewUserTeam { nuTeam :: Either InvitationCode BindingNewTeam}
+data BindingNewTeamUser = BindingNewTeamUser
+    { bnuTeam     :: !BindingNewTeam
+    , bnuCurrency :: !(Maybe Currency.Alpha)
+    -- TODO: Remove Currency selection once billing supports currency changes after team creation
+    }
+
+instance FromJSON BindingNewTeamUser where
+    parseJSON j@(Object o) = do
+        c <- o .:? "currency"
+        t <- parseJSON j
+        return $ BindingNewTeamUser t c
+    parseJSON _ = fail "parseJSON BindingNewTeamUser: must be an object"
+
+instance ToJSON BindingNewTeamUser where
+    toJSON (BindingNewTeamUser t c) = do
+        let (Object t') = toJSON t
+         in object $ "currency" .= c
+                   # HashMap.toList t'
+
+data NewTeamUser = NewTeamMember  !InvitationCode
+                 | NewTeamCreator !BindingNewTeamUser
 
 -----------------------------------------------------------------------------
 -- Profile Updates

@@ -110,6 +110,7 @@ import qualified Brig.IO.Intra              as Intra
 import qualified Brig.Types.Team.Invitation as Team
 import qualified Brig.Team.DB               as Team
 import qualified Brig.Team.Util             as Team
+import qualified Data.Currency              as Currency
 import qualified Data.Map.Strict            as Map
 import qualified Galley.Types.Teams         as Team
 import qualified Galley.Types.Teams.Intra   as Team
@@ -145,7 +146,7 @@ createUser new@NewUser{..} = do
 
     -- Look for an invitation, if a code is given
     invitation <- maybe (return Nothing) (findInvitation emKey phKey) newUserInvitationCode
-    (newTeam, teamInvitation) <- handleTeam (nuTeam <$> newUserTeam) emKey
+    (newTeam, teamInvitation) <- handleTeam newUserTeam emKey
 
     -- team members are by default not searchable
     let searchable = SearchableStatus $ case (newTeam, teamInvitation) of
@@ -162,7 +163,7 @@ createUser new@NewUser{..} = do
         Intra.createSelfConv uid
         Intra.onUserEvent uid Nothing (UserCreated account)
         -- If newUserEmailCode is set, team gets activated _now_ else createUser fails
-        fmap join . for newTeam $ createTeam uid (isJust newUserEmailCode)
+        fmap join . for newTeam $ createTeam uid (isJust newUserEmailCode) . bnuTeam
 
     (emailInvited, phoneInvited) <- case invitation of
         Just (inv, invInfo) -> case inIdentity inv of
@@ -195,7 +196,7 @@ createUser new@NewUser{..} = do
                     return $ Just edata
                 Just c -> do
                     ak <- liftIO $ Data.mkActivationKey ek
-                    void $ activate (ActivateKey ak) c (Just uid) !>> EmailActivationError
+                    void $ activateWithCurrency (ActivateKey ak) c (Just uid) (join (bnuCurrency <$> newTeam)) !>> EmailActivationError
                     return Nothing
 
     -- Handle phone activation
@@ -227,9 +228,9 @@ createUser new@NewUser{..} = do
                     then Just created
                     else Nothing
 
-    handleTeam (Just (Left i))  e = (Nothing, ) <$> findTeamInvitation e i
-    handleTeam (Just (Right t)) _ = return (Just t, Nothing)
-    handleTeam Nothing          _ = return (Nothing, Nothing)
+    handleTeam (Just (NewTeamMember i))  e = (Nothing, ) <$> findTeamInvitation e i
+    handleTeam (Just (NewTeamCreator t)) _ = return (Just t, Nothing)
+    handleTeam Nothing                   _ = return (Nothing, Nothing)
 
     findInvitation :: Maybe UserKey -> Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe (Invitation, InvitationInfo))
     findInvitation Nothing Nothing _ = throwE MissingIdentity
@@ -467,15 +468,16 @@ activate :: ActivationTarget
          -> ActivationCode
          -> Maybe UserId -- ^ The user for whom to activate the key.
          -> ExceptT ActivationError AppIO ActivationResult
-activate tgt code usr = do
-    key <- mkActivationKey tgt
-    activateKey key code usr
+activate tgt code usr = activateWithCurrency tgt code usr Nothing
 
-activateKey :: ActivationKey
-         -> ActivationCode
-         -> Maybe UserId -- ^ The user for whom to activate the key.
-         -> ExceptT ActivationError AppIO ActivationResult
-activateKey key code usr = do
+activateWithCurrency :: ActivationTarget
+                     -> ActivationCode
+                     -> Maybe UserId         -- ^ The user for whom to activate the key.
+                     -> Maybe Currency.Alpha -- ^ Potential currency update.
+                     -- ^ TODO: to be removed once billing supports currency changes after team creation
+                     -> ExceptT ActivationError AppIO ActivationResult
+activateWithCurrency tgt code usr cur = do
+    key <- mkActivationKey tgt
     Log.info $ field "activation.key"  (toByteString key)
              . field "activation.code" (toByteString code)
              . msg (val "Activating")
@@ -483,32 +485,32 @@ activateKey key code usr = do
     case event of
         Nothing -> return ActivationPass
         Just  e -> do
-            (ident, first) <- lift $ onActivated e
+            (uid, ident, first) <- lift $ onActivated e
+            when first $
+                lift $ activateTeam uid
             return $ ActivationSuccess ident first
+  where
+    activateTeam uid = do
+        tid <- Intra.getTeamId uid
+        for_ tid $ \t -> Intra.changeTeamStatus t Team.Active cur
 
 preverify :: ActivationTarget -> ActivationCode -> ExceptT ActivationError AppIO ()
 preverify tgt code = do
     key <- mkActivationKey tgt
     void $ Data.verifyCode key code
 
-onActivated :: ActivationEvent -> AppIO (Maybe UserIdentity, Bool)
+onActivated :: ActivationEvent -> AppIO (UserId, Maybe UserIdentity, Bool)
 onActivated (AccountActivated account) = do
     let uid = userId (accountUser account)
     Log.info $ field "user" (toByteString uid) . msg (val "User activated")
     Intra.onUserEvent uid Nothing $ UserActivated account
-    activateTeam uid
-    return (userIdentity (accountUser account), True)
+    return (uid, userIdentity (accountUser account), True)
 onActivated (EmailActivated uid email) = do
     Intra.onUserEvent uid Nothing (emailUpdated uid email)
-    return (Just (EmailIdentity email), False)
+    return (uid, Just (EmailIdentity email), False)
 onActivated (PhoneActivated uid phone) = do
     Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
-    return (Just (PhoneIdentity phone), False)
-
-activateTeam :: UserId -> AppIO ()
-activateTeam uid = do
-    tid <- Intra.getTeamId uid
-    for_ tid $ flip Intra.changeTeamStatus Team.Active
+    return (uid, Just (PhoneIdentity phone), False)
 
 sendActivationCode :: Either Email Phone -> Maybe Locale -> Bool -> ExceptT SendActivationCodeError AppIO ()
 sendActivationCode emailOrPhone loc call = case emailOrPhone of
