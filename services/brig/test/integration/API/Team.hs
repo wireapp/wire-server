@@ -13,6 +13,7 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
+import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently_, replicateConcurrently)
 import Control.Lens ((^.), (^?), view)
 import Control.Monad
@@ -59,6 +60,7 @@ tests m b c g =
             , test m "get /teams/:tid/invitations - 200 (paging)"          $ testInvitationPaging b g
             , test m "get /teams/:tid/invitations/info - 200"              $ testInvitationInfo b g
             , test m "get /teams/:tid/invitations/info - 400"              $ testInvitationInfoBadCode b
+            , test m "get /teams/:tid/invitations/info - 400 expired"      $ testInvitationInfoExpired b g
             , test m "post /i/teams/:tid/suspend - 200"                    $ testSuspendTeam b g
             , test m "put /self - 200 update events"                       $ testUpdateEvents b g c
             , test m "delete /self - 200 (ensure no orphan teams)"         $ testDeleteTeamUser b g
@@ -360,6 +362,30 @@ testInvitationInfoBadCode brig = do
     let icode = "8z6JVcO1o4o%C2%BF9kFeb4Y3N-BmhIjH6b33"
     get (brig . path ("/teams/invitations/info?code=" <> icode)) !!!
         const 400 === statusCode
+
+testInvitationInfoExpired :: Brig -> Galley -> Http ()
+testInvitationInfoExpired brig galley = do
+    email      <- randomEmail
+    (uid, tid) <- createUserWithTeam brig galley
+    let invite = InvitationRequest email (Name "Bob") Nothing
+    Just inv <- decodeBody <$> postInvitation brig tid uid invite
+    -- Note: This value must be larger than BRIG_TEAM_INVITATION_TIMEOUT
+    awaitExpiry 10 tid (inInvitation inv)
+    getCode tid (inInvitation inv) !!! const 400 === statusCode
+  where
+    getCode t i =
+        get ( brig
+            . path "/i/teams/invitation-code"
+            . queryItem "team" (toByteString' t)
+            . queryItem "invitation_id" (toByteString' i)
+            )
+
+    awaitExpiry :: Int -> TeamId -> InvitationId -> Http ()
+    awaitExpiry n t i = do
+        liftIO $ threadDelay 1000000
+        r <- getCode t i
+        when (statusCode r == 200 && n > 0) $
+            awaitExpiry (n-1) t i
 
 testSuspendTeam :: Brig -> Galley -> Http ()
 testSuspendTeam brig galley = do

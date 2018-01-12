@@ -66,7 +66,7 @@ import Brig.Data.Activation (ActivationEvent (..))
 import Brig.Data.Invitation (InvitationInfo (..))
 import Brig.Data.User hiding (updateSearchableStatus)
 import Brig.Data.UserKey
-import Brig.Options
+import Brig.Options hiding (Timeout)
 import Brig.Password
 import Brig.Types
 import Brig.Types.Code (Timeout (..))

@@ -35,14 +35,14 @@ import qualified Data.Yaml             as Y
 import qualified Ropes.Aws             as Aws
 import qualified Brig.ZAuth            as ZAuth
 
-newtype ActivationTimeout = ActivationTimeout
-    { activationTimeoutDiff :: DiffTime
+newtype Timeout = Timeout
+    { timeoutDiff :: DiffTime
     } deriving (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
 
-instance Read ActivationTimeout where
+instance Read Timeout where
     readsPrec i s =
         case readsPrec i s of
-            [(x, s')] -> [(ActivationTimeout (secondsToDiffTime x), s')]
+            [(x, s')] -> [(Timeout (secondsToDiffTime x), s')]
             _ -> []
 
 data ElasticSearchOpts = ElasticSearchOpts
@@ -158,28 +158,29 @@ data Opts = Opts
 
 -- | Options that persist as runtime settings.
 data Settings = Settings
-    { setActivationTimeout  :: !ActivationTimeout
-    , setTwilioSID          :: !Text
-    , setTwilioToken        :: !Text
-    , setNexmoKey           :: !Text
-    , setNexmoSecret        :: !Text
-    , setWhitelist          :: !(Maybe Whitelist)
-    , setUserMaxConnections :: !Int64
-    , setCookieDomain       :: !Text
-    , setCookieInsecure     :: !Bool
-    , setUserCookieRenewAge :: !Integer
-    , setUserCookieLimit    :: !Int
-    , setUserCookieThrottle :: !CookieThrottle
-    , setDefaultLocale      :: !Locale
-    , setMaxTeamSize        :: !Int -- NOTE: This must be in sync with galley
+    { setActivationTimeout     :: !Timeout
+    , setTeamInvitationTimeout :: !Timeout
+    , setTwilioSID             :: !Text
+    , setTwilioToken           :: !Text
+    , setNexmoKey              :: !Text
+    , setNexmoSecret           :: !Text
+    , setWhitelist             :: !(Maybe Whitelist)
+    , setUserMaxConnections    :: !Int64
+    , setCookieDomain          :: !Text
+    , setCookieInsecure        :: !Bool
+    , setUserCookieRenewAge    :: !Integer
+    , setUserCookieLimit       :: !Int
+    , setUserCookieThrottle    :: !CookieThrottle
+    , setDefaultLocale         :: !Locale
+    , setMaxTeamSize           :: !Int -- NOTE: This must be in sync with galley
     } deriving (Show, Generic)
 
-instance FromJSON ActivationTimeout where
+instance FromJSON Timeout where
     parseJSON (Y.Number n) =
         let defaultV = 3600
             bounded = toBoundedInteger n :: Maybe Int64
         in pure $
-           ActivationTimeout $
+           Timeout $
            secondsToDiffTime $ maybe defaultV fromIntegral bounded
     parseJSON v = typeMismatch "activationTimeout" v
 
@@ -341,8 +342,12 @@ settingsParser =
     Settings <$>
     (option auto $
      long "activation-timeout" <> metavar "SECONDS" <>
-     value (ActivationTimeout (secondsToDiffTime 3600)) <>
+     value (Timeout (secondsToDiffTime 3600)) <>
      help "Activation timeout in seconds") <*>
+    (option auto $
+     long "team-invitation-timeout" <> metavar "SECONDS" <>
+     value (Timeout (secondsToDiffTime 3600)) <>
+     help "Team invitation timeout in seconds") <*>
     (textOption $ long "twilio-sid" <> metavar "STRING" <> help "Twilio SID") <*>
     (textOption $
      long "twilio-token" <> metavar "STRING" <> help "Twilio API token") <*>
