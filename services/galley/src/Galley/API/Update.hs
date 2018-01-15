@@ -57,6 +57,7 @@ import Galley.Data.Services as Data
 import Galley.Data.Types
 import Galley.Intra.Push
 import Galley.Intra.User
+import Galley.Options
 import Galley.Types
 import Galley.Types.Bot
 import Galley.Types.Clients (Clients)
@@ -73,6 +74,7 @@ import qualified Data.Set             as Set
 import qualified Galley.Data          as Data
 import qualified Galley.Data.Types    as Data
 import qualified Galley.External      as External
+import qualified Galley.Intra.Client  as Intra
 import qualified Galley.Types.Clients as Clients
 import qualified Galley.Types.Proto   as Proto
 import qualified Galley.API.Teams     as Teams
@@ -451,7 +453,11 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
     tMembers <- fmap (view userId) <$> Data.teamMembers tid
     contacts <- getContactList usr
     let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
-    clts <- Data.lookupClients users
+    isInternal <- view $ options . optSettings . setIntraListing
+    clts <- if isInternal then
+              Clients.fromUserClients <$> Intra.lookupClients users
+            else
+              Data.lookupClients users
     let membs = Data.newMember <$> users
     handleOtrResponse usr clt rcps membs clts val now go
 

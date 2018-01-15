@@ -175,7 +175,7 @@ data NewOtrMessage = NewOtrMessage
 
 newtype UserClients = UserClients
     { userClients :: Map UserId (Set ClientId)
-    } deriving (Eq, Show)
+    } deriving (Eq, Show, Monoid)
 
 data ClientMismatch = ClientMismatch
     { cmismatchTime    :: !UTCTime
