@@ -13,7 +13,7 @@ import Brig.API.Handler
 import Brig.API.User (fetchUserIdentity)
 import Brig.Data.UserKey (userEmailKey)
 import Brig.Email
-import Brig.Options (setMaxTeamSize)
+import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import Brig.Team.Email
 import Brig.Types.Team.Invitation
 import Brig.Types.User (InvitationCode, emailIdentity)
@@ -187,8 +187,9 @@ createInvitation (_ ::: uid ::: _ ::: tid ::: req) = do
         Nothing -> doInvite email from (irLocale body)
   where
     doInvite to from lc = lift $ do
-        now  <- liftIO =<< view currentTime
-        (newInv, code) <- DB.insertInvitation tid to now
+        now     <- liftIO =<< view currentTime
+        timeout <- setTeamInvitationTimeout <$> view settings
+        (newInv, code) <- DB.insertInvitation tid to now timeout
         void $ sendInvitationMail to tid from code lc
         return . setStatus status201 . loc (inInvitation newInv) $ json newInv
 

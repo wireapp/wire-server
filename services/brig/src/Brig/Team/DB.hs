@@ -24,6 +24,7 @@ module Brig.Team.DB
 
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
+import Brig.Options
 import Brig.Types.Common
 import Brig.Types.User
 import Brig.Types.Team.Invitation
@@ -53,23 +54,28 @@ data InvitationInfo = InvitationInfo
     , iiInvId   :: InvitationId
     } deriving (Eq, Show)
 
-insertInvitation :: MonadClient m => TeamId -> Email -> UTCTime -> m (Invitation, InvitationCode)
-insertInvitation t email now = do
+insertInvitation :: MonadClient m
+                 => TeamId
+                 -> Email
+                 -> UTCTime
+                 -> Timeout -- ^ The timeout for the invitation code.
+                 -> m (Invitation, InvitationCode)
+insertInvitation t email now timeout = do
     iid  <- liftIO mkInvitationId
     code <- liftIO mkInvitationCode
     let inv = Invitation t iid email now
     retry x5 $ batch $ do
         setType BatchLogged
         setConsistency Quorum
-        addPrepQuery cqlInvitation (t, iid, code, email, now)
-        addPrepQuery cqlInvitationInfo (code, t, iid)
+        addPrepQuery cqlInvitation (t, iid, code, email, now, round timeout)
+        addPrepQuery cqlInvitationInfo (code, t, iid, round timeout)
     return (inv, code)
   where
-    cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId) ()
-    cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?)"
+    cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
+    cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?"
 
-    cqlInvitation :: PrepQuery W (TeamId, InvitationId, InvitationCode, Email, UTCTime) ()
-    cqlInvitation = "INSERT INTO team_invitation (team, id, code, email, created_at) VALUES (?, ?, ?, ?, ?)"
+    cqlInvitation :: PrepQuery W (TeamId, InvitationId, InvitationCode, Email, UTCTime, Int32) ()
+    cqlInvitation = "INSERT INTO team_invitation (team, id, code, email, created_at) VALUES (?, ?, ?, ?, ?) USING TTL ?"
 
 lookupInvitation :: MonadClient m => TeamId -> InvitationId -> m (Maybe Invitation)
 lookupInvitation t r = fmap toInvitation <$>

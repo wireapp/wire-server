@@ -72,6 +72,7 @@ turn:
 
 optSettings:
   setActivationTimeout: 5
+  setTeamInvitationTimeout: 5
   setTwilioSID: <insert-twilio-sid-here>     # TODO: Read from a file instead
   setTwilioToken: <insert-twilio-token-here> # TODO: Read from a file instead
   setNexmoKey: <insert-nexmo-key-here>       # TODO: Read from a file instead
