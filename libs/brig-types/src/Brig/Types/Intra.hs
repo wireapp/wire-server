@@ -94,20 +94,21 @@ instance ToJSON UserAccount where
         in Object $ M.insert "status" (toJSON s) o
 
 -------------------------------------------------------------------------------
--- AutoConnect
+-- UserList
 
--- | List of users to establish a 2-way accepted connection for a given user
-data AutoConnect = AutoConnect
-    { acUsrs :: !(Set UserId)
+-- | Set of user ids, can be used for different purposes (e.g., used on the internal
+-- APIs for auto-connections, listing user's clients)
+data UserSet = UserSet
+    { usUsrs :: !(Set UserId)
     } deriving (Eq, Show)
 
-instance FromJSON AutoConnect where
-    parseJSON = withObject "auto-connect" $ \o ->
-        AutoConnect <$> o .: "users"
+instance FromJSON UserSet where
+    parseJSON = withObject "user-set" $ \o ->
+        UserSet <$> o .: "users"
 
-instance ToJSON AutoConnect where
+instance ToJSON UserSet where
     toJSON ac = object
-        [ "users" .= acUsrs ac
+        [ "users" .= usUsrs ac
         ]
 
 -------------------------------------------------------------------------------

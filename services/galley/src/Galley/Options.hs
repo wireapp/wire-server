@@ -115,12 +115,9 @@ optsParser = Opts <$>
                 <> help "Max. # of members in a team."
                 <> value 128)
         <*>
-            (option auto $
-                long "intra-listing"
-                <> metavar "BOOL"
-                <> showDefault
-                <> help "Fetch client list through Brig."
-                <> value False)
+            (switch $
+                long "intra-device-listing"
+                <> help "Use this option if you want to fetch the device list from brig instead.")
 
 journalOptsParser :: Parser JournalOpts
 journalOptsParser = JournalOpts

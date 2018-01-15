@@ -18,6 +18,7 @@ import Data.Id
 import Data.Int
 import Data.List ((\\), find)
 import Data.List1
+import Data.Misc
 import Data.Maybe
 import Data.Monoid
 import Galley.Types
@@ -174,7 +175,7 @@ postCryptoMessage1 g b c = do
 
     -- Deleted eve
     WS.bracketR2 c bob eve $ \(wsB, wsE) -> do
-        deleteClient g eve ec !!! const 200 === statusCode
+        deleteClient b eve ec (Just $ PlainTextPassword defPassword) !!! const 200 === statusCode
         let m4 = [(bob, bc, "ciphertext4"), (eve, ec, "ciphertext4")]
         postOtrMessage id g alice ac conv m4 !!! do
             const 201 === statusCode

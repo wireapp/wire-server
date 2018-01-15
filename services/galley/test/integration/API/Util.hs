@@ -297,8 +297,8 @@ postJoinConv g u c = post $ g
     . zConn "conn"
     . zType "access"
 
-deleteClient :: Galley -> UserId -> ClientId -> Http ResponseLBS
-deleteClient g u c = delete $ g
+deleteClientInternal :: Galley -> UserId -> ClientId -> Http ResponseLBS
+deleteClientInternal g u c = delete $ g
     . zUser u
     . zConn "conn"
     . paths ["i", "clients", toByteString' c]
@@ -479,6 +479,19 @@ ensureDeletedState b check from u =
         . zUser from
         . zConn "conn"
         ) !!! const (Just check) === fmap profileDeleted . decodeBody
+
+-- TODO: Refactor, as used also in brig
+deleteClient :: Brig -> UserId -> ClientId -> Maybe PlainTextPassword -> Http ResponseLBS
+deleteClient b u c pw = delete $ b
+    . paths ["clients", toByteString' c]
+    . zUser u
+    . zConn "conn"
+    . contentJson
+    . body payload
+  where
+    payload = RequestBodyLBS . encode $ object
+        [ "password" .= pw
+        ]
 
 -- TODO: Refactor, as used also in brig
 isUserDeleted :: Brig -> UserId -> Http Bool

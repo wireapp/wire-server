@@ -176,7 +176,7 @@ sitemap o = do
     post "/i/users/blacklist" (continue addBlacklist) $
         param "email" ||| param "phone"
 
-    post "/i/clients/" (continue internalListClients) $
+    post "/i/clients" (continue internalListClients) $
       accept "application" "json"
       .&. contentType "application" "json"
       .&. request
@@ -1073,10 +1073,11 @@ listClients (usr ::: _) = json <$> lift (API.lookupClients usr)
 
 internalListClients :: JSON ::: JSON ::: Request -> Handler Response
 internalListClients (_ ::: _ ::: req) = do
-  usrs' <- List <$> parseJsonBody req
-  json <$> lift (userClients usrs')
-    where userClient user = liftM2 (,) (return user) (Set.fromList <$> API.lookupClientIds user)
-          userClients usrs = UserClients . Map.fromList <$> mapM userClient (fromList usrs)
+    UserSet usrs <- parseJsonBody req
+    json <$> lift (userClients usrs)
+  where
+    userClient user  = liftM2 (,) (return user) (Set.fromList <$> API.lookupClientIds user)
+    userClients usrs = UserClients . Map.fromList <$> mapM userClient (Set.toList usrs)
 
 getClient :: UserId ::: ClientId ::: JSON -> Handler Response
 getClient (usr ::: clt ::: _) = lift $ do
@@ -1101,7 +1102,7 @@ listPrekeyIds (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
 
 autoConnect :: JSON ::: JSON ::: UserId ::: Maybe ConnId ::: Request -> Handler Response
 autoConnect(_ ::: _ ::: uid ::: conn ::: req) = do
-    AutoConnect to <- parseJsonBody req
+    UserSet to <- parseJsonBody req
     let num = Set.size to
     when (num < 1) $
         throwStd $ badRequest "No users given for auto-connect."
