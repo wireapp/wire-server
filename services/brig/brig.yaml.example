@@ -76,7 +76,6 @@ optSettings:
   setTwilioToken: <insert-twilio-token-here> # TODO: Read from a file instead
   setNexmoKey: <insert-nexmo-key-here>       # TODO: Read from a file instead
   setNexmoSecret: <insert-nexmo-secret-here> # TODO: Read from a file instead
-  setNexmoEndpoint: sandbox
   setTwilioEndpoint: sandbox
   setUserMaxConnections: 129
   setCookieDomain: 127.0.0.1

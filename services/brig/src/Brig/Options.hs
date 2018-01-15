@@ -33,7 +33,6 @@ import Util.Options.Common
 import qualified Data.Text             as T
 import qualified Data.Yaml             as Y
 import qualified Ropes.Aws             as Aws
-import qualified Ropes.Nexmo           as Nexmo
 import qualified Brig.ZAuth            as ZAuth
 
 newtype ActivationTimeout = ActivationTimeout
@@ -164,7 +163,6 @@ data Settings = Settings
     , setTwilioToken        :: !Text
     , setNexmoKey           :: !Text
     , setNexmoSecret        :: !Text
-    , setNexmoEndpoint      :: !Nexmo.ApiEndpoint
     , setWhitelist          :: !(Maybe Whitelist)
     , setUserMaxConnections :: !Int64
     , setCookieDomain       :: !Text
@@ -351,10 +349,6 @@ settingsParser =
     (textOption $ long "nexmo-key" <> metavar "STRING" <> help "Nexmo API key") <*>
     (textOption $
      long "nexmo-secret" <> metavar "STRING" <> help "Nexmo API secret") <*>
-    (option toNexmoEndpoint $
-     long "nexmo-endpoint" <> value Nexmo.Production <> metavar "STRING" <>
-     showDefaultWith (const "production") <>
-     help "Nexmo API environment: sandbox | production") <*>
     (optional $
      Whitelist <$>
      (textOption $
@@ -418,14 +412,6 @@ emailOption =
         (fromMaybe (error "Ensure proper email address is used") .
          parseEmail . T.pack) .
     strOption
-
-toNexmoEndpoint :: ReadM Nexmo.ApiEndpoint
-toNexmoEndpoint =
-    readerAsk >>= \s ->
-        case s of
-            "production" -> return Nexmo.Production
-            "sandbox" -> return Nexmo.Sandbox
-            other -> readerError $ "Unsupported Nexmo environment: " <> other
 
 requestUrl :: ReadM Request
 requestUrl = readerAsk >>=
