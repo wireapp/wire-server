@@ -150,6 +150,7 @@ library
       , safe                      >= 0.3
       , scientific                >= 0.3.4
       , scrypt                    >= 0.5
+      , split                     >= 0.2
       , semigroups                >= 0.15
       , singletons                >= 2.0
       , random-shuffle            >= 0.0.3

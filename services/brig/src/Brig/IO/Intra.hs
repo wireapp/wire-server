@@ -66,7 +66,7 @@ import Data.Foldable (toList, for_)
 import Data.Id
 import Data.Json.Util ((#))
 import Data.List1 (List1, list1, singleton)
-import Data.List.Extra (chunksOf)
+import Data.List.Split (chunksOf)
 import Data.Maybe (isJust, mapMaybe)
 import Data.Range
 import Data.Text (Text)
