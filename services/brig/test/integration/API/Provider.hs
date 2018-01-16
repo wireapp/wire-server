@@ -271,18 +271,20 @@ testUpdateService config db brig = do
     let pid = providerId prv
     _svc <- addGetService brig pid =<< defNewService config
     let sid = serviceId _svc
-    let newTags   = Set.fromList [QuizTag, EducationTag]
-    let newName   = Name "x"
-    let newDescr  = "y"
-    let newAssets = [] -- TODO
-    -- Excercise all updateable attributes
+    let newTags    = Set.fromList [QuizTag, EducationTag]
+    let newName    = Name "x"
+    let newSummary = "short"
+    let newDescr   = "looooooooooooong"
+    let newAssets  = [] -- TODO
+    -- Exercise all updateable attributes
     let upd = UpdateService
-            { updateServiceName   = Just newName
-            , updateServiceDescr  = Just newDescr
-            , updateServiceAssets = Just newAssets
-            , updateServiceTags   = Just (unsafeRange newTags)
+            { updateServiceName    = Just newName
+            , updateServiceSummary = Just (unsafeRange newSummary)
+            , updateServiceDescr   = Just (unsafeRange newDescr)
+            , updateServiceAssets  = Just newAssets
+            , updateServiceTags    = Just (unsafeRange newTags)
             }
-    updateService brig pid sid upd !!!  const 200 === statusCode
+    updateService brig pid sid upd !!! const 200 === statusCode
     _rs <- getService brig pid sid <!! const 200 === statusCode
     let Just _svc = decodeBody _rs
     liftIO $ do
@@ -838,13 +840,14 @@ defNewService :: MonadIO m => Maybe Config -> m NewService
 defNewService config = liftIO $ do
     key <- join $ optOrEnv (readServiceKey . publicKey) config readServiceKey "TEST_PUBKEY"
     return NewService
-        { newServiceName   = defServiceName
-        , newServiceDescr  = defServiceDescr
-        , newServiceUrl    = defServiceUrl
-        , newServiceKey    = key
-        , newServiceToken  = Nothing
-        , newServiceAssets = defServiceAssets
-        , newServiceTags   = defServiceTags
+        { newServiceName    = defServiceName
+        , newServiceSummary = unsafeRange defProviderSummary
+        , newServiceDescr   = unsafeRange defServiceDescr
+        , newServiceUrl     = defServiceUrl
+        , newServiceKey     = key
+        , newServiceToken   = Nothing
+        , newServiceAssets  = defServiceAssets
+        , newServiceTags    = defServiceTags
         }
 
 defNewProvider :: Email -> NewProvider
@@ -853,7 +856,7 @@ defNewProvider email = NewProvider
     , newProviderPassword = Just defProviderPassword
     , newProviderName     = defProviderName
     , newProviderUrl      = defProviderUrl
-    , newProviderDescr    = defProviderDescr
+    , newProviderDescr    = unsafeRange defProviderDescr
     }
 
 defProviderUrl :: HttpsUrl
@@ -862,8 +865,11 @@ defProviderUrl = fromJust (fromByteString "https://localhost/")
 defProviderName :: Name
 defProviderName = Name "Integration Test Provider"
 
+defProviderSummary :: Text
+defProviderSummary = "A short summary of the integration test provider"
+
 defProviderDescr :: Text
-defProviderDescr = "An integration test provider"
+defProviderDescr = "A long description of an integration test provider"
 
 defProviderPassword :: PlainTextPassword
 defProviderPassword = PlainTextPassword "password"

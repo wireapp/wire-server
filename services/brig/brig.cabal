@@ -250,6 +250,7 @@ executable brig-schema
         V43
         V44
         V45
+        V46
 
     build-depends:
         base

@@ -277,7 +277,7 @@ newAccount req = do
 
     let name  = newProviderName new
     let pass  = newProviderPassword new
-    let descr = newProviderDescr new
+    let descr = fromRange (newProviderDescr new)
     let url   = newProviderUrl new
 
     let emailKey = mkEmailKey email
@@ -371,7 +371,8 @@ addService (pid ::: req) = do
     _   <- DB.lookupAccount pid >>= maybeInvalidProvider
 
     let name    = newServiceName new
-    let descr   = newServiceDescr new
+    let summary = fromRange (newServiceSummary new)
+    let descr   = fromRange (newServiceDescr new)
     let baseUrl = newServiceUrl new
     let pubkey  = newServiceKey new
     let assets  = newServiceAssets new
@@ -379,7 +380,7 @@ addService (pid ::: req) = do
 
     (pk, fp) <- validateServiceKey pubkey >>= maybeInvalidServiceKey
     token    <- maybe randServiceToken return (newServiceToken new)
-    sid      <- DB.insertService pid name descr baseUrl token pk fp assets tags
+    sid      <- DB.insertService pid name summary descr baseUrl token pk fp assets tags
 
     let rstoken = maybe (Just token) (const Nothing) (newServiceToken new)
     return $ setStatus status201
@@ -400,11 +401,12 @@ updateService (pid ::: sid ::: req) = do
 
     -- Update service profile
     svc <- DB.lookupService pid sid >>= maybeServiceNotFound
-    let newName   = updateServiceName upd
-    let newDescr  = updateServiceDescr upd
-    let newAssets = updateServiceAssets upd
-    let newTags   = updateServiceTags upd
-    DB.updateService pid sid newName newDescr newAssets newTags
+    let newName    = updateServiceName upd
+    let newSummary = fromRange <$> updateServiceSummary upd
+    let newDescr   = fromRange <$> updateServiceDescr upd
+    let newAssets  = updateServiceAssets upd
+    let newTags    = updateServiceTags upd
+    DB.updateService pid sid newName newSummary newDescr newAssets newTags
 
     -- Update tag index
     let name  = serviceName svc
