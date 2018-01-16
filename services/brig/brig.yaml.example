@@ -53,6 +53,8 @@ emailSMS:
   team:
     tInvitationUrl: http://127.0.0.1:8080/register?team=\${team}\&team_code=\${code}
     tActivationUrl: http://127.0.0.1:8080/register?team=\${team}\&team_code=\${code}
+    tCreatorWelcomeUrl: http://127.0.0.1:8080/creator-welcome-website
+    tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
 
 zauth:
   privateKeys: test/resources/zauth/privkeys.txt
@@ -87,3 +89,4 @@ optSettings:
     stdDev: 5
     retryAfter: 1
   setDefaultLocale: en
+  setMaxTeamSize: 128
