@@ -52,6 +52,11 @@ else
     TURN_CONFIG_TTL=""
 fi
 
+if [ -n "$BRIG_PROVIDER_ID_SEARCH_FILTER" ]; then
+    PROVIDER_ID_SEARCH_FILTER="--provider-id-search-filter=$BRIG_PROVIDER_ID_SEARCH_FILTER"
+else
+    PROVIDER_ID_SEARCH_FILTER=""
+fi
 
 cd $HOME
 
@@ -120,5 +125,5 @@ exec chpst -u $USER \
     ${GEOIP_DB} \
     ${WHITELIST_URL} \
     ${WHITELIST_USER} \
-    ${WHITELIST_PASS}
-
+    ${WHITELIST_PASS} \
+    ${BRIG_PROVIDER_ID_SEARCH_FILTER}

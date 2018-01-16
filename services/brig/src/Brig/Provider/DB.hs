@@ -407,15 +407,25 @@ paginateServiceTags :: MonadClient m
     => QueryAnyTags 1 3
     -> Maybe Name
     -> Int32
+    -> Maybe ProviderId
     -> m ServiceProfilePage
-paginateServiceTags tags start size = liftClient $ do
+paginateServiceTags tags start size providerFilter = liftClient $ do
     let start' = Name (maybe "" (toLower . fromName) start)
     let size'  = size + 1
     let tags'  = unpackTags tags
-    p <- filterPrefix (fromName start') <$> queryAll start' size' tags'
+    p <- maybeFilterbyProvider providerFilter . filterPrefix (fromName start') <$> queryAll start' size' tags'
     r <- mapConcurrently resolveRow (result p)
     return $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
+    maybeFilterbyProvider :: Maybe ProviderId -> Page TagRow -> Page TagRow
+    maybeFilterbyProvider Nothing    p = p
+    maybeFilterbyProvider (Just pid) p = do
+        let filtered = filter (\(_, provider, _) -> pid == provider) (result p)
+            -- check if we have filtered out any result
+            allValid = length filtered == length (result p)
+            more     = allValid && hasMore p
+         in p { hasMore = more, result = filtered }
+
     filterPrefix :: Text -> Page TagRow -> Page TagRow
     filterPrefix prefix p = do
         let prefixed = filter (\(Name n, _, _) -> prefix `isPrefixOf` (toLower n)) (result p)
