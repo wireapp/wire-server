@@ -614,33 +614,19 @@ testRegisterPushToken g _ b _ = do
 
 -- TODO: Try to make this test more performant, this test takes too long right now
 testRegisterTooManyTokens :: TestSignature ()
-testRegisterTooManyTokens g _ b _ = do
+testRegisterTooManyTokens g _ _ _ = do
     -- create tokens for reuse with multiple users
-    apsTok <- Token . T.decodeUtf8 . B16.encode <$> randomBytes 32
     gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
-    
+    uids   <- liftIO $ replicateM 55 randomId
     -- create 55 users with these tokens, which should succeed
-    userClients <- replicateM 55 $ registerToken 201 apsTok gcmTok
-
+    mapM_ (registerToken 201 gcmTok) uids
     -- should run out of space in endpoint metadata and fail with a 413 on number 56
-    _           <- registerToken 413 apsTok gcmTok
-
-    -- clean up by deleting clients and their tokens
-    forM_ userClients (\(uid, c) -> unregisterClient g uid c !!! const 200 === statusCode)
-    forM_ userClients (\(uid, c) -> unregisterClient g uid c !!! const 404 === statusCode)
-    tokens <- forM (map fst userClients) (\uid -> listPushTokens uid g)
-    liftIO $ assertEqual "unexpected tokens" [] (concat tokens)
+    registerToken 413 gcmTok =<< randomId
   where
-    registerToken status apsTok gcmTok = do
-        let tka = pushToken APNS "com.wire.int.ent" apsTok
-        let tkg = pushToken GCM "test" gcmTok
-        uid <- randomUser b
-        c   <- randomClient g uid
-        let ta = tka c
-        let tg = tkg c
-        registerPushTokenRequest uid ta g !!! const status === statusCode
-        registerPushTokenRequest uid tg g !!! const status === statusCode
-        return (uid, c)
+    registerToken status gcmTok uid = do
+        con <- randomClientId
+        let tkg = pushToken GCM "test" gcmTok con
+        registerPushTokenRequest uid tkg g !!! const status === statusCode
 
 testUnregisterPushToken :: TestSignature ()
 testUnregisterPushToken g _ b _ = do
