@@ -1,4 +1,4 @@
-resolver: lts-8.6
+resolver: lts-10.3
 packages:
 - '.'
 - '../../libs/types-common'
@@ -18,3 +18,5 @@ extra-deps:
 - snappy-0.2.0.2
 - snappy-framing-0.1.0
 - swagger-0.3.0
+
+allow-newer: true
