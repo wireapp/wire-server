@@ -455,9 +455,9 @@ withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam 
     let users = Set.toList $ Set.union (Set.fromList tMembers) (Set.fromList contacts)
     isInternal <- view $ options . optSettings . setIntraListing
     clts <- if isInternal then
-              Clients.fromUserClients <$> Intra.lookupClients users
+                Clients.fromUserClients <$> Intra.lookupClients users
             else
-              Data.lookupClients users
+                Data.lookupClients users
     let membs = Data.newMember <$> users
     handleOtrResponse usr clt rcps membs clts val now go
 
@@ -476,7 +476,12 @@ withValidOtrRecipients usr clt cnv rcps val now go = do
         Data.deleteConversation cnv
         throwM convNotFound
     membs <- Data.members cnv
-    clts  <- Data.lookupClients (map memId membs)
+    let memIds = (memId <$> membs)
+    isInternal <- view $ options . optSettings . setIntraListing
+    clts <- if isInternal then
+                Clients.fromUserClients <$> Intra.lookupClients memIds
+            else
+                Data.lookupClients memIds
     handleOtrResponse usr clt rcps membs clts val now go
 
 handleOtrResponse

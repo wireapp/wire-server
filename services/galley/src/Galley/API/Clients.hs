@@ -24,9 +24,9 @@ getClients :: UserId -> Galley Response
 getClients usr = do
     isInternal <- view $ options . optSettings . setIntraListing
     clts <- if isInternal then
-              fromUserClients <$> Intra.lookupClients [usr]
+                fromUserClients <$> Intra.lookupClients [usr]
             else
-              Data.lookupClients [usr]
+                Data.lookupClients [usr]
     return . json $ clientIds usr clts
 
 addClient :: UserId ::: ClientId -> Galley Response
