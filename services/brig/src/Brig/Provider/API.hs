@@ -511,8 +511,7 @@ getServiceProfile (pid ::: sid) = do
 
 listServiceProfilesByTag :: QueryAnyTags 1 3 ::: Maybe Name ::: Range 10 100 Int32 -> Handler Response
 listServiceProfilesByTag (tags ::: start ::: size) = do
-    let size' = fromRange size
-    ss <- DB.paginateServiceTags tags start size'
+    ss <- DB.paginateServiceTags tags start (fromRange size) =<< setProviderSearchFilter <$> view settings
     return (json ss)
 
 getServiceTagList :: () -> Handler Response

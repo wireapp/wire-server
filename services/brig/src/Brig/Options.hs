@@ -13,6 +13,7 @@ import Brig.Whitelist (Whitelist(..))
 import Data.Aeson.Types (typeMismatch)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
+import Data.Id
 import Data.Int (Int64)
 import Data.Maybe
 import Data.Misc (HttpsUrl)
@@ -24,7 +25,6 @@ import Data.Time.Clock (DiffTime, secondsToDiffTime)
 import Data.Word (Word32)
 import Data.Yaml (FromJSON(..))
 import GHC.Generics
-import Network.HTTP.Client (Request, parseRequest)
 import Options.Applicative
 import Options.Applicative.Types (readerAsk)
 import Util.Options
@@ -173,6 +173,8 @@ data Settings = Settings
     , setUserCookieThrottle    :: !CookieThrottle
     , setDefaultLocale         :: !Locale
     , setMaxTeamSize           :: !Int -- NOTE: This must be in sync with galley
+    , setProviderSearchFilter  :: !(Maybe ProviderId)
+    -- ^ Temporary optional provider ID to use for filtering services during search
     } deriving (Show, Generic)
 
 instance FromJSON Timeout where
@@ -398,7 +400,10 @@ settingsParser =
      help "Default locale to use (e.g. when selecting templates)") <*>
     (option auto $
      long "team-max-size" <> metavar "INT" <> value 128 <> showDefault <>
-     help "Max. # of members in a team.")
+     help "Max. # of members in a team.") <*>
+    (optional $ option providerIdOption $
+     long "provider-id-search-filter" <> metavar "STRING" <>
+     help "Filter _ONLY_ services with the given provider id")
 
 httpsUrlOption :: Mod OptionFields String -> Parser HttpsUrl
 httpsUrlOption =
@@ -418,10 +423,10 @@ emailOption =
          parseEmail . T.pack) .
     strOption
 
-requestUrl :: ReadM Request
-requestUrl = readerAsk >>=
-    maybe (fail "Invalid request URL") pure . parseRequest
-
 regionOption :: ReadM Region
 regionOption = readerAsk >>=
+    maybe (fail "Failed to parse ") pure . fromByteString . pack
+
+providerIdOption :: ReadM ProviderId
+providerIdOption = readerAsk >>=
     maybe (fail "Failed to parse ") pure . fromByteString . pack
