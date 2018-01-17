@@ -410,16 +410,19 @@ paginateServiceTags :: MonadClient m
     -> Maybe ProviderId
     -> m ServiceProfilePage
 paginateServiceTags tags start size providerFilter = liftClient $ do
-    let start' = Name (maybe "" (toLower . fromName) start)
-    let size'  = size + 1
-    let tags'  = unpackTags tags
-    p <- maybeFilterbyProvider providerFilter . filterPrefix (fromName start') <$> queryAll start' size' tags'
+    let size' = size + 1
+    let tags' = unpackTags tags
+    p <- filterResults <$> queryAll start' size' tags'
     r <- mapConcurrently resolveRow (result p)
     return $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
-    maybeFilterbyProvider :: Maybe ProviderId -> Page TagRow -> Page TagRow
-    maybeFilterbyProvider Nothing    p = p
-    maybeFilterbyProvider (Just pid) p = do
+    start' = Name (maybe "" (toLower . fromName) start)
+
+    filterResults :: Page TagRow -> Page TagRow
+    filterResults = maybe id filterbyProvider providerFilter . filterPrefix (fromName start')
+
+    filterbyProvider :: ProviderId -> Page TagRow -> Page TagRow
+    filterbyProvider pid p = do
         let filtered = filter (\(_, provider, _) -> pid == provider) (result p)
             -- check if we have filtered out any result
             allValid = length filtered == length (result p)
