@@ -13,7 +13,7 @@ import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
 import Control.Concurrent
-import Control.Concurrent.Async       (Async, async, wait, replicateConcurrently)
+import Control.Concurrent.Async       (Async, async, wait)
 import Control.Concurrent.STM.TChan
 import Control.Lens                   ((&), (.~), (^.), (^?), view)
 import Control.Monad.IO.Class         (MonadIO)
@@ -617,7 +617,7 @@ testRegisterTooManyTokens :: TestSignature ()
 testRegisterTooManyTokens g _ _ _ = do
     -- create tokens for reuse with multiple users
     gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
-    uids   <- liftIO $ replicateConcurrently 55 randomId
+    uids   <- liftIO $ replicateM 55 randomId
     -- create 55 users with these tokens, which should succeed
     mapM_ (registerToken 201 gcmTok) uids
     -- should run out of space in endpoint metadata and fail with a 413 on number 56
