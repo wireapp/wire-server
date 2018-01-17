@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Bonanza.Parser.Time
-
     ( tai64N
     , iso8601UTC
     , isoDay
@@ -19,7 +18,7 @@ import Data.Time.Clock.TAI
 import Prelude               hiding (take)
 
 import Data.Attoparsec.ByteString.Char8
-import qualified Data.Map as Map
+import qualified Data.List as List
 
 tai64N :: Parser UTCTime
 tai64N = do
@@ -119,8 +118,7 @@ leapSeconds = fromMaybe def . leapSecondsMap . utctDay
 
 -- Source: https://www.ietf.org/timezones/data/leap-seconds.list
 leapSecondsMap :: LeapSecondMap
-leapSecondsMap v = Map.lookup v
-                 $ Map.fromList
+leapSecondsMap v = List.lookup v
                  $ map (\(x, y) -> (read x, y)) leap
   where
     leap =  [ ("1972-01-01", 10)
