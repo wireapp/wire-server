@@ -19,7 +19,8 @@ import Util.Options.Common
 
 data Settings = Settings
     { _setHttpPoolSize :: !Int
-    , _setMaxTeamSize  :: !Int -- NOTE: This must be in sync with brig
+    , _setMaxTeamSize  :: !Int  -- NOTE: This must be in sync with brig
+    , _setIntraListing :: !Bool -- call Brig for device listing
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
@@ -113,6 +114,10 @@ optsParser = Opts <$>
                 <> showDefault
                 <> help "Max. # of members in a team."
                 <> value 128)
+        <*>
+            (switch $
+                long "intra-device-listing"
+                <> help "Use this option if you want to fetch the device list from brig instead.")
 
 journalOptsParser :: Parser JournalOpts
 journalOptsParser = JournalOpts

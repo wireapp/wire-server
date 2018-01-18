@@ -16,6 +16,7 @@ module Brig.Data.Client
     , lookupClient
     , lookupClients
     , lookupClientIds
+    , lookupUsersClientIds
     , Brig.Data.Client.updateClientLabel
 
       -- * Prekeys
@@ -32,6 +33,7 @@ import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Types
 import Brig.Types.User.Auth (CookieLabel)
 import Cassandra hiding (Client)
+import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Error
 import Control.Lens
 import Control.Monad
@@ -40,6 +42,7 @@ import Control.Monad.Trans.Class
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Foldable (for_)
 import Data.Id
+import Data.List.Split (chunksOf)
 import Data.Misc
 import Data.Monoid ((<>))
 import Data.Text (Text)
@@ -53,6 +56,7 @@ import qualified Brig.Aws               as Aws
 import qualified Brig.Data.User         as User
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.Map.Lazy          as LazyMap
+import qualified Data.Set               as Set
 import qualified Data.UUID              as UUID
 import qualified System.CryptoBox       as CryptoBox
 import qualified System.Logger.Class    as Log
@@ -104,23 +108,31 @@ addClient u newId c loc = do
         retry x5 $ write insertClient (params Quorum prm)
         return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl
 
-lookupClient :: UserId -> ClientId -> AppIO (Maybe Client)
+lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
 lookupClient u c = fmap toClient <$>
     retry x1 (query1 selectClient (params Quorum (u, c)))
 
-lookupClients :: UserId -> AppIO [Client]
+lookupClients :: MonadClient m => UserId -> m [Client]
 lookupClients u = map toClient <$>
     retry x1 (query selectClients (params Quorum (Identity u)))
 
-lookupClientIds :: UserId -> AppIO [ClientId]
+lookupClientIds :: MonadClient m => UserId -> m [ClientId]
 lookupClientIds u = map runIdentity <$>
     retry x1 (query selectClientIds (params Quorum (Identity u)))
 
-lookupPrekeyIds :: UserId -> ClientId -> AppIO [PrekeyId]
+lookupUsersClientIds :: MonadClient m => [UserId] -> m [(UserId, Set.Set ClientId)]
+lookupUsersClientIds us = liftClient $ do
+    -- Limit concurrency to 16 parallel queries
+    clts <- mapM (mapConcurrently getClientIds) (chunksOf 16 us)
+    return (concat clts)
+  where
+    getClientIds u = (u,) <$> fmap Set.fromList (lookupClientIds u)
+
+lookupPrekeyIds :: MonadClient m => UserId -> ClientId -> m [PrekeyId]
 lookupPrekeyIds u c = map runIdentity <$>
     retry x1 (query selectPrekeyIds (params Quorum (u, c)))
 
-hasClient :: UserId -> ClientId -> AppIO Bool
+hasClient :: MonadClient m => UserId -> ClientId -> m Bool
 hasClient u d = isJust <$> retry x1 (query1 checkClient (params Quorum (u, d)))
 
 rmClient :: UserId -> ClientId -> AppIO ()
@@ -129,7 +141,7 @@ rmClient u c = do
     retry x5 $ write removeClientKeys (params Quorum (u, c))
     deleteOptLock u c
 
-updateClientLabel :: UserId -> ClientId -> Maybe Text -> AppIO ()
+updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params Quorum (l, u, c))
 
 updatePrekeys :: UserId -> ClientId -> [Prekey] -> ExceptT ClientDataError AppIO ()

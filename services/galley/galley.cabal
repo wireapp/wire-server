@@ -42,6 +42,8 @@ library
         Galley.External
         Galley.Intra.Push
         Galley.Intra.User
+        Galley.Intra.Util
+        Galley.Intra.Client
         Galley.Queue
         Galley.Validation
         Galley.Types.Clients

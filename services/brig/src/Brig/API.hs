@@ -176,6 +176,12 @@ sitemap o = do
     post "/i/users/blacklist" (continue addBlacklist) $
         param "email" ||| param "phone"
 
+    post "/i/clients" (continue internalListClients) $
+      accept "application" "json"
+      .&. contentType "application" "json"
+      .&. request
+
+
     -- /users -----------------------------------------------------------------
 
     get "/users/api-docs"
@@ -1065,6 +1071,12 @@ updateClient (req ::: usr ::: clt ::: _) = do
 listClients :: UserId ::: JSON -> Handler Response
 listClients (usr ::: _) = json <$> lift (API.lookupClients usr)
 
+internalListClients :: JSON ::: JSON ::: Request -> Handler Response
+internalListClients (_ ::: _ ::: req) = do
+    UserSet usrs <- parseJsonBody req
+    ucs <- Map.fromList <$> lift (API.lookupUsersClientIds $ Set.toList usrs)
+    return $ json (UserClients ucs)
+
 getClient :: UserId ::: ClientId ::: JSON -> Handler Response
 getClient (usr ::: clt ::: _) = lift $ do
     client <- API.lookupClient usr clt
@@ -1088,7 +1100,7 @@ listPrekeyIds (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
 
 autoConnect :: JSON ::: JSON ::: UserId ::: Maybe ConnId ::: Request -> Handler Response
 autoConnect(_ ::: _ ::: uid ::: conn ::: req) = do
-    AutoConnect to <- parseJsonBody req
+    UserSet to <- parseJsonBody req
     let num = Set.size to
     when (num < 1) $
         throwStd $ badRequest "No users given for auto-connect."
