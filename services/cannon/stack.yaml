@@ -6,10 +6,6 @@ packages:
 - '../../libs/metrics-wai'
 - '../../libs/types-common'
 - '../../libs/wai-utilities'
-- location:
-    git: https://github.com/romanb/websockets.git
-    commit: 6f720ba5fa8ea7f5ada598ca762cb2c3096f83bc
-  extra-dep: true
 flags:
   types-common:
     protobuf: True
@@ -20,5 +16,4 @@ extra-deps:
 - data-timeout-0.3
 - text-latin1-0.3
 - text-printer-0.5
-- api-field-json-th-0.1.0.2
 extra-package-dbs: []
