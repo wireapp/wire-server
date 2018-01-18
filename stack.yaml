@@ -49,6 +49,7 @@ extra-deps:
 - geoip2-0.3.1.0
 - html-entities-1.1.4.1
 - mime-0.4.0.2
+- QuickCheck-2.9.2
 - snappy-0.2.0.2
 - snappy-framing-0.1.1
 - tasty-1.0.0.1

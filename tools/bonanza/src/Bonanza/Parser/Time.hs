@@ -113,13 +113,11 @@ fNano = 1000
 leapSeconds :: UTCTime -> Int
 leapSeconds = fromMaybe def . leapSecondsMap . utctDay
   where
-    -- NOTE: This does not work for dates < 1972
-    def = 37
+    def = 37 -- NOTE: This does not work for dates < 1972
 
 -- Source: https://www.ietf.org/timezones/data/leap-seconds.list
 leapSecondsMap :: LeapSecondMap
-leapSecondsMap v = List.lookup v
-                 $ map (\(x, y) -> (read x, y)) leap
+leapSecondsMap v = List.lookup v $ map (\(x, y) -> (read x, y)) leap
   where
     leap =  [ ("1972-01-01", 10)
             , ("1972-07-01", 11)
