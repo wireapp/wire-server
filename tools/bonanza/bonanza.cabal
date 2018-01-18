@@ -68,7 +68,7 @@ library
     , snappy
     , snappy-framing
     , text
-    , time                   < 1.7
+    , time                   < 1.9
     , types-common          >= 0.14.1
     , unordered-containers
     , vector

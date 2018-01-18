@@ -45,7 +45,7 @@ import Control.Lens (makeLenses)
 import Crypto.Hash (Digest, MD5, hashlazy)
 import Data.Aeson
 import Data.Attoparsec.ByteString.Char8
-import Data.Byteable (toBytes)
+import Data.ByteString.Char8 (pack)
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
@@ -81,7 +81,7 @@ beginMultipartBody sets (AssetHeaders t l d) = byteString
     \--frontier\r\n\
     \Content-Type: " <> byteString (T.encodeUtf8 (MIME.showType t)) <> byteString "\r\n\
     \Content-Length: " <> wordDec l <> "\r\n\
-    \Content-MD5: " <> byteString (B64.encode (toBytes d)) <> byteString "\r\n\
+    \Content-MD5: " <> byteString (B64.encode (pack $ show d)) <> byteString "\r\n\
     \\r\n"
   where
     settingsJson = encode sets

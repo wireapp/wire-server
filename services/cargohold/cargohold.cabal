@@ -42,7 +42,7 @@ library
       , aeson                >= 0.11
       , attoparsec           >= 0.12
       , auto-update          >= 0.1.4
-      , aws                  >= 0.10.2
+      , aws                  >= 0.17
       , bilge                >= 0.21
       , byteable             >= 0.1
       , bytestring           >= 0.10
@@ -55,7 +55,7 @@ library
       , conduit              >= 1.2
       , conduit-extra        >= 1.1.5
       , containers           >= 0.5
-      , cryptohash           >= 0.11
+      , cryptonite           >= 0.20
       , data-default         >= 0.5
       , either               >= 4.3
       , errors               >= 1.4

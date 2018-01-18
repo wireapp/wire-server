@@ -31,7 +31,7 @@ packages:
 - tools/api-simulations
 - location:
     git: https://github.com/tiago-loureiro/haskell-multihash.git
-    commit: 2a23fae359e90e15bafa29f4dbb5131008e21a7c
+    commit: 7622cfcff97fa1e207ec91bb11495a207e6c0195
   extra-dep: true
 - location:
     git: https://github.com/wireapp/cryptobox-haskell
@@ -43,12 +43,10 @@ packages:
   extra-dep: true
 
 extra-deps:
-- aws-0.16
 - base58-bytestring-0.1.0
-- bloodhound-0.13.0.0
 - currency-codes-2.0.0.0
 - data-timeout-0.3
-- geoip2-0.2.2.0
+- geoip2-0.3.1.0
 - html-entities-1.1.4.1
 - lifted-async-0.9.3
 - mime-0.4.0.2
@@ -69,5 +67,3 @@ flags:
     arbitrary: True
 
 extra-package-dbs: []
-
-allow-newer: true
