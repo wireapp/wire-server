@@ -35,6 +35,7 @@ library
       , containers           >= 0.5
       , data-default         >= 0.5
       , lens                 >= 4.13
+      , memory               >= 0.11
       , mime                 >= 0.4
       , text                 >= 0.11
       , time                 >= 1.5
