@@ -11,9 +11,6 @@ flags:
     protobuf: True
     arbitrary: True
 extra-deps:
-- data-checked-0.3
-- data-textual-0.3.0.2
 - data-timeout-0.3
-- text-latin1-0.3
-- text-printer-0.5
+- QuickCheck-2.9.2
 extra-package-dbs: []

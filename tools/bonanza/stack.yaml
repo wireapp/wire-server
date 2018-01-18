@@ -14,9 +14,5 @@ flags:
     arbitrary: True
 
 extra-deps:
-- aeson-1.1.0.0
 - snappy-0.2.0.2
 - snappy-framing-0.1.0
-- swagger-0.3.0
-
-allow-newer: true

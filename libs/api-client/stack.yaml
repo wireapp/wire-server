@@ -1,4 +1,4 @@
-resolver: lts-8.19
+resolver: lts-10.3
 packages:
 - '.'
 - '../bilge'
