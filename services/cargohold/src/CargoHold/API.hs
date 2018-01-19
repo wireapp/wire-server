@@ -10,7 +10,6 @@ import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad
 import Control.Monad.Catch (finally)
-import Control.Monad.IO.Class
 import Data.Aeson (encode)
 import Data.ByteString.Conversion
 import Data.Id
@@ -275,7 +274,6 @@ statusResumableV3 (u ::: a) = do
 uploadResumableV3 :: UserId ::: V3.Offset ::: Word ::: Media "application" "offset+octet-stream" ::: V3.AssetKey  ::: Request -> Handler Response
 uploadResumableV3 (usr ::: offset ::: size ::: _ ::: aid ::: req) = do
     (offset', expiry) <- Resumable.upload (V3.UserPrincipal usr) aid offset size (sourceRequestBody req)
-    liftIO $ Server.flushRequestBody req
     return $ TUS.patchResponse offset' expiry empty
 
 --------------------------------------------------------------------------------
@@ -317,7 +315,6 @@ uploadSimpleV3 :: V3.Principal -> Request -> Handler Response
 uploadSimpleV3 prc req = do
     let src = sourceRequestBody req
     asset <- V3.upload prc src
-    liftIO $ Server.flushRequestBody req
     return $ setStatus status201
            . loc (asset^.V3.assetKey)
            $ json asset
