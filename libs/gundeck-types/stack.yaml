@@ -10,5 +10,6 @@ flags:
     protobuf: True
     arbitrary: True
 
-extra-deps: []
+extra-deps:
+- currency-codes-2.0.0.0
 extra-package-dbs: []
