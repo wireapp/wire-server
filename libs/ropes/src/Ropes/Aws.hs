@@ -129,7 +129,7 @@ sendRequest env scfg req = transResourceT liftIO $ do
 -- Internals
 
 newPermConfig :: Logger -> Credentials -> IO Configuration
-newPermConfig lgr creds = return $ Configuration Timestamp creds (awsLog lgr)
+newPermConfig lgr creds = return $ Configuration Timestamp creds (awsLog lgr) Nothing
 
 newTempConfig :: Logger -> Manager -> IO (IORef Configuration)
 newTempConfig lgr mgr = do
@@ -164,7 +164,7 @@ newTempConfig lgr mgr = do
             Right a -> do
                 keys <- newIORef [] -- V4 signing keys used by the 'aws' package
                 let (c, x) = mkCreds a keys
-                    cfg = Configuration Timestamp c (awsLog lgr)
+                    cfg = Configuration Timestamp c (awsLog lgr) Nothing
                 return $ Just (cfg, x)
 
     mkCreds (TempCredentials (AccessKeyId k) (SecretAccessKey s) (SessionToken t) expiry) keys =

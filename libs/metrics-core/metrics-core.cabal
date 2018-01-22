@@ -25,7 +25,7 @@ library
     build-depends:
           aeson                >= 0.6
         , atomic-primops       >= 0.8
-        , base                 >= 4.8 && < 5
+        , base                 >= 4.9
         , hashable             >= 1.2
         , unordered-containers >= 0.2
         , text                 >= 0.11

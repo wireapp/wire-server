@@ -407,8 +407,8 @@ locationOf ip = view geoDb >>= \case
     Just g -> do
         database <- liftIO $ readIORef g
         return $! do
-            (lat, lon) <- GeoIp.geoLocation =<< hush (GeoIp.findGeoData database "en" ip)
-            return (location (Latitude lat) (Longitude lon))
+            loc <- GeoIp.geoLocation =<< hush (GeoIp.findGeoData database "en" ip)
+            return $ location (Latitude $ GeoIp.locationLatitude loc) (Longitude $ GeoIp.locationLongitude loc)
     Nothing -> return Nothing
 
 readTurnList :: FilePath -> IO (Maybe (List1 TurnURI))

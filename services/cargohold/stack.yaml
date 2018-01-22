@@ -9,12 +9,10 @@ packages:
 - ../../libs/bilge
 - ../../libs/metrics-core
 - ../../libs/metrics-wai
-resolver: lts-8.8
+resolver: lts-10.3
 extra-deps:
-- aws-0.16
 - mime-0.4.0.2
 flags:
   types-common:
     arbitrary: True
     protobuf: True
-

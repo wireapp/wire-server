@@ -31,10 +31,11 @@ library
       , bytestring-conversion>= 0.2
       , base16-bytestring    >= 0.1
       , base64-bytestring    >= 1.0
-      , cryptohash           >= 0.11
+      , cryptonite           >= 0.11
       , containers           >= 0.5
       , data-default         >= 0.5
       , lens                 >= 4.13
+      , memory               >= 0.11
       , mime                 >= 0.4
       , text                 >= 0.11
       , time                 >= 1.5
