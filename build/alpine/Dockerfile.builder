@@ -1,6 +1,6 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
 
-FROM alpine:3.6 as cryptobox-builder
+FROM alpine:3.7 as cryptobox-builder
 
 # compile cryptobox-c
 RUN apk add --no-cache cargo libsodium-dev git && \
@@ -9,7 +9,7 @@ RUN apk add --no-cache cargo libsodium-dev git && \
     cd cryptobox-c && \
     cargo build --release
 
-FROM alpine:3.6
+FROM alpine:3.7
 
 # install cryptobox-c in the new container
 COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /usr/lib/libcryptobox.so
@@ -32,7 +32,7 @@ RUN apk add --no-cache \
         bash
 
 # get static version of Haskell Stack and use system ghc by default
-ARG STACK_VERSION=1.5.1
+ARG STACK_VERSION=1.6.3
 RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${STACK_VERSION}/stack-${STACK_VERSION}-linux-x86_64-static.tar.gz \
     | tar --wildcards -C /usr/local/bin --strip-components=1 -xzvf - '*/stack' && chmod 755 /usr/local/bin/stack && \
     stack config set system-ghc --global true
