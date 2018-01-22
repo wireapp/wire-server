@@ -37,9 +37,76 @@ RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${S
     | tar --wildcards -C /usr/local/bin --strip-components=1 -xzvf - '*/stack' && chmod 755 /usr/local/bin/stack && \
     stack config set system-ghc --global true
 
+# As done by https://github.com/TerrorJack/meikyu,
+# Install packages needed for newer version of GHC
+ENV GHC_REV ghc-8.2.2-release
+ENV GHC_VER ghc-8.2.2
+ADD ghc/build.mk ghc/config.yaml /tmp/
+RUN stack --no-terminal --resolver lts-9 --system-ghc install \
+        alex \
+        happy \
+        hscolour && \
+    apk add --no-cache --no-progress \
+    autoconf \
+    automake \
+    binutils-gold \
+    bzip2 \
+    ca-certificates \
+    coreutils \
+    file \
+    findutils \
+    g++ \
+    gawk \
+    gcc \
+    ghc \
+    git \
+    gmp-dev \
+    gzip \
+    libffi-dev \
+    make \
+    musl-dev \
+    ncurses-dev \
+    openssh \
+    patch \
+    perl \
+    py3-sphinx \
+    sed \
+    tar \
+    zlib-dev
+
+# Install newer version of GHC
+RUN cd /tmp && \
+    git clone git://git.haskell.org/ghc.git && \
+    cd ghc && \
+    git checkout $GHC_REV && \
+    git submodule update --init --recursive && \
+    mv /tmp/build.mk mk/ && \
+    ./boot && \
+    SPHINXBUILD=/usr/bin/sphinx-build-3 ./configure --prefix=/root/.stack/programs/x86_64-linux/ghc-$GHC_VER --disable-ld-override && \
+    make -j4 && \
+    make install
+
+#RUN apk del \
+#        autoconf \
+#        automake \
+#        binutils-gold \
+#        bzip2 \
+#        coreutils \
+#        file \
+#        findutils \
+#        g++ \
+#        gawk \
+#        ghc \
+#        gmp-dev \
+#        make \
+#        patch \
+#        perl \
+#        py3-sphinx \
+#        sed
+
 # download stack indices and compile/cache dependencies to speed up subsequent container creation
 # TODO: make this caching step optional?
-RUN apk add --no-cache git xz && \
+RUN apk add --no-cache git && \
     mkdir -p /src && cd /src && \
     git clone https://github.com/wireapp/wire-server.git && \
     cd wire-server && \

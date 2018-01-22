@@ -1,0 +1,3 @@
+build:
+  prefetch: true
+ghc-build: standard
