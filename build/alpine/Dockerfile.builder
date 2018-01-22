@@ -39,7 +39,7 @@ RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${S
 
 # download stack indices and compile/cache dependencies to speed up subsequent container creation
 # TODO: make this caching step optional?
-RUN apk add --no-cache git && \
+RUN apk add --no-cache git xz && \
     mkdir -p /src && cd /src && \
     git clone https://github.com/wireapp/wire-server.git && \
     cd wire-server && \
