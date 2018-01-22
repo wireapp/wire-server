@@ -25,6 +25,8 @@ module Brig.App
     , requestId
     , httpManager
     , extGetManager
+    , nexmoCreds
+    , twilioCreds
     , settings
     , currentTime
     , geoDb
@@ -47,7 +49,7 @@ module Brig.App
 
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
-import Brig.Options (Opts, Settings)
+import Brig.Options (Opts, Settings, FilePathSecret)
 import Brig.Template (Localised, forLocale)
 import Brig.Provider.Template
 import Brig.Team.Template
@@ -77,7 +79,7 @@ import Data.Metrics (Metrics)
 import Data.Misc
 import Data.Int (Int32)
 import Data.IORef
-import Data.Text (unpack)
+import Data.Text (unpack, Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
@@ -105,6 +107,8 @@ import qualified Data.Text.IO             as Text
 import qualified OpenSSL.Session          as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import qualified Ropes.Aws                as Aws
+import qualified Ropes.Nexmo              as Nexmo
+import qualified Ropes.Twilio             as Twilio
 import qualified System.FilePath          as Path
 import qualified System.FSNotify          as FS
 import qualified System.Logger            as Log
@@ -131,6 +135,8 @@ data Env = Env
     , _httpManager   :: Manager
     , _extGetManager :: [Fingerprint Rsa] -> Manager
     , _settings      :: Settings
+    , _nexmoCreds    :: Nexmo.Credentials
+    , _twilioCreds   :: Twilio.Credentials
     , _geoDb         :: Maybe (IORef GeoIp.GeoDB)
     , _fsWatcher     :: FS.WatchManager
     , _turnEnv       :: IORef TURN.Env
@@ -163,6 +169,9 @@ newEnv o = do
          $ FS.defaultConfig { FS.confDebounce = FS.Debounce 0.5, FS.confPollInterval = 10000000 }
     g   <- geoSetup lgr w $ Opt.geoDb o
     t   <- turnSetup lgr w sha512 (Opt.turn o)
+    let sett = Opt.optSettings o
+    nxm <- initNexmoCredentials (Opt.setNexmoKey sett) (Opt.setNexmoSecret sett)
+    twl <- initTwilioCredentials (Opt.setTwilioSID sett) (Opt.setTwilioToken sett)
     return $! Env
         { _galley        = mkEndpoint $ Opt.galley o
         , _gundeck       = mkEndpoint $ Opt.gundeck o
@@ -177,7 +186,9 @@ newEnv o = do
         , _tmTemplates   = ttp
         , _httpManager   = mgr
         , _extGetManager = ext
-        , _settings      = Opt.optSettings o
+        , _settings      = sett
+        , _nexmoCreds    = nxm
+        , _twilioCreds   = twl
         , _geoDb         = g
         , _turnEnv       = t
         , _fsWatcher     = w
@@ -320,6 +331,18 @@ initCassandra o g = do
             $ Cas.defSettings
     runClient p $ versionCheck schemaVersion
     return p
+
+initNexmoCredentials :: Text -> FilePathSecret -> IO Nexmo.Credentials
+initNexmoCredentials key secretFile = do
+    dat <- Opt.loadSecret secretFile
+    let secret = fromMaybe (error $ "Could not read nexmo secret from " ++ show secretFile) dat
+    return (Nexmo.ApiKey (encodeUtf8 key), Nexmo.ApiSecret (encodeUtf8 secret))
+
+initTwilioCredentials :: Text -> FilePathSecret -> IO Twilio.Credentials
+initTwilioCredentials sid secretFile = do
+    dat <- Opt.loadSecret secretFile
+    let secret = fromMaybe (error $ "Could not read twilio secret from " ++ show secretFile) dat
+    return (Twilio.SID (encodeUtf8 sid), Twilio.AccessToken (encodeUtf8 secret))
 
 userTemplates :: Monad m => Maybe Locale -> AppT m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates

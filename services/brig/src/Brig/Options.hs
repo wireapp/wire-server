@@ -4,7 +4,25 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 
-module Brig.Options where
+module Brig.Options
+    ( loadSecret
+    , optsParser
+    , parseOptions
+
+    , FilePathSecret
+    , Opts (..)
+    , Settings (..)
+    , Timeout (..)
+    , ZAuthOpts (..)
+    , AWSOpts (..)
+    , ElasticSearchOpts (..)
+    , TurnOpts (..)
+    , ProviderOpts (..)
+    , EmailUserOpts (..)
+    , EmailSMSOpts (..)
+    , EmailSMSGeneralOpts (..)
+    , TeamOpts (..)
+    ) where
 
 import Brig.Aws.Types (Region (..))
 import Brig.Types
@@ -16,7 +34,6 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Int (Int64)
 import Data.Maybe
-import Data.Misc (HttpsUrl)
 import Data.Monoid
 import Data.Scientific (toBoundedInteger)
 import Data.Text (Text)
@@ -27,13 +44,26 @@ import Data.Yaml (FromJSON(..))
 import GHC.Generics
 import Options.Applicative
 import Options.Applicative.Types (readerAsk)
+import System.Directory (canonicalizePath, doesFileExist)
 import Util.Options
 import Util.Options.Common
 
 import qualified Data.Text             as T
+import qualified Data.Text.IO          as T
 import qualified Data.Yaml             as Y
 import qualified Ropes.Aws             as Aws
 import qualified Brig.ZAuth            as ZAuth
+
+newtype FilePathSecret = FilePathSecret FilePath
+    deriving (Eq, Show, Read, FromJSON)
+
+loadSecret :: FilePathSecret -> IO (Maybe Text)
+loadSecret (FilePathSecret p) = do
+    path   <- canonicalizePath p
+    exists <- doesFileExist path
+    if exists
+        then Just <$> T.readFile path
+        else return Nothing
 
 newtype Timeout = Timeout
     { timeoutDiff :: DiffTime
@@ -161,9 +191,9 @@ data Settings = Settings
     { setActivationTimeout     :: !Timeout
     , setTeamInvitationTimeout :: !Timeout
     , setTwilioSID             :: !Text
-    , setTwilioToken           :: !Text
+    , setTwilioToken           :: !FilePathSecret
     , setNexmoKey              :: !Text
-    , setNexmoSecret           :: !Text
+    , setNexmoSecret           :: !FilePathSecret
     , setWhitelist             :: !(Maybe Whitelist)
     , setUserMaxConnections    :: !Int64
     , setCookieDomain          :: !Text
@@ -351,11 +381,11 @@ settingsParser =
      value (Timeout (secondsToDiffTime 3600)) <>
      help "Team invitation timeout in seconds") <*>
     (textOption $ long "twilio-sid" <> metavar "STRING" <> help "Twilio SID") <*>
-    (textOption $
-     long "twilio-token" <> metavar "STRING" <> help "Twilio API token") <*>
+    (FilePathSecret <$> (strOption $
+     long "twilio-token" <> metavar "FILE" <> help "File containing Twilio API token" <> action "file")) <*>
     (textOption $ long "nexmo-key" <> metavar "STRING" <> help "Nexmo API key") <*>
-    (textOption $
-     long "nexmo-secret" <> metavar "STRING" <> help "Nexmo API secret") <*>
+    (FilePathSecret <$> (strOption $
+     long "nexmo-secret" <> metavar "FILE" <> help "File containing Nexmo API secret" <> action "file")) <*>
     (optional $
      Whitelist <$>
      (textOption $
@@ -404,10 +434,6 @@ settingsParser =
     (optional $ option providerIdOption $
      long "provider-id-search-filter" <> metavar "STRING" <>
      help "Filter _ONLY_ services with the given provider id")
-
-httpsUrlOption :: Mod OptionFields String -> Parser HttpsUrl
-httpsUrlOption =
-    fmap (fromMaybe (error "Invalid HTTPS URL") . fromByteString) . bytesOption
 
 localeOption :: Mod OptionFields String -> Parser Locale
 localeOption =

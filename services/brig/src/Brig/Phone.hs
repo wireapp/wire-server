@@ -25,7 +25,6 @@ module Brig.Phone
 import Bilge.Retry (httpHandlers)
 import Brig.App
 import Brig.Budget
-import Brig.Options
 import Brig.Types
 import Control.Lens (view)
 import Control.Monad
@@ -37,10 +36,9 @@ import Data.Foldable (for_)
 import Data.LanguageCodes
 import Data.Monoid
 import Data.Text (Text, isPrefixOf)
-import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Data.Typeable (Typeable)
-import Network.HTTP.Client (HttpException)
+import Network.HTTP.Client (HttpException, Manager)
 import Ropes.Twilio (LookupDetail (..))
 import System.Logger.Message (val, msg, field, (~~))
 
@@ -69,8 +67,8 @@ instance Exception PhoneException
 
 sendCall :: Nexmo.Call -> AppIO ()
 sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
-    m <- view httpManager
-    cred <- getNexmoCredentials
+    m    <- view httpManager
+    cred <- view nexmoCreds
     withCallBudget (Nexmo.callTo call) $ do
         r <- liftIO . try . recovering x3 nexmoHandlers $ const $
                 Nexmo.sendCall cred m call
@@ -122,8 +120,9 @@ sendSms loc SMSMessage{..} = unless (isTestPhone smsTo) $ do
                     _     -> throwM ex'
                 Right () -> return ()
   where
+    sendNexmoSms :: Manager -> AppIO ()
     sendNexmoSms mgr = do
-        crd <- getNexmoCredentials
+        crd <- view nexmoCreds
         void . liftIO . recovering x3 nexmoHandlers $ const $
             Nexmo.sendMessage crd mgr $
                 Nexmo.Message "Wire" smsTo smsText (toNexmoCharset loc)
@@ -139,8 +138,9 @@ sendSms loc SMSMessage{..} = unless (isTestPhone smsTo) $ do
         ZH -> Nexmo.UCS2
         _  -> Nexmo.GSM7
 
+    sendTwilioSms :: Manager -> AppIO ()
     sendTwilioSms mgr = do
-        crd <- getTwilioCredentials
+        crd <- view twilioCreds
         void . liftIO . recovering x3 twilioHandlers $ const $
             Twilio.sendMessage crd mgr (Twilio.Message smsFrom smsTo smsText)
 
@@ -186,7 +186,7 @@ validatePhone :: Phone -> AppIO (Maybe Phone)
 validatePhone (Phone p)
     | isTestPhone p = return (Just (Phone p))
     | otherwise     = do
-        c <- getTwilioCredentials
+        c <- view twilioCreds
         m <- view httpManager
         r <- liftIO . try $ recovering x3 httpHandlers $ const $
                 Twilio.lookupPhone c m p LookupNoDetail Nothing
@@ -194,18 +194,6 @@ validatePhone (Phone p)
             Right x -> return (Just (Phone (Twilio.lookupE164 x)))
             Left  e | Twilio.errStatus e == 404 -> return Nothing
             Left  e -> throwM e
-
-getNexmoCredentials :: AppIO Nexmo.Credentials
-getNexmoCredentials = do
-    apikey <- encodeUtf8 . setNexmoKey <$> view settings
-    secret <- encodeUtf8 . setNexmoSecret <$> view settings
-    return (Nexmo.ApiKey apikey, Nexmo.ApiSecret secret)
-
-getTwilioCredentials :: AppIO Twilio.Credentials
-getTwilioCredentials = do
-    sid <- encodeUtf8 . setTwilioSID <$> view settings
-    tok <- encodeUtf8 . setTwilioToken <$> view settings
-    return (Twilio.SID sid, Twilio.AccessToken tok)
 
 isTestPhone :: Text -> Bool
 isTestPhone = isPrefixOf "+0"
