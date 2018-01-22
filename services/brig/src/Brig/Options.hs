@@ -13,6 +13,7 @@ import Brig.Whitelist (Whitelist(..))
 import Data.Aeson.Types (typeMismatch)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
+import Data.Id
 import Data.Int (Int64)
 import Data.Maybe
 import Data.Misc (HttpsUrl)
@@ -24,7 +25,6 @@ import Data.Time.Clock (DiffTime, secondsToDiffTime)
 import Data.Word (Word32)
 import Data.Yaml (FromJSON(..))
 import GHC.Generics
-import Network.HTTP.Client (Request, parseRequest)
 import Options.Applicative
 import Options.Applicative.Types (readerAsk)
 import Util.Options
@@ -33,17 +33,16 @@ import Util.Options.Common
 import qualified Data.Text             as T
 import qualified Data.Yaml             as Y
 import qualified Ropes.Aws             as Aws
-import qualified Ropes.Nexmo           as Nexmo
 import qualified Brig.ZAuth            as ZAuth
 
-newtype ActivationTimeout = ActivationTimeout
-    { activationTimeoutDiff :: DiffTime
+newtype Timeout = Timeout
+    { timeoutDiff :: DiffTime
     } deriving (Eq, Enum, Ord, Num, Real, Fractional, RealFrac, Show)
 
-instance Read ActivationTimeout where
+instance Read Timeout where
     readsPrec i s =
         case readsPrec i s of
-            [(x, s')] -> [(ActivationTimeout (secondsToDiffTime x), s')]
+            [(x, s')] -> [(Timeout (secondsToDiffTime x), s')]
             _ -> []
 
 data ElasticSearchOpts = ElasticSearchOpts
@@ -159,29 +158,31 @@ data Opts = Opts
 
 -- | Options that persist as runtime settings.
 data Settings = Settings
-    { setActivationTimeout  :: !ActivationTimeout
-    , setTwilioSID          :: !Text
-    , setTwilioToken        :: !Text
-    , setNexmoKey           :: !Text
-    , setNexmoSecret        :: !Text
-    , setNexmoEndpoint      :: !Nexmo.ApiEndpoint
-    , setWhitelist          :: !(Maybe Whitelist)
-    , setUserMaxConnections :: !Int64
-    , setCookieDomain       :: !Text
-    , setCookieInsecure     :: !Bool
-    , setUserCookieRenewAge :: !Integer
-    , setUserCookieLimit    :: !Int
-    , setUserCookieThrottle :: !CookieThrottle
-    , setDefaultLocale      :: !Locale
-    , setMaxTeamSize        :: !Int -- NOTE: This must be in sync with galley
+    { setActivationTimeout     :: !Timeout
+    , setTeamInvitationTimeout :: !Timeout
+    , setTwilioSID             :: !Text
+    , setTwilioToken           :: !Text
+    , setNexmoKey              :: !Text
+    , setNexmoSecret           :: !Text
+    , setWhitelist             :: !(Maybe Whitelist)
+    , setUserMaxConnections    :: !Int64
+    , setCookieDomain          :: !Text
+    , setCookieInsecure        :: !Bool
+    , setUserCookieRenewAge    :: !Integer
+    , setUserCookieLimit       :: !Int
+    , setUserCookieThrottle    :: !CookieThrottle
+    , setDefaultLocale         :: !Locale
+    , setMaxTeamSize           :: !Int -- NOTE: This must be in sync with galley
+    , setProviderSearchFilter  :: !(Maybe ProviderId)
+    -- ^ Temporary optional provider ID to use for filtering services during search
     } deriving (Show, Generic)
 
-instance FromJSON ActivationTimeout where
+instance FromJSON Timeout where
     parseJSON (Y.Number n) =
         let defaultV = 3600
             bounded = toBoundedInteger n :: Maybe Int64
         in pure $
-           ActivationTimeout $
+           Timeout $
            secondsToDiffTime $ maybe defaultV fromIntegral bounded
     parseJSON v = typeMismatch "activationTimeout" v
 
@@ -343,18 +344,18 @@ settingsParser =
     Settings <$>
     (option auto $
      long "activation-timeout" <> metavar "SECONDS" <>
-     value (ActivationTimeout (secondsToDiffTime 3600)) <>
+     value (Timeout (secondsToDiffTime 3600)) <>
      help "Activation timeout in seconds") <*>
+    (option auto $
+     long "team-invitation-timeout" <> metavar "SECONDS" <>
+     value (Timeout (secondsToDiffTime 3600)) <>
+     help "Team invitation timeout in seconds") <*>
     (textOption $ long "twilio-sid" <> metavar "STRING" <> help "Twilio SID") <*>
     (textOption $
      long "twilio-token" <> metavar "STRING" <> help "Twilio API token") <*>
     (textOption $ long "nexmo-key" <> metavar "STRING" <> help "Nexmo API key") <*>
     (textOption $
      long "nexmo-secret" <> metavar "STRING" <> help "Nexmo API secret") <*>
-    (option toNexmoEndpoint $
-     long "nexmo-endpoint" <> value Nexmo.Production <> metavar "STRING" <>
-     showDefaultWith (const "production") <>
-     help "Nexmo API environment: sandbox | production") <*>
     (optional $
      Whitelist <$>
      (textOption $
@@ -399,7 +400,10 @@ settingsParser =
      help "Default locale to use (e.g. when selecting templates)") <*>
     (option auto $
      long "team-max-size" <> metavar "INT" <> value 128 <> showDefault <>
-     help "Max. # of members in a team.")
+     help "Max. # of members in a team.") <*>
+    (optional $ option providerIdOption $
+     long "provider-id-search-filter" <> metavar "STRING" <>
+     help "Filter _ONLY_ services with the given provider id")
 
 httpsUrlOption :: Mod OptionFields String -> Parser HttpsUrl
 httpsUrlOption =
@@ -419,18 +423,10 @@ emailOption =
          parseEmail . T.pack) .
     strOption
 
-toNexmoEndpoint :: ReadM Nexmo.ApiEndpoint
-toNexmoEndpoint =
-    readerAsk >>= \s ->
-        case s of
-            "production" -> return Nexmo.Production
-            "sandbox" -> return Nexmo.Sandbox
-            other -> readerError $ "Unsupported Nexmo environment: " <> other
-
-requestUrl :: ReadM Request
-requestUrl = readerAsk >>=
-    maybe (fail "Invalid request URL") pure . parseRequest
-
 regionOption :: ReadM Region
 regionOption = readerAsk >>=
+    maybe (fail "Failed to parse ") pure . fromByteString . pack
+
+providerIdOption :: ReadM ProviderId
+providerIdOption = readerAsk >>=
     maybe (fail "Failed to parse ") pure . fromByteString . pack

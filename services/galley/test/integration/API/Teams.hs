@@ -27,6 +27,7 @@ import Test.Tasty.HUnit
 import API.SQS
 
 import qualified API.Util as Util
+import qualified Data.Currency as Currency
 import qualified Data.List1 as List1
 import qualified Data.Set as Set
 import qualified Data.Text as T
@@ -48,6 +49,7 @@ tests :: IO TestSetup -> TestTree
 tests s = testGroup "Teams API"
     [ test s "create team" testCreateTeam
     , test s "create multiple binding teams fail" testCreateMulitpleBindingTeams
+    , test s "create binding team with currency" testCreateBindingTeamWithCurrency
     , test s "create team with members" testCreateTeamWithMembers
     , test s "create 1-1 conversation between binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers
     , test s "create 1-1 conversation between binding team members" testCreateOne2OneWithMembers
@@ -106,6 +108,18 @@ testCreateMulitpleBindingTeams g b _ a = do
     owner' <- Util.randomUser b
     void $ Util.createTeam g "foo" owner' []
     void $ Util.createTeam g "foo" owner' []
+
+testCreateBindingTeamWithCurrency :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testCreateBindingTeamWithCurrency g b _ a = do
+    _owner <- Util.randomUser b
+    _      <- Util.createTeamInternal g "foo" _owner
+    -- Backwards compatible
+    assertQueue "create team" a (tActivateWithCurrency Nothing)
+
+    -- Ensure currency is properly journaled
+    _owner <- Util.randomUser b
+    _      <- Util.createTeamInternalWithCurrency g "foo" _owner Currency.USD
+    assertQueue "create team" a (tActivateWithCurrency $ Just Currency.USD)
 
 testCreateTeamWithMembers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testCreateTeamWithMembers g b c _ = do
@@ -715,7 +729,7 @@ testUpdateTeamStatus g b _ a = do
 
     void $ put ( g
                . paths ["i", "teams", toByteString' tid, "status"]
-               . json (TeamStatusUpdate Deleted)
+               . json (TeamStatusUpdate Deleted Nothing)
                ) !!! do
         const 403 === statusCode
         const "invalid-team-status-update" === (Error.label . Util.decodeBody' "error label")
@@ -808,14 +822,14 @@ postCryptoBroadcastMessageJson2 g b c a = do
     let m1 = [(bob, bc, "ciphertext1")]
     Util.postOtrBroadcastMessage id g alice ac m1 !!! do
         const 412 === statusCode
-        assertTrue_ (eqMismatch [(charlie, Set.singleton cc)] [] [] . decodeBody)
+        assertTrue "1: Only Charlie and his device" (eqMismatch [(charlie, Set.singleton cc)] [] [] . decodeBody)
 
     -- Complete
     WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
         let m2 = [(bob, bc, "ciphertext2"), (charlie, cc, "ciphertext2")]
         Util.postOtrBroadcastMessage id g alice ac m2 !!! do
             const 201 === statusCode
-            assertTrue_ (eqMismatch [] [] [] . decodeBody)
+            assertTrue "No devices expected" (eqMismatch [] [] [] . decodeBody)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext2")
         void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext2")
 
@@ -824,7 +838,7 @@ postCryptoBroadcastMessageJson2 g b c a = do
         let m3 = [(alice, ac, "ciphertext3"), (bob, bc, "ciphertext3"), (charlie, cc, "ciphertext3")]
         Util.postOtrBroadcastMessage id g alice ac m3 !!! do
             const 201 === statusCode
-            assertTrue_ (eqMismatch [] [(alice, Set.singleton ac)] [] . decodeBody)
+            assertTrue "2: Only Alice and her device" (eqMismatch [] [(alice, Set.singleton ac)] [] . decodeBody)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext3")
         void . liftIO $ WS.assertMatch t wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext3")
         -- Alice should not get it
@@ -832,11 +846,11 @@ postCryptoBroadcastMessageJson2 g b c a = do
 
     -- Deleted charlie
     WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
-        deleteClient g charlie cc !!! const 200 === statusCode
+        deleteClient b charlie cc (Just $ PlainTextPassword defPassword) !!! const 200 === statusCode
         let m4 = [(bob, bc, "ciphertext4"), (charlie, cc, "ciphertext4")]
         Util.postOtrBroadcastMessage id g alice ac m4 !!! do
             const 201 === statusCode
-            assertTrue_ (eqMismatch [] [] [(charlie, Set.singleton cc)] . decodeBody)
+            assertTrue "3: Only Charlie and his device" (eqMismatch [] [] [(charlie, Set.singleton cc)] . decodeBody)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext4")
         -- charlie should not get it
         assertNoMsg wsE (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext4")

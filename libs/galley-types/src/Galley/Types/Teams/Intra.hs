@@ -11,6 +11,8 @@ import Data.Text (Text)
 import Data.Time (UTCTime)
 import Galley.Types.Teams (Team)
 
+import qualified Data.Currency as Currency
+
 data TeamStatus
     = Active
     | PendingDelete
@@ -53,15 +55,21 @@ instance FromJSON TeamData where
                  <*> o .:  "status"
                  <*> o .:? "status_time"
 
-newtype TeamStatusUpdate = TeamStatusUpdate
-    { tuStatus :: TeamStatus }
+data TeamStatusUpdate = TeamStatusUpdate
+    { tuStatus   :: !TeamStatus
+    , tuCurrency :: !(Maybe Currency.Alpha)
+    -- TODO: Remove Currency selection once billing supports currency changes after team creation
+    }
 
 instance FromJSON TeamStatusUpdate where
     parseJSON = withObject "team-status-update" $ \o ->
-        TeamStatusUpdate <$> o .: "status"
+        TeamStatusUpdate <$> o .:  "status"
+                         <*> o .:? "currency"
 
 instance ToJSON TeamStatusUpdate where
-    toJSON s = object ["status" .= tuStatus s]
+    toJSON s = object [ "status"   .= tuStatus s
+                      , "currency" .= tuCurrency s
+                      ]
 
 newtype TeamName = TeamName
     { tnName :: Text }

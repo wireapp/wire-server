@@ -10,6 +10,7 @@ module Brig.API.Client
     , Data.lookupClient
     , Data.lookupClients
     , Data.lookupPrekeyIds
+    , Data.lookupUsersClientIds
 
       -- * Prekeys
     , claimPrekey
@@ -35,7 +36,7 @@ import Data.Foldable
 import Data.Hashable (hash)
 import Data.Id (UserId, ClientId, newClientId, ConnId)
 import Data.IP (IP)
-import Data.List.Extra (chunksOf)
+import Data.List.Split (chunksOf)
 import Data.Misc (PlainTextPassword (..))
 import Galley.Types (UserClients (..), UserClientMap (..))
 import Gundeck.Types.Push.V2 (SignalingKeys)

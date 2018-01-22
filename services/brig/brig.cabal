@@ -103,6 +103,7 @@ library
       , bytestring                >= 0.10
       , bytestring-conversion     >= 0.2
       , cassandra-util            >= 0.16.2
+      , currency-codes            >= 2.0
       , cookie                    >= 0.4
       , containers                >= 0.5
       , cryptobox-haskell         >= 0.1.1
@@ -149,6 +150,7 @@ library
       , safe                      >= 0.3
       , scientific                >= 0.3.4
       , scrypt                    >= 0.5
+      , split                     >= 0.2
       , semigroups                >= 0.15
       , singletons                >= 2.0
       , random-shuffle            >= 0.0.3
@@ -249,6 +251,7 @@ executable brig-schema
         V43
         V44
         V45
+        V46
 
     build-depends:
         base
@@ -347,7 +350,7 @@ executable brig-integration
       , retry                 >= 0.6
       , safe                  >= 0.3
       , semigroups
-      , tasty                 >= 0.3.1
+      , tasty                 >= 1.0
       , tasty-cannon          >= 0.3.4
       , tasty-hunit           >= 0.2
       , time                  >= 1.5

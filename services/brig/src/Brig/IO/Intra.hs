@@ -66,7 +66,7 @@ import Data.Foldable (toList, for_)
 import Data.Id
 import Data.Json.Util ((#))
 import Data.List1 (List1, list1, singleton)
-import Data.List.Extra (chunksOf)
+import Data.List.Split (chunksOf)
 import Data.Maybe (isJust, mapMaybe)
 import Data.Range
 import Data.Text (Text)
@@ -79,6 +79,7 @@ import System.Logger.Class hiding ((.=), name)
 import qualified Brig.User.Search.Index      as Search
 import qualified Brig.User.Event.Log         as Log
 import qualified Data.ByteString.Lazy        as BL
+import qualified Data.Currency               as Currency
 import qualified Data.HashMap.Strict         as M
 import qualified Data.Set                    as Set
 import qualified Gundeck.Types.Push.V2       as Push
@@ -612,14 +613,13 @@ getTeamName tid = do
     req = paths ["i", "teams", toByteString' tid, "name"]
         . expect2xx
 
-changeTeamStatus :: TeamId -> Team.TeamStatus -> AppIO ()
-changeTeamStatus tid s = do
-    debug $ remote "galley"
-            . msg (val "Change Team status")
+changeTeamStatus :: TeamId -> Team.TeamStatus -> Maybe Currency.Alpha -> AppIO ()
+changeTeamStatus tid s cur = do
+    debug $ remote "galley" . msg (val "Change Team status")
     void $ galleyRequest PUT req
   where
     req = paths ["i", "teams", toByteString' tid, "status"]
         . header "Content-Type" "application/json"
         . expect2xx
-        . lbytes (encode $ Team.TeamStatusUpdate s)
+        . lbytes (encode $ Team.TeamStatusUpdate s cur)
 

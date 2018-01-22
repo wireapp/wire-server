@@ -47,7 +47,7 @@ import Data.ByteString (ByteString)
 import Data.Id
 import Data.Int (Int32)
 import Data.Foldable (for_)
-import Data.List.Extra (chunksOf)
+import Data.List.Split (chunksOf)
 import Data.Range
 import Data.Set (Set, fromList)
 import Data.Traversable (for)

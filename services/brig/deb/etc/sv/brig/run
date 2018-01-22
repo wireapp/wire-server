@@ -52,6 +52,11 @@ else
     TURN_CONFIG_TTL=""
 fi
 
+if [ -n "$BRIG_PROVIDER_ID_SEARCH_FILTER" ]; then
+    PROVIDER_ID_SEARCH_FILTER="--provider-id-search-filter=$BRIG_PROVIDER_ID_SEARCH_FILTER"
+else
+    PROVIDER_ID_SEARCH_FILTER=""
+fi
 
 cd $HOME
 
@@ -71,6 +76,7 @@ exec chpst -u $USER \
     --activation-url=${BRIG_ACTIVATION_URL?'unset'} \
     --team-activation-url=${BRIG_TEAM_ACTIVATION_URL?'unset'} \
     --activation-timeout=${BRIG_ACTIVATION_TIMEOUT?'unset'} \
+    --team-invitation-timeout=${BRIG_TEAM_INVITATION_TIMEOUT?'unset'} \
     --sms-activation-url=${BRIG_SMS_ACTIVATION_URL?'unset'} \
     --password-reset-url=${BRIG_PASSWORD_RESET_URL?'unset'} \
     --invitation-url=${BRIG_INVITATION_URL?'unset'} \
@@ -119,5 +125,5 @@ exec chpst -u $USER \
     ${GEOIP_DB} \
     ${WHITELIST_URL} \
     ${WHITELIST_USER} \
-    ${WHITELIST_PASS}
-
+    ${WHITELIST_PASS} \
+    ${PROVIDER_ID_SEARCH_FILTER}

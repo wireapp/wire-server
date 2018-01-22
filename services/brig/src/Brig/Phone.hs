@@ -124,9 +124,8 @@ sendSms loc SMSMessage{..} = unless (isTestPhone smsTo) $ do
   where
     sendNexmoSms mgr = do
         crd <- getNexmoCredentials
-        env <- setNexmoEndpoint <$> view settings
         void . liftIO . recovering x3 nexmoHandlers $ const $
-            Nexmo.sendMessage crd env mgr $
+            Nexmo.sendMessage crd mgr $
                 Nexmo.Message "Wire" smsTo smsText (toNexmoCharset loc)
 
     toNexmoCharset :: Locale -> Nexmo.Charset

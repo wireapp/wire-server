@@ -2106,7 +2106,7 @@ postAutoConnection brig from to = post $ brig
     . body payload
     . zConn "conn"
   where
-    payload = RequestBodyLBS . encode $ AutoConnect (Set.fromList to)
+    payload = RequestBodyLBS . encode $ UserSet (Set.fromList to)
 
 setProperty :: Brig -> UserId -> ByteString -> Value -> Http ResponseLBS
 setProperty brig u k v = put $ brig

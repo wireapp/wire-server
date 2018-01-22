@@ -105,7 +105,7 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
 
 -- | Create a new pending activation for a given 'UserKey'.
 newActivation :: UserKey
-              -> ActivationTimeout -- ^ The timeout for the activation code.
+              -> Timeout           -- ^ The timeout for the activation code.
               -> Maybe UserId      -- ^ The user with whom to associate the activation code.
               -> AppIO Activation
 newActivation uk timeout u = do

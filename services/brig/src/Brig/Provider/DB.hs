@@ -20,7 +20,7 @@ import Data.Id
 import Data.Int
 import Data.List1 (List1)
 import Data.List (unfoldr, minimumBy, uncons)
-import Data.Maybe (catMaybes, mapMaybe)
+import Data.Maybe (catMaybes, fromMaybe, mapMaybe)
 import Data.Misc (Fingerprint, Rsa)
 import Data.Range (Range, fromRange, rnil, rcast)
 import Data.Text (Text, toLower, isPrefixOf)
@@ -147,6 +147,7 @@ insertService :: MonadClient m
     => ProviderId
     -> Name
     -> Text
+    -> Text
     -> HttpsUrl
     -> ServiceToken
     -> ServiceKey
@@ -154,19 +155,19 @@ insertService :: MonadClient m
     -> [Asset]
     -> Set.Set ServiceTag
     -> m ServiceId
-insertService pid name descr url token key fprint assets tags = do
+insertService pid name summary descr url token key fprint assets tags = do
     sid <- randomId
     let tagSet = Set (Set.toList tags)
     retry x5 $ write cql $ params Quorum
-        (pid, sid, name, descr, url, [token], [key], [fprint], assets, tagSet, False)
+        (pid, sid, name, summary, descr, url, [token], [key], [fprint], assets, tagSet, False)
     return sid
   where
-    cql :: PrepQuery W (ProviderId, ServiceId, Name, Text, HttpsUrl, [ServiceToken],
+    cql :: PrepQuery W (ProviderId, ServiceId, Name, Text, Text, HttpsUrl, [ServiceToken],
                         [ServiceKey], [Fingerprint Rsa], [Asset], Set ServiceTag, Bool)
                        ()
-    cql = "INSERT INTO service (provider, id, name, descr, base_url, auth_tokens, \
+    cql = "INSERT INTO service (provider, id, name, summary, descr, base_url, auth_tokens, \
                                \pubkeys, fingerprints, assets, tags, enabled) \
-          \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 lookupService :: MonadClient m
     => ProviderId
@@ -176,12 +177,12 @@ lookupService pid sid = fmap (fmap mk) $
     retry x1 $ query1 cql $ params Quorum (pid, sid)
   where
     cql :: PrepQuery R (ProviderId, ServiceId)
-                       (Name, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], Set ServiceTag, Bool)
-    cql = "SELECT name, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
+                       (Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], Set ServiceTag, Bool)
+    cql = "SELECT name, summary, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
           \FROM service WHERE provider = ? AND id = ?"
 
-    mk (name, descr, url, toks, keys, assets, tags, enabled) =
-        Service sid name descr url toks keys assets (Set.fromList (fromSet tags)) enabled
+    mk (name, summary, descr, url, toks, keys, assets, tags, enabled) =
+        Service sid name (fromMaybe mempty summary) descr url toks keys assets (Set.fromList (fromSet tags)) enabled
 
 listServices :: MonadClient m
     => ProviderId
@@ -190,33 +191,38 @@ listServices p = fmap (map mk) $
     retry x1 $ query cql $ params Quorum (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId)
-                       (ServiceId, Name, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], Set ServiceTag, Bool)
-    cql = "SELECT id, name, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
+                       (ServiceId, Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], Set ServiceTag, Bool)
+    cql = "SELECT id, name, summary, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
           \FROM service WHERE provider = ?"
 
-    mk (sid, name, descr, url, toks, keys, assets, tags, enabled) =
+    mk (sid, name, summary, descr, url, toks, keys, assets, tags, enabled) =
         let tags' = Set.fromList (fromSet tags)
-        in Service sid name descr url toks keys assets tags' enabled
+        in Service sid name (fromMaybe mempty summary) descr url toks keys assets tags' enabled
 
 updateService :: MonadClient m
     => ProviderId
     -> ServiceId
     -> Maybe Name
     -> Maybe Text
+    -> Maybe Text
     -> Maybe [Asset]
     -> Maybe (Range 1 3 (Set.Set ServiceTag))
     -> m ()
-updateService pid sid name descr assets tags = retry x5 $ batch $ do
+updateService pid sid name summary descr assets tags = retry x5 $ batch $ do
     setConsistency Quorum
     setType BatchUnLogged
     let tags' = Set . Set.toList . fromRange <$> tags
     for_ name   $ \x -> addPrepQuery cqlName     (x, pid, sid)
+    for_ summary$ \x -> addPrepQuery cqlSummary  (x, pid, sid)
     for_ descr  $ \x -> addPrepQuery cqlDescr    (x, pid, sid)
     for_ assets $ \x -> addPrepQuery cqlAssets   (x, pid, sid)
     for_ tags'  $ \x -> addPrepQuery cqlTags     (x, pid, sid)
   where
     cqlName :: PrepQuery W (Name, ProviderId, ServiceId) ()
     cqlName = "UPDATE service SET name = ? WHERE provider = ? AND id = ?"
+
+    cqlSummary :: PrepQuery W (Text, ProviderId, ServiceId) ()
+    cqlSummary = "UPDATE service SET summary = ? WHERE provider = ? AND id = ?"
 
     cqlDescr :: PrepQuery W (Text, ProviderId, ServiceId) ()
     cqlDescr = "UPDATE service SET descr = ? WHERE provider = ? AND id = ?"
@@ -248,13 +254,13 @@ lookupServiceProfile :: MonadClient m
 lookupServiceProfile p s = fmap (fmap mk) $
     retry x1 $ query1 cql $ params One (p, s)
   where
-    cql :: PrepQuery R (ProviderId, ServiceId) (Name, Text, [Asset], Set ServiceTag, Bool)
-    cql = "SELECT name, descr, assets, tags, enabled \
+    cql :: PrepQuery R (ProviderId, ServiceId) (Name, Maybe Text, Text, [Asset], Set ServiceTag, Bool)
+    cql = "SELECT name, summary, descr, assets, tags, enabled \
           \FROM service WHERE provider = ? AND id = ?"
 
-    mk (name, descr, assets, tags, enabled) =
+    mk (name, summary, descr, assets, tags, enabled) =
         let tags' = Set.fromList (fromSet tags)
-        in ServiceProfile s p name descr assets tags' enabled
+        in ServiceProfile s p name (fromMaybe mempty summary) descr assets tags' enabled
 
 -- | Note: Consistency = One
 listServiceProfiles :: MonadClient m
@@ -264,13 +270,13 @@ listServiceProfiles p = fmap (map mk) $
     retry x1 $ query cql $ params One (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId)
-                       (ServiceId, Name, Text, [Asset], Set ServiceTag, Bool)
-    cql = "SELECT id, name, descr, assets, tags, enabled \
+                       (ServiceId, Name, Maybe Text, Text, [Asset], Set ServiceTag, Bool)
+    cql = "SELECT id, name, summary, descr, assets, tags, enabled \
           \FROM service WHERE provider = ?"
 
-    mk (sid, name, descr, assets, tags, enabled) =
+    mk (sid, name, summary, descr, assets, tags, enabled) =
         let tags' = Set.fromList (fromSet tags)
-        in ServiceProfile sid p name descr assets tags' enabled
+        in ServiceProfile sid p name (fromMaybe mempty summary) descr assets tags' enabled
 
 --------------------------------------------------------------------------------
 -- Service Connection Data
@@ -401,15 +407,28 @@ paginateServiceTags :: MonadClient m
     => QueryAnyTags 1 3
     -> Maybe Name
     -> Int32
+    -> Maybe ProviderId
     -> m ServiceProfilePage
-paginateServiceTags tags start size = liftClient $ do
-    let start' = Name (maybe "" (toLower . fromName) start)
-    let size'  = size + 1
-    let tags'  = unpackTags tags
-    p <- filterPrefix (fromName start') <$> queryAll start' size' tags'
+paginateServiceTags tags start size providerFilter = liftClient $ do
+    let size' = size + 1
+    let tags' = unpackTags tags
+    p <- filterResults <$> queryAll start' size' tags'
     r <- mapConcurrently resolveRow (result p)
     return $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
+    start' = Name (maybe "" (toLower . fromName) start)
+
+    filterResults :: Page TagRow -> Page TagRow
+    filterResults = maybe id filterbyProvider providerFilter . filterPrefix (fromName start')
+
+    filterbyProvider :: ProviderId -> Page TagRow -> Page TagRow
+    filterbyProvider pid p = do
+        let filtered = filter (\(_, provider, _) -> pid == provider) (result p)
+            -- check if we have filtered out any result
+            allValid = length filtered == length (result p)
+            more     = allValid && hasMore p
+         in p { hasMore = more, result = filtered }
+
     filterPrefix :: Text -> Page TagRow -> Page TagRow
     filterPrefix prefix p = do
         let prefixed = filter (\(Name n, _, _) -> prefix `isPrefixOf` (toLower n)) (result p)

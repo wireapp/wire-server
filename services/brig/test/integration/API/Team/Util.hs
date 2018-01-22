@@ -6,10 +6,13 @@ module API.Team.Util where
 
 import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
+import Brig.Types.User
+import Control.Lens (view)
 import Control.Monad
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
+import Data.Maybe (fromMaybe)
 import Data.Range
 import Galley.Types (ConvTeamInfo (..), NewConv (..))
 import Util
@@ -29,6 +32,21 @@ createTeam u galley = do
               )
     maybe (error "invalid team id") return $
         fromByteString $ getHeader' "Location" r
+
+createUserWithTeam :: Brig -> Galley -> Http (UserId, TeamId)
+createUserWithTeam brig galley = do
+    e <- randomEmail
+    n <- randomName
+    let p = RequestBodyLBS . encode $ object
+            [ "name"            .= n
+            , "email"           .= fromEmail e
+            , "password"        .= defPassword
+            , "team"            .= newTeam
+            ]
+    rsp <- post (brig . path "/i/users" . contentJson . body p)
+    uid <- maybe (error "invalid user id") return $ fromByteString $ getHeader' "Location" rsp
+    (team:_) <- view Team.teamListTeams <$> getTeams uid galley
+    return (uid, view Team.teamId team)
 
 addTeamMember :: Galley -> TeamId -> Team.NewTeamMember -> Http ()
 addTeamMember galley tid mem =
@@ -69,6 +87,15 @@ deleteTeam g tid u = do
            . zConn "conn"
            . lbytes (encode $ Team.newTeamDeleteData Util.defPassword)
            ) !!! const 202 === statusCode
+
+getTeams :: UserId -> Galley -> Http Team.TeamList
+getTeams u galley = do
+    r <- get ( galley
+             . paths ["teams"]
+             . zAuthAccess u "conn"
+             . expect2xx
+             )
+    return $ fromMaybe (error "getTeams: failed to parse response") (decodeBody r)
 
 newTeam :: Team.BindingNewTeam
 newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
