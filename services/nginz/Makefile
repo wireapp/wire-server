@@ -1,6 +1,6 @@
 SHELL          := /usr/bin/env bash
 NAME           := nginz
-NGINX_VERSION   = 1.12.1
+NGINX_VERSION   = 1.12.2
 NGINZ_VERSION  ?=
 SHELL          := /usr/bin/env bash
 DIST           := build
@@ -29,6 +29,7 @@ ADDITIONAL_MODULES = \
     --with-http_ssl_module \
     --with-http_stub_status_module \
     --with-http_realip_module \
+    --with-http_gunzip_module \
     --add-module=../third_party/nginx-zauth-module \
     --add-module=../third_party/headers-more-nginx-module \
     --add-module=../third_party/nginx-module-vts
