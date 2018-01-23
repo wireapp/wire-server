@@ -42,6 +42,7 @@ RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${S
 # Install packages needed for newer version of GHC
 ENV GHC_REV ghc-8.2.2-release
 ENV GHC_VER ghc-8.2.2
+ENV PATH /root/.local/bin:/root/.cabal/bin:/root/.stack/programs/x86_64-linux/ghc-$GHC_VER/bin:$PATH
 ADD ghc/build.mk ghc/config.yaml /tmp/
 RUN stack --no-terminal --resolver lts-9 --system-ghc install \
         alex \
