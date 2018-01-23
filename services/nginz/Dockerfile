@@ -1,5 +1,5 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
-FROM alpine:3.6 as libzauth-builder
+FROM alpine:3.7 as libzauth-builder
 
 # Compile libzauth
 COPY libs/libzauth /src/libzauth
@@ -9,9 +9,9 @@ RUN cd /src/libzauth/libzauth-c \
     && make install
 
 # Nginz container
-FROM alpine:3.6
+FROM alpine:3.7
 
-ENV NGINX_VERSION 1.12.1
+ENV NGINX_VERSION 1.12.2
 
 # Install libzauth
 COPY --from=libzauth-builder /usr/include/zauth.h /usr/include/zauth.h
@@ -43,6 +43,7 @@ RUN apk add --no-cache inotify-tools dumb-init bash curl && \
         --with-http_ssl_module \
         --with-http_stub_status_module \
         --with-http_realip_module \
+        --with-http_gunzip_module \
         --add-module=/src/third_party/nginx-zauth-module \
         --add-module=/src/third_party/headers-more-nginx-module \
         --add-module=/src/third_party/nginx-module-vts \
