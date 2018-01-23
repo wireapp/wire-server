@@ -84,7 +84,8 @@ RUN cd /tmp && \
     git submodule update --init --recursive && \
     mv /tmp/build.mk mk/
 
-RUN ./boot && \
+RUN cd /tmp/ghc &&
+    ./boot && \
     SPHINXBUILD=/usr/bin/sphinx-build-3 ./configure --prefix=/root/.stack/programs/x86_64-linux/$GHC_VER --disable-ld-override && \
     make -j4 && \
     make install && \
