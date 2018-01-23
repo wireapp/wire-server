@@ -11,4 +11,4 @@ BUILD_SPHINX_HTML         = YES
 BUILD_SPHINX_PDF          = NO
 BUILD_MAN                 = YES
 HADDOCK_DOCS              = YES
-EXTRA_HADDOCK_OPTS        += --quickjump --hyperlinked-source
+EXTRA_HADDOCK_OPTS        += --hyperlinked-source
