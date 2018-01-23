@@ -75,11 +75,8 @@ turn:
 optSettings:
   setActivationTimeout: 5
   setTeamInvitationTimeout: 5
-  setTwilioSID: "<insert-twilio-sid-here>"
-  setTwilioToken: test/resources/twilio/secret.txt
-  setNexmoKey: "<insert-nexmo-key-here>"
-  setNexmoSecret: test/resources/nexmo/secret.txt
-  setTwilioEndpoint: sandbox
+  setTwilio: test/resources/twilio.txt
+  setNexmo: test/resources/nexmo.txt
   setUserMaxConnections: 129
   setCookieDomain: 127.0.0.1
   setCookieInsecure: true

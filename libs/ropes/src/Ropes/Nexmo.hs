@@ -44,7 +44,7 @@ import Data.ByteString.Lazy (toStrict)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Monoid ((<>))
 import Data.Text (Text)
-import Data.Text.Encoding (decodeLatin1, decodeUtf8)
+import Data.Text.Encoding (decodeLatin1, decodeUtf8, encodeUtf8)
 import Data.Time (UTCTime)
 import Data.Time.Format (formatTime, defaultTimeLocale)
 import Data.Traversable (forM)
@@ -62,7 +62,15 @@ newtype ApiSecret = ApiSecret ByteString
 
 data Charset = GSM7 | GSM8 | UCS2 deriving (Eq, Show)
 
-type Credentials = (ApiKey, ApiSecret)
+data Credentials = Credentials
+    { key    :: ApiKey
+    , secret :: ApiSecret
+    }
+
+instance FromJSON Credentials where
+    parseJSON = withObject "credentials" $ \o ->
+        Credentials <$> (ApiKey . encodeUtf8    <$> o .: "key")
+                    <*> (ApiSecret . encodeUtf8 <$> o .: "secret")
 
 -- * SMS related
 newtype MessageId = MessageId { messageIdText :: Text } deriving (Eq, Show)
@@ -251,11 +259,11 @@ sendCall cr mgr call = httpLbs req mgr >>= parseResult
         , requestHeaders = [(hContentType, "application/json")]
         }
 
-    (ApiKey key, ApiSecret secret) = cr
+    (ApiKey apiKey, ApiSecret apiSecret) = (key cr, secret cr)
 
     body = object
-         [ "api_key"    .= decodeLatin1 key
-         , "api_secret" .= decodeLatin1 secret
+         [ "api_key"    .= decodeLatin1 apiKey
+         , "api_secret" .= decodeLatin1 apiSecret
          , "from"       .= callFrom call
          , "to"         .= callTo call
          , "text"       .= callText call
@@ -279,11 +287,11 @@ sendFeedback cr mgr fb = httpLbs req mgr >>= parseResponse
         , requestHeaders = [(hContentType, "application/json")]
         }
 
-    (ApiKey key, ApiSecret secret) = cr
+    (ApiKey apiKey, ApiSecret apiSecret) = (key cr, secret cr)
 
     body = object
-       [ "api_key"    .= decodeLatin1 key
-       , "api_secret" .= decodeLatin1 secret
+       [ "api_key"    .= decodeLatin1 apiKey
+       , "api_secret" .= decodeLatin1 apiSecret
        , "message-id" .= either callIdText messageIdText (feedbackId fb)
        , "delivered"  .= feedbackDelivered fb
        , "timestamp"  .= nexmoTimeFormat (feedbackTime fb)
@@ -318,11 +326,11 @@ sendMessages cr mgr msgs = forM msgs $ \m -> httpLbs (req m) mgr >>= parseResult
           , requestHeaders = [(hContentType, "application/json")]
           }
 
-    (ApiKey key, ApiSecret secret) = cr
+    (ApiKey apiKey, ApiSecret apiSecret) = (key cr, secret cr)
 
     body m = object
-           [ "api_key"    .= decodeLatin1 key
-           , "api_secret" .= decodeLatin1 secret
+           [ "api_key"    .= decodeLatin1 apiKey
+           , "api_secret" .= decodeLatin1 apiSecret
            , "from"       .= msgFrom m
            , "to"         .= msgTo m
            , "text"       .= msgText m

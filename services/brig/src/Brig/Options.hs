@@ -5,11 +5,9 @@
 {-# LANGUAGE OverloadedStrings          #-}
 
 module Brig.Options
-    ( loadSecret
-    , optsParser
+    ( optsParser
     , parseOptions
 
-    , FilePathSecret
     , Opts (..)
     , Settings (..)
     , Timeout (..)
@@ -44,26 +42,13 @@ import Data.Yaml (FromJSON(..))
 import GHC.Generics
 import Options.Applicative
 import Options.Applicative.Types (readerAsk)
-import System.Directory (canonicalizePath, doesFileExist)
 import Util.Options
 import Util.Options.Common
 
 import qualified Data.Text             as T
-import qualified Data.Text.IO          as T
 import qualified Data.Yaml             as Y
 import qualified Ropes.Aws             as Aws
 import qualified Brig.ZAuth            as ZAuth
-
-newtype FilePathSecret = FilePathSecret FilePath
-    deriving (Eq, Show, Read, FromJSON)
-
-loadSecret :: FilePathSecret -> IO (Maybe Text)
-loadSecret (FilePathSecret p) = do
-    path   <- canonicalizePath p
-    exists <- doesFileExist path
-    if exists
-        then Just <$> T.readFile path
-        else return Nothing
 
 newtype Timeout = Timeout
     { timeoutDiff :: DiffTime
@@ -190,10 +175,8 @@ data Opts = Opts
 data Settings = Settings
     { setActivationTimeout     :: !Timeout
     , setTeamInvitationTimeout :: !Timeout
-    , setTwilioSID             :: !Text
-    , setTwilioToken           :: !FilePathSecret
-    , setNexmoKey              :: !Text
-    , setNexmoSecret           :: !FilePathSecret
+    , setTwilio                :: !FilePathSecrets
+    , setNexmo                 :: !FilePathSecrets
     , setWhitelist             :: !(Maybe Whitelist)
     , setUserMaxConnections    :: !Int64
     , setCookieDomain          :: !Text
@@ -380,12 +363,10 @@ settingsParser =
      long "team-invitation-timeout" <> metavar "SECONDS" <>
      value (Timeout (secondsToDiffTime 3600)) <>
      help "Team invitation timeout in seconds") <*>
-    (textOption $ long "twilio-sid" <> metavar "STRING" <> help "Twilio SID") <*>
-    (FilePathSecret <$> (strOption $
-     long "twilio-token" <> metavar "FILE" <> help "File containing Twilio API token" <> action "file")) <*>
-    (textOption $ long "nexmo-key" <> metavar "STRING" <> help "Nexmo API key") <*>
-    (FilePathSecret <$> (strOption $
-     long "nexmo-secret" <> metavar "FILE" <> help "File containing Nexmo API secret" <> action "file")) <*>
+    (FilePathSecrets <$> (strOption $
+     long "twilio-credentials" <> metavar "FILE" <> help "File containing Twilio credentials" <> action "file")) <*>
+    (FilePathSecrets <$> (strOption $
+     long "nexmo-credentials" <> metavar "FILE" <> help "File containing Nexmo credentials" <> action "file")) <*>
     (optional $
      Whitelist <$>
      (textOption $

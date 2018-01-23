@@ -55,7 +55,15 @@ newtype MessageId = MessageId ByteString
 newtype SID = SID ByteString
 newtype AccessToken = AccessToken ByteString
 
-type Credentials = (SID, AccessToken)
+data Credentials = Credentials
+    { sid   :: SID
+    , token :: AccessToken
+    }
+
+instance FromJSON Credentials where
+    parseJSON = withObject "credentials" $ \o ->
+        Credentials <$> (SID . encodeUtf8         <$> o .: "sid")
+                    <*> (AccessToken . encodeUtf8 <$> o .: "token")
 
 data Message = Message
     { msgFrom :: !Text
@@ -146,7 +154,7 @@ sendMessage cr mgr msg = N.head <$> sendMessages cr mgr (msg :| [])
 
 sendMessages :: Credentials -> Manager -> NonEmpty Message -> IO (NonEmpty MessageId)
 sendMessages cr mgr msgs = forM msgs $ \m -> do
-    let req = urlEncodedBody (form m) . applyBasicAuth sid token $ apiReq
+    let req = urlEncodedBody (form m) . applyBasicAuth tSid tToken $ apiReq
     rsp <- httpLbs req mgr
     if responseStatus rsp == status201
         then case eitherDecode (responseBody rsp) of
@@ -161,10 +169,10 @@ sendMessages cr mgr msgs = forM msgs $ \m -> do
         , host   = "api.twilio.com"
         , secure = True
         , port   = 443
-        , path   = "/2010-04-01/Accounts/" <> sid <> "/Messages.json"
+        , path   = "/2010-04-01/Accounts/" <> tSid <> "/Messages.json"
         }
 
-    (SID sid, AccessToken token) = cr
+    (SID tSid, AccessToken tToken) = (sid cr, token cr)
 
     form m = [ ("From", encodeUtf8 . msgFrom $ m)
              , ("To"  , encodeUtf8 . msgTo   $ m)
@@ -178,7 +186,7 @@ lookupPhone :: Credentials
             -> Maybe CountryCode
             -> IO LookupResult
 lookupPhone cr mgr phone detail country = do
-    let req = applyBasicAuth sid token apiReq
+    let req = applyBasicAuth tSid tToken apiReq
     rsp <- httpLbs req mgr
     if responseStatus rsp == status200
         then case eitherDecode (responseBody rsp) of
@@ -188,7 +196,7 @@ lookupPhone cr mgr phone detail country = do
             Right e -> throwIO (e :: ErrorResponse)
             Left  e -> throwIO $ ParseError e
   where
-    (SID sid, AccessToken token) = cr
+    (SID tSid, AccessToken tToken) = (sid cr, token cr)
 
     apiReq = defaultRequest
         { method      = "GET"

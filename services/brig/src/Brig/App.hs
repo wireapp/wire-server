@@ -49,7 +49,7 @@ module Brig.App
 
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
-import Brig.Options (Opts, Settings, FilePathSecret)
+import Brig.Options (Opts, Settings)
 import Brig.Template (Localised, forLocale)
 import Brig.Provider.Template
 import Brig.Team.Template
@@ -79,9 +79,10 @@ import Data.Metrics (Metrics)
 import Data.Misc
 import Data.Int (Int32)
 import Data.IORef
-import Data.Text (unpack, Text)
+import Data.Text (unpack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
+import Data.Yaml (FromJSON)
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (getDigestByName, Digest)
@@ -170,8 +171,8 @@ newEnv o = do
     g   <- geoSetup lgr w $ Opt.geoDb o
     t   <- turnSetup lgr w sha512 (Opt.turn o)
     let sett = Opt.optSettings o
-    nxm <- initNexmoCredentials (Opt.setNexmoKey sett) (Opt.setNexmoSecret sett)
-    twl <- initTwilioCredentials (Opt.setTwilioSID sett) (Opt.setTwilioToken sett)
+    nxm <- initCredentials (Opt.setNexmo sett)
+    twl <- initCredentials (Opt.setTwilio sett)
     return $! Env
         { _galley        = mkEndpoint $ Opt.galley o
         , _gundeck       = mkEndpoint $ Opt.gundeck o
@@ -332,17 +333,10 @@ initCassandra o g = do
     runClient p $ versionCheck schemaVersion
     return p
 
-initNexmoCredentials :: Text -> FilePathSecret -> IO Nexmo.Credentials
-initNexmoCredentials key secretFile = do
-    dat <- Opt.loadSecret secretFile
-    let secret = fromMaybe (error $ "Could not read nexmo secret from " ++ show secretFile) dat
-    return (Nexmo.ApiKey (encodeUtf8 key), Nexmo.ApiSecret (encodeUtf8 secret))
-
-initTwilioCredentials :: Text -> FilePathSecret -> IO Twilio.Credentials
-initTwilioCredentials sid secretFile = do
-    dat <- Opt.loadSecret secretFile
-    let secret = fromMaybe (error $ "Could not read twilio secret from " ++ show secretFile) dat
-    return (Twilio.SID (encodeUtf8 sid), Twilio.AccessToken (encodeUtf8 secret))
+initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
+initCredentials secretFile = do
+    dat <- loadSecret secretFile
+    return $ fromMaybe (error $ "Could not secrets from " ++ show secretFile) dat
 
 userTemplates :: Monad m => Maybe Locale -> AppT m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
