@@ -42,7 +42,7 @@ RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${S
 # Install packages needed for newer version of GHC
 ENV GHC_REV ghc-8.2.2-release
 ENV GHC_VER ghc-8.2.2
-ENV PATH /root/.local/bin:/root/.cabal/bin:/root/.stack/programs/x86_64-linux/ghc-$GHC_VER/bin:$PATH
+ENV PATH /root/.local/bin:/root/.cabal/bin:/root/.stack/programs/x86_64-linux/$GHC_VER/bin:$PATH
 ADD ghc/build.mk ghc/config.yaml /tmp/
 RUN stack --no-terminal --resolver lts-9 --system-ghc install \
         alex \
@@ -84,9 +84,13 @@ RUN cd /tmp && \
     git submodule update --init --recursive && \
     mv /tmp/build.mk mk/ && \
     ./boot && \
-    SPHINXBUILD=/usr/bin/sphinx-build-3 ./configure --prefix=/root/.stack/programs/x86_64-linux/ghc-$GHC_VER --disable-ld-override && \
+    SPHINXBUILD=/usr/bin/sphinx-build-3 ./configure --prefix=/root/.stack/programs/x86_64-linux/$GHC_VER --disable-ld-override && \
     make -j4 && \
-    make install
+    make install && \
+    mv /root/.stack/programs /tmp/programs && \
+    mkdir /root/.stack && \
+    mv /tmp/config.yaml /root/.stack/ && \
+    mv /tmp/programs /root/.stack/programs
 
 #RUN apk del \
 #        autoconf \
