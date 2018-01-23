@@ -16,7 +16,6 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Int (Int64)
 import Data.Maybe
-import Data.Misc (HttpsUrl)
 import Data.Monoid
 import Data.Scientific (toBoundedInteger)
 import Data.Text (Text)
@@ -160,10 +159,8 @@ data Opts = Opts
 data Settings = Settings
     { setActivationTimeout     :: !Timeout
     , setTeamInvitationTimeout :: !Timeout
-    , setTwilioSID             :: !Text
-    , setTwilioToken           :: !Text
-    , setNexmoKey              :: !Text
-    , setNexmoSecret           :: !Text
+    , setTwilio                :: !FilePathSecrets
+    , setNexmo                 :: !FilePathSecrets
     , setWhitelist             :: !(Maybe Whitelist)
     , setUserMaxConnections    :: !Int64
     , setCookieDomain          :: !Text
@@ -350,12 +347,10 @@ settingsParser =
      long "team-invitation-timeout" <> metavar "SECONDS" <>
      value (Timeout (secondsToDiffTime 3600)) <>
      help "Team invitation timeout in seconds") <*>
-    (textOption $ long "twilio-sid" <> metavar "STRING" <> help "Twilio SID") <*>
-    (textOption $
-     long "twilio-token" <> metavar "STRING" <> help "Twilio API token") <*>
-    (textOption $ long "nexmo-key" <> metavar "STRING" <> help "Nexmo API key") <*>
-    (textOption $
-     long "nexmo-secret" <> metavar "STRING" <> help "Nexmo API secret") <*>
+    (FilePathSecrets <$> (strOption $
+     long "twilio-credentials" <> metavar "FILE" <> help "File containing Twilio credentials" <> action "file")) <*>
+    (FilePathSecrets <$> (strOption $
+     long "nexmo-credentials" <> metavar "FILE" <> help "File containing Nexmo credentials" <> action "file")) <*>
     (optional $
      Whitelist <$>
      (textOption $
@@ -404,10 +399,6 @@ settingsParser =
     (optional $ option providerIdOption $
      long "provider-id-search-filter" <> metavar "STRING" <>
      help "Filter _ONLY_ services with the given provider id")
-
-httpsUrlOption :: Mod OptionFields String -> Parser HttpsUrl
-httpsUrlOption =
-    fmap (fromMaybe (error "Invalid HTTPS URL") . fromByteString) . bytesOption
 
 localeOption :: Mod OptionFields String -> Parser Locale
 localeOption =

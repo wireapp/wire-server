@@ -25,6 +25,8 @@ module Brig.App
     , requestId
     , httpManager
     , extGetManager
+    , nexmoCreds
+    , twilioCreds
     , settings
     , currentTime
     , geoDb
@@ -80,6 +82,7 @@ import Data.IORef
 import Data.Text (unpack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
+import Data.Yaml (FromJSON)
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (getDigestByName, Digest)
@@ -105,6 +108,8 @@ import qualified Data.Text.IO             as Text
 import qualified OpenSSL.Session          as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import qualified Ropes.Aws                as Aws
+import qualified Ropes.Nexmo              as Nexmo
+import qualified Ropes.Twilio             as Twilio
 import qualified System.FilePath          as Path
 import qualified System.FSNotify          as FS
 import qualified System.Logger            as Log
@@ -131,6 +136,8 @@ data Env = Env
     , _httpManager   :: Manager
     , _extGetManager :: [Fingerprint Rsa] -> Manager
     , _settings      :: Settings
+    , _nexmoCreds    :: Nexmo.Credentials
+    , _twilioCreds   :: Twilio.Credentials
     , _geoDb         :: Maybe (IORef GeoIp.GeoDB)
     , _fsWatcher     :: FS.WatchManager
     , _turnEnv       :: IORef TURN.Env
@@ -163,6 +170,9 @@ newEnv o = do
          $ FS.defaultConfig { FS.confDebounce = FS.Debounce 0.5, FS.confPollInterval = 10000000 }
     g   <- geoSetup lgr w $ Opt.geoDb o
     t   <- turnSetup lgr w sha512 (Opt.turn o)
+    let sett = Opt.optSettings o
+    nxm <- initCredentials (Opt.setNexmo sett)
+    twl <- initCredentials (Opt.setTwilio sett)
     return $! Env
         { _galley        = mkEndpoint $ Opt.galley o
         , _gundeck       = mkEndpoint $ Opt.gundeck o
@@ -177,7 +187,9 @@ newEnv o = do
         , _tmTemplates   = ttp
         , _httpManager   = mgr
         , _extGetManager = ext
-        , _settings      = Opt.optSettings o
+        , _settings      = sett
+        , _nexmoCreds    = nxm
+        , _twilioCreds   = twl
         , _geoDb         = g
         , _turnEnv       = t
         , _fsWatcher     = w
@@ -320,6 +332,11 @@ initCassandra o g = do
             $ Cas.defSettings
     runClient p $ versionCheck schemaVersion
     return p
+
+initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
+initCredentials secretFile = do
+    dat <- loadSecret secretFile
+    return $ fromMaybe (error $ "Could not secrets from " ++ show secretFile) dat
 
 userTemplates :: Monad m => Maybe Locale -> AppT m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
