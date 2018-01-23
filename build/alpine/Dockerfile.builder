@@ -93,24 +93,6 @@ RUN cd /tmp/ghc && \
     make install && \
     mv /tmp/config.yaml /root/.stack/
 
-#RUN apk del \
-#        autoconf \
-#        automake \
-#        binutils-gold \
-#        bzip2 \
-#        coreutils \
-#        file \
-#        findutils \
-#        g++ \
-#        gawk \
-#        ghc \
-#        gmp-dev \
-#        make \
-#        patch \
-#        perl \
-#        py3-sphinx \
-#        sed
-
 # download stack indices and compile/cache dependencies to speed up subsequent container creation
 # TODO: make this caching step optional?
 RUN apk add --no-cache git && \
