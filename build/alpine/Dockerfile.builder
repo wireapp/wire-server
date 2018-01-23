@@ -40,6 +40,8 @@ RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${S
 
 # As done by https://github.com/TerrorJack/meikyu,
 # Install packages needed for newer version of GHC
+WORKDIR /root
+ENV LANG en_US.UTF-8
 ENV GHC_REV ghc-8.2.2-release
 ENV GHC_VER ghc-8.2.2
 ENV PATH /root/.local/bin:/root/.cabal/bin:/root/.stack/programs/x86_64-linux/$GHC_VER/bin:$PATH
@@ -116,9 +118,9 @@ RUN apk add --no-cache git && \
     git clone https://github.com/wireapp/wire-server.git && \
     cd wire-server && \
     stack update && \
+    cd services/proxy && stack build --pedantic --test --dependencies-only && cd - && \
     cd services/brig && stack build --pedantic --test --dependencies-only && cd - && \
     cd services/galley && stack build --pedantic --test --dependencies-only && cd - && \
     cd services/cannon && stack build --pedantic --test --dependencies-only && cd - && \
     cd services/cargohold && stack build --pedantic --test --dependencies-only && cd - && \
-    cd services/proxy && stack build --pedantic --test --dependencies-only && cd - && \
     cd services/gundeck && stack build --pedantic --test --dependencies-only && cd -
