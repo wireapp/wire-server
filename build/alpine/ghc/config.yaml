@@ -1,3 +1,4 @@
 build:
   prefetch: true
 ghc-build: standard
+system-ghc: true

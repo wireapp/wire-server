@@ -82,15 +82,13 @@ RUN cd /tmp && \
     cd ghc && \
     git checkout $GHC_REV && \
     git submodule update --init --recursive && \
-    mv /tmp/build.mk mk/ && \
-    ./boot && \
+    mv /tmp/build.mk mk/
+
+RUN ./boot && \
     SPHINXBUILD=/usr/bin/sphinx-build-3 ./configure --prefix=/root/.stack/programs/x86_64-linux/$GHC_VER --disable-ld-override && \
     make -j4 && \
     make install && \
-    mv /root/.stack/programs /tmp/programs && \
-    mkdir /root/.stack && \
-    mv /tmp/config.yaml /root/.stack/ && \
-    mv /tmp/programs /root/.stack/programs
+    mv /tmp/config.yaml /root/.stack/
 
 #RUN apk del \
 #        autoconf \

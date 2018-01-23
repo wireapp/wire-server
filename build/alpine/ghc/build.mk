@@ -1,5 +1,5 @@
 GhcEnableTablesNextToCode = NO
-INTEGER_LIBRARY           = integer-simple
+INTEGER_LIBRARY           = integer-gmp
 StripLibraries            = YES
 SRC_HC_OPTS               = -O -H256m
 GhcStage1HcOpts           = -O
