@@ -4,23 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 
-module Brig.Options
-    ( optsParser
-    , parseOptions
-
-    , Opts (..)
-    , Settings (..)
-    , Timeout (..)
-    , ZAuthOpts (..)
-    , AWSOpts (..)
-    , ElasticSearchOpts (..)
-    , TurnOpts (..)
-    , ProviderOpts (..)
-    , EmailUserOpts (..)
-    , EmailSMSOpts (..)
-    , EmailSMSGeneralOpts (..)
-    , TeamOpts (..)
-    ) where
+module Brig.Options where
 
 import Brig.Aws.Types (Region (..))
 import Brig.Types
