@@ -75,8 +75,8 @@ turn:
 optSettings:
   setActivationTimeout: 5
   setTeamInvitationTimeout: 5
-  setTwilio: test/resources/twilio.txt
-  setNexmo: test/resources/nexmo.txt
+  setTwilio: test/resources/twilio-credentials.yaml
+  setNexmo: test/resources/nexmo-credentials.yaml
   setUserMaxConnections: 129
   setCookieDomain: 127.0.0.1
   setCookieInsecure: true
