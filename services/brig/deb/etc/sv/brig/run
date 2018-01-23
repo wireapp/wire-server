@@ -89,11 +89,9 @@ exec chpst -u $USER \
     --aws-dynamo-blacklist=${BRIG_AWS_DYNAMO_BLACKLIST?'unset'} \
     --aws-dynamo-prekeys=${BRIG_AWS_DYNAMO_PREKEYS?'unset'} \
     --aws-account-id=${BRIG_AWS_ACCOUNT?'unset'} \
-    --twilio-sid=${BRIG_TWILIO_SID?'unset'} \
-    --twilio-token=${BRIG_TWILIO_TOKEN?'unset'} \
+    --twilio-credentials=${BRIG_TWILIO_CREDENTIALS?'unset'} \
     --twilio-sender=${BRIG_TWILIO_SENDER?'unset'} \
-    --nexmo-key=${BRIG_NEXMO_KEY?'unset'} \
-    --nexmo-secret=${BRIG_NEXMO_SECRET?'unset'} \
+    --nexmo-credentials=${BRIG_NEXMO_CREDENTIALS?'unset'} \
     --template-dir=${TEMPLATE_DIR?'unset'} \
     --email-sender=${BRIG_EMAIL_SENDER?'unset'} \
     --disco-url=${DISCO_URL?'unset'} \
