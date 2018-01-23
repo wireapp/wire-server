@@ -1,8 +1,9 @@
-{-# LANGUAGE CPP                 #-}
-{-# LANGUAGE DeriveDataTypeable  #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 module Ropes.Nexmo
     ( -- * Types
@@ -39,12 +40,11 @@ import Control.Exception
 import Control.Monad (unless)
 import Data.Aeson
 import Data.Aeson.Types
-import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (toStrict)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Monoid ((<>))
 import Data.Text (Text)
-import Data.Text.Encoding (decodeLatin1, decodeUtf8, encodeUtf8)
+import Data.Text.Encoding (decodeUtf8)
 import Data.Time (UTCTime)
 import Data.Time.Format (formatTime, defaultTimeLocale)
 import Data.Traversable (forM)
@@ -57,8 +57,8 @@ import qualified Data.List.NonEmpty as N
 
 -- * Types
 
-newtype ApiKey = ApiKey ByteString
-newtype ApiSecret = ApiSecret ByteString
+newtype ApiKey = ApiKey Text deriving (FromJSON)
+newtype ApiSecret = ApiSecret Text deriving (FromJSON)
 
 data Charset = GSM7 | GSM8 | UCS2 deriving (Eq, Show)
 
@@ -69,8 +69,8 @@ data Credentials = Credentials
 
 instance FromJSON Credentials where
     parseJSON = withObject "credentials" $ \o ->
-        Credentials <$> (ApiKey . encodeUtf8    <$> o .: "key")
-                    <*> (ApiSecret . encodeUtf8 <$> o .: "secret")
+        Credentials <$> o .: "key"
+                    <*> o .: "secret"
 
 -- * SMS related
 newtype MessageId = MessageId { messageIdText :: Text } deriving (Eq, Show)
@@ -262,8 +262,8 @@ sendCall cr mgr call = httpLbs req mgr >>= parseResult
     (ApiKey apiKey, ApiSecret apiSecret) = (key cr, secret cr)
 
     body = object
-         [ "api_key"    .= decodeLatin1 apiKey
-         , "api_secret" .= decodeLatin1 apiSecret
+         [ "api_key"    .= apiKey
+         , "api_secret" .= apiSecret
          , "from"       .= callFrom call
          , "to"         .= callTo call
          , "text"       .= callText call
@@ -290,8 +290,8 @@ sendFeedback cr mgr fb = httpLbs req mgr >>= parseResponse
     (ApiKey apiKey, ApiSecret apiSecret) = (key cr, secret cr)
 
     body = object
-       [ "api_key"    .= decodeLatin1 apiKey
-       , "api_secret" .= decodeLatin1 apiSecret
+       [ "api_key"    .= apiKey
+       , "api_secret" .= apiSecret
        , "message-id" .= either callIdText messageIdText (feedbackId fb)
        , "delivered"  .= feedbackDelivered fb
        , "timestamp"  .= nexmoTimeFormat (feedbackTime fb)
@@ -329,8 +329,8 @@ sendMessages cr mgr msgs = forM msgs $ \m -> httpLbs (req m) mgr >>= parseResult
     (ApiKey apiKey, ApiSecret apiSecret) = (key cr, secret cr)
 
     body m = object
-           [ "api_key"    .= decodeLatin1 apiKey
-           , "api_secret" .= decodeLatin1 apiSecret
+           [ "api_key"    .= apiKey
+           , "api_secret" .= apiSecret
            , "from"       .= msgFrom m
            , "to"         .= msgTo m
            , "text"       .= msgText m
