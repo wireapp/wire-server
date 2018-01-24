@@ -6,7 +6,7 @@
 
 module Brig.Options where
 
-import Brig.Aws.Types (Region (..))
+import Brig.Aws.Types
 import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
@@ -31,6 +31,7 @@ import Util.Options.Common
 
 import qualified Data.Text             as T
 import qualified Data.Yaml             as Y
+import qualified Network.AWS           as Amazonka
 import qualified Ropes.Aws             as Aws
 import qualified Brig.ZAuth            as ZAuth
 
@@ -63,6 +64,15 @@ data AWSOpts = AWSOpts
     } deriving (Show, Generic)
 
 instance FromJSON AWSOpts
+
+data AWSOptsAmazonka = AWSOptsAmazonka
+    { amazonkaAccount       :: !Text
+    , amazonkaRegion        :: !Amazonka.Region
+    , amazonkaSesQueue      :: !Text
+    , amazonkaInternalQueue :: !Text
+    } deriving (Show, Generic)
+
+instance FromJSON AWSOptsAmazonka
 
 data EmailSMSGeneralOpts = EmailSMSGeneralOpts
     { templateDir :: !FilePath

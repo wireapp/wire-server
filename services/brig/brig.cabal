@@ -33,8 +33,10 @@ library
       , Brig.API.Types
       , Brig.API.User
       , Brig.Aws
+      , Brig.AwsAmazonka
       , Brig.Aws.InternalNotification
       , Brig.Aws.SesNotification
+      , Brig.Aws.AmazonkaTypes
       , Brig.Aws.Types
       , Brig.Blacklist
       , Brig.Budget
@@ -89,6 +91,10 @@ library
 
     build-depends:
         aeson                     >= 0.11
+      , amazonka                  >= 1.3.7
+      , amazonka-ses              >= 1.3.7
+      , amazonka-sns              >= 1.3.7
+      , amazonka-sqs              >= 1.3.7
       , attoparsec                >= 0.12
       , async                     >= 2.1
       , auto-update               >= 0.1
@@ -133,6 +139,7 @@ library
       , lens                      >= 3.8
       , lens-aeson                >= 1.0
       , lifted-async              >= 0.9.3
+      , lifted-base           >= 0.2
       , mime-mail                 >= 0.4
       , metrics-core              >= 0.3
       , metrics-wai               >= 0.3
@@ -164,6 +171,7 @@ library
       , transformers              >= 0.3
       , time                      >= 1.1
       , tinylog                   >= 0.10
+      , tls                       >= 1.3.4
       , types-common              >= 0.16
       , retry                     >= 0.7
       , unordered-containers      >= 0.2
