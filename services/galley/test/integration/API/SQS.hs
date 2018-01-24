@@ -20,7 +20,7 @@ import Data.ByteString.Lazy (toStrict)
 import Data.ProtoLens.Encoding
 import Data.Text (Text)
 import Galley.Aws
-import Galley.Options (JournalOpts(..))
+import Galley.Options (JournalOpts(..), FakeSQSOpts(..))
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.Session as Ssl
@@ -125,9 +125,9 @@ initHttpManager = do
         , managerIdleConnectionCount = 300
         }
 
-mkAWSEnv :: Text -> IO Aws.Env
-mkAWSEnv queue = do
+mkAWSEnv :: Maybe FakeSQSOpts -> Text -> IO Aws.Env
+mkAWSEnv sqs queue = do
     l   <- L.new $ L.setOutput L.StdOut . L.setFormat Nothing $ L.defSettings
     mgr <- initHttpManager
-    let opts = JournalOpts queue AWS.Ireland
+    let opts = JournalOpts queue AWS.Ireland sqs
     Aws.mkEnv l mgr opts

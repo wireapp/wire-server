@@ -35,7 +35,7 @@ import Control.Retry (retrying, limitRetries, exponentialBackoff)
 import Data.Monoid ((<>))
 import Data.ProtoLens.Encoding
 import Data.Text (Text)
-import Data.Text.Encoding (decodeLatin1)
+import Data.Text.Encoding (decodeLatin1, encodeUtf8)
 import Data.Typeable
 import Data.UUID.V4
 import Data.UUID (toText)
@@ -101,12 +101,19 @@ instance AWS.MonadAWS Amazon where
 mkEnv :: Logger -> Manager -> JournalOpts -> IO Env
 mkEnv lgr mgr opts = do
     let g = Logger.clone (Just "aws.galley") lgr
-    e <- configure <$> mkAwsEnv g
+    e <- mkAwsEnv g (opts^.awsFakeSqs)
     q <- getQueueUrl e (opts^.awsQueueName)
     return (Env e g q (opts^.awsRegion))
   where
-    mkAwsEnv g =  set AWS.envLogger (awsLogger g)
-               .  set AWS.envRegion (opts^.awsRegion)
+    mkAwsEnv :: Logger -> Maybe FakeSQSOpts -> IO AWS.Env
+    mkAwsEnv g Nothing =  set AWS.envLogger (awsLogger g)
+               . set AWS.envRegion (opts^.awsRegion)
+               . set AWS.envRetryCheck retryCheck
+              <$> AWS.newEnvWith AWS.Discover Nothing mgr
+    mkAwsEnv g (Just fake) = set AWS.envLogger (awsLogger g)
+               . set AWS.envRetryCheck retryCheck
+               -- override SQS endpoint when fakeSQS options are set
+               . AWS.configure (AWS.setEndpoint False (encodeUtf8 $ fake^.sqsHost) (fake^.sqsPort) SQS.sqs)
               <$> AWS.newEnvWith AWS.Discover Nothing mgr
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
@@ -124,8 +131,6 @@ mkEnv lgr mgr opts = do
     -- them, which results in distracting noise. For debugging purposes,
     -- they are still revealed on debug level.
     mapLevel AWS.Error = Logger.Debug
-
-    configure = set AWS.envRetryCheck retryCheck
 
     -- TODO: Remove custom retryCheck? Should be fixed since tls 1.3.9?
     -- account occasional TLS handshake failures.
@@ -177,4 +182,3 @@ canRetry (Left  e) = case e of
     AWS.TransportError (HttpExceptionRequest _ ResponseTimeout)                   -> pure True
     AWS.ServiceError se | se^.AWS.serviceCode == AWS.ErrorCode "RequestThrottled" -> pure True
     _                                                                             -> pure False
-

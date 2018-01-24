@@ -88,6 +88,17 @@ integration-%:
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
 
+.PHONY: fast
+fast:
+	stack install --pedantic --local-bin-path=dist --fast
+
+.PHONY: test
+test: fast
+	keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV)
+
+test-%: fast
+	keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
+
 .PHONY: db
 db: db-reset
 

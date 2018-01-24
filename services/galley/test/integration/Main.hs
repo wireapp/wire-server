@@ -5,6 +5,7 @@ module Main (main) where
 
 import Bilge hiding (header, body)
 import Control.Lens
+import Control.Monad (join)
 import Data.Aeson
 import Data.Monoid
 import Data.Proxy
@@ -28,6 +29,7 @@ import Util.Test
 import qualified API
 import qualified API.Util as Util
 import qualified API.SQS  as SQS
+import qualified System.Posix.Env as Posix
 
 data IntegrationConfig = IntegrationConfig
   -- internal endpoints
@@ -80,14 +82,26 @@ main = withOpenSSL $ runTests go
         g <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
         b <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
         c <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
+        sHost <- join <$> optOrEnvSafe (\v -> v^?optJournal.traverse.awsFakeSqs.traverse.sqsHost) gConf (Just . pack) "FAKE_SQS_HOST"
+        sPort <- join <$> optOrEnvSafe (\v -> v^?optJournal.traverse.awsFakeSqs.traverse.sqsPort) gConf (Just . read) "FAKE_SQS_PORT"
         -- unset this env variable in galley's config to disable testing SQS team events
-        q <- optOrEnv handleJournal gConf (Just . pack) "GALLEY_SQS_TEAM_EVENTS"
-        awsEnv <- maybe (return Nothing) (fmap Just . SQS.mkAWSEnv) q
+        q <- join <$> optOrEnvSafe handleJournal gConf (Just . pack) "GALLEY_SQS_TEAM_EVENTS"
+        awsEnv <- maybe (return Nothing) (fmap Just . SQS.mkAWSEnv (sqsConf sHost sPort)) q
 
         return $ Util.TestSetup m g b c awsEnv
+
+    -- if fake sqs host/port are passed as config/ENV variables, use fake sqs; otherwise use AWS SQS
+    sqsConf (Just h) (Just p) = Just $ FakeSQSOpts h p
+    sqsConf _ _               = Nothing
 
     handleJournal = maybe Nothing (Just . view awsQueueName) . view optJournal
 
     releaseOpts _ = return ()
-    
+
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
+
+-- similar to optOrEnv, except return None if an environment variable is not defined
+optOrEnvSafe :: (a -> b) -> Maybe a -> (String -> b) -> String -> IO (Maybe b)
+optOrEnvSafe getter conf reader var = case conf of
+    Nothing -> fmap reader <$>Posix.getEnv var
+    Just c  -> pure $ Just (getter c)

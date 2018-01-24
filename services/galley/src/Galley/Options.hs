@@ -29,9 +29,18 @@ makeLenses ''Settings
 -- [Note: journaling]
 -- Journaling can be disabled simply by not passing the JournalOpts when starting the service
 
+data FakeSQSOpts = FakeSQSOpts
+    { _sqsHost :: Text
+    , _sqsPort :: Int
+    } deriving (Show, Generic)
+
+deriveFromJSON toOptionFieldName ''FakeSQSOpts
+makeLenses ''FakeSQSOpts
+
 data JournalOpts = JournalOpts
-    { _awsQueueName :: !Text
-    , _awsRegion    :: !Region
+    { _awsQueueName         :: !Text
+    , _awsRegion            :: !Region
+    , _awsFakeSqs           :: !(Maybe FakeSQSOpts)
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''JournalOpts
@@ -131,6 +140,23 @@ journalOptsParser = JournalOpts
             <> value Ireland
             <> showDefault
             <> help "aws region name")
+    <*> optional fakeSQSOpts
   where
     region :: ReadM Region
     region = readerAsk >>= either readerError return . fromText . fromString
+
+    fakeSQSOpts :: Parser FakeSQSOpts
+    fakeSQSOpts = FakeSQSOpts
+        <$> (textOption $
+                long "fake-sqs-host"
+                <> metavar "STRING"
+                <> showDefault
+                <> help "hostname when using a fake SQS implementation"
+                <> value "localhost")
+        <*>
+            (option auto $
+                long "fake-sqs-port"
+                <> metavar "INT"
+                <> showDefault
+                <> help "port when using a fake SQS implementation"
+                <> value 4568)
