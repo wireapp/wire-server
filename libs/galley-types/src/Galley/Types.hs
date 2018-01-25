@@ -42,6 +42,7 @@ module Galley.Types
     , TypingStatus        (..)
     , UserClientMap       (..)
     , UserClients         (..)
+    , filterClients
     ) where
 
 import Control.Monad
@@ -176,6 +177,9 @@ data NewOtrMessage = NewOtrMessage
 newtype UserClients = UserClients
     { userClients :: Map UserId (Set ClientId)
     } deriving (Eq, Show, Monoid)
+
+filterClients :: (Set ClientId -> Bool) -> UserClients -> UserClients
+filterClients p (UserClients c) = UserClients $ Map.filter p c
 
 data ClientMismatch = ClientMismatch
     { cmismatchTime    :: !UTCTime
