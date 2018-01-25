@@ -16,6 +16,11 @@ gundeck:
   host: 127.0.0.1
   port: 8086
 
+settings:
+  httpPoolSize: 128
+  maxTeamSize: 128
+  intraListing: false
+
 ### Journaling of team events
 #
 # uncomment journal options to enable journaling of team events
@@ -24,16 +29,9 @@ gundeck:
 # run e.g.
 #    docker run -d -p 4568:4568 --name fake-sqs airdock/fake-sqs
 #    curl http://localhost:4568 -d "Action=CreateQueue&QueueName=integration-team-events.fifo"
-# and uncomment the fakeSqs section
+# and point to that endpoint
 #
 journal: # if set, journals; if not set, disables journaling
   queueName: integration-team-events.fifo
   region: eu-west-1
-  fakeSqs: # if set, uses fakeSqs; if not set, uses real AWS SQS
-    host: localhost
-    port: 4568
-
-settings:
-  httpPoolSize: 128
-  maxTeamSize: 128
-  intraListing: false
+  endpoint: https://sqs.eu-west-1.amazonaws.com # https://localhost:4568

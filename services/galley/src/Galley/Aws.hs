@@ -32,10 +32,12 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
 import Control.Retry (retrying, limitRetries, exponentialBackoff)
+import Data.Maybe
+import Data.Misc
 import Data.Monoid ((<>))
 import Data.ProtoLens.Encoding
 import Data.Text (Text)
-import Data.Text.Encoding (decodeLatin1, encodeUtf8)
+import Data.Text.Encoding (decodeLatin1)
 import Data.Typeable
 import Data.UUID.V4
 import Data.UUID (toText)
@@ -43,6 +45,7 @@ import Galley.Options
 import Network.HTTP.Client
        (Manager, HttpException(..), HttpExceptionContent(..))
 import System.Logger.Class
+import URI.ByteString hiding (Port)
 
 import qualified Control.Monad.Trans.AWS as AWST
 import qualified Data.ByteString.Base64 as B64
@@ -101,20 +104,28 @@ instance AWS.MonadAWS Amazon where
 mkEnv :: Logger -> Manager -> JournalOpts -> IO Env
 mkEnv lgr mgr opts = do
     let g = Logger.clone (Just "aws.galley") lgr
-    e <- mkAwsEnv g (opts^.awsFakeSqs)
+    e <- mkAwsEnv g
     q <- getQueueUrl e (opts^.awsQueueName)
     return (Env e g q (opts^.awsRegion))
   where
-    mkAwsEnv :: Logger -> Maybe FakeSQSOpts -> IO AWS.Env
-    mkAwsEnv g Nothing =  set AWS.envLogger (awsLogger g)
-               . set AWS.envRegion (opts^.awsRegion)
-               . set AWS.envRetryCheck retryCheck
-              <$> AWS.newEnvWith AWS.Discover Nothing mgr
-    mkAwsEnv g (Just fake) = set AWS.envLogger (awsLogger g)
-               . set AWS.envRetryCheck retryCheck
-               -- override SQS endpoint when fakeSQS options are set
-               . AWS.configure (AWS.setEndpoint False (encodeUtf8 $ fake^.sqsHost) (fake^.sqsPort) SQS.sqs)
-              <$> AWS.newEnvWith AWS.Discover Nothing mgr
+    mkAwsEnv :: Logger -> IO AWS.Env
+    mkAwsEnv g =
+        set AWS.envLogger (awsLogger g)
+      . set AWS.envRegion (opts^.awsRegion)
+      . set AWS.envRetryCheck retryCheck
+      . AWS.configure (AWS.setEndpoint awsUseSSL awsHost awsPort SQS.sqs)
+     <$> AWS.newEnvWith AWS.Discover Nothing mgr
+
+    (awsHost, awsPort, awsUseSSL) = parseAwsEndpoint (opts^.awsEndpoint)
+
+    parseAwsEndpoint (Url url) = (auth url, fromMaybe 443 $ port url, secure url)
+
+    auth u = fromMaybe "sqs.eu-west-1.amazonaws.com" $ u^.authorityL <&> view (authorityHostL.hostBSL)
+    port u = do
+      a <- u^.authorityL
+      p <- a^.authorityPortL
+      return $ fromIntegral (p^.portNumberL)
+    secure u = u^.uriSchemeL.schemeBSL == "https"
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
 

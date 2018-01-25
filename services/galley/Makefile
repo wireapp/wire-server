@@ -90,7 +90,7 @@ integration-%:
 
 .PHONY: fast
 fast:
-	stack install --pedantic --local-bin-path=dist --fast
+	stack install --local-bin-path=dist --fast
 
 .PHONY: test
 test: fast

@@ -35,6 +35,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Foldable (toList)
 import Data.Id
+import Data.Misc
 import Data.Monoid
 import Data.Word
 import Galley.Types (Event)
@@ -84,7 +85,7 @@ extReq scon ps =
     . paths (url^.pathL : ps)
     . secure
   where
-    url = httpsUrl (sconBaseUrl scon)
+    url = uriRefAbsolute $ httpsUrl (sconBaseUrl scon)
     tok = List1.head (sconAuthTokens scon)
 
 extHost :: URI -> Maybe ByteString

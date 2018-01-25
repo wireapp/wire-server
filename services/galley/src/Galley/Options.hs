@@ -6,7 +6,10 @@ module Galley.Options where
 
 import Control.Lens hiding ((.=))
 import Data.Aeson.TH (deriveFromJSON)
+import Data.ByteString.Conversion
 import Data.Text (Text)
+import Data.Maybe (fromMaybe)
+import Data.Misc (Url (..))
 import Data.Monoid
 import GHC.Generics
 import Network.AWS (Region (..))
@@ -40,7 +43,7 @@ makeLenses ''FakeSQSOpts
 data JournalOpts = JournalOpts
     { _awsQueueName         :: !Text
     , _awsRegion            :: !Region
-    , _awsFakeSqs           :: !(Maybe FakeSQSOpts)
+    , _awsEndpoint          :: !Url
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''JournalOpts
@@ -140,23 +143,15 @@ journalOptsParser = JournalOpts
             <> value Ireland
             <> showDefault
             <> help "aws region name")
-    <*> optional fakeSQSOpts
+    <*> (option parseEndpoint $
+            long "aws-endpoint"
+            <> value (fromMaybe (error "Bad default Url") (fromByteString "https://sqs.eu-west-1.amazonaws.com"))
+            <> metavar "STRING"
+            <> showDefault
+            <> help "aws endpoint")
   where
+    parseEndpoint :: ReadM Url
+    parseEndpoint = readerAsk >>= maybe (readerError "Could not read Url") return . fromByteString . fromString
+
     region :: ReadM Region
     region = readerAsk >>= either readerError return . fromText . fromString
-
-    fakeSQSOpts :: Parser FakeSQSOpts
-    fakeSQSOpts = FakeSQSOpts
-        <$> (textOption $
-                long "fake-sqs-host"
-                <> metavar "STRING"
-                <> showDefault
-                <> help "hostname when using a fake SQS implementation"
-                <> value "localhost")
-        <*>
-            (option auto $
-                long "fake-sqs-port"
-                <> metavar "INT"
-                <> showDefault
-                <> help "port when using a fake SQS implementation"
-                <> value 4568)
