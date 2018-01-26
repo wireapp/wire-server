@@ -85,7 +85,7 @@ extReq scon ps =
     . paths (url^.pathL : ps)
     . secure
   where
-    url = uriRefAbsolute $ httpsUrl (sconBaseUrl scon)
+    url = httpsUrl (sconBaseUrl scon)
     tok = List1.head (sconAuthTokens scon)
 
 extHost :: URI -> Maybe ByteString

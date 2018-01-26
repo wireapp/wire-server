@@ -12,8 +12,8 @@ module Galley.Aws
     ( Env
     , mkEnv
     , awsEnv
-    , region
     , eventQueue
+    , AWSEndpoint (..)
     , QueueUrl (..)
     , Amazon
     , execute
@@ -32,16 +32,16 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
 import Control.Retry (retrying, limitRetries, exponentialBackoff)
-import Data.Maybe
-import Data.Misc
+import Data.Aeson
+import Data.ByteString.Conversion
+import Data.Default
 import Data.Monoid ((<>))
 import Data.ProtoLens.Encoding
 import Data.Text (Text)
-import Data.Text.Encoding (decodeLatin1)
+import Data.Text.Encoding (decodeLatin1, encodeUtf8)
 import Data.Typeable
 import Data.UUID.V4
 import Data.UUID (toText)
-import Galley.Options
 import Network.HTTP.Client
        (Manager, HttpException(..), HttpExceptionContent(..))
 import System.Logger.Class
@@ -55,6 +55,38 @@ import qualified Network.AWS.SQS as SQS
 import qualified Network.TLS as TLS
 import qualified Proto.TeamEvents as E
 import qualified System.Logger as Logger
+
+newtype AWSEndpoint = AWSEndpoint
+    { fromEndpoint :: AWS.Endpoint } deriving (Eq, Show)
+
+instance FromByteString AWSEndpoint where
+    parser = do
+        url    <- uriParser strictURIParserOptions
+        secure <- case url^.uriSchemeL.schemeBSL of
+                        "https" -> return True
+                        "http"  -> return False
+                        x       -> fail ("Unsupported scheme: " ++ show x)
+        host   <- case (url^.authorityL <&> view (authorityHostL.hostBSL)) of
+                        Just h  -> return h
+                        Nothing -> fail ("No host in: " ++ show url)
+        port   <- case urlPort url of
+                        Just p  -> return p
+                        Nothing -> return $ if secure then 443
+                                                      else 80
+        return . AWSEndpoint $ AWS.Endpoint host secure port "eu-west-1"
+
+urlPort :: URIRef Absolute -> Maybe Int
+urlPort u = do
+    a <- u^.authorityL
+    p <- a^.authorityPortL
+    return (fromIntegral (p^.portNumberL))
+
+instance FromJSON AWSEndpoint where
+    parseJSON = withText "AWSEndpoint" $
+        either fail return . runParser parser . encodeUtf8
+
+instance Default AWSEndpoint where
+    def = AWSEndpoint (AWS.Endpoint "sqs.eu-west-1.amazonaws.com" True 443 "eu-west-1")
 
 newtype QueueUrl = QueueUrl Text
     deriving (Show)
@@ -71,7 +103,6 @@ data Env = Env
     { _awsEnv     :: !AWS.Env
     , _logger     :: !Logger
     , _eventQueue :: !QueueUrl
-    , _region     :: !AWS.Region
     }
 
 makeLenses ''Env
@@ -101,31 +132,20 @@ instance MonadBaseControl IO Amazon where
 instance AWS.MonadAWS Amazon where
     liftAWS aws = view awsEnv >>= \e -> AWS.runAWS e aws
 
-mkEnv :: Logger -> Manager -> JournalOpts -> IO Env
-mkEnv lgr mgr opts = do
+mkEnv :: Logger -> Manager -> AWSEndpoint -> Text -> IO Env
+mkEnv lgr mgr end queue = do
     let g = Logger.clone (Just "aws.galley") lgr
     e <- mkAwsEnv g
-    q <- getQueueUrl e (opts^.awsQueueName)
-    return (Env e g q (opts^.awsRegion))
+    q <- getQueueUrl e queue
+    return (Env e g q)
   where
     mkAwsEnv :: Logger -> IO AWS.Env
     mkAwsEnv g =
-        set AWS.envLogger (awsLogger g)
-      . set AWS.envRegion (opts^.awsRegion)
-      . set AWS.envRetryCheck retryCheck
-      . AWS.configure (AWS.setEndpoint awsUseSSL awsHost awsPort SQS.sqs)
-     <$> AWS.newEnvWith AWS.Discover Nothing mgr
-
-    (awsHost, awsPort, awsUseSSL) = parseAwsEndpoint (opts^.awsEndpoint)
-
-    parseAwsEndpoint (Url url) = (auth url, fromMaybe 443 $ port url, secure url)
-
-    auth u = fromMaybe "sqs.eu-west-1.amazonaws.com" $ u^.authorityL <&> view (authorityHostL.hostBSL)
-    port u = do
-      a <- u^.authorityL
-      p <- a^.authorityPortL
-      return $ fromIntegral (p^.portNumberL)
-    secure u = u^.uriSchemeL.schemeBSL == "https"
+      let svc = SQS.sqs & AWS.serviceEndpoint .~ (fromEndpoint end)
+       in set AWS.envLogger (awsLogger g)
+        . set AWS.envRetryCheck retryCheck
+        . AWS.configure svc
+       <$> AWS.newEnvWith AWS.Discover Nothing mgr
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
 

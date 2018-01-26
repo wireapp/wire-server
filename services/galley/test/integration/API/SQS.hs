@@ -13,16 +13,13 @@ import Control.Monad.Reader
 import Data.Foldable (for_)
 import Data.Id
 import Data.Int
-import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text (pack)
 import Safe (headDef)
 import Data.ByteString.Lazy (toStrict)
-import Data.Misc
 import Data.ProtoLens.Encoding
 import Data.Text (Text)
 import Galley.Aws
-import Galley.Options (JournalOpts(..))
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.Session as Ssl
@@ -127,11 +124,8 @@ initHttpManager = do
         , managerIdleConnectionCount = 300
         }
 
-mkAWSEnv :: Maybe Url -> Text -> IO Aws.Env
-mkAWSEnv sqsUrl queue = do
-    let url = fromMaybe (error "bad url") sqsUrl
-    --let url = sqsUrl
+mkAWSEnv :: AWSEndpoint -> Text -> IO Aws.Env
+mkAWSEnv endpoint queue = do
     l   <- L.new $ L.setOutput L.StdOut . L.setFormat Nothing $ L.defSettings
     mgr <- initHttpManager
-    let opts = JournalOpts queue AWS.Ireland url
-    Aws.mkEnv l mgr opts
+    Aws.mkEnv l mgr endpoint queue

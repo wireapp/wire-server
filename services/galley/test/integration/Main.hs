@@ -80,17 +80,18 @@ main = withOpenSSL $ runTests go
         gConf <- handleParseError =<< decodeFileEither gFile
         iConf <- handleParseError =<< decodeFileEither iFile
         g <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
-        b <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
+        b <- mkRequest <$> optOrEnv brig   iConf (local . read) "BRIG_WEB_PORT"
         c <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
         -- unset this env variable in galley's config to disable testing SQS team events
-        q <- optOrEnv handleJournal gConf (Just . pack) "GALLEY_SQS_TEAM_EVENTS"
-        u <- optOrEnv handleEndpoint gConf (fromByteString . BS.pack) "GALLEY_SQS_ENDPOINT"
-        awsEnv <- maybe (return Nothing) (fmap Just . SQS.mkAWSEnv u) q
+        q <- optOrEnv (handleAws awsQueueName) gConf (Just . pack)              "GALLEY_SQS_TEAM_EVENTS"
+        e <- optOrEnv (handleAws awsEndpoint)  gConf (fromByteString . BS.pack) "GALLEY_SQS_ENDPOINT"
 
-        return $ Util.TestSetup m g b c awsEnv
+        Util.TestSetup m g b c <$> initAwsEnv e q
 
-    handleJournal  = maybe Nothing (Just . view awsQueueName) . view optJournal
-    handleEndpoint = maybe Nothing (Just . view awsEndpoint) . view optJournal
+    handleAws name = maybe Nothing (Just . view name) . view optJournal
+
+    initAwsEnv (Just e) (Just q) = SQS.mkAWSEnv e q >>= return . Just
+    initAwsEnv _        _        = return Nothing
 
     releaseOpts _ = return ()
 

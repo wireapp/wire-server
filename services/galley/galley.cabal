@@ -70,6 +70,7 @@ library
       , cereal                  >= 0.4
       , containers              >= 0.5
       , currency-codes          >= 2.0
+      , data-default            >= 0.1
       , enclosed-exceptions     >= 1.0
       , errors                  >= 2.0
       , safe-exceptions         >= 0.1

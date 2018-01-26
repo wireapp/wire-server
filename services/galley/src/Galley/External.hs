@@ -93,7 +93,7 @@ deliver1 s bm e
         let t = toByteString' (s^.serviceToken)
         let u = s^.serviceUrl
         let b = botMemId bm
-        let HttpsUrl (Url url) = u
+        let HttpsUrl url = u
         recovering x3 httpHandlers $ const $
             sendMessage (s^.serviceFingerprints) $ method POST
                 . maybe   id         host (urlHost u)
@@ -108,10 +108,10 @@ deliver1 s bm e
     | otherwise = return ()
 
 urlHost :: HttpsUrl -> Maybe ByteString
-urlHost (HttpsUrl (Url u)) = u^.authorityL <&> view (authorityHostL.hostBSL)
+urlHost (HttpsUrl u) = u^.authorityL <&> view (authorityHostL.hostBSL)
 
 urlPort :: HttpsUrl -> Maybe Word16
-urlPort (HttpsUrl (Url u)) = do
+urlPort (HttpsUrl u) = do
     a <- u^.authorityL
     p <- a^.authorityPortL
     return (fromIntegral (p^.portNumberL))

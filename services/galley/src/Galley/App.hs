@@ -139,7 +139,9 @@ createEnv m o = do
     Env mempty m o l mgr <$> initCassandra o l
                          <*> Q.new 16000
                          <*> initExtEnv
-                         <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o^.optJournal)
+                         <*> maybe (return Nothing) (fn l mgr) (o^.optJournal)
+  where
+    fn l mgr opt = return . Just =<< Aws.mkEnv l mgr (opt^.awsEndpoint) (opt^.awsQueueName)
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do

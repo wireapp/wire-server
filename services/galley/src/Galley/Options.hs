@@ -7,13 +7,11 @@ module Galley.Options where
 import Control.Lens hiding ((.=))
 import Data.Aeson.TH (deriveFromJSON)
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Text (Text)
-import Data.Maybe (fromMaybe)
-import Data.Misc (Url (..))
 import Data.Monoid
+import Galley.Aws (AWSEndpoint(..))
 import GHC.Generics
-import Network.AWS (Region (..))
-import Network.AWS.Data
 import Data.String
 import Options.Applicative
 import Options.Applicative.Types
@@ -32,18 +30,9 @@ makeLenses ''Settings
 -- [Note: journaling]
 -- Journaling can be disabled simply by not passing the JournalOpts when starting the service
 
-data FakeSQSOpts = FakeSQSOpts
-    { _sqsHost :: Text
-    , _sqsPort :: Int
-    } deriving (Show, Generic)
-
-deriveFromJSON toOptionFieldName ''FakeSQSOpts
-makeLenses ''FakeSQSOpts
-
 data JournalOpts = JournalOpts
-    { _awsQueueName         :: !Text
-    , _awsRegion            :: !Region
-    , _awsEndpoint          :: !Url
+    { _awsQueueName :: !Text
+    , _awsEndpoint  :: !AWSEndpoint
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''JournalOpts
@@ -137,21 +126,12 @@ journalOptsParser = JournalOpts
             long "team-events-queue-name"
             <> metavar "STRING"
             <> help "sqs queue name to send team events")
-    <*> (option region $
-            long "aws-region"
-            <> metavar "STRING"
-            <> value Ireland
-            <> showDefault
-            <> help "aws region name")
     <*> (option parseEndpoint $
             long "aws-endpoint"
-            <> value (fromMaybe (error "Bad default Url") (fromByteString "https://sqs.eu-west-1.amazonaws.com"))
+            <> value def
             <> metavar "STRING"
             <> showDefault
             <> help "aws endpoint")
   where
-    parseEndpoint :: ReadM Url
-    parseEndpoint = readerAsk >>= maybe (readerError "Could not read Url") return . fromByteString . fromString
-
-    region :: ReadM Region
-    region = readerAsk >>= either readerError return . fromText . fromString
+    parseEndpoint :: ReadM AWSEndpoint
+    parseEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") return . fromByteString . fromString

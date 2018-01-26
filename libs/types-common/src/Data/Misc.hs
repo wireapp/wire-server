@@ -21,9 +21,6 @@ module Data.Misc
       -- * HttpsUrl
     , HttpsUrl (..)
 
-      -- * Url
-    , Url (..)
-
       -- * Fingerprint
     , Fingerprint (..)
     , Rsa
@@ -151,64 +148,31 @@ instance Cql Longitude where
 #endif
 
 --------------------------------------------------------------------------------
--- Url
-
-newtype Url = Url
-    { uriRefAbsolute :: URIRef Absolute
-    } deriving Eq
-
-instance Show Url where
-    showsPrec i = showsPrec i . uriRefAbsolute
-
-instance ToByteString Url where
-    builder = serializeURIRef . uriRefAbsolute
-
-instance FromByteString Url where
-    parser = uriParser strictURIParserOptions >>= return . Url
-
-instance FromJSON Url where
-    parseJSON = withText "Url" $
-        either fail return . runParser parser . encodeUtf8
-
-instance ToJSON Url where
-    toJSON = toJSON . decodeUtf8 . toByteString'
-
-#ifdef WITH_CQL
-instance Cql Url where
-    ctype = Tagged BlobColumn
-    toCql = CqlBlob . toByteString
-
-    fromCql (CqlBlob t) = runParser parser (toStrict t)
-    fromCql _           = fail "Url: Expected CqlBlob"
-#endif
-
---------------------------------------------------------------------------------
 -- HttpsUrl
 
 newtype HttpsUrl = HttpsUrl
-    { httpsUrl :: Url
+    { httpsUrl :: URIRef Absolute
     } deriving Eq
 
 instance Show HttpsUrl where
     showsPrec i = showsPrec i . httpsUrl
 
 instance ToByteString HttpsUrl where
-    builder = builder . httpsUrl
+    builder = serializeURIRef . httpsUrl
 
 instance FromByteString HttpsUrl where
     parser = do
         u <- uriParser strictURIParserOptions
         when (u^.uriSchemeL.schemeBSL /= "https") $
             fail $ "Non-HTTPS URL: " ++ show u
-        return $ HttpsUrl (Url u)
+        return (HttpsUrl u)
 
--- TODO: Can this be improved?
 instance FromJSON HttpsUrl where
     parseJSON = withText "HttpsUrl" $
         either fail return . runParser parser . encodeUtf8
 
 instance ToJSON HttpsUrl where
-    toJSON = toJSON . httpsUrl
+    toJSON = toJSON . decodeUtf8 . toByteString'
 
 #ifdef WITH_CQL
 instance Cql HttpsUrl where
@@ -216,7 +180,7 @@ instance Cql HttpsUrl where
     toCql = CqlBlob . toByteString
 
     fromCql (CqlBlob t) = runParser parser (toStrict t)
-    fromCql _           = fail "Url: Expected CqlBlob"
+    fromCql _           = fail "HttpsUrl: Expected CqlBlob"
 #endif
 
 --------------------------------------------------------------------------------
