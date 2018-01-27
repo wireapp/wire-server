@@ -35,7 +35,6 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Foldable (toList)
 import Data.Id
-import Data.Misc
 import Data.Monoid
 import Data.Word
 import Galley.Types (Event)

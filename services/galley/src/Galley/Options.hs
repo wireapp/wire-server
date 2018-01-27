@@ -6,15 +6,10 @@ module Galley.Options where
 
 import Control.Lens hiding ((.=))
 import Data.Aeson.TH (deriveFromJSON)
-import Data.ByteString.Conversion
-import Data.Default
 import Data.Text (Text)
 import Data.Monoid
-import Galley.Aws (AWSEndpoint(..))
 import GHC.Generics
-import Data.String
 import Options.Applicative
-import Options.Applicative.Types
 import Util.Options
 import Util.Options.Common
 
@@ -126,12 +121,9 @@ journalOptsParser = JournalOpts
             long "team-events-queue-name"
             <> metavar "STRING"
             <> help "sqs queue name to send team events")
-    <*> (option parseEndpoint $
+    <*> (option parseAWSEndpoint $
             long "aws-endpoint"
-            <> value def
+            <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443 "eu-west-1")
             <> metavar "STRING"
             <> showDefault
             <> help "aws endpoint")
-  where
-    parseEndpoint :: ReadM AWSEndpoint
-    parseEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") return . fromByteString . fromString

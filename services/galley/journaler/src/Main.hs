@@ -58,7 +58,7 @@ main = withOpenSSL $ do
     mkAWSEnv o = do
         l   <- Log.new $ Log.setOutput Log.StdOut . Log.setFormat Nothing $ Log.defSettings
         mgr <- initHttpManager
-        Aws.mkEnv l mgr (o^.awsEndpoint) (o^.awsQueueName)
+        Aws.mkEnv l mgr o
 
     initCas cas l
         = C.init l

@@ -20,6 +20,7 @@ import Data.ByteString.Lazy (toStrict)
 import Data.ProtoLens.Encoding
 import Data.Text (Text)
 import Galley.Aws
+import Galley.Options (JournalOpts(..))
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.Session as Ssl
@@ -124,8 +125,8 @@ initHttpManager = do
         , managerIdleConnectionCount = 300
         }
 
-mkAWSEnv :: AWSEndpoint -> Text -> IO Aws.Env
-mkAWSEnv endpoint queue = do
+mkAWSEnv :: JournalOpts -> IO Aws.Env
+mkAWSEnv opts = do
     l   <- L.new $ L.setOutput L.StdOut . L.setFormat Nothing $ L.defSettings
     mgr <- initHttpManager
-    Aws.mkEnv l mgr endpoint queue
+    Aws.mkEnv l mgr opts

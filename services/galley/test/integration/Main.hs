@@ -90,7 +90,7 @@ main = withOpenSSL $ runTests go
 
     handleAws name = maybe Nothing (Just . view name) . view optJournal
 
-    initAwsEnv (Just e) (Just q) = SQS.mkAWSEnv e q >>= return . Just
+    initAwsEnv (Just e) (Just q) = SQS.mkAWSEnv (JournalOpts q e) >>= return . Just
     initAwsEnv _        _        = return Nothing
 
     releaseOpts _ = return ()

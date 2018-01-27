@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TemplateHaskell            #-}
 
 module Util.Options where
@@ -7,19 +8,63 @@ module Util.Options where
 import Control.Lens
 import Data.Aeson (FromJSON)
 import Data.Aeson.TH
+import Data.ByteString (ByteString)
+import Data.ByteString.Conversion
 import Data.Maybe (fromMaybe)
 import Data.Monoid
+import Data.String
 import Data.Text (Text)
-import Data.Word (Word16)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml hiding (Parser)
 import GHC.Generics
+import GHC.Word
 import Options.Applicative
+import Options.Applicative.Types
 import System.Directory
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
+import URI.ByteString
 import Util.Options.Common
 
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS
+
+data AWSEndpoint = AWSEndpoint
+    { _awsHost   :: !ByteString
+    , _awsSecure :: !Bool
+    , _awsPort   :: !Int
+    , _awsScope  :: !ByteString
+    } deriving (Eq, Show)
+
+instance FromByteString AWSEndpoint where
+    parser = do
+        url    <- uriParser strictURIParserOptions
+        secure <- case url^.uriSchemeL.schemeBSL of
+                        "https" -> return True
+                        "http"  -> return False
+                        x       -> fail ("Unsupported scheme: " ++ show x)
+        host   <- case (url^.authorityL <&> view (authorityHostL.hostBSL)) of
+                        Just h  -> return h
+                        Nothing -> fail ("No host in: " ++ show url)
+        port   <- case urlPort url of
+                        Just p  -> return p
+                        Nothing -> return $ if secure then 443
+                                                      else 80
+        scope  <- case BS.split '.' host of
+                        (_:s:_) -> return s
+                        _       -> return ""
+        return $ AWSEndpoint host secure port scope
+
+instance FromJSON AWSEndpoint where
+    parseJSON = withText "AWSEndpoint" $
+        either fail return . runParser parser . encodeUtf8
+
+urlPort :: URIRef Absolute -> Maybe Int
+urlPort u = do
+    a <- u^.authorityL
+    p <- a^.authorityPortL
+    return (fromIntegral (p^.portNumberL))
+
+makeLenses ''AWSEndpoint
 
 data Endpoint = Endpoint
     { _epHost :: !Text
@@ -49,7 +94,7 @@ loadSecret (FilePathSecrets p) = do
         else return Nothing
 
 getOptions :: (FromJSON a) => String -> Parser a -> FilePath -> IO a
-getOptions desc parser defaultPath = do
+getOptions desc pars defaultPath = do
     path <- parseConfigPath defaultPath mkDesc
     file <- doesFileExist path
     if file
@@ -63,7 +108,7 @@ getOptions desc parser defaultPath = do
                 "Config file at " ++
                 path ++
                 " does not exist, falling back to command-line arguments. \n"
-            execParser (info (helper <*> parser) mkDesc)
+            execParser (info (helper <*> pars) mkDesc)
   where
     mkDesc = header desc <> fullDesc
 
@@ -81,6 +126,9 @@ parseConfigPath defaultPath desc = do
         long "config-file" <> short 'c' <> help "Config file to load" <>
         showDefault <>
         value defaultPath
+
+parseAWSEndpoint :: ReadM AWSEndpoint
+parseAWSEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") return . fromByteString . fromString
 
 cassandraParser :: Parser CassandraOpts
 cassandraParser = CassandraOpts <$>
