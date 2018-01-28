@@ -125,7 +125,7 @@ sendSqs r = do
     cfg <- view awsConfig
     runAppResourceT
         $ recovering retry5x handlers
-        $ const (Aws.sendRequest env (cfg^.sqsConfig) r)
+        $ const (Aws.sendRequest env (error "cfg^.sqsConfig") r)
   where
     handlers = httpHandlers ++ [ const . Handler $ return . canRetry ]
 

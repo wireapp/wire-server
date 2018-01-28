@@ -54,9 +54,9 @@ instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
     { account         :: !Text
-    , sesQueue        :: !Text
-    , internalQueue   :: !Text
-    , blacklistTable  :: !Text
+    -- , sesQueue        :: !Text
+    -- , internalQueue   :: !Text
+    -- , blacklistTable  :: !Text
     , prekeyTable     :: !Text
     , region          :: !Region
     , awsKeyId        :: !(Maybe Aws.AccessKeyId)
@@ -67,9 +67,9 @@ instance FromJSON AWSOpts
 
 data AWSOptsAmazonka = AWSOptsAmazonka
     { amazonkaAccount       :: !Text
-    , amazonkaRegion        :: !Amazonka.Region
     , amazonkaSesQueue      :: !Text
     , amazonkaInternalQueue :: !Text
+    , amazonkaBlacklistTable:: !Text
     } deriving (Show, Generic)
 
 instance FromJSON AWSOptsAmazonka
@@ -145,6 +145,7 @@ data Opts = Opts
     , cassandra     :: !CassandraOpts
     , elasticsearch :: !ElasticSearchOpts
     , aws           :: !AWSOpts
+    , amazonka      :: !AWSOptsAmazonka
 
     -- Email & SMS
     , emailSMS      :: !EmailSMSOpts
@@ -229,16 +230,6 @@ optsParser =
      (textOption $
       long "aws-account-id" <> metavar "STRING" <> help "AWS Account ID") <*>
      (textOption $
-      long "aws-ses-queue" <> metavar "STRING" <>
-      help
-          "Event feedback queue for SES (e.g. for email bounces and complaints)") <*>
-     (textOption $
-      long "aws-internal-queue" <> metavar "STRING" <>
-      help "Event queue for internal brig generated events (e.g. user deletion)") <*>
-     (textOption $
-      long "aws-dynamo-blacklist" <> metavar "STRING" <>
-      help "Dynamo table for storing blacklisted user keys") <*>
-     (textOption $
       long "aws-dynamo-prekeys" <> metavar "STRING" <>
       help "Dynamo table for storing prekey data") <*>
      (option regionOption $
@@ -252,6 +243,18 @@ optsParser =
       (optional . textOption $
        long "aws-secret-access-key" <> metavar "STRING" <>
        help "AWS Secret Access Key"))) <*>
+     (AWSOptsAmazonka <$> 
+      (textOption $
+      long "aws-account-id" <> metavar "STRING" <> help "AWS Account ID") <*>
+      (textOption $
+      long "aws-ses-queue" <> metavar "STRING" <>
+      help "Event feedback queue for SES (e.g. for email bounces and complaints)") <*>
+     (textOption $
+      long "aws-internal-queue" <> metavar "STRING" <>
+      help "Event queue for internal brig generated events (e.g. user deletion)") <*>
+     (textOption $
+      long "aws-dynamo-blacklist" <> metavar "STRING" <>
+      help "Dynamo table for storing blacklisted user keys")) <*>
     (EmailSMSOpts <$>
      (EmailSMSGeneralOpts <$>
       (strOption $

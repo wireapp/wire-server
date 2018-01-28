@@ -14,9 +14,15 @@ module Brig.AwsAmazonka
     , mkEnv
     , Amazon
     , execute
+    , sesQueue
+    , internalQueue
+    , awsEnv
 
-      -- * Feedback
     , listen
+    , enqueue
+    , execAWS
+    , dynamoEnv
+    , dynamoBlacklistTable
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
@@ -33,8 +39,8 @@ import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
-import Control.Retry (retrying, limitRetries)
-import Data.Aeson (decodeStrict)
+import Control.Retry (retrying, limitRetries, exponentialBackoff)
+import Data.Aeson hiding ((.=))
 import Data.Attoparsec.Text
 import Data.Foldable (for_)
 import Data.HashMap.Strict (HashMap)
@@ -54,6 +60,8 @@ import Network.HTTP.Types
 import System.Logger.Class
 
 import qualified Control.Monad.Trans.AWS as AWST
+import qualified Data.ByteString.Lazy    as BL
+import qualified Data.ByteString.Base64  as B64
 import qualified Data.HashMap.Strict     as Map
 import qualified Data.Set                as Set
 import qualified Data.Text               as Text
@@ -65,6 +73,7 @@ import qualified Network.AWS.Env         as AWS
 import qualified Network.AWS.Data        as AWS
 import qualified Network.AWS.SNS         as SNS
 import qualified Network.AWS.SQS         as SQS
+import qualified Network.AWS.DynamoDB    as DDB
 import qualified Network.TLS             as TLS
 import qualified System.Logger           as Logger
 
@@ -75,8 +84,11 @@ newtype Account  = Account { fromAccount :: Text } deriving (Eq, Show, ToText, F
 data Env = Env
     { _awsEnv     :: !AWS.Env
     , _logger     :: !Logger
-    , _region     :: !Region
     , _account    :: !Account
+    , _sesQueue   :: !QueueUrl
+    , _internalQueue :: !QueueUrl
+    , _dynamoBlacklistTable :: !Text
+    , _dynamoEnv  :: !AWS.Env
     }
 
 makeLenses ''Env
@@ -109,11 +121,22 @@ instance AWS.MonadAWS Amazon where
 mkEnv :: Logger -> AWSOptsAmazonka -> Manager -> IO Env
 mkEnv lgr opts mgr = do
     let g = Logger.clone (Just "aws.brig") lgr
-    e <- configure <$> mkAwsEnv g
-    return (Env e g (amazonkaRegion opts) (Account (amazonkaAccount opts)))
+    e  <- mkAwsEnv g
+    sq <- getQueueUrl e (amazonkaSesQueue opts)
+    iq <- getQueueUrl e (amazonkaInternalQueue opts)
+    e' <- mkDynamoEnv g $ AWS.setEndpoint True "dynamodb.eu-west-1.amazonaws.com" 443 DDB.dynamoDB
+    let bl = (amazonkaBlacklistTable opts)
+    return (Env e g (Account (amazonkaAccount opts)) sq iq bl e')
   where
-    mkAwsEnv g =  set AWS.envLogger (awsLogger g)
-               .  set AWS.envRegion (amazonkaRegion opts)
+    mkDynamoEnv g end =  set AWS.envRetryCheck retryCheck
+                      .  set AWS.envLogger (awsLogger g)
+                      .  set AWS.envRegion AWS.Ireland
+                     <$> AWS.newEnvWith AWS.Discover Nothing mgr
+                     <&> AWS.configure end
+
+    mkAwsEnv g =  set AWS.envRetryCheck retryCheck
+               .  set AWS.envLogger (awsLogger g)
+               .  set AWS.envRegion AWS.Ireland
               <$> AWS.newEnvWith AWS.Discover Nothing mgr
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
@@ -131,11 +154,6 @@ mkEnv lgr opts mgr = do
     -- them, which results in distracting noise. For debugging purposes,
     -- they are still revealed on debug level.
     mapLevel AWS.Error = Logger.Debug
-
-    configure = set AWS.envRetryCheck retryCheck
-              . AWS.configure snsConfig
-
-    snsConfig = SNS.sns & set AWS.serviceTimeout (Just (AWS.Seconds 5))
 
     -- Modified version of 'AWS.retryConnectionFailure' to take into
     -- account occasional TLS handshake failures.
@@ -167,7 +185,7 @@ instance Exception Error
 --------------------------------------------------------------------------------
 -- Feedback
 
-listen :: (FromJSON a) => Text -> (a -> IO ()) -> Amazon ()
+listen :: (FromJSON a, Show a) => Text -> (a -> IO ()) -> Amazon ()
 listen qn callback = do
     env <- view awsEnv
     QueueUrl url <- liftIO $ getQueueUrl env qn
@@ -175,14 +193,6 @@ listen qn callback = do
         msgs <- view rmrsMessages <$> send (receive url)
         void $ mapConcurrently (onMessage url) msgs
   where
-    getQueueUrl :: AWS.Env -> Text -> IO QueueUrl
-    getQueueUrl e q = do
-        x <- runResourceT . AWST.runAWST e $
-            AWST.trying AWS._Error $
-                AWST.send (SQS.getQueueURL q)
-        either (throwM . GeneralError)
-               (return . QueueUrl . view SQS.gqursQueueURL) x
-
     receive url =
         SQS.receiveMessage url
             & set SQS.rmWaitTimeSeconds (Just 20)
@@ -190,16 +200,22 @@ listen qn callback = do
 
     onMessage url m =
         case decodeStrict =<< Text.encodeUtf8 <$> m^.mBody of
-            Nothing ->
-                err . msg $ val "Failed to parse SQS event notification"
-            Just e -> do
-                debug . msg $ val "Received SQS event: " -- TODO: More logging?
-                liftIO $ callback e
+            Nothing -> err $ msg ("Failed to parse SQS event: " ++ show m)
+            Just  n -> do
+                debug $ msg ("Received SQS event: " ++ show n)
+                liftIO $ callback n
                 for_ (m^.mReceiptHandle) (void . send . SQS.deleteMessage url)
 
     unexpectedError x = do
         err $ "error" .= show x ~~ msg (val "Failed to read from SQS")
         threadDelay 3000000
+
+enqueue :: QueueUrl -> BL.ByteString -> Amazon (SQS.SendMessageResponse)
+enqueue (QueueUrl url) m = do
+    res <- retrying (limitRetries 5 <> exponentialBackoff 1000000) (const canRetry) $ const (sendCatch (req url))
+    either (throwM . GeneralError) return res
+  where
+    req url = SQS.sendMessage url $ Text.decodeLatin1 (BL.toStrict m)
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -220,3 +236,20 @@ isTimeout (Left  e) = case e of
     AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
     _                                                           -> pure False
 
+getQueueUrl :: AWS.Env -> Text -> IO QueueUrl
+getQueueUrl e q = execAWS e (SQS.getQueueURL q) (return . QueueUrl . view SQS.gqursQueueURL)
+
+execAWS :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m) => 
+        r -> a -> (Rs a -> m b) -> m b
+execAWS e cmd ret = do
+    x <- runResourceT . AWST.runAWST e $ do
+        AWST.trying AWS._Error $
+            AWST.send cmd
+    either (throwM . GeneralError) ret x       
+
+canRetry :: MonadIO m => Either AWS.Error a -> m Bool
+canRetry (Right _) = pure False
+canRetry (Left  e) = case e of
+    AWS.TransportError (HttpExceptionRequest _ ResponseTimeout)                   -> pure True
+    AWS.ServiceError se | se^.AWS.serviceCode == AWS.ErrorCode "RequestThrottled" -> pure True
+    _                                                                             -> pure False
