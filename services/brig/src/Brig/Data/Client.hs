@@ -144,7 +144,7 @@ rmClient u c = do
 updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params Quorum (l, u, c))
 
-updatePrekeys :: UserId -> ClientId -> [Prekey] -> ExceptT ClientDataError AppIO ()
+updatePrekeys :: MonadClient m => UserId -> ClientId -> [Prekey] -> ExceptT ClientDataError m ()
 updatePrekeys u c pks = do
     plain  <- mapM (hoistEither . fmapL (const MalformedPrekeys) . B64.decode . toByteString' . prekeyKey) pks
     binary <- liftIO $ zipWithM check pks plain

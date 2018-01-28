@@ -13,10 +13,11 @@ module Brig.AwsAmazonka
       Env
     , mkEnv
     , Amazon
+    , amazonkaAwsEnv
     , execute
     , sesQueue
     , internalQueue
-    , awsEnv
+    , sqsEnv
 
     , listen
     , enqueue
@@ -82,13 +83,14 @@ newtype QueueUrl = QueueUrl Text deriving Show
 newtype Account  = Account { fromAccount :: Text } deriving (Eq, Show, ToText, FromJSON)
 
 data Env = Env
-    { _awsEnv     :: !AWS.Env
-    , _logger     :: !Logger
+    { _logger     :: !Logger
     , _account    :: !Account
     , _sesQueue   :: !QueueUrl
     , _internalQueue :: !QueueUrl
+    , _sqsEnv     :: !AWS.Env
     , _dynamoBlacklistTable :: !Text
     , _dynamoEnv  :: !AWS.Env
+    , _amazonkaAwsEnv  :: !AWS.Env
     }
 
 makeLenses ''Env
@@ -116,28 +118,38 @@ instance MonadBaseControl IO Amazon where
     restoreM          = Amazon . restoreM
 
 instance AWS.MonadAWS Amazon where
-    liftAWS a = view awsEnv >>= \e -> AWS.runAWS e a
+    liftAWS a = view amazonkaAwsEnv >>= flip AWS.runAWS a
 
 mkEnv :: Logger -> AWSOptsAmazonka -> Manager -> IO Env
 mkEnv lgr opts mgr = do
     let g = Logger.clone (Just "aws.brig") lgr
-    e  <- mkAwsEnv g
-    sq <- getQueueUrl e (amazonkaSesQueue opts)
-    iq <- getQueueUrl e (amazonkaInternalQueue opts)
-    e' <- mkDynamoEnv g $ AWS.setEndpoint True "dynamodb.eu-west-1.amazonaws.com" 443 DDB.dynamoDB
+    se <- mkSqsEnv g sqsEnd 
+    sq <- getQueueUrl se (amazonkaSesQueue opts)
+    iq <- getQueueUrl se (amazonkaInternalQueue opts)
+    de <- mkDynamoEnv g dynEnd
     let bl = (amazonkaBlacklistTable opts)
-    return (Env e g (Account (amazonkaAccount opts)) sq iq bl e')
+    e  <- mkAwsEnv g sqsEnd dynEnd
+    return (Env g (Account (amazonkaAccount opts)) sq iq se bl de e)
   where
+    sqsEnd = AWS.setEndpoint True "sqs.eu-west-1.amazonaws.com" 443 SQS.sqs
+    dynEnd = AWS.setEndpoint True "dynamodb.eu-west-1.amazonaws.com" 443 DDB.dynamoDB
+
+    mkAwsEnv g sqs dyn = set AWS.envRetryCheck retryCheck
+                      .  set AWS.envLogger (awsLogger g)
+                      .  set AWS.envRegion AWS.Ireland -- TODO: Necessary?
+                     <$> AWS.newEnvWith AWS.Discover Nothing mgr
+                     <&> AWS.configure sqs
+                     <&> AWS.configure dyn
+
     mkDynamoEnv g end =  set AWS.envRetryCheck retryCheck
                       .  set AWS.envLogger (awsLogger g)
-                      .  set AWS.envRegion AWS.Ireland
                      <$> AWS.newEnvWith AWS.Discover Nothing mgr
                      <&> AWS.configure end
 
-    mkAwsEnv g =  set AWS.envRetryCheck retryCheck
-               .  set AWS.envLogger (awsLogger g)
-               .  set AWS.envRegion AWS.Ireland
-              <$> AWS.newEnvWith AWS.Discover Nothing mgr
+    mkSqsEnv g end =  set AWS.envRetryCheck retryCheck
+                   .  set AWS.envLogger (awsLogger g)
+                  <$> AWS.newEnvWith AWS.Discover Nothing mgr
+                  <&> AWS.configure end
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
 
@@ -175,7 +187,7 @@ execute :: MonadIO m => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 
 data Error where
-    GeneralError      :: (Show e, AWS.AsError e) => e -> Error
+    GeneralError :: (Show e, AWS.AsError e) => e -> Error
 
 deriving instance Show     Error
 deriving instance Typeable Error
@@ -187,7 +199,7 @@ instance Exception Error
 
 listen :: (FromJSON a, Show a) => Text -> (a -> IO ()) -> Amazon ()
 listen qn callback = do
-    env <- view awsEnv
+    env <- view amazonkaAwsEnv
     QueueUrl url <- liftIO $ getQueueUrl env qn
     forever $ handleAny unexpectedError $ do
         msgs <- view rmrsMessages <$> send (receive url)

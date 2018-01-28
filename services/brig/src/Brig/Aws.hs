@@ -10,8 +10,9 @@ module Brig.Aws
     , tryDynamo
 
       -- * SQS
-    , listen
-    , sendSqs
+    -- Deprecated, amazonka used now
+    -- , listen
+    -- , sendSqs
 
       -- * SES
     , sendMail
@@ -87,52 +88,52 @@ tryDynamo r = catches (Right <$> sendDynamo r) handlers
 -------------------------------------------------------------------------------
 -- SQS
 
-listen :: (FromJSON a) => QueueName -> (a -> AppIO ()) -> AppIO ()
-listen q f = do
-    e <- ask
-    forever $ handle anyException $ do
-        msgs <- receive
-        void . liftIO $ mapConcurrently (runAppT e . consume) msgs
-  where
-    receive =
-        let req = Sqs.ReceiveMessage
-                { Sqs.rmQueueName             = q
-                , Sqs.rmMaxNumberOfMessages   = Just 10
-                , Sqs.rmWaitTimeSeconds       = Just 20
-                , Sqs.rmAttributes            = []
-                , Sqs.rmUserMessageAttributes = []
-                , Sqs.rmVisibilityTimeout     = Nothing
-                }
-        in Sqs.rmrMessages . snd <$> sendSqs req
+-- listen :: (FromJSON a) => QueueName -> (a -> AppIO ()) -> AppIO ()
+-- listen q f = do
+--     e <- ask
+--     forever $ handle anyException $ do
+--         msgs <- receive
+--         void . liftIO $ mapConcurrently (runAppT e . consume) msgs
+--   where
+--     receive =
+--         let req = Sqs.ReceiveMessage
+--                 { Sqs.rmQueueName             = q
+--                 , Sqs.rmMaxNumberOfMessages   = Just 10
+--                 , Sqs.rmWaitTimeSeconds       = Just 20
+--                 , Sqs.rmAttributes            = []
+--                 , Sqs.rmUserMessageAttributes = []
+--                 , Sqs.rmVisibilityTimeout     = Nothing
+--                 }
+--         in Sqs.rmrMessages . snd <$> sendSqs req
 
-    consume m = do
-        case eitherDecodeStrict (encodeUtf8 (mBody m)) of
-            Left  e -> Log.err $ field "error" e ~~ msg (val "Failed to parse SQS event")
-            Right n -> f n
-        delete (mReceiptHandle m)
+--     consume m = do
+--         case eitherDecodeStrict (encodeUtf8 (mBody m)) of
+--             Left  e -> Log.err $ field "error" e ~~ msg (val "Failed to parse SQS event")
+--             Right n -> f n
+--         delete (mReceiptHandle m)
 
-    delete h = void (sendSqs (Sqs.DeleteMessage h q))
+--     delete h = void (sendSqs (Sqs.DeleteMessage h q))
 
-    anyException x = case fromException x of
-        Just (HttpExceptionRequest _ ResponseTimeout) -> liftIO $ threadDelay 3000000
-        _                                             -> Log.err $ msg (show x)
+--     anyException x = case fromException x of
+--         Just (HttpExceptionRequest _ ResponseTimeout) -> liftIO $ threadDelay 3000000
+--         _                                             -> Log.err $ msg (show x)
 
-sendSqs :: (Aws.Transaction r a, Aws.ServiceConfiguration r ~ SqsConfiguration)
-        => r
-        -> AppIO (Aws.ResponseMetadata a, a)
-sendSqs r = do
-    env <- view awsEnv
-    cfg <- view awsConfig
-    runAppResourceT
-        $ recovering retry5x handlers
-        $ const (Aws.sendRequest env (error "cfg^.sqsConfig") r)
-  where
-    handlers = httpHandlers ++ [ const . Handler $ return . canRetry ]
+-- sendSqs :: (Aws.Transaction r a, Aws.ServiceConfiguration r ~ SqsConfiguration)
+--         => r
+--         -> AppIO (Aws.ResponseMetadata a, a)
+-- sendSqs r = do
+--     env <- view awsEnv
+--     cfg <- view awsConfig
+--     runAppResourceT
+--         $ recovering retry5x handlers
+--         $ const (Aws.sendRequest env (error "cfg^.sqsConfig") r)
+--   where
+--     handlers = httpHandlers ++ [ const . Handler $ return . canRetry ]
 
-    canRetry x = statusIsServerError (sqsStatusCode x)
-              || sqsErrorCode x == "Throttling"
+--     canRetry x = statusIsServerError (sqsStatusCode x)
+--               || sqsErrorCode x == "Throttling"
 
-    retry5x = limitRetries 5 <> exponentialBackoff 100000
+--     retry5x = limitRetries 5 <> exponentialBackoff 100000
 
 -------------------------------------------------------------------------------
 -- SES
