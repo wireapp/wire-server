@@ -32,7 +32,6 @@ data AWSEndpoint = AWSEndpoint
     { _awsHost   :: !ByteString
     , _awsSecure :: !Bool
     , _awsPort   :: !Int
-    , _awsScope  :: !ByteString
     } deriving (Eq, Show)
 
 instance FromByteString AWSEndpoint where
@@ -49,10 +48,7 @@ instance FromByteString AWSEndpoint where
                         Just p  -> return p
                         Nothing -> return $ if secure then 443
                                                       else 80
-        scope  <- case BS.split '.' host of
-                        (_:s:_) -> return s
-                        _       -> return ""
-        return $ AWSEndpoint host secure port scope
+        return $ AWSEndpoint host secure port
 
 instance FromJSON AWSEndpoint where
     parseJSON = withText "AWSEndpoint" $

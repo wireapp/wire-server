@@ -57,7 +57,7 @@ newtype QueueUrl = QueueUrl Text
     deriving (Show)
 
 data Error where
-    GeneralError     :: (Show e, AWS.AsError e) => e -> Error
+    GeneralError :: (Show e, AWS.AsError e) => e -> Error
 
 deriving instance Show     Error
 deriving instance Typeable Error
@@ -104,13 +104,12 @@ mkEnv lgr mgr opts = do
     q <- getQueueUrl e (opts^.awsQueueName)
     return (Env e g q)
   where
+    sqs e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) SQS.sqs
+
     mkAwsEnv g =  set AWS.envLogger (awsLogger g)
                .  set AWS.envRetryCheck retryCheck
-               .  AWS.configure (svc (opts^.awsEndpoint))
               <$> AWS.newEnvWith AWS.Discover Nothing mgr
-
-    svc e = SQS.sqs & AWS.serviceEndpoint .~ toAWSEndpoint e
-    toAWSEndpoint e = AWS.Endpoint (e^.awsHost) (e^.awsSecure) (e^.awsPort) (e^.awsScope)
+              <&> AWS.configure (sqs (opts^.awsEndpoint))
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
 

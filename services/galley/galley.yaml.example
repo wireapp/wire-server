@@ -25,7 +25,8 @@ settings:
 #
 # uncomment journal options to enable journaling of team events
 #
-# If you want to use journaling but journal to a fake sqs service such as "fake-sqs" or "localstack",
+# If you want to use journaling but journal to a fake sqs service
+# such as "fake-sqs" or "localstack",
 # run e.g.
 #    docker run -d -p 4568:4568 --name fake-sqs airdock/fake-sqs
 #    curl http://localhost:4568 -d "Action=CreateQueue&QueueName=integration-team-events.fifo"
