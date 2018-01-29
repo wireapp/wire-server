@@ -37,7 +37,6 @@ module Brig.IO.Intra
     , getTeamMembers
     , getTeam
     , getTeamConv
-    , getTeamName
     , getTeamId
     , getTeamContacts
     , changeTeamStatus
@@ -49,13 +48,12 @@ import Bilge.RPC
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
 import Brig.API.Error (incorrectPermissions)
-import Brig.API.Types
 import Brig.RPC
 import Brig.Types
 import Brig.Types.Intra
 import Brig.User.Event
 import Control.Applicative (liftA2)
-import Control.Lens (view, (.~), (?~), (&), (^.))
+import Control.Lens (view, (.~), (?~), (&))
 import Control.Lens.Prism (_Just)
 import Control.Monad.Catch
 import Control.Monad.Reader
@@ -539,14 +537,13 @@ addTeamMember u tid = do
           . expect [status200, status403]
           . lbytes (encode $ t p)
 
-createTeam :: UserId -> Team.BindingNewTeam -> AppIO CreateUserTeam
-createTeam u t@(Team.BindingNewTeam bt) = do
+createTeam :: UserId -> Team.BindingNewTeam -> AppIO TeamId
+createTeam u t = do
     debug $ remote "galley"
             . msg (val "Creating Team")
     r   <- galleyRequest PUT . req =<< randomId
-    tid <- maybe (error "invalid team id") return $
-            fromByteString $ getHeader' "Location" r
-    return (CreateUserTeam tid $ fromRange (bt^.Team.newTeamName))
+    maybe (error "invalid team id") return $
+           fromByteString $ getHeader' "Location" r
   where
     req tid = paths ["i", "teams", toByteString' tid]
             . header "Content-Type" "application/json"
@@ -603,14 +600,6 @@ getTeam tid = do
     galleyRequest GET req >>= decodeBody "galley"
   where
     req = paths ["i", "teams", toByteString' tid]
-        . expect2xx
-
-getTeamName :: TeamId -> AppIO Team.TeamName
-getTeamName tid = do
-    debug $ remote "galley" . msg (val "Get team info")
-    galleyRequest GET req >>= decodeBody "galley"
-  where
-    req = paths ["i", "teams", toByteString' tid, "name"]
         . expect2xx
 
 changeTeamStatus :: TeamId -> Team.TeamStatus -> Maybe Currency.Alpha -> AppIO ()
