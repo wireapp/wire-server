@@ -453,16 +453,30 @@ sitemap = do
 
     ---
 
-    post "/conversations/:cnv/join" (continue joinConversation) $
+    post "/conversations/:cnv/join" (continue joinConversationById) $
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
         .&. accept "application" "json"
 
-    document "POST" "joinConversation" $ do
-        summary "Join a conversation"
+    document "POST" "joinConversationById" $ do
+        summary "Join a conversation by its ID (if link access enabled)"
         parameter Path "cnv" bytes' $
             description "Conversation ID"
+        returns (ref Model.event)
+        response 200 "Conversation joined." end
+        errorResponse Error.convNotFound
+
+    ---
+
+    post "/conversations/join" (continue joinConversationByCode) $
+        zauthUserId
+        .&. zauthConnId
+        .&. request
+        .&. contentType "application" "json"
+
+    document "POST" "joinConversationByCode" $ do
+        summary "Join a conversation using a code or ID"
         returns (ref Model.event)
         response 200 "Conversation joined." end
         errorResponse Error.convNotFound

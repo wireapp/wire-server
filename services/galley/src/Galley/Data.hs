@@ -57,6 +57,11 @@ module Galley.Data
     , removeMembers
     , updateMember
 
+    -- * Conversation Codes
+    , lookupCode
+    , deleteCode
+    , insertCode
+
     -- * Clients
     , eraseClients
     , lookupClients
@@ -67,6 +72,7 @@ module Galley.Data
     , newMember
     ) where
 
+import Brig.Types.Code
 import Cassandra
 import Cassandra.Util
 import Control.Applicative
@@ -117,7 +123,25 @@ import qualified System.Logger.Class  as Log
 newtype ResultSet a = ResultSet { page :: Page a }
 
 schemaVersion :: Int32
-schemaVersion = 24
+schemaVersion = 25
+
+-- | Insert a conversation code
+insertCode :: MonadClient m => Code -> m ()
+insertCode c = do
+    let k = codeKey c
+    let v = codeValue c
+    let cnv = codeConversation c
+    let t = round (codeTTL c)
+    retry x5 (write Cql.insertCode (params Quorum (k, v, cnv, t)))
+
+-- | Lookup a conversation by code.
+lookupCode :: MonadClient m => Key -> m (Maybe Code)
+lookupCode k = fmap (toCode k) <$> retry x1 (query1 Cql.lookupCode (params Quorum (Identity k)))
+
+-- | Delete a code associated with the given conversation key
+deleteCode :: MonadClient m => Key -> m ()
+deleteCode k = retry x5 $ write Cql.deleteCode (params Quorum (Identity k))
+
 
 -- Teams --------------------------------------------------------------------
 

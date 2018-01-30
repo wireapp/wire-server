@@ -5,7 +5,8 @@
 
 module Galley.Data.Queries where
 
-import Cassandra
+import Brig.Types.Code
+import Cassandra hiding (Value)
 import Cassandra.Util
 import Data.Functor.Identity
 import Data.Id
@@ -126,6 +127,17 @@ deleteConv = "delete from conversation using timestamp 32503680000000000 where c
 markConvDeleted :: PrepQuery W (Identity ConvId) ()
 markConvDeleted = "update conversation set deleted = true where conv = ?"
 
+-- Conversations accessible by code -----------------------------------------
+
+insertCode :: PrepQuery W (Key, Value, ConvId, Int32) ()
+insertCode = "INSERT INTO conversation_codes (key, value, conversation) VALUES (?, ?, ?) USING TTL ?"
+
+lookupCode :: PrepQuery R (Identity Key) (Value, Int32, ConvId)
+lookupCode = "SELECT value, ttl(value), conversation FROM conversation_codes WHERE key = ?"
+
+deleteCode :: PrepQuery W (Identity Key) ()
+deleteCode = "DELETE FROM conversation_codes WHERE key = ?"
+
 -- User Conversations -------------------------------------------------------
 
 selectUserConvs :: PrepQuery R (Identity UserId) (Identity ConvId)
@@ -201,4 +213,3 @@ selectSrv = "select base_url, auth_token, fingerprints, enabled from service whe
 
 insertBot :: PrepQuery W (ConvId, BotId, ServiceId, ProviderId) ()
 insertBot = "insert into member (conv, user, service, provider, status) values (?, ?, ?, ?, 0)"
-

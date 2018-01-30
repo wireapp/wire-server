@@ -8,8 +8,15 @@ module Galley.Data.Types
     , isTeamConv
     , isConvDeleted
     , selfConv
+    , Code (..)
+    , toCode
+    , Join (..)
     ) where
 
+import Brig.Types.Code
+import Data.Aeson hiding (Value)
+import Data.Int (Int32)
+import Data.Json.Util
 import Data.Id
 import Data.List1
 import Data.Text
@@ -41,3 +48,38 @@ isConvDeleted = fromMaybe False . convDeleted
 
 selfConv :: UserId -> ConvId
 selfConv uid = Id (toUUID uid)
+
+--------------------------------------------------------------------------------
+-- Code
+
+data Code = Code
+    { codeKey           :: !Key
+    , codeValue         :: !Value
+    , codeTTL           :: !Timeout
+    , codeConversation  :: !ConvId
+    } deriving (Eq, Show)
+
+
+toCode :: Key -> (Value, Int32, ConvId) -> Code
+toCode k (val, ttl, cnv) = Code
+        { codeKey = k
+        , codeValue = val
+        , codeTTL = Timeout (fromIntegral ttl)
+        , codeConversation = cnv
+        }
+
+data Join = Join
+    { conversationKey   :: !Key
+    , conversationCode  :: !Value
+    } deriving (Eq, Show)
+
+instance ToJSON Join where
+    toJSON j = object
+        $ "conversationKey"  .= conversationKey j
+        # "conversationCode" .= conversationCode j
+        # []
+
+instance FromJSON Join where
+    parseJSON = withObject "join" $ \o ->
+        Join <$> o .: "conversationKey"
+            <*> o .: "conversationCode"

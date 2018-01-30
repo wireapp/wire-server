@@ -89,6 +89,7 @@ data Access
     = PrivateAccess
     | InviteAccess
     | LinkAccess
+    | CodeAccess
     deriving (Eq, Ord, Show)
 
 data ConvMembers = ConvMembers
@@ -309,6 +310,7 @@ instance ToJSON Access where
     toJSON PrivateAccess = String "private"
     toJSON InviteAccess  = String "invite"
     toJSON LinkAccess    = String "link"
+    toJSON CodeAccess    = String "code"
 
 instance FromJSON Access where
     parseJSON = withText "Access" $ \s ->
@@ -316,6 +318,7 @@ instance FromJSON Access where
             "private" -> return PrivateAccess
             "invite"  -> return InviteAccess
             "link"    -> return LinkAccess
+            "code"    -> return CodeAccess
             _         -> fail "Invalid Access Mode"
 
 instance ToJSON UserClients where
@@ -722,4 +725,3 @@ instance ToJSON TypingData where
 instance FromJSON TypingData where
     parseJSON = withObject "typing-data" $ \o ->
         TypingData <$> o .: "status"
-

@@ -13,7 +13,8 @@ module Galley.API.Update
     , acceptConv
     , blockConv
     , unblockConv
-    , joinConversation
+    , joinConversationById
+    , joinConversationByCode
 
       -- * Managing Members
     , Galley.API.Update.addMembers
@@ -34,6 +35,7 @@ module Galley.API.Update
     , rmBot
     , postBotMessage
     ) where
+
 
 import Control.Applicative hiding (empty)
 import Control.Concurrent.Lifted (fork)
@@ -105,17 +107,27 @@ unblockConv (usr ::: conn ::: cnv) = do
     conv' <- acceptOne2One usr conv conn
     setStatus status200 . json <$> conversationView usr conv'
 
-joinConversation :: UserId ::: ConnId ::: ConvId ::: JSON -> Galley Response
-joinConversation (zusr ::: zcon ::: cnv ::: _) = do
+joinConversationByCode :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
+joinConversationByCode (zusr ::: zcon ::: req ::: _) = do
+    body <- fromBody req invalidPayload
+    cnv <- codeConversation <$> (Data.lookupCode (conversationKey body) >>= ifNothing convNotFound)
+    joinConversation zusr zcon cnv CodeAccess
+
+joinConversationById :: UserId ::: ConnId ::: ConvId ::: JSON -> Galley Response
+joinConversationById (zusr ::: zcon ::: cnv ::: _) = joinConversation zusr zcon cnv LinkAccess
+
+joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley Response
+joinConversation zusr zcon cnv access = do
     c <- Data.conversation cnv >>= ifNothing convNotFound
     when (Data.isConvDeleted c) $ do
         Data.deleteConversation cnv
         throwM convNotFound
-    unless (LinkAccess `elem` Data.convAccess c) $
+    unless (access `elem` Data.convAccess c) $
         throwM convNotFound
     let new = filter (notIsMember c) [zusr]
     ensureMemberLimit (toList $ Data.convMembers c) new
     addToConversation (botsAndUsers (Data.convMembers c)) zusr zcon new c
+
 
 addMembers :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
