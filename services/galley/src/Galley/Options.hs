@@ -9,11 +9,7 @@ import Data.Aeson.TH (deriveFromJSON)
 import Data.Text (Text)
 import Data.Monoid
 import GHC.Generics
-import Network.AWS (Region (..))
-import Network.AWS.Data
-import Data.String
 import Options.Applicative
-import Options.Applicative.Types
 import Util.Options
 import Util.Options.Common
 
@@ -31,7 +27,7 @@ makeLenses ''Settings
 
 data JournalOpts = JournalOpts
     { _awsQueueName :: !Text
-    , _awsRegion    :: !Region
+    , _awsEndpoint  :: !AWSEndpoint
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''JournalOpts
@@ -125,12 +121,9 @@ journalOptsParser = JournalOpts
             long "team-events-queue-name"
             <> metavar "STRING"
             <> help "sqs queue name to send team events")
-    <*> (option region $
-            long "aws-region"
+    <*> (option parseAWSEndpoint $
+            long "aws-sqs-endpoint"
+            <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443)
             <> metavar "STRING"
-            <> value Ireland
             <> showDefault
-            <> help "aws region name")
-  where
-    region :: ReadM Region
-    region = readerAsk >>= either readerError return . fromText . fromString
+            <> help "aws endpoint")
