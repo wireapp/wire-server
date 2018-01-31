@@ -1,8 +1,11 @@
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Cannon.Types
     ( Env
+    , UserDevicePayload
+    , BulkPush
     , mon
     , opts
     , applog
@@ -27,9 +30,12 @@ import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 import Control.Lens
+import Data.Aeson
 import Data.ByteString (ByteString)
+import Data.Id (UserId, ConnId)
 import Data.Metrics.Middleware
 import Data.Text.Encoding
+import GHC.Generics
 import Network.Wai
 import System.Logger.Class hiding (info)
 import System.Random.MWC (GenIO)
@@ -68,6 +74,23 @@ instance MonadLogger Cannon where
 
 instance HasRequestId Cannon where
     getRequestId = Cannon $ asks reqId
+
+data UserDevicePayload = UserDevicePayload
+    { udUid  :: !UserId
+    , udDid  :: !ConnId
+    , udData :: !ByteString
+    } deriving ( Show
+               , Generic
+               )
+
+data BulkPush = BulkPush
+    { bpRecipients :: ![UserDevicePayload]
+    } deriving ( Show
+               , Generic
+               )
+
+instance FromJSON UserDevicePayload
+instance FromJSON BulkPush 
 
 mkEnv :: Metrics
       -> ByteString

@@ -100,6 +100,9 @@ sitemap = do
     post "/i/push/:user/:conn" (continue push) $
         capture "user" .&. capture "conn" .&. request
 
+    post "/i/bulkpush" (continue bulkpush) $ 
+        request 
+
     get "/i/monitoring" (continue monitoring) $
         accept "application" "json"
 
@@ -138,6 +141,19 @@ push (user ::: conn ::: req) = do
                 const (terminate k x >> return clientGone)
   where
     clientGone = errorRs status410 "general" "client gone"
+
+bulkpush :: Request -> Cannon Response
+bulkpush req = do
+    b <- readBody req
+    let payload = decode b :: BulkPush
+    case payload of
+        Nothing -> do
+            return badPayload
+        Just pushes -> do
+            return notImpl
+  where
+    badPayload = errorRs status400 "malformed-payload" "The request payload was malformed."
+    notImpl = errorRs status503 "not-implemented" "Not implemented."
 
 await :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
 await (u ::: a ::: c ::: r) = do
