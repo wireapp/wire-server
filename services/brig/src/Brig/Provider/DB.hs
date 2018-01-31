@@ -26,6 +26,7 @@ import Data.Range (Range, fromRange, rnil, rcast)
 import Data.Text (Text, toLower, isPrefixOf)
 
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 
 --------------------------------------------------------------------------------
 -- Providers
@@ -158,16 +159,26 @@ insertService :: MonadClient m
 insertService pid name summary descr url token key fprint assets tags = do
     sid <- randomId
     let tagSet = Set (Set.toList tags)
-    retry x5 $ write cql $ params Quorum
-        (pid, sid, name, summary, descr, url, [token], [key], [fprint], assets, tagSet, False)
+    retry x5 $ batch $ do
+        setConsistency Quorum
+        setType BatchUnLogged
+        addPrepQuery cqlService (pid, sid, name, summary, descr, url, [token], [key], [fprint], assets, tagSet, False)
+        addPrepQuery cqlPrefix (prefix, name, pid, sid)
     return sid
   where
-    cql :: PrepQuery W (ProviderId, ServiceId, Name, Text, Text, HttpsUrl, [ServiceToken],
+    cqlService :: PrepQuery W (ProviderId, ServiceId, Name, Text, Text, HttpsUrl, [ServiceToken],
                         [ServiceKey], [Fingerprint Rsa], [Asset], Set ServiceTag, Bool)
                        ()
-    cql = "INSERT INTO service (provider, id, name, summary, descr, base_url, auth_tokens, \
+    cqlService = "INSERT INTO service (provider, id, name, summary, descr, base_url, auth_tokens, \
                                \pubkeys, fingerprints, assets, tags, enabled) \
           \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+
+    cqlPrefix :: PrepQuery W (Text, Name, ProviderId, ServiceId) ()
+    cqlPrefix = "INSERT INTO service_prefix\
+                \ (prefix, name, provider, service)\
+                \ VALUES (?, ?, ?, ?)"
+
+    prefix = Text.take 1 $ fromName name
 
 lookupService :: MonadClient m
     => ProviderId
@@ -202,24 +213,39 @@ listServices p = fmap (map mk) $
 updateService :: MonadClient m
     => ProviderId
     -> ServiceId
-    -> Maybe Name
+    -> Maybe (Name, Name)
     -> Maybe Text
     -> Maybe Text
     -> Maybe [Asset]
     -> Maybe (Range 1 3 (Set.Set ServiceTag))
     -> m ()
-updateService pid sid name summary descr assets tags = retry x5 $ batch $ do
+updateService pid sid nameChange summary descr assets tags = retry x5 $ batch $ do
     setConsistency Quorum
     setType BatchUnLogged
     let tags' = Set . Set.toList . fromRange <$> tags
-    for_ name   $ \x -> addPrepQuery cqlName     (x, pid, sid)
-    for_ summary$ \x -> addPrepQuery cqlSummary  (x, pid, sid)
-    for_ descr  $ \x -> addPrepQuery cqlDescr    (x, pid, sid)
-    for_ assets $ \x -> addPrepQuery cqlAssets   (x, pid, sid)
-    for_ tags'  $ \x -> addPrepQuery cqlTags     (x, pid, sid)
+    for_ nameChange $ \(oldName, newName) -> do
+        addPrepQuery cqlName     (newName, pid, sid)
+        addPrepQuery cqlPrefixRm (mkPrefix oldName, oldName)
+        addPrepQuery cqlPrefix (mkPrefix newName, newName, pid, sid)
+    for_ summary    $ \x -> addPrepQuery cqlSummary  (x, pid, sid)
+    for_ descr      $ \x -> addPrepQuery cqlDescr    (x, pid, sid)
+    for_ assets     $ \x -> addPrepQuery cqlAssets   (x, pid, sid)
+    for_ tags'      $ \x -> addPrepQuery cqlTags     (x, pid, sid)
   where
     cqlName :: PrepQuery W (Name, ProviderId, ServiceId) ()
     cqlName = "UPDATE service SET name = ? WHERE provider = ? AND id = ?"
+
+    mkPrefix :: Name -> Text
+    mkPrefix = Text.take 1 . fromName
+
+    cqlPrefixRm :: PrepQuery W (Text, Name) ()
+    cqlPrefixRm = "DELETE FROM service_prefix\
+                  \ WHERE prefix = ? AND name = ?"
+
+    cqlPrefix :: PrepQuery W (Text, Name, ProviderId, ServiceId) ()
+    cqlPrefix = "INSERT INTO service_prefix\
+                \ (prefix, name, provider, service)\
+                \ VALUES (?, ?, ?, ?)"
 
     cqlSummary :: PrepQuery W (Text, ProviderId, ServiceId) ()
     cqlSummary = "UPDATE service SET summary = ? WHERE provider = ? AND id = ?"

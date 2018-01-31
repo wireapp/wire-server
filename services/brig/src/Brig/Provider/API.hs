@@ -21,7 +21,7 @@ import Brig.Types.Provider
 import Brig.Types.Search
 import Control.Lens (view)
 import Control.Exception.Enclosed (handleAny)
-import Control.Monad (join, when, unless, (>=>))
+import Control.Monad (join, when, unless, (>=>), liftM2)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.ByteString.Conversion
@@ -401,15 +401,16 @@ updateService (pid ::: sid ::: req) = do
 
     -- Update service profile
     svc <- DB.lookupService pid sid >>= maybeServiceNotFound
+    let name       = serviceName svc
     let newName    = updateServiceName upd
+    let nameChange = liftM2 (,) (pure name) newName
     let newSummary = fromRange <$> updateServiceSummary upd
     let newDescr   = fromRange <$> updateServiceDescr upd
     let newAssets  = updateServiceAssets upd
     let newTags    = updateServiceTags upd
-    DB.updateService pid sid newName newSummary newDescr newAssets newTags
+    DB.updateService pid sid nameChange newSummary newDescr newAssets newTags
 
     -- Update tag index
-    let name  = serviceName svc
     let tags  = unsafeRange (serviceTags svc)
     let name' = fromMaybe name newName
     let tags' = fromMaybe tags newTags
