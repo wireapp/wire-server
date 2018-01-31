@@ -31,6 +31,12 @@ aws:
   awsKeyId: <insert-key-id-here>
   awsSecretKey: <insert-secret-key-here>
 
+amazonka:
+  amazonkaAccount: "093205192929"
+  amazonkaSesQueue: integration-brig-events
+  amazonkaInternalQueue: integration-brig-events-internal
+  amazonkaBlacklistTable: integration-brig-userkey-blacklist
+
 emailSMS:
   general:
     templateDir: deb/opt/brig/templates

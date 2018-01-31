@@ -270,7 +270,7 @@ initAws o l m = do
                        -- (Aws.SesQueue (Opt.sesQueue a))
                        -- (Aws.InternalQueue (Opt.internalQueue a))
                        -- (Aws.BlacklistTable (Opt.blacklistTable a))
-                       (Aws.PreKeyTable (Opt.prekeyTable a))
+                       -- (Aws.PreKeyTable (Opt.prekeyTable a))
     return (e, c)
 
 initZAuth :: Opts -> IO ZAuth.Env

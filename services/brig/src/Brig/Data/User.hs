@@ -96,7 +96,7 @@ authenticate u pw = lift (lookupAuth u) >>= \case
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password and no password is given,
 -- reauthentication is a no-op.
-reauthenticate :: UserId -> Maybe PlainTextPassword -> ExceptT ReAuthError AppIO ()
+reauthenticate :: (MonadClient m) => UserId -> Maybe PlainTextPassword -> ExceptT ReAuthError m ()
 reauthenticate u pw = lift (lookupAuth u) >>= \case
     Nothing                   -> throwE (ReAuthError AuthInvalidUser)
     Just (_,         Deleted) -> throwE (ReAuthError AuthInvalidUser)
@@ -202,7 +202,7 @@ lookupStatus :: UserId -> AppIO (Maybe AccountStatus)
 lookupStatus u = join . fmap runIdentity <$>
     retry x1 (query1 statusSelect (params Quorum (Identity u)))
 
-lookupAuth :: UserId -> AppIO (Maybe (Maybe Password, AccountStatus))
+lookupAuth :: (MonadClient m) => UserId -> m (Maybe (Maybe Password, AccountStatus))
 lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params Quorum (Identity u)))
   where
     f (pw, st) = (pw, fromMaybe Active st)

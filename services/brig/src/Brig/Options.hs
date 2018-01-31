@@ -57,7 +57,7 @@ data AWSOpts = AWSOpts
     -- , sesQueue        :: !Text
     -- , internalQueue   :: !Text
     -- , blacklistTable  :: !Text
-    , prekeyTable     :: !Text
+    -- , prekeyTable     :: !Text
     , region          :: !Region
     , awsKeyId        :: !(Maybe Aws.AccessKeyId)
     , awsSecretKey    :: !(Maybe Aws.SecretAccessKey)
@@ -70,6 +70,7 @@ data AWSOptsAmazonka = AWSOptsAmazonka
     , amazonkaSesQueue      :: !Text
     , amazonkaInternalQueue :: !Text
     , amazonkaBlacklistTable:: !Text
+    , amazonkaPrekeyTable   :: !Text
     } deriving (Show, Generic)
 
 instance FromJSON AWSOptsAmazonka
@@ -229,9 +230,6 @@ optsParser =
     (AWSOpts <$>
      (textOption $
       long "aws-account-id" <> metavar "STRING" <> help "AWS Account ID") <*>
-     (textOption $
-      long "aws-dynamo-prekeys" <> metavar "STRING" <>
-      help "Dynamo table for storing prekey data") <*>
      (option regionOption $
       long "aws-region" <> metavar "STRING" <> value Ireland <> showDefault <>
       help "Region to use for SQS queues and Dynamo only. SES is hardcoded to \
@@ -254,7 +252,10 @@ optsParser =
       help "Event queue for internal brig generated events (e.g. user deletion)") <*>
      (textOption $
       long "aws-dynamo-blacklist" <> metavar "STRING" <>
-      help "Dynamo table for storing blacklisted user keys")) <*>
+      help "Dynamo table for storing blacklisted user keys") <*>
+          (textOption $
+      long "aws-dynamo-prekeys" <> metavar "STRING" <>
+      help "Dynamo table for storing prekey data")) <*>
     (EmailSMSOpts <$>
      (EmailSMSGeneralOpts <$>
       (strOption $

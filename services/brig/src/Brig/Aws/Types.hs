@@ -17,7 +17,7 @@ module Brig.Aws.Types
     -- , sqsInternalQueue
     , ddbConfig
     -- , ddbBlacklistTable
-    , ddbPreKeyTable
+    -- , ddbPreKeyTable
 
       -- * SES Notification
     , SESNotification (..)
@@ -88,7 +88,7 @@ data Config = Config
     -- , _sqsSesQueue       :: !Aws.QueueName
     -- , _sqsInternalQueue  :: !Aws.QueueName
     -- , _ddbBlacklistTable :: !BlacklistTable
-    , _ddbPreKeyTable    :: !PreKeyTable
+    -- , _ddbPreKeyTable    :: !PreKeyTable
     }
 
 makeLenses ''Config
@@ -98,9 +98,9 @@ config :: Region
        -- -> SesQueue
        -- -> InternalQueue
        -- -> BlacklistTable
-       -> PreKeyTable
+       -- -> PreKeyTable
        -> Config
-config reg acc pkt =
+config reg acc =
     let ddb = regionSettings reg
         -- Note that `sesUsEast1` acts as a backup, in case `sesEuWest1` is down for some reason
         -- https://github.com/wireapp/wire-server/blob/develop/services/brig/src/Brig/Aws.hs#L144-L149
@@ -109,7 +109,7 @@ config reg acc pkt =
         ses = [Aws.sesHttpsPost Aws.sesEuWest1, Aws.sesHttpsPost Aws.sesUsEast1]
         -- sqq = Aws.QueueName (fromSesQueue squ) (fromAccount acc)
         -- iqq = Aws.QueueName (fromInternalQueue iqu) (fromAccount acc)
-    in Config ses ddb pkt
+    in Config ses ddb
   where
     regionSettings Ireland = Aws.ddbHttps Aws.ddbEuWest1
     --    ( Aws.sqs Aws.HTTPS Aws.sqsEndpointEu False

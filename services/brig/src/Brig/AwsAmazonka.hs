@@ -24,9 +24,14 @@ module Brig.AwsAmazonka
     , execAWS
     , dynamoEnv
     , dynamoBlacklistTable
+    , dynamoPrekeyTable
+
+    , execAWSSafe
+    , execAWS2
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
+import Bilge.Retry (httpHandlers)
 import Brig.Options as Opt
 import Control.Applicative
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
@@ -40,7 +45,7 @@ import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
-import Control.Retry (retrying, limitRetries, exponentialBackoff)
+import Control.Retry (recovering, retrying, limitRetries, exponentialBackoff)
 import Data.Aeson hiding ((.=))
 import Data.Attoparsec.Text
 import Data.Foldable (for_)
@@ -58,8 +63,11 @@ import Network.AWS.SQS (rmrsMessages)
 import Network.AWS.SQS.Types
 import Network.HTTP.Client (Manager, HttpException (..), HttpExceptionContent (..))
 import Network.HTTP.Types
+import Network.Mail.Mime
 import System.Logger.Class
 
+import qualified Network.AWS.DynamoDB   as AmazonkaDdb
+import qualified Control.Exception.Lens as EL
 import qualified Control.Monad.Trans.AWS as AWST
 import qualified Data.ByteString.Lazy    as BL
 import qualified Data.ByteString.Base64  as B64
@@ -72,6 +80,8 @@ import qualified Gundeck.Types.Push      as Push
 import qualified Network.AWS             as AWS
 import qualified Network.AWS.Env         as AWS
 import qualified Network.AWS.Data        as AWS
+import qualified Network.AWS.SES         as SES
+import qualified Network.AWS.SES.Types   as SES
 import qualified Network.AWS.SNS         as SNS
 import qualified Network.AWS.SQS         as SQS
 import qualified Network.AWS.DynamoDB    as DDB
@@ -89,7 +99,9 @@ data Env = Env
     , _internalQueue :: !QueueUrl
     , _sqsEnv     :: !AWS.Env
     , _dynamoBlacklistTable :: !Text
+    , _dynamoPrekeyTable :: !Text
     , _dynamoEnv  :: !AWS.Env
+    , _sesEnv  :: !AWS.Env
     , _amazonkaAwsEnv  :: !AWS.Env
     }
 
@@ -127,19 +139,23 @@ mkEnv lgr opts mgr = do
     sq <- getQueueUrl se (amazonkaSesQueue opts)
     iq <- getQueueUrl se (amazonkaInternalQueue opts)
     de <- mkDynamoEnv g dynEnd
+    ss <- mkSesEnv g sesEnd
     let bl = (amazonkaBlacklistTable opts)
-    e  <- mkAwsEnv g sqsEnd dynEnd
-    return (Env g (Account (amazonkaAccount opts)) sq iq se bl de e)
+    let pk = (amazonkaPrekeyTable opts)
+    e  <- mkAwsEnv g sesEnd sqsEnd dynEnd
+    return (Env g (Account (amazonkaAccount opts)) sq iq se bl pk de ss e)
   where
+    sesEnd = AWS.setEndpoint True "email.eu-west-1.amazonaws.com" 443 SES.ses
     sqsEnd = AWS.setEndpoint True "sqs.eu-west-1.amazonaws.com" 443 SQS.sqs
     dynEnd = AWS.setEndpoint True "dynamodb.eu-west-1.amazonaws.com" 443 DDB.dynamoDB
 
-    mkAwsEnv g sqs dyn = set AWS.envRetryCheck retryCheck
-                      .  set AWS.envLogger (awsLogger g)
-                      .  set AWS.envRegion AWS.Ireland -- TODO: Necessary?
-                     <$> AWS.newEnvWith AWS.Discover Nothing mgr
-                     <&> AWS.configure sqs
-                     <&> AWS.configure dyn
+    mkAwsEnv g ses sqs dyn = set AWS.envRetryCheck retryCheck
+                           .  set AWS.envLogger (awsLogger g)
+                           .  set AWS.envRegion AWS.Ireland -- TODO: Necessary?
+                          <$> AWS.newEnvWith AWS.Discover Nothing mgr
+                          <&> AWS.configure ses
+                          <&> AWS.configure sqs
+                          <&> AWS.configure dyn
 
     mkDynamoEnv g end =  set AWS.envRetryCheck retryCheck
                       .  set AWS.envLogger (awsLogger g)
@@ -147,6 +163,11 @@ mkEnv lgr opts mgr = do
                      <&> AWS.configure end
 
     mkSqsEnv g end =  set AWS.envRetryCheck retryCheck
+                   .  set AWS.envLogger (awsLogger g)
+                  <$> AWS.newEnvWith AWS.Discover Nothing mgr
+                  <&> AWS.configure end
+
+    mkSesEnv g end =  set AWS.envRetryCheck retryCheck
                    .  set AWS.envLogger (awsLogger g)
                   <$> AWS.newEnvWith AWS.Discover Nothing mgr
                   <&> AWS.configure end
@@ -195,7 +216,7 @@ deriving instance Typeable Error
 instance Exception Error
 
 --------------------------------------------------------------------------------
--- Feedback
+-- SQS
 
 listen :: (FromJSON a, Show a) => Text -> (a -> IO ()) -> Amazon ()
 listen qn callback = do
@@ -230,6 +251,38 @@ enqueue (QueueUrl url) m = do
     req url = SQS.sendMessage url $ Text.decodeLatin1 (BL.toStrict m)
 
 --------------------------------------------------------------------------------
+-- SES
+
+-- import Prelude
+
+
+-- -- | Convenience function for constructing a 'SendRawEmail' command,
+-- -- which involves extracting/duplicating some data from the MIME 'Mail'.
+-- sendRawEmail :: MonadIO m => Mail -> m SendRawEmail
+-- sendRawEmail m = do
+--     msg <- liftIO $ toStrict <$> renderMail' m
+--     return $ SendRawEmail
+--         (map addressEmail (mailTo m))
+--         (RawMessage msg)
+--         (Just . Sender . addressEmail $ mailFrom m)
+-- sreDestinations - A list of destinations for the message, consisting of To:, CC:, and BCC: addresses.
+-- sreReturnPathARN - This parameter is used only for sending authorization. It is the ARN of the identity that is associated with the sending authorization policy that permits you to use the email address specified in the ReturnPath parameter. For example, if the owner of example.com (which has ARN arn:aws:ses:us-east-1:123456789012:identity/example.com ) attaches a policy to it that authorizes you to use feedbackexample.com , then you would specify the ReturnPathArn to be arn:aws:ses:us-east-1:123456789012:identity/example.com , and the ReturnPath to be feedbackexample.com . Instead of using this parameter, you can use the X-header X-SES-RETURN-PATH-ARN in the raw message of the email. If you use both the ReturnPathArn parameter and the corresponding X-header, Amazon SES uses the value of the ReturnPathArn parameter.
+-- sreSource - The identity's email address. If you do not provide a value for this parameter, you must specify a From address in the raw text of the message. (You can also specify both.) By default, the string must be 7-bit ASCII. If the text must contain any other characters, then you must use MIME encoded-word syntax (RFC 2047) instead of a literal string. MIME encoded-word syntax uses the following form: =?charset?encoding?encoded-text?= . For more information, see RFC 2047 .
+
+sendMail :: Mail -> Amazon ()
+sendMail m = do
+    r <- liftIO $ BL.toStrict <$> renderMail' m
+    let raw = SES.rawMessage r
+    let msg = SES.sendRawEmail raw & SES.sreDestinations .~ fmap addressEmail (mailTo m)
+                                   & SES.sreSource ?~ addressEmail (mailFrom m)
+    void $ retrying retry5x (const canRetry) $ const (sendCatch msg)
+  where
+    -- TODO: Ensure that we handle SES throttling too
+    -- canRetry x = statusIsServerError (sesStatusCode x)
+    --           || sesErrorCode x == "Throttling"
+    retry5x = limitRetries 5 <> exponentialBackoff 100000
+
+--------------------------------------------------------------------------------
 -- Utilities
 
 sendCatch :: AWSRequest r => r -> Amazon (Either AWS.Error (Rs r))
@@ -249,15 +302,39 @@ isTimeout (Left  e) = case e of
     _                                                           -> pure False
 
 getQueueUrl :: AWS.Env -> Text -> IO QueueUrl
-getQueueUrl e q = execAWS e (SQS.getQueueURL q) (return . QueueUrl . view SQS.gqursQueueURL)
+getQueueUrl e q = execAWS' e (SQS.getQueueURL q) (return . QueueUrl . view SQS.gqursQueueURL)
 
-execAWS :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m) => 
+execAWS' :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m) => 
         r -> a -> (Rs a -> m b) -> m b
-execAWS e cmd ret = do
+execAWS' e cmd ret = do
     x <- runResourceT . AWST.runAWST e $ do
         AWST.trying AWS._Error $
             AWST.send cmd
-    either (throwM . GeneralError) ret x       
+    either (throwM . GeneralError) ret x
+
+execAWSSafe :: AWSRequest r => r -> Amazon (Rs r)
+execAWSSafe req = do
+    res <- recovering (limitRetries 5 <> exponentialBackoff 1000000) handlers $ const (sendCatch req)
+    either (throwM . GeneralError) return res
+  where
+    handlers = [const $ EL.handler_ AmazonkaDdb._ConditionalCheckFailedException (pure True)]
+
+execAWS2 :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m) => 
+        r -> a -> m (Either AWS.Error (Rs a))
+execAWS2 e cmd = do
+    x <- runResourceT . AWST.runAWST e $ do
+        AWST.trying AWS._Error $
+            AWST.send cmd
+    return x
+
+execAWS :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m) => 
+        r -> a -> m (Rs a)
+execAWS e cmd = do
+    x <- runResourceT . AWST.runAWST e $ do
+        AWST.trying AWS._Error $
+            AWST.send cmd
+    r <- either (throwM . GeneralError) return x
+    return r
 
 canRetry :: MonadIO m => Either AWS.Error a -> m Bool
 canRetry (Right _) = pure False

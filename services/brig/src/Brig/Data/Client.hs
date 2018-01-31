@@ -26,7 +26,9 @@ module Brig.Data.Client
     ) where
 
 import Aws.Core (Transaction, ServiceConfiguration)
-import Brig.App (AppIO, awsConfig, currentTime)
+import Bilge.Retry (httpHandlers)
+import Brig.App (AppIO, awsConfig, currentTime, amazonkaEnv)
+import Brig.AwsAmazonka
 import Brig.User.Auth.DB.Instances ()
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
@@ -37,8 +39,12 @@ import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Error
 import Control.Lens
 import Control.Monad
+import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Control
+import Control.Monad.Trans.Resource
+import Control.Retry
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Foldable (for_)
 import Data.Id
@@ -47,17 +53,28 @@ import Data.Misc
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import Data.Time.Clock
+import Data.Typeable
 import Data.Word
+import Network.AWS (AWSRequest, Rs, Region (..))
+import Network.AWS.Data
+import Safe (readMay)
 import System.CryptoBox (Result (Success))
 import System.Logger.Class (field, msg, val)
 
 import qualified Aws.DynamoDb           as Ddb
 import qualified Brig.Aws               as Aws
 import qualified Brig.Data.User         as User
+import qualified Control.Exception.Lens as EL
 import qualified Data.ByteString.Base64 as B64
+import qualified Data.HashMap.Strict    as Map
 import qualified Data.Map.Lazy          as LazyMap
 import qualified Data.Set               as Set
+import qualified Data.Text              as Text
 import qualified Data.UUID              as UUID
+import qualified Network.AWS            as Amazonka
+import qualified Network.AWS.Data       as Amazonka
+import qualified Network.AWS.DynamoDB   as AmazonkaDdb
+import qualified Network.AWS.Env        as AWS
 import qualified System.CryptoBox       as CryptoBox
 import qualified System.Logger.Class    as Log
 
@@ -70,13 +87,14 @@ data ClientDataError
     | ClientMissingAuth
     | MalformedPrekeys
 
-addClient :: UserId
+addClient :: (MonadClient m)
+          => UserId
           -> ClientId
           -> NewClient a
           -> Maybe Location
-          -> ExceptT ClientDataError AppIO (Client, [Client], Word)
+          -> ExceptT ClientDataError m (Client, [Client], Word)
 addClient u newId c loc = do
-    clients   <- lift $ lookupClients u
+    clients <- lookupClients u
     let typed  = filter ((== newClientType c) . clientType) clients
     let count  = length typed
     let upsert = any exists typed
@@ -98,7 +116,7 @@ addClient u newId c loc = do
     exists = (==) newId . clientId
 
     insert = do
-        now <- liftIO =<< view currentTime
+        now <- liftIO getCurrentTime -- TODO: Is this a performance concern? liftIO =<< view currentTime
         let keys = unpackLastPrekey (newClientLastKey c) : newClientPrekeys c
         updatePrekeys u newId keys
         let lat = Latitude . view latitude <$> loc
@@ -236,65 +254,180 @@ ddbClient = "client"
 ddbVersion :: Text
 ddbVersion = "version"
 
-ddbKey :: UserId -> ClientId -> Ddb.DValue
-ddbKey u c = Ddb.DString (UUID.toText (toUUID u) <> "." <> client c)
+-- ddbKey' :: UserId -> ClientId -> Ddb.DValue
+-- ddbKey' u c = Ddb.DString (UUID.toText (toUUID u) <> "." <> client c)
+
+-- withOptLock' :: UserId -> ClientId -> AppIO a -> AppIO a
+-- withOptLock' u c ma = go (10 :: Int)
+--   where
+--     go !n = do
+--         v <- (version =<<) <$> exec get
+--         a <- ma
+--         r <- exec (put v)
+--         case r of
+--             Nothing | n > 0 -> go (n - 1)
+--             Nothing         -> logFailure >> return a
+--             Just _          -> return a
+
+--     key = ddbKey u c
+
+--     version = Ddb.girItem >=> LazyMap.lookup ddbVersion >=> Ddb.fromValue
+
+--     get (Aws.PreKeyTable t) = (Ddb.getItem t (Ddb.hk ddbClient key))
+--         { Ddb.giAttrs      = Nothing
+--         , Ddb.giConsistent = True
+--         , Ddb.giRetCons    = Ddb.RCNone
+--         }
+
+--     put v (Aws.PreKeyTable t) = (Ddb.putItem t (item v))
+--         { Ddb.piExpect  = Ddb.Conditions Ddb.CondAnd [check v]
+--         , Ddb.piReturn  = Ddb.URNone
+--         , Ddb.piRetCons = Ddb.RCNone
+--         , Ddb.piRetMet  = Ddb.RICMNone
+--         }
+
+--     item v = Ddb.item
+--         [ Ddb.attr ddbClient key
+--         , Ddb.attr ddbVersion (maybe (1 :: Word32) (+1) v)
+--         ]
+
+--     check (Just v) = Ddb.Condition ddbVersion (Ddb.DEq (Ddb.toValue v))
+--     check Nothing  = Ddb.Condition ddbVersion Ddb.IsNull
+
+--     logFailure = Log.err (msg (val "PreKeys: Optimistic lock failed"))
+
+-- deleteOptLock' :: UserId -> ClientId -> AppIO ()
+-- deleteOptLock' u c = void (exec delete)
+--   where
+--     delete (Aws.PreKeyTable t) = Ddb.deleteItem t (Ddb.hk ddbClient (ddbKey u c))
+
+-- exec' :: (Transaction r a, ServiceConfiguration r ~ Ddb.DdbConfiguration)
+--      => (Aws.PreKeyTable -> r)
+--      -> AppIO (Maybe a)
+-- exec' mkCmd = do
+--     cmd <- mkCmd <$> view (error "old awsConfig.Aws.ddbPreKeyTable")
+--     rs  <- Aws.tryDynamo cmd
+--     case snd <$> rs of
+--         Left (Aws.DynamoErrorResponse e)
+--             | Ddb.ddbErrCode e == Ddb.ConditionalCheckFailedException
+--             -> return Nothing
+--         Left ex -> do
+--           Log.err $ field "error" (show ex)
+--                   . msg (val "PreKeys: DynamoDB error")
+--           return Nothing
+--         Right a -> return (Just a)
+
+-- Amazonka
+
+-- execAmazonka' :: (MonadMask m, Amazonka.MonadAWS m, Typeable m) => AWS.Env -> (Rs r -> a) -> r -> m a
+-- execAmazonka' e conv cmd = recovering policy cond (const fn)
+--   where
+--     cond = httpHandlers ++ [const $ EL.handler_ AmazonkaDdb._ConditionalCheckFailedException (pure True)]
+--     policy = limitRetries 100 <> exponentialBackoff 100000
+
+--     fn = do
+--         r <- execute (error "e") execAWSSafe cmd
+--         return $ conv r
+
+-- execAmazonka :: (AWSRequest r) => (Rs r -> a) -> (Text -> r) -> AppIO a
+-- execAmazonka conv mkCmd = do
+--     cmd <- mkCmd <$> view (amazonkaEnv.dynamoPrekeyTable)
+--     e <- view (amazonkaEnv.amazonkaAwsEnv)
+--     execAmazonka' e conv cmd
+
+-- execAmazonka2' :: (AWSRequest r, MonadMask m, MonadIO m, Typeable m, MonadBaseControl IO m) => AWS.Env -> r -> m (Maybe a)
+-- execAmazonka2' e cmd = recovering policy cond (const fn)
+--   where
+--     cond = httpHandlers ++ [const $ EL.handler_ AmazonkaDdb._ConditionalCheckFailedException (pure True)]
+--     policy = limitRetries 100 <> exponentialBackoff 100000
+
+--     fn = do
+--         r <- toA <$> execAWS2 e cmd
+--         case r of
+--             Left _  -> return Nothing
+--             Right x -> return x
+    
+--     toA :: Either Amazonka.Error (Rs r) -> Either Amazonka.Error (Maybe a)
+--     toA = undefined
+
+-- execAmazonka2 :: (AWSRequest r) => (Text -> r) -> AppIO (Maybe a)
+-- execAmazonka2 mkCmd = do
+--     cmd <- mkCmd <$> view (amazonkaEnv.dynamoPrekeyTable)
+--     e <- view (amazonkaEnv.amazonkaAwsEnv)
+--     execAmazonka2' e cmd
+
+deleteOptLock :: UserId -> ClientId -> AppIO ()
+deleteOptLock u c = do
+    t <- view (amazonkaEnv.dynamoPrekeyTable)
+    e <- view (amazonkaEnv.amazonkaAwsEnv)
+    void $ execAWS e (AmazonkaDdb.deleteItem t & AmazonkaDdb.diKey .~ item)
+  where
+    item :: Map.HashMap Text AmazonkaDdb.AttributeValue
+    item = Map.singleton ddbClient (ddbKey u c)
+
+ddbKey :: UserId -> ClientId -> AmazonkaDdb.AttributeValue
+ddbKey u c = AmazonkaDdb.attributeValue & AmazonkaDdb.avS .~ Just (UUID.toText (toUUID u) <> "." <> client c)
 
 withOptLock :: UserId -> ClientId -> AppIO a -> AppIO a
 withOptLock u c ma = go (10 :: Int)
   where
     go !n = do
-        v <- (version =<<) <$> exec get
+        v <- (version =<<) <$> execAmazonka return get
         a <- ma
-        r <- exec (put v)
+        r <- execAmazonka return (put v)
         case r of
             Nothing | n > 0 -> go (n - 1)
             Nothing         -> logFailure >> return a
             Just _          -> return a
 
-    key = ddbKey u c
+    key :: Map.HashMap Text AmazonkaDdb.AttributeValue
+    key = Map.singleton ddbClient (ddbKey u c)
 
-    version = Ddb.girItem >=> LazyMap.lookup ddbVersion >=> Ddb.fromValue
+    version :: AmazonkaDdb.GetItemResponse -> Maybe Word32
+    version r = do
+        let v = Map.lookup ddbVersion (view AmazonkaDdb.girsItem r)
+        join (conv <$> v)
+      where
+        conv :: AmazonkaDdb.AttributeValue -> Maybe Word32
+        conv = maybe Nothing (readMay . Text.unpack) . view AmazonkaDdb.avN
 
-    get (Aws.PreKeyTable t) = (Ddb.getItem t (Ddb.hk ddbClient key))
-        { Ddb.giAttrs      = Nothing
-        , Ddb.giConsistent = True
-        , Ddb.giRetCons    = Ddb.RCNone
-        }
+    get :: Text -> AmazonkaDdb.GetItem
+    get t = AmazonkaDdb.getItem t & AmazonkaDdb.giKey .~ key
+                                  & AmazonkaDdb.giConsistentRead ?~ True
 
-    put v (Aws.PreKeyTable t) = (Ddb.putItem t (item v))
-        { Ddb.piExpect  = Ddb.Conditions Ddb.CondAnd [check v]
-        , Ddb.piReturn  = Ddb.URNone
-        , Ddb.piRetCons = Ddb.RCNone
-        , Ddb.piRetMet  = Ddb.RICMNone
-        }
+    put :: Maybe Word32 -> Text -> AmazonkaDdb.PutItem
+    put v t = AmazonkaDdb.putItem t & AmazonkaDdb.piItem .~ item v
+                                    & AmazonkaDdb.piExpected .~ check v
 
-    item v = Ddb.item
-        [ Ddb.attr ddbClient key
-        , Ddb.attr ddbVersion (maybe (1 :: Word32) (+1) v)
-        ]
+    check :: Maybe Word32 -> Map.HashMap Text AmazonkaDdb.ExpectedAttributeValue
+    check Nothing  = Map.singleton ddbVersion $ AmazonkaDdb.expectedAttributeValue & AmazonkaDdb.eavComparisonOperator ?~ AmazonkaDdb.Null
+    check (Just v) = Map.singleton ddbVersion $ AmazonkaDdb.expectedAttributeValue & AmazonkaDdb.eavComparisonOperator ?~ AmazonkaDdb.EQ'
+                                                                                   & AmazonkaDdb.eavAttributeValueList .~ [toAttributeValue v]
 
-    check (Just v) = Ddb.Condition ddbVersion (Ddb.DEq (Ddb.toValue v))
-    check Nothing  = Ddb.Condition ddbVersion Ddb.IsNull
+    item :: Maybe Word32 -> Map.HashMap Text AmazonkaDdb.AttributeValue
+    item v = Map.insert ddbVersion (toAttributeValue (maybe (1 :: Word32) (+1) v))
+           $ key
 
+    toAttributeValue :: Word32 -> AmazonkaDdb.AttributeValue
+    toAttributeValue w = AmazonkaDdb.attributeValue & AmazonkaDdb.avN ?~ toText (fromIntegral w :: Int)
+
+    logFailure :: AppIO ()
     logFailure = Log.err (msg (val "PreKeys: Optimistic lock failed"))
 
-deleteOptLock :: UserId -> ClientId -> AppIO ()
-deleteOptLock u c = void (exec delete)
+execAmazonka :: (AWSRequest r) => (Rs r -> Maybe a) -> (Text -> r) -> AppIO (Maybe a)
+execAmazonka conv mkCmd = do
+    cmd <- mkCmd <$> view (amazonkaEnv.dynamoPrekeyTable)
+    e <- view (amazonkaEnv.amazonkaAwsEnv)
+    execAmazonkaAux e conv cmd
   where
-    delete (Aws.PreKeyTable t) = Ddb.deleteItem t (Ddb.hk ddbClient (ddbKey u c))
+    execAmazonkaAux :: (AWSRequest r, MonadMask m, MonadIO m, Typeable m, MonadBaseControl IO m) => AWS.Env -> (Rs r -> Maybe a) -> r -> m (Maybe a)
+    execAmazonkaAux e conv cmd = recovering policy cond (const fn)
+      where
+        cond = httpHandlers ++ [const $ EL.handler_ AmazonkaDdb._ConditionalCheckFailedException (pure True)]
+        policy = limitRetries 3 <> exponentialBackoff 100000
 
-exec :: (Transaction r a, ServiceConfiguration r ~ Ddb.DdbConfiguration)
-     => (Aws.PreKeyTable -> r)
-     -> AppIO (Maybe a)
-exec mkCmd = do
-    cmd <- mkCmd <$> view (awsConfig.Aws.ddbPreKeyTable)
-    rs  <- Aws.tryDynamo cmd
-    case snd <$> rs of
-        Left (Aws.DynamoErrorResponse e)
-            | Ddb.ddbErrCode e == Ddb.ConditionalCheckFailedException
-            -> return Nothing
-        Left ex -> do
-          Log.err $ field "error" (show ex)
-                  . msg (val "PreKeys: DynamoDB error")
-          return Nothing
-        Right a -> return (Just a)
+        fn = do
+            r <- execAWS2 e cmd
+            case r of
+                Left _  -> return Nothing
+                Right x -> return (conv x)
