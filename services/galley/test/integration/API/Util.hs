@@ -299,6 +299,14 @@ postJoinConv g u c = post $ g
     . zConn "conn"
     . zType "access"
 
+postJoinCodeConv :: Galley -> UserId -> Join -> Http ResponseLBS
+postJoinCodeConv g u j = post $ g
+    . paths ["/conversations", "join"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+    . json j
+
 deleteClientInternal :: Galley -> UserId -> ClientId -> Http ResponseLBS
 deleteClientInternal g u c = delete $ g
     . zUser u

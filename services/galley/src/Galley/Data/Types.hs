@@ -11,7 +11,6 @@ module Galley.Data.Types
     , Code (..)
     , toCode
     , generate
-    , Join (..)
     ) where
 
 import Brig.Types.Code
@@ -97,19 +96,3 @@ generate cnv t = do
         , codeConversation = cnv
         , codeTTL = t
         }
-
-data Join = Join
-    { conversationKey   :: !Key
-    , conversationCode  :: !Value
-    } deriving (Eq, Show)
-
-instance ToJSON Join where
-    toJSON j = object
-        $ "conversationKey"  .= conversationKey j
-        # "conversationCode" .= conversationCode j
-        # []
-
-instance FromJSON Join where
-    parseJSON = withObject "join" $ \o ->
-        Join <$> o .: "conversationKey"
-            <*> o .: "conversationCode"

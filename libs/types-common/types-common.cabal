@@ -32,6 +32,7 @@ library
     ghc-prof-options: -fprof-auto-exported
 
     exposed-modules:
+          Data.Code
           Data.ETag
           Data.Id
           Data.Json.Util
@@ -65,6 +66,7 @@ library
         , lens                  >= 4.10
         , semigroups            >= 0.12
         , safe                  >= 0.3
+        , scientific            >= 0.3.4
         , singletons            >= 2.0
         , swagger               >= 0.3
         , tagged                >= 0.8

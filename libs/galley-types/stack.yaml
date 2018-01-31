@@ -1,7 +1,6 @@
 resolver: lts-10.3
 packages:
 - '.'
-- '../brig-types'
 - '../types-common'
 - '../gundeck-types'
 

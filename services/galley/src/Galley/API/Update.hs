@@ -44,6 +44,7 @@ import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Data.Bool (bool)
+import Data.Code
 import Data.Foldable
 import Data.Id
 import Data.List1 (singleton)

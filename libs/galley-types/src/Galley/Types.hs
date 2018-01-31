@@ -18,6 +18,7 @@ module Galley.Types
     , foldrOtrRecipients
     , OtrFilterMissing (..)
     , ConvTeamInfo     (..)
+    , Join             (..)
 
       -- * Events
     , Event            (..)
@@ -62,6 +63,7 @@ import Data.UUID (toASCIIBytes)
 import Galley.Types.Bot.Service (ServiceRef)
 import Gundeck.Types.Push (Priority)
 
+import qualified Data.Code           as Code
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict     as Map
 import qualified Data.Text.Encoding  as T
@@ -301,6 +303,11 @@ data TypingStatus
     = StartedTyping
     | StoppedTyping
     deriving (Eq, Ord, Show)
+
+data Join = Join
+    { conversationKey   :: !Code.Key
+    , conversationCode  :: !Code.Value
+    } deriving (Eq, Show)
 
 -- Instances ----------------------------------------------------------------
 
@@ -725,3 +732,14 @@ instance ToJSON TypingData where
 instance FromJSON TypingData where
     parseJSON = withObject "typing-data" $ \o ->
         TypingData <$> o .: "status"
+
+instance ToJSON Join where
+    toJSON j = object
+        $ "conversationKey"  .= conversationKey j
+        # "conversationCode" .= conversationCode j
+        # []
+
+instance FromJSON Join where
+    parseJSON = withObject "join" $ \o ->
+        Join <$> o .: "conversationKey"
+            <*> o .: "conversationCode"
