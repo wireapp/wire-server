@@ -95,6 +95,7 @@ tests s = testGroup "Galley integration tests" [ mainTests, Teams.tests s ]
         , test s "post cryptomessage 4" postCryptoMessage4
         , test s "post cryptomessage 5" postCryptoMessage5
         , test s "join conversation" postJoinConvOk
+        , test s "join code-protected conversation" postJoinCodeConvOk
         , test s "cannot join private conversation" postJoinConvFail
         , test s "remove user" removeUser
         ]
@@ -327,6 +328,18 @@ postJoinConvOk g b c _ = do
     WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
         postJoinConv g bob conv !!! const 200 === statusCode
         postJoinConv g bob conv !!! const 204 === statusCode
+        void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
+            wsAssertMemberJoin conv bob [bob]
+
+postJoinCodeConvOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
+postJoinCodeConvOk g b c _ = do
+    alice <- randomUser b
+    bob   <- randomUser b
+    conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [InviteAccess, CodeAccess]
+    j <- decodeJoin <$> postConvCode g alice conv
+    WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+        postJoinCodeConv g bob j !!! const 200 === statusCode
+        postJoinCodeConv g bob j !!! const 204 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
             wsAssertMemberJoin conv bob [bob]
 

@@ -307,6 +307,13 @@ postJoinCodeConv g u j = post $ g
     . zType "access"
     . json j
 
+postConvCode :: Galley -> UserId -> ConvId -> Http ResponseLBS
+postConvCode g u c = post $ g
+    . paths ["/conversations", toByteString' c, "code"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+
 deleteClientInternal :: Galley -> UserId -> ClientId -> Http ResponseLBS
 deleteClientInternal g u c = delete $ g
     . zUser u
@@ -414,6 +421,10 @@ assertNoMsg ws f = do
         Right _ -> assertFailure "Unexpected message"
 -------------------------------------------------------------------------------
 -- Helpers
+
+decodeJoin :: Response (Maybe Lazy.ByteString) -> Join
+decodeJoin r = fromMaybe (error "Failed to parse Join response") $
+    decodeBody r
 
 decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId
 decodeConvId r = fromMaybe (error "Failed to parse conversation") $

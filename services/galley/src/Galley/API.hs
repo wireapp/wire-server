@@ -476,10 +476,29 @@ sitemap = do
         .&. contentType "application" "json"
 
     document "POST" "joinConversationByCode" $ do
-        summary "Join a conversation using a code or ID"
+        summary "Join a conversation using a code"
         returns (ref Model.event)
         response 200 "Conversation joined." end
         errorResponse Error.convNotFound
+
+    ---
+
+    post "/conversations/:cnv/code" (continue addCode) $
+        zauthUserId
+        .&. capture "cnv"
+        .&. request
+        .&. accept "application" "json"
+
+    delete "/conversations/:cnv/code" (continue rmCode) $
+        zauthUserId
+        .&. capture "cnv"
+
+    get "/conversations/:cnv/code" (continue getCode) $
+        zauthUserId
+        .&. capture "cnv"
+
+
+    -- TODO swagger (also for Join/Code)
 
     ---
 

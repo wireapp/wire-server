@@ -15,6 +15,9 @@ module Galley.API.Update
     , unblockConv
     , joinConversationById
     , joinConversationByCode
+    , addCode
+    , rmCode
+    , getCode
 
       -- * Managing Members
     , Galley.API.Update.addMembers
@@ -107,6 +110,29 @@ unblockConv (usr ::: conn ::: cnv) = do
         throwM $ invalidOp "unblock: invalid conversation type"
     conv' <- acceptOne2One usr conv conn
     setStatus status200 . json <$> conversationView usr conv'
+
+addCode :: UserId ::: ConvId ::: Request ::: JSON -> Galley Response
+addCode (usr ::: cnv ::: req ::: _ ) = do
+    -- TODO check user is part of conversation
+    -- TODO configurable timeout (req, fallback to config?)
+    let t = Timeout (3600 * 24 * 7) -- one week.
+    c <- generate cnv t
+    Data.insertCode c
+    return $ setStatus status200 . json $ Join (codeKey c) (codeValue c)
+
+rmCode :: UserId ::: ConvId -> Galley Response
+rmCode (usr ::: cnv) = do
+    -- TODO check user is part of conversation
+    key <- mkKey cnv
+    Data.deleteCode key
+    return empty
+
+getCode :: UserId ::: ConvId -> Galley Response
+getCode (usr ::: cnv) = do
+    -- TODO check user is part of conversation
+    key <- mkKey cnv
+    c <- Data.lookupCode key
+    undefined -- TODO: return Code? Join?
 
 joinConversationByCode :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 joinConversationByCode (zusr ::: zcon ::: req ::: _) = do

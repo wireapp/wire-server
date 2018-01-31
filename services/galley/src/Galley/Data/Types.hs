@@ -11,6 +11,7 @@ module Galley.Data.Types
     , Code (..)
     , toCode
     , generate
+    , mkKey
     ) where
 
 import Brig.Types.Code
@@ -83,16 +84,20 @@ toCode k (val, ttl, cnv) = Code
 -- For similar reasons to those given for Codes used for verification, Password reset, etc
 -- (see services/brig/src/Brig/Code.hs Note [Unique keys])
 -- The 'key' is a stable, truncated, base64 encoded sha256 hash of the conversation ID
--- The 'value' is a base64 encoded, 128-bit random value (changing on each generation)
+-- The 'value' is a base64 encoded, 120-bit random value (changing on each generation)
 
 generate :: MonadIO m => ConvId -> Timeout -> m Code
 generate cnv t = do
-    Just sha256 <- liftIO $ getDigestByName "SHA256"
-    let key = Key . unsafeRange. Ascii.encodeBase64Url . BS.take 15 $ digestBS sha256 (toByteString' cnv)
-    val <- liftIO $ Value . unsafeRange . Ascii.encodeBase64Url <$> randBytes 16
+    key <- mkKey cnv
+    val <- liftIO $ Value . unsafeRange . Ascii.encodeBase64Url <$> randBytes 15
     return Code
         { codeKey = key
         , codeValue = val
         , codeConversation = cnv
         , codeTTL = t
         }
+
+mkKey :: MonadIO m => ConvId -> m Key
+mkKey cnv = do
+    Just sha256 <- liftIO $ getDigestByName "SHA256"
+    return $ Key . unsafeRange. Ascii.encodeBase64Url . BS.take 15 $ digestBS sha256 (toByteString' cnv)
