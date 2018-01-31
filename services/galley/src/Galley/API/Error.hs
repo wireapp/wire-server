@@ -95,3 +95,6 @@ noBindingTeamMembers = Error status403 "non-binding-team-members" "Both users mu
 
 invalidTeamStatusUpdate :: Error
 invalidTeamStatusUpdate = Error status403 "invalid-team-status-update" "Cannot use this endpoint to update the team to the given status."
+
+codeNotFound :: Error
+codeNotFound = Error status404 "no-conversation-code" "conversation code not found"

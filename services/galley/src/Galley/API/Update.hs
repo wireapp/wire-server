@@ -113,8 +113,8 @@ unblockConv (usr ::: conn ::: cnv) = do
 
 addCode :: UserId ::: ConvId ::: Request ::: JSON -> Galley Response
 addCode (usr ::: cnv ::: req ::: _ ) = do
-    -- TODO check user is part of conversation
-    -- TODO configurable timeout (req, fallback to config?)
+    ensureUser usr cnv
+    -- TODO configurable timeout (req, fallback to config? config only?)
     let t = Timeout (3600 * 24 * 7) -- one week.
     c <- generate cnv t
     Data.insertCode c
@@ -122,17 +122,17 @@ addCode (usr ::: cnv ::: req ::: _ ) = do
 
 rmCode :: UserId ::: ConvId -> Galley Response
 rmCode (usr ::: cnv) = do
-    -- TODO check user is part of conversation
+    ensureUser usr cnv
     key <- mkKey cnv
     Data.deleteCode key
     return empty
 
 getCode :: UserId ::: ConvId -> Galley Response
 getCode (usr ::: cnv) = do
-    -- TODO check user is part of conversation
+    ensureUser usr cnv
     key <- mkKey cnv
-    c <- Data.lookupCode key
-    undefined -- TODO: return Code? Join?
+    c <- Data.lookupCode key >>= ifNothing codeNotFound
+    return $ setStatus status200 . json $ Join (codeKey c) (codeValue c)
 
 joinConversationByCode :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 joinConversationByCode (zusr ::: zcon ::: req ::: _) = do
@@ -465,6 +465,12 @@ ensureMemberLimit old new = do
 
 notIsMember :: Data.Conversation -> UserId -> Bool
 notIsMember cc u = not $ isMember u (Data.convMembers cc)
+
+ensureUser :: UserId -> ConvId -> Galley ()
+ensureUser usr cnv = do
+    (_, users) <- botsAndUsers <$> Data.members cnv
+    unless (usr `isMember` users) $
+        throwM convNotFound
 
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation
