@@ -10,18 +10,29 @@ module Galley.Data.Types
     , selfConv
     , Code (..)
     , toCode
+    , generate
     , Join (..)
     ) where
 
 import Brig.Types.Code
+import Data.ByteString.Conversion
+import Control.Monad.IO.Class
 import Data.Aeson hiding (Value)
 import Data.Int (Int32)
 import Data.Json.Util
 import Data.Id
+import Data.Range
 import Data.List1
 import Data.Text
 import Data.Maybe (fromMaybe, isJust)
 import Galley.Types (ConvType (..), Access, Member (..))
+import OpenSSL.Random (randBytes)
+import OpenSSL.EVP.Digest (getDigestByName, digestBS)
+
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.Ascii as Ascii
+import qualified Data.ByteString as BS
 
 data Conversation = Conversation
     { convId      :: ConvId
@@ -66,6 +77,25 @@ toCode k (val, ttl, cnv) = Code
         , codeValue = val
         , codeTTL = Timeout (fromIntegral ttl)
         , codeConversation = cnv
+        }
+
+-- Note on key/value used for a conversation Code
+--
+-- For similar reasons to those given for Codes used for verification, Password reset, etc
+-- (see services/brig/src/Brig/Code.hs Note [Unique keys])
+-- The 'key' is a stable, truncated, base64 encoded sha256 hash of the conversation ID
+-- The 'value' is a base64 encoded, 128-bit random value (changing on each generation)
+
+generate :: MonadIO m => ConvId -> Timeout -> m Code
+generate cnv t = do
+    Just sha256 <- liftIO $ getDigestByName "SHA256"
+    let key = Key . unsafeRange. Ascii.encodeBase64Url . BS.take 15 $ digestBS sha256 (toByteString' cnv)
+    val <- liftIO $ Value . unsafeRange . Ascii.encodeBase64Url <$> randBytes 16
+    return Code
+        { codeKey = key
+        , codeValue = val
+        , codeConversation = cnv
+        , codeTTL = t
         }
 
 data Join = Join
