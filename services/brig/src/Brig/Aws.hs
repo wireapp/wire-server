@@ -13,26 +13,28 @@ module Brig.AWS
       Env
     , mkEnv
     , Amazon
-    , amazonkaAwsEnv
+    , amazonkaEnv
     , execute
     , sesQueue
     , internalQueue
-    -- , sqsEnv
+    , blacklistTable
+    , prekeyTable
 
+      -- * SES
+    , sendMail
+      -- * SQS
     , listen
     , enqueue
-    -- , dynamoEnv
-    , dynamoBlacklistTable
-    , dynamoPrekeyTable
 
+      -- * AWS
     , exec
     , execCatch
 
-    , sendMail
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
 import Bilge.Retry (httpHandlers)
+import Brig.AWS.Types
 import Brig.Options as Opt
 import Control.Applicative
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
@@ -67,7 +69,6 @@ import Network.HTTP.Types
 import Network.Mail.Mime
 import System.Logger.Class
 
-import qualified Network.AWS.DynamoDB    as Aws
 import qualified Control.Exception.Lens  as EL
 import qualified Control.Monad.Trans.AWS as AWST
 import qualified Data.ByteString.Lazy    as BL
@@ -78,29 +79,25 @@ import qualified Data.Text               as Text
 import qualified Data.Text.Encoding      as Text
 import qualified Data.Text.Lazy          as LT
 import qualified Gundeck.Types.Push      as Push
-import qualified Network.AWS             as Aws
-import qualified Network.AWS.Env         as Aws
-import qualified Network.AWS.Data        as Aws
-import qualified Network.AWS.SES         as Ses
-import qualified Network.AWS.SES.Types   as Ses
-import qualified Network.AWS.SNS         as Sns
-import qualified Network.AWS.SQS         as Sqs
-import qualified Network.AWS.DynamoDB    as Ddb
+import qualified Network.AWS             as AWS
+import qualified Network.AWS.Env         as AWS
+import qualified Network.AWS.Data        as AWS
+import qualified Network.AWS.SES         as SES
+import qualified Network.AWS.SES.Types   as SES
+import qualified Network.AWS.SNS         as SNS
+import qualified Network.AWS.SQS         as SQS
+import qualified Network.AWS.DynamoDB    as DDB
 import qualified Network.TLS             as TLS
 import qualified System.Logger           as Logger
 
-newtype QueueUrl = QueueUrl Text deriving Show
-
-newtype Account  = Account { fromAccount :: Text } deriving (Eq, Show, ToText, FromJSON)
-
 data Env = Env
-    { _logger               :: !Logger
-    , _account              :: !Account
-    , _sesQueue             :: !QueueUrl
-    , _internalQueue        :: !QueueUrl
-    , _dynamoBlacklistTable :: !Text
-    , _dynamoPrekeyTable    :: !Text
-    , _amazonkaAwsEnv       :: !Aws.Env
+    { _logger         :: !Logger
+    , _account        :: !Account
+    , _sesQueue       :: !Text
+    , _internalQueue  :: !Text
+    , _blacklistTable :: !Text
+    , _prekeyTable    :: !Text
+    , _amazonkaEnv    :: !AWS.Env
     }
 
 makeLenses ''Env
@@ -127,8 +124,8 @@ instance MonadBaseControl IO Amazon where
     liftBaseWith    f = Amazon $ liftBaseWith $ \run -> f (run . unAmazon)
     restoreM          = Amazon . restoreM
 
-instance Aws.MonadAWS Amazon where
-    liftAWS a = view amazonkaAwsEnv >>= flip Aws.runAWS a
+instance AWS.MonadAWS Amazon where
+    liftAWS a = view amazonkaEnv >>= flip AWS.runAWS a
 
 mkEnv :: Logger -> AWSOpts -> Manager -> IO Env
 mkEnv lgr opts mgr = do
@@ -139,38 +136,40 @@ mkEnv lgr opts mgr = do
     iq <- getQueueUrl e (amazonkaInternalQueue opts)
     return (Env g (Account (amazonkaAccount opts)) sq iq bl pk e)
   where
-    sesEnd = Aws.setEndpoint True "email.eu-west-1.amazonaws.com" 443 Ses.ses
-    sqsEnd = Aws.setEndpoint True "sqs.eu-west-1.amazonaws.com" 443 Sqs.sqs
-    dynEnd = Aws.setEndpoint True "dynamodb.eu-west-1.amazonaws.com" 443 Ddb.dynamoDB
+    sesEnd = AWS.setEndpoint True "email.eu-west-1.amazonaws.com" 443 SES.ses
+    sqsEnd = AWS.setEndpoint True "sqs.eu-west-1.amazonaws.com" 443 SQS.sqs
+    dynEnd = AWS.setEndpoint True "dynamodb.eu-west-1.amazonaws.com" 443 DDB.dynamoDB
 
-    mkAwsEnv g ses sqs dyn =  set Aws.envLogger (awsLogger g)
-                           .  set Aws.envRegion Aws.Ireland -- TODO: Necessary?
-                          <$> Aws.newEnvWith Aws.Discover Nothing mgr
-                          <&> Aws.configure ses
-                          <&> Aws.configure sqs
-                          <&> Aws.configure dyn
+    mkAwsEnv g ses sqs dyn =  set AWS.envLogger (awsLogger g)
+                           .  set AWS.envRegion AWS.Ireland -- TODO: Necessary?
+                          <$> AWS.newEnvWith AWS.Discover Nothing mgr
+                          <&> AWS.configure ses
+                          <&> AWS.configure sqs
+                          <&> AWS.configure dyn
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
 
-    mapLevel Aws.Info  = Logger.Info
+    mapLevel AWS.Info  = Logger.Info
     -- Debug output from amazonka can be very useful for tracing requests
     -- but is very verbose (and multiline which we don't handle well)
     -- distracting from our own debug logs, so we map amazonka's 'Debug'
     -- level to our 'Trace' level.
-    mapLevel Aws.Debug = Logger.Trace
-    mapLevel Aws.Trace = Logger.Trace
+    mapLevel AWS.Debug = Logger.Trace
+    mapLevel AWS.Trace = Logger.Trace
     -- n.b. Errors are either returned or thrown. In both cases they will
     -- already be logged if left unhandled. We don't want errors to be
     -- logged inside amazonka already, before we even had a chance to handle
     -- them, which results in distracting noise. For debugging purposes,
     -- they are still revealed on debug level.
-    mapLevel Aws.Error = Logger.Debug
+    mapLevel AWS.Error = Logger.Debug
+
+    getQueueUrl e q = view SQS.gqursQueueURL <$> exec e (SQS.getQueueURL q)
 
 execute :: MonadIO m => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 
 data Error where
-    GeneralError :: (Show e, Aws.AsError e) => e -> Error
+    GeneralError :: (Show e, AWS.AsError e) => e -> Error
 
 deriving instance Show     Error
 deriving instance Typeable Error
@@ -181,36 +180,34 @@ instance Exception Error
 -- SQS
 
 listen :: (FromJSON a, Show a) => Text -> (a -> IO ()) -> Amazon ()
-listen qn callback = do
-    env <- view amazonkaAwsEnv
-    QueueUrl url <- liftIO $ getQueueUrl env qn
+listen url callback = do
     forever $ handleAny unexpectedError $ do
-        msgs <- view rmrsMessages <$> send (receive url)
-        void $ mapConcurrently (onMessage url) msgs
+        msgs <- view rmrsMessages <$> send receive
+        void $ mapConcurrently onMessage msgs
   where
-    receive url =
-        Sqs.receiveMessage url
-            & set Sqs.rmWaitTimeSeconds (Just 20)
-            . set Sqs.rmMaxNumberOfMessages (Just 10)
+    receive =
+        SQS.receiveMessage url
+            & set SQS.rmWaitTimeSeconds (Just 20)
+            . set SQS.rmMaxNumberOfMessages (Just 10)
 
-    onMessage url m =
+    onMessage m =
         case decodeStrict =<< Text.encodeUtf8 <$> m^.mBody of
             Nothing -> err $ msg ("Failed to parse SQS event: " ++ show m)
             Just  n -> do
                 debug $ msg ("Received SQS event: " ++ show n)
                 liftIO $ callback n
-                for_ (m^.mReceiptHandle) (void . send . Sqs.deleteMessage url)
+                for_ (m^.mReceiptHandle) (void . send . SQS.deleteMessage url)
 
     unexpectedError x = do
         err $ "error" .= show x ~~ msg (val "Failed to read from SQS")
         threadDelay 3000000
 
-enqueue :: QueueUrl -> BL.ByteString -> Amazon (Sqs.SendMessageResponse)
-enqueue (QueueUrl url) m = do
+enqueue :: Text -> BL.ByteString -> Amazon (SQS.SendMessageResponse)
+enqueue url m = do
     res <- retrying (limitRetries 5 <> exponentialBackoff 1000000) (const canRetry) $ const (sendCatch (req url))
     either (throwM . GeneralError) return res
   where
-    req url = Sqs.sendMessage url $ Text.decodeLatin1 (BL.toStrict m)
+    req url = SQS.sendMessage url $ Text.decodeLatin1 (BL.toStrict m)
 
 --------------------------------------------------------------------------------
 -- SES
@@ -218,9 +215,9 @@ enqueue (QueueUrl url) m = do
 sendMail :: Mail -> Amazon ()
 sendMail m = do
     r <- liftIO $ BL.toStrict <$> renderMail' m
-    let raw = Ses.rawMessage r
-    let msg = Ses.sendRawEmail raw & Ses.sreDestinations .~ fmap addressEmail (mailTo m)
-                                   & Ses.sreSource ?~ addressEmail (mailFrom m)
+    let raw = SES.rawMessage r
+    let msg = SES.sendRawEmail raw & SES.sreDestinations .~ fmap addressEmail (mailTo m)
+                                   & SES.sreSource ?~ addressEmail (mailFrom m)
     void $ retrying retry5x (const canRetry) $ const (sendCatch msg)
   where
     -- TODO: Ensure that we handle SES throttling too
@@ -231,43 +228,34 @@ sendMail m = do
 --------------------------------------------------------------------------------
 -- Utilities
 
-sendCatch :: AWSRequest r => r -> Amazon (Either Aws.Error (Rs r))
-sendCatch = AWST.trying Aws._Error . Aws.send
+sendCatch :: AWSRequest r => r -> Amazon (Either AWS.Error (Rs r))
+sendCatch = AWST.trying AWS._Error . AWS.send
 
 send :: AWSRequest r => r -> Amazon (Rs r)
 send r = either (throwM . GeneralError) return =<< sendCatch r
 
-is :: Aws.Abbrev -> Int -> Aws.Error -> Bool
-is srv s (Aws.ServiceError e) = srv == e^.serviceAbbrev && s == statusCode (e^.serviceStatus)
+is :: AWS.Abbrev -> Int -> AWS.Error -> Bool
+is srv s (AWS.ServiceError e) = srv == e^.serviceAbbrev && s == statusCode (e^.serviceStatus)
 is _   _ _                    = False
 
-isTimeout :: MonadIO m => Either Aws.Error a -> m Bool
+isTimeout :: MonadIO m => Either AWS.Error a -> m Bool
 isTimeout (Right _) = pure False
 isTimeout (Left  e) = case e of
-    Aws.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
+    AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
     _                                                           -> pure False
 
-getQueueUrl :: Aws.Env -> Text -> IO QueueUrl
-getQueueUrl e q = QueueUrl . view Sqs.gqursQueueURL <$> exec e (Sqs.getQueueURL q)
+execCatch :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m)
+          => r -> a -> m (Either AWS.Error (Rs a))
+execCatch e cmd = runResourceT . AWST.runAWST e
+                $ AWST.trying AWS._Error $ AWST.send cmd
 
-execCatch :: (AWSRequest a, Aws.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m) => 
-        r -> a -> m (Either Aws.Error (Rs a))
-execCatch e cmd =
-    runResourceT . AWST.runAWST e $ do
-        AWST.trying Aws._Error $
-            AWST.send cmd
+exec :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m)
+     => r -> a -> m (Rs a)
+exec e cmd = execCatch e cmd >>= either (throwM . GeneralError) return
 
-exec :: (AWSRequest a, Aws.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m) => 
-        r -> a -> m (Rs a)
-exec e cmd = do
-    x <- runResourceT . AWST.runAWST e $ do
-        AWST.trying Aws._Error $
-            AWST.send cmd
-    either (throwM . GeneralError) return x
-
-canRetry :: MonadIO m => Either Aws.Error a -> m Bool
+canRetry :: MonadIO m => Either AWS.Error a -> m Bool
 canRetry (Right _) = pure False
 canRetry (Left  e) = case e of
-    Aws.TransportError (HttpExceptionRequest _ ResponseTimeout)                   -> pure True
-    Aws.ServiceError se | se^.Aws.serviceCode == Aws.ErrorCode "RequestThrottled" -> pure True
+    AWS.TransportError (HttpExceptionRequest _ ResponseTimeout)                   -> pure True
+    AWS.ServiceError se | se^.AWS.serviceCode == AWS.ErrorCode "RequestThrottled" -> pure True
     _                                                                             -> pure False

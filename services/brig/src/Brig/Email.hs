@@ -36,7 +36,7 @@ import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Network.Mail.Mime
 
-import qualified Brig.AWS            as Aws
+import qualified Brig.AWS            as AWS
 import qualified Data.Text           as Text
 import qualified Text.Email.Validate as Email
 
@@ -44,7 +44,7 @@ import qualified Text.Email.Validate as Email
 sendMail :: Mail -> AppIO ()
 sendMail m = do
     e <- view awsEnv
-    Aws.execute e $ Aws.sendMail m
+    AWS.execute e $ AWS.sendMail m
 
 -- Validation
 

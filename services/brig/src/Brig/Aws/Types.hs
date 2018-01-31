@@ -4,16 +4,10 @@
 module Brig.AWS.Types
     ( -- * Config
       Account (..)
-    , SesQueue (..)
-    , InternalQueue (..)
+    , SesQueueUrl (..)
+    , InternalQueueUrl (..)
     , BlacklistTable (..)
     , PreKeyTable (..)
-    -- , Config
-    -- , config
-    -- , sesConfig
-    -- , ddbConfig
-    -- , ddbBlacklistTable
-    -- , ddbPreKeyTable
 
       -- * SES Notification
     , SESNotification (..)
@@ -35,11 +29,11 @@ import Data.Text.Encoding (encodeUtf8)
 -------------------------------------------------------------------------------
 -- Config
 
-newtype SesQueue = SesQueue
+newtype SesQueueUrl = SesQueueUrl
     { fromSesQueue :: Text }
     deriving (Eq, Show)
 
-newtype InternalQueue = InternalQueue
+newtype InternalQueueUrl = InternalQueueUrl
     { fromInternalQueue :: Text }
     deriving (Eq, Show)
 

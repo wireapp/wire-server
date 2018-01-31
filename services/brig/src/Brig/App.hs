@@ -97,7 +97,7 @@ import System.Logger.Class hiding (Settings, settings)
 import Util.Options
 
 import qualified Bilge                    as RPC
-import qualified Brig.AWS                 as Aws
+import qualified Brig.AWS                 as AWS
 import qualified Brig.Options             as Opt
 import qualified Brig.TURN                as TURN
 import qualified Brig.ZAuth               as ZAuth
@@ -129,9 +129,9 @@ data Env = Env
     { _galley        :: RPC.Request
     , _gundeck       :: RPC.Request
     , _casClient     :: Cas.ClientState
-    -- , _awsEnv        :: Aws.Env
-    -- , _awsConfig     :: Aws.Config
-    , _awsEnv   :: Aws.Env
+    -- , _awsEnv        :: AWS.Env
+    -- , _awsConfig     :: AWS.Config
+    , _awsEnv   :: AWS.Env
     , _metrics       :: Metrics
     , _applog        :: Logger
     , _requestId     :: RequestId
@@ -168,7 +168,7 @@ newEnv o = do
     utp <- loadUserTemplates o
     ptp <- loadProviderTemplates o
     ttp <- loadTeamTemplates o
-    aws <- Aws.mkEnv lgr (Opt.aws o) mgr
+    aws <- AWS.mkEnv lgr (Opt.aws o) mgr
     zau <- initZAuth o
     clock <- mkAutoUpdate defaultUpdateSettings { updateAction = getCurrentTime }
     w   <- FS.startManagerConf
@@ -252,19 +252,19 @@ replaceTurnServers g ref e = do
             Log.info g (msg $ val "New turn servers loaded.")
         Nothing -> Log.warn g (msg $ val "Empty or malformed turn servers list, ignoring!")
 
--- initAws :: Opts -> Logger -> Manager -> IO (Aws.Env, Aws.Config)
+-- initAws :: Opts -> Logger -> Manager -> IO (AWS.Env, AWS.Config)
 -- initAws o l m = do
 --     let a = Opt.aws o
 --     -- TODO: The AWS package can also load them from the env, check the latest API
 --     -- https://hackage.haskell.org/package/aws-0.17.1/docs/src/Aws-Core.html#loadCredentialsFromFile
 --     -- which would avoid the need to specify them in a config file when running tests
---     e <- Aws.newEnv l m (liftM2 (,) (Opt.awsKeyId a) (Opt.awsSecretKey a))
---     let c = Aws.config (Opt.region a)
---                        (Aws.Account (Opt.account a))
---                        -- (Aws.SesQueue (Opt.sesQueue a))
---                        -- (Aws.InternalQueue (Opt.internalQueue a))
---                        -- (Aws.BlacklistTable (Opt.blacklistTable a))
---                        -- (Aws.PreKeyTable (Opt.prekeyTable a))
+--     e <- AWS.newEnv l m (liftM2 (,) (Opt.awsKeyId a) (Opt.awsSecretKey a))
+--     let c = AWS.config (Opt.region a)
+--                        (AWS.Account (Opt.account a))
+--                        -- (AWS.SesQueue (Opt.sesQueue a))
+--                        -- (AWS.InternalQueue (Opt.internalQueue a))
+--                        -- (AWS.BlacklistTable (Opt.blacklistTable a))
+--                        -- (AWS.PreKeyTable (Opt.prekeyTable a))
 --     return (e, c)
 
 initZAuth :: Opts -> IO ZAuth.Env
