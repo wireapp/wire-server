@@ -6,7 +6,7 @@
 
 module Brig.Options where
 
-import Brig.Aws.Types
+import Brig.AWS.Types
 import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
@@ -32,7 +32,6 @@ import Util.Options.Common
 import qualified Data.Text             as T
 import qualified Data.Yaml             as Y
 import qualified Network.AWS           as Amazonka
-import qualified Ropes.Aws             as Aws
 import qualified Brig.ZAuth            as ZAuth
 
 newtype Timeout = Timeout
@@ -53,19 +52,6 @@ data ElasticSearchOpts = ElasticSearchOpts
 instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
-    { account         :: !Text
-    -- , sesQueue        :: !Text
-    -- , internalQueue   :: !Text
-    -- , blacklistTable  :: !Text
-    -- , prekeyTable     :: !Text
-    , region          :: !Region
-    , awsKeyId        :: !(Maybe Aws.AccessKeyId)
-    , awsSecretKey    :: !(Maybe Aws.SecretAccessKey)
-    } deriving (Show, Generic)
-
-instance FromJSON AWSOpts
-
-data AWSOptsAmazonka = AWSOptsAmazonka
     { amazonkaAccount       :: !Text
     , amazonkaSesQueue      :: !Text
     , amazonkaInternalQueue :: !Text
@@ -73,7 +59,7 @@ data AWSOptsAmazonka = AWSOptsAmazonka
     , amazonkaPrekeyTable   :: !Text
     } deriving (Show, Generic)
 
-instance FromJSON AWSOptsAmazonka
+instance FromJSON AWSOpts
 
 data EmailSMSGeneralOpts = EmailSMSGeneralOpts
     { templateDir :: !FilePath
@@ -146,7 +132,6 @@ data Opts = Opts
     , cassandra     :: !CassandraOpts
     , elasticsearch :: !ElasticSearchOpts
     , aws           :: !AWSOpts
-    , amazonka      :: !AWSOptsAmazonka
 
     -- Email & SMS
     , emailSMS      :: !EmailSMSOpts
@@ -228,20 +213,6 @@ optsParser =
       showDefault <>
       help "The name of the ElasticSearch user index")) <*>
     (AWSOpts <$>
-     (textOption $
-      long "aws-account-id" <> metavar "STRING" <> help "AWS Account ID") <*>
-     (option regionOption $
-      long "aws-region" <> metavar "STRING" <> value Ireland <> showDefault <>
-      help "Region to use for SQS queues and Dynamo only. SES is hardcoded to \
-           \eu-west-1 and us-east-1 as a fallback") <*>
-     (fmap (Aws.AccessKeyId . encodeUtf8) <$>
-      (optional . textOption $
-       long "aws-access-key-id" <> metavar "STRING" <> help "AWS Access Key ID")) <*>
-     (fmap (Aws.SecretAccessKey . encodeUtf8) <$>
-      (optional . textOption $
-       long "aws-secret-access-key" <> metavar "STRING" <>
-       help "AWS Secret Access Key"))) <*>
-     (AWSOptsAmazonka <$> 
       (textOption $
       long "aws-account-id" <> metavar "STRING" <> help "AWS Account ID") <*>
       (textOption $
@@ -419,10 +390,6 @@ emailOption =
         (fromMaybe (error "Ensure proper email address is used") .
          parseEmail . T.pack) .
     strOption
-
-regionOption :: ReadM Region
-regionOption = readerAsk >>=
-    maybe (fail "Failed to parse ") pure . fromByteString . pack
 
 providerIdOption :: ReadM ProviderId
 providerIdOption = readerAsk >>=

@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Brig.Aws.InternalNotification(onEvent, enqueue) where
+module Brig.AWS.InternalNotification(onEvent, publish) where
 
 import Brig.App
-import Brig.Aws
+import Brig.AWS.Types (InternalNotification (..))
 import Control.Lens (view, (^.))
 import Data.Aeson
 import Data.ByteString.Conversion
@@ -13,7 +13,7 @@ import OpenSSL.EVP.Digest (Digest, digestLBS)
 import System.Logger.Class (field, msg, (~~), val)
 
 import qualified Brig.API.User          as API
-import qualified Brig.AwsAmazonka       as Aws
+import qualified Brig.AWS               as Aws
 import qualified Data.ByteString.Lazy   as BL
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.Text.Encoding     as T
@@ -24,9 +24,9 @@ onEvent (DeleteUser uid) = do
     Log.info $ field "user" (toByteString uid) ~~ msg (val "Processing delete event")
     API.lookupAccount uid >>= mapM_ API.deleteAccount
 
-enqueue :: InternalNotification -> AppIO Bool
-enqueue n = do
-    env     <- view amazonkaEnv
+publish :: InternalNotification -> AppIO Bool
+publish n = do
+    env     <- view awsEnv
     calcMd5 <- digest <$> view digestMD5
     let bdy = encode n
     resp    <- Aws.execute env (Aws.enqueue (env^.Aws.internalQueue) bdy)

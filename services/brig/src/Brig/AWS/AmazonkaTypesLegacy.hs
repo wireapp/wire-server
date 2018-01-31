@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
-module Brig.Aws.AmazonkaTypes
+module Brig.AWS.AmazonkaTypes
     ( -- * Config
       Account (..)
     , SesQueue (..)
@@ -132,7 +132,7 @@ newtype PreKeyTable = PreKeyTable
 --                 cr <- c .: "complainedRecipients"
 --                 em <- mapM (\r -> r .: "emailAddress") cr
 --                 return $! MailComplaint em
---             x           -> fail ("Brig.Aws: Unexpected notification type" ++ show x)
+--             x           -> fail ("Brig.AWS: Unexpected notification type" ++ show x)
 
 -- data InternalNotification
 --     = DeleteUser !UserId

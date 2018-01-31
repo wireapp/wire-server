@@ -13,7 +13,6 @@ module Brig.API.Handler
     , checkWhitelist
     ) where
 
-import Aws.Ses (SesError (..))
 import Bilge (RequestId (..))
 import Brig.App (Env, AppIO, runAppT, requestId, applog, settings)
 import Brig.Options (setWhitelist)
@@ -56,11 +55,12 @@ runHandler e r h k = do
     errors =
         [ Catch.Handler $ \(ex :: PhoneException) ->
             pure (Left (phoneError ex))
-        , Catch.Handler $ \(ex :: SesError) ->
-            if sesStatusCode ex == status400 &&
-                    "Invalid domain name" `Text.isPrefixOf` sesErrorMessage ex
-                then pure (Left (StdError invalidEmail))
-                else throwM ex
+        -- TODO: Migrate this handler to Amazonka? I think this was useful when we had less strict domain checking
+        -- , Catch.Handler $ \(ex :: SesError) ->
+        --     if sesStatusCode ex == status400 &&
+        --             "Invalid domain name" `Text.isPrefixOf` sesErrorMessage ex
+        --         then pure (Left (StdError invalidEmail))
+        --         else throwM ex
         ]
 
 onError :: Logger -> Request -> Continue IO -> Error -> IO ResponseReceived

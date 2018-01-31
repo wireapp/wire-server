@@ -17,9 +17,9 @@ module Brig.App
     , Env
     , newEnv
     , closeEnv
+    -- , awsEnv
+    -- , awsConfig
     , awsEnv
-    , awsConfig
-    , amazonkaEnv
     , galley
     , gundeck
     , userTemplates
@@ -67,7 +67,7 @@ import Control.Concurrent (forkIO)
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding ((.=), index)
-import Control.Monad (liftM2, void, (>=>))
+import Control.Monad (void, (>=>))
 import Control.Monad.Base
 import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
 import Control.Monad.IO.Class
@@ -97,9 +97,7 @@ import System.Logger.Class hiding (Settings, settings)
 import Util.Options
 
 import qualified Bilge                    as RPC
-import qualified Brig.Aws.Types           as Aws
-import qualified Brig.AwsAmazonka         as AmazonkaAws
-import qualified Brig.Aws.AmazonkaTypes   as AmazonkaAws
+import qualified Brig.AWS                 as Aws
 import qualified Brig.Options             as Opt
 import qualified Brig.TURN                as TURN
 import qualified Brig.ZAuth               as ZAuth
@@ -114,7 +112,6 @@ import qualified Data.Text.Encoding       as Text
 import qualified Data.Text.IO             as Text
 import qualified OpenSSL.Session          as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
-import qualified Ropes.Aws                as Aws
 import qualified Ropes.Nexmo              as Nexmo
 import qualified Ropes.Twilio             as Twilio
 import qualified System.FilePath          as Path
@@ -132,9 +129,9 @@ data Env = Env
     { _galley        :: RPC.Request
     , _gundeck       :: RPC.Request
     , _casClient     :: Cas.ClientState
-    , _awsEnv        :: Aws.Env
-    , _awsConfig     :: Aws.Config
-    , _amazonkaEnv   :: AmazonkaAws.Env
+    -- , _awsEnv        :: Aws.Env
+    -- , _awsConfig     :: Aws.Config
+    , _awsEnv   :: Aws.Env
     , _metrics       :: Metrics
     , _applog        :: Logger
     , _requestId     :: RequestId
@@ -171,8 +168,7 @@ newEnv o = do
     utp <- loadUserTemplates o
     ptp <- loadProviderTemplates o
     ttp <- loadTeamTemplates o
-    aws <- initAws o lgr mgr
-    ama <- AmazonkaAws.mkEnv lgr (Opt.amazonka o) mgr
+    aws <- Aws.mkEnv lgr (Opt.aws o) mgr
     zau <- initZAuth o
     clock <- mkAutoUpdate defaultUpdateSettings { updateAction = getCurrentTime }
     w   <- FS.startManagerConf
@@ -186,9 +182,7 @@ newEnv o = do
         { _galley        = mkEndpoint $ Opt.galley o
         , _gundeck       = mkEndpoint $ Opt.gundeck o
         , _casClient     = cas
-        , _awsEnv        = fst aws
-        , _awsConfig     = snd aws
-        , _amazonkaEnv   = ama
+        , _awsEnv        = aws
         , _metrics       = mtr
         , _applog        = lgr
         , _requestId     = mempty
@@ -258,20 +252,20 @@ replaceTurnServers g ref e = do
             Log.info g (msg $ val "New turn servers loaded.")
         Nothing -> Log.warn g (msg $ val "Empty or malformed turn servers list, ignoring!")
 
-initAws :: Opts -> Logger -> Manager -> IO (Aws.Env, Aws.Config)
-initAws o l m = do
-    let a = Opt.aws o
-    -- TODO: The AWS package can also load them from the env, check the latest API
-    -- https://hackage.haskell.org/package/aws-0.17.1/docs/src/Aws-Core.html#loadCredentialsFromFile
-    -- which would avoid the need to specify them in a config file when running tests
-    e <- Aws.newEnv l m (liftM2 (,) (Opt.awsKeyId a) (Opt.awsSecretKey a))
-    let c = Aws.config (Opt.region a)
-                       (Aws.Account (Opt.account a))
-                       -- (Aws.SesQueue (Opt.sesQueue a))
-                       -- (Aws.InternalQueue (Opt.internalQueue a))
-                       -- (Aws.BlacklistTable (Opt.blacklistTable a))
-                       -- (Aws.PreKeyTable (Opt.prekeyTable a))
-    return (e, c)
+-- initAws :: Opts -> Logger -> Manager -> IO (Aws.Env, Aws.Config)
+-- initAws o l m = do
+--     let a = Opt.aws o
+--     -- TODO: The AWS package can also load them from the env, check the latest API
+--     -- https://hackage.haskell.org/package/aws-0.17.1/docs/src/Aws-Core.html#loadCredentialsFromFile
+--     -- which would avoid the need to specify them in a config file when running tests
+--     e <- Aws.newEnv l m (liftM2 (,) (Opt.awsKeyId a) (Opt.awsSecretKey a))
+--     let c = Aws.config (Opt.region a)
+--                        (Aws.Account (Opt.account a))
+--                        -- (Aws.SesQueue (Opt.sesQueue a))
+--                        -- (Aws.InternalQueue (Opt.internalQueue a))
+--                        -- (Aws.BlacklistTable (Opt.blacklistTable a))
+--                        -- (Aws.PreKeyTable (Opt.prekeyTable a))
+--     return (e, c)
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do

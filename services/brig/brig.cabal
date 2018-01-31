@@ -32,12 +32,10 @@ library
       , Brig.API.Properties
       , Brig.API.Types
       , Brig.API.User
-      , Brig.Aws
-      , Brig.AwsAmazonka
-      , Brig.Aws.InternalNotification
-      , Brig.Aws.SesNotification
-      , Brig.Aws.AmazonkaTypes
-      , Brig.Aws.Types
+      , Brig.AWS
+      , Brig.AWS.InternalNotification
+      , Brig.AWS.SesNotification
+      , Brig.AWS.Types
       , Brig.Blacklist
       , Brig.Budget
       , Brig.Email
@@ -99,7 +97,6 @@ library
       , attoparsec                >= 0.12
       , async                     >= 2.1
       , auto-update               >= 0.1
-      , aws                       >= 0.11.0.1
       , base                      == 4.*
       , base16-bytestring         >= 0.1
       , base64-bytestring         >= 1.0

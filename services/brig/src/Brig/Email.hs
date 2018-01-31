@@ -22,24 +22,30 @@ module Brig.Email
     , Address (..)
     , mkMimeAddress
 
-      -- * AWS Re-exports
-    , Aws.sendMail
+    , sendMail
     ) where
 
+import Brig.App (awsEnv, AppIO)
 import Brig.Types
 import Control.Applicative (optional)
 import Control.Error (hush)
+import Control.Lens (view)
 import Data.Attoparsec.ByteString.Char8
 import Data.Monoid
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Network.Mail.Mime
 
-import qualified Brig.Aws            as Aws
+import qualified Brig.AWS            as Aws
 import qualified Data.Text           as Text
 import qualified Text.Email.Validate as Email
 
 -------------------------------------------------------------------------------
+sendMail :: Mail -> AppIO ()
+sendMail m = do
+    e <- view awsEnv
+    Aws.execute e $ Aws.sendMail m
+
 -- Validation
 
 validateEmail :: Email -> Maybe Email

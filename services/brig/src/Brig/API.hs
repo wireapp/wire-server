@@ -56,10 +56,10 @@ import qualified Brig.API.User                 as API
 import qualified Brig.User.API.Auth            as Auth
 import qualified Brig.User.API.Search          as Search
 import qualified Brig.User.Auth.Cookie         as Auth
-import qualified Brig.Aws                      as Aws
-import qualified Brig.AwsAmazonka              as AwsAmazonka
-import qualified Brig.Aws.SesNotification      as SesNotification
-import qualified Brig.Aws.InternalNotification as InternalNotification
+import qualified Brig.AWS                      as Aws
+import qualified Brig.AWS.Types                as Aws
+import qualified Brig.AWS.SesNotification      as SesNotification
+import qualified Brig.AWS.InternalNotification as InternalNotification
 import qualified Brig.Types.Swagger            as Doc
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Data.Swagger.Build.Api        as Doc
@@ -80,11 +80,11 @@ runServer :: Opts -> IO ()
 runServer o = do
     e <- newEnv o
     s <- Server.newSettings (server e)
-    f <- Async.async $ AwsAmazonka.execute (e^.amazonkaEnv)
-                     $ AwsAmazonka.listen (amazonkaSesQueue (amazonka o))
+    f <- Async.async $ Aws.execute (e^.awsEnv)
+                     $ Aws.listen (amazonkaSesQueue (aws o))
                                           (runAppT e . SesNotification.onEvent)
-    g <- Async.async $ AwsAmazonka.execute (e^.amazonkaEnv)
-                     $ AwsAmazonka.listen (amazonkaInternalQueue (amazonka o))
+    g <- Async.async $ Aws.execute (e^.awsEnv)
+                     $ Aws.listen (amazonkaInternalQueue (aws o))
                                           (runAppT e . InternalNotification.onEvent)
     runSettingsWithShutdown s (pipeline e) 5 `finally` do
         Async.cancel f
@@ -1164,7 +1164,7 @@ deleteUserNoVerify uid = do
     acc <- lift $ API.lookupAccount uid
     unless (isJust acc) $
         throwStd userNotFound
-    ok <- lift $ InternalNotification.enqueue (Aws.DeleteUser uid)
+    ok <- lift $ InternalNotification.publish (Aws.DeleteUser uid)
     unless ok $
         throwStd failedQueueEvent
     return $ setStatus status202 empty
