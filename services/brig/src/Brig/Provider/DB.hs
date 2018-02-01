@@ -235,9 +235,6 @@ updateService pid sid nameChange summary descr assets tags = retry x5 $ batch $ 
     cqlName :: PrepQuery W (Name, ProviderId, ServiceId) ()
     cqlName = "UPDATE service SET name = ? WHERE provider = ? AND id = ?"
 
-    mkPrefix :: Name -> Text
-    mkPrefix = Text.take 1 . fromName
-
     cqlPrefixRm :: PrepQuery W (Text, Name) ()
     cqlPrefixRm = "DELETE FROM service_prefix\
                   \ WHERE prefix = ? AND name = ?"
@@ -262,12 +259,20 @@ updateService pid sid nameChange summary descr assets tags = retry x5 $ batch $ 
 deleteService :: MonadClient m
     => ProviderId
     -> ServiceId
+    -> Name
     -> m ()
-deleteService pid sid =
-    retry x5 $ write cql $ params Quorum (pid, sid)
+deleteService pid sid name =  retry x5 $ batch $ do
+    setConsistency Quorum
+    setType BatchUnLogged
+    addPrepQuery cqlService (pid, sid)
+    addPrepQuery cqlPrefixRm (mkPrefix name, name)
   where
-    cql :: PrepQuery W (ProviderId, ServiceId) ()
-    cql = "DELETE FROM service WHERE provider = ? AND id = ?"
+    cqlService :: PrepQuery W (ProviderId, ServiceId) ()
+    cqlService = "DELETE FROM service WHERE provider = ? AND id = ?"
+
+    cqlPrefixRm :: PrepQuery W (Text, Name) ()
+    cqlPrefixRm = "DELETE FROM service_prefix\
+                  \ WHERE prefix = ? AND name = ?"
 
 --------------------------------------------------------------------------------
 -- Service Profiles
@@ -497,4 +502,48 @@ paginateServiceTags tags start size providerFilter = liftClient $ do
     cql :: PrepQuery R (Bucket, Int64, Name) (Name, ProviderId, ServiceId)
     cql = "SELECT name, provider, service FROM service_tag \
           \WHERE bucket = ? AND tag = ? AND name >= ?"
+
+--------------------------------------------------------------------------------
+-- Prefixes
+
+mkPrefix :: Name -> Text
+mkPrefix = Text.toLower . Text.take 1 . fromName
+
+type PrefixRow = (Name, ProviderId, ServiceId)
+
+paginateServiceNames :: MonadClient m
+    => Name
+    -> Int32
+    -> Maybe ProviderId
+    -> m ServiceProfilePage
+paginateServiceNames start size providerFilter = liftClient $ do
+    let size' = size + 1
+    p <- filterResults <$> queryPrefixes start' size'
+    r <- mapConcurrently resolveRow (result p)
+    return $! ServiceProfilePage (hasMore p) (catMaybes r)
+  where
+    start' = Name $ (toLower . fromName) start
+
+    filterResults :: Page TagRow -> Page TagRow
+    filterResults = maybe id filterbyProvider providerFilter
+
+    filterbyProvider :: ProviderId -> Page TagRow -> Page TagRow
+    filterbyProvider pid p = do
+        let filtered = filter (\(_, provider, _) -> pid == provider) (result p)
+            -- check if we have filtered out any result
+            allValid = length filtered == length (result p)
+            more     = allValid && hasMore p
+         in p { hasMore = more, result = filtered }
+
+    resolveRow :: MonadClient m => TagRow -> m (Maybe ServiceProfile)
+    resolveRow (_, pid, sid) = lookupServiceProfile pid sid
+
+    --trim = take . fromIntegral
+
+    queryPrefixes name len = retry x1 $ paginate cql $ paramsP One (mkPrefix name, name) len
+
+    cql :: PrepQuery R (Text, Name) TagRow
+    cql = "SELECT name, provider, service\
+          \ FROM service_prefix\
+          \ WHERE prefix = ? AND name >= ?"
 

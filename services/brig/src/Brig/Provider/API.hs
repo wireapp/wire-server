@@ -196,7 +196,7 @@ routes = do
     get "/services" (continue listServiceProfilesByTag) $
         accept "application" "json"
         .&> zauth ZAuthAccess
-        .&> query "tags"
+        .&> opt (query "tags")
         .&. opt (query "start")
         .&. def (unsafeRange 20) (query "size")
 
@@ -469,9 +469,10 @@ deleteService (pid ::: sid ::: req) = do
         throwStd badCredentials
     svc  <- DB.lookupService pid sid >>= maybeServiceNotFound
     let tags = unsafeRange (serviceTags svc)
-    DB.deleteServiceTags pid sid (serviceName svc) tags
+        name = serviceName svc
+    DB.deleteServiceTags pid sid name tags
     lift $ RPC.removeServiceConn pid sid
-    DB.deleteService pid sid
+    DB.deleteService pid sid name
     return empty
 
 deleteAccount :: ProviderId ::: Request -> Handler Response
@@ -485,9 +486,10 @@ deleteAccount (pid ::: req) = do
     forM_ svcs $ \svc -> do
         let sid  = serviceId svc
         let tags = unsafeRange (serviceTags svc)
+            name = serviceName svc
         DB.deleteServiceTags pid sid (serviceName svc) tags
         lift $ RPC.removeServiceConn pid sid
-        DB.deleteService pid sid
+        DB.deleteService pid sid name
     DB.deleteKey (mkEmailKey (providerEmail prov))
     DB.deleteAccount pid
     return empty
@@ -510,10 +512,15 @@ getServiceProfile (pid ::: sid) = do
     s <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
     return (json s)
 
-listServiceProfilesByTag :: QueryAnyTags 1 3 ::: Maybe Name ::: Range 10 100 Int32 -> Handler Response
-listServiceProfilesByTag (tags ::: start ::: size) = do
+listServiceProfilesByTag :: Maybe (QueryAnyTags 1 3) ::: Maybe Name ::: Range 10 100 Int32 -> Handler Response
+listServiceProfilesByTag (Nothing ::: (Just start) ::: size) = do
+    ss <- DB.paginateServiceNames start (fromRange size) =<< setProviderSearchFilter <$> view settings
+    return (json ss)
+listServiceProfilesByTag ((Just tags) ::: start ::: size) = do
     ss <- DB.paginateServiceTags tags start (fromRange size) =<< setProviderSearchFilter <$> view settings
     return (json ss)
+listServiceProfilesByTag (Nothing ::: Nothing ::: _) = do
+    return empty
 
 getServiceTagList :: () -> Handler Response
 getServiceTagList _ = return (json (ServiceTagList allTags))
