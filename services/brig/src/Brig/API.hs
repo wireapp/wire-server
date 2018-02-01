@@ -12,7 +12,7 @@ import Brig.AWS (sesQueue, internalQueue)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
-import Brig.Options
+import Brig.Options hiding (sesQueue, internalQueue)
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth

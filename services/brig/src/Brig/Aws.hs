@@ -33,13 +33,9 @@ module Brig.AWS
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
-import Bilge.Retry (httpHandlers)
 import Brig.AWS.Types
-import Brig.Options as Opt
-import Control.Applicative
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Concurrent.Lifted (threadDelay)
-import Control.Error hiding (err)
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding ((.=))
 import Control.Monad
@@ -50,49 +46,34 @@ import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.Aeson hiding ((.=))
-import Data.Attoparsec.Text
 import Data.Foldable (for_)
-import Data.HashMap.Strict (HashMap)
-import Data.Id
 import Data.Monoid
-import Data.Set (Set)
 import Data.Text (Text)
 import Data.Typeable
 import Data.Yaml (FromJSON (..))
-import Network.AWS (AWSRequest, Rs, Region (..))
-import Network.AWS (serviceCode, serviceMessage, serviceAbbrev, serviceStatus)
-import Network.AWS.Data
+-- TODO: Clean up imports
+import Network.AWS (AWSRequest, Rs)
 import Network.AWS.SQS (rmrsMessages)
-import Network.AWS.SQS.Types
+import Network.AWS.SQS.Types hiding (sqs)
 import Network.HTTP.Client (Manager, HttpException (..), HttpExceptionContent (..))
-import Network.HTTP.Types
 import Network.Mail.Mime
 import System.Logger.Class
+import Util.Options
 
-import qualified Control.Exception.Lens  as EL
+import qualified Brig.Options            as Opt
 import qualified Control.Monad.Trans.AWS as AWST
 import qualified Data.ByteString.Lazy    as BL
-import qualified Data.ByteString.Base64  as B64
-import qualified Data.HashMap.Strict     as Map
-import qualified Data.Set                as Set
-import qualified Data.Text               as Text
 import qualified Data.Text.Encoding      as Text
-import qualified Data.Text.Lazy          as LT
-import qualified Gundeck.Types.Push      as Push
 import qualified Network.AWS             as AWS
 import qualified Network.AWS.Env         as AWS
-import qualified Network.AWS.Data        as AWS
 import qualified Network.AWS.SES         as SES
-import qualified Network.AWS.SES.Types   as SES
-import qualified Network.AWS.SNS         as SNS
 import qualified Network.AWS.SQS         as SQS
 import qualified Network.AWS.DynamoDB    as DDB
-import qualified Network.TLS             as TLS
 import qualified System.Logger           as Logger
 
 data Env = Env
     { _logger         :: !Logger
-    , _account        :: !Account
+    , _account        :: !Account -- TODO: Is this needed still?
     , _sesQueue       :: !Text
     , _internalQueue  :: !Text
     , _blacklistTable :: !Text
@@ -127,18 +108,18 @@ instance MonadBaseControl IO Amazon where
 instance AWS.MonadAWS Amazon where
     liftAWS a = view amazonkaEnv >>= flip AWS.runAWS a
 
-mkEnv :: Logger -> AWSOpts -> Manager -> IO Env
+mkEnv :: Logger -> Opt.AWSOpts -> Manager -> IO Env
 mkEnv lgr opts mgr = do
     let g = Logger.clone (Just "aws.brig") lgr
-    let (bl, pk) = (amazonkaBlacklistTable opts, amazonkaPrekeyTable opts)
-    e  <- mkAwsEnv g sesEnd sqsEnd dynEnd
-    sq <- getQueueUrl e (amazonkaSesQueue opts)
-    iq <- getQueueUrl e (amazonkaInternalQueue opts)
-    return (Env g (Account (amazonkaAccount opts)) sq iq bl pk e)
+    let (bl, pk) = (Opt.blacklistTable opts, Opt.prekeyTable opts)
+    e  <- mkAwsEnv g (mkEndpoint SES.ses      (Opt.sesEndpoint opts))
+                     (mkEndpoint SQS.sqs      (Opt.sqsEndpoint opts))
+                     (mkEndpoint DDB.dynamoDB (Opt.dynamoDBEndpoint opts))
+    sq <- getQueueUrl e (Opt.sesQueue opts)
+    iq <- getQueueUrl e (Opt.internalQueue opts)
+    return (Env g (Account (Opt.account opts)) sq iq bl pk e)
   where
-    sesEnd = AWS.setEndpoint True "email.eu-west-1.amazonaws.com" 443 SES.ses
-    sqsEnd = AWS.setEndpoint True "sqs.eu-west-1.amazonaws.com" 443 SQS.sqs
-    dynEnd = AWS.setEndpoint True "dynamodb.eu-west-1.amazonaws.com" 443 DDB.dynamoDB
+    mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
 
     mkAwsEnv g ses sqs dyn =  set AWS.envLogger (awsLogger g)
                            .  set AWS.envRegion AWS.Ireland -- TODO: Necessary?
@@ -213,10 +194,10 @@ enqueue url m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= th
 sendMail :: Mail -> Amazon ()
 sendMail m = do
     body <- liftIO $ BL.toStrict <$> renderMail' m
-    let msg = SES.sendRawEmail (SES.rawMessage body)
+    let raw = SES.sendRawEmail (SES.rawMessage body)
             & SES.sreDestinations .~ fmap addressEmail (mailTo m)
             & SES.sreSource ?~ addressEmail (mailFrom m)
-    void $ retrying retry5x (const canRetry) $ const (sendCatch msg)
+    void $ retrying retry5x (const canRetry) $ const (sendCatch raw)
   where
     -- TODO: Ensure that we handle SES throttling too
     -- canRetry x = statusIsServerError (sesStatusCode x)
@@ -234,15 +215,15 @@ send r = throwA =<< sendCatch r
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) return
 
-is :: AWS.Abbrev -> Int -> AWS.Error -> Bool
-is srv s (AWS.ServiceError e) = srv == e^.serviceAbbrev && s == statusCode (e^.serviceStatus)
-is _   _ _                    = False
-
-isTimeout :: MonadIO m => Either AWS.Error a -> m Bool
-isTimeout (Right _) = pure False
-isTimeout (Left  e) = case e of
-    AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
-    _                                                           -> pure False
+-- is :: AWS.Abbrev -> Int -> AWS.Error -> Bool
+-- is srv s (AWS.ServiceError e) = srv == e^.serviceAbbrev && s == statusCode (e^.serviceStatus)
+-- is _   _ _                    = False
+-- TODO: Double check if it makes sense to reuse these
+-- isTimeout :: MonadIO m => Either AWS.Error a -> m Bool
+-- isTimeout (Right _) = pure False
+-- isTimeout (Left  e) = case e of
+--     AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
+--     _                                                           -> pure False
 
 execCatch :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m)
           => r -> a -> m (Either AWS.Error (Rs a))

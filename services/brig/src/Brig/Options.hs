@@ -49,11 +49,14 @@ data ElasticSearchOpts = ElasticSearchOpts
 instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
-    { account        :: !Text
-    , sesQueue       :: !Text
-    , internalQueue  :: !Text
-    , blacklistTable :: !Text
-    , prekeyTable    :: !Text
+    { account          :: !Text
+    , sesQueue         :: !Text
+    , internalQueue    :: !Text
+    , blacklistTable   :: !Text
+    , prekeyTable      :: !Text
+    , sesEndpoint      :: !AWSEndpoint
+    , sqsEndpoint      :: !AWSEndpoint
+    , dynamoDBEndpoint :: !AWSEndpoint
     } deriving (Show, Generic)
 
 instance FromJSON AWSOpts
@@ -223,7 +226,16 @@ optsParser =
       help "Dynamo table for storing blacklisted user keys") <*>
           (textOption $
       long "aws-dynamo-prekeys" <> metavar "STRING" <>
-      help "Dynamo table for storing prekey data")) <*>
+      help "Dynamo table for storing prekey data") <*>
+     (option parseAWSEndpoint $
+      long "aws-ses-endpoint" <> value (AWSEndpoint "email.eu-west-1.amazonaws.com" True 443)
+      <> metavar "STRING" <> showDefault <> help "aws SES endpoint") <*>
+     (option parseAWSEndpoint $
+      long "aws-sqs-endpoint" <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443)
+      <> metavar "STRING" <> showDefault <> help "aws SQS endpoint") <*>
+     (option parseAWSEndpoint $
+      long "aws-dynamodb-endpoint" <> value (AWSEndpoint "dynamodb.eu-west-1.amazonaws.com" True 443)
+      <> metavar "STRING" <> showDefault <> help "aws DYNAMODB endpoint")) <*>
     (EmailSMSOpts <$>
      (EmailSMSGeneralOpts <$>
       (strOption $
