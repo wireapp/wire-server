@@ -49,14 +49,14 @@ data ElasticSearchOpts = ElasticSearchOpts
 instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
-    { account          :: !Text
-    , sesQueue         :: !Text
-    , internalQueue    :: !Text
-    , blacklistTable   :: !Text
-    , prekeyTable      :: !Text
-    , sesEndpoint      :: !AWSEndpoint
-    , sqsEndpoint      :: !AWSEndpoint
-    , dynamoDBEndpoint :: !AWSEndpoint
+    { account         :: !Text
+    , sesQueue        :: !Text
+    , internalQueue   :: !Text
+    , blacklistTable  :: !Text
+    , prekeyTable     :: !Text
+    , sesEndpoint     :: !AWSEndpoint
+    , sqsEndpoint     :: !AWSEndpoint
+    , dynamoDBEndpoint:: !AWSEndpoint
     } deriving (Show, Generic)
 
 instance FromJSON AWSOpts
@@ -213,9 +213,9 @@ optsParser =
       showDefault <>
       help "The name of the ElasticSearch user index")) <*>
     (AWSOpts <$>
-      (textOption $
+     (textOption $
       long "aws-account-id" <> metavar "STRING" <> help "AWS Account ID") <*>
-      (textOption $
+     (textOption $
       long "aws-ses-queue" <> metavar "STRING" <>
       help "Event feedback queue for SES (e.g. for email bounces and complaints)") <*>
      (textOption $
@@ -224,7 +224,7 @@ optsParser =
      (textOption $
       long "aws-dynamo-blacklist" <> metavar "STRING" <>
       help "Dynamo table for storing blacklisted user keys") <*>
-          (textOption $
+     (textOption $
       long "aws-dynamo-prekeys" <> metavar "STRING" <>
       help "Dynamo table for storing prekey data") <*>
      (option parseAWSEndpoint $

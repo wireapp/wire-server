@@ -15,19 +15,17 @@ import Brig.Data.UserKey (UserKey, keyText)
 import Control.Lens
 import Control.Monad.Reader
 import Data.Text (Text)
-import System.Logger.Class (val, msg, field)
 
 import qualified Data.HashMap.Strict  as Map
 import qualified Network.AWS.DynamoDB as AWS
 import qualified Network.AWS          as AWS
-import qualified System.Logger.Class  as Log
 
 hashKey :: Text
 hashKey = "key"
 
 -- TODO: If dynamo is not reachable, we return false... probably not a good idea?
 exists :: UserKey -> AppIO Bool
-exists (keyText -> key) = hasItems <$> go cmd
+exists (keyText -> key) = hasItems <$> execDyn cmd
   where
     cmd t = AWS.getItem t & AWS.giKey .~ item key
                           & AWS.giConsistentRead ?~ True
@@ -36,12 +34,12 @@ exists (keyText -> key) = hasItems <$> go cmd
     hasItems = not . Map.null . view AWS.girsItem
 
 insert :: UserKey -> AppIO ()
-insert (keyText -> key) = void $ go cmd
+insert (keyText -> key) = void $ execDyn cmd
   where
     cmd t = AWS.putItem t & AWS.piItem .~ item key
  
 delete :: UserKey -> AppIO ()
-delete (keyText -> key) = void $ go cmd
+delete (keyText -> key) = void $ execDyn cmd
   where
     cmd t = AWS.deleteItem t & AWS.diKey .~ item key
 
@@ -51,8 +49,8 @@ delete (keyText -> key) = void $ go cmd
 item :: Text -> Map.HashMap Text AWS.AttributeValue
 item key = Map.singleton hashKey $ AWS.attributeValue & AWS.avS ?~ key
 
-go :: (AWS.AWSRequest r) => (Text -> r) -> AppIO (AWS.Rs r)
-go mkCmd = do
+execDyn :: (AWS.AWSRequest r) => (Text -> r) -> AppIO (AWS.Rs r)
+execDyn mkCmd = do
     cmd <- mkCmd <$> view (awsEnv.blacklistTable)
     env <- view (awsEnv.amazonkaEnv)
     exec env cmd

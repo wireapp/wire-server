@@ -21,7 +21,7 @@ gundeck:
   port: 8086
 
 aws:
-  account: "093205192929"
+  account: "<insert-account-number-here>"
   sesQueue: integration-brig-events
   internalQueue: integration-brig-events-internal
   blacklistTable: integration-brig-userkey-blacklist

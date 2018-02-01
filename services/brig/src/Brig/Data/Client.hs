@@ -78,12 +78,11 @@ data ClientDataError
     | ClientMissingAuth
     | MalformedPrekeys
 
-addClient :: (MonadClient m)
-          => UserId
+addClient :: UserId
           -> ClientId
           -> NewClient a
           -> Maybe Location
-          -> ExceptT ClientDataError m (Client, [Client], Word)
+          -> ExceptT ClientDataError AppIO (Client, [Client], Word)
 addClient u newId c loc = do
     clients <- lookupClients u
     let typed  = filter ((== newClientType c) . clientType) clients
@@ -107,7 +106,8 @@ addClient u newId c loc = do
     exists = (==) newId . clientId
 
     insert = do
-        now <- liftIO getCurrentTime -- TODO: Is this a performance concern? liftIO =<< view currentTime
+        -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
+        now <- liftIO =<< view currentTime
         let keys = unpackLastPrekey (newClientLastKey c) : newClientPrekeys c
         updatePrekeys u newId keys
         let lat = Latitude . view latitude <$> loc
@@ -248,46 +248,37 @@ ddbVersion = "version"
 ddbKey :: UserId -> ClientId -> AWS.AttributeValue
 ddbKey u c = AWS.attributeValue & AWS.avS ?~ UUID.toText (toUUID u) <> "." <> client c
 
+key :: UserId -> ClientId -> Map.HashMap Text AWS.AttributeValue
+key u c = Map.singleton ddbClient (ddbKey u c)
+
 deleteOptLock :: UserId -> ClientId -> AppIO ()
 deleteOptLock u c = do
     t <- view (awsEnv.prekeyTable)
     e <- view (awsEnv.amazonkaEnv)
-    void $ exec e (AWS.deleteItem t & AWS.diKey .~ item)
-  where
-    item :: Map.HashMap Text AWS.AttributeValue
-    item = Map.singleton ddbClient (ddbKey u c)
+    void $ exec e (AWS.deleteItem t & AWS.diKey .~ (key u c))
 
 withOptLock :: UserId -> ClientId -> AppIO a -> AppIO a
 withOptLock u c ma = go (10 :: Int)
   where
     go !n = do
-        v <- (version =<<) <$> execAmazonka return get
+        v <- (version =<<) <$> execDyn return get
         a <- ma
-        r <- execAmazonka return (put v)
+        r <- execDyn return (put v)
         case r of
             Nothing | n > 0 -> go (n - 1)
             Nothing         -> logFailure >> return a
             Just _          -> return a
 
-    key :: Map.HashMap Text AWS.AttributeValue
-    key = Map.singleton ddbClient (ddbKey u c)
-
-    -- version :: AWS.GetItemResponse -> Maybe Word32
-    -- version r = do
-    --     let v = Map.lookup ddbVersion (view AWS.girsItem r)
-    --     join (conv <$> v)
     version :: AWS.GetItemResponse -> Maybe Word32
     version v = join
               $ fmap conv
               $ Map.lookup ddbVersion (view AWS.girsItem v)
-        -- let v = Map.lookup ddbVersion (view AWS.girsItem r)
-        -- join (conv <$> v)
       where
         conv :: AWS.AttributeValue -> Maybe Word32
         conv = maybe Nothing (readMay . Text.unpack) . view AWS.avN
 
     get :: Text -> AWS.GetItem
-    get t = AWS.getItem t & AWS.giKey .~ key
+    get t = AWS.getItem t & AWS.giKey .~ (key u c)
                           & AWS.giConsistentRead ?~ True
 
     put :: Maybe Word32 -> Text -> AWS.PutItem
@@ -301,7 +292,7 @@ withOptLock u c ma = go (10 :: Int)
 
     item :: Maybe Word32 -> Map.HashMap Text AWS.AttributeValue
     item v = Map.insert ddbVersion (toAttributeValue (maybe (1 :: Word32) (+1) v))
-           $ key
+           $ key u c
 
     toAttributeValue :: Word32 -> AWS.AttributeValue
     toAttributeValue w = AWS.attributeValue & AWS.avN ?~ AWS.toText (fromIntegral w :: Int)
@@ -309,133 +300,24 @@ withOptLock u c ma = go (10 :: Int)
     logFailure :: AppIO ()
     logFailure = Log.err (msg (val "PreKeys: Optimistic lock failed"))
 
-execAmazonka :: (AWS.AWSRequest r) => (AWS.Rs r -> Maybe a) -> (Text -> r) -> AppIO (Maybe a)
-execAmazonka cnv mkCmd = do
-    cmd <- mkCmd <$> view (awsEnv.prekeyTable)
-    e   <- view (awsEnv.amazonkaEnv)
-    execAmazonkaAux e cnv cmd
-  where
-    execAmazonkaAux :: (AWS.AWSRequest r, MonadMask m, MonadIO m, Typeable m, MonadBaseControl IO m)
-                    => AWS.Env
-                    -> (AWS.Rs r -> Maybe a)
-                    -> r
-                    -> m (Maybe a)
-    execAmazonkaAux e conv cmd = recovering policy cond (const fn)
+    execDyn :: (AWS.AWSRequest r) => (AWS.Rs r -> Maybe a) -> (Text -> r) -> AppIO (Maybe a)
+    execDyn cnv mkCmd = do
+        cmd <- mkCmd <$> view (awsEnv.prekeyTable)
+        e   <- view (awsEnv.amazonkaEnv)
+        execDyn' e cnv cmd
       where
-        cond = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
-        policy = limitRetries 3 <> exponentialBackoff 100000
+        execDyn' :: (AWS.AWSRequest r, MonadMask m, MonadIO m, Typeable m, MonadBaseControl IO m)
+                        => AWS.Env
+                        -> (AWS.Rs r -> Maybe a)
+                        -> r
+                        -> m (Maybe a)
+        execDyn' e conv cmd = recovering policy cond (const fn)
+          where
+            cond = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
+            policy = limitRetries 3 <> exponentialBackoff 100000
 
-        fn = do
-            r <- execCatch e cmd
-            case r of
-                Left _  -> return Nothing
-                Right x -> return (conv x)
-
--- ddbKey' :: UserId -> ClientId -> DDB.DValue
--- ddbKey' u c = DDB.DString (UUID.toText (toUUID u) <> "." <> client c)
-
--- withOptLock' :: UserId -> ClientId -> AppIO a -> AppIO a
--- withOptLock' u c ma = go (10 :: Int)
---   where
---     go !n = do
---         v <- (version =<<) <$> exec get
---         a <- ma
---         r <- exec (put v)
---         case r of
---             Nothing | n > 0 -> go (n - 1)
---             Nothing         -> logFailure >> return a
---             Just _          -> return a
-
---     key = ddbKey u c
-
---     version = DDB.girItem >=> LazyMap.lookup ddbVersion >=> DDB.fromValue
-
---     get (AWS.PreKeyTable t) = (DDB.getItem t (DDB.hk ddbClient key))
---         { DDB.giAttrs      = Nothing
---         , DDB.giConsistent = True
---         , DDB.giRetCons    = DDB.RCNone
---         }
-
---     put v (AWS.PreKeyTable t) = (DDB.putItem t (item v))
---         { DDB.piExpect  = DDB.Conditions DDB.CondAnd [check v]
---         , DDB.piReturn  = DDB.URNone
---         , DDB.piRetCons = DDB.RCNone
---         , DDB.piRetMet  = DDB.RICMNone
---         }
-
---     item v = DDB.item
---         [ DDB.attr ddbClient key
---         , DDB.attr ddbVersion (maybe (1 :: Word32) (+1) v)
---         ]
-
---     check (Just v) = DDB.Condition ddbVersion (DDB.DEq (DDB.toValue v))
---     check Nothing  = DDB.Condition ddbVersion DDB.IsNull
-
---     logFailure = Log.err (msg (val "PreKeys: Optimistic lock failed"))
-
--- deleteOptLock' :: UserId -> ClientId -> AppIO ()
--- deleteOptLock' u c = void (exec delete)
---   where
---     delete (AWS.PreKeyTable t) = DDB.deleteItem t (DDB.hk ddbClient (ddbKey u c))
-
--- exec' :: (Transaction r a, ServiceConfiguration r ~ DDB.DdbConfiguration)
---      => (AWS.PreKeyTable -> r)
---      -> AppIO (Maybe a)
--- exec' mkCmd = do
---     cmd <- mkCmd <$> view (error "old awsConfig.AWS.ddbPreKeyTable")
---     rs  <- AWS.tryDynamo cmd
---     case snd <$> rs of
---         Left (AWS.DynamoErrorResponse e)
---             | DDB.ddbErrCode e == DDB.ConditionalCheckFailedException
---             -> return Nothing
---         Left ex -> do
---           Log.err $ field "error" (show ex)
---                   . msg (val "PreKeys: DynamoDB error")
---           return Nothing
---         Right a -> return (Just a)
-
--- Amazonka
-
--- execAmazonka' :: (MonadMask m, Amazonka.MonadAWS m, Typeable m) => AWS.Env -> (Rs r -> a) -> r -> m a
--- execAmazonka' e conv cmd = recovering policy cond (const fn)
---   where
---     cond = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
---     policy = limitRetries 100 <> exponentialBackoff 100000
-
---     fn = do
---         r <- execute (error "e") execAWSSafe cmd
---         return $ conv r
-
--- execAmazonka :: (AWSRequest r) => (Rs r -> a) -> (Text -> r) -> AppIO a
--- execAmazonka conv mkCmd = do
---     cmd <- mkCmd <$> view (awsEnv.dynamoPrekeyTable)
---     e <- view (awsEnv.amazonkaAwsEnv)
---     execAmazonka' e conv cmd
-
--- execAmazonka2' :: (AWSRequest r, MonadMask m, MonadIO m, Typeable m, MonadBaseControl IO m) => AWS.Env -> r -> m (Maybe a)
--- execAmazonka2' e cmd = recovering policy cond (const fn)
---   where
---     cond = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
---     policy = limitRetries 100 <> exponentialBackoff 100000
-
---     fn = do
---         r <- toA <$> execAWS2 e cmd
---         case r of
---             Left _  -> return Nothing
---             Right x -> return x
-    
---     toA :: Either Amazonka.Error (Rs r) -> Either Amazonka.Error (Maybe a)
---     toA = undefined
-
--- execAmazonka2 :: (AWSRequest r) => (Text -> r) -> AppIO (Maybe a)
--- execAmazonka2 mkCmd = do
---     cmd <- mkCmd <$> view (awsEnv.dynamoPrekeyTable)
---     e <- view (awsEnv.amazonkaAwsEnv)
---     execAmazonka2' e cmd
-
--- execAWSSafe :: AWSRequest r => r -> Amazon (Rs r)
--- execAWSSafe req = do
---     res <- recovering (limitRetries 5 <> exponentialBackoff 1000000) handlers $ const (sendCatch req)
---     either (throwM . GeneralError) return res
---   where
---     handlers = [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
+            fn = do
+                r <- execCatch e cmd
+                case r of
+                    Left _  -> return Nothing
+                    Right x -> return (conv x)
