@@ -153,6 +153,7 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
 addCode :: UserId ::: ConvId ::: Request ::: JSON -> Galley Response
 addCode (usr ::: cnv ::: req ::: _ ) = do
     ensureUser usr cnv
+    ensureCodeAccess cnv
     -- TODO configurable timeout (req, fallback to config? config only?)
     let t = Timeout (3600 * 24 * 7) -- one week.
     c <- generate cnv t
@@ -162,6 +163,7 @@ addCode (usr ::: cnv ::: req ::: _ ) = do
 rmCode :: UserId ::: ConvId -> Galley Response
 rmCode (usr ::: cnv) = do
     ensureUser usr cnv
+    ensureCodeAccess cnv
     key <- mkKey cnv
     Data.deleteCode key
     return empty
@@ -169,6 +171,7 @@ rmCode (usr ::: cnv) = do
 getCode :: UserId ::: ConvId -> Galley Response
 getCode (usr ::: cnv) = do
     ensureUser usr cnv
+    ensureCodeAccess cnv
     key <- mkKey cnv
     c <- Data.lookupCode key >>= ifNothing codeNotFound
     return $ setStatus status200 . json $ Join (codeKey c) (codeValue c)
@@ -510,6 +513,14 @@ ensureUser usr cnv = do
     (_, users) <- botsAndUsers <$> Data.members cnv
     unless (usr `isMember` users) $
         throwM convNotFound
+
+ensureCodeAccess :: ConvId -> Galley ()
+ensureCodeAccess cnv = do
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    unless (CodeAccess `elem` (convAccess conv)) $
+        throwM (operationDenied' "restricted to 'code' access conversations")
+
+
 
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation
