@@ -17,14 +17,10 @@ module Brig.AWS.Types
     ) where
 
 import Brig.Types (Email (..))
-import Control.Lens (makeLenses)
 import Data.Aeson
-import Data.ByteString.Char8 (unpack)
-import Data.ByteString.Conversion
 import Data.Id
 import Data.Monoid ((<>))
 import Data.Text (Text)
-import Data.Text.Encoding (encodeUtf8)
 
 -------------------------------------------------------------------------------
 -- Config

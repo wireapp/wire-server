@@ -21,21 +21,11 @@ gundeck:
   port: 8086
 
 aws:
-  account: "<insert-account-number-here>"
+  account: "093205192929"
   sesQueue: integration-brig-events
   internalQueue: integration-brig-events-internal
   blacklistTable: integration-brig-userkey-blacklist
   prekeyTable: integration-brig-prekeys
-  region: eu-west-1
-  # TODO: Check AWS loadCredentialsFromEnv
-  awsKeyId: <insert-key-id-here>
-  awsSecretKey: <insert-secret-key-here>
-
-amazonka:
-  amazonkaAccount: "093205192929"
-  amazonkaSesQueue: integration-brig-events
-  amazonkaInternalQueue: integration-brig-events-internal
-  amazonkaBlacklistTable: integration-brig-userkey-blacklist
 
 emailSMS:
   general:

@@ -17,8 +17,6 @@ module Brig.App
     , Env
     , newEnv
     , closeEnv
-    -- , awsEnv
-    -- , awsConfig
     , awsEnv
     , galley
     , gundeck
@@ -129,9 +127,7 @@ data Env = Env
     { _galley        :: RPC.Request
     , _gundeck       :: RPC.Request
     , _casClient     :: Cas.ClientState
-    -- , _awsEnv        :: AWS.Env
-    -- , _awsConfig     :: AWS.Config
-    , _awsEnv   :: AWS.Env
+    , _awsEnv        :: AWS.Env
     , _metrics       :: Metrics
     , _applog        :: Logger
     , _requestId     :: RequestId
@@ -251,21 +247,6 @@ replaceTurnServers g ref e = do
             atomicWriteIORef ref (old & TURN.turnServers .~ servers)
             Log.info g (msg $ val "New turn servers loaded.")
         Nothing -> Log.warn g (msg $ val "Empty or malformed turn servers list, ignoring!")
-
--- initAws :: Opts -> Logger -> Manager -> IO (AWS.Env, AWS.Config)
--- initAws o l m = do
---     let a = Opt.aws o
---     -- TODO: The AWS package can also load them from the env, check the latest API
---     -- https://hackage.haskell.org/package/aws-0.17.1/docs/src/Aws-Core.html#loadCredentialsFromFile
---     -- which would avoid the need to specify them in a config file when running tests
---     e <- AWS.newEnv l m (liftM2 (,) (Opt.awsKeyId a) (Opt.awsSecretKey a))
---     let c = AWS.config (Opt.region a)
---                        (AWS.Account (Opt.account a))
---                        -- (AWS.SesQueue (Opt.sesQueue a))
---                        -- (AWS.InternalQueue (Opt.internalQueue a))
---                        -- (AWS.BlacklistTable (Opt.blacklistTable a))
---                        -- (AWS.PreKeyTable (Opt.prekeyTable a))
---     return (e, c)
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do

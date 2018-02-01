@@ -48,7 +48,7 @@ import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
-import Control.Retry (recovering, retrying, limitRetries, exponentialBackoff)
+import Control.Retry
 import Data.Aeson hiding ((.=))
 import Data.Attoparsec.Text
 import Data.Foldable (for_)
@@ -203,27 +203,24 @@ listen url callback = do
         threadDelay 3000000
 
 enqueue :: Text -> BL.ByteString -> Amazon (SQS.SendMessageResponse)
-enqueue url m = do
-    res <- retrying (limitRetries 5 <> exponentialBackoff 1000000) (const canRetry) $ const (sendCatch (req url))
-    either (throwM . GeneralError) return res
+enqueue url m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
   where
-    req url = SQS.sendMessage url $ Text.decodeLatin1 (BL.toStrict m)
+    req = SQS.sendMessage url $ Text.decodeLatin1 (BL.toStrict m)
 
 --------------------------------------------------------------------------------
 -- SES
 
 sendMail :: Mail -> Amazon ()
 sendMail m = do
-    r <- liftIO $ BL.toStrict <$> renderMail' m
-    let raw = SES.rawMessage r
-    let msg = SES.sendRawEmail raw & SES.sreDestinations .~ fmap addressEmail (mailTo m)
-                                   & SES.sreSource ?~ addressEmail (mailFrom m)
+    body <- liftIO $ BL.toStrict <$> renderMail' m
+    let msg = SES.sendRawEmail (SES.rawMessage body)
+            & SES.sreDestinations .~ fmap addressEmail (mailTo m)
+            & SES.sreSource ?~ addressEmail (mailFrom m)
     void $ retrying retry5x (const canRetry) $ const (sendCatch msg)
   where
     -- TODO: Ensure that we handle SES throttling too
     -- canRetry x = statusIsServerError (sesStatusCode x)
     --           || sesErrorCode x == "Throttling"
-    retry5x = limitRetries 5 <> exponentialBackoff 100000
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -232,7 +229,10 @@ sendCatch :: AWSRequest r => r -> Amazon (Either AWS.Error (Rs r))
 sendCatch = AWST.trying AWS._Error . AWS.send
 
 send :: AWSRequest r => r -> Amazon (Rs r)
-send r = either (throwM . GeneralError) return =<< sendCatch r
+send r = throwA =<< sendCatch r
+
+throwA :: Either AWS.Error a -> Amazon a
+throwA = either (throwM . GeneralError) return
 
 is :: AWS.Abbrev -> Int -> AWS.Error -> Bool
 is srv s (AWS.ServiceError e) = srv == e^.serviceAbbrev && s == statusCode (e^.serviceStatus)
@@ -259,3 +259,6 @@ canRetry (Left  e) = case e of
     AWS.TransportError (HttpExceptionRequest _ ResponseTimeout)                   -> pure True
     AWS.ServiceError se | se^.AWS.serviceCode == AWS.ErrorCode "RequestThrottled" -> pure True
     _                                                                             -> pure False
+
+retry5x :: (Monad m) => RetryPolicyM m
+retry5x = limitRetries 5 <> exponentialBackoff 100000

@@ -6,7 +6,6 @@
 
 module Brig.Options where
 
-import Brig.AWS.Types
 import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
@@ -19,7 +18,6 @@ import Data.Maybe
 import Data.Monoid
 import Data.Scientific (toBoundedInteger)
 import Data.Text (Text)
-import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (DiffTime, secondsToDiffTime)
 import Data.Word (Word16, Word32)
 import Data.Yaml (FromJSON(..))
@@ -31,7 +29,6 @@ import Util.Options.Common
 
 import qualified Data.Text             as T
 import qualified Data.Yaml             as Y
-import qualified Network.AWS           as Amazonka
 import qualified Brig.ZAuth            as ZAuth
 
 newtype Timeout = Timeout
@@ -52,11 +49,11 @@ data ElasticSearchOpts = ElasticSearchOpts
 instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
-    { amazonkaAccount       :: !Text
-    , amazonkaSesQueue      :: !Text
-    , amazonkaInternalQueue :: !Text
-    , amazonkaBlacklistTable:: !Text
-    , amazonkaPrekeyTable   :: !Text
+    { account        :: !Text
+    , sesQueue       :: !Text
+    , internalQueue  :: !Text
+    , blacklistTable :: !Text
+    , prekeyTable    :: !Text
     } deriving (Show, Generic)
 
 instance FromJSON AWSOpts
