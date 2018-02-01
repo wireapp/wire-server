@@ -46,6 +46,7 @@ module Galley.Data
     , createSelfConversation
     , isConvAlive
     , updateConversation
+    , updateConversationAccess
     , deleteConversation
 
     -- * Conversation Members
@@ -411,6 +412,9 @@ createOne2OneConversation a b name ti = do
 
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
 updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum (fromRange name, cid))
+
+updateConversationAccess :: MonadClient m => ConvId -> List1 Access -> m ()
+updateConversationAccess cid acc = retry x5 $ write Cql.updateConvAccess (params Quorum (Set (toList acc), cid))
 
 deleteConversation :: MonadClient m => ConvId -> m ()
 deleteConversation cid = do

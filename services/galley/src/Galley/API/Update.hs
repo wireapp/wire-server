@@ -18,6 +18,7 @@ module Galley.API.Update
     , addCode
     , rmCode
     , getCode
+    , updateConversationAccess
 
       -- * Managing Members
     , Galley.API.Update.addMembers
@@ -52,6 +53,8 @@ import Data.Foldable
 import Data.Id
 import Data.List1 (singleton)
 import Data.Maybe (fromMaybe, catMaybes)
+import Data.Range hiding ((<|))
+import Data.List1
 import Data.Text (Text)
 import Data.Time
 import Galley.App
@@ -110,6 +113,42 @@ unblockConv (usr ::: conn ::: cnv) = do
         throwM $ invalidOp "unblock: invalid conversation type"
     conv' <- acceptOne2One usr conv conn
     setStatus status200 . json <$> conversationView usr conv'
+
+
+updateConversationAccess :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
+updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
+    body <- fromBody req invalidPayload
+    let targetAccess = cupAccess body :: List1 Access
+
+    -- checks and balances
+    when (PrivateAccess `elem` targetAccess) $
+        throwM $ invalidOp "updateAccess: access 'private' disallowed"
+    (bots, users) <- botsAndUsers <$> Data.members cnv
+    unless (usr `isMember` users) $
+        throwM convNotFound
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    unless (Data.convType conv == RegularConv) $
+        throwM $ invalidOp "updateAccess: invalid conversation type"
+    -- only conversation creators and conversation creator's team's "admins" can change Access mode
+    case (Data.convCreator conv == usr, Data.convTeam conv) of
+        (False, Nothing)    -> throwM $ operationDenied' "updateAccess: restricted to conversation creator"
+        (False, Just tid) -> do
+            -- get the team members and verify permissions
+            members <- Data.teamMembers tid
+            void $ permissionCheck usr SetMemberPermissions members -- TODO: introduce new permission?
+        (True, _) -> return ()
+
+    -- update cassandra & send event
+    now <- liftIO getCurrentTime
+    let e = Event ConvAccessUpdate cnv usr now (Just $ EdConvAccessUpdate body )
+    let currentAccess = Set.fromList (toList $ Data.convAccess conv)
+    unless (currentAccess == Set.fromList (toList targetAccess)) $ do
+        Data.updateConversationAccess cnv targetAccess
+        for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+            push1 $ p & pushConn ?~ zcon
+        void . fork $ void $ External.deliver (bots `zip` repeat e)
+    return $ json e & setStatus status200
+
 
 addCode :: UserId ::: ConvId ::: Request ::: JSON -> Galley Response
 addCode (usr ::: cnv ::: req ::: _ ) = do

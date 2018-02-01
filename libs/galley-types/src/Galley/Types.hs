@@ -31,18 +31,19 @@ module Galley.Types
     , parseEventData
 
       -- * Other galley types
-    , Access              (..)
-    , Accept              (..)
-    , ConversationList    (..)
-    , ConversationMeta    (..)
-    , ConversationRename  (..)
-    , ConvType            (..)
-    , Invite              (..)
-    , NewConv             (..)
-    , MemberUpdate        (..)
-    , TypingStatus        (..)
-    , UserClientMap       (..)
-    , UserClients         (..)
+    , Access                    (..)
+    , Accept                    (..)
+    , ConversationList          (..)
+    , ConversationMeta          (..)
+    , ConversationRename        (..)
+    , ConversationAccessUpdate  (..)
+    , ConvType                  (..)
+    , Invite                    (..)
+    , NewConv                   (..)
+    , MemberUpdate              (..)
+    , TypingStatus              (..)
+    , UserClientMap             (..)
+    , UserClients               (..)
     , filterClients
     ) where
 
@@ -119,6 +120,12 @@ newtype ConversationRename = ConversationRename
 
 deriving instance Eq   ConversationRename
 deriving instance Show ConversationRename
+
+
+newtype ConversationAccessUpdate = ConversationAccessUpdate
+    { cupAccess :: List1 Access
+    } deriving (Eq, Show)
+
 
 data ConvTeamInfo = ConvTeamInfo
     { cnvTeamId  :: !TeamId
@@ -251,6 +258,7 @@ data EventType
     | MemberLeave
     | MemberStateUpdate
     | ConvRename
+    | ConvAccessUpdate
     | ConvCreate
     | ConvConnect
     | ConvDelete
@@ -259,13 +267,14 @@ data EventType
     deriving (Eq, Show)
 
 data EventData
-    = EdMembers      !Members
-    | EdConnect      !Connect
-    | EdConvRename   !ConversationRename
-    | EdMemberUpdate !MemberUpdateData
-    | EdConversation !Conversation
-    | EdTyping       !TypingData
-    | EdOtrMessage   !OtrMessage
+    = EdMembers             !Members
+    | EdConnect             !Connect
+    | EdConvRename          !ConversationRename
+    | EdConvAccessUpdate    !ConversationAccessUpdate
+    | EdMemberUpdate        !MemberUpdateData
+    | EdConversation        !Conversation
+    | EdTyping              !TypingData
+    | EdOtrMessage          !OtrMessage
     deriving (Eq, Show)
 
 data OtrMessage = OtrMessage
@@ -595,6 +604,14 @@ instance ToJSON ConversationMeta where
         # "name"    .= cmName c
         # "team"    .= cmTeam c
         # []
+
+
+instance ToJSON ConversationAccessUpdate where
+    toJSON c = object [ "access" .= cupAccess c ]
+
+instance FromJSON ConversationAccessUpdate where
+   parseJSON = withObject "conversation-access-update" $ \o ->
+       ConversationAccessUpdate <$> o .:  "access"
 
 instance FromJSON ConversationRename where
     parseJSON = withObject "conversation-rename object" $ \c ->

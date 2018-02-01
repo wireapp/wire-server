@@ -53,6 +53,9 @@ operationDenied p = Error
     "operation-denied"
     ("Insufficient permissions (missing " <> (pack $ show p) <> ")")
 
+operationDenied' :: Text -> Error
+operationDenied' = Error status403 "operation-denied"
+
 noTeamMember :: Error
 noTeamMember = Error status403 "no-team-member" "Requesting user is not a team member."
 

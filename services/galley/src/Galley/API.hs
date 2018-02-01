@@ -498,6 +498,13 @@ sitemap = do
         .&. capture "cnv"
 
 
+    put "/conversations/:cnv/access" (continue updateConversationAccess) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. request
+        .&. contentType "application" "json"
+
     -- TODO swagger (also for Join/Code)
 
     ---
