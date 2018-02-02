@@ -27,9 +27,9 @@ import Options.Applicative.Types (readerAsk)
 import Util.Options
 import Util.Options.Common
 
-import qualified Data.Text             as T
-import qualified Data.Yaml             as Y
-import qualified Brig.ZAuth            as ZAuth
+import qualified Brig.ZAuth  as ZAuth
+import qualified Data.Text   as T
+import qualified Data.Yaml   as Y
 
 newtype Timeout = Timeout
     { timeoutDiff :: DiffTime
@@ -49,8 +49,7 @@ data ElasticSearchOpts = ElasticSearchOpts
 instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
-    { account         :: !Text
-    , sesQueue        :: !Text
+    { sesQueue        :: !Text
     , internalQueue   :: !Text
     , blacklistTable  :: !Text
     , prekeyTable     :: !Text
@@ -213,8 +212,6 @@ optsParser =
       showDefault <>
       help "The name of the ElasticSearch user index")) <*>
     (AWSOpts <$>
-     (textOption $
-      long "aws-account-id" <> metavar "STRING" <> help "AWS Account ID") <*>
      (textOption $
       long "aws-ses-queue" <> metavar "STRING" <>
       help "Event feedback queue for SES (e.g. for email bounces and complaints)") <*>

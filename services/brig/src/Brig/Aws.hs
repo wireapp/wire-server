@@ -33,7 +33,6 @@ module Brig.AWS
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
-import Brig.AWS.Types
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Concurrent.Lifted (threadDelay)
 import Control.Exception.Enclosed (handleAny)
@@ -73,7 +72,6 @@ import qualified System.Logger           as Logger
 
 data Env = Env
     { _logger         :: !Logger
-    , _account        :: !Account -- TODO: Is this needed still?
     , _sesQueue       :: !Text
     , _internalQueue  :: !Text
     , _blacklistTable :: !Text
@@ -117,12 +115,11 @@ mkEnv lgr opts mgr = do
                      (mkEndpoint DDB.dynamoDB (Opt.dynamoDBEndpoint opts))
     sq <- getQueueUrl e (Opt.sesQueue opts)
     iq <- getQueueUrl e (Opt.internalQueue opts)
-    return (Env g (Account (Opt.account opts)) sq iq bl pk e)
+    return (Env g sq iq bl pk e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
 
     mkAwsEnv g ses sqs dyn =  set AWS.envLogger (awsLogger g)
-                           .  set AWS.envRegion AWS.Ireland -- TODO: Necessary?
                           <$> AWS.newEnvWith AWS.Discover Nothing mgr
                           <&> AWS.configure ses
                           <&> AWS.configure sqs
