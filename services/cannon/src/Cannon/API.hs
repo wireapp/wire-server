@@ -12,7 +12,6 @@ import Cannon.WS hiding (env)
 import Control.Applicative hiding (empty, optional)
 import Control.Lens ((^.))
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Data.Aeson (decode, encode)
 import Data.ByteString (ByteString)
 import Data.Id (ClientId, UserId, ConnId)
@@ -132,6 +131,32 @@ push (user ::: conn ::: req) = do
         Nothing -> return badPayload
         Just n -> pushToClient user conn n
 
+bulkpush :: Request -> Cannon Response
+bulkpush req = do
+    b <- readBody req
+    let payload = decode b
+    case payload of
+        Nothing -> return badPayload
+        Just pushes -> do
+            resps <- mapM pushwrapper (bpRecipients pushes)
+            return notImpl
+  where
+    notImpl = errorRs status503 "not-implemented" "The handler for this request is not implemented"
+    pushwrapper pushdata = pushToClient (udUid pushdata) (udDid pushdata) (udData pushdata)
+
+await :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
+await (u ::: a ::: c ::: r) = do
+    l <- logger
+    e <- wsenv
+    case websocketsApp wsoptions (wsapp (mkKey u a) c l e) r of
+        Nothing -> return $ errorRs status426 "request-error" "websocket upgrade required"
+        Just rs -> return rs
+  where
+    status426 = mkStatus 426 "Upgrade Required"
+    wsoptions = Ws.defaultConnectionOptions
+
+-- Helper functions
+
 pushToClient :: UserId -> ConnId -> Notification -> Cannon Response
 pushToClient user conn  notif = do
     let k = mkKey user conn
@@ -152,30 +177,5 @@ pushToClient user conn  notif = do
   where
     clientGone = errorRs status410 "general" "client gone"
 
-bulkpush :: Request -> Cannon Response
-bulkpush req = do
-    b <- readBody req
-    let payload = decode b :: Maybe BulkPush
-    case payload of
-        Nothing -> do
-            return badPayload
-        Just pushes -> do
-            resps <- mapM pushwrapper (bpRecipients pushes)
-            return notImpl
-  where
-    notImpl = errorRs status503 "not-implemented" "The handler for this request is not implemented"
-    pushwrapper pushdata = pushToClient (udUid pushdata) (udDid pushdata) (udData pushdata)
-
 badPayload :: Response
 badPayload = errorRs status400 "malformed-payload" "The request payload was malformed."
-
-await :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
-await (u ::: a ::: c ::: r) = do
-    l <- logger
-    e <- wsenv
-    case websocketsApp wsoptions (wsapp (mkKey u a) c l e) r of
-        Nothing -> return $ errorRs status426 "request-error" "websocket upgrade required"
-        Just rs -> return rs
-  where
-    status426 = mkStatus 426 "Upgrade Required"
-    wsoptions = Ws.defaultConnectionOptions
