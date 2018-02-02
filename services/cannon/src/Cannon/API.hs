@@ -12,7 +12,8 @@ import Cannon.WS hiding (env)
 import Control.Applicative hiding (empty, optional)
 import Control.Lens ((^.))
 import Control.Monad.Catch
-import Data.Aeson (encode)
+import Control.Monad.IO.Class
+import Data.Aeson (decode, encode)
 import Data.ByteString (ByteString)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
@@ -21,6 +22,7 @@ import Data.Text (Text, strip, pack)
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types
 import Data.Maybe
+import Gundeck.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
@@ -124,6 +126,14 @@ docs (_ ::: url) = do
 
 push :: UserId ::: ConnId ::: Request -> Cannon Response
 push (user ::: conn ::: req) = do
+    b <- readBody req
+    let notif = decode b
+    case notif of
+        Nothing -> return badPayload
+        Just n -> pushToClient user conn n
+
+pushToClient :: UserId -> ConnId -> Notification -> Cannon Response
+pushToClient user conn  notif = do
     let k = mkKey user conn
     d <- clients
     debug $ client (key2bytes k) . msg (val "push")
@@ -133,10 +143,10 @@ push (user ::: conn ::: req) = do
             debug $ client (key2bytes k) . msg (val "push: client gone")
             return clientGone
         Just x  -> do
-            b <- readBody req
+            let n = encode notif
             e <- wsenv
             runWS e $
-                (sendMsg b k x >> return empty)
+                (sendMsg n k x >> return empty)
                 `catchAll`
                 const (terminate k x >> return clientGone)
   where
@@ -145,15 +155,19 @@ push (user ::: conn ::: req) = do
 bulkpush :: Request -> Cannon Response
 bulkpush req = do
     b <- readBody req
-    let payload = decode b :: BulkPush
+    let payload = decode b :: Maybe BulkPush
     case payload of
         Nothing -> do
             return badPayload
         Just pushes -> do
+            resps <- mapM pushwrapper (bpRecipients pushes)
             return notImpl
   where
-    badPayload = errorRs status400 "malformed-payload" "The request payload was malformed."
-    notImpl = errorRs status503 "not-implemented" "Not implemented."
+    notImpl = errorRs status503 "not-implemented" "The handler for this request is not implemented"
+    pushwrapper pushdata = pushToClient (udUid pushdata) (udDid pushdata) (udData pushdata)
+
+badPayload :: Response
+badPayload = errorRs status400 "malformed-payload" "The request payload was malformed."
 
 await :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
 await (u ::: a ::: c ::: r) = do

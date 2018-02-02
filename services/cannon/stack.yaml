@@ -6,6 +6,7 @@ packages:
 - '../../libs/metrics-wai'
 - '../../libs/types-common'
 - '../../libs/wai-utilities'
+- '../../libs/gundeck-types'
 flags:
   types-common:
     protobuf: True

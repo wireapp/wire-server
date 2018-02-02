@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
 
 module Cannon.Types
     ( Env
@@ -19,6 +19,10 @@ module Cannon.Types
     , clients
     , monitor
     , wsenv
+    , bpRecipients
+    , udUid
+    , udDid
+    , udData
     ) where
 
 import Bilge (Manager, RequestId (..), requestIdName)
@@ -36,6 +40,7 @@ import Data.Id (UserId, ConnId)
 import Data.Metrics.Middleware
 import Data.Text.Encoding
 import GHC.Generics
+import Gundeck.Types
 import Network.Wai
 import System.Logger.Class hiding (info)
 import System.Random.MWC (GenIO)
@@ -78,10 +83,13 @@ instance HasRequestId Cannon where
 data UserDevicePayload = UserDevicePayload
     { udUid  :: !UserId
     , udDid  :: !ConnId
-    , udData :: !ByteString
+    , udData :: !Notification
     } deriving ( Show
                , Generic
                )
+
+instance FromJSON UserDevicePayload
+instance ToJSON   UserDevicePayload
 
 data BulkPush = BulkPush
     { bpRecipients :: ![UserDevicePayload]
@@ -89,8 +97,8 @@ data BulkPush = BulkPush
                , Generic
                )
 
-instance FromJSON UserDevicePayload
-instance FromJSON BulkPush 
+instance FromJSON BulkPush
+instance ToJSON   BulkPush
 
 mkEnv :: Metrics
       -> ByteString
