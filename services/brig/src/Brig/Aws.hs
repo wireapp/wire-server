@@ -20,8 +20,11 @@ module Brig.AWS
     , blacklistTable
     , prekeyTable
 
+    , Error (..)
+
       -- * SES
     , sendMail
+
       -- * SQS
     , listen
     , enqueue
@@ -47,14 +50,14 @@ import Control.Retry
 import Data.Aeson hiding ((.=))
 import Data.Foldable (for_)
 import Data.Monoid
-import Data.Text (Text)
+import Data.Text (Text, isPrefixOf)
 import Data.Typeable
 import Data.Yaml (FromJSON (..))
--- TODO: Clean up imports
 import Network.AWS (AWSRequest, Rs)
 import Network.AWS.SQS (rmrsMessages)
 import Network.AWS.SQS.Types hiding (sqs)
 import Network.HTTP.Client (Manager, HttpException (..), HttpExceptionContent (..))
+import Network.HTTP.Types.Status (status400)
 import Network.Mail.Mime
 import System.Logger.Class
 import Util.Options
@@ -64,6 +67,7 @@ import qualified Control.Monad.Trans.AWS as AWST
 import qualified Data.ByteString.Lazy    as BL
 import qualified Data.Text.Encoding      as Text
 import qualified Network.AWS             as AWS
+import qualified Network.AWS.Data        as AWS
 import qualified Network.AWS.Env         as AWS
 import qualified Network.AWS.SES         as SES
 import qualified Network.AWS.SQS         as SQS
@@ -147,7 +151,8 @@ execute :: MonadIO m => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 
 data Error where
-    GeneralError :: (Show e, AWS.AsError e) => e -> Error
+    GeneralError     :: (Show e, AWS.AsError e) => e -> Error
+    SESInvalidDomain :: Error
 
 deriving instance Show     Error
 deriving instance Typeable Error
@@ -194,11 +199,21 @@ sendMail m = do
     let raw = SES.sendRawEmail (SES.rawMessage body)
             & SES.sreDestinations .~ fmap addressEmail (mailTo m)
             & SES.sreSource ?~ addressEmail (mailFrom m)
-    void $ retrying retry5x (const canRetry) $ const (sendCatch raw)
+    resp <- retrying retry5x (const canRetry) $ const (sendCatch raw)
+    void $ either check return resp
   where
-    -- TODO: Ensure that we handle SES throttling too
-    -- canRetry x = statusIsServerError (sesStatusCode x)
-    --           || sesErrorCode x == "Throttling"
+    check x = case x of
+        -- To map rejected domain names by SES to 400 responses, in order
+        -- not to trigger false 5xx alerts. Upfront domain name validation
+        -- is only according to the syntax rules of RFC5322 but additional
+        -- constraints may be applied by email servers (in this case SES).
+        -- Since such additional constraints are neither standardised nor
+        -- documented in the cases of SES, we can only handle the errors
+        -- after the fact.
+        AWS.ServiceError se
+            |  se^.AWS.serviceStatus == status400
+            && "Invalid domain name" `isPrefixOf` AWS.toText (se^.AWS.serviceCode) -> throwM SESInvalidDomain
+        _                                                                          -> throwM (GeneralError x)
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -211,16 +226,6 @@ send r = throwA =<< sendCatch r
 
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) return
-
--- is :: AWS.Abbrev -> Int -> AWS.Error -> Bool
--- is srv s (AWS.ServiceError e) = srv == e^.serviceAbbrev && s == statusCode (e^.serviceStatus)
--- is _   _ _                    = False
--- TODO: Double check if it makes sense to reuse these
--- isTimeout :: MonadIO m => Either AWS.Error a -> m Bool
--- isTimeout (Right _) = pure False
--- isTimeout (Left  e) = case e of
---     AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
---     _                                                           -> pure False
 
 execCatch :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m)
           => r -> a -> m (Either AWS.Error (Rs a))
