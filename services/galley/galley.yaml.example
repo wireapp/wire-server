@@ -25,7 +25,8 @@ settings:
 #
 # If you want to use journaling but journal to a fake sqs service
 # such as "fake-sqs" or "localstack",
-# run e.g. ./fake-sqs.sh and use a localhost endpoint
+# run e.g. `docker-compose -f ../external-deps/docker-compose.yaml`
+# and use a localhost endpoint
 #
 journal: # if set, journals; if not set, disables journaling
   queueName: integration-team-events.fifo

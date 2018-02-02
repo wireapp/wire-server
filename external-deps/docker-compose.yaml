@@ -1,0 +1,23 @@
+version: '3'
+services:
+  fake_dynamodb:
+      image: cnadiminti/dynamodb-local:2017-02-16
+      ports:
+        - 4567:8000
+
+  fake_sqs:
+      image: airdock/fake-sqs:0.3.1
+      ports:
+        - 4568:4568
+
+  aws_cli:
+    image: mesosphere/aws-cli:1.14.5
+    depends_on:
+      - fake_dynamodb
+      - fake_sqs
+    links:
+      - fake_dynamodb:dynamodb
+      - fake_sqs:sqs
+    entrypoint: /scripts/init.sh
+    volumes:
+      - ./:/scripts
