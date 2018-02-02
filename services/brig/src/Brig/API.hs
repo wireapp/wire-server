@@ -82,11 +82,9 @@ runServer o = do
     e <- newEnv o
     s <- Server.newSettings (server e)
     f <- Async.async $ AWS.execute (e^.awsEnv)
-                     $ AWS.listen (e^.awsEnv.sesQueue)
-                                          (runAppT e . SesNotification.onEvent)
+                     $ AWS.listen (e^.awsEnv.sesQueue) (runAppT e . SesNotification.onEvent)
     g <- Async.async $ AWS.execute (e^.awsEnv)
-                     $ AWS.listen (e^.awsEnv.internalQueue)
-                                          (runAppT e . InternalNotification.onEvent)
+                     $ AWS.listen (e^.awsEnv.internalQueue) (runAppT e . InternalNotification.onEvent)
     runSettingsWithShutdown s (pipeline e) 5 `finally` do
         Async.cancel f
         Async.cancel g

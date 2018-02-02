@@ -190,7 +190,7 @@ enqueue url m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= th
   where
     req = SQS.sendMessage url $ Text.decodeLatin1 (BL.toStrict m)
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 -- SES
 
 sendMail :: Mail -> Amazon ()

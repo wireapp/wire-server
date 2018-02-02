@@ -311,13 +311,8 @@ withOptLock u c ma = go (10 :: Int)
                         -> (AWS.Rs r -> Maybe a)
                         -> r
                         -> m (Maybe a)
-        execDyn' e conv cmd = recovering policy cond (const fn)
+        execDyn' e conv cmd = recovering policy handlers (const run)
           where
-            cond = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
-            policy = limitRetries 3 <> exponentialBackoff 100000
-
-            fn = do
-                r <- execCatch e cmd
-                case r of
-                    Left _  -> return Nothing
-                    Right x -> return (conv x)
+            run = execCatch e cmd >>= return . either (const Nothing) conv
+            handlers = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
+            policy   = limitRetries 3 <> exponentialBackoff 100000
