@@ -14,6 +14,7 @@ import Brig.Types.Provider.Tag
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout
 import Control.Lens ((^.))
+import Control.Concurrent.Async.Lifted.Safe (replicateConcurrently)
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
@@ -97,7 +98,9 @@ tests conf p db b c g = do
             , test p "add-get"                $ testAddGetService conf db b
             , test p "update"                 $ testUpdateService conf db b
             , test p "update-conn"            $ testUpdateServiceConn conf db b
-            , test p "search"                 $ testListServicesByTagAndPrefix conf db b
+            , test p "search (random)"        $ testListRandomServicesNoQuery conf db b
+            , test p "search (with tag)"      $ testListServicesByTagAndPrefix conf db b
+            , test p "search (prefix only)"   $ testListServicesByPrefixOnly conf db b
             , test p "delete"                 $ testDeleteService conf db b
             ]
         , testGroup "bot"
@@ -329,6 +332,22 @@ testUpdateServiceConn config db brig = do
         assertEqual "token" newTokens (serviceTokens _svc)
         assertBool  "enabled" (serviceEnabled _svc)
 
+testListRandomServicesNoQuery :: Maybe Config -> DB.ClientState -> Brig -> Http ()
+testListRandomServicesNoQuery config db brig = do
+    let n = 30
+    prvs <- fmap providerId <$> replicateConcurrently n (randomProvider db brig)
+    new  <- defNewService config
+    svcs <- fmap serviceId <$> mapM (\pid -> addGetService brig pid new) prvs
+    mapM_ (\(pid, sid) -> enableService brig pid sid) (zip prvs svcs)
+    -- Ensure we get at least `n` services
+    searchAndAssert n =<< randomId
+  where
+    searchAndAssert size uid = do
+        rs <- listServiceProfilesRandom brig uid size <!!
+            const 200 === statusCode
+        let Just ls = decodeBody rs :: Maybe [ServiceProfile]
+        liftIO $ assertEqual ("size: " ++ show size) size (length ls)
+
 testListServicesByTagAndPrefix :: Maybe Config -> DB.ClientState -> Brig -> Http ()
 testListServicesByTagAndPrefix config db brig = do
     prv <- randomProvider db brig
@@ -409,6 +428,85 @@ testListServicesByTagAndPrefix config db brig = do
     mkNew new (n, t) = new { newServiceName = n
                            , newServiceTags = unsafeRange (Set.fromList t)
                            }
+
+    select (Name prefix) nm = filter (isPrefixOf (toLower prefix) . toLower . fromName) nm
+
+testListServicesByPrefixOnly :: Maybe Config -> DB.ClientState -> Brig -> Http ()
+testListServicesByPrefixOnly config db brig = do
+    prv <- randomProvider db brig
+    let pid = providerId prv
+    uid <- randomId
+
+    -- nb. We use a random name prefix so tests can run concurrently
+    -- (and repeatedly) against a shared database and thus a shared
+    -- "name index" per tag.
+    uniq <- UUID.toText . toUUID <$> randomId
+    let uniqueNames = mkUniqueNames uniq
+    let names = uniqueNames
+    new <- defNewService config
+    svcs <- mapM (addGetService brig pid . mkNew new) (reverse uniqueNames)
+    mapM_ (enableService brig pid . serviceId) svcs
+
+    -- List services with different start names, that all start with the
+    -- same prefix.
+    searchAndAssert uid (Name uniq) 20 names
+
+    -- Search by exact name
+    forM_ names $ \n -> searchAndAssert uid n 10 [n]
+
+    -- Chosen prefixes
+
+    -- Only Bjørn should be returned
+    let _search = mkName uniq "Bjø"
+    searchAndAssert uid _search 10 (select _search names)
+
+    -- Both Bjørn and Bjorn should be returned
+    let _search = mkName uniq "Bj"
+    searchAndAssert uid _search 10 (select _search names)
+
+    -- CHRISTMAS should be returned
+    let _search = mkName uniq "chris"
+    searchAndAssert uid _search 10 (select _search names)
+  where
+    getPage uid start size = do
+        rs <- listServiceProfilesByPrefix brig uid start size <!!
+            const 200 === statusCode
+        let Just ls = serviceProfilePageResults <$> decodeBody rs
+        return ls
+
+    searchAndAssert uid qry size expects = do
+        _ls <- getPage uid qry size
+        let _names = map serviceProfileName _ls
+        liftIO $ assertEqual ("str: " ++ show qry) expects _names
+        liftIO $ assertEqual ("size: " ++ show size) (length expects) (length _ls)
+
+    -- 20 names, all using the given unique prefix
+    mkUniqueNames uniq =
+        [ mkName uniq "Alpha"
+        , mkName uniq "Beta"
+        , mkName uniq "Bjorn"
+        , mkName uniq "Bjørn"
+        , mkName uniq "CHRISTMAS"
+        , mkName uniq "Delta"
+        , mkName uniq "Epsilon"
+        , mkName uniq "Freer"
+        , mkName uniq "Gamma"
+        , mkName uniq "Gramma"
+        , mkName uniq "Hera"
+        , mkName uniq "Io"
+        , mkName uniq "Jojo"
+        , mkName uniq "Kuba"
+        , mkName uniq "Lawn"
+        , mkName uniq "Mango"
+        , mkName uniq "North"
+        , mkName uniq "Yak"
+        , mkName uniq "Zeta"
+        , mkName uniq "Zulu"
+        ]
+
+    mkName uniq n = Name (uniq <> n)
+
+    mkNew new n = new { newServiceName = n }
 
     select (Name prefix) nm = filter (isPrefixOf (toLower prefix) . toLower . fromName) nm
 
@@ -689,6 +787,30 @@ deleteService brig pid sid pw = delete $ brig
     . header "Z-Provider" (toByteString' pid)
     . contentJson
     . body (RequestBodyLBS (encode (DeleteService pw)))
+
+listServiceProfilesRandom
+    :: Brig
+    -> UserId
+    -> Int
+    -> Http ResponseLBS
+listServiceProfilesRandom brig uid size = get $ brig
+    . path "/services"
+    . queryItem "size" (toByteString' size)
+    . header "Z-Type" "access"
+    . header "Z-User" (toByteString' uid)
+
+listServiceProfilesByPrefix
+    :: Brig
+    -> UserId
+    -> Name
+    -> Int
+    -> Http ResponseLBS
+listServiceProfilesByPrefix brig uid start size = get $ brig
+    . path "/services"
+    . queryItem "start" (toByteString' start)
+    . queryItem "size" (toByteString' size)
+    . header "Z-Type" "access"
+    . header "Z-User" (toByteString' uid)
 
 listServiceProfilesByTag
     :: Brig

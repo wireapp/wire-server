@@ -14,6 +14,7 @@ migration = Migration 47 "Create and populate prefix table" $
         , name text
         , service uuid
         , provider uuid
-        , primary key (prefix, name)
-        )
+        , primary key (prefix, name, service)
+        ) with clustering order by (name asc, service asc)
+          and compaction = {'class': 'LeveledCompactionStrategy'};
     |]

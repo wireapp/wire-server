@@ -193,7 +193,7 @@ routes = do
         .&> capture "pid"
         .&. capture "sid"
 
-    get "/services" (continue listServiceProfilesByTag) $
+    get "/services" (continue searchServiceProfiles) $
         accept "application" "json"
         .&> zauth ZAuthAccess
         .&> opt (query "tags")
@@ -470,6 +470,7 @@ deleteService (pid ::: sid ::: req) = do
     svc  <- DB.lookupService pid sid >>= maybeServiceNotFound
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
+    -- Delete prefix index here
     DB.deleteServiceTags pid sid name tags
     lift $ RPC.removeServiceConn pid sid
     DB.deleteService pid sid name
@@ -504,7 +505,7 @@ getProviderProfile pid = do
 
 listServiceProfiles :: ProviderId -> Handler Response
 listServiceProfiles pid = do
-    ss <- DB.listServiceProfiles pid
+    ss <- DB.listServiceProfilesByProvider pid
     return (json ss)
 
 getServiceProfile :: ProviderId ::: ServiceId -> Handler Response
@@ -512,15 +513,19 @@ getServiceProfile (pid ::: sid) = do
     s <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
     return (json s)
 
-listServiceProfilesByTag :: Maybe (QueryAnyTags 1 3) ::: Maybe Name ::: Range 10 100 Int32 -> Handler Response
-listServiceProfilesByTag (Nothing ::: (Just start) ::: size) = do
+searchServiceProfiles :: Maybe (QueryAnyTags 1 3) ::: Maybe Name ::: Range 10 100 Int32 -> Handler Response
+searchServiceProfiles (Nothing ::: Just start ::: size) = do
     ss <- DB.paginateServiceNames start (fromRange size) =<< setProviderSearchFilter <$> view settings
     return (json ss)
-listServiceProfilesByTag ((Just tags) ::: start ::: size) = do
+searchServiceProfiles (Just tags ::: start ::: size) = do
     ss <- DB.paginateServiceTags tags start (fromRange size) =<< setProviderSearchFilter <$> view settings
     return (json ss)
-listServiceProfilesByTag (Nothing ::: Nothing ::: _) = do
-    return empty
+searchServiceProfiles (Nothing ::: Nothing ::: size) = do
+    provider <- setProviderSearchFilter <$> view settings
+    -- TODO: It does not make sense to paginate this...
+    case provider of
+        Just p  -> listServiceProfiles p
+        Nothing -> DB.listServiceProfiles (fromRange size) >>= return . json
 
 getServiceTagList :: () -> Handler Response
 getServiceTagList _ = return (json (ServiceTagList allTags))

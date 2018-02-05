@@ -163,7 +163,7 @@ insertService pid name summary descr url token key fprint assets tags = do
         setConsistency Quorum
         setType BatchUnLogged
         addPrepQuery cqlService (pid, sid, name, summary, descr, url, [token], [key], [fprint], assets, tagSet, False)
-        addPrepQuery cqlPrefix (prefix, name, pid, sid)
+        addPrepQuery cqlPrefix (mkPrefix name, toLowerName name, pid, sid)
     return sid
   where
     cqlService :: PrepQuery W (ProviderId, ServiceId, Name, Text, Text, HttpsUrl, [ServiceToken],
@@ -174,11 +174,9 @@ insertService pid name summary descr url token key fprint assets tags = do
           \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
     cqlPrefix :: PrepQuery W (Text, Name, ProviderId, ServiceId) ()
-    cqlPrefix = "INSERT INTO service_prefix\
-                \ (prefix, name, provider, service)\
-                \ VALUES (?, ?, ?, ?)"
-
-    prefix = Text.take 1 $ fromName name
+    cqlPrefix = "INSERT INTO service_prefix \
+                \(prefix, name, provider, service) \
+                \VALUES (?, ?, ?, ?)"
 
 lookupService :: MonadClient m
     => ProviderId
@@ -236,13 +234,13 @@ updateService pid sid nameChange summary descr assets tags = retry x5 $ batch $ 
     cqlName = "UPDATE service SET name = ? WHERE provider = ? AND id = ?"
 
     cqlPrefixRm :: PrepQuery W (Text, Name) ()
-    cqlPrefixRm = "DELETE FROM service_prefix\
-                  \ WHERE prefix = ? AND name = ?"
+    cqlPrefixRm = "DELETE FROM service_prefix \
+                  \WHERE prefix = ? AND name = ?"
 
     cqlPrefix :: PrepQuery W (Text, Name, ProviderId, ServiceId) ()
-    cqlPrefix = "INSERT INTO service_prefix\
-                \ (prefix, name, provider, service)\
-                \ VALUES (?, ?, ?, ?)"
+    cqlPrefix = "INSERT INTO service_prefix \
+                \(prefix, name, provider, service) \
+                \VALUES (?, ?, ?, ?)"
 
     cqlSummary :: PrepQuery W (Text, ProviderId, ServiceId) ()
     cqlSummary = "UPDATE service SET summary = ? WHERE provider = ? AND id = ?"
@@ -265,14 +263,14 @@ deleteService pid sid name =  retry x5 $ batch $ do
     setConsistency Quorum
     setType BatchUnLogged
     addPrepQuery cqlService (pid, sid)
-    addPrepQuery cqlPrefixRm (mkPrefix name, name)
+    addPrepQuery cqlPrefixRm (mkPrefix name, Name (toLower (fromName name)))
   where
     cqlService :: PrepQuery W (ProviderId, ServiceId) ()
     cqlService = "DELETE FROM service WHERE provider = ? AND id = ?"
 
     cqlPrefixRm :: PrepQuery W (Text, Name) ()
-    cqlPrefixRm = "DELETE FROM service_prefix\
-                  \ WHERE prefix = ? AND name = ?"
+    cqlPrefixRm = "DELETE FROM service_prefix \
+                  \WHERE prefix = ? AND name = ?"
 
 --------------------------------------------------------------------------------
 -- Service Profiles
@@ -294,10 +292,10 @@ lookupServiceProfile p s = fmap (fmap mk) $
         in ServiceProfile s p name (fromMaybe mempty summary) descr assets tags' enabled
 
 -- | Note: Consistency = One
-listServiceProfiles :: MonadClient m
+listServiceProfilesByProvider :: MonadClient m
     => ProviderId
     -> m [ServiceProfile]
-listServiceProfiles p = fmap (map mk) $
+listServiceProfilesByProvider p = fmap (map mk) $
     retry x1 $ query cql $ params One (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId)
@@ -308,6 +306,21 @@ listServiceProfiles p = fmap (map mk) $
     mk (sid, name, summary, descr, assets, tags, enabled) =
         let tags' = Set.fromList (fromSet tags)
         in ServiceProfile sid p name (fromMaybe mempty summary) descr assets tags' enabled
+
+listServiceProfiles :: MonadClient m
+    => Int32
+    -> m [ServiceProfile]
+listServiceProfiles size = fmap (map mk) $
+    retry x1 $ query cql $ params One (Identity size)
+  where
+    cql :: PrepQuery R (Identity Int32)
+                       (ServiceId, ProviderId, Name, Maybe Text, Text, [Asset], Set ServiceTag, Bool)
+    cql = "SELECT id, provider, name, summary, descr, assets, tags, enabled \
+          \FROM service LIMIT ?"
+
+    mk (sid, pid, name, summary, descr, assets, tags, enabled) =
+        let tags' = Set.fromList (fromSet tags)
+        in ServiceProfile sid pid name (fromMaybe mempty summary) descr assets tags' enabled
 
 --------------------------------------------------------------------------------
 -- Service Connection Data
@@ -431,7 +444,8 @@ updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
     cqlInsert = "INSERT INTO service_tag (bucket, tag, name, service, provider) \
                 \VALUES (?, ?, ?, ?, ?)"
 
-type TagRow = (Name, ProviderId, ServiceId)
+-- Used both by service_tag and service_prefix
+type IndexRow = (Name, ProviderId, ServiceId)
 
 -- | Note: Consistency = One
 paginateServiceTags :: MonadClient m
@@ -443,35 +457,16 @@ paginateServiceTags :: MonadClient m
 paginateServiceTags tags start size providerFilter = liftClient $ do
     let size' = size + 1
     let tags' = unpackTags tags
-    p <- filterResults <$> queryAll start' size' tags'
+    p <- filterResults providerFilter start' <$> queryAll start' size' tags'
     r <- mapConcurrently resolveRow (result p)
     return $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
-    start' = Name (maybe "" (toLower . fromName) start)
-
-    filterResults :: Page TagRow -> Page TagRow
-    filterResults = maybe id filterbyProvider providerFilter . filterPrefix (fromName start')
-
-    filterbyProvider :: ProviderId -> Page TagRow -> Page TagRow
-    filterbyProvider pid p = do
-        let filtered = filter (\(_, provider, _) -> pid == provider) (result p)
-            -- check if we have filtered out any result
-            allValid = length filtered == length (result p)
-            more     = allValid && hasMore p
-         in p { hasMore = more, result = filtered }
-
-    filterPrefix :: Text -> Page TagRow -> Page TagRow
-    filterPrefix prefix p = do
-        let prefixed = filter (\(Name n, _, _) -> prefix `isPrefixOf` (toLower n)) (result p)
-            -- if they were all valid prefixes, there may be more in Cassandra
-            allValid = length prefixed == length (result p)
-            more     = allValid && hasMore p
-         in p { hasMore = more, result = prefixed }
+    start' = maybe (Name "") toLowerName start
 
     unpackTags :: QueryAnyTags 1 3 -> [QueryAllTags 1 3]
     unpackTags = Set.toList . fromRange . queryAnyTagsRange
 
-    queryAll :: Name -> Int32 -> [QueryAllTags 1 3] -> Client (Page TagRow)
+    queryAll :: Name -> Int32 -> [QueryAllTags 1 3] -> Client (Page IndexRow)
     queryAll _ _  [] = return emptyPage
     queryAll s l [t] = do
         p <- queryTags s l t
@@ -482,18 +477,13 @@ paginateServiceTags tags start size providerFilter = liftClient $ do
         let more = any hasMore ps || length rows > fromIntegral size
         return $! emptyPage { hasMore = more, result = trim size rows }
 
-    nextRow :: [[TagRow]] -> Maybe (TagRow, [[TagRow]])
+    nextRow :: [[IndexRow]] -> Maybe (IndexRow, [[IndexRow]])
     nextRow rs = case mapMaybe uncons rs of
         [] -> Nothing
         hs -> let next = fst $ minimumBy (compare `on` fst) hs
                   cons (r, rs') = if r == next then rs' else r:rs'
                   rest = map cons hs
               in Just (next, rest)
-
-    resolveRow :: MonadClient m => TagRow -> m (Maybe ServiceProfile)
-    resolveRow (_, pid, sid) = lookupServiceProfile pid sid
-
-    trim l = take (fromIntegral l)
 
     queryTags s l t =
         let t' = foldTags (queryAllTagsRange t)
@@ -506,11 +496,6 @@ paginateServiceTags tags start size providerFilter = liftClient $ do
 --------------------------------------------------------------------------------
 -- Prefixes
 
-mkPrefix :: Name -> Text
-mkPrefix = Text.toLower . Text.take 1 . fromName
-
-type PrefixRow = (Name, ProviderId, ServiceId)
-
 paginateServiceNames :: MonadClient m
     => Name
     -> Int32
@@ -518,32 +503,51 @@ paginateServiceNames :: MonadClient m
     -> m ServiceProfilePage
 paginateServiceNames start size providerFilter = liftClient $ do
     let size' = size + 1
-    p <- filterResults <$> queryPrefixes start' size'
+    p <- filterResults providerFilter start' <$> queryPrefixes start' size'
     r <- mapConcurrently resolveRow (result p)
     return $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
-    start' = Name $ (toLower . fromName) start
+    start' = toLowerName start
 
-    filterResults :: Page TagRow -> Page TagRow
-    filterResults = maybe id filterbyProvider providerFilter
+    queryPrefixes name len = do
+        p <- retry x1 $ paginate cql $ paramsP One (mkPrefix name, name) len
+        return $! p { result = trim size (result p) }
 
-    filterbyProvider :: ProviderId -> Page TagRow -> Page TagRow
-    filterbyProvider pid p = do
-        let filtered = filter (\(_, provider, _) -> pid == provider) (result p)
-            -- check if we have filtered out any result
-            allValid = length filtered == length (result p)
-            more     = allValid && hasMore p
-         in p { hasMore = more, result = filtered }
+    cql :: PrepQuery R (Text, Name) IndexRow
+    cql = "SELECT name, provider, service \
+          \FROM service_prefix \
+          \WHERE prefix = ? AND name >= ?"
 
-    resolveRow :: MonadClient m => TagRow -> m (Maybe ServiceProfile)
-    resolveRow (_, pid, sid) = lookupServiceProfile pid sid
+-- Pagination utilities
+filterResults :: Maybe ProviderId -> Name -> Page IndexRow -> Page IndexRow
+filterResults providerFilter start = maybe id filterbyProvider providerFilter . filterPrefix (fromName start)
 
-    --trim = take . fromIntegral
+filterbyProvider :: ProviderId -> Page IndexRow -> Page IndexRow
+filterbyProvider pid p = do
+    let filtered = filter (\(_, provider, _) -> pid == provider) (result p)
+        -- check if we have filtered out any result
+        allValid = length filtered == length (result p)
+        more     = allValid && hasMore p
+     in p { hasMore = more, result = filtered }
 
-    queryPrefixes name len = retry x1 $ paginate cql $ paramsP One (mkPrefix name, name) len
+filterPrefix :: Text -> Page IndexRow -> Page IndexRow
+filterPrefix prefix p = do
+    let prefixed = filter (\(Name n, _, _) -> prefix `isPrefixOf` (toLower n)) (result p)
+        -- if they were all valid prefixes, there may be more in Cassandra
+        allValid = length prefixed == length (result p)
+        more     = allValid && hasMore p
+     in p { hasMore = more, result = prefixed }
 
-    cql :: PrepQuery R (Text, Name) TagRow
-    cql = "SELECT name, provider, service\
-          \ FROM service_prefix\
-          \ WHERE prefix = ? AND name >= ?"
+resolveRow :: MonadClient m => IndexRow -> m (Maybe ServiceProfile)
+resolveRow (_, pid, sid) = lookupServiceProfile pid sid
 
+--------------------------------------------------------------------------------
+-- Utilities
+mkPrefix :: Name -> Text
+mkPrefix = Text.toLower . Text.take 1 . fromName
+
+toLowerName :: Name -> Name
+toLowerName = Name . toLower . fromName
+
+trim :: Int32 -> [a] -> [a]
+trim = take . fromIntegral
