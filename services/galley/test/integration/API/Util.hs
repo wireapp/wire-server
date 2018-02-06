@@ -29,6 +29,7 @@ import Data.Serialize (runPut)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V4
+import Data.Word
 import Galley.Types
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
@@ -63,6 +64,7 @@ data TestSetup = TestSetup
   , brig      :: Brig
   , cannon    :: Cannon
   , awsEnv    :: Maybe Aws.Env
+  , maxConvTeamSize :: Word16
   }
 
 -------------------------------------------------------------------------------

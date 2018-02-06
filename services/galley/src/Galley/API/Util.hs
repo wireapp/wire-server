@@ -13,10 +13,10 @@ import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Data.ByteString.Conversion
 import Data.Id
+import Data.List1 (List1)
 import Data.Foldable (find, for_, toList)
 import Data.Maybe (isJust)
 import Data.Misc (PlainTextPassword (..))
-import Data.Range
 import Data.Semigroup ((<>))
 import Data.Time
 import Galley.App
@@ -26,6 +26,7 @@ import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Types
 import Galley.Types.Teams
+import Galley.Validation
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate
@@ -83,7 +84,7 @@ acceptOne2One usr conv conn = case Data.convType conv of
             return conv
         else do
             now <- liftIO getCurrentTime
-            mm  <- snd <$> Data.addMembers now cid usr (rcast $ rsingleton usr)
+            mm  <- snd <$> addMembers now cid usr usr
             return $ conv { Data.convMembers = mems <> toList mm }
     ConnectConv -> case mems of
         [_,_] | usr `isMember` mems -> promote
@@ -92,7 +93,7 @@ acceptOne2One usr conv conn = case Data.convType conv of
             when (length mems > 2) $
                 throwM badConvState
             now <- liftIO getCurrentTime
-            (e, mm) <- Data.addMembers now cid usr (rcast $ rsingleton usr)
+            (e, mm) <- addMembers now cid usr usr
             conv'   <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
             let mems' = mems <> toList mm
             for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->
@@ -136,3 +137,7 @@ nonTeamMembers cm tm = filter (not . flip isTeamMember tm . memId) cm
 membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
 membersToRecipients Nothing  = map (userRecipient . view userId)
 membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
+
+addMembers :: UTCTime -> ConvId -> UserId -> UserId -> Galley (Galley.Types.Event, List1 Member)
+addMembers t conv orig other =
+    Data.addMembers t conv orig (singletonCheckedMember other)

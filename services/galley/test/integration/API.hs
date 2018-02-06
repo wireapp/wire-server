@@ -38,6 +38,7 @@ import qualified Data.Text                as T
 import qualified Test.Tasty.Cannon        as WS
 
 type TestSignature a = Galley -> Brig -> Cannon -> Http a
+type TestSignature' a = Galley -> Brig -> Cannon -> TestSetup -> Http a
 
 test :: IO TestSetup -> TestName -> (TestSignature a) -> TestTree
 test s n h = testCase n runTest
@@ -45,6 +46,13 @@ test s n h = testCase n runTest
     runTest = do
         setup <- s
         (void $ runHttpT (manager setup) (h (galley setup) (brig setup) (cannon setup)))
+
+test' :: IO TestSetup -> TestName -> (TestSignature' a) -> TestTree
+test' s n h = testCase n runTest
+  where
+    runTest = do
+        setup <- s
+        (void $ runHttpT (manager setup) (h (galley setup) (brig setup) (cannon setup) setup))
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Galley integration tests" [ mainTests, Teams.tests s ]
@@ -61,7 +69,7 @@ tests s = testGroup "Galley integration tests" [ mainTests, Teams.tests s ]
         , test s "fail to get >1000 conversation ids" getConvIdsFailMaxSize
         , test s "page through conversations" getConvsPagingOk
         , test s "fail to create conversation when not connected" postConvFailNotConnected
-        , test s "M:N conversation creation must have <129 members" postConvFailNumMembers
+        , test' s "M:N conversation creation must have <N members" postConvFailNumMembers
         , test s "create self conversation" postSelfConvOk
         , test s "create 1:1 conversation" postO2OConvOk
         , test s "fail to create 1:1 conversation with yourself" postConvO2OFailWithSelf
@@ -78,7 +86,7 @@ tests s = testGroup "Galley integration tests" [ mainTests, Teams.tests s ]
         , test s "add existing members" postMembersOk2
         , test s "add past members" postMembersOk3
         , test s "fail to add members when not connected" postMembersFail
-        , test s "fail to add too many members" postTooManyMembersFail
+        , test' s "fail to add too many members" postTooManyMembersFail
         , test s "remove members" deleteMembersOk
         , test s "fail to remove members from self conv." deleteMembersFailSelf
         , test s "fail to remove members from 1:1 conv." deleteMembersFailO2O
@@ -449,10 +457,11 @@ postConvFailNotConnected g b _ = do
         const 403 === statusCode
         const (Just "not-connected") === fmap label . decodeBody
 
-postConvFailNumMembers :: Galley -> Brig -> Cannon -> Http ()
-postConvFailNumMembers g b _ = do
+postConvFailNumMembers :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
+postConvFailNumMembers g b _ s = do
+    let n = fromIntegral (maxConvTeamSize s)
     alice <- randomUser b
-    bob:others <- replicateM 128 (randomUser b)
+    bob:others <- replicateM n (randomUser b)
     connectUsers b alice (list1 bob others)
     postConv g alice (bob:others) Nothing [] !!! do
         const 400 === statusCode
@@ -736,14 +745,15 @@ postMembersFail g b _ = do
     void $ connectUsers b chuck (singleton eve)
     postMembers g chuck (singleton eve) conv !!! const 204 === statusCode
 
-postTooManyMembersFail :: Galley -> Brig -> Cannon -> Http ()
-postTooManyMembersFail g b _ = do
+postTooManyMembersFail :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
+postTooManyMembersFail g b _ s = do
+    let n = fromIntegral (maxConvTeamSize s)
     alice <- randomUser b
     bob   <- randomUser b
     chuck <- randomUser b
     connectUsers b alice (list1 bob [chuck])
     conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") []
-    x:xs  <- randomUsers b 126
+    x:xs  <- randomUsers b (n - 2)
     postMembers g chuck (list1 x xs) conv !!! do
         const 403 === statusCode
         const (Just "too-many-members") === fmap label . decodeBody

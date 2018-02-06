@@ -16,7 +16,7 @@ module Galley.API.Update
     , joinConversation
 
       -- * Managing Members
-    , addMembers
+    , Galley.API.Update.addMembers
     , updateMember
     , removeMember
 
@@ -394,17 +394,16 @@ rmBot (zusr ::: zcon ::: req ::: _) = do
 -- Helpers
 
 addToConversation :: ([BotMember], [Member]) -> UserId -> ConnId -> [UserId] -> Data.Conversation -> Galley Response
-addToConversation (bots, others) usr conn users c =
-    if null users then
-        return $ empty & setStatus status204
-    else do
-        ensureGroupConv c
-        now     <- liftIO getCurrentTime
-        (e, mm) <- Data.addMembers now (Data.convId c) usr (unsafeRange users)
-        for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
-            push1 $ p & pushConn ?~ conn
-        void . fork $ void $ External.deliver (bots `zip` repeat e)
-        return $ json e & setStatus status200
+addToConversation _              _   _    [] _ = return $ empty & setStatus status204
+addToConversation (bots, others) usr conn xs c = do
+    ensureGroupConv c
+    now     <- liftIO getCurrentTime
+    mems    <- checkedMaxMemberAddSize xs
+    (e, mm) <- Data.addMembers now (Data.convId c) usr mems
+    for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
+        push1 $ p & pushConn ?~ conn
+    void . fork $ void $ External.deliver (bots `zip` repeat e)
+    return $ json e & setStatus status200
   where
     allMembers new = foldl' fn new others
       where
@@ -419,9 +418,11 @@ ensureGroupConv c = case Data.convType c of
     ConnectConv -> throwM invalidConnectOp
     _           -> return ()
 
-ensureMemberLimit :: MonadThrow m => [Member] -> [UserId] -> m ()
+ensureMemberLimit :: [Member] -> [UserId] -> Galley ()
 ensureMemberLimit old new = do
-    when (length old + length new > 128) $
+    o <- view options
+    let maxSize = fromIntegral (o^.optSettings.setMaxConvAndTeamSize)
+    when (length old + length new > maxSize) $
         throwM tooManyMembers
 
 notIsMember :: Data.Conversation -> UserId -> Bool
