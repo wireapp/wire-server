@@ -32,7 +32,9 @@ import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Web.Cookie (parseSetCookie, setCookieName)
 import Util
+import Util.Options.Common
 
+import qualified Brig.Options                as Opt
 import qualified Data.Text.Ascii             as Ascii
 import qualified Data.Text.Encoding          as T
 import qualified Data.UUID.V4                as UUID
@@ -41,8 +43,11 @@ import qualified Galley.Types.Teams          as Team
 import qualified Galley.Types.Teams.Intra    as Team
 import qualified Test.Tasty.Cannon           as WS
 
-tests :: Manager -> Brig -> Cannon -> Galley -> IO TestTree
-tests m b c g =
+newtype TeamSizeLimit = TeamSizeLimit Int
+
+tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> IO TestTree
+tests conf m b c g = do
+    tl <- optOrEnv (TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings) conf (TeamSizeLimit . read) "CONV_AND_TEAM_MAX_SIZE"
     return $ testGroup "team"
         [ testGroup "invitation"
             [ test m "post /teams/:tid/invitations - 201"                  $ testInvitationEmail b g
@@ -56,7 +61,7 @@ tests m b c g =
             , test m "post /register - 400 bad code"                       $ testInvitationInvalidCode b
             , test m "post /register - 400 no wireless"                    $ testInvitationCodeNoIdentity b
             , test m "post /register - 400 mutually exclusive"             $ testInvitationMutuallyExclusive b
-            , test m "post /register - 403 too many members"               $ testInvitationTooManyMembers b g
+            , test m "post /register - 403 too many members"               $ testInvitationTooManyMembers b g tl
             , test m "get /teams/:tid/invitations - 200 (paging)"          $ testInvitationPaging b g
             , test m "get /teams/:tid/invitations/info - 200"              $ testInvitationInfo b g
             , test m "get /teams/:tid/invitations/info - 400"              $ testInvitationInfoBadCode b
@@ -302,10 +307,10 @@ testInvitationMutuallyExclusive brig = do
             ]
         ))
 
-testInvitationTooManyMembers :: Brig -> Galley -> Http ()
-testInvitationTooManyMembers brig galley = do
+testInvitationTooManyMembers :: Brig -> Galley -> TeamSizeLimit -> Http ()
+testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
     (creator, tid) <- createUserWithTeam brig galley
-    uids    <- fmap toNewMember <$> replicateConcurrently 127 randomId
+    uids <- fmap toNewMember <$> replicateConcurrently (limit - 1) randomId
     mapM_ (mapConcurrently_ (addTeamMember galley tid)) $ chunksOf 16 uids
 
     em <- randomEmail

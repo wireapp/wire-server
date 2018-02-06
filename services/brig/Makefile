@@ -92,8 +92,11 @@ integration-%: db-migrate index-reset
 
 test-%:
 	stack install --fast --test --local-bin-path=dist
-	cp "$(shell stack path --dist-dir)/build/$(NAME)-integration/$(NAME)-integration" dist/
 	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
+
+test-fast:
+	stack install --fast --test --local-bin-path=dist
+	LOG_LEVEL=Info keiretsu --run '$(EXE_IT)' --env $(KEIRETSU_ENV)
 
 .PHONY: db
 db: db-reset

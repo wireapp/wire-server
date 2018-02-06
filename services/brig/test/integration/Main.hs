@@ -62,7 +62,7 @@ runTests iConf bConf = do
     userAuthApi <- UserAuth.tests bConf mg lg b
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
-    teamApis    <- Team.tests mg b c g
+    teamApis    <- Team.tests bConf mg b c g
     turnApi     <- TURN.tests mg b turnFile
 
     defaultMain $ testGroup "Brig API Integration"
