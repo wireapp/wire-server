@@ -408,14 +408,15 @@ updateService (pid ::: sid ::: req) = do
     let newDescr   = fromRange <$> updateServiceDescr upd
     let newAssets  = updateServiceAssets upd
     let newTags    = updateServiceTags upd
-    DB.updateService pid sid nameChange newSummary newDescr newAssets newTags
-
-    -- Update tag index
-    let tags  = unsafeRange (serviceTags svc)
-    let name' = fromMaybe name newName
-    let tags' = fromMaybe tags newTags
-    when (serviceEnabled svc) $
-        DB.updateServiceTags pid sid (name, rcast tags) (name', rcast tags')
+    -- Update service, tags/prefix index if the service is enabled
+    DB.updateService pid sid nameChange newSummary newDescr newAssets newTags (serviceEnabled svc)
+    
+    -- let tags  = unsafeRange (serviceTags svc)
+    -- let name' = fromMaybe name newName
+    -- let tags' = fromMaybe tags newTags
+    -- when (serviceEnabled svc) $ do
+    --     for_ nameChange $ \(old, new) -> DB.updateServicePrefix pid sid old new
+    --     DB.updateServiceTags pid sid (name, rcast tags) (name', rcast tags')
 
     return empty
 
@@ -453,9 +454,10 @@ updateServiceConn (pid ::: sid ::: req) = do
             svc <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
             let name = serviceProfileName svc
             let tags = unsafeRange (serviceProfileTags svc)
+            -- Update index, make it visible over search
             if sconEnabled scon
-                then DB.deleteServiceTags pid sid name tags
-                else DB.insertServiceTags pid sid name tags
+                then DB.deleteServiceIndexes pid sid name tags
+                else DB.insertServiceIndexes pid sid name tags
 
     -- TODO: Send informational email to provider.
 
@@ -470,8 +472,7 @@ deleteService (pid ::: sid ::: req) = do
     svc  <- DB.lookupService pid sid >>= maybeServiceNotFound
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
-    -- Delete prefix index here
-    DB.deleteServiceTags pid sid name tags
+    DB.deleteServiceIndexes pid sid name tags
     lift $ RPC.removeServiceConn pid sid
     DB.deleteService pid sid name
     return empty
@@ -488,7 +489,7 @@ deleteAccount (pid ::: req) = do
         let sid  = serviceId svc
         let tags = unsafeRange (serviceTags svc)
             name = serviceName svc
-        DB.deleteServiceTags pid sid (serviceName svc) tags
+        DB.deleteServiceIndexes pid sid (serviceName svc) tags
         lift $ RPC.removeServiceConn pid sid
         DB.deleteService pid sid name
     DB.deleteKey (mkEmailKey (providerEmail prov))
@@ -520,12 +521,8 @@ searchServiceProfiles (Nothing ::: Just start ::: size) = do
 searchServiceProfiles (Just tags ::: start ::: size) = do
     ss <- DB.paginateServiceTags tags start (fromRange size) =<< setProviderSearchFilter <$> view settings
     return (json ss)
-searchServiceProfiles (Nothing ::: Nothing ::: size) = do
-    provider <- setProviderSearchFilter <$> view settings
-    -- TODO: It does not make sense to paginate this...
-    case provider of
-        Just p  -> listServiceProfiles p
-        Nothing -> DB.listServiceProfiles (fromRange size) >>= return . json
+searchServiceProfiles (Nothing ::: Nothing ::: _) =
+    throwStd $ badRequest "At least `tags` or `start` must be provided."
 
 getServiceTagList :: () -> Handler Response
 getServiceTagList _ = return (json (ServiceTagList allTags))

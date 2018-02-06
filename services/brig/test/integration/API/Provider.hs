@@ -14,7 +14,6 @@ import Brig.Types.Provider.Tag
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout
 import Control.Lens ((^.))
-import Control.Concurrent.Async.Lifted.Safe (replicateConcurrently)
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
@@ -98,9 +97,8 @@ tests conf p db b c g = do
             , test p "add-get"                $ testAddGetService conf db b
             , test p "update"                 $ testUpdateService conf db b
             , test p "update-conn"            $ testUpdateServiceConn conf db b
-            , test p "search (random)"        $ testListRandomServicesNoQuery conf db b
-            , test p "search (with tag)"      $ testListServicesByTagAndPrefix conf db b
-            , test p "search (prefix only)"   $ testListServicesByPrefixOnly conf db b
+            , test p "xxx search (with tag)"   $ testListServicesByTagAndPrefix conf db b
+            , test p "xxy search (prefix only)"$ testListServicesByPrefixOnly conf db b
             , test p "delete"                 $ testDeleteService conf db b
             ]
         , testGroup "bot"
@@ -331,22 +329,6 @@ testUpdateServiceConn config db brig = do
         assertEqual "keys" newKeys (fmap serviceKeyPEM (serviceKeys _svc))
         assertEqual "token" newTokens (serviceTokens _svc)
         assertBool  "enabled" (serviceEnabled _svc)
-
-testListRandomServicesNoQuery :: Maybe Config -> DB.ClientState -> Brig -> Http ()
-testListRandomServicesNoQuery config db brig = do
-    let n = 30
-    prvs <- fmap providerId <$> replicateConcurrently n (randomProvider db brig)
-    new  <- defNewService config
-    svcs <- fmap serviceId <$> mapM (\pid -> addGetService brig pid new) prvs
-    mapM_ (\(pid, sid) -> enableService brig pid sid) (zip prvs svcs)
-    -- Ensure we get at least `n` services
-    searchAndAssert n =<< randomId
-  where
-    searchAndAssert size uid = do
-        rs <- listServiceProfilesRandom brig uid size <!!
-            const 200 === statusCode
-        let Just ls = decodeBody rs :: Maybe [ServiceProfile]
-        liftIO $ assertEqual ("size: " ++ show size) size (length ls)
 
 testListServicesByTagAndPrefix :: Maybe Config -> DB.ClientState -> Brig -> Http ()
 testListServicesByTagAndPrefix config db brig = do
@@ -787,17 +769,6 @@ deleteService brig pid sid pw = delete $ brig
     . header "Z-Provider" (toByteString' pid)
     . contentJson
     . body (RequestBodyLBS (encode (DeleteService pw)))
-
-listServiceProfilesRandom
-    :: Brig
-    -> UserId
-    -> Int
-    -> Http ResponseLBS
-listServiceProfilesRandom brig uid size = get $ brig
-    . path "/services"
-    . queryItem "size" (toByteString' size)
-    . header "Z-Type" "access"
-    . header "Z-User" (toByteString' uid)
 
 listServiceProfilesByPrefix
     :: Brig
