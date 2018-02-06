@@ -4,18 +4,18 @@
 {-# LANGUAGE TypeFamilies      #-}
 
 module Galley.Validation 
-       ( rangeChecked
-       , rangeCheckedMaybe
+   ( rangeChecked
+   , rangeCheckedMaybe
 
-       , fromConvTeamSize
-       , fromMemberSize
+   , fromConvTeamSize
+   , fromMemberSize
 
-       , ConvAndTeamSizeChecked
-       , ConvMemberAddSizeChecked
+   , ConvAndTeamSizeChecked
+   , ConvMemberAddSizeChecked
 
-       , checkedConvAndTeamSize
-       , checkedMemberAddSize
-       ) where
+   , checkedConvAndTeamSize
+   , checkedMemberAddSize
+   ) where
 
 import Control.Lens
 import Control.Monad.Catch

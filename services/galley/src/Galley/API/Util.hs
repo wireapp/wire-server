@@ -13,7 +13,6 @@ import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Data.ByteString.Conversion
 import Data.Id
-import Data.List1 (List1)
 import Data.Foldable (find, for_, toList)
 import Data.Maybe (isJust)
 import Data.Misc (PlainTextPassword (..))
@@ -26,7 +25,6 @@ import Galley.Intra.Push
 import Galley.Intra.User
 import Galley.Types
 import Galley.Types.Teams
-import Galley.Validation
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate
