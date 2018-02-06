@@ -13,6 +13,7 @@ module Data.Range
     , checked
     , checkedEither
     , checkedEitherMsg
+    , errorMsg
     , unsafeRange
     , fromRange
     , rcast

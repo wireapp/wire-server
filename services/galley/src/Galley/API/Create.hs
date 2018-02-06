@@ -60,13 +60,13 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
             else do
                 void $ permissionCheck zusr AddConversationMember mems
                 uu <- checkedConvAndTeamSize (newConvUsers body)
-                ensureConnected zusr (notTeamMember (fromMaxConvTeamSize uu) mems)
+                ensureConnected zusr (notTeamMember (fromConvTeamSize uu) mems)
                 pure uu
         conv <- Data.createConversation zusr name (access body) uids (newConvTeam body)
         now  <- liftIO getCurrentTime
         let d = Teams.EdConvCreate (Data.convId conv)
         let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
-        let notInConv = Set.fromList (map (view userId) mems) \\ Set.fromList (zusr : fromMaxConvTeamSize uids)
+        let notInConv = Set.fromList (map (view userId) mems) \\ Set.fromList (zusr : fromConvTeamSize uids)
         for_ (newPush zusr (TeamEvent e) (map userRecipient (Set.toList notInConv))) push1
         notifyCreatedConversation (Just now) zusr (Just zcon) conv
         conversationResponse status201 zusr conv
@@ -74,7 +74,7 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
     createRegularConv body = do
         name <- rangeCheckedMaybe (newConvName body)
         uids <- checkedConvAndTeamSize (newConvUsers body)
-        ensureConnected zusr (fromMaxConvTeamSize uids)
+        ensureConnected zusr (fromConvTeamSize uids)
         c <- Data.createConversation zusr name (access body) uids (newConvTeam body)
         notifyCreatedConversation Nothing zusr (Just zcon) c
         conversationResponse status201 zusr c
@@ -140,7 +140,7 @@ createConnectConversation (usr ::: conn ::: req ::: _) = do
             | usr `isMember` mems -> connect n j conv
             | otherwise           -> do
                 now <- liftIO getCurrentTime
-                mm  <- snd <$> addMembers now (Data.convId conv) usr usr
+                mm  <- snd <$> Data.addMember now (Data.convId conv) usr
                 let conv' = conv {
                     Data.convMembers = Data.convMembers conv <> toList mm
                 }

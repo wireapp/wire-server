@@ -449,10 +449,10 @@ addTeamMemberInternal tid origin originConn newMem mems = do
         throwM tooManyTeamMembers
     let new = newMem^.ntmNewTeamMember
     Data.addTeamMember tid new
-    cc <- filter (view managedConversation) <$> Data.teamConversations tid
-    for_ cc $ \c ->
-        Data.addMember (c^.conversationId) (new^.userId)
+    cc  <- filter (view managedConversation) <$> Data.teamConversations tid
     now <- liftIO getCurrentTime
+    for_ cc $ \c ->
+        Data.addMember now (c^.conversationId) (new^.userId)
     let e = newEvent MemberJoin tid now & eventData .~ Just (EdMemberJoin (new^.userId))
     push1 $ newPush1 (new^.userId) (TeamEvent e) (r origin new) & pushConn .~ originConn
     pure empty

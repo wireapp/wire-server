@@ -322,7 +322,7 @@ conversationIdsOf usr (fromList . fromRange -> cids) =
 createConversation :: UserId
                    -> Maybe (Range 1 256 Text)
                    -> List1 Access
-                   -> MaxConvAndTeamSizeChecked [UserId]
+                   -> ConvAndTeamSizeChecked [UserId]
                    -> Maybe ConvTeamInfo
                    -> Galley Conversation
 createConversation usr name acc others tinfo = do
@@ -335,23 +335,24 @@ createConversation usr name acc others tinfo = do
             setConsistency Quorum
             addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), fromRange <$> name, Just (cnvTeamId ti))
             addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
-    mems <- snd <$> addMembers now conv usr (toMaxMemberAddSizeChecked usr others)
+    mems <- snd <$> addMembersUnchecked now conv usr (list1 usr $ fromConvTeamSize others)
     return $ newConv conv RegularConv usr (toList mems) acc name (cnvTeamId <$> tinfo)
 
-createSelfConversation :: UserId -> Maybe (Range 1 256 Text) -> Galley Conversation
+createSelfConversation :: MonadClient m => UserId -> Maybe (Range 1 256 Text) -> m Conversation
 createSelfConversation usr name = do
     let conv = selfConv usr
     now <- liftIO getCurrentTime
     retry x5 $
         write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, fromRange <$> name, Nothing))
-    mems <- snd <$> addMembers now conv usr (singletonCheckedMember usr)
+    mems <- snd <$> addMembersUnchecked now conv usr (singleton usr)
     return $ newConv conv SelfConv usr (toList mems) (singleton PrivateAccess) name Nothing
 
-createConnectConversation :: U.UUID U.V4
+createConnectConversation :: MonadClient m
+                          => U.UUID U.V4
                           -> U.UUID U.V4
                           -> Maybe (Range 1 256 Text)
                           -> Connect
-                          -> Galley (Conversation, Event)
+                          -> m (Conversation, Event)
 createConnectConversation a b name conn = do
     let conv = one2OneConvId a b
         a'   = Id . U.unpack $ a
@@ -360,7 +361,7 @@ createConnectConversation a b name conn = do
         write Cql.insertConv (params Quorum (conv, ConnectConv, a', privateOnly, fromRange <$> name, Nothing))
     -- We add only one member, second one gets added later,
     -- when the other user accepts the connection request.
-    mems <- snd <$> addMembers now conv a' (singletonCheckedMember a')
+    mems <- snd <$> addMembersUnchecked now conv a' (singleton a')
     let e = Event ConvConnect conv a' now (Just $ EdConnect conn)
     return (newConv conv ConnectConv a' (toList mems) (singleton PrivateAccess) name Nothing, e)
 
@@ -381,8 +382,7 @@ createOne2OneConversation a b name ti = do
             setConsistency Quorum
             addPrepQuery Cql.insertConv (conv, One2OneConv, a', privateOnly, fromRange <$> name, Just tid)
             addPrepQuery Cql.insertTeamConv (tid, conv, False)
-    us   <- checkedMaxMemberAddSize (a' : [b'])
-    mems <- snd <$> addMembers now conv a' us
+    mems <- snd <$> addMembersUnchecked now conv a' (list1 a' [b'])
     return $ newConv conv One2OneConv a' (toList mems) (singleton PrivateAccess) name ti
 
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
@@ -456,17 +456,14 @@ memberLists convs = do
 members :: MonadClient m => ConvId -> m [Member]
 members conv = join <$> memberLists [conv]
 
-addMember :: MonadClient m => ConvId -> UserId -> m ()
-addMember c u =
-    retry x5 $ batch $ do
-        setType BatchLogged
-        setConsistency Quorum
-        addPrepQuery Cql.insertUserConv (u, c)
-        addPrepQuery Cql.insertMember   (c, u, Nothing, Nothing)
+addMember :: MonadClient m => UTCTime -> ConvId -> UserId -> m (Event, List1 Member)
+addMember t c u = addMembersUnchecked t c u (singleton u)
 
-addMembers :: MonadClient m => UTCTime -> ConvId -> UserId -> MaxMemberAddSizeChecked (List1 UserId) -> m (Event, List1 Member)
-addMembers t conv orig us = do
-    let usrs = fromMaxMember us
+addMembers :: MonadClient m => UTCTime -> ConvId -> UserId -> ConvMemberAddSizeChecked (List1 UserId) -> m (Event, List1 Member)
+addMembers t c u ms = addMembersUnchecked t c u (fromMemberSize ms)
+
+addMembersUnchecked :: MonadClient m => UTCTime -> ConvId -> UserId -> List1 UserId -> m (Event, List1 Member)
+addMembersUnchecked t conv orig usrs = do
     retry x5 $ batch $ do
         setType BatchLogged
         setConsistency Quorum

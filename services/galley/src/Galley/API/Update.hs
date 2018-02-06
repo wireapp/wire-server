@@ -126,31 +126,31 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
         Data.deleteConversation cid
         throwM convNotFound
     let mems = botsAndUsers (Data.convMembers conv)
-    to_add <- rangeChecked (toList $ invUsers body) :: Galley (Range 1 128 [UserId])
-    let new_users = filter (notIsMember conv) (fromRange to_add)
+    toAdd <- rangeChecked (toList $ invUsers body) :: Galley (Range 1 128 [UserId])
+    let newUsers = filter (notIsMember conv) (fromRange toAdd)
+    convChecks conv newUsers
     case Data.convTeam conv of
-        Nothing -> regularConvChecks conv (snd mems) to_add new_users
-        Just ti -> teamConvChecks conv ti to_add new_users
-    addToConversation mems zusr zcon new_users conv
+        Nothing -> regularConvChecks (snd mems) newUsers
+        Just ti -> teamConvChecks ti newUsers
+    addToConversation mems zusr zcon newUsers conv
   where
-    regularConvChecks conv mems to_add new_users = do
+    regularConvChecks mems newUsers = do
         unless (zusr `isMember` mems) $
             throwM convNotFound
-        unless (InviteAccess `elem` Data.convAccess conv) $
-            throwM accessDenied
-        ensureMemberLimit (toList $ Data.convMembers conv) new_users
-        ensureConnected zusr (fromRange to_add)
+        ensureConnected zusr newUsers
 
-    teamConvChecks conv tid to_add new_users = do
-        unless (InviteAccess `elem` Data.convAccess conv) $
-            throwM accessDenied
+    teamConvChecks tid newUsers = do
         tms <- Data.teamMembers tid
         void $ permissionCheck zusr AddConversationMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged
-        ensureMemberLimit (toList $ Data.convMembers conv) new_users
-        ensureConnected zusr (notTeamMember (fromRange to_add) tms)
+        ensureConnected zusr (notTeamMember newUsers tms)
+
+    convChecks conv newUsers = do
+        ensureMemberLimit (toList $ Data.convMembers conv) newUsers
+        unless (InviteAccess `elem` Data.convAccess conv) $
+            throwM accessDenied
 
 updateMember :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateMember (zusr ::: zcon ::: cid ::: req ::: _) = do
@@ -397,8 +397,8 @@ addToConversation :: ([BotMember], [Member]) -> UserId -> ConnId -> [UserId] -> 
 addToConversation _              _   _    [] _ = return $ empty & setStatus status204
 addToConversation (bots, others) usr conn xs c = do
     ensureGroupConv c
+    mems    <- checkedMemberAddSize xs
     now     <- liftIO getCurrentTime
-    mems    <- checkedMaxMemberAddSize xs
     (e, mm) <- Data.addMembers now (Data.convId c) usr mems
     for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
         push1 $ p & pushConn ?~ conn

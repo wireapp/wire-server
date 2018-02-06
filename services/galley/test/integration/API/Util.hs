@@ -59,11 +59,11 @@ type Brig        = Request -> Request
 type ResponseLBS = Response (Maybe Lazy.ByteString)
 
 data TestSetup = TestSetup
-  { manager   :: Manager
-  , galley    :: Galley
-  , brig      :: Brig
-  , cannon    :: Cannon
-  , awsEnv    :: Maybe Aws.Env
+  { manager         :: Manager
+  , galley          :: Galley
+  , brig            :: Brig
+  , cannon          :: Cannon
+  , awsEnv          :: Maybe Aws.Env
   , maxConvTeamSize :: Word16
   }
 
