@@ -86,4 +86,4 @@ optSettings:
     stdDev: 5
     retryAfter: 1
   setDefaultLocale: en
-  setMaxTeamSize: 128
+  setMaxConvAndTeamSize: 128

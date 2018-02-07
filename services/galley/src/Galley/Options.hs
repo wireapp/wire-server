@@ -8,15 +8,16 @@ import Control.Lens hiding ((.=))
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Text (Text)
 import Data.Monoid
+import Data.Word (Word16)
 import GHC.Generics
 import Options.Applicative
 import Util.Options
 import Util.Options.Common
 
 data Settings = Settings
-    { _setHttpPoolSize :: !Int
-    , _setMaxTeamSize  :: !Int  -- NOTE: This must be in sync with brig
-    , _setIntraListing :: !Bool -- call Brig for device listing
+    { _setHttpPoolSize       :: !Int
+    , _setMaxConvAndTeamSize :: !Word16 -- NOTE: This must be in sync with brig
+    , _setIntraListing       :: !Bool   -- call Brig for device listing
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
@@ -105,10 +106,10 @@ optsParser = Opts <$>
                 <> value 128)
         <*>
             (option auto $
-                long "team-max-size"
+                long "conv-team-max-size"
                 <> metavar "INT"
                 <> showDefault
-                <> help "Max. # of members in a team."
+                <> help "Max. # of members in a conversation/team."
                 <> value 128)
         <*>
             (switch $

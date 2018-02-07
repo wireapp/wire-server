@@ -84,10 +84,12 @@ main = withOpenSSL $ runTests go
         -- unset this env variable in galley's config to disable testing SQS team events
         q <- join <$> optOrEnvSafe queueName gConf (Just . pack) "GALLEY_SQS_TEAM_EVENTS"
         e <- join <$> optOrEnvSafe endpoint gConf (fromByteString . BS.pack) "GALLEY_SQS_ENDPOINT"
-        Util.TestSetup m g b c <$> initAwsEnv e q
+        convTeamMaxSize <- optOrEnv maxSize gConf read "GALLEY_CONV_TEAM_MAX_SIZE"
+        Util.TestSetup m g b c <$> initAwsEnv e q <*> pure convTeamMaxSize
 
     queueName = fmap (view awsQueueName) . view optJournal
     endpoint = fmap (view awsEndpoint) . view optJournal
+    maxSize = view (optSettings.setMaxConvAndTeamSize)
 
     initAwsEnv (Just e) (Just q) = Just <$> SQS.mkAWSEnv (JournalOpts q e)
     initAwsEnv _ _               = return Nothing
@@ -99,5 +101,5 @@ main = withOpenSSL $ runTests go
 -- similar to optOrEnv, except return None if an environment variable is not defined
 optOrEnvSafe :: (a -> b) -> Maybe a -> (String -> b) -> String -> IO (Maybe b)
 optOrEnvSafe getter conf reader var = case conf of
-    Nothing -> fmap reader <$>Posix.getEnv var
-    Just c -> pure $ Just (getter c)
+    Nothing -> fmap reader <$> Posix.getEnv var
+    Just c  -> pure $ Just (getter c)

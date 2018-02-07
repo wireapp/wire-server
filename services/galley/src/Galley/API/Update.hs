@@ -16,7 +16,7 @@ module Galley.API.Update
     , joinConversation
 
       -- * Managing Members
-    , addMembers
+    , Galley.API.Update.addMembers
     , updateMember
     , removeMember
 
@@ -46,7 +46,6 @@ import Data.Foldable
 import Data.Id
 import Data.List1 (singleton)
 import Data.Maybe (fromMaybe, catMaybes)
-import Data.Range hiding ((<|))
 import Data.Text (Text)
 import Data.Time
 import Galley.App
@@ -126,31 +125,31 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
         Data.deleteConversation cid
         throwM convNotFound
     let mems = botsAndUsers (Data.convMembers conv)
-    to_add <- rangeChecked (toList $ invUsers body) :: Galley (Range 1 128 [UserId])
-    let new_users = filter (notIsMember conv) (fromRange to_add)
+    toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers body)
+    let newUsers = filter (notIsMember conv) (toList toAdd)
+    convChecks conv newUsers
     case Data.convTeam conv of
-        Nothing -> regularConvChecks conv (snd mems) to_add new_users
-        Just ti -> teamConvChecks conv ti to_add new_users
-    addToConversation mems zusr zcon new_users conv
+        Nothing -> regularConvChecks (snd mems) newUsers
+        Just ti -> teamConvChecks ti newUsers
+    addToConversation mems zusr zcon newUsers conv
   where
-    regularConvChecks conv mems to_add new_users = do
+    regularConvChecks mems newUsers = do
         unless (zusr `isMember` mems) $
             throwM convNotFound
-        unless (InviteAccess `elem` Data.convAccess conv) $
-            throwM accessDenied
-        ensureMemberLimit (toList $ Data.convMembers conv) new_users
-        ensureConnected zusr (fromRange to_add)
+        ensureConnected zusr newUsers
 
-    teamConvChecks conv tid to_add new_users = do
-        unless (InviteAccess `elem` Data.convAccess conv) $
-            throwM accessDenied
+    teamConvChecks tid newUsers = do
         tms <- Data.teamMembers tid
         void $ permissionCheck zusr AddConversationMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged
-        ensureMemberLimit (toList $ Data.convMembers conv) new_users
-        ensureConnected zusr (notTeamMember (fromRange to_add) tms)
+        ensureConnected zusr (notTeamMember newUsers tms)
+
+    convChecks conv newUsers = do
+        ensureMemberLimit (toList $ Data.convMembers conv) newUsers
+        unless (InviteAccess `elem` Data.convAccess conv) $
+            throwM accessDenied
 
 updateMember :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateMember (zusr ::: zcon ::: cid ::: req ::: _) = do
@@ -394,17 +393,16 @@ rmBot (zusr ::: zcon ::: req ::: _) = do
 -- Helpers
 
 addToConversation :: ([BotMember], [Member]) -> UserId -> ConnId -> [UserId] -> Data.Conversation -> Galley Response
-addToConversation (bots, others) usr conn users c =
-    if null users then
-        return $ empty & setStatus status204
-    else do
-        ensureGroupConv c
-        now     <- liftIO getCurrentTime
-        (e, mm) <- Data.addMembers now (Data.convId c) usr (unsafeRange users)
-        for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
-            push1 $ p & pushConn ?~ conn
-        void . fork $ void $ External.deliver (bots `zip` repeat e)
-        return $ json e & setStatus status200
+addToConversation _              _   _    [] _ = return $ empty & setStatus status204
+addToConversation (bots, others) usr conn xs c = do
+    ensureGroupConv c
+    mems    <- checkedMemberAddSize xs
+    now     <- liftIO getCurrentTime
+    (e, mm) <- Data.addMembers now (Data.convId c) usr mems
+    for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
+        push1 $ p & pushConn ?~ conn
+    void . fork $ void $ External.deliver (bots `zip` repeat e)
+    return $ json e & setStatus status200
   where
     allMembers new = foldl' fn new others
       where
@@ -419,9 +417,11 @@ ensureGroupConv c = case Data.convType c of
     ConnectConv -> throwM invalidConnectOp
     _           -> return ()
 
-ensureMemberLimit :: MonadThrow m => [Member] -> [UserId] -> m ()
+ensureMemberLimit :: [Member] -> [UserId] -> Galley ()
 ensureMemberLimit old new = do
-    when (length old + length new > 128) $
+    o <- view options
+    let maxSize = fromIntegral (o^.optSettings.setMaxConvAndTeamSize)
+    when (length old + length new > maxSize) $
         throwM tooManyMembers
 
 notIsMember :: Data.Conversation -> UserId -> Bool

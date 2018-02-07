@@ -114,6 +114,7 @@ exec chpst -u $USER \
     --elasticsearch-user-index=${BRIG_ELASTICSEARCH_USER_INDEX?'unset'} \
     --turn-servers=${BRIG_TURN_SERVERS?'unset'} \
     --turn-secret=${BRIG_TURN_SECRET?'unset'} \
+    --conv-team-max-size=${BRIG_CONV_TEAM_MAX_SIZE:-128} \
     ${TURN_TOKEN_LIFETIME} \
     ${TURN_CONFIG_TTL} \
     ${AWS_ACCESS_KEY_ID} \

@@ -44,6 +44,9 @@ invalidUUID4 = Error status400 "client-error" "Invalid UUID v4 format"
 unknownClient :: Error
 unknownClient = Error status403 "unknown-client" "Sending client not known"
 
+invalidRange :: Text -> Error
+invalidRange = Error status400 "client-error"
+
 operationDenied :: Perm -> Error
 operationDenied p = Error
     status403
