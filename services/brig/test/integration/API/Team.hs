@@ -27,6 +27,7 @@ import Data.List.Extra (chunksOf)
 import Data.Maybe
 import Data.Monoid ((<>))
 import Data.Text (Text)
+import Data.Word (Word16)
 import Network.HTTP.Client             (Manager)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
@@ -43,11 +44,11 @@ import qualified Galley.Types.Teams          as Team
 import qualified Galley.Types.Teams.Intra    as Team
 import qualified Test.Tasty.Cannon           as WS
 
-newtype TeamSizeLimit = TeamSizeLimit Int
+newtype TeamSizeLimit = TeamSizeLimit Word16
 
 tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> IO TestTree
 tests conf m b c g = do
-    tl <- optOrEnv (TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings) conf (TeamSizeLimit . read) "CONV_AND_TEAM_MAX_SIZE"
+    tl <- optOrEnv (TeamSizeLimit . Opt.setMaxConvAndTeamSize . Opt.optSettings) conf (TeamSizeLimit . read) "CONV_AND_TEAM_MAX_SIZE"
     return $ testGroup "team"
         [ testGroup "invitation"
             [ test m "post /teams/:tid/invitations - 201"                  $ testInvitationEmail b g
@@ -310,7 +311,7 @@ testInvitationMutuallyExclusive brig = do
 testInvitationTooManyMembers :: Brig -> Galley -> TeamSizeLimit -> Http ()
 testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
     (creator, tid) <- createUserWithTeam brig galley
-    uids <- fmap toNewMember <$> replicateConcurrently (limit - 1) randomId
+    uids <- fmap toNewMember <$> replicateConcurrently (fromIntegral limit - 1) randomId
     mapM_ (mapConcurrently_ (addTeamMember galley tid)) $ chunksOf 16 uids
 
     em <- randomEmail

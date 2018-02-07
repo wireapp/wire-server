@@ -21,7 +21,7 @@ import Data.Scientific (toBoundedInteger)
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (DiffTime, secondsToDiffTime)
-import Data.Word (Word32)
+import Data.Word (Word16, Word32)
 import Data.Yaml (FromJSON(..))
 import GHC.Generics
 import Options.Applicative
@@ -167,7 +167,7 @@ data Settings = Settings
     , setUserCookieLimit       :: !Int
     , setUserCookieThrottle    :: !CookieThrottle
     , setDefaultLocale         :: !Locale
-    , setMaxTeamSize           :: !Int -- NOTE: This must be in sync with galley
+    , setMaxConvAndTeamSize    :: !Word16 -- NOTE: This must be in sync with galley
     , setProviderSearchFilter  :: !(Maybe ProviderId)
     -- ^ Temporary optional provider ID to use for filtering services during search
     } deriving (Show, Generic)
@@ -386,8 +386,8 @@ settingsParser =
      long "default-locale" <> metavar "STRING" <> value "en" <> showDefault <>
      help "Default locale to use (e.g. when selecting templates)") <*>
     (option auto $
-     long "team-max-size" <> metavar "INT" <> value 128 <> showDefault <>
-     help "Max. # of members in a team.") <*>
+     long "conv-team-max-size" <> metavar "INT" <> value 128 <> showDefault <>
+     help "Max. # of members in a team/conversation.") <*>
     (optional $ option providerIdOption $
      long "provider-id-search-filter" <> metavar "STRING" <>
      help "Filter _ONLY_ services with the given provider id")

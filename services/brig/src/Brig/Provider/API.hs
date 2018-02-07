@@ -532,7 +532,8 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let mems = cnvMembers cnv
     unless (cnvType cnv == RegularConv) $
         throwStd invalidConv
-    unless (length (cmOthers mems) < 127) $
+    maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+    unless (length (cmOthers mems) < maxSize - 1) $
         throwStd tooManyMembers
     for_ (cnvTeam cnv) $ ensureNotManagedConv
 

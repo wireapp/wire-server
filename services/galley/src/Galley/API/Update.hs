@@ -46,7 +46,6 @@ import Data.Foldable
 import Data.Id
 import Data.List1 (singleton)
 import Data.Maybe (fromMaybe, catMaybes)
-import Data.Range hiding ((<|))
 import Data.Text (Text)
 import Data.Time
 import Galley.App
@@ -126,8 +125,8 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
         Data.deleteConversation cid
         throwM convNotFound
     let mems = botsAndUsers (Data.convMembers conv)
-    toAdd <- rangeChecked (toList $ invUsers body) :: Galley (Range 1 128 [UserId])
-    let newUsers = filter (notIsMember conv) (fromRange toAdd)
+    toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers body)
+    let newUsers = filter (notIsMember conv) (toList toAdd)
     convChecks conv newUsers
     case Data.convTeam conv of
         Nothing -> regularConvChecks (snd mems) newUsers
