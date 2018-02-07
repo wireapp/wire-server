@@ -17,9 +17,7 @@ module Galley.Data.Types
 import Brig.Types.Code
 import Data.ByteString.Conversion
 import Control.Monad.IO.Class
-import Data.Aeson hiding (Value)
 import Data.Int (Int32)
-import Data.Json.Util
 import Data.Id
 import Data.Range
 import Data.List1
@@ -29,8 +27,6 @@ import Galley.Types (ConvType (..), Access, Member (..))
 import OpenSSL.Random (randBytes)
 import OpenSSL.EVP.Digest (getDigestByName, digestBS)
 
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.ByteString as BS
 

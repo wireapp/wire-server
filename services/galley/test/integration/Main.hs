@@ -84,7 +84,7 @@ main = withOpenSSL $ runTests go
         -- unset this env variable in galley's config to disable testing SQS team events
         q <- join <$> optOrEnvSafe queueName gConf (Just . pack) "GALLEY_SQS_TEAM_EVENTS"
         e <- join <$> optOrEnvSafe endpoint gConf (fromByteString . BS.pack) "GALLEY_SQS_ENDPOINT"
-        convTeamMaxSize <- optOrEnv maxSize gConf read "GALLEY_CONV_TEAM_MAX_SIZE"
+        convTeamMaxSize <- optOrEnv maxSize gConf read "CONV_AND_TEAM_MAX_SIZE"
         Util.TestSetup m g b c <$> initAwsEnv e q <*> pure convTeamMaxSize
 
     queueName = fmap (view awsQueueName) . view optJournal

@@ -17,7 +17,6 @@ import Data.Int
 import Data.Range()
 import Data.Text.Ascii()
 
-import qualified Brig.Types.Code                 as Code
 import qualified Data.Aeson                      as JSON
 import qualified Data.Aeson.Parser               as JSON
 import qualified Data.Attoparsec.ByteString.Lazy as P

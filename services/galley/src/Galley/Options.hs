@@ -5,7 +5,6 @@
 module Galley.Options where
 
 import Control.Lens hiding ((.=))
-import Data.ByteString (ByteString)
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Text (Text)
 import Data.Monoid
@@ -18,12 +17,9 @@ import Data.Maybe
 import Util.Options.Common
 import Data.Misc
 
-import qualified Data.ByteString.Char8 as C
-import qualified Data.Text as Text
-
 data Settings = Settings
     { _setHttpPoolSize          :: !Int
-    , _setMaxTeamSize           :: !Word16  -- NOTE: This must be in sync with brig
+    , _setMaxConvAndTeamSize    :: !Word16  -- NOTE: This must be in sync with brig
     , _setIntraListing          :: !Bool    -- call Brig for device listing
     , _setConversationCodeURI   :: !HttpsUrl
     } deriving (Show, Generic)

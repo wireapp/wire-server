@@ -17,7 +17,6 @@ import Galley.Types.Bot
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 
-import qualified Brig.Types.Code as Code
 import qualified Data.Set
 
 deriving instance Cql ServiceToken
