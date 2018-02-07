@@ -18,7 +18,8 @@ module Galley.Types
     , foldrOtrRecipients
     , OtrFilterMissing (..)
     , ConvTeamInfo     (..)
-    , Join             (..)
+    , ConversationCode (..)
+    , mkConversationCode
 
       -- * Events
     , Event            (..)
@@ -48,11 +49,14 @@ module Galley.Types
     ) where
 
 import Control.Monad
+import Control.Lens ((&), (.~))
 import Data.Aeson
 import Data.Aeson.Types (Parser)
+import Data.ByteString.Conversion
 import Data.Foldable (foldrM)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust)
+import Data.Misc
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
@@ -63,6 +67,7 @@ import Data.List1
 import Data.UUID (toASCIIBytes)
 import Galley.Types.Bot.Service (ServiceRef)
 import Gundeck.Types.Push (Priority)
+import URI.ByteString
 
 import qualified Data.Code           as Code
 import qualified Data.HashMap.Strict as HashMap
@@ -93,6 +98,7 @@ data Access
     | InviteAccess
     | LinkAccess
     | CodeAccess
+    | TeamAccess
     deriving (Eq, Ord, Show)
 
 data ConvMembers = ConvMembers
@@ -313,10 +319,22 @@ data TypingStatus
     | StoppedTyping
     deriving (Eq, Ord, Show)
 
-data Join = Join
+data ConversationCode = ConversationCode
     { conversationKey   :: !Code.Key
     , conversationCode  :: !Code.Value
+    , conversationLink  :: !HttpsUrl
     } deriving (Eq, Show)
+
+mkConversationCode :: Code.Key -> Code.Value -> HttpsUrl -> ConversationCode
+mkConversationCode k v (HttpsUrl prefix) = ConversationCode
+        { conversationKey = k
+        , conversationCode = v
+        , conversationLink = HttpsUrl link
+        }
+  where
+    -- TODO: discuss what the link should look like
+    q = [("key", toByteString' k), ("code", toByteString' v)]
+    link = prefix & (queryL . queryPairsL) .~ q
 
 -- Instances ----------------------------------------------------------------
 
@@ -327,6 +345,7 @@ instance ToJSON Access where
     toJSON InviteAccess  = String "invite"
     toJSON LinkAccess    = String "link"
     toJSON CodeAccess    = String "code"
+    toJSON TeamAccess    = String "team"
 
 instance FromJSON Access where
     parseJSON = withText "Access" $ \s ->
@@ -335,6 +354,7 @@ instance FromJSON Access where
             "invite"  -> return InviteAccess
             "link"    -> return LinkAccess
             "code"    -> return CodeAccess
+            "team"    -> return TeamAccess
             _         -> fail "Invalid Access Mode"
 
 instance ToJSON UserClients where
@@ -504,6 +524,7 @@ parseEventData MemberJoin v        = Just . EdMembers <$> parseJSON v
 parseEventData MemberLeave v       = Just . EdMembers <$> parseJSON v
 parseEventData MemberStateUpdate v = Just . EdMemberUpdate <$> parseJSON v
 parseEventData ConvRename v        = Just . EdConvRename <$> parseJSON v
+parseEventData ConvAccessUpdate v  = Just . EdConvAccessUpdate <$> parseJSON v
 parseEventData ConvConnect v       = Just . EdConnect <$> parseJSON v
 parseEventData ConvCreate v        = Just . EdConversation <$> parseJSON v
 parseEventData Typing v            = Just . EdTyping <$> parseJSON v
@@ -511,13 +532,14 @@ parseEventData OtrMessageAdd v     = Just . EdOtrMessage <$> parseJSON v
 parseEventData ConvDelete _        = pure Nothing
 
 instance ToJSON EventData where
-    toJSON (EdMembers x)      = toJSON x
-    toJSON (EdConnect x)      = toJSON x
-    toJSON (EdConvRename x)   = toJSON x
-    toJSON (EdMemberUpdate x) = toJSON x
-    toJSON (EdConversation x) = toJSON x
-    toJSON (EdTyping x)       = toJSON x
-    toJSON (EdOtrMessage x)   = toJSON x
+    toJSON (EdMembers x)            = toJSON x
+    toJSON (EdConnect x)            = toJSON x
+    toJSON (EdConvRename x)         = toJSON x
+    toJSON (EdConvAccessUpdate x)   = toJSON x
+    toJSON (EdMemberUpdate x)       = toJSON x
+    toJSON (EdConversation x)       = toJSON x
+    toJSON (EdTyping x)             = toJSON x
+    toJSON (EdOtrMessage x)         = toJSON x
 
 instance ToJSONObject Event where
     toJSONObject e = HashMap.fromList
@@ -535,6 +557,7 @@ instance FromJSON EventType where
     parseJSON (String "conversation.member-join")     = return MemberJoin
     parseJSON (String "conversation.member-leave")    = return MemberLeave
     parseJSON (String "conversation.rename")          = return ConvRename
+    parseJSON (String "conversation.access-update")   = return ConvAccessUpdate
     parseJSON (String "conversation.member-update")   = return MemberStateUpdate
     parseJSON (String "conversation.create")          = return ConvCreate
     parseJSON (String "conversation.delete")          = return ConvDelete
@@ -548,6 +571,7 @@ instance ToJSON EventType where
     toJSON MemberLeave            = String "conversation.member-leave"
     toJSON MemberStateUpdate      = String "conversation.member-update"
     toJSON ConvRename             = String "conversation.rename"
+    toJSON ConvAccessUpdate       = String "conversation.access-update"
     toJSON ConvCreate             = String "conversation.create"
     toJSON ConvDelete             = String "conversation.delete"
     toJSON ConvConnect            = String "conversation.connect-request"
@@ -750,13 +774,15 @@ instance FromJSON TypingData where
     parseJSON = withObject "typing-data" $ \o ->
         TypingData <$> o .: "status"
 
-instance ToJSON Join where
+instance ToJSON ConversationCode where
     toJSON j = object
         $ "conversationKey"  .= conversationKey j
         # "conversationCode" .= conversationCode j
+        # "conversationLink" .= conversationLink j
         # []
 
-instance FromJSON Join where
+instance FromJSON ConversationCode where
     parseJSON = withObject "join" $ \o ->
-        Join <$> o .: "conversationKey"
+        ConversationCode <$> o .: "conversationKey"
             <*> o .: "conversationCode"
+            <*> o .: "conversationLink"

@@ -1,6 +1,8 @@
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 
 -- | Types for verification codes.
 module Data.Code where
@@ -12,6 +14,10 @@ import Data.Range
 import Data.Scientific (toBoundedInteger)
 import Data.Text.Ascii
 import Data.Time.Clock
+
+#ifdef WITH_CQL
+import Database.CQL.Protocol hiding (unpack, Value)
+#endif
 
 -- | A scoped identifier for a 'Value' with an associated 'Timeout'.
 newtype Key = Key { asciiKey :: Range 20 20 AsciiBase64Url }
@@ -38,3 +44,8 @@ instance FromJSON Timeout where
         maybe (fail "Invalid timeout value")
               (pure . Timeout . fromIntegral)
               t
+
+#ifdef WITH_CQL
+deriving instance Cql Key
+deriving instance Cql Value
+#endif
