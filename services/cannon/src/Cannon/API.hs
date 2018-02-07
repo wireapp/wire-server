@@ -14,6 +14,7 @@ import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.Aeson (decode, encode)
 import Data.ByteString (ByteString)
+import Data.Either (Either (..), lefts, rights)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
 import Data.Swagger.Build.Api hiding (def, Response)
@@ -34,12 +35,12 @@ import Prelude hiding (head)
 import System.Logger.Class hiding (Error)
 import System.Random.MWC (createSystemRandom)
 
-import qualified Cannon.Dict                 as D
-import qualified Data.Metrics.Middleware     as Metrics
-import qualified Network.Wai.Middleware.Gzip as Gzip
-import qualified Network.WebSockets          as Ws
-import qualified System.Logger               as Logger
-import qualified System.IO.Strict            as Strict
+import qualified Cannon.Dict                  as D
+import qualified Data.Metrics.Middleware      as Metrics
+import qualified Network.Wai.Middleware.Gzip  as Gzip
+import qualified Network.WebSockets           as Ws
+import qualified System.Logger                as Logger
+import qualified System.IO.Strict             as Strict
 
 run :: Opts -> IO ()
 run o = do
@@ -138,11 +139,14 @@ bulkpush req = do
     case payload of
         Nothing -> return badPayload
         Just pushes -> do
-            resps <- mapM pushwrapper (bpRecipients pushes)
-            return notImpl
+            responses <- mapM pushwrapper (bpRecipients pushes)
+            return $ json $ BulkPushResults (lefts responses) (rights responses)
   where
-    notImpl = errorRs status503 "not-implemented" "The handler for this request is not implemented"
-    pushwrapper pushdata = pushToClient (udUid pushdata) (udDid pushdata) (udData pushdata)
+    pushwrapper pushdata = buildResult (udUid pushdata) (udDid pushdata) (udData pushdata)
+    buildResult u c d = mapFailures u c . statusCode . responseStatus <$> pushToClient u c d
+    mapFailures u c s
+        | s == 200  = Right $ PushResponse u c s
+        | otherwise = Left  $ PushResponse u c s
 
 await :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
 await (u ::: a ::: c ::: r) = do

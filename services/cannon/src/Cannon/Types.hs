@@ -4,8 +4,10 @@
 
 module Cannon.Types
     ( Env
-    , UserDevicePayload
-    , BulkPush
+    , UserDevicePayload (..)
+    , BulkPush (..)
+    , PushResponse (..)
+    , BulkPushResults (..)
     , mon
     , opts
     , applog
@@ -19,10 +21,6 @@ module Cannon.Types
     , clients
     , monitor
     , wsenv
-    , bpRecipients
-    , udUid
-    , udDid
-    , udData
     ) where
 
 import Bilge (Manager, RequestId (..), requestIdName)
@@ -99,6 +97,27 @@ data BulkPush = BulkPush
 
 instance FromJSON BulkPush
 instance ToJSON   BulkPush
+
+data PushResponse = PushResponse
+    { bpUid    :: !UserId
+    , bpDid    :: !ConnId
+    , bpStatus :: !Int
+    } deriving ( Show
+               , Generic
+               )
+
+instance FromJSON PushResponse
+instance ToJSON PushResponse
+
+data BulkPushResults = BulkPushResults
+    { bprFails    :: ![PushResponse]
+    , bprSuccesses :: ![PushResponse]
+    } deriving ( Show
+               , Generic
+               )
+
+instance FromJSON BulkPushResults
+instance ToJSON BulkPushResults
 
 mkEnv :: Metrics
       -> ByteString
