@@ -258,12 +258,12 @@ deleteService :: MonadClient m
 deleteService pid sid name tags =  retry x5 $ batch $ do
     setConsistency Quorum
     setType BatchUnLogged
-    addPrepQuery cqlService (pid, sid)
-    deleteServicePrefix pid sid name
+    addPrepQuery cql (pid, sid)
+    deleteServicePrefix sid name
     deleteServiceTags pid sid name tags
   where
-    cqlService :: PrepQuery W (ProviderId, ServiceId) ()
-    cqlService = "DELETE FROM service WHERE provider = ? AND id = ?"
+    cql :: PrepQuery W (ProviderId, ServiceId) ()
+    cql = "DELETE FROM service WHERE provider = ? AND id = ?"
 
 --------------------------------------------------------------------------------
 -- Service Profiles
@@ -285,10 +285,10 @@ lookupServiceProfile p s = fmap (fmap mk) $
         in ServiceProfile s p name (fromMaybe mempty summary) descr assets tags' enabled
 
 -- | Note: Consistency = One
-listServiceProfilesByProvider :: MonadClient m
+listServiceProfiles :: MonadClient m
     => ProviderId
     -> m [ServiceProfile]
-listServiceProfilesByProvider p = fmap (map mk) $
+listServiceProfiles p = fmap (map mk) $
     retry x1 $ query cql $ params One (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId)
@@ -299,21 +299,6 @@ listServiceProfilesByProvider p = fmap (map mk) $
     mk (sid, name, summary, descr, assets, tags, enabled) =
         let tags' = Set.fromList (fromSet tags)
         in ServiceProfile sid p name (fromMaybe mempty summary) descr assets tags' enabled
-
-listServiceProfiles :: MonadClient m
-    => Int32
-    -> m [ServiceProfile]
-listServiceProfiles size = fmap (map mk) $
-    retry x1 $ query cql $ params One (Identity size)
-  where
-    cql :: PrepQuery R (Identity Int32)
-                       (ServiceId, ProviderId, Name, Maybe Text, Text, [Asset], Set ServiceTag, Bool)
-    cql = "SELECT id, provider, name, summary, descr, assets, tags, enabled \
-          \FROM service LIMIT ?"
-
-    mk (sid, pid, name, summary, descr, assets, tags, enabled) =
-        let tags' = Set.fromList (fromSet tags)
-        in ServiceProfile sid pid name (fromMaybe mempty summary) descr assets tags' enabled
 
 --------------------------------------------------------------------------------
 -- Service Connection Data
@@ -385,7 +370,7 @@ insertServiceIndexes :: MonadClient m
                      -> Name
                      -> Range 0 3 (Set.Set ServiceTag)
                      -> m ()
-insertServiceIndexes pid sid name tags = do
+insertServiceIndexes pid sid name tags =
     retry x5 $ batch $ do
         setConsistency Quorum
         setType BatchLogged
@@ -402,7 +387,7 @@ deleteServiceIndexes pid sid name tags =
     retry x5 $ batch $ do
         setConsistency Quorum
         setType BatchLogged
-        deleteServicePrefix pid sid name
+        deleteServicePrefix sid name
         deleteServiceTags pid sid name tags
 
 updateServiceIndexes :: MonadClient m
@@ -545,11 +530,10 @@ insertServicePrefix pid sid name =
           \VALUES (?, ?, ?, ?)"
 
 deleteServicePrefix
-    :: ProviderId
-    -> ServiceId
+    :: ServiceId
     -> Name
     -> BatchM ()
-deleteServicePrefix _ sid name =
+deleteServicePrefix sid name =
     addPrepQuery cql (mkPrefix name, toLowerName name, sid)
   where
     cql :: PrepQuery W (Text, Name, ServiceId) ()
@@ -563,7 +547,7 @@ updateServicePrefix
     -> Name -- ^ Name to add.
     -> BatchM ()
 updateServicePrefix pid sid oldName newName = do
-    deleteServicePrefix pid sid oldName
+    deleteServicePrefix sid oldName
     insertServicePrefix pid sid newName
 
 paginateServiceNames :: MonadClient m

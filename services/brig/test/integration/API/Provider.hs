@@ -427,7 +427,6 @@ testListServices config db brig = do
         return _ls
 
     -- 20 names, all using the given unique prefix
-    mkTaggedNames :: Text -> [(Name, [ServiceTag])]
     mkTaggedNames uniq =
         [ (mkName uniq "Alpha",     [SocialTag, QuizTag, BusinessTag])
         , (mkName uniq "Beta",      [SocialTag, MusicTag, LifestyleTag])
@@ -451,24 +450,20 @@ testListServices config db brig = do
         , (mkName uniq "Zulu",      [SocialTag, MusicTag, LifestyleTag])
         ]
 
-mkName :: Text -> Text -> Name
-mkName uniq n = Name (uniq <> n)
+    mkName uniq n = Name (uniq <> n)
 
-mkNew :: NewService -> (Name, [ServiceTag]) -> NewService
-mkNew new (n, t) = new { newServiceName = n
-                       , newServiceTags = unsafeRange (Set.fromList t)
-                       }
-select :: Name -> [Name] -> [Name]
-select (Name prefix) nm = filter (isPrefixOf (toLower prefix) . toLower . fromName) nm
+    mkNew new (n, t) = new { newServiceName = n
+                           , newServiceTags = unsafeRange (Set.fromList t)
+                           }
+    select (Name prefix) nm = filter (isPrefixOf (toLower prefix) . toLower . fromName) nm
 
-emptyUpdateService :: UpdateService
-emptyUpdateService = UpdateService
-    { updateServiceName    = Nothing
-    , updateServiceSummary = Nothing
-    , updateServiceDescr   = Nothing
-    , updateServiceAssets  = Nothing
-    , updateServiceTags    = Nothing
-    }
+    emptyUpdateService = UpdateService
+        { updateServiceName    = Nothing
+        , updateServiceSummary = Nothing
+        , updateServiceDescr   = Nothing
+        , updateServiceAssets  = Nothing
+        , updateServiceTags    = Nothing
+        }
 
 testDeleteService :: Maybe Config -> DB.ClientState -> Brig -> Http ()
 testDeleteService config db brig = do

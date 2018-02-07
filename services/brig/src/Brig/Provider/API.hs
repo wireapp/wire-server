@@ -499,7 +499,7 @@ getProviderProfile pid = do
 
 listServiceProfiles :: ProviderId -> Handler Response
 listServiceProfiles pid = do
-    ss <- DB.listServiceProfilesByProvider pid
+    ss <- DB.listServiceProfiles pid
     return (json ss)
 
 getServiceProfile :: ProviderId ::: ServiceId -> Handler Response
