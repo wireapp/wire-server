@@ -129,14 +129,19 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     unless (Data.convType conv == RegularConv) $
         throwM $ invalidOp "updateAccess: invalid conversation type"
-    -- only conversation creators and conversation creator's team's "admins" can change Access mode
-    case (Data.convCreator conv == usr, Data.convTeam conv) of
-        (False, Nothing)    -> throwM $ operationDenied' "updateAccess: restricted to conversation creator"
-        (False, Just tid) -> do
-            -- get the team members and verify permissions
-            members <- Data.teamMembers tid
-            void $ permissionCheck usr SetMemberPermissions members -- TODO: introduce new permission?
-        (True, _) -> return ()
+
+    -- only creator can change access mode ?
+    unless (Data.convCreator conv == usr) $
+        throwM $ operationDenied' "updateAccess: restricted to conversation creator"
+
+--    -- only conversation creators and conversation creator's team's "admins" can change Access mode ?
+--    case (Data.convCreator conv == usr, Data.convTeam conv) of
+--        (False, Nothing)    -> throwM $ operationDenied' "updateAccess: restricted to conversation creator"
+--        (False, Just tid) -> do
+--            -- get the team members and verify permissions
+--            members <- Data.teamMembers tid
+--            void $ permissionCheck usr SetMemberPermissions members -- TODO: introduce new permission?
+--        (True, _) -> return ()
 
     -- update cassandra & send event
     now <- liftIO getCurrentTime
@@ -154,11 +159,12 @@ addCode :: UserId ::: ConvId ::: Request ::: JSON -> Galley Response
 addCode (usr ::: cnv ::: req ::: _ ) = do
     ensureUser usr cnv
     ensureCodeAccess cnv
-    -- TODO configurable timeout (req, fallback to config? config only?)
-    let t = Timeout (3600 * 24 * 7) -- one week.
+    -- TODO configurable timeout
+    -- TODO support for no timeout
+    let t = Timeout (3600 * 24 * 30) -- one month.
     c <- generate cnv t
     Data.insertCode c
-    return $ setStatus status200 . json $ Join (codeKey c) (codeValue c)
+    returnCode c
 
 rmCode :: UserId ::: ConvId -> Galley Response
 rmCode (usr ::: cnv) = do
@@ -174,7 +180,13 @@ getCode (usr ::: cnv) = do
     ensureCodeAccess cnv
     key <- mkKey cnv
     c <- Data.lookupCode key >>= ifNothing codeNotFound
-    return $ setStatus status200 . json $ Join (codeKey c) (codeValue c)
+    returnCode c
+
+returnCode :: Code -> Galley Response
+returnCode c = do
+    urlPrefix <- view $ options . optSettings . setConversationCodeURI
+    let res = mkConversationCode (codeKey c) (codeValue c) urlPrefix
+    return $ setStatus status200 . json $ res
 
 joinConversationByCode :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 joinConversationByCode (zusr ::: zcon ::: req ::: _) = do

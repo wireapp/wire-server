@@ -5,6 +5,7 @@
 module Galley.Options where
 
 import Control.Lens hiding ((.=))
+import Data.ByteString (ByteString)
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Text (Text)
 import Data.Monoid
@@ -12,12 +13,19 @@ import Data.Word (Word16)
 import GHC.Generics
 import Options.Applicative
 import Util.Options
+import Data.ByteString.Conversion
+import Data.Maybe
 import Util.Options.Common
+import Data.Misc
+
+import qualified Data.ByteString.Char8 as C
+import qualified Data.Text as Text
 
 data Settings = Settings
-    { _setHttpPoolSize       :: !Int
-    , _setMaxConvAndTeamSize :: !Word16 -- NOTE: This must be in sync with brig
-    , _setIntraListing       :: !Bool   -- call Brig for device listing
+    { _setHttpPoolSize          :: !Int
+    , _setMaxTeamSize           :: !Word16  -- NOTE: This must be in sync with brig
+    , _setIntraListing          :: !Bool    -- call Brig for device listing
+    , _setConversationCodeURI   :: !HttpsUrl
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
@@ -115,6 +123,11 @@ optsParser = Opts <$>
             (switch $
                 long "intra-device-listing"
                 <> help "Use this option if you want to fetch the device list from brig instead.")
+        <*>
+            (httpsUrlOption $
+                long "conversation-code-uri"
+                <> metavar "STRING"
+                <> help "URI prefix for conversations with access mode 'code'")
 
 journalOptsParser :: Parser JournalOpts
 journalOptsParser = JournalOpts
@@ -128,3 +141,6 @@ journalOptsParser = JournalOpts
             <> metavar "STRING"
             <> showDefault
             <> help "aws endpoint")
+
+httpsUrlOption :: Mod OptionFields String -> Parser HttpsUrl
+httpsUrlOption = fmap (fromMaybe (error "Invalid HTTPS URL") . fromByteString) . bytesOption

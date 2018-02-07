@@ -299,7 +299,7 @@ postJoinConv g u c = post $ g
     . zConn "conn"
     . zType "access"
 
-postJoinCodeConv :: Galley -> UserId -> Join -> Http ResponseLBS
+postJoinCodeConv :: Galley -> UserId -> ConversationCode -> Http ResponseLBS
 postJoinCodeConv g u j = post $ g
     . paths ["/conversations", "join"]
     . zUser u
@@ -422,8 +422,8 @@ assertNoMsg ws f = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-decodeJoin :: Response (Maybe Lazy.ByteString) -> Join
-decodeJoin r = fromMaybe (error "Failed to parse Join response") $
+decodeJoin :: Response (Maybe Lazy.ByteString) -> ConversationCode
+decodeJoin r = fromMaybe (error "Failed to parse ConversationCode response") $
     decodeBody r
 
 decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId
