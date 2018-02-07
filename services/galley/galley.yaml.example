@@ -25,10 +25,9 @@ settings:
 #
 # If you want to use journaling but journal to a fake sqs service
 # such as "fake-sqs" or "localstack",
-# run e.g. `docker-compose -f ../external-services/docker-compose.yaml`
+# run e.g. `docker-compose -f ../../deploy/docker-ephemeral/docker-compose.yaml up`
 # and use a localhost endpoint
 #
 journal: # if set, journals; if not set, disables journaling
   queueName: integration-team-events.fifo
   endpoint: https://sqs.eu-west-1.amazonaws.com # http://localhost:4568
-  
