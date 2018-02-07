@@ -97,8 +97,7 @@ tests conf p db b c g = do
             , test p "add-get"                $ testAddGetService conf db b
             , test p "update"                 $ testUpdateService conf db b
             , test p "update-conn"            $ testUpdateServiceConn conf db b
-            , test p "xxx search (with tag)"   $ testListServicesByTagAndPrefix conf db b
-            , test p "xxy search (prefix only)"$ testListServicesByPrefixOnly conf db b
+            , test p "search (tag/prefix)"    $ testListServices conf db b
             , test p "delete"                 $ testDeleteService conf db b
             ]
         , testGroup "bot"
@@ -330,8 +329,8 @@ testUpdateServiceConn config db brig = do
         assertEqual "token" newTokens (serviceTokens _svc)
         assertBool  "enabled" (serviceEnabled _svc)
 
-testListServicesByTagAndPrefix :: Maybe Config -> DB.ClientState -> Brig -> Http ()
-testListServicesByTagAndPrefix config db brig = do
+testListServices :: Maybe Config -> DB.ClientState -> Brig -> Http ()
+testListServices config db brig = do
     prv <- randomProvider db brig
     let pid = providerId prv
     uid <- randomId
@@ -340,17 +339,17 @@ testListServicesByTagAndPrefix config db brig = do
     -- (and repeatedly) against a shared database and thus a shared
     -- "name index" per tag.
     uniq <- UUID.toText . toUUID <$> randomId
+    new  <- defNewService config
     let taggedNames = mkTaggedNames uniq
-    let names = fst (unzip taggedNames)
-    new <- defNewService config
     svcs <- mapM (addGetService brig pid . mkNew new) (reverse taggedNames)
     mapM_ (enableService brig pid . serviceId) svcs
 
-    let _tags = match1 SocialTag
+    let _tags = Just (match1 SocialTag)
+    let names = fst (unzip taggedNames)
 
     -- List services with different start names, that all start with the
     -- same prefix.
-    searchAndAssert uid _tags (Name uniq) 20 names
+    void $ searchAndAssert uid _tags (Name uniq) 20 names
 
     -- Search by exact name
     forM_ names $ \n -> searchAndAssert uid _tags n 10 [n]
@@ -359,29 +358,76 @@ testListServicesByTagAndPrefix config db brig = do
 
     -- Only Bjørn should be returned
     let _search = mkName uniq "Bjø"
-    searchAndAssert uid _tags _search 10 (select _search names)
+    void $ searchAndAssert uid _tags _search 10 (select _search names)
 
     -- Both Bjørn and Bjorn should be returned
     let _search = mkName uniq "Bj"
-    searchAndAssert uid _tags _search 10 (select _search names)
+    void $ searchAndAssert uid _tags _search 10 (select _search names)
 
     -- CHRISTMAS should be returned
     let _search = mkName uniq "chris"
-    searchAndAssert uid _tags _search 10 (select _search names)
+    void $ searchAndAssert uid _tags _search 10 (select _search names)
+
+    -- Ensure name changes are also indexed properly
+    forM_ svcs $ searchAndAssertNameChange pid uid uniq
   where
-    getPage uid tag start size = do
-        rs <- listServiceProfilesByTag brig uid tag start size <!!
-            const 200 === statusCode
+    getPage :: UserId -> Maybe MatchAny -> Maybe Name -> Int -> HttpT IO [ServiceProfile]
+    getPage uid (Just tag) start size = do
+        rs <- listServiceProfilesByTag brig uid tag start size <!! const 200 === statusCode
         let Just ls = serviceProfilePageResults <$> decodeBody rs
         return ls
+    getPage uid Nothing (Just start) size = do
+        rs <- listServiceProfilesByPrefix brig uid start size <!! const 200 === statusCode
+        let Just ls = serviceProfilePageResults <$> decodeBody rs
+        return ls
+    getPage _ Nothing Nothing _ = error "Query not supported"
 
-    searchAndAssert uid tags qry size expects = do
+    searchAndAssertNameChange :: ProviderId -> UserId -> Text -> Service -> Http ()
+    searchAndAssertNameChange pid uid uniq svc = do
+        let sid = serviceId svc
+        Just svp <- decodeBody <$> (getServiceProfile brig uid pid sid
+                               <!!  const 200 === statusCode)
+        let origName = serviceProfileName svp
+        searchAndAssertWithSid uid Nothing origName 10 [origName] [sid]
+
+        let newName = mkName uniq "Wire"
+        let _upd = emptyUpdateService { updateServiceName = Just newName }
+        updateService brig pid (serviceId svc) _upd !!! const 200 === statusCode
+
+        -- Now we should find no such service with the original name, only with the new name
+        searchAndAssertWithSid uid Nothing origName 10 []        []
+        searchAndAssertWithSid uid Nothing newName  10 [newName] [sid]
+
+        -- Let's rollback
+        let _upd = emptyUpdateService { updateServiceName = Just origName }
+        updateService brig pid (serviceId svc) _upd !!! const 200 === statusCode
+
+        -- Searching the new name should return nothing
+        searchAndAssertWithSid uid Nothing newName  10 []         []
+        searchAndAssertWithSid uid Nothing origName 10 [origName] [sid]
+
+    searchAndAssertWithSid uid tags qry size expectsNames expectsSids = do
+        -- Test _with_ and _without_ tags and check we got the right sid back
+        _ls <- searchAndAssert uid tags qry size expectsNames
+        liftIO $ assertEqual ("check sid size: " ++ show qry) (length expectsSids) (length _ls)
+        let _sids = map serviceProfileId _ls
+        liftIO $ assertEqual ("check sid str: " ++ show qry) expectsSids _sids
+
+    searchAndAssert uid tags qry size expectsNames = do
+        -- Search with tag and name
         _ls <- getPage uid tags (Just qry) size
-        liftIO $ assertEqual ("size: " ++ show qry) (length expects) (length _ls)
+        liftIO $ assertEqual ("get page with tag, size: " ++ show qry) (length expectsNames) (length _ls)
         let _names = map serviceProfileName _ls
-        liftIO $ assertEqual ("str: " ++ show qry) expects _names
+        liftIO $ assertEqual ("get page with tag, str: " ++ show qry) expectsNames _names
+        -- Search with name only
+        _ls <- getPage uid Nothing (Just qry) size
+        liftIO $ assertEqual ("get page no tag, size: " ++ show qry) (length expectsNames) (length _ls)
+        let _names = map serviceProfileName _ls
+        liftIO $ assertEqual ("get page no tag: " ++ show qry) expectsNames _names
+        return _ls
 
     -- 20 names, all using the given unique prefix
+    mkTaggedNames :: Text -> [(Name, [ServiceTag])]
     mkTaggedNames uniq =
         [ (mkName uniq "Alpha",     [SocialTag, QuizTag, BusinessTag])
         , (mkName uniq "Beta",      [SocialTag, MusicTag, LifestyleTag])
@@ -405,92 +451,24 @@ testListServicesByTagAndPrefix config db brig = do
         , (mkName uniq "Zulu",      [SocialTag, MusicTag, LifestyleTag])
         ]
 
-    mkName uniq n = Name (uniq <> n)
+mkName :: Text -> Text -> Name
+mkName uniq n = Name (uniq <> n)
 
-    mkNew new (n, t) = new { newServiceName = n
-                           , newServiceTags = unsafeRange (Set.fromList t)
-                           }
+mkNew :: NewService -> (Name, [ServiceTag]) -> NewService
+mkNew new (n, t) = new { newServiceName = n
+                       , newServiceTags = unsafeRange (Set.fromList t)
+                       }
+select :: Name -> [Name] -> [Name]
+select (Name prefix) nm = filter (isPrefixOf (toLower prefix) . toLower . fromName) nm
 
-    select (Name prefix) nm = filter (isPrefixOf (toLower prefix) . toLower . fromName) nm
-
-testListServicesByPrefixOnly :: Maybe Config -> DB.ClientState -> Brig -> Http ()
-testListServicesByPrefixOnly config db brig = do
-    prv <- randomProvider db brig
-    let pid = providerId prv
-    uid <- randomId
-
-    -- nb. We use a random name prefix so tests can run concurrently
-    -- (and repeatedly) against a shared database and thus a shared
-    -- "name index" per tag.
-    uniq <- UUID.toText . toUUID <$> randomId
-    let uniqueNames = mkUniqueNames uniq
-    let names = uniqueNames
-    new <- defNewService config
-    svcs <- mapM (addGetService brig pid . mkNew new) (reverse uniqueNames)
-    mapM_ (enableService brig pid . serviceId) svcs
-
-    -- List services with different start names, that all start with the
-    -- same prefix.
-    searchAndAssert uid (Name uniq) 20 names
-
-    -- Search by exact name
-    forM_ names $ \n -> searchAndAssert uid n 10 [n]
-
-    -- Chosen prefixes
-
-    -- Only Bjørn should be returned
-    let _search = mkName uniq "Bjø"
-    searchAndAssert uid _search 10 (select _search names)
-
-    -- Both Bjørn and Bjorn should be returned
-    let _search = mkName uniq "Bj"
-    searchAndAssert uid _search 10 (select _search names)
-
-    -- CHRISTMAS should be returned
-    let _search = mkName uniq "chris"
-    searchAndAssert uid _search 10 (select _search names)
-  where
-    getPage uid start size = do
-        rs <- listServiceProfilesByPrefix brig uid start size <!!
-            const 200 === statusCode
-        let Just ls = serviceProfilePageResults <$> decodeBody rs
-        return ls
-
-    searchAndAssert uid qry size expects = do
-        _ls <- getPage uid qry size
-        let _names = map serviceProfileName _ls
-        liftIO $ assertEqual ("str: " ++ show qry) expects _names
-        liftIO $ assertEqual ("size: " ++ show size) (length expects) (length _ls)
-
-    -- 20 names, all using the given unique prefix
-    mkUniqueNames uniq =
-        [ mkName uniq "Alpha"
-        , mkName uniq "Beta"
-        , mkName uniq "Bjorn"
-        , mkName uniq "Bjørn"
-        , mkName uniq "CHRISTMAS"
-        , mkName uniq "Delta"
-        , mkName uniq "Epsilon"
-        , mkName uniq "Freer"
-        , mkName uniq "Gamma"
-        , mkName uniq "Gramma"
-        , mkName uniq "Hera"
-        , mkName uniq "Io"
-        , mkName uniq "Jojo"
-        , mkName uniq "Kuba"
-        , mkName uniq "Lawn"
-        , mkName uniq "Mango"
-        , mkName uniq "North"
-        , mkName uniq "Yak"
-        , mkName uniq "Zeta"
-        , mkName uniq "Zulu"
-        ]
-
-    mkName uniq n = Name (uniq <> n)
-
-    mkNew new n = new { newServiceName = n }
-
-    select (Name prefix) nm = filter (isPrefixOf (toLower prefix) . toLower . fromName) nm
+emptyUpdateService :: UpdateService
+emptyUpdateService = UpdateService
+    { updateServiceName    = Nothing
+    , updateServiceSummary = Nothing
+    , updateServiceDescr   = Nothing
+    , updateServiceAssets  = Nothing
+    , updateServiceTags    = Nothing
+    }
 
 testDeleteService :: Maybe Config -> DB.ClientState -> Brig -> Http ()
 testDeleteService config db brig = do
