@@ -20,17 +20,15 @@ gundeck:
   host: 127.0.0.1
   port: 8086
 
+# You can set up local SQS/Dynamo running e.g. `docker-compose -f ../../deploy/docker-ephemeral/docker-compose.yaml up`
 aws:
-  account: "<insert-account-number-here>"
   sesQueue: integration-brig-events
   internalQueue: integration-brig-events-internal
   blacklistTable: integration-brig-userkey-blacklist
   prekeyTable: integration-brig-prekeys
-  region: eu-west-1
-  # TODO: Check AWS loadCredentialsFromEnv
-  awsKeyId: <insert-key-id-here>
-  awsSecretKey: <insert-secret-key-here>
-
+  sesEndpoint: https://email.eu-west-1.amazonaws.com
+  sqsEndpoint: https://sqs.eu-west-1.amazonaws.com # http://localhost:4568
+  dynamoDBEndpoint: https://dynamodb.eu-west-1.amazonaws.com # http://localhost:4567
 emailSMS:
   general:
     templateDir: deb/opt/brig/templates

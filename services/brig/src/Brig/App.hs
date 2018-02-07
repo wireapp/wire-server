@@ -7,6 +7,8 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StrictData                 #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Brig.App
     ( schemaVersion
@@ -16,7 +18,6 @@ module Brig.App
     , newEnv
     , closeEnv
     , awsEnv
-    , awsConfig
     , galley
     , gundeck
     , userTemplates
@@ -57,20 +58,22 @@ import Brig.User.Search.Index (runIndexIO, IndexEnv (..), MonadIndexIO (..))
 import Brig.User.Template
 import Brig.Types (Locale (..), TurnURI)
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
-import Cassandra (MonadClient (..), Keyspace (..), runClient)
+import Cassandra (MonadClient (..), Keyspace (..), runClient, Client)
 import Cassandra.Schema (versionCheck)
 import Control.AutoUpdate
 import Control.Concurrent (forkIO)
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding ((.=), index)
-import Control.Monad (liftM2, void, (>=>))
+import Control.Monad (void, (>=>))
+import Control.Monad.Base
 import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
 import Control.Monad.IO.Class
 import Control.Monad.Reader.Class
 import Control.Monad.Trans.Class
+import Control.Monad.Trans.Control
 import Control.Monad.Trans.Reader (ReaderT (..), runReaderT)
-import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
+import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Id (UserId)
 import Data.IP
@@ -92,7 +95,7 @@ import System.Logger.Class hiding (Settings, settings)
 import Util.Options
 
 import qualified Bilge                    as RPC
-import qualified Brig.Aws.Types           as Aws
+import qualified Brig.AWS                 as AWS
 import qualified Brig.Options             as Opt
 import qualified Brig.TURN                as TURN
 import qualified Brig.ZAuth               as ZAuth
@@ -107,7 +110,6 @@ import qualified Data.Text.Encoding       as Text
 import qualified Data.Text.IO             as Text
 import qualified OpenSSL.Session          as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
-import qualified Ropes.Aws                as Aws
 import qualified Ropes.Nexmo              as Nexmo
 import qualified Ropes.Twilio             as Twilio
 import qualified System.FilePath          as Path
@@ -125,8 +127,7 @@ data Env = Env
     { _galley        :: RPC.Request
     , _gundeck       :: RPC.Request
     , _casClient     :: Cas.ClientState
-    , _awsEnv        :: Aws.Env
-    , _awsConfig     :: Aws.Config
+    , _awsEnv        :: AWS.Env
     , _metrics       :: Metrics
     , _applog        :: Logger
     , _requestId     :: RequestId
@@ -163,7 +164,7 @@ newEnv o = do
     utp <- loadUserTemplates o
     ptp <- loadProviderTemplates o
     ttp <- loadTeamTemplates o
-    aws <- initAws o lgr mgr
+    aws <- AWS.mkEnv lgr (Opt.aws o) mgr
     zau <- initZAuth o
     clock <- mkAutoUpdate defaultUpdateSettings { updateAction = getCurrentTime }
     w   <- FS.startManagerConf
@@ -177,8 +178,7 @@ newEnv o = do
         { _galley        = mkEndpoint $ Opt.galley o
         , _gundeck       = mkEndpoint $ Opt.gundeck o
         , _casClient     = cas
-        , _awsEnv        = fst aws
-        , _awsConfig     = snd aws
+        , _awsEnv        = aws
         , _metrics       = mtr
         , _applog        = lgr
         , _requestId     = mempty
@@ -247,21 +247,6 @@ replaceTurnServers g ref e = do
             atomicWriteIORef ref (old & TURN.turnServers .~ servers)
             Log.info g (msg $ val "New turn servers loaded.")
         Nothing -> Log.warn g (msg $ val "Empty or malformed turn servers list, ignoring!")
-
-initAws :: Opts -> Logger -> Manager -> IO (Aws.Env, Aws.Config)
-initAws o l m = do
-    let a = Opt.aws o
-    -- TODO: The AWS package can also load them from the env, check the latest API
-    -- https://hackage.haskell.org/package/aws-0.17.1/docs/src/Aws-Core.html#loadCredentialsFromFile
-    -- which would avoid the need to specify them in a config file when running tests
-    e <- Aws.newEnv l m (liftM2 (,) (Opt.awsKeyId a) (Opt.awsSecretKey a))
-    let c = Aws.config (Opt.region a)
-                       (Aws.Account (Opt.account a))
-                       (Aws.SesQueue (Opt.sesQueue a))
-                       (Aws.InternalQueue (Opt.internalQueue a))
-                       (Aws.BlacklistTable (Opt.blacklistTable a))
-                       (Aws.PreKeyTable (Opt.prekeyTable a))
-    return (e, c)
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do
@@ -356,9 +341,9 @@ closeEnv e = do
 
 -------------------------------------------------------------------------------
 -- App Monad
-
-newtype AppT m a = AppT (ReaderT Env m a)
-    deriving ( Functor
+newtype AppT m a = AppT
+    { unAppT :: ReaderT Env m a
+    } deriving ( Functor
              , Applicative
              , Monad
              , MonadIO
@@ -397,6 +382,14 @@ instance MonadIndexIO AppIO where
 
 instance Monad m => HasRequestId (AppT m) where
     getRequestId = view requestId
+
+instance MonadBase IO AppIO where
+    liftBase = liftIO
+
+instance MonadBaseControl IO AppIO where
+    type StM AppIO a = StM (ReaderT Env Client) a
+    liftBaseWith     f = AppT $ liftBaseWith $ \run -> f (run . unAppT)
+    restoreM           = AppT . restoreM
 
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e

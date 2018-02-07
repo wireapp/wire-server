@@ -6,7 +6,6 @@
 
 module Brig.Options where
 
-import Brig.Aws.Types (Region (..))
 import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
@@ -19,7 +18,6 @@ import Data.Maybe
 import Data.Monoid
 import Data.Scientific (toBoundedInteger)
 import Data.Text (Text)
-import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock (DiffTime, secondsToDiffTime)
 import Data.Word (Word16, Word32)
 import Data.Yaml (FromJSON(..))
@@ -29,10 +27,9 @@ import Options.Applicative.Types (readerAsk)
 import Util.Options
 import Util.Options.Common
 
-import qualified Data.Text             as T
-import qualified Data.Yaml             as Y
-import qualified Ropes.Aws             as Aws
-import qualified Brig.ZAuth            as ZAuth
+import qualified Brig.ZAuth  as ZAuth
+import qualified Data.Text   as T
+import qualified Data.Yaml   as Y
 
 newtype Timeout = Timeout
     { timeoutDiff :: DiffTime
@@ -52,14 +49,13 @@ data ElasticSearchOpts = ElasticSearchOpts
 instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
-    { account         :: !Text
-    , sesQueue        :: !Text
+    { sesQueue        :: !Text
     , internalQueue   :: !Text
     , blacklistTable  :: !Text
     , prekeyTable     :: !Text
-    , region          :: !Region
-    , awsKeyId        :: !(Maybe Aws.AccessKeyId)
-    , awsSecretKey    :: !(Maybe Aws.SecretAccessKey)
+    , sesEndpoint     :: !AWSEndpoint
+    , sqsEndpoint     :: !AWSEndpoint
+    , dynamoDBEndpoint:: !AWSEndpoint
     } deriving (Show, Generic)
 
 instance FromJSON AWSOpts
@@ -217,11 +213,8 @@ optsParser =
       help "The name of the ElasticSearch user index")) <*>
     (AWSOpts <$>
      (textOption $
-      long "aws-account-id" <> metavar "STRING" <> help "AWS Account ID") <*>
-     (textOption $
       long "aws-ses-queue" <> metavar "STRING" <>
-      help
-          "Event feedback queue for SES (e.g. for email bounces and complaints)") <*>
+      help "Event feedback queue for SES (e.g. for email bounces and complaints)") <*>
      (textOption $
       long "aws-internal-queue" <> metavar "STRING" <>
       help "Event queue for internal brig generated events (e.g. user deletion)") <*>
@@ -231,17 +224,15 @@ optsParser =
      (textOption $
       long "aws-dynamo-prekeys" <> metavar "STRING" <>
       help "Dynamo table for storing prekey data") <*>
-     (option regionOption $
-      long "aws-region" <> metavar "STRING" <> value Ireland <> showDefault <>
-      help "Region to use for SQS queues and Dynamo only. SES is hardcoded to \
-           \eu-west-1 and us-east-1 as a fallback") <*>
-     (fmap (Aws.AccessKeyId . encodeUtf8) <$>
-      (optional . textOption $
-       long "aws-access-key-id" <> metavar "STRING" <> help "AWS Access Key ID")) <*>
-     (fmap (Aws.SecretAccessKey . encodeUtf8) <$>
-      (optional . textOption $
-       long "aws-secret-access-key" <> metavar "STRING" <>
-       help "AWS Secret Access Key"))) <*>
+     (option parseAWSEndpoint $
+      long "aws-ses-endpoint" <> value (AWSEndpoint "email.eu-west-1.amazonaws.com" True 443)
+      <> metavar "STRING" <> showDefault <> help "aws SES endpoint") <*>
+     (option parseAWSEndpoint $
+      long "aws-sqs-endpoint" <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443)
+      <> metavar "STRING" <> showDefault <> help "aws SQS endpoint") <*>
+     (option parseAWSEndpoint $
+      long "aws-dynamodb-endpoint" <> value (AWSEndpoint "dynamodb.eu-west-1.amazonaws.com" True 443)
+      <> metavar "STRING" <> showDefault <> help "aws DYNAMODB endpoint")) <*>
     (EmailSMSOpts <$>
      (EmailSMSGeneralOpts <$>
       (strOption $
@@ -405,10 +396,6 @@ emailOption =
         (fromMaybe (error "Ensure proper email address is used") .
          parseEmail . T.pack) .
     strOption
-
-regionOption :: ReadM Region
-regionOption = readerAsk >>=
-    maybe (fail "Failed to parse ") pure . fromByteString . pack
 
 providerIdOption :: ReadM ProviderId
 providerIdOption = readerAsk >>=
