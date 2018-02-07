@@ -369,7 +369,7 @@ testListServices config db brig = do
     void $ searchAndAssert uid _tags _search 10 (select _search names)
 
     -- Ensure name changes are also indexed properly
-    forM_ svcs $ searchAndAssertNameChange pid uid uniq
+    forM_ svcs $ searchAndAssertNameChange pid uid _tags uniq
   where
     getPage :: UserId -> Maybe MatchAny -> Maybe Name -> Int -> HttpT IO [ServiceProfile]
     getPage uid (Just tag) start size = do
@@ -382,29 +382,29 @@ testListServices config db brig = do
         return ls
     getPage _ Nothing Nothing _ = error "Query not supported"
 
-    searchAndAssertNameChange :: ProviderId -> UserId -> Text -> Service -> Http ()
-    searchAndAssertNameChange pid uid uniq svc = do
+    searchAndAssertNameChange :: ProviderId -> UserId -> Maybe MatchAny -> Text -> Service -> Http ()
+    searchAndAssertNameChange pid uid tags uniq svc = do
         let sid = serviceId svc
         Just svp <- decodeBody <$> (getServiceProfile brig uid pid sid
                                <!!  const 200 === statusCode)
         let origName = serviceProfileName svp
-        searchAndAssertWithSid uid Nothing origName 10 [origName] [sid]
+        searchAndAssertWithSid uid tags origName 10 [origName] [sid]
 
         let newName = mkName uniq "Wire"
         let _upd = emptyUpdateService { updateServiceName = Just newName }
         updateService brig pid (serviceId svc) _upd !!! const 200 === statusCode
 
         -- Now we should find no such service with the original name, only with the new name
-        searchAndAssertWithSid uid Nothing origName 10 []        []
-        searchAndAssertWithSid uid Nothing newName  10 [newName] [sid]
+        searchAndAssertWithSid uid tags origName 10 []        []
+        searchAndAssertWithSid uid tags newName  10 [newName] [sid]
 
         -- Let's rollback
         let _upd = emptyUpdateService { updateServiceName = Just origName }
         updateService brig pid (serviceId svc) _upd !!! const 200 === statusCode
 
         -- Searching the new name should return nothing
-        searchAndAssertWithSid uid Nothing newName  10 []         []
-        searchAndAssertWithSid uid Nothing origName 10 [origName] [sid]
+        searchAndAssertWithSid uid tags newName  10 []         []
+        searchAndAssertWithSid uid tags origName 10 [origName] [sid]
 
     searchAndAssertWithSid uid tags qry size expectsNames expectsSids = do
         -- Test _with_ and _without_ tags and check we got the right sid back

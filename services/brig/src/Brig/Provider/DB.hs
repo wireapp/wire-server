@@ -9,7 +9,7 @@ import Brig.Password
 import Brig.Provider.DB.Instances ()
 import Brig.Provider.DB.Tag
 import Brig.Types.Common
-import Brig.Types.Provider
+import Brig.Types.Provider hiding (updateServiceTags)
 import Cassandra
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
@@ -204,37 +204,38 @@ listServices p = fmap (map mk) $
 updateService :: MonadClient m
     => ProviderId
     -> ServiceId
+    -> Name
+    -> Range 0 3 (Set.Set ServiceTag)
     -> Maybe (Name, Name)
     -> Maybe Text
     -> Maybe Text
     -> Maybe [Asset]
-    -> Maybe (Range 1 3 (Set.Set ServiceTag))
+    -> Maybe ((Range 0 3 (Set.Set ServiceTag)), (Range 0 3 (Set.Set ServiceTag)))
     -> Bool
     -> m ()
-updateService pid sid nameChange summary descr assets tags enabled = retry x5 $ batch $ do
+updateService pid sid svcName svcTags nameChange summary descr assets tagsChange enabled = retry x5 $ batch $ do
     setConsistency Quorum
     setType BatchUnLogged
-    let tags' = Set . Set.toList . fromRange <$> tags
+    -- If there is a name change, update the service name; if enabled, update indexes
     for_ nameChange $ \(oldName, newName) -> do
-        addPrepQuery cqlName     (newName, pid, sid)
-        when enabled $
+        addPrepQuery cqlName (newName, pid, sid)
+        when enabled $ do
             updateServicePrefix pid sid oldName newName
+            updateServiceTags   pid sid (oldName, svcTags) (newName, svcTags)
+    -- If there is a tag change, update the service tags; if enabled, update indexes
+    for_ tagsChange $ \(oldTags, newTags) -> do
+        let newTags' = Set . Set.toList . fromRange $ newTags
+        addPrepQuery cqlTags (newTags', pid, sid)
+        when enabled $ case nameChange of
+            Just (old, new) -> updateServiceTags pid sid (old, oldTags)     (new, newTags)
+            Nothing         -> updateServiceTags pid sid (svcName, oldTags) (svcName, newTags)
+
     for_ summary    $ \x -> addPrepQuery cqlSummary  (x, pid, sid)
     for_ descr      $ \x -> addPrepQuery cqlDescr    (x, pid, sid)
     for_ assets     $ \x -> addPrepQuery cqlAssets   (x, pid, sid)
-    for_ tags'      $ \x -> addPrepQuery cqlTags     (x, pid, sid)
   where
     cqlName :: PrepQuery W (Name, ProviderId, ServiceId) ()
     cqlName = "UPDATE service SET name = ? WHERE provider = ? AND id = ?"
-
-    -- cqlPrefixRm :: PrepQuery W (Text, Name) ()
-    -- cqlPrefixRm = "DELETE FROM service_prefix \
-    --               \WHERE prefix = ? AND name = ?"
-
-    -- cqlPrefix :: PrepQuery W (Text, Name, ProviderId, ServiceId) ()
-    -- cqlPrefix = "INSERT INTO service_prefix \
-    --             \(prefix, name, provider, service) \
-    --             \VALUES (?, ?, ?, ?)"
 
     cqlSummary :: PrepQuery W (Text, ProviderId, ServiceId) ()
     cqlSummary = "UPDATE service SET summary = ? WHERE provider = ? AND id = ?"
@@ -252,12 +253,14 @@ deleteService :: MonadClient m
     => ProviderId
     -> ServiceId
     -> Name
+    -> Range 0 3 (Set.Set ServiceTag)
     -> m ()
-deleteService pid sid name =  retry x5 $ batch $ do
+deleteService pid sid name tags =  retry x5 $ batch $ do
     setConsistency Quorum
     setType BatchUnLogged
     addPrepQuery cqlService (pid, sid)
     deleteServicePrefix pid sid name
+    deleteServiceTags pid sid name tags
   where
     cqlService :: PrepQuery W (ProviderId, ServiceId) ()
     cqlService = "DELETE FROM service WHERE provider = ? AND id = ?"
@@ -374,6 +377,8 @@ updateServiceConn pid sid url tokens keys enabled = retry x5 $ batch $ do
     cqlEnabled = "UPDATE service SET enabled = ? WHERE provider = ? AND id = ?"
 
 --------------------------------------------------------------------------------
+-- Service "Indexes" (tag and prefix)
+
 insertServiceIndexes :: MonadClient m
                      => ProviderId
                      -> ServiceId
@@ -381,11 +386,11 @@ insertServiceIndexes :: MonadClient m
                      -> Range 0 3 (Set.Set ServiceTag)
                      -> m ()
 insertServiceIndexes pid sid name tags = do
-    insertServiceTags pid sid name tags
     retry x5 $ batch $ do
         setConsistency Quorum
         setType BatchLogged
         insertServicePrefix pid sid name
+        insertServiceTags pid sid name tags
 
 deleteServiceIndexes :: MonadClient m
                      => ProviderId
@@ -393,12 +398,12 @@ deleteServiceIndexes :: MonadClient m
                      -> Name
                      -> Range 0 3 (Set.Set ServiceTag)
                      -> m ()
-deleteServiceIndexes pid sid name tags = do
-    deleteServiceTags pid sid name tags
+deleteServiceIndexes pid sid name tags =
     retry x5 $ batch $ do
         setConsistency Quorum
         setType BatchLogged
         deleteServicePrefix pid sid name
+        deleteServiceTags pid sid name tags
 
 updateServiceIndexes :: MonadClient m
                      => ProviderId
@@ -406,40 +411,40 @@ updateServiceIndexes :: MonadClient m
                      -> (Name, Range 0 3 (Set.Set ServiceTag)) -- ^ Name and tags to remove.
                      -> (Name, Range 0 3 (Set.Set ServiceTag)) -- ^ Name and tags to add.
                      -> m ()
-updateServiceIndexes pid sid (oldName, oldTags) (newName, newTags) = do
-    Brig.Provider.DB.updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
+updateServiceIndexes pid sid (oldName, oldTags) (newName, newTags) =
     retry x5 $ batch $ do
         setConsistency Quorum
         setType BatchLogged
         updateServicePrefix pid sid oldName newName
+        updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
 
 --------------------------------------------------------------------------------
 -- Service Tag "Index"
 
-insertServiceTags :: MonadClient m
-    => ProviderId
+insertServiceTags
+    :: ProviderId
     -> ServiceId
     -> Name
     -> Range 0 3 (Set.Set ServiceTag)
-    -> m ()
-insertServiceTags pid sid name tags = Brig.Provider.DB.updateServiceTags
+    -> BatchM ()
+insertServiceTags pid sid name tags = updateServiceTags
     pid sid (Name "", rcast rnil) (name, tags)
 
-deleteServiceTags :: MonadClient m
-    => ProviderId
+deleteServiceTags
+    :: ProviderId
     -> ServiceId
     -> Name
     -> Range 0 3 (Set.Set ServiceTag)
-    -> m ()
-deleteServiceTags pid sid name tags = Brig.Provider.DB.updateServiceTags
+    -> BatchM ()
+deleteServiceTags pid sid name tags = updateServiceTags
     pid sid (name, tags) (Name "", rcast rnil)
 
-updateServiceTags :: MonadClient m
-    => ProviderId
+updateServiceTags
+    :: ProviderId
     -> ServiceId
     -> (Name, Range 0 3 (Set.Set ServiceTag)) -- ^ Name and tags to remove.
     -> (Name, Range 0 3 (Set.Set ServiceTag)) -- ^ Name and tags to add.
-    -> m ()
+    -> BatchM ()
 updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
     | eqTags && eqNames = return ()
     | eqNames = do
@@ -462,10 +467,10 @@ updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
     eqNames = oldNameLower == newNameLower
 
     deleteTags name = mapM_ $ \tag ->
-        retry x5 $ write cqlDelete $ params Quorum (defBucket, tag, name, sid)
+        addPrepQuery cqlDelete (defBucket, tag, name, sid)
 
     insertTags name = mapM_ $ \tag ->
-        retry x5 $ write cqlInsert $ params Quorum (defBucket, tag, name, sid, pid)
+        addPrepQuery cqlInsert (defBucket, tag, name, sid, pid)
 
     cqlDelete :: PrepQuery W (Bucket, Int64, Name, ServiceId) ()
     cqlDelete = "DELETE FROM service_tag WHERE bucket = ? AND tag = ? AND name = ? AND service = ?"

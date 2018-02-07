@@ -404,19 +404,14 @@ updateService (pid ::: sid ::: req) = do
     let name       = serviceName svc
     let newName    = updateServiceName upd
     let nameChange = liftM2 (,) (pure name) newName
+    let tags       = unsafeRange (serviceTags svc)
+    let newTags    = updateServiceTags upd
+    let tagsChange = liftM2 (,) (pure tags) (rcast <$> newTags)
     let newSummary = fromRange <$> updateServiceSummary upd
     let newDescr   = fromRange <$> updateServiceDescr upd
     let newAssets  = updateServiceAssets upd
-    let newTags    = updateServiceTags upd
     -- Update service, tags/prefix index if the service is enabled
-    DB.updateService pid sid nameChange newSummary newDescr newAssets newTags (serviceEnabled svc)
-    
-    -- let tags  = unsafeRange (serviceTags svc)
-    -- let name' = fromMaybe name newName
-    -- let tags' = fromMaybe tags newTags
-    -- when (serviceEnabled svc) $ do
-    --     for_ nameChange $ \(old, new) -> DB.updateServicePrefix pid sid old new
-    --     DB.updateServiceTags pid sid (name, rcast tags) (name', rcast tags')
+    DB.updateService pid sid name tags nameChange newSummary newDescr newAssets tagsChange (serviceEnabled svc)
 
     return empty
 
@@ -472,9 +467,8 @@ deleteService (pid ::: sid ::: req) = do
     svc  <- DB.lookupService pid sid >>= maybeServiceNotFound
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
-    DB.deleteServiceIndexes pid sid name tags
     lift $ RPC.removeServiceConn pid sid
-    DB.deleteService pid sid name
+    DB.deleteService pid sid name tags
     return empty
 
 deleteAccount :: ProviderId ::: Request -> Handler Response
@@ -489,9 +483,8 @@ deleteAccount (pid ::: req) = do
         let sid  = serviceId svc
         let tags = unsafeRange (serviceTags svc)
             name = serviceName svc
-        DB.deleteServiceIndexes pid sid (serviceName svc) tags
         lift $ RPC.removeServiceConn pid sid
-        DB.deleteService pid sid name
+        DB.deleteService pid sid name tags
     DB.deleteKey (mkEmailKey (providerEmail prov))
     DB.deleteAccount pid
     return empty
