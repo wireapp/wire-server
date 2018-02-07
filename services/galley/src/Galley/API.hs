@@ -403,6 +403,9 @@ sitemap = do
         body (ref Model.newConversation) $
             description "JSON body"
         response 201 "Conversation created" end
+        errorResponse Error.notConnected
+        errorResponse Error.noTeamMember
+        errorResponse (Error.operationDenied CreateConversation)
 
     ---
 
