@@ -90,21 +90,22 @@ changeTeamStatus g tid s = put
 
 createTeamInternal :: Galley -> Text -> UserId -> Http TeamId
 createTeamInternal g name owner = do
+    tid <- createTeamInternalNoActivate g name owner
+    changeTeamStatus g tid Active
+    return tid
+
+createTeamInternalNoActivate :: Galley -> Text -> UserId -> Http TeamId
+createTeamInternalNoActivate g name owner = do
     tid <- randomId
     let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
     _ <- put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
         const 201  === statusCode
         const True === isJust . getHeader "Location"
-    changeTeamStatus g tid Active
     return tid
 
 createTeamInternalWithCurrency :: Galley -> Text -> UserId -> Currency.Alpha -> Http TeamId
 createTeamInternalWithCurrency g name owner cur = do
-    tid <- randomId
-    let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
-    _ <- put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
-        const 201  === statusCode
-        const True === isJust . getHeader "Location"
+    tid <- createTeamInternalNoActivate g name owner
     _ <- put (g . paths ["i", "teams", toByteString' tid, "status"] . json (TeamStatusUpdate Active $ Just cur)) !!!
         const 200 === statusCode
     return tid
@@ -307,8 +308,30 @@ postJoinCodeConv g u j = post $ g
     . zType "access"
     . json j
 
+putAccessUpdate :: Galley -> UserId -> ConvId -> ConversationAccessUpdate -> Http ResponseLBS
+putAccessUpdate g u c acc = put $ g
+    . paths ["/conversations", toByteString' c, "access"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+    . json acc
+
 postConvCode :: Galley -> UserId -> ConvId -> Http ResponseLBS
 postConvCode g u c = post $ g
+    . paths ["/conversations", toByteString' c, "code"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+
+getConvCode :: Galley -> UserId -> ConvId -> Http ResponseLBS
+getConvCode g u c = get $ g
+    . paths ["/conversations", toByteString' c, "code"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+
+deleteConvCode :: Galley -> UserId -> ConvId -> Http ResponseLBS
+deleteConvCode g u c = delete $ g
     . paths ["/conversations", toByteString' c, "code"]
     . zUser u
     . zConn "conn"
@@ -422,8 +445,8 @@ assertNoMsg ws f = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-decodeJoin :: Response (Maybe Lazy.ByteString) -> ConversationCode
-decodeJoin r = fromMaybe (error "Failed to parse ConversationCode response") $
+decodeConvCode :: Response (Maybe Lazy.ByteString) -> ConversationCode
+decodeConvCode r = fromMaybe (error "Failed to parse ConversationCode response") $
     decodeBody r
 
 decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId

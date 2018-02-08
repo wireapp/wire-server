@@ -118,11 +118,13 @@ unblockConv (usr ::: conn ::: cnv) = do
 updateConversationAccess :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     body <- fromBody req invalidPayload
-    let targetAccess = cupAccess body :: List1 Access
+    let targetAccess = cupAccess body
 
     -- checks and balances
     when (PrivateAccess `elem` targetAccess) $
         throwM $ invalidOp "updateAccess: access 'private' disallowed"
+    -- TODO check team access can only be set on team conversations
+
     (bots, users) <- botsAndUsers <$> Data.members cnv
     unless (usr `isMember` users) $
         throwM convNotFound

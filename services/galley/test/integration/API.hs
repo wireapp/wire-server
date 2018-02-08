@@ -9,6 +9,7 @@ import Bilge.Assert
 import Brig.Types
 import Control.Applicative hiding (empty)
 import Control.Error
+import Control.Lens ((^.))
 import Control.Monad hiding (mapM_)
 import Control.Monad.IO.Class
 import Data.Aeson hiding (json)
@@ -28,7 +29,10 @@ import Prelude hiding (head, mapM_)
 import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
+import API.SQS
 
+import qualified Galley.Types.Teams       as Teams
+import qualified Galley.Types.Teams.Intra as Teams
 import qualified API.Teams                as Teams
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List1               as List1
@@ -95,7 +99,9 @@ tests s = testGroup "Galley integration tests" [ mainTests, Teams.tests s ]
         , test s "post cryptomessage 4" postCryptoMessage4
         , test s "post cryptomessage 5" postCryptoMessage5
         , test s "join conversation" postJoinConvOk
-        , test s "join code-protected conversation" postJoinCodeConvOk
+        , test s "join code-access conversation" postJoinCodeConvOk
+        , test s "convert invite to code-access conversation" postConvertCodeConv
+        , test s "convert code to team-access conversation" postConvertTeamConv
         , test s "cannot join private conversation" postJoinConvFail
         , test s "remove user" removeUser
         ]
@@ -335,13 +341,77 @@ postJoinCodeConvOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postJoinCodeConvOk g b c _ = do
     alice <- randomUser b
     bob   <- randomUser b
-    conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [InviteAccess, CodeAccess]
-    j <- decodeJoin <$> postConvCode g alice conv
+    conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [CodeAccess]
+    j <- decodeConvCode <$> postConvCode g alice conv
     WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
         postJoinCodeConv g bob j !!! const 200 === statusCode
         postJoinCodeConv g bob j !!! const 204 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
             wsAssertMemberJoin conv bob [bob]
+
+postConvertCodeConv :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
+postConvertCodeConv g b c _ = do
+    alice <- randomUser b
+    bob   <- randomUser b
+    conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [InviteAccess]
+    -- Cannot do code operations if conversation not in code access
+    postConvCode g alice conv !!! const 403 === statusCode
+    deleteConvCode g alice conv !!! const 403 === statusCode
+    getConvCode g alice conv !!! const 403 === statusCode
+    -- cannot change to TeamAccess as not a team conversation
+    let teamAccess = (ConversationAccessUpdate $ singleton TeamAccess)
+    putAccessUpdate g alice conv teamAccess !!! const 403 === statusCode
+    -- change access
+    let codeAccess = (ConversationAccessUpdate $ list1 InviteAccess [CodeAccess])
+    putAccessUpdate g alice conv codeAccess !!! const 200 === statusCode
+    -- Create/get/update/delete codes
+    getConvCode g alice conv !!! const 404 === statusCode
+    c1 <- decodeConvCode <$> postConvCode g alice conv
+    c1' <- decodeConvCode <$> getConvCode g alice conv
+    liftIO $ assertEqual "c1 c1' codes should match" c1 c1'
+    c2 <- decodeConvCode <$> postConvCode g alice conv
+    liftIO $ assertBool "c2 should be different" (c1 /= c2)
+    c2' <- decodeConvCode <$> getConvCode g alice conv
+    liftIO $ assertEqual "c2 c2' codes should match" c2 c2'
+    deleteConvCode g alice conv !!! const 200 === statusCode
+    getConvCode g alice conv !!! const 404 === statusCode
+
+
+postConvertTeamConv :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
+postConvertTeamConv g b c setup = do
+    -- create team conversation team-alice, team-bob, guest-eve ephemeral-mallory
+    let a = awsEnv setup
+    alice <- randomUser b
+    tid   <- createTeamInternal g "foo" alice
+    assertQueue "create team" a tActivate
+    let p1 = symmPermissions [Teams.AddConversationMember]
+    bobMem <- flip Teams.newTeamMember p1 <$> randomUser b
+    addTeamMemberInternal g tid bobMem
+    let bob = bobMem^.Teams.userId
+    assertQueue "team member join" a $ tUpdate 2 [alice]
+    eve  <- randomUser b
+    mallory  <- randomUser b -- TODO: set as special user type?
+    connectUsers b alice (list1 (alice) [eve])
+    conv <- createTeamConv g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa")
+    -- change access
+    let codeAccess = (ConversationAccessUpdate $ list1 TeamAccess [InviteAccess, CodeAccess])
+    putAccessUpdate g alice conv codeAccess !!! const 200 === statusCode
+    -- mallory joins by herself
+    j <- decodeConvCode <$> postConvCode g alice conv
+    WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
+        postJoinCodeConv g bob j !!! const 200 === statusCode
+        postJoinCodeConv g bob j !!! const 204 === statusCode
+        void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE] $
+            wsAssertMemberJoin conv mallory [mallory] --TODO join event no longer has a source!
+
+    let teamAccess = (ConversationAccessUpdate $ singleton TeamAccess)
+    putAccessUpdate g alice conv teamAccess !!! const 200 === statusCode
+
+    WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+        postJoinCodeConv g bob j !!! const 200 === statusCode
+        postJoinCodeConv g bob j !!! const 204 === statusCode
+        void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
+            wsAssertMemberLeave conv alice [eve, mallory]
 
 postJoinConvFail :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postJoinConvFail g b _ _ = do
