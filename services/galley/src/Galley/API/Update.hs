@@ -52,7 +52,7 @@ import Data.Code
 import Data.Foldable
 import Data.Id
 import Data.List1 (singleton)
-import Data.Maybe (fromMaybe, catMaybes)
+import Data.Maybe (fromMaybe, catMaybes, isNothing)
 import Data.Range hiding ((<|))
 import Data.List1
 import Data.Text (Text)
@@ -123,7 +123,6 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     -- checks and balances
     when (PrivateAccess `elem` targetAccess) $
         throwM $ invalidOp "updateAccess: access 'private' disallowed"
-    -- TODO check team access can only be set on team conversations
 
     (bots, users) <- botsAndUsers <$> Data.members cnv
     unless (usr `isMember` users) $
@@ -131,6 +130,8 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     unless (Data.convType conv == RegularConv) $
         throwM $ invalidOp "updateAccess: invalid conversation type"
+    when (TeamAccess `elem` targetAccess && isNothing (Data.convTeam conv)) $
+        throwM $ invalidOp "updateAccess: access 'team' disallowed for non-team conversations"
 
     -- only creator can change access mode ?
     unless (Data.convCreator conv == usr) $
@@ -144,6 +145,24 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
 --            members <- Data.teamMembers tid
 --            void $ permissionCheck usr SetMemberPermissions members -- TODO: introduce new permission?
 --        (True, _) -> return ()
+
+    when (Set.fromList (toList targetAccess) == Set.fromList [TeamAccess]) $
+        case Data.convTeam conv of
+            Nothing  -> throwM $ invalidOp "updateAccess: access 'team' disallowed for non-team conversations"
+            Just tid -> do
+                void $ permissionCheck usr RemoveConversationMember =<< Data.teamMembers tid
+                tcv <- Data.teamConversation tid cnv
+                when (maybe False (view managedConversation) tcv) $
+                    throwM (invalidOp "Users can not be removed from managed conversations.") --TODO
+
+                tMembers <- fmap (view userId) <$> Data.teamMembers tid
+                case filter (`notElem` tMembers) (memId <$> users) of
+                    []   -> return ()
+                    x:xs -> do
+                        e <- Data.removeMembers conv usr (list1 x xs)
+                        for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+                            push1 $ p & pushConn ?~ zcon
+                        void . fork $ void $ External.deliver (bots `zip` repeat e)
 
     -- update cassandra & send event
     now <- liftIO getCurrentTime

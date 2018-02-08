@@ -352,18 +352,20 @@ postJoinCodeConvOk g b c _ = do
 postConvertCodeConv :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postConvertCodeConv g b c _ = do
     alice <- randomUser b
-    bob   <- randomUser b
     conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [InviteAccess]
     -- Cannot do code operations if conversation not in code access
     postConvCode g alice conv !!! const 403 === statusCode
     deleteConvCode g alice conv !!! const 403 === statusCode
     getConvCode g alice conv !!! const 403 === statusCode
     -- cannot change to TeamAccess as not a team conversation
-    let teamAccess = (ConversationAccessUpdate $ singleton TeamAccess)
+    let teamAccess = ConversationAccessUpdate $ singleton TeamAccess
     putAccessUpdate g alice conv teamAccess !!! const 403 === statusCode
     -- change access
-    let codeAccess = (ConversationAccessUpdate $ list1 InviteAccess [CodeAccess])
-    putAccessUpdate g alice conv codeAccess !!! const 200 === statusCode
+    WS.bracketR c alice $ \wsA -> do
+        let codeAccess = ConversationAccessUpdate $ list1 InviteAccess [CodeAccess]
+        putAccessUpdate g alice conv codeAccess !!! const 200 === statusCode
+        void . liftIO $ WS.assertMatchN (5 # Second) [wsA] $
+            wsAssertConvAccessUpdate conv alice codeAccess
     -- Create/get/update/delete codes
     getConvCode g alice conv !!! const 404 === statusCode
     c1 <- decodeConvCode <$> postConvCode g alice conv
@@ -379,7 +381,7 @@ postConvertCodeConv g b c _ = do
 
 postConvertTeamConv :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postConvertTeamConv g b c setup = do
-    -- create team conversation team-alice, team-bob, guest-eve ephemeral-mallory
+    -- create team conversation team-alice, team-bob, guest-eve
     let a = awsEnv setup
     alice <- randomUser b
     tid   <- createTeamInternal g "foo" alice
@@ -390,28 +392,27 @@ postConvertTeamConv g b c setup = do
     let bob = bobMem^.Teams.userId
     assertQueue "team member join" a $ tUpdate 2 [alice]
     eve  <- randomUser b
-    mallory  <- randomUser b -- TODO: set as special user type?
-    connectUsers b alice (list1 (alice) [eve])
-    conv <- createTeamConv g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa")
-    -- change access
-    let codeAccess = (ConversationAccessUpdate $ list1 TeamAccess [InviteAccess, CodeAccess])
-    putAccessUpdate g alice conv codeAccess !!! const 200 === statusCode
+    connectUsers b alice (singleton eve)
+    let acc = Just $ Set.fromList [InviteAccess, CodeAccess, TeamAccess]
+    conv <- createTeamConv g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa") acc
     -- mallory joins by herself
+    mallory  <- randomUser b -- TODO: set as special user type?
     j <- decodeConvCode <$> postConvCode g alice conv
     WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
-        postJoinCodeConv g bob j !!! const 200 === statusCode
-        postJoinCodeConv g bob j !!! const 204 === statusCode
+        postJoinCodeConv g mallory j !!! const 200 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE] $
-            wsAssertMemberJoin conv mallory [mallory] --TODO join event no longer has a source!
+            wsAssertMemberJoin conv mallory [mallory] --TODO join event's source = new user. Expected?
 
-    let teamAccess = (ConversationAccessUpdate $ singleton TeamAccess)
-    putAccessUpdate g alice conv teamAccess !!! const 200 === statusCode
-
-    WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
-        postJoinCodeConv g bob j !!! const 200 === statusCode
-        postJoinCodeConv g bob j !!! const 204 === statusCode
-        void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
+    WS.bracketRN c [alice, bob, eve, mallory] $ \[wsA, wsB, wsE, wsM] -> do
+        let teamAccess = ConversationAccessUpdate $ singleton TeamAccess
+        putAccessUpdate g alice conv teamAccess !!! const 200 === statusCode
+        void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
+            wsAssertConvAccessUpdate conv alice teamAccess
+        -- non-team members get kicked out
+        void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
             wsAssertMemberLeave conv alice [eve, mallory]
+        -- joining is no longer possible
+        postJoinCodeConv g mallory j !!! const 404 === statusCode
 
 postJoinConvFail :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postJoinConvFail g b _ _ = do

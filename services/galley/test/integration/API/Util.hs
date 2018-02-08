@@ -18,6 +18,7 @@ import Data.ByteString.Conversion
 import Data.Foldable (toList, mapM_)
 import Data.Id
 import Data.Int
+import Data.List (sort)
 import Data.List1 as List1
 import Data.Maybe
 import Data.Misc
@@ -142,9 +143,9 @@ addTeamMemberInternal g tid mem = do
     post (g . paths ["i", "teams", toByteString' tid, "members"] . payload) !!!
         const 200 === statusCode
 
-createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Http ConvId
-createTeamConv g u tinfo us name = do
-    let conv = NewConv us name (Set.fromList []) (Just tinfo)
+createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access)-> Http ConvId
+createTeamConv g u tinfo us name acc = do
+    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) (Just tinfo)
     r <- post ( g
               . path "/conversations"
               . zUser u
@@ -427,14 +428,26 @@ wsAssertMemberJoin conv usr new n = do
     evtFrom      e @?= usr
     evtData      e @?= Just (EdMembers (Members new))
 
-wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
-wsAssertMemberLeave conv usr old n = do
+wsAssertConvAccessUpdate :: ConvId -> UserId -> ConversationAccessUpdate -> Notification -> IO ()
+wsAssertConvAccessUpdate conv usr new n = do
     let e = List1.head (WS.unpackPayload n)
     ntfTransient n @?= False
     evtConv      e @?= conv
-    evtType      e @?= MemberLeave
+    evtType      e @?= ConvAccessUpdate
     evtFrom      e @?= usr
-    evtData      e @?= Just (EdMembers (Members old))
+    evtData      e @?= Just (EdConvAccessUpdate new)
+
+wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
+wsAssertMemberLeave conv usr old n = do
+    let e = List1.head (WS.unpackPayload n)
+    ntfTransient n      @?= False
+    evtConv      e      @?= conv
+    evtType      e      @?= MemberLeave
+    evtFrom      e      @?= usr
+    sorted (evtData e)  @?= sorted (Just (EdMembers (Members old)))
+  where
+    sorted (Just (EdMembers (Members m))) = Just (EdMembers (Members (sort m)))
+    sorted x = x
 
 assertNoMsg :: WS.WebSocket -> (Notification -> Assertion) -> Http ()
 assertNoMsg ws f = do
