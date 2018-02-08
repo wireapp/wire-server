@@ -52,7 +52,7 @@ import Data.Code
 import Data.Foldable
 import Data.Id
 import Data.List1 (singleton)
-import Data.Maybe (fromMaybe, catMaybes, isNothing)
+import Data.Maybe (fromMaybe, catMaybes)
 import Data.List1
 import Data.Text (Text)
 import Data.Time
@@ -113,51 +113,40 @@ unblockConv (usr ::: conn ::: cnv) = do
     conv' <- acceptOne2One usr conv conn
     setStatus status200 . json <$> conversationView usr conv'
 
-
 updateConversationAccess :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     body <- fromBody req invalidPayload
     let targetAccess = Set.fromList (toList (cupAccess body))
-
     -- checks and balances
     when (PrivateAccess `elem` targetAccess) $
-        throwM $ invalidOp "updateAccess: access 'private' disallowed"
+        throwM invalidTargetAccess
     (bots, users) <- botsAndUsers <$> Data.members cnv
     unless (usr `isMember` users) $
         throwM convNotFound
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     let currentAccess = Set.fromList (toList $ Data.convAccess conv)
-    unless (Data.convType conv == RegularConv) $
-        throwM $ invalidOp "updateAccess: invalid conversation type"
-    when (TeamAccess `elem` targetAccess && isNothing (Data.convTeam conv)) $
-        throwM $ invalidOp "updateAccess: access 'team' disallowed for non-team conversations"
-
-    -- TODO who is allowed to change access mode? Every participant?
-
---    -- only creator can change access mode ?
---    unless (Data.convCreator conv == usr) $
---        throwM $ operationDenied' "updateAccess: restricted to conversation creator"
-
---    -- only conversation creators and conversation creator's team's "admins" can change Access mode ?
---    case (Data.convCreator conv == usr, Data.convTeam conv) of
---        (False, Nothing)    -> throwM $ operationDenied' "updateAccess: restricted to conversation creator"
---        (False, Just tid) -> do
---            -- get the team members and verify permissions
---            members <- Data.teamMembers tid
---            void $ permissionCheck usr SetMemberPermissions members -- TODO: introduce new permission?
---        (True, _) -> return ()
-
+    case Data.convType conv of
+        SelfConv    -> throwM invalidSelfOp
+        One2OneConv -> throwM invalidOne2OneOp
+        ConnectConv -> throwM invalidConnectOp
+        _           -> return ()
     -- remove conversation codes if CodeAccess is revoked
     when (CodeAccess `elem` currentAccess && CodeAccess `notElem` targetAccess) $ do
         key <- mkKey cnv
         Data.deleteCode key
-
-    -- remove non-team users if the only mode left is TeamAccess
-    when (targetAccess == Set.fromList [TeamAccess]) $
-        case Data.convTeam conv of
-            Nothing  -> throwM $ invalidOp "updateAccess: access 'team' disallowed for non-team conversations"
-            Just tid -> handleTeamOnly tid users bots conv
-
+    -- special case TeamConversation
+    case Data.convTeam conv of
+        Nothing     ->
+            when (TeamAccess `elem` targetAccess) $
+                throwM $ invalidTargetAccess
+        Just tid    -> do
+            tMembers <- Data.teamMembers tid
+            -- only team members can change access mode
+            unless (usr `elem` (memId <$> users)) $
+                throwM $ accessDenied
+            -- remove non-team users if the only mode left is TeamAccess
+            when (targetAccess == Set.fromList [TeamAccess]) $
+                handleTeamOnly tid tMembers users bots conv
     -- update cassandra & send event
     now <- liftIO getCurrentTime
     let e = Event ConvAccessUpdate cnv usr now (Just $ EdConvAccessUpdate body )
@@ -168,8 +157,8 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
         void . fork $ void $ External.deliver (bots `zip` repeat e)
     return $ json e & setStatus status200
   where
-    handleTeamOnly tid users bots conv = do
-        tMembers <- Data.teamMembers tid
+    handleTeamOnly :: TeamId -> [TeamMember] -> [Member] -> [BotMember] -> Data.Conversation -> Galley ()
+    handleTeamOnly tid tMembers users bots conv = do
         void $ permissionCheck usr RemoveConversationMember tMembers
         tcv <- Data.teamConversation tid cnv
         when (maybe False (view managedConversation) tcv) $
@@ -190,7 +179,7 @@ addCode (usr ::: cnv) = do
     ensureCodeAccess cnv
     c <- generate cnv (Timeout 3600 * 24 * 365) -- one year TODO: configurable
     Data.insertCode c
-    -- TODO: should there be an event sent here?
+    -- TODO: create an event
     returnCode c
 
 rmCode :: UserId ::: ConvId -> Galley Response
@@ -199,7 +188,7 @@ rmCode (usr ::: cnv) = do
     ensureCodeAccess cnv
     key <- mkKey cnv
     Data.deleteCode key
-    -- TODO: should there be an event sent here?
+    -- TODO: create an event
     return empty
 
 getCode :: UserId ::: ConvId -> Galley Response
@@ -557,9 +546,7 @@ ensureCodeAccess :: ConvId -> Galley ()
 ensureCodeAccess cnv = do
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     unless (CodeAccess `elem` (convAccess conv)) $
-        throwM (operationDenied' "restricted to 'code' access conversations")
-
-
+        throwM invalidAccessOp
 
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation

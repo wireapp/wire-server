@@ -20,6 +20,12 @@ invalidOne2OneOp = invalidOp "invalid operation for 1:1 conversations"
 invalidConnectOp :: Error
 invalidConnectOp = invalidOp "invalid operation for connect conversation"
 
+invalidAccessOp :: Error
+invalidAccessOp = invalidOp "invalid operation for conversation without 'code' access"
+
+invalidTargetAccess :: Error
+invalidTargetAccess = invalidOp "invalid target access"
+
 invalidOp :: Text -> Error
 invalidOp = Error status403 "invalid-op"
 
@@ -52,9 +58,6 @@ operationDenied p = Error
     status403
     "operation-denied"
     ("Insufficient permissions (missing " <> (pack $ show p) <> ")")
-
-operationDenied' :: Text -> Error
-operationDenied' = Error status403 "operation-denied"
 
 noTeamMember :: Error
 noTeamMember = Error status403 "no-team-member" "Requesting user is not a team member."

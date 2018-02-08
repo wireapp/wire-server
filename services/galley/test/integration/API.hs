@@ -395,12 +395,12 @@ postConvertTeamConv g b c setup = do
     let acc = Just $ Set.fromList [InviteAccess, CodeAccess, TeamAccess]
     conv <- createTeamConv g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa") acc
     -- mallory joins by herself
-    mallory  <- randomUser b -- TODO: set as special user type?
+    mallory  <- randomUser b
     j <- decodeConvCode <$> postConvCode g alice conv
     WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
         postJoinCodeConv g mallory j !!! const 200 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE] $
-            wsAssertMemberJoin conv mallory [mallory] --TODO join event's source = new user. Expected?
+            wsAssertMemberJoin conv mallory [mallory]
 
     WS.bracketRN c [alice, bob, eve, mallory] $ \[wsA, wsB, wsE, wsM] -> do
         let teamAccess = ConversationAccessUpdate $ singleton TeamAccess

@@ -479,7 +479,10 @@ sitemap = do
         summary "Join a conversation using a code"
         returns (ref Model.event)
         response 200 "Conversation joined." end
+        body (ref Model.conversationCode) $
+            description "JSON body"
         errorResponse Error.convNotFound
+        errorResponse Error.tooManyMembers
 
     ---
 
@@ -487,14 +490,40 @@ sitemap = do
         zauthUserId
         .&. capture "cnv"
 
+    document "POST" "createConversationCode" $ do
+        summary "Create or recreate a conversation code"
+        returns (ref Model.conversationCode) --TODO: return event instead?
+        response 200 "Conversation code created." end
+        errorResponse Error.convNotFound
+        errorResponse Error.invalidAccessOp
+
+    ---
+
     delete "/conversations/:cnv/code" (continue rmCode) $
         zauthUserId
         .&. capture "cnv"
+
+    document "DELETE" "deleteConversationCode" $ do
+        summary "Delete conversation code"
+        returns (ref Model.event)
+        response 200 "Conversation code deleted." end
+        errorResponse Error.convNotFound
+        errorResponse Error.invalidAccessOp
+
+    ---
 
     get "/conversations/:cnv/code" (continue getCode) $
         zauthUserId
         .&. capture "cnv"
 
+    document "GET" "getConversationCode" $ do
+        summary "Get existing conversation code"
+        returns (ref Model.conversationCode)
+        response 200 "Conversation Code" end
+        errorResponse Error.convNotFound
+        errorResponse Error.invalidAccessOp
+
+    ---
 
     put "/conversations/:cnv/access" (continue updateConversationAccess) $
         zauthUserId
@@ -503,7 +532,19 @@ sitemap = do
         .&. request
         .&. contentType "application" "json"
 
-    -- TODO swagger (also for Join/Code)
+    document "PUT" "updateConversationAccess" $ do
+        summary "Join a conversation using a code"
+        returns (ref Model.event)
+        response 200 "Conversation access updated." end
+        body (ref Model.conversationAccessUpdate) $
+            description "JSON body"
+        errorResponse Error.convNotFound
+        errorResponse Error.accessDenied
+        errorResponse Error.invalidTargetAccess
+        errorResponse Error.invalidSelfOp
+        errorResponse Error.invalidOne2OneOp
+        errorResponse Error.invalidConnectOp
+        errorResponse Error.invalidTargetAccess
 
     ---
 

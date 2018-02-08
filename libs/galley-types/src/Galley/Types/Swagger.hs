@@ -14,6 +14,8 @@ galleyModels =
     , conversationIds
     , conversationMembers
     , conversationUpdate
+    , conversationAccessUpdate
+    , conversationCode
     , conversationUpdateEvent
     , errorObj
     , event
@@ -63,6 +65,7 @@ eventType = string $ enum
     , "conversation.member-leave"
     , "conversation.member-update"
     , "conversation.rename"
+    , "conversation.access-update"
     , "conversation.create"
     , "conversation.delete"
     , "conversation.connect-request"
@@ -198,6 +201,23 @@ conversationUpdate = defineModel "ConversationUpdate" $ do
     description "Contains conversation properties to update"
     property "name" string' $
         description "The new conversation name"
+
+conversationAccessUpdate :: Model
+conversationAccessUpdate = defineModel "ConversationAccessUpdate" $ do
+    description "Contains conversation properties to update"
+    property "access" (unique $ array bytes') $
+        description "List of conversation access modes: invite|team|code"
+
+conversationCode :: Model
+conversationCode = defineModel "ConversationCode" $ do
+    description "Contains conversation properties to update"
+    property "key" string' $
+        description "Stable conversation identifier"
+    property "code" string' $
+        description "Conversation code (random)"
+    property "uri" string' $ do
+        description "Full URI (containing key/code) to join a conversation"
+        optional
 
 conversationMembers :: Model
 conversationMembers = defineModel "ConversationMembers" $ do

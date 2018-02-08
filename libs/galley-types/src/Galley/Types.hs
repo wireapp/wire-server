@@ -322,14 +322,14 @@ data TypingStatus
 data ConversationCode = ConversationCode
     { conversationKey   :: !Code.Key
     , conversationCode  :: !Code.Value
-    , conversationLink  :: !(Maybe HttpsUrl)
+    , conversationUri  :: !(Maybe HttpsUrl)
     } deriving (Eq, Show)
 
 mkConversationCode :: Code.Key -> Code.Value -> HttpsUrl -> ConversationCode
 mkConversationCode k v (HttpsUrl prefix) = ConversationCode
         { conversationKey = k
         , conversationCode = v
-        , conversationLink = Just (HttpsUrl link)
+        , conversationUri = Just (HttpsUrl link)
         }
   where
     -- TODO: discuss what the link should look like
@@ -776,13 +776,13 @@ instance FromJSON TypingData where
 
 instance ToJSON ConversationCode where
     toJSON j = object
-        $ "conversationKey"  .= conversationKey j
-        # "conversationCode" .= conversationCode j
-        # "conversationLink" .= conversationLink j
+        $ "key"  .= conversationKey j
+        # "code" .= conversationCode j
+        # "uri"  .= conversationUri j
         # []
 
 instance FromJSON ConversationCode where
     parseJSON = withObject "join" $ \o ->
-        ConversationCode <$> o .: "conversationKey"
-            <*> o .:  "conversationCode"
-            <*> o .:? "conversationLink"
+        ConversationCode <$> o .: "key"
+            <*> o .:  "code"
+            <*> o .:? "uri"
