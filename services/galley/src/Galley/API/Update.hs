@@ -53,7 +53,6 @@ import Data.Foldable
 import Data.Id
 import Data.List1 (singleton)
 import Data.Maybe (fromMaybe, catMaybes, isNothing)
-import Data.Range hiding ((<|))
 import Data.List1
 import Data.Text (Text)
 import Data.Time
@@ -118,24 +117,26 @@ unblockConv (usr ::: conn ::: cnv) = do
 updateConversationAccess :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     body <- fromBody req invalidPayload
-    let targetAccess = cupAccess body
+    let targetAccess = Set.fromList (toList (cupAccess body))
 
     -- checks and balances
     when (PrivateAccess `elem` targetAccess) $
         throwM $ invalidOp "updateAccess: access 'private' disallowed"
-
     (bots, users) <- botsAndUsers <$> Data.members cnv
     unless (usr `isMember` users) $
         throwM convNotFound
     conv <- Data.conversation cnv >>= ifNothing convNotFound
+    let currentAccess = Set.fromList (toList $ Data.convAccess conv)
     unless (Data.convType conv == RegularConv) $
         throwM $ invalidOp "updateAccess: invalid conversation type"
     when (TeamAccess `elem` targetAccess && isNothing (Data.convTeam conv)) $
         throwM $ invalidOp "updateAccess: access 'team' disallowed for non-team conversations"
 
-    -- only creator can change access mode ?
-    unless (Data.convCreator conv == usr) $
-        throwM $ operationDenied' "updateAccess: restricted to conversation creator"
+    -- TODO who is allowed to change access mode? Every participant?
+
+--    -- only creator can change access mode ?
+--    unless (Data.convCreator conv == usr) $
+--        throwM $ operationDenied' "updateAccess: restricted to conversation creator"
 
 --    -- only conversation creators and conversation creator's team's "admins" can change Access mode ?
 --    case (Data.convCreator conv == usr, Data.convTeam conv) of
@@ -146,45 +147,50 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
 --            void $ permissionCheck usr SetMemberPermissions members -- TODO: introduce new permission?
 --        (True, _) -> return ()
 
-    when (Set.fromList (toList targetAccess) == Set.fromList [TeamAccess]) $
+    -- remove conversation codes if CodeAccess is revoked
+    when (CodeAccess `elem` currentAccess && CodeAccess `notElem` targetAccess) $ do
+        key <- mkKey cnv
+        Data.deleteCode key
+
+    -- remove non-team users if the only mode left is TeamAccess
+    when (targetAccess == Set.fromList [TeamAccess]) $
         case Data.convTeam conv of
             Nothing  -> throwM $ invalidOp "updateAccess: access 'team' disallowed for non-team conversations"
-            Just tid -> do
-                void $ permissionCheck usr RemoveConversationMember =<< Data.teamMembers tid
-                tcv <- Data.teamConversation tid cnv
-                when (maybe False (view managedConversation) tcv) $
-                    throwM (invalidOp "Users can not be removed from managed conversations.") --TODO
-
-                tMembers <- fmap (view userId) <$> Data.teamMembers tid
-                case filter (`notElem` tMembers) (memId <$> users) of
-                    []   -> return ()
-                    x:xs -> do
-                        e <- Data.removeMembers conv usr (list1 x xs)
-                        for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
-                            push1 $ p & pushConn ?~ zcon
-                        void . fork $ void $ External.deliver (bots `zip` repeat e)
+            Just tid -> handleTeamOnly tid users bots conv
 
     -- update cassandra & send event
     now <- liftIO getCurrentTime
     let e = Event ConvAccessUpdate cnv usr now (Just $ EdConvAccessUpdate body )
-    let currentAccess = Set.fromList (toList $ Data.convAccess conv)
-    unless (currentAccess == Set.fromList (toList targetAccess)) $ do
-        Data.updateConversationAccess cnv targetAccess
+    unless (currentAccess == targetAccess) $ do
+        Data.updateConversationAccess cnv (cupAccess body)
         for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
             push1 $ p & pushConn ?~ zcon
         void . fork $ void $ External.deliver (bots `zip` repeat e)
     return $ json e & setStatus status200
+  where
+    handleTeamOnly tid users bots conv = do
+        tMembers <- Data.teamMembers tid
+        void $ permissionCheck usr RemoveConversationMember tMembers
+        tcv <- Data.teamConversation tid cnv
+        when (maybe False (view managedConversation) tcv) $
+            throwM (invalidOp "Users can not be removed from managed conversations.")
+        -- remove all non team members from conversation
+        let tUids = view userId <$> tMembers
+        case filter (`notElem` tUids) (memId <$> users) of
+            []   -> return ()
+            x:xs -> do
+                e <- Data.removeMembers conv usr (list1 x xs)
+                for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+                    push1 $ p & pushConn ?~ zcon
+                void . fork $ void $ External.deliver (bots `zip` repeat e)
 
-
-addCode :: UserId ::: ConvId ::: Request ::: JSON -> Galley Response
-addCode (usr ::: cnv ::: req ::: _ ) = do
+addCode :: UserId ::: ConvId -> Galley Response
+addCode (usr ::: cnv) = do
     ensureUser usr cnv
     ensureCodeAccess cnv
-    -- TODO configurable timeout
-    -- TODO support for no timeout
-    let t = Timeout (3600 * 24 * 30) -- one month.
-    c <- generate cnv t
+    c <- generate cnv (Timeout 3600 * 24 * 365) -- one year TODO: configurable
     Data.insertCode c
+    -- TODO: should there be an event sent here?
     returnCode c
 
 rmCode :: UserId ::: ConvId -> Galley Response
@@ -193,6 +199,7 @@ rmCode (usr ::: cnv) = do
     ensureCodeAccess cnv
     key <- mkKey cnv
     Data.deleteCode key
+    -- TODO: should there be an event sent here?
     return empty
 
 getCode :: UserId ::: ConvId -> Galley Response
@@ -229,7 +236,6 @@ joinConversation zusr zcon cnv access = do
     let new = filter (notIsMember c) [zusr]
     ensureMemberLimit (toList $ Data.convMembers c) new
     addToConversation (botsAndUsers (Data.convMembers c)) zusr zcon new c
-
 
 addMembers :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do

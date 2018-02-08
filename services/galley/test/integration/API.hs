@@ -32,7 +32,6 @@ import Test.Tasty.HUnit
 import API.SQS
 
 import qualified Galley.Types.Teams       as Teams
-import qualified Galley.Types.Teams.Intra as Teams
 import qualified API.Teams                as Teams
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List1               as List1

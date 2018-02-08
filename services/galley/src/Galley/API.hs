@@ -486,8 +486,6 @@ sitemap = do
     post "/conversations/:cnv/code" (continue addCode) $
         zauthUserId
         .&. capture "cnv"
-        .&. request
-        .&. accept "application" "json"
 
     delete "/conversations/:cnv/code" (continue rmCode) $
         zauthUserId
