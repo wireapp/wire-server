@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
 
 -- | Types for the (internal) provider API.
@@ -17,13 +18,15 @@ module Brig.Types.Provider
     ) where
 
 import Brig.Types.Client.Prekey
+import Brig.Types.Code as Code
 import Brig.Types.Common as Common
 import Brig.Types.Provider.Tag (ServiceTag (..))
 import Data.Aeson
+import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Int
-import Data.Json.Util ((#))
+import Data.Json.Util
 import Data.List1 (List1)
 import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
 import Data.PEM
@@ -203,6 +206,36 @@ instance ToJSON DeleteProvider where
     toJSON d = object
         [ "password" .= deleteProviderPassword d
         ]
+
+--------------------------------------------------------------------------------
+-- Password Change / Reset
+
+-- | The payload for initiating a password reset.
+newtype PasswordReset = PasswordReset { nprEmail :: Email }
+
+deriveJSON toJSONFieldName ''PasswordReset
+
+-- | The payload for completing a password reset.
+data CompletePasswordReset = CompletePasswordReset
+    { cpwrKey      :: !Code.Key
+    , cpwrCode     :: !Code.Value
+    , cpwrPassword :: !PlainTextPassword
+    }
+
+deriveJSON toJSONFieldName ''CompletePasswordReset
+
+-- | The payload for changing a password.
+data PasswordChange = PasswordChange
+    { cpOldPassword :: !PlainTextPassword
+    , cpNewPassword :: !PlainTextPassword
+    }
+
+deriveJSON toJSONFieldName ''PasswordChange
+
+-- | The payload for updating an email address
+newtype EmailUpdate = EmailUpdate { euEmail :: Email }
+
+deriveJSON toJSONFieldName ''EmailUpdate
 
 --------------------------------------------------------------------------------
 -- Bounded ServiceTag Queries

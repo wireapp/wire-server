@@ -47,6 +47,7 @@ emailSMS:
     providerActivationUrl: http://127.0.0.1:8080/provider/activate?key=\${key}\&code=\${code}
     approvalUrl: http://127.0.0.1:8080/provider/approve?key=\${key}\&code=\${code}
     approvalTo: success@simulator.amazonses.com
+    providerPwResetUrl: http://127.0.0.1:8080/provider/password-reset?key=\${key}\&code=\${code}
 
   team:
     tInvitationUrl: http://127.0.0.1:8080/register?team=\${team}\&team_code=\${code}

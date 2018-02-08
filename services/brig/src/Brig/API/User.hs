@@ -610,7 +610,7 @@ beginPasswordReset target = do
         throwE InvalidPasswordResetKey
     code <- lift $ Data.lookupPasswordResetCode user
     when (isJust code) $
-        throwE PasswordResetInProgress
+        throwE (PasswordResetInProgress Nothing)
     (user,) <$> lift (Data.createPasswordResetCode user target)
 
 completePasswordReset :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword -> ExceptT PasswordResetError AppIO ()

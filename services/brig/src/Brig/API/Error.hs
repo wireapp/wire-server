@@ -60,9 +60,11 @@ actError (InvalidActivationEmail _) = StdError invalidEmail
 actError (InvalidActivationPhone _) = StdError invalidPhone
 
 pwResetError :: PasswordResetError -> Error
-pwResetError PasswordResetInProgress  = StdError duplicatePwResetCode
-pwResetError InvalidPasswordResetKey  = StdError invalidPwResetKey
-pwResetError InvalidPasswordResetCode = StdError invalidPwResetCode
+pwResetError InvalidPasswordResetKey            = StdError invalidPwResetKey
+pwResetError InvalidPasswordResetCode           = StdError invalidPwResetCode
+pwResetError (PasswordResetInProgress Nothing)  = StdError duplicatePwResetCode
+pwResetError (PasswordResetInProgress (Just t)) = RichError duplicatePwResetCode ()
+    [("Retry-After", toByteString' t)]
 
 newUserError :: CreateUserError -> Error
 newUserError InvalidInvitationCode    = StdError invalidInvitationCode

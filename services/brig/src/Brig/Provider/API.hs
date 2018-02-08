@@ -10,6 +10,7 @@ module Brig.Provider.API (routes) where
 import Brig.App (settings)
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.Types (PasswordResetError (..))
 import Brig.Email (mkEmailKey, validateEmail)
 import Brig.Options (Settings (..))
 import Brig.Password
@@ -17,10 +18,11 @@ import Brig.Provider.DB (ServiceConn (..))
 import Brig.Provider.Email
 import Brig.Types.Intra (UserAccount (..), AccountStatus (..))
 import Brig.Types.Client
-import Brig.Types.User
+import Brig.Types.User (publicProfile, User (..), Pict (..))
 import Brig.Types.Provider
 import Brig.Types.Search
 import Control.Lens (view)
+import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
 import Control.Monad (join, when, unless, (>=>), liftM2)
 import Control.Monad.IO.Class
@@ -101,6 +103,16 @@ routes = do
         contentType "application" "json"
         .&> request
 
+    post "/provider/password-reset" (continue beginPasswordReset) $
+        accept "application" "json"
+        .&> contentType "application" "json"
+        .&> request
+
+    post "/provider/password-reset/complete" (continue completePasswordReset) $
+        accept "application" "json"
+        .&> contentType "application" "json"
+        .&> request
+
     -- Provider API ------------------------------------------------------------
 
     delete "/provider" (continue deleteAccount) $
@@ -116,18 +128,17 @@ routes = do
         .&> zauthProviderId
         .&. request
 
--- TODO
---    put "/provider/email" (continue changeEmail) $
---        contentType "application" "json"
---        .&. zauthProvider
---        .&. request
+    put "/provider/email" (continue updateAccountEmail) $
+        contentType "application" "json"
+        .&> zauth ZAuthProvider
+        .&> zauthProviderId
+        .&. request
 
--- TODO
---    put "/provider/password" (continue changePassword) $
---        accept "application" "json"
---        .&. contentType "application" "json"
---        .&. zauthProvider
---        .&. request
+    put "/provider/password" (continue updateAccountPassword) $
+        contentType "application" "json"
+        .&> zauth ZAuthProvider
+        .&> zauthProviderId
+        .&. request
 
     get "/provider" (continue getAccount) $
         accept "application" "json"
@@ -305,7 +316,7 @@ newAccount req = do
     let key = Code.codeKey code
     let val = Code.codeValue code
 
-    lift $ sendActivationMail name email key val
+    lift $ sendActivationMail name email key val False
 
     return $ setStatus status201 $ json (NewProviderResponse pid newPass)
 
@@ -318,12 +329,16 @@ activateAccountKey (key ::: val) = do
     (name, memail, _url, _descr) <- DB.lookupAccountData pid >>= maybeInvalidCode
     case memail of
         Just email' | email == email' -> return $ setStatus status204 empty
-        Just _ -> do
-            activate pid email
+        Just email' -> do
+            -- Ensure we remove any pending password reset
+            gen <- Code.mkGen (Code.ForEmail email')
+            lift $ Code.delete (Code.genKey gen) Code.PasswordReset
+            -- Activate the new and remove the old key
+            activate pid (Just email') email
             return $ json (ProviderActivationResponse email)
         -- Immediate approval for everybody (for now).
         Nothing -> do
-            activate pid email
+            activate pid Nothing email
             lift $ sendApprovalConfirmMail name email
             return $ json (ProviderActivationResponse email)
 
@@ -333,7 +348,7 @@ approveAccountKey (key ::: val) = do
     case (Code.codeAccount c, Code.codeForEmail c) of
         (Just pid, Just email) -> do
             (name, _, _, _) <- DB.lookupAccountData (Id pid) >>= maybeInvalidCode
-            activate (Id pid) email
+            activate (Id pid) Nothing email
             lift $ sendApprovalConfirmMail name email
             return empty
         _ -> throwStd invalidCode
@@ -347,6 +362,35 @@ login req = do
         throwStd badCredentials
     tok <- ZAuth.newProviderToken pid
     setProviderCookie tok empty
+
+beginPasswordReset :: Request -> Handler Response
+beginPasswordReset req = do
+    PasswordReset target <- parseJsonBody req
+    pid <- DB.lookupKey (mkEmailKey target) >>= maybeBadCredentials
+    gen <- Code.mkGen (Code.ForEmail target)
+    pending <- lift $ Code.lookup (Code.genKey gen) Code.PasswordReset
+
+    code <- case pending of
+        Just p  -> throwE $ pwResetError (PasswordResetInProgress . Just $ Code.codeTTL p)
+        Nothing -> Code.generate gen Code.PasswordReset
+                       (Code.Retries 3)
+                       (Code.Timeout 3600) -- 1h
+                       (Just (toUUID pid))
+
+    Code.insert code
+    lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
+    return $ setStatus status201 empty
+
+completePasswordReset :: Request -> Handler Response
+completePasswordReset req = do
+    CompletePasswordReset key val pwd <- parseJsonBody req
+    c <- Code.verify key Code.PasswordReset val >>= maybeInvalidCode
+    case Code.codeAccount c of
+        Nothing -> throwE $ pwResetError InvalidPasswordResetCode
+        Just  p -> do
+            DB.updateAccountPassword (Id p) pwd
+            Code.delete key Code.PasswordReset
+    return empty
 
 --------------------------------------------------------------------------------
 -- Provider API
@@ -366,6 +410,35 @@ updateAccountProfile (pid ::: req) = do
         (updateProviderName upd)
         (updateProviderUrl upd)
         (updateProviderDescr upd)
+    return empty
+
+updateAccountEmail :: ProviderId ::: Request -> Handler Response
+updateAccountEmail (pid ::: req) = do
+    EmailUpdate new <- parseJsonBody req
+    email <- case validateEmail new of
+        Just em -> return em
+        Nothing -> throwStd invalidEmail
+
+    let emailKey = mkEmailKey email
+    DB.lookupKey emailKey >>= mapM_ (const $ throwStd emailExists)
+
+    gen  <- Code.mkGen (Code.ForEmail email)
+    code <- Code.generate gen Code.IdentityVerification
+                (Code.Retries 3)
+                (Code.Timeout (3600 * 24)) -- 24h
+                (Just (toUUID pid))
+    Code.insert code
+
+    lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
+    return $ setStatus status202 empty
+
+updateAccountPassword :: ProviderId ::: Request -> Handler Response
+updateAccountPassword (pid ::: req) = do
+    upd  <- parseJsonBody req
+    pass <- DB.lookupPassword pid >>= maybeBadCredentials
+    unless (verifyPassword (cpOldPassword upd) pass) $
+        throwStd badCredentials
+    DB.updateAccountPassword pid (cpNewPassword upd)
     return empty
 
 addService :: ProviderId ::: Request -> Handler Response
@@ -677,13 +750,13 @@ botDeleteSelf (bid ::: cid) = do
 minRsaKeySize :: Int
 minRsaKeySize = 256 -- Bytes (= 2048 bits)
 
-activate :: ProviderId -> Email -> Handler ()
-activate pid email = do
-    let emailKey = mkEmailKey email
+activate :: ProviderId -> Maybe Email -> Email -> Handler ()
+activate pid old new = do
+    let emailKey = mkEmailKey new
     taken <- maybe False (/= pid) <$> DB.lookupKey emailKey
     when taken $
         throwStd emailExists
-    DB.insertKey pid emailKey
+    DB.insertKey pid (mkEmailKey <$> old) emailKey
 
 deleteBot :: UserId -> Maybe ConnId -> BotId -> ConvId -> Handler (Maybe Event)
 deleteBot zusr zcon bid cid = do
