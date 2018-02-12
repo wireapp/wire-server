@@ -23,6 +23,9 @@ invalidConnectOp = invalidOp "invalid operation for connect conversation"
 invalidAccessOp :: Error
 invalidAccessOp = invalidOp "invalid operation for conversation without 'code' access"
 
+invalidManagedConvOp :: Error
+invalidManagedConvOp = invalidOp "invalid operation for managed conversation"
+
 invalidTargetAccess :: Error
 invalidTargetAccess = invalidOp "invalid target access"
 

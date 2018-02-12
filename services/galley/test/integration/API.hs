@@ -366,6 +366,8 @@ postConvertCodeConv g b c _ = do
     WS.bracketR c alice $ \wsA -> do
         let codeAccess = ConversationAccessUpdate [InviteAccess, CodeAccess]
         putAccessUpdate g alice conv codeAccess !!! const 200 === statusCode
+        -- test no-op
+        putAccessUpdate g alice conv codeAccess !!! const 204 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA] $
             wsAssertConvAccessUpdate conv alice codeAccess
     -- Create/get/update/delete codes

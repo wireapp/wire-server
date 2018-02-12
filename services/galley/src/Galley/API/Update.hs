@@ -127,21 +127,12 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     ensureGroupConv conv
     let currentAccess = Set.fromList (toList $ Data.convAccess conv)
     if currentAccess == targetAccess then
-        return empty
+        return $ empty & setStatus status204
     else do
-        -- special case TeamConversation
         case Data.convTeam conv of
-            Nothing     ->
-                unless (InviteAccess `elem` targetAccess) $
-                    throwM invalidTargetAccess
-            Just tid    -> do
-                tMembers <- Data.teamMembers tid
-                -- only team members can change access mode
-                unless (usr `elem` (view userId <$> tMembers)) $
-                    throwM accessDenied
-                -- remove non-team users if access is the empty list
-                when (null targetAccess) $
-                    handleTeamOnly tid tMembers users bots conv
+            Nothing     ->  unless (InviteAccess `elem` targetAccess) $
+                                throwM invalidTargetAccess
+            Just tid    -> handleTeamConv tid targetAccess users bots conv
         -- remove conversation codes if CodeAccess is revoked
         when (CodeAccess `elem` currentAccess && CodeAccess `notElem` targetAccess) $ do
             key <- mkKey cnv
@@ -153,13 +144,22 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
         pushEvent e users bots
         return $ json e & setStatus status200
   where
-    handleTeamOnly :: TeamId -> [TeamMember] -> [Member] -> [BotMember] -> Data.Conversation -> Galley ()
-    handleTeamOnly tid tMembers users bots conv = do
-        void $ permissionCheck usr RemoveConversationMember tMembers
+    handleTeamConv tid targetAccess users bots conv = do
+        tMembers <- Data.teamMembers tid
+        -- only team members can change access mode
+        unless (usr `elem` (view userId <$> tMembers)) $
+            throwM accessDenied
+        -- access mode change for managed conversation is not allowed
         tcv <- Data.teamConversation tid cnv
         when (maybe False (view managedConversation) tcv) $
-            throwM (invalidOp "Users can not be removed from managed conversations.")
-        -- remove all non team members from conversation
+            throwM invalidManagedConvOp
+        -- remove non-team users if target access is the empty list
+        when (null targetAccess) $
+            removeNonTeamMembers tMembers users bots conv
+
+    removeNonTeamMembers :: [TeamMember] -> [Member] -> [BotMember] -> Data.Conversation -> Galley ()
+    removeNonTeamMembers tMembers users bots conv = do
+        void $ permissionCheck usr RemoveConversationMember tMembers
         let tUids = view userId <$> tMembers
         case filter (`notElem` tUids) (memId <$> users) of
             []   -> return ()

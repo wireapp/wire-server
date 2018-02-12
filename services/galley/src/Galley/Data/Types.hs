@@ -22,7 +22,6 @@ import Cassandra hiding (Value)
 import Data.Int (Int32)
 import Data.Id
 import Data.Range
-import Data.List1
 import Data.Text
 import Data.Maybe (fromMaybe, isJust)
 import Galley.Types (ConvType (..), Access, Member (..))
