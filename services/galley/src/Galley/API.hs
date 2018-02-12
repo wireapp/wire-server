@@ -488,11 +488,12 @@ sitemap = do
 
     post "/conversations/:cnv/code" (continue addCode) $
         zauthUserId
+        .&. zauthConnId
         .&. capture "cnv"
 
     document "POST" "createConversationCode" $ do
         summary "Create or recreate a conversation code"
-        returns (ref Model.conversationCode) --TODO: return event instead?
+        returns (ref Model.event)
         response 200 "Conversation code created." end
         errorResponse Error.convNotFound
         errorResponse Error.invalidAccessOp
@@ -501,6 +502,7 @@ sitemap = do
 
     delete "/conversations/:cnv/code" (continue rmCode) $
         zauthUserId
+        .&. zauthConnId
         .&. capture "cnv"
 
     document "DELETE" "deleteConversationCode" $ do

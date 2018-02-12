@@ -462,6 +462,11 @@ decodeConvCode :: Response (Maybe Lazy.ByteString) -> ConversationCode
 decodeConvCode r = fromMaybe (error "Failed to parse ConversationCode response") $
     decodeBody r
 
+decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCode
+decodeConvCodeEvent r = case fromMaybe (error "Failed to parse Event") $ decodeBody r of
+    (Event ConvCodeUpdate _ _ _ (Just (EdConvCodeUpdate c))) -> c
+    _ -> error "Failed to parse ConversationCode from Event"
+
 decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId
 decodeConvId r = fromMaybe (error "Failed to parse conversation") $
     cnvId <$> decodeBody r

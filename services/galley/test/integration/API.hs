@@ -341,7 +341,7 @@ postJoinCodeConvOk g b c _ = do
     alice <- randomUser b
     bob   <- randomUser b
     conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [CodeAccess]
-    cCode <- decodeConvCode <$> postConvCode g alice conv
+    cCode <- decodeConvCodeEvent <$> postConvCode g alice conv
     -- currently ConversationCode is used both as return type for POST ../code and as body for ../join
     -- TODO: Should there be two different types?
     let payload = cCode {conversationUri = Nothing} -- unnecessary step, cCode can be posted as-is also.
@@ -372,10 +372,10 @@ postConvertCodeConv g b c _ = do
             wsAssertConvAccessUpdate conv alice codeAccess
     -- Create/get/update/delete codes
     getConvCode g alice conv !!! const 404 === statusCode
-    c1 <- decodeConvCode <$> postConvCode g alice conv
+    c1 <- decodeConvCodeEvent <$> postConvCode g alice conv
     c1' <- decodeConvCode <$> getConvCode g alice conv
     liftIO $ assertEqual "c1 c1' codes should match" c1 c1'
-    c2 <- decodeConvCode <$> postConvCode g alice conv
+    c2 <- decodeConvCodeEvent <$> postConvCode g alice conv
     liftIO $ assertBool "c2 should be different" (c1 /= c2)
     c2' <- decodeConvCode <$> getConvCode g alice conv
     liftIO $ assertEqual "c2 c2' codes should match" c2 c2'
@@ -401,7 +401,7 @@ postConvertTeamConv g b c setup = do
     conv <- createTeamConv g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa") acc
     -- mallory joins by herself
     mallory  <- randomUser b
-    j <- decodeConvCode <$> postConvCode g alice conv
+    j <- decodeConvCodeEvent <$> postConvCode g alice conv
     WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
         postJoinCodeConv g mallory j !!! const 200 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE] $

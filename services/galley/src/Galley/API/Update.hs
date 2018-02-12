@@ -139,9 +139,9 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
             Data.deleteCode key ReusableCode
         -- update cassandra & send event
         now <- liftIO getCurrentTime
-        let e = Event ConvAccessUpdate cnv usr now (Just $ EdConvAccessUpdate body )
+        let e = Event ConvAccessUpdate cnv usr now (Just $ EdConvAccessUpdate body)
         Data.updateConversationAccess cnv (cupAccess body)
-        pushEvent e users bots
+        pushEvent e users bots zcon
         return $ json e & setStatus status200
   where
     handleTeamConv tid targetAccess users bots conv = do
@@ -165,31 +165,39 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
             []   -> return ()
             x:xs -> do
                 e <- Data.removeMembers conv usr (list1 x xs)
-                pushEvent e users bots
+                pushEvent e users bots zcon
 
-    pushEvent :: Event -> [Member] -> [BotMember] -> Galley ()
-    pushEvent e users bots = do
-        for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
-            push1 $ p & pushConn ?~ zcon
-        void . fork $ void $ External.deliver (bots `zip` repeat e)
+pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
+pushEvent e users bots zcon = do
+    for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+        push1 $ p & pushConn ?~ zcon
+    void . fork $ void $ External.deliver (bots `zip` repeat e)
 
-addCode :: UserId ::: ConvId -> Galley Response
-addCode (usr ::: cnv) = do
+addCode :: UserId ::: ConnId ::: ConvId -> Galley Response
+addCode (usr ::: zcon ::: cnv) = do
     ensureUser usr cnv
     ensureCodeAccess cnv
+    (bots, users) <- botsAndUsers <$> Data.members cnv
     c <- generate cnv ReusableCode (Timeout 3600 * 24 * 365) -- one year TODO: configurable
     Data.insertCode c
-    -- TODO: create an event
-    returnCode c
+    now <- liftIO getCurrentTime
+    urlPrefix <- view $ options . optSettings . setConversationCodeURI
+    let res = mkConversationCode (codeKey c) (codeValue c) urlPrefix
+    let e = Event ConvCodeUpdate cnv usr now (Just $ EdConvCodeUpdate res)
+    pushEvent e users bots zcon
+    return $ json e & setStatus status200
 
-rmCode :: UserId ::: ConvId -> Galley Response
-rmCode (usr ::: cnv) = do
+rmCode :: UserId ::: ConnId ::: ConvId -> Galley Response
+rmCode (usr ::: zcon ::: cnv) = do
     ensureUser usr cnv
     ensureCodeAccess cnv
+    (bots, users) <- botsAndUsers <$> Data.members cnv
     key <- mkKey cnv
     Data.deleteCode key ReusableCode
-    -- TODO: create an event
-    return empty
+    now <- liftIO getCurrentTime
+    let e = Event ConvCodeDelete cnv usr now Nothing
+    pushEvent e users bots zcon
+    return $ json e & setStatus status200
 
 getCode :: UserId ::: ConvId -> Galley Response
 getCode (usr ::: cnv) = do
