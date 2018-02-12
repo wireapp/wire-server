@@ -45,14 +45,12 @@ instance Cql Access where
     toCql InviteAccess  = CqlInt 2
     toCql LinkAccess    = CqlInt 3
     toCql CodeAccess    = CqlInt 4
-    toCql TeamAccess    = CqlInt 5
 
     fromCql (CqlInt i) = case i of
         1 -> return PrivateAccess
         2 -> return InviteAccess
         3 -> return LinkAccess
         4 -> return CodeAccess
-        5 -> return TeamAccess
         n -> fail $ "Unexpected Access value: " ++ show n
     fromCql _ = fail "Access value: int expected"
 

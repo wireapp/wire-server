@@ -98,7 +98,6 @@ data Access
     | InviteAccess
     | LinkAccess
     | CodeAccess
-    | TeamAccess
     deriving (Eq, Ord, Show)
 
 data ConvMembers = ConvMembers
@@ -345,7 +344,6 @@ instance ToJSON Access where
     toJSON InviteAccess  = String "invite"
     toJSON LinkAccess    = String "link"
     toJSON CodeAccess    = String "code"
-    toJSON TeamAccess    = String "team"
 
 instance FromJSON Access where
     parseJSON = withText "Access" $ \s ->
@@ -354,7 +352,6 @@ instance FromJSON Access where
             "invite"  -> return InviteAccess
             "link"    -> return LinkAccess
             "code"    -> return CodeAccess
-            "team"    -> return TeamAccess
             _         -> fail "Invalid Access Mode"
 
 instance ToJSON UserClients where

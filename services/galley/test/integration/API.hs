@@ -359,8 +359,8 @@ postConvertCodeConv g b c _ = do
     postConvCode g alice conv !!! const 403 === statusCode
     deleteConvCode g alice conv !!! const 403 === statusCode
     getConvCode g alice conv !!! const 403 === statusCode
-    -- cannot change to TeamAccess as not a team conversation
-    let teamAccess = ConversationAccessUpdate [TeamAccess]
+    -- cannot change to NoAccess as not a team conversation
+    let teamAccess = ConversationAccessUpdate []
     putAccessUpdate g alice conv teamAccess !!! const 403 === statusCode
     -- change access
     WS.bracketR c alice $ \wsA -> do
@@ -395,7 +395,7 @@ postConvertTeamConv g b c setup = do
     assertQueue "team member join" a $ tUpdate 2 [alice]
     eve  <- randomUser b
     connectUsers b alice (singleton eve)
-    let acc = Just $ Set.fromList [InviteAccess, CodeAccess, TeamAccess]
+    let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
     conv <- createTeamConv g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa") acc
     -- mallory joins by herself
     mallory  <- randomUser b
@@ -406,7 +406,7 @@ postConvertTeamConv g b c setup = do
             wsAssertMemberJoin conv mallory [mallory]
 
     WS.bracketRN c [alice, bob, eve, mallory] $ \[wsA, wsB, wsE, wsM] -> do
-        let teamAccess = ConversationAccessUpdate [TeamAccess]
+        let teamAccess = ConversationAccessUpdate []
         putAccessUpdate g alice conv teamAccess !!! const 200 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
             wsAssertConvAccessUpdate conv alice teamAccess

@@ -132,15 +132,15 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
         -- special case TeamConversation
         case Data.convTeam conv of
             Nothing     ->
-                when (TeamAccess `elem` targetAccess) $
+                unless (InviteAccess `elem` targetAccess) $
                     throwM invalidTargetAccess
             Just tid    -> do
                 tMembers <- Data.teamMembers tid
                 -- only team members can change access mode
                 unless (usr `elem` (view userId <$> tMembers)) $
                     throwM accessDenied
-                -- remove non-team users if the only mode left is TeamAccess
-                when (targetAccess == Set.fromList [TeamAccess]) $
+                -- remove non-team users if access is the empty list
+                when (null targetAccess) $
                     handleTeamOnly tid tMembers users bots conv
         -- remove conversation codes if CodeAccess is revoked
         when (CodeAccess `elem` currentAccess && CodeAccess `notElem` targetAccess) $ do
