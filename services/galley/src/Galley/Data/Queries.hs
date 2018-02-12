@@ -14,6 +14,7 @@ import Data.Int
 import Data.Misc
 import Data.Monoid
 import Data.Text (Text)
+import Galley.Data.Types
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot
 import Galley.Types.Teams
@@ -132,14 +133,14 @@ markConvDeleted = "update conversation set deleted = true where conv = ?"
 
 -- Conversations accessible by code -----------------------------------------
 
-insertCode :: PrepQuery W (Key, Value, ConvId, Int32) ()
-insertCode = "INSERT INTO conversation_codes (key, value, conversation) VALUES (?, ?, ?) USING TTL ?"
+insertCode :: PrepQuery W (Key, Value, ConvId, Scope, Int32) ()
+insertCode = "INSERT INTO conversation_codes (key, value, conversation, scope) VALUES (?, ?, ?, ?) USING TTL ?"
 
-lookupCode :: PrepQuery R (Identity Key) (Value, Int32, ConvId)
-lookupCode = "SELECT value, ttl(value), conversation FROM conversation_codes WHERE key = ?"
+lookupCode :: PrepQuery R (Key, Scope) (Value, Int32, ConvId)
+lookupCode = "SELECT value, ttl(value), conversation FROM conversation_codes WHERE key = ? AND scope = ?"
 
-deleteCode :: PrepQuery W (Identity Key) ()
-deleteCode = "DELETE FROM conversation_codes WHERE key = ?"
+deleteCode :: PrepQuery W (Key, Scope) ()
+deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
 
 -- User Conversations -------------------------------------------------------
 

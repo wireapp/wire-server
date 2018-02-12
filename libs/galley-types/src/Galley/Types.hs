@@ -322,7 +322,7 @@ data TypingStatus
 data ConversationCode = ConversationCode
     { conversationKey   :: !Code.Key
     , conversationCode  :: !Code.Value
-    , conversationUri  :: !(Maybe HttpsUrl)
+    , conversationUri   :: !(Maybe HttpsUrl)
     } deriving (Eq, Show)
 
 mkConversationCode :: Code.Key -> Code.Value -> HttpsUrl -> ConversationCode

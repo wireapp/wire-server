@@ -133,15 +133,16 @@ insertCode c = do
     let v = codeValue c
     let cnv = codeConversation c
     let t = round (codeTTL c)
-    retry x5 (write Cql.insertCode (params Quorum (k, v, cnv, t)))
+    let s = codeScope c
+    retry x5 (write Cql.insertCode (params Quorum (k, v, cnv, s, t)))
 
 -- | Lookup a conversation by code.
-lookupCode :: MonadClient m => Key -> m (Maybe Code)
-lookupCode k = fmap (toCode k) <$> retry x1 (query1 Cql.lookupCode (params Quorum (Identity k)))
+lookupCode :: MonadClient m => Key -> Scope -> m (Maybe Code)
+lookupCode k s = fmap (toCode k s) <$> retry x1 (query1 Cql.lookupCode (params Quorum (k, s)))
 
 -- | Delete a code associated with the given conversation key
-deleteCode :: MonadClient m => Key -> m ()
-deleteCode k = retry x5 $ write Cql.deleteCode (params Quorum (Identity k))
+deleteCode :: MonadClient m => Key -> Scope -> m ()
+deleteCode k s = retry x5 $ write Cql.deleteCode (params Quorum (k, s))
 
 
 -- Teams --------------------------------------------------------------------

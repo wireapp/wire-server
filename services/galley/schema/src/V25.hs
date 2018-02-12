@@ -13,7 +13,8 @@ migration = Migration 25 "Add conversation_codes table" $
             key           ascii, -- opaque conversation ID
             conversation  uuid,
             value         ascii, -- secret value
-            PRIMARY KEY (key, conversation)
+            scope         int,
+            PRIMARY KEY (key, scope)
         ) WITH compaction = {'class': 'LeveledCompactionStrategy'}
           AND gc_grace_seconds = 864000;
     |]

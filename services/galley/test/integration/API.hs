@@ -342,7 +342,6 @@ postJoinCodeConvOk g b c _ = do
     bob   <- randomUser b
     conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [CodeAccess]
     cCode <- decodeConvCode <$> postConvCode g alice conv
-    liftIO $ print $ Data.Aeson.encode cCode --TODO remove print
     -- currently ConversationCode is used both as return type for POST ../code and as body for ../join
     -- TODO: Should there be two different types?
     let payload = cCode {conversationUri = Nothing} -- unnecessary step, cCode can be posted as-is also.

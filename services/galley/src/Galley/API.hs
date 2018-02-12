@@ -469,14 +469,14 @@ sitemap = do
 
     ---
 
-    post "/conversations/join" (continue joinConversationByCode) $
+    post "/conversations/join" (continue joinConversationByReusableCode) $
         zauthUserId
         .&. zauthConnId
         .&. request
         .&. contentType "application" "json"
 
     document "POST" "joinConversationByCode" $ do
-        summary "Join a conversation using a code"
+        summary "Join a conversation using a reusable code"
         returns (ref Model.event)
         response 200 "Conversation joined." end
         body (ref Model.conversationCode) $
@@ -533,7 +533,7 @@ sitemap = do
         .&. contentType "application" "json"
 
     document "PUT" "updateConversationAccess" $ do
-        summary "Join a conversation using a code"
+        summary "Update access modes for a conversation"
         returns (ref Model.event)
         response 200 "Conversation access updated." end
         body (ref Model.conversationAccessUpdate) $

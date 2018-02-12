@@ -20,7 +20,7 @@ settings:
   httpPoolSize: 128
   maxConvAndTeamSize: 128
   intraListing: false
-  conversationCodeURI: https://app.wire.com/join
+  conversationCodeURI: https://app.wire.com/join/
 
 ### Journaling of team events
 #

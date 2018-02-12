@@ -121,7 +121,7 @@ optsParser = Opts <$>
                 <> help "Use this option if you want to fetch the device list from brig instead.")
         <*>
             (httpsUrlOption $
-                long "conversation-code-uri"
+                long "conversation-code-prefix"
                 <> metavar "STRING"
                 <> help "URI prefix for conversations with access mode 'code'")
 
