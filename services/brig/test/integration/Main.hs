@@ -8,10 +8,11 @@ import Cassandra.Util
 import Control.Lens
 import Control.Monad (join)
 import Data.Aeson
+import Data.ByteString.Conversion
 import Data.Maybe (fromMaybe)
 import Data.Monoid
-import Data.Text (pack)
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text (Text, isSuffixOf, pack)
+import Data.Text.Encoding (decodeLatin1, encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import GHC.Generics
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -29,8 +30,10 @@ import qualified API.Search          as Search
 import qualified API.Team            as Team
 import qualified API.TURN            as TURN
 import qualified API.User.Auth       as UserAuth
+import qualified Brig.AWS            as AWS
 import qualified Brig.Options        as Opts
-import qualified System.Logger       as Logger
+import qualified Data.ByteString.Char8 as BS
+import qualified System.Logger         as Logger
 
 data Config = Config
   -- internal endpoints
@@ -53,12 +56,13 @@ runTests iConf bConf = do
     casHost  <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epHost) bConf pack "BRIG_CASSANDRA_HOST"
     casPort  <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epPort) bConf read "BRIG_CASSANDRA_PORT"
     casKey   <- optOrEnv (\v -> (Opts.cassandra v)^.casKeyspace) bConf pack "BRIG_CASSANDRA_KEYSPACE"
+    awsOpts  <- parseAWSEnv (Opts.aws <$> bConf)
 
     lg <- Logger.new Logger.defSettings
     db <- defInitCassandra casKey casHost casPort lg
     mg <- newManager tlsManagerSettings
 
-    userApi     <- User.tests bConf mg b c g
+    userApi     <- User.tests bConf mg b c g =<< mkLocalAWSEnv lg awsOpts mg
     userAuthApi <- UserAuth.tests bConf mg lg b
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
@@ -75,6 +79,27 @@ runTests iConf bConf = do
         ]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
+
+    mkLocalAWSEnv :: Logger.Logger -> Opts.AWSOpts -> Manager -> IO (Maybe AWS.Env)
+    mkLocalAWSEnv l o m
+        | "amazonaws.com" `isSuffixOf` (decodeLatin1 ((Opts.sqsEndpoint o)^.awsHost)) = return Nothing
+        | otherwise = AWS.mkEnv l o m >>= return . Just
+
+    parseAWSEnv :: Maybe Opts.AWSOpts -> IO (Opts.AWSOpts)
+    parseAWSEnv (Just o) = return o
+    parseAWSEnv Nothing  = do
+        sqsEnd   <- optOrEnv (Opts.sqsEndpoint . Opts.aws)      bConf parseEndpoint "AWS_SQS_ENDPOINT"
+        dynEnd   <- optOrEnv (Opts.dynamoDBEndpoint . Opts.aws) bConf parseEndpoint "AWS_DYNAMODB_ENDPOINT"
+        sesEnd   <- optOrEnv (Opts.sesEndpoint . Opts.aws)      bConf parseEndpoint "AWS_SES_ENDPOINT"
+        sesQueue <- optOrEnv (Opts.sesQueue . Opts.aws)         bConf pack          "AWS_USER_SES_QUEUE"
+        sqsIntQ  <- optOrEnv (Opts.internalQueue . Opts.aws)    bConf pack          "AWS_USER_INTERNAL_QUEUE"
+        dynBlTbl <- optOrEnv (Opts.blacklistTable . Opts.aws)   bConf pack          "AWS_USER_BLACKLIST_TABLE"
+        dynPkTbl <- optOrEnv (Opts.prekeyTable . Opts.aws)      bConf pack          "AWS_USER_PREKEYS_TABLE"
+        return $ Opts.AWSOpts sesQueue sqsIntQ dynBlTbl dynPkTbl sesEnd sqsEnd dynEnd
+
+    parseEndpoint :: String -> AWSEndpoint
+    parseEndpoint e = fromMaybe (error ("Not a valid AWS endpoint: " ++ show e))
+                    $ fromByteString (BS.pack e)
 
 main :: IO ()
 main = withOpenSSL $ do

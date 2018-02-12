@@ -16,6 +16,8 @@ library
     exposed-modules:
         Brig.App
         Brig.API
+        Brig.AWS
+        Brig.AWS.Types
         Brig.Code
         Brig.Data.PasswordReset
         Brig.Options
@@ -32,10 +34,8 @@ library
       , Brig.API.Properties
       , Brig.API.Types
       , Brig.API.User
-      , Brig.AWS
       , Brig.AWS.InternalNotification
       , Brig.AWS.SesNotification
-      , Brig.AWS.Types
       , Brig.Blacklist
       , Brig.Budget
       , Brig.Email
