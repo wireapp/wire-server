@@ -11,7 +11,7 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Maybe (fromMaybe)
 import Data.Monoid
-import Data.Text (Text, isSuffixOf, pack)
+import Data.Text (isSuffixOf, pack)
 import Data.Text.Encoding (decodeLatin1, encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import GHC.Generics
@@ -24,14 +24,14 @@ import Util.Options
 import Util.Options.Common
 import Util.Test
 
-import qualified API                 as User
-import qualified API.Provider        as Provider
-import qualified API.Search          as Search
-import qualified API.Team            as Team
-import qualified API.TURN            as TURN
-import qualified API.User.Auth       as UserAuth
-import qualified Brig.AWS            as AWS
-import qualified Brig.Options        as Opts
+import qualified API                   as User
+import qualified API.Provider          as Provider
+import qualified API.Search            as Search
+import qualified API.Team              as Team
+import qualified API.TURN              as TURN
+import qualified API.User.Auth         as UserAuth
+import qualified Brig.AWS              as AWS
+import qualified Brig.Options          as Opts
 import qualified Data.ByteString.Char8 as BS
 import qualified System.Logger         as Logger
 
@@ -82,9 +82,10 @@ runTests iConf bConf = do
 
     mkLocalAWSEnv :: Logger.Logger -> Opts.AWSOpts -> Manager -> IO (Maybe AWS.Env)
     mkLocalAWSEnv l o m
-        | "amazonaws.com" `isSuffixOf` (decodeLatin1 ((Opts.sqsEndpoint o)^.awsHost)) = return Nothing
+        | "amazonaws.com" `isSuffixOf` (decodeLatin1 ((Opts.sesEndpoint o)^.awsHost)) = return Nothing
         | otherwise = AWS.mkEnv l o m >>= return . Just
 
+    -- Using config files only would certainly simplify this quite a bit
     parseAWSEnv :: Maybe Opts.AWSOpts -> IO (Opts.AWSOpts)
     parseAWSEnv (Just o) = return o
     parseAWSEnv Nothing  = do

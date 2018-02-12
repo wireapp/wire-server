@@ -60,7 +60,6 @@ import qualified Data.Text.Encoding          as T
 import qualified Data.UUID                   as UUID
 import qualified Data.UUID.V4                as UUID
 import qualified Data.Vector                 as Vec
--- import qualified Network.AWS.Env             as AWS
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon           as WS
 
@@ -79,7 +78,7 @@ tests conf p b c g localAWS = do
             , test p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey b
             , test p "post /register - 409 conflict"            $ testCreateUserConflict b
             , test p "post /register - 400"                     $ testCreateUserInvalidPhone b
-            , test p "post /register - 403"                     $ testCreateUserBlacklist b localAWS
+            , test p "post /register - 403 blacklist"           $ testCreateUserBlacklist b localAWS
             , test p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b
             , test p "get /users/:id - 404"                     $ testNonExistingUser b
             , test p "get /users/:id - 200"                     $ testExistingUser b
@@ -346,10 +345,6 @@ testCreateUserInvalidPhone brig = do
     post (brig . path "/register" . contentJson . body p) !!!
         const 400 === statusCode
 
-instance ToJSON SESNotification where
-    toJSON (MailBounce typ ems) = toJSON ("need to define SESNotification bounce" :: Text)
-    toJSON (MailComplaint  ems) = toJSON ("need to define SESNotification complaint" :: Text)
-
 testCreateUserBlacklist :: Brig -> Maybe AWS.Env -> Http ()
 testCreateUserBlacklist brig localAWS =
     mapM_ ensureBlacklist ["bounce", "complaint"]
@@ -373,9 +368,10 @@ testCreateUserBlacklist brig localAWS =
 
     publishMessage :: Text -> Email -> AWS.Env -> Http ()
     publishMessage typ em env = do
-        let bdy   = encode $ case typ of
+        let bdy = encode $ case typ of
                         "bounce"    -> MailBounce BouncePermanent [em]
                         "complaint" -> MailComplaint [em]
+                        x           -> error ("Unsupported message type: " ++ show x)
         let queue = env^.AWS.sesQueue
         void $ AWS.execute env (AWS.enqueue queue bdy)
 
@@ -656,15 +652,6 @@ testPasswordChange brig = do
     pwSet = RequestBodyLBS . encode $ object
         [ "new_password" .= newPass
         ]
-
--- requestActivationCode :: Brig -> Either Email Phone -> Http ()
--- requestActivationCode brig ep =
---     post (brig . path "/activate/send" . contentJson . body (RequestBodyLBS . encode $ bdy ep)) !!!
---         const 200 === statusCode
---   where
---     bdy (Left e)  = object [ "email" .= fromEmail e ]
---     bdy (Right p) = object [ "phone" .= fromPhone p ]
-
 
 testSendActivationCode :: Brig -> Http ()
 testSendActivationCode brig = do
