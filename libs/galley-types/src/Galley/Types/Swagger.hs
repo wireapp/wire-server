@@ -57,6 +57,9 @@ event = defineModel "Event" $ do
                     , memberUpdateEvent
                     , typingEvent
                     , otrMessageEvent
+                    , conversationAccessUpdateEvent
+                    , conversationCodeUpdateEvent
+                    , conversationCodeDeleteEvent
                     ]
 
 eventType :: DataType
@@ -66,6 +69,8 @@ eventType = string $ enum
     , "conversation.member-update"
     , "conversation.rename"
     , "conversation.access-update"
+    , "conversation.code-update"
+    , "conversation.code-delete"
     , "conversation.create"
     , "conversation.delete"
     , "conversation.connect-request"
@@ -92,6 +97,20 @@ conversationUpdateEvent :: Model
 conversationUpdateEvent = defineModel "ConversationUpdateEvent" $ do
     description "conversation update event"
     property "data" (ref conversationUpdate) $ description "conversation data"
+
+conversationAccessUpdateEvent :: Model
+conversationAccessUpdateEvent = defineModel "ConversationAccessUpdateEvent" $ do
+    description "conversation access update event"
+    property "data" (ref conversationAccessUpdate) $ description "conversation access data"
+
+conversationCodeUpdateEvent :: Model
+conversationCodeUpdateEvent = defineModel "ConversationCodeUpdateEvent" $ do
+    description "conversation code update event"
+    property "data" (ref conversationCode) $ description "conversation code data"
+
+conversationCodeDeleteEvent :: Model
+conversationCodeDeleteEvent = defineModel "ConversationCodeDeleteEvent" $
+    description "conversation code delete event"
 
 memberUpdateEvent :: Model
 memberUpdateEvent = defineModel "MemberUpdateEvent" $ do
@@ -206,7 +225,7 @@ conversationAccessUpdate :: Model
 conversationAccessUpdate = defineModel "ConversationAccessUpdate" $ do
     description "Contains conversation properties to update"
     property "access" (unique $ array bytes') $
-        description "List of conversation access modes: invite|team|code"
+        description "List of conversation access modes: []|[invite]|[invite,code]"
 
 conversationCode :: Model
 conversationCode = defineModel "ConversationCode" $ do
