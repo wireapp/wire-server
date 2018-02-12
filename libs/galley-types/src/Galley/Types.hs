@@ -80,7 +80,7 @@ data Conversation = Conversation
     { cnvId        :: !ConvId
     , cnvType      :: !ConvType
     , cnvCreator   :: !UserId
-    , cnvAccess    :: !(List1 Access)
+    , cnvAccess    :: ![Access]
     , cnvName      :: !(Maybe Text)
     , cnvMembers   :: !ConvMembers
     , cnvTeam      :: !(Maybe TeamId)
@@ -110,7 +110,7 @@ data ConversationMeta = ConversationMeta
     { cmId      :: !ConvId
     , cmType    :: !ConvType
     , cmCreator :: !UserId
-    , cmAccess  :: !(List1 Access)
+    , cmAccess  :: ![Access]
     , cmName    :: !(Maybe Text)
     , cmTeam    :: !(Maybe TeamId)
     } deriving (Eq, Show)
@@ -129,7 +129,7 @@ deriving instance Show ConversationRename
 
 
 newtype ConversationAccessUpdate = ConversationAccessUpdate
-    { cupAccess :: List1 Access
+    { cupAccess :: [Access]
     } deriving (Eq, Show)
 
 

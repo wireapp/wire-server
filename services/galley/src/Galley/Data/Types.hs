@@ -37,7 +37,7 @@ data Conversation = Conversation
     , convType    :: ConvType
     , convCreator :: UserId
     , convName    :: Maybe Text
-    , convAccess  :: List1 Access
+    , convAccess  :: [Access]
     , convMembers :: [Member]
     , convTeam    :: Maybe TeamId
     , convDeleted :: Maybe Bool

@@ -619,8 +619,8 @@ convRange range size =
         Just (Right c) -> queryItem "start" (toByteString' c)
         Nothing        -> id
 
-privateAccess :: List1 Access
-privateAccess = singleton PrivateAccess
+privateAccess :: [Access]
+privateAccess = [PrivateAccess]
 
 eqMismatch :: [(UserId, Set ClientId)]
            -> [(UserId, Set ClientId)]
