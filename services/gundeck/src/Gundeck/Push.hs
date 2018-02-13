@@ -75,9 +75,9 @@ push (req ::: _) = do
         (_, i, pload, notif, tgts) <- setupPush p
         doPush p i pload notif tgts
 
-    {--pushAll = do
+    pushAll ps = do
         pns <- mapM setupPush ps
-        return ()--}
+        doBulkPush pns
 
     setupPush p = do
         i <- mkNotificationId
@@ -95,6 +95,12 @@ push (req ::: _) = do
         void . fork $ do
             prs <- Web.push notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
             pushNative sendNotice notif p =<< nativeTargets p prs
+
+    doBulkPush pns = do
+        -- TODO: bulk push in Websocket.hs to presences (grouped by cannon)
+        -- TODO: return a list of Pushes paired with their ok presences (prs)
+        -- TODO: map this list over doPush (and find some clever way of passing in prs -- fork earlier and bring Web.push call out of doPush?)
+        return ()
 
     mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
 
