@@ -148,8 +148,8 @@ replacePresence gu ca _ _ = do
     con <- randomConnId
     let localhost8080 = URI . fromJust $ parseURI "http://localhost:8080"
     let localhost8081 = URI . fromJust $ parseURI "http://localhost:8081"
-    let pres1 = Presence uid (ConnId "dummy_dev") localhost8080 Nothing 0 ""
-    let pres2 = Presence uid (ConnId "dummy_dev") localhost8081 Nothing 0 ""
+    let pres1 = Presence uid (ConnId "dummy_dev") localhost8080 Nothing Nothing Nothing 0 ""
+    let pres2 = Presence uid (ConnId "dummy_dev") localhost8081 Nothing Nothing Nothing 0 ""
     void $ connectUser gu ca uid con
     setPresence gu pres1 !!! const 201 === statusCode
     sendPush gu (push uid [uid])

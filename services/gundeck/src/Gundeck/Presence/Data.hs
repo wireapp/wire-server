@@ -17,6 +17,7 @@ import Data.Foldable (for_)
 import Data.Id
 import Data.Maybe (mapMaybe)
 import Data.Monoid
+import Data.Text hiding (isPrefixOf, zipWith)
 import Database.Redis.IO hiding (Milliseconds)
 import Gundeck.Monad (Gundeck, posixTime)
 import Gundeck.Types
@@ -46,7 +47,7 @@ add p = do
     now <- posixTime
     let k = toKey (userId p)
     let v = toField (connId p)
-    let d = encode $ PresenceData (resource p) (clientId p) now
+    let d = encode $ PresenceData (resource p) (resourceb p) (cannonhost p) (clientId p) now
     retry x3 $ commands $ do
         multi
         void $ hset k v d
@@ -86,19 +87,23 @@ listAll uu =
 
 -- Helpers -------------------------------------------------------------------
 
-data PresenceData = PresenceData !URI !(Maybe ClientId) !Milliseconds
+data PresenceData = PresenceData !URI !(Maybe URI) !(Maybe Text) !(Maybe ClientId) !Milliseconds
     deriving Eq
 
 instance ToJSON PresenceData where
-    toJSON (PresenceData r c t) = object
-        [ "r" .= r
-        , "c" .= c
-        , "t" .= t
+    toJSON (PresenceData r rb ch c t) = object
+        [ "r"  .= r
+        , "rb" .= rb
+        , "ch" .= ch
+        , "c"  .= c
+        , "t"  .= t
         ]
 
 instance FromJSON PresenceData where
     parseJSON = withObject "PresenceData" $ \o ->
         PresenceData <$> o .:  "r"
+                     <*> o .:? "rb"
+                     <*> o .:? "ch"
                      <*> o .:? "c"
                      <*> o .:? "t" .!= 0
 
@@ -113,7 +118,7 @@ fromField = ConnId . Lazy.toStrict . LazyChars.takeWhile (/= '@')
 
 readPresence :: UserId -> (Field, ByteString) -> Maybe Presence
 readPresence u (f, b) = do
-    PresenceData uri clt tme <- if "http" `isPrefixOf` b
-        then PresenceData <$> fromByteString b <*> pure Nothing <*> pure 0
+    PresenceData uri urib chost clt tme <- if "http" `isPrefixOf` b
+        then PresenceData <$> fromByteString b <*> pure Nothing <*> pure Nothing <*> pure Nothing <*> pure 0
         else decodeStrict' b
-    return (Presence u (fromField f) uri clt tme f)
+    return (Presence u (fromField f) uri urib chost clt tme f)

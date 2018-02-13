@@ -57,21 +57,39 @@ import qualified System.Logger.Class          as Log
 push :: Request ::: JSON -> Gundeck Response
 push (req ::: _) = do
     ps <- fromBody req (Error status400 "bad-request")
-    rs <- mapAsync pushAny (ps :: [Push])
+    -- TODO: the following TODOs if bulk push is turned on
+    -- TODO: group notifications by cannon host in presence
+    bp <- view (options . optSettings . setBulkPush)
+    rs <- if bp
+        then throwM notImpl
+        else mapAsync pushAny (ps :: [Push])
     case runAllE (foldMap (AllE . fmapL Seq.singleton) rs) of
         Right () -> return empty
         Left exs -> do
             forM_ exs $ Log.err . msg . (val "Push failed: " +++) . show
             throwM (Error status500 "server-error" "Server Error")
   where
+    notImpl = Error status501 "not-implemented" "This functionality is not implemented in this configuration"
+
     pushAny p = do
-        sendNotice <- view (options.optFallback.fbPreferNotice)
+        (_, i, pload, notif, tgts) <- setupPush p
+        doPush p i pload notif tgts
+
+    {--pushAll = do
+        pns <- mapM setupPush ps
+        return ()--}
+
+    setupPush p = do
         i <- mkNotificationId
         let pload = p^.pushPayload
         let notif = Notification i (p^.pushTransient) pload
         let rcps  = fromRange (p^.pushRecipients)
         let uniq  = uncurry list1 $ head &&& tail $ toList rcps
         let tgts  = mkTarget <$> uniq
+        return (p, i, pload, notif, tgts)
+
+    doPush p i pload notif tgts = do
+        sendNotice <- view (options.optFallback.fbPreferNotice)
         unless (p^.pushTransient) $
             Stream.add i tgts pload =<< view (options.optSettings.setNotificationTTL)
         void . fork $ do
