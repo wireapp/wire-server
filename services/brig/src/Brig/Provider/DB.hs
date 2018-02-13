@@ -29,6 +29,8 @@ import Data.Text (Text, toLower, isPrefixOf)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 
+type RangedServiceTags = Range 0 3 (Set.Set ServiceTag)
+
 --------------------------------------------------------------------------------
 -- Providers
 
@@ -205,12 +207,12 @@ updateService :: MonadClient m
     => ProviderId
     -> ServiceId
     -> Name
-    -> Range 0 3 (Set.Set ServiceTag)
+    -> RangedServiceTags
     -> Maybe (Name, Name)
     -> Maybe Text
     -> Maybe Text
     -> Maybe [Asset]
-    -> Maybe ((Range 0 3 (Set.Set ServiceTag)), (Range 0 3 (Set.Set ServiceTag)))
+    -> Maybe (RangedServiceTags, RangedServiceTags)
     -> Bool
     -> m ()
 updateService pid sid svcName svcTags nameChange summary descr assets tagsChange enabled = retry x5 $ batch $ do
@@ -253,7 +255,7 @@ deleteService :: MonadClient m
     => ProviderId
     -> ServiceId
     -> Name
-    -> Range 0 3 (Set.Set ServiceTag)
+    -> RangedServiceTags
     -> m ()
 deleteService pid sid name tags =  retry x5 $ batch $ do
     setConsistency Quorum
@@ -368,7 +370,7 @@ insertServiceIndexes :: MonadClient m
                      => ProviderId
                      -> ServiceId
                      -> Name
-                     -> Range 0 3 (Set.Set ServiceTag)
+                     -> RangedServiceTags
                      -> m ()
 insertServiceIndexes pid sid name tags =
     retry x5 $ batch $ do
@@ -381,7 +383,7 @@ deleteServiceIndexes :: MonadClient m
                      => ProviderId
                      -> ServiceId
                      -> Name
-                     -> Range 0 3 (Set.Set ServiceTag)
+                     -> RangedServiceTags
                      -> m ()
 deleteServiceIndexes pid sid name tags =
     retry x5 $ batch $ do
@@ -393,8 +395,8 @@ deleteServiceIndexes pid sid name tags =
 updateServiceIndexes :: MonadClient m
                      => ProviderId
                      -> ServiceId
-                     -> (Name, Range 0 3 (Set.Set ServiceTag)) -- ^ Name and tags to remove.
-                     -> (Name, Range 0 3 (Set.Set ServiceTag)) -- ^ Name and tags to add.
+                     -> (Name, RangedServiceTags) -- ^ Name and tags to remove.
+                     -> (Name, RangedServiceTags) -- ^ Name and tags to add.
                      -> m ()
 updateServiceIndexes pid sid (oldName, oldTags) (newName, newTags) =
     retry x5 $ batch $ do
@@ -410,7 +412,7 @@ insertServiceTags
     :: ProviderId
     -> ServiceId
     -> Name
-    -> Range 0 3 (Set.Set ServiceTag)
+    -> RangedServiceTags
     -> BatchM ()
 insertServiceTags pid sid name tags = updateServiceTags
     pid sid (Name "", rcast rnil) (name, tags)
@@ -419,7 +421,7 @@ deleteServiceTags
     :: ProviderId
     -> ServiceId
     -> Name
-    -> Range 0 3 (Set.Set ServiceTag)
+    -> RangedServiceTags
     -> BatchM ()
 deleteServiceTags pid sid name tags = updateServiceTags
     pid sid (name, tags) (Name "", rcast rnil)
@@ -427,8 +429,8 @@ deleteServiceTags pid sid name tags = updateServiceTags
 updateServiceTags
     :: ProviderId
     -> ServiceId
-    -> (Name, Range 0 3 (Set.Set ServiceTag)) -- ^ Name and tags to remove.
-    -> (Name, Range 0 3 (Set.Set ServiceTag)) -- ^ Name and tags to add.
+    -> (Name, RangedServiceTags) -- ^ Name and tags to remove.
+    -> (Name, RangedServiceTags) -- ^ Name and tags to add.
     -> BatchM ()
 updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
     | eqTags && eqNames = return ()
@@ -470,7 +472,7 @@ type IndexRow = (Name, ProviderId, ServiceId)
 -- | Note: Consistency = One
 paginateServiceTags :: MonadClient m
     => QueryAnyTags 1 3
-    -> Maybe Name
+    -> Maybe Text
     -> Int32
     -> Maybe ProviderId
     -> m ServiceProfilePage
@@ -481,12 +483,12 @@ paginateServiceTags tags start size providerFilter = liftClient $ do
     r <- mapConcurrently resolveRow (result p)
     return $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
-    start' = maybe (Name "") toLowerName start
+    start' = maybe "" toLower start
 
     unpackTags :: QueryAnyTags 1 3 -> [QueryAllTags 1 3]
     unpackTags = Set.toList . fromRange . queryAnyTagsRange
 
-    queryAll :: Name -> Int32 -> [QueryAllTags 1 3] -> Client (Page IndexRow)
+    queryAll :: Text -> Int32 -> [QueryAllTags 1 3] -> Client (Page IndexRow)
     queryAll _ _  [] = return emptyPage
     queryAll s l [t] = do
         p <- queryTags s l t
@@ -509,7 +511,7 @@ paginateServiceTags tags start size providerFilter = liftClient $ do
         let t' = foldTags (queryAllTagsRange t)
         in retry x1 $ paginate cql $ paramsP One (defBucket, t', s) l
 
-    cql :: PrepQuery R (Bucket, Int64, Name) (Name, ProviderId, ServiceId)
+    cql :: PrepQuery R (Bucket, Int64, Text) (Name, ProviderId, ServiceId)
     cql = "SELECT name, provider, service FROM service_tag \
           \WHERE bucket = ? AND tag = ? AND name >= ?"
 
@@ -522,7 +524,7 @@ insertServicePrefix
     -> Name
     -> BatchM ()
 insertServicePrefix pid sid name =
-    addPrepQuery cql (mkPrefix name, toLowerName name, sid, pid)
+    addPrepQuery cql (mkPrefixIndex name, toLowerName name, sid, pid)
   where
     cql :: PrepQuery W (Text, Name, ServiceId, ProviderId) ()
     cql = "INSERT INTO service_prefix \
@@ -534,7 +536,7 @@ deleteServicePrefix
     -> Name
     -> BatchM ()
 deleteServicePrefix sid name =
-    addPrepQuery cql (mkPrefix name, toLowerName name, sid)
+    addPrepQuery cql (mkPrefixIndex name, toLowerName name, sid)
   where
     cql :: PrepQuery W (Text, Name, ServiceId) ()
     cql = "DELETE FROM service_prefix \
@@ -551,30 +553,30 @@ updateServicePrefix pid sid oldName newName = do
     insertServicePrefix pid sid newName
 
 paginateServiceNames :: MonadClient m
-    => Name
+    => Range 1 128 Text
     -> Int32
     -> Maybe ProviderId
     -> m ServiceProfilePage
 paginateServiceNames start size providerFilter = liftClient $ do
     let size' = size + 1
-    p <- filterResults providerFilter start' <$> queryPrefixes start' size'
+    p <- filterResults providerFilter prefix <$> queryPrefixes size'
     r <- mapConcurrently resolveRow (result p)
     return $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
-    start' = toLowerName start
+    prefix = toLower (fromRange start)
 
-    queryPrefixes name len = do
-        p <- retry x1 $ paginate cql $ paramsP One (mkPrefix name, name) len
+    queryPrefixes len = do
+        p <- retry x1 $ paginate cql $ paramsP One (mkPrefixIndex (Name prefix), prefix) len
         return $! p { result = trim size (result p) }
 
-    cql :: PrepQuery R (Text, Name) IndexRow
+    cql :: PrepQuery R (Text, Text) IndexRow
     cql = "SELECT name, provider, service \
           \FROM service_prefix \
           \WHERE prefix = ? AND name >= ?"
 
 -- Pagination utilities
-filterResults :: Maybe ProviderId -> Name -> Page IndexRow -> Page IndexRow
-filterResults providerFilter start = maybe id filterbyProvider providerFilter . filterPrefix (fromName start)
+filterResults :: Maybe ProviderId -> Text -> Page IndexRow -> Page IndexRow
+filterResults providerFilter start = maybe id filterbyProvider providerFilter . filterPrefix start
 
 filterbyProvider :: ProviderId -> Page IndexRow -> Page IndexRow
 filterbyProvider pid p = do
@@ -597,8 +599,8 @@ resolveRow (_, pid, sid) = lookupServiceProfile pid sid
 
 --------------------------------------------------------------------------------
 -- Utilities
-mkPrefix :: Name -> Text
-mkPrefix = Text.toLower . Text.take 1 . fromName
+mkPrefixIndex :: Name -> Text
+mkPrefixIndex = Text.toLower . Text.take 1 . fromName
 
 toLowerName :: Name -> Name
 toLowerName = Name . toLower . fromName

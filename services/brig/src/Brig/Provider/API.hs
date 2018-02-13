@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE TypeOperators     #-}
 
 module Brig.Provider.API (routes) where
@@ -35,6 +36,8 @@ import Data.Maybe
 import Data.Misc (Fingerprint (..), Rsa)
 import Data.Predicate
 import Data.Range
+import Data.String (fromString)
+import Data.Text (Text)
 import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..))
 import Galley.Types (OtherMember (..))
 import Galley.Types (Event, userClients)
@@ -507,9 +510,10 @@ getServiceProfile (pid ::: sid) = do
     s <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
     return (json s)
 
-searchServiceProfiles :: Maybe (QueryAnyTags 1 3) ::: Maybe Name ::: Range 10 100 Int32 -> Handler Response
+searchServiceProfiles :: Maybe (QueryAnyTags 1 3) ::: Maybe Text ::: Range 10 100 Int32 -> Handler Response
 searchServiceProfiles (Nothing ::: Just start ::: size) = do
-    ss <- DB.paginateServiceNames start (fromRange size) =<< setProviderSearchFilter <$> view settings
+    prefix <- rangeChecked start :: Handler (Range 1 128 Text)
+    ss <- DB.paginateServiceNames prefix (fromRange size) =<< setProviderSearchFilter <$> view settings
     return (json ss)
 searchServiceProfiles (Just tags ::: start ::: size) = do
     ss <- DB.paginateServiceTags tags start (fromRange size) =<< setProviderSearchFilter <$> view settings
@@ -763,6 +767,9 @@ maybeInvalidBot = maybe (throwStd invalidBot) return
 maybeInvalidUser :: Maybe a -> Handler a
 maybeInvalidUser = maybe (throwStd invalidUser) return
 
+rangeChecked :: Within a n m => a -> Handler (Range n m a)
+rangeChecked = either (throwStd . invalidRange . fromString) return . checkedEither
+
 invalidServiceKey :: Wai.Error
 invalidServiceKey = Wai.Error status400 "invalid-service-key" "Invalid service key."
 
@@ -793,4 +800,3 @@ serviceError RPC.ServiceBotConflict = tooManyBots
 
 randServiceToken :: MonadIO m => m ServiceToken
 randServiceToken = ServiceToken . Ascii.encodeBase64Url <$> liftIO (randBytes 18)
-
