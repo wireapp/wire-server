@@ -94,6 +94,9 @@ newEnv o = do
     awe  <- initAws o lgr mgr
     return $ Env awe met lgr mgr mempty (o^.optSettings.setMaxTotalBytes)
 
+initAwsAmazonka :: Opts -> Logger -> Manager -> IO AwsEnv
+initAwsAmazonka o l m = undefined
+
 initAws :: Opts -> Logger -> Manager -> IO AwsEnv
 initAws o l m = do
     -- TODO: The AWS package can also load them from the env, check the latest API

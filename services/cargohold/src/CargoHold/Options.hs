@@ -30,6 +30,16 @@ data AWSOpts = AWSOpts
 deriveFromJSON toOptionFieldName ''AWSOpts
 makeLenses ''AWSOpts
 
+data AWSAmazonkaOpts = AWSAmazonkaOpts
+    { _awsAmazonkaS3Bucket     :: Text
+    , _awsAmazonkaCfDomain     :: Domain
+    , _awsAmazonkaCfKeyPairId  :: KeyPairId
+    , _awsAmazonkaCfPrivateKey :: FilePath
+    } deriving (Show, Generic)
+
+deriveFromJSON toOptionFieldName ''AWSAmazonkaOpts
+makeLenses ''AWSAmazonkaOpts
+
 data Settings = Settings
     { _setMaxTotalBytes :: !Int
     } deriving (Show, Generic)
@@ -40,6 +50,7 @@ makeLenses ''Settings
 data Opts = Opts
     { _optCargohold :: !Endpoint
     , _optAws       :: !AWSOpts
+    , _optAwsAmazonka :: !AWSAmazonkaOpts
     , _optSettings  :: !Settings
     } deriving (Show, Generic)
 
@@ -67,6 +78,7 @@ optsParser = Opts <$>
             <> metavar "PORT"
             <> help "Port to listen on"))
     <*> awsParser
+    <*> awsAmazonkaParser
     <*> settingsParser
   where
     awsParser :: Parser AWSOpts
@@ -81,6 +93,28 @@ optsParser = Opts <$>
                 <> help "AWS Secret Access Key")
 
         <*> (fmap T.pack . strOption $
+                long "aws-s3-bucket"
+                <> metavar "STRING"
+                <> help "S3 bucket name")
+
+        <*> (fmap Domain . textOption $
+                long "aws-cloudfront-domain"
+                <> metavar "STRING"
+                <> help "AWS CloudFront Domain")
+
+        <*> (fmap KeyPairId . textOption $
+                long "aws-cloudfront-keypair-id"
+                <> metavar "STRING"
+                <> help "AWS CloudFront Keypair ID")
+
+        <*> strOption
+                (long "aws-cloudfront-private-key"
+                <> metavar "FILE"
+                <> help "AWS CloudFront Private Key")
+
+    awsAmazonkaParser :: Parser AWSAmazonkaOpts
+    awsAmazonkaParser = AWSAmazonkaOpts <$>
+             (fmap T.pack . strOption $
                 long "aws-s3-bucket"
                 <> metavar "STRING"
                 <> help "S3 bucket name")
