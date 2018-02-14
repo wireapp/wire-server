@@ -21,6 +21,7 @@ import Control.Error
 import Control.Lens (view, (^.), set, (&))
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Resource
 import Crypto.Hash
 import Data.Aeson (eitherDecodeStrict')
 import Data.Attoparsec.ByteString.Char8
@@ -51,7 +52,7 @@ import qualified Data.Conduit.Binary     as Conduit
 import qualified Data.Text.Ascii         as Ascii
 import qualified Data.Text.Lazy          as LT
 
-upload :: V3.Principal -> Source IO ByteString -> Handler V3.Asset
+upload :: V3.Principal -> Source (ResourceT IO) ByteString -> Handler V3.Asset
 upload own bdy = do
     (rsrc, sets) <- parseMetadata bdy assetSettings
     (src,  hdrs) <- parseHeaders rsrc assetHeaders
@@ -117,24 +118,24 @@ delete own key = do
 -----------------------------------------------------------------------------
 -- Streaming multipart parsing
 
-parseMetadata :: Source IO ByteString -> Parser a -> Handler (ResumableSource IO ByteString, a)
+parseMetadata :: Source (ResourceT IO) ByteString -> Parser a -> Handler (ResumableSource (ResourceT IO) ByteString, a)
 parseMetadata src psr = do
-    (rsrc, meta) <- liftIO $ src $$+ sinkParser psr
+    (rsrc, meta) <- liftIO . runResourceT $ src $$+ sinkParser psr
     (rsrc,) <$> hoistEither meta
 
-parseHeaders :: ResumableSource IO ByteString -> Parser a -> Handler (Source IO ByteString, a)
+parseHeaders :: ResumableSource (ResourceT IO) ByteString -> Parser a -> Handler (Source (ResourceT IO) ByteString, a)
 parseHeaders src prs = do
-    (rsrc, hdrs) <- liftIO $ src $$++ sinkParser prs
-    (src',    _) <- liftIO $ Conduit.unwrapResumable rsrc
+    (rsrc, hdrs) <- liftIO . runResourceT $ src $$++ sinkParser prs
+    (src',    _) <- liftIO . runResourceT $ Conduit.unwrapResumable rsrc
     (src',) <$> hoistEither hdrs
 
-sinkParser :: Parser a -> Consumer ByteString IO (Either Error a)
+sinkParser :: Parser a -> Consumer ByteString (ResourceT IO) (Either Error a)
 sinkParser p = fmapL mkError <$> Conduit.sinkParserEither p
   where
     mkError = clientError . LT.pack . mkMsg
     mkMsg e = "Expected: " ++ intercalate ", " (Conduit.errorContexts e)
-           ++ ", " ++ Conduit.errorMessage e
-           ++ " at " ++ show (Conduit.errorPosition e)
+            ++ ", " ++ Conduit.errorMessage e
+            ++ " at " ++ show (Conduit.errorPosition e)
 
 -- Parsing Primitives
 

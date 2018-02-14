@@ -15,6 +15,7 @@ module CargoHold.App
     , newEnv
     , closeEnv
     , CargoHold.App.aws
+    , awsAmazonka
     , metrics
     , appLogger
     , requestId
@@ -55,7 +56,9 @@ import Prelude hiding (log)
 
 import qualified Aws.Core                     as Aws
 import qualified Aws.S3                       as Aws
+
 import qualified Bilge
+import qualified CargoHold.AWS                as AWS
 import qualified Data.Metrics.Middleware      as Metrics
 import qualified Network.Wai.Utilities.Server as Server
 import qualified OpenSSL.Session              as SSL
@@ -68,6 +71,7 @@ import qualified System.Logger                as Log
 
 data Env = Env
     { _aws            :: AwsEnv
+    , _awsAmazonka    :: AWS.Env
     , _metrics        :: Metrics
     , _appLogger      :: Logger
     , _httpManager    :: Manager
@@ -92,10 +96,13 @@ newEnv o = do
                     $ Log.defSettings
     mgr  <- initHttpManager
     awe  <- initAws o lgr mgr
-    return $ Env awe met lgr mgr mempty (o^.optSettings.setMaxTotalBytes)
+    ama  <- initAwsAmazonka o lgr mgr
+    return $ Env awe ama met lgr mgr mempty (o^.optSettings.setMaxTotalBytes)
 
-initAwsAmazonka :: Opts -> Logger -> Manager -> IO AwsEnv
-initAwsAmazonka o l m = undefined
+initAwsAmazonka :: Opts -> Logger -> Manager -> IO AWS.Env
+initAwsAmazonka o l m = do
+    aws <- AWS.mkEnv l (o^.optAwsAmazonka) m
+    return aws
 
 initAws :: Opts -> Logger -> Manager -> IO AwsEnv
 initAws o l m = do

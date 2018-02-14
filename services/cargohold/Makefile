@@ -60,6 +60,14 @@ $(DEB_IT):
 integration: install
 	LOG_LEVEL=Info keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV)
 
+test-fast:
+	stack install --fast --test --local-bin-path=dist
+	LOG_LEVEL=Info keiretsu --run '$(EXE_IT)' --env $(KEIRETSU_ENV)
+
+test-%:
+	stack install --fast --test --local-bin-path=dist
+	LOG_LEVEL=Debug keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
+
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
 	 > .metadata

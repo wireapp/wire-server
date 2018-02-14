@@ -46,7 +46,7 @@ import CargoHold.App hiding (Handler)
 import Control.Applicative ((<|>))
 import CargoHold.API.Error
 import Control.Error (ExceptT, throwE)
-import Control.Lens (view)
+import Control.Lens hiding ((.=), (:<), (:>), parts)
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
@@ -64,11 +64,12 @@ import Data.Maybe
 import Data.Monoid ((<>))
 import Data.Sequence (Seq, ViewR (..), ViewL (..))
 import Data.Time.Clock
-import Data.Text (Text)
+import Data.Text (pack, Text)
 import Data.Text.Encoding (encodeUtf8, decodeLatin1)
 import Network.HTTP.Client.Conduit (requestBodySource)
 import Network.HTTP.Client
 import Network.HTTP.Types (toQuery)
+import Network.HTTP.Types.URI (urlEncode)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error (Error (..))
 import Safe (readMay)
@@ -77,19 +78,25 @@ import Text.XML.Cursor (laxElement, ($/), (&|))
 
 import qualified Aws.Core                     as Aws
 import qualified Bilge.Retry                  as Retry
+import qualified CargoHold.AWS                as AWS
 import qualified CargoHold.Types.V3           as V3
 import qualified CargoHold.Types.V3.Resumable as V3
 import qualified Codec.MIME.Type              as MIME
 import qualified Codec.MIME.Parse             as MIME
+import qualified Data.ByteString.Base64       as B64
+import qualified Data.ByteString.Base64.URL   as B64Url
 import qualified Data.ByteString.Char8        as C8
 import qualified Data.ByteString.Lazy         as LBS
 import qualified Data.Conduit                 as Conduit
 import qualified Data.Conduit.Binary          as Conduit
 import qualified Data.Sequence                as Seq
+import qualified Data.HashMap.Lazy            as HML
 import qualified Data.Text                    as Text
 import qualified Data.Text.Ascii              as Ascii
 import qualified Data.Text.Encoding           as Text
 import qualified Data.UUID                    as UUID
+import qualified Network.AWS.S3               as AWS
+import qualified Network.AWS.Data.Body        as AWS
 import qualified Network.HTTP.Conduit         as Http
 import qualified Ropes.Aws                    as Aws
 import qualified System.Logger.Class          as Log
@@ -102,43 +109,69 @@ data S3AssetMeta = S3AssetMeta
     { v3AssetOwner :: V3.Principal
     , v3AssetToken :: Maybe V3.AssetToken
     , v3AssetType  :: MIME.Type
-    }
+    } deriving Show
 
 uploadV3 :: V3.Principal
          -> V3.AssetKey
          -> V3.AssetHeaders
          -> Maybe V3.AssetToken
-         -> Conduit.Source IO ByteString
+         -> Source (ResourceT IO) ByteString
          -> ExceptT Error App ()
 uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
-    Log.debug $ "remote" .= val "S3"
+    Log.warn $ "remote" .= val "S3"
         ~~ "asset.owner" .= toByteString prc
         ~~ "asset.key"   .= key
         ~~ "asset.type"  .= MIME.showType ct
         ~~ "asset.size"  .= cl
         ~~ msg (val "Uploading asset")
-    b <- s3Bucket <$> view aws
-    let body = requestBodySource (fromIntegral cl) src
-    void . tryS3 . exec $ (putObject b key body)
-        { poContentMD5        = Just md5
-        , poContentType       = Just (encodeMIMEType ct)
-        , poExpect100Continue = True
-        , poMetadata          = catMaybes
-                              [ setAmzMetaToken <$> tok
-                              , Just (setAmzMetaPrincipal prc)
-                              ]
-        }
+        ~~ msg (val "MD5: ")
+        ~~ msg (show md5)
+    e <- view awsAmazonka
+    let b = view AWS.s3Bucket e
+    AWS.execute e (po b key src)
+  where
+    po b k bdy = do
+        let rqBody = AWS.ChunkedBody AWS.defaultChunkSize (fromIntegral cl) bdy
+        -- let md5Res = Text.decodeLatin1 . B64.encode . C8.pack . show $ md5
+        -- let md5Res = T.decodeLatin1 . B64.encode . digestLBS $ md5
+        -- let md5Res = pack . show . C8.pack . show $ md5
+        let req = AWS.putObject (AWS.BucketName b) (AWS.ObjectKey k) (AWS.toBody rqBody)
+                & AWS.poContentType ?~ encodeMIMEType' ct
+                -- & AWS.poContentMD5 ?~ md5Res
+                & AWS.poMetadata .~  (HML.fromList $ catMaybes [ setAmzMetaToken <$> tok
+                                                               , Just (setAmzMetaPrincipal prc)
+                                                               ]
+                                     )
+        r <- retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req))
+        -- TODO: Check responses properly!
+        Log.warn $ "UPLOAD DONE!" .= val "S3"
+            ~~ msg (show r)
+        -- "Hello World" --> 5Z/5eUEET4XfUpfhwwLSYA==
+        -- YjEwYThkYjE2NGUwNzU0MTA1YjdhOTliZTcyZTNmZTU=
+        -- WZOTosUmxoARnYQVXZDx5Q==
 
 getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)
 getMetadataV3 (s3Key . mkKey -> key) = do
+    e <- view awsAmazonka
+    let b = view AWS.s3Bucket e
     Log.debug $ "remote" .= val "S3"
         ~~ "asset.key" .= key
+        ~~ "asset.bucket" .= b
         ~~ msg (val "Getting asset metadata")
-    b <- s3Bucket <$> view aws
-    (_, r) <- tryS3 . recovering x3 handlers . const . exec $ headObjectX b key
-    let ct = fromMaybe octets (parseMIMEType =<< horxContentType r)
-    return $ parse ct =<< (omUserMetadata <$> horxMetadata r)
+    r' <- AWS.execute e (ho b key)
+    -- TODO: Check responses properly!
+    case r' of
+        Nothing -> return Nothing
+        Just r  -> do 
+            let ct = fromMaybe octets (parseMIMEType' =<< view AWS.horsContentType r)
+            return $ parse ct (HML.toList $ view AWS.horsMetadata r)
   where
+    ho :: Text -> Text -> AWS.Amazon (Maybe AWS.HeadObjectResponse)
+    ho b k = do
+        let req = AWS.headObject (AWS.BucketName b) (AWS.ObjectKey k)
+        resp <- retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req))
+        return $ either (const Nothing) Just resp
+
     parse ct h = S3AssetMeta
         <$> getAmzMetaPrincipal h
         <*> Just (getAmzMetaToken h)
@@ -149,24 +182,40 @@ deleteV3 (s3Key . mkKey -> key) = do
     Log.debug $ "remote" .= val "S3"
         ~~ "asset.key" .= key
         ~~ msg (val "Deleting asset")
-    b <- s3Bucket <$> view aws
-    void . tryS3 $ exec (DeleteObject key b)
+    e <- view awsAmazonka
+    let b = view AWS.s3Bucket e
+    -- TODO: Check responses properly!
+    let req = AWS.deleteObject (AWS.BucketName b) (AWS.ObjectKey key)
+    void $ AWS.execute e (fn req)
+  where
+    fn req = retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req))
 
 updateMetadataV3 :: V3.AssetKey -> S3AssetMeta ->  ExceptT Error App ()
 updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
-    Log.debug $ "remote" .= val "S3"
+    e <- view awsAmazonka
+    let b = view AWS.s3Bucket e
+    let hdrs = HML.fromList $ catMaybes [ setAmzMetaToken <$> tok
+                                        , Just (setAmzMetaPrincipal prc)
+                                        ]
+    let req = AWS.copyObject (AWS.BucketName b) (copySrc b key) (AWS.ObjectKey key)
+            & AWS.coContentType ?~ encodeMIMEType' ct
+            & AWS.coMetadataDirective ?~ AWS.MDReplace
+            & AWS.coMetadata .~ hdrs
+    Log.warn $ "remote" .= val "S3"
         ~~ "asset.owner" .= show prc
         ~~ "asset.key"   .= key
         ~~ msg (val "Updating asset metadata")
-    b <- s3Bucket <$> view aws
-    let hdrs = catMaybes
-             [ setAmzMetaToken <$> tok
-             , Just (setAmzMetaPrincipal prc)
-             ]
-    let meta = ReplaceMetadata hdrs
-    void . tryS3 . recovering x3 handlers . const . exec $
-        (copyObject b key (ObjectId b key Nothing) meta)
-            { coContentType = Just (encodeMIMEType ct) }
+        ~~ msg (show tok)
+        ~~ msg (show $ copySrc b key)
+    r <- AWS.execute e (fn req)
+    -- TODO: Check responses properly!
+    Log.warn $ "remote" .= val "S3"
+        ~~ "asset.owner" .= show prc
+        ~~ "asset.key"   .= key
+        ~~ msg (show r)
+  where
+    fn req = retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req))
+    copySrc b k = Text.decodeLatin1 $ urlEncode True $ Text.encodeUtf8 (b <> "/" <> k)
 
 mkKey :: V3.AssetKey -> S3AssetKey
 mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key
@@ -643,6 +692,9 @@ getAmzMetaUploadId = lookup hAmzMetaUploadId
 parseAmzMeta :: FromByteString a => Text -> [(Text, Text)] -> Maybe a
 parseAmzMeta k h = lookup k h >>= fromByteString . encodeUtf8
 
+-- parseAmzMeta' :: FromByteString a => Text -> HML.HashMap Text Text -> Maybe a
+-- parseAmzMeta' k h = HML.lookup k h >>= fromByteString . encodeUtf8
+
 -------------------------------------------------------------------------------
 -- Utilities
 
@@ -677,8 +729,14 @@ handlers = Retry.httpHandlers ++
 parseMIMEType :: ByteString -> Maybe MIME.Type
 parseMIMEType = MIME.parseMIMEType . decodeLatin1
 
+parseMIMEType' :: Text -> Maybe MIME.Type
+parseMIMEType' = MIME.parseMIMEType
+
 encodeMIMEType :: MIME.Type -> ByteString
 encodeMIMEType = Text.encodeUtf8 . MIME.showType
+
+encodeMIMEType' :: MIME.Type -> Text
+encodeMIMEType' = MIME.showType
 
 octets :: MIME.Type
 octets = MIME.Type (MIME.Application "octet-stream") []

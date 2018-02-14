@@ -1,6 +1,7 @@
-{-# LANGUAGE DeriveGeneric   #-}
-{-# LANGUAGE StrictData      #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData        #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module CargoHold.Options where
 
@@ -31,7 +32,8 @@ deriveFromJSON toOptionFieldName ''AWSOpts
 makeLenses ''AWSOpts
 
 data AWSAmazonkaOpts = AWSAmazonkaOpts
-    { _awsAmazonkaS3Bucket     :: Text
+    { _awsAmazonkaS3Endpoint   :: AWSEndpoint
+    , _awsAmazonkaS3Bucket     :: Text
     , _awsAmazonkaCfDomain     :: Domain
     , _awsAmazonkaCfKeyPairId  :: KeyPairId
     , _awsAmazonkaCfPrivateKey :: FilePath
@@ -83,7 +85,7 @@ optsParser = Opts <$>
   where
     awsParser :: Parser AWSOpts
     awsParser = AWSOpts <$>
-            (optional . fmap Aws.AccessKeyId . bytesOption $
+           (optional . fmap Aws.AccessKeyId . bytesOption $
                 long "aws-key-id"
                 <> metavar "STRING"
                 <> help "AWS Access Key ID")
@@ -114,7 +116,14 @@ optsParser = Opts <$>
 
     awsAmazonkaParser :: Parser AWSAmazonkaOpts
     awsAmazonkaParser = AWSAmazonkaOpts <$>
-             (fmap T.pack . strOption $
+            (option parseAWSEndpoint $
+                long "aws-s3-endpoint"
+                <> value (AWSEndpoint "s3.eu-west-1.amazonaws.com" True 443)
+                <> metavar "STRING" 
+                <> showDefault
+                <> help "aws S3 endpoint")
+
+        <*> (fmap T.pack . strOption $
                 long "aws-s3-bucket"
                 <> metavar "STRING"
                 <> help "S3 bucket name")

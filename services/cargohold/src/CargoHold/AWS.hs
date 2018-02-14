@@ -15,20 +15,23 @@ module CargoHold.AWS
     , Amazon
     , amazonkaEnv
     , execute
-    , assetBucket
+    , s3Bucket
 
     , Error (..)
 
       -- * AWS
     , exec
     , execCatch
+    , throwA
+    , sendCatch
+    , canRetry
+    , retry5x
 
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Concurrent.Lifted (threadDelay)
-import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding ((.=))
 import Control.Monad
 import Control.Monad.Base
@@ -44,21 +47,19 @@ import Data.Text (Text, isPrefixOf)
 import Data.Typeable
 import Data.Yaml (FromJSON (..))
 import Network.AWS (AWSRequest, Rs)
-import Network.AWS.SQS (rmrsMessages)
-import Network.AWS.SQS.Types hiding (sqs)
 import Network.HTTP.Client (Manager, HttpException (..), HttpExceptionContent (..))
 import Network.HTTP.Types.Status (status400)
-import Network.Mail.Mime
 import System.Logger.Class
 import Util.Options
 
-import qualified Cargohold.Options       as Opt
+import qualified CargoHold.Options       as Opt
 import qualified Control.Monad.Trans.AWS as AWST
 import qualified Data.ByteString.Lazy    as BL
 import qualified Data.Text.Encoding      as Text
 import qualified Network.AWS             as AWS
 import qualified Network.AWS.Data        as AWS
 import qualified Network.AWS.Env         as AWS
+import qualified Network.AWS.S3          as S3
 import qualified System.Logger           as Logger
 
 data Env = Env
@@ -97,8 +98,9 @@ instance AWS.MonadAWS Amazon where
 mkEnv :: Logger -> Opt.AWSAmazonkaOpts -> Manager -> IO Env
 mkEnv lgr opts mgr = do
     let g = Logger.clone (Just "aws.cargohold") lgr
-    let bucket = Opt.awsAmazonkaS3Bucket opts
-    e <- mkAwsEnv g (mkEndpoint S3.s3 (Opt.awsAmazonkaS3Endpoint opts))
+    let bucket = opts^.Opt.awsAmazonkaS3Bucket
+    let s3End  = opts^.Opt.awsAmazonkaS3Endpoint
+    e <- mkAwsEnv g (mkEndpoint S3.s3 s3End)
     return (Env g bucket e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
