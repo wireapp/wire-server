@@ -46,6 +46,7 @@ module Galley.Data
     , createSelfConversation
     , isConvAlive
     , updateConversation
+    , updateConversationAccess
     , deleteConversation
 
     -- * Conversation Members
@@ -57,6 +58,11 @@ module Galley.Data
     , removeMembers
     , updateMember
 
+    -- * Conversation Codes
+    , lookupCode
+    , deleteCode
+    , insertCode
+
     -- * Clients
     , eraseClients
     , lookupClients
@@ -67,6 +73,7 @@ module Galley.Data
     , newMember
     ) where
 
+import Brig.Types.Code
 import Cassandra
 import Cassandra.Util
 import Control.Applicative
@@ -117,7 +124,26 @@ import qualified System.Logger.Class  as Log
 newtype ResultSet a = ResultSet { page :: Page a }
 
 schemaVersion :: Int32
-schemaVersion = 24
+schemaVersion = 25
+
+-- | Insert a conversation code
+insertCode :: MonadClient m => Code -> m ()
+insertCode c = do
+    let k = codeKey c
+    let v = codeValue c
+    let cnv = codeConversation c
+    let t = round (codeTTL c)
+    let s = codeScope c
+    retry x5 (write Cql.insertCode (params Quorum (k, v, cnv, s, t)))
+
+-- | Lookup a conversation by code.
+lookupCode :: MonadClient m => Key -> Scope -> m (Maybe Code)
+lookupCode k s = fmap (toCode k s) <$> retry x1 (query1 Cql.lookupCode (params Quorum (k, s)))
+
+-- | Delete a code associated with the given conversation key
+deleteCode :: MonadClient m => Key -> Scope -> m ()
+deleteCode k s = retry x5 $ write Cql.deleteCode (params Quorum (k, s))
+
 
 -- Teams --------------------------------------------------------------------
 
@@ -321,7 +347,7 @@ conversationIdsOf usr (fromList . fromRange -> cids) =
 
 createConversation :: UserId
                    -> Maybe (Range 1 256 Text)
-                   -> List1 Access
+                   -> [Access]
                    -> ConvAndTeamSizeChecked [UserId]
                    -> Maybe ConvTeamInfo
                    -> Galley Conversation
@@ -345,7 +371,7 @@ createSelfConversation usr name = do
     retry x5 $
         write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, fromRange <$> name, Nothing))
     mems <- snd <$> addMembersUnchecked now conv usr (singleton usr)
-    return $ newConv conv SelfConv usr (toList mems) (singleton PrivateAccess) name Nothing
+    return $ newConv conv SelfConv usr (toList mems) [PrivateAccess] name Nothing
 
 createConnectConversation :: MonadClient m
                           => U.UUID U.V4
@@ -363,7 +389,7 @@ createConnectConversation a b name conn = do
     -- when the other user accepts the connection request.
     mems <- snd <$> addMembersUnchecked now conv a' (singleton a')
     let e = Event ConvConnect conv a' now (Just $ EdConnect conn)
-    return (newConv conv ConnectConv a' (toList mems) (singleton PrivateAccess) name Nothing, e)
+    return (newConv conv ConnectConv a' (toList mems) [PrivateAccess] name Nothing, e)
 
 createOne2OneConversation :: U.UUID U.V4
                           -> U.UUID U.V4
@@ -383,10 +409,13 @@ createOne2OneConversation a b name ti = do
             addPrepQuery Cql.insertConv (conv, One2OneConv, a', privateOnly, fromRange <$> name, Just tid)
             addPrepQuery Cql.insertTeamConv (tid, conv, False)
     mems <- snd <$> addMembersUnchecked now conv a' (list1 a' [b'])
-    return $ newConv conv One2OneConv a' (toList mems) (singleton PrivateAccess) name ti
+    return $ newConv conv One2OneConv a' (toList mems) [PrivateAccess] name ti
 
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
 updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum (fromRange name, cid))
+
+updateConversationAccess :: MonadClient m => ConvId -> [Access] -> m ()
+updateConversationAccess cid acc = retry x5 $ write Cql.updateConvAccess (params Quorum (Set acc, cid))
 
 deleteConversation :: MonadClient m => ConvId -> m ()
 deleteConversation cid = do
@@ -405,7 +434,7 @@ newConv :: ConvId
         -> ConvType
         -> UserId
         -> [Member]
-        -> List1 Access
+        -> [Access]
         -> Maybe (Range 1 256 Text)
         -> Maybe TeamId
         -> Conversation
@@ -420,16 +449,16 @@ newConv cid ct usr mems acc name tid = Conversation
     , convDeleted = Nothing
     }
 
-defAccess :: ConvType -> Maybe (Set Access) -> List1 Access
-defAccess SelfConv    Nothing             = singleton PrivateAccess
-defAccess ConnectConv Nothing             = singleton PrivateAccess
-defAccess One2OneConv Nothing             = singleton PrivateAccess
-defAccess RegularConv Nothing             = singleton InviteAccess
-defAccess SelfConv    (Just (Set []))     = singleton PrivateAccess
-defAccess ConnectConv (Just (Set []))     = singleton PrivateAccess
-defAccess One2OneConv (Just (Set []))     = singleton PrivateAccess
-defAccess RegularConv (Just (Set []))     = singleton InviteAccess
-defAccess _           (Just (Set (x:xs))) = list1 x xs
+defAccess :: ConvType -> Maybe (Set Access) -> [Access]
+defAccess SelfConv    Nothing             = [PrivateAccess]
+defAccess ConnectConv Nothing             = [PrivateAccess]
+defAccess One2OneConv Nothing             = [PrivateAccess]
+defAccess RegularConv Nothing             = [InviteAccess]
+defAccess SelfConv    (Just (Set []))     = [PrivateAccess]
+defAccess ConnectConv (Just (Set []))     = [PrivateAccess]
+defAccess One2OneConv (Just (Set []))     = [PrivateAccess]
+defAccess RegularConv (Just (Set []))     = [InviteAccess]
+defAccess _           (Just (Set (x:xs))) = x:xs
 
 privateOnly :: Set Access
 privateOnly = Set [PrivateAccess]

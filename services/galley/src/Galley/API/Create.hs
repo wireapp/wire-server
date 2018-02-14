@@ -80,8 +80,8 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
         conversationResponse status201 zusr c
 
     access a = case Set.toList (newConvAccess a) of
-        []     -> singleton InviteAccess
-        (x:xs) -> list1 x xs
+        []     -> [InviteAccess]
+        (x:xs) -> x:xs
 
 createSelfConversation :: UserId -> Galley Response
 createSelfConversation zusr = do

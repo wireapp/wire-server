@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE DataKinds                  #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -19,7 +20,6 @@ import Galley.Types.Teams.Intra
 import qualified Data.Set
 
 deriving instance Cql ServiceToken
-
 
 instance Cql ConvType where
     ctype = Tagged IntColumn
@@ -44,11 +44,13 @@ instance Cql Access where
     toCql PrivateAccess = CqlInt 1
     toCql InviteAccess  = CqlInt 2
     toCql LinkAccess    = CqlInt 3
+    toCql CodeAccess    = CqlInt 4
 
     fromCql (CqlInt i) = case i of
         1 -> return PrivateAccess
         2 -> return InviteAccess
         3 -> return LinkAccess
+        4 -> return CodeAccess
         n -> fail $ "Unexpected Access value: " ++ show n
     fromCql _ = fail "Access value: int expected"
 
@@ -110,4 +112,3 @@ instance Cql TeamStatus where
         4 -> return PendingActive
         n -> fail $ "unexpected team-status: " ++ show n
     fromCql _ = fail "team-status: int expected"
-

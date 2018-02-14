@@ -20,6 +20,15 @@ invalidOne2OneOp = invalidOp "invalid operation for 1:1 conversations"
 invalidConnectOp :: Error
 invalidConnectOp = invalidOp "invalid operation for connect conversation"
 
+invalidAccessOp :: Error
+invalidAccessOp = invalidOp "invalid operation for conversation without 'code' access"
+
+invalidManagedConvOp :: Error
+invalidManagedConvOp = invalidOp "invalid operation for managed conversation"
+
+invalidTargetAccess :: Error
+invalidTargetAccess = invalidOp "invalid target access"
+
 invalidOp :: Text -> Error
 invalidOp = Error status403 "invalid-op"
 
@@ -95,3 +104,6 @@ noBindingTeamMembers = Error status403 "non-binding-team-members" "Both users mu
 
 invalidTeamStatusUpdate :: Error
 invalidTeamStatusUpdate = Error status403 "invalid-team-status-update" "Cannot use this endpoint to update the team to the given status."
+
+codeNotFound :: Error
+codeNotFound = Error status404 "no-conversation-code" "conversation code not found"

@@ -5,7 +5,8 @@
 
 module Galley.Data.Queries where
 
-import Cassandra
+import Brig.Types.Code
+import Cassandra hiding (Value)
 import Cassandra.Util
 import Data.Functor.Identity
 import Data.Id
@@ -13,6 +14,7 @@ import Data.Int
 import Data.Misc
 import Data.Monoid
 import Data.Text (Text)
+import Galley.Data.Types
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot
 import Galley.Types.Teams
@@ -114,6 +116,9 @@ isConvDeleted = "select deleted from conversation where conv = ?"
 insertConv :: PrepQuery W (ConvId, ConvType, UserId, Set Access, Maybe Text, Maybe TeamId) ()
 insertConv = "insert into conversation (conv, type, creator, access, name, team) values (?, ?, ?, ?, ?, ?)"
 
+updateConvAccess :: PrepQuery W (Set Access, ConvId) ()
+updateConvAccess = "update conversation set access = ? where conv = ?"
+
 updateConvName :: PrepQuery W (Text, ConvId) ()
 updateConvName = "update conversation set name = ? where conv = ?"
 
@@ -125,6 +130,17 @@ deleteConv = "delete from conversation using timestamp 32503680000000000 where c
 
 markConvDeleted :: PrepQuery W (Identity ConvId) ()
 markConvDeleted = "update conversation set deleted = true where conv = ?"
+
+-- Conversations accessible by code -----------------------------------------
+
+insertCode :: PrepQuery W (Key, Value, ConvId, Scope, Int32) ()
+insertCode = "INSERT INTO conversation_codes (key, value, conversation, scope) VALUES (?, ?, ?, ?) USING TTL ?"
+
+lookupCode :: PrepQuery R (Key, Scope) (Value, Int32, ConvId)
+lookupCode = "SELECT value, ttl(value), conversation FROM conversation_codes WHERE key = ? AND scope = ?"
+
+deleteCode :: PrepQuery W (Key, Scope) ()
+deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
 
 -- User Conversations -------------------------------------------------------
 
@@ -201,4 +217,3 @@ selectSrv = "select base_url, auth_token, fingerprints, enabled from service whe
 
 insertBot :: PrepQuery W (ConvId, BotId, ServiceId, ProviderId) ()
 insertBot = "insert into member (conv, user, service, provider, status) values (?, ?, ?, ?, 0)"
-

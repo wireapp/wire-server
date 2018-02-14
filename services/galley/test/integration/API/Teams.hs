@@ -277,13 +277,13 @@ testRemoveTeamMember g b c _ = do
     tid <- Util.createTeam g "foo" owner [mem1, mem2]
 
     -- Managed conversation:
-    void $ Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "gossip")
+    void $ Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "gossip") Nothing
     -- Regular conversation:
-    cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [mem1^.userId, mem2^.userId, mext1] (Just "blaa")
+    cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [mem1^.userId, mem2^.userId, mext1] (Just "blaa") Nothing
     -- Member external 2 is a guest and not a part of any conversation that mem1 is a part of
-    void $ Util.createTeamConv g owner (ConvTeamInfo tid False) [mem2^.userId, mext2] (Just "blaa")
+    void $ Util.createTeamConv g owner (ConvTeamInfo tid False) [mem2^.userId, mext2] (Just "blaa") Nothing
     -- Member external 3 is a guest and part of a conversation that mem1 is a part of
-    cid3 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [mem1^.userId, mext3] (Just "blaa")
+    cid3 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [mem1^.userId, mext3] (Just "blaa") Nothing
 
     WS.bracketRN c [owner, mem1^.userId, mem2^.userId, mext1, mext2, mext3] $ \ws@[wsOwner, wsMem1, wsMem2, wsMext1, _wsMext2, wsMext3] -> do
         -- `mem1` lacks permission to remove team members
@@ -326,7 +326,7 @@ testRemoveBindingTeamMember g b c a = do
     Util.addTeamMemberInternal g tid mem1
     assertQueue "team member join" a $ tUpdate 2 [owner]
     Util.connectUsers b owner (singleton mext)
-    cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [(mem1^.userId), mext] (Just "blaa")
+    cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [(mem1^.userId), mext] (Just "blaa") Nothing
 
     -- Deleting from a binding team without a password is a bad request
     delete ( g
@@ -375,12 +375,12 @@ testAddTeamConv g b c _ = do
 
     WS.bracketRN c [owner, extern, mem1^.userId, mem2^.userId]  $ \ws@[wsOwner, wsExtern, wsMem1, wsMem2] -> do
         -- Managed conversation:
-        cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "gossip")
+        cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "gossip") Nothing
         checkConvCreateEvent cid1 wsOwner
         checkConvCreateEvent cid1 wsMem2
 
         -- Regular conversation:
-        cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [extern] (Just "blaa")
+        cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [extern] (Just "blaa") Nothing
         checkConvCreateEvent cid2 wsOwner
         checkConvCreateEvent cid2 wsExtern
         -- mem2 is not a conversation member but still receives an event that
@@ -399,7 +399,7 @@ testAddTeamConv g b c _ = do
         Util.assertNotConvMember g (mem1^.userId) cid2
 
         -- Managed team conversations get all team members added implicitly.
-        cid3 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "blup")
+        cid3 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "blup") Nothing
         for_ [owner, mem1^.userId, mem2^.userId] $ \u ->
             Util.assertConvMember g u cid3
 
@@ -435,7 +435,7 @@ testAddTeamConvWithUsers g b _ _ = do
     Util.connectUsers b owner (list1 extern [])
     tid <- Util.createTeam g "foo" owner []
     -- Create managed team conversation and erroneously specify external users.
-    cid <- Util.createTeamConv g owner (ConvTeamInfo tid True) [extern] (Just "gossip")
+    cid <- Util.createTeamConv g owner (ConvTeamInfo tid True) [extern] (Just "gossip") Nothing
     -- External users have been ignored.
     Util.assertNotConvMember g extern cid
     -- Team members are present.
@@ -453,7 +453,7 @@ testAddTeamMemberToConv g b _ _ = do
     tid <- Util.createTeam g "foo" owner [mem1, mem2, mem3]
 
     -- Team owner creates new regular team conversation:
-    cid <- Util.createTeamConv g owner (ConvTeamInfo tid False) [] (Just "blaa")
+    cid <- Util.createTeamConv g owner (ConvTeamInfo tid False) [] (Just "blaa") Nothing
 
     -- Team member 1 (who is *not* a member of the new conversation)
     -- can add other team members without requiring a user connection
@@ -479,8 +479,8 @@ testDeleteTeam g b c a = do
     Util.connectUsers b owner (list1 (member^.userId) [extern])
 
     tid  <- Util.createTeam g "foo" owner [member]
-    cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [] (Just "blaa")
-    cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "blup")
+    cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [] (Just "blaa") Nothing
+    cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "blup") Nothing
 
     Util.assertConvMember g owner cid2
     Util.assertConvMember g (member^.userId) cid2
@@ -571,8 +571,8 @@ testDeleteTeamConv g b c _ = do
     Util.connectUsers b owner (list1 (member^.userId) [extern])
 
     tid  <- Util.createTeam g "foo" owner [member]
-    cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [] (Just "blaa")
-    cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "blup")
+    cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [] (Just "blaa") Nothing
+    cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "blup") Nothing
 
     Util.postMembers g owner (list1 extern [member^.userId]) cid1 !!! const 200 === statusCode
 

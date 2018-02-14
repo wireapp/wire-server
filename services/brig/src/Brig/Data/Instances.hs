@@ -17,7 +17,6 @@ import Data.Int
 import Data.Range()
 import Data.Text.Ascii()
 
-import qualified Brig.Types.Code                 as Code
 import qualified Data.Aeson                      as JSON
 import qualified Data.Aeson.Parser               as JSON
 import qualified Data.Attoparsec.ByteString.Lazy as P
@@ -33,8 +32,6 @@ deriving instance Cql PasswordResetCode
 deriving instance Cql ActivationKey
 deriving instance Cql ActivationCode
 deriving instance Cql PropertyKey
-deriving instance Cql Code.Key
-deriving instance Cql Code.Value
 deriving instance Cql SearchableStatus
 
 instance Cql Email where
@@ -185,4 +182,3 @@ instance Cql Language where
         Just l' -> return l'
         Nothing -> fail "Language: ISO 639-1 expected."
     fromCql _            = fail "Language: ASCII expected"
-

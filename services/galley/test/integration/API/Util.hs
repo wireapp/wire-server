@@ -18,6 +18,7 @@ import Data.ByteString.Conversion
 import Data.Foldable (toList, mapM_)
 import Data.Id
 import Data.Int
+import Data.List (sort)
 import Data.List1 as List1
 import Data.Maybe
 import Data.Misc
@@ -90,21 +91,22 @@ changeTeamStatus g tid s = put
 
 createTeamInternal :: Galley -> Text -> UserId -> Http TeamId
 createTeamInternal g name owner = do
+    tid <- createTeamInternalNoActivate g name owner
+    changeTeamStatus g tid Active
+    return tid
+
+createTeamInternalNoActivate :: Galley -> Text -> UserId -> Http TeamId
+createTeamInternalNoActivate g name owner = do
     tid <- randomId
     let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
     _ <- put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
         const 201  === statusCode
         const True === isJust . getHeader "Location"
-    changeTeamStatus g tid Active
     return tid
 
 createTeamInternalWithCurrency :: Galley -> Text -> UserId -> Currency.Alpha -> Http TeamId
 createTeamInternalWithCurrency g name owner cur = do
-    tid <- randomId
-    let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
-    _ <- put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
-        const 201  === statusCode
-        const True === isJust . getHeader "Location"
+    tid <- createTeamInternalNoActivate g name owner
     _ <- put (g . paths ["i", "teams", toByteString' tid, "status"] . json (TeamStatusUpdate Active $ Just cur)) !!!
         const 200 === statusCode
     return tid
@@ -141,9 +143,9 @@ addTeamMemberInternal g tid mem = do
     post (g . paths ["i", "teams", toByteString' tid, "members"] . payload) !!!
         const 200 === statusCode
 
-createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Http ConvId
-createTeamConv g u tinfo us name = do
-    let conv = NewConv us name (Set.fromList []) (Just tinfo)
+createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access)-> Http ConvId
+createTeamConv g u tinfo us name acc = do
+    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) (Just tinfo)
     r <- post ( g
               . path "/conversations"
               . zUser u
@@ -299,6 +301,43 @@ postJoinConv g u c = post $ g
     . zConn "conn"
     . zType "access"
 
+postJoinCodeConv :: Galley -> UserId -> ConversationCode -> Http ResponseLBS
+postJoinCodeConv g u j = post $ g
+    . paths ["/conversations", "join"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+    . json j
+
+putAccessUpdate :: Galley -> UserId -> ConvId -> ConversationAccessUpdate -> Http ResponseLBS
+putAccessUpdate g u c acc = put $ g
+    . paths ["/conversations", toByteString' c, "access"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+    . json acc
+
+postConvCode :: Galley -> UserId -> ConvId -> Http ResponseLBS
+postConvCode g u c = post $ g
+    . paths ["/conversations", toByteString' c, "code"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+
+getConvCode :: Galley -> UserId -> ConvId -> Http ResponseLBS
+getConvCode g u c = get $ g
+    . paths ["/conversations", toByteString' c, "code"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+
+deleteConvCode :: Galley -> UserId -> ConvId -> Http ResponseLBS
+deleteConvCode g u c = delete $ g
+    . paths ["/conversations", toByteString' c, "code"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+
 deleteClientInternal :: Galley -> UserId -> ClientId -> Http ResponseLBS
 deleteClientInternal g u c = delete $ g
     . zUser u
@@ -389,14 +428,26 @@ wsAssertMemberJoin conv usr new n = do
     evtFrom      e @?= usr
     evtData      e @?= Just (EdMembers (Members new))
 
-wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
-wsAssertMemberLeave conv usr old n = do
+wsAssertConvAccessUpdate :: ConvId -> UserId -> ConversationAccessUpdate -> Notification -> IO ()
+wsAssertConvAccessUpdate conv usr new n = do
     let e = List1.head (WS.unpackPayload n)
     ntfTransient n @?= False
     evtConv      e @?= conv
-    evtType      e @?= MemberLeave
+    evtType      e @?= ConvAccessUpdate
     evtFrom      e @?= usr
-    evtData      e @?= Just (EdMembers (Members old))
+    evtData      e @?= Just (EdConvAccessUpdate new)
+
+wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
+wsAssertMemberLeave conv usr old n = do
+    let e = List1.head (WS.unpackPayload n)
+    ntfTransient n      @?= False
+    evtConv      e      @?= conv
+    evtType      e      @?= MemberLeave
+    evtFrom      e      @?= usr
+    sorted (evtData e)  @?= sorted (Just (EdMembers (Members old)))
+  where
+    sorted (Just (EdMembers (Members m))) = Just (EdMembers (Members (sort m)))
+    sorted x = x
 
 assertNoMsg :: WS.WebSocket -> (Notification -> Assertion) -> Http ()
 assertNoMsg ws f = do
@@ -406,6 +457,15 @@ assertNoMsg ws f = do
         Right _ -> assertFailure "Unexpected message"
 -------------------------------------------------------------------------------
 -- Helpers
+
+decodeConvCode :: Response (Maybe Lazy.ByteString) -> ConversationCode
+decodeConvCode r = fromMaybe (error "Failed to parse ConversationCode response") $
+    decodeBody r
+
+decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCode
+decodeConvCodeEvent r = case fromMaybe (error "Failed to parse Event") $ decodeBody r of
+    (Event ConvCodeUpdate _ _ _ (Just (EdConvCodeUpdate c))) -> c
+    _ -> error "Failed to parse ConversationCode from Event"
 
 decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId
 decodeConvId r = fromMaybe (error "Failed to parse conversation") $
@@ -564,8 +624,8 @@ convRange range size =
         Just (Right c) -> queryItem "start" (toByteString' c)
         Nothing        -> id
 
-privateAccess :: List1 Access
-privateAccess = singleton PrivateAccess
+privateAccess :: [Access]
+privateAccess = [PrivateAccess]
 
 eqMismatch :: [(UserId, Set ClientId)]
            -> [(UserId, Set ClientId)]
