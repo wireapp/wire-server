@@ -119,7 +119,7 @@ uploadV3 :: V3.Principal
          -> Source (ResourceT IO) ByteString
          -> ExceptT Error App ()
 uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
-    Log.warn $ "remote" .= val "S3"
+    Log.debug $ "remote" .= val "S3"
         ~~ "asset.owner" .= toByteString prc
         ~~ "asset.key"   .= key
         ~~ "asset.type"  .= MIME.showType ct
@@ -129,19 +129,19 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
         ~~ msg (show md5)
     e <- view awsAmazonka
     let b = view AWS.s3Bucket e
-    void $ AWS.execute e (po b key src)
+    void $ AWS.execute e (AWS.send $ req b key)
   where
-    po b k bdy = do
-        let rqBody = AWS.ChunkedBody AWS.defaultChunkSize (fromIntegral cl) bdy
-        let md5Res = Text.decodeLatin1 $ AWS.digestToBase AWS.Base64 md5
-        let req = AWS.putObject (AWS.BucketName b) (AWS.ObjectKey k) (AWS.toBody rqBody)
-                & AWS.poContentType ?~ encodeMIMEType' ct
-                & AWS.poContentMD5 ?~ (md5Res <> "dfa")
-                & AWS.poMetadata .~  (HML.fromList $ catMaybes [ setAmzMetaToken <$> tok
-                                                               , Just (setAmzMetaPrincipal prc)
-                                                               ]
-                                     )
-        AWS.send req
+    req b k =
+        let rqBody = AWS.ChunkedBody AWS.defaultChunkSize (fromIntegral cl) src
+            md5Res = Text.decodeLatin1 $ AWS.digestToBase AWS.Base64 md5
+         in   AWS.putObject (AWS.BucketName b) (AWS.ObjectKey k) (AWS.toBody rqBody)
+            & AWS.poContentType ?~ encodeMIMEType' ct
+            & AWS.poContentMD5  ?~ md5Res
+            & AWS.poMetadata    .~ (HML.fromList
+                                   $ catMaybes [ setAmzMetaToken <$> tok
+                                               , Just (setAmzMetaPrincipal prc)
+                                               ]
+                                   )
 
 getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)
 getMetadataV3 (s3Key . mkKey -> key) = do
@@ -152,7 +152,6 @@ getMetadataV3 (s3Key . mkKey -> key) = do
         ~~ "asset.bucket" .= b
         ~~ msg (val "Getting asset metadata")
     r' <- AWS.execute e (ho b key)
-    -- TODO: Check responses properly!
     case r' of
         Nothing -> return Nothing
         Just r  -> do 
@@ -177,7 +176,6 @@ deleteV3 (s3Key . mkKey -> key) = do
         ~~ msg (val "Deleting asset")
     e <- view awsAmazonka
     let b = view AWS.s3Bucket e
-    -- TODO: Check responses properly!
     let req = AWS.deleteObject (AWS.BucketName b) (AWS.ObjectKey key)
     void $ AWS.execute e (AWS.send req)
 
@@ -192,18 +190,11 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
             & AWS.coContentType ?~ encodeMIMEType' ct
             & AWS.coMetadataDirective ?~ AWS.MDReplace
             & AWS.coMetadata .~ hdrs
-    Log.warn $ "remote" .= val "S3"
+    Log.debug $ "remote" .= val "S3"
         ~~ "asset.owner" .= show prc
         ~~ "asset.key"   .= key
         ~~ msg (val "Updating asset metadata")
-        ~~ msg (show tok)
-        ~~ msg (show $ copySrc b key)
-    r <- AWS.execute e (AWS.send req)
-    -- TODO: Check responses properly!
-    Log.warn $ "remote" .= val "S3"
-        ~~ "asset.owner" .= show prc
-        ~~ "asset.key"   .= key
-        ~~ msg (show r)
+    void $ AWS.execute e (AWS.send req)
   where
     copySrc b k = Text.decodeLatin1 $ urlEncode True $ Text.encodeUtf8 (b <> "/" <> k)
 
@@ -681,9 +672,6 @@ getAmzMetaUploadId = lookup hAmzMetaUploadId
 
 parseAmzMeta :: FromByteString a => Text -> [(Text, Text)] -> Maybe a
 parseAmzMeta k h = lookup k h >>= fromByteString . encodeUtf8
-
--- parseAmzMeta' :: FromByteString a => Text -> HML.HashMap Text Text -> Maybe a
--- parseAmzMeta' k h = HML.lookup k h >>= fromByteString . encodeUtf8
 
 -------------------------------------------------------------------------------
 -- Utilities
