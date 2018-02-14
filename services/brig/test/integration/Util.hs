@@ -1,9 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-} -- for SES notifications
 
 module Util where
 
 import Bilge
 import Bilge.Assert
+import Brig.AWS.Types
 import Brig.Types.Activation
 import Brig.Types.Connection
 import Brig.Types.Client
@@ -49,6 +51,25 @@ type Cannon  = Request -> Request
 type Galley  = Request -> Request
 
 type ResponseLBS = Response (Maybe Lazy.ByteString)
+
+instance ToJSON SESBounceType where
+    toJSON BounceUndetermined = String "Undetermined"
+    toJSON BouncePermanent    = String "Permanent"
+    toJSON BounceTransient    = String "Transient"
+
+instance ToJSON SESNotification where
+    toJSON (MailBounce typ ems) =
+        object [ "notificationType" .= ("Bounce" :: Text)
+               , "bounce" .= object [ "bouncedRecipients" .= (fmap (\e -> object ["emailAddress" .= e]) ems)
+                                    , "bounceType" .= typ
+                                    ]
+               ]
+
+    toJSON (MailComplaint  ems) =
+        object [ "notificationType" .= ("Complaint" :: Text)
+               , "complaint" .= object [ "complainedRecipients" .= (fmap (\e -> object ["emailAddress" .= e]) ems)
+                                       ]
+               ]
 
 test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)

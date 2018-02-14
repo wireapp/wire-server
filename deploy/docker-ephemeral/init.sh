@@ -17,4 +17,7 @@ until aws --endpoint-url=http://sqs:4568 sqs create-queue --queue-name integrati
 until aws --endpoint-url=http://sqs:4568 sqs create-queue --queue-name integration-brig-events-internal; do echo "sqs not ready yet"; sleep 1; done
 until aws --endpoint-url=http://sqs:4568 sqs create-queue --queue-name integration-gundeck-events; do echo "sqs not ready yet"; sleep 1; done
 until aws --endpoint-url=http://sqs:4568 sqs create-queue --queue-name integration-team-events.fifo; do echo "sqs not ready yet"; sleep 1; done
+
+# Verify sender's email address (ensure the sender address is in sync with the config in brig)
+until aws --endpoint-url=http://ses:4579 ses verify-email-identity --email-address backend-integration@wire.com; do echo "ses not ready yet"; sleep 1; done
 echo 'AWS resources created successfully!'

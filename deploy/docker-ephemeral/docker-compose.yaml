@@ -10,14 +10,25 @@ services:
       ports:
         - 4568:4568
 
+  fake_ses:
+      image: localstack/localstack:0.8.5
+      ports:
+        - 4569:4579
+      environment:
+        - DEBUG=1
+        - DEFAULT_REGION=eu-west-1
+        - SERVICES=ses
+
   aws_cli:
     image: mesosphere/aws-cli:1.14.5
     depends_on:
       - fake_dynamodb
       - fake_sqs
+      - fake_ses
     links:
       - fake_dynamodb:dynamodb
       - fake_sqs:sqs
+      - fake_ses:ses
     entrypoint: /scripts/init.sh
     volumes:
       - ./:/scripts
