@@ -86,6 +86,7 @@ import qualified Codec.MIME.Type              as MIME
 import qualified Codec.MIME.Parse             as MIME
 import qualified Data.ByteString.Char8        as C8
 import qualified Data.ByteString.Lazy         as LBS
+import qualified Data.CaseInsensitive         as CI
 import qualified Data.Conduit                 as Conduit
 import qualified Data.Conduit.Binary          as Conduit
 import qualified Data.Sequence                as Seq
@@ -147,16 +148,35 @@ getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)
 getMetadataV3 (s3Key . mkKey -> key) = do
     e <- view awsAmazonka
     let b = view AWS.s3Bucket e
-    Log.debug $ "remote" .= val "S3"
+    r' <- AWS.execute e (ho b key)
+    Log.warn $ "remote" .= val "S3"
         ~~ "asset.key" .= key
         ~~ "asset.bucket" .= b
         ~~ msg (val "Getting asset metadata")
-    r' <- AWS.execute e (ho b key)
+        ~~ msg (show r')
     case r' of
         Nothing -> return Nothing
         Just r  -> do 
             let ct = fromMaybe octets (parseMIMEType' =<< view AWS.horsContentType r)
-            return $ parse ct (HML.toList $ view AWS.horsMetadata r)
+            Log.warn $ "remote" .= val "S3"
+                ~~ "asset.key" .= key
+                ~~ "asset.bucket" .= b
+                ~~ msg (val "Getting asset ct")
+                ~~ msg (show ct)
+            let meta = HML.toList $ view AWS.horsMetadata r
+            Log.warn $ "remote" .= val "S3"
+                ~~ "asset.key" .= key
+                ~~ "asset.bucket" .= b
+                ~~ msg (val "Getting asset meta")
+                ~~ msg (show $ getAmzMetaPrincipal meta)
+                ~~ msg (show $ getAmzMetaToken meta)
+            let parsed = parse ct meta
+            Log.warn $ "remote" .= val "S3"
+                ~~ "asset.key" .= key
+                ~~ "asset.bucket" .= b
+                ~~ msg (val "Getting asset metadata")
+                ~~ msg (show parsed)
+            return parsed
   where
     ho :: Text -> Text -> AWS.Amazon (Maybe AWS.HeadObjectResponse)
     ho b k = do
@@ -655,6 +675,9 @@ setAmzMetaPrincipal (V3.ProviderPrincipal p) = setAmzMetaProvider p
 -------------------------------------------------------------------------------
 -- S3 Metadata Getters
 
+lookupCI :: (CI.FoldCase a, Eq a) => a -> [(a, b)] -> Maybe b
+lookupCI k = lookup (CI.mk k) . fmap (\(a,b) -> (CI.mk a, b))
+
 getAmzMetaPrincipal :: [(Text, Text)] -> Maybe V3.Principal
 getAmzMetaPrincipal h =
     (V3.UserPrincipal     <$> getAmzMetaUser     h) <|>
@@ -672,11 +695,11 @@ getAmzMetaProvider = parseAmzMeta hAmzMetaProvider
 
 getAmzMetaToken :: [(Text, Text)] -> Maybe V3.AssetToken
 getAmzMetaToken h = V3.AssetToken . Ascii.unsafeFromText
-                 <$> lookup hAmzMetaToken h
+                 <$> lookupCI hAmzMetaToken h
 
 getAmzMetaUploadExpires :: [(Text, Text)] -> Maybe UTCTime
 getAmzMetaUploadExpires h = readMay . C8.unpack . encodeUtf8
-                          =<< lookup hAmzMetaUploadExpires h
+                          =<< lookupCI hAmzMetaUploadExpires h
 
 getAmzMetaTotalSize :: [(Text, Text)] -> Maybe V3.TotalSize
 getAmzMetaTotalSize = parseAmzMeta hAmzMetaSize
@@ -685,10 +708,10 @@ getAmzMetaChunkSize :: [(Text, Text)] -> Maybe V3.ChunkSize
 getAmzMetaChunkSize = parseAmzMeta hAmzMetaChunkSize
 
 getAmzMetaUploadId :: [(Text, Text)] -> Maybe Text
-getAmzMetaUploadId = lookup hAmzMetaUploadId
+getAmzMetaUploadId = lookupCI hAmzMetaUploadId
 
 parseAmzMeta :: FromByteString a => Text -> [(Text, Text)] -> Maybe a
-parseAmzMeta k h = lookup k h >>= fromByteString . encodeUtf8
+parseAmzMeta k h = lookupCI k h >>= fromByteString . encodeUtf8
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -758,7 +781,7 @@ instance ResponseConsumer HeadObjectX HeadObjectResponseX where
     type ResponseMetadata HeadObjectResponseX = S3Metadata
     responseConsumer rq (HeadObjectX ho) meta rsp = do
         hor <- responseConsumer rq ho meta rsp
-        let ct = lookup "Content-Type" (responseHeaders rsp)
+        let ct = lookupCI "Content-Type" (responseHeaders rsp)
         return $! HeadObjectResponseX ct (horMetadata hor)
 
 instance Aws.Transaction HeadObjectX HeadObjectResponseX
@@ -847,7 +870,7 @@ getMetadata aId = do
     return $ parse <$> (omUserMetadata <$> horMetadata r)
   where
     parse = maybe False (Text.isInfixOf "public=true" . Text.toLower)
-          . lookup "zasset"
+          . lookupCI "zasset"
 
 getOtrMetadata :: ConvId -> AssetId -> ExceptT Error App (Maybe UserId)
 getOtrMetadata cnv ast = do
