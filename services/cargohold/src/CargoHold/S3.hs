@@ -97,6 +97,7 @@ import qualified Data.Text.Encoding           as Text
 import qualified Data.UUID                    as UUID
 import qualified Network.AWS.S3               as AWS
 import qualified Network.AWS.Data.Body        as AWS
+import qualified Network.AWS.Data.Crypto      as AWS
 import qualified Network.HTTP.Conduit         as Http
 import qualified Ropes.Aws                    as Aws
 import qualified System.Logger.Class          as Log
@@ -132,12 +133,10 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
   where
     po b k bdy = do
         let rqBody = AWS.ChunkedBody AWS.defaultChunkSize (fromIntegral cl) bdy
-        -- let md5Res = Text.decodeLatin1 . B64.encode . C8.pack . show $ md5
-        -- let md5Res = T.decodeLatin1 . B64.encode . digestLBS $ md5
-        -- let md5Res = pack . show . C8.pack . show $ md5
+        let md5Res = Text.decodeLatin1 $ AWS.digestToBase AWS.Base64 md5
         let req = AWS.putObject (AWS.BucketName b) (AWS.ObjectKey k) (AWS.toBody rqBody)
                 & AWS.poContentType ?~ encodeMIMEType' ct
-                -- & AWS.poContentMD5 ?~ md5Res
+                & AWS.poContentMD5 ?~ md5Res
                 & AWS.poMetadata .~  (HML.fromList $ catMaybes [ setAmzMetaToken <$> tok
                                                                , Just (setAmzMetaPrincipal prc)
                                                                ]
@@ -146,9 +145,6 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
         -- TODO: Check responses properly!
         Log.warn $ "UPLOAD DONE!" .= val "S3"
             ~~ msg (show r)
-        -- "Hello World" --> 5Z/5eUEET4XfUpfhwwLSYA==
-        -- YjEwYThkYjE2NGUwNzU0MTA1YjdhOTliZTcyZTNmZTU=
-        -- WZOTosUmxoARnYQVXZDx5Q==
 
 getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)
 getMetadataV3 (s3Key . mkKey -> key) = do
