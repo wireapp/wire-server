@@ -10,7 +10,6 @@ module Data.Json.Util
     ) where
 
 import Data.Aeson
-import Data.Aeson.TH
 import Data.Aeson.Types
 import Data.Char (isUpper)
 import Data.Time.Clock

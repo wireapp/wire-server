@@ -22,3 +22,5 @@ journal:
 
 settings:
   httpPoolSize: 128
+  maxTeamSize: 128
+  intraListing: false

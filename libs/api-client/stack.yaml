@@ -1,4 +1,4 @@
-resolver: lts-8.19
+resolver: lts-10.3
 packages:
 - '.'
 - '../bilge'
@@ -13,6 +13,7 @@ packages:
   extra-dep: true
 
 extra-deps:
+- currency-codes-2.0.0.0
 - mime-0.4.0.2
 
 flags:

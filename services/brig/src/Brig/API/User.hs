@@ -158,12 +158,11 @@ createUser new@NewUser{..} = do
     let uid = userId (accountUser account)
 
     Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
-    activatedTeam <- lift $ do
+    lift $ do
         Data.insertAccount account pw False searchable
         Intra.createSelfConv uid
         Intra.onUserEvent uid Nothing (UserCreated account)
-        -- If newUserEmailCode is set, team gets activated _now_ else createUser fails
-        fmap join . for newTeam $ createTeam uid (isJust newUserEmailCode) . bnuTeam
+        for_ newTeam $ Intra.createTeam uid . bnuTeam
 
     (emailInvited, phoneInvited) <- case invitation of
         Just (inv, invInfo) -> case inIdentity inv of
@@ -175,13 +174,12 @@ createUser new@NewUser{..} = do
                 return (False, True)
         Nothing -> return (False, False)
 
-    (teamEmailInvited, joinedTeam) <- case teamInvitation of
+    teamEmailInvited <- case teamInvitation of
         Just (inv, invInfo) -> do
                 let em = Team.inIdentity inv
                 acceptTeamInvitation account inv invInfo (userEmailKey em) (EmailIdentity em)
-                Team.TeamName nm <- lift $ Intra.getTeamName (Team.inTeam inv)
-                return (True, Just $ CreateUserTeam (Team.inTeam inv) nm)
-        Nothing -> return (False, Nothing)
+                return True
+        Nothing -> return False
 
     -- Handle e-mail activation
     edata <- if emailInvited || teamEmailInvited
@@ -215,18 +213,12 @@ createUser new@NewUser{..} = do
                     void $ activate (ActivateKey ak) c (Just uid) !>> PhoneActivationError
                     return Nothing
 
-    return $! CreateUserResult account edata pdata (activatedTeam <|> joinedTeam)
+    return $! CreateUserResult account edata pdata
   where
     checkKey u k = do
         av <- lift $ Data.keyAvailable k u
         unless av $
             throwE $ DuplicateUserKey k
-
-    createTeam uid activating t = do
-        created <- Intra.createTeam uid t
-        return $ if activating
-                    then Just created
-                    else Nothing
 
     handleTeam (Just (NewTeamMember i))  e = (Nothing, ) <$> findTeamInvitation e i
     handleTeam (Just (NewTeamCreator t)) _ = return (Just t, Nothing)

@@ -1,5 +1,6 @@
-{-# LANGUAGE DeriveGeneric   #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
 module Util.Options where
 
@@ -18,6 +19,8 @@ import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
 import Util.Options.Common
 
+import qualified Data.ByteString as BS
+
 data Endpoint = Endpoint
     { _epHost :: !Text
     , _epPort :: !Word16
@@ -33,6 +36,17 @@ data CassandraOpts = CassandraOpts
 
 deriveFromJSON toOptionFieldName ''CassandraOpts
 makeLenses ''CassandraOpts
+
+newtype FilePathSecrets = FilePathSecrets FilePath
+    deriving (Eq, Show, Read, FromJSON)
+
+loadSecret :: FromJSON a => FilePathSecrets -> IO (Maybe a)
+loadSecret (FilePathSecrets p) = do
+    path   <- canonicalizePath p
+    exists <- doesFileExist path
+    if exists
+        then return . decode =<< BS.readFile path
+        else return Nothing
 
 getOptions :: (FromJSON a) => String -> Parser a -> FilePath -> IO a
 getOptions desc parser defaultPath = do

@@ -23,7 +23,6 @@ import Brig.Types.Intra
 import Brig.User.Auth.Cookie (RetryAfter (..))
 import Control.Exception
 import Data.Id
-import Data.Text (Text)
 import Data.Typeable
 
 -------------------------------------------------------------------------------
@@ -36,13 +35,6 @@ data CreateUserResult = CreateUserResult
         -- ^ Activation data for the registered email address, if any.
     , createdPhoneActivation :: !(Maybe Activation)
         -- ^ Activation data for the registered phone number, if any.
-    , createdUserTeam :: !(Maybe CreateUserTeam)
-        -- ^ Info of a team just created/joined
-    }
-
-data CreateUserTeam = CreateUserTeam
-    { createdTeamId   :: !TeamId
-    , createdTeamName :: !Text
     }
 
 data ConnectionResult

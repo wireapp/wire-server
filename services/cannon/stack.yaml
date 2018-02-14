@@ -1,4 +1,4 @@
-resolver: lts-8.6
+resolver: lts-10.3
 packages:
 - '.'
 - '../../libs/bilge'
@@ -6,19 +6,11 @@ packages:
 - '../../libs/metrics-wai'
 - '../../libs/types-common'
 - '../../libs/wai-utilities'
-- location:
-    git: https://github.com/romanb/websockets.git
-    commit: 6f720ba5fa8ea7f5ada598ca762cb2c3096f83bc
-  extra-dep: true
 flags:
   types-common:
     protobuf: True
     arbitrary: True
 extra-deps:
-- data-checked-0.3
-- data-textual-0.3.0.2
 - data-timeout-0.3
-- text-latin1-0.3
-- text-printer-0.5
-- api-field-json-th-0.1.0.2
+- QuickCheck-2.9.2
 extra-package-dbs: []

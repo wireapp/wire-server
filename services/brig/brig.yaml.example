@@ -75,11 +75,8 @@ turn:
 optSettings:
   setActivationTimeout: 5
   setTeamInvitationTimeout: 5
-  setTwilioSID: <insert-twilio-sid-here>     # TODO: Read from a file instead
-  setTwilioToken: <insert-twilio-token-here> # TODO: Read from a file instead
-  setNexmoKey: <insert-nexmo-key-here>       # TODO: Read from a file instead
-  setNexmoSecret: <insert-nexmo-secret-here> # TODO: Read from a file instead
-  setTwilioEndpoint: sandbox
+  setTwilio: test/resources/twilio-credentials.yaml
+  setNexmo: test/resources/nexmo-credentials.yaml
   setUserMaxConnections: 129
   setCookieDomain: 127.0.0.1
   setCookieInsecure: true
