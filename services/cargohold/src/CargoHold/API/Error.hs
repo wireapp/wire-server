@@ -25,6 +25,10 @@ assetNotFound = Error status404 "not-found" "Asset not found."
 invalidMD5 :: Error
 invalidMD5 = Error status400 "client-error" "Invalid MD5."
 
+-- TODO: What's the best status code here?
+invalidURI :: Error
+invalidURI = Error status400 "client-error" "Failed to construct proper URI."
+
 requestTimeout :: Error
 requestTimeout = Error status408 "request-timeout"
     "The request timed out. The server was still expecting more data \

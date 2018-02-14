@@ -19,6 +19,7 @@ module CargoHold.S3
     , updateMetadataV3
     , deleteV3
     , mkKey
+    , signedUrl
 
       -- * Resumable Uploads
     , S3Resumable
@@ -64,9 +65,8 @@ import Data.Maybe
 import Data.Monoid ((<>))
 import Data.Sequence (Seq, ViewR (..), ViewL (..))
 import Data.Time.Clock
-import Data.Text (pack, Text)
+import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8, decodeLatin1)
-import Network.HTTP.Client.Conduit (requestBodySource)
 import Network.HTTP.Client
 import Network.HTTP.Types (toQuery)
 import Network.HTTP.Types.URI (urlEncode)
@@ -75,6 +75,7 @@ import Network.Wai.Utilities.Error (Error (..))
 import Safe (readMay)
 import System.Logger.Message
 import Text.XML.Cursor (laxElement, ($/), (&|))
+import URI.ByteString hiding (urlEncode)
 
 import qualified Aws.Core                     as Aws
 import qualified Bilge.Retry                  as Retry
@@ -83,8 +84,6 @@ import qualified CargoHold.Types.V3           as V3
 import qualified CargoHold.Types.V3.Resumable as V3
 import qualified Codec.MIME.Type              as MIME
 import qualified Codec.MIME.Parse             as MIME
-import qualified Data.ByteString.Base64       as B64
-import qualified Data.ByteString.Base64.URL   as B64Url
 import qualified Data.ByteString.Char8        as C8
 import qualified Data.ByteString.Lazy         as LBS
 import qualified Data.Conduit                 as Conduit
@@ -95,6 +94,7 @@ import qualified Data.Text                    as Text
 import qualified Data.Text.Ascii              as Ascii
 import qualified Data.Text.Encoding           as Text
 import qualified Data.UUID                    as UUID
+import qualified Network.AWS                  as NAWS
 import qualified Network.AWS.S3               as AWS
 import qualified Network.AWS.Data.Body        as AWS
 import qualified Network.AWS.Data.Crypto      as AWS
@@ -179,7 +179,7 @@ deleteV3 (s3Key . mkKey -> key) = do
     let req = AWS.deleteObject (AWS.BucketName b) (AWS.ObjectKey key)
     void $ AWS.execute e (AWS.send req)
 
-updateMetadataV3 :: V3.AssetKey -> S3AssetMeta ->  ExceptT Error App ()
+updateMetadataV3 :: V3.AssetKey -> S3AssetMeta -> ExceptT Error App ()
 updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
     e <- view awsAmazonka
     let b = view AWS.s3Bucket e
@@ -197,6 +197,23 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
     void $ AWS.execute e (AWS.send req)
   where
     copySrc b k = Text.decodeLatin1 $ urlEncode True $ Text.encodeUtf8 (b <> "/" <> k)
+
+signedUrl :: V3.AssetKey -> ExceptT Error App URI
+signedUrl (s3Key . mkKey -> key) = do
+    e <- view awsAmazonka
+    let b = view AWS.s3Bucket e
+    now <- liftIO getCurrentTime
+    let expiresIn = NAWS.Seconds 300
+    let req = AWS.getObject (AWS.BucketName b) (AWS.ObjectKey key)
+    signed <- AWS.execute e (NAWS.presignURL now expiresIn req)
+    uri <- toUri signed
+    Log.debug $ "remote" .= val "S3"
+        ~~ msg (show uri)
+    return uri
+  where
+    toUri x = case parseURI strictURIParserOptions x of
+        Left _  -> throwE invalidURI
+        Right u -> return u
 
 mkKey :: V3.AssetKey -> S3AssetKey
 mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key
