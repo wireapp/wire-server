@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE TypeOperators     #-}
 
 module Brig.Provider.API (routes) where
@@ -21,7 +22,7 @@ import Brig.Types.Provider
 import Brig.Types.Search
 import Control.Lens (view)
 import Control.Exception.Enclosed (handleAny)
-import Control.Monad (join, when, unless, (>=>))
+import Control.Monad (join, when, unless, (>=>), liftM2)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.ByteString.Conversion
@@ -35,6 +36,8 @@ import Data.Maybe
 import Data.Misc (Fingerprint (..), Rsa)
 import Data.Predicate
 import Data.Range
+import Data.String (fromString)
+import Data.Text (Text)
 import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..))
 import Galley.Types (OtherMember (..))
 import Galley.Types (Event, userClients)
@@ -193,10 +196,10 @@ routes = do
         .&> capture "pid"
         .&. capture "sid"
 
-    get "/services" (continue listServiceProfilesByTag) $
+    get "/services" (continue searchServiceProfiles) $
         accept "application" "json"
         .&> zauth ZAuthAccess
-        .&> query "tags"
+        .&> opt (query "tags")
         .&. opt (query "start")
         .&. def (unsafeRange 20) (query "size")
 
@@ -401,20 +404,17 @@ updateService (pid ::: sid ::: req) = do
 
     -- Update service profile
     svc <- DB.lookupService pid sid >>= maybeServiceNotFound
+    let name       = serviceName svc
     let newName    = updateServiceName upd
+    let nameChange = liftM2 (,) (pure name) newName
+    let tags       = unsafeRange (serviceTags svc)
+    let newTags    = updateServiceTags upd
+    let tagsChange = liftM2 (,) (pure tags) (rcast <$> newTags)
     let newSummary = fromRange <$> updateServiceSummary upd
     let newDescr   = fromRange <$> updateServiceDescr upd
     let newAssets  = updateServiceAssets upd
-    let newTags    = updateServiceTags upd
-    DB.updateService pid sid newName newSummary newDescr newAssets newTags
-
-    -- Update tag index
-    let name  = serviceName svc
-    let tags  = unsafeRange (serviceTags svc)
-    let name' = fromMaybe name newName
-    let tags' = fromMaybe tags newTags
-    when (serviceEnabled svc) $
-        DB.updateServiceTags pid sid (name, rcast tags) (name', rcast tags')
+    -- Update service, tags/prefix index if the service is enabled
+    DB.updateService pid sid name tags nameChange newSummary newDescr newAssets tagsChange (serviceEnabled svc)
 
     return empty
 
@@ -452,9 +452,10 @@ updateServiceConn (pid ::: sid ::: req) = do
             svc <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
             let name = serviceProfileName svc
             let tags = unsafeRange (serviceProfileTags svc)
+            -- Update index, make it visible over search
             if sconEnabled scon
-                then DB.deleteServiceTags pid sid name tags
-                else DB.insertServiceTags pid sid name tags
+                then DB.deleteServiceIndexes pid sid name tags
+                else DB.insertServiceIndexes pid sid name tags
 
     -- TODO: Send informational email to provider.
 
@@ -468,9 +469,9 @@ deleteService (pid ::: sid ::: req) = do
         throwStd badCredentials
     svc  <- DB.lookupService pid sid >>= maybeServiceNotFound
     let tags = unsafeRange (serviceTags svc)
-    DB.deleteServiceTags pid sid (serviceName svc) tags
+        name = serviceName svc
     lift $ RPC.removeServiceConn pid sid
-    DB.deleteService pid sid
+    DB.deleteService pid sid name tags
     return empty
 
 deleteAccount :: ProviderId ::: Request -> Handler Response
@@ -484,9 +485,9 @@ deleteAccount (pid ::: req) = do
     forM_ svcs $ \svc -> do
         let sid  = serviceId svc
         let tags = unsafeRange (serviceTags svc)
-        DB.deleteServiceTags pid sid (serviceName svc) tags
+            name = serviceName svc
         lift $ RPC.removeServiceConn pid sid
-        DB.deleteService pid sid
+        DB.deleteService pid sid name tags
     DB.deleteKey (mkEmailKey (providerEmail prov))
     DB.deleteAccount pid
     return empty
@@ -509,10 +510,16 @@ getServiceProfile (pid ::: sid) = do
     s <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
     return (json s)
 
-listServiceProfilesByTag :: QueryAnyTags 1 3 ::: Maybe Name ::: Range 10 100 Int32 -> Handler Response
-listServiceProfilesByTag (tags ::: start ::: size) = do
+searchServiceProfiles :: Maybe (QueryAnyTags 1 3) ::: Maybe Text ::: Range 10 100 Int32 -> Handler Response
+searchServiceProfiles (Nothing ::: Just start ::: size) = do
+    prefix <- rangeChecked start :: Handler (Range 1 128 Text)
+    ss <- DB.paginateServiceNames prefix (fromRange size) =<< setProviderSearchFilter <$> view settings
+    return (json ss)
+searchServiceProfiles (Just tags ::: start ::: size) = do
     ss <- DB.paginateServiceTags tags start (fromRange size) =<< setProviderSearchFilter <$> view settings
     return (json ss)
+searchServiceProfiles (Nothing ::: Nothing ::: _) =
+    throwStd $ badRequest "At least `tags` or `start` must be provided."
 
 getServiceTagList :: () -> Handler Response
 getServiceTagList _ = return (json (ServiceTagList allTags))
@@ -760,6 +767,9 @@ maybeInvalidBot = maybe (throwStd invalidBot) return
 maybeInvalidUser :: Maybe a -> Handler a
 maybeInvalidUser = maybe (throwStd invalidUser) return
 
+rangeChecked :: Within a n m => a -> Handler (Range n m a)
+rangeChecked = either (throwStd . invalidRange . fromString) return . checkedEither
+
 invalidServiceKey :: Wai.Error
 invalidServiceKey = Wai.Error status400 "invalid-service-key" "Invalid service key."
 
@@ -790,4 +800,3 @@ serviceError RPC.ServiceBotConflict = tooManyBots
 
 randServiceToken :: MonadIO m => m ServiceToken
 randServiceToken = ServiceToken . Ascii.encodeBase64Url <$> liftIO (randBytes 18)
-
