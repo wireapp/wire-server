@@ -335,6 +335,15 @@ testListServices config db brig = do
     let pid = providerId prv
     uid <- randomId
 
+    -- You need to supply at least one tag or a prefix
+    get ( brig
+        . path "/services"
+        . header "Z-Type" "access"
+        . header "Z-User" (toByteString' uid)) !!! const 400 === statusCode
+
+    -- An empty prefix is not sufficient
+    listServiceProfilesByPrefix brig uid (Name "") 10 !!! const 400 === statusCode
+
     -- nb. We use a random name prefix so tests can run concurrently
     -- (and repeatedly) against a shared database and thus a shared
     -- "name index" per tag.
