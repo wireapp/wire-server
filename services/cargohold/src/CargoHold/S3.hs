@@ -129,22 +129,19 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
         ~~ msg (show md5)
     e <- view awsAmazonka
     let b = view AWS.s3Bucket e
-    AWS.execute e (po b key src)
+    void $ AWS.execute e (po b key src)
   where
     po b k bdy = do
         let rqBody = AWS.ChunkedBody AWS.defaultChunkSize (fromIntegral cl) bdy
         let md5Res = Text.decodeLatin1 $ AWS.digestToBase AWS.Base64 md5
         let req = AWS.putObject (AWS.BucketName b) (AWS.ObjectKey k) (AWS.toBody rqBody)
                 & AWS.poContentType ?~ encodeMIMEType' ct
-                & AWS.poContentMD5 ?~ md5Res
+                & AWS.poContentMD5 ?~ (md5Res <> "dfa")
                 & AWS.poMetadata .~  (HML.fromList $ catMaybes [ setAmzMetaToken <$> tok
                                                                , Just (setAmzMetaPrincipal prc)
                                                                ]
                                      )
-        r <- retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req))
-        -- TODO: Check responses properly!
-        Log.warn $ "UPLOAD DONE!" .= val "S3"
-            ~~ msg (show r)
+        AWS.send req
 
 getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)
 getMetadataV3 (s3Key . mkKey -> key) = do
@@ -182,9 +179,7 @@ deleteV3 (s3Key . mkKey -> key) = do
     let b = view AWS.s3Bucket e
     -- TODO: Check responses properly!
     let req = AWS.deleteObject (AWS.BucketName b) (AWS.ObjectKey key)
-    void $ AWS.execute e (fn req)
-  where
-    fn req = retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req))
+    void $ AWS.execute e (AWS.send req)
 
 updateMetadataV3 :: V3.AssetKey -> S3AssetMeta ->  ExceptT Error App ()
 updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
@@ -203,14 +198,13 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
         ~~ msg (val "Updating asset metadata")
         ~~ msg (show tok)
         ~~ msg (show $ copySrc b key)
-    r <- AWS.execute e (fn req)
+    r <- AWS.execute e (AWS.send req)
     -- TODO: Check responses properly!
     Log.warn $ "remote" .= val "S3"
         ~~ "asset.owner" .= show prc
         ~~ "asset.key"   .= key
         ~~ msg (show r)
   where
-    fn req = retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req))
     copySrc b k = Text.decodeLatin1 $ urlEncode True $ Text.encodeUtf8 (b <> "/" <> k)
 
 mkKey :: V3.AssetKey -> S3AssetKey

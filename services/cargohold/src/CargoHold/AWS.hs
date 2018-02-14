@@ -26,6 +26,7 @@ module CargoHold.AWS
     , sendCatch
     , canRetry
     , retry5x
+    , send
 
     ) where
 
