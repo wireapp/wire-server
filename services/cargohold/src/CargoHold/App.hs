@@ -19,7 +19,7 @@ module CargoHold.App
     , metrics
     , appLogger
     , requestId
-    , maxTotalUpload
+    , settings
 
       -- * App Monad
     , AppT
@@ -35,7 +35,7 @@ module CargoHold.App
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import CargoHold.CloudFront
-import CargoHold.Options
+import CargoHold.Options as Opt
 import Control.Applicative
 import Control.Error (ExceptT, exceptT)
 import Control.Lens (view, makeLenses, set, (^.))
@@ -46,23 +46,19 @@ import Data.Metrics.Middleware (Metrics)
 import Data.Monoid
 import Data.Text (Text)
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
-import Network.HTTP.Client.OpenSSL
+import Network.HTTP.Client.TLS
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities (Error (..), lookupRequestId)
-import OpenSSL.Session (SSLContext, SSLOption (..))
 import System.Logger.Class hiding (settings)
 import Prelude hiding (log)
 
 import qualified Aws.Core                     as Aws
 import qualified Aws.S3                       as Aws
-
 import qualified Bilge
 import qualified CargoHold.AWS                as AWS
 import qualified Data.Metrics.Middleware      as Metrics
 import qualified Network.Wai.Utilities.Server as Server
-import qualified OpenSSL.Session              as SSL
-import qualified OpenSSL.X509.SystemStore     as SSL
 import qualified Ropes.Aws                    as Aws
 import qualified System.Logger                as Log
 
@@ -76,7 +72,7 @@ data Env = Env
     , _appLogger      :: Logger
     , _httpManager    :: Manager
     , _requestId      :: RequestId
-    , _maxTotalUpload :: Int
+    , _settings       :: Opt.Settings
     }
 
 data AwsEnv = AwsEnv
@@ -97,40 +93,29 @@ newEnv o = do
     mgr  <- initHttpManager
     awe  <- initAws o lgr mgr
     ama  <- initAwsAmazonka o lgr mgr
-    return $ Env awe ama met lgr mgr mempty (o^.optSettings.setMaxTotalBytes)
+    return $ Env awe ama met lgr mgr mempty (o^.optSettings)
 
 initAwsAmazonka :: Opts -> Logger -> Manager -> IO AWS.Env
 initAwsAmazonka o l m = AWS.mkEnv l (o^.optAwsAmazonka) m
 
 initAws :: Opts -> Logger -> Manager -> IO AwsEnv
 initAws o l m = do
-    -- TODO: The AWS package can also load them from the env, check the latest API
-    -- https://hackage.haskell.org/package/aws-0.17.1/docs/src/Aws-Core.html#loadCredentialsFromFile
-    -- which would avoid the need to specify them in a config file when running tests
     let awsOpts = o^.optAws
     amz  <- Aws.newEnv l m $ liftM2 (,) (awsOpts^.awsKeyId) (awsOpts^.awsSecretKey)
     sig  <- initCloudFront (awsOpts^.awsCfPrivateKey) (awsOpts^.awsCfKeyPairId) (awsOpts^.awsCfDomain)
     let s3c  = Aws.s3 Aws.HTTPS Aws.s3EndpointEu False
     return $! AwsEnv amz s3c (awsOpts^.awsS3Bucket) sig
 
+-- TODO: If we want to have more control on the cipher suite, look into
+-- https://hackage.haskell.org/package/tls-1.4.0/docs/Network-TLS.html
+-- and make use of ClientParams
 initHttpManager :: IO Manager
 initHttpManager =
-    newManager (opensslManagerSettings initSSLContext)
+    newManager tlsManagerSettings
         { managerConnCount           = 1024
         , managerIdleConnectionCount = 2048
         , managerResponseTimeout     = responseTimeoutMicro 10000000
         }
-
-initSSLContext :: IO SSLContext
-initSSLContext = do
-    ctx <- SSL.context
-    SSL.contextAddOption ctx SSL_OP_NO_SSLv2
-    SSL.contextAddOption ctx SSL_OP_NO_SSLv3
-    SSL.contextSetCiphers ctx "HIGH"
-    SSL.contextLoadSystemCerts ctx
-    SSL.contextSetVerificationMode ctx $
-        SSL.VerifyPeer True True Nothing
-    return ctx
 
 closeEnv :: Env -> IO ()
 closeEnv e = Log.close $ e^.appLogger

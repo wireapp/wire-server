@@ -43,7 +43,8 @@ deriveFromJSON toOptionFieldName ''AWSAmazonkaOpts
 makeLenses ''AWSAmazonkaOpts
 
 data Settings = Settings
-    { _setMaxTotalBytes :: !Int
+    { _setMaxTotalBytes     :: !Int
+    , _setDisableCloudFront :: !Bool
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
@@ -151,3 +152,7 @@ optsParser = Opts <$>
             <> value (25 * 1024 * 1024)
             <> showDefault
             <> help "Maximum allowed size in bytes for uploads")
+
+        <*> (switch $
+            long "disable-cloudfront"
+            <> help "Use this option if you wish to use S3 directly (useful for testing).")

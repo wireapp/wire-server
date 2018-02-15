@@ -15,6 +15,7 @@ module CargoHold.API.V3
 
 import CargoHold.App
 import CargoHold.API.Error
+import CargoHold.Options
 import CargoHold.Types.V3
 import Control.Applicative
 import Control.Error
@@ -23,6 +24,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Resource
 import Crypto.Hash
+import Crypto.Random (getRandomBytes)
 import Data.Aeson (eitherDecodeStrict')
 import Data.Attoparsec.ByteString.Char8
 import Data.ByteString (ByteString)
@@ -34,7 +36,6 @@ import Data.Time.Clock
 import Data.UUID.V4
 import Network.HTTP.Types.Header
 import Network.Wai.Utilities (Error (..))
-import OpenSSL.Random (randBytes)
 import Prelude hiding (take)
 import URI.ByteString
 
@@ -59,7 +60,7 @@ upload own bdy = do
     let cl = fromIntegral $ hdrLength hdrs
     when (cl <= 0) $
         throwE invalidLength
-    maxTotalBytes <- view maxTotalUpload
+    maxTotalBytes <- view (settings.setMaxTotalBytes)
     when (cl > maxTotalBytes) $
         throwE assetTooLarge
     let stream = src $= Conduit.isolate cl
@@ -95,7 +96,7 @@ updateToken own key tok = do
     S3.updateMetadataV3 key m'
 
 randToken :: MonadIO m => m V3.AssetToken
-randToken = liftIO $ V3.AssetToken . Ascii.encodeBase64Url <$> randBytes 16
+randToken = liftIO $ V3.AssetToken . Ascii.encodeBase64Url <$> getRandomBytes 16
 
 download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Handler (Maybe URI)
 download own key tok = S3.getMetadataV3 key >>= maybe notFound found
@@ -104,12 +105,15 @@ download own key tok = S3.getMetadataV3 key >>= maybe notFound found
     found s3
         | own /= S3.v3AssetOwner s3 && tok /= S3.v3AssetToken s3 = return Nothing
         | otherwise = do
-            -- url <- S3.signedUrl key
-            clf <- cloudFront <$> view aws
-            url <- CloudFront.signedUrl clf (S3.mkKey key)
-            case url of
-                Just u  -> return $! Just $! u
-                Nothing -> throwE serverError
+            skipCloudFront <- view (settings.setDisableCloudFront)
+            if skipCloudFront
+                then S3.signedUrl key >>= return . Just
+                else do
+                    clf <- cloudFront <$> view aws
+                    url <- CloudFront.signedUrl clf (S3.mkKey key)
+                    case url of
+                        Just u  -> return $! Just $! u
+                        Nothing -> throwE serverError
 
 delete :: V3.Principal -> V3.AssetKey -> Handler ()
 delete own key = do
