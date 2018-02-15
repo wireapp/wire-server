@@ -31,34 +31,24 @@ module CargoHold.AWS
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
-import Control.Concurrent.Lifted (threadDelay)
 import Control.Lens hiding ((.=))
-import Control.Monad
 import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
 import Control.Retry
-import Data.Aeson hiding ((.=))
-import Data.Foldable (for_)
 import Data.Monoid
-import Data.Text (Text, isPrefixOf)
+import Data.Text (Text)
 import Data.Typeable
-import Data.Yaml (FromJSON (..))
 import Network.AWS (AWSRequest, Rs)
 import Network.HTTP.Client (Manager, HttpException (..), HttpExceptionContent (..))
-import Network.HTTP.Types.Status (status400)
 import System.Logger.Class
 import Util.Options
 
 import qualified CargoHold.Options       as Opt
 import qualified Control.Monad.Trans.AWS as AWST
-import qualified Data.ByteString.Lazy    as BL
-import qualified Data.Text.Encoding      as Text
 import qualified Network.AWS             as AWS
-import qualified Network.AWS.Data        as AWS
 import qualified Network.AWS.Env         as AWS
 import qualified Network.AWS.S3          as S3
 import qualified System.Logger           as Logger
@@ -121,7 +111,7 @@ execute :: MonadIO m => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 
 data Error where
-    GeneralError     :: (Show e, AWS.AsError e) => e -> Error
+    GeneralError :: (Show e, AWS.AsError e) => e -> Error
 
 deriving instance Show     Error
 deriving instance Typeable Error

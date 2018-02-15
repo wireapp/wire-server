@@ -158,25 +158,8 @@ getMetadataV3 (s3Key . mkKey -> key) = do
         Nothing -> return Nothing
         Just r  -> do 
             let ct = fromMaybe octets (parseMIMEType' =<< view AWS.horsContentType r)
-            Log.warn $ "remote" .= val "S3"
-                ~~ "asset.key" .= key
-                ~~ "asset.bucket" .= b
-                ~~ msg (val "Getting asset ct")
-                ~~ msg (show ct)
             let meta = HML.toList $ view AWS.horsMetadata r
-            Log.warn $ "remote" .= val "S3"
-                ~~ "asset.key" .= key
-                ~~ "asset.bucket" .= b
-                ~~ msg (val "Getting asset meta")
-                ~~ msg (show $ getAmzMetaPrincipal meta)
-                ~~ msg (show $ getAmzMetaToken meta)
-            let parsed = parse ct meta
-            Log.warn $ "remote" .= val "S3"
-                ~~ "asset.key" .= key
-                ~~ "asset.bucket" .= b
-                ~~ msg (val "Getting asset metadata")
-                ~~ msg (show parsed)
-            return parsed
+            return $ parse ct meta
   where
     ho :: Text -> Text -> AWS.Amazon (Maybe AWS.HeadObjectResponse)
     ho b k = do
@@ -226,10 +209,7 @@ signedUrl (s3Key . mkKey -> key) = do
     let expiresIn = NAWS.Seconds 300
     let req = AWS.getObject (AWS.BucketName b) (AWS.ObjectKey key)
     signed <- AWS.execute e (NAWS.presignURL now expiresIn req)
-    uri <- toUri signed
-    Log.debug $ "remote" .= val "S3"
-        ~~ msg (show uri)
-    return uri
+    return =<< toUri signed
   where
     toUri x = case parseURI strictURIParserOptions x of
         Left _  -> throwE invalidURI

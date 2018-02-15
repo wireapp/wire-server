@@ -100,9 +100,7 @@ newEnv o = do
     return $ Env awe ama met lgr mgr mempty (o^.optSettings.setMaxTotalBytes)
 
 initAwsAmazonka :: Opts -> Logger -> Manager -> IO AWS.Env
-initAwsAmazonka o l m = do
-    aws <- AWS.mkEnv l (o^.optAwsAmazonka) m
-    return aws
+initAwsAmazonka o l m = AWS.mkEnv l (o^.optAwsAmazonka) m
 
 initAws :: Opts -> Logger -> Manager -> IO AwsEnv
 initAws o l m = do

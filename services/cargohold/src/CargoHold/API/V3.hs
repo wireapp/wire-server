@@ -104,10 +104,12 @@ download own key tok = S3.getMetadataV3 key >>= maybe notFound found
     found s3
         | own /= S3.v3AssetOwner s3 && tok /= S3.v3AssetToken s3 = return Nothing
         | otherwise = do
-            url <- S3.signedUrl key
-            -- clf <- cloudFront <$> view aws
-            -- url <- CloudFront.signedUrl clf (S3.mkKey key)
-            return $! Just $! url
+            -- url <- S3.signedUrl key
+            clf <- cloudFront <$> view aws
+            url <- CloudFront.signedUrl clf (S3.mkKey key)
+            case url of
+                Just u  -> return $! Just $! u
+                Nothing -> throwE serverError
 
 delete :: V3.Principal -> V3.AssetKey -> Handler ()
 delete own key = do
