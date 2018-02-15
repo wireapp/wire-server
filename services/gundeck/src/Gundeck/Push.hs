@@ -2,6 +2,7 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Gundeck.Push
     ( push
@@ -52,6 +53,7 @@ import qualified Gundeck.Push.Native          as Native
 import qualified Gundeck.Push.Native.Fallback as Fallback
 import qualified Gundeck.Push.Websocket       as Web
 import qualified Gundeck.Types.Presence       as Presence
+import qualified Gundeck.Types.BulkPush       as BP
 import qualified System.Logger.Class          as Log
 
 push :: Request ::: JSON -> Gundeck Response
@@ -61,7 +63,7 @@ push (req ::: _) = do
     -- TODO: group notifications by cannon host in presence
     bp <- view (options . optSettings . setBulkPush)
     rs <- if bp
-        then throwM notImpl
+        then pushAll (ps :: [Push])
         else mapAsync pushAny (ps :: [Push])
     case runAllE (foldMap (AllE . fmapL Seq.singleton) rs) of
         Right () -> return empty
@@ -78,6 +80,7 @@ push (req ::: _) = do
     pushAll ps = do
         pns <- mapM setupPush ps
         doBulkPush pns
+        return $ [Right ()]
 
     setupPush p = do
         i <- mkNotificationId
@@ -100,7 +103,10 @@ push (req ::: _) = do
         -- TODO: bulk push in Websocket.hs to presences (grouped by cannon)
         -- TODO: return a list of Pushes paired with their ok presences (prs)
         -- TODO: map this list over doPush (and find some clever way of passing in prs -- fork earlier and bring Web.push call out of doPush?)
+        resps <- Web.pushBulk $ map mapPP pns
         return ()
+
+    mapPP (p, _, _, n, toList -> tgts) = BP.PushParams n tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
 
     mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
 

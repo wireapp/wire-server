@@ -23,6 +23,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types
 import Data.Maybe
 import Gundeck.Types
+import Gundeck.Types.BulkPush
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)

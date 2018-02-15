@@ -4,10 +4,6 @@
 
 module Cannon.Types
     ( Env
-    , UserDevicePayload (..)
-    , BulkPush (..)
-    , PushResponse (..)
-    , BulkPushResults (..)
     , mon
     , opts
     , applog
@@ -32,13 +28,9 @@ import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 import Control.Lens
-import Data.Aeson
 import Data.ByteString (ByteString)
-import Data.Id (UserId, ConnId)
 import Data.Metrics.Middleware
 import Data.Text.Encoding
-import GHC.Generics
-import Gundeck.Types
 import Network.Wai
 import System.Logger.Class hiding (info)
 import System.Random.MWC (GenIO)
@@ -77,47 +69,6 @@ instance MonadLogger Cannon where
 
 instance HasRequestId Cannon where
     getRequestId = Cannon $ asks reqId
-
-data UserDevicePayload = UserDevicePayload
-    { udUid  :: !UserId
-    , udDid  :: !ConnId
-    , udData :: !Notification
-    } deriving ( Show
-               , Generic
-               )
-
-instance FromJSON UserDevicePayload
-instance ToJSON   UserDevicePayload
-
-data BulkPush = BulkPush
-    { bpRecipients :: ![UserDevicePayload]
-    } deriving ( Show
-               , Generic
-               )
-
-instance FromJSON BulkPush
-instance ToJSON   BulkPush
-
-data PushResponse = PushResponse
-    { bpUid    :: !UserId
-    , bpDid    :: !ConnId
-    , bpStatus :: !Int
-    } deriving ( Show
-               , Generic
-               )
-
-instance FromJSON PushResponse
-instance ToJSON PushResponse
-
-data BulkPushResults = BulkPushResults
-    { bprFails    :: ![PushResponse]
-    , bprSuccesses :: ![PushResponse]
-    } deriving ( Show
-               , Generic
-               )
-
-instance FromJSON BulkPushResults
-instance ToJSON BulkPushResults
 
 mkEnv :: Metrics
       -> ByteString
