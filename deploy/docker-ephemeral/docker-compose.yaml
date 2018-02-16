@@ -20,9 +20,9 @@ services:
         - SERVICES=ses
 
   fake_s3:
-      image: findify/s3mock:0.2.4
+      image: tiagoloureiro/fake-s3:0.2.5
       ports:
-        - 4570:8001
+        - 4570:4570
 
   aws_cli:
     image: mesosphere/aws-cli:1.14.5

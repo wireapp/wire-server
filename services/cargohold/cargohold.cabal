@@ -66,9 +66,8 @@ library
       , either               >= 4.3
       , errors               >= 1.4
       , exceptions           >= 0.6
-      , HsOpenSSL            >= 0.11
-      , HsOpenSSL-x509-system>= 0.1
       , http-client          >= 0.4
+      , http-client-tls      >= 0.3.5
       , http-client-openssl  >= 0.2
       , http-conduit         >= 2.1
       , http-types           >= 0.8
@@ -123,7 +122,6 @@ executable cargohold
     build-depends:
         base
       , cargohold
-      , HsOpenSSL >= 0.11
       , types-common
 
     if flag(static)
