@@ -11,10 +11,10 @@
 module CargoHold.App
     ( -- * Environment
       Env
-    , AwsEnv (..)
+    -- , AwsEnv (..)
     , newEnv
     , closeEnv
-    , CargoHold.App.aws
+    , cloudFront
     , awsAmazonka
     , metrics
     , appLogger
@@ -44,7 +44,6 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Data.Metrics.Middleware (Metrics)
 import Data.Monoid
-import Data.Text (Text)
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.TLS
 import Network.Wai (Request, ResponseReceived)
@@ -53,33 +52,23 @@ import Network.Wai.Utilities (Error (..), lookupRequestId)
 import System.Logger.Class hiding (settings)
 import Prelude hiding (log)
 
-import qualified Aws.Core                     as Aws
-import qualified Aws.S3                       as Aws
 import qualified Bilge
 import qualified CargoHold.AWS                as AWS
 import qualified Data.Metrics.Middleware      as Metrics
 import qualified Network.Wai.Utilities.Server as Server
-import qualified Ropes.Aws                    as Aws
 import qualified System.Logger                as Log
 
 -------------------------------------------------------------------------------
 -- Environment
 
 data Env = Env
-    { _aws            :: AwsEnv
-    , _awsAmazonka    :: AWS.Env
+    { _awsAmazonka    :: AWS.Env -- _aws :: AwsEnv
+    , _cloudFront     :: CloudFront
     , _metrics        :: Metrics
     , _appLogger      :: Logger
     , _httpManager    :: Manager
     , _requestId      :: RequestId
     , _settings       :: Opt.Settings
-    }
-
-data AwsEnv = AwsEnv
-    { awsEnv     :: Aws.Env
-    , s3Config   :: Aws.S3Configuration Aws.NormalQuery
-    , s3Bucket   :: Text
-    , cloudFront :: CloudFront
     }
 
 makeLenses ''Env
@@ -91,20 +80,15 @@ newEnv o = do
                     . Log.setFormat Nothing
                     $ Log.defSettings
     mgr  <- initHttpManager
-    awe  <- initAws o lgr mgr
+    let awsOpts = o^.optAwsAmazonka
+    sig  <- initCloudFront (awsOpts^.awsAmazonkaCfPrivateKey) (awsOpts^.awsAmazonkaCfKeyPairId) (awsOpts^.awsAmazonkaCfDomain)
     ama  <- initAwsAmazonka o lgr mgr
-    return $ Env awe ama met lgr mgr mempty (o^.optSettings)
+    return $ Env ama sig met lgr mgr mempty (o^.optSettings)
 
 initAwsAmazonka :: Opts -> Logger -> Manager -> IO AWS.Env
-initAwsAmazonka o l m = AWS.mkEnv l (o^.optAwsAmazonka) m
-
-initAws :: Opts -> Logger -> Manager -> IO AwsEnv
-initAws o l m = do
-    let awsOpts = o^.optAws
-    amz  <- Aws.newEnv l m $ liftM2 (,) (awsOpts^.awsKeyId) (awsOpts^.awsSecretKey)
-    sig  <- initCloudFront (awsOpts^.awsCfPrivateKey) (awsOpts^.awsCfKeyPairId) (awsOpts^.awsCfDomain)
-    let s3c  = Aws.s3 Aws.HTTPS Aws.s3EndpointEu False
-    return $! AwsEnv amz s3c (awsOpts^.awsS3Bucket) sig
+initAwsAmazonka o l m = AWS.mkEnv l (o^.optAwsAmazonka.awsAmazonkaS3Endpoint)
+                                    (o^.optAwsAmazonka.awsAmazonkaS3Bucket)
+                                    m
 
 -- TODO: If we want to have more control on the cipher suite, look into
 -- https://hackage.haskell.org/package/tls-1.4.0/docs/Network-TLS.html

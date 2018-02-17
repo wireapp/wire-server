@@ -6,7 +6,6 @@
 module CargoHold.Options where
 
 import CargoHold.CloudFront (Domain (..), KeyPairId (..))
-import Control.Applicative
 import Control.Lens
 import Data.Aeson.TH
 import Data.Monoid
@@ -17,19 +16,6 @@ import Util.Options
 import Util.Options.Common
 
 import qualified Data.Text as T
-import qualified Ropes.Aws as Aws
-
-data AWSOpts = AWSOpts
-    { _awsKeyId        :: !(Maybe Aws.AccessKeyId)
-    , _awsSecretKey    :: !(Maybe Aws.SecretAccessKey)
-    , _awsS3Bucket     :: Text
-    , _awsCfDomain     :: Domain
-    , _awsCfKeyPairId  :: KeyPairId
-    , _awsCfPrivateKey :: FilePath
-    } deriving (Show, Generic)
-
-deriveFromJSON toOptionFieldName ''AWSOpts
-makeLenses ''AWSOpts
 
 data AWSAmazonkaOpts = AWSAmazonkaOpts
     { _awsAmazonkaS3Endpoint   :: AWSEndpoint
@@ -52,7 +38,6 @@ makeLenses ''Settings
 
 data Opts = Opts
     { _optCargohold :: !Endpoint
-    , _optAws       :: !AWSOpts
     , _optAwsAmazonka :: !AWSAmazonkaOpts
     , _optSettings  :: !Settings
     } deriving (Show, Generic)
@@ -80,41 +65,9 @@ optsParser = Opts <$>
             <> short 'p'
             <> metavar "PORT"
             <> help "Port to listen on"))
-    <*> awsParser
     <*> awsAmazonkaParser
     <*> settingsParser
   where
-    awsParser :: Parser AWSOpts
-    awsParser = AWSOpts <$>
-           (optional . fmap Aws.AccessKeyId . bytesOption $
-                long "aws-key-id"
-                <> metavar "STRING"
-                <> help "AWS Access Key ID")
-        <*> (optional . fmap Aws.SecretAccessKey . bytesOption $
-                long "aws-secret-key"
-                <> metavar "STRING"
-                <> help "AWS Secret Access Key")
-
-        <*> (fmap T.pack . strOption $
-                long "aws-s3-bucket"
-                <> metavar "STRING"
-                <> help "S3 bucket name")
-
-        <*> (fmap Domain . textOption $
-                long "aws-cloudfront-domain"
-                <> metavar "STRING"
-                <> help "AWS CloudFront Domain")
-
-        <*> (fmap KeyPairId . textOption $
-                long "aws-cloudfront-keypair-id"
-                <> metavar "STRING"
-                <> help "AWS CloudFront Keypair ID")
-
-        <*> strOption
-                (long "aws-cloudfront-private-key"
-                <> metavar "FILE"
-                <> help "AWS CloudFront Private Key")
-
     awsAmazonkaParser :: Parser AWSAmazonkaOpts
     awsAmazonkaParser = AWSAmazonkaOpts <$>
             (option parseAWSEndpoint $

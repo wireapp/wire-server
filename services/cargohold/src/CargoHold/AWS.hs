@@ -3,7 +3,6 @@
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
@@ -31,6 +30,7 @@ module CargoHold.AWS
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
+import CargoHold.Error
 import Control.Lens hiding ((.=))
 import Control.Monad.Base
 import Control.Monad.Catch
@@ -40,13 +40,11 @@ import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.Monoid
 import Data.Text (Text)
-import Data.Typeable
 import Network.AWS (AWSRequest, Rs)
 import Network.HTTP.Client (Manager, HttpException (..), HttpExceptionContent (..))
 import System.Logger.Class
 import Util.Options
 
-import qualified CargoHold.Options       as Opt
 import qualified Control.Monad.Trans.AWS as AWST
 import qualified Network.AWS             as AWS
 import qualified Network.AWS.Env         as AWS
@@ -86,11 +84,9 @@ instance MonadBaseControl IO Amazon where
 instance AWS.MonadAWS Amazon where
     liftAWS a = view amazonkaEnv >>= flip AWS.runAWS a
 
-mkEnv :: Logger -> Opt.AWSAmazonkaOpts -> Manager -> IO Env
-mkEnv lgr opts mgr = do
+mkEnv :: Logger -> AWSEndpoint -> Text -> Manager -> IO Env
+mkEnv lgr s3End bucket mgr = do
     let g = Logger.clone (Just "aws.cargohold") lgr
-    let bucket = opts^.Opt.awsAmazonkaS3Bucket
-    let s3End  = opts^.Opt.awsAmazonkaS3Endpoint
     e <- mkAwsEnv g (mkEndpoint S3.s3 s3End)
     return (Env g bucket e)
   where
@@ -109,14 +105,6 @@ mkEnv lgr opts mgr = do
 
 execute :: MonadIO m => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
-
-data Error where
-    GeneralError :: (Show e, AWS.AsError e) => e -> Error
-
-deriving instance Show     Error
-deriving instance Typeable Error
-
-instance Exception Error
 
 --------------------------------------------------------------------------------
 -- Utilities

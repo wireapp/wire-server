@@ -14,6 +14,7 @@ module CargoHold.CloudFront
     ) where
 
 import Control.AutoUpdate
+import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Crypto.Hash.Algorithms (SHA1 (..))
 import Crypto.PubKey.RSA
@@ -31,6 +32,7 @@ import Data.Yaml (FromJSON)
 import GHC.Generics
 import URI.ByteString
 
+import qualified CargoHold.AWS            as AWS
 import qualified Crypto.PubKey.RSA.PKCS15 as RSA
 import qualified Data.ByteString.Base64   as B64
 import qualified Data.ByteString.Char8    as C8
@@ -60,20 +62,18 @@ initCloudFront kfp kid (Domain dom) = liftIO $
         , uriFragment = Nothing
         }
 
-signedUrl :: (MonadIO m, ToByteString p) => CloudFront -> p -> m (Maybe URI)
+signedUrl :: (MonadIO m, ToByteString p) => CloudFront -> p -> m URI
 signedUrl (CloudFront base kid clock sign) path = liftIO $ do
     time <- (+ 300) . round <$> clock
-    let sig' = sign (toStrict (toLazyByteString (policy url time)))
-    case sig' of
-        Left _    -> return Nothing
-        Right sig -> do
-            return . Just $! url
-                { uriQuery = Query
-                    [ ("Expires", toByteString' time)
-                    , ("Signature", b64 sig)
-                    , ("Key-Pair-Id", toByteString' kid)
-                    ]
-                }
+    case sign $ toStrict (toLazyByteString (policy url time)) of
+        Left e -> throwM $ AWS.SigningError e
+        Right sig -> return $! url
+            { uriQuery = Query
+                [ ("Expires", toByteString' time)
+                , ("Signature", b64 sig)
+                , ("Key-Pair-Id", toByteString' kid)
+                ]
+            }
   where
     url = base { uriPath = "/" <> toByteString' path }
 

@@ -138,4 +138,3 @@ getResumable :: AssetKey -> Handler S3.S3Resumable
 getResumable key = do
     rs <- S3.getResumable key
     maybe (throwE Error.assetNotFound) return rs
-

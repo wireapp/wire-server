@@ -19,6 +19,7 @@ module CargoHold.S3
     , updateMetadataV3
     , deleteV3
     , mkKey
+    , s3Key
     , signedUrl
 
       -- * Resumable Uploads
@@ -41,17 +42,13 @@ module CargoHold.S3
     , getOtrMetadata
     ) where
 
-import Aws.Core (ResponseConsumer (..), SignQuery (..))
-import Aws.S3
 import CargoHold.App hiding (Handler)
 import Control.Applicative ((<|>))
 import CargoHold.API.Error
 import Control.Error (ExceptT, throwE)
 import Control.Lens hiding ((.=), (:<), (:>), parts)
 import Control.Monad
-import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Monad.Reader.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Resource
 import Control.Retry
@@ -68,14 +65,11 @@ import Data.Time.Clock
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8) --, decodeLatin1)
 import Network.HTTP.Types.URI (urlEncode)
-import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error (Error (..))
 import Safe (readMay)
 import System.Logger.Message
 import URI.ByteString hiding (urlEncode)
 
-import qualified Aws.Core                     as Aws
-import qualified Bilge.Retry                  as Retry
 import qualified CargoHold.AWS                as AWS
 import qualified CargoHold.Types.V3           as V3
 import qualified CargoHold.Types.V3.Resumable as V3
@@ -97,7 +91,6 @@ import qualified Network.AWS                  as NAWS
 import qualified Network.AWS.S3               as AWS
 import qualified Network.AWS.Data.Body        as AWS
 import qualified Network.AWS.Data.Crypto      as AWS
-import qualified Ropes.Aws                    as Aws
 import qualified System.Logger.Class          as Log
 
 newtype S3AssetKey = S3AssetKey { s3Key :: Text }
@@ -133,7 +126,7 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
         let rqBody = AWS.ChunkedBody AWS.defaultChunkSize (fromIntegral cl) src
             md5Res = Text.decodeLatin1 $ AWS.digestToBase AWS.Base64 md5
          in   AWS.putObject (AWS.BucketName b) (AWS.ObjectKey k) (AWS.toBody rqBody)
-            & AWS.poContentType ?~ encodeMIMEType' ct
+            & AWS.poContentType ?~ encodeMIMEType ct
             & AWS.poContentMD5  ?~ md5Res
             & AWS.poMetadata    .~ (HML.fromList
                                    $ catMaybes [ setAmzMetaToken <$> tok
@@ -158,12 +151,6 @@ getMetadataV3 (s3Key . mkKey -> key) = do
             let meta = HML.toList $ view AWS.horsMetadata r
             return $ parse ct meta
   where
-    ho :: Text -> Text -> AWS.Amazon (Maybe AWS.HeadObjectResponse)
-    ho b k = do
-        let req = AWS.headObject (AWS.BucketName b) (AWS.ObjectKey k)
-        resp <- retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req))
-        return $ either (const Nothing) Just resp
-
     parse ct h = S3AssetMeta
         <$> getAmzMetaPrincipal h
         <*> Just (getAmzMetaToken h)
@@ -187,7 +174,7 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
                                         , Just (setAmzMetaPrincipal prc)
                                         ]
     let req = AWS.copyObject (AWS.BucketName b) (copySrc b key) (AWS.ObjectKey key)
-            & AWS.coContentType ?~ encodeMIMEType' ct
+            & AWS.coContentType ?~ encodeMIMEType ct
             & AWS.coMetadataDirective ?~ AWS.MDReplace
             & AWS.coMetadata .~ hdrs
     Log.debug $ "remote" .= val "S3"
@@ -198,16 +185,16 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
   where
     copySrc b k = Text.decodeLatin1 $ urlEncode True $ Text.encodeUtf8 (b <> "/" <> k)
 
-signedUrl :: V3.AssetKey -> ExceptT Error App URI
-signedUrl (s3Key . mkKey -> key) = do
+signedUrl :: (ToByteString p) => p -> ExceptT Error App URI
+signedUrl path = do
     e <- view awsAmazonka
     let b = view AWS.s3Bucket e
     now <- liftIO getCurrentTime
     let expiresIn = NAWS.Seconds 300
-    let req = AWS.getObject (AWS.BucketName b) (AWS.ObjectKey key)
+    let req = AWS.getObject (AWS.BucketName b) (AWS.ObjectKey . Text.decodeLatin1 $ toByteString' path)
     signed <- AWS.execute e (NAWS.presignURL now expiresIn req)
     return =<< toUri signed
-  where
+    where
     toUri x = case parseURI strictURIParserOptions x of
         Left _  -> throwE invalidURI
         Right u -> return u
@@ -390,7 +377,7 @@ createResumable k p typ size tok = do
 
     first b key ct meta =
           AWS.putObject (AWS.BucketName b) (AWS.ObjectKey key) (AWS.toBody (mempty :: ByteString))
-        & AWS.poContentType ?~ encodeMIMEType' ct
+        & AWS.poContentType ?~ encodeMIMEType ct
         & AWS.poMetadata    .~ HML.fromList meta
 
     -- Determine whether a given 'S3Resumable' is eligible for the
@@ -442,7 +429,7 @@ uploadChunk r offset rsrc = do
     putChunk e b chunk size = do
         let S3ChunkKey k = mkChunkKey (resumableKey r) nr
         let req = AWS.putObject (AWS.BucketName b) (AWS.ObjectKey k) (AWS.toBody chunk)
-                & AWS.poContentType ?~ Text.decodeLatin1 ct
+                & AWS.poContentType ?~ ct
         void $ AWS.execute e (AWS.send req)
         return $! S3Chunk nr offset size (S3ETag "")
 
@@ -486,14 +473,12 @@ completeResumable r = do
     -- Local assembly for small chunk sizes (< 5 MiB): Download and re-upload
     -- the chunks in a streaming fashion one-by-one to create the final object.
     assembleLocal e b chunks = do
-        env <- awsEnv   <$> view aws
-        s3c <- s3Config <$> view aws
         let own = resumableOwner r
         let ast = resumableAsset r
         let size = resumableTotalSize r
-        let rqBody = AWS.Chunked $ AWS.ChunkedBody AWS.defaultChunkSize (fromIntegral size) (chunkSource e env s3c b chunks)
+        let rqBody = AWS.Chunked $ AWS.ChunkedBody AWS.defaultChunkSize (fromIntegral size) (chunkSource e b chunks)
         let putRq = AWS.putObject (AWS.BucketName b) (AWS.ObjectKey (s3Key (mkKey ast))) rqBody
-                & AWS.poContentType ?~ encodeMIMEType' (resumableType r)
+                & AWS.poContentType ?~ encodeMIMEType (resumableType r)
                 & AWS.poMetadata    .~ metaHeaders (resumableToken r) own
         void $ AWS.execute e (AWS.send putRq)
 
@@ -533,19 +518,17 @@ completeResumable r = do
 
     -- Construct a 'Source' by downloading the chunks.
     chunkSource :: AWS.Env
-                -> Aws.Env
-                -> S3Configuration Aws.NormalQuery
-                -> Bucket
+                -> Text
                 -> Seq S3Chunk
                 -> Source (ResourceT IO) ByteString
-    chunkSource env oldEnv s3c b cs = case Seq.viewl cs of
+    chunkSource env b cs = case Seq.viewl cs of
         EmptyL  -> mempty
         c :< cc -> do
             let S3ChunkKey ck = mkChunkKey (resumableKey r) (chunkNr c)
             let req = AWS.getObject (AWS.BucketName b) (AWS.ObjectKey ck)
             v <- lift $ AWS.execute env $ AWS.send req
                       >>= flip NAWS.sinkBody Conduit.sinkLbs . view AWS.gorsBody
-            Conduit.yield (LBS.toStrict v) >> chunkSource env oldEnv s3c b cc
+            Conduit.yield (LBS.toStrict v) >> chunkSource env b cc
 
 listChunks :: S3Resumable -> ExceptT Error App (Maybe (Seq S3Chunk))
 listChunks r = do
@@ -556,7 +539,7 @@ listChunks r = do
         ~~ "asset" .= toByteString ast
         ~~ "asset.resumable" .= key
         ~~ msg (val "Listing chunks")
-    b <- s3Bucket <$> view aws
+    let b = view AWS.s3Bucket e
     fmap Seq.fromList <$> case resumableUploadId r of
         Nothing -> listBucket e b key
         Just up -> listParts e b up
@@ -721,42 +704,11 @@ parseAmzMeta k h = lookupCI k h >>= fromByteString . encodeUtf8
 -------------------------------------------------------------------------------
 -- Utilities
 
-tryS3 :: ResourceT App a -> ExceptT Error App a
-tryS3 action = do
-    e <- lift ask
-    runAppResourceT e action `catch`
-        \(ex :: S3Error) -> case s3ErrorCode ex of
-            "InvalidDigest"  -> throwE invalidMD5
-            "BadDigest"      -> throwE invalidMD5
-            "RequestTimeout" -> throwE requestTimeout
-            _                -> do
-                lift . Log.err $ msg (show ex)
-                throwE serverError
-
-exec :: (Aws.Transaction r a, ServiceConfiguration r ~ S3Configuration)
-     => r -> ResourceT App (ResponseMetadata a, a)
-exec req = do
-    env <- awsEnv   <$> view aws
-    s3c <- s3Config <$> view aws
-    Aws.sendRequest env s3c req
-
-x3 :: RetryPolicy
-x3 = limitRetries 3 <> exponentialBackoff 200000
-
-handlers :: Monad m => [RetryStatus -> Handler m Bool]
-handlers = Retry.httpHandlers ++
-    [ const $ Handler $ \(S3Error s _ _ _ _ _ _ _ _ _) ->
-        return $ statusIsServerError s
-    ]
-
 parseMIMEType :: Text -> Maybe MIME.Type
 parseMIMEType = MIME.parseMIMEType
 
-encodeMIMEType :: MIME.Type -> ByteString
-encodeMIMEType = Text.encodeUtf8 . MIME.showType
-
-encodeMIMEType' :: MIME.Type -> Text
-encodeMIMEType' = MIME.showType
+encodeMIMEType :: MIME.Type -> Text
+encodeMIMEType = MIME.showType
 
 octets :: MIME.Type
 octets = MIME.Type (MIME.Application "octet-stream") []
@@ -779,19 +731,25 @@ otrKey :: ConvId -> AssetId -> S3AssetKey
 otrKey c a = S3AssetKey $ "otr/" <> Text.pack (show c) <> "/" <> Text.pack (show a)
 
 getMetadata :: AssetId -> ExceptT Error App (Maybe Bool)
-getMetadata aId = do
-    b <- s3Bucket <$> view aws
-    (_, r) <- tryS3 . recovering x3 handlers . const . exec $
-                  headObject b (Text.pack $ show aId)
-    return $ parse <$> (omUserMetadata <$> horMetadata r)
+getMetadata ast = do
+    e <- view awsAmazonka
+    let b = view AWS.s3Bucket e
+    r <- AWS.execute e (ho b (Text.pack $ show ast))
+    return $ parse <$> HML.toList <$> view AWS.horsMetadata <$> r
   where
     parse = maybe False (Text.isInfixOf "public=true" . Text.toLower)
           . lookupCI "zasset"
 
 getOtrMetadata :: ConvId -> AssetId -> ExceptT Error App (Maybe UserId)
 getOtrMetadata cnv ast = do
-    b <- s3Bucket <$> view aws
+    e <- view awsAmazonka
+    let b = view AWS.s3Bucket e
     let S3AssetKey key = otrKey cnv ast
-    (_, r) <- tryS3 . recovering x3 handlers . const $ exec (headObject b key)
-    return $ (omUserMetadata <$> horMetadata r) >>= getAmzMetaUser
+    r <- AWS.execute e (ho b key)
+    return $ (HML.toList <$> view AWS.horsMetadata <$> r) >>= getAmzMetaUser
 
+ho :: Text -> Text -> AWS.Amazon (Maybe AWS.HeadObjectResponse)
+ho b k = do
+    let req = AWS.headObject (AWS.BucketName b) (AWS.ObjectKey k)
+    resp <- retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req))
+    return $ either (const Nothing) Just resp

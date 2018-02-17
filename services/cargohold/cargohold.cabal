@@ -34,9 +34,11 @@ library
         CargoHold.API.V3.Resumable
         CargoHold.AWS
         CargoHold.CloudFront
+        CargoHold.Error
         CargoHold.Metrics
         CargoHold.S3
         CargoHold.TUS
+        CargoHold.Util
 
     build-depends:
         base                 >= 4      && < 5
