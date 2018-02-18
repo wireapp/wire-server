@@ -52,6 +52,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Resource
 import Control.Retry
+import Data.Binary.Builder (toLazyByteString)
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Conduit
@@ -63,12 +64,11 @@ import Data.Monoid ((<>))
 import Data.Sequence (Seq, ViewR (..), ViewL (..))
 import Data.Time.Clock
 import Data.Text (Text)
-import Data.Text.Encoding (encodeUtf8) --, decodeLatin1)
-import Network.HTTP.Types.URI (urlEncode)
+import Data.Text.Encoding (encodeUtf8, decodeLatin1)
 import Network.Wai.Utilities.Error (Error (..))
 import Safe (readMay)
 import System.Logger.Message
-import URI.ByteString hiding (urlEncode)
+import URI.ByteString
 
 import qualified CargoHold.AWS                as AWS
 import qualified CargoHold.Types.V3           as V3
@@ -116,23 +116,16 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
         ~~ "asset.type"  .= MIME.showType ct
         ~~ "asset.size"  .= cl
         ~~ msg (val "Uploading asset")
-        ~~ msg (val "MD5: ")
-        ~~ msg (show md5)
-    e <- view awsAmazonka
-    let b = view AWS.s3Bucket e
-    void $ AWS.execute e (AWS.send $ req b key)
+    b <- view (awsAmazonka.AWS.s3Bucket)
+    void $ exec (req b key)
   where
-    req b k =
-        let rqBody = AWS.ChunkedBody AWS.defaultChunkSize (fromIntegral cl) src
-            md5Res = Text.decodeLatin1 $ AWS.digestToBase AWS.Base64 md5
-         in   AWS.putObject (AWS.BucketName b) (AWS.ObjectKey k) (AWS.toBody rqBody)
+    rqBody = AWS.ChunkedBody AWS.defaultChunkSize (fromIntegral cl) src
+    md5Res = Text.decodeLatin1 $ AWS.digestToBase AWS.Base64 md5
+
+    req b k = AWS.putObject (AWS.BucketName b) (AWS.ObjectKey k) (AWS.toBody rqBody)
             & AWS.poContentType ?~ encodeMIMEType ct
             & AWS.poContentMD5  ?~ md5Res
-            & AWS.poMetadata    .~ (HML.fromList
-                                   $ catMaybes [ setAmzMetaToken <$> tok
-                                               , Just (setAmzMetaPrincipal prc)
-                                               ]
-                                   )
+            & AWS.poMetadata    .~ metaHeaders tok prc
 
 getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)
 getMetadataV3 (s3Key . mkKey -> key) = do
@@ -161,29 +154,27 @@ deleteV3 (s3Key . mkKey -> key) = do
     Log.debug $ "remote" .= val "S3"
         ~~ "asset.key" .= key
         ~~ msg (val "Deleting asset")
-    e <- view awsAmazonka
-    let b = view AWS.s3Bucket e
-    let req = AWS.deleteObject (AWS.BucketName b) (AWS.ObjectKey key)
-    void $ AWS.execute e (AWS.send req)
+    b <- view (awsAmazonka.AWS.s3Bucket)
+    void $ exec (req b)
+  where
+    req b = AWS.deleteObject (AWS.BucketName b) (AWS.ObjectKey key)
 
 updateMetadataV3 :: V3.AssetKey -> S3AssetMeta -> ExceptT Error App ()
 updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
-    e <- view awsAmazonka
-    let b = view AWS.s3Bucket e
-    let hdrs = HML.fromList $ catMaybes [ setAmzMetaToken <$> tok
-                                        , Just (setAmzMetaPrincipal prc)
-                                        ]
-    let req = AWS.copyObject (AWS.BucketName b) (copySrc b key) (AWS.ObjectKey key)
-            & AWS.coContentType ?~ encodeMIMEType ct
-            & AWS.coMetadataDirective ?~ AWS.MDReplace
-            & AWS.coMetadata .~ hdrs
+    b <- view (awsAmazonka.AWS.s3Bucket)
     Log.debug $ "remote" .= val "S3"
         ~~ "asset.owner" .= show prc
         ~~ "asset.key"   .= key
         ~~ msg (val "Updating asset metadata")
-    void $ AWS.execute e (AWS.send req)
+    void $ exec (req b)
   where
-    copySrc b k = Text.decodeLatin1 $ urlEncode True $ Text.encodeUtf8 (b <> "/" <> k)
+    copySrc b = decodeLatin1 . LBS.toStrict . toLazyByteString 
+              $ urlEncode [] $ Text.encodeUtf8 (b <> "/" <> key)
+
+    req b = AWS.copyObject (AWS.BucketName b) (copySrc b) (AWS.ObjectKey key)
+          & AWS.coContentType ?~ encodeMIMEType ct
+          & AWS.coMetadataDirective ?~ AWS.MDReplace
+          & AWS.coMetadata .~ metaHeaders tok prc
 
 signedUrl :: (ToByteString p) => p -> ExceptT Error App URI
 signedUrl path = do
@@ -325,7 +316,7 @@ getResumable k = do
         ~~ "asset.key"   .= toByteString rk
         ~~ msg (val "Getting resumable asset metadata")
     e <- view awsAmazonka
-    let b = view AWS.s3Bucket e
+    b <- view (awsAmazonka.AWS.s3Bucket)
     let req = AWS.headObject (AWS.BucketName b) (AWS.ObjectKey $ s3ResumableKey rk)
     resp <- AWS.execute e (retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req)))
     case resp of
@@ -753,3 +744,7 @@ ho b k = do
     let req = AWS.headObject (AWS.BucketName b) (AWS.ObjectKey k)
     resp <- retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req))
     return $ either (const Nothing) Just resp
+
+exec req = do
+    e <- view awsAmazonka
+    AWS.execute e (AWS.send req)

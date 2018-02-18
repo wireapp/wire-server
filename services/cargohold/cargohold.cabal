@@ -57,6 +57,7 @@ library
       , base16-bytestring    >= 0.1
       , base64-bytestring    >= 1.0
       , blaze-builder        >= 0.3
+      , binary               >= 0.8
       , cargohold-types      >= 0.5
       , case-insensitive     >= 1.0
       , cereal               >= 0.4
