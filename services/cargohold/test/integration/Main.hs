@@ -13,7 +13,6 @@ import Data.Yaml hiding (Parser)
 import GHC.Generics
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS
-import OpenSSL
 import Options.Applicative
 import Util.Options
 import Util.Options.Common
@@ -58,7 +57,7 @@ runTests run = defaultMainWithIngredients ings $
       : defaultIngredients
 
 main :: IO ()
-main = withOpenSSL $ runTests go
+main = runTests go
   where
     go c i = withResource (getOpts c i) releaseOpts $ \opts ->
                 testGroup "Cargohold API Integration" [API.V3.tests opts]

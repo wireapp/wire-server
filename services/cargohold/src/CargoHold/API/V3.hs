@@ -132,8 +132,8 @@ sinkParser p = fmapL mkError <$> Conduit.sinkParserEither p
   where
     mkError = clientError . LT.pack . mkMsg
     mkMsg e = "Expected: " ++ intercalate ", " (Conduit.errorContexts e)
-            ++ ", " ++ Conduit.errorMessage e
-            ++ " at " ++ show (Conduit.errorPosition e)
+           ++ ", " ++ Conduit.errorMessage e
+           ++ " at " ++ show (Conduit.errorPosition e)
 
 -- Parsing Primitives
 

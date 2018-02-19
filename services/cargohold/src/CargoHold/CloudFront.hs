@@ -47,7 +47,7 @@ data CloudFront = CloudFront
     { _baseUrl   :: URI
     , _keyPairId :: KeyPairId
     , _clock     :: IO POSIXTime
-    , _func      :: ByteString -> Either Error ByteString
+    , _func      :: ByteString -> IO (Either Error ByteString)
     }
 
 initCloudFront :: MonadIO m => FilePath -> KeyPairId -> Domain -> m CloudFront
@@ -65,8 +65,9 @@ initCloudFront kfp kid (Domain dom) = liftIO $
 signedUrl :: (MonadIO m, ToByteString p) => CloudFront -> p -> m URI
 signedUrl (CloudFront base kid clock sign) path = liftIO $ do
     time <- (+ 300) . round <$> clock
-    case sign $ toStrict (toLazyByteString (policy url time)) of
-        Left e -> throwM $ AWS.SigningError e
+    s    <- sign $ toStrict (toLazyByteString (policy url time))
+    case s of
+        Left e    -> throwM $ AWS.SigningError e
         Right sig -> return $! url
             { uriQuery = Query
                 [ ("Expires", toByteString' time)
@@ -92,14 +93,14 @@ signedUrl (CloudFront base kid clock sign) path = liftIO $ do
         f '/' = '~'
         f c   = c
 
-sha1Rsa :: FilePath -> IO (ByteString -> Either Error ByteString)
+sha1Rsa :: FilePath -> IO (ByteString -> IO (Either Error ByteString))
 sha1Rsa fp = do
     kbs <- readKeyFile fp
     let key = case kbs of
                 []               -> error $ "no keys found in " ++ show fp
                 (PrivKeyRSA k:[]) -> k
                 _                -> error $ "Not one RSA key found in " ++ show fp
-    return (RSA.sign Nothing (Just SHA1) key)
+    return (RSA.signSafer (Just SHA1) key)
 
 mkPOSIXClock :: IO (IO POSIXTime)
 mkPOSIXClock =

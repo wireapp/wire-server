@@ -15,7 +15,7 @@ module CargoHold.App
     , newEnv
     , closeEnv
     , cloudFront
-    , awsAmazonka
+    , aws
     , metrics
     , appLogger
     , requestId
@@ -62,13 +62,13 @@ import qualified System.Logger                as Log
 -- Environment
 
 data Env = Env
-    { _awsAmazonka    :: AWS.Env -- _aws :: AwsEnv
-    , _cloudFront     :: CloudFront
-    , _metrics        :: Metrics
-    , _appLogger      :: Logger
-    , _httpManager    :: Manager
-    , _requestId      :: RequestId
-    , _settings       :: Opt.Settings
+    { _aws         :: AWS.Env
+    , _cloudFront  :: CloudFront
+    , _metrics     :: Metrics
+    , _appLogger   :: Logger
+    , _httpManager :: Manager
+    , _requestId   :: RequestId
+    , _settings    :: Opt.Settings
     }
 
 makeLenses ''Env
@@ -82,13 +82,11 @@ newEnv o = do
     mgr  <- initHttpManager
     let awsOpts = o^.optAws
     sig  <- initCloudFront (awsOpts^.awsCfPrivateKey) (awsOpts^.awsCfKeyPairId) (awsOpts^.awsCfDomain)
-    ama  <- initAwsAmazonka o lgr mgr
+    ama  <- initAws o lgr mgr
     return $ Env ama sig met lgr mgr mempty (o^.optSettings)
 
-initAwsAmazonka :: Opts -> Logger -> Manager -> IO AWS.Env
-initAwsAmazonka o l m = AWS.mkEnv l (o^.optAws.awsS3Endpoint)
-                                    (o^.optAws.awsS3Bucket)
-                                    m
+initAws :: Opts -> Logger -> Manager -> IO AWS.Env
+initAws o l m = AWS.mkEnv l (o^.optAws.awsS3Endpoint) (o^.optAws.awsS3Bucket) m
 
 -- TODO: If we want to have more control on the cipher suite, look into
 -- https://hackage.haskell.org/package/tls-1.4.0/docs/Network-TLS.html
