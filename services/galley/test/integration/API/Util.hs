@@ -145,7 +145,7 @@ addTeamMemberInternal g tid mem = do
 
 createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access)-> Http ConvId
 createTeamConv g u tinfo us name acc = do
-    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) (Just tinfo)
+    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo)
     r <- post ( g
               . path "/conversations"
               . zUser u
@@ -157,12 +157,12 @@ createTeamConv g u tinfo us name acc = do
 
 createOne2OneTeamConv :: Galley -> UserId -> UserId -> Maybe Text -> TeamId -> Http ResponseLBS
 createOne2OneTeamConv g u1 u2 n tid = do
-    let conv = NewConv [u2] n mempty (Just $ ConvTeamInfo tid False)
+    let conv = NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False)
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Http ResponseLBS
 postConv g u us name a = do
-    let conv = NewConv us name (Set.fromList a) Nothing
+    let conv = NewConv us name (Set.fromList a) Nothing  Nothing
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: Galley -> UserId -> Http ResponseLBS
@@ -170,7 +170,7 @@ postSelfConv g u = post $ g . path "/conversations/self" . zUser u . zConn "conn
 
 postO2OConv :: Galley -> UserId -> UserId -> Maybe Text -> Http ResponseLBS
 postO2OConv g u1 u2 n = do
-    let conv = NewConv [u2] n mempty Nothing
+    let conv = NewConv [u2] n mempty Nothing Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: Galley -> UserId -> UserId -> Text -> Text -> Maybe Text -> Http ResponseLBS

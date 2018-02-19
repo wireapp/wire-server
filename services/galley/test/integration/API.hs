@@ -360,11 +360,11 @@ postConvertCodeConv g b c _ = do
     deleteConvCode g alice conv !!! const 403 === statusCode
     getConvCode g alice conv !!! const 403 === statusCode
     -- cannot change to NoAccess as not a team conversation
-    let teamAccess = ConversationAccessUpdate []
+    let teamAccess = ConversationAccessUpdate [] TeamAccessRole
     putAccessUpdate g alice conv teamAccess !!! const 403 === statusCode
     -- change access
     WS.bracketR c alice $ \wsA -> do
-        let codeAccess = ConversationAccessUpdate [InviteAccess, CodeAccess]
+        let codeAccess = ConversationAccessUpdate [InviteAccess, CodeAccess] TeamAccessRole
         putAccessUpdate g alice conv codeAccess !!! const 200 === statusCode
         -- test no-op
         putAccessUpdate g alice conv codeAccess !!! const 204 === statusCode
@@ -408,7 +408,7 @@ postConvertTeamConv g b c setup = do
             wsAssertMemberJoin conv mallory [mallory]
 
     WS.bracketRN c [alice, bob, eve, mallory] $ \[wsA, wsB, wsE, wsM] -> do
-        let teamAccess = ConversationAccessUpdate []
+        let teamAccess = ConversationAccessUpdate [] TeamAccessRole
         putAccessUpdate g alice conv teamAccess !!! const 200 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
             wsAssertConvAccessUpdate conv alice teamAccess
@@ -570,7 +570,7 @@ postO2OConvOk g b _ _ = do
 postConvO2OFailWithSelf :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postConvO2OFailWithSelf g b _ _ = do
     alice <- randomUser b
-    let inv = NewConv [alice] Nothing mempty Nothing
+    let inv = NewConv [alice] Nothing mempty Nothing Nothing
     post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
         const 403 === statusCode
         const (Just "invalid-op") === fmap label . decodeBody
@@ -747,7 +747,8 @@ accessConvMeta g b _ _ = do
     chuck <- randomUser b
     connectUsers b alice (list1 bob [chuck])
     conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") []
-    let meta = ConversationMeta conv RegularConv alice [InviteAccess] (Just "gossip") Nothing
+    -- VerifiedAccessRole?
+    let meta = ConversationMeta conv RegularConv alice [InviteAccess] TeamAccessRole (Just "gossip") Nothing
     get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
         const 200         === statusCode
         const (Just meta) === (decode <=< responseBody)

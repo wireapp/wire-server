@@ -55,6 +55,23 @@ instance Cql Access where
     fromCql _ = fail "Access value: int expected"
 
 
+instance Cql AccessRole where
+    ctype = Tagged IntColumn
+
+    toCql PrivateAccessRole = CqlInt 1
+    toCql TeamAccessRole = CqlInt 2
+    toCql VerifiedAccessRole  = CqlInt 3
+    toCql NonVerifiedAccessRole    = CqlInt 4
+
+    fromCql (CqlInt i) = case i of
+        1 -> return PrivateAccessRole
+        2 -> return TeamAccessRole
+        3 -> return VerifiedAccessRole
+        4 -> return NonVerifiedAccessRole
+        n -> fail $ "Unexpected AccessRole value: " ++ show n
+    fromCql _ = fail "AccessRole value: int expected"
+
+
 instance Cql Permissions where
     ctype = Tagged $ UdtColumn "permissions" [("self", BigIntColumn), ("copy", BigIntColumn)]
 

@@ -115,7 +115,7 @@ unblockConv (usr ::: conn ::: cnv) = do
 
 updateConversationAccess :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
-    body <- fromBody req invalidPayload
+    body <- fromBody req invalidPayload :: Galley ConversationAccessUpdate
     let targetAccess = Set.fromList (toList (cupAccess body))
     -- checks and balances
     when (PrivateAccess `elem` targetAccess) $
@@ -140,7 +140,7 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
         -- update cassandra & send event
         now <- liftIO getCurrentTime
         let e = Event ConvAccessUpdate cnv usr now (Just $ EdConvAccessUpdate body)
-        Data.updateConversationAccess cnv (cupAccess body)
+        Data.updateConversationAccess cnv (cupAccess body) (cupAccessRole body)
         pushEvent e users bots zcon
         return $ json e & setStatus status200
   where

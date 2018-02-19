@@ -33,6 +33,7 @@ module Galley.Types
 
       -- * Other galley types
     , Access                    (..)
+    , AccessRole                (..)
     , Accept                    (..)
     , ConversationList          (..)
     , ConversationMeta          (..)
@@ -77,13 +78,14 @@ import qualified Data.Text.Encoding  as T
 -- Conversations ------------------------------------------------------------
 
 data Conversation = Conversation
-    { cnvId        :: !ConvId
-    , cnvType      :: !ConvType
-    , cnvCreator   :: !UserId
-    , cnvAccess    :: ![Access]
-    , cnvName      :: !(Maybe Text)
-    , cnvMembers   :: !ConvMembers
-    , cnvTeam      :: !(Maybe TeamId)
+    { cnvId         :: !ConvId
+    , cnvType       :: !ConvType
+    , cnvCreator    :: !UserId
+    , cnvAccess     :: ![Access]
+    , cnvAccessRole :: !AccessRole
+    , cnvName       :: !(Maybe Text)
+    , cnvMembers    :: !ConvMembers
+    , cnvTeam       :: !(Maybe TeamId)
     } deriving (Eq, Show)
 
 data ConvType
@@ -100,18 +102,26 @@ data Access
     | CodeAccess
     deriving (Eq, Ord, Show)
 
+data AccessRole
+    = PrivateAccessRole
+    | TeamAccessRole
+    | VerifiedAccessRole
+    | NonVerifiedAccessRole
+    deriving (Eq, Show)
+
 data ConvMembers = ConvMembers
     { cmSelf   :: !Member
     , cmOthers :: ![OtherMember]
     } deriving (Eq, Show)
 
 data ConversationMeta = ConversationMeta
-    { cmId      :: !ConvId
-    , cmType    :: !ConvType
-    , cmCreator :: !UserId
-    , cmAccess  :: ![Access]
-    , cmName    :: !(Maybe Text)
-    , cmTeam    :: !(Maybe TeamId)
+    { cmId          :: !ConvId
+    , cmType        :: !ConvType
+    , cmCreator     :: !UserId
+    , cmAccess      :: ![Access]
+    , cmAccessRole  :: !AccessRole
+    , cmName        :: !(Maybe Text)
+    , cmTeam        :: !(Maybe TeamId)
     } deriving (Eq, Show)
 
 data ConversationList a = ConversationList
@@ -126,9 +136,9 @@ newtype ConversationRename = ConversationRename
 deriving instance Eq   ConversationRename
 deriving instance Show ConversationRename
 
-
-newtype ConversationAccessUpdate = ConversationAccessUpdate
-    { cupAccess :: [Access]
+data ConversationAccessUpdate = ConversationAccessUpdate
+    { cupAccess     :: [Access]
+    , cupAccessRole :: AccessRole
     } deriving (Eq, Show)
 
 data ConvTeamInfo = ConvTeamInfo
@@ -140,6 +150,7 @@ data NewConv = NewConv
     { newConvUsers  :: ![UserId]
     , newConvName   :: !(Maybe Text)
     , newConvAccess :: !(Set Access)
+    , newConvAccessRole :: !(Maybe AccessRole)
     , newConvTeam   :: !(Maybe ConvTeamInfo)
     }
 
@@ -355,6 +366,24 @@ instance FromJSON Access where
             "code"    -> return CodeAccess
             _         -> fail "Invalid Access Mode"
 
+
+
+instance FromJSON AccessRole where
+    parseJSON = withText "access-role" $ \s ->
+        case s of
+            "private"           -> return PrivateAccessRole
+            "team"              -> return TeamAccessRole
+            "verified"          -> return VerifiedAccessRole
+            "non_verified"      -> return NonVerifiedAccessRole
+            _                   -> fail "Invalid Access Role"
+
+
+instance ToJSON AccessRole where
+    toJSON PrivateAccessRole        = String "private"
+    toJSON TeamAccessRole           = String "team"
+    toJSON VerifiedAccessRole       = String "verified"
+    toJSON NonVerifiedAccessRole    = String "non_verified"
+
 instance ToJSON UserClients where
      toJSON =
          toJSON . Map.foldrWithKey' fn Map.empty . userClients
@@ -476,15 +505,16 @@ instance FromJSON a => FromJSON (ConversationList a) where
 
 instance ToJSON Conversation where
     toJSON c = object
-        [ "id"      .= cnvId c
-        , "type"    .= cnvType c
-        , "creator" .= cnvCreator c
-        , "access"  .= cnvAccess c
-        , "name"    .= cnvName c
-        , "members" .= cnvMembers c
-        , "last_event"      .= ("0.0" :: Text)
-        , "last_event_time" .= ("1970-01-01T00:00:00.000Z" :: Text)
-        , "team"    .= cnvTeam c
+        [ "id"                  .= cnvId c
+        , "type"                .= cnvType c
+        , "creator"             .= cnvCreator c
+        , "access"              .= cnvAccess c
+        , "access_role"         .= cnvAccessRole c
+        , "name"                .= cnvName c
+        , "members"             .= cnvMembers c
+        , "last_event"          .= ("0.0" :: Text)
+        , "last_event_time"     .= ("1970-01-01T00:00:00.000Z" :: Text)
+        , "team"                .= cnvTeam c
         ]
 
 instance FromJSON Conversation where
@@ -493,6 +523,7 @@ instance FromJSON Conversation where
                     <*> o .:  "type"
                     <*> o .:  "creator"
                     <*> o .:  "access"
+                    <*> o .:  "access_role"
                     <*> o .:? "name"
                     <*> o .:  "members"
                     <*> o .:? "team"
@@ -588,6 +619,7 @@ instance FromJSON NewConv where
         NewConv <$> i .:  "users"
                 <*> i .:? "name"
                 <*> i .:? "access" .!= mempty
+                <*> i .:? "access_role"
                 <*> i .:? "team"
 
 instance ToJSON NewConv where
@@ -595,6 +627,7 @@ instance ToJSON NewConv where
         $ "users"  .= newConvUsers i
         # "name"   .= newConvName i
         # "access" .= newConvAccess i
+        # "access_role" .= newConvAccess i
         # "team"   .= newConvTeam i
         # []
 
@@ -621,26 +654,31 @@ instance FromJSON ConversationMeta where
                          <*> o .:  "type"
                          <*> o .:  "creator"
                          <*> o .:  "access"
+                         <*> o .:  "access_role"
                          <*> o .:  "name"
                          <*> o .:? "team"
 
 instance ToJSON ConversationMeta where
     toJSON c = object
-        $ "id"      .= cmId c
-        # "type"    .= cmType c
-        # "creator" .= cmCreator c
-        # "access"  .= cmAccess c
-        # "name"    .= cmName c
-        # "team"    .= cmTeam c
+        $ "id"          .= cmId c
+        # "type"        .= cmType c
+        # "creator"     .= cmCreator c
+        # "access"      .= cmAccess c
+        # "access_role" .= cmAccessRole c
+        # "name"        .= cmName c
+        # "team"        .= cmTeam c
         # []
 
-
 instance ToJSON ConversationAccessUpdate where
-    toJSON c = object [ "access" .= cupAccess c ]
+    toJSON c = object
+        $ "access" .= cupAccess c
+        # "access_role" .= cupAccessRole c
+        # []
 
 instance FromJSON ConversationAccessUpdate where
    parseJSON = withObject "conversation-access-update" $ \o ->
        ConversationAccessUpdate <$> o .:  "access"
+                                <*> o .:  "access_role"
 
 instance FromJSON ConversationRename where
     parseJSON = withObject "conversation-rename object" $ \c ->
