@@ -17,16 +17,16 @@ import Util.Options.Common
 
 import qualified Data.Text as T
 
-data AWSAmazonkaOpts = AWSAmazonkaOpts
-    { _awsAmazonkaS3Endpoint   :: AWSEndpoint
-    , _awsAmazonkaS3Bucket     :: Text
-    , _awsAmazonkaCfDomain     :: Domain
-    , _awsAmazonkaCfKeyPairId  :: KeyPairId
-    , _awsAmazonkaCfPrivateKey :: FilePath
+data AWSOpts = AWSOpts
+    { _awsS3Endpoint   :: AWSEndpoint
+    , _awsS3Bucket     :: Text
+    , _awsCfDomain     :: Domain
+    , _awsCfKeyPairId  :: KeyPairId
+    , _awsCfPrivateKey :: FilePath
     } deriving (Show, Generic)
 
-deriveFromJSON toOptionFieldName ''AWSAmazonkaOpts
-makeLenses ''AWSAmazonkaOpts
+deriveFromJSON toOptionFieldName ''AWSOpts
+makeLenses ''AWSOpts
 
 data Settings = Settings
     { _setMaxTotalBytes     :: !Int
@@ -38,7 +38,7 @@ makeLenses ''Settings
 
 data Opts = Opts
     { _optCargohold :: !Endpoint
-    , _optAwsAmazonka :: !AWSAmazonkaOpts
+    , _optAws       :: !AWSOpts
     , _optSettings  :: !Settings
     } deriving (Show, Generic)
 
@@ -65,11 +65,11 @@ optsParser = Opts <$>
             <> short 'p'
             <> metavar "PORT"
             <> help "Port to listen on"))
-    <*> awsAmazonkaParser
+    <*> awsParser
     <*> settingsParser
   where
-    awsAmazonkaParser :: Parser AWSAmazonkaOpts
-    awsAmazonkaParser = AWSAmazonkaOpts <$>
+    awsParser :: Parser AWSOpts
+    awsParser = AWSOpts <$>
             (option parseAWSEndpoint $
                 long "aws-s3-endpoint"
                 <> value (AWSEndpoint "s3.eu-west-1.amazonaws.com" True 443)

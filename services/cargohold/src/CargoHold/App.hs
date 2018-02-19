@@ -80,14 +80,14 @@ newEnv o = do
                     . Log.setFormat Nothing
                     $ Log.defSettings
     mgr  <- initHttpManager
-    let awsOpts = o^.optAwsAmazonka
-    sig  <- initCloudFront (awsOpts^.awsAmazonkaCfPrivateKey) (awsOpts^.awsAmazonkaCfKeyPairId) (awsOpts^.awsAmazonkaCfDomain)
+    let awsOpts = o^.optAws
+    sig  <- initCloudFront (awsOpts^.awsCfPrivateKey) (awsOpts^.awsCfKeyPairId) (awsOpts^.awsCfDomain)
     ama  <- initAwsAmazonka o lgr mgr
     return $ Env ama sig met lgr mgr mempty (o^.optSettings)
 
 initAwsAmazonka :: Opts -> Logger -> Manager -> IO AWS.Env
-initAwsAmazonka o l m = AWS.mkEnv l (o^.optAwsAmazonka.awsAmazonkaS3Endpoint)
-                                    (o^.optAwsAmazonka.awsAmazonkaS3Bucket)
+initAwsAmazonka o l m = AWS.mkEnv l (o^.optAws.awsS3Endpoint)
+                                    (o^.optAws.awsS3Bucket)
                                     m
 
 -- TODO: If we want to have more control on the cipher suite, look into

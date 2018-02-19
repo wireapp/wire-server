@@ -16,4 +16,3 @@ s3UploadOk = counterIncr (path "net.s3.upload_ok")
 s3UploadSize :: (MonadReader Env m, MonadIO m, Integral n) => n -> m ()
 s3UploadSize n = counterAdd (fromIntegral n) (path "net.s3.upload_size")
                =<< view metrics
-

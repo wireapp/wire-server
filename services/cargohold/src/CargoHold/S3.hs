@@ -42,10 +42,10 @@ module CargoHold.S3
     , getOtrMetadata
     ) where
 
-import CargoHold.App hiding (Handler)
+import CargoHold.App hiding (Env, Handler)
 import Control.Applicative ((<|>))
 import CargoHold.API.Error
-import Control.Error (ExceptT, throwE)
+import Control.Error (ExceptT, hush, throwE)
 import Control.Lens hiding ((.=), (:<), (:>), parts)
 import Control.Monad
 import Control.Monad.IO.Class
@@ -65,6 +65,10 @@ import Data.Sequence (Seq, ViewR (..), ViewL (..))
 import Data.Time.Clock
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8, decodeLatin1)
+import Network.AWS hiding (Error)
+import Network.AWS.S3
+import Network.AWS.Data.Body
+import Network.AWS.Data.Crypto
 import Network.Wai.Utilities.Error (Error (..))
 import Safe (readMay)
 import System.Logger.Message
@@ -88,9 +92,6 @@ import qualified Data.Text.Ascii              as Ascii
 import qualified Data.Text.Encoding           as Text
 import qualified Data.UUID                    as UUID
 import qualified Network.AWS                  as NAWS
-import qualified Network.AWS.S3               as AWS
-import qualified Network.AWS.Data.Body        as AWS
-import qualified Network.AWS.Data.Crypto      as AWS
 import qualified System.Logger.Class          as Log
 
 newtype S3AssetKey = S3AssetKey { s3Key :: Text }
@@ -116,34 +117,31 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
         ~~ "asset.type"  .= MIME.showType ct
         ~~ "asset.size"  .= cl
         ~~ msg (val "Uploading asset")
-    b <- view (awsAmazonka.AWS.s3Bucket)
-    void $ exec (req b key)
+    void $ exec req
   where
-    rqBody = AWS.ChunkedBody AWS.defaultChunkSize (fromIntegral cl) src
-    md5Res = Text.decodeLatin1 $ AWS.digestToBase AWS.Base64 md5
+    reqBdy = ChunkedBody defaultChunkSize (fromIntegral cl) src
+    md5Res = Text.decodeLatin1 $ digestToBase Base64 md5
 
-    req b k = AWS.putObject (AWS.BucketName b) (AWS.ObjectKey k) (AWS.toBody rqBody)
-            & AWS.poContentType ?~ encodeMIMEType ct
-            & AWS.poContentMD5  ?~ md5Res
-            & AWS.poMetadata    .~ metaHeaders tok prc
+    req b = putObject (BucketName b) (ObjectKey key) (toBody reqBdy)
+          & poContentType ?~ encodeMIMEType ct
+          & poContentMD5  ?~ md5Res
+          & poMetadata    .~ metaHeaders tok prc
 
 getMetadataV3 :: V3.AssetKey -> ExceptT Error App (Maybe S3AssetMeta)
 getMetadataV3 (s3Key . mkKey -> key) = do
-    e <- view awsAmazonka
-    let b = view AWS.s3Bucket e
-    r' <- AWS.execute e (ho b key)
+    resp <- execCatch req
     Log.debug $ "remote" .= val "S3"
         ~~ "asset.key" .= key
-        ~~ "asset.bucket" .= b
         ~~ msg (val "Getting asset metadata")
-        ~~ msg (show r')
-    case r' of
-        Nothing -> return Nothing
-        Just r  -> do 
-            let ct = fromMaybe octets (parseMIMEType =<< view AWS.horsContentType r)
-            let meta = HML.toList $ view AWS.horsMetadata r
+    case resp of
+        Left _  -> return Nothing
+        Right r -> do
+            let ct = fromMaybe octets (parseMIMEType =<< r^.horsContentType)
+            let meta = HML.toList $ r^.horsMetadata
             return $ parse ct meta
   where
+    req b = headObject (BucketName b) (ObjectKey key)
+
     parse ct h = S3AssetMeta
         <$> getAmzMetaPrincipal h
         <*> Just (getAmzMetaToken h)
@@ -154,36 +152,34 @@ deleteV3 (s3Key . mkKey -> key) = do
     Log.debug $ "remote" .= val "S3"
         ~~ "asset.key" .= key
         ~~ msg (val "Deleting asset")
-    b <- view (awsAmazonka.AWS.s3Bucket)
-    void $ exec (req b)
+    void $ exec req
   where
-    req b = AWS.deleteObject (AWS.BucketName b) (AWS.ObjectKey key)
+    req b = deleteObject (BucketName b) (ObjectKey key)
 
 updateMetadataV3 :: V3.AssetKey -> S3AssetMeta -> ExceptT Error App ()
 updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
-    b <- view (awsAmazonka.AWS.s3Bucket)
     Log.debug $ "remote" .= val "S3"
         ~~ "asset.owner" .= show prc
         ~~ "asset.key"   .= key
         ~~ msg (val "Updating asset metadata")
-    void $ exec (req b)
+    void $ exec req
   where
     copySrc b = decodeLatin1 . LBS.toStrict . toLazyByteString 
               $ urlEncode [] $ Text.encodeUtf8 (b <> "/" <> key)
 
-    req b = AWS.copyObject (AWS.BucketName b) (copySrc b) (AWS.ObjectKey key)
-          & AWS.coContentType ?~ encodeMIMEType ct
-          & AWS.coMetadataDirective ?~ AWS.MDReplace
-          & AWS.coMetadata .~ metaHeaders tok prc
+    req b = copyObject (BucketName b) (copySrc b) (ObjectKey key)
+          & coContentType ?~ encodeMIMEType ct
+          & coMetadataDirective ?~ MDReplace
+          & coMetadata .~ metaHeaders tok prc
 
 signedUrl :: (ToByteString p) => p -> ExceptT Error App URI
 signedUrl path = do
     e <- view awsAmazonka
     let b = view AWS.s3Bucket e
     now <- liftIO getCurrentTime
-    let expiresIn = NAWS.Seconds 300
-    let req = AWS.getObject (AWS.BucketName b) (AWS.ObjectKey . Text.decodeLatin1 $ toByteString' path)
-    signed <- AWS.execute e (NAWS.presignURL now expiresIn req)
+    let expiresIn = Seconds 300
+    let req = getObject (BucketName b) (ObjectKey . Text.decodeLatin1 $ toByteString' path)
+    signed <- AWS.execute e (presignURL now expiresIn req)
     return =<< toUri signed
     where
     toUri x = case parseURI strictURIParserOptions x of
@@ -310,25 +306,24 @@ minBigSize = 5 * 1024 * 1024 -- 5 MiB
 
 getResumable :: V3.AssetKey -> ExceptT Error App (Maybe S3Resumable)
 getResumable k = do
-    let rk = mkResumableKey k
     Log.debug $ "remote" .= val "S3"
         ~~ "asset"       .= toByteString k
         ~~ "asset.key"   .= toByteString rk
         ~~ msg (val "Getting resumable asset metadata")
-    e <- view awsAmazonka
-    b <- view (awsAmazonka.AWS.s3Bucket)
-    let req = AWS.headObject (AWS.BucketName b) (AWS.ObjectKey $ s3ResumableKey rk)
-    resp <- AWS.execute e (retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req)))
+    resp <- execCatch req
     case resp of
-        Left _  -> return Nothing
+        Left  _ -> return Nothing
         Right r -> do
-            let ct = fromMaybe octets (parseMIMEType =<< view AWS.horsContentType r)
-            let meta = HML.toList $ view AWS.horsMetadata r
-            case parse rk ct meta of
+            let ct = fromMaybe octets (parseMIMEType =<< view horsContentType r)
+            let meta = HML.toList $ view horsMetadata r
+            case parse ct meta of
                 Nothing -> return Nothing
                 Just r' -> fmap (\cs -> r' { resumableChunks = cs }) <$> listChunks r'
   where
-    parse rk ct h = S3Resumable rk k
+    rk    = mkResumableKey k
+    req b = headObject (BucketName b) (ObjectKey $ s3ResumableKey rk)
+
+    parse ct h = S3Resumable rk k
         <$> getAmzMetaPrincipal h
         <*> getAmzMetaChunkSize h
         <*> getAmzMetaTotalSize h
@@ -350,26 +345,24 @@ createResumable k p typ size tok = do
     ex <- addUTCTime V3.assetVolatileSeconds <$> liftIO getCurrentTime
     let key = mkResumableKey k
     let res = S3Resumable key k p csize size typ tok ex Nothing Seq.empty
-    e <- view awsAmazonka
-    let b = view AWS.s3Bucket e
-    up <- initMultipart e b res
+    up <- initMultipart res
     let ct = resumableType res
-    void $ AWS.execute e (AWS.send $ first b (s3ResumableKey key) ct (resumableMeta csize ex up))
+    void . exec $ first (s3ResumableKey key) ct (resumableMeta csize ex up)
     return res { resumableUploadId = up }
   where
-    initMultipart e b r
+    initMultipart r
         | canUseMultipart r = do
-            let cmu = AWS.createMultipartUpload (AWS.BucketName b) (AWS.ObjectKey $ s3Key (mkKey k))
-                    & AWS.cmuContentType ?~ MIME.showType (resumableType r)
-                    & AWS.cmuMetadata    .~ metaHeaders (resumableToken r) p
-            imur <- AWS.execute e (AWS.send cmu)
-            return $! view AWS.cmursUploadId imur
+            let cmu b = createMultipartUpload (BucketName b) (ObjectKey $ s3Key (mkKey k))
+                      & cmuContentType ?~ MIME.showType (resumableType r)
+                      & cmuMetadata    .~ metaHeaders (resumableToken r) p
+            imur <- exec cmu
+            return $! view cmursUploadId imur
         | otherwise = return Nothing
 
-    first b key ct meta =
-          AWS.putObject (AWS.BucketName b) (AWS.ObjectKey key) (AWS.toBody (mempty :: ByteString))
-        & AWS.poContentType ?~ encodeMIMEType ct
-        & AWS.poMetadata    .~ HML.fromList meta
+    first key ct meta b =
+          putObject (BucketName b) (ObjectKey key) (toBody (mempty :: ByteString))
+        & poContentType ?~ encodeMIMEType ct
+        & poMetadata    .~ HML.fromList meta
 
     -- Determine whether a given 'S3Resumable' is eligible for the
     -- S3 multipart upload API. That is the case if the chunk size
@@ -395,8 +388,6 @@ uploadChunk
     -> ResumableSource IO ByteString
     -> ExceptT Error App (S3Resumable, ResumableSource IO ByteString)
 uploadChunk r offset rsrc = do
-    e <- view awsAmazonka
-    let b = view AWS.s3Bucket e
     let chunkSize = fromIntegral (resumableChunkSize r)
     (rest, chunk) <- liftIO $ rsrc $$++ Conduit.take chunkSize
     let size = fromIntegral (LBS.length chunk)
@@ -409,40 +400,38 @@ uploadChunk r offset rsrc = do
         ~~ "asset.size"   .= toByteString size
         ~~ msg (val "Uploading chunk")
     c <- case resumableUploadId r of
-        Nothing -> putChunk e b chunk size
-        Just up -> putPart e b up chunk size
+        Nothing -> putChunk chunk size
+        Just up -> putPart up chunk size
     let r' = r { resumableChunks = resumableChunks r Seq.|> c }
     return (r', rest)
   where
     nr = mkChunkNr r offset
     ct = encodeMIMEType (resumableType r)
 
-    putChunk e b chunk size = do
+    putChunk chunk size = do
         let S3ChunkKey k = mkChunkKey (resumableKey r) nr
-        let req = AWS.putObject (AWS.BucketName b) (AWS.ObjectKey k) (AWS.toBody chunk)
-                & AWS.poContentType ?~ ct
-        void $ AWS.execute e (AWS.send req)
+        let req b = putObject (BucketName b) (ObjectKey k) (toBody chunk)
+                  & poContentType ?~ ct
+        void $ exec req
         return $! S3Chunk nr offset size (S3ETag "")
 
-    putPart e b up chunk size = do
+    putPart up chunk size = do
         let S3AssetKey k = mkKey (resumableAsset r)
         -- TODO: Really, no content-type ?
-        let req = AWS.uploadPart (AWS.BucketName b)
-                                 (AWS.ObjectKey k)
-                                 (fromIntegral nr)
-                                 up
-                                 (AWS.toBody chunk)
-        upr  <- AWS.execute e (AWS.send req)
-        etag <- case view AWS.uprsETag upr of
-            Just (AWS.ETag tag) -> return $ S3ETag (Text.decodeLatin1 tag)
-            Nothing             -> throwE serverError
+        let req b = uploadPart (BucketName b)
+                               (ObjectKey k)
+                               (fromIntegral nr)
+                               up
+                               (toBody chunk)
+        upr  <- exec req
+        etag <- case view uprsETag upr of
+            Just (ETag t) -> return $ S3ETag (Text.decodeLatin1 t)
+            Nothing       -> throwE serverError -- TODO???
         return $! S3Chunk nr offset size etag
 
 -- | Complete a resumable upload, assembling all chunks into a final asset.
 completeResumable :: S3Resumable -> ExceptT Error App ()
 completeResumable r = do
-    let own = resumableOwner r
-    let ast = resumableAsset r
     Log.debug $ "remote" .= val "S3"
         ~~ "asset"       .= toByteString ast
         ~~ "asset.owner" .= toByteString own
@@ -450,28 +439,26 @@ completeResumable r = do
         ~~ msg (val "Completing resumable upload")
     let chunks = resumableChunks r
     verifyChunks chunks
-    e <- view awsAmazonka
-    let b = view AWS.s3Bucket e
     case resumableUploadId r of
-        Nothing -> assembleLocal e b chunks
-        Just up -> assembleRemote e b up (NE.nonEmpty $ toList chunks)
+        Nothing -> assembleLocal chunks
+        Just up -> assembleRemote up (NE.nonEmpty $ toList chunks)
     Log.debug $ "remote" .= val "S3"
         ~~ "asset"       .= toByteString ast
         ~~ "asset.owner" .= toByteString own
         ~~ "asset.key"   .= toByteString (resumableKey r)
         ~~ msg (val "Resumable upload completed")
   where
+    (own, ast) = (resumableOwner r, resumableAsset r)
     -- Local assembly for small chunk sizes (< 5 MiB): Download and re-upload
     -- the chunks in a streaming fashion one-by-one to create the final object.
-    assembleLocal e b chunks = do
-        let own = resumableOwner r
-        let ast = resumableAsset r
+    assembleLocal chunks = do
+        e <- view awsAmazonka
         let size = resumableTotalSize r
-        let rqBody = AWS.Chunked $ AWS.ChunkedBody AWS.defaultChunkSize (fromIntegral size) (chunkSource e b chunks)
-        let putRq = AWS.putObject (AWS.BucketName b) (AWS.ObjectKey (s3Key (mkKey ast))) rqBody
-                & AWS.poContentType ?~ encodeMIMEType (resumableType r)
-                & AWS.poMetadata    .~ metaHeaders (resumableToken r) own
-        void $ AWS.execute e (AWS.send putRq)
+        let reqBdy = Chunked $ ChunkedBody defaultChunkSize (fromIntegral size) (chunkSource e chunks)
+        let putRq b = putObject (BucketName b) (ObjectKey (s3Key (mkKey ast))) reqBdy
+                    & poContentType ?~ encodeMIMEType (resumableType r)
+                    & poMetadata    .~ metaHeaders (resumableToken r) own
+        void $ exec putRq
 
         -- For symmetry with the behavior of the S3 multipart API, where the
         -- resumable upload and all parts are removed upon completion, we do
@@ -479,26 +466,25 @@ completeResumable r = do
         let rk = resumableKey r
         let keys = s3ResumableKey rk
                  : map (s3ChunkKey . mkChunkKey rk . chunkNr) (toList chunks)
-        let del = AWS.delete' & AWS.dQuiet ?~ True
-                              & AWS.dObjects .~ map (AWS.objectIdentifier . AWS.ObjectKey) keys
-        let delRq = AWS.deleteObjects (AWS.BucketName b) del
-        void $ AWS.execute e (AWS.send delRq)
+        let del = delete' & dQuiet ?~ True
+                              & dObjects .~ map (objectIdentifier . ObjectKey) keys
+        let delRq b = deleteObjects (BucketName b) del
+        void $ exec delRq
 
     -- Remote assembly for large(r) chunk sizes (>= 5 MiB) via the
     -- S3 multipart upload API.
-    assembleRemote _ _ _  Nothing       = throwE serverError
-    assembleRemote e b up (Just chunks) = do
-        let ast = resumableAsset r
+    assembleRemote _  Nothing       = throwE serverError
+    assembleRemote up (Just chunks) = do
         let key = s3Key (mkKey ast)
         let parts = fmap mkPart chunks
-        let completeRq = AWS.completeMultipartUpload (AWS.BucketName b) (AWS.ObjectKey key) up
-                       & AWS.cMultipartUpload ?~ (AWS.completedMultipartUpload & (AWS.cmuParts ?~ parts))
-        void $ AWS.execute e (AWS.send completeRq)
+        let completeRq b = completeMultipartUpload (BucketName b) (ObjectKey key) up
+                         & cMultipartUpload ?~ (completedMultipartUpload & (cmuParts ?~ parts))
+        void $ exec completeRq
         let S3ResumableKey rkey = resumableKey r
-        let delRq = AWS.deleteObject (AWS.BucketName b) (AWS.ObjectKey rkey)
-        void $ AWS.execute e (AWS.send delRq)
+        let delRq b = deleteObject (BucketName b) (ObjectKey rkey)
+        void $ exec delRq
 
-    mkPart c = AWS.completedPart (fromIntegral (chunkNr c)) (AWS.ETag . Text.encodeUtf8 $ s3ETag (chunkETag c))
+    mkPart c = completedPart (fromIntegral (chunkNr c)) (ETag . Text.encodeUtf8 $ s3ETag (chunkETag c))
 
     -- Verify that the chunks constitute the full asset, i.e. that the
     -- upload is complete.
@@ -509,65 +495,63 @@ completeResumable r = do
 
     -- Construct a 'Source' by downloading the chunks.
     chunkSource :: AWS.Env
-                -> Text
                 -> Seq S3Chunk
                 -> Source (ResourceT IO) ByteString
-    chunkSource env b cs = case Seq.viewl cs of
+    chunkSource env cs = case Seq.viewl cs of
         EmptyL  -> mempty
         c :< cc -> do
             let S3ChunkKey ck = mkChunkKey (resumableKey r) (chunkNr c)
-            let req = AWS.getObject (AWS.BucketName b) (AWS.ObjectKey ck)
+            let b   = view AWS.s3Bucket env
+            let req = getObject (BucketName b) (ObjectKey ck)
             v <- lift $ AWS.execute env $ AWS.send req
-                      >>= flip NAWS.sinkBody Conduit.sinkLbs . view AWS.gorsBody
-            Conduit.yield (LBS.toStrict v) >> chunkSource env b cc
+                      >>= flip sinkBody Conduit.sinkLbs . view gorsBody
+            Conduit.yield (LBS.toStrict v) >> chunkSource env cc
 
 listChunks :: S3Resumable -> ExceptT Error App (Maybe (Seq S3Chunk))
 listChunks r = do
-    e <- view awsAmazonka
     let ast = resumableAsset r
     let S3ResumableKey key = resumableKey r
     Log.debug $ "remote" .= val "S3"
         ~~ "asset" .= toByteString ast
         ~~ "asset.resumable" .= key
         ~~ msg (val "Listing chunks")
-    let b = view AWS.s3Bucket e
     fmap Seq.fromList <$> case resumableUploadId r of
-        Nothing -> listBucket e b key
-        Just up -> listParts e b up
+        Nothing -> listBucket key
+        Just up -> listMultiParts up
   where
-    listBucket e b k = do
-        let req = AWS.listObjects (AWS.BucketName b)
-                & AWS.loPrefix  ?~ (k <> "/")
-                & AWS.loMaxKeys ?~ fromIntegral maxTotalChunks
-        resp <- AWS.execute e (retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req)))
+    listBucket k = do
+        let req b = listObjects (BucketName b)
+                  & loPrefix  ?~ (k <> "/")
+                  & loMaxKeys ?~ fromIntegral maxTotalChunks
+        resp <- execCatch req
         case resp of
             Left _    -> return Nothing
-            Right lor -> return . Just $ mapMaybe chunkFromObject (view AWS.lorsContents lor)
+            Right lor -> return . Just $ mapMaybe chunkFromObject (view lorsContents lor)
 
-    listParts e b up = do
-        let req = AWS.listParts (AWS.BucketName b)
-                                (AWS.ObjectKey $ s3Key (mkKey (resumableAsset r)))
-                                up
-        resp <- AWS.execute e (retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req)))
+    listMultiParts up = do
+        let req b = listParts (BucketName b)
+                              (ObjectKey $ s3Key (mkKey (resumableAsset r)))
+                              up
+        resp <- execCatch req
         case resp of
             Left _    -> return Nothing
             Right lpr -> return . Just
                                 $ fmap chunkFromPart
                                 . catMaybes
-                                . fmap toAWSPart $ (view AWS.lprsParts lpr)
+                                . fmap toAWSPart $ (view lprsParts lpr)
 
-    toAWSPart :: AWS.Part -> Maybe PartInfo
-    toAWSPart p = case (view AWS.pPartNumber p, view AWS.pETag p, view AWS.pSize p) of
-        (Just x, Just (AWS.ETag y), Just z) -> Just $ PartInfo (fromIntegral x) (Text.decodeLatin1 y) (fromIntegral z)
+    toAWSPart :: Part -> Maybe PartInfo
+    toAWSPart p = case (view pPartNumber p, view pETag p, view pSize p) of
+        (Just x, Just (ETag y), Just z) -> Just $ PartInfo (fromIntegral x) (Text.decodeLatin1 y) (fromIntegral z)
         _                        -> Nothing
 
-    chunkFromObject :: AWS.Object -> Maybe S3Chunk
+    chunkFromObject :: Object -> Maybe S3Chunk
     chunkFromObject o = do
-        let (AWS.ObjectKey okey) = (view AWS.oKey o)
+        let (ObjectKey okey) = (view oKey o)
         nr <- parseNr okey
-        let etag = let (AWS.ETag t) = (view AWS.oETag o)
+        let etag = let (ETag t) = (view oETag o)
                     in S3ETag (Text.decodeLatin1 t)
-        let size = fromIntegral (view AWS.oSize o)
+        let size = fromIntegral (view oSize o)
         let off  = mkOffset r nr
         Just $! S3Chunk nr off size etag
 
@@ -704,6 +688,20 @@ encodeMIMEType = MIME.showType
 octets :: MIME.Type
 octets = MIME.Type (MIME.Application "octet-stream") []
 
+exec :: (AWSRequest r) => (Text -> r) -> ExceptT Error App (Rs r)
+exec req = do
+    e <- view awsAmazonka
+    b <- view (awsAmazonka.AWS.s3Bucket)
+    AWS.execute e (AWS.send $ req b)
+
+execCatch :: (AWSRequest r)
+          => (Text -> r)
+          -> ExceptT Error App (Either NAWS.Error (Rs r))
+execCatch req = do
+    e <- view awsAmazonka
+    b <- view (awsAmazonka.AWS.s3Bucket)
+    AWS.execute e (retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch $ req b)))
+
 --------------------------------------------------------------------------------
 
 data PartInfo = PartInfo
@@ -723,28 +721,18 @@ otrKey c a = S3AssetKey $ "otr/" <> Text.pack (show c) <> "/" <> Text.pack (show
 
 getMetadata :: AssetId -> ExceptT Error App (Maybe Bool)
 getMetadata ast = do
-    e <- view awsAmazonka
-    let b = view AWS.s3Bucket e
-    r <- AWS.execute e (ho b (Text.pack $ show ast))
-    return $ parse <$> HML.toList <$> view AWS.horsMetadata <$> r
+    r <- execCatch req
+    return $ parse <$> HML.toList <$> view horsMetadata <$> hush r
   where
+    req b = headObject (BucketName b) (ObjectKey . Text.pack $ show ast)
+
     parse = maybe False (Text.isInfixOf "public=true" . Text.toLower)
           . lookupCI "zasset"
 
 getOtrMetadata :: ConvId -> AssetId -> ExceptT Error App (Maybe UserId)
 getOtrMetadata cnv ast = do
-    e <- view awsAmazonka
-    let b = view AWS.s3Bucket e
     let S3AssetKey key = otrKey cnv ast
-    r <- AWS.execute e (ho b key)
-    return $ (HML.toList <$> view AWS.horsMetadata <$> r) >>= getAmzMetaUser
-
-ho :: Text -> Text -> AWS.Amazon (Maybe AWS.HeadObjectResponse)
-ho b k = do
-    let req = AWS.headObject (AWS.BucketName b) (AWS.ObjectKey k)
-    resp <- retrying AWS.retry5x (const AWS.canRetry) (const (AWS.sendCatch req))
-    return $ either (const Nothing) Just resp
-
-exec req = do
-    e <- view awsAmazonka
-    AWS.execute e (AWS.send req)
+    r <- execCatch (req key)
+    return $ getAmzMetaUser =<< HML.toList <$> view horsMetadata <$> hush r
+  where
+    req k b = headObject (BucketName b) (ObjectKey k)
