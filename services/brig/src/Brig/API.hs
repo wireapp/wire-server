@@ -1145,7 +1145,8 @@ createUser (_ ::: _ ::: req) = do
         sendActivationMail e u p l Nothing
 
     sendWelcomeEmail :: Email -> CreateUserTeam -> NewTeamUser -> Maybe Locale -> AppIO ()
-    sendWelcomeEmail e (CreateUserTeam t n) (NewTeamCreator _) l = Team.sendCreatorWelcomeMail e t n l
+    -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
+    sendWelcomeEmail _ (CreateUserTeam _ _) (NewTeamCreator _) _ = return ()
     sendWelcomeEmail e (CreateUserTeam t n) (NewTeamMember  _) l = Team.sendMemberWelcomeMail e t n l
 
 createUserNoVerify :: JSON ::: JSON ::: Request -> Handler Response
