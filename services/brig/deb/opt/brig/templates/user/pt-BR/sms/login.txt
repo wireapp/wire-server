@@ -1,3 +1,0 @@
-Seu código de login do Wire é ${code}.
-
-Abra ${url} para entrar, ou insira esse código no aplicativo do Wire: ${code}.
