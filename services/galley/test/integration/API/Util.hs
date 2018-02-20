@@ -15,7 +15,7 @@ import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key)
 import Data.ByteString.Char8 (pack, ByteString, intercalate)
 import Data.ByteString.Conversion
-import Data.Foldable (toList, mapM_)
+import Data.Foldable (toList)
 import Data.Id
 import Data.Int
 import Data.List (sort)
@@ -496,21 +496,37 @@ zType :: ByteString -> Request -> Request
 zType = header "Z-Type"
 
 connectUsers :: Brig -> UserId -> List1 UserId -> Http ()
-connectUsers b u = mapM_ connectTo
+connectUsers b u us = void $ connectUsersWith expect2xx b u us
+
+connectUsersUnchecked :: Brig
+                      -> UserId
+                      -> List1 UserId
+                      -> Http (List1 (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
+connectUsersUnchecked = connectUsersWith id
+
+connectUsersWith :: (Request -> Request)
+                 -> Brig
+                 -> UserId
+                 -> List1 UserId
+                 -> Http (List1 (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
+connectUsersWith fn b u us = mapM connectTo us
   where
     connectTo v = do
-        post ( b
+        r1 <- post ( b
              . zUser u
              . zConn "conn"
              . path "/connections"
              . json (ConnectionRequest v "chat" (Message "Y"))
-             ) !!! const 201 === statusCode
-        put ( b
+             . fn
+             )
+        r2 <- put ( b
             . zUser v
             . zConn "conn"
             . paths ["connections", toByteString' u]
             . json (ConnectionUpdate Accepted)
-            ) !!! const 200 === statusCode
+            . fn
+            )
+        return (r1, r2)
 
 randomUsers :: Brig -> Int -> Http [UserId]
 randomUsers b n = replicateM n (randomUser b)
