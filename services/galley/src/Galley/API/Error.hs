@@ -8,6 +8,9 @@ import Galley.Types.Teams (Perm)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
+internalError :: Error
+internalError = Error status500 "internal-error" "internal error"
+
 convNotFound :: Error
 convNotFound = Error status404 "no-conversation" "conversation not found"
 

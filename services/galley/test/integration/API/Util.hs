@@ -160,9 +160,9 @@ createOne2OneTeamConv g u1 u2 n tid = do
     let conv = NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False)
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
-postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Http ResponseLBS
-postConv g u us name a = do
-    let conv = NewConv us name (Set.fromList a) Nothing  Nothing
+postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Http ResponseLBS
+postConv g u us name a r = do
+    let conv = NewConv us name (Set.fromList a) r  Nothing
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: Galley -> UserId -> Http ResponseLBS
@@ -521,6 +521,14 @@ randomUser b = do
     let p = object [ "name" .= fromEmail e, "email" .= fromEmail e, "password" .= defPassword ]
     r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
+
+ephemeralUser :: Brig -> Http UserId
+ephemeralUser b = do
+    name <- UUID.toText <$> liftIO nextRandom
+    let p = object [ "name" .= name ]
+    r <- post (b . path "/register" . json p) <!! const 201 === statusCode
+    let user = fromMaybe (error "createAnonUser: failed to parse response") (decodeBody r)
+    return $ Brig.Types.userId user
 
 randomClient :: Brig -> UserId -> LastPrekey -> Http ClientId
 randomClient b usr lk = do

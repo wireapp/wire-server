@@ -627,7 +627,7 @@ instance ToJSON NewConv where
         $ "users"  .= newConvUsers i
         # "name"   .= newConvName i
         # "access" .= newConvAccess i
-        # "access_role" .= newConvAccess i
+        # "access_role" .= newConvAccessRole i
         # "team"   .= newConvTeam i
         # []
 

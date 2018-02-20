@@ -114,7 +114,7 @@ isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
 insertConv :: PrepQuery W (ConvId, ConvType, UserId, Set Access, AccessRole, Maybe Text, Maybe TeamId) ()
-insertConv = "insert into conversation (conv, type, creator, access, access_role, name, team) values (?, ?, ?, ?, ?, ?)"
+insertConv = "insert into conversation (conv, type, creator, access, access_role, name, team) values (?, ?, ?, ?, ?, ?, ?)"
 
 updateConvAccess :: PrepQuery W (Set Access, AccessRole, ConvId) ()
 updateConvAccess = "update conversation set access = ?, access_role = ? where conv = ?"

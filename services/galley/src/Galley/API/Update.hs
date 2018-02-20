@@ -222,6 +222,7 @@ joinConversationByReusableCode (zusr ::: zcon ::: req ::: _) = do
 joinConversationById :: UserId ::: ConnId ::: ConvId ::: JSON -> Galley Response
 joinConversationById (zusr ::: zcon ::: cnv ::: _) = joinConversation zusr zcon cnv LinkAccess
 
+
 joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley Response
 joinConversation zusr zcon cnv access = do
     c <- Data.conversation cnv >>= ifNothing convNotFound
@@ -230,9 +231,23 @@ joinConversation zusr zcon cnv access = do
         throwM convNotFound
     unless (access `elem` Data.convAccess c) $
         throwM convNotFound
+    case Data.convAccessRole c of
+        PrivateAccessRole -> throwM accessDenied
+        TeamAccessRole -> case Data.convTeam c of
+            Nothing -> throwM internalError
+            Just tid -> do
+                tms <- Data.teamMembers tid
+                unless (isTeamMember zusr tms) $
+                    throwM noTeamMember
+        VerifiedAccessRole -> do
+            u <- lookupUsers [zusr]
+            when (null u) $ throwM accessDenied
+        NonVerifiedAccessRole -> return ()
+
     let new = filter (notIsMember c) [zusr]
     ensureMemberLimit (toList $ Data.convMembers c) new
     addToConversation (botsAndUsers (Data.convMembers c)) zusr zcon new c
+
 
 addMembers :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
