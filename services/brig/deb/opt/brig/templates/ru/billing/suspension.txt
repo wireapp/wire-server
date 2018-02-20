@@ -1,0 +1,22 @@
+ВАША КОМАНДА БЫЛА ЗАБЛОКИРОВАНА
+Your account for the ${teamName} team has been suspended.
+
+Reason: ${reason}.
+
+${caption} [${url}]Если вы не можете нажать кнопку, скопируйте и вставьте эту
+ссылку в свой браузер:
+
+${url}
+
+If you don’t reactivate your account, conversation history for the team and all
+its members will be deleted.
+
+Если у вас есть вопросы, пожалуйста, свяжитесь с нами
+[https://support.wire.com/hc/en-us/requests/new].
+
+
+--------------------------------------------------------------------------------
+
+Конфиденциальность [https://wire.com/legal/] · Сообщить о злоупотреблении
+[misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.

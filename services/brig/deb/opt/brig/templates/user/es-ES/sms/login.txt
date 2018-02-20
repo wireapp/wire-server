@@ -1,3 +1,0 @@
-El código de inicio de sesion de Wire es ${code}.
-
-Abra ${url} para iniciar sesión, o introduzca este código en la aplicación de Wire: ${code}.

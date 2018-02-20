@@ -1,0 +1,19 @@
+新裝置
+您的帳號已在下列裝置被使用：
+
+${date}
+
+${model}
+
+您可能在一個新設備上安裝了 Wire，或在一個既有的設備上重新安裝了 Wire。 If that was not the case, go to Wire
+Settings, remove the device and reset your password
+[https://account.wire.com/forgot/].
+
+If you have any questions, please contact us
+[https://support.wire.com/hc/en-us/requests/new].
+
+
+--------------------------------------------------------------------------------
+
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.

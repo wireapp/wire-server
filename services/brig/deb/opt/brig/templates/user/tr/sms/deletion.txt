@@ -1,2 +1,0 @@
-Wire hesabınızı silmek için tıklayın.
-${url} 
