@@ -124,10 +124,13 @@ postConvOk g b c _ = do
     bob   <- randomUser b
     jane  <- randomUser b
     connectUsers b alice (list1 bob [jane])
+    -- Ensure name is within range, max size is 256
+    postConv g alice [bob, jane] (Just (T.replicate 257 "a")) [] !!! const 400 === statusCode
+    let nameMaxSize = T.replicate 256 "a"
     WS.bracketR3 c alice bob jane $ \(wsA, wsB, wsJ) -> do
-        rsp <- postConv g alice [bob, jane] (Just "gossip") [] <!!
+        rsp <- postConv g alice [bob, jane] (Just nameMaxSize) [] <!!
             const 201 === statusCode
-        cid <- assertConv rsp RegularConv alice alice [bob, jane] (Just "gossip")
+        cid <- assertConv rsp RegularConv alice alice [bob, jane] (Just nameMaxSize)
         cvs <- mapM (convView cid) [alice, bob, jane]
         liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs alice) (zip cvs [wsA, wsB, wsJ])
   where
