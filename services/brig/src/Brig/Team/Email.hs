@@ -33,13 +33,13 @@ sendCreatorWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> AppIO ()
 sendCreatorWelcomeMail to tid teamName loc = do
     tpl <- creatorWelcomeEmail . snd <$> teamTemplates loc
     let mail = CreatorWelcomeEmail to tid teamName
-    Aws.sendMail $ renderCreatorWelcomeMail mail tpl
+    Email.sendMail $ renderCreatorWelcomeMail mail tpl
 
 sendMemberWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> AppIO ()
 sendMemberWelcomeMail to tid teamName loc = do
     tpl <- memberWelcomeEmail . snd <$> teamTemplates loc
     let mail = MemberWelcomeEmail to tid teamName
-    Aws.sendMail $ renderMemberWelcomeMail mail tpl
+    Email.sendMail $ renderMemberWelcomeMail mail tpl
 
 -------------------------------------------------------------------------------
 -- Invitation Email
