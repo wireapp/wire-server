@@ -53,9 +53,9 @@ if new_version != current_version and pr_branch_name:
     shutil.rmtree(templates)
   shutil.move(dist, templates)
 
-  for root, subdirs, files in os.walk(templates):
-    if root.split(os.sep)[-1] in IGNORE_DIRS:
-      shutil.rmtree(root)
+  for root_, subdirs, files in os.walk(templates):
+    if root_.split(os.sep)[-1] in IGNORE_DIRS:
+      shutil.rmtree(root_)
 
   shutil.rmtree(emails)
   shutil.copy(new_version_file, current_version_file)
