@@ -1,0 +1,19 @@
+YENI CIHAZ
+Wire hesabınız daha önce şurada kullanılmış:
+
+${date}
+
+${model}
+
+Wire'ı yeni bir cihaz üzerine yüklemiş olabilir ya da mevcut cihazınıza tekrar
+yüklemiş olabilirsiniz. If that was not the case, go to Wire Settings, remove
+the device and reset your password [https://account.wire.com/forgot/].
+
+If you have any questions, please contact us
+[https://support.wire.com/hc/en-us/requests/new].
+
+
+--------------------------------------------------------------------------------
+
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.

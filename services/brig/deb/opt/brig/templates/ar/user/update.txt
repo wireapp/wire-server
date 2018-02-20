@@ -1,0 +1,17 @@
+VERIFY YOUR EMAIL
+${email} was registered as your new email address on Wire. Click the button
+below to verify your address.
+
+Verify [${url}]If you can’t click the button, copy and paste this link to your
+browser:
+
+${url}
+
+If you have any questions, please contact us
+[https://support.wire.com/hc/en-us/requests/new].
+
+
+--------------------------------------------------------------------------------
+
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.

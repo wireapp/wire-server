@@ -1,3 +1,0 @@
-Dein Wire Code ist ${code}.
-
-Zum Bestätigen, öffne ${url} oder gib den Code in der Wire-App ein.
