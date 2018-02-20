@@ -34,7 +34,6 @@ current_version_file = os.path.join(templates, 'version')
 os.chdir(root)
 
 pr_branch_name = os.environ.get('TRAVIS_PULL_REQUEST_BRANCH')
-print 'Branch name', pr_branch_name
 
 with open(new_version_file) as f:
   new_version = f.readline().replace('\n', '').strip()
@@ -57,5 +56,5 @@ if new_version != current_version and pr_branch_name:
   os.chdir(root)
   os.system('git add .')
   os.system('git commit -m "Otto build emails"')
-  os.system('git checkout %s' % pr_branch_name)
+  os.system('git checkout -b %s' % pr_branch_name)
   os.system('git push git@github.com:wireapp/wire-server.git %s' % pr_branch_name)
