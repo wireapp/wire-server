@@ -1,0 +1,19 @@
+NOVO DISPOSITIVO
+Sua conta Wire foi usada em:
+
+${date}
+
+${model}
+
+Você pode ter instalado o Wire em um dispositivo novo ou instalado novamente em
+um já existente. If that was not the case, go to Wire Settings, remove the
+device and reset your password [https://account.wire.com/forgot/].
+
+If you have any questions, please contact us
+[https://support.wire.com/hc/en-us/requests/new].
+
+
+--------------------------------------------------------------------------------
+
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.

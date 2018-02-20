@@ -1,0 +1,28 @@
+VÉRIFICATION DE VOTRE ADRESSE EMAIL
+Votre adresse e-mail ${email} a été utilisée pour une inscription en tant que
+fournisseur de service Wire.
+
+Pour terminer l’inscription, vous devez vérifier votre adresse e-mail en
+cliquant sur le bouton ci-dessous.
+
+Please note that upon successful verification of your e-mail, your Wire service
+provider account is still subject to approval through our staff, which usually
+happens within 24 hours. You will be informed of the approval via a separate
+e-mail.
+
+Verify [${url}]If you can’t click the button, copy and paste this link to your
+browser:
+
+${url}
+
+If you didn’t register for a Wire service provider account using this e-mail
+address, you can safely ignore this message. If you want to report abuse of your
+e-mail address, please contact us. [https://support.wire.com/hc/requests/new]
+
+Please don’t reply to this message.
+
+
+--------------------------------------------------------------------------------
+
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.

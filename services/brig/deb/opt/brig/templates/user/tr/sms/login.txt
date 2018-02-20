@@ -1,3 +1,0 @@
-Wire giriş kodunuz ${code}.
-
-Giriş yapmak için ${url} adresine gidebilir ya da bu kodu Wire uygulamasına girebilirsiniz: ${code}.

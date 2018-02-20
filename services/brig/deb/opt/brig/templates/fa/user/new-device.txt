@@ -1,0 +1,19 @@
+دستگاه جدید
+حساب کاربری Wire شما مورد استفاده قرار گرفته در:
+
+${date}
+
+${model}
+
+ممکن است حساب کاربری Wire شما در یک دستگاه جدید مورد استفاده قرار گرفته باشد یا
+دوباره برنامه نصب شده باشد. If that was not the case, go to Wire Settings,
+remove the device and reset your password [https://account.wire.com/forgot/].
+
+If you have any questions, please contact us
+[https://support.wire.com/hc/en-us/requests/new].
+
+
+--------------------------------------------------------------------------------
+
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.
