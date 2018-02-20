@@ -1,0 +1,31 @@
+APPROVAL REQUEST
+A new Wire service provider has registered and is awaiting approval. Please
+review the information provided below.
+
+Name: ${name}
+
+E-mail: ${email}
+
+Website: ${url}
+
+Description: ${description}
+
+If the request seems genuine, you can approve the provider by clicking on the
+button below. Once approved, the provider will be able to sign in and start
+registering services that Wire users can add to their conversations.
+
+If the request seems dubious, please contact the provider for clarifications
+before proceeding.
+
+Approve [${url}]If you can’t click the button, copy and paste this link to your
+browser:
+
+${url}
+
+Please don’t reply to this message.
+
+
+--------------------------------------------------------------------------------
+
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.

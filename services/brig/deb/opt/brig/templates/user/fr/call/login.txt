@@ -1,1 +1,0 @@
-Votre code de connexion Wire est ${code}.
