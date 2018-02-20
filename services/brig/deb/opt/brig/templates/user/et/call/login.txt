@@ -1,1 +1,0 @@
-Hei, sinu Wire sisselogimiskood on:  ${code} Kordan, sinu kood on: ${code}
