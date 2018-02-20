@@ -1,3 +1,0 @@
-${name}:
-Wire'dayım, oradan konuşuruz seninle.
-${url}

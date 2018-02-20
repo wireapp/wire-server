@@ -1,17 +1,0 @@
-Wire
-
-
-Hi ${name},
-
-We’ve received a request to delete your Wire account. Visit the link below within 10 minutes to delete all your conversations, content and connections. 
-
-${url}
-
-If you didn’t request this, reset your password.
-
-The Wire team
-
-
-(c) Wire Swiss GmbH
-
-Privacy Policy  |  Report misuse
