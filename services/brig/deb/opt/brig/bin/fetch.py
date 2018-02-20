@@ -61,6 +61,6 @@ if new_version != current_version and pr_branch_name:
   shutil.copy(new_version_file, current_version_file)
   os.chdir(root)
   os.system('git add .')
-  os.system('git commit -m "Otto build emails"')
+  os.system('git commit -m "Otto build emails (%s)"' % new_version)
   os.system('git checkout -b %s' % pr_branch_name)
   os.system('git push git@github.com:wireapp/wire-server.git %s' % pr_branch_name)
