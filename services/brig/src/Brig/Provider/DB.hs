@@ -14,6 +14,7 @@ import Cassandra
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Monad (when)
+import Control.Monad.IO.Class
 import Data.Foldable (for_, toList)
 import Data.Function (on)
 import Data.Functor.Identity
@@ -22,7 +23,7 @@ import Data.Int
 import Data.List1 (List1)
 import Data.List (unfoldr, minimumBy, uncons)
 import Data.Maybe (catMaybes, fromMaybe, mapMaybe)
-import Data.Misc (Fingerprint, Rsa)
+import Data.Misc
 import Data.Range (Range, fromRange, rnil, rcast)
 import Data.Text (Text, toLower, isPrefixOf)
 
@@ -110,21 +111,37 @@ deleteAccount pid = retry x5 $ write cql $ params Quorum (Identity pid)
     cql :: PrepQuery W (Identity ProviderId) ()
     cql = "DELETE FROM provider WHERE id = ?"
 
+updateAccountPassword :: MonadClient m
+    => ProviderId
+    -> PlainTextPassword
+    -> m ()
+updateAccountPassword pid pwd = do
+    p <- liftIO $ mkSafePassword pwd
+    retry x5 $ write cql $ params Quorum (p, pid)
+  where
+    cql :: PrepQuery W (Password, ProviderId) ()
+    cql = "UPDATE provider SET password = ? where id = ?"
+
 --------------------------------------------------------------------------------
 -- Unique (Natural) Keys
 
 insertKey :: MonadClient m
     => ProviderId
+    -> Maybe EmailKey
     -> EmailKey
     -> m ()
-insertKey p k = retry x5 $ batch $ do
+insertKey p old new = retry x5 $ batch $ do
     setConsistency Quorum
     setType BatchLogged
-    addPrepQuery cqlKey   (emailKeyUniq k, p)
-    addPrepQuery cqlEmail (emailKeyOrig k, p)
+    for_ old $ \old' -> addPrepQuery cqlKeyDelete (Identity (emailKeyUniq old'))
+    addPrepQuery cqlKeyInsert (emailKeyUniq new, p)
+    addPrepQuery cqlEmail     (emailKeyOrig new, p)
   where
-    cqlKey :: PrepQuery W (Text, ProviderId) ()
-    cqlKey = "INSERT INTO provider_keys (key, provider) VALUES (?, ?)"
+    cqlKeyInsert :: PrepQuery W (Text, ProviderId) ()
+    cqlKeyInsert = "INSERT INTO provider_keys (key, provider) VALUES (?, ?)"
+
+    cqlKeyDelete :: PrepQuery W (Identity Text) ()
+    cqlKeyDelete = "DELETE FROM provider_keys WHERE key = ?"
 
     cqlEmail :: PrepQuery W (Email, ProviderId) ()
     cqlEmail = "UPDATE provider SET email = ? WHERE id = ?"

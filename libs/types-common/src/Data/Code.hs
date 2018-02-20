@@ -31,6 +31,10 @@ newtype Timeout = Timeout
     { timeoutDiffTime :: NominalDiffTime }
     deriving (Eq, Show, Ord, Enum, Num, Fractional, Real, RealFrac)
 
+-- | A 'Timeout' is rendered as an integer representing the number of seconds remaining.
+instance ToByteString Timeout where
+    builder (Timeout t) = builder (round t :: Int32)
+
 -- | A 'Timeout' is rendered in JSON as an integer representing the
 -- number of seconds remaining.
 instance ToJSON Timeout where

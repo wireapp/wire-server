@@ -83,6 +83,7 @@ data ProviderOpts = ProviderOpts
     , providerActivationUrl :: !Text
     , approvalUrl           :: !Text
     , approvalTo            :: !Email
+    , providerPwResetUrl    :: !Text
     } deriving (Show, Generic)
 
 instance FromJSON ProviderOpts
@@ -269,7 +270,10 @@ optsParser =
        help "Provider Approval URL template") <*>
       (emailOption $
        long "provider-approval-to" <> metavar "STRING" <>
-       help "Provider approval email recipient")) <*>
+       help "Provider approval email recipient") <*>
+      (textOption $
+       long "provider-password-reset-url" <> metavar "URL" <>
+       help "Provider Password reset URL template")) <*>
      (TeamOpts <$>
       (textOption $
        long "team-invitation-url" <> metavar "URL" <>

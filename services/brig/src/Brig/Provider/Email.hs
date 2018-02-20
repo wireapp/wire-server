@@ -5,6 +5,7 @@ module Brig.Provider.Email
     ( sendActivationMail
     , sendApprovalRequestMail
     , sendApprovalConfirmMail
+    , sendPasswordResetMail
     ) where
 
 import Brig.App
@@ -24,11 +25,14 @@ import qualified Data.Text.Lazy     as LT
 -------------------------------------------------------------------------------
 -- Activation Email
 
-sendActivationMail :: Name -> Email -> Code.Key -> Code.Value -> AppIO ()
-sendActivationMail name email key code = do
-    tpl <- activationEmail . snd <$> providerTemplates Nothing
+sendActivationMail :: Name -> Email -> Code.Key -> Code.Value -> Bool -> AppIO ()
+sendActivationMail name email key code update = do
+    tpl <- selectTemplate update . snd <$> providerTemplates Nothing
     let mail = ActivationEmail email name key code
     sendMail $ renderActivationMail mail tpl
+  where
+    selectTemplate True  = activationEmailUpdate
+    selectTemplate False = activationEmail
 
 data ActivationEmail = ActivationEmail
     { acmTo   :: !Email
@@ -155,3 +159,48 @@ renderApprovalConfirmMail ApprovalConfirmEmail{..} ApprovalConfirmEmailTemplate{
     replace "name"    = fromName apcName
     replace x         = x
 
+--------------------------------------------------------------------------------
+-- Password Reset Email
+
+sendPasswordResetMail :: Email -> Code.Key -> Code.Value -> AppIO ()
+sendPasswordResetMail to key code = do
+    tpl <- passwordResetEmail . snd <$> providerTemplates Nothing
+    let mail = PasswordResetEmail to key code
+    sendMail $ renderPwResetMail mail tpl
+
+data PasswordResetEmail = PasswordResetEmail
+    { pwrTo   :: !Email
+    , pwrKey  :: !Code.Key
+    , pwrCode :: !Code.Value
+    }
+
+renderPwResetMail :: PasswordResetEmail -> PasswordResetEmailTemplate -> Mail
+renderPwResetMail PasswordResetEmail{..} PasswordResetEmailTemplate{..} =
+    (emptyMail from)
+        { mailTo      = [ to ]
+        , mailHeaders = [ ("Subject", LT.toStrict subj)
+                        , ("X-Zeta-Purpose", "ProviderPasswordReset")
+                        , ("X-Zeta-Key", Ascii.toText (fromRange key))
+                        , ("X-Zeta-Code", Ascii.toText (fromRange code))
+                        ]
+        , mailParts   = [ [ plainPart txt, htmlPart html ] ]
+        }
+  where
+    (Code.Key key, Code.Value code) = (pwrKey, pwrCode)
+
+    from = Address (Just "Wire") (fromEmail passwordResetEmailSender)
+    to   = Address Nothing (fromEmail pwrTo)
+    txt  = renderText passwordResetEmailBodyText replace
+    html = renderHtml passwordResetEmailBodyHtml replace
+    subj = renderText passwordResetEmailSubject  replace
+
+    replace "url" = renderPwResetUrl passwordResetEmailUrl pwrKey pwrCode
+    replace x     = x
+
+renderPwResetUrl :: Template -> Code.Key -> Code.Value -> Text
+renderPwResetUrl t (Code.Key k) (Code.Value v) =
+    LT.toStrict $ renderText t replace
+  where
+    replace "key"  = Ascii.toText (fromRange k)
+    replace "code" = Ascii.toText (fromRange v)
+    replace x      = x
