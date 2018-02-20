@@ -24,8 +24,6 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf8')
 
-IGNORE_DIRS = ['billing', 'marketing']
-
 root = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 emails = os.path.join(root, 'wire-emails')
 templates = os.path.join(root, 'templates')
@@ -52,11 +50,6 @@ if new_version != current_version and pr_branch_name:
   if os.path.exists(templates):
     shutil.rmtree(templates)
   shutil.move(dist, templates)
-
-  for directory in IGNORE_DIRS:
-    if os.path.exists(os.path.join(templates, directory)):
-      shutil.rmtree(os.path.join(templates, directory))
-
   shutil.rmtree(emails)
   shutil.copy(new_version_file, current_version_file)
   os.chdir(root)
