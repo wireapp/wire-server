@@ -8,7 +8,7 @@ module API.Provider (tests, Config) where
 
 import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
-import Brig.Types
+import Brig.Types hiding (NewPasswordReset (..), CompletePasswordReset(..), EmailUpdate (..), PasswordReset (..), PasswordChange (..))
 import Brig.Types.Provider
 import Brig.Types.Provider.Tag
 import Control.Concurrent.Chan
@@ -87,10 +87,13 @@ tests conf p db b c g = do
     crt <- optOrEnv cert conf id "TEST_CERT"
     return $ testGroup "provider"
         [ testGroup "account"
-            [ test p "register" $ testRegisterProvider db b
-            , test p "login"    $ testLoginProvider db b
-            , test p "update"   $ testUpdateProvider db b
-            , test p "delete"   $ testDeleteProvider db b
+            [ test p "register"       $ testRegisterProvider db b
+            , test p "login"          $ testLoginProvider db b
+            , test p "update"         $ testUpdateProvider db b
+            , test p "delete"         $ testDeleteProvider db b
+            , test p "password-reset" $ testPasswordResetProvider db b
+            , test p "email/password update with password reset" 
+                                      $ testPasswordResetAfterEmailUpdateProvider db b
             ]
         , testGroup "service"
             [ test p "add-get fail (bad key)" $ testAddGetServiceBadKey conf db b
@@ -213,6 +216,72 @@ testDeleteProvider db brig = do
     let new = defNewProvider (providerEmail prv)
     registerProvider brig new !!!
         const 201 === statusCode
+
+testPasswordResetProvider :: DB.ClientState -> Brig -> Http ()
+testPasswordResetProvider db brig = do
+    prv <- randomProvider db brig
+
+    let email = providerEmail prv
+    initiatePasswordResetProvider brig (PasswordReset email) !!! const 201 === statusCode
+    let newPw = PlainTextPassword "newsupersecret"
+    
+    -- Get the code directly from the DB
+    gen <- Code.mkGen (Code.ForEmail email)
+    Just vcode <- lookupCode db gen Code.PasswordReset
+    
+    let passwordResetData = CompletePasswordReset (Code.codeKey vcode)
+                                                  (Code.codeValue vcode)
+                                                  newPw
+    completePasswordResetProvider brig passwordResetData !!! const 200 === statusCode
+
+    loginProvider brig email defProviderPassword !!!
+        const 403 === statusCode
+    loginProvider brig email newPw !!!
+        const 200 === statusCode
+
+testPasswordResetAfterEmailUpdateProvider :: DB.ClientState -> Brig -> Http ()
+testPasswordResetAfterEmailUpdateProvider db brig = do
+    newEmail <- mkEmail "success@simulator.amazonses.com"
+    prv <- randomProvider db brig
+    let pid = providerId prv
+    let origEmail = providerEmail prv
+    initiateEmailUpdateProvider brig pid (EmailUpdate newEmail) !!! const 202 === statusCode
+    initiatePasswordResetProvider brig (PasswordReset origEmail) !!! const 201 === statusCode
+
+    -- Get password reset code directly from the DB
+    genOrig <- Code.mkGen (Code.ForEmail origEmail)
+    Just vcodePw <- lookupCode db genOrig Code.PasswordReset
+    
+    let passwordResetData = CompletePasswordReset (Code.codeKey vcodePw)
+                                                  (Code.codeValue vcodePw)
+                                                  (PlainTextPassword "doesnotmatter")
+
+    -- Activate the new email
+    genNew <- Code.mkGen (Code.ForEmail newEmail)
+    Just vcodeEm <- lookupCode db genNew Code.IdentityVerification
+    activateProvider brig (Code.codeKey vcodeEm) (Code.codeValue vcodeEm) !!!
+        const 200 === statusCode
+
+    Just p <- decodeBody <$> (getProvider brig pid <!! const 200 === statusCode)
+    liftIO $ assertEqual "email" newEmail (providerEmail p)
+
+    -- attempting to complete password reset should fail
+    completePasswordResetProvider brig passwordResetData !!! const 403 === statusCode
+
+    -- ensure you can login with the new email address and not with the old one
+    loginProvider brig origEmail defProviderPassword !!! const 403 === statusCode
+    loginProvider brig newEmail defProviderPassword !!! const 200 === statusCode
+
+    -- exercise the password change endpoint
+    let newPass = PlainTextPassword "newpass"
+    let pwChangeFail = PasswordChange (PlainTextPassword "notcorrect") newPass
+    updateProviderPassword brig pid pwChangeFail !!! const 403 === statusCode
+    let pwChange = pwChangeFail { cpOldPassword = defProviderPassword }
+    updateProviderPassword brig pid pwChange !!! const 200 === statusCode
+
+    -- Check the login process again
+    loginProvider brig newEmail defProviderPassword !!! const 403 === statusCode
+    loginProvider brig newEmail newPass !!! const 200 === statusCode
 
 -------------------------------------------------------------------------------
 -- Provider Services
@@ -648,6 +717,48 @@ updateProvider brig pid upd = put $ brig
     . header "Z-Provider" (toByteString' pid)
     . contentJson
     . body (RequestBodyLBS (encode upd))
+
+updateProviderPassword
+    :: Brig
+    -> ProviderId
+    -> PasswordChange
+    -> Http ResponseLBS
+updateProviderPassword brig pid upd = put $ brig
+    . path "/provider/password"
+    . header "Z-Type" "provider"
+    . header "Z-Provider" (toByteString' pid)
+    . contentJson
+    . body (RequestBodyLBS (encode upd))
+
+initiateEmailUpdateProvider
+    :: Brig
+    -> ProviderId
+    -> EmailUpdate
+    -> Http ResponseLBS
+initiateEmailUpdateProvider brig pid upd = put $ brig
+    . path "/provider/email"
+    . header "Z-Type" "provider"
+    . header "Z-Provider" (toByteString' pid)
+    . contentJson
+    . body (RequestBodyLBS (encode upd))
+
+initiatePasswordResetProvider
+    :: Brig
+    -> PasswordReset
+    -> Http ResponseLBS
+initiatePasswordResetProvider brig npr = post $ brig
+    . path "/provider/password-reset"
+    . contentJson
+    . body (RequestBodyLBS (encode npr))
+
+completePasswordResetProvider
+    :: Brig
+    -> CompletePasswordReset
+    -> Http ResponseLBS
+completePasswordResetProvider brig e = post $ brig
+    . path "/provider/password-reset/complete"
+    . contentJson
+    . body (RequestBodyLBS (encode e))
 
 deleteProvider
     :: Brig
