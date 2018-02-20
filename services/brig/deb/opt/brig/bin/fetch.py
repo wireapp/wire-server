@@ -57,4 +57,5 @@ if new_version != current_version and pr_branch_name:
   os.chdir(root)
   os.system('git add .')
   os.system('git commit -m "Otto build emails"')
+  os.system('git checkout %s' % pr_branch_name)
   os.system('git push git@github.com:wireapp/wire-server.git %s' % pr_branch_name)
