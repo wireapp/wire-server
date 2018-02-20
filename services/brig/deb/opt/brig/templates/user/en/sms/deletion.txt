@@ -1,2 +1,0 @@
-Tap to delete your Wire account.
-${url} 
