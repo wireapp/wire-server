@@ -155,7 +155,7 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
         tcv <- Data.teamConversation tid cnv
         when (maybe False (view managedConversation) tcv) $
             throwM invalidManagedConvOp
-        -- remove non-team users if target access is the empty list
+        -- remove non-team users if target role is TeamAccessRole
         when (targetRole == TeamAccessRole) $
             removeNonTeamMembers tMembers users bots conv
 
@@ -175,11 +175,13 @@ pushEvent e users bots zcon = do
         push1 $ p & pushConn ?~ zcon
     void . fork $ void $ External.deliver (bots `zip` repeat e)
 
+
 addCode :: UserId ::: ConnId ::: ConvId -> Galley Response
 addCode (usr ::: zcon ::: cnv) = do
-    ensureUser usr cnv
-    ensureCodeAccess cnv
-    (bots, users) <- botsAndUsers <$> Data.members cnv
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    ensureConvMember (Data.convMembers conv) usr
+    ensureAccess conv CodeAccess
+    let (bots, users) = botsAndUsers $ Data.convMembers conv
     c <- generate cnv ReusableCode (Timeout 3600 * 24 * 365) -- one year TODO: configurable
     Data.insertCode c
     now <- liftIO getCurrentTime
@@ -191,9 +193,10 @@ addCode (usr ::: zcon ::: cnv) = do
 
 rmCode :: UserId ::: ConnId ::: ConvId -> Galley Response
 rmCode (usr ::: zcon ::: cnv) = do
-    ensureUser usr cnv
-    ensureCodeAccess cnv
-    (bots, users) <- botsAndUsers <$> Data.members cnv
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    ensureConvMember (Data.convMembers conv) usr
+    ensureAccess conv CodeAccess
+    let (bots, users) = botsAndUsers $ Data.convMembers conv
     key <- mkKey cnv
     Data.deleteCode key ReusableCode
     now <- liftIO getCurrentTime
@@ -203,8 +206,9 @@ rmCode (usr ::: zcon ::: cnv) = do
 
 getCode :: UserId ::: ConvId -> Galley Response
 getCode (usr ::: cnv) = do
-    ensureUser usr cnv
-    ensureCodeAccess cnv
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    ensureAccess conv CodeAccess
+    ensureConvMember (Data.convMembers conv) usr
     key <- mkKey cnv
     c <- Data.lookupCode key ReusableCode >>= ifNothing codeNotFound
     returnCode c
@@ -224,18 +228,16 @@ joinConversationByReusableCode (zusr ::: zcon ::: req ::: _) = do
 joinConversationById :: UserId ::: ConnId ::: ConvId ::: JSON -> Galley Response
 joinConversationById (zusr ::: zcon ::: cnv ::: _) = joinConversation zusr zcon cnv LinkAccess
 
-
 joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley Response
 joinConversation zusr zcon cnv access = do
-    c <- Data.conversation cnv >>= ifNothing convNotFound
-    when (Data.isConvDeleted c) $ do
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    when (Data.isConvDeleted conv) $ do
         Data.deleteConversation cnv
         throwM convNotFound
-    unless (access `elem` Data.convAccess c) $
-        throwM accessDenied
-    case Data.convAccessRole c of
+    ensureAccess conv access
+    case Data.convAccessRole conv of
         PrivateAccessRole -> throwM accessDenied
-        TeamAccessRole -> case Data.convTeam c of
+        TeamAccessRole -> case Data.convTeam conv of
             Nothing -> throwM internalError
             Just tid -> do
                 tms <- Data.teamMembers tid
@@ -246,9 +248,9 @@ joinConversation zusr zcon cnv access = do
             when (null u) $ throwM accessDenied
         NonVerifiedAccessRole -> return ()
 
-    let new = filter (notIsMember c) [zusr]
-    ensureMemberLimit (toList $ Data.convMembers c) new
-    addToConversation (botsAndUsers (Data.convMembers c)) zusr zcon new c
+    let newUsers = filter (notIsMember conv) [zusr]
+    ensureMemberLimit (toList $ Data.convMembers conv) newUsers
+    addToConversation (botsAndUsers (Data.convMembers conv)) zusr zcon newUsers conv
 
 
 addMembers :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
@@ -268,8 +270,7 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
     addToConversation mems zusr zcon newUsers conv
   where
     regularConvChecks mems newUsers conv = do
-        unless (zusr `isMember` mems) $
-            throwM convNotFound
+        ensureConvMember mems zusr
         ensureConnected zusr newUsers
         unless (InviteAccess `elem` Data.convAccess conv) $
             throwM accessDenied
@@ -284,6 +285,7 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
         ensureConnected zusr guests
         unless (InviteAccess `elem` Data.convAccess conv || null guests) $
             throwM accessDenied
+
 
 updateMember :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateMember (zusr ::: zcon ::: cid ::: req ::: _) = do
@@ -561,17 +563,20 @@ ensureMemberLimit old new = do
 notIsMember :: Data.Conversation -> UserId -> Bool
 notIsMember cc u = not $ isMember u (Data.convMembers cc)
 
-ensureUser :: UserId -> ConvId -> Galley ()
-ensureUser usr cnv = do
-    (_, users) <- botsAndUsers <$> Data.members cnv
+ensureConvMember :: [Member] -> UserId -> Galley ()
+ensureConvMember users usr =
     unless (usr `isMember` users) $
         throwM convNotFound
 
 ensureCodeAccess :: ConvId -> Galley ()
 ensureCodeAccess cnv = do
     conv <- Data.conversation cnv >>= ifNothing convNotFound
-    unless (CodeAccess `elem` (convAccess conv)) $
-        throwM invalidAccessOp
+    ensureAccess conv CodeAccess
+
+ensureAccess :: Data.Conversation -> Access -> Galley ()
+ensureAccess conv access =
+    unless (access `elem` Data.convAccess conv) $
+        throwM accessDenied
 
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation
