@@ -18,4 +18,4 @@ before_script:
   - rm -rf temp
 
 script:
-   - 'if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then yarn emails; fi'
+   - 'if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then yarn update:emails; fi'

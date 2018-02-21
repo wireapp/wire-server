@@ -3,6 +3,6 @@
   "license": "GPL-3.0",
   "private": true,
   "scripts": {
-    "emails": "python services/brig/deb/opt/brig/bin/fetch.py"
+    "update:emails": "python services/brig/deb/opt/brig/bin/fetch.py"
   }
 }
