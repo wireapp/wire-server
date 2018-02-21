@@ -341,6 +341,7 @@ postJoinCodeConvOk g b c _ = do
     alice <- randomUser b
     bob   <- randomUser b
     eve   <- ephemeralUser b
+    dave  <- ephemeralUser b
     conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [CodeAccess] (Just VerifiedAccessRole)
     cCode <- decodeConvCodeEvent <$> postConvCode g alice conv
     -- currently ConversationCode is used both as return type for POST ../code and as body for ../join
@@ -352,15 +353,22 @@ postJoinCodeConvOk g b c _ = do
     -- with VerifiedAccess, bob can join, but not eve
     WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
         postJoinCodeConv g bob payload !!! const 200 === statusCode
+        -- test no-op
         postJoinCodeConv g bob payload !!! const 204 === statusCode
+        -- eve cannot join
         postJoinCodeConv g eve payload !!! const 403 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
             wsAssertMemberJoin conv bob [bob]
 
-        -- changing access to non-verified, should give eve access
+        -- changing access to non-verified should give eve access
         let nonVerifiedAccess = ConversationAccessUpdate [CodeAccess] NonVerifiedAccessRole
         putAccessUpdate g alice conv nonVerifiedAccess !!! const 200 === statusCode
         postJoinCodeConv g eve payload !!! const 200 === statusCode
+
+        -- after removing CodeAccess, no further people can join
+        let noCodeAccess = ConversationAccessUpdate [InviteAccess] NonVerifiedAccessRole
+        putAccessUpdate g alice conv noCodeAccess !!! const 200 === statusCode
+        postJoinCodeConv g dave payload !!! const 404 === statusCode
 
 postConvertCodeConv :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postConvertCodeConv g b c _ = do
@@ -370,17 +378,17 @@ postConvertCodeConv g b c _ = do
     postConvCode g alice conv !!! const 403 === statusCode
     deleteConvCode g alice conv !!! const 403 === statusCode
     getConvCode g alice conv !!! const 403 === statusCode
-    -- cannot change to NoAccess as not a team conversation
-    let teamAccess = ConversationAccessUpdate [] TeamAccessRole
+    -- cannot change to TeamAccessRole as not a team conversation
+    let teamAccess = ConversationAccessUpdate [InviteAccess] TeamAccessRole
     putAccessUpdate g alice conv teamAccess !!! const 403 === statusCode
     -- change access
     WS.bracketR c alice $ \wsA -> do
-        let codeAccess = ConversationAccessUpdate [InviteAccess, CodeAccess] TeamAccessRole
-        putAccessUpdate g alice conv codeAccess !!! const 200 === statusCode
+        let nonVerifiedAccess = ConversationAccessUpdate [InviteAccess, CodeAccess] NonVerifiedAccessRole
+        putAccessUpdate g alice conv nonVerifiedAccess !!! const 200 === statusCode
         -- test no-op
-        putAccessUpdate g alice conv codeAccess !!! const 204 === statusCode
+        putAccessUpdate g alice conv nonVerifiedAccess !!! const 204 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA] $
-            wsAssertConvAccessUpdate conv alice codeAccess
+            wsAssertConvAccessUpdate conv alice nonVerifiedAccess
     -- Create/get/update/delete codes
     getConvCode g alice conv !!! const 404 === statusCode
     c1 <- decodeConvCodeEvent <$> postConvCode g alice conv
@@ -392,11 +400,17 @@ postConvertCodeConv g b c _ = do
     liftIO $ assertEqual "c2 c2' codes should match" c2 c2'
     deleteConvCode g alice conv !!! const 200 === statusCode
     getConvCode g alice conv !!! const 404 === statusCode
+    -- create a new code; then revoking CodeAccess should make existing codes invalid
+    void $ postConvCode g alice conv
+    let noCodeAccess = ConversationAccessUpdate [InviteAccess] NonVerifiedAccessRole
+    putAccessUpdate g alice conv noCodeAccess !!! const 200 === statusCode
+    getConvCode g alice conv !!! const 403 === statusCode
 
 
 postConvertTeamConv :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postConvertTeamConv g b c setup = do
-    -- create team conversation team-alice, team-bob, guest-eve
+    -- Create a team conversation with team-alice, team-bob, verified-eve
+    -- Non-verified mallory can join
     let a = awsEnv setup
     alice <- randomUser b
     tid   <- createTeamInternal g "foo" alice
@@ -409,9 +423,9 @@ postConvertTeamConv g b c setup = do
     eve  <- randomUser b
     connectUsers b alice (singleton eve)
     let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
-    conv <- createTeamConv g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa") acc
+    conv <- createTeamConvAccess g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa") acc (Just NonVerifiedAccessRole)
     -- mallory joins by herself
-    mallory  <- randomUser b
+    mallory  <- ephemeralUser b
     j <- decodeConvCodeEvent <$> postConvCode g alice conv
     WS.bracketR3 c alice bob eve $ \(wsA, wsB, wsE) -> do
         postJoinCodeConv g mallory j !!! const 200 === statusCode
@@ -419,15 +433,15 @@ postConvertTeamConv g b c setup = do
             wsAssertMemberJoin conv mallory [mallory]
 
     WS.bracketRN c [alice, bob, eve, mallory] $ \[wsA, wsB, wsE, wsM] -> do
-        let teamAccess = ConversationAccessUpdate [] TeamAccessRole
+        let teamAccess = ConversationAccessUpdate [InviteAccess, CodeAccess] TeamAccessRole
         putAccessUpdate g alice conv teamAccess !!! const 200 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
             wsAssertConvAccessUpdate conv alice teamAccess
         -- non-team members get kicked out
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
             wsAssertMemberLeave conv alice [eve, mallory]
-        -- joining is no longer possible
-        postJoinCodeConv g mallory j !!! const 404 === statusCode
+        -- joining (for mallory) is no longer possible
+        postJoinCodeConv g mallory j !!! const 403 === statusCode
 
 postJoinConvFail :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postJoinConvFail g b _ _ = do
@@ -758,8 +772,7 @@ accessConvMeta g b _ _ = do
     chuck <- randomUser b
     connectUsers b alice (list1 bob [chuck])
     conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") [] Nothing
-    -- VerifiedAccessRole?
-    let meta = ConversationMeta conv RegularConv alice [InviteAccess] TeamAccessRole (Just "gossip") Nothing
+    let meta = ConversationMeta conv RegularConv alice [InviteAccess] VerifiedAccessRole (Just "gossip") Nothing
     get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
         const 200         === statusCode
         const (Just meta) === (decode <=< responseBody)

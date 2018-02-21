@@ -143,9 +143,12 @@ addTeamMemberInternal g tid mem = do
     post (g . paths ["i", "teams", toByteString' tid, "members"] . payload) !!!
         const 200 === statusCode
 
-createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access)-> Http ConvId
-createTeamConv g u tinfo us name acc = do
-    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo)
+createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Http ConvId
+createTeamConv g u tinfo us name acc = createTeamConvAccess g u tinfo us name acc Nothing
+
+createTeamConvAccess :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Http ConvId
+createTeamConvAccess g u tinfo us name acc role = do
+    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo)
     r <- post ( g
               . path "/conversations"
               . zUser u

@@ -232,7 +232,7 @@ joinConversation zusr zcon cnv access = do
         Data.deleteConversation cnv
         throwM convNotFound
     unless (access `elem` Data.convAccess c) $
-        throwM convNotFound
+        throwM accessDenied
     case Data.convAccessRole c of
         PrivateAccessRole -> throwM accessDenied
         TeamAccessRole -> case Data.convTeam c of
