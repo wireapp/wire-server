@@ -104,12 +104,21 @@ mkEnv lgr mgr opts = do
     q <- getQueueUrl e (opts^.awsQueueName)
     return (Env e g q)
   where
-    sqs e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) SQS.sqs
+    -- sqs e = SQS.sqs & AWS.serviceEndpoint .~ AWS.Endpoint (e^.awsHost) (e^.awsSecure) (e^.awsPort) (e^.awsScope)
+    -- mkAwsEnv g =  set AWS.envLogger (awsLogger g)
+    --            .  set AWS.envRetryCheck retryCheck
+    --           <$> AWS.newEnvWith AWS.Discover Nothing mgr
+    --           <&> AWS.configure (sqs (opts^.awsEndpoint))
 
+    -- OR
+
+    sqs e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) SQS.sqs
     mkAwsEnv g =  set AWS.envLogger (awsLogger g)
                .  set AWS.envRetryCheck retryCheck
+               .  set AWS.envRegion AWS.Ireland
               <$> AWS.newEnvWith AWS.Discover Nothing mgr
               <&> AWS.configure (sqs (opts^.awsEndpoint))
+
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
 

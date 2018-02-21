@@ -133,7 +133,7 @@ journalOptsParser = JournalOpts
             <> help "sqs queue name to send team events")
     <*> (option parseAWSEndpoint $
             long "aws-sqs-endpoint"
-            <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443)
+            <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443 "eu-west-1")
             <> metavar "STRING"
             <> showDefault
             <> help "aws endpoint")
