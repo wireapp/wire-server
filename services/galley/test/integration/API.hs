@@ -348,12 +348,19 @@ postJoinCodeConvOk g b c _ = do
     -- POST /join expects code,key
     -- TODO: Should there be two different types?
     let payload = cCode {conversationUri = Nothing} -- unnecessary step, cCode can be posted as-is also.
+
+    -- with VerifiedAccess, bob can join, but not eve
     WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
         postJoinCodeConv g bob payload !!! const 200 === statusCode
         postJoinCodeConv g bob payload !!! const 204 === statusCode
         postJoinCodeConv g eve payload !!! const 403 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
             wsAssertMemberJoin conv bob [bob]
+
+        -- changing access to non-verified, should give eve access
+        let nonVerifiedAccess = ConversationAccessUpdate [CodeAccess] NonVerifiedAccessRole
+        putAccessUpdate g alice conv nonVerifiedAccess !!! const 200 === statusCode
+        postJoinCodeConv g eve payload !!! const 200 === statusCode
 
 postConvertCodeConv :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postConvertCodeConv g b c _ = do

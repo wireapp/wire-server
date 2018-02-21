@@ -117,8 +117,9 @@ updateConversationAccess :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON ->
 updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     body <- fromBody req invalidPayload :: Galley ConversationAccessUpdate
     let targetAccess = Set.fromList (toList (cupAccess body))
+        targetRole = cupAccessRole body
     -- checks and balances
-    when (PrivateAccess `elem` targetAccess) $
+    when (PrivateAccess `elem` targetAccess || PrivateAccessRole == targetRole) $
         throwM invalidTargetAccess
     (bots, users) <- botsAndUsers <$> Data.members cnv
     unless (usr `isMember` users) $
@@ -126,13 +127,14 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     ensureGroupConv conv
     let currentAccess = Set.fromList (toList $ Data.convAccess conv)
-    if currentAccess == targetAccess then
+        currentRole = Data.convAccessRole conv
+    if currentAccess == targetAccess && currentRole == targetRole then
         return $ empty & setStatus status204
     else do
         case Data.convTeam conv of
-            Nothing     ->  unless (InviteAccess `elem` targetAccess) $
-                                throwM invalidTargetAccess
-            Just tid    -> handleTeamConv tid targetAccess users bots conv
+            Nothing     -> when (targetRole == TeamAccessRole) $
+                               throwM invalidTargetAccess
+            Just tid    -> handleTeamConv tid targetRole users bots conv
         -- remove conversation codes if CodeAccess is revoked
         when (CodeAccess `elem` currentAccess && CodeAccess `notElem` targetAccess) $ do
             key <- mkKey cnv
@@ -144,7 +146,7 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
         pushEvent e users bots zcon
         return $ json e & setStatus status200
   where
-    handleTeamConv tid targetAccess users bots conv = do
+    handleTeamConv tid targetRole users bots conv = do
         tMembers <- Data.teamMembers tid
         -- only team members can change access mode
         unless (usr `elem` (view userId <$> tMembers)) $
@@ -154,7 +156,7 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
         when (maybe False (view managedConversation) tcv) $
             throwM invalidManagedConvOp
         -- remove non-team users if target access is the empty list
-        when (null targetAccess) $
+        when (targetRole == TeamAccessRole) $
             removeNonTeamMembers tMembers users bots conv
 
     removeNonTeamMembers :: [TeamMember] -> [Member] -> [BotMember] -> Data.Conversation -> Galley ()
