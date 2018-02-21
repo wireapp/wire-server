@@ -135,6 +135,7 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
             Nothing     -> when (targetRole == TeamAccessRole) $
                                throwM invalidTargetAccess
             Just tid    -> handleTeamConv tid targetRole users bots conv
+        -- TODO (?) remove non-verified guests if targetRole == VerifiedAccessRole && currentRole == NonVerifiedAccessRole
         -- remove conversation codes if CodeAccess is revoked
         when (CodeAccess `elem` currentAccess && CodeAccess `notElem` targetAccess) $ do
             key <- mkKey cnv
@@ -235,23 +236,10 @@ joinConversation zusr zcon cnv access = do
         Data.deleteConversation cnv
         throwM convNotFound
     ensureAccess conv access
-    case Data.convAccessRole conv of
-        PrivateAccessRole -> throwM accessDenied
-        TeamAccessRole -> case Data.convTeam conv of
-            Nothing -> throwM internalError
-            Just tid -> do
-                tms <- Data.teamMembers tid
-                unless (isTeamMember zusr tms) $
-                    throwM noTeamMember
-        VerifiedAccessRole -> do
-            u <- lookupUsers [zusr]
-            when (null u) $ throwM accessDenied
-        NonVerifiedAccessRole -> return ()
-
+    ensureAccessRole conv [zusr]
     let newUsers = filter (notIsMember conv) [zusr]
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
     addToConversation (botsAndUsers (Data.convMembers conv)) zusr zcon newUsers conv
-
 
 addMembers :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
@@ -264,17 +252,15 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
     toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers body)
     let newUsers = filter (notIsMember conv) (toList toAdd)
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
+    ensureConvMember (snd mems) zusr
+    ensureAccess conv InviteAccess
+    ensureAccessRole conv newUsers
+    -- TODO: ensureAccessRole does a team member lookup, but so does teamConvChecks, refactor to avoid additional cassandra request
     case Data.convTeam conv of
-        Nothing -> regularConvChecks (snd mems) newUsers conv
+        Nothing -> ensureConnected zusr newUsers
         Just ti -> teamConvChecks ti newUsers conv
     addToConversation mems zusr zcon newUsers conv
   where
-    regularConvChecks mems newUsers conv = do
-        ensureConvMember mems zusr
-        ensureConnected zusr newUsers
-        unless (InviteAccess `elem` Data.convAccess conv) $
-            throwM accessDenied
-
     teamConvChecks tid newUsers conv = do
         tms <- Data.teamMembers tid
         void $ permissionCheck zusr AddConversationMember tms
@@ -283,9 +269,6 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
             throwM noAddToManaged
         let guests = notTeamMember newUsers tms
         ensureConnected zusr guests
-        unless (InviteAccess `elem` Data.convAccess conv || null guests) $
-            throwM accessDenied
-
 
 updateMember :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateMember (zusr ::: zcon ::: cid ::: req ::: _) = do
@@ -577,6 +560,20 @@ ensureAccess :: Data.Conversation -> Access -> Galley ()
 ensureAccess conv access =
     unless (access `elem` Data.convAccess conv) $
         throwM accessDenied
+
+ensureAccessRole :: Data.Conversation -> [UserId] -> Galley ()
+ensureAccessRole conv users = case Data.convAccessRole conv of
+        PrivateAccessRole -> throwM accessDenied
+        TeamAccessRole -> case Data.convTeam conv of
+            Nothing -> throwM internalError
+            Just tid -> do
+                tms <- Data.teamMembers tid
+                unless (null $ notTeamMember users tms) $
+                    throwM noTeamMember
+        VerifiedAccessRole -> do
+            verified <- lookupVerifiedUsers users
+            when (length verified /= length users) $ throwM accessDenied
+        NonVerifiedAccessRole -> return ()
 
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation

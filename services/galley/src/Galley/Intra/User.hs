@@ -4,7 +4,7 @@ module Galley.Intra.User
     ( getConnections
     , deleteBot
     , reAuthUser
-    , lookupUsers
+    , lookupVerifiedUsers
     , deleteUser
     , getContactList
     ) where
@@ -72,8 +72,8 @@ reAuthUser uid auth = do
             in throwM $ HttpExceptionRequest rq ex
     }
 
-lookupUsers :: [UserId] -> Galley [User]
-lookupUsers uids = do
+lookupVerifiedUsers :: [UserId] -> Galley [User]
+lookupVerifiedUsers uids = do
     (h, p) <- brigReq
     r <- call "brig"
         $ method GET . host h . port p
