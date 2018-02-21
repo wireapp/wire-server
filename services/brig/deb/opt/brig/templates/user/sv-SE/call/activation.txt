@@ -1,1 +1,0 @@
-Hej, din verifieringskod för Wire är: ${code} En gång till, din kod är: ${code}
