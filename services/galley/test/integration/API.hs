@@ -419,7 +419,11 @@ postConvertTeamConv g b c setup = do
     bobMem <- flip Teams.newTeamMember p1 <$> randomUser b
     addTeamMemberInternal g tid bobMem
     let bob = bobMem^.Teams.userId
-    assertQueue "team member join" a $ tUpdate 2 [alice]
+    assertQueue "team member (bob) join" a $ tUpdate 2 [alice]
+    daveMem <- flip Teams.newTeamMember p1 <$> randomUser b
+    addTeamMemberInternal g tid daveMem
+    let dave = daveMem^.Teams.userId
+    assertQueue "team member (dave) join" a $ tUpdate 3 [alice]
     eve  <- randomUser b
     connectUsers b alice (singleton eve)
     let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
@@ -442,6 +446,8 @@ postConvertTeamConv g b c setup = do
             wsAssertMemberLeave conv alice [eve, mallory]
         -- joining (for mallory) is no longer possible
         postJoinCodeConv g mallory j !!! const 403 === statusCode
+        -- team members (dave) can still join
+        postJoinCodeConv g dave j !!! const 200 === statusCode
 
 postJoinConvFail :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postJoinConvFail g b _ _ = do

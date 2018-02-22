@@ -530,7 +530,7 @@ ephemeralUser b = do
     name <- UUID.toText <$> liftIO nextRandom
     let p = object [ "name" .= name ]
     r <- post (b . path "/register" . json p) <!! const 201 === statusCode
-    let user = fromMaybe (error "createAnonUser: failed to parse response") (decodeBody r)
+    let user = fromMaybe (error "createEphemeralUser: failed to parse response") (decodeBody r)
     return $ Brig.Types.userId user
 
 randomClient :: Brig -> UserId -> LastPrekey -> Http ClientId
