@@ -448,7 +448,7 @@ postJoinConvFail g b _ _ = do
     alice <- randomUser b
     bob   <- randomUser b
     conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [] Nothing
-    void $ postJoinConv g bob conv !!! const 404 === statusCode
+    void $ postJoinConv g bob conv !!! const 403 === statusCode
 
 getConvsOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 getConvsOk g b _ _ = do

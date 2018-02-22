@@ -236,7 +236,10 @@ joinConversation zusr zcon cnv access = do
         Data.deleteConversation cnv
         throwM convNotFound
     ensureAccess conv access
-    ensureAccessRole conv [zusr]
+    mbTms <- case Data.convTeam conv of
+        Just tid -> Just <$> Data.teamMembers tid
+        Nothing -> return Nothing
+    ensureAccessRole conv [zusr] mbTms
     let newUsers = filter (notIsMember conv) [zusr]
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
     addToConversation (botsAndUsers (Data.convMembers conv)) zusr zcon newUsers conv
@@ -252,17 +255,18 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
     toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers body)
     let newUsers = filter (notIsMember conv) (toList toAdd)
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
-    ensureConvMember (snd mems) zusr
     ensureAccess conv InviteAccess
-    ensureAccessRole conv newUsers
-    -- TODO: ensureAccessRole does a team member lookup, but so does teamConvChecks, refactor to avoid additional cassandra request
     case Data.convTeam conv of
-        Nothing -> ensureConnected zusr newUsers
+        Nothing -> do
+            ensureConvMember (snd mems) zusr
+            ensureAccessRole conv newUsers Nothing
+            ensureConnected zusr newUsers
         Just ti -> teamConvChecks ti newUsers conv
     addToConversation mems zusr zcon newUsers conv
   where
     teamConvChecks tid newUsers conv = do
         tms <- Data.teamMembers tid
+        ensureAccessRole conv newUsers (Just tms)
         void $ permissionCheck zusr AddConversationMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
@@ -551,23 +555,17 @@ ensureConvMember users usr =
     unless (usr `isMember` users) $
         throwM convNotFound
 
-ensureCodeAccess :: ConvId -> Galley ()
-ensureCodeAccess cnv = do
-    conv <- Data.conversation cnv >>= ifNothing convNotFound
-    ensureAccess conv CodeAccess
-
 ensureAccess :: Data.Conversation -> Access -> Galley ()
 ensureAccess conv access =
     unless (access `elem` Data.convAccess conv) $
         throwM accessDenied
 
-ensureAccessRole :: Data.Conversation -> [UserId] -> Galley ()
-ensureAccessRole conv users = case Data.convAccessRole conv of
+ensureAccessRole :: Data.Conversation -> [UserId] -> Maybe [TeamMember] -> Galley ()
+ensureAccessRole conv users mbTms = case Data.convAccessRole conv of
         PrivateAccessRole -> throwM accessDenied
-        TeamAccessRole -> case Data.convTeam conv of
+        TeamAccessRole -> case mbTms of
             Nothing -> throwM internalError
-            Just tid -> do
-                tms <- Data.teamMembers tid
+            Just tms ->
                 unless (null $ notTeamMember users tms) $
                     throwM noTeamMember
         VerifiedAccessRole -> do
