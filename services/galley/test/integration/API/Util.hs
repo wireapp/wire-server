@@ -143,9 +143,12 @@ addTeamMemberInternal g tid mem = do
     post (g . paths ["i", "teams", toByteString' tid, "members"] . payload) !!!
         const 200 === statusCode
 
-createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access)-> Http ConvId
-createTeamConv g u tinfo us name acc = do
-    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) (Just tinfo)
+createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Http ConvId
+createTeamConv g u tinfo us name acc = createTeamConvAccess g u tinfo us name acc Nothing
+
+createTeamConvAccess :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Http ConvId
+createTeamConvAccess g u tinfo us name acc role = do
+    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo)
     r <- post ( g
               . path "/conversations"
               . zUser u
@@ -157,12 +160,12 @@ createTeamConv g u tinfo us name acc = do
 
 createOne2OneTeamConv :: Galley -> UserId -> UserId -> Maybe Text -> TeamId -> Http ResponseLBS
 createOne2OneTeamConv g u1 u2 n tid = do
-    let conv = NewConv [u2] n mempty (Just $ ConvTeamInfo tid False)
+    let conv = NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False)
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
-postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Http ResponseLBS
-postConv g u us name a = do
-    let conv = NewConv us name (Set.fromList a) Nothing
+postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Http ResponseLBS
+postConv g u us name a r = do
+    let conv = NewConv us name (Set.fromList a) r  Nothing
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: Galley -> UserId -> Http ResponseLBS
@@ -170,7 +173,7 @@ postSelfConv g u = post $ g . path "/conversations/self" . zUser u . zConn "conn
 
 postO2OConv :: Galley -> UserId -> UserId -> Maybe Text -> Http ResponseLBS
 postO2OConv g u1 u2 n = do
-    let conv = NewConv [u2] n mempty Nothing
+    let conv = NewConv [u2] n mempty Nothing Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: Galley -> UserId -> UserId -> Text -> Text -> Maybe Text -> Http ResponseLBS
@@ -521,6 +524,14 @@ randomUser b = do
     let p = object [ "name" .= fromEmail e, "email" .= fromEmail e, "password" .= defPassword ]
     r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
+
+ephemeralUser :: Brig -> Http UserId
+ephemeralUser b = do
+    name <- UUID.toText <$> liftIO nextRandom
+    let p = object [ "name" .= name ]
+    r <- post (b . path "/register" . json p) <!! const 201 === statusCode
+    let user = fromMaybe (error "createEphemeralUser: failed to parse response") (decodeBody r)
+    return $ Brig.Types.userId user
 
 randomClient :: Brig -> UserId -> LastPrekey -> Http ClientId
 randomClient b usr lk = do

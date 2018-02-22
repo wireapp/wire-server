@@ -24,7 +24,7 @@ import Data.Id
 import Data.Range
 import Data.Text
 import Data.Maybe (fromMaybe, isJust)
-import Galley.Types (ConvType (..), Access, Member (..))
+import Galley.Types (ConvType (..), Access, Member (..), AccessRole)
 import OpenSSL.Random (randBytes)
 import OpenSSL.EVP.Digest (getDigestByName, digestBS)
 
@@ -37,6 +37,7 @@ data Conversation = Conversation
     , convCreator :: UserId
     , convName    :: Maybe Text
     , convAccess  :: [Access]
+    , convAccessRole  :: AccessRole
     , convMembers :: [Member]
     , convTeam    :: Maybe TeamId
     , convDeleted :: Maybe Bool
