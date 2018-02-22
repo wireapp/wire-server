@@ -653,6 +653,10 @@ testSharePushToken g _ b _ = do
         let t2 = tk c2
         t1' <- registerPushToken u1 t1 g
         t2' <- registerPushToken u2 t2 g -- share the token with u1
+        -- ^ Unfortunately this fails locally :(
+        -- "Duplicate endpoint token: 61d22005-af6e-4199-add9-899aae79c70a"
+        -- Instead of getting something in the lines of
+        -- "Invalid parameter: Token Reason: Endpoint <arn> " already exists with the same Token, but different attributes."
         liftIO $ assertEqual "token mismatch" (t1^.token) t1'
         liftIO $ assertEqual "token mismatch" (t2^.token) t2'
         liftIO $ assertEqual "token mismatch" t1' t2'
