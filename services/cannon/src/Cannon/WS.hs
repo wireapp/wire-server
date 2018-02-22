@@ -212,15 +212,12 @@ regInfo k c = do
         p  = portnum e
         hp = h <> ":" <> pack (show p)
         r  = "http://" <> hp <> "/i/push"
-        rb = "http://" <> hp <> "/i/bulkpush"
         ku = keyUserBytes k
         kc = keyConnBytes k
     return . lbytes . encode . object $
         [ "user_id"       .= decodeUtf8 (ku)
         , "device_id"     .= decodeUtf8 (kc)
         , "resource"      .= decodeUtf8 (r <> "/" <> ku <> "/" <> kc)
-        , "resourceb"     .= decodeUtf8 (rb)
-        , "cannon_host"    .= decodeUtf8 (hp)
         , "client_id"     .= c
         ]
 

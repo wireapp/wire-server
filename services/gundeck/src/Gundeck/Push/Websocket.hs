@@ -32,6 +32,7 @@ import qualified Data.Metrics                 as Metrics
 import qualified Data.Set                     as Set
 import qualified Gundeck.Presence.Data        as Presence
 import qualified Network.HTTP.Client.Internal as Http
+import qualified Network.URI                  as Net
 import qualified System.Logger.Class          as Log
 
 push :: Notification
@@ -63,6 +64,15 @@ pushBulk paramss = do
         return [ (notif params, presence) | presence <- ps ]
 
     mapResponses resps = [[]]
+
+    cannonhost p = (++ cp) <$> ch
+      where
+        cu = fromURI $ resource p
+        ma = Net.uriAuthority cu
+        ch = Net.uriRegName <$> ma
+        cp = case ma of 
+            Nothing -> ""
+            Just a  -> Net.uriPort a
 
 getPresences :: PushParams-> Gundeck [Presence]
 getPresences params = do
@@ -149,7 +159,7 @@ sendBulk nps = do
         Nothing -> concat <$> mapM sendOld nps
         Just cu -> do
             let js = encode $ BulkPush $ map makePayload nps
-            req <- Http.setUri empty (fromURI cu)
+            req <- Http.setUri empty cu
             res <- recovering x1 rpcHandlers $ const $
                 rpc' "cannon" (check req)
                     $ method POST
@@ -160,12 +170,15 @@ sendBulk nps = do
   where
     makePayload (n, p) = UserDevicePayload (userId p) (connId p) n
 
-    getPField (_, p) f = f p
-
-    getCannonUrl np = let mch = getPField np cannonhost
-        in case mch of
-            Nothing -> Nothing
-            Just  _ -> getPField np resourceb
+    getCannonUrl (_, p) = case ma of
+        Nothing -> Nothing
+        Just a  -> Net.parseURI $ show us ++ show a ++ "/i/bulkpush"
+      where
+        cr = fromURI $ resource p
+        us = Net.uriScheme cr
+        ma = Net.uriAuthority cr
+        
+        -- TODO: s/push/bulkpush/ here
 
     sendOld (n, p) = send n [p]
 

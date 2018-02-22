@@ -100,7 +100,6 @@ push (req ::: _) = do
             pushNative sendNotice notif p =<< nativeTargets p prs
 
     doBulkPush pns = do
-        -- TODO: bulk push in Websocket.hs to presences (grouped by cannon)
         -- TODO: return a list of Pushes paired with their ok presences (prs)
         -- TODO: map this list over doPush (and find some clever way of passing in prs -- fork earlier and bring Web.push call out of doPush?)
         resps <- Web.pushBulk $ map mapPP pns

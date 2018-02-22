@@ -22,8 +22,6 @@ data Presence = Presence
     { userId     :: !UserId
     , connId     :: !ConnId
     , resource   :: !URI
-    , resourceb  :: !(Maybe URI)
-    , cannonhost :: !(Maybe Text)
     , clientId   :: !(Maybe ClientId)
     , createdAt  :: !Milliseconds
     , __field    :: !Lazy.ByteString -- temp. addition to ease migration
@@ -34,8 +32,6 @@ instance ToJSON Presence where
         [ "user_id"    .= userId p
         , "device_id"  .= connId p
         , "resource"   .= resource p
-        , "resourceb"  .= resourceb p
-        , "cannon_host" .= cannonhost p
         , "client_id"  .= clientId p
         , "created_at" .= createdAt p
         ]
@@ -46,8 +42,6 @@ instance FromJSON Presence where
             <$> o .:  "user_id"
             <*> o .:  "device_id"
             <*> o .:  "resource"
-            <*> o .:? "resourceb"
-            <*> o .:? "cannon_host"
             <*> o .:? "client_id"
             <*> o .:? "created_at" .!= 0
             <*> pure ""
