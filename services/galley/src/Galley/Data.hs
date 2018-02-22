@@ -466,11 +466,11 @@ defAccess _           (Just (Set (x:xs))) = x:xs
 
 
 maybeRole :: ConvType -> Maybe AccessRole -> AccessRole
-maybeRole SelfConv    Nothing    = privateRole
-maybeRole ConnectConv Nothing    = privateRole
-maybeRole One2OneConv Nothing    = privateRole
+maybeRole SelfConv    _          = privateRole
+maybeRole ConnectConv _          = privateRole
+maybeRole One2OneConv _          = privateRole
 maybeRole RegularConv Nothing    = defRole
-maybeRole _ (Just r)             = r
+maybeRole RegularConv (Just r)   = r
 
 defRole :: AccessRole
 defRole = VerifiedAccessRole

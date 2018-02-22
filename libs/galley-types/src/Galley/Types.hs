@@ -527,7 +527,7 @@ instance FromJSON Conversation where
                     <*> o .:  "type"
                     <*> o .:  "creator"
                     <*> o .:  "access"
-                    <*> o .:  "access_role"
+                    <*> o .:?  "access_role" .!= VerifiedAccessRole
                     <*> o .:? "name"
                     <*> o .:  "members"
                     <*> o .:? "team"
