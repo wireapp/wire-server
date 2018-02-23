@@ -7,7 +7,7 @@ import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens hiding ((#), (.=))
-import Control.Monad (void, replicateM)
+import Control.Monad (void)
 import Control.Monad.IO.Class
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -71,7 +71,7 @@ tests s = testGroup "Teams API"
     , test s "post crypto broadcast message protobuf" postCryptoBroadcastMessageProto
     , test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2
     , test s "post crypto broadcast message no-team" postCryptoBroadcastMessageNoTeam
-    , test s "post crypto broadcast message 100" postCryptoBroadcastMessage100
+    , test s "post crypto broadcast message 100 (or max conns)" postCryptoBroadcastMessage100OrMaxConns
     ]
 
 timeout :: WS.Timeout
@@ -896,12 +896,12 @@ postCryptoBroadcastMessageNoTeam g b _ _ = do
     let msg = [(bob, bc, "ciphertext1")]
     Util.postOtrBroadcastMessage id g alice ac msg !!! const 404 === statusCode
 
-postCryptoBroadcastMessage100 :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-postCryptoBroadcastMessage100 g b c a = do
+postCryptoBroadcastMessage100OrMaxConns :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+postCryptoBroadcastMessage100OrMaxConns g b c a = do
     (alice, ac) <- randomUserWithClient b (someLastPrekeys !! 0)
     _ <- createTeamInternal g "foo" alice
     assertQueue "" a tActivate
-    (bob, bc):others <- replicateM 100 (randomUserWithClient b (someLastPrekeys !! 1))
+    ((bob, bc), others) <- createAndConnectUserWhileLimitNotReached alice (100 :: Int) [] (someLastPrekeys !! 1)
     connectUsers b alice (list1 bob (fst <$> others))
     let t = 3 # Second -- WS receive timeout
     WS.bracketRN c (bob : (fst <$> others)) $ \ws -> do
@@ -913,3 +913,14 @@ postCryptoBroadcastMessage100 g b c a = do
         void . liftIO $ WS.assertMatch t (Prelude.head ws) (wsAssertOtr (selfConv bob) alice ac bc "ciphertext")
         for_ (zip (tail ws) others) $ \(wsU, (u, clt)) ->
             liftIO $ WS.assertMatch t wsU (wsAssertOtr (selfConv u) alice ac clt "ciphertext")
+  where
+    createAndConnectUserWhileLimitNotReached alice remaining acc pk = do
+        (uid, cid) <- randomUserWithClient b pk
+        (r1, r2)   <- List1.head <$> connectUsersUnchecked b alice (singleton uid)
+        case (statusCode r1, statusCode r2, remaining, acc) of
+            (201, 200, 0, []    ) -> error "Need to connect with at least 1 user"
+            (201, 200, 0, (x:xs)) -> return (x, xs)
+            (201, 200, _, _     ) -> createAndConnectUserWhileLimitNotReached alice (remaining-1) ((uid ,cid):acc) pk
+            (403, 403, _, []    ) -> error "Need to connect with at least 1 user"
+            (403, 403, _, (x:xs)) -> return (x, xs)
+            (xxx, yyy, _, _     ) -> error ("Unexpected while connecting users: " ++ show xxx ++ " and " ++ show yyy)
