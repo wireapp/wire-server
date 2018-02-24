@@ -92,9 +92,6 @@ newEnv o = do
 initAws :: Opts -> Logger -> Manager -> IO AWS.Env
 initAws o l m = AWS.mkEnv l (o^.optAws.awsS3Endpoint) (o^.optAws.awsS3Bucket) m
 
--- TODO: If we want to have more control on the cipher suite, look into
--- https://hackage.haskell.org/package/tls-1.4.0/docs/Network-TLS.html
--- and make use of ClientParams
 initHttpManager :: IO Manager
 initHttpManager = do
     cs <- getSystemCertificateStore
