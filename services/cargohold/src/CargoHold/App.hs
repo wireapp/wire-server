@@ -11,7 +11,6 @@
 module CargoHold.App
     ( -- * Environment
       Env
-    -- , AwsEnv (..)
     , newEnv
     , closeEnv
     , cloudFront

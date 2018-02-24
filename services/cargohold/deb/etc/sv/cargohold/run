@@ -32,9 +32,8 @@ exec chpst -u $USER \
     $BIN \
     --host=${CARGOHOLD_HOST:-'127.0.0.1'} \
     --port=${CARGOHOLD_PORT?'unset'} \
-    ${AWS_ACCESS_KEY_ID} \
-    ${AWS_SECRET_ACCESS_KEY} \
     --aws-s3-bucket=${CARGOHOLD_AWS_S3_BUCKET?'unset'} \
+    --aws-s3-endpoint=${CARGOHOLD_AWS_S3_ENDPOINT:-'s3.eu-west-1.amazonaws.com'} \
     --aws-cloudfront-domain=${CARGOHOLD_AWS_CLOUDFRONT_DOMAIN?'unset'} \
     --aws-cloudfront-keypair-id=${CARGOHOLD_AWS_CLOUDFRONT_KEYPAIR_ID?'unset'} \
     --aws-cloudfront-private-key=${CARGOHOLD_AWS_CLOUDFRONT_PRIVATEKEY?'unset'} \
