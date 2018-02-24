@@ -72,6 +72,10 @@ brigModels =
       -- Properties
     , propertyValue
 
+      -- Provider
+    , newProvider
+    , provider
+
       -- Onboarding
     , addressBook
     , card
@@ -767,6 +771,16 @@ prekey = defineModel "Prekey" $ do
 propertyValue :: Model
 propertyValue = defineModel "PropertyValue" $
     description "A property value is any valid JSON value."
+
+-----------------------------------------------------------------------------
+-- Provider
+provider :: Model
+provider = defineModel "Provider" $ do
+    undefined
+
+newProvider :: Model
+newProvider = defineModel "NewProvider" $ do
+    undefined
 
 -----------------------------------------------------------------------------
 -- Onboarding
