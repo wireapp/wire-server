@@ -32,7 +32,7 @@ module CargoHold.App
     , runHandler
     ) where
 
-import Bilge (MonadHttp, Manager, newManager, RequestId (..))
+import Bilge (MonadHttp, Manager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import CargoHold.CloudFront
 import CargoHold.Options as Opt
@@ -42,19 +42,24 @@ import Control.Lens (view, makeLenses, set, (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow, MonadMask)
 import Control.Monad.Reader
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
+import Data.Default
 import Data.Metrics.Middleware (Metrics)
 import Data.Monoid
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.TLS
+import Network.Connection as NC
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities (Error (..), lookupRequestId)
+import System.X509 (getSystemCertificateStore)
 import System.Logger.Class hiding (settings)
 import Prelude hiding (log)
 
 import qualified Bilge
 import qualified CargoHold.AWS                as AWS
 import qualified Data.Metrics.Middleware      as Metrics
+import qualified Network.TLS                  as TLS
+import qualified Network.TLS.Extra            as TLS
 import qualified Network.Wai.Utilities.Server as Server
 import qualified System.Logger                as Log
 
@@ -92,12 +97,22 @@ initAws o l m = AWS.mkEnv l (o^.optAws.awsS3Endpoint) (o^.optAws.awsS3Bucket) m
 -- https://hackage.haskell.org/package/tls-1.4.0/docs/Network-TLS.html
 -- and make use of ClientParams
 initHttpManager :: IO Manager
-initHttpManager =
-    newManager tlsManagerSettings
+initHttpManager = do
+    cs <- getSystemCertificateStore
+    let tlsClientParams = (TLS.defaultParamsClient "" mempty)
+                         { TLS.clientSupported = def { TLS.supportedCiphers = TLS.ciphersuite_strong }
+                         , TLS.clientShared    = def
+                             { TLS.sharedCAStore = cs
+                             , TLS.sharedValidationCache = def
+                             }
+                         }
+    let manSettings = mkManagerSettings (NC.TLSSettings tlsClientParams) Nothing
+    mgr <- newTlsManagerWith manSettings
         { managerConnCount           = 1024
         , managerIdleConnectionCount = 2048
         , managerResponseTimeout     = responseTimeoutMicro 10000000
         }
+    return mgr
 
 closeEnv :: Env -> IO ()
 closeEnv e = Log.close $ e^.appLogger
