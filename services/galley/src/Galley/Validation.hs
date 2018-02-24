@@ -32,7 +32,7 @@ rangeChecked = either throwErr return . checkedEither
 
 rangeCheckedMaybe :: Within a n m => Maybe a -> Galley (Maybe (Range n m a))
 rangeCheckedMaybe Nothing  = return Nothing
-rangeCheckedMaybe (Just a) = return (checked a)
+rangeCheckedMaybe (Just a) = Just <$> rangeChecked a
 {-# INLINE rangeCheckedMaybe #-}
 
 -- Between 0 and (setMaxConvAndTeamSize - 1)

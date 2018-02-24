@@ -62,7 +62,7 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
                 uu <- checkedConvAndTeamSize (newConvUsers body)
                 ensureConnected zusr (notTeamMember (fromConvTeamSize uu) mems)
                 pure uu
-        conv <- Data.createConversation zusr name (access body) uids (newConvTeam body)
+        conv <- Data.createConversation zusr name (access body) (newConvAccessRole body) uids (newConvTeam body)
         now  <- liftIO getCurrentTime
         let d = Teams.EdConvCreate (Data.convId conv)
         let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
@@ -75,13 +75,13 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
         name <- rangeCheckedMaybe (newConvName body)
         uids <- checkedConvAndTeamSize (newConvUsers body)
         ensureConnected zusr (fromConvTeamSize uids)
-        c <- Data.createConversation zusr name (access body) uids (newConvTeam body)
+        c <- Data.createConversation zusr name (access body) (newConvAccessRole body) uids (newConvTeam body)
         notifyCreatedConversation Nothing zusr (Just zcon) c
         conversationResponse status201 zusr c
 
     access a = case Set.toList (newConvAccess a) of
-        []     -> singleton InviteAccess
-        (x:xs) -> list1 x xs
+        []     -> [InviteAccess]
+        (x:xs) -> x:xs
 
 createSelfConversation :: UserId -> Galley Response
 createSelfConversation zusr = do

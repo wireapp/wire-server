@@ -60,9 +60,11 @@ actError (InvalidActivationEmail _) = StdError invalidEmail
 actError (InvalidActivationPhone _) = StdError invalidPhone
 
 pwResetError :: PasswordResetError -> Error
-pwResetError PasswordResetInProgress  = StdError duplicatePwResetCode
-pwResetError InvalidPasswordResetKey  = StdError invalidPwResetKey
-pwResetError InvalidPasswordResetCode = StdError invalidPwResetCode
+pwResetError InvalidPasswordResetKey            = StdError invalidPwResetKey
+pwResetError InvalidPasswordResetCode           = StdError invalidPwResetCode
+pwResetError (PasswordResetInProgress Nothing)  = StdError duplicatePwResetCode
+pwResetError (PasswordResetInProgress (Just t)) = RichError duplicatePwResetCode ()
+    [("Retry-After", toByteString' t)]
 
 newUserError :: CreateUserError -> Error
 newUserError InvalidInvitationCode    = StdError invalidInvitationCode
@@ -361,3 +363,6 @@ internalServerError = Wai.Error status500 "internal-server-error" "Internal Serv
 
 failedQueueEvent :: Wai.Error
 failedQueueEvent = Wai.Error status500 "event-queue-failed" "Failed to queue the event, MD5 mismatch. Try again later"
+
+invalidRange :: Text -> Wai.Error
+invalidRange = Wai.Error status400 "client-error"

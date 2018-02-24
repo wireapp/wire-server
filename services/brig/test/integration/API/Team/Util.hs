@@ -60,7 +60,7 @@ addTeamMember galley tid mem =
 createTeamConv :: Galley -> TeamId -> UserId -> [UserId] -> Bool -> Http ConvId
 createTeamConv g tid u us managed = do
     let tinfo = Just $ ConvTeamInfo tid managed
-    let conv = NewConv us Nothing (Set.fromList []) tinfo
+    let conv = NewConv us Nothing (Set.fromList []) Nothing tinfo
     r <- post ( g
               . path "/conversations"
               . zUser u

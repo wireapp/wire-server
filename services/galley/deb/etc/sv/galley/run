@@ -46,5 +46,6 @@ exec chpst -u $USER \
     --http-pool-size=${GALLEY_HTTP_POOL_SIZE:-128} \
     --team-events-queue-name=${GALLEY_SQS_TEAM_EVENTS?'unset'} \
     --aws-sqs-endpoint=${GALLEY_SQS_ENDPOINT?'unset'} \
-    --conv-team-max-size=${GALLEY_CONV_TEAM_MAX_SIZE:-128} \
+    --conv-team-max-size=${CONV_AND_TEAM_MAX_SIZE:-128} \
+    --conversation-code-prefix=${GALLEY_CONVERSATION_CODE_PREFIX?'unset'} \
     ${GALLEY_INTRA_DEVICE_LISTING}

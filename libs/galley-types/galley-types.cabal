@@ -45,5 +45,6 @@ library
       , transformers          >= 0.3
       , types-common          >= 0.16
       , unordered-containers  >= 0.2
+      , uri-bytestring        >= 0.2
       , uuid                  >= 1.3
 

@@ -4,6 +4,7 @@ module Galley.Intra.User
     ( getConnections
     , deleteBot
     , reAuthUser
+    , lookupVerifiedUsers
     , deleteUser
     , getContactList
     ) where
@@ -13,6 +14,7 @@ import Brig.Types.Connection (UserIds (..))
 import Bilge.RPC
 import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
 import Brig.Types.Connection (Relation (..))
+import Brig.Types.User (User)
 import Galley.App
 import Galley.Intra.Util
 import Control.Monad (void, when)
@@ -69,6 +71,18 @@ reAuthUser uid auth = do
             let ex = StatusCodeException (rs { responseBody = () }) mempty
             in throwM $ HttpExceptionRequest rq ex
     }
+
+lookupVerifiedUsers :: [UserId] -> Galley [User]
+lookupVerifiedUsers uids = do
+    (h, p) <- brigReq
+    r <- call "brig"
+        $ method GET . host h . port p
+        . path "/i/users"
+        . queryItem "ids" users
+        . expect2xx
+    parseResponse (Error status502 "server-error") r
+  where
+    users = intercalate "," $ toByteString' <$> uids
 
 deleteUser :: UserId -> Galley ()
 deleteUser uid = do

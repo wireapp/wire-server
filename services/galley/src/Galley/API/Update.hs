@@ -13,7 +13,12 @@ module Galley.API.Update
     , acceptConv
     , blockConv
     , unblockConv
-    , joinConversation
+    , joinConversationById
+    , joinConversationByReusableCode
+    , addCode
+    , rmCode
+    , getCode
+    , updateConversationAccess
 
       -- * Managing Members
     , Galley.API.Update.addMembers
@@ -35,6 +40,7 @@ module Galley.API.Update
     , postBotMessage
     ) where
 
+
 import Control.Applicative hiding (empty)
 import Control.Concurrent.Lifted (fork)
 import Control.Lens ((&), (.~), (?~), (^.), (<&>), set, view)
@@ -42,10 +48,12 @@ import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Data.Bool (bool)
+import Data.Code
 import Data.Foldable
 import Data.Id
 import Data.List1 (singleton)
 import Data.Maybe (fromMaybe, catMaybes)
+import Data.List1
 import Data.Text (Text)
 import Data.Time
 import Galley.App
@@ -105,17 +113,136 @@ unblockConv (usr ::: conn ::: cnv) = do
     conv' <- acceptOne2One usr conv conn
     setStatus status200 . json <$> conversationView usr conv'
 
-joinConversation :: UserId ::: ConnId ::: ConvId ::: JSON -> Galley Response
-joinConversation (zusr ::: zcon ::: cnv ::: _) = do
-    c <- Data.conversation cnv >>= ifNothing convNotFound
-    when (Data.isConvDeleted c) $ do
+updateConversationAccess :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
+updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
+    body <- fromBody req invalidPayload :: Galley ConversationAccessUpdate
+    let targetAccess = Set.fromList (toList (cupAccess body))
+        targetRole = cupAccessRole body
+    -- checks and balances
+    when (PrivateAccess `elem` targetAccess || PrivateAccessRole == targetRole) $
+        throwM invalidTargetAccess
+    (bots, users) <- botsAndUsers <$> Data.members cnv
+    unless (usr `isMember` users) $
+        throwM convNotFound
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    ensureGroupConv conv
+    let currentAccess = Set.fromList (toList $ Data.convAccess conv)
+        currentRole = Data.convAccessRole conv
+    if currentAccess == targetAccess && currentRole == targetRole then
+        return $ empty & setStatus status204
+    else do
+        case Data.convTeam conv of
+            Nothing     -> when (targetRole == TeamAccessRole) $
+                               throwM invalidTargetAccess
+            Just tid    -> handleTeamConv tid targetRole users bots conv
+        -- TODO (?) remove non-verified guests if targetRole == VerifiedAccessRole && currentRole == NonVerifiedAccessRole
+        -- remove conversation codes if CodeAccess is revoked
+        when (CodeAccess `elem` currentAccess && CodeAccess `notElem` targetAccess) $ do
+            key <- mkKey cnv
+            Data.deleteCode key ReusableCode
+        -- update cassandra & send event
+        now <- liftIO getCurrentTime
+        let e = Event ConvAccessUpdate cnv usr now (Just $ EdConvAccessUpdate body)
+        Data.updateConversationAccess cnv (cupAccess body) (cupAccessRole body)
+        pushEvent e users bots zcon
+        return $ json e & setStatus status200
+  where
+    handleTeamConv tid targetRole users bots conv = do
+        tMembers <- Data.teamMembers tid
+        -- only team members can change access mode
+        unless (usr `elem` (view userId <$> tMembers)) $
+            throwM accessDenied
+        -- access mode change for managed conversation is not allowed
+        tcv <- Data.teamConversation tid cnv
+        when (maybe False (view managedConversation) tcv) $
+            throwM invalidManagedConvOp
+        -- remove non-team users if target role is TeamAccessRole
+        when (targetRole == TeamAccessRole) $
+            removeNonTeamMembers tMembers users bots conv
+
+    removeNonTeamMembers :: [TeamMember] -> [Member] -> [BotMember] -> Data.Conversation -> Galley ()
+    removeNonTeamMembers tMembers users bots conv = do
+        void $ permissionCheck usr RemoveConversationMember tMembers
+        let tUids = view userId <$> tMembers
+        case filter (`notElem` tUids) (memId <$> users) of
+            []   -> return ()
+            x:xs -> do
+                e <- Data.removeMembers conv usr (list1 x xs)
+                pushEvent e users bots zcon
+
+pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
+pushEvent e users bots zcon = do
+    for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
+        push1 $ p & pushConn ?~ zcon
+    void . fork $ void $ External.deliver (bots `zip` repeat e)
+
+
+addCode :: UserId ::: ConnId ::: ConvId -> Galley Response
+addCode (usr ::: zcon ::: cnv) = do
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    ensureConvMember (Data.convMembers conv) usr
+    ensureAccess conv CodeAccess
+    let (bots, users) = botsAndUsers $ Data.convMembers conv
+    c <- generate cnv ReusableCode (Timeout 3600 * 24 * 365) -- one year TODO: configurable
+    Data.insertCode c
+    now <- liftIO getCurrentTime
+    urlPrefix <- view $ options . optSettings . setConversationCodeURI
+    let res = mkConversationCode (codeKey c) (codeValue c) urlPrefix
+    let e = Event ConvCodeUpdate cnv usr now (Just $ EdConvCodeUpdate res)
+    pushEvent e users bots zcon
+    return $ json e & setStatus status200
+
+rmCode :: UserId ::: ConnId ::: ConvId -> Galley Response
+rmCode (usr ::: zcon ::: cnv) = do
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    ensureConvMember (Data.convMembers conv) usr
+    ensureAccess conv CodeAccess
+    let (bots, users) = botsAndUsers $ Data.convMembers conv
+    key <- mkKey cnv
+    Data.deleteCode key ReusableCode
+    now <- liftIO getCurrentTime
+    let e = Event ConvCodeDelete cnv usr now Nothing
+    pushEvent e users bots zcon
+    return $ json e & setStatus status200
+
+getCode :: UserId ::: ConvId -> Galley Response
+getCode (usr ::: cnv) = do
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    ensureAccess conv CodeAccess
+    ensureConvMember (Data.convMembers conv) usr
+    key <- mkKey cnv
+    c <- Data.lookupCode key ReusableCode >>= ifNothing codeNotFound
+    returnCode c
+
+returnCode :: Code -> Galley Response
+returnCode c = do
+    urlPrefix <- view $ options . optSettings . setConversationCodeURI
+    let res = mkConversationCode (codeKey c) (codeValue c) urlPrefix
+    return $ setStatus status200 . json $ res
+
+joinConversationByReusableCode :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
+joinConversationByReusableCode (zusr ::: zcon ::: req ::: _) = do
+    body <- fromBody req invalidPayload
+    cnv <- codeConversation <$> (Data.lookupCode (conversationKey body) ReusableCode >>= ifNothing codeNotFound)
+    joinConversation zusr zcon cnv CodeAccess
+
+joinConversationById :: UserId ::: ConnId ::: ConvId ::: JSON -> Galley Response
+joinConversationById (zusr ::: zcon ::: cnv ::: _) = joinConversation zusr zcon cnv LinkAccess
+
+joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley Response
+joinConversation zusr zcon cnv access = do
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    when (Data.isConvDeleted conv) $ do
         Data.deleteConversation cnv
         throwM convNotFound
-    unless (LinkAccess `elem` Data.convAccess c) $
-        throwM convNotFound
-    let new = filter (notIsMember c) [zusr]
-    ensureMemberLimit (toList $ Data.convMembers c) new
-    addToConversation (botsAndUsers (Data.convMembers c)) zusr zcon new c
+    ensureAccess conv access
+    mbTms <- case Data.convTeam conv of
+        Just tid -> Just <$> Data.teamMembers tid
+        Nothing -> return Nothing
+    ensureAccessRole conv [zusr] mbTms
+    let newUsers = filter (notIsMember conv) [zusr]
+    ensureMemberLimit (toList $ Data.convMembers conv) newUsers
+    addToConversation (botsAndUsers (Data.convMembers conv)) zusr zcon newUsers conv
 
 addMembers :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
@@ -127,29 +254,25 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
     let mems = botsAndUsers (Data.convMembers conv)
     toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers body)
     let newUsers = filter (notIsMember conv) (toList toAdd)
-    convChecks conv newUsers
+    ensureMemberLimit (toList $ Data.convMembers conv) newUsers
+    ensureAccess conv InviteAccess
     case Data.convTeam conv of
-        Nothing -> regularConvChecks (snd mems) newUsers
-        Just ti -> teamConvChecks ti newUsers
+        Nothing -> do
+            ensureConvMember (snd mems) zusr
+            ensureAccessRole conv newUsers Nothing
+            ensureConnected zusr newUsers
+        Just ti -> teamConvChecks ti newUsers conv
     addToConversation mems zusr zcon newUsers conv
   where
-    regularConvChecks mems newUsers = do
-        unless (zusr `isMember` mems) $
-            throwM convNotFound
-        ensureConnected zusr newUsers
-
-    teamConvChecks tid newUsers = do
+    teamConvChecks tid newUsers conv = do
         tms <- Data.teamMembers tid
+        ensureAccessRole conv newUsers (Just tms)
         void $ permissionCheck zusr AddConversationMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged
-        ensureConnected zusr (notTeamMember newUsers tms)
-
-    convChecks conv newUsers = do
-        ensureMemberLimit (toList $ Data.convMembers conv) newUsers
-        unless (InviteAccess `elem` Data.convAccess conv) $
-            throwM accessDenied
+        let guests = notTeamMember newUsers tms
+        ensureConnected zusr guests
 
 updateMember :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateMember (zusr ::: zcon ::: cid ::: req ::: _) = do
@@ -426,6 +549,29 @@ ensureMemberLimit old new = do
 
 notIsMember :: Data.Conversation -> UserId -> Bool
 notIsMember cc u = not $ isMember u (Data.convMembers cc)
+
+ensureConvMember :: [Member] -> UserId -> Galley ()
+ensureConvMember users usr =
+    unless (usr `isMember` users) $
+        throwM convNotFound
+
+ensureAccess :: Data.Conversation -> Access -> Galley ()
+ensureAccess conv access =
+    unless (access `elem` Data.convAccess conv) $
+        throwM accessDenied
+
+ensureAccessRole :: Data.Conversation -> [UserId] -> Maybe [TeamMember] -> Galley ()
+ensureAccessRole conv users mbTms = case Data.convAccessRole conv of
+        PrivateAccessRole -> throwM accessDenied
+        TeamAccessRole -> case mbTms of
+            Nothing -> throwM internalError
+            Just tms ->
+                unless (null $ notTeamMember users tms) $
+                    throwM noTeamMember
+        VerifiedAccessRole -> do
+            verified <- lookupVerifiedUsers users
+            when (length verified /= length users) $ throwM accessDenied
+        NonVerifiedAccessRole -> return ()
 
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation

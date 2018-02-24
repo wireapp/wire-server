@@ -1,23 +1,28 @@
 version: '2'
 services:
   fake_dynamodb:
-      image: cnadiminti/dynamodb-local:2017-02-16
-      ports:
-        - 4567:8000
+    image: cnadiminti/dynamodb-local:2017-02-16
+    ports:
+      - 4567:8000
 
   fake_sqs:
-      image: airdock/fake-sqs:0.3.1
-      ports:
-        - 4568:4568
+    image: airdock/fake-sqs:0.3.1
+    ports:
+      - 4568:4568
 
   fake_ses:
-      image: localstack/localstack:0.8.5
-      ports:
-        - 4569:4579
-      environment:
-        - DEBUG=1
-        - DEFAULT_REGION=eu-west-1
-        - SERVICES=ses
+    image: localstack/localstack:0.8.5
+    ports:
+      - 4569:4579
+    environment:
+      - DEBUG=1
+      - DEFAULT_REGION=eu-west-1
+      - SERVICES=ses
+
+  redis:
+    image: redis:3.0.7-alpine
+    ports:
+      - "6379:6379"
 
   fake_s3:
       image: tiagoloureiro/fake-s3:0.2.5
@@ -39,3 +44,4 @@ services:
     entrypoint: /scripts/init.sh
     volumes:
       - ./:/scripts
+

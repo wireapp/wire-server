@@ -158,11 +158,12 @@ createUser new@NewUser{..} = do
     let uid = userId (accountUser account)
 
     Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
-    lift $ do
+    activatedTeam <- lift $ do
         Data.insertAccount account pw False searchable
         Intra.createSelfConv uid
         Intra.onUserEvent uid Nothing (UserCreated account)
-        for_ newTeam $ Intra.createTeam uid . bnuTeam
+        -- If newUserEmailCode is set, team gets activated _now_ else createUser fails
+        fmap join . for newTeam $ createTeam uid (isJust newUserEmailCode) . bnuTeam
 
     (emailInvited, phoneInvited) <- case invitation of
         Just (inv, invInfo) -> case inIdentity inv of
@@ -174,12 +175,13 @@ createUser new@NewUser{..} = do
                 return (False, True)
         Nothing -> return (False, False)
 
-    teamEmailInvited <- case teamInvitation of
+    (teamEmailInvited, joinedTeam) <- case teamInvitation of
         Just (inv, invInfo) -> do
                 let em = Team.inIdentity inv
                 acceptTeamInvitation account inv invInfo (userEmailKey em) (EmailIdentity em)
-                return True
-        Nothing -> return False
+                Team.TeamName nm <- lift $ Intra.getTeamName (Team.inTeam inv)
+                return (True, Just $ CreateUserTeam (Team.inTeam inv) nm)
+        Nothing -> return (False, Nothing)
 
     -- Handle e-mail activation
     edata <- if emailInvited || teamEmailInvited
@@ -213,12 +215,18 @@ createUser new@NewUser{..} = do
                     void $ activate (ActivateKey ak) c (Just uid) !>> PhoneActivationError
                     return Nothing
 
-    return $! CreateUserResult account edata pdata
+    return $! CreateUserResult account edata pdata (activatedTeam <|> joinedTeam)
   where
     checkKey u k = do
         av <- lift $ Data.keyAvailable k u
         unless av $
             throwE $ DuplicateUserKey k
+
+    createTeam uid activating t = do
+        created <- Intra.createTeam uid t
+        return $ if activating
+                    then Just created
+                    else Nothing
 
     handleTeam (Just (NewTeamMember i))  e = (Nothing, ) <$> findTeamInvitation e i
     handleTeam (Just (NewTeamCreator t)) _ = return (Just t, Nothing)
@@ -602,7 +610,7 @@ beginPasswordReset target = do
         throwE InvalidPasswordResetKey
     code <- lift $ Data.lookupPasswordResetCode user
     when (isJust code) $
-        throwE PasswordResetInProgress
+        throwE (PasswordResetInProgress Nothing)
     (user,) <$> lift (Data.createPasswordResetCode user target)
 
 completePasswordReset :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword -> ExceptT PasswordResetError AppIO ()
