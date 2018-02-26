@@ -29,6 +29,7 @@ IGNORE_DIRS = ['billing', 'marketing']
 root = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir)
 emails = os.path.join(root, 'wire-emails')
 templates = os.path.join(root, 'templates')
+css = os.path.join(templates, 'css')
 dist = os.path.join(emails, 'dist')
 new_version_file = os.path.join(root, 'new-version')
 current_version_file = os.path.join(templates, 'version')
@@ -52,6 +53,8 @@ if new_version != current_version and pr_branch_name:
   if os.path.exists(templates):
     shutil.rmtree(templates)
   shutil.move(dist, templates)
+  if os.path.exists(css):
+    shutil.rmtree(css)
 
   for root_, subdirs, files in os.walk(templates):
     if root_.split(os.sep)[-1] in IGNORE_DIRS:
