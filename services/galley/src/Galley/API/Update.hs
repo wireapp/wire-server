@@ -137,8 +137,8 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
             Nothing     -> when (targetRole == TeamAccessRole) $
                                throwM invalidTargetAccess
             Just tid    -> handleTeamConv tid targetRole users bots conv
-        when (targetRole == VerifiedAccessRole && currentRole == NonVerifiedAccessRole) $
-            removeNonVerifiedMembers users bots conv
+        when (targetRole == ActivatedAccessRole && currentRole == NonActivatedAccessRole) $
+            removeNonActivatedMembers users bots conv
         -- remove conversation codes if CodeAccess is revoked
         when (CodeAccess `elem` currentAccess && CodeAccess `notElem` targetAccess) $ do
             key <- mkKey cnv
@@ -170,11 +170,11 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
             toRemove = filter (`notElem` tUids) (memId <$> users)
         remove toRemove users bots conv
 
-    removeNonVerifiedMembers :: [Member] -> [BotMember] -> Data.Conversation -> Galley ()
-    removeNonVerifiedMembers users bots conv = do
+    removeNonActivatedMembers :: [Member] -> [BotMember] -> Data.Conversation -> Galley ()
+    removeNonActivatedMembers users bots conv = do
         let mIds = memId <$> users
-        verified <- fmap User.userId <$> lookupVerifiedUsers mIds
-        let toRemove = filter (`notElem` verified) mIds
+        activated <- fmap User.userId <$> lookupActivatedUsers mIds
+        let toRemove = filter (`notElem` activated) mIds
         remove toRemove users bots conv
 
     remove :: [UserId] -> [Member] -> [BotMember] -> Data.Conversation -> Galley ()
@@ -602,10 +602,10 @@ ensureAccessRole conv users mbTms = case Data.convAccessRole conv of
             Just tms ->
                 unless (null $ notTeamMember users tms) $
                     throwM noTeamMember
-        VerifiedAccessRole -> do
-            verified <- lookupVerifiedUsers users
-            when (length verified /= length users) $ throwM accessDenied
-        NonVerifiedAccessRole -> return ()
+        ActivatedAccessRole -> do
+            activated <- lookupActivatedUsers users
+            when (length activated /= length users) $ throwM accessDenied
+        NonActivatedAccessRole -> return ()
 
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation
