@@ -250,7 +250,7 @@ executable gundeck-integration
       , safe
       , stm
       , tagged
-      , tasty                 >= 0.9
+      , tasty                 >= 1.0
       , tasty-hunit           >= 0.9
       , text
       , time

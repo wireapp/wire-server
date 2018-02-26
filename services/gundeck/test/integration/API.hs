@@ -90,7 +90,6 @@ tests s = testGroup "Gundeck integration tests" [
         , test s "Remove stale presence" $ removeStalePresence
         , test s "Single user push"      $ singleUserPush
         , test s "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback
-        , test s "Send a push to online and offline users" $ sendMultipleUsers
         , test s "Targeted push by connection" $ targetConnectionPush
         , test s "Targeted push by client" $ targetClientPush
         ],
@@ -113,6 +112,11 @@ tests s = testGroup "Gundeck integration tests" [
     testGroup "Tokens"
         [ test s "register a push token"     $ testRegisterPushToken
         , test s "unregister a push token"   $ testUnregisterPushToken
+        ],
+    -- TODO: The following tests require (at the moment), the usage real AWS
+    --       services so they are kept in a separate group to simplify testing
+    testGroup "RealAWS"
+        [ test s "Send a push to online and offline users" $ sendMultipleUsers
         , test s "register too many push tokens" $ testRegisterTooManyTokens
         , test s "share push token"          $ testSharePushToken
         , test s "replace shared push token" $ testReplaceSharedPushToken

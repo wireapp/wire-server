@@ -17,8 +17,8 @@ aws:
   region: eu-west-1
   account: "123456789012" # Default account nr used by localstack
   arnEnv: test
-  sqsEndpoint: https://sqs.eu-west-1.amazonaws.com # http://localhost:4568
-  snsEndpoint: https://sns.eu-west-1.amazonaws.com # http://localhost:4575
+  sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
+  snsEndpoint: http://localhost:4575 # https://sns.eu-west-1.amazonaws.com
 
 fallback:
   skipFallbacks: true
