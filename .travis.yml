@@ -1,0 +1,21 @@
+language: node_js
+node_js:
+  - '8'
+
+cache: yarn
+
+notifications:
+  - email: false
+
+before_script:
+  - git config --global user.email webapp+travis@wire.com
+  - git config --global user.name "Wire Travis CI"
+  - mkdir -p temp
+  - openssl aes-256-cbc -K $encrypted_59d15aeab93c_key -iv $encrypted_59d15aeab93c_iv -in deploy.enc -out temp/deploy -d
+  - chmod 600 temp/deploy
+  - eval `ssh-agent -s`
+  - ssh-add temp/deploy
+  - rm -rf temp
+
+script:
+   - 'if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then yarn update:emails; fi'

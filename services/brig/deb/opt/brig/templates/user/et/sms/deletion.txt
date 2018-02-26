@@ -1,2 +1,0 @@
-Wire konto kustutamiseks toksa lingil.
-${url} 
