@@ -1,3 +1,0 @@
-${name}:
-Ich bin auf Wire. Wir sehen uns dort.
-${url}

@@ -1,2 +1,0 @@
-Tryck för att radera ditt Wire konto.
-${url} 
