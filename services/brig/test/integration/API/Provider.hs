@@ -934,7 +934,7 @@ createConv g u us = post $ g
     . header "Z-Type" "access"
     . header "Z-Connection" "conn"
     . contentJson
-    . body (RequestBodyLBS (encode (NewConv us Nothing Set.empty Nothing)))
+    . body (RequestBodyLBS (encode (NewConv us Nothing Set.empty Nothing Nothing)))
 
 postMessage
     :: Galley
