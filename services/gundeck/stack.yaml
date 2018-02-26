@@ -24,3 +24,4 @@ extra-deps:
 - currency-codes-2.0.0.0
 - data-timeout-0.3
 - wai-middleware-gunzip-0.0.2
+- HsOpenSSL-0.11.4.12
