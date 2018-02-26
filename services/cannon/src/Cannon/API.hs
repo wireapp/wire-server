@@ -128,8 +128,8 @@ docs (_ ::: url) = do
 push :: UserId ::: ConnId ::: Request -> Cannon Response
 push (user ::: conn ::: req) = do
     b <- readBody req
-    let notif = decode b
-    case notif of
+    let notf = decode b
+    case notf of
         Nothing -> return badPayload
         Just n -> pushToClient user conn n
 
@@ -144,10 +144,10 @@ bulkpush req = do
             return $ json $ BulkPushResults (lefts responses) (rights responses)
   where
     pushwrapper pushdata = buildResult (udUid pushdata) (udDid pushdata) (udData pushdata)
-    buildResult u c d = mapFailures u c . statusCode . responseStatus <$> pushToClient u c d
-    mapFailures u c s
-        | s == 200  = Right $ PushResponse u c s
-        | otherwise = Left  $ PushResponse u c s
+    buildResult u c d = mapFailures u c d . statusCode . responseStatus <$> pushToClient u c d
+    mapFailures u c d s
+        | s == 200  = Right $ PushResponse (ntfId d) u c s
+        | otherwise = Left  $ PushResponse (ntfId d) u c s
 
 await :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
 await (u ::: a ::: c ::: r) = do
@@ -163,7 +163,7 @@ await (u ::: a ::: c ::: r) = do
 -- Helper functions
 
 pushToClient :: UserId -> ConnId -> Notification -> Cannon Response
-pushToClient user conn  notif = do
+pushToClient user conn  notf = do
     let k = mkKey user conn
     d <- clients
     debug $ client (key2bytes k) . msg (val "push")
@@ -173,7 +173,7 @@ pushToClient user conn  notif = do
             debug $ client (key2bytes k) . msg (val "push: client gone")
             return clientGone
         Just x  -> do
-            let n = encode notif
+            let n = encode notf
             e <- wsenv
             runWS e $
                 (sendMsg n k x >> return empty)

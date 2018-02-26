@@ -8,15 +8,16 @@ import Bilge.Retry (rpcHandlers)
 import Bilge.RPC
 import Control.Exception.Enclosed (handleAny)
 import Control.Monad (foldM, when)
-import Control.Monad.Catch (SomeException (..), throwM)
+import Control.Monad.Catch (SomeException (..), throwM, toException)
 import Control.Lens ((^.), view)
 import Control.Retry
-import Data.Aeson (encode)
+import Data.Aeson (decode, encode)
 import Data.ByteString.Conversion
 import Data.Foldable (toList)
 import Data.Id
 import Data.List
 import Data.List1
+import Data.Maybe (mapMaybe)
 import Data.Set (Set)
 import Data.Time.Clock.POSIX
 import Gundeck.Monad
@@ -63,7 +64,7 @@ pushBulk paramss = do
         ps <- getPresences params
         return [ (notif params, presence) | presence <- ps ]
 
-    mapResponses resps = [[]]
+    mapResponses resps = [[]] -- TODO: delete all gone Presences and return active ones
 
     cannonhost p = (++ cp) <$> ch
       where
@@ -106,7 +107,9 @@ getPresences params = do
         in
             filter (\p -> neqUser p || neqConn p)
 
-
+onResult :: ([Presence], [Presence])
+         -> PushResult
+         -> Gundeck ([Presence], [Presence])
 onResult (ok, gone) (PushSuccess p) = do
     Log.debug $ logPresence p ~~ Log.msg (val "WebSocket push success")
     return (p:ok, gone)
@@ -115,7 +118,7 @@ onResult (ok, gone) (PushGone p) = do
     Log.debug $ logPresence p ~~ Log.msg (val "WebSocket presence gone")
     return (ok, p:gone)
 
-onResult (ok, gone) (PushFailure p _) = do
+onResult (ok, gone) (PushFailure p _) = do -- TODO: copy functionality to sendBulk
     view monitor >>= Metrics.counterIncr (Metrics.path "push.ws.unreachable")
     Log.info $ logPresence p
         ~~ Log.field "created_at" (ms $ createdAt p)
@@ -135,6 +138,11 @@ data PushResult
     | PushGone    Presence
     | PushFailure Presence SomeException
 
+data Presences = Presences
+    { active   :: ![Presence]
+    , inactive :: ![Presence]
+    }
+
 send :: Notification -> [Presence] -> Gundeck [PushResult]
 send n pp =
     let js = encode n in
@@ -152,21 +160,27 @@ send n pp =
     eval p (Left  e) = PushFailure p e
     eval p (Right r) = if statusCode r == 200 then PushSuccess p else PushGone p
 
-sendBulk :: [(Notification, Presence)] -> Gundeck [PushResult]
+sendBulk :: [(Notification, Presence)] -> Gundeck Presences
 sendBulk nps = do
     let cannonUrl = getCannonUrl $ Data.List.head nps
     case cannonUrl of
-        Nothing -> concat <$> mapM sendOld nps
+        Nothing -> return $ Presences [] $ snd . unzip $ nps
         Just cu -> do
             let js = encode $ BulkPush $ map makePayload nps
             req <- Http.setUri empty cu
-            res <- recovering x1 rpcHandlers $ const $
+            rawres <- recovering x1 rpcHandlers $ const $
                 rpc' "cannon" (check req)
                     $ method POST
                     . contentJson
                     . lbytes js
                     . timeout 3000 -- ms
-            return []
+            let mbpr = decode =<< responseBody rawres
+            let bpr = case mbpr of
+                        Nothing -> BulkPushResults [] []
+                        Just b  -> b
+            return $ Presences 
+                        (mapMaybe (mapResponse PushSuccess) (bprSuccesses bpr))
+                        (mapMaybe (mapResponse PushGone)    (bprFails     bpr))
   where
     makePayload (n, p) = UserDevicePayload (userId p) (connId p) n
 
@@ -177,10 +191,10 @@ sendBulk nps = do
         cr = fromURI $ resource p
         us = Net.uriScheme cr
         ma = Net.uriAuthority cr
-        
-        -- TODO: s/push/bulkpush/ here
 
-    sendOld (n, p) = send n [p]
+    mapResponse pr res = snd <$> find (\(n, p) -> notifId res == ntfId  n
+                                                        && bpUid   res == userId p
+                                                        && bpDid   res == connId p) nps
 
 logPresence :: Presence -> Log.Msg -> Log.Msg
 logPresence p =

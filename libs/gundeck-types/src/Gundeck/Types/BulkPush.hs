@@ -30,7 +30,8 @@ instance FromJSON BulkPush
 instance ToJSON   BulkPush
 
 data PushResponse = PushResponse
-    { bpUid    :: !UserId
+    { notifId  :: !NotificationId
+    , bpUid    :: !UserId
     , bpDid    :: !ConnId
     , bpStatus :: !Int
     } deriving ( Show

@@ -71,8 +71,6 @@ push (req ::: _) = do
             forM_ exs $ Log.err . msg . (val "Push failed: " +++) . show
             throwM (Error status500 "server-error" "Server Error")
   where
-    notImpl = Error status501 "not-implemented" "This functionality is not implemented in this configuration"
-
     pushAny p = do
         (_, i, pload, notif, tgts) <- setupPush p
         doPush p i pload notif tgts
