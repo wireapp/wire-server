@@ -362,12 +362,10 @@ postJoinCodeConvOk g b c _ = do
         postJoinCodeConv g eve payload !!! const 403 === statusCode
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
             wsAssertMemberJoin conv bob [bob]
-
         -- changing access to non-verified should give eve access
         let nonVerifiedAccess = ConversationAccessUpdate [CodeAccess] NonVerifiedAccessRole
         putAccessUpdate g alice conv nonVerifiedAccess !!! const 200 === statusCode
         postJoinCodeConv g eve payload !!! const 200 === statusCode
-
         -- after removing CodeAccess, no further people can join
         let noCodeAccess = ConversationAccessUpdate [InviteAccess] NonVerifiedAccessRole
         putAccessUpdate g alice conv noCodeAccess !!! const 200 === statusCode
@@ -394,13 +392,13 @@ postConvertCodeConv g b c _ = do
             wsAssertConvAccessUpdate conv alice nonVerifiedAccess
     -- Create/get/update/delete codes
     getConvCode g alice conv !!! const 404 === statusCode
-    c1 <- decodeConvCodeEvent <$> postConvCode g alice conv
-    c1' <- decodeConvCode <$> getConvCode g alice conv
+    c1 <- decodeConvCodeEvent <$> (postConvCode g alice conv <!! const 201 === statusCode)
+    postConvCodeCheck g c1 !!! const 200 === statusCode
+    c1' <- decodeConvCode <$> (getConvCode g alice conv <!! const 200 === statusCode)
     liftIO $ assertEqual "c1 c1' codes should match" c1 c1'
-    c2 <- decodeConvCodeEvent <$> postConvCode g alice conv
-    liftIO $ assertBool "c2 should be different" (c1 /= c2)
-    c2' <- decodeConvCode <$> getConvCode g alice conv
-    liftIO $ assertEqual "c2 c2' codes should match" c2 c2'
+    postConvCode g alice conv !!! const 200 === statusCode
+    c2 <- decodeConvCode <$> (postConvCode g alice conv <!! const 200 === statusCode)
+    liftIO $ assertEqual "c1 c2 codes should match" c1 c2
     deleteConvCode g alice conv !!! const 200 === statusCode
     getConvCode g alice conv !!! const 404 === statusCode
     -- create a new code; then revoking CodeAccess should make existing codes invalid
