@@ -327,6 +327,11 @@ postConvCode g u c = post $ g
     . zConn "conn"
     . zType "access"
 
+postConvCodeCheck :: Galley -> ConversationCode -> Http ResponseLBS
+postConvCodeCheck g code = post $ g
+    . path "/conversations/code-check"
+    . json code
+
 getConvCode :: Galley -> UserId -> ConvId -> Http ResponseLBS
 getConvCode g u c = get $ g
     . paths ["/conversations", toByteString' c, "code"]
