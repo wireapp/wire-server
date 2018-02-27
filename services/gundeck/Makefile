@@ -93,6 +93,9 @@ integration-list: install
 integration-%: install
 	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"; sleep 1' --env $(KEIRETSU_ENV)
 
+integration-fake-aws: install
+	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="!/RealAWS/"; sleep 1' --env $(KEIRETSU_ENV)
+
 .PHONY: db
 db: db-reset
 

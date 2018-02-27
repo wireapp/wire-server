@@ -104,13 +104,13 @@ data Access
     deriving (Eq, Ord, Show)
 
 -- AccessRoles define who can join conversations
--- the roles are "supersets", i.e. Verified includes Team
--- and NonVerified includes Verified
+-- the roles are "supersets", i.e. Activated includes Team
+-- and NonActivated includes Activated
 data AccessRole
     = PrivateAccessRole
     | TeamAccessRole
-    | VerifiedAccessRole    -- has activated email or phone
-    | NonVerifiedAccessRole -- has nothing
+    | ActivatedAccessRole    -- has activated email or phone
+    | NonActivatedAccessRole -- has nothing
     deriving (Eq, Show)
 
 data ConvMembers = ConvMembers
@@ -368,7 +368,7 @@ instance FromJSON Access where
             "invite"  -> return InviteAccess
             "link"    -> return LinkAccess
             "code"    -> return CodeAccess
-            _         -> fail "Invalid Access Mode"
+            x         -> fail ("Invalid Access Mode: " ++ show x)
 
 
 
@@ -377,16 +377,16 @@ instance FromJSON AccessRole where
         case s of
             "private"           -> return PrivateAccessRole
             "team"              -> return TeamAccessRole
-            "verified"          -> return VerifiedAccessRole
-            "non_verified"      -> return NonVerifiedAccessRole
-            _                   -> fail "Invalid Access Role"
+            "activated"         -> return ActivatedAccessRole
+            "non_activated"     -> return NonActivatedAccessRole
+            x                   -> fail ("Invalid Access Role: " ++ show x)
 
 
 instance ToJSON AccessRole where
     toJSON PrivateAccessRole        = String "private"
     toJSON TeamAccessRole           = String "team"
-    toJSON VerifiedAccessRole       = String "verified"
-    toJSON NonVerifiedAccessRole    = String "non_verified"
+    toJSON ActivatedAccessRole      = String "activated"
+    toJSON NonActivatedAccessRole   = String "non_activated"
 
 instance ToJSON UserClients where
      toJSON =
@@ -527,7 +527,7 @@ instance FromJSON Conversation where
                     <*> o .:  "type"
                     <*> o .:  "creator"
                     <*> o .:  "access"
-                    <*> o .:?  "access_role" .!= VerifiedAccessRole
+                    <*> o .:? "access_role" .!= ActivatedAccessRole
                     <*> o .:? "name"
                     <*> o .:  "members"
                     <*> o .:? "team"

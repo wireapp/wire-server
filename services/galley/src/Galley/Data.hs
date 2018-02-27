@@ -473,7 +473,7 @@ maybeRole RegularConv Nothing    = defRole
 maybeRole RegularConv (Just r)   = r
 
 defRole :: AccessRole
-defRole = VerifiedAccessRole
+defRole = ActivatedAccessRole
 
 privateRole :: AccessRole
 privateRole = PrivateAccessRole

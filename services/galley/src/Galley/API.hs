@@ -469,6 +469,18 @@ sitemap = do
 
     ---
 
+    post "/conversations/code-check" (continue checkReusableCode) $
+        request
+        .&. contentType "application" "json"
+
+    document "POST" "checkConversationCode" $ do
+        summary "Check validity of a conversation code"
+        response 200 "Valid" end
+        body (ref Model.conversationCode) $
+            description "JSON body"
+        errorResponse Error.codeNotFound
+
+
     post "/conversations/join" (continue joinConversationByReusableCode) $
         zauthUserId
         .&. zauthConnId
@@ -481,6 +493,7 @@ sitemap = do
         response 200 "Conversation joined." end
         body (ref Model.conversationCode) $
             description "JSON body"
+        errorResponse Error.codeNotFound
         errorResponse Error.convNotFound
         errorResponse Error.tooManyMembers
 
@@ -494,7 +507,9 @@ sitemap = do
     document "POST" "createConversationCode" $ do
         summary "Create or recreate a conversation code"
         returns (ref Model.event)
-        response 200 "Conversation code created." end
+        returns (ref Model.conversationCode)
+        response 201 "Conversation code created." (model Model.event)
+        response 200 "Conversation code already exists." (model Model.conversationCode)
         errorResponse Error.convNotFound
         errorResponse Error.invalidAccessOp
 

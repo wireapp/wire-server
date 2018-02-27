@@ -13,6 +13,7 @@ module Galley.API.Update
     , acceptConv
     , blockConv
     , unblockConv
+    , checkReusableCode
     , joinConversationById
     , joinConversationByReusableCode
     , addCode
@@ -76,6 +77,7 @@ import Network.Wai.Predicate hiding (setStatus, failure)
 import Network.Wai.Utilities
 import Prelude hiding (any, elem, head)
 
+import qualified Brig.Types.User      as User
 import qualified Data.Map.Strict      as Map
 import qualified Data.Set             as Set
 import qualified Galley.Data          as Data
@@ -135,7 +137,8 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
             Nothing     -> when (targetRole == TeamAccessRole) $
                                throwM invalidTargetAccess
             Just tid    -> handleTeamConv tid targetRole users bots conv
-        -- TODO (?) remove non-verified guests if targetRole == VerifiedAccessRole && currentRole == NonVerifiedAccessRole
+        when (targetRole == ActivatedAccessRole && currentRole == NonActivatedAccessRole) $
+            removeNonActivatedMembers users bots conv
         -- remove conversation codes if CodeAccess is revoked
         when (CodeAccess `elem` currentAccess && CodeAccess `notElem` targetAccess) $ do
             key <- mkKey cnv
@@ -164,11 +167,26 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     removeNonTeamMembers tMembers users bots conv = do
         void $ permissionCheck usr RemoveConversationMember tMembers
         let tUids = view userId <$> tMembers
-        case filter (`notElem` tUids) (memId <$> users) of
-            []   -> return ()
-            x:xs -> do
-                e <- Data.removeMembers conv usr (list1 x xs)
-                pushEvent e users bots zcon
+            toRemove = filter (`notElem` tUids) (memId <$> users)
+        remove toRemove users bots conv
+
+    removeNonActivatedMembers :: [Member] -> [BotMember] -> Data.Conversation -> Galley ()
+    removeNonActivatedMembers users bots conv = do
+        let mIds = memId <$> users
+        activated <- fmap User.userId <$> lookupActivatedUsers mIds
+        let toRemove = filter (`notElem` activated) mIds
+        remove toRemove users bots conv
+
+    remove :: [UserId] -> [Member] -> [BotMember] -> Data.Conversation -> Galley ()
+    remove toRemove users bots conv = case toRemove of
+        []      -> return ()
+        x:xs    -> do
+            e <- Data.removeMembers conv usr (list1 x xs)
+            pushEvent e users bots zcon
+            -- push event to all clients, including zconn
+            -- since updateConversationAccess generates a second (member removal) event here
+            for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
+            void . fork $ void $ External.deliver (bots `zip` repeat e)
 
 pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
 pushEvent e users bots zcon = do
@@ -176,21 +194,31 @@ pushEvent e users bots zcon = do
         push1 $ p & pushConn ?~ zcon
     void . fork $ void $ External.deliver (bots `zip` repeat e)
 
-
 addCode :: UserId ::: ConnId ::: ConvId -> Galley Response
 addCode (usr ::: zcon ::: cnv) = do
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     ensureConvMember (Data.convMembers conv) usr
     ensureAccess conv CodeAccess
     let (bots, users) = botsAndUsers $ Data.convMembers conv
-    c <- generate cnv ReusableCode (Timeout 3600 * 24 * 365) -- one year TODO: configurable
-    Data.insertCode c
-    now <- liftIO getCurrentTime
-    urlPrefix <- view $ options . optSettings . setConversationCodeURI
-    let res = mkConversationCode (codeKey c) (codeValue c) urlPrefix
-    let e = Event ConvCodeUpdate cnv usr now (Just $ EdConvCodeUpdate res)
-    pushEvent e users bots zcon
-    return $ json e & setStatus status200
+    key <- mkKey cnv
+    mCode <- Data.lookupCode key ReusableCode
+    case mCode of
+        Nothing -> do
+            c <- generate cnv ReusableCode (Timeout 3600 * 24 * 365) -- one year TODO: configurable
+            Data.insertCode c
+            now <- liftIO getCurrentTime
+            res <- createCode c
+            let e = Event ConvCodeUpdate cnv usr now (Just $ EdConvCodeUpdate res)
+            pushEvent e users bots zcon
+            return $ json e & setStatus status201
+        Just c -> do
+            res <- createCode c
+            return $ json res & setStatus status200
+  where
+    createCode :: Code -> Galley ConversationCode
+    createCode c = do
+        urlPrefix <- view $ options . optSettings . setConversationCodeURI
+        return $ mkConversationCode (codeKey c) (codeValue c) urlPrefix
 
 rmCode :: UserId ::: ConnId ::: ConvId -> Galley Response
 rmCode (usr ::: zcon ::: cnv) = do
@@ -219,6 +247,12 @@ returnCode c = do
     urlPrefix <- view $ options . optSettings . setConversationCodeURI
     let res = mkConversationCode (codeKey c) (codeValue c) urlPrefix
     return $ setStatus status200 . json $ res
+
+checkReusableCode :: Request ::: JSON -> Galley Response
+checkReusableCode (req ::: _) = do
+    convCode <- fromBody req invalidPayload
+    void $ Data.lookupCode (conversationKey convCode) ReusableCode >>= ifNothing codeNotFound
+    return empty
 
 joinConversationByReusableCode :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 joinConversationByReusableCode (zusr ::: zcon ::: req ::: _) = do
@@ -568,10 +602,10 @@ ensureAccessRole conv users mbTms = case Data.convAccessRole conv of
             Just tms ->
                 unless (null $ notTeamMember users tms) $
                     throwM noTeamMember
-        VerifiedAccessRole -> do
-            verified <- lookupVerifiedUsers users
-            when (length verified /= length users) $ throwM accessDenied
-        NonVerifiedAccessRole -> return ()
+        ActivatedAccessRole -> do
+            activated <- lookupActivatedUsers users
+            when (length activated /= length users) $ throwM accessDenied
+        NonActivatedAccessRole -> return ()
 
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation
