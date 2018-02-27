@@ -47,7 +47,7 @@ exec chpst -u $USER \
     --aws-region=${KHAN_REGION?'unset'} \
     --aws-account=${AWS_ACCOUNT_ID?'unset'} \
     --aws-arn-env=${KHAN_ENV?'unset'} \
-    --aws-sqs-endpoint={$GUNDECK_AWS_SQS_ENDPOINT:-'https://sqs.eu-west-1.amazonaws.com'} \
-    --aws-sns-endpoint={$GUNDECK_AWS_SNS_ENDPOINT:-'https://sns.eu-west-1.amazonaws.com'} \
+    --aws-sqs-endpoint=${GUNDECK_AWS_SQS_ENDPOINT:-'https://sqs.eu-west-1.amazonaws.com'} \
+    --aws-sns-endpoint=${GUNDECK_AWS_SNS_ENDPOINT:-'https://sns.eu-west-1.amazonaws.com'} \
     --skip-fallbacks \
     ${GUNDECK_PREFER_NOTICE}
