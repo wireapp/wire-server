@@ -43,19 +43,19 @@ docker-builder:
 docker-intermediate:
 	docker build -t $(DOCKER_USER)/intermediate:$(DOCKER_TAG) -f build/alpine/Dockerfile.intermediate .;
 	docker tag $(DOCKER_USER)/intermediate:$(DOCKER_TAG) $(DOCKER_USER)/intermediate:latest;
-	if test -n "$$DOCKER_PUSH"; then docker push $(DOCKER_USER)/intermediate:$(DOCKER_TAG); docker push $(DOCKER_USER)/intermediate:latest; fi;
+	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/intermediate:$(DOCKER_TAG); docker push $(DOCKER_USER)/intermediate:latest; fi;
 
 .PHONY: docker-migrations
 docker-migrations:
 	docker build -t $(DOCKER_USER)/migrations:$(DOCKER_TAG) -f build/alpine/Dockerfile.migrations .
 	docker tag $(DOCKER_USER)/migrations:$(DOCKER_TAG) $(DOCKER_USER)/migrations:latest
-	if test -n "$$DOCKER_PUSH"; then docker push $(DOCKER_USER)/migrations:$(DOCKER_TAG); docker push $(DOCKER_USER)/migrations:latest; fi;
+	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/migrations:$(DOCKER_TAG); docker push $(DOCKER_USER)/migrations:latest; fi;
 
 .PHONY: docker-exe-%
 docker-exe-%:
 	docker build -t $(DOCKER_USER)/"$*":$(DOCKER_TAG) -f build/alpine/Dockerfile.executable --build-arg executable="$*" .
 	docker tag $(DOCKER_USER)/"$*":$(DOCKER_TAG) $(DOCKER_USER)/"$*":latest
-	if test -n "$$DOCKER_PUSH"; then docker push $(DOCKER_USER)/"$*":$(DOCKER_TAG); docker push $(DOCKER_USER)/"$*":latest; fi;
+	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/"$*":$(DOCKER_TAG); docker push $(DOCKER_USER)/"$*":latest; fi;
 
 .PHONY: docker-service-%
 docker-service-%:

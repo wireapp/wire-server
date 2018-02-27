@@ -46,6 +46,6 @@ script:
 notifications:
   email: false
 
-branches:
-  only:
-    - develop
+#branches:
+#only:
+#  - develop
