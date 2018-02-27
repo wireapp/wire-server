@@ -90,7 +90,6 @@ tests s = testGroup "Gundeck integration tests" [
         , test s "Remove stale presence" $ removeStalePresence
         , test s "Single user push"      $ singleUserPush
         , test s "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback
-        , test s "Send a push to online and offline users" $ sendMultipleUsers
         , test s "Targeted push by connection" $ targetConnectionPush
         , test s "Targeted push by client" $ targetClientPush
         ],
@@ -113,6 +112,11 @@ tests s = testGroup "Gundeck integration tests" [
     testGroup "Tokens"
         [ test s "register a push token"     $ testRegisterPushToken
         , test s "unregister a push token"   $ testUnregisterPushToken
+        ],
+    -- TODO: The following tests require (at the moment), the usage real AWS
+    --       services so they are kept in a separate group to simplify testing
+    testGroup "RealAWS"
+        [ test s "Send a push to online and offline users" $ sendMultipleUsers
         , test s "register too many push tokens" $ testRegisterTooManyTokens
         , test s "share push token"          $ testSharePushToken
         , test s "replace shared push token" $ testReplaceSharedPushToken
@@ -653,6 +657,10 @@ testSharePushToken g _ b _ = do
         let t2 = tk c2
         t1' <- registerPushToken u1 t1 g
         t2' <- registerPushToken u2 t2 g -- share the token with u1
+        -- ^ Unfortunately this fails locally :(
+        -- "Duplicate endpoint token: 61d22005-af6e-4199-add9-899aae79c70a"
+        -- Instead of getting something in the lines of
+        -- "Invalid parameter: Token Reason: Endpoint <arn> " already exists with the same Token, but different attributes."
         liftIO $ assertEqual "token mismatch" (t1^.token) t1'
         liftIO $ assertEqual "token mismatch" (t2^.token) t2'
         liftIO $ assertEqual "token mismatch" t1' t2'
