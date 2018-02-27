@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators       #-}
 {-# LANGUAGE ViewPatterns        #-}
 
 module Proxy.API (Proxy.API.run) where
@@ -13,6 +14,7 @@ import Control.Monad.IO.Class (liftIO, MonadIO)
 import Control.Concurrent (threadDelay)
 import Control.Lens hiding ((.=))
 import Control.Retry
+import Data.Aeson (ToJSON (..))
 import Data.ByteString (ByteString, breakSubstring)
 import Data.CaseInsensitive (CI)
 import Data.Metrics.Middleware hiding (path)
@@ -31,6 +33,7 @@ import Prelude hiding (head)
 import Proxy.Env
 import Proxy.Proxy
 import Proxy.Options
+import Servant.API hiding (addHeader)
 import System.Logger.Class hiding (Error, info, render)
 
 import qualified Bilge.Request as Req
@@ -42,7 +45,15 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Network.HTTP.Client as Client
 import qualified Network.Wai.Internal as I
+import qualified Servant as S
 import qualified System.Logger as Logger
+
+newtype TestType = TestType String
+instance ToJSON TestType where
+    toJSON (TestType x) = toJSON x
+
+type API = "test" :> Get '[JSON] TestType
+                :<|> Raw
 
 run :: Opts -> IO ()
 run o = do
@@ -53,7 +64,17 @@ run o = do
     let measured = measureRequests m rtree
     let app r k  = runProxy e r (route rtree r k)
     let start    = measured . catchErrors (e^.applog) m $ app
-    runSettings s start `finally` destroyEnv e
+    runSettings s (serve start) `finally` destroyEnv e
+  where
+    server :: Application -> S.Server API
+    server old = pure (TestType "hello!")
+            :<|> (S.Tagged old)
+
+    api :: S.Proxy API
+    api = S.Proxy
+
+    serve :: Application -> Application
+    serve old = S.serve api (server $  old)
 
 sitemap :: Env -> Routes a Proxy ()
 sitemap e = do

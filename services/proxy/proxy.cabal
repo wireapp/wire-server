@@ -42,6 +42,8 @@ library
         , network              >= 2.6
         , optparse-applicative >= 0.12
         , retry                >= 0.7
+        , servant
+        , servant-server
         , text                 >= 1.2
         , tinylog              >= 0.12
         , tls                  >= 1.3
