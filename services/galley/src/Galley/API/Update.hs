@@ -251,14 +251,21 @@ returnCode c = do
 checkReusableCode :: Request ::: JSON -> Galley Response
 checkReusableCode (req ::: _) = do
     convCode <- fromBody req invalidPayload
-    void $ Data.lookupCode (conversationKey convCode) ReusableCode >>= ifNothing codeNotFound
+    void $ verifyReusableCode convCode
     return empty
 
 joinConversationByReusableCode :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 joinConversationByReusableCode (zusr ::: zcon ::: req ::: _) = do
-    body <- fromBody req invalidPayload
-    cnv <- codeConversation <$> (Data.lookupCode (conversationKey body) ReusableCode >>= ifNothing codeNotFound)
-    joinConversation zusr zcon cnv CodeAccess
+    convCode <- fromBody req invalidPayload
+    c <- verifyReusableCode convCode
+    joinConversation zusr zcon (codeConversation c) CodeAccess
+
+verifyReusableCode :: ConversationCode -> Galley Code
+verifyReusableCode convCode = do
+    c <- Data.lookupCode (conversationKey convCode) ReusableCode >>= ifNothing codeNotFound
+    unless (codeValue c == conversationCode convCode) $
+        throwM codeNotFound
+    return c
 
 joinConversationById :: UserId ::: ConnId ::: ConvId ::: JSON -> Galley Response
 joinConversationById (zusr ::: zcon ::: cnv ::: _) = joinConversation zusr zcon cnv LinkAccess
