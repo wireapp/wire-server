@@ -451,10 +451,12 @@ completeResumable r = do
     (own, ast) = (resumableOwner r, resumableAsset r)
     -- Local assembly for small chunk sizes (< 5 MiB): Download and re-upload
     -- the chunks in a streaming fashion one-by-one to create the final object.
+    assembleLocal :: Seq S3Chunk -> ExceptT Error App ()
     assembleLocal chunks = do
         e <- view aws
-        let size = resumableTotalSize r
-        let reqBdy = Chunked $ ChunkedBody defaultChunkSize (fromIntegral size) (chunkSource e chunks)
+        let totalSize = fromIntegral (resumableTotalSize r)
+        let chunkSize = calcChunkSize chunks
+        let reqBdy = Chunked $ ChunkedBody chunkSize totalSize (chunkSource e chunks)
         let putRq b = putObject (BucketName b) (ObjectKey (s3Key (mkKey ast))) reqBdy
                     & poContentType ?~ encodeMIMEType (resumableType r)
                     & poMetadata    .~ metaHeaders (resumableToken r) own
@@ -470,6 +472,12 @@ completeResumable r = do
                           & dQuiet ?~ True
         let delRq b = deleteObjects (BucketName b) del
         void $ exec delRq
+
+    -- All chunks except for the last should be of the same size so it makes
+    -- sense to use that as our default
+    calcChunkSize cs = case Seq.viewl cs of
+        EmptyL -> defaultChunkSize
+        c :< _ -> ChunkSize $ fromIntegral (chunkSize c)
 
     -- Remote assembly for large(r) chunk sizes (>= 5 MiB) via the
     -- S3 multipart upload API.
