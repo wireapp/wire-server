@@ -10,31 +10,55 @@ services:
     ports:
       - 4568:4568
 
-  fake_ses:
+  fake_localstack:
     image: localstack/localstack:0.8.5
     ports:
-      - 4569:4579
+      - 4569:4579 # ses
+      - 4575:4575 # sns
     environment:
       - DEBUG=1
       - DEFAULT_REGION=eu-west-1
-      - SERVICES=ses
+      - SERVICES=ses,sns
 
   redis:
     image: redis:3.0.7-alpine
     ports:
       - "6379:6379"
 
+  elasticsearch:
+    image: elasticsearch:5.6
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+
+  cassandra:
+    image: cassandra:3.11.1
+    ports:
+      - "9042:9042"
+
+  db_migrations:
+    image: wireserver/migrations
+    depends_on:
+      - elasticsearch
+      - cassandra
+    command: /scripts/db-migrate.sh
+    volumes:
+      - ./:/scripts
+    links:
+      - elasticsearch
+      - cassandra
+
   aws_cli:
     image: mesosphere/aws-cli:1.14.5
     depends_on:
       - fake_dynamodb
       - fake_sqs
-      - fake_ses
+      - fake_localstack
     links:
       - fake_dynamodb:dynamodb
       - fake_sqs:sqs
-      - fake_ses:ses
+      - fake_localstack:ses
+      - fake_localstack:sns
     entrypoint: /scripts/init.sh
     volumes:
       - ./:/scripts
-

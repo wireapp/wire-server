@@ -12,14 +12,13 @@ redis:
   host: 127.0.0.1
   port: 6379
 
-# Gundeck uses discovery for AWS access key / secrets 
-# For more details, check amazonka's documentation at:
-# https://hackage.haskell.org/package/amazonka-1.4.5/docs/Network-AWS.html#t:Credentials
 aws:
   queueName: integration-gundeck-events
   region: eu-west-1
-  account: "<insert-account-number-here>"
+  account: "123456789012" # Default account nr used by localstack
   arnEnv: test
+  sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
+  snsEndpoint: http://localhost:4575 # https://sns.eu-west-1.amazonaws.com
 
 fallback:
   skipFallbacks: true

@@ -22,6 +22,7 @@ import Data.List1
 import Data.Misc
 import Data.Maybe
 import Data.Monoid
+import Data.Range
 import Galley.Types
 import Gundeck.Types.Notification
 import Network.Wai.Utilities.Error
@@ -31,6 +32,7 @@ import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
 import API.SQS
 
+import qualified Data.Text.Ascii          as Ascii
 import qualified Galley.Types.Teams       as Teams
 import qualified API.Teams                as Teams
 import qualified Control.Concurrent.Async as Async
@@ -39,6 +41,7 @@ import qualified Data.Map.Strict          as Map
 import qualified Data.Set                 as Set
 import qualified Data.Text                as T
 import qualified Test.Tasty.Cannon        as WS
+import qualified Data.Code                as Code
 
 type TestSignature a = Galley -> Brig -> Cannon -> TestSetup -> Http a
 
@@ -352,9 +355,13 @@ postJoinCodeConvOk g b c _ = do
     -- POST /join expects code,key
     -- TODO: Should there be two different types?
     let payload = cCode {conversationUri = Nothing} -- unnecessary step, cCode can be posted as-is also.
+        incorrectCode = cCode {conversationCode = Code.Value (unsafeRange (Ascii.encodeBase64Url "incorrect-code"))}
 
     -- with ActivatedAccess, bob can join, but not eve
     WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+        -- incorrect code/key does not work
+        postJoinCodeConv g bob incorrectCode !!! const 404 === statusCode
+        -- correct code works
         postJoinCodeConv g bob payload !!! const 200 === statusCode
         -- test no-op
         postJoinCodeConv g bob payload !!! const 204 === statusCode

@@ -24,10 +24,12 @@ newtype NotificationTTL = NotificationTTL
     deriving (Eq, Ord, Show, Generic, FromJSON)
 
 data AWSOpts = AWSOpts
-    { _awsAccount   :: !Account
-    , _awsRegion    :: !Region
-    , _awsArnEnv    :: !ArnEnv
-    , _awsQueueName :: !Text
+    { _awsAccount     :: !Account
+    , _awsRegion      :: !Region
+    , _awsArnEnv      :: !ArnEnv
+    , _awsQueueName   :: !Text
+    , _awsSqsEndpoint :: !AWSEndpoint
+    , _awsSnsEndpoint :: !AWSEndpoint
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''AWSOpts
@@ -125,6 +127,20 @@ optsParser = Opts <$>
             long "event-queue-name"
             <> metavar "STRING"
             <> help "sqs queue name")
+        <*>
+        (option parseAWSEndpoint $
+            long "aws-sqs-endpoint"
+            <> metavar "STRING"
+            <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443)
+            <> showDefault
+            <> help "aws SQS endpoint")
+        <*>
+        (option parseAWSEndpoint $
+            long "aws-sns-endpoint"
+            <> metavar "STRING"
+            <> value (AWSEndpoint "sns.eu-west-1.amazonaws.com" True 443)
+            <> showDefault
+            <> help "aws SNS endpoint")
 
     fallbackParser :: Parser FallbackOpts
     fallbackParser = FallbackOpts <$>

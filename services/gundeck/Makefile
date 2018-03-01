@@ -1,13 +1,14 @@
 SHELL         := /usr/bin/env bash
 NAME          := gundeck
+DIST          ?= ./dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT        := dist/$(NAME)-integration
+EXE_IT        := $(DIST)/$(NAME)-integration
 EXE_TESTS     := dist/$(NAME)-tests
 EXE_BENCH     := dist/$(NAME)-bench
-EXE_SCHEMA    := dist/$(NAME)-schema
+EXE_SCHEMA    := $(DIST)/$(NAME)-schema
 DEB           := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
@@ -92,6 +93,9 @@ integration-list: install
 
 integration-%: install
 	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"; sleep 1' --env $(KEIRETSU_ENV)
+
+integration-fake-aws: install
+	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="!/RealAWS/"; sleep 1' --env $(KEIRETSU_ENV)
 
 .PHONY: db
 db: db-reset

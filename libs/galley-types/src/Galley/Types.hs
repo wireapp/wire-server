@@ -368,7 +368,7 @@ instance FromJSON Access where
             "invite"  -> return InviteAccess
             "link"    -> return LinkAccess
             "code"    -> return CodeAccess
-            _         -> fail "Invalid Access Mode"
+            x         -> fail ("Invalid Access Mode: " ++ show x)
 
 
 
@@ -379,7 +379,7 @@ instance FromJSON AccessRole where
             "team"              -> return TeamAccessRole
             "activated"         -> return ActivatedAccessRole
             "non_activated"     -> return NonActivatedAccessRole
-            _                   -> fail "Invalid Access Role"
+            x                   -> fail ("Invalid Access Role: " ++ show x)
 
 
 instance ToJSON AccessRole where
