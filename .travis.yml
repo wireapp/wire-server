@@ -3,9 +3,6 @@ sudo: 'required'
 services:
   - 'docker'
 
-notifications:
-  email: false
-
 env:
   global:
     - DOCKER_TAG=0.1.${TRAVIS_BUILD_NUMBER}
@@ -54,7 +51,11 @@ before_script:
 script:
   - 'if ["$TRAVIS_PULL_REQUEST" != "false"]; then python services/brig/deb/opt/brig/bin/fetch.py; fi'
 
+notifications:
+  email: false
+
 deploy:
+  provider: script
   script:
     - docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
     - make ${TARGETS[@]}
