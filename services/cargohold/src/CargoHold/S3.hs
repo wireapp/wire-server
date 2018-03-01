@@ -524,13 +524,15 @@ completeResumable r = do
               let req = getObject (BucketName b) (ObjectKey ck)
               v <- lift $ AWS.execute env $ AWS.send req
                         >>= flip sinkBody Conduit.sinkLbs . view gorsBody
-              cheap (LBS.splitAt 8192 v)
+              -- let ChunkSize sz = defaultChunkSize
+              let sz = 8 * 1024 :: Int
+              cheap (fromIntegral sz) (LBS.splitAt (fromIntegral sz) v)
               chunkSource env cc
 
-    cheap :: (LBS.ByteString, LBS.ByteString) -> Source (ResourceT IO) ByteString
-    cheap (x, xs) = if LBS.null xs
-                        then Conduit.yield (LBS.toStrict x) -- This assumes ALL parts have at least 8192 B
-                        else Conduit.yield (LBS.toStrict x) >> cheap (LBS.splitAt 8192 xs)
+    cheap :: Int -> (LBS.ByteString, LBS.ByteString) -> Source (ResourceT IO) ByteString
+    cheap idx (x, xs) = if LBS.null xs
+                        then Conduit.yield (LBS.toStrict x) -- This assumes ALL parts have at least defaultChunkSize in size
+                        else Conduit.yield (LBS.toStrict x) >> cheap (fromIntegral idx) (LBS.splitAt (fromIntegral idx) xs)
 
 listChunks :: S3Resumable -> ExceptT Error App (Maybe (Seq S3Chunk))
 listChunks r = do
