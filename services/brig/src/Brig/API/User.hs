@@ -454,6 +454,7 @@ changeAccountStatus usrs status = do
         Active    -> return UserResumed
         Suspended -> liftIO $ mapConcurrently (runAppT e . revokeAllCookies) usrs >> return UserSuspended
         Deleted   -> throwE InvalidAccountStatus
+        Ephemeral -> throwE InvalidAccountStatus
     liftIO $ mapConcurrently_ (runAppT e . (update ev)) usrs
   where
     update :: (UserId -> UserEvent) -> UserId -> AppIO ()
@@ -644,6 +645,7 @@ deleteUser uid pwd = do
             Deleted   -> return Nothing
             Suspended -> ensureNotOnlyOwner >> go a
             Active    -> ensureNotOnlyOwner >> go a
+            Ephemeral -> go a
   where
     ensureNotOnlyOwner = do
         onlyOwner <- lift $ Team.isOnlyTeamOwner uid
@@ -820,4 +822,3 @@ fetchUserIdentity :: UserId -> AppIO (Maybe UserIdentity)
 fetchUserIdentity uid = lookupSelfProfile uid >>= maybe
     (throwM $ UserProfileNotFound uid)
     (return . userIdentity . selfUser)
-

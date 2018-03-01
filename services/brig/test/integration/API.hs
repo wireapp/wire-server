@@ -32,6 +32,8 @@ import Data.Foldable (for_)
 import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
 import Data.Monoid ((<>))
+import Data.Time (UTCTime, getCurrentTime)
+import Data.Time.Clock (diffUTCTime)
 import Data.Range (unsafeRange)
 import Data.Text (Text)
 import Data.Vector (Vector)
@@ -74,6 +76,7 @@ tests conf p b c g localAWS = do
             , test p "post /register - 201"                     $ testCreateUser b g
             , test p "post /register - 201 + no email"          $ testCreateUserNoEmailNoPassword b
             , test p "post /register - 201 anonymous"           $ testCreateUserAnon b g
+            , test p "post /register - 201 anonymous expiry"    $ testCreateUserAnonExpiry b
             , test p "post /register - 201 pending"             $ testCreateUserPending b
             , test p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey b
             , test p "post /register - 409 conflict"            $ testCreateUserConflict b
@@ -447,6 +450,40 @@ testMultipleUsers brig = do
     field :: FromJSON a => Text -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
+
+testCreateUserAnonExpiry :: Brig -> Http ()
+testCreateUserAnonExpiry b = do
+    u1 <- randomUser b
+    alice <- randomUser b
+    bob <- createAnonUser "bob" b
+    liftIO $ assertBool "expiry not set on regular creation" (not $ isJust $ userExpire alice)
+    ensureExpiry (userExpire bob) "bob/register"
+    resAlice <- get (b . zUser (userId u1) . paths ["users", toByteString' (userId alice)]) <!! const 200 === statusCode
+    resBob <- get (b . zUser (userId u1) . paths ["users", toByteString' (userId bob)]) <!! const 200 === statusCode
+    selfBob <- get (b . zUser (userId bob) . path "self") <!! const 200 === statusCode
+    unless (null (expire resAlice)) $
+        liftIO $ assertFailure "Regular user should not have any expiry"
+    ensureExpiry (expire resBob) "bob/public"
+    ensureExpiry (expire selfBob) "bob/self"
+  where
+    ensureExpiry :: Maybe UTCTime -> String -> Http ()
+    ensureExpiry expiry s = case expiry of
+                       Nothing -> liftIO $ assertFailure ("user must have an expiry" <> s)
+                       Just a -> do
+                          now <- liftIO getCurrentTime
+                          let diff = diffUTCTime a now
+                              minExp = 20 :: Integer -- 20 seconds
+                              maxExp = 60 * 60 * 24 * 10 :: Integer -- 10 days
+                          liftIO $ assertBool "expiry must in be the future" (diff > fromIntegral minExp)
+                          liftIO $ assertBool "expiry must be less than 10 days" (diff < fromIntegral maxExp)
+
+    expire :: ResponseLBS -> Maybe UTCTime
+    expire r = join $ field "expires_at" <$> decodeBody r
+
+    field :: FromJSON a => Text -> Value -> Maybe a
+    field f u = u ^? key f >>= maybeFromJSON
+
+
 testUserUpdate :: Brig -> Cannon -> Http ()
 testUserUpdate brig cannon = do
     alice <- userId <$> randomUser brig
@@ -766,7 +803,7 @@ testDeleteUserByPassword brig cannon = do
     n1 <- countCookies brig uid1 defCookieLabel
     liftIO $ Just 1 @=? n1
 
-    setHandleAndDeleteUser brig cannon u [] $ 
+    setHandleAndDeleteUser brig cannon u [] $
         \uid -> deleteUser uid (Just defPassword) brig !!! const 200 === statusCode
 
     -- Activating the new email address now should not work
@@ -2196,7 +2233,7 @@ setHandleAndDeleteUser brig cannon u others execDelete = do
     let update = RequestBodyLBS . encode $ HandleUpdate hdl
     put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update) !!!
         const 200 === statusCode
-    
+
     -- Delete the user
     WS.bracketRN cannon (uid : others) $ \wss -> do
         execDelete uid

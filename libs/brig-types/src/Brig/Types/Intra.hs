@@ -24,6 +24,7 @@ data AccountStatus
     = Active
     | Suspended
     | Deleted
+    | Ephemeral
     deriving Eq
 
 instance FromJSON AccountStatus where
@@ -31,12 +32,14 @@ instance FromJSON AccountStatus where
         "active"    -> pure Active
         "suspended" -> pure Suspended
         "deleted"   -> pure Deleted
+        "ephemeral" -> pure Ephemeral
         _           -> fail $ "Invalid account status: " ++ Text.unpack s
 
 instance ToJSON AccountStatus where
     toJSON Active    = String "active"
     toJSON Suspended = String "suspended"
     toJSON Deleted   = String "deleted"
+    toJSON Ephemeral = String "ephemeral"
 
 newtype AccountStatusUpdate = AccountStatusUpdate
     { suStatus :: AccountStatus }
