@@ -40,6 +40,9 @@ module CargoHold.S3
     , otrKey
     , getMetadata
     , getOtrMetadata
+
+      -- TODO: Remove
+    , exec'
     ) where
 
 import CargoHold.App hiding (Env, Handler)
@@ -449,14 +452,23 @@ completeResumable r = do
         ~~ msg (val "Resumable upload completed")
   where
     (own, ast) = (resumableOwner r, resumableAsset r)
+    -- Construct a 'Source' by downloading the chunks.
+    
     -- Local assembly for small chunk sizes (< 5 MiB): Download and re-upload
     -- the chunks in a streaming fashion one-by-one to create the final object.
     assembleLocal :: Seq S3Chunk -> ExceptT Error App ()
     assembleLocal chunks = do
         e <- view aws
-        let totalSize = fromIntegral (resumableTotalSize r)
-        let chunkSize = calcChunkSize chunks
-        let reqBdy = Chunked $ ChunkedBody chunkSize totalSize (chunkSource e chunks)
+        
+        -- let getRqs cs = case Seq.viewl cs of
+        --     EmptyL  -> []
+        --     c :< cc -> do
+        --         let S3ChunkKey ck = mkChunkKey (resumableKey r) (chunkNr c)
+        --         let req nm = getObject (BucketName nm) (ObjectKey ck)
+        --         req : getRqs cc
+        -- void $ exec' r (ObjectKey (s3Key (mkKey ast))) own (getRqs chunks)
+        let size = resumableTotalSize r
+        let reqBdy = Chunked $ ChunkedBody defaultChunkSize (fromIntegral size) (chunkSource e chunks)
         let putRq b = putObject (BucketName b) (ObjectKey (s3Key (mkKey ast))) reqBdy
                     & poContentType ?~ encodeMIMEType (resumableType r)
                     & poMetadata    .~ metaHeaders (resumableToken r) own
@@ -475,9 +487,9 @@ completeResumable r = do
 
     -- All chunks except for the last should be of the same size so it makes
     -- sense to use that as our default
-    calcChunkSize cs = case Seq.viewl cs of
-        EmptyL -> defaultChunkSize
-        c :< _ -> ChunkSize $ fromIntegral (chunkSize c)
+    -- calcChunkSize cs = case Seq.viewl cs of
+    --     EmptyL -> defaultChunkSize
+    --     c :< _ -> ChunkSize $ fromIntegral (chunkSize c)
 
     -- Remote assembly for large(r) chunk sizes (>= 5 MiB) via the
     -- S3 multipart upload API.
@@ -501,19 +513,24 @@ completeResumable r = do
         unless (total == resumableTotalSize r) $
             throwE $ uploadIncomplete (resumableTotalSize r) total
 
-    -- Construct a 'Source' by downloading the chunks.
     chunkSource :: AWS.Env
                 -> Seq S3Chunk
                 -> Source (ResourceT IO) ByteString
     chunkSource env cs = case Seq.viewl cs of
-        EmptyL  -> mempty
-        c :< cc -> do
-            let S3ChunkKey ck = mkChunkKey (resumableKey r) (chunkNr c)
-            let b   = view AWS.s3Bucket env
-            let req = getObject (BucketName b) (ObjectKey ck)
-            v <- lift $ AWS.execute env $ AWS.send req
-                      >>= flip sinkBody Conduit.sinkLbs . view gorsBody
-            Conduit.yield (LBS.toStrict v) >> chunkSource env cc
+          EmptyL  -> mempty
+          c :< cc -> do
+              let S3ChunkKey ck = mkChunkKey (resumableKey r) (chunkNr c)
+              let b   = view AWS.s3Bucket env
+              let req = getObject (BucketName b) (ObjectKey ck)
+              v <- lift $ AWS.execute env $ AWS.send req
+                        >>= flip sinkBody Conduit.sinkLbs . view gorsBody
+              cheap (LBS.splitAt 8192 v)
+              chunkSource env cc
+
+    cheap :: (LBS.ByteString, LBS.ByteString) -> Source (ResourceT IO) ByteString
+    cheap (x, xs) = if LBS.null xs
+                        then Conduit.yield (LBS.toStrict x) -- This assumes ALL parts have at least 8192 B
+                        else Conduit.yield (LBS.toStrict x) >> cheap (LBS.splitAt 8192 xs)
 
 listChunks :: S3Resumable -> ExceptT Error App (Maybe (Seq S3Chunk))
 listChunks r = do
@@ -696,6 +713,91 @@ exec req = do
     e <- view aws
     b <- view (aws.AWS.s3Bucket)
     AWS.execute e (AWS.send $ req b)
+
+-- exec' :: (AWSRequest r) => [(Text -> GetObject)] -> (Text -> Source (ResourceT IO) ByteString -> r) -> ExceptT Error App (Rs r)
+exec' :: S3Resumable -> ObjectKey -> V3.Principal -> [(Text -> GetObject)] -> ExceptT Error App PutObjectResponse
+exec' r oK own srcs = do
+    e <- view aws
+    b <- view (aws.AWS.s3Bucket)
+    AWS.execute e $ do
+        let totalSize = fromIntegral (resumableTotalSize r)
+        let chunkSize = defaultChunkSize
+        xs <- toSrc2 b srcs []
+        let reqBdy = Chunked $ ChunkedBody chunkSize totalSize (fn2 xs)
+        -- xs <- toSrc b srcs []
+        -- let reqBdy = Chunked $ ChunkedBody chunkSize totalSize (fn xs)
+        let putRq = putObject (BucketName b) oK reqBdy
+                  & poContentType ?~ encodeMIMEType (resumableType r)
+                  & poMetadata    .~ metaHeaders (resumableToken r) own
+        Log.warn $ "remote" .= val "S3" ~~ msg (val "sending put request")
+        rs <- AWS.send putRq
+        return rs
+  where
+    -- fn :: [(Source (ResourceT IO) ByteString, ResourceT IO ())] -> Source (ResourceT IO) ByteString
+    -- fn []         = return mempty
+    -- fn ((s,f):xs) = s >> fn xs
+
+    -- toSrc _ []     acc = return acc
+    -- toSrc b (x:xs) acc = do
+    --     getResp <- AWS.send $ x b
+    --     let (RsBody bdy) = view gorsBody getResp -- bdy :: ResumableSource (ResourceT IO) ByteString
+    --     (s, f) <- liftIO $ runResourceT (Conduit.unwrapResumable bdy)
+    --     Log.warn $ "remote" .= val "S3" ~~ msg (val "")
+    --     toSrc b xs ((s, f) : acc)
+
+    fn2 :: [ResumableSource (ResourceT IO) ByteString] -> Source (ResourceT IO) ByteString
+    fn2 []     = return ()
+    fn2 (x:xs) = do
+        v <- (RsBody x) `sinkBody` Conduit.sinkLbs
+        cheap (LBS.splitAt 8192 v)
+        fn2 xs
+
+    cheap :: (LBS.ByteString, LBS.ByteString) -> Source (ResourceT IO) ByteString
+    cheap (x, xs) = if LBS.null xs
+                        then Conduit.yield (LBS.toStrict x) -- This assumes ALL parts have at least 8192 B
+                        else Conduit.yield (LBS.toStrict x) >> cheap (LBS.splitAt 8192 xs)
+
+    -- fn2 :: [ResumableSource (ResourceT IO) ByteString] -> Source (ResourceT IO) ByteString
+    -- fn2 xs = sequence_ $ map (\x -> do
+    --                             (s, _) <- liftIO $ runResourceT (Conduit.unwrapResumable x)
+    --                             s
+    --                    ) xs
+    --     liftIO $ print ("DONE!" :: String)
+    --     return mempty
+    -- fn2 (x:xs) = do
+    --     liftIO $ print ("Fetching...! " :: String)
+    --     (s, _) <- liftIO $ runResourceT (Conduit.unwrapResumable x)
+    --     -- liftIO $ print ("Yielding...!")
+    --     -- v <- sinkBody (RsBody x) Conduit.sinkLbs
+    --     -- Conduit.yield (LBS.toStrict v)
+    --     fn2 xs
+
+    -- magic :: ResumableSource (ResourceT IO) ByteString -> ConduitM () ByteString (ResourceT IO) ()
+    
+    toSrc2 _ []     acc = return acc
+    toSrc2 b (x:xs) acc = do
+        getResp <- AWS.send $ x b
+        Log.warn $ "remote" .= val "S3" ~~ msg (val "Fetching: ") ~~ msg (show $ x b)
+        let (RsBody bdy) = view gorsBody getResp -- bdy :: ResumableSource (ResourceT IO) ByteString
+        toSrc2 b xs (bdy : acc)
+
+-- magic :: Source (ResourceT IO) ByteString -> ConduitM () ByteString (ResourceT IO) ()
+-- magic = undefined
+
+    -- fn3 :: [RsBody] -> Source (ResourceT IO) ByteString
+    -- fn3 []     = return mempty
+    -- fn3 (x:xs) = do
+    --     (s, f) <- liftIO $ runResourceT (Conduit.unwrapResumable x)
+    --     v <- flip sinkBody Conduit.sinkLbs x
+    --     -- Conduit.yield (LBS.toStrict v)
+    --     s >> fn2 xs >> lift f
+
+    -- toSrc3 _ []     acc = return acc
+    -- toSrc3 b (x:xs) acc = do
+    --     getResp <- AWS.send $ x b
+    --     Log.warn $ "remote" .= val "S3" ~~ msg (val "Fetching: ") ~~ msg (show $ x b)
+    --     let bdy = view gorsBody getResp
+    --     toSrc2 b xs (bdy : acc)
 
 execCatch :: (AWSRequest r, Show r)
            => (Text -> r)

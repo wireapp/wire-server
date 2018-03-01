@@ -9,3 +9,12 @@ main = getOptions desc optsParser defaultPath >>= runServer
   where
     desc = "Cargohold - Asset Storage"
     defaultPath = "/etc/wire/cargohold/conf/cargohold.yaml"
+
+
+-- import CargoHold.API
+-- import CargoHold.Example
+-- import CargoHold.Options
+-- import Util.Options
+
+-- main :: IO ()
+-- main = testAmazonka
