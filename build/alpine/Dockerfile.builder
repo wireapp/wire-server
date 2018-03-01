@@ -89,8 +89,9 @@ RUN cd /tmp && \
 RUN cd /tmp/ghc && \
     ./boot && \
     SPHINXBUILD=/usr/bin/sphinx-build-3 ./configure --prefix=/root/.stack/programs/x86_64-linux/$GHC_VER --disable-ld-override && \
-    make -j4 && \
-    make install && \
+    echo "compiling GHC, may take an hour. Log output sent to /dev/null due to travis log length restrictions." && \
+    make -j4 &> /dev/null && \
+    make install &> /dev/null && \
     mv /tmp/config.yaml /root/.stack/
 
 # download stack indices and compile/cache dependencies to speed up subsequent container creation

@@ -1,4 +1,4 @@
-## Overview
+# Overview
 
 To create docker images, you need to install [docker version >= 17.05](https://www.docker.com/) and [`make`](https://www.gnu.org/software/make/).
 
@@ -20,3 +20,9 @@ cd build/alpine && make
 ```bash
 cd services/brig && make docker
 ```
+
+## Other dockerfiles
+
+* `Dockerfile.intermediate` - based on `Dockerfile.deps`/`Dockerfile.builder`, this is an intermediate image compiling all dynamically linked binaries (obtained when running `make install` in the top-level directory).
+* `Dockerfile.executable` - based on `Dockerfile.deps`/`Dockerfile.intermediate`, this extracts a single executable from the intermediate image, yielding a small image with a single dynamically linked binary.
+* `Dockerfile.migrations` - same as Dockerfile.executable, with a fixed set of database migration binaries.
