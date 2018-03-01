@@ -1,11 +1,12 @@
 SHELL         := /usr/bin/env bash
 NAME          := galley
+DIST          ?= ./dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT        := dist/$(NAME)-integration
-EXE_SCHEMA    := dist/$(NAME)-schema
+EXE_IT        := $(DIST)/$(NAME)-integration
+EXE_SCHEMA    := $(DIST)/$(NAME)-schema
 DEB           := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
