@@ -468,7 +468,9 @@ completeResumable r = do
         --         req : getRqs cc
         -- void $ exec' r (ObjectKey (s3Key (mkKey ast))) own (getRqs chunks)
         let size = resumableTotalSize r
-        let reqBdy = Chunked $ ChunkedBody defaultChunkSize (fromIntegral size) (chunkSource e chunks)
+        -- let reqBdy = Hashed $ HashedStream undefined (fromIntegral size) (chunkSource e chunks)
+        let sz = ChunkSize (1024 * 1024)
+        let reqBdy = Chunked $ ChunkedBody defaultChunkSize (fromIntegral size) (chunkSource e sz chunks)
         let putRq b = putObject (BucketName b) (ObjectKey (s3Key (mkKey ast))) reqBdy
                     & poContentType ?~ encodeMIMEType (resumableType r)
                     & poMetadata    .~ metaHeaders (resumableToken r) own
@@ -514,9 +516,10 @@ completeResumable r = do
             throwE $ uploadIncomplete (resumableTotalSize r) total
 
     chunkSource :: AWS.Env
+                -> ChunkSize
                 -> Seq S3Chunk
                 -> Source (ResourceT IO) ByteString
-    chunkSource env cs = case Seq.viewl cs of
+    chunkSource env csize@(ChunkSize sz) cs = case Seq.viewl cs of
           EmptyL  -> mempty
           c :< cc -> do
               let S3ChunkKey ck = mkChunkKey (resumableKey r) (chunkNr c)
@@ -524,14 +527,12 @@ completeResumable r = do
               let req = getObject (BucketName b) (ObjectKey ck)
               v <- lift $ AWS.execute env $ AWS.send req
                         >>= flip sinkBody Conduit.sinkLbs . view gorsBody
-              -- let ChunkSize sz = defaultChunkSize
-              let sz = 8 * 1024 :: Int
               cheap (fromIntegral sz) (LBS.splitAt (fromIntegral sz) v)
-              chunkSource env cc
+              chunkSource env csize cc
 
     cheap :: Int -> (LBS.ByteString, LBS.ByteString) -> Source (ResourceT IO) ByteString
     cheap idx (x, xs) = if LBS.null xs
-                        then Conduit.yield (LBS.toStrict x) -- This assumes ALL parts have at least defaultChunkSize in size
+                        then Conduit.yield (LBS.toStrict x) -- This assumes ALL parts have at least idx size in size
                         else Conduit.yield (LBS.toStrict x) >> cheap (fromIntegral idx) (LBS.splitAt (fromIntegral idx) xs)
 
 listChunks :: S3Resumable -> ExceptT Error App (Maybe (Seq S3Chunk))
