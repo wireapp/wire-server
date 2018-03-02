@@ -48,6 +48,7 @@ module CargoHold.S3
 import CargoHold.App hiding (Env, Handler)
 import Control.Applicative ((<|>))
 import CargoHold.API.Error
+import CargoHold.Options
 import Control.Error (ExceptT, throwE)
 import Control.Lens hiding ((.=), (:<), (:>), parts)
 import Control.Monad
@@ -469,8 +470,10 @@ completeResumable r = do
         -- void $ exec' r (ObjectKey (s3Key (mkKey ast))) own (getRqs chunks)
         let size = resumableTotalSize r
         -- let reqBdy = Hashed $ HashedStream undefined (fromIntegral size) (chunkSource e chunks)
-        let sz = ChunkSize (64 * 1024)
-        let yz = 8 * 1024
+        -- let sz = ChunkSize (8 * 1024)
+        sz <- ChunkSize <$> view (settings.setChunkSize)
+        -- let yz = 8 * 1024
+        yz <- view (settings.setYieldSize)
         let reqBdy = Chunked $ ChunkedBody sz (fromIntegral size) (chunkSource e yz chunks)
         let putRq b = putObject (BucketName b) (ObjectKey (s3Key (mkKey ast))) reqBdy
                     & poContentType ?~ encodeMIMEType (resumableType r)
