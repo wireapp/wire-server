@@ -469,8 +469,9 @@ completeResumable r = do
         -- void $ exec' r (ObjectKey (s3Key (mkKey ast))) own (getRqs chunks)
         let size = resumableTotalSize r
         -- let reqBdy = Hashed $ HashedStream undefined (fromIntegral size) (chunkSource e chunks)
-        let sz = ChunkSize (1024 * 1024)
-        let reqBdy = Chunked $ ChunkedBody defaultChunkSize (fromIntegral size) (chunkSource e sz chunks)
+        let sz = ChunkSize (64 * 1024)
+        let yz = 8 * 1024
+        let reqBdy = Chunked $ ChunkedBody sz (fromIntegral size) (chunkSource e yz chunks)
         let putRq b = putObject (BucketName b) (ObjectKey (s3Key (mkKey ast))) reqBdy
                     & poContentType ?~ encodeMIMEType (resumableType r)
                     & poMetadata    .~ metaHeaders (resumableToken r) own
@@ -516,10 +517,10 @@ completeResumable r = do
             throwE $ uploadIncomplete (resumableTotalSize r) total
 
     chunkSource :: AWS.Env
-                -> ChunkSize
+                -> Int
                 -> Seq S3Chunk
                 -> Source (ResourceT IO) ByteString
-    chunkSource env csize@(ChunkSize sz) cs = case Seq.viewl cs of
+    chunkSource env ysize cs = case Seq.viewl cs of
           EmptyL  -> mempty
           c :< cc -> do
               let S3ChunkKey ck = mkChunkKey (resumableKey r) (chunkNr c)
@@ -527,8 +528,8 @@ completeResumable r = do
               let req = getObject (BucketName b) (ObjectKey ck)
               v <- lift $ AWS.execute env $ AWS.send req
                         >>= flip sinkBody Conduit.sinkLbs . view gorsBody
-              cheap (fromIntegral sz) (LBS.splitAt (fromIntegral sz) v)
-              chunkSource env csize cc
+              cheap (fromIntegral ysize) (LBS.splitAt (fromIntegral ysize) v)
+              chunkSource env ysize cc
 
     cheap :: Int -> (LBS.ByteString, LBS.ByteString) -> Source (ResourceT IO) ByteString
     cheap idx (x, xs) = if LBS.null xs

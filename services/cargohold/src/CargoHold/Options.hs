@@ -30,6 +30,8 @@ makeLenses ''AWSOpts
 
 data Settings = Settings
     { _setMaxTotalBytes     :: !Int
+    , _setChunkSize         :: !Int
+    , _setYieldSize         :: !Int
     , _setDisableCloudFront :: !Bool
     } deriving (Show, Generic)
 
@@ -105,6 +107,20 @@ optsParser = Opts <$>
             <> value (25 * 1024 * 1024)
             <> showDefault
             <> help "Maximum allowed size in bytes for uploads")
+
+        <*> option auto
+            (long "chunk-size"
+            <> metavar "INT"
+            <> value (64 * 1024)
+            <> showDefault
+            <> help "Chunk size experiment")
+
+        <*> option auto
+            (long "yield-size"
+            <> metavar "INT"
+            <> value (8 * 1024)
+            <> showDefault
+            <> help "Chunk size experiment")
 
         <*> (switch $
             long "disable-cloudfront"
