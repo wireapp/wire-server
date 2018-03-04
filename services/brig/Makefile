@@ -1,11 +1,12 @@
 SHELL         := /usr/bin/env bash
 NAME          := brig
+DIST          ?= ./dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT        := dist/$(NAME)-integration
-EXE_SCHEMA    := dist/$(NAME)-schema
+EXE_IT        := $(DIST)/$(NAME)-integration
+EXE_SCHEMA    := $(DIST)/$(NAME)-schema
 EXE_INDEX     := dist/$(NAME)-index
 DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := dist/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
@@ -89,11 +90,18 @@ integration-list: install
 integration-%: db-migrate index-reset
 	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
 
+.PHONY: test
+test:
+	stack install --fast --test --local-bin-path=dist
+	LOG_LEVEL=Info keiretsu --run '$(EXE_IT)' --env $(KEIRETSU_ENV)
 
 test-%:
 	stack install --fast --test --local-bin-path=dist
-	cp "$(shell stack path --dist-dir)/build/$(NAME)-integration/$(NAME)-integration" dist/
 	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
+
+test-fast:
+	stack install --fast --test --local-bin-path=dist
+	LOG_LEVEL=Info keiretsu --run '$(EXE_IT)' --env $(KEIRETSU_ENV)
 
 .PHONY: db
 db: db-reset

@@ -1,0 +1,51 @@
+sudo: 'required'
+
+services:
+- 'docker'
+
+env:
+  global:
+    - DOCKER_TAG=0.1.${TRAVIS_BUILD_NUMBER}
+    - DOCKER_PUSH=1 # if DOCKER_PUSH is defined, `make docker-*` uploads images to dockerhub.
+  matrix:
+    # - TARGETS="docker-builder" # currently takes ~ 2h (needs to compile GHC) which is more than travis permits. This image will, until a more recent ghc is available as an alpine package, be uploaded manually/through wire-internal CI"
+    - TARGETS="docker-deps"
+    - TARGETS="docker-intermediate docker-migrations"
+    - TARGETS="docker-intermediate
+               docker-exe-api-loadtest
+               docker-exe-api-smoketest
+               docker-exe-bonanza
+               docker-exe-brig
+               docker-exe-brig-index
+               docker-exe-brig-integration
+               docker-exe-brig-schema
+               docker-exe-cannon
+               docker-exe-cargohold
+               docker-exe-cargohold-integration
+               docker-exe-galley
+               docker-exe-galley-integration
+               docker-exe-galley-journaler
+               docker-exe-galley-schema
+               docker-exe-gundeck
+               docker-exe-gundeck-integration
+               docker-exe-gundeck-schema
+               docker-exe-kibana-raw
+               docker-exe-kibanana
+               docker-exe-makedeb
+               docker-exe-metrics-collector
+               docker-exe-proxy
+               docker-exe-ropes-aws-auth-test
+               docker-exe-ropes-aws-test
+               docker-exe-zauth
+              "
+
+script:
+  - docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
+  - make ${TARGETS[@]}
+
+notifications:
+  email: false
+
+branches:
+  only:
+    - develop

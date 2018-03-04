@@ -72,10 +72,11 @@ import Gundeck.Types.Push (AppName (..), Transport (..), Token)
 import Network.AWS (AWSRequest, Rs)
 import Network.AWS (serviceCode, serviceMessage, serviceAbbrev, serviceStatus)
 import Network.AWS.SQS (rmrsMessages)
-import Network.AWS.SQS.Types
+import Network.AWS.SQS.Types hiding (sqs)
 import Network.HTTP.Client (Manager, HttpException (..), HttpExceptionContent (..))
 import Network.HTTP.Types
 import System.Logger.Class
+import Util.Options
 
 import qualified Control.Monad.Trans.AWS as AWST
 import qualified Data.HashMap.Strict     as Map
@@ -151,13 +152,18 @@ instance AWS.MonadAWS Amazon where
 mkEnv :: Logger -> Opts -> Manager -> IO Env
 mkEnv lgr opts mgr = do
     let g = Logger.clone (Just "aws.gundeck") lgr
-    e <- configure <$> mkAwsEnv g
+    e <- mkAwsEnv g (mkEndpoint SQS.sqs (opts^.optAws.awsSqsEndpoint))
+                    (mkEndpoint SNS.sns (opts^.optAws.awsSnsEndpoint))
     q <- getQueueUrl e (opts^.optAws.awsQueueName)
     return (Env e g q (opts^.optAws.awsRegion) (opts^.optAws.awsAccount))
   where
-    mkAwsEnv g =  set AWS.envLogger (awsLogger g)
-               .  set AWS.envRegion (opts^.optAws.awsRegion)
-              <$> AWS.newEnvWith AWS.Discover Nothing mgr
+    mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
+    mkAwsEnv g sqs sns =  set AWS.envLogger (awsLogger g)
+                       .  set AWS.envRegion (opts^.optAws.awsRegion)
+                       .  set AWS.envRetryCheck retryCheck
+                      <$> AWS.newEnvWith AWS.Discover Nothing mgr
+                      <&> AWS.configure sqs
+                      <&> AWS.configure (sns & set AWS.serviceTimeout (Just (AWS.Seconds 5)))
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
 
@@ -174,11 +180,6 @@ mkEnv lgr opts mgr = do
     -- them, which results in distracting noise. For debugging purposes,
     -- they are still revealed on debug level.
     mapLevel AWS.Error = Logger.Debug
-
-    configure = set AWS.envRetryCheck retryCheck
-              . AWS.configure snsConfig
-
-    snsConfig = SNS.sns & set AWS.serviceTimeout (Just (AWS.Seconds 5))
 
     -- Modified version of 'AWS.retryConnectionFailure' to take into
     -- account occasional TLS handshake failures.

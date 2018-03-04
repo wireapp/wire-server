@@ -1,0 +1,22 @@
+Wire
+
+
+Hello,
+
+${email} was registered as your new email address on Wire for your provider account. Please, verify your email.
+
+Follow the link below to verify your new address.
+
+
+${url}
+
+Please don't reply to this message.
+
+If you didn't request this change, you can ignore this email or visit https://support.wire.com
+
+
+
+
+(c) Wire Swiss GmbH
+
+Privacy Policy  |  Report misuse

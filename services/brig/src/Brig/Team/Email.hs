@@ -18,7 +18,7 @@ import Data.Id (idToText, TeamId)
 import Data.Text (Text)
 import Data.Text.Lazy (toStrict)
 
-import qualified Brig.Aws        as Aws
+import qualified Brig.Email      as Email
 import qualified Data.Text.Ascii as Ascii
 -------------------------------------------------------------------------------
 -- Invitation Email
@@ -27,19 +27,19 @@ sendInvitationMail :: Email -> TeamId -> Email -> InvitationCode -> Maybe Locale
 sendInvitationMail to tid from code loc = do
     tpl <- invitationEmail . snd <$> teamTemplates loc
     let mail = InvitationEmail to tid code from
-    Aws.sendMail $ renderInvitationEmail mail tpl
+    Email.sendMail $ renderInvitationEmail mail tpl
 
 sendCreatorWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> AppIO ()
 sendCreatorWelcomeMail to tid teamName loc = do
     tpl <- creatorWelcomeEmail . snd <$> teamTemplates loc
     let mail = CreatorWelcomeEmail to tid teamName
-    Aws.sendMail $ renderCreatorWelcomeMail mail tpl
+    Email.sendMail $ renderCreatorWelcomeMail mail tpl
 
 sendMemberWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> AppIO ()
 sendMemberWelcomeMail to tid teamName loc = do
     tpl <- memberWelcomeEmail . snd <$> teamTemplates loc
     let mail = MemberWelcomeEmail to tid teamName
-    Aws.sendMail $ renderMemberWelcomeMail mail tpl
+    Email.sendMail $ renderMemberWelcomeMail mail tpl
 
 -------------------------------------------------------------------------------
 -- Invitation Email

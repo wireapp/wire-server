@@ -12,7 +12,6 @@ module Galley.Aws
     ( Env
     , mkEnv
     , awsEnv
-    , region
     , eventQueue
     , QueueUrl (..)
     , Amazon
@@ -43,6 +42,7 @@ import Galley.Options
 import Network.HTTP.Client
        (Manager, HttpException(..), HttpExceptionContent(..))
 import System.Logger.Class
+import Util.Options
 
 import qualified Control.Monad.Trans.AWS as AWST
 import qualified Data.ByteString.Base64 as B64
@@ -57,7 +57,7 @@ newtype QueueUrl = QueueUrl Text
     deriving (Show)
 
 data Error where
-    GeneralError     :: (Show e, AWS.AsError e) => e -> Error
+    GeneralError :: (Show e, AWS.AsError e) => e -> Error
 
 deriving instance Show     Error
 deriving instance Typeable Error
@@ -68,7 +68,6 @@ data Env = Env
     { _awsEnv     :: !AWS.Env
     , _logger     :: !Logger
     , _eventQueue :: !QueueUrl
-    , _region     :: !AWS.Region
     }
 
 makeLenses ''Env
@@ -101,13 +100,16 @@ instance AWS.MonadAWS Amazon where
 mkEnv :: Logger -> Manager -> JournalOpts -> IO Env
 mkEnv lgr mgr opts = do
     let g = Logger.clone (Just "aws.galley") lgr
-    e <- configure <$> mkAwsEnv g
+    e <- mkAwsEnv g
     q <- getQueueUrl e (opts^.awsQueueName)
-    return (Env e g q (opts^.awsRegion))
+    return (Env e g q)
   where
+    sqs e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) SQS.sqs
+
     mkAwsEnv g =  set AWS.envLogger (awsLogger g)
-               .  set AWS.envRegion (opts^.awsRegion)
+               .  set AWS.envRetryCheck retryCheck
               <$> AWS.newEnvWith AWS.Discover Nothing mgr
+              <&> AWS.configure (sqs (opts^.awsEndpoint))
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
 
@@ -124,8 +126,6 @@ mkEnv lgr mgr opts = do
     -- them, which results in distracting noise. For debugging purposes,
     -- they are still revealed on debug level.
     mapLevel AWS.Error = Logger.Debug
-
-    configure = set AWS.envRetryCheck retryCheck
 
     -- TODO: Remove custom retryCheck? Should be fixed since tls 1.3.9?
     -- account occasional TLS handshake failures.
@@ -177,4 +177,3 @@ canRetry (Left  e) = case e of
     AWS.TransportError (HttpExceptionRequest _ ResponseTimeout)                   -> pure True
     AWS.ServiceError se | se^.AWS.serviceCode == AWS.ErrorCode "RequestThrottled" -> pure True
     _                                                                             -> pure False
-

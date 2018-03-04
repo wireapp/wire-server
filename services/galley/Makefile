@@ -1,11 +1,12 @@
 SHELL         := /usr/bin/env bash
 NAME          := galley
+DIST          ?= ./dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT        := dist/$(NAME)-integration
-EXE_SCHEMA    := dist/$(NAME)-schema
+EXE_IT        := $(DIST)/$(NAME)-integration
+EXE_SCHEMA    := $(DIST)/$(NAME)-schema
 DEB           := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
@@ -87,6 +88,17 @@ integration-%:
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
+
+.PHONY: fast
+fast:
+	stack install --local-bin-path=dist --fast
+
+.PHONY: test
+test: fast
+	keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV)
+
+test-%: fast
+	keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
 
 .PHONY: db
 db: db-reset

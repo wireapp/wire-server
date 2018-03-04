@@ -125,9 +125,8 @@ initHttpManager = do
         , managerIdleConnectionCount = 300
         }
 
-mkAWSEnv :: Text -> IO Aws.Env
-mkAWSEnv queue = do
+mkAWSEnv :: JournalOpts -> IO Aws.Env
+mkAWSEnv opts = do
     l   <- L.new $ L.setOutput L.StdOut . L.setFormat Nothing $ L.defSettings
     mgr <- initHttpManager
-    let opts = JournalOpts queue AWS.Ireland
     Aws.mkEnv l mgr opts

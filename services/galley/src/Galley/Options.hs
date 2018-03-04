@@ -8,19 +8,20 @@ import Control.Lens hiding ((.=))
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Text (Text)
 import Data.Monoid
+import Data.Word (Word16)
 import GHC.Generics
-import Network.AWS (Region (..))
-import Network.AWS.Data
-import Data.String
 import Options.Applicative
-import Options.Applicative.Types
 import Util.Options
+import Data.ByteString.Conversion
+import Data.Maybe
 import Util.Options.Common
+import Data.Misc
 
 data Settings = Settings
-    { _setHttpPoolSize :: !Int
-    , _setMaxTeamSize  :: !Int  -- NOTE: This must be in sync with brig
-    , _setIntraListing :: !Bool -- call Brig for device listing
+    { _setHttpPoolSize          :: !Int
+    , _setMaxConvAndTeamSize    :: !Word16  -- NOTE: This must be in sync with brig
+    , _setIntraListing          :: !Bool    -- call Brig for device listing
+    , _setConversationCodeURI   :: !HttpsUrl
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
@@ -31,7 +32,7 @@ makeLenses ''Settings
 
 data JournalOpts = JournalOpts
     { _awsQueueName :: !Text
-    , _awsRegion    :: !Region
+    , _awsEndpoint  :: !AWSEndpoint
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''JournalOpts
@@ -109,15 +110,20 @@ optsParser = Opts <$>
                 <> value 128)
         <*>
             (option auto $
-                long "team-max-size"
+                long "conv-team-max-size"
                 <> metavar "INT"
                 <> showDefault
-                <> help "Max. # of members in a team."
+                <> help "Max. # of members in a conversation/team."
                 <> value 128)
         <*>
             (switch $
                 long "intra-device-listing"
                 <> help "Use this option if you want to fetch the device list from brig instead.")
+        <*>
+            (httpsUrlOption $
+                long "conversation-code-prefix"
+                <> metavar "STRING"
+                <> help "URI prefix for conversations with access mode 'code'")
 
 journalOptsParser :: Parser JournalOpts
 journalOptsParser = JournalOpts
@@ -125,12 +131,12 @@ journalOptsParser = JournalOpts
             long "team-events-queue-name"
             <> metavar "STRING"
             <> help "sqs queue name to send team events")
-    <*> (option region $
-            long "aws-region"
+    <*> (option parseAWSEndpoint $
+            long "aws-sqs-endpoint"
+            <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443)
             <> metavar "STRING"
-            <> value Ireland
             <> showDefault
-            <> help "aws region name")
-  where
-    region :: ReadM Region
-    region = readerAsk >>= either readerError return . fromText . fromString
+            <> help "aws endpoint")
+
+httpsUrlOption :: Mod OptionFields String -> Parser HttpsUrl
+httpsUrlOption = fmap (fromMaybe (error "Invalid HTTPS URL") . fromByteString) . bytesOption

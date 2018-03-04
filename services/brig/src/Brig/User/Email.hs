@@ -24,7 +24,7 @@ import Data.Range
 import Data.Text (Text)
 import Data.Text.Lazy (toStrict)
 
-import qualified Brig.Aws        as Aws
+import qualified Brig.Email      as Email
 import qualified Brig.Types.Code as Code
 import qualified Data.Text.Ascii as Ascii
 
@@ -32,13 +32,13 @@ sendVerificationMail :: Email -> ActivationPair -> Maybe Locale -> AppIO ()
 sendVerificationMail to pair loc = do
     tpl <- verificationEmail . snd <$> userTemplates loc
     let mail = VerificationEmail to pair
-    Aws.sendMail $ renderVerificationMail mail tpl
+    Email.sendMail $ renderVerificationMail mail tpl
 
 sendActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Maybe UserIdentity -> AppIO ()
 sendActivationMail to name pair loc ident = do
     tpl <- selectTemplate . snd <$> userTemplates loc
     let mail = ActivationEmail to name pair
-    Aws.sendMail $ renderActivationMail mail tpl
+    Email.sendMail $ renderActivationMail mail tpl
   where
     selectTemplate =
         if isNothing ident
@@ -49,29 +49,29 @@ sendPasswordResetMail :: Email -> PasswordResetPair -> Maybe Locale -> AppIO ()
 sendPasswordResetMail to pair loc = do
     tpl <- passwordResetEmail . snd <$> userTemplates loc
     let mail = PasswordResetEmail to pair
-    Aws.sendMail $ renderPwResetMail mail tpl
+    Email.sendMail $ renderPwResetMail mail tpl
 
 sendInvitationMail :: Email -> Name -> Message -> Name -> InvitationCode -> Maybe Locale -> AppIO ()
 sendInvitationMail email other msg self code loc = do
     tpl <- invitationEmail . snd <$> userTemplates loc
     let mail = InvitationEmail email code other self msg
-    Aws.sendMail $ renderInvitationEmail mail tpl
+    Email.sendMail $ renderInvitationEmail mail tpl
 
 sendDeletionEmail :: Name -> Email -> Code.Key -> Code.Value -> Locale -> AppIO ()
 sendDeletionEmail name email key code locale = do
     tpl <- deletionEmail . snd <$> userTemplates (Just locale)
-    Aws.sendMail $ renderDeletionEmail tpl (DeletionEmail email name key code)
+    Email.sendMail $ renderDeletionEmail tpl (DeletionEmail email name key code)
 
 sendNewClientEmail :: Name -> Email -> Client -> Locale -> AppIO ()
 sendNewClientEmail name email client locale = do
     tpl <- newClientEmail . snd <$> userTemplates (Just locale)
-    Aws.sendMail $ renderNewClientEmail tpl (NewClientEmail locale email name client)
+    Email.sendMail $ renderNewClientEmail tpl (NewClientEmail locale email name client)
 
 sendTeamActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Text -> AppIO ()
 sendTeamActivationMail to name pair loc team = do
     tpl <- teamActivationEmail . snd <$> userTemplates loc
     let mail = TeamActivationEmail to name team pair
-    Aws.sendMail $ renderTeamActivationMail mail tpl
+    Email.sendMail $ renderTeamActivationMail mail tpl
 
 -------------------------------------------------------------------------------
 -- New Client Email

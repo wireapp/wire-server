@@ -152,6 +152,8 @@ executable galley-schema
         V22
         V23
         V24
+        V25
+        V26
 
     build-depends:
         base
@@ -224,6 +226,7 @@ executable galley-integration
       , tls                  >= 1.3.8
       , types-common
       , types-common-journal
+      , unix
       , unordered-containers
       , uri-bytestring
       , uuid

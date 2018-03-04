@@ -1,1 +1,1 @@
-web: ./dist/proxy --host=$PROXY_WEB_HOST --port=$PROXY_WEB_PORT --config=$PROXY_CONFIG --max-connections=$PROXY_MAX_CONNECTIONS
+web: $DIST/proxy --host=$PROXY_WEB_HOST --port=$PROXY_WEB_PORT --config=$PROXY_CONFIG --max-connections=$PROXY_MAX_CONNECTIONS

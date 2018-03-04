@@ -8,7 +8,7 @@ module API.Provider (tests, Config) where
 
 import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
-import Brig.Types
+import Brig.Types hiding (NewPasswordReset (..), CompletePasswordReset(..), EmailUpdate (..), PasswordReset (..), PasswordChange (..))
 import Brig.Types.Provider
 import Brig.Types.Provider.Tag
 import Control.Concurrent.Chan
@@ -87,17 +87,20 @@ tests conf p db b c g = do
     crt <- optOrEnv cert conf id "TEST_CERT"
     return $ testGroup "provider"
         [ testGroup "account"
-            [ test p "register" $ testRegisterProvider db b
-            , test p "login"    $ testLoginProvider db b
-            , test p "update"   $ testUpdateProvider db b
-            , test p "delete"   $ testDeleteProvider db b
+            [ test p "register"       $ testRegisterProvider db b
+            , test p "login"          $ testLoginProvider db b
+            , test p "update"         $ testUpdateProvider db b
+            , test p "delete"         $ testDeleteProvider db b
+            , test p "password-reset" $ testPasswordResetProvider db b
+            , test p "email/password update with password reset" 
+                                      $ testPasswordResetAfterEmailUpdateProvider db b
             ]
         , testGroup "service"
             [ test p "add-get fail (bad key)" $ testAddGetServiceBadKey conf db b
             , test p "add-get"                $ testAddGetService conf db b
             , test p "update"                 $ testUpdateService conf db b
             , test p "update-conn"            $ testUpdateServiceConn conf db b
-            , test p "search"                 $ testListServicesByTagAndPrefix conf db b
+            , test p "search (tag/prefix)"    $ testListServices conf db b
             , test p "delete"                 $ testDeleteService conf db b
             ]
         , testGroup "bot"
@@ -214,6 +217,72 @@ testDeleteProvider db brig = do
     registerProvider brig new !!!
         const 201 === statusCode
 
+testPasswordResetProvider :: DB.ClientState -> Brig -> Http ()
+testPasswordResetProvider db brig = do
+    prv <- randomProvider db brig
+
+    let email = providerEmail prv
+    initiatePasswordResetProvider brig (PasswordReset email) !!! const 201 === statusCode
+    let newPw = PlainTextPassword "newsupersecret"
+    
+    -- Get the code directly from the DB
+    gen <- Code.mkGen (Code.ForEmail email)
+    Just vcode <- lookupCode db gen Code.PasswordReset
+    
+    let passwordResetData = CompletePasswordReset (Code.codeKey vcode)
+                                                  (Code.codeValue vcode)
+                                                  newPw
+    completePasswordResetProvider brig passwordResetData !!! const 200 === statusCode
+
+    loginProvider brig email defProviderPassword !!!
+        const 403 === statusCode
+    loginProvider brig email newPw !!!
+        const 200 === statusCode
+
+testPasswordResetAfterEmailUpdateProvider :: DB.ClientState -> Brig -> Http ()
+testPasswordResetAfterEmailUpdateProvider db brig = do
+    newEmail <- mkEmail "success@simulator.amazonses.com"
+    prv <- randomProvider db brig
+    let pid = providerId prv
+    let origEmail = providerEmail prv
+    initiateEmailUpdateProvider brig pid (EmailUpdate newEmail) !!! const 202 === statusCode
+    initiatePasswordResetProvider brig (PasswordReset origEmail) !!! const 201 === statusCode
+
+    -- Get password reset code directly from the DB
+    genOrig <- Code.mkGen (Code.ForEmail origEmail)
+    Just vcodePw <- lookupCode db genOrig Code.PasswordReset
+    
+    let passwordResetData = CompletePasswordReset (Code.codeKey vcodePw)
+                                                  (Code.codeValue vcodePw)
+                                                  (PlainTextPassword "doesnotmatter")
+
+    -- Activate the new email
+    genNew <- Code.mkGen (Code.ForEmail newEmail)
+    Just vcodeEm <- lookupCode db genNew Code.IdentityVerification
+    activateProvider brig (Code.codeKey vcodeEm) (Code.codeValue vcodeEm) !!!
+        const 200 === statusCode
+
+    Just p <- decodeBody <$> (getProvider brig pid <!! const 200 === statusCode)
+    liftIO $ assertEqual "email" newEmail (providerEmail p)
+
+    -- attempting to complete password reset should fail
+    completePasswordResetProvider brig passwordResetData !!! const 403 === statusCode
+
+    -- ensure you can login with the new email address and not with the old one
+    loginProvider brig origEmail defProviderPassword !!! const 403 === statusCode
+    loginProvider brig newEmail defProviderPassword !!! const 200 === statusCode
+
+    -- exercise the password change endpoint
+    let newPass = PlainTextPassword "newpass"
+    let pwChangeFail = PasswordChange (PlainTextPassword "notcorrect") newPass
+    updateProviderPassword brig pid pwChangeFail !!! const 403 === statusCode
+    let pwChange = pwChangeFail { cpOldPassword = defProviderPassword }
+    updateProviderPassword brig pid pwChange !!! const 200 === statusCode
+
+    -- Check the login process again
+    loginProvider brig newEmail defProviderPassword !!! const 403 === statusCode
+    loginProvider brig newEmail newPass !!! const 200 === statusCode
+
 -------------------------------------------------------------------------------
 -- Provider Services
 
@@ -329,27 +398,36 @@ testUpdateServiceConn config db brig = do
         assertEqual "token" newTokens (serviceTokens _svc)
         assertBool  "enabled" (serviceEnabled _svc)
 
-testListServicesByTagAndPrefix :: Maybe Config -> DB.ClientState -> Brig -> Http ()
-testListServicesByTagAndPrefix config db brig = do
+testListServices :: Maybe Config -> DB.ClientState -> Brig -> Http ()
+testListServices config db brig = do
     prv <- randomProvider db brig
     let pid = providerId prv
     uid <- randomId
+
+    -- You need to supply at least one tag or a prefix
+    get ( brig
+        . path "/services"
+        . header "Z-Type" "access"
+        . header "Z-User" (toByteString' uid)) !!! const 400 === statusCode
+
+    -- An empty prefix is not sufficient
+    listServiceProfilesByPrefix brig uid (Name "") 10 !!! const 400 === statusCode
 
     -- nb. We use a random name prefix so tests can run concurrently
     -- (and repeatedly) against a shared database and thus a shared
     -- "name index" per tag.
     uniq <- UUID.toText . toUUID <$> randomId
+    new  <- defNewService config
     let taggedNames = mkTaggedNames uniq
-    let names = fst (unzip taggedNames)
-    new <- defNewService config
     svcs <- mapM (addGetService brig pid . mkNew new) (reverse taggedNames)
     mapM_ (enableService brig pid . serviceId) svcs
 
-    let _tags = match1 SocialTag
+    let _tags = Just (match1 SocialTag)
+    let names = fst (unzip taggedNames)
 
     -- List services with different start names, that all start with the
     -- same prefix.
-    searchAndAssert uid _tags (Name uniq) 20 names
+    void $ searchAndAssert uid _tags (Name uniq) 20 names
 
     -- Search by exact name
     forM_ names $ \n -> searchAndAssert uid _tags n 10 [n]
@@ -358,27 +436,73 @@ testListServicesByTagAndPrefix config db brig = do
 
     -- Only Bjørn should be returned
     let _search = mkName uniq "Bjø"
-    searchAndAssert uid _tags _search 10 (select _search names)
+    void $ searchAndAssert uid _tags _search 10 (select _search names)
 
     -- Both Bjørn and Bjorn should be returned
     let _search = mkName uniq "Bj"
-    searchAndAssert uid _tags _search 10 (select _search names)
+    void $ searchAndAssert uid _tags _search 10 (select _search names)
 
     -- CHRISTMAS should be returned
     let _search = mkName uniq "chris"
-    searchAndAssert uid _tags _search 10 (select _search names)
+    void $ searchAndAssert uid _tags _search 10 (select _search names)
+
+    -- Ensure name changes are also indexed properly
+    forM_ svcs $ searchAndAssertNameChange pid uid _tags uniq
   where
-    getPage uid tag start size = do
-        rs <- listServiceProfilesByTag brig uid tag start size <!!
-            const 200 === statusCode
+    getPage :: UserId -> Maybe MatchAny -> Maybe Name -> Int -> HttpT IO [ServiceProfile]
+    getPage uid (Just tag) start size = do
+        rs <- listServiceProfilesByTag brig uid tag start size <!! const 200 === statusCode
         let Just ls = serviceProfilePageResults <$> decodeBody rs
         return ls
+    getPage uid Nothing (Just start) size = do
+        rs <- listServiceProfilesByPrefix brig uid start size <!! const 200 === statusCode
+        let Just ls = serviceProfilePageResults <$> decodeBody rs
+        return ls
+    getPage _ Nothing Nothing _ = error "Query not supported"
 
-    searchAndAssert uid tags qry size expects = do
+    searchAndAssertNameChange :: ProviderId -> UserId -> Maybe MatchAny -> Text -> Service -> Http ()
+    searchAndAssertNameChange pid uid tags uniq svc = do
+        let sid = serviceId svc
+        Just svp <- decodeBody <$> (getServiceProfile brig uid pid sid
+                               <!!  const 200 === statusCode)
+        let origName = serviceProfileName svp
+        searchAndAssertWithSid uid tags origName 10 [origName] [sid]
+
+        let newName = mkName uniq "Wire"
+        let _upd = emptyUpdateService { updateServiceName = Just newName }
+        updateService brig pid (serviceId svc) _upd !!! const 200 === statusCode
+
+        -- Now we should find no such service with the original name, only with the new name
+        searchAndAssertWithSid uid tags origName 10 []        []
+        searchAndAssertWithSid uid tags newName  10 [newName] [sid]
+
+        -- Let's rollback
+        let _upd = emptyUpdateService { updateServiceName = Just origName }
+        updateService brig pid (serviceId svc) _upd !!! const 200 === statusCode
+
+        -- Searching the new name should return nothing
+        searchAndAssertWithSid uid tags newName  10 []         []
+        searchAndAssertWithSid uid tags origName 10 [origName] [sid]
+
+    searchAndAssertWithSid uid tags qry size expectsNames expectsSids = do
+        -- Test _with_ and _without_ tags and check we got the right sid back
+        _ls <- searchAndAssert uid tags qry size expectsNames
+        liftIO $ assertEqual ("check sid size: " ++ show qry) (length expectsSids) (length _ls)
+        let _sids = map serviceProfileId _ls
+        liftIO $ assertEqual ("check sid str: " ++ show qry) expectsSids _sids
+
+    searchAndAssert uid tags qry size expectsNames = do
+        -- Search with tag and name
         _ls <- getPage uid tags (Just qry) size
-        liftIO $ assertEqual ("size: " ++ show qry) (length expects) (length _ls)
+        liftIO $ assertEqual ("get page with tag, size: " ++ show qry) (length expectsNames) (length _ls)
         let _names = map serviceProfileName _ls
-        liftIO $ assertEqual ("str: " ++ show qry) expects _names
+        liftIO $ assertEqual ("get page with tag, str: " ++ show qry) expectsNames _names
+        -- Search with name only
+        _ls <- getPage uid Nothing (Just qry) size
+        liftIO $ assertEqual ("get page no tag, size: " ++ show qry) (length expectsNames) (length _ls)
+        let _names = map serviceProfileName _ls
+        liftIO $ assertEqual ("get page no tag: " ++ show qry) expectsNames _names
+        return _ls
 
     -- 20 names, all using the given unique prefix
     mkTaggedNames uniq =
@@ -409,8 +533,15 @@ testListServicesByTagAndPrefix config db brig = do
     mkNew new (n, t) = new { newServiceName = n
                            , newServiceTags = unsafeRange (Set.fromList t)
                            }
-
     select (Name prefix) nm = filter (isPrefixOf (toLower prefix) . toLower . fromName) nm
+
+    emptyUpdateService = UpdateService
+        { updateServiceName    = Nothing
+        , updateServiceSummary = Nothing
+        , updateServiceDescr   = Nothing
+        , updateServiceAssets  = Nothing
+        , updateServiceTags    = Nothing
+        }
 
 testDeleteService :: Maybe Config -> DB.ClientState -> Brig -> Http ()
 testDeleteService config db brig = do
@@ -587,6 +718,48 @@ updateProvider brig pid upd = put $ brig
     . contentJson
     . body (RequestBodyLBS (encode upd))
 
+updateProviderPassword
+    :: Brig
+    -> ProviderId
+    -> PasswordChange
+    -> Http ResponseLBS
+updateProviderPassword brig pid upd = put $ brig
+    . path "/provider/password"
+    . header "Z-Type" "provider"
+    . header "Z-Provider" (toByteString' pid)
+    . contentJson
+    . body (RequestBodyLBS (encode upd))
+
+initiateEmailUpdateProvider
+    :: Brig
+    -> ProviderId
+    -> EmailUpdate
+    -> Http ResponseLBS
+initiateEmailUpdateProvider brig pid upd = put $ brig
+    . path "/provider/email"
+    . header "Z-Type" "provider"
+    . header "Z-Provider" (toByteString' pid)
+    . contentJson
+    . body (RequestBodyLBS (encode upd))
+
+initiatePasswordResetProvider
+    :: Brig
+    -> PasswordReset
+    -> Http ResponseLBS
+initiatePasswordResetProvider brig npr = post $ brig
+    . path "/provider/password-reset"
+    . contentJson
+    . body (RequestBodyLBS (encode npr))
+
+completePasswordResetProvider
+    :: Brig
+    -> CompletePasswordReset
+    -> Http ResponseLBS
+completePasswordResetProvider brig e = post $ brig
+    . path "/provider/password-reset/complete"
+    . contentJson
+    . body (RequestBodyLBS (encode e))
+
 deleteProvider
     :: Brig
     -> ProviderId
@@ -690,6 +863,19 @@ deleteService brig pid sid pw = delete $ brig
     . contentJson
     . body (RequestBodyLBS (encode (DeleteService pw)))
 
+listServiceProfilesByPrefix
+    :: Brig
+    -> UserId
+    -> Name
+    -> Int
+    -> Http ResponseLBS
+listServiceProfilesByPrefix brig uid start size = get $ brig
+    . path "/services"
+    . queryItem "start" (toByteString' start)
+    . queryItem "size" (toByteString' size)
+    . header "Z-Type" "access"
+    . header "Z-User" (toByteString' uid)
+
 listServiceProfilesByTag
     :: Brig
     -> UserId
@@ -748,7 +934,7 @@ createConv g u us = post $ g
     . header "Z-Type" "access"
     . header "Z-Connection" "conn"
     . contentJson
-    . body (RequestBodyLBS (encode (NewConv us Nothing Set.empty Nothing)))
+    . body (RequestBodyLBS (encode (NewConv us Nothing Set.empty Nothing Nothing)))
 
 postMessage
     :: Galley

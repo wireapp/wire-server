@@ -15,9 +15,10 @@ import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key)
 import Data.ByteString.Char8 (pack, ByteString, intercalate)
 import Data.ByteString.Conversion
-import Data.Foldable (toList, mapM_)
+import Data.Foldable (toList)
 import Data.Id
 import Data.Int
+import Data.List (sort)
 import Data.List1 as List1
 import Data.Maybe
 import Data.Misc
@@ -29,6 +30,7 @@ import Data.Serialize (runPut)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V4
+import Data.Word
 import Galley.Types
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
@@ -58,11 +60,12 @@ type Brig        = Request -> Request
 type ResponseLBS = Response (Maybe Lazy.ByteString)
 
 data TestSetup = TestSetup
-  { manager   :: Manager
-  , galley    :: Galley
-  , brig      :: Brig
-  , cannon    :: Cannon
-  , awsEnv    :: Maybe Aws.Env
+  { manager         :: Manager
+  , galley          :: Galley
+  , brig            :: Brig
+  , cannon          :: Cannon
+  , awsEnv          :: Maybe Aws.Env
+  , maxConvTeamSize :: Word16
   }
 
 -------------------------------------------------------------------------------
@@ -88,21 +91,22 @@ changeTeamStatus g tid s = put
 
 createTeamInternal :: Galley -> Text -> UserId -> Http TeamId
 createTeamInternal g name owner = do
+    tid <- createTeamInternalNoActivate g name owner
+    changeTeamStatus g tid Active
+    return tid
+
+createTeamInternalNoActivate :: Galley -> Text -> UserId -> Http TeamId
+createTeamInternalNoActivate g name owner = do
     tid <- randomId
     let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
     _ <- put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
         const 201  === statusCode
         const True === isJust . getHeader "Location"
-    changeTeamStatus g tid Active
     return tid
 
 createTeamInternalWithCurrency :: Galley -> Text -> UserId -> Currency.Alpha -> Http TeamId
 createTeamInternalWithCurrency g name owner cur = do
-    tid <- randomId
-    let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
-    _ <- put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
-        const 201  === statusCode
-        const True === isJust . getHeader "Location"
+    tid <- createTeamInternalNoActivate g name owner
     _ <- put (g . paths ["i", "teams", toByteString' tid, "status"] . json (TeamStatusUpdate Active $ Just cur)) !!!
         const 200 === statusCode
     return tid
@@ -139,9 +143,12 @@ addTeamMemberInternal g tid mem = do
     post (g . paths ["i", "teams", toByteString' tid, "members"] . payload) !!!
         const 200 === statusCode
 
-createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Http ConvId
-createTeamConv g u tinfo us name = do
-    let conv = NewConv us name (Set.fromList []) (Just tinfo)
+createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Http ConvId
+createTeamConv g u tinfo us name acc = createTeamConvAccess g u tinfo us name acc Nothing
+
+createTeamConvAccess :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Http ConvId
+createTeamConvAccess g u tinfo us name acc role = do
+    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo)
     r <- post ( g
               . path "/conversations"
               . zUser u
@@ -153,12 +160,12 @@ createTeamConv g u tinfo us name = do
 
 createOne2OneTeamConv :: Galley -> UserId -> UserId -> Maybe Text -> TeamId -> Http ResponseLBS
 createOne2OneTeamConv g u1 u2 n tid = do
-    let conv = NewConv [u2] n mempty (Just $ ConvTeamInfo tid False)
+    let conv = NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False)
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
-postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Http ResponseLBS
-postConv g u us name a = do
-    let conv = NewConv us name (Set.fromList a) Nothing
+postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Http ResponseLBS
+postConv g u us name a r = do
+    let conv = NewConv us name (Set.fromList a) r  Nothing
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: Galley -> UserId -> Http ResponseLBS
@@ -166,7 +173,7 @@ postSelfConv g u = post $ g . path "/conversations/self" . zUser u . zConn "conn
 
 postO2OConv :: Galley -> UserId -> UserId -> Maybe Text -> Http ResponseLBS
 postO2OConv g u1 u2 n = do
-    let conv = NewConv [u2] n mempty Nothing
+    let conv = NewConv [u2] n mempty Nothing Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: Galley -> UserId -> UserId -> Text -> Text -> Maybe Text -> Http ResponseLBS
@@ -297,6 +304,48 @@ postJoinConv g u c = post $ g
     . zConn "conn"
     . zType "access"
 
+postJoinCodeConv :: Galley -> UserId -> ConversationCode -> Http ResponseLBS
+postJoinCodeConv g u j = post $ g
+    . paths ["/conversations", "join"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+    . json j
+
+putAccessUpdate :: Galley -> UserId -> ConvId -> ConversationAccessUpdate -> Http ResponseLBS
+putAccessUpdate g u c acc = put $ g
+    . paths ["/conversations", toByteString' c, "access"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+    . json acc
+
+postConvCode :: Galley -> UserId -> ConvId -> Http ResponseLBS
+postConvCode g u c = post $ g
+    . paths ["/conversations", toByteString' c, "code"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+
+postConvCodeCheck :: Galley -> ConversationCode -> Http ResponseLBS
+postConvCodeCheck g code = post $ g
+    . path "/conversations/code-check"
+    . json code
+
+getConvCode :: Galley -> UserId -> ConvId -> Http ResponseLBS
+getConvCode g u c = get $ g
+    . paths ["/conversations", toByteString' c, "code"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+
+deleteConvCode :: Galley -> UserId -> ConvId -> Http ResponseLBS
+deleteConvCode g u c = delete $ g
+    . paths ["/conversations", toByteString' c, "code"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+
 deleteClientInternal :: Galley -> UserId -> ClientId -> Http ResponseLBS
 deleteClientInternal g u c = delete $ g
     . zUser u
@@ -387,14 +436,26 @@ wsAssertMemberJoin conv usr new n = do
     evtFrom      e @?= usr
     evtData      e @?= Just (EdMembers (Members new))
 
-wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
-wsAssertMemberLeave conv usr old n = do
+wsAssertConvAccessUpdate :: ConvId -> UserId -> ConversationAccessUpdate -> Notification -> IO ()
+wsAssertConvAccessUpdate conv usr new n = do
     let e = List1.head (WS.unpackPayload n)
     ntfTransient n @?= False
     evtConv      e @?= conv
-    evtType      e @?= MemberLeave
+    evtType      e @?= ConvAccessUpdate
     evtFrom      e @?= usr
-    evtData      e @?= Just (EdMembers (Members old))
+    evtData      e @?= Just (EdConvAccessUpdate new)
+
+wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
+wsAssertMemberLeave conv usr old n = do
+    let e = List1.head (WS.unpackPayload n)
+    ntfTransient n      @?= False
+    evtConv      e      @?= conv
+    evtType      e      @?= MemberLeave
+    evtFrom      e      @?= usr
+    sorted (evtData e)  @?= sorted (Just (EdMembers (Members old)))
+  where
+    sorted (Just (EdMembers (Members m))) = Just (EdMembers (Members (sort m)))
+    sorted x = x
 
 assertNoMsg :: WS.WebSocket -> (Notification -> Assertion) -> Http ()
 assertNoMsg ws f = do
@@ -404,6 +465,15 @@ assertNoMsg ws f = do
         Right _ -> assertFailure "Unexpected message"
 -------------------------------------------------------------------------------
 -- Helpers
+
+decodeConvCode :: Response (Maybe Lazy.ByteString) -> ConversationCode
+decodeConvCode r = fromMaybe (error "Failed to parse ConversationCode response") $
+    decodeBody r
+
+decodeConvCodeEvent :: Response (Maybe Lazy.ByteString) -> ConversationCode
+decodeConvCodeEvent r = case fromMaybe (error "Failed to parse Event") $ decodeBody r of
+    (Event ConvCodeUpdate _ _ _ (Just (EdConvCodeUpdate c))) -> c
+    _ -> error "Failed to parse ConversationCode from Event"
 
 decodeConvId :: Response (Maybe Lazy.ByteString) -> ConvId
 decodeConvId r = fromMaybe (error "Failed to parse conversation") $
@@ -434,21 +504,37 @@ zType :: ByteString -> Request -> Request
 zType = header "Z-Type"
 
 connectUsers :: Brig -> UserId -> List1 UserId -> Http ()
-connectUsers b u = mapM_ connectTo
+connectUsers b u us = void $ connectUsersWith expect2xx b u us
+
+connectUsersUnchecked :: Brig
+                      -> UserId
+                      -> List1 UserId
+                      -> Http (List1 (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
+connectUsersUnchecked = connectUsersWith id
+
+connectUsersWith :: (Request -> Request)
+                 -> Brig
+                 -> UserId
+                 -> List1 UserId
+                 -> Http (List1 (Response (Maybe Lazy.ByteString), Response (Maybe Lazy.ByteString)))
+connectUsersWith fn b u us = mapM connectTo us
   where
     connectTo v = do
-        post ( b
+        r1 <- post ( b
              . zUser u
              . zConn "conn"
              . path "/connections"
              . json (ConnectionRequest v "chat" (Message "Y"))
-             ) !!! const 201 === statusCode
-        put ( b
+             . fn
+             )
+        r2 <- put ( b
             . zUser v
             . zConn "conn"
             . paths ["connections", toByteString' u]
             . json (ConnectionUpdate Accepted)
-            ) !!! const 200 === statusCode
+            . fn
+            )
+        return (r1, r2)
 
 randomUsers :: Brig -> Int -> Http [UserId]
 randomUsers b n = replicateM n (randomUser b)
@@ -459,6 +545,14 @@ randomUser b = do
     let p = object [ "name" .= fromEmail e, "email" .= fromEmail e, "password" .= defPassword ]
     r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
+
+ephemeralUser :: Brig -> Http UserId
+ephemeralUser b = do
+    name <- UUID.toText <$> liftIO nextRandom
+    let p = object [ "name" .= name ]
+    r <- post (b . path "/register" . json p) <!! const 201 === statusCode
+    let user = fromMaybe (error "createEphemeralUser: failed to parse response") (decodeBody r)
+    return $ Brig.Types.userId user
 
 randomClient :: Brig -> UserId -> LastPrekey -> Http ClientId
 randomClient b usr lk = do
@@ -562,8 +656,8 @@ convRange range size =
         Just (Right c) -> queryItem "start" (toByteString' c)
         Nothing        -> id
 
-privateAccess :: List1 Access
-privateAccess = singleton PrivateAccess
+privateAccess :: [Access]
+privateAccess = [PrivateAccess]
 
 eqMismatch :: [(UserId, Set ClientId)]
            -> [(UserId, Set ClientId)]

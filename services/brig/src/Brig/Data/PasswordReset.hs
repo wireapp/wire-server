@@ -51,7 +51,7 @@ createPasswordResetCode u target = do
 
 lookupPasswordResetCode :: UserId -> AppIO (Maybe PasswordResetCode)
 lookupPasswordResetCode u = do
-    key  <- liftIO $ mkPasswordResetKey u
+    key <- liftIO $ mkPasswordResetKey u
     now <- liftIO =<< view currentTime
     validate now =<< retry x1 (query1 codeSelect (params Quorum (Identity key)))
   where

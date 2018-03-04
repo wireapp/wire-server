@@ -403,6 +403,9 @@ sitemap = do
         body (ref Model.newConversation) $
             description "JSON body"
         response 201 "Conversation created" end
+        errorResponse Error.notConnected
+        errorResponse Error.noTeamMember
+        errorResponse (Error.operationDenied CreateConversation)
 
     ---
 
@@ -450,19 +453,115 @@ sitemap = do
 
     ---
 
-    post "/conversations/:cnv/join" (continue joinConversation) $
+    post "/conversations/:cnv/join" (continue joinConversationById) $
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
         .&. accept "application" "json"
 
-    document "POST" "joinConversation" $ do
-        summary "Join a conversation"
+    document "POST" "joinConversationById" $ do
+        summary "Join a conversation by its ID (if link access enabled)"
         parameter Path "cnv" bytes' $
             description "Conversation ID"
         returns (ref Model.event)
         response 200 "Conversation joined." end
         errorResponse Error.convNotFound
+
+    ---
+
+    post "/conversations/code-check" (continue checkReusableCode) $
+        request
+        .&. contentType "application" "json"
+
+    document "POST" "checkConversationCode" $ do
+        summary "Check validity of a conversation code"
+        response 200 "Valid" end
+        body (ref Model.conversationCode) $
+            description "JSON body"
+        errorResponse Error.codeNotFound
+
+
+    post "/conversations/join" (continue joinConversationByReusableCode) $
+        zauthUserId
+        .&. zauthConnId
+        .&. request
+        .&. contentType "application" "json"
+
+    document "POST" "joinConversationByCode" $ do
+        summary "Join a conversation using a reusable code"
+        returns (ref Model.event)
+        response 200 "Conversation joined." end
+        body (ref Model.conversationCode) $
+            description "JSON body"
+        errorResponse Error.codeNotFound
+        errorResponse Error.convNotFound
+        errorResponse Error.tooManyMembers
+
+    ---
+
+    post "/conversations/:cnv/code" (continue addCode) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+
+    document "POST" "createConversationCode" $ do
+        summary "Create or recreate a conversation code"
+        returns (ref Model.event)
+        returns (ref Model.conversationCode)
+        response 201 "Conversation code created." (model Model.event)
+        response 200 "Conversation code already exists." (model Model.conversationCode)
+        errorResponse Error.convNotFound
+        errorResponse Error.invalidAccessOp
+
+    ---
+
+    delete "/conversations/:cnv/code" (continue rmCode) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+
+    document "DELETE" "deleteConversationCode" $ do
+        summary "Delete conversation code"
+        returns (ref Model.event)
+        response 200 "Conversation code deleted." end
+        errorResponse Error.convNotFound
+        errorResponse Error.invalidAccessOp
+
+    ---
+
+    get "/conversations/:cnv/code" (continue getCode) $
+        zauthUserId
+        .&. capture "cnv"
+
+    document "GET" "getConversationCode" $ do
+        summary "Get existing conversation code"
+        returns (ref Model.conversationCode)
+        response 200 "Conversation Code" end
+        errorResponse Error.convNotFound
+        errorResponse Error.invalidAccessOp
+
+    ---
+
+    put "/conversations/:cnv/access" (continue updateConversationAccess) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. request
+        .&. contentType "application" "json"
+
+    document "PUT" "updateConversationAccess" $ do
+        summary "Update access modes for a conversation"
+        returns (ref Model.event)
+        response 200 "Conversation access updated." end
+        body (ref Model.conversationAccessUpdate) $
+            description "JSON body"
+        errorResponse Error.convNotFound
+        errorResponse Error.accessDenied
+        errorResponse Error.invalidTargetAccess
+        errorResponse Error.invalidSelfOp
+        errorResponse Error.invalidOne2OneOp
+        errorResponse Error.invalidConnectOp
+        errorResponse Error.invalidTargetAccess
 
     ---
 

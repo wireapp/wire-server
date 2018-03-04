@@ -18,6 +18,8 @@ module Galley.Types
     , foldrOtrRecipients
     , OtrFilterMissing (..)
     , ConvTeamInfo     (..)
+    , ConversationCode (..)
+    , mkConversationCode
 
       -- * Events
     , Event            (..)
@@ -30,27 +32,32 @@ module Galley.Types
     , parseEventData
 
       -- * Other galley types
-    , Access              (..)
-    , Accept              (..)
-    , ConversationList    (..)
-    , ConversationMeta    (..)
-    , ConversationRename  (..)
-    , ConvType            (..)
-    , Invite              (..)
-    , NewConv             (..)
-    , MemberUpdate        (..)
-    , TypingStatus        (..)
-    , UserClientMap       (..)
-    , UserClients         (..)
+    , Access                    (..)
+    , AccessRole                (..)
+    , Accept                    (..)
+    , ConversationList          (..)
+    , ConversationMeta          (..)
+    , ConversationRename        (..)
+    , ConversationAccessUpdate  (..)
+    , ConvType                  (..)
+    , Invite                    (..)
+    , NewConv                   (..)
+    , MemberUpdate              (..)
+    , TypingStatus              (..)
+    , UserClientMap             (..)
+    , UserClients               (..)
     , filterClients
     ) where
 
 import Control.Monad
+import Control.Lens ((&), (.~))
 import Data.Aeson
 import Data.Aeson.Types (Parser)
+import Data.ByteString.Conversion
 import Data.Foldable (foldrM)
 import Data.Map.Strict (Map)
 import Data.Maybe (isJust)
+import Data.Misc
 import Data.Monoid
 import Data.Set (Set)
 import Data.Text (Text)
@@ -61,7 +68,9 @@ import Data.List1
 import Data.UUID (toASCIIBytes)
 import Galley.Types.Bot.Service (ServiceRef)
 import Gundeck.Types.Push (Priority)
+import URI.ByteString
 
+import qualified Data.Code           as Code
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict     as Map
 import qualified Data.Text.Encoding  as T
@@ -69,13 +78,14 @@ import qualified Data.Text.Encoding  as T
 -- Conversations ------------------------------------------------------------
 
 data Conversation = Conversation
-    { cnvId        :: !ConvId
-    , cnvType      :: !ConvType
-    , cnvCreator   :: !UserId
-    , cnvAccess    :: !(List1 Access)
-    , cnvName      :: !(Maybe Text)
-    , cnvMembers   :: !ConvMembers
-    , cnvTeam      :: !(Maybe TeamId)
+    { cnvId         :: !ConvId
+    , cnvType       :: !ConvType
+    , cnvCreator    :: !UserId
+    , cnvAccess     :: ![Access]
+    , cnvAccessRole :: !AccessRole
+    , cnvName       :: !(Maybe Text)
+    , cnvMembers    :: !ConvMembers
+    , cnvTeam       :: !(Maybe TeamId)
     } deriving (Eq, Show)
 
 data ConvType
@@ -85,11 +95,23 @@ data ConvType
     | ConnectConv
     deriving (Eq, Show)
 
+-- Access define how users can join conversations
 data Access
-    = PrivateAccess
-    | InviteAccess
-    | LinkAccess
+    = PrivateAccess -- Made obsolete by PrivateAccessRole
+    | InviteAccess  -- User A can add User B
+    | LinkAccess    -- User can join knowing conversation id
+    | CodeAccess    -- User can join knowing [changeable/revokable] code
     deriving (Eq, Ord, Show)
+
+-- AccessRoles define who can join conversations
+-- the roles are "supersets", i.e. Activated includes Team
+-- and NonActivated includes Activated
+data AccessRole
+    = PrivateAccessRole
+    | TeamAccessRole
+    | ActivatedAccessRole    -- has activated email or phone
+    | NonActivatedAccessRole -- has nothing
+    deriving (Eq, Show)
 
 data ConvMembers = ConvMembers
     { cmSelf   :: !Member
@@ -97,12 +119,13 @@ data ConvMembers = ConvMembers
     } deriving (Eq, Show)
 
 data ConversationMeta = ConversationMeta
-    { cmId      :: !ConvId
-    , cmType    :: !ConvType
-    , cmCreator :: !UserId
-    , cmAccess  :: !(List1 Access)
-    , cmName    :: !(Maybe Text)
-    , cmTeam    :: !(Maybe TeamId)
+    { cmId          :: !ConvId
+    , cmType        :: !ConvType
+    , cmCreator     :: !UserId
+    , cmAccess      :: ![Access]
+    , cmAccessRole  :: !AccessRole
+    , cmName        :: !(Maybe Text)
+    , cmTeam        :: !(Maybe TeamId)
     } deriving (Eq, Show)
 
 data ConversationList a = ConversationList
@@ -117,6 +140,11 @@ newtype ConversationRename = ConversationRename
 deriving instance Eq   ConversationRename
 deriving instance Show ConversationRename
 
+data ConversationAccessUpdate = ConversationAccessUpdate
+    { cupAccess     :: [Access]
+    , cupAccessRole :: AccessRole
+    } deriving (Eq, Show)
+
 data ConvTeamInfo = ConvTeamInfo
     { cnvTeamId  :: !TeamId
     , cnvManaged :: !Bool
@@ -126,6 +154,7 @@ data NewConv = NewConv
     { newConvUsers  :: ![UserId]
     , newConvName   :: !(Maybe Text)
     , newConvAccess :: !(Set Access)
+    , newConvAccessRole :: !(Maybe AccessRole)
     , newConvTeam   :: !(Maybe ConvTeamInfo)
     }
 
@@ -248,6 +277,9 @@ data EventType
     | MemberLeave
     | MemberStateUpdate
     | ConvRename
+    | ConvAccessUpdate
+    | ConvCodeUpdate
+    | ConvCodeDelete
     | ConvCreate
     | ConvConnect
     | ConvDelete
@@ -256,13 +288,15 @@ data EventType
     deriving (Eq, Show)
 
 data EventData
-    = EdMembers      !Members
-    | EdConnect      !Connect
-    | EdConvRename   !ConversationRename
-    | EdMemberUpdate !MemberUpdateData
-    | EdConversation !Conversation
-    | EdTyping       !TypingData
-    | EdOtrMessage   !OtrMessage
+    = EdMembers             !Members
+    | EdConnect             !Connect
+    | EdConvRename          !ConversationRename
+    | EdConvAccessUpdate    !ConversationAccessUpdate
+    | EdConvCodeUpdate      !ConversationCode
+    | EdMemberUpdate        !MemberUpdateData
+    | EdConversation        !Conversation
+    | EdTyping              !TypingData
+    | EdOtrMessage          !OtrMessage
     deriving (Eq, Show)
 
 data OtrMessage = OtrMessage
@@ -301,6 +335,22 @@ data TypingStatus
     | StoppedTyping
     deriving (Eq, Ord, Show)
 
+data ConversationCode = ConversationCode
+    { conversationKey   :: !Code.Key
+    , conversationCode  :: !Code.Value
+    , conversationUri   :: !(Maybe HttpsUrl)
+    } deriving (Eq, Show)
+
+mkConversationCode :: Code.Key -> Code.Value -> HttpsUrl -> ConversationCode
+mkConversationCode k v (HttpsUrl prefix) = ConversationCode
+        { conversationKey = k
+        , conversationCode = v
+        , conversationUri = Just (HttpsUrl link)
+        }
+  where
+    q = [("key", toByteString' k), ("code", toByteString' v)]
+    link = prefix & (queryL . queryPairsL) .~ q
+
 -- Instances ----------------------------------------------------------------
 
 -- JSON
@@ -309,6 +359,7 @@ instance ToJSON Access where
     toJSON PrivateAccess = String "private"
     toJSON InviteAccess  = String "invite"
     toJSON LinkAccess    = String "link"
+    toJSON CodeAccess    = String "code"
 
 instance FromJSON Access where
     parseJSON = withText "Access" $ \s ->
@@ -316,7 +367,26 @@ instance FromJSON Access where
             "private" -> return PrivateAccess
             "invite"  -> return InviteAccess
             "link"    -> return LinkAccess
-            _         -> fail "Invalid Access Mode"
+            "code"    -> return CodeAccess
+            x         -> fail ("Invalid Access Mode: " ++ show x)
+
+
+
+instance FromJSON AccessRole where
+    parseJSON = withText "access-role" $ \s ->
+        case s of
+            "private"           -> return PrivateAccessRole
+            "team"              -> return TeamAccessRole
+            "activated"         -> return ActivatedAccessRole
+            "non_activated"     -> return NonActivatedAccessRole
+            x                   -> fail ("Invalid Access Role: " ++ show x)
+
+
+instance ToJSON AccessRole where
+    toJSON PrivateAccessRole        = String "private"
+    toJSON TeamAccessRole           = String "team"
+    toJSON ActivatedAccessRole      = String "activated"
+    toJSON NonActivatedAccessRole   = String "non_activated"
 
 instance ToJSON UserClients where
      toJSON =
@@ -439,15 +509,16 @@ instance FromJSON a => FromJSON (ConversationList a) where
 
 instance ToJSON Conversation where
     toJSON c = object
-        [ "id"      .= cnvId c
-        , "type"    .= cnvType c
-        , "creator" .= cnvCreator c
-        , "access"  .= cnvAccess c
-        , "name"    .= cnvName c
-        , "members" .= cnvMembers c
-        , "last_event"      .= ("0.0" :: Text)
-        , "last_event_time" .= ("1970-01-01T00:00:00.000Z" :: Text)
-        , "team"    .= cnvTeam c
+        [ "id"                  .= cnvId c
+        , "type"                .= cnvType c
+        , "creator"             .= cnvCreator c
+        , "access"              .= cnvAccess c
+        , "access_role"         .= cnvAccessRole c
+        , "name"                .= cnvName c
+        , "members"             .= cnvMembers c
+        , "last_event"          .= ("0.0" :: Text)
+        , "last_event_time"     .= ("1970-01-01T00:00:00.000Z" :: Text)
+        , "team"                .= cnvTeam c
         ]
 
 instance FromJSON Conversation where
@@ -456,6 +527,7 @@ instance FromJSON Conversation where
                     <*> o .:  "type"
                     <*> o .:  "creator"
                     <*> o .:  "access"
+                    <*> o .:? "access_role" .!= ActivatedAccessRole
                     <*> o .:? "name"
                     <*> o .:  "members"
                     <*> o .:? "team"
@@ -485,6 +557,9 @@ parseEventData MemberJoin v        = Just . EdMembers <$> parseJSON v
 parseEventData MemberLeave v       = Just . EdMembers <$> parseJSON v
 parseEventData MemberStateUpdate v = Just . EdMemberUpdate <$> parseJSON v
 parseEventData ConvRename v        = Just . EdConvRename <$> parseJSON v
+parseEventData ConvAccessUpdate v  = Just . EdConvAccessUpdate <$> parseJSON v
+parseEventData ConvCodeUpdate v    = Just . EdConvCodeUpdate <$> parseJSON v
+parseEventData ConvCodeDelete _    = pure Nothing
 parseEventData ConvConnect v       = Just . EdConnect <$> parseJSON v
 parseEventData ConvCreate v        = Just . EdConversation <$> parseJSON v
 parseEventData Typing v            = Just . EdTyping <$> parseJSON v
@@ -492,13 +567,15 @@ parseEventData OtrMessageAdd v     = Just . EdOtrMessage <$> parseJSON v
 parseEventData ConvDelete _        = pure Nothing
 
 instance ToJSON EventData where
-    toJSON (EdMembers x)      = toJSON x
-    toJSON (EdConnect x)      = toJSON x
-    toJSON (EdConvRename x)   = toJSON x
-    toJSON (EdMemberUpdate x) = toJSON x
-    toJSON (EdConversation x) = toJSON x
-    toJSON (EdTyping x)       = toJSON x
-    toJSON (EdOtrMessage x)   = toJSON x
+    toJSON (EdMembers x)            = toJSON x
+    toJSON (EdConnect x)            = toJSON x
+    toJSON (EdConvRename x)         = toJSON x
+    toJSON (EdConvAccessUpdate x)   = toJSON x
+    toJSON (EdConvCodeUpdate x)     = toJSON x
+    toJSON (EdMemberUpdate x)       = toJSON x
+    toJSON (EdConversation x)       = toJSON x
+    toJSON (EdTyping x)             = toJSON x
+    toJSON (EdOtrMessage x)         = toJSON x
 
 instance ToJSONObject Event where
     toJSONObject e = HashMap.fromList
@@ -516,6 +593,9 @@ instance FromJSON EventType where
     parseJSON (String "conversation.member-join")     = return MemberJoin
     parseJSON (String "conversation.member-leave")    = return MemberLeave
     parseJSON (String "conversation.rename")          = return ConvRename
+    parseJSON (String "conversation.access-update")   = return ConvAccessUpdate
+    parseJSON (String "conversation.code-update")     = return ConvCodeUpdate
+    parseJSON (String "conversation.code-delete")     = return ConvCodeDelete
     parseJSON (String "conversation.member-update")   = return MemberStateUpdate
     parseJSON (String "conversation.create")          = return ConvCreate
     parseJSON (String "conversation.delete")          = return ConvDelete
@@ -529,6 +609,9 @@ instance ToJSON EventType where
     toJSON MemberLeave            = String "conversation.member-leave"
     toJSON MemberStateUpdate      = String "conversation.member-update"
     toJSON ConvRename             = String "conversation.rename"
+    toJSON ConvAccessUpdate       = String "conversation.access-update"
+    toJSON ConvCodeUpdate         = String "conversation.code-update"
+    toJSON ConvCodeDelete         = String "conversation.code-delete"
     toJSON ConvCreate             = String "conversation.create"
     toJSON ConvDelete             = String "conversation.delete"
     toJSON ConvConnect            = String "conversation.connect-request"
@@ -540,6 +623,7 @@ instance FromJSON NewConv where
         NewConv <$> i .:  "users"
                 <*> i .:? "name"
                 <*> i .:? "access" .!= mempty
+                <*> i .:? "access_role"
                 <*> i .:? "team"
 
 instance ToJSON NewConv where
@@ -547,6 +631,7 @@ instance ToJSON NewConv where
         $ "users"  .= newConvUsers i
         # "name"   .= newConvName i
         # "access" .= newConvAccess i
+        # "access_role" .= newConvAccessRole i
         # "team"   .= newConvTeam i
         # []
 
@@ -573,18 +658,31 @@ instance FromJSON ConversationMeta where
                          <*> o .:  "type"
                          <*> o .:  "creator"
                          <*> o .:  "access"
+                         <*> o .:  "access_role"
                          <*> o .:  "name"
                          <*> o .:? "team"
 
 instance ToJSON ConversationMeta where
     toJSON c = object
-        $ "id"      .= cmId c
-        # "type"    .= cmType c
-        # "creator" .= cmCreator c
-        # "access"  .= cmAccess c
-        # "name"    .= cmName c
-        # "team"    .= cmTeam c
+        $ "id"          .= cmId c
+        # "type"        .= cmType c
+        # "creator"     .= cmCreator c
+        # "access"      .= cmAccess c
+        # "access_role" .= cmAccessRole c
+        # "name"        .= cmName c
+        # "team"        .= cmTeam c
         # []
+
+instance ToJSON ConversationAccessUpdate where
+    toJSON c = object
+        $ "access" .= cupAccess c
+        # "access_role" .= cupAccessRole c
+        # []
+
+instance FromJSON ConversationAccessUpdate where
+   parseJSON = withObject "conversation-access-update" $ \o ->
+       ConversationAccessUpdate <$> o .:  "access"
+                                <*> o .:  "access_role"
 
 instance FromJSON ConversationRename where
     parseJSON = withObject "conversation-rename object" $ \c ->
@@ -723,3 +821,15 @@ instance FromJSON TypingData where
     parseJSON = withObject "typing-data" $ \o ->
         TypingData <$> o .: "status"
 
+instance ToJSON ConversationCode where
+    toJSON j = object
+        $ "key"  .= conversationKey j
+        # "code" .= conversationCode j
+        # "uri"  .= conversationUri j
+        # []
+
+instance FromJSON ConversationCode where
+    parseJSON = withObject "join" $ \o ->
+        ConversationCode <$> o .: "key"
+            <*> o .:  "code"
+            <*> o .:? "uri"

@@ -74,15 +74,27 @@ localCassandraSettings = CassandraSettings
     , _cKeyspace = C.Keyspace "brig_test"
     }
 
-elasticSettingsParser :: Parser ElasticSettings
-elasticSettingsParser = ElasticSettings
-    <$> option url
+elasticServerParser :: Parser (URIRef Absolute)
+elasticServerParser = option url
         ( long "elasticsearch-server"
        <> metavar "URL"
        <> help    "Base URL of the Elasticsearch Server."
        <> value   (view esServer localElasticSettings)
        <> showDefaultWith (view unpackedChars . serializeURIRef')
         )
+  where
+    url = eitherReader
+        (first show . parseURI strictURIParserOptions . view packedChars)
+
+restrictedElasticSettingsParser :: Parser ElasticSettings
+restrictedElasticSettingsParser = ElasticSettings
+    <$> elasticServerParser
+    <*> pure (localElasticSettings^.esIndex)
+    <*> pure (localElasticSettings^.esIndexSettings)
+
+elasticSettingsParser :: Parser ElasticSettings
+elasticSettingsParser = ElasticSettings
+    <$> elasticServerParser
     <*> ( ES.IndexName . view packed <$>
           strOption
           ( long    "elasticsearch-index"
@@ -94,9 +106,6 @@ elasticSettingsParser = ElasticSettings
         )
     <*> indexSettingsParser
   where
-    url = eitherReader
-        (first show . parseURI strictURIParserOptions . view packedChars)
-
     indexSettingsParser = ES.IndexSettings
         <$> ( ES.ShardCount <$>
               option auto
@@ -147,21 +156,20 @@ cassandraSettingsParser = CassandraSettings
 commandParser :: Parser Command
 commandParser = hsubparser
     ( command "create"
-        (info (Create <$> pure localElasticSettings)
+        (info (Create <$> restrictedElasticSettingsParser)
             (progDesc ("Create the ES user index, if it doesn't already exist. " <> lo)))
    <> command "reset"
-        (info (Reset <$> pure localElasticSettings)
+        (info (Reset <$> restrictedElasticSettingsParser)
             (progDesc ("Delete and re-create the ES user index. " <> lo)))
    <> command "reindex"
         (info (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser)
             (progDesc "Reindex all users from Cassandra."))
     )
   where
-    lo = "Only works on a local test index (directory_test)."
+    lo = "Only works on a test index (directory_test)."
 
 _IndexName :: Iso' ES.IndexName Text
 _IndexName = iso (\(ES.IndexName n) -> n) ES.IndexName
 
 _Keyspace :: Iso' C.Keyspace Text
 _Keyspace = iso C.unKeyspace C.Keyspace
-

@@ -6,6 +6,7 @@ module API (tests, ConnectionLimit (..)) where
 
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
+import Brig.AWS.Types
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth hiding (user)
@@ -13,7 +14,7 @@ import Brig.Data.PasswordReset
 import Control.Arrow ((&&&))
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently, mapConcurrently_)
-import Control.Lens ((^?), (^?!), preview)
+import Control.Lens ((^?), (^?!), (^.), preview)
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
@@ -27,6 +28,7 @@ import Data.Id hiding (client)
 import Data.Int (Int64)
 import Data.List (sort, sortBy, nub)
 import Data.List1 (List1, singleton)
+import Data.Foldable (for_)
 import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
 import Data.Monoid ((<>))
@@ -47,6 +49,7 @@ import Util
 import Util.Options.Common
 
 import qualified API.Search.Util             as Search
+import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt
 import qualified Data.ByteString.Char8       as C
 import qualified Data.List1                  as List1
@@ -62,8 +65,8 @@ import qualified Test.Tasty.Cannon           as WS
 
 newtype ConnectionLimit = ConnectionLimit Int64
 
-tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> IO TestTree
-tests conf p b c g = do
+tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> Maybe AWS.Env -> IO TestTree
+tests conf p b c g localAWS = do
     l <- optOrEnv (ConnectionLimit . Opt.setUserMaxConnections . Opt.optSettings) conf (ConnectionLimit . read) "USER_CONNECTION_LIMIT"
     return $ testGroup "user"
         [ testGroup "account"
@@ -75,7 +78,7 @@ tests conf p b c g = do
             , test p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey b
             , test p "post /register - 409 conflict"            $ testCreateUserConflict b
             , test p "post /register - 400"                     $ testCreateUserInvalidPhone b
-            , test p "post /register - 403"                     $ testCreateUserBlacklist b
+            , test p "post /register - 403 blacklist"           $ testCreateUserBlacklist b localAWS
             , test p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b
             , test p "get /users/:id - 404"                     $ testNonExistingUser b
             , test p "get /users/:id - 200"                     $ testExistingUser b
@@ -342,14 +345,16 @@ testCreateUserInvalidPhone brig = do
     post (brig . path "/register" . contentJson . body p) !!!
         const 400 === statusCode
 
-testCreateUserBlacklist :: Brig -> Http ()
-testCreateUserBlacklist brig =
+testCreateUserBlacklist :: Brig -> Maybe AWS.Env -> Http ()
+testCreateUserBlacklist brig localAWS =
     mapM_ ensureBlacklist ["bounce", "complaint"]
   where
     ensureBlacklist typ = do
         e <- mkSimulatorEmail typ
         flip finally (removeBlacklist brig e) $ do
             post (brig . path "/register" . contentJson . body (p e)) !!! const 201 === statusCode
+            -- If we are using a local env, we need to fake this bounce
+            for_ localAWS $ publishMessage typ e
             -- Typically bounce/complaint messages arrive instantaneously
             awaitBlacklist 30 e
             post (brig . path "/register" . contentJson . body (p e)) !!! do
@@ -360,6 +365,15 @@ testCreateUserBlacklist brig =
                                                , "email"    .= email
                                                , "password" .= defPassword
                                                ]
+
+    publishMessage :: Text -> Email -> AWS.Env -> Http ()
+    publishMessage typ em env = do
+        let bdy = encode $ case typ of
+                        "bounce"    -> MailBounce BouncePermanent [em]
+                        "complaint" -> MailComplaint [em]
+                        x           -> error ("Unsupported message type: " ++ show x)
+        let queue = env^.AWS.sesQueue
+        void $ AWS.execute env (AWS.enqueue queue bdy)
 
     awaitBlacklist :: Int -> Email -> Http ()
     awaitBlacklist n e = do
@@ -638,15 +652,6 @@ testPasswordChange brig = do
     pwSet = RequestBodyLBS . encode $ object
         [ "new_password" .= newPass
         ]
-
--- requestActivationCode :: Brig -> Either Email Phone -> Http ()
--- requestActivationCode brig ep =
---     post (brig . path "/activate/send" . contentJson . body (RequestBodyLBS . encode $ bdy ep)) !!!
---         const 200 === statusCode
---   where
---     bdy (Left e)  = object [ "email" .= fromEmail e ]
---     bdy (Right p) = object [ "phone" .= fromPhone p ]
-
 
 testSendActivationCode :: Brig -> Http ()
 testSendActivationCode brig = do

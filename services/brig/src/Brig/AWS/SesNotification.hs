@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Brig.Aws.SesNotification(onEvent) where
+module Brig.AWS.SesNotification(onEvent) where
 
 import Brig.App
-import Brig.Aws.Types
+import Brig.AWS.Types
 import Brig.Data.UserKey (userEmailKey)
 import Data.Text (Text)
 import Brig.Types (Email, fromEmail)

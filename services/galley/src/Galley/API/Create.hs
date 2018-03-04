@@ -29,7 +29,7 @@ import Galley.API.Util
 import Galley.Intra.Push
 import Galley.Types
 import Galley.Types.Teams hiding (EventType (..))
-import Galley.Validation (rangeChecked, rangeCheckedMaybe)
+import Galley.Validation
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
@@ -54,33 +54,34 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
         mems <- Data.teamMembers (cnvTeamId tinfo)
         void $ permissionCheck zusr CreateConversation mems
         uids <-
-            if cnvManaged tinfo then
-                rangeChecked . filter (/= zusr) $ map (view userId) mems
+            if cnvManaged tinfo then do
+                let uu = filter (/= zusr) $ map (view userId) mems
+                checkedConvAndTeamSize uu
             else do
                 void $ permissionCheck zusr AddConversationMember mems
-                uu <- rangeChecked (newConvUsers body)
-                ensureConnected zusr (notTeamMember (fromRange uu) mems)
+                uu <- checkedConvAndTeamSize (newConvUsers body)
+                ensureConnected zusr (notTeamMember (fromConvTeamSize uu) mems)
                 pure uu
-        conv <- Data.createConversation zusr name (access body) uids (newConvTeam body)
+        conv <- Data.createConversation zusr name (access body) (newConvAccessRole body) uids (newConvTeam body)
         now  <- liftIO getCurrentTime
         let d = Teams.EdConvCreate (Data.convId conv)
         let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
-        let notInConv = Set.fromList (map (view userId) mems) \\ Set.fromList (zusr : fromRange uids)
+        let notInConv = Set.fromList (map (view userId) mems) \\ Set.fromList (zusr : fromConvTeamSize uids)
         for_ (newPush zusr (TeamEvent e) (map userRecipient (Set.toList notInConv))) push1
         notifyCreatedConversation (Just now) zusr (Just zcon) conv
         conversationResponse status201 zusr conv
 
     createRegularConv body = do
         name <- rangeCheckedMaybe (newConvName body)
-        uids <- rangeChecked (newConvUsers body)
-        ensureConnected zusr (fromRange uids)
-        c <- Data.createConversation zusr name (access body) uids (newConvTeam body)
+        uids <- checkedConvAndTeamSize (newConvUsers body)
+        ensureConnected zusr (fromConvTeamSize uids)
+        c <- Data.createConversation zusr name (access body) (newConvAccessRole body) uids (newConvTeam body)
         notifyCreatedConversation Nothing zusr (Just zcon) c
         conversationResponse status201 zusr c
 
     access a = case Set.toList (newConvAccess a) of
-        []     -> singleton InviteAccess
-        (x:xs) -> list1 x xs
+        []     -> [InviteAccess]
+        (x:xs) -> x:xs
 
 createSelfConversation :: UserId -> Galley Response
 createSelfConversation zusr = do
@@ -139,7 +140,7 @@ createConnectConversation (usr ::: conn ::: req ::: _) = do
             | usr `isMember` mems -> connect n j conv
             | otherwise           -> do
                 now <- liftIO getCurrentTime
-                mm  <- snd <$> Data.addMembers now (Data.convId conv) usr (rcast $ rsingleton usr)
+                mm  <- snd <$> Data.addMember now (Data.convId conv) usr
                 let conv' = conv {
                     Data.convMembers = Data.convMembers conv <> toList mm
                 }

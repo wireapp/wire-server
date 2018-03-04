@@ -8,10 +8,11 @@
 module Brig.API (runServer, parseOptions) where
 
 import Brig.App
+import Brig.AWS (sesQueue, internalQueue)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
-import Brig.Options
+import Brig.Options hiding (sesQueue, internalQueue)
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth
@@ -56,9 +57,10 @@ import qualified Brig.API.User                 as API
 import qualified Brig.User.API.Auth            as Auth
 import qualified Brig.User.API.Search          as Search
 import qualified Brig.User.Auth.Cookie         as Auth
-import qualified Brig.Aws                      as Aws
-import qualified Brig.Aws.SesNotification      as SesNotification
-import qualified Brig.Aws.InternalNotification as InternalNotification
+import qualified Brig.AWS                      as AWS
+import qualified Brig.AWS.Types                as AWS
+import qualified Brig.AWS.SesNotification      as SesNotification
+import qualified Brig.AWS.InternalNotification as InternalNotification
 import qualified Brig.Types.Swagger            as Doc
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Data.Swagger.Build.Api        as Doc
@@ -80,8 +82,10 @@ runServer :: Opts -> IO ()
 runServer o = do
     e <- newEnv o
     s <- Server.newSettings (server e)
-    f <- Async.async $ runAppT e (Aws.listen (e^.awsConfig.Aws.sqsSesQueue) SesNotification.onEvent)
-    g <- Async.async $ runAppT e (Aws.listen (e^.awsConfig.Aws.sqsInternalQueue) InternalNotification.onEvent)
+    f <- Async.async $ AWS.execute (e^.awsEnv)
+                     $ AWS.listen (e^.awsEnv.sesQueue) (runAppT e . SesNotification.onEvent)
+    g <- Async.async $ AWS.execute (e^.awsEnv)
+                     $ AWS.listen (e^.awsEnv.internalQueue) (runAppT e . InternalNotification.onEvent)
     runSettingsWithShutdown s (pipeline e) 5 `finally` do
         Async.cancel f
         Async.cancel g
@@ -1167,7 +1171,7 @@ deleteUserNoVerify uid = do
     acc <- lift $ API.lookupAccount uid
     unless (isJust acc) $
         throwStd userNotFound
-    ok <- lift $ InternalNotification.publish (Aws.DeleteUser uid)
+    ok <- lift $ InternalNotification.publish (AWS.DeleteUser uid)
     unless ok $
         throwStd failedQueueEvent
     return $ setStatus status202 empty

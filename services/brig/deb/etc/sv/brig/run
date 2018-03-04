@@ -88,7 +88,9 @@ exec chpst -u $USER \
     --aws-internal-queue=${BRIG_AWS_INTERNAL_QUEUE?'unset'} \
     --aws-dynamo-blacklist=${BRIG_AWS_DYNAMO_BLACKLIST?'unset'} \
     --aws-dynamo-prekeys=${BRIG_AWS_DYNAMO_PREKEYS?'unset'} \
-    --aws-account-id=${BRIG_AWS_ACCOUNT?'unset'} \
+    --aws-ses-endpoint=${BRIG_SES_ENDPOINT?'unset'} \
+    --aws-sqs-endpoint=${BRIG_SQS_ENDPOINT?'unset'} \
+    --aws-dynamodb-endpoint=${BRIG_DYNAMODB_ENDPOINT?'unset'} \
     --twilio-credentials=${BRIG_TWILIO_CREDENTIALS?'unset'} \
     --twilio-sender=${BRIG_TWILIO_SENDER?'unset'} \
     --nexmo-credentials=${BRIG_NEXMO_CREDENTIALS?'unset'} \
@@ -101,6 +103,7 @@ exec chpst -u $USER \
     --provider-activation-url=${BRIG_PROVIDER_ACTIVATION_URL?'unset'} \
     --provider-approval-url=${BRIG_PROVIDER_APPROVAL_URL?'unset'} \
     --provider-approval-to=${BRIG_PROVIDER_APPROVAL_TO?'unset'} \
+    --provider-password-reset-url=${BRIG_PROVIDER_PASSWORD_RESET_URL?'unset'} \
     --user-cookie-limit=${BRIG_USER_COOKIE_LIMIT?'unset'} \
     --user-cookie-renew-age=${BRIG_USER_COOKIE_RENEW_AGE?'unset'} \
     --user-cookie-min-deviation=${BRIG_USER_COOKIE_MIN_DEVIATION?'unset'} \
@@ -116,6 +119,7 @@ exec chpst -u $USER \
     --elasticsearch-user-index=${BRIG_ELASTICSEARCH_USER_INDEX?'unset'} \
     --turn-servers=${BRIG_TURN_SERVERS?'unset'} \
     --turn-secret=${BRIG_TURN_SECRET?'unset'} \
+    --conv-team-max-size=${BRIG_CONV_TEAM_MAX_SIZE:-128} \
     ${TURN_TOKEN_LIFETIME} \
     ${TURN_CONFIG_TTL} \
     ${AWS_ACCESS_KEY_ID} \

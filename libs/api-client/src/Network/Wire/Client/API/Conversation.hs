@@ -98,6 +98,6 @@ createConv user (toList -> others) name = sessionRequest req rsc readBody
     req = method POST
         . path "conversations"
         . acceptJson
-        . json (NewConv (user : others) name mempty Nothing)
+        . json (NewConv (user : others) name mempty Nothing Nothing)
         $ empty
     rsc = status201 :| []
