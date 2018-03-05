@@ -2,6 +2,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
 
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Test.Properties (tests) where
 
 import Data.Aeson as Aeson
@@ -12,6 +14,7 @@ import Data.Text.Ascii
 import Data.Id
 import Data.ProtocolBuffers.Internal
 import Data.Serialize
+import Data.Time.Clock.POSIX
 import Data.UUID
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -92,6 +95,12 @@ tests = testGroup "Properties"
             go "foo" "\"Zm9v\""
         ]
 
+    , testGroup "UTCTimeMillis"
+        [ testProperty "validate (Aeson.decode . Aeson.encode) == pure . id" $
+            \(t :: Util.UTCTimeMillis) ->
+                (Aeson.eitherDecode . Aeson.encode) t == Right t
+        ]
+
     , testGroup "UUID"
         [ testProperty "decode . encode = id" $
               \t (x :: UUID) -> roundtrip t x === Right x
@@ -130,3 +139,6 @@ newtype Tag' = Tag' Tag
 
 instance Arbitrary Tag' where
     arbitrary = Tag' <$> choose (0, 536870912)
+
+instance Arbitrary Util.UTCTimeMillis where
+    arbitrary = Util.UTCTimeMillis . posixSecondsToUTCTime . fromInteger <$> arbitrary

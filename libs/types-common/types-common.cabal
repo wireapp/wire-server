@@ -116,5 +116,6 @@ test-suite tests
         , tasty-quickcheck
         , text
         , text-format
+        , time
         , types-common
         , uuid

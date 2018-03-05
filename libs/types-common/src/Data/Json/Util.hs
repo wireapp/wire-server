@@ -43,6 +43,7 @@ infixr 5 #
 -- | A newtype wrapper for 'UTCTime' that formats timestamps in JSON with
 -- millisecond precision instead of the default picosecond precision.
 newtype UTCTimeMillis = UTCTimeMillis UTCTime
+  deriving (Eq, Show)
 
 instance ToJSON UTCTimeMillis where
     toJSON (UTCTimeMillis t) = String $ pack $ formatTime defaultTimeLocale format t
