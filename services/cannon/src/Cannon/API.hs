@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators     #-}
 
@@ -21,6 +22,7 @@ import Data.Text (Text, strip, pack)
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types
 import Data.Maybe
+import Gundeck.Types.BulkPush
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
@@ -34,6 +36,7 @@ import System.Logger.Class hiding (Error)
 import System.Random.MWC (createSystemRandom)
 
 import qualified Cannon.Dict                 as D
+import qualified Data.ByteString.Lazy        as L
 import qualified Data.Metrics.Middleware     as Metrics
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified Network.WebSockets          as Ws
@@ -121,23 +124,34 @@ docs (_ ::: url) = do
 
 push :: UserId ::: ConnId ::: Request -> Cannon Response
 push (user ::: conn ::: req) = do
-    let k = mkKey user conn
+    singlePush (readBody req) (user, conn) >>= \case
+      PushSuccess    -> return empty
+      PushClientGone -> return $ errorRs status410 "general" "client gone"
+
+data PushStatus = PushSuccess | PushClientGone
+  deriving (Eq, Show)
+
+-- | Take a serialized 'Notification' string and send it to the 'PushTarget'.  Do not serialize
+-- inside this function so we can avoid a pointless deserialize/serialize roundtrip for the @/push@
+-- end-point.
+singlePush :: Cannon L.ByteString -> PushTarget -> Cannon PushStatus
+singlePush notification (userId, connId) = do
+    let k = mkKey userId connId
     d <- clients
     debug $ client (key2bytes k) . msg (val "push")
     c <- D.lookup k d
     case c of
         Nothing -> do
             debug $ client (key2bytes k) . msg (val "push: client gone")
-            return clientGone
-        Just x  -> do
-            b <- readBody req
+            return PushClientGone
+        Just x -> do
             e <- wsenv
+            b <- notification
             runWS e $
-                (sendMsg b k x >> return empty)
+                (sendMsg b k x >> return PushSuccess)
                 `catchAll`
-                const (terminate k x >> return clientGone)
-  where
-    clientGone = errorRs status410 "general" "client gone"
+                const (terminate k x >> return PushClientGone)
+
 
 await :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
 await (u ::: a ::: c ::: r) = do

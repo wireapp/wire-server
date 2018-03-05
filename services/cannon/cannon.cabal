@@ -40,6 +40,7 @@ library
         , case-insensitive      >= 1.2
         , data-timeout          >= 0.3
         , exceptions            >= 0.6
+        , gundeck-types
         , hashable              >= 1.2
         , http-types            >= 0.8
         , lens                  >= 4.4
