@@ -153,6 +153,7 @@ executable cargohold-integration
       , tasty             >= 0.9
       , tasty-hunit       >= 0.9
       , time              >= 1.5
+      , temporary
       , text              >= 1.1
       , transformers      >= 0.3
       , types-common      >= 0.7

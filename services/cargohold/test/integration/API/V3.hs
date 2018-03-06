@@ -14,18 +14,21 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Foldable (for_)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Text.Encoding (decodeLatin1)
 import Data.Time.Clock
 import Data.Time.Format
 import Data.UUID.V4
+import GHC.IO.Handle
 import Network.HTTP.Client (parseUrlThrow)
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status200, status204)
 import Network.Wai.Utilities (Error (label))
 import Prelude hiding (head)
+import System.IO.Temp
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -56,17 +59,17 @@ test s n h = testCase n runTest
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "v3"
     [ testGroup "simple"
-        [ test s "roundtrip"          testSimpleRoundtrip
-        , test s "roundtrip-large"    testSimpleRoundtripLarge
-        , test s "tokens"             testSimpleTokens
-        , test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse
+        [ test s "1 roundtrip"          testSimpleRoundtrip
+        , test s "2 roundtrip-large"    testSimpleRoundtripLarge
+        , test s "3 tokens"             testSimpleTokens
+        , test s "4 s3-upstream-closed" testSimpleS3ClosedConnectionReuse
         ]
     , testGroup "resumable"
-        [ test s "small"          testResumableSmall
-        , test s "large"          testResumableBig
-        , test s "last-small"     testResumableLastSmall
-        , test s "stepwise-small" testResumableStepSmall
-        , test s "stepwise-big"   testResumableStepBig
+        [ test s "5 small"          testResumableSmall
+        , test s "6 large"          testResumableBig
+        , test s "7 last-small"     testResumableLastSmall
+        , test s "8 stepwise-small" testResumableStepSmall
+        , test s "9 stepwise-big"   testResumableStepBig
         ]
     ]
 
@@ -125,12 +128,12 @@ testSimpleRoundtripLarge c = do
 
     -- Initial upload
     let sets = V3.defAssetSettings
-    let bdy = (applicationText, C8.replicate (1024 * 1024 * 50) 'a')
+    let bdy@(_, dat) = (applicationText, C8.replicate (1024 * 1024 * 50) 'a')
     r1 <- uploadSimple (c . path "/assets/v3") uid sets bdy <!!
         const 201 === statusCode
 
-    after <- liftIO getCurrentTime
-    liftIO $ print ("Done upload: " ++ show after ++ " took: " ++ show (diffUTCTime after before))
+    after1 <- liftIO getCurrentTime
+    liftIO $ print ("Done upload: " ++ show after1 ++ " took: " ++ show (diffUTCTime after1 before))
 
     let      loc = decodeHeader "Location" r1 :: ByteString
     let Just ast = decodeBody r1 :: Maybe V3.Asset
@@ -151,6 +154,13 @@ testSimpleRoundtripLarge c = do
         assertEqual "content-type mismatch" (Just applicationText) (getContentType r3)
         assertEqual "token mismatch" tok (decodeHeader "x-amz-meta-token" r3)
         assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r3)
+        assertEqual "data mismatch" (Just $ Lazy.fromStrict dat) (responseBody r3)
+
+    -- liftIO $ withTempFile "/tmp" "fromS3" $ \_ h ->
+    --     for_ (responseBody r3) $ hPutStr h . C8.unpack . Lazy.toStrict
+
+    after2 <- liftIO getCurrentTime
+    liftIO $ print ("Done downloading: " ++ show after2 ++ " took: " ++ show (diffUTCTime after2 after1))
 
     -- Delete (forbidden for other users)
     deleteAsset c uid2 (view V3.assetKey ast) !!! const 403 === statusCode
@@ -289,15 +299,21 @@ assertRandomResumable c totalSize chunkSize typ = do
     (uid, dat, ast) <- randomResumable c totalSize
     let key = ast^.V3.resumableAsset.V3.assetKey
     liftIO $ assertEqual "chunksize" chunkSize (ast^.V3.resumableChunkSize)
+    before <- liftIO getCurrentTime
+    liftIO $ print ("Starting upload: " ++ show before)
     case typ of
         UploadStepwise -> uploadStepwise c uid key chunkSize dat
         UploadFull     -> void $ uploadResumable c uid key 0 dat
+    after1 <- liftIO getCurrentTime
+    liftIO $ print ("Done upload: " ++ show after1 ++ " took: " ++ show (diffUTCTime after1 before))
     r <- downloadAsset c uid key Nothing
     liftIO $ do
         assertEqual "status" status200 (responseStatus r)
         assertEqual "content-type mismatch" (Just textPlain) (getContentType r)
         assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r)
         assertEqual "data mismatch" (Just $ Lazy.fromStrict dat) (responseBody r)
+    after2 <- liftIO getCurrentTime
+    liftIO $ print ("Done downloading: " ++ show after1 ++ " took: " ++ show (diffUTCTime after2 after1))
 
 randomResumable :: CargoHold -> V3.TotalSize -> Http (UserId, ByteString, V3.ResumableAsset)
 randomResumable c size = do
