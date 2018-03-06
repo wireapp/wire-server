@@ -10,8 +10,9 @@ env:
   matrix:
     # - TARGETS="docker-builder" # currently takes ~ 2h (needs to compile GHC) which is more than travis permits. This image will, until a more recent ghc is available as an alpine package, be uploaded manually/through wire-internal CI"
     - TARGETS="docker-deps"
-    - TARGETS="docker-intermediate docker-migrations"
-    - TARGETS="docker-intermediate
+    - >
+      TARGETS="docker-intermediate
+               docker-migrations
                docker-exe-api-loadtest
                docker-exe-api-smoketest
                docker-exe-bonanza
@@ -46,6 +47,6 @@ script:
 notifications:
   email: false
 
-branches:
-  only:
-    - develop
+#branches:
+#  only:
+#    - develop
