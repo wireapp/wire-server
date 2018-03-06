@@ -125,8 +125,8 @@ docs (_ ::: url) = do
 push :: UserId ::: ConnId ::: Request -> Cannon Response
 push (user ::: conn ::: req) = do
     singlePush (readBody req) (user, conn) >>= \case
-      PushSuccess    -> return empty
-      PushClientGone -> return $ errorRs status410 "general" "client gone"
+        PushSuccess    -> return empty
+        PushClientGone -> return $ errorRs status410 "general" "client gone"
 
 data PushStatus = PushSuccess | PushClientGone
   deriving (Eq, Show)
