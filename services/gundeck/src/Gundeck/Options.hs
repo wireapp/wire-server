@@ -49,6 +49,7 @@ makeLenses ''FallbackOpts
 data Settings = Settings
     { _setHttpPoolSize    :: !Int
     , _setNotificationTTL :: !NotificationTTL
+    , _setBulkPush        :: !Bool
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
@@ -197,5 +198,10 @@ optsParser = Opts <$>
             <> showDefault
             <> help "TTL (seconds) of stored notifications"
             <> value 86400)
+        <*>
+        (switch $
+            long "bulk-push"
+            <> help ("Use this option to group push notifications and send them " <>
+                     "in bulk to Cannon, instead of in individual requests."))
 
     parseRegion = readerAsk >>= either readerError return . fromText . fromString
