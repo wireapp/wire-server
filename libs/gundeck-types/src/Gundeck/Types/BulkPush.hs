@@ -13,7 +13,7 @@ type PushTarget = (UserId, ConnId)
 
 -- | A lazy bytestring as needed for constructing a binary
 -- <https://hackage.haskell.org/package/websockets-0.12.3.1/docs/Network-WebSockets.html#t:DataMessage>.
-data BulkPushRequest = BulkPush
+data BulkPushRequest = BulkPushRequest
     { bpBody :: ![(Notification, [PushTarget])]
     } deriving ( Show
                , Generic
@@ -22,10 +22,14 @@ data BulkPushRequest = BulkPush
 instance FromJSON BulkPushRequest
 instance ToJSON BulkPushRequest
 
-data BulkPushResponse = PushResponse
-    { bprespBody :: ![(PushTarget, Int)]  -- ^ (Morally the 'Int' is 'Status' from http-types, but
-                                          -- that would require an orphan instance and the extra
-                                          -- package dependency.)
+data PushStatus = PushStatusOk | PushStatusGone
+  deriving (Eq, Show, Generic)
+
+instance FromJSON PushStatus
+instance ToJSON PushStatus
+
+data BulkPushResponse = BulkPushResponse
+    { bprespBody :: ![(PushTarget, PushStatus)]
     } deriving ( Show
                , Generic
                )

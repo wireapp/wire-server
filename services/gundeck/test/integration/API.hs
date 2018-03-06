@@ -37,6 +37,7 @@ import Data.Text                      (Text)
 import Data.UUID.V4
 import Data.Word
 import Gundeck.Types
+import Gundeck.Types.BulkPush
 import Network.URI                    (parseURI)
 import Safe
 import System.Random                  (randomIO)
@@ -89,6 +90,8 @@ tests s = testGroup "Gundeck integration tests" [
         , test s "Replace presence"      $ replacePresence
         , test s "Remove stale presence" $ removeStalePresence
         , test s "Single user push"      $ singleUserPush
+        , test s "Push many via push"    $ pushMany 4 False
+        , test s "Push many via bulkpush" $ pushMany 4 True
         , test s "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback
         , test s "Targeted push by connection" $ targetConnectionPush
         , test s "Targeted push by client" $ targetClientPush
@@ -203,6 +206,42 @@ singleUserPush gu ca _ _ = do
   where
     pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
+
+pushMany :: Int -> Bool -> TestSignature ()
+pushMany numUsers useBulkPush gu ca _ _ = do
+    (uid:uids) <- replicateM numUsers randomId
+    (chs, connIds) <- do
+        connIds <- replicateM (numUsers - 1) randomConnId
+        (,connIds) <$> zipWithM (connectUser gu ca) uids connIds
+    -- TODO: connect one user to one or more devices, not just always one.
+    if useBulkPush
+        then do
+            notifIds <- replicateM (numUsers - 1) randomId
+            let pushes = pushCannon <$> zip notifIds (zip uids (ConnId <$> connIds))
+            -- TODO: send one notification to more than one push target sometimes.
+            sendBulkPush ca $ BulkPushRequest pushes
+            -- TODO: inspect response.
+        else (sendPush gu . pushGundeck uid) `mapM_` uids
+    liftIO $ do
+        msgs <- zip uids <$> waitForMessage `mapM` chs
+        let assertions (rcpid, msg) = do
+              assertBool  "No push message received" (isJust msg)
+              assertEqual "Payload altered during transmission"
+                  (Just (pload (show rcpid)))
+                  (ntfPayload <$> (decode . fromStrict . fromJust) msg)
+        assertions `mapM_` msgs
+  where
+    pload rcp =
+      List1.singleton $ HashMap.fromList [ "your-uid" .= rcp ]
+
+    pushGundeck :: UserId -> UserId -> Push
+    pushGundeck sndr rcp =
+        newPush sndr (toRecipients [rcp]) (pload (show rcp))
+            & pushOriginConnection .~ Just (ConnId "dev")
+
+    pushCannon :: (NotificationId, PushTarget) -> (Notification, [PushTarget])
+    pushCannon (notifId, t@(u, _)) = (Notification notifId False $ pload u, [t])
+
 
 sendSingleUserNoPiggyback :: TestSignature ()
 sendSingleUserNoPiggyback gu ca _ _ = do
@@ -850,6 +889,10 @@ getLastNotification gu u c = get $ runGundeck gu
 sendPush :: Gundeck -> Push -> Http ()
 sendPush gu push =
     post ( runGundeck gu . path "i/push" . json [push] ) !!! const 200 === statusCode
+
+sendBulkPush :: Cannon -> BulkPushRequest -> Http ()
+sendBulkPush ca pushes =
+    post ( runCannon ca . path "i/bulkpush" . json pushes ) !!! const 200 === statusCode
 
 buildPush :: UserId -> [(UserId, [ClientId])] -> List1 Object -> Push
 buildPush sdr rcps pload =

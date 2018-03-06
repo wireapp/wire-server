@@ -1,7 +1,10 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Cannon.API (run) where
 
@@ -13,7 +16,8 @@ import Cannon.WS hiding (env)
 import Control.Applicative hiding (empty, optional)
 import Control.Lens ((^.))
 import Control.Monad.Catch
-import Data.Aeson (encode)
+import Control.Monad.IO.Class (liftIO)
+import Data.Aeson (encode, eitherDecodeStrict)
 import Data.ByteString (ByteString)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
@@ -38,6 +42,7 @@ import System.Random.MWC (createSystemRandom)
 import qualified Cannon.Dict                 as D
 import qualified Data.ByteString.Lazy        as L
 import qualified Data.Metrics.Middleware     as Metrics
+import qualified Data.Text.Lazy              as LT
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified Network.WebSockets          as Ws
 import qualified System.Logger               as Logger
@@ -103,6 +108,9 @@ sitemap = do
     post "/i/push/:user/:conn" (continue push) $
         capture "user" .&. capture "conn" .&. request
 
+    post "/i/bulkpush" (continue bulkpush) $
+        request
+
     get "/i/monitoring" (continue monitoring) $
         accept "application" "json"
 
@@ -125,17 +133,31 @@ docs (_ ::: url) = do
 push :: UserId ::: ConnId ::: Request -> Cannon Response
 push (user ::: conn ::: req) = do
     singlePush (readBody req) (user, conn) >>= \case
-        PushSuccess    -> return empty
-        PushClientGone -> return $ errorRs status410 "general" "client gone"
+        (_, PushStatusOk)   -> return empty
+        (_, PushStatusGone) -> return $ errorRs status410 "general" "client gone"
 
-data PushStatus = PushSuccess | PushClientGone
-  deriving (Eq, Show)
+-- | Parse the entire list of notifcations and targets, then call 'singlePush' on the each of them
+-- in order.
+bulkpush :: Request -> Cannon Response
+bulkpush req = do
+    eitherDecodeStrict <$> liftIO (requestBody req) >>= \case
+        Left errmsg -> throwM $ Error status400 "bad-request" (LT.pack errmsg)
+        Right bp -> json <$> bulkpush' bp
+
+-- | The typed part of 'bulkpush'.
+bulkpush' :: BulkPushRequest -> Cannon BulkPushResponse
+bulkpush' (BulkPushRequest notifs) = do
+    statusList :: [(PushTarget, PushStatus)]
+               <- mconcat <$> (doNotif `mapM` notifs)
+    pure $ PushResponse statusList
+  where
+    doNotif (pure . encode -> notif, targets) = singlePush notif `mapM` targets
 
 -- | Take a serialized 'Notification' string and send it to the 'PushTarget'.  Do not serialize
 -- inside this function so we can avoid a pointless deserialize/serialize roundtrip for the @/push@
 -- end-point.
-singlePush :: Cannon L.ByteString -> PushTarget -> Cannon PushStatus
-singlePush notification (userId, connId) = do
+singlePush :: Cannon L.ByteString -> PushTarget -> Cannon (PushTarget, PushStatus)
+singlePush notification trgt@(userId, connId) = (trgt,) <$> do
     let k = mkKey userId connId
     d <- clients
     debug $ client (key2bytes k) . msg (val "push")
@@ -143,14 +165,14 @@ singlePush notification (userId, connId) = do
     case c of
         Nothing -> do
             debug $ client (key2bytes k) . msg (val "push: client gone")
-            return PushClientGone
+            return PushStatusGone
         Just x -> do
             e <- wsenv
             b <- notification
             runWS e $
-                (sendMsg b k x >> return PushSuccess)
+                (sendMsg b k x >> return PushStatusOk)
                 `catchAll`
-                const (terminate k x >> return PushClientGone)
+                const (terminate k x >> return PushStatusGone)
 
 
 await :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
