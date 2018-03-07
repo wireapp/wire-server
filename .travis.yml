@@ -1,5 +1,7 @@
 sudo: 'required'
 
+language: python
+
 services:
   - 'docker'
 
@@ -48,7 +50,7 @@ before_script:
   - rm -rf temp
 
 script:
-  - 'if ["$TRAVIS_PULL_REQUEST" != "false"]; then python services/brig/deb/opt/brig/bin/fetch.py; fi'
+  - if ["$TRAVIS_PULL_REQUEST" = "true"]; then python services/brig/deb/opt/brig/bin/fetch.py; fi
 
 notifications:
   email: false
