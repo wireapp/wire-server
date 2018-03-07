@@ -1133,7 +1133,9 @@ createUser (_ ::: _ ::: req) = do
             sendActivationSms p c (Just lang)
         for_ (liftM3 (,,) (userEmail usr) (createdUserTeam result) (newUserTeam new)) $ \(e, ct, ut) ->
             sendWelcomeEmail e ct ut (Just lang)
-    cok <- lift $ Auth.newCookie (userId usr) PersistentCookie (newUserLabel new)
+    cok <- case acc of
+        UserAccount _ Ephemeral -> lift $ Auth.newCookie (userId usr) SessionCookie (newUserLabel new)
+        UserAccount _ _         -> lift $ Auth.newCookie (userId usr) PersistentCookie (newUserLabel new)
     lift $ Auth.setResponseCookie cok
         $ setStatus status201
         . addHeader "Location" (toByteString' (userId usr))
