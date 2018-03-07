@@ -280,7 +280,7 @@ joinConversation zusr zcon cnv access = do
     mbTms <- case Data.convTeam conv of
         Just tid -> Just <$> Data.teamMembers tid
         Nothing -> return Nothing
-    ensureAccessRole conv [zusr] mbTms
+    ensureAccessRole (Data.convAccessRole conv) [zusr] mbTms
     let newUsers = filter (notIsMember conv) [zusr]
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
     addToConversation (botsAndUsers (Data.convMembers conv)) zusr zcon newUsers conv
@@ -300,14 +300,14 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
     case Data.convTeam conv of
         Nothing -> do
             ensureConvMember (snd mems) zusr
-            ensureAccessRole conv newUsers Nothing
+            ensureAccessRole (Data.convAccessRole conv) newUsers Nothing
             ensureConnected zusr newUsers
         Just ti -> teamConvChecks ti newUsers conv
     addToConversation mems zusr zcon newUsers conv
   where
     teamConvChecks tid newUsers conv = do
         tms <- Data.teamMembers tid
-        ensureAccessRole conv newUsers (Just tms)
+        ensureAccessRole (Data.convAccessRole conv) newUsers (Just tms)
         void $ permissionCheck zusr AddConversationMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
@@ -600,19 +600,6 @@ ensureAccess :: Data.Conversation -> Access -> Galley ()
 ensureAccess conv access =
     unless (access `elem` Data.convAccess conv) $
         throwM accessDenied
-
-ensureAccessRole :: Data.Conversation -> [UserId] -> Maybe [TeamMember] -> Galley ()
-ensureAccessRole conv users mbTms = case Data.convAccessRole conv of
-        PrivateAccessRole -> throwM accessDenied
-        TeamAccessRole -> case mbTms of
-            Nothing -> throwM internalError
-            Just tms ->
-                unless (null $ notTeamMember users tms) $
-                    throwM noTeamMember
-        ActivatedAccessRole -> do
-            activated <- lookupActivatedUsers users
-            when (length activated /= length users) $ throwM accessDenied
-        NonActivatedAccessRole -> return ()
 
 -------------------------------------------------------------------------------
 -- OtrRecipients Validation
