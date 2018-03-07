@@ -435,6 +435,9 @@ postConvertTeamConv g b c setup = do
     eve  <- randomUser b
     connectUsers b alice (singleton eve)
     let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
+    -- creating a team-only conversation containing eve should fail
+    createTeamConvAccessRaw g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa") acc (Just TeamAccessRole) !!! const 403 === statusCode
+    -- create conversation allowing any type of guest
     conv <- createTeamConvAccess g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa") acc (Just NonActivatedAccessRole)
     -- mallory joins by herself
     mallory  <- ephemeralUser b
