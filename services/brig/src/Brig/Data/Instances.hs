@@ -125,11 +125,13 @@ instance Cql AccountStatus where
     toCql Active    = CqlInt 0
     toCql Suspended = CqlInt 1
     toCql Deleted   = CqlInt 2
+    toCql Ephemeral = CqlInt 3
 
     fromCql (CqlInt i) = case i of
         0 -> return Active
         1 -> return Suspended
         2 -> return Deleted
+        3 -> return Ephemeral
         n -> fail $ "unexpected account status: " ++ show n
     fromCql _ = fail "account status: int expected"
 
