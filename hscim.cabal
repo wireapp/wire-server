@@ -1,0 +1,91 @@
+name:                hscim
+version:             0.1.0.0
+-- synopsis:
+-- description:
+homepage:            https://github.com/githubuser/hscim#readme
+license:             AGPL-3
+license-file:        LICENSE
+author:              Wire Swiss GmbH
+maintainer:          Wire Swiss GmbH <backend@wire.com>
+copyright:           (c) 2018 Wire Swiss GmbH
+category:            Web
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:      src
+  ghc-options:         -Wall
+  exposed-modules:     SCIM
+                       API.Group
+                       Config.Schema
+                       Config.Schema.Schema
+                       Config.Schema.User
+                       Config.Schema.Group
+                       Config.Schema.SPConfig
+                       Config.Schema.ResourceType
+                       DB.User
+                       Schema.Common
+                       Schema.Error
+                       Schema.Schema
+                       Schema.User
+                       Schema.User.Address
+                       Schema.User.Certificate
+                       Schema.User.Email
+                       Schema.User.IM
+                       Schema.User.Name
+                       Schema.User.Phone
+                       Schema.User.Photo
+
+  build-depends:       base >= 4.7 && < 5
+                     , aeson
+                     , aeson-qq
+                     , mtl
+                     , servant-server
+                     , servant-generic
+                     , text
+                     , time
+                     , wai
+                     , network-uri
+                     , unordered-containers
+                     , email-validate
+                     , errors
+  default-language:    Haskell2010
+
+test-suite hscim-test
+  type:                exitcode-stdio-1.0
+  other-modules:       Util
+                       Test.Config.Schema
+                       Test.API.Groups
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+  build-depends:       base
+                     , bytestring
+                     , hscim
+                     , hspec
+                     , hspec-expectations
+                     , hspec-wai
+                     , hspec-wai-json
+                     , aeson
+                     , http-types
+                     , stm-containers
+                     , text
+                     , bytestring
+                     , wai-extra
+                     , stm
+                     , stm-containers
+                     , mtl
+                     , list-t
+                     , time
+                     , servant-server
+                     , servant-generic
+                     , vector
+                     , unordered-containers
+                     , warp
+                     , wai-logger
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/githubuser/hscim
