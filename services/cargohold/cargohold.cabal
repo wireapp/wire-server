@@ -105,7 +105,10 @@ executable cargohold
         -fwarn-tabs
         -threaded
         -rtsopts
-        -with-rtsopts=-T
+        --enable-library-profiling
+        --enable-profiling
+        -fprof-auto
+        "-with-rtsopts=-T +RTS -pj"
 
     build-depends:
         base

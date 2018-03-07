@@ -313,7 +313,7 @@ assertRandomResumable c totalSize chunkSize typ = do
         assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r)
         assertEqual "data mismatch" (Just $ Lazy.fromStrict dat) (responseBody r)
     after2 <- liftIO getCurrentTime
-    liftIO $ print ("Done downloading: " ++ show after1 ++ " took: " ++ show (diffUTCTime after2 after1))
+    liftIO $ print ("Done downloading: " ++ show after2 ++ " took: " ++ show (diffUTCTime after2 after1))
 
 randomResumable :: CargoHold -> V3.TotalSize -> Http (UserId, ByteString, V3.ResumableAsset)
 randomResumable c size = do
