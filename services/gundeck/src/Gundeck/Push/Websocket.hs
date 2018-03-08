@@ -94,6 +94,8 @@ push notif (toList -> tgts) originUser originConn conns = do
 -----------------------------------------------------------------------------
 -- Internal
 
+-- | Not to be confused with 'PushStatus': 'PushResult' is in internal to Gundeck, carries a
+-- 'Presence', and can express HTTP errors.
 data PushResult
     = PushSuccess Presence
     | PushGone    Presence

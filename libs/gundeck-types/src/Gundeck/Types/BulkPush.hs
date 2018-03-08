@@ -22,6 +22,7 @@ data BulkPushRequest = BulkPushRequest
 instance FromJSON BulkPushRequest
 instance ToJSON BulkPushRequest
 
+-- | Used by Cannon to tell Gundeck about push requests.
 data PushStatus = PushStatusOk | PushStatusGone
   deriving (Eq, Show, Generic)
 
