@@ -96,7 +96,7 @@ pushNative sendNotice notif p rcps
             pushData p notif ys
             wait a
 
--- If a fallback address is set, the push is not transient and
+-- If a fallback address is set, the push is not transient, and
 -- the address does not belong to the origin user, we prefer
 -- type=notice notifications even for the first attempt, since the device
 -- has to make a request to cancel the fallback notification in any
