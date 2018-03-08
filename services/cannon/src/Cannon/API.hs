@@ -27,6 +27,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types
 import Data.Maybe
 import Gundeck.Types.BulkPush
+import Gundeck.Types.Notification
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
@@ -108,7 +109,7 @@ sitemap = do
     post "/i/push/:user/:conn" (continue push) $
         capture "user" .&. capture "conn" .&. request
 
-    post "/i/bulkpush" (continue bulkpush) $
+    post "/i/bulkpush" (continue bulkpush)
         request
 
     get "/i/monitoring" (continue monitoring) $
@@ -131,34 +132,36 @@ docs (_ ::: url) = do
     return $ responseLBS status200 [jsonContent] doc
 
 push :: UserId ::: ConnId ::: Request -> Cannon Response
-push (user ::: conn ::: req) = do
+push (user ::: conn ::: req) =
     singlePush (readBody req) (user, conn) >>= \case
-        (_, PushStatusOk)   -> return empty
-        (_, PushStatusGone) -> return $ errorRs status410 "general" "client gone"
+        PushStatusOk   -> return empty
+        PushStatusGone -> return $ errorRs status410 "general" "client gone"
 
 -- | Parse the entire list of notifcations and targets, then call 'singlePush' on the each of them
 -- in order.
 bulkpush :: Request -> Cannon Response
-bulkpush req = do
+bulkpush req =
     eitherDecodeStrict <$> liftIO (requestBody req) >>= \case
         Left errmsg -> throwM $ Error status400 "bad-request" (LT.pack errmsg)
         Right bp -> json <$> bulkpush' bp
 
 -- | The typed part of 'bulkpush'.
 bulkpush' :: BulkPushRequest -> Cannon BulkPushResponse
-bulkpush' (BulkPushRequest notifs) = do
-    statusList :: [(PushTarget, PushStatus)]
-               <- mconcat <$> (doNotif `mapM` notifs)
-    pure $ PushResponse statusList
+bulkpush' (BulkPushRequest notifs) =
+    BulkPushResponse . zipWith compileResp notifs <$> (uncurry doNotif `mapM` notifs)
   where
-    doNotif (pure . encode -> notif, targets) = singlePush notif `mapM` targets
+    doNotif :: Notification -> [(UserId, ConnId)] -> Cannon [PushStatus]
+    doNotif (pure . encode -> notif) = mapM (singlePush notif)
 
--- | Take a serialized 'Notification' string and send it to the 'PushTarget'.  Do not serialize
--- inside this function so we can avoid a pointless deserialize/serialize roundtrip for the @/push@
--- end-point.
-singlePush :: Cannon L.ByteString -> PushTarget -> Cannon (PushTarget, PushStatus)
-singlePush notification trgt@(userId, connId) = (trgt,) <$> do
-    let k = mkKey userId connId
+    compileResp :: (Notification, [PushTarget])
+                -> [PushStatus]
+                -> [(NotificationId, PushTarget, PushStatus)]
+    compileResp (notif, prcs) pss = zip3 (repeat (ntfId notif)) prcs pss
+
+-- | Take a serialized 'Notification' string and send it to the '(UserId, ConnId)'.
+singlePush :: Cannon L.ByteString -> (UserId, ConnId) -> Cannon PushStatus
+singlePush notification (usrid, conid) = do
+    let k = mkKey usrid conid
     d <- clients
     debug $ client (key2bytes k) . msg (val "push")
     c <- D.lookup k d

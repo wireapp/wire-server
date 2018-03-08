@@ -2,7 +2,10 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Gundeck.Push
     ( push
@@ -16,13 +19,14 @@ import Control.Arrow ((&&&))
 import Control.Concurrent.Async.Lifted.Safe (async, wait)
 import Control.Concurrent.Lifted (fork)
 import Control.Error
-import Control.Lens ((^.), (&), (.~), view, set)
+import Control.Exception (ErrorCall(ErrorCall))
+import Control.Lens ((^.), (&), (.~), (%~), _2, view, set)
 import Control.Monad (when, unless, void)
 import Control.Monad.Catch
 import Data.Foldable (toList, forM_, foldl')
 import Data.Id
 import Data.List (partition)
-import Data.List1 (list1)
+import Data.List1 (List1, list1)
 import Data.Monoid
 import Data.Predicate ((:::)(..))
 import Data.Range
@@ -42,12 +46,14 @@ import System.Logger.Class (msg, (.=), (~~), val, (+++))
 import qualified Data.List.Extra              as List
 import qualified Data.Sequence                as Seq
 import qualified Data.Set                     as Set
+import qualified Data.Map                     as Map
 import qualified Data.Text                    as Text
 import qualified Data.Text.Encoding           as Text
 import qualified Data.UUID                    as UUID
 import qualified Gundeck.Aws                  as Aws
 import qualified Gundeck.Client               as Client
 import qualified Gundeck.Notification.Data    as Stream
+import qualified Gundeck.Presence.Data        as Presence
 import qualified Gundeck.Push.Data            as Data
 import qualified Gundeck.Push.Native          as Native
 import qualified Gundeck.Push.Native.Fallback as Fallback
@@ -60,7 +66,7 @@ push (req ::: _) = do
     ps   :: [Push] <- fromBody req (Error status400 "bad-request")
     bulk :: Bool   <- view (options . optSettings . setBulkPush)
     rs             <- if bulk
-                      then fmapL show <$> pushAll ps
+                      then (Right <$> pushAll ps) `catch` (pure . Left . show @SomeException)
                       else fmapL show <$> pushAny ps
     case rs of
         Right () -> return empty
@@ -94,9 +100,101 @@ pushAny' p = do
     mkTarget :: Recipient -> NotificationTarget
     mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
 
--- | Construct and send a single bulk push request to the client.
-pushAll :: [Push] -> Gundeck (Either SomeException ())
-pushAll = undefined
+-- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
+-- the request to C*.  Trigger native pushes for all delivery failures notifications.
+pushAll :: [Push] -> Gundeck ()
+pushAll pushes = do
+    targets :: [(Push, (Notification, List1 (Recipient, [Presence])))]
+            <- zip pushes <$> (mkNotificationAndTargets `mapM` pushes)
+
+    -- persist push request
+
+    let cassandraTargets :: [(Push, (Notification, List1 NotificationTarget))]
+        cassandraTargets = (_2 . _2 %~ (mkNotificationTarget . fst <$>)) <$> targets
+          where
+            mkNotificationTarget :: Recipient -> NotificationTarget
+            mkNotificationTarget r = target (r ^. recipientId)
+                                   & targetClients .~ r ^. recipientClients
+
+    forM_ cassandraTargets $ \(psh, (notif, notifTrgt)) -> unless (psh ^. pushTransient) $
+        Stream.add (ntfId notif) notifTrgt (psh ^. pushPayload)
+          =<< view (options . optSettings . setNotificationTTL)
+
+    -- websockets
+
+    let compilePushReq :: (Push, (Notification, List1 (Recipient, [Presence])))
+                    -> (Notification, [Presence])
+        compilePushReq (psh, notifsAndTargets) =
+            notifsAndTargets & _2 %~ (mconcat . fmap compileTargets . toList)
+          where
+            compileTargets :: (Recipient, [Presence]) -> [Presence]
+            compileTargets (rcp, pre) = fmap snd
+                                      . filter (uncurry (shouldActuallyPush psh))
+                                      $ (rcp,) <$> pre
+
+        compilePushResp :: (NotificationId, [Presence]) -> Gundeck ((Notification, Push), [Presence])
+        compilePushResp (notifId, prcs) = (, prcs) <$> lkup
+          where
+            notifIdMap    = Map.fromList $ (\(psh, (notif, _)) -> (ntfId notif, (notif, psh))) <$> targets
+            lkup          = maybe (throwM internalError) pure $ Map.lookup notifId notifIdMap
+            internalError = ErrorCall "bulkpush: dangling notificationId in response!"
+                -- TODO: is there a better type for this?  (also search this PR for other uses of ErrorCall!)
+
+    resp <- mapM compilePushResp =<< Web.bulkPush (compilePushReq <$> targets)
+
+    -- native push
+
+    sendNotice <- view (options . optFallback . fbPreferNotice)
+    forM_ resp $ \((notif, psh), alreadySent) -> do
+        natives <- nativeTargets psh alreadySent
+        pushNative sendNotice notif psh natives
+
+
+-- | Look up 'Push' recipients in Redis, construct a notifcation, and return all the data needed for
+-- performing the push action.
+--
+-- 'Recipient' can be turned into 'NotificationTarget' needed for storing in C*; the 'Presence's can
+-- be turned into 'PushTarget' needed by Cannon and in 'nativeTargets' for filtering the devices
+-- that need no native push.
+mkNotificationAndTargets :: Push -> Gundeck (Notification, List1 (Recipient, [Presence]))
+mkNotificationAndTargets psh = (,) <$> mkNotif <*> doCollect
+  where
+    mkNotif :: Gundeck Notification
+    mkNotif = do
+        notifId <- mkNotificationId
+        pure $ Notification notifId (psh ^. pushTransient) (psh ^. pushPayload)
+
+    doCollect :: Gundeck (List1 (Recipient, [Presence]))
+    doCollect = zip1 rcps <$> Presence.listAll (view recipientId <$> rcps)
+      where
+        rcps :: [Recipient]
+        rcps = toList . fromRange $ (psh ^. pushRecipients :: Range 1 1024 (Set.Set Recipient))
+
+        zip1 :: [a] -> [b] -> List1 (a, b)
+        zip1 (x:xs) (y:ys) = list1 (x, y) (zip xs ys)
+        zip1 _ _ = error "impossible"
+
+
+-- | Is 'PushTarget' the origin of the 'Push', or is missing in a non-empty whitelist?  (Whitelists
+-- reside both in 'Push' itself and in each 'Recipient').
+shouldActuallyPush :: Push -> Recipient -> Presence -> Bool
+shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecipientWhitelist
+  where
+    isOrigin = psh ^. pushOrigin == userId pres &&
+               psh ^. pushOriginConnection == Just (connId pres)
+
+    okByPushWhitelist = whitelistExists && isWhitelisted
+      where
+        whitelist = psh ^. pushConnections
+        whitelistExists = Set.null whitelist
+        isWhitelisted = connId pres `Set.member` whitelist
+
+    okByRecipientWhitelist :: Bool
+    okByRecipientWhitelist =
+        case (rcp ^. recipientClients) of
+            clients@(_:_) -> maybe False (`elem` clients) $ clientId pres
+            [] -> True
+
 
 pushNative :: Bool -> Notification -> Push -> [Address "no-keys"] -> Gundeck ()
 pushNative sendNotice notif p rcps
