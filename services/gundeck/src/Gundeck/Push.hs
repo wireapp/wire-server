@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators     #-}
 
 module Gundeck.Push
@@ -56,15 +57,16 @@ import qualified System.Logger.Class          as Log
 
 push :: Request ::: JSON -> Gundeck Response
 push (req ::: _) = do
-    ps <- fromBody req (Error status400 "bad-request")
+    (ps :: [Push]) <- fromBody req (Error status400 "bad-request")
     rs <- mapAsync pushAny (ps :: [Push])
     case runAllE (foldMap (AllE . fmapL Seq.singleton) rs) of
         Right () -> return empty
         Left exs -> do
             forM_ exs $ Log.err . msg . (val "Push failed: " +++) . show
             throwM (Error status500 "server-error" "Server Error")
-  where
-    pushAny p = do
+
+pushAny :: Push -> Gundeck ()
+pushAny p = do
         sendNotice <- view (options.optFallback.fbPreferNotice)
         i <- mkNotificationId
         let pload = p^.pushPayload
@@ -77,10 +79,12 @@ push (req ::: _) = do
         void . fork $ do
             prs <- Web.push notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
             pushNative sendNotice notif p =<< nativeTargets p prs
-
+  where
+    mkTarget :: Recipient -> NotificationTarget
     mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
 
-    pushNative sendNotice notif p rcps
+pushNative :: Bool -> Notification -> Push -> [Address "no-keys"] -> Gundeck ()
+pushNative sendNotice notif p rcps
         | ntfTransient notif = if sendNotice
             then pushNotice p notif rcps
             else pushData p notif rcps
@@ -99,17 +103,20 @@ push (req ::: _) = do
     -- case, which it can combine with fetching the notification in a single
     -- request. We can thus save the effort of encrypting and decrypting native
     -- push payloads to such addresses.
-    preferNotice sendNotice orig a = sendNotice
+preferNotice :: Bool -> UserId -> Address s1 -> Bool
+preferNotice sendNotice orig a = sendNotice
                                   || (isJust (a^.addrFallback) && orig /= (a^.addrUser))
 
-    pushNotice _     _   [] = return ()
-    pushNotice p notif rcps = do
+pushNotice :: Push -> Notification -> [Address s] -> Gundeck ()
+pushNotice _     _   [] = return ()
+pushNotice p notif rcps = do
         let prio = p^.pushNativePriority
         r <- Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
         pushFallback (p^.pushOrigin) notif r prio
 
-    pushData _     _   [] = return ()
-    pushData p notif rcps = do
+pushData :: Push -> Notification -> [Address "no-keys"] -> Gundeck ()
+pushData _     _   [] = return ()
+pushData p notif rcps = do
         let aps = p^.pushNativeAps
         let prio = p^.pushNativePriority
         if p^.pushNativeEncrypt then do
@@ -126,7 +133,8 @@ push (req ::: _) = do
     -- because the push payload was too large) or delayed if a fallback push
     -- address is set. Fallback notifications are always of type=notice and
     -- thus only non-transient notifications are eligible for a fallback.
-    pushFallback orig notif r prio = case Fallback.prepare orig r of
+pushFallback :: UserId -> Notification -> [Result s] -> Priority -> Gundeck ()
+pushFallback orig notif r prio = case Fallback.prepare orig r of
         Nothing  -> return ()
         Just can ->
             if ntfTransient notif
