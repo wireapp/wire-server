@@ -58,9 +58,8 @@ import qualified Brig.User.API.Auth            as Auth
 import qualified Brig.User.API.Search          as Search
 import qualified Brig.User.Auth.Cookie         as Auth
 import qualified Brig.AWS                      as AWS
-import qualified Brig.AWS.Types                as AWS
 import qualified Brig.AWS.SesNotification      as SesNotification
-import qualified Brig.AWS.InternalNotification as InternalNotification
+import qualified Brig.AWS.InternalEvent        as InternalNotification
 import qualified Brig.Types.Swagger            as Doc
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Data.Swagger.Build.Api        as Doc
@@ -68,6 +67,7 @@ import qualified Galley.Types.Swagger          as Doc
 import qualified Galley.Types.Teams            as Team
 import qualified Network.Wai.Middleware.Gzip   as GZip
 import qualified Network.Wai.Middleware.Gunzip as GZip
+import qualified Network.Wai.Utilities         as Utilities
 import qualified Data.ByteString.Lazy          as Lazy
 import qualified Data.Map.Strict               as Map
 import qualified Network.Wai.Utilities.Server  as Server
@@ -1170,12 +1170,8 @@ createUserNoVerify (_ ::: _ ::: req) = do
 
 deleteUserNoVerify :: UserId -> Handler Response
 deleteUserNoVerify uid = do
-    acc <- lift $ API.lookupAccount uid
-    unless (isJust acc) $
-        throwStd userNotFound
-    ok <- lift $ InternalNotification.publish (AWS.DeleteUser uid)
-    unless ok $
-        throwStd failedQueueEvent
+    void $ lift (API.lookupAccount uid) >>= ifNothing userNotFound
+    lift $ API.deleteUserNoVerify uid
     return $ setStatus status202 empty
 
 checkUserExists :: UserId ::: UserId -> Handler Response
@@ -1185,13 +1181,13 @@ checkUserExists (self ::: uid) = do
 
 getSelf :: JSON ::: UserId -> Handler Response
 getSelf (_ ::: self) = do
-    p <- lift $ API.lookupSelfProfile self
-    maybe (throwStd userNotFound) (return . json) p
+    p <- (lift $ API.lookupSelfProfile self) >>= ifNothing userNotFound
+    return $ json p
 
 getUser :: JSON ::: UserId ::: UserId -> Handler Response
 getUser (_ ::: self ::: uid) = do
-    p <- lift $ API.lookupProfile self uid
-    maybe (throwStd userNotFound) (return . json) p
+    p <- (lift $ API.lookupProfile self uid) >>= ifNothing userNotFound
+    return $ json p
 
 getUserName :: JSON ::: UserId -> Handler Response
 getUserName (_ ::: self) = do
@@ -1513,3 +1509,6 @@ activate (Activate tgt code dryrun)
 
 validateHandle :: Text -> Handler Handle
 validateHandle = maybe (throwE (StdError invalidHandle)) return . parseHandle
+
+ifNothing :: Utilities.Error -> Maybe a -> Handler a
+ifNothing e = maybe (throwStd e) return
