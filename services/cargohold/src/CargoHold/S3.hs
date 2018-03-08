@@ -19,6 +19,7 @@ module CargoHold.S3
     , updateMetadataV3
     , deleteV3
     , mkKey
+    , signedURL
 
       -- * Resumable Uploads
     , S3Resumable
@@ -74,7 +75,9 @@ import Network.Wai.Utilities.Error (Error (..))
 import Safe (readMay)
 import System.Logger.Message
 import Text.XML.Cursor (laxElement, ($/), (&|))
+import URI.ByteString
 
+import qualified Aws                          as Aws
 import qualified Aws.Core                     as Aws
 import qualified Bilge.Retry                  as Retry
 import qualified CargoHold.Types.V3           as V3
@@ -167,6 +170,24 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
     void . tryS3 . recovering x3 handlers . const . exec $
         (copyObject b key (ObjectId b key Nothing) meta)
             { coContentType = Just (encodeMIMEType ct) }
+
+signedURL :: (ToByteString p) => p -> ExceptT Error App URI
+signedURL path = do
+    e <- view aws
+    b <- s3Bucket <$> view aws
+    cfg' <- liftIO $ Aws.getConfig (awsEnv e)
+    let cfg = cfg' { Aws.timeInfo = Aws.ExpiresIn 300 }
+    uri <- liftIO $ Aws.awsUri cfg (s3UriOnly e)
+                  $ getObject b (Text.decodeLatin1 $ toByteString' path)
+    return =<< toUri uri
+  where
+    toUri x = case parseURI strictURIParserOptions x of
+        Left e  -> do
+            Log.err $ "remote" .= val "S3"
+                    ~~ msg (val "Failed to generate a signed URI")
+                    ~~ msg (show e)
+            throwE serverError
+        Right u -> return u
 
 mkKey :: V3.AssetKey -> S3AssetKey
 mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key

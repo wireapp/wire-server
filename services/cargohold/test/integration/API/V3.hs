@@ -60,12 +60,14 @@ tests s = testGroup "v3"
         , test s "tokens"             testSimpleTokens
         , test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse
         ]
-    , testGroup "resumable"
-        [ test s "small"          testResumableSmall
-        , test s "large"          testResumableBig
-        , test s "last-small"     testResumableLastSmall
-        , test s "stepwise-small" testResumableStepSmall
-        , test s "stepwise-big"   testResumableStepBig
+    , testGroup "RealAWS"
+        [ testGroup "resumable"
+            [ test s "small"          testResumableSmall
+            , test s "large"          testResumableBig
+            , test s "last-small"     testResumableLastSmall
+            , test s "stepwise-small" testResumableStepSmall
+            , test s "stepwise-big"   testResumableStepBig
+            ]
         ]
     ]
 
@@ -96,6 +98,10 @@ testSimpleRoundtrip c = do
     r2 <- get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!! do
         const 302 === statusCode
         const Nothing === responseBody
+    liftIO $ print "###################################"
+    liftIO $ print (getHeader' "Location" r2 :: ByteString)
+    liftIO $ print "###################################"
+
     r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
     liftIO $ do
         assertEqual "status" status200 (responseStatus r3)

@@ -18,7 +18,7 @@ module CargoHold.App
     , metrics
     , appLogger
     , requestId
-    , maxTotalUpload
+    , settings
 
       -- * App Monad
     , AppT
@@ -34,7 +34,7 @@ module CargoHold.App
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import CargoHold.CloudFront
-import CargoHold.Options
+import CargoHold.Options as Opt
 import Control.Applicative
 import Control.Error (ExceptT, exceptT)
 import Control.Lens (view, makeLenses, set, (^.))
@@ -52,7 +52,9 @@ import Network.Wai.Utilities (Error (..), lookupRequestId)
 import OpenSSL.Session (SSLContext, SSLOption (..))
 import System.Logger.Class hiding (settings)
 import Prelude hiding (log)
+import Util.Options
 
+import qualified Aws
 import qualified Aws.Core                     as Aws
 import qualified Aws.S3                       as Aws
 import qualified Bilge
@@ -72,14 +74,17 @@ data Env = Env
     , _appLogger      :: Logger
     , _httpManager    :: Manager
     , _requestId      :: RequestId
-    , _maxTotalUpload :: Int
+    , _settings       :: Opt.Settings
     }
 
 data AwsEnv = AwsEnv
     { awsEnv     :: Aws.Env
+    , s3UriOnly  :: Aws.S3Configuration Aws.UriOnlyQuery
+    -- ^ Needed for presigned, S3 requests (Only works with GET)
     , s3Config   :: Aws.S3Configuration Aws.NormalQuery
+    -- ^ For all other requests
     , s3Bucket   :: Text
-    , cloudFront :: CloudFront
+    , cloudFront :: Maybe CloudFront
     }
 
 makeLenses ''Env
@@ -92,7 +97,7 @@ newEnv o = do
                     $ Log.defSettings
     mgr  <- initHttpManager
     awe  <- initAws o lgr mgr
-    return $ Env awe met lgr mgr mempty (o^.optSettings.setMaxTotalBytes)
+    return $ Env awe met lgr mgr mempty (o^.optSettings)
 
 initAws :: Opts -> Logger -> Manager -> IO AwsEnv
 initAws o l m = do
@@ -101,9 +106,25 @@ initAws o l m = do
     -- which would avoid the need to specify them in a config file when running tests
     let awsOpts = o^.optAws
     amz  <- Aws.newEnv l m $ liftM2 (,) (awsOpts^.awsKeyId) (awsOpts^.awsSecretKey)
-    sig  <- initCloudFront (awsOpts^.awsCfPrivateKey) (awsOpts^.awsCfKeyPairId) (awsOpts^.awsCfDomain)
-    let s3c  = Aws.s3 Aws.HTTPS Aws.s3EndpointEu False
-    return $! AwsEnv amz s3c (awsOpts^.awsS3Bucket) sig
+    sig  <- newCloudFrontEnv (o^.optAws.awsCloudFront)
+    let s3c = endpointToConfig (awsOpts^.awsS3Endpoint)
+    return $! AwsEnv amz s3c s3c (awsOpts^.awsS3Bucket) sig
+  where
+    newCloudFrontEnv Nothing   = return Nothing
+    newCloudFrontEnv (Just cf) = return . Just =<< initCloudFront (cf^.cfPrivateKey)
+                                                                  (cf^.cfKeyPairId)
+                                                                  (cf^.cfDomain)
+
+endpointToConfig :: AWSEndpoint -> Aws.S3Configuration qt
+endpointToConfig (AWSEndpoint host secure port) =
+    ( Aws.s3 (toProtocol secure) host False)
+    { Aws.s3Port = port
+    , Aws.s3RequestStyle = Aws.PathStyle
+    }
+  where
+    toProtocol :: Bool -> Aws.Protocol
+    toProtocol True  = Aws.HTTPS
+    toProtocol False = Aws.HTTP
 
 initHttpManager :: IO Manager
 initHttpManager =

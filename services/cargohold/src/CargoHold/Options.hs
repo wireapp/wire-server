@@ -1,6 +1,7 @@
-{-# LANGUAGE DeriveGeneric   #-}
-{-# LANGUAGE StrictData      #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StrictData        #-}
+{-# LANGUAGE TemplateHaskell   #-}
 
 module CargoHold.Options where
 
@@ -18,13 +19,21 @@ import Util.Options.Common
 import qualified Data.Text as T
 import qualified Ropes.Aws as Aws
 
+data CloudFrontOpts = CloudFrontOpts
+    { _cfDomain     :: Domain
+    , _cfKeyPairId  :: KeyPairId
+    , _cfPrivateKey :: FilePath
+    } deriving (Show, Generic)
+
+deriveFromJSON toOptionFieldName ''CloudFrontOpts
+makeLenses ''CloudFrontOpts
+
 data AWSOpts = AWSOpts
     { _awsKeyId        :: !(Maybe Aws.AccessKeyId)
     , _awsSecretKey    :: !(Maybe Aws.SecretAccessKey)
+    , _awsS3Endpoint   :: AWSEndpoint
     , _awsS3Bucket     :: Text
-    , _awsCfDomain     :: Domain
-    , _awsCfKeyPairId  :: KeyPairId
-    , _awsCfPrivateKey :: FilePath
+    , _awsCloudFront   :: Maybe CloudFrontOpts
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''AWSOpts
@@ -69,23 +78,9 @@ optsParser = Opts <$>
     <*> awsParser
     <*> settingsParser
   where
-    awsParser :: Parser AWSOpts
-    awsParser = AWSOpts <$>
-            (optional . fmap Aws.AccessKeyId . bytesOption $
-                long "aws-key-id"
-                <> metavar "STRING"
-                <> help "AWS Access Key ID")
-        <*> (optional . fmap Aws.SecretAccessKey . bytesOption $
-                long "aws-secret-key"
-                <> metavar "STRING"
-                <> help "AWS Secret Access Key")
-
-        <*> (fmap T.pack . strOption $
-                long "aws-s3-bucket"
-                <> metavar "STRING"
-                <> help "S3 bucket name")
-
-        <*> (fmap Domain . textOption $
+    cloudFrontParser :: Parser CloudFrontOpts
+    cloudFrontParser = CloudFrontOpts <$>
+            (fmap Domain . textOption $
                 long "aws-cloudfront-domain"
                 <> metavar "STRING"
                 <> help "AWS CloudFront Domain")
@@ -99,6 +94,30 @@ optsParser = Opts <$>
                 (long "aws-cloudfront-private-key"
                 <> metavar "FILE"
                 <> help "AWS CloudFront Private Key")
+
+    awsParser :: Parser AWSOpts
+    awsParser = AWSOpts <$>
+            (optional . fmap Aws.AccessKeyId . bytesOption $
+                long "aws-key-id"
+                <> metavar "STRING"
+                <> help "AWS Access Key ID")
+        <*> (optional . fmap Aws.SecretAccessKey . bytesOption $
+                long "aws-secret-key"
+                <> metavar "STRING"
+                <> help "AWS Secret Access Key")
+
+        <*> (option parseAWSEndpoint $
+                long "aws-s3-endpoint"
+                <> value (AWSEndpoint "s3.eu-west-1.amazonaws.com" True 443)
+                <> metavar "STRING"
+                <> showDefault
+                <> help "aws S3 endpoint")
+
+        <*> (fmap T.pack . strOption $
+                long "aws-s3-bucket"
+                <> metavar "STRING"
+                <> help "S3 bucket name")
+        <*> optional cloudFrontParser
 
     settingsParser :: Parser Settings
     settingsParser = Settings <$>

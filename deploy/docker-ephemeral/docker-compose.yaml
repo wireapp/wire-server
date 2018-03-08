@@ -20,6 +20,11 @@ services:
       - DEFAULT_REGION=eu-west-1
       - SERVICES=ses,sns
 
+  fake_s3:
+      image: tiagoloureiro/fake-s3:0.2.5
+      ports:
+        - 4570:4570
+
   redis:
     image: redis:3.0.7-alpine
     ports:
@@ -54,11 +59,13 @@ services:
       - fake_dynamodb
       - fake_sqs
       - fake_localstack
+      - fake_s3
     links:
       - fake_dynamodb:dynamodb
       - fake_sqs:sqs
       - fake_localstack:ses
       - fake_localstack:sns
+      - fake_s3:s3
     entrypoint: /scripts/init.sh
     volumes:
       - ./:/scripts

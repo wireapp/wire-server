@@ -10,7 +10,7 @@ module CargoHold.CloudFront
     , Domain (..)
     , KeyPairId (..)
     , initCloudFront
-    , signedUrl
+    , signedURL
     ) where
 
 import Control.AutoUpdate
@@ -58,8 +58,8 @@ initCloudFront kfp kid (Domain dom) = liftIO $
         , uriFragment = Nothing
         }
 
-signedUrl :: (MonadIO m, ToByteString p) => CloudFront -> p -> m URI
-signedUrl (CloudFront base kid clock sign) path = liftIO $ do
+signedURL :: (MonadIO m, ToByteString p) => CloudFront -> p -> m URI
+signedURL (CloudFront base kid clock sign) path = liftIO $ do
     time <- (+ 300) . round <$> clock
     sig  <- sign (toStrict (toLazyByteString (policy url time)))
     return $! url

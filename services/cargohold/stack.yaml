@@ -12,6 +12,7 @@ packages:
 resolver: lts-10.3
 extra-deps:
 - mime-0.4.0.2
+- tasty-1.0.0.1
 flags:
   types-common:
     arbitrary: True
