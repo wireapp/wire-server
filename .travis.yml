@@ -10,34 +10,35 @@ env:
   matrix:
     # - TARGETS="docker-builder" # currently takes ~ 2h (needs to compile GHC) which is more than travis permits. This image will, until a more recent ghc is available as an alpine package, be uploaded manually/through wire-internal CI"
     - TARGETS="docker-deps"
-    - TARGETS="docker-intermediate docker-migrations"
+    - TARGETS="docker-service-nginz"
     - TARGETS="docker-intermediate
+               docker-migrations
+               docker-exe-proxy
+               docker-exe-brig
+               docker-exe-cannon
+               docker-exe-cargohold
+               docker-exe-gundeck
+               docker-exe-galley
                docker-exe-api-loadtest
                docker-exe-api-smoketest
                docker-exe-bonanza
-               docker-exe-brig
                docker-exe-brig-index
                docker-exe-brig-integration
                docker-exe-brig-schema
-               docker-exe-cannon
-               docker-exe-cargohold
                docker-exe-cargohold-integration
-               docker-exe-galley
                docker-exe-galley-integration
                docker-exe-galley-journaler
                docker-exe-galley-schema
-               docker-exe-gundeck
                docker-exe-gundeck-integration
                docker-exe-gundeck-schema
                docker-exe-kibana-raw
                docker-exe-kibanana
                docker-exe-makedeb
                docker-exe-metrics-collector
-               docker-exe-proxy
                docker-exe-ropes-aws-auth-test
                docker-exe-ropes-aws-test
                docker-exe-zauth
-              "
+               "
 
 script:
   - docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}
