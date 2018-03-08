@@ -57,16 +57,27 @@ import qualified System.Logger.Class          as Log
 
 push :: Request ::: JSON -> Gundeck Response
 push (req ::: _) = do
-    (ps :: [Push]) <- fromBody req (Error status400 "bad-request")
-    rs <- mapAsync pushAny (ps :: [Push])
-    case runAllE (foldMap (AllE . fmapL Seq.singleton) rs) of
+    ps   :: [Push] <- fromBody req (Error status400 "bad-request")
+    bulk :: Bool   <- view (options . optSettings . setBulkPush)
+    rs             <- if bulk
+                      then fmapL show <$> pushAll ps
+                      else fmapL show <$> pushAny ps
+    case rs of
         Right () -> return empty
         Left exs -> do
-            forM_ exs $ Log.err . msg . (val "Push failed: " +++) . show
+            forM_ exs $ Log.err . msg . (val "Push failed: " +++)
             throwM (Error status500 "server-error" "Server Error")
 
-pushAny :: Push -> Gundeck ()
-pushAny p = do
+-- | Send individual HTTP requests to cannon for every device and notification.  This should go away
+-- in the future, once 'pushAll' has been proven to always do the same thing.
+pushAny :: [Push] -> Gundeck (Either (Seq.Seq SomeException) ())
+pushAny ps = collectErrors <$> mapAsync pushAny' ps
+  where
+    collectErrors :: [Either SomeException ()] -> Either (Seq.Seq SomeException) ()
+    collectErrors = runAllE . foldMap (AllE . fmapL Seq.singleton)
+
+pushAny' :: Push -> Gundeck ()
+pushAny' p = do
     sendNotice <- view (options.optFallback.fbPreferNotice)
     i <- mkNotificationId
     let pload = p^.pushPayload
@@ -82,6 +93,10 @@ pushAny p = do
   where
     mkTarget :: Recipient -> NotificationTarget
     mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
+
+-- | Construct and send a single bulk push request to the client.
+pushAll :: [Push] -> Gundeck (Either SomeException ())
+pushAll = undefined
 
 pushNative :: Bool -> Notification -> Push -> [Address "no-keys"] -> Gundeck ()
 pushNative sendNotice notif p rcps
