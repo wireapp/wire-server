@@ -1,5 +1,6 @@
 SHELL        := /usr/bin/env bash
 NAME         := cannon
+DIST         ?= dist
 VERSION      ?=
 BUILD_NUMBER ?= 0
 BUILD_LABEL  ?= local
@@ -18,24 +19,23 @@ default: all
 all: clean install
 
 init:
-	mkdir -p dist
+	mkdir -p $(DIST)
 
 .PHONY: clean
 clean:
 	stack clean
-	-rm -rf dist
-	-rm -f .metadata
+	-rm -rf $(DIST)
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist
+	stack install --pedantic --test --local-bin-path=$(DIST)
 
 .PHONY:
 compile:
 	stack build --pedantic --test --no-copy-bins
 
-.PHONY: dist
-dist: guard-VERSION install $(DEB) .metadata
+.PHONY: $(DIST)
+$(DIST): guard-VERSION install $(DEB)
 
 $(DEB):
 	makedeb --name=$(NAME) \
@@ -43,10 +43,7 @@ $(DEB):
 	 --debian-dir=deb \
 	 --build=$(BUILD) \
 	 --architecture=amd64 \
-	 --output-dir=dist
-
-.metadata:
-	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
+	 --output-dir=$(DIST)
 
 .PHONY: docker
 docker:

@@ -1,6 +1,6 @@
 SHELL         := /usr/bin/env bash
 NAME          := galley
-DIST          ?= ./dist
+DIST          ?= dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
@@ -25,24 +25,23 @@ default: all
 all: clean install
 
 init:
-	mkdir -p dist
+	mkdir -p $(DIST)
 
 .PHONY: clean
 clean:
 	stack clean
-	-rm -rf dist
-	-rm -f .metadata
+	rm -rf $(DIST)
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist
+	stack install --pedantic --test --local-bin-path=$(DIST)
 
 .PHONY:
 compile:
 	stack build --pedantic --test --no-copy-bins
 
-.PHONY: dist
-dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) $(DEB_JOURNALER) .metadata
+.PHONY: $(DIST)
+$(DIST): guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) $(DEB_JOURNALER)
 
 $(DEB):
 	makedeb --name=$(NAME) \
@@ -50,7 +49,7 @@ $(DEB):
 	 --debian-dir=deb \
 	 --build=$(BUILD) \
 	 --architecture=amd64 \
-	 --output-dir=dist
+	 --output-dir=$(DIST)
 
 $(DEB_IT):
 	makedeb --name=$(NAME)-integration \
@@ -58,7 +57,7 @@ $(DEB_IT):
 	 --debian-dir=deb-it \
 	 --build=$(BUILD) \
 	 --architecture=amd64 \
-	 --output-dir=dist
+	 --output-dir=$(DIST)
 
 $(DEB_SCHEMA):
 	makedeb --name=$(NAME)-schema \
@@ -66,7 +65,7 @@ $(DEB_SCHEMA):
 	 --debian-dir=deb-schema \
 	 --build=$(BUILD) \
 	 --architecture=amd64 \
-	 --output-dir=dist
+	 --output-dir=$(DIST)
 
 $(DEB_JOURNALER):
 	makedeb --name=$(NAME)-journaler \
@@ -74,7 +73,7 @@ $(DEB_JOURNALER):
 	 --debian-dir=deb-journaler \
 	 --build=$(BUILD) \
 	 --architecture=amd64 \
-	 --output-dir=dist
+	 --output-dir=$(DIST)
 
 .PHONY: integration
 integration: install
@@ -86,12 +85,9 @@ integration-list:
 integration-%:
 	keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV) --delay 3000
 
-.metadata:
-	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
-
 .PHONY: fast
 fast:
-	stack install --local-bin-path=dist --fast
+	stack install --local-bin-path=$(DIST) --fast
 
 .PHONY: test
 test: fast

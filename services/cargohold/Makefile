@@ -1,14 +1,14 @@
 SHELL         := /usr/bin/env bash
 NAME          := cargohold
-DIST          ?= ./dist
+DIST          ?= dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
 EXE_IT        := $(DIST)/$(NAME)-integration
-DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
-DEB_IT        := dist/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
-SDIST         := dist/$(NAME)-$(VERSION).tar.gz
+DEB           := $(DIST)/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
+DEB_IT        := $(DIST)/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
+SDIST         := $(DIST)/$(NAME)-$(VERSION).tar.gz
 KEIRETSU_ENV  ?= ../.env
 EXECUTABLES   := $(NAME) $(NAME)-integration
 
@@ -22,11 +22,11 @@ default: clean install
 
 .PHONY: init
 init:
-	mkdir -p dist
+	mkdir -p $(DIST)
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist
+	stack install --pedantic --test --local-bin-path=$(DIST)
 
 .PHONY: compile
 compile:
@@ -35,11 +35,10 @@ compile:
 .PHONY: clean
 clean: init
 	stack clean
-	-rm -rf dist
-	-rm -f .metadata
+	-rm -rf $(DIST)
 
-.PHONY: dist
-dist: guard-VERSION install $(DEB) $(DEB_IT) .metadata
+.PHONY: $(DIST)
+$(DIST): guard-VERSION install $(DEB) $(DEB_IT)
 
 $(DEB):
 	makedeb --name=$(NAME) \
@@ -47,7 +46,7 @@ $(DEB):
 		--debian-dir=deb \
 		--build=$(BUILD) \
 		--architecture=amd64 \
-		--output-dir=dist
+		--output-dir=$(DIST)
 
 $(DEB_IT):
 	makedeb --name=$(NAME)-integration \
@@ -55,15 +54,11 @@ $(DEB_IT):
 		--debian-dir=deb-it \
 		--build=$(BUILD) \
 		--architecture=amd64 \
-		--output-dir=dist
+		--output-dir=$(DIST)
 
 .PHONY: integration
 integration: install
 	LOG_LEVEL=Info keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV)
-
-.metadata:
-	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
-	 > .metadata
 
 .PHONY: docker
 docker:

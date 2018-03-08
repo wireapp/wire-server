@@ -1,18 +1,18 @@
 SHELL         := /usr/bin/env bash
 NAME          := gundeck
-DIST          ?= ./dist
+DIST          ?= dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
 EXE_IT        := $(DIST)/$(NAME)-integration
-EXE_TESTS     := dist/$(NAME)-tests
-EXE_BENCH     := dist/$(NAME)-bench
+EXE_TESTS     := $(DIST)/$(NAME)-tests
+EXE_BENCH     := $(DIST)/$(NAME)-bench
 EXE_SCHEMA    := $(DIST)/$(NAME)-schema
 DEB           := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
-SDIST         := dist/$(NAME)-$(VERSION).tar.gz
+SDIST         := $(DIST)/$(NAME)-$(VERSION).tar.gz
 KEIRETSU_ENV  ?= ../.env
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema
 
@@ -26,13 +26,13 @@ default: clean install
 
 .PHONY: init
 init:
-	mkdir -p dist
+	mkdir -p $(DIST)
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
-	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" dist/
-	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" dist/
+	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=$(DIST)
+	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" $(DIST)/
+	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" $(DIST)/
 
 .PHONY: compile
 compile:
@@ -41,11 +41,11 @@ compile:
 .PHONY: clean
 clean:
 	stack clean
-	-rm -rf dist
+	-rm -rf $(DIST)
 	-rm -f .metadata
 
-.PHONY: dist
-dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
+.PHONY: $(DIST)
+$(DIST): guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
 
 $(DEB):
 	makedeb --name=$(NAME) \
@@ -53,7 +53,7 @@ $(DEB):
 	 --debian-dir=deb \
 	 --build=$(BUILD) \
 	 --architecture=amd64 \
-	 --output-dir=dist
+	 --output-dir=$(DIST)
 
 $(DEB_IT):
 	makedeb --name=$(NAME)-integration \
@@ -61,7 +61,7 @@ $(DEB_IT):
 	 --debian-dir=deb-it \
 	 --build=$(BUILD) \
 	 --architecture=amd64 \
-	 --output-dir=dist
+	 --output-dir=$(DIST)
 
 $(DEB_SCHEMA):
 	makedeb --name=$(NAME)-schema \
@@ -69,7 +69,7 @@ $(DEB_SCHEMA):
 		--debian-dir=schema/deb \
 		--build=$(BUILD) \
 		--architecture=amd64 \
-		--output-dir=dist
+		--output-dir=$(DIST)
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
@@ -80,8 +80,8 @@ test: install
 
 .PHONY: bench
 bench: install
-	mkdir -p dist/bench
-	$(EXE_BENCH) --output dist/bench/result.html
+	mkdir -p $(DIST)/bench
+	$(EXE_BENCH) --output $(DIST)/bench/result.html
 
 .PHONY: integration
 integration: install

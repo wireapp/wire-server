@@ -2,21 +2,21 @@ HASKELL_SERVICES := proxy cannon cargohold brig galley gundeck
 SERVICES         := $(HASKELL_SERVICES) nginz
 DOCKER_USER      ?= wireserver
 DOCKER_TAG       ?= local
+DIST             ?= ./dist
 
 default: clean install
 
 init:
-	mkdir -p dist
+	mkdir -p $(DIST)
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist
+	stack install --pedantic --test --local-bin-path=$(DIST)
 
 .PHONY: clean
 clean:
 	stack clean
-	-rm -rf dist
-	-rm -f .metadata
+	rm -rf $(DIST)
 
 
 .PHONY: services

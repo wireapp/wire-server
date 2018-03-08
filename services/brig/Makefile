@@ -1,17 +1,17 @@
 SHELL         := /usr/bin/env bash
 NAME          := brig
-DIST          ?= ./dist
+DIST          ?= dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
 EXE_IT        := $(DIST)/$(NAME)-integration
 EXE_SCHEMA    := $(DIST)/$(NAME)-schema
-EXE_INDEX     := dist/$(NAME)-index
-DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
-DEB_IT        := dist/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
-DEB_SCHEMA    := dist/$(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
-DEB_INDEX     := dist/$(NAME)-index_$(VERSION)+$(BUILD)_amd64.deb
+EXE_INDEX     := $(DIST)/$(NAME)-index
+DEB           := $(DIST)/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
+DEB_IT        := $(DIST)/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
+DEB_SCHEMA    := $(DIST)/$(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
+DEB_INDEX     := $(DIST)/$(NAME)-index_$(VERSION)+$(BUILD)_amd64.deb
 KEIRETSU_ENV  ?= ../.env
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema $(NAME)-index
 
@@ -24,28 +24,23 @@ guard-%:
 default: clean install
 
 init:
-	mkdir -p dist
+	mkdir -p $(DIST)
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist
+	stack install --pedantic --test --local-bin-path=$(DIST)
 
 .PHONY: clean
 clean:
 	stack clean
-	-rm -rf dist
-	-rm -f .metadata
+	rm -rf $(DIST)
 
 .PHONY: compile
 compile:
 	stack build --fast --test --no-copy-bins
 
-.PHONY: dist
-dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) $(DEB_INDEX) .metadata
-
-.metadata:
-	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
-	 > .metadata
+.PHONY: $(DIST)
+$(DIST): guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) $(DEB_INDEX)
 
 $(DEB): install
 	makedeb --name=$(NAME) \
@@ -53,7 +48,7 @@ $(DEB): install
 		--debian-dir=deb \
 		--build=$(BUILD) \
 		--architecture=amd64 \
-		--output-dir=dist
+		--output-dir=$(DIST)
 
 $(DEB_IT): install
 	makedeb --name=$(NAME)-integration \
@@ -61,7 +56,7 @@ $(DEB_IT): install
 		--debian-dir=deb-it \
 		--build=$(BUILD) \
 		--architecture=amd64 \
-		--output-dir=dist
+		--output-dir=$(DIST)
 
 $(DEB_SCHEMA): install
 	makedeb --name=$(NAME)-schema \
@@ -69,7 +64,7 @@ $(DEB_SCHEMA): install
 		--debian-dir=schema/deb \
 		--build=$(BUILD) \
 		--architecture=amd64 \
-		--output-dir=dist
+		--output-dir=$(DIST)
 
 $(DEB_INDEX): install
 	makedeb --name=$(NAME)-index \
@@ -77,7 +72,7 @@ $(DEB_INDEX): install
 		--debian-dir=index/deb \
 		--build=$(BUILD) \
 		--architecture=amd64 \
-		--output-dir=dist
+		--output-dir=$(DIST)
 
 .PHONY: integration
 integration: db-migrate index-reset
@@ -93,7 +88,7 @@ integration-%: db-migrate index-reset
 
 .PHONY: fast
 fast:
-	stack install --fast --local-bin-path=dist
+	stack install --fast --local-bin-path=$(DIST)
 
 .PHONY: test
 test: fast
