@@ -66,6 +66,7 @@ toUser _ acc [i, e, p] = do
         , userLocale   = Locale (Language EN) Nothing
         , userService  = Nothing
         , userHandle   = Nothing
+        , userExpire   = Nothing
         }
 toUser g acc entry = do
     warn g $ msg (val "invalid entry: " +++ show entry)
