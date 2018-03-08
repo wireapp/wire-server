@@ -67,42 +67,42 @@ push (req ::: _) = do
 
 pushAny :: Push -> Gundeck ()
 pushAny p = do
-        sendNotice <- view (options.optFallback.fbPreferNotice)
-        i <- mkNotificationId
-        let pload = p^.pushPayload
-        let notif = Notification i (p^.pushTransient) pload
-        let rcps  = fromRange (p^.pushRecipients)
-        let uniq  = uncurry list1 $ head &&& tail $ toList rcps
-        let tgts  = mkTarget <$> uniq
-        unless (p^.pushTransient) $
-            Stream.add i tgts pload =<< view (options.optSettings.setNotificationTTL)
-        void . fork $ do
-            prs <- Web.push notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
-            pushNative sendNotice notif p =<< nativeTargets p prs
+    sendNotice <- view (options.optFallback.fbPreferNotice)
+    i <- mkNotificationId
+    let pload = p^.pushPayload
+    let notif = Notification i (p^.pushTransient) pload
+    let rcps  = fromRange (p^.pushRecipients)
+    let uniq  = uncurry list1 $ head &&& tail $ toList rcps
+    let tgts  = mkTarget <$> uniq
+    unless (p^.pushTransient) $
+        Stream.add i tgts pload =<< view (options.optSettings.setNotificationTTL)
+    void . fork $ do
+        prs <- Web.push notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
+        pushNative sendNotice notif p =<< nativeTargets p prs
   where
     mkTarget :: Recipient -> NotificationTarget
     mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
 
 pushNative :: Bool -> Notification -> Push -> [Address "no-keys"] -> Gundeck ()
 pushNative sendNotice notif p rcps
-        | ntfTransient notif = if sendNotice
-            then pushNotice p notif rcps
-            else pushData p notif rcps
-        | otherwise = case partition (preferNotice sendNotice (p^.pushOrigin)) rcps of
-            (xs, []) -> pushNotice p notif xs
-            ([], ys) -> pushData p notif ys
-            (xs, ys) -> do
-                a <- async $ pushNotice p notif xs
-                pushData p notif ys
-                wait a
+    | ntfTransient notif = if sendNotice
+        then pushNotice p notif rcps
+        else pushData p notif rcps
+    | otherwise = case partition (preferNotice sendNotice (p^.pushOrigin)) rcps of
+        (xs, []) -> pushNotice p notif xs
+        ([], ys) -> pushData p notif ys
+        (xs, ys) -> do
+            a <- async $ pushNotice p notif xs
+            pushData p notif ys
+            wait a
 
-    -- If a fallback address is set, the push is not transient and
-    -- the address does not belong to the origin user, we prefer
-    -- type=notice notifications even for the first attempt, since the device
-    -- has to make a request to cancel the fallback notification in any
-    -- case, which it can combine with fetching the notification in a single
-    -- request. We can thus save the effort of encrypting and decrypting native
-    -- push payloads to such addresses.
+-- If a fallback address is set, the push is not transient and
+-- the address does not belong to the origin user, we prefer
+-- type=notice notifications even for the first attempt, since the device
+-- has to make a request to cancel the fallback notification in any
+-- case, which it can combine with fetching the notification in a single
+-- request. We can thus save the effort of encrypting and decrypting native
+-- push payloads to such addresses.
 preferNotice :: Bool -> UserId -> Address s1 -> Bool
 preferNotice sendNotice orig a = sendNotice
                                   || (isJust (a^.addrFallback) && orig /= (a^.addrUser))
@@ -110,36 +110,36 @@ preferNotice sendNotice orig a = sendNotice
 pushNotice :: Push -> Notification -> [Address s] -> Gundeck ()
 pushNotice _     _   [] = return ()
 pushNotice p notif rcps = do
-        let prio = p^.pushNativePriority
-        r <- Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
-        pushFallback (p^.pushOrigin) notif r prio
+    let prio = p^.pushNativePriority
+    r <- Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
+    pushFallback (p^.pushOrigin) notif r prio
 
 pushData :: Push -> Notification -> [Address "no-keys"] -> Gundeck ()
 pushData _     _   [] = return ()
 pushData p notif rcps = do
-        let aps = p^.pushNativeAps
-        let prio = p^.pushNativePriority
-        if p^.pushNativeEncrypt then do
-            c <- view cipher
-            d <- view digest
-            t <- Client.lookupKeys rcps
-            r <- Native.push (Native.Ciphertext notif c d prio aps) t
-            pushFallback (p^.pushOrigin) notif r prio
-        else do
-            r <- Native.push (Native.Plaintext notif prio aps) rcps
-            pushFallback (p^.pushOrigin) notif r prio
+    let aps = p^.pushNativeAps
+    let prio = p^.pushNativePriority
+    if p^.pushNativeEncrypt then do
+        c <- view cipher
+        d <- view digest
+        t <- Client.lookupKeys rcps
+        r <- Native.push (Native.Ciphertext notif c d prio aps) t
+        pushFallback (p^.pushOrigin) notif r prio
+    else do
+        r <- Native.push (Native.Plaintext notif prio aps) rcps
+        pushFallback (p^.pushOrigin) notif r prio
 
-    -- Process fallback notifications, which can either be immediate (e.g.
-    -- because the push payload was too large) or delayed if a fallback push
-    -- address is set. Fallback notifications are always of type=notice and
-    -- thus only non-transient notifications are eligible for a fallback.
+-- Process fallback notifications, which can either be immediate (e.g.
+-- because the push payload was too large) or delayed if a fallback push
+-- address is set. Fallback notifications are always of type=notice and
+-- thus only non-transient notifications are eligible for a fallback.
 pushFallback :: UserId -> Notification -> [Result s] -> Priority -> Gundeck ()
 pushFallback orig notif r prio = case Fallback.prepare orig r of
-        Nothing  -> return ()
-        Just can ->
-            if ntfTransient notif
-                then Log.warn $ msg (val "Transient notification failed")
-                else void $ Fallback.execute (ntfId notif) prio can
+    Nothing  -> return ()
+    Just can ->
+        if ntfTransient notif
+            then Log.warn $ msg (val "Transient notification failed")
+            else void $ Fallback.execute (ntfId notif) prio can
 
 nativeTargets :: Push -> [Presence] -> Gundeck [Address "no-keys"]
 nativeTargets p pres =
