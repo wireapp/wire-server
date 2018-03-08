@@ -14,7 +14,7 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: all
+default: install
 
 all: clean install
 
@@ -30,11 +30,13 @@ clean:
 install: init
 	stack install --pedantic --test --local-bin-path=$(DIST)
 
-.PHONY:
+.PHONY: compile
 compile:
 	stack build --pedantic --test --no-copy-bins
 
-.PHONY: $(DIST)
+.PHONY: dist
+dist: $(DIST)
+
 $(DIST): guard-VERSION install $(DEB)
 
 $(DEB):

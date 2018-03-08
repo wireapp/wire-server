@@ -14,7 +14,7 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: all
+default: install
 
 all: clean install
 
@@ -25,18 +25,19 @@ init:
 clean:
 	stack clean
 	-rm -rf $(DIST)
-	-rm -f .metadata
 
 .PHONY: install
 install: init
 	stack install --pedantic --test --local-bin-path=$(DIST)
 
-.PHONY:
+.PHONY: compile
 compile:
 	stack build --pedantic --test --no-copy-bins
 
-.PHONY: $(DIST)
-$(DIST): guard-VERSION install $(DEB) $(DEB_IT) .metadata
+.PHONY: dist
+dist: $(DIST)
+
+$(DIST): guard-VERSION install $(DEB) $(DEB_IT)
 
 $(DEB):
 	makedeb --name=$(NAME) \
@@ -45,9 +46,6 @@ $(DEB):
 	 --build=$(BUILD) \
 	 --architecture=amd64 \
 	 --output-dir=$(DIST)
-
-.metadata:
-	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
 
 .PHONY: docker
 docker:

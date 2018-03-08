@@ -44,7 +44,7 @@ default: dist
 
 .PHONY: clean
 clean:
-	-rm -rf src $(DIST) .metadata
+	-rm -rf src $(DIST)
 
 compile: $(BIN)
 

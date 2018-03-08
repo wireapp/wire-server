@@ -2,9 +2,9 @@ HASKELL_SERVICES := proxy cannon cargohold brig galley gundeck
 SERVICES         := $(HASKELL_SERVICES) nginz
 DOCKER_USER      ?= wireserver
 DOCKER_TAG       ?= local
-DIST             ?= ./dist
+DIST             ?= $(shell pwd)/dist
 
-default: clean install
+default: install
 
 init:
 	mkdir -p $(DIST)
@@ -13,15 +13,22 @@ init:
 install: init
 	stack install --pedantic --test --local-bin-path=$(DIST)
 
+.PHONY: symlink-dist
+symlink-dist:
+	$(foreach service,$(HASKELL_SERVICES),rm -rf services/$(service)/dist; ln -s $(DIST) services/$(service)/dist;)
+
+.PHONY: fast
+fast: init
+	stack install --pedantic --fast --local-bin-path=$(DIST)
+
 .PHONY: clean
 clean:
 	stack clean
 	rm -rf $(DIST)
 
-
 .PHONY: services
 services:
-	$(foreach service,$(HASKELL_SERVICES),$(MAKE) -C services/$(service) clean install;)
+	$(foreach service,$(HASKELL_SERVICES),$(MAKE) -C services/$(service) install;)
 
 #################################
 ## docker targets

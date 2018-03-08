@@ -20,9 +20,7 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: all
-
-all: clean install
+default: install
 
 init:
 	mkdir -p $(DIST)
@@ -30,17 +28,19 @@ init:
 .PHONY: clean
 clean:
 	stack clean
-	rm -rf $(DIST)
+	-rm -rf $(DIST)
 
 .PHONY: install
 install: init
 	stack install --pedantic --test --local-bin-path=$(DIST)
 
-.PHONY:
+.PHONY: compile
 compile:
 	stack build --pedantic --test --no-copy-bins
 
-.PHONY: $(DIST)
+.PHONY: dist
+dist: $(DIST)
+
 $(DIST): guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) $(DEB_JOURNALER)
 
 $(DEB):
@@ -87,7 +87,7 @@ integration-%:
 
 .PHONY: fast
 fast:
-	stack install --local-bin-path=$(DIST) --fast
+	stack install --local-bin-path=$(DIST) --pedantic --fast
 
 .PHONY: test
 test: fast

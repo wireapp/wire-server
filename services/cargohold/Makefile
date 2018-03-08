@@ -18,7 +18,7 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: clean install
+default: install
 
 .PHONY: init
 init:
@@ -37,7 +37,9 @@ clean: init
 	stack clean
 	-rm -rf $(DIST)
 
-.PHONY: $(DIST)
+.PHONY: dist
+dist: $(DIST)
+
 $(DIST): guard-VERSION install $(DEB) $(DEB_IT)
 
 $(DEB):

@@ -22,7 +22,7 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: clean install
+default: install
 
 .PHONY: init
 init:
@@ -42,10 +42,11 @@ compile:
 clean:
 	stack clean
 	-rm -rf $(DIST)
-	-rm -f .metadata
 
-.PHONY: $(DIST)
-$(DIST): guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
+.PHONY: dist
+dist: $(DIST)
+
+$(DIST): guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA)
 
 $(DEB):
 	makedeb --name=$(NAME) \
@@ -70,9 +71,6 @@ $(DEB_SCHEMA):
 		--build=$(BUILD) \
 		--architecture=amd64 \
 		--output-dir=$(DIST)
-
-.metadata:
-	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
 
 .PHONY: test
 test: install

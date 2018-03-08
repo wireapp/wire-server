@@ -21,7 +21,7 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: clean install
+default: install
 
 init:
 	mkdir -p $(DIST)
@@ -33,13 +33,15 @@ install: init
 .PHONY: clean
 clean:
 	stack clean
-	rm -rf $(DIST)
+	-rm -rf $(DIST)
 
 .PHONY: compile
 compile:
-	stack build --fast --test --no-copy-bins
+	stack build --fast --test --pedantic --no-copy-bins
 
-.PHONY: $(DIST)
+.PHONY: dist
+dist: $(DIST)
+
 $(DIST): guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) $(DEB_INDEX)
 
 $(DEB): install
@@ -88,7 +90,7 @@ integration-%: db-migrate index-reset
 
 .PHONY: fast
 fast:
-	stack install --fast --local-bin-path=$(DIST)
+	stack install --fast --pedantic --local-bin-path=$(DIST)
 
 .PHONY: test
 test: fast
