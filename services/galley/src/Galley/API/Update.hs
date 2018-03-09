@@ -81,7 +81,6 @@ import qualified Brig.Types.User      as User
 import qualified Data.Map.Strict      as Map
 import qualified Data.Set             as Set
 import qualified Galley.Data          as Data
-import qualified Galley.Data.Types    as Data
 import qualified Galley.External      as External
 import qualified Galley.Intra.Client  as Intra
 import qualified Galley.Types.Clients as Clients
@@ -91,9 +90,6 @@ import qualified Galley.API.Teams     as Teams
 acceptConv :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConv (usr ::: conn ::: cnv) = do
     conv  <- Data.conversation cnv >>= ifNothing convNotFound
-    when (Data.isConvDeleted conv) $ do
-        Data.deleteConversation cnv
-        throwM convNotFound
     conv' <- acceptOne2One usr conv conn
     setStatus status200 . json <$> conversationView usr conv'
 
@@ -273,9 +269,6 @@ joinConversationById (zusr ::: zcon ::: cnv ::: _) = joinConversation zusr zcon 
 joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley Response
 joinConversation zusr zcon cnv access = do
     conv <- Data.conversation cnv >>= ifNothing convNotFound
-    when (Data.isConvDeleted conv) $ do
-        Data.deleteConversation cnv
-        throwM convNotFound
     ensureAccess conv access
     mbTms <- case Data.convTeam conv of
         Just tid -> Just <$> Data.teamMembers tid
@@ -289,9 +282,6 @@ addMembers :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Respon
 addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
     body <- fromBody req invalidPayload
     conv <- Data.conversation cid >>= ifNothing convNotFound
-    when (Data.isConvDeleted conv) $ do
-        Data.deleteConversation cid
-        throwM convNotFound
     let mems = botsAndUsers (Data.convMembers conv)
     toAdd <- fromMemberSize <$> checkedMemberAddSize (toList $ invUsers body)
     let newUsers = filter (notIsMember conv) (toList toAdd)
@@ -346,9 +336,6 @@ updateMember (zusr ::: zcon ::: cid ::: req ::: _) = do
 removeMember :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
 removeMember (zusr ::: zcon ::: cid ::: victim) = do
     conv <- Data.conversation cid >>= ifNothing convNotFound
-    when (Data.isConvDeleted conv) $ do
-        Data.deleteConversation cid
-        throwM convNotFound
     let (bots, users) = botsAndUsers (Data.convMembers conv)
     case Data.convTeam conv of
         Nothing -> regularConvChecks users
@@ -499,9 +486,6 @@ addBot :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 addBot (zusr ::: zcon ::: req ::: _) = do
     b <- fromBody req invalidPayload
     c <- Data.conversation (b^.addBotConv) >>= ifNothing convNotFound
-    when (Data.isConvDeleted c) $ do
-        Data.deleteConversation (b^.addBotConv)
-        throwM convNotFound
     -- Check some preconditions on adding bots to a conversation
     for_ (Data.convTeam c) $ teamConvChecks (b^.addBotConv)
     (bots, users) <- regularConvChecks b c
@@ -534,9 +518,6 @@ rmBot :: UserId ::: Maybe ConnId ::: Request ::: JSON -> Galley Response
 rmBot (zusr ::: zcon ::: req ::: _) = do
     b <- fromBody req invalidPayload
     c <- Data.conversation (b^.rmBotConv) >>= ifNothing convNotFound
-    when (Data.isConvDeleted c) $ do
-        Data.deleteConversation (b^.rmBotConv)
-        throwM convNotFound
     unless (zusr `isMember` Data.convMembers c) $
         throwM convNotFound
     let (bots, users) = botsAndUsers (Data.convMembers c)

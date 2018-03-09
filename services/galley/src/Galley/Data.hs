@@ -299,7 +299,18 @@ conversation :: (MonadBaseControl IO m, MonadClient m, Forall (Pure m))
              -> m (Maybe Conversation)
 conversation conv = do
     cdata <- async $ retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
-    toConv conv <$> members conv <*> wait cdata
+    mbConv <- toConv conv <$> members conv <*> wait cdata
+    return mbConv >>= conversationGC
+
+
+{- "Garbage collect" the conversation, i.e. the conversation may be
+   marked as deleted, in which case we delete it and return Nothing -}
+conversationGC :: MonadClient m => (Maybe Conversation) -> m (Maybe Conversation)
+conversationGC conv = case join (convDeleted <$> conv) of
+    (Just True) -> do
+        sequence_ $ deleteConversation . convId <$> conv
+        return Nothing
+    _           -> return conv
 
 conversations :: (MonadLogger m, MonadBaseControl IO m, MonadClient m, Forall (Pure m))
               => [ConvId]
