@@ -13,6 +13,7 @@ module Galley.Intra.Push
     , push1
     , pushSome
 
+    , CanPush (..)
     , PushEvent (..)
 
       -- * Push Configuration
@@ -124,12 +125,18 @@ newPush u e (r:rr) = Just $ newPush1 u e (list1 r rr)
 
 -- | Asynchronously send a single push, chunking it into multiple
 -- requests if there are more than 128 recipients.
-push1 :: Push -> Galley ()
-push1 p = push (list1 p [])
+push1 :: CanPush m => Push -> m ()
+push1 p = push' (list1 p [])
 
-pushSome :: [Push] -> Galley ()
+pushSome :: CanPush m => [Push] -> m ()
 pushSome []     = return ()
-pushSome (x:xs) = push (list1 x xs)
+pushSome (x:xs) = push' (list1 x xs)
+
+class Monad m => CanPush m where
+  push' :: List1 Push -> m ()
+
+instance CanPush Galley where
+  push' = push
 
 -- | Asynchronously send multiple pushes, aggregating them into as
 -- few requests as possible, such that no single request targets

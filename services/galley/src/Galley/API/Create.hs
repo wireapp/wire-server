@@ -1,4 +1,6 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators     #-}
@@ -14,6 +16,7 @@ import Control.Lens hiding ((??))
 import Control.Monad (when, void, unless)
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Control.Monad.Reader
 import Data.Foldable (for_, toList)
 import Data.Id
 import Data.List1
@@ -31,29 +34,65 @@ import Galley.Intra.Push
 import Galley.Types
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Validation
+import Galley.Options
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
 import Prelude hiding (head, mapM)
+import System.Logger.Class (MonadLogger)
 
 import qualified Data.List          as List
 import qualified Data.Set           as Set
+import qualified Data.Text          as Text
 import qualified Data.UUID.Tagged   as U
 import qualified Galley.Data        as Data
 import qualified Galley.Types.Teams as Teams
 
+
 createGroupConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 createGroupConversation (zusr::: zcon ::: req ::: _) = do
     body <- fromBody req invalidPayload
-    case newConvTeam body of
+    conversationResponse' =<< case newConvTeam body of
         Nothing -> createRegularConv zusr zcon body
         Just tm -> createTeamConv zusr zcon tm body
 
-createTeamConv :: UserId -> ConnId -> ConvTeamInfo -> NewConv -> Galley Response
+
+class ( Monad m
+      , MonadThrow m
+      , MonadReader Env m
+      , MonadLogger m
+      , CanEnsureAccessRole m
+      , CanGetCurrentTime m
+      , CanPush m
+      )
+      => CanCreateTeamConv m where
+    teamMembers' :: TeamId -> m [TeamMember]
+    ensureConnected' :: UserId -> [UserId] -> m ()
+    createConversation' :: UserId
+                        -> Maybe (Range 1 256 Text.Text)
+                        -> [Access]
+                        -> AccessRole
+                        -> ConvAndTeamSizeChecked [UserId]
+                        -> Maybe ConvTeamInfo
+                        -> m Data.Conversation
+
+instance CanCreateTeamConv Galley where
+    teamMembers' = Data.teamMembers
+    ensureConnected' = ensureConnected
+    createConversation' = Data.createConversation
+
+class Monad m => CanGetCurrentTime m where
+    getCurrentTime' :: m UTCTime
+
+instance CanGetCurrentTime Galley where
+    getCurrentTime' = liftIO getCurrentTime
+
+createTeamConv :: CanCreateTeamConv m =>
+                  UserId -> ConnId -> ConvTeamInfo -> NewConv -> m ConversationResponse
 createTeamConv zusr zcon tinfo body = do
     name <- rangeCheckedMaybe (newConvName body)
-    mems <- Data.teamMembers (cnvTeamId tinfo)
+    mems <- teamMembers' (cnvTeamId tinfo)
     ensureAccessRole (accessRole body) (newConvUsers body) (Just mems)
     void $ permissionCheck zusr CreateConversation mems
     uids <-
@@ -63,16 +102,16 @@ createTeamConv zusr zcon tinfo body = do
         else do
             void $ permissionCheck zusr AddConversationMember mems
             uu <- checkedConvAndTeamSize (newConvUsers body)
-            ensureConnected zusr (notTeamMember (fromConvTeamSize uu) mems)
+            ensureConnected' zusr (notTeamMember (fromConvTeamSize uu) mems)
             pure uu
-    conv <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body)
-    now  <- liftIO getCurrentTime
+    conv <- createConversation' zusr name (access body) (accessRole body) uids (newConvTeam body)
+    now  <- getCurrentTime'
     let d = Teams.EdConvCreate (Data.convId conv)
     let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
     let notInConv = Set.fromList (map (view userId) mems) \\ Set.fromList (zusr : fromConvTeamSize uids)
     for_ (newPush zusr (TeamEvent e) (map userRecipient (Set.toList notInConv))) push1
     notifyCreatedConversation (Just now) zusr (Just zcon) conv
-    conversationResponse status201 zusr conv
+    pure $ ConversationResponse status201 zusr conv
   where
     accessRole b = fromMaybe Data.defRole (newConvAccessRole b)
 
@@ -80,14 +119,14 @@ createTeamConv zusr zcon tinfo body = do
         []     -> Data.defRegularConvAccess
         (x:xs) -> x:xs
 
-createRegularConv :: UserId -> ConnId -> NewConv -> Galley Response
+createRegularConv :: UserId -> ConnId -> NewConv -> Galley ConversationResponse
 createRegularConv zusr zcon body = do
     name <- rangeCheckedMaybe (newConvName body)
     uids <- checkedConvAndTeamSize (newConvUsers body)
     ensureConnected zusr (fromConvTeamSize uids)
     c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body)
     notifyCreatedConversation Nothing zusr (Just zcon) c
-    conversationResponse status201 zusr c
+    pure (ConversationResponse status201 zusr c)
   where
     accessRole b = fromMaybe Data.defRole (newConvAccessRole b)
 
@@ -183,14 +222,22 @@ createConnectConversation (usr ::: conn ::: req ::: _) = do
 -------------------------------------------------------------------------------
 -- Helpers
 
+data ConversationResponse = ConversationResponse Status UserId Data.Conversation
+  deriving (Eq, Show)
+
+-- | Deprecated and kept for compatibility.  Use 'conversationResponse'' instead.
 conversationResponse :: Status -> UserId -> Data.Conversation -> Galley Response
-conversationResponse s u c = do
+conversationResponse s u c = conversationResponse' $ ConversationResponse s u c
+
+conversationResponse' :: ConversationResponse -> Galley Response
+conversationResponse' (ConversationResponse s u c) = do
     a <- conversationView u c
     return $ json a & setStatus s . location (cnvId a)
 
-notifyCreatedConversation :: Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Conversation -> Galley ()
+notifyCreatedConversation :: (CanCreateTeamConv m)
+                          => Maybe UTCTime -> UserId -> Maybe ConnId -> Data.Conversation -> m ()
 notifyCreatedConversation dtime usr conn c = do
-    now  <- maybe (liftIO getCurrentTime) pure dtime
+    now  <- maybe getCurrentTime' pure dtime
     pushSome =<< mapM (toPush now) (Data.convMembers c)
   where
     route | Data.convType c == RegularConv = RouteAny

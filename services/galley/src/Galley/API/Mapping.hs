@@ -12,13 +12,15 @@ import Galley.App
 import Galley.Types
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import System.Logger.Class (MonadLogger)
 import System.Logger.Message (msg, val, (+++))
 
 import qualified Data.List           as List
 import qualified Galley.Data         as Data
 import qualified System.Logger.Class as Log
 
-conversationView :: UserId -> Data.Conversation -> Galley Conversation
+conversationView :: (MonadThrow m, MonadLogger m)
+                 => UserId -> Data.Conversation -> m Conversation
 conversationView u Data.Conversation{..} = do
     let mm = toList convMembers
     let (me, them) = List.partition ((u ==) . memId) mm

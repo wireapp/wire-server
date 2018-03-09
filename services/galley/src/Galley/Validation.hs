@@ -1,5 +1,6 @@
 {-# LANGUAGE ConstraintKinds   #-}
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
 
@@ -19,18 +20,20 @@ module Galley.Validation
 
 import Control.Lens
 import Control.Monad.Catch
+import Control.Monad.Reader
 import Data.List1 (list1, List1)
 import Data.Range
 import Data.String (fromString)
+import Data.Word
 import Galley.API.Error
 import Galley.App
 import Galley.Options
 
-rangeChecked :: Within a n m => a -> Galley (Range n m a)
+rangeChecked :: (MonadThrow monad, Within a n m) => a -> monad (Range n m a)
 rangeChecked = either throwErr return . checkedEither
 {-# INLINE rangeChecked #-}
 
-rangeCheckedMaybe :: Within a n m => Maybe a -> Galley (Maybe (Range n m a))
+rangeCheckedMaybe :: (MonadThrow monad, Within a n m) => Maybe a -> monad (Maybe (Range n m a))
 rangeCheckedMaybe Nothing  = return Nothing
 rangeCheckedMaybe (Just a) = Just <$> rangeChecked a
 {-# INLINE rangeCheckedMaybe #-}
@@ -40,7 +43,8 @@ newtype ConvAndTeamSizeChecked a = ConvAndTeamSizeChecked { fromConvTeamSize :: 
 -- Between 1 and setMaxConvAndTeamSize
 newtype ConvMemberAddSizeChecked a = ConvMemberAddSizeChecked { fromMemberSize :: a }
 
-checkedConvAndTeamSize :: Bounds a => a -> Galley (ConvAndTeamSizeChecked a)
+checkedConvAndTeamSize :: (MonadReader Env m, MonadThrow m)
+                       => Bounds a => a -> m (ConvAndTeamSizeChecked a)
 checkedConvAndTeamSize x = do
     o <- view options
     let minV  = 0
@@ -59,5 +63,5 @@ checkedMemberAddSize l@(x:xs) = do
         then return (ConvMemberAddSizeChecked $ list1 x xs)
         else throwErr (errorMsg minV limit "")
 
-throwErr :: String -> Galley a
+throwErr :: MonadThrow m => String -> m a
 throwErr = throwM . invalidRange . fromString

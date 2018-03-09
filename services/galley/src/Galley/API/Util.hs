@@ -7,6 +7,7 @@ module Galley.API.Util where
 
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
+import Brig.Types.User (User)
 import Control.Lens (view, (&), (.~))
 import Control.Monad
 import Control.Monad.Catch
@@ -35,7 +36,13 @@ import qualified Galley.Data    as Data
 
 type JSON = Media "application" "json"
 
-ensureAccessRole :: AccessRole -> [UserId] -> Maybe [TeamMember] -> Galley ()
+class MonadThrow m => CanEnsureAccessRole m where
+    lookupActivatedUsers' :: [UserId] -> m [User]
+
+instance CanEnsureAccessRole Galley where
+    lookupActivatedUsers' = lookupActivatedUsers
+
+ensureAccessRole :: CanEnsureAccessRole m => AccessRole -> [UserId] -> Maybe [TeamMember] -> m ()
 ensureAccessRole role users mbTms = case role of
     PrivateAccessRole -> throwM accessDenied
     TeamAccessRole -> case mbTms of
@@ -44,7 +51,7 @@ ensureAccessRole role users mbTms = case role of
             unless (null $ notTeamMember users tms) $
                 throwM noTeamMember
     ActivatedAccessRole -> do
-        activated <- lookupActivatedUsers users
+        activated <- lookupActivatedUsers' users
         when (length activated /= length users) $ throwM accessDenied
     NonActivatedAccessRole -> return ()
 
@@ -78,7 +85,8 @@ bindingTeamMembers tid = do
         Binding -> Data.teamMembers tid
         NonBinding -> throwM nonBindingTeam
 
-permissionCheck :: Foldable m => UserId -> Perm -> m TeamMember -> Galley TeamMember
+permissionCheck :: (MonadThrow monad, Foldable m)
+                => UserId -> Perm -> m TeamMember -> monad TeamMember
 permissionCheck u p t =
     case find ((u ==) . view userId) t of
         Just m -> do
