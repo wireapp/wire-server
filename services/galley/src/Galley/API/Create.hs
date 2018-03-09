@@ -52,27 +52,27 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
 
 createTeamConv :: UserId -> ConnId -> ConvTeamInfo -> NewConv -> Galley Response
 createTeamConv zusr zcon tinfo body = do
-        name <- rangeCheckedMaybe (newConvName body)
-        mems <- Data.teamMembers (cnvTeamId tinfo)
-        ensureAccessRole (accessRole body) (newConvUsers body) (Just mems)
-        void $ permissionCheck zusr CreateConversation mems
-        uids <-
-            if cnvManaged tinfo then do
-                let uu = filter (/= zusr) $ map (view userId) mems
-                checkedConvAndTeamSize uu
-            else do
-                void $ permissionCheck zusr AddConversationMember mems
-                uu <- checkedConvAndTeamSize (newConvUsers body)
-                ensureConnected zusr (notTeamMember (fromConvTeamSize uu) mems)
-                pure uu
-        conv <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body)
-        now  <- liftIO getCurrentTime
-        let d = Teams.EdConvCreate (Data.convId conv)
-        let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
-        let notInConv = Set.fromList (map (view userId) mems) \\ Set.fromList (zusr : fromConvTeamSize uids)
-        for_ (newPush zusr (TeamEvent e) (map userRecipient (Set.toList notInConv))) push1
-        notifyCreatedConversation (Just now) zusr (Just zcon) conv
-        conversationResponse status201 zusr conv
+    name <- rangeCheckedMaybe (newConvName body)
+    mems <- Data.teamMembers (cnvTeamId tinfo)
+    ensureAccessRole (accessRole body) (newConvUsers body) (Just mems)
+    void $ permissionCheck zusr CreateConversation mems
+    uids <-
+        if cnvManaged tinfo then do
+            let uu = filter (/= zusr) $ map (view userId) mems
+            checkedConvAndTeamSize uu
+        else do
+            void $ permissionCheck zusr AddConversationMember mems
+            uu <- checkedConvAndTeamSize (newConvUsers body)
+            ensureConnected zusr (notTeamMember (fromConvTeamSize uu) mems)
+            pure uu
+    conv <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body)
+    now  <- liftIO getCurrentTime
+    let d = Teams.EdConvCreate (Data.convId conv)
+    let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
+    let notInConv = Set.fromList (map (view userId) mems) \\ Set.fromList (zusr : fromConvTeamSize uids)
+    for_ (newPush zusr (TeamEvent e) (map userRecipient (Set.toList notInConv))) push1
+    notifyCreatedConversation (Just now) zusr (Just zcon) conv
+    conversationResponse status201 zusr conv
   where
     accessRole b = fromMaybe Data.defRole (newConvAccessRole b)
 
@@ -82,12 +82,12 @@ createTeamConv zusr zcon tinfo body = do
 
 createRegularConv :: UserId -> ConnId -> NewConv -> Galley Response
 createRegularConv zusr zcon body = do
-        name <- rangeCheckedMaybe (newConvName body)
-        uids <- checkedConvAndTeamSize (newConvUsers body)
-        ensureConnected zusr (fromConvTeamSize uids)
-        c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body)
-        notifyCreatedConversation Nothing zusr (Just zcon) c
-        conversationResponse status201 zusr c
+    name <- rangeCheckedMaybe (newConvName body)
+    uids <- checkedConvAndTeamSize (newConvUsers body)
+    ensureConnected zusr (fromConvTeamSize uids)
+    c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body)
+    notifyCreatedConversation Nothing zusr (Just zcon) c
+    conversationResponse status201 zusr c
   where
     accessRole b = fromMaybe Data.defRole (newConvAccessRole b)
 
