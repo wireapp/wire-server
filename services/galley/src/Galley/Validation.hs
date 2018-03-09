@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
 
-module Galley.Validation 
+module Galley.Validation
    ( rangeChecked
    , rangeCheckedMaybe
 

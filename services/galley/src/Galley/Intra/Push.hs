@@ -197,4 +197,3 @@ call n r = recovering x3 rpcHandlers (const (rpc n r))
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
-
