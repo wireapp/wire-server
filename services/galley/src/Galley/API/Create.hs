@@ -47,10 +47,11 @@ createGroupConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Resp
 createGroupConversation (zusr::: zcon ::: req ::: _) = do
     body <- fromBody req invalidPayload
     case newConvTeam body of
-        Nothing -> createRegularConv body
-        Just tm -> createTeamConv tm body
-  where
-    createTeamConv tinfo body = do
+        Nothing -> createRegularConv zusr zcon body
+        Just tm -> createTeamConv zusr zcon tm body
+
+createTeamConv :: UserId -> ConnId -> ConvTeamInfo -> NewConv -> Galley Response
+createTeamConv zusr zcon tinfo body = do
         name <- rangeCheckedMaybe (newConvName body)
         mems <- Data.teamMembers (cnvTeamId tinfo)
         ensureAccessRole (accessRole body) (newConvUsers body) (Just mems)
@@ -72,15 +73,22 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
         for_ (newPush zusr (TeamEvent e) (map userRecipient (Set.toList notInConv))) push1
         notifyCreatedConversation (Just now) zusr (Just zcon) conv
         conversationResponse status201 zusr conv
+  where
+    accessRole b = fromMaybe Data.defRole (newConvAccessRole b)
 
-    createRegularConv body = do
+    access a = case Set.toList (newConvAccess a) of
+        []     -> Data.defRegularConvAccess
+        (x:xs) -> x:xs
+
+createRegularConv :: UserId -> ConnId -> NewConv -> Galley Response
+createRegularConv zusr zcon body = do
         name <- rangeCheckedMaybe (newConvName body)
         uids <- checkedConvAndTeamSize (newConvUsers body)
         ensureConnected zusr (fromConvTeamSize uids)
         c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body)
         notifyCreatedConversation Nothing zusr (Just zcon) c
         conversationResponse status201 zusr c
-
+  where
     accessRole b = fromMaybe Data.defRole (newConvAccessRole b)
 
     access a = case Set.toList (newConvAccess a) of
