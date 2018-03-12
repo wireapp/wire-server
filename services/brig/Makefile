@@ -90,18 +90,18 @@ integration-list: install
 integration-%: db-migrate index-reset
 	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
 
+
+.PHONY: fast
+fast:
+	stack install --fast --local-bin-path=dist
+
 .PHONY: test
-test:
-	stack install --fast --test --local-bin-path=dist
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT)' --env $(KEIRETSU_ENV)
+test: fast
+	LOG_LEVEL=Info keiretsu --run '$(EXE_IT)' --env $(KEIRETSU_ENV) --delay 3000
 
-test-%:
-	stack install --fast --test --local-bin-path=dist
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
+test-%: fast
+	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV) --delay 3000
 
-test-fast:
-	stack install --fast --test --local-bin-path=dist
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT)' --env $(KEIRETSU_ENV)
 
 .PHONY: db
 db: db-reset

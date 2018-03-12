@@ -148,15 +148,19 @@ createTeamConv g u tinfo us name acc = createTeamConvAccess g u tinfo us name ac
 
 createTeamConvAccess :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Http ConvId
 createTeamConvAccess g u tinfo us name acc role = do
-    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo)
-    r <- post ( g
-              . path "/conversations"
-              . zUser u
-              . zConn "conn"
-              . zType "access"
-              . json conv
-              ) <!! const 201 === statusCode
+    r <- createTeamConvAccessRaw g u tinfo us name acc role <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
+
+createTeamConvAccessRaw :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Http ResponseLBS
+createTeamConvAccessRaw g u tinfo us name acc role = do
+    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo)
+    post ( g
+          . path "/conversations"
+          . zUser u
+          . zConn "conn"
+          . zType "access"
+          . json conv
+          )
 
 createOne2OneTeamConv :: Galley -> UserId -> UserId -> Maybe Text -> TeamId -> Http ResponseLBS
 createOne2OneTeamConv g u1 u2 n tid = do

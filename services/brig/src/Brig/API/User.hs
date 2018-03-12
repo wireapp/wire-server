@@ -31,6 +31,7 @@ module Brig.API.User
     , removeEmail
     , removePhone
     , revokeIdentity
+    , deleteUserNoVerify
     , Brig.API.User.deleteUser
     , verifyDeleteUser
     , deleteAccount
@@ -92,10 +93,13 @@ import Data.Id
 import Data.List (nub)
 import Data.List1 (List1)
 import Data.Misc (PlainTextPassword (..))
+import Data.Time.Clock (diffUTCTime)
 import Data.Traversable (for)
 import Network.Wai.Utilities
 import System.Logger.Message
 
+import qualified Brig.API.Error             as Error
+import qualified Brig.AWS.Types             as AWS
 import qualified Brig.Blacklist             as Blacklist
 import qualified Brig.Code                  as Code
 import qualified Brig.Data.Activation       as Data
@@ -115,6 +119,7 @@ import qualified Data.Map.Strict            as Map
 import qualified Galley.Types.Teams         as Team
 import qualified Galley.Types.Teams.Intra   as Team
 import qualified System.Logger.Class        as Log
+import qualified Brig.AWS.InternalPublish   as Internal
 
 -------------------------------------------------------------------------------
 -- Create User
@@ -454,6 +459,7 @@ changeAccountStatus usrs status = do
         Active    -> return UserResumed
         Suspended -> liftIO $ mapConcurrently (runAppT e . revokeAllCookies) usrs >> return UserSuspended
         Deleted   -> throwE InvalidAccountStatus
+        Ephemeral -> throwE InvalidAccountStatus
     liftIO $ mapConcurrently_ (runAppT e . (update ev)) usrs
   where
     update :: (UserId -> UserEvent) -> UserId -> AppIO ()
@@ -644,6 +650,7 @@ deleteUser uid pwd = do
             Deleted   -> return Nothing
             Suspended -> ensureNotOnlyOwner >> go a
             Active    -> ensureNotOnlyOwner >> go a
+            Ephemeral -> go a
   where
     ensureNotOnlyOwner = do
         onlyOwner <- lift $ Team.isOnlyTeamOwner uid
@@ -760,6 +767,25 @@ lookupPasswordResetCode emailOrPhone = do
             c <- Data.lookupPasswordResetCode u
             return $ (k,) <$> c
 
+
+deleteUserNoVerify :: UserId -> AppIO ()
+deleteUserNoVerify uid = do
+    ok <- Internal.publish (AWS.DeleteUser uid)
+    unless ok $
+        throwM Error.failedQueueEvent
+
+-- | Garbage collect users if they're ephemeral and they have expired.
+-- Always returns the user (deletion itself is delayed)
+userGC :: User -> AppIO User
+userGC u = case (userExpire u) of
+        Nothing  -> return u
+        (Just e) -> do
+            now <- liftIO =<< view currentTime
+            -- ephemeral users past their expiry date are deleted
+            when (diffUTCTime e now < 0) $
+                deleteUserNoVerify (userId u)
+            return u
+
 lookupProfile :: UserId -> UserId -> AppIO (Maybe UserProfile)
 lookupProfile self other = listToMaybe <$> lookupProfiles self [other]
 
@@ -771,7 +797,7 @@ lookupProfiles :: UserId   -- ^ User 'A' on whose behalf the profiles are reques
                -> [UserId] -- ^ The users ('B's) for which to obtain the profiles.
                -> AppIO [UserProfile]
 lookupProfiles self others = do
-    users <- Data.lookupUsers others
+    users <- Data.lookupUsers others >>= mapM userGC
     css   <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
     return $ map (toProfile css) users
   where
@@ -820,4 +846,3 @@ fetchUserIdentity :: UserId -> AppIO (Maybe UserIdentity)
 fetchUserIdentity uid = lookupSelfProfile uid >>= maybe
     (throwM $ UserProfileNotFound uid)
     (return . userIdentity . selfUser)
-
