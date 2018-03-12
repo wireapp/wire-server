@@ -4,7 +4,7 @@
 
 cannon:
   host: 127.0.0.1
-  port: 8002
+  port: 8083
 
   # Each cannon instance advertises its own location (ip or dns name) to gundeck.
   # Either externalHost or externalHostFile must be set (externalHost takes precedence if both are defined)
@@ -14,4 +14,4 @@ cannon:
 
 gundeck:
   host: 127.0.0.1
-  port: 8006
+  port: 8086
