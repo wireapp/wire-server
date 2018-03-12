@@ -458,27 +458,45 @@ testCreateUserAnonExpiry b = do
     bob <- createAnonUser "bob" b
     liftIO $ assertBool "expiry not set on regular creation" (not $ isJust $ userExpire alice)
     ensureExpiry (userExpire bob) "bob/register"
-    resAlice <- get (b . zUser (userId u1) . paths ["users", toByteString' (userId alice)]) <!! const 200 === statusCode
-    resBob <- get (b . zUser (userId u1) . paths ["users", toByteString' (userId bob)]) <!! const 200 === statusCode
+    resAlice <- getProfile (userId u1) (userId alice)
+    resBob <- getProfile (userId u1) (userId bob)
     selfBob <- get (b . zUser (userId bob) . path "self") <!! const 200 === statusCode
+    liftIO $ assertBool "Bob must not be in a deleted state initially" (fromMaybe True (not <$> deleted selfBob))
     unless (null (expire resAlice)) $
         liftIO $ assertFailure "Regular user should not have any expiry"
     ensureExpiry (expire resBob) "bob/public"
     ensureExpiry (expire selfBob) "bob/self"
+    awaitExpiry 25 (userId u1) (userId bob)
+    resBob' <- getProfile (userId u1) (userId bob)
+    liftIO $ assertBool "Bob must be in deleted state" (fromMaybe False $ deleted resBob')
   where
+    getProfile :: UserId -> UserId -> Http ResponseLBS
+    getProfile zusr uid = get (b . zUser zusr . paths ["users", toByteString' uid]) <!! const 200 === statusCode
+
+    awaitExpiry :: Int -> UserId -> UserId -> Http ()
+    awaitExpiry n zusr uid = do
+        -- after expiration, a profile lookup should trigger garbage collection of ephemeral users
+        r <- getProfile zusr uid
+        when (statusCode r == 200 && deleted r == Nothing && n > 0) $ do
+            liftIO $ threadDelay 1000000
+            awaitExpiry (n-1) zusr uid
+
     ensureExpiry :: Maybe UTCTime -> String -> Http ()
     ensureExpiry expiry s = case expiry of
                        Nothing -> liftIO $ assertFailure ("user must have an expiry" <> s)
                        Just a -> do
                           now <- liftIO getCurrentTime
                           let diff = diffUTCTime a now
-                              minExp = 20 :: Integer -- 20 seconds
+                              minExp = 1 :: Integer -- 1 second
                               maxExp = 60 * 60 * 24 * 10 :: Integer -- 10 days
                           liftIO $ assertBool "expiry must in be the future" (diff > fromIntegral minExp)
                           liftIO $ assertBool "expiry must be less than 10 days" (diff < fromIntegral maxExp)
 
     expire :: ResponseLBS -> Maybe UTCTime
     expire r = join $ field "expires_at" <$> decodeBody r
+
+    deleted :: ResponseLBS -> Maybe Bool
+    deleted r = join $ field "deleted" <$> decodeBody r
 
     field :: FromJSON a => Text -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON

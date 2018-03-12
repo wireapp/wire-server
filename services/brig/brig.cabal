@@ -34,7 +34,8 @@ library
       , Brig.API.Properties
       , Brig.API.Types
       , Brig.API.User
-      , Brig.AWS.InternalNotification
+      , Brig.AWS.InternalPublish
+      , Brig.AWS.InternalEvent
       , Brig.AWS.SesNotification
       , Brig.Blacklist
       , Brig.Budget
