@@ -12,7 +12,7 @@ DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := dist/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := dist/$(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 DEB_INDEX     := dist/$(NAME)-index_$(VERSION)+$(BUILD)_amd64.deb
-KEIRETSU_ENV  ?= ../.env
+KEIRETSU_ENV  ?= ../.integration.env
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema $(NAME)-index
 
 guard-%:

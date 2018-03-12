@@ -9,7 +9,7 @@ EXE_IT        := $(DIST)/$(NAME)-integration
 DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := dist/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 SDIST         := dist/$(NAME)-$(VERSION).tar.gz
-KEIRETSU_ENV  ?= ../.env
+KEIRETSU_ENV  ?= ../.integration.env
 EXECUTABLES   := $(NAME) $(NAME)-integration
 
 guard-%:

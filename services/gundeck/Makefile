@@ -13,7 +13,7 @@ DEB           := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 SDIST         := dist/$(NAME)-$(VERSION).tar.gz
-KEIRETSU_ENV  ?= ../.env
+KEIRETSU_ENV  ?= ../.integration.env
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema
 
 guard-%:

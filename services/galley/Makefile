@@ -11,7 +11,7 @@ DEB           := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 DEB_JOURNALER := $(NAME)-journaler_$(VERSION)+$(BUILD)_amd64.deb
-KEIRETSU_ENV  ?= ../.env
+KEIRETSU_ENV  ?= ../.integration.env
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema $(NAME)-journaler
 
 guard-%:
