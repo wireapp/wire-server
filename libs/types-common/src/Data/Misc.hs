@@ -27,6 +27,9 @@ module Data.Misc
 
       -- * PlainTextPassword
     , PlainTextPassword (..)
+
+      -- * Functor infix ops
+    , (<$$>), (<$$$>)
     ) where
 
 import Control.DeepSeq (NFData (..))
@@ -218,3 +221,16 @@ newtype PlainTextPassword = PlainTextPassword
 instance FromJSON PlainTextPassword where
     parseJSON x = PlainTextPassword . fromRange
                <$> (parseJSON x :: Json.Parser (Range 6 1024 Text))
+
+----------------------------------------------------------------------
+-- Functor
+
+(<$$>) :: (Functor f, Functor g) => (a -> b) -> f (g a) -> f (g b)
+(<$$>) = fmap . fmap
+
+infix 4 <$$>
+
+(<$$$>) :: (Functor f, Functor g, Functor h) => (a -> b) -> f (g (h a)) -> f (g (h b))
+(<$$$>) = fmap . fmap . fmap
+
+infix 4 <$$$>
