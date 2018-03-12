@@ -1,4 +1,5 @@
-# Example yaml-formatted configuration for cannon
+# Example yaml-formatted configuration for cannon used in integration tests
+
 # cannon can be started with a config file (e.g. ./dist/cannon -c cannon.yaml.example)
 
 cannon:
@@ -8,7 +9,7 @@ cannon:
   # Each cannon instance advertises its own location (ip or dns name) to gundeck.
   # Either externalHost or externalHostFile must be set (externalHost takes precedence if both are defined)
   # externalHostFile expects a file with a single line containing the IP or dns name of this instance of cannon
-  #externalHost: 127.0.0.1
+  externalHost: 127.0.0.1
   #externalHostFile: /etc/wire/cannon/cannon-host.txt
 
 gundeck:

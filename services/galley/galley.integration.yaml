@@ -18,7 +18,7 @@ gundeck:
 
 settings:
   httpPoolSize: 128
-  maxConvAndTeamSize: 128
+  maxConvAndTeamSize: 16
   intraListing: false
   conversationCodeURI: https://app.wire.com/join/
 
@@ -31,4 +31,6 @@ settings:
 #
 journal: # if set, journals; if not set, disables journaling
   queueName: integration-team-events.fifo
-  endpoint: https://sqs.eu-west-1.amazonaws.com # http://localhost:4568
+  # endpoint: https://sqs.eu-west-1.amazonaws.com
+  endpoint: http://localhost:4568
+  region: eu-west-1
