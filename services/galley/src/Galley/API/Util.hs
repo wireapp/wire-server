@@ -35,6 +35,19 @@ import qualified Galley.Data    as Data
 
 type JSON = Media "application" "json"
 
+ensureAccessRole :: AccessRole -> [UserId] -> Maybe [TeamMember] -> Galley ()
+ensureAccessRole role users mbTms = case role of
+    PrivateAccessRole -> throwM accessDenied
+    TeamAccessRole -> case mbTms of
+        Nothing -> throwM internalError
+        Just tms ->
+            unless (null $ notTeamMember users tms) $
+                throwM noTeamMember
+    ActivatedAccessRole -> do
+        activated <- lookupActivatedUsers users
+        when (length activated /= length users) $ throwM accessDenied
+    NonActivatedAccessRole -> return ()
+
 ensureConnected :: UserId -> [UserId] -> Galley ()
 ensureConnected _ []   = pure ()
 ensureConnected u uids = do

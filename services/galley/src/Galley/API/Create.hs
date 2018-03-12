@@ -17,6 +17,7 @@ import Control.Monad.IO.Class
 import Data.Foldable (for_, toList)
 import Data.Id
 import Data.List1
+import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Range
 import Data.Set ((\\))
@@ -52,6 +53,7 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
     createTeamConv tinfo body = do
         name <- rangeCheckedMaybe (newConvName body)
         mems <- Data.teamMembers (cnvTeamId tinfo)
+        ensureAccessRole (accessRole body) (newConvUsers body) (Just mems)
         void $ permissionCheck zusr CreateConversation mems
         uids <-
             if cnvManaged tinfo then do
@@ -62,7 +64,7 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
                 uu <- checkedConvAndTeamSize (newConvUsers body)
                 ensureConnected zusr (notTeamMember (fromConvTeamSize uu) mems)
                 pure uu
-        conv <- Data.createConversation zusr name (access body) (newConvAccessRole body) uids (newConvTeam body)
+        conv <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body)
         now  <- liftIO getCurrentTime
         let d = Teams.EdConvCreate (Data.convId conv)
         let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
@@ -75,12 +77,14 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
         name <- rangeCheckedMaybe (newConvName body)
         uids <- checkedConvAndTeamSize (newConvUsers body)
         ensureConnected zusr (fromConvTeamSize uids)
-        c <- Data.createConversation zusr name (access body) (newConvAccessRole body) uids (newConvTeam body)
+        c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body)
         notifyCreatedConversation Nothing zusr (Just zcon) c
         conversationResponse status201 zusr c
 
+    accessRole b = fromMaybe Data.defRole (newConvAccessRole b)
+
     access a = case Set.toList (newConvAccess a) of
-        []     -> [InviteAccess]
+        []     -> Data.defRegularConvAccess
         (x:xs) -> x:xs
 
 createSelfConversation :: UserId -> Galley Response

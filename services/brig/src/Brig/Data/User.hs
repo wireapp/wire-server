@@ -37,7 +37,7 @@ module Brig.Data.User
     , updateHandle
     ) where
 
-import Brig.App (AppIO, settings)
+import Brig.App (AppIO, settings, zauthEnv, currentTime)
 import Brig.Data.Instances ()
 import Brig.Options
 import Brig.Password
@@ -51,15 +51,21 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.Foldable (for_)
 import Data.Id
+import Data.Int
 import Data.Misc (PlainTextPassword (..))
+import Data.Time (UTCTime, addUTCTime)
+import Data.Time.Clock.POSIX
 import Data.UUID.V4
 import Galley.Types.Bot
+
+import qualified Brig.ZAuth as ZAuth
 
 -- | Authentication errors.
 data AuthError
     = AuthInvalidUser
     | AuthInvalidCredentials
     | AuthSuspended
+    | AuthEphemeral
 
 -- | Re-authentication errors.
 data ReAuthError
@@ -71,16 +77,29 @@ newAccount u inv = do
     defLoc  <- setDefaultLocale <$> view settings
     uid     <- Id <$> maybe (liftIO nextRandom) (return . toUUID) inv
     passwd  <- maybe (return Nothing) (fmap Just . liftIO . mkSafePassword) pass
-    return (UserAccount (user uid $ locale defLoc) Active, passwd)
+    expiry  <- case status of
+                   Ephemeral -> do
+                       -- Ephemeral users' expiry time is in sessionTokenTimeout seconds
+                       e <- view zauthEnv
+                       let ZAuth.SessionTokenTimeout ttl = e^.ZAuth.settings.ZAuth.sessionTokenTimeout
+                       now <- liftIO =<< view currentTime
+                       return $ Just (addUTCTime (fromIntegral ttl) now)
+                   _ -> return Nothing
+    return (UserAccount (user uid (locale defLoc) expiry) status, passwd)
   where
     ident         = newUserIdentity u
     pass          = newUserPassword u
     name          = newUserName u
     pict          = fromMaybe noPict (newUserPict u)
     assets        = newUserAssets u
+    status        = case ident of
+                        Nothing -> -- any user registering without either an email or a phone is Ephemeral,
+                                   -- i.e. can be deleted after a short amount of time (sessionTokenTimeout)
+                                   Ephemeral
+                        Just _  -> Active
     colour        = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
-    user   uid l  = User uid ident name pict assets colour False l Nothing Nothing
+    user  uid l e = User uid ident name pict assets colour False l Nothing Nothing e
 
 -- | Mandatory password authentication.
 authenticate :: UserId -> PlainTextPassword -> ExceptT AuthError AppIO ()
@@ -88,6 +107,7 @@ authenticate u pw = lift (lookupAuth u) >>= \case
     Nothing                   -> throwE AuthInvalidUser
     Just (_,         Deleted) -> throwE AuthInvalidUser
     Just (_,       Suspended) -> throwE AuthSuspended
+    Just (_,       Ephemeral) -> throwE AuthEphemeral
     Just (Nothing,         _) -> throwE AuthInvalidCredentials
     Just (Just pw',   Active) ->
         unless (verifyPassword pw pw') $
@@ -98,11 +118,14 @@ authenticate u pw = lift (lookupAuth u) >>= \case
 -- reauthentication is a no-op.
 reauthenticate :: (MonadClient m) => UserId -> Maybe PlainTextPassword -> ExceptT ReAuthError m ()
 reauthenticate u pw = lift (lookupAuth u) >>= \case
-    Nothing                   -> throwE (ReAuthError AuthInvalidUser)
-    Just (_,         Deleted) -> throwE (ReAuthError AuthInvalidUser)
-    Just (_,       Suspended) -> throwE (ReAuthError AuthSuspended)
-    Just (Nothing,         _) -> for_ pw $ const (throwE $ ReAuthError AuthInvalidCredentials)
-    Just (Just pw',   Active) -> case pw of
+    Nothing                    -> throwE (ReAuthError AuthInvalidUser)
+    Just (_,          Deleted) -> throwE (ReAuthError AuthInvalidUser)
+    Just (_,        Suspended) -> throwE (ReAuthError AuthSuspended)
+    Just (Nothing,          _) -> for_ pw $ const (throwE $ ReAuthError AuthInvalidCredentials)
+    Just (Just pw',    Active) -> maybeReAuth pw'
+    Just (Just pw', Ephemeral) -> maybeReAuth pw'
+  where
+    maybeReAuth pw' = case pw of
         Nothing -> throwE ReAuthMissingPassword
         Just  p ->
             unless (verifyPassword p pw') $
@@ -210,7 +233,9 @@ lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params Quorum (Identity u
 lookupUsers :: [UserId] -> AppIO [User]
 lookupUsers usrs = do
     loc <- setDefaultLocale  <$> view settings
-    toUsers loc <$> retry x1 (query usersSelect (params Quorum (Identity usrs)))
+    e <- view zauthEnv
+    let ZAuth.SessionTokenTimeout ttl = e^.ZAuth.settings.ZAuth.sessionTokenTimeout
+    toUsers loc ttl <$> retry x1 (query usersSelect (params Quorum (Identity usrs)))
 
 lookupAccount :: UserId -> AppIO (Maybe UserAccount)
 lookupAccount u = listToMaybe <$> lookupAccounts [u]
@@ -218,25 +243,29 @@ lookupAccount u = listToMaybe <$> lookupAccounts [u]
 lookupAccounts :: [UserId] -> AppIO [UserAccount]
 lookupAccounts usrs = do
     loc <- setDefaultLocale  <$> view settings
-    fmap (toUserAccount loc) <$> retry x1 (query accountsSelect (params Quorum (Identity usrs)))
+    e <- view zauthEnv
+    let ZAuth.SessionTokenTimeout ttl = e^.ZAuth.settings.ZAuth.sessionTokenTimeout
+    fmap (toUserAccount loc ttl) <$> retry x1 (query accountsSelect (params Quorum (Identity usrs)))
 
 -------------------------------------------------------------------------------
 -- Queries
 
 type Activated = Bool
+type WriteTime a = Int64
 
 type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, ColourId,
-                Maybe [Asset], Activated, Maybe AccountStatus, Maybe Language,
+                Maybe [Asset], Activated, Maybe AccountStatus, Maybe (WriteTime AccountStatus), Maybe Language,
                 Maybe Country, Maybe ProviderId, Maybe ServiceId, Maybe Handle)
 
 type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone,
                    ColourId, Maybe [Asset], Bool, Maybe AccountStatus,
-                   Maybe Language, Maybe Country,
+                   Maybe (WriteTime AccountStatus), Maybe Language, Maybe Country,
                    Maybe ProviderId, Maybe ServiceId, Maybe Handle)
+
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
 usersSelect = "SELECT id, name, picture, email, phone, accent_id, assets, \
-              \activated, status, language, country, provider, service, handle \
+              \activated, status, writetime(status), language, country, provider, service, handle \
               \FROM user where id IN ?"
 
 nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
@@ -262,7 +291,7 @@ statusSelect = "SELECT status FROM user WHERE id = ?"
 
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
 accountsSelect = "SELECT id, name, picture, email, phone, accent_id, assets, \
-                 \activated, status, language, country, provider, \
+                 \activated, status, writetime(status), language, country, provider, \
                  \service, handle \
                  \FROM user WHERE id IN ?"
 
@@ -323,29 +352,37 @@ userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
 -------------------------------------------------------------------------------
 -- Conversions
 
-toUserAccount :: Locale -> AccountRow -> UserAccount
-toUserAccount defaultLocale (uid, name, pict, email, phone, accent, assets,
-                             activated, status, lan, con, pid, sid,
+toUserAccount :: Locale -> Integer -> AccountRow -> UserAccount
+toUserAccount defaultLocale ttl (uid, name, pict, email, phone, accent, assets,
+                             activated, status, wtStatus, lan, con, pid, sid,
                              handle) =
     let ident = toIdentity activated email phone
         deleted = maybe False (== Deleted) status
+        expiration = if status == Just Ephemeral then expireTime ttl <$> wtStatus else Nothing
         loc = toLocale defaultLocale (lan, con)
         svc = newServiceRef <$> sid <*> pid
     in UserAccount (User uid ident name (fromMaybe noPict pict)
-                         (fromMaybe [] assets) accent deleted loc svc handle)
+                         (fromMaybe [] assets) accent deleted loc svc handle expiration)
                    (fromMaybe Active status)
 
-toUsers :: Locale -> [UserRow] -> [User]
-toUsers defaultLocale = fmap mk
+toUsers :: Locale -> Integer -> [UserRow] -> [User]
+toUsers defaultLocale ttl = fmap mk
   where
     mk (uid, name, pict, email, phone, accent, assets, activated, status,
-        lan, con, pid, sid, handle) =
+        wtStatus, lan, con, pid, sid, handle) =
         let ident = toIdentity activated email phone
             deleted = maybe False (== Deleted) status
+            expiration = if status == Just Ephemeral then expireTime ttl <$> wtStatus else Nothing
             loc = toLocale defaultLocale (lan, con)
             svc = newServiceRef <$> sid <*> pid
         in User uid ident name (fromMaybe noPict pict) (fromMaybe [] assets)
-                accent deleted loc svc handle
+                accent deleted loc svc handle expiration
+
+expireTime :: Integer -> Int64 -> UTCTime
+expireTime ttlInSeconds creationInMicroSeconds =
+    let creationInSeconds = creationInMicroSeconds `div` 1000000
+        expirySeconds = fromIntegral creationInSeconds + ttlInSeconds
+    in posixSecondsToUTCTime $ fromInteger expirySeconds
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
