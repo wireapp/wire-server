@@ -61,7 +61,7 @@ zauth:
   authSettings:
     keyIndex: 1
     userTokenTimeout: 120
-    sessionTokenTimeout: 60
+    sessionTokenTimeout: 20
     accessTokenTimeout: 30
     providerTokenTimeout: 60
 
@@ -76,7 +76,7 @@ optSettings:
   setTeamInvitationTimeout: 5
   setTwilio: test/resources/twilio-credentials.yaml
   setNexmo: test/resources/nexmo-credentials.yaml
-  setUserMaxConnections: 129
+  setUserMaxConnections: 16
   setCookieDomain: 127.0.0.1
   setCookieInsecure: true
   setUserCookieRenewAge: 2
@@ -85,4 +85,4 @@ optSettings:
     stdDev: 5
     retryAfter: 1
   setDefaultLocale: en
-  setMaxConvAndTeamSize: 128
+  setMaxConvAndTeamSize: 16
