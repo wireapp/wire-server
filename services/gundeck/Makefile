@@ -85,17 +85,17 @@ bench: install
 
 .PHONY: integration
 integration: install
-	LOG_LEVEL=Info keiretsu --run $(EXE_IT) --delay 2000 --env $(KEIRETSU_ENV)
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml.example
 
 .PHONY: integration-list
 integration-list: install
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) -l; sleep 1' --env $(KEIRETSU_ENV)
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml.example -l
 
 integration-%: install
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"; sleep 1' --env $(KEIRETSU_ENV)
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml.example -p "$*"
 
 integration-fake-aws: install
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="!/RealAWS/"; sleep 1' --env $(KEIRETSU_ENV)
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml.example -p "!/RealAWS/"
 
 .PHONY: db
 db: db-reset

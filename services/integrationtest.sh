@@ -6,7 +6,7 @@ USAGE="$0 <test-executable>"
 
 EXE=${1:?$USAGE}
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/../.."
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 PID=$$
 
@@ -32,7 +32,7 @@ function run() {
     service=$1
     colour=$2
     export LOG_LEVEL=$3
-    (cd ${DIR}/services/${service} && exec dist/${service} -c ${service}.integration.yaml \
+    (cd ${DIR}/${service} && exec dist/${service} -c ${service}.integration.yaml \
         | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" || stop_nicely) &
 }
 
@@ -41,8 +41,7 @@ run brig ${green} Warn
 run galley ${yellow} Info
 run gundeck ${blue} Info
 run cannon ${orange} Info
-run proxy ${purpleish} Info
-run cargohold ${white} Info
+run cargohold ${purpleish} Info
 
 sleep 3
 

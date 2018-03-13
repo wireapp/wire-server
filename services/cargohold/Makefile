@@ -59,7 +59,7 @@ $(DEB_IT):
 
 .PHONY: integration
 integration: install
-	LOG_LEVEL=Info keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV)
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
 
 integration-%:
 	stack install --fast --local-bin-path=dist

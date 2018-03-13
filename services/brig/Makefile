@@ -81,14 +81,14 @@ $(DEB_INDEX): install
 
 .PHONY: integration
 integration: db-migrate index-reset
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT)' --delay 3000 --env $(KEIRETSU_ENV)
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml.example
 
 .PHONY: integration-list
 integration-list: install
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) -l; sleep 1' --env $(KEIRETSU_ENV)
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml.example -l
 
 integration-%: db-migrate index-reset
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml.example -p "$*"
 
 
 .PHONY: fast
@@ -97,10 +97,10 @@ fast:
 
 .PHONY: test
 test: fast
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT)' --env $(KEIRETSU_ENV) --delay 3000
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml.example
 
 test-%: fast
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV) --delay 3000
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml.example -p "$*"
 
 
 .PHONY: db
