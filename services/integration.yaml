@@ -25,8 +25,8 @@ proxy:
 
 # Used by brig-integration
 provider:
-  privateKey: /etc/wire/brig/secrets/key.pem
-  publicKey: /etc/wire/brig/secrets/pubkey.pem
-  cert: /etc/wire/brig/secrets/cert.pem
+  privateKey: test/resources/key.pem
+  publicKey: test/resources/pubkey.pem
+  cert: test/resources/cert.pem
   botHost: 127.0.0.1
   botPort: 9000
