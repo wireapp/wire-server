@@ -1,23 +1,51 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
-trap "exit" INT TERM ERR
-trap "kill 0" EXIT
+set -eo pipefail
+
+USAGE="$0 <test-executable>"
+
+EXE=${1:?$USAGE}
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/../.."
 
-export LOG_LEVEL=Info
+PID=$$
+
+function stop_nicely() {
+    kill -2 $(pgrep -f integration.yaml) &> /dev/null
+    sleep 1
+    kill 0
+    sleep 1
+    kill -9 ${PID} &> /dev/null
+    echo
+}
+trap "stop_nicely" EXIT
+trap "exit" INT TERM ERR
+
+blue=6
+white=7
+green=10
+orange=3
+yellow=11
+purpleish=13
 
 function run() {
     service=$1
-    (cd ${DIR}/services/${service} && exec dist/${service} -c ${service}.integration.yaml | sed -e "s/^/[${service}] /") &
+    colour=$2
+    export LOG_LEVEL=$3
+    (cd ${DIR}/services/${service} && exec dist/${service} -c ${service}.integration.yaml \
+        | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" || stop_nicely) &
 }
 
-run brig
-run galley
-run gundeck
-run cannon
-run proxy
-run cargohold
 
+run brig ${green} Warn
+run galley ${yellow} Info
+run gundeck ${blue} Info
+run cannon ${orange} Info
+run proxy ${purpleish} Info
+run cargohold ${white} Info
+
+sleep 3
+
+(${EXE} "${@:2}" && stop_nicely || stop_nicely) &
 
 wait
