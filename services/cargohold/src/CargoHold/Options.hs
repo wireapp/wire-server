@@ -40,7 +40,8 @@ deriveFromJSON toOptionFieldName ''AWSOpts
 makeLenses ''AWSOpts
 
 data Settings = Settings
-    { _setMaxTotalBytes :: !Int
+    { _setMaxTotalBytes   :: !Int
+    , _setDownloadLinkTTL :: !Word
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
@@ -121,9 +122,15 @@ optsParser = Opts <$>
 
     settingsParser :: Parser Settings
     settingsParser = Settings <$>
-        option auto
+            option auto
             (long "max-total-bytes"
             <> metavar "INT"
             <> value (25 * 1024 * 1024)
             <> showDefault
             <> help "Maximum allowed size in bytes for uploads")
+        <*> option auto
+            (long "download-link-ttl"
+            <> metavar "INT"
+            <> value 300
+            <> showDefault
+            <> help "TTL for download links in seconds")

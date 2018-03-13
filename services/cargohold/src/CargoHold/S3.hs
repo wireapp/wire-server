@@ -46,6 +46,7 @@ import Aws.S3
 import CargoHold.App hiding (Handler)
 import Control.Applicative ((<|>))
 import CargoHold.API.Error
+import CargoHold.Options
 import Control.Error (ExceptT, throwE)
 import Control.Lens (view)
 import Control.Monad
@@ -176,7 +177,8 @@ signedURL path = do
     e <- view aws
     b <- s3Bucket <$> view aws
     cfg' <- liftIO $ Aws.getConfig (awsEnv e)
-    let cfg = cfg' { Aws.timeInfo = Aws.ExpiresIn 300 }
+    ttl  <- view (settings.setDownloadLinkTTL)
+    let cfg = cfg' { Aws.timeInfo = Aws.ExpiresIn (fromIntegral ttl) }
     uri <- liftIO $ Aws.awsUri cfg (s3UriOnly e)
                   $ getObject b (Text.decodeLatin1 $ toByteString' path)
     return =<< toUri uri

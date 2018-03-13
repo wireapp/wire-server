@@ -43,7 +43,7 @@ library
       , aeson                >= 0.11
       , attoparsec           >= 0.12
       , auto-update          >= 0.1.4
-      , aws                  >= 0.17
+      , aws                  >= 0.18
       , bilge                >= 0.21
       , byteable             >= 0.1
       , bytestring           >= 0.10

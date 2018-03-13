@@ -42,13 +42,14 @@ newtype Domain = Domain Text
 data CloudFront = CloudFront
     { _baseUrl   :: URI
     , _keyPairId :: KeyPairId
+    , _expires   :: Word
     , _clock     :: IO POSIXTime
     , _func      :: ByteString -> IO ByteString
     }
 
-initCloudFront :: MonadIO m => FilePath -> KeyPairId -> Domain -> m CloudFront
-initCloudFront kfp kid (Domain dom) = liftIO $
-    CloudFront baseUrl kid <$> mkPOSIXClock <*> sha1Rsa kfp
+initCloudFront :: MonadIO m => FilePath -> KeyPairId -> Word -> Domain -> m CloudFront
+initCloudFront kfp kid exp (Domain dom) = liftIO $
+    CloudFront baseUrl kid exp <$> mkPOSIXClock <*> sha1Rsa kfp
   where
     baseUrl = URI
         { uriScheme = Scheme "https"
@@ -59,8 +60,8 @@ initCloudFront kfp kid (Domain dom) = liftIO $
         }
 
 signedURL :: (MonadIO m, ToByteString p) => CloudFront -> p -> m URI
-signedURL (CloudFront base kid clock sign) path = liftIO $ do
-    time <- (+ 300) . round <$> clock
+signedURL (CloudFront base kid exp clock sign) path = liftIO $ do
+    time <- (+ exp) . round <$> clock
     sig  <- sign (toStrict (toLazyByteString (policy url time)))
     return $! url
         { uriQuery = Query

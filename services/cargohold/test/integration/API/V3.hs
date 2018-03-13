@@ -98,10 +98,6 @@ testSimpleRoundtrip c = do
     r2 <- get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!! do
         const 302 === statusCode
         const Nothing === responseBody
-    liftIO $ print "###################################"
-    liftIO $ print (getHeader' "Location" r2 :: ByteString)
-    liftIO $ print "###################################"
-
     r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
     liftIO $ do
         assertEqual "status" status200 (responseStatus r3)

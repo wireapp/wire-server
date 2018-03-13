@@ -106,14 +106,15 @@ initAws o l m = do
     -- which would avoid the need to specify them in a config file when running tests
     let awsOpts = o^.optAws
     amz  <- Aws.newEnv l m $ liftM2 (,) (awsOpts^.awsKeyId) (awsOpts^.awsSecretKey)
-    sig  <- newCloudFrontEnv (o^.optAws.awsCloudFront)
-    let s3c = endpointToConfig (awsOpts^.awsS3Endpoint)
-    return $! AwsEnv amz s3c s3c (awsOpts^.awsS3Bucket) sig
+    sig  <- newCloudFrontEnv (o^.optAws.awsCloudFront) (o^.optSettings.setDownloadLinkTTL)
+    let s3cfg = endpointToConfig (awsOpts^.awsS3Endpoint)
+    return $! AwsEnv amz s3cfg s3cfg (awsOpts^.awsS3Bucket) sig
   where
-    newCloudFrontEnv Nothing   = return Nothing
-    newCloudFrontEnv (Just cf) = return . Just =<< initCloudFront (cf^.cfPrivateKey)
-                                                                  (cf^.cfKeyPairId)
-                                                                  (cf^.cfDomain)
+    newCloudFrontEnv Nothing   _   = return Nothing
+    newCloudFrontEnv (Just cf) ttl = return . Just =<< initCloudFront (cf^.cfPrivateKey)
+                                                                      (cf^.cfKeyPairId)
+                                                                      ttl
+                                                                      (cf^.cfDomain)
 
 endpointToConfig :: AWSEndpoint -> Aws.S3Configuration qt
 endpointToConfig (AWSEndpoint host secure port) =
