@@ -10,16 +10,17 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 PID=$$
 
-function stop_nicely() {
-    kill -2 $(pgrep -f integration.yaml) &> /dev/null
-    sleep 1
-    kill 0
-    sleep 1
-    kill -9 ${PID} &> /dev/null
-    echo
+function kill_all() {
+    kill -9 -$(ps -o pgid= $PID | grep -o '[0-9]*')
 }
-trap "stop_nicely" EXIT
-trap "exit" INT TERM ERR
+
+function stop_nicely() {
+    trap "kill_all" INT
+    kill -2 $(pgrep -f integration.yaml) $(pgrep -f ${EXE}) &> /dev/null
+    sleep 1
+}
+
+trap "stop_nicely" INT EXIT TERM ERR
 
 blue=6
 white=7
