@@ -10,6 +10,7 @@ import Control.Lens hiding ((#), (.=))
 import Control.Monad (void)
 import Control.Monad.IO.Class
 import Data.Aeson hiding (json)
+import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Foldable (forM_, for_)
 import Data.Id
@@ -27,10 +28,12 @@ import Test.Tasty.HUnit
 import API.SQS
 
 import qualified API.Util as Util
+import qualified Control.Concurrent.Async.Lifted.Safe as AsyncSafe
 import qualified Data.Currency as Currency
 import qualified Data.List1 as List1
 import qualified Data.Set as Set
 import qualified Data.Text as T
+import qualified Data.UUID as UUID
 import qualified Galley.Types as Conv
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon as WS
@@ -62,7 +65,7 @@ tests s = testGroup "Teams API"
     , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
     , test s "add team member to conversation without connection" testAddTeamMemberToConv
     , test s "delete non-binding team" testDeleteTeam
-    , test s "delete binding team" testDeleteBindingTeam
+    , test s "delete (binding) team" testDeleteBindingTeam
     , test s "delete team conversation" testDeleteTeamConv
     , test s "update team data" testUpdateTeam
     , test s "update team member" testUpdateTeamMember
@@ -216,14 +219,7 @@ testAddTeamMember g b c _ = do
     WS.bracketRN c [owner, (mem1^.userId), (mem2^.userId), (mem3^.userId)] $ \[wsOwner, wsMem1, wsMem2, wsMem3] -> do
         -- `mem2` has `AddTeamMember` permission
         Util.addTeamMember g (mem2^.userId) tid mem3
-        liftIO . void $ mapConcurrently (checkJoinEvent tid (mem3^.userId)) [wsOwner, wsMem1, wsMem2, wsMem3]
-  where
-    checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
-        let e = List1.head (WS.unpackPayload notif)
-        e^.eventType @?= MemberJoin
-        e^.eventTeam @?= tid
-        e^.eventData @?= Just (EdMemberJoin usr)
+        AsyncSafe.mapConcurrently_ (checkTeamMemberJoin tid (mem3^.userId)) [wsOwner, wsMem1, wsMem2, wsMem3]
 
 testAddTeamMemberCheckBound :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testAddTeamMemberCheckBound g b _ a = do
@@ -303,17 +299,10 @@ testRemoveTeamMember g b c _ = do
         -- Ensure that `mem1` is still a user (tid is not a binding team)
         Util.ensureDeletedState b False owner (mem1^.userId)
 
-        liftIO . void $ mapConcurrently (checkLeaveEvent tid (mem1^.userId)) [wsOwner, wsMem1, wsMem2]
+        AsyncSafe.mapConcurrently_ (checkTeamMemberLeave tid (mem1^.userId)) [wsOwner, wsMem1, wsMem2]
         checkConvMemberLeaveEvent cid2 (mem1^.userId) wsMext1
         checkConvMemberLeaveEvent cid3 (mem1^.userId) wsMext3
         WS.assertNoEvent timeout ws
-  where
-    checkLeaveEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
-        let e = List1.head (WS.unpackPayload notif)
-        e^.eventType @?= MemberLeave
-        e^.eventTeam @?= tid
-        e^.eventData @?= Just (EdMemberLeave usr)
 
 testRemoveBindingTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testRemoveBindingTeamMember g b c a = do
@@ -347,7 +336,7 @@ testRemoveBindingTeamMember g b c a = do
     -- Mem1 is still part of Wire
     Util.ensureDeletedState b False owner (mem1^.userId)
 
-    WS.bracketR c mext $ \wsMext -> do
+    WS.bracketR2 c owner mext $ \(wsOwner, wsMext) -> do
         delete ( g
                . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
                . zUser owner
@@ -355,7 +344,9 @@ testRemoveBindingTeamMember g b c a = do
                . json (newTeamMemberDeleteData (PlainTextPassword Util.defPassword))
                ) !!! const 202 === statusCode
 
+        checkTeamMemberLeave tid (mem1^.userId) wsOwner
         checkConvMemberLeaveEvent cid1 (mem1^.userId) wsMext
+
         assertQueue "team member leave" a $ tUpdate 1 [owner]
         WS.assertNoEvent timeout [wsMext]
         -- Mem1 is now gone from Wire
@@ -527,10 +518,14 @@ testDeleteBindingTeam g b c a = do
     mem1 <- flip newTeamMember p1 <$> Util.randomUser b
     let p2 = Util.symmPermissions [AddConversationMember]
     mem2 <- flip newTeamMember p2 <$> Util.randomUser b
+    let p3 = Util.symmPermissions [AddConversationMember]
+    mem3 <- flip newTeamMember p3 <$> Util.randomUser b
     Util.addTeamMemberInternal g tid mem1
-    assertQueue "team member join" a $ tUpdate 2 [owner]
+    assertQueue "team member join 2" a $ tUpdate 2 [owner]
     Util.addTeamMemberInternal g tid mem2
-    assertQueue "team member join" a $ tUpdate 3 [owner]
+    assertQueue "team member join 3" a $ tUpdate 3 [owner]
+    Util.addTeamMemberInternal g tid mem3
+    assertQueue "team member join 4" a $ tUpdate 4 [owner]
     extern <- Util.randomUser b
 
     delete ( g
@@ -542,6 +537,14 @@ testDeleteBindingTeam g b c a = do
         const 403 === statusCode
         const "access-denied" === (Error.label . Util.decodeBody' "error label")
 
+    -- Let's delete a member just to fill up the journaling queue (when in use)
+    delete ( g
+           . paths ["teams", toByteString' tid, "members", toByteString' (mem3^.userId)]
+           . zUser owner
+           . zConn "conn"
+           . json (newTeamMemberDeleteData (PlainTextPassword Util.defPassword))
+           ) !!! const 202 === statusCode
+
     void $ WS.bracketRN c [owner, (mem1^.userId), (mem2^.userId), extern] $ \[wsOwner, wsMember1, wsMember2, wsExtern] -> do
         delete ( g
                . paths ["teams", toByteString' tid]
@@ -549,13 +552,21 @@ testDeleteBindingTeam g b c a = do
                . zConn "conn"
                . json (newTeamDeleteData (PlainTextPassword Util.defPassword))
                ) !!! const 202 === statusCode
+        
+        checkUserDeleteEvent owner wsOwner
+        checkUserDeleteEvent (mem1^.userId) wsMember1
+        checkUserDeleteEvent (mem2^.userId) wsMember2
+
         checkTeamDeleteEvent tid wsOwner
         checkTeamDeleteEvent tid wsMember1
         checkTeamDeleteEvent tid wsMember2
-        -- TODO: Due to the async nature of the deletion, we should actually check for
-        --       the user deletion event to avoid race conditions at this point
+
         WS.assertNoEvent timeout [wsExtern]
-        assertQueue "team delete" a tDelete
+        -- TODO: Again, depending on the timing, a user _could_ be deleted before the
+        --       the team gets deleted
+        let jt = 5 -- 5 second timeout
+        assertQueue' "team delete, eventually" jt a tDelete
+        assertQueue' "team joined, should be there long time" jt a $ tUpdate 3 [owner]
 
     forM_ [owner, (mem1^.userId), (mem2^.userId)] $ \uid -> do
         -- Wait until the users are marked as deleted
@@ -734,6 +745,14 @@ testUpdateTeamStatus g b _ a = do
         const 403 === statusCode
         const "invalid-team-status-update" === (Error.label . Util.decodeBody' "error label")
 
+checkUserDeleteEvent :: UserId -> WS.WebSocket -> Http ()
+checkUserDeleteEvent uid w = WS.assertMatch_ timeout w $ \notif -> do
+    let j = Object $ List1.head (ntfPayload notif)
+    let etype = j ^? key "type" . _String
+    let euser = j ^? key "id" . _String
+    etype @?= Just "user.delete"
+    euser @?= Just (UUID.toText (toUUID uid))
+
 checkTeamMemberJoin :: TeamId -> UserId -> WS.WebSocket -> Http ()
 checkTeamMemberJoin tid uid w = WS.assertMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
@@ -741,6 +760,14 @@ checkTeamMemberJoin tid uid w = WS.assertMatch_ timeout w $ \notif -> do
     e^.eventType @?= MemberJoin
     e^.eventTeam @?= tid
     e^.eventData @?= Just (EdMemberJoin uid)
+
+checkTeamMemberLeave :: TeamId -> UserId -> WS.WebSocket -> Http ()
+checkTeamMemberLeave tid usr w = WS.assertMatch_ timeout w $ \notif -> do
+    ntfTransient notif @?= False
+    let e = List1.head (WS.unpackPayload notif)
+    e^.eventType @?= MemberLeave
+    e^.eventTeam @?= tid
+    e^.eventData @?= Just (EdMemberLeave usr)
 
 checkTeamDeleteEvent :: TeamId -> WS.WebSocket -> Http ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do

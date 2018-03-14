@@ -85,7 +85,9 @@ main = withOpenSSL $ runTests go
         q <- join <$> optOrEnvSafe queueName gConf (Just . pack) "GALLEY_SQS_TEAM_EVENTS"
         e <- join <$> optOrEnvSafe endpoint gConf (fromByteString . BS.pack) "GALLEY_SQS_ENDPOINT"
         convTeamMaxSize <- optOrEnv maxSize gConf read "CONV_AND_TEAM_MAX_SIZE"
-        Util.TestSetup m g b c <$> initAwsEnv e q <*> pure convTeamMaxSize
+        awsEnv <- initAwsEnv e q
+        -- SQS.ensureQueueEmpty awsEnv
+        return $ Util.TestSetup m g b c awsEnv convTeamMaxSize
 
     queueName = fmap (view awsQueueName) . view optJournal
     endpoint = fmap (view awsEndpoint) . view optJournal
