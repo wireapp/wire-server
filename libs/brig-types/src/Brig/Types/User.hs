@@ -226,6 +226,7 @@ data NewUser = NewUser
     , newUserLocale         :: !(Maybe Locale)
     , newUserPassword       :: !(Maybe PlainTextPassword)
     , newUserTeam           :: !(Maybe NewTeamUser)
+    , newUserExpiresIn      :: !(Maybe (Range 1 604800 Integer)) -- ^ 1 second - 1 week
     }
 
 newUserEmail :: NewUser -> Maybe Email
@@ -255,6 +256,10 @@ instance FromJSON NewUser where
                 (Nothing, Nothing,      _,       _) -> return Nothing
                 _                                   -> fail "team_code, team, invitation_code are mutually exclusive \
                                                             \ and all team users must set a password on creation "
+          newUserExpires   <- o .:? "expires_in"
+          newUserExpiresIn <- case (newUserExpires, newUserIdentity) of
+                (Just _, Just _) -> fail "Only users without an identity can expire"
+                _                -> return newUserExpires
           return NewUser{..}
 
 instance ToJSON NewUser where
@@ -272,6 +277,7 @@ instance ToJSON NewUser where
         # "label"           .= newUserLabel u
         # "locale"          .= newUserLocale u
         # "password"        .= newUserPassword u
+        # "expires_in"      .= newUserExpiresIn u
         # maybe ("", Null) encodeNewTeamUser (newUserTeam u)
         # []
 
