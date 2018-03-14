@@ -23,10 +23,10 @@ aws:
 fallback:
   skipFallbacks: true
   preferNotice: true
-  queueDelay: 3600
-  queueLimit: 10
-  queueBurst: 10
+  queueDelay: 300
+  queueLimit: 30000
+  queueBurst: 100
 
 settings:
-  httpPoolSize: 4
-  notificationTTL: 86400
+  httpPoolSize: 1024
+  notificationTTL: 24192200

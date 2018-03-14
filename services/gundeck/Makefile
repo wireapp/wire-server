@@ -85,17 +85,17 @@ bench: install
 
 .PHONY: integration
 integration: install
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml.example
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
 
 .PHONY: integration-list
 integration-list: install
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml.example -l
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
 
 integration-%: install
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml.example -p "$*"
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
 
 integration-fake-aws: install
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml.example -p "!/RealAWS/"
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "!/RealAWS/"
 
 .PHONY: db
 db: db-reset
