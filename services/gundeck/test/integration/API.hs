@@ -36,6 +36,7 @@ import Data.Maybe
 import Data.Text                      (Text)
 import Data.UUID.V4
 import Data.Word
+import GHC.Stack (HasCallStack)
 import Gundeck.Types
 import Gundeck.Types.BulkPush
 import Network.URI                    (parseURI)
@@ -184,7 +185,7 @@ removeStalePresence gu ca _ _ = do
     ensurePresent gu uid 1
     sendPush gu (push uid [uid])
     m <- liftIO newEmptyMVar
-    w <- wsRun ca gu uid con 1 (wsCloser m)
+    w <- wsRun ca gu uid (ConnId con) 1 (wsCloser m)
     liftIO $ void $ putMVar m () >> wait w
     sendPush gu (push uid [uid])
     ensurePresent gu uid 0
@@ -774,18 +775,24 @@ ensurePresent gu u n =
     retryWhile ((n /=) . length . decodePresence) (getPresence gu (showUser u)) !!!
         (const n === length . decodePresence)
 
-connectUser :: Gundeck -> Cannon -> UserId -> ByteString -> Http (TChan ByteString)
+connectUser :: HasCallStack => Gundeck -> Cannon -> UserId -> ByteString -> Http (TChan ByteString)  -- TODO: retype ByteString to ConnId
 connectUser gu ca uid con = do
-    ch <- liftIO $ atomically newTChan
-    void $ wsRun ca gu uid con 1 (wsReader ch)
+    [ch] <- connectUserMany gu ca uid [ConnId con]
     return ch
+
+connectUserMany :: HasCallStack => Gundeck -> Cannon -> UserId -> [ConnId] -> Http [TChan ByteString]
+connectUserMany gu ca uid conns = do
+    forM (zip [1..] conns) $ \(numPres, conn) -> do
+        ch <- liftIO $ atomically newTChan
+        _ <- wsRun ca gu uid conn numPres (wsReader ch)
+        pure ch
 
 -- | Sort 'PushToken's based on the actual 'token' values.
 sortPushTokens :: [PushToken] -> [PushToken]
 sortPushTokens = sortBy (compare `on` view token)
 
-wsRun :: Cannon -> Gundeck -> UserId -> ByteString -> Int -> WS.ClientApp () -> Http (Async ())
-wsRun ca gu uid con numPres app = do
+wsRun :: HasCallStack => Cannon -> Gundeck -> UserId -> ConnId -> Int -> WS.ClientApp () -> Http (Async ())
+wsRun ca gu uid (ConnId con) numPres app = do
     a <- liftIO $ async $ WS.runClientWith caHost caPort caPath caOpts caHdrs app
     retryWhile ((numPres /=) . length . decodePresence) (getPresence gu $ showUser uid) !!!
         (const numPres === length . decodePresence)
@@ -894,7 +901,7 @@ sendBulkPushCannon :: Cannon -> BulkPushRequest -> Http ()
 sendBulkPushCannon ca pushes =
     post ( runCannon ca . path "i/bulkpush" . json pushes ) !!! const 200 === statusCode
 
-buildPush :: UserId -> [(UserId, [ClientId])] -> List1 Object -> Push
+buildPush :: HasCallStack => UserId -> [(UserId, [ClientId])] -> List1 Object -> Push
 buildPush sdr rcps pload =
     let rcps' = Set.fromList (map (uncurry rcpt) rcps)
     in newPush sdr (unsafeRange rcps') pload
