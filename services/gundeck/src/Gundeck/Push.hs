@@ -183,10 +183,10 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
     isOrigin = psh ^. pushOrigin == userId pres &&
                psh ^. pushOriginConnection == Just (connId pres)
 
-    okByPushWhitelist = whitelistExists && isWhitelisted
+    okByPushWhitelist = if whitelistExists then isWhitelisted else True
       where
         whitelist = psh ^. pushConnections
-        whitelistExists = Set.null whitelist
+        whitelistExists = not $ Set.null whitelist
         isWhitelisted = connId pres `Set.member` whitelist
 
     okByRecipientWhitelist :: Bool
