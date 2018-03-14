@@ -95,10 +95,10 @@ fast:
 
 .PHONY: test
 test: fast
-	keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV) --delay 3000
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
 
 test-%: fast
-	keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV) --delay 3000
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
 
 .PHONY: db
 db: db-reset

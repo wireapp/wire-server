@@ -2,7 +2,7 @@
 
 set -eo pipefail
 
-USAGE="$0 <test-executable>"
+USAGE="$0 <test-executable> [args...]"
 
 EXE=${1:?$USAGE}
 
