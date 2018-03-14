@@ -219,7 +219,7 @@ pushMany numUsers useBulkPush gu ca _ _ = do
             notifIds <- replicateM (numUsers - 1) randomId
             let pushes = pushCannon <$> zip notifIds (zip uids (ConnId <$> connIds))
             -- TODO: send one notification to more than one push target sometimes.
-            sendBulkPush ca $ BulkPushRequest pushes
+            sendBulkPushCannon ca $ BulkPushRequest pushes
             -- TODO: inspect response.
         else (sendPush gu . pushGundeck uid) `mapM_` uids
     liftIO $ do
@@ -890,8 +890,8 @@ sendPush :: Gundeck -> Push -> Http ()
 sendPush gu push =
     post ( runGundeck gu . path "i/push" . json [push] ) !!! const 200 === statusCode
 
-sendBulkPush :: Cannon -> BulkPushRequest -> Http ()
-sendBulkPush ca pushes =
+sendBulkPushCannon :: Cannon -> BulkPushRequest -> Http ()
+sendBulkPushCannon ca pushes =
     post ( runCannon ca . path "i/bulkpush" . json pushes ) !!! const 200 === statusCode
 
 buildPush :: UserId -> [(UserId, [ClientId])] -> List1 Object -> Push

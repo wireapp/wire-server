@@ -116,18 +116,17 @@ bulkSend uri req = (uri,) <$> ((Right <$> bulkSend' uri req) `catch` (pure . Lef
 
 bulkSend' :: URI -> BulkPushRequest -> Gundeck BulkPushResponse
 bulkSend' uri (encode -> jsbody) = do
-    req <- Http.setUri empty (fromURI uri)
+    req <- ( check
+           . method POST
+           . contentJson
+           . lbytes jsbody
+           . timeout 3000 -- ms
+           ) <$> Http.setUri empty (fromURI uri)
     try (submit req) >>= \case
         Left  e -> throwM (e :: SomeException)
         Right r -> decodeBulkResp $ responseBody r
   where
-    submit req = recovering (limitRetries 1) rpcHandlers $ const
-        (rpc' "cannon" (check req)
-            ( method POST
-            . contentJson
-            . lbytes jsbody
-            . timeout 3000 -- ms
-            ))
+    submit req = recovering (limitRetries 1) rpcHandlers $ const (rpc' "cannon" req id)
 
     check req = req { Http.checkResponse = \rq rs ->
         when (responseStatus rs /= status200) $
