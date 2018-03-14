@@ -41,6 +41,7 @@ import qualified Data.Set                     as Set
 import qualified Data.Map                     as Map
 import qualified Gundeck.Presence.Data        as Presence
 import qualified Network.HTTP.Client.Internal as Http
+import qualified Network.URI                  as URI
 import qualified System.Logger.Class          as Log
 
 -- | Send a 'Notification's to associated 'Presence's.  Send at most one request to each Cannon.
@@ -109,7 +110,7 @@ fanOut
     groupByURI = groupAssoc . fmap (\(notif, (uri, prc)) -> (uri, (notif, prc)))
 
     pullUri :: (notif, [Presence]) -> [(notif, (URI, Presence))]
-    pullUri (notif, prcs) = (notif,) . (resource &&& id) <$> prcs
+    pullUri (notif, prcs) = (notif,) . (bulkresource &&& id) <$> prcs
 
 bulkSend :: URI -> BulkPushRequest -> Gundeck (URI, Either SomeException BulkPushResponse)
 bulkSend uri req = (uri,) <$> ((Right <$> bulkSend' uri req) `catch` (pure . Left))
@@ -190,7 +191,7 @@ mkPresencesByCannon prcs uri = maybe (throwM err) pure $ Map.lookup uri mp
     err = ErrorCall "internal error in Gundeck: invalid URL in bulkpush result"
 
     mp :: Map.Map URI [Presence]
-    mp = foldl' collect mempty $ (resource &&& id) <$> prcs
+    mp = foldl' collect mempty $ (bulkresource &&& id) <$> prcs
 
     collect :: Map.Map URI [Presence] -> (URI, Presence) -> Map.Map URI [Presence]
     collect mp' (uri', prc) = Map.alter (go prc) uri' mp'
@@ -208,6 +209,11 @@ mkPresenceByPushTarget prcs ptarget = maybe (throwM err) pure $ Map.lookup ptarg
 
     mp :: Map.Map PushTarget Presence
     mp = Map.fromList $ ((userId &&& connId) &&& id) <$> prcs
+
+
+{-# INLINE bulkresource #-}
+bulkresource :: Presence -> URI
+bulkresource = URI . (\x -> x { URI.uriPath = "/i/bulkpush" }) . fromURI . resource
 
 
 -- TODO: a Map-based implementation would be faster.  do we want to take the time and benchmark the
