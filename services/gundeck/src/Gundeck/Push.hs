@@ -66,12 +66,12 @@ push (req ::: _) = do
     ps   :: [Push] <- fromBody req (Error status400 "bad-request")
     bulk :: Bool   <- view (options . optSettings . setBulkPush)
     rs             <- if bulk
-                      then (Right <$> pushAll ps) `catch` (pure . Left . show @SomeException)
-                      else fmapL show <$> pushAny ps
+                      then (Right <$> pushAll ps) `catch` (pure . Left . Seq.singleton)
+                      else pushAny ps
     case rs of
         Right () -> return empty
         Left exs -> do
-            forM_ exs $ Log.err . msg . (val "Push failed: " +++)
+            forM_ exs $ Log.err . msg . (val "Push failed: " +++) . show
             throwM (Error status500 "server-error" "Server Error")
 
 -- | Send individual HTTP requests to cannon for every device and notification.  This should go away
