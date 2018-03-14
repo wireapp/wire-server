@@ -15,8 +15,8 @@ function kill_all() {
 }
 
 function stop_nicely() {
-    trap "kill_all" INT
-    kill -2 $(pgrep -f integration.yaml) $(pgrep -f ${EXE}) &> /dev/null
+    trap "kill_all" INT EXIT TERM ERR
+    kill -2 $(pgrep -f integration.yaml) &> /dev/null
     sleep 1
 }
 
