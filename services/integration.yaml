@@ -28,5 +28,5 @@ provider:
   privateKey: test/resources/key.pem
   publicKey: test/resources/pubkey.pem
   cert: test/resources/cert.pem
-  botHost: 127.0.0.1
+  botHost: https://127.0.0.1
   botPort: 9000
