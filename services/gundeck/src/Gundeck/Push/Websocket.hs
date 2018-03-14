@@ -49,7 +49,7 @@ import qualified System.Logger.Class          as Log
 bulkPush :: [(Notification, [Presence])] -> Gundeck [(NotificationId, [Presence])]
 bulkPush notifs = do
     let reqs = fanOut notifs
-    flbck <- flowBack reqs <$> (uncurry bulkSend `mapM` reqs)
+    flbck <- flowBack <$> (uncurry bulkSend `mapM` reqs)
 
     let -- lookup by 'URI' can fail iff we screwed up URI handling in this module.
         presencesByCannon = mkPresencesByCannon . mconcat $ snd <$> notifs
@@ -140,20 +140,23 @@ bulkSend' uri (encode -> jsbody) = do
     decodeBulkResp (Just lbs) = either err pure $ eitherDecode lbs
       where err = throwM . ErrorCall . ("bad response body from cannon: " <>)
 
+-- | NOTE: 'PushTarget's may occur several times both in the "lost" and in the "delivered" list.
+-- This happens iff there are several 'Notifcation's for the same 'PushTarget', and some of them are
+-- delivered while others aren't.
 data FlowBack = FlowBack
     { flowBackBadCannons :: [(URI, SomeException)]  -- ^ list of cannons that failed to respond with status 200
     , flowBackLostPrcs   :: [PushTarget]            -- ^ 401 inside the body (for one presence)
     , flowBackDelivered  :: [(NotificationId, PushTarget)]
     }
 
-flowBack :: [(URI, BulkPushRequest)] -> [(URI, Either SomeException BulkPushResponse)] -> FlowBack
-flowBack _re99qs rawresps = FlowBack broken gone delivered
+flowBack :: [(URI, Either SomeException BulkPushResponse)] -> FlowBack
+flowBack rawresps = FlowBack broken gone delivered
   where
     broken :: [(URI, SomeException)]
     broken
         = catLefts rawresps
 
-    gone :: [PushTarget]  -- (may contain some values more than once.)
+    gone :: [PushTarget]
     gone
         = map (snd . snd)
         . filter (\(st, _) -> case st of
@@ -171,7 +174,7 @@ flowBack _re99qs rawresps = FlowBack broken gone delivered
 
     responsive :: [(PushStatus, (NotificationId, PushTarget))]
     responsive = map (\(n, t, s) -> (s, (n, t)))
-               . mconcat . mconcat . fmap fromBulkPushResponse . catRights $ snd <$> rawresps
+               . mconcat . fmap fromBulkPushResponse . catRights $ snd <$> rawresps
 
     catRights :: [Either a b] -> [b]
     catRights []             = []

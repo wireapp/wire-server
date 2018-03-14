@@ -31,7 +31,7 @@ instance FromJSON PushStatus
 instance ToJSON PushStatus
 
 data BulkPushResponse = BulkPushResponse
-    { fromBulkPushResponse :: ![[(NotificationId, PushTarget, PushStatus)]]
+    { fromBulkPushResponse :: ![(NotificationId, PushTarget, PushStatus)]
     } deriving ( Show
                , Generic
                )

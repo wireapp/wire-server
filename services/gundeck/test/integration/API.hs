@@ -781,8 +781,8 @@ connectUser gu ca uid con = do
     return ch
 
 -- | Sort 'PushToken's based on the actual 'token' values.
-sortPushTokens:: [PushToken] -> [PushToken]
-sortPushTokens= sortBy (compare `on` view token)
+sortPushTokens :: [PushToken] -> [PushToken]
+sortPushTokens = sortBy (compare `on` view token)
 
 wsRun :: Cannon -> Gundeck -> UserId -> ByteString -> Int -> WS.ClientApp () -> Http (Async ())
 wsRun ca gu uid con numPres app = do

@@ -148,7 +148,7 @@ bulkpush req =
 -- | The typed part of 'bulkpush'.
 bulkpush' :: BulkPushRequest -> Cannon BulkPushResponse
 bulkpush' (BulkPushRequest notifs) =
-    BulkPushResponse . zipWith compileResp notifs <$> (uncurry doNotif `mapM` notifs)
+    BulkPushResponse . mconcat . zipWith compileResp notifs <$> (uncurry doNotif `mapM` notifs)
   where
     doNotif :: Notification -> [(UserId, ConnId)] -> Cannon [PushStatus]
     doNotif (pure . encode -> notif) = mapM (singlePush notif)
