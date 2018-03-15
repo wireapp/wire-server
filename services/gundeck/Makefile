@@ -1,14 +1,13 @@
 SHELL         := /usr/bin/env bash
 NAME          := gundeck
-DIST          ?= ./dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT        := $(DIST)/$(NAME)-integration
-EXE_TESTS     := dist/$(NAME)-tests
-EXE_BENCH     := dist/$(NAME)-bench
-EXE_SCHEMA    := $(DIST)/$(NAME)-schema
+EXE_IT        := ../../dist/$(NAME)-integration
+EXE_TESTS     := ../../dist/$(NAME)-tests
+EXE_BENCH     := ../../dist/$(NAME)-bench
+EXE_SCHEMA    := ../../dist/$(NAME)-schema
 DEB           := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
@@ -25,19 +24,19 @@ default: fast
 
 .PHONY: init
 init:
-	mkdir -p dist
+	mkdir -p dist ../../dist
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
-	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" dist/
-	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" dist/
+	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=../../dist
+	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" ../../dist/
+	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" ../../dist/
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast
-	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" dist/
-	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" dist/
+	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=../../dist --fast
+	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" ../../dist/
+	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" ../../dist/
 
 .PHONY: compile
 compile:

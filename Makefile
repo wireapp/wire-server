@@ -27,7 +27,7 @@ services:
 	$(foreach service,$(HASKELL_SERVICES),$(MAKE) -C services/$(service);)
 
 .PHONY: integration
-integration: services
+integration: fast
 	$(MAKE) -C services/cargohold integration-fake-aws
 	$(MAKE) -C services/galley integration
 	$(MAKE) -C services/brig integration

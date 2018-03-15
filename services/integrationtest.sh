@@ -29,7 +29,6 @@ function kill_gracefully() {
 }
 
 trap "kill_gracefully; kill_all" INT TERM ERR
-#trap "kill_all" EXIT
 
 blue=6
 white=7

@@ -18,7 +18,7 @@ default: fast
 all: clean install
 
 init:
-	mkdir -p dist
+	mkdir -p dist ../../dist
 
 .PHONY: clean
 clean:
@@ -28,11 +28,11 @@ clean:
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist
+	stack install --pedantic --test --local-bin-path=../../dist
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --local-bin-path=dist --fast
+	stack install --pedantic --test --local-bin-path=../../dist --fast
 
 .PHONY:
 compile:

@@ -1,12 +1,11 @@
 SHELL         := /usr/bin/env bash
 NAME          := galley
-DIST          ?= ./dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT        := $(DIST)/$(NAME)-integration
-EXE_SCHEMA    := $(DIST)/$(NAME)-schema
+EXE_IT        := ../../dist/$(NAME)-integration
+EXE_SCHEMA    := ../../dist/$(NAME)-schema
 DEB           := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
@@ -24,7 +23,7 @@ default: fast
 all: clean install
 
 init:
-	mkdir -p dist
+	mkdir -p dist ../../dist
 
 .PHONY: clean
 clean:
@@ -34,11 +33,11 @@ clean:
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist
+	stack install --pedantic --test --local-bin-path=../../dist
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --local-bin-path=dist --fast
+	stack install --pedantic --test --local-bin-path=../../dist --fast
 
 .PHONY:
 compile:
