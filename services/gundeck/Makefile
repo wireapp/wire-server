@@ -22,7 +22,7 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: clean install
+default: fast
 
 .PHONY: init
 init:
@@ -31,6 +31,12 @@ init:
 .PHONY: install
 install: init
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" dist/
+	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" dist/
+
+.PHONY: fast
+fast: init
+	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast
 	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" dist/
 	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" dist/
 
@@ -84,17 +90,17 @@ bench: install
 	$(EXE_BENCH) --output dist/bench/result.html
 
 .PHONY: integration
-integration: install
+integration: fast
 	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
 
 .PHONY: integration-list
-integration-list: install
+integration-list: fast
 	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
 
-integration-%: install
+integration-%: fast
 	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
 
-integration-fake-aws: install
+integration-fake-aws: fast
 	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "!/RealAWS/"
 
 .PHONY: db

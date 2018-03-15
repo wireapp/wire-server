@@ -20,7 +20,7 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: all
+default: fast
 
 all: clean install
 
@@ -36,6 +36,10 @@ clean:
 .PHONY: install
 install: init
 	stack install --pedantic --test --local-bin-path=dist
+
+.PHONY: fast
+fast: init
+	stack install --pedantic --test --local-bin-path=dist --fast
 
 .PHONY:
 compile:
@@ -77,28 +81,17 @@ $(DEB_JOURNALER):
 	 --output-dir=dist
 
 .PHONY: integration
-integration: install
+integration: fast
 	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
 
-integration-list:
+integration-list: fast
 	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
 
-integration-%:
+integration-%: fast
 	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
-
-.PHONY: fast
-fast:
-	stack install --local-bin-path=dist --fast
-
-.PHONY: test
-test: fast
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
-
-test-%: fast
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
 
 .PHONY: db
 db: db-reset

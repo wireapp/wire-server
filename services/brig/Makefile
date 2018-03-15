@@ -21,7 +21,7 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: clean install
+default: fast
 
 init:
 	mkdir -p dist
@@ -29,6 +29,10 @@ init:
 .PHONY: install
 install: init
 	stack install --pedantic --test --local-bin-path=dist
+
+.PHONY: fast
+fast: init
+	stack install --pedantic --test --local-bin-path=dist --fast
 
 .PHONY: clean
 clean:
@@ -89,19 +93,6 @@ integration-list: install
 
 integration-%: db-migrate index-reset
 	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
-
-
-.PHONY: fast
-fast:
-	stack install --fast --local-bin-path=dist
-
-.PHONY: test
-test: fast
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
-
-test-%: fast
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
-
 
 .PHONY: db
 db: db-reset

@@ -13,7 +13,7 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: all
+default: fast
 
 all: clean install
 
@@ -29,6 +29,10 @@ clean:
 .PHONY: install
 install: init
 	stack install --pedantic --test --local-bin-path=dist
+
+.PHONY: fast
+fast: init
+	stack install --pedantic --test --local-bin-path=dist --fast
 
 .PHONY:
 compile:
