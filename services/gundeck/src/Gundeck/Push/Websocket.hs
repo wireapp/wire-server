@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -14,6 +15,8 @@ import Control.Exception (ErrorCall(ErrorCall))
 import Control.Exception.Enclosed (handleAny)
 import Control.Monad (forM, forM_, foldM, when)
 import Control.Monad.Catch (MonadThrow, SomeException (..), throwM, catch, try)
+import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Reader (MonadReader)
 import Control.Lens ((^.), (%~), _2, view)
 import Control.Retry
 import Data.Aeson (encode, eitherDecode)
@@ -70,19 +73,9 @@ bulkPush notifs = do
     -- concise now, and log info about lists of presences.  for now i'll leave this exactly(?) as
     -- in the old code.
 
-    forM_ cannonsGone $ \(_uri, (_err, prcs)) -> do
-        view monitor >>= Metrics.counterAdd (fromIntegral $ length prcs)
-            (Metrics.path "push.ws.unreachable")
-        forM_ prcs $ \prc ->
-            Log.info $ logPresence prc
-                ~~ Log.field "created_at" (ms $ createdAt prc)
-                ~~ Log.msg (val "WebSocket presence unreachable: " +++ toByteString (resource prc))
-
-    forM_ prcsGone $ \prc ->
-        Log.debug $ logPresence prc ~~ Log.msg (val "WebSocket presence gone")
-
-    forM_ (snd <$> successes) $ \prc ->
-        Log.debug $ logPresence prc ~~ Log.msg (val "WebSocket push success")
+    logCannonsGone `mapM_` cannonsGone
+    logPrcsGone    `mapM_` prcsGone
+    logSuccesses   `mapM_` successes
 
     Presence.deleteAll =<< do
         now <- posixTime
@@ -92,6 +85,23 @@ bulkPush notifs = do
         pure deletions
 
     pure (groupAssoc successes)
+
+
+logCannonsGone :: (MonadIO m, MonadReader Env m, Log.MonadLogger m)
+               => (uri, (err, [Presence])) -> m ()
+logCannonsGone (_uri, (_err, prcs)) = do
+        view monitor >>= Metrics.counterAdd (fromIntegral $ length prcs)
+            (Metrics.path "push.ws.unreachable")
+        forM_ prcs $ \prc ->
+            Log.info $ logPresence prc
+                ~~ Log.field "created_at" (ms $ createdAt prc)
+                ~~ Log.msg (val "WebSocket presence unreachable: " +++ toByteString (resource prc))
+
+logPrcsGone :: Log.MonadLogger m => Presence -> m ()
+logPrcsGone prc = Log.debug $ logPresence prc ~~ Log.msg (val "WebSocket presence gone")
+
+logSuccesses :: Log.MonadLogger m => (a, Presence) -> m ()
+logSuccesses (_, prc) = Log.debug $ logPresence prc ~~ Log.msg (val "WebSocket push success")
 
 fanOut :: [(Notification, [Presence])] -> [(URI, BulkPushRequest)]
 fanOut
