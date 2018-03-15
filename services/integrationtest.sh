@@ -5,6 +5,8 @@ USAGE="$0 <test-executable> [args...]"
 EXE=${1:?$USAGE}
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PARENT_PID=$$
+EXIT_STATUS_LOCATION=/dev/shm/integration_test_rc
+echo 1 >${EXIT_STATUS_LOCATION}
 
 function kill_all() {
     # kill the process tree of the PARENT_PID
@@ -26,8 +28,8 @@ function kill_gracefully() {
     kill $(list_descendants $PARENT_PID) &> /dev/null
 }
 
-trap "kill_gracefully" INT TERM ERR
-trap "kill_all" EXIT
+trap "kill_gracefully; kill_all" INT TERM ERR
+#trap "kill_all" EXIT
 
 blue=6
 white=7
@@ -58,6 +60,7 @@ run cargohold ${purpleish} Info
 
 sleep 3
 
-${EXE} "${@:2}" && kill_gracefully || kill_gracefully &
+${EXE} "${@:2}" && echo 0 > ${EXIT_STATUS_LOCATION} && kill_gracefully || kill_gracefully &
 
 wait
+exit $(<${EXIT_STATUS_LOCATION})
