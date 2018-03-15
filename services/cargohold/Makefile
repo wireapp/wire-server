@@ -61,6 +61,14 @@ $(DEB_IT):
 integration: install
 	LOG_LEVEL=Info keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV)
 
+integration-%:
+	stack install --fast --local-bin-path=dist
+	LOG_LEVEL=Debug keiretsu --run '$(EXE_IT) --pattern="$*"; sleep 1' --env $(KEIRETSU_ENV)
+
+integration-fake-aws:
+	stack install --fast --local-bin-path=dist
+	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="!/RealAWS/"; sleep 1' --env $(KEIRETSU_ENV)
+
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
 	 > .metadata
