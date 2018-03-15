@@ -18,6 +18,7 @@ import Data.Id
 import Data.Int
 import Data.Monoid ((<>))
 import Data.Text (pack)
+import Data.UUID.V4 (nextRandom)
 import Safe (headDef)
 import Data.ByteString.Lazy (toStrict)
 import Data.ProtoLens.Encoding
@@ -49,9 +50,10 @@ assertQueue :: MonadIO m => String -> Maybe Aws.Env -> (String -> Maybe E.TeamEv
 assertQueue label (Just env) check = liftIO $ Aws.execute env $ fetchMessage label check
 assertQueue _     Nothing    _     = return ()
 
-assertQueue' :: MonadIO m => String -> Int -> Maybe Aws.Env -> (String -> Maybe E.TeamEvent -> IO ()) -> m ()
-assertQueue' label timeout (Just env) check = liftIO $ Aws.execute env $ awaitMessage label timeout check
-assertQueue' _     _       Nothing    _     = return ()
+-- Try to assert an event in the queue for a `timeout` amount of seconds
+tryAssertQueue :: MonadIO m => Int -> String -> Maybe Aws.Env -> (String -> Maybe E.TeamEvent -> IO ()) -> m ()
+tryAssertQueue timeout label (Just env) check = liftIO $ Aws.execute env $ awaitMessage label timeout check
+tryAssertQueue _       _     Nothing    _     = return ()
 
 assertQueueEmpty :: MonadIO m => Maybe Aws.Env -> m ()
 assertQueueEmpty (Just env) = liftIO $ Aws.execute env ensureNoMessages
@@ -103,16 +105,11 @@ fetchMessage label callback = do
 awaitMessage :: String -> Int -> (String -> Maybe E.TeamEvent -> IO()) -> Amazon ()
 awaitMessage label timeout callback = do
     QueueUrl url <- view eventQueue
-    -- TODO: Read all messages
-    tryMatch label timeout url callback -- (headDef Nothing events)
+    tryMatch label timeout url callback
 
-type Err = String
-type Success = String
+newtype MatchFailure = MatchFailure (Maybe E.TeamEvent, SomeException)
+type MatchSuccess = String
 
--- tryMatch :: (MonadIO m, MonadCatch m, AWS.MonadAWS m)
---          => Text
---          -> (String -> Maybe E.TeamEvent -> IO())
---          -> m (Either Err Success)    
 tryMatch :: String
          -> Int
          -> Text
@@ -120,41 +117,38 @@ tryMatch :: String
          -> Amazon ()    
 tryMatch label tries url callback = go tries
   where
-    go 0 = error "no journaled notification found fail!"
+    go 0 = liftIO (assertFailure $ label <> ": No matching team event found")
     go n = do
-        msgs   <- view SQS.rmrsMessages <$> AWS.send (receive 10 url)
-        events <- mapM parseMessage msgs
-        liftIO $ print ("Callback with: " ++ show events)
-        anyOK <- checkAnyOK . zip msgs <$> mapM check events
-        liftIO $ print anyOK
-        case anyOK of
-            [] -> go (n - 1)
-            xs -> do
-                forM_ xs $ \(m,evt) -> do
-                    for_ (m ^. SQS.mReceiptHandle) (void . AWS.send . SQS.deleteMessage url)
-                    liftIO $ print ("deleted: " ++ show evt)
-                -- go (n - 1)
-        liftIO $ threadDelay (1 * 10^(6 :: Int))
+        msgs      <- readAllUntilEmpty
+        (bad, ok) <- splitResults <$> mapM (check <=< parseDeleteMessage url) msgs
+        -- Requeue all failed checks
+        forM_ bad $ \(MatchFailure (evt, exp)) -> for_ evt queueEvent
+        -- If no success, continue!
+        when (null $ ok) $ do
+            liftIO $ threadDelay (10^(6 :: Int))
+            go (n - 1)
 
-    check :: Maybe E.TeamEvent -> Amazon (Either Err Success)
+    check :: Maybe E.TeamEvent -> Amazon (Either MatchFailure String)
     check e = do
         liftIO $ callback label e
-        liftIO $ print ("Successfully checked: " ++ show e)
         return (Right $ show e)
       `catchAll` \ex -> case asyncExceptionFromException ex of
         Just  x -> throwM (x :: SomeAsyncException)
-        Nothing -> return (Left $ show ex)
+        Nothing -> return . Left $ MatchFailure (e, ex)
 
-    checkAnyOK :: [(SQS.Message, Either Err Success)] -> [(SQS.Message, Success)]
-    checkAnyOK []     = []
-    checkAnyOK (x:xs) = case x of
-                            (m, Right r) -> (m, r) : checkAnyOK xs
-                            _            -> checkAnyOK xs
+    splitResults :: [Either MatchFailure String] -> ([MatchFailure], [String])
+    splitResults xs = go' xs ([], [])
+      where
+        go' []     acc      = acc
+        go' (x:xs) (ls, rs) = case x of
+                            Left l  -> go' xs (l:ls, rs  )
+                            Right r -> go' xs (ls  , r:rs)
 
+-- Note that Amazon's purge queue is a bit incovenient for testing purposes because
+-- it may be delayed in ~60 seconds which causes messages that are published later
+-- to be (unintentionally) deleted
 purgeQueue :: Amazon ()
-purgeQueue = do
-    QueueUrl url <- view eventQueue
-    void $ AWS.send (SQS.purgeQueue url)
+purgeQueue = void $ readAllUntilEmpty
 
 receive :: Int -> Text -> SQS.ReceiveMessage
 receive n url = SQS.receiveMessage url
@@ -162,21 +156,45 @@ receive n url = SQS.receiveMessage url
               . set SQS.rmMaxNumberOfMessages (Just n)
               . set SQS.rmVisibilityTimeout (Just 1)
 
+queueEvent :: E.TeamEvent -> Amazon ()
+queueEvent e = do
+    QueueUrl url <- view eventQueue
+    rnd <- liftIO nextRandom
+    void $ AWS.send (req url rnd)
+  where
+    event = Text.decodeLatin1 $ B64.encode $ encodeMessage e
+    req url dedup = SQS.sendMessage url event
+                  & SQS.smMessageGroupId .~ Just "team.events"
+                  & SQS.smMessageDeduplicationId .~ Just (UUID.toText dedup)
+
+readAllUntilEmpty :: Amazon [SQS.Message]
+readAllUntilEmpty = do
+    QueueUrl url <- view eventQueue
+    msgs <- view SQS.rmrsMessages <$> AWS.send (receive 10 url)
+    readUntilEmpty msgs url msgs
+  where
+    readUntilEmpty acc _    []   = return acc
+    readUntilEmpty acc url  msgs = do
+        forM_ msgs $ deleteMessage url
+        newMsgs <- view SQS.rmrsMessages <$> AWS.send (receive 10 url)
+        readUntilEmpty (acc ++ newMsgs) url newMsgs
+
+deleteMessage :: Text -> SQS.Message -> Amazon ()
+deleteMessage url m = do
+    for_ (m ^. SQS.mReceiptHandle)
+         (void . AWS.send . SQS.deleteMessage url)
+
 parseDeleteMessage :: Text -> SQS.Message -> Amazon (Maybe E.TeamEvent)
 parseDeleteMessage url m = do
-    evt <- parseMessage m
-    for_ (m ^. SQS.mReceiptHandle) (void . AWS.send . SQS.deleteMessage url)
-    return evt
-    
-parseMessage :: SQS.Message -> Amazon (Maybe E.TeamEvent)
-parseMessage m =
-    case (>>= decodeMessage) . B64.decode . Text.encodeUtf8 <$> (m^.SQS.mBody) of
+    evt <- case (>>= decodeMessage) . B64.decode . Text.encodeUtf8 <$> (m^.SQS.mBody) of
         Just (Right e) -> do
             trace $ msg $ val "SQS event received"
             return (Just e)
         _ -> do
-            err . msg $ val "Failed to parse SQS event"
+            err . msg $ val "Failed to parse SQS message or event"
             return Nothing
+    deleteMessage url m
+    return evt
 
 initHttpManager :: IO Manager
 initHttpManager = do
@@ -195,6 +213,7 @@ initHttpManager = do
 
 mkAWSEnv :: JournalOpts -> IO Aws.Env
 mkAWSEnv opts = do
+    print opts
     l   <- L.new $ L.setOutput L.StdOut . L.setFormat Nothing $ L.defSettings
     mgr <- initHttpManager
     Aws.mkEnv l mgr opts

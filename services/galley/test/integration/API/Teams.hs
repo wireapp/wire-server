@@ -552,7 +552,7 @@ testDeleteBindingTeam g b c a = do
                . zConn "conn"
                . json (newTeamDeleteData (PlainTextPassword Util.defPassword))
                ) !!! const 202 === statusCode
-        
+
         checkUserDeleteEvent owner wsOwner
         checkUserDeleteEvent (mem1^.userId) wsMember1
         checkUserDeleteEvent (mem2^.userId) wsMember2
@@ -561,17 +561,16 @@ testDeleteBindingTeam g b c a = do
         checkTeamDeleteEvent tid wsMember1
         checkTeamDeleteEvent tid wsMember2
 
-        WS.assertNoEvent timeout [wsExtern]
-        -- TODO: Again, depending on the timing, a user _could_ be deleted before the
-        --       the team gets deleted
-        let jt = 5 -- 5 second timeout
-        assertQueue' "team delete, eventually" jt a tDelete
-        assertQueue' "team joined, should be there long time" jt a $ tUpdate 3 [owner]
+        WS.assertNoEvent (1 # Second) [wsExtern]
+        -- Reversing the order of tests here just to check that `tryAssertQueue`
+        -- does the right thing
+        tryAssertQueue 10 "team delete, should be there" a tDelete
+        tryAssertQueue 10 "team joined, should be there long time" a $ tUpdate 3 [owner]
 
-    forM_ [owner, (mem1^.userId), (mem2^.userId)] $ \uid -> do
-        -- Wait until the users are marked as deleted
-        void $ retryWhileN 20 (not . id) $ isUserDeleted b uid
-        Util.ensureDeletedState b True extern uid
+    forM_ [owner, (mem1^.userId), (mem2^.userId)] $
+        -- Ensure users are marked as deleted; since we already
+        -- received the event, should _really_ be deleted
+        Util.ensureDeletedState b True extern
 
 testDeleteTeamConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testDeleteTeamConv g b c _ = do
@@ -802,13 +801,13 @@ postCryptoBroadcastMessageJson g b c a = do
     (bob,    bc) <- randomUserWithClient b (someLastPrekeys !! 1)
     (charlie,cc) <- randomUserWithClient b (someLastPrekeys !! 2)
     (dan,    dc) <- randomUserWithClient b (someLastPrekeys !! 3)
+    connectUsers b alice (list1 charlie [dan])
     tid1 <- createTeamInternal g "foo" alice
     assertQueue "" a tActivate
     addTeamMemberInternal g tid1 $ newTeamMember bob (symmPermissions [])
     assertQueue "" a $ tUpdate 2 [alice]
     _ <- createTeamInternal g "foo" charlie
     assertQueue "" a tActivate
-    connectUsers b alice (list1 charlie [dan])
     -- A second client for Alice
     ac2 <- randomClient b alice (someLastPrekeys !! 4)
     -- Complete: Alice broadcasts a message to Bob,Charlie,Dan and herself
@@ -838,11 +837,11 @@ postCryptoBroadcastMessageJson2 g b c a = do
     (alice,  ac) <- randomUserWithClient b (someLastPrekeys !! 0)
     (bob,    bc) <- randomUserWithClient b (someLastPrekeys !! 1)
     (charlie,cc) <- randomUserWithClient b (someLastPrekeys !! 2)
+    connectUsers b alice (list1 charlie [])
     tid1 <- createTeamInternal g "foo" alice
     assertQueue "" a tActivate
     addTeamMemberInternal g tid1 $ newTeamMember bob (symmPermissions [])
     assertQueue "" a $ tUpdate 2 [alice]
-    connectUsers b alice (list1 charlie [])
 
     let t = 3 # Second -- WS receive timeout
     -- Missing charlie
@@ -891,13 +890,13 @@ postCryptoBroadcastMessageProto g b c a = do
     (bob,    bc) <- randomUserWithClient b (someLastPrekeys !! 1)
     (charlie,cc) <- randomUserWithClient b (someLastPrekeys !! 2)
     (dan,    dc) <- randomUserWithClient b (someLastPrekeys !! 3)
+    connectUsers b alice (list1 charlie [dan])
     tid1 <- createTeamInternal g "foo" alice
     assertQueue "" a tActivate
     addTeamMemberInternal g tid1 $ newTeamMember bob (symmPermissions [])
     assertQueue "" a $ tUpdate 2 [alice]
     _ <- createTeamInternal g "foo" charlie
     assertQueue "" a tActivate
-    connectUsers b alice (list1 charlie [dan])
     -- Complete: Alice broadcasts a message to Bob,Charlie,Dan
     let t = 1 # Second -- WS receive timeout
     let ciphertext = encodeCiphertext "hello bob"
