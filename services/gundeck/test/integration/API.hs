@@ -136,7 +136,7 @@ tests s = testGroup "Gundeck integration tests" [
 -----------------------------------------------------------------------------
 -- Push
 
-addUser :: TestSignature (UserId, ByteString)
+addUser :: TestSignature (UserId, ConnId)
 addUser gu ca _ _ = registerUser gu ca
 
 removeUser :: TestSignature ()
@@ -190,7 +190,7 @@ removeStalePresence gu ca _ _ = do
     ensurePresent gu uid 1
     sendPush gu (push uid [uid])
     m <- liftIO newEmptyMVar
-    w <- wsRun ca gu uid (ConnId con) 1 (wsCloser m)
+    w <- wsRun ca gu uid con 1 (wsCloser m)
     liftIO $ void $ putMVar m () >> wait w
     sendPush gu (push uid [uid])
     ensurePresent gu uid 0
@@ -219,7 +219,7 @@ singleUserPush gu ca _ _ = do
 cannonBulkPush :: Int -> Int -> TestSignature ()
 cannonBulkPush numUsers numConnsPerUser gu ca _ _ = do
     uids     <- replicateM numUsers randomId
-    connIds  <- replicateM numUsers $ replicateM numConnsPerUser (ConnId <$> randomConnId)
+    connIds  <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
     chs      <- zipWithM (connectUserMany gu ca) uids connIds
     notifIds :: [NotificationId] <- replicateM numUsers randomId
     let ptrgts :: [[PushTarget]] = zipWith (\u cs -> (u,) <$> cs) uids connIds
@@ -278,7 +278,7 @@ sendSingleUserNoPiggyback gu ca _ _ = do
         assertBool "Push message received" (isNothing msg)
   where
     pload       = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
-    push u us d = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId d)
+    push u us d = newPush u (toRecipients us) pload & pushOriginConnection .~ Just d
 
 sendMultipleUsers :: TestSignature ()
 sendMultipleUsers gu ca _ _ = do
@@ -347,7 +347,7 @@ targetConnectionPush gu ca _ _ = do
         assertBool "Unexpected push message received" (isNothing e2)
   where
     pload    = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
-    push u t = newPush u (toRecipients [u]) pload & pushConnections .~ Set.singleton (ConnId t)
+    push u t = newPush u (toRecipients [u]) pload & pushConnections .~ Set.singleton t
 
 targetClientPush :: TestSignature ()
 targetClientPush gu ca _ _ = do
@@ -785,7 +785,7 @@ testLongPushToken g _ b _ = do
 
 -- * Helpers
 
-registerUser :: Gundeck -> Cannon -> Http (UserId, ByteString)
+registerUser :: Gundeck -> Cannon -> Http (UserId, ConnId)
 registerUser gu ca = do
     uid <- randomId
     con <- randomConnId
@@ -798,9 +798,9 @@ ensurePresent gu u n =
     retryWhile ((n /=) . length . decodePresence) (getPresence gu (showUser u)) !!!
         (const n === length . decodePresence)
 
-connectUser :: HasCallStack => Gundeck -> Cannon -> UserId -> ByteString -> Http (TChan ByteString)  -- TODO: retype ByteString to ConnId
+connectUser :: HasCallStack => Gundeck -> Cannon -> UserId -> ConnId -> Http (TChan ByteString)
 connectUser gu ca uid con = do
-    [ch] <- connectUserMany gu ca uid [ConnId con]
+    [ch] <- connectUserMany gu ca uid [con]
     return ch
 
 connectUserMany :: HasCallStack => Gundeck -> Cannon -> UserId -> [ConnId] -> Http [TChan ByteString]
@@ -1004,8 +1004,8 @@ nextNotificationId = Id <$> liftIO next
                      (const (return . isJust))
                      (const UUID.nextUUID)
 
-randomConnId :: MonadIO m => m ByteString
-randomConnId = liftIO $ do
+randomConnId :: MonadIO m => m ConnId
+randomConnId = liftIO $ ConnId <$> do
     r <- randomIO :: IO Word32
     return $ C.pack $ show r
 
