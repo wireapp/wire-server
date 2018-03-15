@@ -16,7 +16,7 @@ aws:
   queueName: integration-gundeck-events
   region: eu-west-1
   account: "123456789012" # Default account nr used by localstack
-  arnEnv: test
+  arnEnv: integration
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   snsEndpoint: http://localhost:4575 # https://sns.eu-west-1.amazonaws.com
 
