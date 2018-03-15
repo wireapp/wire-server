@@ -188,7 +188,8 @@ removeStalePresence gu ca _ _ = do
     ensurePresent gu uid 1
     sendPush gu (push uid [uid])
     m <- liftIO newEmptyMVar
-    w <- wsRun ca gu uid con 1 (wsCloser m)
+    w <- wsRun ca uid con (wsCloser m)
+    wsAssertPresences gu uid 1
     liftIO $ void $ putMVar m () >> wait w
     sendPush gu (push uid [uid])
     ensurePresent gu uid 0
@@ -218,7 +219,7 @@ cannonBulkPush :: Int -> Int -> TestSignature ()
 cannonBulkPush numUsers numConnsPerUser gu ca _ _ = do
     uids     <- replicateM numUsers randomId
     connIds  <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
-    chs      <- zipWithM (connectUserMany gu ca) uids connIds
+    chs      <- connectUsersAndDevices gu ca (zip uids connIds)
     notifIds :: [NotificationId] <- replicateM numUsers randomId
     let ptrgts :: [[PushTarget]] = zipWith (\u cs -> (u,) <$> cs) uids connIds
         pushes :: [(Notification, [PushTarget])] = pushCannon <$> zip notifIds ptrgts
@@ -235,9 +236,9 @@ cannonBulkPush numUsers numConnsPerUser gu ca _ _ = do
         assertEqual "Unexpected response body from Cannon (contents)"
             resp expectResp
 
-        msgs <- let run :: UserId -> [TChan ByteString] -> IO [(UserId, Maybe ByteString)]
-                    run uid = ((uid,) <$$>) . mapM waitForMessage
-                in mconcat <$> zipWithM run uids chs
+        msgs <- let run :: (UserId, [TChan ByteString]) -> IO [(UserId, Maybe ByteString)]
+                    run (uid, connids) = (uid,) <$$> (waitForMessage `mapM` connids)
+                in mconcat <$> run `mapM` chs
         assertions `mapM_` msgs
   where
     assertions :: (UserId, Maybe ByteString) -> IO ()
@@ -798,26 +799,26 @@ ensurePresent gu u n =
 
 connectUser :: HasCallStack => Gundeck -> Cannon -> UserId -> ConnId -> Http (TChan ByteString)
 connectUser gu ca uid con = do
-    [ch] <- connectUserMany gu ca uid [con]
+    [(_, [ch])] <- connectUsersAndDevices gu ca [(uid, [con])]
     return ch
 
-connectUserMany :: HasCallStack => Gundeck -> Cannon -> UserId -> [ConnId] -> Http [TChan ByteString]
-connectUserMany gu ca uid conns = do
-    forM (zip [1..] conns) $ \(numPres, conn) -> do
-        ch <- liftIO $ atomically newTChan
-        _ <- wsRun ca gu uid conn numPres (wsReader ch)
-        pure ch
+connectUsersAndDevices :: HasCallStack => Gundeck -> Cannon -> [(UserId, [ConnId])] -> Http [(UserId, [TChan ByteString])]
+connectUsersAndDevices gu ca uidsAndConnIds = do
+    chs <- forM uidsAndConnIds $ \(uid, conns) -> (uid,) <$> do
+        forM conns $ \conn -> do
+            ch <- liftIO $ atomically newTChan
+            _ <- wsRun ca uid conn (wsReader ch)
+            pure ch
+    (\(uid, conns) -> wsAssertPresences gu uid (length conns)) `mapM_` uidsAndConnIds
+    pure chs
 
 -- | Sort 'PushToken's based on the actual 'token' values.
 sortPushTokens :: [PushToken] -> [PushToken]
 sortPushTokens = sortBy (compare `on` view token)
 
-wsRun :: HasCallStack => Cannon -> Gundeck -> UserId -> ConnId -> Int -> WS.ClientApp () -> Http (Async ())
-wsRun ca gu uid (ConnId con) numPres app = do
-    a <- liftIO $ async $ WS.runClientWith caHost caPort caPath caOpts caHdrs app
-    retryWhile ((numPres /=) . length . decodePresence) (getPresence gu $ showUser uid) !!!
-        (const numPres === length . decodePresence)
-    return a
+wsRun :: HasCallStack => Cannon -> UserId -> ConnId -> WS.ClientApp () -> Http (Async ())
+wsRun ca uid (ConnId con) app = do
+    liftIO $ async $ WS.runClientWith caHost caPort caPath caOpts caHdrs app
   where
     runCan = runCannon ca empty
     caHost = C.unpack $ Http.host runCan
@@ -825,6 +826,11 @@ wsRun ca gu uid (ConnId con) numPres app = do
     caPath = "/await" ++ C.unpack (Http.queryString runCan)
     caOpts = WS.defaultConnectionOptions
     caHdrs = [ ("Z-User", showUser uid), ("Z-Connection", con) ]
+
+wsAssertPresences :: HasCallStack => Gundeck -> UserId -> Int -> Http ()
+wsAssertPresences gu uid numPres = do
+    retryWhile ((numPres /=) . length . decodePresence) (getPresence gu $ showUser uid) !!!
+        (const numPres === length . decodePresence)
 
 wsCloser :: MVar () -> WS.ClientApp ()
 wsCloser m conn = takeMVar m >> WS.sendClose conn C.empty >> putMVar m ()
