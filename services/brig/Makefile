@@ -84,14 +84,14 @@ $(DEB_INDEX): install
 		--output-dir=dist
 
 .PHONY: integration
-integration: db-migrate index-reset
+integration: fast
 	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
 
 .PHONY: integration-list
-integration-list: install
+integration-list: fast
 	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
 
-integration-%: db-migrate index-reset
+integration-%: fast
 	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
 
 .PHONY: db
