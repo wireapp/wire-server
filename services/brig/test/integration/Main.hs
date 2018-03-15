@@ -11,6 +11,7 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Maybe (fromMaybe)
 import Data.Monoid
+import Data.List (foldl', (\\))
 import Data.Text (isSuffixOf, pack)
 import Data.Text.Encoding (decodeLatin1, encodeUtf8)
 import Data.Yaml (decodeFileEither)
@@ -18,7 +19,7 @@ import GHC.Generics
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
-import System.Environment (getArgs)
+import System.Environment (getArgs, withArgs)
 import Test.Tasty
 import Util.Options
 import Util.Options.Common
@@ -104,11 +105,25 @@ runTests iConf bConf = do
 
 main :: IO ()
 main = withOpenSSL $ do
-  (iPath, bPath) <- parseConfigPaths
-  iConf <- join $ handleParseError <$> decodeFileEither iPath
-  bConf <- join $ handleParseError <$> decodeFileEither bPath
+    -- For command line arguments to the configPaths and tasty parser not to interfere,
+    -- split arguments into configArgs and otherArgs
+    args <- getArgs
+    let configArgs = getConfigArgs args
+    let otherArgs = args \\ configArgs
 
-  runTests iConf bConf
+    (iPath, bPath) <- withArgs configArgs parseConfigPaths
+    iConf <- join $ handleParseError <$> decodeFileEither iPath
+    bConf <- join $ handleParseError <$> decodeFileEither bPath
+
+    withArgs otherArgs $ runTests iConf bConf
+  where
+    getConfigArgs args = reverse $ snd $ foldl' filterConfig (False, []) args
+
+    filterConfig :: (Bool, [String]) -> String -> (Bool, [String])
+    filterConfig (True, xs) a = (False, a:xs)
+    filterConfig (False, xs) a = if configOption a then (True, a:xs) else (False, xs)
+
+    configOption s = (s == "-i") || (s == "-s") || (s == "--integration-config") || (s == "--service-config")
 
 parseConfigPaths :: IO (String, String)
 parseConfigPaths = do
@@ -122,15 +137,15 @@ parseConfigPaths = do
     pathParser :: Parser (String, String)
     pathParser = (,) <$>
                  (strOption $
-                 long "integration-config-file"
+                 long "integration-config"
                  <> short 'i'
                  <> help "Integration config to load"
                  <> showDefault
                  <> value defaultIntPath)
                  <*>
                  (strOption $
-                 long "brig-config-file"
-                 <> short 'c'
+                 long "service-config"
+                 <> short 's'
                  <> help "Brig application config to load"
                  <> showDefault
                  <> value defaultBrigPath)

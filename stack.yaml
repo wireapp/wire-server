@@ -41,6 +41,10 @@ packages:
     git: https://github.com/kim/hs-collectd
     commit: '0.0.0.2'
   extra-dep: true
+- location:
+    git: https://github.com/tiago-loureiro/aws
+    commit: 9c79c78b018825c70515baf0f9dd7a08776e5848
+  extra-dep: true
 
 extra-deps:
 - base58-bytestring-0.1.0

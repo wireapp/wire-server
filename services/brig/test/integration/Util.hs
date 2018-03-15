@@ -85,8 +85,11 @@ createUser name email brig = do
     return $ fromMaybe (error "createUser: failed to parse response") (decodeBody r)
 
 createAnonUser :: Text -> Brig -> Http User
-createAnonUser name brig = do
-    let p = RequestBodyLBS . encode $ object [ "name" .= name ]
+createAnonUser = createAnonUserExpiry Nothing
+
+createAnonUserExpiry :: Maybe Integer -> Text -> Brig -> Http User
+createAnonUserExpiry expires name brig = do
+    let p = RequestBodyLBS . encode $ object [ "name" .= name, "expires_in" .= expires ]
     r <- post (brig . path "/register" . contentJson . body p) <!! const 201 === statusCode
     return $ fromMaybe (error "createAnonUser: failed to parse response") (decodeBody r)
 

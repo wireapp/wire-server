@@ -78,13 +78,13 @@ $(DEB_JOURNALER):
 
 .PHONY: integration
 integration: install
-	keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV)
+	keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV) --delay 3000
 
 integration-list:
 	keiretsu --run '$(EXE_IT) -l' --env $(KEIRETSU_ENV)
 
 integration-%:
-	keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
+	keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV) --delay 3000
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
@@ -95,10 +95,10 @@ fast:
 
 .PHONY: test
 test: fast
-	keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV)
+	keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV) --delay 3000
 
 test-%: fast
-	keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
+	keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV) --delay 3000
 
 .PHONY: db
 db: db-reset

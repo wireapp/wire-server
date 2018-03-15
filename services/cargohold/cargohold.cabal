@@ -36,13 +36,14 @@ library
         CargoHold.Metrics
         CargoHold.S3
         CargoHold.TUS
+        CargoHold.Util
 
     build-depends:
         base                 >= 4      && < 5
       , aeson                >= 0.11
       , attoparsec           >= 0.12
       , auto-update          >= 0.1.4
-      , aws                  >= 0.17
+      , aws                  >= 0.18
       , bilge                >= 0.21
       , byteable             >= 0.1
       , bytestring           >= 0.10
@@ -150,7 +151,7 @@ executable cargohold-integration
       , optparse-applicative
       , safe              >= 0.3
       , tagged            >= 0.8
-      , tasty             >= 0.9
+      , tasty             >= 1.0
       , tasty-hunit       >= 0.9
       , time              >= 1.5
       , text              >= 1.1
