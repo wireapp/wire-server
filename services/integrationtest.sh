@@ -2,6 +2,10 @@
 
 set -eo pipefail
 
+export AWS_REGION=eu-west-1
+export AWS_ACCESS_KEY_ID=dummy
+export AWS_SECRET_ACCESS_KEY=dummy
+
 USAGE="$0 <test-executable> [args...]"
 
 EXE=${1:?$USAGE}
@@ -42,7 +46,7 @@ run brig ${green} Warn
 run galley ${yellow} Info
 run gundeck ${blue} Info
 run cannon ${orange} Info
-run cargohold ${purpleish} Info
+#run cargohold ${purpleish} Info
 
 sleep 3
 
