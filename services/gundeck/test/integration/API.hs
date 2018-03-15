@@ -36,7 +36,6 @@ import Data.Monoid                    ((<>))
 import Data.Range
 import Data.Set                       (Set)
 import Data.Text                      (Text)
-import Data.Typeable
 import Data.UUID.V4
 import Data.Word
 import GHC.Stack (HasCallStack)
@@ -51,7 +50,6 @@ import Test.Tasty.HUnit
 import Types
 
 import qualified Cassandra              as Cql
-import qualified Data.Aeson             as Aeson
 import qualified Data.Aeson.Types       as Aeson
 import qualified Data.ByteString        as BS
 import qualified Data.ByteString.Base16 as B16
