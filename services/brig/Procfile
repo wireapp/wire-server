@@ -1,2 +1,0 @@
-web: LOG_LEVEL=Warn dist/brig -c brig.integration.yaml
-

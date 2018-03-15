@@ -1,1 +1,0 @@
-web: LOG_LEVEL=Info dist/cargohold -c cargohold.integration.yaml

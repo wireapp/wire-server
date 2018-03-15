@@ -1,1 +1,0 @@
-web: LOG_LEVEL=Info dist/cannon -c cannon.integration.yaml

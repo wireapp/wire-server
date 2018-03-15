@@ -1,1 +1,0 @@
-web: dist/proxy -c proxy.integration.yaml
