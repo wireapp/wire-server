@@ -28,10 +28,10 @@ services:
 
 .PHONY: integration
 integration: services
+	$(MAKE) -C services/cargohold integration-fake-aws
 	$(MAKE) -C services/galley integration
 	$(MAKE) -C services/brig integration
 	$(MAKE) -C services/gundeck integration-fake-aws
-	$(MAKE) -C services/cargohold integration-fake-aws
 
 #################################
 ## docker targets
