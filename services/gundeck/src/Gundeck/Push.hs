@@ -122,25 +122,8 @@ pushAll pushes = do
 
     -- websockets
 
-    let compilePushReq :: (Push, (Notification, List1 (Recipient, [Presence])))
-                    -> (Notification, [Presence])
-        compilePushReq (psh, notifsAndTargets) =
-            notifsAndTargets & _2 %~ (mconcat . fmap compileTargets . toList)
-          where
-            compileTargets :: (Recipient, [Presence]) -> [Presence]
-            compileTargets (rcp, pre) = fmap snd
-                                      . filter (uncurry (shouldActuallyPush psh))
-                                      $ (rcp,) <$> pre
-
-        compilePushResp :: (NotificationId, [Presence]) -> Gundeck ((Notification, Push), [Presence])
-        compilePushResp (notifId, prcs) = (, prcs) <$> lkup
-          where
-            notifIdMap    = Map.fromList $ (\(psh, (notif, _)) -> (ntfId notif, (notif, psh))) <$> targets
-            lkup          = maybe (throwM internalError) pure $ Map.lookup notifId notifIdMap
-            internalError = ErrorCall "bulkpush: dangling notificationId in response!"
-                -- TODO: is there a better type for this?  (also search this PR for other uses of ErrorCall!)
-
-    resp <- mapM compilePushResp =<< Web.bulkPush (compilePushReq <$> targets)
+    let notifIdMap = Map.fromList $ (\(psh, (notif, _)) -> (ntfId notif, (notif, psh))) <$> targets
+    resp <- mapM (compilePushResp notifIdMap) =<< Web.bulkPush (compilePushReq <$> targets)
 
     -- native push
 
@@ -148,6 +131,25 @@ pushAll pushes = do
     forM_ resp $ \((notif, psh), alreadySent) -> do
         natives <- nativeTargets psh alreadySent
         pushNative sendNotice notif psh natives
+
+
+compilePushReq :: (Push, (Notification, List1 (Recipient, [Presence]))) -> (Notification, [Presence])
+compilePushReq (psh, notifsAndTargets) =
+    notifsAndTargets & _2 %~ (mconcat . fmap compileTargets . toList)
+  where
+    compileTargets :: (Recipient, [Presence]) -> [Presence]
+    compileTargets (rcp, pre) = fmap snd
+                              . filter (uncurry (shouldActuallyPush psh))
+                              $ (rcp,) <$> pre
+
+compilePushResp :: Map.Map NotificationId (Notification, Push)
+                -> (NotificationId, [Presence])
+                -> Gundeck ((Notification, Push), [Presence])
+compilePushResp notifIdMap (notifId, prcs) = (, prcs) <$> lkup
+  where
+    lkup          = maybe (throwM internalError) pure $ Map.lookup notifId notifIdMap
+    internalError = ErrorCall "bulkpush: dangling notificationId in response!"
+        -- TODO: is there a better type for this?  (also search this PR for other uses of ErrorCall!)
 
 
 -- | Look up 'Push' recipients in Redis, construct a notifcation, and return all the data needed for
