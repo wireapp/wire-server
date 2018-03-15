@@ -1,17 +1,9 @@
 #!/usr/bin/env bash
-
 set -eo pipefail
 
-export AWS_REGION=eu-west-1
-export AWS_ACCESS_KEY_ID=dummy
-export AWS_SECRET_ACCESS_KEY=dummy
-
 USAGE="$0 <test-executable> [args...]"
-
 EXE=${1:?$USAGE}
-
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
 PID=$$
 
 function kill_all() {
@@ -41,6 +33,11 @@ function run() {
         | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" || stop_nicely) &
 }
 
+# brig,gundeck,galley use the amazonka library's 'Discover', which expects AWS credentials
+# even if those are not used/can be dummy values with the fake sqs/ses/etc containers used (see deploy/docker-ephemeral/docker-compose.yaml )
+export AWS_REGION=eu-west-1
+export AWS_ACCESS_KEY_ID=dummy
+export AWS_SECRET_ACCESS_KEY=dummy
 
 run brig ${green} Warn
 run galley ${yellow} Info
