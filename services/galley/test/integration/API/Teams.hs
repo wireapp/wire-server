@@ -65,7 +65,7 @@ tests s = testGroup "Teams API"
     , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
     , test s "add team member to conversation without connection" testAddTeamMemberToConv
     , test s "delete non-binding team" testDeleteTeam
-    , test s "delete (binding) team" testDeleteBindingTeam
+    , test s "delete binding team" testDeleteBindingTeam
     , test s "delete team conversation" testDeleteTeamConv
     , test s "update team data" testUpdateTeam
     , test s "update team member" testUpdateTeamMember
@@ -537,13 +537,13 @@ testDeleteBindingTeam g b c a = do
         const 403 === statusCode
         const "access-denied" === (Error.label . Util.decodeBody' "error label")
 
-    -- Let's delete a member just to fill up the journaling queue (when in use)
     delete ( g
            . paths ["teams", toByteString' tid, "members", toByteString' (mem3^.userId)]
            . zUser owner
            . zConn "conn"
            . json (newTeamMemberDeleteData (PlainTextPassword Util.defPassword))
            ) !!! const 202 === statusCode
+    assertQueue "team member leave 1" a $ tUpdate 3 [owner]
 
     void $ WS.bracketRN c [owner, (mem1^.userId), (mem2^.userId), extern] $ \[wsOwner, wsMember1, wsMember2, wsExtern] -> do
         delete ( g
@@ -562,15 +562,17 @@ testDeleteBindingTeam g b c a = do
         checkTeamDeleteEvent tid wsMember2
 
         WS.assertNoEvent (1 # Second) [wsExtern]
-        -- Reversing the order of tests here just to check that `tryAssertQueue`
-        -- does the right thing
+        -- Note that given the async nature of team deletion, we may
+        -- have other events in the queue (such as TEAM_UPDATE)
         tryAssertQueue 10 "team delete, should be there" a tDelete
-        tryAssertQueue 10 "team joined, should be there long time" a $ tUpdate 3 [owner]
 
     forM_ [owner, (mem1^.userId), (mem2^.userId)] $
         -- Ensure users are marked as deleted; since we already
         -- received the event, should _really_ be deleted
         Util.ensureDeletedState b True extern
+
+    -- Let's clean it up, just in case
+    ensureQueueEmpty a
 
 testDeleteTeamConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testDeleteTeamConv g b c _ = do

@@ -13,6 +13,7 @@ import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (bracket)
 import Control.Monad.IO.Class
 import Control.Monad.Reader
+import Data.Either
 import Data.Foldable (for_)
 import Data.Id
 import Data.Int
@@ -107,9 +108,12 @@ awaitMessage label timeout callback = do
     QueueUrl url <- view eventQueue
     tryMatch label timeout url callback
 
-newtype MatchFailure = MatchFailure (Maybe E.TeamEvent, SomeException)
+newtype MatchFailure = MatchFailure { mFailure :: (Maybe E.TeamEvent, SomeException) }
 type MatchSuccess = String
 
+-- Try to match some assertions (callback) during the given timeout; if there's no
+-- match during the timeout, it asserts with the given label
+-- Matched matches are consumed while unmatched ones are republished to the queue
 tryMatch :: String
          -> Int
          -> Text
@@ -120,11 +124,11 @@ tryMatch label tries url callback = go tries
     go 0 = liftIO (assertFailure $ label <> ": No matching team event found")
     go n = do
         msgs      <- readAllUntilEmpty
-        (bad, ok) <- splitResults <$> mapM (check <=< parseDeleteMessage url) msgs
+        (bad, ok) <- partitionEithers <$> mapM (check <=< parseDeleteMessage url) msgs
         -- Requeue all failed checks
-        forM_ bad $ \(MatchFailure (evt, exp)) -> for_ evt queueEvent
+        forM_ bad $ \x -> for_ (fst . mFailure $ x) queueEvent
         -- If no success, continue!
-        when (null $ ok) $ do
+        when (null ok) $ do
             liftIO $ threadDelay (10^(6 :: Int))
             go (n - 1)
 
@@ -135,14 +139,6 @@ tryMatch label tries url callback = go tries
       `catchAll` \ex -> case asyncExceptionFromException ex of
         Just  x -> throwM (x :: SomeAsyncException)
         Nothing -> return . Left $ MatchFailure (e, ex)
-
-    splitResults :: [Either MatchFailure String] -> ([MatchFailure], [String])
-    splitResults xs = go' xs ([], [])
-      where
-        go' []     acc      = acc
-        go' (x:xs) (ls, rs) = case x of
-                            Left l  -> go' xs (l:ls, rs  )
-                            Right r -> go' xs (ls  , r:rs)
 
 -- Note that Amazon's purge queue is a bit incovenient for testing purposes because
 -- it may be delayed in ~60 seconds which causes messages that are published later
@@ -213,7 +209,6 @@ initHttpManager = do
 
 mkAWSEnv :: JournalOpts -> IO Aws.Env
 mkAWSEnv opts = do
-    print opts
     l   <- L.new $ L.setOutput L.StdOut . L.setFormat Nothing $ L.defSettings
     mgr <- initHttpManager
     Aws.mkEnv l mgr opts
