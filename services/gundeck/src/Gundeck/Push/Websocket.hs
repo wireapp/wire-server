@@ -103,6 +103,7 @@ logPrcsGone prc = Log.debug $ logPresence prc ~~ Log.msg (val "WebSocket presenc
 logSuccesses :: Log.MonadLogger m => (a, Presence) -> m ()
 logSuccesses (_, prc) = Log.debug $ logPresence prc ~~ Log.msg (val "WebSocket push success")
 
+
 fanOut :: [(Notification, [Presence])] -> [(URI, BulkPushRequest)]
 fanOut
     = fmap (_2 %~ (mkBulkPushRequest . groupByNotification))
@@ -230,7 +231,7 @@ bulkresource = URI . (\x -> x { URI.uriPath = "/i/bulkpush" }) . fromURI . resou
 
 
 -- TODO: a Map-based implementation would be faster.  do we want to take the time and benchmark the
--- difference?
+-- difference?  move it to types-common?
 {-# INLINE groupAssoc #-}
 groupAssoc :: (Eq a, Ord a) => [(a, b)] -> [(a, [b])]
 groupAssoc = groupAssoc' compare
