@@ -371,8 +371,10 @@ testNoNewNotifs gu _ _ _ = do
 
 testMissingNotifs :: TestSignature ()
 testMissingNotifs gu _ _ _ = do
-    ally <- randomId
-    old <- nextNotificationId
+    other   <- randomId
+    sendPush gu (buildPush other [(other, [])] (textPayload "hello"))
+    (old:_) <- map (view queuedNotificationId) <$> listNotifications other Nothing gu
+    ally    <- randomId
     sendPush gu (buildPush ally [(ally, [])] (textPayload "hello"))
     ns <- listNotifications ally Nothing gu
     get ( runGundeck gu

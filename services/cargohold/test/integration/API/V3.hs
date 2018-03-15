@@ -60,12 +60,14 @@ tests s = testGroup "v3"
         , test s "tokens"             testSimpleTokens
         , test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse
         ]
-    , testGroup "resumable"
-        [ test s "small"          testResumableSmall
-        , test s "large"          testResumableBig
-        , test s "last-small"     testResumableLastSmall
-        , test s "stepwise-small" testResumableStepSmall
-        , test s "stepwise-big"   testResumableStepBig
+    , testGroup "RealAWS"
+        [ testGroup "resumable"
+            [ test s "small"          testResumableSmall
+            , test s "large"          testResumableBig
+            , test s "last-small"     testResumableLastSmall
+            , test s "stepwise-small" testResumableStepSmall
+            , test s "stepwise-big"   testResumableStepBig
+            ]
         ]
     ]
 
