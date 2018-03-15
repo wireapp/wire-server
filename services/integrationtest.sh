@@ -54,7 +54,7 @@ run brig ${green} Warn
 run galley ${yellow} Info
 run gundeck ${blue} Info
 run cannon ${orange} Info
-#run cargohold ${purpleish} Info
+run cargohold ${purpleish} Info
 
 sleep 3
 

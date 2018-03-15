@@ -28,6 +28,9 @@ init:
 install: init
 	stack install --pedantic --test --local-bin-path=dist
 
+.PHONY: fast
+	stack install --pedantic --test --fast --local-bin-path=dist
+
 .PHONY: compile
 compile:
 	stack build --pedantic --test --no-copy-bins
@@ -58,16 +61,14 @@ $(DEB_IT):
 		--output-dir=dist
 
 .PHONY: integration
-integration: install
+integration: fast
 	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
 
-integration-%:
-	stack install --fast --local-bin-path=dist
-	LOG_LEVEL=Debug keiretsu --run '$(EXE_IT) --pattern="$*"; sleep 1' --env $(KEIRETSU_ENV)
+integration-%: fast
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
 
-integration-fake-aws:
-	stack install --fast --local-bin-path=dist
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="!/RealAWS/"; sleep 1' --env $(KEIRETSU_ENV)
+integration-fake-aws: fast
+	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "!/RealAWS/"
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
