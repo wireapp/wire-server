@@ -221,7 +221,7 @@ cannonBulkPush numUsers numConnsPerUser gu ca _ _ = do
     connIds  <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
     chs      <- connectUsersAndDevices gu ca (zip uids connIds)
     notifIds :: [NotificationId] <- replicateM numUsers randomId
-    let ptrgts :: [[PushTarget]] = zipWith (\u cs -> (u,) <$> cs) uids connIds
+    let ptrgts :: [[PushTarget]] = zipWith (\u cs -> PushTarget u <$> cs) uids connIds
         pushes :: [(Notification, [PushTarget])] = pushCannon <$> zip notifIds ptrgts
     BulkPushResponse resp <- sendBulkPushCannon ca $ BulkPushRequest pushes
     liftIO $ do
@@ -255,7 +255,7 @@ cannonBulkPush numUsers numConnsPerUser gu ca _ _ = do
     readUserIds :: Object -> Aeson.Parser [UserId]
     readUserIds (toList -> [pts :: Value]) = do
         x1 :: [PushTarget] <- parseJSON pts >>= mapM parseJSON
-        pure $ fst <$> x1
+        pure $ ptUserId <$> x1
     readUserIds bad = error $ show (bad, '*')
 
     chkPLoad :: UserId -> Maybe (List1 Object) -> Assertion

@@ -13,7 +13,15 @@ import GHC.Generics
 import Gundeck.Types.Notification
 
 
-type PushTarget = (UserId, ConnId)
+data PushTarget = PushTarget
+    { ptUserId :: !UserId
+    , ptConnId :: !ConnId
+    } deriving ( Eq, Ord, Show
+               , Generic
+               )
+
+instance FromJSON PushTarget
+instance ToJSON PushTarget
 
 newtype BulkPushRequest = BulkPushRequest
     { fromBulkPushRequest :: [(Notification, [PushTarget])]

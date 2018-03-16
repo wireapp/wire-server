@@ -133,7 +133,7 @@ docs (_ ::: url) = do
 
 push :: UserId ::: ConnId ::: Request -> Cannon Response
 push (user ::: conn ::: req) =
-    singlePush (readBody req) (user, conn) >>= \case
+    singlePush (readBody req) (PushTarget user conn) >>= \case
         PushStatusOk   -> return empty
         PushStatusGone -> return $ errorRs status410 "general" "client gone"
 
@@ -150,7 +150,7 @@ bulkpush' :: BulkPushRequest -> Cannon BulkPushResponse
 bulkpush' (BulkPushRequest notifs) =
     BulkPushResponse . mconcat . zipWith compileResp notifs <$> (uncurry doNotif `mapM` notifs)
   where
-    doNotif :: Notification -> [(UserId, ConnId)] -> Cannon [PushStatus]
+    doNotif :: Notification -> [PushTarget] -> Cannon [PushStatus]
     doNotif (pure . encode -> notif) = mapM (singlePush notif)
 
     compileResp :: (Notification, [PushTarget])
@@ -158,9 +158,9 @@ bulkpush' (BulkPushRequest notifs) =
                 -> [(NotificationId, PushTarget, PushStatus)]
     compileResp (notif, prcs) pss = zip3 (repeat (ntfId notif)) prcs pss
 
--- | Take a serialized 'Notification' string and send it to the '(UserId, ConnId)'.
-singlePush :: Cannon L.ByteString -> (UserId, ConnId) -> Cannon PushStatus
-singlePush notification (usrid, conid) = do
+-- | Take a serialized 'Notification' string and send it to the 'PushTarget'.
+singlePush :: Cannon L.ByteString -> PushTarget -> Cannon PushStatus
+singlePush notification (PushTarget usrid conid) = do
     let k = mkKey usrid conid
     d <- clients
     debug $ client (key2bytes k) . msg (val "push")

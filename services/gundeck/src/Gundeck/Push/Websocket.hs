@@ -112,7 +112,7 @@ fanOut
     . fmap pullUri
   where
     mkBulkPushRequest :: [(Notification, [Presence])] -> BulkPushRequest
-    mkBulkPushRequest = BulkPushRequest . fmap (_2 %~ fmap (userId &&& connId))
+    mkBulkPushRequest = BulkPushRequest . fmap (_2 %~ fmap mkPushTarget)
 
     groupByNotification :: [(Notification, Presence)] -> [(Notification, [Presence])]
     groupByNotification = groupAssoc' (compare `on` ntfId)
@@ -222,7 +222,7 @@ mkPresenceByPushTarget prcs ptarget = maybe (throwM err) pure $ Map.lookup ptarg
     err = ErrorCall "internal error in Cannon: invalid PushTarget in bulkpush response"
 
     mp :: Map.Map PushTarget Presence
-    mp = Map.fromList $ ((userId &&& connId) &&& id) <$> prcs
+    mp = Map.fromList $ (mkPushTarget &&& id) <$> prcs
 
 
 {-# INLINE bulkresource #-}
@@ -244,6 +244,11 @@ groupAssoc' cmp = fmap (\case
                     [] -> error "impossible: list elements returned by groupBy are never empty.")
            . groupBy ((==) `on` fst)
            . sortBy (cmp `on` fst)
+
+
+{-# INLINE mkPushTarget #-}
+mkPushTarget :: Presence -> PushTarget
+mkPushTarget pre = PushTarget (userId pre) (connId pre)
 
 
 
