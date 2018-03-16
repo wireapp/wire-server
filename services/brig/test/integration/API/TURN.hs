@@ -42,27 +42,42 @@ testCallsConfig :: Brig -> Http ()
 testCallsConfig b = do
     uid <- userId <$> randomUser b
     cfg <- getTurnConfiguration uid b
-    let expected = List1.singleton (toTurnURI "127.0.0.1" 3478)
+    let expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
     assertConfiguration cfg expected
 
 testCallsConfigMultiple :: Brig -> TurnUpdater -> Http ()
 testCallsConfigMultiple b st = do
-    uid <- userId <$> randomUser b
-    cfg <- getTurnConfiguration uid b
-    let expected = List1.singleton (toTurnURI "127.0.0.1" 3478)
-    assertConfiguration cfg expected
+    uid  <- userId <$> randomUser b
+    _cfg <- getTurnConfiguration uid b
+    let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
+    assertConfiguration _cfg _expected
 
     -- Change server list
     liftIO $ st "turn:127.0.0.2:3478\nturn:127.0.0.3:3478"
-    let expected' = List1.list1 (toTurnURI "127.0.0.2" 3478)
-                               [(toTurnURI "127.0.0.3" 3478)]
-    cfg' <- getTurnConfiguration uid b
-    assertConfiguration cfg' expected'
+    let _expected = List1.list1 (toTurnURILegacy "127.0.0.2" 3478)
+                                [toTurnURILegacy "127.0.0.3" 3478]
+    _cfg <- getTurnConfiguration uid b
+    assertConfiguration _cfg _expected
 
     -- Revert the config file back to the original
     liftIO $ st "turn:127.0.0.1:3478"
-    cfg'' <- getTurnConfiguration uid b
-    assertConfiguration cfg'' expected
+    _cfg <- getTurnConfiguration uid b
+    let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
+    assertConfiguration _cfg _expected
+
+    -- Change server list, more transport options
+    liftIO $ st "turn:127.0.0.2:3479?transport=udp\nturn:127.0.0.3:3480?transport=tcp"
+    let _expected = List1.list1 (toTurnURI SchemeTurn "127.0.0.2" 3479 $ Just TransportUDP)
+                                [toTurnURI SchemeTurn "127.0.0.3" 3480 $ Just TransportTCP]
+    _cfg <- getTurnConfiguration uid b
+    assertConfiguration _cfg _expected
+
+    -- Change server list yet again, different schemas too
+    liftIO $ st "turns:127.0.0.4:3489?transport=tcp\nturns:127.0.0.5:3490?transport=tcp"
+    let _expected = List1.list1 (toTurnURI SchemeTurns "127.0.0.4" 3489 $ Just TransportTCP)
+                                [toTurnURI SchemeTurns "127.0.0.5" 3490 $ Just TransportTCP]
+    _cfg <- getTurnConfiguration uid b
+    assertConfiguration _cfg _expected
 
 assertConfiguration :: RTCConfiguration -> List1 TurnURI -> Http ()
 assertConfiguration cfg turns =
@@ -93,8 +108,12 @@ getTurnConfiguration u b = do
              . zConn "conn") <!! const 200 === statusCode
     return $ fromMaybe (error "getTurnConfiguration: failed to parse response") (decodeBody r)
 
-toTurnURI :: String -> Port -> TurnURI
-toTurnURI h p = turnURI (_TurnHost # ip) p
+-- TODO: Support multiple
+toTurnURILegacy :: String -> Port -> TurnURI
+toTurnURILegacy h p = toTurnURI SchemeTurn h p Nothing
+
+toTurnURI :: Scheme -> String -> Port -> Maybe Transport -> TurnURI
+toTurnURI s h p t = turnURI s (_TurnHost # ip) p t
   where
     ip = fromMaybe (error "Failed to parse ip address")
        $ readMay h
