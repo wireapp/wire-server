@@ -16,8 +16,7 @@ import Cannon.WS hiding (env)
 import Control.Applicative hiding (empty, optional)
 import Control.Lens ((^.))
 import Control.Monad.Catch
-import Control.Monad.IO.Class (liftIO)
-import Data.Aeson (encode, eitherDecodeStrict)
+import Data.Aeson (encode)
 import Data.ByteString (ByteString)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
@@ -32,6 +31,7 @@ import Network.Wai
 import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
 import Network.Wai.Utilities hiding (message)
+import Network.Wai.Utilities.Request (parseJsonBody)
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Handler.Warp hiding (run)
@@ -43,7 +43,6 @@ import System.Random.MWC (createSystemRandom)
 import qualified Cannon.Dict                 as D
 import qualified Data.ByteString.Lazy        as L
 import qualified Data.Metrics.Middleware     as Metrics
-import qualified Data.Text.Lazy              as LT
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified Network.WebSockets          as Ws
 import qualified System.Logger               as Logger
@@ -140,10 +139,7 @@ push (user ::: conn ::: req) =
 -- | Parse the entire list of notifcations and targets, then call 'singlePush' on the each of them
 -- in order.
 bulkpush :: Request -> Cannon Response
-bulkpush req =
-    eitherDecodeStrict <$> liftIO (requestBody req) >>= \case
-        Left errmsg -> throwM $ Error status400 "bad-request" (LT.pack errmsg)
-        Right bp -> json <$> bulkpush' bp
+bulkpush req = json <$> (parseJsonBody req >>= bulkpush')
 
 -- | The typed part of 'bulkpush'.
 bulkpush' :: BulkPushRequest -> Cannon BulkPushResponse

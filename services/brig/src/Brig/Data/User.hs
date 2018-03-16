@@ -43,6 +43,7 @@ import Brig.Options
 import Brig.Password
 import Brig.Types
 import Brig.Types.Intra
+import Brig.Types.User (newUserExpiresIn)
 import Cassandra
 import Control.Error
 import Control.Lens hiding (from)
