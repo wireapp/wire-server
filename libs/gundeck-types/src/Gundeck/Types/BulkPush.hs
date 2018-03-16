@@ -15,8 +15,8 @@ import Gundeck.Types.Notification
 
 type PushTarget = (UserId, ConnId)
 
-data BulkPushRequest = BulkPushRequest
-    { fromBulkPushRequest :: ![(Notification, [PushTarget])]
+newtype BulkPushRequest = BulkPushRequest
+    { fromBulkPushRequest :: [(Notification, [PushTarget])]
     } deriving ( Show
                , Generic
                )
@@ -30,8 +30,8 @@ data PushStatus = PushStatusOk | PushStatusGone
 instance FromJSON PushStatus
 instance ToJSON PushStatus
 
-data BulkPushResponse = BulkPushResponse
-    { fromBulkPushResponse :: ![(NotificationId, PushTarget, PushStatus)]
+newtype BulkPushResponse = BulkPushResponse
+    { fromBulkPushResponse :: [(NotificationId, PushTarget, PushStatus)]
     } deriving ( Show
                , Generic
                )
