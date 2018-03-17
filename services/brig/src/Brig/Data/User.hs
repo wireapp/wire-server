@@ -72,8 +72,8 @@ data ReAuthError
     = ReAuthError !AuthError
     | ReAuthMissingPassword
 
-newAccount :: NewUser -> Maybe InvitationId -> AppIO (UserAccount, Maybe Password)
-newAccount u inv = do
+newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
+newAccount u inv tid = do
     defLoc  <- setDefaultLocale <$> view settings
     uid     <- Id <$> maybe (liftIO nextRandom) (return . toUUID) inv
     passwd  <- maybe (return Nothing) (fmap Just . liftIO . mkSafePassword) pass
@@ -100,7 +100,7 @@ newAccount u inv = do
                         Just _  -> Active
     colour        = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
-    user  uid l e = User uid ident name pict assets colour False l Nothing Nothing e
+    user  uid l e = User uid ident name pict assets colour False l Nothing Nothing e tid
 
 -- | Mandatory password authentication.
 authenticate :: UserId -> PlainTextPassword -> ExceptT AuthError AppIO ()
@@ -143,6 +143,7 @@ insertAccount (UserAccount u status) password activated searchable = do
         , view serviceRefId <$> userService u
         , userHandle u
         , searchable
+        , userTeam u
         )
 
 updateLocale :: UserId -> Locale -> AppIO ()
@@ -251,17 +252,17 @@ type Activated = Bool
 
 type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, ColourId,
                 Maybe [Asset], Activated, Maybe AccountStatus, Maybe UTCTime, Maybe Language,
-                Maybe Country, Maybe ProviderId, Maybe ServiceId, Maybe Handle)
+                Maybe Country, Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
 
 type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone,
                    ColourId, Maybe [Asset], Bool, Maybe AccountStatus,
                    Maybe UTCTime, Maybe Language, Maybe Country,
-                   Maybe ProviderId, Maybe ServiceId, Maybe Handle)
+                   Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
 
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
 usersSelect = "SELECT id, name, picture, email, phone, accent_id, assets, \
-              \activated, status, expires, language, country, provider, service, handle \
+              \activated, status, expires, language, country, provider, service, handle, team \
               \FROM user where id IN ?"
 
 nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
@@ -288,17 +289,17 @@ statusSelect = "SELECT status FROM user WHERE id = ?"
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
 accountsSelect = "SELECT id, name, picture, email, phone, accent_id, assets, \
                  \activated, status, expires, language, country, provider, \
-                 \service, handle \
+                 \service, handle, team \
                  \FROM user WHERE id IN ?"
 
 userInsert :: PrepQuery W (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone,
                            ColourId, Maybe Password, Bool, AccountStatus, Maybe UTCTime,
                            Language, Maybe Country, Maybe ProviderId,
-                           Maybe ServiceId, Maybe Handle, SearchableStatus) ()
+                           Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId) ()
 userInsert = "INSERT INTO user (id, name, picture, assets, email, phone, \
                                \accent_id, password, activated, status, expires, language, \
-                               \country, provider, service, handle, searchable) \
-                               \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                               \country, provider, service, handle, searchable, team) \
+                               \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userNameUpdate :: PrepQuery W (Name, UserId) ()
 userNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
@@ -351,28 +352,28 @@ userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
 toUserAccount :: Locale -> AccountRow -> UserAccount
 toUserAccount defaultLocale (uid, name, pict, email, phone, accent, assets,
                              activated, status, expires, lan, con, pid, sid,
-                             handle) =
+                             handle, tid) =
     let ident = toIdentity activated email phone
         deleted = maybe False (== Deleted) status
         expiration = if status == Just Ephemeral then expires else Nothing
         loc = toLocale defaultLocale (lan, con)
         svc = newServiceRef <$> sid <*> pid
     in UserAccount (User uid ident name (fromMaybe noPict pict)
-                         (fromMaybe [] assets) accent deleted loc svc handle expiration)
+                         (fromMaybe [] assets) accent deleted loc svc handle expiration tid)
                    (fromMaybe Active status)
 
 toUsers :: Locale -> [UserRow] -> [User]
 toUsers defaultLocale = fmap mk
   where
     mk (uid, name, pict, email, phone, accent, assets, activated, status,
-        expires, lan, con, pid, sid, handle) =
+        expires, lan, con, pid, sid, handle, tid) =
         let ident = toIdentity activated email phone
             deleted = maybe False (== Deleted) status
             expiration = if status == Just Ephemeral then expires else Nothing
             loc = toLocale defaultLocale (lan, con)
             svc = newServiceRef <$> sid <*> pid
         in User uid ident name (fromMaybe noPict pict) (fromMaybe [] assets)
-                accent deleted loc svc handle expiration
+                accent deleted loc svc handle expiration tid
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
