@@ -48,36 +48,38 @@ testCallsConfig b = do
 testCallsConfigMultiple :: Brig -> TurnUpdater -> Http ()
 testCallsConfigMultiple b st = do
     uid  <- userId <$> randomUser b
+    -- Ensure we have a clean config
     _cfg <- getTurnConfiguration uid b
     let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
     assertConfiguration _cfg _expected
 
     -- Change server list
-    liftIO $ st "turn:127.0.0.2:3478\nturn:127.0.0.3:3478"
+    let _changes  = "turn:127.0.0.2:3478\nturn:127.0.0.3:3478"
     let _expected = List1.list1 (toTurnURILegacy "127.0.0.2" 3478)
                                 [toTurnURILegacy "127.0.0.3" 3478]
-    _cfg <- getTurnConfiguration uid b
-    assertConfiguration _cfg _expected
-
-    -- Revert the config file back to the original
-    liftIO $ st "turn:127.0.0.1:3478"
-    _cfg <- getTurnConfiguration uid b
-    let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
-    assertConfiguration _cfg _expected
+    modifyAndAssert uid _changes _expected
 
     -- Change server list, more transport options
-    liftIO $ st "turn:127.0.0.2:3479?transport=udp\nturn:127.0.0.3:3480?transport=tcp"
+    let _changes  = "turn:127.0.0.2:3479?transport=udp\nturn:127.0.0.3:3480?transport=tcp"
     let _expected = List1.list1 (toTurnURI SchemeTurn "127.0.0.2" 3479 $ Just TransportUDP)
                                 [toTurnURI SchemeTurn "127.0.0.3" 3480 $ Just TransportTCP]
-    _cfg <- getTurnConfiguration uid b
-    assertConfiguration _cfg _expected
+    modifyAndAssert uid _changes _expected
 
     -- Change server list yet again, different schemas too
-    liftIO $ st "turns:127.0.0.4:3489?transport=tcp\nturns:127.0.0.5:3490?transport=tcp"
+    let _changes  = "turns:127.0.0.4:3489?transport=tcp\nturns:127.0.0.5:3490?transport=tcp"
     let _expected = List1.list1 (toTurnURI SchemeTurns "127.0.0.4" 3489 $ Just TransportTCP)
                                 [toTurnURI SchemeTurns "127.0.0.5" 3490 $ Just TransportTCP]
-    _cfg <- getTurnConfiguration uid b
-    assertConfiguration _cfg _expected
+    modifyAndAssert uid _changes _expected
+
+    -- Revert the config file back to the original
+    let _changes  = "turn:127.0.0.1:3478"
+    let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
+    modifyAndAssert uid _changes _expected
+  where
+    modifyAndAssert uid newServers expected = do
+        liftIO $ st newServers
+        cfg <- getTurnConfiguration uid b
+        assertConfiguration cfg expected
 
 assertConfiguration :: RTCConfiguration -> List1 TurnURI -> Http ()
 assertConfiguration cfg turns =
@@ -108,7 +110,6 @@ getTurnConfiguration u b = do
              . zConn "conn") <!! const 200 === statusCode
     return $ fromMaybe (error "getTurnConfiguration: failed to parse response") (decodeBody r)
 
--- TODO: Support multiple
 toTurnURILegacy :: String -> Port -> TurnURI
 toTurnURILegacy h p = toTurnURI SchemeTurn h p Nothing
 

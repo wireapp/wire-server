@@ -70,3 +70,35 @@ library
         -O2
         -fwarn-tabs
         -funbox-strict-fields
+
+test-suite brig-types-tests
+    type: exitcode-stdio-1.0
+    hs-source-dirs: test/unit
+    main-is: Main.hs
+
+    exposed-modules:
+        Test.Brig.Types.Arbitrary
+        Test.Brig.Types.TURN
+
+    build-depends:
+        aeson
+      , attoparsec
+      , base
+      , brig-types
+      , bytestring
+      , iproute
+      , lens
+      , QuickCheck
+      , tasty
+      , tasty-quickcheck
+      , text
+      , time
+      , types-common
+      , vector
+
+    ghc-options:
+        -Wall
+        -threaded
+        -with-rtsopts=-N
+
+    default-language: Haskell2010

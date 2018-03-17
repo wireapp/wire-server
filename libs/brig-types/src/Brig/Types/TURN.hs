@@ -3,7 +3,6 @@
 {-# LANGUAGE StrictData        #-}
 {-# LANGUAGE TemplateHaskell   #-}
 
--- module Brig.Types.TURN where
 module Brig.Types.TURN
     ( RTCConfiguration
     , rtcConfiguration
@@ -25,7 +24,7 @@ module Brig.Types.TURN
     , turiTransport
     , Transport (..)
 
-    , TurnHost
+    , TurnHost (..)
     , _TurnHost
 
     , TurnUsername
@@ -41,12 +40,12 @@ where
 import           Control.Lens               hiding ((.=))
 import           Data.Aeson
 import           Data.Aeson.Encoding        (text)
-import           Data.Attoparsec.Text
+import           Data.Attoparsec.Text       hiding (parse)
 import           Data.ByteString            (ByteString)
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Conversion as BC
 import           Data.List1
-import           Data.Misc                  (IpAddr, Port (portNumber))
+import           Data.Misc                  (IpAddr, Port (..))
 import           Data.Monoid
 import           Data.Text                  (Text)
 import           Data.Text.Ascii
@@ -165,13 +164,13 @@ instance FromJSON RTCIceServer where
         RTCIceServer <$> o .: "urls" <*> o .: "username" <*> o .: "credential"
 
 instance BC.ToByteString TurnURI where
-    builder (TurnURI s (TurnHost h) p tp) =
+    builder (TurnURI s (TurnHost h) (Port p) tp) =
            BC.builder s
         <> byteString ":"
         <> BC.builder h
         <> byteString ":"
-        <> BC.builder (portNumber p)
-        <> maybe mempty (\t -> byteString "?transport=" <> BC.builder t) tp
+        <> BC.builder p
+        <> maybe mempty ((byteString "?transport=" <>) . BC.builder) tp
 
 instance ToJSON TurnURI where
     toJSON = String . TE.decodeUtf8 . BC.toByteString'
@@ -191,12 +190,12 @@ parseTurnURI = parseOnly (parser <* endOfInput)
           <*> (decimal                                                            <?> "parsingPort")
           <*> ((optional ((string "?transport=" *> takeText) >>= parseTransport)) <?> "parsingTransport")
 
-    parseScheme    = conv "parseScheme"
-    parseHost      = fmap TurnHost . conv "parseHost"
-    parseTransport = conv "parseTransport"
+    parseScheme    = parse "parseScheme"
+    parseHost      = fmap TurnHost . parse "parseHost"
+    parseTransport = parse "parseTransport"
 
-    conv :: (BC.FromByteString b, Monad m) => String -> Text -> m b
-    conv err x = case BC.fromByteString (TE.encodeUtf8 x) of
+    parse :: (BC.FromByteString b, Monad m) => String -> Text -> m b
+    parse err x = case BC.fromByteString (TE.encodeUtf8 x) of
         Just ok -> return ok
         Nothing -> fail (err ++ " failed when parsing: " ++ show x)
 
@@ -253,7 +252,7 @@ instance BC.FromByteString Transport where
     parser = BC.parser >>= \t -> case (t :: ByteString) of
         "udp" -> pure TransportUDP
         "tcp" -> pure TransportTCP
-        _               -> fail $ "Invalid turn transport: " ++ show t
+        _     -> fail $ "Invalid turn transport: " ++ show t
 
 instance BC.ToByteString Transport where
     builder TransportUDP = "udp"
@@ -269,8 +268,3 @@ instance ToJSON Transport where
 -- Convenience
 optional :: (Alternative f, Functor f) => f a -> f (Maybe a)
 optional x = option Nothing (Just <$> x)
-
-convert :: (BC.FromByteString b, Monad m) => String -> (Text -> Maybe b) -> Text -> m b
-convert err conv x = case BC.fromByteString (TE.encodeUtf8 x) of
-    Just ok -> return ok
-    Nothing -> fail (err ++ " failed when parsing: " ++ show x)
