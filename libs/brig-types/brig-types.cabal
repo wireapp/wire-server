@@ -76,7 +76,7 @@ test-suite brig-types-tests
     hs-source-dirs: test/unit
     main-is: Main.hs
 
-    exposed-modules:
+    other-modules:
         Test.Brig.Types.Arbitrary
         Test.Brig.Types.TURN
 
