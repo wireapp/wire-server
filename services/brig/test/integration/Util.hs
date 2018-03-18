@@ -165,6 +165,11 @@ activate brig (k, c) = get $ brig
     . queryItem "key" (toByteString' k)
     . queryItem "code" (toByteString' c)
 
+getSelfProfile :: Brig -> UserId -> Http SelfProfile
+getSelfProfile brig usr = do
+    rsp <- get $ brig . path "/self" . zUser usr
+    return $ fromMaybe (error $ "getSelfProfile: failed to decode: " ++ show rsp) (decodeBody rsp)
+
 getUser :: Brig -> UserId -> UserId -> Http ResponseLBS
 getUser brig zusr usr = get $ brig
     . paths ["users", toByteString' usr]
