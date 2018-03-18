@@ -45,7 +45,6 @@ library
       , aeson                >= 0.11
       , attoparsec           >= 0.12
       , auto-update          >= 0.1.4
-      , aws                  >= 0.17
       , amazonka             >= 1.3.7
       , amazonka-core        >= 1.3.7
       , amazonka-s3          >= 1.3.7
@@ -166,7 +165,7 @@ executable cargohold-integration
       , optparse-applicative
       , safe              >= 0.3
       , tagged            >= 0.8
-      , tasty             >= 0.9
+      , tasty             >= 1.0
       , tasty-hunit       >= 0.9
       , time              >= 1.5
       , text              >= 1.1

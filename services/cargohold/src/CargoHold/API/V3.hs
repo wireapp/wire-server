@@ -104,7 +104,10 @@ download own key tok = S3.getMetadataV3 key >>= maybe notFound found
     notFound = return Nothing
     found s3
         | own /= S3.v3AssetOwner s3 && tok /= S3.v3AssetToken s3 = return Nothing
-        | otherwise = genSignedURI (S3.s3Key $ S3.mkKey key) >>= return . Just
+        | otherwise = do
+            -- url <- genSignedURI (S3.s3Key $ S3.mkKey key)
+            url <- genSignedURL (S3.mkKey key)
+            return $! Just $! url
 
 delete :: V3.Principal -> V3.AssetKey -> Handler ()
 delete own key = do

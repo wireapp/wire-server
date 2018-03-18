@@ -19,8 +19,9 @@ module CargoHold.S3
     , updateMetadataV3
     , deleteV3
     , mkKey
+    -- What???
     , s3Key
-    , signedUrl
+    , signedURL
 
       -- * Resumable Uploads
     , S3Resumable
@@ -45,6 +46,7 @@ module CargoHold.S3
 import CargoHold.App hiding (Env, Handler)
 import Control.Applicative ((<|>))
 import CargoHold.API.Error
+import CargoHold.Options
 import Control.Error (ExceptT, throwE)
 import Control.Lens hiding ((.=), (:<), (:>), parts)
 import Control.Monad
@@ -170,14 +172,14 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
           & coMetadataDirective ?~ MDReplace
           & coMetadata .~ metaHeaders tok prc
 
-signedUrl :: (ToByteString p) => p -> ExceptT Error App URI
-signedUrl path = do
+signedURL :: (ToByteString p) => p -> ExceptT Error App URI
+signedURL path = do
     e <- view aws
     let b = view AWS.s3Bucket e
     now <- liftIO getCurrentTime
-    let expiresIn = Seconds 300
+    ttl <- view (settings.setDownloadLinkTTL)
     let req = getObject (BucketName b) (ObjectKey . Text.decodeLatin1 $ toByteString' path)
-    signed <- AWS.execute e (presignURL now expiresIn req)
+    signed <- AWS.execute e (presignURL now (Seconds $ fromIntegral ttl) req)
     return =<< toUri signed
   where 
     toUri x = case parseURI strictURIParserOptions x of

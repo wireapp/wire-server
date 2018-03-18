@@ -71,6 +71,10 @@ module Galley.Data
     -- * Utilities
     , one2OneConvId
     , newMember
+
+    -- * Defaults
+    , defRole
+    , defRegularConvAccess
     ) where
 
 import Brig.Types.Code
@@ -295,7 +299,18 @@ conversation :: (MonadBaseControl IO m, MonadClient m, Forall (Pure m))
              -> m (Maybe Conversation)
 conversation conv = do
     cdata <- async $ retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
-    toConv conv <$> members conv <*> wait cdata
+    mbConv <- toConv conv <$> members conv <*> wait cdata
+    return mbConv >>= conversationGC
+
+
+{- "Garbage collect" the conversation, i.e. the conversation may be
+   marked as deleted, in which case we delete it and return Nothing -}
+conversationGC :: MonadClient m => (Maybe Conversation) -> m (Maybe Conversation)
+conversationGC conv = case join (convDeleted <$> conv) of
+    (Just True) -> do
+        sequence_ $ deleteConversation . convId <$> conv
+        return Nothing
+    _           -> return conv
 
 conversations :: (MonadLogger m, MonadBaseControl IO m, MonadClient m, Forall (Pure m))
               => [ConvId]
@@ -348,14 +363,13 @@ conversationIdsOf usr (fromList . fromRange -> cids) =
 createConversation :: UserId
                    -> Maybe (Range 1 256 Text)
                    -> [Access]
-                   -> Maybe AccessRole
+                   -> AccessRole
                    -> ConvAndTeamSizeChecked [UserId]
                    -> Maybe ConvTeamInfo
                    -> Galley Conversation
-createConversation usr name acc mRole others tinfo = do
+createConversation usr name acc role others tinfo = do
     conv <- Id <$> liftIO nextRandom
     now  <- liftIO getCurrentTime
-    let role = fromMaybe defRole mRole
     retry x5 $ case tinfo of
         Nothing -> write Cql.insertConv (params Quorum (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Nothing))
         Just ti -> batch $ do
@@ -457,11 +471,11 @@ defAccess :: ConvType -> Maybe (Set Access) -> [Access]
 defAccess SelfConv    Nothing             = [PrivateAccess]
 defAccess ConnectConv Nothing             = [PrivateAccess]
 defAccess One2OneConv Nothing             = [PrivateAccess]
-defAccess RegularConv Nothing             = [InviteAccess]
+defAccess RegularConv Nothing             = defRegularConvAccess
 defAccess SelfConv    (Just (Set []))     = [PrivateAccess]
 defAccess ConnectConv (Just (Set []))     = [PrivateAccess]
 defAccess One2OneConv (Just (Set []))     = [PrivateAccess]
-defAccess RegularConv (Just (Set []))     = [InviteAccess]
+defAccess RegularConv (Just (Set []))     = defRegularConvAccess
 defAccess _           (Just (Set (x:xs))) = x:xs
 
 
@@ -474,6 +488,9 @@ maybeRole RegularConv (Just r)   = r
 
 defRole :: AccessRole
 defRole = ActivatedAccessRole
+
+defRegularConvAccess :: [Access]
+defRegularConvAccess = [InviteAccess]
 
 privateRole :: AccessRole
 privateRole = PrivateAccessRole

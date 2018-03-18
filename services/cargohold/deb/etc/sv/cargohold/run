@@ -37,4 +37,5 @@ exec chpst -u $USER \
     --aws-cloudfront-domain=${CARGOHOLD_AWS_CLOUDFRONT_DOMAIN?'unset'} \
     --aws-cloudfront-keypair-id=${CARGOHOLD_AWS_CLOUDFRONT_KEYPAIR_ID?'unset'} \
     --aws-cloudfront-private-key=${CARGOHOLD_AWS_CLOUDFRONT_PRIVATEKEY?'unset'} \
-    --max-total-bytes=${CARGOHOLD_MAX_TOTAL_BYTES?'unset'}
+    --max-total-bytes=${CARGOHOLD_MAX_TOTAL_BYTES?'unset'} \
+    --download-link-ttl=${CARGOHOLD_DOWNLOAD_LINK_TTL:-300}

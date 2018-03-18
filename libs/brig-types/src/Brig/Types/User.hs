@@ -17,12 +17,13 @@ import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Json.Util ((#))
+import Data.Json.Util ((#), UTCTimeMillis (..))
 import Data.Misc (PlainTextPassword (..))
 import Data.Maybe (isJust)
 import Data.Range
 import Data.Text (Text)
 import Data.Text.Ascii
+import Data.Time (UTCTime)
 import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
 
@@ -96,6 +97,7 @@ connectedProfile u = UserProfile
     , profileService  = userService u
     , profileLocale   = Just (userLocale u)
     , profileDeleted  = userDeleted u
+    , profileExpire   = userExpire u
     }
 
 publicProfile :: User -> UserProfile
@@ -117,6 +119,8 @@ data User = User
         -- ^ Set if the user represents an external service,
         -- i.e. it is a "bot".
     , userHandle   :: !(Maybe Handle)
+    , userExpire   :: !(Maybe UTCTime)
+        -- ^ Set if the user is ephemeral
     }
 
 userEmail :: User -> Maybe Email
@@ -139,21 +143,23 @@ data UserProfile = UserProfile
         -- i.e. it is a "bot".
     , profileHandle   :: !(Maybe Handle)
     , profileLocale   :: !(Maybe Locale)
+    , profileExpire   :: !(Maybe UTCTime)
     }
 
 instance ToJSON User where
     toJSON u = object
-        $ "id"        .= userId u
-        # "name"      .= userName u
-        # "picture"   .= userPict u
-        # "assets"    .= userAssets u
-        # "email"     .= userEmail u
-        # "phone"     .= userPhone u
-        # "accent_id" .= userAccentId u
-        # "deleted"   .= (if userDeleted u then Just True else Nothing)
-        # "locale"    .= userLocale u
-        # "service"   .= userService u
-        # "handle"    .= userHandle u
+        $ "id"         .= userId u
+        # "name"       .= userName u
+        # "picture"    .= userPict u
+        # "assets"     .= userAssets u
+        # "email"      .= userEmail u
+        # "phone"      .= userPhone u
+        # "accent_id"  .= userAccentId u
+        # "deleted"    .= (if userDeleted u then Just True else Nothing)
+        # "locale"     .= userLocale u
+        # "service"    .= userService u
+        # "handle"     .= userHandle u
+        # "expires_at" .= (UTCTimeMillis <$> userExpire u)
         # []
 
 instance FromJSON User where
@@ -168,6 +174,7 @@ instance FromJSON User where
              <*> o .:  "locale"
              <*> o .:? "service"
              <*> o .:? "handle"
+             <*> o .:? "expires_at"
 
 instance FromJSON UserProfile where
     parseJSON = withObject "UserProfile" $ \o ->
@@ -180,18 +187,20 @@ instance FromJSON UserProfile where
                     <*> o .:? "service"
                     <*> o .:? "handle"
                     <*> o .:? "locale"
+                    <*> o .:? "expires_at"
 
 instance ToJSON UserProfile where
     toJSON u = object
-        $ "id"        .= profileId u
-        # "name"      .= profileName u
-        # "picture"   .= profilePict u
-        # "assets"    .= profileAssets u
-        # "accent_id" .= profileAccentId u
-        # "deleted"   .= (if profileDeleted u then Just True else Nothing)
-        # "service"   .= profileService u
-        # "handle"    .= profileHandle u
-        # "locale"    .= profileLocale u
+        $ "id"         .= profileId u
+        # "name"       .= profileName u
+        # "picture"    .= profilePict u
+        # "assets"     .= profileAssets u
+        # "accent_id"  .= profileAccentId u
+        # "deleted"    .= (if profileDeleted u then Just True else Nothing)
+        # "service"    .= profileService u
+        # "handle"     .= profileHandle u
+        # "locale"     .= profileLocale u
+        # "expires_at" .= (UTCTimeMillis <$> profileExpire u)
         # []
 
 instance FromJSON SelfProfile where
@@ -217,6 +226,7 @@ data NewUser = NewUser
     , newUserLocale         :: !(Maybe Locale)
     , newUserPassword       :: !(Maybe PlainTextPassword)
     , newUserTeam           :: !(Maybe NewTeamUser)
+    , newUserExpiresIn      :: !(Maybe (Range 1 604800 Integer)) -- ^ 1 second - 1 week
     }
 
 newUserEmail :: NewUser -> Maybe Email
@@ -243,9 +253,13 @@ instance FromJSON NewUser where
           newUserTeam <- case (newUserTeamCode, newUserNewTeam, newUserPassword, newUserInvitationCode) of
                 (Just a,  Nothing, Just _, Nothing) -> return $ Just (NewTeamMember a)
                 (Nothing, Just b , Just _, Nothing) -> return $ Just (NewTeamCreator b)
-                (Nothing, Nothing,      _,       _) -> return $ Nothing
+                (Nothing, Nothing,      _,       _) -> return Nothing
                 _                                   -> fail "team_code, team, invitation_code are mutually exclusive \
                                                             \ and all team users must set a password on creation "
+          newUserExpires   <- o .:? "expires_in"
+          newUserExpiresIn <- case (newUserExpires, newUserIdentity) of
+                (Just _, Just _) -> fail "Only users without an identity can expire"
+                _                -> return newUserExpires
           return NewUser{..}
 
 instance ToJSON NewUser where
@@ -263,6 +277,7 @@ instance ToJSON NewUser where
         # "label"           .= newUserLabel u
         # "locale"          .= newUserLocale u
         # "password"        .= newUserPassword u
+        # "expires_in"      .= newUserExpiresIn u
         # maybe ("", Null) encodeNewTeamUser (newUserTeam u)
         # []
 
@@ -294,7 +309,7 @@ instance FromJSON BindingNewTeamUser where
     parseJSON _ = fail "parseJSON BindingNewTeamUser: must be an object"
 
 instance ToJSON BindingNewTeamUser where
-    toJSON (BindingNewTeamUser t c) = do
+    toJSON (BindingNewTeamUser t c) =
         let (Object t') = toJSON t
          in object $ "currency" .= c
                    # HashMap.toList t'

@@ -1,10 +1,11 @@
 SHELL         := /usr/bin/env bash
 NAME          := cargohold
+DIST          ?= ./dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT        := dist/$(NAME)-integration
+EXE_IT        := $(DIST)/$(NAME)-integration
 DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := dist/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 SDIST         := dist/$(NAME)-$(VERSION).tar.gz
@@ -60,13 +61,17 @@ $(DEB_IT):
 integration: install
 	LOG_LEVEL=Info keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV)
 
-test-fast:
-	stack install --fast --test --local-bin-path=dist
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT)' --env $(KEIRETSU_ENV)
+integration-%:
+	stack install --fast --local-bin-path=dist
+	LOG_LEVEL=Debug keiretsu --run '$(EXE_IT) --pattern="$*"; sleep 1' --env $(KEIRETSU_ENV)
 
-test-%:
-	stack install --fast --test --local-bin-path=dist
-	LOG_LEVEL=Debug keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
+integration-fast:
+	stack install --fast --local-bin-path=dist
+	LOG_LEVEL=Debug keiretsu --run '$(EXE_IT); sleep 1' --env $(KEIRETSU_ENV)
+
+integration-fake-aws:
+	stack install --fast --local-bin-path=dist
+	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="!/RealAWS/"; sleep 1' --env $(KEIRETSU_ENV)
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \

@@ -13,7 +13,6 @@ module CargoHold.App
       Env
     , newEnv
     , closeEnv
-    , cloudFront
     , aws
     , metrics
     , appLogger
@@ -33,7 +32,6 @@ module CargoHold.App
 
 import Bilge (MonadHttp, Manager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
-import CargoHold.CloudFront
 import CargoHold.Options as Opt
 import Control.Applicative
 import Control.Error (ExceptT, exceptT)
@@ -66,13 +64,12 @@ import qualified System.Logger                as Log
 -- Environment
 
 data Env = Env
-    { _aws         :: AWS.Env
-    , _cloudFront  :: CloudFront
-    , _metrics     :: Metrics
-    , _appLogger   :: Logger
-    , _httpManager :: Manager
-    , _requestId   :: RequestId
-    , _settings    :: Opt.Settings
+    { _aws            :: AWS.Env
+    , _metrics        :: Metrics
+    , _appLogger      :: Logger
+    , _httpManager    :: Manager
+    , _requestId      :: RequestId
+    , _settings       :: Opt.Settings
     }
 
 makeLenses ''Env
@@ -84,13 +81,15 @@ newEnv o = do
                     . Log.setFormat Nothing
                     $ Log.defSettings
     mgr  <- initHttpManager
-    let awsOpts = o^.optAws
-    sig  <- initCloudFront (awsOpts^.awsCfPrivateKey) (awsOpts^.awsCfKeyPairId) (awsOpts^.awsCfDomain)
-    ama  <- initAws o lgr mgr
-    return $ Env ama sig met lgr mgr mempty (o^.optSettings)
+    ama  <- initAws (o^.optAws) lgr mgr
+    return $ Env ama met lgr mgr mempty (o^.optSettings)
 
-initAws :: Opts -> Logger -> Manager -> IO AWS.Env
-initAws o l m = AWS.mkEnv l (o^.optAws.awsS3Endpoint) (o^.optAws.awsS3Bucket) m
+initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
+initAws o l m = AWS.mkEnv l
+                          (o^.awsS3Endpoint)
+                          (o^.awsS3Bucket)
+                          (o^.awsCloudFront)
+                          m
 
 initHttpManager :: IO Manager
 initHttpManager = do

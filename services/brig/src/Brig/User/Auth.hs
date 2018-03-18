@@ -75,6 +75,7 @@ login (PasswordLogin li pw label) typ = do
     uid <- resolveLoginId li
     Data.authenticate uid pw `catchE` \case
         AuthSuspended          -> throwE LoginSuspended
+        AuthEphemeral          -> throwE LoginEphemeral
         AuthInvalidCredentials -> throwE LoginFailed
         AuthInvalidUser        -> throwE LoginFailed
     newAccess uid typ label

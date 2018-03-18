@@ -15,6 +15,7 @@ module CargoHold.AWS
     , amazonkaEnv
     , execute
     , s3Bucket
+    , cloudFront
 
     , Error (..)
 
@@ -30,7 +31,9 @@ module CargoHold.AWS
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
+import CargoHold.CloudFront
 import CargoHold.Error
+import CargoHold.Options
 import Control.Lens hiding ((.=))
 import Control.Monad.Base
 import Control.Monad.Catch
@@ -55,6 +58,7 @@ data Env = Env
     { _logger         :: !Logger
     , _s3Bucket       :: !Text
     , _amazonkaEnv    :: !AWS.Env
+    , _cloudFront     :: !(Maybe CloudFront)
     }
 
 makeLenses ''Env
@@ -84,12 +88,16 @@ instance MonadBaseControl IO Amazon where
 instance AWS.MonadAWS Amazon where
     liftAWS a = view amazonkaEnv >>= flip AWS.runAWS a
 
-mkEnv :: Logger -> AWSEndpoint -> Text -> Manager -> IO Env
-mkEnv lgr s3End bucket mgr = do
+mkEnv :: Logger -> AWSEndpoint -> Text -> Maybe CloudFrontOpts -> Manager -> IO Env
+mkEnv lgr s3End bucket cfOpts mgr = do
     let g = Logger.clone (Just "aws.cargohold") lgr
-    e <- mkAwsEnv g (mkEndpoint S3.s3 s3End)
-    return (Env g bucket e)
+    e  <- mkAwsEnv g (mkEndpoint S3.s3 s3End)
+    cf <- mkCfEnv cfOpts
+    return (Env g bucket e cf)
   where
+    mkCfEnv (Just o) = Just <$> initCloudFront (o^.cfPrivateKey) (o^.cfKeyPairId) 300 (o^.cfDomain)
+    mkCfEnv Nothing  = return Nothing
+    
     mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
 
     mkAwsEnv g s3 =  set AWS.envLogger (awsLogger g)

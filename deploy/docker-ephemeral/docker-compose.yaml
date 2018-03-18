@@ -20,15 +20,38 @@ services:
       - DEFAULT_REGION=eu-west-1
       - SERVICES=ses,sns
 
+  fake_s3:
+      image: tiagoloureiro/fake-s3:0.2.5
+      ports:
+        - 4570:4570
+
   redis:
     image: redis:3.0.7-alpine
     ports:
       - "6379:6379"
 
-  fake_s3:
-      image: tiagoloureiro/fake-s3:0.2.5
-      ports:
-        - 4570:4570
+  elasticsearch:
+    image: elasticsearch:5.6
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+
+  cassandra:
+    image: cassandra:3.11.1
+    ports:
+      - "9042:9042"
+
+  db_migrations:
+    image: wireserver/migrations
+    depends_on:
+      - elasticsearch
+      - cassandra
+    command: /scripts/db-migrate.sh
+    volumes:
+      - ./:/scripts
+    links:
+      - elasticsearch
+      - cassandra
 
   aws_cli:
     image: mesosphere/aws-cli:1.14.5
@@ -37,6 +60,7 @@ services:
       - fake_sqs
       - fake_s3
       - fake_localstack
+      - fake_s3
     links:
       - fake_dynamodb:dynamodb
       - fake_sqs:sqs
@@ -46,4 +70,3 @@ services:
     entrypoint: /scripts/init.sh
     volumes:
       - ./:/scripts
-
