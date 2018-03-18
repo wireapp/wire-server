@@ -4,7 +4,6 @@
 module Test.Brig.Types.Arbitrary where
 
 import Brig.Types.TURN
-import Control.Applicative
 import Data.IP
 import Data.Misc
 import Data.Word
@@ -23,7 +22,7 @@ instance Arbitrary Scheme where
 
 -- TODO: Add an arbitrary instance for IPv6
 instance Arbitrary IpAddr where
-    arbitrary = ipV4Arbitrary -- <|> ipV4Arbitrary
+    arbitrary = ipV4Arbitrary
       where
         ipV4Arbitrary :: Gen IpAddr
         ipV4Arbitrary = do

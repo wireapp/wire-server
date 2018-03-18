@@ -3,10 +3,8 @@
 module Test.Brig.Types.TURN where
 
 import Brig.Types.TURN hiding (turnURI)
-import Control.Monad.IO.Class
 import Data.Aeson
-import Data.Misc
-import Test.Brig.Types.Arbitrary
+import Test.Brig.Types.Arbitrary ()
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
