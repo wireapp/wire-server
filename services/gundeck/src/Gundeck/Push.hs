@@ -2,6 +2,7 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Gundeck.Push
     ( push
@@ -52,12 +53,18 @@ import qualified Gundeck.Push.Native          as Native
 import qualified Gundeck.Push.Native.Fallback as Fallback
 import qualified Gundeck.Push.Websocket       as Web
 import qualified Gundeck.Types.Presence       as Presence
+import qualified Gundeck.Types.BulkPush       as BP
 import qualified System.Logger.Class          as Log
 
 push :: Request ::: JSON -> Gundeck Response
 push (req ::: _) = do
     ps <- fromBody req (Error status400 "bad-request")
-    rs <- mapAsync pushAny (ps :: [Push])
+    -- TODO: the following TODOs if bulk push is turned on
+    -- TODO: group notifications by cannon host in presence
+    bp <- view (options . optSettings . setBulkPush)
+    rs <- if bp
+        then pushAll (ps :: [Push])
+        else mapAsync pushAny (ps :: [Push])
     case runAllE (foldMap (AllE . fmapL Seq.singleton) rs) of
         Right () -> return empty
         Left exs -> do
@@ -65,18 +72,38 @@ push (req ::: _) = do
             throwM (Error status500 "server-error" "Server Error")
   where
     pushAny p = do
-        sendNotice <- view (options.optFallback.fbPreferNotice)
+        (_, i, pload, notif, tgts) <- setupPush p
+        doPush p i pload notif tgts
+
+    pushAll ps = do
+        pns <- mapM setupPush ps
+        doBulkPush pns
+        return $ [Right ()]
+
+    setupPush p = do
         i <- mkNotificationId
         let pload = p^.pushPayload
         let notif = Notification i (p^.pushTransient) pload
         let rcps  = fromRange (p^.pushRecipients)
         let uniq  = uncurry list1 $ head &&& tail $ toList rcps
         let tgts  = mkTarget <$> uniq
+        return (p, i, pload, notif, tgts)
+
+    doPush p i pload notif tgts = do
+        sendNotice <- view (options.optFallback.fbPreferNotice)
         unless (p^.pushTransient) $
             Stream.add i tgts pload =<< view (options.optSettings.setNotificationTTL)
         void . fork $ do
             prs <- Web.push notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
             pushNative sendNotice notif p =<< nativeTargets p prs
+
+    doBulkPush pns = do
+        -- TODO: return a list of Pushes paired with their ok presences (prs)
+        -- TODO: map this list over doPush (and find some clever way of passing in prs -- fork earlier and bring Web.push call out of doPush?)
+        resps <- Web.pushBulk $ map mapPP pns
+        return ()
+
+    mapPP (p, _, _, n, toList -> tgts) = BP.PushParams n tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
 
     mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
 

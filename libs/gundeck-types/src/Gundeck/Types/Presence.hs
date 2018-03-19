@@ -8,6 +8,7 @@ module Gundeck.Types.Presence
 
 import Data.Aeson
 import Data.Id
+import Data.Text
 import Data.Word
 import Gundeck.Types.Common as Common
 
@@ -18,12 +19,12 @@ newtype Milliseconds = Ms
     } deriving (Eq, Ord, Show, Num, ToJSON, FromJSON)
 
 data Presence = Presence
-    { userId    :: !UserId
-    , connId    :: !ConnId
-    , resource  :: !URI
-    , clientId  :: !(Maybe ClientId)
-    , createdAt :: !Milliseconds
-    , __field   :: !Lazy.ByteString -- temp. addition to ease migration
+    { userId     :: !UserId
+    , connId     :: !ConnId
+    , resource   :: !URI
+    , clientId   :: !(Maybe ClientId)
+    , createdAt  :: !Milliseconds
+    , __field    :: !Lazy.ByteString -- temp. addition to ease migration
     } deriving (Eq, Show)
 
 instance ToJSON Presence where

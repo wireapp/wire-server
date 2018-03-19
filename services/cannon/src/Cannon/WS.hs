@@ -208,14 +208,17 @@ close k c = do
 regInfo :: Key -> Maybe ClientId -> WS (Request -> Request)
 regInfo k c = do
     e <- WS ask
-    let h = externalHostname e
-        p = portnum e
-        r = "http://" <> h <> ":" <> pack (show p) <> "/i/push/"
+    let h  = externalHostname e
+        p  = portnum e
+        hp = h <> ":" <> pack (show p)
+        r  = "http://" <> hp <> "/i/push"
+        ku = keyUserBytes k
+        kc = keyConnBytes k
     return . lbytes . encode . object $
-        [ "user_id"   .= decodeUtf8 (keyUserBytes k)
-        , "device_id" .= decodeUtf8 (keyConnBytes k)
-        , "resource"  .= decodeUtf8 (r <> keyUserBytes k <> "/" <> keyConnBytes k)
-        , "client_id" .= c
+        [ "user_id"       .= decodeUtf8 (ku)
+        , "device_id"     .= decodeUtf8 (kc)
+        , "resource"      .= decodeUtf8 (r <> "/" <> ku <> "/" <> kc)
+        , "client_id"     .= c
         ]
 
 client :: ByteString -> Msg -> Msg

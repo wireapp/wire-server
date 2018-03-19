@@ -12,8 +12,9 @@ import Cannon.WS hiding (env)
 import Control.Applicative hiding (empty, optional)
 import Control.Lens ((^.))
 import Control.Monad.Catch
-import Data.Aeson (encode)
+import Data.Aeson (decode, encode)
 import Data.ByteString (ByteString)
+import Data.Either (Either (..), lefts, rights)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
 import Data.Swagger.Build.Api hiding (def, Response)
@@ -21,6 +22,8 @@ import Data.Text (Text, strip, pack)
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types
 import Data.Maybe
+import Gundeck.Types
+import Gundeck.Types.BulkPush
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
@@ -33,12 +36,12 @@ import Prelude hiding (head)
 import System.Logger.Class hiding (Error)
 import System.Random.MWC (createSystemRandom)
 
-import qualified Cannon.Dict                 as D
-import qualified Data.Metrics.Middleware     as Metrics
-import qualified Network.Wai.Middleware.Gzip as Gzip
-import qualified Network.WebSockets          as Ws
-import qualified System.Logger               as Logger
-import qualified System.IO.Strict            as Strict
+import qualified Cannon.Dict                  as D
+import qualified Data.Metrics.Middleware      as Metrics
+import qualified Network.Wai.Middleware.Gzip  as Gzip
+import qualified Network.WebSockets           as Ws
+import qualified System.Logger                as Logger
+import qualified System.IO.Strict             as Strict
 
 run :: Opts -> IO ()
 run o = do
@@ -100,6 +103,9 @@ sitemap = do
     post "/i/push/:user/:conn" (continue push) $
         capture "user" .&. capture "conn" .&. request
 
+    post "/i/bulkpush" (continue bulkpush) $ 
+        request 
+
     get "/i/monitoring" (continue monitoring) $
         accept "application" "json"
 
@@ -121,23 +127,27 @@ docs (_ ::: url) = do
 
 push :: UserId ::: ConnId ::: Request -> Cannon Response
 push (user ::: conn ::: req) = do
-    let k = mkKey user conn
-    d <- clients
-    debug $ client (key2bytes k) . msg (val "push")
-    c <- D.lookup k d
-    case c of
-        Nothing -> do
-            debug $ client (key2bytes k) . msg (val "push: client gone")
-            return clientGone
-        Just x  -> do
-            b <- readBody req
-            e <- wsenv
-            runWS e $
-                (sendMsg b k x >> return empty)
-                `catchAll`
-                const (terminate k x >> return clientGone)
+    b <- readBody req
+    let notf = decode b
+    case notf of
+        Nothing -> return badPayload
+        Just n -> pushToClient user conn n
+
+bulkpush :: Request -> Cannon Response
+bulkpush req = do
+    b <- readBody req
+    let payload = decode b
+    case payload of
+        Nothing -> return badPayload
+        Just pushes -> do
+            responses <- mapM pushwrapper (bpRecipients pushes)
+            return $ json $ BulkPushResults (lefts responses) (rights responses)
   where
-    clientGone = errorRs status410 "general" "client gone"
+    pushwrapper pushdata = buildResult (udUid pushdata) (udDid pushdata) (udData pushdata)
+    buildResult u c d = mapFailures u c d . statusCode . responseStatus <$> pushToClient u c d
+    mapFailures u c d s
+        | s == 200  = Right $ PushResponse (ntfId d) u c s
+        | otherwise = Left  $ PushResponse (ntfId d) u c s
 
 await :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
 await (u ::: a ::: c ::: r) = do
@@ -149,3 +159,28 @@ await (u ::: a ::: c ::: r) = do
   where
     status426 = mkStatus 426 "Upgrade Required"
     wsoptions = Ws.defaultConnectionOptions
+
+-- Helper functions
+
+pushToClient :: UserId -> ConnId -> Notification -> Cannon Response
+pushToClient user conn  notf = do
+    let k = mkKey user conn
+    d <- clients
+    debug $ client (key2bytes k) . msg (val "push")
+    c <- D.lookup k d
+    case c of
+        Nothing -> do
+            debug $ client (key2bytes k) . msg (val "push: client gone")
+            return clientGone
+        Just x  -> do
+            let n = encode notf
+            e <- wsenv
+            runWS e $
+                (sendMsg n k x >> return empty)
+                `catchAll`
+                const (terminate k x >> return clientGone)
+  where
+    clientGone = errorRs status410 "general" "client gone"
+
+badPayload :: Response
+badPayload = errorRs status400 "malformed-payload" "The request payload was malformed."

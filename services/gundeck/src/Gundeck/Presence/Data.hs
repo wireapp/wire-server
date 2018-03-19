@@ -17,6 +17,7 @@ import Data.Foldable (for_)
 import Data.Id
 import Data.Maybe (mapMaybe)
 import Data.Monoid
+import Data.Text hiding (isPrefixOf, zipWith)
 import Database.Redis.IO hiding (Milliseconds)
 import Gundeck.Monad (Gundeck, posixTime)
 import Gundeck.Types
@@ -91,9 +92,9 @@ data PresenceData = PresenceData !URI !(Maybe ClientId) !Milliseconds
 
 instance ToJSON PresenceData where
     toJSON (PresenceData r c t) = object
-        [ "r" .= r
-        , "c" .= c
-        , "t" .= t
+        [ "r"  .= r
+        , "c"  .= c
+        , "t"  .= t
         ]
 
 instance FromJSON PresenceData where

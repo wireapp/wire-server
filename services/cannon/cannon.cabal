@@ -44,6 +44,7 @@ library
         , http-types            >= 0.8
         , lens                  >= 4.4
         , lens-family-core      >= 1.1
+        , gundeck-types
         , metrics-wai           >= 0.4
         , mwc-random            >= 0.13
         , optparse-applicative  >= 0.10
