@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE ViewPatterns      #-}
 
 module Gundeck.Push.Websocket (push, bulkPush) where
@@ -11,12 +12,14 @@ import Bilge
 import Bilge.Retry (rpcHandlers)
 import Bilge.RPC
 import Control.Arrow ((&&&))
+import Control.Concurrent.Async (mapConcurrently)
 import Control.Exception (ErrorCall(ErrorCall))
 import Control.Exception.Enclosed (handleAny)
 import Control.Monad (forM, forM_, foldM, when)
 import Control.Monad.Catch (MonadThrow, SomeException (..), throwM, catch, try)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (MonadReader)
+import Control.Monad.Trans.Control
 import Control.Lens ((^.), (%~), _2, view)
 import Control.Retry
 import Data.Aeson (encode, eitherDecode)
@@ -52,7 +55,7 @@ import qualified System.Logger.Class          as Log
 bulkPush :: [(Notification, [Presence])] -> Gundeck [(NotificationId, [Presence])]
 bulkPush notifs = do
     let reqs = fanOut notifs
-    flbck <- flowBack <$> (uncurry bulkSend `mapM` reqs)
+    flbck <- flowBack <$> (uncurry bulkSend `mapConcurrentlyMBC` reqs)
 
     let -- lookup by 'URI' can fail iff we screwed up URI handling in this module.
         presencesByCannon = mkPresencesByCannon . mconcat $ snd <$> notifs
@@ -85,6 +88,18 @@ bulkPush notifs = do
         pure deletions
 
     pure (groupAssoc successes)
+
+
+-- | The 'StM' constraint is an attempt at making sure that state of @m@ is not corrupted here (even
+-- if there is any).  It is possible that this function works fine without it, but the author is not
+-- certain.
+--
+-- TODO: move this function to a more general place?  /libs/types-common?
+mapConcurrentlyMBC :: forall m t a b. (MonadBaseControl IO m, Traversable t, StM m b ~ b)
+                 => (a -> m b) -> t a -> m (t b)
+mapConcurrentlyMBC action inputs = liftBaseWith
+    (\runInBase -> (runInBase . action) `mapConcurrently` inputs)
+        >>= mapM restoreM
 
 
 logCannonsGone :: (MonadIO m, MonadReader Env m, Log.MonadLogger m)

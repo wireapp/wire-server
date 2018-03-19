@@ -46,6 +46,7 @@ library
         , lens                  >= 4.4
         , lens-family-core      >= 1.1
         , metrics-wai           >= 0.4
+        , mtl                   >= 2.2
         , mwc-random            >= 0.13
         , optparse-applicative  >= 0.10
         , retry                 >= 0.7
