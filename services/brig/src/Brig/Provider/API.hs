@@ -795,6 +795,7 @@ mkBotUserView u = Ext.BotUserView
     , Ext.botUserViewName   = userName u
     , Ext.botUserViewColour = userAccentId u
     , Ext.botUserViewHandle = userHandle u
+    , Ext.botUserViewTeam   = userTeam u
     }
 
 setProviderCookie :: ZAuth.ProviderToken -> Response -> Handler Response
