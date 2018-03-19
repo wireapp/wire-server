@@ -142,6 +142,10 @@ bulkpush :: Request -> Cannon Response
 bulkpush req = json <$> (parseJsonBody req >>= bulkpush')
 
 -- | The typed part of 'bulkpush'.
+--
+-- TODO: this sends the push requests to the cannons in sequence ('mapM'), not in parallel
+-- ('mapConcurrently').  it would be nice to fix that, but that requires 'Cannon' to instantiate
+-- 'MonadBaseControl' (or just 'MonadBase'?).
 bulkpush' :: BulkPushRequest -> Cannon BulkPushResponse
 bulkpush' (BulkPushRequest notifs) =
     BulkPushResponse . mconcat . zipWith compileResp notifs <$> (uncurry doNotif `mapM` notifs)
