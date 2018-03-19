@@ -252,7 +252,7 @@ deleteTokenV3 (usr ::: key) = do
 
 resumableOptionsV3 :: UserId -> Handler Response
 resumableOptionsV3 _ = do
-    maxTotal <- view maxTotalUpload
+    maxTotal <- view (settings.setMaxTotalBytes)
     return $ TUS.optionsResponse (fromIntegral maxTotal) empty
 
 createResumableV3 :: UserId ::: V3.TotalSize ::: Media "application" "json" ::: Request -> Handler Response

@@ -107,6 +107,7 @@ changeHandleError ChangeHandleInvalid     = StdError invalidHandle
 loginError :: LoginError -> Error
 loginError LoginFailed            = StdError badCredentials
 loginError LoginSuspended         = StdError accountSuspended
+loginError LoginEphemeral         = StdError accountEphemeral
 loginError LoginPendingActivation = StdError accountPending
 loginError (LoginThrottled wait)  = RichError loginsTooFrequent ()
     [("Retry-After", toByteString' (retryAfterSeconds wait))]
@@ -115,6 +116,7 @@ authError :: AuthError -> Error
 authError AuthInvalidUser        = StdError badCredentials
 authError AuthInvalidCredentials = StdError badCredentials
 authError AuthSuspended          = StdError accountSuspended
+authError AuthEphemeral          = StdError accountEphemeral
 
 reauthError :: ReAuthError -> Error
 reauthError ReAuthMissingPassword = StdError missingAuthError
@@ -254,6 +256,9 @@ accountPending = Wai.Error status403 "pending-activation" "Account pending activ
 
 accountSuspended :: Wai.Error
 accountSuspended = Wai.Error status403 "suspended" "Account suspended."
+
+accountEphemeral :: Wai.Error
+accountEphemeral = Wai.Error status403 "ephemeral" "Account is ephemeral."
 
 badCredentials :: Wai.Error
 badCredentials = Wai.Error status403 "invalid-credentials" "Authentication failed."

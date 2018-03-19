@@ -8,12 +8,11 @@ module CargoHold.API.Legacy
     ) where
 
 import CargoHold.App
-import Control.Lens (view)
+import CargoHold.Util
 import Data.Id
 import URI.ByteString
 
-import qualified CargoHold.CloudFront as CloudFront
-import qualified CargoHold.S3         as S3
+import qualified CargoHold.S3 as S3
 
 download :: UserId -> ConvId -> AssetId -> Handler (Maybe URI)
 download _ _ ast = S3.getMetadata ast >>= maybe notFound found
@@ -23,8 +22,7 @@ download _ _ ast = S3.getMetadata ast >>= maybe notFound found
         if not public
             then return Nothing
             else do
-                clf <- cloudFront <$> view aws
-                url <- CloudFront.signedUrl clf (S3.plainKey ast)
+                url <- genSignedURL (S3.plainKey ast)
                 return $! Just $! url
 
 downloadOtr :: UserId -> ConvId -> AssetId -> Handler (Maybe URI)
@@ -32,7 +30,6 @@ downloadOtr _ cnv ast = S3.getOtrMetadata cnv ast >>= maybe notFound found
   where
     notFound = return Nothing
     found _  = do
-        clf <- cloudFront <$> view aws
-        url <- CloudFront.signedUrl clf (S3.otrKey cnv ast)
+        url <- genSignedURL (S3.otrKey cnv ast)
         return $! Just $! url
 
