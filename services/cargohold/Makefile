@@ -61,13 +61,13 @@ $(DEB_IT):
 
 .PHONY: integration
 integration: fast
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
 
 integration-%: fast
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
 
 integration-fake-aws: fast
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "!/RealAWS/"
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "!/RealAWS/"
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \

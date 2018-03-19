@@ -80,13 +80,13 @@ $(DEB_JOURNALER):
 
 .PHONY: integration
 integration: fast
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
 
 integration-list: fast
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
 
 integration-%: fast
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata

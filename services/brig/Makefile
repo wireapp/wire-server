@@ -83,14 +83,14 @@ $(DEB_INDEX): install
 
 .PHONY: integration
 integration: fast
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
 
 .PHONY: integration-list
 integration-list: fast
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
 
 integration-%: fast
-	../integrationtest.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
 
 .PHONY: db
 db: db-reset

@@ -14,7 +14,8 @@ function kill_all() {
 }
 
 function list_descendants () {
-  local children=$(ps -o pid= --ppid "$1")
+  # local children=$(ps -o pid= --ppid "$1")
+  local children=$(pgrep -P "$1")
   for pid in $children
   do
     list_descendants "$pid"
@@ -57,7 +58,7 @@ run gundeck ${blue} Info
 run cannon ${orange} Info
 run cargohold ${purpleish} Info
 
-sleep 3
+sleep 3 # wait for services to start before starting integration executable
 
 ${EXE} "${@:2}" && echo 0 > ${EXIT_STATUS_LOCATION} && kill_gracefully || kill_gracefully &
 
