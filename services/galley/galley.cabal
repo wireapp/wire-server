@@ -207,6 +207,7 @@ executable galley-integration
       , http-types
       , lens
       , lens-aeson
+      , lifted-async
       , mtl
       , network
       , optparse-applicative
