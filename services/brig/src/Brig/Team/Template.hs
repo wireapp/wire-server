@@ -58,21 +58,21 @@ loadTeamTemplates :: Opts -> IO (Localised TeamTemplates)
 loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \fp ->
     TeamTemplates
         <$> (InvitationEmailTemplate tUrl
-                <$> readTemplate (fp <> "/email/invitation-subject.txt")
-                <*> readTemplate (fp <> "/email/invitation.txt")
-                <*> readTemplate (fp <> "/email/invitation.html")
+                <$> readTemplate fp "email/invitation-subject.txt"
+                <*> readTemplate fp "email/invitation.txt"
+                <*> readTemplate fp "email/invitation.html"
                 <*> pure (emailSender gOptions)
                 <*> readText (fp <> "/email/sender.txt"))
         <*> (CreatorWelcomeEmailTemplate (tCreatorWelcomeUrl tOptions)
-                <$> readTemplate (fp <> "/email/new-creator-welcome-subject.txt")
-                <*> readTemplate (fp <> "/email/new-creator-welcome.txt")
-                <*> readTemplate (fp <> "/email/new-creator-welcome.html")
+                <$> readTemplate fp "email/new-creator-welcome-subject.txt"
+                <*> readTemplate fp "email/new-creator-welcome.txt"
+                <*> readTemplate fp "email/new-creator-welcome.html"
                 <*> pure (emailSender gOptions)
                 <*> readText (fp <> "/email/sender.txt"))
         <*> (MemberWelcomeEmailTemplate (tMemberWelcomeUrl tOptions)
-                <$> readTemplate (fp <> "/email/new-member-welcome-subject.txt")
-                <*> readTemplate (fp <> "/email/new-member-welcome.txt")
-                <*> readTemplate (fp <> "/email/new-member-welcome.html")
+                <$> readTemplate fp "email/new-member-welcome-subject.txt"
+                <*> readTemplate fp "email/new-member-welcome.txt"
+                <*> readTemplate fp "email/new-member-welcome.html"
                 <*> pure (emailSender gOptions)
                 <*> readText (fp <> "/email/sender.txt"))
   where
@@ -81,3 +81,4 @@ loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \
     tUrl     = template $ tInvitationUrl tOptions
 
     defLocale = setDefaultLocale (optSettings o)
+    readTemplate = readTemplateWithDefault (templateDir gOptions) defLocale "team"
