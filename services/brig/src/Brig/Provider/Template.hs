@@ -76,7 +76,7 @@ data PasswordResetEmailTemplate = PasswordResetEmailTemplate
 --     }
 
 loadProviderTemplates :: Opts -> IO (Localised ProviderTemplates)
-loadProviderTemplates o = readLocalesDir defLocale templates $ \fp ->
+loadProviderTemplates o = readLocalesDir defLocale (templateDir gOptions) "provider" $ \fp ->
     ProviderTemplates
         <$> (ActivationEmailTemplate activationUrl'
                 <$> readTemplate (fp <> "/email/activation-subject.txt")
@@ -109,7 +109,6 @@ loadProviderTemplates o = readLocalesDir defLocale templates $ \fp ->
     maybeUrl  = fromByteString $ encodeUtf8 $ homeUrl pOptions
     gOptions  = general $ emailSMS o
     pOptions  = provider $ emailSMS o
-    templates = templateDir gOptions <> "/provider"
     defLocale = setDefaultLocale (optSettings o)
 
     -- URL templates

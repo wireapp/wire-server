@@ -55,7 +55,7 @@ data TeamTemplates = TeamTemplates
     }
 
 loadTeamTemplates :: Opts -> IO (Localised TeamTemplates)
-loadTeamTemplates o = readLocalesDir defLocale templates $ \fp ->
+loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \fp ->
     TeamTemplates
         <$> (InvitationEmailTemplate tUrl
                 <$> readTemplate (fp <> "/email/invitation-subject.txt")
@@ -81,4 +81,3 @@ loadTeamTemplates o = readLocalesDir defLocale templates $ \fp ->
     tUrl     = template $ tInvitationUrl tOptions
 
     defLocale = setDefaultLocale (optSettings o)
-    templates = templateDir gOptions <> "/team"

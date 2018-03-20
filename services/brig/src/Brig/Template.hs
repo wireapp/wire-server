@@ -22,12 +22,14 @@ module Brig.Template
 import Brig.Types (Locale (..), parseLocale, locToText)
 import Control.Applicative
 import Control.Exception (catchJust)
+import Control.Monad (filterM)
+import Control.Monad.IO.Class
 import Data.Map.Strict (Map)
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text, pack, unpack)
 import Data.Text.Template (Template, template)
-import System.Directory (getDirectoryContents)
+import System.Directory (listDirectory, doesDirectoryExist)
 import System.IO.Error (isDoesNotExistError)
 import Prelude hiding (readFile)
 
@@ -46,20 +48,25 @@ data Localised a = Localised
 
 readLocalesDir
     :: Locale             -- ^ Default locale.
+    -> FilePath           -- ^ Base directory.
     -> FilePath           -- ^ Template directory.
     -> (FilePath -> IO a) -- ^ Handler to load the templates for a locale.
     -> IO (Localised a)
-readLocalesDir defLocale dir load = do
+readLocalesDir defLocale base dir load = do
     def <- load (fullPath defLocaleDir)
     Localised (defLocale, def) <$> do
-        ls <- filter eligible <$> getDirectoryContents dir
+        ls' <- filter ignoreDefault <$> listDirectory base
+        liftIO $ print ("All locales: " ++ dir ++ " for locales: " ++ show ls')
+        -- Ignore locales if no such directory exist for the locale
+        ls <- filterM (doesDirectoryExist . fullPath) ls'
+        liftIO $ print ("Loading for locales: " ++ show ls)
         Map.fromList . zip (map readLocale ls) <$> mapM (load . fullPath) ls
   where
     fullPath :: FilePath -> FilePath
-    fullPath d = dir <> "/" <> d
+    fullPath d = base <> "/" <> d <> "/" <> dir
 
-    eligible :: FilePath -> Bool
-    eligible l = l /= defLocaleDir && head l /= '.'
+    ignoreDefault :: FilePath -> Bool
+    ignoreDefault = (/= defLocaleDir)
 
     defLocaleDir :: FilePath
     defLocaleDir = unpack (locToText defLocale)

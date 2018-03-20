@@ -150,7 +150,7 @@ data NewClientEmailTemplate = NewClientEmailTemplate
     }
 
 loadUserTemplates :: Opt.Opts -> IO (Localised UserTemplates)
-loadUserTemplates o = readLocalesDir defLocale templateDir $ \fp ->
+loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
     UserTemplates
         <$> (ActivationSmsTemplate smsActivationUrl
                 <$> readTemplate (fp <> "/sms/activation.txt")
@@ -233,4 +233,4 @@ loadUserTemplates o = readLocalesDir defLocale templateDir $ \fp ->
     deletionUserUrl   = template $ Opt.deletionUrl      uOptions
 
     defLocale = Opt.setDefaultLocale (Opt.optSettings o)
-    templateDir = Opt.templateDir gOptions <> "/user"
+    templateDir = Opt.templateDir gOptions
