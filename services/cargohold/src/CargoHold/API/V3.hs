@@ -15,7 +15,9 @@ module CargoHold.API.V3
 
 import CargoHold.App
 import CargoHold.API.Error
+import CargoHold.Options
 import CargoHold.Types.V3
+import CargoHold.Util
 import Control.Applicative
 import Control.Error
 import Control.Lens (view, (^.), set, (&))
@@ -37,7 +39,6 @@ import OpenSSL.Random (randBytes)
 import Prelude hiding (take)
 import URI.ByteString
 
-import qualified CargoHold.CloudFront    as CloudFront
 import qualified CargoHold.Metrics       as Metrics
 import qualified CargoHold.S3            as S3
 import qualified CargoHold.Types.V3      as V3
@@ -58,7 +59,7 @@ upload own bdy = do
     let cl = fromIntegral $ hdrLength hdrs
     when (cl <= 0) $
         throwE invalidLength
-    maxTotalBytes <- view maxTotalUpload
+    maxTotalBytes <- view (settings.setMaxTotalBytes)
     when (cl > maxTotalBytes) $
         throwE assetTooLarge
     let stream = src $= Conduit.isolate cl
@@ -103,8 +104,7 @@ download own key tok = S3.getMetadataV3 key >>= maybe notFound found
     found s3
         | own /= S3.v3AssetOwner s3 && tok /= S3.v3AssetToken s3 = return Nothing
         | otherwise = do
-            clf <- cloudFront <$> view aws
-            url <- CloudFront.signedUrl clf (S3.mkKey key)
+            url <- genSignedURL (S3.mkKey key)
             return $! Just $! url
 
 delete :: V3.Principal -> V3.AssetKey -> Handler ()

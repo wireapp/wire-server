@@ -12,6 +12,7 @@ module CargoHold.API.V3.Resumable
 
 import CargoHold.App
 import CargoHold.API.V3 (randToken)
+import CargoHold.Options
 import CargoHold.Types.V3 as V3
 import CargoHold.Types.V3.Resumable as V3
 import Control.Error (throwE)
@@ -37,7 +38,7 @@ create own sets size = do
     let cl = fromIntegral size
     when (cl <= 0) $
         throwE Error.invalidLength
-    maxTotalBytes <- view maxTotalUpload
+    maxTotalBytes <- view (settings.setMaxTotalBytes)
     when (cl > maxTotalBytes) $
         throwE Error.assetTooLarge
     aid <- liftIO $ Id <$> nextRandom

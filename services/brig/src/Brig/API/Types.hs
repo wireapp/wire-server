@@ -104,6 +104,7 @@ data PasswordResetError
 data LoginError
     = LoginFailed
     | LoginSuspended
+    | LoginEphemeral
     | LoginPendingActivation
     | LoginThrottled RetryAfter
 
