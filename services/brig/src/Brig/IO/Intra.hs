@@ -539,11 +539,11 @@ addTeamMember u tid = do
           . expect [status200, status403]
           . lbytes (encode $ t p)
 
-createTeam :: UserId -> Team.BindingNewTeam -> AppIO CreateUserTeam
-createTeam u t@(Team.BindingNewTeam bt) = do
+createTeam :: UserId -> Team.BindingNewTeam -> TeamId -> AppIO CreateUserTeam
+createTeam u t@(Team.BindingNewTeam bt) teamid = do
     debug $ remote "galley"
             . msg (val "Creating Team")
-    r   <- galleyRequest PUT . req =<< randomId
+    r   <- galleyRequest PUT $ req teamid
     tid <- maybe (error "invalid team id") return $
             fromByteString $ getHeader' "Location" r
     return (CreateUserTeam tid $ fromRange (bt^.Team.newTeamName))

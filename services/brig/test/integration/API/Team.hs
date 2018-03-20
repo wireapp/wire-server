@@ -635,6 +635,9 @@ inviteAndRegisterUser u tid brig = do
                              . body (accept inviteeEmail inviteeCode)) <!! const 201 === statusCode
 
     let Just invitee = decodeBody rspInvitee
+    liftIO $ assertBool "Team ID in registration and team table do not match" (Just tid == userTeam invitee)
+    selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId invitee)
+    liftIO $ assertBool "Team ID in self profile and team table do not match" (selfTeam == Just tid)
     return invitee
 
 updatePermissions :: UserId -> TeamId -> (UserId, Team.Permissions) -> Galley -> HttpT IO ()
