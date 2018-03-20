@@ -241,7 +241,9 @@ createUser new@NewUser{..} = do
                                                 , Maybe (Team.Invitation, Team.InvitationInfo)
                                                 , Maybe TeamId
                                                 )
-    handleTeam (Just (NewTeamMember i))  e = findTeamInvitation e i
+    handleTeam (Just (NewTeamMember i))  e = findTeamInvitation e i >>= return . \case
+        Just (inv, info, tid) -> (Nothing, Just (inv, info), Just tid)
+        Nothing               -> (Nothing, Nothing         , Nothing)
     handleTeam (Just (NewTeamCreator t)) _ = (Just t, Nothing, ) <$> (Just . Id <$> liftIO nextRandom)
     handleTeam Nothing                   _ = return (Nothing, Nothing, Nothing)
 
@@ -256,14 +258,14 @@ createUser new@NewUser{..} = do
                 _                                                        -> throwE InvalidInvitationCode
         Nothing -> throwE InvalidInvitationCode
 
-    findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe BindingNewTeamUser, Maybe (Team.Invitation, Team.InvitationInfo), Maybe TeamId)
+    findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
     findTeamInvitation Nothing  _ = throwE MissingIdentity
     findTeamInvitation (Just e) c = lift (Team.lookupInvitationInfo c) >>= \case
         Just ii -> do
             inv <- lift $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii)
             case (inv, Team.inIdentity <$> inv) of
                 (Just invite, Just em) | e == userEmailKey em -> ensureMemberCanJoin (Team.iiTeam ii) >>
-                                                                 return (Nothing, Just (invite, ii), Just $ Team.iiTeam ii)
+                                                                 (return $ Just (invite, ii, Team.iiTeam ii))
                 _                                             -> throwE InvalidInvitationCode
         Nothing -> throwE InvalidInvitationCode
 
