@@ -193,7 +193,7 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
     okByRecipientWhitelist :: Bool
     okByRecipientWhitelist =
         case (rcp ^. recipientClients) of
-            clients@(_:_) -> maybe False (`elem` clients) $ clientId pres
+            clients@(_:_) -> maybe True (`elem` clients) $ clientId pres
             [] -> True
 
 
