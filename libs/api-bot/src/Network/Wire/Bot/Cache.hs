@@ -67,6 +67,7 @@ toUser _ acc [i, e, p] = do
         , userService  = Nothing
         , userHandle   = Nothing
         , userExpire   = Nothing
+        , userTeam     = Nothing
         }
 toUser g acc entry = do
     warn g $ msg (val "invalid entry: " +++ show entry)
