@@ -195,10 +195,14 @@ mkKey :: V3.AssetKey -> S3AssetKey
 mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key
   where
     key = UUID.toText (toUUID i)
+    -- This is the prefix used to store on S3, which currently is in sync
+    -- with the JSON representation but does not necessarily need to be
     retention = case r of
-        V3.AssetEternal    -> "eternal"
-        V3.AssetPersistent -> "persistent"
-        V3.AssetVolatile   -> "volatile"
+        V3.AssetEternal                 -> "eternal"
+        V3.AssetPersistent              -> "persistent"
+        V3.AssetVolatile                -> "volatile"
+        V3.AssetEternalInfrequentAccess -> "eternal-infrequent_access"
+        V3.AssetExpiring                -> "expiring"
 
 -------------------------------------------------------------------------------
 -- Resumable Uploads
