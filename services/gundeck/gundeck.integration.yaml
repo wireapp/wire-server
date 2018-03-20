@@ -16,17 +16,17 @@ aws:
   queueName: integration-gundeck-events
   region: eu-west-1
   account: "123456789012" # Default account nr used by localstack
-  arnEnv: test
+  arnEnv: integration
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   snsEndpoint: http://localhost:4575 # https://sns.eu-west-1.amazonaws.com
 
 fallback:
   skipFallbacks: true
   preferNotice: true
-  queueDelay: 3600
-  queueLimit: 10
-  queueBurst: 10
+  queueDelay: 300
+  queueLimit: 30000
+  queueBurst: 100
 
 settings:
-  httpPoolSize: 4
-  notificationTTL: 86400
+  httpPoolSize: 1024
+  notificationTTL: 24192200

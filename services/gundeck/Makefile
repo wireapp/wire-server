@@ -1,19 +1,17 @@
 SHELL         := /usr/bin/env bash
 NAME          := gundeck
-DIST          ?= ./dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT        := $(DIST)/$(NAME)-integration
-EXE_TESTS     := dist/$(NAME)-tests
-EXE_BENCH     := dist/$(NAME)-bench
-EXE_SCHEMA    := $(DIST)/$(NAME)-schema
+EXE_IT        := ../../dist/$(NAME)-integration
+EXE_TESTS     := ../../dist/$(NAME)-tests
+EXE_BENCH     := ../../dist/$(NAME)-bench
+EXE_SCHEMA    := ../../dist/$(NAME)-schema
 DEB           := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 SDIST         := dist/$(NAME)-$(VERSION).tar.gz
-KEIRETSU_ENV  ?= ../.env
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema
 
 guard-%:
@@ -22,17 +20,22 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: clean install
+default: fast
 
 .PHONY: init
 init:
-	mkdir -p dist
+	mkdir -p dist ../../dist
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
-	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" dist/
-	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" dist/
+	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=../../dist
+	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" ../../dist/
+	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" ../../dist/
+
+.PHONY: fast
+fast: init
+	stack install --pedantic --test --local-bin-path=../../dist --fast
+	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" ../../dist/
 
 .PHONY: compile
 compile:
@@ -83,19 +86,29 @@ bench: install
 	mkdir -p dist/bench
 	$(EXE_BENCH) --output dist/bench/result.html
 
+.PHONY: i
+i:
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
+
+.PHONY: i-list
+i-list:
+	$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
+
+i-%:
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
+
+i-fake-aws:
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "!/RealAWS/"
+
 .PHONY: integration
-integration: install
-	LOG_LEVEL=Info keiretsu --run $(EXE_IT) --delay 2000 --env $(KEIRETSU_ENV)
+integration: fast i
 
 .PHONY: integration-list
-integration-list: install
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) -l; sleep 1' --env $(KEIRETSU_ENV)
+integration-list: fast i-list
 
-integration-%: install
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"; sleep 1' --env $(KEIRETSU_ENV)
+integration-%: fast i-%
 
-integration-fake-aws: install
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="!/RealAWS/"; sleep 1' --env $(KEIRETSU_ENV)
+integration-fake-aws: fast i-fake-aws
 
 .PHONY: db
 db: db-reset

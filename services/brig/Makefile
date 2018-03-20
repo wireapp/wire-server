@@ -1,18 +1,16 @@
 SHELL         := /usr/bin/env bash
 NAME          := brig
-DIST          ?= ./dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT        := $(DIST)/$(NAME)-integration
-EXE_SCHEMA    := $(DIST)/$(NAME)-schema
-EXE_INDEX     := dist/$(NAME)-index
+EXE_IT        := ../../dist/$(NAME)-integration
+EXE_SCHEMA    := ../../dist/$(NAME)-schema
+EXE_INDEX     := ../../dist/$(NAME)-index
 DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := dist/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := dist/$(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 DEB_INDEX     := dist/$(NAME)-index_$(VERSION)+$(BUILD)_amd64.deb
-KEIRETSU_ENV  ?= ../.env
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema $(NAME)-index
 
 guard-%:
@@ -21,14 +19,18 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: clean install
+default: fast
 
 init:
-	mkdir -p dist
+	mkdir -p dist ../../dist
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist
+	stack install --pedantic --test --local-bin-path=../../dist
+
+.PHONY: fast
+fast: init
+	stack install --pedantic --test --local-bin-path=../../dist --fast
 
 .PHONY: clean
 clean:
@@ -79,29 +81,24 @@ $(DEB_INDEX): install
 		--architecture=amd64 \
 		--output-dir=dist
 
+.PHONY: i
+i:
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
+
+.PHONY: i-list
+i-list:
+	$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
+
+i-%:
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
+
 .PHONY: integration
-integration: db-migrate index-reset
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT)' --delay 3000 --env $(KEIRETSU_ENV)
+integration: fast i
 
 .PHONY: integration-list
-integration-list: install
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) -l; sleep 1' --env $(KEIRETSU_ENV)
+integration-list: fast i-list
 
-integration-%: db-migrate index-reset
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV)
-
-
-.PHONY: fast
-fast:
-	stack install --fast --local-bin-path=dist
-
-.PHONY: test
-test: fast
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT)' --env $(KEIRETSU_ENV) --delay 3000
-
-test-%: fast
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV) --delay 3000
-
+integration-%: fast i-%
 
 .PHONY: db
 db: db-reset
