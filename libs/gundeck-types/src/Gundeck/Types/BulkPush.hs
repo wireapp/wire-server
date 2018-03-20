@@ -38,13 +38,13 @@ newtype BulkPushRequest = BulkPushRequest
 
 instance FromJSON BulkPushRequest where
     parseJSON = withObject "bulkpush request body" $ \hm ->
-        BulkPushRequest <$> (mapM run =<< (hm .: "bulkpush-req"))
+        BulkPushRequest <$> (mapM run =<< (hm .: "bulkpush_req"))
       where
         run = withObject "object with notifcation, targets" $ \hm ->
             (,) <$> (hm .: "notification") <*> (hm .: "targets")
 
 instance ToJSON BulkPushRequest where
-    toJSON (BulkPushRequest ns) = object ["bulkpush-req" .= (run <$> ns)]
+    toJSON (BulkPushRequest ns) = object ["bulkpush_req" .= (run <$> ns)]
       where
         run (n, ps) = object ["notification" .= n, "targets" .= ps]
 
@@ -61,12 +61,12 @@ newtype BulkPushResponse = BulkPushResponse
 
 instance FromJSON BulkPushResponse where
     parseJSON = withObject "bulkpush response body" $ \hm ->
-        BulkPushResponse <$> (mapM run =<< (hm .: "bulkpush-resp"))
+        BulkPushResponse <$> (mapM run =<< (hm .: "bulkpush_resp"))
       where
         run = withObject "object with notifId, target, status" $ \hm ->
             (,,) <$> (hm .: "notif_id") <*> (hm .: "target") <*> (hm .: "status")
 
 instance ToJSON BulkPushResponse where
-    toJSON (BulkPushResponse ns) = object ["bulkpush-resp" .= (run <$> ns)]
+    toJSON (BulkPushResponse ns) = object ["bulkpush_resp" .= (run <$> ns)]
       where
         run (n, p, s) = object ["notif_id" .= n, "target" .= p, "status" .= s]
