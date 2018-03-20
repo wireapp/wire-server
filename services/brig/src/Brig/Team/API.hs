@@ -33,7 +33,7 @@ import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)
 import Network.Wai.Predicate hiding (setStatus, result, and)
 import Network.Wai.Routing hiding (head)
-import Network.Wai.Utilities hiding (message, code)
+import Network.Wai.Utilities hiding (message, code, parseJsonBody)
 import Network.Wai.Utilities.Swagger (document)
 import Prelude
 

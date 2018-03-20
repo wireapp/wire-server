@@ -23,6 +23,7 @@ import Control.Monad.Writer.Strict
 import Data.ByteString              (ByteString)
 import Data.List                    (intersperse, isInfixOf)
 import Data.Maybe
+import GHC.Stack (HasCallStack)
 import Network.HTTP.Client
 import System.Console.ANSI
 import Text.Printf
@@ -61,7 +62,7 @@ newtype Assertions a = Assertions
 -- (N.B. assertions are enumerated, i.e. you will see the index of the
 -- assertion that failed). It will also return the response,
 -- so it can be used for further inspection.
-(<!!) :: (Functor m, MonadIO m, MonadCatch m)
+(<!!) :: (HasCallStack, Functor m, MonadIO m, MonadCatch m)
       => m (Response (Maybe Lazy.ByteString))
       -> Assertions ()
       -> m (Response (Maybe Lazy.ByteString))
@@ -82,7 +83,7 @@ io <!! aa = do
     printErr e = error $ title "Error executing request: " ++ err (show e)
 
 -- | Like '<!!' but discards the 'Response'.
-(!!!) :: (Functor m, MonadIO m, MonadCatch m)
+(!!!) :: (HasCallStack, Functor m, MonadIO m, MonadCatch m)
       => m (Response (Maybe Lazy.ByteString))
       -> Assertions ()
       -> m ()
@@ -95,7 +96,7 @@ infixr 3 <!!
 
 -- | Tests the assertion that the left-hand side and the right-hand side
 -- are equal. If not, actual values will be printed.
-(===) :: (Eq a, Show a)
+(===) :: (HasCallStack, Eq a, Show a)
       => (Response (Maybe Lazy.ByteString) -> a)
       -> (Response (Maybe Lazy.ByteString) -> a)
       -> Assertions ()
@@ -103,7 +104,7 @@ f === g = Assertions $ tell [\r -> test " =/= " (==) (f r) (g r)]
 
 -- | Tests the assertion that the left-hand side and the right-hand side
 -- are not equal. If not, actual values will be printed.
-(=/=) :: (Eq a, Show a)
+(=/=) :: (HasCallStack, Eq a, Show a)
       => (Response (Maybe Lazy.ByteString) -> a)
       -> (Response (Maybe Lazy.ByteString) -> a)
       -> Assertions ()
@@ -111,7 +112,7 @@ f =/= g = Assertions $ tell [\r -> test " === " (/=) (f r) (g r)]
 
 -- | Tests the assertion that the left-hand side is contained in the right-hand side.
 -- If not, actual values will be printed.
-(=~=) :: (Show a, Contains a)
+(=~=) :: (HasCallStack, Show a, Contains a)
       => (Response (Maybe Lazy.ByteString) -> a)
       -> (Response (Maybe Lazy.ByteString) -> a)
       -> Assertions ()
@@ -119,25 +120,25 @@ f =~= g = Assertions $ tell [\r -> test " not in " contains (f r) (g r)]
 
 -- | Generic assertion on a request. The 'String' argument will be printed
 -- in case the assertion fails.
-assertTrue :: String -> (Response (Maybe Lazy.ByteString) -> Bool) -> Assertions ()
+assertTrue :: HasCallStack => String -> (Response (Maybe Lazy.ByteString) -> Bool) -> Assertions ()
 assertTrue e f = Assertions $ tell [\r -> if f r then Nothing else Just e]
 
 -- | Generic assertion on a request.
-assertTrue_ :: (Response (Maybe Lazy.ByteString) -> Bool) -> Assertions ()
+assertTrue_ :: HasCallStack => (Response (Maybe Lazy.ByteString) -> Bool) -> Assertions ()
 assertTrue_ = assertTrue "false"
 
 -- | Generic assertion inside the 'Assertions' monad. The 'String' argument
 -- will be printed in case the assertion fails.
-assert :: String -> Bool -> Assertions ()
+assert :: HasCallStack => String -> Bool -> Assertions ()
 assert m = assertTrue m . const
 
 -- | Generic assertion inside the 'Assertions' monad.
-assert_ :: Bool -> Assertions ()
+assert_ :: HasCallStack => Bool -> Assertions ()
 assert_ = assertTrue_ . const
 
 -- Internal
 
-test :: Show a => String -> (a -> a -> Bool) -> a -> a -> Maybe String
+test :: (HasCallStack, Show a) => String -> (a -> a -> Bool) -> a -> a -> Maybe String
 test s o a b
     | o a b     = Nothing
     | otherwise = Just $ show a ++ s ++ show b

@@ -462,8 +462,7 @@ testCreateUserAnonExpiry b = do
     resBob <- getProfile (userId u1) (userId bob)
     selfBob <- get (b . zUser (userId bob) . path "self") <!! const 200 === statusCode
     liftIO $ assertBool "Bob must not be in a deleted state initially" (fromMaybe True (not <$> deleted selfBob))
-    unless (null (expire resAlice)) $
-        liftIO $ assertFailure "Regular user should not have any expiry"
+    liftIO $ assertBool "Regular user should not have any expiry" (null $ expire resAlice)
     ensureExpiry (expire resBob) "bob/public"
     ensureExpiry (expire selfBob) "bob/self"
     awaitExpiry 5 (userId u1) (userId bob)

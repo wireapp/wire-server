@@ -1,20 +1,28 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns        #-}
+
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Test.Properties (tests) where
 
+import Data.Aeson as Aeson
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy as L
 import Data.Monoid
 import Data.Text.Ascii
 import Data.Id
 import Data.ProtocolBuffers.Internal
 import Data.Serialize
+import Data.Time.Clock.POSIX
 import Data.UUID
 import Test.Tasty
+import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.Text.Ascii       as Ascii
+import qualified Data.Json.Util        as Util
 
 tests :: TestTree
 tests = testGroup "Properties"
@@ -71,6 +79,28 @@ tests = testGroup "Properties"
             \(c :: Char) -> Ascii.contains Ascii.Base64Url c ==> Ascii.contains Ascii.Standard c
         ]
 
+    , testGroup "Base64ByteString"
+        [ testProperty "validate (Aeson.decode . Aeson.encode) == pure . id" $
+            \(Util.Base64ByteString . L.pack -> s) ->
+                (Aeson.eitherDecode . Aeson.encode) s == Right s
+          -- the property only considers valid 'String's, and it does not document the encoding very
+          -- well, so here are some unit tests (see
+          -- http://www.cl.cam.ac.uk/~mgk25/ucs/examples/UTF-8-test.txt for more).
+        , testCase "examples" $ do
+            let go :: Util.Base64ByteString -> L.ByteString -> Assertion
+                go b uu = do
+                  Aeson.encode b @=? uu
+                  (Aeson.eitherDecode . Aeson.encode) b @=? Right b
+            go "" "\"\""
+            go "foo" "\"Zm9v\""
+        ]
+
+    , testGroup "UTCTimeMillis"
+        [ testProperty "validate (Aeson.decode . Aeson.encode) == pure . id" $
+            \(t :: Util.UTCTimeMillis) ->
+                (Aeson.eitherDecode . Aeson.encode) t == Right t
+        ]
+
     , testGroup "UUID"
         [ testProperty "decode . encode = id" $
               \t (x :: UUID) -> roundtrip t x === Right x
@@ -109,3 +139,6 @@ newtype Tag' = Tag' Tag
 
 instance Arbitrary Tag' where
     arbitrary = Tag' <$> choose (0, 536870912)
+
+instance Arbitrary Util.UTCTimeMillis where
+    arbitrary = Util.UTCTimeMillis . posixSecondsToUTCTime . fromInteger <$> arbitrary
