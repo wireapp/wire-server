@@ -1,1 +1,0 @@
-Ciao, il tuo codice di verifica di Wire è: ${code}. Ripeto, il codice è: ${code}
