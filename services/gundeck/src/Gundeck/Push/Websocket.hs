@@ -1,10 +1,10 @@
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE TypeFamilies      #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Gundeck.Push.Websocket (push, bulkPush) where
 
@@ -73,10 +73,6 @@ bulkPush notifs = do
     successes :: [(NotificationId, Presence)]
         <- (\(nid, trgt) -> (nid,) <$> presenceByPushTarget trgt) `mapM` flowBackDelivered flbck
 
-    -- TODO: should we make the log entries look different from before?  we could be a lot more
-    -- concise now, and log info about lists of presences.  for now i'll leave this exactly(?) as
-    -- in the old code.
-
     logCannonsGone `mapM_` cannonsGone
     logPrcsGone    `mapM_` prcsGone
     logSuccesses   `mapM_` successes
@@ -91,13 +87,8 @@ bulkPush notifs = do
     pure (groupAssoc successes)
 
 
--- | The 'StM' constraint is an attempt at making sure that state of @m@ is not corrupted here (even
--- if there is any).  It is possible that this function works fine without it, but the author is not
--- certain.
---
--- TODO: move this function to a more general place?  /libs/types-common?
-mapConcurrentlyMBC :: forall m t a b. (MonadBaseControl IO m, Traversable t, StM m b ~ b)
-                 => (a -> m b) -> t a -> m (t b)
+-- (this could be moved to /libs/types-common.)
+mapConcurrentlyMBC :: (MonadBaseControl IO m, Traversable t) => (a -> m b) -> t a -> m (t b)
 mapConcurrentlyMBC action inputs = liftBaseWith
     (\runInBase -> (runInBase . action) `mapConcurrently` inputs)
         >>= mapM restoreM
@@ -241,8 +232,8 @@ bulkresource :: Presence -> URI
 bulkresource = URI . (\x -> x { URI.uriPath = "/i/bulkpush" }) . fromURI . resource
 
 
--- TODO: a Map-based implementation would be faster.  do we want to take the time and benchmark the
--- difference?  move it to types-common?
+-- TODO: a Map-based implementation would be faster for sufficiently large inputs.  do we want to
+-- take the time and benchmark the difference?  move it to types-common?
 {-# INLINE groupAssoc #-}
 groupAssoc :: (Eq a, Ord a) => [(a, b)] -> [(a, [b])]
 groupAssoc = groupAssoc' compare
@@ -260,13 +251,6 @@ groupAssoc' cmp = fmap (\case
 {-# INLINE mkPushTarget #-}
 mkPushTarget :: Presence -> PushTarget
 mkPushTarget pre = PushTarget (userId pre) (connId pre)
-
-
-
--- TODO: testing is easy: just set the config flag.  (-: (we should look at the integration tests
--- though and see if we need to add anything.)
-
-
 
 -----------------------------------------------------------------------------
 -- old, multi-request push.

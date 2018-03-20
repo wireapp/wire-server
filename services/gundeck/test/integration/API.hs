@@ -212,9 +212,8 @@ singleUserPush gu ca _ _ = do
     pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
--- TODO: send same notification (with same ID) to more than one push target?  (toggle this behavior
--- with a boolean arg next to the two 'Int's?)
--- TODO: i think this only works if there is no more than one cannon per user.
+-- TODO: send same notification (with same ID) to more than one push target?
+-- TODO: test distribution of devices over multiple cannons.
 cannonBulkPush :: Int -> Int -> TestSignature ()
 cannonBulkPush numUsers numConnsPerUser gu ca _ _ = do
     uids     <- replicateM numUsers randomId

@@ -1,11 +1,11 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE TypeApplications  #-}
-{-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Gundeck.Push
     ( push
@@ -149,7 +149,6 @@ compilePushResp notifIdMap (notifId, prcs) = (, prcs) <$> lkup
   where
     lkup          = maybe (throwM internalError) pure $ Map.lookup notifId notifIdMap
     internalError = ErrorCall "bulkpush: dangling notificationId in response!"
-        -- TODO: is there a better type for this?  (also search this PR for other uses of ErrorCall!)
 
 
 -- | Look up 'Push' recipients in Redis, construct a notifcation, and return all the data needed for
