@@ -192,9 +192,9 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
 
     okByRecipientWhitelist :: Bool
     okByRecipientWhitelist =
-        case (rcp ^. recipientClients) of
-            clients@(_:_) -> maybe True (`elem` clients) $ clientId pres
-            [] -> True
+        case (rcp ^. recipientClients, clientId pres) of
+            (cs@(_:_), Just c) -> c `elem` cs
+            _                  -> True
 
 
 pushNative :: Bool -> Notification -> Push -> [Address "no-keys"] -> Gundeck ()
