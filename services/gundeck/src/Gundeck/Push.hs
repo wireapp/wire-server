@@ -167,14 +167,14 @@ mkNotificationAndTargets psh = (,) <$> mkNotif <*> doCollect
         pure $ Notification notifId (psh ^. pushTransient) (psh ^. pushPayload)
 
     doCollect :: Gundeck (List1 (Recipient, [Presence]))
-    doCollect = zip1 rcps <$> Presence.listAll (view recipientId <$> rcps)
+    doCollect = zip1 rcps =<< Presence.listAll (view recipientId <$> rcps)
       where
         rcps :: [Recipient]
         rcps = toList . fromRange $ (psh ^. pushRecipients :: Range 1 1024 (Set.Set Recipient))
 
-        zip1 :: [a] -> [b] -> List1 (a, b)
-        zip1 (x:xs) (y:ys) = list1 (x, y) (zip xs ys)
-        zip1 _ _ = error "impossible"
+        zip1 :: [a] -> [b] -> Gundeck (List1 (a, b))
+        zip1 (x:xs) (y:ys) = pure $ list1 (x, y) (zip xs ys)
+        zip1 _ _ = throwM $ ErrorCall "mkNotificationAndTargets: internal error."  -- can @listAll@ return @[]@?
 
 
 -- | Is 'PushTarget' the origin of the 'Push', or is missing in a non-empty whitelist?  (Whitelists

@@ -24,6 +24,7 @@ import Control.Lens ((^.), (%~), _2, view)
 import Control.Retry
 import Data.Aeson (encode, eitherDecode)
 import Data.ByteString.Conversion
+import Data.Either (rights)
 import Data.Foldable (toList)
 import Data.Function (on)
 import Data.Id
@@ -180,7 +181,7 @@ flowBack rawresps = FlowBack broken gone delivered
   where
     broken :: [(URI, SomeException)]
     broken
-        = catLefts rawresps
+        = lefts' rawresps
 
     gone :: [PushTarget]
     gone
@@ -200,17 +201,12 @@ flowBack rawresps = FlowBack broken gone delivered
 
     responsive :: [(PushStatus, (NotificationId, PushTarget))]
     responsive = map (\(n, t, s) -> (s, (n, t)))
-               . mconcat . fmap fromBulkPushResponse . catRights $ snd <$> rawresps
+               . mconcat . fmap fromBulkPushResponse . rights $ snd <$> rawresps
 
-    catRights :: [Either a b] -> [b]
-    catRights []             = []
-    catRights (Left _ : xs)  = catRights xs
-    catRights (Right x : xs) = x : catRights xs
-
-    catLefts :: [(c, Either a b)] -> [(c, a)]
-    catLefts []                  = []
-    catLefts ((c, Left x) : xs)  = (c, x) : catLefts xs
-    catLefts ((_, Right _) : xs) = catLefts xs
+    lefts' :: [(c, Either a b)] -> [(c, a)]
+    lefts' []                  = []
+    lefts' ((c, Left x) : xs)  = (c, x) : lefts' xs
+    lefts' ((_, Right _) : xs) = lefts' xs
 
 
 {-# INLINE mkPresencesByCannon #-}

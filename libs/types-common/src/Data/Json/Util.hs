@@ -46,7 +46,7 @@ newtype UTCTimeMillis = UTCTimeMillis UTCTime
   deriving (Eq)
 
 instance Show UTCTimeMillis where
-    showsPrec d t = showParen (d > 10) . showString $ "UTCTimeMillis " ++ showUTCTimeMillis t
+    showsPrec d = showParen (d > 10) . showString . showUTCTimeMillis
 
 {-# INLINE showUTCTimeMillis #-}
 showUTCTimeMillis :: UTCTimeMillis -> String
