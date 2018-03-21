@@ -150,73 +150,73 @@ data NewClientEmailTemplate = NewClientEmailTemplate
     }
 
 loadUserTemplates :: Opt.Opts -> IO (Localised UserTemplates)
-loadUserTemplates o = readLocalesDir defLocale templateDir $ \fp ->
+loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
     UserTemplates
         <$> (ActivationSmsTemplate smsActivationUrl
-                <$> readTemplate (fp <> "/sms/activation.txt")
+                <$> readTemplate fp "sms/activation.txt"
                 <*> pure smsSender)
         <*> (ActivationCallTemplate
-                <$> readTemplate (fp <> "/call/activation.txt"))
+                <$> readTemplate fp "call/activation.txt")
         <*> (VerificationEmailTemplate activationUrl
-                <$> readTemplate (fp <> "/email/verification-subject.txt")
-                <*> readTemplate (fp <> "/email/verification.txt")
-                <*> readTemplate (fp <> "/email/verification.html")
+                <$> readTemplate fp "email/verification-subject.txt"
+                <*> readTemplate fp "email/verification.txt"
+                <*> readTemplate fp "email/verification.html"
                 <*> pure emailSender
                 <*> readText (fp <> "/email/sender.txt"))
         <*> (ActivationEmailTemplate activationUrl
-                <$> readTemplate (fp <> "/email/activation-subject.txt")
-                <*> readTemplate (fp <> "/email/activation.txt")
-                <*> readTemplate (fp <> "/email/activation.html")
+                <$> readTemplate fp "email/activation-subject.txt"
+                <*> readTemplate fp "email/activation.txt"
+                <*> readTemplate fp "email/activation.html"
                 <*> pure emailSender
                 <*> readText (fp <> "/email/sender.txt"))
         <*> (ActivationEmailTemplate activationUrl
-                <$> readTemplate (fp <> "/email/update-subject.txt")
-                <*> readTemplate (fp <> "/email/update.txt")
-                <*> readTemplate (fp <> "/email/update.html")
+                <$> readTemplate fp "email/update-subject.txt"
+                <*> readTemplate fp "email/update.txt"
+                <*> readTemplate fp "email/update.html"
                 <*> pure emailSender
                 <*> readText (fp <> "/email/sender.txt"))
         <*> (TeamActivationEmailTemplate teamActivationUrl
-                <$> readTemplate (fp <> "/email/team-activation-subject.txt")
-                <*> readTemplate (fp <> "/email/team-activation.txt")
-                <*> readTemplate (fp <> "/email/team-activation.html")
+                <$> readTemplate fp "email/team-activation-subject.txt"
+                <*> readTemplate fp "email/team-activation.txt"
+                <*> readTemplate fp "email/team-activation.html"
                 <*> pure emailSender
                 <*> readText (fp <> "/email/sender.txt"))
-       <*> (PasswordResetSmsTemplate
-                <$> readTemplate (fp <> "/sms/password-reset.txt")
+        <*> (PasswordResetSmsTemplate
+                <$> readTemplate fp "sms/password-reset.txt"
                 <*> pure smsSender)
         <*> (PasswordResetEmailTemplate passwordResetUrl
-                <$> readTemplate (fp <> "/email/password-reset-subject.txt")
-                <*> readTemplate (fp <> "/email/password-reset.txt")
-                <*> readTemplate (fp <> "/email/password-reset.html")
+                <$> readTemplate fp "email/password-reset-subject.txt"
+                <*> readTemplate fp "email/password-reset.txt"
+                <*> readTemplate fp "email/password-reset.html"
                 <*> pure emailSender
                 <*> readText (fp <> "/email/sender.txt"))
         <*> (InvitationEmailTemplate invitationUrl
-                <$> readTemplate (fp <> "/email/invitation-subject.txt")
-                <*> readTemplate (fp <> "/email/invitation.txt")
-                <*> readTemplate (fp <> "/email/invitation.html")
+                <$> readTemplate fp "email/invitation-subject.txt"
+                <*> readTemplate fp "email/invitation.txt"
+                <*> readTemplate fp "email/invitation.html"
                 <*> pure emailSender
                 <*> readText (fp <> "/email/sender.txt"))
         <*> (InvitationSmsTemplate invitationUrl
-                <$> readTemplate (fp <> "/sms/invitation.txt")
+                <$> readTemplate fp "sms/invitation.txt"
                 <*> pure smsSender)
         <*> (LoginSmsTemplate smsActivationUrl
-                <$> readTemplate (fp <> "/sms/login.txt")
+                <$> readTemplate fp "sms/login.txt"
                 <*> pure smsSender)
         <*> (LoginCallTemplate
-                <$> readTemplate (fp <> "/call/login.txt"))
+                <$> readTemplate fp "call/login.txt")
         <*> (DeletionSmsTemplate deletionUserUrl
-                <$> readTemplate (fp <> "/sms/deletion.txt")
+                <$> readTemplate fp "sms/deletion.txt"
                 <*> pure smsSender)
         <*> (DeletionEmailTemplate deletionUserUrl
-                <$> readTemplate (fp <> "/email/deletion-subject.txt")
-                <*> readTemplate (fp <> "/email/deletion.txt")
-                <*> readTemplate (fp <> "/email/deletion.html")
+                <$> readTemplate fp "email/deletion-subject.txt"
+                <*> readTemplate fp "email/deletion.txt"
+                <*> readTemplate fp "email/deletion.html"
                 <*> pure emailSender
                 <*> readText (fp <> "/email/sender.txt"))
         <*> (NewClientEmailTemplate
-                <$> readTemplate (fp <> "/email/new-client-subject.txt")
-                <*> readTemplate (fp <> "/email/new-client.txt")
-                <*> readTemplate (fp <> "/email/new-client.html")
+                <$> readTemplate fp "email/new-client-subject.txt"
+                <*> readTemplate fp "email/new-client.txt"
+                <*> readTemplate fp "email/new-client.html"
                 <*> pure emailSender
                 <*> readText (fp <> "/email/sender.txt"))
   where
@@ -233,4 +233,5 @@ loadUserTemplates o = readLocalesDir defLocale templateDir $ \fp ->
     deletionUserUrl   = template $ Opt.deletionUrl      uOptions
 
     defLocale = Opt.setDefaultLocale (Opt.optSettings o)
-    templateDir = Opt.templateDir gOptions <> "/user"
+    templateDir = Opt.templateDir gOptions
+    readTemplate = readTemplateWithDefault templateDir defLocale "user"
