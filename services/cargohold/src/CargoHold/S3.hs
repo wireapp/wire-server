@@ -195,10 +195,7 @@ mkKey :: V3.AssetKey -> S3AssetKey
 mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key
   where
     key = UUID.toText (toUUID i)
-    retention = case r of
-        V3.AssetEternal    -> "eternal"
-        V3.AssetPersistent -> "persistent"
-        V3.AssetVolatile   -> "volatile"
+    retention = V3.retentionToTextRep r
 
 -------------------------------------------------------------------------------
 -- Resumable Uploads

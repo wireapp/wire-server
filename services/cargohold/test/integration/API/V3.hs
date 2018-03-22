@@ -6,7 +6,7 @@ import Bilge hiding (body)
 import Bilge.Assert
 import Control.Applicative
 import Control.Concurrent (threadDelay)
-import Control.Lens (view, set, (&), (^.))
+import Control.Lens hiding (sets)
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Aeson hiding (json)
@@ -14,7 +14,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Maybe (fromMaybe)
+import Data.Maybe
 import Data.Monoid
 import Data.Text.Encoding (decodeLatin1)
 import Data.Time.Clock
@@ -76,45 +76,52 @@ tests s = testGroup "v3"
 
 testSimpleRoundtrip :: TestSignature ()
 testSimpleRoundtrip c = do
-    uid <- liftIO $ Id <$> nextRandom
-    uid2 <- liftIO $ Id <$> nextRandom
+    let def  = V3.defAssetSettings
+    let rets = [minBound ..]
+    let sets = def : map (\r -> def & V3.setAssetRetention ?~ r) rets
+    mapM_ simpleRoundtrip sets
+  where
+    simpleRoundtrip sets = do
+        uid <- liftIO $ Id <$> nextRandom
+        uid2 <- liftIO $ Id <$> nextRandom
 
-    -- Initial upload
-    let sets = V3.defAssetSettings
-    let bdy = (applicationText, "Hello World")
-    r1 <- uploadSimple (c . path "/assets/v3") uid sets bdy <!!
-        const 201 === statusCode
+        -- Initial upload
+        let bdy = (applicationText, "Hello World")
+        r1 <- uploadSimple (c . path "/assets/v3") uid sets bdy <!!
+            const 201 === statusCode
 
-    let      loc = decodeHeader "Location" r1 :: ByteString
-    let Just ast = decodeBody r1 :: Maybe V3.Asset
-    let Just tok = view V3.assetToken ast
+        let      loc = decodeHeader "Location" r1 :: ByteString
+        let Just ast = decodeBody r1 :: Maybe V3.Asset
+        let Just tok = view V3.assetToken ast
 
-    -- Check mandatory Date header and expiration.
-    let Just date = C8.unpack <$> lookup "Date" (responseHeaders r1)
-    let       utc = parseTimeOrError False defaultTimeLocale rfc822DateFormat date :: UTCTime
-    liftIO $ assertBool "invalid expiration" (Just utc < view V3.assetExpires ast)
+        -- Check mandatory Date header
+        let Just date = C8.unpack <$> lookup "Date" (responseHeaders r1)
+        let utc = parseTimeOrError False defaultTimeLocale rfc822DateFormat date :: UTCTime
+        -- Potentially check for the expires header
+        when (isJust $ join (V3.assetRetentionSeconds <$> (sets^.V3.setAssetRetention))) $ do
+            liftIO $ assertBool "invalid expiration" (Just utc < view V3.assetExpires ast)
 
-    -- Lookup with token and download via redirect.
-    r2 <- get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!! do
-        const 302 === statusCode
-        const Nothing === responseBody
-    r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
-    liftIO $ do
-        assertEqual "status" status200 (responseStatus r3)
-        assertEqual "content-type mismatch" (Just applicationText) (getContentType r3)
-        assertEqual "token mismatch" tok (decodeHeader "x-amz-meta-token" r3)
-        assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r3)
-        assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
+        -- Lookup with token and download via redirect.
+        r2 <- get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!! do
+            const 302 === statusCode
+            const Nothing === responseBody
+        r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
+        liftIO $ do
+            assertEqual "status" status200 (responseStatus r3)
+            assertEqual "content-type mismatch" (Just applicationText) (getContentType r3)
+            assertEqual "token mismatch" tok (decodeHeader "x-amz-meta-token" r3)
+            assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r3)
+            assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
 
-    -- Delete (forbidden for other users)
-    deleteAsset c uid2 (view V3.assetKey ast) !!! const 403 === statusCode
-    -- Delete (allowed for creator)
-    deleteAsset c uid (view V3.assetKey ast) !!! const 200 === statusCode
-    r4 <- get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!!
-        const 404 === statusCode
-    let Just date' = C8.unpack <$> lookup "Date" (responseHeaders r4)
-    let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
-    liftIO $ assertBool "bad date" (utc' >= utc)
+        -- Delete (forbidden for other users)
+        deleteAsset c uid2 (view V3.assetKey ast) !!! const 403 === statusCode
+        -- Delete (allowed for creator)
+        deleteAsset c uid (view V3.assetKey ast) !!! const 200 === statusCode
+        r4 <- get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!!
+            const 404 === statusCode
+        let Just date' = C8.unpack <$> lookup "Date" (responseHeaders r4)
+        let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
+        liftIO $ assertBool "bad date" (utc' >= utc)
 
 testSimpleTokens :: TestSignature ()
 testSimpleTokens c = do

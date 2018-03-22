@@ -20,8 +20,9 @@ module CargoHold.Types.V3
     , setAssetRetention
     , AssetRetention (..)
     , assetRetentionSeconds
-    , assetPersistentSeconds
+    , assetExpiringSeconds
     , assetVolatileSeconds
+    , retentionToTextRep
 
       -- * AssetToken
     , AssetToken (..)
@@ -52,6 +53,7 @@ import Data.Id
 import Data.Json.Util ((#), UTCTimeMillis (..))
 import Data.Monoid
 import Data.Time.Clock
+import Data.Text (Text)
 import Data.Text.Ascii (AsciiBase64Url)
 
 import qualified Codec.MIME.Type        as MIME
@@ -110,25 +112,34 @@ mkHeaders t b = AssetHeaders t (fromIntegral (LBS.length b)) (hashlazy b)
 -- | The desired asset retention.
 data AssetRetention
     = AssetEternal
-        -- ^ The asset is retained indefinitely.
+        -- ^ The asset is retained indefinitely. Typically used
+        -- for profile pictures / assets frequently accessed.
     | AssetPersistent
-        -- ^ The asset is retained for an extended period of time,
-        -- but not indefinitely.
+        -- ^ DEPRECATED: should not be used by clients for new assets
+        -- The asset is retained indefinitely.
     | AssetVolatile
         -- ^ The asset is retained for a short period of time.
-    deriving (Eq, Show)
+    | AssetEternalInfrequentAccess
+        -- ^ The asset is retained indefinitely, storage is optimised
+        -- for infrequent access
+    | AssetExpiring
+        -- ^ The asset is retained for an extended period of time,
+        -- but not indefinitely.
+    deriving (Eq, Show, Enum, Bounded)
 
 -- | The minimum TTL in seconds corresponding to a chosen retention.
 assetRetentionSeconds :: AssetRetention -> Maybe NominalDiffTime
-assetRetentionSeconds AssetEternal    = Nothing
-assetRetentionSeconds AssetPersistent = Just assetPersistentSeconds
-assetRetentionSeconds AssetVolatile   = Just assetVolatileSeconds
+assetRetentionSeconds AssetEternal                 = Nothing
+assetRetentionSeconds AssetPersistent              = Nothing
+assetRetentionSeconds AssetVolatile                = Just assetVolatileSeconds
+assetRetentionSeconds AssetEternalInfrequentAccess = Nothing
+assetRetentionSeconds AssetExpiring                = Just assetExpiringSeconds
 
 assetVolatileSeconds :: NominalDiffTime
-assetVolatileSeconds = 24 * 3600 -- 24 hours
+assetVolatileSeconds = 28 * 24 * 3600 -- 28 days
 
-assetPersistentSeconds :: NominalDiffTime
-assetPersistentSeconds = 365 * 24 * 3600 -- 365 days
+assetExpiringSeconds :: NominalDiffTime
+assetExpiringSeconds = 365 * 24 * 3600 -- 365 days
 
 -- | Settings provided during upload.
 data AssetSettings = AssetSettings
@@ -141,30 +152,43 @@ makeLenses ''AssetSettings
 defAssetSettings :: AssetSettings
 defAssetSettings = AssetSettings False Nothing
 
+-- | ByteString representation is used in AssetKey
 instance FromByteString AssetRetention where
     parser = decimal >>= \d -> case (d :: Word) of
         1 -> return AssetEternal
         2 -> return AssetPersistent
         3 -> return AssetVolatile
+        4 -> return AssetEternalInfrequentAccess
+        5 -> return AssetExpiring
         _ -> fail $ "Invalid asset retention: " ++ show d
 
 instance ToByteString AssetRetention where
-    builder AssetEternal    = builder '1'
-    builder AssetPersistent = builder '2'
-    builder AssetVolatile   = builder '3'
+    builder AssetEternal                 = builder '1'
+    builder AssetPersistent              = builder '2'
+    builder AssetVolatile                = builder '3'
+    builder AssetEternalInfrequentAccess = builder '4'
+    builder AssetExpiring                = builder '5'
 
+retentionToTextRep :: AssetRetention -> Text
+retentionToTextRep AssetEternal                 = "eternal"
+retentionToTextRep AssetPersistent              = "persistent"
+retentionToTextRep AssetVolatile                = "volatile"
+retentionToTextRep AssetEternalInfrequentAccess = "eternal-infrequent_access"
+retentionToTextRep AssetExpiring                = "expiring"
+
+-- | JSON representation, used by AssetSettings are
 instance FromJSON AssetRetention where
     parseJSON = withText "AssetRetention" $ \t ->
         case t of
-            "eternal"    -> pure AssetEternal
-            "persistent" -> pure AssetPersistent
-            "volatile"   -> pure AssetVolatile
-            _            -> fail $ "Invalid asset retention: " ++ show t
+            "eternal"                   -> pure AssetEternal
+            "persistent"                -> pure AssetPersistent
+            "volatile"                  -> pure AssetVolatile
+            "eternal-infrequent_access" -> pure AssetEternalInfrequentAccess
+            "expiring"                  -> pure AssetExpiring
+            _                           -> fail $ "Invalid asset retention: " ++ show t
 
 instance ToJSON AssetRetention where
-    toJSON AssetEternal    = String "eternal"
-    toJSON AssetPersistent = String "persistent"
-    toJSON AssetVolatile   = String "volatile"
+    toJSON = String . retentionToTextRep
 
 instance FromJSON AssetSettings where
     parseJSON = withObject "AssetSettings" $ \o ->
