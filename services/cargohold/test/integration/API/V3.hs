@@ -77,10 +77,7 @@ tests s = testGroup "v3"
 testSimpleRoundtrip :: TestSignature ()
 testSimpleRoundtrip c = do
     let def  = V3.defAssetSettings
-    let rets = [ V3.AssetVolatile
-               , V3.AssetExpiring
-               , V3.AssetEternalInfrequentAccess
-               ]
+    let rets = [minBound ..]
     let sets = def : map (\r -> def & V3.setAssetRetention ?~ r) rets
     mapM_ simpleRoundtrip sets
   where

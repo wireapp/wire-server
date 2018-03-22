@@ -125,7 +125,7 @@ data AssetRetention
     | AssetExpiring
         -- ^ The asset is retained for an extended period of time,
         -- but not indefinitely.
-    deriving (Eq, Show)
+    deriving (Eq, Show, Enum, Bounded)
 
 -- | The minimum TTL in seconds corresponding to a chosen retention.
 assetRetentionSeconds :: AssetRetention -> Maybe NominalDiffTime
