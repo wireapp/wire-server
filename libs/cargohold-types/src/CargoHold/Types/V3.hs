@@ -22,6 +22,7 @@ module CargoHold.Types.V3
     , assetRetentionSeconds
     , assetExpiringSeconds
     , assetVolatileSeconds
+    , retentionToTextRep
 
       -- * AssetToken
     , AssetToken (..)
@@ -52,6 +53,7 @@ import Data.Id
 import Data.Json.Util ((#), UTCTimeMillis (..))
 import Data.Monoid
 import Data.Time.Clock
+import Data.Text (Text)
 import Data.Text.Ascii (AsciiBase64Url)
 
 import qualified Codec.MIME.Type        as MIME
@@ -167,6 +169,13 @@ instance ToByteString AssetRetention where
     builder AssetEternalInfrequentAccess = builder '4'
     builder AssetExpiring                = builder '5'
 
+retentionToTextRep :: AssetRetention -> Text
+retentionToTextRep AssetEternal                 = "eternal"
+retentionToTextRep AssetPersistent              = "persistent"
+retentionToTextRep AssetVolatile                = "volatile"
+retentionToTextRep AssetEternalInfrequentAccess = "eternal-infrequent_access"
+retentionToTextRep AssetExpiring                = "expiring"
+
 -- | JSON representation, used by AssetSettings are
 instance FromJSON AssetRetention where
     parseJSON = withText "AssetRetention" $ \t ->
@@ -179,11 +188,7 @@ instance FromJSON AssetRetention where
             _                           -> fail $ "Invalid asset retention: " ++ show t
 
 instance ToJSON AssetRetention where
-    toJSON AssetEternal                 = String "eternal"
-    toJSON AssetPersistent              = String "persistent"
-    toJSON AssetVolatile                = String "volatile"
-    toJSON AssetEternalInfrequentAccess = String "eternal-infrequent_access"
-    toJSON AssetExpiring                = String "expiring"
+    toJSON = String . retentionToTextRep
 
 instance FromJSON AssetSettings where
     parseJSON = withObject "AssetSettings" $ \o ->
