@@ -283,6 +283,8 @@ randomConnId = liftIO $ do
 -----------------------------------------------------------------------------
 -- Internals
 
+-- | Start a client thread in 'Async' that opens a web socket to a Cannon, wait
+--   for the connection to register with Gundeck, and return the 'Async' thread.
 run :: MonadIO m => Cannon -> UserId -> ConnId -> WS.ClientApp () -> m (Async ())
 run (($ Http.defaultRequest) -> ca) uid cid app = liftIO $ do
     latch <- newEmptyMVar
@@ -307,7 +309,8 @@ run (($ Http.defaultRequest) -> ca) uid cid app = liftIO $ do
     waitForRegistry 0          = throwIO $ RegistrationTimeout numRetries
     waitForRegistry (n :: Int) = do
       man <- newManager defaultManagerSettings
-      let ca' = ca { path = "/i/presences/" <> toByteString' uid <> "/" <> toByteString' cid }
+      let ca' = ca { method = "HEAD"
+                   , path = "/i/presences/" <> toByteString' uid <> "/" <> toByteString' cid }
       res <- httpLbs ca' man
       unless (responseStatus res == status200) $ do
           threadDelay $ 100 * 1000
