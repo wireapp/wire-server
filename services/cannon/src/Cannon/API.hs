@@ -20,13 +20,14 @@ import Data.Aeson (encode)
 import Data.ByteString (ByteString)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
+import Data.Monoid
 import Data.Swagger.Build.Api hiding (def, Response)
 import Data.Text (Text, strip, pack)
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types
 import Data.Maybe
+import Gundeck.Types
 import Gundeck.Types.BulkPush
-import Gundeck.Types.Notification
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
@@ -111,6 +112,9 @@ sitemap = do
     post "/i/bulkpush" (continue bulkpush)
         request
 
+    head "/i/presences/:user/:conn" (continue checkPresence) $
+        param "user" .&. param "conn"
+
     get "/i/monitoring" (continue monitoring) $
         accept "application" "json"
 
@@ -173,6 +177,13 @@ singlePush notification (PushTarget usrid conid) = do
                 `catchAll`
                 const (terminate k x >> return PushStatusGone)
 
+checkPresence :: UserId ::: ConnId -> Cannon Response
+checkPresence (u ::: c) = do
+    e <- wsenv
+    registered <- runWS e $ isRemoteRegistered u c
+    if registered
+        then return empty
+        else return $ errorRs status404 "not-found" "presence not registered"
 
 await :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
 await (u ::: a ::: c ::: r) = do
