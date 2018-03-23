@@ -864,6 +864,7 @@ randUser (Email loc dom) (BotTag tag) = do
         , newUserLabel          = Nothing
         , newUserLocale         = Nothing
         , newUserTeam           = Nothing
+        , newUserExpiresIn      = Nothing
         }, passw)
 
 randMailbox :: BotNet Mailbox

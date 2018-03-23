@@ -1,17 +1,15 @@
 SHELL         := /usr/bin/env bash
 NAME          := galley
-DIST          ?= ./dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT        := $(DIST)/$(NAME)-integration
-EXE_SCHEMA    := $(DIST)/$(NAME)-schema
+EXE_IT        := ../../dist/$(NAME)-integration
+EXE_SCHEMA    := ../../dist/$(NAME)-schema
 DEB           := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 DEB_JOURNALER := $(NAME)-journaler_$(VERSION)+$(BUILD)_amd64.deb
-KEIRETSU_ENV  ?= ../.env
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema $(NAME)-journaler
 
 guard-%:
@@ -20,12 +18,12 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: all
+default: fast
 
 all: clean install
 
 init:
-	mkdir -p dist
+	mkdir -p dist ../../dist
 
 .PHONY: clean
 clean:
@@ -35,7 +33,11 @@ clean:
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist
+	stack install --pedantic --test --local-bin-path=../../dist
+
+.PHONY: fast
+fast: init
+	stack install --pedantic --test --local-bin-path=../../dist --fast
 
 .PHONY:
 compile:
@@ -76,29 +78,27 @@ $(DEB_JOURNALER):
 	 --architecture=amd64 \
 	 --output-dir=dist
 
+.PHONY: i
+i:
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
+
+.PHONY: i-list
+i-list:
+	$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
+
+i-%:
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
+
 .PHONY: integration
-integration: install
-	keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV) --delay 3000
+integration: fast i
 
-integration-list:
-	keiretsu --run '$(EXE_IT) -l' --env $(KEIRETSU_ENV)
+.PHONY: integration-list
+integration-list: fast i-list
 
-integration-%:
-	keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV) --delay 3000
+integration-%: fast i-%
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
-
-.PHONY: fast
-fast:
-	stack install --local-bin-path=dist --fast
-
-.PHONY: test
-test: fast
-	keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV) --delay 3000
-
-test-%: fast
-	keiretsu --run '$(EXE_IT) --pattern="$*"' --env $(KEIRETSU_ENV) --delay 3000
 
 .PHONY: db
 db: db-reset

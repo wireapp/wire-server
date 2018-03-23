@@ -263,6 +263,7 @@ executable brig-schema
         V46
         V47
         V48
+        V49
 
     build-depends:
         base

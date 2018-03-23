@@ -1,7 +1,11 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Gundeck.Push
     ( push
@@ -15,13 +19,14 @@ import Control.Arrow ((&&&))
 import Control.Concurrent.Async.Lifted.Safe (async, wait)
 import Control.Concurrent.Lifted (fork)
 import Control.Error
-import Control.Lens ((^.), (&), (.~), view, set)
+import Control.Exception (ErrorCall(ErrorCall))
+import Control.Lens ((^.), (&), (.~), (%~), _2, view, set)
 import Control.Monad (when, unless, void)
 import Control.Monad.Catch
 import Data.Foldable (toList, forM_, foldl')
 import Data.Id
 import Data.List (partition)
-import Data.List1 (list1)
+import Data.List1 (List1, list1)
 import Data.Monoid
 import Data.Predicate ((:::)(..))
 import Data.Range
@@ -41,12 +46,14 @@ import System.Logger.Class (msg, (.=), (~~), val, (+++))
 import qualified Data.List.Extra              as List
 import qualified Data.Sequence                as Seq
 import qualified Data.Set                     as Set
+import qualified Data.Map                     as Map
 import qualified Data.Text                    as Text
 import qualified Data.Text.Encoding           as Text
 import qualified Data.UUID                    as UUID
 import qualified Gundeck.Aws                  as Aws
 import qualified Gundeck.Client               as Client
 import qualified Gundeck.Notification.Data    as Stream
+import qualified Gundeck.Presence.Data        as Presence
 import qualified Gundeck.Push.Data            as Data
 import qualified Gundeck.Push.Native          as Native
 import qualified Gundeck.Push.Native.Fallback as Fallback
@@ -56,82 +63,197 @@ import qualified System.Logger.Class          as Log
 
 push :: Request ::: JSON -> Gundeck Response
 push (req ::: _) = do
-    ps <- fromBody req (Error status400 "bad-request")
-    rs <- mapAsync pushAny (ps :: [Push])
-    case runAllE (foldMap (AllE . fmapL Seq.singleton) rs) of
+    ps   :: [Push] <- fromBody req (Error status400 "bad-request")
+    bulk :: Bool   <- view (options . optSettings . setBulkPush)
+    rs             <- if bulk
+                      then (Right <$> pushAll ps) `catch` (pure . Left . Seq.singleton)
+                      else pushAny ps
+    case rs of
         Right () -> return empty
         Left exs -> do
             forM_ exs $ Log.err . msg . (val "Push failed: " +++) . show
             throwM (Error status500 "server-error" "Server Error")
-  where
-    pushAny p = do
-        sendNotice <- view (options.optFallback.fbPreferNotice)
-        i <- mkNotificationId
-        let pload = p^.pushPayload
-        let notif = Notification i (p^.pushTransient) pload
-        let rcps  = fromRange (p^.pushRecipients)
-        let uniq  = uncurry list1 $ head &&& tail $ toList rcps
-        let tgts  = mkTarget <$> uniq
-        unless (p^.pushTransient) $
-            Stream.add i tgts pload =<< view (options.optSettings.setNotificationTTL)
-        void . fork $ do
-            prs <- Web.push notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
-            pushNative sendNotice notif p =<< nativeTargets p prs
 
+-- | Send individual HTTP requests to cannon for every device and notification.  This should go away
+-- in the future, once 'pushAll' has been proven to always do the same thing.
+pushAny :: [Push] -> Gundeck (Either (Seq.Seq SomeException) ())
+pushAny ps = collectErrors <$> mapAsync pushAny' ps
+  where
+    collectErrors :: [Either SomeException ()] -> Either (Seq.Seq SomeException) ()
+    collectErrors = runAllE . foldMap (AllE . fmapL Seq.singleton)
+
+pushAny' :: Push -> Gundeck ()
+pushAny' p = do
+    sendNotice <- view (options.optFallback.fbPreferNotice)
+    i <- mkNotificationId
+    let pload = p^.pushPayload
+    let notif = Notification i (p^.pushTransient) pload
+    let rcps  = fromRange (p^.pushRecipients)
+    let uniq  = uncurry list1 $ head &&& tail $ toList rcps
+    let tgts  = mkTarget <$> uniq
+    unless (p^.pushTransient) $
+        Stream.add i tgts pload =<< view (options.optSettings.setNotificationTTL)
+    void . fork $ do
+        prs <- Web.push notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
+        pushNative sendNotice notif p =<< nativeTargets p prs
+  where
+    mkTarget :: Recipient -> NotificationTarget
     mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
 
-    pushNative sendNotice notif p rcps
-        | ntfTransient notif = if sendNotice
-            then pushNotice p notif rcps
-            else pushData p notif rcps
-        | otherwise = case partition (preferNotice sendNotice (p^.pushOrigin)) rcps of
-            (xs, []) -> pushNotice p notif xs
-            ([], ys) -> pushData p notif ys
-            (xs, ys) -> do
-                a <- async $ pushNotice p notif xs
-                pushData p notif ys
-                wait a
+-- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
+-- the request to C*.  Trigger native pushes for all delivery failures notifications.
+pushAll :: [Push] -> Gundeck ()
+pushAll pushes = do
+    targets :: [(Push, (Notification, List1 (Recipient, [Presence])))]
+            <- zip pushes <$> (mkNotificationAndTargets `mapM` pushes)
 
-    -- If a fallback address is set, the push is not transient and
-    -- the address does not belong to the origin user, we prefer
-    -- type=notice notifications even for the first attempt, since the device
-    -- has to make a request to cancel the fallback notification in any
-    -- case, which it can combine with fetching the notification in a single
-    -- request. We can thus save the effort of encrypting and decrypting native
-    -- push payloads to such addresses.
-    preferNotice sendNotice orig a = sendNotice
+    -- persist push request
+
+    let cassandraTargets :: [(Push, (Notification, List1 NotificationTarget))]
+        cassandraTargets = (_2 . _2 %~ (mkNotificationTarget . fst <$>)) <$> targets
+          where
+            mkNotificationTarget :: Recipient -> NotificationTarget
+            mkNotificationTarget r = target (r ^. recipientId)
+                                   & targetClients .~ r ^. recipientClients
+
+    forM_ cassandraTargets $ \(psh, (notif, notifTrgt)) -> unless (psh ^. pushTransient) $
+        Stream.add (ntfId notif) notifTrgt (psh ^. pushPayload)
+          =<< view (options . optSettings . setNotificationTTL)
+
+    -- websockets
+
+    let notifIdMap = Map.fromList $ (\(psh, (notif, _)) -> (ntfId notif, (notif, psh))) <$> targets
+    resp <- mapM (compilePushResp notifIdMap) =<< Web.bulkPush (compilePushReq <$> targets)
+
+    -- native push
+
+    sendNotice <- view (options . optFallback . fbPreferNotice)
+    forM_ resp $ \((notif, psh), alreadySent) -> do
+        natives <- nativeTargets psh alreadySent
+        pushNative sendNotice notif psh natives
+
+
+compilePushReq :: (Push, (Notification, List1 (Recipient, [Presence]))) -> (Notification, [Presence])
+compilePushReq (psh, notifsAndTargets) =
+    notifsAndTargets & _2 %~ (mconcat . fmap compileTargets . toList)
+  where
+    compileTargets :: (Recipient, [Presence]) -> [Presence]
+    compileTargets (rcp, pre) = fmap snd
+                              . filter (uncurry (shouldActuallyPush psh))
+                              $ (rcp,) <$> pre
+
+compilePushResp :: Map.Map NotificationId (Notification, Push)
+                -> (NotificationId, [Presence])
+                -> Gundeck ((Notification, Push), [Presence])
+compilePushResp notifIdMap (notifId, prcs) = (, prcs) <$> lkup
+  where
+    lkup          = maybe (throwM internalError) pure $ Map.lookup notifId notifIdMap
+    internalError = ErrorCall "bulkpush: dangling notificationId in response!"
+
+
+-- | Look up 'Push' recipients in Redis, construct a notifcation, and return all the data needed for
+-- performing the push action.
+--
+-- 'Recipient' can be turned into 'NotificationTarget' needed for storing in C*; the 'Presence's can
+-- be turned into 'PushTarget' needed by Cannon and in 'nativeTargets' for filtering the devices
+-- that need no native push.
+mkNotificationAndTargets :: Push -> Gundeck (Notification, List1 (Recipient, [Presence]))
+mkNotificationAndTargets psh = (,) <$> mkNotif <*> doCollect
+  where
+    mkNotif :: Gundeck Notification
+    mkNotif = do
+        notifId <- mkNotificationId
+        pure $ Notification notifId (psh ^. pushTransient) (psh ^. pushPayload)
+
+    doCollect :: Gundeck (List1 (Recipient, [Presence]))
+    doCollect = zip1 rcps =<< Presence.listAll (view recipientId <$> rcps)
+      where
+        rcps :: [Recipient]
+        rcps = toList . fromRange $ (psh ^. pushRecipients :: Range 1 1024 (Set.Set Recipient))
+
+        zip1 :: [a] -> [b] -> Gundeck (List1 (a, b))
+        zip1 (x:xs) (y:ys) = pure $ list1 (x, y) (zip xs ys)
+        zip1 _ _ = throwM $ ErrorCall "mkNotificationAndTargets: internal error."  -- can @listAll@ return @[]@?
+
+
+-- | Is 'PushTarget' the origin of the 'Push', or is missing in a non-empty whitelist?  (Whitelists
+-- reside both in 'Push' itself and in each 'Recipient').
+shouldActuallyPush :: Push -> Recipient -> Presence -> Bool
+shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecipientWhitelist
+  where
+    isOrigin = psh ^. pushOrigin == userId pres &&
+               psh ^. pushOriginConnection == Just (connId pres)
+
+    okByPushWhitelist = if whitelistExists then isWhitelisted else True
+      where
+        whitelist = psh ^. pushConnections
+        whitelistExists = not $ Set.null whitelist
+        isWhitelisted = connId pres `Set.member` whitelist
+
+    okByRecipientWhitelist :: Bool
+    okByRecipientWhitelist =
+        case (rcp ^. recipientClients, clientId pres) of
+            (cs@(_:_), Just c) -> c `elem` cs
+            _                  -> True
+
+
+pushNative :: Bool -> Notification -> Push -> [Address "no-keys"] -> Gundeck ()
+pushNative sendNotice notif p rcps
+    | ntfTransient notif = if sendNotice
+        then pushNotice p notif rcps
+        else pushData p notif rcps
+    | otherwise = case partition (preferNotice sendNotice (p^.pushOrigin)) rcps of
+        (xs, []) -> pushNotice p notif xs
+        ([], ys) -> pushData p notif ys
+        (xs, ys) -> do
+            a <- async $ pushNotice p notif xs
+            pushData p notif ys
+            wait a
+
+-- If a fallback address is set, the push is not transient, and
+-- the address does not belong to the origin user, we prefer
+-- type=notice notifications even for the first attempt, since the device
+-- has to make a request to cancel the fallback notification in any
+-- case, which it can combine with fetching the notification in a single
+-- request. We can thus save the effort of encrypting and decrypting native
+-- push payloads to such addresses.
+preferNotice :: Bool -> UserId -> Address s1 -> Bool
+preferNotice sendNotice orig a = sendNotice
                                   || (isJust (a^.addrFallback) && orig /= (a^.addrUser))
 
-    pushNotice _     _   [] = return ()
-    pushNotice p notif rcps = do
-        let prio = p^.pushNativePriority
-        r <- Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
+pushNotice :: Push -> Notification -> [Address s] -> Gundeck ()
+pushNotice _     _   [] = return ()
+pushNotice p notif rcps = do
+    let prio = p^.pushNativePriority
+    r <- Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
+    pushFallback (p^.pushOrigin) notif r prio
+
+pushData :: Push -> Notification -> [Address "no-keys"] -> Gundeck ()
+pushData _     _   [] = return ()
+pushData p notif rcps = do
+    let aps = p^.pushNativeAps
+    let prio = p^.pushNativePriority
+    if p^.pushNativeEncrypt then do
+        c <- view cipher
+        d <- view digest
+        t <- Client.lookupKeys rcps
+        r <- Native.push (Native.Ciphertext notif c d prio aps) t
+        pushFallback (p^.pushOrigin) notif r prio
+    else do
+        r <- Native.push (Native.Plaintext notif prio aps) rcps
         pushFallback (p^.pushOrigin) notif r prio
 
-    pushData _     _   [] = return ()
-    pushData p notif rcps = do
-        let aps = p^.pushNativeAps
-        let prio = p^.pushNativePriority
-        if p^.pushNativeEncrypt then do
-            c <- view cipher
-            d <- view digest
-            t <- Client.lookupKeys rcps
-            r <- Native.push (Native.Ciphertext notif c d prio aps) t
-            pushFallback (p^.pushOrigin) notif r prio
-        else do
-            r <- Native.push (Native.Plaintext notif prio aps) rcps
-            pushFallback (p^.pushOrigin) notif r prio
-
-    -- Process fallback notifications, which can either be immediate (e.g.
-    -- because the push payload was too large) or delayed if a fallback push
-    -- address is set. Fallback notifications are always of type=notice and
-    -- thus only non-transient notifications are eligible for a fallback.
-    pushFallback orig notif r prio = case Fallback.prepare orig r of
-        Nothing  -> return ()
-        Just can ->
-            if ntfTransient notif
-                then Log.warn $ msg (val "Transient notification failed")
-                else void $ Fallback.execute (ntfId notif) prio can
+-- Process fallback notifications, which can either be immediate (e.g.
+-- because the push payload was too large) or delayed if a fallback push
+-- address is set. Fallback notifications are always of type=notice and
+-- thus only non-transient notifications are eligible for a fallback.
+pushFallback :: UserId -> Notification -> [Result s] -> Priority -> Gundeck ()
+pushFallback orig notif r prio = case Fallback.prepare orig r of
+    Nothing  -> return ()
+    Just can ->
+        if ntfTransient notif
+            then Log.warn $ msg (val "Transient notification failed")
+            else void $ Fallback.execute (ntfId notif) prio can
 
 nativeTargets :: Push -> [Presence] -> Gundeck [Address "no-keys"]
 nativeTargets p pres =

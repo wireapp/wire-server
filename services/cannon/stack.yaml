@@ -5,6 +5,7 @@ packages:
 - '../../libs/metrics-core'
 - '../../libs/metrics-wai'
 - '../../libs/types-common'
+- '../../libs/gundeck-types'
 - '../../libs/wai-utilities'
 flags:
   types-common:

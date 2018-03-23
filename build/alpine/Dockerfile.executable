@@ -17,7 +17,7 @@ FROM ${deps}
 
 ARG executable
 
-COPY --from=intermediate /dist/${executable} /dist/${executable}
+COPY --from=intermediate /dist/${executable} /usr/bin/${executable}
 
 # TODO: only if executable=brig, also copy templates. Docker image conditionals seem hacky:
 # https://stackoverflow.com/questions/31528384/conditional-copy-add-in-dockerfile

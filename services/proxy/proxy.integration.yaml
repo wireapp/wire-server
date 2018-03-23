@@ -1,0 +1,14 @@
+# Example yaml-formatted configuration for proxy
+# proxy can be started with a config file (e.g. ./dist/proxy -c proxy.yaml.example)
+
+host: 0.0.0.0
+port: 8087
+
+# number of connections for the http pool
+httpPoolSize: 1000
+
+# maximum number of incoming connections
+maxConns: 5000
+
+# File containing upstream secrets.
+secretsConfig: doc/example.config

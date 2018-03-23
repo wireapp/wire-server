@@ -9,12 +9,14 @@ import Bilge.Assert
 import Brig.Types.User
 import Control.Lens (view)
 import Control.Monad
+import Control.Monad.IO.Class
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Data.Maybe (fromMaybe)
 import Data.Range
 import Galley.Types (ConvTeamInfo (..), NewConv (..))
+import Test.Tasty.HUnit
 import Util
 
 import qualified Data.Set                    as Set
@@ -43,10 +45,13 @@ createUserWithTeam brig galley = do
             , "password"        .= defPassword
             , "team"            .= newTeam
             ]
-    rsp <- post (brig . path "/i/users" . contentJson . body p)
-    uid <- maybe (error "invalid user id") return $ fromByteString $ getHeader' "Location" rsp
+    bdy <- decodeBody <$> post (brig . path "/i/users" . contentJson . body p)
+    let (Just uid, Just (Just tid)) = (userId <$> bdy, userTeam <$> bdy)
     (team:_) <- view Team.teamListTeams <$> getTeams uid galley
-    return (uid, view Team.teamId team)
+    liftIO $ assertBool "Team ID in registration and team table do not match" (tid == view Team.teamId team)
+    selfTeam <- userTeam . selfUser <$> getSelfProfile brig uid
+    liftIO $ assertBool "Team ID in self profile and team table do not match" (selfTeam == Just tid)
+    return (uid, tid)
 
 addTeamMember :: Galley -> TeamId -> Team.NewTeamMember -> Http ()
 addTeamMember galley tid mem =

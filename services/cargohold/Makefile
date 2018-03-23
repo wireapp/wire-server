@@ -1,15 +1,13 @@
 SHELL         := /usr/bin/env bash
 NAME          := cargohold
-DIST          ?= ./dist
 VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT        := $(DIST)/$(NAME)-integration
+EXE_IT        := ../../dist/$(NAME)-integration
 DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := dist/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 SDIST         := dist/$(NAME)-$(VERSION).tar.gz
-KEIRETSU_ENV  ?= ../.env
 EXECUTABLES   := $(NAME) $(NAME)-integration
 
 guard-%:
@@ -18,15 +16,19 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: clean install
+default: fast
 
 .PHONY: init
 init:
-	mkdir -p dist
+	mkdir -p dist ../../dist
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist
+	stack install --pedantic --test --local-bin-path=../../dist
+
+.PHONY: fast
+fast: init
+	stack install --pedantic --test --fast --local-bin-path=../../dist
 
 .PHONY: compile
 compile:
@@ -57,21 +59,29 @@ $(DEB_IT):
 		--architecture=amd64 \
 		--output-dir=dist
 
+.PHONY: i
+i:
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
+
+.PHONY: i-list
+i-list:
+	$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
+
+i-%:
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
+
+i-fake-aws:
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "!/RealAWS/"
+
 .PHONY: integration
-integration: install
-	LOG_LEVEL=Info keiretsu --run $(EXE_IT) --env $(KEIRETSU_ENV)
+integration: fast i
 
-integration-%:
-	stack install --fast --local-bin-path=dist
-	LOG_LEVEL=Debug keiretsu --run '$(EXE_IT) --pattern="$*"; sleep 1' --env $(KEIRETSU_ENV)
+.PHONY: integration-list
+integration-list: fast i-list
 
-integration-fast:
-	stack install --fast --local-bin-path=dist
-	LOG_LEVEL=Debug keiretsu --run '$(EXE_IT); sleep 1' --env $(KEIRETSU_ENV)
+integration-%: fast i-%
 
-integration-fake-aws:
-	stack install --fast --local-bin-path=dist
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="!/RealAWS/"; sleep 1' --env $(KEIRETSU_ENV)
+integration-fake-aws: fast i-fake-aws
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
