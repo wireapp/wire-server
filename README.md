@@ -76,9 +76,9 @@ Once all dependencies are set up, the following should succeed:
 make
 # build one haskell service, e.g. brig:
 cd services/brig && make
-# build nginz
-cd services/nginz && make
 ```
+
+For building nginz, see [services/nginz/README.md](services/nginz/README.md)
 
 #### 2. Use docker
 
