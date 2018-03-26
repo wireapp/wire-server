@@ -1,0 +1,20 @@
+Hello ${invitee},
+
+${inviter} wants to connect on Wire.
+
+Accept invitation [${url}]Wire is an app for calling, messaging, and sharing
+pics, music, videos and more in personal and group conversations. Learn more.
+[https://wire.com]
+
+If you can’t click the button, copy and paste this link to your browser:
+
+${url}
+
+If you have any questions, please contact us
+[https://support.wire.com/hc/en-us/requests/new].
+
+
+--------------------------------------------------------------------------------
+
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.

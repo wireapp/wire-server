@@ -1,0 +1,24 @@
+YOUR NEW TEAM.
+You have just created a team called ${team_name} on Wire with ${email}.
+
+Your 30–day free trial starts today.
+
+Wire vereint sichere Verschlüsselung mit reichhaltigem Funktionsumfang und
+einfacher Bedienung in einer einzigen App. Unterstützt alle gängigen
+Plattformen.
+
+Invite your teammates [${url}]Falls du nicht auf den Button klicken kannst,
+kopiere den Link und füge ihn in deinem Browser ein:
+
+${url}
+
+Wenn Du Fragen hast, bitte kontaktiere uns
+[https://support.wire.com/hc/de/requests/new].
+
+Team ID: ${team_id}
+
+
+--------------------------------------------------------------------------------
+
+Datenschutz [https://wire.com/legal/] · Missbrauch melden [misuse@wire.com]
+© WIRE SWISS GmbH. ALLE RECHTE VORBEHALTEN.
