@@ -37,6 +37,7 @@ import Control.Lens ((^.), makeLenses)
 import Control.Monad (when)
 import Data.Aeson
 import Data.ByteString (ByteString)
+import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.Char (isSpace)
@@ -70,6 +71,9 @@ instance FromByteString IpAddr where
         case readMay (unpack s) of
             Nothing -> fail "Failed parsing bytestring as IpAddr."
             Just ip -> return (IpAddr ip)
+
+instance ToByteString IpAddr where
+    builder = string8 . show . ipAddr
 
 instance Read IpAddr where
     readPrec = IpAddr <$> readPrec
