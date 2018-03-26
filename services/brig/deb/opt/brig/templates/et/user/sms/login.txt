@@ -1,0 +1,3 @@
+Sinu Wire sisselogimiskood on ${code}
+
+Sisselogimiseks ava aadress ${url}

@@ -1,0 +1,3 @@
+Sinu Wire kood on ${code}
+
+Toksa ${url} et number kinnitada.

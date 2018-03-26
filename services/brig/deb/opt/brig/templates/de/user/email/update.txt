@@ -1,22 +1,17 @@
-Wire
+BESTÄTIGE DEINE E-MAIL-ADRESSE
+${email} wurde als deine neue E-Mail-Adresse auf Wire registriert. Klicke auf
+den nachstehenden Button, um deine neue Adresse zu bestätigen.
 
-
-Hallo,
-
-${email} wurde als deine neue E-Mail-Adresse auf Wire registriert. Bitte verifiziere deine E-Mail-Adresse.
-
-Bitte klicke auf den folgenden Link, um deine neue Adresse zu bestätigen.
-
+Überprüfe [${url}]Falls du nicht auf den Button klicken kannst, kopiere den Link
+und füge ihn in deinem Browser ein:
 
 ${url}
 
-Bitte antworte nicht auf diese E-Mail.
-
-Wenn du diese Änderung nicht vorgenommen hast, kannst du diese E-Mail ignorieren oder https://support.wire.com besuchen
-
+Wenn Du Fragen hast, bitte kontaktiere uns
+[https://support.wire.com/hc/de/requests/new].
 
 
+--------------------------------------------------------------------------------
 
-(c) Wire Swiss GmbH
-
-Datenschutzrichtlinie  | Missbrauch melden
+Datenschutz [https://wire.com/legal/] · Missbrauch melden [misuse@wire.com]
+© WIRE SWISS GmbH. ALLE RECHTE VORBEHALTEN.

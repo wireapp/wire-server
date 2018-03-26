@@ -1,0 +1,29 @@
+BESTÄTIGE DEINE E-MAIL-ADRESSE
+Deine E-Mail-Adresse ${email} wurde benutzt, um sich als Wire Serviceanbieter zu
+registrieren.
+
+Um die Registrierung abzuschließen, bestätige bitte deine E-Mail-Adresse, indem
+du auf den unteren Button klickst.
+
+Bitte beachte, dass das Service-Provider-Konto nach der Bestätigung der
+E-Mail-Adresse noch durch uns freigeschaltet werden muss. Dies erfolgt
+üblicherweise innerhalb von 24 Stunden. Über die Freischaltung wirst du per
+E-Mail informiert.
+
+Überprüfe [${url}]Falls du nicht auf den Button klicken kannst, kopiere den Link
+und füge ihn in deinem Browser ein:
+
+${url}
+
+Solltest du dich nicht für eine Wire Service-Provider-Konto mit dieser
+E-Mail-Adresse registriert haben, kannst du diese Meldung ignorieren. Falls du
+einen Missbrauch deiner E-Mail-Adresse melden möchtest kontaktiere uns bitte.
+[https://support.wire.com/hc/de/requests/new]
+
+Bitte antworte nicht auf diese E-Mail.
+
+
+--------------------------------------------------------------------------------
+
+Datenschutz [https://wire.com/legal/] · Missbrauch melden [misuse@wire.com]
+© WIRE SWISS GmbH. ALLE RECHTE VORBEHALTEN.
