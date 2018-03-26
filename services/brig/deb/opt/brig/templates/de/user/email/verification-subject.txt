@@ -1,1 +1,1 @@
-Wire-Bestätigungs-Code: ${code}
+Wire Bestätigungs-Code ist ${code}

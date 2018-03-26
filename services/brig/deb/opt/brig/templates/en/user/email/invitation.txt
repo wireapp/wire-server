@@ -1,17 +1,20 @@
-Wire
+Hello ${invitee},
 
+${inviter} wants to connect on Wire.
 
-Hi ${name},
+Accept invitation [${url}]Wire is an app for calling, messaging, and sharing
+pics, music, videos and more in personal and group conversations. Learn more.
+[https://wire.com]
 
-${inviter} has invited you to join Wire. Accept this invitation to join the conversation by following the link:
+If you can’t click the button, copy and paste this link to your browser:
 
 ${url}
 
-Please don't reply to this message.
+If you have any questions, please contact us
+[https://support.wire.com/hc/en-us/requests/new].
 
 
+--------------------------------------------------------------------------------
 
-
-(c) Wire Swiss GmbH
-
-Privacy Policy  |  Report misuse
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.
