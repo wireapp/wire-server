@@ -1,14 +1,14 @@
-YOUR NEW TEAM.
-You have just created a team called ${team_name} on Wire with ${email}.
+DEIN NEUES TEAM.
+Du hast soeben mit ${email} ein Team namens ${team_name} auf Wire erstellt.
 
-Your 30–day free trial starts today.
+Deine 30-tägige Testversion beginnt heute.
 
 Wire vereint sichere Verschlüsselung mit reichhaltigem Funktionsumfang und
 einfacher Bedienung in einer einzigen App. Unterstützt alle gängigen
 Plattformen.
 
-Invite your teammates [${url}]Falls du nicht auf den Button klicken kannst,
-kopiere den Link und füge ihn in deinem Browser ein:
+Lade deine Teamkameraden ein [${url}]Falls du nicht auf den Button klicken
+kannst, kopiere den Link und füge ihn in deinem Browser ein:
 
 ${url}
 
