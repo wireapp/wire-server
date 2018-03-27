@@ -49,11 +49,12 @@ newtype TeamSizeLimit = TeamSizeLimit Word16
 tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> IO TestTree
 tests conf m b c g = do
     tl <- optOrEnv (TeamSizeLimit . Opt.setMaxConvAndTeamSize . Opt.optSettings) conf (TeamSizeLimit . read) "CONV_AND_TEAM_MAX_SIZE"
+    it <- optOrEnv (Opt.setTeamInvitationTimeout . Opt.optSettings)              conf read                   "TEAM_INVITATION_TIMEOUT"
     return $ testGroup "team"
         [ testGroup "invitation"
             [ test m "post /teams/:tid/invitations - 201"                  $ testInvitationEmail b g
             , test m "post /teams/:tid/invitations - 403 no permission"    $ testInvitationNoPermission b g
-            , test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b g
+            , test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b g tl
             , test m "post /register - 201 accepted"                       $ testInvitationEmailAccepted b g
             , test m "post /register user & team - 201 accepted"           $ testCreateTeam b g
             , test m "post /register user & team - 201 preverified"        $ testCreateTeamPreverified b g
@@ -66,7 +67,7 @@ tests conf m b c g = do
             , test m "get /teams/:tid/invitations - 200 (paging)"          $ testInvitationPaging b g
             , test m "get /teams/:tid/invitations/info - 200"              $ testInvitationInfo b g
             , test m "get /teams/:tid/invitations/info - 400"              $ testInvitationInfoBadCode b
-            , test m "get /teams/:tid/invitations/info - 400 expired"      $ testInvitationInfoExpired b g
+            , test m "get /teams/:tid/invitations/info - 400 expired"      $ testInvitationInfoExpired b g it
             , test m "post /i/teams/:tid/suspend - 200"                    $ testSuspendTeam b g
             , test m "put /self - 200 update events"                       $ testUpdateEvents b g c
             , test m "delete /self - 200 (ensure no orphan teams)"         $ testDeleteTeamUser b g
@@ -120,14 +121,15 @@ testInvitationEmail brig galley = do
     let invite = InvitationRequest invitee (Name "Bob") Nothing
     void $ postInvitation brig tid inviter invite
 
--- TODO: Use max team size from options
-testInvitationTooManyPending :: Brig -> Galley -> Http ()
-testInvitationTooManyPending brig galley = do
+testInvitationTooManyPending :: Brig -> Galley -> TeamSizeLimit -> Http ()
+testInvitationTooManyPending brig galley (TeamSizeLimit limit) = do
     (inviter, tid) <- createUserWithTeam brig galley
-    emails  <- replicateConcurrently 128 randomEmail
+    emails <- replicateConcurrently (fromIntegral limit) randomEmail
     let invite e = InvitationRequest e (Name "Bob") Nothing
     mapM_ (mapConcurrently_ $ postInvitation brig tid inviter . invite) (chunksOf 16 emails)
     e <- randomEmail
+    -- TODO: If this test takes longer to run than `team-invitation-timeout`, then some of the
+    --       invitations have likely expired already and this test will actually _fail_
     postInvitation brig tid inviter (invite e) !!! do
         const 403 === statusCode
         const (Just "too-many-team-invitations") === fmap Error.label . decodeBody
@@ -369,14 +371,14 @@ testInvitationInfoBadCode brig = do
     get (brig . path ("/teams/invitations/info?code=" <> icode)) !!!
         const 400 === statusCode
 
-testInvitationInfoExpired :: Brig -> Galley -> Http ()
-testInvitationInfoExpired brig galley = do
+testInvitationInfoExpired :: Brig -> Galley -> Opt.Timeout -> Http ()
+testInvitationInfoExpired brig galley timeout = do
     email      <- randomEmail
     (uid, tid) <- createUserWithTeam brig galley
     let invite = InvitationRequest email (Name "Bob") Nothing
     Just inv <- decodeBody <$> postInvitation brig tid uid invite
-    -- Note: This value must be larger than BRIG_TEAM_INVITATION_TIMEOUT
-    awaitExpiry 10 tid (inInvitation inv)
+    -- Note: This value must be larger than the option passed as `team-invitation-timeout`
+    awaitExpiry (round timeout + 5) tid (inInvitation inv)
     getCode tid (inInvitation inv) !!! const 400 === statusCode
   where
     getCode t i =
