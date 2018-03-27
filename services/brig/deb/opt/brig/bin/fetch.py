@@ -34,13 +34,13 @@ templates = os.path.join(root, 'templates')
 temp = os.path.join(root, 'temp')
 css = os.path.join(templates, 'css')
 dist = os.path.join(emails, 'dist')
-new_version_file = os.path.join(root, 'new-version')
+template_version_file = os.path.join(root, 'template-version')
 current_version_file = os.path.join(templates, 'version')
 os.chdir(root)
 
 pr_branch_name = os.environ.get('TRAVIS_PULL_REQUEST_BRANCH')
 
-with open(new_version_file) as f:
+with open(template_version_file) as f:
   new_version = f.readline().replace('\n', '').strip()
 
 try:
@@ -84,7 +84,7 @@ if new_version != current_version:
       shutil.rmtree(root_)
 
   # Copy the version number
-  shutil.copy(new_version_file, current_version_file)
+  shutil.copy(template_version_file, current_version_file)
 
   # Move old translations
   for locale in os.listdir(temp):
