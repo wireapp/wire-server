@@ -3,7 +3,7 @@ SERVICES         := $(HASKELL_SERVICES) nginz
 DOCKER_USER      ?= wireserver
 DOCKER_TAG       ?= local
 
-default: clean install
+default: fast
 
 init:
 	mkdir -p dist
@@ -12,16 +12,26 @@ init:
 install: init
 	stack install --pedantic --test --local-bin-path=dist
 
+.PHONY: fast
+fast: init
+	stack install --pedantic --test --local-bin-path=dist --fast
+
 .PHONY: clean
 clean:
 	stack clean
 	-rm -rf dist
 	-rm -f .metadata
 
-
 .PHONY: services
 services:
-	$(foreach service,$(HASKELL_SERVICES),$(MAKE) -C services/$(service) clean install;)
+	$(foreach service,$(HASKELL_SERVICES),$(MAKE) -C services/$(service);)
+
+.PHONY: integration
+integration: fast
+	$(MAKE) -C services/cargohold integration-fake-aws
+	$(MAKE) -C services/galley integration
+	$(MAKE) -C services/brig integration
+	$(MAKE) -C services/gundeck integration-fake-aws
 
 #################################
 ## docker targets

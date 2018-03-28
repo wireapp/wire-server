@@ -17,7 +17,7 @@ RUN cd /src/wire-server/services/brig && make ${target}
 FROM ${deps}
 
 ARG executable
-COPY --from=builder /src/wire-server/services/brig/dist/${executable} /usr/bin/${exectuable}
+COPY --from=builder /src/wire-server/dist/${executable} /usr/bin/${exectuable}
 COPY --from=builder /src/wire-server/services/brig/deb/opt/brig/templates/ /usr/share/wire/templates/
 
 # ARGs are not available at runtime, create symlink at build time

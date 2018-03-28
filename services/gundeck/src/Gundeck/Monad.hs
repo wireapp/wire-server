@@ -48,6 +48,8 @@ import qualified Data.Text.Lazy    as Lazy
 import qualified Database.Redis.IO as Redis
 import qualified System.Logger     as Logger
 
+-- | TODO: 'Client' already has an 'Env'.  Why do we need two?  How does this even work?  We should
+-- probably explain this here.
 newtype Gundeck a = Gundeck
     { unGundeck :: ReaderT Env Client a
     } deriving ( Functor

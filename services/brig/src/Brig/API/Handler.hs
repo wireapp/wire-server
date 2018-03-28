@@ -75,8 +75,12 @@ onError g r k e = do
 -------------------------------------------------------------------------------
 -- Utilities
 
+-- TODO: move to libs/wai-utilities?
 type JSON = Media "application" "json"
 
+-- TODO: move to libs/wai-utilities?  there is a parseJsonBody in "Network.Wai.Utilities.Request",
+-- but adjusting its signature to this here would require to move more code out of brig (at least
+-- badRequest and probably all the other errors).
 parseJsonBody :: FromJSON a => Request -> Handler a
 parseJsonBody req = parseBody req !>> StdError . badRequest
 

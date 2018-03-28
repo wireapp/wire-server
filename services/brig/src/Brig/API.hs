@@ -41,7 +41,7 @@ import Network.HTTP.Types.Status
 import Network.Wai (Request, Response, responseLBS, lazyRequestBody)
 import Network.Wai.Predicate hiding (setStatus, result)
 import Network.Wai.Routing
-import Network.Wai.Utilities
+import Network.Wai.Utilities hiding (parseJsonBody)
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import Prelude hiding (head)

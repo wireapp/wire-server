@@ -99,6 +99,7 @@ data BotUserView = BotUserView
     , botUserViewName   :: !Name
     , botUserViewColour :: !ColourId
     , botUserViewHandle :: !(Maybe Handle)
+    , botUserViewTeam   :: !(Maybe TeamId)
     } deriving (Eq, Show)
 
 instance FromJSON BotUserView where
@@ -107,6 +108,7 @@ instance FromJSON BotUserView where
                     <*> o .:  "name"
                     <*> o .:  "accent_id"
                     <*> o .:? "handle"
+                    <*> o .:? "team"
 
 instance ToJSON BotUserView where
     toJSON u = object
@@ -114,5 +116,6 @@ instance ToJSON BotUserView where
         , "name"      .= botUserViewName u
         , "accent_id" .= botUserViewColour u
         , "handle"    .= botUserViewHandle u
+        , "team"      .= botUserViewTeam u
         ]
 

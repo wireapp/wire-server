@@ -141,6 +141,10 @@ instance Arbitrary UUID where
 
 -- ConnId ----------------------------------------------------------------------
 
+-- | Handle for a device.  Used mostly by Cannon and Gundeck to identify a websocket connection.
+-- Historically, it is older than 'ClientId' and precedes end-to-end encryption, but it may be
+-- replaced by 'ClientId' at some point in the future.  Unique only together with a 'UserId', stored
+-- in Redis, lives as long as the device is connected.
 newtype ConnId = ConnId
     { fromConnId :: ByteString
     } deriving ( Eq
@@ -162,6 +166,9 @@ instance FromJSON ConnId where
 
 -- ClientId --------------------------------------------------------------------
 
+-- | Handle for a device.  Corresponds to the device fingerprints exposed in the UI.  It is unique
+-- only together with a 'UserId', stored in C*, and used as a handle for end-to-end encryption.  It
+-- lives as long as the device is registered.  See also: 'ConnId'.
 newtype ClientId = ClientId
     { client :: Text
     } deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, ToJSON)

@@ -1,6 +1,10 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module Cannon.API (run) where
 
@@ -16,15 +20,19 @@ import Data.Aeson (encode)
 import Data.ByteString (ByteString)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
+import Data.Monoid
 import Data.Swagger.Build.Api hiding (def, Response)
 import Data.Text (Text, strip, pack)
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types
 import Data.Maybe
+import Gundeck.Types
+import Gundeck.Types.BulkPush
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
 import Network.Wai.Utilities hiding (message)
+import Network.Wai.Utilities.Request (parseJsonBody)
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Handler.Warp hiding (run)
@@ -34,6 +42,7 @@ import System.Logger.Class hiding (Error)
 import System.Random.MWC (createSystemRandom)
 
 import qualified Cannon.Dict                 as D
+import qualified Data.ByteString.Lazy        as L
 import qualified Data.Metrics.Middleware     as Metrics
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified Network.WebSockets          as Ws
@@ -100,6 +109,12 @@ sitemap = do
     post "/i/push/:user/:conn" (continue push) $
         capture "user" .&. capture "conn" .&. request
 
+    post "/i/bulkpush" (continue bulkpush)
+        request
+
+    head "/i/presences/:user/:conn" (continue checkPresence) $
+        param "user" .&. param "conn"
+
     get "/i/monitoring" (continue monitoring) $
         accept "application" "json"
 
@@ -120,24 +135,55 @@ docs (_ ::: url) = do
     return $ responseLBS status200 [jsonContent] doc
 
 push :: UserId ::: ConnId ::: Request -> Cannon Response
-push (user ::: conn ::: req) = do
-    let k = mkKey user conn
+push (user ::: conn ::: req) =
+    singlePush (readBody req) (PushTarget user conn) >>= \case
+        PushStatusOk   -> return empty
+        PushStatusGone -> return $ errorRs status410 "general" "client gone"
+
+-- | Parse the entire list of notifcations and targets, then call 'singlePush' on the each of them
+-- in order.
+bulkpush :: Request -> Cannon Response
+bulkpush req = json <$> (parseJsonBody req >>= bulkpush')
+
+-- | The typed part of 'bulkpush'.
+bulkpush' :: BulkPushRequest -> Cannon BulkPushResponse
+bulkpush' (BulkPushRequest notifs) =
+    BulkPushResponse . mconcat . zipWith compileResp notifs <$> (uncurry doNotif `mapM` notifs)
+  where
+    doNotif :: Notification -> [PushTarget] -> Cannon [PushStatus]
+    doNotif (pure . encode -> notif) = mapConcurrentlyCannon (singlePush notif)
+
+    compileResp :: (Notification, [PushTarget])
+                -> [PushStatus]
+                -> [(NotificationId, PushTarget, PushStatus)]
+    compileResp (notif, prcs) pss = zip3 (repeat (ntfId notif)) prcs pss
+
+-- | Take a serialized 'Notification' string and send it to the 'PushTarget'.
+singlePush :: Cannon L.ByteString -> PushTarget -> Cannon PushStatus
+singlePush notification (PushTarget usrid conid) = do
+    let k = mkKey usrid conid
     d <- clients
     debug $ client (key2bytes k) . msg (val "push")
     c <- D.lookup k d
     case c of
         Nothing -> do
             debug $ client (key2bytes k) . msg (val "push: client gone")
-            return clientGone
-        Just x  -> do
-            b <- readBody req
+            return PushStatusGone
+        Just x -> do
             e <- wsenv
+            b <- notification
             runWS e $
-                (sendMsg b k x >> return empty)
+                (sendMsg b k x >> return PushStatusOk)
                 `catchAll`
-                const (terminate k x >> return clientGone)
-  where
-    clientGone = errorRs status410 "general" "client gone"
+                const (terminate k x >> return PushStatusGone)
+
+checkPresence :: UserId ::: ConnId -> Cannon Response
+checkPresence (u ::: c) = do
+    e <- wsenv
+    registered <- runWS e $ isRemoteRegistered u c
+    if registered
+        then return empty
+        else return $ errorRs status404 "not-found" "presence not registered"
 
 await :: UserId ::: ConnId ::: Maybe ClientId ::: Request -> Cannon Response
 await (u ::: a ::: c ::: r) = do

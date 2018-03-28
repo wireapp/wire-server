@@ -98,6 +98,7 @@ connectedProfile u = UserProfile
     , profileLocale   = Just (userLocale u)
     , profileDeleted  = userDeleted u
     , profileExpire   = userExpire u
+    , profileTeam     = userTeam u
     }
 
 publicProfile :: User -> UserProfile
@@ -121,6 +122,8 @@ data User = User
     , userHandle   :: !(Maybe Handle)
     , userExpire   :: !(Maybe UTCTime)
         -- ^ Set if the user is ephemeral
+    , userTeam     :: !(Maybe TeamId)
+        -- ^ Set if the user is part of a binding team
     }
 
 userEmail :: User -> Maybe Email
@@ -144,6 +147,7 @@ data UserProfile = UserProfile
     , profileHandle   :: !(Maybe Handle)
     , profileLocale   :: !(Maybe Locale)
     , profileExpire   :: !(Maybe UTCTime)
+    , profileTeam     :: !(Maybe TeamId)
     }
 
 instance ToJSON User where
@@ -160,6 +164,7 @@ instance ToJSON User where
         # "service"    .= userService u
         # "handle"     .= userHandle u
         # "expires_at" .= (UTCTimeMillis <$> userExpire u)
+        # "team"       .= userTeam u    
         # []
 
 instance FromJSON User where
@@ -175,6 +180,7 @@ instance FromJSON User where
              <*> o .:? "service"
              <*> o .:? "handle"
              <*> o .:? "expires_at"
+             <*> o .:? "team"
 
 instance FromJSON UserProfile where
     parseJSON = withObject "UserProfile" $ \o ->
@@ -188,6 +194,7 @@ instance FromJSON UserProfile where
                     <*> o .:? "handle"
                     <*> o .:? "locale"
                     <*> o .:? "expires_at"
+                    <*> o .:? "team"
 
 instance ToJSON UserProfile where
     toJSON u = object
@@ -201,6 +208,7 @@ instance ToJSON UserProfile where
         # "handle"     .= profileHandle u
         # "locale"     .= profileLocale u
         # "expires_at" .= (UTCTimeMillis <$> profileExpire u)
+        # "team"       .= profileTeam u
         # []
 
 instance FromJSON SelfProfile where

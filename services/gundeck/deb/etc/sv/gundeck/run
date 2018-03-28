@@ -27,6 +27,12 @@ else
     GUNDECK_PREFER_NOTICE=""
 fi
 
+if [ -n "$GUNDECK_CANNON_BULK_PUSH" ]; then
+    GUNDECK_CANNON_BULK_PUSH="--bulk-push"
+else
+    GUNDECK_CANNON_BULK_PUSH=""
+fi
+
 cd $HOME
 
 ulimit -n 65536
@@ -50,4 +56,5 @@ exec chpst -u $USER \
     --aws-sqs-endpoint=${GUNDECK_AWS_SQS_ENDPOINT:-'https://sqs.eu-west-1.amazonaws.com'} \
     --aws-sns-endpoint=${GUNDECK_AWS_SNS_ENDPOINT:-'https://sns.eu-west-1.amazonaws.com'} \
     --skip-fallbacks \
-    ${GUNDECK_PREFER_NOTICE}
+    ${GUNDECK_PREFER_NOTICE} \
+    ${GUNDECK_CANNON_BULK_PUSH}

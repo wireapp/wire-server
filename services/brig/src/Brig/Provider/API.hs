@@ -644,7 +644,7 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let colour = fromMaybe defaultAccentId            (Ext.rsNewBotColour rs)
     let pict   = Pict [] -- Legacy
     let sref   = newServiceRef sid pid
-    let usr    = User (botUserId bid) Nothing name pict assets colour False locale (Just sref) Nothing Nothing
+    let usr    = User (botUserId bid) Nothing name pict assets colour False locale (Just sref) Nothing Nothing Nothing
     let newClt = (newClient PermanentClient (Ext.rsNewBotLastPrekey rs) ())
                { newClientPrekeys = Ext.rsNewBotPrekeys rs
                }
@@ -795,6 +795,7 @@ mkBotUserView u = Ext.BotUserView
     , Ext.botUserViewName   = userName u
     , Ext.botUserViewColour = userAccentId u
     , Ext.botUserViewHandle = userHandle u
+    , Ext.botUserViewTeam   = userTeam u
     }
 
 setProviderCookie :: ZAuth.ProviderToken -> Response -> Handler Response
