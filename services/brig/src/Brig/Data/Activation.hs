@@ -91,8 +91,8 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
                                      key
                            $ accountUser a
                 in if oldKey == Just key then return Nothing else do
+                    -- ensure no password reset codes remain on activation of new email
                     mkPasswordResetKey uid >>= lift . deletePasswordResetCode
-                    -- ^ ensure no password reset codes remain on activation of new email
                     claim key uid
                     lift $ foldKey (updateEmail uid) (updatePhone uid) key
                     for_ oldKey $ lift . deleteKey
