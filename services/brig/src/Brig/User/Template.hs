@@ -27,7 +27,6 @@ module Brig.User.Template
 
 import Brig.Template
 import Brig.Types
-import Data.Monoid
 import Data.Text (Text)
 
 import qualified Brig.Options       as Opt
@@ -162,25 +161,25 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
                 <*> readTemplate fp "email/verification.txt"
                 <*> readTemplate fp "email/verification.html"
                 <*> pure emailSender
-                <*> readText (fp <> "/email/sender.txt"))
+                <*> readText fp "email/sender.txt")
         <*> (ActivationEmailTemplate activationUrl
                 <$> readTemplate fp "email/activation-subject.txt"
                 <*> readTemplate fp "email/activation.txt"
                 <*> readTemplate fp "email/activation.html"
                 <*> pure emailSender
-                <*> readText (fp <> "/email/sender.txt"))
+                <*> readText fp "email/sender.txt")
         <*> (ActivationEmailTemplate activationUrl
                 <$> readTemplate fp "email/update-subject.txt"
                 <*> readTemplate fp "email/update.txt"
                 <*> readTemplate fp "email/update.html"
                 <*> pure emailSender
-                <*> readText (fp <> "/email/sender.txt"))
+                <*> readText fp "email/sender.txt")
         <*> (TeamActivationEmailTemplate teamActivationUrl
                 <$> readTemplate fp "email/team-activation-subject.txt"
                 <*> readTemplate fp "email/team-activation.txt"
                 <*> readTemplate fp "email/team-activation.html"
                 <*> pure emailSender
-                <*> readText (fp <> "/email/sender.txt"))
+                <*> readText fp "email/sender.txt")
         <*> (PasswordResetSmsTemplate
                 <$> readTemplate fp "sms/password-reset.txt"
                 <*> pure smsSender)
@@ -189,13 +188,13 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
                 <*> readTemplate fp "email/password-reset.txt"
                 <*> readTemplate fp "email/password-reset.html"
                 <*> pure emailSender
-                <*> readText (fp <> "/email/sender.txt"))
+                <*> readText fp "email/sender.txt")
         <*> (InvitationEmailTemplate invitationUrl
                 <$> readTemplate fp "email/invitation-subject.txt"
                 <*> readTemplate fp "email/invitation.txt"
                 <*> readTemplate fp "email/invitation.html"
                 <*> pure emailSender
-                <*> readText (fp <> "/email/sender.txt"))
+                <*> readText fp "email/sender.txt")
         <*> (InvitationSmsTemplate invitationUrl
                 <$> readTemplate fp "sms/invitation.txt"
                 <*> pure smsSender)
@@ -212,13 +211,13 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
                 <*> readTemplate fp "email/deletion.txt"
                 <*> readTemplate fp "email/deletion.html"
                 <*> pure emailSender
-                <*> readText (fp <> "/email/sender.txt"))
+                <*> readText fp "email/sender.txt")
         <*> (NewClientEmailTemplate
                 <$> readTemplate fp "email/new-client-subject.txt"
                 <*> readTemplate fp "email/new-client.txt"
                 <*> readTemplate fp "email/new-client.html"
                 <*> pure emailSender
-                <*> readText (fp <> "/email/sender.txt"))
+                <*> readText fp "email/sender.txt")
   where
     gOptions          = Opt.general $ Opt.emailSMS o
     uOptions          = Opt.user $ Opt.emailSMS o
@@ -235,3 +234,4 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
     defLocale = Opt.setDefaultLocale (Opt.optSettings o)
     templateDir = Opt.templateDir gOptions
     readTemplate = readTemplateWithDefault templateDir defLocale "user"
+    readText = readTextWithDefault templateDir defLocale "user"
