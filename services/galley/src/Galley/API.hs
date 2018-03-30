@@ -664,7 +664,7 @@ sitemap = do
         .&. contentType "application" "json"
 
     document "POST" "postOtrBroadcast" $ do
-        summary "Broadcast an encrypted message to all team members and all contacts"
+        summary "Broadcast an encrypted message to all team members and all contacts (accepts JSON)"
         parameter Query "ignore_missing" bool' $ do
             description "Force message delivery even when clients are missing."
             optional
@@ -686,7 +686,7 @@ sitemap = do
         .&. contentType "application" "x-protobuf"
 
     document "POST" "postOtrBroadcast" $ do
-        summary "Broadcast an encrypted message to all team members and all contacts"
+        summary "Broadcast an encrypted message to all team members and all contacts (accepts Protobuf)"
         parameter Query "ignore_missing" bool' $ do
             description "Force message delivery even when clients are missing."
             optional
@@ -709,7 +709,7 @@ sitemap = do
         .&. contentType "application" "json"
 
     document "POST" "postOtrMessage" $ do
-        summary "Post an encrypted message to a conversation"
+        summary "Post an encrypted message to a conversation (accepts JSON)"
         parameter Path "cnv" bytes' $
             description "Conversation ID"
         parameter Query "ignore_missing" bool' $ do
@@ -733,7 +733,7 @@ sitemap = do
         .&. contentType "application" "x-protobuf"
 
     document "POST" "postProtoOtrMessage" $ do
-        summary "Post an encrypted message to a conversation"
+        summary "Post an encrypted message to a conversation (accepts Protobuf)"
         parameter Path "cnv" bytes' $
             description "Conversation ID"
         parameter Query "ignore_missing" bool' $ do
