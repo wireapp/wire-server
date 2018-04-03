@@ -101,9 +101,9 @@ RUN apk add --no-cache git && \
     git clone https://github.com/wireapp/wire-server.git && \
     cd wire-server && \
     stack update && \
-    cd services/proxy && stack build --pedantic --test --dependencies-only && cd - && \
-    cd services/brig && stack build --pedantic --test --dependencies-only && cd - && \
-    cd services/galley && stack build --pedantic --test --dependencies-only && cd - && \
-    cd services/cannon && stack build --pedantic --test --dependencies-only && cd - && \
-    cd services/cargohold && stack build --pedantic --test --dependencies-only && cd - && \
-    cd services/gundeck && stack build --pedantic --test --dependencies-only && cd -
+    cd services/proxy && stack build --pedantic --haddock --test --dependencies-only && cd - && \
+    cd services/brig && stack build --pedantic --haddock --test --dependencies-only && cd - && \
+    cd services/galley && stack build --pedantic --haddock --test --dependencies-only && cd - && \
+    cd services/cannon && stack build --pedantic --haddock --test --dependencies-only && cd - && \
+    cd services/cargohold && stack build --pedantic --haddock --test --dependencies-only && cd - && \
+    cd services/gundeck && stack build --pedantic --haddock --test --dependencies-only && cd -
