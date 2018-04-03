@@ -1,4 +1,4 @@
-resolver: lts-10.3
+resolver: lts-10.10
 
 packages:
 - libs/api-bot
@@ -55,6 +55,7 @@ extra-deps:
 - currency-codes-2.0.0.0
 - data-timeout-0.3
 - geoip2-0.3.1.0
+- hoogle-5.0.14
 - html-entities-1.1.4.1
 - mime-0.4.0.2
 - QuickCheck-2.9.2
