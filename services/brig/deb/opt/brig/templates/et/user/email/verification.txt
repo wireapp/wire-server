@@ -1,0 +1,14 @@
+KINNITA OMA E-POSTI AADRESS
+Meiliaadressi ${email} kasutati Wire konto loomiseks. Konto loomiseks sisestage
+see kood brauseriaknas.
+
+${code}
+
+Küsimuste korral võtke ühendust [https://support.wire.com/hc/en-us/requests/new]
+.
+
+
+--------------------------------------------------------------------------------
+
+Privaatsus [https://wire.com/legal/] · Klienditugi [misuse@wire.com]
+© WIRE SWISS GmbH. Kõik õigused kaitstud.

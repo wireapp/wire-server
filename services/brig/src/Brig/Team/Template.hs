@@ -18,7 +18,6 @@ module Brig.Team.Template
 import Brig.Options
 import Brig.Template
 import Brig.Types
-import Data.Monoid
 import Data.Text (Text)
 
 data InvitationEmailTemplate = InvitationEmailTemplate
@@ -62,19 +61,19 @@ loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \
                 <*> readTemplate fp "email/invitation.txt"
                 <*> readTemplate fp "email/invitation.html"
                 <*> pure (emailSender gOptions)
-                <*> readText (fp <> "/email/sender.txt"))
+                <*> readText fp "email/sender.txt")
         <*> (CreatorWelcomeEmailTemplate (tCreatorWelcomeUrl tOptions)
                 <$> readTemplate fp "email/new-creator-welcome-subject.txt"
                 <*> readTemplate fp "email/new-creator-welcome.txt"
                 <*> readTemplate fp "email/new-creator-welcome.html"
                 <*> pure (emailSender gOptions)
-                <*> readText (fp <> "/email/sender.txt"))
+                <*> readText fp "email/sender.txt")
         <*> (MemberWelcomeEmailTemplate (tMemberWelcomeUrl tOptions)
                 <$> readTemplate fp "email/new-member-welcome-subject.txt"
                 <*> readTemplate fp "email/new-member-welcome.txt"
                 <*> readTemplate fp "email/new-member-welcome.html"
                 <*> pure (emailSender gOptions)
-                <*> readText (fp <> "/email/sender.txt"))
+                <*> readText fp "email/sender.txt")
   where
     gOptions = general (emailSMS o)
     tOptions = team (emailSMS o)
@@ -82,3 +81,4 @@ loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \
 
     defLocale = setDefaultLocale (optSettings o)
     readTemplate = readTemplateWithDefault (templateDir gOptions) defLocale "team"
+    readText = readTextWithDefault (templateDir gOptions) defLocale "team"
