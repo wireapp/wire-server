@@ -47,6 +47,7 @@ import qualified Data.ByteString.Conversion as BC
 import           Data.List1
 import           Data.Misc                  (IpAddr, Port (..))
 import           Data.Monoid
+import           Data.Ord
 import           Data.Text                  (Text)
 import           Data.Text.Ascii
 import qualified Data.Text.Encoding         as TE
@@ -92,13 +93,18 @@ data TurnURI = TurnURI
     , _turiTransport :: Maybe Transport
     } deriving (Eq, Show, Generic)
 
+-- | Relies on Ord instances for `Scheme` and `Transport`.
+-- | First, prefer `turn` scheme and then prefer UDP.
+instance Ord TurnURI where
+    compare = comparing _turiScheme <> comparing _turiTransport
+
 data Scheme = SchemeTurn
             | SchemeTurns
-            deriving (Eq, Show, Generic)
+            deriving (Eq, Ord, Show, Generic)
 
-data Transport = TransportTCP
-               | TransportUDP
-               deriving (Eq, Show, Generic)
+data Transport = TransportUDP
+               | TransportTCP
+               deriving (Eq, Ord, Show, Generic)
 
 -- future versions may allow using a hostname
 newtype TurnHost = TurnHost IpAddr
@@ -202,7 +208,7 @@ parseTurnURI = parseOnly (parser <* endOfInput)
 instance ToJSON   TurnHost
 instance FromJSON TurnHost
 
- 
+
 instance ToJSON TurnUsername where
     toEncoding = text . view utf8 . BC.toByteString'
 

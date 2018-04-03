@@ -89,7 +89,9 @@ test-suite brig-types-tests
       , iproute
       , lens
       , QuickCheck
+      , random-shuffle
       , tasty
+      , tasty-hunit
       , tasty-quickcheck
       , text
       , time
