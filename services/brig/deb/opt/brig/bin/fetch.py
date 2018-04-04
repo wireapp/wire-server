@@ -40,6 +40,18 @@ os.chdir(root)
 
 pr_branch_name = os.environ.get('TRAVIS_PULL_REQUEST_BRANCH')
 
+
+# https://stackoverflow.com/a/15824216/8418
+def recursive_overwrite(src, dest):
+  if os.path.isdir(src):
+    if not os.path.isdir(dest):
+      os.makedirs(dest)
+    files = os.listdir(src)
+    for f in files:
+      recursive_overwrite(os.path.join(src, f), os.path.join(dest, f))
+  else:
+    shutil.copyfile(src, dest)
+
 with open(template_version_file) as f:
   new_version = f.readline().replace('\n', '').strip()
 
@@ -64,12 +76,8 @@ if new_version != current_version:
   # Checkout the desired version
   os.system('git checkout %s' % new_version)
 
-  # Move templates to temp
-  if os.path.exists(templates):
-    shutil.move(templates, temp)
-
   # Move wire-emails/dist to templates
-  shutil.move(dist, templates)
+  recursive_overwrite(dist, templates)
   if os.path.exists(css):
     shutil.rmtree(css)
 
@@ -86,16 +94,8 @@ if new_version != current_version:
   # Copy the version number
   shutil.copy(template_version_file, current_version_file)
 
-  # Move old translations
-  for locale in os.listdir(temp):
-    new_dir = os.path.join(templates, locale)
-    old_dir = os.path.join(temp, locale)
-    if not os.path.exists(new_dir):
-      shutil.move(old_dir, new_dir)
-
-  # Remove the wire-emails and temp
+  # Remove the wire-emails
   shutil.rmtree(emails)
-  shutil.rmtree(temp)
 
   # Commit back to the branch
   # os.chdir(root)
