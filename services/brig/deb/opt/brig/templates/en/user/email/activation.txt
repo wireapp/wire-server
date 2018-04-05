@@ -1,23 +1,17 @@
-Wire
+VERIFY YOUR EMAIL
+${email} was used to register on Wire.
+Click the button to verify your address.
 
-
-Hello,
-
-Your email address ${email} was used to create a Wire account. Please, verify your email.
-
-Follow the link below to verify your address. You won't be able to use Wire until you do.
-
+Verify [${url}]If you can’t click the button, copy and paste this link to your
+browser:
 
 ${url}
 
-Please don't reply to this message.
-
-If you didn't create a Wire account using this email address, please visit https://support.wire.com
-
+If you have any questions, please contact us
+[https://support.wire.com/hc/en-us/requests/new].
 
 
+--------------------------------------------------------------------------------
 
-(c) Wire Swiss GmbH
-
-Privacy Policy - https://wire.com/legal/
-Report misuse - misuse@wire.com
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.

@@ -8,7 +8,7 @@ module Brig.Template
     , forLocale
     , readLocalesDir
     , readTemplateWithDefault
-    , readText
+    , readTextWithDefault
 
       -- * Rendering templates
     , renderText
@@ -93,25 +93,21 @@ readTemplateWithDefault :: FilePath
                         -> String
                         -> FilePath
                         -> IO Template
-readTemplateWithDefault baseDir defLoc typ prefix name = do
-    exists <- doesFileExist templateToLoad
-    if exists
-        then readTemplate templateToLoad
-        else readTemplate fallback
-  where
-    templateToLoad = prefix <> "/" <> name
-    -- | If the desired template does not exist, try to load
-    --   the default one. If that does not exist, error
-    fallback = baseDir <> "/"
-            <> unpack (locToText defLoc) <> "/"
-            <> typ <> "/"
-            <> name
+readTemplateWithDefault = readWithDefault readTemplate
 
 readTemplate :: FilePath -> IO Template
 readTemplate f = template <$> readText f
 
 readFile :: FilePath -> IO Text
 readFile f = T.decodeUtf8 <$> BS.readFile f
+
+readTextWithDefault :: FilePath
+                    -> Locale
+                    -> FilePath
+                    -> String
+                    -> FilePath
+                    -> IO Text
+readTextWithDefault = readWithDefault readText
 
 readText :: FilePath -> IO Text
 readText f = catchJust (\e -> if isDoesNotExistError e then Just () else Nothing)
@@ -124,3 +120,23 @@ renderText = Template.render
 renderHtml :: Template -> (Text -> Text) -> Lazy.Text
 renderHtml tpl f = renderText tpl (HTML.text . f)
 
+readWithDefault :: (String -> IO a)
+                -> FilePath
+                -> Locale
+                -> FilePath
+                -> String
+                -> FilePath
+                -> IO a
+readWithDefault readFn baseDir defLoc typ prefix name = do
+    exists <- doesFileExist fileToLoad
+    if exists
+        then readFn fileToLoad
+        else readFn fallback
+  where
+    fileToLoad = prefix <> "/" <> name
+    -- | If the desired file does not exist, try to load
+    --   the default one. If that does not exist, error
+    fallback = baseDir <> "/"
+            <> unpack (locToText defLoc) <> "/"
+            <> typ <> "/"
+            <> name

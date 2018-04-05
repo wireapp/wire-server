@@ -1,22 +1,19 @@
-Wire
+DEIN NEUES WIRE-BENUTZERKONTO
+Ein neues Wire Team wurde mit ${email} erstellt. Bitte verifiziere deine
+E-Mail-Adresse.
 
-
-Hallo,
-
-Ein neues Wire Team wurde mit ${email} erstellt. Bitte verifiziere deine E-Mail-Adresse.
-
-Bitte klicke auf den folgenden Link, um deine Identität zu bestätigen. Danach kannst du Wire nutzen.
-
+Überprüfe [${url}]Falls du nicht auf den Button klicken kannst, kopiere den Link
+und füge ihn in deinem Browser ein:
 
 ${url}
 
-Bitte antworte nicht auf diese E-Mail.
+Solltest du dich nicht für eine Wire Service-Provider-Konto mit dieser
+E-Mail-Adresse registriert haben, kannst du diese Meldung ignorieren. Falls du
+einen Missbrauch deiner E-Mail-Adresse melden möchtest kontaktiere uns bitte.
+[https://support.wire.com/hc/de/requests/new]
 
-Wenn du kein Wire-Benutzerkonto mit dieser E-Mail-Adresse erstellt hast, gehe bitte auf https://support.wire.com
 
+--------------------------------------------------------------------------------
 
-
-
-(c) Wire Swiss GmbH
-
-Datenschutzrichtlinie  | Missbrauch melden
+Datenschutz [https://wire.com/legal/] · Missbrauch melden [misuse@wire.com]
+© WIRE SWISS GmbH. ALLE RECHTE VORBEHALTEN.

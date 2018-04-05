@@ -1,0 +1,17 @@
+KINNITA OMA E-POSTI AADRESS
+${email} on Wire'is nüüd registreeritud kui sinu uus meiliaadress. Aadressi
+kinnitamiseks kliki alloleval lingil.
+
+Kinnita [${url}]Kui sul pole võimalik nuppu klikkida, siis kopeeri allolev
+aadress veebibrauserisse:
+
+${url}
+
+Küsimuste korral võtke ühendust [https://support.wire.com/hc/en-us/requests/new]
+.
+
+
+--------------------------------------------------------------------------------
+
+Privaatsus [https://wire.com/legal/] · Klienditugi [misuse@wire.com]
+© WIRE SWISS GmbH. Kõik õigused kaitstud.

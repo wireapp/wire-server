@@ -1,17 +1,20 @@
-Wire
+DELETE YOUR ACCOUNT
+We’ve received a request to delete your Wire account. Click the button below
+within 10 minutes to delete all your conversations, content and connections.
 
-
-Hi ${name},
-
-We’ve received a request to delete your Wire account. Visit the link below within 10 minutes to delete all your conversations, content and connections. 
+Delete account [${url}]If you can’t click the button, copy and paste this link
+to your browser:
 
 ${url}
 
-If you didn’t request this, reset your password.
+If you didn’t request this, reset your password
+[https://account.wire.com/forgot/].
 
-The Wire team
+If you have any questions, please contact us
+[https://support.wire.com/hc/en-us/requests/new].
 
 
-(c) Wire Swiss GmbH
+--------------------------------------------------------------------------------
 
-Privacy Policy  |  Report misuse
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.
