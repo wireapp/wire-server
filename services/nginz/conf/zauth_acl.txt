@@ -1,0 +1,13 @@
+a (blacklist (path "/provider")
+             (path "/provider/**")
+             (path "/bot")
+             (path "/bot/**")
+             (path "/i/**"))
+
+u (whitelist (path "/access"))
+
+b (whitelist (path "/bot")
+             (path "/bot/**"))
+
+p (whitelist (path "/provider")
+             (path "/provider/**"))
