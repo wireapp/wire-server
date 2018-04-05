@@ -26,7 +26,7 @@ aws:
   internalQueue: integration-brig-events-internal
   blacklistTable: integration-brig-userkey-blacklist
   prekeyTable: integration-brig-prekeys
-  sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
+  sesEndpoint: https://email.eu-west-1.amazonaws.com # http://localhost:4569
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
 emailSMS:
@@ -36,22 +36,22 @@ emailSMS:
     smsSender: "<insert-sender-number-here>"
 
   user:
-    activationUrl: http://127.0.0.1:8080/activate?key=\${key}\&code=\${code}
-    smsActivationUrl: http://127.0.0.1:8080/v/\${code}
-    passwordResetUrl: http://127.0.0.1:8080/password-reset/\${key}?code=\${code}
-    invitationUrl: http://127.0.0.1:8080/register?invitation_code=\${code}
-    deletionUrl: http://127.0.0.1:8080/users/delete?key=\${key}\&code=\${code}
+    activationUrl: http://127.0.0.1:8080/activate?key=${key}&code=${code}
+    smsActivationUrl: http://127.0.0.1:8080/v/${code}
+    passwordResetUrl: http://127.0.0.1:8080/password-reset/${key}?code=${code}
+    invitationUrl: http://127.0.0.1:8080/register?invitation_code=${code}
+    deletionUrl: http://127.0.0.1:8080/users/delete?key=${key}&code=${code}
 
   provider:
     homeUrl: https://provider.localhost/
-    providerActivationUrl: http://127.0.0.1:8080/provider/activate?key=\${key}\&code=\${code}
-    approvalUrl: http://127.0.0.1:8080/provider/approve?key=\${key}\&code=\${code}
+    providerActivationUrl: http://127.0.0.1:8080/provider/activate?key=${key}&code=${code}
+    approvalUrl: http://127.0.0.1:8080/provider/approve?key=${key}&code=${code}
     approvalTo: success@simulator.amazonses.com
-    providerPwResetUrl: http://127.0.0.1:8080/provider/password-reset?key=\${key}\&code=\${code}
+    providerPwResetUrl: http://127.0.0.1:8080/provider/password-reset?key=${key}&code=${code}
 
   team:
-    tInvitationUrl: http://127.0.0.1:8080/register?team=\${team}\&team_code=\${code}
-    tActivationUrl: http://127.0.0.1:8080/register?team=\${team}\&team_code=\${code}
+    tInvitationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
+    tActivationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
     tCreatorWelcomeUrl: http://127.0.0.1:8080/creator-welcome-website
     tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
 
@@ -60,26 +60,28 @@ zauth:
   publicKeys: test/resources/zauth/pubkeys.txt
   authSettings:
     keyIndex: 1
-    userTokenTimeout: 120
-    sessionTokenTimeout: 20
-    accessTokenTimeout: 30
-    providerTokenTimeout: 60
+    userTokenTimeout: 1200
+    sessionTokenTimeout: 200
+    accessTokenTimeout: 300
+    providerTokenTimeout: 600
 
 turn:
+  # Replace this with the list of supported URIs
   servers: test/resources/turn/servers.txt
+  # This should be the same secret as used by the TURN servers
   secret: test/resources/turn/secret.txt
   configTTL: 3600
   tokenTTL: 21600
 
 optSettings:
-  setActivationTimeout: 5
+  setActivationTimeout: 3600
   setTeamInvitationTimeout: 5
   setTwilio: test/resources/twilio-credentials.yaml
   setNexmo: test/resources/nexmo-credentials.yaml
   setUserMaxConnections: 16
   setCookieDomain: 127.0.0.1
   setCookieInsecure: true
-  setUserCookieRenewAge: 2
+  setUserCookieRenewAge: 200
   setUserCookieLimit: 5
   setUserCookieThrottle:
     stdDev: 5

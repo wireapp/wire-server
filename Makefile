@@ -1,5 +1,5 @@
 HASKELL_SERVICES := proxy cannon cargohold brig galley gundeck
-SERVICES         := $(HASKELL_SERVICES) nginz
+SERVICES         := nginz $(HASKELL_SERVICES)
 DOCKER_USER      ?= wireserver
 DOCKER_TAG       ?= local
 
@@ -19,12 +19,13 @@ fast: init
 .PHONY: clean
 clean:
 	stack clean
+	$(MAKE) -C services/nginz clean
 	-rm -rf dist
 	-rm -f .metadata
 
 .PHONY: services
-services:
-	$(foreach service,$(HASKELL_SERVICES),$(MAKE) -C services/$(service);)
+services: init
+	$(foreach service,$(SERVICES),$(MAKE) -C services/$(service);)
 
 .PHONY: integration
 integration: fast

@@ -12,14 +12,20 @@ WITH_DEBUG      = --with-debug
 endif
 
 DEST_PATH      ?= /opt/nginz
-LOG_PATH       ?= /var/log/nginz
+# By default, use a folder that can usually be written to avoid logging (not critical)
+# errors during startup
+LOG_PATH       ?= /tmp/log/nginz
 CONF_PATH      ?= /etc/nginz
 PID_PATH       ?= /var/run
+# TODO: How can we improve this?
+EXTRA_CC_INC   ?= -I/usr/local/opt/openssl/include
+EXTRA_CC_LIB   ?= -L/usr/local/opt/openssl/lib
 
 CONFIG_OPTIONS = \
 	--prefix=$(DEST_PATH) \
 	$(WITH_DEBUG) \
-	--with-cc-opt=-std=gnu99 \
+	--with-cc-opt="-std=gnu99 $(EXTRA_CC_INC)" \
+	--with-ld-opt="$(EXTRA_CC_LIB)" \
 	--error-log-path=$(LOG_PATH)/error.log \
 	--http-log-path=$(LOG_PATH)/access.log \
 	--conf-path=$(CONF_PATH)/nginx.conf \
@@ -40,13 +46,18 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: dist
+default: compile
 
 .PHONY: clean
 clean:
 	-rm -rf src $(DIST) .metadata
 
-compile: $(BIN)
+init:
+	mkdir -p $(LOG_PATH)
+
+compile: init $(BIN)
+	mkdir -p dist ../../dist
+	cp src/objs/nginx ../../dist/
 
 dist: guard-NGINZ_VERSION $(DIST)/$(DEB)
 
