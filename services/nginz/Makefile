@@ -18,8 +18,8 @@ LOG_PATH       ?= /tmp/log/nginz
 CONF_PATH      ?= /etc/nginz
 PID_PATH       ?= /var/run
 # You may need to use this if you have some dependencies in non-standard locations
-# EXTRA_CC_INC ?= -I/usr/local/opt/openssl/include
-# EXTRA_CC_LIB ?= -L/usr/local/opt/openssl/lib
+EXTRA_CC_INC ?= -I/usr/local/opt/openssl/include
+EXTRA_CC_LIB ?= -L/usr/local/opt/openssl/lib
 
 CONFIG_OPTIONS = \
 	--prefix=$(DEST_PATH) \
@@ -50,7 +50,7 @@ default: compile
 
 .PHONY: clean
 clean:
-	-rm -rf src $(DIST) .metadata
+	-rm -rf src $(DIST) .metadata conf/zwagger-ui/swagger-ui
 
 init:
 	mkdir -p $(LOG_PATH)
@@ -87,10 +87,16 @@ src: $(TMPDIR)/$(BUNDLE)
 	gpg --verify $(TMPDIR)/$(BUNDLE).asc $(TMPDIR)/$(BUNDLE)
 	tar zxf $(TMPDIR)/$(BUNDLE)
 	mv nginx-$(NGINX_VERSION) src
+	echo $(pwd)
+	tar zxf $(TMPDIR)/swagger-ui-2.0.17.tar.gz
+	mkdir -p conf/zwagger-ui/swagger-ui
+	cp -r swagger-ui-2.0.17/dist/* conf/zwagger-ui/swagger-ui
+	-rm -rf swagger-ui-2.0.17
 
 $(TMPDIR)/$(BUNDLE):
 	(cd $(TMPDIR); curl -O https://nginx.org/download/$(BUNDLE).asc)
 	(cd $(TMPDIR); curl -O https://nginx.org/download/$(BUNDLE))
+	(cd $(TMPDIR); curl -O https://s3-eu-west-1.amazonaws.com/public.wire.com/artifacts/swagger-ui-2.0.17.tar.gz)
 
 .PHONY: docker
 docker:
