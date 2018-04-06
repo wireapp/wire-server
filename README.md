@@ -126,6 +126,17 @@ Or, alternatively, `make` on the top-level directory (to produce all the service
 
 ```
 make services
+```
+
+Once that finishes, use 2 different terminals to:
+
+```
+# Start the dependencies
+cd deploy/docker-ephemeral && docker-compose up
+```
+
+```
+# Start the services
 cd services && ./integration.sh
 ```
 
