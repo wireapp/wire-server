@@ -1,3 +1,7 @@
+# You can use this script to simply start all services (./integration.sh) or
+# to start services, run a test executable (./integration.sh [test-executable] [args])
+# and exit after all tests have been run
+
 #!/usr/bin/env bash
 set -eo pipefail
 
@@ -65,7 +69,7 @@ function run_haskell_service() {
 
 function run_nginz() {
     colour=$1
-    (cd ${DIR}/nginz/conf && ${DIR}/../dist/nginx -p . -c nginx.conf -g 'daemon off;' || kill_all) \
+    (cd ${DIR}/nginz && ${DIR}/../dist/nginx -p . -c conf/nginx.conf -g 'daemon off;' || kill_all) \
         | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
 }
 
