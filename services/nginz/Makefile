@@ -17,9 +17,9 @@ DEST_PATH      ?= /opt/nginz
 LOG_PATH       ?= /tmp/log/nginz
 CONF_PATH      ?= /etc/nginz
 PID_PATH       ?= /var/run
-# TODO: How can we improve this?
-EXTRA_CC_INC   ?= -I/usr/local/opt/openssl/include
-EXTRA_CC_LIB   ?= -L/usr/local/opt/openssl/lib
+# You may need to use this if you have some dependencies in non-standard locations
+# EXTRA_CC_INC ?= -I/usr/local/opt/openssl/include
+# EXTRA_CC_LIB ?= -L/usr/local/opt/openssl/lib
 
 CONFIG_OPTIONS = \
 	--prefix=$(DEST_PATH) \
