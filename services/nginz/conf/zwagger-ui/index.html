@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+  <head
+     >
+    <title>Swagger UI</title>
+    <link href='https://fonts.googleapis.com/css?family=Droid+Sans:400,700' rel='stylesheet' type='text/css'/>
+    <link href='css/reset.css' media='screen' rel='stylesheet' type='text/css'/>
+    <link href='css/screen.css' media='screen' rel='stylesheet' type='text/css'/>
+    <link href='css/reset.css' media='print' rel='stylesheet' type='text/css'/>
+    <link href='css/screen.css' media='print' rel='stylesheet' type='text/css'/>
+    <script type="text/javascript" src="lib/shred.bundle.js"></script>
+    <script src='lib/jquery-1.8.0.min.js' type='text/javascript'></script>
+    <script src='lib/jquery.slideto.min.js' type='text/javascript'></script>
+    <script src='lib/jquery.wiggle.min.js' type='text/javascript'></script>
+    <script src='lib/jquery.ba-bbq.min.js' type='text/javascript'></script>
+    <script src='lib/handlebars-1.0.0.js' type='text/javascript'></script>
+    <script src='lib/underscore-min.js' type='text/javascript'></script>
+    <script src='lib/backbone-min.js' type='text/javascript'></script>
+    <script src='lib/swagger.js' type='text/javascript'></script>
+    <script src='swagger-ui.js' type='text/javascript'></script>
+    <script src='lib/highlight.7.3.pack.js' type='text/javascript'></script>
+    <script src='conf/zwagger-config.js' type='text/javascript'></script>
+
+    <!-- enabling this will enable oauth2 implicit scope support -->
+    <script src='lib/swagger-oauth.js' type='text/javascript'></script>
+
+    <script type="text/javascript">
+  $(function () {
+
+    // -- Init
+    var access_token = '';
+    var timer = null;
+
+    $('#access-token').hide();
+    $('#show-access-token').hide();
+    $('#hide-access-token').hide();
+    $('#form_logout').hide();
+
+    // -- Handlers
+
+    $('#input_login').click(function() {
+      login($('#input_email')[0].value, $('#input_password')[0].value);
+    });
+
+    $('#input_logout').click(function() {
+      logout();
+    });
+
+    $('#show-access-token').click(function() {
+      $('#access-token').show();
+      $('#show-access-token').hide();
+      $('#hide-access-token').show();
+    });
+
+    $('#hide-access-token').click(function() {
+      $('#access-token').hide();
+      $('#show-access-token').show();
+      $('#hide-access-token').hide();
+    });
+
+    loadSwagger = function () {
+      window.swaggerUi = new SwaggerUi({
+        url: $('#input_base_url')[0].value + '/api-docs/',
+        dom_id: "swagger-ui-container",
+        supportedSubmitMethods: ['get', 'post', 'put', 'delete'],
+        onComplete: function(swaggerApi, swaggerUi) {
+          log("Loaded SwaggerUI");
+
+          if(typeof initOAuth == "function") {
+            /*
+              initOAuth({
+                clientId: "your-client-id",
+                realm: "your-realms",
+                appName: "your-app-name"
+              });
+              */
+            }
+            $('pre code').each(function(i, e) {
+              hljs.highlightBlock(e)
+            });
+          },
+          onFailure: function(data) {
+            log("Unable to Load SwaggerUI");
+          },
+          docExpansion: "list"
+        });
+        window.swaggerUi.load();
+      };
+
+      var login = function (email, password) {
+        $.ajax({
+          url: $('#input_base_url')[0].value + "/login",
+          type: "POST",
+          contentType: "application/json",
+          data: JSON.stringify({ email: email, password: password }),
+          success: function (result) {
+            var json = eval(result);
+            window.authorizations.add("key", new ApiKeyAuthorization("Authorization", "Bearer " + json.access_token, "header"));
+            // Update UI
+            $('#form_login').hide();
+            $('#form_logout').show();
+            if (!$('#hide-access-token').is(':visible')) {
+              $('#show-access-token').show();
+            }
+            $('#access-token').text(json.access_token);
+            $('#swagger-ui-container').show();
+            if (!access_token) {
+              loadSwagger();
+            }
+            // Update token & schedule refresh
+            access_token = json.access_token;
+            refresh();
+            refresh();
+            timer = setTimeout(function() {
+                refresh();
+              },
+              (json.expires_in * 1000) - 1000
+            );
+          },
+          error: function (xhr, s, err) {
+            console.log(err);
+            $('#form_login').show();
+          }
+        });
+      };
+
+      var refresh = function () {
+        $.ajax({
+          url: $('#input_base_url')[0].value + "/access",
+          type: "POST",
+          contentType: "application/json",
+          headers: {
+              "Authorization": "Bearer " + access_token
+          },
+          success: function (result) {
+            var json = eval(result);
+            window.authorizations.add("key", new ApiKeyAuthorization("Authorization", "Bearer " + json.access_token, "header"));
+            $('#access-token').text(json.access_token);
+            // Update token & schedule refresh
+            access_token = json.access_token;
+            timer = setTimeout(function() {
+                refresh();
+              },
+              (json.expires_in * 1000) - 1000
+            );
+          },
+          error: function (xhr, s, err) {
+            console.log(err);
+            $('#form_login').show();
+          }
+        });
+      };
+
+      var logout = function () {
+        $('#access-token').text('');
+        if (timer != null) {
+          clearTimeout(timer);
+        }
+        $('#swagger-ui-container').hide();
+        $('#form_login').show();
+        $('#form_logout').hide();
+      };
+  });
+  </script>
+</head>
+
+<body class="swagger-section">
+<br/>
+<div align="center">
+
+  <img src="images/wire_logo_small.png" alt="Wire" width="32" height="32" />
+  <br/><br/>
+
+  <form action="" id="form_login" onsubmit="return false;">
+    <br/>
+    <div class='input'><input placeholder="E-Mail" id="input_email" name="email" type="text"/></div>
+    <div class='input'><input placeholder="Password" id="input_password" name="password" type="password"/></div>
+    <div class='input'><input placeholder="BaseURL" id="input_base_url" name="base_url" type="text" value="http://127.0.0.1:8080"/></div>
+    <input type="submit" value="Login" id="input_login"/>
+  </form>
+
+  <form action="" id="form_logout" onsubmit="return false;">
+    <input type="submit" value="Logout" id="input_logout"/>
+  </form>
+
+</div>
+
+<div align="center" style="font-family: Verdana, sans-serif, 10pt">
+  <a href="#" id="show-access-token">Show Access Token</a>
+  <a href="#" id="hide-access-token">Hide Access Token</a>
+  <div id="access-token" style="padding: 5px"></div>
+</div>
+
+<div id="message-bar" class="swagger-ui-wrap">
+  &nbsp;
+</div>
+
+<div id="swagger-ui-container" class="swagger-ui-wrap">
+
+</div>
+
+</body>
+</html>

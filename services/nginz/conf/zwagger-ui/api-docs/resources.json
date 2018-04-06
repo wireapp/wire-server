@@ -1,0 +1,26 @@
+{
+    "apiVersion": "1.0",
+    "swaggerVersion": "1.2",
+    "apis": [
+        {
+            "path": "/users",
+            "description": "Users, Connections and Onboarding"
+        },
+        {
+            "path": "/push",
+            "description": "Push Notifications"
+        },
+        {
+            "path": "/conversations",
+            "description": "Conversations and Messaging"
+        },
+        {
+            "path": "/assets",
+            "description": "Assets"
+        },
+        {
+            "path": "/await",
+            "description": "Push Notifications"
+        }
+    ]
+}
