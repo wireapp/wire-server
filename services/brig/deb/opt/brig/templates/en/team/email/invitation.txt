@@ -1,16 +1,17 @@
-Wire
+TEAM INVITATION
+${inviter} has invited you to join a team on Wire. Click the button below to
+accept the invitation.
 
-Hello,
-
-${inviter} has invited you to join a team on Wire.
-
-Follow the link below to create an account and join the team:
+Accept invitation [${url}]If you can’t click the button, copy and paste this
+link to your browser:
 
 ${url}
 
-Please don't reply to this message.
+If you have any questions, please contact us
+[https://support.wire.com/hc/en-us/requests/new].
 
 
+--------------------------------------------------------------------------------
 
-
-(c) Wire Swiss GmbH
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.

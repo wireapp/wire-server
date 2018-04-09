@@ -1,1 +1,1 @@
-Wire verification code: ${code}
+Wire verification code is ${code}

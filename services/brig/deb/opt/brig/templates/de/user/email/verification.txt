@@ -1,18 +1,14 @@
-Wire
-
-
-Hallo,
-
-${email} wurde verwendet, um sich auf Wire zu registrieren. Gib diesen Code ein, um deine e-Mail-Adresse zu überprüfen und dein Konto zu erstellen.
+BESTÄTIGE DEINE E-MAIL-ADRESSE
+${email} wurde verwendet um ein Benutzerkonto auf Wire zu erstellen. Gib diesen
+Code ein, um deine E-Mail-Adresse zu verifizieren und dein Konto zu erstellen.
 
 ${code}
 
-Bitte antworte nicht auf diese E-Mail.
-
-Wenn du kein Wire-Benutzerkonto mit dieser E-Mail-Adresse erstellt hast, gehe bitte auf https://support.wire.com
-
+Wenn Du Fragen hast, bitte kontaktiere uns
+[https://support.wire.com/hc/de/requests/new].
 
 
-(c) Wire Swiss GmbH
+--------------------------------------------------------------------------------
 
-Datenschutzrichtlinie  | Missbrauch melden
+Datenschutz [https://wire.com/legal/] · Missbrauch melden [misuse@wire.com]
+© WIRE SWISS GmbH. ALLE RECHTE VORBEHALTEN.

@@ -1,1 +1,1 @@
-Hei, sinu Wire kood on:  ${code} Kordan, sinu kood on: ${code}
+Hei, sinu Wire kinnituskood on: ${code}. Veelkord, kood on: ${code}

@@ -44,7 +44,7 @@ import OpenSSL.EVP.Digest (getDigestByName, digestBS)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import Test.Tasty.HUnit
-import Safe
+import Safe hiding (at)
 import System.Random (randomIO)
 import Web.Cookie (parseSetCookie, setCookieName)
 import Util
@@ -69,7 +69,8 @@ newtype ConnectionLimit = ConnectionLimit Int64
 
 tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> Maybe AWS.Env -> IO TestTree
 tests conf p b c g localAWS = do
-    l <- optOrEnv (ConnectionLimit . Opt.setUserMaxConnections . Opt.optSettings) conf (ConnectionLimit . read) "USER_CONNECTION_LIMIT"
+    cl <- optOrEnv (ConnectionLimit . Opt.setUserMaxConnections . Opt.optSettings) conf (ConnectionLimit . read) "USER_CONNECTION_LIMIT"
+    at <- optOrEnv (Opt.setActivationTimeout . Opt.optSettings)                    conf read                     "USER_ACTIVATION_TIMEOUT"
     return $ testGroup "user"
         [ testGroup "account"
             [ test p "post /register - 201 (with preverified)"  $ testCreateUserWithPreverified b
@@ -82,7 +83,7 @@ tests conf p b c g localAWS = do
             , test p "post /register - 409 conflict"            $ testCreateUserConflict b
             , test p "post /register - 400"                     $ testCreateUserInvalidPhone b
             , test p "post /register - 403 blacklist"           $ testCreateUserBlacklist b localAWS
-            , test p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b
+            , test p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b at
             , test p "get /users/:id - 404"                     $ testNonExistingUser b
             , test p "get /users/:id - 200"                     $ testExistingUser b
             , test p "get /users?:id=.... - 200"                $ testMultipleUsers b
@@ -115,7 +116,7 @@ tests conf p b c g localAWS = do
             , test p "put /connections/:id bad update"      $ testBadUpdateConnection b
             , test p "put /connections/:id noop"            $ testUpdateConnectionNoop b
             , test p "get /connections - 200 (paging)"      $ testConnectionPaging b
-            , test p "post /connections - 400 (max conns)"  $ testConnectionLimit b l
+            , test p "post /connections - 400 (max conns)"  $ testConnectionLimit b cl
             , test p "post /i/users/auto-connect"                   $ testAutoConnectionOK b g
             , test p "post /i/users/auto-connect - existing conn"   $ testAutoConnectionNoChanges b
             , test p "post /i/users/auto-connect - 400 (bad range)" $ testAutoConnectionBadRequest b
@@ -385,8 +386,8 @@ testCreateUserBlacklist brig localAWS =
             liftIO $ threadDelay 1000000
             awaitBlacklist (n-1) e
 
-testActivateWithExpiry :: Brig -> Http ()
-testActivateWithExpiry brig = do
+testActivateWithExpiry :: Brig -> Opt.Timeout -> Http ()
+testActivateWithExpiry brig timeout = do
     Just u <- decodeBody <$> registerUser "dilbert" "success@simulator.amazonses.com" brig
     let email = fromMaybe (error "missing email") (userEmail u)
     act <- getActivationCode brig (Left email)
@@ -396,8 +397,8 @@ testActivateWithExpiry brig = do
             activate brig kc !!! do
                 const 200 === statusCode
                 const (Just (userIdentity u, True)) === actualBody
-            -- Note: This value must be larger than BRIG_ACTIVATION_TIMEOUT
-            awaitExpiry 10 kc
+            -- Note: This value must be larger than the option passed as `activation-timeout`
+            awaitExpiry (round timeout + 5) kc
             activate brig kc !!! const 404 === statusCode
   where
     actualBody rs = do

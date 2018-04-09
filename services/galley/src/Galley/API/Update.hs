@@ -178,7 +178,6 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
         []      -> return ()
         x:xs    -> do
             e <- Data.removeMembers conv usr (list1 x xs)
-            pushEvent e users bots zcon
             -- push event to all clients, including zconn
             -- since updateConversationAccess generates a second (member removal) event here
             for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
