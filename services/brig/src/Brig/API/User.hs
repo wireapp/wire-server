@@ -51,6 +51,7 @@ module Brig.API.User
     , beginPasswordReset
     , completePasswordReset
     , lookupPasswordResetCode
+    , Data.lookupPassword
 
       -- * Blacklisting
     , isBlacklisted
