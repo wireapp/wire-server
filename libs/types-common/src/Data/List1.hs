@@ -52,10 +52,6 @@ head :: List1 a -> a
 head = N.head . toNonEmpty
 {-# INLINE head #-}
 
-sort :: (Ord a) => List1 a -> List1 a
-sort = List1 . N.sort . toNonEmpty
-{-# INLINE sort #-}
-
 instance ToJSON a => ToJSON (List1 a) where
     toJSON = toJSON . toList
     toEncoding = toEncoding . toList

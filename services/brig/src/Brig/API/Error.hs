@@ -363,6 +363,9 @@ tooManyTeamMembers = Wai.Error status403 "too-many-team-members" "Too many membe
 loginsTooFrequent :: Wai.Error
 loginsTooFrequent = Wai.Error status429 "client-error" "Logins too frequent"
 
+badTURNconfig :: Wai.Error
+badTURNconfig = Wai.Error status500 "incorrect-turn-config" "TURN configuration returned no servers, try again later"
+
 internalServerError :: Wai.Error
 internalServerError = Wai.Error status500 "internal-server-error" "Internal Server Error"
 

@@ -10,8 +10,10 @@ module Brig.TURN.API (routes) where
 import Brig.App
 import Brig.TURN hiding (Env)
 import Brig.Types.TURN 
+import Brig.API.Error (badTURNconfig)
 import Brig.API.Handler
 import Control.Lens (view, (^.))
+import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Reader
 import Control.Monad.Random.Class
 import Data.ByteString (ByteString)
@@ -49,35 +51,57 @@ routes = do
         .&. header "Z-Connection"
 
     document "GET" "getCallsConfig" $ do
-        Doc.summary "Retrieve TURN server addresses and credentials."
+        Doc.summary "Retrieve TURN server addresses and credentials \
+                    \ for scheme `turn` and transport `udp` "
         Doc.returns (Doc.ref Doc.rtcConfiguration)
         Doc.response 200 "RTCConfiguration" Doc.end
 
+    get "/calls/config/v2" (continue getCallsConfigV2) $
+        accept "application" "json"
+        .&. header "Z-User"
+        .&. header "Z-Connection"
+
+    document "GET" "getCallsConfigV2" $ do
+        Doc.summary "Retrieve all TURN server addresses and credentials."
+        Doc.returns (Doc.ref Doc.rtcConfiguration)
+        Doc.response 200 "RTCConfiguration" Doc.end
+
+getCallsConfigV2 :: JSON ::: UserId ::: ConnId -> Handler Response
+getCallsConfigV2 (_ ::: _ ::: _) = json <$> lift (newConfig Nothing)
+
 getCallsConfig :: JSON ::: UserId ::: ConnId -> Handler Response
-getCallsConfig (_ ::: _ ::: _) = json <$> lift newConfig
+getCallsConfig (_ ::: _ ::: _) = json <$> lift (newConfig (Just ([SchemeTurn], [Just TransportUDP, Nothing])))
+
+newConfig :: (MonadThrow m, MonadIO m, MonadReader Env m)
+          => Maybe ([Scheme], [Maybe Transport])
+          -> m RTCConfiguration
+newConfig fn = do
+    env  <- liftIO =<< readIORef <$> view turnEnv
+    let (sha, secret, tTTL, cTTL, prng) = (env^.turnSHA512, env^.turnSecret, env^.turnTokenTTL, env^.turnConfigTTL, env^.turnPrng)
+    uris <- filterSuitableURIs fn =<< (liftIO $ randomize (env^.turnServers))
+    srvs <- for uris $ \uri -> do
+                u <- liftIO $ genUsername tTTL prng
+                pure $ rtcIceServer (List1.singleton uri) u (computeCred sha secret u)
+    pure $ rtcConfiguration srvs cTTL
   where
-    newConfig :: (MonadIO m, MonadReader Env m) => m RTCConfiguration
-    newConfig = do
-        env  <- liftIO =<< readIORef <$> view turnEnv
-        let (sha, secret, tTTL, cTTL, prng) = (env^.turnSHA512, env^.turnSecret, env^.turnTokenTTL, env^.turnConfigTTL, env^.turnPrng)
-        uris <- List1.sort <$> liftIO (randomize (env^.turnServers))
-        srvs <- for uris $ \uri -> do
-                    u <- liftIO $ genUsername tTTL prng
-                    pure $ rtcIceServer (List1.singleton uri) u (computeCred sha secret u)
-        pure $ rtcConfiguration srvs cTTL
-      where
-        -- NOTE: even though `shuffleM` works only for [a], input is List1 so it's
-        --       safe to pattern match; ideally, we'd have `shuffleM` for `NonEmpty`
-        randomize :: MonadRandom m => List1 TurnURI -> m (List1 TurnURI)
-        randomize xs = do
-            (f:fs) <- shuffleM (toList xs)
-            return $ List1.list1 f fs
+    filterSuitableURIs :: MonadThrow m => Maybe ([Scheme], [Maybe Transport]) -> List1 TurnURI -> m (List1 TurnURI)
+    filterSuitableURIs Nothing       uris = return uris
+    filterSuitableURIs (Just (s, t)) uris = case filter (\x -> view turiScheme x `elem` s && view turiTransport x `elem` t) (toList uris) of
+        []     -> throwM badTURNconfig
+        (x:xs) -> return $ List1.list1 x xs
 
-        genUsername :: Word32 -> MWC.GenIO -> IO TurnUsername
-        genUsername ttl prng = do
-            rnd <- view (packedBytes . utf8) <$> replicateM 16 (MWC.uniformR (97, 122) prng)
-            t   <- fromIntegral . (+ ttl) . round <$> getPOSIXTime
-            pure $ turnUsername t rnd
+    -- NOTE: even though `shuffleM` works only for [a], input is List1 so it's
+    --       safe to pattern match; ideally, we'd have `shuffleM` for `NonEmpty`
+    randomize :: MonadRandom m => List1 TurnURI -> m (List1 TurnURI)
+    randomize xs = do
+        (f:fs) <- shuffleM (toList xs)
+        return $ List1.list1 f fs
 
-        computeCred :: Digest -> ByteString -> TurnUsername -> AsciiBase64
-        computeCred dig secret = encodeBase64 . hmacBS dig secret . toByteString'
+    genUsername :: Word32 -> MWC.GenIO -> IO TurnUsername
+    genUsername ttl prng = do
+        rnd <- view (packedBytes . utf8) <$> replicateM 16 (MWC.uniformR (97, 122) prng)
+        t   <- fromIntegral . (+ ttl) . round <$> getPOSIXTime
+        pure $ turnUsername t rnd
+
+    computeCred :: Digest -> ByteString -> TurnUsername -> AsciiBase64
+    computeCred dig secret = encodeBase64 . hmacBS dig secret . toByteString'
