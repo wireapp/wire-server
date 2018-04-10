@@ -430,6 +430,16 @@ sitemap o = do
 
     ---
 
+    head "/self/password" (continue checkPasswordExists) $
+        header "Z-User"
+
+    document "HEAD" "checkPassword" $ do
+        Doc.summary "Check that your passowrd is set"
+        Doc.response 200 "Password is set." Doc.end
+        Doc.response 404 "Password is not set." Doc.end
+
+    ---
+
     put "/self/password" (continue changePassword) $
         contentType "application" "json"
         .&. header "Z-User"
@@ -1282,6 +1292,11 @@ removeEmail :: UserId ::: ConnId -> Handler Response
 removeEmail (self ::: conn) = do
     API.removeEmail self conn !>> idtError
     return empty
+
+checkPasswordExists :: UserId -> Handler Response
+checkPasswordExists self = do
+    exists <- lift $ isJust <$> API.lookupPassword self
+    return $ if exists then empty else setStatus status404 empty
 
 changePassword :: JSON ::: UserId ::: Request -> Handler Response
 changePassword (_ ::: u ::: req) = do
