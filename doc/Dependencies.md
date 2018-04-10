@@ -30,7 +30,7 @@ Hopefully almost like Debian. Instead of `openssl-dev`, try `libssl-dev`.
 ```
 # You might also need 'sudo pacman -S base-devel' if you haven't
 # installed the base-devel group already.
-sudo pacman -S geoip snappy
+sudo pacman -S geoip snappy icu openssl
 ```
 
 #### macOS:
