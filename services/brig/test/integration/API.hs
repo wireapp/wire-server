@@ -90,6 +90,7 @@ tests conf p b c g localAWS = do
             , test p "put /self - 200"                          $ testUserUpdate b c
             , test p "put /self/email - 202"                    $ testEmailUpdate b
             , test p "put /self/phone - 202"                    $ testPhoneUpdate b
+            , test p "head /self/password - 200/404"            $ testPasswordSet b
             , test p "put /self/password - 200"                 $ testPasswordChange b
             , test p "put /self/locale - 200"                   $ testUserLocaleUpdate b
             , test p "post /activate/send - 200"                $ testSendActivationCode b
@@ -681,6 +682,31 @@ testGetByIdentity brig = do
         const (Just [uid]) === getUids
   where
     getUids r = return . fmap (userId . accountUser) =<< decodeBody r
+
+testPasswordSet :: Brig -> Http ()
+testPasswordSet brig = do
+    p <- randomPhone
+    let newUser = RequestBodyLBS . encode $ object
+                [ "name"  .= ("Alice" :: Text)
+                , "phone" .= fromPhone p
+                ]
+    rs <- post (brig . path "/i/users" . contentJson . body newUser) <!!
+            const 201 === statusCode
+
+    let Just uid = userId <$> decodeBody rs
+    -- No password set yet
+    Bilge.head (brig . path "/self/password" . zUser uid) !!!
+        const 404 === statusCode
+    -- Since there is no password set, we can just set one
+    put (brig . path "/self/password" . contentJson . zUser uid . body pwSet) !!!
+        const 200 === statusCode
+    -- Now we should have a password
+    Bilge.head (brig . path "/self/password" . zUser uid) !!!
+        const 200 === statusCode
+  where
+    pwSet = RequestBodyLBS . encode $ object
+        [ "new_password" .= ("a_very_long_password" :: Text)
+        ]
 
 testPasswordChange :: Brig -> Http ()
 testPasswordChange brig = do
