@@ -45,8 +45,8 @@ testCallsConfig :: Brig -> Http ()
 testCallsConfig b = do
     uid <- userId <$> randomUser b
     cfg <- getTurnConfigurationV1 uid b
-    let expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
-    assertConfiguration cfg expected
+    let _expectedV1 = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
+    assertConfiguration cfg _expectedV1
 
 testCallsConfigMultiple :: Brig -> TurnUpdater -> Http ()
 testCallsConfigMultiple b st = do
@@ -57,15 +57,18 @@ testCallsConfigMultiple b st = do
     assertConfiguration _cfg _expected
 
     -- Change server list
-    let _changes  = "turn:127.0.0.2:3478\nturn:127.0.0.3:3478"
-    let _expected = List1.list1 (toTurnURILegacy "127.0.0.2" 3478)
-                                [toTurnURILegacy "127.0.0.3" 3478]
-    modifyAndAssert uid _changes _expected _expected
+    let _changes    = "turn:127.0.0.2:3478\nturn:127.0.0.3:3478"
+    let _expectedV1 = List1.list1 (toTurnURILegacy "127.0.0.2" 3478)
+                                  [toTurnURILegacy "127.0.0.3" 3478]
+    let _expectedV2 = List1.list1 (toTurnURI SchemeTurn "127.0.0.2" 3478 Nothing)
+                                  [toTurnURI SchemeTurn "127.0.0.3" 3478 Nothing]
+    modifyAndAssert uid _changes _expectedV1 _expectedV2
 
     -- Change server list, more transport options. Only the legacy endpoint, only `turn`
-    -- and `udp` (or no transport) are to be returned
-    let _changes  = "turn:127.0.0.2:3479?transport=udp\nturn:127.0.0.3:3480?transport=tcp"
-    let _expectedV1 = List1.singleton (toTurnURI SchemeTurn "127.0.0.2" 3479 $ Just TransportUDP)
+    -- and no transport (in practice, that's udp) are to be returned; i.e., `turn` and `udp`
+    -- endpoints are returned but the `transport` suffix is removed
+    let _changes    = "turn:127.0.0.2:3479?transport=udp\nturn:127.0.0.3:3480?transport=tcp"
+    let _expectedV1 = List1.singleton (toTurnURILegacy "127.0.0.2" 3479)
     let _expectedV2 = List1.list1 (toTurnURI SchemeTurn "127.0.0.2" 3479 $ Just TransportUDP)
                                   [toTurnURI SchemeTurn "127.0.0.3" 3480 $ Just TransportTCP]
     modifyAndAssert uid _changes _expectedV1 _expectedV2

@@ -12,7 +12,7 @@ import Brig.TURN hiding (Env)
 import Brig.Types.TURN 
 import Brig.API.Error (badTURNconfig)
 import Brig.API.Handler
-import Control.Lens (view, (^.))
+import Control.Lens
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Reader
 import Control.Monad.Random.Class
@@ -70,7 +70,11 @@ getCallsConfigV2 :: JSON ::: UserId ::: ConnId -> Handler Response
 getCallsConfigV2 (_ ::: _ ::: _) = json <$> lift (newConfig Nothing)
 
 getCallsConfig :: JSON ::: UserId ::: ConnId -> Handler Response
-getCallsConfig (_ ::: _ ::: _) = json <$> lift (newConfig (Just ([SchemeTurn], [Just TransportUDP, Nothing])))
+getCallsConfig (_ ::: _ ::: _) = json . dropTransport <$> lift (newConfig (Just ([SchemeTurn], [Just TransportUDP, Nothing])))
+  where
+    -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
+    dropTransport :: RTCConfiguration -> RTCConfiguration
+    dropTransport = set (rtcConfIceServers . traverse . iceURLs . traverse . turiTransport) Nothing
 
 newConfig :: (MonadThrow m, MonadIO m, MonadReader Env m)
           => Maybe ([Scheme], [Maybe Transport])
