@@ -25,6 +25,14 @@ sudo apt install libsodium-dev openssl-dev libtool automake build-essential libi
 
 Hopefully almost like Debian. Instead of `openssl-dev`, try `libssl-dev`.
 
+#### Arch:
+
+```
+# You might also need 'sudo pacman -S base-devel' if you haven't
+# installed the base-devel group already.
+sudo pacman -S geoip snappy icu openssl
+```
+
 #### macOS:
 
 ```bash

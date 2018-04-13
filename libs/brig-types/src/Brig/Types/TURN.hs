@@ -96,8 +96,8 @@ data Scheme = SchemeTurn
             | SchemeTurns
             deriving (Eq, Show, Generic)
 
-data Transport = TransportTCP
-               | TransportUDP
+data Transport = TransportUDP
+               | TransportTCP
                deriving (Eq, Show, Generic)
 
 -- future versions may allow using a hostname
@@ -202,7 +202,7 @@ parseTurnURI = parseOnly (parser <* endOfInput)
 instance ToJSON   TurnHost
 instance FromJSON TurnHost
 
- 
+
 instance ToJSON TurnUsername where
     toEncoding = text . view utf8 . BC.toByteString'
 
