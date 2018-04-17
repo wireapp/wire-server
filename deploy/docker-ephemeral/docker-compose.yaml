@@ -41,6 +41,7 @@ services:
     ports:
       - "9042:9042"
 
+  # Ensure that this version(s) are suitable for your services
   db_migrations:
     image: wireserver/migrations
     depends_on:
