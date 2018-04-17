@@ -25,11 +25,13 @@ Then, have a look at what the configuration for the [api-smoketest](https://gith
 
 ```
 # 
-./api-smoketest --api-host=127.0.0.1 --api-port=8080 --api-websocket-host=127.0.0.1 --api-websocket-port=8081 --mailbox-config=<path_to_mailboxes_file> --sender-email=backend-integration@wire.com --enable-asserts
+../../api-smoketest --api-host=127.0.0.1 --api-port=8080 --api-websocket-host=127.0.0.1 --api-websocket-port=8081 --mailbox-config=<path_to_mailboxes_file> --sender-email=backend-integration@wire.com --enable-asserts
 ```
 
 ### Common troubles
 
-I see "[...] cassandra schema mismatch [...]" >> docker-compose pull && docker-compose up
+I see "Schema Version too old! Expecting at least: <...>, but got: <...>". If there are schema changes and you don't force pull the docker migrations, you may run out of sync. We recommend that you run the following:
 
-TODO!
+> docker-compose pull && docker-compose up
+
+Which will ensure that your DB schema is up to date.
