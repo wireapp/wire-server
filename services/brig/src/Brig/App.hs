@@ -321,7 +321,7 @@ initCassandra o g = do
 initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
 initCredentials secretFile = do
     dat <- loadSecret secretFile
-    return $ fromMaybe (error $ "Could not secrets from " ++ show secretFile) dat
+    return $ fromMaybe (error $ "Could not load secrets from " ++ show secretFile) dat
 
 userTemplates :: Monad m => Maybe Locale -> AppT m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
