@@ -1,0 +1,1 @@
+Sveiki, jūsų „Wire“ prisijungimo kodas yra: ${code}. Dar kartą, jūsų kodas yra: ${code}

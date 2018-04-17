@@ -1,0 +1,22 @@
+IŠTRINTI JŪSŲ PASKYRĄ
+Mes gavome užklausą ištrinti jūsų Wire paskyrą. Norėdami ištrinti visus savo
+pokalbius, visą turinį ir ryšius, 10 minučių bėgyje spustelėkite žemiau esantį
+mygtuką.
+
+Ištrinti paskyrą [${url}]Jeigu negalite spustelėti ant mygtuko, nukopijuokite ir
+įdėkite šią nuorodą į savo naršyklę:
+
+${url}
+
+Jeigu jūs to neprašėte, tuomet atstatykite savo slaptažodį
+[https://account.wire.com/forgot/].
+
+Jeigu turite kokių nors klausimų, susisiekite su mumis
+[https://support.wire.com/hc/en-us/requests/new].
+
+
+--------------------------------------------------------------------------------
+
+Privatumas [https://wire.com/legal/] · Pranešti apie piktnaudžiavimą
+[misuse@wire.com]
+© WIRE SWISS GmbH. VISOS TEISĖS SAUGOMOS.
