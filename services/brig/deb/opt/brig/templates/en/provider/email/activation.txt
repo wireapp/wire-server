@@ -1,11 +1,11 @@
 VERIFY YOUR EMAIL
-Your email address ${email} was used to register as a Wire service provider.
+Your email address ${email} was used to register as a Wire Service Provider.
 
 To complete the registration, it is necessary that you verify your e-mail
 address by clicking on the button below.
 
-Please note that upon successful verification of your e-mail, your Wire service
-provider account is still subject to approval through our staff, which usually
+Please note that upon successful verification of your e-mail, your Wire Service
+Provider account is still subject to approval through our staff, which usually
 happens within 24 hours. You will be informed of the approval via a separate
 e-mail.
 
