@@ -18,7 +18,6 @@ Use 2 different terminals and run:
 ### Structure of the services-demo folder
 
 ```
-.
 conf                                 <- folder with configuration for all services
   └── nginz
         ├── nginx.conf               <- main nginx configuration
@@ -36,22 +35,9 @@ resources                            <- folder which contains secrets or other r
 └── README.md                        <- this file
 ```
 
-### This is fantastic, all services up & running... what now, can I run some kind of smoketests?
-
-Short answer: yes and no. At the moment, you need _one_ AWS service in order to test your cluster with our automated smoketester tool. The `sesEndpoint` in `brig`'s [example configuration](https://github.com/wireapp/wire-server/blob/develop/services/brig/brig.integration.yaml) needs to point to a real AWS SES endpoint.
-
-In your environment, you can configure `AWS_REGION`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for your correct AWS account. Note that there are other ways to specify these credentials (to be detailed later).
-
-Then, have a look at what the configuration for the [api-smoketest](../../tools/api-simulations/README.md) should be. Once you have the correct `mailboxes.json`, this should just work from the top level directory (note the `sender-email` must match brig's [sender-email](https://github.com/wireapp/wire-server/blob/develop/services/brig/brig.integration.yaml#L35))
-
-```
-# 
-../../dist/api-smoketest --api-host=127.0.0.1 --api-port=8080 --api-websocket-host=127.0.0.1 --api-websocket-port=8081 --mailbox-config=<path_to_mailboxes_file> --sender-email=backend-integration@wire.com --enable-asserts
-```
-
 ### Common problems
 
-> `"Schema Version too old! Expecting at least: <...>, but got: <...>"` when running `./demo.sh`.
+> Schema Version too old! Expecting at least: <...>, but got: <...> when running `./demo.sh`.
 
 If there are schema changes and you don't force pull the docker migrations, you may run out of sync. We recommend that you run the following:
 
@@ -61,4 +47,25 @@ Which will ensure that your DB schema is up to date.
 
 > nginx: [alert] could not open error log file: open() "/var/log/nginz/error.log" failed (2: No such file or directory)
 
-...
+This is not really an issue and `nginz` is fine. `nginz` has a `LOG_PATH`[check the Makefile](../../services/nginz/Makefile) defined which it always tries to write to during startup, even if you have defined a different path on your `nginx.conf`. You can safely ignore this warning or recompile `nginz` with a `LOG_PATH` which is writable on your system.
+
+### Is there a way to look at some API endpoints?
+
+Yes. If all has been set up correctly, you should be able to navigate to http://127.0.0.1:8080/swagger-ui where you should be faced with a login screen that looks like
+
+<img width="164" align="middle" alt="login screen" src="https://user-images.githubusercontent.com/1105323/38916970-9446ca12-42e9-11e8-94ec-d88a6961637d.png">
+
+In order to view the API, you need to create a regular user. For that purpose, you can then run the script `./create_test_user.sh` and use the credentials that you see on the screen to log in.
+
+### This is fantastic, all services up & running... what now, can I run some kind of smoketests?
+
+Short answer: yes and no. At the moment, you need _one_ AWS service in order to test your cluster with our automated smoketester tool. The `sesEndpoint` in `brig`'s [example configuration](https://github.com/wireapp/wire-server/blob/develop/services/brig/brig.integration.yaml) needs to point to a real AWS SES endpoint.
+
+In your environment, you can configure `AWS_REGION`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for your correct AWS account. Note that there are other ways to specify these credentials (to be detailed later).
+
+Then, have a look at what the configuration for the [api-smoketest](../../tools/api-simulations/README.md) should be. Once you have the correct `mailboxes.json`, this should just work from the top level directory (note the `sender-email` must match brig's [sender-email](https://github.com/wireapp/wire-server/blob/develop/services/brig/brig.integration.yaml#L35))
+
+```
+# This assumes, for now, that brig is configured to use a real AWS SES endpoint
+../../dist/api-smoketest --api-host=127.0.0.1 --api-port=8080 --api-websocket-host=127.0.0.1 --api-websocket-port=8081 --mailbox-config=<path_to_mailboxes_file> --sender-email=backend-integration@wire.com --enable-asserts
+```
