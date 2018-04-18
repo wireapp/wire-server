@@ -167,7 +167,7 @@ updateHandle u h = retry x5 $ write userHandleUpdate (params Quorum (h, u))
 
 updatePassword :: UserId -> PlainTextPassword -> AppIO ()
 updatePassword u t = do
-    p <- liftIO $ mkSafePassword t
+    p <- mkSafePassword t
     retry x5 $ write userPasswordUpdate (params Quorum (p, u))
 
 deleteEmail :: UserId -> AppIO ()
