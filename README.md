@@ -124,11 +124,11 @@ Or, alternatively, `make` on the top-level directory (to produce all the service
 
 ## How to run `wire-server` with "fake" external dependencies
 
-See deploy/services-demo/README.md
+See [this README](deploy/services-demo/README.md)
 
 ## How to run `wire-server` with real AWS services
 
-Documentation, configuration, and code for this is **not ready yet** (please do not open an issue to ask about this!). More information on how to run `wire-server` might be available here at some point in the future.
+Documentation, configuration, and code for this is **not fully ready yet** (please do not open an issue to ask about this!). More information on how to run `wire-server` will be available here in the near future.
 
 As a brief overview, it requires setting up
 
@@ -149,4 +149,4 @@ As a brief overview, it requires setting up
 
 ## Roadmap
 
-- Build and deployment options
+- Deployment options

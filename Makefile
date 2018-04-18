@@ -1,5 +1,5 @@
 HASKELL_SERVICES := proxy cannon cargohold brig galley gundeck
-SERVICES         := nginz $(HASKELL_SERVICES)
+SERVICES         := $(HASKELL_SERVICES) nginz
 DOCKER_USER      ?= wireserver
 DOCKER_TAG       ?= local
 

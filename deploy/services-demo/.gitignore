@@ -1,4 +1,0 @@
-# Avoid storing any sort of keys
-resources/zauth/privkeys.txt
-resources/zauth/pubkeys.txt
-resources/turn/secret.txt
