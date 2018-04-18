@@ -161,8 +161,8 @@ instance ToJSON User where
         # "accent_id"  .= userAccentId u
         # "deleted"    .= (if userDeleted u then Just True else Nothing)
         # "locale"     .= userLocale u
-        # "service"    .= userService u
-        # "handle"     .= userHandle u
+        # "service"    .= userService u
+        # "handle"     .= userHandle u
         # "expires_at" .= (UTCTimeMillis <$> userExpire u)
         # "team"       .= userTeam u    
         # []
@@ -204,8 +204,8 @@ instance ToJSON UserProfile where
         # "assets"     .= profileAssets u
         # "accent_id"  .= profileAccentId u
         # "deleted"    .= (if profileDeleted u then Just True else Nothing)
-        # "service"    .= profileService u
-        # "handle"     .= profileHandle u
+        # "service"    .= profileService u
+        # "handle"     .= profileHandle u
         # "locale"     .= profileLocale u
         # "expires_at" .= (UTCTimeMillis <$> profileExpire u)
         # "team"       .= profileTeam u
