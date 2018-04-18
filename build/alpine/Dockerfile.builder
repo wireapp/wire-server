@@ -1,6 +1,8 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
 
-FROM wireserver/alpine-prebuilder
+ARG prebuilder=wireserver/alpine-prebuilder
+
+FROM ${prebuilder}
 
 # Download stack indices and compile/cache dependencies to speed up subsequent
 # container creation.
