@@ -31,6 +31,7 @@ resources                            <- folder which contains secrets or other r
   ├── nexmo-credentials.yaml         <- dummy credentials for the nexmo API (used by brig)
   ├── proxy.config                   <- dummy credentials for multiple proxied services (used by proxy)
   ├── twilio-credentials.yaml        <- dummy credentials for the twilio API (used by brig)
+├── create_test_user.sh              <- bash script that creates a user and prints the credentials created
 ├── demo.sh                          <- bash script that generates needed secrets and starts all services
 └── README.md                        <- this file
 ```
