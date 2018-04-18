@@ -1,0 +1,38 @@
+#!/usr/bin/env sh
+
+until_ready() {
+	until $1; do echo 'service not ready yet'; sleep 1; done
+}
+
+# Assumes this to be run in an environment with `aws` installed
+echo 'Creating AWS resources'
+aws configure set aws_access_key_id dummy
+aws configure set aws_secret_access_key dummy
+aws configure set region eu-west-1
+
+# Potentially delete pre-existing tables
+aws --endpoint-url=http://dynamodb:8000 dynamodb delete-table --table-name integration-brig-userkey-blacklist || true
+aws --endpoint-url=http://dynamodb:8000 dynamodb delete-table --table-name integration-brig-prekeys || true
+
+# Create Dynamo/SQS resources
+until_ready "aws --endpoint-url=http://dynamodb:8000 dynamodb create-table --table-name integration-brig-userkey-blacklist --attribute-definitions AttributeName=key,AttributeType=S --key-schema AttributeName=key,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5"
+until_ready "aws --endpoint-url=http://dynamodb:8000 dynamodb create-table --table-name integration-brig-prekeys --attribute-definitions AttributeName=client,AttributeType=S --key-schema AttributeName=client,KeyType=HASH --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5"
+until_ready "aws --endpoint-url=http://sqs:4568 sqs create-queue --queue-name integration-brig-events"
+until_ready "aws --endpoint-url=http://sqs:4568 sqs set-queue-attributes --queue-url http://sqs:4568/integration-brig-events --attributes VisibilityTimeout=1"
+until_ready "aws --endpoint-url=http://sqs:4568 sqs create-queue --queue-name integration-brig-events-internal"
+until_ready "aws --endpoint-url=http://sqs:4568 sqs set-queue-attributes --queue-url http://sqs:4568/integration-brig-events-internal --attributes VisibilityTimeout=1"
+# Gundeck's feedback queue
+until_ready "aws --endpoint-url=http://sqs:4568 sqs create-queue --queue-name integration-gundeck-events"
+until_ready "aws --endpoint-url=http://sqs:4568 sqs set-queue-attributes --queue-url http://sqs:4568/integration-gundeck-events --attributes VisibilityTimeout=1"
+# Galley's team event queue
+until_ready "aws --endpoint-url=http://sqs:4568 sqs create-queue --queue-name integration-team-events.fifo"
+until_ready "aws --endpoint-url=http://sqs:4568 sqs set-queue-attributes --queue-url http://sqs:4568/integration-team-events.fifo --attributes VisibilityTimeout=1"
+# # Verify sender's email address (ensure the sender address is in sync with the config in brig)
+until_ready "aws --endpoint-url=http://ses:4579 ses verify-email-identity --email-address backend-integration@wire.com"
+
+# # Create SNS resources for gundeck's notifications
+until_ready "aws --endpoint-url=http://sns:4575 sns create-platform-application --name integration-test --platform GCM --attributes PlatformCredential=testkey"
+until_ready "aws --endpoint-url=http://sns:4575 sns create-platform-application --name integration-test --platform APNS_SANDBOX --attributes PlatformCredential=testprivatekey"
+until_ready "aws --endpoint-url=http://sns:4575 sns create-platform-application --name integration-com.wire.ent --platform APNS_SANDBOX --attributes PlatformCredential=testprivatekey"
+
+echo 'AWS resources created successfully!'
