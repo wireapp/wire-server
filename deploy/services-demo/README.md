@@ -6,12 +6,12 @@ Use 2 different terminals and run:
 
 ```
 # On terminal 1, start the dependencies
-(cd ../docker-ephemeral; docker-compose up)
+(cd ./deploy/docker-ephemeral; docker-compose up)
 ```
 
 ```
 # On terminal 2, start the services
-./demo.sh
+./deploy/services-demo/demo.sh
 ```
 
 ### Structure of the services-demo folder
