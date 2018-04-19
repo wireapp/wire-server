@@ -60,14 +60,14 @@ private network.
 
 There are two options:
 
-#### 1. Compile sources natively. 
+#### 1. Compile sources natively.
 
 This requires a range of dependencies that depend on your platform/OS, such as:
 
-- Haskell & Rust compiler and package managers 
+- Haskell & Rust compiler and package managers
 - Some package dependencies (libsodium, openssl, protobuf, icu, geoip, snappy, [cryptobox-c](https://github.com/wireapp/cryptobox-c), ...) that depend on your platform/OS
 
-See [doc/Dependencies.md](doc/Dependencies.md) for details. 
+See [doc/Dependencies.md](doc/Dependencies.md) for details.
 
 Once all dependencies are set up, the following should succeed:
 
