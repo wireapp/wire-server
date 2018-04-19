@@ -2,7 +2,6 @@
 
 This document assumes that you have already compiled all services (i.e., you ran `make services` from the top level folder) and now you want to see how it all fits together.
 
-
 Use 2 different terminals and run:
 
 ```
@@ -35,6 +34,12 @@ resources                            <- folder which contains secrets or other r
 ├── demo.sh                          <- bash script that generates needed secrets and starts all services
 └── README.md                        <- this file
 ```
+
+### Why do you describe this as a _demo_?
+
+The way that the data stores used are set up is done in a simple way that is not advisable for a production environment (e.g., cassandra uses a single node and Docker will manage the storage of your database data by writing the database files to disk on the host system using its own internal volume management). Also, some other dependencies (such as the "fake" AWS services) do not provide the full functionality of the real AWS services (for instance, large resumable uploads are not supported) nor do they have the same reliability and availability.
+
+It is however very straightforward to setup all the necessary dependencies to run `wire-server` and it is what we use in our integration tests as well (as can be seen in our [integration bash script](../../services/integration.sh)).
 
 ### Common problems
 
