@@ -1,6 +1,7 @@
+#!/usr/bin/env bash
+
 # You can use this script to simply start all services ./demo.sh
 
-#!/usr/bin/env bash
 set -eo pipefail
 
 USAGE="$0 [test-executable args...]"
@@ -10,8 +11,6 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 DIR="${TOP_LEVEL}/services"
 PARENT_PID=$$
 rm -f /tmp/demo.* # remove previous temp files, if any
-EXIT_STATUS_LOCATION=$(mktemp "/tmp/demo.XXXXXXXXXXX")
-echo 1 >${EXIT_STATUS_LOCATION}
 
 function kill_all() {
     # kill the process tree of the PARENT_PID
@@ -38,16 +37,20 @@ trap "kill_gracefully; kill_all" INT TERM ERR
 function check_secrets() {
     test -f ${DIR}/../dist/zauth || { echo "zauth is not compiled. How about you run 'cd ${TOP_LEVEL} && make services' first?"; exit 1; }
     
-    # Generate a secret for the TURN servers, must match the turn.secret key in brig's config
-    if [ ! -f ${SCRIPT_DIR}/resources/turn/secret.txt ]; then
-        cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 42 > ${SCRIPT_DIR}/resources/turn/secret.txt
+    if [[ ! -f ${SCRIPT_DIR}/resources/turn/secret.txt ]]; then
+        echo "Generate a secret for the TURN servers (must match the turn.secret key in brig's config)..."
+        openssl rand -base64 64 | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 42 > ${SCRIPT_DIR}/resources/turn/secret.txt
+    else
+        echo "re-using existing TURN secret"
     fi
-    # Generate private and public keys (used both by brig and nginz)
     if [[ ! -f ${SCRIPT_DIR}/resources/zauth/privkeys.txt || ! -f ${SCRIPT_DIR}/resources/zauth/pubkeys.txt ]]; then
+        echo "Generate private and public keys (used both by brig and nginz)..."
         TMP_KEYS=$(mktemp "/tmp/demo.keys.XXXXXXXXXXX")
         ${DIR}/../dist/zauth -m gen-keypair -i 1 > $TMP_KEYS
         cat $TMP_KEYS | sed -n 's/public: \(.*\)/\1/p' > ${SCRIPT_DIR}/resources/zauth/pubkeys.txt
         cat $TMP_KEYS | sed -n 's/secret: \(.*\)/\1/p' > ${SCRIPT_DIR}/resources/zauth/privkeys.txt
+    else
+        echo "re-using existing public/private keys"
     fi
 }
 
@@ -110,4 +113,3 @@ sleep 3 # wait a moment for services to start before continuing
 echo "All services up & running, Wire away!";
 
 wait
-exit $(<${EXIT_STATUS_LOCATION})
