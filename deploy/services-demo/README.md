@@ -1,6 +1,6 @@
 # How to run `wire-server` with "fake" AWS dependencies
 
-This document assumes that you have already compiled all services (i.e., you ran `make services` from the top level folder) and now you want to see how it all fits together.
+This document assumes that you have already compiled all services (i.e., you read all of the `README.md` from the top level folder and ran `make services` there) and now you want to see how it all fits together.
 
 Use 2 different terminals and run:
 
