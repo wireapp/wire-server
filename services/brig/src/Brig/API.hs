@@ -1374,15 +1374,19 @@ sendActivationCode (_ ::: req) = do
 
 changeEmail :: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
 changeEmail (_ ::: u ::: _ ::: req) = do
-    email  <- euEmail <$> parseJsonBody req
-    (adata, en) <- API.changeEmail u email !>> changeEmailError
-    usr <- maybe (throwStd invalidUser) return =<< lift (API.lookupUser u)
-    let apair = (activationKey adata, activationCode adata)
-    let name  = userName usr
-    let ident = userIdentity usr
-    let lang  = userLocale usr
-    lift $ sendActivationMail en name apair (Just lang) ident
-    return $ setStatus status202 empty
+    email <- euEmail <$> parseJsonBody req
+    dat   <- API.changeEmail u email !>> changeEmailError
+    maybe changeDone changeRequiresConfirmation dat
+  where
+    changeDone = return $ setStatus status200 empty
+    changeRequiresConfirmation (adata, en) = do
+        usr <- maybe (throwStd invalidUser) return =<< lift (API.lookupUser u)
+        let apair = (activationKey adata, activationCode adata)
+        let name  = userName usr
+        let ident = userIdentity usr
+        let lang  = userLocale usr
+        lift $ sendActivationMail en name apair (Just lang) ident
+        return $ setStatus status202 empty
 
 getConnectionStatus :: List UserId ::: Maybe Relation -> Handler Response
 getConnectionStatus (users ::: flt) = do

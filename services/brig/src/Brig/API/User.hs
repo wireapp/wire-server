@@ -370,12 +370,14 @@ checkHandles check num = reverse <$> collectFree [] check num
 -------------------------------------------------------------------------------
 -- Change Email
 
-changeEmail :: UserId -> Email -> ExceptT ChangeEmailError AppIO (Activation, Email)
+changeEmail :: UserId -> Email -> ExceptT ChangeEmailError AppIO (Maybe (Activation, Email))
 changeEmail u email = do
     em <- maybe (throwE $ InvalidNewEmail email)
                 return
                 (validateEmail email)
     let ek = userEmailKey em
+    -- Are we changing only a local part?
+    if 
     blacklisted <- lift $ Blacklist.exists ek
     when blacklisted $
         throwE (ChangeBlacklistedEmail email)
@@ -384,7 +386,7 @@ changeEmail u email = do
         throwE $ EmailExists email
     timeout <- setActivationTimeout <$> view settings
     act <- lift $ Data.newActivation ek timeout (Just u)
-    return (act, em)
+    return $ Just (act, em)
 
 -------------------------------------------------------------------------------
 -- Change Phone
