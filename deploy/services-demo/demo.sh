@@ -75,7 +75,8 @@ green=10
 orange=3
 yellow=11
 purpleish=13
-dark_blue=17
+redish=1
+blueish=4
 
 function run_haskell_service() {
     service=$1
@@ -105,8 +106,8 @@ run_haskell_service galley ${yellow} Info
 run_haskell_service gundeck ${blue} Info
 run_haskell_service cannon ${orange} Info
 run_haskell_service cargohold ${purpleish} Info
-run_haskell_service proxy ${purpleish} Info
-run_nginz ${dark_blue}
+run_haskell_service proxy ${redish} Info
+run_nginz ${blueish}
 
 sleep 3 # wait a moment for services to start before continuing
 
