@@ -371,8 +371,8 @@ data NewService = NewService
     , newServiceUrl     :: !HttpsUrl
     , newServiceKey     :: !ServiceKeyPEM
     , newServiceToken   :: !(Maybe ServiceToken)
-    , newServiceAssets  :: [Asset]
-    , newServiceTags    :: Range 1 3 (Set ServiceTag)
+    , newServiceAssets  :: ![Asset]
+    , newServiceTags    :: !(Range 1 3 (Set ServiceTag))
     }
 
 instance FromJSON NewService where

@@ -112,7 +112,7 @@ data User = User
     , userIdentity :: !(Maybe UserIdentity)
     , userName     :: !Name
     , userPict     :: !Pict -- ^ DEPRECATED
-    , userAssets   :: [Asset]
+    , userAssets   :: ![Asset]
     , userAccentId :: !ColourId
     , userDeleted  :: !Bool
     , userLocale   :: !Locale
@@ -138,7 +138,7 @@ data UserProfile = UserProfile
     { profileId       :: !UserId
     , profileName     :: !Name
     , profilePict     :: !Pict -- ^ DEPRECATED
-    , profileAssets   :: [Asset]
+    , profileAssets   :: ![Asset]
     , profileAccentId :: !ColourId
     , profileDeleted  :: !Bool
     , profileService  :: !(Maybe ServiceRef)
@@ -225,7 +225,7 @@ data NewUser = NewUser
     { newUserName           :: !Name
     , newUserIdentity       :: !(Maybe UserIdentity)
     , newUserPict           :: !(Maybe Pict) -- ^ DEPRECATED
-    , newUserAssets         :: [Asset]
+    , newUserAssets         :: ![Asset]
     , newUserAccentId       :: !(Maybe ColourId)
     , newUserEmailCode      :: !(Maybe ActivationCode)
     , newUserPhoneCode      :: !(Maybe ActivationCode)
