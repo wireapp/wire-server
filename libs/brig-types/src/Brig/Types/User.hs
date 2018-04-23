@@ -124,6 +124,9 @@ data User = User
         -- ^ Set if the user is ephemeral
     , userTeam     :: !(Maybe TeamId)
         -- ^ Set if the user is part of a binding team
+    , userJournal  :: !(Maybe JournalId)
+        -- ^ Set if the user is enrolled into journal-based verification
+        -- (in which case it will be this user's currently active journal)
     }
 
 userEmail :: User -> Maybe Email
@@ -164,7 +167,8 @@ instance ToJSON User where
         # "service"    .= userService u
         # "handle"     .= userHandle u
         # "expires_at" .= (UTCTimeMillis <$> userExpire u)
-        # "team"       .= userTeam u    
+        # "team"       .= userTeam u
+        # "journal"    .= userJournal u
         # []
 
 instance FromJSON User where
@@ -181,6 +185,7 @@ instance FromJSON User where
              <*> o .:? "handle"
              <*> o .:? "expires_at"
              <*> o .:? "team"
+             <*> o .:? "journal"
 
 instance FromJSON UserProfile where
     parseJSON = withObject "UserProfile" $ \o ->

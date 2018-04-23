@@ -642,13 +642,25 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let name   = fromMaybe (serviceProfileName   svp) (Ext.rsNewBotName   rs)
     let assets = fromMaybe (serviceProfileAssets svp) (Ext.rsNewBotAssets rs)
     let colour = fromMaybe defaultAccentId            (Ext.rsNewBotColour rs)
-    let pict   = Pict [] -- Legacy
-    let sref   = newServiceRef sid pid
-    let usr    = User (botUserId bid) Nothing name pict assets colour False locale (Just sref) Nothing Nothing Nothing
+    let usr    = User {
+            userId       = botUserId bid
+          , userIdentity = Nothing
+          , userName     = name
+          , userPict     = Pict []  -- Legacy
+          , userAssets   = assets
+          , userAccentId = colour
+          , userDeleted  = False
+          , userLocale   = locale
+          , userService  = Just (newServiceRef sid pid)
+          , userHandle   = Nothing
+          , userExpire   = Nothing
+          , userTeam     = Nothing
+          , userJournal  = Nothing
+          }
     let newClt = (newClient PermanentClient (Ext.rsNewBotLastPrekey rs) ())
                { newClientPrekeys = Ext.rsNewBotPrekeys rs
                }
-    lift $ User.insertAccount (UserAccount usr Active) Nothing True (SearchableStatus True)
+    lift $ User.insertAccount (UserAccount usr Active) Nothing (User.Activated True) (SearchableStatus True)
     (clt, _, _) <- User.addClient (botUserId bid) bcl newClt Nothing
                    !>> const (StdError badGateway) -- MalformedPrekeys
 

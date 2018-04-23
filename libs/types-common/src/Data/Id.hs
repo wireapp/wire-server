@@ -50,6 +50,7 @@ data U
 data P
 data S
 data T
+data J
 
 type AssetId      = Id A
 type ConvId       = Id C
@@ -58,6 +59,7 @@ type UserId       = Id U
 type ProviderId   = Id P
 type ServiceId    = Id S
 type TeamId       = Id T
+type JournalId    = Id J
 
 -- Id -------------------------------------------------------------------------
 
