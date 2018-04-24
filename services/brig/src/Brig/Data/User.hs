@@ -250,18 +250,18 @@ lookupAccounts usrs = do
 
 type Activated = Bool
 
-type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, ColourId,
+type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
                 Maybe [Asset], Activated, Maybe AccountStatus, Maybe UTCTime, Maybe Language,
                 Maybe Country, Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
 
-type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone,
+type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId,
                    ColourId, Maybe [Asset], Bool, Maybe AccountStatus,
                    Maybe UTCTime, Maybe Language, Maybe Country,
                    Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
 
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
-usersSelect = "SELECT id, name, picture, email, phone, accent_id, assets, \
+usersSelect = "SELECT id, name, picture, email, phone, ssoid, accent_id, assets, \
               \activated, status, expires, language, country, provider, service, handle, team \
               \FROM user where id IN ?"
 
@@ -287,7 +287,7 @@ statusSelect :: PrepQuery R (Identity UserId) (Identity (Maybe AccountStatus))
 statusSelect = "SELECT status FROM user WHERE id = ?"
 
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
-accountsSelect = "SELECT id, name, picture, email, phone, accent_id, assets, \
+accountsSelect = "SELECT id, name, picture, email, phone, ssoid, accent_id, assets, \
                  \activated, status, expires, language, country, provider, \
                  \service, handle, team \
                  \FROM user WHERE id IN ?"
@@ -350,10 +350,10 @@ userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
 -- Conversions
 
 toUserAccount :: Locale -> AccountRow -> UserAccount
-toUserAccount defaultLocale (uid, name, pict, email, phone, accent, assets,
+toUserAccount defaultLocale (uid, name, pict, email, phone, ssoid, accent, assets,
                              activated, status, expires, lan, con, pid, sid,
                              handle, tid) =
-    let ident = toIdentity activated email phone
+    let ident = toIdentity activated email phone ssoid
         deleted = maybe False (== Deleted) status
         expiration = if status == Just Ephemeral then expires else Nothing
         loc = toLocale defaultLocale (lan, con)
@@ -365,9 +365,9 @@ toUserAccount defaultLocale (uid, name, pict, email, phone, accent, assets,
 toUsers :: Locale -> [UserRow] -> [User]
 toUsers defaultLocale = fmap mk
   where
-    mk (uid, name, pict, email, phone, accent, assets, activated, status,
+    mk (uid, name, pict, email, phone, ssoid, accent, assets, activated, status,
         expires, lan, con, pid, sid, handle, tid) =
-        let ident = toIdentity activated email phone
+        let ident = toIdentity activated email phone ssoid
             deleted = maybe False (== Deleted) status
             expiration = if status == Just Ephemeral then expires else Nothing
             loc = toLocale defaultLocale (lan, con)
@@ -379,8 +379,9 @@ toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
 toLocale l _           = l
 
-toIdentity :: Bool -> Maybe Email -> Maybe Phone -> Maybe UserIdentity
-toIdentity True (Just e) (Just p) = Just $! FullIdentity e p
-toIdentity True (Just e) Nothing  = Just $! EmailIdentity e
-toIdentity True Nothing  (Just p) = Just $! PhoneIdentity p
-toIdentity _    _        _        = Nothing
+toIdentity :: Bool -> Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
+toIdentity True (Just e) (Just p) Nothing      = Just $! FullIdentity e p
+toIdentity True (Just e) Nothing  Nothing      = Just $! EmailIdentity e
+toIdentity True Nothing  (Just p) Nothing      = Just $! PhoneIdentity p
+toIdentity True email    phone    (Just ssoid) = Just $! SSOIdentity ssoid email phone
+toIdentity _    _        _        _            = Nothing

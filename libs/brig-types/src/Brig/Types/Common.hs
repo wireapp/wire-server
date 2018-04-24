@@ -204,6 +204,9 @@ newtype UserSSOId = UserSSOId Text
 instance FromJSON UserSSOId where
     parseJSON = withText "UserSSOId" $ pure . UserSSOId
 
+instance ToJSON UserSSOId where
+    toJSON (UserSSOId ssoid) = toJSON ssoid
+
 -----------------------------------------------------------------------------
 -- Asset
 

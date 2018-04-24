@@ -15,7 +15,6 @@ import Brig.API.Handler
 import Brig.API.Types
 import Brig.Options hiding (sesQueue, internalQueue)
 import Brig.Types
-import Brig.Types.Common
 import Brig.Types.Intra
 import Brig.Types.User.Auth
 import Brig.User.Email
