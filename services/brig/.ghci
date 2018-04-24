@@ -1,2 +1,3 @@
-:set -fobject-code
-:set -XOverloadedStrings
+:set -hide-package unbounded-delays
+:set -hide-package http-client-openssl
+-- http-client-openssl-0.2.1.1 http-client-openssl-ext-0.1.0

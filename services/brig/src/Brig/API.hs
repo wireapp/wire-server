@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -14,6 +15,7 @@ import Brig.API.Handler
 import Brig.API.Types
 import Brig.Options hiding (sesQueue, internalQueue)
 import Brig.Types
+import Brig.Types.Common
 import Brig.Types.Intra
 import Brig.Types.User.Auth
 import Brig.User.Email
@@ -1127,6 +1129,9 @@ autoConnect(_ ::: _ ::: uid ::: conn ::: req) = do
 createUser :: JSON ::: JSON ::: Request -> Handler Response
 createUser (_ ::: _ ::: req) = do
     new <- parseJsonBody req
+    case newUserIdentity new of
+      SSOIdentity {} -> throwStd $ badRequest "Invalid UserIdentity."
+      _ -> pure ()
     for_ (newUserEmail new) $ checkWhitelist . Left
     for_ (newUserPhone new) $ checkWhitelist . Right
     result <- API.createUser new !>> newUserError
@@ -1164,7 +1169,7 @@ createUser (_ ::: _ ::: req) = do
 
 createUserNoVerify :: JSON ::: JSON ::: Request -> Handler Response
 createUserNoVerify (_ ::: _ ::: req) = do
-    uData  <- parseJsonBody req
+    (uData :: NewUser)  <- parseJsonBody req
     result <- API.createUser uData !>> newUserError
     let acc = createdAccount result
     let usr = accountUser acc

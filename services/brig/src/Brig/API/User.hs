@@ -140,7 +140,7 @@ createUser new@NewUser{..} = do
               return
               =<< lift (validatePhone p)
 
-    let ident = newIdentity email phone
+    let ident = newIdentity email phone (newUserSSOId new)
     let emKey = userEmailKey <$> email
     let phKey = userPhoneKey <$> phone
 
@@ -236,7 +236,7 @@ createUser new@NewUser{..} = do
                     then Just created
                     else Nothing
 
-    handleTeam :: Maybe NewTeamUser 
+    handleTeam :: Maybe NewTeamUser
                -> Maybe UserKey
                -> ExceptT CreateUserError AppIO ( Maybe BindingNewTeamUser
                                                 , Maybe (Team.Invitation, Team.InvitationInfo)

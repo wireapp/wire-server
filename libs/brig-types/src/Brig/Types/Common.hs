@@ -159,31 +159,62 @@ data UserIdentity
     = FullIdentity  !Email !Phone
     | EmailIdentity !Email
     | PhoneIdentity        !Phone
+    | SSOIdentity !UserSSOId !(Maybe Email) !(Maybe Phone)
     deriving (Eq, Show)
+
+{-
+data Harmless = Harmless | Dangerous
+    deriving (Eq, Show)
+
+data UserIdentity (harmless :: Harmless) where
+    FullIdentity  :: !Email -> !Phone -> UserIdentity Harmless
+    EmailIdentity :: !Email -> UserIdentity Harmless
+    PhoneIdentity :: !Phone -> UserIdentity Harmless
+    SSOIdentity   :: !UserSSOId -> !(Maybe Email) -> !(Maybe Phone) -> UserIdentity Dangerous
+    deriving (Eq, Show)
+-}
 
 instance FromJSON UserIdentity where
     parseJSON = withObject "UserIdentity" $ \o -> do
         email <- o .:? "email"
         phone <- o .:? "phone"
-        maybe (fail "Missing 'email' or 'phone'.")
+        ssoid <- o .:? "ssoid"
+        maybe (fail "Missing 'email' or 'phone' or 'ssoid'.")
               return
-              (newIdentity email phone)
+              (newIdentity email phone ssoid)
 
-newIdentity :: Maybe Email -> Maybe Phone -> Maybe UserIdentity
-newIdentity Nothing  Nothing  = Nothing
-newIdentity (Just e) Nothing  = Just $! EmailIdentity e
-newIdentity Nothing  (Just p) = Just $! PhoneIdentity p
-newIdentity (Just e) (Just p) = Just $! FullIdentity e p
+newIdentity :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
+newIdentity email    phone    (Just sso) = Just $! SSOIdentity sso email phone
+newIdentity Nothing  Nothing  Nothing    = Nothing
+newIdentity (Just e) Nothing  Nothing    = Just $! EmailIdentity e
+newIdentity Nothing  (Just p) Nothing    = Just $! PhoneIdentity p
+newIdentity (Just e) (Just p) Nothing    = Just $! FullIdentity e p
 
 emailIdentity :: UserIdentity -> Maybe Email
-emailIdentity (FullIdentity  email _) = Just email
-emailIdentity (EmailIdentity email  ) = Just email
-emailIdentity (PhoneIdentity       _) = Nothing
+emailIdentity (FullIdentity  email _)        = Just email
+emailIdentity (EmailIdentity email  )        = Just email
+emailIdentity (PhoneIdentity       _)        = Nothing
+emailIdentity (SSOIdentity _ (Just email) _) = Just email
+emailIdentity (SSOIdentity _ Nothing _)      = Nothing
 
 phoneIdentity :: UserIdentity -> Maybe Phone
 phoneIdentity (FullIdentity  _ phone) = Just phone
 phoneIdentity (PhoneIdentity   phone) = Just phone
 phoneIdentity (EmailIdentity _      ) = Nothing
+phoneIdentity (SSOIdentity _ _ (Just phone)) = Just phone
+phoneIdentity (SSOIdentity _ _ Nothing) = Nothing
+
+ssoIdentity :: UserIdentity -> Maybe UserSSOId
+ssoIdentity (SSOIdentity ssoid _ _) = Just ssoid
+ssoIdentity _ = Nothing
+
+-- | This is opaque in brig, constructed by sso service, contains two UUIDv4 for IdP and for the
+-- user on that IdP, resp.
+newtype UserSSOId = UserSSOId Text
+    deriving (Eq, Show)
+
+instance FromJSON UserSSOId where
+    parseJSON = withText "UserSSOId" $ pure . UserSSOId
 
 -----------------------------------------------------------------------------
 -- Asset
@@ -291,4 +322,3 @@ codeParser :: String -> (String -> Maybe a) -> Parser a
 codeParser err conv = do
     code <- count 2 anyChar
     maybe (fail err) return (conv code)
-

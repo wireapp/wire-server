@@ -19,7 +19,6 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#), UTCTimeMillis (..))
 import Data.Misc (PlainTextPassword (..))
-import Data.Maybe (isJust)
 import Data.Range
 import Data.Text (Text)
 import Data.Text.Ascii
@@ -164,7 +163,7 @@ instance ToJSON User where
         # "service"    .= userService u
         # "handle"     .= userHandle u
         # "expires_at" .= (UTCTimeMillis <$> userExpire u)
-        # "team"       .= userTeam u    
+        # "team"       .= userTeam u
         # []
 
 instance FromJSON User where
@@ -243,6 +242,9 @@ newUserEmail = emailIdentity <=< newUserIdentity
 newUserPhone :: NewUser -> Maybe Phone
 newUserPhone = phoneIdentity <=< newUserIdentity
 
+newUserSSOId :: NewUser -> Maybe UserSSOId
+newUserSSOId = ssoIdentity <=< newUserIdentity
+
 instance FromJSON NewUser where
       parseJSON = withObject "new-user" $ \o -> do
           newUserName           <- o .: "name"
@@ -293,10 +295,8 @@ encodeNewTeamUser :: NewTeamUser -> Pair
 encodeNewTeamUser (NewTeamMember m)  = "team_code" .= m
 encodeNewTeamUser (NewTeamCreator c) = "team" .= c
 
-parseIdentity :: FromJSON a => Object -> Parser (Maybe a)
-parseIdentity o = if isJust (HashMap.lookup "email" o <|> HashMap.lookup "phone" o)
-    then Just <$> parseJSON (Object o)
-    else pure Nothing
+parseIdentity :: Object -> Parser (Maybe UserIdentity)
+parseIdentity = optional . parseJSON . Object
 
 -- | A random invitation code for use during registration
 newtype InvitationCode = InvitationCode
