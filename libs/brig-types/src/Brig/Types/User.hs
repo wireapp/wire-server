@@ -131,6 +131,9 @@ userEmail = emailIdentity <=< userIdentity
 userPhone :: User -> Maybe Phone
 userPhone = phoneIdentity <=< userIdentity
 
+userSSOId :: User -> Maybe UserSSOId
+userSSOId = ssoIdentity <=< userIdentity
+
 -- | A subset of the data of an existing 'User'
 -- that is returned on the API.
 data UserProfile = UserProfile

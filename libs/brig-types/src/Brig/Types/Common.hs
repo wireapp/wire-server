@@ -162,18 +162,6 @@ data UserIdentity
     | SSOIdentity !UserSSOId !(Maybe Email) !(Maybe Phone)
     deriving (Eq, Show)
 
-{-
-data Harmless = Harmless | Dangerous
-    deriving (Eq, Show)
-
-data UserIdentity (harmless :: Harmless) where
-    FullIdentity  :: !Email -> !Phone -> UserIdentity Harmless
-    EmailIdentity :: !Email -> UserIdentity Harmless
-    PhoneIdentity :: !Phone -> UserIdentity Harmless
-    SSOIdentity   :: !UserSSOId -> !(Maybe Email) -> !(Maybe Phone) -> UserIdentity Dangerous
-    deriving (Eq, Show)
--}
-
 instance FromJSON UserIdentity where
     parseJSON = withObject "UserIdentity" $ \o -> do
         email <- o .:? "email"

@@ -137,7 +137,7 @@ insertAccount (UserAccount u status) password activated searchable = do
     let Locale l c = userLocale u
     retry x5 $ write userInsert $ params Quorum
         ( userId u, userName u, userPict u, userAssets u, userEmail u
-        , userPhone u, userAccentId u, password, activated
+        , userPhone u, userSSOId u, userAccentId u, password, activated
         , status, (userExpire u), l, c
         , view serviceRefProvider <$> userService u
         , view serviceRefId <$> userService u
@@ -292,14 +292,14 @@ accountsSelect = "SELECT id, name, picture, email, phone, accent_id, assets, \
                  \service, handle, team \
                  \FROM user WHERE id IN ?"
 
-userInsert :: PrepQuery W (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone,
+userInsert :: PrepQuery W (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone, Maybe UserSSOId,
                            ColourId, Maybe Password, Bool, AccountStatus, Maybe UTCTime,
                            Language, Maybe Country, Maybe ProviderId,
                            Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId) ()
-userInsert = "INSERT INTO user (id, name, picture, assets, email, phone, \
+userInsert = "INSERT INTO user (id, name, picture, assets, email, phone, ssoid, \
                                \accent_id, password, activated, status, expires, language, \
                                \country, provider, service, handle, searchable, team) \
-                               \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                               \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userNameUpdate :: PrepQuery W (Name, UserId) ()
 userNameUpdate = "UPDATE user SET name = ? WHERE id = ?"

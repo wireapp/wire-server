@@ -1130,7 +1130,7 @@ createUser :: JSON ::: JSON ::: Request -> Handler Response
 createUser (_ ::: _ ::: req) = do
     new <- parseJsonBody req
     case newUserIdentity new of
-      SSOIdentity {} -> throwStd $ badRequest "Invalid UserIdentity."
+      Just SSOIdentity {} -> throwStd $ badRequest "Invalid UserIdentity."
       _ -> pure ()
     for_ (newUserEmail new) $ checkWhitelist . Left
     for_ (newUserPhone new) $ checkWhitelist . Right
