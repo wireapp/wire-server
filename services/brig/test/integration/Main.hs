@@ -30,7 +30,6 @@ import qualified API.Search            as Search
 import qualified API.Team              as Team
 import qualified API.TURN              as TURN
 import qualified API.User              as User
-import qualified API.User.Auth         as UserAuth
 import qualified Brig.AWS              as AWS
 import qualified Brig.Options          as Opts
 import qualified Data.ByteString.Char8 as BS
@@ -64,7 +63,6 @@ runTests iConf bConf = do
     mg <- newManager tlsManagerSettings
 
     userApi     <- User.tests bConf mg b c g =<< mkLocalAWSEnv lg awsOpts mg
-    userAuthApi <- UserAuth.tests bConf mg lg b
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
     teamApis    <- Team.tests bConf mg b c g
@@ -72,7 +70,6 @@ runTests iConf bConf = do
 
     defaultMain $ testGroup "Brig API Integration"
         [ userApi
-        , userAuthApi
         , providerApi
         , searchApis
         , teamApis
