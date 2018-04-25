@@ -5,7 +5,7 @@
 
 module API.User (tests, ConnectionLimit (..)) where
 
-import API.User.Prelude
+import API.User.Util
 import Bilge hiding (accept, timeout)
 import Control.Monad (join)
 import Data.List.NonEmpty (NonEmpty ((:|)))

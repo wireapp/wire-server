@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 
-module API.User.Prelude where
+module API.User.Util where
 
 import Bilge hiding (accept, timeout)
 import Bilge.Assert

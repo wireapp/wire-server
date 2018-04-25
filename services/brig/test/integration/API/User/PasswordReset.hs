@@ -5,7 +5,7 @@
 
 module API.User.PasswordReset (tests) where
 
-import API.User.Prelude
+import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types

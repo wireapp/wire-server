@@ -322,7 +322,7 @@ executable brig-integration
         API.Team.Util
         API.TURN
         API.User
-        API.User.Prelude
+        API.User.Util
         API.User.Account
         API.User.Auth
         API.User.Client

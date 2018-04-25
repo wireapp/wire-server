@@ -5,7 +5,7 @@
 
 module API.User.Onboarding (tests) where
 
-import API.User.Prelude
+import API.User.Util
 import Bilge hiding (accept, timeout)
 import Brig.Types
 import Brig.Types.Intra
