@@ -380,8 +380,8 @@ toLocale _ (Just l, c) = Locale l c
 toLocale l _           = l
 
 toIdentity :: Bool -> Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
-toIdentity True (Just e) (Just p) Nothing      = Just $! FullIdentity e p
-toIdentity True (Just e) Nothing  Nothing      = Just $! EmailIdentity e
-toIdentity True Nothing  (Just p) Nothing      = Just $! PhoneIdentity p
-toIdentity True email    phone    (Just ssoid) = Just $! SSOIdentity ssoid email phone
-toIdentity _    _        _        _            = Nothing
+toIdentity True  (Just e) (Just p) Nothing      = Just $! FullIdentity e p
+toIdentity True  (Just e) Nothing  Nothing      = Just $! EmailIdentity e
+toIdentity True  Nothing  (Just p) Nothing      = Just $! PhoneIdentity p
+toIdentity True  email    phone    (Just ssoid) = Just $! SSOIdentity ssoid email phone
+toIdentity False _        _        _            = Nothing
