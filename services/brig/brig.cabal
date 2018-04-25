@@ -315,13 +315,13 @@ executable brig-integration
         -fwarn-tabs
 
     other-modules:
-        API
         API.Provider
         API.Search
         API.Search.Util
         API.Team
         API.Team.Util
         API.TURN
+        API.User
         API.User.Auth
         Util
 

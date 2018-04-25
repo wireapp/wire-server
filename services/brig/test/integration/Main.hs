@@ -25,11 +25,11 @@ import Util.Options
 import Util.Options.Common
 import Util.Test
 
-import qualified API                   as User
 import qualified API.Provider          as Provider
 import qualified API.Search            as Search
 import qualified API.Team              as Team
 import qualified API.TURN              as TURN
+import qualified API.User              as User
 import qualified API.User.Auth         as UserAuth
 import qualified Brig.AWS              as AWS
 import qualified Brig.Options          as Opts

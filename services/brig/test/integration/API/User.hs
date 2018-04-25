@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 
-module API (tests, ConnectionLimit (..)) where
+module API.User (tests, ConnectionLimit (..)) where
 
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
