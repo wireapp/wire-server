@@ -384,4 +384,5 @@ toIdentity True  (Just e) (Just p) Nothing      = Just $! FullIdentity e p
 toIdentity True  (Just e) Nothing  Nothing      = Just $! EmailIdentity e
 toIdentity True  Nothing  (Just p) Nothing      = Just $! PhoneIdentity p
 toIdentity True  email    phone    (Just ssoid) = Just $! SSOIdentity ssoid email phone
+toIdentity True  Nothing  Nothing  Nothing      = Nothing
 toIdentity False _        _        _            = Nothing

@@ -18,6 +18,7 @@ import Data.Aeson.Types (Parser, Pair)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#), UTCTimeMillis (..))
+import Data.Maybe (isJust)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Data.Text (Text)
@@ -300,8 +301,11 @@ encodeNewTeamUser :: NewTeamUser -> Pair
 encodeNewTeamUser (NewTeamMember m)  = "team_code" .= m
 encodeNewTeamUser (NewTeamCreator c) = "team" .= c
 
+-- | Fails if email or phone or ssoid are present but invalid
 parseIdentity :: Object -> Parser (Maybe UserIdentity)
-parseIdentity = optional . parseJSON . Object
+parseIdentity o = if isJust (HashMap.lookup "email" o <|> HashMap.lookup "phone" o <|> HashMap.lookup "ssoid" o)
+    then Just <$> parseJSON (Object o)
+    else pure Nothing
 
 -- | A random invitation code for use during registration
 newtype InvitationCode = InvitationCode
