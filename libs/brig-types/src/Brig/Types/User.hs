@@ -84,6 +84,7 @@ instance FromJSON CheckHandles where
 -- | A self profile.
 data SelfProfile = SelfProfile
     { selfUser       :: !User }
+    deriving (Eq, Show)
 
 connectedProfile :: User -> UserProfile
 connectedProfile u = UserProfile
@@ -124,6 +125,7 @@ data User = User
     , userTeam     :: !(Maybe TeamId)
         -- ^ Set if the user is part of a binding team
     }
+    deriving (Eq, Show)
 
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
