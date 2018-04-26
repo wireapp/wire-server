@@ -1,9 +1,10 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- TODO: Move to Brig.User.Account.DB
 module Brig.Data.User
@@ -35,6 +36,10 @@ module Brig.Data.User
     , deleteEmail
     , deletePhone
     , updateHandle
+
+    -- * Newtype wrappers
+    , Activated(..)
+    , Expires(..)
     ) where
 
 import Brig.App (AppIO, settings, zauthEnv, currentTime)
@@ -74,9 +79,9 @@ data ReAuthError
 
 newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
 newAccount u inv tid = do
-    defLoc  <- setDefaultLocale <$> view settings
+    defaultLocale <- setDefaultLocale <$> view settings
     uid     <- Id <$> maybe (liftIO nextRandom) (return . toUUID) inv
-    passwd  <- maybe (return Nothing) (fmap Just . liftIO . mkSafePassword) pass
+    passwd  <- maybe (return Nothing) (fmap Just . mkSafePassword) (newUserPassword u)
     expiry  <- case status of
                    Ephemeral -> do
                        -- Ephemeral users' expiry time is in expires_in (default sessionTokenTimeout) seconds
@@ -86,21 +91,33 @@ newAccount u inv tid = do
                        now <- liftIO =<< view currentTime
                        return $ Just (addUTCTime (fromIntegral ttl) now)
                    _ -> return Nothing
-    return (UserAccount (user uid (locale defLoc) expiry) status, passwd)
+    return (UserAccount (mkUser uid defaultLocale expiry) status, passwd)
   where
-    ident         = newUserIdentity u
-    pass          = newUserPassword u
-    name          = newUserName u
-    pict          = fromMaybe noPict (newUserPict u)
-    assets        = newUserAssets u
-    status        = case ident of
-                        Nothing -> -- any user registering without either an email or a phone is Ephemeral,
-                                   -- i.e. can be deleted after expires_in or sessionTokenTimeout
-                                   Ephemeral
-                        Just _  -> Active
-    colour        = fromMaybe defaultAccentId (newUserAccentId u)
-    locale defLoc = fromMaybe defLoc (newUserLocale u)
-    user  uid l e = User uid ident name pict assets colour False l Nothing Nothing e tid
+    status = case newUserIdentity u of
+        -- any user registering without either an email or a phone is Ephemeral,
+        -- i.e. can be deleted after expires_in or sessionTokenTimeout
+        Nothing -> Ephemeral
+        Just _  -> Active
+    mkUser uid defaultLocale expiry =
+        User {
+            -- fields passed to 'newAccount'
+              userTeam     = tid
+            -- fields taken from 'NewUser'
+            , userIdentity = newUserIdentity u
+            , userName     = newUserName     u
+            , userPict     = newUserPict     u & fromMaybe noPict
+            , userAssets   = newUserAssets   u
+            , userAccentId = newUserAccentId u & fromMaybe defaultAccentId
+            , userLocale   = newUserLocale   u & fromMaybe defaultLocale
+            -- fields that are generated during user creation
+            , userId       = uid
+            , userExpire   = expiry
+            -- constant fields
+            , userDeleted  = False
+            , userService  = Nothing
+            , userHandle   = Nothing
+            , userJournal  = Nothing
+            }
 
 -- | Mandatory password authentication.
 authenticate :: UserId -> PlainTextPassword -> ExceptT AuthError AppIO ()
@@ -132,18 +149,20 @@ reauthenticate u pw = lift (lookupAuth u) >>= \case
             unless (verifyPassword p pw') $
                 throwE (ReAuthError AuthInvalidCredentials)
 
-insertAccount :: UserAccount -> Maybe Password -> Bool -> SearchableStatus -> AppIO ()
+insertAccount
+    :: UserAccount -> Maybe Password -> Activated -> SearchableStatus -> AppIO ()
 insertAccount (UserAccount u status) password activated searchable = do
     let Locale l c = userLocale u
     retry x5 $ write userInsert $ params Quorum
         ( userId u, userName u, userPict u, userAssets u, userEmail u
         , userPhone u, userAccentId u, password, activated
-        , status, (userExpire u), l, c
+        , status, Expires <$> userExpire u, l, c
         , view serviceRefProvider <$> userService u
         , view serviceRefId <$> userService u
         , userHandle u
         , searchable
         , userTeam u
+        , userJournal u
         )
 
 updateLocale :: UserId -> Locale -> AppIO ()
@@ -167,7 +186,7 @@ updateHandle u h = retry x5 $ write userHandleUpdate (params Quorum (h, u))
 
 updatePassword :: UserId -> PlainTextPassword -> AppIO ()
 updatePassword u t = do
-    p <- liftIO $ mkSafePassword t
+    p <- mkSafePassword t
     retry x5 $ write userPasswordUpdate (params Quorum (p, u))
 
 deleteEmail :: UserId -> AppIO ()
@@ -186,16 +205,16 @@ updateSearchableStatus u s =
 -- | Whether the account has been activated by verifying
 -- an email address or phone number.
 isActivated :: UserId -> AppIO Bool
-isActivated u = (== Just (Identity True)) <$>
+isActivated u = (== Just (Identity (Activated True))) <$>
     retry x1 (query1 activatedSelect (params Quorum (Identity u)))
 
 filterActive :: [UserId] -> AppIO [UserId]
 filterActive us = map (view _1) . filter isActiveUser <$>
     retry x1 (query accountStateSelectAll (params Quorum (Identity us)))
   where
-    isActiveUser :: (UserId, Bool, Maybe AccountStatus) -> Bool
-    isActiveUser (_, True, Just Active) = True
-    isActiveUser  _                     = False
+    isActiveUser :: (UserId, Activated, Maybe AccountStatus) -> Bool
+    isActiveUser (_, Activated True, Just Active) = True
+    isActiveUser  _                               = False
 
 lookupUser :: UserId -> AppIO (Maybe User)
 lookupUser u = listToMaybe <$> lookupUsers [u]
@@ -243,26 +262,24 @@ lookupAccount u = listToMaybe <$> lookupAccounts [u]
 lookupAccounts :: [UserId] -> AppIO [UserAccount]
 lookupAccounts usrs = do
     loc <- setDefaultLocale  <$> view settings
-    fmap (toUserAccount loc) <$> retry x1 (query accountsSelect (params Quorum (Identity usrs)))
+    fmap (toUserAccount loc) <$> retry x1 (query usersSelect (params Quorum (Identity usrs)))
 
 -------------------------------------------------------------------------------
 -- Queries
 
-type Activated = Bool
+newtype Activated = Activated { getActivated :: Bool } deriving (Eq, Show, Cql)
+newtype Expires = Expires { getExpiry :: UTCTime } deriving (Eq, Show, Cql)
 
+-- | Things that we store in the @user@ table. Corresponds to 'UserAccount'.
 type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, ColourId,
-                Maybe [Asset], Activated, Maybe AccountStatus, Maybe UTCTime, Maybe Language,
-                Maybe Country, Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
-
-type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone,
-                   ColourId, Maybe [Asset], Bool, Maybe AccountStatus,
-                   Maybe UTCTime, Maybe Language, Maybe Country,
-                   Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
-
+                Maybe [Asset], Activated, Maybe AccountStatus, Maybe Expires,
+                Maybe Language, Maybe Country, Maybe ProviderId, Maybe ServiceId,
+                Maybe Handle, Maybe TeamId, Maybe JournalId)
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
 usersSelect = "SELECT id, name, picture, email, phone, accent_id, assets, \
-              \activated, status, expires, language, country, provider, service, handle, team \
+              \activated, status, expires, language, country, provider, \
+              \service, handle, team, journal \
               \FROM user where id IN ?"
 
 nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
@@ -277,29 +294,24 @@ authSelect = "SELECT password, status FROM user WHERE id = ?"
 passwordSelect :: PrepQuery R (Identity UserId) (Identity (Maybe Password))
 passwordSelect = "SELECT password FROM user WHERE id = ?"
 
-activatedSelect :: PrepQuery R (Identity UserId) (Identity Bool)
+activatedSelect :: PrepQuery R (Identity UserId) (Identity Activated)
 activatedSelect = "SELECT activated FROM user WHERE id = ?"
 
-accountStateSelectAll :: PrepQuery R (Identity [UserId]) (UserId, Bool, Maybe AccountStatus)
+accountStateSelectAll :: PrepQuery R (Identity [UserId]) (UserId, Activated, Maybe AccountStatus)
 accountStateSelectAll = "SELECT id, activated, status FROM user WHERE id IN ?"
 
 statusSelect :: PrepQuery R (Identity UserId) (Identity (Maybe AccountStatus))
 statusSelect = "SELECT status FROM user WHERE id = ?"
 
-accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
-accountsSelect = "SELECT id, name, picture, email, phone, accent_id, assets, \
-                 \activated, status, expires, language, country, provider, \
-                 \service, handle, team \
-                 \FROM user WHERE id IN ?"
-
 userInsert :: PrepQuery W (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone,
-                           ColourId, Maybe Password, Bool, AccountStatus, Maybe UTCTime,
-                           Language, Maybe Country, Maybe ProviderId,
-                           Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId) ()
+                           ColourId, Maybe Password, Activated, AccountStatus,
+                           Maybe Expires, Language, Maybe Country, Maybe ProviderId,
+                           Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId,
+                           Maybe JournalId) ()
 userInsert = "INSERT INTO user (id, name, picture, assets, email, phone, \
                                \accent_id, password, activated, status, expires, language, \
-                               \country, provider, service, handle, searchable, team) \
-                               \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                               \country, provider, service, handle, searchable, team, journal) \
+                               \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userNameUpdate :: PrepQuery W (Name, UserId) ()
 userNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
@@ -349,38 +361,40 @@ userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
 -------------------------------------------------------------------------------
 -- Conversions
 
-toUserAccount :: Locale -> AccountRow -> UserAccount
+toUserAccount :: Locale -> UserRow -> UserAccount
 toUserAccount defaultLocale (uid, name, pict, email, phone, accent, assets,
                              activated, status, expires, lan, con, pid, sid,
-                             handle, tid) =
-    let ident = toIdentity activated email phone
-        deleted = maybe False (== Deleted) status
-        expiration = if status == Just Ephemeral then expires else Nothing
-        loc = toLocale defaultLocale (lan, con)
-        svc = newServiceRef <$> sid <*> pid
-    in UserAccount (User uid ident name (fromMaybe noPict pict)
-                         (fromMaybe [] assets) accent deleted loc svc handle expiration tid)
-                   (fromMaybe Active status)
+                             handle, tid, journal) =
+    UserAccount
+        { accountStatus = fromMaybe Active status
+        , accountUser   = User
+            { userId       = uid
+            , userIdentity = toIdentity activated email phone
+            , userName     = name
+            , userPict     = fromMaybe noPict pict
+            , userAssets   = fromMaybe [] assets
+            , userAccentId = accent
+            , userDeleted  = maybe False (== Deleted) status
+            , userLocale   = toLocale defaultLocale (lan, con)
+            , userService  = newServiceRef <$> sid <*> pid
+            , userHandle   = handle
+            , userExpire   = if status == Just Ephemeral
+                                 then getExpiry <$> expires
+                                 else Nothing
+            , userTeam     = tid
+            , userJournal  = journal
+            }
+        }
 
 toUsers :: Locale -> [UserRow] -> [User]
-toUsers defaultLocale = fmap mk
-  where
-    mk (uid, name, pict, email, phone, accent, assets, activated, status,
-        expires, lan, con, pid, sid, handle, tid) =
-        let ident = toIdentity activated email phone
-            deleted = maybe False (== Deleted) status
-            expiration = if status == Just Ephemeral then expires else Nothing
-            loc = toLocale defaultLocale (lan, con)
-            svc = newServiceRef <$> sid <*> pid
-        in User uid ident name (fromMaybe noPict pict) (fromMaybe [] assets)
-                accent deleted loc svc handle expiration tid
+toUsers defaultLocale = fmap (accountUser . toUserAccount defaultLocale)
 
 toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
 toLocale l _           = l
 
-toIdentity :: Bool -> Maybe Email -> Maybe Phone -> Maybe UserIdentity
-toIdentity True (Just e) (Just p) = Just $! FullIdentity e p
-toIdentity True (Just e) Nothing  = Just $! EmailIdentity e
-toIdentity True Nothing  (Just p) = Just $! PhoneIdentity p
-toIdentity _    _        _        = Nothing
+toIdentity :: Activated -> Maybe Email -> Maybe Phone -> Maybe UserIdentity
+toIdentity (Activated True) (Just e) (Just p) = Just $! FullIdentity e p
+toIdentity (Activated True) (Just e) Nothing  = Just $! EmailIdentity e
+toIdentity (Activated True) Nothing  (Just p) = Just $! PhoneIdentity p
+toIdentity _    _        _                    = Nothing

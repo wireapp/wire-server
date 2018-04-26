@@ -14,7 +14,6 @@ import Cassandra
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Monad (when)
-import Control.Monad.IO.Class
 import Data.Foldable (for_, toList)
 import Data.Function (on)
 import Data.Functor.Identity
@@ -116,7 +115,7 @@ updateAccountPassword :: MonadClient m
     -> PlainTextPassword
     -> m ()
 updateAccountPassword pid pwd = do
-    p <- liftIO $ mkSafePassword pwd
+    p <- mkSafePassword pwd
     retry x5 $ write cql $ params Quorum (p, pid)
   where
     cql :: PrepQuery W (Password, ProviderId) ()
