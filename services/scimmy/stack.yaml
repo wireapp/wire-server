@@ -1,0 +1,27 @@
+resolver: lts-11.6
+
+packages:
+- .
+# for development, assumes hscim is in a sibling directory to wire-server
+- ../../../hscim
+# TODO: use git location once hscim is stable:
+# - location:
+#     git: https://github.com/wireapp/hscim
+#     commit: aafa344eb8b6172d9129617714caed09b09a8be1
+#   extra-dep: true
+- '../../libs/brig-types'
+- '../../libs/types-common'
+- '../../libs/bilge'
+- '../../libs/gundeck-types'
+- '../../libs/galley-types'
+# - '../../libs/metrics-core'
+# - '../../libs/metrics-wai'
+# - '../../libs/sodium-crypto-sign'
+# - '../../libs/wai-utilities'
+
+extra-deps:
+- currency-codes-2.0.0.0
+
+flags:
+  types-common:
+    protobuf: True

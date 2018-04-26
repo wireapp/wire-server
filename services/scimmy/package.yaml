@@ -1,0 +1,69 @@
+name:                scimmy
+version:             0.1.0
+synopsis:            SCIM service
+github:              "wireapp/wire-server"
+license:             AGPL-3
+license-file:        LICENSE
+author:              "Wire Swiss GmbH"
+maintainer:          "Wire Swiss GmbH <backend@wire.com>"
+copyright:           "(c) 2018 Wire Swiss GmbH"
+
+extra-source-files:
+- README.md
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README on Github at <https://github.com/wireapp/wire-server>
+
+dependencies:
+- base >= 4.7 && < 5
+- hscim >= 0.1
+- bilge
+- brig-types
+- types-common
+- retry
+- servant
+- servant-generic
+- servant-server
+- servant-client
+- warp
+- text
+- network-uri
+- network
+- bytestring
+- bytestring-conversion
+- aeson
+- tinylog
+- transformers
+- transformers-base
+- mtl
+- lens
+- http-types
+- http-client
+- exceptions
+
+library:
+  source-dirs: src
+
+executables:
+  scimmy-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - scimmy
+
+tests:
+  scimmy-test:
+    main:                Spec.hs
+    source-dirs:         test
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - scimmy
