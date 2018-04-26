@@ -67,6 +67,8 @@ tests _cl at _conf p b c ch g aws = testGroup "account"
     , test' aws p "post /register - 409 conflict"            $ testCreateUserConflict b
     , test' aws p "post /register - 400"                     $ testCreateUserInvalidPhone b
     , test' aws p "post /register - 403 blacklist"           $ testCreateUserBlacklist b aws
+    , test' aws p "post /register - 400 external-SSO"        $ testCreateUserExternalSSO b
+    , test' aws p "post /i/users  - 201 internal-SSO"        $ testCreateUserInternalSSO b
     , test' aws p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b at
     , test' aws p "get /users/:id - 404"                     $ testNonExistingUser b
     , test' aws p "get /users/:id - 200"                     $ testExistingUser b
@@ -312,6 +314,35 @@ testCreateUserBlacklist brig aws =
         when (statusCode r == 404 && n > 0) $ do
             liftIO $ threadDelay 1000000
             awaitBlacklist (n-1) e
+
+testCreateUserExternalSSO :: Brig -> Http ()
+testCreateUserExternalSSO brig = do
+    let ssoid = UserSSOId "idpUUID:userUUID"
+        p = RequestBodyLBS . encode $ object
+              [ "name"  .= ("foo" :: Text)
+              , "ssoid" .= Just ssoid
+              ]
+    post (brig . path "/register" . contentJson . body p) !!!
+      const 400 === statusCode
+
+testCreateUserInternalSSO :: Brig -> Http ()
+testCreateUserInternalSSO brig = do
+    -- creating user with sso is ok
+    let ssoid = UserSSOId "idpUUID:userUUID"
+    resp <- postUser "dummy" "success+dummy@simulator.amazonses.com" Nothing (Just ssoid) brig <!! do
+        const 201 === statusCode
+        let want :: UserIdentity
+            want = SSOIdentity (UserSSOId "") Nothing Nothing
+        const (Just want) === (userIdentity . selfUser <=< decodeBody)
+
+    -- self profile contains sso id
+    let Just uid = userId <$> decodeBody resp
+    profile <- getSelfProfile brig uid
+    let want :: UserIdentity
+        want = SSOIdentity (UserSSOId "") Nothing Nothing
+    liftIO $ assertEqual "self profile user identity mismatch"
+        (Just want)
+        (userIdentity $ selfUser profile)
 
 testActivateWithExpiry :: Brig -> Opt.Timeout -> Http ()
 testActivateWithExpiry brig timeout = do

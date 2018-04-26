@@ -143,7 +143,7 @@ testInvitationCodeExists brig = do
         const 409                 === statusCode
         const (Just "key-exists") === fmap Error.label . decodeBody
 
-    postUser "dilbert" "someoneelse@wearezeta.com" invCode brig !!! do
+    postUser "dilbert" "someoneelse@wearezeta.com" invCode Nothing brig !!! do
         const 400                              === statusCode
         const (Just "invalid-invitation-code") === fmap Error.label . decodeBody
   where
@@ -160,13 +160,13 @@ testInvitationInvalidCode :: Brig -> Http ()
 testInvitationInvalidCode brig = do
     -- Syntactically invalid
     let code1 = InvitationCode (Ascii.unsafeFromText "8z6JVcO1o4o¿9kFeb4Y3N-BmhIjH6b33")
-    postUser "dilbert" "foo7@wearezeta.com" (Just code1) brig !!! do
+    postUser "dilbert" "foo7@wearezeta.com" (Just code1) Nothing brig !!! do
         const 400 === statusCode
         const (Just "bad-request") === fmap Error.label . decodeBody
     -- Syntactically valid but semantically invalid
     iid <- liftIO $ randomBytes 24
     let code2 = InvitationCode (Ascii.encodeBase64Url iid)
-    postUser "dilbert" "foo7@wearezeta.com" (Just code2) brig !!! do
+    postUser "dilbert" "foo7@wearezeta.com" (Just code2) Nothing brig !!! do
         const 400 === statusCode
         const (Just "invalid-invitation-code") === fmap Error.label . decodeBody
 
