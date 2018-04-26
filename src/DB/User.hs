@@ -23,6 +23,8 @@ type StoredUser = WithMeta (WithId User)
 data UpdateError = NonExisting
                  | Mutability
 
+
+-- TODO: parameterize UserId
 class UserDB m where
   list     :: m (ListResponse StoredUser)
   get      :: UserId -> m (Maybe StoredUser)

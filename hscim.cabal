@@ -36,6 +36,8 @@ library
                        Schema.User.Name
                        Schema.User.Phone
                        Schema.User.Photo
+                       Schema.ListResponse
+                       Schema.Meta
 
   build-depends:       base >= 4.7 && < 5
                      , aeson
