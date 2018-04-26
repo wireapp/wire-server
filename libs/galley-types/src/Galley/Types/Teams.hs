@@ -450,7 +450,7 @@ instance FromJSON Permissions where
             Just ps -> pure ps
 
 newTeamJson :: NewTeam a -> [Pair]
-newTeamJson (NewTeam n i ik _) = 
+newTeamJson (NewTeam n i ik _) =
           "name"     .= fromRange n
         # "icon"     .= fromRange i
         # "icon_key" .= (fromRange <$> ik)
@@ -460,7 +460,7 @@ instance ToJSON BindingNewTeam where
     toJSON (BindingNewTeam t) = object $ newTeamJson t
 
 instance ToJSON NonBindingNewTeam where
-    toJSON (NonBindingNewTeam t) = 
+    toJSON (NonBindingNewTeam t) =
         object
         $ "members" .= (map (teamMemberJson True) . fromRange <$> _newTeamMembers t)
         # newTeamJson t
