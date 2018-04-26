@@ -809,3 +809,79 @@ testDeleteInternal brig cannon = do
     u <- randomUser brig
     setHandleAndDeleteUser brig cannon u [] $
         \uid -> delete (brig . paths ["/i/users", toByteString' uid]) !!! const 202 === statusCode
+
+setHandleAndDeleteUser :: Brig -> Cannon -> User -> [UserId] -> (UserId -> HttpT IO ()) -> Http ()
+setHandleAndDeleteUser brig cannon u others execDelete = do
+    let uid   = userId u
+        email = fromMaybe (error "Must have an email set") (userEmail u)
+
+    -- First set a unique handle (to verify freeing of the handle)
+    hdl <- randomHandle
+    let update = RequestBodyLBS . encode $ HandleUpdate hdl
+    put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update) !!!
+        const 200 === statusCode
+
+    -- Delete the user
+    WS.bracketRN cannon (uid : others) $ \wss -> do
+        execDelete uid
+        void . liftIO $ WS.assertMatchN (5 # Second) wss $ \n -> do
+            let j = Object $ List1.head (ntfPayload n)
+            let etype = j ^? key "type" . _String
+            let euser = j ^? key "id" . _String
+            etype @?= Just "user.delete"
+            euser @?= Just (UUID.toText (toUUID uid))
+
+    -- Cookies are gone
+    n2 <- countCookies brig uid defCookieLabel
+    liftIO $ Just 0 @=? n2
+
+    -- Clients are gone
+    get (brig . path "clients" . zUser (userId u)) !!! do
+        const 200 === statusCode
+        const (Just [] :: Maybe [Client]) === decodeBody
+
+    -- Can no longer log in
+    login brig (defEmailLogin email) PersistentCookie !!! do
+        const 403 === statusCode
+        const (Just "invalid-credentials") === fmap Error.label . decodeBody
+
+    -- Deleted flag appears in self profile; email, handle and picture are gone
+    get (brig . path "/self" . zUser uid) !!! assertDeletedProfileSelf
+
+    Search.refreshIndex brig
+    -- Does not appear in search; public profile shows the user as deleted
+    forM_ others $ \usr -> do
+        get (brig . paths ["users", toByteString' uid] . zUser usr) !!! assertDeletedProfilePublic
+        Search.assertCan'tFind brig usr uid (fromName (userName u))
+        Search.assertCan'tFind brig usr uid hdl
+
+    -- Email address is available again
+    let p = RequestBodyLBS . encode $ object
+            [ "name"     .= ("Someone Else" :: Text)
+            , "email"    .= fromEmail email
+            , "password" .= defPassword
+            ]
+    post (brig . path "/i/users" . contentJson . body p) !!!
+        const 201 === statusCode
+
+    -- Handle is available again
+    Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid) !!!
+        const 404 === statusCode
+  where
+    assertDeletedProfileSelf = do
+        const 200 === statusCode
+        const (Just noPict, Just Nothing, Just True, Just [], Nothing) === (\u' ->
+            ( fmap userPict u'
+            , fmap userEmail u'
+            , fmap userDeleted u'
+            , fmap userAssets u'
+            , userHandle =<< u'
+            )) . decodeBody
+
+    assertDeletedProfilePublic = do
+        const 200 === statusCode
+        const (Just noPict, Just True, Nothing) === (\u' ->
+            ( fmap profilePict u'
+            , fmap profileDeleted u'
+            , profileHandle =<< u'
+            )) . decodeBody
