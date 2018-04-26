@@ -7,18 +7,9 @@
 
 module Test.API.Groups (spec) where
 
-import           API.Group (GroupSite (..), GroupDB, groupServer, app)
-import           Data.Aeson hiding (json)
+import           API.Group (app)
 import           Data.ByteString.Lazy (ByteString)
-import qualified Data.HashMap.Strict as SMap
-import           Data.Maybe (catMaybes)
-import qualified Data.Vector as Vector
-import           Config.Schema
-import           Network.Wai.Test (SResponse (..))
-import           Servant
-import           Servant.Generic
 import           Test.Hspec hiding (shouldSatisfy)
-import qualified Test.Hspec.Expectations as Expect
 import           Test.Hspec.Wai      hiding (post, put, patch)
 import           Test.Hspec.Wai.JSON
 import           Util

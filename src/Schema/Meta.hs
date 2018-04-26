@@ -9,21 +9,11 @@ import Data.Text (Text)
 import Data.Aeson
 
 import Schema.Common
-import Schema.Schema (Schema)
-import Schema.User.Address (Address)
-import Schema.User.Certificate (Certificate)
-import Schema.User.Email (Email)
-import Schema.User.IM (IM)
-import Schema.User.Name (Name)
-import Schema.User.Phone (Phone)
-import Schema.User.Photo (Photo)
-
 import GHC.Generics (Generic)
 
 -- TODO: move to Meta.hs
 import qualified Data.HashMap.Lazy as HML
 import Data.Time.Clock
-import qualified Network.URI as Network
 
 -- TODO: Move to Common/Meta
 data WithId a = WithId

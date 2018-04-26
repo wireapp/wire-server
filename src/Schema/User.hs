@@ -20,11 +20,6 @@ import Schema.User.Photo (Photo)
 
 import GHC.Generics (Generic)
 
-import Schema.Meta
--- TODO: move to Meta.hs
-import qualified Data.HashMap.Lazy as HML
-import Data.Time.Clock
-import qualified Network.URI as Network
 
 data User = User
   { schemas :: [Schema]

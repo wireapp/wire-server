@@ -13,21 +13,17 @@ module API.Group ( GroupSite (..)
                  , StoredGroup
                  , Group (..)
                  , GroupId
+                 , Member (..)
                  , groupServer
                  , app
                  ) where
 
-import           Config.Schema (ConfigAPI, Configuration, configServer)
-import           Control.Applicative ((<|>), Alternative)
 import           Control.Monad.Except
 import           Control.Error.Util (note)
 import           Data.Text
 import           Data.Aeson
-import           DB.User (StoredUser, UserDB)
-import qualified DB.User as User
 import           GHC.Generics (Generic)
 import           Network.Wai
-import           Schema.User hiding (schemas)
 import           Schema.Common
 import           Schema.Error
 import           Schema.Meta

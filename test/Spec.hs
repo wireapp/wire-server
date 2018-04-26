@@ -6,7 +6,6 @@ module Main (main, startApp) where
 import           Network.Wai.Handler.Warp
 import           Network.Wai.Logger
 import           Config.Schema (empty)
-import qualified Test.Config.Schema as Config
 import qualified Test.API.Groups as Groups
 import           SCIM
 import qualified STMContainers.Map   as Map
