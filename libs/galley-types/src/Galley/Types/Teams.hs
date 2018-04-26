@@ -116,23 +116,10 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import Data.Word
+import Galley.Types.Teams.Internal
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
-
-data TeamBinding =
-      Binding
-    | NonBinding
-    deriving (Eq, Show)
-
-data Team = Team
-    { _teamId      :: TeamId
-    , _teamCreator :: UserId
-    , _teamName    :: Text
-    , _teamIcon    :: Text
-    , _teamIconKey :: Maybe Text
-    , _teamBinding :: TeamBinding
-    } deriving (Eq, Show)
 
 data Event = Event
     { _eventType :: EventType
@@ -212,15 +199,11 @@ data Perm =
     | DeleteTeam
     deriving (Eq, Ord, Show)
 
-data NewTeam a = NewTeam
-    { _newTeamName    :: Range 1 256 Text
-    , _newTeamIcon    :: Range 1 256 Text
-    , _newTeamIconKey :: Maybe (Range 1 256 Text)
-    , _newTeamMembers :: Maybe a
-    }
-
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
+    deriving (Eq, Show)
+
 newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
+    deriving (Eq, Show)
 
 newtype NewTeamMember = NewTeamMember
     { _ntmNewTeamMember :: TeamMember
@@ -362,34 +345,6 @@ intToPerms n =
 permsToInt :: Set Perm -> Word64
 permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0
 
-instance ToJSON TeamBinding where
-    toJSON Binding    = Bool True
-    toJSON NonBinding = Bool False
-
-instance ToJSON Team where
-    toJSON t = object
-        $ "id"       .= _teamId t
-        # "creator"  .= _teamCreator t
-        # "name"     .= _teamName t
-        # "icon"     .= _teamIcon t
-        # "icon_key" .= _teamIconKey t
-        # "binding"  .= _teamBinding t
-        # []
-
-instance FromJSON TeamBinding where
-    parseJSON (Bool True)  = pure Binding
-    parseJSON (Bool False) = pure NonBinding
-    parseJSON other        = fail $ "Unknown binding type: " <> show other
-
-instance FromJSON Team where
-    parseJSON = withObject "team" $ \o -> do
-        Team <$> o .:  "id"
-             <*> o .:  "creator"
-             <*> o .:  "name"
-             <*> o .:  "icon"
-             <*> o .:? "icon_key"
-             <*> o .:? "binding" .!= NonBinding
-
 instance ToJSON TeamList where
     toJSON t = object
         $ "teams"    .= _teamListTeams t
@@ -467,17 +422,6 @@ instance ToJSON NonBindingNewTeam where
 
 deriving instance FromJSON BindingNewTeam
 deriving instance FromJSON NonBindingNewTeam
-
-instance (FromJSON a) => FromJSON (NewTeam a) where
-    parseJSON = withObject "new-team" $ \o -> do
-        name <- o .:  "name"
-        icon <- o .:  "icon"
-        key  <- o .:? "icon_key"
-        mems <- o .:? "members"
-        either fail pure $ NewTeam <$> checkedEitherMsg "name" name
-                                   <*> checkedEitherMsg "icon" icon
-                                   <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") key
-                                   <*> pure mems
 
 instance ToJSON NewTeamMember where
     toJSON t = object ["member" .= teamMemberJson True (_ntmNewTeamMember t)]

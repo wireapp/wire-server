@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 
 -- Brig.Types.Account?
@@ -171,6 +172,16 @@ instance FromJSON UserIdentity where
               return
               (newIdentity email phone ssoid)
 
+instance ToJSON UserIdentity where
+    toJSON = \case
+        FullIdentity  em ph  -> go (Just em) (Just ph) Nothing
+        EmailIdentity em     -> go (Just em) Nothing   Nothing
+        PhoneIdentity    ph  -> go Nothing   (Just ph) Nothing
+        SSOIdentity si em ph -> go em        ph        (Just si)
+      where
+        go :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Value
+        go em ph si = object $ ["email" .= em, "phone" .= ph, "ssoid" .= si]
+
 newIdentity :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
 newIdentity email    phone    (Just sso) = Just $! SSOIdentity sso email phone
 newIdentity Nothing  Nothing  Nothing    = Nothing
@@ -211,7 +222,7 @@ instance ToJSON UserSSOId where
 -- Asset
 
 data AssetSize = AssetComplete | AssetPreview
-    deriving (Eq, Show)
+    deriving (Eq, Show, Enum, Bounded)
 
 -- Note: Intended to be turned into a sum type to add further asset types.
 data Asset = ImageAsset

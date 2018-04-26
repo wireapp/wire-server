@@ -1,7 +1,11 @@
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 module Brig.Types.User
     ( module Brig.Types.User
@@ -9,8 +13,8 @@ module Brig.Types.User
     ) where
 
 import Brig.Types.Activation (ActivationCode)
-import Brig.Types.User.Auth (CookieLabel)
 import Brig.Types.Common as C
+import Brig.Types.User.Auth (CookieLabel)
 import Control.Applicative
 import Control.Monad ((<=<))
 import Data.Aeson
@@ -20,9 +24,10 @@ import Data.Id
 import Data.Json.Util ((#), UTCTimeMillis (..))
 import Data.Maybe (isJust)
 import Data.Misc (PlainTextPassword (..))
+import Data.Monoid
 import Data.Range
-import Data.Text (Text)
 import Data.Text.Ascii
+import Data.Text (Text)
 import Data.Time (UTCTime)
 import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
@@ -48,6 +53,7 @@ noPict = Pict []
 -- UserHandleInfo
 
 newtype UserHandleInfo = UserHandleInfo { userHandleId :: UserId }
+    deriving (Eq, Show)
 
 instance ToJSON UserHandleInfo where
     toJSON (UserHandleInfo u) = object
@@ -109,24 +115,37 @@ publicProfile u = (connectedProfile u)
 
 -- | The data of an existing user.
 data User = User
-    { userId       :: !UserId
-    , userIdentity :: !(Maybe UserIdentity)
-    , userName     :: !Name
-    , userPict     :: !Pict -- ^ DEPRECATED
-    , userAssets   :: [Asset]
-    , userAccentId :: !ColourId
-    , userDeleted  :: !Bool
-    , userLocale   :: !Locale
-    , userService  :: !(Maybe ServiceRef)
+    { userId            :: !UserId
+    , userMaybeIdentity :: !(MaybeUserIdentity UTCTime)
+    , userName          :: !Name
+    , userPict          :: !Pict -- ^ DEPRECATED
+    , userAssets        :: [Asset]
+    , userAccentId      :: !ColourId
+    , userDeleted       :: !Bool
+    , userLocale        :: !Locale
+    , userService       :: !(Maybe ServiceRef)
         -- ^ Set if the user represents an external service,
         -- i.e. it is a "bot".
-    , userHandle   :: !(Maybe Handle)
-    , userExpire   :: !(Maybe UTCTime)
-        -- ^ Set if the user is ephemeral
-    , userTeam     :: !(Maybe TeamId)
+    , userHandle        :: !(Maybe Handle)
+    , userTeam          :: !(Maybe TeamId)
         -- ^ Set if the user is part of a binding team
     }
     deriving (Eq, Show)
+
+-- | For ephemeral users, this contains a life expectancy or timeout.
+data MaybeUserIdentity eph = JustUserIdentity !UserIdentity | NothingUserIdentity !eph
+    deriving (Eq, Show)
+
+userIdentity :: User -> Maybe UserIdentity
+userIdentity usr = case userMaybeIdentity usr of
+    JustUserIdentity uid -> Just uid
+    _ -> Nothing
+
+-- | Set if the user is ephemeral
+userExpire :: User -> Maybe UTCTime
+userExpire usr = case userMaybeIdentity usr of
+    NothingUserIdentity t -> Just t
+    JustUserIdentity _    -> Nothing
 
 userEmail :: User -> Maybe Email
 userEmail = emailIdentity <=< userIdentity
@@ -154,6 +173,7 @@ data UserProfile = UserProfile
     , profileExpire   :: !(Maybe UTCTime)
     , profileTeam     :: !(Maybe TeamId)
     }
+    deriving (Eq, Show)
 
 instance ToJSON User where
     toJSON u = object
@@ -170,12 +190,13 @@ instance ToJSON User where
         # "handle"     .= userHandle u
         # "expires_at" .= (UTCTimeMillis <$> userExpire u)
         # "team"       .= userTeam u
+        # "ssoid"      .= userSSOId u
         # []
 
 instance FromJSON User where
     parseJSON = withObject "user" $ \o ->
         User <$> o .:  "id"
-             <*> parseIdentity o
+             <*> parseMaybeIdentityUser o
              <*> o .:  "name"
              <*> o .:? "picture" .!= noPict
              <*> o .:? "assets"  .!= []
@@ -184,7 +205,6 @@ instance FromJSON User where
              <*> o .:  "locale"
              <*> o .:? "service"
              <*> o .:? "handle"
-             <*> o .:? "expires_at"
              <*> o .:? "team"
 
 instance FromJSON UserProfile where
@@ -228,19 +248,70 @@ instance ToJSON SelfProfile where
 
 data NewUser = NewUser
     { newUserName           :: !Name
-    , newUserIdentity       :: !(Maybe UserIdentity)
+    , newUserMaybeIdentity  :: !(MaybeUserIdentity ExpiresIn)
     , newUserPict           :: !(Maybe Pict) -- ^ DEPRECATED
     , newUserAssets         :: [Asset]
     , newUserAccentId       :: !(Maybe ColourId)
     , newUserEmailCode      :: !(Maybe ActivationCode)
     , newUserPhoneCode      :: !(Maybe ActivationCode)
-    , newUserInvitationCode :: !(Maybe InvitationCode)
+    , newUserOrigin         :: !(Maybe NewUserOrigin)
     , newUserLabel          :: !(Maybe CookieLabel)
     , newUserLocale         :: !(Maybe Locale)
     , newUserPassword       :: !(Maybe PlainTextPassword)
-    , newUserTeam           :: !(Maybe NewTeamUser)
-    , newUserExpiresIn      :: !(Maybe (Range 1 604800 Integer)) -- ^ 1 second - 1 week
     }
+    deriving (Eq, Show)
+
+data NewUserOrigin =
+    NewUserOriginInvitationCode !InvitationCode
+  | NewUserOriginTeamUser !NewTeamUser
+  deriving (Eq, Show)
+
+-- (there is some overlap between this block and 'parseMaybeIdentityNewUser', but it is not trivial
+-- to remove and may be benign.)
+parseNewUserOrigin :: Maybe PlainTextPassword -> MaybeUserIdentity eph -> Maybe UserSSOId
+                   -> Object -> Parser (Maybe NewUserOrigin)
+parseNewUserOrigin pass uid ssoid o = do
+    invcode  <- o .:? "invitation_code"
+    teamcode <- o .:? "team_code"
+    team     <- o .:? "team"
+    result <- case (invcode, teamcode, team, ssoid) of
+        (Just a,  Nothing, Nothing, Nothing) -> return . Just . NewUserOriginInvitationCode $ a
+        (Nothing, Just a,  Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamMember a
+        (Nothing, Nothing, Just a,  Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamCreator a
+        (Nothing, Nothing, Nothing, Just _)  -> return . Just . NewUserOriginTeamUser $ NewTeamMemberSSO
+        (Nothing, Nothing, Nothing, Nothing) -> return Nothing
+        (_, _, _, _) -> fail "team_code, team, invitation_code, ssoid are mutually exclusive"
+    case (result, pass, uid) of
+        (_, _, JustUserIdentity SSOIdentity {}) -> pure result
+        (Just (NewUserOriginTeamUser _), Nothing, _) -> fail "all team users must set a password on creation"
+        _ -> pure result
+
+jsonNewUserOrigin :: ToJSON ssoid => Maybe ssoid -> NewUserOrigin -> [Pair]
+jsonNewUserOrigin ssoid = \case
+    NewUserOriginInvitationCode inv             -> ["invitation_code" .= inv]
+    NewUserOriginTeamUser (NewTeamMember tc)    -> ["team_code" .= tc]
+    NewUserOriginTeamUser (NewTeamCreator team) -> ["team" .= team]
+    NewUserOriginTeamUser NewTeamMemberSSO      -> ["ssoid" .= ssoid]
+
+newUserIdentity :: NewUser -> Maybe UserIdentity
+newUserIdentity nu = case newUserMaybeIdentity nu of
+    JustUserIdentity uid  -> Just uid
+    NothingUserIdentity _ -> Nothing
+
+newUserExpiresIn :: NewUser -> Maybe ExpiresIn
+newUserExpiresIn nu = case newUserMaybeIdentity nu of
+    JustUserIdentity _      -> Nothing
+    NothingUserIdentity eph -> Just eph
+
+newUserInvitationCode :: NewUser -> Maybe InvitationCode
+newUserInvitationCode nu = case newUserOrigin nu of
+    Just (NewUserOriginInvitationCode ic) -> Just ic
+    _ -> Nothing
+
+newUserTeam :: NewUser -> Maybe NewTeamUser
+newUserTeam nu = case newUserOrigin nu of
+    Just (NewUserOriginTeamUser tu) -> Just tu
+    _ -> Nothing
 
 newUserEmail :: NewUser -> Maybe Email
 newUserEmail = emailIdentity <=< newUserIdentity
@@ -254,28 +325,16 @@ newUserSSOId = ssoIdentity <=< newUserIdentity
 instance FromJSON NewUser where
       parseJSON = withObject "new-user" $ \o -> do
           newUserName           <- o .: "name"
-          newUserIdentity       <- parseIdentity o
+          newUserMaybeIdentity  <- parseMaybeIdentityNewUser o
           newUserPict           <- o .:? "picture"
           newUserAssets         <- o .:? "assets" .!= []
           newUserAccentId       <- o .:? "accent_id"
           newUserEmailCode      <- o .:? "email_code"
           newUserPhoneCode      <- o .:? "phone_code"
-          newUserInvitationCode <- o .:? "invitation_code"
+          newUserPassword       <- o .:? "password"
+          newUserOrigin         <- (o .:? "ssoid") >>= \ssoid -> parseNewUserOrigin newUserPassword newUserMaybeIdentity ssoid o
           newUserLabel          <- o .:? "label"
           newUserLocale         <- o .:? "locale"
-          newUserPassword       <- o .:? "password"
-          newUserTeamCode       <- o .:? "team_code"
-          newUserNewTeam        <- o .:? "team"
-          newUserTeam <- case (newUserTeamCode, newUserNewTeam, newUserPassword, newUserInvitationCode) of
-                (Just a,  Nothing, Just _, Nothing) -> return $ Just (NewTeamMember a)
-                (Nothing, Just b , Just _, Nothing) -> return $ Just (NewTeamCreator b)
-                (Nothing, Nothing,      _,       _) -> return Nothing
-                _                                   -> fail "team_code, team, invitation_code are mutually exclusive \
-                                                            \ and all team users must set a password on creation "
-          newUserExpires   <- o .:? "expires_in"
-          newUserExpiresIn <- case (newUserExpires, newUserIdentity) of
-                (Just _, Just _) -> fail "Only users without an identity can expire"
-                _                -> return newUserExpires
           return NewUser{..}
 
 instance ToJSON NewUser where
@@ -289,17 +348,29 @@ instance ToJSON NewUser where
         # "phone"           .= newUserPhone u
         # "phone_code"      .= newUserPhoneCode u
         # "accent_id"       .= newUserAccentId u
-        # "invitation_code" .= newUserInvitationCode u
         # "label"           .= newUserLabel u
         # "locale"          .= newUserLocale u
         # "password"        .= newUserPassword u
         # "expires_in"      .= newUserExpiresIn u
-        # maybe ("", Null) encodeNewTeamUser (newUserTeam u)
-        # []
+        # maybe [] (jsonNewUserOrigin (newUserSSOId u)) (newUserOrigin u)
 
-encodeNewTeamUser :: NewTeamUser -> Pair
-encodeNewTeamUser (NewTeamMember m)  = "team_code" .= m
-encodeNewTeamUser (NewTeamCreator c) = "team" .= c
+-- | 1 second - 1 week
+type ExpiresIn = Range 1 604800 Integer
+
+parseMaybeIdentityNewUser :: Object -> Parser (MaybeUserIdentity ExpiresIn)
+parseMaybeIdentityNewUser = parseMaybeIdentity "expires_in"
+
+parseMaybeIdentityUser :: Object -> Parser (MaybeUserIdentity UTCTime)
+parseMaybeIdentityUser = parseMaybeIdentity "expires_at"
+
+parseMaybeIdentity :: (Show a, FromJSON a) => Text -> Object -> Parser (MaybeUserIdentity a)
+parseMaybeIdentity key o = do
+    muid <- parseIdentity o
+    mexp <- o .:? key
+    case (muid, mexp) of
+        (Just usr, Nothing) -> pure $ JustUserIdentity usr
+        (Nothing, Just eph) -> pure $ NothingUserIdentity eph
+        bad                 -> fail $ "parseMaybeIdentityUser: " <> show bad
 
 -- | Fails if email or phone or ssoid are present but invalid
 parseIdentity :: Object -> Parser (Maybe UserIdentity)
@@ -317,6 +388,7 @@ data BindingNewTeamUser = BindingNewTeamUser
     , bnuCurrency :: !(Maybe Currency.Alpha)
     -- TODO: Remove Currency selection once billing supports currency changes after team creation
     }
+    deriving (Eq, Show)
 
 instance FromJSON BindingNewTeamUser where
     parseJSON j@(Object o) = do
@@ -331,8 +403,10 @@ instance ToJSON BindingNewTeamUser where
          in object $ "currency" .= c
                    # HashMap.toList t'
 
-data NewTeamUser = NewTeamMember  !InvitationCode
-                 | NewTeamCreator !BindingNewTeamUser
+data NewTeamUser = NewTeamMember    !InvitationCode      -- ^ requires email address
+                 | NewTeamCreator   !BindingNewTeamUser
+                 | NewTeamMemberSSO
+    deriving (Eq, Show)
 
 -----------------------------------------------------------------------------
 -- Profile Updates
@@ -342,15 +416,15 @@ data UserUpdate = UserUpdate
     , uupPict     :: !(Maybe Pict) -- DEPRECATED
     , uupAssets   :: !(Maybe [Asset])
     , uupAccentId :: !(Maybe ColourId)
-    } deriving Eq
+    } deriving (Eq, Show)
 
-newtype LocaleUpdate = LocaleUpdate { luLocale :: Locale } deriving Eq
+newtype LocaleUpdate = LocaleUpdate { luLocale :: Locale } deriving (Eq, Show)
 
-newtype EmailUpdate  = EmailUpdate  { euEmail  :: Email  }
-newtype PhoneUpdate  = PhoneUpdate  { puPhone  :: Phone  }
-newtype HandleUpdate = HandleUpdate { huHandle :: Text   }
-newtype EmailRemove  = EmailRemove  { erEmail  :: Email  }
-newtype PhoneRemove  = PhoneRemove  { prPhone  :: Phone  }
+newtype EmailUpdate  = EmailUpdate  { euEmail  :: Email  } deriving (Eq, Show)
+newtype PhoneUpdate  = PhoneUpdate  { puPhone  :: Phone  } deriving (Eq, Show)
+newtype HandleUpdate = HandleUpdate { huHandle :: Text   } deriving (Eq, Show)
+newtype EmailRemove  = EmailRemove  { erEmail  :: Email  } deriving (Eq, Show)
+newtype PhoneRemove  = PhoneRemove  { prPhone  :: Phone  } deriving (Eq, Show)
 
 instance FromJSON UserUpdate where
     parseJSON = withObject "UserUpdate" $ \o ->
@@ -416,6 +490,7 @@ instance ToJSON PhoneRemove where
 newtype DeleteUser = DeleteUser
     { deleteUserPassword :: Maybe PlainTextPassword
     }
+    deriving (Eq, Show)
 
 mkDeleteUser :: Maybe PlainTextPassword -> DeleteUser
 mkDeleteUser = DeleteUser
@@ -424,7 +499,7 @@ mkDeleteUser = DeleteUser
 data VerifyDeleteUser = VerifyDeleteUser
     { verifyDeleteUserKey  :: !Code.Key
     , verifyDeleteUserCode :: !Code.Value
-    } deriving Eq
+    } deriving (Eq, Show)
 
 mkVerifyDeleteUser :: Code.Key -> Code.Value -> VerifyDeleteUser
 mkVerifyDeleteUser = VerifyDeleteUser
@@ -466,6 +541,7 @@ instance ToJSON DeletionCodeTimeout where
 
 -- | The payload for initiating a password reset.
 newtype NewPasswordReset = NewPasswordReset (Either Email Phone)
+    deriving (Eq, Show)
 
 -- | Opaque identifier per user (SHA256 of the user ID).
 newtype PasswordResetKey = PasswordResetKey
@@ -475,7 +551,7 @@ newtype PasswordResetKey = PasswordResetKey
 -- | Random code, acting as a very short-lived, single-use password.
 newtype PasswordResetCode = PasswordResetCode
     { fromPasswordResetCode :: AsciiBase64Url }
-    deriving (Eq, FromByteString, ToByteString, FromJSON, ToJSON)
+    deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON)
 
 type PasswordResetPair = (PasswordResetKey, PasswordResetCode)
 
@@ -487,6 +563,7 @@ data PasswordResetIdentity
         -- ^ A known email address with a pending password reset.
     | PasswordResetPhoneIdentity !Phone
         -- ^ A known phone number with a pending password reset.
+    deriving (Eq, Show)
 
 -- | The payload for completing a password reset.
 data CompletePasswordReset = CompletePasswordReset
@@ -494,12 +571,14 @@ data CompletePasswordReset = CompletePasswordReset
     , cpwrCode     :: !PasswordResetCode
     , cpwrPassword :: !PlainTextPassword
     }
+    deriving (Eq, Show)
 
 -- | The payload for setting or changing a password.
 data PasswordChange = PasswordChange
     { cpOldPassword :: !(Maybe PlainTextPassword)
     , cpNewPassword :: !PlainTextPassword
     }
+    deriving (Eq, Show)
 
 instance FromJSON NewPasswordReset where
     parseJSON = withObject "NewPasswordReset" $ \o ->

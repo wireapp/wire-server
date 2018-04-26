@@ -78,7 +78,9 @@ test-suite brig-types-tests
 
     other-modules:
         Test.Brig.Types.Arbitrary
+        Test.Brig.Types.Common
         Test.Brig.Types.TURN
+        Test.Brig.Types.User
 
     build-depends:
         aeson
@@ -86,14 +88,21 @@ test-suite brig-types-tests
       , base
       , brig-types
       , bytestring
+      , currency-codes
+      , galley-types
       , iproute
+      , iso639
       , lens
       , QuickCheck
+      , quickcheck-instances
+      , random
       , tasty
+      , tasty-hunit
       , tasty-quickcheck
       , text
       , time
       , types-common
+      , unordered-containers
       , vector
 
     ghc-options:
