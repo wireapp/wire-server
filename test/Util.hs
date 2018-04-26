@@ -68,6 +68,7 @@ instance UserDB TestServer where
     m <- userDB <$> ask
     liftIO . atomically $ delUser uid m
   getMeta = createMeta UserResource
+  patch = undefined
 
 instance GroupDB TestServer where
   list = do
@@ -148,8 +149,8 @@ testDate = UTCTime
 
 -- static meta for testing
 createMeta :: ResourceType -> ReaderT TestStorage Handler Meta
-createMeta typ = return $ Meta
-  { resourceType = typ
+createMeta rType = return $ Meta
+  { resourceType = rType
   , created = testDate
   , lastModified = testDate
   , version = Weak "testVersion"
