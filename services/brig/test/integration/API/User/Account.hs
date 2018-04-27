@@ -44,6 +44,7 @@ import Util
 import qualified API.Search.Util             as Search
 import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt
+import qualified CargoHold.Types.V3          as CHV3
 import qualified Data.List1                  as List1
 import qualified Data.Set                    as Set
 import qualified Data.Text                   as T
@@ -54,8 +55,8 @@ import qualified Data.Vector                 as Vec
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon           as WS
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> Maybe AWS.Env -> TestTree
-tests _cl at _conf p b c g localAWS = testGroup "account"
+tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> Maybe AWS.Env -> TestTree
+tests _cl at _conf p b c ch g localAWS = testGroup "account"
     [ test p "post /register - 201 (with preverified)"  $ testCreateUserWithPreverified b
     , test p "post /register - 201"                     $ testCreateUser b g
     , test p "post /register - 201 + no email"          $ testCreateUserNoEmailNoPassword b
@@ -84,6 +85,7 @@ tests _cl at _conf p b c g localAWS = testGroup "account"
     , test p "delete/by-code"                           $ testDeleteUserByCode b
     , test p "delete/anonymous"                         $ testDeleteAnonUser b
     , test p "delete /i/users/:id - 202"                $ testDeleteInternal b c
+    , test p "delete with profile pic"                  $ testDeleteWithProfilePic b ch
     ]
 
 testCreateUserWithPreverified :: Brig -> Http ()
@@ -809,6 +811,27 @@ testDeleteInternal brig cannon = do
     u <- randomUser brig
     setHandleAndDeleteUser brig cannon u [] $
         \uid -> delete (brig . paths ["/i/users", toByteString' uid]) !!! const 202 === statusCode
+
+testDeleteWithProfilePic :: Brig -> CargoHold -> Http ()
+testDeleteWithProfilePic brig cargohold = do
+    uid <- userId <$> createAnonUser "anon" brig
+    
+    ast <- uploadAsset cargohold uid "this is my profile pic"
+    -- Ensure that the asset is there
+    downloadAsset cargohold uid (toByteString' (ast^.CHV3.assetKey)) !!! const 200 === statusCode
+
+    let newAssets  = Just [ImageAsset (T.decodeLatin1 $ toByteString' (ast^.CHV3.assetKey)) (Just AssetComplete)]
+        userUpdate = UserUpdate Nothing Nothing newAssets Nothing
+        update     = RequestBodyLBS . encode $ userUpdate
+
+    -- Update profile with the uploaded asset
+    put (brig . path "/self" . contentJson . zUser uid . zConn "c" . body update) !!!
+            const 200 === statusCode
+
+    deleteUser uid Nothing brig !!! const 200 === statusCode
+
+    -- Check that the asset gets deleted
+    downloadAsset cargohold uid (toByteString' (ast^.CHV3.assetKey)) !!! const 404 === statusCode
 
 setHandleAndDeleteUser :: Brig -> Cannon -> User -> [UserId] -> (UserId -> HttpT IO ()) -> Http ()
 setHandleAndDeleteUser brig cannon u others execDelete = do

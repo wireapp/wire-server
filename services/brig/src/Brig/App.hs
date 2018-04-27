@@ -18,6 +18,7 @@ module Brig.App
     , newEnv
     , closeEnv
     , awsEnv
+    , cargohold
     , galley
     , gundeck
     , userTemplates
@@ -124,7 +125,8 @@ schemaVersion = 49
 -- Environment
 
 data Env = Env
-    { _galley        :: RPC.Request
+    { _cargohold     :: RPC.Request
+    , _galley        :: RPC.Request
     , _gundeck       :: RPC.Request
     , _casClient     :: Cas.ClientState
     , _awsEnv        :: AWS.Env
@@ -175,7 +177,8 @@ newEnv o = do
     nxm <- initCredentials (Opt.setNexmo sett)
     twl <- initCredentials (Opt.setTwilio sett)
     return $! Env
-        { _galley        = mkEndpoint $ Opt.galley o
+        { _cargohold     = mkEndpoint $ Opt.cargohold o
+        , _galley        = mkEndpoint $ Opt.galley o
         , _gundeck       = mkEndpoint $ Opt.gundeck o
         , _casClient     = cas
         , _awsEnv        = aws

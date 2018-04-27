@@ -12,6 +12,10 @@ elasticsearch:
   url: http://127.0.0.1:9200
   index: directory_test
 
+cargohold:
+  host: 127.0.0.1
+  port: 8084
+
 galley:
   host: 127.0.0.1
   port: 8085

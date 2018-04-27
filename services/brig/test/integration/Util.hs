@@ -46,9 +46,10 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import qualified Test.Tasty.Cannon as WS
 
-type Brig    = Request -> Request
-type Cannon  = Request -> Request
-type Galley  = Request -> Request
+type Brig      = Request -> Request
+type Cannon    = Request -> Request
+type CargoHold = Request -> Request
+type Galley    = Request -> Request
 
 type ResponseLBS = Response (Maybe Lazy.ByteString)
 

@@ -127,6 +127,7 @@ instance FromJSON TurnOpts
 data Opts = Opts
     -- services
     { brig          :: !Endpoint
+    , cargohold     :: !Endpoint
     , galley        :: !Endpoint
     , gundeck       :: !Endpoint
 
@@ -198,6 +199,10 @@ optsParser =
       help "Hostname or address to bind to") <*>
      (option auto $
       long "port" <> short 'p' <> metavar "PORT" <> help "Port to listen on")) <*>
+    (Endpoint <$>
+     (textOption $
+      long "cargohold-host" <> metavar "HOSTNAME" <> help "Cargohold hostname") <*>
+     (option auto $ long "cargohold-port" <> metavar "PORT" <> help "Cargohold port")) <*>
     (Endpoint <$>
      (textOption $
       long "galley-host" <> metavar "HOSTNAME" <> help "Galley hostname") <*>

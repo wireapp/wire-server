@@ -16,6 +16,7 @@ import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString (ByteString)
+import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
@@ -29,6 +30,9 @@ import OpenSSL.EVP.Digest (getDigestByName, digestBS)
 import Test.Tasty.HUnit
 import Util
 
+import qualified CargoHold.Types.V3          as CHV3
+import qualified Codec.MIME.Type             as MIME
+import qualified Data.ByteString.Lazy        as LB
 import qualified Data.Set                    as Set
 import qualified Data.Text.Ascii             as Ascii
 import qualified Data.Text.Encoding          as T
@@ -227,6 +231,28 @@ assertEmailVisibility brig a b visible =
         if visible
             then const (Just (userEmail b)) === fmap userEmail . decodeBody
             else const Nothing === (userEmail <=< decodeBody)
+
+uploadAsset :: CargoHold -> UserId -> ByteString -> Http CHV3.Asset
+uploadAsset c usr dat = do
+    let sts = CHV3.defAssetSettings
+        ct  = MIME.Type (MIME.Application "text") []
+        mpb = CHV3.buildMultipartBody sts ct (LB.fromStrict dat)
+    rsp <- post ( c
+                . path "/assets/v3"
+                . zUser usr
+                . zConn "conn"
+                . content "multipart/mixed"
+                . lbytes (toLazyByteString mpb)
+                ) <!! const 201 === statusCode
+    return $ fromMaybe (error "Failed to decode asset body") (decodeBody rsp)
+
+downloadAsset :: CargoHold -> UserId -> ByteString -> Http (Response (Maybe LB.ByteString))
+downloadAsset c usr ast =
+    get ( c
+        . paths ["/assets/v3", ast]
+        . zUser usr
+        . zConn "conn"
+        )
 
 uploadAddressBook :: Brig -> UserId -> AddressBook -> MatchingResult -> Http ()
 uploadAddressBook b u a m =
