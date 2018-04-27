@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 13dbc78d452e4b6133bef53cdb89f7cf92493b3eed2cbbb28b4f7eb65483589f
+-- hash: 05bfff85af42288cbbae179b4d77778bc567ca54569773655266efafa477035b
 
 name:                hscim
 version:             0.1.0.0
@@ -29,6 +29,7 @@ source-repository head
 library
   hs-source-dirs:
       src
+  default-extensions: OverloadedStrings FlexibleContexts FlexibleInstances TypeSynonymInstances DeriveGeneric
   ghc-options: -Wall
   exposed-modules:
       Web.SCIM.Capabilities.MetaSchema
@@ -76,6 +77,7 @@ test-suite spec
   hs-source-dirs:
       test
       src
+  default-extensions: OverloadedStrings FlexibleContexts FlexibleInstances TypeSynonymInstances DeriveGeneric
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson

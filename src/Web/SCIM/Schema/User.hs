@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE OverloadedStrings      #-}
 
 module Web.SCIM.Schema.User where
 

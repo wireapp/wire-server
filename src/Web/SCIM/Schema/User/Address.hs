@@ -1,6 +1,3 @@
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE DeriveAnyClass      #-}
-{-# LANGUAGE OverloadedStrings      #-}
 
 module Web.SCIM.Schema.User.Address where
 

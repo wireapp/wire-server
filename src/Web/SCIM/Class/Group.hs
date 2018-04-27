@@ -1,10 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE DeriveGeneric   #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators   #-}
 {-# LANGUAGE ConstraintKinds   #-}
 

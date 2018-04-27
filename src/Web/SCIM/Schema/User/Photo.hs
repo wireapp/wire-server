@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveGeneric      #-}
 
 module Web.SCIM.Schema.User.Photo where
 

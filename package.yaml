@@ -12,6 +12,13 @@ category:            Web
 build-type:          Simple
 github:              wireapp/hscim
 
+default-extensions:
+  - OverloadedStrings
+  - FlexibleContexts
+  - FlexibleInstances
+  - TypeSynonymInstances
+  - DeriveGeneric
+
 extra-source-files:
   - README.md
 

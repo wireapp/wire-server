@@ -1,11 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE DeriveGeneric   #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators   #-}
 
 module Mock where

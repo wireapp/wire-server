@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 
 module Web.SCIM.Schema.Schema where
 

@@ -1,5 +1,4 @@
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Web.SCIM.Capabilities.MetaSchema.SPConfig (spConfigSchema) where
 
