@@ -3,7 +3,7 @@ version:             0.1.0.0
 synopsis:            ...
 description:         ...
 homepage:            https://github.com/wireapp/hscim/README.md
-license:             APGL-3
+license:             AGPL-3
 license-file:        LICENSE
 author:              Wire Swiss GmbH
 maintainer:          Wire Swiss GmbH <backend@wire.com>
@@ -49,6 +49,7 @@ tests:
       - hspec-wai
       - hspec-wai-json
       - aeson
+      - aeson-qq
       - http-types
       - stm-containers
       - text
@@ -60,3 +61,7 @@ tests:
       - list-t
       - time
       - servant-server
+      - vector
+      - hspec-expectations
+      - warp
+      - wai-logger

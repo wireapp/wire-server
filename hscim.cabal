@@ -1,6 +1,8 @@
--- This file has been generated from package.yaml by hpack version 0.17.0.
+-- This file has been generated from package.yaml by hpack version 0.20.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: 13dbc78d452e4b6133bef53cdb89f7cf92493b3eed2cbbb28b4f7eb65483589f
 
 name:                hscim
 version:             0.1.0.0
@@ -8,7 +10,7 @@ synopsis:            ...
 description:         ...
 homepage:            https://github.com/wireapp/hscim/README.md
 bug-reports:         https://github.com/wireapp/hscim/issues
-license:             APGL-3
+license:             AGPL-3
 license-file:        LICENSE
 author:              Wire Swiss GmbH
 maintainer:          Wire Swiss GmbH <backend@wire.com>
@@ -29,41 +31,43 @@ library
       src
   ghc-options: -Wall
   exposed-modules:
-      API.Group
-      Config.Schema
-      Config.Schema.Group
-      Config.Schema.ResourceType
-      Config.Schema.Schema
-      Config.Schema.SPConfig
-      Config.Schema.User
-      DB.User
-      Schema.Common
-      Schema.Error
-      Schema.ListResponse
-      Schema.Meta
-      Schema.Schema
-      Schema.User
-      Schema.User.Address
-      Schema.User.Certificate
-      Schema.User.Email
-      Schema.User.IM
-      Schema.User.Name
-      Schema.User.Phone
-      Schema.User.Photo
-      SCIM
+      Web.SCIM.Capabilities.MetaSchema
+      Web.SCIM.Capabilities.MetaSchema.Group
+      Web.SCIM.Capabilities.MetaSchema.ResourceType
+      Web.SCIM.Capabilities.MetaSchema.Schema
+      Web.SCIM.Capabilities.MetaSchema.SPConfig
+      Web.SCIM.Capabilities.MetaSchema.User
+      Web.SCIM.Class.Group
+      Web.SCIM.Class.User
+      Web.SCIM.Schema.Common
+      Web.SCIM.Schema.Error
+      Web.SCIM.Schema.ListResponse
+      Web.SCIM.Schema.Meta
+      Web.SCIM.Schema.Schema
+      Web.SCIM.Schema.User
+      Web.SCIM.Schema.User.Address
+      Web.SCIM.Schema.User.Certificate
+      Web.SCIM.Schema.User.Email
+      Web.SCIM.Schema.User.IM
+      Web.SCIM.Schema.User.Name
+      Web.SCIM.Schema.User.Phone
+      Web.SCIM.Schema.User.Photo
+      Web.SCIM.Server
+  other-modules:
+      Paths_hscim
   build-depends:
-      base >= 4.7 && < 5
-    , aeson
-    , mtl
-    , servant-server
-    , servant-generic
-    , text
-    , time
-    , wai
-    , network-uri
-    , unordered-containers
+      aeson
+    , base >=4.7 && <5
     , email-validate
     , errors
+    , mtl
+    , network-uri
+    , servant-generic
+    , servant-server
+    , text
+    , time
+    , unordered-containers
+    , wai
   default-language: Haskell2010
 
 test-suite spec
@@ -74,60 +78,58 @@ test-suite spec
       src
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >= 4.7 && < 5
-    , aeson
-    , mtl
-    , servant-server
-    , servant-generic
-    , text
-    , time
-    , wai
-    , network-uri
-    , unordered-containers
-    , email-validate
-    , errors
+      aeson
+    , aeson-qq
     , base
     , bytestring
+    , email-validate
+    , errors
     , hscim
     , hspec
+    , hspec-expectations
     , hspec-wai
     , hspec-wai-json
-    , aeson
     , http-types
-    , stm-containers
-    , text
-    , bytestring
-    , wai-extra
+    , list-t
+    , mtl
+    , network-uri
+    , servant-generic
+    , servant-server
     , stm
     , stm-containers
-    , mtl
-    , list-t
+    , text
     , time
-    , servant-server
+    , unordered-containers
+    , vector
+    , wai
+    , wai-extra
+    , wai-logger
+    , warp
   other-modules:
-      Test.API.Groups
-      Test.Config.Schema
-      Util
-      API.Group
-      Config.Schema
-      Config.Schema.Group
-      Config.Schema.ResourceType
-      Config.Schema.Schema
-      Config.Schema.SPConfig
-      Config.Schema.User
-      DB.User
-      Schema.Common
-      Schema.Error
-      Schema.ListResponse
-      Schema.Meta
-      Schema.Schema
-      Schema.User
-      Schema.User.Address
-      Schema.User.Certificate
-      Schema.User.Email
-      Schema.User.IM
-      Schema.User.Name
-      Schema.User.Phone
-      Schema.User.Photo
-      SCIM
+      Mock
+      Test.Capabilities.MetaSchema
+      Test.Class.Groups
+      Web.SCIM.Capabilities.MetaSchema
+      Web.SCIM.Capabilities.MetaSchema.Group
+      Web.SCIM.Capabilities.MetaSchema.ResourceType
+      Web.SCIM.Capabilities.MetaSchema.Schema
+      Web.SCIM.Capabilities.MetaSchema.SPConfig
+      Web.SCIM.Capabilities.MetaSchema.User
+      Web.SCIM.Class.Group
+      Web.SCIM.Class.User
+      Web.SCIM.Schema.Common
+      Web.SCIM.Schema.Error
+      Web.SCIM.Schema.ListResponse
+      Web.SCIM.Schema.Meta
+      Web.SCIM.Schema.Schema
+      Web.SCIM.Schema.User
+      Web.SCIM.Schema.User.Address
+      Web.SCIM.Schema.User.Certificate
+      Web.SCIM.Schema.User.Email
+      Web.SCIM.Schema.User.IM
+      Web.SCIM.Schema.User.Name
+      Web.SCIM.Schema.User.Phone
+      Web.SCIM.Schema.User.Photo
+      Web.SCIM.Server
+      Paths_hscim
   default-language: Haskell2010

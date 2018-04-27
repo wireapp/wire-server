@@ -5,14 +5,14 @@ module Main (main, startApp) where
 
 import           Network.Wai.Handler.Warp
 import           Network.Wai.Logger
-import           Config.Schema (empty)
-import qualified Test.API.Groups as Groups
-import           SCIM
+import           Web.SCIM.Capabilities.MetaSchema (empty)
+import qualified Test.Class.Groups as Groups
+import           Web.SCIM.Server
 import qualified STMContainers.Map   as Map
 import           Test.Hspec
 import           Test.Hspec.Wai      hiding (post, put, patch)
 import           Test.Hspec.Wai.JSON
-import           Util
+import           Mock
 import           Data.ByteString.Lazy (ByteString)
 
 main :: IO ()
