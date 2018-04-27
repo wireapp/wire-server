@@ -45,3 +45,7 @@ EXTRA_CC_LIB ?= -L/usr/local/opt/openssl/lib
 ## Compile with docker
 
 `make docker`
+
+## How to run it
+
+Have a look at our demo config in [services demo](../../deploy/services-demo/conf/nginz)
