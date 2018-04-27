@@ -1,0 +1,62 @@
+name:                hscim
+version:             0.1.0.0
+synopsis:            ...
+description:         ...
+homepage:            https://github.com/wireapp/hscim/README.md
+license:             APGL-3
+license-file:        LICENSE
+author:              Wire Swiss GmbH
+maintainer:          Wire Swiss GmbH <backend@wire.com>
+copyright:           (c) 2018 Wire Swiss GmbH
+category:            Web
+build-type:          Simple
+github:              wireapp/hscim
+
+extra-source-files:
+  - README.md
+
+dependencies:
+  - base >= 4.7 && < 5
+  - aeson
+  - mtl
+  - servant-server
+  - servant-generic
+  - text
+  - time
+  - wai
+  - network-uri
+  - unordered-containers
+  - email-validate
+  - errors
+
+ghc-options: -Wall
+
+library:
+  source-dirs: src
+
+tests:
+  spec:
+    main: Spec.hs
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    source-dirs:
+      - test
+      - src
+    dependencies:
+      - base
+      - bytestring
+      - hscim
+      - hspec
+      - hspec-wai
+      - hspec-wai-json
+      - aeson
+      - http-types
+      - stm-containers
+      - text
+      - bytestring
+      - wai-extra
+      - stm
+      - stm-containers
+      - mtl
+      - list-t
+      - time
+      - servant-server
