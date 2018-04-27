@@ -51,7 +51,7 @@ default: compile
 
 .PHONY: clean
 clean:
-	-rm -rf src $(DIST) .metadata conf/zwagger-ui/swagger-ui
+	-rm -rf src $(DIST) .metadata zwagger-ui/swagger-ui
 
 compile: $(BIN)
 	mkdir -p dist ../../dist
@@ -59,7 +59,7 @@ compile: $(BIN)
 
 dist: guard-NGINZ_VERSION $(DIST)/$(DEB)
 
-$(BIN): src conf/zwagger-ui/swagger-ui
+$(BIN): src zwagger-ui/swagger-ui
 	git submodule update --init
 	(cd src; ./configure $(CONFIG_OPTIONS) $(ADDITIONAL_MODULES))
 	make -C src
@@ -81,9 +81,9 @@ $(DIST):
 NGINX_BUNDLE=nginx-$(NGINX_VERSION).tar.gz
 SWAGGER_BUNDLE=swagger-$(SWAGGER_VERSION).tar.gz
 
-conf/zwagger-ui/swagger-ui: $(TMPDIR)/$(SWAGGER_BUNDLE)
+zwagger-ui/swagger-ui: $(TMPDIR)/$(SWAGGER_BUNDLE)
 	tar zxf $(TMPDIR)/$(SWAGGER_BUNDLE)
-	mv -vn swagger-ui-$(SWAGGER_VERSION)/dist conf/zwagger-ui/swagger-ui
+	mv -vn swagger-ui-$(SWAGGER_VERSION)/dist zwagger-ui/swagger-ui
 	rm -rf swagger-ui-$(SWAGGER_VERSION)
 
 $(TMPDIR)/$(SWAGGER_BUNDLE):

@@ -24,8 +24,8 @@ clean:
 	-rm -f .metadata
 
 .PHONY: services
-services: init
-	$(foreach service,$(SERVICES),$(MAKE) -C services/$(service);)
+services: init install
+	$(MAKE) -C services/nginz
 
 .PHONY: integration
 integration: fast
