@@ -375,6 +375,17 @@ data NewTeamUser = NewTeamMember    !InvitationCode      -- ^ requires email add
                  | NewTeamMemberSSO
     deriving (Eq, Show)
 
+-- | newtype for using in external end-points where setting an 'SSOIdentity' is not allowed.
+newtype NewUserNoSSO = NewUserNoSSO NewUser
+    deriving (Eq, Show)
+
+instance FromJSON NewUserNoSSO where
+    parseJSON val = do
+        nu <- parseJSON val
+        case newUserIdentity nu of
+            Just SSOIdentity {} -> fail "SSO-managed users are not allowed here."
+            _ -> pure $ NewUserNoSSO nu
+
 -----------------------------------------------------------------------------
 -- Profile Updates
 
