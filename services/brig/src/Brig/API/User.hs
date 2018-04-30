@@ -271,8 +271,9 @@ createUser new@NewUser{..} = do
         Nothing -> throwE InvalidInvitationCode
 
     ensureMemberCanJoin tid = do
+        maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
         mems <- lift $ Intra.getTeamMembers tid
-        when (length (mems^.Team.teamMembers) >= 128) $
+        when (length (mems^.Team.teamMembers) >= maxSize) $
             throwE TooManyTeamMembers
 
     acceptTeamInvitation account inv ii uk ident = do

@@ -1058,7 +1058,8 @@ getPrekeyBundle (u ::: _) = json <$> lift (API.claimPrekeyBundle u)
 getMultiPrekeyBundles :: Request ::: JSON ::: JSON -> Handler Response
 getMultiPrekeyBundles (req ::: _) = do
     body <- parseJsonBody req
-    when (Map.size (userClients body) > 128) $
+    maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+    when (Map.size (userClients body) > maxSize) $
         throwStd tooManyClients
     json <$> lift (API.claimMultiPrekeyBundles body)
 
