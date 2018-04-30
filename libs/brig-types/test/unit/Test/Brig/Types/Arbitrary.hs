@@ -30,7 +30,6 @@ import Data.Misc
 import Data.Monoid
 import Data.Range
 import Data.Text.Ascii
-import Data.Time
 import Data.Typeable
 import Data.Word
 import Galley.Types.Bot.Service.Internal
@@ -202,6 +201,7 @@ instance Arbitrary NewUser where
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
+        <*> arbitrary
         <*> arbitrary)
       where
         -- Iff we have an ssoid, newUserOrigin must show it.
@@ -209,19 +209,23 @@ instance Arbitrary NewUser where
         tweak :: NewUser -> Gen NewUser
         tweak usr = do
             newpass <- arbitrary
-            pure . fixTeamSso . fixPass newpass $ usr
+            pure . fixExpiry . fixTeamSso . fixPass newpass $ usr
           where
             isTeamUser = case newUserOrigin usr of
                 Just (NewUserOriginTeamUser _) -> True
                 _ -> False
 
-            hasSSOId = case newUserMaybeIdentity usr of
-                JustUserIdentity SSOIdentity {} -> True
+            hasSSOId = case newUserIdentity usr of
+                Just SSOIdentity {} -> True
                 _ -> False
 
             fixPass :: PlainTextPassword -> NewUser -> NewUser
             fixPass p u | isTeamUser && not hasSSOId = u { newUserPassword = Just p }
                         | otherwise                  = u
+
+            fixExpiry :: NewUser -> NewUser
+            fixExpiry u@(newUserIdentity -> Just _) = u { newUserExpiresIn = Nothing }
+            fixExpiry u = u
 
             fixTeamSso :: NewUser -> NewUser
             fixTeamSso = if hasSSOId then setTeamSso else clearTeamSso
@@ -233,18 +237,6 @@ instance Arbitrary NewUser where
             clearTeamSso u = u { newUserOrigin = case newUserOrigin u of
                                    Just (NewUserOriginTeamUser NewTeamMemberSSO) -> Nothing
                                    v -> v }
-
-instance {-# OVERLAPPABLE #-} Arbitrary a => Arbitrary (MaybeUserIdentity a) where
-    arbitrary = oneof
-        [ JustUserIdentity <$> arbitrary
-        , NothingUserIdentity <$> arbitrary
-        ]
-
-instance {-# OVERLAPPING #-} Arbitrary (MaybeUserIdentity UTCTime) where
-    arbitrary = oneof
-        [ JustUserIdentity <$> arbitrary
-        , NothingUserIdentity . fromUTCTimeMillis <$> arbitrary
-        ]
 
 instance Arbitrary UTCTimeMillis where
     arbitrary = fromRight (error "instance Arbitrary UTCTimeMillis")
@@ -330,6 +322,7 @@ instance Arbitrary User where
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
+        <*> (fromUTCTimeMillis <$$> arbitrary)
         <*> arbitrary
 
 instance Arbitrary VerifyDeleteUser where

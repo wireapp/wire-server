@@ -49,27 +49,6 @@ unitTests =
         , testCase "Nothing" $
             Right Nothing =#= [("something_unrelated", "#")]
         ]
-
-    , let (=#=) :: Either String (MaybeUserIdentity Bool) -> [Pair] -> Assertion
-          (=#=) uid (object -> Object obj) = assertEqual "=#=" uid (parseEither (parseMaybeIdentity "expire") obj)
-          (=#=) _ bad = error $ "=#=: impossible: " <> show bad
-
-          expire    = ("expire", Bool True)
-          badexpire = ("expire", "#23")
-
-      in testGroup "parseMaybeIdentity"
-        [ testCase "UserIdentity" $
-            Right (JustUserIdentity (PhoneIdentity hphone)) =#= [phone]
-        , testCase "ephemeral" $
-            Right (NothingUserIdentity True) =#= [expire]
-        , testCase "errors" $ do
-            Left "Error in $.expire: expected Bool, encountered String"
-              =#= [badexpire]
-            Left "Error in $: parseMaybeIdentityUser: (Just (PhoneIdentity (Phone {fromPhone = \"+493012345678\"})),Just True)"
-              =#= [phone, expire]
-            Left "Error in $: parseMaybeIdentityUser: (Nothing,Nothing)"
-              =#= []
-        ]
     ]
   where
     hemail    = Email "me" "example.com"
