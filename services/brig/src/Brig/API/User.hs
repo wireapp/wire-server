@@ -152,8 +152,8 @@ createUser new@NewUser{..} = do
             throwE (BlacklistedUserKey uk)
 
     -- Look for an invitation, if a code is given
-    invitation <- maybe (return Nothing) (findInvitation emKey phKey) newUserInvitationCode
-    (newTeam, teamInvitation, tid) <- handleTeam newUserTeam emKey
+    invitation <- maybe (return Nothing) (findInvitation emKey phKey) (newUserInvitationCode new)
+    (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
 
     -- team members are by default not searchable
     let searchable = SearchableStatus $ case (newTeam, teamInvitation) of
@@ -246,6 +246,7 @@ createUser new@NewUser{..} = do
         Just (inv, info, tid) -> (Nothing, Just (inv, info), Just tid)
         Nothing               -> (Nothing, Nothing         , Nothing)
     handleTeam (Just (NewTeamCreator t)) _ = (Just t, Nothing, ) <$> (Just . Id <$> liftIO nextRandom)
+    handleTeam (Just NewTeamMemberSSO)   _ = pure (Nothing, Nothing, Just (error "not implemented: find the team id."))
     handleTeam Nothing                   _ = return (Nothing, Nothing, Nothing)
 
     findInvitation :: Maybe UserKey -> Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe (Invitation, InvitationInfo))

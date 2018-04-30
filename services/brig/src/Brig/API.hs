@@ -1165,6 +1165,7 @@ createUser (_ ::: _ ::: req) = do
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail _ (CreateUserTeam _ _) (NewTeamCreator _) _ = return ()
     sendWelcomeEmail e (CreateUserTeam t n) (NewTeamMember  _) l = Team.sendMemberWelcomeMail e t n l
+    sendWelcomeEmail e (CreateUserTeam t n) NewTeamMemberSSO l   = Team.sendMemberWelcomeMail e t n l
 
 createUserNoVerify :: JSON ::: JSON ::: Request -> Handler Response
 createUserNoVerify (_ ::: _ ::: req) = do
