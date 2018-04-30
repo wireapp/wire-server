@@ -24,6 +24,7 @@ dist
 gen-hs
 log
 tags
+TAGS
 .stack-work
 .metadata
 *.tix
