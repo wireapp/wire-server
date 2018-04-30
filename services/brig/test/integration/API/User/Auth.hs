@@ -17,14 +17,12 @@ import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List (sort, partition)
-import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
 import Data.Monoid
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
-import System.Logger (Logger)
 import System.Random (randomIO)
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -42,10 +40,8 @@ import qualified Data.UUID.V4         as UUID
 
 import qualified Network.Wai.Utilities.Error as Error
 
-tests :: Maybe Opts.Opts -> Manager -> Logger -> Brig -> IO TestTree
-tests conf m _ b = do
-    z <- mkZAuthEnv conf
-    return $ testGroup "auth"
+tests :: Maybe Opts.Opts -> Manager -> ZAuth.Env -> Brig -> TestTree
+tests conf m z b = testGroup "auth"
         [ testGroup "login"
             [ test m "email" (testEmailLogin b)
             , test m "phone" (testPhoneLogin b)
@@ -77,12 +73,6 @@ tests conf m _ b = do
 
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
-
-mkZAuthEnv :: Maybe Opts.Opts -> IO ZAuth.Env
-mkZAuthEnv config = do
-    Just (sk :| sks) <- join $ optOrEnv (ZAuth.readKeys . Opts.privateKeys . Opts.zauth) config ZAuth.readKeys "ZAUTH_PRIVKEYS"
-    Just (pk :| pks) <- join $ optOrEnv (ZAuth.readKeys . Opts.privateKeys . Opts.zauth) config ZAuth.readKeys "ZAUTH_PUBKEYS"
-    ZAuth.mkEnv (sk :| sks) (pk :| pks) ZAuth.defSettings
 
 randomAccessToken :: ZAuth ZAuth.AccessToken
 randomAccessToken = randomUserToken >>= ZAuth.newAccessToken
@@ -528,4 +518,3 @@ remJson p l ids = object
 
 wait :: MonadIO m => m ()
 wait = liftIO $ threadDelay 1000000
-
