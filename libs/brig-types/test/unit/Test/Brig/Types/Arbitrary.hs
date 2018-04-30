@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE LambdaCase          #-}
@@ -26,6 +27,7 @@ import Data.Either
 import Data.IP
 import Data.Json.Util (UTCTimeMillis (..))
 import Data.LanguageCodes
+import Data.Maybe
 import Data.Misc
 import Data.Monoid
 import Data.Range
@@ -190,53 +192,27 @@ instance Arbitrary NewPasswordReset where
     arbitrary = NewPasswordReset <$> arbitrary
 
 instance Arbitrary NewUser where
-    arbitrary = tweak =<< (NewUser
-        <$> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-        <*> arbitrary
-        <*> arbitrary)
-      where
-        -- Iff we have an ssoid, newUserOrigin must show it.
-        -- Iff a team user is not sso, she needs a password.
-        tweak :: NewUser -> Gen NewUser
-        tweak usr = do
-            newpass <- arbitrary
-            pure . fixExpiry . fixTeamSso . fixPass newpass $ usr
-          where
-            isTeamUser = case newUserOrigin usr of
-                Just (NewUserOriginTeamUser _) -> True
-                _ -> False
-
-            hasSSOId = case newUserIdentity usr of
+    arbitrary = do
+        newUserIdentity <- arbitrary
+        let hasSSOId = case newUserIdentity of
                 Just SSOIdentity {} -> True
                 _ -> False
-
-            fixPass :: PlainTextPassword -> NewUser -> NewUser
-            fixPass p u | isTeamUser && not hasSSOId = u { newUserPassword = Just p }
-                        | otherwise                  = u
-
-            fixExpiry :: NewUser -> NewUser
-            fixExpiry u@(newUserIdentity -> Just _) = u { newUserExpiresIn = Nothing }
-            fixExpiry u = u
-
-            fixTeamSso :: NewUser -> NewUser
-            fixTeamSso = if hasSSOId then setTeamSso else clearTeamSso
-
-            setTeamSso :: NewUser -> NewUser
-            setTeamSso u = u { newUserOrigin = Just (NewUserOriginTeamUser NewTeamMemberSSO) }
-
-            clearTeamSso :: NewUser -> NewUser
-            clearTeamSso u = u { newUserOrigin = case newUserOrigin u of
-                                   Just (NewUserOriginTeamUser NewTeamMemberSSO) -> Nothing
-                                   v -> v }
+            ssoOrigin = Just (NewUserOriginTeamUser NewTeamMemberSSO)
+        newUserOrigin <- if hasSSOId then pure ssoOrigin else arbitrary `suchThat` (/= ssoOrigin)
+        let isTeamUser = case newUserOrigin of
+                Just (NewUserOriginTeamUser _) -> True
+                _ -> False
+        newUserName       <- arbitrary
+        newUserPict       <- arbitrary
+        newUserAssets     <- arbitrary
+        newUserAccentId   <- arbitrary
+        newUserEmailCode  <- arbitrary
+        newUserPhoneCode  <- arbitrary
+        newUserLabel      <- arbitrary
+        newUserLocale     <- arbitrary
+        newUserPassword   <- if isTeamUser && not hasSSOId then Just <$> arbitrary else arbitrary
+        newUserExpiresIn  <- if isJust newUserIdentity then pure Nothing else arbitrary
+        pure NewUser{..}
 
 instance Arbitrary UTCTimeMillis where
     arbitrary = fromRight (error "instance Arbitrary UTCTimeMillis")
