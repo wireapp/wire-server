@@ -344,6 +344,10 @@ testCreateUserInternalSSO brig = do
         (Just want)
         (userIdentity $ selfUser profile)
 
+    -- finds the matching team id.  (TODO: there always has to be one, right?)
+    liftIO $ assertBool "self profile user team is Nothing"
+        (isJust . userTeam $ selfUser profile)
+
 testActivateWithExpiry :: Brig -> Opt.Timeout -> Http ()
 testActivateWithExpiry brig timeout = do
     Just u <- decodeBody <$> registerUser "dilbert" "success@simulator.amazonses.com" brig
