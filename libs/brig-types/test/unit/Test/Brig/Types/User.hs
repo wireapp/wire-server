@@ -26,28 +26,28 @@ tests = testGroup "User (types vs. aeson)" $ unitTests <> roundtripTests
 
 unitTests :: [TestTree]
 unitTests =
-    [ let (=#=) :: Either String (Maybe UserIdentity) -> [Pair] -> Assertion
-          (=#=) uid (object -> Object obj) = assertEqual "=#=" uid (parseEither parseIdentity obj)
+    [ let (=#=) :: Either String (Maybe UserIdentity) -> (Maybe UserSSOId, [Pair]) -> Assertion
+          (=#=) uid (mssoid, object -> Object obj) = assertEqual "=#=" uid (parseEither (parseIdentity mssoid) obj)
           (=#=) _ bad = error $ "=#=: impossible: " <> show bad
 
       in testGroup "parseIdentity"
         [ testCase "FullIdentity" $
-            Right (Just (FullIdentity hemail hphone)) =#= [email, phone]
+            Right (Just (FullIdentity hemail hphone)) =#= (Nothing, [email, phone])
         , testCase "EmailIdentity" $
-            Right (Just (EmailIdentity hemail)) =#= [email]
+            Right (Just (EmailIdentity hemail)) =#= (Nothing, [email])
         , testCase "PhoneIdentity" $
-            Right (Just (PhoneIdentity hphone)) =#= [phone]
+            Right (Just (PhoneIdentity hphone)) =#= (Nothing, [phone])
         , testCase "SSOIdentity" $ do
-            Right (Just (SSOIdentity hssoid Nothing       Nothing))       =#= [ssoid]
-            Right (Just (SSOIdentity hssoid Nothing       (Just hphone))) =#= [ssoid, phone]
-            Right (Just (SSOIdentity hssoid (Just hemail) Nothing))       =#= [ssoid, email]
-            Right (Just (SSOIdentity hssoid (Just hemail) (Just hphone))) =#= [ssoid, email, phone]
+            Right (Just (SSOIdentity hssoid Nothing       Nothing))       =#= (Just hssoid, [ssoid])
+            Right (Just (SSOIdentity hssoid Nothing       (Just hphone))) =#= (Just hssoid, [ssoid, phone])
+            Right (Just (SSOIdentity hssoid (Just hemail) Nothing))       =#= (Just hssoid, [ssoid, email])
+            Right (Just (SSOIdentity hssoid (Just hemail) (Just hphone))) =#= (Just hssoid, [ssoid, email, phone])
         , testCase "Bad phone" $
-            Left "Error in $.phone: Invalid phone number. Expected E.164 format." =#= [badphone]
+            Left "Error in $.phone: Invalid phone number. Expected E.164 format." =#= (Nothing, [badphone])
         , testCase "Bad email" $
-            Left "Error in $.email: Invalid email. Expected '<local>@<domain>'." =#= [bademail]
+            Left "Error in $.email: Invalid email. Expected '<local>@<domain>'." =#= (Nothing, [bademail])
         , testCase "Nothing" $
-            Right Nothing =#= [("something_unrelated", "#")]
+            Right Nothing =#= (Nothing, [("something_unrelated", "#")])
         ]
     ]
   where
@@ -60,7 +60,7 @@ unitTests =
     badphone  = ("phone", "__@@")
 
     hssoid    = UserSSOId "blu:bnee"
-    ssoid     = ("ssoid", "blu:bnee")
+    ssoid     = ("sso_id", "blu:bnee")
 
 
 roundtripTests :: [TestTree]

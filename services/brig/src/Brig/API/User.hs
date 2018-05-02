@@ -246,7 +246,7 @@ createUser new@NewUser{..} = do
         Just (inv, info, tid) -> (Nothing, Just (inv, info), Just tid)
         Nothing               -> (Nothing, Nothing         , Nothing)
     handleTeam (Just (NewTeamCreator t)) _ = (Just t, Nothing, ) <$> (Just . Id <$> liftIO nextRandom)
-    handleTeam (Just NewTeamMemberSSO)   _ = pure (Nothing, Nothing, Just (error "not implemented: find the team id."))
+    handleTeam (Just (NewTeamMemberSSO tid)) _ = pure (Nothing, Nothing, Just tid)
     handleTeam Nothing                   _ = return (Nothing, Nothing, Nothing)
 
     findInvitation :: Maybe UserKey -> Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe (Invitation, InvitationInfo))

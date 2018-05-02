@@ -153,7 +153,7 @@ postUser name email invCode ssoid brig = do
             , "password"        .= defPassword
             , "invitation_code" .= invCode
             , "cookie"          .= defCookieLabel
-            , "ssoid"           .= ssoid
+            , "sso_id"          .= ssoid
             ]
     post (brig . path "/i/users" . contentJson . body p)
 

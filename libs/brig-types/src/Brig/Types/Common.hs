@@ -167,8 +167,8 @@ instance FromJSON UserIdentity where
     parseJSON = withObject "UserIdentity" $ \o -> do
         email <- o .:? "email"
         phone <- o .:? "phone"
-        ssoid <- o .:? "ssoid"
-        maybe (fail "Missing 'email' or 'phone' or 'ssoid'.")
+        ssoid <- o .:? "sso_id"
+        maybe (fail "Missing 'email' or 'phone' or 'sso_id'.")
               return
               (newIdentity email phone ssoid)
 
@@ -180,7 +180,7 @@ instance ToJSON UserIdentity where
         SSOIdentity si em ph -> go em        ph        (Just si)
       where
         go :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Value
-        go em ph si = object $ ["email" .= em, "phone" .= ph, "ssoid" .= si]
+        go em ph si = object $ ["email" .= em, "phone" .= ph, "sso_id" .= si]
 
 newIdentity :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
 newIdentity email    phone    (Just sso) = Just $! SSOIdentity sso email phone

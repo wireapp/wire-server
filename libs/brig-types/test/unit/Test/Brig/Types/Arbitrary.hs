@@ -194,11 +194,14 @@ instance Arbitrary NewPasswordReset where
 instance Arbitrary NewUser where
     arbitrary = do
         newUserIdentity <- arbitrary
+        teamid <- arbitrary
         let hasSSOId = case newUserIdentity of
                 Just SSOIdentity {} -> True
                 _ -> False
-            ssoOrigin = Just (NewUserOriginTeamUser NewTeamMemberSSO)
-        newUserOrigin <- if hasSSOId then pure ssoOrigin else arbitrary `suchThat` (/= ssoOrigin)
+            ssoOrigin = Just (NewUserOriginTeamUser (NewTeamMemberSSO teamid))
+            isSsoOrigin (Just (NewUserOriginTeamUser (NewTeamMemberSSO _))) = True
+            isSsoOrigin _ = False
+        newUserOrigin <- if hasSSOId then pure ssoOrigin else arbitrary `suchThat` (not . isSsoOrigin)
         let isTeamUser = case newUserOrigin of
                 Just (NewUserOriginTeamUser _) -> True
                 _ -> False
@@ -244,7 +247,7 @@ instance Arbitrary NewTeamUser where
     arbitrary = oneof
         [ NewTeamMember <$> arbitrary
         , NewTeamCreator <$> arbitrary
-        , pure NewTeamMemberSSO
+        , NewTeamMemberSSO <$> arbitrary
         ]
 
 instance Arbitrary PasswordChange where

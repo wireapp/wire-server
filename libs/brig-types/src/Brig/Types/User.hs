@@ -161,6 +161,8 @@ data UserProfile = UserProfile
     }
     deriving (Eq, Show)
 
+-- TODO: json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin' are entangled in
+-- an unhealthy way.  shouldn't be too hard to refactor!
 instance ToJSON User where
     toJSON u = object
         $ "id"         .= userId u
@@ -176,13 +178,14 @@ instance ToJSON User where
         # "handle"     .= userHandle u
         # "expires_at" .= (UTCTimeMillis <$> userExpire u)
         # "team"       .= userTeam u
-        # "ssoid"      .= userSSOId u
+        # "sso_id"     .= userSSOId u
         # []
 
 instance FromJSON User where
-    parseJSON = withObject "user" $ \o ->
+    parseJSON = withObject "user" $ \o -> do
+        ssoid <- o .:? "sso_id"
         User <$> o .:  "id"
-             <*> parseIdentity o
+             <*> parseIdentity ssoid o
              <*> o .:  "name"
              <*> o .:? "picture" .!= noPict
              <*> o .:? "assets"  .!= []
@@ -265,24 +268,26 @@ parseNewUserOrigin pass uid ssoid o = do
     invcode  <- o .:? "invitation_code"
     teamcode <- o .:? "team_code"
     team     <- o .:? "team"
-    result <- case (invcode, teamcode, team, ssoid) of
-        (Just a,  Nothing, Nothing, Nothing) -> return . Just . NewUserOriginInvitationCode $ a
-        (Nothing, Just a,  Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamMember a
-        (Nothing, Nothing, Just a,  Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamCreator a
-        (Nothing, Nothing, Nothing, Just _)  -> return . Just . NewUserOriginTeamUser $ NewTeamMemberSSO
-        (Nothing, Nothing, Nothing, Nothing) -> return Nothing
-        (_, _, _, _) -> fail "team_code, team, invitation_code, ssoid are mutually exclusive"
+    teamid   <- o .:? "team_id"
+    result <- case (invcode, teamcode, team, ssoid, teamid) of
+        (Just a,  Nothing, Nothing, Nothing, Nothing) -> return . Just . NewUserOriginInvitationCode $ a
+        (Nothing, Just a,  Nothing, Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamMember a
+        (Nothing, Nothing, Just a,  Nothing, Nothing) -> return . Just . NewUserOriginTeamUser $ NewTeamCreator a
+        (Nothing, Nothing, Nothing, Just _,  Just t)  -> return . Just . NewUserOriginTeamUser $ NewTeamMemberSSO t
+        (Nothing, Nothing, Nothing, Nothing, Nothing) -> return Nothing
+        (_, _, _, _, _) -> fail $ "team_code, team, invitation_code, sso_id are mutually exclusive\
+                                  \ and sso_id, teamid must be either both present or both absent."
     case (result, pass, uid) of
         (_, _, Just SSOIdentity {}) -> pure result
         (Just (NewUserOriginTeamUser _), Nothing, _) -> fail "all team users must set a password on creation"
         _ -> pure result
 
-jsonNewUserOrigin :: ToJSON ssoid => Maybe ssoid -> NewUserOrigin -> [Pair]
-jsonNewUserOrigin ssoid = \case
+jsonNewUserOrigin :: NewUserOrigin -> [Pair]
+jsonNewUserOrigin = \case
     NewUserOriginInvitationCode inv             -> ["invitation_code" .= inv]
     NewUserOriginTeamUser (NewTeamMember tc)    -> ["team_code" .= tc]
     NewUserOriginTeamUser (NewTeamCreator team) -> ["team" .= team]
-    NewUserOriginTeamUser NewTeamMemberSSO      -> ["ssoid" .= ssoid]
+    NewUserOriginTeamUser (NewTeamMemberSSO ti) -> ["team_id" .= ti]
 
 newUserInvitationCode :: NewUser -> Maybe InvitationCode
 newUserInvitationCode nu = case newUserOrigin nu of
@@ -305,8 +310,9 @@ newUserSSOId = ssoIdentity <=< newUserIdentity
 
 instance FromJSON NewUser where
       parseJSON = withObject "new-user" $ \o -> do
+          ssoid                 <- o .:? "sso_id"
           newUserName           <- o .: "name"
-          newUserIdentity       <- parseIdentity o
+          newUserIdentity       <- parseIdentity ssoid o
           newUserPict           <- o .:? "picture"
           newUserAssets         <- o .:? "assets" .!= []
           newUserAccentId       <- o .:? "accent_id"
@@ -315,7 +321,7 @@ instance FromJSON NewUser where
           newUserLabel          <- o .:? "label"
           newUserLocale         <- o .:? "locale"
           newUserPassword       <- o .:? "password"
-          newUserOrigin         <- (o .:? "ssoid") >>= \ssoid -> parseNewUserOrigin newUserPassword newUserIdentity ssoid o
+          newUserOrigin         <- parseNewUserOrigin newUserPassword newUserIdentity ssoid o
           newUserExpires   <- o .:? "expires_in"
           newUserExpiresIn <- case (newUserExpires, newUserIdentity) of
                 (Just _, Just _) -> fail "Only users without an identity can expire"
@@ -337,11 +343,12 @@ instance ToJSON NewUser where
         # "locale"          .= newUserLocale u
         # "password"        .= newUserPassword u
         # "expires_in"      .= newUserExpiresIn u
-        # maybe [] (jsonNewUserOrigin (newUserSSOId u)) (newUserOrigin u)
+        # "sso_id"          .= newUserSSOId u
+        # maybe [] jsonNewUserOrigin (newUserOrigin u)
 
 -- | Fails if email or phone or ssoid are present but invalid
-parseIdentity :: Object -> Parser (Maybe UserIdentity)
-parseIdentity o = if isJust (HashMap.lookup "email" o <|> HashMap.lookup "phone" o <|> HashMap.lookup "ssoid" o)
+parseIdentity :: Maybe UserSSOId -> Object -> Parser (Maybe UserIdentity)
+parseIdentity ssoid o = if isJust (HashMap.lookup "email" o <|> HashMap.lookup "phone" o) || isJust ssoid
     then Just <$> parseJSON (Object o)
     else pure Nothing
 
@@ -372,7 +379,7 @@ instance ToJSON BindingNewTeamUser where
 
 data NewTeamUser = NewTeamMember    !InvitationCode      -- ^ requires email address
                  | NewTeamCreator   !BindingNewTeamUser
-                 | NewTeamMemberSSO
+                 | NewTeamMemberSSO !TeamId
     deriving (Eq, Show)
 
 -- | newtype for using in external end-points where setting an 'SSOIdentity' is not allowed.

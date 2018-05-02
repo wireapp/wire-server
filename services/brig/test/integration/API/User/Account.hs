@@ -320,31 +320,35 @@ testCreateUserExternalSSO brig = do
     let ssoid = UserSSOId "idpUUID:userUUID"
         p = RequestBodyLBS . encode $ object
               [ "name"  .= ("foo" :: Text)
-              , "ssoid" .= Just ssoid
+              , "sso_id" .= Just ssoid
               ]
+    -- ssoid is not allowed
     post (brig . path "/register" . contentJson . body p) !!!
       const 400 === statusCode
 
 testCreateUserInternalSSO :: Brig -> Http ()
 testCreateUserInternalSSO brig = do
+    let want :: UserSSOId
+        want = UserSSOId "idpUUID:userUUID"
+
+        getUserSSOId :: UserIdentity -> Maybe UserSSOId
+        getUserSSOId (SSOIdentity i _ _) = Just i
+        getUserSSOId _ = Nothing
+
     -- creating user with sso is ok
     let ssoid = UserSSOId "idpUUID:userUUID"
-    resp <- postUser "dummy" "success+dummy@simulator.amazonses.com" Nothing (Just ssoid) brig <!! do
+    resp <- postUser "dummy" "success@simulator.amazonses.com" Nothing (Just ssoid) brig <!! do
         const 201 === statusCode
-        let want :: UserIdentity
-            want = SSOIdentity (UserSSOId "") Nothing Nothing
-        const (Just want) === (userIdentity . selfUser <=< decodeBody)
+        const (Just want) === (getUserSSOId <=< userIdentity . selfUser <=< decodeBody)
 
     -- self profile contains sso id
     let Just uid = userId <$> decodeBody resp
     profile <- getSelfProfile brig uid
-    let want :: UserIdentity
-        want = SSOIdentity (UserSSOId "") Nothing Nothing
     liftIO $ assertEqual "self profile user identity mismatch"
         (Just want)
-        (userIdentity $ selfUser profile)
+        (getUserSSOId =<< userIdentity (selfUser profile))
 
-    -- finds the matching team id.  (TODO: there always has to be one, right?)
+    -- sso-managed users must have team id.
     liftIO $ assertBool "self profile user team is Nothing"
         (isJust . userTeam $ selfUser profile)
 
