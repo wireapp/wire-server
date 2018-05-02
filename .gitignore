@@ -44,3 +44,4 @@ gundeck-schema.yaml
 gundeck.yaml
 proxy.yaml
 DOCKER_ID*
+swagger-ui

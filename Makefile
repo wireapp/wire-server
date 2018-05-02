@@ -19,12 +19,13 @@ fast: init
 .PHONY: clean
 clean:
 	stack clean
+	$(MAKE) -C services/nginz clean
 	-rm -rf dist
 	-rm -f .metadata
 
 .PHONY: services
-services:
-	$(foreach service,$(HASKELL_SERVICES),$(MAKE) -C services/$(service);)
+services: init install
+	$(MAKE) -C services/nginz
 
 .PHONY: integration
 integration: fast
