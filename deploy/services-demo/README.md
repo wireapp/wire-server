@@ -6,12 +6,12 @@ Use 2 different terminals and run:
 
 ```
 # On terminal 1, start the dependencies
-(cd ./deploy/docker-ephemeral; docker-compose up)
+deploy/docker-ephemeral/run.sh
 ```
 
 ```
 # On terminal 2, start the services
-./deploy/services-demo/demo.sh
+deploy/services-demo/demo.sh
 ```
 
 ### Structure of the services-demo folder
@@ -42,14 +42,6 @@ The way that the data stores used are set up is done in a simple way that is not
 It is however very straightforward to setup all the necessary dependencies to run `wire-server` and it is what we use in our integration tests as well (as can be seen in our [integration bash script](../../services/integration.sh)).
 
 ### Common problems
-
-> Schema Version too old! Expecting at least: <...>, but got: <...> when running `./demo.sh`.
-
-If there are schema changes and you don't force pull the docker migrations, you may run out of sync. We recommend that you run the following:
-
-`docker-compose pull && docker-compose up`
-
-Which will ensure that your DB schema is up to date.
 
 > nginx: [alert] could not open error log file: open() "/var/log/nginz/error.log" failed (2: No such file or directory)
 

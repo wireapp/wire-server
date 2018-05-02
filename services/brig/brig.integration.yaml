@@ -24,7 +24,7 @@ gundeck:
   host: 127.0.0.1
   port: 8086
 
-# You can set up local SQS/Dynamo running e.g. `docker-compose -f ../../deploy/docker-ephemeral/docker-compose.yaml up`
+# You can set up local SQS/Dynamo running e.g. `../../deploy/docker-ephemeral/run.sh`
 aws:
   sesQueue: integration-brig-events
   internalQueue: integration-brig-events-internal
