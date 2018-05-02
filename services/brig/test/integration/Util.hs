@@ -143,7 +143,7 @@ getConnection brig from to = get $ brig
     . zUser from
     . zConn "conn"
 
--- TODO: createUser
+-- more flexible variant of 'createUser' (see above).
 postUser :: Text -> Text -> Maybe InvitationCode -> Maybe UserSSOId -> Brig -> Http ResponseLBS
 postUser name email invCode ssoid brig = do
     e <- mkEmail email
