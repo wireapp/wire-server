@@ -445,8 +445,8 @@ getTeamConv usr tid cnv = do
 -------------------------------------------------------------------------------
 -- User management
 
-rmUser :: UserId -> AppIO ()
-rmUser usr = do
+rmUser :: UserId -> [Asset] -> AppIO ()
+rmUser usr asts = do
     debug $ remote "gundeck"
           . field "user" (toByteString usr)
           . msg (val "remove user")
@@ -456,6 +456,15 @@ rmUser usr = do
           . field "user" (toByteString usr)
           . msg (val "remove user")
     void $ galleyRequest DELETE (path "/i/user" . zUser usr . expect2xx)
+
+    debug $ remote "cargohold"
+          . field "user" (toByteString usr)
+          . msg (val "remove profile assets")
+    -- Note that we _may_ not get a 2xx response code from cargohold (e.g., client has
+    -- deleted the asset "directly" with cargohold; on our side, we just do our best to 
+    -- delete it in case it is still there
+    forM_ asts $ \ast ->
+        cargoholdRequest DELETE (paths ["assets/v3", toByteString' $ assetKey ast] . zUser usr)
 
 -------------------------------------------------------------------------------
 -- Client management

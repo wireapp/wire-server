@@ -37,11 +37,12 @@ import qualified System.Logger         as Logger
 
 data Config = Config
   -- internal endpoints
-  { brig     :: Endpoint
-  , cannon   :: Endpoint
-  , galley   :: Endpoint
+  { brig      :: Endpoint
+  , cannon    :: Endpoint
+  , cargohold :: Endpoint
+  , galley    :: Endpoint
   -- external provider
-  , provider :: Provider.Config
+  , provider  :: Provider.Config
   } deriving (Show, Generic)
 
 instance FromJSON Config
@@ -49,9 +50,10 @@ instance FromJSON Config
 runTests :: Maybe Config -> Maybe Opts.Opts -> IO ()
 runTests iConf bConf = do
     let local p = Endpoint { _epHost = "127.0.0.1", _epPort = p }
-    b <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
-    c <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
-    g <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
+    b  <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
+    c  <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
+    ch <- mkRequest <$> optOrEnv cargohold iConf (local . read) "CARGOHOLD_WEB_PORT"
+    g  <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
     turnFile <- optOrEnv (Opts.servers . Opts.turn) bConf id "TURN_SERVERS"
     casHost  <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epHost) bConf pack "BRIG_CASSANDRA_HOST"
     casPort  <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epPort) bConf read "BRIG_CASSANDRA_PORT"
@@ -62,7 +64,7 @@ runTests iConf bConf = do
     db <- defInitCassandra casKey casHost casPort lg
     mg <- newManager tlsManagerSettings
 
-    userApi     <- User.tests bConf mg b c g =<< mkLocalAWSEnv lg awsOpts mg
+    userApi     <- User.tests bConf mg b c ch g =<< mkLocalAWSEnv lg awsOpts mg
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
     teamApis    <- Team.tests bConf mg b c g

@@ -735,7 +735,7 @@ deleteAccount account@(accountUser -> user) = do
     Data.clearProperties uid
     tombstone <- mkTombstone
     Data.insertAccount tombstone Nothing False (SearchableStatus False)
-    Intra.rmUser uid
+    Intra.rmUser uid (userAssets user)
     Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
     Intra.onUserEvent uid Nothing (UserDeleted uid)
     -- Note: Connections can only be deleted afterwards, since

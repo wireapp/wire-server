@@ -4,6 +4,7 @@ packages:
 - '../../libs/brig-types'
 - '../../libs/types-common'
 - '../../libs/bilge'
+- '../../libs/cargohold-types'
 - '../../libs/cassandra-util'
 - '../../libs/gundeck-types'
 - '../../libs/ropes'
@@ -36,6 +37,7 @@ extra-deps:
 - data-timeout-0.3
 - geoip2-0.3.1.0
 - html-entities-1.1.4.1
+- mime-0.4.0.2
 - tasty-1.0.0.1
 - text-icu-translit-0.1.0.7
 - wai-middleware-gunzip-0.0.2
