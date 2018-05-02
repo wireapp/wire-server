@@ -18,6 +18,17 @@ Documentation on how to self host your own Wire-Server is not yet available but 
 
 See more in "[Open sourcing Wire server code](https://medium.com/@wireapp/open-sourcing-wire-server-code-ef7866a731d5)".
 
+## Table of contents
+
+-   [Content of the repository](#content-of-the-repository)
+-   [Architecture Overview](#architecture-overview)
+-   [Development setup](#development-setup)
+    -   [How to build `wire-server` binaries](#how-to-build-wire-server-binaries)
+    -   [How to run integration tests](#how-to-run-integration-tests)
+-   [How to run `wire-server` with "fake" external dependencies](#how-to-run-wire-server-with-fake-external-dependencies)
+-   [How to run `wire-server` with real AWS services](#how-to-run-wire-server-with-real-aws-services)
+-   [Roadmap](#roadmap)
+
 ## Content of the repository
 
 This repository contains the following source code:
@@ -78,6 +89,8 @@ make
 cd services/brig && make
 ```
 
+The default make target (`fast`) compiles unoptimized (faster compilation time, slower binaries), which should be fine for development purposes. Use `make install` to get optimized binaries.
+
 For building nginz, see [services/nginz/README.md](services/nginz/README.md)
 
 #### 2. Use docker
@@ -92,7 +105,7 @@ make docker-services
 
 will, eventually, have built a range of docker images. See the `Makefile`s and `Dockerfile`s, as well as [build/alpine/README.md](build/alpine/README.md) for details.
 
-## How to run integration tests
+### How to run integration tests
 
 Integration tests require all of the haskell services (brig,galley,cannon,gundeck,proxy,cargohold) to be correctly configured and running, before being able to execute e.g. the `brig-integration` binary. This requires most of the deployment dependencies as seen in the architecture diagram to also be available:
 
