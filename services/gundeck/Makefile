@@ -106,7 +106,8 @@ integration: fast i
 .PHONY: integration-list
 integration-list: fast i-list
 
-integration-%: fast i-%
+integration-%: fast
+	make i-"$*"
 
 integration-fake-aws: fast i-fake-aws
 

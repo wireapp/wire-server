@@ -95,7 +95,8 @@ integration: fast i
 .PHONY: integration-list
 integration-list: fast i-list
 
-integration-%: fast i-%
+integration-%: fast
+	make i-"$*"
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
