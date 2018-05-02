@@ -24,6 +24,11 @@ This means that you haven't imported the public key that was used to sign nginx.
 
 `gpg --import <path_to_key>`
 
+Alternatively, you can ask GPG to find the key by its ID (printed in the error message):
+
+`gpg --recv-keys KEY_ID`
+
+---
 
 ```
 checking for OpenSSL library ... not found
