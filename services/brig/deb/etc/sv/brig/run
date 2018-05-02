@@ -70,6 +70,8 @@ exec chpst -u $USER \
     --galley-port=${BRIG_GALLEY_PORT?'unset'} \
     --gundeck-host=${BRIG_GUNDECK_HOST?'unset'} \
     --gundeck-port=${BRIG_GUNDECK_PORT?'unset'} \
+    --cargohold-host=${BRIG_CARGOHOLD_HOST?'unset'} \
+    --cargohold-port=${BRIG_CARGOHOLD_PORT?'unset'} \
     --cassandra-host=${BRIG_CASSANDRA_HOST?'unset'} \
     --cassandra-port=${BRIG_CASSANDRA_PORT?'unset'} \
     --cassandra-keyspace=${BRIG_CASSANDRA_KEYSPACE?'unset'} \
