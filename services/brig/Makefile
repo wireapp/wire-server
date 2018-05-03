@@ -98,7 +98,8 @@ integration: fast i
 .PHONY: integration-list
 integration-list: fast i-list
 
-integration-%: fast i-%
+integration-%: fast
+	make i-"$*"
 
 .PHONY: db
 db: db-reset
