@@ -22,6 +22,9 @@ PID_PATH       ?= /var/run
 EXTRA_CC_INC   ?=
 EXTRA_CC_LIB   ?=
 
+# Where should we look for packages, locally or globally?
+EXTRA_PKG_PATH := $(shell [ -w /usr/local ] && echo /usr/local || echo "$(HOME)/.wire-dev")/lib/pkgconfig
+
 CONFIG_OPTIONS = \
 	--prefix=$(DEST_PATH) \
 	$(WITH_DEBUG) \
@@ -53,15 +56,19 @@ default: compile
 clean:
 	-rm -rf src $(DIST) .metadata zwagger-ui/swagger-ui
 
+.PHONY: check-deps
+check-deps:
+	PKG_CONFIG_PATH=$(EXTRA_PKG_PATH) pkg-config --exists libzauth || { echo -e "\n\033[0;31m    The 'libzauth' library was not found\033[0m\n    pkg-config path = $(EXTRA_PKG_PATH)\n\n    Suggestion: run 'make libzauth' on the top level\n"; exit 1; }
+
 compile: $(BIN)
 	mkdir -p dist ../../dist
 	cp src/objs/nginx ../../dist/
 
 dist: guard-NGINZ_VERSION $(DIST)/$(DEB)
 
-$(BIN): src zwagger-ui/swagger-ui
+$(BIN): check-deps src zwagger-ui/swagger-ui
 	git submodule update --init
-	(cd src; ./configure $(CONFIG_OPTIONS) $(ADDITIONAL_MODULES))
+	(cd src; PKG_CONFIG_PATH=$(EXTRA_PKG_PATH) ./configure $(CONFIG_OPTIONS) $(ADDITIONAL_MODULES))
 	make -C src
 
 %.deb: $(BIN) $(DIST)

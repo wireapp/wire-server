@@ -88,7 +88,8 @@ function run_haskell_service() {
 
 function run_nginz() {
     colour=$1
-    (cd ${SCRIPT_DIR} && ${DIR}/../dist/nginx -p ${SCRIPT_DIR} -c ${SCRIPT_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
+    prefix=$([ -w /usr/local ] && echo /usr/local || echo "${HOME}/.wire-dev")
+    (cd ${SCRIPT_DIR} && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ ${DIR}/../dist/nginx -p ${SCRIPT_DIR} -c ${SCRIPT_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
         | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
 }
 
