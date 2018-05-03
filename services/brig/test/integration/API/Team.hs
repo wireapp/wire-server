@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE TypeApplications  #-}
 
 module API.Team (tests) where
 
@@ -76,6 +77,9 @@ tests conf m b c g = do
             ]
         , testGroup "search"
             [ test m "post /register members are unsearchable"           $ testNonSearchableDefault b g
+            ]
+        , testGroup "sso"
+            [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g
             ]
         ]
 
@@ -530,6 +534,48 @@ testNonSearchableDefault brig galley = do
     assertSearchable "member isn't searchable" brig uid3 False
     assertCan'tFind brig uid1 uid3 iHandle
 
+----------------------------------------------------------------------
+-- SSO
+
+testCreateUserInternalSSO :: Brig -> Galley -> Http ()
+testCreateUserInternalSSO brig galley = do
+    teamid <- snd <$> createUserWithTeam brig galley
+    let ssoid = UserSSOId "idpUUID:userUUID"
+
+        want :: UserSSOId
+        want = UserSSOId "idpUUID:userUUID"
+
+        getUserSSOId :: UserIdentity -> Maybe UserSSOId
+        getUserSSOId (SSOIdentity i _ _) = Just i
+        getUserSSOId _ = Nothing
+
+    -- creating users requires both sso_id and team_id
+    postUser "dummy" "success@simulator.amazonses.com" Nothing (Just ssoid) Nothing brig
+        !!! const 400 === statusCode
+    postUser "dummy" "success@simulator.amazonses.com" Nothing Nothing (Just teamid) brig
+        !!! const 400 === statusCode
+
+    -- creating user with sso_id, team_id is ok
+    resp <- postUser "dummy" "success@simulator.amazonses.com" Nothing (Just ssoid) (Just teamid) brig <!! do
+        const 201 === statusCode
+        const (Just want) === (getUserSSOId <=< userIdentity . selfUser <=< decodeBody)
+
+    -- self profile contains sso id
+    let Just uid = userId <$> decodeBody resp
+    profile <- getSelfProfile brig uid
+    liftIO $ assertEqual "self profile user identity mismatch"
+        (Just want)
+        (getUserSSOId =<< userIdentity (selfUser profile))
+
+    -- sso-managed users must have team id.
+    let Just teamid' = userTeam $ selfUser profile
+    liftIO $ assertEqual "bad team_id" teamid teamid'
+
+    -- does gally know about this?  is user active?
+    _ <- getTeamMember uid teamid galley
+    isact <- isActivatedUser uid brig
+    liftIO $ assertBool "user not activated" isact
+
 -------------------------------------------------------------------------------
 -- Utilities
 
@@ -653,3 +699,10 @@ updatePermissions from tid (to, perm) galley =
         ) !!! const 200 === statusCode
   where
     changeMember = Team.newNewTeamMember $ Team.newTeamMember to perm
+
+isActivatedUser :: UserId -> Brig -> Http Bool
+isActivatedUser uid brig = do
+    resp <- get (brig . path "/i/users" . queryItem "ids" (toByteString' uid) . expect2xx)
+    pure $ case decodeBody @[User] resp of
+        Just (_:_) -> True
+        _ -> False

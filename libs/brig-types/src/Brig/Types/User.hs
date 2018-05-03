@@ -276,7 +276,7 @@ parseNewUserOrigin pass uid ssoid o = do
         (Nothing, Nothing, Nothing, Just _,  Just t)  -> return . Just . NewUserOriginTeamUser $ NewTeamMemberSSO t
         (Nothing, Nothing, Nothing, Nothing, Nothing) -> return Nothing
         (_, _, _, _, _) -> fail $ "team_code, team, invitation_code, sso_id are mutually exclusive\
-                                  \ and sso_id, teamid must be either both present or both absent."
+                                  \ and sso_id, team_id must be either both present or both absent."
     case (result, pass, uid) of
         (_, _, Just SSOIdentity {}) -> pure result
         (Just (NewUserOriginTeamUser _), Nothing, _) -> fail "all team users must set a password on creation"

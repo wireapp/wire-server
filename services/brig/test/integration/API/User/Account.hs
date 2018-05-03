@@ -1,7 +1,8 @@
 {-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module API.User.Account (tests) where
 
@@ -68,7 +69,6 @@ tests _cl at _conf p b c ch g aws = testGroup "account"
     , test' aws p "post /register - 400"                     $ testCreateUserInvalidPhone b
     , test' aws p "post /register - 403 blacklist"           $ testCreateUserBlacklist b aws
     , test' aws p "post /register - 400 external-SSO"        $ testCreateUserExternalSSO b
-    , test' aws p "post /i/users  - 201 internal-SSO"        $ testCreateUserInternalSSO b
     , test' aws p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b at
     , test' aws p "get /users/:id - 404"                     $ testNonExistingUser b
     , test' aws p "get /users/:id - 200"                     $ testExistingUser b
@@ -317,40 +317,18 @@ testCreateUserBlacklist brig aws =
 
 testCreateUserExternalSSO :: Brig -> Http ()
 testCreateUserExternalSSO brig = do
+    teamid <- Id <$> liftIO UUID.nextRandom
     let ssoid = UserSSOId "idpUUID:userUUID"
-        p = RequestBodyLBS . encode $ object
-              [ "name"  .= ("foo" :: Text)
-              , "sso_id" .= Just ssoid
-              ]
-    -- ssoid is not allowed
-    post (brig . path "/register" . contentJson . body p) !!!
+        p withsso withteam = RequestBodyLBS . encode . object $
+              [ "name"  .= ("foo" :: Text) ] <>
+              [ "sso_id" .= Just ssoid | withsso ] <>
+              [ "team_id" .= Just teamid | withteam ]
+    post (brig . path "/register" . contentJson . body (p False True)) !!!
       const 400 === statusCode
-
-testCreateUserInternalSSO :: Brig -> Http ()
-testCreateUserInternalSSO brig = do
-    let want :: UserSSOId
-        want = UserSSOId "idpUUID:userUUID"
-
-        getUserSSOId :: UserIdentity -> Maybe UserSSOId
-        getUserSSOId (SSOIdentity i _ _) = Just i
-        getUserSSOId _ = Nothing
-
-    -- creating user with sso is ok
-    let ssoid = UserSSOId "idpUUID:userUUID"
-    resp <- postUser "dummy" "success@simulator.amazonses.com" Nothing (Just ssoid) brig <!! do
-        const 201 === statusCode
-        const (Just want) === (getUserSSOId <=< userIdentity . selfUser <=< decodeBody)
-
-    -- self profile contains sso id
-    let Just uid = userId <$> decodeBody resp
-    profile <- getSelfProfile brig uid
-    liftIO $ assertEqual "self profile user identity mismatch"
-        (Just want)
-        (getUserSSOId =<< userIdentity (selfUser profile))
-
-    -- sso-managed users must have team id.
-    liftIO $ assertBool "self profile user team is Nothing"
-        (isJust . userTeam $ selfUser profile)
+    post (brig . path "/register" . contentJson . body (p True False)) !!!
+      const 400 === statusCode
+    post (brig . path "/register" . contentJson . body (p True True)) !!!
+      const 400 === statusCode
 
 testActivateWithExpiry :: Brig -> Opt.Timeout -> Http ()
 testActivateWithExpiry brig timeout = do

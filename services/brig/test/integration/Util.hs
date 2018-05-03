@@ -39,6 +39,7 @@ import Test.Tasty.HUnit
 import Test.Tasty.Cannon
 import Util.AWS
 
+import qualified Galley.Types.Teams as Team
 import qualified Brig.AWS as AWS
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.ByteString as BS
@@ -89,7 +90,7 @@ randomUser brig = do
 
 createUser :: HasCallStack => Text -> Text -> Brig -> Http User
 createUser name email brig = do
-    r <- postUser name email Nothing Nothing brig <!! const 201 === statusCode
+    r <- postUser name email Nothing Nothing Nothing brig <!! const 201 === statusCode
     return $ fromMaybe (error "createUser: failed to parse response") (decodeBody r)
 
 createAnonUser :: HasCallStack => Text -> Brig -> Http User
@@ -144,8 +145,8 @@ getConnection brig from to = get $ brig
     . zConn "conn"
 
 -- more flexible variant of 'createUser' (see above).
-postUser :: Text -> Text -> Maybe InvitationCode -> Maybe UserSSOId -> Brig -> Http ResponseLBS
-postUser name email invCode ssoid brig = do
+postUser :: Text -> Text -> Maybe InvitationCode -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser name email invCode ssoid teamid brig = do
     e <- mkEmail email
     let p = RequestBodyLBS . encode $ object
             [ "name"            .= name
@@ -154,6 +155,7 @@ postUser name email invCode ssoid brig = do
             , "invitation_code" .= invCode
             , "cookie"          .= defCookieLabel
             , "sso_id"          .= ssoid
+            , "team_id"         .= teamid
             ]
     post (brig . path "/i/users" . contentJson . body p)
 
@@ -274,6 +276,15 @@ defNewClient ty pks lpk =
 getPreKey :: Brig -> UserId -> ClientId -> Http ResponseLBS
 getPreKey brig u c = get $ brig
     . paths ["users", toByteString' u, "prekeys", toByteString' c]
+
+getTeamMember :: UserId -> TeamId -> Galley -> Http Team.TeamMember
+getTeamMember u tid galley = do
+    r <-  get ( galley
+             . paths ["i", "teams", toByteString' tid, "members", toByteString' u]
+             . zUser u
+             . expect2xx
+             )
+    return $ fromMaybe (error "getTeamMember: failed to parse response") (decodeBody r)
 
 getConversation :: Galley -> UserId -> ConvId -> Http ResponseLBS
 getConversation galley usr cnv = get $ galley

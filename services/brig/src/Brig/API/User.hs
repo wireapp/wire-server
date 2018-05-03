@@ -156,9 +156,7 @@ createUser new@NewUser{..} = do
     (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
 
     -- team members are by default not searchable
-    let searchable = SearchableStatus $ case (newTeam, teamInvitation) of
-            (Nothing, Nothing) -> True
-            _                  -> False
+    let searchable = SearchableStatus . not $ isJust tid
 
     -- Create account
     (account, pw) <- lift $ newAccount new { newUserIdentity = ident } (Team.inInvitation . fst <$> teamInvitation) tid
@@ -190,6 +188,10 @@ createUser new@NewUser{..} = do
                 Team.TeamName nm <- lift $ Intra.getTeamName (Team.inTeam inv)
                 return (True, Just $ CreateUserTeam (Team.inTeam inv) nm)
         Nothing -> return (False, Nothing)
+
+    case (ident, tid) of
+        (Just ident'@SSOIdentity {}, Just tid') -> addUserToTeamSSO account tid' ident'
+        _ -> pure ()
 
     -- Handle e-mail activation
     edata <- if emailInvited || teamEmailInvited
@@ -286,7 +288,7 @@ createUser new@NewUser{..} = do
         unless added $
             throwE TooManyTeamMembers
         lift $ do
-            activateUser uid ident
+            activateUser uid ident  -- ('insertAccount' clears column activated; here it is set.)
             void $ onActivated (AccountActivated account)
             Log.info $ field "user" (toByteString uid)
                      . field "team" (toByteString $ Team.iiTeam ii)
@@ -315,6 +317,19 @@ createUser new@NewUser{..} = do
             let toEvent uc = ConnectionUpdated uc Nothing (mfilter (const $ ucFrom uc /= uid) (Just $ inName inv))
             forM_ ucs $ Intra.onConnectionEvent uid Nothing . toEvent
             Data.deleteInvitation (inInviter inv) (inInvitation inv)
+
+    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO ()
+    addUserToTeamSSO account tid ident = do
+        let uid = userId (accountUser account)
+        added <- lift $ Intra.addTeamMember uid tid
+        unless added $
+            throwE TooManyTeamMembers
+        lift $ do
+            activateUser uid ident
+            void $ onActivated (AccountActivated account)
+            Log.info $ field "user" (toByteString uid)
+                     . field "team_id" (toByteString tid)
+                     . msg (val "Added via SSO")
 
 -------------------------------------------------------------------------------
 -- Update Profile
