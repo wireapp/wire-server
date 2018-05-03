@@ -40,6 +40,7 @@ module Brig.IO.Intra
     , getTeamName
     , getTeamId
     , getTeamContacts
+    , getTeamOwners
     , changeTeamStatus
     ) where
 
@@ -48,6 +49,7 @@ import Bilge.Retry
 import Bilge.RPC
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
+import Brig.Data.User (lookupUsers)
 import Brig.API.Error (incorrectPermissions)
 import Brig.API.Types
 import Brig.RPC
@@ -82,6 +84,7 @@ import qualified Brig.IO.Journal             as Journal
 import qualified Data.ByteString.Lazy        as BL
 import qualified Data.Currency               as Currency
 import qualified Data.HashMap.Strict         as M
+import qualified Data.Map                    as Map
 import qualified Data.Set                    as Set
 import qualified Gundeck.Types.Push.V2       as Push
 import qualified Galley.Types.Teams          as Team
@@ -606,6 +609,40 @@ getTeamContacts u = do
   where
     req = paths ["i", "users", toByteString' u, "team", "members"]
         . expect [status200, status404]
+
+-- | 'Nothing' means no team could be found.  'Just' contains all members of the team that have full
+-- permissions and email address.
+--
+-- TODO: This could arguably also live in galley, since it is about teams.  But it also needs emails
+-- of users, so no matter whether it lives in galley or brig, one has to call the other for this to
+-- be decided.  A small refactoring to improve on this: split up 'getTeamOwners' into the part that
+-- fetches the team members from galley, and the part that filters them for permissions and email
+-- addresses.  When galley wants to know, the second part can be called from
+-- /i/users/:uid/can-be-deleted directly with a list of team members passed to that end-point in the
+-- body.  When brig wants to know, it can call both parts.  These thoughts may all become obsolete
+-- if we introduce a deletion service in the future.
+getTeamOwners :: UserId -> AppIO (Maybe [Team.TeamMember])
+getTeamOwners uid = maybe (pure Nothing) (fmap Just . filterByEmail . filterByPerms)
+                    =<< getTeamContacts uid
+  where
+    filterByPerms :: Team.TeamMemberList -> [Team.TeamMember]
+    filterByPerms mems =
+        filter ((== Team.fullPermissions) . (^. Team.permissions)) (mems ^. Team.teamMembers)
+
+    filterByEmail :: [Team.TeamMember] -> AppIO [Team.TeamMember]
+    filterByEmail mems = do
+        usrList :: [User] <- lookupUsers ((^. Team.userId) <$> mems)
+
+        let usrMap :: Map.Map UserId Bool
+            usrMap = Map.fromList $ mkListItem <$> usrList
+
+            mkListItem :: User -> (UserId, Bool)
+            mkListItem usr = (userId usr, isJust $ userEmail usr)
+
+            hasEmail :: Team.TeamMember -> Bool
+            hasEmail mem = maybe False id $ Map.lookup (mem ^. Team.userId) usrMap
+
+        pure $ filter hasEmail mems
 
 getTeamId :: UserId -> AppIO (Maybe TeamId)
 getTeamId u = do

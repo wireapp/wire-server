@@ -90,7 +90,7 @@ randomUser brig = do
 
 createUser :: HasCallStack => Text -> Text -> Brig -> Http User
 createUser name email brig = do
-    r <- postUser name email Nothing Nothing Nothing brig <!! const 201 === statusCode
+    r <- postUser name (Just email) Nothing Nothing Nothing brig <!! const 201 === statusCode
     return $ fromMaybe (error "createUser: failed to parse response") (decodeBody r)
 
 createAnonUser :: HasCallStack => Text -> Brig -> Http User
@@ -145,12 +145,12 @@ getConnection brig from to = get $ brig
     . zConn "conn"
 
 -- more flexible variant of 'createUser' (see above).
-postUser :: Text -> Text -> Maybe InvitationCode -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser :: Text -> Maybe Text -> Maybe InvitationCode -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
 postUser name email invCode ssoid teamid brig = do
-    e <- mkEmail email
+    email' <- maybe (pure Nothing) (fmap (Just . fromEmail) . mkEmail) email
     let p = RequestBodyLBS . encode $ object
             [ "name"            .= name
-            , "email"           .= fromEmail e
+            , "email"           .= email'
             , "password"        .= defPassword
             , "invitation_code" .= invCode
             , "cookie"          .= defCookieLabel

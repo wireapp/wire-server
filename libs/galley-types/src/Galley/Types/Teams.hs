@@ -51,8 +51,6 @@ module Galley.Types.Teams
     , newPermissions
     , fullPermissions
     , hasPermission
-    , isOwner
-    , isOnlyOwner
     , self
     , copy
 
@@ -293,18 +291,6 @@ fullPermissions = let p = intToPerms maxBound in Permissions p p
 
 hasPermission :: TeamMember -> Perm -> Bool
 hasPermission tm p = p `Set.member` (tm^.permissions.self)
-
---------------------------------------------------------
--- NOTE: By convention, we define an _owner_ as a member
---       with full permissions
---------------------------------------------------------
-isOwner :: TeamMember -> Bool
-isOwner = (== fullPermissions) . view permissions
-
-isOnlyOwner :: Foldable m => UserId -> m TeamMember -> Bool
-isOnlyOwner u =  not . any otherOwner
-  where
-    otherOwner x = isOwner x && x^.userId /= u
 
 permToInt :: Perm -> Word64
 permToInt CreateConversation       = 0x0001

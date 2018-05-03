@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeApplications  #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module API.Team (tests) where
 
@@ -80,6 +81,7 @@ tests conf m b c g = do
             ]
         , testGroup "sso"
             [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g
+            , test m "delete /i/users/:id - 202 internal-SSO (ensure no orphan teams)" $ testDeleteUserSSO b g
             ]
         ]
 
@@ -441,6 +443,7 @@ testSuspendTeam brig galley = do
 testDeleteTeamUser :: Brig -> Galley -> Http ()
 testDeleteTeamUser brig galley = do
     (creator, tid) <- createUserWithTeam brig galley
+
     -- Cannot delete the user since it will make the team orphan
     deleteUser creator (Just defPassword) brig !!! do
         const 403 === statusCode
@@ -550,13 +553,13 @@ testCreateUserInternalSSO brig galley = do
         getUserSSOId _ = Nothing
 
     -- creating users requires both sso_id and team_id
-    postUser "dummy" "success@simulator.amazonses.com" Nothing (Just ssoid) Nothing brig
+    postUser "dummy" (Just "success@simulator.amazonses.com") Nothing (Just ssoid) Nothing brig
         !!! const 400 === statusCode
-    postUser "dummy" "success@simulator.amazonses.com" Nothing Nothing (Just teamid) brig
+    postUser "dummy" (Just "success@simulator.amazonses.com") Nothing Nothing (Just teamid) brig
         !!! const 400 === statusCode
 
     -- creating user with sso_id, team_id is ok
-    resp <- postUser "dummy" "success@simulator.amazonses.com" Nothing (Just ssoid) (Just teamid) brig <!! do
+    resp <- postUser "dummy" (Just "success@simulator.amazonses.com") Nothing (Just ssoid) (Just teamid) brig <!! do
         const 201 === statusCode
         const (Just want) === (getUserSSOId <=< userIdentity . selfUser <=< decodeBody)
 
@@ -575,6 +578,40 @@ testCreateUserInternalSSO brig galley = do
     _ <- getTeamMember uid teamid galley
     isact <- isActivatedUser uid brig
     liftIO $ assertBool "user not activated" isact
+
+-- | See also: 'testDeleteTeamUser'.
+testDeleteUserSSO :: Brig -> Galley -> Http ()
+testDeleteUserSSO brig galley = do
+    (creator, tid) <- createUserWithTeam brig galley
+    let ssoid = UserSSOId "***"
+        mkuser :: Bool -> Http (Maybe User)
+        mkuser withemail = decodeBody <$>
+            (postUser "dummy" email Nothing (Just ssoid) (Just tid) brig
+             <!! const 201 === statusCode)
+          where
+            email = if withemail then Just "success@simulator.amazonses.com" else Nothing
+
+    -- create and delete sso user (with email)
+    Just (userId -> user1) <- mkuser True
+    deleteUser user1 (Just defPassword) brig !!! const 200 === statusCode
+
+    -- create sso user with email, delete owner, delete user
+    Just (userId -> creator') <- mkuser True
+    updatePermissions creator tid (creator', Team.fullPermissions) galley
+    deleteUser creator (Just defPassword) brig !!! const 200 === statusCode
+    deleteUser creator' (Just defPassword) brig !!! const 403 === statusCode
+
+    -- create sso user without email, delete owner
+    Just (userId -> user3) <- mkuser False
+    updatePermissions creator' tid (user3, Team.fullPermissions) galley
+    deleteUser creator' (Just defPassword) brig !!! const 403 === statusCode
+
+    -- TODO:
+    -- add sso service.  (we'll need a name for that now.)
+    -- brig needs to notify the sso service about deletions!
+    -- if the mock sso service disagrees with the deletion: 403 "sso-not-allowed" or something
+    -- if user is last remaining owner: 403 "no-other-owner" (as above).
+    -- otherwise: 2xx.
 
 -------------------------------------------------------------------------------
 -- Utilities

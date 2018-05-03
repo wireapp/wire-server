@@ -692,17 +692,16 @@ deleteUser uid pwd = do
 
     go a = maybe (byIdentity a) (byPassword a) pwd
 
-    byIdentity a = case userIdentity (accountUser a) of
-        Just (FullIdentity  e _)     -> sendCode a (Left e)
-        Just (EmailIdentity e  )     -> sendCode a (Left e)
-        Just (PhoneIdentity p  )     -> sendCode a (Right p)
-        Just (SSOIdentity _ssoid _e _p) -> do
-            -- if there is an SSO service (in config file)
-            -- then contact SSO service about deletion
-            -- finally, delete Account
-            -- TODO!
-            undefined
+    getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
+    getEmailOrPhone (FullIdentity  e _)             = Just $ Left e
+    getEmailOrPhone (EmailIdentity e  )             = Just $ Left e
+    getEmailOrPhone (SSOIdentity _ (Just e) _)      = Just $ Left e
+    getEmailOrPhone (PhoneIdentity p  )             = Just $ Right p
+    getEmailOrPhone (SSOIdentity _ _ (Just p))      = Just $ Right p
+    getEmailOrPhone (SSOIdentity _ Nothing Nothing) = Nothing
 
+    byIdentity a = case getEmailOrPhone =<< userIdentity (accountUser a) of
+        Just emailOrPhone            -> sendCode a emailOrPhone
         Nothing                      -> case pwd of
             Just  _ -> throwE DeleteUserMissingPassword
             Nothing -> lift $ deleteAccount a >> return Nothing

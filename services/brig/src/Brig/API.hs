@@ -56,6 +56,7 @@ import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
 import qualified Brig.API.Properties           as API
 import qualified Brig.API.User                 as API
+import qualified Brig.Team.Util
 import qualified Brig.User.API.Auth            as Auth
 import qualified Brig.User.API.Search          as Search
 import qualified Brig.User.Auth.Cookie         as Auth
@@ -182,11 +183,13 @@ sitemap o = do
     post "/i/users/blacklist" (continue addBlacklist) $
         param "email" ||| param "phone"
 
+    get "/i/users/:uid/can-be-deleted" (continue canBeDeleted) $
+        capture "uid"
+
     post "/i/clients" (continue internalListClients) $
       accept "application" "json"
       .&. contentType "application" "json"
       .&. request
-
 
     -- /users -----------------------------------------------------------------
 
@@ -1469,6 +1472,11 @@ addBlacklist :: Either Email Phone -> Handler Response
 addBlacklist emailOrPhone = do
     void . lift $ API.blacklistInsert emailOrPhone
     return empty
+
+canBeDeleted :: UserId -> Handler Response
+canBeDeleted uid = do
+    onlyOwner <- lift (Brig.Team.Util.isOnlyTeamOwner uid)
+    return $ setStatus (if onlyOwner then status403 else status200) empty
 
 getInvitationByCode :: JSON ::: InvitationCode -> Handler Response
 getInvitationByCode (_ ::: c) = do
