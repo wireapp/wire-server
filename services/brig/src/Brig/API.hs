@@ -527,7 +527,7 @@ sitemap o = do
         Doc.notes "If the account has a verified identity, a verification \
                   \code is sent and needs to be confirmed to authorise the \
                   \deletion. If the account has no verified identity but a \
-                  \password, it must be provided. In that case, and if neither \
+                  \password, it must be provided. If password is correct, or if neither \
                   \a verified identity nor a password exists, account deletion \
                   \is scheduled immediately."
         Doc.body (Doc.ref Doc.delete) $

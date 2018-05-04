@@ -669,6 +669,11 @@ mkPasswordResetKey ident = case ident of
 -------------------------------------------------------------------------------
 -- User Deletion
 
+-- | Initiate validation of a user's delete request.  Called via @delete /self@.  Users with an
+-- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
+-- the team admin has to delete them via the team console on galley.  (Deletions will not be
+-- communicated to the SSO service.  If users login after having deleted themselves, they will be
+-- recreated, but the history will be lost.  TODO: race condition?)
 deleteUser :: UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError AppIO (Maybe Timeout)
 deleteUser uid pwd = do
     account <- lift $ Data.lookupAccount uid
@@ -736,6 +741,8 @@ deleteUser uid pwd = do
                        Code.delete k Code.AccountDeletion
                 return $! Just $! Code.codeTTL c
 
+-- | Conclude validation and scheduling of user's deletion request that was initiated in
+-- 'deleteUser'.  Called via @post /delete@.
 verifyDeleteUser :: VerifyDeleteUser -> ExceptT DeleteUserError AppIO ()
 verifyDeleteUser d = do
     let key  = verifyDeleteUserKey d
@@ -746,6 +753,9 @@ verifyDeleteUser d = do
     for_ account $ lift . deleteAccount
     lift $ Code.delete key Code.AccountDeletion
 
+-- | Internal deletion without validation.  Called via @delete /i/user/:id@.  Team users can be
+-- deleted iff the team is not orphaned, i.e. there is at least one user with an email address left
+-- in the team.
 deleteAccount :: UserAccount -> AppIO ()
 deleteAccount account@(accountUser -> user) = do
     let uid = userId user
