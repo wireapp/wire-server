@@ -302,14 +302,15 @@ minBigSize = 5 * 1024 * 1024 -- 5 MiB
 
 getResumable :: V3.AssetKey -> ExceptT Error App (Maybe S3Resumable)
 getResumable k = do
-    let rk = mkResumableKey k
+    let (rk, mk) = (mkResumableKey k, mkResumableKeyMeta k)
     Log.debug $ "remote" .= val "S3"
-        ~~ "asset"       .= toByteString k
-        ~~ "asset.key"   .= toByteString rk
+        ~~ "asset"          .= toByteString k
+        ~~ "asset.key"      .= toByteString rk
+        ~~ "asset.key.meta" .= toByteString mk
         ~~ msg (val "Getting resumable asset metadata")
     b      <- s3Bucket <$> view aws
     (_, hor) <- tryS3 . recovering x3 handlers . const . exec $
-        headObjectX b (s3ResumableKey rk)
+        headObjectX b (s3ResumableKey mk)
     let ct = fromMaybe octets (horxContentType hor >>= parseMIMEType)
     let meta = omUserMetadata <$> horxMetadata hor
     case meta >>= parse rk ct of
@@ -341,8 +342,9 @@ createResumable k p typ size tok = do
     b  <- s3Bucket <$> view aws
     up <- initMultipart b res
     let ct = resumableType res
+    let mk = mkResumableKeyMeta k
     void . tryS3 . recovering x3 handlers . const . exec $
-        (putObject b (s3ResumableKey key) mempty)
+        (putObject b (s3ResumableKey mk) mempty)
             { poContentType = Just (encodeMIMEType ct)
             , poMetadata = resumableMeta csize ex up
             }
@@ -557,6 +559,10 @@ listChunks r = do
 mkResumableKey :: V3.AssetKey -> S3ResumableKey
 mkResumableKey (V3.AssetKeyV3 aid _) =
     S3ResumableKey $ "v3/resumable/" <> UUID.toText (toUUID aid)
+
+mkResumableKeyMeta :: V3.AssetKey -> S3ResumableKey
+mkResumableKeyMeta (V3.AssetKeyV3 aid _) =
+    S3ResumableKey $ "v3/resumable/" <> UUID.toText (toUUID aid) <> "/meta"
 
 mkChunkKey :: S3ResumableKey -> S3ChunkNr -> S3ChunkKey
 mkChunkKey (S3ResumableKey k) (S3ChunkNr n) =
