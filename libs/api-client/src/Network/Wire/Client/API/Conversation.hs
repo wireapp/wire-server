@@ -14,7 +14,6 @@ module Network.Wire.Client.API.Conversation
 import Bilge
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Foldable (toList)
 import Data.List.NonEmpty hiding (cons, toList)
 import Data.List1
 import Data.Text (Text)
@@ -92,16 +91,17 @@ getConv cnv = do
         $ empty
     rsc = status200 :| [status404]
 
+-- | Create a conversation with the session user in it and any number of
+-- other users (possibly zero).
 createConv :: MonadSession m
-           => UserId
-           -> List1 UserId
-           -> Maybe Text
+           => [UserId]            -- ^ Other users to add to the conversation
+           -> Maybe Text          -- ^ Conversation name
            -> m Conversation
-createConv user (toList -> others) name = sessionRequest req rsc readBody
+createConv users name = sessionRequest req rsc readBody
   where
     req = method POST
         . path "conversations"
         . acceptJson
-        . json (NewConv (user : others) name mempty Nothing Nothing)
+        . json (NewConv users name mempty Nothing Nothing)
         $ empty
     rsc = status201 :| []

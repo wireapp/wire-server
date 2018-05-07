@@ -31,7 +31,6 @@ import Control.Monad.Catch
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id (ConvId, UserId)
-import Data.List1 (list1)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Serialize
@@ -65,11 +64,11 @@ prepareConv g
             "Missing 1-1 conversation between: " <>
                 Text.concat (Text.pack . show . botId <$> [a, b])
     | otherwise = do
-        let (a : b : c : cs) = g
+        let (a : bs) = g
         connectIfNeeded g
-        let cIds = botId <$> list1 c cs
-        conv <- cnvId <$> runBotSession a (createConv (botId b) cIds Nothing)
-        assertConvCreated conv a (b:c:cs)
+        let bIds = map botId bs
+        conv <- cnvId <$> runBotSession a (createConv bIds Nothing)
+        assertConvCreated conv a bs
         return conv
 
 connectIfNeeded :: [Bot] -> BotNet ()
