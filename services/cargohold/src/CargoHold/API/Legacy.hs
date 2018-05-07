@@ -32,4 +32,3 @@ downloadOtr _ cnv ast = S3.getOtrMetadata cnv ast >>= maybe notFound found
     found _  = do
         url <- genSignedURL (S3.otrKey cnv ast)
         return $! Just $! url
-

@@ -6,7 +6,6 @@
 module CargoHold.Options where
 
 import CargoHold.CloudFront (Domain (..), KeyPairId (..))
-import Control.Applicative
 import Control.Lens
 import Data.Aeson.TH
 import Data.Monoid
@@ -17,7 +16,6 @@ import Util.Options
 import Util.Options.Common
 
 import qualified Data.Text as T
-import qualified Ropes.Aws as Aws
 
 data CloudFrontOpts = CloudFrontOpts
     { _cfDomain     :: Domain
@@ -29,9 +27,7 @@ deriveFromJSON toOptionFieldName ''CloudFrontOpts
 makeLenses ''CloudFrontOpts
 
 data AWSOpts = AWSOpts
-    { _awsKeyId        :: !(Maybe Aws.AccessKeyId)
-    , _awsSecretKey    :: !(Maybe Aws.SecretAccessKey)
-    , _awsS3Endpoint   :: AWSEndpoint
+    { _awsS3Endpoint   :: AWSEndpoint
     , _awsS3Bucket     :: Text
     , _awsCloudFront   :: Maybe CloudFrontOpts
     } deriving (Show, Generic)
@@ -98,19 +94,10 @@ optsParser = Opts <$>
 
     awsParser :: Parser AWSOpts
     awsParser = AWSOpts <$>
-            (optional . fmap Aws.AccessKeyId . bytesOption $
-                long "aws-key-id"
-                <> metavar "STRING"
-                <> help "AWS Access Key ID")
-        <*> (optional . fmap Aws.SecretAccessKey . bytesOption $
-                long "aws-secret-key"
-                <> metavar "STRING"
-                <> help "AWS Secret Access Key")
-
-        <*> (option parseAWSEndpoint $
+            (option parseAWSEndpoint $
                 long "aws-s3-endpoint"
                 <> value (AWSEndpoint "s3.eu-west-1.amazonaws.com" True 443)
-                <> metavar "STRING"
+                <> metavar "STRING" 
                 <> showDefault
                 <> help "aws S3 endpoint")
 

@@ -58,6 +58,7 @@ services:
     depends_on:
       - fake_dynamodb
       - fake_sqs
+      - fake_s3
       - fake_localstack
       - fake_s3
     links:

@@ -62,9 +62,10 @@ function run() {
 
 # brig,gundeck,galley use the amazonka library's 'Discover', which expects AWS credentials
 # even if those are not used/can be dummy values with the fake sqs/ses/etc containers used (see deploy/docker-ephemeral/docker-compose.yaml )
+# TODO: If we want to use real AWS services, we should ignore these
 export AWS_REGION=eu-west-1
-export AWS_ACCESS_KEY_ID=dummy
-export AWS_SECRET_ACCESS_KEY=dummy
+# export AWS_ACCESS_KEY_ID=dummy
+# export AWS_SECRET_ACCESS_KEY=dummy
 
 check_prerequisites
 

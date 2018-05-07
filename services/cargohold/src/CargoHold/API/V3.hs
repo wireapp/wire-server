@@ -23,7 +23,9 @@ import Control.Error
 import Control.Lens (view, (^.), set, (&))
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Resource
 import Crypto.Hash
+import Crypto.Random (getRandomBytes)
 import Data.Aeson (eitherDecodeStrict')
 import Data.Attoparsec.ByteString.Char8
 import Data.ByteString (ByteString)
@@ -35,7 +37,6 @@ import Data.Time.Clock
 import Data.UUID.V4
 import Network.HTTP.Types.Header
 import Network.Wai.Utilities (Error (..))
-import OpenSSL.Random (randBytes)
 import Prelude hiding (take)
 import URI.ByteString
 
@@ -52,7 +53,7 @@ import qualified Data.Conduit.Binary     as Conduit
 import qualified Data.Text.Ascii         as Ascii
 import qualified Data.Text.Lazy          as LT
 
-upload :: V3.Principal -> Source IO ByteString -> Handler V3.Asset
+upload :: V3.Principal -> Source (ResourceT IO) ByteString -> Handler V3.Asset
 upload own bdy = do
     (rsrc, sets) <- parseMetadata bdy assetSettings
     (src,  hdrs) <- parseHeaders rsrc assetHeaders
@@ -95,7 +96,7 @@ updateToken own key tok = do
     S3.updateMetadataV3 key m'
 
 randToken :: MonadIO m => m V3.AssetToken
-randToken = liftIO $ V3.AssetToken . Ascii.encodeBase64Url <$> randBytes 16
+randToken = liftIO $ V3.AssetToken . Ascii.encodeBase64Url <$> getRandomBytes 16
 
 download :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Handler (Maybe URI)
 download own key tok = S3.getMetadataV3 key >>= maybe notFound found
@@ -104,6 +105,7 @@ download own key tok = S3.getMetadataV3 key >>= maybe notFound found
     found s3
         | own /= S3.v3AssetOwner s3 && tok /= S3.v3AssetToken s3 = return Nothing
         | otherwise = do
+            -- url <- genSignedURI (S3.s3Key $ S3.mkKey key)
             url <- genSignedURL (S3.mkKey key)
             return $! Just $! url
 
@@ -117,18 +119,18 @@ delete own key = do
 -----------------------------------------------------------------------------
 -- Streaming multipart parsing
 
-parseMetadata :: Source IO ByteString -> Parser a -> Handler (ResumableSource IO ByteString, a)
+parseMetadata :: Source (ResourceT IO) ByteString -> Parser a -> Handler (ResumableSource (ResourceT IO) ByteString, a)
 parseMetadata src psr = do
-    (rsrc, meta) <- liftIO $ src $$+ sinkParser psr
+    (rsrc, meta) <- liftIO . runResourceT $ src $$+ sinkParser psr
     (rsrc,) <$> hoistEither meta
 
-parseHeaders :: ResumableSource IO ByteString -> Parser a -> Handler (Source IO ByteString, a)
+parseHeaders :: ResumableSource (ResourceT IO) ByteString -> Parser a -> Handler (Source (ResourceT IO) ByteString, a)
 parseHeaders src prs = do
-    (rsrc, hdrs) <- liftIO $ src $$++ sinkParser prs
-    (src',    _) <- liftIO $ Conduit.unwrapResumable rsrc
+    (rsrc, hdrs) <- liftIO . runResourceT $ src $$++ sinkParser prs
+    (src',    _) <- liftIO . runResourceT $ Conduit.unwrapResumable rsrc
     (src',) <$> hoistEither hdrs
 
-sinkParser :: Parser a -> Consumer ByteString IO (Either Error a)
+sinkParser :: Parser a -> Consumer ByteString (ResourceT IO) (Either Error a)
 sinkParser p = fmapL mkError <$> Conduit.sinkParserEither p
   where
     mkError = clientError . LT.pack . mkMsg
