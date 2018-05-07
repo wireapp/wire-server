@@ -2,7 +2,7 @@
 
 This page documents how to install necessary dependencies to work with the wire-server code base.
 
-In addition to the information below, you can also consult the Dockerfiles for Alpine Linux, that could serve as inspiration: 
+In addition to the information below, you can also consult the Dockerfiles for Alpine Linux, that could serve as inspiration:
 
 * [alpine setup for Haskell services](../build/alpine/Dockerfile.builder)
 * [alpine setup for nginz](../services/nginz/Dockerfile)
@@ -21,9 +21,11 @@ sudo yum install pkgconfig haskell-platform libstdc++-devel libstdc++-static gcc
 sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler -y
 ```
 
+If `openssl-dev` does not work for you, try `libssl-dev`.
+
 #### Ubuntu:
 
-Hopefully almost like Debian. Instead of `openssl-dev`, try `libssl-dev`.
+Hopefully almost like Debian.
 
 #### Arch:
 
@@ -55,7 +57,7 @@ extra-lib-dirs:
 
 ```bash
 curl -sSL https://get.haskellstack.org/ | sh
-# or 
+# or
 wget -qO- https://get.haskellstack.org/ | sh
 ```
 
@@ -102,7 +104,7 @@ extra-lib-dirs:
 Create debian packages, optional, only used in `make dist`
 
 ```bash
-git clone https://github.com/wire-server && cd wire-server/tools/makedeb
+git clone https://github.com/wireapp/wire-server && cd wire-server/tools/makedeb
 stack install
 ```
 
