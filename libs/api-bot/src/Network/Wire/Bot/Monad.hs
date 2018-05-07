@@ -24,8 +24,11 @@ module Network.Wire.Bot.Monad
     , runBotSession
     , getBot
 
+      -- * BotTag
+    , BotTag (unTag)
+
       -- * Bot
-    , Bot (botUser)
+    , Bot (botUser, botTag)
     , botId
     , botName
     , botEmail
