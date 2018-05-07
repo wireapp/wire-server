@@ -3,3 +3,7 @@ packages:
 - '.'
 - '../types-common'
 extra-deps: []
+flags:
+  types-common-aws:
+    arbitrary: True
+    protobuf: True

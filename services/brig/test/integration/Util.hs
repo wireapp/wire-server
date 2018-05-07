@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- for SES notifications
 
@@ -36,11 +37,13 @@ import System.Random (randomRIO, randomIO)
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit
 import Test.Tasty.Cannon
+import Util.AWS
 
+import qualified Brig.AWS as AWS
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.ByteString.Char8 as C8
 import qualified Data.List1 as List1
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
@@ -75,6 +78,9 @@ instance ToJSON SESNotification where
 
 test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)
+
+test' :: AWS.Env -> Manager -> TestName -> Http a -> TestTree
+test' e m n h = testCase n $ void $ runHttpT m (liftIO (ensureEmptyJournalQueue e) >> h)
 
 randomUser :: HasCallStack => Brig -> Http User
 randomUser brig = do

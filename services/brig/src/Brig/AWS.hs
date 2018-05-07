@@ -17,6 +17,7 @@ module Brig.AWS
     , execute
     , sesQueue
     , internalQueue
+    , journalQueue
     , blacklistTable
     , prekeyTable
 
@@ -78,6 +79,7 @@ data Env = Env
     { _logger         :: !Logger
     , _sesQueue       :: !Text
     , _internalQueue  :: !Text
+    , _journalQueue   :: !(Maybe Text)
     , _blacklistTable :: !Text
     , _prekeyTable    :: !Text
     , _amazonkaEnv    :: !AWS.Env
@@ -119,7 +121,8 @@ mkEnv lgr opts mgr = do
                      (mkEndpoint DDB.dynamoDB (Opt.dynamoDBEndpoint opts))
     sq <- getQueueUrl e (Opt.sesQueue opts)
     iq <- getQueueUrl e (Opt.internalQueue opts)
-    return (Env g sq iq bl pk e)
+    jq <- maybe (return Nothing) (fmap Just . getQueueUrl e) (Opt.journalQueue opts)
+    return (Env g sq iq jq bl pk e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
 

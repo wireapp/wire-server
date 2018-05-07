@@ -10,7 +10,7 @@ category:           System
 build-type:         Custom
 cabal-version:      >= 1.10
 description:        Shared protobuf type definitions for journaling.
-extra-source-files: proto/TeamEvents.proto
+extra-source-files: proto/TeamEvents.proto proto/UserEvents.proto
 
 custom-setup
     setup-depends: base, Cabal, proto-lens-protoc
@@ -22,8 +22,15 @@ library
     ghc-prof-options: -fprof-auto-exported
 
     exposed-modules:
+        Data.Proto
+        Data.Proto.Id
         Proto.TeamEvents
+        Proto.UserEvents
 
     build-depends:
           base                  == 4.*
+        , bytestring
         , proto-lens-protoc     >= 0.2
+        , time
+        , types-common
+        , uuid

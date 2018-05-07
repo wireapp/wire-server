@@ -78,6 +78,7 @@ import System.Logger.Class hiding ((.=), name)
 
 import qualified Brig.User.Search.Index      as Search
 import qualified Brig.User.Event.Log         as Log
+import qualified Brig.IO.Journal             as Journal
 import qualified Data.ByteString.Lazy        as BL
 import qualified Data.Currency               as Currency
 import qualified Data.HashMap.Strict         as M
@@ -91,7 +92,9 @@ import qualified Galley.Types.Teams.Intra    as Team
 
 onUserEvent :: UserId -> Maybe ConnId -> UserEvent -> AppIO ()
 onUserEvent orig conn e =
-    updateSearchIndex orig e *> dispatchNotifications orig conn e
+    updateSearchIndex orig e *>
+    dispatchNotifications orig conn e *>
+    journalEvent orig e
 
 onConnectionEvent :: UserId          -- ^ Originator of the event.
                   -> Maybe ConnId    -- ^ Client connection ID, if any.
@@ -142,6 +145,13 @@ updateSearchIndex orig e = case e of
                              , isJust eupSearchable
                              ]
         when (interesting) $ Search.reindex orig
+
+journalEvent :: UserId -> UserEvent -> AppIO ()
+journalEvent orig e = case e of
+    UserActivated{} -> Journal.userActivate orig
+    UserUpdated{}   -> Journal.userUpdate orig
+    UserDeleted{}   -> Journal.userActivate orig
+    _               -> return ()
 
 -------------------------------------------------------------------------------
 -- Low-Level Event Notification
