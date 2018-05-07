@@ -35,6 +35,8 @@ postOtrMessage cnv msg = sessionRequest req rsc readBody
         $ empty
     rsc = status201 :| [status412]
 
+-- | Add a user and (in case of success) return the event corresponding to
+-- the user addition.
 addMembers :: MonadSession m => ConvId -> List1 UserId -> m (Maybe (ConvEvent Members))
 addMembers cnv mems = do
     rs <- sessionRequest req rsc consumeBody
@@ -50,6 +52,8 @@ addMembers cnv mems = do
         $ empty
     rsc = status200 :| [status204]
 
+-- | Remove a user and (in case of success) return the event corresponding
+-- to the user removal.
 removeMember :: MonadSession m => ConvId -> UserId -> m (Maybe (ConvEvent Members))
 removeMember cnv mem = do
     rs <- sessionRequest req rsc consumeBody

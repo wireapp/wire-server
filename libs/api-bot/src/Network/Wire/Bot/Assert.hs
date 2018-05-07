@@ -56,7 +56,13 @@ awaitOtrMessage c (from, fc) (to, tc) =
        otrRecipient e  == botClientId tc
     assertion _ = False
 
-assertMembersJoined :: MonadBotNet m => [Bot] -> Maybe (ConvEvent Members) -> m ()
+-- | Check that given users have received the event about some other users
+-- joining a conversation.
+assertMembersJoined
+    :: MonadBotNet m
+    => [Bot]                          -- ^ Who should've received the event
+    -> Maybe (ConvEvent Members)      -- ^ Users who have (presumably) joined
+    -> m ()
 assertMembersJoined _  Nothing  = return ()
 assertMembersJoined bs (Just e) = forM_ bs $ \b ->
     assertEvent b TConvMemberJoin memAdd
@@ -64,7 +70,13 @@ assertMembersJoined bs (Just e) = forM_ bs $ \b ->
     memAdd (EMemberJoin e') = e == e'
     memAdd _                = False
 
-assertMembersLeft :: MonadBotNet m => [Bot] -> Maybe (ConvEvent Members) -> m ()
+-- | Check that given users have received the event about some other users
+-- leaving a conversation.
+assertMembersLeft
+    :: MonadBotNet m
+    => [Bot]                          -- ^ Who should've received the event
+    -> Maybe (ConvEvent Members)      -- ^ Users who have (presumably) left
+    -> m ()
 assertMembersLeft _  Nothing  = return ()
 assertMembersLeft bs (Just e) = forM_ bs $ \b ->
     assertEvent b TConvMemberLeave memRem
