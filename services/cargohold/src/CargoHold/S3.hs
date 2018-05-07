@@ -302,7 +302,8 @@ minBigSize = 5 * 1024 * 1024 -- 5 MiB
 
 getResumable :: V3.AssetKey -> ExceptT Error App (Maybe S3Resumable)
 getResumable k = do
-    let (rk, mk) = (mkResumableKey k, mkResumableKeyMeta k)
+    let rk = mkResumableKey k
+        mk = mkResumableKeyMeta k
     Log.debug $ "remote" .= val "S3"
         ~~ "asset"          .= toByteString k
         ~~ "asset.key"      .= toByteString rk
