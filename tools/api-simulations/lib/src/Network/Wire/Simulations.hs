@@ -35,6 +35,7 @@ import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Serialize
 import Data.Text (Text)
+import GHC.Stack (HasCallStack)
 import Network.Wire.Bot
 import Network.Wire.Bot.Assert
 import Network.Wire.Bot.Crypto
@@ -171,13 +172,17 @@ requireTextMsg bs = do
 requireMessage :: MonadThrow m => ByteString -> m BotMessage
 requireMessage = requireRight . decode
 
-assertNoClientMismatch :: ClientMismatch -> BotSession ()
+assertNoClientMismatch
+    :: HasCallStack
+    => ClientMismatch -> BotSession ()
 assertNoClientMismatch cm = do
     assertEqual (UserClients Map.empty) (missingClients   cm) "Missing Clients"
     assertEqual (UserClients Map.empty) (redundantClients cm) "Redundant Clients"
     assertEqual (UserClients Map.empty) (deletedClients   cm) "Deleted Clients"
 
-assertClientMissing :: UserId -> BotClient -> ClientMismatch -> BotSession ()
+assertClientMissing
+    :: HasCallStack
+    => UserId -> BotClient -> ClientMismatch -> BotSession ()
 assertClientMissing u d cm =
     assertEqual (UserClients (Map.singleton u (Set.singleton $ botClientId d)))
                 (missingClients cm)

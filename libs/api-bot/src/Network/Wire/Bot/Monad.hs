@@ -84,7 +84,7 @@ import Data.Id
 import Data.IORef
 import Data.List (foldl', partition)
 import Data.Maybe (fromMaybe, isNothing)
-import Data.Misc
+import Data.Misc (PlainTextPassword(..))
 import Data.Metrics (Metrics)
 import Data.Monoid ((<>))
 import Data.String (IsString)
@@ -95,6 +95,7 @@ import Data.Typeable
 import Data.UUID (toString)
 import Data.UUID.V4
 import Data.Word (Word16)
+import GHC.Stack
 import Network.HTTP.Client (HttpException)
 import Network.Wire.Bot.Cache (Cache, CachedUser (..))
 import Network.Wire.Bot.Clients as Clients
@@ -447,10 +448,11 @@ withCachedBot t f = do
 -- Assertions
 
 data EventAssertion = EventAssertion
-    { _assertType :: !EventType
-    , _assertTime :: !UTCTime
-    , _assertPred :: Event -> Bool
-    , _assertOut  :: !(Maybe (TMVar (Maybe Event)))
+    { _assertType     :: !EventType
+    , _assertTime     :: !UTCTime
+    , _assertPred     :: Event -> Bool
+    , _assertOut      :: !(Maybe (TMVar (Maybe Event)))
+    , _assertLocation :: !(Maybe SrcLoc)
     }
 
 whenAsserts :: MonadBotNet m => BotNet () -> m ()
@@ -485,38 +487,47 @@ requireRight :: (Show e, MonadThrow m) => Either e a -> m a
 requireRight (Left  e) = throwM $ RequirementFailed (pack $ show e)
 requireRight (Right a) = return a
 
-assertEqual :: (MonadBotNet m, Show a, Eq a) => a -> a -> Text -> m ()
-assertEqual a b m = whenAsserts $
-    unless (a == b) $ do
-        incrAssertFailed
-        log Error . msg $ val "Assertion failed: " +++ m +++ val ": "
-                        +++ show a +++ val " /= " +++ show b
+-- TODO: change argument order to match 'assertEqual' from tasty-hunit
+assertEqual :: (HasCallStack, MonadBotNet m, Show a, Eq a) => a -> a -> Text -> m ()
+assertEqual a b m =
+    assertTrue (a == b) (m <> ": " <> pack (show a) <> " /= " <> pack (show b))
 
-assertTrue :: MonadBotNet m => Bool -> Text -> m ()
+assertTrue :: (HasCallStack, MonadBotNet m) => Bool -> Text -> m ()
 assertTrue b m = whenAsserts $
-    unless b $ do
-        incrAssertFailed
-        log Error . msg $ val "Assertion failed: " +++ m
+    unless b $ assertFailure m    -- the 'unless' is hidden under 'whenAsserts'
+                                  -- because we don't want 'b' to be evaluated
+                                  -- when asserts are disabled
 
-assertFailure :: MonadBotNet m => Text -> m ()
+assertFailure :: (HasCallStack, MonadBotNet m) => Text -> m ()
 assertFailure m = whenAsserts $ do
     incrAssertFailed
-    log Error . msg $ val "Assertion failed: " +++ m
+    log Error . msg $ val "Assertion failed" +++ locationString +++ val ": " +++ m
+  where
+    locationString = case reverse (getCallStack callStack) of
+        []        -> ""
+        (_,loc):_ -> " at " <> srcLocFile loc <> ":" <>
+                     show (srcLocStartLine loc) <> ":" <> show (srcLocStartCol loc)
 
 -- | Place an assertion on a 'Bot', expecting a matching 'Event' to arrive
 -- in its inbox within a timeout window.
-assertEvent :: MonadBotNet m => Bot -> EventType -> (Event -> Bool) -> m ()
+assertEvent
+    :: (HasCallStack, MonadBotNet m)
+    => Bot -> EventType -> (Event -> Bool) -> m ()
 assertEvent bot typ f = scheduleAssert bot typ f Nothing
 
 -- | Like 'assertEvent' but blocks until the event arrives or the assertion
 -- times out, returning 'Just' the matching event or 'Nothing', respectively.
-awaitEvent :: MonadBotNet m => Bot -> EventType -> (Event -> Bool) -> m (Maybe Event)
+awaitEvent
+    :: (HasCallStack, MonadBotNet m)
+    => Bot -> EventType -> (Event -> Bool) -> m (Maybe Event)
 awaitEvent bot typ f = liftBotNet $ do
     r <- liftIO newEmptyTMVarIO
     scheduleAssert bot typ f (Just r)
     liftIO . atomically $ takeTMVar r
 
-scheduleAssert :: MonadBotNet m => Bot -> EventType -> (Event -> Bool) -> Maybe (TMVar (Maybe Event)) -> m ()
+scheduleAssert
+    :: (HasCallStack, MonadBotNet m)
+    => Bot -> EventType -> (Event -> Bool) -> Maybe (TMVar (Maybe Event)) -> m ()
 scheduleAssert bot typ f out = whenAsserts $ do
     t <- liftIO getCurrentTime
     r <- liftIO . atomically $ do
@@ -524,13 +535,18 @@ scheduleAssert bot typ f out = whenAsserts $ do
         if n >= botMaxAsserts (botSettings bot)
             then return False
             else do
-                writeTQueue (botAsserts bot) (EventAssertion typ t f out)
+                writeTQueue (botAsserts bot) (EventAssertion typ t f out location)
                 writeTVar (botAssertCount bot) (n + 1)
                 return True
     unless r $ liftBotNet $ do
         incrAssertFailed
         runBotSession bot . log Error . msg $
             "Too many event assertions. Dropped: " <> eventTypeText typ
+  where
+    location :: Maybe SrcLoc
+    location = case reverse (getCallStack callStack) of
+      (_, loc) : _ -> Just loc
+      [] -> Nothing
 
 -------------------------------------------------------------------------------
 -- * Exceptions
@@ -649,9 +665,15 @@ heartbeat bot e = forever $ do
             botLog l bot Warn $ msg (val "Event inbox full!")
         -- Remove old assertions from the backlog
         asserts <- atomically $ gcBacklog bot now
-        forM_ asserts $ \(EventAssertion typ _ _ out) -> do
+        forM_ asserts $ \(EventAssertion typ _ _ out location) -> do
             for_ out $ liftIO . atomically . flip tryPutTMVar Nothing
-            botLog l bot Warn $ msg ("Assertion Timeout: " <> eventTypeText typ)
+            let locationString = case location of
+                    Nothing  -> ""
+                    Just loc -> " (assert created at " <> srcLocFile loc <> ":" <>
+                                show (srcLocStartLine loc) <> ":" <>
+                                show (srcLocStartCol loc) <> ")"
+            botLog l bot Warn $ msg $
+                "Assertion Timeout" <> pack locationString <> ": " <> eventTypeText typ
     -- Re-establish the push connection, if it died
     push <- maybe (return Nothing) poll =<< readIORef (botPushThread bot)
     case push of
@@ -674,7 +696,7 @@ assert bot e = forever $ do
                           . msg ("ACK: " <> showEventType evt)
 
 matchAssertion :: Bot -> EventAssertion -> STM (Maybe Event)
-matchAssertion bot a@(EventAssertion _ _ f out) = do
+matchAssertion bot a@(EventAssertion _ _ f out _) = do
     (num, events) <- readTVar (botEvents bot)
     let (new, found) = foldl' go ([], Nothing) events
     case found of
@@ -716,12 +738,12 @@ gcBacklog :: Bot -> UTCTime -> STM [EventAssertion]
 gcBacklog bot now = do
     old <- readTVar (botBacklog bot)
     let timeout = botAssertTimeout (botSettings bot)
-    let (keep, del) = partition (\(EventAssertion _ t _ _) -> now `diffUTCTime` t <= timeout) old
+    let (keep, del) = partition (\a -> now `diffUTCTime` _assertTime a <= timeout) old
     let numDel = fromIntegral $ length del
     when (numDel > 0) $ do
         writeTVar (botBacklog bot) keep
         modifyTVar' (botAssertCount bot) (subtract numDel)
-        forM_ del $ \(EventAssertion typ _ _ out) -> do
+        forM_ del $ \(EventAssertion typ _ _ out _) -> do
             for_ out $ flip tryPutTMVar Nothing
             incrEventsMssd bot typ
 
