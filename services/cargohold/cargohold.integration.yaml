@@ -4,8 +4,8 @@ cargohold:
 
 aws:
   # TODO: Check AWS loadCredentialsFromEnv
-  keyId: dummy # <-- insert-key-id-here
-  secretKey: dummy # <-- insert-secret-key-here
+  keyId: dummykey # <-- insert-key-id-here
+  secretKey: dummysecret # <-- insert-secret-key-here
   s3Bucket: dummy-bucket # <-- insert-bucket-name-here
   s3Endpoint: http://localhost:4570 # https://s3-eu-west-1.amazonaws.com:443
   # If you want to use cloudfront for asset downloads
