@@ -156,7 +156,7 @@ createUser new@NewUser{..} = do
     (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
 
     -- team members are by default not searchable
-    let searchable = SearchableStatus . not $ isJust tid
+    let searchable = SearchableStatus $ isNothing tid
 
     -- Create account
     (account, pw) <- lift $ newAccount new { newUserIdentity = ident } (Team.inInvitation . fst <$> teamInvitation) tid
@@ -671,9 +671,9 @@ mkPasswordResetKey ident = case ident of
 
 -- | Initiate validation of a user's delete request.  Called via @delete /self@.  Users with an
 -- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
--- the team admin has to delete them via the team console on galley.  (Deletions will not be
--- communicated to the SSO service.  If users login after having deleted themselves, they will be
--- recreated, but the history will be lost.  TODO: race condition?)
+-- the team admin has to delete them via the team console on galley.
+--
+-- TODO: communicate deletions of SSO users to SSO service.
 deleteUser :: UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError AppIO (Maybe Timeout)
 deleteUser uid pwd = do
     account <- lift $ Data.lookupAccount uid
@@ -681,14 +681,24 @@ deleteUser uid pwd = do
         Nothing -> throwE DeleteUserInvalid
         Just  a -> case accountStatus a of
             Deleted   -> return Nothing
-            Suspended -> ensureNotOnlyOwner >> go a
-            Active    -> ensureNotOnlyOwner >> go a
+            Suspended -> ensureNotOnlyOwner account >> go a
+            Active    -> ensureNotOnlyOwner account >> go a
             Ephemeral -> go a
   where
-    ensureNotOnlyOwner = do
-        onlyOwner <- lift $ Team.isOnlyTeamOwner uid
-        when onlyOwner $
-            throwE DeleteUserOnlyOwner
+    ensureNotOnlyOwner :: Maybe UserAccount -> ExceptT DeleteUserError (AppT IO) ()
+    ensureNotOnlyOwner acc = case userTeam . accountUser =<< acc of
+        Nothing -> pure ()
+        Just tid -> do
+            ownerSituation <- lift $ Team.isOnlyTeamOwner uid tid
+            case ownerSituation of
+               Team.IsOnlyTeamOwner       -> throwE DeleteUserOnlyOwner
+               Team.IsOneOfManyTeamOwners -> pure ()
+               Team.IsNotTeamOwner        -> pure ()
+               Team.NoTeamOwnersAreLeft   -> do
+                   Log.warn $ field "user" (toByteString uid)
+                            . field "team" (toByteString tid)
+                            . msg (val "Team.NoTeamOwnersAreLeft")
+                   pure ()
 
     go a = maybe (byIdentity a) (byPassword a) pwd
 

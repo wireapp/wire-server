@@ -56,7 +56,7 @@ import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
 import qualified Brig.API.Properties           as API
 import qualified Brig.API.User                 as API
-import qualified Brig.Team.Util
+import qualified Brig.Team.Util                as Team
 import qualified Brig.User.API.Auth            as Auth
 import qualified Brig.User.API.Search          as Search
 import qualified Brig.User.Auth.Cookie         as Auth
@@ -80,6 +80,7 @@ import qualified Brig.Provider.API             as Provider
 import qualified Brig.Team.API                 as Team
 import qualified Brig.Team.Email               as Team
 import qualified Brig.TURN.API                 as TURN
+import qualified System.Logger.Class           as Log
 
 runServer :: Opts -> IO ()
 runServer o = do
@@ -183,8 +184,9 @@ sitemap o = do
     post "/i/users/blacklist" (continue addBlacklist) $
         param "email" ||| param "phone"
 
-    get "/i/users/:uid/can-be-deleted" (continue canBeDeleted) $
-        capture "uid"
+    get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeleted) $
+      capture "uid"
+      .&. capture "tid"
 
     post "/i/clients" (continue internalListClients) $
       accept "application" "json"
@@ -1473,10 +1475,18 @@ addBlacklist emailOrPhone = do
     void . lift $ API.blacklistInsert emailOrPhone
     return empty
 
-canBeDeleted :: UserId -> Handler Response
-canBeDeleted uid = do
-    onlyOwner <- lift (Brig.Team.Util.isOnlyTeamOwner uid)
-    return $ setStatus (if onlyOwner then status403 else status200) empty
+canBeDeleted :: UserId ::: TeamId -> Handler Response
+canBeDeleted (uid ::: tid) = do
+    onlyOwner <- lift (Team.isOnlyTeamOwner uid tid)
+    case onlyOwner of
+       Team.IsOnlyTeamOwner       -> throwStd noOtherOwner
+       Team.IsOneOfManyTeamOwners -> pure ()
+       Team.IsNotTeamOwner        -> pure ()
+       Team.NoTeamOwnersAreLeft   -> do
+           Log.warn $ Log.field "user" (toByteString uid)
+                    . Log.msg (Log.val "Team.NoTeamOwnersAreLeft")
+           pure ()
+    return empty
 
 getInvitationByCode :: JSON ::: InvitationCode -> Handler Response
 getInvitationByCode (_ ::: c) = do

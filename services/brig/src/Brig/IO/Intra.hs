@@ -476,7 +476,7 @@ rmUser usr asts = do
           . field "user" (toByteString usr)
           . msg (val "remove profile assets")
     -- Note that we _may_ not get a 2xx response code from cargohold (e.g., client has
-    -- deleted the asset "directly" with cargohold; on our side, we just do our best to 
+    -- deleted the asset "directly" with cargohold; on our side, we just do our best to
     -- delete it in case it is still there
     forM_ asts $ \ast ->
         cargoholdRequest DELETE (paths ["assets/v3", toByteString' $ assetKey ast] . zUser usr)
@@ -599,6 +599,7 @@ getTeamMembers tid = do
     req = paths ["i", "teams", toByteString' tid, "members"]
         . expect2xx
 
+-- | Only works on 'BindingTeam's!
 getTeamContacts :: UserId -> AppIO (Maybe Team.TeamMemberList)
 getTeamContacts u = do
     debug $ remote "galley" . msg (val "Get team contacts")
@@ -621,9 +622,8 @@ getTeamContacts u = do
 -- /i/users/:uid/can-be-deleted directly with a list of team members passed to that end-point in the
 -- body.  When brig wants to know, it can call both parts.  These thoughts may all become obsolete
 -- if we introduce a deletion service in the future.
-getTeamOwners :: UserId -> AppIO (Maybe [Team.TeamMember])
-getTeamOwners uid = maybe (pure Nothing) (fmap Just . filterByEmail . filterByPerms)
-                    =<< getTeamContacts uid
+getTeamOwners :: TeamId -> AppIO [Team.TeamMember]
+getTeamOwners tid = filterByEmail . filterByPerms =<< getTeamMembers tid
   where
     filterByPerms :: Team.TeamMemberList -> [Team.TeamMember]
     filterByPerms mems =
@@ -680,4 +680,3 @@ changeTeamStatus tid s cur = do
         . header "Content-Type" "application/json"
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
-

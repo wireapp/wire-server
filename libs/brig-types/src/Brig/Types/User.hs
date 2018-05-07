@@ -161,8 +161,7 @@ data UserProfile = UserProfile
     }
     deriving (Eq, Show)
 
--- TODO: json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin' are entangled in
--- an unhealthy way.  shouldn't be too hard to refactor!
+-- TODO: disentangle json serializations for 'User', 'NewUser', 'UserIdentity', 'NewUserOrigin'.
 instance ToJSON User where
     toJSON u = object
         $ "id"         .= userId u
@@ -260,8 +259,6 @@ data NewUserOrigin =
   | NewUserOriginTeamUser !NewTeamUser
   deriving (Eq, Show)
 
--- (there is some overlap between this block and 'parseMaybeIdentityNewUser', but it is not trivial
--- to remove and may be benign.)
 parseNewUserOrigin :: Maybe PlainTextPassword -> Maybe UserIdentity -> Maybe UserSSOId
                    -> Object -> Parser (Maybe NewUserOrigin)
 parseNewUserOrigin pass uid ssoid o = do
