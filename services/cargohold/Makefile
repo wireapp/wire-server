@@ -70,9 +70,6 @@ i-list:
 i-%:
 	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
 
-i-fake-aws:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "!/RealAWS/"
-
 .PHONY: integration
 integration: fast i
 
@@ -81,8 +78,6 @@ integration-list: fast i-list
 
 integration-%: fast
 	make i-"$*"
-
-integration-fake-aws: fast i-fake-aws
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
