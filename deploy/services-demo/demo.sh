@@ -58,7 +58,7 @@ function check_prerequisites() {
     nc -z 127.0.0.1 9042 \
         && nc -z 127.0.0.1 9200 \
         && nc -z 127.0.0.1 6379 \
-        || { echo "Databases not up. Maybe run 'cd deploy/docker-ephemeral && docker-compose up' in a separate terminal first?";  exit 1; }
+        || { echo "Databases not up. Maybe run 'deploy/docker-ephemeral/run.sh' in a separate terminal first?";  exit 1; }
     test -f ${DIR}/../dist/brig \
         && test -f ${DIR}/../dist/galley \
         && test -f ${DIR}/../dist/cannon \
@@ -88,7 +88,8 @@ function run_haskell_service() {
 
 function run_nginz() {
     colour=$1
-    (cd ${SCRIPT_DIR} && ${DIR}/../dist/nginx -p ${SCRIPT_DIR} -c ${SCRIPT_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
+    prefix=$([ -w /usr/local ] && echo /usr/local || echo "${HOME}/.wire-dev")
+    (cd ${SCRIPT_DIR} && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ ${DIR}/../dist/nginx -p ${SCRIPT_DIR} -c ${SCRIPT_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
         | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
 }
 

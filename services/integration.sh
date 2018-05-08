@@ -36,7 +36,7 @@ function check_prerequisites() {
     nc -z 127.0.0.1 9042 \
         && nc -z 127.0.0.1 9200 \
         && nc -z 127.0.0.1 6379 \
-        || { echo "Databases not up. Maybe run 'cd deploy/docker-ephemeral && docker-compose up' in a separate terminal first?";  exit 1; }
+        || { echo "Databases not up. Maybe run 'deploy/docker-ephemeral/run.sh' in a separate terminal first?";  exit 1; }
     test -f ${DIR}/../dist/brig \
         && test -f ${DIR}/../dist/galley \
         && test -f ${DIR}/../dist/cannon \
