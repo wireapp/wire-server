@@ -2,13 +2,20 @@ flags: {}
 extra-package-dbs: []
 packages:
 - .
-- ../../libs/cargohold-types
-- ../../libs/types-common
-- ../../libs/ropes
-- ../../libs/wai-utilities
-- ../../libs/bilge
-- ../../libs/metrics-core
-- ../../libs/metrics-wai
+- location: ../../libs/cargohold-types
+  extra-dep: true
+- location: ../../libs/types-common
+  extra-dep: true
+- location: ../../libs/ropes
+  extra-dep: true
+- location: ../../libs/wai-utilities
+  extra-dep: true
+- location: ../../libs/bilge
+  extra-dep: true
+- location: ../../libs/metrics-core
+  extra-dep: true
+- location: ../../libs/metrics-wai
+  extra-dep: true
 - location:
     git: https://github.com/tiago-loureiro/aws
     commit: 483f4b0c137d6d4bbbe9abb0acab4309e8d3bde9

@@ -1,11 +1,16 @@
 resolver: lts-10.3
 packages:
 - '.'
-- '../../libs/bilge'
-- '../../libs/types-common'
-- '../../libs/wai-utilities'
-- '../../libs/metrics-core'
-- '../../libs/metrics-wai'
+- location: '../../libs/bilge'
+  extra-dep: true
+- location: '../../libs/types-common'
+  extra-dep: true
+- location: '../../libs/wai-utilities'
+  extra-dep: true
+- location: '../../libs/metrics-core'
+  extra-dep: true
+- location: '../../libs/metrics-wai'
+  extra-dep: true
 
 flags:
   types-common:

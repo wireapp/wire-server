@@ -27,7 +27,7 @@ clean:
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --local-bin-path=../../dist --fast
+	stack install --pedantic --test --local-bin-path=../../dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY:
 compile:

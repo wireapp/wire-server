@@ -1,21 +1,36 @@
 extra-package-dbs: []
 packages:
 - .
-- '../../libs/brig-types'
-- '../../libs/types-common'
-- '../../libs/bilge'
-- '../../libs/cargohold-types'
-- '../../libs/cassandra-util'
-- '../../libs/gundeck-types'
-- '../../libs/ropes'
-- '../../libs/tasty-cannon'
-- '../../libs/galley-types'
-- '../../libs/http-client-openssl-ext'
-- '../../libs/metrics-core'
-- '../../libs/metrics-wai'
-- '../../libs/sodium-crypto-sign'
-- '../../libs/wai-utilities'
-- '../../libs/zauth'
+- location: '../../libs/brig-types'
+  extra-dep: true
+- location: '../../libs/types-common'
+  extra-dep: true
+- location: '../../libs/bilge'
+  extra-dep: true
+- location: '../../libs/cargohold-types'
+  extra-dep: true
+- location: '../../libs/cassandra-util'
+  extra-dep: true
+- location: '../../libs/gundeck-types'
+  extra-dep: true
+- location: '../../libs/ropes'
+  extra-dep: true
+- location: '../../libs/tasty-cannon'
+  extra-dep: true
+- location: '../../libs/galley-types'
+  extra-dep: true
+- location: '../../libs/http-client-openssl-ext'
+  extra-dep: true
+- location: '../../libs/metrics-core'
+  extra-dep: true
+- location: '../../libs/metrics-wai'
+  extra-dep: true
+- location: '../../libs/sodium-crypto-sign'
+  extra-dep: true
+- location: '../../libs/wai-utilities'
+  extra-dep: true
+- location: '../../libs/zauth'
+  extra-dep: true
 - location:
     git: https://github.com/tiago-loureiro/haskell-multihash.git
     commit: 7622cfcff97fa1e207ec91bb11495a207e6c0195

@@ -28,7 +28,7 @@ install: init
 
 .PHONY: compile
 compile:
-	stack build --fast --pedantic --test --no-copy-bins
+	stack build --pedantic --test --no-copy-bins --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: dist
 dist: guard-VERSION $(DEB)
