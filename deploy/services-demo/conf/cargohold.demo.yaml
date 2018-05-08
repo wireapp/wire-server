@@ -3,8 +3,8 @@ cargohold:
   port: 8084
 
 aws:
-  keyId: dummy
-  secretKey: dummy
+  keyId: dummykey
+  secretKey: dummysecret
   s3Bucket: dummy-bucket
   s3Endpoint: http://localhost:4570 # https://s3-eu-west-1.amazonaws.com:443
 

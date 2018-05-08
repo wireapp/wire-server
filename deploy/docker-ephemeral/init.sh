@@ -6,8 +6,8 @@ exec_until_ready() {
 
 # Assumes this to be run in an environment with `aws` installed
 echo 'Creating AWS resources'
-aws configure set aws_access_key_id dummy
-aws configure set aws_secret_access_key dummy
+aws configure set aws_access_key_id dummykey
+aws configure set aws_secret_access_key dummysecret
 aws configure set region eu-west-1
 
 # Potentially delete pre-existing tables
@@ -27,12 +27,17 @@ exec_until_ready "aws --endpoint-url=http://sqs:4568 sqs set-queue-attributes --
 # Galley's team event queue
 exec_until_ready "aws --endpoint-url=http://sqs:4568 sqs create-queue --queue-name integration-team-events.fifo"
 exec_until_ready "aws --endpoint-url=http://sqs:4568 sqs set-queue-attributes --queue-url http://sqs:4568/integration-team-events.fifo --attributes VisibilityTimeout=1"
-# # Verify sender's email address (ensure the sender address is in sync with the config in brig)
+# Verify sender's email address (ensure the sender address is in sync with the config in brig)
 exec_until_ready "aws --endpoint-url=http://ses:4579 ses verify-email-identity --email-address backend-integration@wire.com"
 
-# # Create SNS resources for gundeck's notifications
+# Create SNS resources for gundeck's notifications
 exec_until_ready "aws --endpoint-url=http://sns:4575 sns create-platform-application --name integration-test --platform GCM --attributes PlatformCredential=testkey"
 exec_until_ready "aws --endpoint-url=http://sns:4575 sns create-platform-application --name integration-test --platform APNS_SANDBOX --attributes PlatformCredential=testprivatekey"
 exec_until_ready "aws --endpoint-url=http://sns:4575 sns create-platform-application --name integration-com.wire.ent --platform APNS_SANDBOX --attributes PlatformCredential=testprivatekey"
+
+# Cargohold's bucket; creating a bucket is not idempotent so we just try once and wait until it is ready
+# TODO: Lifecycle configuration for the bucket, if supported.
+aws --endpoint-url=http://s3:9000 s3api create-bucket --bucket dummy-bucket
+aws --endpoint-url=http://s3:9000 s3api wait bucket-exists --bucket dummy-bucket
 
 echo 'AWS resources created successfully!'
