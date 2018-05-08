@@ -1,18 +1,30 @@
 resolver: lts-10.3
 packages:
 - '.'
-- '../../libs/bilge'
-- '../../libs/brig-types'
-- '../../libs/cassandra-util'
-- '../../libs/galley-types'
-- '../../libs/gundeck-types'
-- '../../libs/http-client-openssl-ext'
-- '../../libs/metrics-core'
-- '../../libs/metrics-wai'
-- '../../libs/tasty-cannon'
-- '../../libs/types-common'
-- '../../libs/types-common-journal'
-- '../../libs/wai-utilities'
+- location: '../../libs/bilge'
+  extra-dep: true
+- location: '../../libs/brig-types'
+  extra-dep: true
+- location: '../../libs/cassandra-util'
+  extra-dep: true
+- location: '../../libs/galley-types'
+  extra-dep: true
+- location: '../../libs/gundeck-types'
+  extra-dep: true
+- location: '../../libs/http-client-openssl-ext'
+  extra-dep: true
+- location: '../../libs/metrics-core'
+  extra-dep: true
+- location: '../../libs/metrics-wai'
+  extra-dep: true
+- location: '../../libs/tasty-cannon'
+  extra-dep: true
+- location: '../../libs/types-common'
+  extra-dep: true
+- location: '../../libs/types-common-journal'
+  extra-dep: true
+- location: '../../libs/wai-utilities'
+  extra-dep: true
 
 flags:
   types-common:
