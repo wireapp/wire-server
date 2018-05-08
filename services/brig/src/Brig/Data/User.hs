@@ -261,7 +261,7 @@ type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe Use
 
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
-usersSelect = "SELECT id, name, picture, email, phone, ssoid, accent_id, assets, \
+usersSelect = "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
               \activated, status, expires, language, country, provider, service, handle, team \
               \FROM user where id IN ?"
 
@@ -287,7 +287,7 @@ statusSelect :: PrepQuery R (Identity UserId) (Identity (Maybe AccountStatus))
 statusSelect = "SELECT status FROM user WHERE id = ?"
 
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
-accountsSelect = "SELECT id, name, picture, email, phone, ssoid, accent_id, assets, \
+accountsSelect = "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
                  \activated, status, expires, language, country, provider, \
                  \service, handle, team \
                  \FROM user WHERE id IN ?"
@@ -296,7 +296,7 @@ userInsert :: PrepQuery W (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone
                            ColourId, Maybe Password, Bool, AccountStatus, Maybe UTCTime,
                            Language, Maybe Country, Maybe ProviderId,
                            Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId) ()
-userInsert = "INSERT INTO user (id, name, picture, assets, email, phone, ssoid, \
+userInsert = "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
                                \accent_id, password, activated, status, expires, language, \
                                \country, provider, service, handle, searchable, team) \
                                \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"

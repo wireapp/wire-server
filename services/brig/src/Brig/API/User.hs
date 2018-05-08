@@ -288,7 +288,7 @@ createUser new@NewUser{..} = do
         unless added $
             throwE TooManyTeamMembers
         lift $ do
-            activateUser uid ident  -- ('insertAccount' clears column activated; here it is set.)
+            activateUser uid ident  -- ('insertAccount' sets column activated to False; here it is set to True.)
             void $ onActivated (AccountActivated account)
             Log.info $ field "user" (toByteString uid)
                      . field "team" (toByteString $ Team.iiTeam ii)
