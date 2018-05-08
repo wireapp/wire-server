@@ -58,7 +58,7 @@ clean:
 
 .PHONY: check-deps
 check-deps:
-	PKG_CONFIG_PATH=$(EXTRA_PKG_PATH) pkg-config --exists libzauth || { echo -e "\n\033[0;31m    The 'libzauth' library was not found\033[0m\n    pkg-config path = $(EXTRA_PKG_PATH)\n\n    Suggestion: run 'make libzauth' on the top level\n"; exit 1; }
+	PKG_CONFIG_PATH=$(EXTRA_PKG_PATH) pkg-config --exists libzauth || { echo -e "\n\033[0;31m    The 'libzauth' library was not found\033[0m\n    pkg-config path = $(EXTRA_PKG_PATH)\n\n    Attempting to install it...\n" && $(MAKE) libzauth; }
 
 compile: $(BIN)
 	mkdir -p dist ../../dist
@@ -111,3 +111,7 @@ $(TMPDIR)/$(NGINX_BUNDLE):
 docker:
 	git submodule update --init
 	docker build -f Dockerfile -t nginz ../..
+
+.PHONY: libzauth
+libzauth:
+	$(MAKE) -C ../../libs/libzauth install
