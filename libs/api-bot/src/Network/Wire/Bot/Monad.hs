@@ -451,11 +451,11 @@ withCachedBot t f = do
 -- Assertions
 
 data EventAssertion = EventAssertion
-    { _assertType     :: !EventType
-    , _assertTime     :: !UTCTime
-    , _assertPred     :: Event -> Bool
-    , _assertOut      :: !(Maybe (TMVar (Maybe Event)))
-    , _assertLocation :: !(Maybe SrcLoc)
+    { _assertType  :: !EventType
+    , _assertTime  :: !UTCTime
+    , _assertPred  :: Event -> Bool
+    , _assertOut   :: !(Maybe (TMVar (Maybe Event)))
+    , _assertStack :: !CallStack
     }
 
 whenAsserts :: MonadBotNet m => BotNet () -> m ()
@@ -504,12 +504,8 @@ assertTrue b m = whenAsserts $
 assertFailure :: (HasCallStack, MonadBotNet m) => Text -> m ()
 assertFailure m = whenAsserts $ do
     incrAssertFailed
-    log Error . msg $ val "Assertion failed" +++ locationString +++ val ": " +++ m
-  where
-    locationString = case reverse (getCallStack callStack) of
-        []        -> ""
-        (_,loc):_ -> " at " <> srcLocFile loc <> ":" <>
-                     show (srcLocStartLine loc) <> ":" <> show (srcLocStartCol loc)
+    log Error . msg $ val "Assertion failed: " +++ m +++ val "\n" +++
+                      prettyCallStack callStack
 
 -- | Place an assertion on a 'Bot', expecting a matching 'Event' to arrive
 -- in its inbox within a timeout window.
@@ -538,18 +534,13 @@ scheduleAssert bot typ f out = whenAsserts $ do
         if n >= botMaxAsserts (botSettings bot)
             then return False
             else do
-                writeTQueue (botAsserts bot) (EventAssertion typ t f out location)
+                writeTQueue (botAsserts bot) (EventAssertion typ t f out callStack)
                 writeTVar (botAssertCount bot) (n + 1)
                 return True
     unless r $ liftBotNet $ do
         incrAssertFailed
         runBotSession bot . log Error . msg $
             "Too many event assertions. Dropped: " <> eventTypeText typ
-  where
-    location :: Maybe SrcLoc
-    location = case reverse (getCallStack callStack) of
-      (_, loc) : _ -> Just loc
-      [] -> Nothing
 
 -------------------------------------------------------------------------------
 -- * Exceptions
@@ -668,15 +659,11 @@ heartbeat bot e = forever $ do
             botLog l bot Warn $ msg (val "Event inbox full!")
         -- Remove old assertions from the backlog
         asserts <- atomically $ gcBacklog bot now
-        forM_ asserts $ \(EventAssertion typ _ _ out location) -> do
+        forM_ asserts $ \(EventAssertion typ _ _ out stack) -> do
             for_ out $ liftIO . atomically . flip tryPutTMVar Nothing
-            let locationString = case location of
-                    Nothing  -> ""
-                    Just loc -> " (assert created at " <> srcLocFile loc <> ":" <>
-                                show (srcLocStartLine loc) <> ":" <>
-                                show (srcLocStartCol loc) <> ")"
             botLog l bot Warn $ msg $
-                "Assertion Timeout" <> pack locationString <> ": " <> eventTypeText typ
+                "Assertion Timeout: " <> eventTypeText typ <>
+                "\nAssertion was created at: " <> pack (prettyCallStack stack)
     -- Re-establish the push connection, if it died
     push <- maybe (return Nothing) poll =<< readIORef (botPushThread bot)
     case push of
