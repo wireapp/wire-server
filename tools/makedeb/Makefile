@@ -18,6 +18,7 @@ all: clean install
 
 init:
 	mkdir -p dist
+	mkdir -p ../../dist
 
 .PHONY: clean
 clean:
@@ -27,7 +28,7 @@ clean:
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist
+	stack install --pedantic --test --local-bin-path=../../dist
 
 .PHONY:
 compile:
@@ -42,7 +43,7 @@ $(DEB):
 	sed -i "s/<<VERSION_NUMBER>>/$(VERSION)/g" $($@_DIR)/deb/DEBIAN/control
 	sed -i "s/<<BUILD_NUMBER>>/$(BUILD)/g" $($@_DIR)/deb/DEBIAN/control
 	sed -i "s/<<ARCHITECTURE>>/amd64/g" $($@_DIR)/deb/DEBIAN/control
-	dpkg-deb -b $($@_DIR)/deb dist/$(DEB)
+	dpkg-deb -b $($@_DIR)/deb ../../dist/$(DEB)
 	rm -rf $($@_DIR)
 
 .metadata:

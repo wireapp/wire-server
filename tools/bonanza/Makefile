@@ -15,7 +15,8 @@ default: all
 all: clean install
 
 init:
-	mkdir -p dist/build
+	mkdir -p dist
+	mkdir -p ../../dist
 
 .PHONY: clean
 clean:
@@ -24,7 +25,7 @@ clean:
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist/build
+	stack install --pedantic --test --local-bin-path=../../dist
 
 .PHONY: compile
 compile:
