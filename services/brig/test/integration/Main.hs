@@ -47,8 +47,8 @@ data Config = Config
 
 instance FromJSON Config
 
-runTests :: Maybe Config -> Maybe Opts.Opts -> IO ()
-runTests iConf bConf = do
+runTests :: Maybe Config -> Maybe Opts.Opts -> [String] -> IO ()
+runTests iConf bConf otherArgs = do
     let local p = Endpoint { _epHost = "127.0.0.1", _epPort = p }
     b  <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
     c  <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
@@ -70,7 +70,7 @@ runTests iConf bConf = do
     teamApis    <- Team.tests bConf mg b c g
     turnApi     <- TURN.tests mg b turnFile
 
-    defaultMain $ testGroup "Brig API Integration"
+    withArgs otherArgs $ defaultMain $ testGroup "Brig API Integration"
         [ userApi
         , providerApi
         , searchApis
@@ -114,7 +114,7 @@ main = withOpenSSL $ do
     iConf <- join $ handleParseError <$> decodeFileEither iPath
     bConf <- join $ handleParseError <$> decodeFileEither bPath
 
-    withArgs otherArgs $ runTests iConf bConf
+    runTests iConf bConf otherArgs
   where
     getConfigArgs args = reverse $ snd $ foldl' filterConfig (False, []) args
 
