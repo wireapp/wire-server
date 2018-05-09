@@ -28,6 +28,7 @@ import Data.Maybe
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import Data.Word (Word16)
+import GHC.Stack (HasCallStack)
 import Network.HTTP.Client             (Manager)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
@@ -532,7 +533,7 @@ testNonSearchableDefault brig galley = do
 -------------------------------------------------------------------------------
 -- Utilities
 
-listConnections :: UserId -> Brig -> Http UserConnectionList
+listConnections :: HasCallStack => UserId -> Brig -> Http UserConnectionList
 listConnections u brig = do
     r <- get $ brig
              . path "connections"
@@ -563,12 +564,12 @@ unsuspendTeam brig t = post $ brig
     . paths ["i", "teams", toByteString' t, "unsuspend"]
     . contentJson
 
-getTeam :: Galley -> TeamId -> Http Team.TeamData
+getTeam :: HasCallStack => Galley -> TeamId -> Http Team.TeamData
 getTeam galley t = do
     r <- get $ galley . paths ["i", "teams", toByteString' t]
     return $ fromMaybe (error "getTeam: failed to parse response") (decodeBody r)
 
-getInvitationCode :: Brig -> TeamId -> InvitationId -> Http (Maybe InvitationCode)
+getInvitationCode :: HasCallStack => Brig -> TeamId -> InvitationId -> Http (Maybe InvitationCode)
 getInvitationCode brig t ref = do
     r <- get ( brig
              . path "/i/teams/invitation-code"
@@ -578,7 +579,7 @@ getInvitationCode brig t ref = do
     let lbs   = fromMaybe "" $ responseBody r
     return $ fromByteString . fromMaybe (error "No code?") $ T.encodeUtf8 <$> (lbs ^? key "code"  . _String)
 
-assertNoInvitationCode :: Brig -> TeamId -> InvitationId -> Http ()
+assertNoInvitationCode :: HasCallStack => Brig -> TeamId -> InvitationId -> Http ()
 assertNoInvitationCode brig t i =
     get ( brig
         . path "/i/teams/invitation-code"
@@ -588,7 +589,7 @@ assertNoInvitationCode brig t i =
           const 400 === statusCode
           const (Just "invalid-invitation-code") === fmap Error.label . decodeBody
 
-getTeamMember :: UserId -> TeamId -> Galley -> Http Team.TeamMember
+getTeamMember :: HasCallStack => UserId -> TeamId -> Galley -> Http Team.TeamMember
 getTeamMember u tid galley = do
     r <- get ( galley
              . paths ["i", "teams", toByteString' tid, "members", toByteString' u]

@@ -26,6 +26,7 @@ import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
 import Data.Range (unsafeRange)
 import Data.Text (Text)
+import GHC.Stack (HasCallStack)
 import OpenSSL.EVP.Digest (getDigestByName, digestBS)
 import Test.Tasty.HUnit
 import Util
@@ -61,7 +62,7 @@ registerUser name email brig = do
             ]
     post (brig . path "/register" . contentJson . body p)
 
-createRandomPhoneUser :: Brig -> Http (UserId, Phone)
+createRandomPhoneUser :: HasCallStack => Brig -> Http (UserId, Phone)
 createRandomPhoneUser brig = do
     usr <- randomUser brig
     let uid = userId usr
@@ -90,7 +91,7 @@ initiatePasswordReset brig email =
          . body (RequestBodyLBS . encode $ NewPasswordReset (Left email))
          )
 
-activateEmail :: Brig -> Email -> HttpT IO ()
+activateEmail :: HasCallStack => Brig -> Email -> HttpT IO ()
 activateEmail brig email = do
     act <- getActivationCode brig (Left email)
     case act of
@@ -99,7 +100,7 @@ activateEmail brig email = do
             const 200 === statusCode
             const(Just False) === fmap activatedFirst . decodeBody
 
-checkEmail :: Brig -> UserId -> Email -> HttpT IO ()
+checkEmail :: HasCallStack => Brig -> UserId -> Email -> HttpT IO ()
 checkEmail brig uid expectedEmail =
     get (brig . path "/self" . zUser uid) !!! do
         const 200 === statusCode
@@ -207,7 +208,7 @@ deleteProperty brig u k = delete $ brig
     . zConn "conn"
     . zUser u
 
-countCookies :: Brig -> UserId -> CookieLabel -> Http (Maybe Int)
+countCookies :: HasCallStack => Brig -> UserId -> CookieLabel -> Http (Maybe Int)
 countCookies brig u label = do
     r <- get ( brig
              . path "/cookies"
@@ -216,7 +217,7 @@ countCookies brig u label = do
              ) <!! const 200 === statusCode
     return $ Vec.length <$> (preview (key "cookies" . _Array) =<< asValue r)
 
-assertConnections :: Brig -> UserId -> [ConnectionStatus] -> Http ()
+assertConnections :: HasCallStack => Brig -> UserId -> [ConnectionStatus] -> Http ()
 assertConnections brig u cs = listConnections brig u !!! do
     const 200 === statusCode
     const (Just True) === fmap (check . map status . clConnections) . decodeBody
@@ -224,7 +225,7 @@ assertConnections brig u cs = listConnections brig u !!! do
     check xs = all (`elem` xs) cs
     status c = ConnectionStatus (ucFrom c) (ucTo c) (ucStatus c)
 
-assertEmailVisibility :: Brig -> User -> User -> Bool -> Http ()
+assertEmailVisibility :: HasCallStack => Brig -> User -> User -> Bool -> Http ()
 assertEmailVisibility brig a b visible =
     get (brig . paths ["users", pack . show $ userId b] . zUser (userId a)) !!! do
         const 200 === statusCode
@@ -232,7 +233,7 @@ assertEmailVisibility brig a b visible =
             then const (Just (userEmail b)) === fmap userEmail . decodeBody
             else const Nothing === (userEmail <=< decodeBody)
 
-uploadAsset :: CargoHold -> UserId -> ByteString -> Http CHV3.Asset
+uploadAsset :: HasCallStack => CargoHold -> UserId -> ByteString -> Http CHV3.Asset
 uploadAsset c usr dat = do
     let sts = CHV3.defAssetSettings
         ct  = MIME.Type (MIME.Application "text") []
@@ -254,7 +255,7 @@ downloadAsset c usr ast =
         . zConn "conn"
         )
 
-uploadAddressBook :: Brig -> UserId -> AddressBook -> MatchingResult -> Http ()
+uploadAddressBook :: HasCallStack => Brig -> UserId -> AddressBook -> MatchingResult -> Http ()
 uploadAddressBook b u a m =
     post ( b
          . path "/onboarding/v3"

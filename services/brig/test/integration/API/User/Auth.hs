@@ -23,6 +23,7 @@ import Data.Monoid
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
+import GHC.Stack (HasCallStack)
 import System.Random (randomIO)
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -488,21 +489,21 @@ testReauthorisation b = do
 -----------------------------------------------------------------------------
 -- Helpers
 
-decodeCookie :: Response a -> Http.Cookie
+decodeCookie :: HasCallStack => Response a -> Http.Cookie
 decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
 
-decodeToken :: Response (Maybe Lazy.ByteString) -> ZAuth.AccessToken
+decodeToken :: HasCallStack => Response (Maybe Lazy.ByteString) -> ZAuth.AccessToken
 decodeToken r = fromMaybe (error "invalid access_token") $ do
     x <- responseBody r
     t <- x ^? key "access_token" . _String
     fromByteString (encodeUtf8 t)
 
-getCookieId :: Http.Cookie -> CookieId
+getCookieId :: HasCallStack => Http.Cookie -> CookieId
 getCookieId c = maybe (error "no cookie value")
                       (CookieId . ZAuth.userTokenRand)
                       (fromByteString (cookie_value c))
 
-listCookies :: Brig -> UserId -> Http [Auth.Cookie ()]
+listCookies :: HasCallStack => Brig -> UserId -> Http [Auth.Cookie ()]
 listCookies b u = do
     rs <- get (b . path "/cookies" . header "Z-User" (toByteString' u)) <!!
         const 200 === statusCode

@@ -7,6 +7,7 @@ import Control.Monad
 import Data.Foldable (toList)
 import Data.Id (ConvId, UserId)
 import Data.List ((\\))
+import GHC.Stack (HasCallStack)
 import Network.Wire.Bot.Monad
 import Network.Wire.Client.API.Conversation
 import Network.Wire.Client.API.Push
@@ -14,7 +15,7 @@ import Network.Wire.Client.API.User
 
 import qualified Data.Set as Set
 
-assertConvCreated :: MonadBotNet m
+assertConvCreated :: (HasCallStack, MonadBotNet m)
                   => ConvId
                   -> Bot    -- ^ The creator of the conversation.
                   -> [Bot]  -- ^ The other users in the conversation.
@@ -59,7 +60,7 @@ awaitOtrMessage c (from, fc) (to, tc) =
 -- | Check that given users have received the event about some other users
 -- joining a conversation.
 assertMembersJoined
-    :: MonadBotNet m
+    :: (HasCallStack, MonadBotNet m)
     => [Bot]                          -- ^ Who should've received the event
     -> Maybe (ConvEvent Members)      -- ^ Users who have (presumably) joined
     -> m ()
@@ -73,7 +74,7 @@ assertMembersJoined bs (Just e) = forM_ bs $ \b ->
 -- | Check that given users have received the event about some other users
 -- leaving a conversation.
 assertMembersLeft
-    :: MonadBotNet m
+    :: (HasCallStack, MonadBotNet m)
     => [Bot]                          -- ^ Who should've received the event
     -> Maybe (ConvEvent Members)      -- ^ Users who have (presumably) left
     -> m ()
@@ -84,11 +85,11 @@ assertMembersLeft bs (Just e) = forM_ bs $ \b ->
     memRem (EMemberLeave e') = e == e'
     memRem _                 = False
 
-assertConnectRequested :: MonadBotNet m => Bot -> Bot -> m ()
+assertConnectRequested :: (HasCallStack, MonadBotNet m) => Bot -> Bot -> m ()
 assertConnectRequested from to = assertEvent to TUserConnection $
     connStatus (botId to) (botId from) Pending
 
-assertConnectAccepted :: MonadBotNet m => Bot -> Bot -> m ()
+assertConnectAccepted :: (HasCallStack, MonadBotNet m) => Bot -> Bot -> m ()
 assertConnectAccepted from to = do
     assertEvent to TConvMemberJoin $ memberJoined (botId from) (botId to)
     assertEvent to TUserConnection $ connStatus   (botId to)   (botId from) Accepted
