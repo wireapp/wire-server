@@ -71,3 +71,9 @@ docker-exe-%:
 .PHONY: docker-service-%
 docker-service-%:
 	$(MAKE) -C services/"$*" docker
+
+#################################
+## dependencies
+
+libzauth:
+	$(MAKE) -C libs/libzauth install
