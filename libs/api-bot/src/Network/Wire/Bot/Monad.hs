@@ -141,24 +141,31 @@ data BotNetEnv = BotNetEnv
     }
 
 newBotNetEnv :: Manager -> Logger -> BotNetSettings -> IO BotNetEnv
-newBotNetEnv m l o = do
+newBotNetEnv manager logger o = do
     gen <- MWC.createSystemRandom
-    usr <- maybe Cache.empty (Cache.fromFile l gen) (setBotNetUsersFile o)
+    usr <- maybe Cache.empty (Cache.fromFile logger gen) (setBotNetUsersFile o)
     mbx <- maybe (return []) loadMailboxConfig (setBotNetMailboxConfig o)
     met <- initMetrics
-    let sdr = setBotNetSender o
     let srv = Server
             { serverHost    = setBotNetApiHost   o
             , serverPort    = setBotNetApiPort   o
             , serverWsHost  = setBotNetApiWsHost o
             , serverWsPort  = setBotNetApiWsPort o
             , serverSSL     = setBotNetApiSSL    o
-            , serverManager = m
+            , serverManager = manager
             }
-    let asrt = setBotNetAssert o
-    let sets = setBotNetBotSettings o
-    let rprt = setBotNetReportDir o
-    return $! BotNetEnv gen mbx sdr usr srv l asrt sets met rprt
+    return $! BotNetEnv
+        { botNetGen       = gen
+        , botNetMailboxes = mbx
+        , botNetSender    = setBotNetSender o
+        , botNetUsers     = usr
+        , botNetServer    = srv
+        , botNetLogger    = logger
+        , botNetAssert    = setBotNetAssert o
+        , botNetSettings  = setBotNetBotSettings o
+        , botNetMetrics   = met
+        , botNetReportDir = setBotNetReportDir o
+        }
 
 -- Note: Initializing metrics to avoid race conditions on first access and thus
 -- potentially losing some values.
