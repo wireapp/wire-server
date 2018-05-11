@@ -3,7 +3,7 @@
 module Network.Wire.Bot.Cache
     ( CachedUser (..)
     , Cache
-    , new
+    , fromFile
     , Network.Wire.Bot.Cache.empty
     , get
     , put
@@ -26,6 +26,9 @@ import Network.Wire.Client.API.User
 import Prelude hiding (lines, readFile)
 import System.Logger hiding (new)
 import System.Random.MWC
+import System.Random.MWC.Distributions (uniformShuffle)
+
+import qualified Data.Vector as V
 
 newtype Cache = Cache { cache :: IORef [CachedUser] }
 
@@ -38,11 +41,11 @@ data CachedUser = CachedUser !PlainTextPassword !User
 -- user2's UUID,email2,password2
 -- ...
 -- @
---
--- TODO: Use GenIO to randomise the order or remove the argument.
-new :: Logger -> GenIO -> FilePath -> IO Cache
-new l _ p = do
-    c <- newIORef =<< foldM (toUser l) [] =<< map (splitOn ",") . lines <$> readFile p
+fromFile :: Logger -> GenIO -> FilePath -> IO Cache
+fromFile logger gen path = do
+    triples <- map (splitOn ",") . lines <$> readFile path
+    shuffled <- V.toList <$> uniformShuffle (V.fromList triples) gen
+    c <- newIORef =<< foldM (toUser logger) [] shuffled
     return (Cache c)
 
 empty :: IO Cache
