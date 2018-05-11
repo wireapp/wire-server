@@ -31,6 +31,14 @@ newtype Cache = Cache { cache :: IORef [CachedUser] }
 
 data CachedUser = CachedUser !PlainTextPassword !User
 
+-- | Load users out of a file in the following format:
+--
+-- @
+-- user1's UUID,email1,password1
+-- user2's UUID,email2,password2
+-- ...
+-- @
+--
 -- TODO: Use GenIO to randomise the order or remove the argument.
 new :: Logger -> GenIO -> FilePath -> IO Cache
 new l _ p = do
