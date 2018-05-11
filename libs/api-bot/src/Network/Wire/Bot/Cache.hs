@@ -21,6 +21,7 @@ import Data.Monoid
 import Data.Text.Encoding
 import Data.Text.Lazy hiding (length, map)
 import Data.Text.Lazy.IO
+import GHC.Stack (HasCallStack)
 import Network.Wire.Client.API.User
 import Prelude hiding (lines, readFile)
 import System.Logger hiding (new)
@@ -39,16 +40,17 @@ new l _ p = do
 empty :: IO Cache
 empty = Cache <$> newIORef []
 
-get :: MonadIO m => Cache -> m CachedUser
+get :: (MonadIO m, HasCallStack) => Cache -> m CachedUser
 get c = liftIO $ atomicModifyIORef (cache c) $ \u ->
     case u of
-        []     -> error "empty cache"
+        []     -> error "Cache.get: an account was requested from the cache, \
+                        \but the cache of available user accounts is empty"
         (x:xs) -> (xs, x)
 
 put :: MonadIO m => Cache -> CachedUser -> m ()
 put c a = liftIO $ atomicModifyIORef (cache c) $ \u -> (a:u, ())
 
-toUser :: Logger -> [CachedUser] -> [Text] -> IO [CachedUser]
+toUser :: HasCallStack => Logger -> [CachedUser] -> [Text] -> IO [CachedUser]
 toUser _ acc [i, e, p] = do
     let pw = PlainTextPassword . toStrict $ strip p
     let iu = error "Cache.toUser: invalid user"

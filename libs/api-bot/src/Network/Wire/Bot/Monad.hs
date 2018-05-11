@@ -373,7 +373,7 @@ getBotClients = liftIO . readTVarIO . botClients
 --
 -- 'Bot's should usually be used for a longer period of time to run
 -- 'BotSession's.
-newBot :: MonadBotNet m => BotTag -> m Bot
+newBot :: (HasCallStack, MonadBotNet m) => BotTag -> m Bot
 newBot tag = liftBotNet $ do
     mbox <- randMailbox
     (new, pw) <- liftIO $ randUser (mailboxUser $ mailboxSettings mbox) tag
@@ -392,7 +392,7 @@ newBot tag = liftBotNet $ do
 
 -- | Obtain a "cached" 'Bot' based on an existing user identity.
 -- TODO: Better name 'reuseBot'?
-cachedBot :: MonadBotNet m => BotTag -> m Bot
+cachedBot :: (HasCallStack, MonadBotNet m) => BotTag -> m Bot
 cachedBot t = liftBotNet $ do
     CachedUser p u <- BotNet (asks botNetUsers) >>= Cache.get
     bot <- mkBot t (tagged t u) p
@@ -434,13 +434,17 @@ killBot bot = liftBotNet $ do
         | l < Info  = msg (val "Event Ignored: " +++ show e)
         | otherwise = msg (val "Event Ignored: " +++ showEventType e)
 
-withNewBot :: (MonadBotNet m, MonadMask m) => BotTag -> (Bot -> m a) -> m a
+withNewBot
+    :: (HasCallStack, MonadBotNet m, MonadMask m)
+    => BotTag -> (Bot -> m a) -> m a
 withNewBot t f = do
     bot <- newBot t
     f bot `finally` killBot bot
 
 -- TODO: Better name: withReusedBot?
-withCachedBot :: (MonadBotNet m, MonadMask m) => BotTag -> (Bot -> m a) -> m a
+withCachedBot
+    :: (HasCallStack, MonadBotNet m, MonadMask m)
+    => BotTag -> (Bot -> m a) -> m a
 withCachedBot t f = do
     c <- liftBotNet . BotNet $ asks botNetUsers
     x@(CachedUser p u) <- Cache.get c

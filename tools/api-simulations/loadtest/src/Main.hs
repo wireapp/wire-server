@@ -2,7 +2,8 @@
 
 module Main where
 
-import Control.Monad (void)
+import Control.Monad (unless, void)
+import Data.Maybe
 import Data.Monoid
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -17,6 +18,9 @@ import qualified System.Logger as Log
 main :: IO ()
 main = do
     o <- parseOptions
+    unless (isJust (setBotNetUsersFile (ltsBotNetSettings o))) $
+        error "--users-file was not specified; the loadtest can't work without \
+              \the list of user accounts provided to it"
     m <- newManager tlsManagerSettings
     l <- Log.new Log.defSettings
     e <- newBotNetEnv m l (ltsBotNetSettings o)
