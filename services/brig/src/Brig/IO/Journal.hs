@@ -6,51 +6,44 @@ module Brig.IO.Journal
     ( userActivate
     , userUpdate
     , userDelete
-    , bytes
-    , nowInt
+    , userEmailRemove
     ) where
 
-import Control.Lens
-import Control.Monad.IO.Class
-import Data.Int
-import Data.Foldable (for_)
-import Data.ByteString (ByteString)
-import Data.ByteString.Lazy (fromStrict, toStrict)
-import Data.Id
-import Data.ProtoLens.Encoding (encodeMessage)
-import Data.Time.Clock (getCurrentTime)
-import Data.Time.Clock.POSIX
 import Brig.App
-import Proto.UserEvents
+import Brig.Types
+import Control.Lens
+import Data.Foldable (for_)
+import Data.ByteString.Char8 (pack)
+import Data.ByteString.Conversion
+import Data.ByteString.Lazy (fromStrict)
+import Data.Id
+import Data.Proto
+import Data.Proto.Id
+import Data.ProtoLens.Encoding (encodeMessage)
+import Proto.UserEvents hiding (userId)
 
 import qualified Data.ByteString.Base64 as B64
-import qualified Data.UUID as UUID
 import qualified Brig.AWS as AWS
 
 -- [Note: journaling]
 -- User journal operations to SQS are a no-op when the service is started
 -- without journaling arguments for user updates
 
-userActivate :: UserId -> AppIO ()
-userActivate = journalEvent UserEvent'USER_ACTIVATE
+userActivate :: User -> AppIO ()
+userActivate u = journalEvent UserEvent'USER_ACTIVATE (userId u) (userEmail u) (Just $ userLocale u)
 
-userUpdate :: UserId -> AppIO ()
-userUpdate = journalEvent UserEvent'USER_UPDATE
+userUpdate :: UserId -> Maybe Email -> Maybe Locale -> AppIO ()
+userUpdate uid em loc = journalEvent UserEvent'USER_UPDATE uid em loc
+
+userEmailRemove :: UserId -> Email -> AppIO ()
+userEmailRemove uid em = journalEvent UserEvent'USER_EMAIL_REMOVE uid (Just em) Nothing
 
 userDelete :: UserId -> AppIO ()
-userDelete = journalEvent UserEvent'USER_DELETE
+userDelete uid = journalEvent UserEvent'USER_DELETE uid Nothing Nothing
 
-journalEvent :: UserEvent'EventType -> UserId -> AppIO ()
-journalEvent typ uid = view awsEnv >>= \env -> for_ (view AWS.journalQueue env) $ \queue -> do
-    ts <- nowInt
-    let ev = fromStrict . B64.encode . encodeMessage
-           $ UserEvent typ (bytes uid) ts Nothing Nothing Nothing
-    AWS.execute env (AWS.enqueue queue ev)
-
-----------------------------------------------------------------------------
--- TODO: Move to types-common
-bytes :: Id a -> ByteString
-bytes = toStrict . UUID.toByteString . toUUID
-
-nowInt :: MonadIO m => m Int64
-nowInt = liftIO $ round . utcTimeToPOSIXSeconds <$> getCurrentTime
+journalEvent :: UserEvent'EventType -> UserId -> Maybe Email -> Maybe Locale -> AppIO ()
+journalEvent typ uid em loc = view awsEnv >>= \env -> for_ (view AWS.journalQueue env) $ \queue -> do
+    ts <- now
+    let encoded = fromStrict . B64.encode . encodeMessage
+                $ UserEvent typ (toBytes uid) ts (toByteString' <$> em) (pack . show <$> loc)
+    AWS.execute env (AWS.enqueue queue encoded)

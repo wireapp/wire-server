@@ -6,8 +6,8 @@ import Data.Id
 
 import qualified Data.UUID as UUID
 
-toByteString :: Id a -> ByteString
-toByteString = toStrict . UUID.toByteString . toUUID
+toBytes :: Id a -> ByteString
+toBytes = toStrict . UUID.toByteString . toUUID
 
-fromByteString :: ByteString -> Maybe (Id a)
-fromByteString = fmap Id . UUID.fromByteString . fromStrict
+fromBytes :: ByteString -> Maybe (Id a)
+fromBytes = fmap Id . UUID.fromByteString . fromStrict

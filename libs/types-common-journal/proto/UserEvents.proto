@@ -7,22 +7,13 @@ message UserEvent {
     required EventType event_type = 1;
     required bytes user_id = 2;
     required int64 utc_time = 3;
-    optional ConsentData consent = 4;
-    optional bytes email = 5;
-    optional bytes phone = 6;
-
-    enum ConsentType {
-        MARKETING = 0;
-    }
-
-    message ConsentData {
-        required ConsentType consentType = 1;
-        required bool allow = 2;
-    }
+    optional bytes email = 4;
+    optional bytes locale = 5;
 
     enum EventType {
-        USER_ACTIVATE = 0;
-        USER_DELETE   = 1;
-        USER_UPDATE   = 2;
+        USER_ACTIVATE     = 0;
+        USER_DELETE       = 1;
+        USER_UPDATE       = 2;
+        USER_EMAIL_REMOVE = 3;
     }
 }
