@@ -70,7 +70,12 @@ runConv s g = do
         runBotSession b $ do
             forM_ bots $ clientInitSession (botClient st) . botId
             Clients.addMembers (botClientSessions (botClient st)) conv (map botId bots)
-            runBot s st `Ex.finally` removeBotClient b (botClient st)
+            runBot s st `Ex.finally` do
+                -- This delay is the simplest way to prevent the situation where
+                -- a bot would be deleted while another bot is trying to send
+                -- a message to it (resulting in a 'DeletedClients' failure)
+                liftIO (threadDelay 1000000)
+                removeBotClient b (botClient st)
     -- Drain
     mapM_ drainBot bots
 
