@@ -73,7 +73,7 @@ runTests iConf bConf otherArgs = do
 
     -- you can now do this (see <https://github.com/feuerbach/tasty#patterns>):
     -- `WIRE_TASTY_PATTERN='$NF == "post /register - 201 + no email"' make integration`
-    otherArgs' <- lookup "WIRE_TASTY_PATTERN" <$> getEnvironment >>= pure . \case
+    otherArgs' <- lookup "WIRE_TASTY_PATTERN" <$> getEnvironment <&> \case
         Nothing      -> otherArgs
         Just pattern -> otherArgs <> ["-p", pattern]
 
