@@ -88,8 +88,8 @@ main = withOpenSSL $ runTests go
         lg <- Logger.new Logger.defSettings
         db <- defInitCassandra ck ch cp lg
 
-        return $ API.TestSetup m g c b db 
+        return $ API.TestSetup m g c b db
 
     releaseOpts _ = return ()
-    
+
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
