@@ -397,7 +397,9 @@ newBot tag = liftBotNet $ do
     incrBotsCreatedNew
     return bot
 
--- | Obtain a "cached" 'Bot' based on an existing user identity.
+-- | Obtain a "cached" 'Bot' based on an existing user identity. The same
+-- bot will never be returned again by 'cachedBot'.
+--
 -- TODO: Better name 'reuseBot'?
 cachedBot :: (HasCallStack, MonadBotNet m) => BotTag -> m Bot
 cachedBot t = liftBotNet $ do

@@ -25,7 +25,7 @@ main = do
     l <- Log.new Log.defSettings
     e <- newBotNetEnv m l (ltsBotNetSettings o)
     void . runBotNet e $ do
-        simulation o
+        runLoadTest o
         Log.flush l >> Log.close l
         report "LoadTest - Conversations" sections
   where

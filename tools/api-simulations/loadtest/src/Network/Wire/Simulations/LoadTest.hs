@@ -30,10 +30,10 @@ import qualified Data.UUID.V4             as UUID
 import qualified System.Random.MWC        as MWC
 import qualified Network.Wire.Bot.Clients as Clients
 
-simulation :: LoadTestSettings -> BotNet ()
-simulation s = replicateM (conversationsTotal s) mkConv
-           >>= mapM startConv
-           >>= mapM_ wait
+runLoadTest :: LoadTestSettings -> BotNet ()
+runLoadTest s = replicateM (conversationsTotal s) mkConv
+            >>= mapM startConv
+            >>= mapM_ wait
   where
     startConv bots = do
         liftIO . threadDelay $ calcDelay (conversationRamp s)
@@ -48,6 +48,7 @@ simulation s = replicateM (conversationsTotal s) mkConv
     mkConv :: BotNet [BotNet Bot]
     mkConv = do
         n <- between (conversationMinMembers s) (conversationMaxMembers s)
+        -- since we use 'cachedBot' here, all returned accounts will be distinct
         return . replicate n $ cachedBot "chatbot"
 
 runConv :: LoadTestSettings -> [BotNet Bot] -> BotNet ()
