@@ -20,7 +20,7 @@ import GHC.Generics
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
-import System.Environment (getArgs, withArgs, getEnvironment)
+import System.Environment (getArgs, withArgs)
 import Test.Tasty
 import Util.Options
 import Util.Options.Common
@@ -71,13 +71,7 @@ runTests iConf bConf otherArgs = do
     teamApis    <- Team.tests bConf mg b c g
     turnApi     <- TURN.tests mg b turnFile
 
-    -- you can now do this (see <https://github.com/feuerbach/tasty#patterns>):
-    -- `WIRE_TASTY_PATTERN='$NF == "post /register - 201 + no email"' make integration`
-    otherArgs' <- lookup "WIRE_TASTY_PATTERN" <$> getEnvironment <&> \case
-        Nothing      -> otherArgs
-        Just pattern -> otherArgs <> ["-p", pattern]
-
-    withArgs otherArgs' . defaultMain $ testGroup "Brig API Integration"
+    withArgs otherArgs . withWireTastyPatternEnv . defaultMain $ testGroup "Brig API Integration"
         [ userApi
         , providerApi
         , searchApis
