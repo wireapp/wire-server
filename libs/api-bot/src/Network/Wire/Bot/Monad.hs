@@ -25,7 +25,7 @@ module Network.Wire.Bot.Monad
     , getBot
 
       -- * Bot
-    , Bot (botUser)
+    , Bot (botUser, botPassphrase)
     , botId
     , botName
     , botEmail
