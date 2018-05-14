@@ -34,8 +34,12 @@ postOtrMessage cnv msg = sessionRequest req rsc readBody
         $ empty
     rsc = status201 :| [status412]
 
--- | Add a user and (in case of success) return the event corresponding to
--- the user addition.
+-- | Add one or more users and (in case of success) return the event
+-- corresponding to the users addition.
+--
+-- If some users can not be added to the conversation, 'UnexpectedResponse'
+-- will be thrown. It's not possible that some users will be added and
+-- others will not.
 addMembers :: MonadSession m => ConvId -> List1 UserId -> m (Maybe (ConvEvent Members))
 addMembers cnv mems = do
     rs <- sessionRequest req rsc consumeBody
