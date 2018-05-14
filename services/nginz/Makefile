@@ -102,6 +102,8 @@ src: $(TMPDIR)/$(NGINX_BUNDLE)
 	tar zxf $(TMPDIR)/$(NGINX_BUNDLE)
 	mv -vn nginx-$(NGINX_VERSION) src
 	rm -rf nginx-$(NGINX_VERSION)
+	# Fix compilation with GCC 8; see https://github.com/wireapp/wire-server/issues/320
+	(cd src; patch -p1 -i ../gcc8.patch)
 
 $(TMPDIR)/$(NGINX_BUNDLE):
 	(cd $(TMPDIR); curl -O https://nginx.org/download/$(NGINX_BUNDLE).asc)
