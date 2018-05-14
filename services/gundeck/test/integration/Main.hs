@@ -55,7 +55,7 @@ instance IsOption ServiceConfigFile where
         )
 
 runTests :: (String -> String -> TestTree) -> IO ()
-runTests run = defaultMainWithIngredients ings $
+runTests run = withWireTastyPatternEnv . defaultMainWithIngredients ings $
     askOption $ \(ServiceConfigFile c) ->
     askOption $ \(IntegrationConfigFile i) -> run c i
   where
@@ -88,8 +88,8 @@ main = withOpenSSL $ runTests go
         lg <- Logger.new Logger.defSettings
         db <- defInitCassandra ck ch cp lg
 
-        return $ API.TestSetup m g c b db 
+        return $ API.TestSetup m g c b db
 
     releaseOpts _ = return ()
-    
+
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
