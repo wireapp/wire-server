@@ -72,11 +72,11 @@ tests _cl at _conf p b c ch g aws = testGroup "account"
     , test' aws p "get /users/:id - 200"                     $ testExistingUser b
     , test' aws p "get /users?:id=.... - 200"                $ testMultipleUsers b
     , test' aws p "put /self - 200"                          $ testUserUpdate b c aws
-    , test' aws p "put /self/email - 202"                    $ testEmailUpdate b
+    , test' aws p "put /self/email - 202"                    $ testEmailUpdate b aws
     , test' aws p "put /self/phone - 202"                    $ testPhoneUpdate b
     , test' aws p "head /self/password - 200/404"            $ testPasswordSet b
     , test' aws p "put /self/password - 200"                 $ testPasswordChange b
-    , test' aws p "put /self/locale - 200"                   $ testUserLocaleUpdate b
+    , test' aws p "put /self/locale - 200"                   $ testUserLocaleUpdate b aws
     , test' aws p "post /activate/send - 200"                $ testSendActivationCode b
     , test' aws p "put /i/users/:id/status (suspend)"        $ testSuspendUser b
     , test' aws p "get /i/users?:(email|phone) - 200"        $ testGetByIdentity b
@@ -449,7 +449,6 @@ testUserUpdate brig cannon aws = do
             const 200 === statusCode
 
         liftIO $ mapConcurrently_ (\ws -> assertUpdateNotification ws alice userUpdate) [aliceWS, bobWS]
-        liftIO $ Util.assertUserQueue "user update alice" aws (userUpdateJournaled alice)
 
     -- get the updated profile
     get (brig . path "/self" . zUser alice) !!! do
@@ -472,15 +471,17 @@ testUserUpdate brig cannon aws = do
     Search.refreshIndex brig
     Search.assertCanFind brig suid alice "dogbert"
 
-testEmailUpdate :: Brig -> Http ()
-testEmailUpdate brig = do
+testEmailUpdate :: Brig -> AWS.Env -> Http ()
+testEmailUpdate brig aws = do
     uid <- userId <$> randomUser brig
+    liftIO $ Util.assertUserQueue "user create random" aws (userActivateJournaled uid)
     eml <- randomEmail
     -- update email
     initiateEmailUpdate brig eml uid !!! const 202 === statusCode
     -- activate
     activateEmail brig eml
     checkEmail brig uid eml
+    liftIO $ Util.assertUserQueue "user update" aws (userUpdateJournaled uid)
 
 testPhoneUpdate :: Brig -> Http ()
 testPhoneUpdate brig = do
@@ -525,9 +526,10 @@ testCreateAccountPendingActivationKey brig = do
             -- try to activate already active phone
             activate brig kc !!! const 409 === statusCode
 
-testUserLocaleUpdate :: Brig -> Http ()
-testUserLocaleUpdate brig = do
+testUserLocaleUpdate :: Brig -> AWS.Env -> Http ()
+testUserLocaleUpdate brig aws = do
     uid <- userId <$> randomUser brig
+    liftIO $ Util.assertUserQueue "user create random" aws (userActivateJournaled uid)
     -- update locale info with locale supported in templates
     put (brig . path "/self/locale" . contentJson . zUser uid . zConn "c" . locale "en-US") !!!
         const 200 === statusCode
@@ -538,6 +540,7 @@ testUserLocaleUpdate brig = do
     get (brig . path "/self" . zUser uid) !!! do
         const 200                   === statusCode
         const (parseLocale "pt-PT") === (Just . userLocale . selfUser <=< decodeBody)
+    liftIO $ Util.assertUserQueue "user update" aws (userUpdateJournaled uid)
   where
     locale l = body . RequestBodyLBS . encode $ object ["locale" .= (l :: Text)]
 
