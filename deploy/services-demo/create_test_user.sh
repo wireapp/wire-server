@@ -39,18 +39,18 @@ fi
 
 for i in `seq 1 $COUNT`
 do
-    EMAIL=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
+    EMAIL=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)"@example.com"
     PASSWORD=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
 
     CURL_OUT=$(curl -i -s --show-error \
         -XPOST "http://localhost:8082/i/users" \
         -H'Content-type: application/json' \
-        -d'{"email":"'$EMAIL'@example.com","password":"'$PASSWORD'","name":"demo"}')
+        -d'{"email":"'$EMAIL'","password":"'$PASSWORD'","name":"demo"}')
 
     UUID=$(echo "$CURL_OUT" | tail -1 | sed 's/.*"id":"\([0-9a-z-]\+\)".*/\1/')
 
     if [ "$CSV" == "false" ]
-        then echo -e "Succesfully created a user with email: "$EMAIL"@example.com and password: "$PASSWORD
+        then echo -e "Succesfully created a user with email: "$EMAIL" and password: "$PASSWORD
         else echo -e $UUID","$EMAIL","$PASSWORD
     fi
 done
