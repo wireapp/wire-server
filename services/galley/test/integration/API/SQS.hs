@@ -5,6 +5,8 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
+-- | TODO: most of this module is deprecated; use "Util.Test.SQS" from the types-common-aws package
+-- instead.
 module API.SQS where
 
 import Control.Concurrent (threadDelay)
@@ -120,7 +122,7 @@ tryMatch :: HasCallStack
          -> Int
          -> Text
          -> (String -> Maybe E.TeamEvent -> IO())
-         -> Amazon ()    
+         -> Amazon ()
 tryMatch label tries url callback = go tries
   where
     go 0 = liftIO (assertFailure $ label <> ": No matching team event found")

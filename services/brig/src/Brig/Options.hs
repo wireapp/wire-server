@@ -49,13 +49,14 @@ data ElasticSearchOpts = ElasticSearchOpts
 instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
-    { sesQueue        :: !Text
-    , internalQueue   :: !Text
-    , blacklistTable  :: !Text
-    , prekeyTable     :: !Text
-    , sesEndpoint     :: !AWSEndpoint
-    , sqsEndpoint     :: !AWSEndpoint
-    , dynamoDBEndpoint:: !AWSEndpoint
+    { sesQueue         :: !Text
+    , internalQueue    :: !Text
+    , userJournalQueue :: !(Maybe Text)
+    , blacklistTable   :: !Text
+    , prekeyTable      :: !Text
+    , sesEndpoint      :: !AWSEndpoint
+    , sqsEndpoint      :: !AWSEndpoint
+    , dynamoDBEndpoint :: !AWSEndpoint
     } deriving (Show, Generic)
 
 instance FromJSON AWSOpts
@@ -226,6 +227,9 @@ optsParser =
      (textOption $
       long "aws-internal-queue" <> metavar "STRING" <>
       help "Event queue for internal brig generated events (e.g. user deletion)") <*>
+     (optional $ textOption $
+      long "aws-user-journal-queue" <> metavar "STRING" <>
+      help "Event journal queue for user events (e.g. user deletion)") <*>
      (textOption $
       long "aws-dynamo-blacklist" <> metavar "STRING" <>
       help "Dynamo table for storing blacklisted user keys") <*>

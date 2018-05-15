@@ -5,6 +5,10 @@ packages:
   extra-dep: true
 - location: '../../libs/types-common'
   extra-dep: true
+- location: '../../libs/types-common-aws'
+  extra-dep: true
+- location: '../../libs/types-common-journal'
+  extra-dep: true
 - location: '../../libs/bilge'
   extra-dep: true
 - location: '../../libs/cargohold-types'

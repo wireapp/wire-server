@@ -1,4 +1,5 @@
 resolver: lts-10.3
 packages:
 - '.'
+- '../types-common'
 extra-deps: []

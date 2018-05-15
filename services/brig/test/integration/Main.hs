@@ -13,8 +13,8 @@ import Data.ByteString.Conversion
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.List (foldl', (\\))
-import Data.Text (isSuffixOf, pack)
-import Data.Text.Encoding (decodeLatin1, encodeUtf8)
+import Data.Text (pack)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import GHC.Generics
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -64,8 +64,9 @@ runTests iConf bConf otherArgs = do
     lg <- Logger.new Logger.defSettings
     db <- defInitCassandra casKey casHost casPort lg
     mg <- newManager tlsManagerSettings
+    awsEnv <- AWS.mkEnv lg awsOpts mg
 
-    userApi     <- User.tests bConf mg b c ch g =<< mkLocalAWSEnv lg awsOpts mg
+    userApi     <- User.tests bConf mg b c ch g awsEnv
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
     teamApis    <- Team.tests bConf mg b c g
@@ -81,11 +82,6 @@ runTests iConf bConf otherArgs = do
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
 
-    mkLocalAWSEnv :: Logger.Logger -> Opts.AWSOpts -> Manager -> IO (Maybe AWS.Env)
-    mkLocalAWSEnv l o m
-        | "amazonaws.com" `isSuffixOf` (decodeLatin1 ((Opts.sesEndpoint o)^.awsHost)) = return Nothing
-        | otherwise = AWS.mkEnv l o m >>= return . Just
-
     -- Using config files only would certainly simplify this quite a bit
     parseAWSEnv :: Maybe Opts.AWSOpts -> IO (Opts.AWSOpts)
     parseAWSEnv (Just o) = return o
@@ -95,9 +91,10 @@ runTests iConf bConf otherArgs = do
         sesEnd   <- optOrEnv (Opts.sesEndpoint . Opts.aws)      bConf parseEndpoint "AWS_SES_ENDPOINT"
         sesQueue <- optOrEnv (Opts.sesQueue . Opts.aws)         bConf pack          "AWS_USER_SES_QUEUE"
         sqsIntQ  <- optOrEnv (Opts.internalQueue . Opts.aws)    bConf pack          "AWS_USER_INTERNAL_QUEUE"
+        sqsJrnlQ <- join <$> optOrEnvSafe (Opts.userJournalQueue . Opts.aws) bConf (Just . pack) "AWS_USER_JOURNAL_QUEUE"
         dynBlTbl <- optOrEnv (Opts.blacklistTable . Opts.aws)   bConf pack          "AWS_USER_BLACKLIST_TABLE"
         dynPkTbl <- optOrEnv (Opts.prekeyTable . Opts.aws)      bConf pack          "AWS_USER_PREKEYS_TABLE"
-        return $ Opts.AWSOpts sesQueue sqsIntQ dynBlTbl dynPkTbl sesEnd sqsEnd dynEnd
+        return $ Opts.AWSOpts sesQueue sqsIntQ sqsJrnlQ dynBlTbl dynPkTbl sesEnd sqsEnd dynEnd
 
     parseEndpoint :: String -> AWSEndpoint
     parseEndpoint e = fromMaybe (error ("Not a valid AWS endpoint: " ++ show e))

@@ -16,14 +16,13 @@ import Data.Text (Text)
 import Test.Tasty hiding (Timeout)
 import Util
 
-import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt
 import qualified Data.ByteString.Char8       as C
 import qualified Data.Text                   as T
 import qualified Network.Wai.Utilities.Error as Error
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> Maybe AWS.Env -> TestTree
-tests _cl _at _conf p b _c _g _localAWS = testGroup "property"
+tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests _cl _at _conf p b _c _g = testGroup "property"
     [ test p "put/get /properties/:key - 200" $ testSetGetProperty b
     , test p "delete /properties/:key - 200"  $ testDeleteProperty b
     , test p "get /properties - 200"          $ testListPropertyKeys b

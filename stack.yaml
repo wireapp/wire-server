@@ -17,6 +17,7 @@ packages:
 - libs/sodium-crypto-sign
 - libs/tasty-cannon
 - libs/types-common
+- libs/types-common-aws
 - libs/types-common-journal
 - libs/wai-utilities
 - libs/zauth

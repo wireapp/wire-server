@@ -25,7 +25,6 @@ import Data.ByteString.Char8 (pack, intercalate)
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Data.List1 (singleton)
-import Data.Foldable (for_)
 import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
 import Data.Monoid ((<>))
@@ -39,7 +38,8 @@ import Test.Tasty.Cannon hiding (Cannon)
 import Test.Tasty.HUnit
 import System.Random (randomIO)
 import Web.Cookie (parseSetCookie)
-import Util
+import Util as Util
+import Util.AWS as Util
 
 import qualified API.Search.Util             as Search
 import qualified Brig.AWS                    as AWS
@@ -55,41 +55,41 @@ import qualified Data.Vector                 as Vec
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon           as WS
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> Maybe AWS.Env -> TestTree
-tests _cl at _conf p b c ch g localAWS = testGroup "account"
-    [ test p "post /register - 201 (with preverified)"  $ testCreateUserWithPreverified b
-    , test p "post /register - 201"                     $ testCreateUser b g
-    , test p "post /register - 201 + no email"          $ testCreateUserNoEmailNoPassword b
-    , test p "post /register - 201 anonymous"           $ testCreateUserAnon b g
-    , test p "post /register - 201 anonymous expiry"    $ testCreateUserAnonExpiry b
-    , test p "post /register - 201 pending"             $ testCreateUserPending b
-    , test p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey b
-    , test p "post /register - 409 conflict"            $ testCreateUserConflict b
-    , test p "post /register - 400"                     $ testCreateUserInvalidPhone b
-    , test p "post /register - 403 blacklist"           $ testCreateUserBlacklist b localAWS
-    , test p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b at
-    , test p "get /users/:id - 404"                     $ testNonExistingUser b
-    , test p "get /users/:id - 200"                     $ testExistingUser b
-    , test p "get /users?:id=.... - 200"                $ testMultipleUsers b
-    , test p "put /self - 200"                          $ testUserUpdate b c
-    , test p "put /self/email - 202"                    $ testEmailUpdate b
-    , test p "put /self/phone - 202"                    $ testPhoneUpdate b
-    , test p "head /self/password - 200/404"            $ testPasswordSet b
-    , test p "put /self/password - 200"                 $ testPasswordChange b
-    , test p "put /self/locale - 200"                   $ testUserLocaleUpdate b
-    , test p "post /activate/send - 200"                $ testSendActivationCode b
-    , test p "put /i/users/:id/status (suspend)"        $ testSuspendUser b
-    , test p "get /i/users?:(email|phone) - 200"        $ testGetByIdentity b
-    , test p "delete/phone-email"                       $ testEmailPhoneDelete b c
-    , test p "delete/by-password"                       $ testDeleteUserByPassword b c
-    , test p "delete/by-code"                           $ testDeleteUserByCode b
-    , test p "delete/anonymous"                         $ testDeleteAnonUser b
-    , test p "delete /i/users/:id - 202"                $ testDeleteInternal b c
-    , test p "delete with profile pic"                  $ testDeleteWithProfilePic b ch
+tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
+tests _cl at _conf p b c ch g aws = testGroup "account"
+    [ test' aws p "post /register - 201 (with preverified)"  $ testCreateUserWithPreverified b aws
+    , test' aws p "post /register - 201"                     $ testCreateUser b g
+    , test' aws p "post /register - 201 + no email"          $ testCreateUserNoEmailNoPassword b
+    , test' aws p "post /register - 201 anonymous"           $ testCreateUserAnon b g
+    , test' aws p "post /register - 201 anonymous expiry"    $ testCreateUserAnonExpiry b
+    , test' aws p "post /register - 201 pending"             $ testCreateUserPending b
+    , test' aws p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey b
+    , test' aws p "post /register - 409 conflict"            $ testCreateUserConflict b
+    , test' aws p "post /register - 400"                     $ testCreateUserInvalidPhone b
+    , test' aws p "post /register - 403 blacklist"           $ testCreateUserBlacklist b aws
+    , test' aws p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b at
+    , test' aws p "get /users/:id - 404"                     $ testNonExistingUser b
+    , test' aws p "get /users/:id - 200"                     $ testExistingUser b
+    , test' aws p "get /users?:id=.... - 200"                $ testMultipleUsers b
+    , test' aws p "put /self - 200"                          $ testUserUpdate b c aws
+    , test' aws p "put /self/email - 202"                    $ testEmailUpdate b aws
+    , test' aws p "put /self/phone - 202"                    $ testPhoneUpdate b
+    , test' aws p "head /self/password - 200/404"            $ testPasswordSet b
+    , test' aws p "put /self/password - 200"                 $ testPasswordChange b
+    , test' aws p "put /self/locale - 200"                   $ testUserLocaleUpdate b aws
+    , test' aws p "post /activate/send - 200"                $ testSendActivationCode b
+    , test' aws p "put /i/users/:id/status (suspend)"        $ testSuspendUser b
+    , test' aws p "get /i/users?:(email|phone) - 200"        $ testGetByIdentity b
+    , test' aws p "delete/phone-email"                       $ testEmailPhoneDelete b c
+    , test' aws p "delete/by-password"                       $ testDeleteUserByPassword b c
+    , test' aws p "delete/by-code"                           $ testDeleteUserByCode b
+    , test' aws p "delete/anonymous"                         $ testDeleteAnonUser b
+    , test' aws p "delete /i/users/:id - 202"                $ testDeleteInternal b c aws
+    , test' aws p "delete with profile pic"                  $ testDeleteWithProfilePic b ch
     ]
 
-testCreateUserWithPreverified :: Brig -> Http ()
-testCreateUserWithPreverified brig = do
+testCreateUserWithPreverified :: Brig -> AWS.Env -> Http ()
+testCreateUserWithPreverified brig aws = do
     -- Register (pre verified) user with phone
     p <- randomPhone
     let phoneReq = RequestBodyLBS . encode $ object [ "phone" .= fromPhone p ]
@@ -110,6 +110,8 @@ testCreateUserWithPreverified brig = do
                 const 200 === statusCode
                 const (Just p) === (userPhone <=< decodeBody)
 
+            liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled uid)
+
     -- Register (pre verified) user with email
     e <- randomEmail
     let emailReq = RequestBodyLBS . encode $ object [ "email" .= fromEmail e ]
@@ -129,6 +131,10 @@ testCreateUserWithPreverified brig = do
             get (brig . path "/self" . zUser uid) !!! do
                 const 200 === statusCode
                 const (Just e) === (userEmail <=< decodeBody)
+
+            liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled uid)
+
+    liftIO $ Util.assertEmptyUserJournalQueue aws
 
 testCreateUser :: Brig -> Galley -> Http ()
 testCreateUser brig galley = do
@@ -269,8 +275,8 @@ testCreateUserInvalidPhone brig = do
     post (brig . path "/register" . contentJson . body p) !!!
         const 400 === statusCode
 
-testCreateUserBlacklist :: Brig -> Maybe AWS.Env -> Http ()
-testCreateUserBlacklist brig localAWS =
+testCreateUserBlacklist :: Brig -> AWS.Env -> Http ()
+testCreateUserBlacklist brig aws =
     mapM_ ensureBlacklist ["bounce", "complaint"]
   where
     ensureBlacklist typ = do
@@ -278,7 +284,8 @@ testCreateUserBlacklist brig localAWS =
         flip finally (removeBlacklist brig e) $ do
             post (brig . path "/register" . contentJson . body (p e)) !!! const 201 === statusCode
             -- If we are using a local env, we need to fake this bounce
-            for_ localAWS $ publishMessage typ e
+            unless (Util.isRealSESEnv aws) $
+                publishMessage typ e aws
             -- Typically bounce/complaint messages arrive instantaneously
             awaitBlacklist 30 e
             post (brig . path "/register" . contentJson . body (p e)) !!! do
@@ -297,7 +304,7 @@ testCreateUserBlacklist brig localAWS =
                         "complaint" -> MailComplaint [em]
                         x           -> error ("Unsupported message type: " ++ show x)
         let queue = env^.AWS.sesQueue
-        void $ AWS.execute env (AWS.enqueue queue bdy)
+        void $ AWS.execute env (AWS.enqueueStandard queue bdy)
 
     awaitBlacklist :: Int -> Email -> Http ()
     awaitBlacklist n e = do
@@ -422,10 +429,12 @@ testCreateUserAnonExpiry b = do
     field f u = u ^? key f >>= maybeFromJSON
 
 
-testUserUpdate :: Brig -> Cannon -> Http ()
-testUserUpdate brig cannon = do
+testUserUpdate :: Brig -> Cannon -> AWS.Env -> Http ()
+testUserUpdate brig cannon aws = do
     alice <- userId <$> randomUser brig
+    liftIO $ Util.assertUserJournalQueue "user create alice" aws (userActivateJournaled alice)
     bob <- userId <$> randomUser brig
+    liftIO $ Util.assertUserJournalQueue "user create bob" aws (userActivateJournaled bob)
     connectUsers brig alice (singleton bob)
     let newColId   = Just 5
         newAssets  = Just [ImageAsset "abc" (Just AssetComplete)]
@@ -440,6 +449,8 @@ testUserUpdate brig cannon = do
             const 200 === statusCode
 
         liftIO $ mapConcurrently_ (\ws -> assertUpdateNotification ws alice userUpdate) [aliceWS, bobWS]
+        -- Should not generate any user update journaled messages
+        liftIO $ Util.assertEmptyUserJournalQueue aws
 
     -- get the updated profile
     get (brig . path "/self" . zUser alice) !!! do
@@ -462,15 +473,17 @@ testUserUpdate brig cannon = do
     Search.refreshIndex brig
     Search.assertCanFind brig suid alice "dogbert"
 
-testEmailUpdate :: Brig -> Http ()
-testEmailUpdate brig = do
+testEmailUpdate :: Brig -> AWS.Env -> Http ()
+testEmailUpdate brig aws = do
     uid <- userId <$> randomUser brig
+    liftIO $ Util.assertUserJournalQueue "user create random" aws (userActivateJournaled uid)
     eml <- randomEmail
     -- update email
     initiateEmailUpdate brig eml uid !!! const 202 === statusCode
     -- activate
     activateEmail brig eml
     checkEmail brig uid eml
+    liftIO $ Util.assertUserJournalQueue "user update" aws (userUpdateJournaled uid)
 
 testPhoneUpdate :: Brig -> Http ()
 testPhoneUpdate brig = do
@@ -515,9 +528,10 @@ testCreateAccountPendingActivationKey brig = do
             -- try to activate already active phone
             activate brig kc !!! const 409 === statusCode
 
-testUserLocaleUpdate :: Brig -> Http ()
-testUserLocaleUpdate brig = do
+testUserLocaleUpdate :: Brig -> AWS.Env -> Http ()
+testUserLocaleUpdate brig aws = do
     uid <- userId <$> randomUser brig
+    liftIO $ Util.assertUserJournalQueue "user create random" aws (userActivateJournaled uid)
     -- update locale info with locale supported in templates
     put (brig . path "/self/locale" . contentJson . zUser uid . zConn "c" . locale "en-US") !!!
         const 200 === statusCode
@@ -528,6 +542,7 @@ testUserLocaleUpdate brig = do
     get (brig . path "/self" . zUser uid) !!! do
         const 200                   === statusCode
         const (parseLocale "pt-PT") === (Just . userLocale . selfUser <=< decodeBody)
+    liftIO $ Util.assertUserJournalQueue "user update" aws (userUpdateJournaled uid)
   where
     locale l = body . RequestBodyLBS . encode $ object ["locale" .= (l :: Text)]
 
@@ -806,16 +821,18 @@ testDeleteAnonUser brig = do
     deleteUser uid Nothing brig
         !!! const 200 === statusCode
 
-testDeleteInternal :: Brig -> Cannon -> Http ()
-testDeleteInternal brig cannon = do
+testDeleteInternal :: Brig -> Cannon -> AWS.Env -> Http ()
+testDeleteInternal brig cannon aws = do
     u <- randomUser brig
+    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled $ userId u)
     setHandleAndDeleteUser brig cannon u [] $
         \uid -> delete (brig . paths ["/i/users", toByteString' uid]) !!! const 202 === statusCode
+    -- Check that user deletion is also triggered
+    liftIO $ Util.assertUserJournalQueue "user deletion" aws (userDeleteJournaled $ userId u)
 
 testDeleteWithProfilePic :: Brig -> CargoHold -> Http ()
 testDeleteWithProfilePic brig cargohold = do
     uid <- userId <$> createAnonUser "anon" brig
-    
     ast <- uploadAsset cargohold uid "this is my profile pic"
     -- Ensure that the asset is there
     downloadAsset cargohold uid (toByteString' (ast^.CHV3.assetKey)) !!! const 200 === statusCode
