@@ -21,8 +21,8 @@ exec_until_ready "aws --endpoint-url=http://sqs:4568 sqs create-queue --queue-na
 exec_until_ready "aws --endpoint-url=http://sqs:4568 sqs set-queue-attributes --queue-url http://sqs:4568/integration-brig-events --attributes VisibilityTimeout=1"
 exec_until_ready "aws --endpoint-url=http://sqs:4568 sqs create-queue --queue-name integration-brig-events-internal"
 exec_until_ready "aws --endpoint-url=http://sqs:4568 sqs set-queue-attributes --queue-url http://sqs:4568/integration-brig-events-internal --attributes VisibilityTimeout=1"
-exec_until_ready "aws --endpoint-url=http://sqs:4568 sqs create-queue --queue-name integration-brig-events-journal"
-exec_until_ready "aws --endpoint-url=http://sqs:4568 sqs set-queue-attributes --queue-url http://sqs:4568/integration-brig-events-journal --attributes VisibilityTimeout=1"
+exec_until_ready "aws --endpoint-url=http://sqs:4568 sqs create-queue --queue-name integration-user-events"
+exec_until_ready "aws --endpoint-url=http://sqs:4568 sqs set-queue-attributes --queue-url http://sqs:4568/integration-user-events --attributes VisibilityTimeout=1"
 # Gundeck's feedback queue
 exec_until_ready "aws --endpoint-url=http://sqs:4568 sqs create-queue --queue-name integration-gundeck-events"
 exec_until_ready "aws --endpoint-url=http://sqs:4568 sqs set-queue-attributes --queue-url http://sqs:4568/integration-gundeck-events --attributes VisibilityTimeout=1"

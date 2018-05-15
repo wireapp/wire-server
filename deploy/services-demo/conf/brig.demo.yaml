@@ -27,9 +27,10 @@ gundeck:
 aws:
   sesQueue: integration-brig-events
   internalQueue: integration-brig-events-internal
+  journalQueue: integration-user-events
   blacklistTable: integration-brig-userkey-blacklist
   prekeyTable: integration-brig-prekeys
-  sesEndpoint: https://email.eu-west-1.amazonaws.com # http://localhost:4569 # https://email.eu-west-1.amazonaws.com
+  sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
 emailSMS:

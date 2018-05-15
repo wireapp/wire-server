@@ -58,6 +58,12 @@ else
     PROVIDER_ID_SEARCH_FILTER=""
 fi
 
+if [ -n "$BRIG_AWS_USER_QUEUE_JOURNAL" ]; then
+    USER_QUEUE_JOURNAL="--aws-journal-queue=$BRIG_AWS_USER_QUEUE_JOURNAL"
+else
+    USER_QUEUE_JOURNAL=""
+fi
+
 cd $HOME
 
 ulimit -n 65536
@@ -130,4 +136,5 @@ exec chpst -u $USER \
     ${WHITELIST_URL} \
     ${WHITELIST_USER} \
     ${WHITELIST_PASS} \
-    ${PROVIDER_ID_SEARCH_FILTER}
+    ${PROVIDER_ID_SEARCH_FILTER} \
+    ${USER_QUEUE_JOURNAL}
