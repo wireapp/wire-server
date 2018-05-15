@@ -120,7 +120,7 @@ tryMatch :: HasCallStack
          -> Int
          -> Text
          -> (String -> Maybe E.TeamEvent -> IO())
-         -> Amazon ()    
+         -> Amazon ()
 tryMatch label tries url callback = go tries
   where
     go 0 = liftIO (assertFailure $ label <> ": No matching team event found")

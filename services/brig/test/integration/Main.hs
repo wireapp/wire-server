@@ -67,7 +67,7 @@ runTests iConf bConf otherArgs = do
     db <- defInitCassandra casKey casHost casPort lg
     mg <- newManager tlsManagerSettings
     awsEnv <- AWS.mkEnv lg awsOpts mg
-    
+
     -- If we're journaling, make sure we have a clean slate
     for_ (awsEnv^.AWS.journalQueue) $ SQS.execute (view AWS.amazonkaEnv awsEnv) . SQS.purgeQueue
     userApi     <- User.tests bConf mg b c ch g awsEnv

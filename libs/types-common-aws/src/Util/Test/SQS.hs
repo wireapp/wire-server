@@ -109,7 +109,7 @@ tryMatch :: (AWS.MonadAWS m, Show a, Message a)
          -> Int
          -> Text
          -> (String -> Maybe a -> IO())
-         -> m ()    
+         -> m ()
 tryMatch label tries url callback = go tries
   where
     go 0 = liftIO (assertFailure $ label <> ": No matching event found")
