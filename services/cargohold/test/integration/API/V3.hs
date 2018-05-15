@@ -20,6 +20,7 @@ import Data.Text.Encoding (decodeLatin1)
 import Data.Time.Clock
 import Data.Time.Format
 import Data.UUID.V4
+import GHC.Stack (HasCallStack)
 import Network.HTTP.Client (parseUrlThrow)
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method
@@ -245,7 +246,8 @@ testResumableStepBig c = assertRandomResumable c totalSize chunkSize UploadStepw
 
 data UploadType = UploadFull | UploadStepwise
 
-assertRandomResumable :: CargoHold -> V3.TotalSize -> V3.ChunkSize -> UploadType -> Http ()
+assertRandomResumable
+    :: HasCallStack => CargoHold -> V3.TotalSize -> V3.ChunkSize -> UploadType -> Http ()
 assertRandomResumable c totalSize chunkSize typ = do
     (uid, dat, ast) <- randomResumable c totalSize
     let key = ast^.V3.resumableAsset.V3.assetKey
@@ -286,7 +288,8 @@ uploadSimple c usr sets (ct, bs) =
          . lbytes (toLazyByteString mp)
 
 createResumable
-    :: CargoHold
+    :: HasCallStack
+    => CargoHold
     -> UserId
     -> V3.ResumableSettings
     -> V3.TotalSize
@@ -305,7 +308,7 @@ createResumable c u sets size = do
     liftIO $ assertEqual "Location" loc' loc
     return ast
 
-getResumableStatus :: CargoHold -> UserId -> V3.AssetKey -> Http V3.Offset
+getResumableStatus :: HasCallStack => CargoHold -> UserId -> V3.AssetKey -> Http V3.Offset
 getResumableStatus c u k = do
     r <- head ( c
               . paths ["assets", "v3", "resumable", toByteString' k]
@@ -344,7 +347,7 @@ getAsset c u k t = get $ c
     . maybe id (header "Asset-Token" . toByteString') t
     . noRedirect
 
-downloadAsset :: CargoHold -> UserId -> V3.AssetKey -> Maybe V3.AssetToken -> Http (Response (Maybe Lazy.ByteString))
+downloadAsset :: HasCallStack => CargoHold -> UserId -> V3.AssetKey -> Maybe V3.AssetToken -> Http (Response (Maybe Lazy.ByteString))
 downloadAsset c u k t = do
     r <- getAsset c u k t <!! do
         const 302 === statusCode

@@ -22,7 +22,7 @@ main = do
     l <- Log.new Log.defSettings
     e <- newBotNetEnv m l o
     r <- runBotNet e $ do
-        mainBotNet
+        mainBotNet 5
         Log.flush l >> Log.close l
         report "Smoke Test" defaultSections
     unless (reportCounter r assertionsFailed == 0)

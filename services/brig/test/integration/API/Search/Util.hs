@@ -12,6 +12,7 @@ import Data.Maybe
 import Data.Monoid
 import Data.Text              (Text)
 import Data.Text.Encoding     (encodeUtf8)
+import GHC.Stack (HasCallStack)
 import Util
 import Test.Tasty.HUnit
 
@@ -20,7 +21,7 @@ optIn,optOut :: SearchableStatus
 optIn  = SearchableStatus True
 optOut = SearchableStatus False
 
-updateSearchableStatus :: Brig -> UserId -> SearchableStatus -> Http ()
+updateSearchableStatus :: HasCallStack => Brig -> UserId -> SearchableStatus -> Http ()
 updateSearchableStatus brig uid status =
     put ( brig
         . path "/self/searchable"
@@ -29,7 +30,7 @@ updateSearchableStatus brig uid status =
         . body (RequestBodyLBS (encode status))
         ) !!!  const 200 === statusCode
 
-executeSearch :: Brig -> UserId -> Text -> Http (Maybe (SearchResult Contact))
+executeSearch :: HasCallStack => Brig -> UserId -> Text -> Http (Maybe (SearchResult Contact))
 executeSearch brig self q = do
     r <- get ( brig
              . path "/search/contacts"
@@ -38,20 +39,20 @@ executeSearch brig self q = do
              ) <!! const 200 === statusCode
     return . decode . fromMaybe "" $ responseBody r
 
-refreshIndex :: Brig -> Http ()
+refreshIndex :: HasCallStack => Brig -> Http ()
 refreshIndex brig =
     post (brig . path "/i/index/refresh") !!! const 200 === statusCode
 
-reindex :: Brig -> Http ()
+reindex :: HasCallStack => Brig -> Http ()
 reindex brig =
     post (brig . path "/i/index/reindex") !!! const 200 === statusCode
 
-randomUserWithHandle :: Brig -> Http User
+randomUserWithHandle :: HasCallStack => Brig -> Http User
 randomUserWithHandle brig = do
     u <- randomUser brig
     setRandomHandle brig u
 
-setRandomHandle :: Brig -> User -> Http User
+setRandomHandle :: HasCallStack => Brig -> User -> Http User
 setRandomHandle brig user = do
     h <- randomHandle
     put ( brig
@@ -63,7 +64,7 @@ setRandomHandle brig user = do
         ) !!!  const 200 === statusCode
     return user { userHandle = Just (Handle h) }
 
-assertCanFind :: Brig -> UserId -> UserId -> Text -> Http ()
+assertCanFind :: HasCallStack => Brig -> UserId -> UserId -> Text -> Http ()
 assertCanFind brig self expected q = do
     Just r <- (fmap . fmap) searchResults $ executeSearch brig self q
     liftIO $ do
@@ -72,13 +73,13 @@ assertCanFind brig self expected q = do
         assertBool ("User not in results for query: " <> show q) $
             elem expected . map contactUserId $ r
 
-assertCan'tFind :: Brig -> UserId -> UserId -> Text -> Http ()
+assertCan'tFind :: HasCallStack => Brig -> UserId -> UserId -> Text -> Http ()
 assertCan'tFind brig self expected q = do
     Just r <- (fmap . fmap) searchResults $ executeSearch brig self q
     liftIO .  assertBool ("User unexpectedly in results for query: " <> show q) $
         notElem expected . map contactUserId $ r
 
-assertSearchable :: String -> (Request -> Request) -> UserId -> Bool -> Http ()
+assertSearchable :: HasCallStack => String -> (Request -> Request) -> UserId -> Bool -> Http ()
 assertSearchable label brig uid status = do
     response <- get (brig . path "/self/searchable" . zUser uid)
     liftIO $ assertEqual (label ++ ", statuscode") 200 (statusCode response)

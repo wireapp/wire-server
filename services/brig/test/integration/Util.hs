@@ -29,6 +29,7 @@ import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 import Galley.Types (Member (..))
+import GHC.Stack (HasCallStack)
 import Gundeck.Types.Notification
 import Gundeck.Types.Push (SignalingKeys (..), EncKey (..), MacKey (..))
 import System.Random (randomRIO, randomIO)
@@ -75,26 +76,26 @@ instance ToJSON SESNotification where
 test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)
 
-randomUser :: Brig -> Http User
+randomUser :: HasCallStack => Brig -> Http User
 randomUser brig = do
     n <- fromName <$> randomName
     createUser n "success@simulator.amazonses.com" brig
 
-createUser :: Text -> Text -> Brig -> Http User
+createUser :: HasCallStack => Text -> Text -> Brig -> Http User
 createUser name email brig = do
     r <- postUser name email Nothing brig <!! const 201 === statusCode
     return $ fromMaybe (error "createUser: failed to parse response") (decodeBody r)
 
-createAnonUser :: Text -> Brig -> Http User
+createAnonUser :: HasCallStack => Text -> Brig -> Http User
 createAnonUser = createAnonUserExpiry Nothing
 
-createAnonUserExpiry :: Maybe Integer -> Text -> Brig -> Http User
+createAnonUserExpiry :: HasCallStack => Maybe Integer -> Text -> Brig -> Http User
 createAnonUserExpiry expires name brig = do
     let p = RequestBodyLBS . encode $ object [ "name" .= name, "expires_in" .= expires ]
     r <- post (brig . path "/register" . contentJson . body p) <!! const 201 === statusCode
     return $ fromMaybe (error "createAnonUser: failed to parse response") (decodeBody r)
 
-requestActivationCode :: Brig -> Either Email Phone -> Http ()
+requestActivationCode :: HasCallStack => Brig -> Either Email Phone -> Http ()
 requestActivationCode brig ep =
     post (brig . path "/activate/send" . contentJson . body (RequestBodyLBS . encode $ bdy ep)) !!!
         const 200 === statusCode
@@ -274,7 +275,7 @@ isMember g usr cnv = do
         Nothing -> return False
         Just  m -> return (usr == memId m)
 
-getStatus :: Brig -> UserId -> Http AccountStatus
+getStatus :: HasCallStack => Brig -> UserId -> Http AccountStatus
 getStatus brig u = do
     r <- get (brig . paths ["i", "users", toByteString' u, "status"]) <!!
         const 200 === statusCode
@@ -285,7 +286,7 @@ getStatus brig u = do
             let st = maybeFromJSON =<< (j ^? key "status")
             return $ fromMaybe (error $ "getStatus: failed to decode status" ++ show j) st
 
-chkStatus :: Brig -> UserId -> AccountStatus -> Http ()
+chkStatus :: HasCallStack => Brig -> UserId -> AccountStatus -> Http ()
 chkStatus brig u s =
     get (brig . paths ["i", "users", toByteString' u, "status"]) !!! do
         const 200 === statusCode
