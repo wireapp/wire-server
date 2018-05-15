@@ -36,7 +36,6 @@ import qualified Brig.AWS              as AWS
 import qualified Brig.Options          as Opts
 import qualified Data.ByteString.Char8 as BS
 import qualified System.Logger         as Logger
-import qualified System.Posix.Env      as Posix
 import qualified Util.Test.SQS         as SQS
 
 data Config = Config
@@ -151,9 +150,3 @@ parseConfigPaths = do
                  <> help "Brig application config to load"
                  <> showDefault
                  <> value defaultBrigPath)
-
--- TODO: Move to types-common
-optOrEnvSafe :: (a -> b) -> Maybe a -> (String -> b) -> String -> IO (Maybe b)
-optOrEnvSafe getter conf reader var = case conf of
-    Nothing -> fmap reader <$> Posix.getEnv var
-    Just c  -> pure $ Just (getter c)
