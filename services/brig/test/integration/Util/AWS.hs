@@ -7,6 +7,7 @@ import Data.Foldable (for_)
 import Data.Id
 import Data.Maybe
 import Data.Monoid
+import GHC.Stack
 import Test.Tasty.HUnit
 
 import qualified Brig.AWS             as AWS
@@ -27,12 +28,14 @@ purgeJournalQueue env = for_ (view AWS.journalQueue env)
                       $ SQS.execute (view AWS.amazonkaEnv env)
                       . SQS.purgeQueue
 
+-- | Fail unless journal queue is empty.
 assertEmptyUserQueue :: AWS.Env -> IO ()
 assertEmptyUserQueue env =
     for_ (view AWS.journalQueue env) $ \url -> do
         let awsEnv = view AWS.amazonkaEnv env
         SQS.assertNoMessages url awsEnv
 
+-- | Fail unless journal queue passes a given check.
 assertUserQueue :: DP.Message a
                 => String
                 -> AWS.Env
@@ -43,19 +46,22 @@ assertUserQueue label env check =
         let awsEnv = view AWS.amazonkaEnv env
         SQS.assertQueue url label awsEnv check
 
-userActivateJournaled :: UserId -> String -> Maybe PU.UserEvent -> IO ()
+-- | Check for user activation event in journal queue.
+userActivateJournaled :: HasCallStack => UserId -> String -> Maybe PU.UserEvent -> IO ()
 userActivateJournaled uid l (Just ev) = do
     assertEqual (l <> "eventType") PU.UserEvent'USER_ACTIVATE (ev^.PU.eventType)
     assertEqual (l <> "userId")    uid                        (Id $ fromMaybe (error "failed to decode") $ UUID.fromByteString $ Lazy.fromStrict (ev^.PU.userId))
 userActivateJournaled _   l Nothing   = assertFailure $ l <> ": Expected 1 UserActivate, got nothing"
 
-userUpdateJournaled :: UserId -> String -> Maybe PU.UserEvent -> IO ()
+-- | Check for user update event in journal queue.
+userUpdateJournaled :: HasCallStack => UserId -> String -> Maybe PU.UserEvent -> IO ()
 userUpdateJournaled uid l (Just ev) = do
     assertEqual (l <> "eventType") PU.UserEvent'USER_UPDATE (ev^.PU.eventType)
     assertEqual (l <> "userId")    uid                      (Id $ fromMaybe (error "failed to decode") $ UUID.fromByteString $ Lazy.fromStrict (ev^.PU.userId))
 userUpdateJournaled _   l Nothing   = assertFailure $ l <> ": Expected 1 UserUpdate, got nothing"
 
-userDeleteJournaled :: UserId -> String -> Maybe PU.UserEvent -> IO ()
+-- | Check for user deletion event in journal queue.
+userDeleteJournaled :: HasCallStack => UserId -> String -> Maybe PU.UserEvent -> IO ()
 userDeleteJournaled uid l (Just ev) = do
     assertEqual (l <> "eventType") PU.UserEvent'USER_DELETE (ev^.PU.eventType)
     assertEqual (l <> "userId")    uid                      (Id $ fromMaybe (error "failed to decode") $ UUID.fromByteString $ Lazy.fromStrict (ev^.PU.userId))

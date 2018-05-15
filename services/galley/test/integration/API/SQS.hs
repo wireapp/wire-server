@@ -5,6 +5,8 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
 
+-- | TODO: most of this module is deprecated; use "Util.Test.SQS" from the types-common-aws package
+-- instead.
 module API.SQS where
 
 import Control.Concurrent (threadDelay)
