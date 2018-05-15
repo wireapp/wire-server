@@ -17,7 +17,7 @@ module Brig.AWS
     , execute
     , sesQueue
     , internalQueue
-    , journalQueue
+    , userJournalQueue
     , blacklistTable
     , prekeyTable
 
@@ -28,7 +28,8 @@ module Brig.AWS
 
       -- * SQS
     , listen
-    , enqueue
+    , enqueueFIFO
+    , enqueueStandard
 
       -- * AWS
     , exec
@@ -53,6 +54,7 @@ import Data.Foldable (for_)
 import Data.Monoid
 import Data.Text (Text, isPrefixOf)
 import Data.Typeable
+import Data.UUID
 import Data.Yaml (FromJSON (..))
 import Network.AWS (AWSRequest, Rs)
 import Network.AWS.SQS (rmrsMessages)
@@ -76,13 +78,13 @@ import qualified Network.AWS.DynamoDB    as DDB
 import qualified System.Logger           as Logger
 
 data Env = Env
-    { _logger         :: !Logger
-    , _sesQueue       :: !Text
-    , _internalQueue  :: !Text
-    , _journalQueue   :: !(Maybe Text)
-    , _blacklistTable :: !Text
-    , _prekeyTable    :: !Text
-    , _amazonkaEnv    :: !AWS.Env
+    { _logger           :: !Logger
+    , _sesQueue         :: !Text
+    , _internalQueue    :: !Text
+    , _userJournalQueue :: !(Maybe Text)
+    , _blacklistTable   :: !Text
+    , _prekeyTable      :: !Text
+    , _amazonkaEnv      :: !AWS.Env
     }
 
 makeLenses ''Env
@@ -121,7 +123,7 @@ mkEnv lgr opts mgr = do
                      (mkEndpoint DDB.dynamoDB (Opt.dynamoDBEndpoint opts))
     sq <- getQueueUrl e (Opt.sesQueue opts)
     iq <- getQueueUrl e (Opt.internalQueue opts)
-    jq <- maybe (return Nothing) (fmap Just . getQueueUrl e) (Opt.journalQueue opts)
+    jq <- maybe (return Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
     return (Env g sq iq jq bl pk e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
@@ -188,10 +190,17 @@ listen url callback = do
         err $ "error" .= show x ~~ msg (val "Failed to read from SQS")
         threadDelay 3000000
 
-enqueue :: Text -> BL.ByteString -> Amazon (SQS.SendMessageResponse)
-enqueue url m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
+enqueueStandard :: Text -> BL.ByteString -> Amazon (SQS.SendMessageResponse)
+enqueueStandard url m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
   where
     req = SQS.sendMessage url $ Text.decodeLatin1 (BL.toStrict m)
+
+enqueueFIFO :: Text -> Text -> UUID -> BL.ByteString -> Amazon (SQS.SendMessageResponse)
+enqueueFIFO url group dedup m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
+  where
+    req = SQS.sendMessage url ( Text.decodeLatin1 (BL.toStrict m))
+                              & SQS.smMessageGroupId .~ Just group
+                              & SQS.smMessageDeduplicationId .~ Just (toText dedup)
 
 -------------------------------------------------------------------------------
 -- SES

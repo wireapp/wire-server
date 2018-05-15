@@ -58,8 +58,8 @@ else
     PROVIDER_ID_SEARCH_FILTER=""
 fi
 
-if [ -n "$BRIG_AWS_USER_QUEUE_JOURNAL" ]; then
-    USER_QUEUE_JOURNAL="--aws-journal-queue=$BRIG_AWS_USER_QUEUE_JOURNAL"
+if [ -n "$BRIG_AWS_USER_JOURNAL_QUEUE" ]; then
+    USER_QUEUE_JOURNAL="--aws-user-journal-queue=$BRIG_AWS_USER_JOURNAL_QUEUE"
 else
     USER_QUEUE_JOURNAL=""
 fi

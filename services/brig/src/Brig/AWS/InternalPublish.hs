@@ -20,7 +20,7 @@ publish n = view awsEnv >>= \env -> do
     let bdy   = encode n
         queue = env^.AWS.internalQueue
     bdyMD5 <- digest <$> view digestMD5 <*> pure bdy
-    resp   <- AWS.execute env (AWS.enqueue queue bdy)
+    resp   <- AWS.execute env (AWS.enqueueStandard queue bdy)
     return (resp^.smrsMD5OfMessageBody == Just bdyMD5)
   where
     digest :: Digest -> BL.ByteString -> Text

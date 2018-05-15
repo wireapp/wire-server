@@ -13,7 +13,6 @@ import Data.ByteString.Conversion
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.List (foldl', (\\))
-import Data.Foldable (for_)
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
@@ -36,7 +35,6 @@ import qualified Brig.AWS              as AWS
 import qualified Brig.Options          as Opts
 import qualified Data.ByteString.Char8 as BS
 import qualified System.Logger         as Logger
-import qualified Util.Test.SQS         as SQS
 
 data Config = Config
   -- internal endpoints
@@ -68,8 +66,6 @@ runTests iConf bConf otherArgs = do
     mg <- newManager tlsManagerSettings
     awsEnv <- AWS.mkEnv lg awsOpts mg
 
-    -- If we're journaling, make sure we have a clean slate
-    for_ (awsEnv^.AWS.journalQueue) $ SQS.execute (view AWS.amazonkaEnv awsEnv) . SQS.purgeQueue
     userApi     <- User.tests bConf mg b c ch g awsEnv
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
@@ -95,7 +91,7 @@ runTests iConf bConf otherArgs = do
         sesEnd   <- optOrEnv (Opts.sesEndpoint . Opts.aws)      bConf parseEndpoint "AWS_SES_ENDPOINT"
         sesQueue <- optOrEnv (Opts.sesQueue . Opts.aws)         bConf pack          "AWS_USER_SES_QUEUE"
         sqsIntQ  <- optOrEnv (Opts.internalQueue . Opts.aws)    bConf pack          "AWS_USER_INTERNAL_QUEUE"
-        sqsJrnlQ <- join <$> optOrEnvSafe (Opts.journalQueue . Opts.aws) bConf (Just . pack) "AWS_USER_JOURNAL_QUEUE"
+        sqsJrnlQ <- join <$> optOrEnvSafe (Opts.userJournalQueue . Opts.aws) bConf (Just . pack) "AWS_USER_JOURNAL_QUEUE"
         dynBlTbl <- optOrEnv (Opts.blacklistTable . Opts.aws)   bConf pack          "AWS_USER_BLACKLIST_TABLE"
         dynPkTbl <- optOrEnv (Opts.prekeyTable . Opts.aws)      bConf pack          "AWS_USER_PREKEYS_TABLE"
         return $ Opts.AWSOpts sesQueue sqsIntQ sqsJrnlQ dynBlTbl dynPkTbl sesEnd sqsEnd dynEnd

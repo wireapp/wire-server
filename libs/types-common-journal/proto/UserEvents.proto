@@ -15,10 +15,9 @@ message UserEvent {
         USER_DELETE       = 1;
         USER_UPDATE       = 2;
         // --^ When used, the new values for optional fields are
-        //     whatever is set (email, locale) unless they are 
+        //     whatever is set (email, locale) unless they are
         //     null / not set (protobuf does not distinguish)
         USER_EMAIL_REMOVE = 3;
-        // --^ When an email is removed, the email field is set
-        //     to the value of the old email address
+        // --^ When an email X is removed, the email field is set to X
     }
 }

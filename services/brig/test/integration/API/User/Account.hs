@@ -110,7 +110,7 @@ testCreateUserWithPreverified brig aws = do
                 const 200 === statusCode
                 const (Just p) === (userPhone <=< decodeBody)
 
-            liftIO $ Util.assertUserQueue "user activate" aws (userActivateJournaled uid)
+            liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled uid)
 
     -- Register (pre verified) user with email
     e <- randomEmail
@@ -132,9 +132,9 @@ testCreateUserWithPreverified brig aws = do
                 const 200 === statusCode
                 const (Just e) === (userEmail <=< decodeBody)
 
-            liftIO $ Util.assertUserQueue "user activate" aws (userActivateJournaled uid)
-            
-    liftIO $ Util.assertEmptyUserQueue aws
+            liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled uid)
+
+    liftIO $ Util.assertEmptyUserJournalQueue aws
 
 testCreateUser :: Brig -> Galley -> Http ()
 testCreateUser brig galley = do
@@ -304,7 +304,7 @@ testCreateUserBlacklist brig aws =
                         "complaint" -> MailComplaint [em]
                         x           -> error ("Unsupported message type: " ++ show x)
         let queue = env^.AWS.sesQueue
-        void $ AWS.execute env (AWS.enqueue queue bdy)
+        void $ AWS.execute env (AWS.enqueueStandard queue bdy)
 
     awaitBlacklist :: Int -> Email -> Http ()
     awaitBlacklist n e = do
@@ -432,9 +432,9 @@ testCreateUserAnonExpiry b = do
 testUserUpdate :: Brig -> Cannon -> AWS.Env -> Http ()
 testUserUpdate brig cannon aws = do
     alice <- userId <$> randomUser brig
-    liftIO $ Util.assertUserQueue "user create alice" aws (userActivateJournaled alice)
+    liftIO $ Util.assertUserJournalQueue "user create alice" aws (userActivateJournaled alice)
     bob <- userId <$> randomUser brig
-    liftIO $ Util.assertUserQueue "user create bob" aws (userActivateJournaled bob)
+    liftIO $ Util.assertUserJournalQueue "user create bob" aws (userActivateJournaled bob)
     connectUsers brig alice (singleton bob)
     let newColId   = Just 5
         newAssets  = Just [ImageAsset "abc" (Just AssetComplete)]
@@ -450,7 +450,7 @@ testUserUpdate brig cannon aws = do
 
         liftIO $ mapConcurrently_ (\ws -> assertUpdateNotification ws alice userUpdate) [aliceWS, bobWS]
         -- Should not generate any user update journaled messages
-        liftIO $ Util.assertEmptyUserQueue aws
+        liftIO $ Util.assertEmptyUserJournalQueue aws
 
     -- get the updated profile
     get (brig . path "/self" . zUser alice) !!! do
@@ -476,14 +476,14 @@ testUserUpdate brig cannon aws = do
 testEmailUpdate :: Brig -> AWS.Env -> Http ()
 testEmailUpdate brig aws = do
     uid <- userId <$> randomUser brig
-    liftIO $ Util.assertUserQueue "user create random" aws (userActivateJournaled uid)
+    liftIO $ Util.assertUserJournalQueue "user create random" aws (userActivateJournaled uid)
     eml <- randomEmail
     -- update email
     initiateEmailUpdate brig eml uid !!! const 202 === statusCode
     -- activate
     activateEmail brig eml
     checkEmail brig uid eml
-    liftIO $ Util.assertUserQueue "user update" aws (userUpdateJournaled uid)
+    liftIO $ Util.assertUserJournalQueue "user update" aws (userUpdateJournaled uid)
 
 testPhoneUpdate :: Brig -> Http ()
 testPhoneUpdate brig = do
@@ -531,7 +531,7 @@ testCreateAccountPendingActivationKey brig = do
 testUserLocaleUpdate :: Brig -> AWS.Env -> Http ()
 testUserLocaleUpdate brig aws = do
     uid <- userId <$> randomUser brig
-    liftIO $ Util.assertUserQueue "user create random" aws (userActivateJournaled uid)
+    liftIO $ Util.assertUserJournalQueue "user create random" aws (userActivateJournaled uid)
     -- update locale info with locale supported in templates
     put (brig . path "/self/locale" . contentJson . zUser uid . zConn "c" . locale "en-US") !!!
         const 200 === statusCode
@@ -542,7 +542,7 @@ testUserLocaleUpdate brig aws = do
     get (brig . path "/self" . zUser uid) !!! do
         const 200                   === statusCode
         const (parseLocale "pt-PT") === (Just . userLocale . selfUser <=< decodeBody)
-    liftIO $ Util.assertUserQueue "user update" aws (userUpdateJournaled uid)
+    liftIO $ Util.assertUserJournalQueue "user update" aws (userUpdateJournaled uid)
   where
     locale l = body . RequestBodyLBS . encode $ object ["locale" .= (l :: Text)]
 
@@ -824,11 +824,11 @@ testDeleteAnonUser brig = do
 testDeleteInternal :: Brig -> Cannon -> AWS.Env -> Http ()
 testDeleteInternal brig cannon aws = do
     u <- randomUser brig
-    liftIO $ Util.assertUserQueue "user activate" aws (userActivateJournaled $ userId u)
+    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled $ userId u)
     setHandleAndDeleteUser brig cannon u [] $
         \uid -> delete (brig . paths ["/i/users", toByteString' uid]) !!! const 202 === statusCode
     -- Check that user deletion is also triggered
-    liftIO $ Util.assertUserQueue "user deletion" aws (userDeleteJournaled $ userId u)
+    liftIO $ Util.assertUserJournalQueue "user deletion" aws (userDeleteJournaled $ userId u)
 
 testDeleteWithProfilePic :: Brig -> CargoHold -> Http ()
 testDeleteWithProfilePic brig cargohold = do
@@ -844,7 +844,7 @@ testDeleteWithProfilePic brig cargohold = do
     -- Update profile with the uploaded asset
     put (brig . path "/self" . contentJson . zUser uid . zConn "c" . body update) !!!
             const 200 === statusCode
-    
+
     deleteUser uid Nothing brig !!! const 200 === statusCode
 
     -- Check that the asset gets deleted

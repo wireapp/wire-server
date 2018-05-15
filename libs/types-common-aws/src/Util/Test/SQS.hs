@@ -35,26 +35,28 @@ assertQueue url label env check = execute env $ fetchMessage url label check
 
 assertNoMessages :: Text -> AWS.Env -> IO ()
 assertNoMessages url env = do
-    msgs <- execute env $ readAllUntilEmpty url
+    msgs <- execute env $ readAndDeleteAllUntilEmpty url
     assertEqual "ensureNoMessages: length" 0 (length msgs)
 
 -----------------------------------------------------------------------------
 -- Queue operations
 purgeQueue :: AWS.MonadAWS m => Text -> m ()
-purgeQueue = void . readAllUntilEmpty
+purgeQueue = void . readAndDeleteAllUntilEmpty
 
 -- Note that Amazon's purge queue is a bit incovenient for testing purposes because
 -- it may be delayed in ~60 seconds which causes messages that are published later
 -- to be (unintentionally) deleted which is why we have our own for testing purposes
-readAllUntilEmpty :: AWS.MonadAWS m => Text -> m [SQS.Message]
-readAllUntilEmpty url = do
-    msgs <- view SQS.rmrsMessages <$> AWS.send (receive 10 url)
-    readUntilEmpty msgs msgs
+readAndDeleteAllUntilEmpty :: AWS.MonadAWS m => Text -> m [SQS.Message]
+readAndDeleteAllUntilEmpty url = do
+    firstBatch <- view SQS.rmrsMessages <$> AWS.send (receive 1 url)
+    allMsgs    <- readUntilEmpty firstBatch firstBatch
+    return allMsgs
   where
     readUntilEmpty acc []   = return acc
     readUntilEmpty acc msgs = do
         forM_ msgs $ deleteMessage url
-        newMsgs <- view SQS.rmrsMessages <$> AWS.send (receive 10 url)
+        newMsgs <- view SQS.rmrsMessages <$> AWS.send (receive 1 url)
+        forM_ newMsgs $ deleteMessage url
         readUntilEmpty (acc ++ newMsgs) newMsgs
 
 deleteMessage :: AWS.MonadAWS m => Text -> SQS.Message -> m ()
@@ -114,7 +116,7 @@ tryMatch label tries url callback = go tries
   where
     go 0 = liftIO (assertFailure $ label <> ": No matching event found")
     go n = do
-        msgs      <- readAllUntilEmpty url
+        msgs      <- readAndDeleteAllUntilEmpty url
         (bad, ok) <- partitionEithers <$> mapM (check <=< parseDeleteMessage url) msgs
         -- Requeue all failed checks
         forM_ bad $ \x -> for_ (fst . mFailure $ x) (queueMessage url)

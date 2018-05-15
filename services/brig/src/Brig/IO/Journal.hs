@@ -12,6 +12,7 @@ module Brig.IO.Journal
 import Brig.App
 import Brig.Types
 import Control.Lens
+import Control.Monad.IO.Class
 import Data.Foldable (for_)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
@@ -20,6 +21,7 @@ import Data.Id
 import Data.Proto
 import Data.Proto.Id
 import Data.ProtoLens.Encoding (encodeMessage)
+import Data.UUID.V4 (nextRandom)
 import Proto.UserEvents hiding (userId)
 
 import qualified Data.ByteString.Base64 as B64
@@ -42,8 +44,9 @@ userDelete :: UserId -> AppIO ()
 userDelete uid = journalEvent UserEvent'USER_DELETE uid Nothing Nothing
 
 journalEvent :: UserEvent'EventType -> UserId -> Maybe Email -> Maybe Locale -> AppIO ()
-journalEvent typ uid em loc = view awsEnv >>= \env -> for_ (view AWS.journalQueue env) $ \queue -> do
-    ts <- now
+journalEvent typ uid em loc = view awsEnv >>= \env -> for_ (view AWS.userJournalQueue env) $ \queue -> do
+    ts  <- now
+    rnd <- liftIO nextRandom
     let encoded = fromStrict . B64.encode . encodeMessage
                 $ UserEvent typ (toBytes uid) ts (toByteString' <$> em) (pack . show <$> loc)
-    AWS.execute env (AWS.enqueue queue encoded)
+    AWS.execute env (AWS.enqueueFIFO queue "user.events" rnd encoded)
