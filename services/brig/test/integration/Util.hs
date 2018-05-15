@@ -80,7 +80,7 @@ test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)
 
 test' :: AWS.Env -> Manager -> TestName -> Http a -> TestTree
-test' e m n h = testCase n $ void $ runHttpT m (liftIO (ensureEmptyJournalQueue e) >> h)
+test' e m n h = testCase n $ void $ runHttpT m (liftIO (purgeJournalQueue e) >> h)
 
 randomUser :: HasCallStack => Brig -> Http User
 randomUser brig = do

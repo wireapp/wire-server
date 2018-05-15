@@ -70,7 +70,7 @@ runTests iConf bConf otherArgs = do
     awsEnv <- AWS.mkEnv lg awsOpts mg
     
     -- If we're journaling, make sure we have a clean slate
-    for_ (awsEnv^.AWS.journalQueue) $ SQS.execute (view AWS.amazonkaEnv awsEnv) . SQS.ensureQueueEmpty
+    for_ (awsEnv^.AWS.journalQueue) $ SQS.execute (view AWS.amazonkaEnv awsEnv) . SQS.purgeQueue
     userApi     <- User.tests bConf mg b c ch g awsEnv
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b

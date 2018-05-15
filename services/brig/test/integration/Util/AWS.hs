@@ -18,14 +18,20 @@ import qualified Proto.UserEvents     as PU
 import qualified Util.Test.SQS        as SQS
 
 isRealSESEnv :: AWS.Env -> Bool
-isRealSESEnv e = case view AWS.journalQueue e of
+isRealSESEnv env = case view AWS.journalQueue env of
     Just url | "amazonaws.com" `Text.isSuffixOf` url -> True
     _                                                -> False
 
-ensureEmptyJournalQueue :: AWS.Env -> IO ()
-ensureEmptyJournalQueue awsEnv = for_ (view AWS.journalQueue awsEnv)
-                               $ SQS.execute (view AWS.amazonkaEnv awsEnv)
-                               . SQS.ensureQueueEmpty
+purgeJournalQueue :: AWS.Env -> IO ()
+purgeJournalQueue env = for_ (view AWS.journalQueue env)
+                      $ SQS.execute (view AWS.amazonkaEnv env)
+                      . SQS.purgeQueue
+
+assertEmptyUserQueue :: AWS.Env -> IO ()
+assertEmptyUserQueue env =
+    for_ (view AWS.journalQueue env) $ \url -> do
+        let awsEnv = view AWS.amazonkaEnv env
+        SQS.assertNoMessages url awsEnv
 
 assertUserQueue :: DP.Message a
                 => String

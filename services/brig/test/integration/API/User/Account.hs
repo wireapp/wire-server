@@ -84,7 +84,7 @@ tests _cl at _conf p b c ch g aws = testGroup "account"
     , test' aws p "delete/by-password"                       $ testDeleteUserByPassword b c
     , test' aws p "delete/by-code"                           $ testDeleteUserByCode b
     , test' aws p "delete/anonymous"                         $ testDeleteAnonUser b
-    , test' aws p "delete /i/users/:id - 202"                $ testDeleteInternal b c
+    , test' aws p "delete /i/users/:id - 202"                $ testDeleteInternal b c aws
     , test' aws p "delete with profile pic"                  $ testDeleteWithProfilePic b ch
     ]
 
@@ -134,7 +134,7 @@ testCreateUserWithPreverified brig aws = do
 
             liftIO $ Util.assertUserQueue "user activate" aws (userActivateJournaled uid)
             
-    liftIO $ ensureEmptyJournalQueue aws
+    liftIO $ Util.assertEmptyUserQueue aws
 
 testCreateUser :: Brig -> Galley -> Http ()
 testCreateUser brig galley = do
@@ -449,6 +449,8 @@ testUserUpdate brig cannon aws = do
             const 200 === statusCode
 
         liftIO $ mapConcurrently_ (\ws -> assertUpdateNotification ws alice userUpdate) [aliceWS, bobWS]
+        -- Should not generate any user update journaled messages
+        liftIO $ Util.assertEmptyUserQueue aws
 
     -- get the updated profile
     get (brig . path "/self" . zUser alice) !!! do
@@ -819,16 +821,18 @@ testDeleteAnonUser brig = do
     deleteUser uid Nothing brig
         !!! const 200 === statusCode
 
-testDeleteInternal :: Brig -> Cannon -> Http ()
-testDeleteInternal brig cannon = do
+testDeleteInternal :: Brig -> Cannon -> AWS.Env -> Http ()
+testDeleteInternal brig cannon aws = do
     u <- randomUser brig
+    liftIO $ Util.assertUserQueue "user activate" aws (userActivateJournaled $ userId u)
     setHandleAndDeleteUser brig cannon u [] $
         \uid -> delete (brig . paths ["/i/users", toByteString' uid]) !!! const 202 === statusCode
+    -- Check that user deletion is also triggered
+    liftIO $ Util.assertUserQueue "user deletion" aws (userDeleteJournaled $ userId u)
 
 testDeleteWithProfilePic :: Brig -> CargoHold -> Http ()
 testDeleteWithProfilePic brig cargohold = do
     uid <- userId <$> createAnonUser "anon" brig
-    
     ast <- uploadAsset cargohold uid "this is my profile pic"
     -- Ensure that the asset is there
     downloadAsset cargohold uid (toByteString' (ast^.CHV3.assetKey)) !!! const 200 === statusCode
@@ -840,7 +844,7 @@ testDeleteWithProfilePic brig cargohold = do
     -- Update profile with the uploaded asset
     put (brig . path "/self" . contentJson . zUser uid . zConn "c" . body update) !!!
             const 200 === statusCode
-
+    
     deleteUser uid Nothing brig !!! const 200 === statusCode
 
     -- Check that the asset gets deleted

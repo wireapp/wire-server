@@ -30,22 +30,22 @@ import qualified Network.AWS.SQS        as SQS
 
 -----------------------------------------------------------------------------
 -- Assertions
-assertQueue :: (Message a) => Text -> String -> AWS.Env -> (String -> Maybe a -> IO ()) -> IO ()
+assertQueue :: Message a => Text -> String -> AWS.Env -> (String -> Maybe a -> IO ()) -> IO ()
 assertQueue url label env check = execute env $ fetchMessage url label check
 
-assertNoMessages :: (AWS.MonadAWS m) => Text -> m ()
-assertNoMessages url = do
-    msgs <- readAllUntilEmpty url
-    liftIO $ assertEqual "ensureNoMessages: length" 0 (length msgs)
+assertNoMessages :: Text -> AWS.Env -> IO ()
+assertNoMessages url env = do
+    msgs <- execute env $ readAllUntilEmpty url
+    assertEqual "ensureNoMessages: length" 0 (length msgs)
 
 -----------------------------------------------------------------------------
 -- Queue operations
-ensureQueueEmpty :: AWS.MonadAWS m => Text -> m ()
-ensureQueueEmpty = void . readAllUntilEmpty
+purgeQueue :: AWS.MonadAWS m => Text -> m ()
+purgeQueue = void . readAllUntilEmpty
 
 -- Note that Amazon's purge queue is a bit incovenient for testing purposes because
 -- it may be delayed in ~60 seconds which causes messages that are published later
--- to be (unintentionally) deleted
+-- to be (unintentionally) deleted which is why we have our own for testing purposes
 readAllUntilEmpty :: AWS.MonadAWS m => Text -> m [SQS.Message]
 readAllUntilEmpty url = do
     msgs <- view SQS.rmrsMessages <$> AWS.send (receive 10 url)
@@ -86,10 +86,8 @@ fetchMessage url label callback = do
 parseDeleteMessage :: (AWS.MonadAWS m, Message a) => Text -> SQS.Message -> m (Maybe a)
 parseDeleteMessage url m = do
     evt <- case (>>= decodeMessage) . B64.decode . Text.encodeUtf8 <$> (m^.SQS.mBody) of
-        Just (Right e) -> do
-            liftIO $ print ("SQS event received" :: String)
-            return (Just e)
-        _ -> do
+        Just (Right e) -> return (Just e)
+        _              -> do
             liftIO $ print ("Failed to parse SQS message or event" :: String)
             return Nothing
     deleteMessage url m
