@@ -277,9 +277,9 @@ getPreKey :: Brig -> UserId -> ClientId -> Http ResponseLBS
 getPreKey brig u c = get $ brig
     . paths ["users", toByteString' u, "prekeys", toByteString' c]
 
-getTeamMember :: UserId -> TeamId -> Galley -> Http Team.TeamMember
+getTeamMember :: HasCallStack => UserId -> TeamId -> Galley -> Http Team.TeamMember
 getTeamMember u tid galley = do
-    r <-  get ( galley
+    r <- get ( galley
              . paths ["i", "teams", toByteString' tid, "members", toByteString' u]
              . zUser u
              . expect2xx

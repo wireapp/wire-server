@@ -669,15 +669,6 @@ assertNoInvitationCode brig t i =
           const 400 === statusCode
           const (Just "invalid-invitation-code") === fmap Error.label . decodeBody
 
-getTeamMember :: HasCallStack => UserId -> TeamId -> Galley -> Http Team.TeamMember
-getTeamMember u tid galley = do
-    r <- get ( galley
-             . paths ["i", "teams", toByteString' tid, "members", toByteString' u]
-             . zUser u
-             . expect2xx
-             )
-    return $ fromMaybe (error "getTeamMember: failed to parse response") (decodeBody r)
-
 accept :: Email -> InvitationCode -> RequestBody
 accept email code = RequestBodyLBS . encode $ object
     [ "name"      .= ("Bob" :: Text)
