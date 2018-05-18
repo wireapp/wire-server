@@ -1,12 +1,15 @@
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 -- Brig.Types.Account?
 module Brig.Types.Common where
 
 import Control.Applicative
+import Control.Lens ((&), (%~), _2)
 import Control.Error (hush, readMay)
 import Data.Aeson
 import Data.Attoparsec.Text
@@ -21,6 +24,7 @@ import Data.Monoid ((<>))
 import Data.Range
 import Data.Text (Text, toLower)
 import Data.Time.Clock
+import Data.UUID
 
 import qualified Data.Aeson.Types as Json
 import qualified Data.Text        as Text
@@ -207,16 +211,29 @@ ssoIdentity :: UserIdentity -> Maybe UserSSOId
 ssoIdentity (SSOIdentity ssoid _ _) = Just ssoid
 ssoIdentity _ = Nothing
 
--- | This is opaque in brig, constructed by sso service, contains two UUIDv4 for IdP and for the
--- user on that IdP, resp.
-newtype UserSSOId = UserSSOId Text
+-- | TODO: once we have @/libs/spar-types@ for the wire-sso-sp-server called spar, this type should
+-- move there.
+data UserSSOId = UserSSOId { userSSOIdTenant :: UUID, userSSOIdSubject :: UUID }
     deriving (Eq, Show)
 
+userSSOIdFromText :: Text -> Either String UserSSOId
+userSSOIdFromText raw = do
+    ix <- maybe (Left "UserSSOId: ':'") pure $ Text.findIndex (== ':') raw
+    case Text.splitAt ix raw & _2 %~ Text.splitAt 1 of
+        (tenant, (":", subject)) -> case (fromText tenant, fromText subject) of
+            (Nothing, _)      -> Left "UserSSOId: tenant"
+            (Just _, Nothing) -> Left "UserSSOId: subject"
+            (Just t, Just s)  -> pure $ UserSSOId t s
+        bad -> Left $ "UserSSOId: impossible: " <> show bad
+
+userSSOIdToText :: UserSSOId -> Text
+userSSOIdToText (UserSSOId tenant subject) = toText tenant <> ":" <> toText subject
+
 instance FromJSON UserSSOId where
-    parseJSON = withText "UserSSOId" $ pure . UserSSOId
+    parseJSON = withText "UserSSOId" $ either fail pure . userSSOIdFromText
 
 instance ToJSON UserSSOId where
-    toJSON (UserSSOId ssoid) = toJSON ssoid
+    toJSON = toJSON . userSSOIdToText
 
 -----------------------------------------------------------------------------
 -- Asset

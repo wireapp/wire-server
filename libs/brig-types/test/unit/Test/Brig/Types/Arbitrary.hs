@@ -120,7 +120,7 @@ instance Arbitrary UserIdentity where
     ]
 
 instance Arbitrary UserSSOId where
-  arbitrary = UserSSOId <$> arbitrary
+  arbitrary = UserSSOId <$> arbitrary <*> arbitrary
 
 instance Arbitrary AssetSize where
   arbitrary = genEnumBounded

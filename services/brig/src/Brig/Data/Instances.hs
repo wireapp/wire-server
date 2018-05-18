@@ -25,7 +25,6 @@ deriving instance Cql Name
 deriving instance Cql Handle
 deriving instance Cql ColourId
 deriving instance Cql Phone
-deriving instance Cql UserSSOId
 deriving instance Cql Message
 deriving instance Cql InvitationCode
 deriving instance Cql PasswordResetKey
@@ -44,6 +43,16 @@ instance Cql Email where
     fromCql _           = fail "fromCql: email: CqlText expected"
 
     toCql = toCql . fromEmail
+
+instance Cql UserSSOId where
+    ctype = Tagged TextColumn
+
+    fromCql (CqlText t) = case userSSOIdFromText t of
+        Right i  -> return i
+        Left msg -> fail $ "fromCql: Invalid UserSSOId: " ++ msg
+    fromCql _           = fail "fromCql: UserSSOId: CqlText expected"
+
+    toCql = toCql . userSSOIdToText
 
 instance Cql Relation where
     ctype = Tagged IntColumn

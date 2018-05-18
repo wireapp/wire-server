@@ -14,6 +14,7 @@ import Data.Aeson
 import Data.Aeson.Types
 import Data.Monoid
 import Data.Typeable
+import Data.UUID
 import Test.Brig.Types.Arbitrary ()
 import Test.QuickCheck
 import Test.Tasty
@@ -59,8 +60,8 @@ unitTests =
     phone     = ("phone", "+493012345678")
     badphone  = ("phone", "__@@")
 
-    hssoid    = UserSSOId "blu:bnee"
-    ssoid     = ("sso_id", "blu:bnee")
+    hssoid    = UserSSOId nil nil
+    ssoid     = ("sso_id", "00000000-0000-0000-0000-000000000000:00000000-0000-0000-0000-000000000000")
 
 
 roundtripTests :: [TestTree]

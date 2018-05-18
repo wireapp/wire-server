@@ -103,6 +103,7 @@ test-suite brig-types-tests
       , time
       , types-common
       , unordered-containers
+      , uuid
       , vector
 
     ghc-options:
