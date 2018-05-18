@@ -328,7 +328,7 @@ createUser new@NewUser{..} = do
             activateUser uid ident
             void $ onActivated (AccountActivated account)
             Log.info $ field "user" (toByteString uid)
-                     . field "team_id" (toByteString tid)
+                     . field "team" (toByteString tid)
                      . msg (val "Added via SSO")
 
 -------------------------------------------------------------------------------
