@@ -51,6 +51,11 @@ tests conf m z b = testGroup "auth"
             , test m "send-phone-code" (testSendLoginCode b)
             , test m "failure" (testLoginFailure b)
             , test m "throttle" (testThrottleLogins conf b)
+            , testGroup "backdoor-login"
+                [ test m "email" (testEmailBackdoorLogin b)
+                , test m "failure-suspended" (testSuspendedBackdoorLogin b)
+                , test m "failure-no-user" (testNoUserBackdoorLogin b)
+                ]
             ]
         , testGroup "refresh"
             [ test m "invalid-cookie" (testInvalidCookie z b)
@@ -90,30 +95,18 @@ testEmailLogin brig = do
     let Just email = userEmail u
     now <- liftIO getCurrentTime
 
-    -- Login with email
+    -- Login with email and do some checks
     _rs <- login brig (defEmailLogin email) PersistentCookie
         <!! const 200 === statusCode
-
-    -- Check basic cookie attributes
-    let ck = decodeCookie _rs
     liftIO $ do
-        assertBool "type" (cookie_persistent ck)
-        assertBool "http-only" (cookie_http_only ck)
-        assertBool "expiry" (cookie_expiry_time ck > cookie_creation_time ck)
-        assertBool "domain" (cookie_domain ck /= "")
-        assertBool "path" (cookie_path ck /= "")
-
-    -- Check basic access token attributes
-    let tk = decodeToken  _rs
-    liftIO $ do
-        assertEqual "user" (userId u) (ZAuth.accessTokenOf tk)
-        assertBool "expiry" (ZAuth.tokenExpiresUTC tk > now)
+        assertSanePersistentCookie (decodeCookie _rs)
+        assertSaneAccessToken now u (decodeToken _rs)
 
     -- Login again, but with capitalised email address
     let Email loc dom = email
     let email' = Email (Text.toUpper loc) dom
-    login brig (defEmailLogin email') PersistentCookie !!!
-        const 200 === statusCode
+    login brig (defEmailLogin email') PersistentCookie
+        !!! const 200 === statusCode
 
 testPhoneLogin :: Brig -> Http ()
 testPhoneLogin brig = do
@@ -236,6 +229,46 @@ testThrottleLogins conf b = do
         assertBool "throttle delay" (n > 0)
         threadDelay (1000000 * (n + 1))
     void $ login b (defEmailLogin e) SessionCookie
+
+-------------------------------------------------------------------------------
+-- Backdoor login
+
+-- | Check that standard email login works with @/backdoor-login@ even
+-- without having the right password.
+testEmailBackdoorLogin :: Brig -> Http ()
+testEmailBackdoorLogin brig = do
+    u <- randomUser brig
+    let Just email = userEmail u
+    now <- liftIO getCurrentTime
+
+    -- Login with email and do some checks
+    let loginSpec = BackdoorLogin (LoginByEmail email) Nothing
+    _rs <- backdoorLogin brig loginSpec PersistentCookie
+        <!! const 200 === statusCode
+    liftIO $ do
+        assertSanePersistentCookie (decodeCookie _rs)
+        assertSaneAccessToken now u (decodeToken _rs)
+
+-- | Check that @/backdoor-login@ can not be used to login as a suspended
+-- user.
+testSuspendedBackdoorLogin :: Brig -> Http ()
+testSuspendedBackdoorLogin brig = do
+    -- Create a user and immediately suspend them
+    u <- randomUser brig
+    let Just email = userEmail u
+    setStatus brig (userId u) Suspended
+    -- Try to login and see if we fail
+    let loginSpec = BackdoorLogin (LoginByEmail email) Nothing
+    backdoorLogin brig loginSpec PersistentCookie
+        !!! const 403 === statusCode
+
+-- | Check that @/backdoor-login@ fails if the user doesn't exist.
+testNoUserBackdoorLogin :: Brig -> Http ()
+testNoUserBackdoorLogin brig = do
+    -- Try to login as wrong@wire.com and see if we fail
+    let loginSpec = BackdoorLogin (LoginByEmail (Email "wrong" "wire.com")) Nothing
+    backdoorLogin brig loginSpec PersistentCookie
+        !!! const 403 === statusCode
 
 -------------------------------------------------------------------------------
 -- Token Refresh
@@ -472,19 +505,13 @@ testReauthorisation b = do
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload defPassword) !!! do
         const 200 === statusCode
 
-    setStatus u Suspended
+    setStatus b u Suspended
 
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload defPassword) !!! do
         const 403 === statusCode
         const (Just "suspended") === fmap Error.label . decodeBody
   where
     payload = Http.body . RequestBodyLBS . encode . ReAuthUser
-
-    setStatus u s =
-        let js = RequestBodyLBS . encode $ AccountStatusUpdate s
-        in put ( b . paths ["i", "users", toByteString' u, "status"]
-               . contentJson . Http.body js
-               ) !!! const 200 === statusCode
 
 -----------------------------------------------------------------------------
 -- Helpers
@@ -509,6 +536,35 @@ listCookies b u = do
         const 200 === statusCode
     let Just cs = cookieList <$> decodeBody rs
     return cs
+
+-- | Check that the cookie returned after login is sane.
+--
+-- Doesn't check everything, just some basic properties.
+assertSanePersistentCookie :: Http.Cookie -> Assertion
+assertSanePersistentCookie ck = do
+    assertBool "type" (cookie_persistent ck)
+    assertBool "http-only" (cookie_http_only ck)
+    assertBool "expiry" (cookie_expiry_time ck > cookie_creation_time ck)
+    assertBool "domain" (cookie_domain ck /= "")
+    assertBool "path" (cookie_path ck /= "")
+
+-- | Check that the access token returned after login is sane.
+assertSaneAccessToken
+    :: UTCTime           -- ^ Some moment in time before the user was created
+    -> User
+    -> ZAuth.AccessToken
+    -> Assertion
+assertSaneAccessToken now u tk = do
+    assertEqual "user" (userId u) (ZAuth.accessTokenOf tk)
+    assertBool "expiry" (ZAuth.tokenExpiresUTC tk > now)
+
+-- | Set user's status to something (e.g. 'Suspended').
+setStatus :: Brig -> UserId -> AccountStatus -> HttpT IO ()
+setStatus brig u s =
+    let js = RequestBodyLBS . encode $ AccountStatusUpdate s
+    in put ( brig . paths ["i", "users", toByteString' u, "status"]
+           . contentJson . Http.body js
+           ) !!! const 200 === statusCode
 
 remJson :: PlainTextPassword -> Maybe [CookieLabel] -> Maybe [CookieId] -> Value
 remJson p l ids = object
