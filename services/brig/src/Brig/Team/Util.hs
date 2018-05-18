@@ -1,13 +1,14 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module Brig.Team.Util where  -- TODO: remove this module and move contents to Brig.IO.Intra?
 
 import Brig.App
-import Control.Exception (assert)
 import Control.Lens
 import Data.Id
-import Data.List
 import Galley.Types.Teams
 
 import qualified Brig.IO.Intra as Intra
+import qualified Data.Set as Set
 
 data IsOnlyTeamOwner = IsOnlyTeamOwner | IsOneOfManyTeamOwners | IsNotTeamOwner | NoTeamOwnersAreLeft
   deriving (Eq, Show, Bounded, Enum)
@@ -18,7 +19,7 @@ isOnlyTeamOwner uid tid = isOnlyTeamOwner' uid . fmap (^. userId) <$> Intra.getT
 
 isOnlyTeamOwner' :: UserId -> [UserId] -> IsOnlyTeamOwner
 isOnlyTeamOwner' _ [] = NoTeamOwnersAreLeft
-isOnlyTeamOwner' uid owners
-    | uid `notElem` owners   = IsNotTeamOwner
-    | null (owners \\ [uid]) = assert (owners == nub owners) IsOnlyTeamOwner
-    | otherwise              = IsOneOfManyTeamOwners
+isOnlyTeamOwner' uid (Set.fromList -> owners)
+    | uid `Set.notMember` owners       = IsNotTeamOwner
+    | Set.null (Set.delete uid owners) = IsOnlyTeamOwner
+    | otherwise                        = IsOneOfManyTeamOwners
