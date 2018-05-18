@@ -1,7 +1,0 @@
-resolver: lts-10.3
-packages:
-- '.'
-- '../metrics-core'
-extra-deps: []
-extra-package-dbs: []
-flags: {}

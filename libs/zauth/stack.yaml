@@ -1,7 +1,0 @@
-resolver: lts-10.3
-packages:
-- '.'
-- '../sodium-crypto-sign'
-extra-deps:
-flags: {}
-extra-package-dbs: []
