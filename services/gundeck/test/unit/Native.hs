@@ -199,13 +199,7 @@ instance FromJSON PlainData where
 -- Randomness
 
 genTransport :: Gen Transport
-genTransport = elements
-    [ GCM
-    , APNS
-    , APNSSandbox
-    , APNSVoIP
-    , APNSVoIPSandbox
-    ]
+genTransport = elements [minBound..]
 
 randNotif :: (Int, Int) -> IO Notification
 randNotif size = do
