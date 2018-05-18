@@ -12,7 +12,6 @@ import Control.Monad
 import Data.ByteString (ByteString)
 import Data.Id
 import Data.Maybe (isJust)
-import Data.String
 import Data.UUID hiding (fromString)
 import Data.UUID.V4
 import System.Random
@@ -113,6 +112,3 @@ instance Arbitrary Key where
 
 instance Arbitrary ConnId where
     arbitrary = ConnId <$> arbitrary
-
-instance Arbitrary ByteString where
-    arbitrary = fromString <$> arbitrary
