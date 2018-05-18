@@ -35,6 +35,7 @@ import qualified Brig.Types.User.Auth as Auth
 import qualified Brig.Types.Code      as Code
 import qualified Bilge                as Http
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.Text.Lazy       as Lazy
 import qualified Brig.ZAuth           as ZAuth
 import qualified Data.Text            as Text
 import qualified Data.UUID.V4         as UUID
@@ -160,7 +161,7 @@ testSendLoginCode brig = do
     -- the user has a password.
     sendLoginCode brig p LoginCodeSMS False !!! do
         const 403 === statusCode
-        const (Just "password-exists") === fmap Error.label . decodeBody
+        const (Just "password-exists") === errorLabel
     rsp1 <- sendLoginCode brig p LoginCodeSMS True
         <!! const 200 === statusCode
 
@@ -213,8 +214,8 @@ testLoginFailure brig = do
             activate brig kc !!! const 200 === statusCode
             -- Attempt to log in without having set a password
             login brig (defEmailLogin eml) PersistentCookie !!! do
-                const 403                          === statusCode
-                const (Just "invalid-credentials") === fmap Error.label . decodeBody
+                const 403 === statusCode
+                const (Just "invalid-credentials") === errorLabel
 
 testThrottleLogins :: Maybe Opts.Opts -> Brig -> Http ()
 testThrottleLogins conf b = do
@@ -259,16 +260,18 @@ testSuspendedBackdoorLogin brig = do
     setStatus brig (userId u) Suspended
     -- Try to login and see if we fail
     let loginSpec = BackdoorLogin (LoginByEmail email) Nothing
-    backdoorLogin brig loginSpec PersistentCookie
-        !!! const 403 === statusCode
+    backdoorLogin brig loginSpec PersistentCookie !!! do
+        const 403 === statusCode
+        const (Just "suspended") === errorLabel
 
 -- | Check that @/backdoor-login@ fails if the user doesn't exist.
 testNoUserBackdoorLogin :: Brig -> Http ()
 testNoUserBackdoorLogin brig = do
     -- Try to login as wrong@wire.com and see if we fail
     let loginSpec = BackdoorLogin (LoginByEmail (Email "wrong" "wire.com")) Nothing
-    backdoorLogin brig loginSpec PersistentCookie
-        !!! const 403 === statusCode
+    backdoorLogin brig loginSpec PersistentCookie !!! do
+        const 403 === statusCode
+        const (Just "invalid-credentials") === errorLabel
 
 -------------------------------------------------------------------------------
 -- Token Refresh
@@ -500,7 +503,7 @@ testReauthorisation b = do
 
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (PlainTextPassword "123456")) !!! do
         const 403 === statusCode
-        const (Just "invalid-credentials") === fmap Error.label . decodeBody
+        const (Just "invalid-credentials") === errorLabel
 
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload defPassword) !!! do
         const 200 === statusCode
@@ -509,7 +512,7 @@ testReauthorisation b = do
 
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload defPassword) !!! do
         const 403 === statusCode
-        const (Just "suspended") === fmap Error.label . decodeBody
+        const (Just "suspended") === errorLabel
   where
     payload = Http.body . RequestBodyLBS . encode . ReAuthUser
 
@@ -565,6 +568,10 @@ setStatus brig u s =
     in put ( brig . paths ["i", "users", toByteString' u, "status"]
            . contentJson . Http.body js
            ) !!! const 200 === statusCode
+
+-- | Get error label from the response (for use in assertions).
+errorLabel :: Response (Maybe Lazy.ByteString) -> Maybe Lazy.Text
+errorLabel = fmap Error.label . decodeBody
 
 remJson :: PlainTextPassword -> Maybe [CookieLabel] -> Maybe [CookieId] -> Value
 remJson p l ids = object
