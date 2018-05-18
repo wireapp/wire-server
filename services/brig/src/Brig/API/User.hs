@@ -698,7 +698,6 @@ deleteUser uid pwd = do
                    Log.warn $ field "user" (toByteString uid)
                             . field "team" (toByteString tid)
                             . msg (val "Team.NoTeamOwnersAreLeft")
-                   pure ()
 
     go a = maybe (byIdentity a) (byPassword a) pwd
 
