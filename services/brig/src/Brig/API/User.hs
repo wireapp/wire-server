@@ -181,7 +181,7 @@ createUser new@NewUser{..} = do
                 return (False, True)
         Nothing -> return (False, False)
 
-    (teamEmailInvited, joinedTeam) <- case teamInvitation of
+    (teamEmailInvited, joinedTeamInvite) <- case teamInvitation of
         Just (inv, invInfo) -> do
                 let em = Team.inIdentity inv
                 acceptTeamInvitation account inv invInfo (userEmailKey em) (EmailIdentity em)
@@ -189,9 +189,12 @@ createUser new@NewUser{..} = do
                 return (True, Just $ CreateUserTeam (Team.inTeam inv) nm)
         Nothing -> return (False, Nothing)
 
-    case (ident, tid) of
-        (Just ident'@SSOIdentity {}, Just tid') -> addUserToTeamSSO account tid' ident'
-        _ -> pure ()
+    joinedTeamSSO <- case (ident, tid) of
+        (Just ident'@SSOIdentity {}, Just tid') -> Just <$> addUserToTeamSSO account tid' ident'
+        _ -> pure Nothing
+
+    let joinedTeam :: Maybe CreateUserTeam
+        joinedTeam = joinedTeamInvite <|> joinedTeamSSO
 
     -- Handle e-mail activation
     edata <- if emailInvited || teamEmailInvited
@@ -318,7 +321,7 @@ createUser new@NewUser{..} = do
             forM_ ucs $ Intra.onConnectionEvent uid Nothing . toEvent
             Data.deleteInvitation (inInviter inv) (inInvitation inv)
 
-    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO ()
+    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO CreateUserTeam
     addUserToTeamSSO account tid ident = do
         let uid = userId (accountUser account)
         added <- lift $ Intra.addTeamMember uid tid
@@ -330,6 +333,8 @@ createUser new@NewUser{..} = do
             Log.info $ field "user" (toByteString uid)
                      . field "team" (toByteString tid)
                      . msg (val "Added via SSO")
+        Team.TeamName nm <- lift $ Intra.getTeamName tid
+        pure $ CreateUserTeam tid nm
 
 -------------------------------------------------------------------------------
 -- Update Profile
