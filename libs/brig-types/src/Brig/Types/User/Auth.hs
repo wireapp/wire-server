@@ -53,7 +53,7 @@ data Login
 
 -- | A special kind of login that is only used for an internal endpoint.
 data BackdoorLogin
-    = BackdoorLogin !LoginId !(Maybe CookieLabel)
+    = BackdoorLogin !UserId !(Maybe CookieLabel)
 
 loginLabel :: Login -> Maybe CookieLabel
 loginLabel (PasswordLogin _ _ l) = l
@@ -99,18 +99,17 @@ instance FromJSON Login where
                 PasswordLogin loginId pw <$> o .:? "label"
 
 instance ToJSON Login where
-    toJSON (SmsLogin p c l) =
-        object [ "phone" .= p, "code" .= c, "label" .= l ]
+    toJSON (SmsLogin p c l) = object [ "phone" .= p, "code" .= c, "label" .= l ]
     toJSON (PasswordLogin login password label) =
         object [ "password" .= password, "label" .= label, loginIdPair login ]
 
 instance FromJSON BackdoorLogin where
     parseJSON = withObject "BackdoorLogin" $ \o ->
-        BackdoorLogin <$> parseJSON (Object o) <*> o .:? "label"
+        BackdoorLogin <$> o .: "user" <*> o .:? "label"
 
 instance ToJSON BackdoorLogin where
-    toJSON (BackdoorLogin login label) =
-        object [ loginIdPair login, "label" .= label ]
+    toJSON (BackdoorLogin uid label) =
+        object [ "user" .= uid, "label" .= label ]
 
 instance FromJSON PendingLoginCode where
     parseJSON = withObject "PendingLoginCode" $ \o ->

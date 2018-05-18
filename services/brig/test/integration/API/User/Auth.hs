@@ -101,7 +101,7 @@ testEmailLogin brig = do
         <!! const 200 === statusCode
     liftIO $ do
         assertSanePersistentCookie (decodeCookie _rs)
-        assertSaneAccessToken now u (decodeToken _rs)
+        assertSaneAccessToken now (userId u) (decodeToken _rs)
 
     -- Login again, but with capitalised email address
     let Email loc dom = email
@@ -234,42 +234,38 @@ testThrottleLogins conf b = do
 -------------------------------------------------------------------------------
 -- Backdoor login
 
--- | Check that standard email login works with @/backdoor-login@ even
--- without having the right password.
+-- | Check that login works with @/backdoor-login@ even without having the
+-- right password.
 testEmailBackdoorLogin :: Brig -> Http ()
 testEmailBackdoorLogin brig = do
-    u <- randomUser brig
-    let Just email = userEmail u
+    -- Create a user
+    uid <- userId <$> randomUser brig
     now <- liftIO getCurrentTime
-
-    -- Login with email and do some checks
-    let loginSpec = BackdoorLogin (LoginByEmail email) Nothing
-    _rs <- backdoorLogin brig loginSpec PersistentCookie
+    -- Login and do some checks
+    _rs <- backdoorLogin brig (BackdoorLogin uid Nothing) PersistentCookie
         <!! const 200 === statusCode
     liftIO $ do
         assertSanePersistentCookie (decodeCookie _rs)
-        assertSaneAccessToken now u (decodeToken _rs)
+        assertSaneAccessToken now uid (decodeToken _rs)
 
 -- | Check that @/backdoor-login@ can not be used to login as a suspended
 -- user.
 testSuspendedBackdoorLogin :: Brig -> Http ()
 testSuspendedBackdoorLogin brig = do
     -- Create a user and immediately suspend them
-    u <- randomUser brig
-    let Just email = userEmail u
-    setStatus brig (userId u) Suspended
+    uid <- userId <$> randomUser brig
+    setStatus brig uid Suspended
     -- Try to login and see if we fail
-    let loginSpec = BackdoorLogin (LoginByEmail email) Nothing
-    backdoorLogin brig loginSpec PersistentCookie !!! do
+    backdoorLogin brig (BackdoorLogin uid Nothing) PersistentCookie !!! do
         const 403 === statusCode
         const (Just "suspended") === errorLabel
 
 -- | Check that @/backdoor-login@ fails if the user doesn't exist.
 testNoUserBackdoorLogin :: Brig -> Http ()
 testNoUserBackdoorLogin brig = do
-    -- Try to login as wrong@wire.com and see if we fail
-    let loginSpec = BackdoorLogin (LoginByEmail (Email "wrong" "wire.com")) Nothing
-    backdoorLogin brig loginSpec PersistentCookie !!! do
+    -- Try to login with random UID and see if we fail
+    uid <- randomId
+    backdoorLogin brig (BackdoorLogin uid Nothing) PersistentCookie !!! do
         const 403 === statusCode
         const (Just "invalid-credentials") === errorLabel
 
@@ -554,11 +550,11 @@ assertSanePersistentCookie ck = do
 -- | Check that the access token returned after login is sane.
 assertSaneAccessToken
     :: UTCTime           -- ^ Some moment in time before the user was created
-    -> User
+    -> UserId
     -> ZAuth.AccessToken
     -> Assertion
-assertSaneAccessToken now u tk = do
-    assertEqual "user" (userId u) (ZAuth.accessTokenOf tk)
+assertSaneAccessToken now uid tk = do
+    assertEqual "user" uid (ZAuth.accessTokenOf tk)
     assertBool "expiry" (ZAuth.tokenExpiresUTC tk > now)
 
 -- | Set user's status to something (e.g. 'Suspended').
