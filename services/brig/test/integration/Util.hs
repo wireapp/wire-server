@@ -192,7 +192,7 @@ login b l t = let js = RequestBodyLBS (encode l) in post $ b
 
 backdoorLogin :: Brig -> BackdoorLogin -> CookieType -> Http ResponseLBS
 backdoorLogin b l t = let js = RequestBodyLBS (encode l) in post $ b
-    . path "/i/users/backdoor-login"
+    . path "/i/backdoor-login"
     . contentJson
     . (if t == PersistentCookie then queryItem "persist" "true" else id)
     . body js

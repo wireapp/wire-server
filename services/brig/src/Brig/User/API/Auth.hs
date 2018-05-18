@@ -145,7 +145,7 @@ routes = do
 
     -- Internal
 
-    post "/i/users/backdoor-login" (continue backdoorLogin) $
+    post "/i/backdoor-login" (continue backdoorLogin) $
         request
         .&. def False (query "persist")
         .&. accept "application" "json"
