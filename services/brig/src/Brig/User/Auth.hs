@@ -187,10 +187,11 @@ validateTokens ut at = do
 -- | Allow to login as any user without having the credentials.
 backdoorLogin :: BackdoorLogin -> CookieType -> ExceptT LoginError AppIO Access
 backdoorLogin (BackdoorLogin uid label) typ = do
-    let pw = PlainTextPassword ""
-    Data.authenticate uid pw `catchE` \case
-        AuthSuspended          -> throwE LoginSuspended
-        AuthEphemeral          -> throwE LoginEphemeral
-        AuthInvalidUser        -> throwE LoginFailed
-        AuthInvalidCredentials -> pure ()
+    Data.reauthenticate uid Nothing `catchE` \case
+        ReAuthMissingPassword -> pure ()
+        ReAuthError e -> case e of
+            AuthInvalidCredentials -> pure ()
+            AuthSuspended          -> throwE LoginSuspended
+            AuthEphemeral          -> throwE LoginEphemeral
+            AuthInvalidUser        -> throwE LoginFailed
     newAccess uid typ label
