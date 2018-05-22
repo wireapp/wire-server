@@ -27,7 +27,7 @@ clean:
 
 .PHONY: fast
 fast: init
-	stack install . --pedantic --test --local-bin-path=../../dist --fast $(WIRE_STACK_OPTIONS)
+	stack install . --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY:
 compile:
@@ -35,7 +35,7 @@ compile:
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --local-bin-path=../../dist
+	stack install . --pedantic --test --local-bin-path=dist
 
 .PHONY: dist
 dist: guard-VERSION install $(DEB) .metadata
