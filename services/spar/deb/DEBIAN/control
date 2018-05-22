@@ -1,0 +1,6 @@
+Package: spar
+Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
+Maintainer: Wire Swiss GmbH <backend@wire.com>
+Architecture: amd64
+Depends: runit
+Description: Spar - User Service for SSO provisioning and authentication.

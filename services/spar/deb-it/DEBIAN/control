@@ -1,0 +1,5 @@
+Package: spar-integration
+Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
+Maintainer: Wire Swiss GmbH <backend@wire.com>
+Architecture: <<ARCHITECTURE>>
+Description: Integration Tests for Spar

@@ -1,0 +1,201 @@
+-- This file has been generated from package.yaml by hpack version 0.28.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 7304968871df16527702420ef2af5760820955680ae6495542c11c5c0c333899
+
+name:           spar
+version:        0.1
+synopsis:       User Service for SSO provisioning and authentication.
+description:    See README.md
+category:       System
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2018 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
+
+library
+  exposed-modules:
+      Spar.API
+      Spar.App
+      Spar.Brig
+      Spar.Data
+      Spar.Options
+  other-modules:
+      Paths_spar
+  hs-source-dirs:
+      src
+  ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
+  build-depends:
+      aeson
+    , base
+    , brig-types
+    , bytestring
+    , cassandra-util
+    , containers
+    , exceptions
+    , lens
+    , mtl
+    , raw-strings-qq
+    , saml2-web-sso
+    , servant
+    , servant-multipart
+    , servant-server
+    , string-conversions
+    , text
+    , time
+    , tinylog
+    , transformers
+    , types-common
+    , uuid
+    , warp
+  default-language: Haskell2010
+
+executable spar
+  main-is: Main.hs
+  other-modules:
+      Paths_spar
+  hs-source-dirs:
+      exec
+  ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
+  build-depends:
+      aeson
+    , base
+    , brig-types
+    , bytestring
+    , cassandra-util
+    , containers
+    , exceptions
+    , lens
+    , mtl
+    , raw-strings-qq
+    , saml2-web-sso
+    , servant
+    , servant-multipart
+    , servant-server
+    , spar
+    , string-conversions
+    , text
+    , time
+    , tinylog
+    , transformers
+    , types-common
+    , uuid
+    , warp
+  default-language: Haskell2010
+
+executable spar-integration
+  main-is: Spec.hs
+  other-modules:
+      Test.Spar.APISpec
+      Test.Spar.DataSpec
+      Paths_spar
+  hs-source-dirs:
+      test-integration
+  ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
+  build-depends:
+      aeson
+    , base
+    , brig-types
+    , bytestring
+    , cassandra-util
+    , containers
+    , exceptions
+    , hspec
+    , hspec-discover
+    , lens
+    , mtl
+    , raw-strings-qq
+    , saml2-web-sso
+    , servant
+    , servant-multipart
+    , servant-server
+    , spar
+    , string-conversions
+    , text
+    , time
+    , tinylog
+    , transformers
+    , types-common
+    , uuid
+    , warp
+  default-language: Haskell2010
+
+executable spar-schema
+  main-is: Main.hs
+  other-modules:
+      V0
+      Paths_spar
+  hs-source-dirs:
+      schema/src
+  ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
+  build-depends:
+      aeson
+    , base
+    , brig-types
+    , bytestring
+    , cassandra-util
+    , containers
+    , exceptions
+    , lens
+    , mtl
+    , raw-strings-qq
+    , saml2-web-sso
+    , servant
+    , servant-multipart
+    , servant-server
+    , spar
+    , string-conversions
+    , text
+    , time
+    , tinylog
+    , transformers
+    , types-common
+    , uuid
+    , warp
+  default-language: Haskell2010
+
+test-suite spec
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Arbitrary
+      Test.Spar.APISpec
+      Test.Spar.BrigSpec
+      Test.Spar.OptionsSpec
+      Paths_spar
+  hs-source-dirs:
+      test
+  ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      QuickCheck
+    , aeson
+    , base
+    , brig-types
+    , bytestring
+    , cassandra-util
+    , containers
+    , exceptions
+    , hspec
+    , hspec-discover
+    , lens
+    , mtl
+    , raw-strings-qq
+    , saml2-web-sso
+    , servant
+    , servant-multipart
+    , servant-server
+    , spar
+    , string-conversions
+    , text
+    , time
+    , tinylog
+    , transformers
+    , types-common
+    , uri-bytestring
+    , uuid
+    , warp
+  default-language: Haskell2010
