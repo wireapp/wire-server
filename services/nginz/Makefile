@@ -100,7 +100,8 @@ src: $(TMPDIR)/$(NGINX_BUNDLE)
 	#Find keys on https://nginx.org/en/pgp_keys.html
 	gpg --verify $(TMPDIR)/$(NGINX_BUNDLE).asc $(TMPDIR)/$(NGINX_BUNDLE)
 	tar zxf $(TMPDIR)/$(NGINX_BUNDLE)
-	mv -vn nginx-$(NGINX_VERSION) src
+	rm -rf src
+	mv -v nginx-$(NGINX_VERSION) src
 	rm -rf nginx-$(NGINX_VERSION)
 	# Fix compilation with GCC 8; see https://github.com/wireapp/wire-server/issues/320
 	(cd src; patch -p1 -i ../gcc8.patch)
