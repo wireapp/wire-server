@@ -4,7 +4,7 @@
 module Network.Wire.Simulations.LoadTest where
 
 import Control.Concurrent
-import Control.Concurrent.Async.Lifted
+import Control.Concurrent.Async.Lifted.Safe
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Id (ConvId)
