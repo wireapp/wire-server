@@ -5,7 +5,7 @@
 
 module Network.Wire.Simulations.SmokeTest (mainBotNet) where
 
-import Control.Concurrent.Async.Lifted
+import Control.Concurrent.Async.Lifted.Safe
 import Control.Monad (void)
 import Data.ByteString (ByteString)
 import Data.Foldable (for_)
