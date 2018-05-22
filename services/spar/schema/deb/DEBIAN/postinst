@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -e
+
+# Create log directory for svlogd.
+mkdir -p /var/log/spar/schema

@@ -1,0 +1,5 @@
+Package: spar-schema
+Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
+Maintainer: Wire Swiss GmbH <backend@wire.com>
+Architecture: <<ARCHITECTURE>>
+Description: Schema Definition / Migration for Spar

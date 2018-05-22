@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -e
+
+APP=spar
+
+{
+    # Create empty config directory for chpst -e
+    mkdir -p /etc/$APP
+
+    # Create application directory
+    mkdir -p /opt/$APP
+
+    # Create log directory
+    mkdir -p /var/log/$APP
+
+    # Create runit service directory
+    mkdir -p /etc/sv/$APP
+}
+
+# Set permissions
+chown -R www-data:www-data /opt/$APP
+chown -R www-data:www-data /etc/$APP
+chown -R www-data:www-data /etc/sv/$APP
+
+# Register also as LSB init script
+ln -s /usr/bin/sv /etc/init.d/$APP
+
+# Register shutdown link
+update-rc.d $APP stop 95 0 6 .
+
+# Notify runit.
+ln -s /etc/sv/$APP /etc/service/$APP
