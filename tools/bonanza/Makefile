@@ -20,16 +20,16 @@ init:
 
 .PHONY: clean
 clean:
-	stack clean
+	stack clean bonanza
 	-rm -rf dist
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=../../dist
+	stack install . --pedantic --test --local-bin-path=../../dist
 
 .PHONY: compile
 compile:
-	stack build --pedantic --test --no-copy-bins --fast $(WIRE_STACK_OPTIONS)
+	stack build . --pedantic --test --no-copy-bins --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: dist
 dist: guard-VERSION $(DEB)

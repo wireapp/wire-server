@@ -28,22 +28,22 @@ init:
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=../../dist
+	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=../../dist
 	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" ../../dist/
 	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" ../../dist/
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --local-bin-path=../../dist --fast $(WIRE_STACK_OPTIONS)
+	stack install . --pedantic --test --local-bin-path=../../dist --fast $(WIRE_STACK_OPTIONS)
 	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" ../../dist/
 
 .PHONY: compile
 compile:
-	stack build --pedantic --test --bench --no-run-benchmarks --no-copy-bins
+	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: clean
 clean:
-	stack clean
+	stack clean gundeck
 	-rm -rf dist
 	-rm -f .metadata
 
@@ -135,6 +135,6 @@ docker:
 .PHONY: time
 time: clean
 	-rm -f .stack-work/logs/*
-	stack build --pedantic --no-run-benchmarks --no-copy-bins --ghc-options="-j +RTS -s -RTS"
+	stack build . --pedantic --no-run-benchmarks --no-copy-bins --ghc-options="-j +RTS -s -RTS"
 	@echo -e "\nTotal wall-clock times taken to compile each module (see logs for more detail):"
 	@grep Total .stack-work/logs/* | tr -s ' ' | awk -F' ' '{gsub(/s$$/, "", $$6); a[$$1] += $$6}END{for (i in a) {m=gensub(/^.*\/logs\//,"",1,i); m=gensub(/-[0-9].*\.log/,"",1,m); print m, a[i] ++ "s"}}' | sort -grk2
