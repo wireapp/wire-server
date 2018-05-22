@@ -12,6 +12,10 @@ FROM ${builder} as builder
 
 ARG service
 ARG target=install
+
+# FIXME: this merges two directories (the one from the builder and the local
+# one), which can lead to problems such as
+# https://github.com/wireapp/wire-server/pull/332#pullrequestreview-122162356.
 COPY . /src/wire-server/
 
 RUN cd /src/wire-server/services/${service} && make ${target}
