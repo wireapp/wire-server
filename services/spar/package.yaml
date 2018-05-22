@@ -1,0 +1,75 @@
+name:          spar
+version:       '0.1'
+synopsis:      'User Service for SSO provisioning and authentication.'
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2018 Wire Swiss GmbH
+license:       AGPL-3
+license-file:  LICENSE
+category:      System
+description:   'See README.md'
+
+ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
+
+dependencies:
+  - aeson
+  - base
+  - brig-types
+  - bytestring
+  - cassandra-util
+  - containers
+  - exceptions  # (for MonadClient, which in turn needs MonadCatch)
+  - lens
+  - mtl
+  - raw-strings-qq
+  - saml2-web-sso
+  - servant
+  - servant-multipart
+  - servant-server
+  - string-conversions
+  - text
+  - tinylog
+  - time
+  - transformers
+  - types-common
+  - uuid
+  - warp
+
+library:
+  source-dirs:
+    - src
+
+tests:
+  spec:
+    main: Spec.hs
+    source-dirs:
+      - test
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - hspec
+      - hspec-discover
+      - QuickCheck
+      - spar
+      - uri-bytestring
+
+executables:
+  spar:
+    main: Main.hs
+    source-dirs: exec
+    dependencies:
+      - spar
+
+  spar-schema:
+    main: Main.hs
+    source-dirs: schema/src
+    dependencies:
+      - spar
+
+  spar-integration:
+    main: Spec.hs
+    source-dirs:
+      - test-integration
+    dependencies:
+      - spar
+      - hspec
+      - hspec-discover
