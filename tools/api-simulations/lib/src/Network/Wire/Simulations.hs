@@ -31,11 +31,11 @@ import Control.Monad.Catch
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id (ConvId, UserId)
-import Data.List1 (list1)
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Serialize
 import Data.Text (Text)
+import GHC.Stack (HasCallStack)
 import Network.Wire.Bot
 import Network.Wire.Bot.Assert
 import Network.Wire.Bot.Crypto
@@ -65,11 +65,11 @@ prepareConv g
             "Missing 1-1 conversation between: " <>
                 Text.concat (Text.pack . show . botId <$> [a, b])
     | otherwise = do
-        let (a : b : c : cs) = g
+        let (a : bs) = g
         connectIfNeeded g
-        let cIds = botId <$> list1 c cs
-        conv <- cnvId <$> runBotSession a (createConv (botId b) cIds Nothing)
-        assertConvCreated conv a (b:c:cs)
+        let bIds = map botId bs
+        conv <- cnvId <$> runBotSession a (createConv bIds Nothing)
+        assertConvCreated conv a bs
         return conv
 
 connectIfNeeded :: [Bot] -> BotNet ()
@@ -172,13 +172,17 @@ requireTextMsg bs = do
 requireMessage :: MonadThrow m => ByteString -> m BotMessage
 requireMessage = requireRight . decode
 
-assertNoClientMismatch :: ClientMismatch -> BotSession ()
+assertNoClientMismatch
+    :: HasCallStack
+    => ClientMismatch -> BotSession ()
 assertNoClientMismatch cm = do
     assertEqual (UserClients Map.empty) (missingClients   cm) "Missing Clients"
     assertEqual (UserClients Map.empty) (redundantClients cm) "Redundant Clients"
     assertEqual (UserClients Map.empty) (deletedClients   cm) "Deleted Clients"
 
-assertClientMissing :: UserId -> BotClient -> ClientMismatch -> BotSession ()
+assertClientMissing
+    :: HasCallStack
+    => UserId -> BotClient -> ClientMismatch -> BotSession ()
 assertClientMissing u d cm =
     assertEqual (UserClients (Map.singleton u (Set.singleton $ botClientId d)))
                 (missingClients cm)

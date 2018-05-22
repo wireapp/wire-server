@@ -18,6 +18,17 @@ Documentation on how to self host your own Wire-Server is not yet available but 
 
 See more in "[Open sourcing Wire server code](https://medium.com/@wireapp/open-sourcing-wire-server-code-ef7866a731d5)".
 
+## Table of contents
+
+-   [Content of the repository](#content-of-the-repository)
+-   [Architecture Overview](#architecture-overview)
+-   [Development setup](#development-setup)
+    -   [How to build `wire-server` binaries](#how-to-build-wire-server-binaries)
+    -   [How to run integration tests](#how-to-run-integration-tests)
+-   [How to run `wire-server` with "fake" external dependencies](#how-to-run-wire-server-with-fake-external-dependencies)
+-   [How to run `wire-server` with real AWS services](#how-to-run-wire-server-with-real-aws-services)
+-   [Roadmap](#roadmap)
+
 ## Content of the repository
 
 This repository contains the following source code:
@@ -60,14 +71,14 @@ private network.
 
 There are two options:
 
-#### 1. Compile sources natively. 
+#### 1. Compile sources natively.
 
 This requires a range of dependencies that depend on your platform/OS, such as:
 
-- Haskell & Rust compiler and package managers 
+- Haskell & Rust compiler and package managers
 - Some package dependencies (libsodium, openssl, protobuf, icu, geoip, snappy, [cryptobox-c](https://github.com/wireapp/cryptobox-c), ...) that depend on your platform/OS
 
-See [doc/Dependencies.md](doc/Dependencies.md) for details. 
+See [doc/Dependencies.md](doc/Dependencies.md) for details.
 
 Once all dependencies are set up, the following should succeed:
 
@@ -77,6 +88,8 @@ make
 # build one haskell service, e.g. brig:
 cd services/brig && make
 ```
+
+The default make target (`fast`) compiles unoptimized (faster compilation time, slower binaries), which should be fine for development purposes. Use `make install` to get optimized binaries.
 
 For building nginz, see [services/nginz/README.md](services/nginz/README.md)
 
@@ -92,7 +105,7 @@ make docker-services
 
 will, eventually, have built a range of docker images. See the `Makefile`s and `Dockerfile`s, as well as [build/alpine/README.md](build/alpine/README.md) for details.
 
-## How to run integration tests
+### How to run integration tests
 
 Integration tests require all of the haskell services (brig,galley,cannon,gundeck,proxy,cargohold) to be correctly configured and running, before being able to execute e.g. the `brig-integration` binary. This requires most of the deployment dependencies as seen in the architecture diagram to also be available:
 
@@ -111,7 +124,7 @@ Integration tests require all of the haskell services (brig,galley,cannon,gundec
 Setting up these real, but in-memory internal and "fake" external dependencies is done easiest using [`docker-compose`](https://docs.docker.com/compose/install/). Run the following in a separate terminal (it will block that terminal, C-c to shut all these docker images down again):
 
 ```
-cd deploy/docker-ephemeral && docker-compose up
+deploy/docker-ephemeral/run.sh
 ```
 
 Then, to run all integration tests:
@@ -122,9 +135,30 @@ make integration
 
 Or, alternatively, `make` on the top-level directory (to produce all the service's binaries) followed by e.g `cd services/brig && make integration` to run one service's integration tests only.
 
-## How to run `wire-server`
+There are two shell env variables of interest.  The first one can be
+used to [pass patterns to
+tasty](https://github.com/feuerbach/tasty#patterns) to filter out
+which tests should be run.  This is very useful if you are working on
+fixing one specific test.
 
-Documentation, configuration, and code for this is **not ready yet** (please do not open an issue to ask about this!). More information on how to run `wire-server` might be available here at some point in the future.
+```bash
+WIRE_TASTY_PATTERN='$NF == "post /register - 201 + no email"' make integration
+```
+
+The second is passed to stack, e.g. to temporarily disable `-Werror`
+without the risk of accidentally committing anything, like this:
+
+```bash
+WIRE_STACK_OPTIONS='--ghc-options=-Wwarn' make integration
+```
+
+## How to run `wire-server` with "fake" external dependencies
+
+See [this README](deploy/services-demo/README.md)
+
+## How to run `wire-server` with real AWS services
+
+Documentation, configuration, and code for this is **not fully ready yet** (please do not open an issue to ask about this!). More information on how to run `wire-server` will be available here in the near future.
 
 As a brief overview, it requires setting up
 
@@ -145,4 +179,4 @@ As a brief overview, it requires setting up
 
 ## Roadmap
 
-- Build and deployment options
+- Deployment options

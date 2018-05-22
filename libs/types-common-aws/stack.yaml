@@ -1,0 +1,12 @@
+resolver: lts-10.3
+packages:
+- '.'
+- location: '../types-common'
+  extra-dep: true
+- location: '../types-common-journal'
+  extra-dep: true
+extra-deps: []
+flags:
+  types-common-aws:
+    arbitrary: True
+    protobuf: True

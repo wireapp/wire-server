@@ -78,6 +78,7 @@ import System.Logger.Class hiding ((.=), name)
 
 import qualified Brig.User.Search.Index      as Search
 import qualified Brig.User.Event.Log         as Log
+import qualified Brig.IO.Journal             as Journal
 import qualified Data.ByteString.Lazy        as BL
 import qualified Data.Currency               as Currency
 import qualified Data.HashMap.Strict         as M
@@ -91,7 +92,9 @@ import qualified Galley.Types.Teams.Intra    as Team
 
 onUserEvent :: UserId -> Maybe ConnId -> UserEvent -> AppIO ()
 onUserEvent orig conn e =
-    updateSearchIndex orig e *> dispatchNotifications orig conn e
+    updateSearchIndex orig e *>
+    dispatchNotifications orig conn e *>
+    journalEvent orig e
 
 onConnectionEvent :: UserId          -- ^ Originator of the event.
                   -> Maybe ConnId    -- ^ Client connection ID, if any.
@@ -142,6 +145,15 @@ updateSearchIndex orig e = case e of
                              , isJust eupSearchable
                              ]
         when (interesting) $ Search.reindex orig
+
+journalEvent :: UserId -> UserEvent -> AppIO ()
+journalEvent orig e = case e of
+    UserActivated acc                 -> Journal.userActivate (accountUser acc)
+    UserLocaleUpdated _ loc           -> Journal.userUpdate orig Nothing (Just loc)
+    UserIdentityUpdated _ (Just em) _ -> Journal.userUpdate orig (Just em) Nothing
+    UserIdentityRemoved _ (Just em) _ -> Journal.userEmailRemove orig em
+    UserDeleted{}                     -> Journal.userDelete orig
+    _                                 -> return ()
 
 -------------------------------------------------------------------------------
 -- Low-Level Event Notification
@@ -445,8 +457,8 @@ getTeamConv usr tid cnv = do
 -------------------------------------------------------------------------------
 -- User management
 
-rmUser :: UserId -> AppIO ()
-rmUser usr = do
+rmUser :: UserId -> [Asset] -> AppIO ()
+rmUser usr asts = do
     debug $ remote "gundeck"
           . field "user" (toByteString usr)
           . msg (val "remove user")
@@ -456,6 +468,15 @@ rmUser usr = do
           . field "user" (toByteString usr)
           . msg (val "remove user")
     void $ galleyRequest DELETE (path "/i/user" . zUser usr . expect2xx)
+
+    debug $ remote "cargohold"
+          . field "user" (toByteString usr)
+          . msg (val "remove profile assets")
+    -- Note that we _may_ not get a 2xx response code from cargohold (e.g., client has
+    -- deleted the asset "directly" with cargohold; on our side, we just do our best to 
+    -- delete it in case it is still there
+    forM_ asts $ \ast ->
+        cargoholdRequest DELETE (paths ["assets/v3", toByteString' $ assetKey ast] . zUser usr)
 
 -------------------------------------------------------------------------------
 -- Client management

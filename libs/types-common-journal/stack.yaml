@@ -1,4 +1,8 @@
 resolver: lts-10.3
 packages:
 - '.'
-extra-deps: []
+- '../types-common'
+flags:
+  types-common:
+    protobuf: True
+    arbitrary: True

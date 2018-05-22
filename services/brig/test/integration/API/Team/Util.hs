@@ -16,6 +16,7 @@ import Data.Id hiding (client)
 import Data.Maybe (fromMaybe)
 import Data.Range
 import Galley.Types (ConvTeamInfo (..), NewConv (..))
+import GHC.Stack (HasCallStack)
 import Test.Tasty.HUnit
 import Util
 
@@ -62,7 +63,7 @@ addTeamMember galley tid mem =
                 . lbytes (encode mem)
                 )
 
-createTeamConv :: Galley -> TeamId -> UserId -> [UserId] -> Bool -> Http ConvId
+createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Bool -> Http ConvId
 createTeamConv g tid u us managed = do
     let tinfo = Just $ ConvTeamInfo tid managed
     let conv = NewConv us Nothing (Set.fromList []) Nothing tinfo
@@ -76,7 +77,7 @@ createTeamConv g tid u us managed = do
     maybe (error "invalid conv id") return $
         fromByteString $ getHeader' "Location" r
 
-deleteTeamConv :: Galley -> TeamId -> ConvId -> UserId -> Http ()
+deleteTeamConv :: HasCallStack => Galley -> TeamId -> ConvId -> UserId -> Http ()
 deleteTeamConv g tid cid u = do
     delete ( g
            . paths ["teams", toByteString' tid, "conversations", toByteString' cid]
@@ -84,7 +85,7 @@ deleteTeamConv g tid cid u = do
            . zConn "conn"
            ) !!! const 200 === statusCode
 
-deleteTeam :: Galley -> TeamId -> UserId -> Http ()
+deleteTeam :: HasCallStack => Galley -> TeamId -> UserId -> Http ()
 deleteTeam g tid u = do
     delete ( g
            . paths ["teams", toByteString' tid]

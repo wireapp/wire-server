@@ -25,15 +25,14 @@ import Test.Tasty.HUnit
 import Util
 
 import qualified API.Search.Util             as Search
-import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt
 import qualified Data.List1                  as List1
 import qualified Data.UUID                   as UUID
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon           as WS
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> Maybe AWS.Env -> TestTree
-tests _cl _at _conf p b c _g _localAWS = testGroup "handles"
+tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests _cl _at _conf p b c _g = testGroup "handles"
     [ test p "handles/update" $ testHandleUpdate b c
     , test p "handles/race"   $ testHandleRace b
     , test p "handles/query"  $ testHandleQuery b

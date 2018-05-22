@@ -24,14 +24,13 @@ import Test.Tasty.HUnit
 import Safe hiding (at)
 import Util
 
-import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt
 import qualified Data.UUID.V4                as UUID
 import qualified Data.Vector                 as Vec
 import qualified Network.Wai.Utilities.Error as Error
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> Maybe AWS.Env -> TestTree
-tests cl _at _conf p b _c g _localAWS = testGroup "connection"
+tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests cl _at _conf p b _c g = testGroup "connection"
     [ test p "post /connections"                    $ testCreateManualConnections b
     , test p "post /connections mutual"             $ testCreateMutualConnections b g
     , test p "post /connections (bad user)"         $ testCreateConnectionInvalidUser b

@@ -3,7 +3,9 @@ VERSION := "3.0.0"
 ARCH    := amd64
 BUILD   ?= 1
 OS      := $(shell uname -s | tr '[:upper:]' '[:lower:]')
-PREFIX  ?= /usr/local
+# If we can install libzauth globally, we'll install it there, otherwise
+# it'll go into ~/.wire-dev
+PREFIX  := $(shell [ -w /usr/local ] && echo /usr/local || echo "$(HOME)/.wire-dev")
 
 ifeq ($(OS), darwin)
 LIB_TYPE := dylib
@@ -25,6 +27,7 @@ build-release:
 	cargo build --release
 
 install: build-release
+	mkdir -p $(PREFIX)/include
 	mkdir -p $(PREFIX)/lib/pkgconfig
 	cp src/zauth.h $(PREFIX)/include/
 	sed -e "s~<<VERSION>>~$(VERSION)~" \

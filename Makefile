@@ -14,21 +14,22 @@ install: init
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --local-bin-path=dist --fast
+	stack install --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: clean
 clean:
 	stack clean
+	$(MAKE) -C services/nginz clean
 	-rm -rf dist
 	-rm -f .metadata
 
 .PHONY: services
-services:
-	$(foreach service,$(HASKELL_SERVICES),$(MAKE) -C services/$(service);)
+services: init install
+	$(MAKE) -C services/nginz
 
 .PHONY: integration
 integration: fast
-	$(MAKE) -C services/cargohold integration-fake-aws
+	$(MAKE) -C services/cargohold integration
 	$(MAKE) -C services/galley integration
 	$(MAKE) -C services/brig integration
 	$(MAKE) -C services/gundeck integration-fake-aws
@@ -70,3 +71,9 @@ docker-exe-%:
 .PHONY: docker-service-%
 docker-service-%:
 	$(MAKE) -C services/"$*" docker
+
+#################################
+## dependencies
+
+libzauth:
+	$(MAKE) -C libs/libzauth install

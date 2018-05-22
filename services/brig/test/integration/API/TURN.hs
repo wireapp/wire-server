@@ -16,6 +16,7 @@ import Data.List ((\\))
 import Data.List1 (List1)
 import Data.Maybe (fromMaybe)
 import Data.Misc (Port)
+import GHC.Stack (HasCallStack)
 import Network.HTTP.Client (Manager)
 import Safe (readMay)
 import System.IO.Temp (writeTempFile)
@@ -97,7 +98,7 @@ testCallsConfigMultiple b st = do
         cfg2 <- getTurnConfigurationV2 uid b
         assertConfiguration cfg2 expectedV2
 
-assertConfiguration :: RTCConfiguration -> List1 TurnURI -> Http ()
+assertConfiguration :: HasCallStack => RTCConfiguration -> List1 TurnURI -> Http ()
 assertConfiguration cfg turns =
     checkIceServers (toList $ cfg^.rtcConfIceServers) (toList turns)
   where
@@ -131,7 +132,7 @@ getTurnConfiguration suffix u b = get ( b
                                 . zConn "conn"
                                 )
 
-getAndValidateTurnConfiguration :: ByteString -> UserId -> Brig -> Http RTCConfiguration
+getAndValidateTurnConfiguration :: HasCallStack => ByteString -> UserId -> Brig -> Http RTCConfiguration
 getAndValidateTurnConfiguration suffix u b = do
     r <- getTurnConfiguration suffix u b <!! const 200 === statusCode
     return $ fromMaybe (error "getTurnConfiguration: failed to parse response") (decodeBody r)

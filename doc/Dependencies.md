@@ -12,13 +12,13 @@ In addition to the information below, you can also consult the Dockerfiles for A
 #### Fedora:
 
 ```bash
-sudo yum install haskell-platform libstdc++-devel libstdc++-static gcc-c++ libtool automake openssl-devel libsodium-devel ncurses-compat-libs libicu-devel -y
+sudo yum install pkgconfig haskell-platform libstdc++-devel libstdc++-static gcc-c++ libtool automake openssl-devel libsodium-devel ncurses-compat-libs libicu-devel -y
 ```
 
 #### Debian:
 
 ```bash
-sudo apt install libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler -y
+sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler -y
 ```
 
 If `openssl-dev` does not work for you, try `libssl-dev`.

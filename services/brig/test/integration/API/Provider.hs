@@ -37,6 +37,7 @@ import Galley.Types (ConvMembers (..), OtherMember (..))
 import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
 import GHC.Generics hiding (to, from)
+import GHC.Stack (HasCallStack)
 import Gundeck.Types.Notification
 import Network.HTTP.Types.Status (status200, status201, status400)
 import Network.Wai (Application, responseLBS, strictRequestBody)
@@ -987,7 +988,7 @@ lookupCode db gen = liftIO . DB.runClient db . Code.lookup (Code.genKey gen)
 --------------------------------------------------------------------------------
 -- Utilities
 
-randomProvider :: DB.ClientState -> Brig -> Http Provider
+randomProvider :: HasCallStack => DB.ClientState -> Brig -> Http Provider
 randomProvider db brig = do
     email <- mkEmail "success@simulator.amazonses.com"
     gen   <- Code.mkGen (Code.ForEmail email)
@@ -1005,7 +1006,7 @@ randomProvider db brig = do
     let Just prv = decodeBody _rs
     return prv
 
-addGetService :: Brig -> ProviderId -> NewService -> Http Service
+addGetService :: HasCallStack => Brig -> ProviderId -> NewService -> Http Service
 addGetService brig pid new = do
     _rs <- addService brig pid new <!! const 201 === statusCode
     let Just srs = decodeBody _rs
@@ -1014,7 +1015,7 @@ addGetService brig pid new = do
     let Just svc = decodeBody _rs
     return svc
 
-enableService :: Brig -> ProviderId -> ServiceId -> Http ()
+enableService :: HasCallStack => Brig -> ProviderId -> ServiceId -> Http ()
 enableService brig pid sid = do
     let upd = (mkUpdateServiceConn defProviderPassword)
             { updateServiceConnEnabled  = Just True
@@ -1462,7 +1463,8 @@ testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
             const 404 === statusCode
         wsAssertMemberLeave ws cid buid [buid]
 
-prepareBotUsersTeam :: Brig
+prepareBotUsersTeam :: HasCallStack
+                    => Brig
                     -> Galley
                     -> ServiceRef
                     -> Http (User, User, Text, TeamId, ConvId, ProviderId, ServiceId)
@@ -1486,7 +1488,8 @@ prepareBotUsersTeam brig galley sref = do
 
     return (u1, u2, h, tid, cid, pid, sid)
 
-addBotConv :: Brig
+addBotConv :: HasCallStack
+           => Brig
            -> WS.Cannon
            -> UserId
            -> UserId

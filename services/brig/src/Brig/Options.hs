@@ -49,13 +49,14 @@ data ElasticSearchOpts = ElasticSearchOpts
 instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
-    { sesQueue        :: !Text
-    , internalQueue   :: !Text
-    , blacklistTable  :: !Text
-    , prekeyTable     :: !Text
-    , sesEndpoint     :: !AWSEndpoint
-    , sqsEndpoint     :: !AWSEndpoint
-    , dynamoDBEndpoint:: !AWSEndpoint
+    { sesQueue         :: !Text
+    , internalQueue    :: !Text
+    , userJournalQueue :: !(Maybe Text)
+    , blacklistTable   :: !Text
+    , prekeyTable      :: !Text
+    , sesEndpoint      :: !AWSEndpoint
+    , sqsEndpoint      :: !AWSEndpoint
+    , dynamoDBEndpoint :: !AWSEndpoint
     } deriving (Show, Generic)
 
 instance FromJSON AWSOpts
@@ -127,6 +128,7 @@ instance FromJSON TurnOpts
 data Opts = Opts
     -- services
     { brig          :: !Endpoint
+    , cargohold     :: !Endpoint
     , galley        :: !Endpoint
     , gundeck       :: !Endpoint
 
@@ -200,6 +202,10 @@ optsParser =
       long "port" <> short 'p' <> metavar "PORT" <> help "Port to listen on")) <*>
     (Endpoint <$>
      (textOption $
+      long "cargohold-host" <> metavar "HOSTNAME" <> help "Cargohold hostname") <*>
+     (option auto $ long "cargohold-port" <> metavar "PORT" <> help "Cargohold port")) <*>
+    (Endpoint <$>
+     (textOption $
       long "galley-host" <> metavar "HOSTNAME" <> help "Galley hostname") <*>
      (option auto $ long "galley-port" <> metavar "PORT" <> help "Galley port")) <*>
     (Endpoint <$>
@@ -221,6 +227,9 @@ optsParser =
      (textOption $
       long "aws-internal-queue" <> metavar "STRING" <>
       help "Event queue for internal brig generated events (e.g. user deletion)") <*>
+     (optional $ textOption $
+      long "aws-user-journal-queue" <> metavar "STRING" <>
+      help "Event journal queue for user events (e.g. user deletion)") <*>
      (textOption $
       long "aws-dynamo-blacklist" <> metavar "STRING" <>
       help "Dynamo table for storing blacklisted user keys") <*>

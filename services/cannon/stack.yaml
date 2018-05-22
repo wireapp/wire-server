@@ -1,12 +1,18 @@
 resolver: lts-10.3
 packages:
 - '.'
-- '../../libs/bilge'
-- '../../libs/metrics-core'
-- '../../libs/metrics-wai'
-- '../../libs/types-common'
-- '../../libs/gundeck-types'
-- '../../libs/wai-utilities'
+- location: '../../libs/bilge'
+  extra-dep: true
+- location: '../../libs/metrics-core'
+  extra-dep: true
+- location: '../../libs/metrics-wai'
+  extra-dep: true
+- location: '../../libs/types-common'
+  extra-dep: true
+- location: '../../libs/gundeck-types'
+  extra-dep: true
+- location: '../../libs/wai-utilities'
+  extra-dep: true
 flags:
   types-common:
     protobuf: True

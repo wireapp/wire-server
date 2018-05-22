@@ -28,7 +28,7 @@ install: init
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --fast --local-bin-path=../../dist
+	stack install --pedantic --test --local-bin-path=../../dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: compile
 compile:
@@ -70,18 +70,14 @@ i-list:
 i-%:
 	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
 
-i-fake-aws:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "!/RealAWS/"
-
 .PHONY: integration
 integration: fast i
 
 .PHONY: integration-list
 integration-list: fast i-list
 
-integration-%: fast i-%
-
-integration-fake-aws: fast i-fake-aws
+integration-%: fast
+	make i-"$*"
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \

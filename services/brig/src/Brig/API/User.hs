@@ -271,8 +271,9 @@ createUser new@NewUser{..} = do
         Nothing -> throwE InvalidInvitationCode
 
     ensureMemberCanJoin tid = do
+        maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
         mems <- lift $ Intra.getTeamMembers tid
-        when (length (mems^.Team.teamMembers) >= 128) $
+        when (length (mems^.Team.teamMembers) >= maxSize) $
             throwE TooManyTeamMembers
 
     acceptTeamInvitation account inv ii uk ident = do
@@ -734,7 +735,7 @@ deleteAccount account@(accountUser -> user) = do
     Data.clearProperties uid
     tombstone <- mkTombstone
     Data.insertAccount tombstone Nothing False (SearchableStatus False)
-    Intra.rmUser uid
+    Intra.rmUser uid (userAssets user)
     Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
     Intra.onUserEvent uid Nothing (UserDeleted uid)
     -- Note: Connections can only be deleted afterwards, since

@@ -3,16 +3,26 @@ flags: {}
 extra-package-dbs: []
 packages:
 - .
-- ../../libs/bilge
-- ../../libs/brig-types
-- ../../libs/cassandra-util
-- ../../libs/galley-types
-- ../../libs/gundeck-types
-- ../../libs/metrics-core
-- ../../libs/metrics-wai
-- ../../libs/tasty-cannon
-- ../../libs/types-common
-- ../../libs/wai-utilities
+- location: ../../libs/bilge
+  extra-dep: true
+- location: ../../libs/brig-types
+  extra-dep: true
+- location: ../../libs/cassandra-util
+  extra-dep: true
+- location: ../../libs/galley-types
+  extra-dep: true
+- location: ../../libs/gundeck-types
+  extra-dep: true
+- location: ../../libs/metrics-core
+  extra-dep: true
+- location: ../../libs/metrics-wai
+  extra-dep: true
+- location: ../../libs/tasty-cannon
+  extra-dep: true
+- location: ../../libs/types-common
+  extra-dep: true
+- location: ../../libs/wai-utilities
+  extra-dep: true
 
 flags:
   types-common:

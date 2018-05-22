@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Main (main) where
 
@@ -12,8 +13,8 @@ import Data.ByteString.Conversion
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.List (foldl', (\\))
-import Data.Text (isSuffixOf, pack)
-import Data.Text.Encoding (decodeLatin1, encodeUtf8)
+import Data.Text (pack)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import GHC.Generics
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -37,21 +38,23 @@ import qualified System.Logger         as Logger
 
 data Config = Config
   -- internal endpoints
-  { brig     :: Endpoint
-  , cannon   :: Endpoint
-  , galley   :: Endpoint
+  { brig      :: Endpoint
+  , cannon    :: Endpoint
+  , cargohold :: Endpoint
+  , galley    :: Endpoint
   -- external provider
-  , provider :: Provider.Config
+  , provider  :: Provider.Config
   } deriving (Show, Generic)
 
 instance FromJSON Config
 
-runTests :: Maybe Config -> Maybe Opts.Opts -> IO ()
-runTests iConf bConf = do
+runTests :: Maybe Config -> Maybe Opts.Opts -> [String] -> IO ()
+runTests iConf bConf otherArgs = do
     let local p = Endpoint { _epHost = "127.0.0.1", _epPort = p }
-    b <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
-    c <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
-    g <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
+    b  <- mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
+    c  <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
+    ch <- mkRequest <$> optOrEnv cargohold iConf (local . read) "CARGOHOLD_WEB_PORT"
+    g  <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
     turnFile <- optOrEnv (Opts.servers . Opts.turn) bConf id "TURN_SERVERS"
     casHost  <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epHost) bConf pack "BRIG_CASSANDRA_HOST"
     casPort  <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epPort) bConf read "BRIG_CASSANDRA_PORT"
@@ -61,14 +64,15 @@ runTests iConf bConf = do
     lg <- Logger.new Logger.defSettings
     db <- defInitCassandra casKey casHost casPort lg
     mg <- newManager tlsManagerSettings
+    awsEnv <- AWS.mkEnv lg awsOpts mg
 
-    userApi     <- User.tests bConf mg b c g =<< mkLocalAWSEnv lg awsOpts mg
+    userApi     <- User.tests bConf mg b c ch g awsEnv
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
     teamApis    <- Team.tests bConf mg b c g
     turnApi     <- TURN.tests mg b turnFile
 
-    defaultMain $ testGroup "Brig API Integration"
+    withArgs otherArgs . withWireTastyPatternEnv . defaultMain $ testGroup "Brig API Integration"
         [ userApi
         , providerApi
         , searchApis
@@ -77,11 +81,6 @@ runTests iConf bConf = do
         ]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
-
-    mkLocalAWSEnv :: Logger.Logger -> Opts.AWSOpts -> Manager -> IO (Maybe AWS.Env)
-    mkLocalAWSEnv l o m
-        | "amazonaws.com" `isSuffixOf` (decodeLatin1 ((Opts.sesEndpoint o)^.awsHost)) = return Nothing
-        | otherwise = AWS.mkEnv l o m >>= return . Just
 
     -- Using config files only would certainly simplify this quite a bit
     parseAWSEnv :: Maybe Opts.AWSOpts -> IO (Opts.AWSOpts)
@@ -92,9 +91,10 @@ runTests iConf bConf = do
         sesEnd   <- optOrEnv (Opts.sesEndpoint . Opts.aws)      bConf parseEndpoint "AWS_SES_ENDPOINT"
         sesQueue <- optOrEnv (Opts.sesQueue . Opts.aws)         bConf pack          "AWS_USER_SES_QUEUE"
         sqsIntQ  <- optOrEnv (Opts.internalQueue . Opts.aws)    bConf pack          "AWS_USER_INTERNAL_QUEUE"
+        sqsJrnlQ <- join <$> optOrEnvSafe (Opts.userJournalQueue . Opts.aws) bConf (Just . pack) "AWS_USER_JOURNAL_QUEUE"
         dynBlTbl <- optOrEnv (Opts.blacklistTable . Opts.aws)   bConf pack          "AWS_USER_BLACKLIST_TABLE"
         dynPkTbl <- optOrEnv (Opts.prekeyTable . Opts.aws)      bConf pack          "AWS_USER_PREKEYS_TABLE"
-        return $ Opts.AWSOpts sesQueue sqsIntQ dynBlTbl dynPkTbl sesEnd sqsEnd dynEnd
+        return $ Opts.AWSOpts sesQueue sqsIntQ sqsJrnlQ dynBlTbl dynPkTbl sesEnd sqsEnd dynEnd
 
     parseEndpoint :: String -> AWSEndpoint
     parseEndpoint e = fromMaybe (error ("Not a valid AWS endpoint: " ++ show e))
@@ -112,7 +112,7 @@ main = withOpenSSL $ do
     iConf <- join $ handleParseError <$> decodeFileEither iPath
     bConf <- join $ handleParseError <$> decodeFileEither bPath
 
-    withArgs otherArgs $ runTests iConf bConf
+    runTests iConf bConf otherArgs
   where
     getConfigArgs args = reverse $ snd $ foldl' filterConfig (False, []) args
 

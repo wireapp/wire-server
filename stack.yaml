@@ -17,6 +17,7 @@ packages:
 - libs/sodium-crypto-sign
 - libs/tasty-cannon
 - libs/types-common
+- libs/types-common-aws
 - libs/types-common-journal
 - libs/wai-utilities
 - libs/zauth
@@ -47,7 +48,7 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/tiago-loureiro/aws
-    commit: 9c79c78b018825c70515baf0f9dd7a08776e5848
+    commit: 483f4b0c137d6d4bbbe9abb0acab4309e8d3bde9
   extra-dep: true
 
 extra-deps:

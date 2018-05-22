@@ -31,7 +31,6 @@ import Test.Tasty.HUnit
 import Web.Cookie (parseSetCookie, setCookieName)
 import Util
 
-import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt
 import qualified Data.List1                  as List1
 import qualified Data.Text.Ascii             as Ascii
@@ -39,8 +38,8 @@ import qualified Data.UUID.V4                as UUID
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon           as WS
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> Maybe AWS.Env -> TestTree
-tests _cl _at _conf p b c g _localAWS = testGroup "invitation"
+tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests _cl _at _conf p b c g = testGroup "invitation"
     [ test p "post /invitations - 201 accepted"     $ testInvitationEmail b g c
     , test p "post /invitations - 400 inactive"     $ testInvitationNotActivated b
     , test p "post /register - 400 invitee exists"  $ testInvitationCodeExists b

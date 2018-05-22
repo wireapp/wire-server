@@ -14,11 +14,10 @@ import Data.Maybe
 import Test.Tasty hiding (Timeout)
 import Util
 
-import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> Maybe AWS.Env -> TestTree
-tests _cl _at _conf p b _c _g _localAWS = testGroup "onboarding"
+tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
+tests _cl _at _conf p b _c _g = testGroup "onboarding"
     [ test p "post /onboarding/v3 - 200" $ testOnboarding b
     ]
 

@@ -34,7 +34,7 @@ install: init
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --local-bin-path=../../dist --fast
+	stack install --pedantic --test --local-bin-path=../../dist --fast $(WIRE_STACK_OPTIONS)
 	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" ../../dist/
 
 .PHONY: compile
@@ -106,7 +106,8 @@ integration: fast i
 .PHONY: integration-list
 integration-list: fast i-list
 
-integration-%: fast i-%
+integration-%: fast
+	make i-"$*"
 
 integration-fake-aws: fast i-fake-aws
 
