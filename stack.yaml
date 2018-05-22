@@ -23,6 +23,7 @@ packages:
 - libs/wai-utilities
 - libs/zauth
 - services/brig
+- services/spar
 - services/cannon
 - services/cargohold
 - services/galley
@@ -62,6 +63,28 @@ packages:
     commit: 5678c13c4ec7d96a55622f7171f8e6a6bb3a3947
   extra-dep: true
 
+# services/spar:
+- location:
+    git: https://github.com/wireapp/saml2-web-sso
+    commit: 36813ca1ab6413ae9e135cc31690f1c5f21ab254
+  extra-dep: true
+- location:
+    git: https://github.com/wireapp/hsaml2
+    commit: 8a91c880740232dbd52ff73efb99ea179c2338c7
+  extra-dep: true
+- location:
+    git: https://github.com/wireapp/stack-prism  # isomorphic xml parsing/rendering in `/services/spar`
+    commit: 631978447e3a1d658613f606ce7a679d7cce2294
+  extra-dep: true
+- location:
+    git: https://github.com/wireapp/hspec-wai
+    commit: ca10d13deab929f1cc3a569abea2e7fbe35fdbe3  # https://github.com/hspec/hspec-wai/pull/49
+  extra-dep: true
+- location:
+    git: https://github.com/wireapp/servant-multipart
+    commit: a5f0b9ce508f9d4c28a41d2b856387a7db281577  # https://github.com/haskell-servant/servant-multipart/pull/17
+  extra-dep: true
+
 extra-deps:
 - base58-bytestring-0.1.0
 - currency-codes-2.0.0.0
@@ -74,6 +97,7 @@ extra-deps:
 - text-icu-translit-0.1.0.7
 - wai-middleware-gunzip-0.0.2
 - HsOpenSSL-0.11.4.12
+- invertible-hxt-0.1  # for stack-prism / spar
 
 flags:
   types-common:

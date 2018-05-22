@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -e
+
+exec 2>&1
+
+APP=spar
+
+# defaults
+USER=${USER:-www-data}
+CONFIG=${CONFIG:-/etc/$APP/.env}
+HOME=${APP_HOME:-/opt/$APP}
+BIN=$HOME/bin/$APP
+
+cd $HOME
+
+ulimit -n 65536
+
+exec chpst -u $USER $BIN --config=${CONFIG?'unset'}
