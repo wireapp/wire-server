@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE FlexibleContexts           #-}
 
 module API.User.Auth (tests) where
 
@@ -9,9 +10,11 @@ import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.ZAuth (ZAuth, runZAuth)
 import Control.Concurrent
+import Control.Concurrent.Async.Lifted.Safe hiding (wait)
 import Control.Lens ((^?), set)
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Control
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
@@ -225,12 +228,19 @@ testLoginFailure brig = do
 
 testThrottleLogins :: Maybe Opts.Opts -> Brig -> Http ()
 testThrottleLogins conf b = do
+    -- Get the maximum amount of times we are allowed to login before
+    -- throttling begins
     l <- liftIO $ optOrEnv (Opts.setUserCookieLimit . Opts.optSettings) conf read "USER_COOKIE_LIMIT"
     u <- randomUser b
     let Just e = userEmail u
-    replicateM_ l (login b (defEmailLogin e) SessionCookie)
+    -- Login exactly that amount of times (using 8 threads, because otherwise
+    -- this test becomes flaky)
+    void $ replicateChunked 8 l (login b (defEmailLogin e) SessionCookie)
+    -- Login once more. This should fail!
     x <- login b (defEmailLogin e) SessionCookie <!!
         const 429 === statusCode
+    -- After the amount of time specified in "Retry-After", though,
+    -- throttling should stop and login should work again
     let Just n = fromByteString =<< getHeader "Retry-After" x
     liftIO $ do
         assertBool "throttle delay" (n > 0)
@@ -516,6 +526,20 @@ remJson p l ids = object
     , "labels"   .= l
     , "ids"      .= ids
     ]
+
+-- | Run something N times using given number of threads. One thread might
+-- get more jobs than the other threads.
+replicateChunked
+    :: (MonadBaseControl IO m, Forall (Pure m))
+    => Int                     -- ^ Number of threads
+    -> Int                     -- ^ Total amount of repetition
+    -> m a
+    -> m [a]
+replicateChunked threads n act = do
+    let chunks = (n `div` threads + n `mod` threads) :
+                 replicate (threads-1) (n `div` threads)
+    fmap concat $ forConcurrently chunks $ \size ->
+        replicateM size act
 
 wait :: MonadIO m => m ()
 wait = liftIO $ threadDelay 1000000

@@ -368,6 +368,7 @@ executable brig-integration
       , lens-aeson            >= 1.0
       , lifted-async          >= 0.9.3
       , mime                  >= 0.4
+      , monad-control
       , mtl                   >= 2.1
       , network
       , optparse-applicative  >= 0.11
