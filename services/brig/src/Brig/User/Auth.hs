@@ -167,6 +167,7 @@ isPendingActivation ident = case ident of
             Just (EmailIdentity  e) -> userEmailKey e /= k
             Just (PhoneIdentity  p) -> userPhoneKey p /= k
             Just (FullIdentity e p) -> userEmailKey e /= k && userPhoneKey p /= k
+            Just SSOIdentity {}     -> False  -- sso-created users are activated immediately.
             Nothing                 -> True
 
 validateTokens

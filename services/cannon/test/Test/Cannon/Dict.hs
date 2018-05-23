@@ -12,7 +12,6 @@ import Control.Monad
 import Data.ByteString (ByteString)
 import Data.Id
 import Data.Maybe (isJust)
-import Data.String
 import Data.UUID hiding (fromString)
 import Data.UUID.V4
 import System.Random
@@ -30,7 +29,7 @@ import qualified Data.List            as List
 
 tests :: TestTree
 tests = testGroup "Dict Tests"
-    [ testProperty "some dict"       (runProp someDict)
+    [ testProperty "some dict"       (runProp (void . someDict))
     , testProperty "add/remove"      (runProp insertRemove)
     , testProperty "insert/removeIf" (runProp insertRemoveIf)
     , testCase     "insert/lookup"   insertLookup
@@ -105,7 +104,7 @@ samples n (MkGen f) = do
     let rands g = g1 : rands g2 where (g1, g2) = split g
     return $ [ f r i | i <- repeat n, r <- rands gen]
 
-runProp :: (Show a, Arbitrary a) => (a -> PropertyM IO b) -> Property
+runProp :: (Show a, Arbitrary a, Testable b) => (a -> PropertyM IO b) -> Property
 runProp = monadicIO . forAllM arbitrary
 
 instance Arbitrary Key where
@@ -113,6 +112,3 @@ instance Arbitrary Key where
 
 instance Arbitrary ConnId where
     arbitrary = ConnId <$> arbitrary
-
-instance Arbitrary ByteString where
-    arbitrary = fromString <$> arbitrary

@@ -68,11 +68,11 @@ genRecipient = do
 
 genBulkPushRequest :: Gen BulkPushRequest
 genBulkPushRequest = BulkPushRequest <$>
-    listOf ((,) <$> genNotification <*> listOf genPushTarget)
+    shortListOf ((,) <$> genNotification <*> scale (`div` 3) (listOf genPushTarget))
 
 genBulkPushResponse :: Gen BulkPushResponse
 genBulkPushResponse = BulkPushResponse <$>
-    listOf ((,,) <$> arbitrary <*> genPushTarget <*> elements [minBound..])
+    shortListOf (scale (`div` 3) ((,,) <$> arbitrary <*> genPushTarget <*> elements [minBound..]))
 
 genNotification :: Gen Notification
 genNotification = Notification <$> arbitrary <*> arbitrary <*> (list1 <$> genobj <*> listOf genobj)
@@ -87,3 +87,6 @@ genObject = fromList <$> listOf ((,) <$> genAlphaNum <*> (String <$> genAlphaNum
 
 genAlphaNum :: IsString s => Gen s
 genAlphaNum = fromString <$> listOf (elements (['a'..'z'] <> ['A'..'Z'] <> ['0'..'9']))
+
+shortListOf :: Gen a -> Gen [a]
+shortListOf gen = choose (0, 5) >>= (`vectorOf` gen)

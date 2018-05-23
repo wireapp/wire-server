@@ -92,7 +92,7 @@ library
 
     if flag(arbitrary)
         cpp-options:   "-DWITH_ARBITRARY"
-        build-depends: QuickCheck >= 2.9
+        build-depends: QuickCheck >= 2.9, quickcheck-instances >= 0.3.16
 
 test-suite tests
     default-language: Haskell2010

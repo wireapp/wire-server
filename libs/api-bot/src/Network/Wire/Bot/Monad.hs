@@ -885,10 +885,9 @@ randUser (Email loc dom) (BotTag tag) = do
         , newUserAccentId       = Nothing
         , newUserEmailCode      = Nothing
         , newUserPhoneCode      = Nothing
-        , newUserInvitationCode = Nothing
+        , newUserOrigin         = Nothing
         , newUserLabel          = Nothing
         , newUserLocale         = Nothing
-        , newUserTeam           = Nothing
         , newUserExpiresIn      = Nothing
         }, passw)
 

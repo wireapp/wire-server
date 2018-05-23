@@ -109,7 +109,7 @@ db-reset: install
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1 --reset
 
 .PHONY: db-migrate
-db-migrate: install
+db-migrate:
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1
 
 .PHONY: index

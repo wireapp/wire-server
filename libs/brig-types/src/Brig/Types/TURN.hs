@@ -94,11 +94,11 @@ data TurnURI = TurnURI
 
 data Scheme = SchemeTurn
             | SchemeTurns
-            deriving (Eq, Show, Generic)
+            deriving (Eq, Show, Generic, Bounded, Enum)
 
 data Transport = TransportUDP
                | TransportTCP
-               deriving (Eq, Show, Generic)
+               deriving (Eq, Show, Generic, Enum, Bounded)
 
 -- future versions may allow using a hostname
 newtype TurnHost = TurnHost IpAddr

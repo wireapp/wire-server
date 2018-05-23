@@ -1,10 +1,12 @@
 {-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module API.User.Account (tests) where
 
+import API.Search.Util (assertSearchable)
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
@@ -32,6 +34,7 @@ import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Clock (diffUTCTime)
 import Data.Text (Text)
 import Data.Vector (Vector)
+import Data.UUID (nil)
 import Gundeck.Types.Notification
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
@@ -67,6 +70,7 @@ tests _cl at _conf p b c ch g aws = testGroup "account"
     , test' aws p "post /register - 409 conflict"            $ testCreateUserConflict b
     , test' aws p "post /register - 400"                     $ testCreateUserInvalidPhone b
     , test' aws p "post /register - 403 blacklist"           $ testCreateUserBlacklist b aws
+    , test' aws p "post /register - 400 external-SSO"        $ testCreateUserExternalSSO b
     , test' aws p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b at
     , test' aws p "get /users/:id - 404"                     $ testNonExistingUser b
     , test' aws p "get /users/:id - 200"                     $ testExistingUser b
@@ -313,6 +317,21 @@ testCreateUserBlacklist brig aws =
             liftIO $ threadDelay 1000000
             awaitBlacklist (n-1) e
 
+testCreateUserExternalSSO :: Brig -> Http ()
+testCreateUserExternalSSO brig = do
+    teamid <- Id <$> liftIO UUID.nextRandom
+    let ssoid = UserSSOId nil nil
+        p withsso withteam = RequestBodyLBS . encode . object $
+              [ "name"  .= ("foo" :: Text) ] <>
+              [ "sso_id" .= Just ssoid | withsso ] <>
+              [ "team_id" .= Just teamid | withteam ]
+    post (brig . path "/register" . contentJson . body (p False True)) !!!
+      const 400 === statusCode
+    post (brig . path "/register" . contentJson . body (p True False)) !!!
+      const 400 === statusCode
+    post (brig . path "/register" . contentJson . body (p True True)) !!!
+      const 400 === statusCode
+
 testActivateWithExpiry :: Brig -> Opt.Timeout -> Http ()
 testActivateWithExpiry brig timeout = do
     Just u <- decodeBody <$> registerUser "dilbert" "success@simulator.amazonses.com" brig
@@ -471,6 +490,7 @@ testUserUpdate brig cannon aws = do
     -- should appear in search by 'newName'
     suid <- userId <$> randomUser brig
     Search.refreshIndex brig
+    assertSearchable "alice should be searchable" brig alice True
     Search.assertCanFind brig suid alice "dogbert"
 
 testEmailUpdate :: Brig -> AWS.Env -> Http ()
