@@ -22,6 +22,7 @@ import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
 import Data.Monoid ((<>))
 import Data.Range
+import Data.String (IsString, fromString)
 import Data.Text (Text, toLower)
 import Data.Time.Clock
 import Data.UUID
@@ -214,7 +215,13 @@ ssoIdentity _ = Nothing
 -- | TODO: once we have @/libs/spar-types@ for the wire-sso-sp-server called spar, this type should
 -- move there.
 data UserSSOId = UserSSOId { userSSOIdTenant :: UUID, userSSOIdSubject :: UUID }
-    deriving (Eq, Show)
+    deriving (Eq)
+
+instance Show UserSSOId where
+  show = show . userSSOIdToText
+
+instance IsString UserSSOId where
+  fromString = either (error . ("fromString @UserSSOId: " <>)) id . userSSOIdFromText . Text.pack
 
 userSSOIdFromText :: Text -> Either String UserSSOId
 userSSOIdFromText raw = do

@@ -1485,7 +1485,6 @@ canBeDeleted (uid ::: tid) = do
        Team.NoTeamOwnersAreLeft   -> do
            Log.warn $ Log.field "user" (toByteString uid)
                     . Log.msg (Log.val "Team.NoTeamOwnersAreLeft")
-           pure ()
     return empty
 
 getInvitationByCode :: JSON ::: InvitationCode -> Handler Response
