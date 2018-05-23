@@ -13,6 +13,7 @@ Cargo.lock
 *.rlib
 *.so
 *.tar
+*.asc
 *.tmp
 *~
 .*.sw[a-z]
