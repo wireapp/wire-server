@@ -29,10 +29,12 @@ services: init install
 
 .PHONY: integration
 integration: fast
-	$(MAKE) -C services/cargohold integration
-	$(MAKE) -C services/galley integration
-	$(MAKE) -C services/brig integration
-	$(MAKE) -C services/gundeck integration-fake-aws
+	# We run "i" instead of "integration" to avoid useless rebuilds
+	# (since after "fast" everything will be built already)
+	$(MAKE) -C services/cargohold i
+	$(MAKE) -C services/galley i
+	$(MAKE) -C services/brig i
+	$(MAKE) -C services/gundeck i-fake-aws
 
 #################################
 ## docker targets
