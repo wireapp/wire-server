@@ -1,0 +1,20 @@
+JŪSŲ NAUJA PASKYRA PROGRAMOJE WIRE
+Naudojant ${email}, buvo sukurta nauja Wire komanda. Patvirtinkite savo el.
+paštą.
+
+Patvirtinti [${url}]Jeigu negalite spustelėti ant mygtuko, nukopijuokite ir
+įdėkite šią nuorodą į savo naršyklę:
+
+${url}
+
+Jeigu naudojant šį el. pašto adresą neregistravote Wire paslaugų teikėjo
+paskyros, tuomet galite saugiai nepaisyti šio pranešimo. Jeigu norite pranešti
+apie netinkamą jūsų el pašto adreso naudojimą, tuomet susisiekite su mumis.
+[https://support.wire.com/hc/requests/new]
+
+
+--------------------------------------------------------------------------------
+
+Privatumas [https://wire.com/legal/] · Pranešti apie piktnaudžiavimą
+[misuse@wire.com]
+© WIRE SWISS GmbH. VISOS TEISĖS SAUGOMOS.

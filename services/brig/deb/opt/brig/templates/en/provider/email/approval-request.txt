@@ -1,5 +1,5 @@
 APPROVAL REQUEST
-A new Wire service provider has registered and is awaiting approval. Please
+A new Wire Service Provider has registered and is awaiting approval. Please
 review the information provided below.
 
 Name: ${name}

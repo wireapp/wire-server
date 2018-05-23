@@ -1,0 +1,3 @@
+Jūsų „Wire“ kodas yra ${code}.
+
+Atvėrę ${url} galėsite patvirtinti savo numerį.

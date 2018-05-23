@@ -1,0 +1,20 @@
+NAUJAS ĮRENGINYS
+Jūsų Wire paskyra buvo naudota:
+
+${date}
+
+${model}
+
+Tikriausiai, įdiegėte Wire naujame įrenginyje arba iš naujo įdiegėte esamame
+įrenginyje. Jeigu to nedarėte, pereikite į Wire nustatymus, pašalinkite įrenginį
+ir atstatykite savo slaptažodį [https://account.wire.com/forgot/].
+
+Jeigu turite kokių nors klausimų, susisiekite su mumis
+[https://support.wire.com/hc/en-us/requests/new].
+
+
+--------------------------------------------------------------------------------
+
+Privatumas [https://wire.com/legal/] · Pranešti apie piktnaudžiavimą
+[misuse@wire.com]
+© WIRE SWISS GmbH. VISOS TEISĖS SAUGOMOS.
