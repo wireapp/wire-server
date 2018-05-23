@@ -35,6 +35,7 @@ import qualified Brig.Types.User.Auth as Auth
 import qualified Brig.Types.Code      as Code
 import qualified Bilge                as Http
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.Text.Lazy       as Lazy
 import qualified Brig.ZAuth           as ZAuth
 import qualified Data.Text            as Text
 import qualified Data.UUID.V4         as UUID
@@ -51,6 +52,11 @@ tests conf m z b = testGroup "auth"
             , test m "send-phone-code" (testSendLoginCode b)
             , test m "failure" (testLoginFailure b)
             , test m "throttle" (testThrottleLogins conf b)
+            , testGroup "backdoor-login"
+                [ test m "email" (testEmailBackdoorLogin b)
+                , test m "failure-suspended" (testSuspendedBackdoorLogin b)
+                , test m "failure-no-user" (testNoUserBackdoorLogin b)
+                ]
             ]
         , testGroup "refresh"
             [ test m "invalid-cookie" (testInvalidCookie z b)
@@ -90,30 +96,18 @@ testEmailLogin brig = do
     let Just email = userEmail u
     now <- liftIO getCurrentTime
 
-    -- Login with email
+    -- Login with email and do some checks
     _rs <- login brig (defEmailLogin email) PersistentCookie
         <!! const 200 === statusCode
-
-    -- Check basic cookie attributes
-    let ck = decodeCookie _rs
     liftIO $ do
-        assertBool "type" (cookie_persistent ck)
-        assertBool "http-only" (cookie_http_only ck)
-        assertBool "expiry" (cookie_expiry_time ck > cookie_creation_time ck)
-        assertBool "domain" (cookie_domain ck /= "")
-        assertBool "path" (cookie_path ck /= "")
-
-    -- Check basic access token attributes
-    let tk = decodeToken  _rs
-    liftIO $ do
-        assertEqual "user" (userId u) (ZAuth.accessTokenOf tk)
-        assertBool "expiry" (ZAuth.tokenExpiresUTC tk > now)
+        assertSanePersistentCookie (decodeCookie _rs)
+        assertSaneAccessToken now (userId u) (decodeToken _rs)
 
     -- Login again, but with capitalised email address
     let Email loc dom = email
     let email' = Email (Text.toUpper loc) dom
-    login brig (defEmailLogin email') PersistentCookie !!!
-        const 200 === statusCode
+    login brig (defEmailLogin email') PersistentCookie
+        !!! const 200 === statusCode
 
 testPhoneLogin :: Brig -> Http ()
 testPhoneLogin brig = do
@@ -167,7 +161,7 @@ testSendLoginCode brig = do
     -- the user has a password.
     sendLoginCode brig p LoginCodeSMS False !!! do
         const 403 === statusCode
-        const (Just "password-exists") === fmap Error.label . decodeBody
+        const (Just "password-exists") === errorLabel
     rsp1 <- sendLoginCode brig p LoginCodeSMS True
         <!! const 200 === statusCode
 
@@ -220,8 +214,8 @@ testLoginFailure brig = do
             activate brig kc !!! const 200 === statusCode
             -- Attempt to log in without having set a password
             login brig (defEmailLogin eml) PersistentCookie !!! do
-                const 403                          === statusCode
-                const (Just "invalid-credentials") === fmap Error.label . decodeBody
+                const 403 === statusCode
+                const (Just "invalid-credentials") === errorLabel
 
 testThrottleLogins :: Maybe Opts.Opts -> Brig -> Http ()
 testThrottleLogins conf b = do
@@ -236,6 +230,44 @@ testThrottleLogins conf b = do
         assertBool "throttle delay" (n > 0)
         threadDelay (1000000 * (n + 1))
     void $ login b (defEmailLogin e) SessionCookie
+
+-------------------------------------------------------------------------------
+-- Backdoor login
+
+-- | Check that login works with @/backdoor-login@ even without having the
+-- right password.
+testEmailBackdoorLogin :: Brig -> Http ()
+testEmailBackdoorLogin brig = do
+    -- Create a user
+    uid <- userId <$> randomUser brig
+    now <- liftIO getCurrentTime
+    -- Login and do some checks
+    _rs <- backdoorLogin brig (BackdoorLogin uid Nothing) PersistentCookie
+        <!! const 200 === statusCode
+    liftIO $ do
+        assertSanePersistentCookie (decodeCookie _rs)
+        assertSaneAccessToken now uid (decodeToken _rs)
+
+-- | Check that @/backdoor-login@ can not be used to login as a suspended
+-- user.
+testSuspendedBackdoorLogin :: Brig -> Http ()
+testSuspendedBackdoorLogin brig = do
+    -- Create a user and immediately suspend them
+    uid <- userId <$> randomUser brig
+    setStatus brig uid Suspended
+    -- Try to login and see if we fail
+    backdoorLogin brig (BackdoorLogin uid Nothing) PersistentCookie !!! do
+        const 403 === statusCode
+        const (Just "suspended") === errorLabel
+
+-- | Check that @/backdoor-login@ fails if the user doesn't exist.
+testNoUserBackdoorLogin :: Brig -> Http ()
+testNoUserBackdoorLogin brig = do
+    -- Try to login with random UID and see if we fail
+    uid <- randomId
+    backdoorLogin brig (BackdoorLogin uid Nothing) PersistentCookie !!! do
+        const 403 === statusCode
+        const (Just "invalid-credentials") === errorLabel
 
 -------------------------------------------------------------------------------
 -- Token Refresh
@@ -467,24 +499,18 @@ testReauthorisation b = do
 
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (PlainTextPassword "123456")) !!! do
         const 403 === statusCode
-        const (Just "invalid-credentials") === fmap Error.label . decodeBody
+        const (Just "invalid-credentials") === errorLabel
 
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload defPassword) !!! do
         const 200 === statusCode
 
-    setStatus u Suspended
+    setStatus b u Suspended
 
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload defPassword) !!! do
         const 403 === statusCode
-        const (Just "suspended") === fmap Error.label . decodeBody
+        const (Just "suspended") === errorLabel
   where
     payload = Http.body . RequestBodyLBS . encode . ReAuthUser
-
-    setStatus u s =
-        let js = RequestBodyLBS . encode $ AccountStatusUpdate s
-        in put ( b . paths ["i", "users", toByteString' u, "status"]
-               . contentJson . Http.body js
-               ) !!! const 200 === statusCode
 
 -----------------------------------------------------------------------------
 -- Helpers
@@ -509,6 +535,39 @@ listCookies b u = do
         const 200 === statusCode
     let Just cs = cookieList <$> decodeBody rs
     return cs
+
+-- | Check that the cookie returned after login is sane.
+--
+-- Doesn't check everything, just some basic properties.
+assertSanePersistentCookie :: Http.Cookie -> Assertion
+assertSanePersistentCookie ck = do
+    assertBool "type" (cookie_persistent ck)
+    assertBool "http-only" (cookie_http_only ck)
+    assertBool "expiry" (cookie_expiry_time ck > cookie_creation_time ck)
+    assertBool "domain" (cookie_domain ck /= "")
+    assertBool "path" (cookie_path ck /= "")
+
+-- | Check that the access token returned after login is sane.
+assertSaneAccessToken
+    :: UTCTime           -- ^ Some moment in time before the user was created
+    -> UserId
+    -> ZAuth.AccessToken
+    -> Assertion
+assertSaneAccessToken now uid tk = do
+    assertEqual "user" uid (ZAuth.accessTokenOf tk)
+    assertBool "expiry" (ZAuth.tokenExpiresUTC tk > now)
+
+-- | Set user's status to something (e.g. 'Suspended').
+setStatus :: Brig -> UserId -> AccountStatus -> HttpT IO ()
+setStatus brig u s =
+    let js = RequestBodyLBS . encode $ AccountStatusUpdate s
+    in put ( brig . paths ["i", "users", toByteString' u, "status"]
+           . contentJson . Http.body js
+           ) !!! const 200 === statusCode
+
+-- | Get error label from the response (for use in assertions).
+errorLabel :: Response (Maybe Lazy.ByteString) -> Maybe Lazy.Text
+errorLabel = fmap Error.label . decodeBody
 
 remJson :: PlainTextPassword -> Maybe [CookieLabel] -> Maybe [CookieId] -> Value
 remJson p l ids = object

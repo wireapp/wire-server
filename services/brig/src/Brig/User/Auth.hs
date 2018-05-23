@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | High-level user authentication and access control.
 module Brig.User.Auth
@@ -11,6 +12,7 @@ module Brig.User.Auth
 
       -- * Internal
     , lookupLoginCode
+    , backdoorLogin
 
       -- * Re-exports
     , listCookies
@@ -181,3 +183,15 @@ validateTokens ut at = do
                 unless (e == ZAuth.Expired) (throwE e)
     ck <- lift (lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) return
     return (ZAuth.userTokenOf ut, ck)
+
+-- | Allow to login as any user without having the credentials.
+backdoorLogin :: BackdoorLogin -> CookieType -> ExceptT LoginError AppIO Access
+backdoorLogin (BackdoorLogin uid label) typ = do
+    Data.reauthenticate uid Nothing `catchE` \case
+        ReAuthMissingPassword -> pure ()
+        ReAuthError e -> case e of
+            AuthInvalidCredentials -> pure ()
+            AuthSuspended          -> throwE LoginSuspended
+            AuthEphemeral          -> throwE LoginEphemeral
+            AuthInvalidUser        -> throwE LoginFailed
+    newAccess uid typ label
