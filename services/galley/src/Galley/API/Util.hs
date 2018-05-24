@@ -6,7 +6,7 @@
 module Galley.API.Util where
 
 import Brig.Types (Relation (..))
-import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
+import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens (view, (&), (.~))
 import Control.Monad
 import Control.Monad.Catch
@@ -52,18 +52,8 @@ ensureConnected :: UserId -> [UserId] -> Galley ()
 ensureConnected _ []   = pure ()
 ensureConnected u uids = do
     conns <- getConnections u uids (Just Accepted)
-    unless (all (isConnected u conns) uids) $
+    unless (length conns == length uids) $
         throwM notConnected
-  where
-    isConnected u1 conns u2 =
-        let c1 = find (connection u1 u2) conns
-            c2 = find (connection u2 u1) conns
-        in isJust c1 && isJust c2
-
-    connection u1 u2 cs =
-           csFrom   cs == u1
-        && csTo     cs == u2
-        && csStatus cs == Accepted
 
 ensureReAuthorised :: UserId -> PlainTextPassword -> Galley ()
 ensureReAuthorised u secret = do
