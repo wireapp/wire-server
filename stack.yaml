@@ -48,7 +48,7 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/tiago-loureiro/aws
-    commit: a66c6087bbb99645b7862b42d4933d01d954d563
+    commit: bade13d1f73ed82c2b3eafda0bcb16d283da909e
   extra-dep: true
 
 extra-deps:
