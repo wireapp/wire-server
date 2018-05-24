@@ -50,8 +50,8 @@ serialiseOkProp t = ioProperty $ do
     c <- aes256
     d <- sha256
     m <- randMessage n c d
-    r <- either (const Nothing) Just <$> serialise m a
-    let sn = r >>= decode' . LT.encodeUtf8
+    r <- serialise m a
+    let sn = either (const Nothing) Just r >>= decode' . LT.encodeUtf8
     let equalTransport = fmap snsNotifTransport sn == Just t
     equalNotif <- case snsNotifBundle <$> sn of
         Nothing                -> return False
