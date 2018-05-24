@@ -75,21 +75,28 @@ prepareConv g
 connectIfNeeded :: [Bot] -> BotNet ()
 connectIfNeeded g = mapM_ (uncurry (go 6)) [(a, b) | a <- g, b <- g, botId a /= botId b]
   where
+    -- Make steps towards a successful connection by alternating turns
+    -- (first one side takes a step towards a connection, then another,
+    -- etc). If we make more than N turns, we give up.
     go :: Int -> Bot -> Bot -> BotNet ()
     go 0 _ _ = return ()
     go n a b = do
         connected <- runBotSession a $ do
             s <- fmap ucStatus <$> getConnection (botId b)
             case s of
+                -- If no connection: initiate one
                 Nothing -> do
                     void $ connectTo (ConnectionRequest (botId b) (fromMaybe "" (botEmail a)) (Message "Hi there!"))
                     assertConnectRequested a b
                     return False
+                -- If there's a pending connection to us: accept it
                 Just Pending -> do
                     void $ updateConnection (botId b) (ConnectionUpdate Accepted)
                     assertConnectAccepted a b
                     return True
+                -- If we have sent a request, we can't do anything
                 Just Sent -> return False
+                -- In case of any other status, we pretend it's good
                 _         -> return True
         unless connected (go (n - 1) b a)
 
