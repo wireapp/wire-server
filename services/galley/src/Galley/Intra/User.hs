@@ -30,16 +30,19 @@ import Network.Wai.Utilities.Error
 
 import qualified Network.HTTP.Client.Internal as Http
 
--- | Get statuses of all connections between one user and the rest of them.
+-- | Get statuses of all connections between two groups of users (the usual
+-- pattern is to check all connections from one user to several, or from
+-- several users to one).
+--
 -- When a connection does not exist, it is skipped.
-getConnections :: UserId -> [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
-getConnections u uids rlt = do
+getConnections :: [UserId] -> [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
+getConnections from to rlt = do
     (h, p) <- brigReq
     r <- call "brig"
         $ method POST . host h . port p
         . path "/i/users/connections-status"
         . maybe id rfilter rlt
-        . json ConnectionsStatusRequest{csrFrom = [u], csrTo = uids}
+        . json ConnectionsStatusRequest{csrFrom = from, csrTo = to}
         . expect2xx
     parseResponse (Error status502 "server-error") r
   where

@@ -48,11 +48,17 @@ ensureAccessRole role users mbTms = case role of
         when (length activated /= length users) $ throwM accessDenied
     NonActivatedAccessRole -> return ()
 
+-- | Check that the user is connected to everybody else.
+--
+-- The connection has to be bidirectional (e.g. if A connects to B and later
+-- B blocks A, the status of A-to-B is still 'Accepted' but it doesn't mean
+-- that they are connected).
 ensureConnected :: UserId -> [UserId] -> Galley ()
 ensureConnected _ []   = pure ()
 ensureConnected u uids = do
-    conns <- getConnections u uids (Just Accepted)
-    unless (length conns == length uids) $
+    connsFrom <- getConnections [u] uids (Just Accepted)
+    connsTo   <- getConnections uids [u] (Just Accepted)
+    unless (length connsFrom == length uids && length connsTo == length uids) $
         throwM notConnected
 
 ensureReAuthorised :: UserId -> PlainTextPassword -> Galley ()
