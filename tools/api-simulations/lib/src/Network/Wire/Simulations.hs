@@ -52,28 +52,27 @@ import qualified Data.Text.Encoding as Text
 --------------------------------------------------------------------------------
 -- Conversation Setup
 
--- | Set up a conversation between a given list of bots, thereby ensuring that
--- all of them are connected.
+-- | Set up a conversation between a given list of bots. The first bot will
+-- connect to everybody else and then create a conversation.
 prepareConv :: [Bot] -> BotNet ConvId
-prepareConv g
-    | length g <= 1 = error "prepareConv: At least two bots required"
-    | length g == 2 = do
-        let [a, b] = g
-        connectIfNeeded g
-        conv <- (>>= ucConvId) <$> runBotSession a (getConnection (botId b))
-        requireMaybe conv $
-            "Missing 1-1 conversation between: " <>
-                Text.concat (Text.pack . show . botId <$> [a, b])
-    | otherwise = do
-        let (a : bs) = g
-        connectIfNeeded g
-        let bIds = map botId bs
-        conv <- cnvId <$> runBotSession a (createConv bIds Nothing)
-        assertConvCreated conv a bs
-        return conv
+prepareConv []  = error "prepareConv: at least two bots required"
+prepareConv [_] = error "prepareConv: at least two bots required"
+prepareConv [a, b] = do
+    connectIfNeeded a b
+    conv <- (>>= ucConvId) <$> runBotSession a (getConnection (botId b))
+    requireMaybe conv $
+        "Missing 1-1 conversation between: " <>
+            Text.concat (Text.pack . show . botId <$> [a, b])
+prepareConv (a:bs) = do
+    mapM_ (connectIfNeeded a) bs
+    let bIds = map botId bs
+    conv <- cnvId <$> runBotSession a (createConv bIds Nothing)
+    assertConvCreated conv a bs
+    return conv
 
-connectIfNeeded :: [Bot] -> BotNet ()
-connectIfNeeded g = mapM_ (uncurry (go 6)) [(a, b) | a <- g, b <- g, botId a /= botId b]
+-- | Make sure that there is a connection between two bots.
+connectIfNeeded :: Bot -> Bot -> BotNet ()
+connectIfNeeded = go 6  -- six turns should be enough
   where
     -- Make steps towards a successful connection by alternating turns
     -- (first one side takes a step towards a connection, then another,
