@@ -44,5 +44,7 @@ handleParseError (Right val) = pure $ Just val
 withWireTastyPatternEnv :: IO () -> IO ()
 withWireTastyPatternEnv m = do
     args <- getArgs
-    addargs <- maybe id (\pat -> (<> ["-p", pat])) . lookup "WIRE_TASTY_PATTERN" <$> getEnvironment
+    addargs <- maybe id (\pat -> if null pat then id else (<> ["-p", pat]))
+             . lookup "WIRE_TASTY_PATTERN"
+           <$> getEnvironment
     withArgs (addargs args) m
