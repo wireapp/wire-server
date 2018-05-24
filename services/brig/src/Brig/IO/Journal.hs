@@ -7,6 +7,7 @@ module Brig.IO.Journal
     , userUpdate
     , userDelete
     , userEmailRemove
+    , journalEvent
     ) where
 
 import Brig.App

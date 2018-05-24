@@ -25,6 +25,7 @@ library
         Brig.User.Auth.Cookie.Limit
         Brig.User.Search.Index
         Brig.ZAuth
+        Brig.IO.Journal
 
     other-modules:
         Brig.API.Connection
@@ -51,7 +52,6 @@ library
       , Brig.Data.UserKey
       , Brig.Data.Types
       , Brig.IO.Intra
-      , Brig.IO.Journal
       , Brig.Locale
       , Brig.Password
       , Brig.Phone
@@ -402,3 +402,57 @@ executable brig-integration
       , warp-tls              >= 3.2
       , zauth
       , yaml                  >= 0.8.22
+
+executable brig-journaler
+    main-is:            Main.hs
+    hs-source-dirs:     journaler/src
+
+    default-language:   Haskell2010
+
+    other-modules:
+        Journal
+        Options
+
+    build-depends:
+        amazonka
+      , amazonka-sqs
+      , base
+      , brig
+      , HsOpenSSL
+      , optparse-applicative
+      , cassandra-util
+      , lens
+      , text
+      , lifted-async
+      , mtl
+      , brig-types
+      , proto-lens
+      , HsOpenSSL
+      , HsOpenSSL-x509-system
+      , http-client
+      , http-client-openssl-ext
+      , proto-lens-protoc
+      , bytestring
+      , bytestring-conversion
+      , types-common
+      , types-common-journal
+      , time
+      , tinylog
+      , bytestring
+      , uuid
+      , monad-control
+      , transformers
+      , transformers-base
+      , exceptions
+      , resourcet
+      , retry
+      , base64-bytestring
+
+    ghc-options:
+        -Wall
+        -fwarn-tabs
+        -funbox-strict-fields
+        -threaded
+        -with-rtsopts=-N1
+        -with-rtsopts=-T
+        -rtsopts

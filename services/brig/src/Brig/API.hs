@@ -138,6 +138,10 @@ sitemap o = do
         query "users"
         .&. opt (query "filter")
 
+    post "/i/users/connections-status" (continue getConnectionStatus) $
+        query "users"
+        .&. opt (query "filter")
+
     get "/i/users" (continue listActivatedAccounts) $
         accept "application" "json"
         .&. (param "ids" ||| param "handles")
