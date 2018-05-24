@@ -149,7 +149,7 @@ The second is passed to stack, e.g. to temporarily disable `-Werror`
 without the risk of accidentally committing anything, like this:
 
 ```bash
-WIRE_STACK_OPTIONS='--ghc-options=-Wwarn' make integration
+WIRE_STACK_OPTIONS='--ghc-options=-Wwarn --test-arguments="--quickcheck-tests=19919 --quickcheck-replay=651712"' make integration
 ```
 
 ## How to run `wire-server` with "fake" external dependencies
