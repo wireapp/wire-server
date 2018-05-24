@@ -63,7 +63,8 @@ serialiseOkProp t = ioProperty $ do
             plain <- EVP.cipherBS c (encKeyBytes encKey) iv EVP.Decrypt dat'
             let n' = plainNotif <$> decodeStrict' plain
             return $ n' == Just n && mac == cipherMac p
-    return $ equalTransport && equalNotif
+    let debugInfo = (t, a, n, {- c, d, m, -} r, sn, equalTransport, equalNotif)
+    return . counterexample (show debugInfo) $ equalTransport && equalNotif
 
 sizeLimitProp :: Transport -> Property
 sizeLimitProp t = ioProperty $ do
