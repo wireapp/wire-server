@@ -8,11 +8,12 @@ import Criterion
 import Criterion.Main
 import Data.UUID
 import Data.UUID.V4
+import Util.Test (withWireTastyPatternEnv)
 
 import qualified Cannon.Dict as D
 
 benchmark :: IO ()
-benchmark = defaultMain
+benchmark = withWireTastyPatternEnv $ defaultMain
     [ bgroup "Cannon.Dict"
         [ bench "slices 1"    $ nfIO (slices 1    1280)
         , bench "slices 10"   $ nfIO (slices 10   1280)

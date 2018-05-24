@@ -72,6 +72,7 @@ executable ropes-aws-test
       , text         >= 0.11.3
       , transformers
       , tinylog
+      , types-common
 
 -- Tiny test program that can be run on an AWS instance
 executable ropes-aws-auth-test

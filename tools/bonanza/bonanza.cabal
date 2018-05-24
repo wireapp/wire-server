@@ -199,6 +199,7 @@ test-suite bonanza-tests
     , tasty-quickcheck
     , text
     , time
+    , types-common
     , vector
 
   ghc-options:

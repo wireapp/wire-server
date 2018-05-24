@@ -7,6 +7,7 @@ import Control.Concurrent.Async
 import Control.Exception (assert)
 import Criterion.Main
 import Data.Metrics
+import Util.Test (withWireTastyPatternEnv)
 
 import qualified Data.HashMap.Strict  as HashMap
 import qualified Data.Metrics.Buckets as Buckets
@@ -14,7 +15,7 @@ import qualified Data.Metrics.Buckets as Buckets
 main :: IO ()
 main = do
     m <- metrics
-    defaultMain
+    withWireTastyPatternEnv $ defaultMain
         [ bgroup "Counter"
             [ bench "add" $ whnfIO $
                 counterAdd 1 (path "add") m
@@ -65,4 +66,3 @@ contentionConc = 100
 
 contentionSum :: Word
 contentionSum = sum [i * contentionIters | i <- [1..contentionConc]]
-
