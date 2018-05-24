@@ -11,6 +11,7 @@ import Control.Lens (view, (&), (.~))
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Control.Concurrent.Async.Lifted.Safe
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Foldable (find, for_, toList)
@@ -56,8 +57,9 @@ ensureAccessRole role users mbTms = case role of
 ensureConnected :: UserId -> [UserId] -> Galley ()
 ensureConnected _ []   = pure ()
 ensureConnected u uids = do
-    connsFrom <- getConnections [u] uids (Just Accepted)
-    connsTo   <- getConnections uids [u] (Just Accepted)
+    (connsFrom, connsTo) <-
+        getConnections [u] uids (Just Accepted) `concurrently`
+        getConnections uids [u] (Just Accepted)
     unless (length connsFrom == length uids && length connsTo == length uids) $
         throwM notConnected
 
