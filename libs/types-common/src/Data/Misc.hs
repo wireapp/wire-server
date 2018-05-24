@@ -221,13 +221,10 @@ instance Cql (Fingerprint a) where
 
 newtype PlainTextPassword = PlainTextPassword
     { fromPlainTextPassword :: Text }
-    deriving (Eq)
+    deriving (Eq, ToJSON)
 
 instance Show PlainTextPassword where
     show _ = "PlainTextPassword <hidden>"
-
-instance ToJSON PlainTextPassword where
-    toJSON _ = toJSON @Text "PlainTextPassword <hidden>"
 
 instance FromJSON PlainTextPassword where
     parseJSON x = PlainTextPassword . fromRange

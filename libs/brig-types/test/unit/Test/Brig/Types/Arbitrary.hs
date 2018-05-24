@@ -165,7 +165,7 @@ instance Arbitrary AsciiBase64Url where
     arbitrary = encodeBase64Url <$> arbitrary
 
 instance Arbitrary PlainTextPassword where
-    arbitrary = pure $ PlainTextPassword "<hidden>"
+    arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
 
 instance Arbitrary DeleteUser where
     arbitrary = DeleteUser <$> arbitrary
