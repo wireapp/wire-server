@@ -35,7 +35,7 @@ tests = testGroup "Native"
         -- this may fail sporadically, but that's not a production issue.
         -- see <https://github.com/wireapp/wire-server/issues/341>.
         forAll genTransport serialiseOkProp
-      testProperty "serialise/size-limit" $
+    , testProperty "serialise/size-limit" $
         forAll genTransport sizeLimitProp
     , testProperty "crypto/block-size-16" $
         forAll ((,) <$> genKeys <*> genPlaintext) blockSizeProp
