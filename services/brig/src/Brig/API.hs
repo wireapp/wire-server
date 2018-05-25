@@ -5,6 +5,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 
 module Brig.API (runServer, parseOptions) where
 
@@ -134,8 +135,14 @@ sitemap o = do
     delete "/i/users/:id" (continue deleteUserNoVerify) $
         capture "id"
 
-    get "/i/users/connections-status" (continue getConnectionStatus) $
+    get "/i/users/connections-status" (continue deprecatedGetConnectionsStatus) $
         query "users"
+        .&. opt (query "filter")
+
+    post "/i/users/connections-status" (continue getConnectionsStatus) $
+        accept "application" "json"
+        .&. contentType "application" "json"
+        .&. request
         .&. opt (query "filter")
 
     get "/i/users" (continue listActivatedAccounts) $
@@ -1393,9 +1400,23 @@ changeEmail (_ ::: u ::: _ ::: req) = do
     lift $ sendActivationMail en name apair (Just lang) ident
     return $ setStatus status202 empty
 
-getConnectionStatus :: List UserId ::: Maybe Relation -> Handler Response
-getConnectionStatus (users ::: flt) = do
+-- Deprecated and to be removed after new versions of brig and galley are
+-- deployed. Reason for deprecation: it returns N^2 things (which is not
+-- needed), it doesn't scale, and it accepts everything in URL parameters,
+-- which doesn't work when the list of users is long.
+deprecatedGetConnectionsStatus :: List UserId ::: Maybe Relation -> Handler Response
+deprecatedGetConnectionsStatus (users ::: flt) = do
     r <- lift $ API.lookupConnectionStatus (fromList users) (fromList users)
+    return . json $ maybe r (filterByRelation r) flt
+  where
+    filterByRelation l rel = filter ((==rel) . csStatus) l
+
+getConnectionsStatus
+    :: JSON ::: JSON ::: Request ::: Maybe Relation
+    -> Handler Response
+getConnectionsStatus (_ ::: _ ::: req ::: flt) = do
+    ConnectionsStatusRequest{csrFrom, csrTo} <- parseJsonBody req
+    r <- lift $ API.lookupConnectionStatus csrFrom csrTo
     return . json $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((==rel) . csStatus) l

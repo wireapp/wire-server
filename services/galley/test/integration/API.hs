@@ -68,6 +68,7 @@ tests s = testGroup "Galley integration tests" [ mainTests, Teams.tests s ]
         , test s "page through conversations" getConvsPagingOk
         , test s "fail to create conversation when not connected" postConvFailNotConnected
         , test s "M:N conversation creation must have <N members" postConvFailNumMembers
+        , test s "fail to create conversation when blocked" postConvFailBlocked
         , test s "create self conversation" postSelfConvOk
         , test s "create 1:1 conversation" postO2OConvOk
         , test s "fail to create 1:1 conversation with yourself" postConvO2OFailWithSelf
@@ -588,6 +589,20 @@ postConvFailNumMembers g b _ s = do
     postConv g alice (bob:others) Nothing [] Nothing !!! do
         const 400 === statusCode
         const (Just "client-error") === fmap label . decodeBody
+
+-- | If somebody has blocked a user, that user shouldn't be able to create a
+-- group conversation which includes them.
+postConvFailBlocked :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
+postConvFailBlocked g b _ _ = do
+    alice <- randomUser b
+    bob   <- randomUser b
+    jane  <- randomUser b
+    connectUsers b alice (list1 bob [jane])
+    putConnection b jane alice Blocked
+        !!! const 200 === statusCode
+    postConv g alice [bob, jane] Nothing [] Nothing !!! do
+        const 403 === statusCode
+        const (Just "not-connected") === fmap label . decodeBody
 
 postSelfConvOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postSelfConvOk g b _ _ = do

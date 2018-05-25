@@ -14,7 +14,7 @@ import Bilge hiding (options, getHeader, statusCode)
 import Brig.Types.Connection (UserIds (..))
 import Bilge.RPC
 import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
-import Brig.Types.Connection (Relation (..))
+import Brig.Types.Connection (Relation (..), ConnectionsStatusRequest (..))
 import Brig.Types.User (User)
 import Galley.App
 import Galley.Intra.Util
@@ -33,18 +33,22 @@ import Network.Wai.Utilities.Error
 
 import qualified Network.HTTP.Client.Internal as Http
 
-getConnections :: UserId -> [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
-getConnections u uids rlt = do
+-- | Get statuses of all connections between two groups of users (the usual
+-- pattern is to check all connections from one user to several, or from
+-- several users to one).
+--
+-- When a connection does not exist, it is skipped.
+getConnections :: [UserId] -> [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
+getConnections from to rlt = do
     (h, p) <- brigReq
     r <- call "brig"
-        $ method GET . host h . port p
+        $ method POST . host h . port p
         . path "/i/users/connections-status"
-        . queryItem "users" users
         . maybe id rfilter rlt
+        . json ConnectionsStatusRequest{csrFrom = from, csrTo = to}
         . expect2xx
     parseResponse (Error status502 "server-error") r
   where
-    users   = intercalate "," $ toByteString' <$> u:uids
     rfilter = queryItem "filter" . (pack . map toLower . show)
 
 deleteBot :: ConvId -> BotId -> Galley ()

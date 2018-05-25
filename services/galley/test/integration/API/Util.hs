@@ -543,6 +543,17 @@ connectUsersWith fn b u us = mapM connectTo us
             )
         return (r1, r2)
 
+-- | A copy of 'putConnection' from Brig integration tests.
+putConnection :: Brig -> UserId -> UserId -> Relation -> Http ResponseLBS
+putConnection b from to r = put $ b
+    . paths ["/connections", toByteString' to]
+    . contentJson
+    . body payload
+    . zUser from
+    . zConn "conn"
+  where
+    payload = RequestBodyLBS . encode $ object [ "status" .= r ]
+
 randomUsers :: Brig -> Int -> Http [UserId]
 randomUsers b n = replicateM n (randomUser b)
 
