@@ -39,13 +39,13 @@ import qualified Network.HTTP.Client.Internal as Http
 --
 -- When a connection does not exist, it is skipped.
 getConnections :: [UserId] -> [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
-getConnections from to rlt = do
+getConnections uFrom uTo rlt = do
     (h, p) <- brigReq
     r <- call "brig"
         $ method POST . host h . port p
         . path "/i/users/connections-status"
         . maybe id rfilter rlt
-        . json ConnectionsStatusRequest{csrFrom = from, csrTo = to}
+        . json ConnectionsStatusRequest{csrFrom = uFrom, csrTo = uTo}
         . expect2xx
     parseResponse (Error status502 "server-error") r
   where
