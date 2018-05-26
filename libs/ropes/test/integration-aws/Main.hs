@@ -6,7 +6,6 @@ import Network.HTTP.Client.TLS
 import Ropes.Aws
 import System.Environment
 import Test.Tasty
-import Util.Test (withWireTastyPatternEnv)
 
 import qualified System.Logger as Logger
 import qualified Tests.Ropes.Aws.Ses as SES
@@ -18,6 +17,6 @@ main = do
     s <- pack <$> getEnv "AWS_SECRET_KEY"
     m <- newManager tlsManagerSettings
     e <- newEnv l m $ Just (AccessKeyId k, SecretAccessKey s)
-    withWireTastyPatternEnv . defaultMain $ tests e
+    defaultMain $ tests e
   where
     tests = SES.tests

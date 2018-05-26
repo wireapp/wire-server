@@ -135,18 +135,7 @@ make integration
 
 Or, alternatively, `make` on the top-level directory (to produce all the service's binaries) followed by e.g `cd services/brig && make integration` to run one service's integration tests only.
 
-There are two shell env variables of interest.  The first one can be
-used to [pass patterns to
-tasty](https://github.com/feuerbach/tasty#patterns) to filter out
-which tests should be run.  This is very useful if you are working on
-fixing one specific test.
-
-```bash
-WIRE_TASTY_PATTERN='$NF == "post /register - 201 + no email"' make integration
-```
-
-The second is passed to stack, e.g. to temporarily disable `-Werror`
-without the risk of accidentally committing anything, like this:
+You can use `$WIRE_STACK_OPTIONS` to pass arguments to stack through the `Makefile`s.  This is useful to e.g. pass arguments to tasty or temporarily disable `-Werror` without the risk of accidentally committing anything, like this:
 
 ```bash
 WIRE_STACK_OPTIONS='--ghc-options=-Wwarn --test-arguments="--quickcheck-tests=19919 --quickcheck-replay=651712"' make integration

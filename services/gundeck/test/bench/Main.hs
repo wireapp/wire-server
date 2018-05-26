@@ -14,7 +14,6 @@ import Network.AWS (Region (Ireland))
 import OpenSSL.EVP.Cipher (Cipher, getCipherByName)
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL (withOpenSSL)
-import Util.Test (withWireTastyPatternEnv)
 
 import qualified Data.ByteString     as BS
 import qualified Data.HashMap.Strict as HashMap
@@ -26,7 +25,7 @@ main :: IO ()
 main = withOpenSSL $ do
     c <- aes256
     d <- sha256
-    withWireTastyPatternEnv $ defaultMain [
+    defaultMain [
         bgroup "plain"
             [ bench "32"   $ nfIO (plaintext 32)
             , bench "64"   $ nfIO (plaintext 64)
