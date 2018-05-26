@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE ViewPatterns        #-}
 
 module Brig.Blacklist
     ( exists
@@ -12,10 +11,12 @@ module Brig.Blacklist
 import Brig.AWS
 import Brig.App
 import Brig.Data.UserKey (UserKey, keyText)
+import Control.Concurrent.Async.Lifted.Safe
 import Control.Lens
 import Control.Monad.Reader
 import Data.Text (Text)
 
+import qualified Brig.Data.Blacklist  as Data
 import qualified Data.HashMap.Strict  as Map
 import qualified Network.AWS.DynamoDB as AWS
 import qualified Network.AWS          as AWS
@@ -23,25 +24,26 @@ import qualified Network.AWS          as AWS
 hashKey :: Text
 hashKey = "key"
 
--- TODO: If dynamo is not reachable, we return false... probably not a good idea?
 exists :: UserKey -> AppIO Bool
-exists (keyText -> key) = hasItems <$> execDyn cmd
+exists key = do
+    (fromDyn, fromCas) <- execDyn cmd `concurrently` Data.exists key
+    return (hasItems fromDyn || fromCas)
   where
-    cmd t = AWS.getItem t & AWS.giKey .~ item key
+    cmd t = AWS.getItem t & AWS.giKey .~ item (keyText key)
                           & AWS.giConsistentRead ?~ True
 
     hasItems :: AWS.GetItemResponse -> Bool
     hasItems = not . Map.null . view AWS.girsItem
 
 insert :: UserKey -> AppIO ()
-insert (keyText -> key) = void $ execDyn cmd
+insert key = void $ execDyn cmd `concurrently` Data.insert key
   where
-    cmd t = AWS.putItem t & AWS.piItem .~ item key
- 
+    cmd t = AWS.putItem t & AWS.piItem .~ item (keyText key)
+
 delete :: UserKey -> AppIO ()
-delete (keyText -> key) = void $ execDyn cmd
+delete key = void $ execDyn cmd `concurrently` Data.delete key
   where
-    cmd t = AWS.deleteItem t & AWS.diKey .~ item key
+    cmd t = AWS.deleteItem t & AWS.diKey .~ item (keyText key)
 
 --------------------------------------------------------------------------------
 -- Internal
