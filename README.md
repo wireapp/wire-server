@@ -141,6 +141,8 @@ You can use `$WIRE_STACK_OPTIONS` to pass arguments to stack through the `Makefi
 WIRE_STACK_OPTIONS='--ghc-options=-Wwarn --test-arguments="--quickcheck-tests=19919 --quickcheck-replay=651712"' make integration
 ```
 
+Note that [tasty supports passing arguments vie shell variables directly](https://github.com/feuerbach/tasty#runtime).
+
 ## How to run `wire-server` with "fake" external dependencies
 
 See [this README](deploy/services-demo/README.md)
