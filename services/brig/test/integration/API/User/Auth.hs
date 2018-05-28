@@ -17,6 +17,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
 import Data.Aeson
 import Data.Aeson.Lens
+import Data.ByteString (intercalate)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List (sort, partition)
@@ -227,8 +228,7 @@ testThrottleLogins conf b = do
     l <- liftIO $ optOrEnv (Opts.setUserCookieLimit . Opts.optSettings) conf read "USER_COOKIE_LIMIT"
     u <- randomUser b
     let Just e = userEmail u
-    -- Login exactly that amount of times (using 8 threads, because otherwise
-    -- this test becomes flaky)
+    -- Login exactly that amount of times, as fast as possible
     void $ replicateChunked 8 l (login b (defEmailLogin e) SessionCookie)
     -- Login once more. This should fail!
     x <- login b (defEmailLogin e) SessionCookie <!!
@@ -473,16 +473,34 @@ testTooManyCookies config b = do
     u <- randomUser b
     l <- liftIO $ optOrEnv (Opts.setUserCookieLimit . Opts.optSettings) config read "USER_COOKIE_LIMIT"
     let Just e = userEmail u
-        carry = 4
-        pwl = emailLogin e defPassword (Just "nexus1")
-    -- Session logins
-    tcs <- replicateM (l + carry) $ (decodeCookie <$> login b pwl SessionCookie) <* wait
-    cs <- listCookies b (userId u)
-    liftIO $ map cookieId cs @=? map getCookieId (drop carry tcs)
-    -- Persistent logins
-    tcs' <- replicateM (l + carry) $ (decodeCookie <$> login b pwl PersistentCookie) <* wait
-    cs'  <- listCookies b (userId u)
-    liftIO $ map cookieId cs' @=? map getCookieId (drop carry tcs ++ drop carry tcs')
+        carry = 2
+        pwlP = emailLogin e defPassword (Just "persistent")
+        pwlS = emailLogin e defPassword (Just "session")
+    void $ concurrently
+        -- Persistent logins
+        (do
+            tcs <- replicateM (l + carry) $ loginWhenAllowed pwlP PersistentCookie
+            cs  <- listCookiesWithLabel b (userId u) ["persistent"]
+            liftIO $ map cookieId cs @=? map getCookieId (drop carry tcs))
+        -- Session logins
+        (do
+            tcs' <- replicateM (l + carry) $ loginWhenAllowed pwlS SessionCookie
+            cs' <- listCookiesWithLabel b (userId u) ["session"]
+            liftIO $ map cookieId cs' @=? map getCookieId (drop carry tcs'))
+  where
+    -- We expect that after `setUserCookieLimit` login attempts, we get rate
+    -- limited; in those cases, we need to wait `Retry-After` seconds.
+    loginWhenAllowed pwl t = do
+        x <- login b pwl t <* wait
+        case statusCode x of
+            200 -> return $ decodeCookie x
+            429 -> do
+                -- After the amount of time specified in "Retry-After", though,
+                -- throttling should stop and login should work again
+                let Just n = fromByteString =<< getHeader "Retry-After" x
+                liftIO $ threadDelay (1000000 * (n + 1))
+                loginWhenAllowed pwl t
+            xxx -> error ("Unexpected status code when logging in: " ++ show xxx)
 
 testLogout :: Brig -> Http ()
 testLogout b = do
@@ -540,11 +558,18 @@ getCookieId c = maybe (error "no cookie value")
                       (fromByteString (cookie_value c))
 
 listCookies :: HasCallStack => Brig -> UserId -> Http [Auth.Cookie ()]
-listCookies b u = do
-    rs <- get (b . path "/cookies" . header "Z-User" (toByteString' u)) <!!
+listCookies b u = listCookiesWithLabel b u []
+
+listCookiesWithLabel :: HasCallStack => Brig -> UserId -> [CookieLabel] -> Http [Auth.Cookie ()]
+listCookiesWithLabel b u l = do
+    rs <- get (b . path "/cookies"
+                 . queryItem "labels" labels
+                 . header "Z-User" (toByteString' u)) <!!
         const 200 === statusCode
     let Just cs = cookieList <$> decodeBody rs
     return cs
+  where
+    labels = intercalate "," $ map toByteString' l
 
 -- | Check that the cookie returned after login is sane.
 --
