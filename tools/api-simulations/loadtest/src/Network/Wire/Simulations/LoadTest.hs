@@ -8,6 +8,7 @@ import Control.Concurrent.Async.Lifted.Safe
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Id (ConvId)
+import Data.String
 import Data.Monoid
 import Data.Foldable (for_)
 import Data.Traversable (for)
@@ -49,7 +50,7 @@ runLoadTest s = replicateM (conversationsTotal s) mkConv
     mkConv = do
         n <- between (conversationMinMembers s) (conversationMaxMembers s)
         -- since we use 'cachedBot' here, all returned accounts will be distinct
-        return . replicate n $ cachedBot "chatbot"
+        return [cachedBot (fromString ("chatbot" <> show i)) | i <- [1..n]]
 
 runConv :: LoadTestSettings -> [BotNet Bot] -> BotNet ()
 runConv s g = do
