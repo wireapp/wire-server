@@ -359,6 +359,7 @@ executable brig-integration
       , directory             >= 1.2
       , errors                >= 1.4
       , exceptions            >= 0.5
+      , extended
       , extra
       , filepath              >= 1.4
       , galley-types
@@ -371,7 +372,6 @@ executable brig-integration
       , lens-aeson            >= 1.0
       , lifted-async          >= 0.9.3
       , mime                  >= 0.4
-      , monad-control
       , mtl                   >= 2.1
       , network
       , optparse-applicative  >= 0.11

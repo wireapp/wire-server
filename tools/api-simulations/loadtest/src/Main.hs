@@ -1,8 +1,11 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ApplicativeDo #-}
 
 module Main where
 
 import Control.Monad (unless, void)
+import Data.Foldable (asum)
 import Data.Maybe
 import Data.Monoid
 import Network.HTTP.Client (newManager)
@@ -11,7 +14,7 @@ import Network.Wire.Client.API.Push (EventType (..))
 import Network.Wire.Bot
 import Network.Wire.Bot.Report
 import Network.Wire.Simulations.LoadTest
-import Options.Applicative
+import Options.Applicative.Extended
 
 import qualified System.Logger as Log
 
@@ -55,99 +58,80 @@ parseOptions = execParser (info (helper <*> ltsSettingsParser) desc)
     desc = header "Wire API Load Test" <> fullDesc
 
 ltsSettingsParser :: Parser LoadTestSettings
-ltsSettingsParser = LoadTestSettings
-    <$> botNetSettingsParser
-    <*> optional
-        (
-            RampStep <$> option auto
-            (  long "ramp-step"
-            <> metavar "INT"
-            <> help "delay in microseconds between conversations start")
-         <|>
-            RampTotal <$> option auto
-            (  long "ramp-total"
-            <> metavar "INT"
-            <> help "time in microseconds until full load")
-        )
-    <*> option auto
-        (  long "conversations-total"
+ltsSettingsParser = do
+    ltsBotNetSettings <- botNetSettingsParser
+    conversationRamp <- optional $ asum
+        [ fmap RampStep $ option auto $
+              long "ramp-step"
+              <> metavar "INT"
+              <> help "delay in microseconds between conversations start"
+        , fmap RampTotal $ option auto $
+              long "ramp-total"
+              <> metavar "INT"
+              <> help "time in microseconds until full load"
+        ]
+    conversationsTotal <- option auto $
+        long "conversations-total"
         <> metavar "INT"
         <> help "total number of conversations"
-        )
-    <*> option auto
-        (  long "conversation-bots-min"
-        <> metavar "INT"
-        <> help "min number of bots in a conversation"
-        <> value 2
+    conversationActiveMembers <- option autoRange $
+        long "conversation-bots"
+        <> metavar "INT|INT..INT"
+        <> help "number of bots in a conversation"
+        <> value (2, 5)
         <> showDefault
-        )
-    <*> option auto
-        (  long "conversation-bots-max"
-        <> metavar "INT"
-        <> help "max number of bots in a conversation"
-        <> value 5
+    conversationPassiveMembers <- option autoRange $
+        long "conversation-passive-bots"
+        <> metavar "INT|INT..INT"
+        <> help "number of passive bots (that don't send anything) \
+                \to be added along with usual bots"
+        <> value (0, 0)
         <> showDefault
-        )
-    <*> option auto
-        (  long "bot-messages-min"
-        <> metavar "INT"
-        <> help "min number of text messages to post per bot"
-        <> value 0
+    messages <- option autoRange $
+        long "bot-messages"
+        <> metavar "INT|INT..INT"
+        <> help "number of text messages to post per bot"
+        <> value (0, 0)
         <> showDefault
-        )
-    <*> option auto
-        (  long "bot-messages-max"
-        <> metavar "INT"
-        <> help "max number of text messages to post per bot"
-        <> value 0
+    messageLength <- option autoRange $
+        long "message-length"
+        <> metavar "INT|INT..INT"
+        <> help "length of text messages posted"
+        <> value (1, 100)
         <> showDefault
-        )
-    <*> option auto
-        (  long "message-length-min"
-        <> metavar "INT"
-        <> help "min length of text messages posted"
-        <> value 1
+    assets <- option autoRange $
+        long "bot-assets"
+        <> metavar "INT|INT..INT"
+        <> help "number of assets to post per bot"
+        <> value (0, 0)
         <> showDefault
-        )
-    <*> option auto
-        (  long "message-length-max"
-        <> metavar "INT"
-        <> help "max length of text messages posted"
-        <> value 100
+    assetSize <- option autoRange $
+        long "asset-size"
+        <> metavar "INT|INT..INT"
+        <> help "size (bytes) of assets posted"
+        <> value (10, 1000)
         <> showDefault
-        )
-    <*> option auto
-        (  long "bot-assets-min"
-        <> metavar "INT"
-        <> help "min number of assets to post per bot"
-        <> value 0
-        <> showDefault
-        )
-    <*> option auto
-        (  long "bot-assets-max"
-        <> metavar "INT"
-        <> help "max number of assets to post per bot"
-        <> value 0
-        <> showDefault
-        )
-    <*> option auto
-        (  long "asset-size-min"
-        <> metavar "INT"
-        <> help "min size (bytes) of assets posted"
-        <> value 10
-        <> showDefault
-        )
-    <*> option auto
-        (  long "asset-size-max"
-        <> metavar "INT"
-        <> help "max size (bytes) of assets posted"
-        <> value 1000
-        <> showDefault
-        )
-    <*> option auto
-        (  long "step-delay"
+    stepDelay <- option auto $
+        long "step-delay"
         <> metavar "INT"
         <> help "delay in microseconds between actions taken by a single bot"
         <> value 1000000
         <> showDefault
-        )
+    parallelRequests <- option auto $
+        long "parallel-requests"
+        <> metavar "INT"
+        <> help "maximum number of parallel requests (for bots in a single \
+                \conversation); applies to everything except sending or \
+                \receiving messages"
+        <> value 10
+        <> showDefault
+    pure $
+        let (messagesMin, messagesMax) = messages
+            (messageMinLength, messageMaxLength) = messageLength
+            (assetsMin, assetsMax) = assets
+            (assetMinSize, assetMaxSize) = assetSize
+            (conversationMinActiveMembers, conversationMaxActiveMembers)
+                = conversationActiveMembers
+            (conversationMinPassiveMembers, conversationMaxPassiveMembers)
+                = conversationPassiveMembers
+        in LoadTestSettings{..}
