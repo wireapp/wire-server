@@ -45,7 +45,7 @@ instance IsOption ServiceConfigFile where
         )
 
 runTests :: (String -> String -> TestTree) -> IO ()
-runTests run = defaultMainWithIngredients ings $
+runTests run = withWireTastyPatternEnv . defaultMainWithIngredients ings $
     askOption $ \(ServiceConfigFile c) ->
     askOption $ \(IntegrationConfigFile i) -> run c i
   where

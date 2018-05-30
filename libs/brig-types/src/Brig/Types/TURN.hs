@@ -17,10 +17,14 @@ module Brig.Types.TURN
 
     , TurnURI
     , turnURI
+    , turiScheme
+    , Scheme (..)
     , turiHost
     , turiPort
+    , turiTransport
+    , Transport (..)
 
-    , TurnHost
+    , TurnHost (..)
     , _TurnHost
 
     , TurnUsername
@@ -36,23 +40,21 @@ where
 import           Control.Lens               hiding ((.=))
 import           Data.Aeson
 import           Data.Aeson.Encoding        (text)
-import           Data.Aeson.Lens
-import           Data.Attoparsec.Text
+import           Data.Attoparsec.Text       hiding (parse)
+import           Data.ByteString            (ByteString)
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Conversion as BC
 import           Data.List1
-import           Data.Misc                  (IpAddr, Port (portNumber))
+import           Data.Misc                  (IpAddr, Port (..))
 import           Data.Monoid
 import           Data.Text                  (Text)
-import qualified Data.Text                  as T
 import           Data.Text.Ascii
-import qualified Data.Text.Lazy.Builder.Int as TB
-import           Data.Text.Lazy.Lens        (builder)
+import qualified Data.Text.Encoding         as TE
 import           Data.Text.Strict.Lens      (utf8)
 import           Data.Time.Clock.POSIX
 import           Data.Word
+import           GHC.Base                   (Alternative)
 import           GHC.Generics               (Generic)
-import           Safe                       (readMay)
 
 -- | A configuration object resembling \"RTCConfiguration\"
 --
@@ -75,12 +77,28 @@ data RTCIceServer = RTCIceServer
     , _iceCredential :: AsciiBase64
     } deriving (Show, Generic)
 
--- | TURN server URI of the form \"turn:<addr>:<port>\"
+-- | TURN server URI as described in https://tools.ietf.org/html/rfc7065, minus ext
+-- |
+-- | turnURI       = scheme ":" host [ ":" port ]
+-- |                 [ "?transport=" transport ]
+-- | scheme        = "turn" / "turns"
+-- | transport     = "udp" / "tcp" / transport-ext
+-- | transport-ext = 1*unreserved
+--
 data TurnURI = TurnURI
-    { _turiHost :: TurnHost
-    , _turiPort :: Port
-    }
-    deriving (Eq, Show, Generic)
+    { _turiScheme    :: Scheme
+    , _turiHost      :: TurnHost
+    , _turiPort      :: Port
+    , _turiTransport :: Maybe Transport
+    } deriving (Eq, Show, Generic)
+
+data Scheme = SchemeTurn
+            | SchemeTurns
+            deriving (Eq, Show, Generic, Bounded, Enum)
+
+data Transport = TransportUDP
+               | TransportTCP
+               deriving (Eq, Show, Generic, Enum, Bounded)
 
 -- future versions may allow using a hostname
 newtype TurnHost = TurnHost IpAddr
@@ -101,7 +119,7 @@ rtcConfiguration = RTCConfiguration
 rtcIceServer :: List1 TurnURI -> TurnUsername -> AsciiBase64 -> RTCIceServer
 rtcIceServer = RTCIceServer
 
-turnURI :: TurnHost -> Port -> TurnURI
+turnURI :: Scheme -> TurnHost -> Port -> Maybe Transport -> TurnURI
 turnURI = TurnURI
 
 -- turn into a 'Prism'' once hostnames are supported
@@ -145,13 +163,17 @@ instance FromJSON RTCIceServer where
     parseJSON = withObject "RTCIceServer" $ \o ->
         RTCIceServer <$> o .: "urls" <*> o .: "username" <*> o .: "credential"
 
+instance BC.ToByteString TurnURI where
+    builder (TurnURI s (TurnHost h) (Port p) tp) =
+           BC.builder s
+        <> byteString ":"
+        <> BC.builder h
+        <> byteString ":"
+        <> BC.builder p
+        <> maybe mempty ((byteString "?transport=" <>) . BC.builder) tp
 
 instance ToJSON TurnURI where
-    toEncoding uri = text . view (from builder . strict) $
-          "turn:"^.builder
-       <> view (turiHost . re (_JSON :: Prism' Value TurnHost) . _String . lazy . builder) uri
-       <> ":"^.builder
-       <> TB.decimal (portNumber (view turiPort uri))
+    toJSON = String . TE.decodeUtf8 . BC.toByteString'
 
 instance BC.FromByteString TurnURI where
     parser = BC.parser >>= either fail pure . parseTurnURI
@@ -163,13 +185,19 @@ parseTurnURI :: Text -> Either String TurnURI
 parseTurnURI = parseOnly (parser <* endOfInput)
   where
     parser = TurnURI
-          <$> ((string "turn:" *> takeWhile1 (/=':') <* char ':') >>= parseHost)
-          <*> decimal
+          <$> ((takeWhile1 (/=':') <* char ':' >>= parseScheme)                   <?> "parsingScheme")
+          <*> ((takeWhile1 (/=':') <* char ':' >>= parseHost)                     <?> "parsingHost")
+          <*> (decimal                                                            <?> "parsingPort")
+          <*> ((optional ((string "?transport=" *> takeText) >>= parseTransport)) <?> "parsingTransport")
 
-    parseHost t = case readMay (T.unpack t) of
-        Just h  -> return (TurnHost h)
-        Nothing -> fail ("txtToTurnHost: Could not parse as IpAddr: " ++ show t)
+    parseScheme    = parse "parseScheme"
+    parseHost      = fmap TurnHost . parse "parseHost"
+    parseTransport = parse "parseTransport"
 
+    parse :: (BC.FromByteString b, Monad m) => String -> Text -> m b
+    parse err x = case BC.fromByteString (TE.encodeUtf8 x) of
+        Just ok -> return ok
+        Nothing -> fail (err ++ " failed when parsing: " ++ show x)
 
 instance ToJSON   TurnHost
 instance FromJSON TurnHost
@@ -202,3 +230,41 @@ parseTurnUsername = TurnUsername
     <*> (string ".k=" *> decimal)
     <*> (string ".t=" *> anyChar)
     <*> (string ".r=" *> takeWhile1 (inClass "a-z0-9"))
+
+instance BC.FromByteString Scheme where
+    parser = BC.parser >>= \t -> case (t :: ByteString) of
+        "turn"  -> pure SchemeTurn
+        "turns" -> pure SchemeTurns
+        _       -> fail $ "Invalid turn scheme: " ++ show t
+
+instance BC.ToByteString Scheme where
+    builder SchemeTurn  = "turn"
+    builder SchemeTurns = "turns"
+
+instance FromJSON Scheme where
+    parseJSON = withText "Scheme" $
+        either fail pure . BC.runParser BC.parser . TE.encodeUtf8
+
+instance ToJSON Scheme where
+    toJSON = String . TE.decodeUtf8 . BC.toByteString'
+
+instance BC.FromByteString Transport where
+    parser = BC.parser >>= \t -> case (t :: ByteString) of
+        "udp" -> pure TransportUDP
+        "tcp" -> pure TransportTCP
+        _     -> fail $ "Invalid turn transport: " ++ show t
+
+instance BC.ToByteString Transport where
+    builder TransportUDP = "udp"
+    builder TransportTCP = "tcp"
+
+instance FromJSON Transport where
+    parseJSON = withText "Transport" $
+        either fail pure . BC.runParser BC.parser . TE.encodeUtf8
+
+instance ToJSON Transport where
+    toJSON = String . TE.decodeUtf8 . BC.toByteString'
+
+-- Convenience
+optional :: (Alternative f, Functor f) => f a -> f (Maybe a)
+optional x = option Nothing (Just <$> x)

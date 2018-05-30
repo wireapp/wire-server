@@ -9,12 +9,14 @@ import Brig.Types hiding (Handle)
 import Control.Concurrent (threadDelay)
 import Control.Lens ((^.), (#))
 import Control.Monad.IO.Class
+import Data.ByteString (ByteString)
 import Data.Id
 import Data.Foldable
 import Data.List ((\\))
 import Data.List1 (List1)
 import Data.Maybe (fromMaybe)
 import Data.Misc (Port)
+import GHC.Stack (HasCallStack)
 import Network.HTTP.Client (Manager)
 import Safe (readMay)
 import System.IO.Temp (writeTempFile)
@@ -24,7 +26,9 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Util
 
-import qualified Data.List1   as List1
+import qualified Data.ByteString.Lazy as LB
+import qualified Data.List1 as List1
+import qualified Network.Wai.Utilities.Error as Error
 
 type TurnUpdater = String -> IO ()
 
@@ -41,30 +45,60 @@ tests m b t = do
 testCallsConfig :: Brig -> Http ()
 testCallsConfig b = do
     uid <- userId <$> randomUser b
-    cfg <- getTurnConfiguration uid b
-    let expected = List1.singleton (toTurnURI "127.0.0.1" 3478)
-    assertConfiguration cfg expected
+    cfg <- getTurnConfigurationV1 uid b
+    let _expectedV1 = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
+    assertConfiguration cfg _expectedV1
 
 testCallsConfigMultiple :: Brig -> TurnUpdater -> Http ()
 testCallsConfigMultiple b st = do
-    uid <- userId <$> randomUser b
-    cfg <- getTurnConfiguration uid b
-    let expected = List1.singleton (toTurnURI "127.0.0.1" 3478)
-    assertConfiguration cfg expected
+    uid  <- userId <$> randomUser b
+    -- Ensure we have a clean config
+    _cfg <- getTurnConfigurationV1 uid b
+    let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
+    assertConfiguration _cfg _expected
 
     -- Change server list
-    liftIO $ st "turn:127.0.0.2:3478\nturn:127.0.0.3:3478"
-    let expected' = List1.list1 (toTurnURI "127.0.0.2" 3478)
-                               [(toTurnURI "127.0.0.3" 3478)]
-    cfg' <- getTurnConfiguration uid b
-    assertConfiguration cfg' expected'
+    let _changes    = "turn:127.0.0.2:3478\nturn:127.0.0.3:3478"
+    let _expectedV1 = List1.list1 (toTurnURILegacy "127.0.0.2" 3478)
+                                  [toTurnURILegacy "127.0.0.3" 3478]
+    let _expectedV2 = List1.list1 (toTurnURI SchemeTurn "127.0.0.2" 3478 Nothing)
+                                  [toTurnURI SchemeTurn "127.0.0.3" 3478 Nothing]
+    modifyAndAssert uid _changes _expectedV1 _expectedV2
+
+    -- Change server list, more transport options. Only the legacy endpoint, only `turn`
+    -- and no transport (in practice, that's udp) are to be returned; i.e., `turn` and `udp`
+    -- endpoints are returned but the `transport` suffix is removed
+    let _changes    = "turn:127.0.0.2:3479?transport=udp\nturn:127.0.0.3:3480?transport=tcp"
+    let _expectedV1 = List1.singleton (toTurnURILegacy "127.0.0.2" 3479)
+    let _expectedV2 = List1.list1 (toTurnURI SchemeTurn "127.0.0.2" 3479 $ Just TransportUDP)
+                                  [toTurnURI SchemeTurn "127.0.0.3" 3480 $ Just TransportTCP]
+    modifyAndAssert uid _changes _expectedV1 _expectedV2
+
+    -- Change server list yet again, different schemas too - bad config for V1(!) so test it separately
+    let _changes  = "turns:127.0.0.4:3489?transport=tcp\nturns:127.0.0.5:3490?transport=tcp"
+    let _expectedV2 = List1.list1 (toTurnURI SchemeTurns "127.0.0.4" 3489 $ Just TransportTCP)
+                                  [toTurnURI SchemeTurns "127.0.0.5" 3490 $ Just TransportTCP]
+    liftIO $ st _changes
+    _cfg2 <- getTurnConfigurationV2 uid b
+    assertConfiguration _cfg2 _expectedV2
+    -- With this configuration, the legacy endpoint will not return any TURN server
+    getTurnConfiguration "" uid b !!! do
+        const 500                            === statusCode
+        const (Just "incorrect-turn-config") === fmap Error.label . decodeBody
 
     -- Revert the config file back to the original
-    liftIO $ st "turn:127.0.0.1:3478"
-    cfg'' <- getTurnConfiguration uid b
-    assertConfiguration cfg'' expected
+    let _changes  = "turn:127.0.0.1:3478"
+    let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
+    modifyAndAssert uid _changes _expected _expected
+  where
+    modifyAndAssert uid newServers expectedV1 expectedV2 = do
+        liftIO $ st newServers
+        cfg1 <- getTurnConfigurationV1 uid b
+        assertConfiguration cfg1 expectedV1
+        cfg2 <- getTurnConfigurationV2 uid b
+        assertConfiguration cfg2 expectedV2
 
-assertConfiguration :: RTCConfiguration -> List1 TurnURI -> Http ()
+assertConfiguration :: HasCallStack => RTCConfiguration -> List1 TurnURI -> Http ()
 assertConfiguration cfg turns =
     checkIceServers (toList $ cfg^.rtcConfIceServers) (toList turns)
   where
@@ -85,16 +119,29 @@ assertConfiguration cfg turns =
         diff advertised expected = "Some advertised URIs not expected, advertised: "
             ++ show advertised ++ " expected: " ++ show expected
 
-getTurnConfiguration :: UserId -> Brig -> Http RTCConfiguration
-getTurnConfiguration u b = do
-    r <- get ( b 
-             . path "/calls/config"
-             . zUser u
-             . zConn "conn") <!! const 200 === statusCode
+getTurnConfigurationV1 :: UserId -> Brig -> Http RTCConfiguration
+getTurnConfigurationV1 = getAndValidateTurnConfiguration ""
+
+getTurnConfigurationV2 :: UserId -> Brig -> Http RTCConfiguration
+getTurnConfigurationV2 = getAndValidateTurnConfiguration "v2"
+
+getTurnConfiguration :: ByteString -> UserId -> Brig -> Http (Response (Maybe LB.ByteString))
+getTurnConfiguration suffix u b = get ( b 
+                                . paths ["/calls/config", suffix]
+                                . zUser u
+                                . zConn "conn"
+                                )
+
+getAndValidateTurnConfiguration :: HasCallStack => ByteString -> UserId -> Brig -> Http RTCConfiguration
+getAndValidateTurnConfiguration suffix u b = do
+    r <- getTurnConfiguration suffix u b <!! const 200 === statusCode
     return $ fromMaybe (error "getTurnConfiguration: failed to parse response") (decodeBody r)
 
-toTurnURI :: String -> Port -> TurnURI
-toTurnURI h p = turnURI (_TurnHost # ip) p
+toTurnURILegacy :: String -> Port -> TurnURI
+toTurnURILegacy h p = toTurnURI SchemeTurn h p Nothing
+
+toTurnURI :: Scheme -> String -> Port -> Maybe Transport -> TurnURI
+toTurnURI s h p t = turnURI s (_TurnHost # ip) p t
   where
     ip = fromMaybe (error "Failed to parse ip address")
        $ readMay h

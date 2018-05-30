@@ -722,7 +722,8 @@ botUpdatePrekeys (bot ::: req) = do
 botClaimUsersPrekeys :: Request -> Handler Response
 botClaimUsersPrekeys req = do
     body <- parseJsonBody req
-    when (Map.size (userClients body) > 128) $
+    maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+    when (Map.size (userClients body) > maxSize) $
         throwStd tooManyClients
     json <$> lift (Client.claimMultiPrekeyBundles body)
 

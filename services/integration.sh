@@ -36,7 +36,7 @@ function check_prerequisites() {
     nc -z 127.0.0.1 9042 \
         && nc -z 127.0.0.1 9200 \
         && nc -z 127.0.0.1 6379 \
-        || { echo "Databases not up. Maybe run 'cd deploy/docker-ephemeral && docker-compose up' in a separate terminal first?";  exit 1; }
+        || { echo "Databases not up. Maybe run 'deploy/docker-ephemeral/run.sh' in a separate terminal first?";  exit 1; }
     test -f ${DIR}/../dist/brig \
         && test -f ${DIR}/../dist/galley \
         && test -f ${DIR}/../dist/cannon \
@@ -64,8 +64,8 @@ function run() {
 # even if those are not used/can be dummy values with the fake sqs/ses/etc containers used (see deploy/docker-ephemeral/docker-compose.yaml )
 # TODO: If we want to use real AWS services, we should ignore these
 export AWS_REGION=eu-west-1
-# export AWS_ACCESS_KEY_ID=dummy
-# export AWS_SECRET_ACCESS_KEY=dummy
+export AWS_ACCESS_KEY_ID=dummykey
+export AWS_SECRET_ACCESS_KEY=dummysecret
 
 check_prerequisites
 

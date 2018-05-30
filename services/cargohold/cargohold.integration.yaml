@@ -3,8 +3,8 @@ cargohold:
   port: 8084
 
 aws:
-  s3Endpoint: https://s3.eu-west-1.amazonaws.com # http://localhost:4570
-  s3Bucket: <insert-bucket-name-here>
+  s3Bucket: dummy-bucket
+  s3Endpoint: http://localhost:4570 # https://s3-eu-west-1.amazonaws.com:443
   # If you want to use cloudfront for asset downloads
   # cloudFront:
   #   domain: <insert-cloudfront-domain-here>

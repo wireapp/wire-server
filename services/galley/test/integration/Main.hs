@@ -31,7 +31,6 @@ import qualified API
 import qualified API.Util               as Util
 import qualified API.SQS                as SQS
 import qualified Data.ByteString.Char8  as BS
-import qualified System.Posix.Env       as Posix
 
 data IntegrationConfig = IntegrationConfig
   -- internal endpoints
@@ -58,7 +57,7 @@ instance IsOption ServiceConfigFile where
         )
 
 runTests :: (String -> String -> TestTree) -> IO ()
-runTests run = defaultMainWithIngredients ings $
+runTests run = withWireTastyPatternEnv . defaultMainWithIngredients ings $
     askOption $ \(ServiceConfigFile c) ->
     askOption $ \(IntegrationConfigFile i) -> run c i
   where
@@ -99,9 +98,3 @@ main = withOpenSSL $ runTests go
     releaseOpts _ = return ()
 
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
-
--- similar to optOrEnv, except return None if an environment variable is not defined
-optOrEnvSafe :: (a -> b) -> Maybe a -> (String -> b) -> String -> IO (Maybe b)
-optOrEnvSafe getter conf reader var = case conf of
-    Nothing -> fmap reader <$> Posix.getEnv var
-    Just c  -> pure $ Just (getter c)

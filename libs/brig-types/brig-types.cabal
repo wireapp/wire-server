@@ -70,3 +70,45 @@ library
         -O2
         -fwarn-tabs
         -funbox-strict-fields
+
+test-suite brig-types-tests
+    type: exitcode-stdio-1.0
+    hs-source-dirs: test/unit
+    main-is: Main.hs
+
+    other-modules:
+        Test.Brig.Types.Arbitrary
+        Test.Brig.Types.Common
+        Test.Brig.Types.TURN
+        Test.Brig.Types.User
+
+    build-depends:
+        aeson
+      , attoparsec
+      , base
+      , brig-types
+      , bytestring
+      , currency-codes
+      , galley-types
+      , iproute
+      , iso639
+      , lens
+      , QuickCheck
+      , quickcheck-instances
+      , random
+      , tasty
+      , tasty-hunit
+      , tasty-quickcheck
+      , text
+      , time
+      , types-common
+      , unordered-containers
+      , uuid
+      , vector
+
+    ghc-options:
+        -Wall
+        -threaded
+        -with-rtsopts=-N
+
+    default-language: Haskell2010

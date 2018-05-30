@@ -1,11 +1,15 @@
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 -- Brig.Types.Account?
 module Brig.Types.Common where
 
 import Control.Applicative
+import Control.Lens ((&), (%~), _2)
 import Control.Error (hush, readMay)
 import Data.Aeson
 import Data.Attoparsec.Text
@@ -18,8 +22,10 @@ import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
 import Data.Monoid ((<>))
 import Data.Range
+import Data.String (IsString, fromString)
 import Data.Text (Text, toLower)
 import Data.Time.Clock
+import Data.UUID
 
 import qualified Data.Aeson.Types as Json
 import qualified Data.Text        as Text
@@ -159,37 +165,88 @@ data UserIdentity
     = FullIdentity  !Email !Phone
     | EmailIdentity !Email
     | PhoneIdentity        !Phone
+    | SSOIdentity !UserSSOId !(Maybe Email) !(Maybe Phone)
     deriving (Eq, Show)
 
 instance FromJSON UserIdentity where
     parseJSON = withObject "UserIdentity" $ \o -> do
         email <- o .:? "email"
         phone <- o .:? "phone"
-        maybe (fail "Missing 'email' or 'phone'.")
+        ssoid <- o .:? "sso_id"
+        maybe (fail "Missing 'email' or 'phone' or 'sso_id'.")
               return
-              (newIdentity email phone)
+              (newIdentity email phone ssoid)
 
-newIdentity :: Maybe Email -> Maybe Phone -> Maybe UserIdentity
-newIdentity Nothing  Nothing  = Nothing
-newIdentity (Just e) Nothing  = Just $! EmailIdentity e
-newIdentity Nothing  (Just p) = Just $! PhoneIdentity p
-newIdentity (Just e) (Just p) = Just $! FullIdentity e p
+instance ToJSON UserIdentity where
+    toJSON = \case
+        FullIdentity  em ph  -> go (Just em) (Just ph) Nothing
+        EmailIdentity em     -> go (Just em) Nothing   Nothing
+        PhoneIdentity    ph  -> go Nothing   (Just ph) Nothing
+        SSOIdentity si em ph -> go em        ph        (Just si)
+      where
+        go :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Value
+        go em ph si = object $ ["email" .= em, "phone" .= ph, "sso_id" .= si]
+
+newIdentity :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
+newIdentity email    phone    (Just sso) = Just $! SSOIdentity sso email phone
+newIdentity Nothing  Nothing  Nothing    = Nothing
+newIdentity (Just e) Nothing  Nothing    = Just $! EmailIdentity e
+newIdentity Nothing  (Just p) Nothing    = Just $! PhoneIdentity p
+newIdentity (Just e) (Just p) Nothing    = Just $! FullIdentity e p
 
 emailIdentity :: UserIdentity -> Maybe Email
-emailIdentity (FullIdentity  email _) = Just email
-emailIdentity (EmailIdentity email  ) = Just email
-emailIdentity (PhoneIdentity       _) = Nothing
+emailIdentity (FullIdentity  email _)        = Just email
+emailIdentity (EmailIdentity email  )        = Just email
+emailIdentity (PhoneIdentity       _)        = Nothing
+emailIdentity (SSOIdentity _ (Just email) _) = Just email
+emailIdentity (SSOIdentity _ Nothing _)      = Nothing
 
 phoneIdentity :: UserIdentity -> Maybe Phone
 phoneIdentity (FullIdentity  _ phone) = Just phone
 phoneIdentity (PhoneIdentity   phone) = Just phone
 phoneIdentity (EmailIdentity _      ) = Nothing
+phoneIdentity (SSOIdentity _ _ (Just phone)) = Just phone
+phoneIdentity (SSOIdentity _ _ Nothing) = Nothing
+
+ssoIdentity :: UserIdentity -> Maybe UserSSOId
+ssoIdentity (SSOIdentity ssoid _ _) = Just ssoid
+ssoIdentity _ = Nothing
+
+-- | TODO: once we have @/libs/spar-types@ for the wire-sso-sp-server called spar, this type should
+-- move there.
+data UserSSOId = UserSSOId { userSSOIdTenant :: UUID, userSSOIdSubject :: UUID }
+    deriving (Eq)
+
+instance Show UserSSOId where
+  show = show . userSSOIdToText
+
+instance IsString UserSSOId where
+  fromString = either (error . ("fromString @UserSSOId: " <>)) id . userSSOIdFromText . Text.pack
+
+userSSOIdFromText :: Text -> Either String UserSSOId
+userSSOIdFromText raw = do
+    ix <- maybe (Left "UserSSOId: ':'") pure $ Text.findIndex (== ':') raw
+    case Text.splitAt ix raw & _2 %~ Text.splitAt 1 of
+        (tenant, (":", subject)) -> case (fromText tenant, fromText subject) of
+            (Nothing, _)      -> Left "UserSSOId: tenant"
+            (Just _, Nothing) -> Left "UserSSOId: subject"
+            (Just t, Just s)  -> pure $ UserSSOId t s
+        bad -> Left $ "UserSSOId: impossible: " <> show bad
+
+userSSOIdToText :: UserSSOId -> Text
+userSSOIdToText (UserSSOId tenant subject) = toText tenant <> ":" <> toText subject
+
+instance FromJSON UserSSOId where
+    parseJSON = withText "UserSSOId" $ either fail pure . userSSOIdFromText
+
+instance ToJSON UserSSOId where
+    toJSON = toJSON . userSSOIdToText
 
 -----------------------------------------------------------------------------
 -- Asset
 
 data AssetSize = AssetComplete | AssetPreview
-    deriving (Eq, Show)
+    deriving (Eq, Show, Enum, Bounded)
 
 -- Note: Intended to be turned into a sum type to add further asset types.
 data Asset = ImageAsset
@@ -291,4 +348,3 @@ codeParser :: String -> (String -> Maybe a) -> Parser a
 codeParser err conv = do
     code <- count 2 anyChar
     maybe (fail err) return (conv code)
-

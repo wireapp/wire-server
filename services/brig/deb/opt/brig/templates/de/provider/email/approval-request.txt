@@ -1,0 +1,32 @@
+ANFRAGE GENEHMIGEN
+Ein neuer Wire Service-Provider hat sich registriert und erwartet deine
+Genehmigung. Bitte überprüfe die folgenden Informationen.
+
+Name: ${name}
+
+E-mail: ${email}
+
+Website: ${url}
+
+Beschreibung: ${description}
+
+Wenn die Anfrage echt scheint, kannst du den Service-Provider genehmigen, indem
+du auf den unteren Button klickst. Sobald genehmigt, kann der Service-Provider
+sich anmelden und anfangen Dienste zu registrieren, die Wire Nutzer zu ihren
+Unterhaltungen hinzufügen werden können.
+
+Falls die Anfrage zweifelhaft scheint, kontaktiere bitte den Service-Provider
+für Klarstellung bevor du fortfährst.
+
+Genehmigen [${url}]Falls du nicht auf den Button klicken kannst, kopiere den
+Link und füge ihn in deinem Browser ein:
+
+${url}
+
+Bitte antworte nicht auf diese E-Mail.
+
+
+--------------------------------------------------------------------------------
+
+Datenschutz [https://wire.com/legal/] · Missbrauch melden [misuse@wire.com]
+© WIRE SWISS GmbH. ALLE RECHTE VORBEHALTEN.

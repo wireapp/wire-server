@@ -1,0 +1,19 @@
+SINU UUS WIRE KONTO
+Meiliaadressiga ${email} loodi äsja Wire rakenduses uus tiimikonto. Palun
+kinnita oma meiliaadress.
+
+Kinnita [${url}]Kui sul pole võimalik nuppu klikkida, siis kopeeri allolev
+aadress veebibrauserisse:
+
+${url}
+
+Kui te ei proovinud selle meiliaadressiga Wire teenuspakkuja kontot luua, siis
+võite selle kirja lihtsalt kustutada. Kui soovite teatada oma meiliaadressi
+väärkasutusest, siis palun võtke meiega ühendust.
+[https://support.wire.com/hc/requests/new]
+
+
+--------------------------------------------------------------------------------
+
+Privaatsus [https://wire.com/legal/] · Klienditugi [misuse@wire.com]
+© WIRE SWISS GmbH. Kõik õigused kaitstud.

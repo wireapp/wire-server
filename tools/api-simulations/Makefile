@@ -12,26 +12,30 @@ guard-%:
 	    exit 1; \
 fi
 
-default: all
+default: fast
 
 all: clean install
 
 init:
-	mkdir -p dist
+	mkdir -p dist ../../dist
 
 .PHONY: clean
 clean:
-	stack clean
+	stack clean api-simulations
 	-rm -rf dist
 	-rm -f .metadata
 
+.PHONY: fast
+fast: init
+	stack install . --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+
 .PHONY:
 compile:
-	stack build --pedantic --test --no-copy-bins
+	stack build . --pedantic --test --no-copy-bins
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist
+	stack install . --pedantic --test --local-bin-path=dist
 
 .PHONY: dist
 dist: guard-VERSION install $(DEB) .metadata

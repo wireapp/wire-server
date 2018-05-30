@@ -18,6 +18,7 @@ module Brig.App
     , newEnv
     , closeEnv
     , awsEnv
+    , cargohold
     , galley
     , gundeck
     , userTemplates
@@ -118,13 +119,14 @@ import qualified System.Logger            as Log
 import qualified System.Logger.Class      as LC
 
 schemaVersion :: Int32
-schemaVersion = 49
+schemaVersion = 50
 
 -------------------------------------------------------------------------------
 -- Environment
 
 data Env = Env
-    { _galley        :: RPC.Request
+    { _cargohold     :: RPC.Request
+    , _galley        :: RPC.Request
     , _gundeck       :: RPC.Request
     , _casClient     :: Cas.ClientState
     , _awsEnv        :: AWS.Env
@@ -175,7 +177,8 @@ newEnv o = do
     nxm <- initCredentials (Opt.setNexmo sett)
     twl <- initCredentials (Opt.setTwilio sett)
     return $! Env
-        { _galley        = mkEndpoint $ Opt.galley o
+        { _cargohold     = mkEndpoint $ Opt.cargohold o
+        , _galley        = mkEndpoint $ Opt.galley o
         , _gundeck       = mkEndpoint $ Opt.gundeck o
         , _casClient     = cas
         , _awsEnv        = aws
@@ -321,7 +324,7 @@ initCassandra o g = do
 initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
 initCredentials secretFile = do
     dat <- loadSecret secretFile
-    return $ fromMaybe (error $ "Could not secrets from " ++ show secretFile) dat
+    return $ fromMaybe (error $ "Could not load secrets from " ++ show secretFile) dat
 
 userTemplates :: Monad m => Maybe Locale -> AppT m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates

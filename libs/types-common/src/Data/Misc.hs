@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeApplications           #-}
 
 module Data.Misc
     ( -- * IpAddr / Port
@@ -37,6 +38,7 @@ import Control.Lens ((^.), makeLenses)
 import Control.Monad (when)
 import Data.Aeson
 import Data.ByteString (ByteString)
+import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.Char (isSpace)
@@ -70,6 +72,9 @@ instance FromByteString IpAddr where
         case readMay (unpack s) of
             Nothing -> fail "Failed parsing bytestring as IpAddr."
             Just ip -> return (IpAddr ip)
+
+instance ToByteString IpAddr where
+    builder = string8 . show . ipAddr
 
 instance Read IpAddr where
     readPrec = IpAddr <$> readPrec
@@ -216,7 +221,10 @@ instance Cql (Fingerprint a) where
 
 newtype PlainTextPassword = PlainTextPassword
     { fromPlainTextPassword :: Text }
-    deriving (ToJSON)
+    deriving (Eq, ToJSON)
+
+instance Show PlainTextPassword where
+    show _ = "PlainTextPassword <hidden>"
 
 instance FromJSON PlainTextPassword where
     parseJSON x = PlainTextPassword . fromRange

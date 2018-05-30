@@ -25,7 +25,7 @@ data AccountStatus
     | Suspended
     | Deleted
     | Ephemeral
-    deriving Eq
+    deriving (Eq, Show)
 
 instance FromJSON AccountStatus where
     parseJSON = withText "account-status" $ \s -> case Text.toLower s of
@@ -83,6 +83,7 @@ data UserAccount = UserAccount
     { accountUser       :: !User
     , accountStatus     :: !AccountStatus
     }
+    deriving (Eq, Show)
 
 instance FromJSON UserAccount where
     parseJSON j@(Object o) = do

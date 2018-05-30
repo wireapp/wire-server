@@ -24,19 +24,19 @@ init:
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=../../dist
+	stack install . --pedantic --test --local-bin-path=dist
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --fast --local-bin-path=../../dist
+	stack install . --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: compile
 compile:
-	stack build --pedantic --test --no-copy-bins
+	stack build . --pedantic --test --no-copy-bins
 
 .PHONY: clean
 clean: init
-	stack clean
+	stack clean cargohold
 	-rm -rf dist
 	-rm -f .metadata
 
@@ -70,18 +70,14 @@ i-list:
 i-%:
 	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
 
-i-fake-aws:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "!/RealAWS/"
-
 .PHONY: integration
 integration: fast i
 
 .PHONY: integration-list
 integration-list: fast i-list
 
-integration-%: fast i-%
-
-integration-fake-aws: fast i-fake-aws
+integration-%: fast
+	make i-"$*"
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
@@ -100,6 +96,6 @@ docker:
 .PHONY: time
 time: clean
 	-rm -f .stack-work/logs/*
-	stack build --pedantic --no-run-benchmarks --no-copy-bins --ghc-options="-j +RTS -s -RTS"
+	stack build . --pedantic --no-run-benchmarks --no-copy-bins --ghc-options="-j +RTS -s -RTS"
 	@echo -e "\nTotal wall-clock times taken to compile each module (see logs for more detail):"
 	@grep Total .stack-work/logs/* | tr -s ' ' | awk -F' ' '{gsub(/s$$/, "", $$6); a[$$1] += $$6}END{for (i in a) {m=gensub(/^.*\/logs\//,"",1,i); m=gensub(/-[0-9].*\.log/,"",1,m); print m, a[i] ++ "s"}}' | sort -grk2

@@ -1,19 +1,14 @@
-Wire
-
-
 Hello,
 
 We are happy to inform you that you are now an approved Wire service provider.
 
+Please don’t reply to this message.
 
-Please don't reply to this message.
-
-If you didn't register for a Wire service provider account using this e-mail address,
-please visit https://support.wire.com.
-
+If you didn’t register for a Wire service provider account using this e-mail
+address, please contact us [https://support.wire.com/hc/requests/new].
 
 
+--------------------------------------------------------------------------------
 
-(c) Wire Swiss GmbH
-
-Privacy Policy  |  Report misuse
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.

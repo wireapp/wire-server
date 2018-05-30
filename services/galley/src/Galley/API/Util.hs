@@ -6,11 +6,12 @@
 module Galley.API.Util where
 
 import Brig.Types (Relation (..))
-import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
+import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens (view, (&), (.~))
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Control.Concurrent.Async.Lifted.Safe
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Foldable (find, for_, toList)
@@ -48,22 +49,19 @@ ensureAccessRole role users mbTms = case role of
         when (length activated /= length users) $ throwM accessDenied
     NonActivatedAccessRole -> return ()
 
+-- | Check that the user is connected to everybody else.
+--
+-- The connection has to be bidirectional (e.g. if A connects to B and later
+-- B blocks A, the status of A-to-B is still 'Accepted' but it doesn't mean
+-- that they are connected).
 ensureConnected :: UserId -> [UserId] -> Galley ()
 ensureConnected _ []   = pure ()
 ensureConnected u uids = do
-    conns <- getConnections u uids (Just Accepted)
-    unless (all (isConnected u conns) uids) $
+    (connsFrom, connsTo) <-
+        getConnections [u] uids (Just Accepted) `concurrently`
+        getConnections uids [u] (Just Accepted)
+    unless (length connsFrom == length uids && length connsTo == length uids) $
         throwM notConnected
-  where
-    isConnected u1 conns u2 =
-        let c1 = find (connection u1 u2) conns
-            c2 = find (connection u2 u1) conns
-        in isJust c1 && isJust c2
-
-    connection u1 u2 cs =
-           csFrom   cs == u1
-        && csTo     cs == u2
-        && csStatus cs == Accepted
 
 ensureReAuthorised :: UserId -> PlainTextPassword -> Galley ()
 ensureReAuthorised u secret = do

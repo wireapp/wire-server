@@ -1,18 +1,20 @@
-Wire
+NEUES GERÄT
+Ein neues Gerät wurde zu deinem Wire-Benutzerkonto hinzugefügt:
+
+${date}
+
+${model}
+
+Du hast Wire vermutlich auf einem neuen Gerät installiert oder dich auf einem
+bestehenden Gerät erneut eingeloggt. Falls dies nicht der Fall ist, gehe in
+deine Wire Einstellungen, entferne das Gerät und setze dein Passwort zurück
+[https://account.wire.com/forgot/].
+
+Wenn Du Fragen hast, bitte kontaktiere uns
+[https://support.wire.com/hc/de/requests/new].
 
 
-Hallo ${name},
+--------------------------------------------------------------------------------
 
-Ein neues Gerät wurde deinem Wire-Benutzerkonto hinzugefügt:
-
-    ${date}
-    ${model}
-
-Du hast Wire vermutlich auf einem neuen Gerät installiert oder dich auf einem bestehenden Gerät erneut eingeloggt. Wenn dies nicht der Fall ist, gehe in der Wire-App in die Einstellungen, entferne das Gerät und setze dein Passwort zurück.
-
-Das Team von Wire
-
-
-(c) Wire Swiss GmbH
-
-Datenschutzrichtlinie  | Missbrauch melden
+Datenschutz [https://wire.com/legal/] · Missbrauch melden [misuse@wire.com]
+© WIRE SWISS GmbH. ALLE RECHTE VORBEHALTEN.

@@ -15,20 +15,21 @@ default: all
 all: clean install
 
 init:
-	mkdir -p dist/build
+	mkdir -p dist
+	mkdir -p ../../dist
 
 .PHONY: clean
 clean:
-	stack clean
+	stack clean bonanza
 	-rm -rf dist
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist/build
+	stack install . --pedantic --test --local-bin-path=dist
 
 .PHONY: compile
 compile:
-	stack build --fast --pedantic --test --no-copy-bins
+	stack build . --pedantic --test --no-copy-bins --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: dist
 dist: guard-VERSION $(DEB)

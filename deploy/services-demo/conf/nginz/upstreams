@@ -1,0 +1,30 @@
+upstream cargohold {
+    least_conn;
+    keepalive 32;
+    server 127.0.0.1:8084 max_fails=3 weight=1;
+}
+upstream gundeck {
+    least_conn;
+    keepalive 32;
+    server 127.0.0.1:8086 max_fails=3 weight=1;
+}
+upstream cannon {
+    least_conn;
+    keepalive 32;
+    server 127.0.0.1:8083 max_fails=3 weight=1;
+}
+upstream galley {
+    least_conn;
+    keepalive 32;
+    server 127.0.0.1:8085 max_fails=3 weight=1;
+}
+upstream proxy {
+    least_conn;
+    keepalive 32;
+    server 127.0.0.1:8087 max_fails=3 weight=1;
+}
+upstream brig {
+    least_conn;
+    keepalive 32;
+    server 127.0.0.1:8082 max_fails=3 weight=1;
+}

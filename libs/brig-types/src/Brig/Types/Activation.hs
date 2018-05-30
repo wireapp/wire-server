@@ -22,7 +22,7 @@ newtype ActivationKey = ActivationKey
 -- out-of-band, e.g. via email or sms.
 newtype ActivationCode = ActivationCode
     { fromActivationCode :: AsciiBase64Url }
-    deriving (Eq, FromByteString, ToByteString, FromJSON, ToJSON)
+    deriving (Eq, Show, FromByteString, ToByteString, FromJSON, ToJSON)
 
 -- | A pair of 'ActivationKey' and 'ActivationCode' as required for activation.
 type ActivationPair = (ActivationKey, ActivationCode)

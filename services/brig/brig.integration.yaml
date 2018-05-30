@@ -12,6 +12,10 @@ elasticsearch:
   url: http://127.0.0.1:9200
   index: directory_test
 
+cargohold:
+  host: 127.0.0.1
+  port: 8084
+
 galley:
   host: 127.0.0.1
   port: 8085
@@ -20,10 +24,12 @@ gundeck:
   host: 127.0.0.1
   port: 8086
 
-# You can set up local SQS/Dynamo running e.g. `docker-compose -f ../../deploy/docker-ephemeral/docker-compose.yaml up`
+# You can set up local SQS/Dynamo running e.g. `../../deploy/docker-ephemeral/run.sh`
 aws:
   sesQueue: integration-brig-events
   internalQueue: integration-brig-events-internal
+  # userJournalQueue: integration-user-events.fifo
+  # ^ Uncomment this if you want to journal user events
   blacklistTable: integration-brig-userkey-blacklist
   prekeyTable: integration-brig-prekeys
   sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
@@ -36,22 +42,22 @@ emailSMS:
     smsSender: "<insert-sender-number-here>"
 
   user:
-    activationUrl: http://127.0.0.1:8080/activate?key=\${key}\&code=\${code}
-    smsActivationUrl: http://127.0.0.1:8080/v/\${code}
-    passwordResetUrl: http://127.0.0.1:8080/password-reset/\${key}?code=\${code}
-    invitationUrl: http://127.0.0.1:8080/register?invitation_code=\${code}
-    deletionUrl: http://127.0.0.1:8080/users/delete?key=\${key}\&code=\${code}
+    activationUrl: http://127.0.0.1:8080/activate?key=${key}&code=${code}
+    smsActivationUrl: http://127.0.0.1:8080/v/${code}
+    passwordResetUrl: http://127.0.0.1:8080/password-reset/${key}?code=${code}
+    invitationUrl: http://127.0.0.1:8080/register?invitation_code=${code}
+    deletionUrl: http://127.0.0.1:8080/users/delete?key=${key}&code=${code}
 
   provider:
     homeUrl: https://provider.localhost/
-    providerActivationUrl: http://127.0.0.1:8080/provider/activate?key=\${key}\&code=\${code}
-    approvalUrl: http://127.0.0.1:8080/provider/approve?key=\${key}\&code=\${code}
+    providerActivationUrl: http://127.0.0.1:8080/provider/activate?key=${key}&code=${code}
+    approvalUrl: http://127.0.0.1:8080/provider/approve?key=${key}&code=${code}
     approvalTo: success@simulator.amazonses.com
-    providerPwResetUrl: http://127.0.0.1:8080/provider/password-reset?key=\${key}\&code=\${code}
+    providerPwResetUrl: http://127.0.0.1:8080/provider/password-reset?key=${key}&code=${code}
 
   team:
-    tInvitationUrl: http://127.0.0.1:8080/register?team=\${team}\&team_code=\${code}
-    tActivationUrl: http://127.0.0.1:8080/register?team=\${team}\&team_code=\${code}
+    tInvitationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
+    tActivationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
     tCreatorWelcomeUrl: http://127.0.0.1:8080/creator-welcome-website
     tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
 
@@ -66,7 +72,9 @@ zauth:
     providerTokenTimeout: 60
 
 turn:
+  # Replace this with the list of supported URIs
   servers: test/resources/turn/servers.txt
+  # This should be the same secret as used by the TURN servers
   secret: test/resources/turn/secret.txt
   configTTL: 3600
   tokenTTL: 21600

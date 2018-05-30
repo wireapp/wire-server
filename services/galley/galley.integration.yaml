@@ -26,7 +26,7 @@ settings:
 #
 # If you want to use journaling but journal to a fake sqs service
 # such as "fake-sqs" or "localstack",
-# run e.g. `docker-compose -f ../../deploy/docker-ephemeral/docker-compose.yaml up`
+# run e.g. `../../deploy/docker-ephemeral/run.sh`
 # and use a localhost endpoint
 #
 #journal: # if set, journals; if not set, disables journaling

@@ -252,8 +252,8 @@ withCallBudget phone go = do
 -- Unique Keys
 
 data PhoneKey = PhoneKey
-    { phoneKeyUniq :: !Text
-    , phoneKeyOrig :: !Phone
+    { phoneKeyUniq :: !Text  -- ^ canonical form of 'phoneKeyOrig', without whitespace.
+    , phoneKeyOrig :: !Phone  -- ^ phone number with whitespace.
     }
 
 instance Show PhoneKey where
@@ -272,4 +272,3 @@ mkPhoneKey orig =
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
-

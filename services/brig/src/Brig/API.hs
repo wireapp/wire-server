@@ -1,9 +1,11 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 
 module Brig.API (runServer, parseOptions) where
 
@@ -15,6 +17,7 @@ import Brig.API.Types
 import Brig.Options hiding (sesQueue, internalQueue)
 import Brig.Types
 import Brig.Types.Intra
+import Brig.Types.User (NewUserNoSSO(NewUserNoSSO))
 import Brig.Types.User.Auth
 import Brig.User.Email
 import Brig.User.Phone
@@ -54,6 +57,7 @@ import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
 import qualified Brig.API.Properties           as API
 import qualified Brig.API.User                 as API
+import qualified Brig.Team.Util                as Team
 import qualified Brig.User.API.Auth            as Auth
 import qualified Brig.User.API.Search          as Search
 import qualified Brig.User.Auth.Cookie         as Auth
@@ -77,6 +81,7 @@ import qualified Brig.Provider.API             as Provider
 import qualified Brig.Team.API                 as Team
 import qualified Brig.Team.Email               as Team
 import qualified Brig.TURN.API                 as TURN
+import qualified System.Logger.Class           as Log
 
 runServer :: Opts -> IO ()
 runServer o = do
@@ -130,8 +135,14 @@ sitemap o = do
     delete "/i/users/:id" (continue deleteUserNoVerify) $
         capture "id"
 
-    get "/i/users/connections-status" (continue getConnectionStatus) $
+    get "/i/users/connections-status" (continue deprecatedGetConnectionsStatus) $
         query "users"
+        .&. opt (query "filter")
+
+    post "/i/users/connections-status" (continue getConnectionsStatus) $
+        accept "application" "json"
+        .&. contentType "application" "json"
+        .&. request
         .&. opt (query "filter")
 
     get "/i/users" (continue listActivatedAccounts) $
@@ -180,11 +191,14 @@ sitemap o = do
     post "/i/users/blacklist" (continue addBlacklist) $
         param "email" ||| param "phone"
 
+    get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeleted) $
+      capture "uid"
+      .&. capture "tid"
+
     post "/i/clients" (continue internalListClients) $
       accept "application" "json"
       .&. contentType "application" "json"
       .&. request
-
 
     -- /users -----------------------------------------------------------------
 
@@ -430,6 +444,16 @@ sitemap o = do
 
     ---
 
+    head "/self/password" (continue checkPasswordExists) $
+        header "Z-User"
+
+    document "HEAD" "checkPassword" $ do
+        Doc.summary "Check that your passowrd is set"
+        Doc.response 200 "Password is set." Doc.end
+        Doc.response 404 "Password is not set." Doc.end
+
+    ---
+
     put "/self/password" (continue changePassword) $
         contentType "application" "json"
         .&. header "Z-User"
@@ -515,7 +539,7 @@ sitemap o = do
         Doc.notes "If the account has a verified identity, a verification \
                   \code is sent and needs to be confirmed to authorise the \
                   \deletion. If the account has no verified identity but a \
-                  \password, it must be provided. In that case, and if neither \
+                  \password, it must be provided. If password is correct, or if neither \
                   \a verified identity nor a password exists, account deletion \
                   \is scheduled immediately."
         Doc.body (Doc.ref Doc.delete) $
@@ -1048,7 +1072,8 @@ getPrekeyBundle (u ::: _) = json <$> lift (API.claimPrekeyBundle u)
 getMultiPrekeyBundles :: Request ::: JSON ::: JSON -> Handler Response
 getMultiPrekeyBundles (req ::: _) = do
     body <- parseJsonBody req
-    when (Map.size (userClients body) > 128) $
+    maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+    when (Map.size (userClients body) > maxSize) $
         throwStd tooManyClients
     json <$> lift (API.claimMultiPrekeyBundles body)
 
@@ -1115,7 +1140,7 @@ autoConnect(_ ::: _ ::: uid ::: conn ::: req) = do
 
 createUser :: JSON ::: JSON ::: Request -> Handler Response
 createUser (_ ::: _ ::: req) = do
-    new <- parseJsonBody req
+    NewUserNoSSO new <- parseJsonBody req
     for_ (newUserEmail new) $ checkWhitelist . Left
     for_ (newUserPhone new) $ checkWhitelist . Right
     result <- API.createUser new !>> newUserError
@@ -1150,10 +1175,11 @@ createUser (_ ::: _ ::: req) = do
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail _ (CreateUserTeam _ _) (NewTeamCreator _) _ = return ()
     sendWelcomeEmail e (CreateUserTeam t n) (NewTeamMember  _) l = Team.sendMemberWelcomeMail e t n l
+    sendWelcomeEmail e (CreateUserTeam t n) (NewTeamMemberSSO _) l = Team.sendMemberWelcomeMail e t n l
 
 createUserNoVerify :: JSON ::: JSON ::: Request -> Handler Response
 createUserNoVerify (_ ::: _ ::: req) = do
-    uData  <- parseJsonBody req
+    (uData :: NewUser)  <- parseJsonBody req
     result <- API.createUser uData !>> newUserError
     let acc = createdAccount result
     let usr = accountUser acc
@@ -1283,6 +1309,11 @@ removeEmail (self ::: conn) = do
     API.removeEmail self conn !>> idtError
     return empty
 
+checkPasswordExists :: UserId -> Handler Response
+checkPasswordExists self = do
+    exists <- lift $ isJust <$> API.lookupPassword self
+    return $ if exists then empty else setStatus status404 empty
+
 changePassword :: JSON ::: UserId ::: Request -> Handler Response
 changePassword (_ ::: u ::: req) = do
     cp <- parseJsonBody req
@@ -1369,9 +1400,23 @@ changeEmail (_ ::: u ::: _ ::: req) = do
     lift $ sendActivationMail en name apair (Just lang) ident
     return $ setStatus status202 empty
 
-getConnectionStatus :: List UserId ::: Maybe Relation -> Handler Response
-getConnectionStatus (users ::: flt) = do
+-- Deprecated and to be removed after new versions of brig and galley are
+-- deployed. Reason for deprecation: it returns N^2 things (which is not
+-- needed), it doesn't scale, and it accepts everything in URL parameters,
+-- which doesn't work when the list of users is long.
+deprecatedGetConnectionsStatus :: List UserId ::: Maybe Relation -> Handler Response
+deprecatedGetConnectionsStatus (users ::: flt) = do
     r <- lift $ API.lookupConnectionStatus (fromList users) (fromList users)
+    return . json $ maybe r (filterByRelation r) flt
+  where
+    filterByRelation l rel = filter ((==rel) . csStatus) l
+
+getConnectionsStatus
+    :: JSON ::: JSON ::: Request ::: Maybe Relation
+    -> Handler Response
+getConnectionsStatus (_ ::: _ ::: req ::: flt) = do
+    ConnectionsStatusRequest{csrFrom, csrTo} <- parseJsonBody req
+    r <- lift $ API.lookupConnectionStatus csrFrom csrTo
     return . json $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((==rel) . csStatus) l
@@ -1449,6 +1494,18 @@ deleteFromBlacklist emailOrPhone = do
 addBlacklist :: Either Email Phone -> Handler Response
 addBlacklist emailOrPhone = do
     void . lift $ API.blacklistInsert emailOrPhone
+    return empty
+
+canBeDeleted :: UserId ::: TeamId -> Handler Response
+canBeDeleted (uid ::: tid) = do
+    onlyOwner <- lift (Team.isOnlyTeamOwner uid tid)
+    case onlyOwner of
+       Team.IsOnlyTeamOwner       -> throwStd noOtherOwner
+       Team.IsOneOfManyTeamOwners -> pure ()
+       Team.IsNotTeamOwner        -> pure ()
+       Team.NoTeamOwnersAreLeft   -> do
+           Log.warn $ Log.field "user" (toByteString uid)
+                    . Log.msg (Log.val "Team.NoTeamOwnersAreLeft")
     return empty
 
 getInvitationByCode :: JSON ::: InvitationCode -> Handler Response

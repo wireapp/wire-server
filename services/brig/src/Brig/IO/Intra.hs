@@ -40,6 +40,7 @@ module Brig.IO.Intra
     , getTeamName
     , getTeamId
     , getTeamContacts
+    , getTeamOwners
     , changeTeamStatus
     ) where
 
@@ -48,6 +49,7 @@ import Bilge.Retry
 import Bilge.RPC
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
+import Brig.Data.User (lookupUsers)
 import Brig.API.Error (incorrectPermissions)
 import Brig.API.Types
 import Brig.RPC
@@ -78,9 +80,11 @@ import System.Logger.Class hiding ((.=), name)
 
 import qualified Brig.User.Search.Index      as Search
 import qualified Brig.User.Event.Log         as Log
+import qualified Brig.IO.Journal             as Journal
 import qualified Data.ByteString.Lazy        as BL
 import qualified Data.Currency               as Currency
 import qualified Data.HashMap.Strict         as M
+import qualified Data.Map                    as Map
 import qualified Data.Set                    as Set
 import qualified Gundeck.Types.Push.V2       as Push
 import qualified Galley.Types.Teams          as Team
@@ -91,7 +95,9 @@ import qualified Galley.Types.Teams.Intra    as Team
 
 onUserEvent :: UserId -> Maybe ConnId -> UserEvent -> AppIO ()
 onUserEvent orig conn e =
-    updateSearchIndex orig e *> dispatchNotifications orig conn e
+    updateSearchIndex orig e *>
+    dispatchNotifications orig conn e *>
+    journalEvent orig e
 
 onConnectionEvent :: UserId          -- ^ Originator of the event.
                   -> Maybe ConnId    -- ^ Client connection ID, if any.
@@ -142,6 +148,15 @@ updateSearchIndex orig e = case e of
                              , isJust eupSearchable
                              ]
         when (interesting) $ Search.reindex orig
+
+journalEvent :: UserId -> UserEvent -> AppIO ()
+journalEvent orig e = case e of
+    UserActivated acc                 -> Journal.userActivate (accountUser acc)
+    UserLocaleUpdated _ loc           -> Journal.userUpdate orig Nothing (Just loc)
+    UserIdentityUpdated _ (Just em) _ -> Journal.userUpdate orig (Just em) Nothing
+    UserIdentityRemoved _ (Just em) _ -> Journal.userEmailRemove orig em
+    UserDeleted{}                     -> Journal.userDelete orig
+    _                                 -> return ()
 
 -------------------------------------------------------------------------------
 -- Low-Level Event Notification
@@ -445,8 +460,8 @@ getTeamConv usr tid cnv = do
 -------------------------------------------------------------------------------
 -- User management
 
-rmUser :: UserId -> AppIO ()
-rmUser usr = do
+rmUser :: UserId -> [Asset] -> AppIO ()
+rmUser usr asts = do
     debug $ remote "gundeck"
           . field "user" (toByteString usr)
           . msg (val "remove user")
@@ -456,6 +471,15 @@ rmUser usr = do
           . field "user" (toByteString usr)
           . msg (val "remove user")
     void $ galleyRequest DELETE (path "/i/user" . zUser usr . expect2xx)
+
+    debug $ remote "cargohold"
+          . field "user" (toByteString usr)
+          . msg (val "remove profile assets")
+    -- Note that we _may_ not get a 2xx response code from cargohold (e.g., client has
+    -- deleted the asset "directly" with cargohold; on our side, we just do our best to
+    -- delete it in case it is still there
+    forM_ asts $ \ast ->
+        cargoholdRequest DELETE (paths ["assets/v3", toByteString' $ assetKey ast] . zUser usr)
 
 -------------------------------------------------------------------------------
 -- Client management
@@ -575,6 +599,7 @@ getTeamMembers tid = do
     req = paths ["i", "teams", toByteString' tid, "members"]
         . expect2xx
 
+-- | Only works on 'BindingTeam's!
 getTeamContacts :: UserId -> AppIO (Maybe Team.TeamMemberList)
 getTeamContacts u = do
     debug $ remote "galley" . msg (val "Get team contacts")
@@ -585,6 +610,39 @@ getTeamContacts u = do
   where
     req = paths ["i", "users", toByteString' u, "team", "members"]
         . expect [status200, status404]
+
+-- | 'Nothing' means no team could be found.  'Just' contains all members of the team that have full
+-- permissions and email address.
+--
+-- TODO: This could arguably also live in galley, since it is about teams.  But it also needs emails
+-- of users, so no matter whether it lives in galley or brig, one has to call the other for this to
+-- be decided.  A small refactoring to improve on this: split up 'getTeamOwners' into the part that
+-- fetches the team members from galley, and the part that filters them for permissions and email
+-- addresses.  When galley wants to know, the second part can be called from
+-- /i/users/:uid/can-be-deleted directly with a list of team members passed to that end-point in the
+-- body.  When brig wants to know, it can call both parts.  These thoughts may all become obsolete
+-- if we introduce a deletion service in the future.
+getTeamOwners :: TeamId -> AppIO [Team.TeamMember]
+getTeamOwners tid = filterByEmail . filterByPerms =<< getTeamMembers tid
+  where
+    filterByPerms :: Team.TeamMemberList -> [Team.TeamMember]
+    filterByPerms mems =
+        filter ((== Team.fullPermissions) . (^. Team.permissions)) (mems ^. Team.teamMembers)
+
+    filterByEmail :: [Team.TeamMember] -> AppIO [Team.TeamMember]
+    filterByEmail mems = do
+        usrList :: [User] <- lookupUsers ((^. Team.userId) <$> mems)
+
+        let usrMap :: Map.Map UserId Bool
+            usrMap = Map.fromList $ mkListItem <$> usrList
+
+            mkListItem :: User -> (UserId, Bool)
+            mkListItem usr = (userId usr, isJust $ userEmail usr)
+
+            hasEmail :: Team.TeamMember -> Bool
+            hasEmail mem = maybe False id $ Map.lookup (mem ^. Team.userId) usrMap
+
+        pure $ filter hasEmail mems
 
 getTeamId :: UserId -> AppIO (Maybe TeamId)
 getTeamId u = do
@@ -622,4 +680,3 @@ changeTeamStatus tid s cur = do
         . header "Content-Type" "application/json"
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
-

@@ -212,7 +212,9 @@ filterClients p (UserClients c) = UserClients $ Map.filter p c
 
 data ClientMismatch = ClientMismatch
     { cmismatchTime    :: !UTCTime
+    -- | Clients that the message /should/ have been encrypted for, but wasn't.
     , missingClients   :: !UserClients
+    -- | Clients that the message /should not/ have been encrypted for, but was.
     , redundantClients :: !UserClients
     , deletedClients   :: !UserClients
     } deriving (Eq, Show)
