@@ -41,6 +41,7 @@ library
       , Brig.Budget
       , Brig.Email
       , Brig.Data.Activation
+      , Brig.Data.Blacklist
       , Brig.Data.Client
       , Brig.Data.Connection
       , Brig.Data.Instances
@@ -268,6 +269,7 @@ executable brig-schema
         V48
         V49
         V50
+        V51
 
     build-depends:
         base
