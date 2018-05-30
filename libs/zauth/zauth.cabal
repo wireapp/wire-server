@@ -81,6 +81,6 @@ test-suite zauth-unit
       , tasty-hunit        >= 0.9
       , tasty-quickcheck   >= 0.8
       , transformers
+      , types-common
       , uuid
       , zauth
-

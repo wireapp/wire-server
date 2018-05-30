@@ -65,4 +65,3 @@ contentionConc = 100
 
 contentionSum :: Word
 contentionSum = sum [i * contentionIters | i <- [1..contentionConc]]
-

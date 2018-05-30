@@ -1,14 +1,14 @@
 module Main (main) where
 
-import Test.Tasty
 import OpenSSL (withOpenSSL)
+import Test.Tasty
 
 import qualified DelayQueue
 import qualified Json
 import qualified Native
 
 main :: IO ()
-main = withOpenSSL $ defaultMain $
+main = withOpenSSL . defaultMain $
     testGroup "Main"
         [ Native.tests
         , DelayQueue.tests
