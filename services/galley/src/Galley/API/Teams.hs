@@ -51,6 +51,7 @@ import Data.Set (fromList, toList)
 import Galley.App
 import Galley.API.Error
 import Galley.API.Util
+import Galley.Data.Types
 import Galley.Data.Services (BotMember)
 import Galley.Intra.Push
 import Galley.Intra.User
@@ -374,6 +375,7 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
     tmems <- Data.teamMembers tid
     void $ permissionCheck zusr DeleteConversation tmems
     (bots, cmems) <- botsAndUsers <$> Data.members cid
+    flip Data.deleteCode ReusableCode =<< mkKey cid
     now <- liftIO getCurrentTime
     let te = newEvent Teams.ConvDelete tid now & eventData .~ Just (Teams.EdConvDelete cid)
     let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
