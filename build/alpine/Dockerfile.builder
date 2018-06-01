@@ -16,5 +16,4 @@ RUN apk add --no-cache git && \
     git clone https://github.com/wireapp/wire-server.git && \
     cd wire-server && \
     stack update && \
-    stack build --pedantic --haddock --test --no-run-tests && \
-    stack clean
+    stack build --pedantic --haddock --test --dependencies-only --no-run-tests
