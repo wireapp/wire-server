@@ -1,0 +1,10 @@
+# Produces docker image for development
+
+# Requires docker version >= 17.05 (requires support for multi-stage builds)
+# Requires to have created the wire-server-builder and wire-server-deps docker images (run `make` in this directory)
+
+ARG builder=quay.io/wire/alpine-builder
+FROM ${builder}
+WORKDIR /src/wire-server
+RUN apk add --no-cache ncurses && \
+    echo -e "allow-different-user: true\nwork-dir: .stack-docker" >> /root/.stack/config.yaml
