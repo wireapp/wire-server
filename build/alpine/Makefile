@@ -1,4 +1,4 @@
-DOCKER_USER   ?= wireserver
+DOCKER_USER   ?= wire
 DOCKER_TAG    ?= local
 
 default: deps prebuilder builder

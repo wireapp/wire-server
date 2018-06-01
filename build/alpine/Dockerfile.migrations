@@ -6,8 +6,8 @@
 #   (from wire-server root directory)
 #   docker build -f build/alpine/Dockerfile.migrations .
 
-ARG intermediate=wireserver/intermediate
-ARG deps=wireserver/alpine-deps
+ARG intermediate=quay.io/wire/intermediate
+ARG deps=quay.io/wire/alpine-deps
 
 #--- Intermediate stage ---
 FROM ${intermediate} as intermediate

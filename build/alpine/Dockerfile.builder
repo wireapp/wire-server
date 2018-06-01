@@ -1,6 +1,6 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
 
-ARG prebuilder=wireserver/alpine-prebuilder
+ARG prebuilder=quay.io/wire/alpine-prebuilder
 
 FROM ${prebuilder}
 
