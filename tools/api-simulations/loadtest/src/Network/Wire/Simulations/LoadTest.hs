@@ -64,38 +64,52 @@ runLoadTest s = replicateM (conversationsTotal s) mkConv
 
 runConv :: LoadTestSettings -> ([BotNet Bot], [BotNet Bot]) -> BotNet ()
 runConv s g = do
-    -- Create conv -----------
-    log Info $ msg $ val "Creating conversation"
     active  <- Async.sequencePooled (parallelRequests s) (fst g)
     passive <- Async.sequencePooled (parallelRequests s) (snd g)
     let bots = active ++ passive
+    -- Clear existing clients ----------
+    log Info $ msg $ val "Clearing existing clients"
+    void $ forPooled (parallelRequests s) bots $ \b ->
+        resetBotClients b
+    -- Create conv ---------------------
+    log Info $ msg $ val "Creating conversation"
     conv <- prepareConv bots
     Metrics.counterIncr conversationsEstablished =<< getMetrics
-    -- Prepare ---------------
+    -- Prepare -------------------------
     log Info $ msg $ val "Preparing"
     let botsMarked = map (True,) active ++ map (False,) passive
     states <- forPooled (parallelRequests s) botsMarked $ \(isActive, b) -> do
         nmsg <- if isActive then between (messagesMin s) (messagesMax s) else pure 0
         nast <- if isActive then between (assetsMin s) (assetsMax s) else pure 0
+        nClients <- between (clientsMin s) (clientsMax s)
         runBotSession b $ do
+            log Info $ msg $ val "Creating clients"
             uniq <- liftIO UUID.nextRandom
-            let label = "tmp-" <> UUID.toText uniq
-            clt <- addBotClient b TemporaryClient (Just label)
-            return $! BotState clt conv bots nmsg nast
-    -- Run -------------------
+            let mainLabel = "main-client-" <> UUID.toText uniq
+            mainClient <- addBotClient b PermanentClient (Just mainLabel)
+            otherClients <- for [1 .. nClients - 1] $ \i -> do
+                let label = "client-" <> Text.pack (show i) <> "-" <> UUID.toText uniq
+                addBotClient b PermanentClient (Just label)
+            return $! BotState mainClient otherClients conv bots nmsg nast
+    -- Run -----------------------------
     log Info $ msg $ val "Running"
     void $ forPooled (parallelRequests s) (zip bots states) $ \(b, st) ->
         runBotSession b $ do
-            log Info $ msg $ val "runBotSession"
-            forM_ bots $ clientInitSession (botClient st) . botId
-            Clients.addMembers (botClientSessions (botClient st)) conv (map botId bots)
+            log Info $ msg $ val "Initializing sessions"
+            let allClients = botClient st : botOtherClients st
+            forM_ allClients $ \client -> do
+                forM_ bots $ clientInitSession client . botId
+                Clients.addMembers (botClientSessions client) conv (map botId bots)
+    let removeClients (b, st) =
+            mapM_ (removeBotClient b) (botClient st : botOtherClients st)
     void $ flip mapConcurrently (zip bots states) $ \(b, st) ->
         runBotSession b $ do
-            runBot s st `Ex.onException` removeBotClient b (botClient st)
-    -- Drain -----------------
+            log Info $ msg $ val "Starting bot"
+            runBot s st `Ex.onException` removeClients (b, st)
+    -- Drain ---------------------------
     log Info $ msg $ val "Draining"
     void $ forPooled (parallelRequests s) (zip bots states) $ \(b, st) -> do
-        removeBotClient b (botClient st)
+        removeClients (b, st)
         drainBot b
 
 runBot :: LoadTestSettings -> BotState -> BotSession ()
@@ -161,11 +175,12 @@ runBot ls s@BotState{..} = do
         return $ BS.replicate (fromIntegral l) 42
 
 data BotState = BotState
-    { botClient      :: !BotClient
-    , botConv        :: !ConvId
-    , botConvMembers :: [Bot]
-    , messagesLeft   :: !Int
-    , assetsLeft     :: !Int
+    { botClient       :: !BotClient   -- "main" client (sends messages, etc)
+    , botOtherClients :: ![BotClient] -- other clients (just sit around)
+    , botConv         :: !ConvId
+    , botConvMembers  :: [Bot]
+    , messagesLeft    :: !Int
+    , assetsLeft      :: !Int
     } deriving (Eq)
 
 -------------------------------------------------------------------------------
@@ -184,6 +199,9 @@ data LoadTestSettings = LoadTestSettings
     , conversationMaxActiveMembers  :: !Int
     , conversationMinPassiveMembers :: !Int
     , conversationMaxPassiveMembers :: !Int
+
+    , clientsMin :: !Int
+    , clientsMax :: !Int
 
     , messagesMin      :: !Int
     , messagesMax      :: !Int

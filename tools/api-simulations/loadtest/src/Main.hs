@@ -24,6 +24,8 @@ main = do
     unless (isJust (setBotNetUsersFile (ltsBotNetSettings o))) $
         error "--users-file was not specified; the loadtest can't work without \
               \the list of user accounts provided to it"
+    unless (clientsMin o >= 1) $
+        error "invalid value for --clients: has to be at least 1"
     m <- newManager tlsManagerSettings
     l <- Log.new Log.defSettings
     e <- newBotNetEnv m l (ltsBotNetSettings o)
@@ -87,6 +89,12 @@ ltsSettingsParser = do
                 \to be added along with usual bots"
         <> value (0, 0)
         <> showDefault
+    clients <- option autoRange $
+        long "clients"
+        <> metavar "INT|INT..INT"
+        <> help "number of clients per bot"
+        <> value (1, 1)
+        <> showDefault
     messages <- option autoRange $
         long "bot-messages"
         <> metavar "INT|INT..INT"
@@ -134,4 +142,5 @@ ltsSettingsParser = do
                 = conversationActiveMembers
             (conversationMinPassiveMembers, conversationMaxPassiveMembers)
                 = conversationPassiveMembers
+            (clientsMin, clientsMax) = clients
         in LoadTestSettings{..}
