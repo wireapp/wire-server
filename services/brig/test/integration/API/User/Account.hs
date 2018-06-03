@@ -346,7 +346,6 @@ testActivateWithExpiry brig timeout = do
                 const 200 === statusCode
                 const (Just (userIdentity u, True)) === actualBody
             -- Note: This value must be larger than the option passed as `activation-timeout`
-            liftIO $ print timeout
             awaitExpiry (round timeout + 5) kc
             activate brig kc !!! const 404 === statusCode
   where
@@ -357,9 +356,7 @@ testActivateWithExpiry brig timeout = do
     awaitExpiry :: Int -> ActivationPair -> Http ()
     awaitExpiry n kc = do
         liftIO $ threadDelay 1000000
-        liftIO $ print ("Going..." :: String)
         r <- activate brig kc
-        liftIO $ print (statusCode r)
         when (statusCode r == 204 && n > 0) $
             awaitExpiry (n-1) kc
 
