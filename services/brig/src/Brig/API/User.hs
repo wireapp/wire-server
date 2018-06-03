@@ -392,7 +392,7 @@ checkHandles check num = reverse <$> collectFree [] check num
 -------------------------------------------------------------------------------
 -- Change Email
 
-changeEmail :: UserId -> Email -> ExceptT ChangeEmailError AppIO (Activation, Email)
+changeEmail :: UserId -> Email -> ExceptT ChangeEmailError AppIO ChangeEmailResult
 changeEmail u email = do
     em <- maybe (throwE $ InvalidNewEmail email)
                 return
@@ -404,9 +404,14 @@ changeEmail u email = do
     available <- lift $ Data.keyAvailable ek (Just u)
     unless available $
         throwE $ EmailExists email
-    timeout <- setActivationTimeout <$> view settings
-    act <- lift $ Data.newActivation ek timeout (Just u)
-    return (act, em)
+    usr <- maybe (throwM $ UserProfileNotFound u) return =<< lift (Data.lookupUser u)
+    case join (emailIdentity <$> userIdentity usr) of
+        -- The user already has an email address and the new one is exactly the same
+        Just current | current == em -> return ChangeEmailIdempotent
+        _ -> do
+            timeout <- setActivationTimeout <$> view settings
+            act <- lift $ Data.newActivation ek timeout (Just u)
+            return $ ChangeEmailNeedsActivation (usr, act, em)
 
 -------------------------------------------------------------------------------
 -- Change Phone

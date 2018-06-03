@@ -55,6 +55,12 @@ data ActivationResult
     | ActivationPass
         -- ^ The key/code was valid but already recently activated.
 
+data ChangeEmailResult
+    = ChangeEmailNeedsActivation !(User, Activation, Email)
+        -- ^ The request was successful, user needs to verify the new email address
+    | ChangeEmailIdempotent
+        -- ^ The user asked to change the email address to the one already owned
+
 -------------------------------------------------------------------------------
 -- Failures
 

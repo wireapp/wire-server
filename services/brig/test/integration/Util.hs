@@ -147,7 +147,7 @@ getConnection brig from to = get $ brig
 -- more flexible variant of 'createUser' (see above).
 postUser :: Text -> Maybe Text -> Maybe InvitationCode -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
 postUser name email invCode ssoid teamid brig = do
-    email' <- maybe (pure Nothing) (fmap (Just . fromEmail) . mkEmail) email
+    email' <- maybe (pure Nothing) (fmap (Just . fromEmail) . mkEmailRandomLocalSuffix) email
     let p = RequestBodyLBS . encode $ object
             [ "name"            .= name
             , "email"           .= email'
@@ -345,9 +345,8 @@ decodeBody = responseBody >=> decode'
 asValue :: Response (Maybe Lazy.ByteString) -> Maybe Value
 asValue = decodeBody
 
--- TODO: randomiseEmail
-mkEmail :: MonadIO m => Text -> m Email
-mkEmail e = do
+mkEmailRandomLocalSuffix :: MonadIO m => Text -> m Email
+mkEmailRandomLocalSuffix e = do
     uid <- liftIO UUID.nextRandom
     case parseEmail e of
         Just (Email loc dom) -> return $ Email (loc <> "+" <> UUID.toText uid) dom
@@ -357,7 +356,7 @@ randomEmail :: MonadIO m => m Email
 randomEmail = mkSimulatorEmail "success"
 
 mkSimulatorEmail :: MonadIO m => Text -> m Email
-mkSimulatorEmail loc = mkEmail (loc <> "@simulator.amazonses.com")
+mkSimulatorEmail loc = mkEmailRandomLocalSuffix (loc <> "@simulator.amazonses.com")
 
 randomPhone :: MonadIO m => m Phone
 randomPhone = liftIO $ do

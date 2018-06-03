@@ -93,7 +93,7 @@ tests conf p db b c g = do
             , test p "update"         $ testUpdateProvider db b
             , test p "delete"         $ testDeleteProvider db b
             , test p "password-reset" $ testPasswordResetProvider db b
-            , test p "email/password update with password reset" 
+            , test p "email/password update with password reset"
                                       $ testPasswordResetAfterEmailUpdateProvider db b
             ]
         , testGroup "service"
@@ -123,7 +123,7 @@ tests conf p db b c g = do
 -- of pre- and post-conditions.
 testRegisterProvider :: DB.ClientState -> Brig -> Http ()
 testRegisterProvider db brig = do
-    email <- mkEmail "success@simulator.amazonses.com"
+    email <- mkSimulatorEmail "simulator.amazonses.com"
     gen   <- Code.mkGen (Code.ForEmail email)
 
     let new = defNewProvider email
@@ -225,11 +225,11 @@ testPasswordResetProvider db brig = do
     let email = providerEmail prv
     initiatePasswordResetProvider brig (PasswordReset email) !!! const 201 === statusCode
     let newPw = PlainTextPassword "newsupersecret"
-    
+
     -- Get the code directly from the DB
     gen <- Code.mkGen (Code.ForEmail email)
     Just vcode <- lookupCode db gen Code.PasswordReset
-    
+
     let passwordResetData = CompletePasswordReset (Code.codeKey vcode)
                                                   (Code.codeValue vcode)
                                                   newPw
@@ -242,7 +242,7 @@ testPasswordResetProvider db brig = do
 
 testPasswordResetAfterEmailUpdateProvider :: DB.ClientState -> Brig -> Http ()
 testPasswordResetAfterEmailUpdateProvider db brig = do
-    newEmail <- mkEmail "success@simulator.amazonses.com"
+    newEmail <- mkSimulatorEmail "success"
     prv <- randomProvider db brig
     let pid = providerId prv
     let origEmail = providerEmail prv
@@ -252,7 +252,7 @@ testPasswordResetAfterEmailUpdateProvider db brig = do
     -- Get password reset code directly from the DB
     genOrig <- Code.mkGen (Code.ForEmail origEmail)
     Just vcodePw <- lookupCode db genOrig Code.PasswordReset
-    
+
     let passwordResetData = CompletePasswordReset (Code.codeKey vcodePw)
                                                   (Code.codeValue vcodePw)
                                                   (PlainTextPassword "doesnotmatter")
@@ -990,7 +990,7 @@ lookupCode db gen = liftIO . DB.runClient db . Code.lookup (Code.genKey gen)
 
 randomProvider :: HasCallStack => DB.ClientState -> Brig -> Http Provider
 randomProvider db brig = do
-    email <- mkEmail "success@simulator.amazonses.com"
+    email <- mkSimulatorEmail "success"
     gen   <- Code.mkGen (Code.ForEmail email)
     -- Register
     let new = defNewProvider email

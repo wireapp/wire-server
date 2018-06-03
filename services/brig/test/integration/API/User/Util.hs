@@ -55,7 +55,7 @@ checkHandles brig uid hs num =
 -- TODO: register
 registerUser :: Text -> Text -> Brig -> Http ResponseLBS
 registerUser name email brig = do
-    e <- mkEmail email
+    e <- mkEmailRandomLocalSuffix email
     let p = RequestBodyLBS . encode $ object
             [ "name"     .= name
             , "email"    .= fromEmail e
@@ -111,6 +111,11 @@ initiateEmailUpdate :: Brig -> Email -> UserId -> Http ResponseLBS
 initiateEmailUpdate brig email uid =
     let emailUpdate = RequestBodyLBS . encode $ EmailUpdate email in
     put (brig . path "/self/email" . contentJson . zUser uid . zConn "c" . body emailUpdate)
+
+initiateEmailUpdateNoSend :: Brig -> Email -> UserId -> Http ResponseLBS
+initiateEmailUpdateNoSend brig email uid =
+    let emailUpdate = RequestBodyLBS . encode $ EmailUpdate email in
+    put (brig . path "/i/self/email" . contentJson . zUser uid . body emailUpdate)
 
 preparePasswordReset :: Brig -> Email -> UserId -> PlainTextPassword -> Http CompletePasswordReset
 preparePasswordReset brig email uid newpw = do
