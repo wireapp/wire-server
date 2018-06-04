@@ -76,10 +76,11 @@ docker-service-%:
 
 DOCKER_DEV_NETWORK := --net=host
 DOCKER_DEV_VOLUMES := -v `pwd`:/src/wire-server
-DOCKER_DEV_IMAGE   := wire/alpine-dev:local
+DOCKER_DEV_IMAGE   := wire/alpine-builder:local
 .PHONY: run-docker-dev
-run-docker-dev:
-	docker run -it $(DOCKER_DEV_NETWORK) $(DOCKER_DEV_VOLUMES) --rm $(DOCKER_DEV_IMAGE) /bin/bash
+run-docker-builder:
+	docker run -it $(DOCKER_DEV_NETWORK) $(DOCKER_DEV_VOLUMES) --rm $(DOCKER_DEV_IMAGE) /bin/bash || \
+	( echo "$(DOCKER_DEV_IMAGE) not found.  building locally.  hit ^C to interrupt." && make -C build/alpine builder )
 
 #################################
 ## dependencies
