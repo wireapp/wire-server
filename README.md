@@ -95,7 +95,7 @@ For building nginz, see [services/nginz/README.md](services/nginz/README.md)
 
 #### 2. Use docker
 
-*If you don't wish to build all docker images from scratch (e.g. the `alpine-builder` takes a very long time), ready-built images can be downloaded from [here](https://hub.docker.com/r/wireserver/).*
+*If you don't wish to build all docker images from scratch (e.g. the `alpine-builder` takes a very long time), ready-built images can be downloaded from [here](https://quay.io/organization/wire).*
 
 If you wish to build your own docker images, you need [docker version >= 17.05](https://www.docker.com/) and [`make`](https://www.gnu.org/software/make/). Then,
 

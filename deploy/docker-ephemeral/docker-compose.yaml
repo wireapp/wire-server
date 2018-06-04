@@ -48,7 +48,7 @@ services:
       - "9042:9042"
 
   db_migrations:
-    image: wireserver/migrations
+    image: quay.io/wire/migrations
     depends_on:
       - elasticsearch
       - cassandra

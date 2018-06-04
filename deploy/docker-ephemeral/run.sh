@@ -10,7 +10,7 @@ DOCKER_FILE="$SCRIPT_DIR/docker-compose.yaml"
 #
 #     brig: Schema Version too old! Expecting at least: 49, but got: 48
 #
-# So we always pull wireserver/migrations first.
-docker pull wireserver/migrations
+# So we always pull the migrations image first.
+docker pull quay.io/wire/migrations
 
 docker-compose --file "$DOCKER_FILE" up
