@@ -4,8 +4,8 @@
 #   (from wire-server root directory)
 #   SERVICE=galley; docker build -f build/alpine/Dockerfile -t $SERVICE --build-arg service=$SERVICE .
 
-ARG builder=wireserver/alpine-builder
-ARG deps=wireserver/alpine-deps
+ARG builder=quay.io/wire/alpine-builder
+ARG deps=quay.io/wire/alpine-deps
 
 #--- Builder stage ---
 FROM ${builder} as builder

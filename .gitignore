@@ -27,6 +27,7 @@ log
 tags
 TAGS
 .stack-work
+.stack-docker
 .metadata
 *.tix
 *.pem

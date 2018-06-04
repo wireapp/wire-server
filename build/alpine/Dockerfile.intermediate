@@ -6,8 +6,8 @@
 #   (from wire-server root directory)
 #   docker build -f build/alpine/Dockerfile.intermediate .
 
-ARG builder=wireserver/alpine-builder
-ARG deps=wireserver/alpine-deps
+ARG builder=quay.io/wire/alpine-builder
+ARG deps=quay.io/wire/alpine-deps
 
 #--- Builder stage ---
 FROM ${builder} as builder
