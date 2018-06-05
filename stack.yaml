@@ -50,6 +50,10 @@ packages:
     git: https://github.com/tiago-loureiro/aws
     commit: bade13d1f73ed82c2b3eafda0bcb16d283da909e
   extra-dep: true
+- location:
+    git: https://gitlab.com/twittner/wai-routing
+    commit: 7e996a93fec5901767f845a50316b3c18e51a61d
+  extra-dep: true
 
 extra-deps:
 - base58-bytestring-0.1.0
