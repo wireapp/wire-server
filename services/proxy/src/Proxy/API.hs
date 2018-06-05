@@ -68,6 +68,10 @@ sitemap e = do
         (proxy e "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
         return
 
+    get "/proxy/googlemaps/maps/api/geocode/:path"
+        (proxy e "key" "secrets.googlemaps" Prefix "/maps/api/geocode" googleMaps)
+        return
+
     get "/proxy/giphy/v1/gifs/:path"
         (proxy e "api_key" "secrets.giphy" Prefix "/v1/gifs" giphy)
         return
@@ -94,7 +98,7 @@ youtube    = ProxyDest "www.googleapis.com" 443
 googleMaps = ProxyDest "maps.googleapis.com" 443
 giphy      = ProxyDest "api.giphy.com" 443
 
-proxy :: Env -> ByteString -> Text -> Rerouting -> ByteString  -> ProxyDest -> App Proxy
+proxy :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> App Proxy
 proxy e qparam keyname reroute path phost rq k = liftIO $ do
     s <- Config.require (e^.secrets) keyname
     let r  = getRequest rq
