@@ -163,6 +163,7 @@ library
       , split                     >= 0.2
       , semigroups                >= 0.15
       , singletons                >= 2.0
+      , string-conversions
       , random-shuffle            >= 0.0.3
       , sodium-crypto-sign        >= 0.1
       , statistics                >= 0.13

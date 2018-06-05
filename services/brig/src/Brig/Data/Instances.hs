@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeApplications           #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -12,9 +13,11 @@ import Brig.Types.Intra
 import Brig.Types.Provider ()
 import Cassandra.CQL
 import Control.Error (note)
+import Data.Aeson (eitherDecode, encode)
 import Data.Id()
 import Data.Int
 import Data.Range()
+import Data.String.Conversions (cs, LBS, ST)
 import Data.Text.Ascii()
 
 import qualified Data.Aeson                      as JSON
@@ -43,6 +46,16 @@ instance Cql Email where
     fromCql _           = fail "fromCql: email: CqlText expected"
 
     toCql = toCql . fromEmail
+
+instance Cql UserSSOId where
+    ctype = Tagged TextColumn
+
+    fromCql (CqlText t) = case eitherDecode $ cs t of
+        Right i  -> return i
+        Left msg -> fail $ "fromCql: Invalid UserSSOId: " ++ msg
+    fromCql _           = fail "fromCql: UserSSOId: CqlText expected"
+
+    toCql = toCql . cs @LBS @ST . encode
 
 instance Cql Relation where
     ctype = Tagged IntColumn

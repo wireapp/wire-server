@@ -54,7 +54,6 @@ import Data.Foldable (for_)
 import Data.Id
 import Data.Misc (PlainTextPassword (..))
 import Data.Range (fromRange)
-import Data.Text (Text)
 import Data.Time (UTCTime, addUTCTime)
 import Data.UUID.V4
 import Galley.Types.Bot
@@ -138,7 +137,7 @@ insertAccount (UserAccount u status) password activated searchable = do
     let Locale l c = userLocale u
     retry x5 $ write userInsert $ params Quorum
         ( userId u, userName u, userPict u, userAssets u, userEmail u
-        , userPhone u, userSSOIdTenant <$> userSSOId u, userSSOIdSubject <$> userSSOId u, userAccentId u, password, activated
+        , userPhone u, userSSOId u, userAccentId u, password, activated
         , status, (userExpire u), l, c
         , view serviceRefProvider <$> userService u
         , view serviceRefId <$> userService u
@@ -251,15 +250,15 @@ lookupAccounts usrs = do
 
 type Activated = Bool
 
-type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe Text, Maybe Text, ColourId,
+type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
                 Maybe [Asset], Activated, Maybe AccountStatus, Maybe UTCTime, Maybe Language,
                 Maybe Country, Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
 
-type UserRowInsert = (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone, Maybe Text, Maybe Text, ColourId,
+type UserRowInsert = (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
                       Maybe Password, Bool, AccountStatus, Maybe UTCTime, Language, Maybe Country,
                       Maybe ProviderId, Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId)
 
-type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe Text, Maybe Text,
+type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId,
                    ColourId, Maybe [Asset], Bool, Maybe AccountStatus,
                    Maybe UTCTime, Maybe Language, Maybe Country,
                    Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
@@ -292,7 +291,7 @@ statusSelect :: PrepQuery R (Identity UserId) (Identity (Maybe AccountStatus))
 statusSelect = "SELECT status FROM user WHERE id = ?"
 
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
-accountsSelect = "SELECT id, name, picture, email, phone, sso_tenant_id, sso_id, accent_id, assets, \
+accountsSelect = "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
                  \activated, status, expires, language, country, provider, \
                  \service, handle, team \
                  \FROM user WHERE id IN ?"
@@ -301,7 +300,7 @@ userInsert :: PrepQuery W UserRowInsert ()
 userInsert = "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
                                \accent_id, password, activated, status, expires, language, \
                                \country, provider, service, handle, searchable, team) \
-                               \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                               \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userNameUpdate :: PrepQuery W (Name, UserId) ()
 userNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
@@ -352,10 +351,10 @@ userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
 -- Conversions
 
 toUserAccount :: Locale -> AccountRow -> UserAccount
-toUserAccount defaultLocale (uid, name, pict, email, phone, ssoTenantId, ssoId, accent, assets,
+toUserAccount defaultLocale (uid, name, pict, email, phone, ssoid, accent, assets,
                              activated, status, expires, lan, con, pid, sid,
                              handle, tid) =
-    let ident = toIdentity activated email phone (UserSSOId <$> ssoTenantId <*> ssoId)
+    let ident = toIdentity activated email phone ssoid
         deleted = maybe False (== Deleted) status
         expiration = if status == Just Ephemeral then expires else Nothing
         loc = toLocale defaultLocale (lan, con)
@@ -367,9 +366,9 @@ toUserAccount defaultLocale (uid, name, pict, email, phone, ssoTenantId, ssoId, 
 toUsers :: Locale -> [UserRow] -> [User]
 toUsers defaultLocale = fmap mk
   where
-    mk (uid, name, pict, email, phone, ssoTenantId, ssoId, accent, assets, activated, status,
+    mk (uid, name, pict, email, phone, ssoid, accent, assets, activated, status,
         expires, lan, con, pid, sid, handle, tid) =
-        let ident = toIdentity activated email phone (UserSSOId <$> ssoTenantId <*> ssoId)
+        let ident = toIdentity activated email phone ssoid
             deleted = maybe False (== Deleted) status
             expiration = if status == Just Ephemeral then expires else Nothing
             loc = toLocale defaultLocale (lan, con)
