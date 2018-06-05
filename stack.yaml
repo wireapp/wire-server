@@ -7,6 +7,7 @@ packages:
 - libs/brig-types
 - libs/cargohold-types
 - libs/cassandra-util
+- libs/extended
 - libs/galley-types
 - libs/gundeck-types
 - libs/http-client-openssl-ext
@@ -49,6 +50,12 @@ packages:
 - location:
     git: https://github.com/tiago-loureiro/aws
     commit: bade13d1f73ed82c2b3eafda0bcb16d283da909e
+  extra-dep: true
+- location:
+    # the version on Haskage (0.9.0.2) deadlocks;
+    # see https://github.com/jwiegley/async-pool/issues/2
+    git: https://github.com/jwiegley/async-pool
+    commit: 5678c13c4ec7d96a55622f7171f8e6a6bb3a3947
   extra-dep: true
 
 extra-deps:

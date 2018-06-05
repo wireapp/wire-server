@@ -18,10 +18,12 @@ import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Retry
 import Data.Aeson hiding (Error)
+import Data.Function ((&))
 import Data.List.NonEmpty (NonEmpty, toList)
 import Data.Monoid ((<>))
 import Data.Text (Text, pack)
 import Network.HTTP.Types.Status hiding (statusCode)
+import Network.HTTP.Types.Header (hUserAgent)
 import Network.Wire.Client.Monad
 
 import qualified Data.ByteString.Lazy as Lazy
@@ -64,7 +66,8 @@ clientRequest rq expected f = do
                  , const $ Handler (\(e :: SomeException)   -> throwIO e)
                  ]
     exec l s m = do
-        let rq' = setServer s rq
+        let rq' = rq & setServer s
+                     & header hUserAgent "api-client"
         Log.debug l $ Log.msg (show rq')
         withResponse rq' m $ \rs -> do
             Log.debug l $ Log.msg $ show (rs { responseBody = "" :: String })

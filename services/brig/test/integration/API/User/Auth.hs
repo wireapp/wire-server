@@ -10,11 +10,10 @@ import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.ZAuth (ZAuth, runZAuth)
 import Control.Concurrent
-import Control.Concurrent.Async.Lifted.Safe hiding (wait)
+import Control.Concurrent.Async.Lifted.Safe.Extended hiding (wait)
 import Control.Lens ((^?), set)
 import Control.Monad
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Control
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString (intercalate)
@@ -229,7 +228,7 @@ testThrottleLogins conf b = do
     u <- randomUser b
     let Just e = userEmail u
     -- Login exactly that amount of times, as fast as possible
-    void $ replicateChunked 8 l (login b (defEmailLogin e) SessionCookie)
+    void $ replicatePooled 8 l (login b (defEmailLogin e) SessionCookie)
     -- Login once more. This should fail!
     x <- login b (defEmailLogin e) SessionCookie <!!
         const 429 === statusCode
@@ -610,20 +609,6 @@ remJson p l ids = object
     , "labels"   .= l
     , "ids"      .= ids
     ]
-
--- | Run something N times using given number of threads. One thread might
--- get more jobs than the other threads.
-replicateChunked
-    :: (MonadBaseControl IO m, Forall (Pure m))
-    => Int                     -- ^ Number of threads
-    -> Int                     -- ^ Total amount of repetition
-    -> m a
-    -> m [a]
-replicateChunked threads n act = do
-    let chunks = (n `div` threads + n `mod` threads) :
-                 replicate (threads-1) (n `div` threads)
-    fmap concat $ forConcurrently chunks $ \size ->
-        replicateM size act
 
 wait :: MonadIO m => m ()
 wait = liftIO $ threadDelay 1000000
