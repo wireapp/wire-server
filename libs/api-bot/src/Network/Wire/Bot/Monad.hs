@@ -45,6 +45,7 @@ module Network.Wire.Bot.Monad
     , getBotClients
     , addBotClient
     , removeBotClient
+    , resetBotClients
 
       -- * Assertions
     , assertEvent
@@ -364,6 +365,16 @@ removeBotClient self bc = do
     runBotSession self (removeClient (botClientId bc) rm)
     liftIO $ deleteBox (botId self) (botClientLabel bc)
     liftIO $ atomically $ modifyTVar' (botClients self) (filter (/= bc))
+
+-- | Remove all bot clients, even the 'PermanentClient' ones on the server.
+resetBotClients :: MonadBotNet m => Bot -> m ()
+resetBotClients self = do
+    let rm = RmClient (Just (botPassphrase self))
+    runBotSession self $ do
+        clients <- getClients
+        for_ clients $ \c -> removeClient (clientId c) rm
+    liftIO $ deleteBox (botId self) Nothing
+    liftIO $ atomically $ writeTVar (botClients self) []
 
 getBotClients :: MonadIO m => Bot -> m [BotClient]
 getBotClients = liftIO . readTVarIO . botClients

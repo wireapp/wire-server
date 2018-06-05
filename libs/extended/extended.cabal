@@ -1,0 +1,35 @@
+name:           extended
+version:        0.1.0
+synopsis:       Extended versions of common modules
+description:
+  .Extended versions of various libraries from Hackage. See
+  https://jaspervdj.be/posts/2015-01-20-haskell-design-patterns-extended-modules.html
+  for a description of this design pattern.
+author:         Wire Swiss GmbH
+maintainer:     Wire Swiss GmbH <backend@wire.com>
+copyright:      (c) 2018 Wire Swiss GmbH
+license:        AGPL-3
+license-file:   LICENSE
+stability:      experimental
+category:       Utilities
+build-type:     Simple
+cabal-version:  >= 1.10
+
+library
+    default-language: Haskell2010
+    hs-source-dirs:   src
+    ghc-options:      -Wall -O2 -fwarn-tabs
+
+    exposed-modules:
+        Control.Concurrent.Async.Lifted.Safe.Extended
+        Options.Applicative.Extended
+
+    build-depends:
+        base
+      , base-prelude
+      , constraints
+      , async-pool
+      , lifted-async
+      , monad-control
+      , optparse-applicative
+      , extra
