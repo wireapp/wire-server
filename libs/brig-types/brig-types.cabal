@@ -48,6 +48,7 @@ library
       , galley-types          >= 0.45.7
       , errors                >= 1.4
       , hashable
+      , hostname-validate
       , iproute               >= 1.5
       , iso3166-country-codes >= 0.2
       , iso639                >= 0.1
@@ -90,6 +91,7 @@ test-suite brig-types-tests
       , bytestring
       , currency-codes
       , galley-types
+      , hostname-validate
       , iproute
       , iso639
       , lens

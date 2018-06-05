@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns      #-} 
+{-# LANGUAGE ViewPatterns      #-}
 
 module API.TURN where
 
@@ -7,9 +7,10 @@ import Bilge
 import Bilge.Assert
 import Brig.Types hiding (Handle)
 import Control.Concurrent (threadDelay)
-import Control.Lens ((^.), (#))
+import Control.Lens ((^.))
 import Control.Monad.IO.Class
 import Data.ByteString (ByteString)
+import Data.ByteString.Conversion
 import Data.Id
 import Data.Foldable
 import Data.List ((\\))
@@ -18,7 +19,6 @@ import Data.Maybe (fromMaybe)
 import Data.Misc (Port)
 import GHC.Stack (HasCallStack)
 import Network.HTTP.Client (Manager)
-import Safe (readMay)
 import System.IO.Temp (writeTempFile)
 import System.FilePath.Posix (FilePath)
 import System.Directory (copyFile, removeFile, getTemporaryDirectory)
@@ -61,23 +61,26 @@ testCallsConfigMultiple b st = do
     let _changes    = "turn:127.0.0.2:3478\nturn:127.0.0.3:3478"
     let _expectedV1 = List1.list1 (toTurnURILegacy "127.0.0.2" 3478)
                                   [toTurnURILegacy "127.0.0.3" 3478]
-    let _expectedV2 = List1.list1 (toTurnURI SchemeTurn "127.0.0.2" 3478 Nothing)
-                                  [toTurnURI SchemeTurn "127.0.0.3" 3478 Nothing]
-    modifyAndAssert uid _changes _expectedV1 _expectedV2
+    liftIO $ st _changes
+    _cfg1 <- getTurnConfigurationV1 uid b
+    assertConfiguration _cfg1 _expectedV1
+    -- With this configuration, the V2 endpoint will not return any TURN server
+    getTurnConfiguration "v2" uid b !!! do
+        const 500                            === statusCode
+        const (Just "incorrect-turn-config") === fmap Error.label . decodeBody
 
     -- Change server list, more transport options. Only the legacy endpoint, only `turn`
     -- and no transport (in practice, that's udp) are to be returned; i.e., `turn` and `udp`
     -- endpoints are returned but the `transport` suffix is removed
-    let _changes    = "turn:127.0.0.2:3479?transport=udp\nturn:127.0.0.3:3480?transport=tcp"
+    let _changes    = "turn:127.0.0.2:3479?transport=udp\nturn:localhost:3480?transport=tcp"
     let _expectedV1 = List1.singleton (toTurnURILegacy "127.0.0.2" 3479)
-    let _expectedV2 = List1.list1 (toTurnURI SchemeTurn "127.0.0.2" 3479 $ Just TransportUDP)
-                                  [toTurnURI SchemeTurn "127.0.0.3" 3480 $ Just TransportTCP]
+    let _expectedV2 = List1.singleton (toTurnURI SchemeTurn "localhost" 3480 $ Just TransportTCP)
     modifyAndAssert uid _changes _expectedV1 _expectedV2
 
     -- Change server list yet again, different schemas too - bad config for V1(!) so test it separately
-    let _changes  = "turns:127.0.0.4:3489?transport=tcp\nturns:127.0.0.5:3490?transport=tcp"
-    let _expectedV2 = List1.list1 (toTurnURI SchemeTurns "127.0.0.4" 3489 $ Just TransportTCP)
-                                  [toTurnURI SchemeTurns "127.0.0.5" 3490 $ Just TransportTCP]
+    let _changes  = "turns:localhost:3489?transport=tcp\nturns:localhost:3490?transport=tcp"
+    let _expectedV2 = List1.list1 (toTurnURI SchemeTurns "localhost" 3489 $ Just TransportTCP)
+                                  [toTurnURI SchemeTurns "localhost" 3490 $ Just TransportTCP]
     liftIO $ st _changes
     _cfg2 <- getTurnConfigurationV2 uid b
     assertConfiguration _cfg2 _expectedV2
@@ -87,9 +90,11 @@ testCallsConfigMultiple b st = do
         const (Just "incorrect-turn-config") === fmap Error.label . decodeBody
 
     -- Revert the config file back to the original
-    let _changes  = "turn:127.0.0.1:3478"
+    let _changes = "turn:127.0.0.1:3478"
+    liftIO $ st _changes
+    _cfg <- getTurnConfigurationV1 uid b
     let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
-    modifyAndAssert uid _changes _expected _expected
+    assertConfiguration _cfg _expected
   where
     modifyAndAssert uid newServers expectedV1 expectedV2 = do
         liftIO $ st newServers
@@ -126,7 +131,7 @@ getTurnConfigurationV2 :: UserId -> Brig -> Http RTCConfiguration
 getTurnConfigurationV2 = getAndValidateTurnConfiguration "v2"
 
 getTurnConfiguration :: ByteString -> UserId -> Brig -> Http (Response (Maybe LB.ByteString))
-getTurnConfiguration suffix u b = get ( b 
+getTurnConfiguration suffix u b = get ( b
                                 . paths ["/calls/config", suffix]
                                 . zUser u
                                 . zConn "conn"
@@ -137,14 +142,14 @@ getAndValidateTurnConfiguration suffix u b = do
     r <- getTurnConfiguration suffix u b <!! const 200 === statusCode
     return $ fromMaybe (error "getTurnConfiguration: failed to parse response") (decodeBody r)
 
-toTurnURILegacy :: String -> Port -> TurnURI
+toTurnURILegacy :: ByteString -> Port -> TurnURI
 toTurnURILegacy h p = toTurnURI SchemeTurn h p Nothing
 
-toTurnURI :: Scheme -> String -> Port -> Maybe Transport -> TurnURI
-toTurnURI s h p t = turnURI s (_TurnHost # ip) p t
+toTurnURI :: Scheme -> ByteString -> Port -> Maybe Transport -> TurnURI
+toTurnURI s h p t = turnURI s ip p t
   where
-    ip = fromMaybe (error "Failed to parse ip address")
-       $ readMay h
+    ip = fromMaybe (error "Failed to parse host address")
+       $ fromByteString h
 
 setTurn :: FilePath -> String -> IO ()
 setTurn cfgDest newConf = do

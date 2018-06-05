@@ -30,6 +30,7 @@ import Data.Misc
 import Data.Monoid
 import Data.Range
 import Data.Text.Ascii
+import Data.Text.Encoding (encodeUtf8)
 import Data.Typeable
 import Data.Word
 import Galley.Types.Bot.Service.Internal
@@ -39,6 +40,8 @@ import GHC.Stack
 import GHC.TypeLits
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
+import Text.Hostname
+
 
 import qualified Data.Text as ST
 import qualified System.Random
@@ -69,7 +72,10 @@ instance Arbitrary IpAddr where
         ipV4Part = octet <$> arbitrary
 
 instance Arbitrary TurnHost where
-    arbitrary = TurnHost <$> arbitrary
+    arbitrary = oneof
+              [ TurnHostIp   <$> arbitrary
+              , TurnHostName <$> arbitrary `suchThat` (validHostname . encodeUtf8)
+              ]
 
 instance Arbitrary Port where
     arbitrary = Port <$> arbitrary

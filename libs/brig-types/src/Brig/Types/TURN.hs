@@ -25,8 +25,7 @@ module Brig.Types.TURN
     , Transport (..)
 
     , TurnHost (..)
-    , _TurnHost
-
+    , isHostName
     , TurnUsername
     , turnUsername
     , tuExpiresAt
@@ -45,7 +44,7 @@ import           Data.ByteString            (ByteString)
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Conversion as BC
 import           Data.List1
-import           Data.Misc                  (IpAddr, Port (..))
+import           Data.Misc                  (IpAddr (..), Port (..))
 import           Data.Monoid
 import           Data.Text                  (Text)
 import           Data.Text.Ascii
@@ -55,6 +54,7 @@ import           Data.Time.Clock.POSIX
 import           Data.Word
 import           GHC.Base                   (Alternative)
 import           GHC.Generics               (Generic)
+import           Text.Hostname
 
 -- | A configuration object resembling \"RTCConfiguration\"
 --
@@ -100,9 +100,13 @@ data Transport = TransportUDP
                | TransportTCP
                deriving (Eq, Show, Generic, Enum, Bounded)
 
--- future versions may allow using a hostname
-newtype TurnHost = TurnHost IpAddr
+data TurnHost = TurnHostIp IpAddr
+              | TurnHostName Text
     deriving (Eq, Show, Generic)
+
+isHostName :: TurnHost -> Bool
+isHostName (TurnHostIp   _) = False
+isHostName (TurnHostName _) = True
 
 data TurnUsername = TurnUsername
     { _tuExpiresAt :: POSIXTime
@@ -121,10 +125,6 @@ rtcIceServer = RTCIceServer
 
 turnURI :: Scheme -> TurnHost -> Port -> Maybe Transport -> TurnURI
 turnURI = TurnURI
-
--- turn into a 'Prism'' once hostnames are supported
-_TurnHost :: Iso' TurnHost IpAddr
-_TurnHost = iso (\(TurnHost ip) -> ip) TurnHost
 
 -- note that the random value is not checked for well-formedness
 turnUsername :: POSIXTime -> Text -> TurnUsername
@@ -163,8 +163,23 @@ instance FromJSON RTCIceServer where
     parseJSON = withObject "RTCIceServer" $ \o ->
         RTCIceServer <$> o .: "urls" <*> o .: "username" <*> o .: "credential"
 
+parseTurnHost :: Text -> Maybe TurnHost
+parseTurnHost h = case BC.fromByteString host of
+    Just ip@(IpAddr _)           -> Just $ TurnHostIp ip
+    Nothing | validHostname host -> Just $ TurnHostName h -- NOTE: IPv4 addresses are also valid hostnames...
+    _                            -> Nothing
+  where
+    host = TE.encodeUtf8 h
+
+instance BC.FromByteString TurnHost where
+    parser = BC.parser >>= maybe (fail "Invalid turn host") return . parseTurnHost
+
+instance BC.ToByteString TurnHost where
+    builder (TurnHostIp ip)  = BC.builder ip
+    builder (TurnHostName n) = BC.builder n
+
 instance BC.ToByteString TurnURI where
-    builder (TurnURI s (TurnHost h) (Port p) tp) =
+    builder (TurnURI s h (Port p) tp) =
            BC.builder s
         <> byteString ":"
         <> BC.builder h
@@ -191,7 +206,7 @@ parseTurnURI = parseOnly (parser <* endOfInput)
           <*> ((optional ((string "?transport=" *> takeText) >>= parseTransport)) <?> "parsingTransport")
 
     parseScheme    = parse "parseScheme"
-    parseHost      = fmap TurnHost . parse "parseHost"
+    parseHost      = parse "parseHost"
     parseTransport = parse "parseTransport"
 
     parse :: (BC.FromByteString b, Monad m) => String -> Text -> m b
