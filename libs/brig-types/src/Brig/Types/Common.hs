@@ -9,7 +9,6 @@
 module Brig.Types.Common where
 
 import Control.Applicative
-import Control.Lens ((&), (%~), _2)
 import Control.Error (hush, readMay)
 import Data.Aeson
 import Data.Attoparsec.Text
@@ -22,10 +21,8 @@ import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
 import Data.Monoid ((<>))
 import Data.Range
-import Data.String (IsString, fromString)
 import Data.Text (Text, toLower)
 import Data.Time.Clock
-import Data.UUID
 
 import qualified Data.Aeson.Types as Json
 import qualified Data.Text        as Text
@@ -214,33 +211,16 @@ ssoIdentity _ = Nothing
 
 -- | TODO: once we have @/libs/spar-types@ for the wire-sso-sp-server called spar, this type should
 -- move there.
-data UserSSOId = UserSSOId { userSSOIdTenant :: UUID, userSSOIdSubject :: UUID }
-    deriving (Eq)
-
-instance Show UserSSOId where
-  show = show . userSSOIdToText
-
-instance IsString UserSSOId where
-  fromString = either (error . ("fromString @UserSSOId: " <>)) id . userSSOIdFromText . Text.pack
-
-userSSOIdFromText :: Text -> Either String UserSSOId
-userSSOIdFromText raw = do
-    ix <- maybe (Left "UserSSOId: ':'") pure $ Text.findIndex (== ':') raw
-    case Text.splitAt ix raw & _2 %~ Text.splitAt 1 of
-        (tenant, (":", subject)) -> case (fromText tenant, fromText subject) of
-            (Nothing, _)      -> Left "UserSSOId: tenant"
-            (Just _, Nothing) -> Left "UserSSOId: subject"
-            (Just t, Just s)  -> pure $ UserSSOId t s
-        bad -> Left $ "UserSSOId: impossible: " <> show bad
-
-userSSOIdToText :: UserSSOId -> Text
-userSSOIdToText (UserSSOId tenant subject) = toText tenant <> ":" <> toText subject
+data UserSSOId = UserSSOId { userSSOIdTenant :: Text, userSSOIdSubject :: Text }
+    deriving (Eq, Show)
 
 instance FromJSON UserSSOId where
-    parseJSON = withText "UserSSOId" $ either fail pure . userSSOIdFromText
+    parseJSON = withObject "UserSSOId" $ \obj -> UserSSOId
+        <$> obj .: "tenant"
+        <*> obj .: "subject"
 
 instance ToJSON UserSSOId where
-    toJSON = toJSON . userSSOIdToText
+    toJSON (UserSSOId tenant subject) = object ["tenant" .= tenant, "subject" .= subject]
 
 -----------------------------------------------------------------------------
 -- Asset

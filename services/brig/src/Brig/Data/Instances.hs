@@ -44,16 +44,6 @@ instance Cql Email where
 
     toCql = toCql . fromEmail
 
-instance Cql UserSSOId where
-    ctype = Tagged TextColumn
-
-    fromCql (CqlText t) = case userSSOIdFromText t of
-        Right i  -> return i
-        Left msg -> fail $ "fromCql: Invalid UserSSOId: " ++ msg
-    fromCql _           = fail "fromCql: UserSSOId: CqlText expected"
-
-    toCql = toCql . userSSOIdToText
-
 instance Cql Relation where
     ctype = Tagged IntColumn
 

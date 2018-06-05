@@ -34,7 +34,6 @@ import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Clock (diffUTCTime)
 import Data.Text (Text)
 import Data.Vector (Vector)
-import Data.UUID (nil)
 import Gundeck.Types.Notification
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
@@ -320,7 +319,7 @@ testCreateUserBlacklist brig aws =
 testCreateUserExternalSSO :: Brig -> Http ()
 testCreateUserExternalSSO brig = do
     teamid <- Id <$> liftIO UUID.nextRandom
-    let ssoid = UserSSOId nil nil
+    let ssoid = UserSSOId "nil" "nil"
         p withsso withteam = RequestBodyLBS . encode . object $
               [ "name"  .= ("foo" :: Text) ] <>
               [ "sso_id" .= Just ssoid | withsso ] <>
