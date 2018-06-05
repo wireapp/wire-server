@@ -185,7 +185,7 @@ instance ToJSON UserIdentity where
         SSOIdentity si em ph -> go em        ph        (Just si)
       where
         go :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Value
-        go em ph si = object $ ["email" .= em, "phone" .= ph, "sso_id" .= si]
+        go em ph si = object ["email" .= em, "phone" .= ph, "sso_id" .= si]
 
 newIdentity :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
 newIdentity email    phone    (Just sso) = Just $! SSOIdentity sso email phone
