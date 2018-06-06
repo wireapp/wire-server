@@ -254,6 +254,10 @@ type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSS
                 Maybe [Asset], Activated, Maybe AccountStatus, Maybe UTCTime, Maybe Language,
                 Maybe Country, Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
 
+type UserRowInsert = (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
+                      Maybe Password, Bool, AccountStatus, Maybe UTCTime, Language, Maybe Country,
+                      Maybe ProviderId, Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId)
+
 type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId,
                    ColourId, Maybe [Asset], Bool, Maybe AccountStatus,
                    Maybe UTCTime, Maybe Language, Maybe Country,
@@ -292,10 +296,7 @@ accountsSelect = "SELECT id, name, picture, email, phone, sso_id, accent_id, ass
                  \service, handle, team \
                  \FROM user WHERE id IN ?"
 
-userInsert :: PrepQuery W (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone, Maybe UserSSOId,
-                           ColourId, Maybe Password, Bool, AccountStatus, Maybe UTCTime,
-                           Language, Maybe Country, Maybe ProviderId,
-                           Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId) ()
+userInsert :: PrepQuery W UserRowInsert ()
 userInsert = "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
                                \accent_id, password, activated, status, expires, language, \
                                \country, provider, service, handle, searchable, team) \

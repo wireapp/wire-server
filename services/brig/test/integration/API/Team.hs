@@ -30,7 +30,6 @@ import Data.Maybe
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import Data.Word (Word16)
-import Data.UUID (nil)
 import GHC.Stack (HasCallStack)
 import Network.HTTP.Client             (Manager)
 import Test.Tasty hiding (Timeout)
@@ -544,7 +543,7 @@ testNonSearchableDefault brig galley = do
 testCreateUserInternalSSO :: Brig -> Galley -> Http ()
 testCreateUserInternalSSO brig galley = do
     teamid <- snd <$> createUserWithTeam brig galley
-    let ssoid = UserSSOId nil nil
+    let ssoid = UserSSOId "nil" "nil"
 
         getUserSSOId :: UserIdentity -> Maybe UserSSOId
         getUserSSOId (SSOIdentity i _ _) = Just i
@@ -581,7 +580,7 @@ testCreateUserInternalSSO brig galley = do
 testDeleteUserSSO :: Brig -> Galley -> Http ()
 testDeleteUserSSO brig galley = do
     (creator, tid) <- createUserWithTeam brig galley
-    let ssoid = UserSSOId nil nil
+    let ssoid = UserSSOId "nil" "nil"
         mkuser :: Bool -> Http (Maybe User)
         mkuser withemail = decodeBody <$>
             (postUser "dummy" email Nothing (Just ssoid) (Just tid) brig
