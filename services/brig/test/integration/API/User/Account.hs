@@ -26,6 +26,7 @@ import Data.Aeson.Lens
 import Data.ByteString.Char8 (pack, intercalate)
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
+import Data.Foldable (for_)
 import Data.List1 (singleton)
 import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
@@ -46,6 +47,7 @@ import Util.AWS as Util
 import qualified API.Search.Util             as Search
 import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt
+import qualified Brig.Types.User.Auth        as Auth
 import qualified CargoHold.Types.V3          as CHV3
 import qualified Data.List1                  as List1
 import qualified Data.Set                    as Set
@@ -75,7 +77,7 @@ tests _cl at _conf p b c ch g aws = testGroup "account"
     , test' aws p "get /users/:id - 200"                     $ testExistingUser b
     , test' aws p "get /users?:id=.... - 200"                $ testMultipleUsers b
     , test' aws p "put /self - 200"                          $ testUserUpdate b c aws
-    , test' aws p "put /self/email - 202"                    $ testEmailUpdate b aws
+    , test' aws p "put /self/email - 2xx"                    $ testEmailUpdate b aws
     , test' aws p "put /self/phone - 202"                    $ testPhoneUpdate b
     , test' aws p "head /self/password - 200/404"            $ testPasswordSet b
     , test' aws p "put /self/password - 200"                 $ testPasswordChange b
@@ -268,7 +270,7 @@ testCreateUserConflict brig = do
 
 testCreateUserInvalidPhone :: Brig -> Http ()
 testCreateUserInvalidPhone brig = do
-    email <- mkEmail "test@wearezeta.com"
+    email <- randomEmail
     let p = RequestBodyLBS . encode $ object
             [ "name"     .= ("foo" :: Text)
             , "email"    .= fromEmail email
@@ -503,6 +505,30 @@ testEmailUpdate brig aws = do
     activateEmail brig eml
     checkEmail brig uid eml
     liftIO $ Util.assertUserJournalQueue "user update" aws (userUpdateJournaled uid)
+    -- update email, which is exactly the same as before
+    initiateEmailUpdate brig eml uid !!! const 204 === statusCode
+
+    -- ensure no other user has "test+<uuid>@example.com"
+    -- if there is such a user, let's delete it first otherwise
+    -- this test fails since there can be only one user with "test+...@example.com"
+    ensureNoOtherUserWithEmail (Email "test" "example.com")
+
+    -- we want to use a non-trusted domain in order to verify profile changes
+    flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
+    flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
+  where
+    ensureNoOtherUserWithEmail eml = do
+        tk <- decodeBody <$> login brig (defEmailLogin eml) SessionCookie
+        for_ tk $ \t -> deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
+
+    initiateUpdateAndActivate eml uid = do
+        initiateEmailUpdateNoSend brig eml uid !!! const 202 === statusCode
+        activateEmail brig eml
+        checkEmail brig uid eml
+        liftIO $ Util.assertUserJournalQueue "user update" aws (userUpdateJournaled uid)
+        -- Ensure login work both with the full email and the "short" version
+        login brig (defEmailLogin eml) SessionCookie !!! const 200 === statusCode
+        login brig (defEmailLogin (Email "test" "example.com")) SessionCookie !!! const 200 === statusCode
 
 testPhoneUpdate :: Brig -> Http ()
 testPhoneUpdate brig = do
@@ -598,7 +624,7 @@ testSuspendUser brig = do
 testGetByIdentity :: Brig -> Http ()
 testGetByIdentity brig = do
     p <- randomPhone
-    e <- mkEmail "test@wearezeta.com"
+    e <- randomEmail
     let emailBs = T.encodeUtf8 $ fromEmail e
         phoneBs = T.encodeUtf8 $ fromPhone p
         newUser = RequestBodyLBS . encode $ object

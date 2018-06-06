@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE MultiWayIf        #-}
@@ -130,6 +131,11 @@ sitemap o = do
     post "/i/users" (continue createUserNoVerify) $
         accept "application" "json"
         .&. contentType "application" "json"
+        .&. request
+
+    put "/i/self/email" (continue changeSelfEmailNoSend) $
+        contentType "application" "json"
+        .&. header "Z-User"
         .&. request
 
     delete "/i/users/:id" (continue deleteUserNoVerify) $
@@ -411,7 +417,7 @@ sitemap o = do
 
     ---
 
-    put "/self/email" (continue changeEmail) $
+    put "/self/email" (continue changeSelfEmail) $
         contentType "application" "json"
         .&. header "Z-User"
         .&. header "Z-Connection"
@@ -422,6 +428,7 @@ sitemap o = do
         Doc.body (Doc.ref Doc.emailUpdate) $
             Doc.description "JSON body"
         Doc.response 202 "Update accepted and pending activation of the new email." Doc.end
+        Doc.response 204 "No update, current and new email address are the same." Doc.end
         Doc.errorResponse invalidEmail
         Doc.errorResponse userKeyExists
         Doc.errorResponse blacklistedEmail
@@ -1200,6 +1207,9 @@ deleteUserNoVerify uid = do
     lift $ API.deleteUserNoVerify uid
     return $ setStatus status202 empty
 
+changeSelfEmailNoSend :: JSON ::: UserId ::: Request -> Handler Response
+changeSelfEmailNoSend (_ ::: u ::: req) = changeEmail u req False
+
 checkUserExists :: UserId ::: UserId -> Handler Response
 checkUserExists (self ::: uid) = do
     exists <- lift $ isJust <$> API.lookupProfile self uid
@@ -1388,17 +1398,8 @@ sendActivationCode (_ ::: req) = do
     API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
     return empty
 
-changeEmail :: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
-changeEmail (_ ::: u ::: _ ::: req) = do
-    email  <- euEmail <$> parseJsonBody req
-    (adata, en) <- API.changeEmail u email !>> changeEmailError
-    usr <- maybe (throwStd invalidUser) return =<< lift (API.lookupUser u)
-    let apair = (activationKey adata, activationCode adata)
-    let name  = userName usr
-    let ident = userIdentity usr
-    let lang  = userLocale usr
-    lift $ sendActivationMail en name apair (Just lang) ident
-    return $ setStatus status202 empty
+changeSelfEmail :: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
+changeSelfEmail (_ ::: u ::: _ ::: req) = changeEmail u req True
 
 -- Deprecated and to be removed after new versions of brig and galley are
 -- deployed. Reason for deprecation: it returns N^2 things (which is not
@@ -1563,6 +1564,23 @@ activate (Activate tgt code dryrun)
   where
     respond (Just ident) first = setStatus status200 $ json (ActivationResponse ident first)
     respond Nothing      _     = setStatus status200 empty
+
+changeEmail :: UserId -> Request -> Bool -> Handler Response
+changeEmail u req sendOutEmail = do
+    email <- euEmail <$> parseJsonBody req
+    API.changeEmail u email !>> changeEmailError >>= \case
+        ChangeEmailIdempotent                       -> respond status204
+        ChangeEmailNeedsActivation (usr, adata, en) -> handleActivation usr adata en
+  where
+    respond = return . flip setStatus empty
+    handleActivation usr adata en = do
+        when sendOutEmail $ do
+            let apair = (activationKey adata, activationCode adata)
+            let name  = userName usr
+            let ident = userIdentity usr
+            let lang  = userLocale usr
+            lift $ sendActivationMail en name apair (Just lang) ident
+        respond status202
 
 validateHandle :: Text -> Handler Handle
 validateHandle = maybe (throwE (StdError invalidHandle)) return . parseHandle
