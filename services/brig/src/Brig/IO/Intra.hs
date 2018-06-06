@@ -42,6 +42,10 @@ module Brig.IO.Intra
     , getTeamContacts
     , getTeamOwners
     , changeTeamStatus
+
+      -- * Account Data Aggregation
+    , getNotifications
+    , getConversations
     ) where
 
 import Bilge hiding (head, options, requestId)
@@ -72,7 +76,8 @@ import Data.List.Split (chunksOf)
 import Data.Maybe (isJust, mapMaybe)
 import Data.Range
 import Data.Text (Text)
-import Galley.Types (Connect (..), Conversation)
+import Galley.Types (Connect (..), Conversation (..), ConversationList (..))
+import Gundeck.Types.Notification
 import Gundeck.Types.Push.V2
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
@@ -680,3 +685,51 @@ changeTeamStatus tid s cur = do
         . header "Content-Type" "application/json"
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
+
+-------------------------------------------------------------------------------------
+-- For data aggregation
+-- NOTE: getNotifications and getConversations could be made more generic but given
+--       the number of (not so) subtle differences the resulting code ended up being
+--       far more difficult to read (too many arguments and typeclasses)
+
+getNotifications :: UserId -> AppIO [QueuedNotification]
+getNotifications uid = fetchAll [] Nothing
+  where
+    fetchAll xs start = do
+        userNotificationList <- fetchBatch start
+        let batch = view queuedNotifications userNotificationList
+        if (not . null) batch && (view queuedHasMore userNotificationList)
+            then fetchAll (batch ++ xs) (Just . view queuedNotificationId $ last batch)
+            else return   (batch ++ xs)
+
+    fetchBatch :: Maybe NotificationId -> AppIO QueuedNotificationList
+    fetchBatch start = do
+        debug $ remote "gundeck" . field "user" (toByteString uid) . msg (val "Fetching notifications")
+        gundeckRequest GET req >>= decodeBody "gundeck"
+      where
+        req = path "/notifications"
+            . header "Z-User" (toByteString' uid)
+            . queryItem "size" "1000"
+            . maybe id (queryItem "start" . toByteString') start
+            . expect [status200, status404]
+
+getConversations :: UserId -> AppIO [Conversation]
+getConversations uid = fetchAll [] Nothing
+  where
+    fetchAll xs start = do
+        userConversationList <- fetchBatch start
+        let batch = convList userConversationList
+        if (not . null) batch && (convHasMore userConversationList)
+            then fetchAll (batch ++ xs) (Just . cnvId $ last batch)
+            else return   (batch ++ xs)
+
+    fetchBatch :: Maybe ConvId -> AppIO (ConversationList Conversation)
+    fetchBatch start = do
+        debug $ remote "galley" . field "user" (toByteString uid) . msg (val "Fetching convs")
+        galleyRequest GET req >>= decodeBody "galley"
+      where
+        req = path "/conversations"
+            . header "Z-User" (toByteString' uid)
+            . queryItem "size" "500"
+            . maybe id (queryItem "start" . toByteString') start
+            . expect2xx

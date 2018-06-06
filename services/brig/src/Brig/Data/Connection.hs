@@ -10,6 +10,7 @@ module Brig.Data.Connection
     , updateConnection
     , lookupConnection
     , lookupConnections
+    , lookupAllConnections
     , lookupConnectionStatus
     , lookupContactList
     , countConnections
@@ -79,6 +80,16 @@ lookupConnections from start (fromRange -> size) = toResult <$> case start of
   where
     toResult = cassandraResultPage . fmap toUserConnection . trim
     trim   p = p { result = take (fromIntegral size) (result p) }
+
+-- | For a given user 'A', lookup all outgoing connections (A -> X) to other users.
+lookupAllConnections :: UserId -> AppIO [UserConnection]
+lookupAllConnections from = do
+    page <- retry x1 $ paginate connectionsSelect (paramsP Quorum (Identity from) 500)
+    fmap toUserConnection <$> scan [] page
+  where
+    scan acc p
+        | hasMore p = liftClient (nextPage p) >>= scan (acc ++ result p)
+        | otherwise = return (acc ++ result p)
 
 -- | Lookup all relations between two sets of users (cartesian product).
 lookupConnectionStatus :: [UserId] -> [UserId] -> AppIO [ConnectionStatus]

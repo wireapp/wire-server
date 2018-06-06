@@ -22,6 +22,7 @@ import Brig.Types.User (NewUserNoSSO(NewUserNoSSO))
 import Brig.Types.User.Auth
 import Brig.User.Email
 import Brig.User.Phone
+import Control.Concurrent.Async.Lifted.Safe
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad (liftM2, liftM3, unless, void, when)
@@ -78,6 +79,7 @@ import qualified Data.Map.Strict               as Map
 import qualified Network.Wai.Utilities.Server  as Server
 import qualified Data.Set                      as Set
 import qualified Data.Text                     as Text
+import qualified Brig.IO.Intra                 as Intra
 import qualified Brig.Provider.API             as Provider
 import qualified Brig.Team.API                 as Team
 import qualified Brig.Team.Email               as Team
@@ -389,6 +391,16 @@ sitemap o = do
         Doc.summary "Get your profile"
         Doc.returns (Doc.ref Doc.self)
         Doc.response 200 "Self profile" Doc.end
+
+    get "/self/info" (continue getSelfDetailedInfo) $
+        accept "application" "json"
+        .&. header "Z-User"
+
+    document "GET" "getSelfDetailedInfo" $ do
+        Doc.summary "Get your profile"
+        Doc.returns (Doc.ref Doc.self)
+        Doc.response 200 "Aggregated data for self profile, notifications \
+                         \conversations, connections and clients. " Doc.end
 
     ---
 
@@ -1219,6 +1231,21 @@ getSelf :: JSON ::: UserId -> Handler Response
 getSelf (_ ::: self) = do
     p <- (lift $ API.lookupSelfProfile self) >>= ifNothing userNotFound
     return $ json p
+
+getSelfDetailedInfo :: JSON ::: UserId -> Handler Response
+getSelfDetailedInfo (_ ::: self) = do
+    prof   <- (lift $ API.lookupSelfProfile self) >>= ifNothing userNotFound
+    (conns, clts, convs, notfs) <- lift . runConcurrently $ (,,,)
+          <$> Concurrently (API.lookupAllConnections self)
+          <*> Concurrently (API.lookupClients self)
+          <*> Concurrently (Intra.getConversations self)
+          <*> Concurrently (Intra.getNotifications self)
+    return . json $ object [ "account"       .= prof
+                           , "connections"   .= conns
+                           , "clients"       .= clts
+                           , "conversations" .= convs
+                           , "notifications" .= notfs
+                           ]
 
 getUser :: JSON ::: UserId ::: UserId -> Handler Response
 getUser (_ ::: self ::: uid) = do

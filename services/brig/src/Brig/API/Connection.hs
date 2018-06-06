@@ -13,6 +13,7 @@ module Brig.API.Connection
     , updateConnection
     , lookupConnections
     , Data.lookupConnection
+    , Data.lookupAllConnections
     , Data.lookupConnectionStatus
     , Data.lookupContactList
 
@@ -80,11 +81,11 @@ createConnection self ConnectionRequest{..} conn = do
     otherActive <- lift $ Data.isActivated crUser
     unless otherActive $
         throwE $ InvalidUser crUser
-    
+
     sameTeam <- lift $ belongSameTeam
     when sameTeam $
         throwE ConnectSameBindingTeamUsers
-    
+
     s2o <- lift $ Data.lookupConnection self   crUser
     o2s <- lift $ Data.lookupConnection crUser self
 
