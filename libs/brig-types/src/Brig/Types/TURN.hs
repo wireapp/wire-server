@@ -24,8 +24,10 @@ module Brig.Types.TURN
     , turiTransport
     , Transport (..)
 
-    , TurnHost (..)
+    , TurnHost -- Re-export
     , isHostName
+    , parseTurnHost
+
     , TurnUsername
     , turnUsername
     , tuExpiresAt
@@ -45,7 +47,7 @@ import           Data.ByteString            (ByteString)
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Conversion as BC
 import           Data.List1
-import           Data.Misc                  (IpAddr (..), Port (..))
+import           Data.Misc                  (Port (..))
 import           Data.Monoid
 import           Data.Text                  (Text)
 import           Data.Text.Ascii
@@ -55,7 +57,6 @@ import           Data.Time.Clock.POSIX
 import           Data.Word
 import           GHC.Base                   (Alternative)
 import           GHC.Generics               (Generic)
-import           Text.Hostname
 
 -- | A configuration object resembling \"RTCConfiguration\"
 --
@@ -100,14 +101,6 @@ data Scheme = SchemeTurn
 data Transport = TransportUDP
                | TransportTCP
                deriving (Eq, Show, Generic, Enum, Bounded)
-
-data TurnHost = TurnHostIp IpAddr
-              | TurnHostName Text
-    deriving (Eq, Show, Generic)
-
-isHostName :: TurnHost -> Bool
-isHostName (TurnHostIp   _) = False
-isHostName (TurnHostName _) = True
 
 data TurnUsername = TurnUsername
     { _tuExpiresAt :: POSIXTime
@@ -163,21 +156,6 @@ instance ToJSON RTCIceServer where
 instance FromJSON RTCIceServer where
     parseJSON = withObject "RTCIceServer" $ \o ->
         RTCIceServer <$> o .: "urls" <*> o .: "username" <*> o .: "credential"
-
-parseTurnHost :: Text -> Maybe TurnHost
-parseTurnHost h = case BC.fromByteString host of
-    Just ip@(IpAddr _)           -> Just $ TurnHostIp ip
-    Nothing | validHostname host -> Just $ TurnHostName h -- NOTE: IPv4 addresses are also valid hostnames...
-    _                            -> Nothing
-  where
-    host = TE.encodeUtf8 h
-
-instance BC.FromByteString TurnHost where
-    parser = BC.parser >>= maybe (fail "Invalid turn host") return . parseTurnHost
-
-instance BC.ToByteString TurnHost where
-    builder (TurnHostIp ip)  = BC.builder ip
-    builder (TurnHostName n) = BC.builder n
 
 instance BC.ToByteString TurnURI where
     builder (TurnURI s h (Port p) tp) =
