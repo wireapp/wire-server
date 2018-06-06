@@ -17,6 +17,7 @@ module Test.Brig.Types.Arbitrary where
 import Brig.Types.Activation
 import Brig.Types.Code
 import Brig.Types.TURN
+import Brig.Types.TURN.Internal
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Control.Lens hiding (elements)
