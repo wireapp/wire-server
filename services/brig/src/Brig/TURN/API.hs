@@ -52,7 +52,7 @@ routes = do
 
     document "GET" "getCallsConfig" $ do
         Doc.summary "Retrieve TURN server addresses and credentials for \
-                    \ IPv4 addresses, scheme `turn` and transport `udp` only "
+                    \ IP addresses, scheme `turn` and transport `udp` only "
         Doc.returns (Doc.ref Doc.rtcConfiguration)
         Doc.response 200 "RTCConfiguration" Doc.end
 
