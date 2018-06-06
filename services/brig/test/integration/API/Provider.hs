@@ -123,7 +123,7 @@ tests conf p db b c g = do
 -- of pre- and post-conditions.
 testRegisterProvider :: DB.ClientState -> Brig -> Http ()
 testRegisterProvider db brig = do
-    email <- mkSimulatorEmail "simulator.amazonses.com"
+    email <- mkSimulatorEmail "success"
     gen   <- Code.mkGen (Code.ForEmail email)
 
     let new = defNewProvider email
