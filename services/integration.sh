@@ -78,7 +78,7 @@ run cargohold ${purpleish} Info
 while [ "$all_services_are_up" == "" ]; do
     export all_services_are_up="1"
     for port in `seq 8082 8086`; do
-        curl -s http://localhost:$port/i/status || export all_services_are_up=""
+        ( curl -v http://localhost:$port/i/status 2>&1 | grep -q 'HTTP/1.1 200 OK' ) || export all_services_are_up=""
     done
     sleep 1
 done
