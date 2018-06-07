@@ -129,7 +129,7 @@ instance ToJSON UserConnection where
         [ "from"         .= ucFrom uc
         , "to"           .= ucTo uc
         , "status"       .= ucStatus uc
-        , "last_update"  .= UTCTimeMillis (ucLastUpdate uc)
+        , "last_update"  .= toUTCTimeMillis (ucLastUpdate uc)
         , "message"      .= ucMessage uc
         , "conversation" .= ucConvId uc
         ]
@@ -179,7 +179,7 @@ instance ToJSON Invitation where
     toJSON i = object [ "inviter"       .= inInviter i
                       , "id"            .= inInvitation i
                       , either ("email" .=) ("phone" .=) (inIdentity i)
-                      , "created_at"    .= UTCTimeMillis (inCreatedAt i)
+                      , "created_at"    .= toUTCTimeMillis (inCreatedAt i)
                       , "name"          .= inName i
                       ]
 

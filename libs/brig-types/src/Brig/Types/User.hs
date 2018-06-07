@@ -21,7 +21,7 @@ import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Json.Util ((#), UTCTimeMillis (..))
+import Data.Json.Util ((#), toUTCTimeMillis)
 import Data.Maybe (isJust)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
@@ -175,7 +175,7 @@ instance ToJSON User where
         # "locale"     .= userLocale u
         # "service"    .= userService u
         # "handle"     .= userHandle u
-        # "expires_at" .= (UTCTimeMillis <$> userExpire u)
+        # "expires_at" .= (toUTCTimeMillis <$> userExpire u)
         # "team"       .= userTeam u
         # "sso_id"     .= userSSOId u
         # []
@@ -221,7 +221,7 @@ instance ToJSON UserProfile where
         # "service"    .= profileService u
         # "handle"     .= profileHandle u
         # "locale"     .= profileLocale u
-        # "expires_at" .= (UTCTimeMillis <$> profileExpire u)
+        # "expires_at" .= (toUTCTimeMillis <$> profileExpire u)
         # "team"       .= profileTeam u
         # []
 

@@ -50,7 +50,7 @@ import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Json.Util ((#), UTCTimeMillis (..))
+import Data.Json.Util ((#), toUTCTimeMillis)
 import Data.Monoid
 import Data.Time.Clock
 import Data.Text (Text)
@@ -280,7 +280,7 @@ mkAsset k = Asset k Nothing Nothing
 instance ToJSON Asset where
     toJSON a = object
         $ "key"     .= _assetKey a
-        # "expires" .= fmap UTCTimeMillis (_assetExpires a)
+        # "expires" .= fmap toUTCTimeMillis (_assetExpires a)
         # "token"   .= _assetToken a
         # []
 
@@ -306,4 +306,3 @@ instance ToByteString Principal where
     builder (UserPrincipal     u) = builder u
     builder (BotPrincipal      b) = builder b
     builder (ProviderPrincipal p) = builder p
-

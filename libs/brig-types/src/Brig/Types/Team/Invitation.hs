@@ -49,7 +49,7 @@ instance ToJSON Invitation where
     toJSON i = object [ "team"       .= inTeam i
                       , "id"            .= inInvitation i
                       , "email"         .= inIdentity i
-                      , "created_at"    .= UTCTimeMillis (inCreatedAt i)
+                      , "created_at"    .= toUTCTimeMillis (inCreatedAt i)
                       ]
 
 instance ToJSON InvitationList where

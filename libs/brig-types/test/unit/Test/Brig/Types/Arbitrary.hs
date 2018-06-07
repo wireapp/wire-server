@@ -25,7 +25,7 @@ import Data.Currency
 import Data.Aeson
 import Data.Either
 import Data.IP
-import Data.Json.Util (UTCTimeMillis (..))
+import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LanguageCodes
 import Data.Maybe
 import Data.Misc
@@ -219,7 +219,7 @@ instance Arbitrary NewUser where
 
 instance Arbitrary UTCTimeMillis where
     arbitrary = fromRight (error "instance Arbitrary UTCTimeMillis")
-              . eitherDecode . encode . UTCTimeMillis
+              . eitherDecode . encode . toUTCTimeMillis
             <$> arbitrary
 
 instance Arbitrary NewUserOrigin where

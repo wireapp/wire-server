@@ -90,7 +90,7 @@ instance ToJSON Client where
         # "type"     .= clientType c
         # "label"    .= clientLabel c
         # "class"    .= clientClass c
-        # "time"     .= UTCTimeMillis (clientTime c)
+        # "time"     .= toUTCTimeMillis (clientTime c)
         # "cookie"   .= clientCookie c
         # "location" .= clientLocation c
         # "model"    .= clientModel c

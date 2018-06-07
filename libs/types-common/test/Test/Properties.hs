@@ -99,6 +99,16 @@ tests = testGroup "Properties"
         [ testProperty "validate (Aeson.decode . Aeson.encode) == pure . id" $
             \(t :: Util.UTCTimeMillis) ->
                 (Aeson.eitherDecode . Aeson.encode) t == Right t
+
+          -- (we could test @show x == show y ==> x == y@, but that kind of follows from the above.)
+
+        , let testcase (t1, t2) = testCase (show (t1, t2)) $ make t1 @=? make t2
+              make = Util.readUTCTimeMillis
+          in testGroup "validate Eq" $ testcase <$>
+            [ ("1918-04-14T09:58:58.457Z",  "1918-04-14T09:58:58.457Z")
+            , ("1918-04-14T09:58:58.4574Z", "1918-04-14T09:58:58.457Z")
+            , ("1918-04-14T09:58:58.4579Z", "1918-04-14T09:58:58.457Z")
+            ]
         ]
 
     , testGroup "UUID"
@@ -141,4 +151,4 @@ instance Arbitrary Tag' where
     arbitrary = Tag' <$> choose (0, 536870912)
 
 instance Arbitrary Util.UTCTimeMillis where
-    arbitrary = Util.UTCTimeMillis . posixSecondsToUTCTime . fromInteger <$> arbitrary
+    arbitrary = Util.toUTCTimeMillis . posixSecondsToUTCTime . fromInteger <$> arbitrary
