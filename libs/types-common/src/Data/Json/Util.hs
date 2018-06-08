@@ -6,7 +6,7 @@ module Data.Json.Util
     ( append
     , toJSONFieldName
     , (#)
-    , UTCTimeMillis, toUTCTimeMillis, fromUTCTimeMillis, showUTCTimeMillis, readUTCTimeMillis
+    , toUTCTimeMillis
     , ToJSONObject  (..)
     , Base64ByteString (..)
     ) where
@@ -19,7 +19,7 @@ import qualified Data.ByteString.Base64.Lazy as EL
 import Data.Char (isUpper)
 import Data.String
 import Data.Time.Clock
-import Data.Time.Format (formatTime, parseTimeM)
+import Data.Time.Format (formatTime)
 import Data.Time.Locale.Compat (defaultTimeLocale)
 import Data.Text (pack)
 import qualified Data.Text.Encoding
@@ -40,46 +40,13 @@ infixr 5 #
 -----------------------------------------------------------------------------
 -- UTCTimeMillis
 
--- | A newtype wrapper for 'UTCTime' that formats timestamps in JSON with
--- millisecond precision instead of the default picosecond precision.
---
--- 'Show', 'Eq' behave as expected, ignoring picoseconds.  Construct values
--- using 'toUTCTimeMillis'.  NB: 'fromUTCTimeMillis' will give you a
--- 'UTCTime' that may have a fractional milisecond count.
-newtype UTCTimeMillis = UTCTimeMillis { fromUTCTimeMillis :: UTCTime }
-
+-- | 'UTCTime' JSON with millisecond precision instead of the default picosecond precision.
 {-# INLINE toUTCTimeMillis #-}
-toUTCTimeMillis :: UTCTime -> UTCTimeMillis
-toUTCTimeMillis = UTCTimeMillis
-
-{-# INLINE showUTCTimeMillis #-}
-showUTCTimeMillis :: UTCTimeMillis -> String
-showUTCTimeMillis (UTCTimeMillis t) = formatTime defaultTimeLocale format t
+toUTCTimeMillis :: UTCTime -> Value
+toUTCTimeMillis t = String . pack $ formatTime defaultTimeLocale format t
   where
     format = "%FT%T." ++ formatMillis t ++ "Z"
     formatMillis = take 3 . formatTime defaultTimeLocale "%q"
-
-readUTCTimeMillis :: String -> Maybe UTCTimeMillis
-readUTCTimeMillis = fmap UTCTimeMillis . parseTimeM True defaultTimeLocale format
-  where
-    format = "%FT%T%QZ"
-
-{-# INLINE eqUTCTimeMillis #-}
--- (this implementation is not very fast)
-eqUTCTimeMillis :: UTCTimeMillis -> UTCTimeMillis -> Bool
-eqUTCTimeMillis t t' = show t == show t'
-
-instance Show UTCTimeMillis where
-    showsPrec d = showParen (d > 10) . showString . showUTCTimeMillis
-
-instance Eq UTCTimeMillis where
-    (==) = eqUTCTimeMillis
-
-instance ToJSON UTCTimeMillis where
-    toJSON = String . pack . showUTCTimeMillis
-
-instance FromJSON UTCTimeMillis where
-    parseJSON = fmap UTCTimeMillis . parseJSON
 
 -----------------------------------------------------------------------------
 -- ToJSONObject

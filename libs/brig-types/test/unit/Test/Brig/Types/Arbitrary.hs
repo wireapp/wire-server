@@ -22,10 +22,7 @@ import Brig.Types.User.Auth
 import Control.Lens hiding (elements)
 import Control.Monad
 import Data.Currency
-import Data.Aeson
-import Data.Either
 import Data.IP
-import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LanguageCodes
 import Data.Maybe
 import Data.Misc
@@ -217,11 +214,6 @@ instance Arbitrary NewUser where
         newUserExpiresIn  <- if isJust newUserIdentity then pure Nothing else arbitrary
         pure NewUser{..}
 
-instance Arbitrary UTCTimeMillis where
-    arbitrary = fromRight (error "instance Arbitrary UTCTimeMillis")
-              . eitherDecode . encode . toUTCTimeMillis
-            <$> arbitrary
-
 instance Arbitrary NewUserOrigin where
     arbitrary = oneof
         [ NewUserOriginInvitationCode <$> arbitrary
@@ -276,7 +268,7 @@ instance Arbitrary UserProfile where
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
-        <*> (fromUTCTimeMillis <$$> arbitrary)
+        <*> arbitrary
         <*> arbitrary
 
 instance Arbitrary ServiceRef where
@@ -301,7 +293,7 @@ instance Arbitrary User where
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
-        <*> (fromUTCTimeMillis <$$> arbitrary)
+        <*> arbitrary
         <*> arbitrary
 
 instance Arbitrary VerifyDeleteUser where

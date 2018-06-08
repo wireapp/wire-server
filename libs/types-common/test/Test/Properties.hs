@@ -9,12 +9,13 @@ module Test.Properties (tests) where
 import Data.Aeson as Aeson
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy as L
+import Data.Maybe (fromJust)
 import Data.Monoid
 import Data.Text.Ascii
 import Data.Id
 import Data.ProtocolBuffers.Internal
 import Data.Serialize
-import Data.Time.Clock.POSIX
+import Data.Time
 import Data.UUID
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -95,19 +96,14 @@ tests = testGroup "Properties"
             go "foo" "\"Zm9v\""
         ]
 
-    , testGroup "UTCTimeMillis"
-        [ testProperty "validate (Aeson.decode . Aeson.encode) == pure . id" $
-            \(t :: Util.UTCTimeMillis) ->
-                (Aeson.eitherDecode . Aeson.encode) t == Right t
-
-          -- (we could test @show x == show y ==> x == y@, but that kind of follows from the above.)
-
-        , let testcase (t1, t2) = testCase (show (t1, t2)) $ make t1 @=? make t2
-              make = Util.readUTCTimeMillis
+    , testGroup "toUTCTimeMillis"
+        [ let testcase (t1, t2) = testCase (show (t1, t2)) $ timeval t1 @=? timeval t2
+              timeval = Util.toUTCTimeMillis . fromJust . parseTimeM True defaultTimeLocale "%FT%T%QZ"
           in testGroup "validate Eq" $ testcase <$>
-            [ ("1918-04-14T09:58:58.457Z",  "1918-04-14T09:58:58.457Z")
-            , ("1918-04-14T09:58:58.4574Z", "1918-04-14T09:58:58.457Z")
-            , ("1918-04-14T09:58:58.4579Z", "1918-04-14T09:58:58.457Z")
+            [ ("1918-04-14T09:58:58.457Z",      "1918-04-14T09:58:58.457Z")
+            , ("1918-04-14T09:58:58.4574Z",     "1918-04-14T09:58:58.457Z")
+            , ("1918-04-14T09:58:58.4579Z",     "1918-04-14T09:58:58.457Z")
+            , ("1918-04-14T09:58:58.45799817Z", "1918-04-14T09:58:58.457Z")
             ]
         ]
 
@@ -149,6 +145,3 @@ newtype Tag' = Tag' Tag
 
 instance Arbitrary Tag' where
     arbitrary = Tag' <$> choose (0, 536870912)
-
-instance Arbitrary Util.UTCTimeMillis where
-    arbitrary = Util.toUTCTimeMillis . posixSecondsToUTCTime . fromInteger <$> arbitrary
