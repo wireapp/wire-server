@@ -27,6 +27,7 @@ import Control.Monad.IO.Class
 import Data.Functor.Identity
 import Data.Id
 import Data.Int
+import Data.Json.Util (toUTCTimeMillis)
 import Data.List (foldl')
 import Data.Range
 import Data.Time (UTCTime, getCurrentTime)
@@ -41,8 +42,8 @@ connectUsers from to = do
             addPrepQuery connectionInsert (from, u, Accepted, now, Nothing, c)
             addPrepQuery connectionInsert (u, from, Accepted, now, Nothing, c)
     return $ concat $ (`map` to) $ \(u, c) ->
-        [ UserConnection from u Accepted now Nothing (Just c)
-        , UserConnection u from Accepted now Nothing (Just c)
+        [ UserConnection from u Accepted (toUTCTimeMillis now) Nothing (Just c)
+        , UserConnection u from Accepted (toUTCTimeMillis now) Nothing (Just c)
         ]
 
 insertConnection :: UserId -- ^ From
@@ -61,7 +62,7 @@ updateConnection c@UserConnection{..} status = do
     now <- liftIO getCurrentTime
     retry x5 . write connectionUpdate $ params Quorum (status, now, ucFrom, ucTo)
     return $ c { ucStatus     = status
-               , ucLastUpdate = now
+               , ucLastUpdate = toUTCTimeMillis now
                }
 
 -- | Lookup the connection from a user 'A' to a user 'B' (A -> B).
@@ -148,7 +149,7 @@ connectionClear = "DELETE FROM connection WHERE left = ?"
 -- Conversions
 
 toUserConnection :: (UserId, UserId, Relation, UTCTime, Maybe Message, Maybe ConvId) -> UserConnection
-toUserConnection (l, r, rel, time, msg, cid) = UserConnection l r rel time msg cid
+toUserConnection (l, r, rel, toUTCTimeMillis -> time, msg, cid) = UserConnection l r rel time msg cid
 
 toConnectionStatus :: (UserId, UserId, Relation) -> ConnectionStatus
 toConnectionStatus (l, r, rel) = ConnectionStatus l r rel

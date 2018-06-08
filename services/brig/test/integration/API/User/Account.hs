@@ -26,6 +26,7 @@ import Data.Aeson.Lens
 import Data.ByteString.Char8 (pack, intercalate)
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
+import Data.Json.Util (fromUTCTimeMillis)
 import Data.Foldable (for_)
 import Data.List1 (singleton)
 import Data.Maybe
@@ -405,7 +406,7 @@ testCreateUserAnonExpiry b = do
     alice <- randomUser b
     bob <- createAnonUserExpiry (Just 2) "bob" b
     liftIO $ assertBool "expiry not set on regular creation" (not $ isJust $ userExpire alice)
-    ensureExpiry (userExpire bob) "bob/register"
+    ensureExpiry (fromUTCTimeMillis <$> userExpire bob) "bob/register"
     resAlice <- getProfile (userId u1) (userId alice)
     resBob <- getProfile (userId u1) (userId bob)
     selfBob <- get (b . zUser (userId bob) . path "self") <!! const 200 === statusCode

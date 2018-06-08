@@ -91,6 +91,7 @@ import Control.Monad.Reader
 import Data.ByteString.Conversion
 import Data.Foldable
 import Data.Id
+import Data.Json.Util
 import Data.List (nub)
 import Data.List1 (List1)
 import Data.Misc (PlainTextPassword (..))
@@ -842,7 +843,7 @@ deleteUserNoVerify uid = do
 userGC :: User -> AppIO User
 userGC u = case (userExpire u) of
         Nothing  -> return u
-        (Just e) -> do
+        (Just (fromUTCTimeMillis -> e)) -> do
             now <- liftIO =<< view currentTime
             -- ephemeral users past their expiry date are deleted
             when (diffUTCTime e now < 0) $

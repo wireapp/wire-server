@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Brig.Data.Client
     ( -- * Clients
@@ -46,6 +47,7 @@ import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Foldable (for_)
 import Data.Id
 import Data.List.Split (chunksOf)
+import Data.Json.Util (toUTCTimeMillis)
 import Data.Misc
 import Data.Monoid ((<>))
 import Data.Text (Text)
@@ -115,7 +117,7 @@ addClient u newId c loc = do
             mdl = newClientModel c
             prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl)
         retry x5 $ write insertClient (params Quorum prm)
-        return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl
+        return $! Client newId (newClientType c) (toUTCTimeMillis now) (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl
 
 lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
 lookupClient u c = fmap toClient <$>
@@ -225,7 +227,7 @@ checkClient = "SELECT client from clients where user = ? and client = ?"
 -- Conversions
 
 toClient :: (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) -> Client
-toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl) = Client
+toClient (cid, cty, toUTCTimeMillis -> tme, lbl, cls, cok, lat, lon, mdl) = Client
     { clientId       = cid
     , clientType     = cty
     , clientTime     = tme

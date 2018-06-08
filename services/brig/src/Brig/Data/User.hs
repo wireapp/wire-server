@@ -52,6 +52,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.Foldable (for_)
 import Data.Id
+import Data.Json.Util
 import Data.Misc (PlainTextPassword (..))
 import Data.Range (fromRange)
 import Data.Time (UTCTime, addUTCTime)
@@ -86,7 +87,7 @@ newAccount u inv tid = do
                        now <- liftIO =<< view currentTime
                        return $ Just (addUTCTime (fromIntegral ttl) now)
                    _ -> return Nothing
-    return (UserAccount (user uid (locale defLoc) expiry) status, passwd)
+    return (UserAccount (user uid (locale defLoc) (toUTCTimeMillis <$> expiry)) status, passwd)
   where
     ident         = newUserIdentity u
     pass          = newUserPassword u
@@ -138,7 +139,7 @@ insertAccount (UserAccount u status) password activated searchable = do
     retry x5 $ write userInsert $ params Quorum
         ( userId u, userName u, userPict u, userAssets u, userEmail u
         , userPhone u, userSSOId u, userAccentId u, password, activated
-        , status, (userExpire u), l, c
+        , status, fromUTCTimeMillis <$> userExpire u, l, c
         , view serviceRefProvider <$> userService u
         , view serviceRefId <$> userService u
         , userHandle u
@@ -360,14 +361,14 @@ toUserAccount defaultLocale (uid, name, pict, email, phone, ssoid, accent, asset
         loc = toLocale defaultLocale (lan, con)
         svc = newServiceRef <$> sid <*> pid
     in UserAccount (User uid ident name (fromMaybe noPict pict)
-                         (fromMaybe [] assets) accent deleted loc svc handle expiration tid)
+                         (fromMaybe [] assets) accent deleted loc svc handle (toUTCTimeMillis <$> expiration) tid)
                    (fromMaybe Active status)
 
 toUsers :: Locale -> [UserRow] -> [User]
 toUsers defaultLocale = fmap mk
   where
     mk (uid, name, pict, email, phone, ssoid, accent, assets, activated, status,
-        expires, lan, con, pid, sid, handle, tid) =
+        fmap toUTCTimeMillis -> expires, lan, con, pid, sid, handle, tid) =
         let ident = toIdentity activated email phone ssoid
             deleted = maybe False (== Deleted) status
             expiration = if status == Just Ephemeral then expires else Nothing

@@ -39,7 +39,7 @@ data UserConnection = UserConnection
     { ucFrom       :: !UserId
     , ucTo         :: !UserId
     , ucStatus     :: !Relation
-    , ucLastUpdate :: !UTCTime
+    , ucLastUpdate :: !UTCTimeMillis
     , ucMessage    :: !(Maybe Message)
     , ucConvId     :: !(Maybe ConvId)
     } deriving (Eq, Show)
@@ -129,7 +129,7 @@ instance ToJSON UserConnection where
         [ "from"         .= ucFrom uc
         , "to"           .= ucTo uc
         , "status"       .= ucStatus uc
-        , "last_update"  .= toUTCTimeMillis (ucLastUpdate uc)
+        , "last_update"  .= ucLastUpdate uc
         , "message"      .= ucMessage uc
         , "conversation" .= ucConvId uc
         ]

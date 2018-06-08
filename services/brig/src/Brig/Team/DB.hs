@@ -35,10 +35,11 @@ import Control.Monad.IO.Class
 import Control.Monad (when)
 import Data.Id
 import Data.Int
+import Data.Json.Util (toUTCTimeMillis)
 import Data.Maybe (fromMaybe)
 import Data.Range
-import Data.UUID.V4
 import Data.Text.Ascii (encodeBase64Url)
+import Data.UUID.V4
 import Data.Time.Clock
 import OpenSSL.Random (randBytes)
 
@@ -63,7 +64,7 @@ insertInvitation :: MonadClient m
 insertInvitation t email now timeout = do
     iid  <- liftIO mkInvitationId
     code <- liftIO mkInvitationCode
-    let inv = Invitation t iid email now
+    let inv = Invitation t iid email (toUTCTimeMillis now)
     retry x5 $ batch $ do
         setType BatchLogged
         setConsistency Quorum
@@ -164,4 +165,4 @@ countInvitations t = fromMaybe 0 . fmap runIdentity <$>
 
 -- Helper
 toInvitation :: (TeamId, InvitationId, Email, UTCTime) -> Invitation
-toInvitation (t, i, e, tm) = Invitation t i e tm
+toInvitation (t, i, e, tm) = Invitation t i e (toUTCTimeMillis tm)

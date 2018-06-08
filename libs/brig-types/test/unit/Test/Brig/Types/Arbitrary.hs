@@ -276,7 +276,7 @@ instance Arbitrary UserProfile where
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
-        <*> (fromUTCTimeMillis <$$> arbitrary)
+        <*> arbitrary
         <*> arbitrary
 
 instance Arbitrary ServiceRef where
@@ -301,7 +301,7 @@ instance Arbitrary User where
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
-        <*> (fromUTCTimeMillis <$$> arbitrary)
+        <*> arbitrary
         <*> arbitrary
 
 instance Arbitrary VerifyDeleteUser where
