@@ -20,7 +20,6 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.ByteString.Base64.Lazy as EL
 import Data.Char (isUpper)
 import Data.Fixed
-import Data.Maybe (fromMaybe)
 import Data.String
 import Data.Time.Clock
 import Data.Time.Format (formatTime, parseTimeM)
@@ -55,7 +54,10 @@ newtype UTCTimeMillis = UTCTimeMillis { fromUTCTimeMillis :: UTCTime }
 
 {-# INLINE toUTCTimeMillis #-}
 toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis
-toUTCTimeMillis = UTCTimeMillis . (TL.seconds %~ MkFixed . (* (10^9)) . (`div` (10^9)) . coerce @Pico @Integer)
+toUTCTimeMillis = UTCTimeMillis . (TL.seconds %~ MkFixed . roundit . coerce @Pico @Integer)
+  where
+    roundit = (* onebillion) . (`div` onebillion)
+    onebillion = 10 ^ (9 :: Integer)
 
 {-# INLINE showUTCTimeMillis #-}
 showUTCTimeMillis :: UTCTimeMillis -> String
