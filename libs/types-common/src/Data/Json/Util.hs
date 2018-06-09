@@ -17,6 +17,7 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.ByteString.Base64.Lazy as EL
 import Data.Char (isUpper)
+import Data.Maybe (fromMaybe)
 import Data.String
 import Data.Time.Clock
 import Data.Time.Format (formatTime, parseTimeM)
@@ -25,6 +26,7 @@ import Data.Text (pack)
 import qualified Data.Text.Encoding
 import qualified Data.Text.Encoding.Error
 import GHC.Generics
+import GHC.Stack
 
 append :: Pair -> [Pair] -> [Pair]
 append (_, Null) pp = pp
@@ -42,27 +44,28 @@ infixr 5 #
 
 -- | A newtype wrapper for 'UTCTime' that formats timestamps in JSON with
 -- millisecond precision instead of the default picosecond precision.
---
--- 'Show', 'Eq' behave as expected, ignoring picoseconds.  Construct values
--- using 'toUTCTimeMillis'.  NB: 'fromUTCTimeMillis' will give you a
--- 'UTCTime' that may have a fractional milisecond count.
+-- Construct values using 'toUTCTimeMillis'; deconstruct with 'fromUTCTimeMillis'.
+-- Unlike with 'UTCTime', 'Show' renders ISO string.
 newtype UTCTimeMillis = UTCTimeMillis { fromUTCTimeMillis :: UTCTime }
 
 {-# INLINE toUTCTimeMillis #-}
-toUTCTimeMillis :: UTCTime -> UTCTimeMillis
-toUTCTimeMillis = UTCTimeMillis
+toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis
+toUTCTimeMillis t = fromMaybe (error "impossible") $ readUTCTimeMillis formatRounded
+  where
+    formatRounded = formatTime defaultTimeLocale format t
+    format = "%FT%T." ++ formatMillis t ++ "Z"
+    formatMillis = take 3 . formatTime defaultTimeLocale "%q"
+    -- TODO: find faster (and more total) implementation based on rounding the seconds in the 'UTCTime' value directly.
 
 {-# INLINE showUTCTimeMillis #-}
 showUTCTimeMillis :: UTCTimeMillis -> String
-showUTCTimeMillis (UTCTimeMillis t) = formatTime defaultTimeLocale format t
-  where
-    format = "%FT%T." ++ formatMillis t ++ "Z"
-    formatMillis = take 3 . formatTime defaultTimeLocale "%q"
+showUTCTimeMillis (UTCTimeMillis t) = formatTime defaultTimeLocale formatUTCTimeMillis t
 
 readUTCTimeMillis :: String -> Maybe UTCTimeMillis
-readUTCTimeMillis = fmap UTCTimeMillis . parseTimeM True defaultTimeLocale format
-  where
-    format = "%FT%T%QZ"
+readUTCTimeMillis = fmap toUTCTimeMillis . parseTimeM True defaultTimeLocale formatUTCTimeMillis
+
+formatUTCTimeMillis :: String
+formatUTCTimeMillis = "%FT%T%QZ"
 
 {-# INLINE eqUTCTimeMillis #-}
 -- (this implementation is not very fast)
