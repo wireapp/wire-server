@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TypeApplications     #-}
 
 module Data.Json.Util
     ( append
@@ -11,21 +12,25 @@ module Data.Json.Util
     , Base64ByteString (..)
     ) where
 
+import Control.Lens ((%~))
 import Data.Aeson
 import Data.Aeson.Types
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.ByteString.Base64.Lazy as EL
 import Data.Char (isUpper)
+import Data.Fixed
 import Data.Maybe (fromMaybe)
 import Data.String
 import Data.Time.Clock
 import Data.Time.Format (formatTime, parseTimeM)
+import qualified Data.Time.Lens as TL
 import Data.Time.Locale.Compat (defaultTimeLocale)
 import Data.Text (pack)
 import qualified Data.Text.Encoding
 import qualified Data.Text.Encoding.Error
 import GHC.Generics
+import GHC.Prim
 import GHC.Stack
 
 append :: Pair -> [Pair] -> [Pair]
@@ -50,12 +55,7 @@ newtype UTCTimeMillis = UTCTimeMillis { fromUTCTimeMillis :: UTCTime }
 
 {-# INLINE toUTCTimeMillis #-}
 toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis
-toUTCTimeMillis t = fromMaybe (error "impossible") $ readUTCTimeMillis formatRounded
-  where
-    formatRounded = formatTime defaultTimeLocale format t
-    format = "%FT%T." ++ formatMillis t ++ "Z"
-    formatMillis = take 3 . formatTime defaultTimeLocale "%q"
-    -- TODO: find faster (and more total) implementation based on rounding the seconds in the 'UTCTime' value directly.
+toUTCTimeMillis = UTCTimeMillis . (TL.seconds %~ MkFixed . (* (10^9)) . (`div` (10^9)) . coerce @Pico @Integer)
 
 {-# INLINE showUTCTimeMillis #-}
 showUTCTimeMillis :: UTCTimeMillis -> String
