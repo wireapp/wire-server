@@ -52,6 +52,7 @@ infixr 5 #
 -- Construct values using 'toUTCTimeMillis'; deconstruct with 'fromUTCTimeMillis'.
 -- Unlike with 'UTCTime', 'Show' renders ISO string.
 newtype UTCTimeMillis = UTCTimeMillis { fromUTCTimeMillis :: UTCTime }
+  deriving (Eq)
 
 {-# INLINE toUTCTimeMillis #-}
 toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis
@@ -67,16 +68,8 @@ readUTCTimeMillis = fmap toUTCTimeMillis . parseTimeM True defaultTimeLocale for
 formatUTCTimeMillis :: String
 formatUTCTimeMillis = "%FT%T%QZ"
 
-{-# INLINE eqUTCTimeMillis #-}
--- (this implementation is not very fast)
-eqUTCTimeMillis :: UTCTimeMillis -> UTCTimeMillis -> Bool
-eqUTCTimeMillis t t' = show t == show t'
-
 instance Show UTCTimeMillis where
     showsPrec d = showParen (d > 10) . showString . showUTCTimeMillis
-
-instance Eq UTCTimeMillis where
-    (==) = eqUTCTimeMillis
 
 instance ToJSON UTCTimeMillis where
     toJSON = String . pack . showUTCTimeMillis
