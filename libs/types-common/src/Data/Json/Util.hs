@@ -1,7 +1,8 @@
 {-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE NumDecimals          #-}
 {-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Data.Json.Util
     ( append
@@ -54,10 +55,7 @@ newtype UTCTimeMillis = UTCTimeMillis { fromUTCTimeMillis :: UTCTime }
 
 {-# INLINE toUTCTimeMillis #-}
 toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis
-toUTCTimeMillis = UTCTimeMillis . (TL.seconds %~ MkFixed . roundit . coerce @Pico @Integer)
-  where
-    roundit = (* onebillion) . (`div` onebillion)
-    onebillion = 10 ^ (9 :: Integer)
+toUTCTimeMillis = UTCTimeMillis . (TL.seconds %~ MkFixed . (* 1e9) . (`div` 1e9) . coerce @Pico @Integer)
 
 {-# INLINE showUTCTimeMillis #-}
 showUTCTimeMillis :: UTCTimeMillis -> String
