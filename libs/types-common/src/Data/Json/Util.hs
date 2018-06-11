@@ -51,6 +51,10 @@ infixr 5 #
 -- millisecond precision instead of the default picosecond precision.
 -- Construct values using 'toUTCTimeMillis'; deconstruct with 'fromUTCTimeMillis'.
 -- Unlike with 'UTCTime', 'Show' renders ISO string.
+--
+-- It would be nice to have a Cql instance for this type to make storing slightly more
+-- straight-forward.  This would require cassandra-utils as a dependency here, as both brig and
+-- cassandra (and possibly others in the future) are using this type.
 newtype UTCTimeMillis = UTCTimeMillis { fromUTCTimeMillis :: UTCTime }
   deriving (Eq)
 
