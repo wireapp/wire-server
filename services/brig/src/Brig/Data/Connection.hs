@@ -27,23 +27,23 @@ import Control.Monad.IO.Class
 import Data.Functor.Identity
 import Data.Id
 import Data.Int
-import Data.Json.Util (toUTCTimeMillis)
+import Data.Json.Util (toUTCTimeMillis, fromUTCTimeMillis)
 import Data.List (foldl')
 import Data.Range
 import Data.Time (UTCTime, getCurrentTime)
 
 connectUsers :: UserId -> [(UserId, ConvId)] -> AppIO [UserConnection]
 connectUsers from to = do
-    now <- liftIO getCurrentTime
+    now <- toUTCTimeMillis <$> liftIO getCurrentTime
     retry x5 $ batch $ do
         setType BatchLogged
         setConsistency Quorum
         forM_ to $ \(u, c) -> do
-            addPrepQuery connectionInsert (from, u, Accepted, now, Nothing, c)
-            addPrepQuery connectionInsert (u, from, Accepted, now, Nothing, c)
+            addPrepQuery connectionInsert (from, u, Accepted, fromUTCTimeMillis now, Nothing, c)
+            addPrepQuery connectionInsert (u, from, Accepted, fromUTCTimeMillis now, Nothing, c)
     return $ concat $ (`map` to) $ \(u, c) ->
-        [ UserConnection from u Accepted (toUTCTimeMillis now) Nothing (Just c)
-        , UserConnection u from Accepted (toUTCTimeMillis now) Nothing (Just c)
+        [ UserConnection from u Accepted now Nothing (Just c)
+        , UserConnection u from Accepted now Nothing (Just c)
         ]
 
 insertConnection :: UserId -- ^ From
@@ -59,10 +59,10 @@ insertConnection from to status msg cid = do
 
 updateConnection :: UserConnection -> Relation -> AppIO UserConnection
 updateConnection c@UserConnection{..} status = do
-    now <- liftIO getCurrentTime
-    retry x5 . write connectionUpdate $ params Quorum (status, now, ucFrom, ucTo)
+    now <- toUTCTimeMillis <$> liftIO getCurrentTime
+    retry x5 . write connectionUpdate $ params Quorum (status, fromUTCTimeMillis now, ucFrom, ucTo)
     return $ c { ucStatus     = status
-               , ucLastUpdate = toUTCTimeMillis now
+               , ucLastUpdate = now
                }
 
 -- | Lookup the connection from a user 'A' to a user 'B' (A -> B).

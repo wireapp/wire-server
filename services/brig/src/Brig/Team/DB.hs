@@ -35,7 +35,7 @@ import Control.Monad.IO.Class
 import Control.Monad (when)
 import Data.Id
 import Data.Int
-import Data.Json.Util (toUTCTimeMillis)
+import Data.Json.Util (toUTCTimeMillis, fromUTCTimeMillis)
 import Data.Maybe (fromMaybe)
 import Data.Range
 import Data.Text.Ascii (encodeBase64Url)
@@ -61,14 +61,14 @@ insertInvitation :: MonadClient m
                  -> UTCTime
                  -> Timeout -- ^ The timeout for the invitation code.
                  -> m (Invitation, InvitationCode)
-insertInvitation t email now timeout = do
+insertInvitation t email (toUTCTimeMillis -> now) timeout = do
     iid  <- liftIO mkInvitationId
     code <- liftIO mkInvitationCode
-    let inv = Invitation t iid email (toUTCTimeMillis now)
+    let inv = Invitation t iid email now
     retry x5 $ batch $ do
         setType BatchLogged
         setConsistency Quorum
-        addPrepQuery cqlInvitation (t, iid, code, email, now, round timeout)
+        addPrepQuery cqlInvitation (t, iid, code, email, fromUTCTimeMillis now, round timeout)
         addPrepQuery cqlInvitationInfo (code, t, iid, round timeout)
     return (inv, code)
   where

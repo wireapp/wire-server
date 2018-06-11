@@ -47,7 +47,7 @@ import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Foldable (for_)
 import Data.Id
 import Data.List.Split (chunksOf)
-import Data.Json.Util (toUTCTimeMillis)
+import Data.Json.Util (toUTCTimeMillis, fromUTCTimeMillis)
 import Data.Misc
 import Data.Monoid ((<>))
 import Data.Text (Text)
@@ -109,15 +109,15 @@ addClient u newId c loc = do
 
     insert = do
         -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
-        now <- liftIO =<< view currentTime
+        now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
         let keys = unpackLastPrekey (newClientLastKey c) : newClientPrekeys c
         updatePrekeys u newId keys
         let lat = Latitude . view latitude <$> loc
             lon = Longitude . view longitude <$> loc
             mdl = newClientModel c
-            prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl)
+            prm = (u, newId, fromUTCTimeMillis now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl)
         retry x5 $ write insertClient (params Quorum prm)
-        return $! Client newId (newClientType c) (toUTCTimeMillis now) (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl
+        return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl
 
 lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
 lookupClient u c = fmap toClient <$>
