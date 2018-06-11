@@ -30,7 +30,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import Data.Foldable (for_, forM_)
+import Data.Foldable (for_)
 import Data.Id
 import Data.Int
 import Data.Metrics.Middleware hiding (metrics)
@@ -1114,7 +1114,7 @@ createUserNoVerify (_ ::: _ ::: req) = do
     let uid = userId usr
     let eac = createdEmailActivation result
     let pac = createdPhoneActivation result
-    forM_ (catMaybes [eac, pac]) $ \adata ->
+    for_ (catMaybes [eac, pac]) $ \adata ->
         let key  = ActivateKey $ activationKey adata
             code = activationCode adata
         in API.activate key code (Just uid) !>> actError
