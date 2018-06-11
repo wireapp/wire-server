@@ -27,7 +27,7 @@ import Control.Monad.IO.Class
 import Data.Functor.Identity
 import Data.Id
 import Data.Int
-import Data.Json.Util (toUTCTimeMillis, fromUTCTimeMillis)
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.List (foldl')
 import Data.Range
 import Data.Time (UTCTime, getCurrentTime)
@@ -39,8 +39,8 @@ connectUsers from to = do
         setType BatchLogged
         setConsistency Quorum
         forM_ to $ \(u, c) -> do
-            addPrepQuery connectionInsert (from, u, Accepted, fromUTCTimeMillis now, Nothing, c)
-            addPrepQuery connectionInsert (u, from, Accepted, fromUTCTimeMillis now, Nothing, c)
+            addPrepQuery connectionInsert (from, u, Accepted, now, Nothing, c)
+            addPrepQuery connectionInsert (u, from, Accepted, now, Nothing, c)
     return $ concat $ (`map` to) $ \(u, c) ->
         [ UserConnection from u Accepted now Nothing (Just c)
         , UserConnection u from Accepted now Nothing (Just c)
@@ -53,14 +53,14 @@ insertConnection :: UserId -- ^ From
                  -> ConvId
                  -> AppIO UserConnection
 insertConnection from to status msg cid = do
-    now <- liftIO getCurrentTime
+    now <- toUTCTimeMillis <$> liftIO getCurrentTime
     retry x5 . write connectionInsert $ params Quorum (from, to, status, now, msg, cid)
     return $ toUserConnection (from, to, status, now, msg, Just cid)
 
 updateConnection :: UserConnection -> Relation -> AppIO UserConnection
 updateConnection c@UserConnection{..} status = do
     now <- toUTCTimeMillis <$> liftIO getCurrentTime
-    retry x5 . write connectionUpdate $ params Quorum (status, fromUTCTimeMillis now, ucFrom, ucTo)
+    retry x5 . write connectionUpdate $ params Quorum (status, now, ucFrom, ucTo)
     return $ c { ucStatus     = status
                , ucLastUpdate = now
                }
@@ -119,13 +119,13 @@ deleteConnections u = do
 
 -- Queries
 
-connectionInsert :: PrepQuery W (UserId, UserId, Relation, UTCTime, Maybe Message, ConvId) ()
+connectionInsert :: PrepQuery W (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, ConvId) ()
 connectionInsert = "INSERT INTO connection (left, right, status, last_update, message, conv) VALUES (?, ?, ?, ?, ?, ?)"
 
-connectionUpdate :: PrepQuery W (Relation, UTCTime, UserId, UserId) ()
+connectionUpdate :: PrepQuery W (Relation, UTCTimeMillis, UserId, UserId) ()
 connectionUpdate = "UPDATE connection SET status = ?, last_update = ? WHERE left = ? AND right = ?"
 
-connectionSelect :: PrepQuery R (UserId, UserId) (UserId, UserId, Relation, UTCTime, Maybe Message, Maybe ConvId)
+connectionSelect :: PrepQuery R (UserId, UserId) (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, Maybe ConvId)
 connectionSelect = "SELECT left, right, status, last_update, message, conv FROM connection WHERE left = ? AND right = ?"
 
 connectionStatusSelect :: PrepQuery R ([UserId], [UserId]) (UserId, UserId, Relation)
@@ -134,10 +134,10 @@ connectionStatusSelect = "SELECT left, right, status FROM connection WHERE left 
 contactsSelect :: PrepQuery R (Identity UserId) (UserId, Relation)
 contactsSelect = "SELECT right, status FROM connection WHERE left = ?"
 
-connectionsSelect :: PrepQuery R (Identity UserId) (UserId, UserId, Relation, UTCTime, Maybe Message, Maybe ConvId)
+connectionsSelect :: PrepQuery R (Identity UserId) (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, Maybe ConvId)
 connectionsSelect = "SELECT left, right, status, last_update, message, conv FROM connection WHERE left = ? ORDER BY right ASC"
 
-connectionsSelectFrom :: PrepQuery R (UserId, UserId) (UserId, UserId, Relation, UTCTime, Maybe Message, Maybe ConvId)
+connectionsSelectFrom :: PrepQuery R (UserId, UserId) (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, Maybe ConvId)
 connectionsSelectFrom = "SELECT left, right, status, last_update, message, conv FROM connection WHERE left = ? AND right > ? ORDER BY right ASC"
 
 connectionDelete :: PrepQuery W (UserId, UserId) ()
@@ -148,8 +148,8 @@ connectionClear = "DELETE FROM connection WHERE left = ?"
 
 -- Conversions
 
-toUserConnection :: (UserId, UserId, Relation, UTCTime, Maybe Message, Maybe ConvId) -> UserConnection
-toUserConnection (l, r, rel, toUTCTimeMillis -> time, msg, cid) = UserConnection l r rel time msg cid
+toUserConnection :: (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, Maybe ConvId) -> UserConnection
+toUserConnection (l, r, rel, time, msg, cid) = UserConnection l r rel time msg cid
 
 toConnectionStatus :: (UserId, UserId, Relation) -> ConnectionStatus
 toConnectionStatus (l, r, rel) = ConnectionStatus l r rel

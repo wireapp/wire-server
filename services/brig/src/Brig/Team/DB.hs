@@ -35,7 +35,7 @@ import Control.Monad.IO.Class
 import Control.Monad (when)
 import Data.Id
 import Data.Int
-import Data.Json.Util (toUTCTimeMillis, fromUTCTimeMillis)
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Maybe (fromMaybe)
 import Data.Range
 import Data.Text.Ascii (encodeBase64Url)
@@ -68,14 +68,14 @@ insertInvitation t email (toUTCTimeMillis -> now) timeout = do
     retry x5 $ batch $ do
         setType BatchLogged
         setConsistency Quorum
-        addPrepQuery cqlInvitation (t, iid, code, email, fromUTCTimeMillis now, round timeout)
+        addPrepQuery cqlInvitation (t, iid, code, email, now, round timeout)
         addPrepQuery cqlInvitationInfo (code, t, iid, round timeout)
     return (inv, code)
   where
     cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
     cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?"
 
-    cqlInvitation :: PrepQuery W (TeamId, InvitationId, InvitationCode, Email, UTCTime, Int32) ()
+    cqlInvitation :: PrepQuery W (TeamId, InvitationId, InvitationCode, Email, UTCTimeMillis, Int32) ()
     cqlInvitation = "INSERT INTO team_invitation (team, id, code, email, created_at) VALUES (?, ?, ?, ?, ?) USING TTL ?"
 
 lookupInvitation :: MonadClient m => TeamId -> InvitationId -> m (Maybe Invitation)

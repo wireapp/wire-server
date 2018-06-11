@@ -47,7 +47,7 @@ import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Foldable (for_)
 import Data.Id
 import Data.List.Split (chunksOf)
-import Data.Json.Util (toUTCTimeMillis, fromUTCTimeMillis)
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc
 import Data.Monoid ((<>))
 import Data.Text (Text)
@@ -115,7 +115,7 @@ addClient u newId c loc = do
         let lat = Latitude . view latitude <$> loc
             lon = Longitude . view longitude <$> loc
             mdl = newClientModel c
-            prm = (u, newId, fromUTCTimeMillis now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl)
+            prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl)
         retry x5 $ write insertClient (params Quorum prm)
         return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl
 
@@ -187,7 +187,7 @@ claimPrekey u c = withOptLock u c $ do
 -------------------------------------------------------------------------------
 -- Queries
 
-insertClient :: PrepQuery W (UserId, ClientId, UTCTime, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) ()
+insertClient :: PrepQuery W (UserId, ClientId, UTCTimeMillis, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) ()
 insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, lat, lon, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 updateClientLabelQuery :: PrepQuery W (Maybe Text, UserId, ClientId) ()
@@ -196,10 +196,10 @@ updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"
 
-selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
+selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
 selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ?"
 
-selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
+selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
 selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ? and client = ?"
 
 insertClientKey :: PrepQuery W (UserId, ClientId, PrekeyId, Text) ()
@@ -226,8 +226,8 @@ checkClient = "SELECT client from clients where user = ? and client = ?"
 -------------------------------------------------------------------------------
 -- Conversions
 
-toClient :: (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) -> Client
-toClient (cid, cty, toUTCTimeMillis -> tme, lbl, cls, cok, lat, lon, mdl) = Client
+toClient :: (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) -> Client
+toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl) = Client
     { clientId       = cid
     , clientType     = cty
     , clientTime     = tme

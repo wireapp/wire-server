@@ -52,7 +52,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.Foldable (for_)
 import Data.Id
-import Data.Json.Util
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range (fromRange)
 import Data.Time (UTCTime, addUTCTime)
@@ -139,7 +139,7 @@ insertAccount (UserAccount u status) password activated searchable = do
     retry x5 $ write userInsert $ params Quorum
         ( userId u, userName u, userPict u, userAssets u, userEmail u
         , userPhone u, userSSOId u, userAccentId u, password, activated
-        , status, fromUTCTimeMillis <$> userExpire u, l, c
+        , status, userExpire u, l, c
         , view serviceRefProvider <$> userService u
         , view serviceRefId <$> userService u
         , userHandle u
@@ -252,16 +252,16 @@ lookupAccounts usrs = do
 type Activated = Bool
 
 type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
-                Maybe [Asset], Activated, Maybe AccountStatus, Maybe UTCTime, Maybe Language,
+                Maybe [Asset], Activated, Maybe AccountStatus, Maybe UTCTimeMillis, Maybe Language,
                 Maybe Country, Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
 
 type UserRowInsert = (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
-                      Maybe Password, Bool, AccountStatus, Maybe UTCTime, Language, Maybe Country,
+                      Maybe Password, Bool, AccountStatus, Maybe UTCTimeMillis, Language, Maybe Country,
                       Maybe ProviderId, Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId)
 
 type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId,
                    ColourId, Maybe [Asset], Bool, Maybe AccountStatus,
-                   Maybe UTCTime, Maybe Language, Maybe Country,
+                   Maybe UTCTimeMillis, Maybe Language, Maybe Country,
                    Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
 
 
@@ -353,7 +353,7 @@ userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
 
 toUserAccount :: Locale -> AccountRow -> UserAccount
 toUserAccount defaultLocale (uid, name, pict, email, phone, ssoid, accent, assets,
-                             activated, status, fmap toUTCTimeMillis -> expires, lan, con, pid, sid,
+                             activated, status, expires, lan, con, pid, sid,
                              handle, tid) =
     let ident = toIdentity activated email phone ssoid
         deleted = maybe False (== Deleted) status
@@ -368,7 +368,7 @@ toUsers :: Locale -> [UserRow] -> [User]
 toUsers defaultLocale = fmap mk
   where
     mk (uid, name, pict, email, phone, ssoid, accent, assets, activated, status,
-        fmap toUTCTimeMillis -> expires, lan, con, pid, sid, handle, tid) =
+        expires, lan, con, pid, sid, handle, tid) =
         let ident = toIdentity activated email phone ssoid
             deleted = maybe False (== Deleted) status
             expiration = if status == Just Ephemeral then expires else Nothing

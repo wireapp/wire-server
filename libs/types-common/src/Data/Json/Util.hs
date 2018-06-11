@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                  #-}
 {-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE NumDecimals          #-}
@@ -14,6 +15,9 @@ module Data.Json.Util
     ) where
 
 import Control.Lens ((%~), coerced)
+#ifdef WITH_CQL
+import qualified Database.CQL.Protocol as CQL
+#endif
 import Data.Aeson
 import Data.Aeson.Types
 import qualified Data.ByteString.Lazy as L
@@ -51,10 +55,6 @@ infixr 5 #
 -- millisecond precision instead of the default picosecond precision.
 -- Construct values using 'toUTCTimeMillis'; deconstruct with 'fromUTCTimeMillis'.
 -- Unlike with 'UTCTime', 'Show' renders ISO string.
---
--- It would be nice to have a Cql instance for this type to make storing slightly more
--- straight-forward.  This would require cassandra-utils as a dependency here, as both brig and
--- cassandra (and possibly others in the future) are using this type.
 newtype UTCTimeMillis = UTCTimeMillis { fromUTCTimeMillis :: UTCTime }
   deriving (Eq)
 
@@ -80,6 +80,13 @@ instance ToJSON UTCTimeMillis where
 
 instance FromJSON UTCTimeMillis where
     parseJSON = fmap UTCTimeMillis . parseJSON
+
+#ifdef WITH_CQL
+instance CQL.Cql UTCTimeMillis where
+    ctype = CQL.Tagged CQL.TimestampColumn
+    toCql = CQL.toCql . fromUTCTimeMillis
+    fromCql = fmap toUTCTimeMillis . CQL.fromCql
+#endif
 
 -----------------------------------------------------------------------------
 -- ToJSONObject
