@@ -30,7 +30,7 @@ import Data.Int
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.List (foldl')
 import Data.Range
-import Data.Time (UTCTime, getCurrentTime)
+import Data.Time (getCurrentTime)
 
 connectUsers :: UserId -> [(UserId, ConvId)] -> AppIO [UserConnection]
 connectUsers from to = do

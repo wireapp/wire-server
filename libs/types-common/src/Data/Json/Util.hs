@@ -34,7 +34,6 @@ import Data.Text (pack)
 import qualified Data.Text.Encoding
 import qualified Data.Text.Encoding.Error
 import GHC.Generics
-import GHC.Prim
 import GHC.Stack
 
 append :: Pair -> [Pair] -> [Pair]

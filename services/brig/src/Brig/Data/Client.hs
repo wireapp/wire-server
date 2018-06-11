@@ -51,7 +51,6 @@ import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc
 import Data.Monoid ((<>))
 import Data.Text (Text)
-import Data.Time.Clock
 import Data.Typeable
 import Data.Word
 import Safe (readMay)

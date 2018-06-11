@@ -55,7 +55,7 @@ import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range (fromRange)
-import Data.Time (UTCTime, addUTCTime)
+import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Galley.Types.Bot
 
