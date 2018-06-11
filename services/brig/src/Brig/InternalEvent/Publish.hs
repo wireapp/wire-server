@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Brig.AWS.InternalPublish where
+module Brig.InternalEvent.Publish where
 
 import Brig.App
-import Brig.AWS.Types (InternalNotification (..))
+import Brig.InternalEvent.Types
 import Control.Lens (view, (^.))
 import Data.Aeson
 import Data.Text (Text)

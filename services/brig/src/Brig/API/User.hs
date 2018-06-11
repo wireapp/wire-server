@@ -101,7 +101,6 @@ import Network.Wai.Utilities
 import System.Logger.Message
 
 import qualified Brig.API.Error             as Error
-import qualified Brig.AWS.Types             as AWS
 import qualified Brig.Blacklist             as Blacklist
 import qualified Brig.Code                  as Code
 import qualified Brig.Data.Activation       as Data
@@ -120,7 +119,8 @@ import qualified Data.Map.Strict            as Map
 import qualified Galley.Types.Teams         as Team
 import qualified Galley.Types.Teams.Intra   as Team
 import qualified System.Logger.Class        as Log
-import qualified Brig.AWS.InternalPublish   as Internal
+import qualified Brig.InternalEvent.Types   as Internal
+import qualified Brig.InternalEvent.Publish as Internal
 
 -------------------------------------------------------------------------------
 -- Create User
@@ -796,7 +796,7 @@ lookupPasswordResetCode emailOrPhone = do
 
 deleteUserNoVerify :: UserId -> AppIO ()
 deleteUserNoVerify uid = do
-    ok <- Internal.publish (AWS.DeleteUser uid)
+    ok <- Internal.publish (Internal.DeleteUser uid)
     unless ok $
         throwM Error.failedQueueEvent
 

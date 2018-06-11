@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Brig.AWS.InternalEvent where
+module Brig.InternalEvent.Process where
 
 import Brig.App
-import Brig.AWS.Types (InternalNotification (..))
+import Brig.InternalEvent.Types
 import Data.ByteString.Conversion
 import System.Logger.Class (field, msg, (~~), val)
 

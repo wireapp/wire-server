@@ -34,8 +34,9 @@ library
       , Brig.API.Properties
       , Brig.API.Types
       , Brig.API.User
-      , Brig.AWS.InternalPublish
-      , Brig.AWS.InternalEvent
+      , Brig.InternalEvent.Types
+      , Brig.InternalEvent.Publish
+      , Brig.InternalEvent.Process
       , Brig.AWS.SesNotification
       , Brig.Blacklist
       , Brig.Budget
@@ -101,6 +102,7 @@ library
       , async                     >= 2.1
       , auto-update               >= 0.1
       , base                      == 4.*
+      , base-prelude
       , base16-bytestring         >= 0.1
       , base64-bytestring         >= 1.0
       , bilge                     >= 0.21.1
