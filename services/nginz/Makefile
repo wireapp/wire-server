@@ -1,6 +1,6 @@
 SHELL          := /usr/bin/env bash
 NAME           := nginz
-NGINX_VERSION   = 1.12.2
+NGINX_VERSION   = 1.14.0
 NGINZ_VERSION  ?=
 SWAGGER_VERSION:= 2.0.17
 SHELL          := /usr/bin/env bash
