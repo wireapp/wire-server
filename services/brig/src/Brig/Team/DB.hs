@@ -35,10 +35,11 @@ import Control.Monad.IO.Class
 import Control.Monad (when)
 import Data.Id
 import Data.Int
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Maybe (fromMaybe)
 import Data.Range
-import Data.UUID.V4
 import Data.Text.Ascii (encodeBase64Url)
+import Data.UUID.V4
 import Data.Time.Clock
 import OpenSSL.Random (randBytes)
 
@@ -60,7 +61,7 @@ insertInvitation :: MonadClient m
                  -> UTCTime
                  -> Timeout -- ^ The timeout for the invitation code.
                  -> m (Invitation, InvitationCode)
-insertInvitation t email now timeout = do
+insertInvitation t email (toUTCTimeMillis -> now) timeout = do
     iid  <- liftIO mkInvitationId
     code <- liftIO mkInvitationCode
     let inv = Invitation t iid email now
@@ -74,7 +75,7 @@ insertInvitation t email now timeout = do
     cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
     cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?"
 
-    cqlInvitation :: PrepQuery W (TeamId, InvitationId, InvitationCode, Email, UTCTime, Int32) ()
+    cqlInvitation :: PrepQuery W (TeamId, InvitationId, InvitationCode, Email, UTCTimeMillis, Int32) ()
     cqlInvitation = "INSERT INTO team_invitation (team, id, code, email, created_at) VALUES (?, ?, ?, ?, ?) USING TTL ?"
 
 lookupInvitation :: MonadClient m => TeamId -> InvitationId -> m (Maybe Invitation)
@@ -164,4 +165,4 @@ countInvitations t = fromMaybe 0 . fmap runIdentity <$>
 
 -- Helper
 toInvitation :: (TeamId, InvitationId, Email, UTCTime) -> Invitation
-toInvitation (t, i, e, tm) = Invitation t i e tm
+toInvitation (t, i, e, toUTCTimeMillis -> tm) = Invitation t i e tm

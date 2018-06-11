@@ -14,7 +14,9 @@ import Data.Text.Ascii
 import Data.Id
 import Data.ProtocolBuffers.Internal
 import Data.Serialize
+import Data.Time
 import Data.Time.Clock.POSIX
+import GHC.Stack
 import Data.UUID
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -99,6 +101,27 @@ tests = testGroup "Properties"
         [ testProperty "validate (Aeson.decode . Aeson.encode) == pure . id" $
             \(t :: Util.UTCTimeMillis) ->
                 (Aeson.eitherDecode . Aeson.encode) t == Right t
+
+          -- (we could test @show x == show y ==> x == y@, but that kind of follows from the above.)
+
+        , let toUTCTimeMillisSlow :: HasCallStack => UTCTime -> Maybe UTCTime
+              toUTCTimeMillisSlow t = parseExact formatRounded
+                where
+                  parseExact = parseTimeM True defaultTimeLocale "%FT%T%QZ"
+                  formatRounded = formatTime defaultTimeLocale format t
+                  format = "%FT%T." ++ formatMillis t ++ "Z"
+                  formatMillis = Prelude.take 3 . formatTime defaultTimeLocale "%q"
+          in testProperty "toUTCTimeMillis" $
+             \(t :: UTCTime) ->
+                Just (Util.fromUTCTimeMillis $ Util.toUTCTimeMillis t) == toUTCTimeMillisSlow t
+
+        , let testcase (t1, t2) = testCase (show (t1, t2)) $ make t1 @=? make t2
+              make = Util.readUTCTimeMillis
+          in testGroup "validate Eq" $ testcase <$>
+            [ ("1918-04-14T09:58:58.457Z",  "1918-04-14T09:58:58.457Z")
+            , ("1918-04-14T09:58:58.4574Z", "1918-04-14T09:58:58.457Z")
+            , ("1918-04-14T09:58:58.4579Z", "1918-04-14T09:58:58.457Z")
+            ]
         ]
 
     , testGroup "UUID"
@@ -141,4 +164,4 @@ instance Arbitrary Tag' where
     arbitrary = Tag' <$> choose (0, 536870912)
 
 instance Arbitrary Util.UTCTimeMillis where
-    arbitrary = Util.UTCTimeMillis . posixSecondsToUTCTime . fromInteger <$> arbitrary
+    arbitrary = Util.toUTCTimeMillis . posixSecondsToUTCTime . fromInteger <$> arbitrary

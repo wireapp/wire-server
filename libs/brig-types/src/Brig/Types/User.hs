@@ -21,13 +21,12 @@ import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Json.Util ((#), UTCTimeMillis (..))
+import Data.Json.Util ((#), UTCTimeMillis)
 import Data.Maybe (isJust)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Data.Text.Ascii
 import Data.Text (Text)
-import Data.Time (UTCTime)
 import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
 
@@ -126,7 +125,7 @@ data User = User
         -- ^ Set if the user represents an external service,
         -- i.e. it is a "bot".
     , userHandle   :: !(Maybe Handle)
-    , userExpire   :: !(Maybe UTCTime)
+    , userExpire   :: !(Maybe UTCTimeMillis)
         -- ^ Set if the user is ephemeral
     , userTeam     :: !(Maybe TeamId)
         -- ^ Set if the user is part of a binding team
@@ -156,7 +155,7 @@ data UserProfile = UserProfile
         -- i.e. it is a "bot".
     , profileHandle   :: !(Maybe Handle)
     , profileLocale   :: !(Maybe Locale)
-    , profileExpire   :: !(Maybe UTCTime)
+    , profileExpire   :: !(Maybe UTCTimeMillis)
     , profileTeam     :: !(Maybe TeamId)
     }
     deriving (Eq, Show)
@@ -175,7 +174,7 @@ instance ToJSON User where
         # "locale"     .= userLocale u
         # "service"    .= userService u
         # "handle"     .= userHandle u
-        # "expires_at" .= (UTCTimeMillis <$> userExpire u)
+        # "expires_at" .= userExpire u
         # "team"       .= userTeam u
         # "sso_id"     .= userSSOId u
         # []
@@ -221,7 +220,7 @@ instance ToJSON UserProfile where
         # "service"    .= profileService u
         # "handle"     .= profileHandle u
         # "locale"     .= profileLocale u
-        # "expires_at" .= (UTCTimeMillis <$> profileExpire u)
+        # "expires_at" .= profileExpire u
         # "team"       .= profileTeam u
         # []
 

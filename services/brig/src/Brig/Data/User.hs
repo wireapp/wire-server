@@ -52,9 +52,10 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.Foldable (for_)
 import Data.Id
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range (fromRange)
-import Data.Time (UTCTime, addUTCTime)
+import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Galley.Types.Bot
 
@@ -84,7 +85,7 @@ newAccount u inv tid = do
                        let ZAuth.SessionTokenTimeout defTTL = e^.ZAuth.settings.ZAuth.sessionTokenTimeout
                            ttl = fromMaybe defTTL (fromRange <$> newUserExpiresIn u)
                        now <- liftIO =<< view currentTime
-                       return $ Just (addUTCTime (fromIntegral ttl) now)
+                       return . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
                    _ -> return Nothing
     return (UserAccount (user uid (locale defLoc) expiry) status, passwd)
   where
@@ -138,7 +139,7 @@ insertAccount (UserAccount u status) password activated searchable = do
     retry x5 $ write userInsert $ params Quorum
         ( userId u, userName u, userPict u, userAssets u, userEmail u
         , userPhone u, userSSOId u, userAccentId u, password, activated
-        , status, (userExpire u), l, c
+        , status, userExpire u, l, c
         , view serviceRefProvider <$> userService u
         , view serviceRefId <$> userService u
         , userHandle u
@@ -251,16 +252,16 @@ lookupAccounts usrs = do
 type Activated = Bool
 
 type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
-                Maybe [Asset], Activated, Maybe AccountStatus, Maybe UTCTime, Maybe Language,
+                Maybe [Asset], Activated, Maybe AccountStatus, Maybe UTCTimeMillis, Maybe Language,
                 Maybe Country, Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
 
 type UserRowInsert = (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
-                      Maybe Password, Bool, AccountStatus, Maybe UTCTime, Language, Maybe Country,
+                      Maybe Password, Bool, AccountStatus, Maybe UTCTimeMillis, Language, Maybe Country,
                       Maybe ProviderId, Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId)
 
 type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId,
                    ColourId, Maybe [Asset], Bool, Maybe AccountStatus,
-                   Maybe UTCTime, Maybe Language, Maybe Country,
+                   Maybe UTCTimeMillis, Maybe Language, Maybe Country,
                    Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
 
 

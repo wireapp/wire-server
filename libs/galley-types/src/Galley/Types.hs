@@ -406,7 +406,7 @@ instance FromJSON UserClients where
 
 instance ToJSON ClientMismatch where
     toJSON m = object
-        [ "time"      .= UTCTimeMillis (cmismatchTime m)
+        [ "time"      .= toUTCTimeMillis (cmismatchTime m)
         , "missing"   .= missingClients m
         , "redundant" .= redundantClients m
         , "deleted"   .= deletedClients m
@@ -584,7 +584,7 @@ instance ToJSONObject Event where
         [ "type"         .= evtType e
         , "conversation" .= evtConv e
         , "from"         .= evtFrom e
-        , "time"         .= UTCTimeMillis (evtTime e)
+        , "time"         .= toUTCTimeMillis (evtTime e)
         , "data"         .= evtData e
         ]
 
