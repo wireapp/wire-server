@@ -56,7 +56,10 @@ newtype UTCTimeMillis = UTCTimeMillis { fromUTCTimeMillis :: UTCTime }
 
 {-# INLINE toUTCTimeMillis #-}
 toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis
-toUTCTimeMillis = UTCTimeMillis . (TL.seconds %~ MkFixed . (* 1e9) . (`div` 1e9) . coerce @Pico @Integer)
+toUTCTimeMillis = UTCTimeMillis . (TL.seconds %~ MkFixed . roundToMillis . coerce @Pico @Integer)
+
+roundToMillis :: Integer -> Integer
+roundToMillis = (* 1e9) . (`div` 1e9)
 
 {-# INLINE showUTCTimeMillis #-}
 showUTCTimeMillis :: UTCTimeMillis -> String
