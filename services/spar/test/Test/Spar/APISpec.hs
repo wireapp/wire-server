@@ -10,7 +10,7 @@ import Control.Lens
 import Control.Monad.State
 import Data.Id
 import Spar.API
-import Spar.App
+import Spar.Brig
 import Test.Hspec
 
 import qualified Data.Map as Map
@@ -32,10 +32,8 @@ makeLenses ''TestState
 newtype TestSpar a = TestSpar { fromTestSpar :: State TestState a }
   deriving (Functor, Applicative, Monad, MonadState TestState)
 
-instance MonadSpar TestSpar where
-  getUser _ = called "getUser" >> gets (view getuser)
-  createUser _ = called "createUser" >> gets (view cruser)
-  forwardBrigLogin _ = called "forwardBrigLogin"
+instance MonadSparToBrig TestSpar where
+  call = undefined
 
 called :: String -> TestSpar SAML.Void
 called funname = modify (callmap %~ Map.alter (maybe (Just 1) (Just . (+1))) funname) >> pure undefined
@@ -46,7 +44,7 @@ run = fmap snd . runState . fromTestSpar
 
 spec :: Spec
 spec = do
-  describe "onSuccess" $ do
+  xdescribe "onSuccess" $ do
     let samluid  = SAML.UserId (SAML.Issuer $ SAML.unsafeParseURI "http://example.com/") (SAML.opaqueNameID "phoo")
         briguid  = Id UUID.nil
         tstempty = TestState mempty Nothing briguid
