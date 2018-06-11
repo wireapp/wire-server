@@ -7,6 +7,7 @@
 
 module Spar.App where
 
+import Bilge
 import Cassandra
 import Control.Exception (SomeException(SomeException))
 import Control.Lens hiding (Level)
@@ -33,27 +34,16 @@ import qualified Spar.Data as Data
 import qualified System.Logger as Log
 
 
-----------------------------------------------------------------------
-
-class Monad m => MonadSpar m where
-  -- locally read user record from Cassandra
-  getUser :: SAML.UserId -> m (Maybe UserId)
-
-  -- create user locally and on brig
-  createUser :: SAML.UserId -> m UserId
-
-  -- get session token from brig and redirect user past login process
-  forwardBrigLogin :: UserId -> m Void
-
-
-data SparCtx = SparCtx
-  { sparCtxOpts   :: Opts
-  , sparCtxLogger :: Log.Logger
-  , sparCtxCas    :: Cas.ClientState
-  }
-
 newtype Spar a = Spar { fromSpar :: ReaderT SparCtx Handler a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader SparCtx, MonadError ServantErr)
+
+data SparCtx = SparCtx
+  { sparCtxOpts         :: Opts
+  , sparCtxLogger       :: Log.Logger
+  , sparCtxCas          :: Cas.ClientState
+  , sparCtxHttpManager  :: Bilge.Manager
+  , sparCtxHttpBrig     :: Bilge.Request
+  }
 
 instance HasConfig Spar where
   type ConfigExtra Spar = TeamId
@@ -83,7 +73,6 @@ fromLevel = \case
   Log.Debug -> DEBUG
   Log.Trace -> DEBUG
 
-
 instance SPStore Spar where
   storeRequest i        = wrapMonadClient . Data.storeRequest i
   checkAgainstRequest r = getNow >>= \(Time now) -> wrapMonadClient $ Data.checkAgainstRequest now r
@@ -97,18 +86,17 @@ wrapMonadClient action = Spar $ do
   runClient ctx action `Catch.catch`
     \e@(SomeException _) -> throwError err500 { errBody = LBS.pack $ show e }
 
-
 instance SPHandler Spar where
   type NTCTX Spar = SparCtx
   nt ctx (Spar action) = runReaderT action ctx
 
+instance MonadHttp Spar where
+  getManager = asks sparCtxHttpManager
 
-instance Brig.MonadClient Spar
-
-instance MonadSpar Spar where
-  getUser          = Brig.getUser
-  createUser       = Brig.createUser
-  forwardBrigLogin = Brig.forwardBrigLogin
+instance Brig.MonadSparToBrig Spar where
+  call modreq = do
+    req <- asks sparCtxHttpBrig
+    httpLbs req modreq
 
 
 ----------------------------------------------------------------------

@@ -10,12 +10,17 @@
 
 module Spar.API where
 
+import Bilge
 import Control.Lens
+import Data.String.Conversions (cs)
 import Data.String (fromString)
 import GHC.Stack
+import Network.HTTP.Client (responseTimeoutMicro)
 import Servant
 import Spar.App
+import Spar.Brig
 import Spar.Options
+import Util.Options (epHost, epPort)
 
 import qualified Data.Text as ST
 import qualified Network.Wai.Handler.Warp as Warp
@@ -33,6 +38,12 @@ runServer sparCtxOpts = do
   let settings = Warp.defaultSettings
         & Warp.setHost (fromString $ sparCtxOpts ^. to saml . SAML.cfgSPHost)
         . Warp.setPort (sparCtxOpts ^. to saml . SAML.cfgSPPort)
+  sparCtxHttpManager <- newManager defaultManagerSettings
+      { managerResponseTimeout = responseTimeoutMicro 10000000
+      }
+  let sparCtxHttpBrig = Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
+                      . Bilge.port (sparCtxOpts ^. to brig . epPort)
+                      $ Bilge.empty
   Warp.runSettings settings $ app SparCtx {..}
 
 app :: SparCtx -> Application
@@ -58,5 +69,5 @@ api =  pure ()
 appName :: ST.Text
 appName = "spar"
 
-onSuccess :: (HasCallStack, MonadSpar m) => SAML.UserId -> m SAML.Void
+onSuccess :: (HasCallStack, MonadSparToBrig m) => SAML.UserId -> m SAML.Void
 onSuccess uid = forwardBrigLogin =<< maybe (createUser uid) pure =<< getUser uid
