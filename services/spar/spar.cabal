@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7304968871df16527702420ef2af5760820955680ae6495542c11c5c0c333899
+-- hash: e107bbab963b93dac308dea5bf8f3aee3fa03679e484fb4575d91147697370e1
 
 name:           spar
 version:        0.1
@@ -32,11 +32,14 @@ library
   build-depends:
       aeson
     , base
+    , bilge
     , brig-types
     , bytestring
     , cassandra-util
     , containers
     , exceptions
+    , http-client
+    , http-types
     , lens
     , mtl
     , raw-strings-qq
@@ -64,11 +67,14 @@ executable spar
   build-depends:
       aeson
     , base
+    , bilge
     , brig-types
     , bytestring
     , cassandra-util
     , containers
     , exceptions
+    , http-client
+    , http-types
     , lens
     , mtl
     , raw-strings-qq
@@ -99,6 +105,7 @@ executable spar-integration
   build-depends:
       aeson
     , base
+    , bilge
     , brig-types
     , bytestring
     , cassandra-util
@@ -106,6 +113,8 @@ executable spar-integration
     , exceptions
     , hspec
     , hspec-discover
+    , http-client
+    , http-types
     , lens
     , mtl
     , raw-strings-qq
@@ -135,11 +144,14 @@ executable spar-schema
   build-depends:
       aeson
     , base
+    , bilge
     , brig-types
     , bytestring
     , cassandra-util
     , containers
     , exceptions
+    , http-client
+    , http-types
     , lens
     , mtl
     , raw-strings-qq
@@ -174,6 +186,7 @@ test-suite spec
       QuickCheck
     , aeson
     , base
+    , bilge
     , brig-types
     , bytestring
     , cassandra-util
@@ -181,6 +194,8 @@ test-suite spec
     , exceptions
     , hspec
     , hspec-discover
+    , http-client
+    , http-types
     , lens
     , mtl
     , raw-strings-qq
