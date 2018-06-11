@@ -165,4 +165,4 @@ countInvitations t = fromMaybe 0 . fmap runIdentity <$>
 
 -- Helper
 toInvitation :: (TeamId, InvitationId, Email, UTCTime) -> Invitation
-toInvitation (t, i, e, tm) = Invitation t i e (toUTCTimeMillis tm)
+toInvitation (t, i, e, toUTCTimeMillis -> tm) = Invitation t i e tm

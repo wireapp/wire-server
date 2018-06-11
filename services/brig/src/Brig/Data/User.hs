@@ -85,9 +85,9 @@ newAccount u inv tid = do
                        let ZAuth.SessionTokenTimeout defTTL = e^.ZAuth.settings.ZAuth.sessionTokenTimeout
                            ttl = fromMaybe defTTL (fromRange <$> newUserExpiresIn u)
                        now <- liftIO =<< view currentTime
-                       return $ Just (addUTCTime (fromIntegral ttl) now)
+                       return . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
                    _ -> return Nothing
-    return (UserAccount (user uid (locale defLoc) (toUTCTimeMillis <$> expiry)) status, passwd)
+    return (UserAccount (user uid (locale defLoc) expiry) status, passwd)
   where
     ident         = newUserIdentity u
     pass          = newUserPassword u
@@ -353,7 +353,7 @@ userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
 
 toUserAccount :: Locale -> AccountRow -> UserAccount
 toUserAccount defaultLocale (uid, name, pict, email, phone, ssoid, accent, assets,
-                             activated, status, expires, lan, con, pid, sid,
+                             activated, status, fmap toUTCTimeMillis -> expires, lan, con, pid, sid,
                              handle, tid) =
     let ident = toIdentity activated email phone ssoid
         deleted = maybe False (== Deleted) status
@@ -361,7 +361,7 @@ toUserAccount defaultLocale (uid, name, pict, email, phone, ssoid, accent, asset
         loc = toLocale defaultLocale (lan, con)
         svc = newServiceRef <$> sid <*> pid
     in UserAccount (User uid ident name (fromMaybe noPict pict)
-                         (fromMaybe [] assets) accent deleted loc svc handle (toUTCTimeMillis <$> expiration) tid)
+                         (fromMaybe [] assets) accent deleted loc svc handle expiration tid)
                    (fromMaybe Active status)
 
 toUsers :: Locale -> [UserRow] -> [User]
