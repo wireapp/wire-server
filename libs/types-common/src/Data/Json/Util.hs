@@ -13,7 +13,7 @@ module Data.Json.Util
     , Base64ByteString (..)
     ) where
 
-import Control.Lens ((%~))
+import Control.Lens ((%~), coerced)
 import Data.Aeson
 import Data.Aeson.Types
 import qualified Data.ByteString.Lazy as L
@@ -60,11 +60,7 @@ newtype UTCTimeMillis = UTCTimeMillis { fromUTCTimeMillis :: UTCTime }
 
 {-# INLINE toUTCTimeMillis #-}
 toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis
-toUTCTimeMillis = UTCTimeMillis . (TL.seconds %~ MkFixed . roundToMillis . coerce @Pico @Integer)
-
-{-# INLINE roundToMillis #-}
-roundToMillis :: Integer -> Integer
-roundToMillis = (* 1e9) . (`div` 1e9)
+toUTCTimeMillis = UTCTimeMillis . (TL.seconds . coerced @Pico @_ @Integer %~ (* 1e9) . (`div` 1e9))
 
 {-# INLINE showUTCTimeMillis #-}
 showUTCTimeMillis :: UTCTimeMillis -> String
