@@ -22,8 +22,6 @@ import Brig.Types.User.Auth
 import Control.Lens hiding (elements)
 import Control.Monad
 import Data.Currency
-import Data.Aeson
-import Data.Either
 import Data.IP
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LanguageCodes
