@@ -38,7 +38,7 @@ sudo pacman -S geoip snappy icu openssl
 #### macOS:
 
 ```bash
-brew install libsodium openssl automake icu4c
+brew install pkg-config libsodium openssl automake icu4c
 ```
 
 _Note_: macOS users will need to make sure to link Haskell services against a more recent version of OpenSSL than what ships with the OS by default. Additionally, `icu4c` is installed in a non-standard location by `homebrew`. Add the following to your `.stack/config.yaml`:
