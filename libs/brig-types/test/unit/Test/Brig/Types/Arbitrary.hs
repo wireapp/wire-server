@@ -218,9 +218,7 @@ instance Arbitrary NewUser where
         pure NewUser{..}
 
 instance Arbitrary UTCTimeMillis where
-    arbitrary = fromRight (error "instance Arbitrary UTCTimeMillis")
-              . eitherDecode . encode . toUTCTimeMillis
-            <$> arbitrary
+    arbitrary = toUTCTimeMillis <$> arbitrary
 
 instance Arbitrary NewUserOrigin where
     arbitrary = oneof
