@@ -70,6 +70,7 @@ import Control.Monad (void, (>=>))
 import Control.Monad.Base
 import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
 import Control.Monad.IO.Class
+import Control.Monad.IO.Unlift
 import Control.Monad.Reader.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Control
@@ -386,13 +387,18 @@ instance MonadIndexIO AppIO where
 instance Monad m => HasRequestId (AppT m) where
     getRequestId = view requestId
 
-instance MonadBase IO AppIO where
-    liftBase = liftIO
+instance MonadUnliftIO AppIO where
+    askUnliftIO = AppT $ ReaderT $ \r ->
+                    withUnliftIO $ \u ->
+                        return (UnliftIO (unliftIO u . flip runReaderT r . unAppT))
 
-instance MonadBaseControl IO AppIO where
-    type StM AppIO a = StM (ReaderT Env Client) a
-    liftBaseWith     f = AppT $ liftBaseWith $ \run -> f (run . unAppT)
-    restoreM           = AppT . restoreM
+-- instance MonadBase IO AppIO where
+--     liftBase = liftIO
+
+-- instance MonadBaseControl IO AppIO where
+--     type StM AppIO a = StM (ReaderT Env Client) a
+--     liftBaseWith     f = AppT $ liftBaseWith $ \run -> f (run . unAppT)
+--     restoreM           = AppT . restoreM
 
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e

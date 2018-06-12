@@ -11,10 +11,10 @@ module Brig.Blacklist
 import Brig.AWS
 import Brig.App
 import Brig.Data.UserKey (UserKey, keyText)
-import Control.Concurrent.Async.Lifted.Safe
 import Control.Lens
 import Control.Monad.Reader
 import Data.Text (Text)
+import UnliftIO.Async
 
 import qualified Brig.Data.Blacklist  as Data
 import qualified Data.HashMap.Strict  as Map

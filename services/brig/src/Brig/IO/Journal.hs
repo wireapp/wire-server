@@ -22,7 +22,7 @@ import Data.Proto
 import Data.Proto.Id
 import Data.ProtoLens.Encoding (encodeMessage)
 import Data.UUID.V4 (nextRandom)
-import Proto.UserEvents hiding (userId)
+import Proto.UserEvents
 
 import qualified Data.ByteString.Base64 as B64
 import qualified Brig.AWS as AWS
@@ -48,5 +48,5 @@ journalEvent typ uid em loc = view awsEnv >>= \env -> for_ (view AWS.userJournal
     ts  <- now
     rnd <- liftIO nextRandom
     let encoded = fromStrict . B64.encode . encodeMessage
-                $ UserEvent typ (toBytes uid) ts (toByteString' <$> em) (pack . show <$> loc)
+                $ UserEvent typ (toBytes uid) ts (toByteString' <$> em) (pack . show <$> loc) []
     AWS.execute env (AWS.enqueueFIFO queue "user.events" rnd encoded)

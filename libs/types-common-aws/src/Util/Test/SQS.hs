@@ -68,7 +68,7 @@ deleteMessage url m = do
 -- Generic AWS execution helpers
 execute :: (AWS.HasEnv r, MonadIO m, MonadThrow m, MonadBaseControl IO m)
            => r -> AWS.AWS a -> m a
-execute env act = AWS.runResourceT $ AWS.runAWS env act
+execute env act = liftIO . AWS.runResourceT $ AWS.runAWS env act
 
 -----------------------------------------------------------------------------
 -- Internal. Most of these functions _can_ be used outside of this function

@@ -27,7 +27,7 @@ import Crypto.Hash
 import Data.Aeson (eitherDecodeStrict')
 import Data.Attoparsec.ByteString.Char8
 import Data.ByteString (ByteString)
-import Data.Conduit (Source, ResumableSource, Consumer, ($=), ($$+), ($$++))
+import Data.Conduit
 import Data.Id
 import Data.List (intercalate)
 import Data.Text.Encoding (decodeLatin1)
@@ -117,15 +117,15 @@ delete own key = do
 -----------------------------------------------------------------------------
 -- Streaming multipart parsing
 
-parseMetadata :: Source IO ByteString -> Parser a -> Handler (ResumableSource IO ByteString, a)
+parseMetadata :: Source IO ByteString -> Parser a -> Handler (SealedConduitT () ByteString IO (), a)
 parseMetadata src psr = do
     (rsrc, meta) <- liftIO $ src $$+ sinkParser psr
     (rsrc,) <$> hoistEither meta
 
-parseHeaders :: ResumableSource IO ByteString -> Parser a -> Handler (Source IO ByteString, a)
+parseHeaders :: SealedConduitT () ByteString IO () -> Parser a -> Handler (Source IO ByteString, a)
 parseHeaders src prs = do
     (rsrc, hdrs) <- liftIO $ src $$++ sinkParser prs
-    (src',    _) <- liftIO $ Conduit.unwrapResumable rsrc
+    (src',    _) <- undefined -- liftIO $ Conduit.unsealConduitT rsrc
     (src',) <$> hoistEither hdrs
 
 sinkParser :: Parser a -> Consumer ByteString IO (Either Error a)

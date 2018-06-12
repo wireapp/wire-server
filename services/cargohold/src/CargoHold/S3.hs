@@ -382,11 +382,12 @@ createResumable k p typ size tok = do
         , setAmzMetaUploadId <$> upl
         ]
 
-uploadChunk
-    :: S3Resumable
-    -> V3.Offset
-    -> ConduitM () ByteString (ResourceT IO) ()
-    -> ExceptT Error App (S3Resumable, ConduitM () ByteString (ResourceT IO) ())
+-- uploadChunk
+--     :: S3Resumable
+--     -> V3.Offset
+--     -> ConduitM () ByteString (ResourceT IO) ()
+--     -> ExceptT Error App (S3Resumable, ConduitM () ByteString (ResourceT IO) ())
+-- TODO: lts-11.13
 uploadChunk r offset rsrc = do
     b <- s3Bucket <$> view aws
     let chunkSize = fromIntegral (resumableChunkSize r)
@@ -508,9 +509,10 @@ completeResumable r = do
                 let S3ChunkKey ck = mkChunkKey (resumableKey r) (chunkNr c)
                 (_, gor) <- recovering x3 handlers $ const $
                     Aws.sendRequest env s3c $ getObject b ck
+                undefined -- TODO: lts-11.13
                 -- src <- runResourceT $ responseBody (gorResponse gor) <$> http request mgr
                 -- return $ responseBody (gorResponse gor)
-                Conduit.unwrapResumable $ responseBody (gorResponse gor)
+                -- Conduit.unsealConduitT $ responseBody (gorResponse gor)
             src >> lift fin >> chunkSource man env s3c b cc
 
 listChunks :: S3Resumable -> ExceptT Error App (Maybe (Seq S3Chunk))
