@@ -59,7 +59,7 @@ import Brig.User.Search.Index (runIndexIO, IndexEnv (..), MonadIndexIO (..))
 import Brig.User.Template
 import Brig.Types (Locale (..), TurnURI)
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
-import Cassandra (MonadClient (..), Keyspace (..), runClient, Client)
+import Cassandra (MonadClient (..), Keyspace (..), runClient)
 import Cassandra.Schema (versionCheck)
 import Control.AutoUpdate
 import Control.Concurrent (forkIO)
@@ -67,13 +67,11 @@ import Control.Error
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding ((.=), index)
 import Control.Monad (void, (>=>))
-import Control.Monad.Base
 import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
 import Control.Monad.IO.Class
 import Control.Monad.IO.Unlift
 import Control.Monad.Reader.Class
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.Control
 import Control.Monad.Trans.Reader (ReaderT (..), runReaderT)
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion

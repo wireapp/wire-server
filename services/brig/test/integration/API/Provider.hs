@@ -1276,7 +1276,7 @@ svcAssertBotCreated buf bid cid = liftIO $ do
             -- TODO: Verify the conversation name
             -- TODO: Verify the list of members
             return b
-        _ -> throwM $ HUnitFailure "Event timeout (TestBotCreated)"
+        _ -> throwM $ HUnitFailure Nothing "Event timeout (TestBotCreated)"
 
 svcAssertMessage :: MonadIO m => Chan TestBotEvent -> UserId -> OtrMessage -> ConvId -> m ()
 svcAssertMessage buf from msg cnv = liftIO $ do

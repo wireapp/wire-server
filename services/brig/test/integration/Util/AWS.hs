@@ -8,6 +8,8 @@ import Data.Id
 import Data.Maybe
 import Data.Monoid
 import GHC.Stack
+import Proto.UserEvents as PU
+import Proto.UserEvents_Fields as PU
 import Test.Tasty.HUnit
 
 import qualified Brig.AWS             as AWS
@@ -15,7 +17,6 @@ import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ProtoLens       as DP
 import qualified Data.Text            as Text
 import qualified Data.UUID            as UUID
-import qualified Proto.UserEvents     as PU
 import qualified Util.Test.SQS        as SQS
 
 isRealSESEnv :: AWS.Env -> Bool

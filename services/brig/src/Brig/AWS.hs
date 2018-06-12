@@ -41,11 +41,9 @@ module Brig.AWS
 import Blaze.ByteString.Builder (toLazyByteString)
 import Control.Lens hiding ((.=))
 import Control.Monad
-import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.IO.Unlift
 import Control.Monad.Reader
-import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.Aeson hiding ((.=))
