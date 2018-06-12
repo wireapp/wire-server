@@ -13,15 +13,26 @@ module Spar.Brig where
 -- TODO: when creating user, we need to be able to provide more
 -- master data (first name, last name, ...)
 
-import Control.Monad.Except
-import Data.String.Conversions
 import Bilge
+import Control.Lens
+import Control.Monad.Except
+import Data.Aeson (eitherDecode')
+import Data.Id (UserId)
+import Data.String.Conversions
+import GHC.Stack
 import Network.HTTP.Types.Method
+import URI.ByteString
+import Servant hiding (URI)
+import Web.Cookie
 
+import qualified Network.HTTP.Types.Header as HTTP
+import qualified Data.ByteString.Builder as LBS
 import qualified Brig.Types.User as Brig
-import qualified Data.Id as Brig
+import qualified Brig.Types.User.Auth as Brig
 import qualified SAML2.WebSSO as SAML
 
+
+----------------------------------------------------------------------
 
 toUserSSOId :: SAML.UserId -> Brig.UserSSOId
 toUserSSOId (SAML.UserId tenant subject) =
@@ -35,26 +46,68 @@ fromUserSSOId (Brig.UserSSOId (cs -> tenant) (cs -> subject)) =
     (_, Left msg)      -> throwError msg
 
 
+parseResponse :: MonadError ServantErr m => Response (Maybe LBS) -> m UserId
+parseResponse resp = do
+    bdy <- maybe (throwError err500) pure $ responseBody resp
+    either (const $ throwError err500) pure $ eitherDecode' bdy
+
+-- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
+-- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
+-- (This is the easiest way, since the login-request that we are in the middle of responding to here
+-- is not from the wire client, but from a browser that is still processing a redirect from the
+-- IdP.)
+respToCookie :: (HasCallStack, MonadError ServantErr m) => Response (Maybe LBS) -> m SetCookie
+respToCookie resp = do
+  let crash msg = throwError err500 { errBody = msg }
+  unless (statusCode resp == 200) $ crash "bad status code"
+  maybe (crash "no cookie") (pure . parseSetCookie) $ getHeader "Set-Cookie" resp
+
+
+----------------------------------------------------------------------
+
 class Monad m => MonadSparToBrig m where
   call :: (Request -> Request) -> m (Response (Maybe LBS))
 
 
-getUser :: (MonadSparToBrig m) => SAML.UserId -> m (Maybe Brig.UserId)
-getUser uid = do
-  resp :: Response (Maybe LBS) <- call
-    $ method GET
-    . path ("/i/user/by-ssoid/" <> cs (show uid))  -- TODO: does anything like this exist?
-  if statusCode resp == 200
-    then do
-      undefined  -- parse body and return user id from brig.  if parsing fails, log a warning and
-                 -- return Nothing.
-        -- (what should the body look like?  a full 'User' object?)
-    else do
-      pure Nothing
+-- | Create a user on brig.
+createUser :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => SAML.UserId -> m UserId
+createUser suid = do
+  let newUser :: Brig.NewUser
+      newUser = Brig.NewUser
+        { Brig.newUserName           = Brig.Name . cs . SAML.encodeElem $ suid ^. SAML.uidSubject
+        , Brig.newUserIdentity       = Just $ Brig.SSOIdentity (toUserSSOId suid) Nothing Nothing
+        , Brig.newUserPict           = Nothing
+        , Brig.newUserAssets         = []
+        , Brig.newUserAccentId       = Nothing
+        , Brig.newUserEmailCode      = Nothing
+        , Brig.newUserPhoneCode      = Nothing
+        , Brig.newUserOrigin         = Nothing
+        , Brig.newUserLabel          = Nothing
+        , Brig.newUserLocale         = Nothing
+        , Brig.newUserPassword       = Nothing
+        , Brig.newUserExpiresIn      = Nothing
+        }
 
-createUser :: (MonadSparToBrig m) => SAML.UserId -> m Brig.UserId
-createUser _ = undefined
+  resp :: Response (Maybe LBS) <- call
+    $ method POST
+    . path "/i/users"
+    . json newUser
+    . expect2xx
+  parseResponse resp
+
 
 -- | Get session token from brig and redirect user past login process.
-forwardBrigLogin :: (MonadSparToBrig m) => Brig.UserId -> m SAML.Void
-forwardBrigLogin = undefined
+forwardBrigLogin :: (HasCallStack, MonadError ServantErr m, SAML.HasConfig m, MonadSparToBrig m)
+                 => UserId -> m SAML.Void
+forwardBrigLogin buid = do
+  resp :: Response (Maybe LBS) <- call
+    $ method POST
+    . path "/i/backdoor-login"
+    . json (Brig.BackdoorLogin buid Nothing)
+    . queryItem "persistent" "true"
+    . expect2xx
+
+  cki <- respToCookie resp
+  target :: URI <- SAML.getLandingURI
+  let hdrs :: [HTTP.Header] = [("Set-Cookie", cs . LBS.toLazyByteString . renderSetCookie $ cki)]
+  SAML.redirect target hdrs

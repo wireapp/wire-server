@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e107bbab963b93dac308dea5bf8f3aee3fa03679e484fb4575d91147697370e1
+-- hash: 2be5200106b9e77bfbfff667ee53666becd79b9bc3b35973aa83cdb940f1523a
 
 name:           spar
 version:        0.1
@@ -37,6 +37,7 @@ library
     , bytestring
     , cassandra-util
     , containers
+    , cookie
     , exceptions
     , http-client
     , http-types
@@ -53,6 +54,7 @@ library
     , tinylog
     , transformers
     , types-common
+    , uri-bytestring
     , uuid
     , warp
   default-language: Haskell2010
@@ -72,6 +74,7 @@ executable spar
     , bytestring
     , cassandra-util
     , containers
+    , cookie
     , exceptions
     , http-client
     , http-types
@@ -89,6 +92,7 @@ executable spar
     , tinylog
     , transformers
     , types-common
+    , uri-bytestring
     , uuid
     , warp
   default-language: Haskell2010
@@ -110,6 +114,7 @@ executable spar-integration
     , bytestring
     , cassandra-util
     , containers
+    , cookie
     , exceptions
     , hspec
     , hspec-discover
@@ -129,6 +134,7 @@ executable spar-integration
     , tinylog
     , transformers
     , types-common
+    , uri-bytestring
     , uuid
     , warp
   default-language: Haskell2010
@@ -149,6 +155,7 @@ executable spar-schema
     , bytestring
     , cassandra-util
     , containers
+    , cookie
     , exceptions
     , http-client
     , http-types
@@ -166,6 +173,7 @@ executable spar-schema
     , tinylog
     , transformers
     , types-common
+    , uri-bytestring
     , uuid
     , warp
   default-language: Haskell2010
@@ -175,7 +183,6 @@ test-suite spec
   main-is: Spec.hs
   other-modules:
       Arbitrary
-      Test.Spar.APISpec
       Test.Spar.BrigSpec
       Test.Spar.OptionsSpec
       Paths_spar
@@ -191,6 +198,7 @@ test-suite spec
     , bytestring
     , cassandra-util
     , containers
+    , cookie
     , exceptions
     , hspec
     , hspec-discover
