@@ -122,6 +122,18 @@ tests = testGroup "Properties"
             , ("1918-04-14T09:58:58.4574Z", "1918-04-14T09:58:58.457Z")
             , ("1918-04-14T09:58:58.4579Z", "1918-04-14T09:58:58.457Z")
             ]
+
+        , let testcase (t1, t2) = testCase (show (t1, t2)) $ process t1 @=? Just t2
+              process = fmap show . Util.readUTCTimeMillis
+          in testGroup "validate Eq" $ testcase <$>
+            [ ("1918-04-14T09:58:58.457Z",  "1918-04-14T09:58:58.457Z")
+            , ("1918-04-14T09:58:58.4574Z", "1918-04-14T09:58:58.457Z")
+            , ("1918-04-14T09:58:58.4579Z", "1918-04-14T09:58:58.457Z")
+              -- client parsers require *exactly* three digits:
+            , ("1918-04-14T09:58:58Z",      "1918-04-14T09:58:58.000Z")
+            , ("1918-04-14T09:58:58.1Z",    "1918-04-14T09:58:58.100Z")
+            , ("1918-04-14T09:58:58.12Z",   "1918-04-14T09:58:58.120Z")
+            ]
         ]
 
     , testGroup "UUID"
