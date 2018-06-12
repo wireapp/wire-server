@@ -19,9 +19,10 @@ dependencies:
   - bytestring
   - cassandra-util
   - containers
+  - cookie
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
-  - http-types
   - http-client
+  - http-types
   - lens
   - mtl
   - raw-strings-qq
@@ -31,10 +32,11 @@ dependencies:
   - servant-server
   - string-conversions
   - text
-  - tinylog
   - time
+  - tinylog
   - transformers
   - types-common
+  - uri-bytestring
   - uuid
   - warp
 

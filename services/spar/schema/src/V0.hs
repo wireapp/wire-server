@@ -24,7 +24,16 @@ migration = Migration 0 "Initial schema" $ do
         create columnfamily if not exists authresp
             ( resp         text
             , end_of_life  timestamp
-            , primary key  req
+            , primary key  resp
+            );
+        |]
+
+    void $ schema' [r|
+        create columnfamily if not exists user
+            ( idp      text
+            , sso_id   text
+            , uid      uuid
+            , primary key (idp, sso_id)
             );
         |]
 
