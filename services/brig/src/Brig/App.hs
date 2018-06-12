@@ -134,6 +134,7 @@ data Env = Env
     , _casClient     :: Cas.ClientState
     , _smtpEnv       :: Maybe SMTP.SMTP
     , _awsEnv        :: AWS.Env
+    , _internalQueue :: Stomp.Env
     , _metrics       :: Metrics
     , _applog        :: Logger
     , _requestId     :: RequestId

@@ -82,6 +82,7 @@ packages:
   extra-dep: true
 
 extra-deps:
+- base-prelude-1.3
 - base58-bytestring-0.1.0
 - currency-codes-2.0.0.0
 - data-timeout-0.3
@@ -95,6 +96,8 @@ extra-deps:
 - HsOpenSSL-0.11.4.12
 - invertible-hxt-0.1  # for hsaml2 / spar
 - swagger2-2.2.1  # to get 'fromAesonOptions'
+- stomp-queue-0.3.1  # for Brig.Stomp
+- stompl-0.5.0
 
 flags:
   types-common:

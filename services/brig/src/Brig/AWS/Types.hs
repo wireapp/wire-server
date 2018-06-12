@@ -26,6 +26,7 @@ newtype SesQueueUrl = SesQueueUrl
     { fromSesQueue :: Text }
     deriving (Eq, Show)
 
+-- TODO: not used anywhere
 newtype InternalQueueUrl = InternalQueueUrl
     { fromInternalQueue :: Text }
     deriving (Eq, Show)

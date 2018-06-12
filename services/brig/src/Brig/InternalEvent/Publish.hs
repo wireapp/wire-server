@@ -7,10 +7,8 @@ import Brig.InternalEvent.Types
 import Control.Lens (view, (^.))
 import Data.Aeson
 import Data.Text (Text)
-import Network.AWS.SQS
 import OpenSSL.EVP.Digest (Digest, digestLBS)
 
-import qualified Brig.AWS               as AWS
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Lazy   as BL
 import qualified Data.Text.Encoding     as T
