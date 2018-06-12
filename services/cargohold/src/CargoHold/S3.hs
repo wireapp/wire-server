@@ -87,7 +87,7 @@ import qualified Codec.MIME.Type              as MIME
 import qualified Codec.MIME.Parse             as MIME
 import qualified Data.ByteString.Char8        as C8
 import qualified Data.ByteString.Lazy         as LBS
-import qualified Data.Conduit                 as Conduit
+-- import qualified Data.Conduit                 as Conduit
 import qualified Data.Conduit.Binary          as Conduit
 import qualified Data.Sequence                as Seq
 import qualified Data.Text                    as Text
@@ -112,7 +112,7 @@ uploadV3 :: V3.Principal
          -> V3.AssetKey
          -> V3.AssetHeaders
          -> Maybe V3.AssetToken
-         -> Conduit.Source IO ByteString
+         -> ConduitM () ByteString IO ()
          -> ExceptT Error App ()
 uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
     Log.debug $ "remote" .= val "S3"
@@ -382,12 +382,11 @@ createResumable k p typ size tok = do
         , setAmzMetaUploadId <$> upl
         ]
 
--- uploadChunk
---     :: S3Resumable
---     -> V3.Offset
---     -> ConduitM () ByteString (ResourceT IO) ()
---     -> ExceptT Error App (S3Resumable, ConduitM () ByteString (ResourceT IO) ())
--- TODO: lts-11.13
+uploadChunk
+    :: S3Resumable
+    -> V3.Offset
+    -> SealedConduitT () ByteString IO ()
+    -> ExceptT Error App (S3Resumable, SealedConduitT () ByteString IO ())
 uploadChunk r offset rsrc = do
     b <- s3Bucket <$> view aws
     let chunkSize = fromIntegral (resumableChunkSize r)
@@ -502,18 +501,22 @@ completeResumable r = do
             throwE $ uploadIncomplete (resumableTotalSize r) total
 
     -- Construct a 'Source' by downloading the chunks.
+    chunkSource :: Manager
+                -> Aws.Env
+                -> S3Configuration Aws.NormalQuery
+                -> Bucket
+                -> Seq S3Chunk
+                -> ConduitT () ByteString (ResourceT IO) ()
     chunkSource man env s3c b cs = case Seq.viewl cs of
         EmptyL  -> mempty
         c :< cc -> do
-            (src, fin) <- lift $ do
+            -- (src, fin) <- lift $ do
+            src <- lift $ do
                 let S3ChunkKey ck = mkChunkKey (resumableKey r) (chunkNr c)
                 (_, gor) <- recovering x3 handlers $ const $
                     Aws.sendRequest env s3c $ getObject b ck
-                undefined -- TODO: lts-11.13
-                -- src <- runResourceT $ responseBody (gorResponse gor) <$> http request mgr
-                -- return $ responseBody (gorResponse gor)
-                -- Conduit.unsealConduitT $ responseBody (gorResponse gor)
-            src >> lift fin >> chunkSource man env s3c b cc
+                return $ responseBody (gorResponse gor)
+            src >> chunkSource man env s3c b cc
 
 listChunks :: S3Resumable -> ExceptT Error App (Maybe (Seq S3Chunk))
 listChunks r = do

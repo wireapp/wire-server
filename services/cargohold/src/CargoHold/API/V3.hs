@@ -52,7 +52,7 @@ import qualified Data.Conduit.Binary     as Conduit
 import qualified Data.Text.Ascii         as Ascii
 import qualified Data.Text.Lazy          as LT
 
-upload :: V3.Principal -> Source IO ByteString -> Handler V3.Asset
+upload :: V3.Principal -> ConduitM () ByteString IO () -> Handler V3.Asset
 upload own bdy = do
     (rsrc, sets) <- parseMetadata bdy assetSettings
     (src,  hdrs) <- parseHeaders rsrc assetHeaders
@@ -62,7 +62,7 @@ upload own bdy = do
     maxTotalBytes <- view (settings.setMaxTotalBytes)
     when (cl > maxTotalBytes) $
         throwE assetTooLarge
-    let stream = src $= Conduit.isolate cl
+    let stream = src .| Conduit.isolate cl
     ast <- liftIO $ Id <$> nextRandom
     tok <- if sets^.V3.setAssetPublic then return Nothing else Just <$> randToken
     let ret = fromMaybe V3.AssetPersistent (sets^.V3.setAssetRetention)
@@ -117,18 +117,18 @@ delete own key = do
 -----------------------------------------------------------------------------
 -- Streaming multipart parsing
 
-parseMetadata :: Source IO ByteString -> Parser a -> Handler (SealedConduitT () ByteString IO (), a)
+parseMetadata :: ConduitM () ByteString IO () -> Parser a -> Handler (SealedConduitT () ByteString IO (), a)
 parseMetadata src psr = do
     (rsrc, meta) <- liftIO $ src $$+ sinkParser psr
     (rsrc,) <$> hoistEither meta
 
-parseHeaders :: SealedConduitT () ByteString IO () -> Parser a -> Handler (Source IO ByteString, a)
+parseHeaders :: SealedConduitT () ByteString IO () -> Parser a -> Handler (ConduitM () ByteString IO (), a)
 parseHeaders src prs = do
     (rsrc, hdrs) <- liftIO $ src $$++ sinkParser prs
-    (src',    _) <- undefined -- liftIO $ Conduit.unsealConduitT rsrc
+    let src' = Conduit.unsealConduitT rsrc
     (src',) <$> hoistEither hdrs
 
-sinkParser :: Parser a -> Consumer ByteString IO (Either Error a)
+sinkParser :: Parser a -> ConduitM ByteString o IO (Either Error a)
 sinkParser p = fmapL mkError <$> Conduit.sinkParserEither p
   where
     mkError = clientError . LT.pack . mkMsg

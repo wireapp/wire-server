@@ -390,14 +390,6 @@ instance MonadUnliftIO AppIO where
                     withUnliftIO $ \u ->
                         return (UnliftIO (unliftIO u . flip runReaderT r . unAppT))
 
--- instance MonadBase IO AppIO where
---     liftBase = liftIO
-
--- instance MonadBaseControl IO AppIO where
---     type StM AppIO a = StM (ReaderT Env Client) a
---     liftBaseWith     f = AppT $ liftBaseWith $ \run -> f (run . unAppT)
---     restoreM           = AppT . restoreM
-
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e
 

@@ -73,7 +73,7 @@ status own key = do
                 offset = S3.resumableOffset r
             in Just (offset, total)
 
-upload :: V3.Principal -> AssetKey -> Offset -> Word -> Source IO ByteString -> Handler (Offset, UTCTime)
+upload :: V3.Principal -> AssetKey -> Offset -> Word -> ConduitM () ByteString IO () -> Handler (Offset, UTCTime)
 upload own key off len src = do
     r <- getResumable key
     let offset = S3.resumableOffset r
