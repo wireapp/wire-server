@@ -86,6 +86,28 @@ wrapMonadClient action = Spar $ do
   runClient ctx action `Catch.catch`
     \e@(SomeException _) -> throwError err500 { errBody = LBS.pack $ show e }
 
+
+insertUser :: SAML.UserId -> UserId -> Spar ()
+insertUser suid buid = wrapMonadClient $ Data.insertUser suid buid
+
+getUser :: SAML.UserId -> Spar (Maybe UserId)
+getUser suid = wrapMonadClient $ Data.getUser suid
+
+deleteUser :: SAML.UserId -> Spar ()
+deleteUser suid = wrapMonadClient $ Data.deleteUser suid
+
+
+-- | Create user in both brig and C*.
+createUser :: SAML.UserId -> Spar UserId
+createUser suid = do
+  buid <- Brig.createUser suid
+  insertUser suid buid
+  pure buid
+
+forwardBrigLogin :: UserId -> Spar SAML.Void
+forwardBrigLogin = Brig.forwardBrigLogin
+
+
 instance SPHandler Spar where
   type NTCTX Spar = SparCtx
   nt ctx (Spar action) = runReaderT action ctx
