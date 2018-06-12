@@ -63,10 +63,7 @@ toUTCTimeMillis = UTCTimeMillis . (TL.seconds . coerced @Pico @_ @Integer %~ (* 
 
 {-# INLINE showUTCTimeMillis #-}
 showUTCTimeMillis :: UTCTimeMillis -> String
-showUTCTimeMillis (UTCTimeMillis t) = formatTime defaultTimeLocale format t
-  where
-    format = "%FT%T." ++ formatMillis t ++ "Z"
-    formatMillis = take 3 . formatTime defaultTimeLocale "%q"
+showUTCTimeMillis (UTCTimeMillis t) = formatTime defaultTimeLocale "%FT%T.%03qZ" t
 
 readUTCTimeMillis :: String -> Maybe UTCTimeMillis
 readUTCTimeMillis = fmap toUTCTimeMillis . parseTimeM True defaultTimeLocale formatUTCTimeMillis
