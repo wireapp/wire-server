@@ -24,3 +24,9 @@ data Opts = Opts
   deriving (Show, Generic)
 
 instance FromJSON Opts
+
+getOpts :: IO Opts
+getOpts = do
+  let desc = "Spar - SSO Service"
+      defaultPath = "/etc/wire/spar/conf/spar.yaml"
+  getOptions desc cliOptsParser defaultPath
