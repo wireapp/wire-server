@@ -35,6 +35,7 @@ integration: fast
 	$(MAKE) -C services/galley i
 	$(MAKE) -C services/brig i
 	$(MAKE) -C services/gundeck i-fake-aws
+	$(MAKE) -C services/spar i
 
 #################################
 ## docker targets
