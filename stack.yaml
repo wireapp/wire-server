@@ -1,4 +1,4 @@
-resolver: lts-10.3
+resolver: lts-11.13
 
 packages:
 - libs/api-bot
@@ -49,7 +49,7 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/tiago-loureiro/aws
-    commit: bade13d1f73ed82c2b3eafda0bcb16d283da909e
+    commit: 42695688fc20f80bf89cec845c57403954aab0a2
   extra-dep: true
 - location:
     git: https://gitlab.com/twittner/wai-routing
@@ -69,6 +69,9 @@ extra-deps:
 - geoip2-0.3.1.0
 - html-entities-1.1.4.1
 - mime-0.4.0.2
+- lens-labels-0.2.0.1
+- proto-lens-0.3.1.0
+- proto-lens-protoc-0.3.1.0
 - snappy-0.2.0.2
 - tasty-1.0.0.1
 - text-icu-translit-0.1.0.7
@@ -82,3 +85,5 @@ flags:
     arbitrary: True
 
 extra-package-dbs: []
+
+allow-newer: False

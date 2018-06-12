@@ -385,8 +385,8 @@ createResumable k p typ size tok = do
 uploadChunk
     :: S3Resumable
     -> V3.Offset
-    -> ResumableSource IO ByteString
-    -> ExceptT Error App (S3Resumable, ResumableSource IO ByteString)
+    -> ConduitM () ByteString (ResourceT IO) ()
+    -> ExceptT Error App (S3Resumable, ConduitM () ByteString (ResourceT IO) ())
 uploadChunk r offset rsrc = do
     b <- s3Bucket <$> view aws
     let chunkSize = fromIntegral (resumableChunkSize r)
@@ -456,10 +456,11 @@ completeResumable r = do
     assembleLocal b chunks = do
         env <- awsEnv   <$> view aws
         s3c <- s3Config <$> view aws
+        man <- view httpManager
         let own = resumableOwner r
         let ast = resumableAsset r
         let size = fromIntegral (resumableTotalSize r)
-        let body = Http.requestBodySource size (chunkSource env s3c b chunks)
+        let body = Http.requestBodySource size (chunkSource man env s3c b chunks)
         void . tryS3 . exec $
             (putObject b (s3Key (mkKey ast)) body)
                 { poContentType       = Just (encodeMIMEType (resumableType r))
@@ -500,15 +501,17 @@ completeResumable r = do
             throwE $ uploadIncomplete (resumableTotalSize r) total
 
     -- Construct a 'Source' by downloading the chunks.
-    chunkSource env s3c b cs = case Seq.viewl cs of
+    chunkSource man env s3c b cs = case Seq.viewl cs of
         EmptyL  -> mempty
         c :< cc -> do
             (src, fin) <- lift $ do
                 let S3ChunkKey ck = mkChunkKey (resumableKey r) (chunkNr c)
                 (_, gor) <- recovering x3 handlers $ const $
                     Aws.sendRequest env s3c $ getObject b ck
+                -- src <- runResourceT $ responseBody (gorResponse gor) <$> http request mgr
+                -- return $ responseBody (gorResponse gor)
                 Conduit.unwrapResumable $ responseBody (gorResponse gor)
-            src >> lift fin >> chunkSource env s3c b cc
+            src >> lift fin >> chunkSource man env s3c b cc
 
 listChunks :: S3Resumable -> ExceptT Error App (Maybe (Seq S3Chunk))
 listChunks r = do

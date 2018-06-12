@@ -27,8 +27,7 @@ import Data.ByteString.Builder
 import Data.Monoid
 import Data.Time.Clock (getCurrentTime)
 import Network.HTTP.Client (ManagerSettings (managerTlsConnection))
-import Network.HTTP.Client.Internal (makeConnection, Connection)
-import Network.HTTP.Client.Internal (Manager (mTlsConnection))
+import Network.HTTP.Client.Internal
 import Network.Socket  as Net
 import OpenSSL
 import OpenSSL.BN (integerToMPI)
@@ -58,16 +57,18 @@ opensslManagerSettings ctx = Client.defaultManagerSettings
 -- every newly established 'SSL' connection, prior to yielding it to the
 -- 'Manager' for use.
 setOnConnection :: SSLContext -> (SSL -> IO ()) -> Manager -> Manager
-setOnConnection ctx fn m = m
-    { mTlsConnection = \_ host port ->
-        bracketOnError
-            (newSocket stdHints host port)
-            (Net.close . fst)
-            $ \(sock, addr) -> do
-                ssl <- newSSL ctx sock addr
-                fn ssl
-                toConnection ssl sock
-    }
+setOnConnection ctx fn m = do
+    -- , mTlsConnection :: Maybe NS.HostAddress -> String -> Int -> IO Connection
+    undefined
+    -- m { mTlsConnection = \_ host port ->
+    --     bracketOnError
+    --         (newSocket stdHints host port)
+    --         (Net.close . fst)
+    --         $ \(sock, addr) -> do
+    --             ssl <- newSSL ctx sock addr
+    --             fn ssl
+    --             toConnection ssl sock
+    -- }
 
 -- Cipher Suites ------------------------------------------------------------
 
