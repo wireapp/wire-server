@@ -15,8 +15,7 @@ cliOptsParser = pure (error "spar does not support command line arguments.")
                   -- Parser' then?
 
 data Opts = Opts
-    { spar          :: !Endpoint
-    , saml          :: !(SAML2.Config TeamId)
+    { saml          :: !(SAML2.Config TeamId)
     , brig          :: !Endpoint
     , cassandra     :: !CassandraOpts
     -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
