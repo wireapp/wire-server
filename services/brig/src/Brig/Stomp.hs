@@ -18,7 +18,9 @@ import Control.Lens
 import Control.Monad.Catch (MonadMask)
 import Control.Retry hiding (retryPolicy)
 import Data.Aeson                                     as Aeson
+import Data.Conduit.Network.TLS
 import Data.Text
+import Data.Text.Encoding
 import Network.Mom.Stompl.Client.Queue hiding (try)
 import System.Logger.Class
 import UnliftIO
@@ -29,15 +31,17 @@ import qualified Data.ByteString.Lazy                 as BL
 data Env = Env
     {
     -- | STOMP broker URL
-      _serverUrl  :: Text
+      _host      :: Text
     -- | Port (usually 61613 or 61614)
-    , _serverPort :: Int
+    , _port      :: Int
     -- | Username and password
-    , _auth       :: Maybe (Text, Text)
+    , _auth      :: Maybe (Text, Text)
+    -- | Whether to use TLS
+    , _tls       :: Bool
     -- | Internal queue name (used only for debugging)
-    , _queueName  :: Text
+    , _queueName :: Text
     -- | Queue name as used by the broker
-    , _queuePath  :: Text
+    , _queuePath :: Text
     }
 
 makeLenses ''Env
@@ -103,7 +107,7 @@ listen e callback =
                 ack conn m
 
     -- TODO: setup ACK settings and think about it
-    -- TODO: check if TLS is automatic or not
+    -- TODO: here we should also have a timeout for the connection and for 'readQ'
     
 
 -------------------------------------------------------------------------------
@@ -125,7 +129,8 @@ jsonType = MIME.Type (MIME.Application "json") []
 -- | Set up a STOMP connection.
 withConnection' :: Env -> (Con -> IO a) -> IO a
 withConnection' e =
-    withConnection (unpack (e^.serverUrl)) (e^.serverPort) config []
+    withConnection (unpack (e^.host)) (e^.port) config []
   where
     config =
-        [ OAuth (unpack user) (unpack pass) | Just (user, pass) <- [e^.auth] ]
+        [ OAuth (unpack user) (unpack pass) | Just (user, pass) <- [e^.auth] ] ++
+        [ OTLS (tlsClientConfig (e^.port) (encodeUtf8 (e^.host))) | e^.tls ]
