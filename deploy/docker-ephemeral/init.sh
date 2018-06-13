@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 exec_until_ready() {
         until $1; do echo 'service not ready yet'; sleep 1; done
