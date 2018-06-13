@@ -60,10 +60,14 @@ data ServiceError
 -- or the response body cannot be parsed, a 'ServiceError' is returned.
 createBot :: ServiceConn -> NewBotRequest -> ExceptT ServiceError AppIO NewBotResponse
 createBot scon new = do
-    mg <- ($ toList (sconFingerprints scon)) <$> view extGetManager
+    let fingerPrintChecks = toList (sconFingerprints scon)
+    (_, mSettings) <- view extGetManager
     extHandleAll onExc $ do
-        rs <- lift $ recovering x3 httpHandlers $ const $
-            liftIO $ Http.httpLbs req mg
+        rs <- lift $ recovering x3 httpHandlers $ const $ liftIO $ do
+                -- TODO: We create a manager for every request which is
+                --       something we would probably want to avoid
+                man <- newManager (mSettings fingerPrintChecks)
+                Http.httpLbs req man
         case Bilge.statusCode rs of
             201 -> decodeBytes "External" (responseBody rs)
             409 -> throwE ServiceBotConflict

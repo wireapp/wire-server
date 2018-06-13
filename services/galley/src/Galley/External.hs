@@ -19,6 +19,7 @@ import Galley.App
 import Galley.Data.Services (BotMember, botMemId, botMemService)
 import Galley.Types (Event)
 import Galley.Types.Bot
+import Network.HTTP.Client (newManager)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status410)
 import System.Logger.Message (msg, val, field, (~~))
@@ -118,9 +119,16 @@ urlPort (HttpsUrl u) = do
 
 sendMessage :: [Fingerprint Rsa] -> Request -> Galley ()
 sendMessage fprs req = do
-    getMgr <- view (extEnv.extGetManager)
-    liftIO $ Http.withResponse req (getMgr fprs) (const $ return ())
+    -- (mg, mSettings) <- view (extEnv.extGetManager)
+    -- liftIO $ do
+    --     reqChecked <- managerModifyRequest (mSettings fprs) req
+    --     Http.withResponse reqChecked mg (const $ return ())
+    -- TODO: We create a manager for every request which is
+    --       something we would probably want to avoid
+    (_, mSettings) <- view (extEnv.extGetManager)
+    liftIO $ do
+        man <- newManager (mSettings fprs)
+        Http.withResponse req man (const $ return ())
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> constantDelay 1000000
-

@@ -4,7 +4,7 @@
 module Network.HTTP.Client.OpenSSL
     ( -- * Settings
       opensslManagerSettings
-    , setOnConnection
+    , opensslManagerSettingsWith
 
       -- * Public Key Pinning
     , verifyFingerprint
@@ -24,6 +24,7 @@ import Control.Monad
 import Data.Byteable (constEqBytes)
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder
+import Data.Foldable (for_)
 import Data.Monoid
 import Data.Time.Clock (getCurrentTime)
 import Network.HTTP.Client (ManagerSettings (managerTlsConnection))
@@ -43,32 +44,25 @@ import qualified Network.HTTP.Client as Client
 -- Settings -----------------------------------------------------------------
 
 opensslManagerSettings :: SSLContext -> ManagerSettings
-opensslManagerSettings ctx = Client.defaultManagerSettings
-    { managerTlsConnection = pure $ \_ host port ->
-        bracketOnError
-            (newSocket stdHints host port)
-            (Net.close . fst)
-            (\(sock, addr) -> do
-                ssl <- newSSL ctx sock addr
-                toConnection ssl sock)
-    }
+opensslManagerSettings ctx = opensslManagerSettingsWith' ctx Nothing
+
+opensslManagerSettingsWith :: SSLContext -> (SSL -> IO ()) -> ManagerSettings
+opensslManagerSettingsWith ctx = opensslManagerSettingsWith' ctx . Just
 
 -- | Install a callback function into a 'Manager' that is called for
 -- every newly established 'SSL' connection, prior to yielding it to the
 -- 'Manager' for use.
-setOnConnection :: SSLContext -> (SSL -> IO ()) -> Manager -> Manager
-setOnConnection ctx fn m = do
-    -- , mTlsConnection :: Maybe NS.HostAddress -> String -> Int -> IO Connection
-    undefined
-    -- m { mTlsConnection = \_ host port ->
-    --     bracketOnError
-    --         (newSocket stdHints host port)
-    --         (Net.close . fst)
-    --         $ \(sock, addr) -> do
-    --             ssl <- newSSL ctx sock addr
-    --             fn ssl
-    --             toConnection ssl sock
-    -- }
+opensslManagerSettingsWith' :: SSLContext -> Maybe (SSL -> IO ()) -> ManagerSettings
+opensslManagerSettingsWith' ctx fn = Client.defaultManagerSettings
+    { managerTlsConnection = pure $ \_ h p ->
+        bracketOnError
+            (newSocket stdHints h p)
+            (Net.close . fst)
+            (\(sock, addr) -> do
+                ssl <- newSSL ctx sock addr
+                for_ fn $ \f -> f ssl
+                toConnection ssl sock)
+    }
 
 -- Cipher Suites ------------------------------------------------------------
 
@@ -135,8 +129,8 @@ instance Exception PinPubKeyException
 -- | Verify the fingerprint of the public key taken from the peer certificate
 -- of the given 'SSL' connection against a list of /pinned/ fingerprints.
 --
--- To use this function with 'setOnConnection', the 'VerificationMode' must be
--- set to 'VerifyNone'. Certificate validation is still performed by OpenSSL
+-- To use this function with 'opensslManagerSettingsWith'', the 'VerificationMode'
+-- must be set to 'VerifyNone'. Certificate validation is still performed by OpenSSL
 -- but the TLS handshake won't be aborted early, giving this function a chance
 -- to check for a self-signed certificate after evaluating OpenSSL's verification
 -- result using 'getVerifyResult'.
@@ -204,8 +198,8 @@ verifyRsaFingerprint d = verifyFingerprint $ \pk ->
 -- Internal -----------------------------------------------------------------
 
 newSocket :: AddrInfo -> HostName -> Int -> IO (Socket, SockAddr)
-newSocket hints host port = do
-    (ai:_) <- Net.getAddrInfo (Just hints) (Just host) (Just $ show port)
+newSocket hints hst prt = do
+    (ai:_) <- Net.getAddrInfo (Just hints) (Just hst) (Just $ show prt)
     s <- Net.socket (addrFamily ai) (addrSocketType ai)  (addrProtocol ai)
     return (s, addrAddress ai)
 

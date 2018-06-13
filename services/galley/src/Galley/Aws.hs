@@ -24,12 +24,10 @@ module Galley.Aws
 
 import Blaze.ByteString.Builder (toLazyByteString)
 import Control.Lens hiding ((.=))
-import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.IO.Unlift
 import Control.Monad.Reader
-import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
 import Control.Retry (retrying, limitRetries, exponentialBackoff)
 import Data.Monoid ((<>))
@@ -43,9 +41,6 @@ import Galley.Options
 import Network.HTTP.Client
        (Manager, HttpException(..), HttpExceptionContent(..))
 import System.Logger.Class
-import UnliftIO.Async
-import UnliftIO.Exception
-import UnliftIO.Concurrent
 import Util.Options
 
 import qualified Control.Monad.Trans.AWS as AWST

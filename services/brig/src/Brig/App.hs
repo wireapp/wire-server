@@ -136,7 +136,7 @@ data Env = Env
     , _provTemplates :: Localised ProviderTemplates
     , _tmTemplates   :: Localised TeamTemplates
     , _httpManager   :: Manager
-    , _extGetManager :: [Fingerprint Rsa] -> Manager
+    , _extGetManager :: (Manager, [Fingerprint Rsa] -> ManagerSettings)
     , _settings      :: Settings
     , _nexmoCreds    :: Nexmo.Credentials
     , _twilioCreds   :: Twilio.Credentials
@@ -280,7 +280,7 @@ initHttpManager = do
         , managerResponseTimeout     = responseTimeoutMicro 10000000
         }
 
-initExtGetManager :: IO ([Fingerprint Rsa] -> Manager)
+initExtGetManager :: IO (Manager, [Fingerprint Rsa] -> ManagerSettings)
 initExtGetManager = do
     ctx <- SSL.context
     SSL.contextAddOption ctx SSL_OP_NO_SSLv2
@@ -296,11 +296,12 @@ initExtGetManager = do
         , managerResponseTimeout     = responseTimeoutMicro 10000000
         }
     Just sha <- getDigestByName "SHA256"
-    return (mkManager ctx sha mgr)
+    let manSettings fprs = opensslManagerSettingsWith ctx $ mkVerify sha fprs
+    return (mgr, manSettings)
   where
-    mkManager ctx sha mgr fprs =
+    mkVerify sha fprs =
         let pinset = map toByteString' fprs
-        in setOnConnection ctx (verifyRsaFingerprint sha pinset) mgr
+        in  verifyRsaFingerprint sha pinset
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g = do
