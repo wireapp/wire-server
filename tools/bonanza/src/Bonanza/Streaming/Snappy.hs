@@ -34,15 +34,15 @@ data SnappyError
 instance Exception SnappyError
 
 
-encode :: Monad m => Conduit ByteString m Chunk
+encode :: Monad m => ConduitT ByteString Chunk m ()
 encode = yield Framing.StreamIdentifier *> awaitForever go
   where
     go = void . bitraverse yield (maybe (pure ()) leftover) . Framing.encode'
 
-decode :: MonadThrow m => Conduit ByteString m Chunk
+decode :: MonadThrow m => ConduitT ByteString Chunk m ()
 decode = SB.decode get
 
-bytes :: MonadThrow m => Conduit Chunk m ByteString
+bytes :: MonadThrow m => ConduitT Chunk ByteString m ()
 bytes = loop
   where
     loop = await >>= maybe (return ()) go
