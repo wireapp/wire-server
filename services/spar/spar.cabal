@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2be5200106b9e77bfbfff667ee53666becd79b9bc3b35973aa83cdb940f1523a
+-- hash: 787e2590363d8e6b10208cd981adab924dacc2215248857053dd1082604d5a57
 
 name:           spar
 version:        0.1
@@ -43,6 +43,7 @@ library
     , http-types
     , lens
     , mtl
+    , optparse-applicative
     , raw-strings-qq
     , saml2-web-sso
     , servant
@@ -57,6 +58,7 @@ library
     , uri-bytestring
     , uuid
     , warp
+    , yaml
   default-language: Haskell2010
 
 executable spar
@@ -80,6 +82,7 @@ executable spar
     , http-types
     , lens
     , mtl
+    , optparse-applicative
     , raw-strings-qq
     , saml2-web-sso
     , servant
@@ -95,6 +98,7 @@ executable spar
     , uri-bytestring
     , uuid
     , warp
+    , yaml
   default-language: Haskell2010
 
 executable spar-integration
@@ -122,6 +126,7 @@ executable spar-integration
     , http-types
     , lens
     , mtl
+    , optparse-applicative
     , raw-strings-qq
     , saml2-web-sso
     , servant
@@ -137,6 +142,7 @@ executable spar-integration
     , uri-bytestring
     , uuid
     , warp
+    , yaml
   default-language: Haskell2010
 
 executable spar-schema
@@ -161,6 +167,7 @@ executable spar-schema
     , http-types
     , lens
     , mtl
+    , optparse-applicative
     , raw-strings-qq
     , saml2-web-sso
     , servant
@@ -176,6 +183,7 @@ executable spar-schema
     , uri-bytestring
     , uuid
     , warp
+    , yaml
   default-language: Haskell2010
 
 test-suite spec
@@ -184,7 +192,6 @@ test-suite spec
   other-modules:
       Arbitrary
       Test.Spar.BrigSpec
-      Test.Spar.OptionsSpec
       Paths_spar
   hs-source-dirs:
       test
@@ -206,6 +213,7 @@ test-suite spec
     , http-types
     , lens
     , mtl
+    , optparse-applicative
     , raw-strings-qq
     , saml2-web-sso
     , servant
@@ -221,4 +229,5 @@ test-suite spec
     , uri-bytestring
     , uuid
     , warp
+    , yaml
   default-language: Haskell2010
