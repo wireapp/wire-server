@@ -69,9 +69,21 @@ enqueue e m =
     enqueueAction =
         liftIO $ try @_ @StomplException $
         withConnection' e $ \conn ->
-        withWriter conn (unpack (e^.queueName))
-                        (unpack (e^.queuePath)) [] [] oconv $ \q ->
+        withWriter conn (unpack (e^.queueName)) (unpack (e^.queuePath))
+                   [OWithReceipt, OWaitReceipt] [] oconv $ \q ->
             writeQ q jsonType [] m
+    -- Note [receipts]
+    -- ~~~
+    -- When we acknowledge a message in 'listen', we don't need to wait for
+    -- a receipt because nothing bad will happen if our ACK doesn't go
+    -- through; handlers of events coming via queues are supposed to be
+    -- idempotent.
+    --
+    -- However, when we *send* a message, we definitely want a receipt (a
+    -- confirmation that the broker received the message). This doesn't
+    -- eliminate failure modes entirely – if we don't get a receipt we might
+    -- think that a message has not been enqueued while it in fact has – but
+    -- it's better than the opposite.
 
 -- | Forever listen to messages from a STOMP queue and execute a callback
 -- for each incoming message.
@@ -82,32 +94,32 @@ listen :: (FromJSON a, MonadLogger m, MonadMask m, MonadUnliftIO m)
 listen e callback =
     recoverAll retryPolicy (const listenAction)  
   where
+    retryPolicy = constantDelay 3000000
+    listenAction =
+        withRunInIO $ \runInIO ->
+        withConnection' e $ \conn ->
+        withReader conn (unpack (e^.queueName)) (unpack (e^.queuePath))
+                   [OMode ClientIndi] [] (iconv (e^.queueName)) $ \q ->
+            forever $ do
+                m <- readQ q
+                runInIO $ callback (msgContent m)
+                ack conn m
     -- Note [exception handling]
     -- ~~~
     -- The callback might throw an exception, which will be caught by
     -- 'recoverAll'. This will kill and restart the connection, while we could
     -- in theory do better (just throw away the exception without killing
     -- the connection). However, this is supposed to be a very rare case
-    -- and it would complicate the code a bit so we don't care.
+    -- and it would complicate the code so we don't care.
     --
     -- If the message can't be parsed, this will throw an exception as well
     -- and the message won't be ACK-ed. Thus, invalid JSON will be stuck in
     -- the queue forever. Presumably this is what we want (because then we
-    -- might want to handle such messages manually, and ditto for all other
+    -- might want to handle such messages manually; and ditto for all other
     -- unprocessable messages).
-    retryPolicy = constantDelay 3000000
-    listenAction =
-        withRunInIO $ \runInIO ->
-        withConnection' e $ \conn ->
-        withReader conn (unpack (e^.queueName))
-                        (unpack (e^.queuePath)) [] [] (iconv (e^.queueName)) $ \q ->
-            forever $ do
-                m <- readQ q
-                runInIO $ callback (msgContent m)
-                ack conn m
 
-    -- TODO: setup ACK settings and think about it
     -- TODO: here we should also have a timeout for the connection and for 'readQ'
+    -- TODO: what are heartbeats and do we need them?
     
 
 -------------------------------------------------------------------------------
