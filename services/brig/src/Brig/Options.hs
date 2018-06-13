@@ -116,7 +116,8 @@ data ZAuthOpts = ZAuthOpts
 instance FromJSON ZAuthOpts
 
 data TurnOpts = TurnOpts
-    { servers   :: !FilePath
+    { serversV1 :: !FilePath
+    , serversV2 :: !FilePath
     , secret    :: !FilePath
     , tokenTTL  :: !Word32
     , configTTL :: !Word32
@@ -325,8 +326,12 @@ optsParser =
      option auto $ long "geodb" <> metavar "FILE" <> help "GeoDB file path") <*>
     (TurnOpts <$>
      (strOption $
-      long "turn-servers" <> metavar "FILE" <>
-      help "Line separated file with IP addresses of the available turn servers" <>
+      long "turn-servers-v1" <> metavar "FILE" <>
+      help "Line separated file with IP addresses of the available turn servers, supporting UDP" <>
+      action "file") <*>
+     (strOption $
+      long "turn-servers-v2" <> metavar "FILE" <>
+      help "Line separated file with hostnames of all available turn servers with all protocols/transports" <>
       action "file") <*>
      (strOption $
       long "turn-secret" <> metavar "FILE" <>

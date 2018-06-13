@@ -28,19 +28,19 @@ import Util
 
 import qualified Data.ByteString.Lazy as LB
 import qualified Data.List1 as List1
-import qualified Network.Wai.Utilities.Error as Error
 
 type TurnUpdater = String -> IO ()
 
-tests :: Manager -> Brig -> FilePath -> IO TestTree
-tests m b t = do
+tests :: Manager -> Brig -> FilePath -> FilePath -> IO TestTree
+tests m b turnV1 turnV2 = do
     return $ testGroup "turn"
         [ test m "basic /calls/config - 200"            $ resetTurn >> testCallsConfig b
         -- FIXME: requires tests to run on same host as brig
-        , test m "multiple servers /calls/config - 200" $ resetTurn >> testCallsConfigMultiple b (setTurn t)
+        , test m "multiple servers /calls/config - 200" $ resetTurn >> testCallsConfigMultipleV1 b (setTurn turnV1)
+        , test m "multiple servers /calls/config/v2 - 200" $ resetTurn >> testCallsConfigMultipleV2 b (setTurn turnV2)
         ]
   where
-    resetTurn = liftIO $ setTurn t "turn:127.0.0.1:3478"
+    resetTurn = liftIO $ setTurn turnV1 "turn:127.0.0.1:3478" >> setTurn turnV2 "turn:localhost:3478"
 
 testCallsConfig :: Brig -> Http ()
 testCallsConfig b = do
@@ -49,59 +49,61 @@ testCallsConfig b = do
     let _expectedV1 = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
     assertConfiguration cfg _expectedV1
 
-testCallsConfigMultiple :: Brig -> TurnUpdater -> Http ()
-testCallsConfigMultiple b st = do
-    uid  <- userId <$> randomUser b
+testCallsConfigMultipleV1 :: Brig -> TurnUpdater -> Http ()
+testCallsConfigMultipleV1 b turnUpdaterV1 = do
+    uid <- userId <$> randomUser b
     -- Ensure we have a clean config
-    _cfg <- getTurnConfigurationV1 uid b
     let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
-    assertConfiguration _cfg _expected
+    modifyAndAssert b uid getTurnConfigurationV1 turnUpdaterV1 "turn:127.0.0.1:3478" _expected
 
     -- Change server list
-    let _changes    = "turn:127.0.0.2:3478\nturn:127.0.0.3:3478"
-    let _expectedV1 = List1.list1 (toTurnURILegacy "127.0.0.2" 3478)
-                                  [toTurnURILegacy "127.0.0.3" 3478]
-    liftIO $ st _changes
-    _cfg1 <- getTurnConfigurationV1 uid b
-    assertConfiguration _cfg1 _expectedV1
-    -- With this configuration, the V2 endpoint will not return any TURN server
-    getTurnConfiguration "v2" uid b !!! do
-        const 500                            === statusCode
-        const (Just "incorrect-turn-config") === fmap Error.label . decodeBody
+    let _changes  = "turn:127.0.0.2:3478\nturn:127.0.0.3:3478"
+    let _expected = List1.list1 (toTurnURILegacy "127.0.0.2" 3478)
+                                [toTurnURILegacy "127.0.0.3" 3478]
+    modifyAndAssert b uid getTurnConfigurationV1 turnUpdaterV1 _changes _expected
 
-    -- Change server list, more transport options. Only the legacy endpoint, only `turn`
-    -- and no transport (in practice, that's udp) are to be returned; i.e., `turn` and `udp`
-    -- endpoints are returned but the `transport` suffix is removed
-    let _changes    = "turn:127.0.0.2:3479?transport=udp\nturn:localhost:3480?transport=tcp"
-    let _expectedV1 = List1.singleton (toTurnURILegacy "127.0.0.2" 3479)
-    let _expectedV2 = List1.singleton (toTurnURI SchemeTurn "localhost" 3480 $ Just TransportTCP)
-    modifyAndAssert uid _changes _expectedV1 _expectedV2
-
-    -- Change server list yet again, different schemas too - bad config for V1(!) so test it separately
-    let _changes  = "turns:localhost:3489?transport=tcp\nturns:localhost:3490?transport=tcp"
-    let _expectedV2 = List1.list1 (toTurnURI SchemeTurns "localhost" 3489 $ Just TransportTCP)
-                                  [toTurnURI SchemeTurns "localhost" 3490 $ Just TransportTCP]
-    liftIO $ st _changes
-    _cfg2 <- getTurnConfigurationV2 uid b
-    assertConfiguration _cfg2 _expectedV2
-    -- With this configuration, the legacy endpoint will not return any TURN server
-    getTurnConfiguration "" uid b !!! do
-        const 500                            === statusCode
-        const (Just "incorrect-turn-config") === fmap Error.label . decodeBody
+    -- Change server list yet again, try adding transport and ensure that it gets dropped
+    let _changes  = "turn:127.0.0.2:3478?transport=udp\nturn:127.0.0.3:3478?transport=udp"
+    modifyAndAssert b uid getTurnConfigurationV1 turnUpdaterV1 _changes _expected
 
     -- Revert the config file back to the original
-    let _changes = "turn:127.0.0.1:3478"
-    liftIO $ st _changes
-    _cfg <- getTurnConfigurationV1 uid b
     let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
-    assertConfiguration _cfg _expected
-  where
-    modifyAndAssert uid newServers expectedV1 expectedV2 = do
-        liftIO $ st newServers
-        cfg1 <- getTurnConfigurationV1 uid b
-        assertConfiguration cfg1 expectedV1
-        cfg2 <- getTurnConfigurationV2 uid b
-        assertConfiguration cfg2 expectedV2
+    modifyAndAssert b uid getTurnConfigurationV1 turnUpdaterV1 "turn:127.0.0.1:3478" _expected
+
+modifyAndAssert :: Brig
+               -> UserId
+               -> (UserId -> Brig -> Http RTCConfiguration)
+               -> (String -> IO ())
+               -> String
+               -> List1 TurnURI
+               -> Http ()
+modifyAndAssert b uid getTurnConfig updater newServers expected = do
+    liftIO $ updater newServers
+    cfg <- getTurnConfig uid b
+    assertConfiguration cfg expected
+
+testCallsConfigMultipleV2 :: Brig -> TurnUpdater -> Http ()
+testCallsConfigMultipleV2 b turnUpdaterV2 = do
+    uid <- userId <$> randomUser b
+    -- Ensure we have a clean config
+    let _expected = List1.singleton (toTurnURI SchemeTurn "localhost" 3478 Nothing)
+    modifyAndAssert b uid getTurnConfigurationV2 turnUpdaterV2 "turn:localhost:3478" _expected
+
+    -- Change server list
+    let _changes  = "turn:localhost:3478\nturn:localhost:3479"
+    let _expected = List1.list1 (toTurnURI SchemeTurn "localhost" 3478 Nothing)
+                                [toTurnURI SchemeTurn "localhost" 3479 Nothing]
+    modifyAndAssert b uid getTurnConfigurationV2 turnUpdaterV2 _changes _expected
+
+    -- Change server list yet again, change the transport and schema
+    let _changes  = "turn:localhost:3478?transport=tcp\nturns:localhost:3479?transport=tcp"
+    let _expected = List1.list1 (toTurnURI SchemeTurn  "localhost" 3478 $ Just TransportTCP)
+                                [toTurnURI SchemeTurns "localhost" 3479 $ Just TransportTCP]
+    modifyAndAssert b uid getTurnConfigurationV2 turnUpdaterV2 _changes _expected
+
+    -- Revert the config file back to the original
+    let _expected = List1.singleton (toTurnURI SchemeTurn "localhost" 3478 Nothing)
+    modifyAndAssert b uid getTurnConfigurationV2 turnUpdaterV2 "turn:localhost:3478" _expected
 
 assertConfiguration :: HasCallStack => RTCConfiguration -> List1 TurnURI -> Http ()
 assertConfiguration cfg turns =

@@ -37,7 +37,8 @@ module Brig.App
     , digestMD5
     , metrics
     , applog
-    , turnEnv
+    , turnEnvV1
+    , turnEnvV2
 
       -- * App Monad
     , AppT
@@ -143,7 +144,8 @@ data Env = Env
     , _twilioCreds   :: Twilio.Credentials
     , _geoDb         :: Maybe (IORef GeoIp.GeoDB)
     , _fsWatcher     :: FS.WatchManager
-    , _turnEnv       :: IORef TURN.Env
+    , _turnEnvV1     :: IORef TURN.Env
+    , _turnEnvV2     :: IORef TURN.Env
     , _currentTime   :: IO UTCTime
     , _zauthEnv      :: ZAuth.Env
     , _digestSHA256  :: Digest
@@ -172,7 +174,7 @@ newEnv o = do
     w   <- FS.startManagerConf
          $ FS.defaultConfig { FS.confDebounce = FS.Debounce 0.5, FS.confPollInterval = 10000000 }
     g   <- geoSetup lgr w $ Opt.geoDb o
-    t   <- turnSetup lgr w sha512 (Opt.turn o)
+    (turnV1, turnV2) <- turnSetup lgr w sha512 (Opt.turn o)
     let sett = Opt.optSettings o
     nxm <- initCredentials (Opt.setNexmo sett)
     twl <- initCredentials (Opt.setTwilio sett)
@@ -194,7 +196,8 @@ newEnv o = do
         , _nexmoCreds    = nxm
         , _twilioCreds   = twl
         , _geoDb         = g
-        , _turnEnv       = t
+        , _turnEnvV1     = turnV1
+        , _turnEnvV2     = turnV2
         , _fsWatcher     = w
         , _currentTime   = clock
         , _zauthEnv      = zau
@@ -219,14 +222,20 @@ geoSetup lgr w (Just db) = do
     startWatching w path (replaceGeoDb lgr geodb)
     return $ Just geodb
 
-turnSetup :: Logger -> FS.WatchManager -> Digest -> Opt.TurnOpts -> IO (IORef TURN.Env)
+turnSetup :: Logger -> FS.WatchManager -> Digest -> Opt.TurnOpts -> IO (IORef TURN.Env, IORef TURN.Env)
 turnSetup lgr w dig o = do
-    secret  <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret o)
-    path    <- canonicalizePath (Opt.servers o)
-    servers <- fromMaybe (error "Empty TURN list, check turn file!") <$> readTurnList path
-    te      <- newIORef =<< TURN.newEnv dig servers (Opt.tokenTTL o) (Opt.configTTL o) secret
-    startWatching w path (replaceTurnServers lgr te)
-    return te
+    secret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret o)
+    v1Cfg  <- setupTurn secret (Opt.serversV1 o)
+    v2Cfg  <- setupTurn secret (Opt.serversV2 o)
+    return (v1Cfg, v2Cfg)
+  where
+    setupTurn secret cfg = do
+        path    <- canonicalizePath cfg
+        servers <- fromMaybe (error "Empty TURN list, check turn file!") <$> readTurnList path
+        te      <- newIORef =<< TURN.newEnv dig servers (Opt.tokenTTL o) (Opt.configTTL o) secret
+        startWatching w path (replaceTurnServers lgr te)
+        return te
+
 
 startWatching :: FS.WatchManager -> FilePath -> FS.Action -> IO ()
 startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate

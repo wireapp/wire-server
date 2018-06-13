@@ -125,7 +125,8 @@ exec chpst -u $USER \
     --zauth-provider-token-timeout=${BRIG_ZAUTH_PROVIDER_TOKEN_TIMEOUT?'unset'} \
     --elasticsearch-url=${BRIG_ELASTICSEARCH_URL?'unset'} \
     --elasticsearch-user-index=${BRIG_ELASTICSEARCH_USER_INDEX?'unset'} \
-    --turn-servers=${BRIG_TURN_SERVERS?'unset'} \
+    --turn-servers-v1=${BRIG_TURN_SERVERS_V1?'unset'} \
+    --turn-servers-v2=${BRIG_TURN_SERVERS_V2?'unset'} \
     --turn-secret=${BRIG_TURN_SECRET?'unset'} \
     --conv-team-max-size=${BRIG_CONV_TEAM_MAX_SIZE:-128} \
     ${TURN_TOKEN_LIFETIME} \
