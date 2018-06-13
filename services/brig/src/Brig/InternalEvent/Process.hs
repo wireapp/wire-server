@@ -20,6 +20,7 @@ onEvent (DeleteUser uid) = do
     Log.info $ field "user" (toByteString uid) ~~ msg (val "Processing delete event")
     API.lookupAccount uid >>= mapM_ API.deleteAccount
 
-listen :: Env -> IO ()
-listen e = AWS.execute (e^.awsEnv) $
-    AWS.listen (e^.awsEnv.AWS.internalQueue) (runAppT e . onEvent)
+listen :: AppIO ()
+listen = do
+    e <- AppT ask
+    Stomp.listen (e^.internalQueue) onEvent

@@ -23,7 +23,7 @@ instance FromJSON InternalNotificationType where
     parseJSON x             = fail $ "InternalNotificationType: Unknown type " <> show x
 
 instance ToJSON InternalNotificationType where
-    toJSON UserDeletion = "user.delete" 
+    toJSON UserDeletion = "user.delete"
 
 instance FromJSON InternalNotification where
     parseJSON = withObject "InternalNotification" $ \o -> do
@@ -32,7 +32,7 @@ instance FromJSON InternalNotification where
             UserDeletion -> DeleteUser <$> o .: "user"
 
 instance ToJSON InternalNotification where
-    toJSON (DeleteUser u) = object 
+    toJSON (DeleteUser u) = object
         [ "user" .= u
         , "type" .= UserDeletion
         ]

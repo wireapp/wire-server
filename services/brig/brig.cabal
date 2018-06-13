@@ -22,6 +22,7 @@ library
         Brig.Data.PasswordReset
         Brig.Options
         Brig.Provider.DB
+        Brig.Stomp
         Brig.User.Auth.Cookie.Limit
         Brig.User.Search.Index
         Brig.ZAuth
@@ -145,6 +146,7 @@ library
       , lens-aeson                >= 1.0
       , lifted-async              >= 0.9.3
       , lifted-base               >= 0.2
+      , mime
       , mime-mail                 >= 0.4
       , metrics-core              >= 0.3
       , metrics-wai               >= 0.3

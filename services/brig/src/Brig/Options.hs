@@ -50,8 +50,7 @@ data ElasticSearchOpts = ElasticSearchOpts
 instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
-    { internalQueue    :: !Text
-    , userJournalQueue :: !(Maybe Text)
+    { userJournalQueue :: !(Maybe Text)
     , blacklistTable   :: !Text
     , prekeyTable      :: !Text
     , sqsEndpoint      :: !AWSEndpoint
@@ -75,6 +74,14 @@ data EmailSMTPOpts = EmailSMTPOpts
     } deriving (Show, Generic)
 
 instance FromJSON EmailSMTPOpts
+
+data StompOpts = StompOpts
+    { stompHost     :: !Text
+    , stompPort     :: !Int
+    , internalQueue :: !Text
+    } deriving (Show, Generic)
+
+instance FromJSON StompOpts
 
 data EmailSMSGeneralOpts = EmailSMSGeneralOpts
     { templateDir :: !FilePath
@@ -160,6 +167,7 @@ data Opts = Opts
     , cassandra     :: !CassandraOpts
     , elasticsearch :: !ElasticSearchOpts
     , aws           :: !AWSOpts
+    , stomp         :: !StompOpts
 
     -- Email & SMS
     , emailSMS      :: !EmailSMSOpts
@@ -184,6 +192,7 @@ data Settings = Settings
     , setTeamInvitationTimeout :: !Timeout
     , setTwilio                :: !FilePathSecrets
     , setNexmo                 :: !FilePathSecrets
+    , setStomp                 :: !FilePathSecrets
     , setWhitelist             :: !(Maybe Whitelist)
     , setUserMaxConnections    :: !Int64
     , setCookieDomain          :: !Text
@@ -245,9 +254,6 @@ optsParser =
       showDefault <>
       help "The name of the ElasticSearch user index")) <*>
     (AWSOpts <$>
-     (textOption $
-      long "aws-internal-queue" <> metavar "STRING" <>
-      help "Event queue for internal brig generated events (e.g. user deletion)") <*>
      (optional $ textOption $
       long "aws-user-journal-queue" <> metavar "STRING" <>
       help "Event journal queue for user events (e.g. user deletion)") <*>
@@ -263,6 +269,16 @@ optsParser =
      (option parseAWSEndpoint $
       long "aws-dynamodb-endpoint" <> value (AWSEndpoint "dynamodb.eu-west-1.amazonaws.com" True 443)
       <> metavar "STRING" <> showDefault <> help "aws DYNAMODB endpoint")) <*>
+    (StompOpts <$>
+     (textOption $
+      long "stomp-host" <> metavar "URL" <>
+      help "STOMP broker URL (e.g. RabbitMQ or ActiveMQ)") <*>
+     (option auto $
+      long "stomp-port" <> metavar "INT" <>
+      help "STOMP broker port (usually 61613 or 61614)") <*>
+     (textOption $
+      long "stomp-internal-queue" <> metavar "STRING" <>
+      help "Event queue for internal brig-generated events (e.g. user deletion)")) <*>
     (EmailSMSOpts <$>
      emailOptsParser <*>
      (EmailSMSGeneralOpts <$>
@@ -405,6 +421,8 @@ settingsParser =
      long "twilio-credentials" <> metavar "FILE" <> help "File containing Twilio credentials" <> action "file")) <*>
     (FilePathSecrets <$> (strOption $
      long "nexmo-credentials" <> metavar "FILE" <> help "File containing Nexmo credentials" <> action "file")) <*>
+    (FilePathSecrets <$> (strOption $
+     long "stomp-credentials" <> metavar "FILE" <> help "File containing STOMP broker credentials" <> action "file")) <*>
     (optional $
      Whitelist <$>
      (textOption $
