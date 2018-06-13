@@ -1,13 +1,9 @@
-spar:
-  host: 0.0.0.0
-  port: 8088
-
 saml:
   version:     SAML2.0
   log_level:   DEBUG
 
-  sp_host:     0.0.0.0  # TODO: wrong value; duplicate of 'host' field above.
-  sp_port:     8088     # TODO: wrong value; duplicate of 'host' field above.
+  sp_host:     0.0.0.0
+  sp_port:     8088
   sp_app_uri:  https://me.wire.com/sp  # TODO: wrong value
   sp_sso_uri:  https://me.wire.com/sso  # TODO: wrong value
 
