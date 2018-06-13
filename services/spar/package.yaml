@@ -25,6 +25,7 @@ dependencies:
   - http-types
   - lens
   - mtl
+  - optparse-applicative
   - raw-strings-qq
   - saml2-web-sso
   - servant
@@ -39,6 +40,7 @@ dependencies:
   - uri-bytestring
   - uuid
   - warp
+  - yaml
 
 library:
   source-dirs:
