@@ -12,6 +12,7 @@ module Spar.API where
 
 import Bilge
 import Control.Lens
+import Data.Metrics (metrics)
 import Data.String.Conversions (cs)
 import Data.String (fromString)
 import GHC.Stack
@@ -23,6 +24,7 @@ import Util.Options (epHost, epPort)
 
 import qualified Data.Text as ST
 import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import qualified System.Logger as Log
 
@@ -33,6 +35,7 @@ runServer :: Opts -> IO ()
 runServer sparCtxOpts = do
   sparCtxLogger <- Log.new $ Log.defSettings
                    & Log.setLogLevel (toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel)
+  mx <- metrics
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   let settings = Warp.defaultSettings
         & Warp.setHost (fromString $ sparCtxOpts ^. to saml . SAML.cfgSPHost)
@@ -43,7 +46,10 @@ runServer sparCtxOpts = do
   let sparCtxHttpBrig = Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
                       . Bilge.port (sparCtxOpts ^. to brig . epPort)
                       $ Bilge.empty
-  Warp.runSettings settings $ app SparCtx {..}
+  Warp.runSettings settings
+    -- . WU.measureRequests mx _  -- TODO: we need the swagger sitemap from servant for this.
+    . WU.catchErrors sparCtxLogger mx
+    $ app SparCtx {..}
 
 -- TODO: rename Ctx to Env like everywhere else.
 -- FUTUREWORK: use servant-generic?
