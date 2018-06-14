@@ -49,6 +49,7 @@ runServer sparCtxOpts = do
   Warp.runSettings settings
     -- . WU.measureRequests mx _  -- TODO: we need the swagger sitemap from servant for this.
     . WU.catchErrors sparCtxLogger mx
+    . SAML.setHttpCachePolicy
     $ app SparCtx {..}
 
 -- TODO: rename Ctx to Env like everywhere else.
