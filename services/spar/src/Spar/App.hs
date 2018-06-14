@@ -101,6 +101,8 @@ deleteUser suid = wrapMonadClient $ Data.deleteUser suid
 createUser :: SAML.UserId -> Spar UserId
 createUser suid = do
   buid <- Brig.createUser suid
+  -- TODO: if we crash here, the next attempt at login will attempt to create an already-created
+  -- user.  and crash again.  this should be idempotent.
   insertUser suid buid
   pure buid
 
