@@ -74,18 +74,22 @@ fromLevel = \case
   Log.Trace -> DEBUG
 
 instance SPStore Spar where
-  storeRequest i        = wrapMonadClient . Data.storeRequest i
-  checkAgainstRequest r = getNow >>= \(Time now) -> wrapMonadClient $ Data.checkAgainstRequest now r
-  storeAssertion i r    = getNow >>= \(Time now) -> wrapMonadClient $ Data.storeAssertion now i r
+  storeRequest i r      = wrapMonadClient' $ \env -> Data.storeRequest env i r
+  checkAgainstRequest r = wrapMonadClient' $ \env -> Data.checkAgainstRequest env r
+  storeAssertion i r    = wrapMonadClient' $ \env -> Data.storeAssertion env i r
 
 -- | Call a cassandra command in the 'Spar' monad.  Catch all exceptions and re-throw them as 500 in
 -- Handler.
-wrapMonadClient :: Cas.Client a -> Spar a
-wrapMonadClient action = Spar $ do
-  ctx <- asks sparCtxCas
-  runClient ctx action `Catch.catch`
-    \e@(SomeException _) -> throwError err500 { errBody = LBS.pack $ show e }
+wrapMonadClient' :: (Data.Env -> Cas.Client a) -> Spar a
+wrapMonadClient' action = do
+  denv <- Data.Env <$> (fromTime <$> getNow) <*> pure (8 * 60 * 60)  -- TODO: make this yaml-configurable.
+  Spar $ do
+    ctx <- asks sparCtxCas
+    runClient ctx (action denv) `Catch.catch`
+      \e@(SomeException _) -> throwError err500 { errBody = LBS.pack $ show e }
 
+wrapMonadClient :: Cas.Client a -> Spar a
+wrapMonadClient = wrapMonadClient' . const
 
 insertUser :: SAML.UserId -> UserId -> Spar ()
 insertUser suid buid = wrapMonadClient $ Data.insertUser suid buid

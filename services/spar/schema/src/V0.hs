@@ -7,9 +7,6 @@ import Cassandra.Schema
 import Control.Monad (void)
 import Text.RawString.QQ
 
--- TODO: not sure about some of the primary keys, but the ones i picked at least need to be indices.
--- TODO: use `USING TTL` (grep it in services/brig) for garbage collection in authreq, authresp tables.
-
 migration :: Migration
 migration = Migration 0 "Initial schema" $ do
     void $ schema' [r|
