@@ -33,6 +33,7 @@ import Data.Word
 import GHC.Generics (Generic)
 #ifdef WITH_ARBITRARY
 import Test.QuickCheck
+import Test.QuickCheck.Instances ()
 #endif
 #ifdef WITH_PROTOBUF
 import qualified Data.ByteString.Lazy as L
@@ -134,9 +135,6 @@ instance DecodeWire UUID where
 #ifdef WITH_ARBITRARY
 instance Arbitrary (Id a) where
     arbitrary = Id <$> arbitrary
-
-instance Arbitrary UUID where
-    arbitrary = choose (nil, nil)
 #endif
 
 -- ConnId ----------------------------------------------------------------------

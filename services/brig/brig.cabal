@@ -41,6 +41,7 @@ library
       , Brig.Budget
       , Brig.Email
       , Brig.Data.Activation
+      , Brig.Data.Blacklist
       , Brig.Data.Client
       , Brig.Data.Connection
       , Brig.Data.Instances
@@ -162,6 +163,7 @@ library
       , split                     >= 0.2
       , semigroups                >= 0.15
       , singletons                >= 2.0
+      , string-conversions
       , random-shuffle            >= 0.0.3
       , sodium-crypto-sign        >= 0.1
       , statistics                >= 0.13
@@ -267,6 +269,8 @@ executable brig-schema
         V47
         V48
         V49
+        V50
+        V51
 
     build-depends:
         base
@@ -356,6 +360,7 @@ executable brig-integration
       , directory             >= 1.2
       , errors                >= 1.4
       , exceptions            >= 0.5
+      , extended
       , extra
       , filepath              >= 1.4
       , galley-types

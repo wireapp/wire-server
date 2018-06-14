@@ -4,8 +4,8 @@ ARCH    := amd64
 BUILD   ?= 1
 OS      := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 # If we can install libzauth globally, we'll install it there, otherwise
-# it'll go into ~/.wire-dev
-PREFIX  := $(shell [ -w /usr/local ] && echo /usr/local || echo "$(HOME)/.wire-dev")
+# it'll go into ~/.wire-dev (unless it's overridden)
+PREFIX  ?= $(shell [ -w /usr/local ] && echo /usr/local || echo "$(HOME)/.wire-dev")
 
 ifeq ($(OS), darwin)
 LIB_TYPE := dylib

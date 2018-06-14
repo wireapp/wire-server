@@ -4,14 +4,18 @@
 #   (from wire-server root directory)
 #   SERVICE=galley; docker build -f build/alpine/Dockerfile -t $SERVICE --build-arg service=$SERVICE .
 
-ARG builder=wireserver/alpine-builder
-ARG deps=wireserver/alpine-deps
+ARG builder=quay.io/wire/alpine-builder
+ARG deps=quay.io/wire/alpine-deps
 
 #--- Builder stage ---
 FROM ${builder} as builder
 
 ARG service
 ARG target=install
+
+# FIXME: this merges two directories (the one from the builder and the local
+# one), which can lead to problems such as
+# https://github.com/wireapp/wire-server/pull/332#pullrequestreview-122162356.
 COPY . /src/wire-server/
 
 RUN cd /src/wire-server/services/${service} && make ${target}

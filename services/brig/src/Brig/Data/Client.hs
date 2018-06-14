@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Brig.Data.Client
     ( -- * Clients
@@ -46,10 +47,10 @@ import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Foldable (for_)
 import Data.Id
 import Data.List.Split (chunksOf)
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc
 import Data.Monoid ((<>))
 import Data.Text (Text)
-import Data.Time.Clock
 import Data.Typeable
 import Data.Word
 import Safe (readMay)
@@ -107,7 +108,7 @@ addClient u newId c loc = do
 
     insert = do
         -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
-        now <- liftIO =<< view currentTime
+        now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
         let keys = unpackLastPrekey (newClientLastKey c) : newClientPrekeys c
         updatePrekeys u newId keys
         let lat = Latitude . view latitude <$> loc
@@ -176,7 +177,7 @@ claimPrekey u c = withOptLock u c $ do
         Just (i, k) -> do
             if i /= lastPrekeyId
                 then retry x1 $ write removePrekey (params Quorum (u, c, i))
-                else Log.warn $ field "user" (toByteString u)
+                else Log.info $ field "user" (toByteString u)
                               . field "client" (toByteString c)
                               . msg (val "last resort prekey used")
             return $ Just (ClientPrekey c (Prekey i k))
@@ -185,7 +186,7 @@ claimPrekey u c = withOptLock u c $ do
 -------------------------------------------------------------------------------
 -- Queries
 
-insertClient :: PrepQuery W (UserId, ClientId, UTCTime, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) ()
+insertClient :: PrepQuery W (UserId, ClientId, UTCTimeMillis, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) ()
 insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, lat, lon, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 updateClientLabelQuery :: PrepQuery W (Maybe Text, UserId, ClientId) ()
@@ -194,10 +195,10 @@ updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"
 
-selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
+selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
 selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ?"
 
-selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
+selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
 selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ? and client = ?"
 
 insertClientKey :: PrepQuery W (UserId, ClientId, PrekeyId, Text) ()
@@ -224,7 +225,7 @@ checkClient = "SELECT client from clients where user = ? and client = ?"
 -------------------------------------------------------------------------------
 -- Conversions
 
-toClient :: (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) -> Client
+toClient :: (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) -> Client
 toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl) = Client
     { clientId       = cid
     , clientType     = cty

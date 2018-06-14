@@ -95,7 +95,7 @@ For building nginz, see [services/nginz/README.md](services/nginz/README.md)
 
 #### 2. Use docker
 
-*If you don't wish to build all docker images from scratch (e.g. the `alpine-builder` takes a very long time), ready-built images can be downloaded from [here](https://hub.docker.com/r/wireserver/).*
+*If you don't wish to build all docker images from scratch (e.g. the `alpine-builder` takes a very long time), ready-built images can be downloaded from [here](https://quay.io/organization/wire).*
 
 If you wish to build your own docker images, you need [docker version >= 17.05](https://www.docker.com/) and [`make`](https://www.gnu.org/software/make/). Then,
 
@@ -135,22 +135,13 @@ make integration
 
 Or, alternatively, `make` on the top-level directory (to produce all the service's binaries) followed by e.g `cd services/brig && make integration` to run one service's integration tests only.
 
-There are two shell env variables of interest.  The first one can be
-used to [pass patterns to
-tasty](https://github.com/feuerbach/tasty#patterns) to filter out
-which tests should be run.  This is very useful if you are working on
-fixing one specific test.
+You can use `$WIRE_STACK_OPTIONS` to pass arguments to stack through the `Makefile`s.  This is useful to e.g. pass arguments to tasty or temporarily disable `-Werror` without the risk of accidentally committing anything, like this:
 
 ```bash
-WIRE_TASTY_PATTERN='$NF == "post /register - 201 + no email"' make integration
+WIRE_STACK_OPTIONS='--ghc-options=-Wwarn --test-arguments="--quickcheck-tests=19919 --quickcheck-replay=651712"' make integration
 ```
 
-The second is passed to stack, e.g. to temporarily disable `-Werror`
-without the risk of accidentally committing anything, like this:
-
-```bash
-WIRE_STACK_OPTIONS='--ghc-options=-Wwarn' make integration
-```
+Note that [tasty supports passing arguments vie shell variables directly](https://github.com/feuerbach/tasty#runtime).
 
 ## How to run `wire-server` with "fake" external dependencies
 

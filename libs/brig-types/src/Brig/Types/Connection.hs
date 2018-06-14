@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE RecordWildCards            #-}
 
 module Brig.Types.Connection
     ( module Brig.Types.Connection
@@ -23,6 +25,7 @@ import Data.Time.Clock (UTCTime)
 newtype Message = Message { messageText :: Text }
     deriving (Eq, Ord, Show, ToJSON)
 
+-- | Look at @services\/brig\/doc@ for descriptions of these states.
 data Relation
     = Accepted
     | Blocked
@@ -36,7 +39,7 @@ data UserConnection = UserConnection
     { ucFrom       :: !UserId
     , ucTo         :: !UserId
     , ucStatus     :: !Relation
-    , ucLastUpdate :: !UTCTime
+    , ucLastUpdate :: !UTCTimeMillis
     , ucMessage    :: !(Maybe Message)
     , ucConvId     :: !(Maybe ConvId)
     } deriving (Eq, Show)
@@ -79,6 +82,12 @@ data InvitationList = InvitationList
 data UserIds = UserIds
     { cUsers :: [UserId] }
 
+-- | Data that is passed to the @\/i\/users\/connections-status@ endpoint.
+data ConnectionsStatusRequest = ConnectionsStatusRequest
+    { csrFrom :: ![UserId]
+    , csrTo   :: ![UserId]
+    } deriving (Eq, Show)
+
 -- * JSON Instances:
 
 instance FromJSON Message where
@@ -120,7 +129,7 @@ instance ToJSON UserConnection where
         [ "from"         .= ucFrom uc
         , "to"           .= ucTo uc
         , "status"       .= ucStatus uc
-        , "last_update"  .= UTCTimeMillis (ucLastUpdate uc)
+        , "last_update"  .= ucLastUpdate uc
         , "message"      .= ucMessage uc
         , "conversation" .= ucConvId uc
         ]
@@ -170,7 +179,7 @@ instance ToJSON Invitation where
     toJSON i = object [ "inviter"       .= inInviter i
                       , "id"            .= inInvitation i
                       , either ("email" .=) ("phone" .=) (inIdentity i)
-                      , "created_at"    .= UTCTimeMillis (inCreatedAt i)
+                      , "created_at"    .= toUTCTimeMillis (inCreatedAt i)
                       , "name"          .= inName i
                       ]
 
@@ -212,3 +221,15 @@ instance FromJSON UserIds where
 instance ToJSON UserIds where
     toJSON (UserIds us) = object
         [ "ids" .= us ]
+
+instance FromJSON ConnectionsStatusRequest where
+    parseJSON = withObject "ConnectionsStatusRequest" $ \o -> do
+        csrFrom <- o .: "from"
+        csrTo   <- o .: "to"
+        pure ConnectionsStatusRequest{..}
+
+instance ToJSON ConnectionsStatusRequest where
+    toJSON ConnectionsStatusRequest{csrFrom, csrTo} = object
+        [ "from" .= csrFrom
+        , "to"   .= csrTo
+        ]

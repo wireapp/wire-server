@@ -7,7 +7,6 @@ SHELL          := /usr/bin/env bash
 DIST           := build
 BIN            := src/objs/nginx
 DEB            := $(NAME)_$(NGINZ_VERSION)_amd64.deb
-TMPDIR         ?= /tmp
 ifeq ($(DEBUG), 1)
 WITH_DEBUG      = --with-debug
 endif
@@ -56,17 +55,14 @@ default: compile
 clean:
 	-rm -rf src $(DIST) .metadata zwagger-ui/swagger-ui
 
-.PHONY: check-deps
-check-deps:
-	PKG_CONFIG_PATH=$(EXTRA_PKG_PATH) pkg-config --exists libzauth || { echo -e "\n\033[0;31m    The 'libzauth' library was not found\033[0m\n    pkg-config path = $(EXTRA_PKG_PATH)\n\n    Attempting to install it...\n" && $(MAKE) libzauth; }
-
 compile: $(BIN)
 	mkdir -p dist ../../dist
 	cp src/objs/nginx ../../dist/
 
 dist: guard-NGINZ_VERSION $(DIST)/$(DEB)
 
-$(BIN): check-deps src zwagger-ui/swagger-ui
+$(BIN): src zwagger-ui/swagger-ui
+	PKG_CONFIG_PATH=$(EXTRA_PKG_PATH) pkg-config --exists libzauth || { echo -e "\n\033[0;31m    The 'libzauth' library was not found\033[0m\n    pkg-config path = $(EXTRA_PKG_PATH)\n\n    Attempting to install it...\n" && $(MAKE) libzauth; }
 	git submodule update --init
 	(cd src; PKG_CONFIG_PATH=$(EXTRA_PKG_PATH) ./configure $(CONFIG_OPTIONS) $(ADDITIONAL_MODULES))
 	make -C src
@@ -88,24 +84,27 @@ $(DIST):
 NGINX_BUNDLE=nginx-$(NGINX_VERSION).tar.gz
 SWAGGER_BUNDLE=swagger-$(SWAGGER_VERSION).tar.gz
 
-zwagger-ui/swagger-ui: $(TMPDIR)/$(SWAGGER_BUNDLE)
-	tar zxf $(TMPDIR)/$(SWAGGER_BUNDLE)
-	mv -vn swagger-ui-$(SWAGGER_VERSION)/dist zwagger-ui/swagger-ui
+zwagger-ui/swagger-ui: $(SWAGGER_BUNDLE)
+	tar zxf $(SWAGGER_BUNDLE)
+	rm -rf zwagger-ui/swagger-ui
+	mv -v swagger-ui-$(SWAGGER_VERSION)/dist zwagger-ui/swagger-ui
+	touch zwagger-ui/swagger-ui
 	rm -rf swagger-ui-$(SWAGGER_VERSION)
 
-$(TMPDIR)/$(SWAGGER_BUNDLE):
-	(cd $(TMPDIR); curl -L https://github.com/swagger-api/swagger-ui/archive/v$(SWAGGER_VERSION).tar.gz -o $(SWAGGER_BUNDLE))
+$(SWAGGER_BUNDLE):
+	curl -L https://github.com/swagger-api/swagger-ui/archive/v$(SWAGGER_VERSION).tar.gz -o $(SWAGGER_BUNDLE)
 
-src: $(TMPDIR)/$(NGINX_BUNDLE)
+src: $(NGINX_BUNDLE) gcc8.patch
 	#Find keys on https://nginx.org/en/pgp_keys.html
-	gpg --verify $(TMPDIR)/$(NGINX_BUNDLE).asc $(TMPDIR)/$(NGINX_BUNDLE)
-	tar zxf $(TMPDIR)/$(NGINX_BUNDLE)
-	mv -vn nginx-$(NGINX_VERSION) src
-	rm -rf nginx-$(NGINX_VERSION)
+	gpg --verify $(NGINX_BUNDLE).asc $(NGINX_BUNDLE)
+	tar zxf $(NGINX_BUNDLE)
+	# Fix compilation with GCC 8; see https://github.com/wireapp/wire-server/issues/320
+	(cd nginx-$(NGINX_VERSION); patch -p1 -i ../gcc8.patch)
+	rm -rf src && mv nginx-$(NGINX_VERSION) src
 
-$(TMPDIR)/$(NGINX_BUNDLE):
-	(cd $(TMPDIR); curl -O https://nginx.org/download/$(NGINX_BUNDLE).asc)
-	(cd $(TMPDIR); curl -O https://nginx.org/download/$(NGINX_BUNDLE))
+$(NGINX_BUNDLE):
+	curl -O https://nginx.org/download/$(NGINX_BUNDLE).asc
+	curl -O https://nginx.org/download/$(NGINX_BUNDLE)
 
 .PHONY: docker
 docker:

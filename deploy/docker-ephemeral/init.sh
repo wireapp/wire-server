@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 
 exec_until_ready() {
-	until $1; do echo 'service not ready yet'; sleep 1; done
+        until $1; do echo 'service not ready yet'; sleep 1; done
 }
 
 # Assumes this to be run in an environment with `aws` installed
@@ -11,6 +11,11 @@ aws configure set aws_secret_access_key dummysecret
 aws configure set region eu-west-1
 
 # Potentially delete pre-existing tables
+echo -n "waiting for dynamo: "
+while (! aws --endpoint-url=http://dynamodb:8000 --cli-connect-timeout=1 dynamodb list-tables); do
+    sleep 1;
+done
+echo " [ok!]"
 aws --endpoint-url=http://dynamodb:8000 dynamodb delete-table --table-name integration-brig-userkey-blacklist || true
 aws --endpoint-url=http://dynamodb:8000 dynamodb delete-table --table-name integration-brig-prekeys || true
 

@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeApplications           #-}
 
 module Data.Misc
     ( -- * IpAddr / Port
@@ -220,7 +221,10 @@ instance Cql (Fingerprint a) where
 
 newtype PlainTextPassword = PlainTextPassword
     { fromPlainTextPassword :: Text }
-    deriving (ToJSON)
+    deriving (Eq, ToJSON)
+
+instance Show PlainTextPassword where
+    show _ = "PlainTextPassword <hidden>"
 
 instance FromJSON PlainTextPassword where
     parseJSON x = PlainTextPassword . fromRange

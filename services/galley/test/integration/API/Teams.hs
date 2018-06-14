@@ -584,6 +584,9 @@ testDeleteTeamConv g b c _ = do
 
     tid  <- Util.createTeam g "foo" owner [member]
     cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [] (Just "blaa") Nothing
+    let access = ConversationAccessUpdate [InviteAccess, CodeAccess] ActivatedAccessRole
+    putAccessUpdate g owner cid1 access !!! const 200 === statusCode
+    code <- decodeConvCodeEvent <$> (postConvCode g owner cid1 <!! const 201 === statusCode)
     cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "blup") Nothing
 
     Util.postMembers g owner (list1 extern [member^.userId]) cid1 !!! const 200 === statusCode
@@ -617,6 +620,8 @@ testDeleteTeamConv g b c _ = do
         for_ [owner, member^.userId, extern] $ \u -> do
             Util.getConv g u x !!! const 404 === statusCode
             Util.assertNotConvMember g u x
+
+    postConvCodeCheck g code !!! const 404 === statusCode
   where
     checkTeamConvDeleteEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False

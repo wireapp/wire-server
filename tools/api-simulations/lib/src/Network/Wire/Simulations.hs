@@ -52,44 +52,50 @@ import qualified Data.Text.Encoding as Text
 --------------------------------------------------------------------------------
 -- Conversation Setup
 
--- | Set up a conversation between a given list of bots, thereby ensuring that
--- all of them are connected.
+-- | Set up a conversation between a given list of bots. The first bot will
+-- connect to everybody else and then create a conversation.
 prepareConv :: [Bot] -> BotNet ConvId
-prepareConv g
-    | length g <= 1 = error "prepareConv: At least two bots required"
-    | length g == 2 = do
-        let [a, b] = g
-        connectIfNeeded g
-        conv <- (>>= ucConvId) <$> runBotSession a (getConnection (botId b))
-        requireMaybe conv $
-            "Missing 1-1 conversation between: " <>
-                Text.concat (Text.pack . show . botId <$> [a, b])
-    | otherwise = do
-        let (a : bs) = g
-        connectIfNeeded g
-        let bIds = map botId bs
-        conv <- cnvId <$> runBotSession a (createConv bIds Nothing)
-        assertConvCreated conv a bs
-        return conv
+prepareConv []  = error "prepareConv: at least two bots required"
+prepareConv [_] = error "prepareConv: at least two bots required"
+prepareConv [a, b] = do
+    connectIfNeeded a b
+    conv <- (>>= ucConvId) <$> runBotSession a (getConnection (botId b))
+    requireMaybe conv $
+        "Missing 1-1 conversation between: " <>
+            Text.concat (Text.pack . show . botId <$> [a, b])
+prepareConv (a:bs) = do
+    mapM_ (connectIfNeeded a) bs
+    let bIds = map botId bs
+    conv <- cnvId <$> runBotSession a (createConv bIds Nothing)
+    assertConvCreated conv a bs
+    return conv
 
-connectIfNeeded :: [Bot] -> BotNet ()
-connectIfNeeded g = mapM_ (uncurry (go 6)) [(a, b) | a <- g, b <- g, botId a /= botId b]
+-- | Make sure that there is a connection between two bots.
+connectIfNeeded :: Bot -> Bot -> BotNet ()
+connectIfNeeded = go 6  -- six turns should be enough
   where
+    -- Make steps towards a successful connection by alternating turns
+    -- (first one side takes a step towards a connection, then another,
+    -- etc). If we make more than N turns, we give up.
     go :: Int -> Bot -> Bot -> BotNet ()
     go 0 _ _ = return ()
     go n a b = do
         connected <- runBotSession a $ do
             s <- fmap ucStatus <$> getConnection (botId b)
             case s of
+                -- If no connection: initiate one
                 Nothing -> do
                     void $ connectTo (ConnectionRequest (botId b) (fromMaybe "" (botEmail a)) (Message "Hi there!"))
                     assertConnectRequested a b
                     return False
+                -- If there's a pending connection to us: accept it
                 Just Pending -> do
                     void $ updateConnection (botId b) (ConnectionUpdate Accepted)
                     assertConnectAccepted a b
                     return True
+                -- If we have sent a request, we can't do anything
                 Just Sent -> return False
+                -- In case of any other status, we pretend it's good
                 _         -> return True
         unless connected (go (n - 1) b a)
 

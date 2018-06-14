@@ -25,4 +25,5 @@ RUN apk add --no-cache \
             geoip \
             llvm-libunwind \
             ca-certificates \
-            dumb-init
+            dumb-init \
+            libxml2

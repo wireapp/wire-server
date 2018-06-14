@@ -1,30 +1,40 @@
+{-# LANGUAGE CPP                  #-}
 {-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE NumDecimals          #-}
+{-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module Data.Json.Util
     ( append
     , toJSONFieldName
     , (#)
-    , UTCTimeMillis (..)
+    , UTCTimeMillis, toUTCTimeMillis, fromUTCTimeMillis, showUTCTimeMillis, readUTCTimeMillis
     , ToJSONObject  (..)
     , Base64ByteString (..)
     ) where
 
+import Control.Lens ((%~), coerced)
+#ifdef WITH_CQL
+import qualified Database.CQL.Protocol as CQL
+#endif
 import Data.Aeson
 import Data.Aeson.Types
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.ByteString.Base64.Lazy as EL
 import Data.Char (isUpper)
+import Data.Fixed
 import Data.String
 import Data.Time.Clock
-import Data.Time.Format (formatTime)
+import Data.Time.Format (formatTime, parseTimeM)
+import qualified Data.Time.Lens as TL
 import Data.Time.Locale.Compat (defaultTimeLocale)
 import Data.Text (pack)
 import qualified Data.Text.Encoding
 import qualified Data.Text.Encoding.Error
 import GHC.Generics
+import GHC.Stack
 
 append :: Pair -> [Pair] -> [Pair]
 append (_, Null) pp = pp
@@ -42,24 +52,40 @@ infixr 5 #
 
 -- | A newtype wrapper for 'UTCTime' that formats timestamps in JSON with
 -- millisecond precision instead of the default picosecond precision.
-newtype UTCTimeMillis = UTCTimeMillis UTCTime
+-- Construct values using 'toUTCTimeMillis'; deconstruct with 'fromUTCTimeMillis'.
+-- Unlike with 'UTCTime', 'Show' renders ISO string.
+newtype UTCTimeMillis = UTCTimeMillis { fromUTCTimeMillis :: UTCTime }
   deriving (Eq)
 
-instance Show UTCTimeMillis where
-    showsPrec d = showParen (d > 10) . showString . showUTCTimeMillis
+{-# INLINE toUTCTimeMillis #-}
+toUTCTimeMillis :: HasCallStack => UTCTime -> UTCTimeMillis
+toUTCTimeMillis = UTCTimeMillis . (TL.seconds . coerced @Pico @_ @Integer %~ (* 1e9) . (`div` 1e9))
 
 {-# INLINE showUTCTimeMillis #-}
 showUTCTimeMillis :: UTCTimeMillis -> String
-showUTCTimeMillis (UTCTimeMillis t) = formatTime defaultTimeLocale format t
-  where
-    format = "%FT%T." ++ formatMillis t ++ "Z"
-    formatMillis = take 3 . formatTime defaultTimeLocale "%q"
+showUTCTimeMillis (UTCTimeMillis t) = formatTime defaultTimeLocale "%FT%T.%03qZ" t
+
+readUTCTimeMillis :: String -> Maybe UTCTimeMillis
+readUTCTimeMillis = fmap toUTCTimeMillis . parseTimeM True defaultTimeLocale formatUTCTimeMillis
+
+formatUTCTimeMillis :: String
+formatUTCTimeMillis = "%FT%T%QZ"
+
+instance Show UTCTimeMillis where
+    showsPrec d = showParen (d > 10) . showString . showUTCTimeMillis
 
 instance ToJSON UTCTimeMillis where
     toJSON = String . pack . showUTCTimeMillis
 
 instance FromJSON UTCTimeMillis where
     parseJSON = fmap UTCTimeMillis . parseJSON
+
+#ifdef WITH_CQL
+instance CQL.Cql UTCTimeMillis where
+    ctype = CQL.Tagged CQL.TimestampColumn
+    toCql = CQL.toCql . fromUTCTimeMillis
+    fromCql = fmap toUTCTimeMillis . CQL.fromCql
+#endif
 
 -----------------------------------------------------------------------------
 -- ToJSONObject

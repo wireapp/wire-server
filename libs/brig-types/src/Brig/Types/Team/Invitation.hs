@@ -6,7 +6,6 @@ import Brig.Types.Common
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
-import Data.Time.Clock (UTCTime)
 
 data InvitationRequest = InvitationRequest
     { irEmail    :: !Email
@@ -18,7 +17,7 @@ data Invitation = Invitation
     { inTeam       :: !TeamId
     , inInvitation :: !InvitationId
     , inIdentity   :: !Email
-    , inCreatedAt  :: !UTCTime
+    , inCreatedAt  :: !UTCTimeMillis
     } deriving (Eq, Show)
 
 data InvitationList = InvitationList
@@ -49,7 +48,7 @@ instance ToJSON Invitation where
     toJSON i = object [ "team"       .= inTeam i
                       , "id"            .= inInvitation i
                       , "email"         .= inIdentity i
-                      , "created_at"    .= UTCTimeMillis (inCreatedAt i)
+                      , "created_at"    .= inCreatedAt i
                       ]
 
 instance ToJSON InvitationList where

@@ -72,7 +72,7 @@ runTests iConf bConf otherArgs = do
     teamApis    <- Team.tests bConf mg b c g
     turnApi     <- TURN.tests mg b turnFile
 
-    withArgs otherArgs . withWireTastyPatternEnv . defaultMain $ testGroup "Brig API Integration"
+    withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
         [ userApi
         , providerApi
         , searchApis

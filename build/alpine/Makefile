@@ -1,4 +1,4 @@
-DOCKER_USER   ?= wireserver
+DOCKER_USER   ?= quay.io/wire
 DOCKER_TAG    ?= local
 
 default: deps prebuilder builder

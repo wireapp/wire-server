@@ -37,11 +37,11 @@ function check_prerequisites() {
         && nc -z 127.0.0.1 9200 \
         && nc -z 127.0.0.1 6379 \
         || { echo "Databases not up. Maybe run 'deploy/docker-ephemeral/run.sh' in a separate terminal first?";  exit 1; }
-    test -f ${DIR}/../dist/brig \
-        && test -f ${DIR}/../dist/galley \
-        && test -f ${DIR}/../dist/cannon \
-        && test -f ${DIR}/../dist/gundeck \
-        && test -f ${DIR}/../dist/cargohold \
+    test -f ${TOP_LEVEL}/dist/brig \
+        && test -f ${TOP_LEVEL}/dist/galley \
+        && test -f ${TOP_LEVEL}/dist/cannon \
+        && test -f ${TOP_LEVEL}/dist/gundeck \
+        && test -f ${TOP_LEVEL}/dist/cargohold \
         || { echo "Not all services are compiled. How about you run 'cd ${TOP_LEVEL} && make' first?"; exit 1; }
 }
 
@@ -56,7 +56,7 @@ function run() {
     service=$1
     colour=$2
     export LOG_LEVEL=$3
-    (cd ${DIR}/${service} && ${DIR}/../dist/${service} -c ${service}.integration.yaml || kill_all) \
+    (cd ${DIR}/${service} && ${TOP_LEVEL}/dist/${service} -c ${service}.integration.yaml || kill_all) \
         | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
 
@@ -74,7 +74,17 @@ run gundeck ${blue} Info
 run cannon ${orange} Info
 run cargohold ${purpleish} Info
 
-sleep 3 # wait for services to start before starting integration executable
+# the ports are copied from ./integration.yaml
+while [ "$all_services_are_up" == "" ]; do
+    export all_services_are_up="1"
+    for port in `seq 8082 8086`; do
+        ( curl --write-out %{http_code} --silent --output /dev/null http://localhost:$port/i/status \
+                | grep -q '200' ) \
+            || export all_services_are_up=""
+    done
+    sleep 1
+done
+echo "all services are up!"
 
 ${EXE} "${@:2}" && echo 0 > ${EXIT_STATUS_LOCATION} && kill_gracefully || kill_gracefully &
 

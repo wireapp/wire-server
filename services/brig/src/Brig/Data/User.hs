@@ -52,9 +52,10 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.Foldable (for_)
 import Data.Id
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range (fromRange)
-import Data.Time (UTCTime, addUTCTime)
+import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Galley.Types.Bot
 
@@ -84,7 +85,7 @@ newAccount u inv tid = do
                        let ZAuth.SessionTokenTimeout defTTL = e^.ZAuth.settings.ZAuth.sessionTokenTimeout
                            ttl = fromMaybe defTTL (fromRange <$> newUserExpiresIn u)
                        now <- liftIO =<< view currentTime
-                       return $ Just (addUTCTime (fromIntegral ttl) now)
+                       return . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
                    _ -> return Nothing
     return (UserAccount (user uid (locale defLoc) expiry) status, passwd)
   where
@@ -137,8 +138,8 @@ insertAccount (UserAccount u status) password activated searchable = do
     let Locale l c = userLocale u
     retry x5 $ write userInsert $ params Quorum
         ( userId u, userName u, userPict u, userAssets u, userEmail u
-        , userPhone u, userAccentId u, password, activated
-        , status, (userExpire u), l, c
+        , userPhone u, userSSOId u, userAccentId u, password, activated
+        , status, userExpire u, l, c
         , view serviceRefProvider <$> userService u
         , view serviceRefId <$> userService u
         , userHandle u
@@ -250,18 +251,22 @@ lookupAccounts usrs = do
 
 type Activated = Bool
 
-type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, ColourId,
-                Maybe [Asset], Activated, Maybe AccountStatus, Maybe UTCTime, Maybe Language,
+type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
+                Maybe [Asset], Activated, Maybe AccountStatus, Maybe UTCTimeMillis, Maybe Language,
                 Maybe Country, Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
 
-type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone,
+type UserRowInsert = (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
+                      Maybe Password, Bool, AccountStatus, Maybe UTCTimeMillis, Language, Maybe Country,
+                      Maybe ProviderId, Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId)
+
+type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId,
                    ColourId, Maybe [Asset], Bool, Maybe AccountStatus,
-                   Maybe UTCTime, Maybe Language, Maybe Country,
+                   Maybe UTCTimeMillis, Maybe Language, Maybe Country,
                    Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
 
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
-usersSelect = "SELECT id, name, picture, email, phone, accent_id, assets, \
+usersSelect = "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
               \activated, status, expires, language, country, provider, service, handle, team \
               \FROM user where id IN ?"
 
@@ -287,19 +292,16 @@ statusSelect :: PrepQuery R (Identity UserId) (Identity (Maybe AccountStatus))
 statusSelect = "SELECT status FROM user WHERE id = ?"
 
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
-accountsSelect = "SELECT id, name, picture, email, phone, accent_id, assets, \
+accountsSelect = "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
                  \activated, status, expires, language, country, provider, \
                  \service, handle, team \
                  \FROM user WHERE id IN ?"
 
-userInsert :: PrepQuery W (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone,
-                           ColourId, Maybe Password, Bool, AccountStatus, Maybe UTCTime,
-                           Language, Maybe Country, Maybe ProviderId,
-                           Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId) ()
-userInsert = "INSERT INTO user (id, name, picture, assets, email, phone, \
+userInsert :: PrepQuery W UserRowInsert ()
+userInsert = "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
                                \accent_id, password, activated, status, expires, language, \
                                \country, provider, service, handle, searchable, team) \
-                               \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                               \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userNameUpdate :: PrepQuery W (Name, UserId) ()
 userNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
@@ -350,10 +352,10 @@ userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
 -- Conversions
 
 toUserAccount :: Locale -> AccountRow -> UserAccount
-toUserAccount defaultLocale (uid, name, pict, email, phone, accent, assets,
+toUserAccount defaultLocale (uid, name, pict, email, phone, ssoid, accent, assets,
                              activated, status, expires, lan, con, pid, sid,
                              handle, tid) =
-    let ident = toIdentity activated email phone
+    let ident = toIdentity activated email phone ssoid
         deleted = maybe False (== Deleted) status
         expiration = if status == Just Ephemeral then expires else Nothing
         loc = toLocale defaultLocale (lan, con)
@@ -365,9 +367,9 @@ toUserAccount defaultLocale (uid, name, pict, email, phone, accent, assets,
 toUsers :: Locale -> [UserRow] -> [User]
 toUsers defaultLocale = fmap mk
   where
-    mk (uid, name, pict, email, phone, accent, assets, activated, status,
+    mk (uid, name, pict, email, phone, ssoid, accent, assets, activated, status,
         expires, lan, con, pid, sid, handle, tid) =
-        let ident = toIdentity activated email phone
+        let ident = toIdentity activated email phone ssoid
             deleted = maybe False (== Deleted) status
             expiration = if status == Just Ephemeral then expires else Nothing
             loc = toLocale defaultLocale (lan, con)
@@ -379,8 +381,10 @@ toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
 toLocale l _           = l
 
-toIdentity :: Bool -> Maybe Email -> Maybe Phone -> Maybe UserIdentity
-toIdentity True (Just e) (Just p) = Just $! FullIdentity e p
-toIdentity True (Just e) Nothing  = Just $! EmailIdentity e
-toIdentity True Nothing  (Just p) = Just $! PhoneIdentity p
-toIdentity _    _        _        = Nothing
+toIdentity :: Bool -> Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
+toIdentity True  (Just e) (Just p) Nothing      = Just $! FullIdentity e p
+toIdentity True  (Just e) Nothing  Nothing      = Just $! EmailIdentity e
+toIdentity True  Nothing  (Just p) Nothing      = Just $! PhoneIdentity p
+toIdentity True  email    phone    (Just ssoid) = Just $! SSOIdentity ssoid email phone
+toIdentity True  Nothing  Nothing  Nothing      = Nothing
+toIdentity False _        _        _            = Nothing

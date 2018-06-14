@@ -543,6 +543,17 @@ connectUsersWith fn b u us = mapM connectTo us
             )
         return (r1, r2)
 
+-- | A copy of 'putConnection' from Brig integration tests.
+putConnection :: Brig -> UserId -> UserId -> Relation -> Http ResponseLBS
+putConnection b from to r = put $ b
+    . paths ["/connections", toByteString' to]
+    . contentJson
+    . body payload
+    . zUser from
+    . zConn "conn"
+  where
+    payload = RequestBodyLBS . encode $ object [ "status" .= r ]
+
 randomUsers :: Brig -> Int -> Http [UserId]
 randomUsers b n = replicateM n (randomUser b)
 
@@ -642,17 +653,17 @@ randomUserWithClient b lk = do
 newNonce :: Http (Id ())
 newNonce = randomId
 
-decodeBody :: FromJSON a => Response (Maybe Lazy.ByteString) -> Maybe a
+decodeBody :: (HasCallStack, FromJSON a) => Response (Maybe Lazy.ByteString) -> Maybe a
 decodeBody r = do
     b <- responseBody r
     case decode b of
         Nothing -> traceShow b Nothing
         Just  a -> Just a
 
-decodeBody' :: FromJSON a => String -> Response (Maybe Lazy.ByteString) -> a
+decodeBody' :: (HasCallStack, FromJSON a) => String -> Response (Maybe Lazy.ByteString) -> a
 decodeBody' s = fromMaybe (error $ "decodeBody: " ++ s) . decodeBody
 
-fromBS :: (FromByteString a, Monad m) => ByteString -> m a
+fromBS :: (HasCallStack, FromByteString a, Monad m) => ByteString -> m a
 fromBS = maybe (fail "fromBS: no parse") return . fromByteString
 
 convRange :: Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Request -> Request

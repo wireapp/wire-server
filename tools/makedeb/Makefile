@@ -22,17 +22,17 @@ init:
 
 .PHONY: clean
 clean:
-	stack clean
+	stack clean makedeb
 	-rm -rf dist
 	-rm -f .metadata
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=../../dist
+	stack install . --pedantic --test --local-bin-path=dist
 
 .PHONY:
 compile:
-	stack build --pedantic --test --no-copy-bins
+	stack build . --pedantic --test --no-copy-bins
 
 .PHONY: dist
 dist: guard-VERSION install $(DEB) .metadata

@@ -6,7 +6,7 @@ import API.Search.Util
 import Bilge
 import Brig.Types
 import Control.Concurrent              (threadDelay)
-import Control.Concurrent.Async.Lifted
+import Control.Concurrent.Async.Lifted.Safe
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Foldable

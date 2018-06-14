@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE LambdaCase                 #-}
 
 module Brig.Types.User.Auth where
 
@@ -17,6 +18,8 @@ import Data.Text (Text)
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Data.Word
+
+import qualified Data.Aeson.Types as Aeson
 
 -----------------------------------------------------------------------------
 -- Login / Authentication
@@ -43,9 +46,14 @@ newtype LoginCodeTimeout = LoginCodeTimeout
     { fromLoginCodeTimeout :: Timeout }
     deriving (Eq, Show)
 
+-- | Different kinds of logins.
 data Login
     = PasswordLogin !LoginId !PlainTextPassword !(Maybe CookieLabel)
     | SmsLogin !Phone !LoginCode !(Maybe CookieLabel)
+
+-- | A special kind of login that is only used for an internal endpoint.
+data BackdoorLogin
+    = BackdoorLogin !UserId !(Maybe CookieLabel)
 
 loginLabel :: Login -> Maybe CookieLabel
 loginLabel (PasswordLogin _ _ l) = l
@@ -56,33 +64,52 @@ data LoginId
     | LoginByPhone  !Phone
     | LoginByHandle !Handle
 
+instance FromJSON LoginId where
+    parseJSON = withObject "LoginId" $ \o -> do
+        email  <- fmap LoginByEmail  <$> (o .:? "email")
+        phone  <- fmap LoginByPhone  <$> (o .:? "phone")
+        handle <- fmap LoginByHandle <$> (o .:? "handle")
+        maybe (fail "'email', 'phone' or 'handle' required")
+              pure
+              (email <|> phone <|> handle)
+        -- NB. You might be tempted to rewrite this by applying (<|>) to
+        -- parsers themselves. However, the code as it is right now has a
+        -- property that if (e.g.) the email is present but unparseable,
+        -- parsing will fail. If you change it to use (<|>), unparseable
+        -- email (or phone, etc) will just cause the next parser to be
+        -- chosen, instead of failing early.
+
+loginIdPair :: LoginId -> Aeson.Pair
+loginIdPair = \case
+    LoginByEmail s -> "email" .= s
+    LoginByPhone s -> "phone" .= s
+    LoginByHandle s -> "handle" .= s
+
+instance ToJSON LoginId where
+    toJSON loginId = object [loginIdPair loginId]
+
 instance FromJSON Login where
     parseJSON = withObject "Login" $ \o -> do
         passw <- o .:? "password"
         case passw of
-            Nothing -> SmsLogin <$> o .: "phone" <*> o .: "code" <*> o .:? "label"
-            Just pw -> PasswordLogin <$> pwLoginId o <*> pure pw <*> o .:? "label"
-      where
-        pwLoginId o = do
-            email  <- fmap LoginByEmail  <$> (o .:? "email")
-            phone  <- fmap LoginByPhone  <$> (o .:? "phone")
-            handle <- fmap LoginByHandle <$> (o .:? "handle")
-            maybe (fail "'email', 'phone' or 'handle' required")
-                  pure
-                  (email <|> phone <|> handle)
+            Nothing ->
+                SmsLogin <$> o .: "phone" <*> o .: "code" <*> o .:? "label"
+            Just pw -> do
+                loginId <- parseJSON (Object o)
+                PasswordLogin loginId pw <$> o .:? "label"
 
 instance ToJSON Login where
-    toJSON (PasswordLogin (LoginByEmail e) pw l) =
-        object [ "email" .= e, "password" .= pw, "label" .= l ]
+    toJSON (SmsLogin p c l) = object [ "phone" .= p, "code" .= c, "label" .= l ]
+    toJSON (PasswordLogin login password label) =
+        object [ "password" .= password, "label" .= label, loginIdPair login ]
 
-    toJSON (PasswordLogin (LoginByPhone p) pw l) =
-        object [ "phone" .= p, "password" .= pw, "label" .= l ]
+instance FromJSON BackdoorLogin where
+    parseJSON = withObject "BackdoorLogin" $ \o ->
+        BackdoorLogin <$> o .: "user" <*> o .:? "label"
 
-    toJSON (PasswordLogin (LoginByHandle h) pw l) =
-        object [ "handle" .= h, "password" .= pw, "label" .= l ]
-
-    toJSON (SmsLogin p c l) =
-        object [ "phone" .= p, "code"  .= c, "label" .= l ]
+instance ToJSON BackdoorLogin where
+    toJSON (BackdoorLogin uid label) =
+        object [ "user" .= uid, "label" .= label ]
 
 instance FromJSON PendingLoginCode where
     parseJSON = withObject "PendingLoginCode" $ \o ->

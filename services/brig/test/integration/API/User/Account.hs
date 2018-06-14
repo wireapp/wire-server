@@ -1,10 +1,12 @@
 {-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module API.User.Account (tests) where
 
+import API.Search.Util (assertSearchable)
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
@@ -24,6 +26,8 @@ import Data.Aeson.Lens
 import Data.ByteString.Char8 (pack, intercalate)
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
+import Data.Json.Util (fromUTCTimeMillis)
+import Data.Foldable (for_)
 import Data.List1 (singleton)
 import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
@@ -44,6 +48,7 @@ import Util.AWS as Util
 import qualified API.Search.Util             as Search
 import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt
+import qualified Brig.Types.User.Auth        as Auth
 import qualified CargoHold.Types.V3          as CHV3
 import qualified Data.List1                  as List1
 import qualified Data.Set                    as Set
@@ -67,12 +72,13 @@ tests _cl at _conf p b c ch g aws = testGroup "account"
     , test' aws p "post /register - 409 conflict"            $ testCreateUserConflict b
     , test' aws p "post /register - 400"                     $ testCreateUserInvalidPhone b
     , test' aws p "post /register - 403 blacklist"           $ testCreateUserBlacklist b aws
+    , test' aws p "post /register - 400 external-SSO"        $ testCreateUserExternalSSO b
     , test' aws p "post /activate - 200/204 + expiry"        $ testActivateWithExpiry b at
     , test' aws p "get /users/:id - 404"                     $ testNonExistingUser b
     , test' aws p "get /users/:id - 200"                     $ testExistingUser b
     , test' aws p "get /users?:id=.... - 200"                $ testMultipleUsers b
     , test' aws p "put /self - 200"                          $ testUserUpdate b c aws
-    , test' aws p "put /self/email - 202"                    $ testEmailUpdate b aws
+    , test' aws p "put /self/email - 2xx"                    $ testEmailUpdate b aws
     , test' aws p "put /self/phone - 202"                    $ testPhoneUpdate b
     , test' aws p "head /self/password - 200/404"            $ testPasswordSet b
     , test' aws p "put /self/password - 200"                 $ testPasswordChange b
@@ -265,7 +271,7 @@ testCreateUserConflict brig = do
 
 testCreateUserInvalidPhone :: Brig -> Http ()
 testCreateUserInvalidPhone brig = do
-    email <- mkEmail "test@wearezeta.com"
+    email <- randomEmail
     let p = RequestBodyLBS . encode $ object
             [ "name"     .= ("foo" :: Text)
             , "email"    .= fromEmail email
@@ -312,6 +318,21 @@ testCreateUserBlacklist brig aws =
         when (statusCode r == 404 && n > 0) $ do
             liftIO $ threadDelay 1000000
             awaitBlacklist (n-1) e
+
+testCreateUserExternalSSO :: Brig -> Http ()
+testCreateUserExternalSSO brig = do
+    teamid <- Id <$> liftIO UUID.nextRandom
+    let ssoid = UserSSOId "nil" "nil"
+        p withsso withteam = RequestBodyLBS . encode . object $
+              [ "name"  .= ("foo" :: Text) ] <>
+              [ "sso_id" .= Just ssoid | withsso ] <>
+              [ "team_id" .= Just teamid | withteam ]
+    post (brig . path "/register" . contentJson . body (p False True)) !!!
+      const 400 === statusCode
+    post (brig . path "/register" . contentJson . body (p True False)) !!!
+      const 400 === statusCode
+    post (brig . path "/register" . contentJson . body (p True True)) !!!
+      const 400 === statusCode
 
 testActivateWithExpiry :: Brig -> Opt.Timeout -> Http ()
 testActivateWithExpiry brig timeout = do
@@ -385,7 +406,7 @@ testCreateUserAnonExpiry b = do
     alice <- randomUser b
     bob <- createAnonUserExpiry (Just 2) "bob" b
     liftIO $ assertBool "expiry not set on regular creation" (not $ isJust $ userExpire alice)
-    ensureExpiry (userExpire bob) "bob/register"
+    ensureExpiry (fromUTCTimeMillis <$> userExpire bob) "bob/register"
     resAlice <- getProfile (userId u1) (userId alice)
     resBob <- getProfile (userId u1) (userId bob)
     selfBob <- get (b . zUser (userId bob) . path "self") <!! const 200 === statusCode
@@ -471,6 +492,7 @@ testUserUpdate brig cannon aws = do
     -- should appear in search by 'newName'
     suid <- userId <$> randomUser brig
     Search.refreshIndex brig
+    assertSearchable "alice should be searchable" brig alice True
     Search.assertCanFind brig suid alice "dogbert"
 
 testEmailUpdate :: Brig -> AWS.Env -> Http ()
@@ -484,6 +506,30 @@ testEmailUpdate brig aws = do
     activateEmail brig eml
     checkEmail brig uid eml
     liftIO $ Util.assertUserJournalQueue "user update" aws (userUpdateJournaled uid)
+    -- update email, which is exactly the same as before
+    initiateEmailUpdate brig eml uid !!! const 204 === statusCode
+
+    -- ensure no other user has "test+<uuid>@example.com"
+    -- if there is such a user, let's delete it first otherwise
+    -- this test fails since there can be only one user with "test+...@example.com"
+    ensureNoOtherUserWithEmail (Email "test" "example.com")
+
+    -- we want to use a non-trusted domain in order to verify profile changes
+    flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
+    flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
+  where
+    ensureNoOtherUserWithEmail eml = do
+        tk <- decodeBody <$> login brig (defEmailLogin eml) SessionCookie
+        for_ tk $ \t -> deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
+
+    initiateUpdateAndActivate eml uid = do
+        initiateEmailUpdateNoSend brig eml uid !!! const 202 === statusCode
+        activateEmail brig eml
+        checkEmail brig uid eml
+        liftIO $ Util.assertUserJournalQueue "user update" aws (userUpdateJournaled uid)
+        -- Ensure login work both with the full email and the "short" version
+        login brig (defEmailLogin eml) SessionCookie !!! const 200 === statusCode
+        login brig (defEmailLogin (Email "test" "example.com")) SessionCookie !!! const 200 === statusCode
 
 testPhoneUpdate :: Brig -> Http ()
 testPhoneUpdate brig = do
@@ -579,7 +625,7 @@ testSuspendUser brig = do
 testGetByIdentity :: Brig -> Http ()
 testGetByIdentity brig = do
     p <- randomPhone
-    e <- mkEmail "test@wearezeta.com"
+    e <- randomEmail
     let emailBs = T.encodeUtf8 $ fromEmail e
         phoneBs = T.encodeUtf8 $ fromPhone p
         newUser = RequestBodyLBS . encode $ object

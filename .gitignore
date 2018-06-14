@@ -13,6 +13,7 @@ Cargo.lock
 *.rlib
 *.so
 *.tar
+*.asc
 *.tmp
 *~
 .*.sw[a-z]
@@ -26,6 +27,7 @@ log
 tags
 TAGS
 .stack-work
+.stack-docker
 .metadata
 *.tix
 *.pem

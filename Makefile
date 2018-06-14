@@ -29,10 +29,12 @@ services: init install
 
 .PHONY: integration
 integration: fast
-	$(MAKE) -C services/cargohold integration
-	$(MAKE) -C services/galley integration
-	$(MAKE) -C services/brig integration
-	$(MAKE) -C services/gundeck integration-fake-aws
+	# We run "i" instead of "integration" to avoid useless rebuilds
+	# (since after "fast" everything will be built already)
+	$(MAKE) -C services/cargohold i
+	$(MAKE) -C services/galley i
+	$(MAKE) -C services/brig i
+	$(MAKE) -C services/gundeck i-fake-aws
 
 #################################
 ## docker targets
@@ -71,6 +73,16 @@ docker-exe-%:
 .PHONY: docker-service-%
 docker-service-%:
 	$(MAKE) -C services/"$*" docker
+
+DOCKER_DEV_NETWORK := --net=host
+DOCKER_DEV_VOLUMES := -v `pwd`:/src/wire-server
+DOCKER_DEV_IMAGE   := quay.io/wire/alpine-builder:local
+.PHONY: run-docker-builder
+run-docker-builder:
+	docker run -it $(DOCKER_DEV_NETWORK) $(DOCKER_DEV_VOLUMES) --rm $(DOCKER_DEV_IMAGE) /bin/bash || \
+	( echo "$(DOCKER_DEV_IMAGE) not found.  building locally.  hit ^C to interrupt." && \
+	  make -C build/alpine builder && \
+	  make $@ )
 
 #################################
 ## dependencies

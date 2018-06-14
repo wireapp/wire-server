@@ -46,7 +46,7 @@ instance ToJSON TeamData where
     toJSON (TeamData t s st) = object
         $ "team"        .= t
         # "status"      .= s
-        # "status_time" .= (UTCTimeMillis <$> st)
+        # "status_time" .= (toUTCTimeMillis <$> st)
         # []
 
 instance FromJSON TeamData where

@@ -16,7 +16,8 @@ import Data.Id
 import Data.Json.Util
 import Data.Misc (Location, PlainTextPassword (..))
 import Data.Text (Text)
-import Data.Time (UTCTime)
+
+
 -- * Data Types:
 
 data ClientType
@@ -58,7 +59,7 @@ newClient t k a = NewClient
 data Client = Client
     { clientId       :: !ClientId
     , clientType     :: !ClientType
-    , clientTime     :: !UTCTime
+    , clientTime     :: !UTCTimeMillis
     , clientClass    :: !(Maybe ClientClass)
     , clientLabel    :: !(Maybe Text)
     , clientCookie   :: !(Maybe CookieLabel)
@@ -90,7 +91,7 @@ instance ToJSON Client where
         # "type"     .= clientType c
         # "label"    .= clientLabel c
         # "class"    .= clientClass c
-        # "time"     .= UTCTimeMillis (clientTime c)
+        # "time"     .= clientTime c
         # "cookie"   .= clientCookie c
         # "location" .= clientLocation c
         # "model"    .= clientModel c

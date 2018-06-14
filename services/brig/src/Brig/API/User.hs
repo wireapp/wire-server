@@ -91,6 +91,7 @@ import Control.Monad.Reader
 import Data.ByteString.Conversion
 import Data.Foldable
 import Data.Id
+import Data.Json.Util
 import Data.List (nub)
 import Data.List1 (List1)
 import Data.Misc (PlainTextPassword (..))
@@ -140,7 +141,7 @@ createUser new@NewUser{..} = do
               return
               =<< lift (validatePhone p)
 
-    let ident = newIdentity email phone
+    let ident = newIdentity email phone (newUserSSOId new)
     let emKey = userEmailKey <$> email
     let phKey = userPhoneKey <$> phone
 
@@ -152,13 +153,11 @@ createUser new@NewUser{..} = do
             throwE (BlacklistedUserKey uk)
 
     -- Look for an invitation, if a code is given
-    invitation <- maybe (return Nothing) (findInvitation emKey phKey) newUserInvitationCode
-    (newTeam, teamInvitation, tid) <- handleTeam newUserTeam emKey
+    invitation <- maybe (return Nothing) (findInvitation emKey phKey) (newUserInvitationCode new)
+    (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
 
     -- team members are by default not searchable
-    let searchable = SearchableStatus $ case (newTeam, teamInvitation) of
-            (Nothing, Nothing) -> True
-            _                  -> False
+    let searchable = SearchableStatus $ isNothing tid
 
     -- Create account
     (account, pw) <- lift $ newAccount new { newUserIdentity = ident } (Team.inInvitation . fst <$> teamInvitation) tid
@@ -183,13 +182,20 @@ createUser new@NewUser{..} = do
                 return (False, True)
         Nothing -> return (False, False)
 
-    (teamEmailInvited, joinedTeam) <- case teamInvitation of
+    (teamEmailInvited, joinedTeamInvite) <- case teamInvitation of
         Just (inv, invInfo) -> do
                 let em = Team.inIdentity inv
                 acceptTeamInvitation account inv invInfo (userEmailKey em) (EmailIdentity em)
                 Team.TeamName nm <- lift $ Intra.getTeamName (Team.inTeam inv)
                 return (True, Just $ CreateUserTeam (Team.inTeam inv) nm)
         Nothing -> return (False, Nothing)
+
+    joinedTeamSSO <- case (ident, tid) of
+        (Just ident'@SSOIdentity {}, Just tid') -> Just <$> addUserToTeamSSO account tid' ident'
+        _ -> pure Nothing
+
+    let joinedTeam :: Maybe CreateUserTeam
+        joinedTeam = joinedTeamInvite <|> joinedTeamSSO
 
     -- Handle e-mail activation
     edata <- if emailInvited || teamEmailInvited
@@ -236,7 +242,7 @@ createUser new@NewUser{..} = do
                     then Just created
                     else Nothing
 
-    handleTeam :: Maybe NewTeamUser 
+    handleTeam :: Maybe NewTeamUser
                -> Maybe UserKey
                -> ExceptT CreateUserError AppIO ( Maybe BindingNewTeamUser
                                                 , Maybe (Team.Invitation, Team.InvitationInfo)
@@ -246,6 +252,7 @@ createUser new@NewUser{..} = do
         Just (inv, info, tid) -> (Nothing, Just (inv, info), Just tid)
         Nothing               -> (Nothing, Nothing         , Nothing)
     handleTeam (Just (NewTeamCreator t)) _ = (Just t, Nothing, ) <$> (Just . Id <$> liftIO nextRandom)
+    handleTeam (Just (NewTeamMemberSSO tid)) _ = pure (Nothing, Nothing, Just tid)
     handleTeam Nothing                   _ = return (Nothing, Nothing, Nothing)
 
     findInvitation :: Maybe UserKey -> Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe (Invitation, InvitationInfo))
@@ -285,7 +292,7 @@ createUser new@NewUser{..} = do
         unless added $
             throwE TooManyTeamMembers
         lift $ do
-            activateUser uid ident
+            activateUser uid ident  -- ('insertAccount' sets column activated to False; here it is set to True.)
             void $ onActivated (AccountActivated account)
             Log.info $ field "user" (toByteString uid)
                      . field "team" (toByteString $ Team.iiTeam ii)
@@ -314,6 +321,21 @@ createUser new@NewUser{..} = do
             let toEvent uc = ConnectionUpdated uc Nothing (mfilter (const $ ucFrom uc /= uid) (Just $ inName inv))
             forM_ ucs $ Intra.onConnectionEvent uid Nothing . toEvent
             Data.deleteInvitation (inInviter inv) (inInvitation inv)
+
+    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO CreateUserTeam
+    addUserToTeamSSO account tid ident = do
+        let uid = userId (accountUser account)
+        added <- lift $ Intra.addTeamMember uid tid
+        unless added $
+            throwE TooManyTeamMembers
+        lift $ do
+            activateUser uid ident
+            void $ onActivated (AccountActivated account)
+            Log.info $ field "user" (toByteString uid)
+                     . field "team" (toByteString tid)
+                     . msg (val "Added via SSO")
+        Team.TeamName nm <- lift $ Intra.getTeamName tid
+        pure $ CreateUserTeam tid nm
 
 -------------------------------------------------------------------------------
 -- Update Profile
@@ -371,7 +393,7 @@ checkHandles check num = reverse <$> collectFree [] check num
 -------------------------------------------------------------------------------
 -- Change Email
 
-changeEmail :: UserId -> Email -> ExceptT ChangeEmailError AppIO (Activation, Email)
+changeEmail :: UserId -> Email -> ExceptT ChangeEmailError AppIO ChangeEmailResult
 changeEmail u email = do
     em <- maybe (throwE $ InvalidNewEmail email)
                 return
@@ -383,9 +405,14 @@ changeEmail u email = do
     available <- lift $ Data.keyAvailable ek (Just u)
     unless available $
         throwE $ EmailExists email
-    timeout <- setActivationTimeout <$> view settings
-    act <- lift $ Data.newActivation ek timeout (Just u)
-    return (act, em)
+    usr <- maybe (throwM $ UserProfileNotFound u) return =<< lift (Data.lookupUser u)
+    case join (emailIdentity <$> userIdentity usr) of
+        -- The user already has an email address and the new one is exactly the same
+        Just current | current == em -> return ChangeEmailIdempotent
+        _ -> do
+            timeout <- setActivationTimeout <$> view settings
+            act <- lift $ Data.newActivation ek timeout (Just u)
+            return $ ChangeEmailNeedsActivation (usr, act, em)
 
 -------------------------------------------------------------------------------
 -- Change Phone
@@ -653,6 +680,11 @@ mkPasswordResetKey ident = case ident of
 -------------------------------------------------------------------------------
 -- User Deletion
 
+-- | Initiate validation of a user's delete request.  Called via @delete /self@.  Users with an
+-- 'UserSSOId' can still do this if they also have an 'Email', 'Phone', and/or password.  Otherwise,
+-- the team admin has to delete them via the team console on galley.
+--
+-- TODO: communicate deletions of SSO users to SSO service.
 deleteUser :: UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError AppIO (Maybe Timeout)
 deleteUser uid pwd = do
     account <- lift $ Data.lookupAccount uid
@@ -660,22 +692,37 @@ deleteUser uid pwd = do
         Nothing -> throwE DeleteUserInvalid
         Just  a -> case accountStatus a of
             Deleted   -> return Nothing
-            Suspended -> ensureNotOnlyOwner >> go a
-            Active    -> ensureNotOnlyOwner >> go a
+            Suspended -> ensureNotOnlyOwner account >> go a
+            Active    -> ensureNotOnlyOwner account >> go a
             Ephemeral -> go a
   where
-    ensureNotOnlyOwner = do
-        onlyOwner <- lift $ Team.isOnlyTeamOwner uid
-        when onlyOwner $
-            throwE DeleteUserOnlyOwner
+    ensureNotOnlyOwner :: Maybe UserAccount -> ExceptT DeleteUserError (AppT IO) ()
+    ensureNotOnlyOwner acc = case userTeam . accountUser =<< acc of
+        Nothing -> pure ()
+        Just tid -> do
+            ownerSituation <- lift $ Team.isOnlyTeamOwner uid tid
+            case ownerSituation of
+               Team.IsOnlyTeamOwner       -> throwE DeleteUserOnlyOwner
+               Team.IsOneOfManyTeamOwners -> pure ()
+               Team.IsNotTeamOwner        -> pure ()
+               Team.NoTeamOwnersAreLeft   -> do
+                   Log.warn $ field "user" (toByteString uid)
+                            . field "team" (toByteString tid)
+                            . msg (val "Team.NoTeamOwnersAreLeft")
 
     go a = maybe (byIdentity a) (byPassword a) pwd
 
-    byIdentity a = case userIdentity (accountUser a) of
-        Just (FullIdentity  e _) -> sendCode a (Left e)
-        Just (EmailIdentity e  ) -> sendCode a (Left e)
-        Just (PhoneIdentity p  ) -> sendCode a (Right p)
-        Nothing                  -> case pwd of
+    getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
+    getEmailOrPhone (FullIdentity  e _)             = Just $ Left e
+    getEmailOrPhone (EmailIdentity e  )             = Just $ Left e
+    getEmailOrPhone (SSOIdentity _ (Just e) _)      = Just $ Left e
+    getEmailOrPhone (PhoneIdentity p  )             = Just $ Right p
+    getEmailOrPhone (SSOIdentity _ _ (Just p))      = Just $ Right p
+    getEmailOrPhone (SSOIdentity _ Nothing Nothing) = Nothing
+
+    byIdentity a = case getEmailOrPhone =<< userIdentity (accountUser a) of
+        Just emailOrPhone            -> sendCode a emailOrPhone
+        Nothing                      -> case pwd of
             Just  _ -> throwE DeleteUserMissingPassword
             Nothing -> lift $ deleteAccount a >> return Nothing
 
@@ -713,6 +760,8 @@ deleteUser uid pwd = do
                        Code.delete k Code.AccountDeletion
                 return $! Just $! Code.codeTTL c
 
+-- | Conclude validation and scheduling of user's deletion request that was initiated in
+-- 'deleteUser'.  Called via @post /delete@.
 verifyDeleteUser :: VerifyDeleteUser -> ExceptT DeleteUserError AppIO ()
 verifyDeleteUser d = do
     let key  = verifyDeleteUserKey d
@@ -723,6 +772,9 @@ verifyDeleteUser d = do
     for_ account $ lift . deleteAccount
     lift $ Code.delete key Code.AccountDeletion
 
+-- | Internal deletion without validation.  Called via @delete /i/user/:id@.  Team users can be
+-- deleted iff the team is not orphaned, i.e. there is at least one user with an email address left
+-- in the team.
 deleteAccount :: UserAccount -> AppIO ()
 deleteAccount account@(accountUser -> user) = do
     let uid = userId user
@@ -791,7 +843,7 @@ deleteUserNoVerify uid = do
 userGC :: User -> AppIO User
 userGC u = case (userExpire u) of
         Nothing  -> return u
-        (Just e) -> do
+        (Just (fromUTCTimeMillis -> e)) -> do
             now <- liftIO =<< view currentTime
             -- ephemeral users past their expiry date are deleted
             when (diffUTCTime e now < 0) $

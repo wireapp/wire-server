@@ -19,6 +19,7 @@ import Brig.Email
 import Brig.Locale (formatDateTime, timeLocale)
 import Brig.User.Template
 import Brig.Types
+import Data.Json.Util (fromUTCTimeMillis)
 import Data.Maybe (fromMaybe, isNothing)
 import Data.Range
 import Data.Text (Text)
@@ -104,7 +105,7 @@ renderNewClientEmail NewClientEmailTemplate{..} NewClientEmail{..} =
     replace "model" = fromMaybe "N/A" (clientModel nclClient)
     replace "date"  = formatDateTime "%A %e %B %Y, %H:%M - %Z"
                                      (timeLocale nclLocale)
-                                     (clientTime nclClient)
+                                     (fromUTCTimeMillis $ clientTime nclClient)
     replace x       = x
 
 -------------------------------------------------------------------------------
@@ -339,4 +340,3 @@ renderInvitationUrl t (InvitationCode c) =
   where
     replace "code" = Ascii.toText c
     replace x      = x
-
