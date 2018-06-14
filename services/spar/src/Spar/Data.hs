@@ -17,15 +17,18 @@ import qualified Data.UUID as UUID
 import qualified SAML2.WebSSO as SAML
 
 
+-- TODO: do we want to have a configurable upper limit for TTL?  (this check would have to throw errors.)
+
+
 ----------------------------------------------------------------------
 -- saml state handling
 
 storeRequest :: (HasCallStack, MonadClient m) => SAML.ID SAML.AuthnRequest -> SAML.Time -> m ()
 storeRequest (SAML.ID rid) (SAML.Time endoflife) =
-    retry x5 . write ins $ params Quorum (rid, endoflife)
+    retry x5 . write ins $ params Quorum (rid, endoflife, endoflife)
   where
-    ins :: PrepQuery W (ST, UTCTime) ()
-    ins = "INSERT INTO authreq (req, end_of_life) VALUES (?, ?)"
+    ins :: PrepQuery W (ST, UTCTime, UTCTime) ()
+    ins = "INSERT INTO authreq (req, end_of_life) VALUES (?, ?) USING TTL = ?"  -- TODO: do this also below.  figure out how it works properly.
 
 checkAgainstRequest :: (HasCallStack, MonadClient m) => UTCTime -> SAML.ID SAML.AuthnRequest -> m Bool
 checkAgainstRequest now (SAML.ID rid) = do
