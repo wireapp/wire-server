@@ -55,12 +55,12 @@ runTests iConf bConf otherArgs = do
     c  <- mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
     ch <- mkRequest <$> optOrEnv cargohold iConf (local . read) "CARGOHOLD_WEB_PORT"
     g  <- mkRequest <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
-    turnV1   <- optOrEnv (Opts.serversV1 . Opts.turn) bConf id "TURN_SERVERS_V1"
-    turnV2   <- optOrEnv (Opts.serversV2 . Opts.turn) bConf id "TURN_SERVERS_V2"
-    casHost  <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epHost) bConf pack "BRIG_CASSANDRA_HOST"
-    casPort  <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epPort) bConf read "BRIG_CASSANDRA_PORT"
-    casKey   <- optOrEnv (\v -> (Opts.cassandra v)^.casKeyspace) bConf pack "BRIG_CASSANDRA_KEYSPACE"
-    awsOpts  <- parseAWSEnv (Opts.aws <$> bConf)
+    turn    <- optOrEnv (Opts.servers   . Opts.turn) bConf id "TURN_SERVERS"
+    turnV2  <- optOrEnv (Opts.serversV2 . Opts.turn) bConf id "TURN_SERVERS_V2"
+    casHost <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epHost) bConf pack "BRIG_CASSANDRA_HOST"
+    casPort <- optOrEnv (\v -> (Opts.cassandra v)^.casEndpoint.epPort) bConf read "BRIG_CASSANDRA_PORT"
+    casKey  <- optOrEnv (\v -> (Opts.cassandra v)^.casKeyspace) bConf pack "BRIG_CASSANDRA_KEYSPACE"
+    awsOpts <- parseAWSEnv (Opts.aws <$> bConf)
 
     lg <- Logger.new Logger.defSettings
     db <- defInitCassandra casKey casHost casPort lg
@@ -71,7 +71,7 @@ runTests iConf bConf otherArgs = do
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
     teamApis    <- Team.tests bConf mg b c g
-    turnApi     <- TURN.tests mg b turnV1 turnV2
+    turnApi     <- TURN.tests mg b turn turnV2
 
     withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
         [ userApi

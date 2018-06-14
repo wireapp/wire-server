@@ -32,43 +32,43 @@ import qualified Data.List1 as List1
 type TurnUpdater = String -> IO ()
 
 tests :: Manager -> Brig -> FilePath -> FilePath -> IO TestTree
-tests m b turnV1 turnV2 = do
+tests m b turn turnV2 = do
     return $ testGroup "turn"
         [ test m "basic /calls/config - 200"            $ resetTurn >> testCallsConfig b
         -- FIXME: requires tests to run on same host as brig
-        , test m "multiple servers /calls/config - 200" $ resetTurn >> testCallsConfigMultipleV1 b (setTurn turnV1)
+        , test m "multiple servers /calls/config - 200" $ resetTurn >> testCallsConfigMultiple b (setTurn turn)
         , test m "multiple servers /calls/config/v2 - 200" $ resetTurn >> testCallsConfigMultipleV2 b (setTurn turnV2)
         ]
   where
-    resetTurn = liftIO $ setTurn turnV1 "turn:127.0.0.1:3478" >> setTurn turnV2 "turn:localhost:3478"
+    resetTurn = liftIO $ setTurn turn "turn:127.0.0.1:3478" >> setTurn turnV2 "turn:localhost:3478"
 
 testCallsConfig :: Brig -> Http ()
 testCallsConfig b = do
     uid <- userId <$> randomUser b
     cfg <- getTurnConfigurationV1 uid b
-    let _expectedV1 = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
-    assertConfiguration cfg _expectedV1
+    let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
+    assertConfiguration cfg _expected
 
-testCallsConfigMultipleV1 :: Brig -> TurnUpdater -> Http ()
-testCallsConfigMultipleV1 b turnUpdaterV1 = do
+testCallsConfigMultiple :: Brig -> TurnUpdater -> Http ()
+testCallsConfigMultiple b turnUpdater = do
     uid <- userId <$> randomUser b
     -- Ensure we have a clean config
     let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
-    modifyAndAssert b uid getTurnConfigurationV1 turnUpdaterV1 "turn:127.0.0.1:3478" _expected
+    modifyAndAssert b uid getTurnConfigurationV1 turnUpdater "turn:127.0.0.1:3478" _expected
 
     -- Change server list
     let _changes  = "turn:127.0.0.2:3478\nturn:127.0.0.3:3478"
     let _expected = List1.list1 (toTurnURILegacy "127.0.0.2" 3478)
                                 [toTurnURILegacy "127.0.0.3" 3478]
-    modifyAndAssert b uid getTurnConfigurationV1 turnUpdaterV1 _changes _expected
+    modifyAndAssert b uid getTurnConfigurationV1 turnUpdater _changes _expected
 
     -- Change server list yet again, try adding transport and ensure that it gets dropped
     let _changes  = "turn:127.0.0.2:3478?transport=udp\nturn:127.0.0.3:3478?transport=udp"
-    modifyAndAssert b uid getTurnConfigurationV1 turnUpdaterV1 _changes _expected
+    modifyAndAssert b uid getTurnConfigurationV1 turnUpdater _changes _expected
 
     -- Revert the config file back to the original
     let _expected = List1.singleton (toTurnURILegacy "127.0.0.1" 3478)
-    modifyAndAssert b uid getTurnConfigurationV1 turnUpdaterV1 "turn:127.0.0.1:3478" _expected
+    modifyAndAssert b uid getTurnConfigurationV1 turnUpdater "turn:127.0.0.1:3478" _expected
 
 modifyAndAssert :: Brig
                -> UserId

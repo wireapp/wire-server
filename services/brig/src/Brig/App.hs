@@ -37,7 +37,7 @@ module Brig.App
     , digestMD5
     , metrics
     , applog
-    , turnEnvV1
+    , turnEnv
     , turnEnvV2
 
       -- * App Monad
@@ -144,7 +144,7 @@ data Env = Env
     , _twilioCreds   :: Twilio.Credentials
     , _geoDb         :: Maybe (IORef GeoIp.GeoDB)
     , _fsWatcher     :: FS.WatchManager
-    , _turnEnvV1     :: IORef TURN.Env
+    , _turnEnv       :: IORef TURN.Env
     , _turnEnvV2     :: IORef TURN.Env
     , _currentTime   :: IO UTCTime
     , _zauthEnv      :: ZAuth.Env
@@ -174,7 +174,7 @@ newEnv o = do
     w   <- FS.startManagerConf
          $ FS.defaultConfig { FS.confDebounce = FS.Debounce 0.5, FS.confPollInterval = 10000000 }
     g   <- geoSetup lgr w $ Opt.geoDb o
-    (turnV1, turnV2) <- turnSetup lgr w sha512 (Opt.turn o)
+    (turn, turnV2) <- turnSetup lgr w sha512 (Opt.turn o)
     let sett = Opt.optSettings o
     nxm <- initCredentials (Opt.setNexmo sett)
     twl <- initCredentials (Opt.setTwilio sett)
@@ -196,7 +196,7 @@ newEnv o = do
         , _nexmoCreds    = nxm
         , _twilioCreds   = twl
         , _geoDb         = g
-        , _turnEnvV1     = turnV1
+        , _turnEnv       = turn
         , _turnEnvV2     = turnV2
         , _fsWatcher     = w
         , _currentTime   = clock
@@ -225,7 +225,7 @@ geoSetup lgr w (Just db) = do
 turnSetup :: Logger -> FS.WatchManager -> Digest -> Opt.TurnOpts -> IO (IORef TURN.Env, IORef TURN.Env)
 turnSetup lgr w dig o = do
     secret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret o)
-    v1Cfg  <- setupTurn secret (Opt.serversV1 o)
+    v1Cfg  <- setupTurn secret (Opt.servers o)
     v2Cfg  <- setupTurn secret (Opt.serversV2 o)
     return (v1Cfg, v2Cfg)
   where

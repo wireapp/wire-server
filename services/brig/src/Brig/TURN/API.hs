@@ -74,7 +74,7 @@ getCallsConfigV2 (_ ::: _ ::: _) = do
 
 getCallsConfig :: JSON ::: UserId ::: ConnId -> Handler Response
 getCallsConfig (_ ::: _ ::: _) = do
-    env <- liftIO =<< readIORef <$> view turnEnvV1
+    env <- liftIO =<< readIORef <$> view turnEnv
     json . dropTransport <$> newConfig env
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
