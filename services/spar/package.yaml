@@ -24,6 +24,7 @@ dependencies:
   - http-client
   - http-types
   - lens
+  - metrics-core
   - mtl
   - optparse-applicative
   - raw-strings-qq
@@ -39,6 +40,7 @@ dependencies:
   - types-common
   - uri-bytestring
   - uuid
+  - wai-utilities
   - warp
   - yaml
 
