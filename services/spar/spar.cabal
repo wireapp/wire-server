@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 60afd01309a58aa5983ae22ba818d7af81bc3e68fc8daca11e31f585592f0692
+-- hash: 9d46a0d0e1840ebcf990e1a60bd238eb4c66577967d2fd485aecfab960b825bb
 
 name:           spar
 version:        0.1
@@ -200,6 +200,7 @@ test-suite spec
   other-modules:
       Arbitrary
       Test.Spar.BrigSpec
+      Test.Spar.DataSpec
       Paths_spar
   hs-source-dirs:
       test

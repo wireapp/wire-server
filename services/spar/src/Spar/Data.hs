@@ -1,13 +1,22 @@
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiWayIf                 #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 module Spar.Data where
 
 import Cassandra
+import Control.Exception
 import Control.Lens ((<&>))
+import Control.Monad.Catch
+import Control.Monad.Except
 import Control.Monad.Identity
+import Data.Int
 import Data.String.Conversions
 import Data.Time
 import GHC.Stack
@@ -17,42 +26,67 @@ import qualified Data.UUID as UUID
 import qualified SAML2.WebSSO as SAML
 
 
--- TODO: do we want to have a configurable upper limit for TTL?  (this check would have to throw errors.)
+----------------------------------------------------------------------
+-- helpers
+
+-- | (seconds)
+newtype TTL = TTL Int32
+  deriving (Eq, Ord, Show, Num)
+
+-- TODO: make 'dataEnvMaxTTL' configurable via yaml config.
+data Env = Env { dataEnvNow :: UTCTime, dataEnvMaxTTL :: TTL }
+  deriving (Eq, Show)
+
+data TTLError = TTLTooLong | TTLInPast
+  deriving (Eq, Show)
+
+mkTTL :: MonadError TTLError m => Env -> UTCTime -> m TTL
+mkTTL (Env now maxttl) endOfLife = if
+  | actualttl > maxttl -> throwError TTLTooLong
+  | actualttl <= 0     -> throwError TTLInPast
+  | otherwise          -> pure actualttl
+  where
+    actualttl = TTL . round @Double . realToFrac $ endOfLife `diffUTCTime` now
+
+err2err :: (m ~ Either TTLError, MonadThrow m') => m a -> m' a
+err2err = either (throwM . ErrorCall . show) pure
 
 
 ----------------------------------------------------------------------
 -- saml state handling
 
-storeRequest :: (HasCallStack, MonadClient m) => SAML.ID SAML.AuthnRequest -> SAML.Time -> m ()
-storeRequest (SAML.ID rid) (SAML.Time endoflife) =
-    retry x5 . write ins $ params Quorum (rid, endoflife, endoflife)
+storeRequest :: (HasCallStack, MonadClient m) => Env -> SAML.ID SAML.AuthnRequest -> SAML.Time -> m ()
+storeRequest env (SAML.ID rid) (SAML.Time endOfLife) = do
+    TTL actualEndOfLife <- err2err $ mkTTL env endOfLife
+    retry x5 . write ins $ params Quorum (rid, endOfLife, actualEndOfLife)
   where
-    ins :: PrepQuery W (ST, UTCTime, UTCTime) ()
-    ins = "INSERT INTO authreq (req, end_of_life) VALUES (?, ?) USING TTL = ?"  -- TODO: do this also below.  figure out how it works properly.
+    ins :: PrepQuery W (ST, UTCTime, Int32) ()
+    ins = "INSERT INTO authreq (req, end_of_life) VALUES (?, ?) USING TTL ?"
 
-checkAgainstRequest :: (HasCallStack, MonadClient m) => UTCTime -> SAML.ID SAML.AuthnRequest -> m Bool
-checkAgainstRequest now (SAML.ID rid) = do
+checkAgainstRequest :: (HasCallStack, MonadClient m) => Env -> SAML.ID SAML.AuthnRequest -> m Bool
+checkAgainstRequest env (SAML.ID rid) = do
     (retry x1 . query1 sel . params Quorum $ Identity rid) <&> \case
-        Just (Identity (Just endoflife)) -> endoflife >= now
+        Just (Identity (Just endoflife)) -> endoflife >= dataEnvNow env
         _ -> False
   where
     sel :: PrepQuery R (Identity ST) (Identity (Maybe UTCTime))
     sel = "SELECT end_of_life FROM authreq WHERE req = ?"
 
-storeAssertion :: (HasCallStack, MonadClient m) => UTCTime -> SAML.ID SAML.Assertion -> SAML.Time -> m Bool
-storeAssertion now (SAML.ID aid) (SAML.Time endoflifeNew) = do
+storeAssertion :: (HasCallStack, MonadClient m) => Env -> SAML.ID SAML.Assertion -> SAML.Time -> m Bool
+storeAssertion env (SAML.ID aid) (SAML.Time endOfLifeNew) = do
+    TTL actualEndOfLife <- err2err $ mkTTL env endOfLifeNew
     notAReplay :: Bool <- (retry x1 . query1 sel . params Quorum $ Identity aid) <&> \case
-        Just (Identity (Just endoflifeOld)) -> endoflifeOld < now
+        Just (Identity (Just endoflifeOld)) -> endoflifeOld < dataEnvNow env
         _ -> False
     when notAReplay $ do
-        retry x5 . write ins $ params Quorum (aid, endoflifeNew)
+        retry x5 . write ins $ params Quorum (aid, endOfLifeNew, actualEndOfLife)
     pure notAReplay
   where
     sel :: PrepQuery R (Identity ST) (Identity (Maybe UTCTime))
     sel = "SELECT end_of_life FROM authresp WHERE resp = ?"
 
-    ins :: PrepQuery W (ST, UTCTime) ()
-    ins = "INSERT INTO authresp (resp, end_of_life) VALUES (?, ?)"
+    ins :: PrepQuery W (ST, UTCTime, Int32) ()
+    ins = "INSERT INTO authresp (resp, end_of_life) VALUES (?, ?) USING TTL ?"
 
 
 ----------------------------------------------------------------------
