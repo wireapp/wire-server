@@ -128,7 +128,7 @@ import qualified System.Logger.Class  as Log
 newtype ResultSet a = ResultSet { page :: Page a }
 
 schemaVersion :: Int32
-schemaVersion = 25
+schemaVersion = 27
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
