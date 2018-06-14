@@ -27,8 +27,8 @@ import qualified SAML2.WebSSO as SAML
 import qualified System.Logger as Log
 
 
--- TODO: redundant cluster?
 -- TODO: shutdown?
+-- TODO: prometheus-compatible metrics.
 runServer :: Opts -> IO ()
 runServer sparCtxOpts = do
   sparCtxLogger <- Log.new $ Log.defSettings
@@ -38,12 +38,15 @@ runServer sparCtxOpts = do
         & Warp.setHost (fromString $ sparCtxOpts ^. to saml . SAML.cfgSPHost)
         . Warp.setPort (sparCtxOpts ^. to saml . SAML.cfgSPPort)
   sparCtxHttpManager <- newManager defaultManagerSettings
-      { managerResponseTimeout = responseTimeoutMicro 10000000
+      { managerResponseTimeout = responseTimeoutMicro (10 * 1000 * 1000)
       }
   let sparCtxHttpBrig = Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
                       . Bilge.port (sparCtxOpts ^. to brig . epPort)
                       $ Bilge.empty
   Warp.runSettings settings $ app SparCtx {..}
+
+-- TODO: rename Ctx to Env like everywhere else.
+-- FUTUREWORK: use servant-generic?
 
 app :: SparCtx -> Application
 app ctx = SAML.setHttpCachePolicy
@@ -54,9 +57,9 @@ type API = "i" :> "status" :> Get '[JSON] ()
       :<|> APIAuthReq
       :<|> APIAuthResp
 
-type APIMeta     = "meta" :> SAML.APIMeta
-type APIAuthReq  = "authreq" :> SAML.APIAuthReq
-type APIAuthResp = "authresp" :> SAML.APIAuthResp
+type APIMeta     = "sso" :> "info" :> SAML.APIMeta
+type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
+type APIAuthResp = "sso" :> "complete-login" :> SAML.APIAuthResp
 
 
 api :: ServerT API Spar
@@ -70,3 +73,6 @@ appName = "spar"
 
 onSuccess :: HasCallStack => SAML.UserId -> Spar SAML.Void
 onSuccess uid = forwardBrigLogin =<< maybe (createUser uid) pure =<< getUser uid
+
+
+-- TODO: restructure: cassandra init, runServer in one module; the rest of App and API in another.
