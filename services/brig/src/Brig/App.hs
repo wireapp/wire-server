@@ -225,9 +225,9 @@ geoSetup lgr w (Just db) = do
 turnSetup :: Logger -> FS.WatchManager -> Digest -> Opt.TurnOpts -> IO (IORef TURN.Env, IORef TURN.Env)
 turnSetup lgr w dig o = do
     secret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret o)
-    v1Cfg  <- setupTurn secret (Opt.servers o)
-    v2Cfg  <- setupTurn secret (Opt.serversV2 o)
-    return (v1Cfg, v2Cfg)
+    cfg    <- setupTurn secret (Opt.servers o)
+    cfgV2  <- setupTurn secret (Opt.serversV2 o)
+    return (cfg, cfgV2)
   where
     setupTurn secret cfg = do
         path    <- canonicalizePath cfg
