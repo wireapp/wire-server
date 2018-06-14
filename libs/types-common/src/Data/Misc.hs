@@ -5,6 +5,7 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE LambdaCase                 #-}
 
 module Data.Misc
     ( -- * IpAddr / Port
@@ -18,6 +19,9 @@ module Data.Misc
     , longitude
     , Latitude  (..)
     , Longitude (..)
+
+      -- * Time
+    , Milliseconds (..)
 
       -- * HttpsUrl
     , HttpsUrl (..)
@@ -42,6 +46,7 @@ import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.Char (isSpace)
+import Data.Int (Int64)
 import Data.IP (IP)
 import Safe (readMay)
 import Data.Range
@@ -153,6 +158,23 @@ instance Cql Longitude where
 
     fromCql (CqlDouble x) = return (Longitude x)
     fromCql _             = fail "Longitude: Expected CqlDouble."
+#endif
+
+--------------------------------------------------------------------------------
+-- Time
+
+newtype Milliseconds = Ms
+    { ms :: Word64
+    } deriving (Eq, Ord, Show, Num, ToJSON, FromJSON)
+
+#ifdef WITH_CQL
+instance Cql Milliseconds where
+    ctype = Tagged BigIntColumn
+    toCql = CqlBigInt . fromIntegral . min (fromIntegral (maxBound @Int64)) . ms
+    fromCql = \case
+        CqlBigInt i | i >= 0 -> pure $ Ms (fromIntegral i)
+                    | otherwise -> fail "Milliseconds: negative value"
+        _ -> fail "Milliseconds: expected CqlBigInt"
 #endif
 
 --------------------------------------------------------------------------------

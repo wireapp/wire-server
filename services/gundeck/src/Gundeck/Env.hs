@@ -9,11 +9,11 @@ import Control.AutoUpdate
 import Control.Lens ((^.), makeLenses)
 import Data.Int (Int32)
 import Data.Metrics.Middleware (Metrics)
+import Data.Misc (Milliseconds (..))
 import Data.Text (unpack)
 import Data.Time.Clock.POSIX
 import Util.Options
 import Gundeck.Options as Opt
-import Gundeck.Types.Presence (Milliseconds (..))
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import OpenSSL.EVP.Cipher (Cipher, getCipherByName)
