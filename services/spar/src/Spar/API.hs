@@ -57,7 +57,7 @@ type API = "i" :> "status" :> Get '[JSON] ()
       :<|> APIAuthReq
       :<|> APIAuthResp
 
-type APIMeta     = "sso" :> "info" :> SAML.APIMeta
+type APIMeta     = "sso" :> "metainfo" :> SAML.APIMeta
 type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
 type APIAuthResp = "sso" :> "complete-login" :> SAML.APIAuthResp
 
