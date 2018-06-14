@@ -16,7 +16,7 @@ migration = Migration 0 "Initial schema" $ do
         create columnfamily if not exists authreq
             ( req          text
             , end_of_life  timestamp
-            , primary key  req
+            , primary key  (req)
             );
         |]
 
@@ -24,7 +24,7 @@ migration = Migration 0 "Initial schema" $ do
         create columnfamily if not exists authresp
             ( resp         text
             , end_of_life  timestamp
-            , primary key  resp
+            , primary key  (resp)
             );
         |]
 
