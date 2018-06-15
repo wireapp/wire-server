@@ -29,8 +29,6 @@ import qualified SAML2.WebSSO as SAML
 import qualified System.Logger as Log
 
 
--- TODO: shutdown?
--- TODO: prometheus-compatible metrics.
 runServer :: Opts -> IO ()
 runServer sparCtxOpts = do
   sparCtxLogger <- Log.new $ Log.defSettings
@@ -46,11 +44,14 @@ runServer sparCtxOpts = do
   let sparCtxHttpBrig = Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
                       . Bilge.port (sparCtxOpts ^. to brig . epPort)
                       $ Bilge.empty
-  Warp.runSettings settings
-    -- . WU.measureRequests mx _  -- TODO: we need the swagger sitemap from servant for this.
-    . WU.catchErrors sparCtxLogger mx
-    . SAML.setHttpCachePolicy
-    $ app SparCtx {..}
+  let wrappedApp
+    -- . WU.measureRequests mx _
+        -- TODO: we need the swagger sitemap from servant for this.  we also want this to be
+        -- prometheus-compatible.  not sure about the order in which to do these.
+        = WU.catchErrors sparCtxLogger mx
+        . SAML.setHttpCachePolicy
+        $ app SparCtx {..}
+  WU.runSettingsWithShutdown settings wrappedApp 5
 
 -- TODO: rename Ctx to Env like everywhere else.
 -- FUTUREWORK: use servant-generic?
