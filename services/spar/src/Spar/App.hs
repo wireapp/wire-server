@@ -9,7 +9,7 @@ module Spar.App where
 
 import Bilge
 import Cassandra
-import Control.Exception (SomeException(SomeException))
+import Control.Exception (SomeException(SomeException), assert)
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Id
@@ -20,9 +20,10 @@ import Spar.Options as Options
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
 import qualified Data.ByteString.Lazy.Char8 as LBS
+import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
-import qualified Spar.Intra.Brig as Brig
 import qualified Spar.Data as Data
+import qualified Spar.Intra.Brig as Brig
 import qualified System.Logger as Log
 
 
@@ -86,21 +87,44 @@ wrapMonadClient = wrapMonadClient' . const
 insertUser :: SAML.UserId -> UserId -> Spar ()
 insertUser suid buid = wrapMonadClient $ Data.insertUser suid buid
 
+-- | Look up user locally, then in brig, then return the 'UserId'.  If either lookup fails, return
+-- 'Nothing'.  See also: 'Spar.App.createUser'.
+--
+-- ASSUMPTIONS: User creation on brig/galley is idempotent.  Any incomplete creation (because of
+-- brig or galley crashing) will cause the lookup here to yield invalid user.
 getUser :: SAML.UserId -> Spar (Maybe UserId)
-getUser suid = wrapMonadClient $ Data.getUser suid
+getUser suid = do
+  mbuid <- wrapMonadClient $ Data.getUser suid
+  case mbuid of
+    Nothing -> pure Nothing
+    Just buid -> Brig.confirmUserId buid
 
 deleteUser :: SAML.UserId -> Spar ()
 deleteUser suid = wrapMonadClient $ Data.deleteUser suid
 
 
--- | Create user in both brig and C*.
+-- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserId', then
+-- create user on brig with that 'UserId'.  See also: 'Spar.App.getUser'.
+--
+-- The manual for the team admin should say this: when deleting a user, delete it on the IdP first,
+-- then delete it on the team admin page in wire.  If a user is deleted in wire but not in the IdP,
+-- it will be recreated on the next successful login attempt.
+--
+-- When an sso login succeeds for a user that is marked as deleted in brig, it is recreated by spar.
+-- This is necessary because brig does not talk to spar when deleting users, and we may have
+-- 'UserId' records on spar that are deleted on brig.  Without this lenient behavior, there would be
+-- no way for admins to reuse a 'SAML.UserId' if it has ever been associated with a deleted user in
+-- the past.
+--
+-- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
+-- users that have an sso id, unless the request comes from spar.  then we can make users
+-- undeletable in the team admin page, and ask admins to go talk to their IdP system.
 createUser :: SAML.UserId -> Spar UserId
 createUser suid = do
-  buid <- Brig.createUser suid
-  -- TODO: if we crash here, the next attempt at login will attempt to create an already-created
-  -- user.  and crash again.  this should be idempotent.
+  buid <- Id <$> liftIO UUID.nextRandom
   insertUser suid buid
-  pure buid
+  buid' <- Brig.createUser suid buid
+  assert (buid == buid') $ pure buid
 
 forwardBrigLogin :: UserId -> Spar SAML.Void
 forwardBrigLogin = Brig.forwardBrigLogin
