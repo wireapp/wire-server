@@ -99,10 +99,6 @@ getUser suid = do
     Nothing -> pure Nothing
     Just buid -> Brig.confirmUserId buid
 
-deleteUser :: SAML.UserId -> Spar ()
-deleteUser suid = wrapMonadClient $ Data.deleteUser suid
-
-
 -- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserId', then
 -- create user on brig with that 'UserId'.  See also: 'Spar.App.getUser'.
 --
