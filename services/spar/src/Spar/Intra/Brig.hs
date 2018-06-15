@@ -8,8 +8,8 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE ViewPatterns               #-}
 
--- | Spar talking to Brig.  TODO: rename to "Spar.Intra.Brig".
-module Spar.Brig where
+-- | Spar talking to Brig.
+module Spar.Intra.Brig where
 
 -- TODO: when creating user, we need to be able to provide more
 -- master data (first name, last name, ...)
