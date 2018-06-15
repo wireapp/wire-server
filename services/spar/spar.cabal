@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9d46a0d0e1840ebcf990e1a60bd238eb4c66577967d2fd485aecfab960b825bb
+-- hash: f14dfc5638fd16e3c53224c89c7acea9567eeb5d0133e7f0b8733cb25f37f524
 
 name:           spar
 version:        0.1
@@ -21,8 +21,8 @@ library
   exposed-modules:
       Spar.API
       Spar.App
-      Spar.Brig
       Spar.Data
+      Spar.Intra.Brig
       Spar.Options
   other-modules:
       Paths_spar
@@ -199,8 +199,8 @@ test-suite spec
   main-is: Spec.hs
   other-modules:
       Arbitrary
-      Test.Spar.BrigSpec
       Test.Spar.DataSpec
+      Test.Spar.Intra.BrigSpec
       Paths_spar
   hs-source-dirs:
       test

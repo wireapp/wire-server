@@ -21,7 +21,7 @@ import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified SAML2.WebSSO as SAML
-import qualified Spar.Brig as Brig
+import qualified Spar.Intra.Brig as Brig
 import qualified Spar.Data as Data
 import qualified System.Logger as Log
 
