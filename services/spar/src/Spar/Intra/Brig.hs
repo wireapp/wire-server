@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE ViewPatterns               #-}
 
@@ -18,12 +19,14 @@ import Bilge
 import Control.Lens
 import Control.Monad.Except
 import Data.Aeson (eitherDecode')
+import Data.Aeson (FromJSON)
 import Data.Id (UserId)
 import Data.String.Conversions
+import Data.ByteString.Conversion
 import GHC.Stack
 import Network.HTTP.Types.Method
-import URI.ByteString
 import Servant hiding (URI)
+import URI.ByteString
 import Web.Cookie
 
 import qualified Network.HTTP.Types.Header as HTTP
@@ -47,7 +50,7 @@ fromUserSSOId (Brig.UserSSOId (cs -> tenant) (cs -> subject)) =
     (_, Left msg)      -> throwError msg
 
 
-parseResponse :: MonadError ServantErr m => Response (Maybe LBS) -> m UserId
+parseResponse :: (FromJSON a, MonadError ServantErr m) => Response (Maybe LBS) -> m a
 parseResponse resp = do
     bdy <- maybe (throwError err500) pure $ responseBody resp
     either (const $ throwError err500) pure $ eitherDecode' bdy
@@ -97,11 +100,18 @@ createUser suid _buid = do
   parseResponse resp
 
 
--- | Make sure we're on the same page with brig, a user spar knows locally has been successfully
--- created on brig (user exists) and galley (user has a team id).
+-- | Check that a user locally created on spar exists on brig and has a team id.
 confirmUserId :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => UserId -> m (Maybe UserId)
-confirmUserId = undefined
+confirmUserId buid = do
+  resp :: Response (Maybe LBS) <- call
+    $ method GET
+    . path "/i/users"
+    . queryItem "ids" (toByteString' buid)
 
+  if statusCode resp /= 200
+    then pure Nothing
+    else parseResponse @Brig.User resp >>=
+           maybe (pure Nothing) (const . pure . Just $ buid) . Brig.userTeam
 
 -- | Get session token from brig and redirect user past login process.
 forwardBrigLogin :: (HasCallStack, MonadError ServantErr m, SAML.HasConfig m, MonadSparToBrig m)
