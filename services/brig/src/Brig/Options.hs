@@ -73,7 +73,6 @@ data EmailUserOpts = EmailUserOpts
     { activationUrl     :: !Text
     , smsActivationUrl  :: !Text
     , passwordResetUrl  :: !Text
-    , invitationUrl     :: !Text
     , deletionUrl       :: !Text
     } deriving (Show, Generic)
 
@@ -264,8 +263,6 @@ optsParser =
       (textOption $
        long "password-reset-url" <> metavar "URL" <>
        help "Password reset URL template") <*>
-      (textOption $
-       long "invitation-url" <> metavar "URL" <> help "Invitation URL template") <*>
       (textOption $
        long "deletion-url" <> metavar "URL" <> help "Deletion URL template")) <*>
      (ProviderOpts <$>
