@@ -76,9 +76,10 @@ class Monad m => MonadSparToBrig m where
 -- | Create a user on brig.
 createUser :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => SAML.UserId -> UserId -> m UserId
 createUser suid _buid = do
-  let newUser :: Brig.NewUser  -- TODO: set buid in NewUser (requires patch to brig).
+  let newUser :: Brig.NewUser
       newUser = Brig.NewUser
         { Brig.newUserName           = Brig.Name . cs . SAML.encodeElem $ suid ^. SAML.uidSubject
+        -- , Brig.newUserUUID           = Just _buid  -- TODO: wait for https://github.com/wireapp/wire-server/pull/378 to land on develop.
         , Brig.newUserIdentity       = Just $ Brig.SSOIdentity (toUserSSOId suid) Nothing Nothing
         , Brig.newUserPict           = Nothing
         , Brig.newUserAssets         = []
