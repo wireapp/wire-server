@@ -50,13 +50,12 @@ runServer sparCtxOpts = do
         -- prometheus-compatible.  not sure about the order in which to do these.
         = WU.catchErrors sparCtxLogger mx
         . SAML.setHttpCachePolicy
-        $ app SparCtx {..}
+        $ app Env {..}
   WU.runSettingsWithShutdown settings wrappedApp 5
 
--- TODO: rename Ctx to Env like everywhere else.
 -- FUTUREWORK: use servant-generic?
 
-app :: SparCtx -> Application
+app :: Env -> Application
 app ctx = SAML.setHttpCachePolicy
         $ serve (Proxy @API) (enter (NT (SAML.nt @Spar ctx)) api :: Server API)
 
