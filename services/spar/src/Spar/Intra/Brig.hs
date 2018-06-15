@@ -20,7 +20,7 @@ import Control.Lens
 import Control.Monad.Except
 import Data.Aeson (eitherDecode')
 import Data.Aeson (FromJSON)
-import Data.Id (UserId)
+import Data.Id (UserId, TeamId)
 import Data.String.Conversions
 import Data.ByteString.Conversion
 import GHC.Stack
@@ -74,8 +74,8 @@ class Monad m => MonadSparToBrig m where
 
 
 -- | Create a user on brig.
-createUser :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => SAML.UserId -> UserId -> m UserId
-createUser suid _buid = do
+createUser :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => SAML.UserId -> UserId -> TeamId -> m UserId
+createUser suid _buid teamid = do
   let newUser :: Brig.NewUser
       newUser = Brig.NewUser
         { Brig.newUserName           = Brig.Name . cs . SAML.encodeElem $ suid ^. SAML.uidSubject
@@ -86,7 +86,7 @@ createUser suid _buid = do
         , Brig.newUserAccentId       = Nothing
         , Brig.newUserEmailCode      = Nothing
         , Brig.newUserPhoneCode      = Nothing
-        , Brig.newUserOrigin         = Nothing  -- TODO: must carry team ID!
+        , Brig.newUserOrigin         = Just . Brig.NewUserOriginTeamUser . Brig.NewTeamMemberSSO $ teamid
         , Brig.newUserLabel          = Nothing
         , Brig.newUserLocale         = Nothing
         , Brig.newUserPassword       = Nothing
