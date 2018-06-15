@@ -889,6 +889,7 @@ randUser (Email loc dom) (BotTag tag) = do
     let passw = PlainTextPassword (pack (toString pwdUuid))
     return (NewUser
         { newUserName           = Name (tag <> "-Wirebot-" <> pack (toString uuid))
+        , newUserUUID           = Nothing
         , newUserIdentity       = Just (EmailIdentity email)
         , newUserPassword       = Just passw
         , newUserPict           = Nothing
