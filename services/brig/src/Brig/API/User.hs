@@ -169,7 +169,6 @@ createUser new@NewUser{..} = do
         case (tid, newTeam) of
             (Just t, Just nt) -> createTeam uid (isJust newUserEmailCode) (bnuTeam nt) t
             _                 -> return Nothing
-    let (emailInvited, phoneInvited) = (False, False)
 
     (teamEmailInvited, joinedTeamInvite) <- case teamInvitation of
         Just (inv, invInfo) -> do
@@ -187,7 +186,7 @@ createUser new@NewUser{..} = do
         joinedTeam = joinedTeamInvite <|> joinedTeamSSO
 
     -- Handle e-mail activation
-    edata <- if emailInvited || teamEmailInvited
+    edata <- if teamEmailInvited
             then return Nothing
             else fmap join . for emKey $ \ek -> case newUserEmailCode of
                 Nothing -> do
@@ -203,9 +202,7 @@ createUser new@NewUser{..} = do
                     return Nothing
 
     -- Handle phone activation
-    pdata <- if phoneInvited
-            then return Nothing
-            else fmap join . for phKey $ \pk -> case newUserPhoneCode of
+    pdata <- fmap join . for phKey $ \pk -> case newUserPhoneCode of
                 Nothing -> do
                     timeout <- setActivationTimeout <$> view settings
                     pdata   <- lift $ Data.newActivation pk timeout (Just uid)
