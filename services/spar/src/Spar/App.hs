@@ -10,24 +10,16 @@ module Spar.App where
 import Bilge
 import Cassandra
 import Control.Exception (SomeException(SomeException))
-import Control.Lens hiding (Level)
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Id
-import Data.Int
-import Data.List.NonEmpty as NE
 import SAML2.WebSSO hiding (UserId(..))
 import Servant
 import Spar.Options as Options
-import System.Logger
-import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 
 import qualified Cassandra as Cas
-import qualified Cassandra.Schema as Cas
-import qualified Cassandra.Settings as Cas
 import qualified Control.Monad.Catch as Catch
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.Text as ST
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Brig as Brig
 import qualified Spar.Data as Data
@@ -125,24 +117,3 @@ instance Brig.MonadSparToBrig Spar where
   call modreq = do
     req <- asks sparCtxHttpBrig
     httpLbs req modreq
-
-
-----------------------------------------------------------------------
-
-schemaVersion :: Int32
-schemaVersion = 0
-
-initCassandra :: Opts -> Logger -> IO Cas.ClientState
-initCassandra opts lgr = do
-    let connectString = ST.unpack (Options.cassandra opts ^. casEndpoint . epHost) :| []
-    handle <- Cas.init (Log.clone (Just "cassandra.spar") lgr) $ Cas.defSettings
-            & Cas.setContacts (NE.head connectString) (NE.tail connectString)
-            & Cas.setPortNumber (fromIntegral $ Options.cassandra opts ^. casEndpoint . epPort)
-            & Cas.setKeyspace (Keyspace $ Options.cassandra opts ^. casKeyspace)
-            & Cas.setMaxConnections 4
-            & Cas.setPoolStripes 4
-            & Cas.setSendTimeout 3
-            & Cas.setResponseTimeout 10
-            & Cas.setProtocolVersion Cas.V3
-    runClient handle $ Cas.versionCheck schemaVersion
-    pure handle

@@ -10,20 +10,49 @@
 
 module Spar.Data where
 
-import Cassandra
+import Cassandra as Cas
 import Control.Exception
-import Control.Lens ((<&>))
+import Control.Lens hiding (Level)
 import Control.Monad.Catch
 import Control.Monad.Except
-import Control.Monad.Identity
 import Data.Int
+import Data.List.NonEmpty as NE
 import Data.String.Conversions
 import Data.Time
 import GHC.Stack
+import Spar.Options as Options
+import System.Logger (Logger)
+import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 
+import qualified Cassandra.Schema as Cas
+import qualified Cassandra.Settings as Cas
 import qualified Data.Id as Brig
 import qualified Data.UUID as UUID
 import qualified SAML2.WebSSO as SAML
+import qualified Spar.Options as Opts
+import qualified System.Logger as Log
+
+
+----------------------------------------------------------------------
+-- init
+
+schemaVersion :: Int32
+schemaVersion = 0
+
+initCassandra :: Opts.Opts -> Logger -> IO ClientState
+initCassandra opts lgr = do
+    let connectString = cs (Opts.cassandra opts ^. casEndpoint . epHost) :| []
+    cas <- Cas.init (Log.clone (Just "cassandra.spar") lgr) $ Cas.defSettings
+      & Cas.setContacts (NE.head connectString) (NE.tail connectString)
+      & Cas.setPortNumber (fromIntegral $ Options.cassandra opts ^. casEndpoint . epPort)
+      & Cas.setKeyspace (Keyspace $ Options.cassandra opts ^. casKeyspace)
+      & Cas.setMaxConnections 4
+      & Cas.setPoolStripes 4
+      & Cas.setSendTimeout 3
+      & Cas.setResponseTimeout 10
+      & Cas.setProtocolVersion V3
+    runClient cas $ Cas.versionCheck schemaVersion
+    pure cas
 
 
 ----------------------------------------------------------------------
