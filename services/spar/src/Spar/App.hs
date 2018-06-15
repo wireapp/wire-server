@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE InstanceSigs               #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
@@ -10,9 +11,11 @@ module Spar.App where
 import Bilge
 import Cassandra
 import Control.Exception (SomeException(SomeException), assert)
+import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Id
+import Data.String.Conversions
 import SAML2.WebSSO hiding (UserId(..))
 import Servant
 import Spar.Options as Options
@@ -75,6 +78,16 @@ instance SPStore Spar where
   checkAgainstRequest r = wrapMonadClient' $ \env -> Data.checkAgainstRequest env r
   storeAssertion i r    = wrapMonadClient' $ \env -> Data.storeAssertion env i r
 
+instance SPStoreIdP Spar where
+  storeIdPConfig :: IdPConfig TeamId -> Spar ()  -- TODO
+  storeIdPConfig = undefined
+
+  getIdPConfig :: ST -> Spar (IdPConfig TeamId)  -- TODO
+  getIdPConfig = undefined
+
+  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig TeamId)  -- TODO
+  getIdPConfigByIssuer = undefined
+
 -- | Call a cassandra command in the 'Spar' monad.  Catch all exceptions and re-throw them as 500 in
 -- Handler.
 wrapMonadClient' :: (Data.Env -> Cas.Client a) -> Spar a
@@ -122,8 +135,9 @@ getUser suid = do
 createUser :: SAML.UserId -> Spar UserId
 createUser suid = do
   buid <- Id <$> liftIO UUID.nextRandom
+  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
-  buid' <- Brig.createUser suid buid
+  buid' <- Brig.createUser suid buid teamid
   assert (buid == buid') $ pure buid
 
 forwardBrigLogin :: UserId -> Spar SAML.Void
