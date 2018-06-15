@@ -71,9 +71,9 @@ class Monad m => MonadSparToBrig m where
 
 
 -- | Create a user on brig.
-createUser :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => SAML.UserId -> m UserId
-createUser suid = do
-  let newUser :: Brig.NewUser
+createUser :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => SAML.UserId -> UserId -> m UserId
+createUser suid _buid = do
+  let newUser :: Brig.NewUser  -- TODO: set buid in NewUser (requires patch to brig).
       newUser = Brig.NewUser
         { Brig.newUserName           = Brig.Name . cs . SAML.encodeElem $ suid ^. SAML.uidSubject
         , Brig.newUserIdentity       = Just $ Brig.SSOIdentity (toUserSSOId suid) Nothing Nothing
@@ -82,7 +82,7 @@ createUser suid = do
         , Brig.newUserAccentId       = Nothing
         , Brig.newUserEmailCode      = Nothing
         , Brig.newUserPhoneCode      = Nothing
-        , Brig.newUserOrigin         = Nothing
+        , Brig.newUserOrigin         = Nothing  -- TODO: must carry team ID!
         , Brig.newUserLabel          = Nothing
         , Brig.newUserLocale         = Nothing
         , Brig.newUserPassword       = Nothing
@@ -95,6 +95,12 @@ createUser suid = do
     . json newUser
     . expect2xx
   parseResponse resp
+
+
+-- | Make sure we're on the same page with brig, a user spar knows locally has been successfully
+-- created on brig (user exists) and galley (user has a team id).
+confirmUserId :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => UserId -> m (Maybe UserId)
+confirmUserId = undefined
 
 
 -- | Get session token from brig and redirect user past login process.
