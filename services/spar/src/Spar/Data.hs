@@ -145,10 +145,6 @@ getUser (SAML.UserId tenant subject) = (retry x1 . query1 sel $ params Quorum (t
     sel :: PrepQuery R (ST, ST) (Identity (Maybe ST))
     sel = "SELECT uid FROM authresp WHERE idp = ? AND sso_id = ?"
 
--- | Delete a user.  If no such user exists, do nothing.
-deleteUser :: (HasCallStack, MonadClient m) => SAML.UserId -> m ()
-deleteUser = undefined
-
 
 ----------------------------------------------------------------------
 -- idp
