@@ -6,13 +6,13 @@
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 
-module Test.Spar.BrigSpec where
+module Test.Spar.Intra.BrigSpec where
 
 import Arbitrary ()
 import Brig.Types.User (UserSSOId(UserSSOId))
 import Data.String.Conversions (ST, cs)
 import SAML2.WebSSO as SAML
-import Spar.Brig
+import Spar.Intra.Brig
 import Test.Hspec
 import Test.QuickCheck
 import URI.ByteString (URI, parseURI, laxURIParserOptions)
