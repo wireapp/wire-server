@@ -34,10 +34,10 @@ import qualified Spar.Data as Data
 import qualified System.Logger as Log
 
 
-newtype Spar a = Spar { fromSpar :: ReaderT SparCtx Handler a }
-  deriving (Functor, Applicative, Monad, MonadIO, MonadReader SparCtx, MonadError ServantErr)
+newtype Spar a = Spar { fromSpar :: ReaderT Env Handler a }
+  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError ServantErr)
 
-data SparCtx = SparCtx
+data Env = Env
   { sparCtxOpts         :: Opts
   , sparCtxLogger       :: Log.Logger
   , sparCtxCas          :: Cas.ClientState
@@ -115,7 +115,7 @@ forwardBrigLogin = Brig.forwardBrigLogin
 
 
 instance SPHandler Spar where
-  type NTCTX Spar = SparCtx
+  type NTCTX Spar = Env
   nt ctx (Spar action) = runReaderT action ctx
 
 instance MonadHttp Spar where
