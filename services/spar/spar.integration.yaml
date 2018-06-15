@@ -4,8 +4,8 @@ saml:
 
   sp_host:     0.0.0.0
   sp_port:     8088
-  sp_app_uri:  https://me.wire.com/sp  # TODO: wrong value
-  sp_sso_uri:  https://me.wire.com/sso  # TODO: wrong value
+  sp_app_uri:  https://app.wire.com/
+  sp_sso_uri:  https://app.wire.com/sso
 
   contacts:
     - company: evil corp.
