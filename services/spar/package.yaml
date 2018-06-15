@@ -17,6 +17,7 @@ dependencies:
   - bilge
   - brig-types
   - bytestring
+  - bytestring-conversion
   - cassandra-util
   - containers
   - cookie
