@@ -26,6 +26,7 @@ import qualified Data.Text as ST
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
+import qualified Spar.Data as Data
 import qualified System.Logger as Log
 
 
@@ -34,7 +35,7 @@ runServer sparCtxOpts = do
   sparCtxLogger <- Log.new $ Log.defSettings
                    & Log.setLogLevel (toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel)
   mx <- metrics
-  sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
+  sparCtxCas <- Data.initCassandra sparCtxOpts sparCtxLogger
   let settings = Warp.defaultSettings
         & Warp.setHost (fromString $ sparCtxOpts ^. to saml . SAML.cfgSPHost)
         . Warp.setPort (sparCtxOpts ^. to saml . SAML.cfgSPPort)
@@ -80,6 +81,3 @@ appName = "spar"
 
 onSuccess :: HasCallStack => SAML.UserId -> Spar SAML.Void
 onSuccess uid = forwardBrigLogin =<< maybe (createUser uid) pure =<< getUser uid
-
-
--- TODO: restructure: cassandra init, runServer in one module; the rest of App and API in another.
