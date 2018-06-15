@@ -43,10 +43,14 @@ instance HasConfig Spar where
   getConfig = asks (saml . sparCtxOpts)
 
 instance SP Spar where
+  -- FUTUREWORK: optionally use 'field' to index user or idp ids for easier logfile processing.
   logger lv mg = asks sparCtxLogger >>= \lg -> Spar $ Log.log lg (toLevel lv) mg'
     where
-      mg' = Log.msg mg  -- TODO: there is probably more we should do to get the SAML log messages
-                        -- into the right form?
+      mg' = Log.msg $ flatten <$> mg
+      flatten '\n' = ' '
+      flatten '\r' = ' '
+      flatten '\t' = ' '
+      flatten c    = c
 
 toLevel :: SAML.LogLevel -> Log.Level
 toLevel = \case
