@@ -469,7 +469,7 @@ testUserUpdate brig cannon aws = do
 
         liftIO $ mapConcurrently_ (\ws -> assertUpdateNotification ws alice userUpdate) [aliceWS, bobWS]
         -- Should generate a user update journaled event with the new name
-        liftIO $ Util.assertUserJournalQueue "user update" aws (userUpdateJournaled' alice newName)
+        liftIO $ Util.assertUserJournalQueue "user update" aws (userUpdateJournaled alice userUpdate)
 
     -- get the updated profile
     get (brig . path "/self" . zUser alice) !!! do
@@ -504,7 +504,7 @@ testEmailUpdate brig aws = do
     -- activate
     activateEmail brig eml
     checkEmail brig uid eml
-    liftIO $ Util.assertUserJournalQueue "user update" aws (userUpdateJournaled uid)
+    liftIO $ Util.assertUserJournalQueue "user update" aws (userEmailUpdateJournaled uid eml)
     -- update email, which is exactly the same as before
     initiateEmailUpdate brig eml uid !!! const 204 === statusCode
 
@@ -527,7 +527,7 @@ testEmailUpdate brig aws = do
         initiateEmailUpdateNoSend brig eml uid !!! const 202 === statusCode
         activateEmail brig eml
         checkEmail brig uid eml
-        liftIO $ Util.assertUserJournalQueue "user update" aws (userUpdateJournaled uid)
+        liftIO $ Util.assertUserJournalQueue "user update" aws (userEmailUpdateJournaled uid eml)
         -- Ensure login work both with the full email and the "short" version
         login brig (defEmailLogin eml) SessionCookie !!! const 200 === statusCode
         login brig (defEmailLogin (Email "test" "example.com")) SessionCookie !!! const 200 === statusCode
@@ -581,18 +581,21 @@ testUserLocaleUpdate brig aws = do
     liftIO $ Util.assertUserJournalQueue "user create random" aws (userActivateJournaled usr)
     let uid = userId usr
     -- update locale info with locale supported in templates
-    put (brig . path "/self/locale" . contentJson . zUser uid . zConn "c" . locale "en-US") !!!
+    let locEN = fromMaybe (error "Failed to parse locale") $ parseLocale "en-US"
+    put (brig . path "/self/locale" . contentJson . zUser uid . zConn "c" . locale locEN) !!!
         const 200 === statusCode
+    liftIO $ Util.assertUserJournalQueue "user update" aws (userLocaleUpdateJournaled uid locEN)
     -- update locale info with locale NOT supported in templates
-    put (brig . path "/self/locale" . contentJson . zUser uid . zConn "c" . locale "pt-PT") !!!
+    let locPT = fromMaybe (error "Failed to parse locale") $ parseLocale "pt-PT"
+    put (brig . path "/self/locale" . contentJson . zUser uid . zConn "c" . locale locPT) !!!
         const 200 === statusCode
+    liftIO $ Util.assertUserJournalQueue "user update" aws (userLocaleUpdateJournaled uid locPT)
     -- get the updated locale
     get (brig . path "/self" . zUser uid) !!! do
         const 200                   === statusCode
         const (parseLocale "pt-PT") === (Just . userLocale . selfUser <=< decodeBody)
-    liftIO $ Util.assertUserJournalQueue "user update" aws (userUpdateJournaled uid)
   where
-    locale l = body . RequestBodyLBS . encode $ object ["locale" .= (l :: Text)]
+    locale l = body . RequestBodyLBS . encode $ object ["locale" .= l]
 
 testSuspendUser :: Brig -> Http ()
 testSuspendUser brig = do
