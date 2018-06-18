@@ -20,6 +20,7 @@ import Network.HTTP.Client (responseTimeoutMicro)
 import Servant
 import Spar.App
 import Spar.Options
+import Spar.Types
 import Util.Options (epHost, epPort)
 
 import qualified Data.Text as ST
@@ -68,6 +69,11 @@ type API = "i" :> "status" :> Get '[JSON] ()
 type APIMeta     = "sso" :> "metainfo" :> SAML.APIMeta
 type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
 type APIAuthResp = "sso" :> "complete-login" :> SAML.APIAuthResp
+
+
+type IdpGet     = "sso" :> "identity-providers" :> Capture "id" ST.Text :> Get '[JSON] IdP
+type IdpCreate  = "sso" :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IdP
+type IdpDelete  = "sso" :> "identity-providers" :> Capture "id" ST.Text :> DeleteNoContent '[JSON] NoContent
 
 
 api :: ServerT API Spar

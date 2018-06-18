@@ -43,6 +43,7 @@ dependencies:
   - uuid
   - wai-utilities
   - warp
+  - x509
   - yaml
 
 library:
