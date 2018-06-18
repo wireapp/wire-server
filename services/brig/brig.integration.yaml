@@ -28,8 +28,7 @@ gundeck:
 aws:
   sesQueue: integration-brig-events
   internalQueue: integration-brig-events-internal
-  # userJournalQueue: integration-user-events.fifo
-  # ^ Uncomment this if you want to journal user events
+  userJournalQueue: integration-user-events.fifo
   blacklistTable: integration-brig-userkey-blacklist
   prekeyTable: integration-brig-prekeys
   sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com

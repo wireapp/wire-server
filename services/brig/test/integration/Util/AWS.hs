@@ -2,7 +2,10 @@
 
 module Util.AWS where
 
+import Brig.Types
 import Control.Lens
+import Control.Monad (join)
+import Data.ByteString.Conversion
 import Data.Foldable (for_)
 import Data.Id
 import Data.Maybe
@@ -41,12 +44,20 @@ assertUserJournalQueue :: DP.Message a
                        -> AWS.Env
                        -> (String -> Maybe a -> IO ())
                        -> IO ()
-assertUserJournalQueue label env check =
+assertUserJournalQueue label env check = do
     for_ (view AWS.userJournalQueue env) $ \url -> do
         let awsEnv = view AWS.amazonkaEnv env
         SQS.assertQueue url label awsEnv check
 
 -- | Check for user activation event in journal queue.
+userActivateJournaled' :: HasCallStack => UserId -> Name -> Maybe TeamId -> String -> Maybe PU.UserEvent -> IO ()
+userActivateJournaled' uid nm tid l (Just ev) = do
+    assertEqual (l <> "eventType") PU.UserEvent'USER_ACTIVATE (ev^.PU.eventType)
+    assertEqual (l <> "userId")    uid                        (Id $ fromMaybe (error "failed to decode") $ UUID.fromByteString $ Lazy.fromStrict (ev^.PU.userId))
+    assertEqual (l <> "teamId")    tid                        (Id <$> join (fmap (UUID.fromByteString . Lazy.fromStrict) (ev^?PU.teamId)))
+    assertEqual (l <> "name")      nm                         (Name $ fromMaybe "failed to decode name" $ fromByteString $ ev^.PU.name)
+userActivateJournaled' _   _   _  l Nothing   = assertFailure $ l <> ": Expected 1 UserActivate, got nothing"
+
 userActivateJournaled :: HasCallStack => UserId -> String -> Maybe PU.UserEvent -> IO ()
 userActivateJournaled uid l (Just ev) = do
     assertEqual (l <> "eventType") PU.UserEvent'USER_ACTIVATE (ev^.PU.eventType)
@@ -54,6 +65,13 @@ userActivateJournaled uid l (Just ev) = do
 userActivateJournaled _   l Nothing   = assertFailure $ l <> ": Expected 1 UserActivate, got nothing"
 
 -- | Check for user update event in journal queue.
+userUpdateJournaled' :: HasCallStack => UserId -> Maybe Name -> String -> Maybe PU.UserEvent -> IO ()
+userUpdateJournaled' uid nm l (Just ev) = do
+    assertEqual (l <> "eventType") PU.UserEvent'USER_UPDATE (ev^.PU.eventType)
+    assertEqual (l <> "userId")    uid                      (Id $ fromMaybe (error "failed to decode") $ UUID.fromByteString $ Lazy.fromStrict (ev^.PU.userId))
+    assertEqual (l <> "name")      nm                       (Name <$> join (fmap fromByteString (ev^?PU.name)))
+userUpdateJournaled' _   _  l  Nothing  = assertFailure $ l <> ": Expected 1 UserUpdate, got nothing"
+
 userUpdateJournaled :: HasCallStack => UserId -> String -> Maybe PU.UserEvent -> IO ()
 userUpdateJournaled uid l (Just ev) = do
     assertEqual (l <> "eventType") PU.UserEvent'USER_UPDATE (ev^.PU.eventType)

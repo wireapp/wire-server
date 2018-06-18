@@ -87,7 +87,7 @@ tests _cl at _conf p b c ch g aws = testGroup "account"
     , test' aws p "put /i/users/:id/status (suspend)"        $ testSuspendUser b
     , test' aws p "get /i/users?:(email|phone) - 200"        $ testGetByIdentity b
     , test' aws p "delete/phone-email"                       $ testEmailPhoneDelete b c
-    , test' aws p "delete/by-password"                       $ testDeleteUserByPassword b c
+    , test' aws p "delete/by-password"                       $ testDeleteUserByPassword b c aws
     , test' aws p "delete/by-code"                           $ testDeleteUserByCode b
     , test' aws p "delete/anonymous"                         $ testDeleteAnonUser b
     , test' aws p "delete /i/users/:id - 202"                $ testDeleteInternal b c aws
@@ -470,8 +470,8 @@ testUserUpdate brig cannon aws = do
             const 200 === statusCode
 
         liftIO $ mapConcurrently_ (\ws -> assertUpdateNotification ws alice userUpdate) [aliceWS, bobWS]
-        -- Should not generate any user update journaled messages
-        liftIO $ Util.assertEmptyUserJournalQueue aws
+        -- Should generate a user update journaled event with the new name
+        liftIO $ Util.assertUserJournalQueue "user update" aws (userUpdateJournaled' alice newName)
 
     -- get the updated profile
     get (brig . path "/self" . zUser alice) !!! do
@@ -520,7 +520,9 @@ testEmailUpdate brig aws = do
   where
     ensureNoOtherUserWithEmail eml = do
         tk <- decodeBody <$> login brig (defEmailLogin eml) SessionCookie
-        for_ tk $ \t -> deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
+        for_ tk $ \t -> do
+            deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
+            liftIO $ Util.assertUserJournalQueue "user deletion" aws (userDeleteJournaled $ Auth.user t)
 
     initiateUpdateAndActivate eml uid = do
         initiateEmailUpdateNoSend brig eml uid !!! const 202 === statusCode
@@ -778,9 +780,10 @@ testEmailPhoneDelete brig cannon = do
         const 200     === statusCode
         const Nothing === (userPhone <=< decodeBody)
 
-testDeleteUserByPassword :: Brig -> Cannon -> Http ()
-testDeleteUserByPassword brig cannon = do
+testDeleteUserByPassword :: Brig -> Cannon -> AWS.Env -> Http ()
+testDeleteUserByPassword brig cannon aws = do
     u <- randomUser brig
+    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled $ userId u)
     let uid1  = userId u
     let email = fromMaybe (error "Missing email") (userEmail u)
 
@@ -793,7 +796,9 @@ testDeleteUserByPassword brig cannon = do
 
     -- Establish some connections
     uid2 <- userId <$> randomUser brig
+    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled uid2)
     uid3 <- userId <$> randomUser brig
+    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled uid3)
     postConnection brig uid1 uid2 !!! const 201 === statusCode
     postConnection brig uid1 uid3 !!! const 201 === statusCode
     putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
@@ -812,7 +817,7 @@ testDeleteUserByPassword brig cannon = do
     n1 <- countCookies brig uid1 defCookieLabel
     liftIO $ Just 1 @=? n1
 
-    setHandleAndDeleteUser brig cannon u [] $
+    setHandleAndDeleteUser brig cannon u [] aws $
         \uid -> deleteUser uid (Just defPassword) brig !!! const 200 === statusCode
 
     -- Activating the new email address now should not work
@@ -870,11 +875,11 @@ testDeleteAnonUser brig = do
 testDeleteInternal :: Brig -> Cannon -> AWS.Env -> Http ()
 testDeleteInternal brig cannon aws = do
     u <- randomUser brig
-    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled $ userId u)
-    setHandleAndDeleteUser brig cannon u [] $
+    liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled $ userId u)
+    setHandleAndDeleteUser brig cannon u [] aws $
         \uid -> delete (brig . paths ["/i/users", toByteString' uid]) !!! const 202 === statusCode
     -- Check that user deletion is also triggered
-    liftIO $ Util.assertUserJournalQueue "user deletion" aws (userDeleteJournaled $ userId u)
+    -- liftIO $ Util.assertUserJournalQueue "user deletion testDeleteInternal2: " aws (userDeleteJournaled $ userId u)
 
 testDeleteWithProfilePic :: Brig -> CargoHold -> Http ()
 testDeleteWithProfilePic brig cargohold = do
@@ -896,8 +901,8 @@ testDeleteWithProfilePic brig cargohold = do
     -- Check that the asset gets deleted
     downloadAsset cargohold uid (toByteString' (ast^.CHV3.assetKey)) !!! const 404 === statusCode
 
-setHandleAndDeleteUser :: Brig -> Cannon -> User -> [UserId] -> (UserId -> HttpT IO ()) -> Http ()
-setHandleAndDeleteUser brig cannon u others execDelete = do
+setHandleAndDeleteUser :: Brig -> Cannon -> User -> [UserId] -> AWS.Env -> (UserId -> HttpT IO ()) -> Http ()
+setHandleAndDeleteUser brig cannon u others aws execDelete = do
     let uid   = userId u
         email = fromMaybe (error "Must have an email set") (userEmail u)
 
@@ -916,6 +921,7 @@ setHandleAndDeleteUser brig cannon u others execDelete = do
             let euser = j ^? key "id" . _String
             etype @?= Just "user.delete"
             euser @?= Just (UUID.toText (toUUID uid))
+        liftIO $ Util.assertUserJournalQueue "user deletion, setHandleAndDeleteUser: " aws (userDeleteJournaled uid)
 
     -- Cookies are gone
     n2 <- countCookies brig uid defCookieLabel
@@ -947,8 +953,12 @@ setHandleAndDeleteUser brig cannon u others execDelete = do
             , "email"    .= fromEmail email
             , "password" .= defPassword
             ]
-    post (brig . path "/i/users" . contentJson . body p) !!!
+
+    -- This will generate a new event, we need to consume it here
+    rs <- post (brig . path "/i/users" . contentJson . body p) <!!
         const 201 === statusCode
+    let Just newUid = userId <$> decodeBody rs
+    liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal: " aws (userActivateJournaled newUid)
 
     -- Handle is available again
     Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid) !!!
