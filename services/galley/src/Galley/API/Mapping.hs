@@ -24,7 +24,7 @@ conversationView u Data.Conversation{..} = do
     let (me, them) = List.partition ((u ==) . memId) mm
     m <- maybe memberNotFound return (listToMaybe me)
     let (name, mems) = (convName, ConvMembers m (map toOther them))
-    return $! Conversation convId convType convCreator convAccess convAccessRole name mems convTeam
+    return $! Conversation convId convType convCreator convAccess convAccessRole name mems convTeam convMessageTimer
   where
     toOther x = OtherMember (memId x) (memService x)
 
