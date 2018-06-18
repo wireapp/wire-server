@@ -15,6 +15,7 @@ galleyModels =
     , conversationMembers
     , conversationUpdate
     , conversationAccessUpdate
+    , conversationMessageTimerUpdate
     , conversationCode
     , conversationUpdateEvent
     , errorObj
@@ -58,6 +59,7 @@ event = defineModel "Event" $ do
                     , typingEvent
                     , otrMessageEvent
                     , conversationAccessUpdateEvent
+                    , conversationMessageTimerUpdateEvent
                     , conversationCodeUpdateEvent
                     , conversationCodeDeleteEvent
                     ]
@@ -69,6 +71,7 @@ eventType = string $ enum
     , "conversation.member-update"
     , "conversation.rename"
     , "conversation.access-update"
+    , "conversation.message-timer-update"
     , "conversation.code-update"
     , "conversation.code-delete"
     , "conversation.create"
@@ -102,6 +105,11 @@ conversationAccessUpdateEvent :: Model
 conversationAccessUpdateEvent = defineModel "ConversationAccessUpdateEvent" $ do
     description "conversation access update event"
     property "data" (ref conversationAccessUpdate) $ description "conversation access data"
+
+conversationMessageTimerUpdateEvent :: Model
+conversationMessageTimerUpdateEvent = defineModel "ConversationMessageTimerUpdateEvent" $ do
+    description "conversation message timer update event"
+    property "data" (ref conversationMessageTimerUpdate) $ description "conversation message timer data"
 
 conversationCodeUpdateEvent :: Model
 conversationCodeUpdateEvent = defineModel "ConversationCodeUpdateEvent" $ do
@@ -226,6 +234,12 @@ conversationAccessUpdate = defineModel "ConversationAccessUpdate" $ do
     description "Contains conversation properties to update"
     property "access" (unique $ array bytes') $
         description "List of conversation access modes: []|[invite]|[invite,code]"
+
+conversationMessageTimerUpdate :: Model
+conversationMessageTimerUpdate = defineModel "ConversationMessageTimerUpdate" $ do
+    description "Contains conversation properties to update"
+    property "message_timer" int64' $
+        description "Conversation message timer (in milliseconds)"
 
 conversationCode :: Model
 conversationCode = defineModel "ConversationCode" $ do

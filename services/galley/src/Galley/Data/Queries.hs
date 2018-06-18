@@ -119,6 +119,9 @@ insertConv = "insert into conversation (conv, type, creator, access, access_role
 updateConvAccess :: PrepQuery W (Set Access, AccessRole, ConvId) ()
 updateConvAccess = "update conversation set access = ?, access_role = ? where conv = ?"
 
+updateConvMessageTimer :: PrepQuery W (Maybe Milliseconds, ConvId) ()
+updateConvMessageTimer = "update conversation set message_timer = ? where conv = ?"
+
 updateConvName :: PrepQuery W (Text, ConvId) ()
 updateConvName = "update conversation set name = ? where conv = ?"
 

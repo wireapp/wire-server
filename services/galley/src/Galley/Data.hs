@@ -47,6 +47,7 @@ module Galley.Data
     , isConvAlive
     , updateConversation
     , updateConversationAccess
+    , updateConversationMessageTimer
     , deleteConversation
 
     -- * Conversation Members
@@ -434,6 +435,9 @@ updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum
 
 updateConversationAccess :: MonadClient m => ConvId -> [Access] -> AccessRole -> m ()
 updateConversationAccess cid acc role = retry x5 $ write Cql.updateConvAccess (params Quorum (Set acc, role, cid))
+
+updateConversationMessageTimer :: MonadClient m => ConvId -> Maybe Milliseconds -> m ()
+updateConversationMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params Quorum (mtimer, cid))
 
 deleteConversation :: MonadClient m => ConvId -> m ()
 deleteConversation cid = do
