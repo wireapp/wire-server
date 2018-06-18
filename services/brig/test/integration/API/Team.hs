@@ -189,7 +189,7 @@ testCreateTeam brig galley aws = do
     case act of
         Nothing -> liftIO $ assertFailure "activation key/code not found"
         Just kc -> activate brig kc !!! const 200 === statusCode
-    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled' uid (userName usr) (userTeam usr))
+    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
     -- Verify that Team has status Active now
     team3 <- getTeam galley (team^.Team.teamId)
     liftIO $ assertEqual "status" Team.Active (Team.tdStatus team3)
@@ -204,7 +204,7 @@ testCreateTeamPreverified brig galley aws = do
         Just (_, c) -> do
             usr <- decodeBody' =<< register' email newTeam c brig <!! const 201 === statusCode
             let uid  = userId usr
-            liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled' uid (userName usr) (userTeam usr))
+            liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
             teams <- view Team.teamListTeams <$> getTeams uid galley
             liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
             let team = fromMaybe (error "No team??") $ listToMaybe teams

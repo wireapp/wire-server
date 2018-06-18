@@ -58,8 +58,9 @@ userActivateJournaled' uid nm tid l (Just ev) = do
     assertEqual (l <> "name")      nm                         (Name $ fromMaybe "failed to decode name" $ fromByteString $ ev^.PU.name)
 userActivateJournaled' _   _   _  l Nothing   = assertFailure $ l <> ": Expected 1 UserActivate, got nothing"
 
-userActivateJournaled :: HasCallStack => UserId -> String -> Maybe PU.UserEvent -> IO ()
-userActivateJournaled uid l (Just ev) = do
+userActivateJournaled :: HasCallStack => User -> String -> Maybe PU.UserEvent -> IO ()
+userActivateJournaled u l (Just ev) = do
+    let uid = userId u
     assertEqual (l <> "eventType") PU.UserEvent'USER_ACTIVATE (ev^.PU.eventType)
     assertEqual (l <> "userId")    uid                        (Id $ fromMaybe (error "failed to decode") $ UUID.fromByteString $ Lazy.fromStrict (ev^.PU.userId))
 userActivateJournaled _   l Nothing   = assertFailure $ l <> ": Expected 1 UserActivate, got nothing"

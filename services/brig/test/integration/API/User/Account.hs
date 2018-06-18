@@ -104,19 +104,17 @@ testCreateUserWithPreverified brig aws = do
     getActivationCode brig (Right p) >>= \case
         Nothing     -> liftIO $ assertFailure "missing activation key/code"
         Just (_, c) -> do
-            let reg = RequestBodyLBS . encode $ object
-                    [ "name"       .= Name "Alice"
-                    , "phone"      .= fromPhone p
-                    , "phone_code" .= c
-                    ]
-            rs <- post (brig . path "/register" . contentJson . body reg) <!!
-                const 201 === statusCode
-            let Just uid = userId <$> decodeBody rs
+            let Object reg = object [ "name"       .= Name "Alice"
+                                    , "phone"      .= fromPhone p
+                                    , "phone_code" .= c
+                                    ]
+            usr <- postUserRegister reg brig
+            let uid = userId usr
             get (brig . path "/self" . zUser uid) !!! do
                 const 200 === statusCode
                 const (Just p) === (userPhone <=< decodeBody)
 
-            liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled uid)
+            liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
 
     -- Register (pre verified) user with email
     e <- randomEmail
@@ -126,19 +124,17 @@ testCreateUserWithPreverified brig aws = do
     getActivationCode brig (Left e) >>= \case
         Nothing     -> liftIO $ assertFailure "missing activation key/code"
         Just (_, c) -> do
-            let reg = RequestBodyLBS . encode $ object
-                    [ "name"       .= Name "Alice"
-                    , "email"      .= fromEmail e
-                    , "email_code" .= c
-                    ]
-            rs <- post (brig . path "/register" . contentJson . body reg) <!!
-                const 201 === statusCode
-            let Just uid = userId <$> decodeBody rs
+            let Object reg = object [ "name"       .= Name "Alice"
+                                    , "email"      .= fromEmail e
+                                    , "email_code" .= c
+                                    ]
+            usr <- postUserRegister reg brig
+            let uid = userId usr
             get (brig . path "/self" . zUser uid) !!! do
                 const 200 === statusCode
                 const (Just e) === (userEmail <=< decodeBody)
 
-            liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled uid)
+            liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
 
     liftIO $ Util.assertEmptyUserJournalQueue aws
 
@@ -452,10 +448,12 @@ testCreateUserAnonExpiry b = do
 
 testUserUpdate :: Brig -> Cannon -> AWS.Env -> Http ()
 testUserUpdate brig cannon aws = do
-    alice <- userId <$> randomUser brig
-    liftIO $ Util.assertUserJournalQueue "user create alice" aws (userActivateJournaled alice)
-    bob <- userId <$> randomUser brig
-    liftIO $ Util.assertUserJournalQueue "user create bob" aws (userActivateJournaled bob)
+    aliceUser <- randomUser brig
+    liftIO $ Util.assertUserJournalQueue "user create alice" aws (userActivateJournaled aliceUser)
+    let alice = userId aliceUser
+    bobUser <- randomUser brig
+    liftIO $ Util.assertUserJournalQueue "user create bob" aws (userActivateJournaled bobUser)
+    let bob = userId bobUser
     connectUsers brig alice (singleton bob)
     let newColId   = Just 5
         newAssets  = Just [ImageAsset "abc" (Just AssetComplete)]
@@ -497,8 +495,9 @@ testUserUpdate brig cannon aws = do
 
 testEmailUpdate :: Brig -> AWS.Env -> Http ()
 testEmailUpdate brig aws = do
-    uid <- userId <$> randomUser brig
-    liftIO $ Util.assertUserJournalQueue "user create random" aws (userActivateJournaled uid)
+    usr <- randomUser brig
+    liftIO $ Util.assertUserJournalQueue "user create random" aws (userActivateJournaled usr)
+    let uid = userId usr
     eml <- randomEmail
     -- update email
     initiateEmailUpdate brig eml uid !!! const 202 === statusCode
@@ -578,8 +577,9 @@ testCreateAccountPendingActivationKey brig = do
 
 testUserLocaleUpdate :: Brig -> AWS.Env -> Http ()
 testUserLocaleUpdate brig aws = do
-    uid <- userId <$> randomUser brig
-    liftIO $ Util.assertUserJournalQueue "user create random" aws (userActivateJournaled uid)
+    usr <- randomUser brig
+    liftIO $ Util.assertUserJournalQueue "user create random" aws (userActivateJournaled usr)
+    let uid = userId usr
     -- update locale info with locale supported in templates
     put (brig . path "/self/locale" . contentJson . zUser uid . zConn "c" . locale "en-US") !!!
         const 200 === statusCode
@@ -783,7 +783,7 @@ testEmailPhoneDelete brig cannon = do
 testDeleteUserByPassword :: Brig -> Cannon -> AWS.Env -> Http ()
 testDeleteUserByPassword brig cannon aws = do
     u <- randomUser brig
-    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled $ userId u)
+    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled u)
     let uid1  = userId u
     let email = fromMaybe (error "Missing email") (userEmail u)
 
@@ -795,10 +795,12 @@ testDeleteUserByPassword brig cannon aws = do
         const 202 === statusCode
 
     -- Establish some connections
-    uid2 <- userId <$> randomUser brig
-    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled uid2)
-    uid3 <- userId <$> randomUser brig
-    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled uid3)
+    usr2 <- randomUser brig
+    let uid2 = userId usr2
+    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr2)
+    usr3 <- randomUser brig
+    let uid3 = userId usr3
+    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr3)
     postConnection brig uid1 uid2 !!! const 201 === statusCode
     postConnection brig uid1 uid3 !!! const 201 === statusCode
     putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
@@ -875,7 +877,7 @@ testDeleteAnonUser brig = do
 testDeleteInternal :: Brig -> Cannon -> AWS.Env -> Http ()
 testDeleteInternal brig cannon aws = do
     u <- randomUser brig
-    liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled $ userId u)
+    liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled u)
     setHandleAndDeleteUser brig cannon u [] aws $
         \uid -> delete (brig . paths ["/i/users", toByteString' uid]) !!! const 202 === statusCode
     -- Check that user deletion is also triggered
@@ -948,17 +950,14 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
         Search.assertCan'tFind brig usr uid hdl
 
     -- Email address is available again
-    let p = RequestBodyLBS . encode $ object
-            [ "name"     .= ("Someone Else" :: Text)
-            , "email"    .= fromEmail email
-            , "password" .= defPassword
-            ]
+    let Object o = object [ "name"     .= ("Someone Else" :: Text)
+                          , "email"    .= fromEmail email
+                          , "password" .= defPassword
+                          ]
 
     -- This will generate a new event, we need to consume it here
-    rs <- post (brig . path "/i/users" . contentJson . body p) <!!
-        const 201 === statusCode
-    let Just newUid = userId <$> decodeBody rs
-    liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal: " aws (userActivateJournaled newUid)
+    usr <- postUserInternal o brig
+    liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal: " aws (userActivateJournaled usr)
 
     -- Handle is available again
     Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid) !!!
