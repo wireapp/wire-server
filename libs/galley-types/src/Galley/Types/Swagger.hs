@@ -2,7 +2,7 @@
 
 module Galley.Types.Swagger where
 
-import Data.Swagger.Build.Api
+import Data.Swagger.Build.Api as Swagger
 import qualified Data.Swagger as Swagger
 
 galleyModels :: [Model]
@@ -139,11 +139,17 @@ conversation = defineModel "Conversation" $ do
         description "The conversation type of this object (0 = regular, 1 = self, 2 = 1:1, 3 = connect)"
     property "creator" bytes' $
         description "The creator's user ID."
+    -- TODO: property "access"
+    -- property "access_role"
     property "name" string' $ do
         description "The conversation name"
         optional
     property "members" (ref conversationMembers) $
         description "The current set of conversation members"
+    -- property "team"
+    property "message_timer" (int64 (Swagger.min 0)) $ do
+        description "Per-conversation message timer"
+        optional
 
 conversationType :: DataType
 conversationType = int32 $ enum [0, 1, 2, 3]
@@ -304,6 +310,11 @@ newConversation = defineModel "NewConversation" $ do
         optional
     property "team" (ref teamInfo) $ do
         description "Team information of this conversation"
+        optional
+    -- TODO: property "access"
+    -- property "access_role"
+    property "message_timer" (int64 (Swagger.min 0)) $ do
+        description "Per-conversation message timer"
         optional
 
 teamInfo :: Model
