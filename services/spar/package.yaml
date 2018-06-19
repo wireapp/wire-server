@@ -15,6 +15,7 @@ dependencies:
   - aeson
   - base
   - bilge
+  - binary
   - brig-types
   - bytestring
   - bytestring-conversion

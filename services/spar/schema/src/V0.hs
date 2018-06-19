@@ -9,6 +9,12 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 0 "Initial schema" $ do
+
+    -- TODO: review authreq/authresp/user tables; `text` likely non-unique and thus a problematic primary key.
+    -- see existing schema for inspiration: https://github.com/wireapp/wire-server/blob/312f82344fa153dad76a03d7280b4424174c2fac/doc/db_schema.cql
+    -- TODO: on read-heavy columns, use
+    --     with compaction = {'class': 'LeveledCompactionStrategy'};
+    -- see https://www.datastax.com/dev/blog/when-to-use-leveled-compaction
     void $ schema' [r|
         create columnfamily if not exists authreq
             ( req          text
@@ -34,14 +40,17 @@ migration = Migration 0 "Initial schema" $ do
             );
         |]
 
-    {- this will be needed later, but for now we will get all the information in here from the config.
+        -- TODO: add a uuid for each idp?
+        -- , idp           uuid
+        -- , PRIMARY KEY (idp, team, issuer)
     void $ schema' [r|
-        create columnfamily if not exists idp
-            ( idp      uuid
-            , idp_name text
-            , owners    list<uuid>
-            -- ...
-            , primary key (idp_name)
-            );
+        CREATE TABLE if not exists idp
+            ( team          uuid
+            , issuer        blob
+            , path          text
+            , metadata      blob
+            , uri           blob
+            , key           blob
+            , PRIMARY KEY (issuer)
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
-    -}

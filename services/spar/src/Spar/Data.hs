@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE ViewPatterns               #-}
+{-# LANGUAGE RecordWildCards            #-}
 
 module Spar.Data where
 
@@ -16,11 +17,15 @@ import Control.Lens hiding (Level)
 import Control.Monad.Catch
 import Control.Monad.Except
 import Data.Int
+import Data.X509 (SignedCertificate)
+import URI.ByteString
 import Data.List.NonEmpty as NE
 import Data.String.Conversions
 import Data.Time
 import GHC.Stack
 import Spar.Options as Options
+import Spar.Types
+import Spar.Instances()
 import System.Logger (Logger)
 import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 
@@ -151,3 +156,29 @@ getUser (SAML.UserId tenant subject) = (retry x1 . query1 sel $ params Quorum (t
 
 -- NOTE TO FUTURE SELF: when storing IdPs, we need to handle tenant conflicts.  we need to rely on
 -- the fact that the tenant in the 'SAML.UserId' is always unique.
+--
+--
+
+insertIdp :: (HasCallStack, MonadClient m) => SAML.IdPConfig Brig.TeamId -> m ()
+insertIdp idp = retry x5 . write ins $ params Quorum
+    ( idp ^. SAML.idpExtraInfo
+    , idp ^. SAML.idpIssuer
+    , idp ^. SAML.idpPath
+    , idp ^. SAML.idpMetadata
+    , idp ^. SAML.idpRequestUri
+    , idp ^. SAML.idpPublicKey
+    )
+  where
+    ins :: PrepQuery W (Brig.TeamId, SAML.Issuer, ST, URI, URI, SignedCertificate) ()
+    ins = "INSERT INTO idp (team, issuer, path, metadata, uri, key) VALUES (?, ?, ?, ?, ?, ?)"
+
+
+getIdp :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe IDP)
+getIdp issuer = fmap toIdp <$> retry x1 (query1 sel $ params Quorum (Identity issuer))
+  where
+    -- TODO: request_uri and metadata in IdPConfig should probably be newtyped to avoid potential ordering mistakes
+    toIdp :: (Brig.TeamId, SAML.Issuer, ST, URI, URI, SignedCertificate) -> IDP
+    toIdp (t, i, p, m, u, k) = SAML.IdPConfig p m i u k t
+
+    sel :: PrepQuery R (Identity SAML.Issuer) (Brig.TeamId, SAML.Issuer, ST, URI, URI, SignedCertificate)
+    sel = "SELECT team, issuer, path, metadata, uri, key FROM idp WHERE issuer = ?"
