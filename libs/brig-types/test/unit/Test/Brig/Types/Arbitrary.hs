@@ -31,6 +31,7 @@ import Data.Monoid
 import Data.Range
 import Data.Text.Ascii
 import Data.Typeable
+import Data.UUID (nil)
 import Data.Word
 import Galley.Types.Bot.Service.Internal
 import Galley.Types.Teams
@@ -204,6 +205,7 @@ instance Arbitrary NewUser where
                 Just (NewUserOriginTeamUser _) -> True
                 _ -> False
         newUserName       <- arbitrary
+        newUserUUID       <- elements [Just nil, Nothing]
         newUserPict       <- arbitrary
         newUserAssets     <- arbitrary
         newUserAccentId   <- arbitrary
