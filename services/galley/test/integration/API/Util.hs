@@ -396,8 +396,9 @@ assertConv :: HasCallStack
            -> UserId
            -> [UserId]
            -> Maybe Text
+           -> Maybe Milliseconds
            -> Http ConvId
-assertConv r t c s us n = do
+assertConv r t c s us n mt = do
     cId <- fromBS $ getHeader' "Location" r
     let cnv = decodeBody r :: Maybe Conversation
     let _self = cmSelf . cnvMembers <$> cnv
@@ -407,6 +408,7 @@ assertConv r t c s us n = do
         assertEqual "name" n (cnv >>= cnvName)
         assertEqual "type" (Just t) (cnvType <$> cnv)
         assertEqual "creator" (Just c) (cnvCreator <$> cnv)
+        assertEqual "message_timer" (Just mt) (cnvMessageTimer <$> cnv)
         assertEqual "self" (Just s) (memId <$> _self)
         assertEqual "others" (Just $ Set.fromList us) (Set.fromList . map omId . toList <$> others)
         assertBool  "otr muted not false" (Just False == (memOtrMuted <$> _self))
@@ -510,6 +512,8 @@ zConv = header "Z-Conversation" . toByteString'
 zType :: ByteString -> Request -> Request
 zType = header "Z-Type"
 
+-- TODO: it'd be nicer to just take a list here and handle the cases with 0
+-- users differently
 connectUsers :: Brig -> UserId -> List1 UserId -> Http ()
 connectUsers b u us = void $ connectUsersWith expect2xx b u us
 

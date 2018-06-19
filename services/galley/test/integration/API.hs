@@ -137,7 +137,7 @@ postConvOk g b c _ = do
     WS.bracketR3 c alice bob jane $ \(wsA, wsB, wsJ) -> do
         rsp <- postConv g alice [bob, jane] (Just nameMaxSize) [] Nothing Nothing <!!
             const 201 === statusCode
-        cid <- assertConv rsp RegularConv alice alice [bob, jane] (Just nameMaxSize)
+        cid <- assertConv rsp RegularConv alice alice [bob, jane] (Just nameMaxSize) Nothing
         cvs <- mapM (convView cid) [alice, bob, jane]
         liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs alice) (zip cvs [wsA, wsB, wsJ])
   where
@@ -305,7 +305,7 @@ postCryptoMessage5 g b _ _ = do
     -- Missing eve
     let m = [(bob, bc, "hello bob")]
 
-    -- These three are quivalent (i.e. report all missing clients)
+    -- These three are equivalent (i.e. report all missing clients)
     postOtrMessage id g alice ac conv m !!!
         const 412 === statusCode
     postOtrMessage (queryItem "ignore_missing" "false") g alice ac conv m !!!
@@ -313,7 +313,7 @@ postCryptoMessage5 g b _ _ = do
     postOtrMessage (queryItem "report_missing" "true") g alice ac conv m !!!
         const 412 === statusCode
 
-    -- These two are quivalent (i.e. ignore all missing clients)
+    -- These two are equivalent (i.e. ignore all missing clients)
     postOtrMessage (queryItem "ignore_missing" "true") g alice ac conv m !!!
         const 201 === statusCode
     postOtrMessage (queryItem "report_missing" "false") g alice ac conv m !!!
@@ -613,8 +613,8 @@ postSelfConvOk g b _ _ = do
     alice <- randomUser b
     m <- postSelfConv g alice <!! const 200 === statusCode
     n <- postSelfConv g alice <!! const 200 === statusCode
-    mId <- assertConv m SelfConv alice alice [] Nothing
-    nId <- assertConv n SelfConv alice alice [] Nothing
+    mId <- assertConv m SelfConv alice alice [] Nothing Nothing
+    nId <- assertConv n SelfConv alice alice [] Nothing Nothing
     liftIO $ mId @=? nId
 
 postO2OConvOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
@@ -624,8 +624,8 @@ postO2OConvOk g b _ _ = do
     connectUsers b alice (singleton bob)
     a <- postO2OConv g alice bob (Just "chat") <!! const 200 === statusCode
     c <- postO2OConv g alice bob (Just "chat") <!! const 200 === statusCode
-    aId <- assertConv a One2OneConv alice alice [bob] (Just "chat")
-    cId <- assertConv c One2OneConv alice alice [bob] (Just "chat")
+    aId <- assertConv a One2OneConv alice alice [bob] (Just "chat") Nothing
+    cId <- assertConv c One2OneConv alice alice [bob] (Just "chat") Nothing
     liftIO $ aId @=? cId
 
 postConvO2OFailWithSelf :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
@@ -644,8 +644,8 @@ postConnectConvOk g b _ _ = do
             const 201 === statusCode
     n <- postConnectConv g alice bob "Alice" "connect with me!" Nothing <!!
             const 200 === statusCode
-    mId <- assertConv m ConnectConv alice alice [] (Just "Alice")
-    nId <- assertConv n ConnectConv alice alice [] (Just "Alice")
+    mId <- assertConv m ConnectConv alice alice [] (Just "Alice") Nothing
+    nId <- assertConv n ConnectConv alice alice [] (Just "Alice") Nothing
     liftIO $ mId @=? nId
 
 postConnectConvOk2 :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
@@ -687,12 +687,12 @@ postMutualConnectConvOk g b _ _ = do
     bob   <- randomUser b
     ac <- postConnectConv g alice bob "A" "a" Nothing <!!
             const 201 === statusCode
-    acId <- assertConv ac ConnectConv alice alice [] (Just "A")
+    acId <- assertConv ac ConnectConv alice alice [] (Just "A") Nothing
     bc <- postConnectConv g bob alice "B" "b" Nothing <!!
             const 200 === statusCode
     -- The connect conversation was simply accepted, thus the
     -- conversation name and message sent in Bob's request ignored.
-    bcId <- assertConv bc One2OneConv alice bob [alice] (Just "A")
+    bcId <- assertConv bc One2OneConv alice bob [alice] (Just "A") Nothing
     liftIO $ acId @=? bcId
 
 postRepeatConnectConvCancel :: Galley -> Brig -> Cannon -> TestSetup -> Http ()

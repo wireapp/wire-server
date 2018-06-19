@@ -54,20 +54,28 @@ test s n t = testCase n runTest
 
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Per-conversation message timer"
-    [ test s "timer can be set at creation time" messageTimerInit
+    [ testGroup "timer can be set at creation time"
+        [ test s "1 second" (messageTimerInit (Just 1000))
+        , test s "nothing"  (messageTimerInit Nothing) ]
     , test s "timer can be changed" messageTimerChange
     , test s "timer can't be set by guests" messageTimerChangeGuest
-    , test s "timer can't be set in 1:1 conversations" messageTimerChange1to1
+    , test s "timer can't be set in 1:1 conversations" messageTimer1to1
     , test s "setting the timer generates an event" messageTimerEvent
     ]
 
-messageTimerInit :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
-messageTimerInit g b ca _ = do
-    pure ()
-    -- create a conversation
-    -- check that the timer is whatever
-    -- create a conversation without timer
-    -- check that the timer is nothing
+messageTimerInit
+    :: Maybe Milliseconds    -- ^ Timer value
+    -> Galley -> Brig -> Cannon -> TestSetup -> Http ()
+messageTimerInit mtimer g b ca _ = do
+    -- Create a conversation with a timer
+    [alice, bob, jane] <- randomUsers b 3
+    connectUsers b alice (list1 bob [jane])
+    rsp <- postConv g alice [bob, jane] Nothing [] Nothing mtimer <!!
+        const 201 === statusCode
+    cid <- assertConv rsp RegularConv alice alice [bob, jane] Nothing mtimer
+    -- Check that the timer is indeed what it should be
+    cnv <- decodeBody' "conversation" <$> getConv g jane cid
+    liftIO $ assertEqual "message_timer" (cnvMessageTimer cnv) mtimer
 
 messageTimerChange :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 messageTimerChange g b ca _ = do
@@ -83,9 +91,10 @@ messageTimerChangeGuest g b ca _ = do
     -- create a conversation with a guest user
     -- try to change the timer (as the guest user) and observe failure
 
-messageTimerChange1to1 :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
-messageTimerChange1to1 g b ca _ = do
+messageTimer1to1 :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
+messageTimer1to1 g b ca _ = do
     pure ()
+    -- create a 1:1 conversation with a timer and observe failure
     -- create a 1:1 conversation
     -- try to change the timer and observe failure
 
