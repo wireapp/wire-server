@@ -55,7 +55,7 @@ test s n t = testCase n runTest
 tests :: IO TestSetup -> TestTree
 tests s = testGroup "Per-conversation message timer"
     [ testGroup "timer can be set at creation time"
-        [ test s "1 second" (messageTimerInit (Just 1000))
+        [ test s "1 second" (messageTimerInit timer1sec)
         , test s "nothing"  (messageTimerInit Nothing) ]
     , test s "timer can be changed" messageTimerChange
     , test s "timer can't be set by guests" messageTimerChangeGuest
@@ -103,15 +103,26 @@ messageTimerChange g b ca _ = do
         const 200 === statusCode
     getConv g jane cid !!!
         const timer1year === (cnvMessageTimer <=< decodeBody)
-  where
-    timer1sec  = Just 1000
-    timer1year = Just (365*86400*1000)
 
 messageTimerChangeGuest :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 messageTimerChangeGuest g b ca _ = do
-    pure ()
-    -- create a conversation with a guest user
-    -- try to change the timer (as the guest user) and observe failure
+    -- Create a team and a guest user
+    [owner, member, guest] <- randomUsers b 3
+    connectUsers b owner (list1 member [guest])
+    tid <- createTeam g "team" owner [Teams.newTeamMember member Teams.fullPermissions]
+    -- Create a conversation
+    cid <- createTeamConv g owner (ConvTeamInfo tid False) [member, guest] Nothing Nothing Nothing
+    -- Try to change the timer (as the guest user) and observe failure
+    putMessageTimerUpdate g guest cid (ConversationMessageTimerUpdate timer1sec) !!! do
+        const 403 === statusCode
+        const "access-denied" === (label . decodeBody' "error label")
+    getConv g guest cid !!!
+        const Nothing === (cnvMessageTimer <=< decodeBody)
+    -- Try to change the timer (as a team member) and observe success
+    putMessageTimerUpdate g member cid (ConversationMessageTimerUpdate timer1sec) !!!
+        const 200 === statusCode
+    getConv g guest cid !!!
+        const timer1sec === (cnvMessageTimer <=< decodeBody)
 
 messageTimer1to1 :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 messageTimer1to1 g b ca _ = do
@@ -127,3 +138,12 @@ messageTimerEvent g b ca _ = do
     -- change the timer
     -- check that the returned event is correct
     -- check that other participants have also got the event
+
+----------------------------------------------------------------------------
+-- Utilities
+
+timer1sec :: Maybe Milliseconds
+timer1sec = Just 1000
+
+timer1year :: Maybe Milliseconds
+timer1year = Just (365*86400*1000)
