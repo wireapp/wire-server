@@ -718,7 +718,7 @@ instance ToJSON ConversationMessageTimerUpdate where
 
 instance FromJSON ConversationMessageTimerUpdate where
    parseJSON = withObject "conversation-message-timer-update" $ \o ->
-       ConversationMessageTimerUpdate <$> o .: "message_timer"
+       ConversationMessageTimerUpdate <$> o .:? "message_timer"
 
 instance FromJSON ConversationRename where
     parseJSON = withObject "conversation-rename object" $ \c ->

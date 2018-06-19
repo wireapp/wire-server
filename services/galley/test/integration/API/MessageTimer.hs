@@ -74,16 +74,38 @@ messageTimerInit mtimer g b ca _ = do
         const 201 === statusCode
     cid <- assertConv rsp RegularConv alice alice [bob, jane] Nothing mtimer
     -- Check that the timer is indeed what it should be
-    cnv <- decodeBody' "conversation" <$> getConv g jane cid
-    liftIO $ assertEqual "message_timer" (cnvMessageTimer cnv) mtimer
+    getConv g jane cid !!!
+        const mtimer === (cnvMessageTimer <=< decodeBody)
 
 messageTimerChange :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 messageTimerChange g b ca _ = do
-    pure ()
-    -- create a conversation without timer
-    -- set timer to something
-    -- set timer to null
-    -- set timer to something else
+    -- Create a conversation without a timer
+    [alice, bob, jane] <- randomUsers b 3
+    connectUsers b alice (list1 bob [jane])
+    rsp <- postConv g alice [bob, jane] Nothing [] Nothing Nothing <!!
+        const 201 === statusCode
+    cid <- assertConv rsp RegularConv alice alice [bob, jane] Nothing Nothing
+    -- Set timer to null and observe 204
+    putMessageTimerUpdate g alice cid (ConversationMessageTimerUpdate Nothing) !!!
+        const 204 === statusCode
+    -- Set timer to 1 second
+    putMessageTimerUpdate g alice cid (ConversationMessageTimerUpdate timer1sec) !!!
+        const 200 === statusCode
+    getConv g jane cid !!!
+        const timer1sec === (cnvMessageTimer <=< decodeBody)
+    -- Set timer to null
+    putMessageTimerUpdate g bob cid (ConversationMessageTimerUpdate Nothing) !!!
+        const 200 === statusCode
+    getConv g jane cid !!!
+        const Nothing === (cnvMessageTimer <=< decodeBody)
+    -- Set timer to 1 year
+    putMessageTimerUpdate g bob cid (ConversationMessageTimerUpdate timer1year) !!!
+        const 200 === statusCode
+    getConv g jane cid !!!
+        const timer1year === (cnvMessageTimer <=< decodeBody)
+  where
+    timer1sec  = Just 1000
+    timer1year = Just (365*86400*1000)
 
 messageTimerChangeGuest :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 messageTimerChangeGuest g b ca _ = do

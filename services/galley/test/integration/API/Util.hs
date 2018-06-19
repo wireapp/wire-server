@@ -325,6 +325,15 @@ putAccessUpdate g u c acc = put $ g
     . zType "access"
     . json acc
 
+putMessageTimerUpdate
+    :: Galley -> UserId -> ConvId -> ConversationMessageTimerUpdate -> Http ResponseLBS
+putMessageTimerUpdate g u c acc = put $ g
+    . paths ["/conversations", toByteString' c, "message-timer"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+    . json acc
+
 postConvCode :: Galley -> UserId -> ConvId -> Http ResponseLBS
 postConvCode g u c = post $ g
     . paths ["/conversations", toByteString' c, "code"]
