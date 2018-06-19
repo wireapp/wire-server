@@ -6,42 +6,20 @@ module API.MessageTimer (tests) where
 import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
-import Brig.Types
-import Control.Applicative hiding (empty)
-import Control.Error
-import Control.Lens ((^.))
 import Control.Monad hiding (mapM_)
 import Control.Monad.IO.Class
-import Data.Aeson hiding (json)
-import Data.ByteString.Conversion
-import Data.Foldable (mapM_)
-import Data.Id
-import Data.Int
-import Data.List ((\\), find)
 import Data.List1
 import Data.Misc
 import Data.Maybe
-import Data.Monoid
-import Data.Range
 import Galley.Types
-import Gundeck.Types.Notification
 import Network.Wai.Utilities.Error
 import Prelude hiding (head, mapM_)
 import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
-import API.SQS
 
-import qualified Data.Text.Ascii          as Ascii
 import qualified Galley.Types.Teams       as Teams
-import qualified API.Teams                as Teams
-import qualified Control.Concurrent.Async as Async
-import qualified Data.List1               as List1
-import qualified Data.Map.Strict          as Map
-import qualified Data.Set                 as Set
-import qualified Data.Text                as T
 import qualified Test.Tasty.Cannon        as WS
-import qualified Data.Code                as Code
 
 type TestSignature a = Galley -> Brig -> Cannon -> TestSetup -> Http a
 
@@ -66,7 +44,7 @@ tests s = testGroup "Per-conversation message timer"
 messageTimerInit
     :: Maybe Milliseconds    -- ^ Timer value
     -> Galley -> Brig -> Cannon -> TestSetup -> Http ()
-messageTimerInit mtimer g b ca _ = do
+messageTimerInit mtimer g b _ca _ = do
     -- Create a conversation with a timer
     [alice, bob, jane] <- randomUsers b 3
     connectUsers b alice (list1 bob [jane])
@@ -78,7 +56,7 @@ messageTimerInit mtimer g b ca _ = do
         const mtimer === (cnvMessageTimer <=< decodeBody)
 
 messageTimerChange :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
-messageTimerChange g b ca _ = do
+messageTimerChange g b _ca _ = do
     -- Create a conversation without a timer
     [alice, bob, jane] <- randomUsers b 3
     connectUsers b alice (list1 bob [jane])
@@ -105,7 +83,7 @@ messageTimerChange g b ca _ = do
         const timer1year === (cnvMessageTimer <=< decodeBody)
 
 messageTimerChangeGuest :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
-messageTimerChangeGuest g b ca _ = do
+messageTimerChangeGuest g b _ca _ = do
     -- Create a team and a guest user
     [owner, member, guest] <- randomUsers b 3
     connectUsers b owner (list1 member [guest])
@@ -125,7 +103,7 @@ messageTimerChangeGuest g b ca _ = do
         const timer1sec === (cnvMessageTimer <=< decodeBody)
 
 messageTimerChangeO2O :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
-messageTimerChangeO2O g b ca _ = do
+messageTimerChangeO2O g b _ca _ = do
     -- Create a 1:1 conversation
     [alice, bob] <- randomUsers b 2
     connectUsers b alice (singleton bob)
