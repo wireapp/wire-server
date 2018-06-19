@@ -59,7 +59,7 @@ tests s = testGroup "Per-conversation message timer"
         , test s "nothing"  (messageTimerInit Nothing) ]
     , test s "timer can be changed" messageTimerChange
     , test s "timer can't be set by guests" messageTimerChangeGuest
-    , test s "timer can't be set in 1:1 conversations" messageTimer1to1
+    , test s "timer can't be set in 1:1 conversations" messageTimerChangeO2O
     , test s "setting the timer generates an event" messageTimerEvent
     ]
 
@@ -124,12 +124,20 @@ messageTimerChangeGuest g b ca _ = do
     getConv g guest cid !!!
         const timer1sec === (cnvMessageTimer <=< decodeBody)
 
-messageTimer1to1 :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
-messageTimer1to1 g b ca _ = do
-    pure ()
-    -- create a 1:1 conversation with a timer and observe failure
-    -- create a 1:1 conversation
-    -- try to change the timer and observe failure
+messageTimerChangeO2O :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
+messageTimerChangeO2O g b ca _ = do
+    -- Create a 1:1 conversation
+    [alice, bob] <- randomUsers b 2
+    connectUsers b alice (singleton bob)
+    rsp <- postO2OConv g alice bob Nothing <!!
+        const 200 === statusCode
+    cid <- assertConv rsp One2OneConv alice alice [bob] (Just "chat") Nothing
+    -- Try to change the timer and observe failure
+    putMessageTimerUpdate g alice cid (ConversationMessageTimerUpdate timer1sec) !!! do
+        const 403 === statusCode
+        const "invalid-op" === (label . decodeBody' "error label")
+    getConv g alice cid !!!
+        const Nothing === (cnvMessageTimer <=< decodeBody)
 
 messageTimerEvent :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 messageTimerEvent g b ca _ = do
