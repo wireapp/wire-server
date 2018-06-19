@@ -462,6 +462,15 @@ wsAssertConvAccessUpdate conv usr new n = do
     evtFrom      e @?= usr
     evtData      e @?= Just (EdConvAccessUpdate new)
 
+wsAssertConvMessageTimerUpdate :: ConvId -> UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
+wsAssertConvMessageTimerUpdate conv usr new n = do
+    let e = List1.head (WS.unpackPayload n)
+    ntfTransient n @?= False
+    evtConv      e @?= conv
+    evtType      e @?= ConvMessageTimerUpdate
+    evtFrom      e @?= usr
+    evtData      e @?= Just (EdConvMessageTimerUpdate new)
+
 wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
 wsAssertMemberLeave conv usr old n = do
     let e = List1.head (WS.unpackPayload n)

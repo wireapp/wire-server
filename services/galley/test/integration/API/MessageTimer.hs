@@ -141,11 +141,19 @@ messageTimerChangeO2O g b ca _ = do
 
 messageTimerEvent :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 messageTimerEvent g b ca _ = do
-    pure ()
-    -- create a conversation
-    -- change the timer
-    -- check that the returned event is correct
-    -- check that other participants have also got the event
+    -- Create a conversation
+    [alice, bob] <- randomUsers b 2
+    connectUsers b alice (singleton bob)
+    rsp <- postConv g alice [bob] Nothing [] Nothing Nothing <!!
+        const 201 === statusCode
+    cid <- assertConv rsp RegularConv alice alice [bob] Nothing Nothing
+    -- Set timer to 1 second and check that all participants got the event
+    WS.bracketR2 ca alice bob $ \(wsA, wsB) -> do
+        let update = ConversationMessageTimerUpdate timer1sec
+        putMessageTimerUpdate g alice cid update !!!
+            const 200 === statusCode
+        void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $
+            wsAssertConvMessageTimerUpdate cid alice update
 
 ----------------------------------------------------------------------------
 -- Utilities
