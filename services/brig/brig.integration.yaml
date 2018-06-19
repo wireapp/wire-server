@@ -29,6 +29,7 @@ aws:
   sesQueue: integration-brig-events
   internalQueue: integration-brig-events-internal
   userJournalQueue: integration-user-events.fifo
+  # ^ Comment this out if you don't want to journal user events
   blacklistTable: integration-brig-userkey-blacklist
   prekeyTable: integration-brig-prekeys
   sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
