@@ -245,7 +245,7 @@ conversationMessageTimerUpdate :: Model
 conversationMessageTimerUpdate = defineModel "ConversationMessageTimerUpdate" $ do
     description "Contains conversation properties to update"
     property "message_timer" int64' $
-        description "Conversation message timer (in milliseconds)"
+        description "Conversation message timer (in milliseconds); can be null"
 
 conversationCode :: Model
 conversationCode = defineModel "ConversationCode" $ do

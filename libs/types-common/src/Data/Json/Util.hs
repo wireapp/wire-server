@@ -43,6 +43,8 @@ append p         pp = p:pp
 
 infixr 5 #
 
+-- | An operator for building JSON in cases where you want @null@ fields to
+-- disappear from the result instead of being present as @null@s.
 (#) :: Pair -> [Pair] -> [Pair]
 (#) = append
 {-# INLINE (#) #-}

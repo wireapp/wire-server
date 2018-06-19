@@ -713,8 +713,8 @@ instance FromJSON ConversationAccessUpdate where
 
 instance ToJSON ConversationMessageTimerUpdate where
     toJSON c = object
-        $ "message_timer" .= cupMessageTimer c
-        # []
+        [ "message_timer" .= cupMessageTimer c
+        ]
 
 instance FromJSON ConversationMessageTimerUpdate where
    parseJSON = withObject "conversation-message-timer-update" $ \o ->
