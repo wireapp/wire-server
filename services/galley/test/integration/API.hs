@@ -35,6 +35,7 @@ import API.SQS
 import qualified Data.Text.Ascii          as Ascii
 import qualified Galley.Types.Teams       as Teams
 import qualified API.Teams                as Teams
+import qualified API.MessageTimer         as MessageTimer
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List1               as List1
 import qualified Data.Map.Strict          as Map
@@ -53,7 +54,8 @@ test s n t = testCase n runTest
         (void $ runHttpT (manager setup) (t (galley setup) (brig setup) (cannon setup) setup))
 
 tests :: IO TestSetup -> TestTree
-tests s = testGroup "Galley integration tests" [ mainTests, Teams.tests s ]
+tests s = testGroup "Galley integration tests"
+    [ mainTests, Teams.tests s, MessageTimer.tests s ]
   where
     mainTests = testGroup "Main API"
         [ test s "status" status

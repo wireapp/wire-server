@@ -176,6 +176,7 @@ executable galley-integration
     other-modules:
         API
         API.Teams
+        API.MessageTimer
         API.Util
         API.SQS
 
