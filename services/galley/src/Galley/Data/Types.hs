@@ -24,6 +24,7 @@ import Data.Id
 import Data.Range
 import Data.Text
 import Data.Maybe (fromMaybe, isJust)
+import Data.Misc (Milliseconds)
 import Galley.Types (ConvType (..), Access, Member (..), AccessRole)
 import OpenSSL.Random (randBytes)
 import OpenSSL.EVP.Digest (getDigestByName, digestBS)
@@ -31,6 +32,9 @@ import OpenSSL.EVP.Digest (getDigestByName, digestBS)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.ByteString as BS
 
+-- | Internal conversation type, corresponding directly to database schema.
+-- Should never be sent to users (and therefore doesn't have 'FromJSON' or
+-- 'ToJSON' instances).
 data Conversation = Conversation
     { convId      :: ConvId
     , convType    :: ConvType
@@ -41,6 +45,7 @@ data Conversation = Conversation
     , convMembers :: [Member]
     , convTeam    :: Maybe TeamId
     , convDeleted :: Maybe Bool
+    , convMessageTimer :: Maybe Milliseconds      -- ^ Global message timer
     } deriving (Eq, Show)
 
 isSelfConv :: Conversation -> Bool

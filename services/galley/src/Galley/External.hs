@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Galley.External (deliver) where
 
@@ -37,9 +38,8 @@ deliver :: [(BotMember, Event)] -> Galley [BotMember]
 deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
     exec :: (BotMember, Event) -> Galley Bool
-    exec (b, e) = do
-        ms <- Data.lookupService (botMemService b)
-        case ms of
+    exec (b, e) =
+        Data.lookupService (botMemService b) >>= \case
             Nothing -> return False
             Just  s -> do
                 deliver1 s b e

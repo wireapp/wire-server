@@ -35,6 +35,7 @@ import API.SQS
 import qualified Data.Text.Ascii          as Ascii
 import qualified Galley.Types.Teams       as Teams
 import qualified API.Teams                as Teams
+import qualified API.MessageTimer         as MessageTimer
 import qualified Control.Concurrent.Async as Async
 import qualified Data.List1               as List1
 import qualified Data.Map.Strict          as Map
@@ -53,7 +54,8 @@ test s n t = testCase n runTest
         (void $ runHttpT (manager setup) (t (galley setup) (brig setup) (cannon setup) setup))
 
 tests :: IO TestSetup -> TestTree
-tests s = testGroup "Galley integration tests" [ mainTests, Teams.tests s ]
+tests s = testGroup "Galley integration tests"
+    [ mainTests, Teams.tests s, MessageTimer.tests s ]
   where
     mainTests = testGroup "Main API"
         [ test s "status" status
@@ -129,12 +131,13 @@ postConvOk g b c _ = do
     jane  <- randomUser b
     connectUsers b alice (list1 bob [jane])
     -- Ensure name is within range, max size is 256
-    postConv g alice [bob, jane] (Just (T.replicate 257 "a")) [] Nothing !!! const 400 === statusCode
+    postConv g alice [bob, jane] (Just (T.replicate 257 "a")) [] Nothing Nothing !!!
+        const 400 === statusCode
     let nameMaxSize = T.replicate 256 "a"
     WS.bracketR3 c alice bob jane $ \(wsA, wsB, wsJ) -> do
-        rsp <- postConv g alice [bob, jane] (Just nameMaxSize) [] Nothing <!!
+        rsp <- postConv g alice [bob, jane] (Just nameMaxSize) [] Nothing Nothing <!!
             const 201 === statusCode
-        cid <- assertConv rsp RegularConv alice alice [bob, jane] (Just nameMaxSize)
+        cid <- assertConv rsp RegularConv alice alice [bob, jane] (Just nameMaxSize) Nothing
         cvs <- mapM (convView cid) [alice, bob, jane]
         liftIO $ mapM_ WS.assertSuccess =<< Async.mapConcurrently (checkWs alice) (zip cvs [wsA, wsB, wsJ])
   where
@@ -155,7 +158,7 @@ postCryptoMessage1 g b c _ = do
     (bob,   bc) <- randomUserWithClient b (someLastPrekeys !! 1)
     (eve,   ec) <- randomUserWithClient b (someLastPrekeys !! 2)
     connectUsers b alice (list1 bob [eve])
-    conv <- decodeConvId <$> postConv g alice [bob, eve] (Just "gossip") [] Nothing
+    conv <- decodeConvId <$> postConv g alice [bob, eve] (Just "gossip") [] Nothing Nothing
 
     -- WS receive timeout
     let t = 5 # Second
@@ -241,7 +244,7 @@ postCryptoMessage2 g b _ _ = do
     (bob,   bc) <- randomUserWithClient b (someLastPrekeys !! 1)
     (eve,   ec) <- randomUserWithClient b (someLastPrekeys !! 2)
     connectUsers b alice (list1 bob [eve])
-    conv <- decodeConvId <$> postConv g alice [bob, eve] (Just "gossip") [] Nothing
+    conv <- decodeConvId <$> postConv g alice [bob, eve] (Just "gossip") [] Nothing Nothing
     -- Missing eve
     let m = [(bob, bc, "hello bob")]
     r1 <- postOtrMessage id g alice ac conv m <!!
@@ -262,7 +265,7 @@ postCryptoMessage3 g b _ _ = do
     (bob,   bc) <- randomUserWithClient b (someLastPrekeys !! 1)
     (eve,   ec) <- randomUserWithClient b (someLastPrekeys !! 2)
     connectUsers b alice (list1 bob [eve])
-    conv <- decodeConvId <$> postConv g alice [bob, eve] (Just "gossip") [] Nothing
+    conv <- decodeConvId <$> postConv g alice [bob, eve] (Just "gossip") [] Nothing Nothing
     -- Missing eve
     let ciphertext = encodeCiphertext "hello bob"
     let m = otrRecipients [(bob, [(bc, ciphertext)])]
@@ -284,7 +287,7 @@ postCryptoMessage4 g b _ _ = do
     bob   <- randomUser b
     bc    <- randomClient b bob (someLastPrekeys !! 0)
     connectUsers b alice (list1 bob [])
-    conv <- decodeConvId <$> postConv g alice [bob] (Just "gossip") [] Nothing
+    conv <- decodeConvId <$> postConv g alice [bob] (Just "gossip") [] Nothing Nothing
     -- Unknown client ID => 403
     let ciphertext = encodeCiphertext "hello bob"
     let m = otrRecipients [(bob, [(bc, ciphertext)])]
@@ -297,12 +300,12 @@ postCryptoMessage5 g b _ _ = do
     (bob,   bc) <- randomUserWithClient b (someLastPrekeys !! 1)
     (eve,   ec) <- randomUserWithClient b (someLastPrekeys !! 2)
     connectUsers b alice (list1 bob [eve])
-    conv <- decodeConvId <$> postConv g alice [bob, eve] (Just "gossip") [] Nothing
+    conv <- decodeConvId <$> postConv g alice [bob, eve] (Just "gossip") [] Nothing Nothing
 
     -- Missing eve
     let m = [(bob, bc, "hello bob")]
 
-    -- These three are quivalent (i.e. report all missing clients)
+    -- These three are equivalent (i.e. report all missing clients)
     postOtrMessage id g alice ac conv m !!!
         const 412 === statusCode
     postOtrMessage (queryItem "ignore_missing" "false") g alice ac conv m !!!
@@ -310,7 +313,7 @@ postCryptoMessage5 g b _ _ = do
     postOtrMessage (queryItem "report_missing" "true") g alice ac conv m !!!
         const 412 === statusCode
 
-    -- These two are quivalent (i.e. ignore all missing clients)
+    -- These two are equivalent (i.e. ignore all missing clients)
     postOtrMessage (queryItem "ignore_missing" "true") g alice ac conv m !!!
         const 201 === statusCode
     postOtrMessage (queryItem "report_missing" "false") g alice ac conv m !!!
@@ -336,7 +339,7 @@ postJoinConvOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postJoinConvOk g b c _ = do
     alice <- randomUser b
     bob   <- randomUser b
-    conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [InviteAccess, LinkAccess] Nothing
+    conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [InviteAccess, LinkAccess] Nothing Nothing
     WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
         postJoinConv g bob conv !!! const 200 === statusCode
         postJoinConv g bob conv !!! const 204 === statusCode
@@ -349,7 +352,7 @@ postJoinCodeConvOk g b c _ = do
     bob   <- randomUser b
     eve   <- ephemeralUser b
     dave  <- ephemeralUser b
-    conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [CodeAccess] (Just ActivatedAccessRole)
+    conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [CodeAccess] (Just ActivatedAccessRole) Nothing
     cCode <- decodeConvCodeEvent <$> postConvCode g alice conv
     -- currently ConversationCode is used both as return type for POST ../code and as body for ../join
     -- POST /code gives code,key,uri
@@ -382,7 +385,7 @@ postJoinCodeConvOk g b c _ = do
 postConvertCodeConv :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postConvertCodeConv g b c _ = do
     alice <- randomUser b
-    conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [InviteAccess] Nothing
+    conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [InviteAccess] Nothing Nothing
     -- Cannot do code operations if conversation not in code access
     postConvCode g alice conv !!! const 403 === statusCode
     deleteConvCode g alice conv !!! const 403 === statusCode
@@ -437,9 +440,10 @@ postConvertTeamConv g b c setup = do
     connectUsers b alice (singleton eve)
     let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
     -- creating a team-only conversation containing eve should fail
-    createTeamConvAccessRaw g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa") acc (Just TeamAccessRole) !!! const 403 === statusCode
+    createTeamConvAccessRaw g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa") acc (Just TeamAccessRole) Nothing !!!
+        const 403 === statusCode
     -- create conversation allowing any type of guest
-    conv <- createTeamConvAccess g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa") acc (Just NonActivatedAccessRole)
+    conv <- createTeamConvAccess g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa") acc (Just NonActivatedAccessRole) Nothing
     -- mallory joins by herself
     mallory  <- ephemeralUser b
     j <- decodeConvCodeEvent <$> postConvCode g alice conv
@@ -465,7 +469,7 @@ postJoinConvFail :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postJoinConvFail g b _ _ = do
     alice <- randomUser b
     bob   <- randomUser b
-    conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [] Nothing
+    conv  <- decodeConvId <$> postConv g alice [] (Just "gossip") [] Nothing Nothing
     void $ postJoinConv g bob conv !!! const 403 === statusCode
 
 getConvsOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
@@ -487,7 +491,7 @@ getConvsOk2 g b _ _ = do
     -- create & get group conv
     carl <- randomUser b
     connectUsers b alice (singleton carl)
-    cnv2 <- decodeBody' "conversation" <$> postConv g alice [bob, carl] (Just "gossip2") [] Nothing
+    cnv2 <- decodeBody' "conversation" <$> postConv g alice [bob, carl] (Just "gossip2") [] Nothing Nothing
     getConvs g alice (Just $ Left [cnvId cnv2]) Nothing !!! do
         const 200 === statusCode
         const (Just [cnvId cnv2]) === fmap (map cnvId . convList) . decodeBody
@@ -530,7 +534,7 @@ paginateConvIds g b _ _ = do
     connectUsers b alice (singleton bob)
     connectUsers b alice (singleton eve)
     replicateM_ 256 $
-        postConv g alice [bob, eve] (Just "gossip") [] Nothing !!!
+        postConv g alice [bob, eve] (Just "gossip") [] Nothing Nothing !!!
             const 201 === statusCode
     foldM_ (getChunk 16 alice) Nothing [15 .. 0 :: Int]
   where
@@ -552,7 +556,7 @@ getConvsPagingOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 getConvsPagingOk g b _ _ = do
     [ally, bill, carl] <- randomUsers b 3
     connectUsers b ally (list1 bill [carl])
-    replicateM_ 11 $ postConv g ally [bill, carl] (Just "gossip") [] Nothing
+    replicateM_ 11 $ postConv g ally [bill, carl] (Just "gossip") [] Nothing Nothing
     walk ally [3,3,3,3,2]  -- 11 (group) + 2 (1:1) + 1 (self)
     walk bill [3,3,3,3,1]  -- 11 (group) + 1 (1:1) + 1 (self)
     walk carl [3,3,3,3,1]  -- 11 (group) + 1 (1:1) + 1 (self)
@@ -576,7 +580,7 @@ postConvFailNotConnected g b _ _ = do
     alice <- randomUser b
     bob   <- randomUser b
     jane  <- randomUser b
-    postConv g alice [bob, jane] Nothing [] Nothing !!! do
+    postConv g alice [bob, jane] Nothing [] Nothing Nothing !!! do
         const 403 === statusCode
         const (Just "not-connected") === fmap label . decodeBody
 
@@ -586,7 +590,7 @@ postConvFailNumMembers g b _ s = do
     alice <- randomUser b
     bob:others <- replicateM n (randomUser b)
     connectUsers b alice (list1 bob others)
-    postConv g alice (bob:others) Nothing [] Nothing !!! do
+    postConv g alice (bob:others) Nothing [] Nothing Nothing !!! do
         const 400 === statusCode
         const (Just "client-error") === fmap label . decodeBody
 
@@ -600,7 +604,7 @@ postConvFailBlocked g b _ _ = do
     connectUsers b alice (list1 bob [jane])
     putConnection b jane alice Blocked
         !!! const 200 === statusCode
-    postConv g alice [bob, jane] Nothing [] Nothing !!! do
+    postConv g alice [bob, jane] Nothing [] Nothing Nothing !!! do
         const 403 === statusCode
         const (Just "not-connected") === fmap label . decodeBody
 
@@ -609,8 +613,8 @@ postSelfConvOk g b _ _ = do
     alice <- randomUser b
     m <- postSelfConv g alice <!! const 200 === statusCode
     n <- postSelfConv g alice <!! const 200 === statusCode
-    mId <- assertConv m SelfConv alice alice [] Nothing
-    nId <- assertConv n SelfConv alice alice [] Nothing
+    mId <- assertConv m SelfConv alice alice [] Nothing Nothing
+    nId <- assertConv n SelfConv alice alice [] Nothing Nothing
     liftIO $ mId @=? nId
 
 postO2OConvOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
@@ -620,14 +624,14 @@ postO2OConvOk g b _ _ = do
     connectUsers b alice (singleton bob)
     a <- postO2OConv g alice bob (Just "chat") <!! const 200 === statusCode
     c <- postO2OConv g alice bob (Just "chat") <!! const 200 === statusCode
-    aId <- assertConv a One2OneConv alice alice [bob] (Just "chat")
-    cId <- assertConv c One2OneConv alice alice [bob] (Just "chat")
+    aId <- assertConv a One2OneConv alice alice [bob] (Just "chat") Nothing
+    cId <- assertConv c One2OneConv alice alice [bob] (Just "chat") Nothing
     liftIO $ aId @=? cId
 
 postConvO2OFailWithSelf :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postConvO2OFailWithSelf g b _ _ = do
     alice <- randomUser b
-    let inv = NewConv [alice] Nothing mempty Nothing Nothing
+    let inv = NewConv [alice] Nothing mempty Nothing Nothing Nothing
     post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
         const 403 === statusCode
         const (Just "invalid-op") === fmap label . decodeBody
@@ -640,8 +644,8 @@ postConnectConvOk g b _ _ = do
             const 201 === statusCode
     n <- postConnectConv g alice bob "Alice" "connect with me!" Nothing <!!
             const 200 === statusCode
-    mId <- assertConv m ConnectConv alice alice [] (Just "Alice")
-    nId <- assertConv n ConnectConv alice alice [] (Just "Alice")
+    mId <- assertConv m ConnectConv alice alice [] (Just "Alice") Nothing
+    nId <- assertConv n ConnectConv alice alice [] (Just "Alice") Nothing
     liftIO $ mId @=? nId
 
 postConnectConvOk2 :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
@@ -683,12 +687,12 @@ postMutualConnectConvOk g b _ _ = do
     bob   <- randomUser b
     ac <- postConnectConv g alice bob "A" "a" Nothing <!!
             const 201 === statusCode
-    acId <- assertConv ac ConnectConv alice alice [] (Just "A")
+    acId <- assertConv ac ConnectConv alice alice [] (Just "A") Nothing
     bc <- postConnectConv g bob alice "B" "b" Nothing <!!
             const 200 === statusCode
     -- The connect conversation was simply accepted, thus the
     -- conversation name and message sent in Bob's request ignored.
-    bcId <- assertConv bc One2OneConv alice bob [alice] (Just "A")
+    bcId <- assertConv bc One2OneConv alice bob [alice] (Just "A") Nothing
     liftIO $ acId @=? bcId
 
 postRepeatConnectConvCancel :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
@@ -792,7 +796,7 @@ getConvOk g b _ _ = do
     bob   <- randomUser b
     chuck <- randomUser b
     connectUsers b alice (list1 bob [chuck])
-    conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") [] Nothing
+    conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") [] Nothing Nothing
     getConv g alice conv !!! const 200 === statusCode
     getConv g bob   conv !!! const 200 === statusCode
     getConv g chuck conv !!! const 200 === statusCode
@@ -803,8 +807,8 @@ accessConvMeta g b _ _ = do
     bob   <- randomUser b
     chuck <- randomUser b
     connectUsers b alice (list1 bob [chuck])
-    conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") [] Nothing
-    let meta = ConversationMeta conv RegularConv alice [InviteAccess] ActivatedAccessRole (Just "gossip") Nothing
+    conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") [] Nothing Nothing
+    let meta = ConversationMeta conv RegularConv alice [InviteAccess] ActivatedAccessRole (Just "gossip") Nothing Nothing
     get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
         const 200         === statusCode
         const (Just meta) === (decode <=< responseBody)
@@ -825,7 +829,7 @@ postMembersOk g b _ _ = do
     eve   <- randomUser b
     connectUsers b alice (list1 bob [chuck, eve])
     connectUsers b eve (singleton bob)
-    conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") [] Nothing
+    conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") [] Nothing Nothing
     postMembers g alice (singleton eve) conv !!! const 200 === statusCode
     -- Check that last_event markers are set for all members
     forM_ [alice, bob, chuck, eve] $ \u -> do
@@ -839,7 +843,7 @@ postMembersOk2 g b _ _ = do
     chuck <- randomUser b
     connectUsers b alice (list1 bob [chuck])
     connectUsers b bob (singleton chuck)
-    conv  <- decodeConvId <$> postConv g alice [bob, chuck] Nothing [] Nothing
+    conv  <- decodeConvId <$> postConv g alice [bob, chuck] Nothing [] Nothing Nothing
     postMembers g bob (singleton chuck) conv !!! const 204 === statusCode
     chuck' <- decodeBody <$> (getSelfMember g chuck conv <!! const 200 === statusCode)
     liftIO $
@@ -851,7 +855,7 @@ postMembersOk3 g b _ _ = do
     bob   <- randomUser b
     eve   <- randomUser b
     connectUsers b alice (list1 bob [eve])
-    conv  <- decodeConvId <$> postConv g alice [bob, eve] (Just "gossip") [] Nothing
+    conv  <- decodeConvId <$> postConv g alice [bob, eve] (Just "gossip") [] Nothing Nothing
 
     -- Bob leaves
     deleteMember g bob bob conv !!! const 200 === statusCode
@@ -874,7 +878,7 @@ postMembersFail g b _ _ = do
     eve   <- randomUser b
     connectUsers b alice (list1 bob [chuck, eve])
     connectUsers b eve (singleton bob)
-    conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") [] Nothing
+    conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") [] Nothing Nothing
     postMembers g eve (singleton bob) conv !!! const 404 === statusCode
     postMembers g alice (singleton eve) conv !!! const 200 === statusCode
     -- Not connected but already there
@@ -893,7 +897,7 @@ postTooManyMembersFail g b _ s = do
     bob   <- randomUser b
     chuck <- randomUser b
     connectUsers b alice (list1 bob [chuck])
-    conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") [] Nothing
+    conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") [] Nothing Nothing
     x:xs  <- randomUsers b (n - 2)
     postMembers g chuck (list1 x xs) conv !!! do
         const 403 === statusCode
@@ -905,7 +909,7 @@ deleteMembersOk g b _ _ = do
     bob   <- randomUser b
     eve   <- randomUser b
     connectUsers b alice (list1 bob [eve])
-    conv  <- decodeConvId <$> postConv g alice [bob, eve] (Just "gossip") [] Nothing
+    conv  <- decodeConvId <$> postConv g alice [bob, eve] (Just "gossip") [] Nothing Nothing
     deleteMember g bob bob conv     !!! const 200 === statusCode
     deleteMember g bob bob conv     !!! const 404 === statusCode
     deleteMember g alice eve conv   !!! const 200 === statusCode
@@ -1058,9 +1062,9 @@ removeUser g b ca _ = do
     bob   <- randomUser b
     carl  <- randomUser b
     connectUsers b alice (list1 bob [carl])
-    conv1 <- decodeConvId <$> postConv g alice [bob] (Just "gossip") [] Nothing
-    conv2 <- decodeConvId <$> postConv g alice [bob, carl] (Just "gossip2") [] Nothing
-    conv3 <- decodeConvId <$> postConv g alice [carl] (Just "gossip3") [] Nothing
+    conv1 <- decodeConvId <$> postConv g alice [bob] (Just "gossip") [] Nothing Nothing
+    conv2 <- decodeConvId <$> postConv g alice [bob, carl] (Just "gossip2") [] Nothing Nothing
+    conv3 <- decodeConvId <$> postConv g alice [carl] (Just "gossip3") [] Nothing Nothing
     WS.bracketR3 ca alice bob carl $ \(wsA, wsB, wsC) -> do
         deleteUser g bob
         void . liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $

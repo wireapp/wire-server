@@ -2,7 +2,7 @@
 
 module Galley.Types.Swagger where
 
-import Data.Swagger.Build.Api
+import Data.Swagger.Build.Api as Swagger
 import qualified Data.Swagger as Swagger
 
 galleyModels :: [Model]
@@ -15,6 +15,7 @@ galleyModels =
     , conversationMembers
     , conversationUpdate
     , conversationAccessUpdate
+    , conversationMessageTimerUpdate
     , conversationCode
     , conversationUpdateEvent
     , errorObj
@@ -58,6 +59,7 @@ event = defineModel "Event" $ do
                     , typingEvent
                     , otrMessageEvent
                     , conversationAccessUpdateEvent
+                    , conversationMessageTimerUpdateEvent
                     , conversationCodeUpdateEvent
                     , conversationCodeDeleteEvent
                     ]
@@ -69,6 +71,7 @@ eventType = string $ enum
     , "conversation.member-update"
     , "conversation.rename"
     , "conversation.access-update"
+    , "conversation.message-timer-update"
     , "conversation.code-update"
     , "conversation.code-delete"
     , "conversation.create"
@@ -103,6 +106,11 @@ conversationAccessUpdateEvent = defineModel "ConversationAccessUpdateEvent" $ do
     description "conversation access update event"
     property "data" (ref conversationAccessUpdate) $ description "conversation access data"
 
+conversationMessageTimerUpdateEvent :: Model
+conversationMessageTimerUpdateEvent = defineModel "ConversationMessageTimerUpdateEvent" $ do
+    description "conversation message timer update event"
+    property "data" (ref conversationMessageTimerUpdate) $ description "conversation message timer data"
+
 conversationCodeUpdateEvent :: Model
 conversationCodeUpdateEvent = defineModel "ConversationCodeUpdateEvent" $ do
     description "conversation code update event"
@@ -131,11 +139,17 @@ conversation = defineModel "Conversation" $ do
         description "The conversation type of this object (0 = regular, 1 = self, 2 = 1:1, 3 = connect)"
     property "creator" bytes' $
         description "The creator's user ID."
+    -- TODO: property "access"
+    -- property "access_role"
     property "name" string' $ do
         description "The conversation name"
         optional
     property "members" (ref conversationMembers) $
         description "The current set of conversation members"
+    -- property "team"
+    property "message_timer" (int64 (Swagger.min 0)) $ do
+        description "Per-conversation message timer"
+        optional
 
 conversationType :: DataType
 conversationType = int32 $ enum [0, 1, 2, 3]
@@ -227,6 +241,12 @@ conversationAccessUpdate = defineModel "ConversationAccessUpdate" $ do
     property "access" (unique $ array bytes') $
         description "List of conversation access modes: []|[invite]|[invite,code]"
 
+conversationMessageTimerUpdate :: Model
+conversationMessageTimerUpdate = defineModel "ConversationMessageTimerUpdate" $ do
+    description "Contains conversation properties to update"
+    property "message_timer" int64' $
+        description "Conversation message timer (in milliseconds); can be null"
+
 conversationCode :: Model
 conversationCode = defineModel "ConversationCode" $ do
     description "Contains conversation properties to update"
@@ -290,6 +310,11 @@ newConversation = defineModel "NewConversation" $ do
         optional
     property "team" (ref teamInfo) $ do
         description "Team information of this conversation"
+        optional
+    -- TODO: property "access"
+    -- property "access_role"
+    property "message_timer" (int64 (Swagger.min 0)) $ do
+        description "Per-conversation message timer"
         optional
 
 teamInfo :: Model
