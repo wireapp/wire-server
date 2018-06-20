@@ -96,6 +96,7 @@ import OpenSSL.EVP.Digest (getDigestByName, Digest)
 import OpenSSL.Session (SSLOption (..))
 import System.Directory (canonicalizePath)
 import System.Logger.Class hiding (Settings, settings)
+import UnliftIO (MonadUnliftIO (..))
 import Util.Options
 
 import qualified Bilge                    as RPC
@@ -419,6 +420,12 @@ instance MonadBaseControl IO AppIO where
     type StM AppIO a = StM (ReaderT Env Client) a
     liftBaseWith     f = AppT $ liftBaseWith $ \run -> f (run . unAppT)
     restoreM           = AppT . restoreM
+
+instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
+    withRunInIO inner =
+      AppT $ ReaderT $ \r ->
+      withRunInIO $ \run ->
+      inner (run . flip runReaderT r . unAppT)
 
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e

@@ -91,7 +91,7 @@ runServer o = do
     emailListener <- case (e^.awsEnv.sesQueue) of
             Just q -> Just <$> listen (e^.awsEnv) e q SesNotification.onEvent
             _      -> return Nothing
-    internalEventListener <- Async.async $ Internal.listen e
+    internalEventListener <- Async.async $ runAppT e Internal.listen
     runSettingsWithShutdown s (pipeline e) 5 `finally` do
         mapM_ Async.cancel emailListener
         Async.cancel internalEventListener

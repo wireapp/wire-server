@@ -100,7 +100,6 @@ import Data.UUID.V4 (nextRandom)
 import Network.Wai.Utilities
 import System.Logger.Message
 
-import qualified Brig.API.Error             as Error
 import qualified Brig.Blacklist             as Blacklist
 import qualified Brig.Code                  as Code
 import qualified Brig.Data.Activation       as Data
@@ -795,10 +794,7 @@ lookupPasswordResetCode emailOrPhone = do
 
 
 deleteUserNoVerify :: UserId -> AppIO ()
-deleteUserNoVerify uid = do
-    ok <- Internal.publish (Internal.DeleteUser uid)
-    unless ok $
-        throwM Error.failedQueueEvent
+deleteUserNoVerify uid = Internal.publish (Internal.DeleteUser uid)
 
 -- | Garbage collect users if they're ephemeral and they have expired.
 -- Always returns the user (deletion itself is delayed)
