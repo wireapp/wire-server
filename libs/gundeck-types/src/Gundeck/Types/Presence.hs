@@ -8,14 +8,10 @@ module Gundeck.Types.Presence
 
 import Data.Aeson
 import Data.Id
-import Data.Word
+import Data.Misc (Milliseconds)
 import Gundeck.Types.Common as Common
 
 import qualified Data.ByteString.Lazy as Lazy
-
-newtype Milliseconds = Ms
-    { ms :: Word64
-    } deriving (Eq, Ord, Show, Num, ToJSON, FromJSON)
 
 data Presence = Presence
     { userId    :: !UserId

@@ -553,6 +553,7 @@ sitemap = do
         summary "Update access modes for a conversation"
         returns (ref Model.event)
         response 200 "Conversation access updated." end
+        response 204 "Conversation access unchanged." end
         body (ref Model.conversationAccessUpdate) $
             description "JSON body"
         errorResponse Error.convNotFound
@@ -561,7 +562,28 @@ sitemap = do
         errorResponse Error.invalidSelfOp
         errorResponse Error.invalidOne2OneOp
         errorResponse Error.invalidConnectOp
-        errorResponse Error.invalidTargetAccess
+
+    ---
+
+    put "/conversations/:cnv/message-timer" (continue updateConversationMessageTimer) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. request
+        .&. contentType "application" "json"
+
+    document "PUT" "updateConversationMessageTimer" $ do
+        summary "Update the message timer for a conversation"
+        returns (ref Model.event)
+        response 200 "Message timer updated." end
+        response 204 "Message timer unchanged." end
+        body (ref Model.conversationMessageTimerUpdate) $
+            description "JSON body"
+        errorResponse Error.convNotFound
+        errorResponse Error.accessDenied
+        errorResponse Error.invalidSelfOp
+        errorResponse Error.invalidOne2OneOp
+        errorResponse Error.invalidConnectOp
 
     ---
 

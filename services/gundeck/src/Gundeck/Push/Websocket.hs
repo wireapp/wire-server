@@ -30,6 +30,7 @@ import Data.Function (on)
 import Data.Id
 import Data.List (groupBy, sortBy, foldl')
 import Data.List1
+import Data.Misc (Milliseconds (..))
 import Data.Monoid ((<>))
 import Data.Set (Set)
 import Data.Time.Clock.POSIX

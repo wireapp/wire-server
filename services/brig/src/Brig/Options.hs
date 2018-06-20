@@ -117,6 +117,7 @@ instance FromJSON ZAuthOpts
 
 data TurnOpts = TurnOpts
     { servers   :: !FilePath
+    , serversV2 :: !FilePath
     , secret    :: !FilePath
     , tokenTTL  :: !Word32
     , configTTL :: !Word32
@@ -326,7 +327,11 @@ optsParser =
     (TurnOpts <$>
      (strOption $
       long "turn-servers" <> metavar "FILE" <>
-      help "Line separated file with IP addresses of the available turn servers" <>
+      help "Line separated file with IP addresses of the available turn servers, supporting UDP" <>
+      action "file") <*>
+     (strOption $
+      long "turn-servers-v2" <> metavar "FILE" <>
+      help "Line separated file with hostnames of all available turn servers with all protocols/transports" <>
       action "file") <*>
      (strOption $
       long "turn-secret" <> metavar "FILE" <>

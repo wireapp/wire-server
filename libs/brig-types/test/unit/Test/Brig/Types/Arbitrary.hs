@@ -17,6 +17,7 @@ module Test.Brig.Types.Arbitrary where
 import Brig.Types.Activation
 import Brig.Types.Code
 import Brig.Types.TURN
+import Brig.Types.TURN.Internal
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Control.Lens hiding (elements)
@@ -30,7 +31,9 @@ import Data.Misc
 import Data.Monoid
 import Data.Range
 import Data.Text.Ascii
+import Data.Text.Encoding (encodeUtf8)
 import Data.Typeable
+import Data.UUID (nil)
 import Data.Word
 import Galley.Types.Bot.Service.Internal
 import Galley.Types.Teams
@@ -39,6 +42,8 @@ import GHC.Stack
 import GHC.TypeLits
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
+import Text.Hostname
+
 
 import qualified Data.Text as ST
 import qualified System.Random
@@ -69,7 +74,10 @@ instance Arbitrary IpAddr where
         ipV4Part = octet <$> arbitrary
 
 instance Arbitrary TurnHost where
-    arbitrary = TurnHost <$> arbitrary
+    arbitrary = oneof
+              [ TurnHostIp   <$> arbitrary
+              , TurnHostName <$> arbitrary `suchThat` (validHostname . encodeUtf8)
+              ]
 
 instance Arbitrary Port where
     arbitrary = Port <$> arbitrary
@@ -204,6 +212,7 @@ instance Arbitrary NewUser where
                 Just (NewUserOriginTeamUser _) -> True
                 _ -> False
         newUserName       <- arbitrary
+        newUserUUID       <- elements [Just nil, Nothing]
         newUserPict       <- arbitrary
         newUserAssets     <- arbitrary
         newUserAccentId   <- arbitrary

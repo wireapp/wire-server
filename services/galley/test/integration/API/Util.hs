@@ -144,17 +144,17 @@ addTeamMemberInternal g tid mem = do
     post (g . paths ["i", "teams", toByteString' tid, "members"] . payload) !!!
         const 200 === statusCode
 
-createTeamConv :: HasCallStack => Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Http ConvId
-createTeamConv g u tinfo us name acc = createTeamConvAccess g u tinfo us name acc Nothing
+createTeamConv :: HasCallStack => Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> Http ConvId
+createTeamConv g u tinfo us name acc mtimer = createTeamConvAccess g u tinfo us name acc Nothing mtimer
 
-createTeamConvAccess :: HasCallStack => Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Http ConvId
-createTeamConvAccess g u tinfo us name acc role = do
-    r <- createTeamConvAccessRaw g u tinfo us name acc role <!! const 201 === statusCode
+createTeamConvAccess :: HasCallStack => Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Http ConvId
+createTeamConvAccess g u tinfo us name acc role mtimer = do
+    r <- createTeamConvAccessRaw g u tinfo us name acc role mtimer <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
-createTeamConvAccessRaw :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Http ResponseLBS
-createTeamConvAccessRaw g u tinfo us name acc role = do
-    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo)
+createTeamConvAccessRaw :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Http ResponseLBS
+createTeamConvAccessRaw g u tinfo us name acc role mtimer = do
+    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer
     post ( g
           . path "/conversations"
           . zUser u
@@ -165,12 +165,12 @@ createTeamConvAccessRaw g u tinfo us name acc role = do
 
 createOne2OneTeamConv :: Galley -> UserId -> UserId -> Maybe Text -> TeamId -> Http ResponseLBS
 createOne2OneTeamConv g u1 u2 n tid = do
-    let conv = NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False)
+    let conv = NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
-postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Http ResponseLBS
-postConv g u us name a r = do
-    let conv = NewConv us name (Set.fromList a) r  Nothing
+postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> Http ResponseLBS
+postConv g u us name a r mtimer = do
+    let conv = NewConv us name (Set.fromList a) r Nothing mtimer
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: Galley -> UserId -> Http ResponseLBS
@@ -178,7 +178,7 @@ postSelfConv g u = post $ g . path "/conversations/self" . zUser u . zConn "conn
 
 postO2OConv :: Galley -> UserId -> UserId -> Maybe Text -> Http ResponseLBS
 postO2OConv g u1 u2 n = do
-    let conv = NewConv [u2] n mempty Nothing Nothing
+    let conv = NewConv [u2] n mempty Nothing Nothing Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: Galley -> UserId -> UserId -> Text -> Text -> Maybe Text -> Http ResponseLBS
@@ -325,6 +325,15 @@ putAccessUpdate g u c acc = put $ g
     . zType "access"
     . json acc
 
+putMessageTimerUpdate
+    :: Galley -> UserId -> ConvId -> ConversationMessageTimerUpdate -> Http ResponseLBS
+putMessageTimerUpdate g u c acc = put $ g
+    . paths ["/conversations", toByteString' c, "message-timer"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+    . json acc
+
 postConvCode :: Galley -> UserId -> ConvId -> Http ResponseLBS
 postConvCode g u c = post $ g
     . paths ["/conversations", toByteString' c, "code"]
@@ -396,8 +405,9 @@ assertConv :: HasCallStack
            -> UserId
            -> [UserId]
            -> Maybe Text
+           -> Maybe Milliseconds
            -> Http ConvId
-assertConv r t c s us n = do
+assertConv r t c s us n mt = do
     cId <- fromBS $ getHeader' "Location" r
     let cnv = decodeBody r :: Maybe Conversation
     let _self = cmSelf . cnvMembers <$> cnv
@@ -407,6 +417,7 @@ assertConv r t c s us n = do
         assertEqual "name" n (cnv >>= cnvName)
         assertEqual "type" (Just t) (cnvType <$> cnv)
         assertEqual "creator" (Just c) (cnvCreator <$> cnv)
+        assertEqual "message_timer" (Just mt) (cnvMessageTimer <$> cnv)
         assertEqual "self" (Just s) (memId <$> _self)
         assertEqual "others" (Just $ Set.fromList us) (Set.fromList . map omId . toList <$> others)
         assertBool  "otr muted not false" (Just False == (memOtrMuted <$> _self))
@@ -450,6 +461,15 @@ wsAssertConvAccessUpdate conv usr new n = do
     evtType      e @?= ConvAccessUpdate
     evtFrom      e @?= usr
     evtData      e @?= Just (EdConvAccessUpdate new)
+
+wsAssertConvMessageTimerUpdate :: ConvId -> UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
+wsAssertConvMessageTimerUpdate conv usr new n = do
+    let e = List1.head (WS.unpackPayload n)
+    ntfTransient n @?= False
+    evtConv      e @?= conv
+    evtType      e @?= ConvMessageTimerUpdate
+    evtFrom      e @?= usr
+    evtData      e @?= Just (EdConvMessageTimerUpdate new)
 
 wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
 wsAssertMemberLeave conv usr old n = do
@@ -510,6 +530,8 @@ zConv = header "Z-Conversation" . toByteString'
 zType :: ByteString -> Request -> Request
 zType = header "Z-Type"
 
+-- TODO: it'd be nicer to just take a list here and handle the cases with 0
+-- users differently
 connectUsers :: Brig -> UserId -> List1 UserId -> Http ()
 connectUsers b u us = void $ connectUsersWith expect2xx b u us
 

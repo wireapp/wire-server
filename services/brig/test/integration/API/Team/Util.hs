@@ -14,6 +14,7 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Data.Maybe (fromMaybe)
+import Data.Misc (Milliseconds)
 import Data.Range
 import Galley.Types (ConvTeamInfo (..), NewConv (..))
 import GHC.Stack (HasCallStack)
@@ -63,10 +64,10 @@ addTeamMember galley tid mem =
                 . lbytes (encode mem)
                 )
 
-createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Bool -> Http ConvId
-createTeamConv g tid u us managed = do
+createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Bool -> Maybe Milliseconds -> Http ConvId
+createTeamConv g tid u us managed mtimer = do
     let tinfo = Just $ ConvTeamInfo tid managed
-    let conv = NewConv us Nothing (Set.fromList []) Nothing tinfo
+    let conv = NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer
     r <- post ( g
               . path "/conversations"
               . zUser u

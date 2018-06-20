@@ -76,7 +76,11 @@ data ReAuthError
 newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
 newAccount u inv tid = do
     defLoc  <- setDefaultLocale <$> view settings
-    uid     <- Id <$> maybe (liftIO nextRandom) (return . toUUID) inv
+    uid     <- Id <$> do
+        case (inv, newUserUUID u) of
+            (Just (toUUID -> uuid), _) -> pure uuid
+            (_, Just uuid)             -> pure uuid
+            (Nothing, Nothing)         -> liftIO nextRandom
     passwd  <- maybe (return Nothing) (fmap Just . liftIO . mkSafePassword) pass
     expiry  <- case status of
                    Ephemeral -> do
