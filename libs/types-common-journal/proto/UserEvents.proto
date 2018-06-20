@@ -9,6 +9,8 @@ message UserEvent {
     required int64 utc_time = 3;
     optional bytes email = 4;
     optional bytes locale = 5;
+    optional bytes team_id = 6;
+    optional bytes name = 7;
 
     enum EventType {
         USER_ACTIVATE     = 0;

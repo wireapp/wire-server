@@ -159,6 +159,16 @@ postUser name email invCode ssoid teamid brig = do
             ]
     post (brig . path "/i/users" . contentJson . body p)
 
+postUserInternal :: Object -> Brig -> Http User
+postUserInternal payload brig = do
+    rs <- post (brig . path "/i/users" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
+    maybe (error $ "postUserInternal: Failed to decode user due to: " ++ show rs) return (decodeBody rs)
+
+postUserRegister :: Object -> Brig -> Http User
+postUserRegister payload brig = do
+    rs <- post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
+    maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) return (decodeBody rs)
+
 deleteUser :: UserId -> Maybe PlainTextPassword -> Brig -> Http ResponseLBS
 deleteUser u p brig = delete $ brig
     . path "/self"

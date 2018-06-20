@@ -70,7 +70,7 @@ runTests iConf bConf otherArgs = do
     userApi     <- User.tests bConf mg b c ch g awsEnv
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
     searchApis  <- Search.tests mg b
-    teamApis    <- Team.tests bConf mg b c g
+    teamApis    <- Team.tests bConf mg b c g awsEnv
     turnApi     <- TURN.tests mg b turnFile turnFileV2
 
     withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
