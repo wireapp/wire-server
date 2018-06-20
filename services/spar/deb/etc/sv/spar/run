@@ -7,12 +7,14 @@ APP=spar
 
 # defaults
 USER=${USER:-www-data}
-CONFIG=${CONFIG:-/etc/$APP/.env}
+CONFIG=${CONFIG:-/etc/${APP}/${APP}.yaml}
 HOME=${APP_HOME:-/opt/$APP}
 BIN=$HOME/bin/$APP
+
+if [ ! -f $CONFIG ]; then exec chpst -u $USER get_config; fi
 
 cd $HOME
 
 ulimit -n 65536
 
-exec chpst -u $USER $BIN --config=${CONFIG?'unset'}
+exec chpst -u $USER $BIN --config-file=${CONFIG}
