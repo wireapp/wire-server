@@ -78,6 +78,7 @@ instance FromJSON EmailSMTPOpts
 data StompOpts = StompOpts
     { stompHost     :: !Text
     , stompPort     :: !Int
+    , stompTls      :: !Bool
     , internalQueue :: !Text
     } deriving (Show, Generic)
 
@@ -276,6 +277,9 @@ optsParser =
      (option auto $
       long "stomp-port" <> metavar "INT" <>
       help "STOMP broker port (usually 61613 or 61614)") <*>
+     (switch $
+      long "stomp-tls" <>
+      help "Connect to the STOMP broker via TLS") <*>
      (textOption $
       long "stomp-internal-queue" <> metavar "STRING" <>
       help "Event queue for internal brig-generated events (e.g. user deletion)")) <*>
