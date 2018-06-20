@@ -142,14 +142,12 @@ conversation = defineModel "Conversation" $ do
     -- TODO: property "access"
     -- property "access_role"
     property "name" string' $ do
-        description "The conversation name"
-        optional
+        description "The conversation name (can be null)"
     property "members" (ref conversationMembers) $
         description "The current set of conversation members"
     -- property "team"
     property "message_timer" (int64 (Swagger.min 0)) $ do
-        description "Per-conversation message timer"
-        optional
+        description "Per-conversation message timer (can be null)"
 
 conversationType :: DataType
 conversationType = int32 $ enum [0, 1, 2, 3]
