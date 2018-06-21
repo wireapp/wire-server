@@ -76,9 +76,9 @@ data EmailSMTPOpts = EmailSMTPOpts
 instance FromJSON EmailSMTPOpts
 
 data StompOpts = StompOpts
-    { stompHost     :: !Text
-    , stompPort     :: !Int
-    , stompTls      :: !Bool
+    { host          :: !Text
+    , port          :: !Int
+    , tls           :: !Bool
     , internalQueue :: !Text
     } deriving (Show, Generic)
 

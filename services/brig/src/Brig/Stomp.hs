@@ -58,10 +58,10 @@ mkEnv
     -> Env
 mkEnv o cred =
     Env { broker = Broker
-              { _host = Opts.stompHost o
-              , _port = Opts.stompPort o
+              { _host = Opts.host o
+              , _port = Opts.port o
               , _auth = Just cred
-              , _tls  = Opts.stompTls o }
+              , _tls  = Opts.tls o }
         , internalQueue = Queue
               { _queueName = "InternalEventQueue"
               , _queuePath = Opts.internalQueue o }

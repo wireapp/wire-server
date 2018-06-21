@@ -80,9 +80,9 @@ emailSMS:
     tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
 
 stomp:
-  stompHost: 127.0.0.1
-  stompPort: 61613
-  stompTls: false
+  host: 127.0.0.1
+  port: 61613
+  tls: false
   internalQueue: /queue/internal-events
 
 zauth:
