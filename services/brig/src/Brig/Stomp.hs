@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
 -- | Working with STOMP queues.
@@ -15,7 +16,7 @@ module Brig.Stomp
     , listen
     ) where
 
-import BasePrelude hiding (throwIO, try)
+import BasePrelude hiding (throwIO, try, timeout)
 
 import Control.Lens
 import Control.Monad.Catch (MonadMask)
@@ -77,21 +78,17 @@ mkEnv o cred =
 
 -- | Send a message to a STOMP queue.
 --
--- In case of failure will try five times (with exponential backoff) and
--- then throw an exception.
+-- In case of failure will try five more times. The timeout for each attempt
+-- is 500ms.
 enqueue :: (ToJSON a, MonadIO m) => Broker -> Queue -> a -> m ()
 enqueue b q m =
     retrying retryPolicy retryPredicate (const enqueueAction) >>= either throwIO pure
   where
-    -- TODO: we should have some timeout here but I'm not sure what that
-    -- timeout should be (if we try 5 times then it can't be too high
-
-    -- because the client might have a 10s timeout or smth -- maybe we
-    -- should just try three times instead of five?)
     retryPredicate _ res = pure (isLeft res)
-    retryPolicy = limitRetries 5 <> exponentialBackoff 100000
+    retryPolicy = limitRetries 5 <> exponentialBackoff 50000
     enqueueAction =
         liftIO $ try @_ @StomplException $
+        stompTimeout 500000 $
         withConnection' b $ \conn ->
         withWriter conn (unpack (q^.queueName)) (unpack (q^.queuePath))
                    [OWithReceipt, OWaitReceipt] [] oconv $ \w ->
@@ -171,3 +168,11 @@ withConnection' b =
     config =
         [ OAuth (unpack (user cred)) (unpack (pass cred)) | Just cred <- [b^.auth] ] ++
         [ OTLS (tlsClientConfig (b^.port) (encodeUtf8 (b^.host))) | b^.tls ]
+
+-- | Like 'timeout', but throws an 'AppException' instead of returning a
+-- 'Maybe'. Not very composable, but kinda convenient here.
+stompTimeout :: Int -> IO a -> IO a
+stompTimeout t act = timeout t act >>= \case
+    Just x  -> pure x
+    Nothing -> throwIO $ AppException $
+        "STOMP request took more than " <> show t <> "mcs and has timed out"
