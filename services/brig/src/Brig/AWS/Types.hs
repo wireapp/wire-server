@@ -2,15 +2,8 @@
 {-# LANGUAGE TemplateHaskell   #-}
 
 module Brig.AWS.Types
-    ( -- * Config
-      Account (..)
-    , SesQueueUrl (..)
-    , InternalQueueUrl (..)
-    , BlacklistTable (..)
-    , PreKeyTable (..)
-
-      -- * SES Notification
-    , SESNotification (..)
+    ( -- * SES Notification
+      SESNotification (..)
     , SESBounceType (..)
     ) where
 
@@ -18,30 +11,6 @@ import Brig.Types (Email (..))
 import Data.Aeson
 import Data.Monoid ((<>))
 import Data.Text (Text)
-
--------------------------------------------------------------------------------
--- Config
-
-newtype SesQueueUrl = SesQueueUrl
-    { fromSesQueue :: Text }
-    deriving (Eq, Show)
-
--- TODO: not used anywhere
-newtype InternalQueueUrl = InternalQueueUrl
-    { fromInternalQueue :: Text }
-    deriving (Eq, Show)
-
-newtype Account = Account
-    { fromAccount :: Text }
-    deriving (Eq, Show)
-
-newtype BlacklistTable = BlacklistTable
-    { blacklistTableName :: Text }
-    deriving (Eq, Show)
-
-newtype PreKeyTable = PreKeyTable
-    { preKeyTableName :: Text }
-    deriving (Eq, Show)
 
 -------------------------------------------------------------------------------
 -- Notifications
