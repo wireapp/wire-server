@@ -37,6 +37,7 @@ aws:
   prekeyTable: integration-brig-prekeys
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
+
 emailSMS:
   # You can either use SES directly (in which case, ensure a feedback queue is configured)
   # or you can use SMTP directly (blacklisting of email/phone must be otherwise handled by
@@ -78,6 +79,12 @@ emailSMS:
     tCreatorWelcomeUrl: http://127.0.0.1:8080/creator-welcome-website
     tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
 
+stomp:
+  stompHost: 127.0.0.1
+  stompPort: 61613
+  stompTls: false
+  internalQueue: /queue/internal-events
+
 zauth:
   privateKeys: test/resources/zauth/privkeys.txt
   publicKeys: test/resources/zauth/pubkeys.txt
@@ -102,6 +109,7 @@ optSettings:
   setTeamInvitationTimeout: 5
   setTwilio: test/resources/twilio-credentials.yaml
   setNexmo: test/resources/nexmo-credentials.yaml
+  setStomp: test/resources/stomp-credentials.yaml
   setUserMaxConnections: 16
   setCookieDomain: 127.0.0.1
   setCookieInsecure: true

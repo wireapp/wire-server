@@ -29,6 +29,11 @@ services:
       MINIO_SECRET_KEY: dummysecret # minio requires a secret of at least 8 chars
     command: server /tmp
 
+  activemq:
+    image: rmohr/activemq:5.15.4-alpine
+    ports:
+      - "61613:61613"
+
   redis:
     image: redis:3.0.7-alpine
     ports:
