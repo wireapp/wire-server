@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
 -- | Working with STOMP queues.
@@ -9,6 +10,7 @@ module Brig.Stomp
     , mkEnv
     , Broker(..)
     , Queue(..)
+    , Credentials(..)
     , enqueue
     , listen
     ) where
@@ -38,7 +40,7 @@ data Env = Env
 data Broker = Broker
     { _host :: Text                -- ^ Broker URL
     , _port :: Int                 -- ^ Port
-    , _auth :: Maybe (Text, Text)  -- ^ Username and password
+    , _auth :: Maybe Credentials   -- ^ Username and password
     , _tls  :: Bool                -- ^ Whether to use TLS
     }
 
@@ -47,14 +49,20 @@ data Queue = Queue
     , _queuePath :: Text           -- ^ Queue path on the broker side
     }
 
-makeLenses ''Env
+data Credentials = Credentials
+    { user :: Text
+    , pass :: Text
+    } deriving (Eq, Show, Generic)
+
+instance FromJSON Credentials
+
 makeLenses ''Broker
 makeLenses ''Queue
 
 -- | Construct an 'Env' with some default settings.
 mkEnv
     :: Opts.StompOpts    -- ^ Options that can be customized
-    -> (Text, Text)      -- ^ Credentials
+    -> Credentials       -- ^ Credentials
     -> Env
 mkEnv o cred =
     Env { broker = Broker
@@ -161,5 +169,5 @@ withConnection' b =
     withConnection (unpack (b^.host)) (b^.port) config []
   where
     config =
-        [ OAuth (unpack user) (unpack pass) | Just (user, pass) <- [b^.auth] ] ++
+        [ OAuth (unpack (user cred)) (unpack (pass cred)) | Just cred <- [b^.auth] ] ++
         [ OTLS (tlsClientConfig (b^.port) (encodeUtf8 (b^.host))) | b^.tls ]
