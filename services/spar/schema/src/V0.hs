@@ -16,7 +16,7 @@ migration = Migration 0 "Initial schema" $ do
     --     with compaction = {'class': 'LeveledCompactionStrategy'};
     -- see https://www.datastax.com/dev/blog/when-to-use-leveled-compaction
     void $ schema' [r|
-        create columnfamily if not exists authreq
+        CREATE TABLE if not exists authreq
             ( req          text
             , end_of_life  timestamp
             , primary key  (req)
@@ -24,7 +24,7 @@ migration = Migration 0 "Initial schema" $ do
         |]
 
     void $ schema' [r|
-        create columnfamily if not exists authresp
+        CREATE TABLE if not exists authresp
             ( resp         text
             , end_of_life  timestamp
             , primary key  (resp)
@@ -32,25 +32,22 @@ migration = Migration 0 "Initial schema" $ do
         |]
 
     void $ schema' [r|
-        create columnfamily if not exists user
-            ( idp      text
+        CREATE TABLE if not exists user
+            ( idp      uuid
             , sso_id   text
             , uid      uuid
             , primary key (idp, sso_id)
             );
         |]
 
-        -- TODO: add a uuid for each idp?
-        -- , idp           uuid
-        -- , PRIMARY KEY (idp, team, issuer)
     void $ schema' [r|
         CREATE TABLE if not exists idp
-            ( team          uuid
-            , issuer        blob
-            , path          text
-            , metadata      blob
-            , uri           blob
-            , key           blob
-            , PRIMARY KEY (issuer)
+            ( idp           uuid
+            , team          uuid
+            , issuer        text
+            , metadata      text
+            , request_uri   text
+            , public_key    text
+            , PRIMARY KEY (path)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]

@@ -19,17 +19,17 @@ import qualified Data.Binary.Builder as BB
 import qualified SAML2.WebSSO as SAML
 
 instance Cql (SignedCertificate) where
-    ctype = Tagged BlobColumn
-    toCql = CqlBlob . cs . renderKeyInfo
+    ctype = Tagged TextColumn
+    toCql = CqlText . cs . renderKeyInfo
 
-    fromCql (CqlBlob t) = parseKeyInfo (cs t)
+    fromCql (CqlText t) = parseKeyInfo (cs t)
     fromCql _           = fail "URI: expected CqlBlob"
 
 instance Cql (URIRef Absolute) where
-    ctype = Tagged BlobColumn
-    toCql = CqlBlob . BB.toLazyByteString . serializeURIRef
+    ctype = Tagged TextColumn
+    toCql = CqlText . cs. BB.toLazyByteString . serializeURIRef
 
-    fromCql (CqlBlob t) = parseURI' t
+    fromCql (CqlText t) = parseURI' . cs $ t
     fromCql _           = fail "URI: expected CqlBlob"
 
 deriving instance Cql SAML.Issuer

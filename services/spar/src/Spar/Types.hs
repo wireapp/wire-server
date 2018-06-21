@@ -30,28 +30,15 @@ import qualified Data.Text as ST
 
 type IDP = IdPConfig TeamId
 
--- | TODO: use unique IdP identifier. Is `issuer` guaranteed to be unique? use a UUID?
-type IdPId = ST.Text
+-- data NewIdP = NewIdP
+--   { _idpMetadata        :: URI
+--   , _idpIssuer          :: Issuer
+--   , _idpRequestUri      :: URI
+--   , _idpPublicKey       :: X509.SignedCertificate
+--   }
+--   deriving (Eq, Show, Generic)
 
----type IdPId = SAML.Issuer
--- instance FromHttpAPIData (URIRef Absolute)
--- derving instance FromHttpAPIData SAML.Issuer
-
-
--- Very similar to SAML2.WebSSO.Config's IdPConfig
--- TODO: Type reuse?
-data IdP = IdP
-  { _idpPath            :: ST.Text
-  , _idpMetadata        :: URI
-  , _idpIssuer          :: ST.Text -- Issuer
-  , _idpRequestUri      :: URI
-  , _idpPublicKey       :: X509.SignedCertificate
-  , _idpTeamId          :: TeamId
-  }
-  deriving (Eq, Show, Generic)
-
-makeLenses ''IdP
+-- makeLenses ''NewIdP
 -- custom or derived JSON instances?
---deriveJSON deriveJSONOptions ''IdP
 
 type NewIdP = IDP -- do we generate an IdP identifier? If so, NewIdP will become a subset of IdP.

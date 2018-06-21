@@ -19,10 +19,6 @@ import GHC.Stack
 import Network.HTTP.Client (responseTimeoutMicro)
 import Servant
 import Spar.App
-
--- TODO:
--- to use Header' '[Strict] (https://github.com/haskell-servant/servant/blob/6d1ae0dccdf4c499d526187fd910297d54121b64/servant/src/Servant/API/Header.hs#L24) we need a more recent version of servant
--- import Servant.API.Header
 import Spar.Options
 import Spar.Types
 import Util.Options (epHost, epPort)
@@ -76,9 +72,9 @@ type APIMeta     = "sso" :> "metainfo" :> SAML.APIMeta
 type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
 type APIAuthResp = "sso" :> "complete-login" :> SAML.APIAuthResp
 
-type IdpGet     = Header "Z-User" Text :> "sso" :> "identity-providers" :> Capture "id" IdPId :> Get '[JSON] IDP
-type IdpCreate  = Header "Z-User" Text :> "sso" :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IDP
-type IdpDelete  = Header "Z-User" Text :> "sso" :> "identity-providers" :> Capture "id" IdPId :> DeleteNoContent '[JSON] NoContent
+type IdpGet     = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" IdPId :> Get '[JSON] IDP
+type IdpCreate  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IDP
+type IdpDelete  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" IdPId :> DeleteNoContent '[JSON] NoContent
 
 
 api :: ServerT API Spar
@@ -99,16 +95,17 @@ type ZUsr = Maybe Text -- TODO: use Brig.UserId, requires some to/from http inst
 
 idpGet :: ZUsr -> IdPId -> Spar IDP
 idpGet Nothing _ = throwError err403
-idpGet (Just _zusr) _idpId = do
+idpGet (Just _zusr) idp = do
     -- TODO: ensure zusr belongs to a team allowed to see/change this idp
-    let issuer = undefined :: SAML.Issuer -- TODO: what's the key? Create fresh UUID? base64 of issuer?
-    SAML.getIdPConfigByIssuer issuer
+    SAML.getIdPConfig idp
 
-idpCreate :: ZUsr -> IDP -> Spar IDP
-idpCreate Nothing _ = throwError err403
-idpCreate (Just _zusr) idp = do
+-- We generate a new UUID for each IDP used as IdPConfig's path, thereby ensuring uniqueness
+idpCreate :: ZUsr -> NewIdP -> Spar IDP
+idpCreate Nothing _ = throwError err403 { errBody = "'Z-User' header required" }
+idpCreate (Just _zusr) newIdP = do
     -- TODO: ensure zusr belongs to a team allowed to see/change this idp
     -- TODO: call brig to get the teamId using the zusr
     -- TODO: create uuid?
+    -- let idp = newIdP + teamId + liftIO uuid
     SAML.storeIdPConfig idp
     return idp

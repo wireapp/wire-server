@@ -82,17 +82,10 @@ instance SPStoreIdP Spar where
   storeIdPConfig :: IdPConfig TeamId -> Spar ()
   storeIdPConfig idp = wrapMonadClient $ Data.insertIdp idp
 
-  -- TODO: How do we ensure the identifier string is unique if it's client-set? Better interface needed.
-  -- it could depend on both the teamId and the path?
   getIdPConfig :: ST -> Spar (IdPConfig TeamId)  -- TODO
-  getIdPConfig = undefined
-
-  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig TeamId)
-  getIdPConfigByIssuer issuer = wrapMonadClient $ do
-    --TODO: unsafe! change class interface type to expect a Maybe (IdPConfig TeamId)
-    Just idp <- Data.getIdp issuer
+  getIdPConfig = do
+    idp <- (maybe _ _ ) <$> Data.getIdp issuer
     return idp
-
 
 -- | Call a cassandra command in the 'Spar' monad.  Catch all exceptions and re-throw them as 500 in
 -- Handler.
