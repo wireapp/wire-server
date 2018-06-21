@@ -88,7 +88,7 @@ enqueue b q m =
     retryPolicy = limitRetries 5 <> exponentialBackoff 50000
     enqueueAction =
         liftIO $ try @_ @StomplException $
-        stompTimeout 500000 $
+        stompTimeout "enqueue" 500000 $
         withConnection' b $ \conn ->
         withWriter conn (unpack (q^.queueName)) (unpack (q^.queuePath))
                    [OWithReceipt, OWaitReceipt] [] oconv $ \w ->
@@ -115,16 +115,16 @@ listen :: (FromJSON a, MonadLogger m, MonadMask m, MonadUnliftIO m)
 listen b q callback =
     recoverAll retryPolicy (const listenAction)  
   where
-    retryPolicy = constantDelay 3000000
+    retryPolicy = constantDelay 1000000
     listenAction =
         withRunInIO $ \runInIO ->
         withConnection' b $ \conn ->
         withReader conn (unpack (q^.queueName)) (unpack (q^.queuePath))
                    [OMode ClientIndi] [] (iconv (q^.queueName)) $ \r ->
             forever $ do
-                m <- readQ r
+                m <- stompTimeout "listen/readQ" 1000000 $ readQ r
                 runInIO $ callback (msgContent m)
-                ack conn m
+                stompTimeout "listen/ack" 1000000 $ ack conn m
     -- Note [exception handling]
     -- ~~~
     -- The callback might throw an exception, which will be caught by
@@ -139,10 +139,8 @@ listen b q callback =
     -- might want to handle such messages manually; and ditto for all other
     -- unprocessable messages).
 
-    -- TODO: here we should also have a timeout for the connection and for 'readQ'
     -- TODO: what are heartbeats and do we need them?
     -- TODO: we should log exceptions, not just catch them
-    
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -167,12 +165,13 @@ withConnection' b =
   where
     config =
         [ OAuth (unpack (user cred)) (unpack (pass cred)) | Just cred <- [b^.auth] ] ++
-        [ OTLS (tlsClientConfig (b^.port) (encodeUtf8 (b^.host))) | b^.tls ]
+        [ OTLS (tlsClientConfig (b^.port) (encodeUtf8 (b^.host))) | b^.tls ] ++
+        [ OTmo 1000 ]
 
 -- | Like 'timeout', but throws an 'AppException' instead of returning a
 -- 'Maybe'. Not very composable, but kinda convenient here.
-stompTimeout :: Int -> IO a -> IO a
-stompTimeout t act = timeout t act >>= \case
+stompTimeout :: String -> Int -> IO a -> IO a
+stompTimeout name t act = timeout t act >>= \case
     Just x  -> pure x
     Nothing -> throwIO $ AppException $
-        "STOMP request took more than " <> show t <> "mcs and has timed out"
+        name <> ": STOMP request took more than " <> show t <> "mcs and has timed out"
