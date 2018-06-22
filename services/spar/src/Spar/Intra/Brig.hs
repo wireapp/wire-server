@@ -20,7 +20,7 @@ import Control.Lens
 import Control.Monad.Except
 import Data.Aeson (eitherDecode')
 import Data.Aeson (FromJSON)
-import Data.Id (UserId, TeamId)
+import Data.Id (Id(Id), UserId, TeamId)
 import Data.String.Conversions
 import Data.ByteString.Conversion
 import GHC.Stack
@@ -75,11 +75,11 @@ class Monad m => MonadSparToBrig m where
 
 -- | Create a user on brig.
 createUser :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => SAML.UserId -> UserId -> TeamId -> m UserId
-createUser suid _buid teamid = do
+createUser suid (Id buid) teamid = do
   let newUser :: Brig.NewUser
       newUser = Brig.NewUser
         { Brig.newUserName           = Brig.Name . cs . SAML.encodeElem $ suid ^. SAML.uidSubject
-        -- , Brig.newUserUUID           = Just _buid  -- TODO: wait for https://github.com/wireapp/wire-server/pull/378 to land on develop.
+        , Brig.newUserUUID           = Just buid
         , Brig.newUserIdentity       = Just $ Brig.SSOIdentity (toUserSSOId suid) Nothing Nothing
         , Brig.newUserPict           = Nothing
         , Brig.newUserAssets         = []
