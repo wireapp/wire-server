@@ -54,3 +54,11 @@ migration = Migration 0 "Initial schema" $ do
             , PRIMARY KEY (path)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
+
+    void $ schema' [r|
+        CREATE TABLE if not exists idp_by_issuer
+            ( idp           uuid
+            , issuer        text
+            , PRIMARY KEY (issuer)
+            )
+        |]

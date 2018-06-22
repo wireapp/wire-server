@@ -158,7 +158,8 @@ getUser (SAML.UserId tenant subject) = (retry x1 . query1 sel $ params Quorum (t
 type IdPConfigRow = (SAML.IdPId, URI, SAML.Issuer, URI, SignedCertificate, Brig.TeamId)
 
 storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig Brig.TeamId -> m ()
-storeIdPConfig idp = retry x5 . write ins $ params Quorum
+storeIdPConfig idp = retry x5 $ do
+  write ins $ params Quorum
     ( idp ^. SAML.idpPath
     , idp ^. SAML.idpMetadata
     , idp ^. SAML.idpIssuer
@@ -166,27 +167,37 @@ storeIdPConfig idp = retry x5 . write ins $ params Quorum
     , idp ^. SAML.idpPublicKey
     , idp ^. SAML.idpExtraInfo
     )
+  write ins' $ params Quorum
+    ( idp ^. SAML.idpPath
+    , idp ^. SAML.idpIssuer
+    )
   where
     ins :: PrepQuery W IdPConfigRow ()
     ins = "INSERT INTO idp (idp, metadata, issuer, request_uri, public_key, team) VALUES (?, ?, ?, ?, ?, ?)"
 
+    ins' :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
+    ins' = "INSERT INTO idp_by_issuer (idp, issuer) VALUES (?, ?)"
+
 getIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPId -> m (Maybe IDP)
 getIdPConfig idpid = toIdp <$$> retry x1 (query1 sel $ params Quorum (Identity idpid))
   where
+    toIdp :: IdPConfigRow -> IDP
+    toIdp ( _idpPath
+          , _idpMetadata
+          , _idpIssuer
+          , _idpRequestUri
+          , _idpPublicKey
+          , _idpExtraInfo
+          ) = SAML.IdPConfig {..}
+
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
     sel = "SELECT idp, metadata, issuer, request_uri, public_key, team FROM idp WHERE idp = ?"
 
 getIdPConfigByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe IDP)
-getIdPConfigByIssuer issuer = toIdp <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))
+getIdPConfigByIssuer issuer = do
+  retry x1 (query1 sel $ params Quorum (Identity issuer)) >>= \case
+    Nothing -> pure Nothing
+    Just (Identity idpid) -> getIdPConfig idpid
   where
-    sel :: PrepQuery R (Identity SAML.Issuer) IdPConfigRow
-    sel = "SELECT idp, metadata, issuer, request_uri, public_key, team FROM idp WHERE issuer = ?"
-
-toIdp :: IdPConfigRow -> IDP
-toIdp ( _idpPath
-      , _idpMetadata
-      , _idpIssuer
-      , _idpRequestUri
-      , _idpPublicKey
-      , _idpExtraInfo
-      ) = SAML.IdPConfig {..}
+    sel :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
+    sel = "SELECT idp FROM idp_by_issuer WHERE issuer = ?"
