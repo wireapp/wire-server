@@ -64,11 +64,6 @@ initCassandra opts lgr = do
 ----------------------------------------------------------------------
 -- helpers
 
--- | (seconds)
-newtype TTL = TTL Int32
-  deriving (Eq, Ord, Show, Num)
-
--- TODO: make 'dataEnvMaxTTL' configurable via yaml config.
 data Env = Env { dataEnvNow :: UTCTime, dataEnvMaxTTL :: TTL }
   deriving (Eq, Show)
 
