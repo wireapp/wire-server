@@ -18,12 +18,13 @@ import Data.String (fromString)
 import GHC.Stack
 import Network.HTTP.Client (responseTimeoutMicro)
 import Servant
+import Spar.API.Instances ()
 import Spar.App
 import Spar.Options
 import Spar.Types
 import Util.Options (epHost, epPort)
-import Data.Text (Text)
 
+import qualified Data.Id as Brig
 import qualified Data.Text as ST
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Utilities.Server as WU
@@ -72,9 +73,9 @@ type APIMeta     = "sso" :> "metainfo" :> SAML.APIMeta
 type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
 type APIAuthResp = "sso" :> "complete-login" :> SAML.APIAuthResp
 
-type IdpGet     = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" IdPId :> Get '[JSON] IDP
+type IdpGet     = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IDP
 type IdpCreate  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IDP
-type IdpDelete  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" IdPId :> DeleteNoContent '[JSON] NoContent
+-- TODO: type IdpDelete  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 
 api :: ServerT API Spar
@@ -91,9 +92,9 @@ appName = "spar"
 onSuccess :: HasCallStack => SAML.UserId -> Spar SAML.Void
 onSuccess uid = forwardBrigLogin =<< maybe (createUser uid) pure =<< getUser uid
 
-type ZUsr = Maybe Text -- TODO: use Brig.UserId, requires some to/from http instances
+type ZUsr = Maybe Brig.UserId
 
-idpGet :: ZUsr -> IdPId -> Spar IDP
+idpGet :: ZUsr -> SAML.IdPId -> Spar IDP
 idpGet Nothing _ = throwError err403
 idpGet (Just _zusr) idp = do
     -- TODO: ensure zusr belongs to a team allowed to see/change this idp
@@ -102,10 +103,10 @@ idpGet (Just _zusr) idp = do
 -- We generate a new UUID for each IDP used as IdPConfig's path, thereby ensuring uniqueness
 idpCreate :: ZUsr -> NewIdP -> Spar IDP
 idpCreate Nothing _ = throwError err403 { errBody = "'Z-User' header required" }
-idpCreate (Just _zusr) newIdP = do
+idpCreate (Just _zusr) _newIdP = do
     -- TODO: ensure zusr belongs to a team allowed to see/change this idp
     -- TODO: call brig to get the teamId using the zusr
     -- TODO: create uuid?
     -- let idp = newIdP + teamId + liftIO uuid
-    SAML.storeIdPConfig idp
-    return idp
+    undefined -- SAML.storeIdPConfig idp
+--    return idp
