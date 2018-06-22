@@ -73,8 +73,8 @@ type APIMeta     = "sso" :> "metainfo" :> SAML.APIMeta
 type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
 type APIAuthResp = "sso" :> "complete-login" :> SAML.APIAuthResp
 
-type IdpGet     = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IDP
-type IdpCreate  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IDP
+type IdpGet     = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdPSpar
+type IdpCreate  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IdPSpar
 -- TODO: type IdpDelete  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 
@@ -94,14 +94,14 @@ onSuccess uid = forwardBrigLogin =<< maybe (createUser uid) pure =<< getUser uid
 
 type ZUsr = Maybe Brig.UserId
 
-idpGet :: ZUsr -> SAML.IdPId -> Spar IDP
+idpGet :: ZUsr -> SAML.IdPId -> Spar IdPSpar
 idpGet Nothing _ = throwError err403
 idpGet (Just _zusr) idp = do
     -- TODO: ensure zusr belongs to a team allowed to see/change this idp
     SAML.getIdPConfig idp
 
--- We generate a new UUID for each IDP used as IdPConfig's path, thereby ensuring uniqueness
-idpCreate :: ZUsr -> NewIdP -> Spar IDP
+-- We generate a new UUID for each IdPSpar used as IdPConfig's path, thereby ensuring uniqueness
+idpCreate :: ZUsr -> NewIdP -> Spar IdPSpar
 idpCreate Nothing _ = throwError err403 { errBody = "'Z-User' header required" }
 idpCreate (Just _zusr) _newIdP = do
     -- TODO: ensure zusr belongs to a team allowed to see/change this idp
