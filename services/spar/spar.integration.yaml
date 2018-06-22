@@ -31,3 +31,5 @@ cassandra:
     host: 127.0.0.1
     port: 9042
   keyspace: spar_test
+
+maxttl: 28800  # 8h

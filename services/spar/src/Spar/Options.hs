@@ -1,6 +1,9 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Spar.Options
   ( Opts(..)
+  , TTL(..)
   , getOpts
   , readOptsFile
   ) where
@@ -9,6 +12,7 @@ import Control.Exception
 import Data.Aeson
 import Data.Monoid
 import Data.Id
+import Data.Int
 import GHC.Generics
 import Util.Options hiding (getOptions)
 import Options.Applicative
@@ -21,11 +25,20 @@ data Opts = Opts
     { saml          :: !(SAML2.Config TeamId)
     , brig          :: !Endpoint
     , cassandra     :: !CassandraOpts
+    , maxttl        :: !TTL
     -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
     }
   deriving (Show, Generic)
 
 instance FromJSON Opts
+
+-- | (seconds)
+newtype TTL = TTL Int32
+  deriving (Eq, Ord, Show, Num)
+
+instance FromJSON TTL where
+  parseJSON = withScientific "TTL value (seconds)" (pure . TTL . round)
+
 
 -- | Throws an exception if no config file is found.
 getOpts :: IO Opts
