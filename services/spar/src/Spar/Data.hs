@@ -178,10 +178,10 @@ storeIdPConfig idp = retry x5 $ do
     ins' :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
     ins' = "INSERT INTO idp_by_issuer (idp, issuer) VALUES (?, ?)"
 
-getIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPId -> m (Maybe IdPSpar)
+getIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPId -> m (Maybe IdP)
 getIdPConfig idpid = toIdp <$$> retry x1 (query1 sel $ params Quorum (Identity idpid))
   where
-    toIdp :: IdPConfigRow -> IdPSpar
+    toIdp :: IdPConfigRow -> IdP
     toIdp ( _idpPath
           , _idpMetadata
           , _idpIssuer
@@ -193,7 +193,7 @@ getIdPConfig idpid = toIdp <$$> retry x1 (query1 sel $ params Quorum (Identity i
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
     sel = "SELECT idp, metadata, issuer, request_uri, public_key, team FROM idp WHERE idp = ?"
 
-getIdPConfigByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe IdPSpar)
+getIdPConfigByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe IdP)
 getIdPConfigByIssuer issuer = do
   retry x1 (query1 sel $ params Quorum (Identity issuer)) >>= \case
     Nothing -> pure Nothing

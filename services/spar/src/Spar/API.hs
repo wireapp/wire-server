@@ -76,8 +76,8 @@ type APIMeta     = "sso" :> "metainfo" :> SAML.APIMeta
 type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
 type APIAuthResp = "sso" :> "complete-login" :> SAML.APIAuthResp
 
-type IdpGet     = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdPSpar
-type IdpCreate  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IdPSpar
+type IdpGet     = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
+type IdpCreate  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IdP
 -- TODO: type IdpDelete  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 
@@ -97,23 +97,23 @@ onSuccess uid = forwardBrigLogin =<< maybe (createUser uid) pure =<< getUser uid
 
 type ZUsr = Maybe Brig.UserId
 
-idpGet :: ZUsr -> SAML.IdPId -> Spar IdPSpar
+idpGet :: ZUsr -> SAML.IdPId -> Spar IdP
 idpGet zusr idpid = authorizeIdP zusr =<< SAML.getIdPConfig idpid
 
--- We generate a new UUID for each IdPSpar used as IdPConfig's path, thereby ensuring uniqueness
+-- We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness
 idpCreate :: ( SAML.SP m, SAML.SPStoreIdP m, SAML.ConfigExtra m ~ Brig.TeamId
              , MonadError ServantErr m
              , Brig.MonadSparToBrig m
              )
-          => ZUsr -> NewIdP -> m IdPSpar
+          => ZUsr -> NewIdP -> m IdP
 idpCreate zusr newIdP = do
   teamid <- getZUsrTeam zusr
-  idp <- newIdPSpar newIdP teamid
+  idp <- initializeIdP newIdP teamid
   SAML.storeIdPConfig idp
   pure idp
 
 authorizeIdP :: (HasCallStack, MonadError ServantErr m, Brig.MonadSparToBrig m)
-             => ZUsr -> IdPSpar -> m IdPSpar
+             => ZUsr -> IdP -> m IdP
 authorizeIdP Nothing _ = throwError err403 { errBody = "Auth token required" }
 authorizeIdP zusr idp = do
   teamid <- getZUsrTeam zusr
@@ -130,8 +130,8 @@ getZUsrTeam (Just uid) = do
     Nothing -> throwError err403 { errBody = "Wrong or invalid auth token or not in a team" }
     Just teamid -> pure teamid
 
-newIdPSpar :: (MonadError ServantErr m, SAML.SP m) => NewIdP -> Brig.TeamId -> m IdPSpar
-newIdPSpar _newidp _teamid = do
+initializeIdP :: (MonadError ServantErr m, SAML.SP m) => NewIdP -> Brig.TeamId -> m IdP
+initializeIdP _newidp _teamid = do
   _idpid <- SAML.IdPId <$> SAML.createUUID
   let idp = undefined  -- newIdP + teamId + liftIO uuid
   return idp

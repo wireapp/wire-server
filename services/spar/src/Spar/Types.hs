@@ -23,7 +23,7 @@ import URI.ByteString
 import qualified Data.X509 as X509
 
 
-type IdPSpar = IdPConfig TeamId
+type IdP = IdPConfig TeamId
 
 -- | 'IdPConfig' contains some info that will be filled in by the server when processing the
 -- creation request.  'NewIdP' is the type of the data provided by the client in this request.
