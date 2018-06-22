@@ -66,15 +66,11 @@ packages:
 # services/spar:
 - location:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: f33e47beaad806e855b3144926cea37521311939
+    commit: a6dcd18a75640c9f5499fbf077223830df2d4d9c
   extra-dep: true
 - location:
     git: https://github.com/wireapp/hsaml2
     commit: 8a91c880740232dbd52ff73efb99ea179c2338c7
-  extra-dep: true
-- location:
-    git: https://github.com/wireapp/stack-prism  # isomorphic xml parsing/rendering in `/services/spar`
-    commit: 631978447e3a1d658613f606ce7a679d7cce2294
   extra-dep: true
 - location:
     git: https://github.com/wireapp/hspec-wai
@@ -97,7 +93,7 @@ extra-deps:
 - text-icu-translit-0.1.0.7
 - wai-middleware-gunzip-0.0.2
 - HsOpenSSL-0.11.4.12
-- invertible-hxt-0.1  # for stack-prism / spar
+- invertible-hxt-0.1  # for hsaml2 / spar
 
 flags:
   types-common:
