@@ -123,8 +123,8 @@ storeAssertion env (SAML.ID aid) (SAML.Time endOfLifeNew) = do
 -- user
 
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
-insertUser :: (HasCallStack, MonadClient m) => SAML.UserId -> Brig.UserId -> m ()
-insertUser (SAML.UserId tenant subject) uid = retry x5 . write ins $ params Quorum (tenant', subject', uid')
+insertUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> Brig.UserId -> m ()
+insertUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant', subject', uid')
   where
     tenant', subject', uid' :: ST
     tenant'  = cs $ SAML.encodeElem tenant
@@ -134,8 +134,8 @@ insertUser (SAML.UserId tenant subject) uid = retry x5 . write ins $ params Quor
     ins :: PrepQuery W (ST, ST, ST) ()
     ins = "INSERT INTO user (idp, sso_id, uid) VALUES (?, ?, ?)"
 
-getUser :: (HasCallStack, MonadClient m) => SAML.UserId -> m (Maybe Brig.UserId)
-getUser (SAML.UserId tenant subject) = (retry x1 . query1 sel $ params Quorum (tenant', subject')) <&> \case
+getUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe Brig.UserId)
+getUser (SAML.UserRef tenant subject) = (retry x1 . query1 sel $ params Quorum (tenant', subject')) <&> \case
   Just (Identity (Just (UUID.fromText -> Just uuid))) -> Just $ Brig.Id uuid
   _ -> Nothing
   where
@@ -155,7 +155,7 @@ type IdPConfigRow = (SAML.IdPId, URI, SAML.Issuer, URI, SignedCertificate, Brig.
 storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig Brig.TeamId -> m ()
 storeIdPConfig idp = retry x5 $ do
   write ins $ params Quorum
-    ( idp ^. SAML.idpPath
+    ( idp ^. SAML.idpId
     , idp ^. SAML.idpMetadata
     , idp ^. SAML.idpIssuer
     , idp ^. SAML.idpRequestUri
@@ -163,7 +163,7 @@ storeIdPConfig idp = retry x5 $ do
     , idp ^. SAML.idpExtraInfo
     )
   write ins' $ params Quorum
-    ( idp ^. SAML.idpPath
+    ( idp ^. SAML.idpId
     , idp ^. SAML.idpIssuer
     )
   where
@@ -177,7 +177,7 @@ getIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPId -> m (Maybe IdP)
 getIdPConfig idpid = toIdp <$$> retry x1 (query1 sel $ params Quorum (Identity idpid))
   where
     toIdp :: IdPConfigRow -> IdP
-    toIdp ( _idpPath
+    toIdp ( _idpId
           , _idpMetadata
           , _idpIssuer
           , _idpRequestUri

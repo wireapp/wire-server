@@ -15,7 +15,7 @@ import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Id
-import SAML2.WebSSO hiding (UserId(..))
+import SAML2.WebSSO hiding (UserRef(..))
 import Servant
 import Spar.Options as Options
 
@@ -100,7 +100,7 @@ wrapMonadClient' action = do
 wrapMonadClient :: Cas.Client a -> Spar a
 wrapMonadClient = wrapMonadClient' . const
 
-insertUser :: SAML.UserId -> UserId -> Spar ()
+insertUser :: SAML.UserRef -> UserId -> Spar ()
 insertUser suid buid = wrapMonadClient $ Data.insertUser suid buid
 
 -- | Look up user locally, then in brig, then return the 'UserId'.  If either lookup fails, return
@@ -108,14 +108,14 @@ insertUser suid buid = wrapMonadClient $ Data.insertUser suid buid
 --
 -- ASSUMPTIONS: User creation on brig/galley is idempotent.  Any incomplete creation (because of
 -- brig or galley crashing) will cause the lookup here to yield invalid user.
-getUser :: SAML.UserId -> Spar (Maybe UserId)
+getUser :: SAML.UserRef -> Spar (Maybe UserId)
 getUser suid = do
   mbuid <- wrapMonadClient $ Data.getUser suid
   case mbuid of
     Nothing -> pure Nothing
     Just buid -> Brig.confirmUserId buid
 
--- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserId', then
+-- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
 -- create user on brig with that 'UserId'.  See also: 'Spar.App.getUser'.
 --
 -- The manual for the team admin should say this: when deleting a user, delete it on the IdP first,
@@ -125,13 +125,13 @@ getUser suid = do
 -- When an sso login succeeds for a user that is marked as deleted in brig, it is recreated by spar.
 -- This is necessary because brig does not talk to spar when deleting users, and we may have
 -- 'UserId' records on spar that are deleted on brig.  Without this lenient behavior, there would be
--- no way for admins to reuse a 'SAML.UserId' if it has ever been associated with a deleted user in
+-- no way for admins to reuse a 'SAML.UserRef' if it has ever been associated with a deleted user in
 -- the past.
 --
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-createUser :: SAML.UserId -> Spar UserId
+createUser :: SAML.UserRef -> Spar UserId
 createUser suid = do
   buid <- Id <$> liftIO UUID.nextRandom
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
