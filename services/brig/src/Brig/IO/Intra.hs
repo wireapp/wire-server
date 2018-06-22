@@ -151,12 +151,13 @@ updateSearchIndex orig e = case e of
 
 journalEvent :: UserId -> UserEvent -> AppIO ()
 journalEvent orig e = case e of
-    UserActivated acc                 -> Journal.userActivate (accountUser acc)
-    UserLocaleUpdated _ loc           -> Journal.userUpdate orig Nothing (Just loc)
-    UserIdentityUpdated _ (Just em) _ -> Journal.userUpdate orig (Just em) Nothing
-    UserIdentityRemoved _ (Just em) _ -> Journal.userEmailRemove orig em
-    UserDeleted{}                     -> Journal.userDelete orig
-    _                                 -> return ()
+    UserActivated acc                   -> Journal.userActivate (accountUser acc)
+    UserLocaleUpdated _ loc             -> Journal.userUpdate orig Nothing (Just loc) Nothing
+    UserUpdated _ (Just name) _ _ _ _ _ -> Journal.userUpdate orig Nothing Nothing (Just name)
+    UserIdentityUpdated _ (Just em) _   -> Journal.userUpdate orig (Just em) Nothing Nothing
+    UserIdentityRemoved _ (Just em) _   -> Journal.userEmailRemove orig em
+    UserDeleted{}                       -> Journal.userDelete orig
+    _                                   -> return ()
 
 -------------------------------------------------------------------------------
 -- Low-Level Event Notification

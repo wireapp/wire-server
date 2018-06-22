@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Galley.API.Create
     ( createGroupConversation
@@ -45,7 +46,7 @@ import qualified Galley.Types.Teams as Teams
 
 createGroupConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 createGroupConversation (zusr::: zcon ::: req ::: _) = do
-    body <- fromBody req invalidPayload
+    body :: NewConv <- fromBody req invalidPayload
     case newConvTeam body of
         Nothing -> createRegularConv body
         Just tm -> createTeamConv tm body
@@ -64,7 +65,7 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
                 uu <- checkedConvAndTeamSize (newConvUsers body)
                 ensureConnected zusr (notTeamMember (fromConvTeamSize uu) mems)
                 pure uu
-        conv <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body)
+        conv <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body) (newConvMessageTimer body)
         now  <- liftIO getCurrentTime
         let d = Teams.EdConvCreate (Data.convId conv)
         let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
@@ -77,7 +78,7 @@ createGroupConversation (zusr::: zcon ::: req ::: _) = do
         name <- rangeCheckedMaybe (newConvName body)
         uids <- checkedConvAndTeamSize (newConvUsers body)
         ensureConnected zusr (fromConvTeamSize uids)
-        c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body)
+        c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body) (newConvMessageTimer body)
         notifyCreatedConversation Nothing zusr (Just zcon) c
         conversationResponse status201 zusr c
 

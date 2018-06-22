@@ -36,8 +36,10 @@ import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Web.Cookie (parseSetCookie, setCookieName)
 import Util
+import Util.AWS as Util
 import Util.Options.Common
 
+import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt
 import qualified Data.Text.Ascii             as Ascii
 import qualified Data.Text.Encoding          as T
@@ -49,8 +51,8 @@ import qualified Test.Tasty.Cannon           as WS
 
 newtype TeamSizeLimit = TeamSizeLimit Word16
 
-tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> IO TestTree
-tests conf m b c g = do
+tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
+tests conf m b c g aws = do
     tl <- optOrEnv (TeamSizeLimit . Opt.setMaxConvAndTeamSize . Opt.optSettings) conf (TeamSizeLimit . read) "CONV_AND_TEAM_MAX_SIZE"
     it <- optOrEnv (Opt.setTeamInvitationTimeout . Opt.optSettings)              conf read                   "TEAM_INVITATION_TIMEOUT"
     return $ testGroup "team"
@@ -58,9 +60,9 @@ tests conf m b c g = do
             [ test m "post /teams/:tid/invitations - 201"                  $ testInvitationEmail b g
             , test m "post /teams/:tid/invitations - 403 no permission"    $ testInvitationNoPermission b g
             , test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b g tl
-            , test m "post /register - 201 accepted"                       $ testInvitationEmailAccepted b g
-            , test m "post /register user & team - 201 accepted"           $ testCreateTeam b g
-            , test m "post /register user & team - 201 preverified"        $ testCreateTeamPreverified b g
+            , test' aws m "post /register - 201 accepted"                  $ testInvitationEmailAccepted b g
+            , test' aws m "post /register user & team - 201 accepted"      $ testCreateTeam b g aws
+            , test' aws m "post /register user & team - 201 preverified"   $ testCreateTeamPreverified b g aws
             , test m "post /register - 400 no passwordless"                $ testTeamNoPassword b
             , test m "post /register - 400 code already used"              $ testInvitationCodeExists b g
             , test m "post /register - 400 bad code"                       $ testInvitationInvalidCode b
@@ -163,11 +165,11 @@ testInvitationEmailAccepted brig galley = do
     conns <- listConnections invitee brig
     liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
 
-testCreateTeam :: Brig -> Galley -> Http ()
-testCreateTeam brig galley = do
+testCreateTeam :: Brig -> Galley -> AWS.Env -> Http ()
+testCreateTeam brig galley aws = do
     email <- randomEmail
-    rsp <- register email newTeam brig
-    let Just uid = userId <$> decodeBody rsp
+    usr <- decodeBody' =<< register email newTeam brig
+    let uid = userId usr
     -- Verify that the user is part of exactly one (binding) team
     teams <- view Team.teamListTeams <$> getTeams uid galley
     liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
@@ -187,20 +189,22 @@ testCreateTeam brig galley = do
     case act of
         Nothing -> liftIO $ assertFailure "activation key/code not found"
         Just kc -> activate brig kc !!! const 200 === statusCode
+    liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
     -- Verify that Team has status Active now
     team3 <- getTeam galley (team^.Team.teamId)
     liftIO $ assertEqual "status" Team.Active (Team.tdStatus team3)
 
-testCreateTeamPreverified :: Brig -> Galley -> Http ()
-testCreateTeamPreverified brig galley = do
+testCreateTeamPreverified :: Brig -> Galley -> AWS.Env -> Http ()
+testCreateTeamPreverified brig galley aws = do
     email <- randomEmail
     requestActivationCode brig (Left email)
     act <- getActivationCode brig (Left email)
     case act of
         Nothing     -> liftIO $ assertFailure "activation key/code not found"
         Just (_, c) -> do
-            rsp <- register' email newTeam c brig <!! const 201 === statusCode
-            let Just uid = userId <$> decodeBody rsp
+            usr <- decodeBody' =<< register' email newTeam c brig <!! const 201 === statusCode
+            let uid  = userId usr
+            liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
             teams <- view Team.teamListTeams <$> getTeams uid galley
             liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
             let team = fromMaybe (error "No team??") $ listToMaybe teams
@@ -697,6 +701,9 @@ register' e t c brig = post (brig . path "/register" . contentJson . body (
         , "team"            .= t
         ]
     ))
+
+decodeBody' :: FromJSON a => Response (Maybe ByteString) -> Http a
+decodeBody' x = maybe (error $ "Failed to decodeBody: " ++ show x) return $ decodeBody x
 
 inviteAndRegisterUser :: UserId -> TeamId -> Brig -> HttpT IO User
 inviteAndRegisterUser u tid brig = do

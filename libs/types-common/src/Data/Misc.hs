@@ -5,6 +5,7 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE LambdaCase                 #-}
 
 module Data.Misc
     ( -- * IpAddr / Port
@@ -18,6 +19,9 @@ module Data.Misc
     , longitude
     , Latitude  (..)
     , Longitude (..)
+
+      -- * Time
+    , Milliseconds (..)
 
       -- * HttpsUrl
     , HttpsUrl (..)
@@ -42,6 +46,7 @@ import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.Char (isSpace)
+import Data.Int (Int64)
 import Data.IP (IP)
 import Safe (readMay)
 import Data.Range
@@ -153,6 +158,36 @@ instance Cql Longitude where
 
     fromCql (CqlDouble x) = return (Longitude x)
     fromCql _             = fail "Longitude: Expected CqlDouble."
+#endif
+
+--------------------------------------------------------------------------------
+-- Time
+
+newtype Milliseconds = Ms
+    { ms :: Word64
+    } deriving (Eq, Ord, Show, Num)
+
+-- | Convert milliseconds to 'Int64', with clipping if it doesn't fit.
+msToInt64 :: Milliseconds -> Int64
+msToInt64 = fromIntegral . min (fromIntegral (maxBound @Int64)) . ms
+
+-- | Convert 'Int64' to milliseconds, rounding negative values to 0.
+int64ToMs :: Int64 -> Milliseconds
+int64ToMs = Ms . fromIntegral . max 0
+
+instance ToJSON Milliseconds where
+    toJSON = toJSON . msToInt64
+
+instance FromJSON Milliseconds where
+    parseJSON = fmap int64ToMs . parseJSON
+
+#ifdef WITH_CQL
+instance Cql Milliseconds where
+    ctype = Tagged BigIntColumn
+    toCql = CqlBigInt . msToInt64
+    fromCql = \case
+        CqlBigInt i -> pure $ int64ToMs i
+        _ -> fail "Milliseconds: expected CqlBigInt"
 #endif
 
 --------------------------------------------------------------------------------

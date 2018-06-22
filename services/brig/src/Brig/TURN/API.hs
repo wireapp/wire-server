@@ -9,11 +9,9 @@ module Brig.TURN.API (routes) where
 
 import Brig.App
 import Brig.TURN hiding (Env)
-import Brig.Types.TURN 
-import Brig.API.Error (badTURNconfig)
+import Brig.Types.TURN
 import Brig.API.Handler
 import Control.Lens
-import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Reader
 import Control.Monad.Random.Class
 import Data.ByteString (ByteString)
@@ -38,6 +36,7 @@ import Prelude hiding (head)
 import System.Random.Shuffle
 
 import qualified Brig.Types.Swagger            as Doc
+import qualified Brig.TURN                     as TURN
 import qualified Data.List1                    as List1
 import qualified Data.Swagger.Build.Api        as Doc
 import qualified System.Random.MWC             as MWC
@@ -51,8 +50,8 @@ routes = do
         .&. header "Z-Connection"
 
     document "GET" "getCallsConfig" $ do
-        Doc.summary "Retrieve TURN server addresses and credentials \
-                    \ for scheme `turn` and transport `udp` "
+        Doc.summary "Retrieve TURN server addresses and credentials for \
+                    \ IP addresses, scheme `turn` and transport `udp` only "
         Doc.returns (Doc.ref Doc.rtcConfiguration)
         Doc.response 200 "RTCConfiguration" Doc.end
 
@@ -62,38 +61,36 @@ routes = do
         .&. header "Z-Connection"
 
     document "GET" "getCallsConfigV2" $ do
-        Doc.summary "Retrieve all TURN server addresses and credentials."
+        Doc.summary "Retrieve all TURN server addresses and credentials. \
+                    \Clients are expected to do a DNS lookup to resolve \
+                    \the IP addresses of the given hostnames "
         Doc.returns (Doc.ref Doc.rtcConfiguration)
         Doc.response 200 "RTCConfiguration" Doc.end
 
 getCallsConfigV2 :: JSON ::: UserId ::: ConnId -> Handler Response
-getCallsConfigV2 (_ ::: _ ::: _) = json <$> lift (newConfig Nothing)
+getCallsConfigV2 (_ ::: _ ::: _) = do
+    env <- liftIO =<< readIORef <$> view turnEnvV2
+    json <$> newConfig env
 
 getCallsConfig :: JSON ::: UserId ::: ConnId -> Handler Response
-getCallsConfig (_ ::: _ ::: _) = json . dropTransport <$> lift (newConfig (Just ([SchemeTurn], [Just TransportUDP, Nothing])))
+getCallsConfig (_ ::: _ ::: _) = do
+    env <- liftIO =<< readIORef <$> view turnEnv
+    json . dropTransport <$> newConfig env
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
     dropTransport :: RTCConfiguration -> RTCConfiguration
     dropTransport = set (rtcConfIceServers . traverse . iceURLs . traverse . turiTransport) Nothing
 
-newConfig :: (MonadThrow m, MonadIO m, MonadReader Env m)
-          => Maybe ([Scheme], [Maybe Transport])
-          -> m RTCConfiguration
-newConfig fn = do
-    env  <- liftIO =<< readIORef <$> view turnEnv
+newConfig :: MonadIO m => TURN.Env -> m RTCConfiguration
+newConfig env = do
+    -- env  <- liftIO =<< readIORef <$> view turnEnv
     let (sha, secret, tTTL, cTTL, prng) = (env^.turnSHA512, env^.turnSecret, env^.turnTokenTTL, env^.turnConfigTTL, env^.turnPrng)
-    uris <- filterSuitableURIs fn =<< (liftIO $ randomize (env^.turnServers))
+    uris <- liftIO $ randomize (env^.turnServers)
     srvs <- for uris $ \uri -> do
                 u <- liftIO $ genUsername tTTL prng
                 pure $ rtcIceServer (List1.singleton uri) u (computeCred sha secret u)
     pure $ rtcConfiguration srvs cTTL
   where
-    filterSuitableURIs :: MonadThrow m => Maybe ([Scheme], [Maybe Transport]) -> List1 TurnURI -> m (List1 TurnURI)
-    filterSuitableURIs Nothing       uris = return uris
-    filterSuitableURIs (Just (s, t)) uris = case filter (\x -> view turiScheme x `elem` s && view turiTransport x `elem` t) (toList uris) of
-        []     -> throwM badTURNconfig
-        (x:xs) -> return $ List1.list1 x xs
-
     -- NOTE: even though `shuffleM` works only for [a], input is List1 so it's
     --       safe to pattern match; ideally, we'd have `shuffleM` for `NonEmpty`
     randomize :: MonadRandom m => List1 TurnURI -> m (List1 TurnURI)

@@ -20,6 +20,7 @@ module Galley.API.Update
     , rmCode
     , getCode
     , updateConversationAccess
+    , updateConversationMessageTimer
 
       -- * Managing Members
     , Galley.API.Update.addMembers
@@ -182,6 +183,35 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
             -- since updateConversationAccess generates a second (member removal) event here
             for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
             void . fork $ void $ External.deliver (bots `zip` repeat e)
+
+updateConversationMessageTimer :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
+updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req ::: _ ) = do
+    body <- fromBody req invalidPayload :: Galley ConversationMessageTimerUpdate
+    let messageTimer = cupMessageTimer body
+    -- checks and balances
+    (bots, users) <- botsAndUsers <$> Data.members cnv
+    unless (usr `isMember` users) $
+        throwM convNotFound
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    ensureGroupConv conv
+    case Data.convTeam conv of  -- only team members can change the timer
+        Nothing  -> pure ()
+        Just tid -> ensureTeamMember tid
+    let currentTimer = Data.convMessageTimer conv
+    if currentTimer == messageTimer then
+        return $ empty & setStatus status204
+    else do
+        -- update cassandra & send event
+        now <- liftIO getCurrentTime
+        let e = Event ConvMessageTimerUpdate cnv usr now (Just $ EdConvMessageTimerUpdate body)
+        Data.updateConversationMessageTimer cnv messageTimer
+        pushEvent e users bots zcon
+        return $ json e & setStatus status200
+  where
+    ensureTeamMember tid = do
+        tMembers <- Data.teamMembers tid
+        unless (usr `elem` (view userId <$> tMembers)) $
+            throwM accessDenied
 
 pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
 pushEvent e users bots zcon = do

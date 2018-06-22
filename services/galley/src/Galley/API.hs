@@ -506,6 +506,8 @@ sitemap = do
 
     document "POST" "createConversationCode" $ do
         summary "Create or recreate a conversation code"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
         returns (ref Model.event)
         returns (ref Model.conversationCode)
         response 201 "Conversation code created." (model Model.event)
@@ -522,6 +524,8 @@ sitemap = do
 
     document "DELETE" "deleteConversationCode" $ do
         summary "Delete conversation code"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
         returns (ref Model.event)
         response 200 "Conversation code deleted." end
         errorResponse Error.convNotFound
@@ -535,6 +539,8 @@ sitemap = do
 
     document "GET" "getConversationCode" $ do
         summary "Get existing conversation code"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
         returns (ref Model.conversationCode)
         response 200 "Conversation Code" end
         errorResponse Error.convNotFound
@@ -551,8 +557,11 @@ sitemap = do
 
     document "PUT" "updateConversationAccess" $ do
         summary "Update access modes for a conversation"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
         returns (ref Model.event)
         response 200 "Conversation access updated." end
+        response 204 "Conversation access unchanged." end
         body (ref Model.conversationAccessUpdate) $
             description "JSON body"
         errorResponse Error.convNotFound
@@ -561,7 +570,30 @@ sitemap = do
         errorResponse Error.invalidSelfOp
         errorResponse Error.invalidOne2OneOp
         errorResponse Error.invalidConnectOp
-        errorResponse Error.invalidTargetAccess
+
+    ---
+
+    put "/conversations/:cnv/message-timer" (continue updateConversationMessageTimer) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. request
+        .&. contentType "application" "json"
+
+    document "PUT" "updateConversationMessageTimer" $ do
+        summary "Update the message timer for a conversation"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        returns (ref Model.event)
+        response 200 "Message timer updated." end
+        response 204 "Message timer unchanged." end
+        body (ref Model.conversationMessageTimerUpdate) $
+            description "JSON body"
+        errorResponse Error.convNotFound
+        errorResponse Error.accessDenied
+        errorResponse Error.invalidSelfOp
+        errorResponse Error.invalidOne2OneOp
+        errorResponse Error.invalidConnectOp
 
     ---
 
