@@ -15,6 +15,7 @@ dependencies:
   - aeson
   - base
   - bilge
+  - binary
   - brig-types
   - bytestring
   - bytestring-conversion
@@ -43,6 +44,7 @@ dependencies:
   - uuid
   - wai-utilities
   - warp
+  - x509
   - yaml
 
 library:
