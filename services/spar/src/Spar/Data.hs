@@ -17,16 +17,17 @@ import Control.Lens hiding (Level)
 import Control.Monad.Catch
 import Control.Monad.Except
 import Data.Int
-import Data.X509 (SignedCertificate)
-import URI.ByteString
 import Data.List.NonEmpty as NE
+import Data.Misc ((<$$>))
 import Data.String.Conversions
 import Data.Time
+import Data.X509 (SignedCertificate)
 import GHC.Stack
+import Spar.Data.Instances ()
 import Spar.Options as Options
 import Spar.Types
-import Spar.Instances()
 import System.Logger (Logger)
+import URI.ByteString
 import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 
 import qualified Cassandra.Schema as Cas
@@ -154,31 +155,38 @@ getUser (SAML.UserId tenant subject) = (retry x1 . query1 sel $ params Quorum (t
 ----------------------------------------------------------------------
 -- idp
 
--- NOTE TO FUTURE SELF: when storing IdPs, we need to handle tenant conflicts.  we need to rely on
--- the fact that the tenant in the 'SAML.UserId' is always unique.
---
---
+type IdPConfigRow = (SAML.IdPId, URI, SAML.Issuer, URI, SignedCertificate, Brig.TeamId)
 
-insertIdp :: (HasCallStack, MonadClient m) => SAML.IdPConfig Brig.TeamId -> m ()
-insertIdp idp = retry x5 . write ins $ params Quorum
-    ( idp ^. SAML.idpExtraInfo
-    , idp ^. SAML.idpIssuer
-    , idp ^. SAML.idpPath
+storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig Brig.TeamId -> m ()
+storeIdPConfig idp = retry x5 . write ins $ params Quorum
+    ( idp ^. SAML.idpPath
     , idp ^. SAML.idpMetadata
+    , idp ^. SAML.idpIssuer
     , idp ^. SAML.idpRequestUri
     , idp ^. SAML.idpPublicKey
+    , idp ^. SAML.idpExtraInfo
     )
   where
-    ins :: PrepQuery W (Brig.TeamId, SAML.Issuer, ST, URI, URI, SignedCertificate) ()
-    ins = "INSERT INTO idp (team, issuer, path, metadata, uri, key) VALUES (?, ?, ?, ?, ?, ?)"
+    ins :: PrepQuery W IdPConfigRow ()
+    ins = "INSERT INTO idp (idp, metadata, issuer, request_uri, public_key, team) VALUES (?, ?, ?, ?, ?, ?)"
 
-
-getIdp :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe IDP)
-getIdp issuer = fmap toIdp <$> retry x1 (query1 sel $ params Quorum (Identity issuer))
+getIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPId -> m (Maybe IDP)
+getIdPConfig idpid = toIdp <$$> retry x1 (query1 sel $ params Quorum (Identity idpid))
   where
-    -- TODO: request_uri and metadata in IdPConfig should probably be newtyped to avoid potential ordering mistakes
-    toIdp :: (Brig.TeamId, SAML.Issuer, ST, URI, URI, SignedCertificate) -> IDP
-    toIdp (t, i, p, m, u, k) = SAML.IdPConfig p m i u k t
+    sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
+    sel = "SELECT idp, metadata, issuer, request_uri, public_key, team FROM idp WHERE idp = ?"
 
-    sel :: PrepQuery R (Identity SAML.Issuer) (Brig.TeamId, SAML.Issuer, ST, URI, URI, SignedCertificate)
-    sel = "SELECT team, issuer, path, metadata, uri, key FROM idp WHERE issuer = ?"
+getIdPConfigByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe IDP)
+getIdPConfigByIssuer issuer = toIdp <$$> retry x1 (query1 sel $ params Quorum (Identity issuer))
+  where
+    sel :: PrepQuery R (Identity SAML.Issuer) IdPConfigRow
+    sel = "SELECT idp, metadata, issuer, request_uri, public_key, team FROM idp WHERE issuer = ?"
+
+toIdp :: IdPConfigRow -> IDP
+toIdp ( _idpPath
+      , _idpMetadata
+      , _idpIssuer
+      , _idpRequestUri
+      , _idpPublicKey
+      , _idpExtraInfo
+      ) = SAML.IdPConfig {..}

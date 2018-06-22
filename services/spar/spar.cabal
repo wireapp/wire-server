@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7837fe1063a02dad459937fe6fa714783bbfe56d74608c15f4b0302d038cceb8
+-- hash: c4ca73b2551427fb3d6e09853fe85270d825105ac9a80068d1dad15dde5bab45
 
 name:           spar
 version:        0.1
@@ -22,7 +22,7 @@ library
       Spar.API
       Spar.App
       Spar.Data
-      Spar.Instances
+      Spar.Data.Instances
       Spar.Intra.Brig
       Spar.Options
       Spar.Types
