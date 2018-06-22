@@ -92,7 +92,7 @@ api =  pure ()
 appName :: ST
 appName = "spar"
 
-onSuccess :: HasCallStack => SAML.UserId -> Spar SAML.Void
+onSuccess :: HasCallStack => SAML.UserRef -> Spar SAML.Void
 onSuccess uid = forwardBrigLogin =<< maybe (createUser uid) pure =<< getUser uid
 
 type ZUsr = Maybe Brig.UserId
@@ -132,5 +132,5 @@ getZUsrTeam (Just uid) = do
 
 initializeIdP :: (MonadError ServantErr m, SAML.SP m) => NewIdP -> Brig.TeamId -> m IdP
 initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpExtraInfo = do
-  _idpPath <- SAML.IdPId <$> SAML.createUUID
+  _idpId <- SAML.IdPId <$> SAML.createUUID
   pure SAML.IdPConfig {..}
