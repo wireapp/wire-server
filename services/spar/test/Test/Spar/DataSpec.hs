@@ -12,6 +12,7 @@ module Test.Spar.DataSpec where
 import Data.Maybe
 import Data.Time
 import Spar.Data
+import Spar.Options (TTL)
 import Test.Hspec
 
 
