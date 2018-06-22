@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c8f249194af9b681ae4fcb33a68d250ffb8bc36d3981b30f7730a0c08bba0b04
+-- hash: 38931f044032b1429a813e2a492c11d5ce7cee71b51c37da72255020f3382730
 
 name:           spar
 version:        0.1
@@ -20,10 +20,13 @@ cabal-version:  >= 1.10
 library
   exposed-modules:
       Spar.API
+      Spar.API.Instances
       Spar.App
       Spar.Data
+      Spar.Data.Instances
       Spar.Intra.Brig
       Spar.Options
+      Spar.Types
   other-modules:
       Paths_spar
   hs-source-dirs:
@@ -33,6 +36,7 @@ library
       aeson
     , base
     , bilge
+    , binary
     , brig-types
     , bytestring
     , bytestring-conversion
@@ -61,6 +65,7 @@ library
     , uuid
     , wai-utilities
     , warp
+    , x509
     , yaml
   default-language: Haskell2010
 
@@ -75,6 +80,7 @@ executable spar
       aeson
     , base
     , bilge
+    , binary
     , brig-types
     , bytestring
     , bytestring-conversion
@@ -104,6 +110,7 @@ executable spar
     , uuid
     , wai-utilities
     , warp
+    , x509
     , yaml
   default-language: Haskell2010
 
@@ -120,6 +127,7 @@ executable spar-integration
       aeson
     , base
     , bilge
+    , binary
     , brig-types
     , bytestring
     , bytestring-conversion
@@ -151,6 +159,7 @@ executable spar-integration
     , uuid
     , wai-utilities
     , warp
+    , x509
     , yaml
   default-language: Haskell2010
 
@@ -166,6 +175,7 @@ executable spar-schema
       aeson
     , base
     , bilge
+    , binary
     , brig-types
     , bytestring
     , bytestring-conversion
@@ -195,6 +205,7 @@ executable spar-schema
     , uuid
     , wai-utilities
     , warp
+    , x509
     , yaml
   default-language: Haskell2010
 
@@ -214,6 +225,7 @@ test-suite spec
     , aeson
     , base
     , bilge
+    , binary
     , brig-types
     , bytestring
     , bytestring-conversion
@@ -245,5 +257,6 @@ test-suite spec
     , uuid
     , wai-utilities
     , warp
+    , x509
     , yaml
   default-language: Haskell2010

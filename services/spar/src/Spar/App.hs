@@ -15,7 +15,6 @@ import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Id
-import Data.String.Conversions
 import SAML2.WebSSO hiding (UserId(..))
 import Servant
 import Spar.Options as Options
@@ -79,14 +78,14 @@ instance SPStore Spar where
   storeAssertion i r    = wrapMonadClient' $ \env -> Data.storeAssertion env i r
 
 instance SPStoreIdP Spar where
-  storeIdPConfig :: IdPConfig TeamId -> Spar ()  -- TODO
-  storeIdPConfig = undefined
+  storeIdPConfig :: IdPConfig TeamId -> Spar ()
+  storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 
-  getIdPConfig :: ST -> Spar (IdPConfig TeamId)  -- TODO
-  getIdPConfig = undefined
+  getIdPConfig :: IdPId -> Spar (IdPConfig TeamId)
+  getIdPConfig = (>>= maybe (throwError err404) pure) . wrapMonadClient . Data.getIdPConfig
 
-  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig TeamId)  -- TODO
-  getIdPConfigByIssuer = undefined
+  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig TeamId)
+  getIdPConfigByIssuer = (>>= maybe (throwError err404) pure) . wrapMonadClient . Data.getIdPConfigByIssuer
 
 -- | Call a cassandra command in the 'Spar' monad.  Catch all exceptions and re-throw them as 500 in
 -- Handler.
