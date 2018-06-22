@@ -38,14 +38,14 @@ import qualified SAML2.WebSSO as SAML
 
 ----------------------------------------------------------------------
 
-toUserSSOId :: SAML.UserId -> Brig.UserSSOId
-toUserSSOId (SAML.UserId tenant subject) =
+toUserSSOId :: SAML.UserRef -> Brig.UserSSOId
+toUserSSOId (SAML.UserRef tenant subject) =
   Brig.UserSSOId (cs $ SAML.encodeElem tenant) (cs $ SAML.encodeElem subject)
 
-fromUserSSOId :: MonadError String m => Brig.UserSSOId -> m SAML.UserId
+fromUserSSOId :: MonadError String m => Brig.UserSSOId -> m SAML.UserRef
 fromUserSSOId (Brig.UserSSOId (cs -> tenant) (cs -> subject)) =
   case (SAML.decodeElem tenant, SAML.decodeElem subject) of
-    (Right t, Right s) -> pure $ SAML.UserId t s
+    (Right t, Right s) -> pure $ SAML.UserRef t s
     (Left msg, _)      -> throwError msg
     (_, Left msg)      -> throwError msg
 
@@ -74,7 +74,7 @@ class Monad m => MonadSparToBrig m where
 
 
 -- | Create a user on brig.
-createUser :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => SAML.UserId -> UserId -> TeamId -> m UserId
+createUser :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => SAML.UserRef -> UserId -> TeamId -> m UserId
 createUser suid (Id buid) teamid = do
   let newUser :: Brig.NewUser
       newUser = Brig.NewUser

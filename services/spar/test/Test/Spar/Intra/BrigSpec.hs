@@ -29,7 +29,7 @@ spec = do
     -- remove them.
 
     it "example" $ do
-      let have = UserId
+      let have = UserRef
             (Issuer $ mkuri "http://wire.com/")
             (NameID (NameIDFTransient "V") (Just "kati") (Just "rolli") (Just "jaan"))
           want = UserSSOId
@@ -39,7 +39,7 @@ spec = do
       fromUserSSOId want `shouldBe` Right have
 
     it "another example" $ do
-      let have = UserId
+      let have = UserRef
             (Issuer $ mkuri "http://wire.com/")
             (NameID (NameIDFPersistent "PWkS") (Just "hendrik") Nothing (Just "marye"))
           want = UserSSOId
@@ -49,4 +49,4 @@ spec = do
       fromUserSSOId want `shouldBe` Right have
 
     it "roundtrips" . property $
-      \(x :: SAML.UserId) -> (fromUserSSOId @(Either String) . toUserSSOId) x == Right x
+      \(x :: SAML.UserRef) -> (fromUserSSOId @(Either String) . toUserSSOId) x == Right x
