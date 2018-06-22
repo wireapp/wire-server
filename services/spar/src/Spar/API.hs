@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -12,8 +13,9 @@ module Spar.API where
 
 import Bilge
 import Control.Lens
+import Control.Monad.Except
 import Data.Metrics (metrics)
-import Data.String.Conversions (cs)
+import Data.String.Conversions (ST, cs)
 import Data.String (fromString)
 import GHC.Stack
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -24,12 +26,13 @@ import Spar.Options
 import Spar.Types
 import Util.Options (epHost, epPort)
 
+import qualified Brig.Types.User as Brig
 import qualified Data.Id as Brig
-import qualified Data.Text as ST
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
+import qualified Spar.Intra.Brig as Brig
 import qualified System.Logger as Log
 
 runServer :: Opts -> IO ()
@@ -86,7 +89,7 @@ api =  pure ()
   :<|> idpGet
   :<|> idpCreate
 
-appName :: ST.Text
+appName :: ST
 appName = "spar"
 
 onSuccess :: HasCallStack => SAML.UserId -> Spar SAML.Void
@@ -95,18 +98,40 @@ onSuccess uid = forwardBrigLogin =<< maybe (createUser uid) pure =<< getUser uid
 type ZUsr = Maybe Brig.UserId
 
 idpGet :: ZUsr -> SAML.IdPId -> Spar IdPSpar
-idpGet Nothing _ = throwError err403
-idpGet (Just _zusr) idp = do
-    -- TODO: ensure zusr belongs to a team allowed to see/change this idp
-    SAML.getIdPConfig idp
+idpGet zusr idpid = authorizeIdP zusr =<< SAML.getIdPConfig idpid
 
 -- We generate a new UUID for each IdPSpar used as IdPConfig's path, thereby ensuring uniqueness
-idpCreate :: ZUsr -> NewIdP -> Spar IdPSpar
-idpCreate Nothing _ = throwError err403 { errBody = "'Z-User' header required" }
-idpCreate (Just _zusr) _newIdP = do
-    -- TODO: ensure zusr belongs to a team allowed to see/change this idp
-    -- TODO: call brig to get the teamId using the zusr
-    -- TODO: create uuid?
-    -- let idp = newIdP + teamId + liftIO uuid
-    undefined -- SAML.storeIdPConfig idp
---    return idp
+idpCreate :: ( SAML.SP m, SAML.SPStoreIdP m, SAML.ConfigExtra m ~ Brig.TeamId
+             , MonadError ServantErr m
+             , Brig.MonadSparToBrig m
+             )
+          => ZUsr -> NewIdP -> m IdPSpar
+idpCreate zusr newIdP = do
+  teamid <- getZUsrTeam zusr
+  idp <- newIdPSpar newIdP teamid
+  SAML.storeIdPConfig idp
+  pure idp
+
+authorizeIdP :: (HasCallStack, MonadError ServantErr m, Brig.MonadSparToBrig m)
+             => ZUsr -> IdPSpar -> m IdPSpar
+authorizeIdP Nothing _ = throwError err403 { errBody = "Auth token required" }
+authorizeIdP zusr idp = do
+  teamid <- getZUsrTeam zusr
+  if teamid == idp ^. SAML.idpExtraInfo
+    then pure idp
+    else throwError err403 { errBody = "Wrong or invalid auth token or not in a team" }
+
+getZUsrTeam :: (HasCallStack, MonadError ServantErr m, Brig.MonadSparToBrig m)
+            => ZUsr -> m Brig.TeamId
+getZUsrTeam Nothing = throwError err403 { errBody = "Auth token required" }
+getZUsrTeam (Just uid) = do
+  usr <- Brig.getUser uid
+  case Brig.userTeam =<< usr of
+    Nothing -> throwError err403 { errBody = "Wrong or invalid auth token or not in a team" }
+    Just teamid -> pure teamid
+
+newIdPSpar :: (MonadError ServantErr m, SAML.SP m) => NewIdP -> Brig.TeamId -> m IdPSpar
+newIdPSpar _newidp _teamid = do
+  _idpid <- SAML.IdPId <$> SAML.createUUID
+  let idp = undefined  -- newIdP + teamId + liftIO uuid
+  return idp

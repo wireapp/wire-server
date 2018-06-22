@@ -101,9 +101,8 @@ createUser suid _buid teamid = do
   parseResponse resp
 
 
--- | Check that a user locally created on spar exists on brig and has a team id.
-confirmUserId :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => UserId -> m (Maybe UserId)
-confirmUserId buid = do
+getUser :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => UserId -> m (Maybe Brig.User)
+getUser buid = do
   resp :: Response (Maybe LBS) <- call
     $ method GET
     . path "/i/users"
@@ -111,8 +110,15 @@ confirmUserId buid = do
 
   if statusCode resp /= 200
     then pure Nothing
-    else parseResponse @Brig.User resp >>=
-           maybe (pure Nothing) (const . pure . Just $ buid) . Brig.userTeam
+    else Just <$> parseResponse @Brig.User resp
+
+
+-- | Check that a user locally created on spar exists on brig and has a team id.
+confirmUserId :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => UserId -> m (Maybe UserId)
+confirmUserId buid = do
+  usr <- getUser buid
+  maybe (pure Nothing) (const . pure . Just $ buid) (Brig.userTeam =<< usr)
+
 
 -- | Get session token from brig and redirect user past login process.
 forwardBrigLogin :: (HasCallStack, MonadError ServantErr m, SAML.HasConfig m, MonadSparToBrig m)
