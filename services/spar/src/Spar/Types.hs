@@ -28,10 +28,10 @@ type IdP = IdPConfig TeamId
 -- | 'IdPConfig' contains some info that will be filled in by the server when processing the
 -- creation request.  'NewIdP' is the type of the data provided by the client in this request.
 data NewIdP = NewIdP
-  { _idpMetadata        :: URI
-  , _idpIssuer          :: Issuer
-  , _idpRequestUri      :: URI
-  , _idpPublicKey       :: X509.SignedCertificate
+  { _nidpMetadata        :: URI
+  , _nidpIssuer          :: Issuer
+  , _nidpRequestUri      :: URI
+  , _nidpPublicKey       :: X509.SignedCertificate
   }
   deriving (Eq, Show, Generic)
 

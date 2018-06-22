@@ -131,7 +131,6 @@ getZUsrTeam (Just uid) = do
     Just teamid -> pure teamid
 
 initializeIdP :: (MonadError ServantErr m, SAML.SP m) => NewIdP -> Brig.TeamId -> m IdP
-initializeIdP _newidp _teamid = do
-  _idpid <- SAML.IdPId <$> SAML.createUUID
-  let idp = undefined  -- newIdP + teamId + liftIO uuid
-  return idp
+initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpExtraInfo = do
+  _idpPath <- SAML.IdPId <$> SAML.createUUID
+  pure SAML.IdPConfig {..}
