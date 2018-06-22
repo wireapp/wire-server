@@ -91,7 +91,7 @@ instance SPStoreIdP Spar where
 -- Handler.
 wrapMonadClient' :: (Data.Env -> Cas.Client a) -> Spar a
 wrapMonadClient' action = do
-  denv <- Data.Env <$> (fromTime <$> getNow) <*> pure (8 * 60 * 60)  -- TODO: make this yaml-configurable.
+  denv <- Data.Env <$> (fromTime <$> getNow) <*> (Options.maxttl . sparCtxOpts <$> ask)
   Spar $ do
     ctx <- asks sparCtxCas
     runClient ctx (action denv) `Catch.catch`
