@@ -93,7 +93,7 @@ enqueue b q m =
         withConnection' b $ \conn ->
         withWriter conn (unpack (q^.queueName)) (unpack (q^.queuePath))
                    [OWithReceipt, OWaitReceipt] [] oconv $ \w ->
-            writeQ w jsonType [] m
+            writeQ w jsonType [("persistent", "true")] m
     -- Note [receipts]
     -- ~~~
     -- When we acknowledge a message in 'listen', we don't need to wait for
