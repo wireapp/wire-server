@@ -109,7 +109,13 @@ enqueue b q m =
 -- | Forever listen to messages from a STOMP queue and execute a callback
 -- for each incoming message.
 --
--- In case of connection failure, will retry indefinitely.
+-- In case of connection failure or an exception, will retry indefinitely.
+--
+-- When 'listen' catches any kind of exception, it will reestablish the
+-- connection and get a new message to process. Assuming that the broker is
+-- configured properly, after failing on the same message several times the
+-- message will go into the Dead Letter Queue where it can be analyzed
+-- manually.
 listen :: (FromJSON a, MonadLogger m, MonadMask m, MonadUnliftIO m)
        => Broker -> Queue -> (a -> m ()) -> m ()
 listen b q callback =
@@ -132,15 +138,6 @@ listen b q callback =
     -- in theory do better (just throw away the exception without killing
     -- the connection). However, this is supposed to be a very rare case
     -- and it would complicate the code so we don't care.
-    --
-    -- If the message can't be parsed, this will throw an exception as well
-    -- and the message won't be ACK-ed. Thus, invalid JSON will be stuck in
-    -- the queue forever. Presumably this is what we want (because then we
-    -- might want to handle such messages manually; and ditto for all other
-    -- unprocessable messages).
-
-    -- TODO: what are heartbeats and do we need them?
-    -- TODO: we should log exceptions, not just catch them
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -171,7 +168,7 @@ withConnection' b =
 -- | Like 'timeout', but throws an 'AppException' instead of returning a
 -- 'Maybe'. Not very composable, but kinda convenient here.
 stompTimeout :: String -> Int -> IO a -> IO a
-stompTimeout name t act = timeout t act >>= \case
+stompTimeout location t act = timeout t act >>= \case
     Just x  -> pure x
     Nothing -> throwIO $ AppException $
-        name <> ": STOMP request took more than " <> show t <> "mcs and has timed out"
+        location <> ": STOMP request took more than " <> show t <> "mcs and has timed out"
