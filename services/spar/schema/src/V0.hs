@@ -63,3 +63,11 @@ migration = Migration 0 "Initial schema" $ do
             , PRIMARY KEY (issuer)
             )
         |]
+
+    void $ schema' [r|
+        CREATE TABLE if not exists idp_by_team
+            ( team          uuid
+            , idp           uuid
+            , PRIMARY KEY (team)
+            )
+        |]
