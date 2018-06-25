@@ -62,6 +62,7 @@ tests s = testGroup "Teams API"
     , test s "remove team member" testRemoveTeamMember
     , test s "remove team member (binding)" testRemoveBindingTeamMember
     , test s "add team conversation" testAddTeamConv
+    , test s "add managed conversation through public endpoint (fail)" testAddManagedConv
     , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
     , test s "add team member to conversation without connection" testAddTeamMemberToConv
     , test s "delete non-binding team" testDeleteTeam
@@ -273,7 +274,7 @@ testRemoveTeamMember g b c _ = do
     tid <- Util.createTeam g "foo" owner [mem1, mem2]
 
     -- Managed conversation:
-    void $ Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "gossip") Nothing Nothing
+    void $ Util.createManagedConv g owner (ConvTeamInfo tid True) [] (Just "gossip") Nothing Nothing
     -- Regular conversation:
     cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [mem1^.userId, mem2^.userId, mext1] (Just "blaa") Nothing Nothing
     -- Member external 2 is a guest and not a part of any conversation that mem1 is a part of
@@ -366,7 +367,7 @@ testAddTeamConv g b c _ = do
 
     WS.bracketRN c [owner, extern, mem1^.userId, mem2^.userId]  $ \ws@[wsOwner, wsExtern, wsMem1, wsMem2] -> do
         -- Managed conversation:
-        cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "gossip") Nothing Nothing
+        cid1 <- Util.createManagedConv g owner (ConvTeamInfo tid True) [] (Just "gossip") Nothing Nothing
         checkConvCreateEvent cid1 wsOwner
         checkConvCreateEvent cid1 wsMem2
 
@@ -390,7 +391,7 @@ testAddTeamConv g b c _ = do
         Util.assertNotConvMember g (mem1^.userId) cid2
 
         -- Managed team conversations get all team members added implicitly.
-        cid3 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "blup") Nothing Nothing
+        cid3 <- Util.createManagedConv g owner (ConvTeamInfo tid True) [] (Just "blup") Nothing Nothing
         for_ [owner, mem1^.userId, mem2^.userId] $ \u ->
             Util.assertConvMember g u cid3
 
@@ -404,6 +405,17 @@ testAddTeamConv g b c _ = do
 
         WS.assertNoEvent timeout ws
 
+testAddManagedConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testAddManagedConv g b _c _ = do
+    owner <- Util.randomUser b
+    -- let p = Util.symmPermissions [CreateConversation]
+    -- member <- flip newTeamMember p <$> Util.randomUser b
+    -- Util.connectUsers b owner (singleton (member^.userId))
+    tid <- Util.createTeam g "foo" owner []
+    Util.createTeamConvAccessRaw g owner (ConvTeamInfo tid True) [] (Just "gossip") Nothing Nothing Nothing !!! do
+        const 400 === statusCode
+        const "no-managed-team-conv" === (Error.label . Util.decodeBody' "error label")
+
 testAddTeamConvWithUsers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testAddTeamConvWithUsers g b _ _ = do
     owner  <- Util.randomUser b
@@ -411,7 +423,7 @@ testAddTeamConvWithUsers g b _ _ = do
     Util.connectUsers b owner (list1 extern [])
     tid <- Util.createTeam g "foo" owner []
     -- Create managed team conversation and erroneously specify external users.
-    cid <- Util.createTeamConv g owner (ConvTeamInfo tid True) [extern] (Just "gossip") Nothing Nothing
+    cid <- Util.createManagedConv g owner (ConvTeamInfo tid True) [extern] (Just "gossip") Nothing Nothing
     -- External users have been ignored.
     Util.assertNotConvMember g extern cid
     -- Team members are present.
@@ -456,7 +468,7 @@ testDeleteTeam g b c a = do
 
     tid  <- Util.createTeam g "foo" owner [member]
     cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [] (Just "blaa") Nothing Nothing
-    cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "blup") Nothing Nothing
+    cid2 <- Util.createManagedConv g owner (ConvTeamInfo tid True) [] (Just "blup") Nothing Nothing
 
     Util.assertConvMember g owner cid2
     Util.assertConvMember g (member^.userId) cid2
@@ -572,7 +584,7 @@ testDeleteTeamConv g b c _ = do
     let access = ConversationAccessUpdate [InviteAccess, CodeAccess] ActivatedAccessRole
     putAccessUpdate g owner cid1 access !!! const 200 === statusCode
     code <- decodeConvCodeEvent <$> (postConvCode g owner cid1 <!! const 201 === statusCode)
-    cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "blup") Nothing Nothing
+    cid2 <- Util.createManagedConv g owner (ConvTeamInfo tid True) [] (Just "blup") Nothing Nothing
 
     Util.postMembers g owner (list1 extern [member^.userId]) cid1 !!! const 200 === statusCode
 

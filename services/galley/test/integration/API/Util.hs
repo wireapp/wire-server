@@ -163,6 +163,19 @@ createTeamConvAccessRaw g u tinfo us name acc role mtimer = do
           . json conv
           )
 
+createManagedConv :: HasCallStack => Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> Http ConvId
+createManagedConv g u tinfo us name acc mtimer = do
+    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer
+    r <- post ( g
+              . path "i/conversations/managed"
+              . zUser u
+              . zConn "conn"
+              . zType "access"
+              . json conv
+              )
+         <!! const 201 === statusCode
+    fromBS (getHeader' "Location" r)
+
 createOne2OneTeamConv :: Galley -> UserId -> UserId -> Maybe Text -> TeamId -> Http ResponseLBS
 createOne2OneTeamConv g u1 u2 n tid = do
     let conv = NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing

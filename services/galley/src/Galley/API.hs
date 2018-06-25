@@ -823,6 +823,12 @@ sitemap = do
         capture "cnv"
         .&. capture "usr"
 
+    post "/i/conversations/managed" (continue internalCreateManagedConversation) $
+        zauthUserId
+        .&. zauthConnId
+        .&. request
+        .&. contentType "application" "json"
+
     post "/i/conversations/connect" (continue createConnectConversation) $
         zauthUserId
         .&. opt zauthConnId
