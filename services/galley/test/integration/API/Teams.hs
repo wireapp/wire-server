@@ -403,21 +403,6 @@ testAddTeamConv g b c _ = do
             Util.assertNotConvMember g extern
 
         WS.assertNoEvent timeout ws
-  where
-    checkTeamConvCreateEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
-        let e = List1.head (WS.unpackPayload notif)
-        e^.eventType @?= ConvCreate
-        e^.eventTeam @?= tid
-        e^.eventData @?= Just (EdConvCreate cid)
-
-    checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
-        let e = List1.head (WS.unpackPayload notif)
-        evtType e @?= Conv.ConvCreate
-        case evtData e of
-            Just (Conv.EdConversation x) -> cnvId x @?= cid
-            other                        -> assertFailure $ "Unexpected event data: " <> show other
 
 testAddTeamConvWithUsers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testAddTeamConvWithUsers g b _ _ = do
@@ -774,6 +759,23 @@ checkTeamMemberLeave tid usr w = WS.assertMatch_ timeout w $ \notif -> do
     e^.eventType @?= MemberLeave
     e^.eventTeam @?= tid
     e^.eventData @?= Just (EdMemberLeave usr)
+
+checkTeamConvCreateEvent :: TeamId -> ConvId -> WS.WebSocket -> Http ()
+checkTeamConvCreateEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
+    ntfTransient notif @?= False
+    let e = List1.head (WS.unpackPayload notif)
+    e^.eventType @?= ConvCreate
+    e^.eventTeam @?= tid
+    e^.eventData @?= Just (EdConvCreate cid)
+
+checkConvCreateEvent :: ConvId -> WS.WebSocket -> Http ()
+checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
+    ntfTransient notif @?= False
+    let e = List1.head (WS.unpackPayload notif)
+    evtType e @?= Conv.ConvCreate
+    case evtData e of
+        Just (Conv.EdConversation x) -> cnvId x @?= cid
+        other                        -> assertFailure $ "Unexpected event data: " <> show other
 
 checkTeamDeleteEvent :: TeamId -> WS.WebSocket -> Http ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
