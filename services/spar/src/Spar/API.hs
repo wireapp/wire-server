@@ -74,7 +74,7 @@ type API = "i" :> "status" :> Get '[JSON] ()
 
 type APIMeta     = "sso" :> "metainfo" :> SAML.APIMeta
 type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
-type APIAuthResp = "sso" :> "complete-login" :> SAML.APIAuthResp
+type APIAuthResp = "sso" :> "finalize-login" :> SAML.APIAuthResp
 
 type IdpGet     = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
 type IdpCreate  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IdP
