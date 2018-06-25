@@ -18,6 +18,7 @@ migration = Migration 0 "Initial schema" $ do
     --       with compaction = {'class': 'LeveledCompactionStrategy'};
     --       see https://www.datastax.com/dev/blog/when-to-use-leveled-compaction
 
+    -- FUTUREWORK: in authreq, field req, we may be able to use UUID, because we can create those?
     void $ schema' [r|
         CREATE TABLE if not exists authreq
             ( req          text
@@ -51,14 +52,14 @@ migration = Migration 0 "Initial schema" $ do
             , request_uri   text
             , public_key    text
             , team          uuid
-            , PRIMARY KEY (path)
+            , PRIMARY KEY (idp)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
 
     void $ schema' [r|
         CREATE TABLE if not exists idp_by_issuer
-            ( idp           uuid
-            , issuer        text
+            ( issuer        text
+            , idp           uuid
             , PRIMARY KEY (issuer)
             )
         |]
