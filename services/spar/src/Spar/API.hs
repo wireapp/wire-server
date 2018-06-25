@@ -71,6 +71,7 @@ type API = "i" :> "status" :> Get '[JSON] ()
       :<|> APIAuthResp
       :<|> IdpGet
       :<|> IdpCreate
+      :<|> IdpDelete
 
 type APIMeta     = "sso" :> "metainfo" :> SAML.APIMeta
 type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
@@ -78,7 +79,7 @@ type APIAuthResp = "sso" :> "finalize-login" :> SAML.APIAuthResp
 
 type IdpGet     = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
 type IdpCreate  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IdP
--- TODO: type IdpDelete  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
+type IdpDelete  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 
 api :: ServerT API Spar
@@ -88,6 +89,7 @@ api =  pure ()
   :<|> SAML.authresp onSuccess
   :<|> idpGet
   :<|> idpCreate
+  :<|> idpDelete
 
 appName :: ST
 appName = "spar"
@@ -99,6 +101,13 @@ type ZUsr = Maybe Brig.UserId
 
 idpGet :: ZUsr -> SAML.IdPId -> Spar IdP
 idpGet zusr idpid = authorizeIdP zusr =<< SAML.getIdPConfig idpid
+
+idpDelete :: ZUsr -> SAML.IdPId -> Spar NoContent
+idpDelete zusr idpid = do
+    idp <- SAML.getIdPConfig idpid
+    void $ authorizeIdP zusr idp
+    wrapMonadClient $ Data.deleteIdPConfig idpid (idp ^. SAML.idpIssuer) (idp ^. SAML.idpExtraInfo)
+    return NoContent
 
 -- We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness
 idpCreate :: ( SAML.SP m, SAML.SPStoreIdP m, SAML.ConfigExtra m ~ Brig.TeamId

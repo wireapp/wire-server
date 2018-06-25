@@ -12,6 +12,7 @@
 module Spar.Data where
 
 import Cassandra as Cas
+import Data.Maybe (catMaybes)
 import Control.Exception
 import Control.Lens hiding (Level)
 import Control.Monad.Catch
@@ -164,17 +165,23 @@ storeIdPConfig idp = retry x5 . batch $ do
     , idp ^. SAML.idpPublicKey
     , idp ^. SAML.idpExtraInfo
     )
-  addPrepQuery ins'
+  addPrepQuery byIssuer
     ( idp ^. SAML.idpId
     , idp ^. SAML.idpIssuer
     )
-  @@ -- add lookup by teamid
+  addPrepQuery byTeam
+    ( idp ^. SAML.idpId
+    , idp ^. SAML.idpExtraInfo
+    )
   where
     ins :: PrepQuery W IdPConfigRow ()
     ins = "INSERT INTO idp (idp, metadata, issuer, request_uri, public_key, team) VALUES (?, ?, ?, ?, ?, ?)"
 
-    ins' :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
-    ins' = "INSERT INTO idp_by_issuer (idp, issuer) VALUES (?, ?)"
+    byIssuer :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
+    byIssuer = "INSERT INTO issuer_idp (idp, issuer) VALUES (?, ?)"
+
+    byTeam :: PrepQuery W (SAML.IdPId, Brig.TeamId) ()
+    byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
 
 getIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPId -> m (Maybe IdP)
 getIdPConfig idpid = toIdp <$$> retry x1 (query1 sel $ params Quorum (Identity idpid))
@@ -198,4 +205,29 @@ getIdPConfigByIssuer issuer = do
     Just (Identity idpid) -> getIdPConfig idpid
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
-    sel = "SELECT idp FROM idp_by_issuer WHERE issuer = ?"
+    sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"
+
+getIdPConfigsByTeam :: (HasCallStack, MonadClient m) => Brig.TeamId -> m [IdP]
+getIdPConfigsByTeam team = do
+    idpids <- runIdentity <$$> retry x1 (query sel $ params Quorum (Identity team))
+    catMaybes <$> mapM getIdPConfig idpids
+  where
+    sel :: PrepQuery R (Identity Brig.TeamId) (Identity SAML.IdPId)
+    sel = "SELECT idp FROM team_idp WHERE team = ?"
+
+deleteIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPId -> SAML.Issuer -> Brig.TeamId -> m ()
+deleteIdPConfig idp issuer team = retry x5 $ batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    addPrepQuery delIdp (Identity idp)
+    addPrepQuery delIssuerIdp (Identity issuer)
+    addPrepQuery delTeamIdp (team, idp)
+  where
+    delIdp :: PrepQuery W (Identity SAML.IdPId) ()
+    delIdp = "DELETE FROM idp WHERE idp = ?"
+
+    delIssuerIdp :: PrepQuery W (Identity SAML.Issuer) ()
+    delIssuerIdp = "DELETE FROM issuer_idp where issuer = ?"
+
+    delTeamIdp :: PrepQuery W (Brig.TeamId, SAML.IdPId) ()
+    delTeamIdp = "DELETE FROM team_idp WHERE team = ? and issuer = ?"

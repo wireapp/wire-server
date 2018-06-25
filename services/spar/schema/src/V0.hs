@@ -57,7 +57,7 @@ migration = Migration 0 "Initial schema" $ do
         |]
 
     void $ schema' [r|
-        CREATE TABLE if not exists idp_by_issuer
+        CREATE TABLE if not exists issuer_idp
             ( issuer        text
             , idp           uuid
             , PRIMARY KEY (issuer)
@@ -65,9 +65,9 @@ migration = Migration 0 "Initial schema" $ do
         |]
 
     void $ schema' [r|
-        CREATE TABLE if not exists idp_by_team
+        CREATE TABLE if not exists team_idp
             ( team          uuid
             , idp           uuid
-            , PRIMARY KEY (team)
+            , PRIMARY KEY (team, idp)
             )
         |]
