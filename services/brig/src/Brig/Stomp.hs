@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
 -- | Working with STOMP queues.
@@ -16,18 +17,18 @@ module Brig.Stomp
     , listen
     ) where
 
-import BasePrelude hiding (throwIO, try, timeout)
+import BasePrelude hiding (Handler, throwIO)
 
 import Control.Lens
-import Control.Monad.Catch (MonadMask)
+import Control.Monad.Catch (MonadMask, Handler(..))
 import Control.Retry hiding (retryPolicy)
 import Data.Aeson                                     as Aeson
 import Data.Conduit.Network.TLS
 import Data.Text
 import Data.Text.Encoding
 import Network.Mom.Stompl.Client.Queue hiding (try)
-import System.Logger.Class
-import UnliftIO
+import System.Logger.Class as Log
+import UnliftIO (MonadUnliftIO, withRunInIO, throwIO)
 
 import qualified Brig.Options                         as Opts
 import qualified Codec.MIME.Type                      as MIME
@@ -43,12 +44,12 @@ data Broker = Broker
     , _port :: Int                 -- ^ Port
     , _auth :: Maybe Credentials   -- ^ Username and password
     , _tls  :: Bool                -- ^ Whether to use TLS
-    }
+    } deriving (Show)
 
 data Queue = Queue
     { _queueName :: Text           -- ^ Queue identifier, used only for debugging
     , _queuePath :: Text           -- ^ Queue path on the broker side
-    }
+    } deriving (Eq, Show)
 
 data Credentials = Credentials
     { user :: Text
@@ -87,7 +88,7 @@ enqueue b q m =
     retryPredicate _ res = pure (isLeft res)
     retryPolicy = limitRetries 5 <> exponentialBackoff 50000
     enqueueAction =
-        liftIO $ try @_ @StomplException $
+        liftIO $ try @StomplException $
         stompTimeout "enqueue" 500000 $
         withConnection' b $ \conn ->
         withWriter conn (unpack (q^.queueName)) (unpack (q^.queuePath))
@@ -119,7 +120,7 @@ enqueue b q m =
 listen :: (FromJSON a, MonadLogger m, MonadMask m, MonadUnliftIO m)
        => Broker -> Queue -> (a -> m ()) -> m ()
 listen b q callback =
-    recoverAll retryPolicy (const listenAction)  
+    recovering retryPolicy handlers (const listenAction)
   where
     retryPolicy = constantDelay 1000000
     listenAction =
@@ -131,10 +132,16 @@ listen b q callback =
                 m <- stompTimeout "listen/readQ" 1000000 $ readQ r
                 runInIO $ callback (msgContent m)
                 stompTimeout "listen/ack" 1000000 $ ack conn m
+    handlers = skipAsyncExceptions ++ [logError]
+    logError = const $ Handler $ \(e :: SomeException) -> do
+        Log.err $ msg (val "Brig.Stomp.listen: exception when listening to a STOMP queue")
+               ~~ field "queue" (show q)
+               ~~ field "error" (show e)
+        return True
     -- Note [exception handling]
     -- ~~~
     -- The callback might throw an exception, which will be caught by
-    -- 'recoverAll'. This will kill and restart the connection, while we could
+    -- 'recovering'. This will kill and restart the connection, while we could
     -- in theory do better (just throw away the exception without killing
     -- the connection). However, this is supposed to be a very rare case
     -- and it would complicate the code so we don't care.
