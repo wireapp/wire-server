@@ -604,7 +604,7 @@ testAddRemoveBotTeam config crt db brig galley cannon = withTestService config c
     (u1, u2, h, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
     let (uid1, uid2) = (userId u1, userId u2)
     -- Ensure cannot add bots to managed conversations
-    cidFail <- Team.createTeamConv galley tid uid1 [uid2] True Nothing
+    cidFail <- Team.createManagedConv galley tid uid1 [uid2] Nothing
     addBot brig uid1 pid sid cidFail !!! do
         const 403 === statusCode
         const (Just "invalid-conversation") === fmap Error.label . decodeBody
@@ -625,7 +625,7 @@ testMessageBotTeam config crt db brig galley cannon = withTestService config crt
     tid <- Team.createTeam uid galley
 
     -- Create conversation
-    cid <- Team.createTeamConv galley tid uid [] False Nothing
+    cid <- Team.createTeamConv galley tid uid [] Nothing
 
     testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon
 
@@ -1484,7 +1484,7 @@ prepareBotUsersTeam brig galley sref = do
     Team.addTeamMember galley tid $ Team.newNewTeamMember $ Team.newTeamMember uid2 Team.fullPermissions
 
     -- Create conversation
-    cid <- Team.createTeamConv galley tid uid1 [uid2] False Nothing
+    cid <- Team.createTeamConv galley tid uid1 [uid2] Nothing
 
     return (u1, u2, h, tid, cid, pid, sid)
 
