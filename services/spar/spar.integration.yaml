@@ -15,7 +15,7 @@ saml:
       phone: '+314159265'
 
   idps:
-    - path:        azure-test
+    - id:          eafd1654-754d-11e8-9438-00163e5e6c14
       metadata:    https://login.microsoftonline.com/682febe8-021b-4fde-ac09-e60085f05181/FederationMetadata/2007-06/FederationMetadata.xml
       issuer:      https://sts.windows.net/682febe8-021b-4fde-ac09-e60085f05181/
       request_uri: https://login.microsoftonline.com/682febe8-021b-4fde-ac09-e60085f05181/saml2
