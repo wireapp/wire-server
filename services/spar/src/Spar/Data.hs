@@ -153,8 +153,10 @@ getUser (SAML.UserRef tenant subject) = (retry x1 . query1 sel $ params Quorum (
 type IdPConfigRow = (SAML.IdPId, URI, SAML.Issuer, URI, SignedCertificate, Brig.TeamId)
 
 storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig Brig.TeamId -> m ()
-storeIdPConfig idp = retry x5 $ do
-  write ins $ params Quorum
+storeIdPConfig idp = retry x5 . batch $ do
+  setType BatchLogged
+  setConsistency Quorum
+  addPrepQuery ins
     ( idp ^. SAML.idpId
     , idp ^. SAML.idpMetadata
     , idp ^. SAML.idpIssuer
@@ -162,10 +164,11 @@ storeIdPConfig idp = retry x5 $ do
     , idp ^. SAML.idpPublicKey
     , idp ^. SAML.idpExtraInfo
     )
-  write ins' $ params Quorum
+  addPrepQuery ins'
     ( idp ^. SAML.idpId
     , idp ^. SAML.idpIssuer
     )
+  @@ -- add lookup by teamid
   where
     ins :: PrepQuery W IdPConfigRow ()
     ins = "INSERT INTO idp (idp, metadata, issuer, request_uri, public_key, team) VALUES (?, ?, ?, ?, ?, ?)"
