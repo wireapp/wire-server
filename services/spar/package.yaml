@@ -23,6 +23,7 @@ dependencies:
   - containers
   - cookie
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
+  - ghc-prim
   - http-client
   - http-types
   - lens
