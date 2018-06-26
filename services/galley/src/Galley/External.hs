@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Galley.External (deliver) where
@@ -12,6 +13,7 @@ import Control.Monad.IO.Class
 import Control.Retry
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion.To
+import Data.Dynamic (fromDynamic)
 import Data.Misc
 import Data.Monoid
 import Data.Word
@@ -19,15 +21,16 @@ import Galley.App
 import Galley.Data.Services (BotMember, botMemId, botMemService)
 import Galley.Types (Event)
 import Galley.Types.Bot
-import Network.HTTP.Client (newManager)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status410)
 import System.Logger.Message (msg, val, field, (~~))
 import URI.ByteString
 
-import qualified Network.HTTP.Client  as Http
-import qualified Galley.Data.Services as Data
-import qualified System.Logger.Class  as Log
+import qualified OpenSSL.Session              as SSL
+import qualified Network.HTTP.Client          as Http
+import qualified Network.HTTP.Client.Internal as Http
+import qualified Galley.Data.Services         as Data
+import qualified System.Logger.Class          as Log
 
 -- | Deliver events to external (bot) services.
 --
@@ -119,16 +122,23 @@ urlPort (HttpsUrl u) = do
 
 sendMessage :: [Fingerprint Rsa] -> Request -> Galley ()
 sendMessage fprs req = do
-    -- (mg, mSettings) <- view (extEnv.extGetManager)
-    -- liftIO $ do
-    --     reqChecked <- managerModifyRequest (mSettings fprs) req
-    --     Http.withResponse reqChecked mg (const $ return ())
-    -- TODO: We create a manager for every request which is
-    --       something we would probably want to avoid
-    (_, mSettings) <- view (extEnv.extGetManager)
-    liftIO $ do
-        man <- newManager (mSettings fprs)
-        Http.withResponse req man (const $ return ())
+    (man, verifyFingerprints) <- view (extEnv . extGetManager)
+    -- TODO: not sure if 'Reuse' is the right thing to do here --
+    -- maybe instead of returning the connection to the pool we want
+    -- to close it
+    liftIO $ Http.withConnection' req man Http.Reuse $ \mConn -> do
+        -- If we see this connection for the first time, verify fingerprints
+        let conn = Http.managedResource mConn
+            seen = Http.managedReused   mConn
+        case (seen, fromDynamic @SSL.SSL (Http.connectionRaw conn)) of
+            (True, _) -> pure ()
+            (_, Nothing) -> error "TODO"
+            (_, Just ssl) -> verifyFingerprints fprs ssl
+        -- Make a request using this connection and return it back to the pool
+        Http.withResponse req{Http.connectionOverride = Just mConn} man
+            (const $ return ())
+        -- TODO: this code is duplicated here and in Brig.Provider.RPC and
+        -- it's almost the same in both cases -- can we abstract it away?
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> constantDelay 1000000

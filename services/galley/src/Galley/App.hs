@@ -94,7 +94,7 @@ data Env = Env
 -- | Environment specific to the communication with external
 -- service providers.
 data ExtEnv = ExtEnv
-    { _extGetManager :: (Manager, [Fingerprint Rsa] -> ManagerSettings)
+    { _extGetManager :: (Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
     }
 
 makeLenses ''Env
@@ -187,8 +187,7 @@ initExtEnv = do
         , managerConnCount       = 100
         }
     Just sha <- getDigestByName "SHA256"
-    let manSettings fprs = opensslManagerSettingsWith ctx $ mkVerify sha fprs
-    return $ ExtEnv (mgr, manSettings)
+    return $ ExtEnv (mgr, mkVerify sha)
   where
     mkVerify sha fprs =
         let pinset = map toByteString' fprs

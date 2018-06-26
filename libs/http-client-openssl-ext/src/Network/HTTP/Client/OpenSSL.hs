@@ -216,6 +216,7 @@ toConnection ssl sock =
         (SSL.read ssl 32752)
         (SSL.write ssl)
         (Net.close sock)
+        ssl
 
 stdHints :: AddrInfo
 stdHints = Net.defaultHints

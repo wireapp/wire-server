@@ -136,7 +136,7 @@ data Env = Env
     , _provTemplates :: Localised ProviderTemplates
     , _tmTemplates   :: Localised TeamTemplates
     , _httpManager   :: Manager
-    , _extGetManager :: (Manager, [Fingerprint Rsa] -> ManagerSettings)
+    , _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
     , _settings      :: Settings
     , _nexmoCreds    :: Nexmo.Credentials
     , _twilioCreds   :: Twilio.Credentials
@@ -280,7 +280,7 @@ initHttpManager = do
         , managerResponseTimeout     = responseTimeoutMicro 10000000
         }
 
-initExtGetManager :: IO (Manager, [Fingerprint Rsa] -> ManagerSettings)
+initExtGetManager :: IO (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
 initExtGetManager = do
     ctx <- SSL.context
     SSL.contextAddOption ctx SSL_OP_NO_SSLv2
@@ -296,8 +296,7 @@ initExtGetManager = do
         , managerResponseTimeout     = responseTimeoutMicro 10000000
         }
     Just sha <- getDigestByName "SHA256"
-    let manSettings fprs = opensslManagerSettingsWith ctx $ mkVerify sha fprs
-    return (mgr, manSettings)
+    return (mgr, mkVerify sha)
   where
     mkVerify sha fprs =
         let pinset = map toByteString' fprs
