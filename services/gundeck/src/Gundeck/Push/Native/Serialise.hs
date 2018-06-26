@@ -111,6 +111,7 @@ renderText t aps prio x = case t of
 
     maxLen = maxPayloadSize t
 
+    -- see <https://github.com/wireapp/wire-server/issues/341>.
     trim k j = let j' = LT.toStrict (LT.take (maxLen + 1) j) in
         if BS.length (encodeUtf8 j') > fromIntegral maxLen
             then Nothing
