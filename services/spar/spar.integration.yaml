@@ -1,6 +1,6 @@
 saml:
   version:     SAML2.0
-  log_level:   DEBUG
+  log_level:   Debug
 
   sp_host:     0.0.0.0
   sp_port:     8088

@@ -54,23 +54,23 @@ instance SP Spar where
       flatten '\t' = ' '
       flatten c    = c
 
-toLevel :: SAML.LogLevel -> Log.Level
+toLevel :: SAML.Level -> Log.Level
 toLevel = \case
-  SILENT   -> Log.Fatal
-  CRITICAL -> Log.Fatal
-  ERROR    -> Log.Error
-  WARN     -> Log.Warn
-  INFO     -> Log.Info
-  DEBUG    -> Log.Debug
+  SAML.Fatal -> Log.Fatal
+  SAML.Error -> Log.Error
+  SAML.Warn  -> Log.Warn
+  SAML.Info  -> Log.Info
+  SAML.Debug -> Log.Debug
+  SAML.Trace -> Log.Trace
 
-fromLevel :: Log.Level -> SAML.LogLevel
+fromLevel :: Log.Level -> SAML.Level
 fromLevel = \case
-  Log.Fatal -> CRITICAL
-  Log.Error -> ERROR
-  Log.Warn  -> WARN
-  Log.Info  -> INFO
-  Log.Debug -> DEBUG
-  Log.Trace -> DEBUG
+  Log.Fatal -> SAML.Fatal
+  Log.Error -> SAML.Error
+  Log.Warn  -> SAML.Warn
+  Log.Info  -> SAML.Info
+  Log.Debug -> SAML.Debug
+  Log.Trace -> SAML.Trace
 
 instance SPStore Spar where
   storeRequest i r      = wrapMonadClient' $ \env -> Data.storeRequest env i r
