@@ -1,3 +1,0 @@
-${name}:
-Estoy en Wire, hablamos alli.
-${url}

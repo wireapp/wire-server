@@ -1,3 +1,0 @@
-${name}:
-Jag är på Wire, pratar med dig där.
-${url}

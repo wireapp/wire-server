@@ -10,7 +10,6 @@ import Data.Id
 data Event
     = UserEvent       !UserEvent
     | ConnectionEvent !ConnectionEvent
-    | InvitationEvent !InvitationEvent
     | PropertyEvent   !PropertyEvent
     | ClientEvent     !ClientEvent
 
@@ -55,17 +54,6 @@ data ConnectionEvent
         { ucConn :: !UserConnection
         , ucPrev :: !(Maybe Relation)
         , ucName :: !(Maybe Name)
-        }
-
-data InvitationEvent
-    = InvitationSent !Invitation
-    | InvitationCancelled
-        { icInviter      :: !UserId
-        , icInvitationId :: !InvitationId
-        }
-    | InvitationAccepted
-        { iaInvitation :: !Invitation
-        , iaInvitee    :: !UserId
         }
 
 data PropertyEvent
@@ -123,7 +111,3 @@ propEventUserId (PropertySet       u _ _) = u
 propEventUserId (PropertyDeleted   u _  ) = u
 propEventUserId (PropertiesCleared u    ) = u
 
-invEventUserId :: InvitationEvent -> UserId
-invEventUserId (InvitationSent i)        = inInviter i
-invEventUserId (InvitationCancelled u _) = u
-invEventUserId (InvitationAccepted _ u)  = u

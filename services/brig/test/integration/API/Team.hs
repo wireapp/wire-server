@@ -10,7 +10,7 @@ import API.Search.Util
 import API.Team.Util
 import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
-import Brig.Types hiding (Invitation (..), InvitationRequest (..), InvitationList (..))
+import Brig.Types
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth
 import Brig.Types.Intra
@@ -554,13 +554,13 @@ testCreateUserInternalSSO brig galley = do
         getUserSSOId _ = Nothing
 
     -- creating users requires both sso_id and team_id
-    postUser "dummy" (Just "success@simulator.amazonses.com") Nothing (Just ssoid) Nothing brig
+    postUser "dummy" (Just "success@simulator.amazonses.com") (Just ssoid) Nothing brig
         !!! const 400 === statusCode
-    postUser "dummy" (Just "success@simulator.amazonses.com") Nothing Nothing (Just teamid) brig
+    postUser "dummy" (Just "success@simulator.amazonses.com") Nothing (Just teamid) brig
         !!! const 400 === statusCode
 
     -- creating user with sso_id, team_id is ok
-    resp <- postUser "dummy" (Just "success@simulator.amazonses.com") Nothing (Just ssoid) (Just teamid) brig <!! do
+    resp <- postUser "dummy" (Just "success@simulator.amazonses.com") (Just ssoid) (Just teamid) brig <!! do
         const 201 === statusCode
         const (Just ssoid) === (getUserSSOId <=< userIdentity . selfUser <=< decodeBody)
 
@@ -587,7 +587,7 @@ testDeleteUserSSO brig galley = do
     let ssoid = UserSSOId "nil" "nil"
         mkuser :: Bool -> Http (Maybe User)
         mkuser withemail = decodeBody <$>
-            (postUser "dummy" email Nothing (Just ssoid) (Just tid) brig
+            (postUser "dummy" email (Just ssoid) (Just tid) brig
              <!! const 201 === statusCode)
           where
             email = if withemail then Just "success@simulator.amazonses.com" else Nothing

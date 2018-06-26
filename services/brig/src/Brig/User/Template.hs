@@ -10,8 +10,6 @@ module Brig.User.Template
     , ActivationCallTemplate     (..)
     , PasswordResetSmsTemplate   (..)
     , PasswordResetEmailTemplate (..)
-    , InvitationEmailTemplate    (..)
-    , InvitationSmsTemplate      (..)
     , LoginSmsTemplate           (..)
     , LoginCallTemplate          (..)
     , DeletionSmsTemplate        (..)
@@ -40,8 +38,6 @@ data UserTemplates = UserTemplates
     , teamActivationEmail   :: !TeamActivationEmailTemplate
     , passwordResetSms      :: !PasswordResetSmsTemplate
     , passwordResetEmail    :: !PasswordResetEmailTemplate
-    , invitationEmail       :: !InvitationEmailTemplate
-    , invitationSms         :: !InvitationSmsTemplate
     , loginSms              :: !LoginSmsTemplate
     , loginCall             :: !LoginCallTemplate
     , deletionSms           :: !DeletionSmsTemplate
@@ -93,21 +89,6 @@ data DeletionEmailTemplate = DeletionEmailTemplate
     , deletionEmailBodyHtml   :: !Template
     , deletionEmailSender     :: !Email
     , deletionEmailSenderName :: !Text
-    }
-
-data InvitationEmailTemplate = InvitationEmailTemplate
-    { invitationEmailUrl        :: !Template
-    , invitationEmailSubject    :: !Template
-    , invitationEmailBodyText   :: !Template
-    , invitationEmailBodyHtml   :: !Template
-    , invitationEmailSender     :: !Email
-    , invitationEmailSenderName :: !Text
-    }
-
-data InvitationSmsTemplate = InvitationSmsTemplate
-    { invitationSmsUrl       :: !Template
-    , invitationSmsText      :: !Template
-    , invitationSmsSender    :: !Text
     }
 
 data PasswordResetEmailTemplate = PasswordResetEmailTemplate
@@ -189,15 +170,6 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
                 <*> readTemplate fp "email/password-reset.html"
                 <*> pure emailSender
                 <*> readText fp "email/sender.txt")
-        <*> (InvitationEmailTemplate invitationUrl
-                <$> readTemplate fp "email/invitation-subject.txt"
-                <*> readTemplate fp "email/invitation.txt"
-                <*> readTemplate fp "email/invitation.html"
-                <*> pure emailSender
-                <*> readText fp "email/sender.txt")
-        <*> (InvitationSmsTemplate invitationUrl
-                <$> readTemplate fp "sms/invitation.txt"
-                <*> pure smsSender)
         <*> (LoginSmsTemplate smsActivationUrl
                 <$> readTemplate fp "sms/login.txt"
                 <*> pure smsSender)
@@ -228,7 +200,6 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
     activationUrl     = template $ Opt.activationUrl    uOptions
     teamActivationUrl = template $ Opt.tActivationUrl   tOptions
     passwordResetUrl  = template $ Opt.passwordResetUrl uOptions
-    invitationUrl     = template $ Opt.invitationUrl    uOptions
     deletionUserUrl   = template $ Opt.deletionUrl      uOptions
 
     defLocale = Opt.setDefaultLocale (Opt.optSettings o)
