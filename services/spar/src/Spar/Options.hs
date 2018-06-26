@@ -1,5 +1,7 @@
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures             #-}
 
 module Spar.Options
   ( Opts(..)
@@ -14,7 +16,8 @@ import Data.Monoid
 import Data.Id
 import Data.Int
 import Data.Text (Text)
-import GHC.Generics
+import GHC.Generics (Generic)
+import GHC.Types (Symbol)
 import Util.Options hiding (getOptions)
 import Options.Applicative
 import qualified Data.Yaml as Yaml
@@ -23,11 +26,12 @@ import qualified SAML2.WebSSO.Config as SAML2
 
 
 data Opts = Opts
-    { saml          :: !(SAML2.Config TeamId)
-    , brig          :: !Endpoint
-    , cassandra     :: !CassandraOpts
-    , maxttl        :: !TTL -- TODO: document what this TTL is used for
-    , discoUrl      :: !(Maybe Text) -- Wire/AWS specific; optional; used to discover cassandra instance IPs using describe-instances
+    { saml           :: !(SAML2.Config TeamId)
+    , brig           :: !Endpoint
+    , cassandra      :: !CassandraOpts
+    , maxttlAuthreq  :: !(TTL "authreq")
+    , maxttlAuthresp :: !(TTL "authresp")
+    , discoUrl       :: !(Maybe Text) -- Wire/AWS specific; optional; used to discover cassandra instance IPs using describe-instances
     -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
     }
   deriving (Show, Generic)
@@ -35,10 +39,10 @@ data Opts = Opts
 instance FromJSON Opts
 
 -- | (seconds)
-newtype TTL = TTL Int32
+newtype TTL (tablename :: Symbol) = TTL Int32
   deriving (Eq, Ord, Show, Num)
 
-instance FromJSON TTL where
+instance FromJSON (TTL a) where
   parseJSON = withScientific "TTL value (seconds)" (pure . TTL . round)
 
 
