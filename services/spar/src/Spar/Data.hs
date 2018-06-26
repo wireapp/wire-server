@@ -48,12 +48,15 @@ schemaVersion = 0
 
 initCassandra :: Opts.Opts -> Logger -> IO ClientState
 initCassandra opts lgr = do
-    let connectString = cs (Opts.cassandra opts ^. casEndpoint . epHost) :| []
+    connectString <- maybe (return $ NE.fromList [cs $ Opts.cassandra opts ^.casEndpoint.epHost])
+               (Cas.initialContacts "cassandra_spar")
+               (cs <$> Opts.discoUrl opts)
     cas <- Cas.init (Log.clone (Just "cassandra.spar") lgr) $ Cas.defSettings
       & Cas.setContacts (NE.head connectString) (NE.tail connectString)
       & Cas.setPortNumber (fromIntegral $ Options.cassandra opts ^. casEndpoint . epPort)
       & Cas.setKeyspace (Keyspace $ Options.cassandra opts ^. casKeyspace)
       & Cas.setMaxConnections 4
+      & Cas.setMaxStreams 128
       & Cas.setPoolStripes 4
       & Cas.setSendTimeout 3
       & Cas.setResponseTimeout 10

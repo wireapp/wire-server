@@ -13,6 +13,7 @@ import Data.Aeson
 import Data.Monoid
 import Data.Id
 import Data.Int
+import Data.Text (Text)
 import GHC.Generics
 import Util.Options hiding (getOptions)
 import Options.Applicative
@@ -25,7 +26,8 @@ data Opts = Opts
     { saml          :: !(SAML2.Config TeamId)
     , brig          :: !Endpoint
     , cassandra     :: !CassandraOpts
-    , maxttl        :: !TTL
+    , maxttl        :: !TTL -- TODO: document what this TTL is used for
+    , discoUrl      :: !(Maybe Text) -- Wire/AWS specific; optional; used to discover cassandra instance IPs using describe-instances
     -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
     }
   deriving (Show, Generic)
