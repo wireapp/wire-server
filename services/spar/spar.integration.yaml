@@ -32,4 +32,7 @@ cassandra:
     port: 9042
   keyspace: spar_test
 
+# Wire/AWS specific, optional
+# discoUrl: "https://"
+
 maxttl: 28800  # 8h
