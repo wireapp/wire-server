@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 38931f044032b1429a813e2a492c11d5ce7cee71b51c37da72255020f3382730
+-- hash: d43785f1e216a8a4c44296f071a705364b703d04f525bf3719c0d8f96474dd4f
 
 name:           spar
 version:        0.1
@@ -44,6 +44,7 @@ library
     , containers
     , cookie
     , exceptions
+    , ghc-prim
     , http-client
     , http-types
     , lens
@@ -88,6 +89,7 @@ executable spar
     , containers
     , cookie
     , exceptions
+    , ghc-prim
     , http-client
     , http-types
     , lens
@@ -135,6 +137,7 @@ executable spar-integration
     , containers
     , cookie
     , exceptions
+    , ghc-prim
     , hspec
     , hspec-discover
     , http-client
@@ -183,6 +186,7 @@ executable spar-schema
     , containers
     , cookie
     , exceptions
+    , ghc-prim
     , http-client
     , http-types
     , lens
@@ -233,6 +237,7 @@ test-suite spec
     , containers
     , cookie
     , exceptions
+    , ghc-prim
     , hspec
     , hspec-discover
     , http-client

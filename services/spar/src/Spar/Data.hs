@@ -1,13 +1,15 @@
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiWayIf                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE ViewPatterns               #-}
-{-# LANGUAGE RecordWildCards            #-}
 
 module Spar.Data where
 
@@ -68,14 +70,24 @@ initCassandra opts lgr = do
 ----------------------------------------------------------------------
 -- helpers
 
-data Env = Env { dataEnvNow :: UTCTime, dataEnvMaxTTL :: TTL }
+data Env = Env
+  { dataEnvNow :: UTCTime
+  , dataEnvMaxTTLAuthRequests :: TTL "authreq"
+  , dataEnvMaxTTLAssertions   :: TTL "authresp"
+  }
   deriving (Eq, Show)
 
 data TTLError = TTLTooLong | TTLInPast
   deriving (Eq, Show)
 
-mkTTL :: MonadError TTLError m => Env -> UTCTime -> m TTL
-mkTTL (Env now maxttl) endOfLife = if
+mkTTLAuthnRequests :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authreq")
+mkTTLAuthnRequests (Env now maxttl _) = mkTTL now maxttl
+
+mkTTLAssertions :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authresp")
+mkTTLAssertions (Env now _ maxttl) = mkTTL now maxttl
+
+mkTTL :: MonadError TTLError m => UTCTime -> TTL a -> UTCTime -> m (TTL a)
+mkTTL now maxttl endOfLife = if
   | actualttl > maxttl -> throwError TTLTooLong
   | actualttl <= 0     -> throwError TTLInPast
   | otherwise          -> pure actualttl
@@ -91,7 +103,7 @@ err2err = either (throwM . ErrorCall . show) pure
 
 storeRequest :: (HasCallStack, MonadClient m) => Env -> SAML.ID SAML.AuthnRequest -> SAML.Time -> m ()
 storeRequest env (SAML.ID rid) (SAML.Time endOfLife) = do
-    TTL actualEndOfLife <- err2err $ mkTTL env endOfLife
+    TTL actualEndOfLife <- err2err $ mkTTLAuthnRequests env endOfLife
     retry x5 . write ins $ params Quorum (rid, endOfLife, actualEndOfLife)
   where
     ins :: PrepQuery W (ST, UTCTime, Int32) ()
@@ -108,7 +120,7 @@ checkAgainstRequest env (SAML.ID rid) = do
 
 storeAssertion :: (HasCallStack, MonadClient m) => Env -> SAML.ID SAML.Assertion -> SAML.Time -> m Bool
 storeAssertion env (SAML.ID aid) (SAML.Time endOfLifeNew) = do
-    TTL actualEndOfLife <- err2err $ mkTTL env endOfLifeNew
+    TTL actualEndOfLife <- err2err $ mkTTLAssertions env endOfLifeNew
     notAReplay :: Bool <- (retry x1 . query1 sel . params Quorum $ Identity aid) <&> \case
         Just (Identity (Just endoflifeOld)) -> endoflifeOld < dataEnvNow env
         _ -> False
