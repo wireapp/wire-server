@@ -29,8 +29,6 @@ import Servant hiding (URI)
 import URI.ByteString
 import Web.Cookie
 
-import qualified Network.HTTP.Types.Header as HTTP
-import qualified Data.ByteString.Builder as LBS
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
 import qualified SAML2.WebSSO as SAML
@@ -122,7 +120,7 @@ confirmUserId buid = do
 
 -- | Get session token from brig and redirect user past login process.
 forwardBrigLogin :: (HasCallStack, MonadError ServantErr m, SAML.HasConfig m, MonadSparToBrig m)
-                 => UserId -> m SAML.Void
+                 => UserId -> m (SetCookie, URI)
 forwardBrigLogin buid = do
   resp :: Response (Maybe LBS) <- call
     $ method POST
@@ -131,7 +129,4 @@ forwardBrigLogin buid = do
     . queryItem "persistent" "true"
     . expect2xx
 
-  cki <- respToCookie resp
-  target :: URI <- SAML.getLandingURI
-  let hdrs :: [HTTP.Header] = [("Set-Cookie", cs . LBS.toLazyByteString . renderSetCookie $ cki)]
-  SAML.redirect target hdrs
+  (,) <$> respToCookie resp <*> SAML.getLandingURI
