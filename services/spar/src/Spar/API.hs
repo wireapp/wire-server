@@ -1,8 +1,10 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE PackageImports             #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
@@ -15,6 +17,7 @@ import Bilge
 import Control.Lens
 import Control.Monad.Except
 import Data.Metrics (metrics)
+import Data.Proxy
 import Data.String.Conversions (ST, cs)
 import Data.String (fromString)
 import GHC.Stack
@@ -25,6 +28,7 @@ import Spar.App
 import Spar.Options
 import Spar.Types
 import Util.Options (epHost, epPort)
+import Web.Cookie (SetCookie)
 
 import qualified Brig.Types.User as Brig
 import qualified Data.Id as Brig
@@ -34,6 +38,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Brig
 import qualified System.Logger as Log
+import qualified URI.ByteString as URI
 
 runServer :: Opts -> IO ()
 runServer sparCtxOpts = do
@@ -65,7 +70,7 @@ app :: Env -> Application
 app ctx = SAML.setHttpCachePolicy
         $ serve (Proxy @API) (enter (NT (SAML.nt @Spar ctx)) api :: Server API)
 
-type API = "i" :> "status" :> Get '[JSON] ()
+type API = "i" :> "status" :> GetNoContent '[JSON] NoContent
       :<|> APIMeta
       :<|> APIAuthReq
       :<|> APIAuthResp
@@ -83,7 +88,7 @@ type IdpDelete  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :
 
 
 api :: ServerT API Spar
-api =  pure ()
+api =  pure NoContent
   :<|> SAML.meta appName (Proxy @API) (Proxy @APIAuthResp)
   :<|> SAML.authreq
   :<|> SAML.authresp onSuccess
@@ -94,7 +99,7 @@ api =  pure ()
 appName :: ST
 appName = "spar"
 
-onSuccess :: HasCallStack => SAML.UserRef -> Spar SAML.Void
+onSuccess :: HasCallStack => SAML.UserRef -> Spar (SetCookie, URI.URI)
 onSuccess uid = forwardBrigLogin =<< maybe (createUser uid) pure =<< getUser uid
 
 type ZUsr = Maybe Brig.UserId
