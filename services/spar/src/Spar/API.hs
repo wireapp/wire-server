@@ -37,10 +37,10 @@ import Spar.Types
 import Util.Options (epHost, epPort)
 import Web.Cookie (SetCookie)
 
-import qualified Data.Aeson as Swagger
-import qualified Data.Scientific as Swagger
 import qualified Brig.Types.User as Brig
+import qualified Data.Aeson as Swagger
 import qualified Data.Id as Brig
+import qualified Data.Scientific as Swagger
 import qualified Data.X509 as X509
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Utilities.Server as WU
