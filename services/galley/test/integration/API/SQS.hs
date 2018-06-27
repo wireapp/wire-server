@@ -68,9 +68,9 @@ tActivateWithCurrency :: HasCallStack => Maybe Currency.Alpha -> String -> Maybe
 tActivateWithCurrency c l (Just e) = do
     assertEqual (l <> ": eventType") E.TeamEvent'TEAM_ACTIVATE (e^.eventType)
     assertEqual "count" 1 (e^.eventData.memberCount)
-    -- NOTE: protobuf decodes absent, optional fields as (Just "")
-    let cur = maybe "" (pack . show) c
-    assertEqual "currency" (Just cur) (e^.eventData.maybe'currency)
+    -- NOTE: protobuf used to decodes absent, optional fields as (Just "") but not when using `maybe'<field>`
+    let cur = maybe Nothing (Just . pack . show) c
+    assertEqual "currency" cur (e^.eventData.maybe'currency)
 tActivateWithCurrency _ l Nothing  = assertFailure $ l <> ": Expected 1 TeamActivate, got nothing"
 
 tActivate :: HasCallStack => String -> Maybe E.TeamEvent -> IO ()
