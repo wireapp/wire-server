@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b454267d59da2cb6a1a25b81e2896f2d4273346c309e0e6f310083e9302c12bb
+-- hash: 2db4e5dea6cce305b705a4d1f714eb0b54e8acc3f1424126cd5945fdcb6b2341
 
 name:           spar
 version:        0.1
@@ -68,6 +68,7 @@ library
     , types-common
     , uri-bytestring
     , uuid
+    , wai-middleware-prometheus
     , wai-utilities
     , warp
     , x509
@@ -118,6 +119,7 @@ executable spar
     , types-common
     , uri-bytestring
     , uuid
+    , wai-middleware-prometheus
     , wai-utilities
     , warp
     , x509
@@ -172,6 +174,7 @@ executable spar-integration
     , types-common
     , uri-bytestring
     , uuid
+    , wai-middleware-prometheus
     , wai-utilities
     , warp
     , x509
@@ -223,6 +226,7 @@ executable spar-schema
     , types-common
     , uri-bytestring
     , uuid
+    , wai-middleware-prometheus
     , wai-utilities
     , warp
     , x509
@@ -281,6 +285,7 @@ test-suite spec
     , types-common
     , uri-bytestring
     , uuid
+    , wai-middleware-prometheus
     , wai-utilities
     , warp
     , x509

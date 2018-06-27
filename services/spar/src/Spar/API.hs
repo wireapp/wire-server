@@ -43,6 +43,7 @@ import qualified Data.Id as Brig
 import qualified Data.Scientific as Swagger
 import qualified Data.X509 as X509
 import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Middleware.Prometheus as Prometheus
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import qualified Servant.Multipart as SM
@@ -69,10 +70,8 @@ runServer sparCtxOpts = do
                       . Bilge.port (sparCtxOpts ^. to brig . epPort)
                       $ Bilge.empty
   let wrappedApp
-    -- . WU.measureRequests mx _
-        -- TODO: we need the swagger sitemap from servant for this.  we also want this to be
-        -- prometheus-compatible.  not sure about the order in which to do these.
         = WU.catchErrors sparCtxLogger mx
+        . Prometheus.prometheus (Prometheus.def { Prometheus.prometheusEndPoint = ["i", "prometheus-metrics"] })
         . SAML.setHttpCachePolicy
         $ app Env {..}
   WU.runSettingsWithShutdown settings wrappedApp 5
