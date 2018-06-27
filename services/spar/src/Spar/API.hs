@@ -7,6 +7,7 @@
 {-# LANGUAGE PackageImports             #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
@@ -36,6 +37,8 @@ import Spar.Types
 import Util.Options (epHost, epPort)
 import Web.Cookie (SetCookie)
 
+import qualified Data.Aeson as Swagger
+import qualified Data.Scientific as Swagger
 import qualified Brig.Types.User as Brig
 import qualified Data.Id as Brig
 import qualified Data.X509 as X509
@@ -199,4 +202,23 @@ instance ToSchema URI.URI where
   declareNamedSchema _proxy = genericDeclareNamedSchema defaultSchemaOptions (Proxy @())
 
 instance ToParamSchema SetCookie where
-  toParamSchema _ = error "not implemented."
+  toParamSchema _proxy = mkEmptyParamSchema SwaggerBoolean
+
+mkEmptyParamSchema :: SwaggerType t -> ParamSchema t
+mkEmptyParamSchema _paramSchemaType = ParamSchema {..}
+  where
+    _paramSchemaDefault = Nothing :: Maybe Swagger.Value
+    _paramSchemaFormat = Nothing :: Maybe Format
+    _paramSchemaItems = Nothing :: Maybe (SwaggerItems t)
+    _paramSchemaMaximum = Nothing :: Maybe Swagger.Scientific
+    _paramSchemaExclusiveMaximum = Nothing :: Maybe Bool
+    _paramSchemaMinimum = Nothing :: Maybe Swagger.Scientific
+    _paramSchemaExclusiveMinimum = Nothing :: Maybe Bool
+    _paramSchemaMaxLength = Nothing :: Maybe Integer
+    _paramSchemaMinLength = Nothing :: Maybe Integer
+    _paramSchemaPattern = Nothing :: Maybe Pattern
+    _paramSchemaMaxItems = Nothing :: Maybe Integer
+    _paramSchemaMinItems = Nothing :: Maybe Integer
+    _paramSchemaUniqueItems = Nothing :: Maybe Bool
+    _paramSchemaEnum = Nothing :: Maybe [Swagger.Value]
+    _paramSchemaMultipleOf = Nothing :: Maybe Swagger.Scientific
