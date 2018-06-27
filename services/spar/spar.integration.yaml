@@ -35,5 +35,5 @@ cassandra:
 # Wire/AWS specific, optional
 # discoUrl: "https://"
 
-maxttl_authreq: 28800  # 8h
-maxttl_authresp: 28800  # 8h
+maxttlAuthreq: 28800  # 8h
+maxttlAuthresp: 28800  # 8h
