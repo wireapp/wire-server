@@ -32,6 +32,7 @@ data Opts = Opts
     , maxttlAuthreq  :: !(TTL "authreq")
     , maxttlAuthresp :: !(TTL "authresp")
     , discoUrl       :: !(Maybe Text) -- Wire/AWS specific; optional; used to discover cassandra instance IPs using describe-instances
+    , logNetStrings  :: !Bool
     -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
     }
   deriving (Show, Generic)

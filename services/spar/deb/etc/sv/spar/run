@@ -11,9 +11,6 @@ CONFIG=${CONFIG:-/etc/${APP}/${APP}.yaml}
 HOME=${APP_HOME:-/opt/$APP}
 BIN=$HOME/bin/$APP
 
-export LOG_LEVEL=${SPAR_LOG_LEVEL:-Info}
-export LOG_NETSTR=${SPAR_LOG_NETSTR:-True}
-
 if [ ! -f $CONFIG ]; then exec chpst -u $USER get_config; fi
 
 cd $HOME
