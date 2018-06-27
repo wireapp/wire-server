@@ -13,6 +13,7 @@ ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
 
 dependencies:
   - aeson
+  - aeson-pretty
   - base
   - bilge
   - binary
@@ -35,7 +36,9 @@ dependencies:
   - servant
   - servant-multipart
   - servant-server
+  - servant-swagger
   - string-conversions
+  - swagger2
   - text
   - time
   - tinylog
