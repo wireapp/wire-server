@@ -18,6 +18,7 @@ import Data.Id
 import SAML2.WebSSO hiding (UserRef(..))
 import Servant
 import Spar.Options as Options
+import Web.Cookie (SetCookie)
 
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
@@ -27,6 +28,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Brig
 import qualified System.Logger as Log
+import qualified URI.ByteString as URI
 
 
 newtype Spar a = Spar { fromSpar :: ReaderT Env Handler a }
@@ -141,7 +143,7 @@ createUser suid = do
   buid' <- Brig.createUser suid buid teamid
   assert (buid == buid') $ pure buid
 
-forwardBrigLogin :: UserId -> Spar SAML.Void
+forwardBrigLogin :: UserId -> Spar (SetCookie, URI.URI)
 forwardBrigLogin = Brig.forwardBrigLogin
 
 
