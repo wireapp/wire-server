@@ -31,7 +31,6 @@ dependencies:
   - metrics-core
   - mtl
   - optparse-applicative
-#  - prometheus-effect
   - raw-strings-qq
   - saml2-web-sso
   - scientific
@@ -49,7 +48,6 @@ dependencies:
   - uri-bytestring
   - uuid
   - wai-utilities
-  - wai-middleware-prometheus
   - warp
   - x509
   - yaml
