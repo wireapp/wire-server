@@ -38,8 +38,8 @@ import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Data.Aeson (FromJSON)
+import Data.Misc (Milliseconds (..))
 import Gundeck.Env
-import Gundeck.Types.Presence (Milliseconds (..))
 import Network.Wai
 import Network.Wai.Utilities
 import System.Logger.Class hiding (Error, info)

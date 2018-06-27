@@ -156,6 +156,7 @@ executable galley-schema
         V24
         V25
         V26
+        V27
 
     build-depends:
         base
@@ -177,6 +178,7 @@ executable galley-integration
     other-modules:
         API
         API.Teams
+        API.MessageTimer
         API.Util
         API.SQS
 

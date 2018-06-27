@@ -32,6 +32,8 @@ import qualified OpenSSL.EVP.Digest      as EVP
 tests :: TestTree
 tests = testGroup "Native"
     [ testProperty "serialise/ok" $
+        -- this may fail sporadically, but that's not a production issue.
+        -- see <https://github.com/wireapp/wire-server/issues/341>.
         forAll genTransport serialiseOkProp
     , testProperty "serialise/size-limit" $
         forAll genTransport sizeLimitProp
@@ -50,8 +52,8 @@ serialiseOkProp t = ioProperty $ do
     c <- aes256
     d <- sha256
     m <- randMessage n c d
-    r <- either (const Nothing) Just <$> serialise m a
-    let sn = r >>= decode' . LT.encodeUtf8
+    r <- serialise m a
+    let sn = either (const Nothing) Just r >>= decode' . LT.encodeUtf8
     let equalTransport = fmap snsNotifTransport sn == Just t
     equalNotif <- case snsNotifBundle <$> sn of
         Nothing                -> return False
@@ -63,7 +65,8 @@ serialiseOkProp t = ioProperty $ do
             plain <- EVP.cipherBS c (encKeyBytes encKey) iv EVP.Decrypt dat'
             let n' = plainNotif <$> decodeStrict' plain
             return $ n' == Just n && mac == cipherMac p
-    return $ equalTransport && equalNotif
+    let debugInfo = (t, a, n, {- c, d, m, -} r, sn, equalTransport, equalNotif)
+    return . counterexample (show debugInfo) $ equalTransport && equalNotif
 
 sizeLimitProp :: Transport -> Property
 sizeLimitProp t = ioProperty $ do

@@ -45,7 +45,6 @@ library
       , Brig.Data.Client
       , Brig.Data.Connection
       , Brig.Data.Instances
-      , Brig.Data.Invitation
       , Brig.Data.LoginCode
       , Brig.Data.Properties
       , Brig.Data.User
@@ -337,7 +336,6 @@ executable brig-integration
         API.User.Client
         API.User.Connection
         API.User.Handles
-        API.User.Invitation
         API.User.Onboarding
         API.User.PasswordReset
         API.User.Property

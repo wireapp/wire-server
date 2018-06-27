@@ -90,7 +90,7 @@ randomUser brig = do
 
 createUser :: HasCallStack => Text -> Text -> Brig -> Http User
 createUser name email brig = do
-    r <- postUser name (Just email) Nothing Nothing Nothing brig <!! const 201 === statusCode
+    r <- postUser name (Just email) Nothing Nothing brig <!! const 201 === statusCode
     return $ fromMaybe (error "createUser: failed to parse response") (decodeBody r)
 
 createAnonUser :: HasCallStack => Text -> Brig -> Http User
@@ -145,19 +145,28 @@ getConnection brig from to = get $ brig
     . zConn "conn"
 
 -- more flexible variant of 'createUser' (see above).
-postUser :: Text -> Maybe Text -> Maybe InvitationCode -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
-postUser name email invCode ssoid teamid brig = do
+postUser :: Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser name email ssoid teamid brig = do
     email' <- maybe (pure Nothing) (fmap (Just . fromEmail) . mkEmailRandomLocalSuffix) email
     let p = RequestBodyLBS . encode $ object
             [ "name"            .= name
             , "email"           .= email'
             , "password"        .= defPassword
-            , "invitation_code" .= invCode
             , "cookie"          .= defCookieLabel
             , "sso_id"          .= ssoid
             , "team_id"         .= teamid
             ]
     post (brig . path "/i/users" . contentJson . body p)
+
+postUserInternal :: Object -> Brig -> Http User
+postUserInternal payload brig = do
+    rs <- post (brig . path "/i/users" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
+    maybe (error $ "postUserInternal: Failed to decode user due to: " ++ show rs) return (decodeBody rs)
+
+postUserRegister :: Object -> Brig -> Http User
+postUserRegister payload brig = do
+    rs <- post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
+    maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) return (decodeBody rs)
 
 deleteUser :: UserId -> Maybe PlainTextPassword -> Brig -> Http ResponseLBS
 deleteUser u p brig = delete $ brig

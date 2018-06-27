@@ -73,7 +73,6 @@ data EmailUserOpts = EmailUserOpts
     { activationUrl     :: !Text
     , smsActivationUrl  :: !Text
     , passwordResetUrl  :: !Text
-    , invitationUrl     :: !Text
     , deletionUrl       :: !Text
     } deriving (Show, Generic)
 
@@ -117,6 +116,7 @@ instance FromJSON ZAuthOpts
 
 data TurnOpts = TurnOpts
     { servers   :: !FilePath
+    , serversV2 :: !FilePath
     , secret    :: !FilePath
     , tokenTTL  :: !Word32
     , configTTL :: !Word32
@@ -265,8 +265,6 @@ optsParser =
        long "password-reset-url" <> metavar "URL" <>
        help "Password reset URL template") <*>
       (textOption $
-       long "invitation-url" <> metavar "URL" <> help "Invitation URL template") <*>
-      (textOption $
        long "deletion-url" <> metavar "URL" <> help "Deletion URL template")) <*>
      (ProviderOpts <$>
       (textOption $
@@ -326,7 +324,11 @@ optsParser =
     (TurnOpts <$>
      (strOption $
       long "turn-servers" <> metavar "FILE" <>
-      help "Line separated file with IP addresses of the available turn servers" <>
+      help "Line separated file with IP addresses of the available turn servers, supporting UDP" <>
+      action "file") <*>
+     (strOption $
+      long "turn-servers-v2" <> metavar "FILE" <>
+      help "Line separated file with hostnames of all available turn servers with all protocols/transports" <>
       action "file") <*>
      (strOption $
       long "turn-secret" <> metavar "FILE" <>

@@ -39,6 +39,7 @@ module Galley.Types
     , ConversationMeta          (..)
     , ConversationRename        (..)
     , ConversationAccessUpdate  (..)
+    , ConversationMessageTimerUpdate (..)
     , ConvType                  (..)
     , Invite                    (..)
     , NewConv                   (..)
@@ -77,6 +78,11 @@ import qualified Data.Text.Encoding  as T
 
 -- Conversations ------------------------------------------------------------
 
+-- | Public-facing conversation type. Represents information that a
+-- particular user is allowed to see.
+--
+-- Can be produced from the internal one ('Galley.Data.Types.Conversation')
+-- by using 'Galley.API.Mapping.conversationView'.
 data Conversation = Conversation
     { cnvId         :: !ConvId
     , cnvType       :: !ConvType
@@ -86,6 +92,7 @@ data Conversation = Conversation
     , cnvName       :: !(Maybe Text)
     , cnvMembers    :: !ConvMembers
     , cnvTeam       :: !(Maybe TeamId)
+    , cnvMessageTimer :: !(Maybe Milliseconds)
     } deriving (Eq, Show)
 
 data ConvType
@@ -126,6 +133,7 @@ data ConversationMeta = ConversationMeta
     , cmAccessRole  :: !AccessRole
     , cmName        :: !(Maybe Text)
     , cmTeam        :: !(Maybe TeamId)
+    , cmMessageTimer :: !(Maybe Milliseconds)
     } deriving (Eq, Show)
 
 data ConversationList a = ConversationList
@@ -145,6 +153,10 @@ data ConversationAccessUpdate = ConversationAccessUpdate
     , cupAccessRole :: AccessRole
     } deriving (Eq, Show)
 
+data ConversationMessageTimerUpdate = ConversationMessageTimerUpdate
+    { cupMessageTimer :: !(Maybe Milliseconds)     -- ^ New message timer
+    } deriving (Eq, Show)
+
 data ConvTeamInfo = ConvTeamInfo
     { cnvTeamId  :: !TeamId
     , cnvManaged :: !Bool
@@ -156,6 +168,7 @@ data NewConv = NewConv
     , newConvAccess :: !(Set Access)
     , newConvAccessRole :: !(Maybe AccessRole)
     , newConvTeam   :: !(Maybe ConvTeamInfo)
+    , newConvMessageTimer :: !(Maybe Milliseconds)
     }
 
 deriving instance Eq   NewConv
@@ -280,6 +293,7 @@ data EventType
     | MemberStateUpdate
     | ConvRename
     | ConvAccessUpdate
+    | ConvMessageTimerUpdate
     | ConvCodeUpdate
     | ConvCodeDelete
     | ConvCreate
@@ -294,6 +308,7 @@ data EventData
     | EdConnect             !Connect
     | EdConvRename          !ConversationRename
     | EdConvAccessUpdate    !ConversationAccessUpdate
+    | EdConvMessageTimerUpdate !ConversationMessageTimerUpdate
     | EdConvCodeUpdate      !ConversationCode
     | EdMemberUpdate        !MemberUpdateData
     | EdConversation        !Conversation
@@ -521,6 +536,7 @@ instance ToJSON Conversation where
         , "last_event"          .= ("0.0" :: Text)
         , "last_event_time"     .= ("1970-01-01T00:00:00.000Z" :: Text)
         , "team"                .= cnvTeam c
+        , "message_timer"       .= cnvMessageTimer c
         ]
 
 instance FromJSON Conversation where
@@ -533,6 +549,7 @@ instance FromJSON Conversation where
                     <*> o .:? "name"
                     <*> o .:  "members"
                     <*> o .:? "team"
+                    <*> o .:? "message_timer"
 
 instance ToJSON ConvMembers where
    toJSON mm = object
@@ -560,6 +577,7 @@ parseEventData MemberLeave v       = Just . EdMembers <$> parseJSON v
 parseEventData MemberStateUpdate v = Just . EdMemberUpdate <$> parseJSON v
 parseEventData ConvRename v        = Just . EdConvRename <$> parseJSON v
 parseEventData ConvAccessUpdate v  = Just . EdConvAccessUpdate <$> parseJSON v
+parseEventData ConvMessageTimerUpdate v = Just . EdConvMessageTimerUpdate <$> parseJSON v
 parseEventData ConvCodeUpdate v    = Just . EdConvCodeUpdate <$> parseJSON v
 parseEventData ConvCodeDelete _    = pure Nothing
 parseEventData ConvConnect v       = Just . EdConnect <$> parseJSON v
@@ -573,6 +591,7 @@ instance ToJSON EventData where
     toJSON (EdConnect x)            = toJSON x
     toJSON (EdConvRename x)         = toJSON x
     toJSON (EdConvAccessUpdate x)   = toJSON x
+    toJSON (EdConvMessageTimerUpdate x) = toJSON x
     toJSON (EdConvCodeUpdate x)     = toJSON x
     toJSON (EdMemberUpdate x)       = toJSON x
     toJSON (EdConversation x)       = toJSON x
@@ -596,6 +615,7 @@ instance FromJSON EventType where
     parseJSON (String "conversation.member-leave")    = return MemberLeave
     parseJSON (String "conversation.rename")          = return ConvRename
     parseJSON (String "conversation.access-update")   = return ConvAccessUpdate
+    parseJSON (String "conversation.message-timer-update") = return ConvMessageTimerUpdate
     parseJSON (String "conversation.code-update")     = return ConvCodeUpdate
     parseJSON (String "conversation.code-delete")     = return ConvCodeDelete
     parseJSON (String "conversation.member-update")   = return MemberStateUpdate
@@ -612,6 +632,7 @@ instance ToJSON EventType where
     toJSON MemberStateUpdate      = String "conversation.member-update"
     toJSON ConvRename             = String "conversation.rename"
     toJSON ConvAccessUpdate       = String "conversation.access-update"
+    toJSON ConvMessageTimerUpdate = String "conversation.message-timer-update"
     toJSON ConvCodeUpdate         = String "conversation.code-update"
     toJSON ConvCodeDelete         = String "conversation.code-delete"
     toJSON ConvCreate             = String "conversation.create"
@@ -627,6 +648,7 @@ instance FromJSON NewConv where
                 <*> i .:? "access" .!= mempty
                 <*> i .:? "access_role"
                 <*> i .:? "team"
+                <*> i .:? "message_timer"
 
 instance ToJSON NewConv where
     toJSON i = object
@@ -635,6 +657,7 @@ instance ToJSON NewConv where
         # "access" .= newConvAccess i
         # "access_role" .= newConvAccessRole i
         # "team"   .= newConvTeam i
+        # "message_timer" .= newConvMessageTimer i
         # []
 
 instance ToJSON ConvTeamInfo where
@@ -663,6 +686,7 @@ instance FromJSON ConversationMeta where
                          <*> o .:  "access_role"
                          <*> o .:  "name"
                          <*> o .:? "team"
+                         <*> o .:? "message_timer"
 
 instance ToJSON ConversationMeta where
     toJSON c = object
@@ -673,6 +697,7 @@ instance ToJSON ConversationMeta where
         # "access_role" .= cmAccessRole c
         # "name"        .= cmName c
         # "team"        .= cmTeam c
+        # "message_timer" .= cmMessageTimer c
         # []
 
 instance ToJSON ConversationAccessUpdate where
@@ -685,6 +710,15 @@ instance FromJSON ConversationAccessUpdate where
    parseJSON = withObject "conversation-access-update" $ \o ->
        ConversationAccessUpdate <$> o .:  "access"
                                 <*> o .:  "access_role"
+
+instance ToJSON ConversationMessageTimerUpdate where
+    toJSON c = object
+        [ "message_timer" .= cupMessageTimer c
+        ]
+
+instance FromJSON ConversationMessageTimerUpdate where
+   parseJSON = withObject "conversation-message-timer-update" $ \o ->
+       ConversationMessageTimerUpdate <$> o .:? "message_timer"
 
 instance FromJSON ConversationRename where
     parseJSON = withObject "conversation-rename object" $ \c ->

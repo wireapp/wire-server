@@ -16,7 +16,7 @@ import Brig.Types.Activation (ActivationCode)
 import Brig.Types.Common as C
 import Brig.Types.User.Auth (CookieLabel)
 import Control.Applicative
-import Control.Monad ((<=<))
+import Control.Monad ((<=<), when)
 import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
 import Data.ByteString.Conversion
@@ -27,6 +27,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Data.Text.Ascii
 import Data.Text (Text)
+import Data.UUID (UUID)
 import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
 
@@ -236,6 +237,7 @@ instance ToJSON SelfProfile where
 
 data NewUser = NewUser
     { newUserName           :: !Name
+    , newUserUUID           :: !(Maybe UUID)  -- ^ use this as 'UserId' (if 'Nothing', call 'Data.UUID.nextRandom').
     , newUserIdentity       :: !(Maybe UserIdentity)
     , newUserPict           :: !(Maybe Pict) -- ^ DEPRECATED
     , newUserAssets         :: [Asset]
@@ -308,6 +310,7 @@ instance FromJSON NewUser where
       parseJSON = withObject "new-user" $ \o -> do
           ssoid                 <- o .:? "sso_id"
           newUserName           <- o .: "name"
+          newUserUUID           <- o .:? "uuid"
           newUserIdentity       <- parseIdentity ssoid o
           newUserPict           <- o .:? "picture"
           newUserAssets         <- o .:? "assets" .!= []
@@ -327,6 +330,7 @@ instance FromJSON NewUser where
 instance ToJSON NewUser where
     toJSON u = object
         $ "name"            .= newUserName u
+        # "uuid"            .= newUserUUID u
         # "email"           .= newUserEmail u
         # "email_code"      .= newUserEmailCode u
         # "password"        .= newUserPassword u
@@ -378,16 +382,20 @@ data NewTeamUser = NewTeamMember    !InvitationCode      -- ^ requires email add
                  | NewTeamMemberSSO !TeamId
     deriving (Eq, Show)
 
--- | newtype for using in external end-points where setting an 'SSOIdentity' is not allowed.
+-- | newtype for using in external end-points where setting 'SSOIdentity', 'UUID' is not allowed.
+-- ('UUID' is only needed by spar for creating users that it can find again later, after a crash.
+-- if there another use case arises, this newtype and the 'FromJSON' instance would have to be
+-- refactored.)
 newtype NewUserNoSSO = NewUserNoSSO NewUser
     deriving (Eq, Show)
 
 instance FromJSON NewUserNoSSO where
     parseJSON val = do
         nu <- parseJSON val
-        case newUserIdentity nu of
-            Just SSOIdentity {} -> fail "SSO-managed users are not allowed here."
-            _ -> pure $ NewUserNoSSO nu
+        when (isJust $ newUserSSOId nu) $ fail "SSO-managed users are not allowed here."
+        when (isJust $ newUserUUID nu)  $ fail "it is not allowed to provide a UUID for the users here."
+        pure $ NewUserNoSSO nu
+
 
 -----------------------------------------------------------------------------
 -- Profile Updates

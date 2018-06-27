@@ -43,6 +43,8 @@ append p         pp = p:pp
 
 infixr 5 #
 
+-- | An operator for building JSON in cases where you want @null@ fields to
+-- disappear from the result instead of being present as @null@s.
 (#) :: Pair -> [Pair] -> [Pair]
 (#) = append
 {-# INLINE (#) #-}
@@ -63,7 +65,7 @@ toUTCTimeMillis = UTCTimeMillis . (TL.seconds . coerced @Pico @_ @Integer %~ (* 
 
 {-# INLINE showUTCTimeMillis #-}
 showUTCTimeMillis :: UTCTimeMillis -> String
-showUTCTimeMillis (UTCTimeMillis t) = formatTime defaultTimeLocale formatUTCTimeMillis t
+showUTCTimeMillis (UTCTimeMillis t) = formatTime defaultTimeLocale "%FT%T.%03qZ" t
 
 readUTCTimeMillis :: String -> Maybe UTCTimeMillis
 readUTCTimeMillis = fmap toUTCTimeMillis . parseTimeM True defaultTimeLocale formatUTCTimeMillis
