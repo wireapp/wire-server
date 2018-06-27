@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bcd81ea702422dd9f301b60d22ed36940e2fb05d6826cd32cc9099d79b76f677
+-- hash: b454267d59da2cb6a1a25b81e2896f2d4273346c309e0e6f310083e9302c12bb
 
 name:           spar
 version:        0.1
@@ -54,6 +54,7 @@ library
     , optparse-applicative
     , raw-strings-qq
     , saml2-web-sso
+    , scientific
     , servant
     , servant-multipart
     , servant-server
@@ -102,6 +103,7 @@ executable spar
     , optparse-applicative
     , raw-strings-qq
     , saml2-web-sso
+    , scientific
     , servant
     , servant-multipart
     , servant-server
@@ -155,6 +157,7 @@ executable spar-integration
     , optparse-applicative
     , raw-strings-qq
     , saml2-web-sso
+    , scientific
     , servant
     , servant-multipart
     , servant-server
@@ -205,6 +208,7 @@ executable spar-schema
     , optparse-applicative
     , raw-strings-qq
     , saml2-web-sso
+    , scientific
     , servant
     , servant-multipart
     , servant-server
@@ -262,6 +266,7 @@ test-suite spec
     , optparse-applicative
     , raw-strings-qq
     , saml2-web-sso
+    , scientific
     , servant
     , servant-multipart
     , servant-server
