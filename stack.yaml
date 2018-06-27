@@ -81,6 +81,10 @@ packages:
     commit: a5f0b9ce508f9d4c28a41d2b856387a7db281577  # https://github.com/haskell-servant/servant-multipart/pull/17
   extra-dep: true
 
+- location:
+    ../prometheus-effect
+  extra-dep: true
+
 extra-deps:
 - base58-bytestring-0.1.0
 - currency-codes-2.0.0.0

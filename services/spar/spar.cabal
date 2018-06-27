@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b454267d59da2cb6a1a25b81e2896f2d4273346c309e0e6f310083e9302c12bb
+-- hash: 5b79ad724adfe140f648f446aa9e27b5ac9a588b7d0db3b0caa5cb4849621c88
 
 name:           spar
 version:        0.1
@@ -52,6 +52,7 @@ library
     , metrics-core
     , mtl
     , optparse-applicative
+    , prometheus-effect
     , raw-strings-qq
     , saml2-web-sso
     , scientific
@@ -101,6 +102,7 @@ executable spar
     , metrics-core
     , mtl
     , optparse-applicative
+    , prometheus-effect
     , raw-strings-qq
     , saml2-web-sso
     , scientific
@@ -155,6 +157,7 @@ executable spar-integration
     , metrics-core
     , mtl
     , optparse-applicative
+    , prometheus-effect
     , raw-strings-qq
     , saml2-web-sso
     , scientific
@@ -206,6 +209,7 @@ executable spar-schema
     , metrics-core
     , mtl
     , optparse-applicative
+    , prometheus-effect
     , raw-strings-qq
     , saml2-web-sso
     , scientific
@@ -264,6 +268,7 @@ test-suite spec
     , metrics-core
     , mtl
     , optparse-applicative
+    , prometheus-effect
     , raw-strings-qq
     , saml2-web-sso
     , scientific
