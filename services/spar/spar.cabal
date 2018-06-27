@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d43785f1e216a8a4c44296f071a705364b703d04f525bf3719c0d8f96474dd4f
+-- hash: bcd81ea702422dd9f301b60d22ed36940e2fb05d6826cd32cc9099d79b76f677
 
 name:           spar
 version:        0.1
@@ -34,6 +34,7 @@ library
   ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
   build-depends:
       aeson
+    , aeson-pretty
     , base
     , bilge
     , binary
@@ -56,7 +57,9 @@ library
     , servant
     , servant-multipart
     , servant-server
+    , servant-swagger
     , string-conversions
+    , swagger2
     , text
     , time
     , tinylog
@@ -79,6 +82,7 @@ executable spar
   ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
   build-depends:
       aeson
+    , aeson-pretty
     , base
     , bilge
     , binary
@@ -101,8 +105,10 @@ executable spar
     , servant
     , servant-multipart
     , servant-server
+    , servant-swagger
     , spar
     , string-conversions
+    , swagger2
     , text
     , time
     , tinylog
@@ -127,6 +133,7 @@ executable spar-integration
   ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
   build-depends:
       aeson
+    , aeson-pretty
     , base
     , bilge
     , binary
@@ -151,8 +158,10 @@ executable spar-integration
     , servant
     , servant-multipart
     , servant-server
+    , servant-swagger
     , spar
     , string-conversions
+    , swagger2
     , text
     , time
     , tinylog
@@ -176,6 +185,7 @@ executable spar-schema
   ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
   build-depends:
       aeson
+    , aeson-pretty
     , base
     , bilge
     , binary
@@ -198,8 +208,10 @@ executable spar-schema
     , servant
     , servant-multipart
     , servant-server
+    , servant-swagger
     , spar
     , string-conversions
+    , swagger2
     , text
     , time
     , tinylog
@@ -218,6 +230,7 @@ test-suite spec
   main-is: Spec.hs
   other-modules:
       Arbitrary
+      Test.Spar.APISpec
       Test.Spar.DataSpec
       Test.Spar.Intra.BrigSpec
       Paths_spar
@@ -227,6 +240,7 @@ test-suite spec
   build-depends:
       QuickCheck
     , aeson
+    , aeson-pretty
     , base
     , bilge
     , binary
@@ -251,8 +265,10 @@ test-suite spec
     , servant
     , servant-multipart
     , servant-server
+    , servant-swagger
     , spar
     , string-conversions
+    , swagger2
     , text
     , time
     , tinylog
