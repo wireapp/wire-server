@@ -57,6 +57,7 @@ runServer sparCtxOpts = do
                    & Log.setLogLevel (toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel)
                    & Log.setOutput Log.StdOut
                    & Log.setFormat Nothing
+                   & Log.setNetStrings (logNetStrings sparCtxOpts)
   mx <- metrics
   sparCtxCas <- Data.initCassandra sparCtxOpts sparCtxLogger
   let settings = Warp.defaultSettings
