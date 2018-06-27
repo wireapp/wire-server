@@ -33,6 +33,7 @@ dependencies:
   - optparse-applicative
   - raw-strings-qq
   - saml2-web-sso
+  - scientific
   - servant
   - servant-multipart
   - servant-server
