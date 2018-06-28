@@ -7,12 +7,20 @@
 module Test.Spar.APISpec where
 
 import Bilge
+import Bilge.Assert
 import Control.Exception
 import Control.Monad
+import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Data.Aeson as Aeson hiding (json)
+import Data.ByteString.Conversion
 import Data.Id
 import Data.List (isInfixOf)
+import Data.Maybe (isJust)
+import Data.Range
 import Data.String.Conversions
+import Data.UUID as UUID hiding (null, fromByteString)
+import Data.UUID.V4 (nextRandom)
 import Lens.Micro
 import SAML2.WebSSO as SAML
 import Spar.API ()
@@ -22,9 +30,9 @@ import Test.Hspec
 import URI.ByteString.QQ
 import Util.Options
 
-import qualified Data.Aeson as Aeson
-import qualified Data.UUID as UUID
 import qualified Text.XML.DSig as SAML
+import qualified Brig.Types.Common as Brig
+import qualified Galley.Types.Teams as Galley
 
 
 -- TODO: what else needs to be tested?
@@ -36,6 +44,10 @@ mkspec opts = do
   let brigreq :: (Request -> Request)
       brigreq = Bilge.host (opts ^. to Opts.brig . epHost . to cs)
               . Bilge.port (opts ^. to Opts.brig . epPort)
+
+      galleyreq :: (Request -> Request)
+      galleyreq = undefined  -- TODO: oops.  we need to get all services from services/integration.yaml, not spar.integration.yaml.
+
       sparreq :: (Request -> Request)
       sparreq = Bilge.host (opts ^. to Opts.saml . SAML.cfgSPHost . to cs)
               . Bilge.port (opts ^. to Opts.saml . SAML.cfgSPPort . to fromIntegral)
@@ -71,7 +83,7 @@ mkspec opts = do
 
       context "known IdP" $ do
         it "responds with request" $ do
-          idp <- createTestIdP mgr sparreq
+          idp <- createTestIdP mgr brigreq galleyreq sparreq
           get (sparreq . path ("/sso/initiate-login/" <> idp) . expect2xx)
             `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                   [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
@@ -146,11 +158,23 @@ mkspec opts = do
 
 ----------------------------------------------------------------------
 
-createTestIdP :: HasCallStack => Manager -> (Request -> Request) -> IO SBS
-createTestIdP mgr sparreq = cs . UUID.toText . fromIdPId <$> runHttpT mgr (createTestIdP' sparreq)
+createTestIdP :: HasCallStack
+              => Manager
+              -> (Request -> Request)
+              -> (Request -> Request)
+              -> (Request -> Request)
+              -> IO SBS
+createTestIdP mgr brigreq galleyreq sparreq = cs . UUID.toText . fromIdPId <$> runHttpT mgr (createTestIdP' brigreq galleyreq sparreq)
 
-createTestIdP' :: (HasCallStack, MonadIO m, MonadHttp m) => (Request -> Request) -> m IdPId
-createTestIdP' sparreq = do
+createTestIdP' :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
+               => (Request -> Request)
+               -> (Request -> Request)
+               -> (Request -> Request)
+               -> m IdPId
+createTestIdP' brigreq galleyreq sparreq = do
+  userid <- randomUser brigreq
+  teamid <- createTeam galleyreq "team" userid
+
   let new = NewIdP
         { _nidpMetadata        = [uri|http://idp.net/meta|]
         , _nidpIssuer          = Issuer [uri|http://idp.net/|]
@@ -162,6 +186,45 @@ createTestIdP' sparreq = do
 
   either (liftIO . throwIO . ErrorCall . show) (pure . (^. idpId))
     . (>>= Aeson.eitherDecode @(IdPConfig TeamId))
-    . maybe (Left "no body") Right
-    . responseBody
+    . maybe (Left "no body") Right . responseBody  -- TODO: i think there is a nicer way to do this hidden somewhere on wire-server?
     $ resp
+
+
+-- copied from /services/galley/test/integration/API/Util.hs
+
+type Brig = Request -> Request
+type Galley = Request -> Request
+
+randomUser :: (HasCallStack, MonadCatch m, MonadHttp m, MonadIO m) => Brig -> m UserId
+randomUser b = do
+    e <- liftIO randomEmail
+    let p = object [ "name" .= Brig.fromEmail e, "email" .= Brig.fromEmail e, "password" .= ("secret" :: ST) ]
+    r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
+    fromBS (getHeader' "Location" r)
+
+createTeam :: (HasCallStack, MonadCatch m, MonadHttp m, MonadIO m) => Galley -> ST -> UserId -> m TeamId
+createTeam g name owner = do
+    let mems :: [Galley.TeamMember] = []
+    let mm = if null mems then Nothing else Just $ unsafeRange (take 127 mems)
+    let nt = Galley.NonBindingNewTeam $ Galley.newNewTeam (unsafeRange name) (unsafeRange "icon") & Galley.newTeamMembers .~ mm
+    resp <- post (g . path "/teams" . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
+        const 201  === statusCode
+        const True === isJust . getHeader "Location"
+    fromBS (getHeader' "Location" resp)
+
+randomEmail :: MonadIO m => m Brig.Email
+randomEmail = do
+    uid <- liftIO nextRandom
+    return $ Brig.Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
+
+fromBS :: (HasCallStack, FromByteString a, Monad m) => SBS -> m a
+fromBS = maybe (fail "fromBS: no parse") return . fromByteString
+
+zUser :: UserId -> Request -> Request
+zUser = header "Z-User" . toByteString'
+
+zConn :: SBS -> Request -> Request
+zConn = header "Z-Connection"
+
+zType :: SBS -> Request -> Request
+zType = header "Z-Type"
