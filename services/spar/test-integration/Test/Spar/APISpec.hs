@@ -16,6 +16,8 @@ import Spar.Options as Opts
 import Test.Hspec
 import Util.Options
 
+import qualified Data.UUID as UUID
+
 
 mkspec :: Opts -> IO Spec
 mkspec opts = do
@@ -34,7 +36,7 @@ mkspec opts = do
       ping req = void . get $ req . path "/i/status" . expect2xx
 
   pure $ do
-    describe "happy flow" $ do
+    describe "status, metainfo" $ do
       it "brig /i/status" $ do
         ping brigreq `shouldRespondWith` (== ())
 
@@ -49,24 +51,40 @@ mkspec opts = do
                                 , "WantAssertionsSigned=\"true\""
                                 ])
 
-      it "authreq" $ do
-        get (sparreq . path "/sso/initiate-login/azure-test" . expect2xx)
-          `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
-                                [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
-                                , "<body onload=\"document.forms[0].submit()\">"
-                                , "<input name=\"SAMLRequest\" type=\"hidden\" "
-                                ])
+    describe "/sso/initiate-login/:idp" $ do
+      context "unknown IdP" $ do
+        it "responds with 'not found'" $ do
+          let uuid = cs $ UUID.toText UUID.nil
+          get (sparreq . path ("/sso/initiate-login/" <> uuid))
+            `shouldRespondWith` ((>= 400) . statusCode)
 
-      it "authresp" $ do
-        pending
-        -- (just fake the response from the IdP?)
+      context "known IdP" $ do
+        it "responds with request" $ do
+          IdPId (cs . UUID.toText -> uuid) <- createTestIdP
+          get (sparreq . path ("/sso/initiate-login/" <> uuid) . expect2xx)
+            `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
+                                  [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
+                                  , "<body onload=\"document.forms[0].submit()\">"
+                                  , "<input name=\"SAMLRequest\" type=\"hidden\" "
+                                  ])
 
-    describe "access denied" $ do
-      it "/sso/authresp" $ do
-        pending
+    describe "/sso/finalize-login" $ do
+      context "access denied" $ do
+        it "responds with 'forbidden'" $ do
+          pending
 
-    it "rejects responses not matching any request" $ do
-      pending
+      context "access granted" $ do
+        it "responds with redirect to app" $ do
+          pending
 
-    it "rejects replayed assertions" $ do
-      pending
+      context "response does not match any request" $ do
+        it "rejects" $ do
+          pending
+
+      context "response contains assertions that have been offered before" $ do
+        it "rejects" $ do
+          pending
+
+
+createTestIdP :: IO IdPId
+createTestIdP = undefined
