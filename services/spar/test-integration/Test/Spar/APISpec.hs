@@ -5,16 +5,16 @@
 module Test.Spar.APISpec where
 
 import Bilge
-import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.List (isInfixOf)
 import Data.String.Conversions
+import Lens.Micro
+import SAML2.WebSSO as SAML
 import Spar.API ()
 import Spar.Options as Opts
 import Test.Hspec
 import Util.Options
-import SAML2.WebSSO as SAML
 
 
 mkspec :: Opts -> IO Spec
