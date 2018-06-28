@@ -80,7 +80,7 @@ while [ "$all_services_are_up" == "" ]; do
     export all_services_are_up="1"
     for port in `seq 8082 8086` 8088; do
         ( curl --write-out %{http_code} --silent --output /dev/null http://localhost:$port/i/status \
-                | grep -q '200' ) \
+                | grep -q '^20[04]' ) \
             || export all_services_are_up=""
     done
     sleep 1
