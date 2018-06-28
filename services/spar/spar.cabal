@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0d7b008e586b5da1a93e31999b1cb3c4c7351012a8c11bbb91ebe9a6f52956d7
+-- hash: c5d74ab46018939a3bb85db8a957b9d6a04499a242a4a95e9680dc9ce1c13b18
 
 name:           spar
 version:        0.1
@@ -131,6 +131,7 @@ executable spar-integration
   other-modules:
       Test.Spar.APISpec
       Test.Spar.DataSpec
+      Util
       Paths_spar
   hs-source-dirs:
       test-integration
@@ -148,6 +149,7 @@ executable spar-integration
     , containers
     , cookie
     , exceptions
+    , galley-types
     , ghc-prim
     , hspec
     , hspec-discover

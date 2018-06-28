@@ -89,5 +89,6 @@ executables:
       - test-integration
     dependencies:
       - spar
+      - galley-types
       - hspec
       - hspec-discover
