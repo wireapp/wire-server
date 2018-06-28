@@ -12,10 +12,10 @@
 
 module Spar.Types where
 
-import Control.Lens (makeLenses)
 import Data.Aeson.TH
 import Data.Id (TeamId)
 import GHC.Generics
+import Lens.Micro.TH (makeLenses)
 import SAML2.WebSSO.Config.TH (deriveJSONOptions)
 import SAML2.WebSSO (IdPConfig, Issuer)
 import URI.ByteString

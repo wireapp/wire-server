@@ -27,8 +27,9 @@ dependencies:
   - ghc-prim
   - http-client
   - http-types
-  - lens
   - metrics-core
+  - microlens
+  - microlens-th
   - mtl
   - optparse-applicative
   - raw-strings-qq
