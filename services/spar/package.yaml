@@ -74,12 +74,14 @@ executables:
   spar:
     main: Main.hs
     source-dirs: exec
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
       - spar
 
   spar-schema:
     main: Main.hs
     source-dirs: schema/src
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
       - spar
 
@@ -87,6 +89,7 @@ executables:
     main: Spec.hs
     source-dirs:
       - test-integration
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
       - spar
       - galley-types
