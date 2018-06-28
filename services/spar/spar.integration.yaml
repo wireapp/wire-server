@@ -8,11 +8,11 @@ saml:
   sp_sso_uri:  https://app.wire.com/sso
 
   contacts:
-    - company: evil corp.
+    - type: ContactBilling
+      company: evil corp.
       given_name: Dr.
       surname: Girlfriend
       email: email:president@evil.corp
-      phone: '+314159265'
 
 brig:
   host: 127.0.0.1
