@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c5d74ab46018939a3bb85db8a957b9d6a04499a242a4a95e9680dc9ce1c13b18
+-- hash: f38db4bf90b97350859d65bfb7c8ae364c026253e4e9e6d945d32cee25454459
 
 name:           spar
 version:        0.1
@@ -81,7 +81,7 @@ executable spar
       Paths_spar
   hs-source-dirs:
       exec
-  ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
+  ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
     , aeson-pretty
@@ -135,7 +135,7 @@ executable spar-integration
       Paths_spar
   hs-source-dirs:
       test-integration
-  ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
+  ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
     , aeson-pretty
@@ -190,7 +190,7 @@ executable spar-schema
       Paths_spar
   hs-source-dirs:
       schema/src
-  ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
+  ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
     , aeson-pretty
