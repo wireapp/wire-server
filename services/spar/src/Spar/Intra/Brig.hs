@@ -16,14 +16,14 @@ module Spar.Intra.Brig where
 -- master data (first name, last name, ...)
 
 import Bilge
-import Control.Lens
 import Control.Monad.Except
 import Data.Aeson (eitherDecode')
 import Data.Aeson (FromJSON)
+import Data.ByteString.Conversion
 import Data.Id (Id(Id), UserId, TeamId)
 import Data.String.Conversions
-import Data.ByteString.Conversion
 import GHC.Stack
+import Lens.Micro
 import Network.HTTP.Types.Method
 import Servant hiding (URI)
 import URI.ByteString

@@ -11,10 +11,10 @@ module Spar.App where
 import Bilge
 import Cassandra
 import Control.Exception (SomeException(SomeException), assert)
-import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Id
+import Lens.Micro
 import SAML2.WebSSO hiding (UserRef(..))
 import Servant
 import Spar.Options as Options

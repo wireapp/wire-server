@@ -17,7 +17,6 @@
 module Spar.API where
 
 import Bilge
-import Control.Lens
 import Control.Monad.Except
 import Data.Metrics (metrics)
 import Data.Proxy
@@ -27,6 +26,7 @@ import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
 import GHC.Stack
+import Lens.Micro
 import Network.HTTP.Client (responseTimeoutMicro)
 import Servant
 import Servant.Swagger

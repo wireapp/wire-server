@@ -14,18 +14,19 @@
 module Spar.Data where
 
 import Cassandra as Cas
-import Data.Maybe (catMaybes)
 import Control.Exception
-import Control.Lens hiding (Level)
 import Control.Monad.Catch
 import Control.Monad.Except
+import Control.Monad.Identity
 import Data.Int
 import Data.List.NonEmpty as NE
+import Data.Maybe (catMaybes)
 import Data.Misc ((<$$>))
 import Data.String.Conversions
 import Data.Time
 import Data.X509 (SignedCertificate)
 import GHC.Stack
+import Lens.Micro
 import Spar.Data.Instances ()
 import Spar.Options as Options
 import Spar.Types

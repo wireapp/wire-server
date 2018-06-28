@@ -12,21 +12,22 @@ module Spar.Options
 
 import Control.Exception
 import Data.Aeson
-import Data.Monoid
 import Data.Id
 import Data.Int
+import Data.Monoid
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import GHC.Types (Symbol)
-import Util.Options hiding (getOptions)
+import Lens.Micro
 import Options.Applicative
-import qualified Data.Yaml as Yaml
+import Util.Options hiding (getOptions)
 
-import qualified SAML2.WebSSO.Config as SAML2
+import qualified Data.Yaml as Yaml
+import qualified SAML2.WebSSO.Config as SAML
 
 
 data Opts = Opts
-    { saml           :: !(SAML2.Config TeamId)
+    { saml           :: !(SAML.Config TeamId)
     , brig           :: !Endpoint
     , cassandra      :: !CassandraOpts
     , maxttlAuthreq  :: !(TTL "authreq")
@@ -76,4 +77,4 @@ readOptsFile path =
     err2 = throwIO $ ErrorCall "idps field is not supported by spar."
 
     hasNoIdPs :: Opts -> Bool
-    hasNoIdPs = null . (^. to saml . SAML2.cfgIdps)
+    hasNoIdPs = null . (^. to saml . SAML.cfgIdps)

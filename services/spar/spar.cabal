@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b454267d59da2cb6a1a25b81e2896f2d4273346c309e0e6f310083e9302c12bb
+-- hash: 0d7b008e586b5da1a93e31999b1cb3c4c7351012a8c11bbb91ebe9a6f52956d7
 
 name:           spar
 version:        0.1
@@ -48,8 +48,9 @@ library
     , ghc-prim
     , http-client
     , http-types
-    , lens
     , metrics-core
+    , microlens
+    , microlens-th
     , mtl
     , optparse-applicative
     , raw-strings-qq
@@ -97,8 +98,9 @@ executable spar
     , ghc-prim
     , http-client
     , http-types
-    , lens
     , metrics-core
+    , microlens
+    , microlens-th
     , mtl
     , optparse-applicative
     , raw-strings-qq
@@ -151,8 +153,9 @@ executable spar-integration
     , hspec-discover
     , http-client
     , http-types
-    , lens
     , metrics-core
+    , microlens
+    , microlens-th
     , mtl
     , optparse-applicative
     , raw-strings-qq
@@ -202,8 +205,9 @@ executable spar-schema
     , ghc-prim
     , http-client
     , http-types
-    , lens
     , metrics-core
+    , microlens
+    , microlens-th
     , mtl
     , optparse-applicative
     , raw-strings-qq
@@ -260,8 +264,9 @@ test-suite spec
     , hspec-discover
     , http-client
     , http-types
-    , lens
     , metrics-core
+    , microlens
+    , microlens-th
     , mtl
     , optparse-applicative
     , raw-strings-qq
