@@ -1,23 +1,26 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
 module Test.Spar.APISpec where
 
 import Bilge
+import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
+import Data.Id
 import Data.List (isInfixOf)
 import Data.String.Conversions
 import Lens.Micro
 import SAML2.WebSSO as SAML
 import Spar.API ()
-import Spar.Types
 import Spar.Options as Opts
+import Spar.Types
 import Test.Hspec
-import Util.Options
 import URI.ByteString.QQ
+import Util.Options
 
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
@@ -143,10 +146,10 @@ mkspec opts = do
 
 ----------------------------------------------------------------------
 
-createTestIdP :: Manager -> (Request -> Request) -> IO SBS
+createTestIdP :: HasCallStack => Manager -> (Request -> Request) -> IO SBS
 createTestIdP mgr sparreq = cs . UUID.toText . fromIdPId <$> runHttpT mgr (createTestIdP' sparreq)
 
-createTestIdP' :: (MonadIO m, MonadHttp m) => (Request -> Request) -> m IdPId
+createTestIdP' :: (HasCallStack, MonadIO m, MonadHttp m) => (Request -> Request) -> m IdPId
 createTestIdP' sparreq = do
   let new = NewIdP
         { _nidpMetadata        = [uri|http://idp.net/meta|]
@@ -157,4 +160,8 @@ createTestIdP' sparreq = do
   resp :: Bilge.Response (Maybe LBS)
     <- post $ sparreq . path "/sso/identity-providers/" . json new . expect2xx
 
-  pure undefined
+  either (liftIO . throwIO . ErrorCall . show) (pure . (^. idpId))
+    . (>>= Aeson.eitherDecode @(IdPConfig TeamId))
+    . maybe (Left "no body") Right
+    . responseBody
+    $ resp
