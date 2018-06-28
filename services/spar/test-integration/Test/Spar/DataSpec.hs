@@ -4,7 +4,7 @@ import Spar.Data ()
 import Test.Hspec
 
 
-spec :: Spec
+spec :: Spec  -- TODO: do we need any of these at all?
 spec = do
   describe "cql binding" $ do
     describe "storeRequest" $ do
