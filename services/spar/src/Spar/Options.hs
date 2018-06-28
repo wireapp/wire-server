@@ -67,7 +67,13 @@ cliOptsParser = strOption $
   where
     defaultSparPath = "/etc/wire/spar/conf/spar.yaml"
 
-readOptsFile :: (FromJSON a) => FilePath -> IO a
+readOptsFile :: FilePath -> IO Opts
 readOptsFile path =
-  either (throwIO . ErrorCall . ("no or bad config file: " <>) . show) pure
+  either err1 (\opts -> if hasNoIdPs opts then pure opts else err2)
     =<< Yaml.decodeFileEither path
+  where
+    err1 = throwIO . ErrorCall . ("no or bad config file: " <>) . show
+    err2 = throwIO $ ErrorCall "idps field is not supported by spar."
+
+    hasNoIdPs :: Opts -> Bool
+    hasNoIdPs = null . (^. to saml . SAML2.cfgIdps)
