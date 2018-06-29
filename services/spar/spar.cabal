@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fbbe759178bc22be693cbac837cd28eef85973d1defa467195dedd08fa95ba37
+-- hash: 34243673037b5664fb552b21a3fa8cdead2d91e0a28d98e73f9c5f9b38c999b1
 
 name:           spar
 version:        0.1
@@ -35,6 +35,7 @@ library
   build-depends:
       aeson
     , aeson-pretty
+    , aeson-qq
     , base
     , bilge
     , binary
@@ -86,6 +87,7 @@ executable spar
   build-depends:
       aeson
     , aeson-pretty
+    , aeson-qq
     , base
     , bilge
     , binary
@@ -200,6 +202,7 @@ executable spar-schema
   build-depends:
       aeson
     , aeson-pretty
+    , aeson-qq
     , base
     , bilge
     , binary
@@ -258,6 +261,7 @@ test-suite spec
       QuickCheck
     , aeson
     , aeson-pretty
+    , aeson-qq
     , base
     , bilge
     , binary

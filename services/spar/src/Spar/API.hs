@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PackageImports             #-}
+{-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
@@ -27,6 +28,7 @@ module Spar.API
 
 import Bilge
 import Control.Monad.Except
+import Data.Aeson.QQ (aesonQQ)
 import Data.Maybe (isJust, fromJust)
 import Data.Metrics (metrics)
 import Data.Proxy
@@ -47,6 +49,7 @@ import Spar.Types
 import Util.Options (epHost, epPort)
 import Web.Cookie (SetCookie)
 
+import qualified Data.Aeson as Aeson
 import qualified Data.Aeson as Swagger
 import qualified Data.Scientific as Swagger
 import qualified Brig.Types.User as Brig
@@ -172,11 +175,11 @@ authorizeIdP zusr idp = do
 
 getZUsrTeam :: (HasCallStack, MonadError ServantErr m, Brig.MonadSparToBrig m)
             => ZUsr -> m Brig.TeamId
-getZUsrTeam Nothing = throwError err403 { errBody = "Auth token required" }
+getZUsrTeam Nothing = throwError err403 { errBody = Aeson.encode [aesonQQ|{"error":"no auth token"}|] }
 getZUsrTeam (Just uid) = do
   usr <- Brig.getUser uid
   case Brig.userTeam =<< usr of
-    Nothing -> throwError err403 { errBody = "Wrong or invalid auth token or not in a team" }
+    Nothing -> throwError err403 { errBody = Aeson.encode [aesonQQ|{"error":"you need to be team admin to create an IdP"}|] }
     Just teamid -> pure teamid
 
 initializeIdP :: (MonadError ServantErr m, SAML.SP m) => NewIdP -> Brig.TeamId -> m IdP
