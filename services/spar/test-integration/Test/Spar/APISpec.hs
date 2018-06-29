@@ -167,8 +167,7 @@ createTestIdP' :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
                -> (Request -> Request)
                -> m IdPId
 createTestIdP' brigreq galleyreq sparreq = do
-  uid <- randomUser brigreq
-  _tid <- createTeam galleyreq "team" uid
+  (uid, _tid) <- createUserWithTeam brigreq galleyreq
 
   let new = NewIdP
         { _nidpMetadata        = [uri|http://idp.net/meta|]
