@@ -128,20 +128,30 @@ spec opts = beforeAll (mkEnv opts) $ do
 
     describe "DELETE /sso/identity-providers/:idp" $ do
       context "unknown IdP" $ do
-        it "responds with 'not found'" $ \_ -> do
-          pending
+        it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
+          callIdpDelete' (sparreq env) Nothing (IdPId UUID.nil)
+            `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP, but no zuser" $ do
-        it "responds with 'not found'" $ \_ -> do
-          pending
+        it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
+          (_, _, idp) <- createTestIdP env
+          callIdpDelete' (sparreq env) Nothing idp
+            `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP that does not belong to user" $ do
-        it "responds with 'not found'" $ \_ -> do
-          pending
+        it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
+          (uid, _) <- runHttpT (testmgr env) $ createUserWithTeam (brigreq env) (galleyreq env)
+          (_, _, idp) <- createTestIdP env
+          callIdpDelete' (sparreq env) (Just uid) idp
+            `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP" $ do
-        it "remove the IdP and responds with 'NoContent'" $ \_ -> do
-          pending
+        it "responds with 2xx and removes IdP" $ \env -> (`runReaderT` env) $ do
+          (uid, _, idp) <- createTestIdP env
+          callIdpDelete' (sparreq env) (Just uid) idp
+            `shouldRespondWith` \resp -> statusCode resp < 300
+          callIdpGet' (sparreq env) (Just uid) idp
+            `shouldRespondWith` ((>= 400) . statusCode)
 
     describe "POST /sso/identity-providers/:idp" $ do
       context "no zuser" $ do
