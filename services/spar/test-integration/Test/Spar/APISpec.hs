@@ -28,7 +28,7 @@ import Util.Options
 import qualified Text.XML.DSig as SAML
 
 
--- TODO: what else needs to be tested?
+-- TODO: what else needs to be tested, beyond the pending tests listed here?
 
 
 mkspec :: IntegrationConfig -> IO Spec
@@ -153,19 +153,12 @@ mkspec opts = do
 ----------------------------------------------------------------------
 
 createTestIdP :: HasCallStack
-              => Manager
-              -> (Request -> Request)
-              -> (Request -> Request)
-              -> (Request -> Request)
-              -> IO SBS
+              => Manager -> Brig -> Galley -> Spar -> IO SBS
 createTestIdP mgr brigreq galleyreq sparreq
   = cs . UUID.toText . fromIdPId <$> runHttpT mgr (createTestIdP' brigreq galleyreq sparreq)
 
 createTestIdP' :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
-               => (Request -> Request)
-               -> (Request -> Request)
-               -> (Request -> Request)
-               -> m IdPId
+               => Brig -> Galley -> Spar -> m IdPId
 createTestIdP' brigreq galleyreq sparreq = do
   (uid, _tid) <- createUserWithTeam brigreq galleyreq
 
@@ -175,10 +168,31 @@ createTestIdP' brigreq galleyreq sparreq = do
         , _nidpRequestUri      = [uri|http://idp.net/sso/request|]
         , _nidpPublicKey       = either (error . show) id $ SAML.parseKeyInfo "<KeyInfo xmlns=\"http://www.w3.org/2000/09/xmldsig#\"><X509Data><X509Certificate>MIIDBTCCAe2gAwIBAgIQev76BWqjWZxChmKkGqoAfDANBgkqhkiG9w0BAQsFADAtMSswKQYDVQQDEyJhY2NvdW50cy5hY2Nlc3Njb250cm9sLndpbmRvd3MubmV0MB4XDTE4MDIxODAwMDAwMFoXDTIwMDIxOTAwMDAwMFowLTErMCkGA1UEAxMiYWNjb3VudHMuYWNjZXNzY29udHJvbC53aW5kb3dzLm5ldDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMgmGiRfLh6Fdi99XI2VA3XKHStWNRLEy5Aw/gxFxchnh2kPdk/bejFOs2swcx7yUWqxujjCNRsLBcWfaKUlTnrkY7i9x9noZlMrijgJy/Lk+HH5HX24PQCDf+twjnHHxZ9G6/8VLM2e5ZBeZm+t7M3vhuumEHG3UwloLF6cUeuPdW+exnOB1U1fHBIFOG8ns4SSIoq6zw5rdt0CSI6+l7b1DEjVvPLtJF+zyjlJ1Qp7NgBvAwdiPiRMU4l8IRVbuSVKoKYJoyJ4L3eXsjczoBSTJ6VjV2mygz96DC70MY3avccFrk7tCEC6ZlMRBfY1XPLyldT7tsR3EuzjecSa1M8CAwEAAaMhMB8wHQYDVR0OBBYEFIks1srixjpSLXeiR8zES5cTY6fBMA0GCSqGSIb3DQEBCwUAA4IBAQCKthfK4C31DMuDyQZVS3F7+4Evld3hjiwqu2uGDK+qFZas/D/eDunxsFpiwqC01RIMFFN8yvmMjHphLHiBHWxcBTS+tm7AhmAvWMdxO5lzJLS+UWAyPF5ICROe8Mu9iNJiO5JlCo0Wpui9RbB1C81Xhax1gWHK245ESL6k7YWvyMYWrGqr1NuQcNS0B/AIT1Nsj1WY7efMJQOmnMHkPUTWryVZlthijYyd7P2Gz6rY5a81DAFqhDNJl2pGIAE6HWtSzeUEh3jCsHEkoglKfm4VrGJEuXcALmfCMbdfTvtu4rlsaP2hQad+MG/KJFlenoTK34EMHeBPDCpqNDz8UVNk</X509Certificate></X509Data></KeyInfo>"
         }
-  resp :: Bilge.Response (Maybe LBS)
-    <- post $ sparreq . zUser uid . path "/sso/identity-providers/" . json new . expect2xx
 
-  either (liftIO . throwIO . ErrorCall . show) (pure . (^. idpId))
-    . (>>= Aeson.eitherDecode @(IdPConfig TeamId))
-    . maybe (Left "no body") Right . responseBody  -- TODO: i think there is a nicer way to do this hidden somewhere on wire-server?
+  (^. idpId) <$> callIdpCreate sparreq (Just uid) new
+
+
+-- TODO: do we want to implement these with servant-client?  if not, are there better idioms for
+-- handling the various errors?
+
+callIdpGet :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m IdP
+callIdpGet sparreq muid idpid = do
+  resp :: Bilge.Response (Maybe LBS)
+    <- get $ sparreq . maybe id zUser muid . path ("/sso/identity-providers/" <> cs (idPIdToST idpid)) . expect2xx
+  either (liftIO . throwIO . ErrorCall . show) pure
+    . (>>= Aeson.eitherDecode @IdP)
+    . maybe (Left "no body") Right . responseBody
     $ resp
+
+callIdpCreate :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> NewIdP -> m IdP
+callIdpCreate sparreq muid newidp = do
+  resp :: Bilge.Response (Maybe LBS)
+    <- post $ sparreq . maybe id zUser muid . path "/sso/identity-providers/" . json newidp
+  either (liftIO . throwIO . ErrorCall . show) pure
+    . (>>= Aeson.eitherDecode @IdP)
+    . maybe (Left "no body") Right . responseBody
+    $ resp
+
+callIdpDelete :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m ()
+callIdpDelete sparreq muid idpid = do
+  void . delete $ sparreq . maybe id zUser muid . path ("/sso/identity-providers/" <> cs (idPIdToST idpid)) . expect2xx
