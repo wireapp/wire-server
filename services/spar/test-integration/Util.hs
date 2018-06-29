@@ -93,7 +93,7 @@ newTeam :: Galley.BindingNewTeam
 newTeam = Galley.BindingNewTeam $ Galley.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
 
 
--- from galley integration tests mostly (the thing we don't need)
+-- from galley integration tests mostly (things we don't need)
 
 randomUser :: (HasCallStack, MonadCatch m, MonadHttp m, MonadIO m) => Brig -> m UserId
 randomUser b = do
@@ -102,6 +102,7 @@ randomUser b = do
     r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
+-- this creates a non-binding team!  that's the one we currently don't support in the UI.
 createTeam :: (HasCallStack, MonadCatch m, MonadHttp m, MonadIO m) => Galley -> ST -> UserId -> m TeamId
 createTeam g name owner = do
     let mems :: [Galley.TeamMember] = []
