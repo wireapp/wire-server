@@ -162,13 +162,13 @@ spec opts = beforeAll (mkEnv opts) $ do
 
       context "no zuser" $ do
         it "responds with 'forbidden' and a helpful message" $ \env -> (`runReaderT` env) $ do
-          callIdpCreate' (sparreq env) Nothing workingIdP
+          callIdpCreate' (sparreq env) Nothing (envnewidp env)
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"no auth token"}|]
 
       context "zuser has no team" $ do
         it "responds with 'forbidden' and a helpful message" $ \env -> (`runReaderT` env) $ do
           (uid, _) <- call $ createRandomPhoneUser (brigreq env)
-          callIdpCreate' (sparreq env) (Just uid) workingIdP
+          callIdpCreate' (sparreq env) (Just uid) (envnewidp env)
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
 
       context "zuser is a team member, not a team admin" $ do
@@ -210,6 +210,7 @@ data TestEnv = TestEnv
   , brigreq   :: Brig
   , galleyreq :: Galley
   , sparreq   :: Spar
+  , envnewidp :: NewIdP
   }
 
 type Select = TestEnv -> (Request -> Request)
@@ -220,7 +221,7 @@ mkEnv opts = do
   let mkreq :: (IntegrationConfig -> Endpoint) -> (Request -> Request)
       mkreq selector = Bilge.host (selector opts ^. epHost . to cs)
                      . Bilge.port (selector opts ^. epPort)
-  pure $ TestEnv mgr (mkreq brig) (mkreq galley) (mkreq spar)
+  pure $ TestEnv mgr (mkreq brig) (mkreq galley) (mkreq spar) (cnfnewidp opts)
 
 shouldRespondWith :: forall a. (HasCallStack, Show a, Eq a)
                   => Http a -> (a -> Bool) -> ReaderT TestEnv IO ()
@@ -253,11 +254,6 @@ sampleIdP = NewIdP
   , _nidpRequestUri      = [uri|http://idp.net/sso/request|]
   , _nidpPublicKey       = either (error . show) id $ SAML.parseKeyInfo "<KeyInfo xmlns=\"http://www.w3.org/2000/09/xmldsig#\"><X509Data><X509Certificate>MIIDBTCCAe2gAwIBAgIQev76BWqjWZxChmKkGqoAfDANBgkqhkiG9w0BAQsFADAtMSswKQYDVQQDEyJhY2NvdW50cy5hY2Nlc3Njb250cm9sLndpbmRvd3MubmV0MB4XDTE4MDIxODAwMDAwMFoXDTIwMDIxOTAwMDAwMFowLTErMCkGA1UEAxMiYWNjb3VudHMuYWNjZXNzY29udHJvbC53aW5kb3dzLm5ldDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMgmGiRfLh6Fdi99XI2VA3XKHStWNRLEy5Aw/gxFxchnh2kPdk/bejFOs2swcx7yUWqxujjCNRsLBcWfaKUlTnrkY7i9x9noZlMrijgJy/Lk+HH5HX24PQCDf+twjnHHxZ9G6/8VLM2e5ZBeZm+t7M3vhuumEHG3UwloLF6cUeuPdW+exnOB1U1fHBIFOG8ns4SSIoq6zw5rdt0CSI6+l7b1DEjVvPLtJF+zyjlJ1Qp7NgBvAwdiPiRMU4l8IRVbuSVKoKYJoyJ4L3eXsjczoBSTJ6VjV2mygz96DC70MY3avccFrk7tCEC6ZlMRBfY1XPLyldT7tsR3EuzjecSa1M8CAwEAAaMhMB8wHQYDVR0OBBYEFIks1srixjpSLXeiR8zES5cTY6fBMA0GCSqGSIb3DQEBCwUAA4IBAQCKthfK4C31DMuDyQZVS3F7+4Evld3hjiwqu2uGDK+qFZas/D/eDunxsFpiwqC01RIMFFN8yvmMjHphLHiBHWxcBTS+tm7AhmAvWMdxO5lzJLS+UWAyPF5ICROe8Mu9iNJiO5JlCo0Wpui9RbB1C81Xhax1gWHK245ESL6k7YWvyMYWrGqr1NuQcNS0B/AIT1Nsj1WY7efMJQOmnMHkPUTWryVZlthijYyd7P2Gz6rY5a81DAFqhDNJl2pGIAE6HWtSzeUEh3jCsHEkoglKfm4VrGJEuXcALmfCMbdfTvtu4rlsaP2hQad+MG/KJFlenoTK34EMHeBPDCpqNDz8UVNk</X509Certificate></X509Data></KeyInfo>"
   }
-
--- TODO: this one needs to come from the config, like the other services, and it needs to be up and
--- running for the integration tests to work.
-workingIdP :: NewIdP
-workingIdP = sampleIdP
 
 
 -- TODO: do we want to implement these with servant-client?  if not, are there better idioms for
