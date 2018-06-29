@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f38db4bf90b97350859d65bfb7c8ae364c026253e4e9e6d945d32cee25454459
+-- hash: 5b17193242420cced1e06e52f6c21f34aed75a64d06bd3f2e1ece6088f019599
 
 name:           spar
 version:        0.1
@@ -44,6 +44,7 @@ library
     , cassandra-util
     , containers
     , cookie
+    , errors
     , exceptions
     , ghc-prim
     , http-client
@@ -94,6 +95,7 @@ executable spar
     , cassandra-util
     , containers
     , cookie
+    , errors
     , exceptions
     , ghc-prim
     , http-client
@@ -148,6 +150,7 @@ executable spar-integration
     , cassandra-util
     , containers
     , cookie
+    , errors
     , exceptions
     , galley-types
     , ghc-prim
@@ -203,6 +206,7 @@ executable spar-schema
     , cassandra-util
     , containers
     , cookie
+    , errors
     , exceptions
     , ghc-prim
     , http-client
@@ -260,6 +264,7 @@ test-suite spec
     , cassandra-util
     , containers
     , cookie
+    , errors
     , exceptions
     , ghc-prim
     , hspec
