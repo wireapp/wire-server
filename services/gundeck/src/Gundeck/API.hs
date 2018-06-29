@@ -112,8 +112,14 @@ sitemap = do
             description "The notification ID"
         response 200 "Pending fallback notification cancelled" end
 
-    get "/i/push/tokens" (continue Push.listTokens) $
-        header "Z-User" .&. accept "application" "json"
+    get "/push/tokens" (continue Push.listTokens) $
+        header "Z-User"
+        .&. accept "application" "json"
+
+    document "GET" "getPushTokens" $ do
+        summary "List the user's registered push tokens."
+        returns (ref Model.push)
+        response 200 "List of push tokens" end
 
     post "/i/push" (continue Push.push) $
         request .&. accept "application" "json"
