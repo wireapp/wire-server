@@ -23,7 +23,7 @@ mkspec = do
   Right (opts :: IntegrationConfig) <- Yaml.decodeFileEither integrationConfigFilePath
 
   let specData = describe "Test.Spar.Data" Test.Spar.DataSpec.spec
-  specAPI <- describe "Test.Spar.API" <$> Test.Spar.APISpec.mkspec opts
+      specAPI  = describe "Test.Spar.API" $ Test.Spar.APISpec.spec opts
   pure $ specData >> specAPI
 
 
