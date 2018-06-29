@@ -23,6 +23,7 @@ dependencies:
   - cassandra-util
   - containers
   - cookie
+  - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
   - ghc-prim
   - http-client
