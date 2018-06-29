@@ -90,6 +90,10 @@ mkspec opts = do
         it "responds with redirect to app" $ do
           pending
 
+        context "unknown user" $ do
+          it "creates the user" $ do
+            pending
+
       context "response does not match any request" $ do
         it "rejects" $ do
           pending
