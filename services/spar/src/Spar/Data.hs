@@ -243,7 +243,7 @@ deleteIdPConfig idp issuer team = retry x5 $ batch $ do
     delIdp = "DELETE FROM idp WHERE idp = ?"
 
     delIssuerIdp :: PrepQuery W (Identity SAML.Issuer) ()
-    delIssuerIdp = "DELETE FROM issuer_idp where issuer = ?"
+    delIssuerIdp = "DELETE FROM issuer_idp WHERE issuer = ?"
 
     delTeamIdp :: PrepQuery W (Brig.TeamId, SAML.IdPId) ()
-    delTeamIdp = "DELETE FROM team_idp WHERE team = ? and issuer = ?"
+    delTeamIdp = "DELETE FROM team_idp WHERE team = ? and idp = ?"
