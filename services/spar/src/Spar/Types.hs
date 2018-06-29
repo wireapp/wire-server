@@ -29,8 +29,8 @@ type IdP = IdPConfig TeamId
 -- creation request.  'NewIdP' is the type of the data provided by the client in this request.
 data NewIdP = NewIdP
   { _nidpMetadata        :: URI
-  , _nidpIssuer          :: Issuer
-  , _nidpRequestUri      :: URI
+  , _nidpIssuer          :: Issuer  -- TODO: remove this field, it's redundant.  (this will also shorten the list of possible errors in the UI.)
+  , _nidpRequestUri      :: URI     -- TODO: dito.
   , _nidpPublicKey       :: X509.SignedCertificate
   }
   deriving (Eq, Show, Generic)
