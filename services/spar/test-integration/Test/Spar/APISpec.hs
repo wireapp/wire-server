@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
@@ -15,6 +16,8 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Data.Aeson as Aeson hiding (json)
+import Data.Either (isRight)
+import Data.EitherR (fmapL)
 import Data.Id
 import Data.List (isInfixOf)
 import Data.String.Conversions
@@ -60,7 +63,7 @@ spec opts = beforeAll (mkEnv opts) $ do
 
       context "known IdP" $ do
         it "responds with request" $ \env -> (`runReaderT` env) $ do
-          idp <- cs . UUID.toText . fromIdPId <$> createTestIdP env
+          (_, _, cs . UUID.toText . fromIdPId -> idp) <- createTestIdP env
           get (sparreq env . path ("/sso/initiate-login/" <> idp) . expect2xx)
             `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                   [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
@@ -92,20 +95,28 @@ spec opts = beforeAll (mkEnv opts) $ do
 
     describe "GET /sso/identity-providers/:idp" $ do
       context "unknown IdP" $ do
-        it "responds with 'not found'" $ \_ -> do
-          pending
+        it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
+          callIdpGet' (sparreq env) Nothing (IdPId UUID.nil)
+            `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP, but no zuser" $ do
-        it "responds with 'not found'" $ \_ -> do
-          pending
+        it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
+          (_, _, idp) <- createTestIdP env
+          callIdpGet' (sparreq env) Nothing idp
+            `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP that does not belong to user" $ do
-        it "responds with 'not found'" $ \_ -> do
-          pending
+        it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
+          (uid, _) <- runHttpT (testmgr env) $ createUserWithTeam (brigreq env) (galleyreq env)
+          (_, _, idp) <- createTestIdP env
+          callIdpGet' (sparreq env) (Just uid) idp
+            `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP" $ do
-        it "responds with IdP" $ \_ -> do
-          pending
+        it "responds with 2xx and IdP" $ \env -> (`runReaderT` env) $ do
+          (uid, _, idp) <- createTestIdP env
+          callIdpGet' (sparreq env) (Just uid) idp
+            `shouldRespondWith` (\resp -> statusCode resp < 300 && isRight (responseJSON @IdP resp))
 
     describe "DELETE /sso/identity-providers/:idp" $ do
       context "unknown IdP" $ do
@@ -191,11 +202,11 @@ ping :: (Request -> Request) -> Http ()
 ping req = void . get $ req . path "/i/status" . expect2xx
 
 
-createTestIdP :: (HasCallStack, MonadIO m) => TestEnv -> m IdPId
+createTestIdP :: (HasCallStack, MonadIO m) => TestEnv -> m (UserId, TeamId, IdPId)
 createTestIdP env = do
   liftIO . runHttpT (testmgr env) $ do
-    (uid, _tid) <- createUserWithTeam (brigreq env) (galleyreq env)
-    (^. idpId) <$> callIdpCreate (sparreq env) (Just uid) sampleIdP
+    (uid, tid) <- createUserWithTeam (brigreq env) (galleyreq env)
+    (uid, tid,) . (^. idpId) <$> callIdpCreate (sparreq env) (Just uid) sampleIdP
 
 sampleIdP :: NewIdP
 sampleIdP = NewIdP
@@ -209,24 +220,33 @@ sampleIdP = NewIdP
 -- TODO: do we want to implement these with servant-client?  if not, are there better idioms for
 -- handling the various errors?
 
+-- TODO: move this to /lib/bilge?
+responseJSON :: FromJSON a => Bilge.Response (Maybe LBS) -> Either String a
+responseJSON = fmapL show . Aeson.eitherDecode <=< maybe (Left "no body") pure . responseBody
+
 callIdpGet :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m IdP
 callIdpGet sparreq_ muid idpid = do
-  resp :: Bilge.Response (Maybe LBS)
-    <- get $ sparreq_ . maybe id zUser muid . path ("/sso/identity-providers/" <> cs (idPIdToST idpid)) . expect2xx
+  resp <- callIdpGet' (sparreq_ . expect2xx) muid idpid
   either (liftIO . throwIO . ErrorCall . show) pure
-    . (>>= Aeson.eitherDecode @IdP)
-    . maybe (Left "no body") Right . responseBody
-    $ resp
+    $ responseJSON @IdP resp
+
+callIdpGet' :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m (Bilge.Response (Maybe LBS))
+callIdpGet' sparreq_ muid idpid = do
+  get $ sparreq_ . maybe id zUser muid . path ("/sso/identity-providers/" <> cs (idPIdToST idpid))
 
 callIdpCreate :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> NewIdP -> m IdP
 callIdpCreate sparreq_ muid newidp = do
-  resp :: Bilge.Response (Maybe LBS)
-    <- post $ sparreq_ . maybe id zUser muid . path "/sso/identity-providers/" . json newidp
+  resp <- callIdpCreate' (sparreq_ . expect2xx) muid newidp
   either (liftIO . throwIO . ErrorCall . show) pure
-    . (>>= Aeson.eitherDecode @IdP)
-    . maybe (Left "no body") Right . responseBody
-    $ resp
+    $ responseJSON @IdP resp
+
+callIdpCreate' :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> NewIdP -> m (Bilge.Response (Maybe LBS))
+callIdpCreate' sparreq_ muid newidp = do
+  post $ sparreq_ . maybe id zUser muid . path "/sso/identity-providers/" . json newidp
 
 callIdpDelete :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m ()
-callIdpDelete sparreq_ muid idpid = do
-  void . delete $ sparreq_ . maybe id zUser muid . path ("/sso/identity-providers/" <> cs (idPIdToST idpid)) . expect2xx
+callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx) muid idpid
+
+callIdpDelete' :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m (Bilge.Response (Maybe LBS))
+callIdpDelete' sparreq_ muid idpid = do
+  delete $ sparreq_ . maybe id zUser muid . path ("/sso/identity-providers/" <> cs (idPIdToST idpid))
