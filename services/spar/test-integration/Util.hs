@@ -38,6 +38,7 @@ import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 import Lens.Micro
 import Spar.API ()
+import Spar.Types
 import System.Random (randomRIO)
 import Util.Options
 
@@ -53,6 +54,7 @@ data IntegrationConfig = IntegrationConfig
   { brig      :: Endpoint
   , galley    :: Endpoint
   , spar      :: Endpoint
+  , cnfnewidp :: NewIdP
   } deriving (Show, Generic)
 
 instance FromJSON IntegrationConfig
