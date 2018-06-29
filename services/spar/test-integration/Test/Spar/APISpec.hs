@@ -16,6 +16,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Data.Aeson as Aeson hiding (json)
+import Data.Aeson.QQ as Aeson
 import Data.Either (isRight)
 import Data.EitherR (fmapL)
 import Data.Id
@@ -63,7 +64,7 @@ spec opts = beforeAll (mkEnv opts) $ do
 
       context "known IdP" $ do
         it "responds with request" $ \env -> (`runReaderT` env) $ do
-          (_, _, cs . UUID.toText . fromIdPId -> idp) <- createTestIdP env
+          (_, _, cs . UUID.toText . fromIdPId -> idp) <- createTestIdP
           get (sparreq env . path ("/sso/initiate-login/" <> idp) . expect2xx)
             `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                   [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
@@ -71,7 +72,9 @@ spec opts = beforeAll (mkEnv opts) $ do
                                   , "<input name=\"SAMLRequest\" type=\"hidden\" "
                                   ])
 
-    describe "/sso/finalize-login" $ do
+    describe "/sso/finalize-login" $ do  -- TODO: either use workingIdP or mock one locally.  the
+                                         -- latter is faster to run, but we need the former anyway,
+                                         -- so we might as well rely on that.
       context "access denied" $ do
         it "responds with 'forbidden'" $ \_ -> do
           pending
@@ -109,20 +112,20 @@ spec opts = beforeAll (mkEnv opts) $ do
 
       context "known IdP, but no zuser" $ do
         it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
-          (_, _, idp) <- createTestIdP env
+          (_, _, idp) <- createTestIdP
           callIdpGet' (sparreq env) Nothing idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP that does not belong to user" $ do
         it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
-          (uid, _) <- runHttpT (testmgr env) $ createUserWithTeam (brigreq env) (galleyreq env)
-          (_, _, idp) <- createTestIdP env
+          (uid, _) <- call $ createUserWithTeam (brigreq env) (galleyreq env)
+          (_, _, idp) <- createTestIdP
           callIdpGet' (sparreq env) (Just uid) idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP" $ do
         it "responds with 2xx and IdP" $ \env -> (`runReaderT` env) $ do
-          (uid, _, idp) <- createTestIdP env
+          (uid, _, idp) <- createTestIdP
           callIdpGet' (sparreq env) (Just uid) idp
             `shouldRespondWith` (\resp -> statusCode resp < 300 && isRight (responseJSON @IdP resp))
 
@@ -134,31 +137,41 @@ spec opts = beforeAll (mkEnv opts) $ do
 
       context "known IdP, but no zuser" $ do
         it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
-          (_, _, idp) <- createTestIdP env
+          (_, _, idp) <- createTestIdP
           callIdpDelete' (sparreq env) Nothing idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP that does not belong to user" $ do
         it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
-          (uid, _) <- runHttpT (testmgr env) $ createUserWithTeam (brigreq env) (galleyreq env)
-          (_, _, idp) <- createTestIdP env
+          (uid, _) <- call $ createUserWithTeam (brigreq env) (galleyreq env)
+          (_, _, idp) <- createTestIdP
           callIdpDelete' (sparreq env) (Just uid) idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP" $ do
         it "responds with 2xx and removes IdP" $ \env -> (`runReaderT` env) $ do
-          (uid, _, idp) <- createTestIdP env
+          (uid, _, idp) <- createTestIdP
           callIdpDelete' (sparreq env) (Just uid) idp
             `shouldRespondWith` \resp -> statusCode resp < 300
           callIdpGet' (sparreq env) (Just uid) idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
     describe "POST /sso/identity-providers/:idp" $ do
+      let check :: (Int -> Bool) -> Value -> ResponseLBS -> Bool
+          check statusIs msg resp = statusIs (statusCode resp) && responseJSON resp == Right msg
+
       context "no zuser" $ do
-        it "responds with 'forbidden' and a helpful message" $ \_ -> do
-          pending
+        it "responds with 'forbidden' and a helpful message" $ \env -> (`runReaderT` env) $ do
+          callIdpCreate' (sparreq env) Nothing workingIdP
+            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"no auth token"}|]
 
       context "zuser has no team" $ do
+        it "responds with 'forbidden' and a helpful message" $ \env -> (`runReaderT` env) $ do
+          (uid, _) <- call $ createRandomPhoneUser (brigreq env)
+          callIdpCreate' (sparreq env) (Just uid) workingIdP
+            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
+
+      context "zuser is a team member, not a team admin" $ do
         it "responds with 'forbidden' and a helpful message" $ \_ -> do
           pending
 
@@ -186,7 +199,7 @@ spec opts = beforeAll (mkEnv opts) $ do
         it "responds with 2xx" $ \_ -> do
           pending
 
-        it "makes IdP available for POST /sso/identity-providers/" $ \_ -> do
+        it "makes IdP available for GET /sso/identity-providers/" $ \_ -> do
           pending
 
 
@@ -212,16 +225,23 @@ mkEnv opts = do
 shouldRespondWith :: forall a. (HasCallStack, Show a, Eq a)
                   => Http a -> (a -> Bool) -> ReaderT TestEnv IO ()
 shouldRespondWith action proper = do
-  env <- ask
-  resp <- liftIO (runHttpT (testmgr env) action)
+  resp <- call action
   liftIO $ resp `shouldSatisfy` proper
+
+-- I tried this, but i don't  think it's worth the learning effort.  Perhaps it'll be helpful as a comment here.  :-)
+-- envit :: Example (r -> m a) => String -> ReaderT r m a -> SpecWith (Arg (r -> m a))
+-- envit msg action = it msg $ \env -> action `runReaderT` env
+
+call :: Http a -> ReaderT TestEnv IO a
+call req = ask >>= \env -> liftIO $ runHttpT (testmgr env) req
 
 ping :: (Request -> Request) -> Http ()
 ping req = void . get $ req . path "/i/status" . expect2xx
 
 
-createTestIdP :: (HasCallStack, MonadIO m) => TestEnv -> m (UserId, TeamId, IdPId)
-createTestIdP env = do
+createTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, IdPId)
+createTestIdP = do
+  env <- ask
   liftIO . runHttpT (testmgr env) $ do
     (uid, tid) <- createUserWithTeam (brigreq env) (galleyreq env)
     (uid, tid,) . (^. idpId) <$> callIdpCreate (sparreq env) (Just uid) sampleIdP
@@ -234,12 +254,17 @@ sampleIdP = NewIdP
   , _nidpPublicKey       = either (error . show) id $ SAML.parseKeyInfo "<KeyInfo xmlns=\"http://www.w3.org/2000/09/xmldsig#\"><X509Data><X509Certificate>MIIDBTCCAe2gAwIBAgIQev76BWqjWZxChmKkGqoAfDANBgkqhkiG9w0BAQsFADAtMSswKQYDVQQDEyJhY2NvdW50cy5hY2Nlc3Njb250cm9sLndpbmRvd3MubmV0MB4XDTE4MDIxODAwMDAwMFoXDTIwMDIxOTAwMDAwMFowLTErMCkGA1UEAxMiYWNjb3VudHMuYWNjZXNzY29udHJvbC53aW5kb3dzLm5ldDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMgmGiRfLh6Fdi99XI2VA3XKHStWNRLEy5Aw/gxFxchnh2kPdk/bejFOs2swcx7yUWqxujjCNRsLBcWfaKUlTnrkY7i9x9noZlMrijgJy/Lk+HH5HX24PQCDf+twjnHHxZ9G6/8VLM2e5ZBeZm+t7M3vhuumEHG3UwloLF6cUeuPdW+exnOB1U1fHBIFOG8ns4SSIoq6zw5rdt0CSI6+l7b1DEjVvPLtJF+zyjlJ1Qp7NgBvAwdiPiRMU4l8IRVbuSVKoKYJoyJ4L3eXsjczoBSTJ6VjV2mygz96DC70MY3avccFrk7tCEC6ZlMRBfY1XPLyldT7tsR3EuzjecSa1M8CAwEAAaMhMB8wHQYDVR0OBBYEFIks1srixjpSLXeiR8zES5cTY6fBMA0GCSqGSIb3DQEBCwUAA4IBAQCKthfK4C31DMuDyQZVS3F7+4Evld3hjiwqu2uGDK+qFZas/D/eDunxsFpiwqC01RIMFFN8yvmMjHphLHiBHWxcBTS+tm7AhmAvWMdxO5lzJLS+UWAyPF5ICROe8Mu9iNJiO5JlCo0Wpui9RbB1C81Xhax1gWHK245ESL6k7YWvyMYWrGqr1NuQcNS0B/AIT1Nsj1WY7efMJQOmnMHkPUTWryVZlthijYyd7P2Gz6rY5a81DAFqhDNJl2pGIAE6HWtSzeUEh3jCsHEkoglKfm4VrGJEuXcALmfCMbdfTvtu4rlsaP2hQad+MG/KJFlenoTK34EMHeBPDCpqNDz8UVNk</X509Certificate></X509Data></KeyInfo>"
   }
 
+-- TODO: this one needs to come from the config, like the other services, and it needs to be up and
+-- running for the integration tests to work.
+workingIdP :: NewIdP
+workingIdP = sampleIdP
+
 
 -- TODO: do we want to implement these with servant-client?  if not, are there better idioms for
 -- handling the various errors?
 
 -- TODO: move this to /lib/bilge?
-responseJSON :: FromJSON a => Bilge.Response (Maybe LBS) -> Either String a
+responseJSON :: FromJSON a => ResponseLBS -> Either String a
 responseJSON = fmapL show . Aeson.eitherDecode <=< maybe (Left "no body") pure . responseBody
 
 callIdpGet :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m IdP
@@ -248,7 +273,7 @@ callIdpGet sparreq_ muid idpid = do
   either (liftIO . throwIO . ErrorCall . show) pure
     $ responseJSON @IdP resp
 
-callIdpGet' :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m (Bilge.Response (Maybe LBS))
+callIdpGet' :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m ResponseLBS
 callIdpGet' sparreq_ muid idpid = do
   get $ sparreq_ . maybe id zUser muid . path ("/sso/identity-providers/" <> cs (idPIdToST idpid))
 
@@ -258,13 +283,13 @@ callIdpCreate sparreq_ muid newidp = do
   either (liftIO . throwIO . ErrorCall . show) pure
     $ responseJSON @IdP resp
 
-callIdpCreate' :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> NewIdP -> m (Bilge.Response (Maybe LBS))
+callIdpCreate' :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> NewIdP -> m ResponseLBS
 callIdpCreate' sparreq_ muid newidp = do
   post $ sparreq_ . maybe id zUser muid . path "/sso/identity-providers/" . json newidp
 
 callIdpDelete :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m ()
 callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx) muid idpid
 
-callIdpDelete' :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m (Bilge.Response (Maybe LBS))
+callIdpDelete' :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m ResponseLBS
 callIdpDelete' sparreq_ muid idpid = do
   delete $ sparreq_ . maybe id zUser muid . path ("/sso/identity-providers/" <> cs (idPIdToST idpid))
