@@ -12,29 +12,39 @@ module Util
   , Brig
   , Galley
   , Spar
+  , ResponseLBS
   , createUserWithTeam
+  , createRandomPhoneUser
   , zUser
   ) where
 
 import Bilge
-import Control.Exception (assert)
+import Bilge.Assert ((!!!), (===), (<!!))
+import Control.Exception
 import Control.Monad
+import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Data.Aeson as Aeson hiding (json)
+import Data.Aeson.Lens as Aeson
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Maybe
+import Data.Misc (PlainTextPassword(..))
 import Data.Range
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
-import Data.UUID.V4 (nextRandom)
+import Data.UUID.V4 as UUID (nextRandom)
 import GHC.Generics (Generic)
+import GHC.Stack (HasCallStack)
 import Lens.Micro
 import Spar.API ()
+import System.Random (randomRIO)
 import Util.Options
 
-import qualified Brig.Types.Common as Brig
+import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
+import qualified Brig.Types.User.Auth as Brig
+import qualified Data.Text.Ascii as Ascii
 import qualified Galley.Types.Teams as Galley
 
 
@@ -54,14 +64,16 @@ type Spar = Request -> Request
 
 -- from brig integration tests (the thing we actually need)
 
-createUserWithTeam :: (MonadHttp m, MonadIO m) => Brig -> Galley -> m (UserId, TeamId)
+type ResponseLBS = Response (Maybe LBS)
+
+createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => Brig -> Galley -> m (UserId, TeamId)
 createUserWithTeam brg gly = do
     e <- randomEmail
     n <- pure ("randomName" :: String)  -- TODO!
     let p = RequestBodyLBS . encode $ object
             [ "name"            .= n
             , "email"           .= Brig.fromEmail e
-            , "password"        .= ("secret" :: String)
+            , "password"        .= defPassword
             , "team"            .= newTeam
             ]
     bdy <- decodeBody <$> post (brg . path "/i/users" . contentJson . body p)
@@ -74,10 +86,31 @@ createUserWithTeam brg gly = do
           $ pure ()
     return (uid, tid)
 
-decodeBody :: FromJSON a => Response (Maybe LBS) -> Maybe a
+createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => Brig -> m (UserId, Brig.Phone)
+createRandomPhoneUser brig_ = do
+    usr <- randomUser brig_
+    let uid = Brig.userId usr
+    phn <- liftIO randomPhone
+    -- update phone
+    let phoneUpdate = RequestBodyLBS . encode $ Brig.PhoneUpdate phn
+    put (brig_ . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!!
+        (const 202 === statusCode)
+    -- activate
+    act <- getActivationCode brig_ (Right phn)
+    case act of
+        Nothing -> liftIO . throwIO $ ErrorCall "missing activation key/code"
+        Just kc -> activate brig_ kc !!! const 200 === statusCode
+    -- check new phone
+    get (brig_ . path "/self" . zUser uid) !!! do
+        const 200 === statusCode
+        const (Just phn) === (Brig.userPhone <=< decodeBody)
+
+    return (uid, phn)
+
+decodeBody :: (HasCallStack, FromJSON a) => ResponseLBS -> Maybe a
 decodeBody = responseBody >=> decode'
 
-getTeams :: (MonadHttp m, MonadIO m) => UserId -> Galley -> m Galley.TeamList
+getTeams :: (HasCallStack, MonadHttp m, MonadIO m) => UserId -> Galley -> m Galley.TeamList
 getTeams u gly = do
     r <- get ( gly
              . paths ["teams"]
@@ -86,7 +119,7 @@ getTeams u gly = do
              )
     return $ fromMaybe (error "getTeams: failed to parse response") (decodeBody r)
 
-getSelfProfile :: (MonadHttp m, MonadIO m) => Brig -> UserId -> m Brig.SelfProfile
+getSelfProfile :: (HasCallStack, MonadHttp m, MonadIO m) => Brig -> UserId -> m Brig.SelfProfile
 getSelfProfile brg usr = do
     rsp <- get $ brg . path "/self" . zUser usr
     return $ fromMaybe (error $ "getSelfProfile: failed to decode: " ++ show rsp) (decodeBody rsp)
@@ -101,6 +134,68 @@ randomEmail :: MonadIO m => m Brig.Email
 randomEmail = do
     uid <- liftIO nextRandom
     return $ Brig.Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
+
+randomPhone :: MonadIO m => m Brig.Phone
+randomPhone = liftIO $ do
+    nrs <- map show <$> replicateM 14 (randomRIO (0,9) :: IO Int)
+    let phone = Brig.parsePhone . cs $ "+0" ++ concat nrs
+    return $ fromMaybe (error "Invalid random phone#") phone
+
+randomUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => Brig -> m Brig.User
+randomUser brig_ = do
+    let n = "randomName"  -- TODO: see above
+    createUser n "success@simulator.amazonses.com" brig_
+
+createUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
+           => ST -> ST -> Brig -> m Brig.User
+createUser name email brig_ = do
+    r <- postUser name (Just email) Nothing Nothing brig_ <!! const 201 === statusCode
+    return $ fromMaybe (error "createUser: failed to parse response") (decodeBody r)
+
+-- more flexible variant of 'createUser' (see above).
+postUser :: (HasCallStack, MonadIO m, MonadHttp m)
+         => ST -> Maybe ST -> Maybe Brig.UserSSOId -> Maybe TeamId -> Brig -> m ResponseLBS
+postUser name email ssoid teamid brig_ = do
+    email' <- maybe (pure Nothing) (fmap (Just . Brig.fromEmail) . mkEmailRandomLocalSuffix) email
+    let p = RequestBodyLBS . encode $ object
+            [ "name"            .= name
+            , "email"           .= email'
+            , "password"        .= defPassword
+            , "cookie"          .= defCookieLabel
+            , "sso_id"          .= ssoid
+            , "team_id"         .= teamid
+            ]
+    post (brig_ . path "/i/users" . contentJson . body p)
+
+defPassword :: PlainTextPassword
+defPassword = PlainTextPassword "secret"
+
+defCookieLabel :: Brig.CookieLabel
+defCookieLabel = Brig.CookieLabel "auth"
+
+mkEmailRandomLocalSuffix :: MonadIO m => ST -> m Brig.Email
+mkEmailRandomLocalSuffix e = do
+    uid <- liftIO UUID.nextRandom
+    case Brig.parseEmail e of
+        Just (Brig.Email loc dom) -> return $ Brig.Email (loc <> "+" <> UUID.toText uid) dom
+        Nothing              -> fail $ "Invalid email address: " ++ cs e
+
+getActivationCode :: (HasCallStack, MonadIO m, MonadHttp m)
+                  => Brig -> Either Brig.Email Brig.Phone -> m (Maybe (Brig.ActivationKey, Brig.ActivationCode))
+getActivationCode brig_ ep = do
+    let qry = either (queryItem "email" . toByteString') (queryItem "phone" . toByteString') ep
+    r <- get $ brig_ . path "/i/users/activation-code" . qry
+    let lbs   = fromMaybe "" $ responseBody r
+    let akey  = Brig.ActivationKey  . Ascii.unsafeFromText <$> (lbs ^? Aeson.key "key"  . Aeson._String)
+    let acode = Brig.ActivationCode . Ascii.unsafeFromText <$> (lbs ^? Aeson.key "code" . Aeson._String)
+    return $ (,) <$> akey <*> acode
+
+activate :: (HasCallStack, MonadIO m, MonadHttp m)
+         => Brig -> Brig.ActivationPair -> m ResponseLBS
+activate brig_ (k, c) = get $ brig_
+    . path "activate"
+    . queryItem "key" (toByteString' k)
+    . queryItem "code" (toByteString' c)
 
 zUser :: UserId -> Request -> Request
 zUser = header "Z-User" . toByteString'

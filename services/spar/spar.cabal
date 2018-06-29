@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5b17193242420cced1e06e52f6c21f34aed75a64d06bd3f2e1ece6088f019599
+-- hash: fbbe759178bc22be693cbac837cd28eef85973d1defa467195dedd08fa95ba37
 
 name:           spar
 version:        0.1
@@ -141,6 +141,7 @@ executable spar-integration
   build-depends:
       aeson
     , aeson-pretty
+    , aeson-qq
     , base
     , bilge
     , binary
@@ -158,11 +159,13 @@ executable spar-integration
     , hspec-discover
     , http-client
     , http-types
+    , lens-aeson
     , metrics-core
     , microlens
     , microlens-th
     , mtl
     , optparse-applicative
+    , random
     , raw-strings-qq
     , saml2-web-sso
     , scientific
