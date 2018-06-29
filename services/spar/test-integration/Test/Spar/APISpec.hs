@@ -84,6 +84,14 @@ spec opts = beforeAll (mkEnv opts) $ do
           it "creates the user" $ \_ -> do
             pending
 
+      context "unknown IdP" $ do
+        it "rejects" $ \_ -> do
+          pending
+
+      context "bad AuthnRequest" $ do
+        it "rejects" $ \_ -> do
+          pending
+
       context "response does not match any request" $ do
         it "rejects" $ \_ -> do
           pending
