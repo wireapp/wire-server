@@ -14,6 +14,7 @@ ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
 dependencies:
   - aeson
   - aeson-pretty
+  - aeson-qq
   - base
   - bilge
   - binary
@@ -92,7 +93,6 @@ executables:
       - test-integration
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
-      - aeson-qq
       - galley-types
       - hspec
       - hspec-discover
