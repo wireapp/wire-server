@@ -30,8 +30,8 @@ import Spar.Types
 import Test.Hspec
 import URI.ByteString.QQ
 import Util
-import Util.Options
 
+import qualified Data.X509 as X509
 import qualified Text.XML.DSig as SAML
 
 
@@ -42,13 +42,13 @@ spec :: IntegrationConfig -> Spec
 spec opts = beforeAll (mkEnv opts) $ do
     describe "status, metainfo" $ do
       it "brig /i/status" $ \env -> (`runReaderT` env) $ do
-        ping (brigreq env) `shouldRespondWith` (== ())
+        ping (env ^. teBrig) `shouldRespondWith` (== ())
 
       it "spar /i/status" $ \env -> (`runReaderT` env) $ do
-        ping (sparreq env) `shouldRespondWith` (== ())
+        ping (env ^. teSpar) `shouldRespondWith` (== ())
 
       it "metainfo" $ \env -> (`runReaderT` env) $ do
-        get (sparreq env . path "/sso/metainfo" . expect2xx)
+        get ((env ^. teSpar) . path "/sso/metainfo" . expect2xx)
           `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                 [ "md:SPSSODescriptor"
                                 , "validUntil"
@@ -59,13 +59,13 @@ spec opts = beforeAll (mkEnv opts) $ do
       context "unknown IdP" $ do
         it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
           let uuid = cs $ UUID.toText UUID.nil
-          get (sparreq env . path ("/sso/initiate-login/" <> uuid))
+          get ((env ^. teSpar) . path ("/sso/initiate-login/" <> uuid))
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP" $ do
         it "responds with request" $ \env -> (`runReaderT` env) $ do
           (_, _, cs . UUID.toText . fromIdPId -> idp) <- createTestIdP
-          get (sparreq env . path ("/sso/initiate-login/" <> idp) . expect2xx)
+          get ((env ^. teSpar) . path ("/sso/initiate-login/" <> idp) . expect2xx)
             `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                   [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
                                   , "<body onload=\"document.forms[0].submit()\">"
@@ -107,53 +107,53 @@ spec opts = beforeAll (mkEnv opts) $ do
     describe "GET /sso/identity-providers/:idp" $ do
       context "unknown IdP" $ do
         it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
-          callIdpGet' (sparreq env) Nothing (IdPId UUID.nil)
+          callIdpGet' ((env ^. teSpar)) Nothing (IdPId UUID.nil)
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP, but no zuser" $ do
         it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
           (_, _, idp) <- createTestIdP
-          callIdpGet' (sparreq env) Nothing idp
+          callIdpGet' ((env ^. teSpar)) Nothing idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP that does not belong to user" $ do
         it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
-          (uid, _) <- call $ createUserWithTeam (brigreq env) (galleyreq env)
+          (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
           (_, _, idp) <- createTestIdP
-          callIdpGet' (sparreq env) (Just uid) idp
+          callIdpGet' ((env ^. teSpar)) (Just uid) idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP" $ do
         it "responds with 2xx and IdP" $ \env -> (`runReaderT` env) $ do
           (uid, _, idp) <- createTestIdP
-          callIdpGet' (sparreq env) (Just uid) idp
+          callIdpGet' ((env ^. teSpar)) (Just uid) idp
             `shouldRespondWith` (\resp -> statusCode resp < 300 && isRight (responseJSON @IdP resp))
 
     describe "DELETE /sso/identity-providers/:idp" $ do
       context "unknown IdP" $ do
         it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
-          callIdpDelete' (sparreq env) Nothing (IdPId UUID.nil)
+          callIdpDelete' ((env ^. teSpar)) Nothing (IdPId UUID.nil)
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP, but no zuser" $ do
         it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
           (_, _, idp) <- createTestIdP
-          callIdpDelete' (sparreq env) Nothing idp
+          callIdpDelete' ((env ^. teSpar)) Nothing idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP that does not belong to user" $ do
         it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
-          (uid, _) <- call $ createUserWithTeam (brigreq env) (galleyreq env)
+          (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           (_, _, idp) <- createTestIdP
-          callIdpDelete' (sparreq env) (Just uid) idp
+          callIdpDelete' ((env ^. teSpar)) (Just uid) idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP" $ do
         it "responds with 2xx and removes IdP" $ \env -> (`runReaderT` env) $ do
           (uid, _, idp) <- createTestIdP
-          callIdpDelete' (sparreq env) (Just uid) idp
+          callIdpDelete' ((env ^. teSpar)) (Just uid) idp
             `shouldRespondWith` \resp -> statusCode resp < 300
-          callIdpGet' (sparreq env) (Just uid) idp
+          callIdpGet' ((env ^. teSpar)) (Just uid) idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
     describe "POST /sso/identity-providers/:idp" $ do
@@ -162,13 +162,13 @@ spec opts = beforeAll (mkEnv opts) $ do
 
       context "no zuser" $ do
         it "responds with 'forbidden' and a helpful message" $ \env -> (`runReaderT` env) $ do
-          callIdpCreate' (sparreq env) Nothing (envnewidp env)
+          callIdpCreate' ((env ^. teSpar)) Nothing (env ^. teNewIdp)
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"no auth token"}|]
 
       context "zuser has no team" $ do
         it "responds with 'forbidden' and a helpful message" $ \env -> (`runReaderT` env) $ do
-          (uid, _) <- call $ createRandomPhoneUser (brigreq env)
-          callIdpCreate' (sparreq env) (Just uid) (envnewidp env)
+          (uid, _) <- call $ createRandomPhoneUser ((env ^. teBrig))
+          callIdpCreate' ((env ^. teSpar)) (Just uid) (env ^. teNewIdp)
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
 
       context "zuser is a team member, not a team admin" $ do
@@ -176,8 +176,10 @@ spec opts = beforeAll (mkEnv opts) $ do
           pending
 
       context "invalid or unresponsive metainfo url" $ do
-        it "rejects" $ \_ -> do
-          pending
+        it "rejects" $ \env -> (`runReaderT` env) $ do
+          (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
+          callIdpCreate' ((env ^. teSpar)) (Just uid) ((env ^. teNewIdp) & nidpMetadata .~ [uri|http://www.example.com/|])
+            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"invalid or unresponsive metainfo URL"}|]
 
       context "invalid metainfo content" $ do
         it "rejects" $ \_ -> do
@@ -188,12 +190,18 @@ spec opts = beforeAll (mkEnv opts) $ do
           pending
 
       context "invalid or unresponsive login request url" $ do
-        it "rejects" $ \_ -> do
-          pending
+        it "rejects" $ \env -> (`runReaderT` env) $ do
+          (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
+          callIdpCreate' ((env ^. teSpar)) (Just uid) ((env ^. teNewIdp) & nidpRequestUri .~ [uri|http://www.example.com/|])
+            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"invalid or unresponsive request URL"}|]
 
       context "pubkey in IdPConfig does not match the one provided in metainfo url" $ do
-        it "rejects" $ \_ -> do
-          pending
+        let differentPubKey :: X509.SignedCertificate
+            differentPubKey = _
+        it "rejects" $ \env -> (`runReaderT` env) $ do
+          (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
+          callIdpCreate' ((env ^. teSpar)) (Just uid) ((env ^. teNewIdp) & nidpPublicKey .~ _)
+            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"public keys in request body and metainfo do not match"}|]
 
       context "everything in order" $ do
         it "responds with 2xx" $ \_ -> do
@@ -204,24 +212,6 @@ spec opts = beforeAll (mkEnv opts) $ do
 
 
 ----------------------------------------------------------------------
-
-data TestEnv = TestEnv
-  { testmgr   :: Manager
-  , brigreq   :: Brig
-  , galleyreq :: Galley
-  , sparreq   :: Spar
-  , envnewidp :: NewIdP
-  }
-
-type Select = TestEnv -> (Request -> Request)
-
-mkEnv :: IntegrationConfig -> IO TestEnv
-mkEnv opts = do
-  mgr :: Manager <- newManager defaultManagerSettings
-  let mkreq :: (IntegrationConfig -> Endpoint) -> (Request -> Request)
-      mkreq selector = Bilge.host (selector opts ^. epHost . to cs)
-                     . Bilge.port (selector opts ^. epPort)
-  pure $ TestEnv mgr (mkreq brig) (mkreq galley) (mkreq spar) (cnfnewidp opts)
 
 shouldRespondWith :: forall a. (HasCallStack, Show a, Eq a)
                   => Http a -> (a -> Bool) -> ReaderT TestEnv IO ()
@@ -234,7 +224,7 @@ shouldRespondWith action proper = do
 -- envit msg action = it msg $ \env -> action `runReaderT` env
 
 call :: Http a -> ReaderT TestEnv IO a
-call req = ask >>= \env -> liftIO $ runHttpT (testmgr env) req
+call req = ask >>= \env -> liftIO $ runHttpT (env ^. teMgr) req
 
 ping :: (Request -> Request) -> Http ()
 ping req = void . get $ req . path "/i/status" . expect2xx
@@ -243,9 +233,9 @@ ping req = void . get $ req . path "/i/status" . expect2xx
 createTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, IdPId)
 createTestIdP = do
   env <- ask
-  liftIO . runHttpT (testmgr env) $ do
-    (uid, tid) <- createUserWithTeam (brigreq env) (galleyreq env)
-    (uid, tid,) . (^. idpId) <$> callIdpCreate (sparreq env) (Just uid) sampleIdP
+  liftIO . runHttpT (env ^. teMgr) $ do
+    (uid, tid) <- createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
+    (uid, tid,) . (^. idpId) <$> callIdpCreate ((env ^. teSpar)) (Just uid) sampleIdP
 
 sampleIdP :: NewIdP
 sampleIdP = NewIdP

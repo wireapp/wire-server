@@ -2,13 +2,16 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
 -- | TODO: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?
 module Util
-  ( IntegrationConfig(..)
+  ( TestEnv(..), teMgr, teBrig, teGalley, teSpar, teNewIdp
+  , Select, mkEnv
+  , IntegrationConfig(..)
   , Brig
   , Galley
   , Spar
@@ -37,6 +40,7 @@ import Data.UUID.V4 as UUID (nextRandom)
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 import Lens.Micro
+import Lens.Micro.TH
 import Spar.API ()
 import Spar.Types
 import System.Random (randomRIO)
@@ -48,6 +52,29 @@ import qualified Brig.Types.User.Auth as Brig
 import qualified Data.Text.Ascii as Ascii
 import qualified Galley.Types.Teams as Galley
 
+
+-- things only used by spar so far.
+
+data TestEnv = TestEnv
+  { _teMgr    :: Manager
+  , _teBrig   :: Brig
+  , _teGalley :: Galley
+  , _teSpar   :: Spar
+  , _teNewIdp :: NewIdP
+  }
+
+type Select = TestEnv -> (Request -> Request)
+
+mkEnv :: IntegrationConfig -> IO TestEnv
+mkEnv opts = do
+  mgr :: Manager <- newManager defaultManagerSettings
+  let mkreq :: (IntegrationConfig -> Endpoint) -> (Request -> Request)
+      mkreq selector = Bilge.host (selector opts ^. epHost . to cs)
+                     . Bilge.port (selector opts ^. epPort)
+  pure $ TestEnv mgr (mkreq brig) (mkreq galley) (mkreq spar) (cnfnewidp opts)
+
+
+-- things copied from brig integration tests
 
 data IntegrationConfig = IntegrationConfig
   -- internal endpoints
@@ -63,8 +90,6 @@ type Brig = Request -> Request
 type Galley = Request -> Request
 type Spar = Request -> Request
 
-
--- from brig integration tests (the thing we actually need)
 
 type ResponseLBS = Response (Maybe LBS)
 
@@ -204,3 +229,8 @@ zUser = header "Z-User" . toByteString'
 
 zConn :: SBS -> Request -> Request
 zConn = header "Z-Connection"
+
+
+-- TH
+
+makeLenses ''TestEnv
