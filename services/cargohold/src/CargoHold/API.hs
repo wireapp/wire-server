@@ -167,6 +167,12 @@ sitemap = do
         header "Z-User"
         .&. capture "key"
 
+    document "DELETE" "deleteAsset" $ do
+        Doc.summary "Delete an asset"
+        Doc.parameter Doc.Path "key" Doc.bytes' $
+            Doc.description "Asset key"
+        Doc.response 200 "Asset deleted" Doc.end
+
     ---------------------------------------------------------------------------
     -- Provider API
 
