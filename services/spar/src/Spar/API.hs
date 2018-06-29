@@ -18,6 +18,7 @@ module Spar.API where
 
 import Bilge
 import Control.Monad.Except
+import Data.Maybe (isJust, fromJust)
 import Data.Metrics (metrics)
 import Data.Proxy
 import Data.String.Conversions (ST, cs)
@@ -121,10 +122,11 @@ onSuccess uid = forwardBrigLogin =<< maybe (createUser uid) pure =<< getUser uid
 type ZUsr = Maybe Brig.UserId
 
 idpGet :: ZUsr -> SAML.IdPId -> Spar IdP
-idpGet zusr idpid = authorizeIdP zusr =<< SAML.getIdPConfig idpid
+idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
+  authorizeIdP zusr =<< SAML.getIdPConfig idpid
 
 idpDelete :: ZUsr -> SAML.IdPId -> Spar NoContent
-idpDelete zusr idpid = do
+idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     idp <- SAML.getIdPConfig idpid
     void $ authorizeIdP zusr idp
     wrapMonadClient $ Data.deleteIdPConfig idpid (idp ^. SAML.idpIssuer) (idp ^. SAML.idpExtraInfo)
@@ -136,11 +138,19 @@ idpCreate :: ( SAML.SP m, SAML.SPStoreIdP m, SAML.ConfigExtra m ~ Brig.TeamId
              , Brig.MonadSparToBrig m
              )
           => ZUsr -> NewIdP -> m IdP
-idpCreate zusr newIdP = do
+idpCreate zusr newIdP = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- getZUsrTeam zusr
   idp <- initializeIdP newIdP teamid
   SAML.storeIdPConfig idp
   pure idp
+
+withDebugLog :: SAML.SP m => String -> (a -> Maybe String) -> m a -> m a
+withDebugLog msg showval action = do
+  SAML.logger SAML.Debug $ "entering " ++ msg
+  val <- action
+  let mshowedval = showval val
+  SAML.logger SAML.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
+  pure val
 
 authorizeIdP :: (HasCallStack, MonadError ServantErr m, Brig.MonadSparToBrig m)
              => ZUsr -> IdP -> m IdP
