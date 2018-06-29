@@ -103,12 +103,12 @@ getUser :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => UserId 
 getUser buid = do
   resp :: Response (Maybe LBS) <- call
     $ method GET
-    . path "/i/users"
-    . queryItem "ids" (toByteString' buid)
+    . path "/self"
+    . header "Z-User" (toByteString' buid)
 
   if statusCode resp /= 200
     then pure Nothing
-    else Just <$> parseResponse @Brig.User resp
+    else Just . Brig.selfUser <$> parseResponse @Brig.SelfProfile resp
 
 
 -- | Check that a user locally created on spar exists on brig and has a team id.
