@@ -108,6 +108,14 @@ mkspec opts = do
         it "responds with 'not found'" $ do
           pending
 
+      context "known IdP, but no zuser" $ do
+        it "responds with 'not found'" $ do
+          pending
+
+      context "known IdP that does not belong to user" $ do
+        it "responds with 'not found'" $ do
+          pending
+
       context "known IdP" $ do
         it "responds with IdP" $ do
           pending
@@ -117,11 +125,27 @@ mkspec opts = do
         it "responds with 'not found'" $ do
           pending
 
+      context "known IdP, but no zuser" $ do
+        it "responds with 'not found'" $ do
+          pending
+
+      context "known IdP that does not belong to user" $ do
+        it "responds with 'not found'" $ do
+          pending
+
       context "known IdP" $ do
         it "remove the IdP and responds with 'NoContent'" $ do
           pending
 
     describe "POST /sso/identity-providers/:idp" $ do
+      context "no zuser" $ do
+        it "responds with 'forbidden' and a helpful message" $ do
+          pending
+
+      context "zuser has no team" $ do
+        it "responds with 'forbidden' and a helpful message" $ do
+          pending
+
       context "invalid or unresponsive metainfo url" $ do
         it "rejects" $ do
           pending
