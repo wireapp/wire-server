@@ -14,7 +14,16 @@
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Spar.API where
+module Spar.API
+  ( runServer, app, api
+  , API
+  , APIMeta
+  , APIAuthReq
+  , APIAuthResp
+  , IdpGet
+  , IdpCreate
+  , IdpDelete
+  ) where
 
 import Bilge
 import Control.Monad.Except
