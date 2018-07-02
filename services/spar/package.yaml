@@ -1,6 +1,6 @@
 name:          spar
 version:       '0.1'
-synopsis:      'User Service for SSO provisioning and authentication.'
+synopsis:      'User Service for SSO (Single Sign-On) provisioning and authentication.'
 author:        Wire Swiss GmbH
 maintainer:    Wire Swiss GmbH <backend@wire.com>
 copyright:     (c) 2018 Wire Swiss GmbH
