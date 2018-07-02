@@ -201,11 +201,15 @@ foldrOtrRecipients f a =
   where
     go u cs acc = Map.foldrWithKey (f u) acc cs
 
+-- | A setting for choosing what to do when a message has not been encrypted
+-- for all recipients.
 data OtrFilterMissing
-    = OtrIgnoreAllMissing
-    | OtrReportAllMissing
-    | OtrIgnoreMissing (Set UserId)
-    | OtrReportMissing (Set UserId)
+    = OtrIgnoreAllMissing            -- ^ Pretend everything is okay
+    | OtrReportAllMissing            -- ^ Complain (default)
+    | OtrIgnoreMissing (Set UserId)  -- ^ Complain only about missing
+                                     --      recipients who are /not/ on this list
+    | OtrReportMissing (Set UserId)  -- ^ Complain only about missing
+                                     --      recipients who /are/ on this list
 
 data NewOtrMessage = NewOtrMessage
     { newOtrSender         :: !ClientId
