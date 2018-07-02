@@ -148,14 +148,9 @@ storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
 
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
 insertUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> Brig.UserId -> m ()
-insertUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant', subject', uid')
+insertUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, subject, uid)
   where
-    tenant', subject', uid' :: ST
-    tenant'  = cs $ SAML.encodeElem tenant
-    subject' = cs $ SAML.encodeElem subject
-    uid'     = Brig.idToText uid
-
-    ins :: PrepQuery W (ST, ST, ST) ()
+    ins :: PrepQuery W (SAML.Issuer, SAML.NameID, Brig.UserId) ()
     ins = "INSERT INTO user (idp, sso_id, uid) VALUES (?, ?, ?)"
 
 getUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe Brig.UserId)
