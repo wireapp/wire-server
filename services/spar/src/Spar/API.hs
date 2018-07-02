@@ -152,6 +152,7 @@ idpCreate :: ( SAML.SP m, SAML.SPStoreIdP m, SAML.ConfigExtra m ~ Brig.TeamId
           => ZUsr -> NewIdP -> m IdP
 idpCreate zusr newIdP = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- getZUsrTeam zusr
+  validateNewIdP newIdP
   idp <- initializeIdP newIdP teamid
   SAML.storeIdPConfig idp
   pure idp
@@ -186,6 +187,13 @@ initializeIdP :: (MonadError ServantErr m, SAML.SP m) => NewIdP -> Brig.TeamId -
 initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpExtraInfo = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
   pure SAML.IdPConfig {..}
+
+validateNewIdP :: (MonadError ServantErr m) => NewIdP -> m ()
+validateNewIdP _idp = pure ()
+-- TODO:
+-- [aesonQQ|{"error":"not a SAML metainfo URL"}|]
+-- [aesonQQ|{"error":"invalid or unresponsive request URL"}|]
+-- [aesonQQ|{"error":"public keys in request body and metainfo do not match"}|]
 
 
 ----------------------------------------------------------------------
