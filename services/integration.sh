@@ -51,6 +51,7 @@ green=10
 orange=3
 yellow=11
 purpleish=13
+red=1
 
 function run() {
     service=$1
@@ -73,7 +74,7 @@ run galley ${yellow} Info
 run gundeck ${blue} Info
 run cannon ${orange} Info
 run cargohold ${purpleish} Info
-run spar ${white} Info
+run spar ${red} Info
 
 # the ports are copied from ./integration.yaml
 while [ "$all_services_are_up" == "" ]; do
