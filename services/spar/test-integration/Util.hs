@@ -14,7 +14,7 @@
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
   ( TestEnv(..), teMgr, teBrig, teGalley, teSpar, teNewIdp
-  , Select, mkEnv
+  , Select, mkEnv, it, pending, pendingWith
   , IntegrationConfig(..)
   , BrigReq
   , GalleyReq
@@ -34,6 +34,7 @@ module Util
   , callIdpGet, callIdpGet'
   , callIdpCreate, callIdpCreate'
   , callIdpDelete, callIdpDelete'
+  , module Test.Hspec
   ) where
 
 import Bilge
@@ -64,7 +65,7 @@ import Spar.API ()
 import Spar.API ()
 import Spar.Types
 import System.Random (randomRIO)
-import Test.Hspec
+import Test.Hspec hiding (it, pending, pendingWith)
 import URI.ByteString.QQ
 import Util.Options
 
@@ -75,6 +76,7 @@ import qualified Data.Text.Ascii as Ascii
 import qualified Data.X509 as X509
 import qualified Galley.Types.Teams as Galley
 import qualified SAML2.WebSSO as SAML
+import qualified Test.Hspec
 import qualified Text.XML.DSig as SAML
 
 
@@ -112,6 +114,18 @@ mkEnv opts = do
       mkreq selector = Bilge.host (selector opts ^. epHost . to cs)
                      . Bilge.port (selector opts ^. epPort)
   pure $ TestEnv mgr (mkreq cfgBrig) (mkreq cfgGalley) (mkreq cfgSpar) (cfgNewIdp opts)
+
+it :: m ~ IO
+       -- or, more generally:
+       -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
+   => String -> ReaderT TestEnv m () -> SpecWith TestEnv
+it msg bdy = Test.Hspec.it msg $ runReaderT bdy
+
+pending :: MonadIO m => m ()
+pending = liftIO Test.Hspec.pending
+
+pendingWith :: MonadIO m => String -> m ()
+pendingWith = liftIO . Test.Hspec.pendingWith
 
 
 createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
