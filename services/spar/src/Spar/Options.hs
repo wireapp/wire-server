@@ -44,7 +44,7 @@ data Opts = Opts
 instance FromJSON Opts
 
 -- | (seconds)
-newtype TTL (tablename :: Symbol) = TTL Int32
+newtype TTL (tablename :: Symbol) = TTL { fromTTL :: Int32 }
   deriving (Eq, Ord, Show, Num)
 
 instance FromJSON (TTL a) where

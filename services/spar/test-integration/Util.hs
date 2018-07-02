@@ -13,7 +13,7 @@
 -- | FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( TestEnv(..), teMgr, teBrig, teGalley, teSpar, teNewIdp, teOpts
+  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdp, teOpts
   , Select, mkEnv, it, pending, pendingWith
   , IntegrationConfig(..)
   , BrigReq
@@ -31,14 +31,17 @@ module Util
   , samplePublicKey1
   , samplePublicKey2
   , responseJSON
+  , callAuthnReq, callAuthnReq'
   , callIdpGet, callIdpGet'
   , callIdpCreate, callIdpCreate'
   , callIdpDelete, callIdpDelete'
+  , initCassandra
   , module Test.Hspec
   ) where
 
 import Bilge
 import Bilge.Assert ((!!!), (===), (<!!))
+import Cassandra as Cas
 import Control.Exception
 import Control.Monad
 import Control.Monad.Catch
@@ -48,6 +51,7 @@ import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
 import Data.Aeson.TH
 import Data.ByteString.Conversion
+import Data.Either
 import Data.EitherR (fmapL)
 import Data.Id
 import Data.Maybe
@@ -62,23 +66,28 @@ import Lens.Micro
 import Lens.Micro.TH
 import SAML2.WebSSO.Config.TH (deriveJSONOptions)
 import Spar.API ()
-import Spar.API ()
-import Spar.Options
+import Spar.Options as Options
+import Spar.Run
 import Spar.Types
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith)
+import URI.ByteString
 import URI.ByteString.QQ
 import Util.Options
 
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
+import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.X509 as X509
 import qualified Galley.Types.Teams as Galley
 import qualified SAML2.WebSSO as SAML
 import qualified Test.Hspec
+import qualified Text.XML as XML
+import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
+import qualified Text.XML.Util as SAML
 
 
 type BrigReq   = Request -> Request
@@ -87,6 +96,7 @@ type SparReq   = Request -> Request
 
 data TestEnv = TestEnv
   { _teMgr    :: Manager
+  , _teCql    :: Cas.ClientState
   , _teBrig   :: BrigReq
   , _teGalley :: GalleyReq
   , _teSpar   :: SparReq
@@ -111,10 +121,11 @@ type ResponseLBS = Response (Maybe LBS)
 mkEnv :: IntegrationConfig -> Opts -> IO TestEnv
 mkEnv integrationOpts serviceOpts = do
   mgr :: Manager <- newManager defaultManagerSettings
+  cql :: ClientState <- initCassandra serviceOpts =<< mkLogger serviceOpts
   let mkreq :: (IntegrationConfig -> Endpoint) -> (Request -> Request)
       mkreq selector = Bilge.host (selector integrationOpts ^. epHost . to cs)
                      . Bilge.port (selector integrationOpts ^. epPort)
-  pure $ TestEnv mgr (mkreq cfgBrig) (mkreq cfgGalley) (mkreq cfgSpar) (cfgNewIdp integrationOpts) serviceOpts
+  pure $ TestEnv mgr cql (mkreq cfgBrig) (mkreq cfgGalley) (mkreq cfgSpar) (cfgNewIdp integrationOpts) serviceOpts
 
 it :: m ~ IO
        -- or, more generally:
@@ -319,6 +330,48 @@ samplePublicKey2 = either (error . show) id $ SAML.parseKeyInfo "<ds:KeyInfo xml
 -- TODO: move this to /lib/bilge?
 responseJSON :: FromJSON a => ResponseLBS -> Either String a
 responseJSON = fmapL show . Aeson.eitherDecode <=< maybe (Left "no body") pure . responseBody
+
+callAuthnReq :: forall m. (HasCallStack, MonadIO m, MonadHttp m)
+             => SparReq -> SAML.IdPId -> m (URI, SAML.AuthnRequest)
+callAuthnReq sparreq_ idpid = assert test_parseAuthnReqResp $ do
+  resp <- callAuthnReq' (sparreq_ . expect2xx) idpid
+  either (err resp) pure $ parseAuthnReqResp (cs <$> responseBody resp)
+  where
+    err :: forall n a. MonadIO n => ResponseLBS -> String -> n a
+    err resp = liftIO . throwIO . ErrorCall . (<> ("; " <> show (responseBody resp)))
+
+test_parseAuthnReqResp :: Bool
+test_parseAuthnReqResp = isRight tst1
+  where
+    tst1 = parseAuthnReqResp @(Either String) (Just raw)
+    _tst2 = XML.parseText XML.def raw
+    raw = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\"><html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\"><body onload=\"document.forms[0].submit()\"><noscript><p><strong>Note:</strong>Since your browser does not support JavaScript, you must press the Continue button once to proceed.</p></noscript><form action=\"http://idp.net/sso/request\" method=\"post\"><input name=\"SAMLRequest\" type=\"hidden\" value=\"PHNhbWxwOkF1dGhuUmVxdWVzdCB4bWxuczpzYW1sYT0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOmFzc2VydGlvbiIgeG1sbnM6c2FtbG09InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDptZXRhZGF0YSIgeG1sbnM6ZHM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvMDkveG1sZHNpZyMiIElEPSJpZGVhMDUwZmM0YzBkODQxNzJiODcwMjIzMmNlZmJiMGE3IiBJc3N1ZUluc3RhbnQ9IjIwMTgtMDctMDJUMTk6Mzk6MDYuNDQ3OTg3MVoiIFZlcnNpb249IjIuMCIgeG1sbnM6c2FtbHA9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDpwcm90b2NvbCI+PElzc3VlciB4bWxucz0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOmFzc2VydGlvbiI+aHR0cHM6Ly9hcHAud2lyZS5jb20vPC9Jc3N1ZXI+PC9zYW1scDpBdXRoblJlcXVlc3Q+\"/><noscript><input type=\"submit\" value=\"Continue\"/></noscript></form></body></html>"
+
+parseAuthnReqResp :: forall n. MonadError String n
+          => Maybe LT -> n (URI, SAML.AuthnRequest)
+parseAuthnReqResp Nothing = throwError "no response body"
+parseAuthnReqResp (Just raw) = do
+  xml :: XML.Document
+    <- either (throwError . ("malformed html in response body: " <>) . show) pure
+     $ XML.parseText XML.def raw
+  reqUri  :: URI
+    <- safeHead "form" (XML.fromDocument xml XML.$// XML.element (XML.Name "form" (Just "http://www.w3.org/1999/xhtml") Nothing))
+       >>= safeHead "action" . XML.attribute "action"
+       >>= SAML.parseURI'
+  reqBody :: SAML.AuthnRequest
+    <- safeHead "input" (XML.fromDocument xml XML.$// XML.element (XML.Name "input" (Just "http://www.w3.org/1999/xhtml") Nothing))
+       >>= safeHead "value" . XML.attribute "value"
+       >>= either (throwError . show) pure . EL.decode . cs
+       >>= either (throwError . show) pure . SAML.decodeElem . cs
+  pure (reqUri, reqBody)
+
+safeHead :: forall n a. (MonadError String n, Show a) => String -> [a] -> n a
+safeHead _   (a:_) = pure a
+safeHead msg []    = throwError $ msg <> ": []"
+
+callAuthnReq' :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
+callAuthnReq' sparreq_ idpid = do
+  get $ sparreq_ . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid))
 
 callIdpGet :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m IdP
 callIdpGet sparreq_ muid idpid = do

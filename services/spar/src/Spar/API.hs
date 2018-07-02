@@ -16,7 +16,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Spar.API
-  ( runServer, app, api
+  ( app, api
   , API
   , APIMeta
   , APIAuthReq
@@ -26,20 +26,16 @@ module Spar.API
   , IdpDelete
   ) where
 
-import Bilge
 import Control.Monad.Except
 import Data.Aeson.QQ (aesonQQ)
 import Data.Maybe (isJust, fromJust)
-import Data.Metrics (metrics)
 import Data.Proxy
-import Data.String.Conversions (ST, cs)
-import Data.String (fromString)
+import Data.String.Conversions (ST)
 import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
 import GHC.Stack
 import Lens.Micro
-import Network.HTTP.Client (responseTimeoutMicro)
 import Servant
 import Servant.Swagger
 import Spar.API.Instances ()
@@ -47,46 +43,16 @@ import Spar.API.Swagger ()
 import Spar.App
 import Spar.Options
 import Spar.Types
-import Util.Options (epHost, epPort)
 import Web.Cookie (SetCookie)
 
 import qualified Data.Aeson as Aeson
 import qualified Brig.Types.User as Brig
 import qualified Data.Id as Brig
-import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Brig
-import qualified System.Logger as Log
 import qualified URI.ByteString as URI
 
-runServer :: Opts -> IO ()
-runServer sparCtxOpts = do
-  sparCtxLogger <- Log.new $ Log.defSettings
-                   & Log.setLogLevel (toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel)
-                   & Log.setOutput Log.StdOut
-                   & Log.setFormat Nothing
-                   & Log.setNetStrings (logNetStrings sparCtxOpts)
-  mx <- metrics
-  sparCtxCas <- Data.initCassandra sparCtxOpts sparCtxLogger
-  let settings = Warp.defaultSettings
-        & Warp.setHost (fromString $ sparCtxOpts ^. to saml . SAML.cfgSPHost)
-        . Warp.setPort (sparCtxOpts ^. to saml . SAML.cfgSPPort)
-  sparCtxHttpManager <- newManager defaultManagerSettings
-      { managerResponseTimeout = responseTimeoutMicro (10 * 1000 * 1000)
-      }
-  let sparCtxHttpBrig = Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
-                      . Bilge.port (sparCtxOpts ^. to brig . epPort)
-                      $ Bilge.empty
-  let wrappedApp
-    -- . WU.measureRequests mx _
-        -- TODO: we need the swagger sitemap from servant for this.  we also want this to be
-        -- prometheus-compatible.  not sure about the order in which to do these.
-        = WU.catchErrors sparCtxLogger mx
-        . SAML.setHttpCachePolicy
-        $ app Env {..}
-  WU.runSettingsWithShutdown settings wrappedApp 5
 
 -- FUTUREWORK: use servant-generic?
 

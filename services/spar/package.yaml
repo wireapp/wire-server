@@ -93,9 +93,11 @@ executables:
       - test-integration
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
+      - base64-bytestring
       - galley-types
       - hspec
       - hspec-discover
       - lens-aeson
       - random
       - spar
+      - xml-conduit

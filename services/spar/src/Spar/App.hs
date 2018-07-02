@@ -77,9 +77,9 @@ fromLevel = \case
   Log.Trace -> SAML.Trace
 
 instance SPStore Spar where
-  storeRequest i r      = wrapMonadClient' $ Data.storeRequest i r
-  checkAgainstRequest r = wrapMonadClient' $ Data.checkAgainstRequest r
-  storeAssertion i r    = wrapMonadClient' $ Data.storeAssertion i r
+  storeRequest i r      = wrapMonadClientWithEnv $ Data.storeRequest i r
+  checkAgainstRequest r = wrapMonadClientWithEnv $ Data.checkAgainstRequest r
+  storeAssertion i r    = wrapMonadClientWithEnv $ Data.storeAssertion i r
 
 instance SPStoreIdP Spar where
   storeIdPConfig :: IdPConfig TeamId -> Spar ()
@@ -91,15 +91,14 @@ instance SPStoreIdP Spar where
   getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig TeamId)
   getIdPConfigByIssuer = (>>= maybe (throwError err404) pure) . wrapMonadClient . Data.getIdPConfigByIssuer
 
--- | Call a cassandra command in the 'Spar' monad.  Catch all exceptions and re-throw them as 500 in
--- Handler.
-wrapMonadClient' :: ReaderT Data.Env Cas.Client a -> Spar a
-wrapMonadClient' action = do
-  denv <- Data.Env <$> (fromTime <$> getNow)
-                   <*> (Options.maxttlAuthreq . sparCtxOpts <$> ask)
-                   <*> (Options.maxttlAuthresp . sparCtxOpts <$> ask)
+-- | 'wrapMonadClient' with an 'Env' in a 'ReaderT'.
+wrapMonadClientWithEnv :: ReaderT Data.Env Cas.Client a -> Spar a
+wrapMonadClientWithEnv action = do
+  denv <- Data.mkEnv <$> (sparCtxOpts <$> ask) <*> (fromTime <$> getNow)
   wrapMonadClient (action `runReaderT` denv)
 
+-- | Call a cassandra command in the 'Spar' monad.  Catch all exceptions and re-throw them as 500 in
+-- Handler.
 wrapMonadClient :: Cas.Client a -> Spar a
 wrapMonadClient action = do
   Spar $ do

@@ -1,6 +1,6 @@
 module Main where
 
-import Spar.API
+import Spar.Run
 import Spar.Options
 
 main :: IO ()
