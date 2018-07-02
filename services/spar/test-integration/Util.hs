@@ -294,8 +294,8 @@ createTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, 
 createTestIdP = do
   env <- ask
   liftIO . runHttpT (env ^. teMgr) $ do
-    (uid, tid) <- createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
-    (uid, tid,) . (^. SAML.idpId) <$> callIdpCreate ((env ^. teSpar)) (Just uid) sampleIdP
+    (uid, tid) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+    (uid, tid,) . (^. SAML.idpId) <$> callIdpCreate (env ^. teSpar) (Just uid) sampleIdP
 
 sampleIdP :: NewIdP
 sampleIdP = NewIdP
