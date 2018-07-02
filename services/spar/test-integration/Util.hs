@@ -10,8 +10,8 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
--- | TODO: this is all copied from /services/galley/test/integration/API/Util.hs and some other
--- places; should we make this a new library?
+-- | FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
+-- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
   ( TestEnv(..), teMgr, teBrig, teGalley, teSpar, teNewIdp
   , Select, mkEnv
