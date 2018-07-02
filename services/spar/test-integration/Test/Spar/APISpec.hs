@@ -257,29 +257,29 @@ samplePublicKey2 = either (error . show) id $ SAML.parseKeyInfo "<ds:KeyInfo xml
 responseJSON :: FromJSON a => ResponseLBS -> Either String a
 responseJSON = fmapL show . Aeson.eitherDecode <=< maybe (Left "no body") pure . responseBody
 
-callIdpGet :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m IdP
+callIdpGet :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> m IdP
 callIdpGet sparreq_ muid idpid = do
   resp <- callIdpGet' (sparreq_ . expect2xx) muid idpid
   either (liftIO . throwIO . ErrorCall . show) pure
     $ responseJSON @IdP resp
 
-callIdpGet' :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m ResponseLBS
+callIdpGet' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> m ResponseLBS
 callIdpGet' sparreq_ muid idpid = do
   get $ sparreq_ . maybe id zUser muid . path ("/sso/identity-providers/" <> cs (idPIdToST idpid))
 
-callIdpCreate :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> NewIdP -> m IdP
+callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> NewIdP -> m IdP
 callIdpCreate sparreq_ muid newidp = do
   resp <- callIdpCreate' (sparreq_ . expect2xx) muid newidp
   either (liftIO . throwIO . ErrorCall . show) pure
     $ responseJSON @IdP resp
 
-callIdpCreate' :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> NewIdP -> m ResponseLBS
+callIdpCreate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> NewIdP -> m ResponseLBS
 callIdpCreate' sparreq_ muid newidp = do
   post $ sparreq_ . maybe id zUser muid . path "/sso/identity-providers/" . json newidp
 
-callIdpDelete :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m ()
+callIdpDelete :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> m ()
 callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx) muid idpid
 
-callIdpDelete' :: (MonadIO m, MonadHttp m) => Spar -> Maybe UserId -> IdPId -> m ResponseLBS
+callIdpDelete' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> m ResponseLBS
 callIdpDelete' sparreq_ muid idpid = do
   delete $ sparreq_ . maybe id zUser muid . path ("/sso/identity-providers/" <> cs (idPIdToST idpid))
