@@ -97,7 +97,7 @@ app :: Env -> Application
 app ctx = SAML.setHttpCachePolicy
         $ serve (Proxy @API) (enter (NT (SAML.nt @Spar ctx)) api :: Server API)
 
-type API = "i" :> "status" :> GetNoContent '[JSON] NoContent
+type API = "i" :> "status" :> Get '[JSON] NoContent
       :<|> "sso" :> "api-docs" :> Get '[JSON] Swagger
       :<|> APIMeta
       :<|> APIAuthReq
