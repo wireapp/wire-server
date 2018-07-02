@@ -10,21 +10,13 @@ import Text.RawString.QQ
 migration :: Migration
 migration = Migration 0 "Initial schema" $ do
 
-    -- TODO: review authreq/authresp/user tables; `text` likely non-unique and thus a problematic
-    --       primary key.  see existing schema for inspiration:
-    --       https://github.com/wireapp/wire-server/blob/312f82344fa153dad76a03d7280b4424174c2fac/doc/db_schema.cql
-
-    -- TODO: on read-heavy columns, use
-    --       with compaction = {'class': 'LeveledCompactionStrategy'};
-    --       see https://www.datastax.com/dev/blog/when-to-use-leveled-compaction
-
     -- FUTUREWORK: in authreq, field req, we may be able to use UUID, because we can create those?
     void $ schema' [r|
         CREATE TABLE if not exists authreq
             ( req          text
             , end_of_life  timestamp
             , primary key  (req)
-            );
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
 
     void $ schema' [r|
@@ -32,7 +24,7 @@ migration = Migration 0 "Initial schema" $ do
             ( resp         text
             , end_of_life  timestamp
             , primary key  (resp)
-            );
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
 
     void $ schema' [r|
@@ -41,7 +33,7 @@ migration = Migration 0 "Initial schema" $ do
             , sso_id   text
             , uid      uuid
             , primary key (idp, sso_id)
-            );
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
 
     void $ schema' [r|
@@ -61,7 +53,7 @@ migration = Migration 0 "Initial schema" $ do
             ( issuer        text
             , idp           uuid
             , PRIMARY KEY (issuer)
-            )
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
 
     void $ schema' [r|
@@ -69,5 +61,5 @@ migration = Migration 0 "Initial schema" $ do
             ( team          uuid
             , idp           uuid
             , PRIMARY KEY (team, idp)
-            )
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
