@@ -175,11 +175,11 @@ spec opts = beforeAll (mkEnv opts) $ do
         it "responds with 'forbidden' and a helpful message" $ \_ -> do
           pending
 
-      context "invalid or unresponsive metainfo url" $ do
-        it "rejects" $ \env -> (`runReaderT` env) $ do
+      context "invalid metainfo url or bad answer" $ do
+        xit "rejects" $ \env -> (`runReaderT` env) $ do
           (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
           callIdpCreate' ((env ^. teSpar)) (Just uid) ((env ^. teNewIdp) & nidpMetadata .~ [uri|http://www.example.com/|])
-            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"invalid or unresponsive metainfo URL"}|]
+            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"not a SAML metainfo URL"}|]
 
       context "invalid metainfo content" $ do
         it "rejects" $ \_ -> do
@@ -190,13 +190,13 @@ spec opts = beforeAll (mkEnv opts) $ do
           pending
 
       context "invalid or unresponsive login request url" $ do
-        it "rejects" $ \env -> (`runReaderT` env) $ do
+        xit "rejects" $ \env -> (`runReaderT` env) $ do
           (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
           callIdpCreate' ((env ^. teSpar)) (Just uid) ((env ^. teNewIdp) & nidpRequestUri .~ [uri|http://www.example.com/|])
-            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"invalid or unresponsive request URL"}|]
+            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"not a SAML SSO request URL"}|]
 
       context "pubkey in IdPConfig does not match the one provided in metainfo url" $ do
-        it "rejects" $ \env -> (`runReaderT` env) $ do
+        xit "rejects" $ \env -> (`runReaderT` env) $ do
           (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
           callIdpCreate' ((env ^. teSpar)) (Just uid) ((env ^. teNewIdp) & nidpPublicKey .~ samplePublicKey2)
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"public keys in request body and metainfo do not match"}|]
