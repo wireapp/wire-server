@@ -18,6 +18,7 @@ import Control.Exception
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Identity
+import Control.Monad.Reader
 import Data.Int
 import Data.List.NonEmpty as NE
 import Data.Maybe (catMaybes)
@@ -102,16 +103,20 @@ err2err = either (throwM . ErrorCall . show) pure
 ----------------------------------------------------------------------
 -- saml state handling
 
-storeRequest :: (HasCallStack, MonadClient m) => Env -> SAML.ID SAML.AuthnRequest -> SAML.Time -> m ()
-storeRequest env (SAML.ID rid) (SAML.Time endOfLife) = do
+storeRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
+             => SAML.ID SAML.AuthnRequest -> SAML.Time -> m ()
+storeRequest (SAML.ID rid) (SAML.Time endOfLife) = do
+    env <- ask
     TTL actualEndOfLife <- err2err $ mkTTLAuthnRequests env endOfLife
     retry x5 . write ins $ params Quorum (rid, endOfLife, actualEndOfLife)
   where
     ins :: PrepQuery W (ST, UTCTime, Int32) ()
     ins = "INSERT INTO authreq (req, end_of_life) VALUES (?, ?) USING TTL ?"
 
-checkAgainstRequest :: (HasCallStack, MonadClient m) => Env -> SAML.ID SAML.AuthnRequest -> m Bool
-checkAgainstRequest env (SAML.ID rid) = do
+checkAgainstRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
+                    => SAML.ID SAML.AuthnRequest -> m Bool
+checkAgainstRequest (SAML.ID rid) = do
+    env <- ask
     (retry x1 . query1 sel . params Quorum $ Identity rid) <&> \case
         Just (Identity (Just endoflife)) -> endoflife >= dataEnvNow env
         _ -> False
@@ -119,8 +124,10 @@ checkAgainstRequest env (SAML.ID rid) = do
     sel :: PrepQuery R (Identity ST) (Identity (Maybe UTCTime))
     sel = "SELECT end_of_life FROM authreq WHERE req = ?"
 
-storeAssertion :: (HasCallStack, MonadClient m) => Env -> SAML.ID SAML.Assertion -> SAML.Time -> m Bool
-storeAssertion env (SAML.ID aid) (SAML.Time endOfLifeNew) = do
+storeAssertion :: (HasCallStack, MonadReader Env m, MonadClient m)
+               => SAML.ID SAML.Assertion -> SAML.Time -> m Bool
+storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
+    env <- ask
     TTL actualEndOfLife <- err2err $ mkTTLAssertions env endOfLifeNew
     notAReplay :: Bool <- (retry x1 . query1 sel . params Quorum $ Identity aid) <&> \case
         Just (Identity (Just endoflifeOld)) -> endoflifeOld < dataEnvNow env
