@@ -50,7 +50,7 @@ migration = Migration 0 "Initial schema" $ do
             , metadata      text
             , issuer        text
             , request_uri   text
-            , public_key    text
+            , public_key    blob
             , team          uuid
             , PRIMARY KEY (idp)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};

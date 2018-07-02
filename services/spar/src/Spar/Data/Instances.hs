@@ -17,11 +17,11 @@ import qualified SAML2.WebSSO as SAML
 import qualified Text.XML.Util as SAML
 
 instance Cql (SignedCertificate) where
-    ctype = Tagged TextColumn
+    ctype = Tagged BlobColumn
     toCql = CqlText . cs . renderKeyInfo
 
-    fromCql (CqlText t) = parseKeyInfo (cs t)
-    fromCql _           = fail "URI: expected CqlBlob"
+    fromCql (CqlBlob t) = parseKeyInfo (cs t)
+    fromCql _           = fail "SignedCertificate: expected CqlBlob"
 
 instance Cql (URIRef Absolute) where
     ctype = Tagged TextColumn
