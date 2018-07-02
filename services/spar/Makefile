@@ -7,7 +7,6 @@ BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" ||
 EXE_IT        := ../../dist/$(NAME)-integration
 EXE_SCHEMA    := ../../dist/$(NAME)-schema
 DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
-DEB_IT        := dist/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := dist/$(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema
 
@@ -40,7 +39,7 @@ compile:
 	stack build --fast --test --no-copy-bins spar
 
 .PHONY: dist
-dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
+dist: guard-VERSION install $(DEB) $(DEB_SCHEMA) .metadata
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
@@ -50,14 +49,6 @@ $(DEB): install
 	makedeb --name=$(NAME) \
 		--version=$(VERSION) \
 		--debian-dir=deb \
-		--build=$(BUILD) \
-		--architecture=amd64 \
-		--output-dir=dist
-
-$(DEB_IT): install
-	makedeb --name=$(NAME)-integration \
-		--version=$(VERSION) \
-		--debian-dir=deb-it \
 		--build=$(BUILD) \
 		--architecture=amd64 \
 		--output-dir=dist
