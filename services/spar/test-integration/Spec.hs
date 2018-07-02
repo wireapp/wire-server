@@ -22,9 +22,9 @@ mkspec = do
   (integrationConfigFilePath, _configFilePath) <- execParser (info (helper <*> cliOptsParser) (header desc <> fullDesc))
   opts :: IntegrationConfig <- Yaml.decodeFileEither integrationConfigFilePath >>= either (error . show) pure
 
-  let specData = describe "Test.Spar.Data" Test.Spar.DataSpec.spec
-      specAPI  = describe "Test.Spar.API" $ Test.Spar.APISpec.spec opts
-  pure $ specData >> specAPI
+  pure . beforeAll (mkEnv opts) $ do
+    describe "Test.Spar.Data" Test.Spar.DataSpec.spec
+    describe "Test.Spar.API" $ Test.Spar.APISpec.spec
 
 
 -- | Accept config file locations as cli options.

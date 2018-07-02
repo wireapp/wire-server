@@ -30,8 +30,8 @@ import Util
 -- TODO: what else needs to be tested, beyond the pending tests listed here?
 
 
-spec :: IntegrationConfig -> Spec
-spec opts = beforeAll (mkEnv opts) $ do
+spec :: SpecWith TestEnv
+spec = do
     describe "status, metainfo" $ do
       it "brig /i/status" $ \env -> (`runReaderT` env) $ do
         ping (env ^. teBrig) `shouldRespondWith` (== ())
