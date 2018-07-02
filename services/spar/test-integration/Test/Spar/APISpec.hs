@@ -11,15 +11,10 @@
 module Test.Spar.APISpec where
 
 import Bilge
-import Control.Exception
-import Control.Monad
-import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.QQ as Aeson
 import Data.Either (isRight)
-import Data.EitherR (fmapL)
-import Data.Id
 import Data.List (isInfixOf)
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
@@ -30,9 +25,6 @@ import Spar.Types
 import Test.Hspec
 import URI.ByteString.QQ
 import Util
-
-import qualified Data.X509 as X509
-import qualified Text.XML.DSig as SAML
 
 
 -- TODO: what else needs to be tested, beyond the pending tests listed here?
@@ -207,79 +199,3 @@ spec opts = beforeAll (mkEnv opts) $ do
 
         it "makes IdP available for GET /sso/identity-providers/" $ \_ -> do
           pending
-
-
-----------------------------------------------------------------------
-
-shouldRespondWith :: forall a. (HasCallStack, Show a, Eq a)
-                  => Http a -> (a -> Bool) -> ReaderT TestEnv IO ()
-shouldRespondWith action proper = do
-  resp <- call action
-  liftIO $ resp `shouldSatisfy` proper
-
--- I tried this, but i don't  think it's worth the learning effort.  Perhaps it'll be helpful as a comment here.  :-)
--- envit :: Example (r -> m a) => String -> ReaderT r m a -> SpecWith (Arg (r -> m a))
--- envit msg action = it msg $ \env -> action `runReaderT` env
-
-call :: Http a -> ReaderT TestEnv IO a
-call req = ask >>= \env -> liftIO $ runHttpT (env ^. teMgr) req
-
-ping :: (Request -> Request) -> Http ()
-ping req = void . get $ req . path "/i/status" . expect2xx
-
-
-createTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, IdPId)
-createTestIdP = do
-  env <- ask
-  liftIO . runHttpT (env ^. teMgr) $ do
-    (uid, tid) <- createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
-    (uid, tid,) . (^. idpId) <$> callIdpCreate ((env ^. teSpar)) (Just uid) sampleIdP
-
-sampleIdP :: NewIdP
-sampleIdP = NewIdP
-  { _nidpMetadata        = [uri|http://idp.net/meta|]
-  , _nidpIssuer          = Issuer [uri|http://idp.net/|]
-  , _nidpRequestUri      = [uri|http://idp.net/sso/request|]
-  , _nidpPublicKey       = samplePublicKey1
-  }
-
-samplePublicKey1 :: X509.SignedCertificate
-samplePublicKey1 = either (error . show) id $ SAML.parseKeyInfo "<KeyInfo xmlns=\"http://www.w3.org/2000/09/xmldsig#\"><X509Data><X509Certificate>MIIDBTCCAe2gAwIBAgIQev76BWqjWZxChmKkGqoAfDANBgkqhkiG9w0BAQsFADAtMSswKQYDVQQDEyJhY2NvdW50cy5hY2Nlc3Njb250cm9sLndpbmRvd3MubmV0MB4XDTE4MDIxODAwMDAwMFoXDTIwMDIxOTAwMDAwMFowLTErMCkGA1UEAxMiYWNjb3VudHMuYWNjZXNzY29udHJvbC53aW5kb3dzLm5ldDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMgmGiRfLh6Fdi99XI2VA3XKHStWNRLEy5Aw/gxFxchnh2kPdk/bejFOs2swcx7yUWqxujjCNRsLBcWfaKUlTnrkY7i9x9noZlMrijgJy/Lk+HH5HX24PQCDf+twjnHHxZ9G6/8VLM2e5ZBeZm+t7M3vhuumEHG3UwloLF6cUeuPdW+exnOB1U1fHBIFOG8ns4SSIoq6zw5rdt0CSI6+l7b1DEjVvPLtJF+zyjlJ1Qp7NgBvAwdiPiRMU4l8IRVbuSVKoKYJoyJ4L3eXsjczoBSTJ6VjV2mygz96DC70MY3avccFrk7tCEC6ZlMRBfY1XPLyldT7tsR3EuzjecSa1M8CAwEAAaMhMB8wHQYDVR0OBBYEFIks1srixjpSLXeiR8zES5cTY6fBMA0GCSqGSIb3DQEBCwUAA4IBAQCKthfK4C31DMuDyQZVS3F7+4Evld3hjiwqu2uGDK+qFZas/D/eDunxsFpiwqC01RIMFFN8yvmMjHphLHiBHWxcBTS+tm7AhmAvWMdxO5lzJLS+UWAyPF5ICROe8Mu9iNJiO5JlCo0Wpui9RbB1C81Xhax1gWHK245ESL6k7YWvyMYWrGqr1NuQcNS0B/AIT1Nsj1WY7efMJQOmnMHkPUTWryVZlthijYyd7P2Gz6rY5a81DAFqhDNJl2pGIAE6HWtSzeUEh3jCsHEkoglKfm4VrGJEuXcALmfCMbdfTvtu4rlsaP2hQad+MG/KJFlenoTK34EMHeBPDCpqNDz8UVNk</X509Certificate></X509Data></KeyInfo>"
-
-samplePublicKey2 :: X509.SignedCertificate
-samplePublicKey2 = either (error . show) id $ SAML.parseKeyInfo "<ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"><ds:X509Data><ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAWOMMryDMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEUMBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi02MDc2NDgxHDAaBgkqhkiG9w0BCQEWDWluZm9Ab2t0YS5jb20wHhcNMTgwNTIzMDg1MTA1WhcNMjgwNTIzMDg1MjA1WjCBkjELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNVBAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtNjA3NjQ4MRwwGgYJKoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2HkpOuMhVFUCptrVB/Zm36cuFM+YMQjKdtqEoBJDLbtSbb7uFuvm5rMJ+1VSK5GKAM/Bec5WXTE2WMkifK5JaGOLS7q8+pgiWmqKE3KHMUmLAioe/1jzHkCobxis0FIVhyarRY97w0VMbDGzhPiU7pEopYpicJBzRL2UrzR+PebGgllvnaPzlg8ePtr9/xMv0QTJlYEyCctO4vT5Qa5Xlfek3Ox5yMJM1JPXzn7yuJN5R/Nf8jFprsdBSxNMzkcTRFGy8as2GCt/Xh9H+ef4CxSgRK5UXcUCrb5YMnBehEp2YiuWtw8QsGRR8elgnF3Uw9J2xEDkZIhurPy8OYmGNQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQA7kxxg2aVjo7Oml83bUWk4UtaQKYMEY74mygG/JV09g1DVMAPAyjaaMFamDSjortKarMQ3ET5tj2DggQBsWQNzsr3iZkmijab8JLwzA2+I1q63S68OaW5uaR5iMR8zZCTh/fWWYqa1AP64XeGHp+RLGfbp/eToNfkQWu7fH2QtDMOeLe5VmIV9pOFHnySszoR/epMd3sdDLVgmz4qbrMTBWD+5rxWdYS2glmRXl7IIQHrdBTRMll7S6ks5prqKFTwfPvZVrTnzD83a39wl2jBJhOQLjmSfSwP9H0YFNb/NRaDbSDS7BPuAlotZsaPZIN95tu+t9wmFwdxcVG/9q/Vu</ds:X509Certificate></ds:X509Data></ds:KeyInfo>"
-
-
--- TODO: do we want to implement these with servant-client?  if not, are there better idioms for
--- handling the various errors?
-
--- TODO: move this to /lib/bilge?
-responseJSON :: FromJSON a => ResponseLBS -> Either String a
-responseJSON = fmapL show . Aeson.eitherDecode <=< maybe (Left "no body") pure . responseBody
-
-callIdpGet :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> m IdP
-callIdpGet sparreq_ muid idpid = do
-  resp <- callIdpGet' (sparreq_ . expect2xx) muid idpid
-  either (liftIO . throwIO . ErrorCall . show) pure
-    $ responseJSON @IdP resp
-
-callIdpGet' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> m ResponseLBS
-callIdpGet' sparreq_ muid idpid = do
-  get $ sparreq_ . maybe id zUser muid . path ("/sso/identity-providers/" <> cs (idPIdToST idpid))
-
-callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> NewIdP -> m IdP
-callIdpCreate sparreq_ muid newidp = do
-  resp <- callIdpCreate' (sparreq_ . expect2xx) muid newidp
-  either (liftIO . throwIO . ErrorCall . show) pure
-    $ responseJSON @IdP resp
-
-callIdpCreate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> NewIdP -> m ResponseLBS
-callIdpCreate' sparreq_ muid newidp = do
-  post $ sparreq_ . maybe id zUser muid . path "/sso/identity-providers/" . json newidp
-
-callIdpDelete :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> m ()
-callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx) muid idpid
-
-callIdpDelete' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> m ResponseLBS
-callIdpDelete' sparreq_ muid idpid = do
-  delete $ sparreq_ . maybe id zUser muid . path ("/sso/identity-providers/" <> cs (idPIdToST idpid))

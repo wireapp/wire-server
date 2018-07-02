@@ -13,7 +13,7 @@ module Test.Spar.DataSpec where
 import Data.Maybe
 import Data.Time
 import Spar.Data
-import Spar.Options (TTL)
+import Spar.Options
 import Test.Hspec
 
 
@@ -22,8 +22,8 @@ spec = do
   describe "mkTTL" $ do
     check (mkDataEnv "1924-07-14T09:00:00Z" 30) "1924-07-14T09:00:15Z" (Right 15)
     check (mkDataEnv "1924-07-14T09:00:00Z" 30) "1924-07-14T09:00:40Z" (Left TTLTooLong)
-    check (mkDataEnv "1924-07-14T09:00:00Z" 30) "1924-07-14T09:00:00Z" (Left TTLInPast)
-    check (mkDataEnv "1924-07-14T09:00:00Z" 30) "1924-07-14T08:30:00Z" (Left TTLInPast)
+    check (mkDataEnv "1924-07-14T09:00:00Z" 30) "1924-07-14T09:00:00Z" (Left TTLNegative)
+    check (mkDataEnv "1924-07-14T09:00:00Z" 30) "1924-07-14T08:30:00Z" (Left TTLNegative)
 
 
 check :: HasCallStack => Env -> String -> Either TTLError (TTL "authresp") -> Spec
