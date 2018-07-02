@@ -32,7 +32,7 @@ import Data.Text (Text, isPrefixOf, toLower)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
-import Galley.Types (NewConv (..), Conversation (..), Members (..))
+import Galley.Types (NewConv (..), NewConvUnmanaged (..), Conversation (..), Members (..))
 import Galley.Types (ConvMembers (..), OtherMember (..))
 import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
@@ -935,7 +935,9 @@ createConv g u us = post $ g
     . header "Z-Type" "access"
     . header "Z-Connection" "conn"
     . contentJson
-    . body (RequestBodyLBS (encode (NewConv us Nothing Set.empty Nothing Nothing Nothing)))
+    . body (RequestBodyLBS (encode (NewConvUnmanaged conv)))
+  where
+    conv = NewConv us Nothing Set.empty Nothing Nothing Nothing
 
 postMessage
     :: Galley

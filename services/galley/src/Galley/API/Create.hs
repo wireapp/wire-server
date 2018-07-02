@@ -50,36 +50,27 @@ import qualified Galley.Types.Teams as Teams
 
 -- | The public-facing endpoint for creating group conversations.
 --
--- 'createGroupConversation' doesn't allow managed conversations because
--- we've decided to deprecate them (as they prevent us from decoupling
--- conversation size from team size). However, we're not sure that they're
--- gone forever, so we don't want to remove the code just yet. Instead, we
--- simply forbid them in the public-facing endpoint, but keep them available
--- through an internal endpoint which is only used for tests.
+-- See Note [managed conversations].
 createGroupConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 createGroupConversation (zusr ::: zcon ::: req ::: _) = do
-    body :: NewConv <- fromBody req invalidPayload
+    wrapped@(NewConvUnmanaged body) <- fromBody req invalidPayload
     case newConvTeam body of
-        Nothing    -> createRegularGroupConv zusr zcon body
-        Just tinfo -> do
-            when (cnvManaged tinfo) $ throwM noManagedTeamConv
-            createTeamGroupConv zusr zcon tinfo body
+        Nothing    -> createRegularGroupConv zusr zcon wrapped
+        Just tinfo -> createTeamGroupConv zusr zcon tinfo body
 
 -- | An internal endpoint for creating managed group conversations. Will
 -- throw an error for everything else.
 internalCreateManagedConversation
     :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 internalCreateManagedConversation (zusr ::: zcon ::: req ::: _) = do
-    body :: NewConv <- fromBody req invalidPayload
+    NewConvManaged body <- fromBody req invalidPayload
     case newConvTeam body of
         Nothing -> throwM internalError
-        Just tinfo -> do
-            unless (cnvManaged tinfo) $ throwM internalError
-            createTeamGroupConv zusr zcon tinfo body
+        Just tinfo -> createTeamGroupConv zusr zcon tinfo body
 
 -- | A helper for creating a regular (non-team) group conversation.
-createRegularGroupConv :: UserId -> ConnId -> NewConv -> Galley Response
-createRegularGroupConv zusr zcon body = do
+createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley Response
+createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
     name <- rangeCheckedMaybe (newConvName body)
     uids <- checkedConvAndTeamSize (newConvUsers body)
     ensureConnected zusr (fromConvTeamSize uids)
@@ -87,8 +78,8 @@ createRegularGroupConv zusr zcon body = do
     notifyCreatedConversation Nothing zusr (Just zcon) c
     conversationResponse status201 zusr c
 
--- | A helper for creating a team group conversation. Both normal and
--- managed conversations are allowed here.
+-- | A helper for creating a team group conversation, used by the endpoint
+-- handlers above. Allows both unmanaged and managed conversations.
 createTeamGroupConv :: UserId -> ConnId -> ConvTeamInfo -> NewConv -> Galley Response
 createTeamGroupConv zusr zcon tinfo body = do
     name <- rangeCheckedMaybe (newConvName body)
@@ -127,7 +118,7 @@ createSelfConversation zusr = do
 
 createOne2OneConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 createOne2OneConversation (zusr ::: zcon ::: req ::: _) = do
-    j      <- fromBody req invalidPayload
+    NewConvUnmanaged j <- fromBody req invalidPayload
     other  <- List.head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
     (x, y) <- toUUIDs zusr other
     when (x == y) $
