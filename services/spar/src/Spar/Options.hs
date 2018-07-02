@@ -8,6 +8,8 @@ module Spar.Options
   , TTL(..), TTLError(..)
   , getOpts
   , readOptsFile
+  , ttlToNominalDiffTime
+  , maxttlAuthreqDiffTime
   ) where
 
 import Control.Exception
@@ -16,6 +18,7 @@ import Data.Id
 import Data.Int
 import Data.Monoid
 import Data.Text (Text)
+import Data.Time
 import GHC.Generics (Generic)
 import GHC.Types (Symbol)
 import Lens.Micro
@@ -49,6 +52,12 @@ instance FromJSON (TTL a) where
 
 data TTLError = TTLTooLong | TTLNegative
   deriving (Eq, Show)
+
+ttlToNominalDiffTime :: TTL a -> NominalDiffTime
+ttlToNominalDiffTime (TTL i32) = fromIntegral i32
+
+maxttlAuthreqDiffTime :: Opts -> NominalDiffTime
+maxttlAuthreqDiffTime = ttlToNominalDiffTime . maxttlAuthreq
 
 
 -- | Throws an exception if no config file is found.

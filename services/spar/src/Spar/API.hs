@@ -92,7 +92,7 @@ runServer sparCtxOpts = do
 
 app :: Env -> Application
 app ctx = SAML.setHttpCachePolicy
-        $ serve (Proxy @API) (enter (NT (SAML.nt @Spar ctx)) api :: Server API)
+        $ serve (Proxy @API) (enter (NT (SAML.nt @Spar ctx)) (api $ sparCtxOpts ctx) :: Server API)
 
 type API = "i" :> "status" :> Get '[JSON] NoContent
       :<|> "sso" :> "api-docs" :> Get '[JSON] Swagger
@@ -115,11 +115,12 @@ type IdpDelete  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :
 -- an option, removing the need for the Maybe and the extra checks. Probably once
 -- https://github.com/wireapp/wire-server/pull/373 is merged this can be done.
 
-api :: ServerT API Spar
-api =  pure NoContent
+api :: Opts -> ServerT API Spar
+api opts =
+       pure NoContent
   :<|> pure (toSwagger (Proxy @API))
   :<|> SAML.meta appName (Proxy @API) (Proxy @APIAuthResp)
-  :<|> SAML.authreq
+  :<|> SAML.authreq (maxttlAuthreqDiffTime opts)
   :<|> SAML.authresp onSuccess
   :<|> idpGet
   :<|> idpCreate
