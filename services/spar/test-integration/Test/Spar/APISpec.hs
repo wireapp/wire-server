@@ -22,7 +22,6 @@ import Lens.Micro
 import SAML2.WebSSO as SAML
 import Spar.API ()
 import Spar.Types
-import Test.Hspec
 import URI.ByteString.QQ
 import Util
 
@@ -33,13 +32,16 @@ import Util
 spec :: SpecWith TestEnv
 spec = do
     describe "status, metainfo" $ do
-      it "brig /i/status" $ \env -> (`runReaderT` env) $ do
+      it "brig /i/status" $ do
+        env <- ask
         ping (env ^. teBrig) `shouldRespondWith` (== ())
 
-      it "spar /i/status" $ \env -> (`runReaderT` env) $ do
+      it "spar /i/status" $ do
+        env <- ask
         ping (env ^. teSpar) `shouldRespondWith` (== ())
 
-      it "metainfo" $ \env -> (`runReaderT` env) $ do
+      it "metainfo" $ do
+        env <- ask
         get ((env ^. teSpar) . path "/sso/metainfo" . expect2xx)
           `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                 [ "md:SPSSODescriptor"
@@ -49,13 +51,15 @@ spec = do
 
     describe "/sso/initiate-login/:idp" $ do
       context "unknown IdP" $ do
-        it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
+        it "responds with 'not found'" $ do
+          env <- ask
           let uuid = cs $ UUID.toText UUID.nil
           get ((env ^. teSpar) . path ("/sso/initiate-login/" <> uuid))
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP" $ do
-        it "responds with request" $ \env -> (`runReaderT` env) $ do
+        it "responds with request" $ do
+          env <- ask
           (_, _, cs . UUID.toText . fromIdPId -> idp) <- createTestIdP
           get ((env ^. teSpar) . path ("/sso/initiate-login/" <> idp) . expect2xx)
             `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
@@ -68,80 +72,88 @@ spec = do
                                          -- latter is faster to run, but we need the former anyway,
                                          -- so we might as well rely on that.
       context "access denied" $ do
-        it "responds with 'forbidden'" $ \_ -> do
+        it "responds with 'forbidden'" $ do
           pending
 
       context "access granted" $ do
-        it "responds with redirect to app" $ \_ -> do
+        it "responds with redirect to app" $ do
           pending
 
         context "unknown user" $ do
-          it "creates the user" $ \_ -> do
+          it "creates the user" $ do
             pending
 
       context "unknown IdP" $ do
-        it "rejects" $ \_ -> do
+        it "rejects" $ do
           pending
 
       context "bad AuthnRequest" $ do
-        it "rejects" $ \_ -> do
+        it "rejects" $ do
           pending
 
       context "response does not match any request" $ do
-        it "rejects" $ \_ -> do
+        it "rejects" $ do
           pending
 
       context "response contains assertions that have been offered before" $ do
-        it "rejects" $ \_ -> do
+        it "rejects" $ do
           pending
 
 
     describe "GET /sso/identity-providers/:idp" $ do
       context "unknown IdP" $ do
-        it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
+        it "responds with 'not found'" $ do
+          env <- ask
           callIdpGet' ((env ^. teSpar)) Nothing (IdPId UUID.nil)
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP, but no zuser" $ do
-        it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
+        it "responds with 'not found'" $ do
+          env <- ask
           (_, _, idp) <- createTestIdP
           callIdpGet' ((env ^. teSpar)) Nothing idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP that does not belong to user" $ do
-        it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
+        it "responds with 'not found'" $ do
+          env <- ask
           (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
           (_, _, idp) <- createTestIdP
           callIdpGet' ((env ^. teSpar)) (Just uid) idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP" $ do
-        it "responds with 2xx and IdP" $ \env -> (`runReaderT` env) $ do
+        it "responds with 2xx and IdP" $ do
+          env <- ask
           (uid, _, idp) <- createTestIdP
           callIdpGet' ((env ^. teSpar)) (Just uid) idp
             `shouldRespondWith` (\resp -> statusCode resp < 300 && isRight (responseJSON @IdP resp))
 
     describe "DELETE /sso/identity-providers/:idp" $ do
       context "unknown IdP" $ do
-        it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
+        it "responds with 'not found'" $ do
+          env <- ask
           callIdpDelete' ((env ^. teSpar)) Nothing (IdPId UUID.nil)
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP, but no zuser" $ do
-        it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
+        it "responds with 'not found'" $ do
+          env <- ask
           (_, _, idp) <- createTestIdP
           callIdpDelete' ((env ^. teSpar)) Nothing idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP that does not belong to user" $ do
-        it "responds with 'not found'" $ \env -> (`runReaderT` env) $ do
+        it "responds with 'not found'" $ do
+          env <- ask
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           (_, _, idp) <- createTestIdP
           callIdpDelete' ((env ^. teSpar)) (Just uid) idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP" $ do
-        it "responds with 2xx and removes IdP" $ \env -> (`runReaderT` env) $ do
+        it "responds with 2xx and removes IdP" $ do
+          env <- ask
           (uid, _, idp) <- createTestIdP
           callIdpDelete' ((env ^. teSpar)) (Just uid) idp
             `shouldRespondWith` \resp -> statusCode resp < 300
@@ -153,18 +165,20 @@ spec = do
           check statusIs msg resp = statusIs (statusCode resp) && responseJSON resp == Right msg
 
       context "no zuser" $ do
-        it "responds with 'forbidden' and a helpful message" $ \env -> (`runReaderT` env) $ do
+        it "responds with 'forbidden' and a helpful message" $ do
+          env <- ask
           callIdpCreate' ((env ^. teSpar)) Nothing (env ^. teNewIdp)
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"no auth token"}|]
 
       context "zuser has no team" $ do
-        it "responds with 'forbidden' and a helpful message" $ \env -> (`runReaderT` env) $ do
+        it "responds with 'forbidden' and a helpful message" $ do
+          env <- ask
           (uid, _) <- call $ createRandomPhoneUser ((env ^. teBrig))
           callIdpCreate' ((env ^. teSpar)) (Just uid) (env ^. teNewIdp)
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
 
       context "zuser is a team member, not a team admin" $ do
-        it "responds with 'forbidden' and a helpful message" $ \_ -> do
+        it "responds with 'forbidden' and a helpful message" $ do
           pending
 
       context "invalid metainfo url or bad answer" $ do
@@ -174,11 +188,11 @@ spec = do
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"not a SAML metainfo URL"}|]
 
       context "invalid metainfo content" $ do
-        it "rejects" $ \_ -> do
+        it "rejects" $ do
           pending
 
       context "invalid metainfo signature" $ do
-        it "rejects" $ \_ -> do
+        it "rejects" $ do
           pending
 
       context "invalid or unresponsive login request url" $ do
@@ -194,8 +208,8 @@ spec = do
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"public keys in request body and metainfo do not match"}|]
 
       context "everything in order" $ do
-        it "responds with 2xx" $ \_ -> do
+        it "responds with 2xx" $ do
           pending
 
-        it "makes IdP available for GET /sso/identity-providers/" $ \_ -> do
+        it "makes IdP available for GET /sso/identity-providers/" $ do
           pending
