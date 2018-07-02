@@ -5,7 +5,7 @@
 
 module Spar.Options
   ( Opts(..)
-  , TTL(..)
+  , TTL(..), TTLError(..)
   , getOpts
   , readOptsFile
   ) where
@@ -46,6 +46,9 @@ newtype TTL (tablename :: Symbol) = TTL Int32
 
 instance FromJSON (TTL a) where
   parseJSON = withScientific "TTL value (seconds)" (pure . TTL . round)
+
+data TTLError = TTLTooLong | TTLNegative
+  deriving (Eq, Show)
 
 
 -- | Throws an exception if no config file is found.

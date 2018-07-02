@@ -79,9 +79,6 @@ data Env = Env
   }
   deriving (Eq, Show)
 
-data TTLError = TTLTooLong | TTLInPast
-  deriving (Eq, Show)
-
 mkTTLAuthnRequests :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authreq")
 mkTTLAuthnRequests (Env now maxttl _) = mkTTL now maxttl
 
@@ -91,7 +88,7 @@ mkTTLAssertions (Env now _ maxttl) = mkTTL now maxttl
 mkTTL :: MonadError TTLError m => UTCTime -> TTL a -> UTCTime -> m (TTL a)
 mkTTL now maxttl endOfLife = if
   | actualttl > maxttl -> throwError TTLTooLong
-  | actualttl <= 0     -> throwError TTLInPast
+  | actualttl <= 0     -> throwError TTLNegative
   | otherwise          -> pure actualttl
   where
     actualttl = TTL . round @Double . realToFrac $ endOfLife `diffUTCTime` now
