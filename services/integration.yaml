@@ -36,7 +36,7 @@ provider:
   botPort: 9000
 
 # Used by spar-integration
-identity-provider:
+new_idp:
   metadata: https://login.microsoftonline.com/682febe8-021b-4fde-ac09-e60085f05181/FederationMetadata/2007-06/FederationMetadata.xml
   issuer: https://sts.windows.net/682febe8-021b-4fde-ac09-e60085f05181/
   request_uri: https://login.microsoftonline.com/682febe8-021b-4fde-ac09-e60085f05181/saml2

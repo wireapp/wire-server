@@ -20,7 +20,7 @@ mkspec :: IO Spec
 mkspec = do
   let desc = "Spar - SSO Service Integration Test Suite"
   (integrationConfigFilePath, _configFilePath) <- execParser (info (helper <*> cliOptsParser) (header desc <> fullDesc))
-  Right (opts :: IntegrationConfig) <- Yaml.decodeFileEither integrationConfigFilePath
+  opts :: IntegrationConfig <- Yaml.decodeFileEither integrationConfigFilePath >>= either (error . show) pure
 
   let specData = describe "Test.Spar.Data" Test.Spar.DataSpec.spec
       specAPI  = describe "Test.Spar.API" $ Test.Spar.APISpec.spec opts

@@ -12,9 +12,9 @@ module Util
   ( TestEnv(..), teMgr, teBrig, teGalley, teSpar, teNewIdp
   , Select, mkEnv
   , IntegrationConfig(..)
-  , Brig
-  , Galley
-  , Spar
+  , BrigReq
+  , GalleyReq
+  , SparReq
   , ResponseLBS
   , createUserWithTeam
   , createRandomPhoneUser
@@ -29,6 +29,7 @@ import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
+import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Maybe
@@ -41,6 +42,7 @@ import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 import Lens.Micro
 import Lens.Micro.TH
+import SAML2.WebSSO.Config.TH (deriveJSONOptions)
 import Spar.API ()
 import Spar.Types
 import System.Random (randomRIO)
@@ -53,17 +55,32 @@ import qualified Data.Text.Ascii as Ascii
 import qualified Galley.Types.Teams as Galley
 
 
--- things only used by spar so far.
+type BrigReq   = Request -> Request
+type GalleyReq = Request -> Request
+type SparReq   = Request -> Request
 
 data TestEnv = TestEnv
   { _teMgr    :: Manager
-  , _teBrig   :: Brig
-  , _teGalley :: Galley
-  , _teSpar   :: Spar
+  , _teBrig   :: BrigReq
+  , _teGalley :: GalleyReq
+  , _teSpar   :: SparReq
   , _teNewIdp :: NewIdP
   }
 
 type Select = TestEnv -> (Request -> Request)
+
+data IntegrationConfig = IntegrationConfig
+  -- internal endpoints
+  { cfgBrig   :: Endpoint
+  , cfgGalley :: Endpoint
+  , cfgSpar   :: Endpoint
+  , cfgNewIdp :: NewIdP
+  } deriving (Show, Generic)
+
+deriveFromJSON deriveJSONOptions ''IntegrationConfig
+
+type ResponseLBS = Response (Maybe LBS)
+
 
 mkEnv :: IntegrationConfig -> IO TestEnv
 mkEnv opts = do
@@ -71,29 +88,10 @@ mkEnv opts = do
   let mkreq :: (IntegrationConfig -> Endpoint) -> (Request -> Request)
       mkreq selector = Bilge.host (selector opts ^. epHost . to cs)
                      . Bilge.port (selector opts ^. epPort)
-  pure $ TestEnv mgr (mkreq brig) (mkreq galley) (mkreq spar) (cnfnewidp opts)
+  pure $ TestEnv mgr (mkreq cfgBrig) (mkreq cfgGalley) (mkreq cfgSpar) (cfgNewIdp opts)
 
 
--- things copied from brig integration tests
-
-data IntegrationConfig = IntegrationConfig
-  -- internal endpoints
-  { brig      :: Endpoint
-  , galley    :: Endpoint
-  , spar      :: Endpoint
-  , cnfnewidp :: NewIdP
-  } deriving (Show, Generic)
-
-instance FromJSON IntegrationConfig
-
-type Brig = Request -> Request
-type Galley = Request -> Request
-type Spar = Request -> Request
-
-
-type ResponseLBS = Response (Maybe LBS)
-
-createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => Brig -> Galley -> m (UserId, TeamId)
+createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
 createUserWithTeam brg gly = do
     e <- randomEmail
     n <- pure ("randomName" :: String)  -- TODO!
@@ -113,7 +111,7 @@ createUserWithTeam brg gly = do
           $ pure ()
     return (uid, tid)
 
-createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => Brig -> m (UserId, Brig.Phone)
+createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Brig.Phone)
 createRandomPhoneUser brig_ = do
     usr <- randomUser brig_
     let uid = Brig.userId usr
@@ -137,7 +135,7 @@ createRandomPhoneUser brig_ = do
 decodeBody :: (HasCallStack, FromJSON a) => ResponseLBS -> Maybe a
 decodeBody = responseBody >=> decode'
 
-getTeams :: (HasCallStack, MonadHttp m, MonadIO m) => UserId -> Galley -> m Galley.TeamList
+getTeams :: (HasCallStack, MonadHttp m, MonadIO m) => UserId -> GalleyReq -> m Galley.TeamList
 getTeams u gly = do
     r <- get ( gly
              . paths ["teams"]
@@ -146,7 +144,7 @@ getTeams u gly = do
              )
     return $ fromMaybe (error "getTeams: failed to parse response") (decodeBody r)
 
-getSelfProfile :: (HasCallStack, MonadHttp m, MonadIO m) => Brig -> UserId -> m Brig.SelfProfile
+getSelfProfile :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> UserId -> m Brig.SelfProfile
 getSelfProfile brg usr = do
     rsp <- get $ brg . path "/self" . zUser usr
     return $ fromMaybe (error $ "getSelfProfile: failed to decode: " ++ show rsp) (decodeBody rsp)
@@ -168,20 +166,20 @@ randomPhone = liftIO $ do
     let phone = Brig.parsePhone . cs $ "+0" ++ concat nrs
     return $ fromMaybe (error "Invalid random phone#") phone
 
-randomUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => Brig -> m Brig.User
+randomUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m Brig.User
 randomUser brig_ = do
     let n = "randomName"  -- TODO: see above
     createUser n "success@simulator.amazonses.com" brig_
 
 createUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
-           => ST -> ST -> Brig -> m Brig.User
+           => ST -> ST -> BrigReq -> m Brig.User
 createUser name email brig_ = do
     r <- postUser name (Just email) Nothing Nothing brig_ <!! const 201 === statusCode
     return $ fromMaybe (error "createUser: failed to parse response") (decodeBody r)
 
 -- more flexible variant of 'createUser' (see above).
 postUser :: (HasCallStack, MonadIO m, MonadHttp m)
-         => ST -> Maybe ST -> Maybe Brig.UserSSOId -> Maybe TeamId -> Brig -> m ResponseLBS
+         => ST -> Maybe ST -> Maybe Brig.UserSSOId -> Maybe TeamId -> BrigReq -> m ResponseLBS
 postUser name email ssoid teamid brig_ = do
     email' <- maybe (pure Nothing) (fmap (Just . Brig.fromEmail) . mkEmailRandomLocalSuffix) email
     let p = RequestBodyLBS . encode $ object
@@ -208,7 +206,7 @@ mkEmailRandomLocalSuffix e = do
         Nothing              -> fail $ "Invalid email address: " ++ cs e
 
 getActivationCode :: (HasCallStack, MonadIO m, MonadHttp m)
-                  => Brig -> Either Brig.Email Brig.Phone -> m (Maybe (Brig.ActivationKey, Brig.ActivationCode))
+                  => BrigReq -> Either Brig.Email Brig.Phone -> m (Maybe (Brig.ActivationKey, Brig.ActivationCode))
 getActivationCode brig_ ep = do
     let qry = either (queryItem "email" . toByteString') (queryItem "phone" . toByteString') ep
     r <- get $ brig_ . path "/i/users/activation-code" . qry
@@ -218,7 +216,7 @@ getActivationCode brig_ ep = do
     return $ (,) <$> akey <*> acode
 
 activate :: (HasCallStack, MonadIO m, MonadHttp m)
-         => Brig -> Brig.ActivationPair -> m ResponseLBS
+         => BrigReq -> Brig.ActivationPair -> m ResponseLBS
 activate brig_ (k, c) = get $ brig_
     . path "activate"
     . queryItem "key" (toByteString' k)
