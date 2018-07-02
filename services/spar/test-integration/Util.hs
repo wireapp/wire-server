@@ -13,7 +13,7 @@
 -- | FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( TestEnv(..), teMgr, teBrig, teGalley, teSpar, teNewIdp
+  ( TestEnv(..), teMgr, teBrig, teGalley, teSpar, teNewIdp, teOpts
   , Select, mkEnv, it, pending, pendingWith
   , IntegrationConfig(..)
   , BrigReq
@@ -63,6 +63,7 @@ import Lens.Micro.TH
 import SAML2.WebSSO.Config.TH (deriveJSONOptions)
 import Spar.API ()
 import Spar.API ()
+import Spar.Options
 import Spar.Types
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, pending, pendingWith)
@@ -90,12 +91,12 @@ data TestEnv = TestEnv
   , _teGalley :: GalleyReq
   , _teSpar   :: SparReq
   , _teNewIdp :: NewIdP
+  , _teOpts   :: Opts
   }
 
 type Select = TestEnv -> (Request -> Request)
 
 data IntegrationConfig = IntegrationConfig
-  -- internal endpoints
   { cfgBrig   :: Endpoint
   , cfgGalley :: Endpoint
   , cfgSpar   :: Endpoint
@@ -107,13 +108,13 @@ deriveFromJSON deriveJSONOptions ''IntegrationConfig
 type ResponseLBS = Response (Maybe LBS)
 
 
-mkEnv :: IntegrationConfig -> IO TestEnv
-mkEnv opts = do
+mkEnv :: IntegrationConfig -> Opts -> IO TestEnv
+mkEnv integrationOpts serviceOpts = do
   mgr :: Manager <- newManager defaultManagerSettings
   let mkreq :: (IntegrationConfig -> Endpoint) -> (Request -> Request)
-      mkreq selector = Bilge.host (selector opts ^. epHost . to cs)
-                     . Bilge.port (selector opts ^. epPort)
-  pure $ TestEnv mgr (mkreq cfgBrig) (mkreq cfgGalley) (mkreq cfgSpar) (cfgNewIdp opts)
+      mkreq selector = Bilge.host (selector integrationOpts ^. epHost . to cs)
+                     . Bilge.port (selector integrationOpts ^. epPort)
+  pure $ TestEnv mgr (mkreq cfgBrig) (mkreq cfgGalley) (mkreq cfgSpar) (cfgNewIdp integrationOpts) serviceOpts
 
 it :: m ~ IO
        -- or, more generally:

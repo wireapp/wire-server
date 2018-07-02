@@ -4,6 +4,7 @@ module Main where
 
 import Data.Monoid
 import Options.Applicative
+import Spar.Options
 import System.Environment
 import Test.Hspec
 import Util
@@ -19,10 +20,11 @@ main = withArgs [] . hspec =<< mkspec
 mkspec :: IO Spec
 mkspec = do
   let desc = "Spar - SSO Service Integration Test Suite"
-  (integrationConfigFilePath, _configFilePath) <- execParser (info (helper <*> cliOptsParser) (header desc <> fullDesc))
-  opts :: IntegrationConfig <- Yaml.decodeFileEither integrationConfigFilePath >>= either (error . show) pure
+  (integrationConfigFilePath, configFilePath) <- execParser (info (helper <*> cliOptsParser) (header desc <> fullDesc))
+  integrationOpts :: IntegrationConfig <- Yaml.decodeFileEither integrationConfigFilePath >>= either (error . show) pure
+  serviceOpts :: Opts <- Yaml.decodeFileEither configFilePath >>= either (error . show) pure
 
-  pure . beforeAll (mkEnv opts) $ do
+  pure . beforeAll (mkEnv integrationOpts serviceOpts) $ do
     describe "Test.Spar.Data" Test.Spar.DataSpec.spec
     describe "Test.Spar.API" $ Test.Spar.APISpec.spec
 
