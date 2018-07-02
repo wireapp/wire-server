@@ -114,6 +114,9 @@ type IdpGet     = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :
 type IdpCreate  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IdP
 type IdpDelete  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
+-- FUTUREWORK (thanks jschaul): In a more recent version of servant, using Header '[Strict] becomes
+-- an option, removing the need for the Maybe and the extra checks. Probably once
+-- https://github.com/wireapp/wire-server/pull/373 is merged this can be done.
 
 api :: ServerT API Spar
 api =  pure NoContent
