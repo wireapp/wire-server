@@ -20,7 +20,6 @@ import Control.Monad.Except
 import Control.Monad.Identity
 import Control.Monad.Reader
 import Data.Int
-import Data.List.NonEmpty as NE
 import Data.Maybe (catMaybes)
 import Data.Misc ((<$$>))
 import Data.String.Conversions
@@ -31,42 +30,11 @@ import Lens.Micro
 import Spar.Data.Instances ()
 import Spar.Options as Options
 import Spar.Types
-import System.Logger (Logger)
 import URI.ByteString
-import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 
-import qualified Cassandra.Schema as Cas
-import qualified Cassandra.Settings as Cas
 import qualified Data.Id as Brig
 import qualified Data.UUID as UUID
 import qualified SAML2.WebSSO as SAML
-import qualified Spar.Options as Opts
-import qualified System.Logger as Log
-
-
-----------------------------------------------------------------------
--- init
-
-schemaVersion :: Int32
-schemaVersion = 0
-
-initCassandra :: Opts.Opts -> Logger -> IO ClientState
-initCassandra opts lgr = do
-    connectString <- maybe (return $ NE.fromList [cs $ Opts.cassandra opts ^.casEndpoint.epHost])
-               (Cas.initialContacts "cassandra_spar")
-               (cs <$> Opts.discoUrl opts)
-    cas <- Cas.init (Log.clone (Just "cassandra.spar") lgr) $ Cas.defSettings
-      & Cas.setContacts (NE.head connectString) (NE.tail connectString)
-      & Cas.setPortNumber (fromIntegral $ Options.cassandra opts ^. casEndpoint . epPort)
-      & Cas.setKeyspace (Keyspace $ Options.cassandra opts ^. casKeyspace)
-      & Cas.setMaxConnections 4
-      & Cas.setMaxStreams 128
-      & Cas.setPoolStripes 4
-      & Cas.setSendTimeout 3
-      & Cas.setResponseTimeout 10
-      & Cas.setProtocolVersion V3
-    runClient cas $ Cas.versionCheck schemaVersion
-    pure cas
 
 
 ----------------------------------------------------------------------
@@ -78,6 +46,9 @@ data Env = Env
   , dataEnvMaxTTLAssertions   :: TTL "authresp"
   }
   deriving (Eq, Show)
+
+mkEnv :: Options.Opts -> UTCTime -> Env
+mkEnv opts now = Env now (Options.maxttlAuthreq opts) (Options.maxttlAuthresp opts)
 
 mkTTLAuthnRequests :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authreq")
 mkTTLAuthnRequests (Env now maxttl _) = mkTTL now maxttl

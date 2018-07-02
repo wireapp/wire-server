@@ -5,15 +5,41 @@
 
 module Test.Spar.DataSpec where
 
-import Spar.Data ()
+import Cassandra as Cas
+import Control.Concurrent
+import Control.Monad.Reader
+import Data.Time
+import Spar.Options as Options
+import Lens.Micro
+import Spar.Data as Data
 import Util
+
+import qualified SAML2.WebSSO as SAML
 
 
 spec :: SpecWith TestEnv
 spec = do
   describe "TTL" $ do
     it "works in seconds" $ do
-      pending
+      env <- ask
+      (_, _, idpid) <- createTestIdP
+      (_, req) <- call $ callAuthnReq (env ^. teSpar) idpid
+
+      let probe :: IO Bool
+          probe = do
+            denv :: Data.Env <- Data.mkEnv (env ^. teOpts) <$> getCurrentTime
+            runClient (env ^. teCql) (checkAgainstRequest (req ^. SAML.rqID) `runReaderT` denv)
+
+          maxttl :: Int  -- musec
+          maxttl = (fromIntegral . fromTTL $ env ^. teOpts . to maxttlAuthreq) * 1000 * 1000
+
+      liftIO $ do
+        maxttl `shouldSatisfy` (< 60 * 1000 * 1000)  -- otherwise the test will be really slow.
+        probe `shouldReturn` True
+        threadDelay ((maxttl `div` 10) * 8)
+        probe `shouldReturn` True
+        threadDelay  ((maxttl `div` 10) * 4)
+        probe `shouldReturn` False
 
 
   -- TODO: do we need any of the ones below at all?
