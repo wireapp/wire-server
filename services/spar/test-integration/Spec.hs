@@ -40,9 +40,9 @@ cliOptsParser = (,) <$>
   (strOption $
     long "service-config"
     <> short 's'
-    <> help "Brig application config to load"
+    <> help "Spar application config to load"
     <> showDefault
-    <> value defaultBrigPath)
+    <> value defaultSparPath)
   where
     defaultIntPath = "/etc/wire/spar/conf/integration.yaml"
-    defaultBrigPath = "/etc/wire/spar/conf/spar.yaml"
+    defaultSparPath = "/etc/wire/spar/conf/spar.yaml"
