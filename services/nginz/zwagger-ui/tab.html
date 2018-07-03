@@ -31,6 +31,7 @@
   $(function() {
 
      var base_url = "http://127.0.0.1:8080";
+     document.getElementById('input_base_url').value = base_url;
      // extract query parameters (used for setting the base_url)
      function getUrlVars() {
          var vars = [],
@@ -45,10 +46,9 @@
      }
      var get = getUrlVars();
      var suffix = get['url_suffix'];
-     if (suffix && suffix.length > 1 && suffix.length < 20) {
-         base_url = base_url + '/' + suffix;
+     if (suffix && suffix.length > 1) {
+        document.getElementById('input_url_suffix').value = suffix;
      }
-     document.getElementById('input_base_url').value = base_url;
 
      // -- Init
      var access_token = '';
@@ -78,7 +78,7 @@
          $('#hide-access-token').hide();
      });
      window.swaggerUi = new SwaggerUi({
-         url: $('#input_base_url')[0].value + '/api-docs/',
+         url: $('#input_base_url')[0].value + '/' + $('#input_url_suffix')[0].value + '/api-docs/',
          dom_id: "swagger-ui-container",
          supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
          onComplete: function(swaggerApi, swaggerUi) {
@@ -195,6 +195,7 @@
     <div class='input'><input placeholder="E-Mail" id="input_email" name="email" type="text"/></div>
     <div class='input'><input placeholder="Password" id="input_password" name="password" type="password"/></div>
     <div class='input'><input placeholder="BaseURL" id="input_base_url" name="base_url" type="text"></div>
+    <div class='input'><input placeholder="SwaggerSuffix" id="input_url_suffix" name="url_suffix" type="text"></div>
     <input type="submit" value="Login" id="input_login"/>
   </form>
 
