@@ -1,7 +1,10 @@
+{-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DeriveFoldable             #-}
 {-# LANGUAGE DeriveTraversable          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 
@@ -43,8 +46,6 @@ module Galley.Types
     , ConvType                  (..)
     , Invite                    (..)
     , NewConv                   (..)
-    , NewConvManaged            (..)
-    , NewConvUnmanaged          (..)
     , MemberUpdate              (..)
     , TypingStatus              (..)
     , UserClientMap             (..)
@@ -159,28 +160,21 @@ data ConversationMessageTimerUpdate = ConversationMessageTimerUpdate
     { cupMessageTimer :: !(Maybe Milliseconds)     -- ^ New message timer
     } deriving (Eq, Show)
 
-data ConvTeamInfo = ConvTeamInfo
+data ConvTeamInfo (managed :: Bool) = ConvTeamInfo
     { cnvTeamId  :: !TeamId
-    , cnvManaged :: !Bool
     } deriving (Eq, Show)
 
-data NewConv = NewConv
+data NewConv (managed :: Bool) = NewConv
     { newConvUsers  :: ![UserId]
     , newConvName   :: !(Maybe Text)
     , newConvAccess :: !(Set Access)
     , newConvAccessRole :: !(Maybe AccessRole)
-    , newConvTeam   :: !(Maybe ConvTeamInfo)
+    , newConvTeam   :: !(Maybe (ConvTeamInfo managed))
     , newConvMessageTimer :: !(Maybe Milliseconds)
     }
 
-deriving instance Eq   NewConv
-deriving instance Show NewConv
-
-newtype NewConvManaged = NewConvManaged NewConv
-    deriving (Eq, Show)
-
-newtype NewConvUnmanaged = NewConvUnmanaged NewConv
-    deriving (Eq, Show)
+deriving instance Eq   (NewConv managed)
+deriving instance Show (NewConv managed)
 
 {- Note [managed conversations]
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -686,7 +680,7 @@ instance ToJSON EventType where
     toJSON Typing                 = String "conversation.typing"
     toJSON OtrMessageAdd          = String "conversation.otr-message-add"
 
-newConvParseJSON :: Value -> Parser NewConv
+newConvParseJSON :: Value -> Parser (NewConv (managed :: Bool))
 newConvParseJSON = withObject "new-conv object" $ \i ->
         NewConv <$> i .:  "users"
                 <*> i .:? "name"
@@ -695,7 +689,7 @@ newConvParseJSON = withObject "new-conv object" $ \i ->
                 <*> i .:? "team"
                 <*> i .:? "message_timer"
 
-newConvToJSON :: NewConv -> Value
+newConvToJSON :: NewConv (managed :: Bool) -> Value
 newConvToJSON i = object
         $ "users"  .= newConvUsers i
         # "name"   .= newConvName i
@@ -705,35 +699,35 @@ newConvToJSON i = object
         # "message_timer" .= newConvMessageTimer i
         # []
 
-instance ToJSON NewConvUnmanaged where
-    toJSON (NewConvUnmanaged nc) = newConvToJSON nc
+instance ToJSON (NewConv managed) where
+    toJSON = newConvToJSON
 
-instance ToJSON NewConvManaged where
-    toJSON (NewConvManaged nc) = newConvToJSON nc
+instance FromJSON (NewConv managed) where
+    parseJSON = newConvParseJSON
 
-instance FromJSON NewConvUnmanaged where
-    parseJSON v = do
-        nc <- newConvParseJSON v
-        when (maybe False cnvManaged (newConvTeam nc)) $
-            fail "managed conversations have been deprecated"
-        pure (NewConvUnmanaged nc)
-
-instance FromJSON NewConvManaged where
-    parseJSON v = do
-        nc <- newConvParseJSON v
-        unless (maybe False cnvManaged (newConvTeam nc)) $
-            fail "only managed conversations are allowed here"
-        pure (NewConvManaged nc)
-
-instance ToJSON ConvTeamInfo where
+instance ToJSON (ConvTeamInfo 'False) where
     toJSON c = object
         [ "teamid"   .= cnvTeamId c
-        , "managed"  .= cnvManaged c
+        , "managed"  .= False
         ]
 
-instance FromJSON ConvTeamInfo where
-    parseJSON = withObject "conversation team info" $ \o ->
-        ConvTeamInfo <$> o .: "teamid" <*> o .:? "managed" .!= False
+instance ToJSON (ConvTeamInfo 'True) where
+    toJSON c = object
+        [ "teamid"   .= cnvTeamId c
+        , "managed"  .= True
+        ]
+
+instance FromJSON (ConvTeamInfo 'False) where
+    parseJSON = withObject "conversation team info" $ \o -> do
+        managed <- o .:? "managed" .!= False
+        when managed $ fail "managed conversation"
+        ConvTeamInfo <$> o .: "teamid"
+
+instance FromJSON (ConvTeamInfo 'True) where
+    parseJSON = withObject "conversation team info" $ \o -> do
+        managed <- o .:? "managed" .!= False
+        unless managed $ fail "managed conversation"
+        ConvTeamInfo <$> o .: "teamid"
 
 instance FromJSON Invite where
     parseJSON = withObject "invite object"
