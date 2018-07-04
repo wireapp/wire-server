@@ -100,7 +100,7 @@ spec = do
           pending
 
 
-    describe "GET /sso/identity-providers/:idp" $ do
+    describe "GET /identity-providers/:idp" $ do
       context "unknown IdP" $ do
         it "responds with 'not found'" $ do
           env <- ask
@@ -129,7 +129,7 @@ spec = do
           callIdpGet' ((env ^. teSpar)) (Just uid) idp
             `shouldRespondWith` (\resp -> statusCode resp < 300 && isRight (responseJSON @IdP resp))
 
-    describe "DELETE /sso/identity-providers/:idp" $ do
+    describe "DELETE /identity-providers/:idp" $ do
       context "unknown IdP" $ do
         it "responds with 'not found'" $ do
           env <- ask
@@ -160,7 +160,7 @@ spec = do
           callIdpGet' ((env ^. teSpar)) (Just uid) idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
-    describe "POST /sso/identity-providers/:idp" $ do
+    describe "POST /identity-providers/:idp" $ do
       let check :: (Int -> Bool) -> Value -> ResponseLBS -> Bool
           check statusIs msg resp = statusIs (statusCode resp) && responseJSON resp == Right msg
 
@@ -211,5 +211,5 @@ spec = do
         it "responds with 2xx" $ do
           pending
 
-        it "makes IdP available for GET /sso/identity-providers/" $ do
+        it "makes IdP available for GET /identity-providers/" $ do
           pending
