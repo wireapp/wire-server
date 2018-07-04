@@ -562,10 +562,20 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
         u   <- maybe (notFound uid) return =<< lift (Data.lookupUser uid)
         p   <- mkPair ek (Just uc) (Just uid)
         let ident = userIdentity u
-        let name  = userName u
-        let loc'  = loc <|> Just (userLocale u)
-        void . forEmailKey ek $ \em -> lift $
-            sendActivationMail em name p loc' ident
+            name  = userName u
+            loc'  = loc <|> Just (userLocale u)
+        void . forEmailKey ek $ \em -> lift $ do
+            -- Get user's team, if any.
+            mbTeam <- mapM (fmap Team.tdTeam . Intra.getTeam) (userTeam u)
+            -- Depending on whether the user is a team creator, send either
+            -- a team activation email or a regular email. Note that we
+            -- don't have to check if the team is binding because if the
+            -- user has 'userTeam' set, it must be binding.
+            case mbTeam of
+                Just team | team ^. Team.teamCreator == uid ->
+                    sendTeamActivationMail em name p loc' (team ^. Team.teamName)
+                _otherwise ->
+                    sendActivationMail em name p loc' ident
 
 mkActivationKey :: ActivationTarget -> ExceptT ActivationError AppIO ActivationKey
 mkActivationKey (ActivateKey   k) = return k
