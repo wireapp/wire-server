@@ -55,10 +55,10 @@ tests conf m z b = testGroup "auth"
             , test m "send-phone-code" (testSendLoginCode b)
             , test m "failure" (testLoginFailure b)
             , test m "throttle" (testThrottleLogins conf b)
-            , testGroup "backdoor-login"
-                [ test m "email" (testEmailBackdoorLogin b)
-                , test m "failure-suspended" (testSuspendedBackdoorLogin b)
-                , test m "failure-no-user" (testNoUserBackdoorLogin b)
+            , testGroup "sso-login"
+                [ test m "email" (testEmailSsoLogin b)
+                , test m "failure-suspended" (testSuspendedSsoLogin b)
+                , test m "failure-no-user" (testNoUserSsoLogin b)
                 ]
             ]
         , testGroup "refresh"
@@ -241,40 +241,40 @@ testThrottleLogins conf b = do
     void $ login b (defEmailLogin e) SessionCookie
 
 -------------------------------------------------------------------------------
--- Backdoor login
+-- Sso login
 
--- | Check that login works with @/backdoor-login@ even without having the
+-- | Check that login works with @/sso-login@ even without having the
 -- right password.
-testEmailBackdoorLogin :: Brig -> Http ()
-testEmailBackdoorLogin brig = do
+testEmailSsoLogin :: Brig -> Http ()
+testEmailSsoLogin brig = do
     -- Create a user
     uid <- userId <$> randomUser brig
     now <- liftIO getCurrentTime
     -- Login and do some checks
-    _rs <- backdoorLogin brig (BackdoorLogin uid Nothing) PersistentCookie
+    _rs <- ssoLogin brig (SsoLogin uid Nothing) PersistentCookie
         <!! const 200 === statusCode
     liftIO $ do
         assertSanePersistentCookie (decodeCookie _rs)
         assertSaneAccessToken now uid (decodeToken _rs)
 
--- | Check that @/backdoor-login@ can not be used to login as a suspended
+-- | Check that @/sso-login@ can not be used to login as a suspended
 -- user.
-testSuspendedBackdoorLogin :: Brig -> Http ()
-testSuspendedBackdoorLogin brig = do
+testSuspendedSsoLogin :: Brig -> Http ()
+testSuspendedSsoLogin brig = do
     -- Create a user and immediately suspend them
     uid <- userId <$> randomUser brig
     setStatus brig uid Suspended
     -- Try to login and see if we fail
-    backdoorLogin brig (BackdoorLogin uid Nothing) PersistentCookie !!! do
+    ssoLogin brig (SsoLogin uid Nothing) PersistentCookie !!! do
         const 403 === statusCode
         const (Just "suspended") === errorLabel
 
--- | Check that @/backdoor-login@ fails if the user doesn't exist.
-testNoUserBackdoorLogin :: Brig -> Http ()
-testNoUserBackdoorLogin brig = do
+-- | Check that @/sso-login@ fails if the user doesn't exist.
+testNoUserSsoLogin :: Brig -> Http ()
+testNoUserSsoLogin brig = do
     -- Try to login with random UID and see if we fail
     uid <- randomId
-    backdoorLogin brig (BackdoorLogin uid Nothing) PersistentCookie !!! do
+    ssoLogin brig (SsoLogin uid Nothing) PersistentCookie !!! do
         const 403 === statusCode
         const (Just "invalid-credentials") === errorLabel
 
