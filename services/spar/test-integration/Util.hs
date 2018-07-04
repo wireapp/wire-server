@@ -21,6 +21,7 @@ module Util
   , SparReq
   , ResponseLBS
   , createUserWithTeam
+  , createTeamMember
   , createRandomPhoneUser
   , zUser
   , shouldRespondWith
@@ -159,6 +160,24 @@ createUserWithTeam brg gly = do
     () <- Control.Exception.assert {- "Team ID in self profile and team table do not match" -} (selfTeam == Just tid)
           $ pure ()
     return (uid, tid)
+
+createTeamMember :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
+                 => BrigReq -> GalleyReq -> TeamId -> Galley.Permissions -> m UserId
+createTeamMember brigreq galleyreq teamid perms = do
+  (nobody :: UserId, _) <- createRandomPhoneUser brigreq
+  let tmem :: Galley.TeamMember = Galley.newTeamMember nobody perms
+  addTeamMember galleyreq teamid (Galley.newNewTeamMember tmem)
+  pure nobody
+
+addTeamMember :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
+              => GalleyReq -> TeamId -> Galley.NewTeamMember -> m ()
+addTeamMember galleyreq tid mem =
+    void $ post ( galleyreq
+                . paths ["i", "teams", toByteString' tid, "members"]
+                . contentJson
+                . expect2xx
+                . lbytes (encode mem)
+                )
 
 createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Brig.Phone)
 createRandomPhoneUser brig_ = do
