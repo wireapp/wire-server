@@ -120,6 +120,7 @@ idpCreate :: ( SAML.SP m, SAML.SPStoreIdP m, SAML.ConfigExtra m ~ Brig.TeamId
           => ZUsr -> NewIdP -> m IdP
 idpCreate zusr newIdP = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- getZUsrTeam zusr
+  Brig.assertIsTeamOwner zusr teamid
   validateNewIdP newIdP
   idp <- initializeIdP newIdP teamid
   SAML.storeIdPConfig idp
