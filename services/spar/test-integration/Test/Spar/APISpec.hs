@@ -25,6 +25,8 @@ import Spar.Types
 import URI.ByteString.QQ
 import Util
 
+import qualified Galley.Types.Teams as Galley
+
 
 -- TODO: what else needs to be tested, beyond the pending tests listed here?
 
@@ -177,9 +179,14 @@ spec = do
           callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdp)
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
 
-      context "zuser is a team member, not a team admin" $ do
+      context "zuser is a team member, but not a team admin" $ do
         it "responds with 'forbidden' and a helpful message" $ do
-          pending
+          env <- ask
+          (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          nobody <- let Just perms = Galley.newPermissions mempty mempty
+                    in call $ createTeamMember (env ^. teBrig) tid perms
+          callIdpCreate' (env ^. teSpar) (Just nobody) (env ^. teNewIdp)
+            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
 
       context "invalid metainfo url or bad answer" $ do
         xit "rejects" $ \env -> (`runReaderT` env) $ do
