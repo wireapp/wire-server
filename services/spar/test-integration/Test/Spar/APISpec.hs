@@ -104,43 +104,14 @@ spec = do
       context "unknown IdP" $ do
         it "responds with 'not found'" $ do
           env <- ask
-          callIdpGet' ((env ^. teSpar)) Nothing (IdPId UUID.nil)
+          callIdpGet' (env ^. teSpar) Nothing (IdPId UUID.nil)
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP, but no zuser" $ do
         it "responds with 'not found'" $ do
           env <- ask
           (_, _, idp) <- createTestIdP
-          callIdpGet' ((env ^. teSpar)) Nothing idp
-            `shouldRespondWith` ((>= 400) . statusCode)
-
-      context "known IdP that does not belong to user" $ do
-        it "responds with 'not found'" $ do
-          env <- ask
-          (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
-          (_, _, idp) <- createTestIdP
-          callIdpGet' ((env ^. teSpar)) (Just uid) idp
-            `shouldRespondWith` ((>= 400) . statusCode)
-
-      context "known IdP" $ do
-        it "responds with 2xx and IdP" $ do
-          env <- ask
-          (uid, _, idp) <- createTestIdP
-          callIdpGet' ((env ^. teSpar)) (Just uid) idp
-            `shouldRespondWith` (\resp -> statusCode resp < 300 && isRight (responseJSON @IdP resp))
-
-    describe "DELETE /identity-providers/:idp" $ do
-      context "unknown IdP" $ do
-        it "responds with 'not found'" $ do
-          env <- ask
-          callIdpDelete' ((env ^. teSpar)) Nothing (IdPId UUID.nil)
-            `shouldRespondWith` ((>= 400) . statusCode)
-
-      context "known IdP, but no zuser" $ do
-        it "responds with 'not found'" $ do
-          env <- ask
-          (_, _, idp) <- createTestIdP
-          callIdpDelete' ((env ^. teSpar)) Nothing idp
+          callIdpGet' (env ^. teSpar) Nothing idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP that does not belong to user" $ do
@@ -148,16 +119,45 @@ spec = do
           env <- ask
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           (_, _, idp) <- createTestIdP
-          callIdpDelete' ((env ^. teSpar)) (Just uid) idp
+          callIdpGet' (env ^. teSpar) (Just uid) idp
+            `shouldRespondWith` ((>= 400) . statusCode)
+
+      context "known IdP" $ do
+        it "responds with 2xx and IdP" $ do
+          env <- ask
+          (uid, _, idp) <- createTestIdP
+          callIdpGet' (env ^. teSpar) (Just uid) idp
+            `shouldRespondWith` (\resp -> statusCode resp < 300 && isRight (responseJSON @IdP resp))
+
+    describe "DELETE /identity-providers/:idp" $ do
+      context "unknown IdP" $ do
+        it "responds with 'not found'" $ do
+          env <- ask
+          callIdpDelete' (env ^. teSpar) Nothing (IdPId UUID.nil)
+            `shouldRespondWith` ((>= 400) . statusCode)
+
+      context "known IdP, but no zuser" $ do
+        it "responds with 'not found'" $ do
+          env <- ask
+          (_, _, idp) <- createTestIdP
+          callIdpDelete' (env ^. teSpar) Nothing idp
+            `shouldRespondWith` ((>= 400) . statusCode)
+
+      context "known IdP that does not belong to user" $ do
+        it "responds with 'not found'" $ do
+          env <- ask
+          (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          (_, _, idp) <- createTestIdP
+          callIdpDelete' (env ^. teSpar) (Just uid) idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
       context "known IdP" $ do
         it "responds with 2xx and removes IdP" $ do
           env <- ask
           (uid, _, idp) <- createTestIdP
-          callIdpDelete' ((env ^. teSpar)) (Just uid) idp
+          callIdpDelete' (env ^. teSpar) (Just uid) idp
             `shouldRespondWith` \resp -> statusCode resp < 300
-          callIdpGet' ((env ^. teSpar)) (Just uid) idp
+          callIdpGet' (env ^. teSpar) (Just uid) idp
             `shouldRespondWith` ((>= 400) . statusCode)
 
     describe "POST /identity-providers/:idp" $ do
@@ -167,14 +167,14 @@ spec = do
       context "no zuser" $ do
         it "responds with 'forbidden' and a helpful message" $ do
           env <- ask
-          callIdpCreate' ((env ^. teSpar)) Nothing (env ^. teNewIdp)
+          callIdpCreate' (env ^. teSpar) Nothing (env ^. teNewIdp)
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"no auth token"}|]
 
       context "zuser has no team" $ do
         it "responds with 'forbidden' and a helpful message" $ do
           env <- ask
-          (uid, _) <- call $ createRandomPhoneUser ((env ^. teBrig))
-          callIdpCreate' ((env ^. teSpar)) (Just uid) (env ^. teNewIdp)
+          (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
+          callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdp)
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
 
       context "zuser is a team member, not a team admin" $ do
@@ -183,8 +183,8 @@ spec = do
 
       context "invalid metainfo url or bad answer" $ do
         xit "rejects" $ \env -> (`runReaderT` env) $ do
-          (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
-          callIdpCreate' ((env ^. teSpar)) (Just uid) ((env ^. teNewIdp) & nidpMetadata .~ [uri|http://www.example.com/|])
+          (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          callIdpCreate' (env ^. teSpar) (Just uid) ((env ^. teNewIdp) & nidpMetadata .~ [uri|http://www.example.com/|])
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"not a SAML metainfo URL"}|]
 
       context "invalid metainfo content" $ do
@@ -197,14 +197,14 @@ spec = do
 
       context "invalid or unresponsive login request url" $ do
         xit "rejects" $ \env -> (`runReaderT` env) $ do
-          (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
-          callIdpCreate' ((env ^. teSpar)) (Just uid) ((env ^. teNewIdp) & nidpRequestUri .~ [uri|http://www.example.com/|])
+          (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          callIdpCreate' (env ^. teSpar) (Just uid) ((env ^. teNewIdp) & nidpRequestUri .~ [uri|http://www.example.com/|])
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"not a SAML SSO request URL"}|]
 
       context "pubkey in IdPConfig does not match the one provided in metainfo url" $ do
         xit "rejects" $ \env -> (`runReaderT` env) $ do
-          (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
-          callIdpCreate' ((env ^. teSpar)) (Just uid) ((env ^. teNewIdp) & nidpPublicKey .~ samplePublicKey2)
+          (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          callIdpCreate' (env ^. teSpar) (Just uid) ((env ^. teNewIdp) & nidpPublicKey .~ samplePublicKey2)
             `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"public keys in request body and metainfo do not match"}|]
 
       context "everything in order" $ do
