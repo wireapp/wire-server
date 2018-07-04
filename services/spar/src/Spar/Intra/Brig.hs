@@ -4,6 +4,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
@@ -17,8 +18,8 @@ module Spar.Intra.Brig where
 
 import Bilge
 import Control.Monad.Except
-import Data.Aeson (eitherDecode')
-import Data.Aeson (FromJSON)
+import Data.Aeson (FromJSON, eitherDecode', encode)
+import Data.Aeson.QQ (aesonQQ)
 import Data.ByteString.Conversion
 import Data.Id (Id(Id), UserId, TeamId)
 import Data.String.Conversions
@@ -116,6 +117,17 @@ confirmUserId :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => U
 confirmUserId buid = do
   usr <- getUser buid
   maybe (pure Nothing) (const . pure . Just $ buid) (Brig.userTeam =<< usr)
+
+
+assertIsTeamOwner :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => Maybe UserId -> TeamId -> m ()
+assertIsTeamOwner mbuid tid = do
+  let reject = throwError err403 { errBody = encode [aesonQQ|{"error":"you need to be team admin to create an IdP"}|] }
+  buid <- maybe reject pure mbuid
+
+  resp :: Response (Maybe LBS) <- call
+    $ method GET
+    . paths ["i", "users", toByteString' buid, "is-team-owner", toByteString' tid]
+  when (statusCode resp >= 400) $ reject
 
 
 -- | Get session token from brig and redirect user past login process.
