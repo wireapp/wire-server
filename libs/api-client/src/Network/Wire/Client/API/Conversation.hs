@@ -106,6 +106,6 @@ createConv users name = sessionRequest req rsc readBody
     req = method POST
         . path "conversations"
         . acceptJson
-        . json (NewConv users name mempty Nothing Nothing Nothing)
+        . json (NewConvUnmanaged (NewConv users name mempty Nothing Nothing Nothing))
         $ empty
     rsc = status201 :| []

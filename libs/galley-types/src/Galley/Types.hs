@@ -43,6 +43,8 @@ module Galley.Types
     , ConvType                  (..)
     , Invite                    (..)
     , NewConv                   (..)
+    , NewConvManaged            (..)
+    , NewConvUnmanaged          (..)
     , MemberUpdate              (..)
     , TypingStatus              (..)
     , UserClientMap             (..)
@@ -173,6 +175,45 @@ data NewConv = NewConv
 
 deriving instance Eq   NewConv
 deriving instance Show NewConv
+
+newtype NewConvManaged = NewConvManaged NewConv
+    deriving (Eq, Show)
+
+newtype NewConvUnmanaged = NewConvUnmanaged NewConv
+    deriving (Eq, Show)
+
+{- Note [managed conversations]
+~~~~~~~~~~~~~~~~~~~~~~
+
+Managed conversations are conversations where every team member is present
+automatically. They have been implemented on the backend but never used in
+production, and as of July 2, 2018 no managed conversations exist "in the
+wild". They also prevent us from decoupling team size and conversation size
+-- by essentially demanding that they be equal, while in reality allowing
+huge teams is much easier than allowing huge conversations and we want to
+use that fact.
+
+For the reason above, it's been decided to remove support for creating
+managed conversations from the backend. However, we are not 100% sure that
+we won't introduce them again in the future, and so we'd like to retain all
+the logic and tests that we have now.
+
+To that end we have the following types:
+
+  * data NewConv -- allows both managed and unmanaged conversations;
+  * newtype NewConvUnmanaged -- only unmanaged;
+  * newtype NewConvManaged -- only managed.
+
+Those are invariants enforced on the 'FromJSON' level. For convenience, the
+newtype constructors have not been hidden.
+
+The public POST /conversations endpoint only allows unmanaged conversations.
+For creating managed conversations we provide an internal endpoint called
+POST /i/conversations/managed. When an endpoint receives payload
+corresponding to a forbidden conversation type, it throws a JSON parsing
+error, which is not optimal but it doesn't matter since nobody is trying to
+create managed conversations anyway.
+-}
 
 newtype UserClientMap a = UserClientMap
     { userClientMap :: Map UserId (Map ClientId a)
@@ -645,8 +686,8 @@ instance ToJSON EventType where
     toJSON Typing                 = String "conversation.typing"
     toJSON OtrMessageAdd          = String "conversation.otr-message-add"
 
-instance FromJSON NewConv where
-    parseJSON = withObject "new-conv object" $ \i ->
+newConvParseJSON :: Value -> Parser NewConv
+newConvParseJSON = withObject "new-conv object" $ \i ->
         NewConv <$> i .:  "users"
                 <*> i .:? "name"
                 <*> i .:? "access" .!= mempty
@@ -654,8 +695,8 @@ instance FromJSON NewConv where
                 <*> i .:? "team"
                 <*> i .:? "message_timer"
 
-instance ToJSON NewConv where
-    toJSON i = object
+newConvToJSON :: NewConv -> Value
+newConvToJSON i = object
         $ "users"  .= newConvUsers i
         # "name"   .= newConvName i
         # "access" .= newConvAccess i
@@ -663,6 +704,26 @@ instance ToJSON NewConv where
         # "team"   .= newConvTeam i
         # "message_timer" .= newConvMessageTimer i
         # []
+
+instance ToJSON NewConvUnmanaged where
+    toJSON (NewConvUnmanaged nc) = newConvToJSON nc
+
+instance ToJSON NewConvManaged where
+    toJSON (NewConvManaged nc) = newConvToJSON nc
+
+instance FromJSON NewConvUnmanaged where
+    parseJSON v = do
+        nc <- newConvParseJSON v
+        when (maybe False cnvManaged (newConvTeam nc)) $
+            fail "managed conversations have been deprecated"
+        pure (NewConvUnmanaged nc)
+
+instance FromJSON NewConvManaged where
+    parseJSON v = do
+        nc <- newConvParseJSON v
+        unless (maybe False cnvManaged (newConvTeam nc)) $
+            fail "only managed conversations are allowed here"
+        pure (NewConvManaged nc)
 
 instance ToJSON ConvTeamInfo where
     toJSON c = object

@@ -88,7 +88,7 @@ teamMemberNotFound :: Error
 teamMemberNotFound = Error status404 "no-team-member" "team member not found"
 
 noManagedTeamConv :: Error
-noManagedTeamConv = Error status400 "no-managed-team-conv" "Managed team conversations are not allowed in this context."
+noManagedTeamConv = Error status400 "no-managed-team-conv" "Managed team conversations have been deprecated."
 
 userBindingExists :: Error
 userBindingExists = Error status403 "binding-exists" "User already bound to a different team."

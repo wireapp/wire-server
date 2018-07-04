@@ -32,7 +32,7 @@ import Data.Text (Text, isPrefixOf, toLower)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
-import Galley.Types (NewConv (..), Conversation (..), Members (..))
+import Galley.Types (NewConv (..), NewConvUnmanaged (..), Conversation (..), Members (..))
 import Galley.Types (ConvMembers (..), OtherMember (..))
 import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
@@ -604,7 +604,7 @@ testAddRemoveBotTeam config crt db brig galley cannon = withTestService config c
     (u1, u2, h, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
     let (uid1, uid2) = (userId u1, userId u2)
     -- Ensure cannot add bots to managed conversations
-    cidFail <- Team.createTeamConv galley tid uid1 [uid2] True Nothing
+    cidFail <- Team.createManagedConv galley tid uid1 [uid2] Nothing
     addBot brig uid1 pid sid cidFail !!! do
         const 403 === statusCode
         const (Just "invalid-conversation") === fmap Error.label . decodeBody
@@ -625,7 +625,7 @@ testMessageBotTeam config crt db brig galley cannon = withTestService config crt
     tid <- Team.createTeam uid galley
 
     -- Create conversation
-    cid <- Team.createTeamConv galley tid uid [] False Nothing
+    cid <- Team.createTeamConv galley tid uid [] Nothing
 
     testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon
 
@@ -935,7 +935,9 @@ createConv g u us = post $ g
     . header "Z-Type" "access"
     . header "Z-Connection" "conn"
     . contentJson
-    . body (RequestBodyLBS (encode (NewConv us Nothing Set.empty Nothing Nothing Nothing)))
+    . body (RequestBodyLBS (encode (NewConvUnmanaged conv)))
+  where
+    conv = NewConv us Nothing Set.empty Nothing Nothing Nothing
 
 postMessage
     :: Galley
@@ -1484,7 +1486,7 @@ prepareBotUsersTeam brig galley sref = do
     Team.addTeamMember galley tid $ Team.newNewTeamMember $ Team.newTeamMember uid2 Team.fullPermissions
 
     -- Create conversation
-    cid <- Team.createTeamConv galley tid uid1 [uid2] False Nothing
+    cid <- Team.createTeamConv galley tid uid1 [uid2] Nothing
 
     return (u1, u2, h, tid, cid, pid, sid)
 

@@ -89,7 +89,7 @@ messageTimerChangeGuest g b _ca _ = do
     connectUsers b owner (list1 member [guest])
     tid <- createTeam g "team" owner [Teams.newTeamMember member Teams.fullPermissions]
     -- Create a conversation
-    cid <- createTeamConv g owner (ConvTeamInfo tid False) [member, guest] Nothing Nothing Nothing
+    cid <- createTeamConv g owner tid [member, guest] Nothing Nothing Nothing
     -- Try to change the timer (as the guest user) and observe failure
     putMessageTimerUpdate g guest cid (ConversationMessageTimerUpdate timer1sec) !!! do
         const 403 === statusCode

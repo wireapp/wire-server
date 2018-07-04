@@ -16,7 +16,7 @@ import Data.Id hiding (client)
 import Data.Maybe (fromMaybe)
 import Data.Misc (Milliseconds)
 import Data.Range
-import Galley.Types (ConvTeamInfo (..), NewConv (..))
+import Galley.Types (ConvTeamInfo (..), NewConv (..), NewConvUnmanaged (..), NewConvManaged (..))
 import GHC.Stack (HasCallStack)
 import Test.Tasty.HUnit
 import Util
@@ -64,12 +64,29 @@ addTeamMember galley tid mem =
                 . lbytes (encode mem)
                 )
 
-createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Bool -> Maybe Milliseconds -> Http ConvId
-createTeamConv g tid u us managed mtimer = do
-    let tinfo = Just $ ConvTeamInfo tid managed
-    let conv = NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer
+createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
+createTeamConv g tid u us mtimer = do
+    let tinfo = Just $ ConvTeamInfo tid False
+    let conv = NewConvUnmanaged $
+               NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer
     r <- post ( g
               . path "/conversations"
+              . zUser u
+              . zConn "conn"
+              . contentJson
+              . lbytes (encode conv)
+              ) <!! const 201 === statusCode
+    maybe (error "invalid conv id") return $
+        fromByteString $ getHeader' "Location" r
+
+-- See Note [managed conversations]
+createManagedConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
+createManagedConv g tid u us mtimer = do
+    let tinfo = Just $ ConvTeamInfo tid True
+    let conv = NewConvManaged $
+               NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer
+    r <- post ( g
+              . path "/i/conversations/managed"
               . zUser u
               . zConn "conn"
               . contentJson
