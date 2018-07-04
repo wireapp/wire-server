@@ -72,6 +72,9 @@ instance ToSchema SAML.SPDesc where
 instance ToSchema URI.URI where
   declareNamedSchema _proxy = genericDeclareNamedSchema defaultSchemaOptions (Proxy @())
 
+instance ToParamSchema URI.URI where
+  toParamSchema _proxy = mkEmptyParamSchema SwaggerBoolean
+
 instance ToParamSchema SetCookie where
   toParamSchema _proxy = mkEmptyParamSchema SwaggerBoolean
 
