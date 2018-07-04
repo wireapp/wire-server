@@ -680,7 +680,7 @@ instance ToJSON EventType where
     toJSON Typing                 = String "conversation.typing"
     toJSON OtrMessageAdd          = String "conversation.otr-message-add"
 
-newConvParseJSON :: Value -> Parser (NewConv (managed :: Bool))
+newConvParseJSON :: forall (managed :: Bool) => Value -> Parser (NewConv managed)
 newConvParseJSON = withObject "new-conv object" $ \i ->
         NewConv <$> i .:  "users"
                 <*> i .:? "name"
