@@ -124,8 +124,8 @@ forwardBrigLogin :: (HasCallStack, MonadError ServantErr m, SAML.HasConfig m, Mo
 forwardBrigLogin buid = do
   resp :: Response (Maybe LBS) <- call
     $ method POST
-    . path "/i/backdoor-login"
-    . json (Brig.BackdoorLogin buid Nothing)
+    . path "/i/sso-login"
+    . json (Brig.SsoLogin buid Nothing)
     . queryItem "persistent" "true"
     . expect2xx
 
