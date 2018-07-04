@@ -1,11 +1,12 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Spar.API.Instances where
 
 import Servant
-import qualified Data.Id as Brig
+import Data.Id
 
-instance FromHttpApiData (Brig.Id Brig.U) where
-  parseUrlPiece = fmap Brig.Id . parseUrlPiece
+instance FromHttpApiData UserId where
+  parseUrlPiece = fmap Id . parseUrlPiece

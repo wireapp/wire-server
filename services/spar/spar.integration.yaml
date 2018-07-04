@@ -1,18 +1,22 @@
 saml:
   version:     SAML2.0
-  log_level:   Debug
+  logLevel:   Debug
 
-  sp_host:     0.0.0.0
-  sp_port:     8088
-  sp_app_uri:  https://app.wire.com/
-  sp_sso_uri:  https://app.wire.com/sso
+  spHost:     0.0.0.0
+  spPort:     8088
+  spAppUri:  https://app.wire.com/
+  spSsoUri:  https://app.wire.com/sso
 
   contacts:
     - type: ContactBilling
       company: evil corp.
-      given_name: Dr.
+      givenName: Dr.
       surname: Girlfriend
       email: email:president@evil.corp
+
+spInfo:
+  metaURI:  https://app.wire.com/sso/metadata         # corresponds to 'APIMeta'
+  loginURI: https://app.wire.com/sso/initiate-login/  # corresponds to 'APIAuthReq' (without the idp id)
 
 brig:
   host: 127.0.0.1
@@ -27,7 +31,7 @@ cassandra:
 # Wire/AWS specific, optional
 # discoUrl: "https://"
 
-maxttlAuthreq: 11
-maxttlAuthresp: 11
+maxttlAuthreq: 5
+maxttlAuthresp: 5
 
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)

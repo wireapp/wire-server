@@ -1,38 +1,42 @@
 {-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE InstanceSigs               #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE InstanceSigs               #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 
 module Spar.App where
 
 import Bilge
 import Cassandra
-import Control.Exception (SomeException(SomeException), assert)
+import Control.Exception (SomeException, assert)
 import Control.Monad.Except
 import Control.Monad.Reader
+import Data.EitherR (fmapL)
 import Data.Id
+import Data.String.Conversions
 import Lens.Micro
 import SAML2.WebSSO hiding (UserRef(..))
 import Servant
+import Spar.Error
+import Spar.Types
 import Spar.Options as Options
 import Web.Cookie (SetCookie)
 
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
-import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
-import qualified Spar.Intra.Brig as Brig
+import qualified Spar.Intra.Brig as Intra
 import qualified System.Logger as Log
 import qualified URI.ByteString as URI
 
 
-newtype Spar a = Spar { fromSpar :: ReaderT Env Handler a }
-  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError ServantErr)
+newtype Spar a = Spar { fromSpar :: ReaderT Env (ExceptT SparError IO) a }
+  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError SparError)
 
 data Env = Env
   { sparCtxOpts         :: Opts
@@ -43,7 +47,7 @@ data Env = Env
   }
 
 instance HasConfig Spar where
-  type ConfigExtra Spar = TeamId
+  type ConfigExtra Spar = IdPExtra
   getConfig = asks (saml . sparCtxOpts)
 
 instance SP Spar where
@@ -81,15 +85,15 @@ instance SPStore Spar where
   checkAgainstRequest r = wrapMonadClientWithEnv $ Data.checkAgainstRequest r
   storeAssertion i r    = wrapMonadClientWithEnv $ Data.storeAssertion i r
 
-instance SPStoreIdP Spar where
-  storeIdPConfig :: IdPConfig TeamId -> Spar ()
+instance SPStoreIdP SparError Spar where
+  storeIdPConfig :: IdPConfig IdPExtra -> Spar ()
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 
-  getIdPConfig :: IdPId -> Spar (IdPConfig TeamId)
-  getIdPConfig = (>>= maybe (throwError err404) pure) . wrapMonadClient . Data.getIdPConfig
+  getIdPConfig :: IdPId -> Spar (IdPConfig IdPExtra)
+  getIdPConfig = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
 
-  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig TeamId)
-  getIdPConfigByIssuer = (>>= maybe (throwError err404) pure) . wrapMonadClient . Data.getIdPConfigByIssuer
+  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig IdPExtra)
+  getIdPConfigByIssuer = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer
 
 -- | 'wrapMonadClient' with an 'Env' in a 'ReaderT'.
 wrapMonadClientWithEnv :: ReaderT Data.Env Cas.Client a -> Spar a
@@ -104,7 +108,7 @@ wrapMonadClient action = do
   Spar $ do
     ctx <- asks sparCtxCas
     runClient ctx action `Catch.catch`
-      \e@(SomeException _) -> throwError err500 { errBody = LBS.pack $ show e }
+      (throwSpar . SparCassandraError . cs . show @SomeException)
 
 insertUser :: SAML.UserRef -> UserId -> Spar ()
 insertUser suid buid = wrapMonadClient $ Data.insertUser suid buid
@@ -119,7 +123,7 @@ getUser suid = do
   mbuid <- wrapMonadClient $ Data.getUser suid
   case mbuid of
     Nothing -> pure Nothing
-    Just buid -> Brig.confirmUserId buid
+    Just buid -> Intra.confirmUserId buid
 
 -- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
 -- create user on brig with that 'UserId'.  See also: 'Spar.App.getUser'.
@@ -140,23 +144,23 @@ getUser suid = do
 createUser :: SAML.UserRef -> Spar UserId
 createUser suid = do
   buid <- Id <$> liftIO UUID.nextRandom
-  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
+  teamid <- (^. idpExtraInfo . idpeTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
-  buid' <- Brig.createUser suid buid teamid
+  buid' <- Intra.createUser suid buid teamid
   assert (buid == buid') $ pure buid
 
 forwardBrigLogin :: UserId -> Spar (SetCookie, URI.URI)
-forwardBrigLogin = Brig.forwardBrigLogin
+forwardBrigLogin = Intra.forwardBrigLogin
 
 
-instance SPHandler Spar where
+instance SPHandler SparError Spar where
   type NTCTX Spar = Env
-  nt ctx (Spar action) = runReaderT action ctx
+  nt ctx (Spar action) = Handler . ExceptT . fmap (fmapL sparToServantErr) . runExceptT $ runReaderT action ctx
 
 instance MonadHttp Spar where
   getManager = asks sparCtxHttpManager
 
-instance Brig.MonadSparToBrig Spar where
+instance Intra.MonadSparToBrig Spar where
   call modreq = do
     req <- asks sparCtxHttpBrig
     httpLbs req modreq

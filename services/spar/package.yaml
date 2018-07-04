@@ -53,6 +53,7 @@ dependencies:
   - wai-utilities
   - warp
   - x509
+  - xml-conduit
   - yaml
 
 library:
@@ -93,6 +94,7 @@ executables:
       - test-integration
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
+      - async
       - base64-bytestring
       - galley-types
       - hspec
@@ -100,4 +102,5 @@ executables:
       - lens-aeson
       - random
       - spar
+      - wai
       - xml-conduit
