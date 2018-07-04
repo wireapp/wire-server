@@ -381,7 +381,7 @@ callIdpGet sparreq_ muid idpid = do
 
 callIdpGet' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpGet' sparreq_ muid idpid = do
-  get $ sparreq_ . maybe id zUser muid . path ("/sso/identity-providers/" <> cs (SAML.idPIdToST idpid))
+  get $ sparreq_ . maybe id zUser muid . path ("/identity-providers/" <> cs (SAML.idPIdToST idpid))
 
 callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> NewIdP -> m IdP
 callIdpCreate sparreq_ muid newidp = do
@@ -391,11 +391,11 @@ callIdpCreate sparreq_ muid newidp = do
 
 callIdpCreate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> NewIdP -> m ResponseLBS
 callIdpCreate' sparreq_ muid newidp = do
-  post $ sparreq_ . maybe id zUser muid . path "/sso/identity-providers/" . json newidp
+  post $ sparreq_ . maybe id zUser muid . path "/identity-providers/" . json newidp
 
 callIdpDelete :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ()
 callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx) muid idpid
 
 callIdpDelete' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpDelete' sparreq_ muid idpid = do
-  delete $ sparreq_ . maybe id zUser muid . path ("/sso/identity-providers/" <> cs (SAML.idPIdToST idpid))
+  delete $ sparreq_ . maybe id zUser muid . path ("/identity-providers/" <> cs (SAML.idPIdToST idpid))

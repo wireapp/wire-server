@@ -73,9 +73,9 @@ type APIMeta     = "sso" :> "metainfo" :> SAML.APIMeta
 type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
 type APIAuthResp = "sso" :> "finalize-login" :> SAML.APIAuthResp
 
-type IdpGet     = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
-type IdpCreate  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IdP
-type IdpDelete  = Header "Z-User" Brig.UserId :> "sso" :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
+type IdpGet     = Header "Z-User" Brig.UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
+type IdpCreate  = Header "Z-User" Brig.UserId :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IdP
+type IdpDelete  = Header "Z-User" Brig.UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 -- FUTUREWORK (thanks jschaul): In a more recent version of servant, using Header '[Strict] becomes
 -- an option, removing the need for the Maybe and the extra checks. Probably once
