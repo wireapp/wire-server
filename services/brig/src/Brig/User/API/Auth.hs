@@ -151,22 +151,6 @@ routes = do
         .&. accept "application" "json"
         .&. contentType "application" "json"
 
-    document "POST" "ssoLogin" $ do
-        Doc.summary "Login as any user, without credentials."
-        Doc.notes "This is an internal version of the /login endpoint. It does not \
-                  \require any credentials, and it is supposed to be used for \
-                  \single sign-on primarily."
-        Doc.body (Doc.ref Doc.ssoLogin) $
-            Doc.description "The optional label can later be used to delete all \
-                            \cookies matching this label (cf. /cookies/remove)."
-        Doc.parameter Doc.Query "persist" (Doc.bool $ Doc.def False) $ do
-            Doc.description "Request a persistent cookie instead of a session cookie."
-            Doc.optional
-        Doc.errorResponse badCredentials
-        Doc.errorResponse accountSuspended
-        Doc.errorResponse accountPending
-        Doc.errorResponse loginsTooFrequent
-
     get "/i/users/login-code" (continue getLoginCode) $
         accept "application" "json"
         .&. param "phone"
