@@ -52,8 +52,8 @@ data Login
     | SmsLogin !Phone !LoginCode !(Maybe CookieLabel)
 
 -- | A special kind of login that is only used for an internal endpoint.
-data BackdoorLogin
-    = BackdoorLogin !UserId !(Maybe CookieLabel)
+data SsoLogin
+    = SsoLogin !UserId !(Maybe CookieLabel)
 
 loginLabel :: Login -> Maybe CookieLabel
 loginLabel (PasswordLogin _ _ l) = l
@@ -103,12 +103,12 @@ instance ToJSON Login where
     toJSON (PasswordLogin login password label) =
         object [ "password" .= password, "label" .= label, loginIdPair login ]
 
-instance FromJSON BackdoorLogin where
-    parseJSON = withObject "BackdoorLogin" $ \o ->
-        BackdoorLogin <$> o .: "user" <*> o .:? "label"
+instance FromJSON SsoLogin where
+    parseJSON = withObject "SsoLogin" $ \o ->
+        SsoLogin <$> o .: "user" <*> o .:? "label"
 
-instance ToJSON BackdoorLogin where
-    toJSON (BackdoorLogin uid label) =
+instance ToJSON SsoLogin where
+    toJSON (SsoLogin uid label) =
         object [ "user" .= uid, "label" .= label ]
 
 instance FromJSON PendingLoginCode where

@@ -202,9 +202,9 @@ login b l t = let js = RequestBodyLBS (encode l) in post $ b
     . (if t == PersistentCookie then queryItem "persist" "true" else id)
     . body js
 
-backdoorLogin :: Brig -> BackdoorLogin -> CookieType -> Http ResponseLBS
-backdoorLogin b l t = let js = RequestBodyLBS (encode l) in post $ b
-    . path "/i/backdoor-login"
+ssoLogin :: Brig -> SsoLogin -> CookieType -> Http ResponseLBS
+ssoLogin b l t = let js = RequestBodyLBS (encode l) in post $ b
+    . path "/i/sso-login"
     . contentJson
     . (if t == PersistentCookie then queryItem "persist" "true" else id)
     . body js

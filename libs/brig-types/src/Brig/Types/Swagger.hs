@@ -565,8 +565,8 @@ login = defineModel "Login" $ do
                     \specific client."
         optional
 
-backdoorLogin :: Model
-backdoorLogin = defineModel "BackdoorLogin" $ do
+ssoLogin :: Model
+ssoLogin = defineModel "SsoLogin" $ do
     description "Payload for performing a credential-less login."
     property "user" bytes' $
         description "User ID"
