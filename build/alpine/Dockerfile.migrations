@@ -19,5 +19,6 @@ COPY --from=intermediate /dist/brig-index /usr/bin/brig-index
 COPY --from=intermediate /dist/brig-schema /usr/bin/brig-schema
 COPY --from=intermediate /dist/galley-schema /usr/bin/galley-schema
 COPY --from=intermediate /dist/gundeck-schema /usr/bin/gundeck-schema
+COPY --from=intermediate /dist/spar-schema /usr/bin/spar-schema
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
