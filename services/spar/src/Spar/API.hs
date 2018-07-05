@@ -84,7 +84,7 @@ type IdpDelete  = Header "Z-User" Brig.UserId :> "identity-providers" :> Capture
 api :: Opts -> ServerT API Spar
 api opts =
        pure NoContent
-  :<|> pure (toSwagger (Proxy @API))
+  :<|> pure (toSwagger (Proxy @OutsideWorldAPI))
   :<|> SAML.meta appName (Proxy @API) (Proxy @APIAuthResp)
   :<|> SAML.authreq (maxttlAuthreqDiffTime opts)
   :<|> SAML.authresp onSuccess
@@ -161,3 +161,22 @@ validateNewIdP _idp = pure ()
 -- [aesonQQ|{"error":"not a SAML metainfo URL"}|]
 -- [aesonQQ|{"error":"invalid or unresponsive request URL"}|]
 -- [aesonQQ|{"error":"public keys in request body and metainfo do not match"}|]
+
+-- Type families to convert spar's 'API' type into an "outside-world-view" API type
+-- to expose as swagger docs intended to be used by client developers.
+-- Here we asumme the 'spar' service is only accessible from behind the 'nginz' proxy, which
+--   * does not expose routes prefixed with /i/
+--   * handles authorization (adding a Z-User header if requests are authorized)
+type OutsideWorldAPI = StripInternal (StripAuth API)
+
+-- | Strip the nginz-set, internal-only Z-User header
+type family StripAuth api where
+    StripAuth (Header "Z-User" a :> b) = b
+    StripAuth (a :<|> b) = (StripAuth a) :<|> (StripAuth b)
+    StripAuth x = x
+
+-- | Strip internal endpoints (prefixed with /i/)
+type family StripInternal api where
+    StripInternal ("i" :> b) = EmptyAPI
+    StripInternal (a :<|> b) = (StripInternal a) :<|> (StripInternal b)
+    StripInternal x = x
