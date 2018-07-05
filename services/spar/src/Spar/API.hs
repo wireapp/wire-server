@@ -68,6 +68,7 @@ type API = "i" :> "status" :> Get '[JSON] NoContent
       :<|> IdpGet
       :<|> IdpCreate
       :<|> IdpDelete
+      -- NB. If you add endpoints here, also update Test.Spar.APISpec
 
 type APIMeta     = "sso" :> "metainfo" :> SAML.APIMeta
 type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
