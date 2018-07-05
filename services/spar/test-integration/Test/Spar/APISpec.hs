@@ -114,6 +114,7 @@ spec = do
 
           context "no zuser" $ do
             it "responds with 'not found'" $ do
+              pending
               env <- ask
               (_, _, idp) <- createTestIdP
               whichone (env ^. teSpar) Nothing idp
@@ -121,6 +122,7 @@ spec = do
 
           context "zuser has no team" $ do
             it "responds with 'not found'" $ do
+              pending
               env <- ask
               (_, _, idp) <- createTestIdP
               (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
@@ -129,6 +131,7 @@ spec = do
 
           context "zuser has wrong team" $ do
             it "responds with 'not found'" $ do
+              pending
               env <- ask
               (_, _, idp) <- createTestIdP
               (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
@@ -194,6 +197,7 @@ spec = do
 
       context "invalid metainfo url or bad answer" $ do
         it "rejects" $ do
+          pending
           env <- ask
           let newidp = (env ^. teNewIdp) & nidpMetadata .~ [uri|https://www.example.com/|]
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
@@ -202,6 +206,7 @@ spec = do
 
       context "invalid metainfo signature (on an XML document otherwise arbitrarily off)" $ do
         it "rejects" $ do
+          pending
           env <- ask
           newIdpMetaUrl <- endpointToURL (env ^. teMockIdp)
           let newIdp = (env ^. teNewIdp) & nidpMetadata .~ newIdpMetaUrl
@@ -212,6 +217,7 @@ spec = do
 
       context "invalid or unresponsive login request url" $ do
         it "rejects" $ do
+          pending
           env <- ask
           let newidp = (env ^. teNewIdp) & nidpRequestUri .~ [uri|https://www.example.com/|]
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
@@ -220,6 +226,7 @@ spec = do
 
       context "pubkey in IdPConfig does not match the one provided in metainfo url" $ do
         it "rejects" $ do
+          pending
           env <- ask
           let newidp = (env ^. teNewIdp) & nidpPublicKey .~ samplePublicKey2
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
@@ -228,6 +235,7 @@ spec = do
 
       context "some URLs are not https" $ do
         it "rejects (metainfo, request url)" $ do
+          pending
           env <- ask
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           let newidpBadMeta   = (env ^. teNewIdp) & nidpMetadata   .~ [uri|http://www.example.com/|]
