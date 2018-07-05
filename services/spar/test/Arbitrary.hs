@@ -3,11 +3,13 @@
 {-# LANGUAGE PackageImports       #-}
 {-# LANGUAGE RecordWildCards      #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TypeApplications     #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Arbitrary where
 
+import Data.Proxy
 import "swagger2" Data.Swagger hiding (Header(..))
 import Data.Aeson
 import Data.Id ()
@@ -29,8 +31,11 @@ instance Arbitrary NoContent where
   arbitrary = pure NoContent
 
 
--- this is not required by the servant-server instances, but the swagger tests want it:
+-- This is not required by the servant-server instances, but the swagger
+-- tests want it. See https://github.com/haskell-servant/servant-swagger/issues/58
+
 instance ToJSON NoContent where
   toJSON NoContent = String "(no content)"
 
-instance ToSchema NoContent
+instance ToSchema NoContent where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
