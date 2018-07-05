@@ -485,12 +485,17 @@ testDeleteTeamUser brig galley = do
 testSSOIsTeamOwner :: Brig -> Galley -> Http ()
 testSSOIsTeamOwner brig galley = do
     (creator, tid) <- createUserWithTeam brig galley
+    stranger <- userId <$> randomUser brig
     invitee <- userId <$> inviteAndRegisterUser creator tid brig
-    let check expectWhat = void $ get (brig . paths opath . expectWhat)
-        opath = ["i", "users", toByteString' invitee, "is-team-owner", toByteString' tid]
-    check expect4xx
+
+    let check expectWhat uid = void $ get (brig . paths opath . expectWhat)
+          where opath = ["i", "users", toByteString' uid, "is-team-owner", toByteString' tid]
+
+    check expect2xx creator
+    check expect4xx stranger
+    check expect4xx invitee
     updatePermissions creator tid (invitee, Team.fullPermissions) galley
-    check expect2xx
+    check expect2xx invitee
 
 testConnectionSameTeam :: Brig -> Galley -> Http ()
 testConnectionSameTeam brig galley = do
