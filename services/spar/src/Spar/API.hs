@@ -164,7 +164,7 @@ validateNewIdP _idp = pure ()
 
 -- Type families to convert spar's 'API' type into an "outside-world-view" API type
 -- to expose as swagger docs intended to be used by client developers.
--- Here we asumme the 'spar' service is only accessible from behind the 'nginz' proxy, which
+-- Here we assume the 'spar' service is only accessible from behind the 'nginz' proxy, which
 --   * does not expose routes prefixed with /i/
 --   * handles authorization (adding a Z-User header if requests are authorized)
 type OutsideWorldAPI = StripInternal (StripAuth API)
