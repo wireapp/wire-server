@@ -5,7 +5,6 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
@@ -13,7 +12,7 @@
 -- | FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdp, teOpts
+  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdp, teMockIdp, teOpts
   , Select, mkEnv, it, pending, pendingWith
   , IntegrationConfig(..)
   , BrigReq
@@ -38,6 +37,7 @@ module Util
   , callIdpDelete, callIdpDelete'
   , initCassandra
   , module Test.Hspec
+  , module Util.MockIdP
   ) where
 
 import Bilge
@@ -50,7 +50,6 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
-import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Either
 import Data.EitherR (fmapL)
@@ -61,11 +60,8 @@ import Data.Range
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID (nextRandom)
-import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 import Lens.Micro
-import Lens.Micro.TH
-import SAML2.WebSSO.Config.TH (deriveJSONOptions)
 import Spar.API ()
 import Spar.Options as Options
 import Spar.Run
@@ -74,7 +70,9 @@ import System.Random (randomRIO)
 import Test.Hspec hiding (it, xit, pending, pendingWith)
 import URI.ByteString
 import URI.ByteString.QQ
+import Util.MockIdP
 import Util.Options
+import Util.Types
 
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
@@ -91,34 +89,6 @@ import qualified Text.XML.DSig as SAML
 import qualified Text.XML.Util as SAML
 
 
-type BrigReq   = Request -> Request
-type GalleyReq = Request -> Request
-type SparReq   = Request -> Request
-
-data TestEnv = TestEnv
-  { _teMgr    :: Manager
-  , _teCql    :: Cas.ClientState
-  , _teBrig   :: BrigReq
-  , _teGalley :: GalleyReq
-  , _teSpar   :: SparReq
-  , _teNewIdp :: NewIdP
-  , _teOpts   :: Opts
-  }
-
-type Select = TestEnv -> (Request -> Request)
-
-data IntegrationConfig = IntegrationConfig
-  { cfgBrig   :: Endpoint
-  , cfgGalley :: Endpoint
-  , cfgSpar   :: Endpoint
-  , cfgNewIdp :: NewIdP
-  } deriving (Show, Generic)
-
-deriveFromJSON deriveJSONOptions ''IntegrationConfig
-
-type ResponseLBS = Response (Maybe LBS)
-
-
 mkEnv :: IntegrationConfig -> Opts -> IO TestEnv
 mkEnv integrationOpts serviceOpts = do
   mgr :: Manager <- newManager defaultManagerSettings
@@ -126,7 +96,7 @@ mkEnv integrationOpts serviceOpts = do
   let mkreq :: (IntegrationConfig -> Endpoint) -> (Request -> Request)
       mkreq selector = Bilge.host (selector integrationOpts ^. epHost . to cs)
                      . Bilge.port (selector integrationOpts ^. epPort)
-  pure $ TestEnv mgr cql (mkreq cfgBrig) (mkreq cfgGalley) (mkreq cfgSpar) (cfgNewIdp integrationOpts) serviceOpts
+  pure $ TestEnv mgr cql (mkreq cfgBrig) (mkreq cfgGalley) (mkreq cfgSpar) (cfgNewIdp integrationOpts) (cfgMockIdp integrationOpts) serviceOpts
 
 it :: m ~ IO
        -- or, more generally:
@@ -295,11 +265,6 @@ zUser = header "Z-User" . toByteString'
 
 zConn :: SBS -> Request -> Request
 zConn = header "Z-Connection"
-
-
--- TH
-
-makeLenses ''TestEnv
 
 
 -- spar specifics

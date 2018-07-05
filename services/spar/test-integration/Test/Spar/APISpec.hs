@@ -196,13 +196,15 @@ spec = do
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
             `shouldRespondWith` check (== 400) [aesonQQ|{"error":"not a SAML metainfo URL or bad response"}|]
 
-      context "invalid metainfo signature" $ do
+      context "invalid metainfo signature (on an XML document otherwise arbitrarily off)" $ do
         it "rejects" $ do
           env <- ask
-          let newidp = undefined  -- we need to figure out how to mock this.
+          newIdpMetaUrl <- endpointToURL (env ^. teMockIdp)
+          let newIdp = (env ^. teNewIdp) & nidpMetadata .~ newIdpMetaUrl
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          callIdpCreate' (env ^. teSpar) (Just uid) newidp
-            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"invalid signature in response from SAML metainfo URL"}|]
+          withMockIdP (unconditionallyServeFile "resources/meta-bad-sig.xml") $ do
+            callIdpCreate' (env ^. teSpar) (Just uid) newIdp
+              `shouldRespondWith` check (== 400) [aesonQQ|{"error":"invalid signature in response from SAML metainfo URL"}|]
 
       context "invalid or unresponsive login request url" $ do
         it "rejects" $ do
