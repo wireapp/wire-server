@@ -71,7 +71,7 @@ import Spar.Options as Options
 import Spar.Run
 import Spar.Types
 import System.Random (randomRIO)
-import Test.Hspec hiding (it, pending, pendingWith)
+import Test.Hspec hiding (it, xit, pending, pendingWith)
 import URI.ByteString
 import URI.ByteString.QQ
 import Util.Options

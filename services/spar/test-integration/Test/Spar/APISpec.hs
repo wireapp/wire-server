@@ -189,30 +189,36 @@ spec = do
             `shouldRespondWith` check (== 403) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
 
       context "invalid metainfo url or bad answer" $ do
-        xit "rejects" $ \env -> (`runReaderT` env) $ do
-          (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          callIdpCreate' (env ^. teSpar) (Just uid) ((env ^. teNewIdp) & nidpMetadata .~ [uri|http://www.example.com/|])
-            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"not a SAML metainfo URL"}|]
-
-      context "invalid metainfo content" $ do
         it "rejects" $ do
-          pending
+          env <- ask
+          let newidp = (env ^. teNewIdp) & nidpMetadata .~ [uri|http://www.example.com/|]
+          (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          callIdpCreate' (env ^. teSpar) (Just uid) newidp
+            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"not a SAML metainfo URL or bad response"}|]
 
       context "invalid metainfo signature" $ do
         it "rejects" $ do
-          pending
+          env <- ask
+          let newidp = undefined  -- we need to figure out how to mock this.
+          (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          callIdpCreate' (env ^. teSpar) (Just uid) newidp
+            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"invalid signature in response from SAML metainfo URL"}|]
 
       context "invalid or unresponsive login request url" $ do
-        xit "rejects" $ \env -> (`runReaderT` env) $ do
+        it "rejects" $ do
+          env <- ask
+          let newidp = (env ^. teNewIdp) & nidpRequestUri .~ [uri|http://www.example.com/|]
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          callIdpCreate' (env ^. teSpar) (Just uid) ((env ^. teNewIdp) & nidpRequestUri .~ [uri|http://www.example.com/|])
-            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"not a SAML SSO request URL"}|]
+          callIdpCreate' (env ^. teSpar) (Just uid) newidp
+            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"not a SAML SSO request URL"}|]
 
       context "pubkey in IdPConfig does not match the one provided in metainfo url" $ do
-        xit "rejects" $ \env -> (`runReaderT` env) $ do
+        it "rejects" $ do
+          env <- ask
+          let newidp = (env ^. teNewIdp) & nidpPublicKey .~ samplePublicKey2
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          callIdpCreate' (env ^. teSpar) (Just uid) ((env ^. teNewIdp) & nidpPublicKey .~ samplePublicKey2)
-            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"public keys in request body and metainfo do not match"}|]
+          callIdpCreate' (env ^. teSpar) (Just uid) newidp
+            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"public keys in request body and metainfo do not match"}|]
 
       context "everything in order" $ do
         it "responds with 2xx" $ do
