@@ -18,6 +18,7 @@
 module Spar.API.Swagger where
 
 import Data.Proxy
+import Data.UUID (UUID)
 import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
@@ -53,18 +54,21 @@ instance HasSwagger route => HasSwagger (SM.MultipartForm SM.Mem resp :> route) 
 samlSchemaOptions :: SchemaOptions
 samlSchemaOptions = Swagger.fromAesonOptions SAML.deriveJSONOptions
 
-instance ToParamSchema Brig.TeamId
-instance ToParamSchema Brig.UserId
-instance ToParamSchema SAML.IdPId
+instance ToParamSchema Brig.TeamId where
+  toParamSchema _ = toParamSchema (Proxy @UUID)
+
+instance ToParamSchema Brig.UserId where
+  toParamSchema _ = toParamSchema (Proxy @UUID)
+
+instance ToParamSchema SAML.IdPId where
+  toParamSchema _ = toParamSchema (Proxy @UUID)
 
 instance ToSchema Brig.TeamId where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
+  declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
 instance ToSchema Brig.UserId where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance ToSchema NewIdP where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+  declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
+instance ToSchema SAML.IdPId where
+  declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
 
 instance ToSchema SAML.AuthnRequest where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
@@ -76,7 +80,7 @@ instance ToSchema (SAML.FormRedirect SAML.AuthnRequest) where
 instance ToSchema (SAML.IdPConfig Brig.TeamId) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
-instance ToSchema SAML.IdPId where
+instance ToSchema NewIdP where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema (SAML.ID SAML.AuthnRequest) where
