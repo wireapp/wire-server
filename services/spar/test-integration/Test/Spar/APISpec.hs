@@ -170,29 +170,29 @@ spec = do
         it "responds with 'forbidden' and a helpful message" $ do
           env <- ask
           callIdpCreate' (env ^. teSpar) Nothing (env ^. teNewIdp)
-            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"no auth token"}|]
+            `shouldRespondWith` check (== 403) [aesonQQ|{"error":"no auth token"}|]
 
       context "zuser has no team" $ do
         it "responds with 'forbidden' and a helpful message" $ do
           env <- ask
           (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
           callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdp)
-            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
+            `shouldRespondWith` check (== 403) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
 
       context "zuser is a team member, but not a team admin" $ do
         it "responds with 'forbidden' and a helpful message" $ do
           env <- ask
           (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           nobody <- let Just perms = Galley.newPermissions mempty mempty
-                    in call $ createTeamMember (env ^. teBrig) tid perms
+                    in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
           callIdpCreate' (env ^. teSpar) (Just nobody) (env ^. teNewIdp)
-            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
+            `shouldRespondWith` check (== 403) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
 
       context "invalid metainfo url or bad answer" $ do
         xit "rejects" $ \env -> (`runReaderT` env) $ do
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) ((env ^. teNewIdp) & nidpMetadata .~ [uri|http://www.example.com/|])
-            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"not a SAML metainfo URL"}|]
+            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"not a SAML metainfo URL"}|]
 
       context "invalid metainfo content" $ do
         it "rejects" $ do
