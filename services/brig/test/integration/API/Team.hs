@@ -84,6 +84,7 @@ tests conf m b c g aws = do
         , testGroup "sso"
             [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g
             , test m "delete /i/users/:id - 202 internal-SSO (ensure no orphan teams)" $ testDeleteUserSSO b g
+            , test m "get /i/users/:uid/is-team-owner/:tid" $ testSSOIsTeamOwner b g
             ]
         ]
 
@@ -480,6 +481,16 @@ testDeleteTeamUser brig galley = do
     -- Eventually the user will be deleted, leaving the team orphan
     void $ retryWhileN 20 (/= Deleted) (getStatus brig invitee)
     chkStatus brig invitee Deleted
+
+testSSOIsTeamOwner :: Brig -> Galley -> Http ()
+testSSOIsTeamOwner brig galley = do
+    (creator, tid) <- createUserWithTeam brig galley
+    invitee <- userId <$> inviteAndRegisterUser creator tid brig
+    let check expectWhat = void $ get (brig . paths opath . expectWhat)
+        opath = ["i", "users", toByteString' invitee, "is-team-owner", toByteString' tid]
+    check expect4xx
+    updatePermissions creator tid (invitee, Team.fullPermissions) galley
+    check expect2xx
 
 testConnectionSameTeam :: Brig -> Galley -> Http ()
 testConnectionSameTeam brig galley = do
