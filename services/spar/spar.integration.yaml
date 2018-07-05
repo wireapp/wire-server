@@ -27,7 +27,7 @@ cassandra:
 # Wire/AWS specific, optional
 # discoUrl: "https://"
 
-maxttlAuthreq: 11
-maxttlAuthresp: 11
+maxttlAuthreq: 5
+maxttlAuthresp: 5
 
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)
