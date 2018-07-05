@@ -20,7 +20,6 @@ spec = do
   validateEveryToJSON (Proxy :: Proxy API.APIMeta)
   validateEveryToJSON (Proxy :: Proxy API.APIAuthReq)
   validateEveryToJSON (Proxy :: Proxy API.APIAuthResp)
-  xdescribe "pending: need to be more subtle about the swagger intances" $ do
-    validateEveryToJSON (Proxy :: Proxy API.IdpGet)
-    validateEveryToJSON (Proxy :: Proxy API.IdpCreate)
-    validateEveryToJSON (Proxy :: Proxy API.IdpDelete)
+  validateEveryToJSON (Proxy :: Proxy API.IdpGet)
+  validateEveryToJSON (Proxy :: Proxy API.IdpCreate)
+  validateEveryToJSON (Proxy :: Proxy API.IdpDelete)
