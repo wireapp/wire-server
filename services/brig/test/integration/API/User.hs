@@ -47,6 +47,3 @@ mkZAuthEnv config = do
     Just (sk :| sks) <- join $ optOrEnv (ZAuth.readKeys . Opt.privateKeys . Opt.zauth) config ZAuth.readKeys "ZAUTH_PRIVKEYS"
     Just (pk :| pks) <- join $ optOrEnv (ZAuth.readKeys . Opt.privateKeys . Opt.zauth) config ZAuth.readKeys "ZAUTH_PUBKEYS"
     ZAuth.mkEnv (sk :| sks) (pk :| pks) ZAuth.defSettings
-
-
--- TODO: can-be-deleted, is-only-owner need 3-4 tests each.
