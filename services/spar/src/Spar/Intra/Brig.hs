@@ -121,7 +121,7 @@ confirmUserId buid = do
 
 assertIsTeamOwner :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => Maybe UserId -> TeamId -> m ()
 assertIsTeamOwner mbuid tid = do
-  let reject = throwError err403 { errBody = encode [aesonQQ|{"error":"you need to be team admin to create an IdP"}|] }
+  let reject = throwError err403 { errBody = encode [aesonQQ|{"error":"You need to be team owner to create an IdP"}|] }
   buid <- maybe reject pure mbuid
 
   resp :: Response (Maybe LBS) <- call

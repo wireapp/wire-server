@@ -114,7 +114,6 @@ spec = do
 
           context "no zuser" $ do
             it "responds with 'not found'" $ do
-              pending
               env <- ask
               (_, _, idp) <- createTestIdP
               whichone (env ^. teSpar) Nothing idp
@@ -122,7 +121,6 @@ spec = do
 
           context "zuser has no team" $ do
             it "responds with 'not found'" $ do
-              pending
               env <- ask
               (_, _, idp) <- createTestIdP
               (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
@@ -131,20 +129,20 @@ spec = do
 
           context "zuser has wrong team" $ do
             it "responds with 'not found'" $ do
-              pending
               env <- ask
               (_, _, idp) <- createTestIdP
               (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
               whichone (env ^. teSpar) (Just uid) idp
                 `shouldRespondWith` ((== 404) . statusCode)
 
-          context "zuser is a team member, but not a team admin" $ do
+          context "zuser is a team member, but not a team owner" $ do
             it "responds with 'forbidden' and a helpful message" $ do
               env <- ask
               (_owner, tid, idp) <- createTestIdP
-              nobody <- let Just perms = Galley.newPermissions mempty mempty
+              newmember <- let Just perms = Galley.newPermissions mempty mempty
                         in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-              whichone (env ^. teSpar) (Just nobody) idp
+              pending
+              whichone (env ^. teSpar) (Just newmember) idp
                 `shouldRespondWith` ((== 403)  . statusCode)
 
     describe "GET /identity-providers/:idp" $ do
@@ -174,26 +172,27 @@ spec = do
           check statusIs msg resp = statusIs (statusCode resp) && responseJSON resp == Right msg
 
       context "no zuser" $ do
-        it "responds with 'forbidden' and a helpful message" $ do
+        it "responds with 'not found'" $ do
           env <- ask
           callIdpCreate' (env ^. teSpar) Nothing (env ^. teNewIdp)
-            `shouldRespondWith` check (== 403) [aesonQQ|{"error":"no auth token"}|]
+            `shouldRespondWith` check (== 404) [aesonQQ|{"error":"Not found"}|]
 
       context "zuser has no team" $ do
-        it "responds with 'forbidden' and a helpful message" $ do
+        it "responds with 'not found'" $ do
           env <- ask
           (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
           callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdp)
-            `shouldRespondWith` check (== 403) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
+            `shouldRespondWith` check (== 404) [aesonQQ|{"error":"Not found"}|]
 
-      context "zuser is a team member, but not a team admin" $ do
+      context "zuser is a team member, but not a team owner" $ do
         it "responds with 'forbidden' and a helpful message" $ do
           env <- ask
           (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          nobody <- let Just perms = Galley.newPermissions mempty mempty
-                    in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-          callIdpCreate' (env ^. teSpar) (Just nobody) (env ^. teNewIdp)
-            `shouldRespondWith` check (== 403) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
+          newmember <- let Just perms = Galley.newPermissions mempty mempty
+                       in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
+          pending
+          callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdp)
+            `shouldRespondWith` check (== 403) [aesonQQ|{"error":"You need to be team owner to create an IdP"}|]
 
       context "invalid metainfo url or bad answer" $ do
         it "rejects" $ do
@@ -202,7 +201,7 @@ spec = do
           let newidp = (env ^. teNewIdp) & nidpMetadata .~ [uri|https://www.example.com/|]
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
-            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"not a SAML metainfo URL or bad response"}|]
+            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"Not a SAML metainfo URL or bad response"}|]
 
       context "invalid metainfo signature (on an XML document otherwise arbitrarily off)" $ do
         it "rejects" $ do
@@ -213,7 +212,7 @@ spec = do
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           withMockIdP (unconditionallyServeFile "resources/meta-bad-sig.xml") $ do
             callIdpCreate' (env ^. teSpar) (Just uid) newIdp
-              `shouldRespondWith` check (== 400) [aesonQQ|{"error":"invalid signature in response from SAML metainfo URL"}|]
+              `shouldRespondWith` check (== 400) [aesonQQ|{"error":"Invalid signature in response from SAML metainfo URL"}|]
 
       context "invalid or unresponsive login request url" $ do
         it "rejects" $ do
@@ -222,7 +221,7 @@ spec = do
           let newidp = (env ^. teNewIdp) & nidpRequestUri .~ [uri|https://www.example.com/|]
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
-            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"not a SAML SSO request URL"}|]
+            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"Not a SAML SSO request URL"}|]
 
       context "pubkey in IdPConfig does not match the one provided in metainfo url" $ do
         it "rejects" $ do
@@ -231,7 +230,7 @@ spec = do
           let newidp = (env ^. teNewIdp) & nidpPublicKey .~ samplePublicKey2
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
-            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"public keys in request body and metainfo do not match"}|]
+            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"Public keys in request body and metainfo do not match"}|]
 
       context "some URLs are not https" $ do
         it "rejects (metainfo, request url)" $ do
@@ -240,7 +239,7 @@ spec = do
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           let newidpBadMeta   = (env ^. teNewIdp) & nidpMetadata   .~ [uri|http://www.example.com/|]
               newidpBadReqUrl = (env ^. teNewIdp) & nidpRequestUri .~ [uri|http://www.example.com/|]
-              msg = [aesonQQ|{"error":"http URLs are not allowed for metainfo or request url end-point"}|]
+              msg = [aesonQQ|{"error":"HTTP URLs are not allowed for metainfo or request url end-point"}|]
           callIdpCreate' (env ^. teSpar) (Just uid) newidpBadMeta
             `shouldRespondWith` check (== 400) msg
           callIdpCreate' (env ^. teSpar) (Just uid) newidpBadReqUrl
