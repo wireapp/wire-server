@@ -12,8 +12,6 @@ module Test.Spar.APISpec where
 
 import Bilge
 import Control.Monad.Reader
-import Data.Aeson as Aeson hiding (json)
-import Data.Aeson.QQ as Aeson
 import Data.ByteString.Conversion
 import Data.Either (isRight)
 import Data.Id
@@ -128,7 +126,6 @@ spec = do
               env <- ask
               (_, _, idp) <- createTestIdP
               (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
-              pending
               whichone (env ^. teSpar) (Just uid) idp
                 `shouldRespondWith` ((== 404) . statusCode)
 
@@ -173,15 +170,15 @@ spec = do
             `shouldRespondWith` ((== 404) . statusCode)
 
     describe "POST /identity-providers/:idp" $ do
-      let check :: (Int -> Bool) -> Value -> ResponseLBS -> Bool
-          check statusIs msg resp = statusIs (statusCode resp) && responseJSON resp == Right msg
+      let check :: (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
+          check statusIs label resp = statusIs (statusCode resp) && responseJSON resp == Right label
 
       context "no zuser" $ do
         it "responds with 'not found'" $ do
           env <- ask
           pending
           callIdpCreate' (env ^. teSpar) Nothing (env ^. teNewIdp)
-            `shouldRespondWith` check (== 404) [aesonQQ|{"error":"Not found"}|]
+            `shouldRespondWith` check (== 404) "not-found"
 
       context "zuser has no team" $ do
         it "responds with 'not found'" $ do
@@ -189,7 +186,7 @@ spec = do
           (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
           pending
           callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdp)
-            `shouldRespondWith` check (== 404) [aesonQQ|{"error":"Not found"}|]
+            `shouldRespondWith` check (== 404) "not-found"
 
       context "zuser is a team member, but not a team owner" $ do
         it "responds with 'forbidden' and a helpful message" $ do
@@ -199,7 +196,7 @@ spec = do
                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
           pending
           callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdp)
-            `shouldRespondWith` check (== 403) [aesonQQ|{"error":"You need to be team owner to create an IdP"}|]
+            `shouldRespondWith` check (== 403) "forbidden"
 
       context "invalid metainfo url or bad answer" $ do
         it "rejects" $ do
@@ -208,7 +205,7 @@ spec = do
           let newidp = (env ^. teNewIdp) & nidpMetadata .~ unsafeMkHttpsUrl [uri|https://www.example.com/|]
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
-            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"Not a SAML metainfo URL or bad response"}|]
+            `shouldRespondWith` check (== 400) "client-error"
 
       context "invalid metainfo signature (on an XML document otherwise arbitrarily off)" $ do
         it "rejects" $ do
@@ -219,7 +216,7 @@ spec = do
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           withMockIdP (unconditionallyServeFile "resources/meta-bad-sig.xml") $ do
             callIdpCreate' (env ^. teSpar) (Just uid) newIdp
-              `shouldRespondWith` check (== 400) [aesonQQ|{"error":"Invalid signature in response from SAML metainfo URL"}|]
+              `shouldRespondWith` check (== 400) "client-error"
 
       context "invalid or unresponsive login request url" $ do
         it "rejects" $ do
@@ -228,7 +225,7 @@ spec = do
           let newidp = (env ^. teNewIdp) & nidpRequestUri .~ unsafeMkHttpsUrl [uri|https://www.example.com/|]
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
-            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"Not a SAML SSO request URL"}|]
+            `shouldRespondWith` check (== 400) "client-error"
 
       context "pubkey in IdPConfig does not match the one provided in metainfo url" $ do
         it "rejects" $ do
@@ -237,7 +234,7 @@ spec = do
           let newidp = (env ^. teNewIdp) & nidpPublicKey .~ samplePublicKey2
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
-            `shouldRespondWith` check (== 400) [aesonQQ|{"error":"Public keys in request body and metainfo do not match"}|]
+            `shouldRespondWith` check (== 400) "client-error"
 
       context "everything in order" $ do
         it "responds with 2xx" $ do

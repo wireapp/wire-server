@@ -20,11 +20,9 @@ type SparError = SAML.Error SparCustomError
 throwSpar :: MonadError SparError m => SparCustomError -> m a
 throwSpar = throwError . SAML.CustomError
 
-throwUnknownIdP :: MonadError SparError m => SAML.IdPId -> m a
-throwUnknownIdP = throwError . SAML.UnknownIdP . cs . SAML.idPIdToST
-
 data SparCustomError
   = SparNotFound
+  | SparNotInTeam
   | SparNotTeamOwner
   | SparNoBodyInBrigResponse
   | SparCouldNotParseBrigResponse
@@ -45,12 +43,13 @@ sparToServantErr err = case sparToWaiError err of
     }
 
 sparToWaiError :: SparError -> Wai.Error
-sparToWaiError (SAML.UnknownIdP msg)                            = Wai.Error status404 "not-found" ("Unknown identity provider: " <> msg)
+sparToWaiError (SAML.UnknownIdP _msg)                           = sparToWaiError $ SAML.CustomError SparNotInTeam
 sparToWaiError (SAML.Forbidden msg)                             = Wai.Error status403 "forbidden" ("Forbidden: " <> msg)
 sparToWaiError (SAML.BadSamlResponse msg)                       = Wai.Error status400 "client-error" ("Invalid credentials: " <> msg)
 sparToWaiError (SAML.BadServerConfig msg)                       = Wai.Error status500 "server-error" ("Error in server config: " <> msg)
 sparToWaiError SAML.UnknownError                                = Wai.Error status500 "server-error" "Unknown server error."
 sparToWaiError (SAML.CustomError SparNotFound)                  = Wai.Error status404 "not-found" "Not found."
+sparToWaiError (SAML.CustomError SparNotInTeam)                 = Wai.Error status404 "not-found" "Not found."
 sparToWaiError (SAML.CustomError SparNotTeamOwner)              = Wai.Error status403 "forbidden" "You need to be team owner to create an IdP."
 sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)      = Wai.Error status400 "server-error" "Brig response without body."
 sparToWaiError (SAML.CustomError SparCouldNotParseBrigResponse) = Wai.Error status400 "server-error" "Could not parse brig response body."

@@ -134,22 +134,23 @@ withDebugLog msg showval action = do
   SAML.logger SAML.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
   pure val
 
+-- | Called by get, delete handlers.
 authorizeIdP :: (HasCallStack, MonadError SparError m, SAML.SP m, Brig.MonadSparToBrig m)
              => ZUsr -> IdP -> m IdP
-authorizeIdP Nothing idp = throwUnknownIdP (idp ^. SAML.idpId)
 authorizeIdP zusr idp = do
   teamid <- getZUsrTeam zusr
   if teamid == idp ^. SAML.idpExtraInfo
     then idp <$ Brig.assertIsTeamOwner zusr teamid
-    else throwUnknownIdP (idp ^. SAML.idpId)
+    else throwSpar SparNotInTeam
 
+-- | Called by post handler, and by 'authorizeIdP'.
 getZUsrTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, Brig.MonadSparToBrig m)
             => ZUsr -> m Brig.TeamId
-getZUsrTeam Nothing = throwSpar SparNotTeamOwner
+getZUsrTeam Nothing = throwSpar SparNotInTeam
 getZUsrTeam (Just uid) = do
   usr <- Brig.getUser uid
   case Brig.userTeam =<< usr of
-    Nothing -> throwSpar SparNotTeamOwner
+    Nothing -> throwSpar SparNotInTeam
     Just teamid -> pure teamid
 
 initializeIdP :: (MonadError SparError m, SAML.SP m) => NewIdP -> Brig.TeamId -> m IdP
