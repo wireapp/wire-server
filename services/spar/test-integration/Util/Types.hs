@@ -1,20 +1,23 @@
-{-# LANGUAGE ConstraintKinds     #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE QuasiQuotes         #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 module Util.Types where
 
 import Bilge
 import Cassandra as Cas
+import Data.Aeson
 import Data.Aeson.TH
+import Data.String
 import Data.String.Conversions
 import GHC.Generics (Generic)
 import Lens.Micro.TH
@@ -54,3 +57,10 @@ type ResponseLBS = Response (Maybe LBS)
 
 deriveFromJSON deriveJSONOptions ''IntegrationConfig
 makeLenses ''TestEnv
+
+
+newtype TestErrorLabel = TestErrorLabel { fromTestErrorLabel :: ST }
+  deriving (Eq, Show, IsString)
+
+instance FromJSON TestErrorLabel where
+  parseJSON = withObject "TestErrorLabel" (.: "label")

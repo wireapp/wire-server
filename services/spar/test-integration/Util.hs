@@ -24,6 +24,7 @@ module Util
   , GalleyReq
   , SparReq
   , ResponseLBS
+  , TestErrorLabel(..)
   , createUserWithTeam
   , createTeamMember
   , createRandomPhoneUser

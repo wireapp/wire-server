@@ -118,15 +118,17 @@ confirmUserId buid = do
   maybe (pure Nothing) (const . pure . Just $ buid) (Brig.userTeam =<< usr)
 
 
+-- | If user is not in team, throw 'SparNotInTeam'; if user is in team but not owner, throw
+-- 'SparNotTeamOwner'; otherwise, return.
 assertIsTeamOwner :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => Maybe UserId -> TeamId -> m ()
-assertIsTeamOwner mbuid tid = do
-  let reject = throwSpar SparNotTeamOwner
-  buid <- maybe reject pure mbuid
-
+assertIsTeamOwner Nothing _ = throwSpar SparNotInTeam
+assertIsTeamOwner (Just buid) tid = do
+  self <- maybe (throwSpar SparNotInTeam) pure =<< getUser buid
+  when (Brig.userTeam self /= Just tid) $ (throwSpar SparNotInTeam)
   resp :: Response (Maybe LBS) <- call
     $ method GET
     . paths ["i", "users", toByteString' buid, "is-team-owner", toByteString' tid]
-  when (statusCode resp >= 400) $ reject
+  when (statusCode resp >= 400) $ throwSpar SparNotTeamOwner
 
 
 -- | Get session token from brig and redirect user past login process.
