@@ -128,6 +128,7 @@ spec = do
               env <- ask
               (_, _, idp) <- createTestIdP
               (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
+              pending
               whichone (env ^. teSpar) (Just uid) idp
                 `shouldRespondWith` ((== 404) . statusCode)
 
@@ -178,6 +179,7 @@ spec = do
       context "no zuser" $ do
         it "responds with 'not found'" $ do
           env <- ask
+          pending
           callIdpCreate' (env ^. teSpar) Nothing (env ^. teNewIdp)
             `shouldRespondWith` check (== 404) [aesonQQ|{"error":"Not found"}|]
 
@@ -185,6 +187,7 @@ spec = do
         it "responds with 'not found'" $ do
           env <- ask
           (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
+          pending
           callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdp)
             `shouldRespondWith` check (== 404) [aesonQQ|{"error":"Not found"}|]
 

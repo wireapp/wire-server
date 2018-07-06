@@ -27,7 +27,6 @@ module Spar.API
   ) where
 
 import Control.Monad.Except
-import Data.Aeson.QQ (aesonQQ)
 import Data.Maybe (isJust, fromJust)
 import Data.Misc (HttpsUrl(HttpsUrl))
 import Data.Proxy
@@ -42,11 +41,11 @@ import Servant.Swagger
 import Spar.API.Instances ()
 import Spar.API.Swagger ()
 import Spar.App
+import Spar.Error
 import Spar.Options
 import Spar.Types
 import Web.Cookie (SetCookie)
 
-import qualified Data.Aeson as Aeson
 import qualified Brig.Types.User as Brig
 import qualified Data.Id as Brig
 import qualified SAML2.WebSSO as SAML
@@ -59,7 +58,7 @@ import qualified URI.ByteString as URI
 
 app :: Env -> Application
 app ctx = SAML.setHttpCachePolicy
-        $ serve (Proxy @API) (enter (NT (SAML.nt @Spar ctx)) (api $ sparCtxOpts ctx) :: Server API)
+        $ serve (Proxy @API) (enter (NT (SAML.nt @SparError @Spar ctx)) (api $ sparCtxOpts ctx) :: Server API)
 
 type API = "i" :> "status" :> Get '[JSON] NoContent
       :<|> "sso" :> "api-docs" :> Get '[JSON] Swagger
@@ -113,9 +112,9 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     wrapMonadClient $ Data.deleteIdPConfig idpid (idp ^. SAML.idpIssuer) (idp ^. SAML.idpExtraInfo)
     return NoContent
 
--- We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness
-idpCreate :: ( SAML.SP m, SAML.SPStoreIdP m, SAML.ConfigExtra m ~ Brig.TeamId
-             , MonadError ServantErr m
+-- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
+idpCreate :: ( SAML.SP m, SAML.SPStoreIdP SparError m, SAML.ConfigExtra m ~ Brig.TeamId
+             , MonadError SparError m
              , Brig.MonadSparToBrig m
              )
           => ZUsr -> NewIdP -> m IdP
@@ -135,37 +134,38 @@ withDebugLog msg showval action = do
   SAML.logger SAML.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
   pure val
 
-authorizeIdP :: (HasCallStack, MonadError ServantErr m, Brig.MonadSparToBrig m)
+authorizeIdP :: (HasCallStack, MonadError SparError m, SAML.SP m, Brig.MonadSparToBrig m)
              => ZUsr -> IdP -> m IdP
-authorizeIdP Nothing _ = throwError err404 { errBody = Aeson.encode [aesonQQ|{"error":"Not found"}|] }
+authorizeIdP Nothing idp = throwUnknownIdP (idp ^. SAML.idpId)
 authorizeIdP zusr idp = do
   teamid <- getZUsrTeam zusr
   if teamid == idp ^. SAML.idpExtraInfo
     then idp <$ Brig.assertIsTeamOwner zusr teamid
-    else throwError err404 { errBody = Aeson.encode [aesonQQ|{"error":"Not found"}|] }
+    else throwUnknownIdP (idp ^. SAML.idpId)
 
-getZUsrTeam :: (HasCallStack, MonadError ServantErr m, Brig.MonadSparToBrig m)
+getZUsrTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, Brig.MonadSparToBrig m)
             => ZUsr -> m Brig.TeamId
-getZUsrTeam Nothing = throwError err404 { errBody = Aeson.encode [aesonQQ|{"error":"Not found"}|] }
+getZUsrTeam Nothing = throwSpar SparNotTeamOwner
 getZUsrTeam (Just uid) = do
   usr <- Brig.getUser uid
   case Brig.userTeam =<< usr of
-    Nothing -> throwError err404 { errBody = Aeson.encode [aesonQQ|{"error":"Not found"}|] }
+    Nothing -> throwSpar SparNotTeamOwner
     Just teamid -> pure teamid
 
-initializeIdP :: (MonadError ServantErr m, SAML.SP m) => NewIdP -> Brig.TeamId -> m IdP
+initializeIdP :: (MonadError SparError m, SAML.SP m) => NewIdP -> Brig.TeamId -> m IdP
 initializeIdP (NewIdP (HttpsUrl _idpMetadata) _idpIssuer (HttpsUrl _idpRequestUri) _idpPublicKey) _idpExtraInfo = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
   pure SAML.IdPConfig {..}
 
-validateNewIdP :: (MonadError ServantErr m) => NewIdP -> m ()
+validateNewIdP :: (MonadError SparError m) => NewIdP -> m ()
 validateNewIdP _idp = pure ()
 -- TODO:
 -- [aesonQQ|{"error":"not a SAML metainfo URL"}|]
 -- [aesonQQ|{"error":"invalid or unresponsive request URL"}|]
 -- [aesonQQ|{"error":"public keys in request body and metainfo do not match"}|]
 
--- Type families to convert spar's 'API' type into an "outside-world-view" API type
+
+-- | Type families to convert spar's 'API' type into an "outside-world-view" API type
 -- to expose as swagger docs intended to be used by client developers.
 -- Here we assume the 'spar' service is only accessible from behind the 'nginz' proxy, which
 --   * does not expose routes prefixed with /i/

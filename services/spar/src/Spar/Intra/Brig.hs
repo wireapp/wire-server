@@ -18,17 +18,16 @@ module Spar.Intra.Brig where
 
 import Bilge
 import Control.Monad.Except
-import Data.Aeson (FromJSON, eitherDecode', encode)
-import Data.Aeson.QQ (aesonQQ)
+import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Id (Id(Id), UserId, TeamId)
 import Data.String.Conversions
 import GHC.Stack
 import Lens.Micro
 import Network.HTTP.Types.Method
-import Servant hiding (URI)
 import URI.ByteString
 import Web.Cookie
+import Spar.Error
 
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
@@ -49,21 +48,21 @@ fromUserSSOId (Brig.UserSSOId (cs -> tenant) (cs -> subject)) =
     (_, Left msg)      -> throwError msg
 
 
-parseResponse :: (FromJSON a, MonadError ServantErr m) => Response (Maybe LBS) -> m a
+parseResponse :: (FromJSON a, MonadError SparError m) => Response (Maybe LBS) -> m a
 parseResponse resp = do
-    bdy <- maybe (throwError err500) pure $ responseBody resp
-    either (const $ throwError err500) pure $ eitherDecode' bdy
+    bdy <- maybe (throwSpar SparNoBodyInBrigResponse) pure $ responseBody resp
+    either (const $ throwSpar SparCouldNotParseBrigResponse) pure $ eitherDecode' bdy
 
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
 -- (This is the easiest way, since the login-request that we are in the middle of responding to here
 -- is not from the wire client, but from a browser that is still processing a redirect from the
 -- IdP.)
-respToCookie :: (HasCallStack, MonadError ServantErr m) => Response (Maybe LBS) -> m SetCookie
+respToCookie :: (HasCallStack, MonadError SparError m) => Response (Maybe LBS) -> m SetCookie
 respToCookie resp = do
-  let crash msg = throwError err500 { errBody = msg }
-  unless (statusCode resp == 200) $ crash "bad status code"
-  maybe (crash "no cookie") (pure . parseSetCookie) $ getHeader "Set-Cookie" resp
+  let crash = throwSpar SparCouldNotRetrieveCookie
+  unless (statusCode resp == 200) crash
+  maybe crash (pure . parseSetCookie) $ getHeader "Set-Cookie" resp
 
 
 ----------------------------------------------------------------------
@@ -73,7 +72,7 @@ class Monad m => MonadSparToBrig m where
 
 
 -- | Create a user on brig.
-createUser :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => SAML.UserRef -> UserId -> TeamId -> m UserId
+createUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => SAML.UserRef -> UserId -> TeamId -> m UserId
 createUser suid (Id buid) teamid = do
   let newUser :: Brig.NewUser
       newUser = Brig.NewUser
@@ -100,7 +99,7 @@ createUser suid (Id buid) teamid = do
   parseResponse resp
 
 
-getUser :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => UserId -> m (Maybe Brig.User)
+getUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m (Maybe Brig.User)
 getUser buid = do
   resp :: Response (Maybe LBS) <- call
     $ method GET
@@ -113,15 +112,15 @@ getUser buid = do
 
 
 -- | Check that a user locally created on spar exists on brig and has a team id.
-confirmUserId :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => UserId -> m (Maybe UserId)
+confirmUserId :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m (Maybe UserId)
 confirmUserId buid = do
   usr <- getUser buid
   maybe (pure Nothing) (const . pure . Just $ buid) (Brig.userTeam =<< usr)
 
 
-assertIsTeamOwner :: (HasCallStack, MonadError ServantErr m, MonadSparToBrig m) => Maybe UserId -> TeamId -> m ()
+assertIsTeamOwner :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => Maybe UserId -> TeamId -> m ()
 assertIsTeamOwner mbuid tid = do
-  let reject = throwError err403 { errBody = encode [aesonQQ|{"error":"You need to be team owner to create an IdP"}|] }
+  let reject = throwSpar SparNotTeamOwner
   buid <- maybe reject pure mbuid
 
   resp :: Response (Maybe LBS) <- call
@@ -131,7 +130,7 @@ assertIsTeamOwner mbuid tid = do
 
 
 -- | Get session token from brig and redirect user past login process.
-forwardBrigLogin :: (HasCallStack, MonadError ServantErr m, SAML.HasConfig m, MonadSparToBrig m)
+forwardBrigLogin :: (HasCallStack, MonadError SparError m, SAML.HasConfig m, MonadSparToBrig m)
                  => UserId -> m (SetCookie, URI)
 forwardBrigLogin buid = do
   resp :: Response (Maybe LBS) <- call
