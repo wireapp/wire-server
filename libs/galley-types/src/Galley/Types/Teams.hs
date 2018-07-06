@@ -195,7 +195,7 @@ data Perm =
     | SetMemberPermissions
     | GetTeamConversations
     | DeleteTeam
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Enum, Bounded)
 
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
     deriving (Eq, Show)
