@@ -10,16 +10,16 @@ import Galley.Types.Teams
 import qualified Brig.IO.Intra as Intra
 import qualified Data.Set as Set
 
-data IsOnlyTeamOwner = IsOnlyTeamOwner | IsOneOfManyTeamOwners | IsNotTeamOwner | NoTeamOwnersAreLeft
+data TeamOwnershipStatus = IsOnlyTeamOwner | IsOneOfManyTeamOwners | IsNotTeamOwner | NoTeamOwnersAreLeft
   deriving (Eq, Show, Bounded, Enum)
 
 -- | A team owner is a team member with full permissions *and* an email address.
-isOnlyTeamOwner :: UserId -> TeamId -> AppIO IsOnlyTeamOwner
-isOnlyTeamOwner uid tid = isOnlyTeamOwner' uid . fmap (^. userId) <$> Intra.getTeamOwners tid
+teamOwnershipStatus :: UserId -> TeamId -> AppIO TeamOwnershipStatus
+teamOwnershipStatus uid tid = teamOwnershipStatus' uid . fmap (^. userId) <$> Intra.getTeamOwners tid
 
-isOnlyTeamOwner' :: UserId -> [UserId] -> IsOnlyTeamOwner
-isOnlyTeamOwner' _ [] = NoTeamOwnersAreLeft
-isOnlyTeamOwner' uid (Set.fromList -> owners)
+teamOwnershipStatus' :: UserId -> [UserId] -> TeamOwnershipStatus
+teamOwnershipStatus' _ [] = NoTeamOwnersAreLeft
+teamOwnershipStatus' uid (Set.fromList -> owners)
     | uid `Set.notMember` owners       = IsNotTeamOwner
     | Set.null (Set.delete uid owners) = IsOnlyTeamOwner
     | otherwise                        = IsOneOfManyTeamOwners
