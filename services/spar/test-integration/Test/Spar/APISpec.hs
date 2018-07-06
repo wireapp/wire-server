@@ -202,7 +202,7 @@ spec = do
         it "rejects" $ do
           pending
           env <- ask
-          let newidp = (env ^. teNewIdp) & nidpMetadata .~ [uri|https://www.example.com/|]
+          let newidp = (env ^. teNewIdp) & nidpMetadata .~ unsafeMkHttpsUrl [uri|https://www.example.com/|]
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
             `shouldRespondWith` check (== 400) [aesonQQ|{"error":"Not a SAML metainfo URL or bad response"}|]
@@ -211,7 +211,7 @@ spec = do
         it "rejects" $ do
           pending
           env <- ask
-          newIdpMetaUrl <- endpointToURL (env ^. teMockIdp)
+          newIdpMetaUrl <- unsafeMkHttpsUrl <$> endpointToURL (env ^. teMockIdp)
           let newIdp = (env ^. teNewIdp) & nidpMetadata .~ newIdpMetaUrl
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           withMockIdP (unconditionallyServeFile "resources/meta-bad-sig.xml") $ do
@@ -222,7 +222,7 @@ spec = do
         it "rejects" $ do
           pending
           env <- ask
-          let newidp = (env ^. teNewIdp) & nidpRequestUri .~ [uri|https://www.example.com/|]
+          let newidp = (env ^. teNewIdp) & nidpRequestUri .~ unsafeMkHttpsUrl [uri|https://www.example.com/|]
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
             `shouldRespondWith` check (== 400) [aesonQQ|{"error":"Not a SAML SSO request URL"}|]
@@ -235,19 +235,6 @@ spec = do
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
             `shouldRespondWith` check (== 400) [aesonQQ|{"error":"Public keys in request body and metainfo do not match"}|]
-
-      context "some URLs are not https" $ do
-        it "rejects (metainfo, request url)" $ do
-          pending
-          env <- ask
-          (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          let newidpBadMeta   = (env ^. teNewIdp) & nidpMetadata   .~ [uri|http://www.example.com/|]
-              newidpBadReqUrl = (env ^. teNewIdp) & nidpRequestUri .~ [uri|http://www.example.com/|]
-              msg = [aesonQQ|{"error":"HTTP URLs are not allowed for metainfo or request url end-point"}|]
-          callIdpCreate' (env ^. teSpar) (Just uid) newidpBadMeta
-            `shouldRespondWith` check (== 400) msg
-          callIdpCreate' (env ^. teSpar) (Just uid) newidpBadReqUrl
-            `shouldRespondWith` check (== 400) msg
 
       context "everything in order" $ do
         it "responds with 2xx" $ do
