@@ -136,20 +136,20 @@ withDebugLog msg showval action = do
 
 authorizeIdP :: (HasCallStack, MonadError ServantErr m, Brig.MonadSparToBrig m)
              => ZUsr -> IdP -> m IdP
-authorizeIdP Nothing _ = throwError err403 { errBody = "Auth token required" }
+authorizeIdP Nothing _ = throwError err404 { errBody = Aeson.encode [aesonQQ|{"error":"Not found"}|] }
 authorizeIdP zusr idp = do
   teamid <- getZUsrTeam zusr
   if teamid == idp ^. SAML.idpExtraInfo
-    then pure idp
-    else throwError err403 { errBody = "Wrong or invalid auth token or not in a team" }
+    then idp <$ Brig.assertIsTeamOwner zusr teamid
+    else throwError err404 { errBody = Aeson.encode [aesonQQ|{"error":"Not found"}|] }
 
 getZUsrTeam :: (HasCallStack, MonadError ServantErr m, Brig.MonadSparToBrig m)
             => ZUsr -> m Brig.TeamId
-getZUsrTeam Nothing = throwError err403 { errBody = Aeson.encode [aesonQQ|{"error":"no auth token"}|] }
+getZUsrTeam Nothing = throwError err404 { errBody = Aeson.encode [aesonQQ|{"error":"Not found"}|] }
 getZUsrTeam (Just uid) = do
   usr <- Brig.getUser uid
   case Brig.userTeam =<< usr of
-    Nothing -> throwError err403 { errBody = Aeson.encode [aesonQQ|{"error":"you need to be team admin to create an IdP"}|] }
+    Nothing -> throwError err404 { errBody = Aeson.encode [aesonQQ|{"error":"Not found"}|] }
     Just teamid -> pure teamid
 
 initializeIdP :: (MonadError ServantErr m, SAML.SP m) => NewIdP -> Brig.TeamId -> m IdP
