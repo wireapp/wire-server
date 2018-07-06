@@ -1383,7 +1383,7 @@ addBlacklist emailOrPhone = do
 
 canBeDeleted :: UserId ::: TeamId -> Handler Response
 canBeDeleted (uid ::: tid) = do
-    onlyOwner <- lift (Team.isOnlyTeamOwner uid tid)
+    onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
     case onlyOwner of
        Team.IsOnlyTeamOwner       -> throwStd noOtherOwner
        Team.IsOneOfManyTeamOwners -> pure ()
@@ -1395,7 +1395,7 @@ canBeDeleted (uid ::: tid) = do
 
 isTeamOwner :: UserId ::: TeamId -> Handler Response
 isTeamOwner (uid ::: tid) = do
-    onlyOwner <- lift (Team.isOnlyTeamOwner uid tid)
+    onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
     case onlyOwner of
        Team.IsOnlyTeamOwner       -> pure ()
        Team.IsOneOfManyTeamOwners -> pure ()
