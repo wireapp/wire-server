@@ -14,9 +14,11 @@ import Bilge
 import Control.Monad.Reader
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.QQ as Aeson
+import Data.ByteString.Conversion
 import Data.Either (isRight)
 import Data.Id
 import Data.List (isInfixOf)
+import Data.Maybe
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Lens.Micro
@@ -25,7 +27,9 @@ import Spar.Types
 import URI.ByteString.QQ
 import Util
 
+import qualified Brig.Types.User as Brig
 import qualified Galley.Types.Teams as Galley
+import qualified Spar.Intra.Brig as Intra
 
 
 -- TODO: what else needs to be tested, beyond the pending tests listed here?
@@ -251,3 +255,28 @@ spec = do
 
         it "makes IdP available for GET /identity-providers/" $ do
           pending
+
+
+    describe "test helper functions" $ do
+      describe "createTeamMember" $ do
+        let check :: Bool -> Int -> SpecWith TestEnv
+            check tryowner permsix =
+              it ("works: tryowner == " <> show (tryowner, permsix)) $ do
+                unless tryowner pending
+                env <- ask
+                (owner, tid, _idp) <- createTestIdP
+                newmember <- call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid (permses !! permsix)
+                rawResp <- call $ get ((env ^. teBrig)
+                              . path "/self"
+                              . header "Z-User" (toByteString' $ if tryowner then owner else newmember)
+                              . expect2xx)
+                parsedResp <- either (error . show) pure $ Brig.selfUser <$> Intra.parseResponse @Brig.SelfProfile rawResp
+                liftIO $ Brig.userTeam parsedResp `shouldSatisfy` isJust
+
+            permses :: [Galley.Permissions]
+            permses = fromJust <$>
+              [ Just Galley.fullPermissions
+              , Galley.newPermissions mempty mempty
+              ]
+
+        sequence_ [ check tryowner perms | tryowner <- [minBound..], perms <- [0.. (length permses - 1)] ]
