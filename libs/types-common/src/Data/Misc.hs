@@ -24,7 +24,7 @@ module Data.Misc
     , Milliseconds (..)
 
       -- * HttpsUrl
-    , HttpsUrl (..)
+    , HttpsUrl (..), mkHttpsUrl
 
       -- * Fingerprint
     , Fingerprint (..)
@@ -39,7 +39,6 @@ module Data.Misc
 
 import Control.DeepSeq (NFData (..))
 import Control.Lens ((^.), makeLenses)
-import Control.Monad (when)
 import Data.Aeson
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder
@@ -197,6 +196,11 @@ newtype HttpsUrl = HttpsUrl
     { httpsUrl :: URIRef Absolute
     } deriving Eq
 
+mkHttpsUrl :: URIRef Absolute -> Either String HttpsUrl
+mkHttpsUrl uri = if uri ^. uriSchemeL . schemeBSL == "https"
+  then Right $ HttpsUrl uri
+  else Left $ "Non-HTTPS URL: " ++ show uri
+
 instance Show HttpsUrl where
     showsPrec i = showsPrec i . httpsUrl
 
@@ -204,11 +208,7 @@ instance ToByteString HttpsUrl where
     builder = serializeURIRef . httpsUrl
 
 instance FromByteString HttpsUrl where
-    parser = do
-        u <- uriParser strictURIParserOptions
-        when (u^.uriSchemeL.schemeBSL /= "https") $
-            fail $ "Non-HTTPS URL: " ++ show u
-        return (HttpsUrl u)
+    parser = either fail pure . mkHttpsUrl =<< uriParser strictURIParserOptions
 
 instance FromJSON HttpsUrl where
     parseJSON = withText "HttpsUrl" $

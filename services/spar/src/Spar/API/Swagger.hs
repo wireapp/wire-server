@@ -17,6 +17,7 @@
 
 module Spar.API.Swagger where
 
+import Data.Misc
 import Data.Proxy
 import Data.UUID (UUID)
 import "swagger2" Data.Swagger hiding (Header(..))
@@ -102,6 +103,9 @@ instance ToSchema SAML.SPDesc where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
 instance ToSchema URI.URI where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToSchema HttpsUrl where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
 instance ToParamSchema URI.URI where
