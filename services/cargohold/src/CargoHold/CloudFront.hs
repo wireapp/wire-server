@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns               #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -9,7 +10,7 @@ module CargoHold.CloudFront
     , Domain (..)
     , KeyPairId (..)
     , initCloudFront
-    , signedUrl
+    , signedURL
     ) where
 
 import Control.AutoUpdate
@@ -19,7 +20,11 @@ import Data.ByteString.Builder
 import Data.ByteString.Lazy (toStrict)
 import Data.ByteString.Conversion
 import Data.Monoid
+import Data.Text (Text)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock.POSIX
+import Data.Yaml (FromJSON)
+import GHC.Generics
 import OpenSSL.EVP.Digest (getDigestByName)
 import OpenSSL.PEM (readPrivateKey, PemPasswordSupply (PwNone))
 import URI.ByteString
@@ -28,34 +33,35 @@ import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8  as C8
 import qualified OpenSSL.EVP.Sign       as SSL
 
-newtype KeyPairId = KeyPairId ByteString
-    deriving (Eq, Show, ToByteString)
+newtype KeyPairId = KeyPairId Text
+    deriving (Eq, Show, ToByteString, Generic, FromJSON)
 
-newtype Domain = Domain ByteString
-    deriving (Eq, Show, ToByteString)
+newtype Domain = Domain Text
+    deriving (Eq, Show, ToByteString, Generic, FromJSON)
 
 data CloudFront = CloudFront
     { _baseUrl   :: URI
     , _keyPairId :: KeyPairId
+    , _ttl       :: Word
     , _clock     :: IO POSIXTime
     , _func      :: ByteString -> IO ByteString
     }
 
-initCloudFront :: MonadIO m => FilePath -> KeyPairId -> Domain -> m CloudFront
-initCloudFront kfp kid (Domain dom) = liftIO $
-    CloudFront baseUrl kid <$> mkPOSIXClock <*> sha1Rsa kfp
+initCloudFront :: MonadIO m => FilePath -> KeyPairId -> Word -> Domain -> m CloudFront
+initCloudFront kfp kid ttl (Domain dom) = liftIO $
+    CloudFront baseUrl kid ttl <$> mkPOSIXClock <*> sha1Rsa kfp
   where
     baseUrl = URI
         { uriScheme = Scheme "https"
-        , uriAuthority = Just (Authority Nothing (Host dom) Nothing)
+        , uriAuthority = Just (Authority Nothing (Host (encodeUtf8 dom)) Nothing)
         , uriPath = "/"
         , uriQuery = Query []
         , uriFragment = Nothing
         }
 
-signedUrl :: (MonadIO m, ToByteString p) => CloudFront -> p -> m URI
-signedUrl (CloudFront base kid clock sign) path = liftIO $ do
-    time <- (+ 300) . round <$> clock
+signedURL :: (MonadIO m, ToByteString p) => CloudFront -> p -> m URI
+signedURL (CloudFront base kid ttl clock sign) path = liftIO $ do
+    time <- (+ ttl) . round <$> clock
     sig  <- sign (toStrict (toLazyByteString (policy url time)))
     return $! url
         { uriQuery = Query

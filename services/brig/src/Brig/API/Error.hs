@@ -51,6 +51,7 @@ connError ConnectNoIdentity{}           = StdError noIdentity
 connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
 connError ConnectInvalidEmail{}         = StdError invalidEmail
 connError ConnectInvalidPhone{}         = StdError invalidPhone
+connError ConnectSameBindingTeamUsers   = StdError sameBindingTeamUsers
 
 actError :: ActivationError -> Error
 actError (UserKeyExists          _) = StdError userKeyExists
@@ -59,9 +60,11 @@ actError (InvalidActivationEmail _) = StdError invalidEmail
 actError (InvalidActivationPhone _) = StdError invalidPhone
 
 pwResetError :: PasswordResetError -> Error
-pwResetError PasswordResetInProgress  = StdError duplicatePwResetCode
-pwResetError InvalidPasswordResetKey  = StdError invalidPwResetKey
-pwResetError InvalidPasswordResetCode = StdError invalidPwResetCode
+pwResetError InvalidPasswordResetKey            = StdError invalidPwResetKey
+pwResetError InvalidPasswordResetCode           = StdError invalidPwResetCode
+pwResetError (PasswordResetInProgress Nothing)  = StdError duplicatePwResetCode
+pwResetError (PasswordResetInProgress (Just t)) = RichError duplicatePwResetCode ()
+    [("Retry-After", toByteString' t)]
 
 newUserError :: CreateUserError -> Error
 newUserError InvalidInvitationCode    = StdError invalidInvitationCode
@@ -69,8 +72,10 @@ newUserError MissingIdentity          = StdError missingIdentity
 newUserError (InvalidEmail _)         = StdError invalidEmail
 newUserError (InvalidPhone _)         = StdError invalidPhone
 newUserError (DuplicateUserKey _)     = StdError userKeyExists
+newUserError (EmailActivationError e) = actError e
 newUserError (PhoneActivationError e) = actError e
 newUserError (BlacklistedUserKey k)   = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
+newUserError TooManyTeamMembers       = StdError tooManyTeamMembers
 
 sendLoginCodeError :: SendLoginCodeError -> Error
 sendLoginCodeError (SendLoginInvalidPhone _) = StdError invalidPhone
@@ -102,6 +107,7 @@ changeHandleError ChangeHandleInvalid     = StdError invalidHandle
 loginError :: LoginError -> Error
 loginError LoginFailed            = StdError badCredentials
 loginError LoginSuspended         = StdError accountSuspended
+loginError LoginEphemeral         = StdError accountEphemeral
 loginError LoginPendingActivation = StdError accountPending
 loginError (LoginThrottled wait)  = RichError loginsTooFrequent ()
     [("Retry-After", toByteString' (retryAfterSeconds wait))]
@@ -110,6 +116,7 @@ authError :: AuthError -> Error
 authError AuthInvalidUser        = StdError badCredentials
 authError AuthInvalidCredentials = StdError badCredentials
 authError AuthSuspended          = StdError accountSuspended
+authError AuthEphemeral          = StdError accountEphemeral
 
 reauthError :: ReAuthError -> Error
 reauthError ReAuthMissingPassword = StdError missingAuthError
@@ -193,6 +200,9 @@ notConnected = Wai.Error status403 "no-connection" "No connection exists between
 noIdentity :: Wai.Error
 noIdentity = Wai.Error status403 "no-identity" "The user has no verified identity (email or phone number)."
 
+noEmail :: Wai.Error
+noEmail = Wai.Error status403 "no-email" "This operation requires the user to have a verified email address."
+
 lastIdentity :: Wai.Error
 lastIdentity = Wai.Error status403 "last-identity" "The last user identity (email or phone number) cannot be removed."
 
@@ -246,6 +256,9 @@ accountPending = Wai.Error status403 "pending-activation" "Account pending activ
 
 accountSuspended :: Wai.Error
 accountSuspended = Wai.Error status403 "suspended" "Account suspended."
+
+accountEphemeral :: Wai.Error
+accountEphemeral = Wai.Error status403 "ephemeral" "Account is ephemeral."
 
 badCredentials :: Wai.Error
 badCredentials = Wai.Error status403 "invalid-credentials" "Authentication failed."
@@ -334,9 +347,18 @@ insufficientTeamPermissions = Wai.Error status403 "insufficient-permissions" "In
 noBindingTeam :: Wai.Error
 noBindingTeam = Wai.Error status403 "no-binding-team" "Operation allowed only on binding teams"
 
+sameBindingTeamUsers :: Wai.Error
+sameBindingTeamUsers = Wai.Error status403 "same-binding-team-users" "Operation not allowed to binding team users."
+
 noOtherOwner :: Wai.Error
 noOtherOwner = Wai.Error status403 "no-other-owner" "You are trying to remove or downgrade\
                                 \ an owner. Promote another team member before proceeding."
+
+tooManyTeamInvitations :: Wai.Error
+tooManyTeamInvitations = Wai.Error status403 "too-many-team-invitations" "Too many team invitations for this team."
+
+tooManyTeamMembers :: Wai.Error
+tooManyTeamMembers = Wai.Error status403 "too-many-team-members" "Too many members in this team."
 
 loginsTooFrequent :: Wai.Error
 loginsTooFrequent = Wai.Error status429 "client-error" "Logins too frequent"
@@ -346,3 +368,6 @@ internalServerError = Wai.Error status500 "internal-server-error" "Internal Serv
 
 failedQueueEvent :: Wai.Error
 failedQueueEvent = Wai.Error status500 "event-queue-failed" "Failed to queue the event, MD5 mismatch. Try again later"
+
+invalidRange :: Text -> Wai.Error
+invalidRange = Wai.Error status400 "client-error"

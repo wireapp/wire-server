@@ -10,6 +10,7 @@ module Brig.API.Client
     , Data.lookupClient
     , Data.lookupClients
     , Data.lookupPrekeyIds
+    , Data.lookupUsersClientIds
 
       -- * Prekeys
     , claimPrekey
@@ -35,7 +36,7 @@ import Data.Foldable
 import Data.Hashable (hash)
 import Data.Id (UserId, ClientId, newClientId, ConnId)
 import Data.IP (IP)
-import Data.List.Extra (chunksOf)
+import Data.List.Split (chunksOf)
 import Data.Misc (PlainTextPassword (..))
 import Galley.Types (UserClients (..), UserClientMap (..))
 import Gundeck.Types.Push.V2 (SignalingKeys)
@@ -56,7 +57,7 @@ addClient :: UserId -> ConnId -> Maybe IP -> NewClient SignalingKeys -> ExceptT 
 addClient u con ip new = do
     acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
     loc <- maybe (return Nothing) locationOf ip
-    (clt, old, count) <- Data.addClient u newId new ip loc !>> ClientDataError
+    (clt, old, count) <- Data.addClient u newId new loc !>> ClientDataError
     let usr = accountUser acc
     lift $ do
         for_ old $ execDelete u (Just con)
@@ -76,10 +77,10 @@ updateClient u c r = do
     ok <- lift $ Data.hasClient u c
     unless ok $
         throwE ClientNotFound
-    lift $ Data.updateClientLabel u c (updateClientLabel r)
+    for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
     let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
     Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError
-    lift $ for_ (updateClientSigKeys r) (Intra.updateSignalingKeys u c)
+    for_ (updateClientSigKeys r) $ lift . Intra.updateSignalingKeys u c
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.

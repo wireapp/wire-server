@@ -23,6 +23,7 @@ import Brig.Types.Intra
 import Brig.User.Auth.Cookie (RetryAfter (..))
 import Control.Exception
 import Data.Id
+import Data.Text (Text)
 import Data.Typeable
 
 -------------------------------------------------------------------------------
@@ -35,6 +36,13 @@ data CreateUserResult = CreateUserResult
         -- ^ Activation data for the registered email address, if any.
     , createdPhoneActivation :: !(Maybe Activation)
         -- ^ Activation data for the registered phone number, if any.
+    , createdUserTeam :: !(Maybe CreateUserTeam)
+        -- ^ Info of a team just created/joined
+    }
+
+data CreateUserTeam = CreateUserTeam
+    { createdTeamId   :: !TeamId
+    , createdTeamName :: !Text
     }
 
 data ConnectionResult
@@ -47,17 +55,25 @@ data ActivationResult
     | ActivationPass
         -- ^ The key/code was valid but already recently activated.
 
+data ChangeEmailResult
+    = ChangeEmailNeedsActivation !(User, Activation, Email)
+        -- ^ The request was successful, user needs to verify the new email address
+    | ChangeEmailIdempotent
+        -- ^ The user asked to change the email address to the one already owned
+
 -------------------------------------------------------------------------------
 -- Failures
 
 data CreateUserError
     = InvalidInvitationCode
     | MissingIdentity
+    | EmailActivationError ActivationError
     | PhoneActivationError ActivationError
     | InvalidEmail Email
     | InvalidPhone Phone
     | DuplicateUserKey UserKey
     | BlacklistedUserKey UserKey
+    | TooManyTeamMembers
 
 data InvitationError
     = InviteeEmailExists UserId
@@ -83,15 +99,18 @@ data ConnectionError
         -- ^ An attempt at creating an invitation to an invalid email address.
     | ConnectInvalidPhone Phone
         -- ^ An attempt at creating an invitation to an invalid phone nbumber.
+    | ConnectSameBindingTeamUsers
+        -- ^ An attempt at creating a connection with another user from the same binding team.
 
 data PasswordResetError
-    = PasswordResetInProgress
+    = PasswordResetInProgress (Maybe Timeout)
     | InvalidPasswordResetKey
     | InvalidPasswordResetCode
 
 data LoginError
     = LoginFailed
     | LoginSuspended
+    | LoginEphemeral
     | LoginPendingActivation
     | LoginThrottled RetryAfter
 

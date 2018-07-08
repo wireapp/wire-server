@@ -24,7 +24,7 @@ import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Aeson.Types
 import Data.ByteString.Conversion
-import Data.Json.Util ((#), UTCTimeMillis (..))
+import Data.Json.Util ((#), toUTCTimeMillis)
 import Data.Text (Text)
 import Data.Time.Clock
 import CargoHold.Types.V3
@@ -103,7 +103,6 @@ instance FromJSON ResumableAsset where
 instance ToJSON ResumableAsset where
     toJSON r = object
         $ "asset"      .= _resumableAsset r
-        # "expires"    .= UTCTimeMillis (_resumableExpires r)
+        # "expires"    .= toUTCTimeMillis (_resumableExpires r)
         # "chunk_size" .= _resumableChunkSize r
         # []
-

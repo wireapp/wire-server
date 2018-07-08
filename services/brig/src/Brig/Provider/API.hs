@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE TypeOperators     #-}
 
 module Brig.Provider.API (routes) where
@@ -9,6 +10,7 @@ module Brig.Provider.API (routes) where
 import Brig.App (settings)
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.Types (PasswordResetError (..))
 import Brig.Email (mkEmailKey, validateEmail)
 import Brig.Options (Settings (..))
 import Brig.Password
@@ -16,15 +18,17 @@ import Brig.Provider.DB (ServiceConn (..))
 import Brig.Provider.Email
 import Brig.Types.Intra (UserAccount (..), AccountStatus (..))
 import Brig.Types.Client
-import Brig.Types.User
+import Brig.Types.User (publicProfile, User (..), Pict (..))
 import Brig.Types.Provider
+import Brig.Types.Search
 import Control.Lens (view)
+import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
-import Control.Monad (join, when, unless, (>=>))
+import Control.Monad (join, when, unless, (>=>), liftM2)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.ByteString.Conversion
-import Data.Foldable (forM_)
+import Data.Foldable (for_, forM_)
 import Data.Hashable (hash)
 import Data.Id
 import Data.Int
@@ -34,10 +38,13 @@ import Data.Maybe
 import Data.Misc (Fingerprint (..), Rsa)
 import Data.Predicate
 import Data.Range
+import Data.String (fromString)
+import Data.Text (Text)
 import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..))
 import Galley.Types (OtherMember (..))
 import Galley.Types (Event, userClients)
 import Galley.Types.Bot (newServiceRef)
+import Galley.Types.Teams (managedConversation)
 import Data.Traversable (forM)
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)
@@ -96,6 +103,16 @@ routes = do
         contentType "application" "json"
         .&> request
 
+    post "/provider/password-reset" (continue beginPasswordReset) $
+        accept "application" "json"
+        .&> contentType "application" "json"
+        .&> request
+
+    post "/provider/password-reset/complete" (continue completePasswordReset) $
+        accept "application" "json"
+        .&> contentType "application" "json"
+        .&> request
+
     -- Provider API ------------------------------------------------------------
 
     delete "/provider" (continue deleteAccount) $
@@ -111,18 +128,17 @@ routes = do
         .&> zauthProviderId
         .&. request
 
--- TODO
---    put "/provider/email" (continue changeEmail) $
---        contentType "application" "json"
---        .&. zauthProvider
---        .&. request
+    put "/provider/email" (continue updateAccountEmail) $
+        contentType "application" "json"
+        .&> zauth ZAuthProvider
+        .&> zauthProviderId
+        .&. request
 
--- TODO
---    put "/provider/password" (continue changePassword) $
---        accept "application" "json"
---        .&. contentType "application" "json"
---        .&. zauthProvider
---        .&. request
+    put "/provider/password" (continue updateAccountPassword) $
+        contentType "application" "json"
+        .&> zauth ZAuthProvider
+        .&> zauthProviderId
+        .&. request
 
     get "/provider" (continue getAccount) $
         accept "application" "json"
@@ -191,10 +207,10 @@ routes = do
         .&> capture "pid"
         .&. capture "sid"
 
-    get "/services" (continue listServiceProfilesByTag) $
+    get "/services" (continue searchServiceProfiles) $
         accept "application" "json"
         .&> zauth ZAuthAccess
-        .&> query "tags"
+        .&> opt (query "tags")
         .&. opt (query "start")
         .&. def (unsafeRange 20) (query "size")
 
@@ -275,7 +291,7 @@ newAccount req = do
 
     let name  = newProviderName new
     let pass  = newProviderPassword new
-    let descr = newProviderDescr new
+    let descr = fromRange (newProviderDescr new)
     let url   = newProviderUrl new
 
     let emailKey = mkEmailKey email
@@ -300,7 +316,7 @@ newAccount req = do
     let key = Code.codeKey code
     let val = Code.codeValue code
 
-    lift $ sendActivationMail name email key val
+    lift $ sendActivationMail name email key val False
 
     return $ setStatus status201 $ json (NewProviderResponse pid newPass)
 
@@ -313,12 +329,16 @@ activateAccountKey (key ::: val) = do
     (name, memail, _url, _descr) <- DB.lookupAccountData pid >>= maybeInvalidCode
     case memail of
         Just email' | email == email' -> return $ setStatus status204 empty
-        Just _ -> do
-            activate pid email
+        Just email' -> do
+            -- Ensure we remove any pending password reset
+            gen <- Code.mkGen (Code.ForEmail email')
+            lift $ Code.delete (Code.genKey gen) Code.PasswordReset
+            -- Activate the new and remove the old key
+            activate pid (Just email') email
             return $ json (ProviderActivationResponse email)
         -- Immediate approval for everybody (for now).
         Nothing -> do
-            activate pid email
+            activate pid Nothing email
             lift $ sendApprovalConfirmMail name email
             return $ json (ProviderActivationResponse email)
 
@@ -328,7 +348,7 @@ approveAccountKey (key ::: val) = do
     case (Code.codeAccount c, Code.codeForEmail c) of
         (Just pid, Just email) -> do
             (name, _, _, _) <- DB.lookupAccountData (Id pid) >>= maybeInvalidCode
-            activate (Id pid) email
+            activate (Id pid) Nothing email
             lift $ sendApprovalConfirmMail name email
             return empty
         _ -> throwStd invalidCode
@@ -342,6 +362,35 @@ login req = do
         throwStd badCredentials
     tok <- ZAuth.newProviderToken pid
     setProviderCookie tok empty
+
+beginPasswordReset :: Request -> Handler Response
+beginPasswordReset req = do
+    PasswordReset target <- parseJsonBody req
+    pid <- DB.lookupKey (mkEmailKey target) >>= maybeBadCredentials
+    gen <- Code.mkGen (Code.ForEmail target)
+    pending <- lift $ Code.lookup (Code.genKey gen) Code.PasswordReset
+
+    code <- case pending of
+        Just p  -> throwE $ pwResetError (PasswordResetInProgress . Just $ Code.codeTTL p)
+        Nothing -> Code.generate gen Code.PasswordReset
+                       (Code.Retries 3)
+                       (Code.Timeout 3600) -- 1h
+                       (Just (toUUID pid))
+
+    Code.insert code
+    lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
+    return $ setStatus status201 empty
+
+completePasswordReset :: Request -> Handler Response
+completePasswordReset req = do
+    CompletePasswordReset key val pwd <- parseJsonBody req
+    c <- Code.verify key Code.PasswordReset val >>= maybeInvalidCode
+    case Code.codeAccount c of
+        Nothing -> throwE $ pwResetError InvalidPasswordResetCode
+        Just  p -> do
+            DB.updateAccountPassword (Id p) pwd
+            Code.delete key Code.PasswordReset
+    return empty
 
 --------------------------------------------------------------------------------
 -- Provider API
@@ -363,13 +412,43 @@ updateAccountProfile (pid ::: req) = do
         (updateProviderDescr upd)
     return empty
 
+updateAccountEmail :: ProviderId ::: Request -> Handler Response
+updateAccountEmail (pid ::: req) = do
+    EmailUpdate new <- parseJsonBody req
+    email <- case validateEmail new of
+        Just em -> return em
+        Nothing -> throwStd invalidEmail
+
+    let emailKey = mkEmailKey email
+    DB.lookupKey emailKey >>= mapM_ (const $ throwStd emailExists)
+
+    gen  <- Code.mkGen (Code.ForEmail email)
+    code <- Code.generate gen Code.IdentityVerification
+                (Code.Retries 3)
+                (Code.Timeout (3600 * 24)) -- 24h
+                (Just (toUUID pid))
+    Code.insert code
+
+    lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
+    return $ setStatus status202 empty
+
+updateAccountPassword :: ProviderId ::: Request -> Handler Response
+updateAccountPassword (pid ::: req) = do
+    upd  <- parseJsonBody req
+    pass <- DB.lookupPassword pid >>= maybeBadCredentials
+    unless (verifyPassword (cpOldPassword upd) pass) $
+        throwStd badCredentials
+    DB.updateAccountPassword pid (cpNewPassword upd)
+    return empty
+
 addService :: ProviderId ::: Request -> Handler Response
 addService (pid ::: req) = do
     new <- parseJsonBody req
     _   <- DB.lookupAccount pid >>= maybeInvalidProvider
 
     let name    = newServiceName new
-    let descr   = newServiceDescr new
+    let summary = fromRange (newServiceSummary new)
+    let descr   = fromRange (newServiceDescr new)
     let baseUrl = newServiceUrl new
     let pubkey  = newServiceKey new
     let assets  = newServiceAssets new
@@ -377,7 +456,7 @@ addService (pid ::: req) = do
 
     (pk, fp) <- validateServiceKey pubkey >>= maybeInvalidServiceKey
     token    <- maybe randServiceToken return (newServiceToken new)
-    sid      <- DB.insertService pid name descr baseUrl token pk fp assets tags
+    sid      <- DB.insertService pid name summary descr baseUrl token pk fp assets tags
 
     let rstoken = maybe (Just token) (const Nothing) (newServiceToken new)
     return $ setStatus status201
@@ -398,19 +477,17 @@ updateService (pid ::: sid ::: req) = do
 
     -- Update service profile
     svc <- DB.lookupService pid sid >>= maybeServiceNotFound
-    let newName   = updateServiceName upd
-    let newDescr  = updateServiceDescr upd
-    let newAssets = updateServiceAssets upd
-    let newTags   = updateServiceTags upd
-    DB.updateService pid sid newName newDescr newAssets newTags
-
-    -- Update tag index
-    let name  = serviceName svc
-    let tags  = unsafeRange (serviceTags svc)
-    let name' = fromMaybe name newName
-    let tags' = fromMaybe tags newTags
-    when (serviceEnabled svc) $
-        DB.updateServiceTags pid sid (name, rcast tags) (name', rcast tags')
+    let name       = serviceName svc
+    let newName    = updateServiceName upd
+    let nameChange = liftM2 (,) (pure name) newName
+    let tags       = unsafeRange (serviceTags svc)
+    let newTags    = updateServiceTags upd
+    let tagsChange = liftM2 (,) (pure tags) (rcast <$> newTags)
+    let newSummary = fromRange <$> updateServiceSummary upd
+    let newDescr   = fromRange <$> updateServiceDescr upd
+    let newAssets  = updateServiceAssets upd
+    -- Update service, tags/prefix index if the service is enabled
+    DB.updateService pid sid name tags nameChange newSummary newDescr newAssets tagsChange (serviceEnabled svc)
 
     return empty
 
@@ -448,9 +525,10 @@ updateServiceConn (pid ::: sid ::: req) = do
             svc <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
             let name = serviceProfileName svc
             let tags = unsafeRange (serviceProfileTags svc)
+            -- Update index, make it visible over search
             if sconEnabled scon
-                then DB.deleteServiceTags pid sid name tags
-                else DB.insertServiceTags pid sid name tags
+                then DB.deleteServiceIndexes pid sid name tags
+                else DB.insertServiceIndexes pid sid name tags
 
     -- TODO: Send informational email to provider.
 
@@ -464,9 +542,9 @@ deleteService (pid ::: sid ::: req) = do
         throwStd badCredentials
     svc  <- DB.lookupService pid sid >>= maybeServiceNotFound
     let tags = unsafeRange (serviceTags svc)
-    DB.deleteServiceTags pid sid (serviceName svc) tags
+        name = serviceName svc
     lift $ RPC.removeServiceConn pid sid
-    DB.deleteService pid sid
+    DB.deleteService pid sid name tags
     return empty
 
 deleteAccount :: ProviderId ::: Request -> Handler Response
@@ -480,9 +558,9 @@ deleteAccount (pid ::: req) = do
     forM_ svcs $ \svc -> do
         let sid  = serviceId svc
         let tags = unsafeRange (serviceTags svc)
-        DB.deleteServiceTags pid sid (serviceName svc) tags
+            name = serviceName svc
         lift $ RPC.removeServiceConn pid sid
-        DB.deleteService pid sid
+        DB.deleteService pid sid name tags
     DB.deleteKey (mkEmailKey (providerEmail prov))
     DB.deleteAccount pid
     return empty
@@ -505,11 +583,16 @@ getServiceProfile (pid ::: sid) = do
     s <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
     return (json s)
 
-listServiceProfilesByTag :: QueryAnyTags 1 3 ::: Maybe Name ::: Range 10 100 Int32 -> Handler Response
-listServiceProfilesByTag (tags ::: start ::: size) = do
-    let size' = fromRange size
-    ss <- DB.paginateServiceTags tags start size'
+searchServiceProfiles :: Maybe (QueryAnyTags 1 3) ::: Maybe Text ::: Range 10 100 Int32 -> Handler Response
+searchServiceProfiles (Nothing ::: Just start ::: size) = do
+    prefix <- rangeChecked start :: Handler (Range 1 128 Text)
+    ss <- DB.paginateServiceNames prefix (fromRange size) =<< setProviderSearchFilter <$> view settings
     return (json ss)
+searchServiceProfiles (Just tags ::: start ::: size) = do
+    ss <- DB.paginateServiceTags tags start (fromRange size) =<< setProviderSearchFilter <$> view settings
+    return (json ss)
+searchServiceProfiles (Nothing ::: Nothing ::: _) =
+    throwStd $ badRequest "At least `tags` or `start` must be provided."
 
 getServiceTagList :: () -> Handler Response
 getServiceTagList _ = return (json (ServiceTagList allTags))
@@ -529,8 +612,10 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let mems = cnvMembers cnv
     unless (cnvType cnv == RegularConv) $
         throwStd invalidConv
-    unless (length (cmOthers mems) < 127) $
+    maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+    unless (length (cmOthers mems) < maxSize - 1) $
         throwStd tooManyMembers
+    for_ (cnvTeam cnv) $ ensureNotManagedConv
 
     -- Lookup the relevant service data
     scon <- DB.lookupServiceConn pid sid >>= maybeServiceNotFound
@@ -559,12 +644,12 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let colour = fromMaybe defaultAccentId            (Ext.rsNewBotColour rs)
     let pict   = Pict [] -- Legacy
     let sref   = newServiceRef sid pid
-    let usr    = User (botUserId bid) Nothing name pict assets colour False locale (Just sref) Nothing
+    let usr    = User (botUserId bid) Nothing name pict assets colour False locale (Just sref) Nothing Nothing Nothing
     let newClt = (newClient PermanentClient (Ext.rsNewBotLastPrekey rs) ())
                { newClientPrekeys = Ext.rsNewBotPrekeys rs
                }
-    lift $ User.insertAccount (UserAccount usr Active) Nothing True
-    (clt, _, _) <- User.addClient (botUserId bid) bcl newClt Nothing Nothing
+    lift $ User.insertAccount (UserAccount usr Active) Nothing True (SearchableStatus True)
+    (clt, _, _) <- User.addClient (botUserId bid) bcl newClt Nothing
                    !>> const (StdError badGateway) -- MalformedPrekeys
 
     -- Add the bot to the conversation
@@ -578,6 +663,11 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
         , rsAddBotAssets = assets
         , rsAddBotEvent  = ev
         }
+  where
+    ensureNotManagedConv tid = do
+        tc <- lift (RPC.getTeamConv zuid tid cid) >>= maybeConvNotFound
+        when (view managedConversation tc) $
+            throwStd invalidConv
 
 removeBot :: UserId ::: ConnId ::: ConvId ::: BotId -> Handler Response
 removeBot (zusr ::: zcon ::: cid ::: bid) = do
@@ -632,7 +722,8 @@ botUpdatePrekeys (bot ::: req) = do
 botClaimUsersPrekeys :: Request -> Handler Response
 botClaimUsersPrekeys req = do
     body <- parseJsonBody req
-    when (Map.size (userClients body) > 128) $
+    maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+    when (Map.size (userClients body) > maxSize) $
         throwStd tooManyClients
     json <$> lift (Client.claimMultiPrekeyBundles body)
 
@@ -660,13 +751,13 @@ botDeleteSelf (bid ::: cid) = do
 minRsaKeySize :: Int
 minRsaKeySize = 256 -- Bytes (= 2048 bits)
 
-activate :: ProviderId -> Email -> Handler ()
-activate pid email = do
-    let emailKey = mkEmailKey email
+activate :: ProviderId -> Maybe Email -> Email -> Handler ()
+activate pid old new = do
+    let emailKey = mkEmailKey new
     taken <- maybe False (/= pid) <$> DB.lookupKey emailKey
     when taken $
         throwStd emailExists
-    DB.insertKey pid emailKey
+    DB.insertKey pid (mkEmailKey <$> old) emailKey
 
 deleteBot :: UserId -> Maybe ConnId -> BotId -> ConvId -> Handler (Maybe Event)
 deleteBot zusr zcon bid cid = do
@@ -705,6 +796,7 @@ mkBotUserView u = Ext.BotUserView
     , Ext.botUserViewName   = userName u
     , Ext.botUserViewColour = userAccentId u
     , Ext.botUserViewHandle = userHandle u
+    , Ext.botUserViewTeam   = userTeam u
     }
 
 setProviderCookie :: ZAuth.ProviderToken -> Response -> Handler Response
@@ -716,7 +808,7 @@ setProviderCookie t r = do
     cookie s = Cookie.def
         { Cookie.setCookieName     = "zprovider"
         , Cookie.setCookieValue    = toByteString' t
-        , Cookie.setCookieDomain   = Just (setCookieDomain s)
+        , Cookie.setCookieDomain   = Just $ Text.encodeUtf8 . setCookieDomain $ s
         , Cookie.setCookiePath     = Just "/provider"
         , Cookie.setCookieExpires  = Just (ZAuth.tokenExpiresUTC t)
         , Cookie.setCookieSecure   = not (setCookieInsecure s)
@@ -750,6 +842,9 @@ maybeInvalidBot = maybe (throwStd invalidBot) return
 maybeInvalidUser :: Maybe a -> Handler a
 maybeInvalidUser = maybe (throwStd invalidUser) return
 
+rangeChecked :: Within a n m => a -> Handler (Range n m a)
+rangeChecked = either (throwStd . invalidRange . fromString) return . checkedEither
+
 invalidServiceKey :: Wai.Error
 invalidServiceKey = Wai.Error status400 "invalid-service-key" "Invalid service key."
 
@@ -780,4 +875,3 @@ serviceError RPC.ServiceBotConflict = tooManyBots
 
 randServiceToken :: MonadIO m => m ServiceToken
 randServiceToken = ServiceToken . Ascii.encodeBase64Url <$> liftIO (randBytes 18)
-

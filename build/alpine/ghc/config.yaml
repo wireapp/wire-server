@@ -1,0 +1,10 @@
+build:
+  prefetch: true
+ghc-build: standard
+system-ghc: true
+ghc-options:
+  "$everything": -split-sections
+package-indices:
+  - name: HackageOrig
+    download-prefix: https://hackage.haskell.org/package/
+    http: https://hackage.haskell.org/01-index.tar.gz

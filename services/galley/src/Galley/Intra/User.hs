@@ -4,55 +4,58 @@ module Galley.Intra.User
     ( getConnections
     , deleteBot
     , reAuthUser
+    , lookupActivatedUsers
     , deleteUser
+    , getContactList
+    , canBeDeleted
     ) where
 
 import Bilge hiding (options, getHeader, statusCode)
+import Brig.Types.Connection (UserIds (..))
 import Bilge.RPC
-import Bilge.Retry
 import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
-import Brig.Types.Connection (Relation (..))
+import Brig.Types.Connection (Relation (..), ConnectionsStatusRequest (..))
+import Brig.Types.User (User)
 import Galley.App
-import Galley.Options
+import Galley.Intra.Util
+import Galley.Types.Teams
+import Control.Lens
 import Control.Monad (void, when)
 import Control.Monad.Catch (throwM)
-import Control.Lens (view)
-import Control.Retry
 import Data.ByteString.Char8 (pack, intercalate)
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy (ByteString)
 import Data.Char (toLower)
 import Data.Id
-import Data.Misc (portNumber)
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..))
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
-import qualified Data.Text.Lazy as LT
 import qualified Network.HTTP.Client.Internal as Http
 
-getConnections :: UserId -> [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
-getConnections u uids rlt = do
-    h <- view (options.brigHost)
-    p <- view (options.brigPort)
+-- | Get statuses of all connections between two groups of users (the usual
+-- pattern is to check all connections from one user to several, or from
+-- several users to one).
+--
+-- When a connection does not exist, it is skipped.
+getConnections :: [UserId] -> [UserId] -> Maybe Relation -> Galley [ConnectionStatus]
+getConnections uFrom uTo rlt = do
+    (h, p) <- brigReq
     r <- call "brig"
-        $ method GET . host h . port (portNumber p)
+        $ method POST . host h . port p
         . path "/i/users/connections-status"
-        . queryItem "users" users
         . maybe id rfilter rlt
+        . json ConnectionsStatusRequest{csrFrom = uFrom, csrTo = uTo}
         . expect2xx
     parseResponse (Error status502 "server-error") r
   where
-    users   = intercalate "," $ toByteString' <$> u:uids
     rfilter = queryItem "filter" . (pack . map toLower . show)
 
 deleteBot :: ConvId -> BotId -> Galley ()
 deleteBot cid bot = do
-    h <- view (options.brigHost)
-    p <- view (options.brigPort)
+    (h, p) <- brigReq
     void $ call "brig"
-        $ method DELETE . host h . port (portNumber p)
+        $ method DELETE . host h . port p
         . path "/bot/self"
         . header "Z-Type" "bot"
         . header "Z-Bot" (toByteString' bot)
@@ -61,36 +64,63 @@ deleteBot cid bot = do
 
 reAuthUser :: UserId -> ReAuthUser -> Galley Bool
 reAuthUser uid auth = do
-    h <- view (options.brigHost)
-    p <- view (options.brigPort)
-    let req = method GET . host h . port (portNumber p)
+    (h, p) <- brigReq
+    let req = method GET . host h . port p
             . paths ["/i/users", toByteString' uid, "reauthenticate"]
             . json auth
-    st <- statusCode . responseStatus <$> call "brig" (check . req)
-    return $ if st == 200 then True
-                          else False
+    st <- statusCode . responseStatus <$> call "brig" (check [status200, status403] . req)
+    return $ st == 200
+
+check :: [Status] -> Request -> Request
+check allowed r = r { Http.checkResponse = \rq rs ->
+    when (responseStatus rs `notElem` allowed) $
+        let ex = StatusCodeException (rs { responseBody = () }) mempty
+        in throwM $ HttpExceptionRequest rq ex
+}
+
+lookupActivatedUsers :: [UserId] -> Galley [User]
+lookupActivatedUsers uids = do
+    (h, p) <- brigReq
+    r <- call "brig"
+        $ method GET . host h . port p
+        . path "/i/users"
+        . queryItem "ids" users
+        . expect2xx
+    parseResponse (Error status502 "server-error") r
   where
-    check :: Request -> Request
-    check r = r { Http.checkResponse = \rq rs ->
-        when (responseStatus rs `notElem` [status200, status403]) $
-            let ex = StatusCodeException (rs { responseBody = () }) mempty
-            in throwM $ HttpExceptionRequest rq ex
-    }
+    users = intercalate "," $ toByteString' <$> uids
 
 deleteUser :: UserId -> Galley ()
 deleteUser uid = do
-    h <- view (options.brigHost)
-    p <- view (options.brigPort)
+    (h, p) <- brigReq
     void $ call "brig"
-        $ method DELETE . host h . port (portNumber p)
+        $ method DELETE . host h . port p
         . paths ["/i/users", toByteString' uid]
         . expect2xx
 
------------------------------------------------------------------------------
--- Helpers
+getContactList :: UserId -> Galley [UserId]
+getContactList uid = do
+    (h, p) <- brigReq
+    r <- call "brig"
+        $ method GET . host h . port p
+        . paths ["/i/users", toByteString' uid, "contacts"]
+        . expect2xx
+    cUsers <$> parseResponse (Error status502 "server-error") r
 
-call :: LT.Text -> (Request -> Request) -> Galley (Response (Maybe ByteString))
-call n r = recovering x1 rpcHandlers (const (rpc n r))
+canBeDeleted :: [TeamMember] -> UserId -> TeamId -> Galley Bool
+canBeDeleted members uid tid = if askGalley then pure True else askBrig
+  where
+    -- team members without full permissions can always be deleted.
+    askGalley = case filter ((== uid) . (^. userId)) members of
+        (mem:_) -> mem ^. permissions /= fullPermissions
+        _ -> False  -- e.g., if caller has no members and passes an empty list.
 
-x1 :: RetryPolicy
-x1 = limitRetries 1
+    -- only if still in doubt, ask brig.
+    askBrig = do
+        (h, p) <- brigReq
+        st <- statusCode . responseStatus <$> call "brig"
+            ( check [status200, status403]
+            . method GET . host h . port p
+            . paths ["/i/users", toByteString' uid, "can-be-deleted", toByteString' tid]
+            )
+        return $ st == 200

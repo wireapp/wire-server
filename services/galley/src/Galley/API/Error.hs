@@ -8,6 +8,9 @@ import Galley.Types.Teams (Perm)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
+internalError :: Error
+internalError = Error status500 "internal-error" "internal error"
+
 convNotFound :: Error
 convNotFound = Error status404 "no-conversation" "conversation not found"
 
@@ -19,6 +22,15 @@ invalidOne2OneOp = invalidOp "invalid operation for 1:1 conversations"
 
 invalidConnectOp :: Error
 invalidConnectOp = invalidOp "invalid operation for connect conversation"
+
+invalidAccessOp :: Error
+invalidAccessOp = invalidOp "invalid operation for conversation without 'code' access"
+
+invalidManagedConvOp :: Error
+invalidManagedConvOp = invalidOp "invalid operation for managed conversation"
+
+invalidTargetAccess :: Error
+invalidTargetAccess = invalidOp "invalid target access"
 
 invalidOp :: Text -> Error
 invalidOp = Error status403 "invalid-op"
@@ -44,6 +56,9 @@ invalidUUID4 = Error status400 "client-error" "Invalid UUID v4 format"
 unknownClient :: Error
 unknownClient = Error status403 "unknown-client" "Sending client not known"
 
+invalidRange :: Text -> Error
+invalidRange = Error status400 "client-error"
+
 operationDenied :: Perm -> Error
 operationDenied p = Error
     status403
@@ -58,13 +73,10 @@ noOtherOwner = Error status403 "no-other-owner" "You are trying to remove or dow
                             \ an owner. Promote another team member before proceeding."
 
 noAddToManaged :: Error
-noAddToManaged = Error status403 "no-add-to-managed" "Adding users directly to managed conversation is not allowed."
+noAddToManaged = Error status403 "no-add-to-managed" "Adding users/bots directly to managed conversation is not allowed."
 
 teamNotFound :: Error
 teamNotFound = Error status404 "no-team" "team not found"
-
-noBotsInTeamConvs :: Error
-noBotsInTeamConvs = Error status403 "bots-not-allowed" "Adding bots to team conversations is not allowed."
 
 invalidPermissions :: Error
 invalidPermissions = Error status403 "invalid-permissions" "The specified permissions are invalid."
@@ -75,8 +87,8 @@ tooManyTeamMembers = Error status403 "too-many-team-members" "Maximum number of 
 teamMemberNotFound :: Error
 teamMemberNotFound = Error status404 "no-team-member" "team member not found"
 
-noTeamConv :: Error
-noTeamConv = Error status400 "no-team-conv" "Team conversations are not allowed in this context."
+noManagedTeamConv :: Error
+noManagedTeamConv = Error status400 "no-managed-team-conv" "Managed team conversations have been deprecated."
 
 userBindingExists :: Error
 userBindingExists = Error status403 "binding-exists" "User already bound to a different team."
@@ -89,3 +101,12 @@ deleteQueueFull = Error status503 "queue-full" "The delete queue is full. No fur
 
 nonBindingTeam :: Error
 nonBindingTeam = Error status404 "non-binding-team" "not member of a binding team"
+
+noBindingTeamMembers :: Error
+noBindingTeamMembers = Error status403 "non-binding-team-members" "Both users must be members of the same binding team."
+
+invalidTeamStatusUpdate :: Error
+invalidTeamStatusUpdate = Error status403 "invalid-team-status-update" "Cannot use this endpoint to update the team to the given status."
+
+codeNotFound :: Error
+codeNotFound = Error status404 "no-conversation-code" "conversation code not found"

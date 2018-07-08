@@ -18,6 +18,7 @@ import Data.Misc
 import Data.Range
 import Data.Set (Set)
 import Data.Swagger.Build.Api hiding (def, min, Response)
+import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Galley.App
 import Galley.API.Clients
@@ -38,6 +39,7 @@ import Network.Wai.Utilities.ZAuth
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.Server hiding (serverPort)
 import Prelude hiding (head)
+import Util.Options
 
 import qualified Control.Concurrent.Async      as Async
 import qualified Data.Predicate                as P
@@ -58,7 +60,10 @@ run o = do
     m <- metrics
     e <- createEnv m o
     let l = e^.applog
-    s <- newSettings $ defaultServer (o^.hostname) (portNumber $ o^.serverPort) l m
+    s <- newSettings $ defaultServer (unpack $ o^.optGalley.epHost)
+                                     (portNumber $ fromIntegral $ o^.optGalley.epPort)
+                                     l
+                                     m
     runClient (e^.cstate) $
         versionCheck Data.schemaVersion
     d <- Async.async $ evalGalley e Internal.deleteLoop
@@ -398,6 +403,9 @@ sitemap = do
         body (ref Model.newConversation) $
             description "JSON body"
         response 201 "Conversation created" end
+        errorResponse Error.notConnected
+        errorResponse Error.noTeamMember
+        errorResponse (Error.operationDenied CreateConversation)
 
     ---
 
@@ -423,7 +431,7 @@ sitemap = do
         body (ref Model.newConversation) $
             description "JSON body"
         response 201 "Conversation created" end
-        errorResponse Error.noTeamConv
+        errorResponse Error.noManagedTeamConv
 
     ---
 
@@ -445,19 +453,147 @@ sitemap = do
 
     ---
 
-    post "/conversations/:cnv/join" (continue joinConversation) $
+    post "/conversations/:cnv/join" (continue joinConversationById) $
         zauthUserId
         .&. zauthConnId
         .&. capture "cnv"
         .&. accept "application" "json"
 
-    document "POST" "joinConversation" $ do
-        summary "Join a conversation"
+    document "POST" "joinConversationById" $ do
+        summary "Join a conversation by its ID (if link access enabled)"
         parameter Path "cnv" bytes' $
             description "Conversation ID"
         returns (ref Model.event)
         response 200 "Conversation joined." end
         errorResponse Error.convNotFound
+
+    ---
+
+    post "/conversations/code-check" (continue checkReusableCode) $
+        request
+        .&. contentType "application" "json"
+
+    document "POST" "checkConversationCode" $ do
+        summary "Check validity of a conversation code"
+        response 200 "Valid" end
+        body (ref Model.conversationCode) $
+            description "JSON body"
+        errorResponse Error.codeNotFound
+
+
+    post "/conversations/join" (continue joinConversationByReusableCode) $
+        zauthUserId
+        .&. zauthConnId
+        .&. request
+        .&. contentType "application" "json"
+
+    document "POST" "joinConversationByCode" $ do
+        summary "Join a conversation using a reusable code"
+        returns (ref Model.event)
+        response 200 "Conversation joined." end
+        body (ref Model.conversationCode) $
+            description "JSON body"
+        errorResponse Error.codeNotFound
+        errorResponse Error.convNotFound
+        errorResponse Error.tooManyMembers
+
+    ---
+
+    post "/conversations/:cnv/code" (continue addCode) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+
+    document "POST" "createConversationCode" $ do
+        summary "Create or recreate a conversation code"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        returns (ref Model.event)
+        returns (ref Model.conversationCode)
+        response 201 "Conversation code created." (model Model.event)
+        response 200 "Conversation code already exists." (model Model.conversationCode)
+        errorResponse Error.convNotFound
+        errorResponse Error.invalidAccessOp
+
+    ---
+
+    delete "/conversations/:cnv/code" (continue rmCode) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+
+    document "DELETE" "deleteConversationCode" $ do
+        summary "Delete conversation code"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        returns (ref Model.event)
+        response 200 "Conversation code deleted." end
+        errorResponse Error.convNotFound
+        errorResponse Error.invalidAccessOp
+
+    ---
+
+    get "/conversations/:cnv/code" (continue getCode) $
+        zauthUserId
+        .&. capture "cnv"
+
+    document "GET" "getConversationCode" $ do
+        summary "Get existing conversation code"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        returns (ref Model.conversationCode)
+        response 200 "Conversation Code" end
+        errorResponse Error.convNotFound
+        errorResponse Error.invalidAccessOp
+
+    ---
+
+    put "/conversations/:cnv/access" (continue updateConversationAccess) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. request
+        .&. contentType "application" "json"
+
+    document "PUT" "updateConversationAccess" $ do
+        summary "Update access modes for a conversation"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        returns (ref Model.event)
+        response 200 "Conversation access updated." end
+        response 204 "Conversation access unchanged." end
+        body (ref Model.conversationAccessUpdate) $
+            description "JSON body"
+        errorResponse Error.convNotFound
+        errorResponse Error.accessDenied
+        errorResponse Error.invalidTargetAccess
+        errorResponse Error.invalidSelfOp
+        errorResponse Error.invalidOne2OneOp
+        errorResponse Error.invalidConnectOp
+
+    ---
+
+    put "/conversations/:cnv/message-timer" (continue updateConversationMessageTimer) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. request
+        .&. contentType "application" "json"
+
+    document "PUT" "updateConversationMessageTimer" $ do
+        summary "Update the message timer for a conversation"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        returns (ref Model.event)
+        response 200 "Message timer updated." end
+        response 204 "Message timer unchanged." end
+        body (ref Model.conversationMessageTimerUpdate) $
+            description "JSON body"
+        errorResponse Error.convNotFound
+        errorResponse Error.accessDenied
+        errorResponse Error.invalidSelfOp
+        errorResponse Error.invalidOne2OneOp
+        errorResponse Error.invalidConnectOp
 
     ---
 
@@ -552,6 +688,60 @@ sitemap = do
 
     ---
 
+    post "/broadcast/otr/messages" (continue postOtrBroadcast) $
+        zauthUserId
+        .&. zauthConnId
+        .&. def OtrReportAllMissing filterMissing
+        .&. request
+        .&. contentType "application" "json"
+
+    document "POST" "postOtrBroadcast" $ do
+        summary "Broadcast an encrypted message to all team members and all contacts (accepts JSON)"
+        parameter Query "ignore_missing" bool' $ do
+            description "Force message delivery even when clients are missing."
+            optional
+        body (ref Model.newOtrMessage) $
+            description "JSON body"
+        returns (ref Model.clientMismatch)
+        response 201 "Message posted" end
+        response 412 "Missing clients" end
+        errorResponse Error.teamNotFound
+        errorResponse Error.nonBindingTeam
+
+    ---
+
+    post "/broadcast/otr/messages" (continue postProtoOtrBroadcast) $
+        zauthUserId
+        .&. zauthConnId
+        .&. def OtrReportAllMissing filterMissing
+        .&. request
+        .&. contentType "application" "x-protobuf"
+
+    document "POST" "postOtrBroadcast" $ do
+        summary "Broadcast an encrypted message to all team members and all contacts (accepts Protobuf)"
+        parameter Query "ignore_missing" bool' $ do
+            description "Force message delivery even when clients are missing. \
+                        \NOTE: can also be a comma-separated list of user IDs, \
+                        \in which case it specifies who exactly is allowed to \
+                        \have missing clients."
+            optional
+        parameter Query "report_missing" bool' $ do
+            description "Don't allow message delivery when clients are missing \
+                        \('ignore_missing' takes precedence when present). \
+                        \NOTE: can also be a comma-separated list of user IDs, \
+                        \in which case it specifies who exactly is forbidden from \
+                        \having missing clients."
+            optional
+        body (ref Model.newOtrMessage) $
+            description "Protobuf body"
+        returns (ref Model.clientMismatch)
+        response 201 "Message posted" end
+        response 412 "Missing clients" end
+        errorResponse Error.teamNotFound
+        errorResponse Error.nonBindingTeam
+
+    ---
+
     post "/conversations/:cnv/otr/messages" (continue postOtrMessage) $
         zauthUserId
         .&. zauthConnId
@@ -561,11 +751,21 @@ sitemap = do
         .&. contentType "application" "json"
 
     document "POST" "postOtrMessage" $ do
-        summary "Post an encrypted message to a conversation"
+        summary "Post an encrypted message to a conversation (accepts JSON)"
         parameter Path "cnv" bytes' $
             description "Conversation ID"
         parameter Query "ignore_missing" bool' $ do
-            description "Force message delivery even when clients are missing."
+            description "Force message delivery even when clients are missing. \
+                        \NOTE: can also be a comma-separated list of user IDs, \
+                        \in which case it specifies who exactly is allowed to \
+                        \have missing clients."
+            optional
+        parameter Query "report_missing" bool' $ do
+            description "Don't allow message delivery when clients are missing \
+                        \('ignore_missing' takes precedence when present). \
+                        \NOTE: can also be a comma-separated list of user IDs, \
+                        \in which case it specifies who exactly is forbidden from \
+                        \having missing clients."
             optional
         body (ref Model.newOtrMessage) $
             description "JSON body"
@@ -585,7 +785,7 @@ sitemap = do
         .&. contentType "application" "x-protobuf"
 
     document "POST" "postProtoOtrMessage" $ do
-        summary "Post an encrypted message to a conversation"
+        summary "Post an encrypted message to a conversation (accepts Protobuf)"
         parameter Path "cnv" bytes' $
             description "Conversation ID"
         parameter Query "ignore_missing" bool' $ do
@@ -623,6 +823,12 @@ sitemap = do
         capture "cnv"
         .&. capture "usr"
 
+    post "/i/conversations/managed" (continue internalCreateManagedConversation) $
+        zauthUserId
+        .&. zauthConnId
+        .&. request
+        .&. contentType "application" "json"
+
     post "/i/conversations/connect" (continue createConnectConversation) $
         zauthUserId
         .&. opt zauthConnId
@@ -647,6 +853,10 @@ sitemap = do
         capture "cnv"
 
     get "/i/teams/:tid" (continue getTeamInternal) $
+        capture "tid"
+        .&. accept "application" "json"
+
+    get "/i/teams/:tid/name" (continue getTeamNameInternal) $
         capture "tid"
         .&. accept "application" "json"
 
@@ -679,6 +889,9 @@ sitemap = do
         .&. accept "application" "json"
 
     get "/i/users/:uid/team/members" (continue getBindingTeamMembers) $
+        capture "uid"
+
+    get "/i/users/:uid/team" (continue getBindingTeamId) $
         capture "uid"
 
     get "/i/test/clients" (continue getClients)
@@ -749,5 +962,7 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
                           $ P.setReason P.TypeError
                           $ P.setSource src
                           $ P.err status400
+        -- NB. 'fromByteString' parses a comma-separated list ('List') of
+        -- user IDs, and then 'fromList' unwraps it; took me a while to
+        -- understand this
         Just  l -> P.Okay 0 (Set.fromList (fromList l))
-

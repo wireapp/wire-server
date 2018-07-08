@@ -13,7 +13,7 @@ import Control.Monad.IO.Class (liftIO, MonadIO)
 import Control.Concurrent (threadDelay)
 import Control.Lens hiding ((.=))
 import Control.Retry
-import Data.ByteString (ByteString)
+import Data.ByteString (ByteString, breakSubstring)
 import Data.CaseInsensitive (CI)
 import Data.Metrics.Middleware hiding (path)
 import Data.Monoid
@@ -48,7 +48,7 @@ run :: Opts -> IO ()
 run o = do
     m <- metrics
     e <- createEnv m o
-    s <- newSettings $ defaultServer (o^.hostname) (o^.port) (e^.applog) m
+    s <- newSettings $ defaultServer (o^.host) (o^.port) (e^.applog) m
     let rtree    = compile (sitemap e)
     let measured = measureRequests m rtree
     let app r k  = runProxy e r (route rtree r k)
@@ -60,32 +60,20 @@ sitemap e = do
 
     -- Public API -----------------------------------------------------------
 
-    get "/proxy/youtube/v3/playlists"
-        (proxy e "key" "secrets.youtube" "/youtube/v3/playlists" youtube)
-        return
-
-    get "/proxy/youtube/v3/videos"
-        (proxy e "key" "secrets.youtube" "/youtube/v3/videos" youtube)
-        return
-
-    get "/proxy/youtube/v3/playlistItems"
-        (proxy e "key" "secrets.youtube" "/youtube/v3/playlistItems" youtube)
+    get "/proxy/youtube/v3/:path"
+        (proxy e "key" "secrets.youtube" Prefix "/youtube/v3" youtube)
         return
 
     get "/proxy/googlemaps/api/staticmap"
-        (proxy e "key" "secrets.googlemaps" "/maps/api/staticmap" googleMaps)
+        (proxy e "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
         return
 
-    get "/proxy/giphy/v1/gifs/search"
-        (proxy e "api_key" "secrets.giphy" "/v1/gifs/search" giphy)
+    get "/proxy/googlemaps/maps/api/geocode/:path"
+        (proxy e "key" "secrets.googlemaps" Prefix "/maps/api/geocode" googleMaps)
         return
 
-    get "/proxy/giphy/v1/gifs/random"
-        (proxy e "api_key" "secrets.giphy" "/v1/gifs/random" giphy)
-        return
-
-    get "/proxy/giphy/v1/gifs/trending"
-        (proxy e "api_key" "secrets.giphy" "/v1/gifs/trending" giphy)
+    get "/proxy/giphy/v1/gifs/:path"
+        (proxy e "api_key" "secrets.giphy" Prefix "/v1/gifs" giphy)
         return
 
     post "/proxy/spotify/api/token" (continue spotifyToken) request
@@ -110,15 +98,17 @@ youtube    = ProxyDest "www.googleapis.com" 443
 googleMaps = ProxyDest "maps.googleapis.com" 443
 giphy      = ProxyDest "api.giphy.com" 443
 
-proxy :: Env -> ByteString -> Text -> ByteString -> ProxyDest -> App Proxy
-proxy e qparam keyname path phost rq k = liftIO $ do
+proxy :: Env -> ByteString -> Text -> Rerouting -> ByteString -> ProxyDest -> App Proxy
+proxy e qparam keyname reroute path phost rq k = liftIO $ do
     s <- Config.require (e^.secrets) keyname
     let r  = getRequest rq
     let q  = renderQuery True ((qparam, Just s) : safeQuery (I.queryString r))
     let r' = defaultRequest
            { I.httpVersion    = http11
            , I.requestMethod  = I.requestMethod r
-           , I.rawPathInfo    = path
+           , I.rawPathInfo    = case reroute of
+                Static -> path
+                Prefix -> snd $ breakSubstring path (I.rawPathInfo r)
            , I.rawQueryString = q
            }
     loop (2 :: Int) r (WPRModifiedRequestSecure r' phost)
@@ -252,3 +242,4 @@ instance ToBytes S where
         +++ statusMessage s
         +++ val ")"
 
+data Rerouting = Static | Prefix

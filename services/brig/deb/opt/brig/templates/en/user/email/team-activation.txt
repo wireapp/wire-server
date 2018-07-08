@@ -1,0 +1,17 @@
+YOUR NEW ACCOUNT ON WIRE
+A new Wire team was created with ${email}. Please verify your email.
+
+Verify [${url}]If you can’t click the button, copy and paste this link to your
+browser:
+
+${url}
+
+If you didn’t register for a Wire service provider account using this e-mail
+address, you can safely ignore this message. If you want to report abuse of your
+e-mail address, please contact us. [https://support.wire.com/hc/requests/new]
+
+
+--------------------------------------------------------------------------------
+
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.

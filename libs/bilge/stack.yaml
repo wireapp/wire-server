@@ -1,9 +1,0 @@
-resolver: lts-8.6
-packages:
-- '.'
-- '../types-common'
-extra-deps: []
-flags:
-  types-common:
-    arbitrary: True
-    protobuf: True

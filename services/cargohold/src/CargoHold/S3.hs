@@ -19,6 +19,7 @@ module CargoHold.S3
     , updateMetadataV3
     , deleteV3
     , mkKey
+    , signedURL
 
       -- * Resumable Uploads
     , S3Resumable
@@ -45,6 +46,7 @@ import Aws.S3
 import CargoHold.App hiding (Handler)
 import Control.Applicative ((<|>))
 import CargoHold.API.Error
+import CargoHold.Options
 import Control.Error (ExceptT, throwE)
 import Control.Lens (view)
 import Control.Monad
@@ -74,7 +76,9 @@ import Network.Wai.Utilities.Error (Error (..))
 import Safe (readMay)
 import System.Logger.Message
 import Text.XML.Cursor (laxElement, ($/), (&|))
+import URI.ByteString
 
+import qualified Aws                          as Aws
 import qualified Aws.Core                     as Aws
 import qualified Bilge.Retry                  as Retry
 import qualified CargoHold.Types.V3           as V3
@@ -168,14 +172,30 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
         (copyObject b key (ObjectId b key Nothing) meta)
             { coContentType = Just (encodeMIMEType ct) }
 
+signedURL :: (ToByteString p) => p -> ExceptT Error App URI
+signedURL path = do
+    e <- view aws
+    b <- s3Bucket <$> view aws
+    cfg' <- liftIO $ Aws.getConfig (awsEnv e)
+    ttl  <- view (settings.setDownloadLinkTTL)
+    let cfg = cfg' { Aws.timeInfo = Aws.ExpiresIn (fromIntegral ttl) }
+    uri <- liftIO $ Aws.awsUri cfg (s3UriOnly e)
+                  $ getObject b (Text.decodeLatin1 $ toByteString' path)
+    return =<< toUri uri
+  where
+    toUri x = case parseURI strictURIParserOptions x of
+        Left e  -> do
+            Log.err $ "remote" .= val "S3"
+                    ~~ msg (val "Failed to generate a signed URI")
+                    ~~ msg (show e)
+            throwE serverError
+        Right u -> return u
+
 mkKey :: V3.AssetKey -> S3AssetKey
 mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key
   where
     key = UUID.toText (toUUID i)
-    retention = case r of
-        V3.AssetEternal    -> "eternal"
-        V3.AssetPersistent -> "persistent"
-        V3.AssetVolatile   -> "volatile"
+    retention = V3.retentionToTextRep r
 
 -------------------------------------------------------------------------------
 -- Resumable Uploads
@@ -283,13 +303,15 @@ minBigSize = 5 * 1024 * 1024 -- 5 MiB
 getResumable :: V3.AssetKey -> ExceptT Error App (Maybe S3Resumable)
 getResumable k = do
     let rk = mkResumableKey k
+        mk = mkResumableKeyMeta k
     Log.debug $ "remote" .= val "S3"
-        ~~ "asset"       .= toByteString k
-        ~~ "asset.key"   .= toByteString rk
+        ~~ "asset"          .= toByteString k
+        ~~ "asset.key"      .= toByteString rk
+        ~~ "asset.key.meta" .= toByteString mk
         ~~ msg (val "Getting resumable asset metadata")
     b      <- s3Bucket <$> view aws
     (_, hor) <- tryS3 . recovering x3 handlers . const . exec $
-        headObjectX b (s3ResumableKey rk)
+        headObjectX b (s3ResumableKey mk)
     let ct = fromMaybe octets (horxContentType hor >>= parseMIMEType)
     let meta = omUserMetadata <$> horxMetadata hor
     case meta >>= parse rk ct of
@@ -321,8 +343,9 @@ createResumable k p typ size tok = do
     b  <- s3Bucket <$> view aws
     up <- initMultipart b res
     let ct = resumableType res
+    let mk = mkResumableKeyMeta k
     void . tryS3 . recovering x3 handlers . const . exec $
-        (putObject b (s3ResumableKey key) mempty)
+        (putObject b (s3ResumableKey mk) mempty)
             { poContentType = Just (encodeMIMEType ct)
             , poMetadata = resumableMeta csize ex up
             }
@@ -537,6 +560,10 @@ listChunks r = do
 mkResumableKey :: V3.AssetKey -> S3ResumableKey
 mkResumableKey (V3.AssetKeyV3 aid _) =
     S3ResumableKey $ "v3/resumable/" <> UUID.toText (toUUID aid)
+
+mkResumableKeyMeta :: V3.AssetKey -> S3ResumableKey
+mkResumableKeyMeta (V3.AssetKeyV3 aid _) =
+    S3ResumableKey $ "v3/resumable/" <> UUID.toText (toUUID aid) <> "/meta"
 
 mkChunkKey :: S3ResumableKey -> S3ChunkNr -> S3ChunkKey
 mkChunkKey (S3ResumableKey k) (S3ChunkNr n) =

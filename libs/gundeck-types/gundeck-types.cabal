@@ -16,7 +16,7 @@ library
 
     exposed-modules:
           Gundeck.Types
-        , Gundeck.Types.Callback
+        , Gundeck.Types.BulkPush
         , Gundeck.Types.Common
         , Gundeck.Types.Event
         , Gundeck.Types.Notification

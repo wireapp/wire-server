@@ -4,10 +4,9 @@ module API.Search (tests) where
 
 import API.Search.Util
 import Bilge
-import Bilge.Assert
 import Brig.Types
 import Control.Concurrent              (threadDelay)
-import Control.Concurrent.Async.Lifted
+import Control.Concurrent.Async.Lifted.Safe
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Foldable
@@ -36,23 +35,19 @@ testOptInOut brig = do
         uid2 = userId u2
         Just h1 = fromHandle <$> userHandle u1
 
-    assertSearchable uid1 True
+    assertSearchable "default" brig uid1 True
     assertCanFind brig uid2 uid1 h1
 
     updateSearchableStatus brig uid1 optOut
     refreshIndex brig
-    assertSearchable uid1 False
+    assertSearchable "opted out" brig uid1 False
     assertCan'tFind brig uid2 uid1 h1
 
     updateSearchableStatus brig uid1 optIn
     refreshIndex brig
-    assertSearchable uid1 True
+    assertSearchable "opted in" brig uid1 True
     assertCanFind brig uid2 uid1 h1
-  where
-    assertSearchable uid status =
-        get (brig . path "/self/searchable" . zUser uid) !!! do
-            const 200 === statusCode
-            const (Just status) === fmap isSearchable . decodeBody
+
 
 testSearchByName :: Brig -> Http ()
 testSearchByName brig = do

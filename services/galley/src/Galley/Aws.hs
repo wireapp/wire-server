@@ -12,7 +12,6 @@ module Galley.Aws
     ( Env
     , mkEnv
     , awsEnv
-    , region
     , eventQueue
     , QueueUrl (..)
     , Amazon
@@ -31,15 +30,19 @@ import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
-import Control.Retry (retrying, limitRetries)
+import Control.Retry (retrying, limitRetries, exponentialBackoff)
+import Data.Monoid ((<>))
 import Data.ProtoLens.Encoding
 import Data.Text (Text)
 import Data.Text.Encoding (decodeLatin1)
 import Data.Typeable
+import Data.UUID.V4
+import Data.UUID (toText)
 import Galley.Options
 import Network.HTTP.Client
        (Manager, HttpException(..), HttpExceptionContent(..))
 import System.Logger.Class
+import Util.Options
 
 import qualified Control.Monad.Trans.AWS as AWST
 import qualified Data.ByteString.Base64 as B64
@@ -54,7 +57,7 @@ newtype QueueUrl = QueueUrl Text
     deriving (Show)
 
 data Error where
-    GeneralError     :: (Show e, AWS.AsError e) => e -> Error
+    GeneralError :: (Show e, AWS.AsError e) => e -> Error
 
 deriving instance Show     Error
 deriving instance Typeable Error
@@ -65,7 +68,6 @@ data Env = Env
     { _awsEnv     :: !AWS.Env
     , _logger     :: !Logger
     , _eventQueue :: !QueueUrl
-    , _region     :: !AWS.Region
     }
 
 makeLenses ''Env
@@ -98,13 +100,16 @@ instance AWS.MonadAWS Amazon where
 mkEnv :: Logger -> Manager -> JournalOpts -> IO Env
 mkEnv lgr mgr opts = do
     let g = Logger.clone (Just "aws.galley") lgr
-    e <- configure <$> mkAwsEnv g
-    q <- getQueueUrl e (opts^.queueName)
-    return (Env e g q (opts^.awsRegion))
+    e <- mkAwsEnv g
+    q <- getQueueUrl e (opts^.awsQueueName)
+    return (Env e g q)
   where
+    sqs e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) SQS.sqs
+
     mkAwsEnv g =  set AWS.envLogger (awsLogger g)
-               .  set AWS.envRegion (opts^.awsRegion)
+               .  set AWS.envRetryCheck retryCheck
               <$> AWS.newEnvWith AWS.Discover Nothing mgr
+              <&> AWS.configure (sqs (opts^.awsEndpoint))
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
 
@@ -121,8 +126,6 @@ mkEnv lgr mgr opts = do
     -- them, which results in distracting noise. For debugging purposes,
     -- they are still revealed on debug level.
     mapLevel AWS.Error = Logger.Debug
-
-    configure = set AWS.envRetryCheck retryCheck
 
     -- TODO: Remove custom retryCheck? Should be fixed since tls 1.3.9?
     -- account occasional TLS handshake failures.
@@ -154,11 +157,13 @@ execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
 enqueue :: E.TeamEvent -> Amazon ()
 enqueue e = do
     QueueUrl url <- view eventQueue
-    res <- retrying (limitRetries 1) (const isTimeout) $ const (sendCatch (req url))
+    rnd <- liftIO nextRandom
+    res <- retrying (limitRetries 5 <> exponentialBackoff 1000000) (const canRetry) $ const (sendCatch (req url rnd))
     either (throwM . GeneralError) (const (return ())) res
   where
     event = decodeLatin1 $ B64.encode $ encodeMessage e
-    req url = SQS.sendMessage url event & SQS.smMessageGroupId .~ Just "team.events"
+    req url dedup = SQS.sendMessage url event & SQS.smMessageGroupId .~ Just "team.events"
+                                              & SQS.smMessageDeduplicationId .~ Just (toText dedup)
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -166,8 +171,9 @@ enqueue e = do
 sendCatch :: AWS.AWSRequest r => r -> Amazon (Either AWS.Error (AWS.Rs r))
 sendCatch = AWST.trying AWS._Error . AWS.send
 
-isTimeout :: MonadIO m => Either AWS.Error a -> m Bool
-isTimeout (Right _) = pure False
-isTimeout (Left  e) = case e of
-    AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
-    _                                                           -> pure False
+canRetry :: MonadIO m => Either AWS.Error a -> m Bool
+canRetry (Right _) = pure False
+canRetry (Left  e) = case e of
+    AWS.TransportError (HttpExceptionRequest _ ResponseTimeout)                   -> pure True
+    AWS.ServiceError se | se^.AWS.serviceCode == AWS.ErrorCode "RequestThrottled" -> pure True
+    _                                                                             -> pure False

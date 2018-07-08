@@ -7,15 +7,16 @@
 
 module Brig.Team.API where
 
-import Brig.App (currentTime)
+import Brig.App (currentTime, settings)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.User (fetchUserIdentity)
 import Brig.Data.UserKey (userEmailKey)
 import Brig.Email
+import Brig.Options (setMaxConvAndTeamSize, setTeamInvitationTimeout)
 import Brig.Team.Email
 import Brig.Types.Team.Invitation
-import Brig.Types.User (InvitationCode)
+import Brig.Types.User (InvitationCode, emailIdentity)
 import Brig.Types.Intra (AccountStatus (..))
 import Control.Error
 import Control.Lens (view, (^.))
@@ -32,7 +33,7 @@ import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)
 import Network.Wai.Predicate hiding (setStatus, result, and)
 import Network.Wai.Routing hiding (head)
-import Network.Wai.Utilities hiding (message, code)
+import Network.Wai.Utilities hiding (message, code, parseJsonBody)
 import Network.Wai.Utilities.Swagger (document)
 import Prelude
 
@@ -60,13 +61,19 @@ routes = do
 
     document "POST" "sendTeamInvitation" $ do
         Doc.summary "Create and send a new team invitation."
-        Doc.notes "Invitations are sent by email."
+        Doc.notes "Invitations are sent by email. The maximum allowed number of \
+                  \pending team invitations is equal to the team size."
         Doc.parameter Doc.Path "tid" Doc.bytes' $
             Doc.description "Team ID"
         Doc.body (Doc.ref Doc.teamInvitationRequest) $
             Doc.description "JSON body"
         Doc.returns (Doc.ref Doc.teamInvitation)
         Doc.response 201 "Invitation was created and sent." Doc.end
+        Doc.errorResponse noEmail
+        Doc.errorResponse noIdentity
+        Doc.errorResponse invalidEmail
+        Doc.errorResponse blacklistedEmail
+        Doc.errorResponse tooManyTeamInvitations
 
     ---
 
@@ -162,25 +169,28 @@ getInvitationCode (_ ::: t ::: r) = do
 createInvitation :: JSON ::: UserId ::: ConnId ::: TeamId ::: Request -> Handler Response
 createInvitation (_ ::: uid ::: _ ::: tid ::: req) = do
     body <- parseJsonBody req
-    idt  <- lift $ fetchUserIdentity uid
-    when (isNothing idt) $
-        throwStd noIdentity
+    idt  <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
+    from <- maybe (throwStd noEmail)    return (emailIdentity idt)
     ensurePermissions uid tid [Team.AddTeamMember]
     email <- maybe (throwStd invalidEmail) return (validateEmail (irEmail body))
     let uk = userEmailKey email
     blacklisted <- lift $ Blacklist.exists uk
     when blacklisted $
         throwStd blacklistedEmail
+    maxSize <- setMaxConvAndTeamSize <$> view settings
+    pending <- lift $ DB.countInvitations tid
+    when (fromIntegral pending >= maxSize) $
+        throwStd tooManyTeamInvitations
     user <- lift $ Data.lookupKey uk
     case user of
         Just _  -> throwStd emailExists
-        Nothing -> doInvite email (irName body) (irLocale body)
+        Nothing -> doInvite email from (irLocale body)
   where
-    doInvite email nm lc = lift $ do
-        team <- Team.tdTeam <$> Intra.getTeam tid
-        now  <- liftIO =<< view currentTime
-        (newInv, code) <- DB.insertInvitation tid email now
-        void $ sendInvitationMail email tid nm (team^.Team.teamName) code lc
+    doInvite to from lc = lift $ do
+        now     <- liftIO =<< view currentTime
+        timeout <- setTeamInvitationTimeout <$> view settings
+        (newInv, code) <- DB.insertInvitation tid to now timeout
+        void $ sendInvitationMail to tid from code lc
         return . setStatus status201 . loc (inInvitation newInv) $ json newInv
 
     loc iid = addHeader "Location"
@@ -215,13 +225,13 @@ suspendTeam :: JSON ::: TeamId -> Handler Response
 suspendTeam (_ ::: tid) = do
     changeTeamAccountStatuses tid Suspended
     DB.deleteInvitations tid
-    lift $ Intra.changeTeamStatus tid Team.Suspended
+    lift $ Intra.changeTeamStatus tid Team.Suspended Nothing
     return empty
 
 unsuspendTeam :: JSON ::: TeamId -> Handler Response
 unsuspendTeam (_ ::: tid) = do
     changeTeamAccountStatuses tid Active
-    lift $ Intra.changeTeamStatus tid Team.Active
+    lift $ Intra.changeTeamStatus tid Team.Active Nothing
     return empty
 
 -------------------------------------------------------------------------------

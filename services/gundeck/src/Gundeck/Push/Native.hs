@@ -23,7 +23,7 @@ import Data.Metrics (path, counterIncr)
 import Data.Text (Text)
 import Gundeck.Env
 import Gundeck.Monad
-import Gundeck.Options (fbQueueDelay, notificationTTL)
+import Gundeck.Options
 import Gundeck.Push.Native.Serialise
 import Gundeck.Push.Native.Types as Types
 import Gundeck.Types
@@ -47,8 +47,8 @@ push m addrs = mapConcurrently (push1 m) addrs
 push1 :: Message s -> Address s -> Gundeck (Result s)
 push1 m a = do
     e <- view awsEnv
-    d <- view fbQueueDelay <$> view options
-    r <- Aws.execute e (publish m a $ ttl d)
+    d <- view (options.optFallback.fbQueueDelay)
+    r <- Aws.execute e $ publish m a (ttl d)
     case r of
         Success _                    -> do
             Log.debug $ field "user" (toByteString (a^.addrUser))
@@ -88,10 +88,11 @@ push1 m a = do
             e <- view awsEnv
             Aws.execute e (Aws.deleteEndpoint (a^.addrEndpoint))
 
-    onPayloadTooLarge =
-        Log.warn $ field "user" (toByteString (a^.addrUser))
-                ~~ field "arn" (toText (a^.addrEndpoint))
-                ~~ msg (val "Payload too large")
+    onPayloadTooLarge = do
+        view monitor >>= counterIncr (path "push.native.too_large")
+        Log.debug $ field "user" (toByteString (a^.addrUser))
+                 ~~ field "arn" (toText (a^.addrEndpoint))
+                 ~~ msg (val "Payload too large")
 
     onInvalidEndpoint =
         handleAny (logError a "Failed to cleanup orphaned push token") $ do
@@ -114,7 +115,7 @@ push1 m a = do
         let r = singleton (target (a^.addrUser) & targetClients .~ [c])
         let t = pushToken (a^.addrTransport) (a^.addrApp) (a^.addrToken) c
         let p = singletonPayload (PushRemove t)
-        Stream.add i r p =<< view (options.notificationTTL)
+        Stream.add i r p =<< view (options.optSettings.setNotificationTTL)
 
 publish :: Message s -> Address s -> Maybe Aws.Seconds -> Aws.Amazon (Result s)
 publish m a t = flip catches pushException $ do

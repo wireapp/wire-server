@@ -1,3 +1,0 @@
-Votre code Wire est ${code}.
-
-Entrez manuellement le code ci-dessus sure Wire.

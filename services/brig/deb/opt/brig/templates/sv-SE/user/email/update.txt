@@ -1,0 +1,22 @@
+Wire
+
+
+Hej,
+
+${email} registerades som din nya e-postadress hos Wire. Vänligen kontrollera din e-post.
+
+Följ länken nedan för att bekräfta din adress.
+
+
+${url}
+
+Vänligen svara inte på detta meddelande.
+
+Om detta inte var du som skapade ett Wire konto med denna e-postadress, vänligen kontakta oss https://support.wire.com
+
+
+
+
+(c) Wire Swiss GmbH
+
+Sekretesspolicy  |  Rapportera missbruk

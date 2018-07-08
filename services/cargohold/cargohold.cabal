@@ -24,6 +24,7 @@ library
 
     exposed-modules:
         CargoHold.API
+        CargoHold.Options
 
     other-modules:
         CargoHold.App
@@ -33,16 +34,16 @@ library
         CargoHold.API.V3.Resumable
         CargoHold.CloudFront
         CargoHold.Metrics
-        CargoHold.Options
         CargoHold.S3
         CargoHold.TUS
+        CargoHold.Util
 
     build-depends:
         base                 >= 4      && < 5
       , aeson                >= 0.11
       , attoparsec           >= 0.12
       , auto-update          >= 0.1.4
-      , aws                  >= 0.10.2
+      , aws                  >= 0.18
       , bilge                >= 0.21
       , byteable             >= 0.1
       , bytestring           >= 0.10
@@ -55,7 +56,7 @@ library
       , conduit              >= 1.2
       , conduit-extra        >= 1.1.5
       , containers           >= 0.5
-      , cryptohash           >= 0.11
+      , cryptonite           >= 0.20
       , data-default         >= 0.5
       , either               >= 4.3
       , errors               >= 1.4
@@ -94,6 +95,7 @@ library
       , wai-utilities        >= 0.16.1
       , warp                 >= 3.0
       , xml-conduit          >= 1.3
+      , yaml                 >= 0.8
 
 executable cargohold
     main-is:            src/Main.hs
@@ -110,12 +112,12 @@ executable cargohold
         base
       , cargohold
       , HsOpenSSL >= 0.11
+      , types-common
 
     if flag(static)
         ld-options: -static
 
-test-suite cargohold-integration
-    type:               exitcode-stdio-1.0
+executable cargohold-integration
     default-language:   Haskell2010
     main-is:            Main.hs
     hs-source-dirs:     test/integration
@@ -136,7 +138,7 @@ test-suite cargohold-integration
       , bytestring-conversion >= 0.2
       , cereal            >= 0.4
       , containers        >= 0.5
-      , cryptohash        >= 0.11
+      , cryptohash-md5    >= 0.11.7.2
       , data-default      >= 0.5
       , errors            >= 1.4
       , exceptions        >= 0.6
@@ -146,8 +148,10 @@ test-suite cargohold-integration
       , lens              >= 3.8
       , mime              >= 0.4
       , mtl               >= 2.1
+      , optparse-applicative
       , safe              >= 0.3
-      , tasty             >= 0.9
+      , tagged            >= 0.8
+      , tasty             >= 1.0
       , tasty-hunit       >= 0.9
       , time              >= 1.5
       , text              >= 1.1
@@ -156,3 +160,4 @@ test-suite cargohold-integration
       , uuid              >= 1.3
       , HsOpenSSL         >= 0.11
       , wai-utilities     >= 0.12
+      , yaml              >= 0.8

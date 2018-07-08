@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators     #-}
 
-module CargoHold.API (start, parseOptions) where
+module CargoHold.API (runServer, parseOptions) where
 
 import CargoHold.App
 import CargoHold.Options
@@ -10,13 +10,13 @@ import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad
 import Control.Monad.Catch (finally)
-import Control.Monad.IO.Class
 import Data.Aeson (encode)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Metrics.Middleware hiding (metrics)
 import Data.Monoid
 import Data.Predicate
+import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Network.HTTP.Types.Status
 import Network.Wai (Response, Request, responseLBS)
@@ -29,6 +29,7 @@ import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import Network.Wai.Utilities.ZAuth
 import Prelude hiding (head)
 import URI.ByteString
+import Util.Options
 
 import qualified CargoHold.API.V3              as V3
 import qualified CargoHold.API.V3.Resumable    as Resumable
@@ -42,15 +43,15 @@ import qualified Network.Wai.Middleware.Gzip   as GZip
 import qualified Network.Wai.Utilities.Server  as Server
 import qualified Network.Wai.Utilities.Swagger as Doc
 
-start :: Opts -> IO ()
-start o = do
+runServer :: Opts -> IO ()
+runServer o = do
     e <- newEnv o
     s <- Server.newSettings (server e)
     runSettingsWithShutdown s (pipeline e) 5
         `finally` closeEnv e
   where
     rtree      = compile sitemap
-    server   e = defaultServer (optHost o) (optPort o) (e^.appLogger) (e^.metrics)
+    server   e = defaultServer (unpack $ o^.optCargohold.epHost) (o^.optCargohold.epPort) (e^.appLogger) (e^.metrics)
     pipeline e = measureRequests (e^.metrics) rtree
                . catchErrors (e^.appLogger) (e^.metrics)
                . GZip.gzip GZip.def
@@ -148,6 +149,8 @@ sitemap = do
         Doc.parameter Doc.Path "key" Doc.bytes' $
             Doc.description "Asset key"
         Doc.response 200 "Asset token renewed" Doc.end
+        Doc.errorResponse Error.assetNotFound
+        Doc.errorResponse Error.unauthorised
 
     delete "/assets/v3/:key/token" (continue deleteTokenV3) $
         header "Z-User"
@@ -165,6 +168,14 @@ sitemap = do
     delete "/assets/v3/:key" (continue deleteAssetV3) $
         header "Z-User"
         .&. capture "key"
+
+    document "DELETE" "deleteAsset" $ do
+        Doc.summary "Delete an asset"
+        Doc.parameter Doc.Path "key" Doc.bytes' $
+            Doc.description "Asset key"
+        Doc.response 200 "Asset deleted" Doc.end
+        Doc.errorResponse Error.assetNotFound
+        Doc.errorResponse Error.unauthorised
 
     ---------------------------------------------------------------------------
     -- Provider API
@@ -251,7 +262,7 @@ deleteTokenV3 (usr ::: key) = do
 
 resumableOptionsV3 :: UserId -> Handler Response
 resumableOptionsV3 _ = do
-    maxTotal <- view maxTotalUpload
+    maxTotal <- view (settings.setMaxTotalBytes)
     return $ TUS.optionsResponse (fromIntegral maxTotal) empty
 
 createResumableV3 :: UserId ::: V3.TotalSize ::: Media "application" "json" ::: Request -> Handler Response
@@ -273,7 +284,6 @@ statusResumableV3 (u ::: a) = do
 uploadResumableV3 :: UserId ::: V3.Offset ::: Word ::: Media "application" "offset+octet-stream" ::: V3.AssetKey  ::: Request -> Handler Response
 uploadResumableV3 (usr ::: offset ::: size ::: _ ::: aid ::: req) = do
     (offset', expiry) <- Resumable.upload (V3.UserPrincipal usr) aid offset size (sourceRequestBody req)
-    liftIO $ Server.flushRequestBody req
     return $ TUS.patchResponse offset' expiry empty
 
 --------------------------------------------------------------------------------
@@ -315,7 +325,6 @@ uploadSimpleV3 :: V3.Principal -> Request -> Handler Response
 uploadSimpleV3 prc req = do
     let src = sourceRequestBody req
     asset <- V3.upload prc src
-    liftIO $ Server.flushRequestBody req
     return $ setStatus status201
            . loc (asset^.V3.assetKey)
            $ json asset

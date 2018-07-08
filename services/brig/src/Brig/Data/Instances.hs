@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeApplications           #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -12,12 +13,13 @@ import Brig.Types.Intra
 import Brig.Types.Provider ()
 import Cassandra.CQL
 import Control.Error (note)
+import Data.Aeson (eitherDecode, encode)
 import Data.Id()
 import Data.Int
 import Data.Range()
+import Data.String.Conversions (cs, LBS, ST)
 import Data.Text.Ascii()
 
-import qualified Brig.Types.Code                 as Code
 import qualified Data.Aeson                      as JSON
 import qualified Data.Aeson.Parser               as JSON
 import qualified Data.Attoparsec.ByteString.Lazy as P
@@ -33,8 +35,6 @@ deriving instance Cql PasswordResetCode
 deriving instance Cql ActivationKey
 deriving instance Cql ActivationCode
 deriving instance Cql PropertyKey
-deriving instance Cql Code.Key
-deriving instance Cql Code.Value
 deriving instance Cql SearchableStatus
 
 instance Cql Email where
@@ -46,6 +46,16 @@ instance Cql Email where
     fromCql _           = fail "fromCql: email: CqlText expected"
 
     toCql = toCql . fromEmail
+
+instance Cql UserSSOId where
+    ctype = Tagged TextColumn
+
+    fromCql (CqlText t) = case eitherDecode $ cs t of
+        Right i  -> return i
+        Left msg -> fail $ "fromCql: Invalid UserSSOId: " ++ msg
+    fromCql _           = fail "fromCql: UserSSOId: CqlText expected"
+
+    toCql = toCql . cs @LBS @ST . encode
 
 instance Cql Relation where
     ctype = Tagged IntColumn
@@ -128,11 +138,13 @@ instance Cql AccountStatus where
     toCql Active    = CqlInt 0
     toCql Suspended = CqlInt 1
     toCql Deleted   = CqlInt 2
+    toCql Ephemeral = CqlInt 3
 
     fromCql (CqlInt i) = case i of
         0 -> return Active
         1 -> return Suspended
         2 -> return Deleted
+        3 -> return Ephemeral
         n -> fail $ "unexpected account status: " ++ show n
     fromCql _ = fail "account status: int expected"
 
@@ -185,4 +197,3 @@ instance Cql Language where
         Just l' -> return l'
         Nothing -> fail "Language: ISO 639-1 expected."
     fromCql _            = fail "Language: ASCII expected"
-

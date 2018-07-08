@@ -1,0 +1,103 @@
+name:          spar
+version:       '0.1'
+synopsis:      'User Service for SSO (Single Sign-On) provisioning and authentication.'
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2018 Wire Swiss GmbH
+license:       AGPL-3
+license-file:  LICENSE
+category:      System
+description:   'See README.md'
+
+ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
+
+dependencies:
+  - aeson
+  - aeson-pretty
+  - aeson-qq
+  - base
+  - bilge
+  - binary
+  - brig-types
+  - bytestring
+  - bytestring-conversion
+  - cassandra-util
+  - containers
+  - cookie
+  - errors
+  - exceptions  # (for MonadClient, which in turn needs MonadCatch)
+  - ghc-prim
+  - http-client
+  - http-types
+  - metrics-core
+  - microlens
+  - microlens-th
+  - mtl
+  - optparse-applicative
+  - raw-strings-qq
+  - saml2-web-sso
+  - scientific
+  - servant
+  - servant-multipart
+  - servant-server
+  - servant-swagger
+  - string-conversions
+  - swagger2
+  - text
+  - time
+  - tinylog
+  - transformers
+  - types-common
+  - uri-bytestring
+  - uuid
+  - wai-utilities
+  - warp
+  - x509
+  - yaml
+
+library:
+  source-dirs:
+    - src
+
+tests:
+  spec:
+    main: Spec.hs
+    source-dirs:
+      - test
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - hspec
+      - hspec-discover
+      - QuickCheck
+      - spar
+      - uri-bytestring
+
+executables:
+  spar:
+    main: Main.hs
+    source-dirs: exec
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - spar
+
+  spar-schema:
+    main: Main.hs
+    source-dirs: schema/src
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - spar
+
+  spar-integration:
+    main: Spec.hs
+    source-dirs:
+      - test-integration
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - base64-bytestring
+      - galley-types
+      - hspec
+      - hspec-discover
+      - lens-aeson
+      - random
+      - spar
+      - xml-conduit

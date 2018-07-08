@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module API.V3 (tests) where
+module API.V3 where
 
 import Bilge hiding (body)
 import Bilge.Assert
 import Control.Applicative
 import Control.Concurrent (threadDelay)
-import Control.Lens (view, set, (&), (^.))
+import Control.Lens hiding (sets)
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Aeson hiding (json)
@@ -14,14 +14,14 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Maybe (fromMaybe)
+import Data.Maybe
 import Data.Monoid
 import Data.Text.Encoding (decodeLatin1)
 import Data.Time.Clock
 import Data.Time.Format
 import Data.UUID.V4
-import Network.HTTP.Client (parseUrlThrow, responseTimeoutMicro)
-import Network.HTTP.Client.TLS
+import GHC.Stack (HasCallStack)
+import Network.HTTP.Client (parseUrlThrow)
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status200, status204)
@@ -40,76 +40,91 @@ import qualified Data.UUID                    as UUID
 
 type CargoHold = Request -> Request
 
-test :: Manager -> TestName -> Http a -> TestTree
-test m n h = testCase n (void $ runHttpT m h)
+data TestSetup = TestSetup
+  { manager   :: Manager
+  , cargohold :: CargoHold
+  }
 
-tests :: String -> IO TestTree
-tests cp = do
-    let cg = host "127.0.0.1" . port (read cp)
-    p <- newManager tlsManagerSettings {
-        managerResponseTimeout = responseTimeoutMicro 300000000
-    }
-    return $ testGroup "v3"
-        [ testGroup "simple"
-            [ test p "roundtrip"          (testSimpleRoundtrip cg)
-            , test p "tokens"             (testSimpleTokens cg)
-            , test p "s3-upstream-closed" (testSimpleS3ClosedConnectionReuse cg)
-            ]
-        , testGroup "resumable"
-            [ test p "small"          (testResumableSmall cg)
-            , test p "large"          (testResumableBig cg)
-            , test p "last-small"     (testResumableLastSmall cg)
-            , test p "stepwise-small" (testResumableStepSmall cg)
-            , test p "stepwise-big"   (testResumableStepBig cg)
+type TestSignature a = CargoHold -> Http a
+
+test :: IO TestSetup -> TestName -> (TestSignature a) -> TestTree
+test s n h = testCase n runTest
+  where
+    runTest = do
+        setup <- s
+        (void $ runHttpT (manager setup) (h (cargohold setup)))
+
+tests :: IO TestSetup -> TestTree
+tests s = testGroup "v3"
+    [ testGroup "simple"
+        [ test s "roundtrip"          testSimpleRoundtrip
+        , test s "tokens"             testSimpleTokens
+        , test s "s3-upstream-closed" testSimpleS3ClosedConnectionReuse
+        ]
+    , testGroup "RealAWS"
+        [ testGroup "resumable"
+            [ test s "small"          testResumableSmall
+            , test s "large"          testResumableBig
+            , test s "last-small"     testResumableLastSmall
+            , test s "stepwise-small" testResumableStepSmall
+            , test s "stepwise-big"   testResumableStepBig
             ]
         ]
+    ]
 
 --------------------------------------------------------------------------------
 -- Simple (single-step) uploads
 
-testSimpleRoundtrip :: CargoHold -> Http ()
+testSimpleRoundtrip :: TestSignature ()
 testSimpleRoundtrip c = do
-    uid <- liftIO $ Id <$> nextRandom
-    uid2 <- liftIO $ Id <$> nextRandom
+    let def  = V3.defAssetSettings
+    let rets = [minBound ..]
+    let sets = def : map (\r -> def & V3.setAssetRetention ?~ r) rets
+    mapM_ simpleRoundtrip sets
+  where
+    simpleRoundtrip sets = do
+        uid <- liftIO $ Id <$> nextRandom
+        uid2 <- liftIO $ Id <$> nextRandom
 
-    -- Initial upload
-    let sets = V3.defAssetSettings
-    let bdy = (applicationText, "Hello World")
-    r1 <- uploadSimple (c . path "/assets/v3") uid sets bdy <!!
-        const 201 === statusCode
+        -- Initial upload
+        let bdy = (applicationText, "Hello World")
+        r1 <- uploadSimple (c . path "/assets/v3") uid sets bdy <!!
+            const 201 === statusCode
 
-    let      loc = decodeHeader "Location" r1 :: ByteString
-    let Just ast = decodeBody r1 :: Maybe V3.Asset
-    let Just tok = view V3.assetToken ast
+        let      loc = decodeHeader "Location" r1 :: ByteString
+        let Just ast = decodeBody r1 :: Maybe V3.Asset
+        let Just tok = view V3.assetToken ast
 
-    -- Check mandatory Date header and expiration.
-    let Just date = C8.unpack <$> lookup "Date" (responseHeaders r1)
-    let       utc = parseTimeOrError False defaultTimeLocale rfc822DateFormat date :: UTCTime
-    liftIO $ assertBool "invalid expiration" (Just utc < view V3.assetExpires ast)
+        -- Check mandatory Date header
+        let Just date = C8.unpack <$> lookup "Date" (responseHeaders r1)
+        let utc = parseTimeOrError False defaultTimeLocale rfc822DateFormat date :: UTCTime
+        -- Potentially check for the expires header
+        when (isJust $ join (V3.assetRetentionSeconds <$> (sets^.V3.setAssetRetention))) $ do
+            liftIO $ assertBool "invalid expiration" (Just utc < view V3.assetExpires ast)
 
-    -- Lookup with token and download via redirect.
-    r2 <- get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!! do
-        const 302 === statusCode
-        const Nothing === responseBody
-    r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
-    liftIO $ do
-        assertEqual "status" status200 (responseStatus r3)
-        assertEqual "content-type mismatch" (Just applicationText) (getContentType r3)
-        assertEqual "token mismatch" tok (decodeHeader "x-amz-meta-token" r3)
-        assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r3)
-        assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
+        -- Lookup with token and download via redirect.
+        r2 <- get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!! do
+            const 302 === statusCode
+            const Nothing === responseBody
+        r3 <- flip get' id =<< parseUrlThrow (C8.unpack (getHeader' "Location" r2))
+        liftIO $ do
+            assertEqual "status" status200 (responseStatus r3)
+            assertEqual "content-type mismatch" (Just applicationText) (getContentType r3)
+            assertEqual "token mismatch" tok (decodeHeader "x-amz-meta-token" r3)
+            assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r3)
+            assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
 
-    -- Delete (forbidden for other users)
-    deleteAsset c uid2 (view V3.assetKey ast) !!! const 403 === statusCode
-    -- Delete (allowed for creator)
-    deleteAsset c uid (view V3.assetKey ast) !!! const 200 === statusCode
-    r4 <- get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!!
-        const 404 === statusCode
-    let Just date' = C8.unpack <$> lookup "Date" (responseHeaders r4)
-    let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
-    liftIO $ assertBool "bad date" (utc' >= utc)
+        -- Delete (forbidden for other users)
+        deleteAsset c uid2 (view V3.assetKey ast) !!! const 403 === statusCode
+        -- Delete (allowed for creator)
+        deleteAsset c uid (view V3.assetKey ast) !!! const 200 === statusCode
+        r4 <- get (c . path loc . zUser uid . header "Asset-Token" (toByteString' tok) . noRedirect) <!!
+            const 404 === statusCode
+        let Just date' = C8.unpack <$> lookup "Date" (responseHeaders r4)
+        let utc' = parseTimeOrError False defaultTimeLocale rfc822DateFormat date' :: UTCTime
+        liftIO $ assertBool "bad date" (utc' >= utc)
 
-testSimpleTokens :: CargoHold -> Http ()
+testSimpleTokens :: TestSignature ()
 testSimpleTokens c = do
     uid <- liftIO $ Id <$> nextRandom
     uid2 <- liftIO $ Id <$> nextRandom
@@ -182,7 +197,7 @@ testSimpleTokens c = do
 -- S3 closes idle connections after ~5 seconds, before the http-client 'Manager'
 -- does. If such a closed connection is reused for an upload, no problems should
 -- occur (i.e. the closed connection should be detected before sending any data).
-testSimpleS3ClosedConnectionReuse :: CargoHold -> Http ()
+testSimpleS3ClosedConnectionReuse :: TestSignature ()
 testSimpleS3ClosedConnectionReuse c = go >> wait >> go
   where
     wait = liftIO $ putStrLn "Waiting for S3 idle timeout ..." >> threadDelay 7000000
@@ -196,32 +211,32 @@ testSimpleS3ClosedConnectionReuse c = go >> wait >> go
 --------------------------------------------------------------------------------
 -- Resumable (multi-step) uploads
 
-testResumableSmall :: CargoHold -> Http ()
+testResumableSmall :: TestSignature ()
 testResumableSmall c = assertRandomResumable c totalSize chunkSize UploadFull
   where
     totalSize = 100        -- 100 B
     chunkSize = 100 * 1024 -- 100 KiB
 
-testResumableBig :: CargoHold -> Http ()
+testResumableBig :: TestSignature ()
 testResumableBig c = assertRandomResumable c totalSize chunkSize UploadFull
   where
     totalSize = 25 * 1024 * 1024 -- 25 MiB
     chunkSize =  1 * 1024 * 1024 --  1 MiB
 
-testResumableLastSmall :: CargoHold -> Http ()
+testResumableLastSmall :: TestSignature ()
 testResumableLastSmall c = assertRandomResumable c totalSize chunkSize UploadFull
   where
     totalSize = 250 * 1024 + 12345 -- 250 KiB + 12345 B
     chunkSize = 100 * 1024         -- 100 KiB
 
-testResumableStepSmall :: CargoHold -> Http ()
+testResumableStepSmall :: TestSignature ()
 testResumableStepSmall c = assertRandomResumable c totalSize chunkSize UploadStepwise
   where
     totalSize = 500 * 1024 + 12345 -- 500 KiB + 12345 B
     chunkSize = 100 * 1024         -- 100 KiB
 
 -- This should use the S3 multipart upload behind the scenes.
-testResumableStepBig :: CargoHold -> Http ()
+testResumableStepBig :: TestSignature ()
 testResumableStepBig c = assertRandomResumable c totalSize chunkSize UploadStepwise
   where
     totalSize = 26 * 1024 * 1024 -- 26 MiB
@@ -231,7 +246,8 @@ testResumableStepBig c = assertRandomResumable c totalSize chunkSize UploadStepw
 
 data UploadType = UploadFull | UploadStepwise
 
-assertRandomResumable :: CargoHold -> V3.TotalSize -> V3.ChunkSize -> UploadType -> Http ()
+assertRandomResumable
+    :: HasCallStack => CargoHold -> V3.TotalSize -> V3.ChunkSize -> UploadType -> Http ()
 assertRandomResumable c totalSize chunkSize typ = do
     (uid, dat, ast) <- randomResumable c totalSize
     let key = ast^.V3.resumableAsset.V3.assetKey
@@ -272,7 +288,8 @@ uploadSimple c usr sets (ct, bs) =
          . lbytes (toLazyByteString mp)
 
 createResumable
-    :: CargoHold
+    :: HasCallStack
+    => CargoHold
     -> UserId
     -> V3.ResumableSettings
     -> V3.TotalSize
@@ -291,7 +308,7 @@ createResumable c u sets size = do
     liftIO $ assertEqual "Location" loc' loc
     return ast
 
-getResumableStatus :: CargoHold -> UserId -> V3.AssetKey -> Http V3.Offset
+getResumableStatus :: HasCallStack => CargoHold -> UserId -> V3.AssetKey -> Http V3.Offset
 getResumableStatus c u k = do
     r <- head ( c
               . paths ["assets", "v3", "resumable", toByteString' k]
@@ -330,7 +347,7 @@ getAsset c u k t = get $ c
     . maybe id (header "Asset-Token" . toByteString') t
     . noRedirect
 
-downloadAsset :: CargoHold -> UserId -> V3.AssetKey -> Maybe V3.AssetToken -> Http (Response (Maybe Lazy.ByteString))
+downloadAsset :: HasCallStack => CargoHold -> UserId -> V3.AssetKey -> Maybe V3.AssetToken -> Http (Response (Maybe Lazy.ByteString))
 downloadAsset c u k t = do
     r <- getAsset c u k t <!! do
         const 302 === statusCode

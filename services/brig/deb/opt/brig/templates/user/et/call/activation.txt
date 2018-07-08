@@ -1,1 +1,0 @@
-Hei, sinu Wire kood on:  ${code} Kordan, sinu kood on: ${code}

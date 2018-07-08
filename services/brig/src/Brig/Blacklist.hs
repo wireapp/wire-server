@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies        #-}
-{-# LANGUAGE ViewPatterns        #-}
 
 module Brig.Blacklist
     ( exists
@@ -9,55 +8,51 @@ module Brig.Blacklist
     , delete
     ) where
 
-import Aws.Core (Transaction, ServiceConfiguration)
-import Aws.DynamoDb (DdbConfiguration)
+import Brig.AWS
 import Brig.App
 import Brig.Data.UserKey (UserKey, keyText)
-import Control.Error
-import Control.Lens (view)
+import Control.Concurrent.Async.Lifted.Safe
+import Control.Lens
 import Control.Monad.Reader
 import Data.Text (Text)
-import System.Logger.Class (val, msg, field)
 
-import qualified Aws.DynamoDb        as Ddb
-import qualified Brig.Aws            as Aws
-import qualified System.Logger.Class as Log
+import qualified Brig.Data.Blacklist  as Data
+import qualified Data.HashMap.Strict  as Map
+import qualified Network.AWS.DynamoDB as AWS
+import qualified Network.AWS          as AWS
 
 hashKey :: Text
 hashKey = "key"
 
 exists :: UserKey -> AppIO Bool
-exists (Ddb.DString . keyText -> key) =
-    maybe False (isJust . Ddb.girItem) <$> exec cmd
+exists key = do
+    (fromDyn, fromCas) <- execDyn cmd `concurrently` Data.exists key
+    return (hasItems fromDyn || fromCas)
   where
-    cmd (Aws.BlacklistTable t) = (Ddb.getItem t (Ddb.hk hashKey key))
-        { Ddb.giAttrs      = Nothing
-        , Ddb.giConsistent = True
-        , Ddb.giRetCons    = Ddb.RCNone
-        }
+    cmd t = AWS.getItem t & AWS.giKey .~ item (keyText key)
+                          & AWS.giConsistentRead ?~ True
+
+    hasItems :: AWS.GetItemResponse -> Bool
+    hasItems = not . Map.null . view AWS.girsItem
 
 insert :: UserKey -> AppIO ()
-insert (keyText -> key) = void (exec cmd)
+insert key = void $ execDyn cmd `concurrently` Data.insert key
   where
-    cmd (Aws.BlacklistTable t) = Ddb.putItem t $ Ddb.item [Ddb.attr hashKey key]
+    cmd t = AWS.putItem t & AWS.piItem .~ item (keyText key)
 
 delete :: UserKey -> AppIO ()
-delete (Ddb.DString . keyText -> key) = void (exec cmd)
+delete key = void $ execDyn cmd `concurrently` Data.delete key
   where
-    cmd (Aws.BlacklistTable t) = Ddb.deleteItem t (Ddb.hk hashKey key)
+    cmd t = AWS.deleteItem t & AWS.diKey .~ item (keyText key)
 
--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- Internal
 
-exec :: (Transaction r a, ServiceConfiguration r ~ DdbConfiguration)
-     => (Aws.BlacklistTable -> r)
-     -> AppIO (Maybe a)
-exec mkCmd = do
-    cmd <- mkCmd    <$> view (awsConfig.Aws.ddbBlacklistTable)
-    rs  <- fmap snd <$> Aws.tryDynamo cmd
-    case rs of
-        Left ex -> do
-          Log.err $ field "error" (show ex)
-                  . msg (val "Blacklist: Cannot reach DynamoDB")
-          return Nothing
-        Right a -> return (Just a)
+item :: Text -> Map.HashMap Text AWS.AttributeValue
+item key = Map.singleton hashKey $ AWS.attributeValue & AWS.avS ?~ key
+
+execDyn :: (AWS.AWSRequest r) => (Text -> r) -> AppIO (AWS.Rs r)
+execDyn mkCmd = do
+    cmd <- mkCmd <$> view (awsEnv.blacklistTable)
+    env <- view (awsEnv.amazonkaEnv)
+    exec env cmd

@@ -42,6 +42,8 @@ library
         Galley.External
         Galley.Intra.Push
         Galley.Intra.User
+        Galley.Intra.Util
+        Galley.Intra.Client
         Galley.Queue
         Galley.Validation
         Galley.Types.Clients
@@ -67,6 +69,7 @@ library
       , cassandra-util          >= 0.16.2
       , cereal                  >= 0.4
       , containers              >= 0.5
+      , currency-codes          >= 2.0
       , enclosed-exceptions     >= 1.0
       , errors                  >= 2.0
       , safe-exceptions         >= 0.1
@@ -126,6 +129,7 @@ executable galley
       , galley
       , galley-types
       , HsOpenSSL
+      , types-common
 
     ghc-options:
         -Wall
@@ -147,6 +151,10 @@ executable galley-schema
         V21
         V22
         V23
+        V24
+        V25
+        V26
+        V27
 
     build-depends:
         base
@@ -159,8 +167,7 @@ executable galley-schema
     if flag(static)
         ld-options: -static
 
-test-suite galley-integration
-    type:               exitcode-stdio-1.0
+executable galley-integration
     default-language:   Haskell2010
     main-is:            Main.hs
     hs-source-dirs:     test/integration
@@ -169,6 +176,7 @@ test-suite galley-integration
     other-modules:
         API
         API.Teams
+        API.MessageTimer
         API.Util
         API.SQS
 
@@ -185,6 +193,7 @@ test-suite galley-integration
       , bytestring-conversion
       , cereal
       , containers
+      , currency-codes
       , data-default-class
       , data-timeout
       , errors
@@ -196,13 +205,20 @@ test-suite galley-integration
       , HsOpenSSL-x509-system
       , http-client
       , http-client-openssl-ext
+      , http-client-tls
       , http-types
       , lens
+      , lens-aeson
+      , lifted-async
       , mtl
       , network
+      , optparse-applicative
       , protobuf
       , proto-lens
       , QuickCheck
+      , retry
+      , safe                 >= 0.3
+      , tagged
       , transformers
       , tasty                >= 0.8
       , tasty-cannon         >= 0.3.2
@@ -213,6 +229,7 @@ test-suite galley-integration
       , tls                  >= 1.3.8
       , types-common
       , types-common-journal
+      , unix
       , unordered-containers
       , uri-bytestring
       , uuid
@@ -220,6 +237,7 @@ test-suite galley-integration
       , wai-route
       , wai-utilities
       , warp
+      , yaml
 
 executable galley-journaler
     main-is:            Main.hs

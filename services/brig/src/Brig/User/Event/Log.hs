@@ -17,7 +17,6 @@ connection from to =
 instance ToBytes Event where
     bytes (UserEvent e)       = bytes e
     bytes (ConnectionEvent e) = bytes e
-    bytes (InvitationEvent e) = bytes e
     bytes (PropertyEvent e)   = bytes e
     bytes (ClientEvent e)     = bytes e
 
@@ -34,11 +33,6 @@ instance ToBytes UserEvent where
 
 instance ToBytes ConnectionEvent where
     bytes e@ConnectionUpdated{} = val "user.connection: " +++ toByteString (connEventUserId e)
-
-instance ToBytes InvitationEvent where
-    bytes e@InvitationSent{}      = val "user.invitation-create: " +++ toByteString (invEventUserId e)
-    bytes e@InvitationCancelled{} = val "user.invitation-cancel: " +++ toByteString (invEventUserId e)
-    bytes e@InvitationAccepted{}  = val "user.invitation-accept: " +++ toByteString (invEventUserId e)
 
 instance ToBytes PropertyEvent where
     bytes e@PropertySet{}       = val "user.properties-set: " +++ toByteString (propEventUserId e)

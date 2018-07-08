@@ -4,9 +4,8 @@ module Main where
 
 import Cassandra.Schema
 import Control.Exception (finally)
-import Data.Monoid
-import Options.Applicative
 import System.Logger hiding (info)
+import Util.Options
 
 import qualified V9
 import qualified V10
@@ -24,7 +23,6 @@ import qualified V21
 import qualified V22
 import qualified V23
 import qualified V24
-import qualified V25
 import qualified V28
 import qualified V29
 import qualified V30
@@ -41,10 +39,20 @@ import qualified V40
 import qualified V41
 import qualified V42
 import qualified V43
+import qualified V44
+import qualified V45
+import qualified V46
+import qualified V47
+import qualified V48
+import qualified V49
+import qualified V50
+import qualified V51
 
 main :: IO ()
 main = do
-    o <- execParser (info (helper <*> migrationOptsParser) desc)
+    let desc = "Brig Cassandra Schema Migrations"
+        defaultPath = "/etc/wire/brig/conf/brig-schema.yaml"
+    o <- getOptions desc migrationOptsParser defaultPath
     l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
     migrateSchema l o
         [ V9.migration
@@ -63,7 +71,6 @@ main = do
         , V22.migration
         , V23.migration
         , V24.migration
-        , V25.migration
         , V28.migration
         , V29.migration
         , V30.migration
@@ -80,6 +87,12 @@ main = do
         , V41.migration
         , V42.migration
         , V43.migration
+        , V44.migration
+        , V45.migration
+        , V46.migration
+        , V47.migration
+        , V48.migration
+        , V49.migration
+        , V50.migration
+        , V51.migration
         ] `finally` close l
-  where
-    desc = header "Brig Cassandra Schema Migrations" <> fullDesc

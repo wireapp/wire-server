@@ -4,4 +4,4 @@ import Test.Tasty
 import ZAuth
 
 main :: IO ()
-main = tests >>= defaultMain
+main = defaultMain =<< tests

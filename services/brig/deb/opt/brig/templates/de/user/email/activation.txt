@@ -1,0 +1,17 @@
+BESTÄTIGE DEINE E-MAIL-ADRESSE
+${email} wurde verwendet um ein Konto auf Wire zu erstellen.
+Klicke den folgenden Button um die E-Mail-Adresse zu bestätigen.
+
+Überprüfe [${url}]Falls du nicht auf den Button klicken kannst, kopiere den Link
+und füge ihn in deinem Browser ein:
+
+${url}
+
+Wenn Du Fragen hast, bitte kontaktiere uns
+[https://support.wire.com/hc/de/requests/new].
+
+
+--------------------------------------------------------------------------------
+
+Datenschutz [https://wire.com/legal/] · Missbrauch melden [misuse@wire.com]
+© WIRE SWISS GmbH. ALLE RECHTE VORBEHALTEN.

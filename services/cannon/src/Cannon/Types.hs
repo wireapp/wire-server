@@ -2,16 +2,15 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Cannon.Types
-    ( Opts (..)
-    , Env
+    ( Env
     , mon
     , opts
     , applog
     , dict
     , env
     , logger
-    , parseOptions
     , Cannon
+    , mapConcurrentlyCannon
     , mkEnv
     , runCannon
     , options
@@ -24,21 +23,22 @@ import Bilge (Manager, RequestId (..), requestIdName)
 import Bilge.RPC (HasRequestId (..))
 import Cannon.Dict (Dict)
 import Cannon.WS (Key, Websocket, Clock)
+import Cannon.Options
+import Control.Concurrent.Async (mapConcurrently)
 import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
+import Control.Monad.Reader (runReaderT)
+import Control.Lens
 import Data.ByteString (ByteString)
-import Data.ByteString.Char8 (pack)
 import Data.Metrics.Middleware
-import Data.Monoid ((<>))
-import Data.Word
+import Data.Text.Encoding
 import Network.Wai
-import Options.Applicative
 import System.Logger.Class hiding (info)
 import System.Random.MWC (GenIO)
 
-import qualified Cannon.WS     as WS
-import qualified System.Logger as Logger
+import qualified Cannon.WS          as WS
+import qualified System.Logger      as Logger
 
 -----------------------------------------------------------------------------
 -- Cannon monad
@@ -53,7 +53,7 @@ data Env = Env
     }
 
 newtype Cannon a = Cannon
-    { cannon :: ReaderT Env IO a
+    { unCannon :: ReaderT Env IO a
     } deriving ( Functor
                , Applicative
                , Monad
@@ -62,6 +62,10 @@ newtype Cannon a = Cannon
                , MonadCatch
                , MonadMask
                )
+
+mapConcurrentlyCannon :: Traversable t => (a -> Cannon b) -> t a -> Cannon (t b)
+mapConcurrentlyCannon action inputs = Cannon $ ask >>= \e ->
+    liftIO $ mapConcurrently ((`runReaderT` e) . unCannon . action) inputs
 
 instance MonadLogger Cannon where
     log l m = Cannon $ do
@@ -73,6 +77,7 @@ instance HasRequestId Cannon where
     getRequestId = Cannon $ asks reqId
 
 mkEnv :: Metrics
+      -> ByteString
       -> Opts
       -> Logger
       -> Dict Key Websocket
@@ -80,12 +85,12 @@ mkEnv :: Metrics
       -> GenIO
       -> Clock
       -> Env
-mkEnv m o l d p g t = Env m o l d mempty $
-    WS.env (pack $ externalHost o) (port o) (gundeckHost o) (gundeckPort o) l p d g t
+mkEnv m external o l d p g t = Env m o l d mempty $
+    WS.env external (o^.cannon.port) (encodeUtf8 $ o^.gundeck.host) (o^.gundeck.port) l p d g t
 
 runCannon :: Env -> Cannon a -> Request -> IO a
 runCannon e c r = let e' = e { reqId = lookupReqId r } in
-    runReaderT (cannon c) e'
+    runReaderT (unCannon c) e'
 
 lookupReqId :: Request -> RequestId
 lookupReqId = maybe mempty RequestId . lookup requestIdName . requestHeaders
@@ -108,51 +113,3 @@ wsenv = Cannon $ do
 
 logger :: Cannon Logger
 logger = Cannon $ asks applog
-
------------------------------------------------------------------------------
--- Command line options
-
-data Opts = Opts
-    { host         :: String
-    , externalHost :: String
-    , port         :: !Word16
-    , gundeckHost  :: !ByteString
-    , gundeckPort  :: !Word16
-    } deriving (Eq, Show)
-
-parseOptions :: IO Opts
-parseOptions = execParser (info (helper <*> optsParser) desc)
-  where
-    desc = header "Cannon - Websocket Push Service" <> fullDesc
-
-    optsParser :: Parser Opts
-    optsParser = Opts
-        <$> (strOption $
-                long "host"
-                <> metavar "HOSTNAME"
-                <> help "host to listen on")
-
-        <*> (strOption $
-                long "external-host"
-                <> metavar "HOSTNAME"
-                <> help "host address to report to other services")
-
-        <*> (option auto $
-                long "port"
-                <> short 'p'
-                <> metavar "PORT"
-                <> help "port to listen on")
-
-        <*> (bytesOption $
-                long "gundeck-host"
-                <> metavar "HOSTNAME"
-                <> help "Gundeck host")
-
-        <*> (option auto $
-                long "gundeck-port"
-                <> metavar "PORT"
-                <> help "Gundeck port")
-
-    bytesOption :: Mod OptionFields String -> Parser ByteString
-    bytesOption = fmap pack . strOption
-

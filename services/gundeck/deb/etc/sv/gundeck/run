@@ -21,6 +21,18 @@ export LOG_LEVEL=${GUNDECK_LOG_LEVEL:-Debug}
 export LOG_BUFFER=${GUNDECK_LOG_BUFFER:-4096}
 export LOG_NETSTR=${GUNDECK_LOG_NETSTR:-True}
 
+if [ -n "$GUNDECK_PREFER_NOTICE" ]; then
+    GUNDECK_PREFER_NOTICE="--prefer-notice"
+else
+    GUNDECK_PREFER_NOTICE=""
+fi
+
+if [ -n "$GUNDECK_CANNON_BULK_PUSH" ]; then
+    GUNDECK_CANNON_BULK_PUSH="--bulk-push"
+else
+    GUNDECK_CANNON_BULK_PUSH=""
+fi
+
 cd $HOME
 
 ulimit -n 65536
@@ -41,4 +53,8 @@ exec chpst -u $USER \
     --aws-region=${KHAN_REGION?'unset'} \
     --aws-account=${AWS_ACCOUNT_ID?'unset'} \
     --aws-arn-env=${KHAN_ENV?'unset'} \
-    --skip-fallbacks
+    --aws-sqs-endpoint=${GUNDECK_AWS_SQS_ENDPOINT:-'https://sqs.eu-west-1.amazonaws.com'} \
+    --aws-sns-endpoint=${GUNDECK_AWS_SNS_ENDPOINT:-'https://sns.eu-west-1.amazonaws.com'} \
+    --skip-fallbacks \
+    ${GUNDECK_PREFER_NOTICE} \
+    ${GUNDECK_CANNON_BULK_PUSH}

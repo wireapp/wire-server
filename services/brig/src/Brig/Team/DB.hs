@@ -6,6 +6,7 @@
 
 module Brig.Team.DB
     ( module T
+    , countInvitations
     , insertInvitation
     , deleteInvitation
     , deleteInvitations
@@ -23,6 +24,7 @@ module Brig.Team.DB
 
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
+import Brig.Options
 import Brig.Types.Common
 import Brig.Types.User
 import Brig.Types.Team.Invitation
@@ -33,9 +35,11 @@ import Control.Monad.IO.Class
 import Control.Monad (when)
 import Data.Id
 import Data.Int
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
+import Data.Maybe (fromMaybe)
 import Data.Range
-import Data.UUID.V4
 import Data.Text.Ascii (encodeBase64Url)
+import Data.UUID.V4
 import Data.Time.Clock
 import OpenSSL.Random (randBytes)
 
@@ -51,23 +55,28 @@ data InvitationInfo = InvitationInfo
     , iiInvId   :: InvitationId
     } deriving (Eq, Show)
 
-insertInvitation :: MonadClient m => TeamId -> Email -> UTCTime -> m (Invitation, InvitationCode)
-insertInvitation t email now = do
+insertInvitation :: MonadClient m
+                 => TeamId
+                 -> Email
+                 -> UTCTime
+                 -> Timeout -- ^ The timeout for the invitation code.
+                 -> m (Invitation, InvitationCode)
+insertInvitation t email (toUTCTimeMillis -> now) timeout = do
     iid  <- liftIO mkInvitationId
     code <- liftIO mkInvitationCode
     let inv = Invitation t iid email now
     retry x5 $ batch $ do
         setType BatchLogged
         setConsistency Quorum
-        addPrepQuery cqlInvitation (t, iid, code, email, now)
-        addPrepQuery cqlInvitationInfo (code, t, iid)
+        addPrepQuery cqlInvitation (t, iid, code, email, now, round timeout)
+        addPrepQuery cqlInvitationInfo (code, t, iid, round timeout)
     return (inv, code)
   where
-    cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId) ()
-    cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?)"
+    cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
+    cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?"
 
-    cqlInvitation :: PrepQuery W (TeamId, InvitationId, InvitationCode, Email, UTCTime) ()
-    cqlInvitation = "INSERT INTO team_invitation (team, id, code, email, created_at) VALUES (?, ?, ?, ?, ?)"
+    cqlInvitation :: PrepQuery W (TeamId, InvitationId, InvitationCode, Email, UTCTimeMillis, Int32) ()
+    cqlInvitation = "INSERT INTO team_invitation (team, id, code, email, created_at) VALUES (?, ?, ?, ?, ?) USING TTL ?"
 
 lookupInvitation :: MonadClient m => TeamId -> InvitationId -> m (Maybe Invitation)
 lookupInvitation t r = fmap toInvitation <$>
@@ -147,6 +156,13 @@ lookupInvitationInfo ic@(InvitationCode c)
     cqlInvitationInfo :: PrepQuery R (Identity InvitationCode) (TeamId, InvitationId)
     cqlInvitationInfo = "SELECT team, id FROM team_invitation_info WHERE code = ?"
 
+countInvitations :: MonadClient m => TeamId -> m Int64
+countInvitations t = fromMaybe 0 . fmap runIdentity <$>
+    retry x1 (query1 cqlSelect (params Quorum (Identity t)))
+  where
+    cqlSelect :: PrepQuery R (Identity TeamId) (Identity Int64)
+    cqlSelect = "SELECT count(*) FROM team_invitation WHERE team = ?"
+
 -- Helper
 toInvitation :: (TeamId, InvitationId, Email, UTCTime) -> Invitation
-toInvitation (t, i, e, tm) = Invitation t i e tm
+toInvitation (t, i, e, toUTCTimeMillis -> tm) = Invitation t i e tm

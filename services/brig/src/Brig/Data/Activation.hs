@@ -37,7 +37,6 @@ import Data.Int (Int32)
 import Data.Text (Text, pack)
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (getDigestByName, digestBS)
-import OpenSSL.Random (randBytes)
 import Text.Printf (printf)
 
 import qualified Data.Text.Ascii    as Ascii
@@ -65,7 +64,7 @@ data ActivationEvent
 
 -- | Max. number of activation attempts per 'ActivationKey'.
 maxAttempts :: Int32
-maxAttempts = 5
+maxAttempts = 3
 
 activateKey :: ActivationKey
             -> ActivationCode
@@ -86,18 +85,28 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
                 lift $ activateUser uid ident
                 let a' = a { accountUser = (accountUser a) { userIdentity = Just ident } }
                 return . Just $ AccountActivated a'
-            Just _ ->
-                let oldKey = foldKey (\(_ :: Email) -> fmap userEmailKey . userEmail)
-                                     (\(_ :: Phone) -> fmap userPhoneKey . userPhone)
-                                     key
-                           $ accountUser a
-                in if oldKey == Just key then return Nothing else do
-                    mkPasswordResetKey uid >>= lift . deletePasswordResetCode
-                    -- ^ ensure no password reset codes remain on activation of new email
-                    claim key uid
-                    lift $ foldKey (updateEmail uid) (updatePhone uid) key
-                    for_ oldKey $ lift . deleteKey
-                    return . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
+            Just _ -> do
+                let usr = accountUser a
+                    (profileNeedsUpdate, oldKey) = foldKey (\(e :: Email) -> (Just e /= userEmail usr,) . fmap userEmailKey . userEmail)
+                                                       (\(p :: Phone) -> (Just p /= userPhone usr,) . fmap userPhoneKey . userPhone)
+                                                       key
+                                            $ usr
+                 in handleExistingIdentity uid profileNeedsUpdate oldKey key
+
+    handleExistingIdentity uid profileNeedsUpdate oldKey key
+        | oldKey == Just key && (not profileNeedsUpdate) = return Nothing
+        -- ^ activating existing key and exactly same profile
+        --   (can happen when a user clicks on activation links more than once)
+        | oldKey == Just key && profileNeedsUpdate       = do
+            lift $ foldKey (updateEmail uid) (updatePhone uid) key
+            return . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
+        -- ^ if the key is the same, we only want to update our profile
+        | otherwise                    = do
+            mkPasswordResetKey uid >>= lift . deletePasswordResetCode
+            claim key uid
+            lift $ foldKey (updateEmail uid) (updatePhone uid) key
+            for_ oldKey $ lift . deleteKey
+            return . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
 
     claim key uid = do
         ok <- lift $ claimKey key uid
@@ -106,13 +115,13 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
 
 -- | Create a new pending activation for a given 'UserKey'.
 newActivation :: UserKey
-              -> ActivationTimeout -- ^ The timeout for the activation code.
+              -> Timeout           -- ^ The timeout for the activation code.
               -> Maybe UserId      -- ^ The user with whom to associate the activation code.
               -> AppIO Activation
 newActivation uk timeout u = do
     (typ, key, code) <- liftIO $ foldKey
-        (\e -> ("email", fromEmail e,) <$> genEmailCode)
-        (\p -> ("phone", fromPhone p,) <$> genPhoneCode)
+        (\e -> ("email", fromEmail e,) <$> genCode)
+        (\p -> ("phone", fromPhone p,) <$> genCode)
         uk
     insert typ key code
   where
@@ -121,9 +130,8 @@ newActivation uk timeout u = do
         retry x5 . write keyInsert $ params Quorum (key, t, k, c, u, maxAttempts, round timeout)
         return $ Activation key c
 
-    genEmailCode = ActivationCode . Ascii.encodeBase64Url <$> randBytes 24
-    genPhoneCode = ActivationCode . Ascii.unsafeFromText . pack . printf "%06d"
-                <$> randIntegerZeroToNMinusOne 1000000
+    genCode = ActivationCode . Ascii.unsafeFromText . pack . printf "%06d"
+           <$> randIntegerZeroToNMinusOne 1000000
 
 -- | Lookup an activation code and it's associated owner (if any) for a 'UserKey'.
 lookupActivationCode :: UserKey -> AppIO (Maybe (Maybe UserId, ActivationCode))

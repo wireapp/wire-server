@@ -1,20 +1,30 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns        #-}
+
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Test.Properties (tests) where
 
+import Data.Aeson as Aeson
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy as L
 import Data.Monoid
 import Data.Text.Ascii
 import Data.Id
 import Data.ProtocolBuffers.Internal
 import Data.Serialize
+import Data.Time
+import Data.Time.Clock.POSIX
+import GHC.Stack
 import Data.UUID
 import Test.Tasty
+import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 import qualified Data.ByteString.Char8 as C8
 import qualified Data.Text.Ascii       as Ascii
+import qualified Data.Json.Util        as Util
 
 tests :: TestTree
 tests = testGroup "Properties"
@@ -71,6 +81,61 @@ tests = testGroup "Properties"
             \(c :: Char) -> Ascii.contains Ascii.Base64Url c ==> Ascii.contains Ascii.Standard c
         ]
 
+    , testGroup "Base64ByteString"
+        [ testProperty "validate (Aeson.decode . Aeson.encode) == pure . id" $
+            \(Util.Base64ByteString . L.pack -> s) ->
+                (Aeson.eitherDecode . Aeson.encode) s == Right s
+          -- the property only considers valid 'String's, and it does not document the encoding very
+          -- well, so here are some unit tests (see
+          -- http://www.cl.cam.ac.uk/~mgk25/ucs/examples/UTF-8-test.txt for more).
+        , testCase "examples" $ do
+            let go :: Util.Base64ByteString -> L.ByteString -> Assertion
+                go b uu = do
+                  Aeson.encode b @=? uu
+                  (Aeson.eitherDecode . Aeson.encode) b @=? Right b
+            go "" "\"\""
+            go "foo" "\"Zm9v\""
+        ]
+
+    , testGroup "UTCTimeMillis"
+        [ testProperty "validate (Aeson.decode . Aeson.encode) == pure . id" $
+            \(t :: Util.UTCTimeMillis) ->
+                (Aeson.eitherDecode . Aeson.encode) t == Right t
+
+          -- (we could test @show x == show y ==> x == y@, but that kind of follows from the above.)
+
+        , let toUTCTimeMillisSlow :: HasCallStack => UTCTime -> Maybe UTCTime
+              toUTCTimeMillisSlow t = parseExact formatRounded
+                where
+                  parseExact = parseTimeM True defaultTimeLocale "%FT%T%QZ"
+                  formatRounded = formatTime defaultTimeLocale format t
+                  format = "%FT%T." ++ formatMillis t ++ "Z"
+                  formatMillis = Prelude.take 3 . formatTime defaultTimeLocale "%q"
+          in testProperty "toUTCTimeMillis" $
+             \(t :: UTCTime) ->
+                Just (Util.fromUTCTimeMillis $ Util.toUTCTimeMillis t) == toUTCTimeMillisSlow t
+
+        , let testcase (t1, t2) = testCase (show (t1, t2)) $ make t1 @=? make t2
+              make = Util.readUTCTimeMillis
+          in testGroup "validate Eq" $ testcase <$>
+            [ ("1918-04-14T09:58:58.457Z",  "1918-04-14T09:58:58.457Z")
+            , ("1918-04-14T09:58:58.4574Z", "1918-04-14T09:58:58.457Z")
+            , ("1918-04-14T09:58:58.4579Z", "1918-04-14T09:58:58.457Z")
+            ]
+
+        , let testcase (t1, t2) = testCase (show (t1, t2)) $ process t1 @=? Just t2
+              process = fmap show . Util.readUTCTimeMillis
+          in testGroup "validate Eq" $ testcase <$>
+            [ ("1918-04-14T09:58:58.457Z",  "1918-04-14T09:58:58.457Z")
+            , ("1918-04-14T09:58:58.4574Z", "1918-04-14T09:58:58.457Z")
+            , ("1918-04-14T09:58:58.4579Z", "1918-04-14T09:58:58.457Z")
+              -- client parsers require *exactly* three digits:
+            , ("1918-04-14T09:58:58Z",      "1918-04-14T09:58:58.000Z")
+            , ("1918-04-14T09:58:58.1Z",    "1918-04-14T09:58:58.100Z")
+            , ("1918-04-14T09:58:58.12Z",   "1918-04-14T09:58:58.120Z")
+            ]
+        ]
+
     , testGroup "UUID"
         [ testProperty "decode . encode = id" $
               \t (x :: UUID) -> roundtrip t x === Right x
@@ -109,3 +174,6 @@ newtype Tag' = Tag' Tag
 
 instance Arbitrary Tag' where
     arbitrary = Tag' <$> choose (0, 536870912)
+
+instance Arbitrary Util.UTCTimeMillis where
+    arbitrary = Util.toUTCTimeMillis . posixSecondsToUTCTime . fromInteger <$> arbitrary

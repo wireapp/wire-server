@@ -13,7 +13,6 @@ module Brig.API.Handler
     , checkWhitelist
     ) where
 
-import Aws.Ses (SesError (..))
 import Bilge (RequestId (..))
 import Brig.App (Env, AppIO, runAppT, requestId, applog, settings)
 import Brig.Options (setWhitelist)
@@ -27,7 +26,6 @@ import Control.Monad.Catch (catches, throwM)
 import Control.Monad.Trans.Class
 import Data.Aeson (FromJSON)
 import Data.Monoid
-import Network.HTTP.Types.Status
 import Network.Wai.Predicate (Media)
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Routing (Continue)
@@ -36,9 +34,9 @@ import Network.Wai.Utilities.Request (lookupRequestId, parseBody)
 import Network.Wai.Utilities.Response (setStatus, json, addHeader)
 import System.Logger (Logger)
 
+import qualified Brig.AWS                     as AWS
 import qualified Brig.Whitelist               as Whitelist
 import qualified Control.Monad.Catch          as Catch
-import qualified Data.Text                    as Text
 import qualified Network.Wai.Utilities.Error  as WaiError
 import qualified Network.Wai.Utilities.Server as Server
 
@@ -56,11 +54,10 @@ runHandler e r h k = do
     errors =
         [ Catch.Handler $ \(ex :: PhoneException) ->
             pure (Left (phoneError ex))
-        , Catch.Handler $ \(ex :: SesError) ->
-            if sesStatusCode ex == status400 &&
-                    "Invalid domain name" `Text.isPrefixOf` sesErrorMessage ex
-                then pure (Left (StdError invalidEmail))
-                else throwM ex
+        , Catch.Handler $ \(ex :: AWS.Error) ->
+            case ex of
+                AWS.SESInvalidDomain -> pure (Left (StdError invalidEmail))
+                _                    -> throwM ex
         ]
 
 onError :: Logger -> Request -> Continue IO -> Error -> IO ResponseReceived
@@ -78,8 +75,12 @@ onError g r k e = do
 -------------------------------------------------------------------------------
 -- Utilities
 
+-- TODO: move to libs/wai-utilities?
 type JSON = Media "application" "json"
 
+-- TODO: move to libs/wai-utilities?  there is a parseJsonBody in "Network.Wai.Utilities.Request",
+-- but adjusting its signature to this here would require to move more code out of brig (at least
+-- badRequest and probably all the other errors).
 parseJsonBody :: FromJSON a => Request -> Handler a
 parseJsonBody req = parseBody req !>> StdError . badRequest
 

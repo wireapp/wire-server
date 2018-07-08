@@ -29,6 +29,7 @@ library
       , gundeck-types
       , exceptions
       , http-client           >= 0.5
+      , http-types
       , random
       , stm
       , transformers

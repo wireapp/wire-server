@@ -6,17 +6,17 @@
 module Galley.API.Util where
 
 import Brig.Types (Relation (..))
-import Brig.Types.Intra (ConnectionStatus (..), ReAuthUser (..))
+import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens (view, (&), (.~))
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Control.Concurrent.Async.Lifted.Safe
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Foldable (find, for_, toList)
 import Data.Maybe (isJust)
 import Data.Misc (PlainTextPassword (..))
-import Data.Range
 import Data.Semigroup ((<>))
 import Data.Time
 import Galley.App
@@ -32,27 +32,36 @@ import Network.Wai.Predicate
 import Network.Wai.Utilities
 
 import qualified Data.Text.Lazy as LT
-import qualified Data.Set       as Set
 import qualified Galley.Data    as Data
 
 type JSON = Media "application" "json"
 
+ensureAccessRole :: AccessRole -> [UserId] -> Maybe [TeamMember] -> Galley ()
+ensureAccessRole role users mbTms = case role of
+    PrivateAccessRole -> throwM accessDenied
+    TeamAccessRole -> case mbTms of
+        Nothing -> throwM internalError
+        Just tms ->
+            unless (null $ notTeamMember users tms) $
+                throwM noTeamMember
+    ActivatedAccessRole -> do
+        activated <- lookupActivatedUsers users
+        when (length activated /= length users) $ throwM accessDenied
+    NonActivatedAccessRole -> return ()
+
+-- | Check that the user is connected to everybody else.
+--
+-- The connection has to be bidirectional (e.g. if A connects to B and later
+-- B blocks A, the status of A-to-B is still 'Accepted' but it doesn't mean
+-- that they are connected).
 ensureConnected :: UserId -> [UserId] -> Galley ()
 ensureConnected _ []   = pure ()
 ensureConnected u uids = do
-    conns <- getConnections u uids (Just Accepted)
-    unless (all (isConnected u conns) uids) $
+    (connsFrom, connsTo) <-
+        getConnections [u] uids (Just Accepted) `concurrently`
+        getConnections uids [u] (Just Accepted)
+    unless (length connsFrom == length uids && length connsTo == length uids) $
         throwM notConnected
-  where
-    isConnected u1 conns u2 =
-        let c1 = find (connection u1 u2) conns
-            c2 = find (connection u2 u1) conns
-        in isJust c1 && isJust c2
-
-    connection u1 u2 cs =
-           csFrom   cs == u1
-        && csTo     cs == u2
-        && csStatus cs == Accepted
 
 ensureReAuthorised :: UserId -> PlainTextPassword -> Galley ()
 ensureReAuthorised u secret = do
@@ -60,13 +69,12 @@ ensureReAuthorised u secret = do
     unless reAuthed $
         throwM reAuthFailed
 
-sameTeam :: [UserId] -> [TeamMember] -> [UserId]
-sameTeam uids tmms = Set.toList $
-    Set.fromList uids `Set.intersection` Set.fromList (map (view userId) tmms)
-
-notSameTeam :: [UserId] -> [TeamMember] -> [UserId]
-notSameTeam uids tmms = Set.toList $
-    Set.fromList uids `Set.difference` Set.fromList (sameTeam uids tmms)
+bindingTeamMembers :: TeamId -> Galley [TeamMember]
+bindingTeamMembers tid = do
+    binding <- Data.teamBinding tid >>= ifNothing teamNotFound
+    case binding of
+        Binding -> Data.teamMembers tid
+        NonBinding -> throwM nonBindingTeam
 
 permissionCheck :: Foldable m => UserId -> Perm -> m TeamMember -> Galley TeamMember
 permissionCheck u p t =
@@ -85,7 +93,7 @@ acceptOne2One usr conv conn = case Data.convType conv of
             return conv
         else do
             now <- liftIO getCurrentTime
-            mm  <- snd <$> Data.addMembers now cid usr (rcast $ rsingleton usr)
+            mm  <- snd <$> Data.addMember now cid usr
             return $ conv { Data.convMembers = mems <> toList mm }
     ConnectConv -> case mems of
         [_,_] | usr `isMember` mems -> promote
@@ -94,7 +102,7 @@ acceptOne2One usr conv conn = case Data.convType conv of
             when (length mems > 2) $
                 throwM badConvState
             now <- liftIO getCurrentTime
-            (e, mm) <- Data.addMembers now cid usr (rcast $ rsingleton usr)
+            (e, mm) <- Data.addMember now cid usr
             conv'   <- if isJust (find ((usr /=) . memId) mems) then promote else pure conv
             let mems' = mems <> toList mm
             for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> mems')) $ \p ->
@@ -112,12 +120,6 @@ acceptOne2One usr conv conn = case Data.convType conv of
     badConvState = Error status500 "bad-state"
                  $ "Connect conversation with more than 2 members: "
                 <> LT.pack (show cid)
-
-isTeamMember :: Foldable m => UserId -> m TeamMember -> Bool
-isTeamMember u = isJust . findTeamMember u
-
-findTeamMember :: Foldable m => UserId -> m TeamMember -> Maybe TeamMember
-findTeamMember u = find ((u ==) . view userId)
 
 isBot :: Member -> Bool
 isBot = isJust . memService
@@ -144,4 +146,3 @@ nonTeamMembers cm tm = filter (not . flip isTeamMember tm . memId) cm
 membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
 membersToRecipients Nothing  = map (userRecipient . view userId)
 membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
-

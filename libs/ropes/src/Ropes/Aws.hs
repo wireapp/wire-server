@@ -57,12 +57,23 @@ import Prelude
 -- Config
 
 newtype AccessKeyId = AccessKeyId
-    { unAccessKeyId :: ByteString }
-    deriving (Eq, Show)
+    { unKey :: ByteString }
+    deriving (Read, Eq, Show)
+
+instance FromJSON AccessKeyId where
+  parseJSON = withText "Aws.AccessKeyId" $
+    pure . AccessKeyId . encodeUtf8
 
 newtype SecretAccessKey = SecretAccessKey
-    { unSecretAccessKey :: ByteString }
-    deriving (Eq)
+    { unSecret :: ByteString }
+    deriving (Read, Eq)
+
+instance Show SecretAccessKey where
+  show _ = "AWS Secret hidden"
+
+instance FromJSON SecretAccessKey where
+  parseJSON = withText "Aws.SecretAccessKey" $
+    pure . SecretAccessKey . encodeUtf8
 
 data Auth
     = PermAuth Configuration
@@ -75,12 +86,20 @@ data Env = Env
         -- ^ Get the HTTP 'Manager' used by an 'Env'ironment.
     }
 
+-- | If credentials are supplied to this function, they are used to create the 'Env'
+-- | Otherwise, it tries to discover AWS credentials by calling the underlying
+-- | loadCredentialsDefault. If that does not succeed, if fallsback to instance metadata
 newEnv :: Logger -> Manager -> Maybe (AccessKeyId, SecretAccessKey) -> IO Env
 newEnv lgr mgr ks = do
     auth <- case ks of
-        Just (k, s) -> PermAuth <$> newPermConfig lgr k s
-        Nothing     -> TempAuth <$> newTempConfig lgr mgr
+        Just (k, s) -> permAuth =<< makeCredentials (unKey k) (unSecret s)
+        Nothing     -> discover
     return $ Env auth mgr
+  where
+    permAuth creds = PermAuth <$> newPermConfig lgr creds
+    tempAuth       = TempAuth <$> newTempConfig lgr mgr
+
+    discover = loadCredentialsDefault >>= maybe tempAuth permAuth
 
 -- | Get the currently used 'Credentials' from the current
 -- 'Configuration' used by the given 'Env'.
@@ -109,11 +128,8 @@ sendRequest env scfg req = transResourceT liftIO $ do
 -------------------------------------------------------------------------------
 -- Internals
 
-newPermConfig :: Logger -> AccessKeyId -> SecretAccessKey -> IO Configuration
-newPermConfig lgr (AccessKeyId k) (SecretAccessKey s) = do
-    keys <- newIORef [] -- V4 signing keys used by the 'aws' package
-    let creds = Credentials k s keys Nothing
-    return $ Configuration Timestamp creds (awsLog lgr)
+newPermConfig :: Logger -> Credentials -> IO Configuration
+newPermConfig lgr creds = return $ Configuration Timestamp creds (awsLog lgr) Nothing
 
 newTempConfig :: Logger -> Manager -> IO (IORef Configuration)
 newTempConfig lgr mgr = do
@@ -148,7 +164,7 @@ newTempConfig lgr mgr = do
             Right a -> do
                 keys <- newIORef [] -- V4 signing keys used by the 'aws' package
                 let (c, x) = mkCreds a keys
-                    cfg = Configuration Timestamp c (awsLog lgr)
+                    cfg = Configuration Timestamp c (awsLog lgr) Nothing
                 return $ Just (cfg, x)
 
     mkCreds (TempCredentials (AccessKeyId k) (SecretAccessKey s) (SessionToken t) expiry) keys =

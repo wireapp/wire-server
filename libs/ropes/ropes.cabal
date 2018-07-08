@@ -39,6 +39,7 @@ library
       , transformers          >= 0.3
       , time                  >= 1.1
       , tinylog               >= 0.10.2
+      , yaml                  >= 0.8.22
 
     ghc-options:
         -Wall
@@ -62,7 +63,6 @@ executable ropes-aws-test
       , exceptions
       , http-client
       , http-client-tls
-      , HsOpenSSL    >= 0.10
       , mime-mail    >= 0.4
       , resourcet
       , ropes

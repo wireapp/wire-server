@@ -16,6 +16,8 @@ module Galley.Types.Teams
     , teamIcon
     , teamIconKey
     , teamBinding
+    , TeamCreationTime (..)
+    , tcTime
 
     , TeamList
     , newTeamList
@@ -29,6 +31,9 @@ module Galley.Types.Teams
     , teamMemberJson
 
     , TeamMemberList
+    , notTeamMember
+    , findTeamMember
+    , isTeamMember
     , newTeamMemberList
     , teamMembers
     , teamMemberListJson
@@ -46,8 +51,6 @@ module Galley.Types.Teams
     , newPermissions
     , fullPermissions
     , hasPermission
-    , isOwner
-    , isOnlyOwner
     , self
     , copy
 
@@ -100,8 +103,10 @@ import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
 import Data.Bits (testBit, (.|.))
 import Data.Id (TeamId, ConvId, UserId)
+import Data.Int (Int64)
 import Data.Json.Util
-import Data.Maybe (mapMaybe, isNothing)
+import Data.List (find)
+import Data.Maybe (mapMaybe, isJust, isNothing)
 import Data.Misc (PlainTextPassword (..))
 import Data.Monoid
 import Data.Range
@@ -109,23 +114,10 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import Data.Word
+import Galley.Types.Teams.Internal
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
-
-data TeamBinding =
-      Binding
-    | NonBinding
-    deriving (Eq, Show)
-
-data Team = Team
-    { _teamId      :: TeamId
-    , _teamCreator :: UserId
-    , _teamName    :: Text
-    , _teamIcon    :: Text
-    , _teamIconKey :: Maybe Text
-    , _teamBinding :: TeamBinding
-    } deriving (Eq, Show)
 
 data Event = Event
     { _eventType :: EventType
@@ -150,7 +142,7 @@ data EventData =
     | EdTeamUpdate   TeamUpdateData
     | EdMemberJoin   UserId
     | EdMemberLeave  UserId
-    | EdMemberUpdate UserId
+    | EdMemberUpdate UserId (Maybe Permissions)
     | EdConvCreate   ConvId
     | EdConvDelete   ConvId
     deriving (Eq, Show)
@@ -205,15 +197,11 @@ data Perm =
     | DeleteTeam
     deriving (Eq, Ord, Show)
 
-data NewTeam a = NewTeam
-    { _newTeamName    :: Range 1 256 Text
-    , _newTeamIcon    :: Range 1 256 Text
-    , _newTeamIconKey :: Maybe (Range 1 256 Text)
-    , _newTeamMembers :: Maybe a
-    }
-
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
+    deriving (Eq, Show)
+
 newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
+    deriving (Eq, Show)
 
 newtype NewTeamMember = NewTeamMember
     { _ntmNewTeamMember :: TeamMember
@@ -225,6 +213,11 @@ newtype TeamMemberDeleteData = TeamMemberDeleteData
 
 newtype TeamDeleteData = TeamDeleteData
     { _tdAuthPassword :: PlainTextPassword
+    }
+
+-- This is the cassandra timestamp of writetime(binding)
+newtype TeamCreationTime = TeamCreationTime
+    { _tcTime :: Int64
     }
 
 newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
@@ -276,6 +269,17 @@ makeLenses ''Event
 makeLenses ''TeamUpdateData
 makeLenses ''TeamMemberDeleteData
 makeLenses ''TeamDeleteData
+makeLenses ''TeamCreationTime
+
+notTeamMember :: [UserId] -> [TeamMember] -> [UserId]
+notTeamMember uids tmms = Set.toList $
+    Set.fromList uids `Set.difference` Set.fromList (map (view userId) tmms)
+
+isTeamMember :: Foldable m => UserId -> m TeamMember -> Bool
+isTeamMember u = isJust . findTeamMember u
+
+findTeamMember :: Foldable m => UserId -> m TeamMember -> Maybe TeamMember
+findTeamMember u = find ((u ==) . view userId)
 
 newPermissions :: Set Perm -> Set Perm -> Maybe Permissions
 newPermissions a b
@@ -287,18 +291,6 @@ fullPermissions = let p = intToPerms maxBound in Permissions p p
 
 hasPermission :: TeamMember -> Perm -> Bool
 hasPermission tm p = p `Set.member` (tm^.permissions.self)
-
---------------------------------------------------------
--- NOTE: By convention, we define an _owner_ as a member
---       with full permissions
---------------------------------------------------------
-isOwner :: TeamMember -> Bool
-isOwner = (== fullPermissions) . view permissions
-
-isOnlyOwner :: Foldable m => UserId -> m TeamMember -> Bool
-isOnlyOwner u =  not . any otherOwner
-  where
-    otherOwner x = isOwner x && x^.userId /= u
 
 permToInt :: Perm -> Word64
 permToInt CreateConversation       = 0x0001
@@ -338,34 +330,6 @@ intToPerms n =
 
 permsToInt :: Set Perm -> Word64
 permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0
-
-instance ToJSON TeamBinding where
-    toJSON Binding    = Bool True
-    toJSON NonBinding = Bool False
-
-instance ToJSON Team where
-    toJSON t = object
-        $ "id"       .= _teamId t
-        # "creator"  .= _teamCreator t
-        # "name"     .= _teamName t
-        # "icon"     .= _teamIcon t
-        # "icon_key" .= _teamIconKey t
-        # "binding"  .= _teamBinding t
-        # []
-
-instance FromJSON TeamBinding where
-    parseJSON (Bool True)  = pure Binding
-    parseJSON (Bool False) = pure NonBinding
-    parseJSON other        = fail $ "Unknown binding type: " <> show other
-
-instance FromJSON Team where
-    parseJSON = withObject "team" $ \o -> do
-        Team <$> o .:  "id"
-             <*> o .:  "creator"
-             <*> o .:  "name"
-             <*> o .:  "icon"
-             <*> o .:? "icon_key"
-             <*> o .:? "binding" .!= NonBinding
 
 instance ToJSON TeamList where
     toJSON t = object
@@ -427,7 +391,7 @@ instance FromJSON Permissions where
             Just ps -> pure ps
 
 newTeamJson :: NewTeam a -> [Pair]
-newTeamJson (NewTeam n i ik _) = 
+newTeamJson (NewTeam n i ik _) =
           "name"     .= fromRange n
         # "icon"     .= fromRange i
         # "icon_key" .= (fromRange <$> ik)
@@ -437,24 +401,13 @@ instance ToJSON BindingNewTeam where
     toJSON (BindingNewTeam t) = object $ newTeamJson t
 
 instance ToJSON NonBindingNewTeam where
-    toJSON (NonBindingNewTeam t) = 
+    toJSON (NonBindingNewTeam t) =
         object
         $ "members" .= (map (teamMemberJson True) . fromRange <$> _newTeamMembers t)
         # newTeamJson t
 
 deriving instance FromJSON BindingNewTeam
 deriving instance FromJSON NonBindingNewTeam
-
-instance (FromJSON a) => FromJSON (NewTeam a) where
-    parseJSON = withObject "new-team" $ \o -> do
-        name <- o .:  "name"
-        icon <- o .:  "icon"
-        key  <- o .:? "icon_key"
-        mems <- o .:? "members"
-        either fail pure $ NewTeam <$> checkedEitherMsg "name" name
-                                   <*> checkedEitherMsg "icon" icon
-                                   <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") key
-                                   <*> pure mems
 
 instance ToJSON NewTeamMember where
     toJSON t = object ["member" .= teamMemberJson True (_ntmNewTeamMember t)]
@@ -504,13 +457,15 @@ instance FromJSON Event where
                  <*> parseEventData ty dt
 
 instance ToJSON EventData where
-    toJSON (EdTeamCreate   tem) = toJSON tem
-    toJSON (EdMemberJoin   usr) = object ["user" .= usr]
-    toJSON (EdMemberUpdate usr) = object ["user" .= usr]
-    toJSON (EdMemberLeave  usr) = object ["user" .= usr]
-    toJSON (EdConvCreate   cnv) = object ["conv" .= cnv]
-    toJSON (EdConvDelete   cnv) = object ["conv" .= cnv]
-    toJSON (EdTeamUpdate   upd) = toJSON upd
+    toJSON (EdTeamCreate   tem)       = toJSON tem
+    toJSON (EdMemberJoin   usr)       = object ["user" .= usr]
+    toJSON (EdMemberUpdate usr mPerm) = object $ "user" .= usr
+                                               # "permissions" .= mPerm
+                                               # []
+    toJSON (EdMemberLeave  usr)       = object ["user" .= usr]
+    toJSON (EdConvCreate   cnv)       = object ["conv" .= cnv]
+    toJSON (EdConvDelete   cnv)       = object ["conv" .= cnv]
+    toJSON (EdTeamUpdate   upd)       = toJSON upd
 
 parseEventData :: EventType -> Maybe Value -> Parser (Maybe EventData)
 parseEventData MemberJoin Nothing  = fail "missing event data for type 'team.member-join'"
@@ -520,7 +475,7 @@ parseEventData MemberJoin (Just j) = do
 
 parseEventData MemberUpdate Nothing  = fail "missing event data for type 'team.member-update"
 parseEventData MemberUpdate (Just j) = do
-    let f o = Just . EdMemberUpdate <$> o .: "user"
+    let f o = Just <$> (EdMemberUpdate <$> o .: "user" <*> o .:? "permissions")
     withObject "member update data" f j
 
 parseEventData MemberLeave Nothing  = fail "missing event data for type 'team.member-leave'"

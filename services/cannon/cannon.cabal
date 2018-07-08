@@ -24,6 +24,7 @@ library
         , Cannon.Dict
         , Cannon.Types
         , Cannon.WS
+        , Cannon.Options
 
     other-modules:
           Cannon.App
@@ -31,6 +32,7 @@ library
     build-depends:
           base                  >= 4.6   && < 5
         , aeson                 >= 0.11
+        , api-field-json-th     >= 0.1.0.2
         , async                 >= 2.0
         , bilge                 >= 0.12
         , bytestring            >= 0.10
@@ -38,15 +40,19 @@ library
         , case-insensitive      >= 1.2
         , data-timeout          >= 0.3
         , exceptions            >= 0.6
+        , gundeck-types
         , hashable              >= 1.2
         , http-types            >= 0.8
+        , lens                  >= 4.4
         , lens-family-core      >= 1.1
         , metrics-wai           >= 0.4
+        , mtl                   >= 2.2
         , mwc-random            >= 0.13
         , optparse-applicative  >= 0.10
         , retry                 >= 0.7
         , singletons            >= 2.0
         , swagger               >= 0.2
+        , strict                >= 0.3.2
         , text                  >= 1.1
         , tinylog               >= 0.10
         , transformers          >= 0.3
@@ -75,7 +81,7 @@ executable cannon
         -fwarn-tabs
         "-with-rtsopts=-N -T -M1g -ki4k"
 
-    build-depends: base, cannon
+    build-depends: base, cannon, types-common
 
     if flag(static)
         ld-options: -static
@@ -102,7 +108,7 @@ test-suite cannon-tests
         , cannon
         , criterion        >= 1.0
         , bytestring
-        , QuickCheck       >= 2.7
+        , QuickCheck       >= 2.7 && < 2.12
         , random           >= 1.0
         , tasty            >= 0.8
         , tasty-hunit      >= 0.8

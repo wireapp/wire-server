@@ -1,0 +1,22 @@
+Wire
+
+
+Hej,
+
+Din e-postadress ${email} användes för att skapa ett Wire konto. Vänligen kontrollera din e-post.
+
+Följ länken nedan för att bekräfta din adress. Du kommer inte att kunna använda Wire tills du gör det.
+
+
+${url}
+
+Vänligen svara inte på detta meddelande.
+
+Om detta inte var du som skapa ett Wire konto med denna e-postadress, vänligen kontakta oss https://support.wire.com
+
+
+
+
+(c) Wire Swiss GmbH
+
+Sekretesspolicy  |  Rapportera missbruk

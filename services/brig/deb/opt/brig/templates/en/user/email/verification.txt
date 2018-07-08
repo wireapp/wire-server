@@ -1,0 +1,14 @@
+VERIFY YOUR EMAIL
+${email} was used to register on Wire. Enter this code to verify your email and
+create your account.
+
+${code}
+
+If you have any questions, please contact us
+[https://support.wire.com/hc/en-us/requests/new].
+
+
+--------------------------------------------------------------------------------
+
+Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
+© WIRE SWISS GmbH. ALL RIGHTS RESERVED.

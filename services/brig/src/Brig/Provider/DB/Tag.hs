@@ -34,7 +34,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 
 newtype Bucket = Bucket Int32
-    deriving Cql
+    deriving (Cql, Show)
 
 -- | Bucketing allows us to distribute individual tag bitmasks
 -- across multiple wide rows, if it should become necessary.

@@ -1,0 +1,25 @@
+syntax = "proto2";
+
+option java_package = "com.wire.events";
+option java_outer_classname = "UserEvents";
+
+message UserEvent {
+    required EventType event_type = 1;
+    required bytes user_id = 2;
+    required int64 utc_time = 3;
+    optional bytes email = 4;
+    optional bytes locale = 5;
+    optional bytes team_id = 6;
+    optional bytes name = 7;
+
+    enum EventType {
+        USER_ACTIVATE     = 0;
+        USER_DELETE       = 1;
+        USER_UPDATE       = 2;
+        // --^ When used, the new values for optional fields are
+        //     whatever is set (email, locale) unless they are
+        //     null / not set (protobuf does not distinguish)
+        USER_EMAIL_REMOVE = 3;
+        // --^ When an email X is removed, the email field is set to X
+    }
+}

@@ -1,1 +1,0 @@
-web: LOG_LEVEL=Info ./dist/cannon --host $CANNON_WEB_HOST --external-host $CANNON_EXTERNAL_HOST -p $PORT --gundeck-host $GUNDECK_WEB_HOST --gundeck-port $GUNDECK_WEB_PORT

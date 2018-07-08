@@ -2,7 +2,7 @@
 
 module Galley.Types.Swagger where
 
-import Data.Swagger.Build.Api
+import Data.Swagger.Build.Api as Swagger
 import qualified Data.Swagger as Swagger
 
 galleyModels :: [Model]
@@ -14,6 +14,9 @@ galleyModels =
     , conversationIds
     , conversationMembers
     , conversationUpdate
+    , conversationAccessUpdate
+    , conversationMessageTimerUpdate
+    , conversationCode
     , conversationUpdateEvent
     , errorObj
     , event
@@ -55,6 +58,10 @@ event = defineModel "Event" $ do
                     , memberUpdateEvent
                     , typingEvent
                     , otrMessageEvent
+                    , conversationAccessUpdateEvent
+                    , conversationMessageTimerUpdateEvent
+                    , conversationCodeUpdateEvent
+                    , conversationCodeDeleteEvent
                     ]
 
 eventType :: DataType
@@ -63,6 +70,10 @@ eventType = string $ enum
     , "conversation.member-leave"
     , "conversation.member-update"
     , "conversation.rename"
+    , "conversation.access-update"
+    , "conversation.message-timer-update"
+    , "conversation.code-update"
+    , "conversation.code-delete"
     , "conversation.create"
     , "conversation.delete"
     , "conversation.connect-request"
@@ -90,6 +101,25 @@ conversationUpdateEvent = defineModel "ConversationUpdateEvent" $ do
     description "conversation update event"
     property "data" (ref conversationUpdate) $ description "conversation data"
 
+conversationAccessUpdateEvent :: Model
+conversationAccessUpdateEvent = defineModel "ConversationAccessUpdateEvent" $ do
+    description "conversation access update event"
+    property "data" (ref conversationAccessUpdate) $ description "conversation access data"
+
+conversationMessageTimerUpdateEvent :: Model
+conversationMessageTimerUpdateEvent = defineModel "ConversationMessageTimerUpdateEvent" $ do
+    description "conversation message timer update event"
+    property "data" (ref conversationMessageTimerUpdate) $ description "conversation message timer data"
+
+conversationCodeUpdateEvent :: Model
+conversationCodeUpdateEvent = defineModel "ConversationCodeUpdateEvent" $ do
+    description "conversation code update event"
+    property "data" (ref conversationCode) $ description "conversation code data"
+
+conversationCodeDeleteEvent :: Model
+conversationCodeDeleteEvent = defineModel "ConversationCodeDeleteEvent" $
+    description "conversation code delete event"
+
 memberUpdateEvent :: Model
 memberUpdateEvent = defineModel "MemberUpdateEvent" $ do
     description "member update event"
@@ -109,11 +139,15 @@ conversation = defineModel "Conversation" $ do
         description "The conversation type of this object (0 = regular, 1 = self, 2 = 1:1, 3 = connect)"
     property "creator" bytes' $
         description "The creator's user ID."
+    -- TODO: property "access"
+    -- property "access_role"
     property "name" string' $ do
-        description "The conversation name"
-        optional
+        description "The conversation name (can be null)"
     property "members" (ref conversationMembers) $
         description "The current set of conversation members"
+    -- property "team"
+    property "message_timer" (int64 (Swagger.min 0)) $ do
+        description "Per-conversation message timer (can be null)"
 
 conversationType :: DataType
 conversationType = int32 $ enum [0, 1, 2, 3]
@@ -199,6 +233,29 @@ conversationUpdate = defineModel "ConversationUpdate" $ do
     property "name" string' $
         description "The new conversation name"
 
+conversationAccessUpdate :: Model
+conversationAccessUpdate = defineModel "ConversationAccessUpdate" $ do
+    description "Contains conversation properties to update"
+    property "access" (unique $ array bytes') $
+        description "List of conversation access modes: []|[invite]|[invite,code]"
+
+conversationMessageTimerUpdate :: Model
+conversationMessageTimerUpdate = defineModel "ConversationMessageTimerUpdate" $ do
+    description "Contains conversation properties to update"
+    property "message_timer" int64' $
+        description "Conversation message timer (in milliseconds); can be null"
+
+conversationCode :: Model
+conversationCode = defineModel "ConversationCode" $ do
+    description "Contains conversation properties to update"
+    property "key" string' $
+        description "Stable conversation identifier"
+    property "code" string' $
+        description "Conversation code (random)"
+    property "uri" string' $ do
+        description "Full URI (containing key/code) to join a conversation"
+        optional
+
 conversationMembers :: Model
 conversationMembers = defineModel "ConversationMembers" $ do
     description "Object representing users of a conversation."
@@ -251,6 +308,11 @@ newConversation = defineModel "NewConversation" $ do
         optional
     property "team" (ref teamInfo) $ do
         description "Team information of this conversation"
+        optional
+    -- TODO: property "access"
+    -- property "access_role"
+    property "message_timer" (int64 (Swagger.min 0)) $ do
+        description "Per-conversation message timer"
         optional
 
 teamInfo :: Model

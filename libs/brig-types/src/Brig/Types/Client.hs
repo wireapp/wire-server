@@ -13,11 +13,10 @@ import Brig.Types.Common as C
 import Brig.Types.Client.Prekey as P
 import Data.Aeson
 import Data.Id
-import Data.IP
 import Data.Json.Util
-import Data.Misc (Location, IpAddr (..), PlainTextPassword (..))
+import Data.Misc (Location, PlainTextPassword (..))
 import Data.Text (Text)
-import Data.Time (UTCTime)
+
 
 -- * Data Types:
 
@@ -60,11 +59,10 @@ newClient t k a = NewClient
 data Client = Client
     { clientId       :: !ClientId
     , clientType     :: !ClientType
-    , clientTime     :: !UTCTime
+    , clientTime     :: !UTCTimeMillis
     , clientClass    :: !(Maybe ClientClass)
     , clientLabel    :: !(Maybe Text)
     , clientCookie   :: !(Maybe CookieLabel)
-    , clientAddress  :: !(Maybe IP)
     , clientLocation :: !(Maybe Location)
     , clientModel    :: !(Maybe Text)
     } deriving (Eq, Show)
@@ -93,9 +91,8 @@ instance ToJSON Client where
         # "type"     .= clientType c
         # "label"    .= clientLabel c
         # "class"    .= clientClass c
-        # "time"     .= UTCTimeMillis (clientTime c)
+        # "time"     .= clientTime c
         # "cookie"   .= clientCookie c
-        # "address"  .= (IpAddr <$> clientAddress c)
         # "location" .= clientLocation c
         # "model"    .= clientModel c
         # []
@@ -108,7 +105,6 @@ instance FromJSON Client where
                <*> o .:? "class"
                <*> o .:? "label"
                <*> o .:? "cookie"
-               <*> (fmap ipAddr <$> o .:? "address")
                <*> o .:? "location"
                <*> o .:? "model"
 

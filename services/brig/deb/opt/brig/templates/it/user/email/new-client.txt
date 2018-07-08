@@ -1,0 +1,18 @@
+Wire
+
+
+Ciao ${name},
+
+Il tuo account di Wire è stato utilizzato in data:
+
+    ${date}
+    ${model}
+
+Potresti avere installato Wire su un nuovo dispositivo o averlo installato di nuovo su uno utilizzato precedentemente. Se questo non è il caso, vai nelle impostazioni di Wire, rimuovi quel dispositivo e reimposta la tua password.
+
+Il team di Wire
+
+
+(c) Wire Swiss GmbH
+
+Informativa sulla privacy |  Riporta uso improprio

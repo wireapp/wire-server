@@ -1,0 +1,77 @@
+version: '2'
+services:
+  fake_dynamodb:
+    image: cnadiminti/dynamodb-local:2018-04-11
+    ports:
+      - 4567:8000
+
+  fake_sqs:
+    image: airdock/fake-sqs:0.3.1
+    ports:
+      - 4568:4568
+
+  fake_localstack:
+    image: localstack/localstack:0.8.0  # NB: this is younger than 0.8.6!
+    ports:
+      - 4569:4579 # ses
+      - 4575:4575 # sns
+    environment:
+      - DEBUG=1
+      - DEFAULT_REGION=eu-west-1
+      - SERVICES=ses,sns
+
+  fake_s3:
+    image: minio/minio:RELEASE.2018-05-25T19-49-13Z
+    ports:
+     - "4570:9000"
+    environment:
+      MINIO_ACCESS_KEY: dummykey
+      MINIO_SECRET_KEY: dummysecret # minio requires a secret of at least 8 chars
+    command: server /tmp
+
+  redis:
+    image: redis:3.0.7-alpine
+    ports:
+      - "6379:6379"
+
+  elasticsearch:
+    image: elasticsearch:5.6
+    # https://hub.docker.com/_/elastic is deprecated, but 6.2.4 did not work without further changes.
+    # image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+
+  cassandra:
+    image: cassandra:3.11.2
+    ports:
+      - "9042:9042"
+
+  db_migrations:
+    image: quay.io/wire/migrations
+    depends_on:
+      - elasticsearch
+      - cassandra
+    command: /scripts/db-migrate.sh
+    volumes:
+      - ./:/scripts
+    links:
+      - elasticsearch
+      - cassandra
+
+  aws_cli:
+    image: mesosphere/aws-cli:1.14.5
+    depends_on:
+      - fake_dynamodb
+      - fake_sqs
+      - fake_localstack
+      - fake_s3
+    links:
+      - fake_dynamodb:dynamodb
+      - fake_sqs:sqs
+      - fake_localstack:ses
+      - fake_localstack:sns
+      - fake_s3:s3
+    entrypoint: /scripts/init.sh
+    volumes:
+      - ./:/scripts

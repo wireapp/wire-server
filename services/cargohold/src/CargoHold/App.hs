@@ -6,6 +6,7 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE StrictData                 #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 module CargoHold.App
     ( -- * Environment
@@ -13,11 +14,11 @@ module CargoHold.App
     , AwsEnv (..)
     , newEnv
     , closeEnv
-    , aws
+    , CargoHold.App.aws
     , metrics
     , appLogger
     , requestId
-    , maxTotalUpload
+    , settings
 
       -- * App Monad
     , AppT
@@ -33,7 +34,7 @@ module CargoHold.App
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import CargoHold.CloudFront
-import CargoHold.Options (Opts (..))
+import CargoHold.Options as Opt
 import Control.Applicative
 import Control.Error (ExceptT, exceptT)
 import Control.Lens (view, makeLenses, set, (^.))
@@ -49,9 +50,11 @@ import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities (Error (..), lookupRequestId)
 import OpenSSL.Session (SSLContext, SSLOption (..))
-import System.Logger.Class
+import System.Logger.Class hiding (settings)
 import Prelude hiding (log)
+import Util.Options
 
+import qualified Aws
 import qualified Aws.Core                     as Aws
 import qualified Aws.S3                       as Aws
 import qualified Bilge
@@ -71,14 +74,17 @@ data Env = Env
     , _appLogger      :: Logger
     , _httpManager    :: Manager
     , _requestId      :: RequestId
-    , _maxTotalUpload :: Int
+    , _settings       :: Opt.Settings
     }
 
 data AwsEnv = AwsEnv
     { awsEnv     :: Aws.Env
+    , s3UriOnly  :: Aws.S3Configuration Aws.UriOnlyQuery
+    -- ^ Needed for presigned, S3 requests (Only works with GET)
     , s3Config   :: Aws.S3Configuration Aws.NormalQuery
+    -- ^ For all other requests
     , s3Bucket   :: Text
-    , cloudFront :: CloudFront
+    , cloudFront :: Maybe CloudFront
     }
 
 makeLenses ''Env
@@ -91,15 +97,35 @@ newEnv o = do
                     $ Log.defSettings
     mgr  <- initHttpManager
     awe  <- initAws o lgr mgr
-    return $ Env awe met lgr mgr mempty (optMaxTotalBytes o)
+    return $ Env awe met lgr mgr mempty (o^.optSettings)
 
 initAws :: Opts -> Logger -> Manager -> IO AwsEnv
 initAws o l m = do
-    amz  <- Aws.newEnv l m $ liftM2 (,) (optAwsKeyId o) (optAwsSecKey o)
-    sig  <- initCloudFront (optAwsCFPrivateKey o) (optAwsCFKeyPairId o) (optAwsCFDomain o)
-    let s3c  = Aws.s3 Aws.HTTPS Aws.s3EndpointEu False
-    let buck = optAwsS3Bucket o
-    return $! AwsEnv amz s3c buck sig
+    -- TODO: The AWS package can also load them from the env, check the latest API
+    -- https://hackage.haskell.org/package/aws-0.17.1/docs/src/Aws-Core.html#loadCredentialsFromFile
+    -- which would avoid the need to specify them in a config file when running tests
+    let awsOpts = o^.optAws
+    amz  <- Aws.newEnv l m $ liftM2 (,) (awsOpts^.awsKeyId) (awsOpts^.awsSecretKey)
+    sig  <- newCloudFrontEnv (o^.optAws.awsCloudFront) (o^.optSettings.setDownloadLinkTTL)
+    let s3cfg = endpointToConfig (awsOpts^.awsS3Endpoint)
+    return $! AwsEnv amz s3cfg s3cfg (awsOpts^.awsS3Bucket) sig
+  where
+    newCloudFrontEnv Nothing   _   = return Nothing
+    newCloudFrontEnv (Just cf) ttl = return . Just =<< initCloudFront (cf^.cfPrivateKey)
+                                                                      (cf^.cfKeyPairId)
+                                                                      ttl
+                                                                      (cf^.cfDomain)
+
+endpointToConfig :: AWSEndpoint -> Aws.S3Configuration qt
+endpointToConfig (AWSEndpoint host secure port) =
+    ( Aws.s3 (toProtocol secure) host False)
+    { Aws.s3Port = port
+    , Aws.s3RequestStyle = Aws.PathStyle
+    }
+  where
+    toProtocol :: Bool -> Aws.Protocol
+    toProtocol True  = Aws.HTTPS
+    toProtocol False = Aws.HTTP
 
 initHttpManager :: IO Manager
 initHttpManager =

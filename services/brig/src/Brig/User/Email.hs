@@ -2,19 +2,11 @@
 {-# LANGUAGE RecordWildCards   #-}
 
 module Brig.User.Email
-    ( ActivationEmail (..)
-    , sendActivationMail
-
-    , PasswordResetEmail (..)
+    ( sendActivationMail
+    , sendVerificationMail
+    , sendTeamActivationMail
     , sendPasswordResetMail
-
-    , InvitationEmail (..)
-    , sendInvitationMail
-
-    , DeletionEmail (..)
     , sendDeletionEmail
-
-    , NewClientEmail (..)
     , sendNewClientEmail
 
       -- * Re-exports
@@ -26,20 +18,27 @@ import Brig.Email
 import Brig.Locale (formatDateTime, timeLocale)
 import Brig.User.Template
 import Brig.Types
+import Data.Json.Util (fromUTCTimeMillis)
 import Data.Maybe (fromMaybe, isNothing)
 import Data.Range
 import Data.Text (Text)
 import Data.Text.Lazy (toStrict)
 
-import qualified Brig.Aws        as Aws
+import qualified Brig.Email      as Email
 import qualified Brig.Types.Code as Code
 import qualified Data.Text.Ascii as Ascii
+
+sendVerificationMail :: Email -> ActivationPair -> Maybe Locale -> AppIO ()
+sendVerificationMail to pair loc = do
+    tpl <- verificationEmail . snd <$> userTemplates loc
+    let mail = VerificationEmail to pair
+    Email.sendMail $ renderVerificationMail mail tpl
 
 sendActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Maybe UserIdentity -> AppIO ()
 sendActivationMail to name pair loc ident = do
     tpl <- selectTemplate . snd <$> userTemplates loc
     let mail = ActivationEmail to name pair
-    Aws.sendMail $ renderActivationMail mail tpl
+    Email.sendMail $ renderActivationMail mail tpl
   where
     selectTemplate =
         if isNothing ident
@@ -50,23 +49,23 @@ sendPasswordResetMail :: Email -> PasswordResetPair -> Maybe Locale -> AppIO ()
 sendPasswordResetMail to pair loc = do
     tpl <- passwordResetEmail . snd <$> userTemplates loc
     let mail = PasswordResetEmail to pair
-    Aws.sendMail $ renderPwResetMail mail tpl
-
-sendInvitationMail :: Email -> Name -> Message -> Name -> InvitationCode -> Maybe Locale -> AppIO ()
-sendInvitationMail email other msg self code loc = do
-    tpl <- invitationEmail . snd <$> userTemplates loc
-    let mail = InvitationEmail email code other self msg
-    Aws.sendMail $ renderInvitationEmail mail tpl
+    Email.sendMail $ renderPwResetMail mail tpl
 
 sendDeletionEmail :: Name -> Email -> Code.Key -> Code.Value -> Locale -> AppIO ()
 sendDeletionEmail name email key code locale = do
     tpl <- deletionEmail . snd <$> userTemplates (Just locale)
-    Aws.sendMail $ renderDeletionEmail tpl (DeletionEmail email name key code)
+    Email.sendMail $ renderDeletionEmail tpl (DeletionEmail email name key code)
 
 sendNewClientEmail :: Name -> Email -> Client -> Locale -> AppIO ()
 sendNewClientEmail name email client locale = do
     tpl <- newClientEmail . snd <$> userTemplates (Just locale)
-    Aws.sendMail $ renderNewClientEmail tpl (NewClientEmail locale email name client)
+    Email.sendMail $ renderNewClientEmail tpl (NewClientEmail locale email name client)
+
+sendTeamActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Text -> AppIO ()
+sendTeamActivationMail to name pair loc team = do
+    tpl <- teamActivationEmail . snd <$> userTemplates loc
+    let mail = TeamActivationEmail to name team pair
+    Email.sendMail $ renderTeamActivationMail mail tpl
 
 -------------------------------------------------------------------------------
 -- New Client Email
@@ -99,7 +98,7 @@ renderNewClientEmail NewClientEmailTemplate{..} NewClientEmail{..} =
     replace "model" = fromMaybe "N/A" (clientModel nclClient)
     replace "date"  = formatDateTime "%A %e %B %Y, %H:%M - %Z"
                                      (timeLocale nclLocale)
-                                     (clientTime nclClient)
+                                     (fromUTCTimeMillis $ clientTime nclClient)
     replace x       = x
 
 -------------------------------------------------------------------------------
@@ -144,6 +143,37 @@ renderDeletionEmail DeletionEmailTemplate{..} DeletionEmail{..} =
     replace2 x      = x
 
 -------------------------------------------------------------------------------
+-- Verification Email
+
+data VerificationEmail = VerificationEmail
+    { vfTo   :: !Email
+    , vfPair :: !ActivationPair
+    }
+
+renderVerificationMail :: VerificationEmail -> VerificationEmailTemplate -> Mail
+renderVerificationMail VerificationEmail{..} VerificationEmailTemplate{..} =
+    (emptyMail from)
+        { mailTo      = [ to ]
+        , mailHeaders = [ ("Subject", toStrict subj)
+                        , ("X-Zeta-Purpose", "Verification")
+                        , ("X-Zeta-Code", Ascii.toText code)
+                        ]
+        , mailParts   = [ [ plainPart txt, htmlPart html ] ]
+        }
+  where
+    (ActivationKey _, ActivationCode code) = vfPair
+
+    from = Address (Just verificationEmailSenderName) (fromEmail verificationEmailSender)
+    to   = Address Nothing (fromEmail vfTo)
+    txt  = renderText verificationEmailBodyText replace
+    html = renderHtml verificationEmailBodyHtml replace
+    subj = renderText verificationEmailSubject  replace
+
+    replace "code"  = Ascii.toText code
+    replace "email" = fromEmail vfTo
+    replace x       = x
+
+-------------------------------------------------------------------------------
 -- Activation Email
 
 data ActivationEmail = ActivationEmail
@@ -186,6 +216,42 @@ renderActivationUrl t (ActivationKey k, ActivationCode c) =
     replace x      = x
 
 -------------------------------------------------------------------------------
+-- Team Activation Email
+
+data TeamActivationEmail = TeamActivationEmail
+    { tacmTo       :: !Email
+    , tacmName     :: !Name
+    , tacmTeamName :: !Text
+    , tacmPair     :: !ActivationPair
+    }
+
+renderTeamActivationMail :: TeamActivationEmail -> TeamActivationEmailTemplate -> Mail
+renderTeamActivationMail TeamActivationEmail{..} TeamActivationEmailTemplate{..} =
+    (emptyMail from)
+        { mailTo      = [ to ]
+        , mailHeaders = [ ("Subject", toStrict subj)
+                        , ("X-Zeta-Purpose", "Activation")
+                        , ("X-Zeta-Key", Ascii.toText key)
+                        , ("X-Zeta-Code", Ascii.toText code)
+                        ]
+        , mailParts   = [ [ plainPart txt, htmlPart html ] ]
+        }
+  where
+    (ActivationKey key, ActivationCode code) = tacmPair
+
+    from = Address (Just teamActivationEmailSenderName) (fromEmail teamActivationEmailSender)
+    to   = mkMimeAddress tacmName tacmTo
+    txt  = renderText teamActivationEmailBodyText replace
+    html = renderHtml teamActivationEmailBodyHtml replace
+    subj = renderText teamActivationEmailSubject replace
+
+    replace "url"   = renderActivationUrl teamActivationEmailUrl tacmPair
+    replace "email" = fromEmail tacmTo
+    replace "name"  = fromName tacmName
+    replace "team"  = tacmTeamName
+    replace x       = x
+
+-------------------------------------------------------------------------------
 -- Password Reset Email
 
 data PasswordResetEmail = PasswordResetEmail
@@ -223,48 +289,3 @@ renderPwResetUrl t (PasswordResetKey k, PasswordResetCode c) =
     replace "key"  = Ascii.toText k
     replace "code" = Ascii.toText c
     replace x      = x
-
--------------------------------------------------------------------------------
--- Invitation Email
-
-data InvitationEmail = InvitationEmail
-    { invTo          :: !Email
-    , invInvCode     :: !InvitationCode
-    , invInviteeName :: !Name
-    , invInviterName :: !Name
-    , invMessage     :: !Message
-    }
-
-renderInvitationEmail :: InvitationEmail -> InvitationEmailTemplate -> Mail
-renderInvitationEmail InvitationEmail{..} InvitationEmailTemplate{..} =
-    (emptyMail from)
-        { mailTo      = [ to ]
-        , mailHeaders = [ ("Subject", toStrict subj)
-                        , ("X-Zeta-Purpose", "Invitation")
-                        , ("X-Zeta-Code", Ascii.toText code)
-                        ]
-        , mailParts   = [ [ plainPart txt, htmlPart html ] ]
-        }
-  where
-    (InvitationCode code) = invInvCode
-
-    from = Address (Just invitationEmailSenderName) (fromEmail invitationEmailSender)
-    to   = mkMimeAddress invInviteeName invTo
-    txt  = renderText invitationEmailBodyText replace
-    html = renderHtml invitationEmailBodyHtml replace
-    subj = renderText invitationEmailSubject  replace
-
-    replace "url"      = renderInvitationUrl invitationEmailUrl invInvCode
-    replace "email"    = fromEmail invTo
-    replace "invitee"  = fromName invInviteeName
-    replace "inviter"  = fromName invInviterName
-    replace "message"  = messageText invMessage
-    replace x          = x
-
-renderInvitationUrl :: Template -> InvitationCode -> Text
-renderInvitationUrl t (InvitationCode c) =
-    toStrict $ renderText t replace
-  where
-    replace "code" = Ascii.toText c
-    replace x      = x
-

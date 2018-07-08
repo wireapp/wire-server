@@ -33,6 +33,7 @@ import Data.Word
 import GHC.Generics (Generic)
 #ifdef WITH_ARBITRARY
 import Test.QuickCheck
+import Test.QuickCheck.Instances ()
 #endif
 #ifdef WITH_PROTOBUF
 import qualified Data.ByteString.Lazy as L
@@ -134,13 +135,14 @@ instance DecodeWire UUID where
 #ifdef WITH_ARBITRARY
 instance Arbitrary (Id a) where
     arbitrary = Id <$> arbitrary
-
-instance Arbitrary UUID where
-    arbitrary = choose (nil, nil)
 #endif
 
 -- ConnId ----------------------------------------------------------------------
 
+-- | Handle for a device.  Used mostly by Cannon and Gundeck to identify a websocket connection.
+-- Historically, it is older than 'ClientId' and precedes end-to-end encryption, but it may be
+-- replaced by 'ClientId' at some point in the future.  Unique only together with a 'UserId', stored
+-- in Redis, lives as long as the device is connected.
 newtype ConnId = ConnId
     { fromConnId :: ByteString
     } deriving ( Eq
@@ -162,6 +164,9 @@ instance FromJSON ConnId where
 
 -- ClientId --------------------------------------------------------------------
 
+-- | Handle for a device.  Corresponds to the device fingerprints exposed in the UI.  It is unique
+-- only together with a 'UserId', stored in C*, and used as a handle for end-to-end encryption.  It
+-- lives as long as the device is registered.  See also: 'ConnId'.
 newtype ClientId = ClientId
     { client :: Text
     } deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, ToJSON)

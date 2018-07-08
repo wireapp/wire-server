@@ -7,7 +7,7 @@
 
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
-module API (tests) where
+module API where
 
 import Bilge
 import Bilge.Assert
@@ -16,7 +16,7 @@ import Control.Concurrent
 import Control.Concurrent.Async       (Async, async, wait)
 import Control.Concurrent.STM.TChan
 import Control.Lens                   ((&), (.~), (^.), (^?), view)
-import Control.Monad.IO.Class
+import Control.Monad.IO.Class         (MonadIO)
 import Control.Monad.Reader
 import Control.Monad.STM       hiding (retry)
 import Control.Retry
@@ -25,19 +25,22 @@ import Data.Aeson.Lens
 import Data.ByteString.Char8          (ByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy           (fromStrict)
+import Data.Foldable                  (toList)
 import Data.Function                  (on)
 import Data.Id
 import Data.List                      (sortBy)
 import Data.List1                     (List1)
+import Data.Maybe
+import Data.Misc                      ((<$$>))
 import Data.Monoid                    ((<>))
 import Data.Range
 import Data.Set                       (Set)
-import Data.Maybe
 import Data.Text                      (Text)
 import Data.UUID.V4
 import Data.Word
+import GHC.Stack (HasCallStack)
 import Gundeck.Types
-import Network.HTTP.Client.TLS
+import Gundeck.Types.BulkPush
 import Network.URI                    (parseURI)
 import Safe
 import System.Random                  (randomIO)
@@ -47,6 +50,7 @@ import Test.Tasty.HUnit
 import Types
 
 import qualified Cassandra              as Cql
+import qualified Data.Aeson.Types       as Aeson
 import qualified Data.ByteString        as BS
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Char8  as C
@@ -62,70 +66,82 @@ import qualified Gundeck.Push.Data      as Push
 import qualified Network.HTTP.Client    as Http
 import qualified Network.WebSockets     as WS
 
-test :: Manager -> TestName -> Http a -> TestTree
-test m n h = testCase n (void $ runHttpT m h)
-
 appName :: AppName
 appName = AppName "test"
 
-tests :: Gundeck -> Cannon -> Brig -> Cql.ClientState -> IO TestTree
-tests gu ca1 br cas = do
-    p <- newManager tlsManagerSettings
-    return $ testGroup "Gundeck integration tests" [
-        testGroup "Push"
-            [ test p "Register a user"       $ void (registerUser gu ca1)
-            , test p "Delete a user"         $ removeUser cas gu ca1
-            , test p "Replace presence"      $ replacePresence gu ca1
-            , test p "Remove stale presence" $ removeStalePresence gu ca1
-            , test p "Single user push"      $ singleUserPush gu ca1
-            , test p "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback gu ca1
-            , test p "Send a push to online and offline users" $ sendMultipleUsers gu ca1
-            , test p "Targeted push by connection" $ targetConnectionPush gu ca1
-            , test p "Targeted push by client" $ targetClientPush gu ca1
-            ],
-        testGroup "Notifications"
-            [ test p "No notifications" $ testNoNotifs gu
-            , test p "Fetch all notifications" $ testFetchAllNotifs gu
-            , test p "Fetch new notifications" $ testFetchNewNotifs gu
-            , test p "No new notifications" $ testNoNewNotifs gu
-            , test p "Missing notifications" $ testMissingNotifs gu
-            , test p "Fetch last notification" $ testFetchLastNotif gu
-            , test p "No last notification" $ testNoLastNotif gu
-            , test p "Bad 'since' parameter" $ testFetchNotifBadSince gu
-            , test p "Fetch notification by ID" $ testFetchNotifById gu
-            , test p "Filter notifications by client" $ testFilterNotifByClient gu
-            , test p "Paging" $ testNotificationPaging gu
-            ],
-        testGroup "Callbacks"
-            [ test p "post and delete" $ testCallback gu
-            ],
-        testGroup "Clients"
-            [ test p "(un)register a client" $ testRegisterClient gu
-            ],
-        testGroup "Tokens"
-            [ test p "register a push token"     $ testRegisterPushToken gu br
-            , test p "unregister a push token"   $ testUnregisterPushToken gu br
-            , test p "share push token"          $ testSharePushToken gu br
-            , test p "replace shared push token" $ testReplaceSharedPushToken gu br
-            ]
+data TestSetup = TestSetup
+  { manager :: Manager
+  , gundeck :: Gundeck
+  , cannon  :: Cannon
+  , brig    :: Brig
+  , cass    :: Cql.ClientState
+  }
+
+type TestSignature a = Gundeck -> Cannon -> Brig -> Cql.ClientState -> Http a
+
+test :: IO TestSetup -> TestName -> (TestSignature a) -> TestTree
+test setup n h = testCase n runTest
+  where
+    runTest = do
+        s <- setup
+        void $ runHttpT (manager s) (h (gundeck s) (cannon s) (brig s) (cass s))
+
+tests :: IO TestSetup -> TestTree
+tests s = testGroup "Gundeck integration tests" [
+    testGroup "Push"
+        [ test s "Register a user"       $ addUser
+        , test s "Delete a user"         $ removeUser
+        , test s "Replace presence"      $ replacePresence
+        , test s "Remove stale presence" $ removeStalePresence
+        , test s "Single user push"      $ singleUserPush
+        , test s "Push many to Cannon via bulkpush" $ cannonBulkPush 4 1
+        , test s "Push many to Cannon via bulkpush (multiple devices per user)" $ cannonBulkPush 5 3
+        , test s "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback
+        , test s "Targeted push by connection" $ targetConnectionPush
+        , test s "Targeted push by client" $ targetClientPush
+        ],
+    testGroup "Notifications"
+        [ test s "No notifications" $ testNoNotifs
+        , test s "Fetch all notifications" $ testFetchAllNotifs
+        , test s "Fetch new notifications" $ testFetchNewNotifs
+        , test s "No new notifications" $ testNoNewNotifs
+        , test s "Missing notifications" $ testMissingNotifs
+        , test s "Fetch last notification" $ testFetchLastNotif
+        , test s "No last notification" $ testNoLastNotif
+        , test s "Bad 'since' parameter" $ testFetchNotifBadSince
+        , test s "Fetch notification by ID" $ testFetchNotifById
+        , test s "Filter notifications by client" $ testFilterNotifByClient
+        , test s "Paging" $ testNotificationPaging
+        ],
+    testGroup "Clients"
+        [ test s "(un)register a client" $ testRegisterClient
+        ],
+    testGroup "Tokens"
+        [ test s "register a push token"     $ testRegisterPushToken
+        , test s "unregister a push token"   $ testUnregisterPushToken
+        ],
+    -- TODO: The following tests require (at the moment), the usage real AWS
+    --       services so they are kept in a separate group to simplify testing
+    testGroup "RealAWS"
+        [ test s "Send a push to online and offline users" $ sendMultipleUsers
+        , test s "register too many push tokens" $ testRegisterTooManyTokens
+        , test s "share push token"          $ testSharePushToken
+        , test s "replace shared push token" $ testReplaceSharedPushToken
+        , test s "fail on long push token"   $ testLongPushToken
         ]
+    ]
 
 -----------------------------------------------------------------------------
 -- Push
 
-registerUser :: Gundeck -> Cannon -> Http (UserId, ByteString)
-registerUser gu ca = do
-    uid <- randomId
-    con <- randomConnId
-    void $ connectUser gu ca uid con
-    ensurePresent gu uid 1
-    return (uid, con)
+addUser :: TestSignature (UserId, ConnId)
+addUser gu ca _ _ = registerUser gu ca
 
-removeUser :: Cql.ClientState -> Gundeck -> Cannon -> Http ()
-removeUser s g c = do
+removeUser :: TestSignature ()
+removeUser g c _ s = do
     user <- fst <$> registerUser g c
     clt  <- randomClient g user
-    tok  <- randomGcmToken clt
+    tok  <- randomToken clt gcmToken
     _    <- registerPushToken user tok g
     _    <- sendPush g (buildPush user [(user, [])] (textPayload "data"))
     deleteUser g user
@@ -137,8 +153,8 @@ removeUser s g c = do
         null tokens    @?= True
         ntfs           @?= []
 
-replacePresence :: Gundeck -> Cannon -> Http ()
-replacePresence gu ca = do
+replacePresence :: TestSignature ()
+replacePresence gu ca _ _ = do
     uid <- randomId
     con <- randomConnId
     let localhost8080 = URI . fromJust $ parseURI "http://localhost:8080"
@@ -164,15 +180,16 @@ replacePresence gu ca = do
     pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
-removeStalePresence :: Gundeck -> Cannon -> Http ()
-removeStalePresence gu ca = do
+removeStalePresence :: TestSignature ()
+removeStalePresence gu ca _ _ = do
     uid <- randomId
     con <- randomConnId
     void $ connectUser gu ca uid con
     ensurePresent gu uid 1
     sendPush gu (push uid [uid])
     m <- liftIO newEmptyMVar
-    w <- wsRun ca gu uid con 1 (wsCloser m)
+    w <- wsRun ca uid con (wsCloser m)
+    wsAssertPresences gu uid 1
     liftIO $ void $ putMVar m () >> wait w
     sendPush gu (push uid [uid])
     ensurePresent gu uid 0
@@ -180,8 +197,8 @@ removeStalePresence gu ca = do
     pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
-singleUserPush :: Gundeck -> Cannon -> Http ()
-singleUserPush gu ca = do
+singleUserPush :: TestSignature ()
+singleUserPush gu ca _ _ = do
     uid <- randomId
     ch  <- connectUser gu ca uid =<< randomConnId
     sendPush gu (push uid [uid])
@@ -195,8 +212,61 @@ singleUserPush gu ca = do
     pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
-sendSingleUserNoPiggyback :: Gundeck -> Cannon -> Http ()
-sendSingleUserNoPiggyback gu ca = do
+-- TODO: send same notification (with same ID) to more than one push target?
+-- TODO: test distribution of devices over multiple cannons.
+cannonBulkPush :: Int -> Int -> TestSignature ()
+cannonBulkPush numUsers numConnsPerUser gu ca _ _ = do
+    uids     <- replicateM numUsers randomId
+    connIds  <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
+    chs      <- connectUsersAndDevices gu ca (zip uids connIds)
+    notifIds :: [NotificationId] <- replicateM numUsers randomId
+    let ptrgts :: [[PushTarget]] = zipWith (\u cs -> PushTarget u <$> cs) uids connIds
+        pushes :: [(Notification, [PushTarget])] = pushCannon <$> zip notifIds ptrgts
+    BulkPushResponse resp <- sendBulkPushCannon ca $ BulkPushRequest pushes
+    liftIO $ do
+        assertEqual "Unexpected response body from Cannon (length)"
+            (length resp) (numUsers * numConnsPerUser)
+
+        let expectResp :: [(NotificationId, PushTarget, PushStatus)]
+            expectResp = mconcat $ zipWith run notifIds ptrgts
+              where
+                run :: NotificationId -> [PushTarget] -> [(NotificationId, PushTarget, PushStatus)]
+                run n ts = (\t -> (n, t, PushStatusOk)) <$> ts
+        assertEqual "Unexpected response body from Cannon (contents)"
+            resp expectResp
+
+        msgs <- let run :: (UserId, [TChan ByteString]) -> IO [(UserId, Maybe ByteString)]
+                    run (uid, connids) = (uid,) <$$> (waitForMessage `mapM` connids)
+                in mconcat <$> run `mapM` chs
+        assertions `mapM_` msgs
+  where
+    assertions :: (UserId, Maybe ByteString) -> IO ()
+    assertions (rcpid, msg) = do
+              assertBool  "No push message received" (isJust msg)
+              chkPLoad rcpid (ntfPayload <$> (decode . fromStrict . fromJust) msg)
+
+    pushCannon :: (NotificationId, [PushTarget]) -> (Notification, [PushTarget])
+    pushCannon (notifId, ts) = (Notification notifId False $ mkPLoad ts, ts)
+
+    mkPLoad :: [PushTarget] -> List1 Object
+    mkPLoad rcp = List1.singleton $ HashMap.fromList [ "recipients" .= rcp ]
+
+    readUserIds :: Object -> Aeson.Parser [UserId]
+    readUserIds (toList -> [pts :: Value]) = do
+        x1 :: [PushTarget] <- parseJSON pts >>= mapM parseJSON
+        pure $ ptUserId <$> x1
+    readUserIds bad = error $ show (bad, '*')
+
+    chkPLoad :: UserId -> Maybe (List1 Object) -> Assertion
+    chkPLoad usrid (Just (toList -> bad@[Aeson.parseEither readUserIds -> Right pushTargets])) =
+        assertBool msg (usrid `elem` pushTargets)
+      where
+        msg = "Notification payload does not contain target user: " <> show (bad, usrid)
+    chkPLoad usrid bad =
+        assertFailure $ "Bad notification payload in message: " <> show (bad, usrid)
+
+sendSingleUserNoPiggyback :: TestSignature ()
+sendSingleUserNoPiggyback gu ca _ _ = do
     uid <- randomId
     did <- randomConnId
     ch  <- connectUser gu ca uid did
@@ -206,15 +276,15 @@ sendSingleUserNoPiggyback gu ca = do
         assertBool "Push message received" (isNothing msg)
   where
     pload       = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
-    push u us d = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId d)
+    push u us d = newPush u (toRecipients us) pload & pushOriginConnection .~ Just d
 
-sendMultipleUsers :: Gundeck -> Cannon -> Http ()
-sendMultipleUsers gu ca = do
+sendMultipleUsers :: TestSignature ()
+sendMultipleUsers gu ca _ _ = do
     uid1 <- randomId -- offline and no native push
     uid2 <- randomId -- online
     uid3 <- randomId -- offline and native push
     clt  <- randomClient gu uid3
-    tok  <- randomGcmToken clt
+    tok  <- randomToken clt gcmToken
     _    <- registerPushToken uid3 tok gu
 
     ws <- connectUser gu ca uid2 =<< randomConnId
@@ -245,7 +315,7 @@ sendMultipleUsers gu ca = do
     ntfs3 <- listNotifications uid3 Nothing gu
     liftIO $ do
         assertBool "Not at least 2 notifications" (length ntfs3 >= 2)
-        let (n1:nx) = ntfs3
+        let (n1,nx) = checkNotifications ntfs3
         -- The first notification must be the test payload
         let p1 = view queuedNotificationPayload n1
         assertEqual "Wrong events in 1st notification" pload p1
@@ -254,12 +324,15 @@ sendMultipleUsers gu ca = do
             let p2 = fromJSON (Object (List1.head (n^.queuedNotificationPayload)))
             in assertEqual "Wrong events in notification" (Success (PushRemove tok)) p2
   where
+    checkNotifications []     = error "No notifications received!"
+    checkNotifications (x:xs) = (x,xs)
+
     pload     = List1.singleton pevent
     pevent    = HashMap.fromList [ "foo" .= (42 :: Int) ]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
-targetConnectionPush :: Gundeck -> Cannon -> Http ()
-targetConnectionPush gu ca = do
+targetConnectionPush :: TestSignature ()
+targetConnectionPush gu ca _ _ = do
     uid   <- randomId
     conn1 <- randomConnId
     c1 <- connectUser gu ca uid conn1
@@ -272,10 +345,10 @@ targetConnectionPush gu ca = do
         assertBool "Unexpected push message received" (isNothing e2)
   where
     pload    = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
-    push u t = newPush u (toRecipients [u]) pload & pushConnections .~ Set.singleton (ConnId t)
+    push u t = newPush u (toRecipients [u]) pload & pushConnections .~ Set.singleton t
 
-targetClientPush :: Gundeck -> Cannon -> Http ()
-targetClientPush gu ca = do
+targetClientPush :: TestSignature ()
+targetClientPush gu ca _ _ = do
     uid <- randomId
     cid1 <- randomClientId
     cid2 <- randomClientId
@@ -313,14 +386,14 @@ targetClientPush gu ca = do
 -----------------------------------------------------------------------------
 -- Notifications
 
-testNoNotifs :: Gundeck -> Http ()
-testNoNotifs gu = do
+testNoNotifs :: TestSignature ()
+testNoNotifs gu _ _ _ = do
     ally <- randomId
     ns <- listNotifications ally Nothing gu
     liftIO $ assertEqual "Unexpected notifications" 0 (length ns)
 
-testFetchAllNotifs :: Gundeck -> Http ()
-testFetchAllNotifs gu = do
+testFetchAllNotifs :: TestSignature ()
+testFetchAllNotifs gu _ _ _ = do
     ally <- randomId
     let pload = textPayload "hello"
     replicateM_ 10 (sendPush gu (buildPush ally [(ally, [])] pload))
@@ -330,8 +403,8 @@ testFetchAllNotifs gu = do
                 (replicate 10 pload)
                 (map (view queuedNotificationPayload) ns)
 
-testFetchNewNotifs :: Gundeck -> Http ()
-testFetchNewNotifs gu = do
+testFetchNewNotifs :: TestSignature ()
+testFetchNewNotifs gu _ _ _ = do
     ally <- randomId
     let pload = textPayload "hello"
     replicateM_ 4 (sendPush gu (buildPush ally [(ally, [])] pload))
@@ -344,8 +417,8 @@ testFetchNewNotifs gu = do
         const 200 === statusCode
         const (Just $ drop 2 ns) === parseNotificationIds
 
-testNoNewNotifs :: Gundeck -> Http ()
-testNoNewNotifs gu = do
+testNoNewNotifs :: TestSignature ()
+testNoNewNotifs gu _ _ _ = do
     ally <- randomId
     sendPush gu (buildPush ally [(ally, [])] (textPayload "hello"))
     (n:_) <- map (view queuedNotificationId) <$> listNotifications ally Nothing gu
@@ -357,10 +430,12 @@ testNoNewNotifs gu = do
             const 200 === statusCode
             const (Just []) === parseNotificationIds
 
-testMissingNotifs :: Gundeck -> Http ()
-testMissingNotifs gu = do
-    ally <- randomId
-    old <- nextNotificationId
+testMissingNotifs :: TestSignature ()
+testMissingNotifs gu _ _ _ = do
+    other   <- randomId
+    sendPush gu (buildPush other [(other, [])] (textPayload "hello"))
+    (old:_) <- map (view queuedNotificationId) <$> listNotifications other Nothing gu
+    ally    <- randomId
     sendPush gu (buildPush ally [(ally, [])] (textPayload "hello"))
     ns <- listNotifications ally Nothing gu
     get ( runGundeck gu
@@ -370,8 +445,8 @@ testMissingNotifs gu = do
         const 404 === statusCode
         const (Just ns) === parseNotifications
 
-testFetchLastNotif :: Gundeck -> Http ()
-testFetchLastNotif gu = do
+testFetchLastNotif :: TestSignature ()
+testFetchLastNotif gu _ _ _ = do
     ally <- randomId
     sendPush gu (buildPush ally [(ally, [])] (textPayload "first"))
     sendPush gu (buildPush ally [(ally, [])] (textPayload "last"))
@@ -380,15 +455,15 @@ testFetchLastNotif gu = do
         const 200 === statusCode
         const (Just n) === parseNotification
 
-testNoLastNotif :: Gundeck -> Http ()
-testNoLastNotif gu = do
+testNoLastNotif :: TestSignature ()
+testNoLastNotif gu _ _ _ = do
     ally <- randomId
     get (runGundeck gu . zUser ally . paths ["notifications", "last"]) !!! do
         const 404 === statusCode
         const (Just "not-found") =~= responseBody
 
-testFetchNotifBadSince :: Gundeck -> Http ()
-testFetchNotifBadSince gu = do
+testFetchNotifBadSince :: TestSignature ()
+testFetchNotifBadSince gu _ _ _ = do
     ally <- randomId
     sendPush gu (buildPush ally [(ally, [])] (textPayload "first"))
     ns <- listNotifications ally Nothing gu
@@ -399,8 +474,8 @@ testFetchNotifBadSince gu = do
         const 404 === statusCode
         const (Just ns) === parseNotifications
 
-testFetchNotifById :: Gundeck -> Http ()
-testFetchNotifById gu = do
+testFetchNotifById :: TestSignature ()
+testFetchNotifById gu _ _ _ = do
     ally <- randomId
     c1 <- randomClientId
     c2 <- randomClientId
@@ -418,8 +493,8 @@ testFetchNotifById gu = do
             const 200 === statusCode
             const (Just n) === parseNotification
 
-testFilterNotifByClient :: Gundeck -> Http ()
-testFilterNotifByClient gu = do
+testFilterNotifByClient :: TestSignature ()
+testFilterNotifByClient gu _ _ _ = do
     alice <- randomId
     clt1  <- randomClientId
     clt2  <- randomClientId
@@ -484,8 +559,8 @@ testFilterNotifByClient gu = do
         const 200              === statusCode
         const (Just (last ns)) === parseNotification
 
-testNotificationPaging :: Gundeck -> Http ()
-testNotificationPaging gu = do
+testNotificationPaging :: TestSignature ()
+testNotificationPaging gu _ _ _ = do
     -- Without client ID
     u1 <- randomId
     replicateM_ 399 (insert u1 Nothing)
@@ -541,29 +616,10 @@ testNotificationPaging gu = do
         return (count', start')
 
 -----------------------------------------------------------------------------
--- Callbacks
-
-testCallback :: Gundeck -> Http ()
-testCallback g = do
-    uid <- randomId
-    let conn = ConnId "some_conn"
-    createCallback uid conn !!! const 201 === statusCode
-    deleteCallback uid conn !!! const 204 === statusCode
-  where
-    createCallback u c =
-        post ( runGundeck g
-             . path "/i/callbacks"
-             . json (Callback u c Belfry "/some/random/path")
-             )
-
-    deleteCallback (toByteString' -> u) (toByteString' -> c) = Bilge.delete
-        (runGundeck g .  paths ["/i/callbacks", u, "devices", c])
-
------------------------------------------------------------------------------
 -- Client registration
 
-testRegisterClient :: Gundeck -> Http ClientId
-testRegisterClient g = do
+testRegisterClient :: TestSignature ClientId
+testRegisterClient g _ _ _ = do
     uid <- randomId
     cid <- randomClientId
     sig <- randomSignalingKeys
@@ -576,22 +632,22 @@ testRegisterClient g = do
 -----------------------------------------------------------------------------
 -- Native push token registration
 
-testRegisterPushToken :: Gundeck -> Brig -> Http ()
-testRegisterPushToken g b = do
+testRegisterPushToken :: TestSignature ()
+testRegisterPushToken g _ b _ = do
     uid <- randomUser b
 
     -- Client 1 with 4 distinct tokens
     c1   <- randomClient g uid
-    t11  <- randomToken c1 APNSSandbox appName
-    t11' <- randomToken c1 APNSSandbox appName -- overlaps
-    t12  <- randomToken c1 APNSSandbox (AppName "com.wire.ent") -- different app
-    t13  <- randomToken c1 GCM appName -- different transport
+    t11  <- randomToken c1 apnsToken
+    t11' <- randomToken c1 apnsToken -- overlaps
+    t12  <- randomToken c1 apnsToken{tName = (AppName "com.wire.ent")} -- different app
+    t13  <- randomToken c1 gcmToken  -- different transport
 
     -- Client 2 with 1 token
     c2   <- randomClient g uid
-    t21  <- randomToken c2 APNSSandbox appName
-    t22  <- randomToken c2 GCM appName -- different transport
-    t22' <- randomToken c2 GCM appName -- overlaps
+    t21  <- randomToken c2 apnsToken
+    t22  <- randomToken c2 gcmToken -- different transport
+    t22' <- randomToken c2 gcmToken -- overlaps
 
     -- Register non-overlapping tokens
     _ <- registerPushToken uid t11 g
@@ -623,17 +679,33 @@ testRegisterPushToken g b = do
     _tokens <- listPushTokens uid g
     liftIO $ assertEqual "unexpected tokens" [] _tokens
 
-testUnregisterPushToken :: Gundeck -> Brig -> Http ()
-testUnregisterPushToken g b = do
+-- TODO: Try to make this test more performant, this test takes too long right now
+testRegisterTooManyTokens :: TestSignature ()
+testRegisterTooManyTokens g _ _ _ = do
+    -- create tokens for reuse with multiple users
+    gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
+    uids   <- liftIO $ replicateM 55 randomId
+    -- create 55 users with these tokens, which should succeed
+    mapM_ (registerToken 201 gcmTok) uids
+    -- should run out of space in endpoint metadata and fail with a 413 on number 56
+    registerToken 413 gcmTok =<< randomId
+  where
+    registerToken status gcmTok uid = do
+        con <- randomClientId
+        let tkg = pushToken GCM "test" gcmTok con
+        registerPushTokenRequest uid tkg g !!! const status === statusCode
+
+testUnregisterPushToken :: TestSignature ()
+testUnregisterPushToken g _ b _ = do
     uid <- randomUser b
     clt <- randomClient g uid
-    tkn <- randomGcmToken clt
+    tkn <- randomToken clt gcmToken
     void $ registerPushToken uid tkn g
     unregisterPushToken uid (tkn^.token) g !!! const 204 === statusCode
     unregisterPushToken uid (tkn^.token) g !!! const 404 === statusCode
 
-testSharePushToken :: Gundeck -> Brig -> Http ()
-testSharePushToken g b = do
+testSharePushToken :: TestSignature ()
+testSharePushToken g _ b _ = do
     gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
     apsTok <- Token . T.decodeUtf8 . B16.encode <$> randomBytes 32
     let tok1 = pushToken GCM "test" gcmTok
@@ -648,6 +720,10 @@ testSharePushToken g b = do
         let t2 = tk c2
         t1' <- registerPushToken u1 t1 g
         t2' <- registerPushToken u2 t2 g -- share the token with u1
+        -- ^ Unfortunately this fails locally :(
+        -- "Duplicate endpoint token: 61d22005-af6e-4199-add9-899aae79c70a"
+        -- Instead of getting something in the lines of
+        -- "Invalid parameter: Token Reason: Endpoint <arn> " already exists with the same Token, but different attributes."
         liftIO $ assertEqual "token mismatch" (t1^.token) t1'
         liftIO $ assertEqual "token mismatch" (t2^.token) t2'
         liftIO $ assertEqual "token mismatch" t1' t2'
@@ -658,8 +734,8 @@ testSharePushToken g b = do
         unregisterPushToken u1 t1' g !!! const 204 === statusCode
         unregisterPushToken u2 t2' g !!! const 204 === statusCode
 
-testReplaceSharedPushToken :: Gundeck -> Brig -> Http ()
-testReplaceSharedPushToken g b = do
+testReplaceSharedPushToken :: TestSignature ()
+testReplaceSharedPushToken g _ b _ = do
     u1 <- randomUser b
     u2 <- randomUser b
     c1 <- randomClient g u1
@@ -684,36 +760,76 @@ testReplaceSharedPushToken g b = do
         [t2] @=? ts1
         [t2] @=? ts2
 
+testLongPushToken :: TestSignature ()
+testLongPushToken g _ b _ = do
+    uid <- randomUser b
+    clt <- randomClient g uid
+
+    -- normal size APNS token should succeed
+    tkn1 <- randomToken clt apnsToken
+    registerPushTokenRequest uid tkn1 g !!! const 201 === statusCode
+
+    -- APNS token over 400 bytes should fail (actual token sizes are twice the tSize)
+    tkn2 <- randomToken clt apnsToken{tSize=256}
+    registerPushTokenRequest uid tkn2 g !!! const 413 === statusCode
+
+    -- normal size GCM token should succeed
+    tkn3 <- randomToken clt gcmToken
+    registerPushTokenRequest uid tkn3 g !!! const 201 === statusCode
+
+    -- GCM token over 8192 bytes should fail (actual token sizes are twice the tSize)
+    tkn4 <- randomToken clt gcmToken{tSize=5000}
+    registerPushTokenRequest uid tkn4 g !!! const 413 === statusCode
+
 -- * Helpers
 
-ensurePresent :: Gundeck -> UserId -> Int -> Http ()
+registerUser :: HasCallStack => Gundeck -> Cannon -> Http (UserId, ConnId)
+registerUser gu ca = do
+    uid <- randomId
+    con <- randomConnId
+    void $ connectUser gu ca uid con
+    ensurePresent gu uid 1
+    return (uid, con)
+
+ensurePresent :: HasCallStack => Gundeck -> UserId -> Int -> Http ()
 ensurePresent gu u n =
     retryWhile ((n /=) . length . decodePresence) (getPresence gu (showUser u)) !!!
         (const n === length . decodePresence)
 
-connectUser :: Gundeck -> Cannon -> UserId -> ByteString -> Http (TChan ByteString)
+connectUser :: HasCallStack => Gundeck -> Cannon -> UserId -> ConnId -> Http (TChan ByteString)
 connectUser gu ca uid con = do
-    ch <- liftIO $ atomically newTChan
-    void $ wsRun ca gu uid con 1 (wsReader ch)
+    [(_, [ch])] <- connectUsersAndDevices gu ca [(uid, [con])]
     return ch
 
--- | Sort 'PushToken's based on the actual 'token' values.
-sortPushTokens:: [PushToken] -> [PushToken]
-sortPushTokens= sortBy (compare `on` view token)
+connectUsersAndDevices :: HasCallStack => Gundeck -> Cannon -> [(UserId, [ConnId])] -> Http [(UserId, [TChan ByteString])]
+connectUsersAndDevices gu ca uidsAndConnIds = do
+    chs <- forM uidsAndConnIds $ \(uid, conns) -> (uid,) <$> do
+        forM conns $ \conn -> do
+            ch <- liftIO $ atomically newTChan
+            _ <- wsRun ca uid conn (wsReader ch)
+            pure ch
+    (\(uid, conns) -> wsAssertPresences gu uid (length conns)) `mapM_` uidsAndConnIds
+    pure chs
 
-wsRun :: Cannon -> Gundeck -> UserId -> ByteString -> Int -> WS.ClientApp () -> Http (Async ())
-wsRun ca gu uid con numPres app = do
-    a <- liftIO $ async $ WS.runClientWith caHost caPort caPath caOpts caHdrs app
-    retryWhile ((numPres /=) . length . decodePresence) (getPresence gu $ showUser uid) !!!
-        (const numPres === length . decodePresence)
-    return a
+-- | Sort 'PushToken's based on the actual 'token' values.
+sortPushTokens :: [PushToken] -> [PushToken]
+sortPushTokens = sortBy (compare `on` view token)
+
+wsRun :: HasCallStack => Cannon -> UserId -> ConnId -> WS.ClientApp () -> Http (Async ())
+wsRun ca uid (ConnId con) app = do
+    liftIO $ async $ WS.runClientWith caHost caPort caPath caOpts caHdrs app
   where
-    cannon = runCannon ca empty
-    caHost = C.unpack $ Http.host cannon
-    caPort = Http.port cannon
-    caPath = "/await" ++ C.unpack (Http.queryString cannon)
+    runCan = runCannon ca empty
+    caHost = C.unpack $ Http.host runCan
+    caPort = Http.port runCan
+    caPath = "/await" ++ C.unpack (Http.queryString runCan)
     caOpts = WS.defaultConnectionOptions
     caHdrs = [ ("Z-User", showUser uid), ("Z-Connection", con) ]
+
+wsAssertPresences :: HasCallStack => Gundeck -> UserId -> Int -> Http ()
+wsAssertPresences gu uid numPres = do
+    retryWhile ((numPres /=) . length . decodePresence) (getPresence gu $ showUser uid) !!!
+        (const numPres === length . decodePresence)
 
 wsCloser :: MVar () -> WS.ClientApp ()
 wsCloser m conn = takeMVar m >> WS.sendClose conn C.empty >> putMVar m ()
@@ -746,15 +862,19 @@ unregisterClient g uid cid = delete $ runGundeck g
 
 registerPushToken :: UserId -> PushToken -> Gundeck -> Http Token
 registerPushToken u t g = do
-    let p = RequestBodyLBS (encode t)
-    r <- post ( runGundeck g
-              . path "/push/tokens"
-              . contentJson
-              . zUser u
-              . zConn "random"
-              . body p
-              )
+    r <- registerPushTokenRequest u t g
     return $ Token (T.decodeUtf8 $ getHeader' "Location" r)
+
+registerPushTokenRequest :: UserId -> PushToken -> Gundeck -> Http (Response (Maybe BL.ByteString))
+registerPushTokenRequest u t g = do
+    let p = RequestBodyLBS (encode t)
+    post ( runGundeck g
+         . path "/push/tokens"
+         . contentJson
+         . zUser u
+         . zConn "random"
+         . body p
+         )
 
 unregisterPushToken :: UserId -> Token -> Gundeck -> Http (Response (Maybe BL.ByteString))
 unregisterPushToken u t g = do
@@ -770,15 +890,15 @@ unregisterPushToken u t g = do
 listPushTokens :: UserId -> Gundeck -> Http [PushToken]
 listPushTokens u g = do
     rs <- get ( runGundeck g
-             . path "/i/push/tokens"
-             . zUser u
-             . zConn "random"
-             )
+              . path "/push/tokens"
+              . zUser u
+              . zConn "random"
+              )
     maybe (error "Failed to decode push tokens")
           return
           (responseBody rs >>= decode)
 
-listNotifications :: UserId -> Maybe ClientId -> Gundeck -> Http [QueuedNotification]
+listNotifications :: HasCallStack => UserId -> Maybe ClientId -> Gundeck -> Http [QueuedNotification]
 listNotifications u c g = do
     rs <- getNotifications g u c <!! const 200 === statusCode
     case responseBody rs >>= decode of
@@ -799,26 +919,37 @@ getLastNotification gu u c = get $ runGundeck gu
     . paths ["notifications", "last"]
     . maybe id (queryItem "client" . toByteString') c
 
-sendPush :: Gundeck -> Push -> Http ()
+sendPush :: HasCallStack => Gundeck -> Push -> Http ()
 sendPush gu push =
     post ( runGundeck gu . path "i/push" . json [push] ) !!! const 200 === statusCode
 
-buildPush :: UserId -> [(UserId, [ClientId])] -> List1 Object -> Push
+sendBulkPushCannon :: HasCallStack => Cannon -> BulkPushRequest -> Http BulkPushResponse
+sendBulkPushCannon ca pushes = do
+    resp <- post ( runCannon ca . path "i/bulkpush" . json pushes ) <!! const 200 === statusCode
+    either (error "failed to decode bulkpush response from cannon") pure .
+        eitherDecode .
+            fromMaybe (error "no body in bulkpush response from cannon") $
+                responseBody resp
+
+buildPush :: HasCallStack => UserId -> [(UserId, [ClientId])] -> List1 Object -> Push
 buildPush sdr rcps pload =
     let rcps' = Set.fromList (map (uncurry rcpt) rcps)
     in newPush sdr (unsafeRange rcps') pload
   where
     rcpt u c = recipient u RouteAny & recipientClients .~ c
 
-randomGcmToken :: MonadIO m => ClientId -> m PushToken
-randomGcmToken c = randomToken c GCM appName
+data TokenSpec = TokenSpec {trans:: Transport, tSize :: Int, tName :: AppName}
 
-randomToken :: MonadIO m => ClientId -> Transport -> AppName -> m PushToken
-randomToken c trans name = liftIO $ do
-    tok <- Token . T.decodeUtf8 <$> case trans of
-        GCM -> toByteString' <$> randomId
-        _   -> B16.encode    <$> randomBytes 32
-    return (pushToken trans name tok c)
+gcmToken :: TokenSpec
+gcmToken = TokenSpec GCM 16 appName
+
+apnsToken :: TokenSpec
+apnsToken = TokenSpec APNSSandbox 32 appName
+
+randomToken :: MonadIO m => ClientId -> TokenSpec -> m PushToken
+randomToken c ts = liftIO $ do
+    tok <- Token . T.decodeUtf8 <$> B16.encode <$> randomBytes (tSize ts)
+    return $ pushToken (trans ts) (tName ts) tok c
 
 showUser :: UserId -> ByteString
 showUser = C.pack . show
@@ -855,14 +986,14 @@ randomUser br = do
         uid <- nextRandom
         return $ loc <> "+" <> UUID.toText uid <> "@" <> dom
 
-randomClient :: Gundeck -> UserId -> Http ClientId
+randomClient :: HasCallStack => Gundeck -> UserId -> Http ClientId
 randomClient g u = do
     c <- randomClientId
     s <- randomSignalingKeys
     void $ registerClient g u c s !!! const 200 === statusCode
     return c
 
-deleteUser :: Gundeck -> UserId -> Http ()
+deleteUser :: HasCallStack => Gundeck -> UserId -> Http ()
 deleteUser g uid = delete (runGundeck g . zUser uid . path "/i/user") !!! const 200 === statusCode
 
 toRecipients :: [UserId] -> Range 1 1024 (Set Recipient)
@@ -876,8 +1007,8 @@ nextNotificationId = Id <$> liftIO next
                      (const (return . isJust))
                      (const UUID.nextUUID)
 
-randomConnId :: MonadIO m => m ByteString
-randomConnId = liftIO $ do
+randomConnId :: MonadIO m => m ConnId
+randomConnId = liftIO $ ConnId <$> do
     r <- randomIO :: IO Word32
     return $ C.pack $ show r
 
@@ -909,4 +1040,3 @@ fromJSON' :: FromJSON a => Value -> Maybe a
 fromJSON' v = case fromJSON v of
     Success a -> Just a
     _         -> Nothing
-

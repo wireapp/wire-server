@@ -26,6 +26,7 @@ library
 
     build-depends:
           base                 >= 4.6   && < 5
+        , aeson                >= 1.0
         , bilge                >= 0.21
         , bytestring           >= 0.10
         , case-insensitive     >= 1.2
@@ -51,11 +52,12 @@ library
         , wai-routing          >= 0.12
         , wai-utilities        >= 0.14.3
         , warp                 >= 3.0
+        , yaml                 >= 0.8.22
 
 executable proxy
     main-is:          src/Main.hs
     default-language: Haskell2010
     ghc-options:      -Wall -O2 -fwarn-tabs -threaded -rtsopts -with-rtsopts=-T
-    build-depends:    base, proxy
+    build-depends:    base, proxy, types-common
     if flag(static)
         ld-options: -static

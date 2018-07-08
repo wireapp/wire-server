@@ -2,22 +2,24 @@
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Galley.API.Create
     ( createGroupConversation
+    , internalCreateManagedConversation
     , createSelfConversation
     , createOne2OneConversation
     , createConnectConversation
     ) where
 
 import Control.Lens hiding ((??))
-import Control.Monad (when, void)
+import Control.Monad (when, void, unless)
 import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Data.Foldable (for_, toList)
 import Data.Id
 import Data.List1
-import Data.Maybe (isJust)
+import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Range
 import Data.Set ((\\))
@@ -30,7 +32,7 @@ import Galley.API.Util
 import Galley.Intra.Push
 import Galley.Types
 import Galley.Types.Teams hiding (EventType (..))
-import Galley.Validation (rangeChecked, rangeCheckedMaybe)
+import Galley.Validation
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
@@ -43,45 +45,67 @@ import qualified Data.UUID.Tagged   as U
 import qualified Galley.Data        as Data
 import qualified Galley.Types.Teams as Teams
 
+----------------------------------------------------------------------------
+-- Group conversations
+
+-- | The public-facing endpoint for creating group conversations.
+--
+-- See Note [managed conversations].
 createGroupConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
-createGroupConversation (zusr::: zcon ::: req ::: _) = do
-    body <- fromBody req invalidPayload
+createGroupConversation (zusr ::: zcon ::: req ::: _) = do
+    wrapped@(NewConvUnmanaged body) <- fromBody req invalidPayload
     case newConvTeam body of
-        Nothing -> createRegularConv body
-        Just tm -> createTeamConv tm body
-  where
-    createTeamConv tinfo body = do
-        name <- rangeCheckedMaybe (newConvName body)
-        mems <- Data.teamMembers (cnvTeamId tinfo)
-        void $ permissionCheck zusr CreateConversation mems
-        uids <-
-            if cnvManaged tinfo then
-                rangeChecked . filter (/= zusr) $ map (view userId) mems
-            else do
-                void $ permissionCheck zusr AddConversationMember mems
-                uu <- rangeChecked (newConvUsers body)
-                ensureConnected zusr (notSameTeam (fromRange uu) mems)
-                pure uu
-        conv <- Data.createConversation zusr name (access body) uids (newConvTeam body)
-        now  <- liftIO getCurrentTime
-        let d = Teams.EdConvCreate (Data.convId conv)
-        let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
-        let notInConv = Set.fromList (map (view userId) mems) \\ Set.fromList (zusr : fromRange uids)
-        for_ (newPush zusr (TeamEvent e) (map userRecipient (Set.toList notInConv))) push1
-        notifyCreatedConversation (Just now) zusr (Just zcon) conv
-        conversationResponse status201 zusr conv
+        Nothing    -> createRegularGroupConv zusr zcon wrapped
+        Just tinfo -> createTeamGroupConv zusr zcon tinfo body
 
-    createRegularConv body = do
-        name <- rangeCheckedMaybe (newConvName body)
-        uids <- rangeChecked (newConvUsers body)
-        ensureConnected zusr (fromRange uids)
-        c <- Data.createConversation zusr name (access body) uids (newConvTeam body)
-        notifyCreatedConversation Nothing zusr (Just zcon) c
-        conversationResponse status201 zusr c
+-- | An internal endpoint for creating managed group conversations. Will
+-- throw an error for everything else.
+internalCreateManagedConversation
+    :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
+internalCreateManagedConversation (zusr ::: zcon ::: req ::: _) = do
+    NewConvManaged body <- fromBody req invalidPayload
+    case newConvTeam body of
+        Nothing -> throwM internalError
+        Just tinfo -> createTeamGroupConv zusr zcon tinfo body
 
-    access a = case Set.toList (newConvAccess a) of
-        []     -> singleton InviteAccess
-        (x:xs) -> list1 x xs
+-- | A helper for creating a regular (non-team) group conversation.
+createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley Response
+createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
+    name <- rangeCheckedMaybe (newConvName body)
+    uids <- checkedConvAndTeamSize (newConvUsers body)
+    ensureConnected zusr (fromConvTeamSize uids)
+    c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body) (newConvMessageTimer body)
+    notifyCreatedConversation Nothing zusr (Just zcon) c
+    conversationResponse status201 zusr c
+
+-- | A helper for creating a team group conversation, used by the endpoint
+-- handlers above. Allows both unmanaged and managed conversations.
+createTeamGroupConv :: UserId -> ConnId -> ConvTeamInfo -> NewConv -> Galley Response
+createTeamGroupConv zusr zcon tinfo body = do
+    name <- rangeCheckedMaybe (newConvName body)
+    mems <- Data.teamMembers (cnvTeamId tinfo)
+    ensureAccessRole (accessRole body) (newConvUsers body) (Just mems)
+    void $ permissionCheck zusr CreateConversation mems
+    uids <-
+        if cnvManaged tinfo then do
+            let uu = filter (/= zusr) $ map (view userId) mems
+            checkedConvAndTeamSize uu
+        else do
+            void $ permissionCheck zusr AddConversationMember mems
+            uu <- checkedConvAndTeamSize (newConvUsers body)
+            ensureConnected zusr (notTeamMember (fromConvTeamSize uu) mems)
+            pure uu
+    conv <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body) (newConvMessageTimer body)
+    now  <- liftIO getCurrentTime
+    let d = Teams.EdConvCreate (Data.convId conv)
+    let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
+    let notInConv = Set.fromList (map (view userId) mems) \\ Set.fromList (zusr : fromConvTeamSize uids)
+    for_ (newPush zusr (TeamEvent e) (map userRecipient (Set.toList notInConv))) push1
+    notifyCreatedConversation (Just now) zusr (Just zcon) conv
+    conversationResponse status201 zusr conv
+
+----------------------------------------------------------------------------
+-- Other kinds of conversations
 
 createSelfConversation :: UserId -> Galley Response
 createSelfConversation zusr = do
@@ -94,20 +118,27 @@ createSelfConversation zusr = do
 
 createOne2OneConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 createOne2OneConversation (zusr ::: zcon ::: req ::: _) = do
-    j <- fromBody req invalidPayload
-    when (isJust (newConvTeam j)) $
-        throwM noTeamConv
-    u <- rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId])
-    (x, y) <- toUUIDs zusr (List.head $ fromRange u)
+    NewConvUnmanaged j <- fromBody req invalidPayload
+    other  <- List.head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
+    (x, y) <- toUUIDs zusr other
     when (x == y) $
         throwM $ invalidOp "Cannot create a 1-1 with yourself"
-    ensureConnected zusr (fromRange u)
+    case newConvTeam j of
+        Just ti | cnvManaged ti -> throwM noManagedTeamConv
+                | otherwise     -> checkBindingTeamPermissions zusr other (cnvTeamId ti)
+        Nothing -> ensureConnected zusr [other]
     n <- rangeCheckedMaybe (newConvName j)
     c <- Data.conversation (Data.one2OneConvId x y)
-    maybe (create x y n) (conversationResponse status200 zusr) c
+    maybe (create x y n $ newConvTeam j) (conversationResponse status200 zusr) c
   where
-    create x y n = do
-        c <- Data.createOne2OneConversation x y n
+    checkBindingTeamPermissions x y tid = do
+        mems <- bindingTeamMembers tid
+        void $ permissionCheck zusr CreateConversation mems
+        unless (all (flip isTeamMember mems) [x, y]) $
+            throwM noBindingTeamMembers
+
+    create x y n tinfo = do
+        c <- Data.createOne2OneConversation x y n (cnvTeamId <$> tinfo)
         notifyCreatedConversation Nothing zusr (Just zcon) c
         conversationResponse status201 zusr c
 
@@ -133,7 +164,7 @@ createConnectConversation (usr ::: conn ::: req ::: _) = do
             | usr `isMember` mems -> connect n j conv
             | otherwise           -> do
                 now <- liftIO getCurrentTime
-                mm  <- snd <$> Data.addMembers now (Data.convId conv) usr (rcast $ rsingleton usr)
+                mm  <- snd <$> Data.addMember now (Data.convId conv) usr
                 let conv' = conv {
                     Data.convMembers = Data.convMembers conv <> toList mm
                 }
@@ -189,3 +220,11 @@ toUUIDs a b = do
     a' <- U.fromUUID (toUUID a) & ifNothing invalidUUID4
     b' <- U.fromUUID (toUUID b) & ifNothing invalidUUID4
     return (a', b')
+
+accessRole :: NewConv -> AccessRole
+accessRole b = fromMaybe Data.defRole (newConvAccessRole b)
+
+access :: NewConv -> [Access]
+access a = case Set.toList (newConvAccess a) of
+    []     -> Data.defRegularConvAccess
+    (x:xs) -> x:xs

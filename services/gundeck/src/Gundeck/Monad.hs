@@ -38,8 +38,8 @@ import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Data.Aeson (FromJSON)
+import Data.Misc (Milliseconds (..))
 import Gundeck.Env
-import Gundeck.Types.Presence (Milliseconds (..))
 import Network.Wai
 import Network.Wai.Utilities
 import System.Logger.Class hiding (Error, info)
@@ -48,6 +48,8 @@ import qualified Data.Text.Lazy    as Lazy
 import qualified Database.Redis.IO as Redis
 import qualified System.Logger     as Logger
 
+-- | TODO: 'Client' already has an 'Env'.  Why do we need two?  How does this even work?  We should
+-- probably explain this here.
 newtype Gundeck a = Gundeck
     { unGundeck :: ReaderT Env Client a
     } deriving ( Functor

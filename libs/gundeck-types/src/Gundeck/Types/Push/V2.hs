@@ -291,7 +291,7 @@ data Transport
     | APNSSandbox
     | APNSVoIP
     | APNSVoIPSandbox
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Bounded, Enum)
 
 instance ToJSON Transport where
     toJSON GCM             = "GCM"

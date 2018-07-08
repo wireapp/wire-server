@@ -21,6 +21,12 @@ export LOG_LEVEL=${GALLEY_LOG_LEVEL:-Debug}
 export LOG_BUFFER=${GALLEY_LOG_BUFFER:-4096}
 export LOG_NETSTR=${GALLEY_LOG_NETSTR:-True}
 
+if [ -n "$GALLEY_INTRA_DEVICE_LISTING" ]; then
+    GALLEY_INTRA_DEVICE_LISTING="--intra-device-listing"
+else
+    GALLEY_INTRA_DEVICE_LISTING=""
+fi
+
 cd $HOME
 
 ulimit -n 65536
@@ -35,8 +41,11 @@ exec chpst -u $USER \
     --gundeck-port=${GALLEY_GUNDECK_PORT?'unset'} \
     --cassandra-host=${GALLEY_CASSANDRA_HOST?'unset'} \
     --cassandra-port=${GALLEY_CASSANDRA_PORT?'unset'} \
-    --keyspace=${GALLEY_CASSANDRA_KEYSPACE?'unset'} \
+    --cassandra-keyspace=${GALLEY_CASSANDRA_KEYSPACE?'unset'} \
     --disco-url=${GALLEY_DISCO_URL?'unset'} \
     --http-pool-size=${GALLEY_HTTP_POOL_SIZE:-128} \
     --team-events-queue-name=${GALLEY_SQS_TEAM_EVENTS?'unset'} \
-    --aws-region=${KHAN_REGION?'unset'}
+    --aws-sqs-endpoint=${GALLEY_SQS_ENDPOINT?'unset'} \
+    --conv-team-max-size=${CONV_AND_TEAM_MAX_SIZE:-128} \
+    --conversation-code-prefix=${GALLEY_CONVERSATION_CODE_PREFIX?'unset'} \
+    ${GALLEY_INTRA_DEVICE_LISTING}

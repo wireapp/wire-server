@@ -9,10 +9,12 @@ import Brig.Password
 import Brig.Provider.DB.Instances ()
 import Brig.Provider.DB.Tag
 import Brig.Types.Common
-import Brig.Types.Provider
+import Brig.Types.Provider hiding (updateServiceTags)
 import Cassandra
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
+import Control.Monad (when)
+import Control.Monad.IO.Class
 import Data.Foldable (for_, toList)
 import Data.Function (on)
 import Data.Functor.Identity
@@ -20,12 +22,15 @@ import Data.Id
 import Data.Int
 import Data.List1 (List1)
 import Data.List (unfoldr, minimumBy, uncons)
-import Data.Maybe (catMaybes, mapMaybe)
-import Data.Misc (Fingerprint, Rsa)
+import Data.Maybe (catMaybes, fromMaybe, mapMaybe)
+import Data.Misc
 import Data.Range (Range, fromRange, rnil, rcast)
-import Data.Text (Text, toLower)
+import Data.Text (Text, toLower, isPrefixOf)
 
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+
+type RangedServiceTags = Range 0 3 (Set.Set ServiceTag)
 
 --------------------------------------------------------------------------------
 -- Providers
@@ -106,21 +111,37 @@ deleteAccount pid = retry x5 $ write cql $ params Quorum (Identity pid)
     cql :: PrepQuery W (Identity ProviderId) ()
     cql = "DELETE FROM provider WHERE id = ?"
 
+updateAccountPassword :: MonadClient m
+    => ProviderId
+    -> PlainTextPassword
+    -> m ()
+updateAccountPassword pid pwd = do
+    p <- liftIO $ mkSafePassword pwd
+    retry x5 $ write cql $ params Quorum (p, pid)
+  where
+    cql :: PrepQuery W (Password, ProviderId) ()
+    cql = "UPDATE provider SET password = ? where id = ?"
+
 --------------------------------------------------------------------------------
 -- Unique (Natural) Keys
 
 insertKey :: MonadClient m
     => ProviderId
+    -> Maybe EmailKey
     -> EmailKey
     -> m ()
-insertKey p k = retry x5 $ batch $ do
+insertKey p old new = retry x5 $ batch $ do
     setConsistency Quorum
     setType BatchLogged
-    addPrepQuery cqlKey   (emailKeyUniq k, p)
-    addPrepQuery cqlEmail (emailKeyOrig k, p)
+    for_ old $ \old' -> addPrepQuery cqlKeyDelete (Identity (emailKeyUniq old'))
+    addPrepQuery cqlKeyInsert (emailKeyUniq new, p)
+    addPrepQuery cqlEmail     (emailKeyOrig new, p)
   where
-    cqlKey :: PrepQuery W (Text, ProviderId) ()
-    cqlKey = "INSERT INTO provider_keys (key, provider) VALUES (?, ?)"
+    cqlKeyInsert :: PrepQuery W (Text, ProviderId) ()
+    cqlKeyInsert = "INSERT INTO provider_keys (key, provider) VALUES (?, ?)"
+
+    cqlKeyDelete :: PrepQuery W (Identity Text) ()
+    cqlKeyDelete = "DELETE FROM provider_keys WHERE key = ?"
 
     cqlEmail :: PrepQuery W (Email, ProviderId) ()
     cqlEmail = "UPDATE provider SET email = ? WHERE id = ?"
@@ -147,6 +168,7 @@ insertService :: MonadClient m
     => ProviderId
     -> Name
     -> Text
+    -> Text
     -> HttpsUrl
     -> ServiceToken
     -> ServiceKey
@@ -154,19 +176,19 @@ insertService :: MonadClient m
     -> [Asset]
     -> Set.Set ServiceTag
     -> m ServiceId
-insertService pid name descr url token key fprint assets tags = do
+insertService pid name summary descr url token key fprint assets tags = do
     sid <- randomId
     let tagSet = Set (Set.toList tags)
     retry x5 $ write cql $ params Quorum
-        (pid, sid, name, descr, url, [token], [key], [fprint], assets, tagSet, False)
+        (pid, sid, name, summary, descr, url, [token], [key], [fprint], assets, tagSet, False)
     return sid
   where
-    cql :: PrepQuery W (ProviderId, ServiceId, Name, Text, HttpsUrl, [ServiceToken],
+    cql :: PrepQuery W (ProviderId, ServiceId, Name, Text, Text, HttpsUrl, [ServiceToken],
                         [ServiceKey], [Fingerprint Rsa], [Asset], Set ServiceTag, Bool)
                        ()
-    cql = "INSERT INTO service (provider, id, name, descr, base_url, auth_tokens, \
+    cql = "INSERT INTO service (provider, id, name, summary, descr, base_url, auth_tokens, \
                                \pubkeys, fingerprints, assets, tags, enabled) \
-          \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 lookupService :: MonadClient m
     => ProviderId
@@ -176,12 +198,12 @@ lookupService pid sid = fmap (fmap mk) $
     retry x1 $ query1 cql $ params Quorum (pid, sid)
   where
     cql :: PrepQuery R (ProviderId, ServiceId)
-                       (Name, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], Set ServiceTag, Bool)
-    cql = "SELECT name, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
+                       (Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], Set ServiceTag, Bool)
+    cql = "SELECT name, summary, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
           \FROM service WHERE provider = ? AND id = ?"
 
-    mk (name, descr, url, toks, keys, assets, tags, enabled) =
-        Service sid name descr url toks keys assets (Set.fromList (fromSet tags)) enabled
+    mk (name, summary, descr, url, toks, keys, assets, tags, enabled) =
+        Service sid name (fromMaybe mempty summary) descr url toks keys assets (Set.fromList (fromSet tags)) enabled
 
 listServices :: MonadClient m
     => ProviderId
@@ -190,33 +212,52 @@ listServices p = fmap (map mk) $
     retry x1 $ query cql $ params Quorum (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId)
-                       (ServiceId, Name, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], Set ServiceTag, Bool)
-    cql = "SELECT id, name, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
+                       (ServiceId, Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], Set ServiceTag, Bool)
+    cql = "SELECT id, name, summary, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
           \FROM service WHERE provider = ?"
 
-    mk (sid, name, descr, url, toks, keys, assets, tags, enabled) =
+    mk (sid, name, summary, descr, url, toks, keys, assets, tags, enabled) =
         let tags' = Set.fromList (fromSet tags)
-        in Service sid name descr url toks keys assets tags' enabled
+        in Service sid name (fromMaybe mempty summary) descr url toks keys assets tags' enabled
 
 updateService :: MonadClient m
     => ProviderId
     -> ServiceId
-    -> Maybe Name
+    -> Name
+    -> RangedServiceTags
+    -> Maybe (Name, Name)
+    -> Maybe Text
     -> Maybe Text
     -> Maybe [Asset]
-    -> Maybe (Range 1 3 (Set.Set ServiceTag))
+    -> Maybe (RangedServiceTags, RangedServiceTags)
+    -> Bool
     -> m ()
-updateService pid sid name descr assets tags = retry x5 $ batch $ do
+updateService pid sid svcName svcTags nameChange summary descr assets tagsChange enabled = retry x5 $ batch $ do
     setConsistency Quorum
     setType BatchUnLogged
-    let tags' = Set . Set.toList . fromRange <$> tags
-    for_ name   $ \x -> addPrepQuery cqlName     (x, pid, sid)
-    for_ descr  $ \x -> addPrepQuery cqlDescr    (x, pid, sid)
-    for_ assets $ \x -> addPrepQuery cqlAssets   (x, pid, sid)
-    for_ tags'  $ \x -> addPrepQuery cqlTags     (x, pid, sid)
+    -- If there is a name change, update the service name; if enabled, update indexes
+    for_ nameChange $ \(oldName, newName) -> do
+        addPrepQuery cqlName (newName, pid, sid)
+        when enabled $ do
+            updateServicePrefix pid sid oldName newName
+            updateServiceTags   pid sid (oldName, svcTags) (newName, svcTags)
+    -- If there is a tag change, update the service tags; if enabled, update indexes
+    for_ tagsChange $ \(oldTags, newTags) -> do
+        let newTags' = Set . Set.toList . fromRange $ newTags
+        addPrepQuery cqlTags (newTags', pid, sid)
+        when enabled $ case nameChange of
+            Just (old, new) -> updateServiceTags pid sid (old, oldTags)     (new, newTags)
+            Nothing         -> updateServiceTags pid sid (svcName, oldTags) (svcName, newTags)
+
+    for_ summary    $ \x -> addPrepQuery cqlSummary  (x, pid, sid)
+    for_ descr      $ \x -> addPrepQuery cqlDescr    (x, pid, sid)
+    for_ assets     $ \x -> addPrepQuery cqlAssets   (x, pid, sid)
   where
     cqlName :: PrepQuery W (Name, ProviderId, ServiceId) ()
     cqlName = "UPDATE service SET name = ? WHERE provider = ? AND id = ?"
+
+    cqlSummary :: PrepQuery W (Text, ProviderId, ServiceId) ()
+    cqlSummary = "UPDATE service SET summary = ? WHERE provider = ? AND id = ?"
 
     cqlDescr :: PrepQuery W (Text, ProviderId, ServiceId) ()
     cqlDescr = "UPDATE service SET descr = ? WHERE provider = ? AND id = ?"
@@ -230,9 +271,15 @@ updateService pid sid name descr assets tags = retry x5 $ batch $ do
 deleteService :: MonadClient m
     => ProviderId
     -> ServiceId
+    -> Name
+    -> RangedServiceTags
     -> m ()
-deleteService pid sid =
-    retry x5 $ write cql $ params Quorum (pid, sid)
+deleteService pid sid name tags =  retry x5 $ batch $ do
+    setConsistency Quorum
+    setType BatchUnLogged
+    addPrepQuery cql (pid, sid)
+    deleteServicePrefix sid name
+    deleteServiceTags pid sid name tags
   where
     cql :: PrepQuery W (ProviderId, ServiceId) ()
     cql = "DELETE FROM service WHERE provider = ? AND id = ?"
@@ -248,13 +295,13 @@ lookupServiceProfile :: MonadClient m
 lookupServiceProfile p s = fmap (fmap mk) $
     retry x1 $ query1 cql $ params One (p, s)
   where
-    cql :: PrepQuery R (ProviderId, ServiceId) (Name, Text, [Asset], Set ServiceTag, Bool)
-    cql = "SELECT name, descr, assets, tags, enabled \
+    cql :: PrepQuery R (ProviderId, ServiceId) (Name, Maybe Text, Text, [Asset], Set ServiceTag, Bool)
+    cql = "SELECT name, summary, descr, assets, tags, enabled \
           \FROM service WHERE provider = ? AND id = ?"
 
-    mk (name, descr, assets, tags, enabled) =
+    mk (name, summary, descr, assets, tags, enabled) =
         let tags' = Set.fromList (fromSet tags)
-        in ServiceProfile s p name descr assets tags' enabled
+        in ServiceProfile s p name (fromMaybe mempty summary) descr assets tags' enabled
 
 -- | Note: Consistency = One
 listServiceProfiles :: MonadClient m
@@ -264,13 +311,13 @@ listServiceProfiles p = fmap (map mk) $
     retry x1 $ query cql $ params One (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId)
-                       (ServiceId, Name, Text, [Asset], Set ServiceTag, Bool)
-    cql = "SELECT id, name, descr, assets, tags, enabled \
+                       (ServiceId, Name, Maybe Text, Text, [Asset], Set ServiceTag, Bool)
+    cql = "SELECT id, name, summary, descr, assets, tags, enabled \
           \FROM service WHERE provider = ?"
 
-    mk (sid, name, descr, assets, tags, enabled) =
+    mk (sid, name, summary, descr, assets, tags, enabled) =
         let tags' = Set.fromList (fromSet tags)
-        in ServiceProfile sid p name descr assets tags' enabled
+        in ServiceProfile sid p name (fromMaybe mempty summary) descr assets tags' enabled
 
 --------------------------------------------------------------------------------
 -- Service Connection Data
@@ -334,32 +381,74 @@ updateServiceConn pid sid url tokens keys enabled = retry x5 $ batch $ do
     cqlEnabled = "UPDATE service SET enabled = ? WHERE provider = ? AND id = ?"
 
 --------------------------------------------------------------------------------
+-- Service "Indexes" (tag and prefix)
+
+insertServiceIndexes :: MonadClient m
+                     => ProviderId
+                     -> ServiceId
+                     -> Name
+                     -> RangedServiceTags
+                     -> m ()
+insertServiceIndexes pid sid name tags =
+    retry x5 $ batch $ do
+        setConsistency Quorum
+        setType BatchLogged
+        insertServicePrefix pid sid name
+        insertServiceTags pid sid name tags
+
+deleteServiceIndexes :: MonadClient m
+                     => ProviderId
+                     -> ServiceId
+                     -> Name
+                     -> RangedServiceTags
+                     -> m ()
+deleteServiceIndexes pid sid name tags =
+    retry x5 $ batch $ do
+        setConsistency Quorum
+        setType BatchLogged
+        deleteServicePrefix sid name
+        deleteServiceTags pid sid name tags
+
+updateServiceIndexes :: MonadClient m
+                     => ProviderId
+                     -> ServiceId
+                     -> (Name, RangedServiceTags) -- ^ Name and tags to remove.
+                     -> (Name, RangedServiceTags) -- ^ Name and tags to add.
+                     -> m ()
+updateServiceIndexes pid sid (oldName, oldTags) (newName, newTags) =
+    retry x5 $ batch $ do
+        setConsistency Quorum
+        setType BatchLogged
+        updateServicePrefix pid sid oldName newName
+        updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
+
+--------------------------------------------------------------------------------
 -- Service Tag "Index"
 
-insertServiceTags :: MonadClient m
-    => ProviderId
+insertServiceTags
+    :: ProviderId
     -> ServiceId
     -> Name
-    -> Range 0 3 (Set.Set ServiceTag)
-    -> m ()
-insertServiceTags pid sid name tags = Brig.Provider.DB.updateServiceTags
+    -> RangedServiceTags
+    -> BatchM ()
+insertServiceTags pid sid name tags = updateServiceTags
     pid sid (Name "", rcast rnil) (name, tags)
 
-deleteServiceTags :: MonadClient m
-    => ProviderId
+deleteServiceTags
+    :: ProviderId
     -> ServiceId
     -> Name
-    -> Range 0 3 (Set.Set ServiceTag)
-    -> m ()
-deleteServiceTags pid sid name tags = Brig.Provider.DB.updateServiceTags
+    -> RangedServiceTags
+    -> BatchM ()
+deleteServiceTags pid sid name tags = updateServiceTags
     pid sid (name, tags) (Name "", rcast rnil)
 
-updateServiceTags :: MonadClient m
-    => ProviderId
+updateServiceTags
+    :: ProviderId
     -> ServiceId
-    -> (Name, Range 0 3 (Set.Set ServiceTag)) -- ^ Name and tags to remove.
-    -> (Name, Range 0 3 (Set.Set ServiceTag)) -- ^ Name and tags to add.
-    -> m ()
+    -> (Name, RangedServiceTags) -- ^ Name and tags to remove.
+    -> (Name, RangedServiceTags) -- ^ Name and tags to add.
+    -> BatchM ()
 updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
     | eqTags && eqNames = return ()
     | eqNames = do
@@ -382,10 +471,10 @@ updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
     eqNames = oldNameLower == newNameLower
 
     deleteTags name = mapM_ $ \tag ->
-        retry x5 $ write cqlDelete $ params Quorum (defBucket, tag, name, sid)
+        addPrepQuery cqlDelete (defBucket, tag, name, sid)
 
     insertTags name = mapM_ $ \tag ->
-        retry x5 $ write cqlInsert $ params Quorum (defBucket, tag, name, sid, pid)
+        addPrepQuery cqlInsert (defBucket, tag, name, sid, pid)
 
     cqlDelete :: PrepQuery W (Bucket, Int64, Name, ServiceId) ()
     cqlDelete = "DELETE FROM service_tag WHERE bucket = ? AND tag = ? AND name = ? AND service = ?"
@@ -394,26 +483,29 @@ updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
     cqlInsert = "INSERT INTO service_tag (bucket, tag, name, service, provider) \
                 \VALUES (?, ?, ?, ?, ?)"
 
-type TagRow = (Name, ProviderId, ServiceId)
+-- Used both by service_tag and service_prefix
+type IndexRow = (Name, ProviderId, ServiceId)
 
 -- | Note: Consistency = One
 paginateServiceTags :: MonadClient m
     => QueryAnyTags 1 3
-    -> Maybe Name
+    -> Maybe Text
     -> Int32
+    -> Maybe ProviderId
     -> m ServiceProfilePage
-paginateServiceTags tags start size = liftClient $ do
-    let start' = Name (maybe "" (toLower . fromName) start)
-    let size'  = size + 1
-    let tags'  = unpackTags tags
-    p <- queryAll start' size' tags'
+paginateServiceTags tags start size providerFilter = liftClient $ do
+    let size' = size + 1
+    let tags' = unpackTags tags
+    p <- filterResults providerFilter start' <$> queryAll start' size' tags'
     r <- mapConcurrently resolveRow (result p)
     return $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
+    start' = maybe "" toLower start
+
     unpackTags :: QueryAnyTags 1 3 -> [QueryAllTags 1 3]
     unpackTags = Set.toList . fromRange . queryAnyTagsRange
 
-    queryAll :: Name -> Int32 -> [QueryAllTags 1 3] -> Client (Page TagRow)
+    queryAll :: Text -> Int32 -> [QueryAllTags 1 3] -> Client (Page IndexRow)
     queryAll _ _  [] = return emptyPage
     queryAll s l [t] = do
         p <- queryTags s l t
@@ -424,7 +516,7 @@ paginateServiceTags tags start size = liftClient $ do
         let more = any hasMore ps || length rows > fromIntegral size
         return $! emptyPage { hasMore = more, result = trim size rows }
 
-    nextRow :: [[TagRow]] -> Maybe (TagRow, [[TagRow]])
+    nextRow :: [[IndexRow]] -> Maybe (IndexRow, [[IndexRow]])
     nextRow rs = case mapMaybe uncons rs of
         [] -> Nothing
         hs -> let next = fst $ minimumBy (compare `on` fst) hs
@@ -432,16 +524,103 @@ paginateServiceTags tags start size = liftClient $ do
                   rest = map cons hs
               in Just (next, rest)
 
-    resolveRow :: MonadClient m => TagRow -> m (Maybe ServiceProfile)
-    resolveRow (_, pid, sid) = lookupServiceProfile pid sid
-
-    trim l = take (fromIntegral l)
-
     queryTags s l t =
         let t' = foldTags (queryAllTagsRange t)
         in retry x1 $ paginate cql $ paramsP One (defBucket, t', s) l
 
-    cql :: PrepQuery R (Bucket, Int64, Name) (Name, ProviderId, ServiceId)
+    cql :: PrepQuery R (Bucket, Int64, Text) (Name, ProviderId, ServiceId)
     cql = "SELECT name, provider, service FROM service_tag \
           \WHERE bucket = ? AND tag = ? AND name >= ?"
 
+--------------------------------------------------------------------------------
+-- Service Prefix "Index"
+
+insertServicePrefix
+    :: ProviderId
+    -> ServiceId
+    -> Name
+    -> BatchM ()
+insertServicePrefix pid sid name =
+    addPrepQuery cql (mkPrefixIndex name, toLowerName name, sid, pid)
+  where
+    cql :: PrepQuery W (Text, Name, ServiceId, ProviderId) ()
+    cql = "INSERT INTO service_prefix \
+          \(prefix, name, service, provider) \
+          \VALUES (?, ?, ?, ?)"
+
+deleteServicePrefix
+    :: ServiceId
+    -> Name
+    -> BatchM ()
+deleteServicePrefix sid name =
+    addPrepQuery cql (mkPrefixIndex name, toLowerName name, sid)
+  where
+    cql :: PrepQuery W (Text, Name, ServiceId) ()
+    cql = "DELETE FROM service_prefix \
+          \WHERE prefix = ? AND name = ? AND service = ?"
+
+updateServicePrefix
+    :: ProviderId
+    -> ServiceId
+    -> Name -- ^ Name to remove.
+    -> Name -- ^ Name to add.
+    -> BatchM ()
+updateServicePrefix pid sid oldName newName = do
+    deleteServicePrefix sid oldName
+    insertServicePrefix pid sid newName
+
+paginateServiceNames :: MonadClient m
+    => Range 1 128 Text
+    -> Int32
+    -> Maybe ProviderId
+    -> m ServiceProfilePage
+paginateServiceNames start size providerFilter = liftClient $ do
+    let size' = size + 1
+    p <- filterResults providerFilter prefix <$> queryPrefixes size'
+    r <- mapConcurrently resolveRow (result p)
+    return $! ServiceProfilePage (hasMore p) (catMaybes r)
+  where
+    prefix = toLower (fromRange start)
+
+    queryPrefixes len = do
+        p <- retry x1 $ paginate cql $ paramsP One (mkPrefixIndex (Name prefix), prefix) len
+        return $! p { result = trim size (result p) }
+
+    cql :: PrepQuery R (Text, Text) IndexRow
+    cql = "SELECT name, provider, service \
+          \FROM service_prefix \
+          \WHERE prefix = ? AND name >= ?"
+
+-- Pagination utilities
+filterResults :: Maybe ProviderId -> Text -> Page IndexRow -> Page IndexRow
+filterResults providerFilter start = maybe id filterbyProvider providerFilter . filterPrefix start
+
+filterbyProvider :: ProviderId -> Page IndexRow -> Page IndexRow
+filterbyProvider pid p = do
+    let filtered = filter (\(_, provider, _) -> pid == provider) (result p)
+        -- check if we have filtered out any result
+        allValid = length filtered == length (result p)
+        more     = allValid && hasMore p
+     in p { hasMore = more, result = filtered }
+
+filterPrefix :: Text -> Page IndexRow -> Page IndexRow
+filterPrefix prefix p = do
+    let prefixed = filter (\(Name n, _, _) -> prefix `isPrefixOf` (toLower n)) (result p)
+        -- if they were all valid prefixes, there may be more in Cassandra
+        allValid = length prefixed == length (result p)
+        more     = allValid && hasMore p
+     in p { hasMore = more, result = prefixed }
+
+resolveRow :: MonadClient m => IndexRow -> m (Maybe ServiceProfile)
+resolveRow (_, pid, sid) = lookupServiceProfile pid sid
+
+--------------------------------------------------------------------------------
+-- Utilities
+mkPrefixIndex :: Name -> Text
+mkPrefixIndex = Text.toLower . Text.take 1 . fromName
+
+toLowerName :: Name -> Name
+toLowerName = Name . toLower . fromName
+
+trim :: Int32 -> [a] -> [a]
+trim = take . fromIntegral

@@ -46,9 +46,9 @@ module Test.Tasty.Cannon
 import Control.Concurrent
 import Control.Concurrent.Async
 import Control.Concurrent.STM
-import Control.Concurrent.Timeout
+import Control.Concurrent.Timeout hiding (threadDelay)
 import Control.Exception (SomeAsyncException, asyncExceptionFromException, throwIO)
-import Control.Monad (void, forever)
+import Control.Monad (void, forever, unless)
 import Control.Monad.Catch hiding (bracket)
 import Control.Monad.IO.Class
 import Data.Aeson (decodeStrict', FromJSON, fromJSON, Value (..))
@@ -58,10 +58,13 @@ import Data.Foldable (mapM_, for_)
 import Data.Id
 import Data.List1
 import Data.Maybe
+import Data.Monoid
 import Data.Timeout (Timeout, TimeoutUnit (..), (#))
 import Data.Typeable
 import Data.Word
 import Gundeck.Types
+import Network.HTTP.Client
+import Network.HTTP.Types.Status
 import Prelude hiding (mapM_)
 import System.Random (randomIO)
 import Test.Tasty.HUnit
@@ -184,6 +187,15 @@ instance Show MatchTimeout where
                             . showString "\n"
                             . showFailures es
 
+newtype RegistrationTimeout = RegistrationTimeout Int
+    deriving (Typeable)
+
+instance Exception RegistrationTimeout
+
+instance Show RegistrationTimeout where
+    show (RegistrationTimeout s) =
+        "Failed to find a registration after " ++ show s ++ " retries.\n"
+
 await :: MonadIO m => Timeout -> WebSocket -> m (Maybe Notification)
 await t = liftIO . timeout t . atomically . readTChan . wsChan
 
@@ -271,6 +283,8 @@ randomConnId = liftIO $ do
 -----------------------------------------------------------------------------
 -- Internals
 
+-- | Start a client thread in 'Async' that opens a web socket to a Cannon, wait
+--   for the connection to register with Gundeck, and return the 'Async' thread.
 run :: MonadIO m => Cannon -> UserId -> ConnId -> WS.ClientApp () -> m (Async ())
 run (($ Http.defaultRequest) -> ca) uid cid app = liftIO $ do
     latch <- newEmptyMVar
@@ -282,13 +296,25 @@ run (($ Http.defaultRequest) -> ca) uid cid app = liftIO $ do
     stat <- poll wsapp
     case stat of
         Just (Left ex) -> throwIO ex
-        _              -> return wsapp
+        _              -> waitForRegistry numRetries >> return wsapp
   where
     caHost = C.unpack (Http.host ca)
     caPort = Http.port ca
     caPath = "/await" ++ C.unpack (Http.queryString ca)
     caOpts = WS.defaultConnectionOptions
     caHdrs = [ ("Z-User", toByteString' uid), ("Z-Connection", toByteString' cid) ]
+
+    numRetries = 30
+
+    waitForRegistry 0          = throwIO $ RegistrationTimeout numRetries
+    waitForRegistry (n :: Int) = do
+      man <- newManager defaultManagerSettings
+      let ca' = ca { method = "HEAD"
+                   , path = "/i/presences/" <> toByteString' uid <> "/" <> toByteString' cid }
+      res <- httpLbs ca' man
+      unless (responseStatus res == status200) $ do
+          threadDelay $ 100 * 1000
+          waitForRegistry (n - 1)
 
 clientApp :: TChan Notification -> MVar () -> WS.ClientApp ()
 clientApp nchan latch conn = do

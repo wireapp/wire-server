@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Brig.Data.Client
     ( -- * Clients
@@ -16,6 +17,7 @@ module Brig.Data.Client
     , lookupClient
     , lookupClients
     , lookupClientIds
+    , lookupUsersClientIds
     , Brig.Data.Client.updateClientLabel
 
       -- * Prekeys
@@ -24,37 +26,47 @@ module Brig.Data.Client
     , lookupPrekeyIds
     ) where
 
-import Aws.Core (Transaction, ServiceConfiguration)
-import Brig.App (AppIO, awsConfig, currentTime)
+import Bilge.Retry (httpHandlers)
+import Brig.App (AppIO, currentTime, awsEnv)
+import Brig.AWS
 import Brig.User.Auth.DB.Instances ()
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Types
 import Brig.Types.User.Auth (CookieLabel)
 import Cassandra hiding (Client)
+import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Error
 import Control.Lens
 import Control.Monad
+import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
+import Control.Monad.Trans.Control
+import Control.Retry
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Foldable (for_)
 import Data.Id
-import Data.IP (IP)
+import Data.List.Split (chunksOf)
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc
 import Data.Monoid ((<>))
 import Data.Text (Text)
-import Data.Time.Clock
+import Data.Typeable
 import Data.Word
+import Safe (readMay)
 import System.CryptoBox (Result (Success))
 import System.Logger.Class (field, msg, val)
 
-import qualified Aws.DynamoDb           as Ddb
-import qualified Brig.Aws               as Aws
 import qualified Brig.Data.User         as User
+import qualified Control.Exception.Lens as EL
 import qualified Data.ByteString.Base64 as B64
-import qualified Data.Map.Lazy          as LazyMap
+import qualified Data.HashMap.Strict    as Map
+import qualified Data.Set               as Set
+import qualified Data.Text              as Text
 import qualified Data.UUID              as UUID
+import qualified Network.AWS            as AWS
+import qualified Network.AWS.Data       as AWS
+import qualified Network.AWS.DynamoDB   as AWS
 import qualified System.CryptoBox       as CryptoBox
 import qualified System.Logger.Class    as Log
 
@@ -70,11 +82,10 @@ data ClientDataError
 addClient :: UserId
           -> ClientId
           -> NewClient a
-          -> Maybe IP
           -> Maybe Location
           -> ExceptT ClientDataError AppIO (Client, [Client], Word)
-addClient u newId c ip loc = do
-    clients   <- lift $ lookupClients u
+addClient u newId c loc = do
+    clients <- lookupClients u
     let typed  = filter ((== newClientType c) . clientType) clients
     let count  = length typed
     let upsert = any exists typed
@@ -96,33 +107,42 @@ addClient u newId c ip loc = do
     exists = (==) newId . clientId
 
     insert = do
-        now <- liftIO =<< view currentTime
+        -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
+        now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
         let keys = unpackLastPrekey (newClientLastKey c) : newClientPrekeys c
         updatePrekeys u newId keys
         let lat = Latitude . view latitude <$> loc
             lon = Longitude . view longitude <$> loc
             mdl = newClientModel c
-            prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, ip, lat, lon, mdl)
+            prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl)
         retry x5 $ write insertClient (params Quorum prm)
-        return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) ip loc mdl
+        return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl
 
-lookupClient :: UserId -> ClientId -> AppIO (Maybe Client)
+lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
 lookupClient u c = fmap toClient <$>
     retry x1 (query1 selectClient (params Quorum (u, c)))
 
-lookupClients :: UserId -> AppIO [Client]
+lookupClients :: MonadClient m => UserId -> m [Client]
 lookupClients u = map toClient <$>
     retry x1 (query selectClients (params Quorum (Identity u)))
 
-lookupClientIds :: UserId -> AppIO [ClientId]
+lookupClientIds :: MonadClient m => UserId -> m [ClientId]
 lookupClientIds u = map runIdentity <$>
     retry x1 (query selectClientIds (params Quorum (Identity u)))
 
-lookupPrekeyIds :: UserId -> ClientId -> AppIO [PrekeyId]
+lookupUsersClientIds :: MonadClient m => [UserId] -> m [(UserId, Set.Set ClientId)]
+lookupUsersClientIds us = liftClient $ do
+    -- Limit concurrency to 16 parallel queries
+    clts <- mapM (mapConcurrently getClientIds) (chunksOf 16 us)
+    return (concat clts)
+  where
+    getClientIds u = (u,) <$> fmap Set.fromList (lookupClientIds u)
+
+lookupPrekeyIds :: MonadClient m => UserId -> ClientId -> m [PrekeyId]
 lookupPrekeyIds u c = map runIdentity <$>
     retry x1 (query selectPrekeyIds (params Quorum (u, c)))
 
-hasClient :: UserId -> ClientId -> AppIO Bool
+hasClient :: MonadClient m => UserId -> ClientId -> m Bool
 hasClient u d = isJust <$> retry x1 (query1 checkClient (params Quorum (u, d)))
 
 rmClient :: UserId -> ClientId -> AppIO ()
@@ -131,10 +151,10 @@ rmClient u c = do
     retry x5 $ write removeClientKeys (params Quorum (u, c))
     deleteOptLock u c
 
-updateClientLabel :: UserId -> ClientId -> Maybe Text -> AppIO ()
+updateClientLabel :: MonadClient m => UserId -> ClientId -> Maybe Text -> m ()
 updateClientLabel u c l = retry x5 $ write updateClientLabelQuery (params Quorum (l, u, c))
 
-updatePrekeys :: UserId -> ClientId -> [Prekey] -> ExceptT ClientDataError AppIO ()
+updatePrekeys :: MonadClient m => UserId -> ClientId -> [Prekey] -> ExceptT ClientDataError m ()
 updatePrekeys u c pks = do
     plain  <- mapM (hoistEither . fmapL (const MalformedPrekeys) . B64.decode . toByteString' . prekeyKey) pks
     binary <- liftIO $ zipWithM check pks plain
@@ -157,7 +177,7 @@ claimPrekey u c = withOptLock u c $ do
         Just (i, k) -> do
             if i /= lastPrekeyId
                 then retry x1 $ write removePrekey (params Quorum (u, c, i))
-                else Log.warn $ field "user" (toByteString u)
+                else Log.info $ field "user" (toByteString u)
                               . field "client" (toByteString c)
                               . msg (val "last resort prekey used")
             return $ Just (ClientPrekey c (Prekey i k))
@@ -166,8 +186,8 @@ claimPrekey u c = withOptLock u c $ do
 -------------------------------------------------------------------------------
 -- Queries
 
-insertClient :: PrepQuery W (UserId, ClientId, UTCTime, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe IP, Maybe Latitude, Maybe Longitude, Maybe Text) ()
-insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, ip, lat, lon, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+insertClient :: PrepQuery W (UserId, ClientId, UTCTimeMillis, ClientType, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) ()
+insertClient = "INSERT INTO clients (user, client, tstamp, type, label, class, cookie, lat, lon, model) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 updateClientLabelQuery :: PrepQuery W (Maybe Text, UserId, ClientId) ()
 updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client = ?"
@@ -175,11 +195,11 @@ updateClientLabelQuery = "UPDATE clients SET label = ? WHERE user = ? AND client
 selectClientIds :: PrepQuery R (Identity UserId) (Identity ClientId)
 selectClientIds = "SELECT client from clients where user = ?"
 
-selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe IP, Maybe Latitude, Maybe Longitude, Maybe Text)
-selectClients = "SELECT client, type, tstamp, label, class, cookie, ip, lat, lon, model from clients where user = ?"
+selectClients :: PrepQuery R (Identity UserId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
+selectClients = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ?"
 
-selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe IP, Maybe Latitude, Maybe Longitude, Maybe Text)
-selectClient = "SELECT client, type, tstamp, label, class, cookie, ip, lat, lon, model from clients where user = ? and client = ?"
+selectClient :: PrepQuery R (UserId, ClientId) (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text)
+selectClient = "SELECT client, type, tstamp, label, class, cookie, lat, lon, model from clients where user = ? and client = ?"
 
 insertClientKey :: PrepQuery W (UserId, ClientId, PrekeyId, Text) ()
 insertClientKey = "INSERT INTO prekeys (user, client, key, data) VALUES (?, ?, ?, ?)"
@@ -205,15 +225,14 @@ checkClient = "SELECT client from clients where user = ? and client = ?"
 -------------------------------------------------------------------------------
 -- Conversions
 
-toClient :: (ClientId, ClientType, UTCTime, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe IP, Maybe Latitude, Maybe Longitude, Maybe Text) -> Client
-toClient (cid, cty, tme, lbl, cls, cok, ip, lat, lon, mdl) = Client
+toClient :: (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text) -> Client
+toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl) = Client
     { clientId       = cid
     , clientType     = cty
     , clientTime     = tme
     , clientClass    = cls
     , clientLabel    = lbl
     , clientCookie   = cok
-    , clientAddress  = ip
     , clientLocation = location <$> lat <*> lon
     , clientModel    = mdl
     }
@@ -227,65 +246,74 @@ ddbClient = "client"
 ddbVersion :: Text
 ddbVersion = "version"
 
-ddbKey :: UserId -> ClientId -> Ddb.DValue
-ddbKey u c = Ddb.DString (UUID.toText (toUUID u) <> "." <> client c)
+ddbKey :: UserId -> ClientId -> AWS.AttributeValue
+ddbKey u c = AWS.attributeValue & AWS.avS ?~ UUID.toText (toUUID u) <> "." <> client c
+
+key :: UserId -> ClientId -> Map.HashMap Text AWS.AttributeValue
+key u c = Map.singleton ddbClient (ddbKey u c)
+
+deleteOptLock :: UserId -> ClientId -> AppIO ()
+deleteOptLock u c = do
+    t <- view (awsEnv.prekeyTable)
+    e <- view (awsEnv.amazonkaEnv)
+    void $ exec e (AWS.deleteItem t & AWS.diKey .~ (key u c))
 
 withOptLock :: UserId -> ClientId -> AppIO a -> AppIO a
 withOptLock u c ma = go (10 :: Int)
   where
     go !n = do
-        v <- (version =<<) <$> exec get
+        v <- (version =<<) <$> execDyn return get
         a <- ma
-        r <- exec (put v)
+        r <- execDyn return (put v)
         case r of
             Nothing | n > 0 -> go (n - 1)
             Nothing         -> logFailure >> return a
             Just _          -> return a
 
-    key = ddbKey u c
+    version :: AWS.GetItemResponse -> Maybe Word32
+    version v = join
+              $ fmap conv
+              $ Map.lookup ddbVersion (view AWS.girsItem v)
+      where
+        conv :: AWS.AttributeValue -> Maybe Word32
+        conv = maybe Nothing (readMay . Text.unpack) . view AWS.avN
 
-    version = Ddb.girItem >=> LazyMap.lookup ddbVersion >=> Ddb.fromValue
+    get :: Text -> AWS.GetItem
+    get t = AWS.getItem t & AWS.giKey .~ (key u c)
+                          & AWS.giConsistentRead ?~ True
 
-    get (Aws.PreKeyTable t) = (Ddb.getItem t (Ddb.hk ddbClient key))
-        { Ddb.giAttrs      = Nothing
-        , Ddb.giConsistent = True
-        , Ddb.giRetCons    = Ddb.RCNone
-        }
+    put :: Maybe Word32 -> Text -> AWS.PutItem
+    put v t = AWS.putItem t & AWS.piItem .~ item v
+                            & AWS.piExpected .~ check v
 
-    put v (Aws.PreKeyTable t) = (Ddb.putItem t (item v))
-        { Ddb.piExpect  = Ddb.Conditions Ddb.CondAnd [check v]
-        , Ddb.piReturn  = Ddb.URNone
-        , Ddb.piRetCons = Ddb.RCNone
-        , Ddb.piRetMet  = Ddb.RICMNone
-        }
+    check :: Maybe Word32 -> Map.HashMap Text AWS.ExpectedAttributeValue
+    check Nothing  = Map.singleton ddbVersion $ AWS.expectedAttributeValue & AWS.eavComparisonOperator ?~ AWS.Null
+    check (Just v) = Map.singleton ddbVersion $ AWS.expectedAttributeValue & AWS.eavComparisonOperator ?~ AWS.EQ'
+                                                                           & AWS.eavAttributeValueList .~ [toAttributeValue v]
 
-    item v = Ddb.item
-        [ Ddb.attr ddbClient key
-        , Ddb.attr ddbVersion (maybe (1 :: Word32) (+1) v)
-        ]
+    item :: Maybe Word32 -> Map.HashMap Text AWS.AttributeValue
+    item v = Map.insert ddbVersion (toAttributeValue (maybe (1 :: Word32) (+1) v))
+           $ key u c
 
-    check (Just v) = Ddb.Condition ddbVersion (Ddb.DEq (Ddb.toValue v))
-    check Nothing  = Ddb.Condition ddbVersion Ddb.IsNull
+    toAttributeValue :: Word32 -> AWS.AttributeValue
+    toAttributeValue w = AWS.attributeValue & AWS.avN ?~ AWS.toText (fromIntegral w :: Int)
 
+    logFailure :: AppIO ()
     logFailure = Log.err (msg (val "PreKeys: Optimistic lock failed"))
 
-deleteOptLock :: UserId -> ClientId -> AppIO ()
-deleteOptLock u c = void (exec delete)
-  where
-    delete (Aws.PreKeyTable t) = Ddb.deleteItem t (Ddb.hk ddbClient (ddbKey u c))
-
-exec :: (Transaction r a, ServiceConfiguration r ~ Ddb.DdbConfiguration)
-     => (Aws.PreKeyTable -> r)
-     -> AppIO (Maybe a)
-exec mkCmd = do
-    cmd <- mkCmd <$> view (awsConfig.Aws.ddbPreKeyTable)
-    rs  <- Aws.tryDynamo cmd
-    case snd <$> rs of
-        Left (Aws.DynamoErrorResponse e)
-            | Ddb.ddbErrCode e == Ddb.ConditionalCheckFailedException
-            -> return Nothing
-        Left ex -> do
-          Log.err $ field "error" (show ex)
-                  . msg (val "PreKeys: DynamoDB error")
-          return Nothing
-        Right a -> return (Just a)
+    execDyn :: (AWS.AWSRequest r) => (AWS.Rs r -> Maybe a) -> (Text -> r) -> AppIO (Maybe a)
+    execDyn cnv mkCmd = do
+        cmd <- mkCmd <$> view (awsEnv.prekeyTable)
+        e   <- view (awsEnv.amazonkaEnv)
+        execDyn' e cnv cmd
+      where
+        execDyn' :: (AWS.AWSRequest r, MonadMask m, MonadIO m, Typeable m, MonadBaseControl IO m)
+                        => AWS.Env
+                        -> (AWS.Rs r -> Maybe a)
+                        -> r
+                        -> m (Maybe a)
+        execDyn' e conv cmd = recovering policy handlers (const run)
+          where
+            run = execCatch e cmd >>= return . either (const Nothing) conv
+            handlers = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
+            policy   = limitRetries 3 <> exponentialBackoff 100000

@@ -24,8 +24,11 @@ module Network.Wire.Bot.Monad
     , runBotSession
     , getBot
 
+      -- * BotTag
+    , BotTag (unTag)
+
       -- * Bot
-    , Bot (botUser)
+    , Bot (botUser, botTag)
     , botId
     , botName
     , botEmail
@@ -42,6 +45,7 @@ module Network.Wire.Bot.Monad
     , getBotClients
     , addBotClient
     , removeBotClient
+    , resetBotClients
 
       -- * Assertions
     , assertEvent
@@ -84,6 +88,7 @@ import Data.Id
 import Data.IORef
 import Data.List (foldl', partition)
 import Data.Maybe (fromMaybe, isNothing)
+import Data.Misc (PlainTextPassword(..))
 import Data.Metrics (Metrics)
 import Data.Monoid ((<>))
 import Data.String (IsString)
@@ -94,6 +99,7 @@ import Data.Typeable
 import Data.UUID (toString)
 import Data.UUID.V4
 import Data.Word (Word16)
+import GHC.Stack
 import Network.HTTP.Client (HttpException)
 import Network.Wire.Bot.Cache (Cache, CachedUser (..))
 import Network.Wire.Bot.Clients as Clients
@@ -136,24 +142,31 @@ data BotNetEnv = BotNetEnv
     }
 
 newBotNetEnv :: Manager -> Logger -> BotNetSettings -> IO BotNetEnv
-newBotNetEnv m l o = do
+newBotNetEnv manager logger o = do
     gen <- MWC.createSystemRandom
-    usr <- maybe Cache.empty (Cache.new l gen) (setBotNetUsersFile o)
+    usr <- maybe Cache.empty (Cache.fromFile logger gen) (setBotNetUsersFile o)
     mbx <- maybe (return []) loadMailboxConfig (setBotNetMailboxConfig o)
     met <- initMetrics
-    let sdr = setBotNetSender o
     let srv = Server
             { serverHost    = setBotNetApiHost   o
             , serverPort    = setBotNetApiPort   o
             , serverWsHost  = setBotNetApiWsHost o
             , serverWsPort  = setBotNetApiWsPort o
             , serverSSL     = setBotNetApiSSL    o
-            , serverManager = m
+            , serverManager = manager
             }
-    let asrt = setBotNetAssert o
-    let sets = setBotNetBotSettings o
-    let rprt = setBotNetReportDir o
-    return $! BotNetEnv gen mbx sdr usr srv l asrt sets met rprt
+    return $! BotNetEnv
+        { botNetGen       = gen
+        , botNetMailboxes = mbx
+        , botNetSender    = setBotNetSender o
+        , botNetUsers     = usr
+        , botNetServer    = srv
+        , botNetLogger    = logger
+        , botNetAssert    = setBotNetAssert o
+        , botNetSettings  = setBotNetBotSettings o
+        , botNetMetrics   = met
+        , botNetReportDir = setBotNetReportDir o
+        }
 
 -- Note: Initializing metrics to avoid race conditions on first access and thus
 -- potentially losing some values.
@@ -353,6 +366,16 @@ removeBotClient self bc = do
     liftIO $ deleteBox (botId self) (botClientLabel bc)
     liftIO $ atomically $ modifyTVar' (botClients self) (filter (/= bc))
 
+-- | Remove all bot clients, even the 'PermanentClient' ones on the server.
+resetBotClients :: MonadBotNet m => Bot -> m ()
+resetBotClients self = do
+    let rm = RmClient (Just (botPassphrase self))
+    runBotSession self $ do
+        clients <- getClients
+        for_ clients $ \c -> removeClient (clientId c) rm
+    liftIO $ deleteBox (botId self) Nothing
+    liftIO $ atomically $ writeTVar (botClients self) []
+
 getBotClients :: MonadIO m => Bot -> m [BotClient]
 getBotClients = liftIO . readTVarIO . botClients
 
@@ -368,7 +391,7 @@ getBotClients = liftIO . readTVarIO . botClients
 --
 -- 'Bot's should usually be used for a longer period of time to run
 -- 'BotSession's.
-newBot :: MonadBotNet m => BotTag -> m Bot
+newBot :: (HasCallStack, MonadBotNet m) => BotTag -> m Bot
 newBot tag = liftBotNet $ do
     mbox <- randMailbox
     (new, pw) <- liftIO $ randUser (mailboxUser $ mailboxSettings mbox) tag
@@ -385,9 +408,11 @@ newBot tag = liftBotNet $ do
     incrBotsCreatedNew
     return bot
 
--- | Obtain a "cached" 'Bot' based on an existing user identity.
+-- | Obtain a "cached" 'Bot' based on an existing user identity. The same
+-- bot will never be returned again by 'cachedBot'.
+--
 -- TODO: Better name 'reuseBot'?
-cachedBot :: MonadBotNet m => BotTag -> m Bot
+cachedBot :: (HasCallStack, MonadBotNet m) => BotTag -> m Bot
 cachedBot t = liftBotNet $ do
     CachedUser p u <- BotNet (asks botNetUsers) >>= Cache.get
     bot <- mkBot t (tagged t u) p
@@ -429,13 +454,17 @@ killBot bot = liftBotNet $ do
         | l < Info  = msg (val "Event Ignored: " +++ show e)
         | otherwise = msg (val "Event Ignored: " +++ showEventType e)
 
-withNewBot :: (MonadBotNet m, MonadMask m) => BotTag -> (Bot -> m a) -> m a
+withNewBot
+    :: (HasCallStack, MonadBotNet m, MonadMask m)
+    => BotTag -> (Bot -> m a) -> m a
 withNewBot t f = do
     bot <- newBot t
     f bot `finally` killBot bot
 
 -- TODO: Better name: withReusedBot?
-withCachedBot :: (MonadBotNet m, MonadMask m) => BotTag -> (Bot -> m a) -> m a
+withCachedBot
+    :: (HasCallStack, MonadBotNet m, MonadMask m)
+    => BotTag -> (Bot -> m a) -> m a
 withCachedBot t f = do
     c <- liftBotNet . BotNet $ asks botNetUsers
     x@(CachedUser p u) <- Cache.get c
@@ -446,10 +475,11 @@ withCachedBot t f = do
 -- Assertions
 
 data EventAssertion = EventAssertion
-    { _assertType :: !EventType
-    , _assertTime :: !UTCTime
-    , _assertPred :: Event -> Bool
-    , _assertOut  :: !(Maybe (TMVar (Maybe Event)))
+    { _assertType  :: !EventType
+    , _assertTime  :: !UTCTime
+    , _assertPred  :: Event -> Bool
+    , _assertOut   :: !(Maybe (TMVar (Maybe Event)))
+    , _assertStack :: !CallStack
     }
 
 whenAsserts :: MonadBotNet m => BotNet () -> m ()
@@ -484,38 +514,43 @@ requireRight :: (Show e, MonadThrow m) => Either e a -> m a
 requireRight (Left  e) = throwM $ RequirementFailed (pack $ show e)
 requireRight (Right a) = return a
 
-assertEqual :: (MonadBotNet m, Show a, Eq a) => a -> a -> Text -> m ()
-assertEqual a b m = whenAsserts $
-    unless (a == b) $ do
-        incrAssertFailed
-        log Error . msg $ val "Assertion failed: " +++ m +++ val ": "
-                        +++ show a +++ val " /= " +++ show b
+-- TODO: change argument order to match 'assertEqual' from tasty-hunit
+assertEqual :: (HasCallStack, MonadBotNet m, Show a, Eq a) => a -> a -> Text -> m ()
+assertEqual a b m =
+    assertTrue (a == b) (m <> ": " <> pack (show a) <> " /= " <> pack (show b))
 
-assertTrue :: MonadBotNet m => Bool -> Text -> m ()
+assertTrue :: (HasCallStack, MonadBotNet m) => Bool -> Text -> m ()
 assertTrue b m = whenAsserts $
-    unless b $ do
-        incrAssertFailed
-        log Error . msg $ val "Assertion failed: " +++ m
+    unless b $ assertFailure m    -- the 'unless' is hidden under 'whenAsserts'
+                                  -- because we don't want 'b' to be evaluated
+                                  -- when asserts are disabled
 
-assertFailure :: MonadBotNet m => Text -> m ()
+assertFailure :: (HasCallStack, MonadBotNet m) => Text -> m ()
 assertFailure m = whenAsserts $ do
     incrAssertFailed
-    log Error . msg $ val "Assertion failed: " +++ m
+    log Error . msg $ val "Assertion failed: " +++ m +++ val "\n" +++
+                      prettyCallStack callStack
 
 -- | Place an assertion on a 'Bot', expecting a matching 'Event' to arrive
 -- in its inbox within a timeout window.
-assertEvent :: MonadBotNet m => Bot -> EventType -> (Event -> Bool) -> m ()
+assertEvent
+    :: (HasCallStack, MonadBotNet m)
+    => Bot -> EventType -> (Event -> Bool) -> m ()
 assertEvent bot typ f = scheduleAssert bot typ f Nothing
 
 -- | Like 'assertEvent' but blocks until the event arrives or the assertion
 -- times out, returning 'Just' the matching event or 'Nothing', respectively.
-awaitEvent :: MonadBotNet m => Bot -> EventType -> (Event -> Bool) -> m (Maybe Event)
+awaitEvent
+    :: (HasCallStack, MonadBotNet m)
+    => Bot -> EventType -> (Event -> Bool) -> m (Maybe Event)
 awaitEvent bot typ f = liftBotNet $ do
     r <- liftIO newEmptyTMVarIO
     scheduleAssert bot typ f (Just r)
     liftIO . atomically $ takeTMVar r
 
-scheduleAssert :: MonadBotNet m => Bot -> EventType -> (Event -> Bool) -> Maybe (TMVar (Maybe Event)) -> m ()
+scheduleAssert
+    :: (HasCallStack, MonadBotNet m)
+    => Bot -> EventType -> (Event -> Bool) -> Maybe (TMVar (Maybe Event)) -> m ()
 scheduleAssert bot typ f out = whenAsserts $ do
     t <- liftIO getCurrentTime
     r <- liftIO . atomically $ do
@@ -523,7 +558,7 @@ scheduleAssert bot typ f out = whenAsserts $ do
         if n >= botMaxAsserts (botSettings bot)
             then return False
             else do
-                writeTQueue (botAsserts bot) (EventAssertion typ t f out)
+                writeTQueue (botAsserts bot) (EventAssertion typ t f out callStack)
                 writeTVar (botAssertCount bot) (n + 1)
                 return True
     unless r $ liftBotNet $ do
@@ -648,9 +683,11 @@ heartbeat bot e = forever $ do
             botLog l bot Warn $ msg (val "Event inbox full!")
         -- Remove old assertions from the backlog
         asserts <- atomically $ gcBacklog bot now
-        forM_ asserts $ \(EventAssertion typ _ _ out) -> do
+        forM_ asserts $ \(EventAssertion typ _ _ out stack) -> do
             for_ out $ liftIO . atomically . flip tryPutTMVar Nothing
-            botLog l bot Warn $ msg ("Assertion Timeout: " <> eventTypeText typ)
+            botLog l bot Warn $ msg $
+                "Assertion Timeout: " <> eventTypeText typ <>
+                "\nAssertion was created at: " <> pack (prettyCallStack stack)
     -- Re-establish the push connection, if it died
     push <- maybe (return Nothing) poll =<< readIORef (botPushThread bot)
     case push of
@@ -673,7 +710,7 @@ assert bot e = forever $ do
                           . msg ("ACK: " <> showEventType evt)
 
 matchAssertion :: Bot -> EventAssertion -> STM (Maybe Event)
-matchAssertion bot a@(EventAssertion _ _ f out) = do
+matchAssertion bot a@(EventAssertion _ _ f out _) = do
     (num, events) <- readTVar (botEvents bot)
     let (new, found) = foldl' go ([], Nothing) events
     case found of
@@ -715,12 +752,12 @@ gcBacklog :: Bot -> UTCTime -> STM [EventAssertion]
 gcBacklog bot now = do
     old <- readTVar (botBacklog bot)
     let timeout = botAssertTimeout (botSettings bot)
-    let (keep, del) = partition (\(EventAssertion _ t _ _) -> now `diffUTCTime` t <= timeout) old
+    let (keep, del) = partition (\a -> now `diffUTCTime` _assertTime a <= timeout) old
     let numDel = fromIntegral $ length del
     when (numDel > 0) $ do
         writeTVar (botBacklog bot) keep
         modifyTVar' (botAssertCount bot) (subtract numDel)
-        forM_ del $ \(EventAssertion typ _ _ out) -> do
+        forM_ del $ \(EventAssertion typ _ _ out _) -> do
             for_ out $ flip tryPutTMVar Nothing
             incrEventsMssd bot typ
 
@@ -852,15 +889,18 @@ randUser (Email loc dom) (BotTag tag) = do
     let passw = PlainTextPassword (pack (toString pwdUuid))
     return (NewUser
         { newUserName           = Name (tag <> "-Wirebot-" <> pack (toString uuid))
+        , newUserUUID           = Nothing
         , newUserIdentity       = Just (EmailIdentity email)
         , newUserPassword       = Just passw
         , newUserPict           = Nothing
         , newUserAssets         = []
         , newUserAccentId       = Nothing
+        , newUserEmailCode      = Nothing
         , newUserPhoneCode      = Nothing
-        , newUserInvitationCode = Nothing
+        , newUserOrigin         = Nothing
         , newUserLabel          = Nothing
         , newUserLocale         = Nothing
+        , newUserExpiresIn      = Nothing
         }, passw)
 
 randMailbox :: BotNet Mailbox

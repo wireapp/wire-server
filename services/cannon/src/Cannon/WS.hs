@@ -12,6 +12,7 @@ module Cannon.WS
     , setRequestId
     , registerLocal
     , unregisterLocal
+    , isRemoteRegistered
     , registerRemote
     , sendMsg
 
@@ -36,12 +37,12 @@ import Bilge.RPC
 import Cannon.Dict (Dict)
 import Control.Concurrent (forkIO)
 import Control.Concurrent.Timeout
-import Control.Monad (void, forever)
+import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 import Control.Retry
-import Data.Aeson
+import Data.Aeson hiding (Error)
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
@@ -52,9 +53,12 @@ import Data.Monoid
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.Word
+import Gundeck.Types
 import Network.HTTP.Types.Method
+import Network.HTTP.Types.Status
 import Network.WebSockets hiding (Request)
-import System.Logger.Class hiding (Settings, (.=), close)
+import Network.Wai.Utilities.Error
+import System.Logger.Class hiding (Error, Settings, (.=), close)
 import System.Random.MWC (GenIO, uniform)
 
 import qualified Cannon.Dict          as D
@@ -192,6 +196,14 @@ registerRemote k c = do
     void $ recovering retry3x rpcHandlers $ const $
         rpc' "gundeck" (upstream e) (method POST . path "/i/presences" . i . expect2xx)
     debug $ client kb . msg (val "registered")
+
+isRemoteRegistered :: UserId -> ConnId -> WS Bool
+isRemoteRegistered u c = do
+    e  <- WS ask
+    rs <- recovering retry3x rpcHandlers $ const $
+            rpc' "gundeck" (upstream e) (method GET . paths ["/i/presences", toByteString' u] . expect2xx)
+    cs <- map connId <$> parseResponse (Error status502 "server-error") rs
+    return $ c `elem` cs
 
 sendMsg :: L.ByteString -> Key -> Websocket -> WS ()
 sendMsg m k c = do

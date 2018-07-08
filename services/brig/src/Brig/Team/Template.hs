@@ -4,6 +4,9 @@
 module Brig.Team.Template
     ( TeamTemplates              (..)
     , InvitationEmailTemplate    (..)
+    , CreatorWelcomeEmailTemplate(..)
+    , MemberWelcomeEmailTemplate (..)
+
     , loadTeamTemplates
 
       -- * Re-exports
@@ -15,10 +18,7 @@ module Brig.Team.Template
 import Brig.Options
 import Brig.Template
 import Brig.Types
-import Data.Monoid
 import Data.Text (Text)
-
-import qualified Data.Text.Encoding as Text
 
 data InvitationEmailTemplate = InvitationEmailTemplate
     { invitationEmailUrl        :: !Template
@@ -29,21 +29,56 @@ data InvitationEmailTemplate = InvitationEmailTemplate
     , invitationEmailSenderName :: !Text
     }
 
+data CreatorWelcomeEmailTemplate = CreatorWelcomeEmailTemplate
+    { creatorWelcomeEmailUrl        :: !Text
+    , creatorWelcomeEmailSubject    :: !Template
+    , creatorWelcomeEmailBodyText   :: !Template
+    , creatorWelcomeEmailBodyHtml   :: !Template
+    , creatorWelcomeEmailSender     :: !Email
+    , creatorWelcomeEmailSenderName :: !Text
+    }
+
+data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
+    { memberWelcomeEmailUrl        :: !Text
+    , memberWelcomeEmailSubject    :: !Template
+    , memberWelcomeEmailBodyText   :: !Template
+    , memberWelcomeEmailBodyHtml   :: !Template
+    , memberWelcomeEmailSender     :: !Email
+    , memberWelcomeEmailSenderName :: !Text
+    }
+
 data TeamTemplates = TeamTemplates
-    { invitationEmail :: !InvitationEmailTemplate
+    { invitationEmail     :: !InvitationEmailTemplate
+    , creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate 
+    , memberWelcomeEmail  :: !MemberWelcomeEmailTemplate
     }
 
 loadTeamTemplates :: Opts -> IO (Localised TeamTemplates)
-loadTeamTemplates o = readLocalesDir defLocale templateDir $ \fp ->
+loadTeamTemplates o = readLocalesDir defLocale (templateDir gOptions) "team" $ \fp ->
     TeamTemplates
-        <$> (InvitationEmailTemplate invitationUrl
-                <$> readTemplate (fp <> "/email/invitation-subject.txt")
-                <*> readTemplate (fp <> "/email/invitation.txt")
-                <*> readTemplate (fp <> "/email/invitation.html")
-                <*> pure (optEmailSender o)
-                <*> readText (fp <> "/email/sender.txt"))
+        <$> (InvitationEmailTemplate tUrl
+                <$> readTemplate fp "email/invitation-subject.txt"
+                <*> readTemplate fp "email/invitation.txt"
+                <*> readTemplate fp "email/invitation.html"
+                <*> pure (emailSender gOptions)
+                <*> readText fp "email/sender.txt")
+        <*> (CreatorWelcomeEmailTemplate (tCreatorWelcomeUrl tOptions)
+                <$> readTemplate fp "email/new-creator-welcome-subject.txt"
+                <*> readTemplate fp "email/new-creator-welcome.txt"
+                <*> readTemplate fp "email/new-creator-welcome.html"
+                <*> pure (emailSender gOptions)
+                <*> readText fp "email/sender.txt")
+        <*> (MemberWelcomeEmailTemplate (tMemberWelcomeUrl tOptions)
+                <$> readTemplate fp "email/new-member-welcome-subject.txt"
+                <*> readTemplate fp "email/new-member-welcome.txt"
+                <*> readTemplate fp "email/new-member-welcome.html"
+                <*> pure (emailSender gOptions)
+                <*> readText fp "email/sender.txt")
   where
-    invitationUrl = template . Text.decodeLatin1 $ optTeamInvitationUrl o
+    gOptions = general (emailSMS o)
+    tOptions = team (emailSMS o)
+    tUrl     = template $ tInvitationUrl tOptions
 
     defLocale = setDefaultLocale (optSettings o)
-    templateDir = optTemplateDir o <> "/team"
+    readTemplate = readTemplateWithDefault (templateDir gOptions) defLocale "team"
+    readText = readTextWithDefault (templateDir gOptions) defLocale "team"

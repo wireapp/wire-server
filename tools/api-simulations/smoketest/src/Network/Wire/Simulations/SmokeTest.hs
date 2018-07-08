@@ -5,12 +5,15 @@
 
 module Network.Wire.Simulations.SmokeTest (mainBotNet) where
 
-import Control.Concurrent.Async.Lifted
+import Control.Concurrent.Async.Lifted.Safe
 import Control.Monad (void)
 import Data.ByteString (ByteString)
-import Data.Id
+import Data.Foldable (for_)
+import Data.Id (ConvId)
 import Data.List1
 import Data.Maybe (isNothing, fromMaybe)
+import Data.Monoid ((<>))
+import Data.String (fromString)
 import Data.Text (Text)
 import Data.Traversable (for)
 import Network.Wire.Bot
@@ -30,39 +33,57 @@ import qualified Network.Wire.Bot.Clients as Clients
 
 default (ByteString)
 
-mainBotNet :: BotNet ()
-mainBotNet = do
-    info $ msg "Starting Smoke Test"
+mainBotNet
+    :: Int              -- ^ How many participants to create
+    -> BotNet ()
+mainBotNet n | n < 3 = error "mainBotNet: need at least 3 participants"
+mainBotNet n = do
+    info $ msg $ "Starting Smoke Test with " <> show n <> " bots"
+
+    -- Create some participants: Ally, Bill, Carl, and a bunch of goons
     [ally, bill, carl] <- mapM newBot ["Ally", "Bill", "Carl"]
+    goons <- for [1..n-3] $ \i ->
+        newBot (fromString ("Goon" <> show i))
 
-    info $ msg "Setting up connections"
-    (a2b, a2c) <- runBotSession ally $ do
-        c1 <- connectTo $ ConnectionRequest (botId bill) (fromMaybe "" (botEmail ally)) (Message "Hi there!")
-        assertConnectRequested ally bill
-        c2 <- connectTo $ ConnectionRequest (botId carl) (fromMaybe "" (botEmail ally)) (Message "Hi there!")
-        assertConnectRequested ally carl
-        a2b <- requireMaybe (ucConvId c1) "conv_id not set after connection request"
-        a2c <- requireMaybe (ucConvId c2) "conv_id not set after connection request"
-        return (a2b, a2c)
+    -- Set up a connection from Ally to someone
+    let allyConnectTo :: Bot -> BotSession ConvId
+        allyConnectTo user = do
+            conn <- connectTo ConnectionRequest {
+                crUser = botId user,
+                crName = fromMaybe "" (botEmail ally),
+                crMessage = Message "Hi there!" }
+            assertConnectRequested ally user
+            requireMaybe (ucConvId conn) "conv_id not set after connection request"
 
-    runBotSession bill $ do
-        void $ updateConnection (botId ally) (ConnectionUpdate Accepted)
-        assertConnectAccepted bill ally
+    info $ msg "Setting up connections between Ally and the rest of the gang"
+    (a2b, a2c, a2goons) <- runBotSession ally $ do
+        a2b <- allyConnectTo bill
+        a2c <- allyConnectTo carl
+        -- NB. this might break if the backend implements a limit on the
+        -- number of un-accepted connections a user can have; in this case
+        -- the test would have to be rewritten slightly
+        a2goons <- mapM allyConnectTo goons
+        return (a2b, a2c, a2goons)
 
-    runBotSession carl $ do
-        void $ updateConnection (botId ally) (ConnectionUpdate Accepted)
-        assertConnectAccepted carl ally
+    -- Accept a connection request from Ally
+    let allyAccept :: Bot -> BotNet ()
+        allyAccept user = runBotSession user $ do
+            void $ updateConnection (botId ally) (ConnectionUpdate Accepted)
+            assertConnectAccepted user ally
 
-    mapM_ awaitAssertions [ally, bill, carl]
+    mapM_ allyAccept (bill:carl:goons)
 
-    info $ msg "Creating conversations"
+    mapM_ awaitAssertions (ally:bill:carl:goons)
 
-    abc <- runBotSession ally $ do
-        abc <- cnvId <$> createConv (botId bill) (singleton $ botId carl) (Just "Meetup")
-        assertConvCreated abc ally [bill, carl]
-        return abc
+    info $ msg "Creating a group conversation ('Meetup') with everyone"
 
-    info $ msg "Member state updates"
+    meetup <- runBotSession ally $ do
+        let others = bill:carl:goons
+        conv <- cnvId <$> createConv (map botId others) (Just "Meetup")
+        assertConvCreated conv ally others
+        return conv
+
+    info $ msg "Bill updates his member state"
 
     runBotSession bill $ do
         let update = MemberUpdateData
@@ -73,124 +94,120 @@ mainBotNet = do
                    , misHidden         = Nothing
                    , misHiddenRef      = Nothing
                    }
-        memberUpdate abc update
-        c <- getConv abc
+        memberUpdate meetup update
+        c <- getConv meetup
         assertEqual (Just True)
                     ((memOtrArchived . cmSelf . cnvMembers) <$> c)
                     "Archived update failed"
 
-    info $ msg "Members join & leave"
+    info $ msg "Bill kicks and then re-adds Ally"
 
     runBotSession bill $ do
-        removeMember abc (botId ally) >>= assertMembersLeft [ally, carl]
-        addMembers   abc (singleton (botId ally)) >>= assertMembersJoined [ally, carl]
+        removeMember meetup (botId ally) >>= assertMembersLeft (ally:carl:goons)
+        addMembers meetup (singleton (botId ally)) >>= assertMembersJoined (ally:carl:goons)
 
-    mapM_ awaitAssertions [ally, bill, carl]
+    mapM_ awaitAssertions (ally:bill:carl:goons)
 
     info $ msg "Basic search reachability"
 
     _ <- runBotSession ally $ search (SearchParams "whatever" 3 10 True)
 
-    info $ msg "Registering Clients"
+    info $ msg "Registering clients for everyone"
 
     allyPhone  <- addBotClient ally PermanentClient (Just "iPhone")
     billPC     <- addBotClient bill PermanentClient (Just "Linux PC")
     carlTablet <- addBotClient carl PermanentClient (Just "Android tablet")
+    goonClients <- for goons $ \goon ->
+        addBotClient goon PermanentClient (Just "Calculator")
 
     let allyWithPhone  = (ally, allyPhone)
     let billWithPC     = (bill, billPC)
     let carlWithTablet = (carl, carlTablet)
 
+    let people :: [(Bot, ConvId, BotClient)]        -- everyone except for Ally
+        people = (bill, a2b, billPC) : (carl, a2c, carlTablet) :
+                 zip3 goons a2goons goonClients
+
     info $ msg (val "OTR 1-1 greetings")
 
-    -- Ally greets Bill and Carl in 1-1
-    runBotSession ally $ do
-        botInitSession (botId bill)
-        botInitSession (botId carl)
-        Clients.addMembers (botClientSessions allyPhone) a2b [botId bill]
-        Clients.addMembers (botClientSessions allyPhone) a2c [botId carl]
-        Clients.addMembers (botClientSessions allyPhone) abc [botId bill, botId carl]
-        postOtrTextMsg allyPhone a2b "Hey Bill, Everything secure?" >>= assertNoClientMismatch
-        postOtrTextMsg allyPhone a2c "Hey Carl, Everything secure?" >>= assertNoClientMismatch
+    -- Ally greets everyone in 1-1
+    runBotSession ally $ for_ people $ \(user, conv, _client) -> do
+        botInitSession (botId user)
+        Clients.addMembers (botClientSessions allyPhone) conv [botId user]
+        let message = "Hey " <> unTag (botTag user) <> ", Everything secure?"
+        postOtrTextMsg allyPhone conv message >>= assertNoClientMismatch
 
-    -- Bill answers
-    runBotSession bill $ do
-        pkm   <- awaitOtrMsg a2b allyWithPhone billWithPC
-        plain <- initSessionFromMsg billPC pkm >>= requireTextMsg
-        assertEqual plain "Hey Bill, Everything secure?" "Bill: Plaintext <> CipherText"
-        Clients.addMembers (botClientSessions billPC) a2b [botId ally]
-        postOtrTextMsg billPC a2b "Thanks Ally, All good." >>= assertNoClientMismatch
+    -- Everyone answers
+    for_ people $ \(user, conv, client) -> runBotSession user $ do
+        pkm   <- awaitOtrMsg conv allyWithPhone (user, client)
+        plain <- initSessionFromMsg client pkm >>= requireTextMsg
+        assertEqual
+            plain
+            ("Hey " <> unTag (botTag user) <> ", Everything secure?")
+            (unTag (botTag user) <> ": Plaintext /= CipherText")
+        Clients.addMembers (botClientSessions client) conv [botId ally]
+        postOtrTextMsg client conv "Thanks Ally, All good." >>= assertNoClientMismatch
 
-    -- Carl answers
-    runBotSession carl $ do
-        pkm   <- awaitOtrMsg a2c allyWithPhone carlWithTablet
-        plain <- initSessionFromMsg carlTablet pkm >>= requireTextMsg
-        assertEqual plain "Hey Carl, Everything secure?" "Carl: Plaintext <> CipherText"
-        Clients.addMembers (botClientSessions carlTablet) a2c [botId ally]
-        postOtrTextMsg carlTablet a2c "Thanks Ally, All good." >>= assertNoClientMismatch
+    -- Ally confirms the answers
+    runBotSession ally $ for_ people $ \(user, conv, client) -> do
+        message <- awaitOtrMsg conv (user, client) allyWithPhone
+        plain <- decryptTextMsg allyPhone message
+        assertEqual
+            plain
+            "Thanks Ally, All good."
+            ("Ally (from " <> unTag (botTag user) <> "): Plaintext /= CipherText")
+        postOtrTextMsg allyPhone conv "Glad to hear that." >>= assertNoClientMismatch
 
-    -- Ally confirms both answers
-    runBotSession ally $ do
-        msg1 <- awaitOtrMsg a2b billWithPC allyWithPhone
-        msg2 <- awaitOtrMsg a2c carlWithTablet allyWithPhone
-        plain1 <- decryptTextMsg allyPhone msg1
-        plain2 <- decryptTextMsg allyPhone msg2
-        assertEqual plain1 "Thanks Ally, All good." "Ally: Plaintext <> CipherText"
-        assertEqual plain2 "Thanks Ally, All good." "Ally: Plaintext <> CipherText"
-        postOtrTextMsg allyPhone a2b "Glad to hear that." >>= assertNoClientMismatch
-        postOtrTextMsg allyPhone a2c "Glad to hear that." >>= assertNoClientMismatch
-
-    runBotSession bill $ do
-        message <- awaitOtrMsg a2b allyWithPhone billWithPC
-        plain   <- decryptTextMsg billPC message
-        assertEqual plain "Glad to hear that." "Bill: Plaintext <> CipherText"
-
-    runBotSession carl $ do
-        message <- awaitOtrMsg a2c allyWithPhone carlWithTablet
-        plain   <- decryptTextMsg carlTablet message
-        assertEqual plain "Glad to hear that." "Carl: Plaintext <> CipherText"
+    -- Everyone checks Ally's response
+    for_ people $ \(user, conv, client) -> runBotSession user $ do
+        message <- awaitOtrMsg conv allyWithPhone (user, client)
+        plain   <- decryptTextMsg client message
+        assertEqual
+            plain
+            "Glad to hear that."
+            (unTag (botTag user) <> " (from Ally): Plaintext /= CipherText")
 
     info $ msg "OTR group conversation"
 
     -- Ally posts an asset in the group conversation
     runBotSession ally $ do
+        Clients.addMembers (botClientSessions allyPhone) meetup
+            (map botId (bill:carl:goons))
         keys <- randomSymmetricKeys allyPhone
         assetData <- encryptSymmetric allyPhone keys "secret data"
         let mimeType = MIME.Type (MIME.Application "octet-stream") []
         asset <- postAsset mimeType defAssetSettings (LBS.fromStrict assetData)
         let assetMsg = encode (mkAssetMsg asset keys)
-        postOtrMsg allyPhone abc assetMsg >>= assertNoClientMismatch
+        postOtrMsg allyPhone meetup assetMsg >>= assertNoClientMismatch
 
-    -- Bill receives the asset and writes a reply
+    -- Everyone receives the asset
+    for_ people $ \(user, _conv, client) -> runBotSession user $ do
+        message   <- awaitOtrMsg meetup allyWithPhone (user, client)
+        asInfo    <- decryptMessage client message >>= requireAssetMsg
+        assetData <- getAsset (assetInfoKey asInfo) (assetInfoToken asInfo)
+        plainData <- for assetData (decryptSymmetric client (assetInfoKeys asInfo) . LBS.toStrict)
+        assertEqual plainData (Just "secret data") "OTR asset data mismatch"
+
+    -- Bill writes a reply
     runBotSession bill $ do
-        message   <- awaitOtrMsg abc allyWithPhone billWithPC
-        asInfo    <- decryptMessage billPC message >>= requireAssetMsg
-        assetData <- getAsset (assetInfoKey asInfo) (assetInfoToken asInfo)
-        plainData <- for assetData (decryptSymmetric billPC (assetInfoKeys asInfo) . LBS.toStrict)
-        assertEqual plainData (Just "secret data") "OTR asset data mismatch"
-        botInitSession (botId carl)
-        Clients.addMembers (botClientSessions billPC) abc [botId ally, botId carl]
-        postOtrTextMsg billPC abc "Wow!" >>= assertNoClientMismatch
+        -- We already have a session with Ally, but not with the rest of the gang
+        mapM_ (botInitSession . botId) (carl:goons)
+        Clients.addMembers (botClientSessions billPC) meetup (map botId (ally:carl:goons))
+        postOtrTextMsg billPC meetup "Wow!" >>= assertNoClientMismatch
 
-    -- Carl receives the asset and the reply from Bill
+    -- Carl receives Bill's reply (first message => initialise session)
     runBotSession carl $ do
-        -- Asset from Ally
-        message   <- awaitOtrMsg abc allyWithPhone carlWithTablet
-        asInfo    <- decryptMessage carlTablet message >>= requireAssetMsg
-        assetData <- getAsset (assetInfoKey asInfo) (assetInfoToken asInfo)
-        plainData <- for assetData (decryptSymmetric carlTablet (assetInfoKeys asInfo) . LBS.toStrict)
-        assertEqual plainData (Just "secret data") "OTR asset data mismatch"
-        -- Reply from Bill (first message => initialise session)
-        message2 <- awaitOtrMsg abc billWithPC carlWithTablet
-        plain2 <- initSessionFromMsg carlTablet message2 >>= requireTextMsg
-        assertEqual plain2 "Wow!" "Carl: Plaintext <> CipherText"
+        message <- awaitOtrMsg meetup billWithPC carlWithTablet
+        plain <- initSessionFromMsg carlTablet message >>= requireTextMsg
+        assertEqual plain "Wow!" "Carl: Plaintext /= CipherText"
 
+    -- Ally receives Bill's reply
     runBotSession ally $ do
-        message <- awaitOtrMsg abc billWithPC allyWithPhone
+        message <- awaitOtrMsg meetup billWithPC allyWithPhone
         plain   <- decryptTextMsg allyPhone message
-        assertEqual plain "Wow!" "Ally: Plaintext <> CipherText"
+        assertEqual plain "Wow!" "Ally: Plaintext /= CipherText"
 
-    mapM_ awaitAssertions [ally, bill, carl]
+    mapM_ awaitAssertions (ally:bill:carl:goons)
 
     info $ msg "Bill gets a new phone"
 
@@ -210,7 +227,7 @@ mainBotNet = do
         --       (and thus the same connection ID).
         -- cipher <- awaitOtrMsg a2b billWithPhone billWithPC
         -- plain  <- decryptMessage billPC cipher
-        -- assertEqual plain "Hey Ally, I've got a new phone!" "BillPC: Plaintext <> CipherText"
+        -- assertEqual plain "Hey Ally, I've got a new phone!" "BillPC: Plaintext /= CipherText"
 
     -- Ally answers
     runBotSession ally $ do
@@ -218,18 +235,18 @@ mainBotNet = do
         sess    <- Clients.lookupSession (botClientSessions allyPhone) (convEvtFrom message) (otrSender $ convEvtData message)
         assertTrue (isNothing sess) "Surprisingly, Ally knows Bill's new phone already"
         plain   <- initSessionFromMsg allyPhone message >>= requireTextMsg
-        assertEqual plain "Hey Ally, I've got a new phone!" "Ally: Plaintext <> CipherText"
+        assertEqual plain "Hey Ally, I've got a new phone!" "Ally: Plaintext /= CipherText"
         postOtrTextMsg allyPhone a2b "That's nice, Bill" >>= assertNoClientMismatch
 
     -- Bill receives Ally's answer on both clients
     runBotSession bill $ do
         plain1 <- awaitOtrMsg a2b allyWithPhone billWithPhone >>= decryptTextMsg billPhone
         plain2 <- awaitOtrMsg a2b allyWithPhone billWithPC >>= decryptTextMsg billPC
-        assertEqual plain1 "That's nice, Bill" "Bill: Plaintext <> CipherText"
-        assertEqual plain2 "That's nice, Bill" "Bill: Plaintext <> CipherText"
+        assertEqual plain1 "That's nice, Bill" "Bill: Plaintext /= CipherText"
+        assertEqual plain2 "That's nice, Bill" "Bill: Plaintext /= CipherText"
 
     info $ msg "Waiting for event & assertion timeouts (if any)"
-    void $ mapConcurrently drainBot [ally, bill, carl]
+    void $ mapConcurrently drainBot (ally:bill:carl:goons)
 
 postOtrTextMsg :: BotClient -> ConvId -> Text -> BotSession ClientMismatch
 postOtrTextMsg cl cnv m = postOtrMsg cl cnv (encode (BotTextMessage m))

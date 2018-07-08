@@ -7,15 +7,15 @@ import GHC.Stats
 
 toJson :: IO (Maybe Value)
 toJson = do
-    enabled <- getGCStatsEnabled
+    enabled <- getRTSStatsEnabled
     if enabled then Just <$> getStats else return Nothing
   where
     getStats = do
-        gc <- getGCStats
+        rts <- getRTSStats
         return $ object
-            [ "gc.bytes.allocated.total" .= bytesAllocated gc
-            , "gc.bytes.used.max"        .= maxBytesUsed gc
-            , "gc.bytes.used.current"    .= currentBytesUsed gc
-            , "gc.seconds.cpu"           .= gcCpuSeconds gc
-            , "gc.seconds.wall"          .= gcWallSeconds gc
+            [ "gc.bytes.allocated.total" .= allocated_bytes rts
+            , "gc.bytes.used.max"        .= max_live_bytes rts
+            , "gc.bytes.used.current"    .= gcdetails_live_bytes (gc rts)
+            , "gc.seconds.cpu"           .= gcdetails_cpu_ns (gc rts)
+            , "gc.seconds.wall"          .= gcdetails_elapsed_ns (gc rts)
             ]

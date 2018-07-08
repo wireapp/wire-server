@@ -1,0 +1,30 @@
+saml:
+  version:     SAML2.0
+  log_level:   Debug
+
+  sp_host:     0.0.0.0
+  sp_port:     8088
+  sp_app_uri:  http://localhost:8080/ # <--- change this to point to a reachable web app
+  sp_sso_uri:  http://localhost:8080/
+
+  contacts:
+    - type: ContactBilling
+      company: Example Company
+      given_name: Example
+      surname: Company
+      email: email:company@example.com
+
+brig:
+  host: 127.0.0.1
+  port: 8082
+
+cassandra:
+  endpoint:
+    host: 127.0.0.1
+    port: 9042
+  keyspace: spar_test
+
+maxttlAuthreq: 28800 # 8h
+maxttlAuthresp: 28800 # 8h
+
+logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)

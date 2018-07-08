@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE DataKinds                  #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -19,7 +20,6 @@ import Galley.Types.Teams.Intra
 import qualified Data.Set
 
 deriving instance Cql ServiceToken
-
 
 instance Cql ConvType where
     ctype = Tagged IntColumn
@@ -44,13 +44,32 @@ instance Cql Access where
     toCql PrivateAccess = CqlInt 1
     toCql InviteAccess  = CqlInt 2
     toCql LinkAccess    = CqlInt 3
+    toCql CodeAccess    = CqlInt 4
 
     fromCql (CqlInt i) = case i of
         1 -> return PrivateAccess
         2 -> return InviteAccess
         3 -> return LinkAccess
+        4 -> return CodeAccess
         n -> fail $ "Unexpected Access value: " ++ show n
     fromCql _ = fail "Access value: int expected"
+
+
+instance Cql AccessRole where
+    ctype = Tagged IntColumn
+
+    toCql PrivateAccessRole = CqlInt 1
+    toCql TeamAccessRole = CqlInt 2
+    toCql ActivatedAccessRole  = CqlInt 3
+    toCql NonActivatedAccessRole    = CqlInt 4
+
+    fromCql (CqlInt i) = case i of
+        1 -> return PrivateAccessRole
+        2 -> return TeamAccessRole
+        3 -> return ActivatedAccessRole
+        4 -> return NonActivatedAccessRole
+        n -> fail $ "Unexpected AccessRole value: " ++ show n
+    fromCql _ = fail "AccessRole value: int expected"
 
 
 instance Cql Permissions where
@@ -100,11 +119,13 @@ instance Cql TeamStatus where
     toCql PendingDelete   = CqlInt 1
     toCql Deleted         = CqlInt 2
     toCql Suspended       = CqlInt 3
+    toCql PendingActive   = CqlInt 4
 
     fromCql (CqlInt i) = case i of
         0 -> return Active
         1 -> return PendingDelete
         2 -> return Deleted
         3 -> return Suspended
+        4 -> return PendingActive
         n -> fail $ "unexpected team-status: " ++ show n
     fromCql _ = fail "team-status: int expected"

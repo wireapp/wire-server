@@ -1,7 +1,0 @@
-resolver: lts-8.6
-packages:
-- '.'
-- '../sodium-crypto-sign'
-extra-deps:
-flags: {}
-extra-package-dbs: []

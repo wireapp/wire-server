@@ -4,12 +4,12 @@
 module Brig.User.Template
     ( UserTemplates              (..)
     , ActivationSmsTemplate      (..)
+    , VerificationEmailTemplate  (..)
     , ActivationEmailTemplate    (..)
+    , TeamActivationEmailTemplate(..)
     , ActivationCallTemplate     (..)
     , PasswordResetSmsTemplate   (..)
     , PasswordResetEmailTemplate (..)
-    , InvitationEmailTemplate    (..)
-    , InvitationSmsTemplate      (..)
     , LoginSmsTemplate           (..)
     , LoginCallTemplate          (..)
     , DeletionSmsTemplate        (..)
@@ -23,23 +23,21 @@ module Brig.User.Template
     , renderHtml
     ) where
 
-import Brig.Options
 import Brig.Template
 import Brig.Types
-import Data.Monoid
 import Data.Text (Text)
 
-import qualified Data.Text.Encoding as Text
+import qualified Brig.Options       as Opt
 
 data UserTemplates = UserTemplates
     { activationSms         :: !ActivationSmsTemplate
     , activationCall        :: !ActivationCallTemplate
+    , verificationEmail     :: !VerificationEmailTemplate
     , activationEmail       :: !ActivationEmailTemplate
     , activationEmailUpdate :: !ActivationEmailTemplate
+    , teamActivationEmail   :: !TeamActivationEmailTemplate
     , passwordResetSms      :: !PasswordResetSmsTemplate
     , passwordResetEmail    :: !PasswordResetEmailTemplate
-    , invitationEmail       :: !InvitationEmailTemplate
-    , invitationSms         :: !InvitationSmsTemplate
     , loginSms              :: !LoginSmsTemplate
     , loginCall             :: !LoginCallTemplate
     , deletionSms           :: !DeletionSmsTemplate
@@ -57,6 +55,15 @@ data ActivationCallTemplate = ActivationCallTemplate
     { activationCallText  :: !Template
     }
 
+data VerificationEmailTemplate = VerificationEmailTemplate
+    { verificationEmailUrl        :: !Template
+    , verificationEmailSubject    :: !Template
+    , verificationEmailBodyText   :: !Template
+    , verificationEmailBodyHtml   :: !Template
+    , verificationEmailSender     :: !Email
+    , verificationEmailSenderName :: !Text
+    }
+
 data ActivationEmailTemplate = ActivationEmailTemplate
     { activationEmailUrl        :: !Template
     , activationEmailSubject    :: !Template
@@ -66,6 +73,15 @@ data ActivationEmailTemplate = ActivationEmailTemplate
     , activationEmailSenderName :: !Text
     }
 
+data TeamActivationEmailTemplate = TeamActivationEmailTemplate
+    { teamActivationEmailUrl        :: !Template
+    , teamActivationEmailSubject    :: !Template
+    , teamActivationEmailBodyText   :: !Template
+    , teamActivationEmailBodyHtml   :: !Template
+    , teamActivationEmailSender     :: !Email
+    , teamActivationEmailSenderName :: !Text
+    }
+
 data DeletionEmailTemplate = DeletionEmailTemplate
     { deletionEmailUrl        :: !Template
     , deletionEmailSubject    :: !Template
@@ -73,21 +89,6 @@ data DeletionEmailTemplate = DeletionEmailTemplate
     , deletionEmailBodyHtml   :: !Template
     , deletionEmailSender     :: !Email
     , deletionEmailSenderName :: !Text
-    }
-
-data InvitationEmailTemplate = InvitationEmailTemplate
-    { invitationEmailUrl        :: !Template
-    , invitationEmailSubject    :: !Template
-    , invitationEmailBodyText   :: !Template
-    , invitationEmailBodyHtml   :: !Template
-    , invitationEmailSender     :: !Email
-    , invitationEmailSenderName :: !Text
-    }
-
-data InvitationSmsTemplate = InvitationSmsTemplate
-    { invitationSmsUrl       :: !Template
-    , invitationSmsText      :: !Template
-    , invitationSmsSender    :: !Text
     }
 
 data PasswordResetEmailTemplate = PasswordResetEmailTemplate
@@ -128,71 +129,80 @@ data NewClientEmailTemplate = NewClientEmailTemplate
     , newClientEmailSenderName :: !Text
     }
 
-loadUserTemplates :: Opts -> IO (Localised UserTemplates)
-loadUserTemplates o = readLocalesDir defLocale templateDir $ \fp ->
+loadUserTemplates :: Opt.Opts -> IO (Localised UserTemplates)
+loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
     UserTemplates
         <$> (ActivationSmsTemplate smsActivationUrl
-                <$> readTemplate (fp <> "/sms/activation.txt")
-                <*> pure (optTwilioSender o))
+                <$> readTemplate fp "sms/activation.txt"
+                <*> pure smsSender)
         <*> (ActivationCallTemplate
-                <$> readTemplate (fp <> "/call/activation.txt"))
+                <$> readTemplate fp "call/activation.txt")
+        <*> (VerificationEmailTemplate activationUrl
+                <$> readTemplate fp "email/verification-subject.txt"
+                <*> readTemplate fp "email/verification.txt"
+                <*> readTemplate fp "email/verification.html"
+                <*> pure emailSender
+                <*> readText fp "email/sender.txt")
         <*> (ActivationEmailTemplate activationUrl
-                <$> readTemplate (fp <> "/email/activation-subject.txt")
-                <*> readTemplate (fp <> "/email/activation.txt")
-                <*> readTemplate (fp <> "/email/activation.html")
-                <*> pure (optEmailSender o)
-                <*> readText (fp <> "/email/sender.txt"))
+                <$> readTemplate fp "email/activation-subject.txt"
+                <*> readTemplate fp "email/activation.txt"
+                <*> readTemplate fp "email/activation.html"
+                <*> pure emailSender
+                <*> readText fp "email/sender.txt")
         <*> (ActivationEmailTemplate activationUrl
-                <$> readTemplate (fp <> "/email/update-subject.txt")
-                <*> readTemplate (fp <> "/email/update.txt")
-                <*> readTemplate (fp <> "/email/update.html")
-                <*> pure (optEmailSender o)
-                <*> readText (fp <> "/email/sender.txt"))
+                <$> readTemplate fp "email/update-subject.txt"
+                <*> readTemplate fp "email/update.txt"
+                <*> readTemplate fp "email/update.html"
+                <*> pure emailSender
+                <*> readText fp "email/sender.txt")
+        <*> (TeamActivationEmailTemplate teamActivationUrl
+                <$> readTemplate fp "email/team-activation-subject.txt"
+                <*> readTemplate fp "email/team-activation.txt"
+                <*> readTemplate fp "email/team-activation.html"
+                <*> pure emailSender
+                <*> readText fp "email/sender.txt")
         <*> (PasswordResetSmsTemplate
-                <$> readTemplate (fp <> "/sms/password-reset.txt")
-                <*> pure (optTwilioSender o))
+                <$> readTemplate fp "sms/password-reset.txt"
+                <*> pure smsSender)
         <*> (PasswordResetEmailTemplate passwordResetUrl
-                <$> readTemplate (fp <> "/email/password-reset-subject.txt")
-                <*> readTemplate (fp <> "/email/password-reset.txt")
-                <*> readTemplate (fp <> "/email/password-reset.html")
-                <*> pure (optEmailSender o)
-                <*> readText (fp <> "/email/sender.txt"))
-        <*> (InvitationEmailTemplate invitationUrl
-                <$> readTemplate (fp <> "/email/invitation-subject.txt")
-                <*> readTemplate (fp <> "/email/invitation.txt")
-                <*> readTemplate (fp <> "/email/invitation.html")
-                <*> pure (optEmailSender o)
-                <*> readText (fp <> "/email/sender.txt"))
-        <*> (InvitationSmsTemplate invitationUrl
-                <$> readTemplate (fp <> "/sms/invitation.txt")
-                <*> pure (optTwilioSender o))
+                <$> readTemplate fp "email/password-reset-subject.txt"
+                <*> readTemplate fp "email/password-reset.txt"
+                <*> readTemplate fp "email/password-reset.html"
+                <*> pure emailSender
+                <*> readText fp "email/sender.txt")
         <*> (LoginSmsTemplate smsActivationUrl
-                <$> readTemplate (fp <> "/sms/login.txt")
-                <*> pure (optTwilioSender o))
+                <$> readTemplate fp "sms/login.txt"
+                <*> pure smsSender)
         <*> (LoginCallTemplate
-                <$> readTemplate (fp <> "/call/login.txt"))
+                <$> readTemplate fp "call/login.txt")
         <*> (DeletionSmsTemplate deletionUserUrl
-                <$> readTemplate (fp <> "/sms/deletion.txt")
-                <*> pure (optTwilioSender o))
+                <$> readTemplate fp "sms/deletion.txt"
+                <*> pure smsSender)
         <*> (DeletionEmailTemplate deletionUserUrl
-                <$> readTemplate (fp <> "/email/deletion-subject.txt")
-                <*> readTemplate (fp <> "/email/deletion.txt")
-                <*> readTemplate (fp <> "/email/deletion.html")
-                <*> pure (optEmailSender o)
-                <*> readText (fp <> "/email/sender.txt"))
+                <$> readTemplate fp "email/deletion-subject.txt"
+                <*> readTemplate fp "email/deletion.txt"
+                <*> readTemplate fp "email/deletion.html"
+                <*> pure emailSender
+                <*> readText fp "email/sender.txt")
         <*> (NewClientEmailTemplate
-                <$> readTemplate (fp <> "/email/new-client-subject.txt")
-                <*> readTemplate (fp <> "/email/new-client.txt")
-                <*> readTemplate (fp <> "/email/new-client.html")
-                <*> pure (optEmailSender o)
-                <*> readText (fp <> "/email/sender.txt"))
+                <$> readTemplate fp "email/new-client-subject.txt"
+                <*> readTemplate fp "email/new-client.txt"
+                <*> readTemplate fp "email/new-client.html"
+                <*> pure emailSender
+                <*> readText fp "email/sender.txt")
   where
-    smsActivationUrl = template . Text.decodeLatin1 $ optUserSmsActivationUrl o
-    activationUrl    = template . Text.decodeLatin1 $ optUserActivationUrl    o
-    passwordResetUrl = template . Text.decodeLatin1 $ optUserPasswordResetUrl o
-    invitationUrl    = template . Text.decodeLatin1 $ optUserInvitationUrl    o
-    deletionUserUrl  = template . Text.decodeLatin1 $ optUserDeletionUserUrl  o
+    gOptions          = Opt.general $ Opt.emailSMS o
+    uOptions          = Opt.user $ Opt.emailSMS o
+    tOptions          = Opt.team $ Opt.emailSMS o
+    emailSender       = Opt.emailSender gOptions
+    smsSender         = Opt.smsSender gOptions
+    smsActivationUrl  = template $ Opt.smsActivationUrl uOptions
+    activationUrl     = template $ Opt.activationUrl    uOptions
+    teamActivationUrl = template $ Opt.tActivationUrl   tOptions
+    passwordResetUrl  = template $ Opt.passwordResetUrl uOptions
+    deletionUserUrl   = template $ Opt.deletionUrl      uOptions
 
-    defLocale = setDefaultLocale (optSettings o)
-    templateDir = optTemplateDir o <> "/user"
-
+    defLocale = Opt.setDefaultLocale (Opt.optSettings o)
+    templateDir = Opt.templateDir gOptions
+    readTemplate = readTemplateWithDefault templateDir defLocale "user"
+    readText = readTextWithDefault templateDir defLocale "user"

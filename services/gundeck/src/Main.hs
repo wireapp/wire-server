@@ -1,8 +1,15 @@
 module Main (main) where
 
-import OpenSSL
-import qualified Gundeck.API as Api
-import qualified Gundeck.Options as Options
+import Gundeck.API
+import OpenSSL (withOpenSSL)
+
+import Gundeck.Options
+import Util.Options
 
 main :: IO ()
-main = withOpenSSL $ Options.parseOptions >>= Api.run
+main = withOpenSSL $ do
+    options <- getOptions desc optsParser defaultPath
+    runServer options
+  where
+    desc = "Gundeck - Push Notification Hub Service"
+    defaultPath = "/etc/wire/gundeck/conf/gundeck.yaml"

@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE FlexibleContexts           #-}
 
 module API.User.Auth (tests) where
 
@@ -7,45 +8,45 @@ import Bilge.Assert hiding (assert)
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth
-import Brig.User.Auth.Cookie.Limit
 import Brig.ZAuth (ZAuth, runZAuth)
 import Control.Concurrent
+import Control.Concurrent.Async.Lifted.Safe.Extended hiding (wait)
 import Control.Lens ((^?), set)
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Lens
+import Data.ByteString (intercalate)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List (sort, partition)
-import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
 import Data.Monoid
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
-import System.Environment
-import System.Logger (Logger)
+import GHC.Stack (HasCallStack)
 import System.Random (randomIO)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
+import Util.Options.Common
 
+import qualified Brig.Options         as Opts
 import qualified Brig.Types.User.Auth as Auth
 import qualified Brig.Types.Code      as Code
 import qualified Bilge                as Http
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.Text.Lazy       as Lazy
 import qualified Brig.ZAuth           as ZAuth
 import qualified Data.Text            as Text
 import qualified Data.UUID.V4         as UUID
 
 import qualified Network.Wai.Utilities.Error as Error
 
-tests :: Manager -> Logger -> Brig -> IO TestTree
-tests m _ b = do
-    z <- mkZAuthEnv
-    return $ testGroup "auth"
+tests :: Maybe Opts.Opts -> Manager -> ZAuth.Env -> Brig -> TestTree
+tests conf m z b = testGroup "auth"
         [ testGroup "login"
             [ test m "email" (testEmailLogin b)
             , test m "phone" (testPhoneLogin b)
@@ -53,21 +54,26 @@ tests m _ b = do
             , test m "email-untrusted-domain" (testLoginUntrustedDomain b)
             , test m "send-phone-code" (testSendLoginCode b)
             , test m "failure" (testLoginFailure b)
-            , test m "throttle" (testThrottleLogins b)
+            , test m "throttle" (testThrottleLogins conf b)
+            , testGroup "sso-login"
+                [ test m "email" (testEmailSsoLogin b)
+                , test m "failure-suspended" (testSuspendedSsoLogin b)
+                , test m "failure-no-user" (testNoUserSsoLogin b)
+                ]
             ]
         , testGroup "refresh"
             [ test m "invalid-cookie" (testInvalidCookie z b)
             , test m "invalid-token" (testInvalidToken b)
             , test m "missing-cookie" (testMissingCookie z b)
             , test m "unknown-cookie" (testUnknownCookie z b)
-            , test m "new-persistent-cookie" (testNewPersistentCookie b)
-            , test m "new-session-cookie" (testNewSessionCookie b)
+            , test m "new-persistent-cookie" (testNewPersistentCookie conf b)
+            , test m "new-session-cookie" (testNewSessionCookie conf b)
             ]
         , testGroup "cookies"
             [ test m "list" (testListCookies b)
             , test m "remove-by-label" (testRemoveCookiesByLabel b)
             , test m "remove-by-label-id" (testRemoveCookiesByLabelAndId b)
-            , test m "limit" (testTooManyCookies b)
+            , test m "limit" (testTooManyCookies conf b)
             , test m "logout" (testLogout b)
             ]
         , testGroup "reauth"
@@ -75,20 +81,8 @@ tests m _ b = do
             ]
         ]
 
-envCookieLimit :: MonadIO m => m CookieLimit
-envCookieLimit = liftIO $ CookieLimit . read <$> getEnv "USER_COOKIE_LIMIT"
-
-envCookieRenewAge :: MonadIO m => m Int
-envCookieRenewAge = liftIO $ read <$> getEnv "USER_COOKIE_RENEW_AGE"
-
 --------------------------------------------------------------------------------
 -- ZAuth test environment for generating arbitrary tokens.
-
-mkZAuthEnv :: IO ZAuth.Env
-mkZAuthEnv = do
-    Just (sk :| sks) <- ZAuth.readKeys =<< getEnv "ZAUTH_PRIVKEYS"
-    Just (pk :| pks) <- ZAuth.readKeys =<< getEnv "ZAUTH_PUBKEYS"
-    ZAuth.mkEnv (sk :| sks) (pk :| pks) ZAuth.defSettings
 
 randomAccessToken :: ZAuth ZAuth.AccessToken
 randomAccessToken = randomUserToken >>= ZAuth.newAccessToken
@@ -105,30 +99,18 @@ testEmailLogin brig = do
     let Just email = userEmail u
     now <- liftIO getCurrentTime
 
-    -- Login with email
+    -- Login with email and do some checks
     _rs <- login brig (defEmailLogin email) PersistentCookie
         <!! const 200 === statusCode
-
-    -- Check basic cookie attributes
-    let ck = decodeCookie _rs
     liftIO $ do
-        assertBool "type" (cookie_persistent ck)
-        assertBool "http-only" (cookie_http_only ck)
-        assertBool "expiry" (cookie_expiry_time ck > cookie_creation_time ck)
-        assertBool "domain" (cookie_domain ck /= "")
-        assertBool "path" (cookie_path ck /= "")
-
-    -- Check basic access token attributes
-    let tk = decodeToken  _rs
-    liftIO $ do
-        assertEqual "user" (userId u) (ZAuth.accessTokenOf tk)
-        assertBool "expiry" (ZAuth.tokenExpiresUTC tk > now)
+        assertSanePersistentCookie (decodeCookie _rs)
+        assertSaneAccessToken now (userId u) (decodeToken _rs)
 
     -- Login again, but with capitalised email address
     let Email loc dom = email
     let email' = Email (Text.toUpper loc) dom
-    login brig (defEmailLogin email') PersistentCookie !!!
-        const 200 === statusCode
+    login brig (defEmailLogin email') PersistentCookie
+        !!! const 200 === statusCode
 
 testPhoneLogin :: Brig -> Http ()
 testPhoneLogin brig = do
@@ -182,7 +164,7 @@ testSendLoginCode brig = do
     -- the user has a password.
     sendLoginCode brig p LoginCodeSMS False !!! do
         const 403 === statusCode
-        const (Just "password-exists") === fmap Error.label . decodeBody
+        const (Just "password-exists") === errorLabel
     rsp1 <- sendLoginCode brig p LoginCodeSMS True
         <!! const 200 === statusCode
 
@@ -235,22 +217,66 @@ testLoginFailure brig = do
             activate brig kc !!! const 200 === statusCode
             -- Attempt to log in without having set a password
             login brig (defEmailLogin eml) PersistentCookie !!! do
-                const 403                          === statusCode
-                const (Just "invalid-credentials") === fmap Error.label . decodeBody
+                const 403 === statusCode
+                const (Just "invalid-credentials") === errorLabel
 
-testThrottleLogins :: Brig -> Http ()
-testThrottleLogins b = do
-    CookieLimit l <- envCookieLimit
+testThrottleLogins :: Maybe Opts.Opts -> Brig -> Http ()
+testThrottleLogins conf b = do
+    -- Get the maximum amount of times we are allowed to login before
+    -- throttling begins
+    l <- liftIO $ optOrEnv (Opts.setUserCookieLimit . Opts.optSettings) conf read "USER_COOKIE_LIMIT"
     u <- randomUser b
     let Just e = userEmail u
-    replicateM_ l (login b (defEmailLogin e) SessionCookie)
+    -- Login exactly that amount of times, as fast as possible
+    void $ replicatePooled 8 l (login b (defEmailLogin e) SessionCookie)
+    -- Login once more. This should fail!
     x <- login b (defEmailLogin e) SessionCookie <!!
         const 429 === statusCode
+    -- After the amount of time specified in "Retry-After", though,
+    -- throttling should stop and login should work again
     let Just n = fromByteString =<< getHeader "Retry-After" x
     liftIO $ do
         assertBool "throttle delay" (n > 0)
         threadDelay (1000000 * (n + 1))
     void $ login b (defEmailLogin e) SessionCookie
+
+-------------------------------------------------------------------------------
+-- Sso login
+
+-- | Check that login works with @/sso-login@ even without having the
+-- right password.
+testEmailSsoLogin :: Brig -> Http ()
+testEmailSsoLogin brig = do
+    -- Create a user
+    uid <- userId <$> randomUser brig
+    now <- liftIO getCurrentTime
+    -- Login and do some checks
+    _rs <- ssoLogin brig (SsoLogin uid Nothing) PersistentCookie
+        <!! const 200 === statusCode
+    liftIO $ do
+        assertSanePersistentCookie (decodeCookie _rs)
+        assertSaneAccessToken now uid (decodeToken _rs)
+
+-- | Check that @/sso-login@ can not be used to login as a suspended
+-- user.
+testSuspendedSsoLogin :: Brig -> Http ()
+testSuspendedSsoLogin brig = do
+    -- Create a user and immediately suspend them
+    uid <- userId <$> randomUser brig
+    setStatus brig uid Suspended
+    -- Try to login and see if we fail
+    ssoLogin brig (SsoLogin uid Nothing) PersistentCookie !!! do
+        const 403 === statusCode
+        const (Just "suspended") === errorLabel
+
+-- | Check that @/sso-login@ fails if the user doesn't exist.
+testNoUserSsoLogin :: Brig -> Http ()
+testNoUserSsoLogin brig = do
+    -- Try to login with random UID and see if we fail
+    uid <- randomId
+    ssoLogin brig (SsoLogin uid Nothing) PersistentCookie !!! do
+        const 403 === statusCode
+        const (Just "invalid-credentials") === errorLabel
 
 -------------------------------------------------------------------------------
 -- Token Refresh
@@ -307,11 +333,12 @@ testUnknownCookie z r = do
         const 403 === statusCode
         const (Just "invalid-credentials") =~= responseBody
 
-testNewPersistentCookie :: Brig -> Http ()
-testNewPersistentCookie b = do
+testNewPersistentCookie :: Maybe Opts.Opts -> Brig -> Http ()
+testNewPersistentCookie config b = do
     u <- randomUser b
-    minAge <- (* 1000000) . (+1) <$> envCookieRenewAge
-    let Just email = userEmail u
+    renewAge <- liftIO $ optOrEnv (Opts.setUserCookieRenewAge . Opts.optSettings) config read "USER_COOKIE_RENEW_AGE"
+    let minAge = fromIntegral $  renewAge * 1000000 + 1
+        Just email = userEmail u
     _rs <- login b (emailLogin email defPassword (Just "nexus1")) PersistentCookie
         <!! const 200 === statusCode
     let c = decodeCookie _rs
@@ -358,11 +385,12 @@ testNewPersistentCookie b = do
         [PersistentCookie] @=? map cookieType _cs
         [Nothing] @=? map cookieSucc _cs
 
-testNewSessionCookie :: Brig -> Http ()
-testNewSessionCookie b = do
+testNewSessionCookie :: Maybe Opts.Opts -> Brig -> Http ()
+testNewSessionCookie config b = do
     u <- randomUser b
-    minAge <- (* 1000000) . (+1) <$> envCookieRenewAge
-    let Just email = userEmail u
+    renewAge <- liftIO $ optOrEnv (Opts.setUserCookieRenewAge . Opts.optSettings) config read "USER_COOKIE_RENEW_AGE"
+    let minAge = fromIntegral $  renewAge * 1000000 + 1
+        Just email = userEmail u
     _rs <- login b (emailLogin email defPassword (Just "nexus1")) SessionCookie
         <!! const 200 === statusCode
     let c = decodeCookie _rs
@@ -439,21 +467,39 @@ testRemoveCookiesByLabelAndId b = do
     let lbl = cookieLabel c4
     listCookies b (userId u) >>= liftIO . ([lbl] @=?) . map cookieLabel
 
-testTooManyCookies :: Brig -> Http ()
-testTooManyCookies b = do
-    CookieLimit l <- envCookieLimit
+testTooManyCookies :: Maybe Opts.Opts -> Brig -> Http ()
+testTooManyCookies config b = do
     u <- randomUser b
+    l <- liftIO $ optOrEnv (Opts.setUserCookieLimit . Opts.optSettings) config read "USER_COOKIE_LIMIT"
     let Just e = userEmail u
-    let carry = 4
-    let pwl = emailLogin e defPassword (Just "nexus1")
-    -- Session logins
-    tcs <- replicateM (l + carry) $ (decodeCookie <$> login b pwl SessionCookie) <* wait
-    cs <- listCookies b (userId u)
-    liftIO $ map cookieId cs @=? map getCookieId (drop carry tcs)
-    -- Persistent logins
-    tcs' <- replicateM (l + carry) $ (decodeCookie <$> login b pwl PersistentCookie) <* wait
-    cs'  <- listCookies b (userId u)
-    liftIO $ map cookieId cs' @=? map getCookieId (drop carry tcs ++ drop carry tcs')
+        carry = 2
+        pwlP = emailLogin e defPassword (Just "persistent")
+        pwlS = emailLogin e defPassword (Just "session")
+    void $ concurrently
+        -- Persistent logins
+        (do
+            tcs <- replicateM (l + carry) $ loginWhenAllowed pwlP PersistentCookie
+            cs  <- listCookiesWithLabel b (userId u) ["persistent"]
+            liftIO $ map cookieId cs @=? map getCookieId (drop carry tcs))
+        -- Session logins
+        (do
+            tcs' <- replicateM (l + carry) $ loginWhenAllowed pwlS SessionCookie
+            cs' <- listCookiesWithLabel b (userId u) ["session"]
+            liftIO $ map cookieId cs' @=? map getCookieId (drop carry tcs'))
+  where
+    -- We expect that after `setUserCookieLimit` login attempts, we get rate
+    -- limited; in those cases, we need to wait `Retry-After` seconds.
+    loginWhenAllowed pwl t = do
+        x <- login b pwl t <* wait
+        case statusCode x of
+            200 -> return $ decodeCookie x
+            429 -> do
+                -- After the amount of time specified in "Retry-After", though,
+                -- throttling should stop and login should work again
+                let Just n = fromByteString =<< getHeader "Retry-After" x
+                liftIO $ threadDelay (1000000 * (n + 1))
+                loginWhenAllowed pwl t
+            xxx -> error ("Unexpected status code when logging in: " ++ show xxx)
 
 testLogout :: Brig -> Http ()
 testLogout b = do
@@ -480,48 +526,82 @@ testReauthorisation b = do
 
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (PlainTextPassword "123456")) !!! do
         const 403 === statusCode
-        const (Just "invalid-credentials") === fmap Error.label . decodeBody
+        const (Just "invalid-credentials") === errorLabel
 
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload defPassword) !!! do
         const 200 === statusCode
 
-    setStatus u Suspended
+    setStatus b u Suspended
 
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload defPassword) !!! do
         const 403 === statusCode
-        const (Just "suspended") === fmap Error.label . decodeBody
+        const (Just "suspended") === errorLabel
   where
     payload = Http.body . RequestBodyLBS . encode . ReAuthUser
-
-    setStatus u s =
-        let js = RequestBodyLBS . encode $ AccountStatusUpdate s
-        in put ( b . paths ["i", "users", toByteString' u, "status"]
-               . contentJson . Http.body js
-               ) !!! const 200 === statusCode
 
 -----------------------------------------------------------------------------
 -- Helpers
 
-decodeCookie :: Response a -> Http.Cookie
+decodeCookie :: HasCallStack => Response a -> Http.Cookie
 decodeCookie = fromMaybe (error "missing zuid cookie") . getCookie "zuid"
 
-decodeToken :: Response (Maybe Lazy.ByteString) -> ZAuth.AccessToken
+decodeToken :: HasCallStack => Response (Maybe Lazy.ByteString) -> ZAuth.AccessToken
 decodeToken r = fromMaybe (error "invalid access_token") $ do
     x <- responseBody r
     t <- x ^? key "access_token" . _String
     fromByteString (encodeUtf8 t)
 
-getCookieId :: Http.Cookie -> CookieId
+getCookieId :: HasCallStack => Http.Cookie -> CookieId
 getCookieId c = maybe (error "no cookie value")
                       (CookieId . ZAuth.userTokenRand)
                       (fromByteString (cookie_value c))
 
-listCookies :: Brig -> UserId -> Http [Auth.Cookie ()]
-listCookies b u = do
-    rs <- get (b . path "/cookies" . header "Z-User" (toByteString' u)) <!!
+listCookies :: HasCallStack => Brig -> UserId -> Http [Auth.Cookie ()]
+listCookies b u = listCookiesWithLabel b u []
+
+listCookiesWithLabel :: HasCallStack => Brig -> UserId -> [CookieLabel] -> Http [Auth.Cookie ()]
+listCookiesWithLabel b u l = do
+    rs <- get (b . path "/cookies"
+                 . queryItem "labels" labels
+                 . header "Z-User" (toByteString' u)) <!!
         const 200 === statusCode
     let Just cs = cookieList <$> decodeBody rs
     return cs
+  where
+    labels = intercalate "," $ map toByteString' l
+
+-- | Check that the cookie returned after login is sane.
+--
+-- Doesn't check everything, just some basic properties.
+assertSanePersistentCookie :: Http.Cookie -> Assertion
+assertSanePersistentCookie ck = do
+    assertBool "type" (cookie_persistent ck)
+    assertBool "http-only" (cookie_http_only ck)
+    assertBool "expiry" (cookie_expiry_time ck > cookie_creation_time ck)
+    assertBool "domain" (cookie_domain ck /= "")
+    assertBool "path" (cookie_path ck /= "")
+
+-- | Check that the access token returned after login is sane.
+assertSaneAccessToken
+    :: UTCTime           -- ^ Some moment in time before the user was created
+    -> UserId
+    -> ZAuth.AccessToken
+    -> Assertion
+assertSaneAccessToken now uid tk = do
+    assertEqual "user" uid (ZAuth.accessTokenOf tk)
+    assertBool "expiry" (ZAuth.tokenExpiresUTC tk > now)
+
+-- | Set user's status to something (e.g. 'Suspended').
+setStatus :: Brig -> UserId -> AccountStatus -> HttpT IO ()
+setStatus brig u s =
+    let js = RequestBodyLBS . encode $ AccountStatusUpdate s
+    in put ( brig . paths ["i", "users", toByteString' u, "status"]
+           . contentJson . Http.body js
+           ) !!! const 200 === statusCode
+
+-- | Get error label from the response (for use in assertions).
+errorLabel :: Response (Maybe Lazy.ByteString) -> Maybe Lazy.Text
+errorLabel = fmap Error.label . decodeBody
 
 remJson :: PlainTextPassword -> Maybe [CookieLabel] -> Maybe [CookieId] -> Value
 remJson p l ids = object
@@ -532,4 +612,3 @@ remJson p l ids = object
 
 wait :: MonadIO m => m ()
 wait = liftIO $ threadDelay 1000000
-

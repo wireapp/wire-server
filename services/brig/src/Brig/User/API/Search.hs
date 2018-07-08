@@ -94,4 +94,3 @@ setSearchable (_ ::: u ::: r) = do
     lift $ DB.updateSearchableStatus u s
     lift $ Intra.onUserEvent u Nothing (searchableStatusUpdated u s)
     return (setStatus status200 empty)
-

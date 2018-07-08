@@ -54,6 +54,7 @@ import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
 import Data.Serialize.Get (runGetLazy)
 import Data.String (fromString)
+import Data.Text (unpack)
 import Galley.Options
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -62,6 +63,7 @@ import Network.Wai.Utilities
 import OpenSSL.EVP.Digest (getDigestByName)
 import OpenSSL.Session as Ssl
 import System.Logger.Class hiding (Error, info)
+import Util.Options
 
 import qualified Cassandra                as C
 import qualified Cassandra.Settings       as C
@@ -137,17 +139,17 @@ createEnv m o = do
     Env mempty m o l mgr <$> initCassandra o l
                          <*> Q.new 16000
                          <*> initExtEnv
-                         <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o^.journalOpts)
+                         <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o^.optJournal)
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
-    c <- maybe (return $ NE.fromList [o^.cassHost])
+    c <- maybe (return $ NE.fromList [unpack $ o^.optCassandra.casEndpoint.epHost])
                (C.initialContacts "cassandra_galley")
-               (o^.discoUrl)
+               (unpack <$> o^.optDiscoUrl)
     C.init (Logger.clone (Just "cassandra.galley") l) $
               C.setContacts (NE.head c) (NE.tail c)
-            . C.setPortNumber (fromIntegral $ o^.cassPort)
-            . C.setKeyspace (o^.keyspace)
+            . C.setPortNumber (fromIntegral $ o^.optCassandra.casEndpoint.epPort)
+            . C.setKeyspace (Keyspace $ o^.optCassandra.casKeyspace)
             . C.setMaxConnections 4
             . C.setMaxStreams 128
             . C.setPoolStripes 4
@@ -167,8 +169,8 @@ initHttpManager o = do
     Ssl.contextLoadSystemCerts ctx
     newManager (opensslManagerSettings ctx)
         { managerResponseTimeout     = responseTimeoutMicro 10000000
-        , managerConnCount           = o^.httpPoolSz
-        , managerIdleConnectionCount = 3 * (o^.httpPoolSz)
+        , managerConnCount           = o^.optSettings.setHttpPoolSize
+        , managerIdleConnectionCount = 3 * (o^.optSettings.setHttpPoolSize)
         }
 
 initExtEnv :: IO ExtEnv

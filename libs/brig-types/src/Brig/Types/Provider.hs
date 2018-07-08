@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
 
 -- | Types for the (internal) provider API.
@@ -17,13 +18,15 @@ module Brig.Types.Provider
     ) where
 
 import Brig.Types.Client.Prekey
+import Brig.Types.Code as Code
 import Brig.Types.Common as Common
 import Brig.Types.Provider.Tag (ServiceTag (..))
 import Data.Aeson
+import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Int
-import Data.Json.Util ((#))
+import Data.Json.Util
 import Data.List1 (List1)
 import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
 import Data.PEM
@@ -49,7 +52,7 @@ data NewProvider = NewProvider
     { newProviderName     :: !Name
     , newProviderEmail    :: !Email
     , newProviderUrl      :: !HttpsUrl
-    , newProviderDescr    :: !Text
+    , newProviderDescr    :: !(Range 1 1024 Text)
     , newProviderPassword :: !(Maybe PlainTextPassword)
         -- ^ If none provided, a password is generated.
     }
@@ -205,6 +208,36 @@ instance ToJSON DeleteProvider where
         ]
 
 --------------------------------------------------------------------------------
+-- Password Change / Reset
+
+-- | The payload for initiating a password reset.
+newtype PasswordReset = PasswordReset { nprEmail :: Email }
+
+deriveJSON toJSONFieldName ''PasswordReset
+
+-- | The payload for completing a password reset.
+data CompletePasswordReset = CompletePasswordReset
+    { cpwrKey      :: !Code.Key
+    , cpwrCode     :: !Code.Value
+    , cpwrPassword :: !PlainTextPassword
+    }
+
+deriveJSON toJSONFieldName ''CompletePasswordReset
+
+-- | The payload for changing a password.
+data PasswordChange = PasswordChange
+    { cpOldPassword :: !PlainTextPassword
+    , cpNewPassword :: !PlainTextPassword
+    }
+
+deriveJSON toJSONFieldName ''PasswordChange
+
+-- | The payload for updating an email address
+newtype EmailUpdate = EmailUpdate { euEmail :: Email }
+
+deriveJSON toJSONFieldName ''EmailUpdate
+
+--------------------------------------------------------------------------------
 -- Bounded ServiceTag Queries
 
 queryAnyTags :: LTE m n => Tag.MatchAny -> Maybe (QueryAnyTags m n)
@@ -332,18 +365,20 @@ instance ToJSON ServiceKey where
 
 -- | Input data for registering a new service.
 data NewService = NewService
-    { newServiceName   :: !Name
-    , newServiceDescr  :: !Text
-    , newServiceUrl    :: !HttpsUrl
-    , newServiceKey    :: !ServiceKeyPEM
-    , newServiceToken  :: !(Maybe ServiceToken)
-    , newServiceAssets :: [Asset]
-    , newServiceTags   :: Range 1 3 (Set ServiceTag)
+    { newServiceName    :: !Name
+    , newServiceSummary :: !(Range 1 128 Text)
+    , newServiceDescr   :: !(Range 1 1024 Text)
+    , newServiceUrl     :: !HttpsUrl
+    , newServiceKey     :: !ServiceKeyPEM
+    , newServiceToken   :: !(Maybe ServiceToken)
+    , newServiceAssets  :: [Asset]
+    , newServiceTags    :: Range 1 3 (Set ServiceTag)
     }
 
 instance FromJSON NewService where
     parseJSON = withObject "NewService" $ \o ->
         NewService <$> o .:  "name"
+                   <*> o .:  "summary"
                    <*> o .:  "description"
                    <*> o .:  "base_url"
                    <*> o .:  "public_key"
@@ -354,6 +389,7 @@ instance FromJSON NewService where
 instance ToJSON NewService where
     toJSON s = object
         $ "name"        .= newServiceName s
+        # "summary"     .= newServiceSummary s
         # "description" .= newServiceDescr s
         # "base_url"    .= newServiceUrl s
         # "public_key"  .= newServiceKey s
@@ -389,6 +425,7 @@ instance ToJSON NewServiceResponse where
 data Service = Service
     { serviceId      :: !ServiceId
     , serviceName    :: !Name
+    , serviceSummary :: !Text
     , serviceDescr   :: !Text
     , serviceUrl     :: !HttpsUrl
     , serviceTokens  :: !(List1 ServiceToken)
@@ -402,6 +439,7 @@ instance FromJSON Service where
     parseJSON = withObject "Service" $ \o ->
         Service <$> o .: "id"
                 <*> o .: "name"
+                <*> o .: "summary"
                 <*> o .: "description"
                 <*> o .: "base_url"
                 <*> o .: "auth_tokens"
@@ -414,6 +452,7 @@ instance ToJSON Service where
     toJSON s = object
         $ "id"           .= serviceId s
         # "name"         .= serviceName s
+        # "summary"      .= serviceSummary s
         # "description"  .= serviceDescr s
         # "base_url"     .= serviceUrl s
         # "auth_tokens"  .= serviceTokens s
@@ -431,6 +470,7 @@ data ServiceProfile = ServiceProfile
     { serviceProfileId       :: !ServiceId
     , serviceProfileProvider :: !ProviderId
     , serviceProfileName     :: !Name
+    , serviceProfileSummary  :: !Text
     , serviceProfileDescr    :: !Text
     , serviceProfileAssets   :: ![Asset]
     , serviceProfileTags     :: !(Set ServiceTag)
@@ -442,6 +482,7 @@ instance FromJSON ServiceProfile where
         ServiceProfile <$> o .: "id"
                        <*> o .: "provider"
                        <*> o .: "name"
+                       <*> o .: "summary"
                        <*> o .: "description"
                        <*> o .: "assets"
                        <*> o .: "tags"
@@ -452,6 +493,7 @@ instance ToJSON ServiceProfile where
         $ "id"          .= serviceProfileId s
         # "provider"    .= serviceProfileProvider s
         # "name"        .= serviceProfileName s
+        # "summary"     .= serviceProfileSummary s
         # "description" .= serviceProfileDescr s
         # "assets"      .= serviceProfileAssets s
         # "tags"        .= serviceProfileTags s
@@ -483,7 +525,8 @@ instance ToJSON ServiceProfilePage where
 -- | Update service profile information.
 data UpdateService = UpdateService
     { updateServiceName     :: !(Maybe Name)
-    , updateServiceDescr    :: !(Maybe Text)
+    , updateServiceSummary  :: !(Maybe (Range 1 128 Text))
+    , updateServiceDescr    :: !(Maybe (Range 1 1024 Text))
     , updateServiceAssets   :: !(Maybe [Asset])
     , updateServiceTags     :: !(Maybe (Range 1 3 (Set ServiceTag)))
     }
@@ -491,6 +534,7 @@ data UpdateService = UpdateService
 instance FromJSON UpdateService where
     parseJSON = withObject "UpdateService" $ \o ->
         UpdateService <$> o .:? "name"
+                      <*> o .:? "summary"
                       <*> o .:? "description"
                       <*> o .:? "assets"
                       <*> o .:? "tags"
@@ -498,6 +542,7 @@ instance FromJSON UpdateService where
 instance ToJSON UpdateService where
     toJSON u = object
         $ "name"        .= updateServiceName u
+        # "summary"     .= updateServiceSummary u
         # "description" .= updateServiceDescr u
         # "assets"      .= updateServiceAssets u
         # "tags"        .= updateServiceTags u

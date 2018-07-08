@@ -1,9 +1,12 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-} -- for SES notifications
 
 module Util where
 
 import Bilge
 import Bilge.Assert
+import Brig.AWS.Types
 import Brig.Types.Activation
 import Brig.Types.Connection
 import Brig.Types.Client
@@ -13,6 +16,7 @@ import Brig.Types.Intra
 import Control.Lens ((^?), (^?!))
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Retry
 import Data.Aeson
 import Data.Aeson.Lens (key, _String, _Integral)
 import Data.ByteString (ByteString)
@@ -26,47 +30,85 @@ import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
 import Galley.Types (Member (..))
+import GHC.Stack (HasCallStack)
 import Gundeck.Types.Notification
 import Gundeck.Types.Push (SignalingKeys (..), EncKey (..), MacKey (..))
 import System.Random (randomRIO, randomIO)
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit
 import Test.Tasty.Cannon
+import Util.AWS
 
+import qualified Galley.Types.Teams as Team
+import qualified Brig.AWS as AWS
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as C8
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.ByteString.Char8 as C8
 import qualified Data.List1 as List1
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
 import qualified Test.Tasty.Cannon as WS
 
-type Brig    = Request -> Request
-type Cannon  = Request -> Request
-type Galley  = Request -> Request
+type Brig      = Request -> Request
+type Cannon    = Request -> Request
+type CargoHold = Request -> Request
+type Galley    = Request -> Request
 
 type ResponseLBS = Response (Maybe Lazy.ByteString)
+
+instance ToJSON SESBounceType where
+    toJSON BounceUndetermined = String "Undetermined"
+    toJSON BouncePermanent    = String "Permanent"
+    toJSON BounceTransient    = String "Transient"
+
+instance ToJSON SESNotification where
+    toJSON (MailBounce typ ems) =
+        object [ "notificationType" .= ("Bounce" :: Text)
+               , "bounce" .= object [ "bouncedRecipients" .= (fmap (\e -> object ["emailAddress" .= e]) ems)
+                                    , "bounceType" .= typ
+                                    ]
+               ]
+
+    toJSON (MailComplaint  ems) =
+        object [ "notificationType" .= ("Complaint" :: Text)
+               , "complaint" .= object [ "complainedRecipients" .= (fmap (\e -> object ["emailAddress" .= e]) ems)
+                                       ]
+               ]
 
 test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)
 
-randomUser :: Brig -> Http User
+test' :: AWS.Env -> Manager -> TestName -> Http a -> TestTree
+test' e m n h = testCase n $ void $ runHttpT m (liftIO (purgeJournalQueue e) >> h)
+
+randomUser :: HasCallStack => Brig -> Http User
 randomUser brig = do
     n <- fromName <$> randomName
     createUser n "success@simulator.amazonses.com" brig
 
-createUser :: Text -> Text -> Brig -> Http User
+createUser :: HasCallStack => Text -> Text -> Brig -> Http User
 createUser name email brig = do
-    r <- postUser name email Nothing brig <!! const 201 === statusCode
+    r <- postUser name (Just email) Nothing Nothing brig <!! const 201 === statusCode
     return $ fromMaybe (error "createUser: failed to parse response") (decodeBody r)
 
-createAnonUser :: Text -> Brig -> Http User
-createAnonUser name brig = do
-    let p = RequestBodyLBS . encode $ object [ "name" .= name ]
+createAnonUser :: HasCallStack => Text -> Brig -> Http User
+createAnonUser = createAnonUserExpiry Nothing
+
+createAnonUserExpiry :: HasCallStack => Maybe Integer -> Text -> Brig -> Http User
+createAnonUserExpiry expires name brig = do
+    let p = RequestBodyLBS . encode $ object [ "name" .= name, "expires_in" .= expires ]
     r <- post (brig . path "/register" . contentJson . body p) <!! const 201 === statusCode
     return $ fromMaybe (error "createAnonUser: failed to parse response") (decodeBody r)
+
+requestActivationCode :: HasCallStack => Brig -> Either Email Phone -> Http ()
+requestActivationCode brig ep =
+    post (brig . path "/activate/send" . contentJson . body (RequestBodyLBS . encode $ bdy ep)) !!!
+        const 200 === statusCode
+  where
+    bdy (Left e)  = object [ "email" .= fromEmail e ]
+    bdy (Right p) = object [ "phone" .= fromPhone p ]
 
 getActivationCode :: Brig -> Either Email Phone -> Http (Maybe (ActivationKey, ActivationCode))
 getActivationCode brig ep = do
@@ -102,18 +144,29 @@ getConnection brig from to = get $ brig
     . zUser from
     . zConn "conn"
 
--- TODO: createUser
-postUser :: Text -> Text -> Maybe InvitationCode -> Brig -> Http ResponseLBS
-postUser name email invCode brig = do
-    e <- mkEmail email
+-- more flexible variant of 'createUser' (see above).
+postUser :: Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser name email ssoid teamid brig = do
+    email' <- maybe (pure Nothing) (fmap (Just . fromEmail) . mkEmailRandomLocalSuffix) email
     let p = RequestBodyLBS . encode $ object
             [ "name"            .= name
-            , "email"           .= fromEmail e
+            , "email"           .= email'
             , "password"        .= defPassword
-            , "invitation_code" .= invCode
             , "cookie"          .= defCookieLabel
+            , "sso_id"          .= ssoid
+            , "team_id"         .= teamid
             ]
     post (brig . path "/i/users" . contentJson . body p)
+
+postUserInternal :: Object -> Brig -> Http User
+postUserInternal payload brig = do
+    rs <- post (brig . path "/i/users" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
+    maybe (error $ "postUserInternal: Failed to decode user due to: " ++ show rs) return (decodeBody rs)
+
+postUserRegister :: Object -> Brig -> Http User
+postUserRegister payload brig = do
+    rs <- post (brig . path "/register" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
+    maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) return (decodeBody rs)
 
 deleteUser :: UserId -> Maybe PlainTextPassword -> Brig -> Http ResponseLBS
 deleteUser u p brig = delete $ brig
@@ -122,11 +175,20 @@ deleteUser u p brig = delete $ brig
     . zUser u
     . body (RequestBodyLBS (encode (mkDeleteUser p)))
 
+deleteUserInternal :: UserId -> Brig -> Http ResponseLBS
+deleteUserInternal u brig = delete $ brig
+    . paths ["/i/users", toByteString' u]
+
 activate :: Brig -> ActivationPair -> Http ResponseLBS
 activate brig (k, c) = get $ brig
     . path "activate"
     . queryItem "key" (toByteString' k)
     . queryItem "code" (toByteString' c)
+
+getSelfProfile :: Brig -> UserId -> Http SelfProfile
+getSelfProfile brig usr = do
+    rsp <- get $ brig . path "/self" . zUser usr
+    return $ fromMaybe (error $ "getSelfProfile: failed to decode: " ++ show rsp) (decodeBody rsp)
 
 getUser :: Brig -> UserId -> UserId -> Http ResponseLBS
 getUser brig zusr usr = get $ brig
@@ -136,6 +198,13 @@ getUser brig zusr usr = get $ brig
 login :: Brig -> Login -> CookieType -> Http ResponseLBS
 login b l t = let js = RequestBodyLBS (encode l) in post $ b
     . path "/login"
+    . contentJson
+    . (if t == PersistentCookie then queryItem "persist" "true" else id)
+    . body js
+
+ssoLogin :: Brig -> SsoLogin -> CookieType -> Http ResponseLBS
+ssoLogin b l t = let js = RequestBodyLBS (encode l) in post $ b
+    . path "/i/sso-login"
     . contentJson
     . (if t == PersistentCookie then queryItem "persist" "true" else id)
     . body js
@@ -217,6 +286,15 @@ getPreKey :: Brig -> UserId -> ClientId -> Http ResponseLBS
 getPreKey brig u c = get $ brig
     . paths ["users", toByteString' u, "prekeys", toByteString' c]
 
+getTeamMember :: HasCallStack => UserId -> TeamId -> Galley -> Http Team.TeamMember
+getTeamMember u tid galley = do
+    r <- get ( galley
+             . paths ["i", "teams", toByteString' tid, "members", toByteString' u]
+             . zUser u
+             . expect2xx
+             )
+    return $ fromMaybe (error "getTeamMember: failed to parse response") (decodeBody r)
+
 getConversation :: Galley -> UserId -> ConvId -> Http ResponseLBS
 getConversation galley usr cnv = get $ galley
     . paths ["conversations", toByteString' cnv]
@@ -231,7 +309,18 @@ isMember g usr cnv = do
         Nothing -> return False
         Just  m -> return (usr == memId m)
 
-chkStatus :: Brig -> UserId -> AccountStatus -> Http ()
+getStatus :: HasCallStack => Brig -> UserId -> Http AccountStatus
+getStatus brig u = do
+    r <- get (brig . paths ["i", "users", toByteString' u, "status"]) <!!
+        const 200 === statusCode
+
+    case responseBody r of
+        Nothing -> error $ "getStatus: failed to parse response: " ++ show r
+        Just  j -> do
+            let st = maybeFromJSON =<< (j ^? key "status")
+            return $ fromMaybe (error $ "getStatus: failed to decode status" ++ show j) st
+
+chkStatus :: HasCallStack => Brig -> UserId -> AccountStatus -> Http ()
 chkStatus brig u s =
     get (brig . paths ["i", "users", toByteString' u, "status"]) !!! do
         const 200 === statusCode
@@ -265,9 +354,8 @@ decodeBody = responseBody >=> decode'
 asValue :: Response (Maybe Lazy.ByteString) -> Maybe Value
 asValue = decodeBody
 
--- TODO: randomiseEmail
-mkEmail :: MonadIO m => Text -> m Email
-mkEmail e = do
+mkEmailRandomLocalSuffix :: MonadIO m => Text -> m Email
+mkEmailRandomLocalSuffix e = do
     uid <- liftIO UUID.nextRandom
     case parseEmail e of
         Just (Email loc dom) -> return $ Email (loc <> "+" <> UUID.toText uid) dom
@@ -277,7 +365,7 @@ randomEmail :: MonadIO m => m Email
 randomEmail = mkSimulatorEmail "success"
 
 mkSimulatorEmail :: MonadIO m => Text -> m Email
-mkSimulatorEmail loc = mkEmail (loc <> "@simulator.amazonses.com")
+mkSimulatorEmail loc = mkEmailRandomLocalSuffix (loc <> "@simulator.amazonses.com")
 
 randomPhone :: MonadIO m => m Phone
 randomPhone = liftIO $ do
@@ -401,3 +489,7 @@ randomName = liftIO $ do
             then return c
             else randLetter
 
+retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
+retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
+                             (const (return . f))
+                             (const m)

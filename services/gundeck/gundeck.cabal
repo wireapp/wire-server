@@ -116,6 +116,7 @@ library
         , wai-routing           >= 0.12
         , wai-utilities         >= 0.16
         , warp                  >= 3.2
+        , yaml                  >= 0.8
 
 executable gundeck
     default-language:  Haskell2010
@@ -135,7 +136,6 @@ executable gundeck
 
     if flag(static)
         ld-options: -static
-
 
 executable gundeck-schema
     default-language:   Haskell2010
@@ -159,6 +159,7 @@ executable gundeck-schema
         , raw-strings-qq
         , text
         , tinylog
+        , types-common
 
     if flag(static)
         ld-options: -static
@@ -186,6 +187,7 @@ test-suite gundeck-tests
       , gundeck-types
       , lens
       , tasty
+      , tasty-hunit
       , tasty-quickcheck
       , text
       , types-common
@@ -210,8 +212,7 @@ benchmark gundeck-bench
       , types-common
       , unordered-containers
 
-test-suite gundeck-integration
-    type:               exitcode-stdio-1.0
+executable gundeck-integration
     default-language:   Haskell2010
     main-is:            Main.hs
     hs-source-dirs:     test/integration
@@ -236,18 +237,21 @@ test-suite gundeck-integration
       , gundeck-types
       , http-client
       , http-client-tls
+      , HsOpenSSL
       , HUnit
       , lens
       , lens-aeson
       , mtl
       , network
       , network-uri
+      , optparse-applicative
       , QuickCheck
       , random
       , retry
       , safe
       , stm
-      , tasty                 >= 0.9
+      , tagged
+      , tasty                 >= 1.0
       , tasty-hunit           >= 0.9
       , text
       , time
@@ -258,3 +262,4 @@ test-suite gundeck-integration
       , uuid
       , vector
       , websockets            >= 0.8
+      , yaml

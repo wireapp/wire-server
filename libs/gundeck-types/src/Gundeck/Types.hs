@@ -1,6 +1,5 @@
 module Gundeck.Types (module G) where
 
-import Gundeck.Types.Callback     as G
 import Gundeck.Types.Event        as G
 import Gundeck.Types.Notification as G
 import Gundeck.Types.Presence     as G

@@ -100,6 +100,7 @@ executable api-loadtest
       , bytestring           >= 0.10
       , data-default-class   >= 0.0
       , exceptions           >= 0.8
+      , extended
       , http-client          >= 0.4
       , http-client-tls      >= 0.2
       , lifted-async         >= 0.2

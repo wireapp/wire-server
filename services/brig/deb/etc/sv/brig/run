@@ -46,6 +46,24 @@ else
     TURN_TOKEN_LIFETIME=""
 fi
 
+if [ -n "$BRIG_TURN_CONFIG_TTL" ]; then
+    TURN_CONFIG_TTL="--turn-config-ttl=$BRIG_TURN_CONFIG_TTL"
+else
+    TURN_CONFIG_TTL=""
+fi
+
+if [ -n "$BRIG_PROVIDER_ID_SEARCH_FILTER" ]; then
+    PROVIDER_ID_SEARCH_FILTER="--provider-id-search-filter=$BRIG_PROVIDER_ID_SEARCH_FILTER"
+else
+    PROVIDER_ID_SEARCH_FILTER=""
+fi
+
+if [ -n "$BRIG_AWS_USER_JOURNAL_QUEUE" ]; then
+    USER_QUEUE_JOURNAL="--aws-user-journal-queue=$BRIG_AWS_USER_JOURNAL_QUEUE"
+else
+    USER_QUEUE_JOURNAL=""
+fi
+
 cd $HOME
 
 ulimit -n 65536
@@ -58,26 +76,31 @@ exec chpst -u $USER \
     --galley-port=${BRIG_GALLEY_PORT?'unset'} \
     --gundeck-host=${BRIG_GUNDECK_HOST?'unset'} \
     --gundeck-port=${BRIG_GUNDECK_PORT?'unset'} \
+    --cargohold-host=${BRIG_CARGOHOLD_HOST?'unset'} \
+    --cargohold-port=${BRIG_CARGOHOLD_PORT?'unset'} \
     --cassandra-host=${BRIG_CASSANDRA_HOST?'unset'} \
     --cassandra-port=${BRIG_CASSANDRA_PORT?'unset'} \
     --cassandra-keyspace=${BRIG_CASSANDRA_KEYSPACE?'unset'} \
     --activation-url=${BRIG_ACTIVATION_URL?'unset'} \
+    --team-activation-url=${BRIG_TEAM_ACTIVATION_URL?'unset'} \
     --activation-timeout=${BRIG_ACTIVATION_TIMEOUT?'unset'} \
+    --team-invitation-timeout=${BRIG_TEAM_INVITATION_TIMEOUT?'unset'} \
     --sms-activation-url=${BRIG_SMS_ACTIVATION_URL?'unset'} \
     --password-reset-url=${BRIG_PASSWORD_RESET_URL?'unset'} \
-    --invitation-url=${BRIG_INVITATION_URL?'unset'} \
     --deletion-url=${BRIG_DELETION_URL?'unset'} \
     --team-invitation-url=${BRIG_TEAM_INVITATION_URL?'unset'} \
+    --team-creator-welcome-url=${BRIG_TEAM_CREATOR_WELCOME_URL?'unset'} \
+    --team-member-welcome-url=${BRIG_TEAM_MEMBER_WELCOME_URL?'unset'} \
     --aws-ses-queue=${BRIG_AWS_SES_QUEUE?'unset'} \
     --aws-internal-queue=${BRIG_AWS_INTERNAL_QUEUE?'unset'} \
     --aws-dynamo-blacklist=${BRIG_AWS_DYNAMO_BLACKLIST?'unset'} \
     --aws-dynamo-prekeys=${BRIG_AWS_DYNAMO_PREKEYS?'unset'} \
-    --aws-account-id=${BRIG_AWS_ACCOUNT?'unset'} \
-    --twilio-sid=${BRIG_TWILIO_SID?'unset'} \
-    --twilio-token=${BRIG_TWILIO_TOKEN?'unset'} \
+    --aws-ses-endpoint=${BRIG_SES_ENDPOINT?'unset'} \
+    --aws-sqs-endpoint=${BRIG_SQS_ENDPOINT?'unset'} \
+    --aws-dynamodb-endpoint=${BRIG_DYNAMODB_ENDPOINT?'unset'} \
+    --twilio-credentials=${BRIG_TWILIO_CREDENTIALS?'unset'} \
     --twilio-sender=${BRIG_TWILIO_SENDER?'unset'} \
-    --nexmo-key=${BRIG_NEXMO_KEY?'unset'} \
-    --nexmo-secret=${BRIG_NEXMO_SECRET?'unset'} \
+    --nexmo-credentials=${BRIG_NEXMO_CREDENTIALS?'unset'} \
     --template-dir=${TEMPLATE_DIR?'unset'} \
     --email-sender=${BRIG_EMAIL_SENDER?'unset'} \
     --disco-url=${DISCO_URL?'unset'} \
@@ -87,6 +110,7 @@ exec chpst -u $USER \
     --provider-activation-url=${BRIG_PROVIDER_ACTIVATION_URL?'unset'} \
     --provider-approval-url=${BRIG_PROVIDER_APPROVAL_URL?'unset'} \
     --provider-approval-to=${BRIG_PROVIDER_APPROVAL_TO?'unset'} \
+    --provider-password-reset-url=${BRIG_PROVIDER_PASSWORD_RESET_URL?'unset'} \
     --user-cookie-limit=${BRIG_USER_COOKIE_LIMIT?'unset'} \
     --user-cookie-renew-age=${BRIG_USER_COOKIE_RENEW_AGE?'unset'} \
     --user-cookie-min-deviation=${BRIG_USER_COOKIE_MIN_DEVIATION?'unset'} \
@@ -101,12 +125,16 @@ exec chpst -u $USER \
     --elasticsearch-url=${BRIG_ELASTICSEARCH_URL?'unset'} \
     --elasticsearch-user-index=${BRIG_ELASTICSEARCH_USER_INDEX?'unset'} \
     --turn-servers=${BRIG_TURN_SERVERS?'unset'} \
+    --turn-servers-v2=${BRIG_TURN_SERVERS_V2?'unset'} \
     --turn-secret=${BRIG_TURN_SECRET?'unset'} \
+    --conv-team-max-size=${BRIG_CONV_TEAM_MAX_SIZE:-128} \
     ${TURN_TOKEN_LIFETIME} \
+    ${TURN_CONFIG_TTL} \
     ${AWS_ACCESS_KEY_ID} \
     ${AWS_SECRET_ACCESS_KEY} \
     ${GEOIP_DB} \
     ${WHITELIST_URL} \
     ${WHITELIST_USER} \
-    ${WHITELIST_PASS}
-
+    ${WHITELIST_PASS} \
+    ${PROVIDER_ID_SEARCH_FILTER} \
+    ${USER_QUEUE_JOURNAL}

@@ -21,7 +21,7 @@ module Gundeck.Aws
     , PublishError        (..)
 
       -- * Endpoints
-    , Endpoint
+    , SNSEndpoint
     , endpointToken
     , endpointEnabled
     , endpointUsers
@@ -42,6 +42,7 @@ module Gundeck.Aws
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
+import Control.Applicative
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Concurrent.Lifted (threadDelay)
 import Control.Error hiding (err)
@@ -71,10 +72,11 @@ import Gundeck.Types.Push (AppName (..), Transport (..), Token)
 import Network.AWS (AWSRequest, Rs)
 import Network.AWS (serviceCode, serviceMessage, serviceAbbrev, serviceStatus)
 import Network.AWS.SQS (rmrsMessages)
-import Network.AWS.SQS.Types
+import Network.AWS.SQS.Types hiding (sqs)
 import Network.HTTP.Client (Manager, HttpException (..), HttpExceptionContent (..))
 import Network.HTTP.Types
 import System.Logger.Class
+import Util.Options
 
 import qualified Control.Monad.Trans.AWS as AWST
 import qualified Data.HashMap.Strict     as Map
@@ -92,11 +94,12 @@ import qualified Network.TLS             as TLS
 import qualified System.Logger           as Logger
 
 data Error where
-    EndpointNotFound :: EndpointArn -> Error
-    NoEndpointArn    :: Error
-    NoToken          :: EndpointArn -> Error
-    InvalidArn       :: Text -> String -> Error
-    GeneralError     :: (Show e, AWS.AsError e) => e -> Error
+    EndpointNotFound  :: EndpointArn -> Error
+    InvalidCustomData :: EndpointArn -> Error
+    NoEndpointArn     :: Error
+    NoToken           :: EndpointArn -> Error
+    InvalidArn        :: Text -> String -> Error
+    GeneralError      :: (Show e, AWS.AsError e) => e -> Error
 
 deriving instance Show     Error
 deriving instance Typeable Error
@@ -112,14 +115,14 @@ data Env = Env
     , _account    :: !Account
     }
 
-data Endpoint = Endpoint
+data SNSEndpoint = SNSEndpoint
     { _endpointToken   :: !Push.Token
     , _endpointEnabled :: !Bool
     , _endpointUsers   :: !(Set UserId)
     } deriving Show
 
 makeLenses ''Env
-makeLenses ''Endpoint
+makeLenses ''SNSEndpoint
 
 newtype Amazon a = Amazon
     { unAmazon :: ReaderT Env (ResourceT IO) a
@@ -144,18 +147,23 @@ instance MonadBaseControl IO Amazon where
     restoreM          = Amazon . restoreM
 
 instance AWS.MonadAWS Amazon where
-    liftAWS aws = view awsEnv >>= \e -> AWS.runAWS e aws
+    liftAWS a = view awsEnv >>= \e -> AWS.runAWS e a
 
 mkEnv :: Logger -> Opts -> Manager -> IO Env
 mkEnv lgr opts mgr = do
     let g = Logger.clone (Just "aws.gundeck") lgr
-    e <- configure <$> mkAwsEnv g
-    q <- getQueueUrl e (opts^.queueName)
-    return (Env e g q (opts^.awsRegion) (opts^.awsAccount))
+    e <- mkAwsEnv g (mkEndpoint SQS.sqs (opts^.optAws.awsSqsEndpoint))
+                    (mkEndpoint SNS.sns (opts^.optAws.awsSnsEndpoint))
+    q <- getQueueUrl e (opts^.optAws.awsQueueName)
+    return (Env e g q (opts^.optAws.awsRegion) (opts^.optAws.awsAccount))
   where
-    mkAwsEnv g =  set AWS.envLogger (awsLogger g)
-               .  set AWS.envRegion (opts^.awsRegion)
-              <$> AWS.newEnvWith AWS.Discover Nothing mgr
+    mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
+    mkAwsEnv g sqs sns =  set AWS.envLogger (awsLogger g)
+                       .  set AWS.envRegion (opts^.optAws.awsRegion)
+                       .  set AWS.envRetryCheck retryCheck
+                      <$> AWS.newEnvWith AWS.Discover Nothing mgr
+                      <&> AWS.configure sqs
+                      <&> AWS.configure (sns & set AWS.serviceTimeout (Just (AWS.Seconds 5)))
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
 
@@ -172,11 +180,6 @@ mkEnv lgr opts mgr = do
     -- them, which results in distracting noise. For debugging purposes,
     -- they are still revealed on debug level.
     mapLevel AWS.Error = Logger.Debug
-
-    configure = set AWS.envRetryCheck retryCheck
-              . AWS.configure snsConfig
-
-    snsConfig = SNS.sns & set AWS.serviceTimeout (Just (AWS.Seconds 5))
 
     -- Modified version of 'AWS.retryConnectionFailure' to take into
     -- account occasional TLS handshake failures.
@@ -213,6 +216,8 @@ data CreateEndpointError
         -- ^ Endpoint exists with the same token but different attributes.
     | InvalidToken !Push.Token
         -- ^ Invalid push token.
+    | TokenTooLong !Integer
+        -- ^ Token is length is greater than 8192 for GCM, or 400 for APNS
     | AppNotFound !AppName
         -- ^ Invalid application name.
     deriving Show
@@ -227,6 +232,10 @@ updateEndpoint us tk arn = do
     res <- retrying (limitRetries 1) (const isTimeout) (const (sendCatch req))
     case res of
         Right _ -> return ()
+        Left x@(AWS.ServiceError e)
+            | is "SNS" 400 x && AWS.errorCode "InvalidParameter" == e^.serviceCode
+                             && isMetadataLengthError (e^.serviceMessage) ->
+                throwM $ InvalidCustomData arn
         Left  x -> throwM $ if is "SNS" 404 x
                                 then EndpointNotFound arn
                                 else GeneralError x
@@ -237,6 +246,13 @@ updateEndpoint us tk arn = do
 
     mkUsers = Text.intercalate ":" . map toText . Set.toList
 
+    isMetadataLengthError Nothing = False
+    isMetadataLengthError (Just s) = isRight . flip parseOnly (toText s) $ do
+        let prefix = "Invalid parameter: Attributes Reason: "
+        _ <-  string prefix
+        _ <-  string "Invalid value for attribute: CustomUserData: must be at most 2048 bytes long in UTF-8 encoding"
+        return ()
+
 deleteEndpoint :: EndpointArn -> Amazon ()
 deleteEndpoint arn = do
     res <- retrying (limitRetries 1) (const isTimeout) (const (sendCatch req))
@@ -244,7 +260,7 @@ deleteEndpoint arn = do
   where
     req = SNS.deleteEndpoint (toText arn)
 
-lookupEndpoint :: EndpointArn -> Amazon (Maybe Endpoint)
+lookupEndpoint :: EndpointArn -> Amazon (Maybe SNSEndpoint)
 lookupEndpoint arn = do
     res <- retrying (limitRetries 1) (const isTimeout) (const (sendCatch req))
     let attrs = view SNS.gearsAttributes <$> res
@@ -258,15 +274,15 @@ lookupEndpoint arn = do
         t <- maybe (throwM $ NoToken arn) return (Map.lookup "Token" a)
         let e = either (const Nothing) Just . fromText =<< Map.lookup "Enabled" a
             d = maybe Set.empty mkUsers $ Map.lookup "CustomUserData" a
-        return (Endpoint (Push.Token t) (fromMaybe False e) d)
+        return (SNSEndpoint (Push.Token t) (fromMaybe False e) d)
 
     mkUsers = Set.fromList . mapMaybe (hush . fromText) . Text.split (== ':')
 
 createEndpoint :: UserId -> Push.Transport -> ArnEnv -> AppName -> Push.Token -> Amazon (Either CreateEndpointError EndpointArn)
 createEndpoint u tr env app token = do
-    aws <- ask
+    aEnv <- ask
     let top = mkAppTopic env tr app
-    let arn = mkSnsArn (aws^.region) (aws^.account) top
+    let arn = mkSnsArn (aEnv^.region) (aEnv^.account) top
     let tkn = Push.tokenText token
     let req = SNS.createPlatformEndpoint (toText arn) tkn
             & set SNS.cpeCustomUserData (Just (toText u))
@@ -282,6 +298,9 @@ createEndpoint u tr env app token = do
             , Just ep <- parseExistsError (e^.serviceMessage) ->
                 return (Left (EndpointInUse ep))
             | is "SNS" 400 x && AWS.errorCode "InvalidParameter" == e^.serviceCode
+                             && isLengthError (e^.serviceMessage) ->
+                return (Left (TokenTooLong $ tokenLength token))
+            | is "SNS" 400 x && AWS.errorCode "InvalidParameter" == e^.serviceCode
                              && isTokenError (e^.serviceMessage) ->
                 return (Left (InvalidToken token))
             | is "SNS" 404 x ->
@@ -292,6 +311,8 @@ createEndpoint u tr env app token = do
         Left x -> throwM (GeneralError x)
   where
     readArn r = either (throwM . InvalidArn r) return (fromText r)
+
+    tokenLength = toInteger . Text.length . Push.tokenText
 
     -- Thank you Amazon for not having granular error codes!
     parseExistsError Nothing  = Nothing
@@ -304,6 +325,14 @@ createEndpoint u tr env app token = do
     isTokenError Nothing  = False
     isTokenError (Just s) = isRight . flip parseOnly (toText s) $ do
         _ <- string "Invalid parameter: Token"
+        return ()
+
+    isLengthError Nothing = False
+    isLengthError (Just s) = isRight . flip parseOnly (toText s) $ do
+        let prefix = "Invalid parameter: Token Reason: "
+        _ <-  string prefix
+        _ <-  string "must be at most 8192 bytes long in UTF-8 encoding"
+          <|> string "iOS device tokens must be no more than 400 hexadecimal characters"
         return ()
 
 --------------------------------------------------------------------------------

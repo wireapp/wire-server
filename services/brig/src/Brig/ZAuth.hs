@@ -1,6 +1,8 @@
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE OverloadedStrings          #-}
 
 -- | 'zauth' token signing and verification.
 module Brig.ZAuth
@@ -62,6 +64,7 @@ module Brig.ZAuth
 import Control.Lens ((^.), makeLenses, over)
 import Control.Monad.IO.Class
 import Control.Monad.Reader
+import Data.Aeson
 import Data.Bits
 import Data.ByteString.Conversion.To
 import Data.Id
@@ -70,6 +73,7 @@ import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Data.Word
 import Data.ZAuth.Token
+import GHC.Generics
 import OpenSSL.Random
 import Sodium.Crypto.Sign
 
@@ -96,7 +100,7 @@ data Settings = Settings
     , _sessionTokenTimeout  :: !SessionTokenTimeout
     , _accessTokenTimeout   :: !AccessTokenTimeout
     , _providerTokenTimeout :: !ProviderTokenTimeout
-    }
+    } deriving (Show, Generic)
 
 defSettings :: Settings
 defSettings = Settings 1
@@ -118,15 +122,33 @@ type BotToken      = Token Bot
 
 newtype UserTokenTimeout = UserTokenTimeout
     { userTokenTimeoutSeconds :: Integer }
+    deriving (Show, Generic)
 
 newtype SessionTokenTimeout = SessionTokenTimeout
     { sessionTokenTimeoutSeconds :: Integer }
+    deriving (Show, Generic)
 
 newtype AccessTokenTimeout = AccessTokenTimeout
     { accessTokenTimeoutSeconds :: Integer }
+    deriving (Show, Generic)
 
 newtype ProviderTokenTimeout = ProviderTokenTimeout
     { providerTokenTimeoutSeconds :: Integer }
+    deriving (Show, Generic)
+
+instance FromJSON UserTokenTimeout
+instance FromJSON SessionTokenTimeout
+instance FromJSON AccessTokenTimeout
+instance FromJSON ProviderTokenTimeout
+
+instance FromJSON Settings where
+  parseJSON = withObject "ZAuth.Settings" $ \o ->
+    Settings <$>
+    o .: "keyIndex" <*>
+    (UserTokenTimeout <$> o .: "userTokenTimeout") <*>
+    (SessionTokenTimeout <$> o .: "sessionTokenTimeout") <*>
+    (AccessTokenTimeout <$> o .: "accessTokenTimeout") <*>
+    (ProviderTokenTimeout <$> o .: "providerTokenTimeout")
 
 makeLenses ''Settings
 makeLenses ''Env

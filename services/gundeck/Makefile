@@ -4,15 +4,15 @@ VERSION       ?=
 BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-EXE_IT        := dist/$(NAME)-integration
-EXE_TESTS     := dist/$(NAME)-tests
-EXE_BENCH     := dist/$(NAME)-bench
-EXE_SCHEMA    := dist/$(NAME)-schema
+EXE_IT        := ../../dist/$(NAME)-integration
+EXE_TESTS     := ../../dist/$(NAME)-tests
+EXE_BENCH     := ../../dist/$(NAME)-bench
+EXE_SCHEMA    := ../../dist/$(NAME)-schema
 DEB           := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_IT        := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 SDIST         := dist/$(NAME)-$(VERSION).tar.gz
-KEIRETSU_ENV  ?= ../.env
+EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -20,26 +20,30 @@ guard-%:
 	    exit 1; \
 	fi
 
-default: clean install
+default: fast
 
 .PHONY: init
 init:
-	mkdir -p dist
+	mkdir -p dist ../../dist
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
-	cp "$(shell stack path --dist-dir)/build/$(NAME)-integration/$(NAME)-integration" dist/
-	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" dist/
-	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" dist/
+	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" ../../dist/
+	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" ../../dist/
+
+.PHONY: fast
+fast: init
+	stack install . --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" ../../dist/
 
 .PHONY: compile
 compile:
-	stack build --pedantic --test --bench --no-run-benchmarks --no-copy-bins
+	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: clean
 clean:
-	stack clean
+	stack clean gundeck
 	-rm -rf dist
 	-rm -f .metadata
 
@@ -82,16 +86,30 @@ bench: install
 	mkdir -p dist/bench
 	$(EXE_BENCH) --output dist/bench/result.html
 
+.PHONY: i
+i:
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
+
+.PHONY: i-list
+i-list:
+	$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
+
+i-%:
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
+
+i-fake-aws:
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "!/RealAWS/"
+
 .PHONY: integration
-integration: install
-	LOG_LEVEL=Info keiretsu --run $(EXE_IT) --delay 2000 --env $(KEIRETSU_ENV)
+integration: fast i
 
 .PHONY: integration-list
-integration-list: install
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) -l; sleep 1' --env $(KEIRETSU_ENV)
+integration-list: fast i-list
 
-integration-%: install
-	LOG_LEVEL=Info keiretsu --run '$(EXE_IT) --pattern="$*"; sleep 1' --env $(KEIRETSU_ENV)
+integration-%: fast
+	make i-"$*"
+
+integration-fake-aws: fast i-fake-aws
 
 .PHONY: db
 db: db-reset
@@ -103,3 +121,20 @@ db-reset: install
 .PHONY: db-migrate
 db-migrate: install
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1
+
+.PHONY: docker
+docker:
+	$(foreach executable,$(EXECUTABLES),\
+	docker build -t $(executable) \
+	-f ../../build/alpine/Dockerfile \
+	--build-arg service=$(NAME) \
+	--build-arg executable=$(executable) \
+	../.. \
+	;)
+
+.PHONY: time
+time: clean
+	-rm -f .stack-work/logs/*
+	stack build . --pedantic --no-run-benchmarks --no-copy-bins --ghc-options="-j +RTS -s -RTS"
+	@echo -e "\nTotal wall-clock times taken to compile each module (see logs for more detail):"
+	@grep Total .stack-work/logs/* | tr -s ' ' | awk -F' ' '{gsub(/s$$/, "", $$6); a[$$1] += $$6}END{for (i in a) {m=gensub(/^.*\/logs\//,"",1,i); m=gensub(/-[0-9].*\.log/,"",1,m); print m, a[i] ++ "s"}}' | sort -grk2

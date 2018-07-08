@@ -1,1 +1,0 @@
-${inviter} has invited you to join the ${team} team on Wire

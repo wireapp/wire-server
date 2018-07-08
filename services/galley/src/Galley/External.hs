@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Galley.External (deliver) where
 
@@ -37,9 +38,8 @@ deliver :: [(BotMember, Event)] -> Galley [BotMember]
 deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where
     exec :: (BotMember, Event) -> Galley Bool
-    exec (b, e) = do
-        ms <- Data.lookupService (botMemService b)
-        case ms of
+    exec (b, e) =
+        Data.lookupService (botMemService b) >>= \case
             Nothing -> return False
             Just  s -> do
                 deliver1 s b e
@@ -96,8 +96,8 @@ deliver1 s bm e
         let HttpsUrl url = u
         recovering x3 httpHandlers $ const $
             sendMessage (s^.serviceFingerprints) $ method POST
-                . maybe   id host (urlHost u)
-                . maybe   id port (urlPort u)
+                . maybe   id         host (urlHost u)
+                . maybe   (port 443) port (urlPort u)
                 . paths   [url^.pathL, "bots", toByteString' b, "messages"]
                 . header  "Authorization" ("Bearer " <> t)
                 . json    e

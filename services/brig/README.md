@@ -1,7 +1,7 @@
 ## Brig
 
-The main vessel of the server fleet with a dedicated [gundeck](https://github.com/wire-server/services/gundeck/)
-carrying the [cannons](https://github.com/wire-server/services/cannon/).
+The main vessel of the server fleet with a dedicated [gundeck](https://github.com/wireapp/wire-server/tree/develop/services/gundeck)
+carrying the [cannons](https://github.com/wireapp/wire-server/tree/develop/services/cannon).
 
 ## Table of Contents
 

@@ -1,10 +1,13 @@
-resolver: lts-8.13
+resolver: lts-10.3
 
 packages:
+- libs/api-bot
+- libs/api-client
 - libs/bilge
 - libs/brig-types
 - libs/cargohold-types
 - libs/cassandra-util
+- libs/extended
 - libs/galley-types
 - libs/gundeck-types
 - libs/http-client-openssl-ext
@@ -15,10 +18,12 @@ packages:
 - libs/sodium-crypto-sign
 - libs/tasty-cannon
 - libs/types-common
+- libs/types-common-aws
 - libs/types-common-journal
 - libs/wai-utilities
 - libs/zauth
 - services/brig
+- services/spar
 - services/cannon
 - services/cargohold
 - services/galley
@@ -26,9 +31,10 @@ packages:
 - services/proxy
 - tools/bonanza
 - tools/makedeb
+- tools/api-simulations
 - location:
     git: https://github.com/tiago-loureiro/haskell-multihash.git
-    commit: 10a0d7d765d87fa937fafa42ee7a45f871c9758e
+    commit: 7622cfcff97fa1e207ec91bb11495a207e6c0195
   extra-dep: true
 - location:
     git: https://github.com/wireapp/cryptobox-haskell
@@ -38,20 +44,57 @@ packages:
     git: https://github.com/kim/hs-collectd
     commit: '0.0.0.2'
   extra-dep: true
+- location:
+    git: https://github.com/kim/snappy-framing
+    commit: d99f702c0086729efd6848dea8a01e5266c3a61c
+  extra-dep: true
+- location:
+    git: https://github.com/tiago-loureiro/aws
+    commit: bade13d1f73ed82c2b3eafda0bcb16d283da909e
+  extra-dep: true
+- location:
+    git: https://gitlab.com/twittner/wai-routing
+    commit: 7e996a93fec5901767f845a50316b3c18e51a61d
+  extra-dep: true
+- location:
+    # the version on Haskage (0.9.0.2) deadlocks;
+    # see https://github.com/jwiegley/async-pool/issues/2
+    git: https://github.com/jwiegley/async-pool
+    commit: 5678c13c4ec7d96a55622f7171f8e6a6bb3a3947
+  extra-dep: true
+
+# services/spar:
+- location:
+    git: https://github.com/wireapp/saml2-web-sso
+    commit: f859bbb8b454b79387057bb0fce026737135b1c5
+  extra-dep: true
+- location:
+    git: https://github.com/wireapp/hsaml2
+    commit: 8a91c880740232dbd52ff73efb99ea179c2338c7
+  extra-dep: true
+- location:
+    git: https://github.com/wireapp/hspec-wai
+    commit: ca10d13deab929f1cc3a569abea2e7fbe35fdbe3  # https://github.com/hspec/hspec-wai/pull/49
+  extra-dep: true
+- location:
+    git: https://github.com/wireapp/servant-multipart
+    commit: a5f0b9ce508f9d4c28a41d2b856387a7db281577  # https://github.com/haskell-servant/servant-multipart/pull/17
+  extra-dep: true
 
 extra-deps:
-- aws-0.16
 - base58-bytestring-0.1.0
-- bloodhound-0.13.0.0
+- currency-codes-2.0.0.0
 - data-timeout-0.3
-- geoip2-0.2.2.0
+- geoip2-0.3.1.0
 - html-entities-1.1.4.1
 - mime-0.4.0.2
 - snappy-0.2.0.2
-- snappy-framing-0.1.1
+- tasty-1.0.0.1
 - text-icu-translit-0.1.0.7
 - wai-middleware-gunzip-0.0.2
-- websockets-0.11.2.0
+- HsOpenSSL-0.11.4.12
+- invertible-hxt-0.1  # for hsaml2 / spar
+- swagger2-2.2.1  # to get 'fromAesonOptions'
 
 flags:
   types-common:
@@ -60,4 +103,3 @@ flags:
     arbitrary: True
 
 extra-package-dbs: []
-

@@ -5,7 +5,8 @@
 
 module Galley.Data.Queries where
 
-import Cassandra
+import Brig.Types.Code
+import Cassandra hiding (Value)
 import Cassandra.Util
 import Data.Functor.Identity
 import Data.Id
@@ -13,6 +14,7 @@ import Data.Int
 import Data.Misc
 import Data.Monoid
 import Data.Text (Text)
+import Galley.Data.Types
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot
 import Galley.Types.Teams
@@ -25,8 +27,14 @@ import qualified Data.Text.Lazy as LT
 selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Text, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding)
 selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(status), binding from team where team = ?"
 
+selectTeamName :: PrepQuery R (Identity TeamId) (Identity Text)
+selectTeamName = "select name from team where team = ?"
+
 selectTeamBinding :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamBinding))
 selectTeamBinding = "select binding from team where team = ?"
+
+selectTeamBindingWritetime :: PrepQuery R (Identity TeamId) (Identity (Maybe Int64))
+selectTeamBindingWritetime = "select writetime(binding) from team where team = ?"
 
 selectTeamConv :: PrepQuery R (TeamId, ConvId) (Identity Bool)
 selectTeamConv = "select managed from team_conv where team = ? and conv = ?"
@@ -96,17 +104,23 @@ updateTeamStatus = "update team set status = ? where team = ?"
 
 -- Conversations ------------------------------------------------------------
 
-selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (Set Access), Maybe Text, Maybe TeamId, Maybe Bool)
-selectConv = "select type, creator, access, name, team, deleted from conversation where conv = ?"
+selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds)
+selectConv = "select type, creator, access, access_role, name, team, deleted, message_timer from conversation where conv = ?"
 
-selectConvs :: PrepQuery R (Identity [ConvId]) (ConvId, ConvType, UserId, Maybe (Set Access), Maybe Text, Maybe TeamId, Maybe Bool)
-selectConvs = "select conv, type, creator, access, name, team, deleted from conversation where conv in ?"
+selectConvs :: PrepQuery R (Identity [ConvId]) (ConvId, ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds)
+selectConvs = "select conv, type, creator, access, access_role, name, team, deleted, message_timer from conversation where conv in ?"
 
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
-insertConv :: PrepQuery W (ConvId, ConvType, UserId, Set Access, Maybe Text, Maybe TeamId) ()
-insertConv = "insert into conversation (conv, type, creator, access, name, team) values (?, ?, ?, ?, ?, ?)"
+insertConv :: PrepQuery W (ConvId, ConvType, UserId, Set Access, AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds) ()
+insertConv = "insert into conversation (conv, type, creator, access, access_role, name, team, message_timer) values (?, ?, ?, ?, ?, ?, ?, ?)"
+
+updateConvAccess :: PrepQuery W (Set Access, AccessRole, ConvId) ()
+updateConvAccess = "update conversation set access = ?, access_role = ? where conv = ?"
+
+updateConvMessageTimer :: PrepQuery W (Maybe Milliseconds, ConvId) ()
+updateConvMessageTimer = "update conversation set message_timer = ? where conv = ?"
 
 updateConvName :: PrepQuery W (Text, ConvId) ()
 updateConvName = "update conversation set name = ? where conv = ?"
@@ -119,6 +133,17 @@ deleteConv = "delete from conversation using timestamp 32503680000000000 where c
 
 markConvDeleted :: PrepQuery W (Identity ConvId) ()
 markConvDeleted = "update conversation set deleted = true where conv = ?"
+
+-- Conversations accessible by code -----------------------------------------
+
+insertCode :: PrepQuery W (Key, Value, ConvId, Scope, Int32) ()
+insertCode = "INSERT INTO conversation_codes (key, value, conversation, scope) VALUES (?, ?, ?, ?) USING TTL ?"
+
+lookupCode :: PrepQuery R (Key, Scope) (Value, Int32, ConvId)
+lookupCode = "SELECT value, ttl(value), conversation FROM conversation_codes WHERE key = ? AND scope = ?"
+
+deleteCode :: PrepQuery W (Key, Scope) ()
+deleteCode = "DELETE FROM conversation_codes WHERE key = ? AND scope = ?"
 
 -- User Conversations -------------------------------------------------------
 
@@ -195,4 +220,3 @@ selectSrv = "select base_url, auth_token, fingerprints, enabled from service whe
 
 insertBot :: PrepQuery W (ConvId, BotId, ServiceId, ProviderId) ()
 insertBot = "insert into member (conv, user, service, provider, status) values (?, ?, ?, ?, 0)"
-
