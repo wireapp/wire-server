@@ -249,7 +249,6 @@ spec = do
         let check :: Bool -> Int -> SpecWith TestEnv
             check tryowner permsix =
               it ("works: tryowner == " <> show (tryowner, permsix)) $ do
-                unless tryowner pending
                 env <- ask
                 (owner, tid, _idp) <- createTestIdP
                 newmember <- call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid (permses !! permsix)
