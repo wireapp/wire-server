@@ -175,7 +175,6 @@ spec = do
       context "no zuser" $ do
         it "responds with 'not found'" $ do
           env <- ask
-          pending
           callIdpCreate' (env ^. teSpar) Nothing (env ^. teNewIdp)
             `shouldRespondWith` check (== 404) "not-found"
 
@@ -183,7 +182,6 @@ spec = do
         it "responds with 'not found'" $ do
           env <- ask
           (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
-          pending
           callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdp)
             `shouldRespondWith` check (== 404) "not-found"
 
@@ -193,7 +191,6 @@ spec = do
           (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           newmember <- let Just perms = Galley.newPermissions mempty mempty
                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-          pending
           callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdp)
             `shouldRespondWith` check (== 403) "forbidden"
 
