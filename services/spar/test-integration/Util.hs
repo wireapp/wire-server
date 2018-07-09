@@ -121,7 +121,7 @@ pendingWith = liftIO . Test.Hspec.pendingWith
 createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
 createUserWithTeam brg gly = do
     e <- randomEmail
-    n <- pure ("randomName" :: String)  -- TODO!
+    n <- UUID.toString <$> liftIO UUID.nextRandom
     let p = RequestBodyLBS . encode $ object
             [ "name"            .= n
             , "email"           .= Brig.fromEmail e
@@ -226,7 +226,7 @@ randomPhone = liftIO $ do
 
 randomUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m Brig.User
 randomUser brig_ = do
-    let n = "randomName"  -- TODO: see above
+    n <- cs . UUID.toString <$> liftIO UUID.nextRandom
     createUser n "success@simulator.amazonses.com" brig_
 
 createUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
