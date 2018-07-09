@@ -54,9 +54,9 @@ unconditionallyServeFile filepath _req cont = cont . responseLBS status200 [] =<
 
 endpointToSettings :: Endpoint -> Warp.Settings
 endpointToSettings endpoint = Warp.defaultSettings { Warp.settingsHost = host, Warp.settingsPort = port }
-        where
-          host :: Warp.HostPreference = Data.String.fromString . cs $ endpoint ^. epHost
-          port :: Int = fromIntegral $ endpoint ^. epPort
+  where
+    host :: Warp.HostPreference = Data.String.fromString . cs $ endpoint ^. epHost
+    port :: Int = fromIntegral $ endpoint ^. epPort
 
 endpointToURL :: MonadIO m => Endpoint -> m URI
 endpointToURL endpoint = either err pure $ parseURI' urlst

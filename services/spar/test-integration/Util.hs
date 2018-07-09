@@ -313,7 +313,7 @@ createTestIdP = do
     (uid, tid) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
     (uid, tid,) . (^. SAML.idpId) <$> callIdpCreate (env ^. teSpar) (Just uid) sampleIdP
 
-unsafeMkHttpsUrl :: URI -> HttpsUrl
+unsafeMkHttpsUrl :: HasCallStack => URI -> HttpsUrl
 unsafeMkHttpsUrl = either (error . show) id . mkHttpsUrl
 
 sampleIdP :: HasCallStack => NewIdP
