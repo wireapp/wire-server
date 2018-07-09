@@ -12,17 +12,13 @@ module Gundeck.Notification.Data
     , deleteAll
     ) where
 
+import Imports hiding (Set)
 import Cassandra
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently, Forall, Pure)
-import Control.Lens ((&), (^.), _1)
-import Control.Monad.Identity
+import Control.Lens ((^.), _1)
 import Control.Monad.Trans.Control
-import Data.Bool (bool)
-import Data.Foldable (toList, foldr')
 import Data.Id
-import Data.Int
 import Data.List1 (List1)
-import Data.Maybe (listToMaybe, isJust)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, (><), (<|), ViewL (..), ViewR (..))
 import Gundeck.Types.Notification

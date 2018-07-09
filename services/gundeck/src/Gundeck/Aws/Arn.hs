@@ -35,16 +35,15 @@ module Gundeck.Aws.Arn
     , endpointId
     ) where
 
-import Control.Applicative
+import Imports
 import Control.Lens
-import Data.Char
 import Data.Attoparsec.Text
-import Data.Monoid ((<>))
-import Data.Text (Text, intercalate)
 import Data.Yaml (FromJSON)
 import Gundeck.Types (AppName (..), Transport (..))
 import Network.AWS (Region (..))
 import Network.AWS.Data
+
+import qualified Data.Text as Text
 
 newtype ArnEnv     = ArnEnv  { arnEnvText  :: Text } deriving (Show, ToText, FromJSON)
 newtype Account    = Account { fromAccount :: Text } deriving (Eq, Show, ToText, FromJSON)
@@ -94,19 +93,19 @@ instance FromText EndpointTopic where
 
 mkSnsArn :: ToText topic => Region -> Account -> topic -> SnsArn topic
 mkSnsArn r a t =
-    let txt = intercalate ":" ["arn:aws:sns", toText r, toText a, toText t]
+    let txt = Text.intercalate ":" ["arn:aws:sns", toText r, toText a, toText t]
     in SnsArn txt r a t
 
 mkAppTopic :: ArnEnv -> Transport -> AppName -> AppTopic
 mkAppTopic e t n =
     let name = toText e <> "-" <> appNameText n
-        txt  = intercalate "/" ["app", arnTransportText t, name]
+        txt  = Text.intercalate "/" ["app", arnTransportText t, name]
     in AppTopic txt t n
 
 mkEndpointTopic :: ArnEnv -> Transport -> AppName -> EndpointId -> EndpointTopic
 mkEndpointTopic e t n i =
     let name = toText e <> "-" <> appNameText n
-        txt  = intercalate "/" ["endpoint", arnTransportText t, name, toText i]
+        txt  = Text.intercalate "/" ["endpoint", arnTransportText t, name, toText i]
     in EndpointTopic txt t n i
 
 arnTransportText :: Transport -> Text

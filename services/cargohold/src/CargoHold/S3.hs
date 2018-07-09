@@ -41,32 +41,22 @@ module CargoHold.S3
     , getOtrMetadata
     ) where
 
+import Imports
 import Aws.Core (ResponseConsumer (..), SignQuery (..), throwStatusCodeException)
 import Aws.S3
 import CargoHold.App hiding (Handler)
-import Control.Applicative ((<|>))
 import CargoHold.API.Error
 import CargoHold.Options
 import Control.Error (ExceptT, throwE)
 import Control.Lens (view)
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Reader.Class
-import Control.Monad.Trans.Class
 import Control.Monad.Trans.Resource
 import Control.Retry
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Conduit
-import Data.Foldable (toList)
 import Data.Id
-import Data.List (foldl')
-import Data.Maybe
-import Data.Monoid ((<>))
 import Data.Sequence (Seq, ViewR (..), ViewL (..))
 import Data.Time.Clock
-import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8, decodeLatin1)
 import Network.HTTP.Client.Conduit (requestBodySource)
 import Network.HTTP.Client

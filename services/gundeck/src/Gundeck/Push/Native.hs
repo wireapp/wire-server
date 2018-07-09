@@ -7,20 +7,15 @@ module Gundeck.Push.Native
     , module Types
     ) where
 
+import Imports
 import Control.Concurrent.Async.Lifted.Safe
-import Control.Exception (SomeAsyncException)
 import Control.Exception.Enclosed (handleAny)
-import Control.Lens ((^.), view, (&), (.~))
-import Control.Monad
+import Control.Lens ((^.), view, (.~))
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Data.ByteString.Conversion.To
-import Data.Foldable (for_)
 import Data.Id
 import Data.List1
-import Data.Maybe (isJust)
 import Data.Metrics (path, counterIncr)
-import Data.Text (Text)
 import Gundeck.Env
 import Gundeck.Monad
 import Gundeck.Options

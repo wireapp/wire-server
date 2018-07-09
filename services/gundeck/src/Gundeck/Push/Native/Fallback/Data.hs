@@ -2,12 +2,9 @@
 
 module Gundeck.Push.Native.Fallback.Data where
 
+import Imports
 import Cassandra
-import Control.Lens ((&))
-import Data.Functor.Identity
 import Data.Id (UserId)
-import Data.Int (Int32)
-import Data.Maybe (isJust)
 import Gundeck.Types.Notification
 
 cancel :: MonadClient m => UserId -> NotificationId -> Int32 -> m ()

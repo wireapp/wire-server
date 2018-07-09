@@ -7,6 +7,7 @@ module CargoHold.API.Legacy
     , downloadOtr
     ) where
 
+import Imports
 import CargoHold.App
 import CargoHold.Util
 import Data.Id

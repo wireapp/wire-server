@@ -41,25 +41,17 @@ module Gundeck.Aws
     , listen
     ) where
 
+import Imports
 import Blaze.ByteString.Builder (toLazyByteString)
-import Control.Applicative
-import Control.Error hiding (err)
+import Control.Error hiding (err, isRight)
 import Control.Lens hiding ((.=))
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.Reader
 import Control.Monad.Trans.Resource
 import Control.Monad.IO.Unlift
 import Control.Retry (retrying, limitRetries)
 import Data.Aeson (decodeStrict)
 import Data.Attoparsec.Text
-import Data.Foldable (for_)
-import Data.HashMap.Strict (HashMap)
 import Data.Id
-import Data.Monoid
-import Data.Set (Set)
-import Data.Text (Text)
-import Data.Typeable
 import Gundeck.Aws.Arn
 import Gundeck.Aws.Sns (Event, evType, evEndpoint)
 import Gundeck.Instances ()
@@ -477,4 +469,3 @@ isTimeout (Right _) = pure False
 isTimeout (Left  e) = case e of
     AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
     _                                                           -> pure False
-

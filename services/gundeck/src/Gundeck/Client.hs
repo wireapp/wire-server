@@ -9,12 +9,11 @@ module Gundeck.Client
     , removeUser
     ) where
 
+import Imports
 import Control.Concurrent.Async.Lifted.Safe
 import Control.Lens (view, (^.), set)
-import Control.Monad
 import Control.Monad.Catch
 import Data.Id
-import Data.Maybe (isNothing)
 import Data.Predicate
 import Gundeck.Monad
 import Gundeck.Push.Native

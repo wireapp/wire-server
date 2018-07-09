@@ -6,12 +6,11 @@ module Gundeck.Push.Native.Serialise
     , maxPayloadSize
     ) where
 
+import Imports
 import Control.Lens ((^.), (^?), _Just)
 import Data.Aeson (object, (.=), Value, encode)
 import Data.Aeson.Text (encodeToTextBuilder)
-import Data.Int (Int64)
 import Data.Json.Util
-import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Gundeck.Push.Native.Crypto
 import Gundeck.Push.Native.Types
