@@ -104,22 +104,23 @@ spec = do
           pending
 
 
-    let testGetOrDelete :: (Eq a, Show a)
-                        => (SparReq -> Maybe UserId -> IdPId -> Http (Bilge.Response a))
-                        -> SpecWith TestEnv
+    let checkErr :: (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
+        checkErr statusIs label resp = statusIs (statusCode resp) && responseJSON resp == Right label
+
+        testGetOrDelete :: (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
         testGetOrDelete whichone = do
           context "unknown IdP" $ do
             it "responds with 'not found'" $ do
               env <- ask
               whichone (env ^. teSpar) Nothing (IdPId UUID.nil)
-                `shouldRespondWith` ((== 404) . statusCode)
+                `shouldRespondWith` checkErr (== 404) "not-found"
 
           context "no zuser" $ do
             it "responds with 'not found'" $ do
               env <- ask
               (_, _, idp) <- createTestIdP
               whichone (env ^. teSpar) Nothing idp
-                `shouldRespondWith` ((== 404) . statusCode)
+                `shouldRespondWith` checkErr (== 404) "not-found"
 
           context "zuser has no team" $ do
             it "responds with 'not found'" $ do
@@ -127,7 +128,7 @@ spec = do
               (_, _, idp) <- createTestIdP
               (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
               whichone (env ^. teSpar) (Just uid) idp
-                `shouldRespondWith` ((== 404) . statusCode)
+                `shouldRespondWith` checkErr (== 404) "not-found"
 
           context "zuser has wrong team" $ do
             it "responds with 'not found'" $ do
@@ -135,7 +136,7 @@ spec = do
               (_, _, idp) <- createTestIdP
               (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
               whichone (env ^. teSpar) (Just uid) idp
-                `shouldRespondWith` ((== 404) . statusCode)
+                `shouldRespondWith` checkErr (== 404) "not-found"
 
           context "zuser is a team member, but not a team owner" $ do
             it "responds with 'forbidden' and a helpful message" $ do
@@ -144,7 +145,7 @@ spec = do
               newmember <- let Just perms = Galley.newPermissions mempty mempty
                         in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
               whichone (env ^. teSpar) (Just newmember) idp
-                `shouldRespondWith` ((== 403)  . statusCode)
+                `shouldRespondWith` checkErr (== 403) "forbidden"
 
     describe "GET /identity-providers/:idp" $ do
       testGetOrDelete callIdpGet'
@@ -166,24 +167,21 @@ spec = do
           callIdpDelete' (env ^. teSpar) (Just uid) idp
             `shouldRespondWith` \resp -> statusCode resp < 300
           callIdpGet' (env ^. teSpar) (Just uid) idp
-            `shouldRespondWith` ((== 404) . statusCode)
+            `shouldRespondWith` checkErr (== 404) "not-found"
 
     describe "POST /identity-providers/:idp" $ do
-      let check :: (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
-          check statusIs label resp = statusIs (statusCode resp) && responseJSON resp == Right label
-
       context "no zuser" $ do
         it "responds with 'not found'" $ do
           env <- ask
           callIdpCreate' (env ^. teSpar) Nothing (env ^. teNewIdp)
-            `shouldRespondWith` check (== 404) "not-found"
+            `shouldRespondWith` checkErr (== 404) "not-found"
 
       context "zuser has no team" $ do
         it "responds with 'not found'" $ do
           env <- ask
           (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
           callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdp)
-            `shouldRespondWith` check (== 404) "not-found"
+            `shouldRespondWith` checkErr (== 404) "not-found"
 
       context "zuser is a team member, but not a team owner" $ do
         it "responds with 'forbidden' and a helpful message" $ do
@@ -192,7 +190,7 @@ spec = do
           newmember <- let Just perms = Galley.newPermissions mempty mempty
                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
           callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdp)
-            `shouldRespondWith` check (== 403) "forbidden"
+            `shouldRespondWith` checkErr (== 403) "forbidden"
 
       context "invalid metainfo url or bad answer" $ do
         it "rejects" $ do
@@ -201,7 +199,7 @@ spec = do
           let newidp = (env ^. teNewIdp) & nidpMetadata .~ unsafeMkHttpsUrl [uri|https://www.example.com/|]
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
-            `shouldRespondWith` check (== 400) "client-error"
+            `shouldRespondWith` checkErr (== 400) "client-error"
 
       context "invalid metainfo signature (on an XML document otherwise arbitrarily off)" $ do
         it "rejects" $ do
@@ -212,7 +210,7 @@ spec = do
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           withMockIdP (unconditionallyServeFile "resources/meta-bad-sig.xml") $ do
             callIdpCreate' (env ^. teSpar) (Just uid) newIdp
-              `shouldRespondWith` check (== 400) "client-error"
+              `shouldRespondWith` checkErr (== 400) "client-error"
 
       context "invalid or unresponsive login request url" $ do
         it "rejects" $ do
@@ -221,7 +219,7 @@ spec = do
           let newidp = (env ^. teNewIdp) & nidpRequestUri .~ unsafeMkHttpsUrl [uri|https://www.example.com/|]
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
-            `shouldRespondWith` check (== 400) "client-error"
+            `shouldRespondWith` checkErr (== 400) "client-error"
 
       context "pubkey in IdPConfig does not match the one provided in metainfo url" $ do
         it "rejects" $ do
@@ -230,7 +228,7 @@ spec = do
           let newidp = (env ^. teNewIdp) & nidpPublicKey .~ samplePublicKey2
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
-            `shouldRespondWith` check (== 400) "client-error"
+            `shouldRespondWith` checkErr (== 400) "client-error"
 
       context "everything in order" $ do
         it "responds with 2xx" $ do
