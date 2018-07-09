@@ -138,10 +138,23 @@ createUserWithTeam brg gly = do
           $ pure ()
     return (uid, tid)
 
+-- | NB: this does create an SSO UserRef on brig, but not on spar.  this is inconsistent, but the
+-- inconsistency does not affect the tests we're running with this.  to resolve it, we could add an
+-- internal end-point to spar that allows us to create users without idp response verification.
 createTeamMember :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
                  => BrigReq -> GalleyReq -> TeamId -> Galley.Permissions -> m UserId
 createTeamMember brigreq galleyreq teamid perms = do
-  (nobody :: UserId, _) <- createRandomPhoneUser brigreq
+  let randomtxt = liftIO $ UUID.toText <$> UUID.nextRandom
+      randomssoid = Brig.UserSSOId <$> randomtxt <*> randomtxt
+  name  <- randomtxt
+  ssoid <- randomssoid
+  resp :: ResponseLBS
+    <- postUser name Nothing (Just ssoid) (Just teamid) brigreq
+       <!! const 201 === statusCode
+  nobody :: UserId
+    <- maybe (throwM $ ErrorCall "createTeamMember: failed to parse response")
+             (pure . Brig.userId)
+             (decodeBody @Brig.User resp)
   let tmem :: Galley.TeamMember = Galley.newTeamMember nobody perms
   addTeamMember galleyreq teamid (Galley.newNewTeamMember tmem)
   pure nobody
