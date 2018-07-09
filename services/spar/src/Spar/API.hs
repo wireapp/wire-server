@@ -1,7 +1,9 @@
+{-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PackageImports             #-}
@@ -26,10 +28,12 @@ module Spar.API
   , IdpDelete
   ) where
 
+import Bilge
+import Control.Exception
 import Control.Monad.Except
 import Data.Maybe (isJust, fromJust)
 import Data.Proxy
-import Data.String.Conversions (ST)
+import Data.String.Conversions
 import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
@@ -48,9 +52,11 @@ import Web.Cookie (SetCookie)
 import qualified Brig.Types.User as Brig
 import qualified Data.Id as Brig
 import qualified SAML2.WebSSO as SAML
+import qualified Text.XML.Util as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Brig
 import qualified URI.ByteString as URI
+import qualified Network.HTTP.Client as Rq
 
 
 -- FUTUREWORK: use servant-generic?
@@ -113,7 +119,7 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 idpCreate :: ( SAML.SP m, SAML.SPStoreIdP SparError m, SAML.ConfigExtra m ~ Brig.TeamId
-             , MonadError SparError m
+             , MonadError SparError m, MonadValidateIdP m
              , Brig.MonadSparToBrig m
              )
           => ZUsr -> NewIdP -> m IdP
@@ -157,12 +163,34 @@ initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idp
   _idpId <- SAML.IdPId <$> SAML.createUUID
   pure SAML.IdPConfig {..}
 
-validateNewIdP :: (MonadError SparError m) => NewIdP -> m ()
-validateNewIdP _idp = pure ()
--- TODO:
--- [aesonQQ|{"error":"not a SAML metainfo URL"}|]
--- [aesonQQ|{"error":"invalid or unresponsive request URL"}|]
--- [aesonQQ|{"error":"public keys in request body and metainfo do not match"}|]
+
+type MonadValidateIdP m = (MonadHttp m, MonadIO m)
+
+validateNewIdP :: forall m. (HasCallStack, MonadError SparError m, MonadValidateIdP m)
+               => NewIdP -> m ()
+validateNewIdP newidp = do
+  let uri2req :: URI.URI -> m Request
+      uri2req = either (throwError . _) pure . Rq.parseRequest . cs . SAML.renderURI
+
+      fetch :: URI.URI -> (Request -> Request) -> m (Rq.Response (Maybe LBS))
+      fetch uri modify = do
+        req <- uri2req uri
+        tweakleft (httpLbs req modify)
+
+      tweakleft :: Http a -> m a
+      tweakleft = _
+
+  metaRaw :: Rq.Response (Maybe LBS)
+    <- fetch (newidp ^. nidpMetadata) (method GET . expect2xx)
+  when ((error "verify signature") (newidp ^. nidpPublicKey) metaRaw) $
+    throwSpar SparNewIdPBadMetaSig
+  meta :: SAML.EntityDescriptor
+    <- either (throwSpar . SparNewIdPBadMetaUrl . cs . show @SomeException) pure
+       $ (error "parse metadata (saml2-web-sso)") metaRaw
+  _respRaw :: Rq.Response (Maybe LBS)
+    <- fetch (newidp ^. nidpRequestUri) (method GET . expect2xx)
+  when (meta ^. (error "public key from metadata") /= newidp ^. nidpPublicKey) $
+    throwSpar SparNewIdPPubkeyMismatch
 
 
 -- | Type families to convert spar's 'API' type into an "outside-world-view" API type
