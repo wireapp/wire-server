@@ -22,7 +22,6 @@ import Data.UUID as UUID hiding (null, fromByteString)
 import Lens.Micro
 import SAML2.WebSSO as SAML
 import Spar.Types
-import URI.ByteString.QQ
 import Util
 
 import qualified Brig.Types.User as Brig
@@ -192,43 +191,43 @@ spec = do
           callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdp)
             `shouldRespondWith` checkErr (== 403) "forbidden"
 
-      context "invalid metainfo url or bad answer" $ do
-        it "rejects" $ do
-          pending
-          env <- ask
-          let newidp = (env ^. teNewIdp) & nidpMetadata .~ [uri|https://www.example.com/|]
-          (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          callIdpCreate' (env ^. teSpar) (Just uid) newidp
-            `shouldRespondWith` checkErr (== 400) "client-error"
+      let createIdpMockErr :: (NewIdP -> NewIdP) -> FilePath -> FilePath -> ReaderT TestEnv IO ()
+          createIdpMockErr modnewidp metafile respfile = do
+            env <- ask
+            metaurl <- endpointToURL (env ^. teMockIdp) "meta"
+            respurl <- endpointToURL (env ^. teMockIdp) "resp"
+            let newidp = (env ^. teNewIdp)
+                  & nidpMetadata   .~ metaurl
+                  & nidpRequestUri .~ respurl
+                  & modnewidp
+            (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            withMockIdP (serveMetaAndResp metafile respfile) $ do
+              callIdpCreate' (env ^. teSpar) (Just uid) newidp
+                `shouldRespondWith` checkErr (== 400) "client-error"
+
+      context "bad metainfo answer" $ do
+        it "rejects" $ createIdpMockErr
+          id
+          "meta-bad.xml"
+          "resp-good.xml"
 
       context "invalid metainfo signature (on an XML document otherwise arbitrarily off)" $ do
-        it "rejects" $ do
-          pending
-          env <- ask
-          newIdpMetaUrl <- endpointToURL (env ^. teMockIdp)
-          let newIdp = (env ^. teNewIdp) & nidpMetadata .~ newIdpMetaUrl
-          (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          withMockIdP (unconditionallyServeFile "resources/meta-bad-sig.xml") $ do
-            callIdpCreate' (env ^. teSpar) (Just uid) newIdp
-              `shouldRespondWith` checkErr (== 400) "client-error"
+        it "rejects" $ createIdpMockErr
+          id
+          "meta-bad-sig.xml"
+          "resp-good.xml"
 
       context "invalid or unresponsive login request url" $ do
-        it "rejects" $ do
-          pending
-          env <- ask
-          let newidp = (env ^. teNewIdp) & nidpRequestUri .~ [uri|https://www.example.com/|]
-          (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          callIdpCreate' (env ^. teSpar) (Just uid) newidp
-            `shouldRespondWith` checkErr (== 400) "client-error"
+        it "rejects" $ createIdpMockErr
+          id
+          "meta-good-sig.xml"
+          "resp-bad.xml"
 
       context "pubkey in IdPConfig does not match the one provided in metainfo url" $ do
-        it "rejects" $ do
-          pending
-          env <- ask
-          let newidp = (env ^. teNewIdp) & nidpPublicKey .~ samplePublicKey2
-          (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          callIdpCreate' (env ^. teSpar) (Just uid) newidp
-            `shouldRespondWith` checkErr (== 400) "client-error"
+        it "rejects" $ createIdpMockErr
+          (nidpPublicKey .~ samplePublicKey2)
+          "meta-good-sig.xml"
+          "resp-good.xml"
 
       context "everything in order" $ do
         it "responds with 2xx" $ do

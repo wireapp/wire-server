@@ -24,10 +24,16 @@ data SparCustomError
   = SparNotFound
   | SparNotInTeam
   | SparNotTeamOwner
+
   | SparNoBodyInBrigResponse
   | SparCouldNotParseBrigResponse
   | SparCouldNotRetrieveCookie
   | SparCassandraError LT
+
+  | SparNewIdPBadMetaUrl LT
+  | SparNewIdPBadMetaSig
+  | SparNewIdPBadReqUrl LT
+  | SparNewIdPPubkeyMismatch
   deriving (Eq, Show)
 
 instance ToJSON SparError where
@@ -55,3 +61,7 @@ sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)      = Wai.Error stat
 sparToWaiError (SAML.CustomError SparCouldNotParseBrigResponse) = Wai.Error status400 "server-error" "Could not parse brig response body."
 sparToWaiError (SAML.CustomError SparCouldNotRetrieveCookie)    = Wai.Error status400 "server-error" "Brig response contained no Set-Cookie header."
 sparToWaiError (SAML.CustomError (SparCassandraError msg))      = Wai.Error status500 "server-error" ("Cassandra error: " <> msg)
+sparToWaiError (SAML.CustomError (SparNewIdPBadMetaUrl msg))    = Wai.Error status400 "client-error" ("bad or unresponsive metadata url: " <> msg)
+sparToWaiError (SAML.CustomError SparNewIdPBadMetaSig)          = Wai.Error status400 "client-error" "bad metadata signature"
+sparToWaiError (SAML.CustomError (SparNewIdPBadReqUrl msg))     = Wai.Error status400 "client-error" ("bad request url: " <> msg)
+sparToWaiError (SAML.CustomError SparNewIdPPubkeyMismatch)      = Wai.Error status400 "client-error" "public keys in body, metadata do not match"

@@ -18,6 +18,7 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Data.String
 import Data.String.Conversions
+import GHC.Stack
 import Lens.Micro
 import Network.HTTP.Types
 import Network.Wai
@@ -45,9 +46,14 @@ withMockIdP app go = do
 
 -- test applications
 
--- | Ignore the request and respond with a metainfo file with an invalid signature.
-unconditionallyServeFile :: FilePath -> Application
-unconditionallyServeFile filepath _req cont = cont . responseLBS status200 [] =<< LBS.readFile filepath
+serveMetaAndResp :: HasCallStack => FilePath -> FilePath -> Application
+serveMetaAndResp metafile respfile req cont =
+  cont . responseLBS status200 [] =<< LBS.readFile ("test-integration/resources/" <> file)
+  where
+    file = case pathInfo req of
+      ["meta"] -> metafile
+      ["resp"] -> respfile
+      bad      -> error $ show bad
 
 
 -- auxiliaries
@@ -58,10 +64,10 @@ endpointToSettings endpoint = Warp.defaultSettings { Warp.settingsHost = host, W
     host :: Warp.HostPreference = Data.String.fromString . cs $ endpoint ^. epHost
     port :: Int = fromIntegral $ endpoint ^. epPort
 
-endpointToURL :: MonadIO m => Endpoint -> m URI
-endpointToURL endpoint = either err pure $ parseURI' urlst
+endpointToURL :: MonadIO m => Endpoint -> ST -> m URI
+endpointToURL endpoint path = either err pure $ parseURI' urlst
   where
-    urlst = "http://" <> host <> ":" <> port
+    urlst = "http://" <> host <> ":" <> port <> "/" <> path
     host  = cs $ endpoint ^. epHost
     port  = cs . show $ endpoint ^. epPort
     err   = liftIO . throwIO . ErrorCall . show . (, (endpoint, urlst))
