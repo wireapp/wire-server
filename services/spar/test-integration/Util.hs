@@ -33,7 +33,6 @@ module Util
   , call
   , ping
   , createTestIdP
-  , unsafeMkHttpsUrl
   , sampleIdP
   , samplePublicKey1
   , samplePublicKey2
@@ -62,7 +61,7 @@ import Data.Either
 import Data.EitherR (fmapL)
 import Data.Id
 import Data.Maybe
-import Data.Misc (PlainTextPassword(..), HttpsUrl, mkHttpsUrl)
+import Data.Misc (PlainTextPassword(..))
 import Data.Range
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
@@ -313,14 +312,11 @@ createTestIdP = do
     (uid, tid) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
     (uid, tid,) . (^. SAML.idpId) <$> callIdpCreate (env ^. teSpar) (Just uid) sampleIdP
 
-unsafeMkHttpsUrl :: HasCallStack => URI -> HttpsUrl
-unsafeMkHttpsUrl = either (error . show) id . mkHttpsUrl
-
 sampleIdP :: HasCallStack => NewIdP
 sampleIdP = NewIdP
-  { _nidpMetadata        = unsafeMkHttpsUrl [uri|https://idp.net/meta|]
-  , _nidpIssuer          = SAML.Issuer [uri|https://idp.net/|]
-  , _nidpRequestUri      = unsafeMkHttpsUrl [uri|https://idp.net/sso/request|]
+  { _nidpMetadata        = [uri|http://idp.net/meta|]
+  , _nidpIssuer          = SAML.Issuer [uri|http://idp.net/|]
+  , _nidpRequestUri      = [uri|http://idp.net/sso/request|]
   , _nidpPublicKey       = samplePublicKey1
   }
 

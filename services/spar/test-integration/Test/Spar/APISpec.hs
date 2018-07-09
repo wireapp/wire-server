@@ -196,7 +196,7 @@ spec = do
         it "rejects" $ do
           pending
           env <- ask
-          let newidp = (env ^. teNewIdp) & nidpMetadata .~ unsafeMkHttpsUrl [uri|https://www.example.com/|]
+          let newidp = (env ^. teNewIdp) & nidpMetadata .~ [uri|https://www.example.com/|]
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
             `shouldRespondWith` checkErr (== 400) "client-error"
@@ -205,7 +205,7 @@ spec = do
         it "rejects" $ do
           pending
           env <- ask
-          newIdpMetaUrl <- unsafeMkHttpsUrl <$> endpointToURL (env ^. teMockIdp)
+          newIdpMetaUrl <- endpointToURL (env ^. teMockIdp)
           let newIdp = (env ^. teNewIdp) & nidpMetadata .~ newIdpMetaUrl
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           withMockIdP (unconditionallyServeFile "resources/meta-bad-sig.xml") $ do
@@ -216,7 +216,7 @@ spec = do
         it "rejects" $ do
           pending
           env <- ask
-          let newidp = (env ^. teNewIdp) & nidpRequestUri .~ unsafeMkHttpsUrl [uri|https://www.example.com/|]
+          let newidp = (env ^. teNewIdp) & nidpRequestUri .~ [uri|https://www.example.com/|]
           (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           callIdpCreate' (env ^. teSpar) (Just uid) newidp
             `shouldRespondWith` checkErr (== 400) "client-error"

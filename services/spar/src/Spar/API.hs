@@ -28,7 +28,6 @@ module Spar.API
 
 import Control.Monad.Except
 import Data.Maybe (isJust, fromJust)
-import Data.Misc (HttpsUrl(HttpsUrl))
 import Data.Proxy
 import Data.String.Conversions (ST)
 import "swagger2" Data.Swagger hiding (Header(..))
@@ -154,7 +153,7 @@ getZUsrTeam (Just uid) = do
     Just teamid -> pure teamid
 
 initializeIdP :: (MonadError SparError m, SAML.SP m) => NewIdP -> Brig.TeamId -> m IdP
-initializeIdP (NewIdP (HttpsUrl _idpMetadata) _idpIssuer (HttpsUrl _idpRequestUri) _idpPublicKey) _idpExtraInfo = do
+initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpExtraInfo = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
   pure SAML.IdPConfig {..}
 
