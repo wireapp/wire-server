@@ -63,4 +63,4 @@ newtype TestErrorLabel = TestErrorLabel { fromTestErrorLabel :: ST }
   deriving (Eq, Show, IsString)
 
 instance FromJSON TestErrorLabel where
-  parseJSON = withObject "TestErrorLabel" (.: "label")
+  parseJSON = fmap TestErrorLabel . withObject "TestErrorLabel" (.: "label")
