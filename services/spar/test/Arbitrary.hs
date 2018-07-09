@@ -1,17 +1,14 @@
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE PackageImports             #-}
-{-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE TypeSynonymInstances       #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE PackageImports       #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TypeApplications     #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 module Arbitrary where
 
-import Data.Misc
 import Data.Proxy
 import "swagger2" Data.Swagger hiding (Header(..))
 import Data.Aeson
@@ -32,8 +29,6 @@ instance Arbitrary NewIdP where
 
 instance Arbitrary NoContent where
   arbitrary = pure NoContent
-
-deriving instance Arbitrary HttpsUrl
 
 
 -- This is not required by the servant-server instances, but the swagger
