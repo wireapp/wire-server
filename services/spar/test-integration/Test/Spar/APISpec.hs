@@ -143,7 +143,6 @@ spec = do
               (_owner, tid, idp) <- createTestIdP
               newmember <- let Just perms = Galley.newPermissions mempty mempty
                         in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-              pending
               whichone (env ^. teSpar) (Just newmember) idp
                 `shouldRespondWith` ((== 403)  . statusCode)
 
@@ -246,12 +245,14 @@ spec = do
 
     describe "test helper functions" $ do
       describe "createTeamMember" $ do
-        let check :: Bool -> Int -> SpecWith TestEnv
+        let check :: HasCallStack => Bool -> Int -> SpecWith TestEnv
             check tryowner permsix =
               it ("works: tryowner == " <> show (tryowner, permsix)) $ do
                 env <- ask
                 (owner, tid, _idp) <- createTestIdP
-                newmember <- call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid (permses !! permsix)
+                newmember <- if tryowner
+                  then pure undefined
+                  else call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid (permses !! permsix)
                 rawResp <- call $ get ((env ^. teBrig)
                               . path "/self"
                               . header "Z-User" (toByteString' $ if tryowner then owner else newmember)
