@@ -31,6 +31,7 @@ module Spar.API
 import Bilge
 import Control.Exception
 import Control.Monad.Except
+import Control.Monad.Reader
 import Data.Maybe (isJust, fromJust)
 import Data.Proxy
 import Data.String.Conversions
@@ -170,7 +171,8 @@ validateNewIdP :: forall m. (HasCallStack, MonadError SparError m, MonadValidate
                => NewIdP -> m ()
 validateNewIdP newidp = do
   let uri2req :: URI.URI -> m Request
-      uri2req = either (throwError . _) pure . Rq.parseRequest . cs . SAML.renderURI
+      uri2req = either (throwSpar . SparNewIdPBadMetaUrl . cs . show) pure
+              . Rq.parseRequest . cs . SAML.renderURI
 
       fetch :: URI.URI -> (Request -> Request) -> m (Rq.Response (Maybe LBS))
       fetch uri modify = do
@@ -178,7 +180,7 @@ validateNewIdP newidp = do
         tweakleft (httpLbs req modify)
 
       tweakleft :: Http a -> m a
-      tweakleft = _
+      tweakleft (HttpT action) = liftIO . runReaderT action =<< getManager
 
   metaRaw :: Rq.Response (Maybe LBS)
     <- fetch (newidp ^. nidpMetadata) (method GET . expect2xx)
