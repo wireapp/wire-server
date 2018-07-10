@@ -193,6 +193,7 @@ spec = do
 
       let createIdpMockErr :: (NewIdP -> NewIdP) -> FilePath -> FilePath -> ReaderT TestEnv IO ()
           createIdpMockErr modnewidp metafile respfile = do
+            pending
             env <- ask
             metaurl <- endpointToURL (env ^. teMockIdp) "meta"
             respurl <- endpointToURL (env ^. teMockIdp) "resp"
