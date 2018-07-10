@@ -38,7 +38,7 @@ resources                            <- folder which contains secrets or other r
 ### Why do you describe this as a _demo_?
 
 * **no optimal performance; not highly-available**: The way that the data stores used are set up is done in a simple way that is not advisable for a production environment (e.g., cassandra uses a single node and Docker will manage the storage of your database data by writing the database files to disk on the host system using its own internal volume management). 
-* **missing functionality**: Some other dependencies (such as the "fake" AWS services) do not provide the full functionality of the real AWS services (for instance, large resumable uploads are not supported) nor do they have the same reliability and availability.
+* **missing functionality**: Some other dependencies (such as the "fake" AWS services) do not provide the full functionality of the real AWS services (for instance, the fake SES doesn't actually send emails) nor do they have the same reliability and availability.
 * :warning: **insecure by default** :warning: : 
     * **all services are exposed**: If your laptop or server is reachable from the outside, it means not only is `nginz` reachable on port 8080, but other services and databases are also directly reachable from outside on other ports. This allows anyone on the internet to
         * query any user's information,
