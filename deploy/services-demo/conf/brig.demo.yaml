@@ -69,6 +69,7 @@ zauth:
     providerTokenTimeout: 604800 # 7 days
 
 turn:
+  serversV2: resources/turn/servers-v2.txt
   servers: resources/turn/servers.txt
   secret: resources/turn/secret.txt
   # ^ TODO: This secret should be the same used by the TURN servers

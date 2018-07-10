@@ -144,17 +144,19 @@ addTeamMemberInternal g tid mem = do
     post (g . paths ["i", "teams", toByteString' tid, "members"] . payload) !!!
         const 200 === statusCode
 
-createTeamConv :: HasCallStack => Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> Http ConvId
-createTeamConv g u tinfo us name acc mtimer = createTeamConvAccess g u tinfo us name acc Nothing mtimer
+createTeamConv :: HasCallStack => Galley -> UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> Http ConvId
+createTeamConv g u tid us name acc mtimer = createTeamConvAccess g u tid us name acc Nothing mtimer
 
-createTeamConvAccess :: HasCallStack => Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Http ConvId
-createTeamConvAccess g u tinfo us name acc role mtimer = do
-    r <- createTeamConvAccessRaw g u tinfo us name acc role mtimer <!! const 201 === statusCode
+createTeamConvAccess :: HasCallStack => Galley -> UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Http ConvId
+createTeamConvAccess g u tid us name acc role mtimer = do
+    r <- createTeamConvAccessRaw g u tid us name acc role mtimer <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
-createTeamConvAccessRaw :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Http ResponseLBS
-createTeamConvAccessRaw g u tinfo us name acc role mtimer = do
-    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer
+createTeamConvAccessRaw :: Galley -> UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Http ResponseLBS
+createTeamConvAccessRaw g u tid us name acc role mtimer = do
+    let tinfo = ConvTeamInfo tid False
+    let conv = NewConvUnmanaged $
+               NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer
     post ( g
           . path "/conversations"
           . zUser u
@@ -163,14 +165,30 @@ createTeamConvAccessRaw g u tinfo us name acc role mtimer = do
           . json conv
           )
 
+createManagedConv :: HasCallStack => Galley -> UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> Http ConvId
+createManagedConv g u tid us name acc mtimer = do
+    let tinfo = ConvTeamInfo tid True
+    let conv = NewConvManaged $
+               NewConv us name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer
+    r <- post ( g
+              . path "i/conversations/managed"
+              . zUser u
+              . zConn "conn"
+              . zType "access"
+              . json conv
+              )
+         <!! const 201 === statusCode
+    fromBS (getHeader' "Location" r)
+
 createOne2OneTeamConv :: Galley -> UserId -> UserId -> Maybe Text -> TeamId -> Http ResponseLBS
 createOne2OneTeamConv g u1 u2 n tid = do
-    let conv = NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing
+    let conv = NewConvUnmanaged $
+               NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> Http ResponseLBS
 postConv g u us name a r mtimer = do
-    let conv = NewConv us name (Set.fromList a) r Nothing mtimer
+    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: Galley -> UserId -> Http ResponseLBS
@@ -178,7 +196,7 @@ postSelfConv g u = post $ g . path "/conversations/self" . zUser u . zConn "conn
 
 postO2OConv :: Galley -> UserId -> UserId -> Maybe Text -> Http ResponseLBS
 postO2OConv g u1 u2 n = do
-    let conv = NewConv [u2] n mempty Nothing Nothing Nothing
+    let conv = NewConvUnmanaged $ NewConv [u2] n mempty Nothing Nothing Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: Galley -> UserId -> UserId -> Text -> Text -> Maybe Text -> Http ResponseLBS

@@ -565,18 +565,6 @@ login = defineModel "Login" $ do
                     \specific client."
         optional
 
-backdoorLogin :: Model
-backdoorLogin = defineModel "BackdoorLogin" $ do
-    description "Payload for performing a credential-less login."
-    property "user" bytes' $
-        description "User ID"
-    property "label" string' $ do
-        description "A label to associate with the returned cookie. \
-                    \Every client should have a unique and stable (persistent) label \
-                    \to allow targeted revocation of all cookies granted to that \
-                    \specific client."
-        optional
-
 accessToken :: Model
 accessToken = defineModel "AccessToken" $ do
     description "An API access token."

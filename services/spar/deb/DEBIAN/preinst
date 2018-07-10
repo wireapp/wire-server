@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -e
+
+APP=spar
+
+# If runit symlink exists for $APP, stop the service.
+[[ -L /etc/service/$APP ]] || exit 0
+sv down $APP

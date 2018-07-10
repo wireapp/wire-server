@@ -720,7 +720,17 @@ sitemap = do
     document "POST" "postOtrBroadcast" $ do
         summary "Broadcast an encrypted message to all team members and all contacts (accepts Protobuf)"
         parameter Query "ignore_missing" bool' $ do
-            description "Force message delivery even when clients are missing."
+            description "Force message delivery even when clients are missing. \
+                        \NOTE: can also be a comma-separated list of user IDs, \
+                        \in which case it specifies who exactly is allowed to \
+                        \have missing clients."
+            optional
+        parameter Query "report_missing" bool' $ do
+            description "Don't allow message delivery when clients are missing \
+                        \('ignore_missing' takes precedence when present). \
+                        \NOTE: can also be a comma-separated list of user IDs, \
+                        \in which case it specifies who exactly is forbidden from \
+                        \having missing clients."
             optional
         body (ref Model.newOtrMessage) $
             description "Protobuf body"
@@ -745,7 +755,17 @@ sitemap = do
         parameter Path "cnv" bytes' $
             description "Conversation ID"
         parameter Query "ignore_missing" bool' $ do
-            description "Force message delivery even when clients are missing."
+            description "Force message delivery even when clients are missing. \
+                        \NOTE: can also be a comma-separated list of user IDs, \
+                        \in which case it specifies who exactly is allowed to \
+                        \have missing clients."
+            optional
+        parameter Query "report_missing" bool' $ do
+            description "Don't allow message delivery when clients are missing \
+                        \('ignore_missing' takes precedence when present). \
+                        \NOTE: can also be a comma-separated list of user IDs, \
+                        \in which case it specifies who exactly is forbidden from \
+                        \having missing clients."
             optional
         body (ref Model.newOtrMessage) $
             description "JSON body"
@@ -802,6 +822,12 @@ sitemap = do
     get "/i/conversations/:cnv/members/:usr" (continue internalGetMember) $
         capture "cnv"
         .&. capture "usr"
+
+    post "/i/conversations/managed" (continue internalCreateManagedConversation) $
+        zauthUserId
+        .&. zauthConnId
+        .&. request
+        .&. contentType "application" "json"
 
     post "/i/conversations/connect" (continue createConnectConversation) $
         zauthUserId
@@ -936,4 +962,7 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
                           $ P.setReason P.TypeError
                           $ P.setSource src
                           $ P.err status400
+        -- NB. 'fromByteString' parses a comma-separated list ('List') of
+        -- user IDs, and then 'fromList' unwraps it; took me a while to
+        -- understand this
         Just  l -> P.Okay 0 (Set.fromList (fromList l))

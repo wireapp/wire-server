@@ -1,0 +1,33 @@
+saml:
+  version:     SAML2.0
+  log_level:   Debug
+
+  sp_host:     0.0.0.0
+  sp_port:     8088
+  sp_app_uri:  https://app.wire.com/
+  sp_sso_uri:  https://app.wire.com/sso
+
+  contacts:
+    - type: ContactBilling
+      company: evil corp.
+      given_name: Dr.
+      surname: Girlfriend
+      email: email:president@evil.corp
+
+brig:
+  host: 127.0.0.1
+  port: 8082
+
+cassandra:
+  endpoint:
+    host: 127.0.0.1
+    port: 9042
+  keyspace: spar_test
+
+# Wire/AWS specific, optional
+# discoUrl: "https://"
+
+maxttlAuthreq: 11
+maxttlAuthresp: 11
+
+logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)
