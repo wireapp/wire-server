@@ -23,7 +23,17 @@ import URI.ByteString
 import qualified Data.X509 as X509
 
 
-type IdP = IdPConfig TeamId
+type IdP = IdPConfig IdPExtra
+
+-- | Extra information stored for each 'IdP'. The SAML library handles it
+-- but never inspects it (see the '_idpExtraInfo' field).
+data IdPExtra = IdPExtra
+  { _idpeTeam :: TeamId
+  }
+  deriving (Eq, Show, Generic)
+
+makeLenses ''IdPExtra
+deriveJSON deriveJSONOptions ''IdPExtra
 
 -- | A list of 'IdP's, returned by some endpoints. Wrapped into an object to
 -- allow extensibility later on.

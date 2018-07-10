@@ -21,6 +21,7 @@ import Lens.Micro
 import SAML2.WebSSO hiding (UserRef(..))
 import Servant
 import Spar.Error
+import Spar.Types
 import Spar.Options as Options
 import Web.Cookie (SetCookie)
 
@@ -46,7 +47,7 @@ data Env = Env
   }
 
 instance HasConfig Spar where
-  type ConfigExtra Spar = TeamId
+  type ConfigExtra Spar = IdPExtra
   getConfig = asks (saml . sparCtxOpts)
 
 instance SP Spar where
@@ -85,13 +86,13 @@ instance SPStore Spar where
   storeAssertion i r    = wrapMonadClientWithEnv $ Data.storeAssertion i r
 
 instance SPStoreIdP SparError Spar where
-  storeIdPConfig :: IdPConfig TeamId -> Spar ()
+  storeIdPConfig :: IdPConfig IdPExtra -> Spar ()
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 
-  getIdPConfig :: IdPId -> Spar (IdPConfig TeamId)
+  getIdPConfig :: IdPId -> Spar (IdPConfig IdPExtra)
   getIdPConfig = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClient . Data.getIdPConfig
 
-  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig TeamId)
+  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig IdPExtra)
   getIdPConfigByIssuer = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClient . Data.getIdPConfigByIssuer
 
 -- | 'wrapMonadClient' with an 'Env' in a 'ReaderT'.
@@ -143,7 +144,7 @@ getUser suid = do
 createUser :: SAML.UserRef -> Spar UserId
 createUser suid = do
   buid <- Id <$> liftIO UUID.nextRandom
-  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
+  teamid <- (^. idpExtraInfo . idpeTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
   buid' <- Brig.createUser suid buid teamid
   assert (buid == buid') $ pure buid
