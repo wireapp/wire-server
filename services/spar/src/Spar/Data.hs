@@ -36,26 +36,35 @@ import URI.ByteString
 import qualified Data.Id as Brig
 import qualified Data.UUID as UUID
 import qualified SAML2.WebSSO as SAML
+import qualified Data.ByteString.Char8 as BSC
 
 
 ----------------------------------------------------------------------
 -- helpers
 
 data Env = Env
-  { dataEnvNow :: UTCTime
+  { dataEnvNow                :: UTCTime
+  , dataEnvMetaUrl            :: URI
+  , dataEnvLoginUrlPrefix     :: URI
   , dataEnvMaxTTLAuthRequests :: TTL "authreq"
   , dataEnvMaxTTLAssertions   :: TTL "authresp"
   }
   deriving (Eq, Show)
 
 mkEnv :: Options.Opts -> UTCTime -> Env
-mkEnv opts now = Env now (Options.maxttlAuthreq opts) (Options.maxttlAuthresp opts)
+mkEnv opts now =
+  Env { dataEnvNow                = now
+      , dataEnvMetaUrl            = Options.metaUrl opts
+      , dataEnvLoginUrlPrefix     = Options.loginUrlPrefix opts
+      , dataEnvMaxTTLAuthRequests = Options.maxttlAuthreq opts
+      , dataEnvMaxTTLAssertions   = Options.maxttlAuthresp opts
+      }
 
 mkTTLAuthnRequests :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authreq")
-mkTTLAuthnRequests (Env now maxttl _) = mkTTL now maxttl
+mkTTLAuthnRequests (Env now _ _ maxttl _) = mkTTL now maxttl
 
 mkTTLAssertions :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authresp")
-mkTTLAssertions (Env now _ maxttl) = mkTTL now maxttl
+mkTTLAssertions (Env now _ _ _ maxttl) = mkTTL now maxttl
 
 mkTTL :: MonadError TTLError m => UTCTime -> TTL a -> UTCTime -> m (TTL a)
 mkTTL now maxttl endOfLife = if
@@ -170,10 +179,22 @@ storeIdPConfig idp = retry x5 . batch $ do
     byTeam :: PrepQuery W (SAML.IdPId, Brig.TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
 
-getIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPId -> m (Maybe IdP)
-getIdPConfig idpid = toIdp <$$> retry x1 (query1 sel $ params Quorum (Identity idpid))
+getSPInfo :: MonadReader Env m => SAML.IdPId -> m SPInfo
+getSPInfo (SAML.IdPId idp) = do
+  env <- ask
+  pure $ SPInfo
+    { _spiMetaURI  = dataEnvMetaUrl env
+    , _spiLoginURI = dataEnvLoginUrlPrefix env
+                       & pathL %~ (<> BSC.pack (UUID.toString idp))
+    }
+
+getIdPConfig
+  :: forall m. (HasCallStack, MonadClient m, MonadReader Env m)
+  => SAML.IdPId -> m (Maybe IdP)
+getIdPConfig idpid =
+  traverse toIdp =<< retry x1 (query1 sel $ params Quorum (Identity idpid))
   where
-    toIdp :: IdPConfigRow -> IdP
+    toIdp :: IdPConfigRow -> m IdP
     toIdp ( _idpId
           , _idpMetadata
           , _idpIssuer
@@ -181,13 +202,17 @@ getIdPConfig idpid = toIdp <$$> retry x1 (query1 sel $ params Quorum (Identity i
           , _idpPublicKey
           -- extras
           , _idpeTeam
-          ) = let _idpExtraInfo = IdPExtra { _idpeTeam }
-              in  SAML.IdPConfig {..}
+          ) = do
+      _idpeSPInfo <- getSPInfo _idpId
+      let _idpExtraInfo = IdPExtra { _idpeTeam, _idpeSPInfo }
+      pure $ SAML.IdPConfig {..}
 
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
     sel = "SELECT idp, metadata, issuer, request_uri, public_key, team FROM idp WHERE idp = ?"
 
-getIdPConfigByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe IdP)
+getIdPConfigByIssuer
+  :: (HasCallStack, MonadClient m, MonadReader Env m)
+  => SAML.Issuer -> m (Maybe IdP)
 getIdPConfigByIssuer issuer = do
   retry x1 (query1 sel $ params Quorum (Identity issuer)) >>= \case
     Nothing -> pure Nothing
@@ -196,7 +221,9 @@ getIdPConfigByIssuer issuer = do
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"
 
-getIdPConfigsByTeam :: (HasCallStack, MonadClient m) => Brig.TeamId -> m [IdP]
+getIdPConfigsByTeam
+  :: (HasCallStack, MonadClient m, MonadReader Env m)
+  => Brig.TeamId -> m [IdP]
 getIdPConfigsByTeam team = do
     idpids <- runIdentity <$$> retry x1 (query sel $ params Quorum (Identity team))
     catMaybes <$> mapM getIdPConfig idpids

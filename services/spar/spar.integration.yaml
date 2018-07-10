@@ -14,6 +14,9 @@ saml:
       surname: Girlfriend
       email: email:president@evil.corp
 
+metaUrl:        https://app.wire.com/sso/metadata         # corresponds to 'APIMeta'
+loginUrlPrefix: https://app.wire.com/sso/initiate-login/  # corresponds to 'APIAuthReq'
+
 brig:
   host: 127.0.0.1
   port: 8082

@@ -120,7 +120,7 @@ idpGetAll :: ZUsr -> Spar IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- getZUsrTeam zusr
   Brig.assertIsTeamOwner zusr teamid
-  _idplProviders <- wrapMonadClient $ Data.getIdPConfigsByTeam teamid
+  _idplProviders <- wrapMonadClientWithEnv $ Data.getIdPConfigsByTeam teamid
   pure IdPList{..}
 
 idpDelete :: ZUsr -> SAML.IdPId -> Spar NoContent
@@ -131,11 +131,7 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     return NoContent
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreate :: ( SAML.SP m, SAML.SPStoreIdP SparError m, SAML.ConfigExtra m ~ IdPExtra
-             , MonadError SparError m, MonadValidateIdP m
-             , Brig.MonadSparToBrig m
-             )
-          => ZUsr -> NewIdP -> m IdP
+idpCreate :: ZUsr -> NewIdP -> Spar IdP
 idpCreate zusr newIdP = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- getZUsrOwnedTeam zusr
   validateNewIdP newIdP
@@ -170,10 +166,11 @@ getZUsrOwnedTeam (Just uid) = do
     Nothing -> throwSpar SparNotInTeam
     Just teamid -> teamid <$ Brig.assertIsTeamOwner uid teamid
 
-initializeIdP :: (MonadError SparError m, SAML.SP m) => NewIdP -> Brig.TeamId -> m IdP
+initializeIdP :: NewIdP -> Brig.TeamId -> Spar IdP
 initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpeTeam = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
-  let _idpExtraInfo = IdPExtra { _idpeTeam }
+  _idpeSPInfo <- wrapMonadClientWithEnv $ Data.getSPInfo _idpId
+  let _idpExtraInfo = IdPExtra { _idpeTeam, _idpeSPInfo }
   pure SAML.IdPConfig {..}
 
 
