@@ -7,6 +7,7 @@
 {-# LANGUAGE MultiWayIf                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE ViewPatterns               #-}
@@ -139,7 +140,7 @@ getUser (SAML.UserRef tenant subject) = (retry x1 . query1 sel $ params Quorum (
 
 type IdPConfigRow = (SAML.IdPId, URI, SAML.Issuer, URI, SignedCertificate, Brig.TeamId)
 
-storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig Brig.TeamId -> m ()
+storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig IdPExtra -> m ()
 storeIdPConfig idp = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
@@ -149,7 +150,7 @@ storeIdPConfig idp = retry x5 . batch $ do
     , idp ^. SAML.idpIssuer
     , idp ^. SAML.idpRequestUri
     , idp ^. SAML.idpPublicKey
-    , idp ^. SAML.idpExtraInfo
+    , idp ^. SAML.idpExtraInfo . idpeTeam
     )
   addPrepQuery byIssuer
     ( idp ^. SAML.idpId
@@ -157,7 +158,7 @@ storeIdPConfig idp = retry x5 . batch $ do
     )
   addPrepQuery byTeam
     ( idp ^. SAML.idpId
-    , idp ^. SAML.idpExtraInfo
+    , idp ^. SAML.idpExtraInfo . idpeTeam
     )
   where
     ins :: PrepQuery W IdPConfigRow ()
@@ -178,8 +179,10 @@ getIdPConfig idpid = toIdp <$$> retry x1 (query1 sel $ params Quorum (Identity i
           , _idpIssuer
           , _idpRequestUri
           , _idpPublicKey
-          , _idpExtraInfo
-          ) = SAML.IdPConfig {..}
+          -- extras
+          , _idpeTeam
+          ) = let _idpExtraInfo = IdPExtra { _idpeTeam }
+              in  SAML.IdPConfig {..}
 
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
     sel = "SELECT idp, metadata, issuer, request_uri, public_key, team FROM idp WHERE idp = ?"

@@ -9,6 +9,7 @@
 {-# LANGUAGE PackageImports             #-}
 {-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeApplications           #-}
@@ -126,11 +127,11 @@ idpDelete :: ZUsr -> SAML.IdPId -> Spar NoContent
 idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     idp <- SAML.getIdPConfig idpid
     void $ authorizeIdP zusr idp
-    wrapMonadClient $ Data.deleteIdPConfig idpid (idp ^. SAML.idpIssuer) (idp ^. SAML.idpExtraInfo)
+    wrapMonadClient $ Data.deleteIdPConfig idpid (idp ^. SAML.idpIssuer) (idp ^. SAML.idpExtraInfo . idpeTeam)
     return NoContent
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreate :: ( SAML.SP m, SAML.SPStoreIdP SparError m, SAML.ConfigExtra m ~ Brig.TeamId
+idpCreate :: ( SAML.SP m, SAML.SPStoreIdP SparError m, SAML.ConfigExtra m ~ IdPExtra
              , MonadError SparError m, MonadValidateIdP m
              , Brig.MonadSparToBrig m
              )
@@ -155,7 +156,7 @@ authorizeIdP :: (HasCallStack, MonadError SparError m, SAML.SP m, Brig.MonadSpar
              => ZUsr -> IdP -> m IdP
 authorizeIdP zusr idp = do
   teamid <- getZUsrOwnedTeam zusr
-  if teamid == idp ^. SAML.idpExtraInfo
+  if teamid == idp ^. SAML.idpExtraInfo . idpeTeam
     then pure idp
     else throwSpar SparNotInTeam
 
@@ -170,8 +171,9 @@ getZUsrOwnedTeam (Just uid) = do
     Just teamid -> teamid <$ Brig.assertIsTeamOwner uid teamid
 
 initializeIdP :: (MonadError SparError m, SAML.SP m) => NewIdP -> Brig.TeamId -> m IdP
-initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpExtraInfo = do
+initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpeTeam = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
+  let _idpExtraInfo = IdPExtra { _idpeTeam }
   pure SAML.IdPConfig {..}
 
 

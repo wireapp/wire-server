@@ -27,6 +27,11 @@ instance Arbitrary NewIdP where
     _nidpPublicKey  <- arbitrary
     pure $ NewIdP {..}
 
+instance Arbitrary IdPExtra where
+  arbitrary = do
+    _idpeTeam <- arbitrary
+    pure $ IdPExtra {..}
+
 instance Arbitrary IdPList where
   arbitrary = do
     _idplProviders <- arbitrary
