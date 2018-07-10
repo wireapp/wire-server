@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE ViewPatterns               #-}
@@ -15,6 +16,7 @@ import Data.Time
 import Spar.Data
 import Spar.Options
 import Test.Hspec
+import URI.ByteString.QQ
 import SAML2.WebSSO (Time(Time), addTime)
 
 
@@ -37,7 +39,12 @@ check env (parsetm -> endOfLife) expectttl =
   it (show (env, endOfLife)) $ mkTTLAssertions env endOfLife `shouldBe` expectttl
 
 mkDataEnv :: HasCallStack => String -> (TTL "authresp") -> Env
-mkDataEnv now maxttl = Env (parsetm now) 0{- will not be looked at -} maxttl{- this one will -}
+mkDataEnv now maxttl =
+    Env (parsetm now)
+        [uri|https://wire.com|]
+        [uri|https://wire.com|]
+        0      -- will not be looked at
+        maxttl -- this one will
 
 parsetm :: HasCallStack => String -> UTCTime
 parsetm = fromJust . parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ"

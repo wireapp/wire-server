@@ -90,10 +90,10 @@ instance SPStoreIdP SparError Spar where
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 
   getIdPConfig :: IdPId -> Spar (IdPConfig IdPExtra)
-  getIdPConfig = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClient . Data.getIdPConfig
+  getIdPConfig = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
 
   getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig IdPExtra)
-  getIdPConfigByIssuer = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClient . Data.getIdPConfigByIssuer
+  getIdPConfigByIssuer = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer
 
 -- | 'wrapMonadClient' with an 'Env' in a 'ReaderT'.
 wrapMonadClientWithEnv :: ReaderT Data.Env Cas.Client a -> Spar a

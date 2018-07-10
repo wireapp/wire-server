@@ -24,6 +24,7 @@ import Lens.Micro
 import Options.Applicative
 import Util.Options hiding (getOptions)
 import Spar.Types (IdPExtra)
+import URI.ByteString
 
 import qualified Data.Yaml as Yaml
 import qualified SAML2.WebSSO.Config as SAML
@@ -31,6 +32,8 @@ import qualified SAML2.WebSSO.Config as SAML
 
 data Opts = Opts
     { saml           :: !(SAML.Config IdPExtra)
+    , metaUrl        :: !URI
+    , loginUrlPrefix :: !URI
     , brig           :: !Endpoint
     , cassandra      :: !CassandraOpts
     , maxttlAuthreq  :: !(TTL "authreq")

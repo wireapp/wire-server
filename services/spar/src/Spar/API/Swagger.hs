@@ -77,6 +77,9 @@ instance ToSchema (SAML.FormRedirect SAML.AuthnRequest) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
   -- TODO: would be nice to add an example here, but that only works for json?
 
+instance ToSchema SPInfo where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
 instance ToSchema IdPExtra where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
