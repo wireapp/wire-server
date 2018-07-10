@@ -80,6 +80,9 @@ instance ToSchema (SAML.FormRedirect SAML.AuthnRequest) where
 instance ToSchema (SAML.IdPConfig Brig.TeamId) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
+instance ToSchema IdPList where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
 instance ToSchema NewIdP where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
