@@ -1,0 +1,15 @@
+PATVIRTINKITE SAVO EL. PAŠTĄ
+Registruojantis Wire, buvo panaudotas ${email}. Norėdami patvirtinti savo el.
+paštą ir susikurti paskyrą, įveskite šį kodą.
+
+${code}
+
+Jeigu turite kokių nors klausimų, susisiekite su mumis
+[https://support.wire.com/hc/en-us/requests/new].
+
+
+--------------------------------------------------------------------------------
+
+Privatumas [https://wire.com/legal/] · Pranešti apie piktnaudžiavimą
+[misuse@wire.com]
+© WIRE SWISS GmbH. VISOS TEISĖS SAUGOMOS.
