@@ -80,6 +80,8 @@ packages:
   - http-client-openssl
   - http-client-tls
   - http-conduit
+  extra-dep: true
+
 # services/spar:
 - location:
     git: https://github.com/wireapp/saml2-web-sso
