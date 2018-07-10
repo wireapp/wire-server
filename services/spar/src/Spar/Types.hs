@@ -25,6 +25,16 @@ import qualified Data.X509 as X509
 
 type IdP = IdPConfig TeamId
 
+-- | A list of 'IdP's, returned by some endpoints. Wrapped into an object to
+-- allow extensibility later on.
+data IdPList = IdPList
+  { _idplProviders :: [IdP]
+  }
+  deriving (Eq, Show, Generic)
+
+makeLenses ''IdPList
+deriveJSON deriveJSONOptions ''IdPList
+
 -- | 'IdPConfig' contains some info that will be filled in by the server when processing the
 -- creation request.  'NewIdP' is the type of the data provided by the client in this request.
 --

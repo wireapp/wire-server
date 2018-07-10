@@ -24,6 +24,7 @@ module Spar.API
   , APIAuthReq
   , APIAuthResp
   , IdpGet
+  , IdpGetAll
   , IdpCreate
   , IdpDelete
   ) where
@@ -72,6 +73,7 @@ type API = "i" :> "status" :> Get '[JSON] NoContent
       :<|> APIAuthReq
       :<|> APIAuthResp
       :<|> IdpGet
+      :<|> IdpGetAll
       :<|> IdpCreate
       :<|> IdpDelete
       -- NB. If you add endpoints here, also update Test.Spar.APISpec
@@ -81,6 +83,7 @@ type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
 type APIAuthResp = "sso" :> "finalize-login" :> SAML.APIAuthResp
 
 type IdpGet     = Header "Z-User" Brig.UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
+type IdpGetAll  = Header "Z-User" Brig.UserId :> "identity-providers" :> Get '[JSON] IdPList
 type IdpCreate  = Header "Z-User" Brig.UserId :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IdP
 type IdpDelete  = Header "Z-User" Brig.UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
@@ -96,6 +99,7 @@ api opts =
   :<|> SAML.authreq (maxttlAuthreqDiffTime opts)
   :<|> SAML.authresp onSuccess
   :<|> idpGet
+  :<|> idpGetAll
   :<|> idpCreate
   :<|> idpDelete
 
@@ -110,6 +114,13 @@ type ZUsr = Maybe Brig.UserId
 idpGet :: ZUsr -> SAML.IdPId -> Spar IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   authorizeIdP zusr =<< SAML.getIdPConfig idpid
+
+idpGetAll :: ZUsr -> Spar IdPList
+idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
+  teamid <- getZUsrTeam zusr
+  Brig.assertIsTeamOwner zusr teamid
+  _idplProviders <- wrapMonadClient $ Data.getIdPConfigsByTeam teamid
+  pure IdPList{..}
 
 idpDelete :: ZUsr -> SAML.IdPId -> Spar NoContent
 idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
