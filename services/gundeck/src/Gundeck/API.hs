@@ -118,8 +118,8 @@ sitemap = do
 
     document "GET" "getPushTokens" $ do
         summary "List the user's registered push tokens."
-        returns (ref Model.push)
-        response 200 "List of push tokens" end
+        returns (ref Model.pushList)
+        response 200 "Object containing list of push tokens" end
 
     post "/i/push" (continue Push.push) $
         request .&. accept "application" "json"
