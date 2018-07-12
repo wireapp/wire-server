@@ -53,6 +53,7 @@ dependencies:
   - wai-utilities
   - warp
   - x509
+  - xml-conduit
   - yaml
 
 library:

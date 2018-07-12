@@ -31,9 +31,10 @@ module Spar.API
   ) where
 
 import Bilge
-import Control.Exception
 import Control.Monad.Except
 import Control.Monad.Reader
+import Data.Either
+import Data.EitherR (fmapL)
 import Data.Maybe (isJust, fromJust)
 import Data.Proxy
 import Data.String.Conversions
@@ -54,12 +55,14 @@ import Web.Cookie (SetCookie)
 
 import qualified Brig.Types.User as Brig
 import qualified Data.Id as Brig
+import qualified Network.HTTP.Client as Rq
 import qualified SAML2.WebSSO as SAML
-import qualified Text.XML.Util as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Brig
+import qualified Text.XML as XML
+import qualified Text.XML.DSig as SAML
+import qualified Text.XML.Util as SAML
 import qualified URI.ByteString as URI
-import qualified Network.HTTP.Client as Rq
 
 
 -- FUTUREWORK: use servant-generic?
@@ -177,12 +180,12 @@ type MonadValidateIdP m = (MonadHttp m, MonadIO m)
 
 validateNewIdP :: forall m. (HasCallStack, MonadError SparError m, MonadValidateIdP m)
                => NewIdP -> m ()
-validateNewIdP newidp = if True then pure () else do
+validateNewIdP newidp = do
   let uri2req :: URI.URI -> m Request
       uri2req = either (throwSpar . SparNewIdPBadMetaUrl . cs . show) pure
               . Rq.parseRequest . cs . SAML.renderURI
 
-      fetch :: URI.URI -> (Request -> Request) -> m (Rq.Response (Maybe LBS))
+      fetch :: URI.URI -> (Request -> Request) -> m (Bilge.Response (Maybe LBS))
       fetch uri modify = do
         req <- uri2req uri
         tweakleft (httpLbs req modify)
@@ -190,17 +193,23 @@ validateNewIdP newidp = if True then pure () else do
       tweakleft :: Http a -> m a
       tweakleft (HttpT action) = liftIO . runReaderT action =<< getManager
 
-  metaRaw :: Rq.Response (Maybe LBS)
+  metaResp :: Bilge.Response (Maybe LBS)
     <- fetch (newidp ^. nidpMetadata) (method GET . expect2xx)
-  when ((error "verify signature") (newidp ^. nidpPublicKey) metaRaw) $
+  metaBody :: LBS
+    <- maybe (throwSpar $ SparNewIdPBadMetaUrl "No body in response.") pure $ responseBody metaResp
+  when (isLeft $ SAML.verifyRoot (newidp ^. nidpPublicKey) metaBody) $ do
     throwSpar SparNewIdPBadMetaSig
-  meta :: SAML.EntityDescriptor
-    <- either (throwSpar . SparNewIdPBadMetaUrl . cs . show @SomeException) pure
-       $ (error "parse metadata (saml2-web-sso)") metaRaw
-  _respRaw :: Rq.Response (Maybe LBS)
-    <- fetch (newidp ^. nidpRequestUri) (method GET . expect2xx)
-  when (meta ^. (error "public key from metadata") /= newidp ^. nidpPublicKey) $
+  meta :: SAML.IdPDesc
+    <- either (throwSpar . SparNewIdPBadMetaUrl . cs) pure $ do
+         XML.Document _ el _ <- fmapL show $ XML.parseLBS XML.def metaBody
+         SAML.parseIdPDesc el
+  when (newidp ^. nidpPublicKey `notElem` meta ^. SAML.edPublicKeys) $
     throwSpar SparNewIdPPubkeyMismatch
+  respResp :: Bilge.Response (Maybe LBS)
+    <- fetch (newidp ^. nidpRequestUri) (method POST . body "request")
+  when (statusCode respResp >= 400) $ do
+    let msg = (cs . show . responseStatus $ respResp) <> (maybe "" ((": " <>) . cs) $ responseBody respResp)
+    throwSpar $ SparNewIdPBadReqUrl msg
 
 
 -- | Type families to convert spar's 'API' type into an "outside-world-view" API type
