@@ -106,8 +106,8 @@ spec = do
     let checkErr :: (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
         checkErr statusIs label resp = statusIs (statusCode resp) && responseJSON resp == Right label
 
-        testGetOrDelete :: (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
-        testGetOrDelete whichone = do
+        testGetPutDelete :: (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
+        testGetPutDelete whichone = do
           context "unknown IdP" $ do
             it "responds with 'not found'" $ do
               env <- ask
@@ -147,19 +147,33 @@ spec = do
                 `shouldRespondWith` checkErr (== 403) "forbidden"
 
     describe "GET /identity-providers/:idp" $ do
-      testGetOrDelete callIdpGet'
+      testGetPutDelete callIdpGet'
 
-      context "known IdP" $ do
+      context "known IdP, client is team owner" $ do
         it "responds with 2xx and IdP" $ do
           env <- ask
           (uid, _, idp) <- createTestIdP
           callIdpGet' (env ^. teSpar) (Just uid) idp
             `shouldRespondWith` (\resp -> statusCode resp == 200 && isRight (responseJSON @IdP resp))
 
-    describe "DELETE /identity-providers/:idp" $ do
-      testGetOrDelete callIdpDelete'
+    describe "GET /identity-providers" $ do
+      context "client is not team owner" $ do
+        it "rejects" $ do
+          pending
 
-      context "known IdP" $ do
+      context "client is team owner" $ do
+        context "no idps registered" $ do
+          it "returns an empty list" $ do
+            pending
+
+        context "some idps are registered" $ do
+          it "returns a non-empty empty list" $ do
+            pending
+
+    describe "DELETE /identity-providers/:idp" $ do
+      testGetPutDelete callIdpDelete'
+
+      context "known IdP, client is team owner" $ do
         it "responds with 2xx and removes IdP" $ do
           env <- ask
           (uid, _, idp) <- createTestIdP
@@ -167,6 +181,21 @@ spec = do
             `shouldRespondWith` \resp -> statusCode resp < 300
           callIdpGet' (env ^. teSpar) (Just uid) idp
             `shouldRespondWith` checkErr (== 404) "not-found"
+
+    describe "PUT /identity-providers/:idp" $ do
+      xdescribe "need to implement `callIdpGet'` for these tests" $ do
+        let callIdpPut' :: SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS
+            callIdpPut' = undefined  -- (we need to change the type of 'testGetPutDelete', too, to accomodate the PUT body.)
+        testGetPutDelete callIdpPut'
+
+      context "known IdP, client is team owner" $ do
+        it "responds with 2xx and updates IdP" $ do
+          pending
+
+        context "invalid body" $ do
+          it "rejects" $ do
+            pending  -- (only test for signature here, but make sure that the same validity tests
+                     -- are performed as for POST in Spar.API.)
 
     describe "POST /identity-providers/:idp" $ do
       context "no zuser" $ do
