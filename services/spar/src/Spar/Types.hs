@@ -1,14 +1,16 @@
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE DeriveGeneric              #-}
 
 module Spar.Types where
 
@@ -64,11 +66,18 @@ deriveJSON deriveJSONOptions ''IdPList
 -- FUTUREWORK: move this to saml2-web-sso.
 data NewIdP = NewIdP
   { _nidpMetadata        :: URI
-  , _nidpIssuer          :: Issuer  -- TODO: remove this field, it's redundant.  (this will also shorten the list of possible errors in the UI.)
-  , _nidpRequestUri      :: URI     -- TODO: dito.
   , _nidpPublicKey       :: X509.SignedCertificate
   }
   deriving (Eq, Show, Generic)
 
 makeLenses ''NewIdP
 deriveJSON deriveJSONOptions ''NewIdP
+
+-- | 'NewIdP' with all details pulled from metadata URI and kept here redundantly.
+data ValidNewIdP = ValidNewIdP
+  { _vidpMetadata        :: URI
+  , _vidpIssuer          :: Issuer
+  , _vidpRequestUri      :: URI
+  , _vidpPublicKey       :: X509.SignedCertificate
+  }
+  deriving (Eq, Show, Generic)
