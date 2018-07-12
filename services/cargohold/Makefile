@@ -30,10 +30,6 @@ install: init
 fast: init
 	stack install . --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
-.PHONY: haddock
-haddock:
-	stack haddock . --fast --no-haddock-deps --haddock-internal
-
 .PHONY: compile
 compile:
 	stack build . --pedantic --test --no-copy-bins

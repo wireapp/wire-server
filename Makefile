@@ -39,11 +39,11 @@ integration: fast
 
 .PHONY: haddock
 haddock:
-	$(MAKE) -C services/cargohold haddock
-	$(MAKE) -C services/galley haddock
-	$(MAKE) -C services/brig haddock
-	$(MAKE) -C services/gundeck haddock
-	$(MAKE) -C services/spar haddock
+	WIRE_STACK_OPTIONS="--haddock --haddock-internal" make fast
+
+.PHONY: haddock-shallow
+haddock-shallow:
+	WIRE_STACK_OPTIONS="--haddock --haddock-internal --no-haddock-deps" make fast
 
 #################################
 ## docker targets
