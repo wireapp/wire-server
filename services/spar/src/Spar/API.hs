@@ -125,8 +125,7 @@ idpCreate :: ( SAML.SP m, SAML.SPStoreIdP SparError m, SAML.ConfigExtra m ~ Brig
              )
           => ZUsr -> NewIdP -> m IdP
 idpCreate zusr newIdP = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
-  teamid <- getZUsrTeam zusr
-  Brig.assertIsTeamOwner zusr teamid
+  teamid <- getZUsrOwnedTeam zusr
   validateNewIdP newIdP
   idp <- initializeIdP newIdP teamid
   SAML.storeIdPConfig idp
@@ -144,20 +143,20 @@ withDebugLog msg showval action = do
 authorizeIdP :: (HasCallStack, MonadError SparError m, SAML.SP m, Brig.MonadSparToBrig m)
              => ZUsr -> IdP -> m IdP
 authorizeIdP zusr idp = do
-  teamid <- getZUsrTeam zusr
+  teamid <- getZUsrOwnedTeam zusr
   if teamid == idp ^. SAML.idpExtraInfo
-    then idp <$ Brig.assertIsTeamOwner zusr teamid
+    then pure idp
     else throwSpar SparNotInTeam
 
 -- | Called by post handler, and by 'authorizeIdP'.
-getZUsrTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, Brig.MonadSparToBrig m)
+getZUsrOwnedTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, Brig.MonadSparToBrig m)
             => ZUsr -> m Brig.TeamId
-getZUsrTeam Nothing = throwSpar SparNotInTeam
-getZUsrTeam (Just uid) = do
+getZUsrOwnedTeam Nothing = throwSpar SparNotInTeam
+getZUsrOwnedTeam (Just uid) = do
   usr <- Brig.getUser uid
   case Brig.userTeam =<< usr of
     Nothing -> throwSpar SparNotInTeam
-    Just teamid -> pure teamid
+    Just teamid -> teamid <$ Brig.assertIsTeamOwner uid teamid
 
 initializeIdP :: (MonadError SparError m, SAML.SP m) => NewIdP -> Brig.TeamId -> m IdP
 initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpExtraInfo = do
