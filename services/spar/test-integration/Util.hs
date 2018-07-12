@@ -320,6 +320,9 @@ createTestIdP = do
     (uid, tid) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
     (uid, tid,) . (^. SAML.idpId) <$> callIdpCreate (env ^. teSpar) (Just uid) sampleIdP
 
+-- TODO: sampleIdP must be the data for our MockIdP
+-- TODO add 'Chan's for optionally diverging from the happy path (for testing validation)
+
 sampleIdP :: HasCallStack => NewIdP
 sampleIdP = NewIdP
   { _nidpMetadata        = [uri|http://idp.net/meta|]
