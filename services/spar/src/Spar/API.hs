@@ -138,7 +138,6 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
 idpCreate :: ZUsr -> NewIdP -> Spar IdP
 idpCreate zusr newIdP = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- getZUsrOwnedTeam zusr
-  validateNewIdP newIdP
   idp <- initializeIdP newIdP teamid
   SAML.storeIdPConfig idp
   pure idp
@@ -169,7 +168,8 @@ getZUsrOwnedTeam (Just uid) = do
     Just teamid -> teamid <$ Intra.assertIsTeamOwner uid teamid
 
 initializeIdP :: NewIdP -> TeamId -> Spar IdP
-initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpeTeam = do
+initializeIdP newIdP _idpeTeam = do
+  ValidNewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey <- validateNewIdP newIdP
   _idpId <- SAML.IdPId <$> SAML.createUUID
   _idpeSPInfo <- wrapMonadClientWithEnv $ Data.getSPInfo _idpId
   let _idpExtraInfo = IdPExtra { _idpeTeam, _idpeSPInfo }
@@ -179,8 +179,8 @@ initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idp
 type MonadValidateIdP m = (MonadHttp m, MonadIO m)
 
 validateNewIdP :: forall m. (HasCallStack, MonadError SparError m, MonadValidateIdP m)
-               => NewIdP -> m ()
-validateNewIdP newidp = if True then pure () else do  -- TODO: validation breaks current integration test suite, so it's disabled.
+               => NewIdP -> m ValidNewIdP
+validateNewIdP newidp = if True then undefined else do  -- TODO: validation breaks current integration test suite, so it's disabled.
   let uri2req :: URI.URI -> m Request
       uri2req = either (throwSpar . SparNewIdPBadMetaUrl . cs . show) pure
               . Rq.parseRequest . cs . SAML.renderURI
