@@ -260,6 +260,10 @@ spec = do
           "meta-good-sig.xml"
           HTTP.status200
 
+      context "idp is in use by other team" $ do
+        it "rejects" $ do
+          pending
+
       context "everything in order" $ do
         it "responds with 2xx" $ do
           pending
