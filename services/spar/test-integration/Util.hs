@@ -4,6 +4,7 @@
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QuasiQuotes         #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
@@ -96,13 +97,20 @@ import qualified Text.XML.Util as SAML
 
 
 mkEnv :: IntegrationConfig -> Opts -> IO TestEnv
-mkEnv integrationOpts serviceOpts = do
-  mgr :: Manager <- newManager defaultManagerSettings
-  cql :: ClientState <- initCassandra serviceOpts =<< mkLogger serviceOpts
+mkEnv integrationOpts _teOpts = do
+  _teMgr :: Manager <- newManager defaultManagerSettings
+  _teCql :: ClientState <- initCassandra _teOpts =<< mkLogger _teOpts
   let mkreq :: (IntegrationConfig -> Endpoint) -> (Request -> Request)
       mkreq selector = Bilge.host (selector integrationOpts ^. epHost . to cs)
                      . Bilge.port (selector integrationOpts ^. epPort)
-  pure $ TestEnv mgr cql (mkreq cfgBrig) (mkreq cfgGalley) (mkreq cfgSpar) (cfgNewIdp integrationOpts) (cfgMockIdp integrationOpts) serviceOpts
+
+      _teBrig    = mkreq cfgBrig
+      _teGalley  = mkreq cfgGalley
+      _teSpar    = mkreq cfgSpar
+      _teNewIdp  = cfgNewIdp integrationOpts
+      _teMockIdp = cfgMockIdp integrationOpts
+
+  pure $ TestEnv {..}
 
 it :: m ~ IO
        -- or, more generally:
