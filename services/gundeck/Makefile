@@ -37,6 +37,10 @@ fast: init
 	stack install . --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" ../../dist/
 
+.PHONY: haddock
+haddock:
+	stack haddock . --fast --no-haddock-deps --haddock-internal
+
 .PHONY: compile
 compile:
 	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins

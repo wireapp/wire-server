@@ -38,6 +38,10 @@ fast: init
 compile:
 	stack build . --pedantic --test --no-copy-bins
 
+.PHONY: haddock
+haddock:
+	stack haddock . --fast --no-haddock-deps --haddock-internal
+
 .PHONY: dist
 dist: guard-VERSION install $(DEB) $(DEB_IT) .metadata
 

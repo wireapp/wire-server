@@ -37,6 +37,14 @@ integration: fast
 	$(MAKE) -C services/gundeck i-fake-aws
 	$(MAKE) -C services/spar i
 
+.PHONY: haddock
+haddock:
+	$(MAKE) -C services/cargohold haddock
+	$(MAKE) -C services/galley haddock
+	$(MAKE) -C services/brig haddock
+	$(MAKE) -C services/gundeck haddock
+	$(MAKE) -C services/spar haddock
+
 #################################
 ## docker targets
 
