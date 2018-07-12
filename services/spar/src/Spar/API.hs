@@ -117,7 +117,9 @@ type ZUsr = Maybe UserId
 
 idpGet :: ZUsr -> SAML.IdPId -> Spar IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
-  authorizeIdP zusr =<< SAML.getIdPConfig idpid
+  idp <- SAML.getIdPConfig idpid
+  authorizeIdP zusr idp
+  pure idp
 
 idpGetAll :: ZUsr -> Spar IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
@@ -128,7 +130,7 @@ idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
 idpDelete :: ZUsr -> SAML.IdPId -> Spar NoContent
 idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     idp <- SAML.getIdPConfig idpid
-    void $ authorizeIdP zusr idp
+    authorizeIdP zusr idp
     wrapMonadClient $ Data.deleteIdPConfig idpid (idp ^. SAML.idpIssuer) (idp ^. SAML.idpExtraInfo . idpeTeam)
     return NoContent
 
@@ -149,14 +151,12 @@ withDebugLog msg showval action = do
   SAML.logger SAML.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
   pure val
 
--- | Called by get, delete handlers.
+-- | Called by get, put, delete handlers.
 authorizeIdP :: (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSparToBrig m)
-             => ZUsr -> IdP -> m IdP
+             => ZUsr -> IdP -> m ()
 authorizeIdP zusr idp = do
   teamid <- getZUsrOwnedTeam zusr
-  if teamid == idp ^. SAML.idpExtraInfo . idpeTeam
-    then pure idp
-    else throwSpar SparNotInTeam
+  when (teamid /= idp ^. SAML.idpExtraInfo . idpeTeam) $ throwSpar SparNotInTeam
 
 -- | Called by post handler, and by 'authorizeIdP'.
 getZUsrOwnedTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSparToBrig m)
