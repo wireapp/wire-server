@@ -118,8 +118,7 @@ idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
 
 idpGetAll :: ZUsr -> Spar IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
-  teamid <- getZUsrTeam zusr
-  Brig.assertIsTeamOwner zusr teamid
+  teamid <- getZUsrOwnedTeam zusr
   _idplProviders <- wrapMonadClientWithEnv $ Data.getIdPConfigsByTeam teamid
   pure IdPList{..}
 
