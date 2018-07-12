@@ -44,8 +44,7 @@ import qualified Data.ByteString.Char8 as BSC
 
 data Env = Env
   { dataEnvNow                :: UTCTime
-  , dataEnvMetaUrl            :: URI
-  , dataEnvLoginUrlPrefix     :: URI
+  , dataEnvSPInfo             :: SPInfo
   , dataEnvMaxTTLAuthRequests :: TTL "authreq"
   , dataEnvMaxTTLAssertions   :: TTL "authresp"
   }
@@ -54,17 +53,16 @@ data Env = Env
 mkEnv :: Options.Opts -> UTCTime -> Env
 mkEnv opts now =
   Env { dataEnvNow                = now
-      , dataEnvMetaUrl            = Options.metaUrl opts
-      , dataEnvLoginUrlPrefix     = Options.loginUrlPrefix opts
+      , dataEnvSPInfo             = Options.spInfo opts
       , dataEnvMaxTTLAuthRequests = Options.maxttlAuthreq opts
       , dataEnvMaxTTLAssertions   = Options.maxttlAuthresp opts
       }
 
 mkTTLAuthnRequests :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authreq")
-mkTTLAuthnRequests (Env now _ _ maxttl _) = mkTTL now maxttl
+mkTTLAuthnRequests (Env now _ maxttl _) = mkTTL now maxttl
 
 mkTTLAssertions :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authresp")
-mkTTLAssertions (Env now _ _ _ maxttl) = mkTTL now maxttl
+mkTTLAssertions (Env now _ _ maxttl) = mkTTL now maxttl
 
 mkTTL :: MonadError TTLError m => UTCTime -> TTL a -> UTCTime -> m (TTL a)
 mkTTL now maxttl endOfLife = if
@@ -182,11 +180,7 @@ storeIdPConfig idp = retry x5 . batch $ do
 getSPInfo :: MonadReader Env m => SAML.IdPId -> m SPInfo
 getSPInfo (SAML.IdPId idp) = do
   env <- ask
-  pure $ SPInfo
-    { _spiMetaURI  = dataEnvMetaUrl env
-    , _spiLoginURI = dataEnvLoginUrlPrefix env
-                       & pathL %~ (<> BSC.pack (UUID.toString idp))
-    }
+  pure $ dataEnvSPInfo env & spiLoginURI . pathL %~ (<> BSC.pack (UUID.toString idp))
 
 getIdPConfig
   :: forall m. (HasCallStack, MonadClient m, MonadReader Env m)
