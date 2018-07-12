@@ -28,9 +28,10 @@ services: init install
 	$(MAKE) -C services/nginz
 
 .PHONY: integration
-integration: fast
+integration:
 	# We run "i" instead of "integration" to avoid useless rebuilds
 	# (since after "fast" everything will be built already)
+	$(MAKE) haddock-shallow
 	$(MAKE) -C services/cargohold i
 	$(MAKE) -C services/galley i
 	$(MAKE) -C services/brig i
