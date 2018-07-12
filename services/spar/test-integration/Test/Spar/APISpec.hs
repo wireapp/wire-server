@@ -26,6 +26,7 @@ import Util
 
 import qualified Brig.Types.User as Brig
 import qualified Galley.Types.Teams as Galley
+import qualified Network.HTTP.Types.Status as HTTP
 import qualified Spar.Intra.Brig as Intra
 
 
@@ -220,8 +221,8 @@ spec = do
           callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdp)
             `shouldRespondWith` checkErr (== 403) "forbidden"
 
-      let createIdpMockErr :: (NewIdP -> NewIdP) -> FilePath -> FilePath -> ReaderT TestEnv IO ()
-          createIdpMockErr modnewidp metafile respfile = do
+      let createIdpMockErr :: (NewIdP -> NewIdP) -> FilePath -> HTTP.Status -> ReaderT TestEnv IO ()
+          createIdpMockErr modnewidp metafile respstatus = do
             pending
             env <- ask
             metaurl <- endpointToURL (env ^. teMockIdp) "meta"
@@ -231,7 +232,7 @@ spec = do
                   & nidpRequestUri .~ respurl
                   & modnewidp
             (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-            withMockIdP (serveMetaAndResp metafile respfile) $ do
+            withMockIdP (serveMetaAndResp metafile respstatus) $ do
               callIdpCreate' (env ^. teSpar) (Just uid) newidp
                 `shouldRespondWith` checkErr (== 400) "client-error"
 
@@ -239,25 +240,25 @@ spec = do
         it "rejects" $ createIdpMockErr
           id
           "meta-bad.xml"
-          "resp-good.xml"
+          HTTP.status200
 
       context "invalid metainfo signature (on an XML document otherwise arbitrarily off)" $ do
         it "rejects" $ createIdpMockErr
           id
           "meta-bad-sig.xml"
-          "resp-good.xml"
+          HTTP.status200
 
       context "invalid or unresponsive login request url" $ do
         it "rejects" $ createIdpMockErr
           id
           "meta-good-sig.xml"
-          "resp-bad.xml"
+          HTTP.status400
 
       context "pubkey in IdPConfig does not match the one provided in metainfo url" $ do
         it "rejects" $ createIdpMockErr
           (nidpPublicKey .~ samplePublicKey2)
           "meta-good-sig.xml"
-          "resp-good.xml"
+          HTTP.status200
 
       context "everything in order" $ do
         it "responds with 2xx" $ do

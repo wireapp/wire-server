@@ -46,14 +46,11 @@ withMockIdP app go = do
 
 -- test applications
 
-serveMetaAndResp :: HasCallStack => FilePath -> FilePath -> Application
-serveMetaAndResp metafile respfile req cont =
-  cont . responseLBS status200 [] =<< LBS.readFile ("test-integration/resources/" <> file)
-  where
-    file = case pathInfo req of
-      ["meta"] -> metafile
-      ["resp"] -> respfile
-      bad      -> error $ show bad
+serveMetaAndResp :: HasCallStack => FilePath -> Status -> Application
+serveMetaAndResp metafile respstatus req cont = case pathInfo req of
+  ["meta"] -> cont . responseLBS status200 [] =<< LBS.readFile ("test-integration/resources/" <> metafile)
+  ["resp"] -> cont $ responseLBS respstatus [] ""
+  bad      -> error $ show bad
 
 
 -- auxiliaries
