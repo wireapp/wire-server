@@ -120,9 +120,8 @@ confirmUserId buid = do
 
 -- | If user is not in team, throw 'SparNotInTeam'; if user is in team but not owner, throw
 -- 'SparNotTeamOwner'; otherwise, return.
-assertIsTeamOwner :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => Maybe UserId -> TeamId -> m ()
-assertIsTeamOwner Nothing _ = throwSpar SparNotInTeam
-assertIsTeamOwner (Just buid) tid = do
+assertIsTeamOwner :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> TeamId -> m ()
+assertIsTeamOwner buid tid = do
   self <- maybe (throwSpar SparNotInTeam) pure =<< getUser buid
   when (Brig.userTeam self /= Just tid) $ (throwSpar SparNotInTeam)
   resp :: Response (Maybe LBS) <- call
