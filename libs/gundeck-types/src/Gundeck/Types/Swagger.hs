@@ -6,8 +6,8 @@ import Data.Swagger.Build.Api
 
 gundeckModels :: [Model]
 gundeckModels =
-    [ pushList
-    , push
+    [ pushTokenList
+    , pushToken
     , notificationList
     , notification
     , event
@@ -25,8 +25,8 @@ pushTransport = string $ enum
     , "APNS_VOIP_SANDBOX"
     ]
 
-push :: Model
-push = defineModel "Push" $ do
+pushToken :: Model
+pushToken = defineModel "PushToken" $ do
     description "Native Push Token"
     property "transport" pushTransport $
         description "Transport"
@@ -41,11 +41,11 @@ push = defineModel "Push" $ do
         description "Fallback transport"
         optional
 
-pushList :: Model
-pushList = defineModel "PushList" $ do
+pushTokenList :: Model
+pushTokenList = defineModel "PushTokenList" $ do
     description "List of Native Push Tokens"
-    property "tokens" (array (ref push)) $
-        description "Tokens"
+    property "tokens" (array (ref pushToken)) $
+        description "Push tokens"
 
 -------------------------------------------------------------------------------
 -- Notification Models
