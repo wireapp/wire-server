@@ -52,6 +52,8 @@ module Gundeck.Types.Push.V2
     , tokenFallback
     , token
 
+    , PushTokenList (..)
+
     , EncKey        (..)
     , MacKey        (..)
     , SignalingKeys (..)
@@ -358,6 +360,17 @@ instance FromJSON PushToken where
                   <*> p .:  "token"
                   <*> p .:  "client"
                   <*> p .:? "fallback"
+
+newtype PushTokenList = PushTokenList
+    { pushTokens :: [PushToken]
+    } deriving (Eq, Show)
+
+instance FromJSON PushTokenList where
+    parseJSON = withObject "PushTokenList" $ \p ->
+        PushTokenList <$> p .: "tokens"
+
+instance ToJSON PushTokenList where
+    toJSON (PushTokenList t) = object ["tokens" .= t]
 
 -----------------------------------------------------------------------------
 -- Native Push Encryption

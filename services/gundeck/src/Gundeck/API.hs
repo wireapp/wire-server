@@ -84,9 +84,9 @@ sitemap = do
 
     document "POST" "registerPushToken" $ do
         summary "Register a native push token"
-        body (ref Model.push) $
+        body (ref Model.pushToken) $
             description "JSON body"
-        returns (ref Model.push)
+        returns (ref Model.pushToken)
         response 201 "Push token registered" end
         response 404 "App does not exist" end
 
@@ -118,8 +118,8 @@ sitemap = do
 
     document "GET" "getPushTokens" $ do
         summary "List the user's registered push tokens."
-        returns (ref Model.push)
-        response 200 "List of push tokens" end
+        returns (ref Model.pushTokenList)
+        response 200 "Object containing list of push tokens" end
 
     post "/i/push" (continue Push.push) $
         request .&. accept "application" "json"
