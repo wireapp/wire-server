@@ -17,6 +17,7 @@
 
 module Spar.API.Swagger where
 
+import Data.Id
 import Data.Proxy
 import Data.UUID (UUID)
 import "swagger2" Data.Swagger hiding (Header(..))
@@ -30,7 +31,6 @@ import Spar.Types
 import Web.Cookie (SetCookie)
 
 import qualified Data.Swagger.SchemaOptions as Swagger
-import qualified Data.Id as Brig
 import qualified Data.X509 as X509
 import qualified SAML2.WebSSO as SAML
 import qualified SAML2.WebSSO.Config.TH as SAML
@@ -54,18 +54,18 @@ instance HasSwagger route => HasSwagger (SM.MultipartForm SM.Mem resp :> route) 
 samlSchemaOptions :: SchemaOptions
 samlSchemaOptions = Swagger.fromAesonOptions SAML.deriveJSONOptions
 
-instance ToParamSchema Brig.TeamId where
+instance ToParamSchema TeamId where
   toParamSchema _ = toParamSchema (Proxy @UUID)
 
-instance ToParamSchema Brig.UserId where
+instance ToParamSchema UserId where
   toParamSchema _ = toParamSchema (Proxy @UUID)
 
 instance ToParamSchema SAML.IdPId where
   toParamSchema _ = toParamSchema (Proxy @UUID)
 
-instance ToSchema Brig.TeamId where
+instance ToSchema TeamId where
   declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
-instance ToSchema Brig.UserId where
+instance ToSchema UserId where
   declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
 instance ToSchema SAML.IdPId where
   declareNamedSchema _ = declareNamedSchema (Proxy @UUID)

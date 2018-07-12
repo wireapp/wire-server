@@ -20,6 +20,7 @@ import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Identity
 import Control.Monad.Reader
+import Data.Id
 import Data.Int
 import Data.Maybe (catMaybes)
 import Data.Misc ((<$$>))
@@ -33,7 +34,6 @@ import Spar.Options as Options
 import Spar.Types
 import URI.ByteString
 
-import qualified Data.Id as Brig
 import qualified Data.UUID as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Data.ByteString.Char8 as BSC
@@ -123,15 +123,15 @@ storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
 -- user
 
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
-insertUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> Brig.UserId -> m ()
+insertUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
 insertUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, subject, uid)
   where
-    ins :: PrepQuery W (SAML.Issuer, SAML.NameID, Brig.UserId) ()
+    ins :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
     ins = "INSERT INTO user (idp, sso_id, uid) VALUES (?, ?, ?)"
 
-getUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe Brig.UserId)
+getUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
 getUser (SAML.UserRef tenant subject) = (retry x1 . query1 sel $ params Quorum (tenant', subject')) <&> \case
-  Just (Identity (Just (UUID.fromText -> Just uuid))) -> Just $ Brig.Id uuid
+  Just (Identity (Just (UUID.fromText -> Just uuid))) -> Just $ Id uuid
   _ -> Nothing
   where
     tenant', subject' :: ST
@@ -145,7 +145,7 @@ getUser (SAML.UserRef tenant subject) = (retry x1 . query1 sel $ params Quorum (
 ----------------------------------------------------------------------
 -- idp
 
-type IdPConfigRow = (SAML.IdPId, URI, SAML.Issuer, URI, SignedCertificate, Brig.TeamId)
+type IdPConfigRow = (SAML.IdPId, URI, SAML.Issuer, URI, SignedCertificate, TeamId)
 
 storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig IdPExtra -> m ()
 storeIdPConfig idp = retry x5 . batch $ do
@@ -174,7 +174,7 @@ storeIdPConfig idp = retry x5 . batch $ do
     byIssuer :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
     byIssuer = "INSERT INTO issuer_idp (idp, issuer) VALUES (?, ?)"
 
-    byTeam :: PrepQuery W (SAML.IdPId, Brig.TeamId) ()
+    byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
 
 getSPInfo :: MonadReader Env m => SAML.IdPId -> m SPInfo
@@ -217,15 +217,15 @@ getIdPConfigByIssuer issuer = do
 
 getIdPConfigsByTeam
   :: (HasCallStack, MonadClient m, MonadReader Env m)
-  => Brig.TeamId -> m [IdP]
+  => TeamId -> m [IdP]
 getIdPConfigsByTeam team = do
     idpids <- runIdentity <$$> retry x1 (query sel $ params Quorum (Identity team))
     catMaybes <$> mapM getIdPConfig idpids
   where
-    sel :: PrepQuery R (Identity Brig.TeamId) (Identity SAML.IdPId)
+    sel :: PrepQuery R (Identity TeamId) (Identity SAML.IdPId)
     sel = "SELECT idp FROM team_idp WHERE team = ?"
 
-deleteIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPId -> SAML.Issuer -> Brig.TeamId -> m ()
+deleteIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPId -> SAML.Issuer -> TeamId -> m ()
 deleteIdPConfig idp issuer team = retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
@@ -239,5 +239,5 @@ deleteIdPConfig idp issuer team = retry x5 $ batch $ do
     delIssuerIdp :: PrepQuery W (Identity SAML.Issuer) ()
     delIssuerIdp = "DELETE FROM issuer_idp WHERE issuer = ?"
 
-    delTeamIdp :: PrepQuery W (Brig.TeamId, SAML.IdPId) ()
+    delTeamIdp :: PrepQuery W (TeamId, SAML.IdPId) ()
     delTeamIdp = "DELETE FROM team_idp WHERE team = ? and idp = ?"

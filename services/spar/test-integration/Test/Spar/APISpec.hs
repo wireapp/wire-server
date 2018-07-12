@@ -11,6 +11,7 @@
 module Test.Spar.APISpec where
 
 import Bilge
+import Brig.Types.User
 import Control.Monad.Reader
 import Data.ByteString.Conversion
 import Data.Either (isRight)
@@ -19,13 +20,12 @@ import Data.List (isInfixOf)
 import Data.Maybe
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
+import Galley.Types.Teams as Galley
 import Lens.Micro
 import SAML2.WebSSO as SAML
 import Spar.Types
 import Util
 
-import qualified Brig.Types.User as Brig
-import qualified Galley.Types.Teams as Galley
 import qualified Network.HTTP.Types.Status as HTTP
 import qualified Spar.Intra.Brig as Intra
 
@@ -142,7 +142,7 @@ spec = do
             it "responds with 'forbidden' and a helpful message" $ do
               env <- ask
               (_owner, tid, idp) <- createTestIdP
-              newmember <- let Just perms = Galley.newPermissions mempty mempty
+              newmember <- let Just perms = newPermissions mempty mempty
                         in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
               whichone (env ^. teSpar) (Just newmember) idp
                 `shouldRespondWith` checkErr (== 403) "forbidden"
@@ -216,7 +216,7 @@ spec = do
         it "responds with 'forbidden' and a helpful message" $ do
           env <- ask
           (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          newmember <- let Just perms = Galley.newPermissions mempty mempty
+          newmember <- let Just perms = newPermissions mempty mempty
                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
           callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdp)
             `shouldRespondWith` checkErr (== 403) "forbidden"
@@ -286,13 +286,13 @@ spec = do
                               . path "/self"
                               . header "Z-User" (toByteString' $ if tryowner then owner else newmember)
                               . expect2xx)
-                parsedResp <- either (error . show) pure $ Brig.selfUser <$> Intra.parseResponse @Brig.SelfProfile rawResp
-                liftIO $ Brig.userTeam parsedResp `shouldSatisfy` isJust
+                parsedResp <- either (error . show) pure $ selfUser <$> Intra.parseResponse @SelfProfile rawResp
+                liftIO $ userTeam parsedResp `shouldSatisfy` isJust
 
-            permses :: [Galley.Permissions]
+            permses :: [Permissions]
             permses = fromJust <$>
-              [ Just Galley.fullPermissions
-              , Galley.newPermissions mempty mempty
+              [ Just fullPermissions
+              , newPermissions mempty mempty
               ]
 
         sequence_ [ check tryowner perms | tryowner <- [minBound..], perms <- [0.. (length permses - 1)] ]

@@ -31,10 +31,12 @@ module Spar.API
   ) where
 
 import Bilge
+import Brig.Types.User as Brig
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Either
 import Data.EitherR (fmapL)
+import Data.Id
 import Data.Maybe (isJust, fromJust)
 import Data.Proxy
 import Data.String.Conversions
@@ -53,12 +55,10 @@ import Spar.Options
 import Spar.Types
 import Web.Cookie (SetCookie)
 
-import qualified Brig.Types.User as Brig
-import qualified Data.Id as Brig
 import qualified Network.HTTP.Client as Rq
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
-import qualified Spar.Intra.Brig as Brig
+import qualified Spar.Intra.Brig as Intra
 import qualified Text.XML as XML
 import qualified Text.XML.DSig as SAML
 import qualified Text.XML.Util as SAML
@@ -86,10 +86,10 @@ type APIMeta     = "sso" :> "metainfo" :> SAML.APIMeta
 type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
 type APIAuthResp = "sso" :> "finalize-login" :> SAML.APIAuthResp
 
-type IdpGet     = Header "Z-User" Brig.UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
-type IdpGetAll  = Header "Z-User" Brig.UserId :> "identity-providers" :> Get '[JSON] IdPList
-type IdpCreate  = Header "Z-User" Brig.UserId :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IdP
-type IdpDelete  = Header "Z-User" Brig.UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
+type IdpGet     = Header "Z-User" UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
+type IdpGetAll  = Header "Z-User" UserId :> "identity-providers" :> Get '[JSON] IdPList
+type IdpCreate  = Header "Z-User" UserId :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IdP
+type IdpDelete  = Header "Z-User" UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 -- FUTUREWORK (thanks jschaul): In a more recent version of servant, using Header '[Strict] becomes
 -- an option, removing the need for the Maybe and the extra checks. Probably once
@@ -113,7 +113,7 @@ appName = "spar"
 onSuccess :: HasCallStack => SAML.UserRef -> Spar (SetCookie, URI.URI)
 onSuccess uid = forwardBrigLogin =<< maybe (createUser uid) pure =<< getUser uid
 
-type ZUsr = Maybe Brig.UserId
+type ZUsr = Maybe UserId
 
 idpGet :: ZUsr -> SAML.IdPId -> Spar IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
@@ -150,7 +150,7 @@ withDebugLog msg showval action = do
   pure val
 
 -- | Called by get, delete handlers.
-authorizeIdP :: (HasCallStack, MonadError SparError m, SAML.SP m, Brig.MonadSparToBrig m)
+authorizeIdP :: (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSparToBrig m)
              => ZUsr -> IdP -> m IdP
 authorizeIdP zusr idp = do
   teamid <- getZUsrOwnedTeam zusr
@@ -159,16 +159,16 @@ authorizeIdP zusr idp = do
     else throwSpar SparNotInTeam
 
 -- | Called by post handler, and by 'authorizeIdP'.
-getZUsrOwnedTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, Brig.MonadSparToBrig m)
-            => ZUsr -> m Brig.TeamId
+getZUsrOwnedTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSparToBrig m)
+            => ZUsr -> m TeamId
 getZUsrOwnedTeam Nothing = throwSpar SparNotInTeam
 getZUsrOwnedTeam (Just uid) = do
-  usr <- Brig.getUser uid
+  usr <- Intra.getUser uid
   case Brig.userTeam =<< usr of
     Nothing -> throwSpar SparNotInTeam
-    Just teamid -> teamid <$ Brig.assertIsTeamOwner uid teamid
+    Just teamid -> teamid <$ Intra.assertIsTeamOwner uid teamid
 
-initializeIdP :: NewIdP -> Brig.TeamId -> Spar IdP
+initializeIdP :: NewIdP -> TeamId -> Spar IdP
 initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpeTeam = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
   _idpeSPInfo <- wrapMonadClientWithEnv $ Data.getSPInfo _idpId

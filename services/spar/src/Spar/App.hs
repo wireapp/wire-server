@@ -30,7 +30,7 @@ import qualified Control.Monad.Catch as Catch
 import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
-import qualified Spar.Intra.Brig as Brig
+import qualified Spar.Intra.Brig as Intra
 import qualified System.Logger as Log
 import qualified URI.ByteString as URI
 
@@ -123,7 +123,7 @@ getUser suid = do
   mbuid <- wrapMonadClient $ Data.getUser suid
   case mbuid of
     Nothing -> pure Nothing
-    Just buid -> Brig.confirmUserId buid
+    Just buid -> Intra.confirmUserId buid
 
 -- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
 -- create user on brig with that 'UserId'.  See also: 'Spar.App.getUser'.
@@ -146,11 +146,11 @@ createUser suid = do
   buid <- Id <$> liftIO UUID.nextRandom
   teamid <- (^. idpExtraInfo . idpeTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
-  buid' <- Brig.createUser suid buid teamid
+  buid' <- Intra.createUser suid buid teamid
   assert (buid == buid') $ pure buid
 
 forwardBrigLogin :: UserId -> Spar (SetCookie, URI.URI)
-forwardBrigLogin = Brig.forwardBrigLogin
+forwardBrigLogin = Intra.forwardBrigLogin
 
 
 instance SPHandler SparError Spar where
@@ -160,7 +160,7 @@ instance SPHandler SparError Spar where
 instance MonadHttp Spar where
   getManager = asks sparCtxHttpManager
 
-instance Brig.MonadSparToBrig Spar where
+instance Intra.MonadSparToBrig Spar where
   call modreq = do
     req <- asks sparCtxHttpBrig
     httpLbs req modreq
