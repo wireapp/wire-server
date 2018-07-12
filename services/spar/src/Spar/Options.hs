@@ -31,7 +31,7 @@ import qualified SAML2.WebSSO.Config as SAML
 
 data Opts = Opts
     { saml           :: !(SAML.Config IdPExtra)
-    , spInfo         :: SPInfo
+    , spInfo         :: !SPInfo
     , brig           :: !Endpoint
     , cassandra      :: !CassandraOpts
     , maxttlAuthreq  :: !(TTL "authreq")
