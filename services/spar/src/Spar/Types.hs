@@ -26,8 +26,8 @@ import qualified Data.X509 as X509
 -- | Info about the service provider that can be given to the identity
 -- provider to configure the service provider.
 data SPInfo = SPInfo
-  { _spiMetaURI  :: URI        -- ^ Unique for Wire
-  , _spiLoginURI :: URI        -- ^ Different for each identity provider
+  { _spiMetaURI  :: URI  -- ^ corresponds to 'APIMeta' (unique for Wire)
+  , _spiLoginURI :: URI  -- ^ corresponds to 'APIAuthReq' (the prefix without the identity provider id)
   }
   deriving (Eq, Show, Generic)
 

@@ -15,6 +15,7 @@ import Data.Maybe
 import Data.Time
 import Spar.Data
 import Spar.Options
+import Spar.Types
 import Test.Hspec
 import URI.ByteString.QQ
 import SAML2.WebSSO (Time(Time), addTime)
@@ -41,8 +42,7 @@ check env (parsetm -> endOfLife) expectttl =
 mkDataEnv :: HasCallStack => String -> (TTL "authresp") -> Env
 mkDataEnv now maxttl =
     Env (parsetm now)
-        [uri|https://wire.com|]
-        [uri|https://wire.com|]
+        (SPInfo [uri|https://wire.com|] [uri|https://wire.com|])
         0      -- will not be looked at
         maxttl -- this one will
 

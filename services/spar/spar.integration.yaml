@@ -14,8 +14,9 @@ saml:
       surname: Girlfriend
       email: email:president@evil.corp
 
-metaUrl:        https://app.wire.com/sso/metadata         # corresponds to 'APIMeta'
-loginUrlPrefix: https://app.wire.com/sso/initiate-login/  # corresponds to 'APIAuthReq'
+spInfo:
+  meta_uri:  https://app.wire.com/sso/metadata         # corresponds to 'APIMeta'
+  login_uri: https://app.wire.com/sso/initiate-login/  # corresponds to 'APIAuthReq' (without the idp id)
 
 brig:
   host: 127.0.0.1
