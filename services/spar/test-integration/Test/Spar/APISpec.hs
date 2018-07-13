@@ -35,6 +35,12 @@ import qualified Spar.Intra.Brig as Intra
 
 spec :: SpecWith TestEnv
 spec = do
+    describe "CORS" $ do
+      it "is disabled" $ do
+        env <- ask
+        get ((env ^. teSpar) . path "/i/status" . expect2xx)
+          `shouldRespondWith` (\(responseHeaders -> hdrs) -> isNothing $ lookup "Access-Control-Allow-Origin" hdrs)
+
     describe "status, metadata" $ do
       it "brig /i/status" $ do
         env <- ask
