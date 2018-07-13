@@ -87,6 +87,10 @@ spec = do
           it "creates the user" $ do
             pending
 
+        context "known user A, but client device (probably a browser?) is already authenticated as another (probably non-sso) user B" $ do
+          it "logs out user B, logs in user A" $ do
+            pending
+
       context "unknown IdP" $ do
         it "rejects" $ do
           pending
@@ -260,7 +264,7 @@ spec = do
           "meta-good-sig.xml"
           HTTP.status200
 
-      context "idp is in use by other team" $ do
+      context "idp (identified by issuer) is in use by other team" $ do
         it "rejects" $ do
           pending
 
