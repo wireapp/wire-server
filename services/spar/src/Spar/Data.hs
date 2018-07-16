@@ -130,15 +130,11 @@ insertUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quo
     ins = "INSERT INTO user (idp, sso_id, uid) VALUES (?, ?, ?)"
 
 getUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
-getUser (SAML.UserRef tenant subject) = (retry x1 . query1 sel $ params Quorum (tenant', subject')) <&> \case
+getUser (SAML.UserRef tenant subject) = (retry x1 . query1 sel $ params Quorum (tenant, subject)) <&> \case
   Just (Identity (Just (UUID.fromText -> Just uuid))) -> Just $ Id uuid
   _ -> Nothing
   where
-    tenant', subject' :: ST
-    tenant'  = cs $ SAML.encodeElem tenant
-    subject' = cs $ SAML.encodeElem subject
-
-    sel :: PrepQuery R (ST, ST) (Identity (Maybe ST))
+    sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity (Maybe ST))
     sel = "SELECT uid FROM user WHERE idp = ? AND sso_id = ?"
 
 
