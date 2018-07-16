@@ -123,18 +123,22 @@ storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
 -- user
 
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
-insertUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
-insertUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, subject, uid)
+insertUser :: (HasCallStack, MonadClient m) => SAML.IdPId -> SAML.NameID -> UserId -> m ()
+insertUser idpid subject uid = do
+  retry x5 . write ins $ params Quorum (idpid, subject, uid)
   where
-    ins :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
+    ins :: PrepQuery W (SAML.IdPId, SAML.NameID, UserId) ()
     ins = "INSERT INTO user (idp, sso_id, uid) VALUES (?, ?, ?)"
 
 getUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
-getUser (SAML.UserRef tenant subject) = (retry x1 . query1 sel $ params Quorum (tenant, subject)) <&> \case
-  Just (Identity (Just (UUID.fromText -> Just uuid))) -> Just $ Id uuid
-  _ -> Nothing
+getUser (SAML.UserRef tenant subject) =
+  getIdPIdByIssuer tenant >>= \case
+    Just idpid -> (retry x1 . query1 sel $ params Quorum (idpid, subject)) <&> \case
+      Just (Identity (Just (UUID.fromText -> Just uuid))) -> Just $ Id uuid
+      _ -> Nothing
+    Nothing -> pure Nothing
   where
-    sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity (Maybe ST))
+    sel :: PrepQuery R (SAML.IdPId, SAML.NameID) (Identity (Maybe ST))
     sel = "SELECT uid FROM user WHERE idp = ? AND sso_id = ?"
 
 
@@ -204,9 +208,17 @@ getIdPConfigByIssuer
   :: (HasCallStack, MonadClient m, MonadReader Env m)
   => SAML.Issuer -> m (Maybe IdP)
 getIdPConfigByIssuer issuer = do
-  retry x1 (query1 sel $ params Quorum (Identity issuer)) >>= \case
-    Nothing -> pure Nothing
-    Just (Identity idpid) -> getIdPConfig idpid
+  getIdPIdByIssuer issuer >>= \case
+    Nothing    -> pure Nothing
+    Just idpid -> getIdPConfig idpid
+
+getIdPIdByIssuer
+  :: (HasCallStack, MonadClient m)
+  => SAML.Issuer -> m (Maybe SAML.IdPId)
+getIdPIdByIssuer issuer = do
+  retry x1 (query1 sel $ params Quorum (Identity issuer)) <&> \case
+    Nothing               -> Nothing
+    Just (Identity idpid) -> Just idpid
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"

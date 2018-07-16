@@ -111,7 +111,9 @@ wrapMonadClient action = do
       (throwSpar . SparCassandraError . cs . show @SomeException)
 
 insertUser :: SAML.UserRef -> UserId -> Spar ()
-insertUser suid buid = wrapMonadClient $ Data.insertUser suid buid
+insertUser (SAML.UserRef tenant subject) buid = do
+  idpid <- maybe (throwSpar SparNotFound) pure =<< wrapMonadClient (Data.getIdPIdByIssuer tenant)
+  wrapMonadClient $ Data.insertUser idpid subject buid
 
 -- | Look up user locally, then in brig, then return the 'UserId'.  If either lookup fails, return
 -- 'Nothing'.  See also: 'Spar.App.createUser'.
