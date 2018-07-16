@@ -139,7 +139,7 @@ getUser (SAML.UserRef tenant subject) = (retry x1 . query1 sel $ params Quorum (
     subject' = cs $ SAML.encodeElem subject
 
     sel :: PrepQuery R (ST, ST) (Identity (Maybe ST))
-    sel = "SELECT uid FROM authresp WHERE idp = ? AND sso_id = ?"
+    sel = "SELECT uid FROM user WHERE idp = ? AND sso_id = ?"
 
 
 ----------------------------------------------------------------------
