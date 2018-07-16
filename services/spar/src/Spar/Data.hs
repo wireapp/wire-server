@@ -130,15 +130,13 @@ insertUser idpid subject uid = do
     ins :: PrepQuery W (SAML.IdPId, SAML.NameID, UserId) ()
     ins = "INSERT INTO user (idp, sso_id, uid) VALUES (?, ?, ?)"
 
-getUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
-getUser (SAML.UserRef tenant subject) =
-  getIdPIdByIssuer tenant >>= \case
-    Just idpid -> (retry x1 . query1 sel $ params Quorum (idpid, subject)) <&> \case
-      Just (Identity (Just (UUID.fromText -> Just uuid))) -> Just $ Id uuid
-      _ -> Nothing
-    Nothing -> pure Nothing
+getUser :: (HasCallStack, MonadClient m) => SAML.IdPId -> SAML.NameID -> m (Maybe UserId)
+getUser idpid subject =
+  (retry x1 . query1 sel $ params Quorum (idpid, subject)) <&> \case
+    Just (Identity muid) -> muid
+    _ -> Nothing
   where
-    sel :: PrepQuery R (SAML.IdPId, SAML.NameID) (Identity (Maybe ST))
+    sel :: PrepQuery R (SAML.IdPId, SAML.NameID) (Identity (Maybe UserId))
     sel = "SELECT uid FROM user WHERE idp = ? AND sso_id = ?"
 
 

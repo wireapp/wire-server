@@ -121,11 +121,14 @@ insertUser (SAML.UserRef tenant subject) buid = do
 -- ASSUMPTIONS: User creation on brig/galley is idempotent.  Any incomplete creation (because of
 -- brig or galley crashing) will cause the lookup here to yield invalid user.
 getUser :: SAML.UserRef -> Spar (Maybe UserId)
-getUser suid = do
-  mbuid <- wrapMonadClient $ Data.getUser suid
-  case mbuid of
+getUser (SAML.UserRef tenant subject) = do
+  wrapMonadClient (Data.getIdPIdByIssuer tenant) >>= \case
     Nothing -> pure Nothing
-    Just buid -> Intra.confirmUserId buid
+    Just idpid -> do
+      mbuid <- wrapMonadClient $ Data.getUser idpid subject
+      case mbuid of
+        Nothing -> pure Nothing
+        Just buid -> Intra.confirmUserId buid
 
 -- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
 -- create user on brig with that 'UserId'.  See also: 'Spar.App.getUser'.
