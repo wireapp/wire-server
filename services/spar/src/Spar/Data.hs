@@ -123,20 +123,17 @@ storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
 -- user
 
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
-insertUser :: (HasCallStack, MonadClient m) => SAML.IdPId -> SAML.NameID -> UserId -> m ()
-insertUser idpid subject uid = do
-  retry x5 . write ins $ params Quorum (idpid, subject, uid)
+insertUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
+insertUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, subject, uid)
   where
-    ins :: PrepQuery W (SAML.IdPId, SAML.NameID, UserId) ()
+    ins :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
     ins = "INSERT INTO user (idp, sso_id, uid) VALUES (?, ?, ?)"
 
-getUser :: (HasCallStack, MonadClient m) => SAML.IdPId -> SAML.NameID -> m (Maybe UserId)
-getUser idpid subject =
-  (retry x1 . query1 sel $ params Quorum (idpid, subject)) <&> \case
-    Just (Identity muid) -> muid
-    _ -> Nothing
+getUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
+getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
+  (retry x1 . query1 sel $ params Quorum (tenant, subject))
   where
-    sel :: PrepQuery R (SAML.IdPId, SAML.NameID) (Identity (Maybe UserId))
+    sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
     sel = "SELECT uid FROM user WHERE idp = ? AND sso_id = ?"
 
 
