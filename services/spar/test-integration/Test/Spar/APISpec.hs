@@ -37,6 +37,10 @@ spec :: SpecWith TestEnv
 spec = do
     describe "CORS" $ do
       it "is disabled" $ do
+        -- I put this there because I was playing with a CORS middleware to make swagger browsing more
+        -- convenient, but went for a simpler work flow that didn't require that in the end.  I left
+        -- it in so if we ever start adding CORS headers, whether by accident or intentionally, we
+        -- will fall over this test and will have to extend it to document the new behavior.
         env <- ask
         get ((env ^. teSpar) . path "/i/status" . expect2xx)
           `shouldRespondWith` (\(responseHeaders -> hdrs) -> isNothing $ lookup "Access-Control-Allow-Origin" hdrs)
