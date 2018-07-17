@@ -306,7 +306,8 @@ testCreateUserBlacklist brig aws =
                         "complaint" -> MailComplaint [em]
                         x           -> error ("Unsupported message type: " ++ show x)
         let queue = env^.AWS.sesQueue
-        void $ AWS.execute env (AWS.enqueueStandard queue bdy)
+        -- Given the startup options, we know that a queue exists iff we use SES
+        for_ queue $ AWS.execute env . flip AWS.enqueueStandard bdy
 
     awaitBlacklist :: Int -> Email -> Http ()
     awaitBlacklist n e = do

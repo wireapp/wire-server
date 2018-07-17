@@ -133,6 +133,8 @@ library
       , http-client               >= 0.5
       , http-client-openssl-ext   >= 0.1
       , http-types                >= 0.8
+      , HaskellNet                >= 0.3
+      , HaskellNet-SSL            >= 0.3
       , HsOpenSSL                 >= 0.10
       , HsOpenSSL-x509-system     >= 0.1
       , iproute                   >= 1.5
@@ -159,6 +161,7 @@ library
       , safe                      >= 0.3
       , scientific                >= 0.3.4
       , scrypt                    >= 0.5
+      , smtp-mail                 >= 0.1
       , split                     >= 0.2
       , semigroups                >= 0.15
       , singletons                >= 2.0

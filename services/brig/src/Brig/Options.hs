@@ -49,17 +49,30 @@ data ElasticSearchOpts = ElasticSearchOpts
 instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
-    { sesQueue         :: !Text
-    , internalQueue    :: !Text
+    { internalQueue    :: !Text
     , userJournalQueue :: !(Maybe Text)
     , blacklistTable   :: !Text
     , prekeyTable      :: !Text
-    , sesEndpoint      :: !AWSEndpoint
     , sqsEndpoint      :: !AWSEndpoint
     , dynamoDBEndpoint :: !AWSEndpoint
     } deriving (Show, Generic)
 
 instance FromJSON AWSOpts
+
+data EmailAWSOpts = EmailAWSOpts
+    { sesQueue         :: !Text
+    , sesEndpoint      :: !AWSEndpoint
+    } deriving (Show, Generic)
+
+instance FromJSON EmailAWSOpts
+
+data EmailSMTPOpts = EmailSMTPOpts
+    { smtpEndpoint :: !Text
+    , smtpUser     :: !Text
+    , smtpPassword :: !Text
+    } deriving (Show, Generic)
+
+instance FromJSON EmailSMTPOpts
 
 data EmailSMSGeneralOpts = EmailSMSGeneralOpts
     { templateDir :: !FilePath
@@ -97,8 +110,17 @@ data TeamOpts = TeamOpts
 
 instance FromJSON TeamOpts
 
+data EmailOpts = EmailAWS  EmailAWSOpts
+               | EmailSMTP EmailSMTPOpts
+               deriving (Show, Generic)
+
+instance FromJSON EmailOpts where
+    parseJSON o = do
+      (return . EmailAWS =<< parseJSON o) <|> (return . EmailSMTP =<< parseJSON o)
+
 data EmailSMSOpts = EmailSMSOpts
-    { general  :: !EmailSMSGeneralOpts
+    { email    :: !EmailOpts
+    , general  :: !EmailSMSGeneralOpts
     , user     :: !EmailUserOpts
     , provider :: !ProviderOpts
     , team     :: !TeamOpts
@@ -222,9 +244,6 @@ optsParser =
       help "The name of the ElasticSearch user index")) <*>
     (AWSOpts <$>
      (textOption $
-      long "aws-ses-queue" <> metavar "STRING" <>
-      help "Event feedback queue for SES (e.g. for email bounces and complaints)") <*>
-     (textOption $
       long "aws-internal-queue" <> metavar "STRING" <>
       help "Event queue for internal brig generated events (e.g. user deletion)") <*>
      (optional $ textOption $
@@ -237,15 +256,13 @@ optsParser =
       long "aws-dynamo-prekeys" <> metavar "STRING" <>
       help "Dynamo table for storing prekey data") <*>
      (option parseAWSEndpoint $
-      long "aws-ses-endpoint" <> value (AWSEndpoint "email.eu-west-1.amazonaws.com" True 443)
-      <> metavar "STRING" <> showDefault <> help "aws SES endpoint") <*>
-     (option parseAWSEndpoint $
       long "aws-sqs-endpoint" <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443)
       <> metavar "STRING" <> showDefault <> help "aws SQS endpoint") <*>
      (option parseAWSEndpoint $
       long "aws-dynamodb-endpoint" <> value (AWSEndpoint "dynamodb.eu-west-1.amazonaws.com" True 443)
       <> metavar "STRING" <> showDefault <> help "aws DYNAMODB endpoint")) <*>
     (EmailSMSOpts <$>
+     emailOptsParser <*>
      (EmailSMSGeneralOpts <$>
       (strOption $
        long "template-dir" <> metavar "FILE" <>
@@ -341,6 +358,22 @@ optsParser =
       long "turn-config-ttl" <> metavar "INT" <> value 3600 <> showDefault <>
       help "Number of seconds until a new TURN configuration should be fetched.")) <*>
     settingsParser
+
+emailOptsParser :: Parser EmailOpts
+emailOptsParser = EmailAWS <$> emailAWSOptsParser <|> EmailSMTP <$> emailSMTPOptsParser
+
+emailAWSOptsParser :: Parser EmailAWSOpts
+emailAWSOptsParser =
+     EmailAWSOpts <$>
+      (textOption $
+        long "aws-ses-queue" <> metavar "STRING" <>
+        help "Event feedback queue for SES (e.g. for email bounces and complaints)") <*>
+      (option parseAWSEndpoint $
+        long "aws-ses-endpoint" <> value (AWSEndpoint "email.eu-west-1.amazonaws.com" True 443)
+        <> metavar "STRING" <> showDefault <> help "aws SES endpoint")
+
+emailSMTPOptsParser :: Parser EmailSMTPOpts
+emailSMTPOptsParser = undefined
 
 settingsParser :: Parser Settings
 settingsParser =

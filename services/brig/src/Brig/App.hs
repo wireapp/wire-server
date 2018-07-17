@@ -18,6 +18,7 @@ module Brig.App
     , newEnv
     , closeEnv
     , awsEnv
+    , smtpConn
     , cargohold
     , galley
     , gundeck
@@ -110,6 +111,7 @@ import qualified Database.V5.Bloodhound   as ES
 import qualified Data.Text                as Text
 import qualified Data.Text.Encoding       as Text
 import qualified Data.Text.IO             as Text
+import qualified Network.HaskellNet.SMTP.SSL as SMTP
 import qualified OpenSSL.Session          as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import qualified Ropes.Nexmo              as Nexmo
@@ -130,6 +132,7 @@ data Env = Env
     , _galley        :: RPC.Request
     , _gundeck       :: RPC.Request
     , _casClient     :: Cas.ClientState
+    , _smtpConn      :: Maybe SMTP.SMTPConnection
     , _awsEnv        :: AWS.Env
     , _metrics       :: Metrics
     , _applog        :: Logger
@@ -168,7 +171,8 @@ newEnv o = do
     utp <- loadUserTemplates o
     ptp <- loadProviderTemplates o
     ttp <- loadTeamTemplates o
-    aws <- AWS.mkEnv lgr (Opt.aws o) mgr
+    (emailAWSOpts, emailSMTPConn) <- emailConn $ Opt.email (Opt.emailSMS o)
+    aws <- AWS.mkEnv lgr (Opt.aws o) emailAWSOpts mgr
     zau <- initZAuth o
     clock <- mkAutoUpdate defaultUpdateSettings { updateAction = getCurrentTime }
     w   <- FS.startManagerConf
@@ -183,6 +187,7 @@ newEnv o = do
         , _galley        = mkEndpoint $ Opt.galley o
         , _gundeck       = mkEndpoint $ Opt.gundeck o
         , _casClient     = cas
+        , _smtpConn      = emailSMTPConn
         , _awsEnv        = aws
         , _metrics       = mtr
         , _applog        = lgr
@@ -206,6 +211,16 @@ newEnv o = do
         , _indexEnv      = mkIndexEnv o lgr mgr mtr
         }
   where
+    emailConn (Opt.EmailAWS aws)   = return (Just aws, Nothing)
+    emailConn (Opt.EmailSMTP smtp) = do
+        print (Text.unpack (Opt.smtpEndpoint smtp))
+        conn <- SMTP.connectSMTPSTARTTLS $ Text.unpack (Opt.smtpEndpoint smtp)
+        let user = Text.unpack $ Opt.smtpUser smtp
+            pass = Text.unpack $ Opt.smtpPassword smtp
+        authSucceed <- SMTP.authenticate SMTP.PLAIN user pass conn
+        print authSucceed
+        return (Nothing, Just conn)
+
     mkEndpoint service = RPC.host (encodeUtf8 (service^.epHost)) . RPC.port (service^.epPort) $ RPC.empty
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> IndexEnv

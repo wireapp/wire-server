@@ -25,11 +25,12 @@ module Brig.Email
     , sendMail
     ) where
 
-import Brig.App (awsEnv, AppIO)
+import Brig.App (awsEnv, smtpConn, AppIO)
 import Brig.Types
 import Control.Applicative (optional)
 import Control.Error (hush)
 import Control.Lens (view)
+import Control.Monad.IO.Class
 import Data.Attoparsec.ByteString.Char8
 import Data.Monoid
 import Data.Text (Text)
@@ -38,13 +39,16 @@ import Network.Mail.Mime
 
 import qualified Brig.AWS            as AWS
 import qualified Data.Text           as Text
+import qualified Network.HaskellNet.SMTP   as SMTP
 import qualified Text.Email.Validate as Email
 
 -------------------------------------------------------------------------------
 sendMail :: Mail -> AppIO ()
 sendMail m = do
-    e <- view awsEnv
-    AWS.execute e $ AWS.sendMail m
+    smtp <- view smtpConn
+    case smtp of
+        Just c  -> liftIO $ SMTP.sendMimeMail2 m c
+        Nothing -> view awsEnv >>= \e -> AWS.execute e $ AWS.sendMail m
 
 -- Validation
 
