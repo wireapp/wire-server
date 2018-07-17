@@ -28,11 +28,11 @@ import Spar.Data as Data
 
 
 type IntegrationTests
-    = "store-req"   :> Capture "reqid" (SAML.ID SAML.AuthnRequest) :> Capture "now" SAML.Time :> PostCreated '[JSON] ()
- :<|> "check-req"   :> Capture "reqid" (SAML.ID SAML.AuthnRequest) :> Get '[JSON] Bool
- :<|> "store-ass"   :> Capture "assid" (SAML.ID SAML.Assertion) :> Capture "now" SAML.Time :> PostCreated '[JSON] Bool
- :<|> "insert-user" :> ReqBody '[JSON] SAML.UserRef :> Capture "user-id" UserId :> PostCreated '[JSON] ()
- :<|> "get-user"    :> ReqBody '[JSON] SAML.UserRef :> Get '[JSON] (Maybe UserId)
+    = "request"   :> Capture "reqid" (SAML.ID SAML.AuthnRequest) :> Capture "now" SAML.Time :> PostCreated '[JSON] ()
+ :<|> "request"   :> Capture "reqid" (SAML.ID SAML.AuthnRequest) :> Get '[JSON] Bool
+ :<|> "assertion" :> Capture "assid" (SAML.ID SAML.Assertion) :> Capture "now" SAML.Time :> PostCreated '[JSON] Bool
+ :<|> "user"      :> ReqBody '[JSON] SAML.UserRef :> Capture "user-id" UserId :> PostCreated '[JSON] ()
+ :<|> "user"      :> ReqBody '[JSON] SAML.UserRef :> Get '[JSON] (Maybe UserId)
 
 integrationTests :: ServerT IntegrationTests Spar
 integrationTests

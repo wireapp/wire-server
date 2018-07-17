@@ -58,11 +58,11 @@ spec = do
     let runStoreReq :: TestEnv -> UUID -> Http ResponseLBS
         runStoreReq env uuid = do
           now <- liftIO $ gettime (fromIntegral ttlReqs)
-          post $ (env ^. teSpar) . path ("/i/integration-tests/store-req/" <> cs (UUID.toText uuid) <> "/" <> now)
+          post $ (env ^. teSpar) . path ("/i/integration-tests/request/" <> cs (UUID.toText uuid) <> "/" <> now)
 
         runCheckReq :: TestEnv -> UUID -> Http ResponseLBS
         runCheckReq env uuid = do
-          get $ (env ^. teSpar) . path ("/i/integration-tests/check-req/" <> cs (UUID.toText uuid))
+          get $ (env ^. teSpar) . path ("/i/integration-tests/request/" <> cs (UUID.toText uuid))
 
         gettime :: MonadIO m => NominalDiffTime -> m SBS
         gettime secs = cs . SAML.renderTime . (SAML.addTime secs) . SAML.Time <$> liftIO getCurrentTime
@@ -105,7 +105,7 @@ spec = do
         runStoreAssertion env assid ttl = do
           let assidtxt = cs $ SAML.renderID assid
           ttltxt <- gettime ttl
-          post $ (env ^. teSpar) . path ("/i/integration-tests/store-ass/" <> assidtxt <> "/" <> ttltxt)
+          post $ (env ^. teSpar) . path ("/i/integration-tests/assertion/" <> assidtxt <> "/" <> ttltxt)
 
     describe "storeAssertion" $ do
       context "assertion does not exist" $ do
@@ -134,11 +134,11 @@ spec = do
 
     let runInsertUser :: TestEnv -> SAML.UserRef -> UserId -> Http ResponseLBS
         runInsertUser env uref uid = do
-          post $ (env ^. teSpar) . path ("/i/integration-tests/insert-user/" <> cs (show uid)) . json uref
+          post $ (env ^. teSpar) . path ("/i/integration-tests/user/" <> cs (show uid)) . json uref
 
         runGetUser :: TestEnv -> SAML.UserRef -> Http ResponseLBS
         runGetUser env uref = do
-          get $ (env ^. teSpar) . path "/i/integration-tests/get-user" . json uref
+          get $ (env ^. teSpar) . path "/i/integration-tests/user" . json uref
 
         nextUserRef :: MonadIO m => m SAML.UserRef
         nextUserRef = liftIO $ do
