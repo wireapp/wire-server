@@ -99,13 +99,17 @@ checkAgainstRequest (SAML.ID rid) = do
     sel :: PrepQuery R (Identity ST) (Identity UTCTime)
     sel = "SELECT end_of_life FROM authreq WHERE req = ?"
 
+-- FUTUREWORK: is there a guarantee in cassandra that records are not returned once their TTL has
+-- expired?  if yes, that would greatly simplify this table.  if no, we might still be able to push
+-- the end_of_life comparison into the database, rather than retrieving the value and comparing it
+-- in haskell.  (also check the other functions in this module.)
 storeAssertion :: (HasCallStack, MonadReader Env m, MonadClient m)
                => SAML.ID SAML.Assertion -> SAML.Time -> m Bool
 storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
     env <- ask
     TTL actualEndOfLife <- err2err $ mkTTLAssertions env endOfLifeNew
     notAReplay :: Bool <- (retry x1 . query1 sel . params Quorum $ Identity aid) <&>
-        maybe False ((< dataEnvNow env) . runIdentity)
+        maybe True ((< dataEnvNow env) . runIdentity)
     when notAReplay $ do
         retry x5 . write ins $ params Quorum (aid, endOfLifeNew, actualEndOfLife)
     pure notAReplay
