@@ -29,6 +29,7 @@ dependencies:
   - ghc-prim
   - http-client
   - http-types
+  - interpolate
   - metrics-core
   - microlens
   - microlens-th
