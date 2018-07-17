@@ -93,11 +93,10 @@ checkAgainstRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
                     => SAML.ID SAML.AuthnRequest -> m Bool
 checkAgainstRequest (SAML.ID rid) = do
     env <- ask
-    (retry x1 . query1 sel . params Quorum $ Identity rid) <&> \case
-        Just (Identity (Just endoflife)) -> endoflife >= dataEnvNow env
-        _ -> False
+    (retry x1 . query1 sel . params Quorum $ Identity rid) <&>
+        maybe False ((>= dataEnvNow env) . runIdentity)
   where
-    sel :: PrepQuery R (Identity ST) (Identity (Maybe UTCTime))
+    sel :: PrepQuery R (Identity ST) (Identity UTCTime)
     sel = "SELECT end_of_life FROM authreq WHERE req = ?"
 
 storeAssertion :: (HasCallStack, MonadReader Env m, MonadClient m)
@@ -105,14 +104,13 @@ storeAssertion :: (HasCallStack, MonadReader Env m, MonadClient m)
 storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
     env <- ask
     TTL actualEndOfLife <- err2err $ mkTTLAssertions env endOfLifeNew
-    notAReplay :: Bool <- (retry x1 . query1 sel . params Quorum $ Identity aid) <&> \case
-        Just (Identity (Just endoflifeOld)) -> endoflifeOld < dataEnvNow env
-        _ -> False
+    notAReplay :: Bool <- (retry x1 . query1 sel . params Quorum $ Identity aid) <&>
+        maybe False ((< dataEnvNow env) . runIdentity)
     when notAReplay $ do
         retry x5 . write ins $ params Quorum (aid, endOfLifeNew, actualEndOfLife)
     pure notAReplay
   where
-    sel :: PrepQuery R (Identity ST) (Identity (Maybe UTCTime))
+    sel :: PrepQuery R (Identity ST) (Identity UTCTime)
     sel = "SELECT end_of_life FROM authresp WHERE resp = ?"
 
     ins :: PrepQuery W (ST, UTCTime, Int32) ()
