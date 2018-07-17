@@ -10,7 +10,9 @@ module Test.Spar.DataSpec where
 import Bilge
 import Cassandra as Cas
 import Control.Concurrent
+import Control.Exception
 import Control.Monad.Reader
+import Control.Monad.Catch
 import Data.Aeson (encode)
 import Data.Id
 import Data.String.Conversions
@@ -19,10 +21,15 @@ import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Lens.Micro
 import Spar.Data as Data
+import Spar.API.Test (IntegrationTests)
+import Spar.API.Instances ()
 import Spar.Options as Options
 import Util
+import Util.Options
 
 import qualified SAML2.WebSSO as SAML
+import qualified Servant as Servant
+import qualified Servant.Client as Servant
 import qualified Text.XML.Util as SAML
 
 
@@ -55,17 +62,20 @@ spec = do
 
     -- requests
 
-    let runStoreReq :: TestEnv -> UUID -> Http ResponseLBS
-        runStoreReq env uuid = do
-          now <- liftIO $ gettime (fromIntegral ttlReqs)
-          post $ (env ^. teSpar) . path ("/i/integration-tests/request/" <> cs (UUID.toText uuid) <> "/" <> now)
+    let runStoreReq :: TestEnv -> SAML.ID SAML.AuthnRequest -> Http ()
+        runStoreReq env authreqid = do
+          endoflife <- getTime (fromIntegral ttlReqs)
+          runServantClient env $ clientPostRequest authreqid endoflife
 
-        runCheckReq :: TestEnv -> UUID -> Http ResponseLBS
-        runCheckReq env uuid = do
-          get $ (env ^. teSpar) . path ("/i/integration-tests/request/" <> cs (UUID.toText uuid))
+        runCheckReq :: TestEnv -> SAML.ID SAML.AuthnRequest -> Http Bool
+        runCheckReq env authreqid = do
+          runServantClient env $ clientGetRequest authreqid
 
-        gettime :: MonadIO m => NominalDiffTime -> m SBS
-        gettime secs = cs . SAML.renderTime . (SAML.addTime secs) . SAML.Time <$> liftIO getCurrentTime
+        getID :: MonadIO m => m (SAML.ID a)
+        getID = SAML.ID . UUID.toText <$> liftIO UUID.nextRandom
+
+        getTime :: MonadIO m => NominalDiffTime -> m SAML.Time
+        getTime secs = (SAML.addTime secs) . SAML.Time <$> liftIO getCurrentTime
 
         ttlReqs :: Int
         ttlReqs = 3
@@ -73,66 +83,65 @@ spec = do
     describe "storeRequest" $ do
       it "responds with 2xx" $ do
         env <- ask
-        uuid <- liftIO UUID.nextRandom
-        runStoreReq env uuid `shouldRespondWith` ((== 201) . statusCode)
+        reqid <- getID
+        runStoreReq env reqid `shouldRespondWith` (== ())
 
     describe "checkAgainstRequest" $ do
       context "request exists and is alive" $ do
         it "returns True" $ do
           env <- ask
-          uuid <- liftIO UUID.nextRandom
-          runStoreReq env uuid `shouldRespondWith` ((== 201) . statusCode)
-          runCheckReq env uuid `shouldRespondWith` (\resp -> statusCode resp == 200 && responseBody resp == Just "true")
+          reqid <- getID
+          runStoreReq env reqid `shouldRespondWith` (== ())
+          runCheckReq env reqid `shouldRespondWith` (== True)
 
       context "request does not exist" $ do
         it "returns False" $ do
           env <- ask
-          uuid <- liftIO UUID.nextRandom
-          runCheckReq env uuid `shouldRespondWith` (\resp -> statusCode resp == 200 && responseBody resp == Just "false")
+          reqid <- getID
+          runCheckReq env reqid `shouldRespondWith` (== False)
 
       context "request exists, but is outdated" $ do
         it "returns False" $ do
           env <- ask
-          uuid <- liftIO UUID.nextRandom
-          runStoreReq env uuid `shouldRespondWith` ((== 201) . statusCode)
+          reqid <- getID
+          runStoreReq env reqid `shouldRespondWith` (== ())
           liftIO $ threadDelay (ttlReqs * 1000 * 1000)
-          runCheckReq env uuid `shouldRespondWith` (\resp -> statusCode resp == 200 && responseBody resp == Just "false")
+          runCheckReq env reqid `shouldRespondWith` (== False)
 
 
     -- assertions
 
-    let runStoreAssertion :: TestEnv -> SAML.ID SAML.Assertion -> NominalDiffTime -> Http ResponseLBS
+    let runStoreAssertion :: TestEnv -> SAML.ID SAML.Assertion -> NominalDiffTime -> Http Bool
         runStoreAssertion env assid ttl = do
-          let assidtxt = cs $ SAML.renderID assid
-          ttltxt <- gettime ttl
-          post $ (env ^. teSpar) . path ("/i/integration-tests/assertion/" <> assidtxt <> "/" <> ttltxt)
+          endoflife <- getTime ttl
+          runServantClient env $ clientPostAssertion assid endoflife
 
     describe "storeAssertion" $ do
       context "assertion does not exist" $ do
         it "returns True" $ do
           env  <- ask
           uuid <- SAML.ID . UUID.toText <$> liftIO UUID.nextRandom
-          runStoreAssertion env uuid 1 `shouldRespondWith` ((== Just "true") . responseBody)
+          runStoreAssertion env uuid 1 `shouldRespondWith` (== True)
 
       context "assertion exists, but is outdated" $ do
         it "returns True" $ do
           env  <- ask
           uuid <- SAML.ID . UUID.toText <$> liftIO UUID.nextRandom
-          runStoreAssertion env uuid 1 `shouldRespondWith` ((== Just "true") . responseBody)
+          runStoreAssertion env uuid 1 `shouldRespondWith` (== True)
           liftIO $ threadDelay (2 * 1000 * 1000)
-          runStoreAssertion env uuid 1 `shouldRespondWith` ((== Just "true") . responseBody)
+          runStoreAssertion env uuid 1 `shouldRespondWith` (== True)
 
       context "assertion exists and is alive" $ do
         it "returns False" $ do
           env  <- ask
           uuid <- SAML.ID . UUID.toText <$> liftIO UUID.nextRandom
-          runStoreAssertion env uuid 2 `shouldRespondWith` ((== Just "true") . responseBody)
-          runStoreAssertion env uuid 2 `shouldRespondWith` ((== Just "false") . responseBody)
+          runStoreAssertion env uuid 2 `shouldRespondWith` (== True)
+          runStoreAssertion env uuid 2 `shouldRespondWith` (== False)
 
 
     -- users
 
-    let runInsertUser :: TestEnv -> SAML.UserRef -> UserId -> Http ResponseLBS
+    let runInsertUser :: TestEnv -> SAML.UserRef -> UserId -> Http ResponseLBS  -- TODO: servant-client-ify
         runInsertUser env uref uid = do
           post $ (env ^. teSpar) . path ("/i/integration-tests/user/" <> cs (show uid)) . json uref
 
@@ -174,3 +183,30 @@ spec = do
           runInsertUser env uref uid `shouldRespondWith` (\resp -> statusCode resp == 201)
           runInsertUser env uref uid' `shouldRespondWith` (\resp -> statusCode resp == 201)
           runGetUser env uref `shouldRespondWith` getIs (Just uid')
+
+
+runServantClient :: TestEnv -> Servant.ClientM a -> Http a
+runServantClient tenv = hoist . (`Servant.runClientM` cenv)
+  where
+    hoist :: IO (Either Servant.ServantError a) -> Http a
+    hoist = HttpT . ReaderT . const . (>>= either (throwM . ErrorCall . show) pure)
+
+    cenv :: Servant.ClientEnv
+    cenv = Servant.ClientEnv (tenv ^. teMgr) (tenv ^. teTstOpts . to cfgSpar . to endpointToUrl)
+      where
+        endpointToUrl :: Endpoint -> Servant.BaseUrl
+        endpointToUrl (Endpoint sparhost sparport) =
+          Servant.BaseUrl Servant.Http (cs sparhost) (fromIntegral sparport) "/i/integration-tests"
+
+clientPostRequest   :: SAML.ID SAML.AuthnRequest -> SAML.Time -> Servant.ClientM ()
+clientGetRequest    :: SAML.ID SAML.AuthnRequest -> Servant.ClientM Bool
+clientPostAssertion :: SAML.ID SAML.Assertion -> SAML.Time -> Servant.ClientM Bool
+clientPostUser      :: SAML.UserRef -> UserId -> Servant.ClientM ()
+clientGetUser       :: SAML.UserRef -> Servant.ClientM (Maybe UserId)
+
+clientPostRequest     Servant.:<|>
+  clientGetRequest    Servant.:<|>
+  clientPostAssertion Servant.:<|>
+  clientPostUser      Servant.:<|>
+  clientGetUser
+  = Servant.client (Servant.Proxy @IntegrationTests)

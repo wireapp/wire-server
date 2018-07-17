@@ -18,7 +18,7 @@
 -- FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdp, teMockIdp, teOpts
+  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdp, teMockIdp, teOpts, teTstOpts
   , Select, mkEnv, it, pending, pendingWith
   , IntegrationConfig(..)
   , BrigReq
@@ -97,18 +97,18 @@ import qualified Text.XML.Util as SAML
 
 
 mkEnv :: IntegrationConfig -> Opts -> IO TestEnv
-mkEnv integrationOpts _teOpts = do
+mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
   _teCql :: ClientState <- initCassandra _teOpts =<< mkLogger _teOpts
   let mkreq :: (IntegrationConfig -> Endpoint) -> (Request -> Request)
-      mkreq selector = Bilge.host (selector integrationOpts ^. epHost . to cs)
-                     . Bilge.port (selector integrationOpts ^. epPort)
+      mkreq selector = Bilge.host (selector _teTstOpts ^. epHost . to cs)
+                     . Bilge.port (selector _teTstOpts ^. epPort)
 
       _teBrig    = mkreq cfgBrig
       _teGalley  = mkreq cfgGalley
       _teSpar    = mkreq cfgSpar
-      _teNewIdp  = cfgNewIdp integrationOpts
-      _teMockIdp = cfgMockIdp integrationOpts
+      _teNewIdp  = cfgNewIdp _teTstOpts
+      _teMockIdp = cfgMockIdp _teTstOpts
 
   pure $ TestEnv {..}
 

@@ -23,12 +23,22 @@ import Servant
 instance FromHttpApiData UserId where
   parseUrlPiece = fmap Id . parseUrlPiece
 
+instance ToHttpApiData UserId where
+  toUrlPiece = toUrlPiece . show
+
 instance FromHttpApiData (ID a) where
   parseUrlPiece = fmap ID . parseUrlPiece
+
+instance ToHttpApiData (ID a) where
+  toUrlPiece = toUrlPiece . renderID
 
 instance FromHttpApiData Time where
   parseUrlPiece st =
     fmap Time . parseTimeM True defaultTimeLocale timeFormat =<< parseUrlPiece @String st
+
+instance ToHttpApiData Time where
+  toUrlPiece =
+    toUrlPiece . formatTime defaultTimeLocale timeFormat . fromTime
 
 instance ToJSON UserRef where
   toJSON (UserRef tenant subject) =

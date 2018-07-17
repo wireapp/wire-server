@@ -102,6 +102,7 @@ executables:
       - hspec-discover
       - lens-aeson
       - random
+      - servant-client
       - spar
       - wai
       - xml-conduit

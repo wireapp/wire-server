@@ -24,6 +24,7 @@ module Util.Types
   , teNewIdp
   , teMockIdp
   , teOpts
+  , teTstOpts
   , Select
   , ResponseLBS
   , IntegrationConfig(..)
@@ -62,6 +63,7 @@ data TestEnv = TestEnv
   , _teNewIdp  :: NewIdP
   , _teMockIdp :: Endpoint
   , _teOpts    :: Opts
+  , _teTstOpts :: IntegrationConfig
   }
 
 type Select = TestEnv -> (Request -> Request)
