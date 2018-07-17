@@ -65,9 +65,9 @@ runTests iConf bConf otherArgs = do
     lg <- Logger.new Logger.defSettings
     db <- defInitCassandra casKey casHost casPort lg
     mg <- newManager tlsManagerSettings
-    let emailAWSOpts = case fmap Opts.email (Opts.emailSMS <$> bConf) of
-                                    Just (Opts.EmailAWS aws) -> Just aws
-                                    _                        -> Nothing
+    let emailAWSOpts = case Opts.email . Opts.emailSMS <$> bConf of
+                                Just (Opts.EmailAWS aws) -> Just aws
+                                _                        -> Nothing
     awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
 
     userApi     <- User.tests bConf mg b c ch g awsEnv

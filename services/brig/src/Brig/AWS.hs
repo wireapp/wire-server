@@ -16,7 +16,6 @@ module Brig.AWS
     , amazonkaEnv
     , execute
     , sesQueue
-    , sesConfigured
     , internalQueue
     , userJournalQueue
     , blacklistTable
@@ -52,7 +51,6 @@ import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.Aeson hiding ((.=))
 import Data.Foldable (for_)
-import Data.Maybe (isJust)
 import Data.Monoid
 import Data.Text (Text, isPrefixOf)
 import Data.Typeable
@@ -82,7 +80,6 @@ import qualified System.Logger           as Logger
 data Env = Env
     { _logger           :: !Logger
     , _sesQueue         :: !(Maybe Text)
-    , _sesConfigured    :: !Bool
     , _internalQueue    :: !Text
     , _userJournalQueue :: !(Maybe Text)
     , _blacklistTable   :: !Text
@@ -121,14 +118,14 @@ mkEnv :: Logger -> Opt.AWSOpts -> Maybe Opt.EmailAWSOpts -> Manager -> IO Env
 mkEnv lgr opts emailOpts mgr = do
     let g = Logger.clone (Just "aws.brig") lgr
     let (bl, pk) = (Opt.blacklistTable opts, Opt.prekeyTable opts)
-    let sesEndpoint = maybe Nothing (Just . mkEndpoint SES.ses . Opt.sesEndpoint) emailOpts
+    let sesEndpoint = mkEndpoint SES.ses . Opt.sesEndpoint <$> emailOpts
     e  <- mkAwsEnv g sesEndpoint
                      (mkEndpoint SQS.sqs      (Opt.sqsEndpoint opts))
                      (mkEndpoint DDB.dynamoDB (Opt.dynamoDBEndpoint opts))
     sq <- maybe (return Nothing) (fmap Just . getQueueUrl e . Opt.sesQueue) emailOpts
     iq <- getQueueUrl e (Opt.internalQueue opts)
     jq <- maybe (return Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
-    return (Env g sq (isJust sq) iq jq bl pk e)
+    return (Env g sq iq jq bl pk e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
 

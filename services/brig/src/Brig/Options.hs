@@ -117,8 +117,8 @@ data EmailOpts = EmailAWS  EmailAWSOpts
                deriving (Show, Generic)
 
 instance FromJSON EmailOpts where
-    parseJSON o = do
-      (return . EmailAWS =<< parseJSON o) <|> (return . EmailSMTP =<< parseJSON o)
+    parseJSON o =  EmailAWS <$> parseJSON o
+               <|> EmailSMTP <$> parseJSON o
 
 data EmailSMSOpts = EmailSMSOpts
     { email    :: !EmailOpts
