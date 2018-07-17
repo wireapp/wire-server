@@ -220,7 +220,8 @@ validateNewIdP newidp = if True then pure () else do  -- TODO: validation breaks
 -- Here we assume the 'spar' service is only accessible from behind the 'nginz' proxy, which
 --   * does not expose routes prefixed with /i/
 --   * handles authorization (adding a Z-User header if requests are authorized)
-type OutsideWorldAPI = StripInternal (StripAuth API)
+--   * does not show the swagger end-point itself
+type OutsideWorldAPI = StripSwagger (StripInternal (StripAuth API))
 
 -- | Strip the nginz-set, internal-only Z-User header
 type family StripAuth api where
@@ -233,3 +234,8 @@ type family StripInternal api where
     StripInternal ("i" :> b) = EmptyAPI
     StripInternal (a :<|> b) = (StripInternal a) :<|> (StripInternal b)
     StripInternal x = x
+
+type family StripSwagger api where
+    StripSwagger ("sso" :> "api-docs" :> Get '[JSON] Swagger :<|> b) = StripSwagger b
+    StripSwagger (a :<|> b) = StripSwagger a :<|> StripSwagger b
+    StripSwagger x = x
