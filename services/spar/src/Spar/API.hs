@@ -49,6 +49,7 @@ import Servant
 import Servant.Swagger
 import Spar.API.Instances ()
 import Spar.API.Swagger ()
+import Spar.API.Test
 import Spar.App
 import Spar.Error
 import Spar.Options
@@ -80,6 +81,7 @@ type API = "i" :> "status" :> Get '[JSON] NoContent
       :<|> IdpGetAll
       :<|> IdpCreate
       :<|> IdpDelete
+      :<|> "i" :> "integration-tests" :> IntegrationTests
       -- NB. If you add endpoints here, also update Test.Spar.APISpec
 
 type APIMeta     = "sso" :> "metadata" :> SAML.APIMeta
@@ -106,6 +108,7 @@ api opts =
   :<|> idpGetAll
   :<|> idpCreate
   :<|> idpDelete
+  :<|> integrationTests
 
 appName :: ST
 appName = "spar"

@@ -1,0 +1,43 @@
+{-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE PackageImports             #-}
+{-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeOperators              #-}
+
+{-# OPTIONS_GHC -Wno-orphans #-}
+
+module Spar.API.Test where
+
+import Data.Id
+import SAML2.WebSSO as SAML
+import Servant
+import Spar.App
+import Spar.Data as Data
+
+
+type IntegrationTests
+    = "store-req"   :> Capture "reqid" (SAML.ID SAML.AuthnRequest) :> Capture "now" SAML.Time :> PostCreated '[JSON] ()
+ :<|> "check-req"   :> Capture "reqid" (SAML.ID SAML.AuthnRequest) :> Get '[JSON] Bool
+ :<|> "store-ass"   :> Capture "assid" (SAML.ID SAML.Assertion) :> Capture "now" SAML.Time :> PostCreated '[JSON] Bool
+ :<|> "insert-user" :> ReqBody '[JSON] SAML.UserRef :> Capture "user-id" UserId :> PostCreated '[JSON] ()
+ :<|> "get-user"    :> ReqBody '[JSON] SAML.UserRef :> Get '[JSON] (Maybe UserId)
+
+integrationTests :: ServerT IntegrationTests Spar
+integrationTests
+    = (\reqid now -> wrapMonadClientWithEnv $ Data.storeRequest reqid now)
+ :<|> wrapMonadClientWithEnv . Data.checkAgainstRequest
+ :<|> (\assid endoflife -> wrapMonadClientWithEnv $ Data.storeAssertion assid endoflife)
+ :<|> (\uref uid -> wrapMonadClient $ Data.insertUser uref uid)
+ :<|> wrapMonadClient . Data.getUser
