@@ -125,14 +125,14 @@ insertUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
 insertUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, subject, uid)
   where
     ins :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
-    ins = "INSERT INTO user (idp, sso_id, uid) VALUES (?, ?, ?)"
+    ins = "INSERT INTO user (issuer, sso_id, uid) VALUES (?, ?, ?)"
 
 getUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
 getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
   (retry x1 . query1 sel $ params Quorum (tenant, subject))
   where
     sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
-    sel = "SELECT uid FROM user WHERE idp = ? AND sso_id = ?"
+    sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
 
 
 ----------------------------------------------------------------------
