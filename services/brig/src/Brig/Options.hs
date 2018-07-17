@@ -6,6 +6,7 @@
 
 module Brig.Options where
 
+import Brig.SMTP (SMTPConnType (..))
 import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
@@ -68,8 +69,9 @@ instance FromJSON EmailAWSOpts
 
 data EmailSMTPOpts = EmailSMTPOpts
     { smtpEndpoint :: !Text
-    , smtpUser     :: !Text
+    , smtpUsername :: !Text
     , smtpPassword :: !Text
+    , smtpConnType :: !SMTPConnType
     } deriving (Show, Generic)
 
 instance FromJSON EmailSMTPOpts
@@ -373,7 +375,20 @@ emailAWSOptsParser =
         <> metavar "STRING" <> showDefault <> help "aws SES endpoint")
 
 emailSMTPOptsParser :: Parser EmailSMTPOpts
-emailSMTPOptsParser = undefined
+emailSMTPOptsParser =
+    EmailSMTPOpts <$>
+      (textOption $
+        long "smtp-hostname" <> metavar "STRING" <>
+        help "Hostname of the SMTP server to connect to") <*>
+      (textOption $
+        long "smtp-username" <> metavar "STRING" <>
+        help "Username to authenticate against the SMTP server") <*>
+      (textOption $
+        long "smtp-password" <> metavar "STRING" <>
+        help "Password to authenticate against the SMTP server") <*>
+      (smtpConnTypeOption $
+        long "smtp-conn-type" <> metavar "STRING" <> value "tls" <> showDefault <>
+        help "Which type of connection to use against the SMTP server {tls,ssl,plain}")
 
 settingsParser :: Parser Settings
 settingsParser =
@@ -456,3 +471,10 @@ emailOption =
 providerIdOption :: ReadM ProviderId
 providerIdOption = readerAsk >>=
     maybe (fail "Failed to parse ") pure . fromByteString . pack
+
+smtpConnTypeOption :: Mod OptionFields String -> Parser SMTPConnType
+smtpConnTypeOption =
+    fmap
+        (fromMaybe (error "Ensure proper STMP conn type is used") .
+        Y.decode . pack) .
+    strOption

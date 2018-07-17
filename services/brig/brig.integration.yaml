@@ -38,11 +38,12 @@ emailSMS:
   # or you can use SMTP directly (blacklisting of email/phone must be otherwise handled by
   # the operator).
   email:
-    # sesQueue: integration-brig-events
-    # sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
-    smtpEndpoint: email-smtp.eu-west-1.amazonaws.com
-    smtpUser: foo
-    smtpPassword: bar
+    sesQueue: integration-brig-events
+    sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
+    # smtpEndpoint: email-smtp.eu-west-1.amazonaws.com
+    # smtpUsername: <username>
+    # smtpPassword: <password>
+    # smtpConnType: tls
 
   general:
     templateDir: deb/opt/brig/templates

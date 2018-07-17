@@ -18,7 +18,7 @@ module Brig.App
     , newEnv
     , closeEnv
     , awsEnv
-    , smtpConn
+    , smtpEnv
     , cargohold
     , galley
     , gundeck
@@ -100,6 +100,7 @@ import Util.Options
 import qualified Bilge                    as RPC
 import qualified Brig.AWS                 as AWS
 import qualified Brig.Options             as Opt
+import qualified Brig.SMTP                as SMTP
 import qualified Brig.TURN                as TURN
 import qualified Brig.ZAuth               as ZAuth
 import qualified Cassandra                as Cas
@@ -111,7 +112,6 @@ import qualified Database.V5.Bloodhound   as ES
 import qualified Data.Text                as Text
 import qualified Data.Text.Encoding       as Text
 import qualified Data.Text.IO             as Text
-import qualified Network.HaskellNet.SMTP.SSL as SMTP
 import qualified OpenSSL.Session          as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import qualified Ropes.Nexmo              as Nexmo
@@ -132,7 +132,7 @@ data Env = Env
     , _galley        :: RPC.Request
     , _gundeck       :: RPC.Request
     , _casClient     :: Cas.ClientState
-    , _smtpConn      :: Maybe SMTP.SMTPConnection
+    , _smtpEnv       :: Maybe SMTP.SMTP
     , _awsEnv        :: AWS.Env
     , _metrics       :: Metrics
     , _applog        :: Logger
@@ -171,7 +171,7 @@ newEnv o = do
     utp <- loadUserTemplates o
     ptp <- loadProviderTemplates o
     ttp <- loadTeamTemplates o
-    (emailAWSOpts, emailSMTPConn) <- emailConn $ Opt.email (Opt.emailSMS o)
+    (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS o)
     aws <- AWS.mkEnv lgr (Opt.aws o) emailAWSOpts mgr
     zau <- initZAuth o
     clock <- mkAutoUpdate defaultUpdateSettings { updateAction = getCurrentTime }
@@ -187,7 +187,7 @@ newEnv o = do
         , _galley        = mkEndpoint $ Opt.galley o
         , _gundeck       = mkEndpoint $ Opt.gundeck o
         , _casClient     = cas
-        , _smtpConn      = emailSMTPConn
+        , _smtpEnv       = emailSMTP
         , _awsEnv        = aws
         , _metrics       = mtr
         , _applog        = lgr
@@ -211,15 +211,13 @@ newEnv o = do
         , _indexEnv      = mkIndexEnv o lgr mgr mtr
         }
   where
-    emailConn (Opt.EmailAWS aws)   = return (Just aws, Nothing)
-    emailConn (Opt.EmailSMTP smtp) = do
-        print (Text.unpack (Opt.smtpEndpoint smtp))
-        conn <- SMTP.connectSMTPSTARTTLS $ Text.unpack (Opt.smtpEndpoint smtp)
-        let user = Text.unpack $ Opt.smtpUser smtp
-            pass = Text.unpack $ Opt.smtpPassword smtp
-        authSucceed <- SMTP.authenticate SMTP.PLAIN user pass conn
-        print authSucceed
-        return (Nothing, Just conn)
+    emailConn _   (Opt.EmailAWS aws) = return (Just aws, Nothing)
+    emailConn lgr (Opt.EmailSMTP  s) = do
+        let host = Opt.smtpEndpoint s
+            user = SMTP.Username (Opt.smtpUsername s)
+            pass = SMTP.Password (Opt.smtpPassword s)
+        smtp <- SMTP.initSMTP lgr host user pass (Opt.smtpConnType s)
+        return (Nothing, Just smtp)
 
     mkEndpoint service = RPC.host (encodeUtf8 (service^.epHost)) . RPC.port (service^.epPort) $ RPC.empty
 
@@ -250,7 +248,6 @@ turnSetup lgr w dig o = do
         te      <- newIORef =<< TURN.newEnv dig servers (Opt.tokenTTL o) (Opt.configTTL o) secret
         startWatching w path (replaceTurnServers lgr te)
         return te
-
 
 startWatching :: FS.WatchManager -> FilePath -> FS.Action -> IO ()
 startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
