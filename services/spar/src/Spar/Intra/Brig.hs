@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -23,6 +24,7 @@ import Control.Monad.Except
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Id (Id(Id), UserId, TeamId)
+import Data.Range
 import Data.String.Conversions
 import GHC.Stack
 import Lens.Micro
@@ -74,9 +76,12 @@ class Monad m => MonadSparToBrig m where
 -- | Create a user on brig.
 createUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => SAML.UserRef -> UserId -> TeamId -> m UserId
 createUser suid (Id buid) teamid = do
+  uname :: Name <- maybe (throwSpar . SparBadUserName . SAML.encodeElem $ suid ^. SAML.uidSubject) pure $ do
+    Name . fromRange <$> (SAML.shortShowNameID >=> checked @ST @1 @128) (suid ^. SAML.uidSubject)
+
   let newUser :: NewUser
       newUser = NewUser
-        { newUserName           = Name . cs . SAML.encodeElem $ suid ^. SAML.uidSubject
+        { newUserName           = uname
         , newUserUUID           = Just buid
         , newUserIdentity       = Just $ SSOIdentity (toUserSSOId suid) Nothing Nothing
         , newUserPict           = Nothing

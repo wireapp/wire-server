@@ -61,6 +61,21 @@ instance HasSwagger route => HasSwagger (SM.MultipartForm SM.Mem resp :> route) 
 
 `/identity-providers` end-points are for use in the team settings page when IdPs are registered.  They talk json.
 
+
+# Configuring IdPs
+
+## okta.com
+
+Okta will ask you to provide two URLs when you set it up for talking to wireapp:
+
+1. The `Single sign on URL`.  This is the end-point that accepts the user's credentials after successful authentication against the IdP.  Choose `/sso/finalize-login` with schema and hostname of the wire server you are configuring.
+
+2. The `Audience URI`.  You can find this in the metadata returned by the `/sso/metadata` end-point.  It is the contents of the `md:OrganizationURL` element.
+
+## microsoft azure active directory
+
+(coming up.)
+
 |]
 
 -- | The options to use for schema generation. Must match the options used
