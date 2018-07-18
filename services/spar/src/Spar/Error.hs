@@ -25,6 +25,7 @@ data SparCustomError
   | SparNotInTeam
   | SparNotTeamOwner
 
+  | SparBadUserName LT
   | SparNoBodyInBrigResponse
   | SparCouldNotParseBrigResponse
   | SparCouldNotRetrieveCookie
@@ -57,6 +58,7 @@ sparToWaiError SAML.UnknownError                                = Wai.Error stat
 sparToWaiError (SAML.CustomError SparNotFound)                  = Wai.Error status404 "not-found" "Not found."
 sparToWaiError (SAML.CustomError SparNotInTeam)                 = Wai.Error status404 "not-found" "Not found."
 sparToWaiError (SAML.CustomError SparNotTeamOwner)              = Wai.Error status403 "forbidden" "You need to be team owner to create an IdP."
+sparToWaiError (SAML.CustomError (SparBadUserName msg))         = Wai.Error status400 "client-error" ("Bad UserName in SAML response: " <> msg)
 sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)      = Wai.Error status400 "server-error" "Brig response without body."
 sparToWaiError (SAML.CustomError SparCouldNotParseBrigResponse) = Wai.Error status400 "server-error" "Could not parse brig response body."
 sparToWaiError (SAML.CustomError SparCouldNotRetrieveCookie)    = Wai.Error status400 "server-error" "Brig response contained no Set-Cookie header."
