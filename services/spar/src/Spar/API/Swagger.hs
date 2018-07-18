@@ -6,6 +6,7 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PackageImports             #-}
 {-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
@@ -20,6 +21,8 @@ module Spar.API.Swagger where
 import Data.Id
 import Data.Proxy
 import Data.UUID (UUID)
+import Data.String.Conversions (cs)
+import Data.String.Interpolate as QQ
 import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
@@ -48,6 +51,17 @@ instance ToSchema Swagger where
 
 instance HasSwagger route => HasSwagger (SM.MultipartForm SM.Mem resp :> route) where
   toSwagger _proxy = toSwagger (Proxy @route)
+    & info . description ?~ cs [QQ.i|
+
+# Overview
+
+`/sso/metadata` will be requested by the IdPs to learn how to talk to wire.
+
+`/sso/initiate-login/`, `/sso/finalize-login` are for the SAML authentication handshake performed by a user in order to log into wire.  They are not exactly standard in their details: they may return HTML or XML; redirect to error URLs instead of throwing errors, etc.
+
+`/identity-providers` end-points are for use in the team settings page when IdPs are registered.  They talk json.
+
+|]
 
 -- | The options to use for schema generation. Must match the options used
 -- for 'ToJSON' instances elsewhere.

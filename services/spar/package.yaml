@@ -29,6 +29,7 @@ dependencies:
   - ghc-prim
   - http-client
   - http-types
+  - interpolate
   - metrics-core
   - microlens
   - microlens-th
@@ -101,6 +102,7 @@ executables:
       - hspec-discover
       - lens-aeson
       - random
+      - servant-client
       - spar
       - wai
       - xml-conduit

@@ -93,26 +93,28 @@ checkAgainstRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
                     => SAML.ID SAML.AuthnRequest -> m Bool
 checkAgainstRequest (SAML.ID rid) = do
     env <- ask
-    (retry x1 . query1 sel . params Quorum $ Identity rid) <&> \case
-        Just (Identity (Just endoflife)) -> endoflife >= dataEnvNow env
-        _ -> False
+    (retry x1 . query1 sel . params Quorum $ Identity rid) <&>
+        maybe False ((>= dataEnvNow env) . runIdentity)
   where
-    sel :: PrepQuery R (Identity ST) (Identity (Maybe UTCTime))
+    sel :: PrepQuery R (Identity ST) (Identity UTCTime)
     sel = "SELECT end_of_life FROM authreq WHERE req = ?"
 
+-- FUTUREWORK: is there a guarantee in cassandra that records are not returned once their TTL has
+-- expired?  if yes, that would greatly simplify this table.  if no, we might still be able to push
+-- the end_of_life comparison into the database, rather than retrieving the value and comparing it
+-- in haskell.  (also check the other functions in this module.)
 storeAssertion :: (HasCallStack, MonadReader Env m, MonadClient m)
                => SAML.ID SAML.Assertion -> SAML.Time -> m Bool
 storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
     env <- ask
     TTL actualEndOfLife <- err2err $ mkTTLAssertions env endOfLifeNew
-    notAReplay :: Bool <- (retry x1 . query1 sel . params Quorum $ Identity aid) <&> \case
-        Just (Identity (Just endoflifeOld)) -> endoflifeOld < dataEnvNow env
-        _ -> False
+    notAReplay :: Bool <- (retry x1 . query1 sel . params Quorum $ Identity aid) <&>
+        maybe True ((< dataEnvNow env) . runIdentity)
     when notAReplay $ do
         retry x5 . write ins $ params Quorum (aid, endOfLifeNew, actualEndOfLife)
     pure notAReplay
   where
-    sel :: PrepQuery R (Identity ST) (Identity (Maybe UTCTime))
+    sel :: PrepQuery R (Identity ST) (Identity UTCTime)
     sel = "SELECT end_of_life FROM authresp WHERE resp = ?"
 
     ins :: PrepQuery W (ST, UTCTime, Int32) ()
@@ -127,19 +129,14 @@ insertUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
 insertUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quorum (tenant, subject, uid)
   where
     ins :: PrepQuery W (SAML.Issuer, SAML.NameID, UserId) ()
-    ins = "INSERT INTO user (idp, sso_id, uid) VALUES (?, ?, ?)"
+    ins = "INSERT INTO user (issuer, sso_id, uid) VALUES (?, ?, ?)"
 
 getUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
-getUser (SAML.UserRef tenant subject) = (retry x1 . query1 sel $ params Quorum (tenant', subject')) <&> \case
-  Just (Identity (Just (UUID.fromText -> Just uuid))) -> Just $ Id uuid
-  _ -> Nothing
+getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
+  (retry x1 . query1 sel $ params Quorum (tenant, subject))
   where
-    tenant', subject' :: ST
-    tenant'  = cs $ SAML.encodeElem tenant
-    subject' = cs $ SAML.encodeElem subject
-
-    sel :: PrepQuery R (ST, ST) (Identity (Maybe ST))
-    sel = "SELECT uid FROM authresp WHERE idp = ? AND sso_id = ?"
+    sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
+    sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
 
 
 ----------------------------------------------------------------------
@@ -208,9 +205,17 @@ getIdPConfigByIssuer
   :: (HasCallStack, MonadClient m, MonadReader Env m)
   => SAML.Issuer -> m (Maybe IdP)
 getIdPConfigByIssuer issuer = do
-  retry x1 (query1 sel $ params Quorum (Identity issuer)) >>= \case
-    Nothing -> pure Nothing
-    Just (Identity idpid) -> getIdPConfig idpid
+  getIdPIdByIssuer issuer >>= \case
+    Nothing    -> pure Nothing
+    Just idpid -> getIdPConfig idpid
+
+getIdPIdByIssuer
+  :: (HasCallStack, MonadClient m)
+  => SAML.Issuer -> m (Maybe SAML.IdPId)
+getIdPIdByIssuer issuer = do
+  retry x1 (query1 sel $ params Quorum (Identity issuer)) <&> \case
+    Nothing               -> Nothing
+    Just (Identity idpid) -> Just idpid
   where
     sel :: PrepQuery R (Identity SAML.Issuer) (Identity SAML.IdPId)
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"

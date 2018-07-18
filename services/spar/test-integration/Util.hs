@@ -18,7 +18,7 @@
 -- FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdp, teMockIdp, teOpts
+  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdp, teMockIdp, teOpts, teTstOpts
   , Select, mkEnv, it, pending, pendingWith
   , IntegrationConfig(..)
   , BrigReq
@@ -97,18 +97,18 @@ import qualified Text.XML.Util as SAML
 
 
 mkEnv :: IntegrationConfig -> Opts -> IO TestEnv
-mkEnv integrationOpts _teOpts = do
+mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
   _teCql :: ClientState <- initCassandra _teOpts =<< mkLogger _teOpts
   let mkreq :: (IntegrationConfig -> Endpoint) -> (Request -> Request)
-      mkreq selector = Bilge.host (selector integrationOpts ^. epHost . to cs)
-                     . Bilge.port (selector integrationOpts ^. epPort)
+      mkreq selector = Bilge.host (selector _teTstOpts ^. epHost . to cs)
+                     . Bilge.port (selector _teTstOpts ^. epPort)
 
       _teBrig    = mkreq cfgBrig
       _teGalley  = mkreq cfgGalley
       _teSpar    = mkreq cfgSpar
-      _teNewIdp  = cfgNewIdp integrationOpts
-      _teMockIdp = cfgMockIdp integrationOpts
+      _teNewIdp  = cfgNewIdp _teTstOpts
+      _teMockIdp = cfgMockIdp _teTstOpts
 
   pure $ TestEnv {..}
 
@@ -135,8 +135,8 @@ createUserWithTeam brg gly = do
             , "password"        .= defPassword
             , "team"            .= newTeam
             ]
-    bdy <- decodeBody <$> post (brg . path "/i/users" . contentJson . body p)
-    let (Just uid, Just (Just tid)) = (Brig.userId <$> bdy, Brig.userTeam <$> bdy)
+    bdy <- decodeBody' <$> post (brg . path "/i/users" . contentJson . body p)
+    let (uid, Just tid) = (Brig.userId bdy, Brig.userTeam bdy)
     (team:_) <- (^. Galley.teamListTeams) <$> getTeams uid gly
     () <- Control.Exception.assert {- "Team ID in registration and team table do not match" -} (tid ==  team ^. Galley.teamId)
           $ pure ()
@@ -158,11 +158,8 @@ createTeamMember brigreq galleyreq teamid perms = do
   resp :: ResponseLBS
     <- postUser name Nothing (Just ssoid) (Just teamid) brigreq
        <!! const 201 === statusCode
-  nobody :: UserId
-    <- maybe (throwM $ ErrorCall "createTeamMember: failed to parse response")
-             (pure . Brig.userId)
-             (decodeBody @Brig.User resp)
-  let tmem :: Galley.TeamMember = Galley.newTeamMember nobody perms
+  let nobody :: UserId            = Brig.userId (decodeBody' @Brig.User resp)
+      tmem   :: Galley.TeamMember = Galley.newTeamMember nobody perms
   addTeamMember galleyreq teamid (Galley.newNewTeamMember tmem)
   pure nobody
 
@@ -193,12 +190,15 @@ createRandomPhoneUser brig_ = do
     -- check new phone
     get (brig_ . path "/self" . zUser uid) !!! do
         const 200 === statusCode
-        const (Just phn) === (Brig.userPhone <=< decodeBody)
+        const (Right (Just phn)) === (fmap Brig.userPhone . decodeBody)
 
     return (uid, phn)
 
-decodeBody :: (HasCallStack, FromJSON a) => ResponseLBS -> Maybe a
-decodeBody = responseBody >=> decode'
+decodeBody :: (HasCallStack, FromJSON a) => ResponseLBS -> Either String a
+decodeBody = maybe (Left "no body") (\s -> (<> (": " <> cs (show s))) `fmapL` eitherDecode' s) . responseBody
+
+decodeBody' :: (HasCallStack, FromJSON a) => ResponseLBS -> a
+decodeBody' = either (error . show) id . decodeBody
 
 getTeams :: (HasCallStack, MonadHttp m, MonadIO m) => UserId -> GalleyReq -> m Galley.TeamList
 getTeams u gly = do
@@ -207,12 +207,12 @@ getTeams u gly = do
              . zAuthAccess u "conn"
              . expect2xx
              )
-    return $ fromMaybe (error "getTeams: failed to parse response") (decodeBody r)
+    return $ decodeBody' r
 
 getSelfProfile :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> UserId -> m Brig.SelfProfile
 getSelfProfile brg usr = do
     rsp <- get $ brg . path "/self" . zUser usr
-    return $ fromMaybe (error $ "getSelfProfile: failed to decode: " ++ show rsp) (decodeBody rsp)
+    return $ decodeBody' rsp
 
 zAuthAccess :: UserId -> SBS -> Request -> Request
 zAuthAccess u c = header "Z-Type" "access" . zUser u . zConn c
@@ -240,7 +240,7 @@ createUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
            => ST -> ST -> BrigReq -> m Brig.User
 createUser name email brig_ = do
     r <- postUser name (Just email) Nothing Nothing brig_ <!! const 201 === statusCode
-    return $ fromMaybe (error "createUser: failed to parse response") (decodeBody r)
+    return $ decodeBody' r
 
 -- more flexible variant of 'createUser' (see above).
 postUser :: (HasCallStack, MonadIO m, MonadHttp m)

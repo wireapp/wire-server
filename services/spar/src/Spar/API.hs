@@ -49,6 +49,7 @@ import Servant
 import Servant.Swagger
 import Spar.API.Instances ()
 import Spar.API.Swagger ()
+import Spar.API.Test
 import Spar.App
 import Spar.Error
 import Spar.Options
@@ -80,9 +81,10 @@ type API = "i" :> "status" :> Get '[JSON] NoContent
       :<|> IdpGetAll
       :<|> IdpCreate
       :<|> IdpDelete
+      :<|> "i" :> "integration-tests" :> IntegrationTests
       -- NB. If you add endpoints here, also update Test.Spar.APISpec
 
-type APIMeta     = "sso" :> "metainfo" :> SAML.APIMeta
+type APIMeta     = "sso" :> "metadata" :> SAML.APIMeta
 type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
 type APIAuthResp = "sso" :> "finalize-login" :> SAML.APIAuthResp
 
@@ -106,6 +108,7 @@ api opts =
   :<|> idpGetAll
   :<|> idpCreate
   :<|> idpDelete
+  :<|> integrationTests
 
 appName :: ST
 appName = "spar"
@@ -217,7 +220,8 @@ validateNewIdP newidp = if True then pure () else do  -- TODO: validation breaks
 -- Here we assume the 'spar' service is only accessible from behind the 'nginz' proxy, which
 --   * does not expose routes prefixed with /i/
 --   * handles authorization (adding a Z-User header if requests are authorized)
-type OutsideWorldAPI = StripInternal (StripAuth API)
+--   * does not show the swagger end-point itself
+type OutsideWorldAPI = StripSwagger (StripInternal (StripAuth API))
 
 -- | Strip the nginz-set, internal-only Z-User header
 type family StripAuth api where
@@ -230,3 +234,8 @@ type family StripInternal api where
     StripInternal ("i" :> b) = EmptyAPI
     StripInternal (a :<|> b) = (StripInternal a) :<|> (StripInternal b)
     StripInternal x = x
+
+type family StripSwagger api where
+    StripSwagger ("sso" :> "api-docs" :> Get '[JSON] Swagger :<|> b) = StripSwagger b
+    StripSwagger (a :<|> b) = StripSwagger a :<|> StripSwagger b
+    StripSwagger x = x

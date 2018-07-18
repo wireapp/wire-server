@@ -111,7 +111,7 @@ wrapMonadClient action = do
       (throwSpar . SparCassandraError . cs . show @SomeException)
 
 insertUser :: SAML.UserRef -> UserId -> Spar ()
-insertUser suid buid = wrapMonadClient $ Data.insertUser suid buid
+insertUser uref uid = wrapMonadClient $ Data.insertUser uref uid
 
 -- | Look up user locally, then in brig, then return the 'UserId'.  If either lookup fails, return
 -- 'Nothing'.  See also: 'Spar.App.createUser'.
@@ -119,11 +119,11 @@ insertUser suid buid = wrapMonadClient $ Data.insertUser suid buid
 -- ASSUMPTIONS: User creation on brig/galley is idempotent.  Any incomplete creation (because of
 -- brig or galley crashing) will cause the lookup here to yield invalid user.
 getUser :: SAML.UserRef -> Spar (Maybe UserId)
-getUser suid = do
-  mbuid <- wrapMonadClient $ Data.getUser suid
-  case mbuid of
+getUser uref = do
+  muid <- wrapMonadClient $ Data.getUser uref
+  case muid of
     Nothing -> pure Nothing
-    Just buid -> Intra.confirmUserId buid
+    Just uid -> Intra.confirmUserId uid
 
 -- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
 -- create user on brig with that 'UserId'.  See also: 'Spar.App.getUser'.

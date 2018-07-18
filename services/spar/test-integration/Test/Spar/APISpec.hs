@@ -35,7 +35,13 @@ import qualified Spar.Intra.Brig as Intra
 
 spec :: SpecWith TestEnv
 spec = do
-    describe "status, metainfo" $ do
+    describe "CORS" $ do
+      it "is disabled" $ do
+        env <- ask
+        get ((env ^. teSpar) . path "/i/status" . expect2xx)
+          `shouldRespondWith` (\(responseHeaders -> hdrs) -> isNothing $ lookup "Access-Control-Allow-Origin" hdrs)
+
+    describe "status, metadata" $ do
       it "brig /i/status" $ do
         env <- ask
         ping (env ^. teBrig) `shouldRespondWith` (== ())
@@ -44,9 +50,9 @@ spec = do
         env <- ask
         ping (env ^. teSpar) `shouldRespondWith` (== ())
 
-      it "metainfo" $ do
+      it "metadata" $ do
         env <- ask
-        get ((env ^. teSpar) . path "/sso/metainfo" . expect2xx)
+        get ((env ^. teSpar) . path "/sso/metadata" . expect2xx)
           `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                 [ "md:SPSSODescriptor"
                                 , "validUntil"
@@ -85,6 +91,10 @@ spec = do
 
         context "unknown user" $ do
           it "creates the user" $ do
+            pending
+
+        context "known user A, but client device (probably a browser?) is already authenticated as another (probably non-sso) user B" $ do
+          it "logs out user B, logs in user A" $ do
             pending
 
       context "unknown IdP" $ do
@@ -236,13 +246,13 @@ spec = do
               callIdpCreate' (env ^. teSpar) (Just uid) newidp
                 `shouldRespondWith` checkErr (== 400) "client-error"
 
-      context "bad metainfo answer" $ do
+      context "bad metadata answer" $ do
         it "rejects" $ createIdpMockErr
           id
           "meta-bad.xml"
           HTTP.status200
 
-      context "invalid metainfo signature (on an XML document otherwise arbitrarily off)" $ do
+      context "invalid metadata signature (on an XML document otherwise arbitrarily off)" $ do
         it "rejects" $ createIdpMockErr
           id
           "meta-bad-sig.xml"
@@ -254,13 +264,13 @@ spec = do
           "meta-good-sig.xml"
           HTTP.status400
 
-      context "pubkey in IdPConfig does not match the one provided in metainfo url" $ do
+      context "pubkey in IdPConfig does not match the one provided in metadata url" $ do
         it "rejects" $ createIdpMockErr
           (nidpPublicKey .~ samplePublicKey2)
           "meta-good-sig.xml"
           HTTP.status200
 
-      context "idp is in use by other team" $ do
+      context "idp (identified by issuer) is in use by other team" $ do
         it "rejects" $ do
           pending
 

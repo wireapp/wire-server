@@ -29,10 +29,10 @@ migration = Migration 0 "Initial schema" $ do
 
     void $ schema' [r|
         CREATE TABLE if not exists user
-            ( idp      uuid
+            ( issuer   text
             , sso_id   text
             , uid      uuid
-            , primary key (idp, sso_id)
+            , primary key (issuer, sso_id)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
         |]
 
