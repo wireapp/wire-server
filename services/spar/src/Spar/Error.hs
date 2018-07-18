@@ -27,7 +27,7 @@ data SparCustomError
 
   | SparBadUserName LT
   | SparNoBodyInBrigResponse
-  | SparCouldNotParseBrigResponse
+  | SparCouldNotParseBrigResponse LT
   | SparCouldNotRetrieveCookie
   | SparCassandraError LT
 
@@ -60,7 +60,7 @@ sparToWaiError (SAML.CustomError SparNotInTeam)                 = Wai.Error stat
 sparToWaiError (SAML.CustomError SparNotTeamOwner)              = Wai.Error status403 "forbidden" "You need to be team owner to create an IdP."
 sparToWaiError (SAML.CustomError (SparBadUserName msg))         = Wai.Error status400 "client-error" ("Bad UserName in SAML response: " <> msg)
 sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)      = Wai.Error status400 "server-error" "Brig response without body."
-sparToWaiError (SAML.CustomError SparCouldNotParseBrigResponse) = Wai.Error status400 "server-error" "Could not parse brig response body."
+sparToWaiError (SAML.CustomError (SparCouldNotParseBrigResponse msg)) = Wai.Error status400 "server-error" ("Could not parse brig response body: " <> msg)
 sparToWaiError (SAML.CustomError SparCouldNotRetrieveCookie)    = Wai.Error status400 "server-error" "Brig response contained no Set-Cookie header."
 sparToWaiError (SAML.CustomError (SparCassandraError msg))      = Wai.Error status500 "server-error" ("Cassandra error: " <> msg)
 sparToWaiError (SAML.CustomError (SparNewIdPBadMetaUrl msg))    = Wai.Error status400 "client-error" ("bad or unresponsive metadata url: " <> msg)

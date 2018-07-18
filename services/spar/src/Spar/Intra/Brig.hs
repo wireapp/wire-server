@@ -53,7 +53,7 @@ fromUserSSOId (UserSSOId (cs -> tenant) (cs -> subject)) =
 parseResponse :: (FromJSON a, MonadError SparError m) => Response (Maybe LBS) -> m a
 parseResponse resp = do
     bdy <- maybe (throwSpar SparNoBodyInBrigResponse) pure $ responseBody resp
-    either (const $ throwSpar SparCouldNotParseBrigResponse) pure $ eitherDecode' bdy
+    either (throwSpar . SparCouldNotParseBrigResponse . cs) pure $ eitherDecode' bdy
 
 -- | Similar to 'Network.Wire.Client.API.Auth.tokenResponse', but easier: we just need to set the
 -- cookie in the response, and the redirect will make the client negotiate a fresh auth token.
@@ -101,7 +101,7 @@ createUser suid (Id buid) teamid = do
     . path "/i/users"
     . json newUser
     . expect2xx
-  parseResponse resp
+  userId . selfUser <$> parseResponse @SelfProfile resp
 
 
 getUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m (Maybe User)
