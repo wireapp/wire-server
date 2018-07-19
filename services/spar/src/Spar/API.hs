@@ -54,7 +54,7 @@ import Spar.App
 import Spar.Error
 import Spar.Options
 import Spar.Types
-import Web.Cookie (SetCookie)
+import Web.Cookie (SetCookie, renderSetCookie)
 
 import qualified Network.HTTP.Client as Rq
 import qualified SAML2.WebSSO as SAML
@@ -64,6 +64,7 @@ import qualified Text.XML as XML
 import qualified Text.XML.DSig as SAML
 import qualified Text.XML.Util as SAML
 import qualified URI.ByteString as URI
+import qualified Data.ByteString.Builder as Builder
 
 
 -- FUTUREWORK: use servant-generic?
@@ -103,7 +104,7 @@ api opts =
   :<|> pure (toSwagger (Proxy @OutsideWorldAPI))
   :<|> SAML.meta appName (Proxy @API) (Proxy @APIAuthResp)
   :<|> SAML.authreq (maxttlAuthreqDiffTime opts)
-  :<|> SAML.authresp onSuccess
+  :<|> SAML.authresp (SAML.HandleVerdictRaw verdictHandler)
   :<|> idpGet
   :<|> idpGetAll
   :<|> idpCreate
@@ -113,8 +114,50 @@ api opts =
 appName :: ST
 appName = "spar"
 
-onSuccess :: HasCallStack => SAML.UserRef -> Spar (SetCookie, URI.URI)
-onSuccess uid = forwardBrigLogin =<< maybe (createUser uid) pure =<< getUser uid
+-- | The from of the response on the finalize-login request depends on the verdict (denied or
+-- granted), plus the choice that the client has made during the initiate-login request.  If the
+-- client is mobile, it has picked error and success redirect urls; if the client is web, it has
+-- done nothing and will be served with an HTML page that it can process to decide
+-- whether to log the user in or show an error.
+--
+-- The HTML page is empty and has a title element with contents @wire:sso:<outcome>@.  This is
+-- chosen to be easily parseable and not be the title of any page sent by the IdP while it
+-- negotiates with the user.
+--
+-- (coming up: mobile case)  -- TODO
+verdictHandler :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandler = \case
+  SAML.AccessDenied reasons -> do
+    SAML.logger SAML.Debug (show reasons)
+    respond forbiddenPage
+  SAML.AccessGranted userref -> do
+    uid :: UserId    <- maybe (createUser userref) pure =<< getUser userref
+    cky :: SetCookie <- Intra.ssoLogin uid
+    respond $ successPage cky
+  where
+    respond = throwError . SAML.CustomServant
+
+    forbiddenPage :: ServantErr
+    forbiddenPage = ServantErr
+      { errHTTPCode     = 200
+      , errReasonPhrase = "forbidden"
+      , errBody         = easyHtml $ "<head><title>wire:sso:error:forbidden</title></head>"
+      , errHeaders      = []
+      }
+
+    successPage :: SetCookie -> ServantErr
+    successPage cky = ServantErr
+      { errHTTPCode     = 200
+      , errReasonPhrase = "success"
+      , errBody         = easyHtml $ "<head><title>wire:sso:success</title></head>"
+      , errHeaders      = [("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)]
+      }
+
+easyHtml :: LBS -> LBS
+easyHtml doc =
+  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" <>
+  "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">" <>
+  "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">" <> doc <> "</html>"
 
 type ZUsr = Maybe UserId
 

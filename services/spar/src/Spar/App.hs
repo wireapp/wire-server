@@ -23,7 +23,6 @@ import Servant
 import Spar.Error
 import Spar.Types
 import Spar.Options as Options
-import Web.Cookie (SetCookie)
 
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
@@ -32,7 +31,6 @@ import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified System.Logger as Log
-import qualified URI.ByteString as URI
 
 
 newtype Spar a = Spar { fromSpar :: ReaderT Env (ExceptT SparError IO) a }
@@ -148,9 +146,6 @@ createUser suid = do
   insertUser suid buid
   buid' <- Intra.createUser suid buid teamid
   assert (buid == buid') $ pure buid
-
-forwardBrigLogin :: UserId -> Spar (SetCookie, URI.URI)
-forwardBrigLogin = Intra.forwardBrigLogin
 
 
 instance SPHandler SparError Spar where

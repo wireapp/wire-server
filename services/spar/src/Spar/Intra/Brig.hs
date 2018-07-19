@@ -30,7 +30,6 @@ import GHC.Stack
 import Lens.Micro
 import Network.HTTP.Types.Method
 import Spar.Error
-import URI.ByteString
 import Web.Cookie
 
 import qualified SAML2.WebSSO as SAML
@@ -136,14 +135,13 @@ assertIsTeamOwner buid tid = do
 
 
 -- | Get session token from brig and redirect user past login process.
-forwardBrigLogin :: (HasCallStack, MonadError SparError m, SAML.HasConfig m, MonadSparToBrig m)
-                 => UserId -> m (SetCookie, URI)
-forwardBrigLogin buid = do
+ssoLogin :: (HasCallStack, MonadError SparError m, SAML.HasConfig m, MonadSparToBrig m)
+         => UserId -> m SetCookie
+ssoLogin buid = do
   resp :: Response (Maybe LBS) <- call
     $ method POST
     . path "/i/sso-login"
     . json (SsoLogin buid Nothing)
     . queryItem "persistent" "true"
     . expect2xx
-
-  (,) <$> respToCookie resp <*> SAML.getLandingURI
+  respToCookie resp
