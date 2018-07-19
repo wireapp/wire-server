@@ -215,8 +215,8 @@ newEnv o = do
     emailConn lgr (Opt.EmailSMTP  s) = do
         let host = Opt.smtpEndpoint s
             user = SMTP.Username (Opt.smtpUsername s)
-            pass = SMTP.Password (Opt.smtpPassword s)
-        smtp <- SMTP.initSMTP lgr host user pass (Opt.smtpConnType s)
+        pass <- initCredentials (Opt.smtpPassword s)
+        smtp <- SMTP.initSMTP lgr host user (SMTP.Password pass) (Opt.smtpConnType s)
         return (Nothing, Just smtp)
 
     mkEndpoint service = RPC.host (encodeUtf8 (service^.epHost)) . RPC.port (service^.epPort) $ RPC.empty

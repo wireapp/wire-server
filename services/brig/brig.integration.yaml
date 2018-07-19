@@ -40,10 +40,12 @@ emailSMS:
   email:
     sesQueue: integration-brig-events
     sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
+    # If you prefer to use SMTP directly, uncomment the following lines
+    # and set the correct credentials
     # smtpEndpoint: email-smtp.eu-west-1.amazonaws.com
-    # smtpUsername: <username>
-    # smtpPassword: <password>
-    # smtpConnType: tls
+    # smtpUsername: foo
+    # smtpPassword: <path_to_file_with_password>
+    # smtpConnType: tls | ssl | plain
 
   general:
     templateDir: deb/opt/brig/templates

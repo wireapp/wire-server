@@ -70,7 +70,7 @@ instance FromJSON EmailAWSOpts
 data EmailSMTPOpts = EmailSMTPOpts
     { smtpEndpoint :: !Text
     , smtpUsername :: !Text
-    , smtpPassword :: !Text
+    , smtpPassword :: !FilePathSecrets
     , smtpConnType :: !SMTPConnType
     } deriving (Show, Generic)
 
@@ -383,9 +383,9 @@ emailSMTPOptsParser =
       (textOption $
         long "smtp-username" <> metavar "STRING" <>
         help "Username to authenticate against the SMTP server") <*>
-      (textOption $
-        long "smtp-password" <> metavar "STRING" <>
-        help "Password to authenticate against the SMTP server") <*>
+      (FilePathSecrets <$> (strOption $
+        long "smtp-password" <> metavar "FILE" <>
+        help "File containing password to authenticate against the SMTP server" <> action "file")) <*>
       (smtpConnTypeOption $
         long "smtp-conn-type" <> metavar "STRING" <> value "tls" <> showDefault <>
         help "Which type of connection to use against the SMTP server {tls,ssl,plain}")
