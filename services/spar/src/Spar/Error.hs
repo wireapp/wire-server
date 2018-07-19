@@ -83,12 +83,23 @@ sparToServantErr err = case sparToWaiError err of
 
 -- | (Errors from saml2-web-sso are all frontend errors.)
 sparToWaiError :: SparError -> SparCustomError' Wai.Error Wai.Error
-sparToWaiError (SAML.UnknownIdP _msg)                           = FrontendError $ Wai.Error status404 "not-found" "IdP not found."
-sparToWaiError (SAML.Forbidden msg)                             = FrontendError $ Wai.Error status403 "forbidden" ("Forbidden: " <> msg)
-sparToWaiError (SAML.BadSamlResponse msg)                       = FrontendError $ Wai.Error status400 "client-error" ("Invalid credentials: " <> msg)
-sparToWaiError (SAML.BadServerConfig msg)                       = FrontendError $ Wai.Error status500 "server-error" ("Error in server config: " <> msg)
-sparToWaiError SAML.UnknownError                                = FrontendError $ Wai.Error status500 "server-error" "Unknown server error."
+sparToWaiError (SAML.UnknownIdP _msg)               = FrontendError $ Wai.Error status404 "not-found" "IdP not found."
+sparToWaiError (SAML.Forbidden msg)                 = FrontendError $ Wai.Error status403 "forbidden" ("Forbidden: " <> msg)
+sparToWaiError (SAML.BadSamlResponse msg)           = FrontendError $ Wai.Error status400 "client-error" ("Invalid credentials: " <> msg)
+sparToWaiError (SAML.BadServerConfig msg)           = FrontendError $ Wai.Error status500 "server-error" ("Error in server config: " <> msg)
+sparToWaiError SAML.UnknownError                    = FrontendError $ Wai.Error status500 "server-error" "Unknown server error."
 
+sparToWaiError (SAML.CustomError (FrontendError f)) = FrontendError $ sparToWaiErrorF f
+sparToWaiError (SAML.CustomError (BackendError b))  = BackendError  $ sparToWaiErrorB b
+
+sparToWaiErrorF :: FrontendError -> Wai.Error
+sparToWaiErrorF = undefined
+
+sparToWaiErrorB :: BackendError -> Wai.Error
+sparToWaiErrorB = undefined
+
+
+{-
 sparToWaiError (SAML.CustomError SparTeamNotFound)                  = Wai.Error status404 "not-found" "Not found."
 sparToWaiError (SAML.CustomError SparNotInTeam)                 = Wai.Error status404 "not-found" "Not found."
 sparToWaiError (SAML.CustomError SparNotTeamOwner)              = Wai.Error status403 "forbidden" "You need to be team owner to create an IdP."
@@ -103,4 +114,6 @@ sparToWaiError (SAML.CustomError (SparNewIdPBadReqUrl msg))     = Wai.Error stat
 sparToWaiError (SAML.CustomError SparNewIdPPubkeyMismatch)      = Wai.Error status400 "client-error" "public keys in body, metadata do not match"
 
 
--- make labels unique
+-- make labels unique.  look at galley.  https://github.com/wireapp/wire-server/blob/develop/services/galley/src/Galley/API/Error.hs#L94
+-- server errrors should be status500, not 400.
+-}
