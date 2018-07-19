@@ -61,7 +61,8 @@ initSMTP lg host (Username user) (Password pass) connType = do
         else Logger.log lg Logger.Warn (msg $ val "Failed to established connection, check your credentials to connect to: " +++ host )
       return conn
 
-    destroy _ =
+    destroy c = do
+      SMTP.closeSMTP c
       Logger.log lg Logger.Debug (msg $ val "Closing connection to: " +++ host)
 
 sendMail :: (MonadBaseControl IO m, MonadIO m) => SMTP -> Mail -> m ()
