@@ -13,14 +13,14 @@ import Data.ByteString.Conversion
 import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.List (foldl', (\\))
-import Data.Text (Text, pack)
+import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import GHC.Generics
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
-import System.Environment (getArgs, withArgs)
+import System.Environment (getArgs, getEnv, withArgs)
 import Test.Tasty
 import Util.Options
 import Util.Options.Common
@@ -65,9 +65,7 @@ runTests iConf bConf otherArgs = do
     lg <- Logger.new Logger.defSettings
     db <- defInitCassandra casKey casHost casPort lg
     mg <- newManager tlsManagerSettings
-    let emailAWSOpts = case Opts.email . Opts.emailSMS <$> bConf of
-                                Just (Opts.EmailAWS aws) -> Just aws
-                                _                        -> Nothing
+    emailAWSOpts <- parseEmailAWSOpts
     awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
 
     userApi     <- User.tests bConf mg b c ch g awsEnv
@@ -96,18 +94,20 @@ runTests iConf bConf otherArgs = do
         sqsJrnlQ <- join <$> optOrEnvSafe (Opts.userJournalQueue . Opts.aws) bConf (Just . pack) "AWS_USER_JOURNAL_QUEUE"
         dynBlTbl <- optOrEnv (Opts.blacklistTable . Opts.aws)   bConf pack          "AWS_USER_BLACKLIST_TABLE"
         dynPkTbl <- optOrEnv (Opts.prekeyTable . Opts.aws)      bConf pack          "AWS_USER_PREKEYS_TABLE"
-        (_sesQueue, _sesEnd) <- parseEmailAWSOpts
         return $ Opts.AWSOpts sqsIntQ sqsJrnlQ dynBlTbl dynPkTbl sqsEnd dynEnd
 
     parseEndpoint :: String -> AWSEndpoint
     parseEndpoint e = fromMaybe (error ("Not a valid AWS endpoint: " ++ show e))
                     $ fromByteString (BS.pack e)
 
-    parseEmailAWSOpts :: IO (Maybe Text, Maybe AWSEndpoint)
-    parseEmailAWSOpts = do
-        -- sesEnd   <- optOrEnv (Opts.sesEndpoint . Opts.aws)      bConf parseEndpoint "AWS_SES_ENDPOINT"
-        -- sesQueue <- optOrEnv (Opts.sesQueue . Opts.aws)         bConf pack          "AWS_USER_SES_QUEUE"
-        undefined
+    parseEmailAWSOpts :: IO (Maybe Opts.EmailAWSOpts)
+    parseEmailAWSOpts = case Opts.email . Opts.emailSMS <$> bConf of
+        Just (Opts.EmailAWS aws) -> return (Just aws)
+        Just (Opts.EmailSMTP  _) -> return Nothing
+        _                        -> do
+            sesEnd   <- parseEndpoint <$> getEnv "AWS_SES_ENDPOINT"
+            sesQueue <- pack          <$> getEnv "AWS_USER_SES_QUEUE"
+            return . Just $ Opts.EmailAWSOpts sesQueue sesEnd
 
 main :: IO ()
 main = withOpenSSL $ do
