@@ -177,6 +177,7 @@ initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idp
 
 type MonadValidateIdP m = (MonadHttp m, MonadIO m)
 
+-- | FUTUREWORK: much of this function could move to the saml2-web-sso package.
 validateNewIdP :: forall m. (HasCallStack, MonadError SparError m, MonadValidateIdP m)
                => NewIdP -> m ()
 validateNewIdP newidp = if True then pure () else do  -- TODO: validation breaks current integration test suite, so it's disabled.
