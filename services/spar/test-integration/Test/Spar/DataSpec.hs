@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
@@ -11,25 +12,29 @@ import Bilge
 import Cassandra as Cas
 import Control.Concurrent
 import Control.Exception
-import Control.Monad.Reader
 import Control.Monad.Catch
-import Data.Aeson (encode)
+import Control.Monad.Reader
+import Data.Either (isRight)
 import Data.Id
+import Data.Maybe (isJust)
 import Data.String.Conversions
 import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Lens.Micro
-import Spar.Data as Data
-import Spar.API.Test (IntegrationTests)
 import Spar.API.Instances ()
+import Spar.API.Test (IntegrationTests)
+import Spar.Data as Data
 import Spar.Options as Options
+import Spar.Types
 import Util
 import Util.Options
 
+import qualified Data.List as List
 import qualified SAML2.WebSSO as SAML
-import qualified Servant as Servant
+import qualified Servant
 import qualified Servant.Client as Servant
+import qualified Text.XML as XML
 import qualified Text.XML.Util as SAML
 
 
@@ -141,13 +146,11 @@ spec = do
 
     -- users
 
-    let runInsertUser :: TestEnv -> SAML.UserRef -> UserId -> Http ResponseLBS  -- TODO: servant-client-ify
-        runInsertUser env uref uid = do
-          post $ (env ^. teSpar) . path ("/i/integration-tests/user/" <> cs (show uid)) . json uref
+    let runInsertUser :: TestEnv -> SAML.UserRef -> UserId -> Http ()
+        runInsertUser env uref = runServantClient env . clientPostUser uref
 
-        runGetUser :: TestEnv -> SAML.UserRef -> Http ResponseLBS
-        runGetUser env uref = do
-          get $ (env ^. teSpar) . path "/i/integration-tests/user" . json uref
+        runGetUser :: TestEnv -> SAML.UserRef -> Http (Maybe UserId)
+        runGetUser env = runServantClient env . clientGetUser
 
         nextUserRef :: MonadIO m => m SAML.UserRef
         nextUserRef = liftIO $ do
@@ -157,22 +160,19 @@ spec = do
             (SAML.Issuer $ SAML.unsafeParseURI ("http://" <> tenant))
             (SAML.opaqueNameID subject)
 
-        getIs :: Maybe UserId -> ResponseLBS -> Bool
-        getIs muid resp = statusCode resp == 200 && responseBody resp == (Just . cs . encode $ muid)
-
     describe "insertUser, getUser" $ do
       context "user is new" $ do
         it "getUser returns Nothing" $ do
           env  <- ask
           uref <- nextUserRef
-          runGetUser env uref `shouldRespondWith` getIs Nothing
+          runGetUser env uref `shouldRespondWith` (== Nothing)
 
         it "inserts new user and responds with 201 / returns new user" $ do
           env  <- ask
           uref <- nextUserRef
           uid  <- Id <$> liftIO UUID.nextRandom
-          runInsertUser env uref uid `shouldRespondWith` (\resp -> statusCode resp == 201)
-          runGetUser env uref `shouldRespondWith` getIs (Just uid)
+          runInsertUser env uref uid `shouldRespondWith` (== ())  -- no exception
+          runGetUser env uref `shouldRespondWith` (== Just uid)
 
       context "user already exists (idempotency)" $ do
         it "inserts new user and responds with 201 / returns new user" $ do
@@ -180,9 +180,46 @@ spec = do
           uref <- nextUserRef
           uid  <- Id <$> liftIO UUID.nextRandom
           uid' <- Id <$> liftIO UUID.nextRandom
-          runInsertUser env uref uid `shouldRespondWith` (\resp -> statusCode resp == 201)
-          runInsertUser env uref uid' `shouldRespondWith` (\resp -> statusCode resp == 201)
-          runGetUser env uref `shouldRespondWith` getIs (Just uid')
+          runInsertUser env uref uid `shouldRespondWith` (== ())
+          runInsertUser env uref uid' `shouldRespondWith` (== ())
+          runGetUser env uref `shouldRespondWith` (== Just uid')
+
+
+    -- access verdict
+
+    let runPostVerdict :: TestEnv -> SAML.AccessVerdict -> Http SAML.ResponseVerdict
+        runPostVerdict env = runServantClient env . clientPostVerdict
+
+    describe "accessVerdict" $ do
+      context "web" $ do
+        context "denied" $ do
+          it "responds with status 200 and a valid html page with constant expected title." $ do
+            env <- ask
+            outcome <- call $ runPostVerdict env (SAML.AccessDenied ["we don't like you", "seriously"])
+            liftIO $ do
+              Servant.errHTTPCode outcome `shouldBe` 200
+              Servant.errReasonPhrase outcome `shouldBe` "forbidden"
+              ('1', cs @LBS @String (Servant.errBody outcome))
+                `shouldSatisfy` (("<title>wire:sso:error:forbidden</title>" `List.isInfixOf`) . snd)
+              ('2', XML.parseLBS XML.def $ Servant.errBody outcome)
+                `shouldSatisfy` (isRight . snd)
+
+        context "granted" $ do
+          it "responds with status 200 and a valid html page with constant expected title." $ do
+            (_, _, _) <- createTestIdP
+            env <- ask
+            let tenant  = sampleIdP ^. nidpIssuer
+                subject = SAML.opaqueNameID "blee"
+            outcome <- call $ runPostVerdict env (SAML.AccessGranted (SAML.UserRef tenant subject))
+            liftIO $ do
+              Servant.errHTTPCode outcome `shouldBe` 200
+              Servant.errReasonPhrase outcome `shouldBe` "success"
+              ('1', cs @LBS @String (Servant.errBody outcome))
+                `shouldSatisfy` (("<title>wire:sso:success</title>" `List.isInfixOf`) . snd)
+              ('2', XML.parseLBS XML.def (Servant.errBody outcome))
+                `shouldSatisfy` (isRight . snd)
+              ('3', List.lookup "Set-Cookie" . Servant.errHeaders $ outcome)
+                `shouldSatisfy` (isJust . snd)
 
 
 runServantClient :: TestEnv -> Servant.ClientM a -> Http a
@@ -203,10 +240,12 @@ clientGetRequest    :: SAML.ID SAML.AuthnRequest -> Servant.ClientM Bool
 clientPostAssertion :: SAML.ID SAML.Assertion -> SAML.Time -> Servant.ClientM Bool
 clientPostUser      :: SAML.UserRef -> UserId -> Servant.ClientM ()
 clientGetUser       :: SAML.UserRef -> Servant.ClientM (Maybe UserId)
+clientPostVerdict   :: SAML.AccessVerdict -> Servant.ClientM Servant.ServantErr
 
 clientPostRequest     Servant.:<|>
   clientGetRequest    Servant.:<|>
   clientPostAssertion Servant.:<|>
   clientPostUser      Servant.:<|>
-  clientGetUser
+  clientGetUser       Servant.:<|>
+  clientPostVerdict
   = Servant.client (Servant.Proxy @IntegrationTests)

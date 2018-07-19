@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric        #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE RecordWildCards      #-}
@@ -13,9 +14,11 @@ module Spar.API.Instances where
 
 import Data.Aeson
 import Data.Aeson.Types
+import Data.CaseInsensitive
 import Data.Id
 import Data.String.Conversions
 import Data.Time
+import GHC.Generics
 import SAML2.WebSSO.Types
 import SAML2.WebSSO.XML
 import Servant
@@ -52,3 +55,20 @@ instance FromJSON UserRef where
     where
       unpack :: HasXML a => ST -> Parser a
       unpack = either fail pure . decodeElem . cs
+
+instance FromJSON AccessVerdict
+instance ToJSON AccessVerdict
+
+deriving instance Generic ServantErr
+
+instance FromJSON ServantErr
+instance ToJSON ServantErr
+
+instance FromJSON (CI SBS) where parseJSON = fmap mk . parseJSON
+instance ToJSON (CI SBS)   where toJSON = toJSON . original
+
+instance FromJSON SBS      where parseJSON = fmap (cs @ST @SBS) . parseJSON
+instance ToJSON SBS        where toJSON = toJSON . cs @SBS @ST
+
+instance FromJSON LBS      where parseJSON = fmap (cs @ST @LBS) . parseJSON
+instance ToJSON LBS        where toJSON = toJSON . cs @LBS @ST

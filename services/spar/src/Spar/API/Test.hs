@@ -33,6 +33,7 @@ type IntegrationTests
  :<|> "assertion" :> Capture "assid" (SAML.ID SAML.Assertion) :> Capture "now" SAML.Time :> PostCreated '[JSON] Bool
  :<|> "user"      :> ReqBody '[JSON] SAML.UserRef :> Capture "user-id" UserId :> PostCreated '[JSON] ()
  :<|> "user"      :> ReqBody '[JSON] SAML.UserRef :> Get '[JSON] (Maybe UserId)
+ :<|> "verdict"   :> ReqBody '[JSON] SAML.AccessVerdict :> Post '[JSON] ServantErr
 
 integrationTests :: ServerT IntegrationTests Spar
 integrationTests
@@ -41,3 +42,4 @@ integrationTests
  :<|> (\assid endoflife -> wrapMonadClientWithEnv $ Data.storeAssertion assid endoflife)
  :<|> (\uref uid -> wrapMonadClient $ Data.insertUser uref uid)
  :<|> wrapMonadClient . Data.getUser
+ :<|> verdictHandler
