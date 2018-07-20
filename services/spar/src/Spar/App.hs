@@ -180,6 +180,8 @@ instance Intra.MonadSparToBrig Spar where
 -- (coming up: mobile case)  -- TODO
 verdictHandler :: HasCallStack => SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
 verdictHandler _ = verdictHandler'
+  -- Since saml2-web-sso validation guarantees that the signed in-response-to info in the assertions
+  -- matches the unsigned in-response-to field in the 'SAML.Response', we can just go for the latter.
 
 verdictHandler' :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVerdict
 verdictHandler' = \case
@@ -197,7 +199,7 @@ verdictHandler' = \case
     forbiddenPage :: SAML.ResponseVerdict
     forbiddenPage = ServantErr
       { errHTTPCode     = 200
-      , errReasonPhrase = "forbidden"
+      , errReasonPhrase = "forbidden"  -- (not sure what this is used for)
       , errBody         = easyHtml $ "<head><title>wire:sso:error:forbidden</title></head>"
       , errHeaders      = []
       }

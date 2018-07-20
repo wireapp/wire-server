@@ -72,3 +72,13 @@ data NewIdP = NewIdP
 
 makeLenses ''NewIdP
 deriveJSON deriveJSONOptions ''NewIdP
+
+
+-- | Clients can request different ways of receiving the final 'AccessVerdict' when fetching their
+-- 'AuthnRequest'.  Web-based clients want an html page, mobile clients want to set two URIs for the
+-- two resp. 'AccessVerdict' constructors.  This format is stored in cassandra under the request id
+-- so that the verdict handler can act on it.
+data VerdictFormat
+  = VerdictFormatWeb
+  | VerdictFormatMobile { _verdictFormatGrantedURI :: URI, _verdictFormatDeniedURI :: URI }
+  deriving (Eq, Show, Generic)

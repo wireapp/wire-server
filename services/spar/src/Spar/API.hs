@@ -43,6 +43,7 @@ import Data.String.Conversions
 import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
+import Data.Time
 import GHC.Stack
 import Lens.Micro
 import Servant
@@ -84,7 +85,10 @@ type API = "i" :> "status" :> Get '[JSON] NoContent
       -- NB. If you add endpoints here, also update Test.Spar.APISpec
 
 type APIMeta     = "sso" :> "metadata" :> SAML.APIMeta
-type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
+type APIAuthReq  = "sso" :> "initiate-login"
+                :> QueryParam "success_redirct" URI.URI
+                :> QueryParam "error_redirct" URI.URI
+                :> SAML.APIAuthReq
 type APIAuthResp = "sso" :> "finalize-login" :> SAML.APIAuthResp
 
 type IdpGet     = Header "Z-User" UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
@@ -101,7 +105,7 @@ api opts =
        pure NoContent
   :<|> pure (toSwagger (Proxy @OutsideWorldAPI))
   :<|> SAML.meta appName (Proxy @API) (Proxy @APIAuthResp)
-  :<|> SAML.authreq (maxttlAuthreqDiffTime opts)
+  :<|> authreq (maxttlAuthreqDiffTime opts)
   :<|> SAML.authresp (SAML.HandleVerdictRaw verdictHandler)
   :<|> idpGet
   :<|> idpGetAll
@@ -111,6 +115,11 @@ api opts =
 
 appName :: ST
 appName = "spar"
+
+
+authreq :: NominalDiffTime -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar (SAML.FormRedirect SAML.AuthnRequest)
+authreq authreqttl _successRedirect _errorRedirect = SAML.authreq authreqttl
+
 
 type ZUsr = Maybe UserId
 
