@@ -182,17 +182,15 @@ verdictHandler :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVerdic
 verdictHandler = \case
   SAML.AccessDenied reasons -> do
     SAML.logger SAML.Debug (show reasons)
-    respond forbiddenPage
+    pure forbiddenPage
   SAML.AccessGranted userref -> do
     uid :: UserId    <- maybe (createUser userref) pure =<< getUser userref
     cky :: SetCookie <- Intra.ssoLogin uid  -- TODO: can this be a race condition?  (user is not
                                             -- quite created yet when we ask for a cookie?  do we do
                                             -- quorum reads / writes here?  writes: probably yes,
                                             -- reads: probably no.)
-    respond $ successPage cky
+    pure $ successPage cky
   where
-    respond = throwError . SAML.CustomServant
-
     forbiddenPage :: ServantErr
     forbiddenPage = ServantErr
       { errHTTPCode     = 200
