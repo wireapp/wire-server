@@ -23,13 +23,17 @@ import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Lens.Micro
+import Spar.API
 import Spar.API.Instances ()
 import Spar.API.Test (IntegrationTests)
 import Spar.Data as Data
 import Spar.Options as Options
 import Spar.Types
+import URI.ByteString as URI
+import URI.ByteString.QQ (uri)
 import Util
 import Util.Options
+import Web.Cookie
 
 import qualified Data.List as List
 import qualified SAML2.WebSSO as SAML
@@ -188,15 +192,15 @@ spec = do
 
     -- access verdict
 
-    let runPostVerdict :: TestEnv -> SAML.AccessVerdict -> Http SAML.ResponseVerdict
-        runPostVerdict env = runServantClient env . clientPostVerdict . (emptyAuthnResponse,)
+    let runPostVerdict :: TestEnv -> (SAML.AuthnResponse, SAML.AccessVerdict) -> Http SAML.ResponseVerdict
+        runPostVerdict env = runServantClient env . clientPostVerdict
 
     describe "accessVerdict" $ do
       context "web" $ do
         context "denied" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
             env <- ask
-            outcome <- call $ runPostVerdict env (SAML.AccessDenied ["we don't like you", "seriously"])
+            outcome <- call $ runPostVerdict env (emptyAuthnResponse, SAML.AccessDenied ["we don't like you", "seriously"])
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -211,7 +215,7 @@ spec = do
             env <- ask
             let tenant  = sampleIdP ^. nidpIssuer
                 subject = SAML.opaqueNameID "blee"
-            outcome <- call $ runPostVerdict env (SAML.AccessGranted (SAML.UserRef tenant subject))
+            outcome <- call $ runPostVerdict env (emptyAuthnResponse, SAML.AccessGranted (SAML.UserRef tenant subject))
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
               Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -221,6 +225,62 @@ spec = do
                 `shouldSatisfy` (isRight . snd)
               ('3', List.lookup "Set-Cookie" . Servant.errHeaders $ outcome)
                 `shouldSatisfy` (isJust . snd)
+
+      context "mobile" $ do
+        let prepare :: HasCallStack => Bool -> ReaderT TestEnv IO (UserId, SAML.ResponseVerdict, URI, [(SBS, SBS)])
+            prepare isGranted = do
+              (uid, _, idpid) <- createTestIdP
+              env <- ask
+              let tenant  = sampleIdP ^. nidpIssuer
+                  subject = SAML.opaqueNameID "blee"
+                  uref    = SAML.UserRef tenant subject
+              call $ runInsertUser env uref uid
+              authnreq <- call . runServantClient env $ clientGetAuthnRequest
+                (Just [uri|wire://login-granted/?cookie=$cookie&userid=$userid|])
+                (Just [uri|wire://login-denied/?label=$label|])
+                idpid
+              let authnresp = fleshOutResponse emptyAuthnResponse authnreq
+                  verdict = if isGranted
+                    then SAML.AccessGranted uref
+                    else SAML.AccessDenied ["we don't like you", "seriously"]
+              outcome <- call $ runPostVerdict env (authnresp, verdict)
+              let loc :: URI.URI
+                  loc = maybe (error "no location") (either error id . SAML.parseURI' . cs)
+                      . List.lookup "Location" . Servant.errHeaders
+                      $ outcome
+                  qry :: [(SBS, SBS)]
+                  qry = queryPairs $ uriQuery loc
+              pure (uid, outcome, loc, qry)
+
+        context "denied" $ do
+          it "responds with status 302 to the error redirect." $ do
+            (_uid, outcome, loc, qry) <- prepare False
+            liftIO $ do
+              Servant.errHTTPCode outcome `shouldBe` 302
+              Servant.errReasonPhrase outcome `shouldBe` "forbidden"
+              Servant.errBody outcome `shouldBe` mempty
+              uriScheme loc `shouldBe` (URI.Scheme "wire")
+              List.lookup "userid" qry `shouldNotBe` Nothing
+              List.lookup "cookie" qry `shouldNotBe` Nothing
+              List.lookup "label"  qry `shouldBe`    (Just "forbidden")
+
+        context "granted" $ do
+          it "responds with status 200 and a valid html page with constant expected title." $ do
+            (uid, outcome, loc, qry) <- prepare True
+            liftIO $ do
+              Servant.errHTTPCode outcome `shouldBe` 302
+              Servant.errReasonPhrase outcome `shouldBe` "success"
+              Servant.errBody outcome `shouldBe` mempty
+              uriScheme loc `shouldBe` (URI.Scheme "wire")
+              List.lookup "label"  qry `shouldNotBe` Nothing
+              List.lookup "userid" qry `shouldBe` (Just . cs . show $ uid)
+              List.lookup "cookie" qry `shouldNotBe` Nothing
+              List.lookup "cookie" qry `shouldNotBe` Just "$cookie"
+              let Just (ckies :: SBS) = List.lookup "cookie" qry
+                  cky :: SetCookie = parseSetCookie . (error . show) . parseCookies $ ckies
+              setCookieName cky `shouldBe` "wire"
+              setCookieSecure cky `shouldBe` True
+              setCookieHttpOnly cky `shouldBe` True
 
 
 runServantClient :: TestEnv -> Servant.ClientM a -> Http a
@@ -251,6 +311,9 @@ clientPostRequest     Servant.:<|>
   clientPostVerdict
   = Servant.client (Servant.Proxy @IntegrationTests)
 
+clientGetAuthnRequest :: Maybe URI -> Maybe URI -> SAML.IdPId -> Servant.ClientM (SAML.FormRedirect SAML.AuthnRequest)
+clientGetAuthnRequest = Servant.client (Servant.Proxy @APIAuthReq)
+
 
 emptyAuthnResponse :: SAML.AuthnResponse
 emptyAuthnResponse = SAML.Response
@@ -263,3 +326,7 @@ emptyAuthnResponse = SAML.Response
   , SAML._rspStatus       = SAML.StatusSuccess
   , SAML._rspPayload      = []
   }
+
+-- | See 'verdictHandler' on the question of why we don't need an 'Assertion' in the payload here.
+fleshOutResponse :: SAML.AuthnResponse -> SAML.FormRedirect SAML.AuthnRequest -> SAML.AuthnResponse
+fleshOutResponse resp (SAML.FormRedirect _ req) = resp & SAML.rspInRespTo .~ Just (req ^. SAML.rqID)

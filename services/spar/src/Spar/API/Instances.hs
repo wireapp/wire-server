@@ -1,12 +1,13 @@
-{-# LANGUAGE DeriveGeneric        #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE RecordWildCards      #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE StandaloneDeriving   #-}
-{-# LANGUAGE TemplateHaskell      #-}
-{-# LANGUAGE TypeApplications     #-}
-{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE RecordWildCards       #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeSynonymInstances  #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -20,11 +21,17 @@ import Data.Id
 import Data.String.Conversions
 import Data.Time
 import GHC.Generics
+import SAML2.WebSSO.API
+import SAML2.WebSSO.Config (IdPId(IdPId))
 import SAML2.WebSSO.Types
 import SAML2.WebSSO.XML
 import Servant hiding (URI)
-import Text.XML.Util (parseURI', renderURI)
+import Text.XML.Util (parseURI')
 import URI.ByteString
+
+
+instance FromHttpApiData URI where
+  parseUrlPiece = either (fail . show) pure . parseURI' <=< parseUrlPiece
 
 instance FromHttpApiData UserId where
   parseUrlPiece = fmap Id . parseUrlPiece
@@ -45,6 +52,9 @@ instance FromHttpApiData Time where
 instance ToHttpApiData Time where
   toUrlPiece =
     toUrlPiece . formatTime defaultTimeLocale timeFormat . fromTime
+
+instance ToHttpApiData IdPId where
+  toUrlPiece (IdPId uuid) = toUrlPiece uuid
 
 instance ToJSON UserRef where
   toJSON (UserRef tenant subject) =
@@ -110,17 +120,11 @@ instance ToJSON NameID
 instance FromJSON UnqualifiedNameID
 instance ToJSON UnqualifiedNameID
 
-instance FromJSON Version
-instance ToJSON Version
-
 instance FromJSON Time
 instance ToJSON Time
 
 instance FromJSON Conditions
 instance ToJSON Conditions
-
-instance FromJSON URI where parseJSON = either (fail . show) pure . parseURI' <=< parseJSON
-instance ToJSON URI   where toJSON = toJSON . renderURI
 
 deriving instance Generic ServantErr
 instance FromJSON ServantErr
@@ -134,3 +138,6 @@ instance ToJSON SBS        where toJSON = toJSON . cs @SBS @ST
 
 instance FromJSON LBS      where parseJSON = fmap (cs @ST @LBS) . parseJSON
 instance ToJSON LBS        where toJSON = toJSON . cs @LBS @ST
+
+instance Servant.MimeUnrender HTML (FormRedirect AuthnRequest) where
+  mimeUnrender = undefined
