@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
@@ -188,7 +189,7 @@ spec = do
     -- access verdict
 
     let runPostVerdict :: TestEnv -> SAML.AccessVerdict -> Http SAML.ResponseVerdict
-        runPostVerdict env = runServantClient env . clientPostVerdict
+        runPostVerdict env = runServantClient env . clientPostVerdict . (emptyAuthnResponse,)
 
     describe "accessVerdict" $ do
       context "web" $ do
@@ -240,7 +241,7 @@ clientGetRequest    :: SAML.ID SAML.AuthnRequest -> Servant.ClientM Bool
 clientPostAssertion :: SAML.ID SAML.Assertion -> SAML.Time -> Servant.ClientM Bool
 clientPostUser      :: SAML.UserRef -> UserId -> Servant.ClientM ()
 clientGetUser       :: SAML.UserRef -> Servant.ClientM (Maybe UserId)
-clientPostVerdict   :: SAML.AccessVerdict -> Servant.ClientM Servant.ServantErr
+clientPostVerdict   :: (SAML.AuthnResponse, SAML.AccessVerdict) -> Servant.ClientM Servant.ServantErr
 
 clientPostRequest     Servant.:<|>
   clientGetRequest    Servant.:<|>
@@ -249,3 +250,16 @@ clientPostRequest     Servant.:<|>
   clientGetUser       Servant.:<|>
   clientPostVerdict
   = Servant.client (Servant.Proxy @IntegrationTests)
+
+
+emptyAuthnResponse :: SAML.AuthnResponse
+emptyAuthnResponse = SAML.Response
+  { SAML._rspID           = SAML.ID "bleep"
+  , SAML._rspInRespTo     = Nothing
+  , SAML._rspVersion      = SAML.Version_2_0
+  , SAML._rspIssueInstant = SAML.unsafeReadTime "2018-04-13T06:33:02.772Z"
+  , SAML._rspDestination  = Nothing
+  , SAML._rspIssuer       = Nothing
+  , SAML._rspStatus       = SAML.StatusSuccess
+  , SAML._rspPayload      = []
+  }
