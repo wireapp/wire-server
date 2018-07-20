@@ -1,25 +1,33 @@
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE DeriveGeneric              #-}
 
 module Spar.Types where
 
+import Debug.Trace
+import Control.Monad.Except
 import Data.Aeson.TH
-import Data.Id (TeamId)
+import Data.Id (TeamId, UserId)
+import Data.String.Conversions
 import GHC.Generics
 import Lens.Micro.TH (makeLenses)
 import SAML2.WebSSO.Config.TH (deriveJSONOptions)
 import SAML2.WebSSO (IdPConfig, Issuer)
+import Text.XML.Util (renderURI, parseURI')
 import URI.ByteString
+import Web.Cookie
 
+import qualified Data.ByteString.Builder as Builder
+import qualified Data.Text as ST
 import qualified Data.X509 as X509
 
 
@@ -82,3 +90,23 @@ data VerdictFormat
   = VerdictFormatWeb
   | VerdictFormatMobile { _verdictFormatGrantedURI :: URI, _verdictFormatDeniedURI :: URI }
   deriving (Eq, Show, Generic)
+
+mkVerdictGrantedFormatMobile :: MonadError String m => URI -> SetCookie -> UserId -> m URI
+mkVerdictGrantedFormatMobile before cky uid
+  = parseURI'
+  . substituteVar "cookie" (cs . Builder.toLazyByteString . renderSetCookie $ cky)
+  . substituteVar "userid" (cs . show $ uid)
+  $ renderURI before
+
+mkVerdictDeniedFormatMobile :: MonadError String m => URI -> ST -> m URI
+mkVerdictDeniedFormatMobile before lbl
+  = parseURI'
+  . substituteVar "label" lbl
+  . traceShowId
+  $ renderURI before
+
+substituteVar :: ST -> ST -> ST -> ST
+substituteVar var val = substituteVar' ("$" <> var) val . substituteVar' ("%24" <> var) val
+
+substituteVar' :: ST -> ST -> ST -> ST
+substituteVar' var val = ST.intercalate val . ST.splitOn var
