@@ -169,15 +169,20 @@ instance Intra.MonadSparToBrig Spar where
 
 -- | The from of the response on the finalize-login request depends on the verdict (denied or
 -- granted), plus the choice that the client has made during the initiate-login request.  If the
--- client is mobile, it has picked error and success redirect urls; if the client is web, it has
--- done nothing and will be served with an HTML page that it can process to decide
--- whether to log the user in or show an error.
+-- client is mobile, it has picked error and success redirect urls (see
+-- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'); if the client is web, it has done
+-- nothing and will be served with an HTML page that it can process to decide whether to log the
+-- user in or show an error.
 --
 -- The HTML page is empty and has a title element with contents @wire:sso:<outcome>@.  This is
 -- chosen to be easily parseable and not be the title of any page sent by the IdP while it
 -- negotiates with the user.
 --
--- (coming up: mobile case)  -- TODO
+-- NB: there are at least two places in the 'SAML.AuthnResponse' that can contain the request id:
+-- the response header and every assertion.  Since saml2-web-sso validation guarantees that the
+-- signed in-response-to info in the assertions matches the unsigned in-response-to field in the
+-- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
+-- latter.
 verdictHandler :: HasCallStack => SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
 verdictHandler _ = verdictHandler'
   -- Since saml2-web-sso validation guarantees that the signed in-response-to info in the assertions
