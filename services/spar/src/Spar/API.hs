@@ -54,7 +54,6 @@ import Spar.App
 import Spar.Error
 import Spar.Options
 import Spar.Types
-import Web.Cookie (SetCookie)
 
 import qualified Network.HTTP.Client as Rq
 import qualified SAML2.WebSSO as SAML
@@ -103,7 +102,7 @@ api opts =
   :<|> pure (toSwagger (Proxy @OutsideWorldAPI))
   :<|> SAML.meta appName (Proxy @API) (Proxy @APIAuthResp)
   :<|> SAML.authreq (maxttlAuthreqDiffTime opts)
-  :<|> SAML.authresp onSuccess
+  :<|> SAML.authresp (SAML.HandleVerdictRaw verdictHandler)
   :<|> idpGet
   :<|> idpGetAll
   :<|> idpCreate
@@ -112,9 +111,6 @@ api opts =
 
 appName :: ST
 appName = "spar"
-
-onSuccess :: HasCallStack => SAML.UserRef -> Spar (SetCookie, URI.URI)
-onSuccess uid = forwardBrigLogin =<< maybe (createUser uid) pure =<< getUser uid
 
 type ZUsr = Maybe UserId
 
@@ -181,6 +177,7 @@ initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idp
 
 type MonadValidateIdP m = (MonadHttp m, MonadIO m)
 
+-- | FUTUREWORK: much of this function could move to the saml2-web-sso package.
 validateNewIdP :: forall m. (HasCallStack, MonadError SparError m, MonadValidateIdP m)
                => NewIdP -> m ()
 validateNewIdP newidp = if True then pure () else do  -- TODO: validation breaks current integration test suite, so it's disabled.

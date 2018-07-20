@@ -4,6 +4,7 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 
@@ -17,22 +18,25 @@ import Control.Monad.Reader
 import Data.EitherR (fmapL)
 import Data.Id
 import Data.String.Conversions
+import GHC.Stack
 import Lens.Micro
 import SAML2.WebSSO hiding (UserRef(..))
 import Servant
+import Spar.API.Instances ()
+import Spar.API.Swagger ()
 import Spar.Error
-import Spar.Types
 import Spar.Options as Options
-import Web.Cookie (SetCookie)
+import Spar.Types
+import Web.Cookie (SetCookie, renderSetCookie)
 
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
+import qualified Data.ByteString.Builder as Builder
 import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified System.Logger as Log
-import qualified URI.ByteString as URI
 
 
 newtype Spar a = Spar { fromSpar :: ReaderT Env (ExceptT SparError IO) a }
@@ -149,9 +153,6 @@ createUser suid = do
   buid' <- Intra.createUser suid buid teamid
   assert (buid == buid') $ pure buid
 
-forwardBrigLogin :: UserId -> Spar (SetCookie, URI.URI)
-forwardBrigLogin = Intra.forwardBrigLogin
-
 
 instance SPHandler SparError Spar where
   type NTCTX Spar = Env
@@ -164,3 +165,50 @@ instance Intra.MonadSparToBrig Spar where
   call modreq = do
     req <- asks sparCtxHttpBrig
     httpLbs req modreq
+
+
+-- | The from of the response on the finalize-login request depends on the verdict (denied or
+-- granted), plus the choice that the client has made during the initiate-login request.  If the
+-- client is mobile, it has picked error and success redirect urls; if the client is web, it has
+-- done nothing and will be served with an HTML page that it can process to decide
+-- whether to log the user in or show an error.
+--
+-- The HTML page is empty and has a title element with contents @wire:sso:<outcome>@.  This is
+-- chosen to be easily parseable and not be the title of any page sent by the IdP while it
+-- negotiates with the user.
+--
+-- (coming up: mobile case)  -- TODO
+verdictHandler :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandler = \case
+  SAML.AccessDenied reasons -> do
+    SAML.logger SAML.Debug (show reasons)
+    pure forbiddenPage
+  SAML.AccessGranted userref -> do
+    uid :: UserId    <- maybe (createUser userref) pure =<< getUser userref
+    cky :: SetCookie <- Intra.ssoLogin uid  -- TODO: can this be a race condition?  (user is not
+                                            -- quite created yet when we ask for a cookie?  do we do
+                                            -- quorum reads / writes here?  writes: probably yes,
+                                            -- reads: probably no.)
+    pure $ successPage cky
+  where
+    forbiddenPage :: ServantErr
+    forbiddenPage = ServantErr
+      { errHTTPCode     = 200
+      , errReasonPhrase = "forbidden"
+      , errBody         = easyHtml $ "<head><title>wire:sso:error:forbidden</title></head>"
+      , errHeaders      = []
+      }
+
+    successPage :: SetCookie -> ServantErr
+    successPage cky = ServantErr
+      { errHTTPCode     = 200
+      , errReasonPhrase = "success"
+      , errBody         = easyHtml $ "<head><title>wire:sso:success</title></head>"
+      , errHeaders      = [("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)]
+      }
+
+easyHtml :: LBS -> LBS
+easyHtml doc =
+  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" <>
+  "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">" <>
+  "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">" <> doc <> "</html>"
