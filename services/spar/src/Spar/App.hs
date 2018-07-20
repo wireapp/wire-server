@@ -178,8 +178,11 @@ instance Intra.MonadSparToBrig Spar where
 -- negotiates with the user.
 --
 -- (coming up: mobile case)  -- TODO
-verdictHandler :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVerdict
-verdictHandler = \case
+verdictHandler :: HasCallStack => SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandler _ = verdictHandler'
+
+verdictHandler' :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandler' = \case
   SAML.AccessDenied reasons -> do
     SAML.logger SAML.Debug (show reasons)
     pure forbiddenPage
@@ -191,7 +194,7 @@ verdictHandler = \case
                                             -- reads: probably no.)
     pure $ successPage cky
   where
-    forbiddenPage :: ServantErr
+    forbiddenPage :: SAML.ResponseVerdict
     forbiddenPage = ServantErr
       { errHTTPCode     = 200
       , errReasonPhrase = "forbidden"
@@ -199,7 +202,7 @@ verdictHandler = \case
       , errHeaders      = []
       }
 
-    successPage :: SetCookie -> ServantErr
+    successPage :: SetCookie -> SAML.ResponseVerdict
     successPage cky = ServantErr
       { errHTTPCode     = 200
       , errReasonPhrase = "success"
