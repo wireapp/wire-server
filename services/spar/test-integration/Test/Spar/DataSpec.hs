@@ -197,6 +197,10 @@ spec = do
 
     describe "accessVerdict" $ do
       context "web" $ do
+        context "invalid idp" $ do
+          it "responds with status 200 and a valid html page with constant expected title." $ do
+            pending
+
         context "denied" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
             env <- ask
@@ -251,6 +255,10 @@ spec = do
                   qry :: [(SBS, SBS)]
                   qry = queryPairs $ uriQuery loc
               pure (uid, outcome, loc, qry)
+
+        context "invalid idp" $ do
+          it "responds with status 302 to the error redirect." $ do
+            pending
 
         context "denied" $ do
           it "responds with status 302 to the error redirect." $ do
