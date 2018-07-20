@@ -12,6 +12,7 @@
 
 module Spar.API.Instances where
 
+import Control.Monad
 import Data.Aeson
 import Data.Aeson.Types
 import Data.CaseInsensitive
@@ -21,7 +22,9 @@ import Data.Time
 import GHC.Generics
 import SAML2.WebSSO.Types
 import SAML2.WebSSO.XML
-import Servant
+import Servant hiding (URI)
+import Text.XML.Util (parseURI', renderURI)
+import URI.ByteString
 
 instance FromHttpApiData UserId where
   parseUrlPiece = fmap Id . parseUrlPiece
@@ -59,8 +62,67 @@ instance FromJSON UserRef where
 instance FromJSON AccessVerdict
 instance ToJSON AccessVerdict
 
-deriving instance Generic ServantErr
+instance FromJSON AuthnResponse
+instance ToJSON AuthnResponse
 
+instance FromJSON Status
+instance ToJSON Status
+
+instance FromJSON Assertion
+instance ToJSON Assertion
+
+instance FromJSON SubjectAndStatements
+instance ToJSON SubjectAndStatements
+
+instance FromJSON Subject
+instance ToJSON Subject
+
+instance FromJSON SubjectConfirmation
+instance ToJSON SubjectConfirmation
+
+instance FromJSON SubjectConfirmationMethod
+instance ToJSON SubjectConfirmationMethod
+
+instance FromJSON SubjectConfirmationData
+instance ToJSON SubjectConfirmationData
+
+instance FromJSON IP
+instance ToJSON IP
+
+instance FromJSON Statement
+instance ToJSON Statement
+
+instance FromJSON Locality
+instance ToJSON Locality
+
+instance FromJSON Attribute
+instance ToJSON Attribute
+
+instance FromJSON AttributeValue
+instance ToJSON AttributeValue
+
+instance FromJSON (ID a)
+instance ToJSON (ID a)
+
+instance FromJSON NameID
+instance ToJSON NameID
+
+instance FromJSON UnqualifiedNameID
+instance ToJSON UnqualifiedNameID
+
+instance FromJSON Version
+instance ToJSON Version
+
+instance FromJSON Time
+instance ToJSON Time
+
+instance FromJSON Conditions
+instance ToJSON Conditions
+
+instance FromJSON URI where parseJSON = either (fail . show) pure . parseURI' <=< parseJSON
+instance ToJSON URI   where toJSON = toJSON . renderURI
+
+deriving instance Generic ServantErr
 instance FromJSON ServantErr
 instance ToJSON ServantErr
 
