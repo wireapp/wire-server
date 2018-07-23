@@ -134,7 +134,7 @@ storeVerdictFormat diffTime req format = do
     retry x5 . write cql $ params Quorum (req, format, ttl)
   where
     cql :: PrepQuery W (AReqId, VerdictFormat, Int32) ()
-    cql = "INSERT INTO verdict (login, format) VALUES (?, ?) USING TTL ?"
+    cql = "INSERT INTO verdict (req, format) VALUES (?, ?) USING TTL ?"
 
 getVerdictFormat :: (HasCallStack, MonadClient m)
                    => AReqId -> m (Maybe VerdictFormat)
@@ -142,7 +142,7 @@ getVerdictFormat req = fmap runIdentity <$>
   (retry x1 . query1 cql $ params Quorum (Identity req))
   where
     cql :: PrepQuery R (Identity AReqId) (Identity VerdictFormat)
-    cql = "SELECT format FROM verdict WHERE login = ?"
+    cql = "SELECT format FROM verdict WHERE req = ?"
 
 
 ----------------------------------------------------------------------
