@@ -5,16 +5,17 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PackageImports             #-}
 {-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -118,8 +119,13 @@ appName = "spar"
 
 
 authreq :: NominalDiffTime -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar (SAML.FormRedirect SAML.AuthnRequest)
-authreq authreqttl _successRedirect _errorRedirect = SAML.authreq authreqttl
-
+authreq authreqttl msucc merr idpid = do
+  form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl idpid
+  wrapMonadClient . Data.storeVerdictFormat reqid =<< case (msucc, merr) of
+    (Nothing, Nothing) -> pure VerdictFormatWeb
+    (Just ok, Just err) -> pure $ VerdictFormatMobile ok err
+    _ -> throwSpar SparBadInitiateLoginQueryParams
+  pure form
 
 type ZUsr = Maybe UserId
 
