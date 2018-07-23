@@ -90,6 +90,9 @@ data VerdictFormat
   | VerdictFormatMobile { _verdictFormatGrantedURI :: URI, _verdictFormatDeniedURI :: URI }
   deriving (Eq, Show, Generic)
 
+makeLenses ''VerdictFormat
+deriveJSON deriveJSONOptions ''VerdictFormat
+
 mkVerdictGrantedFormatMobile :: MonadError String m => URI -> SetCookie -> UserId -> m URI
 mkVerdictGrantedFormatMobile before cky uid
   = parseURI'

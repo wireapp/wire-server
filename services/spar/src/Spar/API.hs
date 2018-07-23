@@ -121,7 +121,7 @@ appName = "spar"
 authreq :: NominalDiffTime -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar (SAML.FormRedirect SAML.AuthnRequest)
 authreq authreqttl msucc merr idpid = do
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl idpid
-  wrapMonadClient . Data.storeVerdictFormat reqid =<< case (msucc, merr) of
+  wrapMonadClient . Data.storeVerdictFormat authreqttl reqid =<< case (msucc, merr) of
     (Nothing, Nothing) -> pure VerdictFormatWeb
     (Just ok, Just err) -> pure $ VerdictFormatMobile ok err
     _ -> throwSpar SparBadInitiateLoginQueryParams
