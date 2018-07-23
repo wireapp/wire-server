@@ -122,6 +122,18 @@ storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
 
 
 ----------------------------------------------------------------------
+-- spar state handling (not visible to saml2-web-sso)
+
+storeVerdictFormat :: (HasCallStack, MonadClient m)
+                   => SAML.ID SAML.AuthnRequest -> VerdictFormat -> m ()
+storeVerdictFormat _req _format = undefined
+
+getVerdictFormat :: (HasCallStack, MonadClient m)
+                   => SAML.ID SAML.AuthnRequest -> m VerdictFormat
+getVerdictFormat _req = undefined
+
+
+----------------------------------------------------------------------
 -- user
 
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
