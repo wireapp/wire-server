@@ -43,11 +43,10 @@ deriving instance Cql SAML.Issuer
 deriving instance Cql SAML.IdPId
 deriving instance Cql (SAML.ID SAML.AuthnRequest)
 
-
 -- TODO: is encoding VerdictFormat as json in the database a bad idea?
 instance Cql (VerdictFormat) where
     ctype = Tagged BlobColumn
-    toCql = CqlBlob .  encode
+    toCql = CqlBlob . encode
 
     fromCql (CqlBlob t) = eitherDecode t
     fromCql _           = fail "VerdictFormat: expected CqlBlob"

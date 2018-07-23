@@ -78,11 +78,12 @@ err2err = either (throwM . ErrorCall . show) pure
 nominalDiffToSeconds :: NominalDiffTime -> Int32
 nominalDiffToSeconds = round @Double . realToFrac
 
+
 ----------------------------------------------------------------------
 -- saml state handling
 
 storeRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
-             => SAML.ID SAML.AuthnRequest -> SAML.Time -> m ()
+             => AReqId -> SAML.Time -> m ()
 storeRequest (SAML.ID rid) (SAML.Time endOfLife) = do
     env <- ask
     TTL actualEndOfLife <- err2err $ mkTTLAuthnRequests env endOfLife
@@ -92,7 +93,7 @@ storeRequest (SAML.ID rid) (SAML.Time endOfLife) = do
     ins = "INSERT INTO authreq (req, end_of_life) VALUES (?, ?) USING TTL ?"
 
 checkAgainstRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
-                    => SAML.ID SAML.AuthnRequest -> m Bool
+                    => AReqId -> m Bool
 checkAgainstRequest (SAML.ID rid) = do
     env <- ask
     (retry x1 . query1 sel . params Quorum $ Identity rid) <&>
@@ -126,23 +127,21 @@ storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
 ----------------------------------------------------------------------
 -- spar state handling (not visible to saml2-web-sso)
 
-type LoginId = SAML.ID SAML.AuthnRequest
-
 storeVerdictFormat :: (HasCallStack, MonadClient m)
-                   => NominalDiffTime -> LoginId -> VerdictFormat -> m ()
+                   => NominalDiffTime -> AReqId -> VerdictFormat -> m ()
 storeVerdictFormat diffTime req format = do
     let ttl = nominalDiffToSeconds diffTime
     retry x5 . write cql $ params Quorum (req, format, ttl)
   where
-    cql :: PrepQuery W (LoginId, VerdictFormat, Int32) ()
+    cql :: PrepQuery W (AReqId, VerdictFormat, Int32) ()
     cql = "INSERT INTO verdict (login, format) VALUES (?, ?) USING TTL ?"
 
 getVerdictFormat :: (HasCallStack, MonadClient m)
-                   => LoginId -> m (Maybe VerdictFormat)
+                   => AReqId -> m (Maybe VerdictFormat)
 getVerdictFormat req = fmap runIdentity <$>
   (retry x1 . query1 cql $ params Quorum (Identity req))
   where
-    cql :: PrepQuery R (Identity LoginId) (Identity VerdictFormat)
+    cql :: PrepQuery R (Identity AReqId) (Identity VerdictFormat)
     cql = "SELECT format FROM verdict WHERE login = ?"
 
 

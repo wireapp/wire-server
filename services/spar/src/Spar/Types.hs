@@ -20,7 +20,7 @@ import Data.String.Conversions
 import GHC.Generics
 import Lens.Micro.TH (makeLenses)
 import SAML2.WebSSO.Config.TH (deriveJSONOptions)
-import SAML2.WebSSO (IdPConfig, Issuer)
+import SAML2.WebSSO (IdPConfig, Issuer, ID, AuthnRequest)
 import Text.XML.Util (renderURI, parseURI')
 import URI.ByteString
 import Web.Cookie
@@ -80,6 +80,7 @@ data NewIdP = NewIdP
 makeLenses ''NewIdP
 deriveJSON deriveJSONOptions ''NewIdP
 
+type AReqId = ID AuthnRequest
 
 -- | Clients can request different ways of receiving the final 'AccessVerdict' when fetching their
 -- 'AuthnRequest'.  Web-based clients want an html page, mobile clients want to set two URIs for the

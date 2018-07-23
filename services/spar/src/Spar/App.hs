@@ -190,9 +190,9 @@ verdictHandler aresp verdict = do
   reqid <- maybe (throwSpar SparNoRequestRefInResponse) pure $ aresp ^. SAML.rspInRespTo
   format :: Maybe VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
   case format of
-    Nothing -> undefined -- TODO
     Just (VerdictFormatWeb) -> verdictHandlerWeb verdict
     Just (VerdictFormatMobile granted denied) -> verdictHandlerMobile granted denied verdict
+    Nothing -> throwError $ SAML.BadSamlResponse "request seems to have diappeared (could not find verdict format)."
 
 data VerdictHandlerResult = VerifyHandlerDenied | VerifyHandlerGranted SetCookie UserId
 
