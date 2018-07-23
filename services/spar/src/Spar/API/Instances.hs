@@ -21,7 +21,6 @@ import Data.Id
 import Data.String.Conversions
 import Data.Time
 import GHC.Generics
-import SAML2.WebSSO.API
 import SAML2.WebSSO.Config (IdPId(IdPId))
 import SAML2.WebSSO.Types
 import SAML2.WebSSO.XML
@@ -138,6 +137,3 @@ instance ToJSON SBS        where toJSON = toJSON . cs @SBS @ST
 
 instance FromJSON LBS      where parseJSON = fmap (cs @ST @LBS) . parseJSON
 instance ToJSON LBS        where toJSON = toJSON . cs @LBS @ST
-
-instance Servant.MimeUnrender HTML (FormRedirect AuthnRequest) where
-  mimeUnrender = undefined

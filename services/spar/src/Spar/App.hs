@@ -27,7 +27,9 @@ import Spar.API.Swagger ()
 import Spar.Error
 import Spar.Options as Options
 import Spar.Types
+import Text.XML.Util (renderURI)
 import Web.Cookie (SetCookie, renderSetCookie)
+import URI.ByteString as URI
 
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
@@ -184,22 +186,34 @@ instance Intra.MonadSparToBrig Spar where
 -- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
 -- latter.
 verdictHandler :: HasCallStack => SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
-verdictHandler _ = verdictHandler'
-  -- Since saml2-web-sso validation guarantees that the signed in-response-to info in the assertions
-  -- matches the unsigned in-response-to field in the 'SAML.Response', we can just go for the latter.
+verdictHandler aresp verdict = do
+  reqid <- maybe (throwSpar SparNoRequestRefInResponse) pure $ aresp ^. SAML.rspInRespTo
+  format :: VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
+  case format of
+    VerdictFormatWeb -> verdictHandlerWeb verdict
+    VerdictFormatMobile granted denied -> verdictHandlerMobile granted denied verdict
 
-verdictHandler' :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVerdict
-verdictHandler' = \case
+data VerdictHandlerResult = VerifyHandlerDenied | VerifyHandlerGranted SetCookie UserId
+
+verdictHandlerResult :: HasCallStack => SAML.AccessVerdict -> Spar VerdictHandlerResult
+verdictHandlerResult = \case
   SAML.AccessDenied reasons -> do
     SAML.logger SAML.Debug (show reasons)
-    pure forbiddenPage
+    pure VerifyHandlerDenied
   SAML.AccessGranted userref -> do
     uid :: UserId    <- maybe (createUser userref) pure =<< getUser userref
     cky :: SetCookie <- Intra.ssoLogin uid  -- TODO: can this be a race condition?  (user is not
                                             -- quite created yet when we ask for a cookie?  do we do
                                             -- quorum reads / writes here?  writes: probably yes,
                                             -- reads: probably no.)
-    pure $ successPage cky
+    pure $ VerifyHandlerGranted cky uid
+
+verdictHandlerWeb :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandlerWeb verdict = do
+  outcome <- verdictHandlerResult verdict
+  pure $ case outcome of
+    VerifyHandlerDenied -> forbiddenPage
+    VerifyHandlerGranted cky _uid -> successPage cky
   where
     forbiddenPage :: SAML.ResponseVerdict
     forbiddenPage = ServantErr
@@ -222,3 +236,26 @@ easyHtml doc =
   "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" <>
   "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">" <>
   "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">" <> doc <> "</html>"
+
+verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandlerMobile granted denied verdict = do
+  outcome <- verdictHandlerResult verdict
+  case outcome of
+    VerifyHandlerDenied
+      -> mkVerdictDeniedFormatMobile denied "forbidden" &
+         either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage)
+    VerifyHandlerGranted cky uid
+      -> mkVerdictGrantedFormatMobile granted cky uid &
+         either (throwSpar . SparCouldNotSubstituteSuccessURI . cs) (pure . successPage cky)
+  where
+    forbiddenPage :: URI.URI -> SAML.ResponseVerdict
+    forbiddenPage uri = err303
+      { errHeaders = [ ("Location", cs $ renderURI uri) ]
+      }
+
+    successPage :: SetCookie -> URI.URI -> SAML.ResponseVerdict
+    successPage cky uri = err303
+      { errHeaders = [ ("Location", cs $ renderURI uri)
+                     , ("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)
+                     ]
+      }
