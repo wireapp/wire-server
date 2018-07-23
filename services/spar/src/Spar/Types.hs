@@ -13,7 +13,6 @@
 
 module Spar.Types where
 
-import Debug.Trace
 import Control.Monad.Except
 import Data.Aeson.TH
 import Data.Id (TeamId, UserId)
@@ -102,7 +101,6 @@ mkVerdictDeniedFormatMobile :: MonadError String m => URI -> ST -> m URI
 mkVerdictDeniedFormatMobile before lbl
   = parseURI'
   . substituteVar "label" lbl
-  . traceShowId
   $ renderURI before
 
 substituteVar :: ST -> ST -> ST -> ST

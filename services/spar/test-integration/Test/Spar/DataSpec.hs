@@ -192,7 +192,7 @@ spec = do
 
     -- access verdict
 
-    let runPostVerdict :: TestEnv -> (SAML.AuthnResponse, SAML.AccessVerdict) -> Http SAML.ResponseVerdict
+    let runPostVerdict :: HasCallStack => TestEnv -> (SAML.AuthnResponse, SAML.AccessVerdict) -> Http SAML.ResponseVerdict
         runPostVerdict env = runServantClient env . clientPostVerdict
 
     describe "accessVerdict" $ do
@@ -291,7 +291,7 @@ spec = do
               setCookieHttpOnly cky `shouldBe` True
 
 
-runServantClient :: TestEnv -> Servant.ClientM a -> Http a
+runServantClient :: HasCallStack => TestEnv -> Servant.ClientM a -> Http a
 runServantClient tenv = hoist . (`Servant.runClientM` cenv)
   where
     hoist :: IO (Either Servant.ServantError a) -> Http a
