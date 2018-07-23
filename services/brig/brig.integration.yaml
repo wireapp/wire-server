@@ -30,6 +30,10 @@ aws:
   userJournalQueue: integration-user-events.fifo
   # ^ Comment this out if you don't want to journal user events
   blacklistTable: integration-brig-userkey-blacklist
+  # ^ NOTE: blacklisting of emails (processing of bounces and complaints)  is only done
+  #         automatically IF sesQueue/sesEndpoint are used. If SMTP is used directly, the
+  #         operator must handle these notifications "manually" (there are internal endpoints)
+  #         that may be used for this
   prekeyTable: integration-brig-prekeys
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
