@@ -188,10 +188,11 @@ instance Intra.MonadSparToBrig Spar where
 verdictHandler :: HasCallStack => SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
 verdictHandler aresp verdict = do
   reqid <- maybe (throwSpar SparNoRequestRefInResponse) pure $ aresp ^. SAML.rspInRespTo
-  format :: VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
+  format :: Maybe VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
   case format of
-    VerdictFormatWeb -> verdictHandlerWeb verdict
-    VerdictFormatMobile granted denied -> verdictHandlerMobile granted denied verdict
+    Nothing -> undefined -- TODO
+    Just (VerdictFormatWeb) -> verdictHandlerWeb verdict
+    Just (VerdictFormatMobile granted denied) -> verdictHandlerMobile granted denied verdict
 
 data VerdictHandlerResult = VerifyHandlerDenied | VerifyHandlerGranted SetCookie UserId
 

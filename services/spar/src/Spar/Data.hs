@@ -70,11 +70,13 @@ mkTTL now maxttl endOfLife = if
   | actualttl <= 0     -> throwError TTLNegative
   | otherwise          -> pure actualttl
   where
-    actualttl = TTL . round @Double . realToFrac $ endOfLife `diffUTCTime` now
+    actualttl = TTL . nominalDiffToSeconds $ endOfLife `diffUTCTime` now
 
 err2err :: (m ~ Either TTLError, MonadThrow m') => m a -> m' a
 err2err = either (throwM . ErrorCall . show) pure
 
+nominalDiffToSeconds :: NominalDiffTime -> Int32
+nominalDiffToSeconds = round @Double . realToFrac
 
 ----------------------------------------------------------------------
 -- saml state handling
@@ -124,13 +126,24 @@ storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
 ----------------------------------------------------------------------
 -- spar state handling (not visible to saml2-web-sso)
 
+type LoginId = SAML.ID SAML.AuthnRequest
+
 storeVerdictFormat :: (HasCallStack, MonadClient m)
-                   => SAML.ID SAML.AuthnRequest -> VerdictFormat -> m ()
-storeVerdictFormat _req _format = undefined
+                   => NominalDiffTime -> LoginId -> VerdictFormat -> m ()
+storeVerdictFormat diffTime req format = do
+    let ttl = nominalDiffToSeconds diffTime
+    retry x5 . write cql $ params Quorum (req, format, ttl)
+  where
+    cql :: PrepQuery W (LoginId, VerdictFormat, Int32) ()
+    cql = "INSERT INTO verdict (login, format) VALUES (?, ?) USING TTL ?"
 
 getVerdictFormat :: (HasCallStack, MonadClient m)
-                   => SAML.ID SAML.AuthnRequest -> m VerdictFormat
-getVerdictFormat _req = undefined
+                   => LoginId -> m (Maybe VerdictFormat)
+getVerdictFormat req = fmap runIdentity <$>
+  (retry x1 . query1 cql $ params Quorum (Identity req))
+  where
+    cql :: PrepQuery R (Identity LoginId) (Identity VerdictFormat)
+    cql = "SELECT format FROM verdict WHERE login = ?"
 
 
 ----------------------------------------------------------------------
