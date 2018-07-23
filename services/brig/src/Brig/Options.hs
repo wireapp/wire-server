@@ -6,6 +6,7 @@
 
 module Brig.Options where
 
+import Brig.SMTP (SMTPConnType (..))
 import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
@@ -49,17 +50,31 @@ data ElasticSearchOpts = ElasticSearchOpts
 instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
-    { sesQueue         :: !Text
-    , internalQueue    :: !Text
+    { internalQueue    :: !Text
     , userJournalQueue :: !(Maybe Text)
     , blacklistTable   :: !Text
     , prekeyTable      :: !Text
-    , sesEndpoint      :: !AWSEndpoint
     , sqsEndpoint      :: !AWSEndpoint
     , dynamoDBEndpoint :: !AWSEndpoint
     } deriving (Show, Generic)
 
 instance FromJSON AWSOpts
+
+data EmailAWSOpts = EmailAWSOpts
+    { sesQueue         :: !Text
+    , sesEndpoint      :: !AWSEndpoint
+    } deriving (Show, Generic)
+
+instance FromJSON EmailAWSOpts
+
+data EmailSMTPOpts = EmailSMTPOpts
+    { smtpEndpoint :: !Text
+    , smtpUsername :: !Text
+    , smtpPassword :: !FilePathSecrets
+    , smtpConnType :: !SMTPConnType
+    } deriving (Show, Generic)
+
+instance FromJSON EmailSMTPOpts
 
 data EmailSMSGeneralOpts = EmailSMSGeneralOpts
     { templateDir :: !FilePath
@@ -97,8 +112,17 @@ data TeamOpts = TeamOpts
 
 instance FromJSON TeamOpts
 
+data EmailOpts = EmailAWS  EmailAWSOpts
+               | EmailSMTP EmailSMTPOpts
+               deriving (Show, Generic)
+
+instance FromJSON EmailOpts where
+    parseJSON o =  EmailAWS <$> parseJSON o
+               <|> EmailSMTP <$> parseJSON o
+
 data EmailSMSOpts = EmailSMSOpts
-    { general  :: !EmailSMSGeneralOpts
+    { email    :: !EmailOpts
+    , general  :: !EmailSMSGeneralOpts
     , user     :: !EmailUserOpts
     , provider :: !ProviderOpts
     , team     :: !TeamOpts
@@ -222,9 +246,6 @@ optsParser =
       help "The name of the ElasticSearch user index")) <*>
     (AWSOpts <$>
      (textOption $
-      long "aws-ses-queue" <> metavar "STRING" <>
-      help "Event feedback queue for SES (e.g. for email bounces and complaints)") <*>
-     (textOption $
       long "aws-internal-queue" <> metavar "STRING" <>
       help "Event queue for internal brig generated events (e.g. user deletion)") <*>
      (optional $ textOption $
@@ -237,15 +258,13 @@ optsParser =
       long "aws-dynamo-prekeys" <> metavar "STRING" <>
       help "Dynamo table for storing prekey data") <*>
      (option parseAWSEndpoint $
-      long "aws-ses-endpoint" <> value (AWSEndpoint "email.eu-west-1.amazonaws.com" True 443)
-      <> metavar "STRING" <> showDefault <> help "aws SES endpoint") <*>
-     (option parseAWSEndpoint $
       long "aws-sqs-endpoint" <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443)
       <> metavar "STRING" <> showDefault <> help "aws SQS endpoint") <*>
      (option parseAWSEndpoint $
       long "aws-dynamodb-endpoint" <> value (AWSEndpoint "dynamodb.eu-west-1.amazonaws.com" True 443)
       <> metavar "STRING" <> showDefault <> help "aws DYNAMODB endpoint")) <*>
     (EmailSMSOpts <$>
+     emailOptsParser <*>
      (EmailSMSGeneralOpts <$>
       (strOption $
        long "template-dir" <> metavar "FILE" <>
@@ -342,6 +361,35 @@ optsParser =
       help "Number of seconds until a new TURN configuration should be fetched.")) <*>
     settingsParser
 
+emailOptsParser :: Parser EmailOpts
+emailOptsParser = EmailAWS <$> emailAWSOptsParser <|> EmailSMTP <$> emailSMTPOptsParser
+
+emailAWSOptsParser :: Parser EmailAWSOpts
+emailAWSOptsParser =
+     EmailAWSOpts <$>
+      (textOption $
+        long "aws-ses-queue" <> metavar "STRING" <>
+        help "Event feedback queue for SES (e.g. for email bounces and complaints)") <*>
+      (option parseAWSEndpoint $
+        long "aws-ses-endpoint" <> value (AWSEndpoint "email.eu-west-1.amazonaws.com" True 443)
+        <> metavar "STRING" <> showDefault <> help "aws SES endpoint")
+
+emailSMTPOptsParser :: Parser EmailSMTPOpts
+emailSMTPOptsParser =
+    EmailSMTPOpts <$>
+      (textOption $
+        long "smtp-hostname" <> metavar "STRING" <>
+        help "Hostname of the SMTP server to connect to") <*>
+      (textOption $
+        long "smtp-username" <> metavar "STRING" <>
+        help "Username to authenticate against the SMTP server") <*>
+      (FilePathSecrets <$> (strOption $
+        long "smtp-password" <> metavar "FILE" <>
+        help "File containing password to authenticate against the SMTP server" <> action "file")) <*>
+      (smtpConnTypeOption $
+        long "smtp-conn-type" <> metavar "STRING" <> value "tls" <> showDefault <>
+        help "Which type of connection to use against the SMTP server {tls,ssl,plain}")
+
 settingsParser :: Parser Settings
 settingsParser =
     Settings <$>
@@ -423,3 +471,10 @@ emailOption =
 providerIdOption :: ReadM ProviderId
 providerIdOption = readerAsk >>=
     maybe (fail "Failed to parse ") pure . fromByteString . pack
+
+smtpConnTypeOption :: Mod OptionFields String -> Parser SMTPConnType
+smtpConnTypeOption =
+    fmap
+        (fromMaybe (error "Ensure proper STMP conn type is used") .
+        Y.decode . pack) .
+    strOption
