@@ -9,6 +9,7 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
@@ -40,6 +41,7 @@ import Util.Options (epHost, epPort)
 import qualified Cassandra.Schema as Cas
 import qualified Cassandra.Settings as Cas
 import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Middleware.Cors as Cors
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Options as Opts
@@ -83,6 +85,31 @@ mkLogger opts = Log.new $ Log.defSettings
 
 
 ----------------------------------------------------------------------
+-- cors
+
+sparCorsPolicy :: request -> Maybe Cors.CorsResourcePolicy
+sparCorsPolicy _ = Just Cors.simpleCorsResourcePolicy { Cors.corsOrigins = Just (origins, True) }
+  where
+    origins = staging <> production
+
+    staging =
+      [ "https://wire-webapp-edge.zinfra.io"
+      , "https://wire-webapp-qa.zinfra.io"
+      , "https://wire-webapp-dev.zinfra.io"
+      , "https://wire-webapp-staging.zinfra.io"
+      ]
+
+    production =
+      [ "https://wire-webapp-edge.wire.com"
+      , "https://wire-webapp-qa.wire.com"
+      , "https://wire-webapp-dev.wire.com"
+      , "https://wire-webapp-staging.wire.com"
+      , "https://wire-webapp-prod-next.wire.com"
+      , "https://app.wire.com"
+      ]
+
+
+----------------------------------------------------------------------
 -- servant / wai / warp
 
 runServer :: Opts -> IO ()
@@ -104,6 +131,7 @@ runServer sparCtxOpts = do
         -- TODO: we need the swagger sitemap from servant for this.  we also want this to be
         -- prometheus-compatible.  not sure about the order in which to do these.
         = WU.catchErrors sparCtxLogger mx
+        . Cors.cors sparCorsPolicy
         . SAML.setHttpCachePolicy
         $ app Env {..}
   WU.runSettingsWithShutdown settings wrappedApp 5
