@@ -27,7 +27,9 @@ import Spar.API.Swagger ()
 import Spar.Error
 import Spar.Options as Options
 import Spar.Types
+import Text.XML.Util (renderURI)
 import Web.Cookie (SetCookie, renderSetCookie)
+import URI.ByteString as URI
 
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
@@ -168,42 +170,81 @@ instance Intra.MonadSparToBrig Spar where
 
 
 -- | The from of the response on the finalize-login request depends on the verdict (denied or
--- granted), plus the choice that the client has made during the initiate-login request.  If the
--- client is mobile, it has picked error and success redirect urls; if the client is web, it has
--- done nothing and will be served with an HTML page that it can process to decide
--- whether to log the user in or show an error.
+-- granted), plus the choice that the client has made during the initiate-login request.  Here we
+-- call either 'verdictHandlerWeb' or 'verdictHandlerMobile', resp., on the 'SAML.AccessVerdict'.
 --
--- The HTML page is empty and has a title element with contents @wire:sso:<outcome>@.  This is
--- chosen to be easily parseable and not be the title of any page sent by the IdP while it
--- negotiates with the user.
---
--- (coming up: mobile case)  -- TODO
-verdictHandler :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVerdict
-verdictHandler = \case
+-- NB: there are at least two places in the 'SAML.AuthnResponse' that can contain the request id:
+-- the response header and every assertion.  Since saml2-web-sso validation guarantees that the
+-- signed in-response-to info in the assertions matches the unsigned in-response-to field in the
+-- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
+-- latter.
+verdictHandler :: HasCallStack => SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandler aresp verdict = do
+  reqid <- maybe (throwSpar SparNoRequestRefInResponse) pure $ aresp ^. SAML.rspInRespTo
+                  -- (this shouldn't happen since the response is validated)
+  format :: Maybe VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
+  case format of
+    Just (VerdictFormatWeb) -> verdictHandlerWeb verdict
+    Just (VerdictFormatMobile granted denied) -> verdictHandlerMobile granted denied verdict
+    Nothing -> throwError $ SAML.BadSamlResponse "AuthRequest seems to have disappeared (could not find verdict format)."
+               -- (this shouldn't happen too often, see 'storeVerdictFormat')
+
+data VerdictHandlerResult = VerifyHandlerDenied | VerifyHandlerGranted SetCookie UserId
+
+verdictHandlerResult :: HasCallStack => SAML.AccessVerdict -> Spar VerdictHandlerResult
+verdictHandlerResult = \case
   SAML.AccessDenied reasons -> do
     SAML.logger SAML.Debug (show reasons)
-    pure forbiddenPage
+    pure VerifyHandlerDenied
   SAML.AccessGranted userref -> do
     uid :: UserId    <- maybe (createUser userref) pure =<< getUser userref
     cky :: SetCookie <- Intra.ssoLogin uid  -- TODO: can this be a race condition?  (user is not
                                             -- quite created yet when we ask for a cookie?  do we do
                                             -- quorum reads / writes here?  writes: probably yes,
                                             -- reads: probably no.)
-    pure $ successPage cky
+    pure $ VerifyHandlerGranted cky uid
+
+-- | If the client is web, it will be served with an HTML page that it can process to decide whether
+-- to log the user in or show an error.
+--
+-- The HTML page is empty and has two ways to communicate the verdict to the js app:
+-- - A title element with contents @wire:sso:<outcome>@.  This is chosen to be easily parseable and
+--   not be the title of any page sent by the IdP while it negotiates with the user.
+-- - The page broadcasts a message to '*', to be picked up by the app.
+verdictHandlerWeb :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandlerWeb verdict = do
+  outcome <- verdictHandlerResult verdict
+  pure $ case outcome of
+    VerifyHandlerDenied -> forbiddenPage
+    VerifyHandlerGranted cky _uid -> successPage cky
   where
-    forbiddenPage :: ServantErr
+    forbiddenPage :: SAML.ResponseVerdict
     forbiddenPage = ServantErr
       { errHTTPCode     = 200
-      , errReasonPhrase = "forbidden"
-      , errBody         = easyHtml $ "<head><title>wire:sso:error:forbidden</title></head>"
+      , errReasonPhrase = "forbidden"  -- (not sure what this is used for)
+      , errBody         = easyHtml $
+                          "<head>" <>
+                          "  <title>wire:sso:error:forbidden</title>" <>
+                          "   <script type=\"text/javascript\">" <>
+                          "       const receiverOrigin = '*';" <>
+                          "       window.opener.postMessage({type: 'AUTH_ERROR', payload: {label: 'forbidden'}}, receiverOrigin);" <>
+                          "   </script>" <>
+                          "</head>"
       , errHeaders      = []
       }
 
-    successPage :: SetCookie -> ServantErr
+    successPage :: SetCookie -> SAML.ResponseVerdict
     successPage cky = ServantErr
       { errHTTPCode     = 200
       , errReasonPhrase = "success"
-      , errBody         = easyHtml $ "<head><title>wire:sso:success</title></head>"
+      , errBody         = easyHtml $
+                          "<head>" <>
+                          "  <title>wire:sso:success</title>" <>
+                          "   <script type=\"text/javascript\">" <>
+                          "       const receiverOrigin = '*';" <>
+                          "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);" <>
+                          "   </script>" <>
+                          "</head>"
       , errHeaders      = [("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)]
       }
 
@@ -212,3 +253,31 @@ easyHtml doc =
   "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" <>
   "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">" <>
   "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">" <> doc <> "</html>"
+
+-- | If the client is mobile, it has picked error and success redirect urls (see
+-- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'); variables in these URLs are here
+-- substituted and the client is redirected accordingly.
+verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandlerMobile granted denied verdict = do
+  outcome <- verdictHandlerResult verdict
+  case outcome of
+    VerifyHandlerDenied
+      -> mkVerdictDeniedFormatMobile denied "forbidden" &
+         either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage)
+    VerifyHandlerGranted cky uid
+      -> mkVerdictGrantedFormatMobile granted cky uid &
+         either (throwSpar . SparCouldNotSubstituteSuccessURI . cs) (pure . successPage cky)
+  where
+    forbiddenPage :: URI.URI -> SAML.ResponseVerdict
+    forbiddenPage uri = err303
+      { errReasonPhrase = "forbidden"
+      , errHeaders = [ ("Location", cs $ renderURI uri) ]
+      }
+
+    successPage :: SetCookie -> URI.URI -> SAML.ResponseVerdict
+    successPage cky uri = err303
+      { errReasonPhrase = "success"
+      , errHeaders = [ ("Location", cs $ renderURI uri)
+                     , ("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)
+                     ]
+      }

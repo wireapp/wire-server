@@ -96,7 +96,7 @@ import qualified Text.XML.DSig as SAML
 import qualified Text.XML.Util as SAML
 
 
-mkEnv :: IntegrationConfig -> Opts -> IO TestEnv
+mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
   _teCql :: ClientState <- initCassandra _teOpts =<< mkLogger _teOpts
@@ -112,16 +112,16 @@ mkEnv _teTstOpts _teOpts = do
 
   pure $ TestEnv {..}
 
-it :: m ~ IO
+it :: (HasCallStack, m ~ IO)
        -- or, more generally:
        -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
    => String -> ReaderT TestEnv m () -> SpecWith TestEnv
 it msg bdy = Test.Hspec.it msg $ runReaderT bdy
 
-pending :: MonadIO m => m ()
+pending :: (HasCallStack, MonadIO m) => m ()
 pending = liftIO Test.Hspec.pending
 
-pendingWith :: MonadIO m => String -> m ()
+pendingWith :: (HasCallStack, MonadIO m) => String -> m ()
 pendingWith = liftIO . Test.Hspec.pendingWith
 
 

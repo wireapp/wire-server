@@ -5,16 +5,17 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PackageImports             #-}
 {-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -43,6 +44,7 @@ import Data.String.Conversions
 import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
+import Data.Time
 import GHC.Stack
 import Lens.Micro
 import Servant
@@ -55,6 +57,7 @@ import Spar.Error
 import Spar.Options
 import Spar.Types
 
+import qualified Data.ByteString as SBS
 import qualified Network.HTTP.Client as Rq
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
@@ -84,7 +87,10 @@ type API = "i" :> "status" :> Get '[JSON] NoContent
       -- NB. If you add endpoints here, also update Test.Spar.APISpec
 
 type APIMeta     = "sso" :> "metadata" :> SAML.APIMeta
-type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
+type APIAuthReq  = "sso" :> "initiate-login"
+                :> QueryParam "success_redirect" URI.URI
+                :> QueryParam "error_redirect" URI.URI
+                :> SAML.APIAuthReq
 type APIAuthResp = "sso" :> "finalize-login" :> SAML.APIAuthResp
 
 type IdpGet     = Header "Z-User" UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
@@ -101,7 +107,7 @@ api opts =
        pure NoContent
   :<|> pure (toSwagger (Proxy @OutsideWorldAPI))
   :<|> SAML.meta appName (Proxy @API) (Proxy @APIAuthResp)
-  :<|> SAML.authreq (maxttlAuthreqDiffTime opts)
+  :<|> authreq (maxttlAuthreqDiffTime opts)
   :<|> SAML.authresp (SAML.HandleVerdictRaw verdictHandler)
   :<|> idpGet
   :<|> idpGetAll
@@ -111,6 +117,29 @@ api opts =
 
 appName :: ST
 appName = "spar"
+
+
+authreq :: NominalDiffTime -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar (SAML.FormRedirect SAML.AuthnRequest)
+authreq authreqttl msucc merr idpid = do
+  vformat <- case (msucc, merr) of
+    (Nothing, Nothing) -> pure VerdictFormatWeb
+    (Just ok, Just err) -> do
+      validateRedirectURL `mapM_` [ok, err]
+      pure $ VerdictFormatMobile ok err
+    _ -> throwSpar $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
+  form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl idpid
+  wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
+  pure form
+
+redirectURLMaxLength :: Int
+redirectURLMaxLength = 140
+
+validateRedirectURL :: URI.URI -> Spar ()
+validateRedirectURL uri = do
+  unless ((SBS.take 4 . URI.schemeBS . URI.uriScheme $ uri) == "wire") $ do
+    throwSpar $ SparBadInitiateLoginQueryParams "invalid-schema"
+  unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
+    throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
 type ZUsr = Maybe UserId
 

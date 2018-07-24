@@ -30,6 +30,11 @@ data SparCustomError
   | SparNotInTeam
   | SparNotTeamOwner
 
+  | SparNoRequestRefInResponse  -- (this is technically legal, but unnecessary, and should probably fixed in saml2-web-sso.)
+  | SparCouldNotSubstituteSuccessURI LT
+  | SparCouldNotSubstituteFailureURI LT
+  | SparBadInitiateLoginQueryParams LT
+
   | SparBadUserName LT
   | SparNoBodyInBrigResponse
   | SparCouldNotParseBrigResponse LT
@@ -63,6 +68,10 @@ sparToWaiError (SAML.CustomServant err)                         = Left err
 sparToWaiError (SAML.CustomError SparNotFound)                  = Right $ Wai.Error status404 "not-found" "Not found."
 sparToWaiError (SAML.CustomError SparNotInTeam)                 = Right $ Wai.Error status404 "not-found" "Not found."
 sparToWaiError (SAML.CustomError SparNotTeamOwner)              = Right $ Wai.Error status403 "forbidden" "You need to be team owner to create an IdP."
+sparToWaiError (SAML.CustomError SparNoRequestRefInResponse)    = Right $ Wai.Error status400 "server-error-unsupported-saml" "The IdP needs to provide an InResponseTo attribute in the top-level element of the response."
+sparToWaiError (SAML.CustomError (SparCouldNotSubstituteSuccessURI msg)) = Right $ Wai.Error status400 "bad-success-redirect" ("re-parsing the substituted URI failed: " <> msg)
+sparToWaiError (SAML.CustomError (SparCouldNotSubstituteFailureURI msg)) = Right $ Wai.Error status400 "bad-failure-redirect" ("re-parsing the substituted URI failed: " <> msg)
+sparToWaiError (SAML.CustomError (SparBadInitiateLoginQueryParams label)) = Right $ Wai.Error status400 label label
 sparToWaiError (SAML.CustomError (SparBadUserName msg))         = Right $ Wai.Error status400 "client-error" ("Bad UserName in SAML response: " <> msg)
 sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)      = Right $ Wai.Error status400 "server-error" "Brig response without body."
 sparToWaiError (SAML.CustomError (SparCouldNotParseBrigResponse msg)) = Right $ Wai.Error status400 "server-error" ("Could not parse brig response body: " <> msg)

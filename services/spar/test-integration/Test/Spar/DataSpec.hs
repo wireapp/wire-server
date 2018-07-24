@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
@@ -22,14 +23,19 @@ import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Lens.Micro
+import Spar.API
 import Spar.API.Instances ()
 import Spar.API.Test (IntegrationTests)
 import Spar.Data as Data
 import Spar.Options as Options
 import Spar.Types
+import URI.ByteString as URI
+import URI.ByteString.QQ (uri)
 import Util
 import Util.Options
+import Web.Cookie
 
+import qualified Data.ByteString.Builder as Builder
 import qualified Data.List as List
 import qualified SAML2.WebSSO as SAML
 import qualified Servant
@@ -146,20 +152,6 @@ spec = do
 
     -- users
 
-    let runInsertUser :: TestEnv -> SAML.UserRef -> UserId -> Http ()
-        runInsertUser env uref = runServantClient env . clientPostUser uref
-
-        runGetUser :: TestEnv -> SAML.UserRef -> Http (Maybe UserId)
-        runGetUser env = runServantClient env . clientGetUser
-
-        nextUserRef :: MonadIO m => m SAML.UserRef
-        nextUserRef = liftIO $ do
-          (UUID.toText -> tenant) <- UUID.nextRandom
-          (UUID.toText -> subject) <- UUID.nextRandom
-          pure $ SAML.UserRef
-            (SAML.Issuer $ SAML.unsafeParseURI ("http://" <> tenant))
-            (SAML.opaqueNameID subject)
-
     describe "insertUser, getUser" $ do
       context "user is new" $ do
         it "getUser returns Nothing" $ do
@@ -187,15 +179,15 @@ spec = do
 
     -- access verdict
 
-    let runPostVerdict :: TestEnv -> SAML.AccessVerdict -> Http SAML.ResponseVerdict
-        runPostVerdict env = runServantClient env . clientPostVerdict
-
     describe "accessVerdict" $ do
       context "web" $ do
+        context "invalid idp" $ do
+          it "responds with status 200 and a valid html page with constant expected title." $ do
+            pending
+
         context "denied" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            env <- ask
-            outcome <- call $ runPostVerdict env (SAML.AccessDenied ["we don't like you", "seriously"])
+            (_, outcome, _, _) <- prepareAccessVerdictCore False mkAuthnReqWeb
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -206,11 +198,7 @@ spec = do
 
         context "granted" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, _, _) <- createTestIdP
-            env <- ask
-            let tenant  = sampleIdP ^. nidpIssuer
-                subject = SAML.opaqueNameID "blee"
-            outcome <- call $ runPostVerdict env (SAML.AccessGranted (SAML.UserRef tenant subject))
+            (_, outcome, _, _) <- prepareAccessVerdictCore True mkAuthnReqWeb
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
               Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -221,8 +209,43 @@ spec = do
               ('3', List.lookup "Set-Cookie" . Servant.errHeaders $ outcome)
                 `shouldSatisfy` (isJust . snd)
 
+      context "mobile" $ do
+        context "invalid idp" $ do
+          it "responds with status 303 with appropriate details." $ do
+            pending
 
-runServantClient :: TestEnv -> Servant.ClientM a -> Http a
+        context "denied" $ do
+          it "responds with status 303 with appropriate details." $ do
+            (_uid, outcome, loc, qry) <- prepareAccessVerdictCore False mkAuthnReqMobile
+            liftIO $ do
+              Servant.errHTTPCode outcome `shouldBe` 303
+              Servant.errReasonPhrase outcome `shouldBe` "forbidden"
+              Servant.errBody outcome `shouldBe` mempty
+              uriScheme loc `shouldBe` (URI.Scheme "wire")
+              List.lookup "userid" qry `shouldBe` Nothing
+              List.lookup "cookie" qry `shouldBe` Nothing
+              List.lookup "label"  qry `shouldBe` Just "forbidden"
+
+        context "granted" $ do
+          it "responds with status 303 with appropriate details." $ do
+            (uid, outcome, loc, qry) <- prepareAccessVerdictCore True mkAuthnReqMobile
+            liftIO $ do
+              Servant.errHTTPCode outcome `shouldBe` 303
+              Servant.errReasonPhrase outcome `shouldBe` "success"
+              Servant.errBody outcome `shouldBe` mempty
+              uriScheme loc `shouldBe` (URI.Scheme "wire")
+              List.lookup "label"  qry `shouldBe` Nothing
+              List.lookup "userid" qry `shouldBe` (Just . cs . show $ uid)
+              List.lookup "cookie" qry `shouldNotBe` Nothing
+              List.lookup "cookie" qry `shouldNotBe` Just "$cookie"
+              let Just (ckies :: SBS) = List.lookup "cookie" qry
+                  cky :: SetCookie = parseSetCookie ckies
+              setCookieName cky `shouldBe` "zuid"
+              ('s', setCookieSecure cky) `shouldBe` ('s', False)  -- we're in integration test mode, no https here!
+              ('h', setCookieHttpOnly cky) `shouldBe` ('h', True)
+
+
+runServantClient :: HasCallStack => TestEnv -> Servant.ClientM a -> Http a
 runServantClient tenv = hoist . (`Servant.runClientM` cenv)
   where
     hoist :: IO (Either Servant.ServantError a) -> Http a
@@ -240,7 +263,7 @@ clientGetRequest    :: SAML.ID SAML.AuthnRequest -> Servant.ClientM Bool
 clientPostAssertion :: SAML.ID SAML.Assertion -> SAML.Time -> Servant.ClientM Bool
 clientPostUser      :: SAML.UserRef -> UserId -> Servant.ClientM ()
 clientGetUser       :: SAML.UserRef -> Servant.ClientM (Maybe UserId)
-clientPostVerdict   :: SAML.AccessVerdict -> Servant.ClientM Servant.ServantErr
+clientPostVerdict   :: (SAML.AuthnResponse, SAML.AccessVerdict) -> Servant.ClientM Servant.ServantErr
 
 clientPostRequest     Servant.:<|>
   clientGetRequest    Servant.:<|>
@@ -249,3 +272,95 @@ clientPostRequest     Servant.:<|>
   clientGetUser       Servant.:<|>
   clientPostVerdict
   = Servant.client (Servant.Proxy @IntegrationTests)
+
+clientGetAuthnRequest :: Maybe URI -> Maybe URI -> SAML.IdPId -> Servant.ClientM (SAML.FormRedirect SAML.AuthnRequest)
+clientGetAuthnRequest = Servant.client (Servant.Proxy @APIAuthReq)
+
+
+
+runInsertUser :: TestEnv -> SAML.UserRef -> UserId -> Http ()
+runInsertUser env uref = runServantClient env . clientPostUser uref
+
+runGetUser :: TestEnv -> SAML.UserRef -> Http (Maybe UserId)
+runGetUser env = runServantClient env . clientGetUser
+
+nextUserRef :: MonadIO m => m SAML.UserRef
+nextUserRef = liftIO $ do
+  (UUID.toText -> tenant) <- UUID.nextRandom
+  (UUID.toText -> subject) <- UUID.nextRandom
+  pure $ SAML.UserRef
+    (SAML.Issuer $ SAML.unsafeParseURI ("http://" <> tenant))
+    (SAML.opaqueNameID subject)
+
+runPostVerdict :: HasCallStack => TestEnv -> (SAML.AuthnResponse, SAML.AccessVerdict) -> Http SAML.ResponseVerdict
+runPostVerdict env = runServantClient env . clientPostVerdict
+
+
+mkAuthnReqWeb :: SAML.IdPId -> ReaderT TestEnv IO ResponseLBS
+mkAuthnReqWeb idpid = do
+  env <- ask
+  -- TODO: the following fails, i think there is something wrong with query encoding.
+  -- runServantClient env $ clientGetAuthnRequest Nothing Nothing idpid
+  call $ get ((env ^. teSpar) . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid)) . expect2xx)
+
+
+mkAuthnReqMobile :: SAML.IdPId -> ReaderT TestEnv IO ResponseLBS
+mkAuthnReqMobile idpid = do
+  env <- ask
+  -- (see the TODO under "web" above)
+  -- call . runServantClient env $ clientGetAuthnRequest (Just succurl) (Just errurl) idpid
+  let succurl = [uri|wire://login-granted/?cookie=$cookie&userid=$userid|]
+      errurl = [uri|wire://login-denied/?label=$label|]
+      mk = Builder.toLazyByteString . urlEncode [] . serializeURIRef'
+      arQueries = "success_redirect=" <> mk succurl <> "&error_redirect=" <> mk errurl
+      arPath = cs $ "/sso/initiate-login/" <> cs (SAML.idPIdToST idpid) <> "?" <> arQueries
+  call $ get ((env ^. teSpar) . path arPath . expect2xx)
+
+prepareAccessVerdictCore :: HasCallStack
+                         => Bool                                             -- is the verdict granted?
+                         -> (SAML.IdPId -> ReaderT TestEnv IO ResponseLBS)   -- raw authnreq
+                         -> ReaderT TestEnv IO ( UserId
+                                               , SAML.ResponseVerdict
+                                               , URI                         -- location header
+                                               , [(SBS, SBS)]                -- query params
+                                               )
+prepareAccessVerdictCore isGranted mkAuthnReq = do
+  (uid, _, idpid) <- createTestIdP
+  env <- ask
+  let tenant  = sampleIdP ^. nidpIssuer
+      subject = SAML.opaqueNameID "blee"
+      uref    = SAML.UserRef tenant subject
+  call $ runInsertUser env uref uid
+  authnreq :: SAML.FormRedirect SAML.AuthnRequest <- do
+    raw <- mkAuthnReq idpid
+    bdy <- maybe (error "authreq") pure $ responseBody raw
+    either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
+  let authnresp = fleshOutResponse emptyAuthnResponse authnreq
+      verdict = if isGranted
+        then SAML.AccessGranted uref
+        else SAML.AccessDenied ["we don't like you", "seriously"]
+  outcome <- call $ runPostVerdict env (authnresp, verdict)
+  let loc :: URI.URI
+      loc = maybe (error "no location") (either error id . SAML.parseURI' . cs)
+          . List.lookup "Location" . Servant.errHeaders
+          $ outcome
+      qry :: [(SBS, SBS)]
+      qry = queryPairs $ uriQuery loc
+  pure (uid, outcome, loc, qry)
+
+
+emptyAuthnResponse :: SAML.AuthnResponse
+emptyAuthnResponse = SAML.Response
+  { SAML._rspID           = SAML.ID "bleep"
+  , SAML._rspInRespTo     = Nothing
+  , SAML._rspVersion      = SAML.Version_2_0
+  , SAML._rspIssueInstant = SAML.unsafeReadTime "2018-04-13T06:33:02.772Z"
+  , SAML._rspDestination  = Nothing
+  , SAML._rspIssuer       = Nothing
+  , SAML._rspStatus       = SAML.StatusSuccess
+  , SAML._rspPayload      = []
+  }
+
+-- | See 'verdictHandler' on the question of why we don't need an 'Assertion' in the payload here.
+fleshOutResponse :: SAML.AuthnResponse -> SAML.FormRedirect SAML.AuthnRequest -> SAML.AuthnResponse
+fleshOutResponse resp (SAML.FormRedirect _ req) = resp & SAML.rspInRespTo .~ Just (req ^. SAML.rqID)

@@ -29,7 +29,7 @@ import Data.Time
 import Data.X509 (SignedCertificate)
 import GHC.Stack
 import Lens.Micro
-import Spar.Data.Instances ()
+import Spar.Data.Instances (VerdictFormatRow, VerdictFormatCon, fromVerdictFormat, toVerdictFormat)
 import Spar.Options as Options
 import Spar.Types
 import URI.ByteString
@@ -70,17 +70,20 @@ mkTTL now maxttl endOfLife = if
   | actualttl <= 0     -> throwError TTLNegative
   | otherwise          -> pure actualttl
   where
-    actualttl = TTL . round @Double . realToFrac $ endOfLife `diffUTCTime` now
+    actualttl = TTL . nominalDiffToSeconds $ endOfLife `diffUTCTime` now
 
 err2err :: (m ~ Either TTLError, MonadThrow m') => m a -> m' a
 err2err = either (throwM . ErrorCall . show) pure
+
+nominalDiffToSeconds :: NominalDiffTime -> Int32
+nominalDiffToSeconds = round @Double . realToFrac
 
 
 ----------------------------------------------------------------------
 -- saml state handling
 
 storeRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
-             => SAML.ID SAML.AuthnRequest -> SAML.Time -> m ()
+             => AReqId -> SAML.Time -> m ()
 storeRequest (SAML.ID rid) (SAML.Time endOfLife) = do
     env <- ask
     TTL actualEndOfLife <- err2err $ mkTTLAuthnRequests env endOfLife
@@ -90,7 +93,7 @@ storeRequest (SAML.ID rid) (SAML.Time endOfLife) = do
     ins = "INSERT INTO authreq (req, end_of_life) VALUES (?, ?) USING TTL ?"
 
 checkAgainstRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
-                    => SAML.ID SAML.AuthnRequest -> m Bool
+                    => AReqId -> m Bool
 checkAgainstRequest (SAML.ID rid) = do
     env <- ask
     (retry x1 . query1 sel . params Quorum $ Identity rid) <&>
@@ -119,6 +122,30 @@ storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
 
     ins :: PrepQuery W (ST, UTCTime, Int32) ()
     ins = "INSERT INTO authresp (resp, end_of_life) VALUES (?, ?) USING TTL ?"
+
+
+----------------------------------------------------------------------
+-- spar state handling (not visible to saml2-web-sso)
+
+-- | First argument is the life expectancy of the request.  (We store the verdict format for twice
+-- as long.  Reason: if there is some delay in processing a very old request, it would be bad for
+-- error handling if we couldn't figure out where the error will land.)
+storeVerdictFormat :: (HasCallStack, MonadClient m)
+                   => NominalDiffTime -> AReqId -> VerdictFormat -> m ()
+storeVerdictFormat diffTime req (fromVerdictFormat -> (fmtCon, fmtMobSucc, fmtMobErr)) = do
+    let ttl = nominalDiffToSeconds diffTime * 2
+    retry x5 . write cql $ params Quorum (req, fmtCon, fmtMobSucc, fmtMobErr, ttl)
+  where
+    cql :: PrepQuery W (AReqId, VerdictFormatCon, Maybe URI, Maybe URI, Int32) ()
+    cql = "INSERT INTO verdict (req, format_con, format_mobile_success, format_mobile_error) VALUES (?, ?, ?, ?) USING TTL ?"
+
+getVerdictFormat :: (HasCallStack, MonadClient m)
+                   => AReqId -> m (Maybe VerdictFormat)
+getVerdictFormat req = (>>= toVerdictFormat) <$>
+  (retry x1 . query1 cql $ params Quorum (Identity req))
+  where
+    cql :: PrepQuery R (Identity AReqId) VerdictFormatRow
+    cql = "SELECT format_con, format_mobile_success, format_mobile_error FROM verdict WHERE req = ?"
 
 
 ----------------------------------------------------------------------
