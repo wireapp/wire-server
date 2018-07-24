@@ -30,7 +30,7 @@ services:
     command: server /tmp
 
   activemq:
-    image: rmohr/activemq:5.15.4-alpine
+    image: rmohr/activemq:5.15.4
     ports:
       - "61613:61613"
 
