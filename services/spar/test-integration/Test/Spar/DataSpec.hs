@@ -315,10 +315,10 @@ spec = do
               List.lookup "cookie" qry `shouldNotBe` Nothing
               List.lookup "cookie" qry `shouldNotBe` Just "$cookie"
               let Just (ckies :: SBS) = List.lookup "cookie" qry
-                  cky :: SetCookie = parseSetCookie . (error . show) . parseCookies $ ckies
-              setCookieName cky `shouldBe` "wire"
-              setCookieSecure cky `shouldBe` True
-              setCookieHttpOnly cky `shouldBe` True
+                  cky :: SetCookie = parseSetCookie ckies
+              setCookieName cky `shouldBe` "zuid"
+              ('s', setCookieSecure cky) `shouldBe` ('s', False)  -- we're in integration test mode, no https here!
+              ('h', setCookieHttpOnly cky) `shouldBe` ('h', True)
 
 
 runServantClient :: HasCallStack => TestEnv -> Servant.ClientM a -> Http a
