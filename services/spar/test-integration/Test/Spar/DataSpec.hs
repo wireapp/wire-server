@@ -280,11 +280,11 @@ spec = do
 
       context "mobile" $ do
         context "invalid idp" $ do
-          it "responds with status 303 to the error redirect." $ do
+          it "responds with status 303 with appropriate details." $ do
             pending
 
         context "denied" $ do
-          it "responds with status 303 to the error redirect." $ do
+          it "responds with status 303 with appropriate details." $ do
             (_uid, outcome, loc, qry) <- prepareCore False mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
@@ -296,7 +296,7 @@ spec = do
               List.lookup "label"  qry `shouldBe` Just "forbidden"
 
         context "granted" $ do
-          it "responds with status 200 and a valid html page with constant expected title." $ do
+          it "responds with status 303 with appropriate details." $ do
             (uid, outcome, loc, qry) <- prepareCore True mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
