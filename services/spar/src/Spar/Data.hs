@@ -29,7 +29,7 @@ import Data.Time
 import Data.X509 (SignedCertificate)
 import GHC.Stack
 import Lens.Micro
-import Spar.Data.Instances ()
+import Spar.Data.Instances (VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
 import Spar.Options as Options
 import Spar.Types
 import URI.ByteString
@@ -132,20 +132,20 @@ storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
 -- error handling if we couldn't figure out where the error will land.)
 storeVerdictFormat :: (HasCallStack, MonadClient m)
                    => NominalDiffTime -> AReqId -> VerdictFormat -> m ()
-storeVerdictFormat diffTime req format = do
+storeVerdictFormat diffTime req (fromVerdictFormat -> (fmtCon, fmtMobSucc, fmtMobErr)) = do
     let ttl = nominalDiffToSeconds diffTime * 2
-    retry x5 . write cql $ params Quorum (req, format, ttl)
+    retry x5 . write cql $ params Quorum (req, fmtCon, fmtMobSucc, fmtMobErr, ttl)
   where
-    cql :: PrepQuery W (AReqId, VerdictFormat, Int32) ()
-    cql = "INSERT INTO verdict (req, format) VALUES (?, ?) USING TTL ?"
+    cql :: PrepQuery W (AReqId, Int8, Maybe URI, Maybe URI, Int32) ()
+    cql = "INSERT INTO verdict (req, format_con, format_mobile_success, format_mobile_error) VALUES (?, ?, ?, ?) USING TTL ?"
 
 getVerdictFormat :: (HasCallStack, MonadClient m)
                    => AReqId -> m (Maybe VerdictFormat)
-getVerdictFormat req = fmap runIdentity <$>
+getVerdictFormat req = (>>= toVerdictFormat) <$>
   (retry x1 . query1 cql $ params Quorum (Identity req))
   where
-    cql :: PrepQuery R (Identity AReqId) (Identity VerdictFormat)
-    cql = "SELECT format FROM verdict WHERE req = ?"
+    cql :: PrepQuery R (Identity AReqId) VerdictFormatRow
+    cql = "SELECT format_con, format_mobile_success, format_mobile_error FROM verdict WHERE req = ?"
 
 
 ----------------------------------------------------------------------

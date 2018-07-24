@@ -7,7 +7,7 @@
 module Spar.Data.Instances where
 
 import Cassandra as Cas
-import Data.Aeson (encode, eitherDecode)
+import Data.Int (Int8)
 import Data.String.Conversions
 import Data.X509 (SignedCertificate)
 import Text.XML.DSig (renderKeyInfo, parseKeyInfo)
@@ -43,10 +43,22 @@ deriving instance Cql SAML.Issuer
 deriving instance Cql SAML.IdPId
 deriving instance Cql (SAML.ID SAML.AuthnRequest)
 
--- TODO: is encoding VerdictFormat as json in the database a bad idea?
-instance Cql (VerdictFormat) where
-    ctype = Tagged BlobColumn
-    toCql = CqlBlob . encode
+type VerdictFormatRow = (Int8, Maybe URI, Maybe URI)
 
-    fromCql (CqlBlob t) = eitherDecode t
-    fromCql _           = fail "VerdictFormat: expected CqlBlob"
+fromVerdictFormat :: VerdictFormat -> VerdictFormatRow
+fromVerdictFormat VerdictFormatWeb                         = (0, Nothing, Nothing)
+fromVerdictFormat (VerdictFormatMobile succredir errredir) = (1, Just succredir, Just errredir)
+
+toVerdictFormat :: VerdictFormatRow -> Maybe VerdictFormat
+toVerdictFormat (0, Nothing, Nothing)              = Just VerdictFormatWeb
+toVerdictFormat (1, Just succredir, Just errredir) = Just $ VerdictFormatMobile succredir errredir
+toVerdictFormat _                                  = Nothing
+
+
+-- | TODO: why is this not available from @class Cql@?
+-- <http://hackage.haskell.org/package/cql-4.0.1/docs/Database-CQL-Protocol.html>
+instance Cql Int8 where
+    ctype              = Tagged IntColumn
+    toCql              = CqlInt . fromIntegral
+    fromCql (CqlInt i) = pure $ fromIntegral i
+    fromCql _          = fail "Int8: expected CqlInt"
