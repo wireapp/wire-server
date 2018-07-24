@@ -188,11 +188,13 @@ instance Intra.MonadSparToBrig Spar where
 verdictHandler :: HasCallStack => SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
 verdictHandler aresp verdict = do
   reqid <- maybe (throwSpar SparNoRequestRefInResponse) pure $ aresp ^. SAML.rspInRespTo
+                  -- (this shouldn't happen since the response is validated)
   format :: Maybe VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
   case format of
     Just (VerdictFormatWeb) -> verdictHandlerWeb verdict
     Just (VerdictFormatMobile granted denied) -> verdictHandlerMobile granted denied verdict
-    Nothing -> throwError $ SAML.BadSamlResponse "request seems to have diappeared (could not find verdict format)."
+    Nothing -> throwError $ SAML.BadSamlResponse "AuthRequest seems to have disappeared (could not find verdict format)."
+               -- (this shouldn't happen too often, see 'storeVerdictFormat')
 
 data VerdictHandlerResult = VerifyHandlerDenied | VerifyHandlerGranted SetCookie UserId
 

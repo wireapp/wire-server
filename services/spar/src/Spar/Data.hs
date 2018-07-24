@@ -127,10 +127,13 @@ storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
 ----------------------------------------------------------------------
 -- spar state handling (not visible to saml2-web-sso)
 
+-- | First argument is the life expectancy of the request.  (We store the verdict format for twice
+-- as long.  Reason: if there is some delay in processing a very old request, it would be bad for
+-- error handling if we couldn't figure out where the error will land.)
 storeVerdictFormat :: (HasCallStack, MonadClient m)
                    => NominalDiffTime -> AReqId -> VerdictFormat -> m ()
 storeVerdictFormat diffTime req format = do
-    let ttl = nominalDiffToSeconds diffTime
+    let ttl = nominalDiffToSeconds diffTime * 2
     retry x5 . write cql $ params Quorum (req, format, ttl)
   where
     cql :: PrepQuery W (AReqId, VerdictFormat, Int32) ()
