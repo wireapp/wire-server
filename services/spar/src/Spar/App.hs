@@ -253,12 +253,14 @@ verdictHandlerMobile granted denied verdict = do
   where
     forbiddenPage :: URI.URI -> SAML.ResponseVerdict
     forbiddenPage uri = err303
-      { errHeaders = [ ("Location", cs $ renderURI uri) ]
+      { errReasonPhrase = "forbidden"
+      , errHeaders = [ ("Location", cs $ renderURI uri) ]
       }
 
     successPage :: SetCookie -> URI.URI -> SAML.ResponseVerdict
     successPage cky uri = err303
-      { errHeaders = [ ("Location", cs $ renderURI uri)
+      { errReasonPhrase = "success"
+      , errHeaders = [ ("Location", cs $ renderURI uri)
                      , ("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)
                      ]
       }

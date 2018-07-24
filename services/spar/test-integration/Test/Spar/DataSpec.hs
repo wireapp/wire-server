@@ -294,23 +294,23 @@ spec = do
           it "responds with status 302 to the error redirect." $ do
             (_uid, outcome, loc, qry) <- prepare False
             liftIO $ do
-              Servant.errHTTPCode outcome `shouldBe` 302
+              Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
               Servant.errBody outcome `shouldBe` mempty
               uriScheme loc `shouldBe` (URI.Scheme "wire")
-              List.lookup "userid" qry `shouldNotBe` Nothing
-              List.lookup "cookie" qry `shouldNotBe` Nothing
-              List.lookup "label"  qry `shouldBe`    (Just "forbidden")
+              List.lookup "userid" qry `shouldBe` Nothing
+              List.lookup "cookie" qry `shouldBe` Nothing
+              List.lookup "label"  qry `shouldBe` Just "forbidden"
 
         context "granted" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
             (uid, outcome, loc, qry) <- prepare True
             liftIO $ do
-              Servant.errHTTPCode outcome `shouldBe` 302
+              Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "success"
               Servant.errBody outcome `shouldBe` mempty
               uriScheme loc `shouldBe` (URI.Scheme "wire")
-              List.lookup "label"  qry `shouldNotBe` Nothing
+              List.lookup "label"  qry `shouldBe` Nothing
               List.lookup "userid" qry `shouldBe` (Just . cs . show $ uid)
               List.lookup "cookie" qry `shouldNotBe` Nothing
               List.lookup "cookie" qry `shouldNotBe` Just "$cookie"

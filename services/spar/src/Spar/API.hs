@@ -87,8 +87,8 @@ type API = "i" :> "status" :> Get '[JSON] NoContent
 
 type APIMeta     = "sso" :> "metadata" :> SAML.APIMeta
 type APIAuthReq  = "sso" :> "initiate-login"
-                :> QueryParam "success_redirct" URI.URI
-                :> QueryParam "error_redirct" URI.URI
+                :> QueryParam "success_redirect" URI.URI
+                :> QueryParam "error_redirect" URI.URI
                 :> SAML.APIAuthReq
 type APIAuthResp = "sso" :> "finalize-login" :> SAML.APIAuthResp
 
