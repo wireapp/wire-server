@@ -129,7 +129,9 @@ listen b q callback =
         withReader conn (unpack (q^.queueName)) (unpack (q^.queuePath))
                    [OMode ClientIndi] [] (iconv (q^.queueName)) $ \r ->
             forever $ do
-                m <- stompTimeout "listen/readQ" 1000000 $ readQ r
+                -- NB: 'readQ' can't timeout because it's just reading from
+                -- a chan (no network queries are being made)
+                m <- readQ r
                 runInIO $ callback (msgContent m)
                 stompTimeout "listen/ack" 1000000 $ ack conn m
     handlers = skipAsyncExceptions ++ [logError]
