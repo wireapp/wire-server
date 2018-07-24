@@ -57,6 +57,7 @@ import Spar.Error
 import Spar.Options
 import Spar.Types
 
+import qualified Data.ByteString as SBS
 import qualified Network.HTTP.Client as Rq
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
@@ -122,11 +123,23 @@ authreq :: NominalDiffTime -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Sp
 authreq authreqttl msucc merr idpid = do
   vformat <- case (msucc, merr) of
     (Nothing, Nothing) -> pure VerdictFormatWeb
-    (Just ok, Just err) -> pure $ VerdictFormatMobile ok err
-    _ -> throwSpar SparBadInitiateLoginQueryParams
+    (Just ok, Just err) -> do
+      validateRedirectURL `mapM_` [ok, err]
+      pure $ VerdictFormatMobile ok err
+    _ -> throwSpar $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
   pure form
+
+redirectURLMaxLength :: Int
+redirectURLMaxLength = 140
+
+validateRedirectURL :: URI.URI -> Spar ()
+validateRedirectURL uri = do
+  unless ((SBS.take 4 . URI.schemeBS . URI.uriScheme $ uri) == "wire") $ do
+    throwSpar $ SparBadInitiateLoginQueryParams "invalid-schema"
+  unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
+    throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
 type ZUsr = Maybe UserId
 

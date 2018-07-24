@@ -33,7 +33,7 @@ data SparCustomError
   | SparNoRequestRefInResponse  -- (this is technically legal, but unnecessary, and should probably fixed in saml2-web-sso.)
   | SparCouldNotSubstituteSuccessURI LT
   | SparCouldNotSubstituteFailureURI LT
-  | SparBadInitiateLoginQueryParams
+  | SparBadInitiateLoginQueryParams LT
 
   | SparBadUserName LT
   | SparNoBodyInBrigResponse
@@ -71,7 +71,7 @@ sparToWaiError (SAML.CustomError SparNotTeamOwner)              = Right $ Wai.Er
 sparToWaiError (SAML.CustomError SparNoRequestRefInResponse)    = Right $ Wai.Error status400 "server-error-unsupported-saml" "The IdP needs to provide an InResponseTo attribute in the top-level element of the response."
 sparToWaiError (SAML.CustomError (SparCouldNotSubstituteSuccessURI msg)) = Right $ Wai.Error status400 "bad-success-redirect" ("re-parsing the substituted URI failed: " <> msg)
 sparToWaiError (SAML.CustomError (SparCouldNotSubstituteFailureURI msg)) = Right $ Wai.Error status400 "bad-failure-redirect" ("re-parsing the substituted URI failed: " <> msg)
-sparToWaiError (SAML.CustomError SparBadInitiateLoginQueryParams) = Right $ Wai.Error status400 "bad-init-query-params" "please either provid both success_redirect and error_redirect or neither."
+sparToWaiError (SAML.CustomError (SparBadInitiateLoginQueryParams label)) = Right $ Wai.Error status400 label label
 sparToWaiError (SAML.CustomError (SparBadUserName msg))         = Right $ Wai.Error status400 "client-error" ("Bad UserName in SAML response: " <> msg)
 sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)      = Right $ Wai.Error status400 "server-error" "Brig response without body."
 sparToWaiError (SAML.CustomError (SparCouldNotParseBrigResponse msg)) = Right $ Wai.Error status400 "server-error" ("Could not parse brig response body: " <> msg)
