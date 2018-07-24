@@ -29,7 +29,7 @@ import Data.Time
 import Data.X509 (SignedCertificate)
 import GHC.Stack
 import Lens.Micro
-import Spar.Data.Instances (VerdictFormatRow, fromVerdictFormat, toVerdictFormat)
+import Spar.Data.Instances (VerdictFormatRow, VerdictFormatCon, fromVerdictFormat, toVerdictFormat)
 import Spar.Options as Options
 import Spar.Types
 import URI.ByteString
@@ -136,7 +136,7 @@ storeVerdictFormat diffTime req (fromVerdictFormat -> (fmtCon, fmtMobSucc, fmtMo
     let ttl = nominalDiffToSeconds diffTime * 2
     retry x5 . write cql $ params Quorum (req, fmtCon, fmtMobSucc, fmtMobErr, ttl)
   where
-    cql :: PrepQuery W (AReqId, Int8, Maybe URI, Maybe URI, Int32) ()
+    cql :: PrepQuery W (AReqId, VerdictFormatCon, Maybe URI, Maybe URI, Int32) ()
     cql = "INSERT INTO verdict (req, format_con, format_mobile_success, format_mobile_error) VALUES (?, ?, ?, ?) USING TTL ?"
 
 getVerdictFormat :: (HasCallStack, MonadClient m)
