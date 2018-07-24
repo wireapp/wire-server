@@ -280,11 +280,11 @@ spec = do
 
       context "mobile" $ do
         context "invalid idp" $ do
-          it "responds with status 302 to the error redirect." $ do
+          it "responds with status 303 to the error redirect." $ do
             pending
 
         context "denied" $ do
-          it "responds with status 302 to the error redirect." $ do
+          it "responds with status 303 to the error redirect." $ do
             (_uid, outcome, loc, qry) <- prepareCore False mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
