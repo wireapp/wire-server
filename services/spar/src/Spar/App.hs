@@ -170,15 +170,8 @@ instance Intra.MonadSparToBrig Spar where
 
 
 -- | The from of the response on the finalize-login request depends on the verdict (denied or
--- granted), plus the choice that the client has made during the initiate-login request.  If the
--- client is mobile, it has picked error and success redirect urls (see
--- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'); if the client is web, it has done
--- nothing and will be served with an HTML page that it can process to decide whether to log the
--- user in or show an error.
---
--- The HTML page is empty and has a title element with contents @wire:sso:<outcome>@.  This is
--- chosen to be easily parseable and not be the title of any page sent by the IdP while it
--- negotiates with the user.
+-- granted), plus the choice that the client has made during the initiate-login request.  Here we
+-- call either 'verdictHandlerWeb' or 'verdictHandlerMobile', resp., on the 'SAML.AccessVerdict'.
 --
 -- NB: there are at least two places in the 'SAML.AuthnResponse' that can contain the request id:
 -- the response header and every assertion.  Since saml2-web-sso validation guarantees that the
@@ -211,6 +204,13 @@ verdictHandlerResult = \case
                                             -- reads: probably no.)
     pure $ VerifyHandlerGranted cky uid
 
+-- | If the client is web, it will be served with an HTML page that it can process to decide whether
+-- to log the user in or show an error.
+--
+-- The HTML page is empty and has two ways to communicate the verdict to the js app:
+-- - A title element with contents @wire:sso:<outcome>@.  This is chosen to be easily parseable and
+--   not be the title of any page sent by the IdP while it negotiates with the user.
+-- - The page broadcasts a message to '*', to be picked up by the app.
 verdictHandlerWeb :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVerdict
 verdictHandlerWeb verdict = do
   outcome <- verdictHandlerResult verdict
@@ -222,7 +222,14 @@ verdictHandlerWeb verdict = do
     forbiddenPage = ServantErr
       { errHTTPCode     = 200
       , errReasonPhrase = "forbidden"  -- (not sure what this is used for)
-      , errBody         = easyHtml $ "<head><title>wire:sso:error:forbidden</title></head>"
+      , errBody         = easyHtml $
+                          "<head>" <>
+                          "  <title>wire:sso:error:forbidden</title>" <>
+                          "   <script type=\"text/javascript\">" <>
+                          "       const receiverOrigin = '*';" <>
+                          "       window.opener.postMessage({type: 'AUTH_ERROR', payload: {label: 'forbidden'}}, receiverOrigin);" <>
+                          "   </script>" <>
+                          "</head>"
       , errHeaders      = []
       }
 
@@ -230,7 +237,14 @@ verdictHandlerWeb verdict = do
     successPage cky = ServantErr
       { errHTTPCode     = 200
       , errReasonPhrase = "success"
-      , errBody         = easyHtml $ "<head><title>wire:sso:success</title></head>"
+      , errBody         = easyHtml $
+                          "<head>" <>
+                          "  <title>wire:sso:success</title>" <>
+                          "   <script type=\"text/javascript\">" <>
+                          "       const receiverOrigin = '*';" <>
+                          "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);" <>
+                          "   </script>" <>
+                          "</head>"
       , errHeaders      = [("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)]
       }
 
@@ -240,6 +254,9 @@ easyHtml doc =
   "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">" <>
   "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">" <> doc <> "</html>"
 
+-- | If the client is mobile, it has picked error and success redirect urls (see
+-- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'); variables in these URLs are here
+-- substituted and the client is redirected accordingly.
 verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
 verdictHandlerMobile granted denied verdict = do
   outcome <- verdictHandlerResult verdict
