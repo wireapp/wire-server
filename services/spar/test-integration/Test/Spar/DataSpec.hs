@@ -197,41 +197,66 @@ spec = do
         runPostVerdict env = runServantClient env . clientPostVerdict
 
     describe "accessVerdict" $ do
-      context "web" $ do
-        let prepare :: HasCallStack => Bool -> ReaderT TestEnv IO (UserId, SAML.ResponseVerdict, URI, [(SBS, SBS)])
-            prepare isGranted = do
-              (uid, _, idpid) <- createTestIdP
-              env <- ask
-              let tenant  = sampleIdP ^. nidpIssuer
-                  subject = SAML.opaqueNameID "blee"
-                  uref    = SAML.UserRef tenant subject
-              call $ runInsertUser env uref uid
-              authnreq :: SAML.FormRedirect SAML.AuthnRequest <- do
-                -- TODO: the following fails, i think there is something wrong with query encoding.
-                -- call . runServantClient env $ clientGetAuthnRequest Nothing Nothing idpid
-                raw <- call $ get ((env ^. teSpar) . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid)) . expect2xx)
-                bdy <- maybe (error "authreq") pure $ responseBody raw
-                either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
-              let authnresp = fleshOutResponse emptyAuthnResponse authnreq
-                  verdict = if isGranted
-                    then SAML.AccessGranted uref
-                    else SAML.AccessDenied ["we don't like you", "seriously"]
-              outcome <- call $ runPostVerdict env (authnresp, verdict)
-              let loc :: URI.URI
-                  loc = maybe (error "no location") (either error id . SAML.parseURI' . cs)
-                      . List.lookup "Location" . Servant.errHeaders
-                      $ outcome
-                  qry :: [(SBS, SBS)]
-                  qry = queryPairs $ uriQuery loc
-              pure (uid, outcome, loc, qry)
+      let mkAuthnReqWeb :: SAML.IdPId -> ReaderT TestEnv IO ResponseLBS
+          mkAuthnReqWeb idpid = do
+            env <- ask
+            -- TODO: the following fails, i think there is something wrong with query encoding.
+            -- runServantClient env $ clientGetAuthnRequest Nothing Nothing idpid
+            call $ get ((env ^. teSpar) . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid)) . expect2xx)
 
+
+          mkAuthnReqMobile :: SAML.IdPId -> ReaderT TestEnv IO ResponseLBS
+          mkAuthnReqMobile idpid = do
+            env <- ask
+            -- (see the TODO under "web" above)
+            -- call . runServantClient env $ clientGetAuthnRequest (Just succurl) (Just errurl) idpid
+            let succurl = [uri|wire://login-granted/?cookie=$cookie&userid=$userid|]
+                errurl = [uri|wire://login-denied/?label=$label|]
+                mk = Builder.toLazyByteString . urlEncode [] . serializeURIRef'
+                arQueries = "success_redirect=" <> mk succurl <> "&error_redirect=" <> mk errurl
+                arPath = cs $ "/sso/initiate-login/" <> cs (SAML.idPIdToST idpid) <> "?" <> arQueries
+            call $ get ((env ^. teSpar) . path arPath . expect2xx)
+
+          prepareCore :: HasCallStack
+                      => Bool                                             -- is the verdict granted?
+                      -> (SAML.IdPId -> ReaderT TestEnv IO ResponseLBS)   -- raw authnreq
+                      -> ReaderT TestEnv IO ( UserId
+                                            , SAML.ResponseVerdict
+                                            , URI                         -- location header
+                                            , [(SBS, SBS)]                -- query params
+                                            )
+          prepareCore isGranted mkAuthnReq = do
+            (uid, _, idpid) <- createTestIdP
+            env <- ask
+            let tenant  = sampleIdP ^. nidpIssuer
+                subject = SAML.opaqueNameID "blee"
+                uref    = SAML.UserRef tenant subject
+            call $ runInsertUser env uref uid
+            authnreq :: SAML.FormRedirect SAML.AuthnRequest <- do
+              raw <- mkAuthnReq idpid
+              bdy <- maybe (error "authreq") pure $ responseBody raw
+              either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
+            let authnresp = fleshOutResponse emptyAuthnResponse authnreq
+                verdict = if isGranted
+                  then SAML.AccessGranted uref
+                  else SAML.AccessDenied ["we don't like you", "seriously"]
+            outcome <- call $ runPostVerdict env (authnresp, verdict)
+            let loc :: URI.URI
+                loc = maybe (error "no location") (either error id . SAML.parseURI' . cs)
+                    . List.lookup "Location" . Servant.errHeaders
+                    $ outcome
+                qry :: [(SBS, SBS)]
+                qry = queryPairs $ uriQuery loc
+            pure (uid, outcome, loc, qry)
+
+      context "web" $ do
         context "invalid idp" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
             pending
 
         context "denied" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, outcome, _, _) <- prepare False
+            (_, outcome, _, _) <- prepareCore False mkAuthnReqWeb
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -242,7 +267,7 @@ spec = do
 
         context "granted" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, outcome, _, _) <- prepare True
+            (_, outcome, _, _) <- prepareCore True mkAuthnReqWeb
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
               Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -254,45 +279,13 @@ spec = do
                 `shouldSatisfy` (isJust . snd)
 
       context "mobile" $ do
-        let prepare :: HasCallStack => Bool -> ReaderT TestEnv IO (UserId, SAML.ResponseVerdict, URI, [(SBS, SBS)])
-            prepare isGranted = do
-              (uid, _, idpid) <- createTestIdP
-              env <- ask
-              let tenant  = sampleIdP ^. nidpIssuer
-                  subject = SAML.opaqueNameID "blee"
-                  uref    = SAML.UserRef tenant subject
-              call $ runInsertUser env uref uid
-              authnreq :: SAML.FormRedirect SAML.AuthnRequest <- do
-                -- (see the TODO under "web" above)
-                -- call . runServantClient env $ clientGetAuthnRequest (Just succurl) (Just errurl) idpid
-                let succurl = [uri|wire://login-granted/?cookie=$cookie&userid=$userid|]
-                    errurl = [uri|wire://login-denied/?label=$label|]
-                    mk = Builder.toLazyByteString . urlEncode [] . serializeURIRef'
-                    arQueries = "success_redirect=" <> mk succurl <> "&error_redirect=" <> mk errurl
-                    arPath = cs $ "/sso/initiate-login/" <> cs (SAML.idPIdToST idpid) <> "?" <> arQueries
-                raw <- call $ get ((env ^. teSpar) . path arPath . expect2xx)
-                bdy <- maybe (error "authreq") pure $ responseBody raw
-                either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
-              let authnresp = fleshOutResponse emptyAuthnResponse authnreq
-                  verdict = if isGranted
-                    then SAML.AccessGranted uref
-                    else SAML.AccessDenied ["we don't like you", "seriously"]
-              outcome <- call $ runPostVerdict env (authnresp, verdict)
-              let loc :: URI.URI
-                  loc = maybe (error "no location") (either error id . SAML.parseURI' . cs)
-                      . List.lookup "Location" . Servant.errHeaders
-                      $ outcome
-                  qry :: [(SBS, SBS)]
-                  qry = queryPairs $ uriQuery loc
-              pure (uid, outcome, loc, qry)
-
         context "invalid idp" $ do
           it "responds with status 302 to the error redirect." $ do
             pending
 
         context "denied" $ do
           it "responds with status 302 to the error redirect." $ do
-            (_uid, outcome, loc, qry) <- prepare False
+            (_uid, outcome, loc, qry) <- prepareCore False mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -304,7 +297,7 @@ spec = do
 
         context "granted" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            (uid, outcome, loc, qry) <- prepare True
+            (uid, outcome, loc, qry) <- prepareCore True mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "success"
