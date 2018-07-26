@@ -1,0 +1,29 @@
+# Object files
+*.o
+
+# Libraries
+*.lib
+*.a
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# All them temporary directories and files
+install
+packages
+src
+target
+.*.swp
+dist
+*.aci*
+*.log
+.vagrant
+*.docker
+
