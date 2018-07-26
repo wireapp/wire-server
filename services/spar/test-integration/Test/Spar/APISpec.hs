@@ -153,13 +153,13 @@ spec = do
                 `shouldRespondWith` checkErr (== 404) "not-found"
 
           context "zuser is a team member, but not a team owner" $ do
-            it "responds with 'forbidden' and a helpful message" $ do
+            it "responds with 'insufficient-permissions' and a helpful message" $ do
               env <- ask
               (_owner, tid, idp) <- createTestIdP
               newmember <- let Just perms = newPermissions mempty mempty
                         in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
               whichone (env ^. teSpar) (Just newmember) idp
-                `shouldRespondWith` checkErr (== 403) "forbidden"
+                `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
     describe "GET /identity-providers/:idp" $ do
       testGetPutDelete callIdpGet'
@@ -227,13 +227,13 @@ spec = do
             `shouldRespondWith` checkErr (== 404) "not-found"
 
       context "zuser is a team member, but not a team owner" $ do
-        it "responds with 'forbidden' and a helpful message" $ do
+        it "responds with 'insufficient-permissions' and a helpful message" $ do
           env <- ask
           (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           newmember <- let Just perms = newPermissions mempty mempty
                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
           callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdp)
-            `shouldRespondWith` checkErr (== 403) "forbidden"
+            `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
       let createIdpMockErr :: (NewIdP -> NewIdP) -> FilePath -> HTTP.Status -> ReaderT TestEnv IO ()
           createIdpMockErr modnewidp metafile respstatus = do
