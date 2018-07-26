@@ -27,6 +27,7 @@ throwSpar = throwError . SAML.CustomError
 
 data SparCustomError
   = SparNotFound
+  | SparMissingZUsr
   | SparNotInTeam
   | SparNotTeamOwner
 
@@ -72,7 +73,8 @@ sparToWaiError (SAML.UnknownIdP _msg)                                     = Righ
 sparToWaiError (SAML.Forbidden msg)                                       = Right $ Wai.Error status403 "forbidden" ("Forbidden: " <> msg)
 sparToWaiError (SAML.BadSamlResponse msg)                                 = Right $ Wai.Error status400 "no-matching-auth-req" ("Missing auth request: " <> msg)
 sparToWaiError (SAML.CustomError SparNotFound)                            = Right $ Wai.Error status404 "not-found" "Could not find IdP."
-sparToWaiError (SAML.CustomError SparNotInTeam)                           = Right $ Wai.Error status404 "not-found" "User not in team."
+sparToWaiError (SAML.CustomError SparMissingZUsr)                         = Right $ Wai.Error status400 "client-error" "[header] 'Z-User' required"
+sparToWaiError (SAML.CustomError SparNotInTeam)                           = Right $ Wai.Error status403 "no-team-member" "Requesting user is not a team member or not a member of this team."
 sparToWaiError (SAML.CustomError SparNotTeamOwner)                        = Right $ Wai.Error status403 "insufficient-permissions" "You need to be team owner to create an IdP."
 sparToWaiError SAML.UnknownError                                          = Right $ Wai.Error status500 "server-error" "Unknown server error."
 sparToWaiError (SAML.BadServerConfig msg)                                 = Right $ Wai.Error status500 "server-error" ("Error in server config: " <> msg)

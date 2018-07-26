@@ -189,7 +189,7 @@ authorizeIdP zusr idp = do
 -- | Called by post handler, and by 'authorizeIdP'.
 getZUsrOwnedTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSparToBrig m)
             => ZUsr -> m TeamId
-getZUsrOwnedTeam Nothing = throwSpar SparNotInTeam
+getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
 getZUsrOwnedTeam (Just uid) = do
   usr <- Intra.getUser uid
   case Brig.userTeam =<< usr of

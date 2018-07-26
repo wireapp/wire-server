@@ -130,27 +130,27 @@ spec = do
                 `shouldRespondWith` checkErr (== 404) "not-found"
 
           context "no zuser" $ do
-            it "responds with 'not found'" $ do
+            it "responds with 'client error'" $ do
               env <- ask
               (_, _, idp) <- createTestIdP
               whichone (env ^. teSpar) Nothing idp
-                `shouldRespondWith` checkErr (== 404) "not-found"
+                `shouldRespondWith` checkErr (== 400) "client-error"
 
           context "zuser has no team" $ do
-            it "responds with 'not found'" $ do
+            it "responds with 'no team member'" $ do
               env <- ask
               (_, _, idp) <- createTestIdP
               (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
               whichone (env ^. teSpar) (Just uid) idp
-                `shouldRespondWith` checkErr (== 404) "not-found"
+                `shouldRespondWith` checkErr (== 403) "no-team-member"
 
           context "zuser has wrong team" $ do
-            it "responds with 'not found'" $ do
+            it "responds with 'no team member'" $ do
               env <- ask
               (_, _, idp) <- createTestIdP
               (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
               whichone (env ^. teSpar) (Just uid) idp
-                `shouldRespondWith` checkErr (== 404) "not-found"
+                `shouldRespondWith` checkErr (== 403) "no-team-member"
 
           context "zuser is a team member, but not a team owner" $ do
             it "responds with 'insufficient-permissions' and a helpful message" $ do
@@ -214,17 +214,17 @@ spec = do
 
     describe "POST /identity-providers/:idp" $ do
       context "no zuser" $ do
-        it "responds with 'not found'" $ do
+        it "responds with 'client error'" $ do
           env <- ask
           callIdpCreate' (env ^. teSpar) Nothing (env ^. teNewIdp)
-            `shouldRespondWith` checkErr (== 404) "not-found"
+            `shouldRespondWith` checkErr (== 400) "client-error"
 
       context "zuser has no team" $ do
-        it "responds with 'not found'" $ do
+        it "responds with 'no team member'" $ do
           env <- ask
           (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
           callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdp)
-            `shouldRespondWith` checkErr (== 404) "not-found"
+            `shouldRespondWith` checkErr (== 403) "no-team-member"
 
       context "zuser is a team member, but not a team owner" $ do
         it "responds with 'insufficient-permissions' and a helpful message" $ do
