@@ -59,21 +59,6 @@ waiToServant waierr@(Wai.Error status label _) = ServantErr
   }
 
 sparToWaiError :: SparError -> Either ServantErr Wai.Error
-sparToWaiError (SAML.UnknownIdP _msg)                                     = Right $ Wai.Error status404 "not-found" "Not found."
-sparToWaiError (SAML.Forbidden msg)                                       = Right $ Wai.Error status403 "forbidden" ("Forbidden: " <> msg)
-sparToWaiError (SAML.BadSamlResponse msg)                                 = Right $ Wai.Error status400 "client-error" ("Invalid credentials: " <> msg)
-sparToWaiError (SAML.BadServerConfig msg)                                 = Right $ Wai.Error status500 "server-error" ("Error in server config: " <> msg)
-sparToWaiError SAML.UnknownError                                          = Right $ Wai.Error status500 "server-error" "Unknown server error."
-sparToWaiError (SAML.CustomServant err)                                   = Left err
--- Errors related to IdP management
-sparToWaiError (SAML.CustomError (SparNewIdPBadMetaUrl msg))              = Right $ Wai.Error status400 "idp-error" ("Bad or unresponsive metadata url: " <> msg)
-sparToWaiError (SAML.CustomError SparNewIdPBadMetaSig)                    = Right $ Wai.Error status400 "invalid-signature" "bad metadata signature"
-sparToWaiError (SAML.CustomError (SparNewIdPBadReqUrl msg))               = Right $ Wai.Error status400 "invalid-req-url" ("bad request url: " <> msg)
-sparToWaiError (SAML.CustomError SparNewIdPPubkeyMismatch)                = Right $ Wai.Error status400 "key-mismatch" "public keys in body, metadata do not match"
-sparToWaiError (SAML.CustomError SparNotFound)                            = Right $ Wai.Error status404 "not-found" "Could not find IdP."
-sparToWaiError (SAML.CustomError SparNotInTeam)                           = Right $ Wai.Error status404 "not-found" "User not in team."
-sparToWaiError (SAML.CustomError SparNotTeamOwner)                        = Right $ Wai.Error status403 "insufficient-permissions" "You need to be team owner to create an IdP."
--- Errors related to the log in process
 sparToWaiError (SAML.CustomError SparNoRequestRefInResponse)              = Right $ Wai.Error status400 "server-error-unsupported-saml" "The IdP needs to provide an InResponseTo attribute in the top-level element of the response."
 sparToWaiError (SAML.CustomError (SparCouldNotSubstituteSuccessURI msg))  = Right $ Wai.Error status400 "bad-success-redirect" ("re-parsing the substituted URI failed: " <> msg)
 sparToWaiError (SAML.CustomError (SparCouldNotSubstituteFailureURI msg))  = Right $ Wai.Error status400 "bad-failure-redirect" ("re-parsing the substituted URI failed: " <> msg)
@@ -83,3 +68,18 @@ sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)                = Righ
 sparToWaiError (SAML.CustomError (SparCouldNotParseBrigResponse msg))     = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
 sparToWaiError (SAML.CustomError SparCouldNotRetrieveCookie)              = Right $ Wai.Error status502 "bad-upstream" "Unable to get a cookie from an upstream server."
 sparToWaiError (SAML.CustomError (SparCassandraError msg))                = Right $ Wai.Error status500 "server-error" ("DB error: " <> msg)
+sparToWaiError (SAML.UnknownIdP _msg)                                     = Right $ Wai.Error status404 "not-found" "IdP not found."
+sparToWaiError (SAML.Forbidden msg)                                       = Right $ Wai.Error status403 "forbidden" ("Forbidden: " <> msg)
+sparToWaiError (SAML.BadSamlResponse msg)                                 = Right $ Wai.Error status400 "no-matching-auth-req" ("Missing auth request: " <> msg)
+sparToWaiError (SAML.CustomError SparNotFound)                            = Right $ Wai.Error status404 "not-found" "Could not find IdP."
+sparToWaiError (SAML.CustomError SparNotInTeam)                           = Right $ Wai.Error status404 "not-found" "User not in team."
+sparToWaiError (SAML.CustomError SparNotTeamOwner)                        = Right $ Wai.Error status403 "insufficient-permissions" "You need to be team owner to create an IdP."
+sparToWaiError SAML.UnknownError                                          = Right $ Wai.Error status500 "server-error" "Unknown server error."
+sparToWaiError (SAML.BadServerConfig msg)                                 = Right $ Wai.Error status500 "server-error" ("Error in server config: " <> msg)
+-- Errors related to IdP creation
+sparToWaiError (SAML.CustomError (SparNewIdPBadMetaUrl msg))              = Right $ Wai.Error status400 "idp-error" ("Bad or unresponsive metadata url: " <> msg)
+sparToWaiError (SAML.CustomError SparNewIdPBadMetaSig)                    = Right $ Wai.Error status400 "invalid-signature" "bad metadata signature"
+sparToWaiError (SAML.CustomError (SparNewIdPBadReqUrl msg))               = Right $ Wai.Error status400 "invalid-req-url" ("bad request url: " <> msg)
+sparToWaiError (SAML.CustomError SparNewIdPPubkeyMismatch)                = Right $ Wai.Error status400 "key-mismatch" "public keys in body, metadata do not match"
+-- Other
+sparToWaiError (SAML.CustomServant err)                                   = Left err
