@@ -52,6 +52,24 @@ function check_secrets() {
     else
         echo "re-using existing public/private keys"
     fi
+
+    if [[ ! -f ${SCRIPT_DIR}/conf/restund/restund.conf ]]; then
+        echo "updating restund config..."
+        cp ${SCRIPT_DIR}/conf/restund/restund.conf.example ${SCRIPT_DIR}/conf/restund/restund.conf
+        TURN_SECRET=$(cat ${SCRIPT_DIR}/resources/turn/secret.txt)
+        sed -n -i "s/restund_zrest_secret/${TURN_SECRET}/p" ${SCRIPT_DIR}/conf/restund/restund.conf
+    else
+        echo "re-using existing restund config file"
+    fi
+    if [[ ! -f ${SCRIPT_DIR}/conf/restund/restund.pem ]]; then
+        echo "Generate a self-signed certificate for restund..."
+        openssl req -x509 -nodes -newkey rsa:4096 -keyout ${SCRIPT_DIR}/conf/restund/key.pem -out ${SCRIPT_DIR}/conf/restund/cert.pem -days 365 -subj '/CN=localhost'
+        mv ${SCRIPT_DIR}/conf/restund/cert.pem ${SCRIPT_DIR}/conf/restund/restund.pem
+        cat ${SCRIPT_DIR}/conf/restund/key.pem >> ${SCRIPT_DIR}/conf/restund/restund.pem
+        rm -f ${SCRIPT_DIR}/conf/restund/key.pem
+    else
+        echo "re-using existing restund pem file"
+    fi
 }
 
 function check_prerequisites() {

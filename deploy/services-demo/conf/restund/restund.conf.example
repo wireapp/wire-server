@@ -1,0 +1,40 @@
+# core
+daemon                  no
+debug                   no
+realm                   dummy.io
+syncinterval            600
+udp_listen              0.0.0.0:3478
+udp_sockbuf_size        524288
+tcp_listen              0.0.0.0:3478
+tls_listen              0.0.0.0:5349,/usr/local/etc/restund/restund.pem
+
+# modules
+module_path             /usr/local/lib/restund/modules
+module                  stat.so
+module                  drain.so
+module                  binding.so
+module                  auth.so
+module                  turn.so
+module                  zrest.so
+module                  status.so
+
+# auth
+auth_nonce_expiry       3600
+
+# turn
+turn_max_allocations    64000
+turn_max_lifetime       3600
+turn_relay_addr         0.0.0.0
+#turn_public_addr        <public IP>
+
+# syslog
+syslog_facility         24
+
+# status
+status_udp_addr         127.0.0.1
+status_udp_port         33000
+status_http_addr        127.0.0.1
+status_http_port        8080
+
+# zrest (shared secret shared with brig)
+zrest_secret            restund_zrest_secret
