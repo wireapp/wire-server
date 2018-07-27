@@ -18,6 +18,7 @@ import Test.Hspec
 spec :: Spec
 spec = do
   validateEveryToJSON (Proxy :: Proxy API.APIMeta)
+  validateEveryToJSON (Proxy :: Proxy API.APIAuthReqPrecheck)
   validateEveryToJSON (Proxy :: Proxy API.APIAuthReq)
   validateEveryToJSON (Proxy :: Proxy API.APIAuthResp)
   validateEveryToJSON (Proxy :: Proxy API.IdpGet)

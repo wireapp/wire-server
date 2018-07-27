@@ -38,6 +38,7 @@ module Util
   , samplePublicKey1
   , samplePublicKey2
   , responseJSON
+  , callAuthnReqPrecheck'
   , callAuthnReq, callAuthnReq'
   , callIdpGet, callIdpGet'
   , callIdpCreate, callIdpCreate'
@@ -69,6 +70,7 @@ import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID (nextRandom)
 import GHC.Stack (HasCallStack)
 import Lens.Micro
+import Prelude hiding (head)
 import Spar.API ()
 import Spar.Options as Options
 import Spar.Run
@@ -383,6 +385,10 @@ safeHead msg []    = throwError $ msg <> ": []"
 callAuthnReq' :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
 callAuthnReq' sparreq_ idpid = do
   get $ sparreq_ . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid))
+
+callAuthnReqPrecheck' :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
+callAuthnReqPrecheck' sparreq_ idpid = do
+  head $ sparreq_ . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid))
 
 callIdpGet :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m IdP
 callIdpGet sparreq_ muid idpid = do

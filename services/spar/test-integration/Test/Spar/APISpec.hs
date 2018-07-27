@@ -22,6 +22,7 @@ import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Galley.Types.Teams as Galley
 import Lens.Micro
+import Prelude hiding (head)
 import SAML2.WebSSO as SAML
 import Spar.Types
 import Util
@@ -63,7 +64,22 @@ spec = do
                                 , "WantAssertionsSigned=\"true\""
                                 ])
 
-    describe "/sso/initiate-login/:idp" $ do
+    describe "HEAD /sso/initiate-login/:idp" $ do
+      context "unknown IdP" $ do
+        it "responds with 404" $ do
+          env <- ask
+          let uuid = cs $ UUID.toText UUID.nil
+          head ((env ^. teSpar) . path ("/sso/initiate-login/" <> uuid))
+            `shouldRespondWith` ((== 404) . statusCode)
+
+      context "HEAD known IdP" $ do
+        it "responds with 200" $ do
+          env <- ask
+          (_, _, cs . UUID.toText . fromIdPId -> idp) <- createTestIdP
+          head ((env ^. teSpar) . path ("/sso/initiate-login/" <> idp) . expect2xx)
+            `shouldRespondWith`  ((== 200) . statusCode)
+
+    describe "GET /sso/initiate-login/:idp" $ do
       context "unknown IdP" $ do
         it "responds with 'not found'" $ do
           env <- ask
