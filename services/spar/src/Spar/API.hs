@@ -145,13 +145,12 @@ redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
 
 validateAuthreqParams :: Maybe URI.URI -> Maybe URI.URI -> Spar VerdictFormat
-validateAuthreqParams msucc merr = do
-  case (msucc, merr) of
-    (Nothing, Nothing) -> pure VerdictFormatWeb
-    (Just ok, Just err) -> do
-      validateRedirectURL `mapM_` [ok, err]
-      pure $ VerdictFormatMobile ok err
-    _ -> throwSpar $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
+validateAuthreqParams msucc merr = case (msucc, merr) of
+  (Nothing, Nothing) -> pure VerdictFormatWeb
+  (Just ok, Just err) -> do
+    validateRedirectURL `mapM_` [ok, err]
+    pure $ VerdictFormatMobile ok err
+  _ -> throwSpar $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
 
 validateRedirectURL :: URI.URI -> Spar ()
 validateRedirectURL uri = do
