@@ -26,7 +26,7 @@ module Bilge.Request
     , showRequest
     , noRedirect
     , timeout
-    , expect2xx
+    , expect2xx, expect3xx, expect4xx
     , checkStatus
     , cookie
     , cookieRaw
@@ -118,10 +118,19 @@ noRedirect :: Request -> Request
 noRedirect r = r { Rq.redirectCount = 0 }
 
 expect2xx :: Request -> Request
-expect2xx r = r { Rq.checkResponse = check }
+expect2xx = expectStatus ((== 2) . (`div` 100))
+
+expect3xx :: Request -> Request
+expect3xx = expectStatus ((== 3) . (`div` 100))
+
+expect4xx :: Request -> Request
+expect4xx = expectStatus ((== 4) . (`div` 100))
+
+expectStatus :: (Int -> Bool) -> Request -> Request
+expectStatus property r = r { Rq.checkResponse = check }
   where
     check _ res
-      | HTTP.statusCode (Rq.responseStatus res) `div` 100 == 2 = return ()
+      | property (HTTP.statusCode (Rq.responseStatus res)) = return ()
       | otherwise = do
           some <- Lazy.toStrict <$> brReadSome (Rq.responseBody res) 1024
           throwHttp $ Rq.StatusCodeException (const () <$> res) some

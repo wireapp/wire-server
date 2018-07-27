@@ -4,23 +4,30 @@
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QuasiQuotes         #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
--- | FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
+-- | Two (weak) reasons why I implemented the clients without the help of servant-client: (1) I
+-- wanted smooth integration in 'HttpMonad'; (2) I wanted the choice of receiving the unparsed
+-- 'ResponseLBS' rather than the parsed result (or a hard-to examine error).  this is important for
+-- testing for expected failures.  See also: https://github.com/haskell-servant/servant/issues/1004
+--
+-- FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdp, teOpts
+  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdp, teMockIdp, teOpts, teTstOpts
   , Select, mkEnv, it, pending, pendingWith
   , IntegrationConfig(..)
   , BrigReq
   , GalleyReq
   , SparReq
   , ResponseLBS
+  , TestErrorLabel(..)
   , createUserWithTeam
+  , createTeamMember
   , createRandomPhoneUser
   , zUser
   , shouldRespondWith
@@ -37,6 +44,7 @@ module Util
   , callIdpDelete, callIdpDelete'
   , initCassandra
   , module Test.Hspec
+  , module Util.MockIdP
   ) where
 
 import Bilge
@@ -49,7 +57,6 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
-import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Either
 import Data.EitherR (fmapL)
@@ -60,20 +67,19 @@ import Data.Range
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID (nextRandom)
-import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 import Lens.Micro
-import Lens.Micro.TH
-import SAML2.WebSSO.Config.TH (deriveJSONOptions)
 import Spar.API ()
 import Spar.Options as Options
 import Spar.Run
 import Spar.Types
 import System.Random (randomRIO)
-import Test.Hspec hiding (it, pending, pendingWith)
+import Test.Hspec hiding (it, xit, pending, pendingWith)
 import URI.ByteString
 import URI.ByteString.QQ
+import Util.MockIdP
 import Util.Options
+import Util.Types
 
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
@@ -90,68 +96,47 @@ import qualified Text.XML.DSig as SAML
 import qualified Text.XML.Util as SAML
 
 
-type BrigReq   = Request -> Request
-type GalleyReq = Request -> Request
-type SparReq   = Request -> Request
-
-data TestEnv = TestEnv
-  { _teMgr    :: Manager
-  , _teCql    :: Cas.ClientState
-  , _teBrig   :: BrigReq
-  , _teGalley :: GalleyReq
-  , _teSpar   :: SparReq
-  , _teNewIdp :: NewIdP
-  , _teOpts   :: Opts
-  }
-
-type Select = TestEnv -> (Request -> Request)
-
-data IntegrationConfig = IntegrationConfig
-  { cfgBrig   :: Endpoint
-  , cfgGalley :: Endpoint
-  , cfgSpar   :: Endpoint
-  , cfgNewIdp :: NewIdP
-  } deriving (Show, Generic)
-
-deriveFromJSON deriveJSONOptions ''IntegrationConfig
-
-type ResponseLBS = Response (Maybe LBS)
-
-
-mkEnv :: IntegrationConfig -> Opts -> IO TestEnv
-mkEnv integrationOpts serviceOpts = do
-  mgr :: Manager <- newManager defaultManagerSettings
-  cql :: ClientState <- initCassandra serviceOpts =<< mkLogger serviceOpts
+mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
+mkEnv _teTstOpts _teOpts = do
+  _teMgr :: Manager <- newManager defaultManagerSettings
+  _teCql :: ClientState <- initCassandra _teOpts =<< mkLogger _teOpts
   let mkreq :: (IntegrationConfig -> Endpoint) -> (Request -> Request)
-      mkreq selector = Bilge.host (selector integrationOpts ^. epHost . to cs)
-                     . Bilge.port (selector integrationOpts ^. epPort)
-  pure $ TestEnv mgr cql (mkreq cfgBrig) (mkreq cfgGalley) (mkreq cfgSpar) (cfgNewIdp integrationOpts) serviceOpts
+      mkreq selector = Bilge.host (selector _teTstOpts ^. epHost . to cs)
+                     . Bilge.port (selector _teTstOpts ^. epPort)
 
-it :: m ~ IO
+      _teBrig    = mkreq cfgBrig
+      _teGalley  = mkreq cfgGalley
+      _teSpar    = mkreq cfgSpar
+      _teNewIdp  = cfgNewIdp _teTstOpts
+      _teMockIdp = cfgMockIdp _teTstOpts
+
+  pure $ TestEnv {..}
+
+it :: (HasCallStack, m ~ IO)
        -- or, more generally:
        -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
    => String -> ReaderT TestEnv m () -> SpecWith TestEnv
 it msg bdy = Test.Hspec.it msg $ runReaderT bdy
 
-pending :: MonadIO m => m ()
+pending :: (HasCallStack, MonadIO m) => m ()
 pending = liftIO Test.Hspec.pending
 
-pendingWith :: MonadIO m => String -> m ()
+pendingWith :: (HasCallStack, MonadIO m) => String -> m ()
 pendingWith = liftIO . Test.Hspec.pendingWith
 
 
 createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
 createUserWithTeam brg gly = do
     e <- randomEmail
-    n <- pure ("randomName" :: String)  -- TODO!
+    n <- UUID.toString <$> liftIO UUID.nextRandom
     let p = RequestBodyLBS . encode $ object
             [ "name"            .= n
             , "email"           .= Brig.fromEmail e
             , "password"        .= defPassword
             , "team"            .= newTeam
             ]
-    bdy <- decodeBody <$> post (brg . path "/i/users" . contentJson . body p)
-    let (Just uid, Just (Just tid)) = (Brig.userId <$> bdy, Brig.userTeam <$> bdy)
+    bdy <- decodeBody' <$> post (brg . path "/i/users" . contentJson . body p)
+    let (uid, Just tid) = (Brig.userId bdy, Brig.userTeam bdy)
     (team:_) <- (^. Galley.teamListTeams) <$> getTeams uid gly
     () <- Control.Exception.assert {- "Team ID in registration and team table do not match" -} (tid ==  team ^. Galley.teamId)
           $ pure ()
@@ -159,6 +144,34 @@ createUserWithTeam brg gly = do
     () <- Control.Exception.assert {- "Team ID in self profile and team table do not match" -} (selfTeam == Just tid)
           $ pure ()
     return (uid, tid)
+
+-- | NB: this does create an SSO UserRef on brig, but not on spar.  this is inconsistent, but the
+-- inconsistency does not affect the tests we're running with this.  to resolve it, we could add an
+-- internal end-point to spar that allows us to create users without idp response verification.
+createTeamMember :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
+                 => BrigReq -> GalleyReq -> TeamId -> Galley.Permissions -> m UserId
+createTeamMember brigreq galleyreq teamid perms = do
+  let randomtxt = liftIO $ UUID.toText <$> UUID.nextRandom
+      randomssoid = Brig.UserSSOId <$> randomtxt <*> randomtxt
+  name  <- randomtxt
+  ssoid <- randomssoid
+  resp :: ResponseLBS
+    <- postUser name Nothing (Just ssoid) (Just teamid) brigreq
+       <!! const 201 === statusCode
+  let nobody :: UserId            = Brig.userId (decodeBody' @Brig.User resp)
+      tmem   :: Galley.TeamMember = Galley.newTeamMember nobody perms
+  addTeamMember galleyreq teamid (Galley.newNewTeamMember tmem)
+  pure nobody
+
+addTeamMember :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
+              => GalleyReq -> TeamId -> Galley.NewTeamMember -> m ()
+addTeamMember galleyreq tid mem =
+    void $ post ( galleyreq
+                . paths ["i", "teams", toByteString' tid, "members"]
+                . contentJson
+                . expect2xx
+                . lbytes (encode mem)
+                )
 
 createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Brig.Phone)
 createRandomPhoneUser brig_ = do
@@ -177,12 +190,15 @@ createRandomPhoneUser brig_ = do
     -- check new phone
     get (brig_ . path "/self" . zUser uid) !!! do
         const 200 === statusCode
-        const (Just phn) === (Brig.userPhone <=< decodeBody)
+        const (Right (Just phn)) === (fmap Brig.userPhone . decodeBody)
 
     return (uid, phn)
 
-decodeBody :: (HasCallStack, FromJSON a) => ResponseLBS -> Maybe a
-decodeBody = responseBody >=> decode'
+decodeBody :: (HasCallStack, FromJSON a) => ResponseLBS -> Either String a
+decodeBody = maybe (Left "no body") (\s -> (<> (": " <> cs (show s))) `fmapL` eitherDecode' s) . responseBody
+
+decodeBody' :: (HasCallStack, FromJSON a) => ResponseLBS -> a
+decodeBody' = either (error . show) id . decodeBody
 
 getTeams :: (HasCallStack, MonadHttp m, MonadIO m) => UserId -> GalleyReq -> m Galley.TeamList
 getTeams u gly = do
@@ -191,12 +207,12 @@ getTeams u gly = do
              . zAuthAccess u "conn"
              . expect2xx
              )
-    return $ fromMaybe (error "getTeams: failed to parse response") (decodeBody r)
+    return $ decodeBody' r
 
 getSelfProfile :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> UserId -> m Brig.SelfProfile
 getSelfProfile brg usr = do
     rsp <- get $ brg . path "/self" . zUser usr
-    return $ fromMaybe (error $ "getSelfProfile: failed to decode: " ++ show rsp) (decodeBody rsp)
+    return $ decodeBody' rsp
 
 zAuthAccess :: UserId -> SBS -> Request -> Request
 zAuthAccess u c = header "Z-Type" "access" . zUser u . zConn c
@@ -217,14 +233,14 @@ randomPhone = liftIO $ do
 
 randomUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m Brig.User
 randomUser brig_ = do
-    let n = "randomName"  -- TODO: see above
+    n <- cs . UUID.toString <$> liftIO UUID.nextRandom
     createUser n "success@simulator.amazonses.com" brig_
 
 createUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
            => ST -> ST -> BrigReq -> m Brig.User
 createUser name email brig_ = do
     r <- postUser name (Just email) Nothing Nothing brig_ <!! const 201 === statusCode
-    return $ fromMaybe (error "createUser: failed to parse response") (decodeBody r)
+    return $ decodeBody' r
 
 -- more flexible variant of 'createUser' (see above).
 postUser :: (HasCallStack, MonadIO m, MonadHttp m)
@@ -278,11 +294,6 @@ zConn :: SBS -> Request -> Request
 zConn = header "Z-Connection"
 
 
--- TH
-
-makeLenses ''TestEnv
-
-
 -- spar specifics
 
 shouldRespondWith :: forall a. (HasCallStack, Show a, Eq a)
@@ -309,7 +320,10 @@ createTestIdP = do
     (uid, tid) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
     (uid, tid,) . (^. SAML.idpId) <$> callIdpCreate (env ^. teSpar) (Just uid) sampleIdP
 
-sampleIdP :: NewIdP
+-- TODO: sampleIdP must be the data for our MockIdP
+-- TODO add 'Chan's for optionally diverging from the happy path (for testing validation)
+
+sampleIdP :: HasCallStack => NewIdP
 sampleIdP = NewIdP
   { _nidpMetadata        = [uri|http://idp.net/meta|]
   , _nidpIssuer          = SAML.Issuer [uri|http://idp.net/|]
@@ -323,9 +337,6 @@ samplePublicKey1 = either (error . show) id $ SAML.parseKeyInfo "<KeyInfo xmlns=
 samplePublicKey2 :: X509.SignedCertificate
 samplePublicKey2 = either (error . show) id $ SAML.parseKeyInfo "<ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"><ds:X509Data><ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAWOMMryDMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEUMBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi02MDc2NDgxHDAaBgkqhkiG9w0BCQEWDWluZm9Ab2t0YS5jb20wHhcNMTgwNTIzMDg1MTA1WhcNMjgwNTIzMDg1MjA1WjCBkjELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNVBAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtNjA3NjQ4MRwwGgYJKoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2HkpOuMhVFUCptrVB/Zm36cuFM+YMQjKdtqEoBJDLbtSbb7uFuvm5rMJ+1VSK5GKAM/Bec5WXTE2WMkifK5JaGOLS7q8+pgiWmqKE3KHMUmLAioe/1jzHkCobxis0FIVhyarRY97w0VMbDGzhPiU7pEopYpicJBzRL2UrzR+PebGgllvnaPzlg8ePtr9/xMv0QTJlYEyCctO4vT5Qa5Xlfek3Ox5yMJM1JPXzn7yuJN5R/Nf8jFprsdBSxNMzkcTRFGy8as2GCt/Xh9H+ef4CxSgRK5UXcUCrb5YMnBehEp2YiuWtw8QsGRR8elgnF3Uw9J2xEDkZIhurPy8OYmGNQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQA7kxxg2aVjo7Oml83bUWk4UtaQKYMEY74mygG/JV09g1DVMAPAyjaaMFamDSjortKarMQ3ET5tj2DggQBsWQNzsr3iZkmijab8JLwzA2+I1q63S68OaW5uaR5iMR8zZCTh/fWWYqa1AP64XeGHp+RLGfbp/eToNfkQWu7fH2QtDMOeLe5VmIV9pOFHnySszoR/epMd3sdDLVgmz4qbrMTBWD+5rxWdYS2glmRXl7IIQHrdBTRMll7S6ks5prqKFTwfPvZVrTnzD83a39wl2jBJhOQLjmSfSwP9H0YFNb/NRaDbSDS7BPuAlotZsaPZIN95tu+t9wmFwdxcVG/9q/Vu</ds:X509Certificate></ds:X509Data></ds:KeyInfo>"
 
-
--- TODO: do we want to implement these with servant-client?  if not, are there better idioms for
--- handling the various errors?
 
 -- TODO: move this to /lib/bilge?
 responseJSON :: FromJSON a => ResponseLBS -> Either String a

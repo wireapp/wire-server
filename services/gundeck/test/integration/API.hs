@@ -895,7 +895,7 @@ listPushTokens u g = do
               . zConn "random"
               )
     maybe (error "Failed to decode push tokens")
-          return
+          (return . pushTokens)
           (responseBody rs >>= decode)
 
 listNotifications :: HasCallStack => UserId -> Maybe ClientId -> Gundeck -> Http [QueuedNotification]

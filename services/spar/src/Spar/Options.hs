@@ -14,7 +14,6 @@ module Spar.Options
 
 import Control.Exception
 import Data.Aeson
-import Data.Id
 import Data.Int
 import Data.Monoid
 import Data.Text (Text)
@@ -24,13 +23,15 @@ import GHC.Types (Symbol)
 import Lens.Micro
 import Options.Applicative
 import Util.Options hiding (getOptions)
+import Spar.Types (IdPExtra, SPInfo)
 
 import qualified Data.Yaml as Yaml
 import qualified SAML2.WebSSO.Config as SAML
 
 
 data Opts = Opts
-    { saml           :: !(SAML.Config TeamId)
+    { saml           :: !(SAML.Config IdPExtra)
+    , spInfo         :: !SPInfo
     , brig           :: !Endpoint
     , cassandra      :: !CassandraOpts
     , maxttlAuthreq  :: !(TTL "authreq")

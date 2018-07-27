@@ -1,38 +1,48 @@
 {-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE InstanceSigs               #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE InstanceSigs               #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 
 module Spar.App where
 
 import Bilge
 import Cassandra
-import Control.Exception (SomeException(SomeException), assert)
+import Control.Exception (SomeException, assert)
 import Control.Monad.Except
 import Control.Monad.Reader
+import Data.EitherR (fmapL)
 import Data.Id
+import Data.String.Conversions
+import GHC.Stack
 import Lens.Micro
 import SAML2.WebSSO hiding (UserRef(..))
 import Servant
+import Spar.API.Instances ()
+import Spar.API.Swagger ()
+import Spar.Error
 import Spar.Options as Options
-import Web.Cookie (SetCookie)
+import Spar.Types
+import Text.XML.Util (renderURI)
+import Web.Cookie (SetCookie, renderSetCookie)
+import URI.ByteString as URI
 
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
-import qualified Data.ByteString.Lazy.Char8 as LBS
+import qualified Data.ByteString.Builder as Builder
 import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
-import qualified Spar.Intra.Brig as Brig
+import qualified Spar.Intra.Brig as Intra
 import qualified System.Logger as Log
-import qualified URI.ByteString as URI
 
 
-newtype Spar a = Spar { fromSpar :: ReaderT Env Handler a }
-  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError ServantErr)
+newtype Spar a = Spar { fromSpar :: ReaderT Env (ExceptT SparError IO) a }
+  deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadError SparError)
 
 data Env = Env
   { sparCtxOpts         :: Opts
@@ -43,7 +53,7 @@ data Env = Env
   }
 
 instance HasConfig Spar where
-  type ConfigExtra Spar = TeamId
+  type ConfigExtra Spar = IdPExtra
   getConfig = asks (saml . sparCtxOpts)
 
 instance SP Spar where
@@ -81,15 +91,15 @@ instance SPStore Spar where
   checkAgainstRequest r = wrapMonadClientWithEnv $ Data.checkAgainstRequest r
   storeAssertion i r    = wrapMonadClientWithEnv $ Data.storeAssertion i r
 
-instance SPStoreIdP Spar where
-  storeIdPConfig :: IdPConfig TeamId -> Spar ()
+instance SPStoreIdP SparError Spar where
+  storeIdPConfig :: IdPConfig IdPExtra -> Spar ()
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 
-  getIdPConfig :: IdPId -> Spar (IdPConfig TeamId)
-  getIdPConfig = (>>= maybe (throwError err404) pure) . wrapMonadClient . Data.getIdPConfig
+  getIdPConfig :: IdPId -> Spar (IdPConfig IdPExtra)
+  getIdPConfig = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
 
-  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig TeamId)
-  getIdPConfigByIssuer = (>>= maybe (throwError err404) pure) . wrapMonadClient . Data.getIdPConfigByIssuer
+  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig IdPExtra)
+  getIdPConfigByIssuer = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer
 
 -- | 'wrapMonadClient' with an 'Env' in a 'ReaderT'.
 wrapMonadClientWithEnv :: ReaderT Data.Env Cas.Client a -> Spar a
@@ -104,10 +114,10 @@ wrapMonadClient action = do
   Spar $ do
     ctx <- asks sparCtxCas
     runClient ctx action `Catch.catch`
-      \e@(SomeException _) -> throwError err500 { errBody = LBS.pack $ show e }
+      (throwSpar . SparCassandraError . cs . show @SomeException)
 
 insertUser :: SAML.UserRef -> UserId -> Spar ()
-insertUser suid buid = wrapMonadClient $ Data.insertUser suid buid
+insertUser uref uid = wrapMonadClient $ Data.insertUser uref uid
 
 -- | Look up user locally, then in brig, then return the 'UserId'.  If either lookup fails, return
 -- 'Nothing'.  See also: 'Spar.App.createUser'.
@@ -115,11 +125,11 @@ insertUser suid buid = wrapMonadClient $ Data.insertUser suid buid
 -- ASSUMPTIONS: User creation on brig/galley is idempotent.  Any incomplete creation (because of
 -- brig or galley crashing) will cause the lookup here to yield invalid user.
 getUser :: SAML.UserRef -> Spar (Maybe UserId)
-getUser suid = do
-  mbuid <- wrapMonadClient $ Data.getUser suid
-  case mbuid of
+getUser uref = do
+  muid <- wrapMonadClient $ Data.getUser uref
+  case muid of
     Nothing -> pure Nothing
-    Just buid -> Brig.confirmUserId buid
+    Just uid -> Intra.confirmUserId uid
 
 -- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
 -- create user on brig with that 'UserId'.  See also: 'Spar.App.getUser'.
@@ -140,23 +150,134 @@ getUser suid = do
 createUser :: SAML.UserRef -> Spar UserId
 createUser suid = do
   buid <- Id <$> liftIO UUID.nextRandom
-  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
+  teamid <- (^. idpExtraInfo . idpeTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
-  buid' <- Brig.createUser suid buid teamid
+  buid' <- Intra.createUser suid buid teamid
   assert (buid == buid') $ pure buid
 
-forwardBrigLogin :: UserId -> Spar (SetCookie, URI.URI)
-forwardBrigLogin = Brig.forwardBrigLogin
 
-
-instance SPHandler Spar where
+instance SPHandler SparError Spar where
   type NTCTX Spar = Env
-  nt ctx (Spar action) = runReaderT action ctx
+  nt ctx (Spar action) = Handler . ExceptT . fmap (fmapL sparToServantErr) . runExceptT $ runReaderT action ctx
 
 instance MonadHttp Spar where
   getManager = asks sparCtxHttpManager
 
-instance Brig.MonadSparToBrig Spar where
+instance Intra.MonadSparToBrig Spar where
   call modreq = do
     req <- asks sparCtxHttpBrig
     httpLbs req modreq
+
+
+-- | The from of the response on the finalize-login request depends on the verdict (denied or
+-- granted), plus the choice that the client has made during the initiate-login request.  Here we
+-- call either 'verdictHandlerWeb' or 'verdictHandlerMobile', resp., on the 'SAML.AccessVerdict'.
+--
+-- NB: there are at least two places in the 'SAML.AuthnResponse' that can contain the request id:
+-- the response header and every assertion.  Since saml2-web-sso validation guarantees that the
+-- signed in-response-to info in the assertions matches the unsigned in-response-to field in the
+-- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
+-- latter.
+verdictHandler :: HasCallStack => SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandler aresp verdict = do
+  reqid <- maybe (throwSpar SparNoRequestRefInResponse) pure $ aresp ^. SAML.rspInRespTo
+                  -- (this shouldn't happen since the response is validated)
+  format :: Maybe VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
+  case format of
+    Just (VerdictFormatWeb) -> verdictHandlerWeb verdict
+    Just (VerdictFormatMobile granted denied) -> verdictHandlerMobile granted denied verdict
+    Nothing -> throwError $ SAML.BadSamlResponse "AuthRequest seems to have disappeared (could not find verdict format)."
+               -- (this shouldn't happen too often, see 'storeVerdictFormat')
+
+data VerdictHandlerResult = VerifyHandlerDenied | VerifyHandlerGranted SetCookie UserId
+
+verdictHandlerResult :: HasCallStack => SAML.AccessVerdict -> Spar VerdictHandlerResult
+verdictHandlerResult = \case
+  SAML.AccessDenied reasons -> do
+    SAML.logger SAML.Debug (show reasons)
+    pure VerifyHandlerDenied
+  SAML.AccessGranted userref -> do
+    uid :: UserId    <- maybe (createUser userref) pure =<< getUser userref
+    cky :: SetCookie <- Intra.ssoLogin uid  -- TODO: can this be a race condition?  (user is not
+                                            -- quite created yet when we ask for a cookie?  do we do
+                                            -- quorum reads / writes here?  writes: probably yes,
+                                            -- reads: probably no.)
+    pure $ VerifyHandlerGranted cky uid
+
+-- | If the client is web, it will be served with an HTML page that it can process to decide whether
+-- to log the user in or show an error.
+--
+-- The HTML page is empty and has two ways to communicate the verdict to the js app:
+-- - A title element with contents @wire:sso:<outcome>@.  This is chosen to be easily parseable and
+--   not be the title of any page sent by the IdP while it negotiates with the user.
+-- - The page broadcasts a message to '*', to be picked up by the app.
+verdictHandlerWeb :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandlerWeb verdict = do
+  outcome <- verdictHandlerResult verdict
+  pure $ case outcome of
+    VerifyHandlerDenied -> forbiddenPage
+    VerifyHandlerGranted cky _uid -> successPage cky
+  where
+    forbiddenPage :: SAML.ResponseVerdict
+    forbiddenPage = ServantErr
+      { errHTTPCode     = 200
+      , errReasonPhrase = "forbidden"  -- (not sure what this is used for)
+      , errBody         = easyHtml $
+                          "<head>" <>
+                          "  <title>wire:sso:error:forbidden</title>" <>
+                          "   <script type=\"text/javascript\">" <>
+                          "       const receiverOrigin = '*';" <>
+                          "       window.opener.postMessage({type: 'AUTH_ERROR', payload: {label: 'forbidden'}}, receiverOrigin);" <>
+                          "   </script>" <>
+                          "</head>"
+      , errHeaders      = []
+      }
+
+    successPage :: SetCookie -> SAML.ResponseVerdict
+    successPage cky = ServantErr
+      { errHTTPCode     = 200
+      , errReasonPhrase = "success"
+      , errBody         = easyHtml $
+                          "<head>" <>
+                          "  <title>wire:sso:success</title>" <>
+                          "   <script type=\"text/javascript\">" <>
+                          "       const receiverOrigin = '*';" <>
+                          "       window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin);" <>
+                          "   </script>" <>
+                          "</head>"
+      , errHeaders      = [("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)]
+      }
+
+easyHtml :: LBS -> LBS
+easyHtml doc =
+  "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" <>
+  "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">" <>
+  "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">" <> doc <> "</html>"
+
+-- | If the client is mobile, it has picked error and success redirect urls (see
+-- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'); variables in these URLs are here
+-- substituted and the client is redirected accordingly.
+verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandlerMobile granted denied verdict = do
+  outcome <- verdictHandlerResult verdict
+  case outcome of
+    VerifyHandlerDenied
+      -> mkVerdictDeniedFormatMobile denied "forbidden" &
+         either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage)
+    VerifyHandlerGranted cky uid
+      -> mkVerdictGrantedFormatMobile granted cky uid &
+         either (throwSpar . SparCouldNotSubstituteSuccessURI . cs) (pure . successPage cky)
+  where
+    forbiddenPage :: URI.URI -> SAML.ResponseVerdict
+    forbiddenPage uri = err303
+      { errReasonPhrase = "forbidden"
+      , errHeaders = [ ("Location", cs $ renderURI uri) ]
+      }
+
+    successPage :: SetCookie -> URI.URI -> SAML.ResponseVerdict
+    successPage cky uri = err303
+      { errReasonPhrase = "success"
+      , errHeaders = [ ("Location", cs $ renderURI uri)
+                     , ("Set-Cookie", cs . Builder.toLazyByteString . renderSetCookie $ cky)
+                     ]
+      }

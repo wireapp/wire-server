@@ -12,6 +12,7 @@ import Data.X509 (SignedCertificate)
 import Text.XML.DSig (renderKeyInfo, parseKeyInfo)
 import URI.ByteString
 import Text.XML.Util (parseURI')
+import Spar.Types
 
 import qualified SAML2.WebSSO as SAML
 import qualified Text.XML.Util as SAML
@@ -39,3 +40,28 @@ instance Cql SAML.NameID where
 
 deriving instance Cql SAML.Issuer
 deriving instance Cql SAML.IdPId
+deriving instance Cql (SAML.ID SAML.AuthnRequest)
+
+type VerdictFormatRow = (VerdictFormatCon, Maybe URI, Maybe URI)
+data VerdictFormatCon = VerdictFormatConWeb | VerdictFormatConMobile
+
+instance Cql VerdictFormatCon where
+    ctype = Tagged IntColumn
+
+    toCql VerdictFormatConWeb    = CqlInt 0
+    toCql VerdictFormatConMobile = CqlInt 1
+
+    fromCql (CqlInt i) = case i of
+        0 -> return VerdictFormatConWeb
+        1 -> return VerdictFormatConMobile
+        n -> fail $ "unexpected VerdictFormatCon: " ++ show n
+    fromCql _ = fail "member-status: int expected"
+
+fromVerdictFormat :: VerdictFormat -> VerdictFormatRow
+fromVerdictFormat VerdictFormatWeb                         = (VerdictFormatConWeb, Nothing, Nothing)
+fromVerdictFormat (VerdictFormatMobile succredir errredir) = (VerdictFormatConMobile, Just succredir, Just errredir)
+
+toVerdictFormat :: VerdictFormatRow -> Maybe VerdictFormat
+toVerdictFormat (VerdictFormatConWeb, Nothing, Nothing)                 = Just VerdictFormatWeb
+toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir) = Just $ VerdictFormatMobile succredir errredir
+toVerdictFormat _                                                       = Nothing

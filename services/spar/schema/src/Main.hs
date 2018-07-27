@@ -8,6 +8,7 @@ import System.Logger hiding (info)
 import Util.Options
 
 import qualified V0
+import qualified V1
 
 main :: IO ()
 main = do
@@ -17,4 +18,5 @@ main = do
     l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
     migrateSchema l o
         [ V0.migration
+        , V1.migration
         ] `finally` close l

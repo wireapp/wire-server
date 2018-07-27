@@ -662,7 +662,7 @@ deleteUser uid pwd = do
     ensureNotOnlyOwner acc = case userTeam . accountUser =<< acc of
         Nothing -> pure ()
         Just tid -> do
-            ownerSituation <- lift $ Team.isOnlyTeamOwner uid tid
+            ownerSituation <- lift $ Team.teamOwnershipStatus uid tid
             case ownerSituation of
                Team.IsOnlyTeamOwner       -> throwE DeleteUserOnlyOwner
                Team.IsOneOfManyTeamOwners -> pure ()

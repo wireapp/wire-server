@@ -88,12 +88,12 @@ runServer :: Opts -> IO ()
 runServer o = do
     e <- newEnv o
     s <- Server.newSettings (server e)
-    f <- Async.async $ AWS.execute (e^.awsEnv)
-                     $ AWS.listen (e^.awsEnv.sesQueue) (runAppT e . SesNotification.onEvent)
-    g <- Async.async $ AWS.execute (e^.awsEnv)
-                     $ AWS.listen (e^.awsEnv.internalQueue) (runAppT e . InternalNotification.onEvent)
+    f <- case (e^.awsEnv.sesQueue) of
+            Just q -> Just <$> listen (e^.awsEnv) e q SesNotification.onEvent
+            _      -> return Nothing
+    g <- listen (e^.awsEnv) e (e^.awsEnv.internalQueue) InternalNotification.onEvent
     runSettingsWithShutdown s (pipeline e) 5 `finally` do
-        Async.cancel f
+        for_ f Async.cancel
         Async.cancel g
         closeEnv e
   where
@@ -106,6 +106,8 @@ runServer o = do
                $ serve e
 
     serve e r k = runHandler e r (Server.route rtree r k) k
+
+    listen aws env queue f = Async.async $ AWS.execute aws $ AWS.listen queue (runAppT env . f)
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -192,7 +194,13 @@ sitemap o = do
     post "/i/users/blacklist" (continue addBlacklist) $
         param "email" ||| param "phone"
 
+    -- is :uid not team owner, or there are other team owners?
     get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeleted) $
+      capture "uid"
+      .&. capture "tid"
+
+    -- is :uid team owner (the only one or one of several)?
+    get "/i/users/:uid/is-team-owner/:tid" (continue isTeamOwner) $
       capture "uid"
       .&. capture "tid"
 
@@ -1377,14 +1385,24 @@ addBlacklist emailOrPhone = do
 
 canBeDeleted :: UserId ::: TeamId -> Handler Response
 canBeDeleted (uid ::: tid) = do
-    onlyOwner <- lift (Team.isOnlyTeamOwner uid tid)
+    onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
     case onlyOwner of
        Team.IsOnlyTeamOwner       -> throwStd noOtherOwner
        Team.IsOneOfManyTeamOwners -> pure ()
        Team.IsNotTeamOwner        -> pure ()
-       Team.NoTeamOwnersAreLeft   -> do
+       Team.NoTeamOwnersAreLeft   -> do  -- (keeping the user won't help in this case)
            Log.warn $ Log.field "user" (toByteString uid)
                     . Log.msg (Log.val "Team.NoTeamOwnersAreLeft")
+    return empty
+
+isTeamOwner :: UserId ::: TeamId -> Handler Response
+isTeamOwner (uid ::: tid) = do
+    onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
+    case onlyOwner of
+       Team.IsOnlyTeamOwner       -> pure ()
+       Team.IsOneOfManyTeamOwners -> pure ()
+       Team.IsNotTeamOwner        -> throwStd insufficientTeamPermissions
+       Team.NoTeamOwnersAreLeft   -> throwStd insufficientTeamPermissions
     return empty
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response

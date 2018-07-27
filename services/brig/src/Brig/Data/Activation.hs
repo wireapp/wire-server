@@ -95,12 +95,12 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
 
     handleExistingIdentity uid profileNeedsUpdate oldKey key
         | oldKey == Just key && (not profileNeedsUpdate) = return Nothing
-        -- ^ activating existing key and exactly same profile
-        --   (can happen when a user clicks on activation links more than once)
+        -- activating existing key and exactly same profile
+        -- (can happen when a user clicks on activation links more than once)
         | oldKey == Just key && profileNeedsUpdate       = do
             lift $ foldKey (updateEmail uid) (updatePhone uid) key
             return . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
-        -- ^ if the key is the same, we only want to update our profile
+        -- if the key is the same, we only want to update our profile
         | otherwise                    = do
             mkPasswordResetKey uid >>= lift . deletePasswordResetCode
             claim key uid

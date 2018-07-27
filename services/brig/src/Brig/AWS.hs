@@ -79,7 +79,7 @@ import qualified System.Logger           as Logger
 
 data Env = Env
     { _logger           :: !Logger
-    , _sesQueue         :: !Text
+    , _sesQueue         :: !(Maybe Text)
     , _internalQueue    :: !Text
     , _userJournalQueue :: !(Maybe Text)
     , _blacklistTable   :: !Text
@@ -113,14 +113,15 @@ instance MonadLogger Amazon where
 instance AWS.MonadAWS Amazon where
     liftAWS a = view amazonkaEnv >>= flip AWS.runAWS a
 
-mkEnv :: Logger -> Opt.AWSOpts -> Manager -> IO Env
-mkEnv lgr opts mgr = do
+mkEnv :: Logger -> Opt.AWSOpts -> Maybe Opt.EmailAWSOpts -> Manager -> IO Env
+mkEnv lgr opts emailOpts mgr = do
     let g = Logger.clone (Just "aws.brig") lgr
     let (bl, pk) = (Opt.blacklistTable opts, Opt.prekeyTable opts)
-    e  <- mkAwsEnv g (mkEndpoint SES.ses      (Opt.sesEndpoint opts))
+    let sesEndpoint = mkEndpoint SES.ses . Opt.sesEndpoint <$> emailOpts
+    e  <- mkAwsEnv g sesEndpoint
                      (mkEndpoint SQS.sqs      (Opt.sqsEndpoint opts))
                      (mkEndpoint DDB.dynamoDB (Opt.dynamoDBEndpoint opts))
-    sq <- getQueueUrl e (Opt.sesQueue opts)
+    sq <- maybe (return Nothing) (fmap Just . getQueueUrl e . Opt.sesQueue) emailOpts
     iq <- getQueueUrl e (Opt.internalQueue opts)
     jq <- maybe (return Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
     return (Env g sq iq jq bl pk e)
@@ -129,7 +130,7 @@ mkEnv lgr opts mgr = do
 
     mkAwsEnv g ses sqs dyn =  set AWS.envLogger (awsLogger g)
                           <$> AWS.newEnvWith AWS.Discover Nothing mgr
-                          <&> AWS.configure ses
+                          <&> maybe id AWS.configure ses
                           <&> AWS.configure sqs
                           <&> AWS.configure dyn
 

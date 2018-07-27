@@ -1,16 +1,16 @@
 saml:
-  version:     SAML2.0
-  log_level:   Debug
+  version:   SAML2.0
+  logLevel:  Debug
 
-  sp_host:     0.0.0.0
-  sp_port:     8088
-  sp_app_uri:  http://localhost:8080/ # <--- change this to point to a reachable web app
-  sp_sso_uri:  http://localhost:8080/
+  spHost:    0.0.0.0
+  spPort:    8088
+  spAppUri:  http://localhost:8080/ # <--- change this to point to a reachable web app
+  spSsoUri:  http://localhost:8080/
 
   contacts:
     - type: ContactBilling
       company: Example Company
-      given_name: Example
+      givenName: Example
       surname: Company
       email: email:company@example.com
 
@@ -28,3 +28,8 @@ maxttlAuthreq: 28800 # 8h
 maxttlAuthresp: 28800 # 8h
 
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)
+
+spInfo:
+  metaURI:  http://localhost:8088/sso/metadata
+  loginURI: http://localhost:8088/sso/initiate-login/
+

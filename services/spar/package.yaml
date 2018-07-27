@@ -21,6 +21,7 @@ dependencies:
   - brig-types
   - bytestring
   - bytestring-conversion
+  - case-insensitive
   - cassandra-util
   - containers
   - cookie
@@ -29,6 +30,7 @@ dependencies:
   - ghc-prim
   - http-client
   - http-types
+  - interpolate
   - metrics-core
   - microlens
   - microlens-th
@@ -53,6 +55,7 @@ dependencies:
   - wai-utilities
   - warp
   - x509
+  - xml-conduit
   - yaml
 
 library:
@@ -93,11 +96,14 @@ executables:
       - test-integration
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
+      - async
       - base64-bytestring
       - galley-types
       - hspec
       - hspec-discover
       - lens-aeson
       - random
+      - servant-client
       - spar
+      - wai
       - xml-conduit

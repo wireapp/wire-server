@@ -25,14 +25,15 @@ gundeck:
   port: 8086
 
 aws:
-  sesQueue: integration-brig-events
-  internalQueue: integration-brig-events-internal
   blacklistTable: integration-brig-userkey-blacklist
   prekeyTable: integration-brig-prekeys
-  sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
+  internalQueue: integration-brig-events-internal
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
 emailSMS:
+  email:
+    sesQueue: integration-brig-events
+    sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
   general:
     templateDir: resources/templates
     emailSender: backend-integration@wire.com

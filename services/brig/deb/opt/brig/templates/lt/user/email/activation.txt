@@ -1,0 +1,18 @@
+PATVIRTINKITE SAVO EL. PAŠTĄ
+${email} buvo panaudotas, registruojantis Wire.
+Norėdami patvirtinti savo adresą, spustelėkite mygtuką.
+
+Patvirtinti [${url}]Jeigu negalite spustelėti ant mygtuko, nukopijuokite ir
+įdėkite šią nuorodą į savo naršyklę:
+
+${url}
+
+Jeigu turite kokių nors klausimų, susisiekite su mumis
+[https://support.wire.com/hc/en-us/requests/new].
+
+
+--------------------------------------------------------------------------------
+
+Privatumas [https://wire.com/legal/] · Pranešti apie piktnaudžiavimą
+[misuse@wire.com]
+© WIRE SWISS GmbH. VISOS TEISĖS SAUGOMOS.
