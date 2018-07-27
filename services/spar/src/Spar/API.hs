@@ -23,6 +23,7 @@ module Spar.API
   ( app, api
   , API
   , APIMeta
+  , APIAuthReqPrecheck
   , APIAuthReq
   , APIAuthResp
   , IdpGet
@@ -77,6 +78,7 @@ app ctx = SAML.setHttpCachePolicy
 type API = "i" :> "status" :> Get '[JSON] NoContent
       :<|> "sso" :> "api-docs" :> Get '[JSON] Swagger
       :<|> APIMeta
+      :<|> APIAuthReqPrecheck
       :<|> APIAuthReq
       :<|> APIAuthResp
       :<|> IdpGet
@@ -86,7 +88,15 @@ type API = "i" :> "status" :> Get '[JSON] NoContent
       :<|> "i" :> "integration-tests" :> IntegrationTests
       -- NB. If you add endpoints here, also update Test.Spar.APISpec
 
+type CheckOK = Verb 'HEAD 200
+
 type APIMeta     = "sso" :> "metadata" :> SAML.APIMeta
+type APIAuthReqPrecheck
+                 = "sso" :> "initiate-login"
+                :> QueryParam "success_redirect" URI.URI
+                :> QueryParam "error_redirect" URI.URI
+                :> Capture "idp" SAML.IdPId
+                :> CheckOK '[PlainText] NoContent
 type APIAuthReq  = "sso" :> "initiate-login"
                 :> QueryParam "success_redirect" URI.URI
                 :> QueryParam "error_redirect" URI.URI
@@ -107,6 +117,7 @@ api opts =
        pure NoContent
   :<|> pure (toSwagger (Proxy @OutsideWorldAPI))
   :<|> SAML.meta appName (Proxy @API) (Proxy @APIAuthResp)
+  :<|> authreqPrecheck
   :<|> authreq (maxttlAuthreqDiffTime opts)
   :<|> SAML.authresp (SAML.HandleVerdictRaw verdictHandler)
   :<|> idpGet
@@ -118,21 +129,28 @@ api opts =
 appName :: ST
 appName = "spar"
 
+authreqPrecheck :: Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar NoContent
+authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
+                                *> SAML.getIdPConfig idpid
+                                *> return NoContent
 
 authreq :: NominalDiffTime -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar (SAML.FormRedirect SAML.AuthnRequest)
 authreq authreqttl msucc merr idpid = do
-  vformat <- case (msucc, merr) of
-    (Nothing, Nothing) -> pure VerdictFormatWeb
-    (Just ok, Just err) -> do
-      validateRedirectURL `mapM_` [ok, err]
-      pure $ VerdictFormatMobile ok err
-    _ -> throwSpar $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
+  vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
   pure form
 
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
+
+validateAuthreqParams :: Maybe URI.URI -> Maybe URI.URI -> Spar VerdictFormat
+validateAuthreqParams msucc merr = case (msucc, merr) of
+  (Nothing, Nothing) -> pure VerdictFormatWeb
+  (Just ok, Just err) -> do
+    validateRedirectURL `mapM_` [ok, err]
+    pure $ VerdictFormatMobile ok err
+  _ -> throwSpar $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
 
 validateRedirectURL :: URI.URI -> Spar ()
 validateRedirectURL uri = do
