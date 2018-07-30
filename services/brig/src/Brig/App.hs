@@ -41,6 +41,7 @@ module Brig.App
     , applog
     , turnEnv
     , turnEnvV2
+    , internalEvents
 
       -- * App Monad
     , AppT
@@ -55,6 +56,7 @@ module Brig.App
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import Brig.Options (Opts, Settings)
+import Brig.Queue.Types (Queue)
 import Brig.Template (Localised, forLocale)
 import Brig.Provider.Template
 import Brig.Team.Template
@@ -101,7 +103,7 @@ import Util.Options
 
 import qualified Bilge                    as RPC
 import qualified Brig.AWS                 as AWS
-import qualified Brig.Stomp               as Stomp
+import qualified Brig.Queue.Stomp         as Stomp
 import qualified Brig.Options             as Opt
 import qualified Brig.SMTP                as SMTP
 import qualified Brig.TURN                as TURN
@@ -137,9 +139,10 @@ data Env = Env
     , _casClient     :: Cas.ClientState
     , _smtpEnv       :: Maybe SMTP.SMTP
     , _awsEnv        :: AWS.Env
-    , _stompEnv      :: Stomp.Env
+    , _stompEnv      :: Maybe Stomp.Env
     , _metrics       :: Metrics
     , _applog        :: Logger
+    , _internalEvents :: Queue
     , _requestId     :: RequestId
     , _usrTemplates  :: Localised UserTemplates
     , _provTemplates :: Localised ProviderTemplates
@@ -186,7 +189,11 @@ newEnv o = do
     let sett = Opt.optSettings o
     nxm <- initCredentials (Opt.setNexmo sett)
     twl <- initCredentials (Opt.setTwilio sett)
-    stomp <- Stomp.mkEnv (Opt.stomp o) <$> initCredentials (Opt.setStomp sett)
+    stomp <- case (Opt.stomp o, Opt.setStomp sett) of
+        (Nothing, Nothing) -> pure Nothing
+        (Just s, Just c)   -> Just . Stomp.mkEnv s <$> initCredentials c
+        (Just _, Nothing)  -> error "STOMP is configured but 'setStomp' is not set"
+        (Nothing, Just _)  -> error "'setStomp' is present but STOMP is not configured"
     return $! Env
         { _cargohold     = mkEndpoint $ Opt.cargohold o
         , _galley        = mkEndpoint $ Opt.galley o
@@ -197,6 +204,7 @@ newEnv o = do
         , _stompEnv      = stomp
         , _metrics       = mtr
         , _applog        = lgr
+        , _internalEvents = Opt.internalEventsQueue (Opt.internalEvents o)
         , _requestId     = mempty
         , _usrTemplates  = utp
         , _provTemplates = ptp

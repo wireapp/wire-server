@@ -26,7 +26,6 @@ gundeck:
 
 # You can set up local SQS/Dynamo running e.g. `../../deploy/docker-ephemeral/run.sh`
 aws:
-  internalQueue: integration-brig-events-internal
   userJournalQueue: integration-user-events.fifo
   # ^ Comment this out if you don't want to journal user events
   blacklistTable: integration-brig-userkey-blacklist
@@ -37,6 +36,18 @@ aws:
   prekeyTable: integration-brig-prekeys
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
+
+stomp:
+  stompHost: localhost
+  stompPort: 61613
+  stompTls: false
+
+# TODO: possibly move 'userJournalQueue' to the top level as well
+internalEvents:
+  queueType: sqs
+  queueName: integration-brig-events-internal
+  # queueType: stomp
+  # queueName: /queue/integration-brig-events-internal
 
 emailSMS:
   # You can either use SES directly (in which case, ensure a feedback queue is configured)
@@ -78,12 +89,6 @@ emailSMS:
     tActivationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
     tCreatorWelcomeUrl: http://127.0.0.1:8080/creator-welcome-website
     tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
-
-stomp:
-  host: 127.0.0.1
-  port: 61613
-  tls: false
-  internalQueue: /queue/internal-events
 
 zauth:
   privateKeys: test/resources/zauth/privkeys.txt

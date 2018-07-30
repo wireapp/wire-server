@@ -7,11 +7,10 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 
 -- | Working with STOMP queues (targetting ActiveMQ specifically).
-module Brig.Stomp
+module Brig.Queue.Stomp
     ( Env(..)
     , mkEnv
     , Broker(..)
-    , Queue(..)
     , Credentials(..)
     , enqueue
     , listen
@@ -19,7 +18,6 @@ module Brig.Stomp
 
 import BasePrelude hiding (Handler, throwIO)
 
-import Control.Lens
 import Control.Monad.Catch (MonadMask, Handler(..))
 import Control.Retry hiding (retryPolicy)
 import Data.Aeson                                     as Aeson
@@ -35,21 +33,15 @@ import qualified Codec.MIME.Type                      as MIME
 import qualified Data.ByteString.Lazy                 as BL
 
 data Env = Env
-    { broker        :: Broker      -- ^ STOMP broker that we're using
-    , internalQueue :: Queue       -- ^ Internal event queue used by brig
+    { broker :: Broker            -- ^ STOMP broker that we're using
     }
 
 data Broker = Broker
-    { _host :: Text                -- ^ Broker URL
-    , _port :: Int                 -- ^ Port
-    , _auth :: Maybe Credentials   -- ^ Username and password
-    , _tls  :: Bool                -- ^ Whether to use TLS
+    { host :: Text                -- ^ Broker URL
+    , port :: Int                 -- ^ Port
+    , auth :: Maybe Credentials   -- ^ Username and password
+    , tls  :: Bool                -- ^ Whether to use TLS
     } deriving (Show)
-
-data Queue = Queue
-    { _queueName :: Text           -- ^ Queue identifier, used only for debugging
-    , _queuePath :: Text           -- ^ Queue path on the broker side
-    } deriving (Eq, Show)
 
 data Credentials = Credentials
     { user :: Text
@@ -58,9 +50,6 @@ data Credentials = Credentials
 
 instance FromJSON Credentials
 
-makeLenses ''Broker
-makeLenses ''Queue
-
 -- | Construct an 'Env' with some default settings.
 mkEnv
     :: Opts.StompOpts    -- ^ Options that can be customized
@@ -68,20 +57,17 @@ mkEnv
     -> Env
 mkEnv o cred =
     Env { broker = Broker
-              { _host = Opts.host o
-              , _port = Opts.port o
-              , _auth = Just cred
-              , _tls  = Opts.tls o }
-        , internalQueue = Queue
-              { _queueName = "InternalEventQueue"
-              , _queuePath = Opts.internalQueue o }
+              { host = Opts.stompHost o
+              , port = Opts.stompPort o
+              , auth = Just cred
+              , tls  = Opts.stompTls o }
         }
 
 -- | Send a message to a STOMP queue.
 --
 -- In case of failure will try five more times. The timeout for each attempt
 -- is 500ms.
-enqueue :: (ToJSON a, MonadIO m) => Broker -> Queue -> a -> m ()
+enqueue :: (ToJSON a, MonadIO m) => Broker -> Text -> a -> m ()
 enqueue b q m =
     retrying retryPolicy retryPredicate (const enqueueAction) >>= either throwIO pure
   where
@@ -91,7 +77,7 @@ enqueue b q m =
         liftIO $ try @StomplException $
         stompTimeout "enqueue" 500000 $
         withConnection' b $ \conn ->
-        withWriter conn (unpack (q^.queueName)) (unpack (q^.queuePath))
+        withWriter conn (unpack q) (unpack q)
                    [OWithReceipt, OWaitReceipt] [] oconv $ \w ->
             writeQ w jsonType [("persistent", "true")] m
     -- Note [receipts]
@@ -118,7 +104,7 @@ enqueue b q m =
 -- message will go into the Dead Letter Queue where it can be analyzed
 -- manually.
 listen :: (FromJSON a, MonadLogger m, MonadMask m, MonadUnliftIO m)
-       => Broker -> Queue -> (a -> m ()) -> m ()
+       => Broker -> Text -> (a -> m ()) -> m ()
 listen b q callback =
     recovering retryPolicy handlers (const listenAction)
   where
@@ -126,8 +112,8 @@ listen b q callback =
     listenAction =
         withRunInIO $ \runInIO ->
         withConnection' b $ \conn ->
-        withReader conn (unpack (q^.queueName)) (unpack (q^.queuePath))
-                   [OMode ClientIndi] [] (iconv (q^.queueName)) $ \r ->
+        withReader conn (unpack q) (unpack q)
+                   [OMode ClientIndi] [] (iconv q) $ \r ->
             forever $ do
                 -- NB: 'readQ' can't timeout because it's just reading from
                 -- a chan (no network queries are being made)
@@ -136,7 +122,7 @@ listen b q callback =
                 stompTimeout "listen/ack" 1000000 $ ack conn m
     handlers = skipAsyncExceptions ++ [logError]
     logError = const $ Handler $ \(e :: SomeException) -> do
-        Log.err $ msg (val "Brig.Stomp.listen: exception when listening to a STOMP queue")
+        Log.err $ msg (val "Exception when listening to a STOMP queue")
                ~~ field "queue" (show q)
                ~~ field "error" (show e)
         return True
@@ -167,11 +153,11 @@ jsonType = MIME.Type (MIME.Application "json") []
 -- | Set up a STOMP connection.
 withConnection' :: Broker -> (Con -> IO a) -> IO a
 withConnection' b =
-    withConnection (unpack (b^.host)) (b^.port) config []
+    withConnection (unpack (host b)) (port b) config []
   where
     config =
-        [ OAuth (unpack (user cred)) (unpack (pass cred)) | Just cred <- [b^.auth] ] ++
-        [ OTLS (tlsClientConfig (b^.port) (encodeUtf8 (b^.host))) | b^.tls ] ++
+        [ OAuth (unpack (user cred)) (unpack (pass cred)) | Just cred <- [auth b] ] ++
+        [ OTLS (tlsClientConfig (port b) (encodeUtf8 (host b))) | tls b ] ++
         [ OTmo 1000 ]
 
 -- | Like 'timeout', but throws an 'AppException' instead of returning a

@@ -3,13 +3,10 @@
 
 module Brig.InternalEvent.Process
     ( onEvent
-    , Brig.InternalEvent.Process.listen
     ) where
 
 import Brig.App
 import Brig.InternalEvent.Types
-import Brig.Stomp as Stomp
-import Control.Lens
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import System.Logger.Class (field, msg, (~~), val)
@@ -31,10 +28,6 @@ onEvent n = handleTimeout $ case n of
     handleTimeout act = timeout 60000000 act >>= \case
         Just x  -> pure x
         Nothing -> throwM (InternalEventTimeout n)
-
-listen :: AppIO ()
-listen = view stompEnv >>= \e ->
-    Stomp.listen (broker e) (internalQueue e) onEvent
 
 data InternalEventException
     -- | 'onEvent' has timed out

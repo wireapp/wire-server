@@ -22,7 +22,6 @@ library
         Brig.Data.PasswordReset
         Brig.Options
         Brig.Provider.DB
-        Brig.Stomp
         Brig.User.Auth.Cookie.Limit
         Brig.User.Search.Index
         Brig.ZAuth
@@ -36,7 +35,6 @@ library
       , Brig.API.Types
       , Brig.API.User
       , Brig.InternalEvent.Types
-      , Brig.InternalEvent.Publish
       , Brig.InternalEvent.Process
       , Brig.AWS.SesNotification
       , Brig.Blacklist
@@ -63,6 +61,9 @@ library
       , Brig.Provider.Email
       , Brig.Provider.RPC
       , Brig.Provider.Template
+      , Brig.Queue
+      , Brig.Queue.Stomp
+      , Brig.Queue.Types
       , Brig.RPC
       , Brig.SMTP
       , Brig.Team.API
