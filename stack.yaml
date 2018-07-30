@@ -96,7 +96,7 @@ extra-deps:
 - HsOpenSSL-0.11.4.12
 - invertible-hxt-0.1  # for hsaml2 / spar
 - swagger2-2.2.1  # to get 'fromAesonOptions'
-- stomp-queue-0.3.1  # for Brig.Stomp
+- stomp-queue-0.3.1  # for Brig.Queue.Stomp
 - stompl-0.5.0
 
 flags:

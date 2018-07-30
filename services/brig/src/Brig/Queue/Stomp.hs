@@ -6,7 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
--- | Working with STOMP queues (targetting ActiveMQ specifically).
+-- | Working with STOMP queues (targeting ActiveMQ specifically).
 module Brig.Queue.Stomp
     ( Env(..)
     , mkEnv
