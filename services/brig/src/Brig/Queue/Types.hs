@@ -16,6 +16,6 @@ data Queue = StompQueue Text | SqsQueue Text
 instance FromJSON Queue where
     parseJSON = withObject "Queue" $ \o ->
         o .: "queueType" >>= \case
-            "stomp" -> StompQueue <$> parseJSON (Object o)
-            "sqs"   -> SqsQueue <$> parseJSON (Object o)
+            "stomp" -> StompQueue <$> o .: "queueName"
+            "sqs"   -> SqsQueue <$> o .: "queueName"
             other   -> fail ("unknown 'queueType': " <> other)

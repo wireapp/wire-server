@@ -37,10 +37,12 @@ aws:
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
 
-stomp:
-  stompHost: localhost
-  stompPort: 61613
-  stompTls: false
+# Uncomment this if you want STOMP.
+#
+# stomp:
+#   stompHost: localhost
+#   stompPort: 61613
+#   stompTls: false
 
 # TODO: possibly move 'userJournalQueue' to the top level as well
 internalEvents:
@@ -114,7 +116,7 @@ optSettings:
   setTeamInvitationTimeout: 5
   setTwilio: test/resources/twilio-credentials.yaml
   setNexmo: test/resources/nexmo-credentials.yaml
-  setStomp: test/resources/stomp-credentials.yaml
+  # setStomp: test/resources/stomp-credentials.yaml
   setUserMaxConnections: 16
   setCookieDomain: 127.0.0.1
   setCookieInsecure: true
