@@ -53,7 +53,7 @@ newtype TeamSizeLimit = TeamSizeLimit Word16
 
 tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
 tests conf m b c g aws = do
-    tl <- optOrEnv (TeamSizeLimit . Opt.setMaxConvAndTeamSize . Opt.optSettings) conf (TeamSizeLimit . read) "CONV_AND_TEAM_MAX_SIZE"
+    tl <- optOrEnv (TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings) conf (TeamSizeLimit . read) "TEAM_MAX_SIZE"
     it <- optOrEnv (Opt.setTeamInvitationTimeout . Opt.optSettings)              conf read                   "TEAM_INVITATION_TIMEOUT"
     return $ testGroup "team"
         [ testGroup "invitation"

@@ -7,13 +7,13 @@ module Galley.Validation
    ( rangeChecked
    , rangeCheckedMaybe
 
-   , fromConvTeamSize
+   , fromConvSize
    , fromMemberSize
 
-   , ConvAndTeamSizeChecked
+   , ConvSizeChecked
    , ConvMemberAddSizeChecked
 
-   , checkedConvAndTeamSize
+   , checkedConvSize
    , checkedMemberAddSize
    ) where
 
@@ -35,18 +35,18 @@ rangeCheckedMaybe Nothing  = return Nothing
 rangeCheckedMaybe (Just a) = Just <$> rangeChecked a
 {-# INLINE rangeCheckedMaybe #-}
 
--- Between 0 and (setMaxConvAndTeamSize - 1)
-newtype ConvAndTeamSizeChecked a = ConvAndTeamSizeChecked { fromConvTeamSize :: a }
--- Between 1 and setMaxConvAndTeamSize
+-- Between 0 and (setMaxConvSize - 1)
+newtype ConvSizeChecked a = ConvSizeChecked { fromConvSize :: a }
+-- Between 1 and setMaxConvSize
 newtype ConvMemberAddSizeChecked a = ConvMemberAddSizeChecked { fromMemberSize :: a }
 
-checkedConvAndTeamSize :: Bounds a => a -> Galley (ConvAndTeamSizeChecked a)
-checkedConvAndTeamSize x = do
+checkedConvSize :: Bounds a => a -> Galley (ConvSizeChecked a)
+checkedConvSize x = do
     o <- view options
     let minV  = 0
-        limit = o^.optSettings.setMaxConvAndTeamSize - 1
+        limit = o^.optSettings.setMaxConvSize - 1
     if within x minV (fromIntegral limit)
-        then return (ConvAndTeamSizeChecked x)
+        then return (ConvSizeChecked x)
         else throwErr (errorMsg minV limit "")
 
 checkedMemberAddSize :: [a] -> Galley (ConvMemberAddSizeChecked (List1 a))
@@ -54,7 +54,7 @@ checkedMemberAddSize []       = throwErr "List must be of at least size 1"
 checkedMemberAddSize l@(x:xs) = do
     o <- view options
     let minV  = 1
-        limit = (o^.optSettings.setMaxConvAndTeamSize)
+        limit = (o^.optSettings.setMaxConvSize)
     if within l minV (fromIntegral limit)
         then return (ConvMemberAddSizeChecked $ list1 x xs)
         else throwErr (errorMsg minV limit "")

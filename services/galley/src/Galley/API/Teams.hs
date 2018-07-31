@@ -447,7 +447,7 @@ ensureNotElevated targetPermissions member =
 addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> [TeamMember] -> Galley Response
 addTeamMemberInternal tid origin originConn newMem mems = do
     o <- view options
-    unless (length mems < fromIntegral (o^.optSettings.setMaxConvAndTeamSize)) $
+    unless (length mems < fromIntegral (o^.optSettings.setMaxTeamSize)) $
         throwM tooManyTeamMembers
     let new = newMem^.ntmNewTeamMember
     Data.addTeamMember tid new

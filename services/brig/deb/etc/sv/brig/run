@@ -127,7 +127,8 @@ exec chpst -u $USER \
     --turn-servers=${BRIG_TURN_SERVERS?'unset'} \
     --turn-servers-v2=${BRIG_TURN_SERVERS_V2?'unset'} \
     --turn-secret=${BRIG_TURN_SECRET?'unset'} \
-    --conv-team-max-size=${BRIG_CONV_TEAM_MAX_SIZE:-128} \
+    --team-max-size=${BRIG_TEAM_MAX_SIZE?'unset'} \
+    --conv-max-size=${BRIG_CONV_MAX_SIZE?'unset'} \
     ${TURN_TOKEN_LIFETIME} \
     ${TURN_CONFIG_TTL} \
     ${AWS_ACCESS_KEY_ID} \

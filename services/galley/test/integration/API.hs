@@ -586,7 +586,7 @@ postConvFailNotConnected g b _ _ = do
 
 postConvFailNumMembers :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postConvFailNumMembers g b _ s = do
-    let n = fromIntegral (maxConvTeamSize s)
+    let n = fromIntegral (maxConvSize s)
     alice <- randomUser b
     bob:others <- replicateM n (randomUser b)
     connectUsers b alice (list1 bob others)
@@ -892,7 +892,7 @@ postMembersFail g b _ _ = do
 
 postTooManyMembersFail :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postTooManyMembersFail g b _ s = do
-    let n = fromIntegral (maxConvTeamSize s)
+    let n = fromIntegral (maxConvSize s)
     alice <- randomUser b
     bob   <- randomUser b
     chuck <- randomUser b

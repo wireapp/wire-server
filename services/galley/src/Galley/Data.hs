@@ -366,7 +366,7 @@ createConversation :: UserId
                    -> Maybe (Range 1 256 Text)
                    -> [Access]
                    -> AccessRole
-                   -> ConvAndTeamSizeChecked [UserId]
+                   -> ConvSizeChecked [UserId]
                    -> Maybe ConvTeamInfo
                    -> Maybe Milliseconds                  -- ^ Message timer
                    -> Galley Conversation
@@ -380,7 +380,7 @@ createConversation usr name acc role others tinfo mtimer = do
             setConsistency Quorum
             addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer)
             addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
-    mems <- snd <$> addMembersUnchecked now conv usr (list1 usr $ fromConvTeamSize others)
+    mems <- snd <$> addMembersUnchecked now conv usr (list1 usr $ fromConvSize others)
     return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer
 
 createSelfConversation :: MonadClient m => UserId -> Maybe (Range 1 256 Text) -> m Conversation

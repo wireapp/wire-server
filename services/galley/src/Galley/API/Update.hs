@@ -583,7 +583,7 @@ ensureGroupConv c = case Data.convType c of
 ensureMemberLimit :: [Member] -> [UserId] -> Galley ()
 ensureMemberLimit old new = do
     o <- view options
-    let maxSize = fromIntegral (o^.optSettings.setMaxConvAndTeamSize)
+    let maxSize = fromIntegral (o^.optSettings.setMaxConvSize)
     when (length old + length new > maxSize) $
         throwM tooManyMembers
 
