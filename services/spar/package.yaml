@@ -9,7 +9,7 @@ license-file:  LICENSE
 category:      System
 description:   'See README.md'
 
-ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
+ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror -optP-Wno-nonportable-include-path
 
 dependencies:
   - aeson
