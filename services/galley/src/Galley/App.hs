@@ -62,6 +62,7 @@ import Network.Wai
 import Network.Wai.Utilities
 import OpenSSL.EVP.Digest (getDigestByName)
 import OpenSSL.Session as Ssl
+import Ssl.Util
 import System.Logger.Class hiding (Error, info)
 import Util.Options
 
@@ -167,7 +168,7 @@ initHttpManager o = do
     Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
     Ssl.contextSetCiphers ctx rsaCiphers
     Ssl.contextLoadSystemCerts ctx
-    newManager (opensslManagerSettings ctx)
+    newManager (opensslManagerSettings (pure ctx))
         { managerResponseTimeout     = responseTimeoutMicro 10000000
         , managerConnCount           = o^.optSettings.setHttpPoolSize
         , managerIdleConnectionCount = 3 * (o^.optSettings.setHttpPoolSize)
@@ -182,7 +183,7 @@ initExtEnv = do
     Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
     Ssl.contextSetCiphers ctx rsaCiphers
     Ssl.contextLoadSystemCerts ctx
-    mgr <- newManager (opensslManagerSettings ctx)
+    mgr <- newManager (opensslManagerSettings (pure ctx))
         { managerResponseTimeout = responseTimeoutMicro 10000000
         , managerConnCount       = 100
         }

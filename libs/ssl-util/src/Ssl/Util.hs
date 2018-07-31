@@ -1,27 +1,17 @@
 {-# LANGUAGE TypeApplications #-}
 
--- | Extended version of http-client-openssl:
---     https://github.com/snoyberg/http-client/tree/master/http-client-openssl
---     (c) 2013 Michael Snoyman
-module Network.HTTP.Client.OpenSSL
-    ( -- * Settings
-      opensslManagerSettings
-    , opensslManagerSettingsWith
-
-      -- * Public Key Pinning
-    , verifyFingerprint
+module Ssl.Util
+    ( -- * Public Key Pinning
+      verifyFingerprint
       -- ** RSA-specific
     , rsaFingerprint
     , verifyRsaFingerprint
 
-      -- * Utilities
-    , withVerifiedSslConnection
-
       -- * Cipher suites
     , rsaCiphers
 
-      -- * Re-exports
-    , withOpenSSL
+      -- * Network
+    , withVerifiedSslConnection
     ) where
 
 import Control.Exception
@@ -30,13 +20,9 @@ import Data.Byteable (constEqBytes)
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder
 import Data.Dynamic (fromDynamic)
-import Data.Foldable (for_)
 import Data.Monoid
 import Data.Time.Clock (getCurrentTime)
-import Network.HTTP.Client (ManagerSettings (managerTlsConnection))
 import Network.HTTP.Client.Internal
-import Network.Socket  as Net
-import OpenSSL
 import OpenSSL.BN (integerToMPI)
 import OpenSSL.EVP.Digest (Digest, digestLBS)
 import OpenSSL.EVP.PKey (toPublicKey, SomePublicKey)
@@ -44,31 +30,6 @@ import OpenSSL.EVP.Verify (VerifyStatus (..))
 import OpenSSL.RSA
 import OpenSSL.Session as SSL
 import OpenSSL.X509 as X509
-
-import qualified Network.HTTP.Client as Client
-
--- Settings -----------------------------------------------------------------
-
-opensslManagerSettings :: SSLContext -> ManagerSettings
-opensslManagerSettings ctx = opensslManagerSettingsWith' ctx Nothing
-
-opensslManagerSettingsWith :: SSLContext -> (SSL -> IO ()) -> ManagerSettings
-opensslManagerSettingsWith ctx = opensslManagerSettingsWith' ctx . Just
-
--- | Install a callback function into a 'Manager' that is called for
--- every newly established 'SSL' connection, prior to yielding it to the
--- 'Manager' for use.
-opensslManagerSettingsWith' :: SSLContext -> Maybe (SSL -> IO ()) -> ManagerSettings
-opensslManagerSettingsWith' ctx fn = Client.defaultManagerSettings
-    { managerTlsConnection = pure $ \_ h p ->
-        bracketOnError
-            (newSocket stdHints h p)
-            (Net.close . fst)
-            (\(sock, addr) -> do
-                ssl <- newSSL ctx sock addr
-                for_ fn $ \f -> f ssl
-                toConnection ssl sock)
-    }
 
 -- Cipher Suites ------------------------------------------------------------
 
@@ -229,34 +190,3 @@ withVerifiedSslConnection verify man req act =
         -- Make a request using this connection and return it back to the
         -- pool (that's what 'Reuse' is for)
         act req{connectionOverride = Just mConn}
-
--- Internal -----------------------------------------------------------------
-
-newSocket :: AddrInfo -> HostName -> Int -> IO (Socket, SockAddr)
-newSocket hints hst prt = do
-    (ai:_) <- Net.getAddrInfo (Just hints) (Just hst) (Just $ show prt)
-    s <- Net.socket (addrFamily ai) (addrSocketType ai)  (addrProtocol ai)
-    return (s, addrAddress ai)
-
-newSSL :: SSLContext -> Socket -> SockAddr -> IO SSL
-newSSL ctx sock addr = do
-    Net.connect sock addr
-    ssl <- SSL.connection ctx sock
-    SSL.connect ssl
-    return ssl
-
-toConnection :: SSL -> Socket -> IO Connection
-toConnection ssl sock =
-    makeConnection
-        (SSL.read ssl 32752)
-        (SSL.write ssl)
-        (Net.close sock)
-        ssl
-
-stdHints :: AddrInfo
-stdHints = Net.defaultHints
-    { Net.addrFlags      = [AI_ADDRCONFIG, AI_NUMERICSERV]
-    , Net.addrFamily     = AF_INET
-    , Net.addrSocketType = Stream
-    }
-

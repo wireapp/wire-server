@@ -31,6 +31,7 @@ import Galley.Options (JournalOpts(..))
 import GHC.Stack (HasCallStack)
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
+import Ssl.Util
 import OpenSSL.Session as Ssl
 import Proto.TeamEvents as E
 import Proto.TeamEvents_Fields as E
@@ -206,7 +207,7 @@ initHttpManager = do
     Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
     Ssl.contextSetCiphers ctx rsaCiphers
     Ssl.contextLoadSystemCerts ctx
-    newManager (opensslManagerSettings ctx)
+    newManager (opensslManagerSettings (pure ctx))  -- see Note [SSL context]
         { managerResponseTimeout     = responseTimeoutMicro 10000000
         , managerConnCount           = 100
         , managerIdleConnectionCount = 300

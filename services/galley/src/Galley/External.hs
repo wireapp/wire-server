@@ -23,7 +23,7 @@ import Galley.Types (Event)
 import Galley.Types.Bot
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status410)
-import Network.HTTP.Client.OpenSSL (withVerifiedSslConnection)  -- from our lib
+import Ssl.Util (withVerifiedSslConnection)
 import System.Logger.Message (msg, val, field, (~~))
 import URI.ByteString
 

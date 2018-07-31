@@ -92,6 +92,7 @@ import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (getDigestByName, Digest)
 import OpenSSL.Session (SSLOption (..))
+import Ssl.Util
 import System.Directory (canonicalizePath)
 import System.Logger.Class hiding (Settings, settings)
 import Util.Options
@@ -285,6 +286,7 @@ initZAuth o = do
 
 initHttpManager :: IO Manager
 initHttpManager = do
+    -- See Note [SSL context]
     ctx <- SSL.context
     SSL.contextAddOption ctx SSL_OP_NO_SSLv2
     SSL.contextAddOption ctx SSL_OP_NO_SSLv3
@@ -295,11 +297,20 @@ initHttpManager = do
     -- Unfortunately, there are quite some AWS services we talk to
     -- (e.g. SES, Dynamo) that still only support TLSv1.
     -- Ideally: SSL.contextAddOption ctx SSL_OP_NO_TLSv1
-    newManager (opensslManagerSettings ctx)
+    newManager (opensslManagerSettings (pure ctx))
         { managerConnCount           = 1024
         , managerIdleConnectionCount = 4096
         , managerResponseTimeout     = responseTimeoutMicro 10000000
         }
+
+-- Note [SSL context]
+-- ~~~~~~~~~~~~
+--
+-- 'openSslManagerSettings' takes an IO action for creating the context;
+-- presumably a new context is created for each connection, then. However,
+-- judging by comments at https://github.com/snoyberg/http-client/pull/227,
+-- it should be fine to reuse the context, and reusing it is probably
+-- faster. So, we reuse the context.
 
 initExtGetManager :: IO (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
 initExtGetManager = do
@@ -311,7 +322,7 @@ initExtGetManager = do
     -- support self-signed certificates as well, hence 'VerifyNone'.
     SSL.contextSetVerificationMode ctx SSL.VerifyNone
     SSL.contextLoadSystemCerts ctx
-    mgr <- newManager (opensslManagerSettings ctx)
+    mgr <- newManager (opensslManagerSettings (pure ctx))  -- see Note [SSL context]
         { managerConnCount           = 100
         , managerIdleConnectionCount = 512
         , managerResponseTimeout     = responseTimeoutMicro 10000000

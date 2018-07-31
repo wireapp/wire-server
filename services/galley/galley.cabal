@@ -80,7 +80,7 @@ library
       , HsOpenSSL               >= 0.11
       , HsOpenSSL-x509-system   >= 0.1
       , http-client             >= 0.4
-      , http-client-openssl-ext >= 0.1
+      , http-client-openssl     >= 0.2
       , http-client-tls         >= 0.2.2
       , http-types              >= 0.8
       , lens                    >= 4.4
@@ -89,6 +89,7 @@ library
       , metrics-wai             >= 0.4
       , monad-control           >= 1.0
       , mtl                     >= 2.2
+      , ssl-util                >= 0.1
       , optparse-applicative    >= 0.10
       , protobuf                >= 0.2
       , proto-lens              >= 0.2
@@ -98,6 +99,7 @@ library
       , semigroups              >= 0.12
       , singletons              >= 1.0
       , split                   >= 0.2
+      , ssl-util
       , stm                     >= 2.4
       , swagger                 >= 0.1
       , text                    >= 0.11
@@ -206,7 +208,7 @@ executable galley-integration
       , HsOpenSSL
       , HsOpenSSL-x509-system
       , http-client
-      , http-client-openssl-ext
+      , http-client-openssl
       , http-client-tls
       , http-types
       , lens
@@ -220,6 +222,7 @@ executable galley-integration
       , QuickCheck
       , retry
       , safe                 >= 0.3
+      , ssl-util
       , tagged
       , transformers
       , tasty                >= 0.8
@@ -264,7 +267,7 @@ executable galley-journaler
       , HsOpenSSL
       , HsOpenSSL-x509-system
       , http-client
-      , http-client-openssl-ext
+      , http-client-openssl
       , proto-lens-protoc
       , bytestring
       , bytestring-conversion
@@ -274,6 +277,7 @@ executable galley-journaler
       , tinylog
       , bytestring
       , uuid
+      , ssl-util
 
     other-modules:
         Journal

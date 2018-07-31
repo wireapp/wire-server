@@ -1,9 +1,9 @@
-name:           http-client-openssl-ext
+name:           ssl-util
 version:        0.1.0
-synopsis:       Extended version of http-client-openssl.
+synopsis:       SSL-related utilities
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
-copyright:      (c) 2017 Wire Swiss GmbH
+copyright:      (c) 2018 Wire Swiss GmbH
 license:        AGPL-3
 license-file:   LICENSE
 stability:      experimental
@@ -17,7 +17,7 @@ library
     ghc-options:      -Wall -O2 -fwarn-tabs
 
     exposed-modules:
-        Network.HTTP.Client.OpenSSL
+        Ssl.Util
 
     build-depends:
         base        >= 4.7  && < 5

@@ -40,7 +40,7 @@ import Data.Monoid
 import Data.Word
 import Galley.Types (Event)
 import Network.HTTP.Types.Method
-import Network.HTTP.Client.OpenSSL (withVerifiedSslConnection)  -- from our lib
+import Ssl.Util (withVerifiedSslConnection)
 import System.Logger.Class (MonadLogger, msg, val, field ,(~~))
 import URI.ByteString
 
