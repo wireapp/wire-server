@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 -- | Extended version of http-client-openssl:
 --     https://github.com/snoyberg/http-client/tree/master/http-client-openssl
 --     (c) 2013 Michael Snoyman
@@ -12,6 +14,9 @@ module Network.HTTP.Client.OpenSSL
     , rsaFingerprint
     , verifyRsaFingerprint
 
+      -- * Utilities
+    , withVerifiedSslConnection
+
       -- * Cipher suites
     , rsaCiphers
 
@@ -24,6 +29,7 @@ import Control.Monad
 import Data.Byteable (constEqBytes)
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder
+import Data.Dynamic (fromDynamic)
 import Data.Foldable (for_)
 import Data.Monoid
 import Data.Time.Clock (getCurrentTime)
@@ -194,6 +200,35 @@ verifyRsaFingerprint d = verifyFingerprint $ \pk ->
 --
 -- [1] https://wiki.openssl.org/index.php/Hostname_validation
 -- [2] https://www.cs.utexas.edu/~shmat/shmat_ccs12.pdf
+
+-- Utilities -----------------------------------------------------------------
+
+-- | Get an SSL connection that has definitely had its fingerprints checked
+-- (internally it just grabs a connection from a pool and does verification
+-- if it's a fresh one).
+--
+-- Throws an error for other types of connections.
+withVerifiedSslConnection
+    :: (SSL -> IO ())       -- ^ A function to verify fingerprints given an SSL connection
+    -> Manager
+    -> Request              -- ^ Request (needed to open a new connection if
+                            -- there isn't one available yet). Take care to
+                            -- use the request passed to the callback
+                            -- instead of the one passed to
+                            -- 'withVerifiedSslConnection'
+    -> (Request -> IO a)
+    -> IO a
+withVerifiedSslConnection verify man req act =
+    withConnection' req man Reuse $ \mConn -> do
+        -- If we see this connection for the first time, verify fingerprints
+        let conn = managedResource mConn
+            seen = managedReused   mConn
+        unless seen $ case fromDynamic @SSL (connectionRaw conn) of
+            Nothing -> error ("withVerifiedSslConnection: only SSL allowed: " <> show req)
+            Just ssl -> verify ssl
+        -- Make a request using this connection and return it back to the
+        -- pool (that's what 'Reuse' is for)
+        act req{connectionOverride = Just mConn}
 
 -- Internal -----------------------------------------------------------------
 

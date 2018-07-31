@@ -34,22 +34,20 @@ import Control.Retry (recovering)
 import Data.Aeson
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
-import Data.Dynamic (fromDynamic)
 import Data.Foldable (toList)
 import Data.Id
 import Data.Monoid
 import Data.Word
 import Galley.Types (Event)
 import Network.HTTP.Types.Method
+import Network.HTTP.Client.OpenSSL (withVerifiedSslConnection)  -- from our lib
 import System.Logger.Class (MonadLogger, msg, val, field ,(~~))
 import URI.ByteString
 
 import qualified Data.List1                   as List1
 import qualified Galley.Types.Bot             as Galley
 import qualified Network.HTTP.Client          as Http
-import qualified Network.HTTP.Client.Internal as Http
 import qualified System.Logger.Class          as Log
-import qualified OpenSSL.Session              as SSL
 
 --------------------------------------------------------------------------------
 -- External RPC
@@ -68,20 +66,8 @@ createBot scon new = do
     (man, verifyFingerprints) <- view extGetManager
     extHandleAll onExc $ do
         rs <- lift $ recovering x3 httpHandlers $ const $ liftIO $
-            -- TODO: not sure if 'Reuse' is the right thing to do here --
-            -- maybe instead of returning the connection to the pool we want
-            -- to close it
-            Http.withConnection' req man Http.Reuse $ \mConn -> do
-                -- If we see this connection for the first time, verify fingerprints
-                let conn = Http.managedResource mConn
-                    seen = Http.managedReused   mConn
-                case (seen, fromDynamic @SSL.SSL (Http.connectionRaw conn)) of
-                    (True, _) -> pure ()
-                    (_, Nothing) -> error "Should not be possible, \
-                                          \services only allow SSL connections"
-                    (_, Just ssl) -> verifyFingerprints fprs ssl
-                -- Make a request using this connection and return it back to the pool
-                Http.httpLbs req{Http.connectionOverride = Just mConn} man
+            withVerifiedSslConnection (verifyFingerprints fprs) man req $ \req' ->
+                Http.httpLbs req' man
         case Bilge.statusCode rs of
             201 -> decodeBytes "External" (responseBody rs)
             409 -> throwE ServiceBotConflict
