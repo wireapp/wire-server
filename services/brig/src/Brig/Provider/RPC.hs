@@ -77,7 +77,8 @@ createBot scon new = do
                     seen = Http.managedReused   mConn
                 case (seen, fromDynamic @SSL.SSL (Http.connectionRaw conn)) of
                     (True, _) -> pure ()
-                    (_, Nothing) -> error "TODO"
+                    (_, Nothing) -> error "Should not be possible, \
+                                          \services only allow SSL connections"
                     (_, Just ssl) -> verifyFingerprints fprs ssl
                 -- Make a request using this connection and return it back to the pool
                 Http.httpLbs req{Http.connectionOverride = Just mConn} man
