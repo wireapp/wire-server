@@ -1,202 +1,82 @@
-<!DOCTYPE html>
 <html>
-  <head
-     >
-    <title>Swagger UI</title>
-    <link href='https://fonts.googleapis.com/css?family=Droid+Sans:400,700' rel='stylesheet' type='text/css'/>
-    <link href='swagger-ui/css/reset.css' media='screen' rel='stylesheet' type='text/css'/>
-    <link href='swagger-ui/css/screen.css' media='screen' rel='stylesheet' type='text/css'/>
-    <link href='swagger-ui/css/reset.css' media='print' rel='stylesheet' type='text/css'/>
-    <link href='swagger-ui/css/screen.css' media='print' rel='stylesheet' type='text/css'/>
-    <script src="swagger-ui/lib/shred.bundle.js" type="text/javascript"></script>
-    <script src='swagger-ui/lib/jquery-1.8.0.min.js' type='text/javascript'></script>
-    <script src='swagger-ui/lib/jquery.slideto.min.js' type='text/javascript'></script>
-    <script src='swagger-ui/lib/jquery.wiggle.min.js' type='text/javascript'></script>
-    <script src='swagger-ui/lib/jquery.ba-bbq.min.js' type='text/javascript'></script>
-    <script src='swagger-ui/lib/handlebars-1.0.0.js' type='text/javascript'></script>
-    <script src='swagger-ui/lib/underscore-min.js' type='text/javascript'></script>
-    <script src='swagger-ui/lib/backbone-min.js' type='text/javascript'></script>
-    <script src='swagger-ui/lib/swagger.js' type='text/javascript'></script>
-    <script src='swagger-ui/swagger-ui.js' type='text/javascript'></script>
-    <script src='swagger-ui/lib/highlight.7.3.pack.js' type='text/javascript'></script>
-    <!--<script src='conf/zwagger-config.js' type='text/javascript'></script>-->
-    <!-- enabling this will enable oauth2 implicit scope support -->
-    <script src='swagger-ui/lib/swagger-oauth.js' type='text/javascript'></script>
-
-    <script type="text/javascript">
-  $(function () {
-
-    // -- Init
-    var access_token = '';
-    var timer = null;
-
-    $('#access-token').hide();
-    $('#show-access-token').hide();
-    $('#hide-access-token').hide();
-    $('#form_logout').hide();
-
-    // -- Handlers
-
-    $('#input_login').click(function() {
-      login($('#input_email')[0].value, $('#input_password')[0].value);
-    });
-
-    $('#input_logout').click(function() {
-      logout();
-    });
-
-    $('#show-access-token').click(function() {
-      $('#access-token').show();
-      $('#show-access-token').hide();
-      $('#hide-access-token').show();
-    });
-
-    $('#hide-access-token').click(function() {
-      $('#access-token').hide();
-      $('#show-access-token').show();
-      $('#hide-access-token').hide();
-    });
-
-    loadSwagger = function () {
-      window.swaggerUi = new SwaggerUi({
-        url: $('#input_base_url')[0].value + '/api-docs/',
-        dom_id: "swagger-ui-container",
-        supportedSubmitMethods: ['get', 'post', 'put', 'delete'],
-        onComplete: function(swaggerApi, swaggerUi) {
-          log("Loaded SwaggerUI");
-
-          if(typeof initOAuth == "function") {
-            /*
-              initOAuth({
-                clientId: "your-client-id",
-                realm: "your-realms",
-                appName: "your-app-name"
-              });
-              */
-            }
-            $('pre code').each(function(i, e) {
-              hljs.highlightBlock(e)
-            });
-          },
-          onFailure: function(data) {
-            log("Unable to Load SwaggerUI");
-          },
-          docExpansion: "list"
-        });
-        window.swaggerUi.load();
-      };
-
-      var login = function (email, password) {
-        $.ajax({
-          url: $('#input_base_url')[0].value + "/login",
-          type: "POST",
-          contentType: "application/json",
-          data: JSON.stringify({ email: email, password: password }),
-          success: function (result) {
-            var json = eval(result);
-            window.authorizations.add("key", new ApiKeyAuthorization("Authorization", "Bearer " + json.access_token, "header"));
-            // Update UI
-            $('#form_login').hide();
-            $('#form_logout').show();
-            if (!$('#hide-access-token').is(':visible')) {
-              $('#show-access-token').show();
-            }
-            $('#access-token').text(json.access_token);
-            $('#swagger-ui-container').show();
-            if (!access_token) {
-              loadSwagger();
-            }
-            // Update token & schedule refresh
-            access_token = json.access_token;
-            refresh();
-            refresh();
-            timer = setTimeout(function() {
-                refresh();
-              },
-              (json.expires_in * 1000) - 1000
-            );
-          },
-          error: function (xhr, s, err) {
-            console.log(err);
-            $('#form_login').show();
-          }
-        });
-      };
-
-      var refresh = function () {
-        $.ajax({
-          url: $('#input_base_url')[0].value + "/access",
-          type: "POST",
-          contentType: "application/json",
-          headers: {
-              "Authorization": "Bearer " + access_token
-          },
-          success: function (result) {
-            var json = eval(result);
-            window.authorizations.add("key", new ApiKeyAuthorization("Authorization", "Bearer " + json.access_token, "header"));
-            $('#access-token').text(json.access_token);
-            // Update token & schedule refresh
-            access_token = json.access_token;
-            timer = setTimeout(function() {
-                refresh();
-              },
-              (json.expires_in * 1000) - 1000
-            );
-          },
-          error: function (xhr, s, err) {
-            console.log(err);
-            $('#form_login').show();
-          }
-        });
-      };
-
-      var logout = function () {
-        $('#access-token').text('');
-        if (timer != null) {
-          clearTimeout(timer);
+<!-- (not a frontend dev; "how to create tabs" taken from https://www.w3schools.com/howto/howto_js_tabs.asp -->
+<header>
+    <style media="screen" type="text/css">
+        /* Style the tab */
+        .tab {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
         }
-        $('#swagger-ui-container').hide();
-        $('#form_login').show();
-        $('#form_logout').hide();
-      };
-  });
-  </script>
-</head>
+        /* Style the buttons that are used to open the tab content */
+        .tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            transition: 0.3s;
+        }
+        /* Change background color of buttons on hover */
+        .tab button:hover {
+            background-color: #ddd;
+        }
+        /* Create an active/current tablink class */
+        .tab button.active {
+            background-color: #ccc;
+        }
+        /* Style the tab content */
+        .tabcontent {
+            display: none;
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+    </style>
 
-<body class="swagger-section">
-<br/>
-<div align="center">
 
-  <svg xmlns="http://www.w3.org/2000/svg" width="57" height="18" viewBox="0 0 57 18"><path fill-rule="evenodd" d="M10.857 14.767a5.45 5.45 0 0 1-1.277-3.51l.002-8.688c0-.708.573-1.284 1.277-1.284s1.277.576 1.277 1.284l-.002 8.687a5.45 5.45 0 0 1-1.277 3.51zm9.58-3.51c0 3.01-2.409 5.458-5.402 5.458a5.413 5.413 0 0 1-3.233-1.073 6.72 6.72 0 0 0 1.61-4.386l.002-8.687A2.565 2.565 0 0 0 10.859 0a2.565 2.565 0 0 0-2.555 2.569l-.002 8.687c0 1.675.64 3.206 1.65 4.386a5.413 5.413 0 0 1-3.233 1.073c-2.993 0-5.442-2.449-5.442-5.459V.66H0v10.597C0 14.975 3.035 18 6.733 18a6.681 6.681 0 0 0 4.164-1.458A6.587 6.587 0 0 0 15.028 18c3.698 0 6.686-3.025 6.686-6.744V.66h-1.278v10.597zm5.11 6.403h1.278V.624h-1.277V17.66zM38.008.327a7.337 7.337 0 0 0-6.073 3.233V.624h-1.278V17.66h1.278V7.72c0-3.367 2.725-6.106 6.073-6.106V.327zm2.394 13.705c-2.485-2.965-2.342-7.416.432-10.208a7.478 7.478 0 0 1 10.141-.436L40.401 14.032zM52.784 3.386a8.75 8.75 0 0 0-12.854-.471c-3.424 3.446-3.424 9.054 0 12.5a8.75 8.75 0 0 0 12.417.002l-.903-.91a7.478 7.478 0 0 1-10.14.434l5.285-5.32 6.195-6.235zM53.964.77h.447v1.16h.136V.77h.45V.643h-1.033V.77zM56.34.643l-.445 1.116L55.45.643h-.21v1.286h.131V.779l.457 1.15h.124l.455-1.145v1.145h.132V.643h-.201z"/></svg>
-  <br/><br/>
+</header>
 
-  <form action="" id="form_login" onsubmit="return false;">
-    <br/>
-    <div class='input'><input placeholder="E-Mail" id="input_email" name="email" type="text"/></div>
-    <div class='input'><input placeholder="Password" id="input_password" name="password" type="password"/></div>
-    <div class='input'><input placeholder="BaseURL" id="input_base_url" name="base_url" type="text" value="http://127.0.0.1:8080"/></div>
-    <input type="submit" value="Login" id="input_login"/>
-  </form>
+<body>
+    <!-- Tab links -->
+    <div class="tab">
+        <button class="tablinks" onclick="openTab(event, 'Swagger-1.2')" id="defaultOpen">Swagger-1.2</button>
+        <button class="tablinks" onclick="openTab(event, 'Swagger-2.0')">Swagger-2.0</button>
+    </div>
 
-  <form action="" id="form_logout" onsubmit="return false;">
-    <input type="submit" value="Logout" id="input_logout"/>
-  </form>
+    <!-- Tab content -->
+    <iframe id="Swagger-1.2" class="tabcontent" src="./tab.html" height="100%" width="100%">
+    </iframe>
 
-</div>
+    <iframe id="Swagger-2.0" class="tabcontent" src="./tab.html?url_suffix=sso" height="100%" width="100%">
+    </iframe>
 
-<div align="center" style="font-family: Verdana, sans-serif, 10pt">
-  <a href="#" id="show-access-token">Show Access Token</a>
-  <a href="#" id="hide-access-token">Hide Access Token</a>
-  <div id="access-token" style="padding: 5px"></div>
-</div>
 
-<div id="message-bar" class="swagger-ui-wrap">
-  &nbsp;
-</div>
+    <script>
+        function openTab(evt, cityName) {
+            // Declare all variables
+            var i, tabcontent, tablinks;
 
-<div id="swagger-ui-container" class="swagger-ui-wrap">
+            // Get all elements with class="tabcontent" and hide them
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
 
-</div>
+            // Get all elements with class="tablinks" and remove the class "active"
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+
+            // Show the current tab, and add an "active" class to the button that opened the tab
+            document.getElementById(cityName).style.display = "block";
+            evt.currentTarget.className += " active";
+        }
+        document.getElementById("defaultOpen").click();
+    </script>
 
 </body>
+
 </html>

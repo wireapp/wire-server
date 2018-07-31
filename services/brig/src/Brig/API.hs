@@ -88,12 +88,12 @@ runServer :: Opts -> IO ()
 runServer o = do
     e <- newEnv o
     s <- Server.newSettings (server e)
-    f <- Async.async $ AWS.execute (e^.awsEnv)
-                     $ AWS.listen (e^.awsEnv.sesQueue) (runAppT e . SesNotification.onEvent)
-    g <- Async.async $ AWS.execute (e^.awsEnv)
-                     $ AWS.listen (e^.awsEnv.internalQueue) (runAppT e . InternalNotification.onEvent)
+    f <- case (e^.awsEnv.sesQueue) of
+            Just q -> Just <$> listen (e^.awsEnv) e q SesNotification.onEvent
+            _      -> return Nothing
+    g <- listen (e^.awsEnv) e (e^.awsEnv.internalQueue) InternalNotification.onEvent
     runSettingsWithShutdown s (pipeline e) 5 `finally` do
-        Async.cancel f
+        for_ f Async.cancel
         Async.cancel g
         closeEnv e
   where
@@ -106,6 +106,8 @@ runServer o = do
                $ serve e
 
     serve e r k = runHandler e r (Server.route rtree r k) k
+
+    listen aws env queue f = Async.async $ AWS.execute aws $ AWS.listen queue (runAppT env . f)
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -176,11 +178,6 @@ sitemap o = do
         accept "application" "json"
         .&. (param "email" ||| param "phone")
 
-    get "/i/users/invitation-code" (continue getInvitationCode) $
-        accept "application" "json"
-        .&. param "inviter"
-        .&. param "invitation_id"
-
     get "/i/users/password-reset-code" (continue getPasswordResetCode) $
         accept "application" "json"
         .&. (param "email" ||| param "phone")
@@ -197,7 +194,13 @@ sitemap o = do
     post "/i/users/blacklist" (continue addBlacklist) $
         param "email" ||| param "phone"
 
+    -- is :uid not team owner, or there are other team owners?
     get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeleted) $
+      capture "uid"
+      .&. capture "tid"
+
+    -- is :uid team owner (the only one or one of several)?
+    get "/i/users/:uid/is-team-owner/:tid" (continue isTeamOwner) $
       capture "uid"
       .&. capture "tid"
 
@@ -572,74 +575,6 @@ sitemap o = do
 
     ---
 
-    post "/invitations" (continue inviteUser) $
-        accept "application" "json"
-        .&. header "Z-User"
-        .&. header "Z-Connection"
-        .&. request
-
-    document "POST" "sendInvitation" $ do
-        Doc.summary "Create and send a new invitation."
-        Doc.notes "Invitations are sent by email."
-        Doc.body (Doc.ref Doc.invitationRequest) $
-            Doc.description "JSON body"
-        Doc.returns (Doc.ref Doc.invitation)
-        Doc.response 201 "Invitation was created and sent." Doc.end
-        Doc.response 201 "A connection request was sent since the invitee is registered.\
-                         \ The response body will be empty and the Location header point\
-                         \ to the created connection." Doc.end
-        Doc.response 303 "A connection to the invitee exists at the returned Location." Doc.end
-        Doc.errorResponse connectionLimitReached
-        Doc.errorResponse invalidTransition
-
-    ---
-
-    get "/invitations" (continue listInvitations) $
-        accept "application" "json"
-        .&. header "Z-User"
-        .&. opt (query "start")
-        .&. def (unsafeRange 100) (query "size")
-
-    document "GET" "invitations" $ do
-        Doc.summary "List the sent invitations"
-        Doc.parameter Doc.Query "start" Doc.string' $ do
-            Doc.description "Email address to start from (ascending)."
-            Doc.optional
-        Doc.parameter Doc.Query "size" Doc.int32' $ do
-            Doc.description "Number of results to return (default 100, max 500)."
-            Doc.optional
-        Doc.returns (Doc.ref Doc.invitationList)
-        Doc.response 200 "List of sent invitations" Doc.end
-
-    ---
-
-    get "/invitations/:id" (continue getInvitation) $
-        accept "application" "json"
-        .&. header "Z-User"
-        .&. capture "id"
-
-    document "GET" "invitation" $ do
-        Doc.summary "Get a pending invitation by ID."
-        Doc.parameter Doc.Path "id" Doc.bytes' $
-            Doc.description "Invitation ID"
-        Doc.returns (Doc.ref Doc.invitation)
-        Doc.response 200 "Invitation" Doc.end
-
-    ---
-
-    delete "/invitations/:id" (continue deleteInvitation) $
-        accept "application" "json"
-        .&. header "Z-User"
-        .&. capture "id"
-
-    document "DELETE" "invitation" $ do
-        Doc.summary "Delete a pending invitation by ID."
-        Doc.parameter Doc.Path "id" Doc.bytes' $
-            Doc.description "Invitation ID"
-        Doc.response 200 "Invitation deleted." Doc.end
-
-    ---
-
     post "/connections" (continue createConnection) $
         accept "application" "json"
         .&. contentType "application" "json"
@@ -901,20 +836,6 @@ sitemap o = do
         Doc.errorResponse activationCodeNotFound
         Doc.errorResponse blacklistedEmail
         Doc.errorResponse blacklistedPhone
-
-    ---
-
-    get "/invitations/info" (continue getInvitationByCode) $
-        accept "application" "json"
-        .&. query "code"
-
-    document "GET" "invitation" $ do
-        Doc.summary "Get invitation info given a code."
-        Doc.parameter Doc.Query "code" Doc.bytes' $
-            Doc.description "Invitation code"
-        Doc.returns (Doc.ref Doc.invitation)
-        Doc.response 200 "Invitation successful." Doc.end
-        Doc.errorResponse invalidInvitationCode
 
     ---
 
@@ -1267,13 +1188,6 @@ getActivationCode (_ ::: emailOrPhone) = do
   where
     found (k, c) = json $ object [ "key" .= k, "code" .= c ]
 
-getInvitationCode :: JSON ::: UserId ::: InvitationId -> Handler Response
-getInvitationCode (_ ::: u ::: r) = do
-    code <- lift $ API.lookupInvitationCode u r
-    maybe (throwStd invalidInvitationCode) (return . found) code
-  where
-    found c = json $ object [ "code" .= c ]
-
 getPasswordResetCode :: JSON ::: Either Email Phone -> Handler Response
 getPasswordResetCode (_ ::: emailOrPhone) = do
     apair <- lift $ API.lookupPasswordResetCode emailOrPhone
@@ -1422,34 +1336,6 @@ getConnectionsStatus (_ ::: _ ::: req ::: flt) = do
   where
     filterByRelation l rel = filter ((==rel) . csStatus) l
 
-inviteUser :: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
-inviteUser (_ ::: self ::: conn ::: req) = do
-    ir <- parseJsonBody req
-    rs <- API.createInvitation self ir conn !>> connError
-    return $ case rs of
-        Left  (ConnectionCreated uc) -> setStatus status201 . loc uc $ empty
-        Left  (ConnectionExists  uc) -> setStatus status303 . loc uc $ empty
-        Right iv                     -> setStatus status201 $ json iv
-  where
-    loc uc = addHeader "Location"
-           $ "/connections/" <> toByteString' (ucTo uc)
-
-listInvitations :: JSON ::: UserId ::: Maybe InvitationId ::: Range 1 500 Int32 -> Handler Response
-listInvitations (_ ::: uid ::: start ::: size) = json <$>
-    lift (API.lookupInvitations uid start size)
-
-getInvitation :: JSON ::: UserId ::: InvitationId -> Handler Response
-getInvitation (_ ::: uid ::: iid) = lift $ do
-    inv <- API.lookupInvitation uid iid
-    return $ case inv of
-        Just i  -> json i
-        Nothing -> setStatus status404 empty
-
-deleteInvitation :: JSON ::: UserId ::: InvitationId -> Handler Response
-deleteInvitation (_ ::: uid ::: iid) = lift $ do
-    void $ API.deleteInvitation uid iid
-    return empty
-
 createConnection :: JSON ::: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
 createConnection (_ ::: _ ::: self ::: conn ::: req) = do
     cr <- parseJsonBody req
@@ -1499,20 +1385,25 @@ addBlacklist emailOrPhone = do
 
 canBeDeleted :: UserId ::: TeamId -> Handler Response
 canBeDeleted (uid ::: tid) = do
-    onlyOwner <- lift (Team.isOnlyTeamOwner uid tid)
+    onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
     case onlyOwner of
        Team.IsOnlyTeamOwner       -> throwStd noOtherOwner
        Team.IsOneOfManyTeamOwners -> pure ()
        Team.IsNotTeamOwner        -> pure ()
-       Team.NoTeamOwnersAreLeft   -> do
+       Team.NoTeamOwnersAreLeft   -> do  -- (keeping the user won't help in this case)
            Log.warn $ Log.field "user" (toByteString uid)
                     . Log.msg (Log.val "Team.NoTeamOwnersAreLeft")
     return empty
 
-getInvitationByCode :: JSON ::: InvitationCode -> Handler Response
-getInvitationByCode (_ ::: c) = do
-    inv <- lift $ API.lookupInvitationByCode c
-    maybe (throwStd invalidInvitationCode) (return . json) inv
+isTeamOwner :: UserId ::: TeamId -> Handler Response
+isTeamOwner (uid ::: tid) = do
+    onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
+    case onlyOwner of
+       Team.IsOnlyTeamOwner       -> pure ()
+       Team.IsOneOfManyTeamOwners -> pure ()
+       Team.IsNotTeamOwner        -> throwStd insufficientTeamPermissions
+       Team.NoTeamOwnersAreLeft   -> throwStd insufficientTeamPermissions
+    return empty
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response
 deleteUser (u ::: r ::: _ ::: _) = do

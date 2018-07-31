@@ -440,10 +440,10 @@ postConvertTeamConv g b c setup = do
     connectUsers b alice (singleton eve)
     let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
     -- creating a team-only conversation containing eve should fail
-    createTeamConvAccessRaw g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa") acc (Just TeamAccessRole) Nothing !!!
+    createTeamConvAccessRaw g alice tid [bob, eve] (Just "blaa") acc (Just TeamAccessRole) Nothing !!!
         const 403 === statusCode
     -- create conversation allowing any type of guest
-    conv <- createTeamConvAccess g alice (ConvTeamInfo tid False) [bob, eve] (Just "blaa") acc (Just NonActivatedAccessRole) Nothing
+    conv <- createTeamConvAccess g alice tid [bob, eve] (Just "blaa") acc (Just NonActivatedAccessRole) Nothing
     -- mallory joins by herself
     mallory  <- ephemeralUser b
     j <- decodeConvCodeEvent <$> postConvCode g alice conv
@@ -631,7 +631,7 @@ postO2OConvOk g b _ _ = do
 postConvO2OFailWithSelf :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postConvO2OFailWithSelf g b _ _ = do
     alice <- randomUser b
-    let inv = NewConv [alice] Nothing mempty Nothing Nothing Nothing
+    let inv = NewConvUnmanaged (NewConv [alice] Nothing mempty Nothing Nothing Nothing)
     post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
         const 403 === statusCode
         const (Just "invalid-op") === fmap label . decodeBody

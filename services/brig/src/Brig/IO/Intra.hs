@@ -350,7 +350,6 @@ toPushFormat (ClientEvent (ClientRemoved _ c)) = Just $ M.fromList
     [ "type"   .= ("user.client-remove" :: Text)
     , "client" .= object ["id" .= clientId c]
     ]
-toPushFormat (InvitationEvent _) = Nothing
 
 toApsData :: Event -> Maybe ApsData
 toApsData (ConnectionEvent (ConnectionUpdated uc _ name)) =

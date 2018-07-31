@@ -139,23 +139,6 @@ removeBlacklist :: Brig -> Email -> Http ()
 removeBlacklist brig email =
     void $ delete (brig . path "/i/users/blacklist" . queryItem "email" (toByteString' email))
 
-getInvitationCode :: Brig -> UserId -> InvitationId -> Http (Maybe InvitationCode)
-getInvitationCode brig u ref = do
-    r <- get ( brig
-             . path "/i/users/invitation-code"
-             . queryItem "inviter" (toByteString' u)
-             . queryItem "invitation_id" (toByteString' ref)
-             )
-    let lbs   = fromMaybe "" $ responseBody r
-    return $ fromByteString . fromMaybe (error "No code?") $ T.encodeUtf8 <$> (lbs ^? key "code"  . _String)
-
-getInvitation :: Brig -> InvitationCode -> Http (Maybe Invitation)
-getInvitation brig c = do
-    r <- get $ brig
-             . path "/invitations/info"
-             . queryItem "code" (toByteString' c)
-    return . decode . fromMaybe "" $ responseBody r
-
 getClient :: Brig -> UserId -> ClientId -> Http ResponseLBS
 getClient brig u c = get $ brig
     . paths ["clients", toByteString' c]
@@ -177,14 +160,6 @@ listConnections :: Brig -> UserId -> Http ResponseLBS
 listConnections brig u = get $ brig
     . path "connections"
     . zUser u
-
-postInvitation :: Brig -> UserId -> InvitationRequest -> Http ResponseLBS
-postInvitation brig u i = post $ brig
-    . path "invitations"
-    . contentJson
-    . body (RequestBodyLBS $ encode i)
-    . zUser u
-    . zConn "conn"
 
 postAutoConnection :: Brig -> UserId -> [UserId] -> Http ResponseLBS
 postAutoConnection brig from to = post $ brig

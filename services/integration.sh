@@ -25,7 +25,7 @@ function list_descendants () {
 }
 
 function kill_gracefully() {
-    pkill "gundeck|brig|galley|cargohold|cannon"
+    pkill "gundeck|brig|galley|cargohold|cannon|spar"
     sleep 1
     kill $(list_descendants $PARENT_PID) &> /dev/null
 }
@@ -73,13 +73,14 @@ run galley ${yellow} Info
 run gundeck ${blue} Info
 run cannon ${orange} Info
 run cargohold ${purpleish} Info
+run spar ${orange} Info
 
 # the ports are copied from ./integration.yaml
 while [ "$all_services_are_up" == "" ]; do
     export all_services_are_up="1"
-    for port in `seq 8082 8086`; do
+    for port in `seq 8082 8086` 8088; do
         ( curl --write-out %{http_code} --silent --output /dev/null http://localhost:$port/i/status \
-                | grep -q '200' ) \
+                | grep -q '^20[04]' ) \
             || export all_services_are_up=""
     done
     sleep 1

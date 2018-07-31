@@ -20,7 +20,6 @@ import Data.Json.Util
 import Data.Monoid ((<>))
 import Data.Range
 import Data.Text (Text, pack, toLower)
-import Data.Time.Clock (UTCTime)
 
 newtype Message = Message { messageText :: Text }
     deriving (Eq, Ord, Show, ToJSON)
@@ -54,29 +53,9 @@ data ConnectionUpdate = ConnectionUpdate
     { cuStatus :: !Relation
     } deriving (Eq, Show)
 
-data InvitationRequest = InvitationRequest
-    { irEmail    :: !Email
-    , irName     :: !Name
-    , irMessage  :: !Message
-    , irLocale   :: !(Maybe Locale)
-    } deriving (Eq, Show)
-
-data Invitation = Invitation
-    { inInviter    :: !UserId
-    , inInvitation :: !InvitationId
-    , inIdentity   :: !(Either Email Phone)
-    , inCreatedAt  :: !UTCTime
-    , inName       :: !Name
-    } deriving (Eq, Show)
-
 data UserConnectionList = UserConnectionList
     { clConnections :: [UserConnection]
     , clHasMore     :: !Bool
-    } deriving (Eq, Show)
-
-data InvitationList = InvitationList
-    { ilInvitations :: [Invitation]
-    , ilHasMore     :: !Bool
     } deriving (Eq, Show)
 
 data UserIds = UserIds
@@ -153,45 +132,6 @@ instance ToJSON ConnectionRequest where
                       , "message" .= crMessage c
                       ]
 
-instance FromJSON InvitationRequest where
-    parseJSON = withObject "invitation-request" $ \o ->
-        InvitationRequest <$> o .:  "email"
-                          <*> o .:  "invitee_name"
-                          <*> o .:  "message"
-                          <*> o .:? "locale"
-
-instance ToJSON InvitationRequest where
-    toJSON i = object [ "email"        .= irEmail i
-                      , "invitee_name" .= irName i
-                      , "message"      .= irMessage i
-                      , "locale"       .= irLocale i
-                      ]
-
-instance FromJSON Invitation where
-    parseJSON = withObject "invitation" $ \o ->
-        Invitation <$> o .: "inviter"
-                   <*> o .: "id"
-                   <*> parseInvitationIdentity o
-                   <*> o .: "created_at"
-                   <*> o .: "name"
-
-instance ToJSON Invitation where
-    toJSON i = object [ "inviter"       .= inInviter i
-                      , "id"            .= inInvitation i
-                      , either ("email" .=) ("phone" .=) (inIdentity i)
-                      , "created_at"    .= toUTCTimeMillis (inCreatedAt i)
-                      , "name"          .= inName i
-                      ]
-
-parseInvitationIdentity :: Object -> Parser (Either Email Phone)
-parseInvitationIdentity o = do
-    email <- o .:? "email"
-    phone <- o .:? "phone"
-    case (email, phone) of
-      (Just e , Nothing) -> return $ Left e
-      (Nothing, Just p ) -> return $ Right p
-      (_      , _      ) -> fail "Use either 'email' or 'phone'."
-
 instance ToJSON UserConnectionList where
     toJSON (UserConnectionList l m) = object
         [ "connections" .= l
@@ -202,17 +142,6 @@ instance FromJSON UserConnectionList where
     parseJSON = withObject "UserConnectionList" $ \o ->
         UserConnectionList <$> o .: "connections"
                            <*> o .: "has_more"
-
-instance ToJSON InvitationList where
-    toJSON (InvitationList l m) = object
-        [ "invitations" .= l
-        , "has_more"    .= m
-        ]
-
-instance FromJSON InvitationList where
-    parseJSON = withObject "InvitationList" $ \o ->
-        InvitationList <$> o .: "invitations"
-                       <*> o .: "has_more"
 
 instance FromJSON UserIds where
     parseJSON = withObject "userids" $ \o ->

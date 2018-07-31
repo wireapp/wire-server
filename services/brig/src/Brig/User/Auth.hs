@@ -12,7 +12,7 @@ module Brig.User.Auth
 
       -- * Internal
     , lookupLoginCode
-    , backdoorLogin
+    , ssoLogin
 
       -- * Re-exports
     , listCookies
@@ -186,8 +186,8 @@ validateTokens ut at = do
     return (ZAuth.userTokenOf ut, ck)
 
 -- | Allow to login as any user without having the credentials.
-backdoorLogin :: BackdoorLogin -> CookieType -> ExceptT LoginError AppIO Access
-backdoorLogin (BackdoorLogin uid label) typ = do
+ssoLogin :: SsoLogin -> CookieType -> ExceptT LoginError AppIO Access
+ssoLogin (SsoLogin uid label) typ = do
     Data.reauthenticate uid Nothing `catchE` \case
         ReAuthMissingPassword -> pure ()
         ReAuthError e -> case e of

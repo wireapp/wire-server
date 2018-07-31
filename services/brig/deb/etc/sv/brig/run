@@ -87,7 +87,6 @@ exec chpst -u $USER \
     --team-invitation-timeout=${BRIG_TEAM_INVITATION_TIMEOUT?'unset'} \
     --sms-activation-url=${BRIG_SMS_ACTIVATION_URL?'unset'} \
     --password-reset-url=${BRIG_PASSWORD_RESET_URL?'unset'} \
-    --invitation-url=${BRIG_INVITATION_URL?'unset'} \
     --deletion-url=${BRIG_DELETION_URL?'unset'} \
     --team-invitation-url=${BRIG_TEAM_INVITATION_URL?'unset'} \
     --team-creator-welcome-url=${BRIG_TEAM_CREATOR_WELCOME_URL?'unset'} \

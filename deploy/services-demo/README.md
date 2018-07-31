@@ -1,4 +1,4 @@
-# How to run `wire-server` with "fake" AWS dependencies
+# How to run `wire-server` with "fake" AWS dependencies in demo mode
 
 This document assumes that you have already compiled all services (i.e., you read all of the `README.md` from the top level folder and ran `make services` there) and now you want to see how it all fits together.
 
@@ -37,7 +37,18 @@ resources                            <- folder which contains secrets or other r
 
 ### Why do you describe this as a _demo_?
 
-The way that the data stores used are set up is done in a simple way that is not advisable for a production environment (e.g., cassandra uses a single node and Docker will manage the storage of your database data by writing the database files to disk on the host system using its own internal volume management). Also, some other dependencies (such as the "fake" AWS services) do not provide the full functionality of the real AWS services (for instance, large resumable uploads are not supported) nor do they have the same reliability and availability.
+* **no optimal performance; not highly-available**: The way that the data stores used are set up is done in a simple way that is not advisable for a production environment (e.g., cassandra uses a single node and Docker will manage the storage of your database data by writing the database files to disk on the host system using its own internal volume management). 
+* **missing functionality**: Some other dependencies (such as the "fake" AWS services) do not provide the full functionality of the real AWS services (for instance, the fake SES doesn't actually send emails) nor do they have the same reliability and availability.
+* :warning: **insecure by default** :warning: : 
+    * **all services are exposed**: If your laptop or server is reachable from the outside, it means not only is `nginz` reachable on port 8080, but other services and databases are also directly reachable from outside on other ports. This allows anyone on the internet to
+        * query any user's information,
+        * make use of internal endpoints not requiring additional authorization,
+        * impersonate other users by making HTTP requests directly to services (such as brig) using a Z-User: <other user's uuid> header,
+        * talk directly to the databases and modifying information there, giving arbitrary control over accounts, conversation membership, allows deleting messages for recipients that are offline, etc.
+    * **no private network**: similar to the previous point, if running the demo on e.g. your laptop, chances are other processes are active (e.g. a browser, etc), extending any vulnerabilities to the vulnerabilities of these other processes. 
+    * **no HTTPS by default**: The demo setup exposes nginz on plain http, so if you don't have your own ssl termination server in front or configure nginz with an SSL certificate, that allows all kinds of metadata (who, with which device/browser accessed which endpoint with which content at what time) to be read by all routers and people in the networks in between a user and the server.
+    * **inadequate process isolation**: Running different services on the same physical or virtual machine is NOT recommended for security. Example: Even in a modified demo setup (in which only nginz is reachable from outside; and SSL/HTTPS in enforced), a temporary bug in nginz could allow an attacker to gain access to that machine, therefore also to the disk and RAM in use by other services (allowing to steal e.g. the private key used by the brig service to sign access tokens; allowing user impersonation even after the nginx bug is fixed (if keys are not rotated)).
+    * **dependence on insecurely-downloaded docker images**
 
 It is however very straightforward to setup all the necessary dependencies to run `wire-server` and it is what we use in our integration tests as well (as can be seen in our [integration bash script](../../services/integration.sh)).
 

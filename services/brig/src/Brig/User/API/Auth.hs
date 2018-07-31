@@ -145,27 +145,11 @@ routes = do
 
     -- Internal
 
-    post "/i/backdoor-login" (continue backdoorLogin) $
+    post "/i/sso-login" (continue ssoLogin) $
         request
         .&. def False (query "persist")
         .&. accept "application" "json"
         .&. contentType "application" "json"
-
-    document "POST" "backdoorLogin" $ do
-        Doc.summary "Login as any user, without credentials."
-        Doc.notes "This is an internal version of the /login endpoint. It does not \
-                  \require any credentials, and it is supposed to be used for \
-                  \single sign-on primarily."
-        Doc.body (Doc.ref Doc.backdoorLogin) $
-            Doc.description "The optional label can later be used to delete all \
-                            \cookies matching this label (cf. /cookies/remove)."
-        Doc.parameter Doc.Query "persist" (Doc.bool $ Doc.def False) $ do
-            Doc.description "Request a persistent cookie instead of a session cookie."
-            Doc.optional
-        Doc.errorResponse badCredentials
-        Doc.errorResponse accountSuspended
-        Doc.errorResponse accountPending
-        Doc.errorResponse loginsTooFrequent
 
     get "/i/users/login-code" (continue getLoginCode) $
         accept "application" "json"
@@ -203,11 +187,11 @@ login (req ::: persist ::: _) = do
     a <- Auth.login l typ !>> loginError
     tokenResponse a
 
-backdoorLogin :: Request ::: Bool ::: JSON ::: JSON -> Handler Response
-backdoorLogin (req ::: persist ::: _) = do
+ssoLogin :: Request ::: Bool ::: JSON ::: JSON -> Handler Response
+ssoLogin (req ::: persist ::: _) = do
     l <- parseJsonBody req
     let typ = if persist then PersistentCookie else SessionCookie
-    a <- Auth.backdoorLogin l typ !>> loginError
+    a <- Auth.ssoLogin l typ !>> loginError
     tokenResponse a
 
 logout :: JSON ::: Maybe ZAuth.UserToken ::: Maybe ZAuth.AccessToken -> Handler Response
@@ -271,4 +255,3 @@ tokenRequest = opt userToken .&. opt accessToken
 tokenResponse :: Auth.Access -> Handler Response
 tokenResponse (Auth.Access t  Nothing) = return (json t)
 tokenResponse (Auth.Access t (Just c)) = lift $ Auth.setResponseCookie c (json t)
-

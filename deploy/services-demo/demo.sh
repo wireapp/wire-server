@@ -27,7 +27,7 @@ function list_descendants () {
 }
 
 function kill_gracefully() {
-    pkill "gundeck|brig|galley|cargohold|cannon"
+    pkill "gundeck|brig|galley|cargohold|cannon|spar"
     sleep 1
     kill $(list_descendants $PARENT_PID) &> /dev/null
 }
@@ -65,6 +65,7 @@ function check_prerequisites() {
         && test -f ${DIR}/../dist/gundeck \
         && test -f ${DIR}/../dist/cargohold \
         && test -f ${DIR}/../dist/proxy \
+        && test -f ${DIR}/../dist/spar \
         && test -f ${DIR}/../dist/nginx \
         || { echo "Not all services are compiled. How about you run 'cd ${TOP_LEVEL} && make services' first?"; exit 1; }
 }
@@ -108,6 +109,7 @@ run_haskell_service gundeck ${blue} Info
 run_haskell_service cannon ${orange} Info
 run_haskell_service cargohold ${purpleish} Info
 run_haskell_service proxy ${redish} Info
+run_haskell_service spar ${orange} Info
 run_nginz ${blueish}
 
 sleep 3 # wait a moment for services to start before continuing

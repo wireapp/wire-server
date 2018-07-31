@@ -65,7 +65,6 @@ module Brig.API.User
 import Brig.App
 import Brig.API.Types
 import Brig.Data.Activation (ActivationEvent (..))
-import Brig.Data.Invitation (InvitationInfo (..))
 import Brig.Data.User hiding (updateSearchableStatus)
 import Brig.Data.UserKey
 import Brig.Options hiding (Timeout)
@@ -84,7 +83,7 @@ import Control.Arrow ((&&&))
 import Control.Concurrent.Async (mapConcurrently, mapConcurrently_)
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad (mfilter, when, unless, void, join)
+import Control.Monad (when, unless, void, join)
 import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.Reader
@@ -108,7 +107,6 @@ import qualified Brig.Code                  as Code
 import qualified Brig.Data.Activation       as Data
 import qualified Brig.Data.Client           as Data
 import qualified Brig.Data.Connection       as Data
-import qualified Brig.Data.Invitation       as Data
 import qualified Brig.Data.PasswordReset    as Data
 import qualified Brig.Data.Properties       as Data
 import qualified Brig.Data.User             as Data
@@ -152,8 +150,7 @@ createUser new@NewUser{..} = do
         when blacklisted $
             throwE (BlacklistedUserKey uk)
 
-    -- Look for an invitation, if a code is given
-    invitation <- maybe (return Nothing) (findInvitation emKey phKey) (newUserInvitationCode new)
+    -- team user registration
     (newTeam, teamInvitation, tid) <- handleTeam (newUserTeam new) emKey
 
     -- team members are by default not searchable
@@ -172,15 +169,6 @@ createUser new@NewUser{..} = do
         case (tid, newTeam) of
             (Just t, Just nt) -> createTeam uid (isJust newUserEmailCode) (bnuTeam nt) t
             _                 -> return Nothing
-    (emailInvited, phoneInvited) <- case invitation of
-        Just (inv, invInfo) -> case inIdentity inv of
-            Left em -> do
-                acceptInvitation account inv invInfo (userEmailKey em) (EmailIdentity em)
-                return (True, False)
-            Right ph -> do
-                acceptInvitation account inv invInfo (userPhoneKey ph) (PhoneIdentity ph)
-                return (False, True)
-        Nothing -> return (False, False)
 
     (teamEmailInvited, joinedTeamInvite) <- case teamInvitation of
         Just (inv, invInfo) -> do
@@ -198,7 +186,7 @@ createUser new@NewUser{..} = do
         joinedTeam = joinedTeamInvite <|> joinedTeamSSO
 
     -- Handle e-mail activation
-    edata <- if emailInvited || teamEmailInvited
+    edata <- if teamEmailInvited
             then return Nothing
             else fmap join . for emKey $ \ek -> case newUserEmailCode of
                 Nothing -> do
@@ -214,9 +202,7 @@ createUser new@NewUser{..} = do
                     return Nothing
 
     -- Handle phone activation
-    pdata <- if phoneInvited
-            then return Nothing
-            else fmap join . for phKey $ \pk -> case newUserPhoneCode of
+    pdata <- fmap join . for phKey $ \pk -> case newUserPhoneCode of
                 Nothing -> do
                     timeout <- setActivationTimeout <$> view settings
                     pdata   <- lift $ Data.newActivation pk timeout (Just uid)
@@ -255,17 +241,6 @@ createUser new@NewUser{..} = do
     handleTeam (Just (NewTeamMemberSSO tid)) _ = pure (Nothing, Nothing, Just tid)
     handleTeam Nothing                   _ = return (Nothing, Nothing, Nothing)
 
-    findInvitation :: Maybe UserKey -> Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe (Invitation, InvitationInfo))
-    findInvitation Nothing Nothing _ = throwE MissingIdentity
-    findInvitation e       p       i = lift (Data.lookupInvitationInfo i) >>= \case
-        Just ii -> do
-            inv <- lift $ Data.lookupInvitation (iiInviter ii) (iiInvId ii)
-            case (inv, inIdentity <$> inv) of
-                (Just invite, Just (Left em))  | e == Just (userEmailKey em) -> return $ Just (invite, ii)
-                (Just invite, Just (Right ph)) | p == Just (userPhoneKey ph) -> return $ Just (invite, ii)
-                _                                                        -> throwE InvalidInvitationCode
-        Nothing -> throwE InvalidInvitationCode
-
     findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT CreateUserError AppIO (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
     findTeamInvitation Nothing  _ = throwE MissingIdentity
     findTeamInvitation (Just e) c = lift (Team.lookupInvitationInfo c) >>= \case
@@ -298,29 +273,6 @@ createUser new@NewUser{..} = do
                      . field "team" (toByteString $ Team.iiTeam ii)
                      . msg (val "Accepting invitation")
             Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
-
-    acceptInvitation account inv ii uk ident = do
-        -- Check that the inviter is an active user
-        status <- lift $ Data.lookupStatus (inInviter inv)
-        unless (status == Just Active) $
-            throwE InvalidInvitationCode
-        let uid = userId (accountUser account)
-        ok <- lift $ Data.claimKey uk uid
-        unless ok $
-            throwE $ DuplicateUserKey uk
-        lift $ do
-            activateUser uid ident
-            void $ onActivated (AccountActivated account)
-            Log.info $ field "user" (toByteString uid)
-                     . field "inviter" (toByteString $ iiInviter ii)
-                     . msg (val "Accepting invitation")
-            -- Connect users and create the 1:1 connection
-            c   <- Intra.createConnectConv uid (iiInviter ii) Nothing Nothing Nothing
-            _   <- Intra.acceptConnectConv (iiInviter ii) Nothing c
-            ucs <- Data.connectUsers uid [(iiInviter ii, c)]
-            let toEvent uc = ConnectionUpdated uc Nothing (mfilter (const $ ucFrom uc /= uid) (Just $ inName inv))
-            forM_ ucs $ Intra.onConnectionEvent uid Nothing . toEvent
-            Data.deleteInvitation (inInviter inv) (inInvitation inv)
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO CreateUserTeam
     addUserToTeamSSO account tid ident = do
@@ -610,10 +562,20 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
         u   <- maybe (notFound uid) return =<< lift (Data.lookupUser uid)
         p   <- mkPair ek (Just uc) (Just uid)
         let ident = userIdentity u
-        let name  = userName u
-        let loc'  = loc <|> Just (userLocale u)
-        void . forEmailKey ek $ \em -> lift $
-            sendActivationMail em name p loc' ident
+            name  = userName u
+            loc'  = loc <|> Just (userLocale u)
+        void . forEmailKey ek $ \em -> lift $ do
+            -- Get user's team, if any.
+            mbTeam <- mapM (fmap Team.tdTeam . Intra.getTeam) (userTeam u)
+            -- Depending on whether the user is a team creator, send either
+            -- a team activation email or a regular email. Note that we
+            -- don't have to check if the team is binding because if the
+            -- user has 'userTeam' set, it must be binding.
+            case mbTeam of
+                Just team | team ^. Team.teamCreator == uid ->
+                    sendTeamActivationMail em name p loc' (team ^. Team.teamName)
+                _otherwise ->
+                    sendActivationMail em name p loc' ident
 
 mkActivationKey :: ActivationTarget -> ExceptT ActivationError AppIO ActivationKey
 mkActivationKey (ActivateKey   k) = return k
@@ -700,7 +662,7 @@ deleteUser uid pwd = do
     ensureNotOnlyOwner acc = case userTeam . accountUser =<< acc of
         Nothing -> pure ()
         Just tid -> do
-            ownerSituation <- lift $ Team.isOnlyTeamOwner uid tid
+            ownerSituation <- lift $ Team.teamOwnershipStatus uid tid
             case ownerSituation of
                Team.IsOnlyTeamOwner       -> throwE DeleteUserOnlyOwner
                Team.IsOneOfManyTeamOwners -> pure ()

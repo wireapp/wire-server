@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns      #-}
 
@@ -25,7 +26,7 @@ module Brig.Email
     , sendMail
     ) where
 
-import Brig.App (awsEnv, AppIO)
+import Brig.App (awsEnv, smtpEnv, AppIO)
 import Brig.Types
 import Control.Applicative (optional)
 import Control.Error (hush)
@@ -37,14 +38,15 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Network.Mail.Mime
 
 import qualified Brig.AWS            as AWS
+import qualified Brig.SMTP           as SMTP
 import qualified Data.Text           as Text
 import qualified Text.Email.Validate as Email
 
 -------------------------------------------------------------------------------
 sendMail :: Mail -> AppIO ()
-sendMail m = do
-    e <- view awsEnv
-    AWS.execute e $ AWS.sendMail m
+sendMail m = view smtpEnv >>= \case
+    Just smtp -> SMTP.sendMail smtp m
+    Nothing   -> view awsEnv >>= \e -> AWS.execute e $ AWS.sendMail m
 
 -- Validation
 

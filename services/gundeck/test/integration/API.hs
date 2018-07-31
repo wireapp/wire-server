@@ -890,12 +890,12 @@ unregisterPushToken u t g = do
 listPushTokens :: UserId -> Gundeck -> Http [PushToken]
 listPushTokens u g = do
     rs <- get ( runGundeck g
-              . path "/i/push/tokens"
+              . path "/push/tokens"
               . zUser u
               . zConn "random"
               )
     maybe (error "Failed to decode push tokens")
-          return
+          (return . pushTokens)
           (responseBody rs >>= decode)
 
 listNotifications :: HasCallStack => UserId -> Maybe ClientId -> Gundeck -> Http [QueuedNotification]

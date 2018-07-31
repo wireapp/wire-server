@@ -90,7 +90,7 @@ randomUser brig = do
 
 createUser :: HasCallStack => Text -> Text -> Brig -> Http User
 createUser name email brig = do
-    r <- postUser name (Just email) Nothing Nothing Nothing brig <!! const 201 === statusCode
+    r <- postUser name (Just email) Nothing Nothing brig <!! const 201 === statusCode
     return $ fromMaybe (error "createUser: failed to parse response") (decodeBody r)
 
 createAnonUser :: HasCallStack => Text -> Brig -> Http User
@@ -145,14 +145,13 @@ getConnection brig from to = get $ brig
     . zConn "conn"
 
 -- more flexible variant of 'createUser' (see above).
-postUser :: Text -> Maybe Text -> Maybe InvitationCode -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
-postUser name email invCode ssoid teamid brig = do
+postUser :: Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser name email ssoid teamid brig = do
     email' <- maybe (pure Nothing) (fmap (Just . fromEmail) . mkEmailRandomLocalSuffix) email
     let p = RequestBodyLBS . encode $ object
             [ "name"            .= name
             , "email"           .= email'
             , "password"        .= defPassword
-            , "invitation_code" .= invCode
             , "cookie"          .= defCookieLabel
             , "sso_id"          .= ssoid
             , "team_id"         .= teamid
@@ -203,9 +202,9 @@ login b l t = let js = RequestBodyLBS (encode l) in post $ b
     . (if t == PersistentCookie then queryItem "persist" "true" else id)
     . body js
 
-backdoorLogin :: Brig -> BackdoorLogin -> CookieType -> Http ResponseLBS
-backdoorLogin b l t = let js = RequestBodyLBS (encode l) in post $ b
-    . path "/i/backdoor-login"
+ssoLogin :: Brig -> SsoLogin -> CookieType -> Http ResponseLBS
+ssoLogin b l t = let js = RequestBodyLBS (encode l) in post $ b
+    . path "/i/sso-login"
     . contentJson
     . (if t == PersistentCookie then queryItem "persist" "true" else id)
     . body js
