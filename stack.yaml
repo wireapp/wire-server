@@ -82,6 +82,17 @@ packages:
   - http-conduit
   extra-dep: true
 
+# amazonka-1.6.0 has a bug that's fixed in develop:
+# https://github.com/brendanhay/amazonka/issues/466. It's safe to use only
+# the 'amazonka' subdir here because other packages weren't changed between
+# 1.6.0 and this commit.
+- location:
+    git: https://github.com/brendanhay/amazonka
+    commit: c9d8a62118b2269fb54b1e89c4e92106e8243050
+  subdirs:
+  - amazonka
+  extra-dep: true
+
 # services/spar:
 - location:
     git: https://github.com/wireapp/saml2-web-sso
