@@ -252,7 +252,7 @@ runServantClient tenv = hoist . (`Servant.runClientM` cenv)
     hoist = HttpT . ReaderT . const . (>>= either (throwM . ErrorCall . show) pure)
 
     cenv :: Servant.ClientEnv
-    cenv = Servant.ClientEnv (tenv ^. teMgr) (tenv ^. teTstOpts . to cfgSpar . to endpointToUrl)
+    cenv = Servant.mkClientEnv (tenv ^. teMgr) (tenv ^. teTstOpts . to cfgSpar . to endpointToUrl)
       where
         endpointToUrl :: Endpoint -> Servant.BaseUrl
         endpointToUrl (Endpoint sparhost sparport) =

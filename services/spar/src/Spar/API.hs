@@ -72,7 +72,7 @@ import qualified URI.ByteString as URI
 
 app :: Env -> Application
 app ctx = SAML.setHttpCachePolicy
-        $ serve (Proxy @API) (enter (NT (SAML.nt @SparError @Spar ctx)) (api $ sparCtxOpts ctx) :: Server API)
+        $ serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @Spar ctx) (api $ sparCtxOpts ctx) :: Server API)
 
 type API = "i" :> "status" :> Get '[JSON] NoContent
       :<|> "sso" :> "api-docs" :> Get '[JSON] Swagger
