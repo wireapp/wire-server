@@ -93,7 +93,6 @@ exec chpst -u $USER \
     --team-member-welcome-url=${BRIG_TEAM_MEMBER_WELCOME_URL?'unset'} \
     --aws-ses-queue=${BRIG_AWS_SES_QUEUE?'unset'} \
     --aws-internal-queue=${BRIG_AWS_INTERNAL_QUEUE?'unset'} \
-    --aws-dynamo-blacklist=${BRIG_AWS_DYNAMO_BLACKLIST?'unset'} \
     --aws-dynamo-prekeys=${BRIG_AWS_DYNAMO_PREKEYS?'unset'} \
     --aws-ses-endpoint=${BRIG_SES_ENDPOINT?'unset'} \
     --aws-sqs-endpoint=${BRIG_SQS_ENDPOINT?'unset'} \

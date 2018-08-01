@@ -102,7 +102,7 @@ import System.Logger.Message
 
 import qualified Brig.API.Error             as Error
 import qualified Brig.AWS.Types             as AWS
-import qualified Brig.Blacklist             as Blacklist
+import qualified Brig.Data.Blacklist        as Blacklist
 import qualified Brig.Code                  as Code
 import qualified Brig.Data.Activation       as Data
 import qualified Brig.Data.Client           as Data
