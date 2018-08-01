@@ -22,7 +22,7 @@ import GHC.Generics (Generic)
 import GHC.Types (Symbol)
 import Lens.Micro
 import Options.Applicative
-import Util.Options hiding (getOptions)
+import Util.Options
 import Spar.Types (IdPExtra, SPInfo)
 
 import qualified Data.Yaml as Yaml
