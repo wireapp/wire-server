@@ -28,6 +28,7 @@ library
       , base                 >= 4.6     && < 5.0
       , cql                  >= 3.0.0
       , cql-io               >= 0.14
+      , dns                  >= 3.0
       , errors               >= 1.4
       , exceptions           >= 0.6
       , lens                 >= 4.4
