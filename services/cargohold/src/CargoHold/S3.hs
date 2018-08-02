@@ -55,6 +55,11 @@ import Control.Retry
 import Data.ByteString.Conversion
 import Data.Conduit
 import Data.Id
+<<<<<<< HEAD
+=======
+import Data.List (foldl')
+import Data.Maybe
+>>>>>>> bcca3a25... Imports (you can skip this one)
 import Data.Sequence (Seq, ViewR (..), ViewL (..))
 import Data.Time.Clock
 import Data.Text.Encoding (encodeUtf8, decodeLatin1)

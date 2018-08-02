@@ -2,7 +2,6 @@
 
 module Main (main) where
 
-import           Data.Monoid
 import           Eval
 import           Options
 import           Options.Applicative

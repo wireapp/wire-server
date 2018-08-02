@@ -9,7 +9,6 @@ import Control.Monad.IO.Class
 import Data.Aeson             (decode, encode)
 import Data.Id
 import Data.Maybe
-import Data.Monoid
 import Data.Text              (Text)
 import Data.Text.Encoding     (encodeUtf8)
 import GHC.Stack (HasCallStack)

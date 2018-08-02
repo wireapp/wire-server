@@ -51,7 +51,6 @@ import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#), toUTCTimeMillis)
-import Data.Monoid
 import Data.Time.Clock
 import Data.Text (Text)
 import Data.Text.Ascii (AsciiBase64Url)

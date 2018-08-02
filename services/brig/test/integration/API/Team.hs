@@ -26,7 +26,6 @@ import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Internal (ByteString)
 import Data.Id hiding (client)
 import Data.Maybe
-import Data.Monoid ((<>))
 import Data.Text (Text)
 import Data.Word (Word16)
 import Network.HTTP.Client             (Manager)

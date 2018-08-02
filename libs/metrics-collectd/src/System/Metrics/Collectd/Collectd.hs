@@ -10,7 +10,6 @@ module System.Metrics.Collectd.Collectd
     ) where
 
 import Data.List (intersperse)
-import Data.Monoid
 import Data.Scientific
 import Data.Text (Text)
 import Data.Text.Lazy.Builder.Scientific

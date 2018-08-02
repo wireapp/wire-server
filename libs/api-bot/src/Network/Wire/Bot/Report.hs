@@ -107,7 +107,7 @@ reportBucket r p = fromMaybe mempty $ HashMap.lookup p (_buckets (_data r))
 -------------------------------------------------------------------------------
 -- * Structure Reports
 
-newtype SectionS = SectionS (Endo [Section]) deriving Monoid
+newtype SectionS = SectionS (Endo [Section]) deriving (Semigroup, Monoid)
 
 data Section = Section
     { sectionName    :: !Text

@@ -40,7 +40,6 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Maybe (fromMaybe)
-import Data.Monoid
 import Data.Serialize
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)

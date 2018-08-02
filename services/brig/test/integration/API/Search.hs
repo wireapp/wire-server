@@ -10,7 +10,6 @@ import Control.Concurrent.Async.Lifted.Safe
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Foldable
-import Data.Monoid
 import Network.HTTP.Client             (Manager)
 import Test.Tasty
 import Test.Tasty.HUnit

@@ -9,7 +9,6 @@ import Data.ByteString.Conversion
 import Data.Foldable (for_)
 import Data.Id
 import Data.Maybe
-import Data.Monoid
 import GHC.Stack
 import Test.Tasty.HUnit
 

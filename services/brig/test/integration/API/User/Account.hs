@@ -32,7 +32,6 @@ import Data.Foldable (for_)
 import Data.List1 (singleton)
 import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
-import Data.Monoid ((<>))
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Clock (diffUTCTime)
 import Data.Text (Text)

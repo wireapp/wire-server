@@ -3,7 +3,6 @@
 module Main where
 
 import Control.Monad (unless)
-import Data.Monoid
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wire.Bot

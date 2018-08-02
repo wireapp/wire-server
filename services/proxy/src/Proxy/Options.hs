@@ -14,6 +14,10 @@ module Proxy.Options
 
 import Imports
 import Control.Lens
+<<<<<<< HEAD
+=======
+import Data.Word
+>>>>>>> bcca3a25... Imports (you can skip this one)
 import Options.Applicative
 import Data.Aeson
 import Data.Aeson.TH

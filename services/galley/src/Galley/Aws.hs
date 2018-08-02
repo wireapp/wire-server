@@ -30,7 +30,6 @@ import Control.Monad.IO.Unlift
 import Control.Monad.Reader
 import Control.Monad.Trans.Resource
 import Control.Retry (retrying, limitRetries, exponentialBackoff)
-import Data.Monoid ((<>))
 import Data.ProtoLens.Encoding
 import Data.Text (Text)
 import Data.Text.Encoding (decodeLatin1)

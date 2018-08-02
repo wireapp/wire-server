@@ -16,7 +16,6 @@ import Data.Foldable (forM_, for_)
 import Data.Id
 import Data.List1
 import Data.Misc (PlainTextPassword (..))
-import Data.Monoid
 import Data.Range
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams

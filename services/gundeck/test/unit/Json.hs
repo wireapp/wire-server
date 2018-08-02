@@ -14,6 +14,10 @@ import Data.Aeson
 import Data.HashMap.Strict (fromList)
 import Data.Id
 import Data.List1
+<<<<<<< HEAD
+=======
+import Data.String
+>>>>>>> bcca3a25... Imports (you can skip this one)
 import Gundeck.Types.BulkPush
 import Gundeck.Types.Notification
 import Gundeck.Types.Push

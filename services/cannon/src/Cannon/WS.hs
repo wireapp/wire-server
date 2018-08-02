@@ -49,7 +49,6 @@ import Data.ByteString.Conversion
 import Data.Hashable
 import Data.Id (ClientId, UserId, ConnId (..))
 import Data.IORef
-import Data.Monoid
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.Word

@@ -18,6 +18,10 @@ import Control.AutoUpdate
 import Data.ByteString.Builder
 import Data.ByteString.Lazy (toStrict)
 import Data.ByteString.Conversion
+<<<<<<< HEAD
+=======
+import Data.Text (Text)
+>>>>>>> bcca3a25... Imports (you can skip this one)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock.POSIX
 import Data.Yaml (FromJSON)

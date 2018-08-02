@@ -16,7 +16,6 @@ import Data.Aeson
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Monoid
 import Data.Text (Text)
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), checkResponse)
 import Network.HTTP.Types.Method

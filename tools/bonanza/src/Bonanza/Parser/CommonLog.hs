@@ -29,7 +29,6 @@ import Data.ByteString.Char8            (unpack)
 import Data.Char                        (isUpper)
 import Data.HashMap.Strict              (fromList)
 import Data.Maybe
-import Data.Monoid
 import Data.Text                        (Text)
 import Data.Text.Encoding
 import Data.Time                        (UTCTime (..))

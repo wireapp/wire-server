@@ -20,7 +20,6 @@ import Data.Id
 import Data.Foldable (for_)
 import Data.Functor.Identity
 import Data.Maybe
-import Data.Monoid
 
 import qualified Brig.Data.User as User
 

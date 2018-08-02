@@ -67,7 +67,6 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
-import Data.Monoid
 import Data.List1
 import Data.Range
 import Data.Set (Set)

@@ -20,7 +20,6 @@ import           Data.Attoparsec.ByteString.Char8
 import           Data.Bifunctor
 import           Data.HashMap.Strict              (fromList)
 import           Data.List                        (intersperse)
-import           Data.Monoid
 import           Data.Text                        (Text)
 import           Data.Text.Lazy                   (toStrict)
 import           Data.Text.Lazy.Builder           (toLazyText)

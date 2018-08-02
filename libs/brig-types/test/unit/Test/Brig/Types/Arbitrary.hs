@@ -29,7 +29,6 @@ import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LanguageCodes
 import Data.Maybe
 import Data.Misc
-import Data.Monoid
 import Data.Range
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)

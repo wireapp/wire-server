@@ -21,7 +21,6 @@ import Data.ByteString (ByteString)
 import Data.CaseInsensitive (original)
 import Data.List (foldl', find)
 import Data.Maybe
-import Data.Monoid
 import Network.HTTP.Client
 import Network.HTTP.Types (HeaderName, httpMajor, httpMinor)
 

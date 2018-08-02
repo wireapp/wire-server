@@ -11,7 +11,6 @@ import Data.Aeson.TH
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Maybe (fromMaybe)
-import Data.Monoid
 import Data.String
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)

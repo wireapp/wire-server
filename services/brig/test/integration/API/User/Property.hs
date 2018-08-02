@@ -11,7 +11,6 @@ import Bilge.Assert
 import Brig.Types
 import Control.Monad
 import Data.Aeson
-import Data.Monoid ((<>))
 import Data.Text (Text)
 import Test.Tasty hiding (Timeout)
 import Util

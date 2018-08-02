@@ -54,7 +54,6 @@ import qualified Data.ByteString.Conversion as BC
 import           Data.List (partition)
 import           Data.List1
 import           Data.Misc                  (Port (..))
-import           Data.Monoid
 import           Data.Text                  (Text)
 import           Data.Text.Ascii
 import qualified Data.Text.Encoding         as TE

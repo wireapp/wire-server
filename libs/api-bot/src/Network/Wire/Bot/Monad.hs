@@ -91,7 +91,6 @@ import Data.List (foldl', partition)
 import Data.Maybe (fromMaybe, isNothing)
 import Data.Misc (PlainTextPassword(..))
 import Data.Metrics (Metrics)
-import Data.Monoid ((<>))
 import Data.String (IsString)
 import Data.Text (Text, pack, unpack)
 import Data.Time.Clock

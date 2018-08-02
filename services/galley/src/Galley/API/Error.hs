@@ -2,7 +2,6 @@
 
 module Galley.API.Error where
 
-import Data.Monoid
 import Data.Text.Lazy
 import Galley.Types.Teams (Perm)
 import Network.HTTP.Types.Status

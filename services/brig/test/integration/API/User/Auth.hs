@@ -22,7 +22,6 @@ import Data.Id
 import Data.List (sort, partition)
 import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
-import Data.Monoid
 import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock

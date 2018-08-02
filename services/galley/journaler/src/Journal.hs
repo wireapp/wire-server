@@ -11,7 +11,6 @@ import Control.Lens
 import Control.Monad.Except
 import Data.Id
 import Data.ByteString.Conversion
-import Data.Monoid ((<>))
 import Data.Int
 import Data.Maybe (fromMaybe)
 import Data.Proto

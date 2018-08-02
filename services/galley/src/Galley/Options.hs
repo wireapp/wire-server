@@ -7,7 +7,6 @@ module Galley.Options where
 import Control.Lens hiding ((.=))
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Text (Text)
-import Data.Monoid
 import Data.Word (Word16)
 import GHC.Generics
 import Options.Applicative

@@ -32,7 +32,6 @@ import Data.IORef
 import Data.Functor.Identity
 import Data.List (sortBy)
 import Data.List.Split (splitOn)
-import Data.Monoid ((<>))
 import Data.Text (Text, pack, intercalate)
 import Data.Text.Lazy (fromStrict)
 import Data.Text.Lazy.Builder (fromText, fromString, toLazyText)

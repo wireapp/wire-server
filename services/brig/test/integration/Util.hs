@@ -30,7 +30,6 @@ import Data.Id
 import Data.List1 (List1)
 import Data.Misc (PlainTextPassword(..))
 import Data.Maybe
-import Data.Monoid
 import Data.Text (Text)
 import Data.Typeable
 import Galley.Types (Member (..))

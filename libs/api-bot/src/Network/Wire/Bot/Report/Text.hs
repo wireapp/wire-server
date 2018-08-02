@@ -8,7 +8,6 @@ module Network.Wire.Bot.Report.Text
 
 import Control.Monad.IO.Class
 import Data.List (sort)
-import Data.Monoid
 import Data.Text.Lazy.Builder as Text
 import Data.Text.Lazy.Builder.Int
 import Network.Wire.Bot.Report hiding (section)

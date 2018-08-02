@@ -27,7 +27,6 @@ import qualified Cassandra              as C
 import           Control.Lens
 import           Data.Bifunctor
 import           Data.ByteString.Lens
-import           Data.Monoid
 import           Data.Text              (Text)
 import           Data.Text.Strict.Lens
 import           Data.Word

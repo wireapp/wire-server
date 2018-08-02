@@ -18,7 +18,6 @@ import Control.Lens                     ((&), (.~))
 import Data.Aeson
 import Data.Attoparsec.ByteString.Char8
 import Data.HashMap.Strict              (fromList)
-import Data.Monoid
 import Data.Text                        (Text, strip)
 import Data.Time                        (UTCTime (..))
 

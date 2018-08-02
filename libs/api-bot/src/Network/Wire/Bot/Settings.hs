@@ -18,7 +18,6 @@ module Network.Wire.Bot.Settings
 
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 (pack)
-import Data.Monoid
 import Data.Time.Clock (NominalDiffTime)
 import Data.Word (Word16)
 import Options.Applicative

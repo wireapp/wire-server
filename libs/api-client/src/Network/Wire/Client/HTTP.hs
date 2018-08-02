@@ -20,7 +20,6 @@ import Control.Retry
 import Data.Aeson hiding (Error)
 import Data.Function ((&))
 import Data.List.NonEmpty (NonEmpty, toList)
-import Data.Monoid ((<>))
 import Data.Text (Text, pack)
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.HTTP.Types.Header (hUserAgent)

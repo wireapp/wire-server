@@ -15,7 +15,6 @@ import Control.Retry
 import Data.ByteString (ByteString)
 import Data.ByteString.Conversion.To
 import Data.Misc
-import Data.Monoid
 import Data.Word
 import Galley.App
 import Galley.Data.Services (BotMember, botMemId, botMemService)

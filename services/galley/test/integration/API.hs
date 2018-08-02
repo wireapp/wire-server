@@ -21,7 +21,6 @@ import Data.List ((\\), find)
 import Data.List1
 import Data.Misc
 import Data.Maybe
-import Data.Monoid
 import Data.Range
 import Galley.Types
 import Gundeck.Types.Notification

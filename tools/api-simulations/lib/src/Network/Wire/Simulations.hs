@@ -32,7 +32,6 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id (ConvId, UserId)
 import Data.Maybe (fromMaybe)
-import Data.Monoid
 import Data.Serialize
 import Data.Text (Text)
 import GHC.Stack (HasCallStack)

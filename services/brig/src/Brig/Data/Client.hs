@@ -49,7 +49,6 @@ import Data.Id
 import Data.List.Split (chunksOf)
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc
-import Data.Monoid ((<>))
 import Data.Text (Text)
 import Data.Typeable
 import Data.Word

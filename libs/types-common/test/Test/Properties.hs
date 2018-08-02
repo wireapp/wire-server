@@ -9,7 +9,6 @@ module Test.Properties (tests) where
 import Data.Aeson as Aeson
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy as L
-import Data.Monoid
 import Data.Text.Ascii
 import Data.Id
 import Data.ProtocolBuffers.Internal

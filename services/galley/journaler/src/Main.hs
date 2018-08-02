@@ -5,7 +5,6 @@ module Main (main) where
 import Cassandra as C
 import Cassandra.Settings as C
 import Control.Lens hiding ((.=))
-import Data.Monoid
 import Galley.Options
 import Journal
 import Network.HTTP.Client

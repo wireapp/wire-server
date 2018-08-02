@@ -9,7 +9,6 @@
 module Galley.Types.Teams.Internal where
 
 import Data.Json.Util
-import Data.Monoid
 import Data.Aeson
 import Data.Id (TeamId, UserId)
 import Data.Range

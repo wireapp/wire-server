@@ -17,7 +17,6 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Int (Int64)
 import Data.Maybe
-import Data.Monoid
 import Data.Scientific (toBoundedInteger)
 import Data.Text (Text)
 import Data.Time.Clock (DiffTime, secondsToDiffTime)

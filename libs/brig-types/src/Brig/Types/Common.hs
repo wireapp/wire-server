@@ -19,7 +19,6 @@ import Data.Int (Int32)
 import Data.Json.Util ((#))
 import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
-import Data.Monoid ((<>))
 import Data.Range
 import Data.Text (Text, toLower)
 import Data.Time.Clock

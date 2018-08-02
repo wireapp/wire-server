@@ -20,7 +20,6 @@ import Data.Aeson (encode)
 import Data.ByteString (ByteString)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
-import Data.Monoid
 import Data.Swagger.Build.Api hiding (def, Response)
 import Data.Text (Text, strip, pack)
 import Data.Text.Encoding (encodeUtf8)

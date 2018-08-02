@@ -8,7 +8,6 @@ import Control.Lens
 import Control.Monad (join)
 import Data.Aeson
 import Data.ByteString.Conversion
-import Data.Monoid
 import Data.Proxy
 import Data.Tagged
 import Data.Text (pack)

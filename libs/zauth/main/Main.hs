@@ -11,7 +11,6 @@ import Control.Monad.Trans.Class
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Base64.URL
 import Data.ByteString.Conversion
-import Data.Monoid
 import Data.String
 import Data.UUID (fromASCIIBytes, UUID)
 import Data.ZAuth.Token

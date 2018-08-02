@@ -10,7 +10,6 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Data.Id (ConvId)
 import Data.String
-import Data.Monoid
 import Data.Foldable (for_)
 import Data.Traversable (for)
 import Network.Wire.Bot

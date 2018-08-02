@@ -37,7 +37,6 @@ import Data.Aeson
 import Data.ByteString (ByteString)
 import Data.Foldable (for_)
 import Data.IORef
-import Data.Monoid
 import Data.Text (Text, pack, unpack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock

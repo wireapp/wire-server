@@ -16,7 +16,6 @@ import Control.Monad
 import Data.ByteString (ByteString)
 import Data.ByteString.Char8 (pack, unpack)
 import Data.ByteString.Base64.URL
-import Data.Monoid
 import Foreign hiding (void)
 import Foreign.C
 

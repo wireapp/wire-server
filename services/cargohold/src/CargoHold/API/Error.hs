@@ -4,6 +4,10 @@ module CargoHold.API.Error where
 
 import Imports
 import CargoHold.Types.V3.Resumable (Offset, TotalSize)
+<<<<<<< HEAD
+=======
+import Data.Text.Lazy (Text)
+>>>>>>> bcca3a25... Imports (you can skip this one)
 import Data.Text.Lazy.Builder
 import Data.Text.Lazy.Builder.Int
 import Network.HTTP.Types.Status

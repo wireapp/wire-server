@@ -12,7 +12,6 @@ import Brig.Types
 import Control.Monad.Catch (MonadMask, throwM)
 import Control.Monad.IO.Class
 import Control.Retry
-import Data.Monoid
 import Data.Text
 import Data.Text.Encoding (encodeUtf8)
 import GHC.Generics

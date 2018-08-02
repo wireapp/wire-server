@@ -23,7 +23,6 @@ import Data.Aeson
 import Data.Foldable (for_, mapM_)
 import Data.IORef
 import Data.List (intersperse)
-import Data.Monoid
 import Data.Time.Clock.POSIX
 import Data.Text (unpack)
 import Network.HTTP.Client

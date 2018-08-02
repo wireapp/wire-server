@@ -59,7 +59,6 @@ import Data.Foldable (mapM_, for_)
 import Data.Id
 import Data.List1
 import Data.Maybe
-import Data.Monoid
 import Data.Timeout (Timeout, TimeoutUnit (..), (#))
 import Data.Typeable
 import Data.Word

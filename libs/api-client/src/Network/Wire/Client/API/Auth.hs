@@ -14,7 +14,6 @@ import Bilge
 import Brig.Types.User.Auth as Auth hiding (Cookie, user)
 import Control.Monad.IO.Class
 import Data.List.NonEmpty
-import Data.Monoid
 import Data.Time (getCurrentTime)
 import Network.HTTP.Client (generateCookie)
 import Network.HTTP.Types.Method

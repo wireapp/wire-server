@@ -28,7 +28,6 @@ import Data.Id hiding (client)
 import Data.List1 (List1)
 import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
-import Data.Monoid ((<>))
 import Data.PEM
 import Data.Range
 import Data.Set (Set)

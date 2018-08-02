@@ -35,7 +35,6 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.List1 (List1, toNonEmpty)
 import Data.Map (Map)
 import Data.Maybe
-import Data.Monoid
 import Data.Sequence (Seq)
 import Data.Set (Set)
 import Data.Singletons.Prelude.Num

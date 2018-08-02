@@ -29,7 +29,7 @@ import Control.Concurrent.Async
 import Control.Concurrent.MVar
 import Control.Exception (throw, throwIO)
 import Control.Monad (when, unless, void)
-import Control.Monad.Catch hiding (onException)
+import Control.Monad.Catch hiding (onException, onError)
 import Control.Monad.IO.Class
 import Data.Aeson (encode)
 import Data.ByteString.Builder
@@ -37,7 +37,6 @@ import Data.Foldable (for_)
 import Data.Functor.Identity
 import Data.Maybe (fromMaybe, catMaybes)
 import Data.Metrics.Middleware
-import Data.Monoid
 import Data.Streaming.Zlib (ZlibException (..))
 import Data.String (fromString)
 import Data.Text.Encoding.Error (lenientDecode)

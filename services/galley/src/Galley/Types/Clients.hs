@@ -23,7 +23,6 @@ import Data.Map.Strict (Map)
 import Data.Set (Set)
 import Data.Id
 import Data.Maybe (fromMaybe)
-import Data.Monoid
 import Data.Range
 import Galley.Types (UserClients (..))
 import Prelude hiding (filter)
@@ -33,7 +32,7 @@ import qualified Data.Set        as Set
 
 newtype Clients = Clients
     { clients :: UserClients
-    } deriving (Eq, Show, Monoid)
+    } deriving (Eq, Show, Semigroup, Monoid)
 
 instance Bounds Clients where
     within c x y =

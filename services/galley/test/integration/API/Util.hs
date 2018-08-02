@@ -22,7 +22,6 @@ import Data.List (sort)
 import Data.List1 as List1
 import Data.Maybe
 import Data.Misc
-import Data.Monoid
 import Data.ProtocolBuffers (encodeMessage)
 import Data.Range
 import Data.Set (Set)

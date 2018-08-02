@@ -34,7 +34,6 @@ import Control.Retry
 import Data.Char (isSpace)
 import Data.Foldable (for_)
 import Data.LanguageCodes
-import Data.Monoid
 import Data.Text (Text, isPrefixOf)
 import Data.Time.Clock
 import Data.Typeable (Typeable)

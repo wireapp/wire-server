@@ -16,7 +16,6 @@ import Bilge.Request
 import Bilge.Response
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.CaseInsensitive (original)
-import Data.Monoid
 import Data.Typeable
 import Control.Error hiding (err)
 import Control.Monad

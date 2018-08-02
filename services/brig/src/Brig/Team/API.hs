@@ -28,7 +28,6 @@ import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Int
-import Data.Monoid ((<>))
 import Data.Range
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)

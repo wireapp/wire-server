@@ -20,7 +20,6 @@ import Data.Byteable (constEqBytes)
 import Data.ByteString (ByteString)
 import Data.ByteString.Builder
 import Data.Dynamic (fromDynamic)
-import Data.Monoid
 import Data.Time.Clock (getCurrentTime)
 import Network.HTTP.Client (defaultRequest)
 import Network.HTTP.Client.Internal

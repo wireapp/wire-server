@@ -21,7 +21,6 @@ where
 
 import Control.Lens (makeFields)
 import Data.Aeson.APIFieldJsonTH
-import Data.Monoid ((<>))
 import Data.Text (Text, pack)
 import Data.Word
 import GHC.Generics

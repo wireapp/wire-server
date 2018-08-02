@@ -12,7 +12,6 @@ import Control.Monad.Trans.Control
 import Control.Retry
 import Data.Id
 import Data.Maybe (isNothing)
-import Data.Monoid ((<>))
 import Data.Traversable (mapM)
 import Data.UUID.V1
 import Gundeck.Types.Notification

@@ -12,7 +12,6 @@ import Data.Functor.Identity
 import Data.Id
 import Data.Int
 import Data.Misc
-import Data.Monoid
 import Data.Text (Text)
 import Galley.Data.Types
 import Galley.Types hiding (Conversation)

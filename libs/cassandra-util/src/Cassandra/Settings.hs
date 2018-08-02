@@ -30,11 +30,16 @@ import Control.Monad.IO.Class
 import Data.Aeson.Lens
 import Database.CQL.IO hiding (values)
 import Data.List.NonEmpty (NonEmpty (..))
+<<<<<<< HEAD
 import Data.Monoid
 import Data.Text.Encoding (encodeUtf8)
 import Data.Text (pack, stripSuffix, unpack, Text)
 import Network.DNS.Lookup
 import Network.DNS.Resolver
+=======
+import Data.Text (pack, stripSuffix, unpack)
+import Database.CQL.IO hiding (values)
+>>>>>>> bcca3a25... Imports (you can skip this one)
 import Network.Wreq
 
 import qualified Data.List.NonEmpty as NE

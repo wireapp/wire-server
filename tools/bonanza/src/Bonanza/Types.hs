@@ -44,7 +44,6 @@ import           Data.Char           (toLower)
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as M
 import qualified Data.List           as L
-import           Data.Monoid
 import           Data.Text           (Text)
 import           Data.Text.Encoding  (decodeUtf8)
 import           Data.Time

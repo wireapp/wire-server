@@ -3,7 +3,6 @@
 module Network.Wire.Bot.Metrics where
 
 import Data.Metrics
-import Data.Monoid
 import Network.Wire.Client.API.Push (EventType, eventTypeText)
 
 assertionsTotal :: Path

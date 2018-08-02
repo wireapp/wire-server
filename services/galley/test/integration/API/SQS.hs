@@ -19,7 +19,6 @@ import Data.Either
 import Data.Foldable (for_)
 import Data.Id
 import Data.Int
-import Data.Monoid ((<>))
 import Data.Text (pack)
 import Data.UUID.V4 (nextRandom)
 import Safe (headDef)

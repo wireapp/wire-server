@@ -20,7 +20,6 @@ import Data.Foldable (for_, toList)
 import Data.Id
 import Data.List1
 import Data.Maybe (fromMaybe)
-import Data.Monoid ((<>))
 import Data.Range
 import Data.Set ((\\))
 import Data.Time

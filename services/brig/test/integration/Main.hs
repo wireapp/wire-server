@@ -11,7 +11,6 @@ import Control.Monad (join)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Maybe (fromMaybe)
-import Data.Monoid
 import Data.List (foldl', (\\))
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
