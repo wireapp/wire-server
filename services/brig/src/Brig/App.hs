@@ -275,9 +275,10 @@ turnSetup lgr w dig o = do
 startWatching :: FS.WatchManager -> FilePath -> FS.Action -> IO ()
 startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
   where
-    predicate (FS.Added f _)    = Path.equalFilePath f p
-    predicate (FS.Modified f _) = Path.equalFilePath f p
-    predicate (FS.Removed _ _)  = False
+    predicate (FS.Added f _ _)    = Path.equalFilePath f p
+    predicate (FS.Modified f _ _) = Path.equalFilePath f p
+    predicate (FS.Removed _ _ _)  = False
+    predicate (FS.Unknown _ _ _)  = False
 
 replaceGeoDb :: Logger -> IORef GeoIp.GeoDB -> FS.Event -> IO ()
 replaceGeoDb g ref e = do
@@ -379,7 +380,7 @@ initCassandra o g = do
 initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
 initCredentials secretFile = do
     dat <- loadSecret secretFile
-    return $ fromMaybe (error $ "Could not load secrets from " ++ show secretFile) dat
+    return $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
 
 userTemplates :: Monad m => Maybe Locale -> AppT m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates

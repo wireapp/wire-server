@@ -136,12 +136,12 @@ useKeyspace :: Keyspace -> Client ()
 useKeyspace (Keyspace k) = do
     r <- qry
     case r of
-        RsResult _ (SetKeyspaceResult _) -> return ()
-        RsError _ e                      -> throwM e
-        _                                -> throwM (UnexpectedResponse' r)
+        RsResult _ _ (SetKeyspaceResult _) -> return ()
+        RsError _ _ e                      -> throwM e
+        _                                  -> throwM (UnexpectedResponse' r)
   where
     qry  = request (RqQuery (Query cql prms)) :: Client (Response () () ())
-    prms = QueryParams One False () Nothing Nothing Nothing
+    prms = QueryParams One False () Nothing Nothing Nothing Nothing
     cql  = QueryString $ "use \"" <> fromStrict k <> "\""
 
 migrateSchema :: Logger -> MigrationOpts -> [Migration] -> IO ()

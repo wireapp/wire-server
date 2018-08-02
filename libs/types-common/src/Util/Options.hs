@@ -82,13 +82,13 @@ makeLenses ''CassandraOpts
 newtype FilePathSecrets = FilePathSecrets FilePath
     deriving (Eq, Show, Read, FromJSON)
 
-loadSecret :: FromJSON a => FilePathSecrets -> IO (Maybe a)
+loadSecret :: FromJSON a => FilePathSecrets -> IO (Either String a)
 loadSecret (FilePathSecrets p) = do
     path   <- canonicalizePath p
     exists <- doesFileExist path
     if exists
-        then return . decode =<< BS.readFile path
-        else return Nothing
+        then return . over _Left show . decodeEither' =<< BS.readFile path
+        else return (Left "File doesn't exist")
 
 getOptions
     :: FromJSON a

@@ -28,11 +28,11 @@ module Cassandra.Settings
 import Control.Lens
 import Control.Monad.IO.Class
 import Data.Aeson.Lens
+import Database.CQL.IO hiding (values)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Monoid
-import Data.Text (pack, stripSuffix, unpack, Text)
 import Data.Text.Encoding (encodeUtf8)
-import Database.CQL.IO
+import Data.Text (pack, stripSuffix, unpack, Text)
 import Network.DNS.Lookup
 import Network.DNS.Resolver
 import Network.Wreq

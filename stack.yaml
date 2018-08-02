@@ -38,7 +38,7 @@ packages:
 
 - location:
     git: https://github.com/tiago-loureiro/haskell-multihash.git
-    commit: 7622cfcff97fa1e207ec91bb11495a207e6c0195
+    commit: 300a6f46384bfca33e545c8bab52ef3717452d12
   extra-dep: true
 
 - location:
@@ -109,6 +109,22 @@ packages:
   - core
   extra-dep: true
 
+# Needs to have QuickCheck bumped: see
+# https://github.com/hedgehogqa/haskell-hedgehog/issues/213
+- location:
+    git: https://github.com/hedgehogqa/haskell-hedgehog
+    commit: 7516d04673563455a55cf69eb1c490fbbb7f2a5f
+  subdirs:
+  - hedgehog-quickcheck
+  extra-dep: true
+
+# Doesn't compile with GHC 8.4; see
+# https://gitlab.com/twittner/redis-resp/issues/2
+- location:
+    git: https://github.com/neongreen/redis-resp
+    commit: 86ae383e88dafa4d1a559929e1b75dbba1fd9078
+  extra-dep: true
+
 # services/spar:
 - location:
     git: https://github.com/wireapp/saml2-web-sso
@@ -145,8 +161,8 @@ extra-deps:
 - wai-route-0.4.0
 - text-format-0.3.2
 - redis-io-0.7.0
-- redis-resp-0.4.0
-- hedgehog-quickcheck-0.1
+#- redis-resp-0.4.0
+#- hedgehog-quickcheck-0.1
 
 flags:
   types-common:

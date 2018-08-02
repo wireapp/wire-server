@@ -70,11 +70,11 @@ import Database.CQL.IO
 import Data.Conduit
 
 params :: Tuple a => Consistency -> a -> QueryParams a
-params c p = QueryParams c False p Nothing Nothing Nothing
+params c p = QueryParams c False p Nothing Nothing Nothing Nothing
 {-# INLINE params #-}
 
 paramsP :: Consistency -> a -> Int32 -> QueryParams a
-paramsP c p n = QueryParams c False p (Just n) Nothing Nothing
+paramsP c p n = QueryParams c False p (Just n) Nothing Nothing Nothing
 {-# INLINE paramsP #-}
 
 x5 :: RetrySettings
