@@ -66,7 +66,7 @@ data TestSetup = TestSetup
   , brig            :: Brig
   , cannon          :: Cannon
   , awsEnv          :: Maybe Aws.Env
-  , maxConvTeamSize :: Word16
+  , maxConvSize     :: Word16
   }
 
 -------------------------------------------------------------------------------

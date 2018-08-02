@@ -13,7 +13,7 @@ import Brig.API.Handler
 import Brig.API.User (fetchUserIdentity)
 import Brig.Data.UserKey (userEmailKey)
 import Brig.Email
-import Brig.Options (setMaxConvAndTeamSize, setTeamInvitationTimeout)
+import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import Brig.Team.Email
 import Brig.Types.Team.Invitation
 import Brig.Types.User (InvitationCode, emailIdentity)
@@ -177,7 +177,7 @@ createInvitation (_ ::: uid ::: _ ::: tid ::: req) = do
     blacklisted <- lift $ Blacklist.exists uk
     when blacklisted $
         throwStd blacklistedEmail
-    maxSize <- setMaxConvAndTeamSize <$> view settings
+    maxSize <- setMaxTeamSize <$> view settings
     pending <- lift $ DB.countInvitations tid
     when (fromIntegral pending >= maxSize) $
         throwStd tooManyTeamInvitations

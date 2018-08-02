@@ -314,7 +314,8 @@ sitemap o = do
 
     document "POST" "getMultiPrekeyBundles" $ do
         Doc.summary "Given a map of user IDs to client IDs return a \
-        \prekey for each one. The maximum map size is 128 entries."
+        \prekey for each one. You can't request information for more users than \
+        \maximum conversation size."
         Doc.notes "Prekeys of all clients of a multiple users. \
         \The result is a map of maps, i.e. { UserId : { ClientId : Maybe Prekey } }"
         Doc.body (Doc.ref Doc.userClients) $
@@ -1000,7 +1001,7 @@ getPrekeyBundle (u ::: _) = json <$> lift (API.claimPrekeyBundle u)
 getMultiPrekeyBundles :: Request ::: JSON ::: JSON -> Handler Response
 getMultiPrekeyBundles (req ::: _) = do
     body <- parseJsonBody req
-    maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+    maxSize <- fromIntegral . setMaxConvSize <$> view settings
     when (Map.size (userClients body) > maxSize) $
         throwStd tooManyClients
     json <$> lift (API.claimMultiPrekeyBundles body)

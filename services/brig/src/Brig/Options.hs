@@ -192,7 +192,8 @@ data Settings = Settings
     , setUserCookieLimit       :: !Int
     , setUserCookieThrottle    :: !CookieThrottle
     , setDefaultLocale         :: !Locale
-    , setMaxConvAndTeamSize    :: !Word16 -- NOTE: This must be in sync with galley
+    , setMaxTeamSize           :: !Word16 -- NOTE: This must be in sync with galley
+    , setMaxConvSize           :: !Word16 -- NOTE: This must be in sync with galley
     , setProviderSearchFilter  :: !(Maybe ProviderId)
     -- ^ Temporary optional provider ID to use for filtering services during search
     } deriving (Show, Generic)
@@ -448,8 +449,11 @@ settingsParser =
      long "default-locale" <> metavar "STRING" <> value "en" <> showDefault <>
      help "Default locale to use (e.g. when selecting templates)") <*>
     (option auto $
-     long "conv-team-max-size" <> metavar "INT" <> value 128 <> showDefault <>
-     help "Max. # of members in a team/conversation.") <*>
+     long "team-max-size" <> metavar "INT" <>
+     help "Max. # of members in a team") <*>
+    (option auto $
+     long "conv-max-size" <> metavar "INT" <>
+     help "Max. # of members in a conversation") <*>
     (optional $ option providerIdOption $
      long "provider-id-search-filter" <> metavar "STRING" <>
      help "Filter _ONLY_ services with the given provider id")

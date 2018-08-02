@@ -612,7 +612,7 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let mems = cnvMembers cnv
     unless (cnvType cnv == RegularConv) $
         throwStd invalidConv
-    maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+    maxSize <- fromIntegral . setMaxConvSize <$> view settings
     unless (length (cmOthers mems) < maxSize - 1) $
         throwStd tooManyMembers
     for_ (cnvTeam cnv) $ ensureNotManagedConv
@@ -722,7 +722,7 @@ botUpdatePrekeys (bot ::: req) = do
 botClaimUsersPrekeys :: Request -> Handler Response
 botClaimUsersPrekeys req = do
     body <- parseJsonBody req
-    maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+    maxSize <- fromIntegral . setMaxConvSize <$> view settings
     when (Map.size (userClients body) > maxSize) $
         throwStd tooManyClients
     json <$> lift (Client.claimMultiPrekeyBundles body)
