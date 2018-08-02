@@ -25,8 +25,12 @@ import Control.Error
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+<<<<<<< HEAD
 import Control.Retry
 import Data.Aeson
+=======
+import Data.Aeson hiding (Result)
+>>>>>>> a30f208a... Use newer cql-io to fix the "read-loop: AsyncCancelled" warning
 import Data.Int
 import Data.IORef
 import Data.Functor.Identity
@@ -132,16 +136,18 @@ createKeyspace (Keyspace k) rs = void $ schema (cql rs) (params All ())
     pair (dc, ReplicationFactor n) = "'" <> dc <> "': " <> pack (show n)
 
 useKeyspace :: Keyspace -> Client ()
-useKeyspace (Keyspace k) = do
-    r <- qry
-    case r of
-        RsResult _ _ (SetKeyspaceResult _) -> return ()
-        RsError _ _ e                      -> throwM e
-        _                                  -> throwM (UnexpectedResponse' r)
+useKeyspace (Keyspace k) = void . getResult =<< qry
   where
-    qry  = request (RqQuery (Query cql prms)) :: Client (Response () () ())
+    qry  = request (RqQuery (Query cql prms)) :: Client (HostResponse () () ())
     prms = QueryParams One False () Nothing Nothing Nothing Nothing
     cql  = QueryString $ "use \"" <> fromStrict k <> "\""
+
+-- Copied from Database.CQL.IO.Client; see https://gitlab.com/twittner/cql-io/issues/15
+getResult :: MonadThrow m => HostResponse k a b -> m (Result k a b)
+getResult (HostResponse _ (RsResult _ _ r)) = return r
+getResult (HostResponse h (RsError  t w e)) = throwM (ResponseError h t w e)
+getResult (HostResponse h r)                = throwM (UnexpectedResponse h r)
+{-# INLINE getResult #-}
 
 migrateSchema :: Logger -> MigrationOpts -> [Migration] -> IO ()
 migrateSchema l o ms = do

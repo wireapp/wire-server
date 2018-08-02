@@ -118,6 +118,13 @@ packages:
   - hedgehog-quickcheck
   extra-dep: true
 
+# We want to have at least this commit in:
+# https://gitlab.com/twittner/cql-io/commit/94facaca2d9970b91353f947da84634fcd6d78cc
+- location:
+    git: https://gitlab.com/twittner/cql-io
+    commit: 94facaca2d9970b91353f947da84634fcd6d78cc
+  extra-dep: true
+
 # Doesn't compile with GHC 8.4; see
 # https://gitlab.com/twittner/redis-resp/issues/2
 - location:
