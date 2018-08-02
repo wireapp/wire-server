@@ -101,7 +101,7 @@ exec chpst -u $USER \
     --twilio-credentials=${BRIG_TWILIO_CREDENTIALS?'unset'} \
     --twilio-sender=${BRIG_TWILIO_SENDER?'unset'} \
     --nexmo-credentials=${BRIG_NEXMO_CREDENTIALS?'unset'} \
-    --stomp-credentials=${BRIG_STOMP_CREDENTIALS?'unset'} \
+    `# --stomp-credentials=${BRIG_STOMP_CREDENTIALS}` \
     --template-dir=${TEMPLATE_DIR?'unset'} \
     --email-sender=${BRIG_EMAIL_SENDER?'unset'} \
     --disco-url=${DISCO_URL?'unset'} \
