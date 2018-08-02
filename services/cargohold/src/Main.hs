@@ -8,7 +8,7 @@ import Util.Options
 
 main :: IO ()
 main = withOpenSSL $ do
-    options <- getOptions desc optsParser defaultPath
+    options <- getOptions desc (Just optsParser) defaultPath
     runServer options
   where
     desc = "Cargohold - Asset Storage"
