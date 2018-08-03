@@ -95,11 +95,12 @@ runZAuth :: MonadIO m => Env -> ZAuth a -> m a
 runZAuth e za = liftIO $ runReaderT (unZAuth za) e
 
 data Settings = Settings
-    { _keyIndex             :: !Int
-    , _userTokenTimeout     :: !UserTokenTimeout
-    , _sessionTokenTimeout  :: !SessionTokenTimeout
-    , _accessTokenTimeout   :: !AccessTokenTimeout
-    , _providerTokenTimeout :: !ProviderTokenTimeout
+    { _keyIndex             :: !Int                   -- ^ Secret key index to use
+                                                      --   for token creation
+    , _userTokenTimeout     :: !UserTokenTimeout      -- ^ User token validity timeout
+    , _sessionTokenTimeout  :: !SessionTokenTimeout   -- ^ Session token validity timeout
+    , _accessTokenTimeout   :: !AccessTokenTimeout    -- ^ Access token validity timeout
+    , _providerTokenTimeout :: !ProviderTokenTimeout  -- ^ Access token validity timeout
     } deriving (Show, Generic)
 
 defSettings :: Settings

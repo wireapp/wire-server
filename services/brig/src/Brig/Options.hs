@@ -12,12 +12,8 @@ import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
 import Data.Aeson.Types (typeMismatch)
-import Data.ByteString.Char8 (pack)
-import Data.ByteString.Conversion
 import Data.Id
 import Data.Int (Int64)
-import Data.Maybe
-import Data.Monoid
 import Data.Scientific (toBoundedInteger)
 import Data.Text (Text)
 import Data.Time.Clock (DiffTime, secondsToDiffTime)
@@ -25,12 +21,9 @@ import Data.Word (Word16, Word32)
 import Data.Yaml (FromJSON(..))
 import GHC.Generics
 import Options.Applicative
-import Options.Applicative.Types (readerAsk)
 import Util.Options
-import Util.Options.Common
 
 import qualified Brig.ZAuth  as ZAuth
-import qualified Data.Text   as T
 import qualified Data.Yaml   as Y
 
 newtype Timeout = Timeout
@@ -44,39 +37,44 @@ instance Read Timeout where
             _ -> []
 
 data ElasticSearchOpts = ElasticSearchOpts
-    { url   :: !Text
-    , index :: !Text
+    { url   :: !Text                    -- ^ ElasticSearch URL
+    , index :: !Text                    -- ^ The name of the ElasticSearch user index
     } deriving (Show, Generic)
 
 instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
-    { userJournalQueue :: !(Maybe Text)
-    , prekeyTable      :: !Text
-    , sqsEndpoint      :: !AWSEndpoint
-    , dynamoDBEndpoint :: !AWSEndpoint
+    { userJournalQueue :: !(Maybe Text) -- ^ Event journal queue for user events
+                                        --   (e.g. user deletion)
+    , prekeyTable      :: !Text         -- ^ Dynamo table for storing prekey data
+    , sqsEndpoint      :: !AWSEndpoint  -- ^ AWS SQS endpoint
+    , dynamoDBEndpoint :: !AWSEndpoint  -- ^ DynamoDB endpoint
     } deriving (Show, Generic)
 
 instance FromJSON AWSOpts
 
 data EmailAWSOpts = EmailAWSOpts
-    { sesQueue         :: !Text
-    , sesEndpoint      :: !AWSEndpoint
+    { sesQueue         :: !Text         -- ^ Event feedback queue for SES
+                                        --   (e.g. for email bounces and complaints)
+    , sesEndpoint      :: !AWSEndpoint  -- ^ AWS SES endpoint
     } deriving (Show, Generic)
 
 instance FromJSON EmailAWSOpts
 
 data EmailSMTPCredentials = EmailSMTPCredentials
-    { smtpUsername :: !Text
-    , smtpPassword :: !FilePathSecrets
+    { smtpUsername :: !Text            -- ^ Username to authenticate
+                                       --   against the SMTP server
+    , smtpPassword :: !FilePathSecrets -- ^ File containing password to
+                                       --   authenticate against the SMTP server
     } deriving (Show, Generic)
 
 instance FromJSON EmailSMTPCredentials
 
 data EmailSMTPOpts = EmailSMTPOpts
-    { smtpEndpoint    :: !Endpoint
+    { smtpEndpoint    :: !Endpoint     -- ^ Hostname of the SMTP server to connect to
     , smtpCredentials :: !(Maybe EmailSMTPCredentials)
-    , smtpConnType    :: !SMTPConnType
+    , smtpConnType    :: !SMTPConnType -- ^ Which type of connection to use
+                                       --   against the SMTP server {tls,ssl,plain}
     } deriving (Show, Generic)
 
 instance FromJSON EmailSMTPOpts
@@ -98,37 +96,39 @@ instance FromJSON InternalEventsOpts where
         InternalEventsOpts <$> parseJSON (Y.Object o)
 
 data EmailSMSGeneralOpts = EmailSMSGeneralOpts
-    { templateDir :: !FilePath
-    , emailSender :: !Email
-    , smsSender   :: !Text
+    { templateDir :: !FilePath  -- ^ Email, SMS, ... template directory
+    , emailSender :: !Email     -- ^ Email sender address
+    , smsSender   :: !Text      -- ^ Twilio sender identifier (number or
+                                --   messaging service ID)
     } deriving (Show, Generic)
 
 instance FromJSON EmailSMSGeneralOpts
 
 data EmailUserOpts = EmailUserOpts
-    { activationUrl     :: !Text
-    , smsActivationUrl  :: !Text
-    , passwordResetUrl  :: !Text
-    , deletionUrl       :: !Text
+    { activationUrl     :: !Text  -- ^ Activation URL template
+    , smsActivationUrl  :: !Text  -- ^ SMS activation URL template
+    , passwordResetUrl  :: !Text  -- ^ Password reset URL template
+    , deletionUrl       :: !Text  -- ^ Deletion URL template
     } deriving (Show, Generic)
 
 instance FromJSON EmailUserOpts
 
+-- | Provider settings
 data ProviderOpts = ProviderOpts
-    { homeUrl               :: !Text
-    , providerActivationUrl :: !Text
-    , approvalUrl           :: !Text
-    , approvalTo            :: !Email
-    , providerPwResetUrl    :: !Text
+    { homeUrl               :: !Text   -- ^ Homepage URL
+    , providerActivationUrl :: !Text   -- ^ Activation URL template
+    , approvalUrl           :: !Text   -- ^ Approval URL template
+    , approvalTo            :: !Email  -- ^ Approval email recipient
+    , providerPwResetUrl    :: !Text   -- ^ Password reset URL template
     } deriving (Show, Generic)
 
 instance FromJSON ProviderOpts
 
 data TeamOpts = TeamOpts
-    { tInvitationUrl     :: !Text
-    , tActivationUrl     :: !Text
-    , tCreatorWelcomeUrl :: !Text
-    , tMemberWelcomeUrl  :: !Text
+    { tInvitationUrl     :: !Text  -- ^ Team Invitation URL template
+    , tActivationUrl     :: !Text  -- ^ Team Activation URL template
+    , tCreatorWelcomeUrl :: !Text  -- ^ Team Creator Welcome URL
+    , tMemberWelcomeUrl  :: !Text  -- ^ Team Member Welcome URL
     } deriving (Show, Generic)
 
 instance FromJSON TeamOpts
@@ -151,20 +151,27 @@ data EmailSMSOpts = EmailSMSOpts
 
 instance FromJSON EmailSMSOpts
 
+-- | ZAuth options
 data ZAuthOpts = ZAuthOpts
-    { privateKeys  :: !FilePath
-    , publicKeys   :: !FilePath
-    , authSettings :: !ZAuth.Settings
+    { privateKeys  :: !FilePath        -- ^ Private key file
+    , publicKeys   :: !FilePath        -- ^ Public key file
+    , authSettings :: !ZAuth.Settings  -- ^ Other settings
     } deriving (Show, Generic)
 
 instance FromJSON ZAuthOpts
 
+-- | TURN server options
 data TurnOpts = TurnOpts
-    { servers   :: !FilePath
-    , serversV2 :: !FilePath
-    , secret    :: !FilePath
-    , tokenTTL  :: !Word32
-    , configTTL :: !Word32
+    { servers   :: !FilePath  -- ^ Line separated file with IP addresses of
+                              --   available TURN servers supporting UDP
+    , serversV2 :: !FilePath  -- ^ Line separated file with hostnames of all
+                              --   available TURN servers with all protocols
+                              --   and transports
+    , secret    :: !FilePath  -- ^ TURN shared secret file path
+    , tokenTTL  :: !Word32    -- ^ For how long TURN credentials should be
+                              --   valid, in seconds
+    , configTTL :: !Word32    -- ^ How long until a new TURN configuration
+                              --   should be fetched, in seconds
     } deriving (Show, Generic)
 
 instance FromJSON TurnOpts
@@ -172,54 +179,62 @@ instance FromJSON TurnOpts
 -- | Options that are consumed on startup
 data Opts = Opts
     -- services
-    { brig          :: !Endpoint
-    , cargohold     :: !Endpoint
-    , galley        :: !Endpoint
-    , gundeck       :: !Endpoint
+    { brig          :: !Endpoint           -- ^ Host and port to bind to
+    , cargohold     :: !Endpoint           -- ^ Cargohold address
+    , galley        :: !Endpoint           -- ^ Galley address
+    , gundeck       :: !Endpoint           -- ^ Gundeck address
 
     -- external
-    , cassandra     :: !CassandraOpts
-    , elasticsearch :: !ElasticSearchOpts
-    , aws           :: !AWSOpts
-    , stomp         :: !(Maybe StompOpts)
+    , cassandra     :: !CassandraOpts      -- ^ Cassandra settings
+    , elasticsearch :: !ElasticSearchOpts  -- ^ ElasticSearch settings
+    , aws           :: !AWSOpts            -- ^ AWS settings
+    , stomp         :: !(Maybe StompOpts)  -- ^ STOMP broker settings
 
     -- Email & SMS
-    , emailSMS      :: !EmailSMSOpts
+    , emailSMS      :: !EmailSMSOpts       -- ^ Email and SMS settings
 
     -- ZAuth
-    , zauth         :: !ZAuthOpts
+    , zauth         :: !ZAuthOpts          -- ^ ZAuth settings
 
     -- Misc.
-    , discoUrl      :: !(Maybe Text)
-    , geoDb         :: !(Maybe FilePath)
-    , internalEvents :: !InternalEventsOpts
+    , discoUrl      :: !(Maybe Text)       -- ^ Disco URL
+    , geoDb         :: !(Maybe FilePath)   -- ^ GeoDB file path
+    , internalEvents :: !InternalEventsOpts -- ^ Event queue for
+                                            --   Brig-generated events (e.g.
+                                            --   user deletion)
 
     -- TURN
-    , turn          :: !TurnOpts
+    , turn          :: !TurnOpts           -- ^ TURN server settings
 
     -- Runtime settings
-    , optSettings :: !Settings
+    , optSettings :: !Settings             -- ^ Runtime settings
     } deriving (Show, Generic)
 
 -- | Options that persist as runtime settings.
 data Settings = Settings
-    { setActivationTimeout     :: !Timeout
-    , setTeamInvitationTimeout :: !Timeout
-    , setTwilio                :: !FilePathSecrets
-    , setNexmo                 :: !FilePathSecrets
-    , setStomp                 :: !(Maybe FilePathSecrets)
-    , setWhitelist             :: !(Maybe Whitelist)
-    , setUserMaxConnections    :: !Int64
-    , setCookieDomain          :: !Text
-    , setCookieInsecure        :: !Bool
-    , setUserCookieRenewAge    :: !Integer
-    , setUserCookieLimit       :: !Int
-    , setUserCookieThrottle    :: !CookieThrottle
-    , setDefaultLocale         :: !Locale
-    , setMaxTeamSize           :: !Word16 -- NOTE: This must be in sync with galley
-    , setMaxConvSize           :: !Word16 -- NOTE: This must be in sync with galley
-    , setProviderSearchFilter  :: !(Maybe ProviderId)
-    -- ^ Temporary optional provider ID to use for filtering services during search
+    { setActivationTimeout     :: !Timeout          -- ^ Activation timeout, in seconds
+    , setTeamInvitationTimeout :: !Timeout          -- ^ Team invitation timeout, in seconds
+    , setTwilio                :: !FilePathSecrets  -- ^ Twilio credentials
+    , setNexmo                 :: !FilePathSecrets  -- ^ Nexmo credentials
+    , setStomp                 :: !(Maybe FilePathSecrets)  -- ^ STOMP broker credentials
+    , setWhitelist             :: !(Maybe Whitelist) -- ^ Whitelist of allowed emails/phones
+    , setUserMaxConnections    :: !Int64    -- ^ Max. number of sent/accepted
+                                            --   connections per user
+    , setCookieDomain          :: !Text     -- ^ The domain to restrict cookies to
+    , setCookieInsecure        :: !Bool     -- ^ Whether to allow plain HTTP transmission
+                                            --   of cookies (for testing purposes only)
+    , setUserCookieRenewAge    :: !Integer  -- ^ Minimum age of a user cookie before
+                                            --   it is renewed during token refresh
+    , setUserCookieLimit       :: !Int      -- ^ Max. # of cookies per user and cookie type
+    , setUserCookieThrottle    :: !CookieThrottle -- ^ Throttling settings
+    , setDefaultLocale         :: !Locale  -- ^ Default locale to use
+                                           --   (e.g. when selecting templates)
+    , setMaxTeamSize           :: !Word16  -- ^ Max. # of members in a team.
+                                           --   NOTE: This must be in sync with galley
+    , setMaxConvSize           :: !Word16  -- ^ Max. # of members in a conversation.
+                                           --   NOTE: This must be in sync with galley
+    , setProviderSearchFilter  :: !(Maybe ProviderId) -- ^ Filter ONLY services with
+                                                      --   the given provider id
     } deriving (Show, Generic)
 
 instance FromJSON Timeout where
@@ -234,301 +249,3 @@ instance FromJSON Timeout where
 instance FromJSON Settings
 
 instance FromJSON Opts
-
-parseOptions :: IO Opts
-parseOptions = execParser (info (helper <*> optsParser) desc)
-  where
-    desc = header "Brig - User Service" <> fullDesc
-
-optsParser :: Parser Opts
-optsParser =
-    Opts <$>
-    (Endpoint <$>
-     (textOption $
-      long "host" <> value "*4" <> showDefault <> metavar "HOSTNAME" <>
-      help "Hostname or address to bind to") <*>
-     (option auto $
-      long "port" <> short 'p' <> metavar "PORT" <> help "Port to listen on")) <*>
-    (Endpoint <$>
-     (textOption $
-      long "cargohold-host" <> metavar "HOSTNAME" <> help "Cargohold hostname") <*>
-     (option auto $ long "cargohold-port" <> metavar "PORT" <> help "Cargohold port")) <*>
-    (Endpoint <$>
-     (textOption $
-      long "galley-host" <> metavar "HOSTNAME" <> help "Galley hostname") <*>
-     (option auto $ long "galley-port" <> metavar "PORT" <> help "Galley port")) <*>
-    (Endpoint <$>
-     (textOption $
-      long "gundeck-host" <> metavar "HOSTNAME" <> help "Gundeck hostname") <*>
-     (option auto $ long "gundeck-port" <> metavar "PORT" <> help "Gundeck port")) <*>
-    cassandraParser <*>
-    (ElasticSearchOpts <$>
-     (textOption $
-      long "elasticsearch-url" <> metavar "URL" <> help "Elasticsearch URL") <*>
-     (textOption $
-      long "elasticsearch-user-index" <> metavar "STRING" <> value "directory" <>
-      showDefault <>
-      help "The name of the ElasticSearch user index")) <*>
-    (AWSOpts <$>
-     (optional $ textOption $
-      long "aws-user-journal-queue" <> metavar "STRING" <>
-      help "Event journal queue for user events (e.g. user deletion)") <*>
-     (textOption $
-      long "aws-dynamo-prekeys" <> metavar "STRING" <>
-      help "Dynamo table for storing prekey data") <*>
-     (option parseAWSEndpoint $
-      long "aws-sqs-endpoint" <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443)
-      <> metavar "STRING" <> showDefault <> help "aws SQS endpoint") <*>
-     (option parseAWSEndpoint $
-      long "aws-dynamodb-endpoint" <> value (AWSEndpoint "dynamodb.eu-west-1.amazonaws.com" True 443)
-      <> metavar "STRING" <> showDefault <> help "aws DYNAMODB endpoint")) <*>
-    (optional $ StompOpts <$>
-     (textOption $
-      long "stomp-host" <> metavar "URL" <>
-      help "STOMP broker URL (e.g. for RabbitMQ or ActiveMQ)") <*>
-     (option auto $
-      long "stomp-port" <> metavar "INT" <>
-      help "STOMP broker port (usually 61613 or 61614)") <*>
-     (switch $
-      long "stomp-tls" <>
-      help "Connect to the STOMP broker via TLS")) <*>
-    (EmailSMSOpts <$>
-     emailOptsParser <*>
-     (EmailSMSGeneralOpts <$>
-      (strOption $
-       long "template-dir" <> metavar "FILE" <>
-       help "Email/SMS/... template directory") <*>
-      (emailOption $
-       long "email-sender" <> metavar "STRING" <> help "Email sender address") <*>
-      (textOption $
-       long "twilio-sender" <> metavar "STRING" <>
-       help "Twilio sender identifier (number or messaging service ID")) <*>
-     (EmailUserOpts <$>
-      (textOption $
-       long "activation-url" <> metavar "URL" <> help "Activation URL template") <*>
-      (textOption $
-       long "sms-activation-url" <> metavar "URL" <>
-       help "SMS activation URL template") <*>
-      (textOption $
-       long "password-reset-url" <> metavar "URL" <>
-       help "Password reset URL template") <*>
-      (textOption $
-       long "deletion-url" <> metavar "URL" <> help "Deletion URL template")) <*>
-     (ProviderOpts <$>
-      (textOption $
-       long "provider-home-url" <> metavar "URL" <> help "Provider Homepage URL") <*>
-      (textOption $
-       long "provider-activation-url" <> metavar "URL" <>
-       help "Provider Activation URL template") <*>
-      (textOption $
-       long "provider-approval-url" <> metavar "URL" <>
-       help "Provider Approval URL template") <*>
-      (emailOption $
-       long "provider-approval-to" <> metavar "STRING" <>
-       help "Provider approval email recipient") <*>
-      (textOption $
-       long "provider-password-reset-url" <> metavar "URL" <>
-       help "Provider Password reset URL template")) <*>
-     (TeamOpts <$>
-      (textOption $
-       long "team-invitation-url" <> metavar "URL" <>
-       help "Team Invitation URL template") <*>
-      (textOption $
-       long "team-activation-url" <> metavar "URL" <>
-       help "Team Activation URL template") <*>
-      (textOption $
-       long "team-creator-welcome-url" <> metavar "URL" <>
-       help "Team Creator Welcome URL") <*>
-      (textOption $
-       long "team-member-welcome-url" <> metavar "URL" <>
-       help "Team Member Welcome URL"))) <*>
-    (ZAuthOpts <$>
-     (strOption $
-      long "zauth-private-keys" <> metavar "FILE" <>
-      help "zauth private key file" <>
-      action "file") <*>
-     (strOption $
-      long "zauth-public-keys" <> metavar "FILE" <> help "zauth public key file" <>
-      action "file") <*>
-     (ZAuth.Settings <$>
-      (option auto $
-       long "zauth-key-index" <> metavar "INT" <> value 1 <> showDefault <>
-       help "Secret key index to use for token creation") <*>
-      (fmap ZAuth.UserTokenTimeout . option auto $
-       long "zauth-user-token-timeout" <> metavar "INT" <>
-       help "User token validity timeout") <*>
-      (fmap ZAuth.SessionTokenTimeout . option auto $
-       long "zauth-session-token-timeout" <> metavar "INT" <>
-       help "Session token validity timeout") <*>
-      (fmap ZAuth.AccessTokenTimeout . option auto $
-       long "zauth-access-token-timeout" <> metavar "INT" <>
-       help "Access token validity timeout") <*>
-      (fmap ZAuth.ProviderTokenTimeout . option auto $
-       long "zauth-provider-token-timeout" <> metavar "INT" <>
-       help "Access token validity timeout"))) <*>
-    (optional discoUrlParser) <*>
-    (optional $
-     option auto $ long "geodb" <> metavar "FILE" <> help "GeoDB file path") <*>
-    (InternalEventsOpts <$>
-     (queueOption $
-      long "internal-events-queue" <> metavar "STRING" <>
-      help "Queue to use for internal events. Either 'stomp:...' or 'sqs:...'")) <*>
-    (TurnOpts <$>
-     (strOption $
-      long "turn-servers" <> metavar "FILE" <>
-      help "Line separated file with IP addresses of the available turn servers, supporting UDP" <>
-      action "file") <*>
-     (strOption $
-      long "turn-servers-v2" <> metavar "FILE" <>
-      help "Line separated file with hostnames of all available turn servers with all protocols/transports" <>
-      action "file") <*>
-     (strOption $
-      long "turn-secret" <> metavar "FILE" <>
-      help "TURN shared secret file path" <>
-      action "file") <*>
-     (option auto $
-      long "turn-token-lifetime" <> metavar "INT" <> value 21600 <> showDefault <>
-      help "Number of seconds TURN credentials should be valid.") <*>
-     (option auto $
-      long "turn-config-ttl" <> metavar "INT" <> value 3600 <> showDefault <>
-      help "Number of seconds until a new TURN configuration should be fetched.")) <*>
-    settingsParser
-
-emailOptsParser :: Parser EmailOpts
-emailOptsParser = EmailAWS <$> emailAWSOptsParser <|> EmailSMTP <$> emailSMTPOptsParser
-
-emailAWSOptsParser :: Parser EmailAWSOpts
-emailAWSOptsParser =
-     EmailAWSOpts <$>
-      (textOption $
-        long "aws-ses-queue" <> metavar "STRING" <>
-        help "Event feedback queue for SES (e.g. for email bounces and complaints)") <*>
-      (option parseAWSEndpoint $
-        long "aws-ses-endpoint" <> value (AWSEndpoint "email.eu-west-1.amazonaws.com" True 443)
-        <> metavar "STRING" <> showDefault <> help "aws SES endpoint")
-
-emailSMTPOptsParser :: Parser EmailSMTPOpts
-emailSMTPOptsParser =
-    EmailSMTPOpts <$>
-      (Endpoint <$>
-       (textOption $ long "smtp-host" <> metavar "HOSTNAME" <> help "SMTP hostname") <*>
-       (option auto $ long "smtp-port" <> metavar "PORT" <> help "SMTP port")) <*>
-      (optional smtpCredentialsParser) <*>
-      (smtpConnTypeOption $
-        long "smtp-conn-type" <> metavar "STRING" <> value "tls" <> showDefault <>
-        help "Which type of connection to use against the SMTP server {tls,ssl,plain}")
-
-  where
-    smtpCredentialsParser :: Parser EmailSMTPCredentials
-    smtpCredentialsParser =
-      EmailSMTPCredentials <$>
-        (textOption $
-          long "smtp-username" <> metavar "STRING" <>
-          help "Username to authenticate against the SMTP server") <*>
-        (FilePathSecrets <$> (strOption $
-          long "smtp-password" <> metavar "FILE" <>
-          help "File containing password to authenticate against the SMTP server" <> action "file"))
-settingsParser :: Parser Settings
-settingsParser =
-    Settings <$>
-    (option auto $
-     long "activation-timeout" <> metavar "SECONDS" <>
-     value (Timeout (secondsToDiffTime 3600)) <>
-     help "Activation timeout in seconds") <*>
-    (option auto $
-     long "team-invitation-timeout" <> metavar "SECONDS" <>
-     value (Timeout (secondsToDiffTime 3600)) <>
-     help "Team invitation timeout in seconds") <*>
-    (FilePathSecrets <$> (strOption $
-     long "twilio-credentials" <> metavar "FILE" <> help "File containing Twilio credentials" <> action "file")) <*>
-    (FilePathSecrets <$> (strOption $
-     long "nexmo-credentials" <> metavar "FILE" <> help "File containing Nexmo credentials" <> action "file")) <*>
-    (optional $ FilePathSecrets <$> (strOption $
-     long "stomp-credentials" <> metavar "FILE" <> help "File containing STOMP broker credentials" <> action "file")) <*>
-    (optional $
-     Whitelist <$>
-     (textOption $
-      long "whitelist-url" <>
-      help
-          "URL of a service providing a whitelist of allowed email addresses and phone numbers.") <*>
-     (textOption $
-      long "whitelist-user" <> metavar "STRING" <> value "" <>
-      help "Username for accessing the whitelist") <*>
-     (textOption $
-      long "whitelist-pass" <> metavar "STRING" <> value "" <>
-      help "Password for accessing the whitelist")) <*>
-    (option auto $
-     long "user-connection-limit" <> metavar "INT" <>
-     help "Max. number of sent/accepted connections per user." <>
-     value 1000) <*>
-    (textOption $
-     long "cookie-domain" <> metavar "STRING" <>
-     help "The domain to restrict cookies to.") <*>
-    (switch $
-     long "cookie-insecure" <>
-     help
-         "Allow plain HTTP transmission of cookies (for testing purposes only).") <*>
-    (option auto $
-     long "user-cookie-renew-age" <> metavar "INT" <>
-     help
-         "Minimum age of a user cookie before it is renewed during token refresh.") <*>
-    (option auto $
-     long "user-cookie-limit" <> metavar "INT" <> value 32 <> showDefault <>
-     help "Max. # of cookies per user and cookie type.") <*>
-    (StdDevThrottle <$>
-     (fmap StdDev . option auto $
-      long "user-cookie-min-deviation" <> metavar "SECONDS" <> value 3000 <>
-      showDefault <>
-      help "Min. standard deviation cookie creation") <*>
-     (fmap RetryAfter . option auto $
-      long "user-cookie-retry-after" <> metavar "SECONDS" <> value 86400 <>
-      showDefault <>
-      help "Wait time when the min deviation is violated")) <*>
-    (localeOption $
-     long "default-locale" <> metavar "STRING" <> value "en" <> showDefault <>
-     help "Default locale to use (e.g. when selecting templates)") <*>
-    (option auto $
-     long "team-max-size" <> metavar "INT" <>
-     help "Max. # of members in a team") <*>
-    (option auto $
-     long "conv-max-size" <> metavar "INT" <>
-     help "Max. # of members in a conversation") <*>
-    (optional $ option providerIdOption $
-     long "provider-id-search-filter" <> metavar "STRING" <>
-     help "Filter _ONLY_ services with the given provider id")
-
-queueOption :: Mod OptionFields String -> Parser Queue
-queueOption =
-    fmap
-        (\s -> let (type_, name_) = break (== ':') s in
-               case type_ of
-                   "stomp" -> StompQueue (T.pack $ drop 1 name_)
-                   "sqs"   -> SqsQueue (T.pack $ drop 1 name_)
-                   _       -> error ("Unknown queue type: " <> show type_)
-        ) .
-    strOption
-
-localeOption :: Mod OptionFields String -> Parser Locale
-localeOption =
-    fmap
-        (fromMaybe (error "Ensure proper default locale is used") .
-         parseLocale . T.pack) .
-    strOption
-
-emailOption :: Mod OptionFields String -> Parser Email
-emailOption =
-    fmap
-        (fromMaybe (error "Ensure proper email address is used") .
-         parseEmail . T.pack) .
-    strOption
-
-providerIdOption :: ReadM ProviderId
-providerIdOption = readerAsk >>=
-    maybe (fail "Failed to parse ") pure . fromByteString . pack
-
-smtpConnTypeOption :: Mod OptionFields String -> Parser SMTPConnType
-smtpConnTypeOption =
-    fmap
-        (fromMaybe (error "Ensure proper STMP conn type is used") .
-        Y.decode . pack) .
-    strOption

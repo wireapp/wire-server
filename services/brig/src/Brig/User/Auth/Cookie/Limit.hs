@@ -49,6 +49,12 @@ limitCookies lim now cs
 --------------------------------------------------------------------------------
 -- Temporal Throttling
 
+-- | The fields are:
+--
+-- * Min. standard deviation cookie creation
+-- * Wait time when the min deviation is violated
+--
+-- Both fields are in seconds.
 data CookieThrottle
     = StdDevThrottle StdDev RetryAfter
     deriving (Show)

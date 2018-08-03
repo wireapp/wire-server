@@ -18,10 +18,11 @@ import Data.Text.Encoding (encodeUtf8)
 import GHC.Generics
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), parseRequest)
 
+-- | A service providing a whitelist of allowed email addresses and phone numbers
 data Whitelist = Whitelist
-    { whitelistUrl  :: !Text
-    , whitelistUser :: !Text
-    , whitelistPass :: !Text
+    { whitelistUrl  :: !Text     -- ^ Service URL
+    , whitelistUser :: !Text     -- ^ Username
+    , whitelistPass :: !Text     -- ^ Password
     } deriving (Show, Generic)
 
 instance FromJSON Whitelist
