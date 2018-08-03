@@ -12,8 +12,8 @@ import Data.Text.Ascii
 
 newtype PropertyKey = PropertyKey
     { propertyKeyName :: AsciiPrintable }
-    deriving (Eq, Ord, Show, FromByteString, ToByteString, FromJSON, ToJSON, ToJSONKey,
-              Generic, Hashable)
+    deriving (Eq, Ord, Show, FromByteString, ToByteString, FromJSON, ToJSON,
+              FromJSONKey, ToJSONKey, Generic, Hashable)
 
 newtype PropertyValue = PropertyValue
     { propertyValueJson :: Value }
