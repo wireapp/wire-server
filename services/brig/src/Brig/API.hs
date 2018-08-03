@@ -965,7 +965,7 @@ setProperty (u ::: c ::: k ::: req ::: _) = do
     lbs <- Lazy.take (maxValueLen + 1) <$> liftIO (lazyRequestBody req)
     unless (Lazy.length lbs <= maxValueLen) $
         throwStd propertyValueTooLarge
-    val <- hoistEither $ fmapL (StdError . badRequest . pack) (parsePropertyValue lbs)
+    val <- hoistEither $ fmapL (StdError . badRequest . pack) (eitherDecode lbs)
     API.setProperty u c k val !>> propDataError
     return empty
   where
