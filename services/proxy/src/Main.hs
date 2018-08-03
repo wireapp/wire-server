@@ -2,12 +2,11 @@ module Main (main) where
 
 import Imports
 import Proxy.API
-import Proxy.Options
 import Util.Options
 
 main :: IO ()
 main = do
-    opts <- getOptions desc (Just optsParser) defaultPath
+    opts <- getOptions desc Nothing defaultPath
     run opts
   where
     desc = "Proxy - 3rd party proxy"

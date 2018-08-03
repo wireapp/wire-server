@@ -9,56 +9,21 @@ module Proxy.Options
     , secretsConfig
     , httpPoolSize
     , maxConns
-    , optsParser
     ) where
 
 import Imports
 import Control.Lens
-import Options.Applicative
 import Data.Aeson
 import Data.Aeson.TH
 
 data Opts = Opts
-    { _host          :: !String
-    , _port          :: !Word16
-    , _secretsConfig :: !FilePath
-    , _httpPoolSize  :: !Int
-    , _maxConns      :: !Int
+    { _host          :: !String        -- ^ Host to listen on
+    , _port          :: !Word16        -- ^ Post to listen on
+    , _secretsConfig :: !FilePath      -- ^ File containing upstream secrets
+    , _httpPoolSize  :: !Int           -- ^ Number of connections for the HTTP pool
+    , _maxConns      :: !Int           -- ^ Maximum number of incoming connections
     } deriving (Show, Generic)
 
 makeLenses ''Opts
 
 deriveJSON defaultOptions{fieldLabelModifier = drop 1} ''Opts
-
-optsParser :: Parser Opts
-optsParser = Opts
-    <$> (strOption $
-            long "host"
-            <> value "*4"
-            <> showDefault
-            <> metavar "HOSTNAME"
-            <> help "host to listen on")
-
-    <*> (option auto $
-            long "port"
-            <> short 'p'
-            <> metavar "PORT"
-            <> help "listen port")
-
-    <*> (strOption $
-            long "config"
-            <> metavar "FILE"
-            <> help "File containing upstream secrets"
-            <> action "file")
-
-    <*> (option auto $
-            long "http-pool-size"
-            <> metavar "SIZE"
-            <> showDefault
-            <> help "number of connections for the http pool"
-            <> value 256)
-
-    <*> (option auto $
-            long "max-connections"
-            <> metavar "SIZE"
-            <> help "maximum number of incoming connections")

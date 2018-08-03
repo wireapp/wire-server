@@ -7,12 +7,11 @@ APP=proxy
 
 # defaults
 USER=${USER:-www-data}
-CONFIG=${CONFIG:-/etc/$APP/.env}
+CONFIG=${CONFIG:-/etc/${APP}/${APP}.yaml}
 HOME=${APP_HOME:-/opt/$APP}
 BIN=$HOME/bin/$APP
 
 if [ ! -f $CONFIG ]; then exec chpst -u $USER get_config; fi
-source $CONFIG
 
 export LOG_LEVEL=${PROXY_LOG_LEVEL:-Debug}
 export LOG_BUFFER=${PROXY_LOG_BUFFER:-4096}
@@ -22,10 +21,4 @@ cd $HOME
 
 ulimit -n 65536
 
-exec chpst -u $USER \
-    $BIN \
-    --host=${PROXY_WEB_HOST?'unset'} \
-    --port=${PROXY_WEB_PORT?'unset'} \
-    --config=${PROXY_CONFIG?'unset'} \
-    --http-pool-size=${PROXY_HTTP_POOL_SIZE:-256} \
-    --max-connections=${PROXY_MAX_CONNECTIONS?'unset'}
+exec chpst -u $USER $BIN --config-file=${CONFIG}
