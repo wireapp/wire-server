@@ -7,13 +7,12 @@ APP=cannon
 
 # defaults
 USER=${USER:-www-data}
-CONFIG=${CONFIG:-/etc/$APP/.env}
+CONFIG=${CONFIG:-/etc/${APP}/${APP}.yaml}
 HOME=${APP_HOME:-/opt/$APP}
 BIN=$HOME/bin/$APP
 
 if [ ! -f $CONFIG ]; then exec chpst -u $USER get_config; fi
 echo $CONFIG
-source $CONFIG
 
 export LOG_LEVEL=${CANNON_LOG_LEVEL:-Info}
 export LOG_BUFFER=${CANNON_LOG_BUFFER:-4096}
@@ -24,10 +23,4 @@ cd $HOME
 
 ulimit -n 131072
 
-exec chpst -u $USER \
-    $BIN \
-    -p ${CANNON_PORT?'unset'} \
-    --host ${CANNON_HOST?'unset'} \
-    --external-host ${CANNON_EXTERNAL_HOST:-127.0.0.1} \
-    --gundeck-host=${CANNON_GUNDECK_HOST?'unset'} \
-    --gundeck-port=${CANNON_GUNDECK_PORT?'unset'}
+exec chpst -u $USER $BIN --config-file=${CONFIG}
