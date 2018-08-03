@@ -9,132 +9,48 @@ import Imports
 import CargoHold.CloudFront (Domain (..), KeyPairId (..))
 import Control.Lens
 import Data.Aeson.TH
-import Options.Applicative
 import Util.Options
 import Util.Options.Common
 
-import qualified Data.Text as T
 import qualified Ropes.Aws as Aws
 
+-- | AWS CloudFront options
 data CloudFrontOpts = CloudFrontOpts
-    { _cfDomain     :: Domain
-    , _cfKeyPairId  :: KeyPairId
-    , _cfPrivateKey :: FilePath
+    { _cfDomain     :: Domain     -- ^ Domain
+    , _cfKeyPairId  :: KeyPairId  -- ^ Keypair ID
+    , _cfPrivateKey :: FilePath   -- ^ Private key
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''CloudFrontOpts
 makeLenses ''CloudFrontOpts
 
 data AWSOpts = AWSOpts
-    { _awsKeyId              :: !(Maybe Aws.AccessKeyId)
-    , _awsSecretKey          :: !(Maybe Aws.SecretAccessKey)
-    , _awsS3Endpoint         :: !AWSEndpoint
-    , _awsS3DownloadEndpoint :: !(Maybe AWSEndpoint)
-    , _awsS3Bucket           :: !Text
-    , _awsCloudFront         :: !(Maybe CloudFrontOpts)
+    { _awsKeyId        :: !(Maybe Aws.AccessKeyId)     -- ^ Access key ID
+    , _awsSecretKey    :: !(Maybe Aws.SecretAccessKey) -- ^ Secret access key
+    , _awsS3Endpoint   :: !AWSEndpoint                 -- ^ S3 endpoint
+    , _awsS3DownloadEndpoint :: !(Maybe AWSEndpoint)   -- ^ Endpoint that will be
+                                                       --   used to generate URLs
+                                                       --   for external consumers
+    , _awsS3Bucket     :: !Text                        -- ^ S3 bucket name
+    , _awsCloudFront   :: !(Maybe CloudFrontOpts)      -- ^ CloudFront options
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''AWSOpts
 makeLenses ''AWSOpts
 
 data Settings = Settings
-    { _setMaxTotalBytes   :: !Int
-    , _setDownloadLinkTTL :: !Word
+    { _setMaxTotalBytes   :: !Int   -- ^ Maximum allowed size for uploads, in bytes
+    , _setDownloadLinkTTL :: !Word  -- ^ TTL for download links, in seconds
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
 makeLenses ''Settings
 
 data Opts = Opts
-    { _optCargohold :: !Endpoint
-    , _optAws       :: !AWSOpts
-    , _optSettings  :: !Settings
+    { _optCargohold :: !Endpoint  -- ^ Cargohold endpoint
+    , _optAws       :: !AWSOpts   -- ^ AWS settings
+    , _optSettings  :: !Settings  -- ^ Other settings
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Opts
 makeLenses ''Opts
-
-parseOptions :: IO Opts
-parseOptions = execParser (info (helper <*> optsParser) desc)
-  where
-    desc = header "CargoHold - Asset Service" <> fullDesc
-
-optsParser :: Parser Opts
-optsParser = Opts <$>
-    (Endpoint <$>
-        (textOption $
-            long "host"
-            <> value "*4"
-            <> showDefault
-            <> metavar "HOSTNAME"
-            <> help "Hostname or address to bind to")
-        <*>
-        (option auto $
-            long "port"
-            <> short 'p'
-            <> metavar "PORT"
-            <> help "Port to listen on"))
-    <*> awsParser
-    <*> settingsParser
-  where
-    cloudFrontParser :: Parser CloudFrontOpts
-    cloudFrontParser = CloudFrontOpts <$>
-            (fmap Domain . textOption $
-                long "aws-cloudfront-domain"
-                <> metavar "STRING"
-                <> help "AWS CloudFront Domain")
-
-        <*> (fmap KeyPairId . textOption $
-                long "aws-cloudfront-keypair-id"
-                <> metavar "STRING"
-                <> help "AWS CloudFront Keypair ID")
-
-        <*> strOption
-                (long "aws-cloudfront-private-key"
-                <> metavar "FILE"
-                <> help "AWS CloudFront Private Key")
-
-    awsParser :: Parser AWSOpts
-    awsParser = AWSOpts <$>
-            (optional . fmap Aws.AccessKeyId . bytesOption $
-                long "aws-key-id"
-                <> metavar "STRING"
-                <> help "AWS Access Key ID")
-        <*> (optional . fmap Aws.SecretAccessKey . bytesOption $
-                long "aws-secret-key"
-                <> metavar "STRING"
-                <> help "AWS Secret Access Key")
-
-        <*> (option parseAWSEndpoint $
-                long "aws-s3-endpoint"
-                <> value (AWSEndpoint "s3.eu-west-1.amazonaws.com" True 443)
-                <> metavar "STRING"
-                <> showDefault
-                <> help "aws S3 endpoint")
-
-        <*> optional (option parseAWSEndpoint $
-                long "aws-s3-download-endpoint"
-                <> metavar "STRING"
-                <> showDefault
-                <> help "aws S3 endpoint used for generating download links")
-
-        <*> (fmap T.pack . strOption $
-                long "aws-s3-bucket"
-                <> metavar "STRING"
-                <> help "S3 bucket name")
-        <*> optional cloudFrontParser
-
-    settingsParser :: Parser Settings
-    settingsParser = Settings <$>
-            option auto
-            (long "max-total-bytes"
-            <> metavar "INT"
-            <> value (25 * 1024 * 1024)
-            <> showDefault
-            <> help "Maximum allowed size in bytes for uploads")
-        <*> option auto
-            (long "download-link-ttl"
-            <> metavar "INT"
-            <> value 300
-            <> showDefault
-            <> help "TTL for download links in seconds")
