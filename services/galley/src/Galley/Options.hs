@@ -12,123 +12,47 @@ import Data.Word (Word16)
 import GHC.Generics
 import Options.Applicative
 import Util.Options
-import Data.ByteString.Conversion
-import Data.Maybe
 import Util.Options.Common
 import Data.Misc
 
 data Settings = Settings
-    { _setHttpPoolSize          :: !Int
-    , _setMaxTeamSize           :: !Word16  -- NOTE: This must be in sync with Brig
-    , _setMaxConvSize           :: !Word16  -- NOTE: This must be in sync with Brig
-    , _setIntraListing          :: !Bool    -- call Brig for device listing
-    , _setConversationCodeURI   :: !HttpsUrl
+    { _setHttpPoolSize          :: !Int     -- ^ Number of connections for the
+                                            --   HTTP client pool
+    , _setMaxTeamSize           :: !Word16  -- ^ Max number of members in a team.
+                                            --   NOTE: This must be in sync with Brig
+    , _setMaxConvSize           :: !Word16  -- ^ Max number of members in a conversation.
+                                            --   NOTE: This must be in sync with Brig
+    , _setIntraListing          :: !Bool    -- ^ Whether to call Brig for device listing
+    , _setConversationCodeURI   :: !HttpsUrl  -- ^ URI prefix for conversations with
+                                              --   access mode 'code'
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Settings
 makeLenses ''Settings
 
--- [Note: journaling]
--- Journaling can be disabled simply by not passing the JournalOpts when starting the service
-
 data JournalOpts = JournalOpts
-    { _awsQueueName :: !Text
-    , _awsEndpoint  :: !AWSEndpoint
+    { _awsQueueName :: !Text         -- ^ SQS queue name to send team events
+    , _awsEndpoint  :: !AWSEndpoint  -- ^ AWS endpoint
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''JournalOpts
 makeLenses ''JournalOpts
 
 data Opts = Opts
-    { _optGalley    :: !Endpoint
-    , _optCassandra :: !CassandraOpts
-    , _optBrig      :: !Endpoint
-    , _optGundeck   :: !Endpoint
-    , _optDiscoUrl  :: !(Maybe Text)
-    , _optSettings  :: !Settings
-    , _optJournal   :: !(Maybe JournalOpts)
+    { _optGalley    :: !Endpoint             -- ^ Host and port to bind to
+    , _optCassandra :: !CassandraOpts        -- ^ Cassandra settings
+    , _optBrig      :: !Endpoint             -- ^ Brig endpoint
+    , _optGundeck   :: !Endpoint             -- ^ Gundeck endpoint
+    , _optDiscoUrl  :: !(Maybe Text)         -- ^ Disco URL
+    , _optSettings  :: !Settings             -- ^ Other settings
+    , _optJournal   :: !(Maybe JournalOpts)  -- ^ Journaling options ('Nothing'
+                                             --   disables journaling)
     }
 
 deriveFromJSON toOptionFieldName ''Opts
 makeLenses ''Opts
 
-parseOptions :: IO Opts
-parseOptions = execParser (info (helper <*> optsParser) desc)
-  where
-    desc = header "Galley - Conversation Service" <> fullDesc
-
-optsParser :: Parser Opts
-optsParser = Opts <$>
-    (Endpoint <$>
-        (textOption $
-            long "host"
-            <> value "*4"
-            <> showDefault
-            <> metavar "HOSTNAME"
-            <> help "Hostname or address to bind to")
-        <*>
-        (option auto $
-            long "port"
-            <> short 'p'
-            <> metavar "PORT"
-            <> help "Port to listen on"))
-  <*> cassandraParser
-  <*> brigParser
-  <*> gundeckParser
-  <*> optional discoUrlParser
-  <*> settingsParser
-  <*> optional journalOptsParser
-  where
-    brigParser :: Parser Endpoint
-    brigParser = Endpoint
-        <$> (textOption $
-                long "brig-host"
-                <> metavar "HOSTNAME"
-                <> help "Brig hostname")
-        <*>  (option auto $
-                long "brig-port"
-                <> metavar "PORT"
-                <> help "Brig port")
-
-    gundeckParser :: Parser Endpoint
-    gundeckParser = Endpoint
-        <$> (textOption $
-                long "gundeck-host"
-                <> metavar "HOSTNAME"
-                <> help "Gundeck hostname")
-        <*> (option auto $
-                long "gundeck-port"
-                <> metavar "PORT"
-                <> help "Gundeck port")
-
-    settingsParser :: Parser Settings
-    settingsParser = Settings
-        <$> (option auto $
-                long "http-pool-size"
-                <> metavar "SIZE"
-                <> showDefault
-                <> help "number of connections for the http client pool"
-                <> value 128)
-        <*>
-            (option auto $
-                long "team-max-size"
-                <> metavar "INT"
-                <> help "Max. # of members in a team.")
-        <*>
-            (option auto $
-                long "conv-max-size"
-                <> metavar "INT"
-                <> help "Max. # of members in a conversation.")
-        <*>
-            (switch $
-                long "intra-device-listing"
-                <> help "Use this option if you want to fetch the device list from brig instead.")
-        <*>
-            (httpsUrlOption $
-                long "conversation-code-prefix"
-                <> metavar "STRING"
-                <> help "URI prefix for conversations with access mode 'code'")
-
+-- Used by the journaler
 journalOptsParser :: Parser JournalOpts
 journalOptsParser = JournalOpts
     <$> (textOption $
@@ -141,6 +65,3 @@ journalOptsParser = JournalOpts
             <> metavar "STRING"
             <> showDefault
             <> help "aws endpoint")
-
-httpsUrlOption :: Mod OptionFields String -> Parser HttpsUrl
-httpsUrlOption = fmap (fromMaybe (error "Invalid HTTPS URL") . fromByteString) . bytesOption

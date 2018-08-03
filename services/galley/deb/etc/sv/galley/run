@@ -6,47 +6,18 @@ exec 2>&1
 # defaults
 USER=${USER:-www-data}
 APP=galley
-CONFIG=${CONFIG:-/etc/$APP/.env}
+CONFIG=${CONFIG:-/etc/${APP}/${APP}.yaml}
 HOME=${APP_HOME:-/opt/$APP}
 BIN=$HOME/bin/$APP
 
 if [ ! -f $CONFIG ]; then exec chpst -u $USER get_config; fi
-source $CONFIG
-
-source <(khan --silent metadata --multiline)
-
-GALLEY_DISCO_URL="http://${KHAN_ENV}-${KHAN_REGION_ABBREV}-klabautermann.${KHAN_DOMAIN}/describe-instances"
 
 export LOG_LEVEL=${GALLEY_LOG_LEVEL:-Debug}
 export LOG_BUFFER=${GALLEY_LOG_BUFFER:-4096}
 export LOG_NETSTR=${GALLEY_LOG_NETSTR:-True}
 
-if [ -n "$GALLEY_INTRA_DEVICE_LISTING" ]; then
-    GALLEY_INTRA_DEVICE_LISTING="--intra-device-listing"
-else
-    GALLEY_INTRA_DEVICE_LISTING=""
-fi
-
 cd $HOME
 
 ulimit -n 65536
 
-exec chpst -u $USER \
-    $BIN \
-    --host=${GALLEY_HOST:-'127.0.0.1'} \
-    --port=${GALLEY_PORT?'unset'} \
-    --brig-host=${GALLEY_BRIG_HOST?'unset'} \
-    --brig-port=${GALLEY_BRIG_PORT?'unset'} \
-    --gundeck-host=${GALLEY_GUNDECK_HOST?'unset'} \
-    --gundeck-port=${GALLEY_GUNDECK_PORT?'unset'} \
-    --cassandra-host=${GALLEY_CASSANDRA_HOST?'unset'} \
-    --cassandra-port=${GALLEY_CASSANDRA_PORT?'unset'} \
-    --cassandra-keyspace=${GALLEY_CASSANDRA_KEYSPACE?'unset'} \
-    --disco-url=${GALLEY_DISCO_URL?'unset'} \
-    --http-pool-size=${GALLEY_HTTP_POOL_SIZE:-128} \
-    --team-events-queue-name=${GALLEY_SQS_TEAM_EVENTS?'unset'} \
-    --aws-sqs-endpoint=${GALLEY_SQS_ENDPOINT?'unset'} \
-    --team-max-size=${TEAM_MAX_SIZE?'unset'} \
-    --conv-max-size=${CONV_MAX_SIZE?'unset'} \
-    --conversation-code-prefix=${GALLEY_CONVERSATION_CODE_PREFIX?'unset'} \
-    ${GALLEY_INTRA_DEVICE_LISTING}
+exec chpst -u $USER $BIN --config-file=${CONFIG}
