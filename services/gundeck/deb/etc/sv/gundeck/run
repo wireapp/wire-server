@@ -6,55 +6,18 @@ exec 2>&1
 # defaults
 USER=${USER:=www-data}
 APP=gundeck
-CONFIG=${CONFIG:=/etc/$APP/.env}
+CONFIG=${CONFIG:=/etc/${APP}/${APP}.yaml}
 HOME=${APP_HOME:=/opt/$APP}
 BIN=$HOME/bin/$APP
 
 chpst -u $USER get_config
-source $CONFIG
-
-source <(khan --silent metadata --multiline)
-
-GUNDECK_DISCO_URL="http://${KHAN_ENV}-${KHAN_REGION_ABBREV}-klabautermann.${KHAN_DOMAIN}/describe-instances"
 
 export LOG_LEVEL=${GUNDECK_LOG_LEVEL:-Debug}
 export LOG_BUFFER=${GUNDECK_LOG_BUFFER:-4096}
 export LOG_NETSTR=${GUNDECK_LOG_NETSTR:-True}
 
-if [ -n "$GUNDECK_PREFER_NOTICE" ]; then
-    GUNDECK_PREFER_NOTICE="--prefer-notice"
-else
-    GUNDECK_PREFER_NOTICE=""
-fi
-
-if [ -n "$GUNDECK_CANNON_BULK_PUSH" ]; then
-    GUNDECK_CANNON_BULK_PUSH="--bulk-push"
-else
-    GUNDECK_CANNON_BULK_PUSH=""
-fi
-
 cd $HOME
 
 ulimit -n 65536
 
-exec chpst -u $USER \
-    $BIN \
-    --host=${GUNDECK_HOST:-'127.0.0.1'} \
-    --port=${GUNDECK_PORT?'unset'} \
-    --cassandra-host=${GUNDECK_CASSANDRA_HOST?'unset'} \
-    --cassandra-port=${GUNDECK_CASSANDRA_PORT?'unset'} \
-    --cassandra-keyspace=${GUNDECK_CASSANDRA_KEYSPACE?'unset'} \
-    --disco-url=${GUNDECK_DISCO_URL?'unset'} \
-    --redis-host=${GUNDECK_REDIS_HOST?'unset'} \
-    --redis-port=${GUNDECK_REDIS_PORT?'unset'} \
-    --http-pool-size=${GUNDECK_HTTP_POOL_SIZE:-128} \
-    --event-queue-name=${GUNDECK_EVENT_QUEUE_NAME?'unset'} \
-    --notification-ttl=${GUNDECK_NOTIFICATION_TTL?'unset'} \
-    --aws-region=${KHAN_REGION?'unset'} \
-    --aws-account=${AWS_ACCOUNT_ID?'unset'} \
-    --aws-arn-env=${KHAN_ENV?'unset'} \
-    --aws-sqs-endpoint=${GUNDECK_AWS_SQS_ENDPOINT:-'https://sqs.eu-west-1.amazonaws.com'} \
-    --aws-sns-endpoint=${GUNDECK_AWS_SNS_ENDPOINT:-'https://sns.eu-west-1.amazonaws.com'} \
-    --skip-fallbacks \
-    ${GUNDECK_PREFER_NOTICE} \
-    ${GUNDECK_CANNON_BULK_PUSH}
+exec chpst -u $USER $BIN --config-file=${CONFIG}
