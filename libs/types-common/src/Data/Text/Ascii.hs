@@ -80,8 +80,8 @@ import qualified Data.Text                  as Text
 -- | 'AsciiText' is text that is known to contain only the subset
 -- of ASCII characters indicated by its character set @c@.
 newtype AsciiText c = AsciiText { toText :: Text }
-    deriving (Eq, Ord, Show, Semigroup, Monoid, NFData, ToByteString, ToJSONKey,
-              Generic, Hashable)
+    deriving (Eq, Ord, Show, Semigroup, Monoid, NFData, ToByteString,
+              FromJSONKey, ToJSONKey, Generic, Hashable)
 
 -- | Class of types representing subsets of ASCII characters.
 class AsciiChars c where
