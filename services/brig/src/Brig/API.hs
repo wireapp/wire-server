@@ -11,11 +11,11 @@
 module Brig.API (runServer, parseOptions) where
 
 import Brig.App
-import Brig.AWS (sesQueue, internalQueue)
+import Brig.AWS (sesQueue)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
-import Brig.Options hiding (sesQueue, internalQueue)
+import Brig.Options hiding (sesQueue, internalEvents)
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User (NewUserNoSSO(NewUserNoSSO))
@@ -30,7 +30,8 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import Data.Foldable (for_, forM_)
+import Data.Foldable (for_)
+import Data.Traversable (for)
 import Data.Id
 import Data.Int
 import Data.Metrics.Middleware hiding (metrics)
@@ -58,13 +59,14 @@ import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
 import qualified Brig.API.Properties           as API
 import qualified Brig.API.User                 as API
+import qualified Brig.Queue                    as Queue
 import qualified Brig.Team.Util                as Team
 import qualified Brig.User.API.Auth            as Auth
 import qualified Brig.User.API.Search          as Search
 import qualified Brig.User.Auth.Cookie         as Auth
 import qualified Brig.AWS                      as AWS
 import qualified Brig.AWS.SesNotification      as SesNotification
-import qualified Brig.AWS.InternalEvent        as InternalNotification
+import qualified Brig.InternalEvent.Process    as Internal
 import qualified Brig.Types.Swagger            as Doc
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Data.Swagger.Build.Api        as Doc
@@ -88,13 +90,15 @@ runServer :: Opts -> IO ()
 runServer o = do
     e <- newEnv o
     s <- Server.newSettings (server e)
-    f <- case (e^.awsEnv.sesQueue) of
-            Just q -> Just <$> listen (e^.awsEnv) e q SesNotification.onEvent
-            _      -> return Nothing
-    g <- listen (e^.awsEnv) e (e^.awsEnv.internalQueue) InternalNotification.onEvent
+    emailListener <- for (e^.awsEnv.sesQueue) $ \q ->
+        Async.async $
+        AWS.execute (e^.awsEnv) $
+        AWS.listen q (runAppT e . SesNotification.onEvent)
+    internalEventListener <- Async.async $
+        runAppT e $ Queue.listen (e^.internalEvents) Internal.onEvent
     runSettingsWithShutdown s (pipeline e) 5 `finally` do
-        for_ f Async.cancel
-        Async.cancel g
+        mapM_ Async.cancel emailListener
+        Async.cancel internalEventListener
         closeEnv e
   where
     rtree      = compile (sitemap o)
@@ -106,8 +110,6 @@ runServer o = do
                $ serve e
 
     serve e r k = runHandler e r (Server.route rtree r k) k
-
-    listen aws env queue f = Async.async $ AWS.execute aws $ AWS.listen queue (runAppT env . f)
 
 ---------------------------------------------------------------------------
 -- Sitemap
@@ -1115,7 +1117,7 @@ createUserNoVerify (_ ::: _ ::: req) = do
     let uid = userId usr
     let eac = createdEmailActivation result
     let pac = createdPhoneActivation result
-    forM_ (catMaybes [eac, pac]) $ \adata ->
+    for_ (catMaybes [eac, pac]) $ \adata ->
         let key  = ActivateKey $ activationKey adata
             code = activationCode adata
         in API.activate key code (Just uid) !>> actError

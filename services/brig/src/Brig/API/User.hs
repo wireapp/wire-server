@@ -67,7 +67,7 @@ import Brig.API.Types
 import Brig.Data.Activation (ActivationEvent (..))
 import Brig.Data.User hiding (updateSearchableStatus)
 import Brig.Data.UserKey
-import Brig.Options hiding (Timeout)
+import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Password
 import Brig.Types
 import Brig.Types.Code (Timeout (..))
@@ -100,8 +100,6 @@ import Data.UUID.V4 (nextRandom)
 import Network.Wai.Utilities
 import System.Logger.Message
 
-import qualified Brig.API.Error             as Error
-import qualified Brig.AWS.Types             as AWS
 import qualified Brig.Blacklist             as Blacklist
 import qualified Brig.Code                  as Code
 import qualified Brig.Data.Activation       as Data
@@ -112,6 +110,7 @@ import qualified Brig.Data.Properties       as Data
 import qualified Brig.Data.User             as Data
 import qualified Brig.Data.UserKey          as Data
 import qualified Brig.IO.Intra              as Intra
+import qualified Brig.Queue                 as Queue
 import qualified Brig.Types.Team.Invitation as Team
 import qualified Brig.Team.DB               as Team
 import qualified Brig.Team.Util             as Team
@@ -120,7 +119,7 @@ import qualified Data.Map.Strict            as Map
 import qualified Galley.Types.Teams         as Team
 import qualified Galley.Types.Teams.Intra   as Team
 import qualified System.Logger.Class        as Log
-import qualified Brig.AWS.InternalPublish   as Internal
+import qualified Brig.InternalEvent.Types   as Internal
 
 -------------------------------------------------------------------------------
 -- Create User
@@ -796,9 +795,8 @@ lookupPasswordResetCode emailOrPhone = do
 
 deleteUserNoVerify :: UserId -> AppIO ()
 deleteUserNoVerify uid = do
-    ok <- Internal.publish (AWS.DeleteUser uid)
-    unless ok $
-        throwM Error.failedQueueEvent
+    queue <- view internalEvents
+    Queue.enqueue queue (Internal.DeleteUser uid)
 
 -- | Garbage collect users if they're ephemeral and they have expired.
 -- Always returns the user (deletion itself is delayed)

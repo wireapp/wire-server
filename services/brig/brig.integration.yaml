@@ -26,7 +26,6 @@ gundeck:
 
 # You can set up local SQS/Dynamo running e.g. `../../deploy/docker-ephemeral/run.sh`
 aws:
-  internalQueue: integration-brig-events-internal
   userJournalQueue: integration-user-events.fifo
   # ^ Comment this out if you don't want to journal user events
   blacklistTable: integration-brig-userkey-blacklist
@@ -37,6 +36,21 @@ aws:
   prekeyTable: integration-brig-prekeys
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
+
+# Uncomment this if you want STOMP.
+#
+# stomp:
+#   stompHost: localhost
+#   stompPort: 61613
+#   stompTls: false
+
+# TODO: possibly move 'userJournalQueue' to the top level as well
+internalEvents:
+  queueType: sqs
+  queueName: integration-brig-events-internal
+  # queueType: stomp
+  # queueName: /queue/integration-brig-events-internal
+
 emailSMS:
   # You can either use SES directly (in which case, ensure a feedback queue is configured)
   # or you can use SMTP directly (blacklisting of email/phone must be otherwise handled by
@@ -102,6 +116,7 @@ optSettings:
   setTeamInvitationTimeout: 5
   setTwilio: test/resources/twilio-credentials.yaml
   setNexmo: test/resources/nexmo-credentials.yaml
+  # setStomp: test/resources/stomp-credentials.yaml
   setUserMaxConnections: 16
   setCookieDomain: 127.0.0.1
   setCookieInsecure: true
