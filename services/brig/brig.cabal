@@ -37,7 +37,6 @@ library
       , Brig.AWS.InternalPublish
       , Brig.AWS.InternalEvent
       , Brig.AWS.SesNotification
-      , Brig.Blacklist
       , Brig.Budget
       , Brig.Email
       , Brig.Data.Activation

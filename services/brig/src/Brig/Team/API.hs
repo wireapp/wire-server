@@ -38,7 +38,7 @@ import Network.Wai.Utilities.Swagger (document)
 import Prelude
 
 import qualified Brig.API.User                 as API
-import qualified Brig.Blacklist                as Blacklist
+import qualified Brig.Data.Blacklist           as Blacklist
 import qualified Brig.Data.UserKey             as Data
 import qualified Brig.Team.DB                  as DB
 import qualified Brig.Types.Swagger            as Doc
