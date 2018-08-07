@@ -102,6 +102,7 @@ tests conf p db b c g = do
             , test p "update"                 $ testUpdateService conf db b
             , test p "update-conn"            $ testUpdateServiceConn conf db b
             , test p "search (tag/prefix)"    $ testListServices conf db b
+            , test p "team search (prefix)"   $ testListTeamServices conf db b g
             , test p "delete"                 $ testDeleteService conf db b
             ]
         , testGroup "bot"
@@ -544,6 +545,77 @@ testListServices config db brig = do
         , updateServiceTags    = Nothing
         }
 
+testListTeamServices :: Maybe Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testListTeamServices config db brig galley = do
+    -- TODO actual whitelisting
+    -- TODO reuse tests from 'testListServices' since the implementation of the new endpoint
+    --      is going to be different enough that running those tests will make sense
+    prv <- randomProvider db brig
+    let pid = providerId prv
+
+    -- Create services
+    uniq <- UUID.toText . toUUID <$> randomId
+    new  <- defNewService config
+    let taggedNames = mkTaggedNames uniq
+    svcs <- mapM (addGetService brig pid . mkNew new) (reverse taggedNames)
+    mapM_ (enableService brig pid . serviceId) svcs
+    let names = fst (unzip taggedNames)
+
+    -- Create a user, a team, and some random user that's not on the team
+    (member, tid) <- Team.createUserWithTeam brig galley
+    notMember <- randomUser brig
+
+    -- Check that search doesn't work for the user who's not a part of the team
+    listTeamServiceProfilesByPrefix brig (userId notMember) tid Nothing 20 !!! do
+        const 403 === statusCode
+        const (Just "insufficient-permissions") === fmap Error.label . decodeBody
+
+    -- Check that search works for the user who's on the team
+    do
+        rs <- listTeamServiceProfilesByPrefix brig member tid (Just uniq) 20 <!!
+            const 200 === statusCode
+        let Just ls = serviceProfilePageResults <$> decodeBody rs
+        liftIO $ assertEqual "get page, size" (length names) (length ls)
+        let _names = map serviceProfileName ls
+        liftIO $ assertEqual "get page, names" names _names
+
+    -- Check that search works without a prefix
+    do
+        rs <- listTeamServiceProfilesByPrefix brig member tid Nothing 20 <!!
+            const 200 === statusCode
+        let Just ls = serviceProfilePageResults <$> decodeBody rs
+        liftIO $ assertEqual "get page, size" 20 (length ls)
+  where
+    -- 20 names, all using the given unique prefix
+    mkTaggedNames uniq =
+        [ (mkName uniq "Alpha",     [SocialTag, QuizTag, BusinessTag])
+        , (mkName uniq "Beta",      [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "Bjorn",     [SocialTag, QuizTag, TravelTag])
+        , (mkName uniq "Bjørn",     [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "CHRISTMAS", [SocialTag, QuizTag, WeatherTag])
+        , (mkName uniq "Delta",     [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "Epsilon",   [SocialTag, QuizTag, BusinessTag])
+        , (mkName uniq "Freer",     [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "Gamma",     [SocialTag, QuizTag, WeatherTag])
+        , (mkName uniq "Gramma",    [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "Hera",      [SocialTag, QuizTag, TravelTag])
+        , (mkName uniq "Io",        [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "Jojo",      [SocialTag, QuizTag, WeatherTag])
+        , (mkName uniq "Kuba",      [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "Lawn",      [SocialTag, QuizTag, TravelTag])
+        , (mkName uniq "Mango",     [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "North",     [SocialTag, QuizTag, WeatherTag])
+        , (mkName uniq "Yak",       [SocialTag, MusicTag, LifestyleTag])
+        , (mkName uniq "Zeta",      [SocialTag, QuizTag, TravelTag])
+        , (mkName uniq "Zulu",      [SocialTag, MusicTag, LifestyleTag])
+        ]
+
+    mkName uniq n = Name (uniq <> n)
+
+    mkNew new (n, t) = new { newServiceName = n
+                           , newServiceTags = unsafeRange (Set.fromList t)
+                           }
+
 testDeleteService :: Maybe Config -> DB.ClientState -> Brig -> Http ()
 testDeleteService config db brig = do
     prv <- randomProvider db brig
@@ -873,6 +945,20 @@ listServiceProfilesByPrefix
 listServiceProfilesByPrefix brig uid start size = get $ brig
     . path "/services"
     . queryItem "start" (toByteString' start)
+    . queryItem "size" (toByteString' size)
+    . header "Z-Type" "access"
+    . header "Z-User" (toByteString' uid)
+
+listTeamServiceProfilesByPrefix
+    :: Brig
+    -> UserId
+    -> TeamId
+    -> Maybe Text
+    -> Int
+    -> Http ResponseLBS
+listTeamServiceProfilesByPrefix brig uid tid mbPrefix size = get $ brig
+    . paths ["teams", toByteString' tid, "services", "whitelisted"]
+    . maybe id (queryItem "prefix" . toByteString') mbPrefix
     . queryItem "size" (toByteString' size)
     . header "Z-Type" "access"
     . header "Z-User" (toByteString' uid)

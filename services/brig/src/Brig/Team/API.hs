@@ -55,7 +55,6 @@ routes = do
     post "/teams/:tid/invitations" (continue createInvitation) $
         accept "application" "json"
         .&. header "Z-User"
-        .&. header "Z-Connection"
         .&. capture "tid"
         .&. request
 
@@ -166,8 +165,8 @@ getInvitationCode (_ ::: t ::: r) = do
   where
     found c = json $ object [ "code" .= c ]
 
-createInvitation :: JSON ::: UserId ::: ConnId ::: TeamId ::: Request -> Handler Response
-createInvitation (_ ::: uid ::: _ ::: tid ::: req) = do
+createInvitation :: JSON ::: UserId ::: TeamId ::: Request -> Handler Response
+createInvitation (_ ::: uid ::: tid ::: req) = do
     body <- parseJsonBody req
     idt  <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail)    return (emailIdentity idt)

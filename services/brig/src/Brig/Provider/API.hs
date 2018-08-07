@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE TypeOperators     #-}
 
 module Brig.Provider.API (routes) where
@@ -217,6 +218,13 @@ routes = do
     get "/services/tags" (continue getServiceTagList) $
         accept "application" "json"
         .&> zauth ZAuthAccess
+
+    get "/teams/:tid/services/whitelisted" (continue searchTeamServiceProfiles) $
+        accept "application" "json"
+        .&> zauthUserId
+        .&. capture "tid"
+        .&. opt (query "prefix")
+        .&. def (unsafeRange 20) (query "size")
 
     post "/conversations/:cnv/bots" (continue addBot) $
         contentType "application" "json"
@@ -583,16 +591,35 @@ getServiceProfile (pid ::: sid) = do
     s <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
     return (json s)
 
+-- TODO: in order to actually make it possible for clients to implement
+-- pagination here, we need both 'start' and 'prefix'.
 searchServiceProfiles :: Maybe (QueryAnyTags 1 3) ::: Maybe Text ::: Range 10 100 Int32 -> Handler Response
 searchServiceProfiles (Nothing ::: Just start ::: size) = do
     prefix <- rangeChecked start :: Handler (Range 1 128 Text)
-    ss <- DB.paginateServiceNames prefix (fromRange size) =<< setProviderSearchFilter <$> view settings
+    ss <- DB.paginateServiceNames (Just prefix) (fromRange size) =<< setProviderSearchFilter <$> view settings
     return (json ss)
 searchServiceProfiles (Just tags ::: start ::: size) = do
     ss <- DB.paginateServiceTags tags start (fromRange size) =<< setProviderSearchFilter <$> view settings
     return (json ss)
 searchServiceProfiles (Nothing ::: Nothing ::: _) =
     throwStd $ badRequest "At least `tags` or `start` must be provided."
+
+-- TODO: this endpoint doesn't do what it says it does. It's being added now
+-- purely to make testing easier for clients.
+--
+-- Before going to production, it needs to start considering the whitelist.
+-- It would be also quite nice to have both "start" and "prefix" here to
+-- make pagination work in the future.
+searchTeamServiceProfiles
+    :: UserId ::: TeamId ::: Maybe (Range 1 128 Text) ::: Range 10 100 Int32
+    -> Handler Response
+searchTeamServiceProfiles (u ::: t ::: prefix ::: size) = do
+    member <- lift $ RPC.getTeamMember u t
+    unless (isJust member) $
+        throwStd insufficientTeamPermissions
+    ss <- DB.paginateServiceNames prefix (fromRange size) =<<
+          setProviderSearchFilter <$> view settings
+    return (json ss)
 
 getServiceTagList :: () -> Handler Response
 getServiceTagList _ = return (json (ServiceTagList allTags))

@@ -570,26 +570,36 @@ updateServicePrefix pid sid oldName newName = do
     insertServicePrefix pid sid newName
 
 paginateServiceNames :: MonadClient m
-    => Range 1 128 Text
+    => Maybe (Range 1 128 Text)
     -> Int32
     -> Maybe ProviderId
     -> m ServiceProfilePage
-paginateServiceNames start size providerFilter = liftClient $ do
+paginateServiceNames mbPrefix size providerFilter = liftClient $ do
     let size' = size + 1
-    p <- filterResults providerFilter prefix <$> queryPrefixes size'
+    p <- case mbPrefix of
+        Nothing ->
+            filterResults providerFilter "" <$> queryAll size'
+        Just prefix ->
+            let prefix' = toLower (fromRange prefix)
+            in  filterResults providerFilter prefix' <$> queryPrefixes prefix' size'
     r <- mapConcurrently resolveRow (result p)
     return $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
-    prefix = toLower (fromRange start)
-
-    queryPrefixes len = do
-        p <- retry x1 $ paginate cql $ paramsP One (mkPrefixIndex (Name prefix), prefix) len
+    queryAll len = do
+        let cql :: PrepQuery R () IndexRow
+            cql = "SELECT name, provider, service \
+                  \FROM service_prefix"
+        p <- retry x1 $ paginate cql $ paramsP One () len
         return $! p { result = trim size (result p) }
 
-    cql :: PrepQuery R (Text, Text) IndexRow
-    cql = "SELECT name, provider, service \
-          \FROM service_prefix \
-          \WHERE prefix = ? AND name >= ?"
+    queryPrefixes prefix len = do
+        let cql :: PrepQuery R (Text, Text) IndexRow
+            cql = "SELECT name, provider, service \
+                  \FROM service_prefix \
+                  \WHERE prefix = ? AND name >= ?"
+        p <- retry x1 $ paginate cql $
+             paramsP One (mkPrefixIndex (Name prefix), prefix) len
+        return $! p { result = trim size (result p) }
 
 -- Pagination utilities
 filterResults :: Maybe ProviderId -> Text -> Page IndexRow -> Page IndexRow
