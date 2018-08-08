@@ -242,6 +242,7 @@ deleteTeam tid = do
     cc <- teamConversations tid
     for_ cc $ removeTeamConv tid . view conversationId
     retry x5 $ write Cql.deleteTeam (params Quorum (Deleted, tid))
+    -- TODO: delete service_whitelist records that mention this team
 
 addTeamMember :: MonadClient m => TeamId -> TeamMember -> m ()
 addTeamMember t m =

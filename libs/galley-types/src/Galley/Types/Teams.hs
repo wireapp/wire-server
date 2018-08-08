@@ -50,7 +50,10 @@ module Galley.Types.Teams
     , Permissions
     , newPermissions
     , fullPermissions
+    , noPermissions
+    , serviceWhitelistPermissions
     , hasPermission
+    , isTeamOwner
     , self
     , copy
 
@@ -102,7 +105,7 @@ import Control.Monad (when)
 import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
 import Data.Bits (testBit, (.|.))
-import Data.Id (TeamId, ConvId, UserId)
+import Data.Id (TeamId, ConvId, UserId, ProviderId, ServiceId)
 import Data.Int (Int64)
 import Data.Json.Util
 import Data.List (find)
@@ -126,6 +129,33 @@ data Event = Event
     , _eventData :: Maybe EventData
     } deriving Eq
 
+-- Note [whitelist events]
+-- ~~~~~~~~~~~~~~~
+--
+-- When a service is put off the whitelist, we want to notify users about
+-- this so that they would be able to update their whitelists in real time
+-- (or at least this could be useful for the team admin console). For this
+-- we might eventually have events 'ServiceWhitelistAdd' and
+-- 'ServiceWhitelistRemove'.
+--
+-- However, they're not really necessary for clients, and currently
+-- implementing them is problematic. There are three choices and all are
+-- bad:
+--
+--   1. If we decide to send them to all users, this would be an expensive
+--      operation – especially once we have bigger teams. We can send these
+--      events asynchonously, but it's still somewhat painful.
+--
+--   2. If we decide to only send them to e.g. team admins, now we have to
+--      figure out who *are* team admins, and currently the backend doesn't
+--      have a notion of a team admin at all. See Note [team roles].
+--
+--   3. We could create a new permission (e.g. "CanWhitelistServices") and
+--      only send the event to users with this permission, because
+--      presumably only they care about it. However, we can't do this
+--      either, because adding new permissions is tricky.
+--      See Note [team roles] again.
+
 data EventType =
       TeamCreate
     | TeamDelete
@@ -135,6 +165,8 @@ data EventType =
     | MemberUpdate
     | ConvCreate
     | ConvDelete
+    | ServiceWhitelistAdd
+    | ServiceWhitelistRemove
     deriving (Eq, Show)
 
 data EventData =
@@ -145,6 +177,8 @@ data EventData =
     | EdMemberUpdate UserId (Maybe Permissions)
     | EdConvCreate   ConvId
     | EdConvDelete   ConvId
+    | EdServiceWhitelistAdd    ProviderId ServiceId
+    | EdServiceWhitelistRemove ProviderId ServiceId
     deriving (Eq, Show)
 
 data TeamUpdateData = TeamUpdateData
@@ -195,6 +229,8 @@ data Perm =
     | SetMemberPermissions
     | GetTeamConversations
     | DeleteTeam
+    -- If you ever think about adding a new permission flag,
+    -- read Note [team roles] first.
     deriving (Eq, Ord, Show, Enum, Bounded)
 
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
@@ -281,7 +317,11 @@ isTeamMember u = isJust . findTeamMember u
 findTeamMember :: Foldable m => UserId -> m TeamMember -> Maybe TeamMember
 findTeamMember u = find ((u ==) . view userId)
 
-newPermissions :: Set Perm -> Set Perm -> Maybe Permissions
+newPermissions
+    :: Set Perm            -- ^ User's permissions
+    -> Set Perm            -- ^ Permissions that the user will be able to
+                           --   grant to other users (must be a subset)
+    -> Maybe Permissions
 newPermissions a b
     | b `Set.isSubsetOf` a = Just (Permissions a b)
     | otherwise            = Nothing
@@ -289,8 +329,60 @@ newPermissions a b
 fullPermissions :: Permissions
 fullPermissions = let p = intToPerms maxBound in Permissions p p
 
+noPermissions :: Permissions
+noPermissions = Permissions mempty mempty
+
+-- | Permissions that a user needs to be considered a "service whitelist
+-- admin" (can add and remove services from the whitelist).
+serviceWhitelistPermissions :: Set Perm
+serviceWhitelistPermissions = Set.fromList
+    [ AddTeamMember, RemoveTeamMember
+    , RemoveConversationMember
+    , SetTeamData
+    ]
+
 hasPermission :: TeamMember -> Perm -> Bool
 hasPermission tm p = p `Set.member` (tm^.permissions.self)
+
+-- Note [team roles]
+-- ~~~~~~~~~~~~
+--
+-- Client apps have a notion of *team roles*. They are defined as sets of
+-- permissions:
+--
+--     member =
+--         {Add/RemoveConversationMember, Create/DeleteConversation,
+--         GetMemberPermissions, GetTeamConversations}
+--
+--     admin = member +
+--         {Add/RemoveTeamMember, SetMemberPermissions, SetTeamData}
+--
+--     owner = admin +
+--         {DeleteTeam, Get/SetBilling}
+--
+-- For instance, here: https://github.com/wireapp/wire-webapp/blob/dev/app/script/team/TeamPermission.js
+--
+-- Whenever a user has one of those specific sets of permissions, they are
+-- considered a member/admin/owner and the client treats them accordingly
+-- (e.g. for an admin it might show a certain button, while for an ordinary
+-- user it won't).
+--
+-- On the backend, however, we don't have such a notion. Instead we have
+-- granular (in fact, probably *too* granular) permission masks. Look at
+-- 'Perm' and 'Permissions'.
+--
+-- Admins as a concept don't exist at all, and team owners are defined as
+-- "full bitmask". When we do checks like "the backend must not let the last
+-- team owner leave the team", this is what we test for. We also never test
+-- for "team admin", and instead look at specific permissions.
+--
+-- Creating a new permission flag is thus very tricky, because if we decide
+-- that all team admins must have this new permission, we will have to
+-- identify all existing team admins. And if it turns out that some users
+-- don't fit into one of those three team roles, we're screwed.
+
+isTeamOwner :: TeamMember -> Bool
+isTeamOwner tm = fullPermissions == (tm^.permissions)
 
 permToInt :: Perm -> Word64
 permToInt CreateConversation       = 0x0001
@@ -425,6 +517,8 @@ instance ToJSON EventType where
     toJSON MemberLeave  = String "team.member-leave"
     toJSON ConvCreate   = String "team.conversation-create"
     toJSON ConvDelete   = String "team.conversation-delete"
+    toJSON ServiceWhitelistAdd    = String "team.service-whitelist-add"
+    toJSON ServiceWhitelistRemove = String "team.service-whitelist-remove"
 
 instance FromJSON EventType where
     parseJSON (String "team.create")              = pure TeamCreate
@@ -435,6 +529,8 @@ instance FromJSON EventType where
     parseJSON (String "team.member-leave")        = pure MemberLeave
     parseJSON (String "team.conversation-create") = pure ConvCreate
     parseJSON (String "team.conversation-delete") = pure ConvDelete
+    parseJSON (String "team.service-whitelist-add")    = pure ServiceWhitelistAdd
+    parseJSON (String "team.service-whitelist-remove") = pure ServiceWhitelistRemove
     parseJSON other                               = fail $ "Unknown event type: " <> show other
 
 instance ToJSON Event where
@@ -466,6 +562,8 @@ instance ToJSON EventData where
     toJSON (EdConvCreate   cnv)       = object ["conv" .= cnv]
     toJSON (EdConvDelete   cnv)       = object ["conv" .= cnv]
     toJSON (EdTeamUpdate   upd)       = toJSON upd
+    toJSON (EdServiceWhitelistAdd    pid sid) = object ["provider" .= pid, "service" .= sid]
+    toJSON (EdServiceWhitelistRemove pid sid) = object ["provider" .= pid, "service" .= sid]
 
 parseEventData :: EventType -> Maybe Value -> Parser (Maybe EventData)
 parseEventData MemberJoin Nothing  = fail "missing event data for type 'team.member-join'"
@@ -492,6 +590,16 @@ parseEventData ConvDelete Nothing  = fail "missing event data for type 'team.con
 parseEventData ConvDelete (Just j) = do
     let f o = Just . EdConvDelete  <$> o .: "conv"
     withObject "conversation delete data" f j
+
+parseEventData ServiceWhitelistAdd Nothing  = fail "missing event data for type 'team.service-whitelist-add'"
+parseEventData ServiceWhitelistAdd (Just j) = do
+    let f o = fmap Just . EdServiceWhitelistAdd <$> o .: "provider" <*> o .: "service"
+    withObject "service whitelist add" f j
+
+parseEventData ServiceWhitelistRemove Nothing  = fail "missing event data for type 'team.service-whitelist-remove'"
+parseEventData ServiceWhitelistRemove (Just j) = do
+    let f o = fmap Just . EdServiceWhitelistRemove <$> o .: "provider" <*> o .: "service"
+    withObject "service whitelist remove" f j
 
 parseEventData TeamCreate Nothing  = fail "missing event data for type 'team.create'"
 parseEventData TeamCreate (Just j) = Just . EdTeamCreate <$> parseJSON j

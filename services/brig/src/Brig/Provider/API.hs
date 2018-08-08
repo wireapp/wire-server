@@ -5,10 +5,12 @@
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Brig.Provider.API (routes) where
 
-import Brig.App (settings)
+import Brig.App (settings, AppIO)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types (PasswordResetError (..))
@@ -17,12 +19,13 @@ import Brig.Options (Settings (..))
 import Brig.Password
 import Brig.Provider.DB (ServiceConn (..))
 import Brig.Provider.Email
+import Brig.Team.Util
 import Brig.Types.Intra (UserAccount (..), AccountStatus (..))
 import Brig.Types.Client
 import Brig.Types.User (publicProfile, User (..), Pict (..))
 import Brig.Types.Provider
 import Brig.Types.Search
-import Control.Lens (view)
+import Control.Lens (view, (&), (.~))
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
 import Control.Monad (join, when, unless, (>=>), liftM2)
@@ -33,7 +36,7 @@ import Data.Foldable (for_, forM_)
 import Data.Hashable (hash)
 import Data.Id
 import Data.Int
-import Data.List1 (List1 (..))
+import Data.List1 (List1 (..), singleton, list1)
 import Data.List.NonEmpty (nonEmpty)
 import Data.Maybe
 import Data.Misc (Fingerprint (..), Rsa)
@@ -45,8 +48,9 @@ import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..))
 import Galley.Types (OtherMember (..))
 import Galley.Types (Event, userClients)
 import Galley.Types.Bot (newServiceRef)
-import Galley.Types.Teams (managedConversation)
 import Data.Traversable (forM)
+import Data.Time (getCurrentTime)
+import Data.Json.Util (toJSONObject)
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)
 import Network.Wai.Predicate (contentType, accept, request, query, def, opt)
@@ -65,11 +69,13 @@ import qualified Brig.IO.Intra                as RPC
 import qualified Brig.Provider.DB             as DB
 import qualified Brig.Provider.RPC            as RPC
 import qualified Brig.Types.Provider.External as Ext
+import qualified Data.Aeson                   as Aeson
 import qualified Data.ByteString.Lazy.Char8   as LC8
 import qualified Data.List                    as List
 import qualified Data.Map.Strict              as Map
 import qualified Data.Swagger.Build.Api       as Doc
 import qualified Data.Text.Ascii              as Ascii
+import qualified Data.Set                     as Set
 import qualified OpenSSL.PEM                  as SSL
 import qualified OpenSSL.RSA                  as SSL
 import qualified OpenSSL.EVP.Digest           as SSL
@@ -78,7 +84,9 @@ import qualified Network.HTTP.Client.OpenSSL  as SSL
 import qualified Data.Text.Encoding           as Text
 import qualified Network.Wai.Utilities.Error  as Wai
 import qualified Brig.ZAuth                   as ZAuth
-
+import qualified Galley.Types.Teams           as Teams
+import qualified System.Logger.Class          as Log
+import qualified Gundeck.Types.Push.V2        as Push
 
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
@@ -224,7 +232,16 @@ routes = do
         .&> zauthUserId
         .&. capture "tid"
         .&. opt (query "prefix")
+        .&. def True (query "filter_disabled")
         .&. def (unsafeRange 20) (query "size")
+
+    post "/teams/:tid/services/whitelist" (continue updateServiceWhitelist) $
+        accept "application" "json"
+        .&> zauth ZAuthAccess
+        .&> zauthUserId
+        .&. zauthConnId
+        .&. capture "tid"
+        .&. request
 
     post "/conversations/:cnv/bots" (continue addBot) $
         contentType "application" "json"
@@ -593,6 +610,8 @@ getServiceProfile (pid ::: sid) = do
 
 -- TODO: in order to actually make it possible for clients to implement
 -- pagination here, we need both 'start' and 'prefix'.
+--
+-- Also see Note [buggy pagination].
 searchServiceProfiles :: Maybe (QueryAnyTags 1 3) ::: Maybe Text ::: Range 10 100 Int32 -> Handler Response
 searchServiceProfiles (Nothing ::: Just start ::: size) = do
     prefix <- rangeChecked start :: Handler (Range 1 128 Text)
@@ -604,27 +623,46 @@ searchServiceProfiles (Just tags ::: start ::: size) = do
 searchServiceProfiles (Nothing ::: Nothing ::: _) =
     throwStd $ badRequest "At least `tags` or `start` must be provided."
 
--- TODO: this endpoint doesn't do what it says it does. It's being added now
--- purely to make testing easier for clients.
---
--- Before going to production, it needs to start considering the whitelist.
--- It would be also quite nice to have both "start" and "prefix" here to
--- make pagination work in the future.
+-- NB: unlike 'searchServiceProfiles', we don't filter by service provider here
 searchTeamServiceProfiles
-    :: UserId ::: TeamId ::: Maybe (Range 1 128 Text) ::: Range 10 100 Int32
+    :: UserId ::: TeamId ::: Maybe (Range 1 128 Text) ::: Bool ::: Range 10 100 Int32
     -> Handler Response
-searchTeamServiceProfiles (u ::: t ::: prefix ::: size) = do
-    member <- lift $ RPC.getTeamMember u t
-    unless (isJust member) $
+searchTeamServiceProfiles (uid ::: tid ::: prefix ::: filterDisabled ::: size) = do
+    -- Check that the user actually belong to the team they claim they
+    -- belong to. (Note: the 'tid' team might not even exist but we'll throw
+    -- 'insufficientTeamPermissions' anyway)
+    teamId <- lift $ User.lookupUserTeam uid
+    unless (Just tid == teamId) $
         throwStd insufficientTeamPermissions
-    ss <- DB.paginateServiceNames prefix (fromRange size) =<<
-          setProviderSearchFilter <$> view settings
-    return (json ss)
+    -- Get search results
+    json <$> DB.paginateServiceWhitelist tid prefix filterDisabled (fromRange size)
 
 getServiceTagList :: () -> Handler Response
 getServiceTagList _ = return (json (ServiceTagList allTags))
   where
     allTags = [(minBound :: ServiceTag) ..]
+
+updateServiceWhitelist :: UserId ::: ConnId ::: TeamId ::: Request -> Handler Response
+updateServiceWhitelist (uid ::: conn ::: tid ::: req) = do
+    upd :: UpdateServiceWhitelist <- parseJsonBody req
+    let pid = updateServiceWhitelistProvider upd
+        sid = updateServiceWhitelistService upd
+        newWhitelisted = updateServiceWhitelistStatus upd
+    ensurePermissions uid tid (Set.toList Teams.serviceWhitelistPermissions)
+    _ <- DB.lookupService pid sid >>= maybeServiceNotFound
+    whitelisted <- DB.getServiceWhitelistStatus tid pid sid
+    case (whitelisted, newWhitelisted) of
+        (False, False) -> return (setStatus status204 empty)
+        (True,  True)  -> return (setStatus status204 empty)
+        (False, True)  -> do
+            DB.insertServiceWhitelist tid pid sid
+            lift $ notifyServiceWhitelistUpdate tid uid conn pid sid True
+            return (setStatus status200 empty)
+        (True, False)  -> do
+            DB.deleteServiceWhitelist (Just tid) pid sid
+            lift $ notifyServiceWhitelistUpdate tid uid conn pid sid False
+            return (setStatus status200 empty)
+            -- TODO remove service from conversations
 
 addBot :: UserId ::: ConnId ::: ConvId ::: Request -> Handler Response
 addBot (zuid ::: zcon ::: cid ::: req) = do
@@ -649,6 +687,10 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     unless (sconEnabled scon) $
         throwStd serviceDisabled
     svp <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
+    for_ (cnvTeam cnv) $ \tid -> do
+        whitelisted <- DB.getServiceWhitelistStatus tid pid sid
+        unless whitelisted $
+            throwStd serviceNotWhitelisted
 
     -- Prepare a user ID, client ID and token for the bot.
     bid <- BotId <$> randomId
@@ -693,7 +735,7 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
   where
     ensureNotManagedConv tid = do
         tc <- lift (RPC.getTeamConv zuid tid cid) >>= maybeConvNotFound
-        when (view managedConversation tc) $
+        when (view Teams.managedConversation tc) $
             throwStd invalidConv
 
 removeBot :: UserId ::: ConnId ::: ConvId ::: BotId -> Handler Response
@@ -817,6 +859,36 @@ validateServiceKey pem = liftIO $ readPublicKey >>= \pk ->
         (const $ return Nothing)
         (SSL.readPublicKey (LC8.unpack (toByteString pem)) >>= return . Just)
 
+-- | Send all team members an event about a change in the services
+-- whitelist.
+notifyServiceWhitelistUpdate
+    :: TeamId
+    -> UserId        -- ^ The user who caused the whitelist to change
+    -> ConnId        -- ^ Originating connection
+    -> ProviderId
+    -> ServiceId
+    -> Bool          -- ^ True=added, False=removed
+    -> AppIO ()
+notifyServiceWhitelistUpdate tid uid conn pid sid status = do
+    mbMembers <- view Teams.teamMembers <$> RPC.getTeamMembers tid
+    case mbMembers of
+        [] -> pure ()
+        x:xs -> do
+            let members = fmap (view Teams.userId) (list1 x xs)
+            now <- liftIO getCurrentTime
+            let event = Teams.newEvent eventType tid now
+                          & Teams.eventData .~ Just eventData
+            RPC.rawPush (mkEventList event) members uid Push.RouteAny (Just conn)
+  where
+    mkEventList event = singleton ( Log.bytes (Aeson.encode event)
+                                  , (toJSONObject event, Nothing) )
+    eventType
+        | status    = Teams.ServiceWhitelistAdd
+        | otherwise = Teams.ServiceWhitelistRemove
+    eventData
+        | status    = Teams.EdServiceWhitelistAdd pid sid
+        | otherwise = Teams.EdServiceWhitelistRemove pid sid
+
 mkBotUserView :: User -> Ext.BotUserView
 mkBotUserView u = Ext.BotUserView
     { Ext.botUserViewId     = userId u
@@ -895,6 +967,9 @@ tooManyBots = Wai.Error status409 "too-many-bots" "Maximum number of bots for th
 
 serviceDisabled :: Wai.Error
 serviceDisabled = Wai.Error status403 "service-disabled" "The desired service is currently disabled."
+
+serviceNotWhitelisted :: Wai.Error
+serviceNotWhitelisted = Wai.Error status403 "service-not-whitelisted" "The desired service is not on the whitelist of allowed services for this team."
 
 serviceError :: RPC.ServiceError -> Wai.Error
 serviceError RPC.ServiceUnavailable = badGateway

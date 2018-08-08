@@ -122,7 +122,7 @@ import qualified System.Logger            as Log
 import qualified System.Logger.Class      as LC
 
 schemaVersion :: Int32
-schemaVersion = 51
+schemaVersion = 52
 
 -------------------------------------------------------------------------------
 -- Environment

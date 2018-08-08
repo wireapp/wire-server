@@ -21,8 +21,8 @@ import Data.Functor.Identity
 import Data.Id
 import Data.Int
 import Data.List1 (List1)
-import Data.List (unfoldr, minimumBy, uncons)
-import Data.Maybe (catMaybes, fromMaybe, mapMaybe)
+import Data.List (unfoldr, minimumBy, uncons, sortOn)
+import Data.Maybe (isJust, catMaybes, fromMaybe, mapMaybe)
 import Data.Misc
 import Data.Range (Range, fromRange, rnil, rcast)
 import Data.Text (Text, toLower, isPrefixOf)
@@ -274,12 +274,18 @@ deleteService :: MonadClient m
     -> Name
     -> RangedServiceTags
     -> m ()
-deleteService pid sid name tags =  retry x5 $ batch $ do
-    setConsistency Quorum
-    setType BatchUnLogged
-    addPrepQuery cql (pid, sid)
-    deleteServicePrefix sid name
-    deleteServiceTags pid sid name tags
+deleteService pid sid name tags = do
+    -- NB: the 'deleteService' endpoint checks for the existence of the
+    -- service, so it's nice to do actual service deletion as the last thing
+    -- (or as a part of the last batch, in this case) because otherwise API
+    -- consumers won't be able to retry a half-done 'deleteService' call.
+    deleteServiceWhitelist Nothing pid sid
+    retry x5 $ batch $ do
+        setConsistency Quorum
+        setType BatchUnLogged
+        addPrepQuery cql (pid, sid)
+        deleteServicePrefix sid name
+        deleteServiceTags pid sid name tags
   where
     cql :: PrepQuery W (ProviderId, ServiceId) ()
     cql = "DELETE FROM service WHERE provider = ? AND id = ?"
@@ -381,7 +387,7 @@ updateServiceConn pid sid url tokens keys enabled = retry x5 $ batch $ do
     cqlEnabled = "UPDATE service SET enabled = ? WHERE provider = ? AND id = ?"
 
 --------------------------------------------------------------------------------
--- Service "Indexes" (tag and prefix)
+-- Service "Indexes" (tag and prefix); contain only enabled services
 
 insertServiceIndexes :: MonadClient m
                      => ProviderId
@@ -408,19 +414,6 @@ deleteServiceIndexes pid sid name tags =
         setType BatchLogged
         deleteServicePrefix sid name
         deleteServiceTags pid sid name tags
-
-updateServiceIndexes :: MonadClient m
-                     => ProviderId
-                     -> ServiceId
-                     -> (Name, RangedServiceTags) -- ^ Name and tags to remove.
-                     -> (Name, RangedServiceTags) -- ^ Name and tags to add.
-                     -> m ()
-updateServiceIndexes pid sid (oldName, oldTags) (newName, newTags) =
-    retry x5 $ batch $ do
-        setConsistency Quorum
-        setType BatchLogged
-        updateServicePrefix pid sid oldName newName
-        updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
 
 --------------------------------------------------------------------------------
 -- Service Tag "Index"
@@ -486,6 +479,26 @@ updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
 -- Used both by service_tag and service_prefix
 type IndexRow = (Name, ProviderId, ServiceId)
 
+-- Note [buggy pagination]
+-- ~~~~~~~~~~~~~~~~
+--
+-- I'm very much unsure that pagination is implemented correctly
+-- in 'paginateServiceNames' and 'paginateServiceTags'.
+--
+-- It's not obvious that it's enough to pass (size+1) and then try to figure
+-- out, in various places, whether we should flip 'hasMore' or not; and if
+-- this is implemented incorrectly, then hasMore might be false while it
+-- should be true – which will become a significant bug once clients
+-- actually start implementing pagination.
+--
+-- In addition, we certainly return less rows than we are asked for (though
+-- it's not exactly a bug), and we can even return zero rows and say "but we
+-- have more!".
+--
+-- Luckily, clients never look at hasMore. There are also some tests that
+-- break if they look at hasMore, but since hasMore is currently irrelevant,
+-- they're commented out. Grep for references to this note.
+
 -- | Note: Consistency = One
 paginateServiceTags :: MonadClient m
     => QueryAnyTags 1 3
@@ -498,6 +511,7 @@ paginateServiceTags tags start size providerFilter = liftClient $ do
     let tags' = unpackTags tags
     p <- filterResults providerFilter start' <$> queryAll start' size' tags'
     r <- mapConcurrently resolveRow (result p)
+    -- See Note [buggy pagination]
     return $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
     start' = maybe "" toLower start
@@ -583,6 +597,7 @@ paginateServiceNames mbPrefix size providerFilter = liftClient $ do
             let prefix' = toLower (fromRange prefix)
             in  filterResults providerFilter prefix' <$> queryPrefixes prefix' size'
     r <- mapConcurrently resolveRow (result p)
+    -- See Note [buggy pagination]
     return $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
     queryAll len = do
@@ -625,7 +640,108 @@ resolveRow :: MonadClient m => IndexRow -> m (Maybe ServiceProfile)
 resolveRow (_, pid, sid) = lookupServiceProfile pid sid
 
 --------------------------------------------------------------------------------
+-- Service whitelist
+
+insertServiceWhitelist :: MonadClient m => TeamId -> ProviderId -> ServiceId -> m ()
+insertServiceWhitelist tid pid sid =
+    retry x5 $ batch $ do
+        addPrepQuery insert1 (tid, pid, sid)
+        addPrepQuery insert1Rev (tid, pid, sid)
+  where
+    insert1 :: PrepQuery W (TeamId, ProviderId, ServiceId) ()
+    insert1 = "INSERT INTO service_whitelist \
+              \(team, provider, service) \
+              \VALUES (?, ?, ?)"
+    insert1Rev :: PrepQuery W (TeamId, ProviderId, ServiceId) ()
+    insert1Rev = "INSERT INTO service_whitelist_rev \
+                 \(team, provider, service) \
+                 \VALUES (?, ?, ?)"
+
+--
+
+deleteServiceWhitelist :: MonadClient m => Maybe TeamId -> ProviderId -> ServiceId -> m ()
+deleteServiceWhitelist mbTid pid sid = case mbTid of
+    Nothing -> do
+        teams <- retry x5 $ query lookupRev $ params Quorum (pid, sid)
+        retry x5 $ batch $ do
+            setType BatchLogged
+            setConsistency Quorum
+            addPrepQuery deleteAllRev (pid, sid)
+            for_ teams $ \(Identity tid) -> addPrepQuery delete1 (tid, pid, sid)
+    Just tid ->
+        retry x5 $ batch $ do
+            setType BatchLogged
+            setConsistency Quorum
+            addPrepQuery delete1 (tid, pid, sid)
+            addPrepQuery delete1Rev (tid, pid, sid)
+  where
+    lookupRev :: PrepQuery R (ProviderId, ServiceId) (Identity TeamId)
+    lookupRev = "SELECT team FROM service_whitelist_rev \
+                \WHERE provider = ? AND service = ?"
+    delete1 :: PrepQuery W (TeamId, ProviderId, ServiceId) ()
+    delete1 = "DELETE FROM service_whitelist \
+              \WHERE team = ? AND provider = ? AND service = ?"
+    delete1Rev :: PrepQuery W (TeamId, ProviderId, ServiceId) ()
+    delete1Rev = "DELETE FROM service_whitelist_rev \
+                 \WHERE team = ? AND provider = ? AND service = ?"
+    deleteAllRev :: PrepQuery W (ProviderId, ServiceId) ()
+    deleteAllRev = "DELETE FROM service_whitelist_rev \
+                   \WHERE provider = ? AND service = ?"
+
+--
+
+paginateServiceWhitelist
+    :: MonadClient m
+    => TeamId                      -- ^ Team for which to list the services
+    -> Maybe (Range 1 128 Text)    -- ^ Prefix
+    -> Bool                        -- ^ Whether to filter out disabled services
+    -> Int32                       -- ^ Page size limit
+    -> m ServiceProfilePage
+paginateServiceWhitelist tid mbPrefix filterDisabled size = liftClient $ do
+    -- NB: this function is rather inefficient because it queries all
+    -- services, regardless of 'size'. This is because otherwise we would
+    -- have to go through multiple passes of query->filter->query a bit
+    -- more->filter->... if we get unlucky.
+    p <- retry x1 $ query cql $ params One (Identity tid)
+    r <- maybeFilterPrefix .
+         sortOn (toLower . fromName . serviceProfileName) .
+         maybeFilterDisabled .
+         catMaybes <$>
+             mapConcurrently (uncurry lookupServiceProfile) p
+    return $! ServiceProfilePage
+                  (length r > fromIntegral size)
+                  (trim size r)
+  where
+    cql :: PrepQuery R (Identity TeamId) (ProviderId, ServiceId)
+    cql = "SELECT provider, service \
+          \FROM service_whitelist \
+          \WHERE team = ?"
+    maybeFilterDisabled
+        | filterDisabled = filter serviceProfileEnabled
+        | otherwise = id
+    maybeFilterPrefix
+        | Just prefix <- mbPrefix =
+              let prefix' = toLower (fromRange prefix)
+              in  filter ((prefix' `isPrefixOf`) . toLower . fromName . serviceProfileName)
+        | otherwise = id
+
+getServiceWhitelistStatus
+    :: MonadClient m
+    => TeamId
+    -> ProviderId
+    -> ServiceId
+    -> m Bool
+getServiceWhitelistStatus tid pid sid = liftClient $ do
+    fmap isJust $ retry x1 $ query1 cql $ params One (tid, pid, sid)
+  where
+    cql :: PrepQuery R (TeamId, ProviderId, ServiceId) (Identity TeamId)
+    cql = "SELECT team \
+          \FROM service_whitelist \
+          \WHERE team = ? AND provider = ? AND service = ?"
+
+--------------------------------------------------------------------------------
 -- Utilities
+
 mkPrefixIndex :: Name -> Text
 mkPrefixIndex = Text.toLower . Text.take 1 . fromName
 
