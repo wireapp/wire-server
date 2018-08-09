@@ -35,11 +35,13 @@ internalEvents:
 
 emailSMS:
   email:
-    sesQueue: integration-brig-events
-    sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
+    smtpEndpoint: 127.0.0.1
+    smtpUsername: dummy
+    smtpPassword: resources/smtp-secret.txt
+    smtpConnType: plain
   general:
     templateDir: resources/templates
-    emailSender: backend-integration@wire.com
+    emailSender: backend-demo@mail.wiredemo.example.com
     smsSender: "<insert-sender-number-here>"
 
   user:

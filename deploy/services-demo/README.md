@@ -68,13 +68,8 @@ In order to view the API, you need to create a regular user. For that purpose, y
 
 ### This is fantastic, all services up & running... what now, can I run some kind of smoketests?
 
-Short answer: yes and no. At the moment, you need _one_ AWS service in order to test your cluster with our automated smoketester tool. The `sesEndpoint` in `brig`'s [example configuration](https://github.com/wireapp/wire-server/blob/develop/services/brig/brig.integration.yaml) needs to point to a real AWS SES endpoint.
-
-In your environment, you can configure `AWS_REGION`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for your correct AWS account. Note that there are other ways to specify these credentials (to be detailed later).
-
-Then, have a look at what the configuration for the [api-smoketest](../../tools/api-simulations/README.md) should be. Once you have the correct `mailboxes.json`, this should just work from the top level directory (note the `sender-email` must match brig's [sender-email](https://github.com/wireapp/wire-server/blob/develop/services/brig/brig.integration.yaml#L35))
+Yes. You need to specify an email server that the smoketests can log in to for it to read and act upon registration/activation emails. Have a look at what the configuration for the [api-smoketest](../../tools/api-simulations/README.md) should be. Once you have the correct `mailboxes.json`, this should just work from the top level directory (note the `sender-email` must match brig's [sender-email](https://github.com/wireapp/wire-server/blob/develop/services/brig/brig.integration.yaml#L35))
 
 ```
-# This assumes, for now, that brig is configured to use a real AWS SES endpoint
-../../dist/api-smoketest --api-host=127.0.0.1 --api-port=8080 --api-websocket-host=127.0.0.1 --api-websocket-port=8081 --mailbox-config=<path_to_mailboxes_file> --sender-email=backend-integration@wire.com --enable-asserts
+../../dist/api-smoketest --api-host=127.0.0.1 --api-port=8080 --api-websocket-host=127.0.0.1 --api-websocket-port=8081 --mailbox-config=<path_to_mailboxes_file> --sender-email=backend-demo@mail.wiredemo.example.com --enable-asserts
 ```
