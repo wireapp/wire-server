@@ -50,6 +50,7 @@ data Env = Env
   , sparCtxCas          :: Cas.ClientState
   , sparCtxHttpManager  :: Bilge.Manager
   , sparCtxHttpBrig     :: Bilge.Request
+  , sparCtxRequestId    :: RequestId
   }
 
 instance HasConfig Spar where
