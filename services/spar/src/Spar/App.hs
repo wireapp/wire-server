@@ -59,11 +59,16 @@ instance HasConfig Spar where
 
 instance SP Spar where
   -- FUTUREWORK: optionally use 'field' to index user or idp ids for easier logfile processing.
-  -- (FUTUREWORK: we could also call 'show' on the message instead of manually removing newlines,
-  -- then we could cut&paste it into ghci and make everything visible again.)
   logger lv mg = asks sparCtxLogger >>= \lg -> Spar $ Log.log lg (toLevel lv) mg'
     where
-      mg' = Log.msg $ flatten <$> mg
+      mg' = Log.msg . condense $ flatten <$> mg
+
+      condense = dropWhile (== ' ') . reverse . dropWhile (== ' ') . reverse . f
+        where
+          f (' ' : ' ' : xs) = f (' ' : xs)
+          f (x : xs)         = x : f xs
+          f []               = []
+
       flatten '\n' = ' '
       flatten '\r' = ' '
       flatten '\t' = ' '
