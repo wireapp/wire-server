@@ -110,5 +110,7 @@ stack install
 
 ### Docker
 
+You can also use docker to run wire services or potentially to run the required external dependencies such as [cassandra](http://cassandra.apache.org/), [elasticsearch](https://www.elastic.co/products/elasticsearch), [redis](https://redis.io/) and in addition other "faked" AWS services.
+
 * [Install docker](https://docker.com)
 * [Install docker-compose](https://docs.docker.com/compose/install/)
