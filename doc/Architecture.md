@@ -3,17 +3,17 @@
 The wire backend, as described in the [diagram](https://github.com/wireapp/wire-server/blob/develop/doc/arch/wire-arch-2.png), is composed by a few different components that can be divided in:
 
   * frontend service
-   * [nginz](#nginz)
+    * [nginz](#nginz)
   * backend services
-   * [brig](#brig)
-   * [galley](#galley)
-   * [gundeck](#gundeck)
-   * [proxy](#proxy)
-   * [cargohold](#cargohold)
-   * [cannon](#cannon)
-   * [spar](#spar)
+    * [brig](#brig)
+    * [galley](#galley)
+    * [gundeck](#gundeck)
+    * [proxy](#proxy)
+    * [cargohold](#cargohold)
+    * [cannon](#cannon)
+    * [spar](#spar)
   * media server
-   * [restund](#restund) 
+    * [restund](#restund) 
 
 ## API
 
@@ -26,9 +26,9 @@ Besides the HTTPS channel, every client should establish a websocket connection 
 There are 2 types of endpoints that our API supports, namely:
 
  * requests that do not require authentication
-  * user registration, log in, password reset, account activation
+   * user registration, log in, password reset, account activation
  * requests that require authentication
-  * all other requests require authentication (posting a message, establishing a websocket connection, etc.)
+   * all other requests require authentication (posting a message, establishing a websocket connection, etc.)
 
 The authentication protocol used by the API is loosely inspired by the OAuth2 protocol. As such, API requests are authorised through so-called bearer tokens. For as long as a bearer token is valid, it grants access to the API under the identity of the user whose credentials have been used for the login. The validity of access tokens can be set on `brig` and is advertised to the API users when an access token is obtained (typically 15 minutes).
 
