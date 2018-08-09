@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 module Spar.App where
 
@@ -59,10 +60,14 @@ instance HasConfig Spar where
 
 instance SP Spar where
   -- FUTUREWORK: optionally use 'field' to index user or idp ids for easier logfile processing.
-  logger lv mg = asks sparCtxLogger >>= \lg -> Spar $ Log.log lg (toLevel lv) mg'
+  logger (toLevel -> lv) mg = do
+    lg <- asks sparCtxLogger
+    reqid <- asks sparCtxRequestId
+    let fields, mg' :: Log.Msg -> Log.Msg
+        fields = Log.field "request" (unRequestId reqid)
+        mg'    = Log.msg . condense $ flatten <$> mg
+    Spar . Log.log lg lv $ fields Log.~~ mg'
     where
-      mg' = Log.msg . condense $ flatten <$> mg
-
       condense = dropWhile (== ' ') . reverse . dropWhile (== ' ') . reverse . f
         where
           f (' ' : ' ' : xs) = f (' ' : xs)
