@@ -52,6 +52,7 @@ dependencies:
   - types-common
   - uri-bytestring
   - uuid
+  - wai
   - wai-utilities
   - warp
   - x509
