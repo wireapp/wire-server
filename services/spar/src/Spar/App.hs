@@ -34,6 +34,7 @@ import URI.ByteString as URI
 
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
+import qualified Data.Text as ST
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
@@ -65,19 +66,14 @@ instance SP Spar where
     reqid <- asks sparCtxRequestId
     let fields, mg' :: Log.Msg -> Log.Msg
         fields = Log.field "request" (unRequestId reqid)
-        mg'    = Log.msg . condense $ flatten <$> mg
+        mg'    = Log.msg . condenseLogMsg . cs $ mg
     Spar . Log.log lg lv $ fields Log.~~ mg'
-    where
-      condense = dropWhile (== ' ') . reverse . dropWhile (== ' ') . reverse . f
-        where
-          f (' ' : ' ' : xs) = f (' ' : xs)
-          f (x : xs)         = x : f xs
-          f []               = []
 
-      flatten '\n' = ' '
-      flatten '\r' = ' '
-      flatten '\t' = ' '
-      flatten c    = c
+condenseLogMsg :: ST -> ST
+condenseLogMsg = ST.intercalate " "
+               . filter (/= "")
+               . map ST.strip
+               . ST.split (`elem` (" \n\r\t\v\f" :: [Char]))
 
 toLevel :: SAML.Level -> Log.Level
 toLevel = \case
