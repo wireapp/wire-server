@@ -88,13 +88,14 @@ tests conf p db b c g = do
     crt <- optOrEnv cert conf id "TEST_CERT"
     return $ testGroup "provider"
         [ testGroup "account"
-            [ test p "register"       $ testRegisterProvider db b
-            , test p "login"          $ testLoginProvider db b
-            , test p "update"         $ testUpdateProvider db b
-            , test p "delete"         $ testDeleteProvider db b
-            , test p "password-reset" $ testPasswordResetProvider db b
+            [ test p "register"                     $ testRegisterProviderDB db b
+            , test p "register + activate internal" $ testRegisterProviderInternal b
+            , test p "login"                        $ testLoginProvider db b
+            , test p "update"                       $ testUpdateProvider db b
+            , test p "delete"                       $ testDeleteProvider db b
+            , test p "password-reset"               $ testPasswordResetProvider db b
             , test p "email/password update with password reset"
-                                      $ testPasswordResetAfterEmailUpdateProvider db b
+                                                    $ testPasswordResetAfterEmailUpdateProvider db b
             ]
         , testGroup "service"
             [ test p "add-get fail (bad key)" $ testAddGetServiceBadKey conf db b
@@ -120,54 +121,13 @@ tests conf p db b c g = do
 -------------------------------------------------------------------------------
 -- Provider Accounts
 
--- | Step-by-step registration procedure with verification
--- of pre- and post-conditions.
-testRegisterProvider :: DB.ClientState -> Brig -> Http ()
-testRegisterProvider db brig = do
-    email <- mkSimulatorEmail "success"
-    gen   <- Code.mkGen (Code.ForEmail email)
+-- | Test provider register by accessing the DB directly
+testRegisterProviderDB :: DB.ClientState -> Brig -> Http ()
+testRegisterProviderDB = testRegisterProvider . Just
 
-    let new = defNewProvider email
-
-    _rs <- registerProvider brig new <!!
-        const 201 === statusCode
-
-    let Just npr = decodeBody _rs :: Maybe NewProviderResponse
-    -- Since a password was given, none should have been generated
-    liftIO $ assertBool "password" (isNothing (rsNewProviderPassword npr))
-    let pid = rsNewProviderId npr
-
-    -- No login possible directly after registration
-    loginProvider brig email defProviderPassword !!!
-        const 403 === statusCode
-
-    -- Activate email
-    Just vcode <- lookupCode db gen Code.IdentityVerification
-    activateProvider brig (Code.codeKey vcode) (Code.codeValue vcode) !!!
-        const 200 === statusCode
-
-    -- Login succeeds after activation (due to auto-approval)
-    loginProvider brig email defProviderPassword !!!
-        const 200 === statusCode
-
-    -- Email address is now taken
-    registerProvider brig new !!!
-        const 409 === statusCode
-
-    -- Retrieve full account and public profile
-    -- (these are identical for now).
-    uid <- randomId
-    _rs <- getProvider brig pid <!! const 200 === statusCode
-    let Just p  = decodeBody _rs
-    _rs <- getProviderProfile brig pid uid <!! const 200 === statusCode
-    let Just pp = decodeBody _rs
-    liftIO $ do
-        assertEqual "id" pid (providerId p)
-        assertEqual "name" defProviderName (providerName p)
-        assertEqual "email" email (providerEmail p)
-        assertEqual "url" defProviderUrl (providerUrl p)
-        assertEqual "description" defProviderDescr (providerDescr p)
-        assertEqual "profile" (ProviderProfile p) pp
+-- | Test provider register using an internal HTTP endpoint
+testRegisterProviderInternal :: Brig -> Http ()
+testRegisterProviderInternal = testRegisterProvider Nothing
 
 testLoginProvider :: DB.ClientState -> Brig -> Http ()
 testLoginProvider db brig = do
@@ -759,6 +719,14 @@ registerProvider brig new = post $ brig
     . contentJson
     . body (RequestBodyLBS (encode new))
 
+getProviderActivationCodeInternal
+    :: Brig
+    -> Email
+    -> Http ResponseLBS
+getProviderActivationCodeInternal brig email = get $ brig
+    . path "/i/provider/activation-code"
+    . queryItem "email" (toByteString' email)
+
 activateProvider
     :: Brig
     -> Code.Key
@@ -1075,6 +1043,71 @@ lookupCode db gen = liftIO . DB.runClient db . Code.lookup (Code.genKey gen)
 
 --------------------------------------------------------------------------------
 -- Utilities
+
+-- | Step-by-step registration procedure with verification
+-- of pre- and post-conditions. Activation can be done through
+-- direct DB access (if given) otherwise it falls back to using
+-- an internal endpoint
+testRegisterProvider :: Maybe DB.ClientState -> Brig -> Http ()
+testRegisterProvider db' brig = do
+    email <- mkSimulatorEmail "success"
+
+    let new = defNewProvider email
+
+    _rs <- registerProvider brig new <!!
+        const 201 === statusCode
+
+    let Just npr = decodeBody _rs :: Maybe NewProviderResponse
+    -- Since a password was given, none should have been generated
+    liftIO $ assertBool "password" (isNothing (rsNewProviderPassword npr))
+    let pid = rsNewProviderId npr
+
+    -- No login possible directly after registration
+    loginProvider brig email defProviderPassword !!! do
+        const 403 === statusCode
+        const (Just "invalid-credentials") === fmap Error.label . decodeBody
+
+    -- Activate email
+    case db' of
+        Just db -> do
+            -- Activate email
+            gen <- Code.mkGen (Code.ForEmail email)
+            Just vcode <- lookupCode db gen Code.IdentityVerification
+            activateProvider brig (Code.codeKey vcode) (Code.codeValue vcode) !!!
+                const 200 === statusCode
+        Nothing -> do
+            _rs <- getProviderActivationCodeInternal brig email <!!
+                const 200 === statusCode
+
+            let Just pair = decodeBody _rs :: Maybe Code.KeyValuePair
+            activateProvider brig (Code.kcKey pair) (Code.kcCode pair) !!!
+                const 200 === statusCode
+
+    -- Login succeeds after activation (due to auto-approval)
+    loginProvider brig email defProviderPassword !!!
+        const 200 === statusCode
+
+    -- Email address is now taken
+    registerProvider brig new !!! do
+        const 409 === statusCode
+        const (Just "email-exists") === fmap Error.label . decodeBody
+
+    -- Retrieve full account and public profile
+    -- (these are identical for now).
+    uid <- randomId
+    _rs <- getProvider brig pid <!! const 200 === statusCode
+    let Just p  = decodeBody _rs
+    _rs <- getProviderProfile brig pid uid <!! const 200 === statusCode
+    let Just pp = decodeBody _rs
+    -- When updating the Provider dataype, one _must_ remember to also add
+    -- an extra check in this integration test.
+    liftIO $ do
+        assertEqual "id" pid (providerId p)
+        assertEqual "name" defProviderName (providerName p)
+        assertEqual "email" email (providerEmail p)
+        assertEqual "url" defProviderUrl (providerUrl p)
+        assertEqual "description" defProviderDescr (providerDescr p)
+        assertEqual "profile" (ProviderProfile p) pp
 
 randomProvider :: HasCallStack => DB.ClientState -> Brig -> Http Provider
 randomProvider db brig = do

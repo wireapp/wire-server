@@ -286,6 +286,12 @@ routes = do
         .&> zauth ZAuthBot
         .&> capture "uid"
 
+    -- Internal API ------------------------------------------------------------
+
+    get "/i/provider/activation-code" (continue getActivationCode) $
+        accept "application" "json"
+        .&> param "email"
+
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
 
@@ -349,6 +355,17 @@ activateAccountKey (key ::: val) = do
             activate pid Nothing email
             lift $ sendApprovalConfirmMail name email
             return $ json (ProviderActivationResponse email)
+
+getActivationCode :: Email -> Handler Response
+getActivationCode e = do
+    email <- case validateEmail e of
+        Just em -> return em
+        Nothing -> throwStd invalidEmail
+    gen  <- Code.mkGen (Code.ForEmail email)
+    code <- Code.lookup (Code.genKey gen) Code.IdentityVerification
+    maybe (throwStd activationKeyNotFound) (return . found) code
+  where
+    found vcode = json $ Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
 
 approveAccountKey :: Code.Key ::: Code.Value -> Handler Response
 approveAccountKey (key ::: val) = do
