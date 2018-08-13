@@ -1099,6 +1099,8 @@ testRegisterProvider db' brig = do
     let Just p  = decodeBody _rs
     _rs <- getProviderProfile brig pid uid <!! const 200 === statusCode
     let Just pp = decodeBody _rs
+    -- When updating the Provider dataype, one _must_ remember to also add
+    -- an extra check in this integration test.
     liftIO $ do
         assertEqual "id" pid (providerId p)
         assertEqual "name" defProviderName (providerName p)
