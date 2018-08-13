@@ -28,7 +28,6 @@ import Control.Exception.Enclosed (handleAny)
 import Control.Monad (join, when, unless, (>=>), liftM2)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
-import Data.Aeson ((.=), object)
 import Data.ByteString.Conversion
 import Data.Foldable (for_, forM_)
 import Data.Hashable (hash)
@@ -362,12 +361,11 @@ getActivationCode e = do
     email <- case validateEmail e of
         Just em -> return em
         Nothing -> throwStd invalidEmail
-
     gen  <- Code.mkGen (Code.ForEmail email)
     code <- Code.lookup (Code.genKey gen) Code.IdentityVerification
     maybe (throwStd activationKeyNotFound) (return . found) code
   where
-    found vcode = json $ KeyCodePair (Code.codeKey vcode) (Code.codeValue vcode)
+    found vcode = json $ Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
 
 approveAccountKey :: Code.Key ::: Code.Value -> Handler Response
 approveAccountKey (key ::: val) = do

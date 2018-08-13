@@ -88,13 +88,14 @@ tests conf p db b c g = do
     crt <- optOrEnv cert conf id "TEST_CERT"
     return $ testGroup "provider"
         [ testGroup "account"
-            [ test p "register"       $ testRegisterProvider db b
-            , test p "login"          $ testLoginProvider db b
-            , test p "update"         $ testUpdateProvider db b
-            , test p "delete"         $ testDeleteProvider db b
-            , test p "password-reset" $ testPasswordResetProvider db b
+            [ test p "register"                     $ testRegisterProvider db b
+            , test p "register + activate internal" $ testRegisterProviderInternal b
+            , test p "login"                        $ testLoginProvider db b
+            , test p "update"                       $ testUpdateProvider db b
+            , test p "delete"                       $ testDeleteProvider db b
+            , test p "password-reset"               $ testPasswordResetProvider db b
             , test p "email/password update with password reset"
-                                      $ testPasswordResetAfterEmailUpdateProvider db b
+                                                    $ testPasswordResetAfterEmailUpdateProvider db b
             ]
         , testGroup "service"
             [ test p "add-get fail (bad key)" $ testAddGetServiceBadKey conf db b
@@ -144,6 +145,58 @@ testRegisterProvider db brig = do
     -- Activate email
     Just vcode <- lookupCode db gen Code.IdentityVerification
     activateProvider brig (Code.codeKey vcode) (Code.codeValue vcode) !!!
+        const 200 === statusCode
+
+    -- Login succeeds after activation (due to auto-approval)
+    loginProvider brig email defProviderPassword !!!
+        const 200 === statusCode
+
+    -- Email address is now taken
+    registerProvider brig new !!!
+        const 409 === statusCode
+
+    -- Retrieve full account and public profile
+    -- (these are identical for now).
+    uid <- randomId
+    _rs <- getProvider brig pid <!! const 200 === statusCode
+    let Just p  = decodeBody _rs
+    _rs <- getProviderProfile brig pid uid <!! const 200 === statusCode
+    let Just pp = decodeBody _rs
+    liftIO $ do
+        assertEqual "id" pid (providerId p)
+        assertEqual "name" defProviderName (providerName p)
+        assertEqual "email" email (providerEmail p)
+        assertEqual "url" defProviderUrl (providerUrl p)
+        assertEqual "description" defProviderDescr (providerDescr p)
+        assertEqual "profile" (ProviderProfile p) pp
+
+-- | Step-by-step registration procedure with verification
+-- of pre- and post-conditions, using an internal endpoint
+-- instead of accessing the DB directly
+testRegisterProviderInternal :: Brig -> Http ()
+testRegisterProviderInternal brig = do
+    email <- mkSimulatorEmail "success"
+
+    let new = defNewProvider email
+
+    _rs <- registerProvider brig new <!!
+        const 201 === statusCode
+
+    let Just npr = decodeBody _rs :: Maybe NewProviderResponse
+    -- Since a password was given, none should have been generated
+    liftIO $ assertBool "password" (isNothing (rsNewProviderPassword npr))
+    let pid = rsNewProviderId npr
+
+    -- No login possible directly after registration
+    loginProvider brig email defProviderPassword !!!
+        const 403 === statusCode
+
+    -- Activate email
+    _rs <- getProviderActivationCodeInternal brig email <!!
+        const 200 === statusCode
+
+    let Just pair = decodeBody _rs :: Maybe Code.KeyValuePair
+    activateProvider brig (Code.kcKey pair) (Code.kcCode pair) !!!
         const 200 === statusCode
 
     -- Login succeeds after activation (due to auto-approval)
@@ -758,6 +811,14 @@ registerProvider brig new = post $ brig
     . path "/provider/register"
     . contentJson
     . body (RequestBodyLBS (encode new))
+
+getProviderActivationCodeInternal
+    :: Brig
+    -> Email
+    -> Http ResponseLBS
+getProviderActivationCodeInternal brig email = get $ brig
+    . path "/i/provider/activation-code"
+    . queryItem "email" (toByteString' email)
 
 activateProvider
     :: Brig

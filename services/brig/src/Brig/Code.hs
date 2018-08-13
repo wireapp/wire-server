@@ -17,6 +17,7 @@ module Brig.Code
     , Key     (..)
     , Scope   (..)
     , Value   (..)
+    , KeyValuePair (..)
     , Timeout (..)
     , Retries (..)
     , codeFor
@@ -43,7 +44,7 @@ import Brig.Data.Instances ()
 import Brig.Email (mkEmailKey, emailKeyUniq)
 import Brig.Phone (mkPhoneKey, phoneKeyUniq)
 import Brig.Types (Email, Phone)
-import Brig.Types.Code (Key (..), Value (..), Timeout (..))
+import Brig.Types.Code (Key (..), Value (..), Timeout (..), KeyValuePair (..))
 import Cassandra hiding (Value)
 import Control.Applicative ((<|>))
 import Control.Monad.IO.Class

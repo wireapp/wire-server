@@ -4,6 +4,7 @@ module Brig.Types.Code
       Key (..)
     , Value (..)
     , Timeout (..)
+    , KeyValuePair (..)
     )
     where
 

@@ -58,11 +58,13 @@ deriving instance Cql Key
 deriving instance Cql Value
 #endif
 
--- | A key/code pair. This would actually more accurately be called a KeyValue pair
--- but since we use "key" and "code" already in the API, this makes more sense to me
-data KeyCodePair = KeyCodePair
+-- | A key/value pair. This would actually more accurately if the value would actually
+-- be a "value" but since we use "key" and "code" already in quite a few place in the API
+-- (but without a type, using plain fields; this will make it easier to re-use a key/value
+-- pair in the API, keeping "code" in the JSON for backwards compatibility
+data KeyValuePair = KeyValuePair
   { kcKey  :: !Key
   , kcCode :: !Value
   } deriving (Eq, Generic, Show)
 
-deriveJSON toJSONFieldName ''KeyCodePair
+deriveJSON toJSONFieldName ''KeyValuePair
