@@ -1,20 +1,24 @@
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
 -- | Types for verification codes.
 module Data.Code where
 
 import Data.Aeson hiding (Value)
+import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Int
 import Data.Range
 import Data.Scientific (toBoundedInteger)
+import Data.Json.Util
 import Data.Text.Ascii
 import Data.Time.Clock
-
+import GHC.Generics
 #ifdef WITH_CQL
 import Database.CQL.Protocol hiding (unpack, Value)
 #endif
@@ -53,3 +57,12 @@ instance FromJSON Timeout where
 deriving instance Cql Key
 deriving instance Cql Value
 #endif
+
+-- | A key/code pair. This would actually more accurately be called a KeyValue pair
+-- but since we use "key" and "code" already in the API, this makes more sense to me
+data KeyCodePair = KeyCodePair
+  { kcKey  :: !Key
+  , kcCode :: !Value
+  } deriving (Eq, Generic, Show)
+
+deriveJSON toJSONFieldName ''KeyCodePair
