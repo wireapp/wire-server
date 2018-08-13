@@ -60,7 +60,7 @@ deriving instance Cql Value
 
 -- | A key/value pair. This would actually more accurately if the value would actually
 -- be a "value" but since we use "key" and "code" already in quite a few place in the API
--- (but without a type, using plain fields; this will make it easier to re-use a key/value
+-- (but without a type, using plain fields). This will make it easier to re-use a key/value
 -- pair in the API, keeping "code" in the JSON for backwards compatibility
 data KeyValuePair = KeyValuePair
   { kcKey  :: !Key
