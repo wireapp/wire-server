@@ -113,7 +113,6 @@ tests conf p db b c g = do
             , test p "basic functionality"
                               $ testWhitelistBasic conf crt db b g
             , test p "search" $ testSearchWhitelist conf db b g
-            , test p "events" $ testWhitelistEvents conf db b g c
             , test p "search honors enabling and whitelisting"
                               $ testSearchWhitelistHonorUpdates conf db b g
             ]
@@ -807,33 +806,6 @@ testWhitelistBasic config crt db brig galley =
     disableService brig pid sid
     whitelistService brig owner tid pid sid
 
-testWhitelistEvents
-    :: Maybe Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
-testWhitelistEvents config db brig galley cannon = do
-    -- Create a team with an owner and a member
-    (owner, tid) <- Team.createUserWithTeam brig galley
-    member <- userId <$> Team.createTeamMember brig galley owner tid Team.noPermissions
-    -- Create a service
-    pid <- providerId <$> randomProvider db brig
-    new <- defNewService config
-    sid <- serviceId <$> addGetService brig pid new
-    enableService brig pid sid
-    -- Whitelist the service and check that everyone gets the event
-    WS.bracketRN cannon [owner, member] $ \wss -> do
-        whitelistService brig owner tid pid sid
-        forM_ wss $ \ws -> wsAssertServiceWhitelistAdd ws tid pid sid
-    -- Whitelist again, no events this time because nothing changed
-    WS.bracketRN cannon [owner, member] $ \wss -> do
-        updateServiceWhitelist brig owner tid (UpdateServiceWhitelist pid sid True) !!!
-            const 204 === statusCode
-        WS.assertNoEvent (2 # Second) wss
-    -- Remove the service from the whitelist and check the events
-    WS.bracketRN cannon [owner, member] $ \wss -> do
-        dewhitelistService brig owner tid pid sid
-        forM_ wss $ \ws -> wsAssertServiceWhitelistRemove ws tid pid sid
-    -- TODO: we should also check that there are events when the service is deleted,
-    -- but at the moment of writing this test that was not implemented.
-
 --------------------------------------------------------------------------------
 -- API Operations
 
@@ -1445,24 +1417,6 @@ wsAssertTeamConvDelete ws tid conv = void $ liftIO $
         e^.(Team.eventType) @?= Team.ConvDelete
         e^.(Team.eventTeam) @?= tid
         e^.(Team.eventData) @?= Just (Team.EdConvDelete conv)
-
-wsAssertServiceWhitelistAdd :: MonadIO m => WS.WebSocket -> TeamId -> ProviderId -> ServiceId -> m ()
-wsAssertServiceWhitelistAdd ws tid pid sid = void $ liftIO $
-    WS.assertMatch (5 # Second) ws $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
-        ntfTransient n @?= False
-        e^.(Team.eventType) @?= Team.ServiceWhitelistAdd
-        e^.(Team.eventTeam) @?= tid
-        e^.(Team.eventData) @?= Just (Team.EdServiceWhitelistAdd pid sid)
-
-wsAssertServiceWhitelistRemove :: MonadIO m => WS.WebSocket -> TeamId -> ProviderId -> ServiceId -> m ()
-wsAssertServiceWhitelistRemove ws tid pid sid = void $ liftIO $
-    WS.assertMatch (5 # Second) ws $ \n -> do
-        let e = List1.head (WS.unpackPayload n)
-        ntfTransient n @?= False
-        e^.(Team.eventType) @?= Team.ServiceWhitelistRemove
-        e^.(Team.eventTeam) @?= tid
-        e^.(Team.eventData) @?= Just (Team.EdServiceWhitelistRemove pid sid)
 
 wsAssertMessage :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> ClientId -> ClientId -> Text -> m ()
 wsAssertMessage ws conv fromu fromc to txt = void $ liftIO $

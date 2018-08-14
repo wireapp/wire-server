@@ -13,8 +13,6 @@ module Brig.IO.Intra
     , onConnectionEvent
     , onPropertyEvent
     , onClientEvent
-    , push
-    , rawPush
 
       -- * Conversations
     , createSelfConv
@@ -213,6 +211,8 @@ rawPush
     -> Push.Route   -- ^ The push routing strategy.
     -> Maybe ConnId -- ^ The originating device connection.
     -> AppIO ()
+-- TODO: if we decide to have service whitelist events in Brig instead of
+-- Galley, let's merge 'push' and 'rawPush' back. See Note [whitelist events].
 rawPush (toList -> events) usrs orig route conn = do
     for_ events $ \e -> debug $ remote "gundeck" . msg (fst e)
     g <- view gundeck

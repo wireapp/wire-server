@@ -10,7 +10,7 @@
 
 module Brig.Provider.API (routes) where
 
-import Brig.App (settings, AppIO)
+import Brig.App (settings)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types (PasswordResetError (..))
@@ -25,7 +25,7 @@ import Brig.Types.Client
 import Brig.Types.User (publicProfile, User (..), Pict (..))
 import Brig.Types.Provider
 import Brig.Types.Search
-import Control.Lens (view, (&), (.~))
+import Control.Lens (view)
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
 import Control.Monad (join, when, unless, (>=>), liftM2)
@@ -36,7 +36,7 @@ import Data.Foldable (for_, forM_)
 import Data.Hashable (hash)
 import Data.Id
 import Data.Int
-import Data.List1 (List1 (..), singleton, list1)
+import Data.List1 (List1 (..))
 import Data.List.NonEmpty (nonEmpty)
 import Data.Maybe
 import Data.Misc (Fingerprint (..), Rsa)
@@ -49,8 +49,6 @@ import Galley.Types (OtherMember (..))
 import Galley.Types (Event, userClients)
 import Galley.Types.Bot (newServiceRef)
 import Data.Traversable (forM)
-import Data.Time (getCurrentTime)
-import Data.Json.Util (toJSONObject)
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)
 import Network.Wai.Predicate (contentType, accept, request, query, def, opt)
@@ -69,7 +67,6 @@ import qualified Brig.IO.Intra                as RPC
 import qualified Brig.Provider.DB             as DB
 import qualified Brig.Provider.RPC            as RPC
 import qualified Brig.Types.Provider.External as Ext
-import qualified Data.Aeson                   as Aeson
 import qualified Data.ByteString.Lazy.Char8   as LC8
 import qualified Data.List                    as List
 import qualified Data.Map.Strict              as Map
@@ -85,8 +82,6 @@ import qualified Data.Text.Encoding           as Text
 import qualified Network.Wai.Utilities.Error  as Wai
 import qualified Brig.ZAuth                   as ZAuth
 import qualified Galley.Types.Teams           as Teams
-import qualified System.Logger.Class          as Log
-import qualified Gundeck.Types.Push.V2        as Push
 
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
@@ -239,7 +234,6 @@ routes = do
         accept "application" "json"
         .&> zauth ZAuthAccess
         .&> zauthUserId
-        .&. zauthConnId
         .&. capture "tid"
         .&. request
 
@@ -642,8 +636,8 @@ getServiceTagList _ = return (json (ServiceTagList allTags))
   where
     allTags = [(minBound :: ServiceTag) ..]
 
-updateServiceWhitelist :: UserId ::: ConnId ::: TeamId ::: Request -> Handler Response
-updateServiceWhitelist (uid ::: conn ::: tid ::: req) = do
+updateServiceWhitelist :: UserId ::: TeamId ::: Request -> Handler Response
+updateServiceWhitelist (uid ::: tid ::: req) = do
     upd :: UpdateServiceWhitelist <- parseJsonBody req
     let pid = updateServiceWhitelistProvider upd
         sid = updateServiceWhitelistService upd
@@ -656,11 +650,9 @@ updateServiceWhitelist (uid ::: conn ::: tid ::: req) = do
         (True,  True)  -> return (setStatus status204 empty)
         (False, True)  -> do
             DB.insertServiceWhitelist tid pid sid
-            lift $ notifyServiceWhitelistUpdate tid uid conn pid sid True
             return (setStatus status200 empty)
         (True, False)  -> do
             DB.deleteServiceWhitelist (Just tid) pid sid
-            lift $ notifyServiceWhitelistUpdate tid uid conn pid sid False
             return (setStatus status200 empty)
             -- TODO remove service from conversations
 
@@ -858,36 +850,6 @@ validateServiceKey pem = liftIO $ readPublicKey >>= \pk ->
     readPublicKey = handleAny
         (const $ return Nothing)
         (SSL.readPublicKey (LC8.unpack (toByteString pem)) >>= return . Just)
-
--- | Send all team members an event about a change in the services
--- whitelist.
-notifyServiceWhitelistUpdate
-    :: TeamId
-    -> UserId        -- ^ The user who caused the whitelist to change
-    -> ConnId        -- ^ Originating connection
-    -> ProviderId
-    -> ServiceId
-    -> Bool          -- ^ True=added, False=removed
-    -> AppIO ()
-notifyServiceWhitelistUpdate tid uid conn pid sid status = do
-    mbMembers <- view Teams.teamMembers <$> RPC.getTeamMembers tid
-    case mbMembers of
-        [] -> pure ()
-        x:xs -> do
-            let members = fmap (view Teams.userId) (list1 x xs)
-            now <- liftIO getCurrentTime
-            let event = Teams.newEvent eventType tid now
-                          & Teams.eventData .~ Just eventData
-            RPC.rawPush (mkEventList event) members uid Push.RouteAny (Just conn)
-  where
-    mkEventList event = singleton ( Log.bytes (Aeson.encode event)
-                                  , (toJSONObject event, Nothing) )
-    eventType
-        | status    = Teams.ServiceWhitelistAdd
-        | otherwise = Teams.ServiceWhitelistRemove
-    eventData
-        | status    = Teams.EdServiceWhitelistAdd pid sid
-        | otherwise = Teams.EdServiceWhitelistRemove pid sid
 
 mkBotUserView :: User -> Ext.BotUserView
 mkBotUserView u = Ext.BotUserView

@@ -105,7 +105,7 @@ import Control.Monad (when)
 import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
 import Data.Bits (testBit, (.|.))
-import Data.Id (TeamId, ConvId, UserId, ProviderId, ServiceId)
+import Data.Id (TeamId, ConvId, UserId)
 import Data.Int (Int64)
 import Data.Json.Util
 import Data.List (find)
@@ -165,8 +165,6 @@ data EventType =
     | MemberUpdate
     | ConvCreate
     | ConvDelete
-    | ServiceWhitelistAdd
-    | ServiceWhitelistRemove
     deriving (Eq, Show)
 
 data EventData =
@@ -177,8 +175,6 @@ data EventData =
     | EdMemberUpdate UserId (Maybe Permissions)
     | EdConvCreate   ConvId
     | EdConvDelete   ConvId
-    | EdServiceWhitelistAdd    ProviderId ServiceId
-    | EdServiceWhitelistRemove ProviderId ServiceId
     deriving (Eq, Show)
 
 data TeamUpdateData = TeamUpdateData
@@ -517,8 +513,6 @@ instance ToJSON EventType where
     toJSON MemberLeave  = String "team.member-leave"
     toJSON ConvCreate   = String "team.conversation-create"
     toJSON ConvDelete   = String "team.conversation-delete"
-    toJSON ServiceWhitelistAdd    = String "team.service-whitelist-add"
-    toJSON ServiceWhitelistRemove = String "team.service-whitelist-remove"
 
 instance FromJSON EventType where
     parseJSON (String "team.create")              = pure TeamCreate
@@ -529,8 +523,6 @@ instance FromJSON EventType where
     parseJSON (String "team.member-leave")        = pure MemberLeave
     parseJSON (String "team.conversation-create") = pure ConvCreate
     parseJSON (String "team.conversation-delete") = pure ConvDelete
-    parseJSON (String "team.service-whitelist-add")    = pure ServiceWhitelistAdd
-    parseJSON (String "team.service-whitelist-remove") = pure ServiceWhitelistRemove
     parseJSON other                               = fail $ "Unknown event type: " <> show other
 
 instance ToJSON Event where
@@ -562,8 +554,6 @@ instance ToJSON EventData where
     toJSON (EdConvCreate   cnv)       = object ["conv" .= cnv]
     toJSON (EdConvDelete   cnv)       = object ["conv" .= cnv]
     toJSON (EdTeamUpdate   upd)       = toJSON upd
-    toJSON (EdServiceWhitelistAdd    pid sid) = object ["provider" .= pid, "service" .= sid]
-    toJSON (EdServiceWhitelistRemove pid sid) = object ["provider" .= pid, "service" .= sid]
 
 parseEventData :: EventType -> Maybe Value -> Parser (Maybe EventData)
 parseEventData MemberJoin Nothing  = fail "missing event data for type 'team.member-join'"
@@ -590,16 +580,6 @@ parseEventData ConvDelete Nothing  = fail "missing event data for type 'team.con
 parseEventData ConvDelete (Just j) = do
     let f o = Just . EdConvDelete  <$> o .: "conv"
     withObject "conversation delete data" f j
-
-parseEventData ServiceWhitelistAdd Nothing  = fail "missing event data for type 'team.service-whitelist-add'"
-parseEventData ServiceWhitelistAdd (Just j) = do
-    let f o = fmap Just . EdServiceWhitelistAdd <$> o .: "provider" <*> o .: "service"
-    withObject "service whitelist add" f j
-
-parseEventData ServiceWhitelistRemove Nothing  = fail "missing event data for type 'team.service-whitelist-remove'"
-parseEventData ServiceWhitelistRemove (Just j) = do
-    let f o = fmap Just . EdServiceWhitelistRemove <$> o .: "provider" <*> o .: "service"
-    withObject "service whitelist remove" f j
 
 parseEventData TeamCreate Nothing  = fail "missing event data for type 'team.create'"
 parseEventData TeamCreate (Just j) = Just . EdTeamCreate <$> parseJSON j

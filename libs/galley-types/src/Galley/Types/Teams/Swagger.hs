@@ -146,8 +146,6 @@ eventType = string $ enum
     , "team.member-leave"
     , "team.conversation-create"
     , "team.conversation-delete"
-    , "team.service-whitelist-add"
-    , "team.service-whitelist-remove"
     ]
 
 memberEvent :: Model
