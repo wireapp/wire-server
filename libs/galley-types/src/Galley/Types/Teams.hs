@@ -155,6 +155,13 @@ data Event = Event
 --      presumably only they care about it. However, we can't do this
 --      either, because adding new permissions is tricky.
 --      See Note [team roles] again.
+--
+-- So, we don't send these events at all. An implementation was done, but
+-- then removed in commit b4d777ede1c7f73e42b2e1bc356ce7346e0355bc.
+--
+-- It's also unclear whether these event types belong in Brig or in Galley;
+-- arguably the code would be simpler if they were in Brig, so we should
+-- think about that if we want to get them in.
 
 data EventType =
       TeamCreate
