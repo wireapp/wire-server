@@ -15,6 +15,7 @@ import Brig.Data.UserKey (userEmailKey)
 import Brig.Email
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import Brig.Team.Email
+import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (InvitationCode, emailIdentity)
 import Brig.Types.Intra (AccountStatus (..))
@@ -246,13 +247,3 @@ changeTeamAccountStatuses tid s = do
   where
     toList1 (x:xs) = return $ List1.list1 x xs
     toList1 []     = throwStd (notFound "Team not found or no members")
-
-ensurePermissions :: UserId -> TeamId -> [Team.Perm] -> Handler ()
-ensurePermissions u t perms = do
-    m <- lift $ Intra.getTeamMember u t
-    unless (check m) $
-        throwStd insufficientTeamPermissions
-  where
-    check :: Maybe Team.TeamMember -> Bool
-    check (Just m) = and $ Team.hasPermission m <$> perms
-    check Nothing  = False

@@ -22,6 +22,7 @@ library
         Brig.Data.PasswordReset
         Brig.Options
         Brig.Provider.DB
+        Brig.RPC
         Brig.User.Auth.Cookie.Limit
         Brig.User.Search.Index
         Brig.ZAuth
@@ -60,7 +61,6 @@ library
       , Brig.Provider.Email
       , Brig.Provider.RPC
       , Brig.Provider.Template
-      , Brig.RPC
       , Brig.SMTP
       , Brig.Team.API
       , Brig.Team.DB
@@ -274,6 +274,7 @@ executable brig-schema
         V49
         V50
         V51
+        V52
 
     build-depends:
         base

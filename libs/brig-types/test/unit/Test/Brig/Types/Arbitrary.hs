@@ -16,6 +16,7 @@ module Test.Brig.Types.Arbitrary where
 
 import Brig.Types.Activation
 import Brig.Types.Code
+import Brig.Types.Provider (UpdateServiceWhitelist(..))
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
 import Brig.Types.User
@@ -329,6 +330,9 @@ deriving instance Bounded ISO639_1
 
 instance Arbitrary Country where
     arbitrary = Country <$> genEnumBounded
+
+instance Arbitrary UpdateServiceWhitelist where
+    arbitrary = UpdateServiceWhitelist <$> arbitrary <*> arbitrary <*> arbitrary
 
 
 ----------------------------------------------------------------------

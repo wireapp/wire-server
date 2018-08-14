@@ -1,5 +1,7 @@
 {-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeApplications     #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- for SES notifications
 
 module Util where
@@ -16,6 +18,7 @@ import Brig.Types.Intra
 import Control.Lens ((^?), (^?!))
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Catch (MonadThrow)
 import Control.Retry
 import Data.Aeson
 import Data.Aeson.Lens (key, _String, _Integral)
@@ -29,6 +32,7 @@ import Data.Misc (PlainTextPassword(..))
 import Data.Maybe
 import Data.Monoid
 import Data.Text (Text)
+import Data.Typeable
 import Galley.Types (Member (..))
 import GHC.Stack (HasCallStack)
 import Gundeck.Types.Notification
@@ -41,6 +45,7 @@ import Util.AWS
 
 import qualified Galley.Types.Teams as Team
 import qualified Brig.AWS as AWS
+import qualified Brig.RPC as RPC
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as Lazy
@@ -90,8 +95,9 @@ randomUser brig = do
 
 createUser :: HasCallStack => Text -> Text -> Brig -> Http User
 createUser name email brig = do
-    r <- postUser name (Just email) Nothing Nothing brig <!! const 201 === statusCode
-    return $ fromMaybe (error "createUser: failed to parse response") (decodeBody r)
+    r <- postUser name (Just email) Nothing Nothing brig <!!
+           const 201 === statusCode
+    decodeBody r
 
 createAnonUser :: HasCallStack => Text -> Brig -> Http User
 createAnonUser = createAnonUserExpiry Nothing
@@ -100,7 +106,7 @@ createAnonUserExpiry :: HasCallStack => Maybe Integer -> Text -> Brig -> Http Us
 createAnonUserExpiry expires name brig = do
     let p = RequestBodyLBS . encode $ object [ "name" .= name, "expires_in" .= expires ]
     r <- post (brig . path "/register" . contentJson . body p) <!! const 201 === statusCode
-    return $ fromMaybe (error "createAnonUser: failed to parse response") (decodeBody r)
+    decodeBody r
 
 requestActivationCode :: HasCallStack => Brig -> Either Email Phone -> Http ()
 requestActivationCode brig ep =
@@ -187,8 +193,7 @@ activate brig (k, c) = get $ brig
 
 getSelfProfile :: Brig -> UserId -> Http SelfProfile
 getSelfProfile brig usr = do
-    rsp <- get $ brig . path "/self" . zUser usr
-    return $ fromMaybe (error $ "getSelfProfile: failed to decode: " ++ show rsp) (decodeBody rsp)
+    decodeBody =<< get (brig . path "/self" . zUser usr)
 
 getUser :: Brig -> UserId -> UserId -> Http ResponseLBS
 getUser brig zusr usr = get $ brig
@@ -262,13 +267,13 @@ putHandle brig usr h = put $ brig
   where
     payload = RequestBodyLBS . encode $ object [ "handle" .= h ]
 
-addClient :: ToJSON a => Brig -> User -> NewClient a -> Http ResponseLBS
-addClient brig usr new = post (addClientReq brig usr new)
+addClient :: ToJSON a => Brig -> UserId -> NewClient a -> Http ResponseLBS
+addClient brig uid new = post (addClientReq brig uid new)
 
-addClientReq :: ToJSON a => Brig -> User -> NewClient a -> (Request -> Request)
-addClientReq brig usr new = brig
+addClientReq :: ToJSON a => Brig -> UserId -> NewClient a -> (Request -> Request)
+addClientReq brig uid new = brig
     . path "/clients"
-    . zUser (userId usr)
+    . zUser uid
     . zConn "conn"
     . contentJson
     . body (RequestBodyLBS $ encode new)
@@ -287,13 +292,13 @@ getPreKey brig u c = get $ brig
     . paths ["users", toByteString' u, "prekeys", toByteString' c]
 
 getTeamMember :: HasCallStack => UserId -> TeamId -> Galley -> Http Team.TeamMember
-getTeamMember u tid galley = do
-    r <- get ( galley
+getTeamMember u tid galley =
+    decodeBody =<<
+         get ( galley
              . paths ["i", "teams", toByteString' tid, "members", toByteString' u]
              . zUser u
              . expect2xx
              )
-    return $ fromMaybe (error "getTeamMember: failed to parse response") (decodeBody r)
 
 getConversation :: Galley -> UserId -> ConvId -> Http ResponseLBS
 getConversation galley usr cnv = get $ galley
@@ -348,10 +353,14 @@ zUser = header "Z-User" . C8.pack . show
 zConn :: ByteString -> Request -> Request
 zConn = header "Z-Connection"
 
-decodeBody :: FromJSON a => Response (Maybe Lazy.ByteString) -> Maybe a
-decodeBody = responseBody >=> decode'
+-- TODO: we have a bunch of 'decodeBody's lying around, they should be
+-- unified and moved into some utils module
+decodeBody :: forall a m.
+              (HasCallStack, Typeable a, FromJSON a, MonadThrow m)
+           => Response (Maybe Lazy.ByteString) -> m a
+decodeBody = RPC.decodeBody (Text.pack (show (typeRep (Proxy @a))))
 
-asValue :: Response (Maybe Lazy.ByteString) -> Maybe Value
+asValue :: (HasCallStack, MonadThrow m) => Response (Maybe Lazy.ByteString) -> m Value
 asValue = decodeBody
 
 mkEmailRandomLocalSuffix :: MonadIO m => Text -> m Email
