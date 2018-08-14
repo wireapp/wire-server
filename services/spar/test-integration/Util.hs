@@ -68,7 +68,6 @@ import Data.Range
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID (nextRandom)
-import GHC.Stack (HasCallStack)
 import Lens.Micro
 import Prelude hiding (head)
 import Spar.API ()
@@ -98,7 +97,7 @@ import qualified Text.XML.DSig as SAML
 import qualified Text.XML.Util as SAML
 
 
-mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
+mkEnv :: IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
   _teCql :: ClientState <- initCassandra _teOpts =<< mkLogger _teOpts
@@ -114,20 +113,20 @@ mkEnv _teTstOpts _teOpts = do
 
   pure $ TestEnv {..}
 
-it :: (HasCallStack, m ~ IO)
+it :: (m ~ IO)
        -- or, more generally:
        -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
    => String -> ReaderT TestEnv m () -> SpecWith TestEnv
 it msg bdy = Test.Hspec.it msg $ runReaderT bdy
 
-pending :: (HasCallStack, MonadIO m) => m ()
+pending :: (MonadIO m) => m ()
 pending = liftIO Test.Hspec.pending
 
-pendingWith :: (HasCallStack, MonadIO m) => String -> m ()
+pendingWith :: (MonadIO m) => String -> m ()
 pendingWith = liftIO . Test.Hspec.pendingWith
 
 
-createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
+createUserWithTeam :: (MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
 createUserWithTeam brg gly = do
     e <- randomEmail
     n <- UUID.toString <$> liftIO UUID.nextRandom
@@ -150,7 +149,7 @@ createUserWithTeam brg gly = do
 -- | NB: this does create an SSO UserRef on brig, but not on spar.  this is inconsistent, but the
 -- inconsistency does not affect the tests we're running with this.  to resolve it, we could add an
 -- internal end-point to spar that allows us to create users without idp response verification.
-createTeamMember :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
+createTeamMember :: (MonadCatch m, MonadIO m, MonadHttp m)
                  => BrigReq -> GalleyReq -> TeamId -> Galley.Permissions -> m UserId
 createTeamMember brigreq galleyreq teamid perms = do
   let randomtxt = liftIO $ UUID.toText <$> UUID.nextRandom
@@ -165,7 +164,7 @@ createTeamMember brigreq galleyreq teamid perms = do
   addTeamMember galleyreq teamid (Galley.newNewTeamMember tmem)
   pure nobody
 
-addTeamMember :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
+addTeamMember :: (MonadCatch m, MonadIO m, MonadHttp m)
               => GalleyReq -> TeamId -> Galley.NewTeamMember -> m ()
 addTeamMember galleyreq tid mem =
     void $ post ( galleyreq
@@ -175,7 +174,7 @@ addTeamMember galleyreq tid mem =
                 . lbytes (encode mem)
                 )
 
-createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Brig.Phone)
+createRandomPhoneUser :: (MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Brig.Phone)
 createRandomPhoneUser brig_ = do
     usr <- randomUser brig_
     let uid = Brig.userId usr
@@ -196,13 +195,13 @@ createRandomPhoneUser brig_ = do
 
     return (uid, phn)
 
-decodeBody :: (HasCallStack, FromJSON a) => ResponseLBS -> Either String a
+decodeBody :: (FromJSON a) => ResponseLBS -> Either String a
 decodeBody = maybe (Left "no body") (\s -> (<> (": " <> cs (show s))) `fmapL` eitherDecode' s) . responseBody
 
-decodeBody' :: (HasCallStack, FromJSON a) => ResponseLBS -> a
+decodeBody' :: (FromJSON a) => ResponseLBS -> a
 decodeBody' = either (error . show) id . decodeBody
 
-getTeams :: (HasCallStack, MonadHttp m, MonadIO m) => UserId -> GalleyReq -> m Galley.TeamList
+getTeams :: (MonadHttp m, MonadIO m) => UserId -> GalleyReq -> m Galley.TeamList
 getTeams u gly = do
     r <- get ( gly
              . paths ["teams"]
@@ -211,7 +210,7 @@ getTeams u gly = do
              )
     return $ decodeBody' r
 
-getSelfProfile :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> UserId -> m Brig.SelfProfile
+getSelfProfile :: (MonadHttp m, MonadIO m) => BrigReq -> UserId -> m Brig.SelfProfile
 getSelfProfile brg usr = do
     rsp <- get $ brg . path "/self" . zUser usr
     return $ decodeBody' rsp
@@ -233,19 +232,19 @@ randomPhone = liftIO $ do
     let phone = Brig.parsePhone . cs $ "+0" ++ concat nrs
     return $ fromMaybe (error "Invalid random phone#") phone
 
-randomUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m Brig.User
+randomUser :: (MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m Brig.User
 randomUser brig_ = do
     n <- cs . UUID.toString <$> liftIO UUID.nextRandom
     createUser n "success@simulator.amazonses.com" brig_
 
-createUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
+createUser :: (MonadCatch m, MonadIO m, MonadHttp m)
            => ST -> ST -> BrigReq -> m Brig.User
 createUser name email brig_ = do
     r <- postUser name (Just email) Nothing Nothing brig_ <!! const 201 === statusCode
     return $ decodeBody' r
 
 -- more flexible variant of 'createUser' (see above).
-postUser :: (HasCallStack, MonadIO m, MonadHttp m)
+postUser :: (MonadIO m, MonadHttp m)
          => ST -> Maybe ST -> Maybe Brig.UserSSOId -> Maybe TeamId -> BrigReq -> m ResponseLBS
 postUser name email ssoid teamid brig_ = do
     email' <- maybe (pure Nothing) (fmap (Just . Brig.fromEmail) . mkEmailRandomLocalSuffix) email
@@ -272,7 +271,7 @@ mkEmailRandomLocalSuffix e = do
         Just (Brig.Email loc dom) -> return $ Brig.Email (loc <> "+" <> UUID.toText uid) dom
         Nothing              -> fail $ "Invalid email address: " ++ cs e
 
-getActivationCode :: (HasCallStack, MonadIO m, MonadHttp m)
+getActivationCode :: (MonadIO m, MonadHttp m)
                   => BrigReq -> Either Brig.Email Brig.Phone -> m (Maybe (Brig.ActivationKey, Brig.ActivationCode))
 getActivationCode brig_ ep = do
     let qry = either (queryItem "email" . toByteString') (queryItem "phone" . toByteString') ep
@@ -282,7 +281,7 @@ getActivationCode brig_ ep = do
     let acode = Brig.ActivationCode . Ascii.unsafeFromText <$> (lbs ^? Aeson.key "code" . Aeson._String)
     return $ (,) <$> akey <*> acode
 
-activate :: (HasCallStack, MonadIO m, MonadHttp m)
+activate :: (MonadIO m, MonadHttp m)
          => BrigReq -> Brig.ActivationPair -> m ResponseLBS
 activate brig_ (k, c) = get $ brig_
     . path "activate"
@@ -298,7 +297,7 @@ zConn = header "Z-Connection"
 
 -- spar specifics
 
-shouldRespondWith :: forall a. (HasCallStack, Show a, Eq a)
+shouldRespondWith :: forall a. (Show a, Eq a)
                   => Http a -> (a -> Bool) -> ReaderT TestEnv IO ()
 shouldRespondWith action proper = do
   resp <- call action
@@ -315,7 +314,7 @@ ping :: (Request -> Request) -> Http ()
 ping req = void . get $ req . path "/i/status" . expect2xx
 
 
-createTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, SAML.IdPId)
+createTestIdP :: (MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, SAML.IdPId)
 createTestIdP = do
   env <- ask
   liftIO . runHttpT (env ^. teMgr) $ do
@@ -325,7 +324,7 @@ createTestIdP = do
 -- TODO: sampleIdP must be the data for our MockIdP
 -- TODO add 'Chan's for optionally diverging from the happy path (for testing validation)
 
-sampleIdP :: HasCallStack => NewIdP
+sampleIdP :: NewIdP
 sampleIdP = NewIdP
   { _nidpMetadata        = [uri|http://idp.net/meta|]
   , _nidpIssuer          = SAML.Issuer [uri|http://idp.net/|]
@@ -344,7 +343,7 @@ samplePublicKey2 = either (error . show) id $ SAML.parseKeyInfo "<ds:KeyInfo xml
 responseJSON :: FromJSON a => ResponseLBS -> Either String a
 responseJSON = fmapL show . Aeson.eitherDecode <=< maybe (Left "no body") pure . responseBody
 
-callAuthnReq :: forall m. (HasCallStack, MonadIO m, MonadHttp m)
+callAuthnReq :: forall m. (MonadIO m, MonadHttp m)
              => SparReq -> SAML.IdPId -> m (URI, SAML.AuthnRequest)
 callAuthnReq sparreq_ idpid = assert test_parseAuthnReqResp $ do
   resp <- callAuthnReq' (sparreq_ . expect2xx) idpid
