@@ -100,7 +100,7 @@ import Data.UUID.V4 (nextRandom)
 import Network.Wai.Utilities
 import System.Logger.Message
 
-import qualified Brig.Blacklist             as Blacklist
+import qualified Brig.Data.Blacklist        as Blacklist
 import qualified Brig.Code                  as Code
 import qualified Brig.Data.Activation       as Data
 import qualified Brig.Data.Client           as Data
@@ -252,7 +252,7 @@ createUser new@NewUser{..} = do
         Nothing -> throwE InvalidInvitationCode
 
     ensureMemberCanJoin tid = do
-        maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+        maxSize <- fromIntegral . setMaxTeamSize <$> view settings
         mems <- lift $ Intra.getTeamMembers tid
         when (length (mems^.Team.teamMembers) >= maxSize) $
             throwE TooManyTeamMembers

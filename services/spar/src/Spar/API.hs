@@ -5,16 +5,17 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PackageImports             #-}
 {-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -22,6 +23,7 @@ module Spar.API
   ( app, api
   , API
   , APIMeta
+  , APIAuthReqPrecheck
   , APIAuthReq
   , APIAuthResp
   , IdpGet
@@ -43,6 +45,7 @@ import Data.String.Conversions
 import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
+import Data.Time
 import GHC.Stack
 import Lens.Micro
 import Servant
@@ -55,6 +58,7 @@ import Spar.Error
 import Spar.Options
 import Spar.Types
 
+import qualified Data.ByteString as SBS
 import qualified Network.HTTP.Client as Rq
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
@@ -74,6 +78,7 @@ app ctx = SAML.setHttpCachePolicy
 type API = "i" :> "status" :> Get '[JSON] NoContent
       :<|> "sso" :> "api-docs" :> Get '[JSON] Swagger
       :<|> APIMeta
+      :<|> APIAuthReqPrecheck
       :<|> APIAuthReq
       :<|> APIAuthResp
       :<|> IdpGet
@@ -83,8 +88,19 @@ type API = "i" :> "status" :> Get '[JSON] NoContent
       :<|> "i" :> "integration-tests" :> IntegrationTests
       -- NB. If you add endpoints here, also update Test.Spar.APISpec
 
+type CheckOK = Verb 'HEAD 200
+
 type APIMeta     = "sso" :> "metadata" :> SAML.APIMeta
-type APIAuthReq  = "sso" :> "initiate-login" :> SAML.APIAuthReq
+type APIAuthReqPrecheck
+                 = "sso" :> "initiate-login"
+                :> QueryParam "success_redirect" URI.URI
+                :> QueryParam "error_redirect" URI.URI
+                :> Capture "idp" SAML.IdPId
+                :> CheckOK '[PlainText] NoContent
+type APIAuthReq  = "sso" :> "initiate-login"
+                :> QueryParam "success_redirect" URI.URI
+                :> QueryParam "error_redirect" URI.URI
+                :> SAML.APIAuthReq
 type APIAuthResp = "sso" :> "finalize-login" :> SAML.APIAuthResp
 
 type IdpGet     = Header "Z-User" UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
@@ -101,7 +117,8 @@ api opts =
        pure NoContent
   :<|> pure (toSwagger (Proxy @OutsideWorldAPI))
   :<|> SAML.meta appName (Proxy @API) (Proxy @APIAuthResp)
-  :<|> SAML.authreq (maxttlAuthreqDiffTime opts)
+  :<|> authreqPrecheck
+  :<|> authreq (maxttlAuthreqDiffTime opts)
   :<|> SAML.authresp (SAML.HandleVerdictRaw verdictHandler)
   :<|> idpGet
   :<|> idpGetAll
@@ -111,6 +128,36 @@ api opts =
 
 appName :: ST
 appName = "spar"
+
+authreqPrecheck :: Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar NoContent
+authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
+                                *> SAML.getIdPConfig idpid
+                                *> return NoContent
+
+authreq :: NominalDiffTime -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar (SAML.FormRedirect SAML.AuthnRequest)
+authreq authreqttl msucc merr idpid = do
+  vformat <- validateAuthreqParams msucc merr
+  form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl idpid
+  wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
+  pure form
+
+redirectURLMaxLength :: Int
+redirectURLMaxLength = 140
+
+validateAuthreqParams :: Maybe URI.URI -> Maybe URI.URI -> Spar VerdictFormat
+validateAuthreqParams msucc merr = case (msucc, merr) of
+  (Nothing, Nothing) -> pure VerdictFormatWeb
+  (Just ok, Just err) -> do
+    validateRedirectURL `mapM_` [ok, err]
+    pure $ VerdictFormatMobile ok err
+  _ -> throwSpar $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
+
+validateRedirectURL :: URI.URI -> Spar ()
+validateRedirectURL uri = do
+  unless ((SBS.take 4 . URI.schemeBS . URI.uriScheme $ uri) == "wire") $ do
+    throwSpar $ SparBadInitiateLoginQueryParams "invalid-schema"
+  unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
+    throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
 type ZUsr = Maybe UserId
 
@@ -160,7 +207,7 @@ authorizeIdP zusr idp = do
 -- | Called by post handler, and by 'authorizeIdP'.
 getZUsrOwnedTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSparToBrig m)
             => ZUsr -> m TeamId
-getZUsrOwnedTeam Nothing = throwSpar SparNotInTeam
+getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
 getZUsrOwnedTeam (Just uid) = do
   usr <- Intra.getUser uid
   case Brig.userTeam =<< usr of

@@ -52,7 +52,6 @@ instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
     { userJournalQueue :: !(Maybe Text)
-    , blacklistTable   :: !Text
     , prekeyTable      :: !Text
     , sqsEndpoint      :: !AWSEndpoint
     , dynamoDBEndpoint :: !AWSEndpoint
@@ -211,7 +210,8 @@ data Settings = Settings
     , setUserCookieLimit       :: !Int
     , setUserCookieThrottle    :: !CookieThrottle
     , setDefaultLocale         :: !Locale
-    , setMaxConvAndTeamSize    :: !Word16 -- NOTE: This must be in sync with galley
+    , setMaxTeamSize           :: !Word16 -- NOTE: This must be in sync with galley
+    , setMaxConvSize           :: !Word16 -- NOTE: This must be in sync with galley
     , setProviderSearchFilter  :: !(Maybe ProviderId)
     -- ^ Temporary optional provider ID to use for filtering services during search
     } deriving (Show, Generic)
@@ -267,9 +267,6 @@ optsParser =
      (optional $ textOption $
       long "aws-user-journal-queue" <> metavar "STRING" <>
       help "Event journal queue for user events (e.g. user deletion)") <*>
-     (textOption $
-      long "aws-dynamo-blacklist" <> metavar "STRING" <>
-      help "Dynamo table for storing blacklisted user keys") <*>
      (textOption $
       long "aws-dynamo-prekeys" <> metavar "STRING" <>
       help "Dynamo table for storing prekey data") <*>
@@ -480,8 +477,11 @@ settingsParser =
      long "default-locale" <> metavar "STRING" <> value "en" <> showDefault <>
      help "Default locale to use (e.g. when selecting templates)") <*>
     (option auto $
-     long "conv-team-max-size" <> metavar "INT" <> value 128 <> showDefault <>
-     help "Max. # of members in a team/conversation.") <*>
+     long "team-max-size" <> metavar "INT" <>
+     help "Max. # of members in a team") <*>
+    (option auto $
+     long "conv-max-size" <> metavar "INT" <>
+     help "Max. # of members in a conversation") <*>
     (optional $ option providerIdOption $
      long "provider-id-search-filter" <> metavar "STRING" <>
      help "Filter _ONLY_ services with the given provider id")
@@ -496,7 +496,7 @@ queueOption =
                    _       -> error ("Unknown queue type: " <> show type_)
         ) .
     strOption
-    
+
 localeOption :: Mod OptionFields String -> Parser Locale
 localeOption =
     fmap

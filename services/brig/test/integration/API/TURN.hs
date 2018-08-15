@@ -140,9 +140,8 @@ getTurnConfiguration suffix u b = get ( b
                                 )
 
 getAndValidateTurnConfiguration :: HasCallStack => ByteString -> UserId -> Brig -> Http RTCConfiguration
-getAndValidateTurnConfiguration suffix u b = do
-    r <- getTurnConfiguration suffix u b <!! const 200 === statusCode
-    return $ fromMaybe (error "getTurnConfiguration: failed to parse response") (decodeBody r)
+getAndValidateTurnConfiguration suffix u b =
+    decodeBody =<< (getTurnConfiguration suffix u b <!! const 200 === statusCode)
 
 toTurnURILegacy :: ByteString -> Port -> TurnURI
 toTurnURILegacy h p = toTurnURI SchemeTurn h p Nothing

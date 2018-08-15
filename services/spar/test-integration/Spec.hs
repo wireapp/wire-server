@@ -46,5 +46,5 @@ cliOptsParser = (,) <$>
     <> showDefault
     <> value defaultSparPath)
   where
-    defaultIntPath = "/etc/wire/spar/conf/integration.yaml"
+    defaultIntPath = "/etc/wire/integration/integration.yaml"
     defaultSparPath = "/etc/wire/spar/conf/spar.yaml"

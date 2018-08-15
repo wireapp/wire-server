@@ -100,8 +100,7 @@ blockConv (usr ::: cnv) = do
     unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
         throwM $ invalidOp "block: invalid conversation type"
     let mems  = Data.convMembers conv
-    if | usr `isMember` mems -> Data.removeMember usr cnv
-       | otherwise           -> return ()
+    when (usr `isMember` mems) $ Data.removeMember usr cnv
     return empty
 
 unblockConv :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
@@ -121,8 +120,7 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     when (PrivateAccess `elem` targetAccess || PrivateAccessRole == targetRole) $
         throwM invalidTargetAccess
     (bots, users) <- botsAndUsers <$> Data.members cnv
-    unless (usr `isMember` users) $
-        throwM convNotFound
+    ensureConvMember users usr
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     ensureGroupConv conv
     let currentAccess = Set.fromList (toList $ Data.convAccess conv)
@@ -190,13 +188,10 @@ updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     let messageTimer = cupMessageTimer body
     -- checks and balances
     (bots, users) <- botsAndUsers <$> Data.members cnv
-    unless (usr `isMember` users) $
-        throwM convNotFound
+    ensureConvMember users usr
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     ensureGroupConv conv
-    case Data.convTeam conv of  -- only team members can change the timer
-        Nothing  -> pure ()
-        Just tid -> ensureTeamMember tid
+    traverse_ ensureTeamMember $ Data.convTeam conv -- only team members can change the timer
     let currentTimer = Data.convMessageTimer conv
     if currentTimer == messageTimer then
         return $ empty & setStatus status204
@@ -299,9 +294,7 @@ joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley Response
 joinConversation zusr zcon cnv access = do
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     ensureAccess conv access
-    mbTms <- case Data.convTeam conv of
-        Just tid -> Just <$> Data.teamMembers tid
-        Nothing -> return Nothing
+    mbTms <- traverse Data.teamMembers $ Data.convTeam conv
     ensureAccessRole (Data.convAccessRole conv) [zusr] mbTms
     let newUsers = filter (notIsMember conv) [zusr]
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
@@ -369,11 +362,7 @@ removeMember (zusr ::: zcon ::: cid ::: victim) = do
     case Data.convTeam conv of
         Nothing -> regularConvChecks users
         Just ti -> teamConvChecks ti
-    case Data.convType conv of
-        SelfConv    -> throwM invalidSelfOp
-        One2OneConv -> throwM invalidOne2OneOp
-        ConnectConv -> throwM invalidConnectOp
-        _           -> return ()
+    ensureGroupConv conv
     if victim `isMember` users then do
         e <- Data.removeMembers conv zusr (singleton victim)
         for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
@@ -594,7 +583,7 @@ ensureGroupConv c = case Data.convType c of
 ensureMemberLimit :: [Member] -> [UserId] -> Galley ()
 ensureMemberLimit old new = do
     o <- view options
-    let maxSize = fromIntegral (o^.optSettings.setMaxConvAndTeamSize)
+    let maxSize = fromIntegral (o^.optSettings.setMaxConvSize)
     when (length old + length new > maxSize) $
         throwM tooManyMembers
 

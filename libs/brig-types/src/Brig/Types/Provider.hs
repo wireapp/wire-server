@@ -475,7 +475,7 @@ data ServiceProfile = ServiceProfile
     , serviceProfileAssets   :: ![Asset]
     , serviceProfileTags     :: !(Set ServiceTag)
     , serviceProfileEnabled  :: !Bool
-    }
+    } deriving (Eq, Show)
 
 instance FromJSON ServiceProfile where
     parseJSON = withObject "ServiceProfile" $ \o ->
@@ -506,7 +506,7 @@ instance ToJSON ServiceProfile where
 data ServiceProfilePage = ServiceProfilePage
     { serviceProfilePageHasMore :: !Bool
     , serviceProfilePageResults :: ![ServiceProfile]
-    }
+    } deriving (Eq, Show)
 
 instance FromJSON ServiceProfilePage where
     parseJSON = withObject "ServiceProfilePage" $ \o ->
@@ -598,6 +598,28 @@ instance ToJSON DeleteService where
         ]
 
 --------------------------------------------------------------------------------
+-- UpdateServiceWhitelist
+
+data UpdateServiceWhitelist = UpdateServiceWhitelist
+    { updateServiceWhitelistProvider :: !ProviderId
+    , updateServiceWhitelistService  :: !ServiceId
+    , updateServiceWhitelistStatus   :: !Bool
+    } deriving (Eq, Show)
+
+instance FromJSON UpdateServiceWhitelist where
+    parseJSON = withObject "UpdateServiceWhitelist" $ \o ->
+        UpdateServiceWhitelist <$> o .: "provider"
+                               <*> o .: "id"
+                               <*> o .: "whitelisted"
+
+instance ToJSON UpdateServiceWhitelist where
+    toJSON u = object
+        [ "provider"    .= updateServiceWhitelistProvider u
+        , "id"          .= updateServiceWhitelistService u
+        , "whitelisted" .= updateServiceWhitelistStatus u
+        ]
+
+--------------------------------------------------------------------------------
 -- AddBot
 
 -- | Input data for adding a bot to a conversation.
@@ -681,4 +703,3 @@ instance ToJSON UpdateBotPrekeys where
     toJSON u = object
         [ "prekeys" .= updateBotPrekeyList u
         ]
-

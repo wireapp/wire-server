@@ -22,6 +22,7 @@ library
         Brig.Data.PasswordReset
         Brig.Options
         Brig.Provider.DB
+        Brig.RPC
         Brig.User.Auth.Cookie.Limit
         Brig.User.Search.Index
         Brig.ZAuth
@@ -37,7 +38,6 @@ library
       , Brig.InternalEvent.Types
       , Brig.InternalEvent.Process
       , Brig.AWS.SesNotification
-      , Brig.Blacklist
       , Brig.Budget
       , Brig.Email
       , Brig.Data.Activation
@@ -64,7 +64,6 @@ library
       , Brig.Queue
       , Brig.Queue.Stomp
       , Brig.Queue.Types
-      , Brig.RPC
       , Brig.SMTP
       , Brig.Team.API
       , Brig.Team.DB
@@ -283,6 +282,7 @@ executable brig-schema
         V49
         V50
         V51
+        V52
 
     build-depends:
         base

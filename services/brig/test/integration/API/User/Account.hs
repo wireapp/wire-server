@@ -337,7 +337,7 @@ testCreateUserExternalSSO brig = do
 
 testActivateWithExpiry :: Brig -> Opt.Timeout -> Http ()
 testActivateWithExpiry brig timeout = do
-    Just u <- decodeBody <$> registerUser "dilbert" "success@simulator.amazonses.com" brig
+    u <- decodeBody =<< registerUser "dilbert" "success@simulator.amazonses.com" brig
     let email = fromMaybe (error "missing email") (userEmail u)
     act <- getActivationCode brig (Left email)
     case act of
@@ -523,7 +523,8 @@ testEmailUpdate brig aws = do
     flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
   where
     ensureNoOtherUserWithEmail eml = do
-        tk <- decodeBody <$> login brig (defEmailLogin eml) SessionCookie
+        tk :: Maybe AccessToken <-
+            decodeBody <$> login brig (defEmailLogin eml) SessionCookie
         for_ tk $ \t -> do
             deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
             liftIO $ Util.assertUserJournalQueue "user deletion" aws (userDeleteJournaled $ Auth.user t)
@@ -818,7 +819,7 @@ testDeleteUserByPassword brig cannon aws = do
     con23 <- getConnection brig uid2 uid3 <!! const 200 === statusCode
 
     -- Register a client
-    addClient brig u (defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0))
+    addClient brig uid1 (defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0))
         !!! const 201 === statusCode
 
     -- Initial login

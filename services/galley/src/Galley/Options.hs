@@ -19,7 +19,8 @@ import Data.Misc
 
 data Settings = Settings
     { _setHttpPoolSize          :: !Int
-    , _setMaxConvAndTeamSize    :: !Word16  -- NOTE: This must be in sync with brig
+    , _setMaxTeamSize           :: !Word16  -- NOTE: This must be in sync with Brig
+    , _setMaxConvSize           :: !Word16  -- NOTE: This must be in sync with Brig
     , _setIntraListing          :: !Bool    -- call Brig for device listing
     , _setConversationCodeURI   :: !HttpsUrl
     } deriving (Show, Generic)
@@ -110,11 +111,14 @@ optsParser = Opts <$>
                 <> value 128)
         <*>
             (option auto $
-                long "conv-team-max-size"
+                long "team-max-size"
                 <> metavar "INT"
-                <> showDefault
-                <> help "Max. # of members in a conversation/team."
-                <> value 128)
+                <> help "Max. # of members in a team.")
+        <*>
+            (option auto $
+                long "conv-max-size"
+                <> metavar "INT"
+                <> help "Max. # of members in a conversation.")
         <*>
             (switch $
                 long "intra-device-listing"

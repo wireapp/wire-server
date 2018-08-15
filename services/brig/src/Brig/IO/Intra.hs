@@ -41,6 +41,7 @@ module Brig.IO.Intra
     , getTeamId
     , getTeamContacts
     , getTeamOwners
+    , getTeamOwnersWithEmail
     , changeTeamStatus
     ) where
 
@@ -76,7 +77,7 @@ import Galley.Types (Connect (..), Conversation)
 import Gundeck.Types.Push.V2
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
-import System.Logger.Class hiding ((.=), name)
+import System.Logger.Class as Log hiding ((.=), name)
 
 import qualified Brig.User.Search.Index      as Search
 import qualified Brig.User.Event.Log         as Log
@@ -191,25 +192,39 @@ push :: List1 Event  -- ^ The events to push.
      -> Push.Route   -- ^ The push routing strategy.
      -> Maybe ConnId -- ^ The originating device connection.
      -> AppIO ()
-push (toList -> evts) usrs orig route conn = do
-    let events = mapMaybe toPushData evts
-    unless (null events) $ do
-      for_ events $ \e -> debug $ remote "gundeck" . msg (fst e)
-      g <- view gundeck
-      forM_ recipients $ \rcps ->
-        void . recovering x3 rpcHandlers $ const $ rpc' "gundeck" g
-            ( method POST
-            . path "/i/push/v2"
-            . zUser orig
-            . json (map (mkPush rcps . snd) events)
-            . expect2xx
-            )
+push (toList -> events) usrs orig route conn =
+    case mapMaybe toPushData events of
+        []   -> pure ()
+        x:xs -> rawPush (list1 x xs) usrs orig route conn
   where
-    toPushData :: Event -> Maybe (Event, (Object, Maybe ApsData))
+    toPushData :: Event -> Maybe (Builder, (Object, Maybe ApsData))
     toPushData e = case toPushFormat e of
-          Just o  -> Just (e, (o, toApsData e))
+          Just o  -> Just (Log.bytes e, (o, toApsData e))
           Nothing -> Nothing
 
+-- | Push encoded events to other users. Useful if you want to push
+-- something that's not defined in Brig.
+rawPush
+    :: List1 (Builder, (Object, Maybe ApsData)) -- ^ The events to push.
+    -> List1 UserId -- ^ The users to push to.
+    -> UserId       -- ^ The originator of the events.
+    -> Push.Route   -- ^ The push routing strategy.
+    -> Maybe ConnId -- ^ The originating device connection.
+    -> AppIO ()
+-- TODO: if we decide to have service whitelist events in Brig instead of
+-- Galley, let's merge 'push' and 'rawPush' back. See Note [whitelist events].
+rawPush (toList -> events) usrs orig route conn = do
+    for_ events $ \e -> debug $ remote "gundeck" . msg (fst e)
+    g <- view gundeck
+    forM_ recipients $ \rcps ->
+      void . recovering x3 rpcHandlers $ const $ rpc' "gundeck" g
+          ( method POST
+          . path "/i/push/v2"
+          . zUser orig
+          . json (map (mkPush rcps . snd) events)
+          . expect2xx
+          )
+  where
     recipients :: [Range 1 1024 (Set.Set Recipient)]
     recipients = map (unsafeRange . Set.fromList)
                $ chunksOf 512
@@ -612,7 +627,7 @@ getTeamContacts u = do
         . expect [status200, status404]
 
 -- | 'Nothing' means no team could be found.  'Just' contains all members of the team that have full
--- permissions and email address.
+-- permissions.
 --
 -- TODO: This could arguably also live in galley, since it is about teams.  But it also needs emails
 -- of users, so no matter whether it lives in galley or brig, one has to call the other for this to
@@ -623,26 +638,24 @@ getTeamContacts u = do
 -- body.  When brig wants to know, it can call both parts.  These thoughts may all become obsolete
 -- if we introduce a deletion service in the future.
 getTeamOwners :: TeamId -> AppIO [Team.TeamMember]
-getTeamOwners tid = filterByEmail . filterByPerms =<< getTeamMembers tid
-  where
-    filterByPerms :: Team.TeamMemberList -> [Team.TeamMember]
-    filterByPerms mems =
-        filter ((== Team.fullPermissions) . (^. Team.permissions)) (mems ^. Team.teamMembers)
+getTeamOwners tid = filter Team.isTeamOwner . view Team.teamMembers <$> getTeamMembers tid
 
-    filterByEmail :: [Team.TeamMember] -> AppIO [Team.TeamMember]
-    filterByEmail mems = do
-        usrList :: [User] <- lookupUsers ((^. Team.userId) <$> mems)
+-- | Like 'getTeamOwners', but only returns owners with an email address.
+getTeamOwnersWithEmail :: TeamId -> AppIO [Team.TeamMember]
+getTeamOwnersWithEmail tid = do
+    mems <- getTeamOwners tid
+    usrList :: [User] <- lookupUsers ((^. Team.userId) <$> mems)
 
-        let usrMap :: Map.Map UserId Bool
-            usrMap = Map.fromList $ mkListItem <$> usrList
+    let usrMap :: Map.Map UserId Bool
+        usrMap = Map.fromList $ mkListItem <$> usrList
 
-            mkListItem :: User -> (UserId, Bool)
-            mkListItem usr = (userId usr, isJust $ userEmail usr)
+        mkListItem :: User -> (UserId, Bool)
+        mkListItem usr = (userId usr, isJust $ userEmail usr)
 
-            hasEmail :: Team.TeamMember -> Bool
-            hasEmail mem = maybe False id $ Map.lookup (mem ^. Team.userId) usrMap
+        hasEmail :: Team.TeamMember -> Bool
+        hasEmail mem = maybe False id $ Map.lookup (mem ^. Team.userId) usrMap
 
-        pure $ filter hasEmail mems
+    pure $ filter hasEmail mems
 
 getTeamId :: UserId -> AppIO (Maybe TeamId)
 getTeamId u = do

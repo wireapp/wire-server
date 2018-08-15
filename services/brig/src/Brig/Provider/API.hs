@@ -3,7 +3,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Brig.Provider.API (routes) where
 
@@ -16,6 +19,7 @@ import Brig.Options (Settings (..))
 import Brig.Password
 import Brig.Provider.DB (ServiceConn (..))
 import Brig.Provider.Email
+import Brig.Team.Util
 import Brig.Types.Intra (UserAccount (..), AccountStatus (..))
 import Brig.Types.Client
 import Brig.Types.User (publicProfile, User (..), Pict (..))
@@ -44,7 +48,6 @@ import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..))
 import Galley.Types (OtherMember (..))
 import Galley.Types (Event, userClients)
 import Galley.Types.Bot (newServiceRef)
-import Galley.Types.Teams (managedConversation)
 import Data.Traversable (forM)
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)
@@ -69,6 +72,7 @@ import qualified Data.List                    as List
 import qualified Data.Map.Strict              as Map
 import qualified Data.Swagger.Build.Api       as Doc
 import qualified Data.Text.Ascii              as Ascii
+import qualified Data.Set                     as Set
 import qualified OpenSSL.PEM                  as SSL
 import qualified OpenSSL.RSA                  as SSL
 import qualified OpenSSL.EVP.Digest           as SSL
@@ -77,7 +81,7 @@ import qualified Network.HTTP.Client.OpenSSL  as SSL
 import qualified Data.Text.Encoding           as Text
 import qualified Network.Wai.Utilities.Error  as Wai
 import qualified Brig.ZAuth                   as ZAuth
-
+import qualified Galley.Types.Teams           as Teams
 
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
@@ -218,6 +222,21 @@ routes = do
         accept "application" "json"
         .&> zauth ZAuthAccess
 
+    get "/teams/:tid/services/whitelisted" (continue searchTeamServiceProfiles) $
+        accept "application" "json"
+        .&> zauthUserId
+        .&. capture "tid"
+        .&. opt (query "prefix")
+        .&. def True (query "filter_disabled")
+        .&. def (unsafeRange 20) (query "size")
+
+    post "/teams/:tid/services/whitelist" (continue updateServiceWhitelist) $
+        accept "application" "json"
+        .&> zauth ZAuthAccess
+        .&> zauthUserId
+        .&. capture "tid"
+        .&. request
+
     post "/conversations/:cnv/bots" (continue addBot) $
         contentType "application" "json"
         .&> accept "application" "json"
@@ -277,6 +296,12 @@ routes = do
         accept "application" "json"
         .&> zauth ZAuthBot
         .&> capture "uid"
+
+    -- Internal API ------------------------------------------------------------
+
+    get "/i/provider/activation-code" (continue getActivationCode) $
+        accept "application" "json"
+        .&> param "email"
 
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
@@ -341,6 +366,17 @@ activateAccountKey (key ::: val) = do
             activate pid Nothing email
             lift $ sendApprovalConfirmMail name email
             return $ json (ProviderActivationResponse email)
+
+getActivationCode :: Email -> Handler Response
+getActivationCode e = do
+    email <- case validateEmail e of
+        Just em -> return em
+        Nothing -> throwStd invalidEmail
+    gen  <- Code.mkGen (Code.ForEmail email)
+    code <- Code.lookup (Code.genKey gen) Code.IdentityVerification
+    maybe (throwStd activationKeyNotFound) (return . found) code
+  where
+    found vcode = json $ Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
 
 approveAccountKey :: Code.Key ::: Code.Value -> Handler Response
 approveAccountKey (key ::: val) = do
@@ -583,10 +619,14 @@ getServiceProfile (pid ::: sid) = do
     s <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
     return (json s)
 
+-- TODO: in order to actually make it possible for clients to implement
+-- pagination here, we need both 'start' and 'prefix'.
+--
+-- Also see Note [buggy pagination].
 searchServiceProfiles :: Maybe (QueryAnyTags 1 3) ::: Maybe Text ::: Range 10 100 Int32 -> Handler Response
 searchServiceProfiles (Nothing ::: Just start ::: size) = do
     prefix <- rangeChecked start :: Handler (Range 1 128 Text)
-    ss <- DB.paginateServiceNames prefix (fromRange size) =<< setProviderSearchFilter <$> view settings
+    ss <- DB.paginateServiceNames (Just prefix) (fromRange size) =<< setProviderSearchFilter <$> view settings
     return (json ss)
 searchServiceProfiles (Just tags ::: start ::: size) = do
     ss <- DB.paginateServiceTags tags start (fromRange size) =<< setProviderSearchFilter <$> view settings
@@ -594,10 +634,44 @@ searchServiceProfiles (Just tags ::: start ::: size) = do
 searchServiceProfiles (Nothing ::: Nothing ::: _) =
     throwStd $ badRequest "At least `tags` or `start` must be provided."
 
+-- NB: unlike 'searchServiceProfiles', we don't filter by service provider here
+searchTeamServiceProfiles
+    :: UserId ::: TeamId ::: Maybe (Range 1 128 Text) ::: Bool ::: Range 10 100 Int32
+    -> Handler Response
+searchTeamServiceProfiles (uid ::: tid ::: prefix ::: filterDisabled ::: size) = do
+    -- Check that the user actually belong to the team they claim they
+    -- belong to. (Note: the 'tid' team might not even exist but we'll throw
+    -- 'insufficientTeamPermissions' anyway)
+    teamId <- lift $ User.lookupUserTeam uid
+    unless (Just tid == teamId) $
+        throwStd insufficientTeamPermissions
+    -- Get search results
+    json <$> DB.paginateServiceWhitelist tid prefix filterDisabled (fromRange size)
+
 getServiceTagList :: () -> Handler Response
 getServiceTagList _ = return (json (ServiceTagList allTags))
   where
     allTags = [(minBound :: ServiceTag) ..]
+
+updateServiceWhitelist :: UserId ::: TeamId ::: Request -> Handler Response
+updateServiceWhitelist (uid ::: tid ::: req) = do
+    upd :: UpdateServiceWhitelist <- parseJsonBody req
+    let pid = updateServiceWhitelistProvider upd
+        sid = updateServiceWhitelistService upd
+        newWhitelisted = updateServiceWhitelistStatus upd
+    ensurePermissions uid tid (Set.toList Teams.serviceWhitelistPermissions)
+    _ <- DB.lookupService pid sid >>= maybeServiceNotFound
+    whitelisted <- DB.getServiceWhitelistStatus tid pid sid
+    case (whitelisted, newWhitelisted) of
+        (False, False) -> return (setStatus status204 empty)
+        (True,  True)  -> return (setStatus status204 empty)
+        (False, True)  -> do
+            DB.insertServiceWhitelist tid pid sid
+            return (setStatus status200 empty)
+        (True, False)  -> do
+            DB.deleteServiceWhitelist (Just tid) pid sid
+            return (setStatus status200 empty)
+            -- TODO remove service from conversations
 
 addBot :: UserId ::: ConnId ::: ConvId ::: Request -> Handler Response
 addBot (zuid ::: zcon ::: cid ::: req) = do
@@ -612,7 +686,7 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let mems = cnvMembers cnv
     unless (cnvType cnv == RegularConv) $
         throwStd invalidConv
-    maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+    maxSize <- fromIntegral . setMaxConvSize <$> view settings
     unless (length (cmOthers mems) < maxSize - 1) $
         throwStd tooManyMembers
     for_ (cnvTeam cnv) $ ensureNotManagedConv
@@ -622,6 +696,10 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     unless (sconEnabled scon) $
         throwStd serviceDisabled
     svp <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
+    for_ (cnvTeam cnv) $ \tid -> do
+        whitelisted <- DB.getServiceWhitelistStatus tid pid sid
+        unless whitelisted $
+            throwStd serviceNotWhitelisted
 
     -- Prepare a user ID, client ID and token for the bot.
     bid <- BotId <$> randomId
@@ -666,7 +744,7 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
   where
     ensureNotManagedConv tid = do
         tc <- lift (RPC.getTeamConv zuid tid cid) >>= maybeConvNotFound
-        when (view managedConversation tc) $
+        when (view Teams.managedConversation tc) $
             throwStd invalidConv
 
 removeBot :: UserId ::: ConnId ::: ConvId ::: BotId -> Handler Response
@@ -722,7 +800,7 @@ botUpdatePrekeys (bot ::: req) = do
 botClaimUsersPrekeys :: Request -> Handler Response
 botClaimUsersPrekeys req = do
     body <- parseJsonBody req
-    maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+    maxSize <- fromIntegral . setMaxConvSize <$> view settings
     when (Map.size (userClients body) > maxSize) $
         throwStd tooManyClients
     json <$> lift (Client.claimMultiPrekeyBundles body)
@@ -868,6 +946,9 @@ tooManyBots = Wai.Error status409 "too-many-bots" "Maximum number of bots for th
 
 serviceDisabled :: Wai.Error
 serviceDisabled = Wai.Error status403 "service-disabled" "The desired service is currently disabled."
+
+serviceNotWhitelisted :: Wai.Error
+serviceNotWhitelisted = Wai.Error status403 "service-not-whitelisted" "The desired service is not on the whitelist of allowed services for this team."
 
 serviceError :: RPC.ServiceError -> Wai.Error
 serviceError RPC.ServiceUnavailable = badGateway

@@ -22,6 +22,7 @@ module Brig.Data.User
     , lookupLocale
     , lookupPassword
     , lookupStatus
+    , lookupUserTeam
     , insertAccount
     , updateUser
     , updateEmail
@@ -232,6 +233,10 @@ lookupStatus :: UserId -> AppIO (Maybe AccountStatus)
 lookupStatus u = join . fmap runIdentity <$>
     retry x1 (query1 statusSelect (params Quorum (Identity u)))
 
+lookupUserTeam :: UserId -> AppIO (Maybe TeamId)
+lookupUserTeam u = join . fmap runIdentity <$>
+    retry x1 (query1 teamSelect (params Quorum (Identity u)))
+
 lookupAuth :: (MonadClient m) => UserId -> m (Maybe (Maybe Password, AccountStatus))
 lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params Quorum (Identity u)))
   where
@@ -294,6 +299,9 @@ accountStateSelectAll = "SELECT id, activated, status FROM user WHERE id IN ?"
 
 statusSelect :: PrepQuery R (Identity UserId) (Identity (Maybe AccountStatus))
 statusSelect = "SELECT status FROM user WHERE id = ?"
+
+teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
+teamSelect = "SELECT team FROM user WHERE id = ?"
 
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
 accountsSelect = "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \

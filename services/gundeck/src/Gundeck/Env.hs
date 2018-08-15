@@ -51,8 +51,8 @@ schemaVersion = 7
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
     l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
-    c <- maybe (return $ NE.fromList [unpack (o^.optCassandra.casEndpoint.epHost)])
-               (C.initialContacts "cassandra_gundeck")
+    c <- maybe (C.initialContactsDNS (o^.optCassandra.casEndpoint.epHost))
+               (C.initialContactsDisco "cassandra_gundeck")
                (unpack <$> o^.optDiscoUrl)
     n <- newManager tlsManagerSettings
             { managerConnCount           = (o^.optSettings.setHttpPoolSize)

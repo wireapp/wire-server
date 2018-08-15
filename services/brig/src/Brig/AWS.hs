@@ -17,7 +17,6 @@ module Brig.AWS
     , execute
     , sesQueue
     , userJournalQueue
-    , blacklistTable
     , prekeyTable
 
     , Error (..)
@@ -80,7 +79,6 @@ data Env = Env
     { _logger           :: !Logger
     , _sesQueue         :: !(Maybe Text)
     , _userJournalQueue :: !(Maybe Text)
-    , _blacklistTable   :: !Text
     , _prekeyTable      :: !Text
     , _amazonkaEnv      :: !AWS.Env
     }
@@ -114,15 +112,15 @@ instance AWS.MonadAWS Amazon where
 
 mkEnv :: Logger -> Opt.AWSOpts -> Maybe Opt.EmailAWSOpts -> Manager -> IO Env
 mkEnv lgr opts emailOpts mgr = do
-    let g = Logger.clone (Just "aws.brig") lgr
-    let (bl, pk) = (Opt.blacklistTable opts, Opt.prekeyTable opts)
+    let g  = Logger.clone (Just "aws.brig") lgr
+    let pk = Opt.prekeyTable opts
     let sesEndpoint = mkEndpoint SES.ses . Opt.sesEndpoint <$> emailOpts
     e  <- mkAwsEnv g sesEndpoint
                      (mkEndpoint SQS.sqs      (Opt.sqsEndpoint opts))
                      (mkEndpoint DDB.dynamoDB (Opt.dynamoDBEndpoint opts))
     sq <- maybe (return Nothing) (fmap Just . getQueueUrl e . Opt.sesQueue) emailOpts
     jq <- maybe (return Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
-    return (Env g sq jq bl pk e)
+    return (Env g sq jq pk e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
 

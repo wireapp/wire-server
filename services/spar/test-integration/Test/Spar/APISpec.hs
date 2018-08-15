@@ -22,6 +22,7 @@ import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Galley.Types.Teams as Galley
 import Lens.Micro
+import Prelude hiding (head)
 import SAML2.WebSSO as SAML
 import Spar.Types
 import Util
@@ -63,7 +64,22 @@ spec = do
                                 , "WantAssertionsSigned=\"true\""
                                 ])
 
-    describe "/sso/initiate-login/:idp" $ do
+    describe "HEAD /sso/initiate-login/:idp" $ do
+      context "unknown IdP" $ do
+        it "responds with 404" $ do
+          env <- ask
+          let uuid = cs $ UUID.toText UUID.nil
+          head ((env ^. teSpar) . path ("/sso/initiate-login/" <> uuid))
+            `shouldRespondWith` ((== 404) . statusCode)
+
+      context "HEAD known IdP" $ do
+        it "responds with 200" $ do
+          env <- ask
+          (_, _, cs . UUID.toText . fromIdPId -> idp) <- createTestIdP
+          head ((env ^. teSpar) . path ("/sso/initiate-login/" <> idp) . expect2xx)
+            `shouldRespondWith`  ((== 200) . statusCode)
+
+    describe "GET /sso/initiate-login/:idp" $ do
       context "unknown IdP" $ do
         it "responds with 'not found'" $ do
           env <- ask
@@ -130,36 +146,36 @@ spec = do
                 `shouldRespondWith` checkErr (== 404) "not-found"
 
           context "no zuser" $ do
-            it "responds with 'not found'" $ do
+            it "responds with 'client error'" $ do
               env <- ask
               (_, _, idp) <- createTestIdP
               whichone (env ^. teSpar) Nothing idp
-                `shouldRespondWith` checkErr (== 404) "not-found"
+                `shouldRespondWith` checkErr (== 400) "client-error"
 
           context "zuser has no team" $ do
-            it "responds with 'not found'" $ do
+            it "responds with 'no team member'" $ do
               env <- ask
               (_, _, idp) <- createTestIdP
               (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
               whichone (env ^. teSpar) (Just uid) idp
-                `shouldRespondWith` checkErr (== 404) "not-found"
+                `shouldRespondWith` checkErr (== 403) "no-team-member"
 
           context "zuser has wrong team" $ do
-            it "responds with 'not found'" $ do
+            it "responds with 'no team member'" $ do
               env <- ask
               (_, _, idp) <- createTestIdP
               (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
               whichone (env ^. teSpar) (Just uid) idp
-                `shouldRespondWith` checkErr (== 404) "not-found"
+                `shouldRespondWith` checkErr (== 403) "no-team-member"
 
           context "zuser is a team member, but not a team owner" $ do
-            it "responds with 'forbidden' and a helpful message" $ do
+            it "responds with 'insufficient-permissions' and a helpful message" $ do
               env <- ask
               (_owner, tid, idp) <- createTestIdP
               newmember <- let Just perms = newPermissions mempty mempty
                         in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
               whichone (env ^. teSpar) (Just newmember) idp
-                `shouldRespondWith` checkErr (== 403) "forbidden"
+                `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
     describe "GET /identity-providers/:idp" $ do
       testGetPutDelete callIdpGet'
@@ -214,26 +230,26 @@ spec = do
 
     describe "POST /identity-providers/:idp" $ do
       context "no zuser" $ do
-        it "responds with 'not found'" $ do
+        it "responds with 'client error'" $ do
           env <- ask
           callIdpCreate' (env ^. teSpar) Nothing (env ^. teNewIdp)
-            `shouldRespondWith` checkErr (== 404) "not-found"
+            `shouldRespondWith` checkErr (== 400) "client-error"
 
       context "zuser has no team" $ do
-        it "responds with 'not found'" $ do
+        it "responds with 'no team member'" $ do
           env <- ask
           (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
           callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdp)
-            `shouldRespondWith` checkErr (== 404) "not-found"
+            `shouldRespondWith` checkErr (== 403) "no-team-member"
 
       context "zuser is a team member, but not a team owner" $ do
-        it "responds with 'forbidden' and a helpful message" $ do
+        it "responds with 'insufficient-permissions' and a helpful message" $ do
           env <- ask
           (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           newmember <- let Just perms = newPermissions mempty mempty
                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
           callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdp)
-            `shouldRespondWith` checkErr (== 403) "forbidden"
+            `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
       let createIdpMockErr :: (NewIdP -> NewIdP) -> FilePath -> HTTP.Status -> ReaderT TestEnv IO ()
           createIdpMockErr modnewidp metafile respstatus = do
