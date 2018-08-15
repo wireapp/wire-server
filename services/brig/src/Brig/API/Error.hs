@@ -366,8 +366,5 @@ loginsTooFrequent = Wai.Error status429 "client-error" "Logins too frequent"
 internalServerError :: Wai.Error
 internalServerError = Wai.Error status500 "internal-server-error" "Internal Server Error"
 
-failedQueueEvent :: Wai.Error
-failedQueueEvent = Wai.Error status500 "event-queue-failed" "Failed to queue the event, MD5 mismatch. Try again later"
-
 invalidRange :: Text -> Wai.Error
 invalidRange = Wai.Error status400 "client-error"

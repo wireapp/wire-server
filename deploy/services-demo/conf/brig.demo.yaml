@@ -26,9 +26,13 @@ gundeck:
 
 aws:
   prekeyTable: integration-brig-prekeys
-  internalQueue: integration-brig-events-internal
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
+
+internalEvents:
+  queueType: sqs
+  queueName: integration-brig-events-internal
+
 emailSMS:
   email:
     sesQueue: integration-brig-events

@@ -16,7 +16,6 @@ module Brig.AWS
     , amazonkaEnv
     , execute
     , sesQueue
-    , internalQueue
     , userJournalQueue
     , prekeyTable
 
@@ -79,7 +78,6 @@ import qualified System.Logger           as Logger
 data Env = Env
     { _logger           :: !Logger
     , _sesQueue         :: !(Maybe Text)
-    , _internalQueue    :: !Text
     , _userJournalQueue :: !(Maybe Text)
     , _prekeyTable      :: !Text
     , _amazonkaEnv      :: !AWS.Env
@@ -121,9 +119,8 @@ mkEnv lgr opts emailOpts mgr = do
                      (mkEndpoint SQS.sqs      (Opt.sqsEndpoint opts))
                      (mkEndpoint DDB.dynamoDB (Opt.dynamoDBEndpoint opts))
     sq <- maybe (return Nothing) (fmap Just . getQueueUrl e . Opt.sesQueue) emailOpts
-    iq <- getQueueUrl e (Opt.internalQueue opts)
     jq <- maybe (return Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
-    return (Env g sq iq jq pk e)
+    return (Env g sq jq pk e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
 
