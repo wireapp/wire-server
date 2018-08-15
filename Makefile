@@ -14,7 +14,7 @@ install: init
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install --profile --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: clean
 clean:

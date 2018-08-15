@@ -68,7 +68,7 @@ tests:
     main: Spec.hs
     source-dirs:
       - test
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N -prof -fprof-auto
     dependencies:
       - hspec
       - hspec-discover
@@ -95,7 +95,7 @@ executables:
     main: Spec.hs
     source-dirs:
       - test-integration
-    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N -prof -fprof-auto
     dependencies:
       - async
       - base64-bytestring

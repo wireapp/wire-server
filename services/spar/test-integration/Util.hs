@@ -378,7 +378,7 @@ parseAuthnReqResp (Just raw) = do
   pure (reqUri, reqBody)
 
 safeHead :: forall n a. (MonadError String n, Show a) => String -> [a] -> n a
-safeHead _   (a:_) = pure a
+safeHead _   (a:_) = error "YARRR" $ pure a
 safeHead msg []    = throwError $ msg <> ": []"
 
 callAuthnReq' :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
