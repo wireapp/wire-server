@@ -33,7 +33,9 @@ import Data.Text (Text, isPrefixOf, toLower)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
-import Galley.Types (NewConv (..), NewConvUnmanaged (..), Conversation (..), Members (..))
+import Galley.Types (
+    Access (..), AccessRole (..), ConversationAccessUpdate (..),
+    NewConv (..), NewConvUnmanaged (..), Conversation (..), Members (..))
 import Galley.Types (ConvMembers (..), OtherMember (..))
 import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
@@ -123,6 +125,7 @@ tests conf p db b c g = do
             ]
         , testGroup "bot-teams"
             [ test p "add-remove"  $ testAddRemoveBotTeam conf crt db b g c
+            , test p "team-only"   $ testBotTeamOnlyConv conf crt db b g c
             , test p "message"     $ testMessageBotTeam conf crt db b g c
             , test p "delete conv" $ testDeleteConvBotTeam conf crt db b g c
             , test p "delete team" $ testDeleteTeamBotTeam conf crt db b g c
@@ -510,8 +513,34 @@ testAddRemoveBotTeam config crt db brig galley cannon = withTestService config c
     addBot brig uid1 pid sid cidFail !!! do
         const 403 === statusCode
         const (Just "invalid-conversation") === fmap Error.label . decodeBody
-
     testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon
+
+testBotTeamOnlyConv :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testBotTeamOnlyConv config crt db brig galley cannon = withTestService config crt db brig defServiceApp $ \sref buf -> do
+    (u1, u2, _h, _tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
+    let (uid1, uid2) = (userId u1, userId u2)
+    -- Make the conversation team-only and check that the bot can't be added
+    -- to the conversation
+    setAccessRole uid1 cid TeamAccessRole
+    addBot brig uid1 pid sid cid !!! do
+        const 403 === statusCode
+        const (Just "invalid-conversation") === fmap Error.label . decodeBody
+    -- Make the conversation allowed for guests and add the bot successfully
+    setAccessRole uid1 cid NonActivatedAccessRole
+    bid <- addBotConv brig cannon uid1 uid2 cid pid sid buf
+    let buid = botUserId bid
+    -- Make the conversation team-only again and check that the bot has been removed
+    setAccessRole uid1 cid TeamAccessRole
+    WS.bracketR cannon uid1 $ \ws -> do
+        _ <- waitFor (5 # Second) not (isMember galley buid cid)
+        getBotConv galley bid cid !!!
+            const 404 === statusCode
+        svcAssertMemberLeave buf buid [buid] cid
+        wsAssertMemberLeave ws cid buid [buid]
+  where
+    setAccessRole uid cid role =
+        updateConversationAccess galley uid cid [InviteAccess] role !!!
+           const 200 === statusCode
 
 testMessageBotTeam :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testMessageBotTeam config crt db brig galley cannon = withTestService config crt db brig defServiceApp $ \sref buf -> do
@@ -1109,6 +1138,23 @@ getBotConv galley bid cid = get $ galley
     . header "Z-Type" "bot"
     . header "Z-Bot" (toByteString' bid)
     . header "Z-Conversation" (toByteString' cid)
+
+updateConversationAccess
+    :: Galley
+    -> UserId
+    -> ConvId
+    -> [Access]
+    -> AccessRole
+    -> Http ResponseLBS
+updateConversationAccess galley uid cid access role = put $ galley
+    . paths ["conversations", toByteString' cid, "access"]
+    . header "Z-Type" "access"
+    . header "Z-User" (toByteString' uid)
+    . header "Z-Connection" "conn"
+    . contentJson
+    . body (RequestBodyLBS (encode upd))
+  where
+    upd = ConversationAccessUpdate access role
 
 --------------------------------------------------------------------------------
 -- DB Operations

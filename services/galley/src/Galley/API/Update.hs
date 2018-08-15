@@ -154,9 +154,11 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
         tcv <- Data.teamConversation tid cnv
         when (maybe False (view managedConversation) tcv) $
             throwM invalidManagedConvOp
-        -- remove non-team users if target role is TeamAccessRole
-        when (targetRole == TeamAccessRole) $
-            removeNonTeamMembers tMembers users bots conv
+        -- remove bots and non-team users if target role is TeamAccessRole
+        when (targetRole == TeamAccessRole) $ do
+            -- nb: we don't have to push any events here because 'deleteBot' will do that
+            mapM_ (deleteBot cnv . botMemId) bots
+            removeNonTeamMembers tMembers users [] conv
 
     removeNonTeamMembers :: [TeamMember] -> [Member] -> [BotMember] -> Data.Conversation -> Galley ()
     removeNonTeamMembers tMembers users bots conv = do
