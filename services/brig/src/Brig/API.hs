@@ -20,11 +20,12 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User (NewUserNoSSO(NewUserNoSSO))
 import Brig.Types.User.Auth
+import Brig.Provider.DB (getServiceWhitelistStatus)
 import Brig.User.Email
 import Brig.User.Phone
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad (liftM2, liftM3, unless, void, when)
+import Control.Monad (liftM2, liftM3, unless, void, when, forM)
 import Control.Monad.Catch (finally)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
@@ -42,6 +43,7 @@ import Data.Text (Text, unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import Galley.Types (UserClients (..))
+import Galley.Types.Bot (ServiceRef, serviceRefId, serviceRefProvider)
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response, responseLBS, lazyRequestBody)
 import Network.Wai.Predicate hiding (setStatus, result)
@@ -49,6 +51,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities hiding (parseJsonBody)
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
+import Network.Wai.Utilities.ZAuth ((.&>))
 import Prelude hiding (head)
 import Util.Options
 
@@ -209,6 +212,15 @@ sitemap o = do
     post "/i/clients" (continue internalListClients) $
       accept "application" "json"
       .&. contentType "application" "json"
+      .&. request
+
+    -- provided a list of services, tells you for each whether it's
+    -- whitelisted or not; gets an array of ServiceRefs and returns an array
+    -- of bools
+    post "/i/teams/:tid/services/whitelisted" (continue internalQueryServiceWhitelist) $
+      accept "application" "json"
+      .&> contentType "application" "json"
+      .&> capture "tid"
       .&. request
 
     -- /users -----------------------------------------------------------------
@@ -1036,6 +1048,14 @@ internalListClients (_ ::: _ ::: req) = do
     UserSet usrs <- parseJsonBody req
     ucs <- Map.fromList <$> lift (API.lookupUsersClientIds $ Set.toList usrs)
     return $ json (UserClients ucs)
+
+internalQueryServiceWhitelist :: TeamId ::: Request -> Handler Response
+internalQueryServiceWhitelist (tid ::: req) = do
+    svcs :: [ServiceRef] <- parseJsonBody req
+    fmap json $ forM svcs $ \svc -> do
+        let pid = svc ^. serviceRefProvider
+            sid = svc ^. serviceRefId
+        getServiceWhitelistStatus tid pid sid
 
 getClient :: UserId ::: ClientId ::: JSON -> Handler Response
 getClient (usr ::: clt ::: _) = lift $ do
