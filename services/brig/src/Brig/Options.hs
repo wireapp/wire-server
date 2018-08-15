@@ -491,8 +491,8 @@ queueOption =
     fmap
         (\s -> let (type_, name_) = break (== ':') s in
                case type_ of
-                   "stomp" -> StompQueue (T.pack name_)
-                   "sqs"   -> SqsQueue (T.pack name_)
+                   "stomp" -> StompQueue (T.pack $ drop 1 name_)
+                   "sqs"   -> SqsQueue (T.pack $ drop 1 name_)
                    _       -> error ("Unknown queue type: " <> show type_)
         ) .
     strOption
