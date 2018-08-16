@@ -16,6 +16,7 @@ module Brig.AWS
     , amazonkaEnv
     , execute
     , sesQueue
+    , internalQueue
     , userJournalQueue
     , prekeyTable
 
@@ -36,6 +37,7 @@ module Brig.AWS
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
+import Brig.Queue.Types
 import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Concurrent.Lifted (threadDelay)
 import Control.Exception.Enclosed (handleAny)
@@ -78,6 +80,7 @@ import qualified System.Logger           as Logger
 data Env = Env
     { _logger           :: !Logger
     , _sesQueue         :: !(Maybe Text)
+    , _internalQueue    :: !(Maybe Text)
     , _userJournalQueue :: !(Maybe Text)
     , _prekeyTable      :: !Text
     , _amazonkaEnv      :: !AWS.Env
@@ -110,8 +113,8 @@ instance MonadBaseControl IO Amazon where
 instance AWS.MonadAWS Amazon where
     liftAWS a = view amazonkaEnv >>= flip AWS.runAWS a
 
-mkEnv :: Logger -> Opt.AWSOpts -> Maybe Opt.EmailAWSOpts -> Manager -> IO Env
-mkEnv lgr opts emailOpts mgr = do
+mkEnv :: Logger -> Opt.AWSOpts -> Queue -> Maybe Opt.EmailAWSOpts -> Manager -> IO Env
+mkEnv lgr opts queue emailOpts mgr = do
     let g  = Logger.clone (Just "aws.brig") lgr
     let pk = Opt.prekeyTable opts
     let sesEndpoint = mkEndpoint SES.ses . Opt.sesEndpoint <$> emailOpts
@@ -119,9 +122,13 @@ mkEnv lgr opts emailOpts mgr = do
                      (mkEndpoint SQS.sqs      (Opt.sqsEndpoint opts))
                      (mkEndpoint DDB.dynamoDB (Opt.dynamoDBEndpoint opts))
     sq <- maybe (return Nothing) (fmap Just . getQueueUrl e . Opt.sesQueue) emailOpts
+    iq <- prepareSqsQueue e queue
     jq <- maybe (return Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
-    return (Env g sq jq pk e)
+    return (Env g sq iq jq pk e)
   where
+    prepareSqsQueue _ (StompQueue _) = return Nothing
+    prepareSqsQueue e (SqsQueue   q) = Just <$> getQueueUrl e q
+
     mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
 
     mkAwsEnv g ses sqs dyn =  set AWS.envLogger (awsLogger g)

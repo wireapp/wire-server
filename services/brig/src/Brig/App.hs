@@ -179,7 +179,7 @@ newEnv o = do
     ptp <- loadProviderTemplates o
     ttp <- loadTeamTemplates o
     (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS o)
-    aws <- AWS.mkEnv lgr (Opt.aws o) emailAWSOpts mgr
+    aws <- AWS.mkEnv lgr (Opt.aws o) (Opt.internalEventsQueue $ Opt.internalEvents o) emailAWSOpts mgr
     zau <- initZAuth o
     clock <- mkAutoUpdate defaultUpdateSettings { updateAction = getCurrentTime }
     w   <- FS.startManagerConf
