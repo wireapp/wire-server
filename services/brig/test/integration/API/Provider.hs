@@ -535,6 +535,8 @@ testBotTeamOnlyConv config crt db brig galley cannon = withTestService config cr
         _ <- waitFor (5 # Second) not (isMember galley buid cid)
         getBotConv galley bid cid !!!
             const 404 === statusCode
+        svcAssertConvAccessUpdate buf uid1
+            (ConversationAccessUpdate [InviteAccess] TeamAccessRole) cid
         svcAssertMemberLeave buf buid [buid] cid
         wsAssertMemberLeave ws cid buid [buid]
   where
@@ -1530,6 +1532,17 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
             assertEqual "user" usr (evtFrom e)
             assertEqual "event data" (Just (EdMembers msg)) (evtData e)
         _ -> assertFailure "Event timeout (TestBotMessage: member-leave)"
+
+svcAssertConvAccessUpdate :: MonadIO m => Chan TestBotEvent -> UserId -> ConversationAccessUpdate -> ConvId -> m ()
+svcAssertConvAccessUpdate buf usr upd cnv = liftIO $ do
+    evt <- timeout (5 # Second) $ readChan buf
+    case evt of
+        Just (TestBotMessage e) -> do
+            assertEqual "event type" ConvAccessUpdate (evtType e)
+            assertEqual "conv" cnv (evtConv e)
+            assertEqual "user" usr (evtFrom e)
+            assertEqual "event data" (Just (EdConvAccessUpdate upd)) (evtData e)
+        _ -> assertFailure "Event timeout (TestBotMessage: conv-access-update)"
 
 svcAssertConvDelete :: MonadIO m => Chan TestBotEvent -> UserId -> ConvId -> m ()
 svcAssertConvDelete buf usr cnv = liftIO $ do
