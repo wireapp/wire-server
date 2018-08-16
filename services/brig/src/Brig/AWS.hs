@@ -28,6 +28,7 @@ module Brig.AWS
     , listen
     , enqueueFIFO
     , enqueueStandard
+    , getQueueUrl
 
       -- * AWS
     , exec
@@ -146,7 +147,9 @@ mkEnv lgr opts emailOpts mgr = do
     -- they are still revealed on debug level.
     mapLevel AWS.Error = Logger.Debug
 
-    getQueueUrl e q = view SQS.gqursQueueURL <$> exec e (SQS.getQueueURL q)
+getQueueUrl :: (MonadIO m, MonadCatch m, MonadBaseControl IO m)
+            => AWS.Env -> Text -> m Text
+getQueueUrl e q = view SQS.gqursQueueURL <$> exec e (SQS.getQueueURL q)
 
 execute :: MonadIO m => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)

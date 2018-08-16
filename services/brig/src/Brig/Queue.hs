@@ -27,6 +27,26 @@ import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Lazy   as BL
 import qualified Data.Text.Encoding     as T
 
+-- Note [queue refactoring]
+-- ~~~~~~~~~~~~~~~~
+--
+-- The way we deal with queues is not the best. There are two pieces of
+-- technical debt here:
+--
+--   1. 'Queue' is currently used only for the internal events queue, even
+--      though we have queues in other places (and not only in Brig). We
+--      should move 'Brig.Queue' out of Brig and use it elsewhere too.
+--
+--   2. If the 'Queue' is an SqsQueue, it has to be "resolved" before it can
+--      be used (we do that in 'newEnv', for instance). Ideally the 'Queue'
+--      should be a self-contained reference to a queue, with no 'Broker' or
+--      'Stomp.Env' needed to use it; we can still have 'Stomp.Env' in our
+--      configs, but it should disappear after the config is read.
+--      Similarly, for SqsQueues we should store the queue URL in the
+--      config, and not queue name, because AWS documentation suggests that
+--      the URL should actually be considered the canonical queue
+--      identifier.
+
 -- | Enqueue a message.
 --
 -- Throws an error in case of failure.

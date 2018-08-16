@@ -56,7 +56,7 @@ module Brig.App
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import Brig.Options (Opts, Settings)
-import Brig.Queue.Types (Queue)
+import Brig.Queue.Types (Queue (..))
 import Brig.Template (Localised, forLocale)
 import Brig.Provider.Template
 import Brig.Team.Template
@@ -194,6 +194,11 @@ newEnv o = do
         (Just s, Just c)   -> Just . Stomp.mkEnv s <$> initCredentials c
         (Just _, Nothing)  -> error "STOMP is configured but 'setStomp' is not set"
         (Nothing, Just _)  -> error "'setStomp' is present but STOMP is not configured"
+    -- This is messy. See Note [queue refactoring] to learn how we
+    -- eventually plan to solve this mess.
+    eventsQueue <- case Opt.internalEventsQueue (Opt.internalEvents o) of
+        StompQueue q -> pure (StompQueue q)
+        SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
     return $! Env
         { _cargohold     = mkEndpoint $ Opt.cargohold o
         , _galley        = mkEndpoint $ Opt.galley o
@@ -204,7 +209,7 @@ newEnv o = do
         , _stompEnv      = stomp
         , _metrics       = mtr
         , _applog        = lgr
-        , _internalEvents = Opt.internalEventsQueue (Opt.internalEvents o)
+        , _internalEvents = eventsQueue
         , _requestId     = mempty
         , _usrTemplates  = utp
         , _provTemplates = ptp
