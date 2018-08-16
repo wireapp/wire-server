@@ -28,7 +28,6 @@ import Spar.API.Instances ()
 import Spar.API.Test (IntegrationTests)
 import Spar.Data as Data
 import Spar.Options as Options
-import Spar.Types
 import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
@@ -49,7 +48,7 @@ spec = do
   describe "TTL" $ do
     it "works in seconds" $ do
       env <- ask
-      (_, _, idpid) <- createTestIdP
+      let idpid = env ^. teIdP . SAML.idpId
       (_, req) <- call $ callAuthnReq (env ^. teSpar) idpid
 
       let probe :: IO Bool
@@ -187,7 +186,7 @@ spec = do
 
         context "denied" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, outcome, _, _) <- prepareAccessVerdictCore False mkAuthnReqWeb
+            (_, outcome, _, _) <- requestAccessVerdict False mkAuthnReqWeb
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -198,7 +197,7 @@ spec = do
 
         context "granted" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, outcome, _, _) <- prepareAccessVerdictCore True mkAuthnReqWeb
+            (_, outcome, _, _) <- requestAccessVerdict True mkAuthnReqWeb
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
               Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -216,7 +215,7 @@ spec = do
 
         context "denied" $ do
           it "responds with status 303 with appropriate details." $ do
-            (_uid, outcome, loc, qry) <- prepareAccessVerdictCore False mkAuthnReqMobile
+            (_uid, outcome, loc, qry) <- requestAccessVerdict False mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -228,7 +227,7 @@ spec = do
 
         context "granted" $ do
           it "responds with status 303 with appropriate details." $ do
-            (uid, outcome, loc, qry) <- prepareAccessVerdictCore True mkAuthnReqMobile
+            (uid, outcome, loc, qry) <- requestAccessVerdict True mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -316,18 +315,20 @@ mkAuthnReqMobile idpid = do
       arPath = cs $ "/sso/initiate-login/" <> cs (SAML.idPIdToST idpid) <> "?" <> arQueries
   call $ get ((env ^. teSpar) . path arPath . expect2xx)
 
-prepareAccessVerdictCore :: HasCallStack
-                         => Bool                                             -- is the verdict granted?
-                         -> (SAML.IdPId -> ReaderT TestEnv IO ResponseLBS)   -- raw authnreq
-                         -> ReaderT TestEnv IO ( UserId
-                                               , SAML.ResponseVerdict
-                                               , URI                         -- location header
-                                               , [(SBS, SBS)]                -- query params
-                                               )
-prepareAccessVerdictCore isGranted mkAuthnReq = do
-  (uid, _, idpid) <- createTestIdP
+requestAccessVerdict :: HasCallStack
+                     => Bool                                             -- is the verdict granted?
+                     -> (SAML.IdPId -> ReaderT TestEnv IO ResponseLBS)   -- raw authnreq
+                     -> ReaderT TestEnv IO ( UserId
+                                           , SAML.ResponseVerdict
+                                           , URI                         -- location header
+                                           , [(SBS, SBS)]                -- query params
+                                           )
+requestAccessVerdict isGranted mkAuthnReq = do
   env <- ask
-  let tenant  = sampleIdP ^. nidpIssuer
+  let uid = env ^. teUserId
+      idp = env ^. teIdP
+  let idpid   = idp ^. SAML.idpId
+      tenant  = idp ^. SAML.idpIssuer
       subject = SAML.opaqueNameID "blee"
       uref    = SAML.UserRef tenant subject
   call $ runInsertUser env uref uid

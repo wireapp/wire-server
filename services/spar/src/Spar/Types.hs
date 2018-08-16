@@ -19,15 +19,14 @@ import Data.Id (TeamId, UserId)
 import Data.String.Conversions
 import GHC.Generics
 import Lens.Micro.TH (makeLenses)
-import SAML2.WebSSO.Config.TH (deriveJSONOptions)
-import SAML2.WebSSO (IdPConfig, Issuer, ID, AuthnRequest)
+import SAML2.WebSSO (IdPConfig, ID, AuthnRequest)
+import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Text.XML.Util (renderURI, parseURI')
 import URI.ByteString
 import Web.Cookie
 
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.Text as ST
-import qualified Data.X509 as X509
 
 
 -- | Info about the service provider that can be given to the identity
@@ -64,21 +63,6 @@ data IdPList = IdPList
 
 makeLenses ''IdPList
 deriveJSON deriveJSONOptions ''IdPList
-
--- | 'IdPConfig' contains some info that will be filled in by the server when processing the
--- creation request.  'NewIdP' is the type of the data provided by the client in this request.
---
--- FUTUREWORK: move this to saml2-web-sso.
-data NewIdP = NewIdP
-  { _nidpMetadata        :: URI
-  , _nidpIssuer          :: Issuer  -- TODO: remove this field, it's redundant.  (this will also shorten the list of possible errors in the UI.)
-  , _nidpRequestUri      :: URI     -- TODO: dito.
-  , _nidpPublicKey       :: X509.SignedCertificate
-  }
-  deriving (Eq, Show, Generic)
-
-makeLenses ''NewIdP
-deriveJSON deriveJSONOptions ''NewIdP
 
 type AReqId = ID AuthnRequest
 

@@ -105,7 +105,7 @@ type APIAuthResp = "sso" :> "finalize-login" :> SAML.APIAuthResp
 
 type IdpGet     = Header "Z-User" UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
 type IdpGetAll  = Header "Z-User" UserId :> "identity-providers" :> Get '[JSON] IdPList
-type IdpCreate  = Header "Z-User" UserId :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IdP
+type IdpCreate  = Header "Z-User" UserId :> "identity-providers" :> ReqBody '[JSON] SAML.NewIdP :> PostCreated '[JSON] IdP
 type IdpDelete  = Header "Z-User" UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 -- FUTUREWORK (thanks jschaul): In a more recent version of servant, using Header '[Strict] becomes
@@ -181,7 +181,7 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     return NoContent
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreate :: ZUsr -> NewIdP -> Spar IdP
+idpCreate :: ZUsr -> SAML.NewIdP -> Spar IdP
 idpCreate zusr newIdP = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- getZUsrOwnedTeam zusr
   validateNewIdP newIdP
@@ -214,8 +214,8 @@ getZUsrOwnedTeam (Just uid) = do
     Nothing -> throwSpar SparNotInTeam
     Just teamid -> teamid <$ Intra.assertIsTeamOwner uid teamid
 
-initializeIdP :: NewIdP -> TeamId -> Spar IdP
-initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpeTeam = do
+initializeIdP :: SAML.NewIdP -> TeamId -> Spar IdP
+initializeIdP (SAML.NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpeTeam = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
   _idpeSPInfo <- wrapMonadClientWithEnv $ Data.getSPInfo _idpId
   let _idpExtraInfo = IdPExtra { _idpeTeam, _idpeSPInfo }
@@ -226,8 +226,8 @@ type MonadValidateIdP m = (MonadHttp m, MonadIO m)
 
 -- | FUTUREWORK: much of this function could move to the saml2-web-sso package.
 validateNewIdP :: forall m. (HasCallStack, MonadError SparError m, MonadValidateIdP m)
-               => NewIdP -> m ()
-validateNewIdP newidp = if True then pure () else do  -- TODO: validation breaks current integration test suite, so it's disabled.
+               => SAML.NewIdP -> m ()
+validateNewIdP newidp = do
   let uri2req :: URI.URI -> m Request
       uri2req = either (throwSpar . SparNewIdPBadMetaUrl . cs . show) pure
               . Rq.parseRequest . cs . SAML.renderURI
@@ -241,22 +241,19 @@ validateNewIdP newidp = if True then pure () else do  -- TODO: validation breaks
       tweakleft (HttpT action) = liftIO . runReaderT action =<< getManager
 
   metaResp :: Bilge.Response (Maybe LBS)
-    <- fetch (newidp ^. nidpMetadata) (method GET . expect2xx)
+    <- fetch (newidp ^. SAML.nidpMetadata) (method GET . expect2xx)
   metaBody :: LBS
     <- maybe (throwSpar $ SparNewIdPBadMetaUrl "No body in response.") pure $ responseBody metaResp
-  when (isLeft $ SAML.verifyRoot (newidp ^. nidpPublicKey) metaBody) $ do
+  when (isLeft $ do
+           creds <- SAML.certToCreds $ newidp ^. SAML.nidpPublicKey
+           SAML.verifyRoot creds metaBody) $ do
     throwSpar SparNewIdPBadMetaSig
   meta :: SAML.IdPDesc
     <- either (throwSpar . SparNewIdPBadMetaUrl . cs) pure $ do
          XML.Document _ el _ <- fmapL show $ XML.parseLBS XML.def metaBody
          SAML.parseIdPDesc el
-  when (newidp ^. nidpPublicKey `notElem` meta ^. SAML.edPublicKeys) $
+  when (newidp ^. SAML.nidpPublicKey `notElem` meta ^. SAML.edPublicKeys) $
     throwSpar SparNewIdPPubkeyMismatch
-  respResp :: Bilge.Response (Maybe LBS)
-    <- fetch (newidp ^. nidpRequestUri) (method POST . body "request")
-  when (statusCode respResp >= 400) $ do
-    let msg = (cs . show . responseStatus $ respResp) <> (maybe "" ((": " <>) . cs) $ responseBody respResp)
-    throwSpar $ SparNewIdPBadReqUrl msg
 
 
 -- | Type families to convert spar's 'API' type into an "outside-world-view" API type

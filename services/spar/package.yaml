@@ -25,6 +25,7 @@ dependencies:
   - cassandra-util
   - containers
   - cookie
+  - cryptonite
   - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
   - ghc-prim
@@ -108,3 +109,4 @@ executables:
       - spar
       - wai
       - xml-conduit
+      - xml-hamlet

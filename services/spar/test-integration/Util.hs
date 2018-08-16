@@ -18,8 +18,8 @@
 -- FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdp, teMockIdp, teOpts, teTstOpts
-  , Select, mkEnv, it, pending, pendingWith
+  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdP, teIdPEndpoint, teUserId, teTeamId, teIdP, teIdPHandle, teOpts, teTstOpts
+  , Select, mkEnv, destroyEnv, it, pending, pendingWith
   , IntegrationConfig(..)
   , BrigReq
   , GalleyReq
@@ -34,9 +34,8 @@ module Util
   , call
   , ping
   , createTestIdP
-  , sampleIdP
-  , samplePublicKey1
-  , samplePublicKey2
+  , negotiateAuthnRequest
+  , submitAuthnResponse
   , responseJSON
   , callAuthnReqPrecheck'
   , callAuthnReq, callAuthnReq'
@@ -69,8 +68,12 @@ import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID (nextRandom)
 import GHC.Stack (HasCallStack)
+import Network.HTTP.Client.MultipartFormData
 import Lens.Micro
 import Prelude hiding (head)
+import SAML2.WebSSO
+import SAML2.WebSSO.Test.Credentials
+import SAML2.WebSSO.Test.MockResponse
 import Spar.API ()
 import Spar.Options as Options
 import Spar.Run
@@ -78,7 +81,6 @@ import Spar.Types
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, xit, pending, pendingWith)
 import URI.ByteString
-import URI.ByteString.QQ
 import Util.MockIdP
 import Util.Options
 import Util.Types
@@ -86,10 +88,11 @@ import Util.Types
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
+import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
-import qualified Data.X509 as X509
 import qualified Galley.Types.Teams as Galley
+import qualified Network.Wai.Handler.Warp as Warp
 import qualified SAML2.WebSSO as SAML
 import qualified Test.Hspec
 import qualified Text.XML as XML
@@ -109,10 +112,21 @@ mkEnv _teTstOpts _teOpts = do
       _teBrig    = mkreq cfgBrig
       _teGalley  = mkreq cfgGalley
       _teSpar    = mkreq cfgSpar
-      _teNewIdp  = cfgNewIdp _teTstOpts
-      _teMockIdp = cfgMockIdp _teTstOpts
 
-  pure $ TestEnv {..}
+      _teNewIdP  = cfgNewIdp _teTstOpts
+      _teIdPEndpoint = cfgMockIdp _teTstOpts
+
+  _teIdPHandle <- let app = serveSampleIdP _teNewIdP
+                      srv = Warp.runSettings (endpointToSettings _teIdPEndpoint) app
+                  in Async.async srv
+
+  (_teUserId, _teTeamId, _teIdP) <- createTestIdPFrom _teNewIdP _teMgr _teBrig _teGalley _teSpar
+
+  pure TestEnv {..}
+
+destroyEnv :: HasCallStack => TestEnv -> IO ()
+destroyEnv = Async.cancel . (^. teIdPHandle)
+
 
 it :: (HasCallStack, m ~ IO)
        -- or, more generally:
@@ -131,7 +145,7 @@ createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> Galle
 createUserWithTeam brg gly = do
     e <- randomEmail
     n <- UUID.toString <$> liftIO UUID.nextRandom
-    let p = RequestBodyLBS . encode $ object
+    let p = RequestBodyLBS . Aeson.encode $ object
             [ "name"            .= n
             , "email"           .= Brig.fromEmail e
             , "password"        .= defPassword
@@ -172,7 +186,7 @@ addTeamMember galleyreq tid mem =
                 . paths ["i", "teams", toByteString' tid, "members"]
                 . contentJson
                 . expect2xx
-                . lbytes (encode mem)
+                . lbytes (Aeson.encode mem)
                 )
 
 createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Brig.Phone)
@@ -181,7 +195,7 @@ createRandomPhoneUser brig_ = do
     let uid = Brig.userId usr
     phn <- liftIO randomPhone
     -- update phone
-    let phoneUpdate = RequestBodyLBS . encode $ Brig.PhoneUpdate phn
+    let phoneUpdate = RequestBodyLBS . Aeson.encode $ Brig.PhoneUpdate phn
     put (brig_ . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!!
         (const 202 === statusCode)
     -- activate
@@ -249,7 +263,7 @@ postUser :: (HasCallStack, MonadIO m, MonadHttp m)
          => ST -> Maybe ST -> Maybe Brig.UserSSOId -> Maybe TeamId -> BrigReq -> m ResponseLBS
 postUser name email ssoid teamid brig_ = do
     email' <- maybe (pure Nothing) (fmap (Just . Brig.fromEmail) . mkEmailRandomLocalSuffix) email
-    let p = RequestBodyLBS . encode $ object
+    let p = RequestBodyLBS . Aeson.encode $ object
             [ "name"            .= name
             , "email"           .= email'
             , "password"        .= defPassword
@@ -308,36 +322,54 @@ shouldRespondWith action proper = do
 -- envit :: Example (r -> m a) => String -> ReaderT r m a -> SpecWith (Arg (r -> m a))
 -- envit msg action = it msg $ \env -> action `runReaderT` env
 
-call :: Http a -> ReaderT TestEnv IO a
+call :: (MonadIO m, MonadReader TestEnv m) => Http a -> m a
 call req = ask >>= \env -> liftIO $ runHttpT (env ^. teMgr) req
 
 ping :: (Request -> Request) -> Http ()
 ping req = void . get $ req . path "/i/status" . expect2xx
 
 
-createTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, SAML.IdPId)
-createTestIdP = do
+-- | Create new user, team, idp from 'sampleIdP'.  The issuer id can be used to do this several
+-- times without getting the error that this issuer is already used for another team.
+createTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => UUID -> m (UserId, TeamId, IdP)
+createTestIdP issuerid = do
   env <- ask
-  liftIO . runHttpT (env ^. teMgr) $ do
-    (uid, tid) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-    (uid, tid,) . (^. SAML.idpId) <$> callIdpCreate (env ^. teSpar) (Just uid) sampleIdP
+  let sampleNewIdP = sampleIdP (mkurl "/meta") (mkurl "/resp")
+        & nidpIssuer .~ Issuer (mkurl $ "/_" <> UUID.toText issuerid)
+      Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp
+      mkurl = either (error . show) id . SAML.parseURI' . (("http://" <> ephost <> ":" <> epport) <>)
+  createTestIdPFrom sampleNewIdP (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
 
--- TODO: sampleIdP must be the data for our MockIdP
--- TODO add 'Chan's for optionally diverging from the happy path (for testing validation)
+-- | Create new user, team, idp from given 'NewIdP'.
+createTestIdPFrom :: (HasCallStack, MonadIO m)
+                  => NewIdP -> Manager -> BrigReq -> GalleyReq -> SparReq -> m (UserId, TeamId, IdP)
+createTestIdPFrom newidp mgr brig galley spar = do
+  liftIO . runHttpT mgr $ do
+    (uid, tid) <- createUserWithTeam brig galley
+    (uid, tid,) <$> callIdpCreate spar (Just uid) newidp
 
-sampleIdP :: HasCallStack => NewIdP
-sampleIdP = NewIdP
-  { _nidpMetadata        = [uri|http://idp.net/meta|]
-  , _nidpIssuer          = SAML.Issuer [uri|http://idp.net/|]
-  , _nidpRequestUri      = [uri|http://idp.net/sso/request|]
-  , _nidpPublicKey       = samplePublicKey1
-  }
+negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+                      => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
+negotiateAuthnRequest = do
+  env <- ask
+  let idp = env ^. teIdP
+  resp :: ResponseLBS
+    <- call $ get
+           ( (env ^. teSpar)
+           . path ("/sso/initiate-login/" <> (cs . UUID.toText . fromIdPId . (^. SAML.idpId) $ idp))
+           . expect2xx
+           )
+  (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
+  pure (idp, sampleIdPPrivkey, authnreq)
 
-samplePublicKey1 :: X509.SignedCertificate
-samplePublicKey1 = either (error . show) id $ SAML.parseKeyInfo "<KeyInfo xmlns=\"http://www.w3.org/2000/09/xmldsig#\"><X509Data><X509Certificate>MIIDBTCCAe2gAwIBAgIQev76BWqjWZxChmKkGqoAfDANBgkqhkiG9w0BAQsFADAtMSswKQYDVQQDEyJhY2NvdW50cy5hY2Nlc3Njb250cm9sLndpbmRvd3MubmV0MB4XDTE4MDIxODAwMDAwMFoXDTIwMDIxOTAwMDAwMFowLTErMCkGA1UEAxMiYWNjb3VudHMuYWNjZXNzY29udHJvbC53aW5kb3dzLm5ldDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMgmGiRfLh6Fdi99XI2VA3XKHStWNRLEy5Aw/gxFxchnh2kPdk/bejFOs2swcx7yUWqxujjCNRsLBcWfaKUlTnrkY7i9x9noZlMrijgJy/Lk+HH5HX24PQCDf+twjnHHxZ9G6/8VLM2e5ZBeZm+t7M3vhuumEHG3UwloLF6cUeuPdW+exnOB1U1fHBIFOG8ns4SSIoq6zw5rdt0CSI6+l7b1DEjVvPLtJF+zyjlJ1Qp7NgBvAwdiPiRMU4l8IRVbuSVKoKYJoyJ4L3eXsjczoBSTJ6VjV2mygz96DC70MY3avccFrk7tCEC6ZlMRBfY1XPLyldT7tsR3EuzjecSa1M8CAwEAAaMhMB8wHQYDVR0OBBYEFIks1srixjpSLXeiR8zES5cTY6fBMA0GCSqGSIb3DQEBCwUAA4IBAQCKthfK4C31DMuDyQZVS3F7+4Evld3hjiwqu2uGDK+qFZas/D/eDunxsFpiwqC01RIMFFN8yvmMjHphLHiBHWxcBTS+tm7AhmAvWMdxO5lzJLS+UWAyPF5ICROe8Mu9iNJiO5JlCo0Wpui9RbB1C81Xhax1gWHK245ESL6k7YWvyMYWrGqr1NuQcNS0B/AIT1Nsj1WY7efMJQOmnMHkPUTWryVZlthijYyd7P2Gz6rY5a81DAFqhDNJl2pGIAE6HWtSzeUEh3jCsHEkoglKfm4VrGJEuXcALmfCMbdfTvtu4rlsaP2hQad+MG/KJFlenoTK34EMHeBPDCpqNDz8UVNk</X509Certificate></X509Data></KeyInfo>"
 
-samplePublicKey2 :: X509.SignedCertificate
-samplePublicKey2 = either (error . show) id $ SAML.parseKeyInfo "<ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"><ds:X509Data><ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAWOMMryDMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEUMBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi02MDc2NDgxHDAaBgkqhkiG9w0BCQEWDWluZm9Ab2t0YS5jb20wHhcNMTgwNTIzMDg1MTA1WhcNMjgwNTIzMDg1MjA1WjCBkjELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNVBAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtNjA3NjQ4MRwwGgYJKoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2HkpOuMhVFUCptrVB/Zm36cuFM+YMQjKdtqEoBJDLbtSbb7uFuvm5rMJ+1VSK5GKAM/Bec5WXTE2WMkifK5JaGOLS7q8+pgiWmqKE3KHMUmLAioe/1jzHkCobxis0FIVhyarRY97w0VMbDGzhPiU7pEopYpicJBzRL2UrzR+PebGgllvnaPzlg8ePtr9/xMv0QTJlYEyCctO4vT5Qa5Xlfek3Ox5yMJM1JPXzn7yuJN5R/Nf8jFprsdBSxNMzkcTRFGy8as2GCt/Xh9H+ef4CxSgRK5UXcUCrb5YMnBehEp2YiuWtw8QsGRR8elgnF3Uw9J2xEDkZIhurPy8OYmGNQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQA7kxxg2aVjo7Oml83bUWk4UtaQKYMEY74mygG/JV09g1DVMAPAyjaaMFamDSjortKarMQ3ET5tj2DggQBsWQNzsr3iZkmijab8JLwzA2+I1q63S68OaW5uaR5iMR8zZCTh/fWWYqa1AP64XeGHp+RLGfbp/eToNfkQWu7fH2QtDMOeLe5VmIV9pOFHnySszoR/epMd3sdDLVgmz4qbrMTBWD+5rxWdYS2glmRXl7IIQHrdBTRMll7S6ks5prqKFTwfPvZVrTnzD83a39wl2jBJhOQLjmSfSwP9H0YFNb/NRaDbSDS7BPuAlotZsaPZIN95tu+t9wmFwdxcVG/9q/Vu</ds:X509Certificate></ds:X509Data></ds:KeyInfo>"
+submitAuthnResponse :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+                    => SignedAuthnResponse -> m ResponseLBS
+submitAuthnResponse (SignedAuthnResponse authnresp) = do
+  env <- ask
+  req :: Request
+    <- formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
+  call $ post' req ((env ^. teSpar) . path "/sso/finalize-login")
 
 
 -- TODO: move this to /lib/bilge?
@@ -400,13 +432,13 @@ callIdpGet' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId
 callIdpGet' sparreq_ muid idpid = do
   get $ sparreq_ . maybe id zUser muid . path ("/identity-providers/" <> cs (SAML.idPIdToST idpid))
 
-callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> NewIdP -> m IdP
+callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.NewIdP -> m IdP
 callIdpCreate sparreq_ muid newidp = do
   resp <- callIdpCreate' (sparreq_ . expect2xx) muid newidp
   either (liftIO . throwIO . ErrorCall . show) pure
     $ responseJSON @IdP resp
 
-callIdpCreate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> NewIdP -> m ResponseLBS
+callIdpCreate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.NewIdP -> m ResponseLBS
 callIdpCreate' sparreq_ muid newidp = do
   post $ sparreq_ . maybe id zUser muid . path "/identity-providers/" . json newidp
 
