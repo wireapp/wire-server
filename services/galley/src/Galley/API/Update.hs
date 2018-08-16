@@ -438,6 +438,7 @@ postNewOtrMessage usr con cnv val msg = do
     -- because they are not on the services whitelist for the team.
     -- Returns empty set if the conversation is not a team conversation.
     getDewhitelisted :: [BotMember] -> Galley (Set ServiceRef)
+    getDewhitelisted [] = pure mempty
     getDewhitelisted bots = do
         mbTeam <- (convTeam =<<) <$> Data.conversation cnv
         mbList <- forM mbTeam $ \team -> do
