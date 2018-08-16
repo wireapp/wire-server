@@ -6,6 +6,7 @@ module Galley.Intra.Provider
 
 import Bilge hiding (options, getHeader, statusCode)
 import Bilge.RPC
+import Brig.Types.Provider (ServiceWhitelistStatus)
 import Galley.App
 import Galley.Intra.Util
 import Galley.Types.Bot
@@ -15,7 +16,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
-queryServiceWhitelist :: TeamId -> [ServiceRef] -> Galley [Bool]
+queryServiceWhitelist :: TeamId -> [ServiceRef] -> Galley [ServiceWhitelistStatus]
 queryServiceWhitelist tid svcs = do
     (h, p) <- brigReq
     r <- call "brig"

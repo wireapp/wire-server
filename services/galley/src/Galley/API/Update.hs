@@ -59,6 +59,7 @@ import Data.List1
 import Data.Text (Text)
 import Data.Time
 import Data.Set (Set)
+import Brig.Types.Provider (ServiceWhitelistStatus (..))
 import Galley.App
 import Galley.API.Error
 import Galley.API.Mapping
@@ -434,15 +435,21 @@ postNewOtrMessage usr con cnv val msg = do
             mapM_ (deleteBot cnv . botMemId) gone
   where
     -- Get the set of services that should be removed from the conversation
-    -- because they are not on the services whitelist for the team
+    -- because they are not on the services whitelist for the team.
+    -- Returns empty set if the conversation is not a team conversation.
     getDewhitelisted :: [BotMember] -> Galley (Set ServiceRef)
     getDewhitelisted bots = do
         mbTeam <- (convTeam =<<) <$> Data.conversation cnv
         mbList <- forM mbTeam $ \team -> do
             let services = map botMemService bots
             statuses <- queryServiceWhitelist team services
-            return $ Set.fromList (map fst (filter (not . snd) (zip services statuses)))
+            return $ Set.fromList $
+                map getServiceRef $
+                filter (not . serviceWhitelistStatusStatus) statuses
         return (fromMaybe mempty mbList)
+
+    getServiceRef :: ServiceWhitelistStatus -> ServiceRef
+    getServiceRef (ServiceWhitelistStatus pid sid _) = newServiceRef sid pid
 
 newMessage
     :: UserId

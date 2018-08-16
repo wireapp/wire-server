@@ -17,6 +17,7 @@ import Brig.API.Handler
 import Brig.API.Types
 import Brig.Options hiding (sesQueue, internalEvents)
 import Brig.Types
+import Brig.Types.Provider (ServiceWhitelistStatus (..))
 import Brig.Types.Intra
 import Brig.Types.User (NewUserNoSSO(NewUserNoSSO))
 import Brig.Types.User.Auth
@@ -215,8 +216,8 @@ sitemap o = do
       .&. request
 
     -- provided a list of services, tells you for each whether it's
-    -- whitelisted or not; gets an array of ServiceRefs and returns an array
-    -- of bools
+    -- whitelisted or not; gets an array of 'ServiceRef's and returns an
+    -- array of 'ServiceWhitelistStatus'es
     post "/i/teams/:tid/services/whitelisted" (continue internalQueryServiceWhitelist) $
       accept "application" "json"
       .&> contentType "application" "json"
@@ -1055,7 +1056,8 @@ internalQueryServiceWhitelist (tid ::: req) = do
     fmap json $ forM svcs $ \svc -> do
         let pid = svc ^. serviceRefProvider
             sid = svc ^. serviceRefId
-        getServiceWhitelistStatus tid pid sid
+        status <- getServiceWhitelistStatus tid pid sid
+        return (ServiceWhitelistStatus pid sid status)
 
 getClient :: UserId ::: ClientId ::: JSON -> Handler Response
 getClient (usr ::: clt ::: _) = lift $ do

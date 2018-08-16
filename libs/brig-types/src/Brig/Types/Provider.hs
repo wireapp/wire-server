@@ -620,6 +620,28 @@ instance ToJSON UpdateServiceWhitelist where
         ]
 
 --------------------------------------------------------------------------------
+-- ServiceWhitelistStatus
+
+data ServiceWhitelistStatus = ServiceWhitelistStatus
+    { serviceWhitelistStatusProvider :: !ProviderId
+    , serviceWhitelistStatusService  :: !ServiceId
+    , serviceWhitelistStatusStatus   :: !Bool
+    } deriving (Eq, Show)
+
+instance FromJSON ServiceWhitelistStatus where
+    parseJSON = withObject "ServiceWhitelistStatus" $ \o ->
+        ServiceWhitelistStatus <$> o .: "provider"
+                               <*> o .: "id"
+                               <*> o .: "whitelisted"
+
+instance ToJSON ServiceWhitelistStatus where
+    toJSON u = object
+        [ "provider"    .= serviceWhitelistStatusProvider u
+        , "id"          .= serviceWhitelistStatusService u
+        , "whitelisted" .= serviceWhitelistStatusStatus u
+        ]
+
+--------------------------------------------------------------------------------
 -- AddBot
 
 -- | Input data for adding a bot to a conversation.
