@@ -161,7 +161,7 @@ createUser new@NewUser{..} = do
 
     Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
     activatedTeam <- lift $ do
-        Data.insertAccount account pw False searchable
+        Data.insertAccount account Nothing pw False searchable
         Intra.createSelfConv uid
         Intra.onUserEvent uid Nothing (UserCreated account)
         -- If newUserEmailCode is set, team gets activated _now_ else createUser fails
@@ -747,7 +747,7 @@ deleteAccount account@(accountUser -> user) = do
     -- Wipe data
     Data.clearProperties uid
     tombstone <- mkTombstone
-    Data.insertAccount tombstone Nothing False (SearchableStatus False)
+    Data.insertAccount tombstone Nothing Nothing False (SearchableStatus False)
     Intra.rmUser uid (userAssets user)
     Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
     Intra.onUserEvent uid Nothing (UserDeleted uid)

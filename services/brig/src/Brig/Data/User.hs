@@ -40,6 +40,7 @@ module Brig.Data.User
     , deleteEmail
     , deletePhone
     , deleteServiceUser
+    , lookupServiceUsers
     , updateHandle
     ) where
 
@@ -143,8 +144,8 @@ reauthenticate u pw = lift (lookupAuth u) >>= \case
             unless (verifyPassword p pw') $
                 throwE (ReAuthError AuthInvalidCredentials)
 
-insertAccount :: UserAccount -> Maybe Password -> Bool -> SearchableStatus -> AppIO ()
-insertAccount (UserAccount u status) password activated searchable = retry x5 $ batch $ do
+insertAccount :: UserAccount -> Maybe ConvId -> Maybe Password -> Bool -> SearchableStatus -> AppIO ()
+insertAccount (UserAccount u status) mbConv password activated searchable = retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
     let Locale l c = userLocale u
@@ -158,11 +159,12 @@ insertAccount (UserAccount u status) password activated searchable = retry x5 $ 
         , searchable
         , userTeam u
         )
-    for_ (userService u) $ \sref ->
+    for_ ((,) <$> userService u <*> mbConv) $ \(sref, cid) ->
         addPrepQuery serviceUserInsert
             ( sref ^. serviceRefProvider
             , sref ^. serviceRefId
             , BotId (userId u)
+            , cid
             )
 
 updateLocale :: UserId -> Locale -> AppIO ()
@@ -273,6 +275,9 @@ lookupAccounts usrs = do
     loc <- setDefaultLocale  <$> view settings
     fmap (toUserAccount loc) <$> retry x1 (query accountsSelect (params Quorum (Identity usrs)))
 
+lookupServiceUsers :: ProviderId -> ServiceId -> AppIO [(BotId, ConvId)]
+lookupServiceUsers pid sid = retry x1 (query serviceUsersSelect (params Quorum (pid, sid)))
+
 -------------------------------------------------------------------------------
 -- Queries
 
@@ -380,13 +385,17 @@ userEmailDelete = "UPDATE user SET email = null WHERE id = ?"
 userPhoneDelete :: PrepQuery W (Identity UserId) ()
 userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
 
-serviceUserInsert :: PrepQuery W (ProviderId, ServiceId, BotId) ()
-serviceUserInsert = "INSERT INTO service_user (provider, service, user) \
-                    \VALUES (?, ?, ?)"
+serviceUserInsert :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId) ()
+serviceUserInsert = "INSERT INTO service_user (provider, service, user, conv) \
+                    \VALUES (?, ?, ?, ?)"
 
 serviceUserDelete :: PrepQuery W (ProviderId, ServiceId) ()
 serviceUserDelete = "DELETE FROM service_user \
                     \WHERE provider = ? AND service = ?"
+
+serviceUsersSelect :: PrepQuery R (ProviderId, ServiceId) (BotId, ConvId)
+serviceUsersSelect = "SELECT user, conv FROM service_user \
+                     \WHERE provider = ? AND service = ?"
 
 -------------------------------------------------------------------------------
 -- Conversions

@@ -32,8 +32,8 @@ import qualified System.Logger.Class  as Log
 -- | Deliver events to external (bot) services.
 --
 -- Returns those bots which are found to be orphaned by the external
--- service, either because the entire service is gone or because
--- the service tells us that it no longer knows about the bot.
+-- service, e.g. when the service tells us that it no longer knows about the
+-- bot.
 deliver :: [(BotMember, Event)] -> Galley [BotMember]
 deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
   where

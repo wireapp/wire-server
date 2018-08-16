@@ -579,10 +579,10 @@ deleteService (pid ::: sid ::: req) = do
     svc  <- DB.lookupService pid sid >>= maybeServiceNotFound
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
+    users <- lift $ User.lookupServiceUsers pid sid
+    for_ users $ \(bid, cid) ->
+        deleteBot (botUserId bid) Nothing bid cid
     lift $ RPC.removeServiceConn pid sid
-    -- Note: we don't remove the service from conversations here, even
-    -- though it'd be nice to do. Instead we do it lazily, when somebody
-    -- sends a message in that conversation. See 'postNewOtrMessage'.
     DB.deleteService pid sid name tags
     return empty
 
@@ -737,7 +737,7 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let newClt = (newClient PermanentClient (Ext.rsNewBotLastPrekey rs) ())
                { newClientPrekeys = Ext.rsNewBotPrekeys rs
                }
-    lift $ User.insertAccount (UserAccount usr Active) Nothing True (SearchableStatus True)
+    lift $ User.insertAccount (UserAccount usr Active) (Just cid) Nothing True (SearchableStatus True)
     (clt, _, _) <- User.addClient (botUserId bid) bcl newClt Nothing
                    !>> const (StdError badGateway) -- MalformedPrekeys
 

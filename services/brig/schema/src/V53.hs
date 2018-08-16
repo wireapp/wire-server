@@ -14,6 +14,7 @@ migration = Migration 53 "Add a table for tracking users spawned by services" $ 
             ( provider uuid
             , service  uuid
             , user     uuid
+            , conv     uuid
             , primary key (provider, service)
             )
     |]
