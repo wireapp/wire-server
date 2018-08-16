@@ -3,6 +3,8 @@
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE NondecreasingIndentation #-}
 
 module API.Provider (tests, Config) where
 
@@ -116,6 +118,8 @@ tests conf p db b c g = do
             , test p "search" $ testSearchWhitelist conf db b g
             , test p "search honors enabling and whitelisting"
                               $ testSearchWhitelistHonorUpdates conf db b g
+            , test p "de-whitelisted bots are removed"
+                              $ testWhitelistKickout conf crt db b g c
             ]
         , testGroup "bot"
             [ test p "add-remove" $ testAddRemoveBot conf crt db b g c
@@ -748,13 +752,9 @@ testWhitelistBasic config crt db brig galley =
         const (Just "service-not-whitelisted") === fmap Error.label . decodeBody
     -- Check that after whitelisting the service, it can be added to the conversation
     whitelistService brig owner tid pid sid
-    rs <- addBot brig owner pid sid cid <!!
-        const 201 === statusCode
-    let Just bid = rsAddBotId <$> decodeBody rs
+    bid <- fmap rsAddBotId . decodeBody =<<
+           (addBot brig owner pid sid cid <!! const 201 === statusCode)
     _ <- svcAssertBotCreated buf bid cid
-    -- TODO: check that after de-whitelisting and sending a message, the
-    -- service is not in the conversation anymore.
-
     -- Check that after de-whitelisting the service can't be added to conversations
     removeBot brig owner cid bid !!!
         const 200 === statusCode
@@ -765,6 +765,47 @@ testWhitelistBasic config crt db brig galley =
     -- Check that a disabled service can be whitelisted
     disableService brig pid sid
     whitelistService brig owner tid pid sid
+
+testWhitelistKickout :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testWhitelistKickout config crt db brig galley cannon = do
+    -- Create a team and a conversation
+    (owner, tid) <- Team.createUserWithTeam brig galley
+    let new = defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0)
+    _rs <- addClient brig owner new <!! const 201 === statusCode
+    client <- clientId <$> decodeBody _rs
+    cid <- Team.createTeamConv galley tid owner [] Nothing
+    -- Create a service
+    withTestService config crt db brig defServiceApp $ \sref buf -> do
+    -- Add it to the conversation
+    let pid = sref^.serviceRefProvider
+        sid = sref^.serviceRefId
+    whitelistService brig owner tid pid sid
+    bot <- decodeBody =<<
+           (addBot brig owner pid sid cid <!! const 201 === statusCode)
+    let bid  = rsAddBotId bot
+        buid = botUserId bid
+        bc   = rsAddBotClient bot
+    _ <- svcAssertBotCreated buf bid cid
+    svcAssertMemberJoin buf owner [buid] cid
+    -- De-whitelist the bot and send a message
+    dewhitelistService brig owner tid pid sid
+    postMessage galley owner client cid [(buid, bc, "hi")] !!!
+        const 201 === statusCode
+    -- The bot should be kicked out
+    WS.bracketR cannon owner $ \ws -> do
+        _ <- waitFor (2 # Second) not (isMember galley buid cid)
+        getBotConv galley bid cid !!!
+            const 404 === statusCode
+        -- TODO: it looks like the bot left on its own, but if this was
+        -- implemented properly, here we would've seen that the bot was
+        -- removed by 'owner'
+        wsAssertMemberLeave ws cid buid [buid]
+        svcAssertMemberLeave buf buid [buid] cid
+    -- The bot should not get any further events or messages
+    liftIO $ timeout (2 # Second) (readChan buf) >>= \case
+        Nothing -> pure ()
+        Just (TestBotCreated _) -> assertFailure "bot got a TestBotCreated event"
+        Just (TestBotMessage e) -> assertFailure ("bot got an event: " <> show (evtType e))
 
 --------------------------------------------------------------------------------
 -- API Operations
@@ -1382,7 +1423,7 @@ data TestBotEvent
 -- TODO: Test that the authorization header is properly set
 defServiceApp :: Chan TestBotEvent -> Application
 defServiceApp buf = Wai.route
-    [ ("/bots",                onBotCreate)
+    [ ("/bots",               onBotCreate)
     , ("/bots/:bot/messages", onBotMessage)
     ]
   where

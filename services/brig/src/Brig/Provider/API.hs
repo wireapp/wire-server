@@ -580,6 +580,9 @@ deleteService (pid ::: sid ::: req) = do
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
     lift $ RPC.removeServiceConn pid sid
+    -- Note: we don't remove the service from conversations here, even
+    -- though it'd be nice to do. Instead we do it lazily, when somebody
+    -- sends a message in that conversation. See 'postNewOtrMessage'.
     DB.deleteService pid sid name tags
     return empty
 
