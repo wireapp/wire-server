@@ -530,8 +530,8 @@ testBotTeamOnlyConv config crt db brig galley cannon = withTestService config cr
     bid <- addBotConv brig cannon uid1 uid2 cid pid sid buf
     let buid = botUserId bid
     -- Make the conversation team-only again and check that the bot has been removed
-    setAccessRole uid1 cid TeamAccessRole
     WS.bracketR cannon uid1 $ \ws -> do
+        setAccessRole uid1 cid TeamAccessRole
         _ <- waitFor (5 # Second) not (isMember galley buid cid)
         getBotConv galley bid cid !!!
             const 404 === statusCode
