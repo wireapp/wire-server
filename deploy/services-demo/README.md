@@ -68,8 +68,12 @@ In order to view the API, you need to create a regular user. For that purpose, y
 
 ### This is fantastic, all services up & running... what now, can I run some kind of smoketests?
 
-Yes. You need to specify an email server that the smoketests can log in to for it to read and act upon registration/activation emails. Have a look at what the configuration for the [api-smoketest](../../tools/api-simulations/README.md) should be. Once you have the correct `mailboxes.json`, this should just work from the top level directory (note the `sender-email` must match brig's [sender-email](https://github.com/wireapp/wire-server/blob/develop/services/brig/brig.integration.yaml#L35))
+Yes. You need to specify an email address that the smoketests can log in to via IMAP for it to read and act upon registration/activation emails. Have a look at what the configuration for the [api-smoketest](../../tools/api-simulations/README.md) should be. Once you have the correct `mailboxes.json`, this should just work from the top level directory (note the `sender-email` must match brig's [sender-email](https://github.com/wireapp/wire-server/blob/develop/services/brig/brig.integration.yaml#L35))
+
+Note: This demo setup comes bundled with a postfix email sending docker image; however due to the minimal setup, emails will likely land in the Spam/Junk folder of the target email address, if you configure a common email provider. To get the smoketester to check the Spam folder as well, use e.g. (in the case of gmail) `--mailbox-folder INBOX --mailbox-folder '[Gmail]/Spam'`.
+
+Example:
 
 ```
-../../dist/api-smoketest --api-host=127.0.0.1 --api-port=8080 --api-websocket-host=127.0.0.1 --api-websocket-port=8081 --mailbox-config=<path_to_mailboxes_file> --sender-email=backend-demo@mail.wiredemo.example.com --enable-asserts
+../../dist/api-smoketest --api-host=127.0.0.1 --api-port=8080 --api-websocket-host=127.0.0.1 --api-websocket-port=8081 --mailbox-config=<path_to_mailboxes_file> --sender-email=backend-demo@mail.wiredemo.example.com --mailbox-folder INBOX --mailbox-folder '[Gmail]/Spam' --enable-asserts
 ```
