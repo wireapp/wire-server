@@ -28,6 +28,7 @@ tags
 TAGS
 .stack-work
 .stack-docker
+.stack-docker-profile
 .metadata
 *.tix
 *.pem
