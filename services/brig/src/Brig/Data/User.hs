@@ -4,6 +4,10 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleInstances #-}
+
+{-# OPTIONS_GHC -fno-warn-orphans #-}  -- for Show UserRowInsert
 
 -- TODO: Move to Brig.User.Account.DB
 module Brig.Data.User
@@ -35,6 +39,7 @@ module Brig.Data.User
     , updateSearchableStatus
     , deleteEmail
     , deletePhone
+    , deleteServiceUser
     , updateHandle
     ) where
 
@@ -139,9 +144,11 @@ reauthenticate u pw = lift (lookupAuth u) >>= \case
                 throwE (ReAuthError AuthInvalidCredentials)
 
 insertAccount :: UserAccount -> Maybe Password -> Bool -> SearchableStatus -> AppIO ()
-insertAccount (UserAccount u status) password activated searchable = do
+insertAccount (UserAccount u status) password activated searchable = retry x5 $ batch $ do
+    setType BatchLogged
+    setConsistency Quorum
     let Locale l c = userLocale u
-    retry x5 $ write userInsert $ params Quorum
+    addPrepQuery userInsert
         ( userId u, userName u, userPict u, userAssets u, userEmail u
         , userPhone u, userSSOId u, userAccentId u, password, activated
         , status, userExpire u, l, c
@@ -151,16 +158,24 @@ insertAccount (UserAccount u status) password activated searchable = do
         , searchable
         , userTeam u
         )
+    for_ (userService u) $ \sref ->
+        addPrepQuery serviceUserInsert
+            ( sref ^. serviceRefProvider
+            , sref ^. serviceRefId
+            , BotId (userId u)
+            )
 
 updateLocale :: UserId -> Locale -> AppIO ()
 updateLocale u (Locale l c) = write userLocaleUpdate (params Quorum (l, c, u))
 
 updateUser :: UserId -> UserUpdate -> AppIO ()
-updateUser u UserUpdate{..} = do
-    for_ uupName     $ \n -> write userNameUpdate     (params Quorum (n, u))
-    for_ uupPict     $ \p -> write userPictUpdate     (params Quorum (p, u))
-    for_ uupAssets   $ \a -> write userAssetsUpdate   (params Quorum (a, u))
-    for_ uupAccentId $ \c -> write userAccentIdUpdate (params Quorum (c, u))
+updateUser u UserUpdate{..} = retry x5 $ batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    for_ uupName     $ \n -> addPrepQuery userNameUpdate     (n, u)
+    for_ uupPict     $ \p -> addPrepQuery userPictUpdate     (p, u)
+    for_ uupAssets   $ \a -> addPrepQuery userAssetsUpdate   (a, u)
+    for_ uupAccentId $ \c -> addPrepQuery userAccentIdUpdate (c, u)
 
 updateEmail :: UserId -> Email -> AppIO ()
 updateEmail u e = retry x5 $ write userEmailUpdate (params Quorum (e, u))
@@ -181,6 +196,9 @@ deleteEmail u = retry x5 $ write userEmailDelete (params Quorum (Identity u))
 
 deletePhone :: UserId -> AppIO ()
 deletePhone u = retry x5 $ write userPhoneDelete (params Quorum (Identity u))
+
+deleteServiceUser :: ProviderId -> ServiceId -> AppIO ()
+deleteServiceUser pid sid = retry x5 $ write serviceUserDelete (params Quorum (pid, sid))
 
 updateStatus :: UserId -> AccountStatus -> AppIO ()
 updateStatus u s = retry x5 $ write userStatusUpdate (params Quorum (s, u))
@@ -267,6 +285,8 @@ type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSS
 type UserRowInsert = (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
                       Maybe Password, Bool, AccountStatus, Maybe UTCTimeMillis, Language, Maybe Country,
                       Maybe ProviderId, Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId)
+
+deriving instance Show UserRowInsert
 
 type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId,
                    ColourId, Maybe [Asset], Bool, Maybe AccountStatus,
@@ -359,6 +379,14 @@ userEmailDelete = "UPDATE user SET email = null WHERE id = ?"
 
 userPhoneDelete :: PrepQuery W (Identity UserId) ()
 userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
+
+serviceUserInsert :: PrepQuery W (ProviderId, ServiceId, BotId) ()
+serviceUserInsert = "INSERT INTO service_user (provider, service, user) \
+                    \VALUES (?, ?, ?)"
+
+serviceUserDelete :: PrepQuery W (ProviderId, ServiceId) ()
+serviceUserDelete = "DELETE FROM service_user \
+                    \WHERE provider = ? AND service = ?"
 
 -------------------------------------------------------------------------------
 -- Conversions

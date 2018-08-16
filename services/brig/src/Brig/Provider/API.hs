@@ -25,7 +25,7 @@ import Brig.Types.Client
 import Brig.Types.User (publicProfile, User (..), Pict (..))
 import Brig.Types.Provider
 import Brig.Types.Search
-import Control.Lens (view)
+import Control.Lens (view, (^.))
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
 import Control.Monad (join, when, unless, (>=>), liftM2)
@@ -47,7 +47,7 @@ import Data.Text (Text)
 import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..), AccessRole (..))
 import Galley.Types (OtherMember (..))
 import Galley.Types (Event, userClients)
-import Galley.Types.Bot (newServiceRef)
+import Galley.Types.Bot (newServiceRef, serviceRefProvider, serviceRefId)
 import Data.Traversable (forM)
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)
@@ -849,7 +849,10 @@ deleteBot zusr zcon bid cid = do
     ev <- lift $ RPC.removeBotMember zusr zcon cid bid
     -- Delete the bot user and client
     let buid = botUserId bid
+    mbUser <- lift $ User.lookupUser buid
     lift $ User.lookupClients buid >>= mapM_ (User.rmClient buid . clientId)
+    for_ (userService =<< mbUser) $ \sref ->
+        lift $ User.deleteServiceUser (sref ^. serviceRefProvider) (sref ^. serviceRefId)
     -- TODO: Consider if we can actually delete the bot user entirely,
     -- i.e. not just marking the account as deleted.
     lift $ User.updateStatus buid Deleted

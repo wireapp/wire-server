@@ -284,6 +284,7 @@ executable brig-schema
         V50
         V51
         V52
+        V53
 
     build-depends:
         base
