@@ -24,9 +24,10 @@ import Brig.Types.User.Auth
 import Brig.Provider.DB (getServiceWhitelistStatus)
 import Brig.User.Email
 import Brig.User.Phone
+import Control.Concurrent.Async.Lifted.Safe.Extended (forPooled)
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad (liftM2, liftM3, unless, void, when, forM)
+import Control.Monad (liftM2, liftM3, unless, void, when)
 import Control.Monad.Catch (finally)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
@@ -1053,7 +1054,7 @@ internalListClients (_ ::: _ ::: req) = do
 internalQueryServiceWhitelist :: TeamId ::: Request -> Handler Response
 internalQueryServiceWhitelist (tid ::: req) = do
     svcs :: [ServiceRef] <- parseJsonBody req
-    fmap json $ forM svcs $ \svc -> do
+    fmap json $ lift $ forPooled 16 svcs $ \svc -> do
         let pid = svc ^. serviceRefProvider
             sid = svc ^. serviceRefId
         status <- getServiceWhitelistStatus tid pid sid
