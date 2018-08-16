@@ -62,7 +62,6 @@ import Data.List (partition)
 import Data.List1
 import Data.Text (Text)
 import Data.Time
-import Data.Set (Set)
 import Brig.Types.Provider (ServiceWhitelistStatus (..))
 import Galley.App
 import Galley.API.Error
