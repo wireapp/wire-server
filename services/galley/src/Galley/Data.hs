@@ -114,6 +114,7 @@ import System.Logger.Class (MonadLogger)
 import System.Logger.Message (msg, (+++), val)
 
 import qualified Data.Map.Strict      as Map
+import qualified Data.Set
 import qualified Data.UUID.Tagged     as U
 import qualified Galley.Data.Queries  as Cql
 import qualified Galley.Types.Clients as Clients
@@ -434,8 +435,8 @@ createOne2OneConversation a b name ti = do
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
 updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum (fromRange name, cid))
 
-updateConversationAccess :: MonadClient m => ConvId -> [Access] -> AccessRole -> m ()
-updateConversationAccess cid acc role = retry x5 $ write Cql.updateConvAccess (params Quorum (Set acc, role, cid))
+updateConversationAccess :: MonadClient m => ConvId -> Data.Set.Set Access -> AccessRole -> m ()
+updateConversationAccess cid acc role = retry x5 $ write Cql.updateConvAccess (params Quorum (Set (toList acc), role, cid))
 
 updateConversationMessageTimer :: MonadClient m => ConvId -> Maybe Milliseconds -> m ()
 updateConversationMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params Quorum (mtimer, cid))

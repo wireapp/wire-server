@@ -44,7 +44,7 @@ import Data.Predicate
 import Data.Range
 import Data.String (fromString)
 import Data.Text (Text)
-import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..))
+import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..), AccessRole (..))
 import Galley.Types (OtherMember (..))
 import Galley.Types (Event, userClients)
 import Galley.Types.Bot (newServiceRef)
@@ -692,7 +692,15 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     maxSize <- fromIntegral . setMaxConvSize <$> view settings
     unless (length (cmOthers mems) < maxSize - 1) $
         throwStd tooManyMembers
-    for_ (cnvTeam cnv) $ ensureNotManagedConv
+
+    -- For team conversations: bots are not allowed in managed and in
+    -- team-only conversations
+    when (cnvAccessRole cnv == TeamAccessRole) $
+        throwStd invalidConv
+    for_ (cnvTeam cnv) $ \tid -> do
+        tc <- lift (RPC.getTeamConv zuid tid cid) >>= maybeConvNotFound
+        when (view Teams.managedConversation tc) $
+            throwStd invalidConv
 
     -- Lookup the relevant service data
     scon <- DB.lookupServiceConn pid sid >>= maybeServiceNotFound
@@ -744,11 +752,6 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
         , rsAddBotAssets = assets
         , rsAddBotEvent  = ev
         }
-  where
-    ensureNotManagedConv tid = do
-        tc <- lift (RPC.getTeamConv zuid tid cid) >>= maybeConvNotFound
-        when (view Teams.managedConversation tc) $
-            throwStd invalidConv
 
 removeBot :: UserId ::: ConnId ::: ConvId ::: BotId -> Handler Response
 removeBot (zusr ::: zcon ::: cid ::: bid) = do
