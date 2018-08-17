@@ -826,9 +826,6 @@ testWhitelistKickout :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Ga
 testWhitelistKickout config crt db brig galley cannon = do
     -- Create a team and a conversation
     (owner, tid) <- Team.createUserWithTeam brig galley
-    let new = defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0)
-    _rs <- addClient brig owner new <!! const 201 === statusCode
-    client <- clientId <$> decodeBody _rs
     cid <- Team.createTeamConv galley tid owner [] Nothing
     -- Create a service
     withTestService config crt db brig defServiceApp $ \sref buf -> do
@@ -840,24 +837,17 @@ testWhitelistKickout config crt db brig galley cannon = do
            (addBot brig owner pid sid cid <!! const 201 === statusCode)
     let bid  = rsAddBotId bot
         buid = botUserId bid
-        bc   = rsAddBotClient bot
     _ <- svcAssertBotCreated buf bid cid
     svcAssertMemberJoin buf owner [buid] cid
-    -- De-whitelist the bot and send a message
-    dewhitelistService brig owner tid pid sid
-    postMessage galley owner client cid [(buid, bc, "hi")] !!!
-        const 201 === statusCode
-    -- The bot should be kicked out
+    -- De-whitelist the service; both bots should be kicked out
     WS.bracketR cannon owner $ \ws -> do
+        dewhitelistService brig owner tid pid sid
         _ <- waitFor (2 # Second) not (isMember galley buid cid)
         getBotConv galley bid cid !!!
             const 404 === statusCode
-        -- TODO: it looks like the bot left on its own, but if this was
-        -- implemented properly, here we would've seen that the bot was
-        -- removed by 'owner'
-        wsAssertMemberLeave ws cid buid [buid]
-        svcAssertMemberLeave buf buid [buid] cid
-    -- The bot should not get any further events or messages
+        wsAssertMemberLeave ws cid owner [buid]
+        svcAssertMemberLeave buf owner [buid] cid
+    -- The bot should not get any further events
     liftIO $ timeout (2 # Second) (readChan buf) >>= \case
         Nothing -> pure ()
         Just (TestBotCreated _) -> assertFailure "bot got a TestBotCreated event"

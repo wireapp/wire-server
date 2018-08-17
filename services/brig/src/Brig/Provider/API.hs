@@ -10,7 +10,7 @@
 
 module Brig.Provider.API (routes) where
 
-import Brig.App (settings)
+import Brig.App (settings, AppIO)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types (PasswordResetError (..))
@@ -25,12 +25,14 @@ import Brig.Types.Client
 import Brig.Types.User (publicProfile, User (..), Pict (..))
 import Brig.Types.Provider
 import Brig.Types.Search
+import Control.Concurrent.Async.Lifted.Safe.Extended (forPooled)
 import Control.Lens (view, (^.))
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
 import Control.Monad (join, when, unless, (>=>), liftM2)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
+import Data.Functor (void)
 import Data.ByteString.Conversion
 import Data.Foldable (for_, forM_)
 import Data.Hashable (hash)
@@ -234,6 +236,7 @@ routes = do
         accept "application" "json"
         .&> zauth ZAuthAccess
         .&> zauthUserId
+        .&. zauthConnId
         .&. capture "tid"
         .&. request
 
@@ -580,7 +583,7 @@ deleteService (pid ::: sid ::: req) = do
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
     users <- lift $ User.lookupServiceUsers pid sid
-    for_ users $ \(bid, cid, _) ->
+    lift $ void $ forPooled 16 users $ \(bid, cid, _) ->
         deleteBot (botUserId bid) Nothing bid cid
     lift $ RPC.removeServiceConn pid sid
     DB.deleteService pid sid name tags
@@ -656,14 +659,18 @@ getServiceTagList _ = return (json (ServiceTagList allTags))
   where
     allTags = [(minBound :: ServiceTag) ..]
 
-updateServiceWhitelist :: UserId ::: TeamId ::: Request -> Handler Response
-updateServiceWhitelist (uid ::: tid ::: req) = do
+updateServiceWhitelist :: UserId ::: ConnId ::: TeamId ::: Request -> Handler Response
+updateServiceWhitelist (uid ::: con ::: tid ::: req) = do
     upd :: UpdateServiceWhitelist <- parseJsonBody req
     let pid = updateServiceWhitelistProvider upd
         sid = updateServiceWhitelistService upd
         newWhitelisted = updateServiceWhitelistStatus upd
+
+    -- Preconditions
     ensurePermissions uid tid (Set.toList Teams.serviceWhitelistPermissions)
     _ <- DB.lookupService pid sid >>= maybeServiceNotFound
+
+    -- Add to various tables
     whitelisted <- DB.getServiceWhitelistStatus tid pid sid
     case (whitelisted, newWhitelisted) of
         (False, False) -> return (setStatus status204 empty)
@@ -672,9 +679,13 @@ updateServiceWhitelist (uid ::: tid ::: req) = do
             DB.insertServiceWhitelist tid pid sid
             return (setStatus status200 empty)
         (True, False)  -> do
+            -- When the service is de-whitelisted, remove its bots from team
+            -- conversations
+            bots <- lift $ User.lookupServiceUsersForTeam pid sid tid
+            lift $ void $ forPooled 16 bots $ \(bid, cid) ->
+                deleteBot uid (Just con) bid cid
             DB.deleteServiceWhitelist (Just tid) pid sid
             return (setStatus status200 empty)
-            -- TODO remove service from conversations
 
 addBot :: UserId ::: ConnId ::: ConvId ::: Request -> Handler Response
 addBot (zuid ::: zcon ::: cid ::: req) = do
@@ -767,7 +778,7 @@ removeBot (zusr ::: zcon ::: cid ::: bid) = do
     case bot >>= omService of
         Nothing -> return (setStatus status204 empty)
         Just  _ -> do
-            ev <- deleteBot zusr (Just zcon) bid cid
+            ev <- lift $ deleteBot zusr (Just zcon) bid cid
             return $ case ev of
                 Just  e -> json (RemoveBotResponse e)
                 Nothing -> setStatus status204 empty
@@ -826,7 +837,7 @@ botDeleteSelf :: BotId ::: ConvId -> Handler Response
 botDeleteSelf (bid ::: cid) = do
     bot <- lift $ User.lookupUser (botUserId bid)
     _   <- maybeInvalidBot (userService =<< bot)
-    _   <- deleteBot (botUserId bid) Nothing bid cid
+    _   <- lift $ deleteBot (botUserId bid) Nothing bid cid
     return empty
 
 --------------------------------------------------------------------------------
@@ -843,21 +854,21 @@ activate pid old new = do
         throwStd emailExists
     DB.insertKey pid (mkEmailKey <$> old) emailKey
 
-deleteBot :: UserId -> Maybe ConnId -> BotId -> ConvId -> Handler (Maybe Event)
+deleteBot :: UserId -> Maybe ConnId -> BotId -> ConvId -> AppIO (Maybe Event)
 deleteBot zusr zcon bid cid = do
     -- Remove the bot from the conversation
-    ev <- lift $ RPC.removeBotMember zusr zcon cid bid
+    ev <- RPC.removeBotMember zusr zcon cid bid
     -- Delete the bot user and client
     let buid = botUserId bid
-    mbUser <- lift $ User.lookupUser buid
-    lift $ User.lookupClients buid >>= mapM_ (User.rmClient buid . clientId)
+    mbUser <- User.lookupUser buid
+    User.lookupClients buid >>= mapM_ (User.rmClient buid . clientId)
     for_ (userService =<< mbUser) $ \sref -> do
         let pid = sref ^. serviceRefProvider
             sid = sref ^. serviceRefId
-        lift $ User.deleteServiceUser pid sid bid
+        User.deleteServiceUser pid sid bid
     -- TODO: Consider if we can actually delete the bot user entirely,
     -- i.e. not just marking the account as deleted.
-    lift $ User.updateStatus buid Deleted
+    User.updateStatus buid Deleted
     return ev
 
 validateServiceKey :: MonadIO m => ServiceKeyPEM -> m (Maybe (ServiceKey, Fingerprint Rsa))

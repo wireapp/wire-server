@@ -41,6 +41,7 @@ module Brig.Data.User
     , deletePhone
     , deleteServiceUser
     , lookupServiceUsers
+    , lookupServiceUsersForTeam
     , updateHandle
     ) where
 
@@ -316,6 +317,14 @@ lookupServiceUsers pid sid = retry x1 (query cql (params Quorum (pid, sid)))
     cql :: PrepQuery R (ProviderId, ServiceId) (BotId, ConvId, Maybe TeamId)
     cql = "SELECT user, conv, team FROM service_user \
           \WHERE provider = ? AND service = ?"
+
+lookupServiceUsersForTeam :: ProviderId -> ServiceId -> TeamId -> AppIO [(BotId, ConvId)]
+lookupServiceUsersForTeam pid sid tid =
+    retry x1 (query cql (params Quorum (pid, sid, tid)))
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId, TeamId) (BotId, ConvId)
+    cql = "SELECT user, conv FROM service_team \
+          \WHERE provider = ? AND service = ? AND team = ?"
 
 -------------------------------------------------------------------------------
 -- Queries
