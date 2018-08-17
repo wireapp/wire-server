@@ -1807,17 +1807,10 @@ testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
     let msg = OtrMessage uc bc "Hi Bot" (Just "data")
     svcAssertMessage buf uid msg cid
 
-    -- Remove the entire service; existing bots should remain where they are.
-    deleteService brig pid sid defProviderPassword !!!
-        const 200 === statusCode
-    _im <- isMember galley buid cid
-    liftIO $ assertBool "bot is not a member" _im
-
-    -- Writing another message triggers orphaned bots to be auto-removed due
-    -- to the service being gone.
+    -- Remove the entire service; bots should be removed from the conversation
     WS.bracketR cannon uid $ \ws -> do
-        postMessage galley uid uc cid [(buid, bc, "Still there?")] !!!
-            const 201 === statusCode
+        deleteService brig pid sid defProviderPassword !!!
+            const 200 === statusCode
         _ <- waitFor (5 # Second) not (isMember galley buid cid)
         getBotConv galley bid cid !!!
             const 404 === statusCode
