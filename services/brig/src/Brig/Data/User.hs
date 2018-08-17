@@ -311,6 +311,8 @@ lookupServiceUser pid sid bid = retry x1 (query1 cql (params Quorum (pid, sid, b
     cql = "SELECT conv, team FROM service_user \
           \WHERE provider = ? AND service = ? AND user = ?"
 
+-- TODO: this might return a lot of users. It'd be better to use pagination
+-- here and force the user of this function to do streaming.
 lookupServiceUsers :: ProviderId -> ServiceId -> AppIO [(BotId, ConvId, Maybe TeamId)]
 lookupServiceUsers pid sid = retry x1 (query cql (params Quorum (pid, sid)))
   where
