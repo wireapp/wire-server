@@ -144,7 +144,14 @@ reauthenticate u pw = lift (lookupAuth u) >>= \case
             unless (verifyPassword p pw') $
                 throwE (ReAuthError AuthInvalidCredentials)
 
-insertAccount :: UserAccount -> Maybe ConvId -> Maybe Password -> Bool -> SearchableStatus -> AppIO ()
+insertAccount
+    :: UserAccount
+    -> Maybe (ConvId, Maybe TeamId) -- ^ If a bot: conversation and team
+                                    --   (if a team conversation)
+    -> Maybe Password
+    -> Bool                         -- ^ Whether the user is activated
+    -> SearchableStatus
+    -> AppIO ()
 insertAccount (UserAccount u status) mbConv password activated searchable = retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
@@ -159,13 +166,19 @@ insertAccount (UserAccount u status) mbConv password activated searchable = retr
         , searchable
         , userTeam u
         )
-    for_ ((,) <$> userService u <*> mbConv) $ \(sref, cid) ->
-        addPrepQuery serviceUserInsert
-            ( sref ^. serviceRefProvider
-            , sref ^. serviceRefId
-            , BotId (userId u)
-            , cid
-            )
+    for_ ((,) <$> userService u <*> mbConv) $ \(sref, (cid, mbTid)) -> do
+        let pid = sref ^. serviceRefProvider
+            sid = sref ^. serviceRefId
+        addPrepQuery cqlServiceUser (pid, sid, BotId (userId u), cid, mbTid)
+        for_ mbTid $ \tid ->
+            addPrepQuery cqlServiceTeam (pid, sid, BotId (userId u), cid, tid)
+  where
+    cqlServiceUser :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId) ()
+    cqlServiceUser = "INSERT INTO service_user (provider, service, user, conv, team) \
+                     \VALUES (?, ?, ?, ?, ?)"
+    cqlServiceTeam :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, TeamId) ()
+    cqlServiceTeam = "INSERT INTO service_team (provider, service, user, conv, team) \
+                     \VALUES (?, ?, ?, ?, ?)"
 
 updateLocale :: UserId -> Locale -> AppIO ()
 updateLocale u (Locale l c) = write userLocaleUpdate (params Quorum (l, c, u))
@@ -199,8 +212,23 @@ deleteEmail u = retry x5 $ write userEmailDelete (params Quorum (Identity u))
 deletePhone :: UserId -> AppIO ()
 deletePhone u = retry x5 $ write userPhoneDelete (params Quorum (Identity u))
 
-deleteServiceUser :: ProviderId -> ServiceId -> AppIO ()
-deleteServiceUser pid sid = retry x5 $ write serviceUserDelete (params Quorum (pid, sid))
+deleteServiceUser :: ProviderId -> ServiceId -> BotId -> AppIO ()
+deleteServiceUser pid sid bid = do
+    lookupServiceUser pid sid bid >>= \case
+        Nothing -> pure ()
+        Just (_, mbTid) -> retry x5 $ batch $ do
+            setType BatchLogged
+            setConsistency Quorum
+            addPrepQuery cql (pid, sid, bid)
+            for_ mbTid $ \tid ->
+                addPrepQuery cqlTeam (pid, sid, tid, bid)
+  where
+    cql :: PrepQuery W (ProviderId, ServiceId, BotId) ()
+    cql = "DELETE FROM service_user \
+          \WHERE provider = ? AND service = ? AND user = ?"
+    cqlTeam :: PrepQuery W (ProviderId, ServiceId, TeamId, BotId) ()
+    cqlTeam = "DELETE FROM service_team \
+              \WHERE provider = ? AND service = ? AND team = ? AND user = ?"
 
 updateStatus :: UserId -> AccountStatus -> AppIO ()
 updateStatus u s = retry x5 $ write userStatusUpdate (params Quorum (s, u))
@@ -275,8 +303,19 @@ lookupAccounts usrs = do
     loc <- setDefaultLocale  <$> view settings
     fmap (toUserAccount loc) <$> retry x1 (query accountsSelect (params Quorum (Identity usrs)))
 
-lookupServiceUsers :: ProviderId -> ServiceId -> AppIO [(BotId, ConvId)]
-lookupServiceUsers pid sid = retry x1 (query serviceUsersSelect (params Quorum (pid, sid)))
+lookupServiceUser :: ProviderId -> ServiceId -> BotId -> AppIO (Maybe (ConvId, Maybe TeamId))
+lookupServiceUser pid sid bid = retry x1 (query1 cql (params Quorum (pid, sid, bid)))
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId, BotId) (ConvId, Maybe TeamId)
+    cql = "SELECT conv, team FROM service_user \
+          \WHERE provider = ? AND service = ? AND user = ?"
+
+lookupServiceUsers :: ProviderId -> ServiceId -> AppIO [(BotId, ConvId, Maybe TeamId)]
+lookupServiceUsers pid sid = retry x1 (query cql (params Quorum (pid, sid)))
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId) (BotId, ConvId, Maybe TeamId)
+    cql = "SELECT user, conv, team FROM service_user \
+          \WHERE provider = ? AND service = ?"
 
 -------------------------------------------------------------------------------
 -- Queries
@@ -384,18 +423,6 @@ userEmailDelete = "UPDATE user SET email = null WHERE id = ?"
 
 userPhoneDelete :: PrepQuery W (Identity UserId) ()
 userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
-
-serviceUserInsert :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId) ()
-serviceUserInsert = "INSERT INTO service_user (provider, service, user, conv) \
-                    \VALUES (?, ?, ?, ?)"
-
-serviceUserDelete :: PrepQuery W (ProviderId, ServiceId) ()
-serviceUserDelete = "DELETE FROM service_user \
-                    \WHERE provider = ? AND service = ?"
-
-serviceUsersSelect :: PrepQuery R (ProviderId, ServiceId) (BotId, ConvId)
-serviceUsersSelect = "SELECT user, conv FROM service_user \
-                     \WHERE provider = ? AND service = ?"
 
 -------------------------------------------------------------------------------
 -- Conversions

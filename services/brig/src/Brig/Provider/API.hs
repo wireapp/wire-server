@@ -580,7 +580,7 @@ deleteService (pid ::: sid ::: req) = do
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
     users <- lift $ User.lookupServiceUsers pid sid
-    for_ users $ \(bid, cid) ->
+    for_ users $ \(bid, cid, _) ->
         deleteBot (botUserId bid) Nothing bid cid
     lift $ RPC.removeServiceConn pid sid
     DB.deleteService pid sid name tags
@@ -737,7 +737,7 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let newClt = (newClient PermanentClient (Ext.rsNewBotLastPrekey rs) ())
                { newClientPrekeys = Ext.rsNewBotPrekeys rs
                }
-    lift $ User.insertAccount (UserAccount usr Active) (Just cid) Nothing True (SearchableStatus True)
+    lift $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True (SearchableStatus True)
     (clt, _, _) <- User.addClient (botUserId bid) bcl newClt Nothing
                    !>> const (StdError badGateway) -- MalformedPrekeys
 
@@ -851,8 +851,10 @@ deleteBot zusr zcon bid cid = do
     let buid = botUserId bid
     mbUser <- lift $ User.lookupUser buid
     lift $ User.lookupClients buid >>= mapM_ (User.rmClient buid . clientId)
-    for_ (userService =<< mbUser) $ \sref ->
-        lift $ User.deleteServiceUser (sref ^. serviceRefProvider) (sref ^. serviceRefId)
+    for_ (userService =<< mbUser) $ \sref -> do
+        let pid = sref ^. serviceRefProvider
+            sid = sref ^. serviceRefId
+        lift $ User.deleteServiceUser pid sid bid
     -- TODO: Consider if we can actually delete the bot user entirely,
     -- i.e. not just marking the account as deleted.
     lift $ User.updateStatus buid Deleted
