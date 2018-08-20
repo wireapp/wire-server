@@ -8,9 +8,14 @@
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Brig.Provider.API (routes) where
+module Brig.Provider.API
+    ( -- * Main stuff
+      routes
+      -- * Event handlers
+    , finishDeleteService
+    ) where
 
-import Brig.App (settings, AppIO)
+import Brig.App (settings, AppIO, internalEvents)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types (PasswordResetError (..))
@@ -70,6 +75,8 @@ import qualified Brig.IO.Intra                as RPC
 import qualified Brig.Provider.DB             as DB
 import qualified Brig.Provider.RPC            as RPC
 import qualified Brig.Types.Provider.External as Ext
+import qualified Brig.Queue                   as Queue
+import qualified Brig.InternalEvent.Types     as Internal
 import qualified Data.ByteString.Lazy.Char8   as LC8
 import qualified Data.List                    as List
 import qualified Data.Map.Strict              as Map
@@ -541,6 +548,7 @@ updateServiceConn (pid ::: sid ::: req) = do
         throwStd badCredentials
 
     scon <- DB.lookupServiceConn pid sid >>= maybeServiceNotFound
+    svc <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
 
     let newBaseUrl = updateServiceConnUrl upd
     let newTokens  = List1 <$> (nonEmpty . fromRange =<< updateServiceConnTokens upd)
@@ -563,7 +571,6 @@ updateServiceConn (pid ::: sid ::: req) = do
         lift $ RPC.setServiceConn scon'
         -- If the service got enabled or disabled, update the tag index.
         unless (sconEnabled scon && sconEnabled scon') $ do
-            svc <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
             let name = serviceProfileName svc
             let tags = unsafeRange (serviceProfileTags svc)
             -- Update index, make it visible over search
@@ -575,22 +582,37 @@ updateServiceConn (pid ::: sid ::: req) = do
 
     return empty
 
+-- | The endpoint that is called to delete a service.
+--
+-- Since deleting a service can be costly, it just marks the service as
+-- disabled and then creates an event that will, when processed, actually
+-- delete the service. See 'finishDeleteService'.
 deleteService :: ProviderId ::: ServiceId ::: Request -> Handler Response
 deleteService (pid ::: sid ::: req) = do
     del  <- parseJsonBody req
     pass <- DB.lookupPassword pid >>= maybeBadCredentials
     unless (verifyPassword (deleteServicePassword del) pass) $
         throwStd badCredentials
-    svc  <- DB.lookupService pid sid >>= maybeServiceNotFound
-    let tags = unsafeRange (serviceTags svc)
-        name = serviceName svc
-    lift $ runConduit
-           $ User.lookupServiceUsers pid sid
-          .| C.mapM_ (void . mapMPooled 16 (\(bid, cid, _) ->
-                        deleteBot (botUserId bid) Nothing bid cid))
-    lift $ RPC.removeServiceConn pid sid
-    DB.deleteService pid sid name tags
-    return empty
+    _ <- DB.lookupService pid sid >>= maybeServiceNotFound
+    -- Disable the service
+    DB.updateServiceConn pid sid Nothing Nothing Nothing (Just False)
+    -- Create an event
+    queue <- view internalEvents
+    lift $ Queue.enqueue queue (Internal.DeleteService pid sid)
+    return $ setStatus status202 empty
+
+finishDeleteService :: ProviderId -> ServiceId -> AppIO ()
+finishDeleteService pid sid = do
+    mbSvc <- DB.lookupService pid sid
+    for_ mbSvc $ \svc -> do
+        let tags = unsafeRange (serviceTags svc)
+            name = serviceName svc
+        runConduit $ User.lookupServiceUsers pid sid
+                  .| C.mapM_ (void . mapMPooled 16 kick)
+        RPC.removeServiceConn pid sid
+        DB.deleteService pid sid name tags
+  where
+    kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
 deleteAccount :: ProviderId ::: Request -> Handler Response
 deleteAccount (pid ::: req) = do

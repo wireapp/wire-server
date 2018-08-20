@@ -478,7 +478,7 @@ testDeleteService config crt db brig galley cannon = withTestService config crt 
     -- Delete the service; the bots should be removed from the conversation
     WS.bracketR cannon uid1 $ \ws -> do
         deleteService brig pid sid defProviderPassword !!!
-            const 200 === statusCode
+            const 202 === statusCode
         _ <- waitFor (5 # Second) not (isMember galley buid1 cid)
         _ <- waitFor (5 # Second) not (isMember galley buid2 cid)
         getBotConv galley bid1 cid !!! const 404 === statusCode
@@ -1825,7 +1825,7 @@ testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
     -- Remove the entire service; the bot should be removed from the conversation
     WS.bracketR cannon uid $ \ws -> do
         deleteService brig pid sid defProviderPassword !!!
-            const 200 === statusCode
+            const 202 === statusCode
         _ <- waitFor (5 # Second) not (isMember galley buid cid)
         getBotConv galley bid cid !!!
             const 404 === statusCode
