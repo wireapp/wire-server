@@ -268,6 +268,7 @@ updateService pid sid svcName svcTags nameChange summary descr assets tagsChange
     cqlTags :: PrepQuery W (Set ServiceTag, ProviderId, ServiceId) ()
     cqlTags = "UPDATE service SET tags = ? WHERE provider = ? AND id = ?"
 
+-- NB: can take a significant amount of time if many teams were using the service
 deleteService :: MonadClient m
     => ProviderId
     -> ServiceId
@@ -659,6 +660,7 @@ insertServiceWhitelist tid pid sid =
 
 --
 
+-- NB: Can take a significant amount of time if many teams were using the service
 deleteServiceWhitelist :: MonadClient m => Maybe TeamId -> ProviderId -> ServiceId -> m ()
 deleteServiceWhitelist mbTid pid sid = case mbTid of
     Nothing -> do

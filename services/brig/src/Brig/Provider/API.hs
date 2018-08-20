@@ -25,7 +25,7 @@ import Brig.Types.Client
 import Brig.Types.User (publicProfile, User (..), Pict (..))
 import Brig.Types.Provider
 import Brig.Types.Search
-import Control.Concurrent.Async.Lifted.Safe.Extended (forPooled)
+import Control.Concurrent.Async.Lifted.Safe.Extended (mapMPooled)
 import Control.Lens (view, (^.))
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
@@ -51,6 +51,7 @@ import Galley.Types (OtherMember (..))
 import Galley.Types (Event, userClients)
 import Galley.Types.Bot (newServiceRef, serviceRefProvider, serviceRefId)
 import Data.Traversable (forM)
+import Data.Conduit ((.|), runConduit)
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)
 import Network.Wai.Predicate (contentType, accept, request, query, def, opt)
@@ -75,6 +76,7 @@ import qualified Data.Map.Strict              as Map
 import qualified Data.Swagger.Build.Api       as Doc
 import qualified Data.Text.Ascii              as Ascii
 import qualified Data.Set                     as Set
+import qualified Data.Conduit.List            as C
 import qualified OpenSSL.PEM                  as SSL
 import qualified OpenSSL.RSA                  as SSL
 import qualified OpenSSL.EVP.Digest           as SSL
@@ -582,9 +584,10 @@ deleteService (pid ::: sid ::: req) = do
     svc  <- DB.lookupService pid sid >>= maybeServiceNotFound
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
-    users <- lift $ User.lookupServiceUsers pid sid
-    lift $ void $ forPooled 16 users $ \(bid, cid, _) ->
-        deleteBot (botUserId bid) Nothing bid cid
+    lift $ runConduit
+           $ User.lookupServiceUsers pid sid
+          .| C.mapM_ (void . mapMPooled 16 (\(bid, cid, _) ->
+                        deleteBot (botUserId bid) Nothing bid cid))
     lift $ RPC.removeServiceConn pid sid
     DB.deleteService pid sid name tags
     return empty
@@ -681,9 +684,10 @@ updateServiceWhitelist (uid ::: con ::: tid ::: req) = do
         (True, False)  -> do
             -- When the service is de-whitelisted, remove its bots from team
             -- conversations
-            bots <- lift $ User.lookupServiceUsersForTeam pid sid tid
-            lift $ void $ forPooled 16 bots $ \(bid, cid) ->
-                deleteBot uid (Just con) bid cid
+            lift $ runConduit
+                   $ User.lookupServiceUsersForTeam pid sid tid
+                  .| C.mapM_ (void . mapMPooled 16 (\(bid, cid) ->
+                                deleteBot uid (Just con) bid cid))
             DB.deleteServiceWhitelist (Just tid) pid sid
             return (setStatus status200 empty)
 

@@ -64,6 +64,7 @@ import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range (fromRange)
 import Data.Time (addUTCTime)
+import Data.Conduit (ConduitM)
 import Data.UUID.V4
 import Galley.Types.Bot
 
@@ -311,18 +312,25 @@ lookupServiceUser pid sid bid = retry x1 (query1 cql (params Quorum (pid, sid, b
     cql = "SELECT conv, team FROM service_user \
           \WHERE provider = ? AND service = ? AND user = ?"
 
--- TODO: this might return a lot of users. It'd be better to use pagination
--- here and force the user of this function to do streaming.
-lookupServiceUsers :: ProviderId -> ServiceId -> AppIO [(BotId, ConvId, Maybe TeamId)]
-lookupServiceUsers pid sid = retry x1 (query cql (params Quorum (pid, sid)))
+-- | NB: might return a lot of users, and therefore we do streaming here (page-by-page).
+lookupServiceUsers
+    :: ProviderId
+    -> ServiceId
+    -> ConduitM () [(BotId, ConvId, Maybe TeamId)] AppIO ()
+lookupServiceUsers pid sid =
+    paginateC cql (paramsP Quorum (pid, sid) 100) x1
   where
     cql :: PrepQuery R (ProviderId, ServiceId) (BotId, ConvId, Maybe TeamId)
     cql = "SELECT user, conv, team FROM service_user \
           \WHERE provider = ? AND service = ?"
 
-lookupServiceUsersForTeam :: ProviderId -> ServiceId -> TeamId -> AppIO [(BotId, ConvId)]
+lookupServiceUsersForTeam
+    :: ProviderId
+    -> ServiceId
+    -> TeamId
+    -> ConduitM () [(BotId, ConvId)] AppIO ()
 lookupServiceUsersForTeam pid sid tid =
-    retry x1 (query cql (params Quorum (pid, sid, tid)))
+    paginateC cql (paramsP Quorum (pid, sid, tid) 100) x1
   where
     cql :: PrepQuery R (ProviderId, ServiceId, TeamId) (BotId, ConvId)
     cql = "SELECT user, conv FROM service_team \
