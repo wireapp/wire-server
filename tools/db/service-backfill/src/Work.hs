@@ -6,7 +6,7 @@
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Journal where
+module Work where
 
 import Brig.Types hiding (Client)
 import Cassandra hiding (pageSize)

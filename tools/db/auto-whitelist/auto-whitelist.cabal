@@ -1,4 +1,4 @@
-name:           service-backfill
+name:           auto-whitelist
 version:        1.0.0
 synopsis:       Backfill service tables
 author:         Wire Swiss GmbH
@@ -8,7 +8,7 @@ category:       Network
 build-type:     Simple
 cabal-version:  >= 1.10
 
-executable service-backfill
+executable auto-whitelist
     main-is:            Main.hs
     hs-source-dirs:     src
 
@@ -33,7 +33,7 @@ executable service-backfill
       , bytestring
       , uuid
       , extended
-      , conduit
+      , extra
 
     other-modules:
         Work

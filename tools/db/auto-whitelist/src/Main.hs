@@ -18,11 +18,10 @@ main = do
     s <- execParser (info (helper <*> settingsParser) desc)
     lgr <- initLogger
     bc <- initCas (s^.setCasBrig) lgr      -- Brig's Cassandra
-    gc <- initCas (s^.setCasGalley) lgr    -- Galley's Cassandra
-    runCommand lgr bc gc
+    runCommand lgr bc
   where
-    desc = header   "service-backfill"
-        <> progDesc "Backfill service tables"
+    desc = header   "auto-whitelist"
+        <> progDesc "Whitelist all services used by teams"
         <> fullDesc
 
     initLogger
