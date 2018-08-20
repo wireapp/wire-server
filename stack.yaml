@@ -32,6 +32,8 @@ packages:
 - tools/bonanza
 - tools/makedeb
 - tools/api-simulations
+- tools/db/service-backfill
+- tools/db/auto-whitelist
 - location:
     git: https://github.com/tiago-loureiro/haskell-multihash.git
     commit: 7622cfcff97fa1e207ec91bb11495a207e6c0195

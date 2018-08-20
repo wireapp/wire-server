@@ -108,7 +108,7 @@ tests conf p db b c g = do
             , test p "update"                 $ testUpdateService conf db b
             , test p "update-conn"            $ testUpdateServiceConn conf db b
             , test p "search (tag/prefix)"    $ testListServices conf db b
-            , test p "delete"                 $ testDeleteService conf db b
+            , test p "delete"                 $ testDeleteService conf crt db b g c
             ]
         , testGroup "service whitelist"
             [ test p "search permissions"
@@ -453,18 +453,43 @@ testListServices config db brig = do
                            }
     select (Name prefix) = filter (isPrefixOf (toLower prefix) . toLower . fromName . snd)
 
-testDeleteService :: Maybe Config -> DB.ClientState -> Brig -> Http ()
-testDeleteService config db brig = do
-    prv <- randomProvider db brig
-    let pid = providerId prv
-    svc <- addGetService brig pid =<< defNewService config
-    let sid = serviceId svc
-    deleteService brig pid sid defProviderPassword !!!
-        const 200 === statusCode
+testDeleteService :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testDeleteService config crt db brig galley cannon = withTestService config crt db brig defServiceApp $ \sref buf -> do
+    let pid = sref^.serviceRefProvider
+    let sid = sref^.serviceRefId
+
+    -- Create a conversation
+    u1 <- createUser "Ernie" "success@simulator.amazonses.com" brig
+    u2 <- createUser "Bert"  "success@simulator.amazonses.com" brig
+    let uid1 = userId u1
+    let uid2 = userId u2
+    postConnection brig uid1 uid2 !!! const 201 === statusCode
+    putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
+    cnv <- decodeBody =<< (createConv galley uid1 [uid2] <!! const 201 === statusCode)
+    let cid = cnvId cnv
+
+    -- Add two bots there
+    bid1 <- addBotConv brig cannon uid1 uid2 cid pid sid buf
+    bid2 <- addBotConv brig cannon uid1 uid2 cid pid sid buf
+    liftIO $ assertBool "bot ids should be different" (bid1 /= bid2)
+    let buid1 = botUserId bid1
+        buid2 = botUserId bid2
+
+    -- Delete the service; the bots should be removed from the conversation
+    WS.bracketR cannon uid1 $ \ws -> do
+        deleteService brig pid sid defProviderPassword !!!
+            const 202 === statusCode
+        _ <- waitFor (5 # Second) not (isMember galley buid1 cid)
+        _ <- waitFor (5 # Second) not (isMember galley buid2 cid)
+        getBotConv galley bid1 cid !!! const 404 === statusCode
+        getBotConv galley bid2 cid !!! const 404 === statusCode
+        wsAssertMemberLeave ws cid buid1 [buid1]
+        wsAssertMemberLeave ws cid buid2 [buid2]
+
+    -- The service should not be available
     getService brig pid sid !!!
         const 404 === statusCode
-    uid <- randomId
-    getServiceProfile brig uid pid sid !!!
+    getServiceProfile brig uid1 pid sid !!!
         const 404 === statusCode
 
 testAddRemoveBot :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
@@ -801,9 +826,6 @@ testWhitelistKickout :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Ga
 testWhitelistKickout config crt db brig galley cannon = do
     -- Create a team and a conversation
     (owner, tid) <- Team.createUserWithTeam brig galley
-    let new = defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0)
-    _rs <- addClient brig owner new <!! const 201 === statusCode
-    client <- clientId <$> decodeBody _rs
     cid <- Team.createTeamConv galley tid owner [] Nothing
     -- Create a service
     withTestService config crt db brig defServiceApp $ \sref buf -> do
@@ -815,24 +837,17 @@ testWhitelistKickout config crt db brig galley cannon = do
            (addBot brig owner pid sid cid <!! const 201 === statusCode)
     let bid  = rsAddBotId bot
         buid = botUserId bid
-        bc   = rsAddBotClient bot
     _ <- svcAssertBotCreated buf bid cid
     svcAssertMemberJoin buf owner [buid] cid
-    -- De-whitelist the bot and send a message
-    dewhitelistService brig owner tid pid sid
-    postMessage galley owner client cid [(buid, bc, "hi")] !!!
-        const 201 === statusCode
-    -- The bot should be kicked out
+    -- De-whitelist the service; both bots should be kicked out
     WS.bracketR cannon owner $ \ws -> do
+        dewhitelistService brig owner tid pid sid
         _ <- waitFor (2 # Second) not (isMember galley buid cid)
         getBotConv galley bid cid !!!
             const 404 === statusCode
-        -- TODO: it looks like the bot left on its own, but if this was
-        -- implemented properly, here we would've seen that the bot was
-        -- removed by 'owner'
-        wsAssertMemberLeave ws cid buid [buid]
-        svcAssertMemberLeave buf buid [buid] cid
-    -- The bot should not get any further events or messages
+        wsAssertMemberLeave ws cid owner [buid]
+        svcAssertMemberLeave buf owner [buid] cid
+    -- The bot should not get any further events
     liftIO $ timeout (2 # Second) (readChan buf) >>= \case
         Nothing -> pure ()
         Just (TestBotCreated _) -> assertFailure "bot got a TestBotCreated event"
@@ -1807,17 +1822,10 @@ testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
     let msg = OtrMessage uc bc "Hi Bot" (Just "data")
     svcAssertMessage buf uid msg cid
 
-    -- Remove the entire service; existing bots should remain where they are.
-    deleteService brig pid sid defProviderPassword !!!
-        const 200 === statusCode
-    _im <- isMember galley buid cid
-    liftIO $ assertBool "bot is not a member" _im
-
-    -- Writing another message triggers orphaned bots to be auto-removed due
-    -- to the service being gone.
+    -- Remove the entire service; the bot should be removed from the conversation
     WS.bracketR cannon uid $ \ws -> do
-        postMessage galley uid uc cid [(buid, bc, "Still there?")] !!!
-            const 201 === statusCode
+        deleteService brig pid sid defProviderPassword !!!
+            const 202 === statusCode
         _ <- waitFor (5 # Second) not (isMember galley buid cid)
         getBotConv galley bid cid !!!
             const 404 === statusCode

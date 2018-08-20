@@ -42,10 +42,13 @@ This repository contains the following source code:
    - **cargohold**: Asset (image, file, ...) Storage
    - **proxy**: 3rd Party API Integration
    - **restund**: STUN/TURN server for use in Audio/Video calls
+
 - **tools**
    - **api-simulations**: Run automated smoke and load tests
    - **makedeb**: Create Debian packages
    - **bonanza**: Transform and forward log data
+   - **db/**: Migration tools (e.g. when new tables are added)
+
 - **libs**: Shared libraries
 
 It also contains

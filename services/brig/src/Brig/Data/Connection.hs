@@ -24,6 +24,8 @@ import Brig.Types.Intra
 import Cassandra
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Concurrent.Async.Lifted.Safe.Extended (mapMPooled)
+import Data.Conduit ((.|), runConduit)
 import Data.Functor.Identity
 import Data.Id
 import Data.Int
@@ -31,6 +33,8 @@ import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.List (foldl')
 import Data.Range
 import Data.Time (getCurrentTime)
+
+import qualified Data.Conduit.List as C
 
 connectUsers :: UserId -> [(UserId, ConvId)] -> AppIO [UserConnection]
 connectUsers from to = do
@@ -107,15 +111,11 @@ countConnections u r = do
 
 deleteConnections :: UserId -> AppIO ()
 deleteConnections u = do
-    page <- retry x1 (paginate contactsSelect (paramsP Quorum (Identity u) 100))
-    deleteAll page
+    runConduit $ paginateC contactsSelect (paramsP Quorum (Identity u) 100) x1
+              .| C.mapM_ (void . mapMPooled 16 delete)
     retry x1 . write connectionClear $ params Quorum (Identity u)
   where
-    deleteAll page = do
-        forM_ (result page) $ \(other, _status) ->
-            retry x1 . write connectionDelete $ params Quorum (other, u)
-        when (hasMore page) $
-            liftClient (nextPage page) >>= deleteAll
+    delete (other, _status) = write connectionDelete $ params Quorum (other, u)
 
 -- Queries
 

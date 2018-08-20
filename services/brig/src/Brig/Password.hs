@@ -21,6 +21,9 @@ import qualified Data.Text.Encoding     as Text
 newtype Password = Password
     { fromPassword :: EncryptedPass }
 
+instance Show Password where
+    show _ = "<Password>"
+
 instance Cql Password where
     ctype = Tagged BlobColumn
 

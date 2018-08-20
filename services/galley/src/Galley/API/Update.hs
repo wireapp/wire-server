@@ -58,11 +58,9 @@ import Data.Set (Set)
 import Data.List ((\\))
 import Data.Id
 import Data.Maybe (fromMaybe, catMaybes)
-import Data.List (partition)
 import Data.List1
 import Data.Text (Text)
 import Data.Time
-import Brig.Types.Provider (ServiceWhitelistStatus (..))
 import Galley.App
 import Galley.API.Error
 import Galley.API.Mapping
@@ -71,7 +69,6 @@ import Galley.Data.Services as Data
 import Galley.Data.Types
 import Galley.Intra.Push
 import Galley.Intra.User
-import Galley.Intra.Provider
 import Galley.Options
 import Galley.Types
 import Galley.Types.Bot
@@ -460,30 +457,8 @@ postNewOtrMessage usr con cnv val msg = do
         let (toBots, toUsers) = foldr (newMessage usr con (Just cnv) msg now) ([],[]) rs
         pushSome (catMaybes toUsers)
         void . fork $ do
-            dewhitelisted <- getDewhitelisted (map fst toBots)
-            let isOk (m, _) = botMemService m `Set.notMember` dewhitelisted
-            let (toSend, toKick) = partition isOk toBots
-            mapM_ (deleteBot cnv . botMemId . fst) toKick
-            gone <- External.deliver toSend
+            gone <- External.deliver toBots
             mapM_ (deleteBot cnv . botMemId) gone
-  where
-    -- Get the set of services that should be removed from the conversation
-    -- because they are not on the services whitelist for the team.
-    -- Returns empty set if the conversation is not a team conversation.
-    getDewhitelisted :: [BotMember] -> Galley (Set ServiceRef)
-    getDewhitelisted [] = pure mempty
-    getDewhitelisted bots = do
-        mbTeam <- (convTeam =<<) <$> Data.conversation cnv
-        mbList <- forM mbTeam $ \team -> do
-            let services = map botMemService bots
-            statuses <- queryServiceWhitelist team services
-            return $ Set.fromList $
-                map getServiceRef $
-                filter (not . serviceWhitelistStatusStatus) statuses
-        return (fromMaybe mempty mbList)
-
-    getServiceRef :: ServiceWhitelistStatus -> ServiceRef
-    getServiceRef (ServiceWhitelistStatus pid sid _) = newServiceRef sid pid
 
 newMessage
     :: UserId
