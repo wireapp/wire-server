@@ -9,6 +9,7 @@
 module Test.Brig.Types.User where
 
 import Brig.Types.Activation
+import Brig.Types.Provider (UpdateServiceWhitelist)
 import Brig.Types.User
 import Data.Aeson
 import Data.Aeson.Types
@@ -81,10 +82,11 @@ roundtripTests =
     , run @PhoneRemove Proxy
     , run @PhoneUpdate Proxy
     , run @SelfProfile Proxy
+    , run @UpdateServiceWhitelist Proxy
     , run @UserHandleInfo Proxy
     , run @UserProfile Proxy
-    , run @UserUpdate Proxy
     , run @User Proxy
+    , run @UserUpdate Proxy
     , run @VerifyDeleteUser Proxy
     ]
   where

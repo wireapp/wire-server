@@ -17,7 +17,7 @@ import Data.Text.Ascii
 data ServiceRef = ServiceRef
     { _serviceRefId       :: !ServiceId
     , _serviceRefProvider :: !ProviderId
-    } deriving (Eq, Show)
+    } deriving (Ord, Eq, Show)
 
 makeLenses ''ServiceRef
 

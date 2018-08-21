@@ -63,10 +63,10 @@ spec = do
       liftIO $ do
         maxttl `shouldSatisfy` (< 60 * 1000 * 1000)  -- otherwise the test will be really slow.
         probe `shouldReturn` True
-        threadDelay ((maxttl `div` 10) * 8)
-        probe `shouldReturn` True
-        threadDelay  ((maxttl `div` 10) * 4)
-        probe `shouldReturn` False
+        threadDelay (maxttl `div` 2)
+        probe `shouldReturn` True  -- 0.5 lifetimes after birth
+        threadDelay  maxttl
+        probe `shouldReturn` False  -- 1.5 lifetimes after birth
 
 
   describe "cql binding" $ do

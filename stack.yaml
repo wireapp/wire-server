@@ -32,6 +32,8 @@ packages:
 - tools/bonanza
 - tools/makedeb
 - tools/api-simulations
+- tools/db/service-backfill
+- tools/db/auto-whitelist
 - location:
     git: https://github.com/tiago-loureiro/haskell-multihash.git
     commit: 7622cfcff97fa1e207ec91bb11495a207e6c0195
@@ -66,22 +68,19 @@ packages:
 # services/spar:
 - location:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: 80d6728ef29a2bba3a322f339e1644c80ba744d4
+    commit: 2d3ce018677256f6c9be856a46265846a762b472
   extra-dep: true
 - location:
     git: https://github.com/wireapp/hsaml2
-    commit: 8a91c880740232dbd52ff73efb99ea179c2338c7
+    commit: aa6fd1365a62d5e937033f28f548cc53379a0227
   extra-dep: true
 - location:
     git: https://github.com/wireapp/hspec-wai
     commit: ca10d13deab929f1cc3a569abea2e7fbe35fdbe3  # https://github.com/hspec/hspec-wai/pull/49
   extra-dep: true
-- location:
-    git: https://github.com/wireapp/servant-multipart
-    commit: a5f0b9ce508f9d4c28a41d2b856387a7db281577  # https://github.com/haskell-servant/servant-multipart/pull/17
-  extra-dep: true
 
 extra-deps:
+- base-prelude-1.3
 - base58-bytestring-0.1.0
 - currency-codes-2.0.0.0
 - data-timeout-0.3
@@ -95,6 +94,9 @@ extra-deps:
 - HsOpenSSL-0.11.4.12
 - invertible-hxt-0.1  # for hsaml2 / spar
 - swagger2-2.2.1  # to get 'fromAesonOptions'
+- stomp-queue-0.3.1  # for Brig.Queue.Stomp
+- stompl-0.5.0
+- servant-multipart-0.11.2
 
 flags:
   types-common:

@@ -7,6 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE ViewPatterns               #-}
 
 module Spar.App where
 
@@ -33,6 +34,7 @@ import URI.ByteString as URI
 
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
+import qualified Data.Text as ST
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
@@ -50,6 +52,7 @@ data Env = Env
   , sparCtxCas          :: Cas.ClientState
   , sparCtxHttpManager  :: Bilge.Manager
   , sparCtxHttpBrig     :: Bilge.Request
+  , sparCtxRequestId    :: RequestId
   }
 
 instance HasConfig Spar where
@@ -58,15 +61,19 @@ instance HasConfig Spar where
 
 instance SP Spar where
   -- FUTUREWORK: optionally use 'field' to index user or idp ids for easier logfile processing.
-  -- (FUTUREWORK: we could also call 'show' on the message instead of manually removing newlines,
-  -- then we could cut&paste it into ghci and make everything visible again.)
-  logger lv mg = asks sparCtxLogger >>= \lg -> Spar $ Log.log lg (toLevel lv) mg'
-    where
-      mg' = Log.msg $ flatten <$> mg
-      flatten '\n' = ' '
-      flatten '\r' = ' '
-      flatten '\t' = ' '
-      flatten c    = c
+  logger (toLevel -> lv) mg = do
+    lg <- asks sparCtxLogger
+    reqid <- asks sparCtxRequestId
+    let fields, mg' :: Log.Msg -> Log.Msg
+        fields = Log.field "request" (unRequestId reqid)
+        mg'    = Log.msg . condenseLogMsg . cs $ mg
+    Spar . Log.log lg lv $ fields Log.~~ mg'
+
+condenseLogMsg :: ST -> ST
+condenseLogMsg = ST.intercalate " "
+               . filter (/= "")
+               . map ST.strip
+               . ST.split (`elem` (" \n\r\t\v\f" :: [Char]))
 
 toLevel :: SAML.Level -> Log.Level
 toLevel = \case

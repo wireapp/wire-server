@@ -25,11 +25,14 @@ gundeck:
   port: 8086
 
 aws:
-  blacklistTable: integration-brig-userkey-blacklist
   prekeyTable: integration-brig-prekeys
-  internalQueue: integration-brig-events-internal
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
+
+internalEvents:
+  queueType: sqs
+  queueName: integration-brig-events-internal
+
 emailSMS:
   email:
     sesQueue: integration-brig-events
@@ -91,4 +94,5 @@ optSettings:
     stdDev: 3000      # 50 minutes
     retryAfter: 86400 # 1 day
   setDefaultLocale: en
-  setMaxConvAndTeamSize: 128
+  setMaxTeamSize: 128
+  setMaxConvSize: 128

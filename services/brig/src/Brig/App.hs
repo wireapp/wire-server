@@ -19,6 +19,7 @@ module Brig.App
     , closeEnv
     , awsEnv
     , smtpEnv
+    , stompEnv
     , cargohold
     , galley
     , gundeck
@@ -40,6 +41,7 @@ module Brig.App
     , applog
     , turnEnv
     , turnEnvV2
+    , internalEvents
 
       -- * App Monad
     , AppT
@@ -54,6 +56,7 @@ module Brig.App
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import Brig.Options (Opts, Settings)
+import Brig.Queue.Types (Queue (..))
 import Brig.Template (Localised, forLocale)
 import Brig.Provider.Template
 import Brig.Team.Template
@@ -95,10 +98,12 @@ import OpenSSL.EVP.Digest (getDigestByName, Digest)
 import OpenSSL.Session (SSLOption (..))
 import System.Directory (canonicalizePath)
 import System.Logger.Class hiding (Settings, settings)
+import UnliftIO (MonadUnliftIO (..))
 import Util.Options
 
 import qualified Bilge                    as RPC
 import qualified Brig.AWS                 as AWS
+import qualified Brig.Queue.Stomp         as Stomp
 import qualified Brig.Options             as Opt
 import qualified Brig.SMTP                as SMTP
 import qualified Brig.TURN                as TURN
@@ -122,7 +127,7 @@ import qualified System.Logger            as Log
 import qualified System.Logger.Class      as LC
 
 schemaVersion :: Int32
-schemaVersion = 51
+schemaVersion = 53
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -134,8 +139,10 @@ data Env = Env
     , _casClient     :: Cas.ClientState
     , _smtpEnv       :: Maybe SMTP.SMTP
     , _awsEnv        :: AWS.Env
+    , _stompEnv      :: Maybe Stomp.Env
     , _metrics       :: Metrics
     , _applog        :: Logger
+    , _internalEvents :: Queue
     , _requestId     :: RequestId
     , _usrTemplates  :: Localised UserTemplates
     , _provTemplates :: Localised ProviderTemplates
@@ -182,6 +189,16 @@ newEnv o = do
     let sett = Opt.optSettings o
     nxm <- initCredentials (Opt.setNexmo sett)
     twl <- initCredentials (Opt.setTwilio sett)
+    stomp <- case (Opt.stomp o, Opt.setStomp sett) of
+        (Nothing, Nothing) -> pure Nothing
+        (Just s, Just c)   -> Just . Stomp.mkEnv s <$> initCredentials c
+        (Just _, Nothing)  -> error "STOMP is configured but 'setStomp' is not set"
+        (Nothing, Just _)  -> error "'setStomp' is present but STOMP is not configured"
+    -- This is messy. See Note [queue refactoring] to learn how we
+    -- eventually plan to solve this mess.
+    eventsQueue <- case Opt.internalEventsQueue (Opt.internalEvents o) of
+        StompQueue q -> pure (StompQueue q)
+        SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
     return $! Env
         { _cargohold     = mkEndpoint $ Opt.cargohold o
         , _galley        = mkEndpoint $ Opt.galley o
@@ -189,8 +206,10 @@ newEnv o = do
         , _casClient     = cas
         , _smtpEnv       = emailSMTP
         , _awsEnv        = aws
+        , _stompEnv      = stomp
         , _metrics       = mtr
         , _applog        = lgr
+        , _internalEvents = eventsQueue
         , _requestId     = mempty
         , _usrTemplates  = utp
         , _provTemplates = ptp
@@ -326,8 +345,8 @@ initExtGetManager = do
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g = do
-    c <- maybe (return $ NE.fromList [unpack ((Opt.cassandra o)^.casEndpoint.epHost)])
-               (Cas.initialContacts "cassandra_brig")
+    c <- maybe (Cas.initialContactsDNS ((Opt.cassandra o)^.casEndpoint.epHost))
+               (Cas.initialContactsDisco "cassandra_brig")
                (unpack <$> Opt.discoUrl o)
     p <- Cas.init (Log.clone (Just "cassandra.brig") g)
             $ Cas.setContacts (NE.head c) (NE.tail c)
@@ -414,6 +433,12 @@ instance MonadBaseControl IO AppIO where
     type StM AppIO a = StM (ReaderT Env Client) a
     liftBaseWith     f = AppT $ liftBaseWith $ \run -> f (run . unAppT)
     restoreM           = AppT . restoreM
+
+instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
+    withRunInIO inner =
+      AppT $ ReaderT $ \r ->
+      withRunInIO $ \run ->
+      inner (run . flip runReaderT r . unAppT)
 
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e

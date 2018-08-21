@@ -26,6 +26,8 @@ import Data.String.Conversions
 import Data.String (fromString)
 import Lens.Micro
 import Network.HTTP.Client (responseTimeoutMicro)
+import Network.Wai (Application)
+import Network.Wai.Utilities.Request (lookupRequestId)
 import Spar.API
 import Spar.API.Instances ()
 import Spar.API.Swagger ()
@@ -54,8 +56,9 @@ schemaVersion = 0
 
 initCassandra :: Opts.Opts -> Logger -> IO ClientState
 initCassandra opts lgr = do
-    connectString <- maybe (return $ NE.fromList [cs $ Opts.cassandra opts ^. casEndpoint . epHost])
-               (Cas.initialContacts "cassandra_spar")
+    connectString <- maybe
+               (Cas.initialContactsDNS (Opts.cassandra opts ^. casEndpoint . epHost))
+               (Cas.initialContactsDisco "cassandra_spar")
                (cs <$> Opts.discoUrl opts)
     cas <- Cas.init (Log.clone (Just "cassandra.spar") lgr) $ Cas.defSettings
       & Cas.setContacts (NE.head connectString) (NE.tail connectString)
@@ -105,5 +108,12 @@ runServer sparCtxOpts = do
         -- prometheus-compatible.  not sure about the order in which to do these.
         = WU.catchErrors sparCtxLogger mx
         . SAML.setHttpCachePolicy
-        $ app Env {..}
+        . lookupRequestIdMiddleware
+        $ \sparCtxRequestId -> app Env {..}
   WU.runSettingsWithShutdown settings wrappedApp 5
+
+
+lookupRequestIdMiddleware :: (RequestId -> Application) -> Application
+lookupRequestIdMiddleware mkapp req cont = do
+  let reqid = maybe mempty RequestId $ lookupRequestId req
+  mkapp reqid req cont
