@@ -25,6 +25,7 @@ extra-source-files:
 dependencies:
   - base >= 4.7 && < 5
   - aeson
+  - aeson-qq
   - mtl
   - servant-server
   - servant-generic
