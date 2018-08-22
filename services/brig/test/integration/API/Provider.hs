@@ -867,12 +867,12 @@ testDeWhitelistDeletedConv config crt db brig galley cannon = do
     -- Add a bot there
     _bid1 <- addBotConv brig cannon uid1 uid2 cid pid sid buf
 
-    liftIO $ threadDelay (1 # Second)
     -- Delete conversation (to ensure deleteService can be called even with a deleted conversation)
     Team.deleteTeamConv galley tid cid uid1
-    liftIO $ threadDelay (1 # Second)
 
-    -- De-whitelist the service; this should work even with brig being unaware of deleted conversations
+    -- De-whitelist the service
+    -- this should work (not throw a 500) even with brig being unaware of deleted conversations
+    -- TODO: we should think of a way to synchronize this conversation information between galley and brig
     dewhitelistService brig uid1 tid pid sid
 
 --------------------------------------------------------------------------------

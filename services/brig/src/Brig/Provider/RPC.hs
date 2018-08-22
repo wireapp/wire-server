@@ -39,6 +39,7 @@ import Data.Monoid
 import Data.Word
 import Galley.Types (Event)
 import Network.HTTP.Types.Method
+import Network.HTTP.Types.Status
 import System.Logger.Class (MonadLogger, msg, val, field ,(~~))
 import URI.ByteString
 
@@ -197,7 +198,7 @@ removeBotMember zusr zcon conv bot = do
               . field "bot"      (toByteString bot)
               . msg (val "Removing bot member")
     rs <- galleyRequest DELETE req
-    if isJust (responseBody rs)
+    if isJust (responseBody rs) && Bilge.statusCode rs == 200
         then Just <$> decodeBody "galley" rs
         else return Nothing
   where
@@ -206,4 +207,4 @@ removeBotMember zusr zcon conv bot = do
         . maybe id (header "Z-Connection" . toByteString') zcon
         . contentJson
         . lbytes (encode (Galley.removeBot conv bot))
-        . expect2xx
+        . expect [status200, status404] -- 404 is allowed: a given conversation may no longer exist
