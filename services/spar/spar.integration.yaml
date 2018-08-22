@@ -4,8 +4,8 @@ saml:
 
   spHost:     0.0.0.0
   spPort:     8088
-  spAppUri:  https://app.wire.com/
-  spSsoUri:  https://app.wire.com/sso
+  spAppUri:  http://localhost:8088/
+  spSsoUri:  http://localhost:8088/sso
 
   contacts:
     - type: ContactBilling
@@ -15,8 +15,8 @@ saml:
       email: email:president@evil.corp
 
 spInfo:
-  metaURI:  https://app.wire.com/sso/metadata         # corresponds to 'APIMeta'
-  loginURI: https://app.wire.com/sso/initiate-login/  # corresponds to 'APIAuthReq' (without the idp id)
+  metaURI:  http://localhost:8088/sso/metadata         # corresponds to 'APIMeta'
+  loginURI: http://localhost:8088/sso/initiate-login/  # corresponds to 'APIAuthReq' (without the idp id)
 
 brig:
   host: 127.0.0.1

@@ -124,22 +124,16 @@ spec = do
 
       context "access granted" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
-          pending
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
           authnresp <- liftIO $ mkAuthnResponse privcreds idp authnreq True
           sparresp <- submitAuthnResponse authnresp
           liftIO $ do
-            print $ unlines
-              [ cs . renderLBS def { rsPretty = True } . fromSignedAuthnResponse $ authnresp
-              , ppShow sparresp
-              , maybe "Nothing" cs (responseBody sparresp)
-              ]
             statusCode sparresp `shouldBe` 200
             let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
             bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-            bdy `shouldContain` "<title>???</title>"
-            bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_ERROR', payload: {label: '???'}}, receiverOrigin)"
+            bdy `shouldContain` "<title>wire:sso:success</title>"
+            bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
 
         context "unknown user" $ do
           it "creates the user" $ do
