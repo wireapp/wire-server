@@ -107,6 +107,7 @@ executables:
       - random
       - servant-client
       - spar
+      - stm
       - wai
       - xml-conduit
       - xml-hamlet

@@ -18,7 +18,10 @@
 -- FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdP, teIdPEndpoint, teUserId, teTeamId, teIdP, teIdPHandle, teOpts, teTstOpts
+  ( TestEnv(..)
+  , teMgr, teCql, teBrig, teGalley, teSpar
+  , teNewIdP, teIdPEndpoint, teUserId, teTeamId, teIdP, teIdPHandle, teIdPChan
+  , teOpts, teTstOpts
   , Select, mkEnv, destroyEnv, it, pending, pendingWith
   , IntegrationConfig(..)
   , BrigReq
@@ -33,7 +36,7 @@ module Util
   , shouldRespondWith
   , call
   , ping
-  , createTestIdP
+  , makeTestNewIdP
   , negotiateAuthnRequest
   , submitAuthnResponse
   , responseJSON
@@ -116,9 +119,9 @@ mkEnv _teTstOpts _teOpts = do
       _teNewIdP  = cfgNewIdp _teTstOpts
       _teIdPEndpoint = cfgMockIdp _teTstOpts
 
-  _teIdPHandle <- let app = serveSampleIdP _teNewIdP
-                      srv = Warp.runSettings (endpointToSettings _teIdPEndpoint) app
-                  in Async.async srv
+  (app, _teIdPChan) <- serveSampleIdP _teNewIdP
+  let srv = Warp.runSettings (endpointToSettings _teIdPEndpoint) app
+  _teIdPHandle <- Async.async srv
 
   (_teUserId, _teTeamId, _teIdP) <- createTestIdPFrom _teNewIdP _teMgr _teBrig _teGalley _teSpar
 
@@ -329,16 +332,16 @@ ping :: (Request -> Request) -> Http ()
 ping req = void . get $ req . path "/i/status" . expect2xx
 
 
--- | Create new user, team, idp from 'sampleIdP'.  The issuer id can be used to do this several
--- times without getting the error that this issuer is already used for another team.
-createTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => UUID -> m (UserId, TeamId, IdP)
-createTestIdP issuerid = do
+-- | Create a cloned 'NewIdP' corresponding to the mock idp from the config and suitable for
+-- registering with spar.  The issuer id can be used to do this several times without getting the
+-- error that this issuer is already used for another team.
+makeTestNewIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => UUID -> m NewIdP
+makeTestNewIdP issuerid = do
   env <- ask
-  let sampleNewIdP = sampleIdP (mkurl "/meta") (mkurl "/resp")
-        & nidpIssuer .~ Issuer (mkurl $ "/_" <> UUID.toText issuerid)
-      Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp
+  let Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp
       mkurl = either (error . show) id . SAML.parseURI' . (("http://" <> ephost <> ":" <> epport) <>)
-  createTestIdPFrom sampleNewIdP (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
+  pure $ (env ^. teNewIdP) & nidpIssuer .~ Issuer (mkurl $ "/_" <> UUID.toText issuerid)
+
 
 -- | Create new user, team, idp from given 'NewIdP'.
 createTestIdPFrom :: (HasCallStack, MonadIO m)
@@ -347,6 +350,7 @@ createTestIdPFrom newidp mgr brig galley spar = do
   liftIO . runHttpT mgr $ do
     (uid, tid) <- createUserWithTeam brig galley
     (uid, tid,) <$> callIdpCreate spar (Just uid) newidp
+
 
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)

@@ -12,6 +12,7 @@ module Test.Spar.APISpec where
 
 import Bilge
 import Brig.Types.User
+import Control.Concurrent.STM (atomically, writeTChan)
 import Control.Monad.Reader
 import Data.ByteString.Conversion
 import Data.Either (isRight)
@@ -20,18 +21,17 @@ import Data.List (isInfixOf)
 import Data.Maybe
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
+import Data.UUID.V4 as UUID
 import Galley.Types.Teams as Galley
 import GHC.Stack
 import Lens.Micro
 import Prelude hiding (head)
 import SAML2.WebSSO as SAML
-import SAML2.WebSSO.Test.Credentials
 import SAML2.WebSSO.Test.MockResponse
 import Spar.Types
+import Text.XML
 import Util
 
-import qualified Data.ByteString.Lazy as LBS
-import qualified Network.HTTP.Types.Status as HTTP
 import qualified Spar.Intra.Brig as Intra
 
 
@@ -280,45 +280,29 @@ spec = do
           callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdP)
             `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
-      let createIdpMockErr :: (NewIdP -> NewIdP) -> FilePath -> HTTP.Status -> ReaderT TestEnv IO ()
-          createIdpMockErr modnewidp metafile respstatus = do
-            pending
+      let -- | test that illegal create idp requests are rejected
+          createIdpMockErr :: HasCallStack => Maybe [Node] -> TestErrorLabel -> ReaderT TestEnv IO ()
+          createIdpMockErr metadata errlabel = do
             env <- ask
-            metadata <- liftIO . LBS.readFile $ "test-integration/resources/" <> metafile
-            metaurl <- endpointToURL (env ^. teIdPEndpoint) "meta"
-            respurl <- endpointToURL (env ^. teIdPEndpoint) "resp"
-            let newidp = (env ^. teNewIdP)
-                  & nidpMetadata   .~ metaurl
-                  & nidpRequestUri .~ respurl
-                  & modnewidp
-            (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-            withMockIdP (serveMetaAndResp metadata respstatus) $ do
-              callIdpCreate' (env ^. teSpar) (Just uid) newidp
-                `shouldRespondWith` checkErr (== 400) "client-error"
+            newidp <- makeTestNewIdP =<< liftIO UUID.nextRandom
+            liftIO . atomically $ writeTChan (env ^. teIdPChan) `mapM_` metadata
+            callIdpCreate' (env ^. teSpar) (Just (env ^. teUserId)) newidp
+              `shouldRespondWith` checkErr (== 400) errlabel
 
       context "bad metadata answer" $ do
         it "rejects" $ createIdpMockErr
-          id
-          "meta-bad.xml"
-          HTTP.status200
+          (Just [NodeElement (Element "bloo" mempty mempty)])
+          "invalid-signature"  -- well, this is just what it checks first...
 
-      context "invalid metadata signature (on an XML document otherwise arbitrarily off)" $ do
-        it "rejects" $ createIdpMockErr
-          id
-          "meta-bad-sig.xml"
-          HTTP.status200
-
-      context "invalid or unresponsive login request url" $ do
-        it "rejects" $ createIdpMockErr
-          id
-          "meta-good-sig.xml"
-          HTTP.status400
+      context "invalid metadata signature" $ do
+        it "rejects" $ pending >> createIdpMockErr
+          undefined
+          "todo-figure-out-label"
 
       context "pubkey in IdPConfig does not match the one provided in metadata url" $ do
-        it "rejects" $ createIdpMockErr
-          (nidpPublicKey .~ sampleIdPCertWrong)
-          "meta-good-sig.xml"
-          HTTP.status200
+        it "rejects" $ pending >> createIdpMockErr
+          undefined
+          "todo-figure-out-label"
 
       context "idp (identified by issuer) is in use by other team" $ do
         it "rejects" $ do

@@ -15,10 +15,12 @@
 
 module Util.MockIdP where
 
+import Control.Concurrent.STM
 import Control.Exception
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
+import Data.Maybe (fromMaybe)
 import Data.String
 import Data.String.Conversions
 import GHC.Stack
@@ -53,18 +55,16 @@ withMockIdP app go = do
 
 -- test applications
 
-serveMetaAndResp :: HasCallStack => LBS -> HTTP.Status -> Application
-serveMetaAndResp metadata respstatus req cont = case pathInfo req of
-  ["meta"] -> cont $ responseLBS status200 [] metadata
-  ["resp"] -> cont $ responseLBS respstatus [] ""
-  bad      -> error $ show bad
-
-serveSampleIdP :: HasCallStack => NewIdP -> Application
-serveSampleIdP newidp req cont = case pathInfo req of
-  ["meta"] -> cont . responseLBS status200 [] . renderLBS def . nodesToDoc =<< sampleIdPMetadata newidp
-  ["resp"] -> cont $ responseLBS status400 [] ""
-  bad      -> error $ show bad
-
+serveSampleIdP :: HasCallStack => NewIdP -> IO (Application, TChan [Node])
+serveSampleIdP newidp = do
+  metaDflt <- sampleIdPMetadata newidp
+  chan <- atomically newTChan
+  let getNextMeta = atomically $ fromMaybe metaDflt <$> tryReadTChan chan
+      app req cont = case pathInfo req of
+        ["meta"] -> cont . responseLBS status200 [] . renderLBS def . nodesToDoc =<< getNextMeta
+        ["resp"] -> cont $ responseLBS status400 [] ""  -- we do that without the mock server, via 'mkAuthnResponse'
+        bad      -> error $ show bad
+  pure (app, chan)
 
 sampleIdPMetadata :: NewIdP -> IO [Node]
 sampleIdPMetadata newidp = signElementIO sampleIdPPrivkey [xml|

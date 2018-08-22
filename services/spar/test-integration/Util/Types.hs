@@ -26,6 +26,7 @@ module Util.Types
   , teUserId
   , teTeamId
   , teIdP
+  , teIdPChan
   , teIdPHandle
   , teOpts
   , teTstOpts
@@ -37,6 +38,7 @@ module Util.Types
 
 import Bilge
 import Cassandra as Cas
+import Control.Concurrent.STM.TChan
 import Control.Exception
 import Control.Monad
 import Data.Aeson
@@ -49,8 +51,9 @@ import Lens.Micro.TH
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
-import Spar.Types
 import Spar.Options as Options
+import Spar.Types
+import Text.XML
 import Util.Options
 
 import qualified Control.Concurrent.Async as Async
@@ -72,6 +75,7 @@ data TestEnv = TestEnv
   , _teUserId      :: UserId
   , _teTeamId      :: TeamId
   , _teIdP         :: IdP
+  , _teIdPChan     :: TChan [Node]
   , _teIdPHandle   :: Async.Async ()
   , _teOpts        :: Opts
   , _teTstOpts     :: IntegrationConfig
