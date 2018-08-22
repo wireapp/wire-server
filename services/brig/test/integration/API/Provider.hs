@@ -122,6 +122,8 @@ tests conf p db b c g = do
                               $ testSearchWhitelistHonorUpdates conf db b g
             , test p "de-whitelisted bots are removed"
                               $ testWhitelistKickout conf crt db b g c
+            , test p "de-whitelisting works with deleted conversations"
+                              $ testDeWhitelistDeletedConv conf crt db b g c
             ]
         , testGroup "bot"
             [ test p "add-remove" $ testAddRemoveBot conf crt db b g c
@@ -852,6 +854,26 @@ testWhitelistKickout config crt db brig galley cannon = do
         Nothing -> pure ()
         Just (TestBotCreated _) -> assertFailure "bot got a TestBotCreated event"
         Just (TestBotMessage e) -> assertFailure ("bot got an event: " <> show (evtType e))
+
+testDeWhitelistDeletedConv :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testDeWhitelistDeletedConv config crt db brig galley cannon = do
+    -- Create a service
+    withTestService config crt db brig defServiceApp $ \sref buf -> do
+    -- Create a team and a conversation
+    (u1, u2, _h, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
+    let uid1 = userId u1
+        uid2 = userId u2
+
+    -- Add a bot there
+    _bid1 <- addBotConv brig cannon uid1 uid2 cid pid sid buf
+
+    liftIO $ threadDelay (1 # Second)
+    -- Delete conversation (to ensure deleteService can be called even with a deleted conversation)
+    Team.deleteTeamConv galley tid cid uid1
+    liftIO $ threadDelay (1 # Second)
+
+    -- De-whitelist the service; this should work even with brig being unaware of deleted conversations
+    dewhitelistService brig uid1 tid pid sid
 
 --------------------------------------------------------------------------------
 -- API Operations
