@@ -280,7 +280,13 @@ spec = do
           callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdP)
             `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
-      let -- | test that illegal create idp requests are rejected
+      let -- | test that illegal create idp requests are rejected: create a 'NewIdP' value with a
+          -- fresh 'Issuer' value (same IdP issuer can't serve two different teams); load a metadata
+          -- file that is broken in some interesting way into the mock IdP started in module 'Spec';
+          -- then attempt to register the 'NewIdP'.
+          --
+          -- spar will request the metadata url; validate the metadata received from the mock idp we
+          -- just loaded here; and return the expected error (or not).
           createIdpMockErr :: HasCallStack => Maybe [Node] -> TestErrorLabel -> ReaderT TestEnv IO ()
           createIdpMockErr metadata errlabel = do
             env <- ask
