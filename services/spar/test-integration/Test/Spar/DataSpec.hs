@@ -316,12 +316,12 @@ mkAuthnReqMobile idpid = do
   call $ get ((env ^. teSpar) . path arPath . expect2xx)
 
 requestAccessVerdict :: HasCallStack
-                     => Bool                                             -- is the verdict granted?
-                     -> (SAML.IdPId -> ReaderT TestEnv IO ResponseLBS)   -- raw authnreq
+                     => Bool                                             -- ^ is the verdict granted?
+                     -> (SAML.IdPId -> ReaderT TestEnv IO ResponseLBS)   -- ^ raw authnreq
                      -> ReaderT TestEnv IO ( UserId
                                            , SAML.ResponseVerdict
-                                           , URI                         -- location header
-                                           , [(SBS, SBS)]                -- query params
+                                           , URI                         -- ^ location header
+                                           , [(SBS, SBS)]                -- ^ query params
                                            )
 requestAccessVerdict isGranted mkAuthnReq = do
   env <- ask
