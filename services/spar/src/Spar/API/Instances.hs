@@ -21,7 +21,6 @@ import Data.Id
 import Data.String.Conversions
 import Data.Time
 import GHC.Generics
-import SAML2.WebSSO.Config (IdPId(IdPId))
 import SAML2.WebSSO.Types
 import SAML2.WebSSO.XML
 import Servant hiding (URI)

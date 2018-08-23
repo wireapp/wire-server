@@ -12,6 +12,7 @@ module Test.Spar.APISpec where
 
 import Bilge
 import Brig.Types.User
+import Control.Concurrent.STM (atomically, writeTChan)
 import Control.Monad.Reader
 import Data.ByteString.Conversion
 import Data.Either (isRight)
@@ -20,14 +21,17 @@ import Data.List (isInfixOf)
 import Data.Maybe
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
+import Data.UUID.V4 as UUID
 import Galley.Types.Teams as Galley
+import GHC.Stack
 import Lens.Micro
 import Prelude hiding (head)
 import SAML2.WebSSO as SAML
+import SAML2.WebSSO.Test.MockResponse
 import Spar.Types
+import Text.XML
 import Util
 
-import qualified Network.HTTP.Types.Status as HTTP
 import qualified Spar.Intra.Brig as Intra
 
 
@@ -72,10 +76,10 @@ spec = do
           head ((env ^. teSpar) . path ("/sso/initiate-login/" <> uuid))
             `shouldRespondWith` ((== 404) . statusCode)
 
-      context "HEAD known IdP" $ do
+      context "known IdP" $ do
         it "responds with 200" $ do
           env <- ask
-          (_, _, cs . UUID.toText . fromIdPId -> idp) <- createTestIdP
+          let idp = cs . UUID.toText . fromIdPId $ env ^. teIdP . idpId
           head ((env ^. teSpar) . path ("/sso/initiate-login/" <> idp) . expect2xx)
             `shouldRespondWith`  ((== 200) . statusCode)
 
@@ -90,7 +94,7 @@ spec = do
       context "known IdP" $ do
         it "responds with request" $ do
           env <- ask
-          (_, _, cs . UUID.toText . fromIdPId -> idp) <- createTestIdP
+          let idp = cs . UUID.toText . fromIdPId $ env ^. teIdP . idpId
           get ((env ^. teSpar) . path ("/sso/initiate-login/" <> idp) . expect2xx)
             `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                   [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
@@ -98,16 +102,38 @@ spec = do
                                   , "<input name=\"SAMLRequest\" type=\"hidden\" "
                                   ])
 
-    describe "/sso/finalize-login" $ do  -- TODO: either use workingIdP or mock one locally.  the
-                                         -- latter is faster to run, but we need the former anyway,
-                                         -- so we might as well rely on that.
+    describe "/sso/finalize-login" $ do
       context "access denied" $ do
-        it "responds with 'forbidden'" $ do
-          pending
+        it "responds with a very peculiar 'forbidden' HTTP response" $ do
+          (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          authnresp <- liftIO $ mkAuthnResponse privcreds idp authnreq False
+          sparresp <- submitAuthnResponse authnresp
+          liftIO $ do
+            -- import Text.XML
+            -- putStrLn $ unlines
+            --   [ cs . renderLBS def { rsPretty = True } . fromSignedAuthnResponse $ authnresp
+            --   , show sparresp
+            --   , maybe "Nothing" cs (responseBody sparresp)
+            --   ]
+            statusCode sparresp `shouldBe` 200
+            let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+            bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+            bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+            bdy `shouldContain` "<title>wire:sso:error:forbidden</title>"
+            bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_ERROR', payload: {label: 'forbidden'}}, receiverOrigin)"
 
       context "access granted" $ do
-        it "responds with redirect to app" $ do
-          pending
+        it "responds with a very peculiar 'allowed' HTTP response" $ do
+          (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          authnresp <- liftIO $ mkAuthnResponse privcreds idp authnreq True
+          sparresp <- submitAuthnResponse authnresp
+          liftIO $ do
+            statusCode sparresp `shouldBe` 200
+            let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+            bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+            bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+            bdy `shouldContain` "<title>wire:sso:success</title>"
+            bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
 
         context "unknown user" $ do
           it "creates the user" $ do
@@ -148,33 +174,34 @@ spec = do
           context "no zuser" $ do
             it "responds with 'client error'" $ do
               env <- ask
-              (_, _, idp) <- createTestIdP
-              whichone (env ^. teSpar) Nothing idp
+              let idpid = env ^. teIdP . idpId
+              whichone (env ^. teSpar) Nothing idpid
                 `shouldRespondWith` checkErr (== 400) "client-error"
 
           context "zuser has no team" $ do
             it "responds with 'no team member'" $ do
               env <- ask
-              (_, _, idp) <- createTestIdP
+              let idpid = env ^. teIdP . idpId
               (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
-              whichone (env ^. teSpar) (Just uid) idp
+              whichone (env ^. teSpar) (Just uid) idpid
                 `shouldRespondWith` checkErr (== 403) "no-team-member"
 
           context "zuser has wrong team" $ do
             it "responds with 'no team member'" $ do
               env <- ask
-              (_, _, idp) <- createTestIdP
+              let idpid = env ^. teIdP . idpId
               (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-              whichone (env ^. teSpar) (Just uid) idp
+              whichone (env ^. teSpar) (Just uid) idpid
                 `shouldRespondWith` checkErr (== 403) "no-team-member"
 
           context "zuser is a team member, but not a team owner" $ do
             it "responds with 'insufficient-permissions' and a helpful message" $ do
               env <- ask
-              (_owner, tid, idp) <- createTestIdP
+              let idpid = env ^. teIdP . idpId
+                  teamid = env ^. teTeamId
               newmember <- let Just perms = newPermissions mempty mempty
-                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-              whichone (env ^. teSpar) (Just newmember) idp
+                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
+              whichone (env ^. teSpar) (Just newmember) idpid
                 `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
     describe "GET /identity-providers/:idp" $ do
@@ -183,8 +210,9 @@ spec = do
       context "known IdP, client is team owner" $ do
         it "responds with 2xx and IdP" $ do
           env <- ask
-          (uid, _, idp) <- createTestIdP
-          callIdpGet' (env ^. teSpar) (Just uid) idp
+          let idpid = env ^. teIdP . idpId
+              userid = env ^. teUserId
+          callIdpGet' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` (\resp -> statusCode resp == 200 && isRight (responseJSON @IdP resp))
 
     describe "GET /identity-providers" $ do
@@ -207,10 +235,11 @@ spec = do
       context "known IdP, client is team owner" $ do
         it "responds with 2xx and removes IdP" $ do
           env <- ask
-          (uid, _, idp) <- createTestIdP
-          callIdpDelete' (env ^. teSpar) (Just uid) idp
+          let idpid = env ^. teIdP . idpId
+              userid = env ^. teUserId
+          callIdpDelete' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` \resp -> statusCode resp < 300
-          callIdpGet' (env ^. teSpar) (Just uid) idp
+          callIdpGet' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` checkErr (== 404) "not-found"
 
     describe "PUT /identity-providers/:idp" $ do
@@ -232,14 +261,14 @@ spec = do
       context "no zuser" $ do
         it "responds with 'client error'" $ do
           env <- ask
-          callIdpCreate' (env ^. teSpar) Nothing (env ^. teNewIdp)
+          callIdpCreate' (env ^. teSpar) Nothing (env ^. teNewIdP)
             `shouldRespondWith` checkErr (== 400) "client-error"
 
       context "zuser has no team" $ do
         it "responds with 'no team member'" $ do
           env <- ask
           (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
-          callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdp)
+          callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdP)
             `shouldRespondWith` checkErr (== 403) "no-team-member"
 
       context "zuser is a team member, but not a team owner" $ do
@@ -248,47 +277,38 @@ spec = do
           (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           newmember <- let Just perms = newPermissions mempty mempty
                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-          callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdp)
+          callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdP)
             `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
-      let createIdpMockErr :: (NewIdP -> NewIdP) -> FilePath -> HTTP.Status -> ReaderT TestEnv IO ()
-          createIdpMockErr modnewidp metafile respstatus = do
-            pending
+      let -- | test that illegal create idp requests are rejected: create a 'NewIdP' value with a
+          -- fresh 'Issuer' value (same IdP issuer can't serve two different teams); load a metadata
+          -- file that is broken in some interesting way into the mock IdP started in module 'Spec';
+          -- then attempt to register the 'NewIdP'.
+          --
+          -- spar will request the metadata url; validate the metadata received from the mock idp we
+          -- just loaded here; and return the expected error (or not).
+          createIdpMockErr :: HasCallStack => Maybe [Node] -> TestErrorLabel -> ReaderT TestEnv IO ()
+          createIdpMockErr metadata errlabel = do
             env <- ask
-            metaurl <- endpointToURL (env ^. teMockIdp) "meta"
-            respurl <- endpointToURL (env ^. teMockIdp) "resp"
-            let newidp = (env ^. teNewIdp)
-                  & nidpMetadata   .~ metaurl
-                  & nidpRequestUri .~ respurl
-                  & modnewidp
-            (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-            withMockIdP (serveMetaAndResp metafile respstatus) $ do
-              callIdpCreate' (env ^. teSpar) (Just uid) newidp
-                `shouldRespondWith` checkErr (== 400) "client-error"
+            newidp <- makeTestNewIdP =<< liftIO UUID.nextRandom
+            liftIO . atomically $ writeTChan (env ^. teIdPChan) `mapM_` metadata
+            callIdpCreate' (env ^. teSpar) (Just (env ^. teUserId)) newidp
+              `shouldRespondWith` checkErr (== 400) errlabel
 
       context "bad metadata answer" $ do
         it "rejects" $ createIdpMockErr
-          id
-          "meta-bad.xml"
-          HTTP.status200
+          (Just [NodeElement (Element "bloo" mempty mempty)])
+          "invalid-signature"  -- well, this is just what it checks first...
 
-      context "invalid metadata signature (on an XML document otherwise arbitrarily off)" $ do
-        it "rejects" $ createIdpMockErr
-          id
-          "meta-bad-sig.xml"
-          HTTP.status200
-
-      context "invalid or unresponsive login request url" $ do
-        it "rejects" $ createIdpMockErr
-          id
-          "meta-good-sig.xml"
-          HTTP.status400
+      context "invalid metadata signature" $ do
+        it "rejects" $ pending >> createIdpMockErr
+          undefined
+          "todo-figure-out-label"
 
       context "pubkey in IdPConfig does not match the one provided in metadata url" $ do
-        it "rejects" $ createIdpMockErr
-          (nidpPublicKey .~ samplePublicKey2)
-          "meta-good-sig.xml"
-          HTTP.status200
+        it "rejects" $ pending >> createIdpMockErr
+          undefined
+          "todo-figure-out-label"
 
       context "idp (identified by issuer) is in use by other team" $ do
         it "rejects" $ do
@@ -308,7 +328,7 @@ spec = do
             check tryowner permsix =
               it ("works: tryowner == " <> show (tryowner, permsix)) $ do
                 env <- ask
-                (owner, tid, _idp) <- createTestIdP
+                (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
                 newmember <- if tryowner
                   then pure undefined
                   else call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid (permses !! permsix)
