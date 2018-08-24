@@ -11,7 +11,7 @@ module Web.SCIM.Class.Group (
   , GroupId
   , Member (..)
   , groupServer
-  , app
+  , GroupAPI
   ) where
 
 import           Control.Monad.Except
@@ -19,7 +19,6 @@ import           Control.Error.Util (note)
 import           Data.Text
 import           Data.Aeson
 import           GHC.Generics (Generic)
-import           Network.Wai
 import           Web.SCIM.Schema.Common
 import           Web.SCIM.Schema.Error
 import           Web.SCIM.Schema.Meta
@@ -27,7 +26,7 @@ import           Servant
 import           Servant.Generic
 
 
-type SCIMHandler m = (MonadError ServantErr m, GroupDB m)
+type GroupHandler m = (MonadError ServantErr m, GroupDB m)
 type GroupAPI = ToServant (GroupSite AsApi)
 
 type GroupId = Text
@@ -84,14 +83,7 @@ data GroupSite route = GroupSite
       Capture "id" Text :> DeleteNoContent '[JSON] NoContent
   } deriving (Generic)
 
-api :: Proxy GroupAPI
-api = Proxy
-
-app :: SCIMHandler m =>
-       (forall a. m a -> Handler a) -> Application
-app t = serve api $ hoistServer api t (toServant $ groupServer)
-
-groupServer :: SCIMHandler m => GroupSite (AsServerT m)
+groupServer :: GroupHandler m => GroupSite (AsServerT m)
 groupServer = GroupSite
   { getGroups = list
   , getGroup = getGroup'
@@ -101,17 +93,17 @@ groupServer = GroupSite
   , deleteGroup = deleteGroup'
   }
 
-getGroup' :: SCIMHandler m => GroupId -> m StoredGroup
+getGroup' :: GroupHandler m => GroupId -> m StoredGroup
 getGroup' gid = do
   maybeGroup <- get gid
-  liftEither $ note (notFound gid) maybeGroup
+  either throwError pure $ note (notFound gid) maybeGroup
 
-putGroup' :: SCIMHandler m => GroupId -> Group -> m StoredGroup
+putGroup' :: GroupHandler m => GroupId -> Group -> m StoredGroup
 putGroup' gid grp = do
   updated <- update gid grp
-  liftEither updated
+  either throwError pure updated
 
-deleteGroup' :: SCIMHandler m => GroupId -> m NoContent
+deleteGroup' :: GroupHandler m => GroupId -> m NoContent
 deleteGroup' gid = do
     deleted <- delete gid
     if deleted then return NoContent else throwError err404

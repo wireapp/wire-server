@@ -27,6 +27,7 @@ dependencies:
   - aeson
   - aeson-qq
   - mtl
+  - servant
   - servant-server
   - servant-generic
   - text
@@ -71,5 +72,6 @@ tests:
       - servant-server
       - vector
       - hspec-expectations
+      - hspec-discover
       - warp
       - wai-logger

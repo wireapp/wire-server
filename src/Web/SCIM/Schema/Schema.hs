@@ -14,7 +14,7 @@ instance FromJSON Schema where
     "urn:ietf:params:scim:api:messages:2.0:ListResponse" ->
       pure ListResponse2_0
     _ ->
-      fail "unsupported schema" 
+      fail "unsupported schema"
 
 instance ToJSON Schema where
   toJSON User20 =

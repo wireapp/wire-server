@@ -7,7 +7,18 @@ import qualified Data.Char as Char
 import qualified Data.HashMap.Strict as HM
 import Data.String (IsString)
 import qualified Network.URI as Network
+import qualified Data.HashMap.Lazy as HML
 
+
+data WithId a = WithId
+  { id :: Text
+  , value :: a
+  } deriving (Eq, Show)
+
+instance (ToJSON a) => ToJSON (WithId a) where
+  toJSON (WithId i v) = case toJSON v of
+    (Object o) -> Object (HML.insert "id" (String i) o)
+    other      -> other
 
 
 newtype URI = URI { unURI :: Network.URI }
@@ -54,7 +65,7 @@ data Unsettable a = Unset | Omitted | Some a
 instance Functor Unsettable where
   fmap f (Some a) = Some $ f a
   fmap _ Unset = Unset
-  fmap _ Omitted = Omitted 
+  fmap _ Omitted = Omitted
 
 instance (FromJSON a) => FromJSON (Unsettable a) where
   parseJSON Null = pure Unset

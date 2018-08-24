@@ -49,6 +49,4 @@ instance FromJSON User where
 instance ToJSON User where
   toJSON = genericToJSON serializeOptions
 
--- TODO: type parameter?
 type UserId = Text
-

@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Test.Capabilities.MetaSchema (spec) where
+module Test.Capabilities.MetaSchemaSpec (spec) where
 
 import           Data.Aeson hiding (json)
 import qualified Data.HashMap.Strict as SMap

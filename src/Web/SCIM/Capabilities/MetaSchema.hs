@@ -88,7 +88,7 @@ empty = Configuration
   , sort = Supported False ()
   , etag = Supported False ()
   , authenticationSchemes = []
-  }  
+  }
 
 configServer :: MonadError ServantErr m =>
                 Configuration -> ConfigAPI (AsServerT m)
@@ -100,7 +100,7 @@ configServer config = ConfigAPI
                    , metaSchema
                    , resourceSchema
                    ]
-  , schema = liftEither . note err404 . getSchema
+  , schema = either throwError pure . note err404 . getSchema
   , resourceTypes = pure ""
   }
 
@@ -115,7 +115,7 @@ getSchema "urn:ietf:params:scim:schemas:core:2.0:Schema" =
   pure metaSchema
 getSchema "urn:ietf:params:scim:schemas:core:2.0:ResourceType" =
   pure resourceSchema
-getSchema _ = Nothing 
+getSchema _ = Nothing
 
 data ConfigAPI route = ConfigAPI
   { spConfig :: route :- "ServiceProviderConfig" :> Get '[JSON] Configuration
@@ -123,4 +123,3 @@ data ConfigAPI route = ConfigAPI
   , schema :: route :- "Schemas" :> Capture "id" Text :> Get '[JSON] Value
   , resourceTypes :: route :- "ResourceTypes" :> Get '[JSON] Text
   } deriving (Generic)
-

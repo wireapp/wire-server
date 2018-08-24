@@ -5,24 +5,10 @@ import Prelude hiding (map)
 
 import Data.Text (Text)
 import Data.Aeson
-
 import Web.SCIM.Schema.Common
 import GHC.Generics (Generic)
-
--- TODO: move to Meta.hs
 import qualified Data.HashMap.Lazy as HML
 import Data.Time.Clock
-
--- TODO: Move to Common/Meta
-data WithId a = WithId
-  { id :: Text
-  , value :: a
-  } deriving (Eq, Show)
-
-instance (ToJSON a) => ToJSON (WithId a) where
-  toJSON (WithId i v) = case toJSON v of
-    (Object o) -> Object (HML.insert "id" (String i) o)
-    other      -> other
 
 data ResourceType = UserResource
                   | GroupResource

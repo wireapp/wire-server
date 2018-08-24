@@ -702,7 +702,7 @@ userSchema = [aesonQQ|
           "required": false,
           "caseExact": false,
           "canonicalValues": [
-            
+
           ],
           "mutability": "readWrite",
           "returned": "default",

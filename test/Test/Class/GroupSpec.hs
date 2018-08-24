@@ -3,18 +3,27 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Test.Class.Groups (spec) where
+module Test.Class.GroupSpec (spec) where
 
-import           Web.SCIM.Class.Group (app)
+import           Network.Wai (Application)
+import           Servant.Generic
+import           Servant (Proxy(Proxy), Handler)
+import           Web.SCIM.Class.Group (GroupAPI, GroupDB, groupServer)
+import           Web.SCIM.Server (mkapp, App)
 import           Data.ByteString.Lazy (ByteString)
 import           Test.Hspec hiding (shouldSatisfy)
 import           Test.Hspec.Wai      hiding (post, put, patch)
 import           Test.Hspec.Wai.JSON
 import           Mock
+import qualified STMContainers.Map   as Map
 
 
-spec :: TestStorage -> Spec
-spec s = with (pure (app (nt s))) $ do
+app :: (GroupDB m, App m GroupAPI) => (forall a. m a -> Handler a) -> Application
+app = mkapp (Proxy :: Proxy GroupAPI) (toServant groupServer)
+
+
+spec :: Spec
+spec = beforeAll ((\s -> app (nt s)) <$> (TestStorage <$> Map.newIO <*> Map.newIO)) $ do
   describe "GET & POST /" $ do
     it "responds with [] in empty environment" $ do
       get "/" `shouldRespondWith` [json|[]|]
@@ -119,7 +128,7 @@ updatedAdmins0 = [json|
            }
         }|]
 
-  
+
 unknown :: ResponseMatcher
 unknown = [json|
        { "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],

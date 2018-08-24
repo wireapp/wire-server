@@ -23,6 +23,7 @@ import           STMContainers.Map    (Map)
 import           Web.SCIM.Schema.User
 import           Web.SCIM.Schema.Meta
 import           Web.SCIM.Schema.ListResponse
+import           Web.SCIM.Schema.Common (WithId(WithId))
 import qualified Web.SCIM.Schema.Common     as Common
 import           Servant
 import           Test.Hspec.Wai    hiding (post, put, patch)
@@ -72,7 +73,7 @@ instance GroupDB TestServer where
     return $ snd <$> l
   get i = do
     m <- groupDB <$> ask
-    liftIO . atomically $ Map.lookup i m 
+    liftIO . atomically $ Map.lookup i m
   create = \grp -> do
     storage <- groupDB <$> ask
     met <- getGroupMeta
@@ -83,7 +84,7 @@ instance GroupDB TestServer where
     liftAtomic $ updateGroup i g m
   delete gid = do
     m <- groupDB <$> ask
-    liftIO . atomically $ delGroup gid m 
+    liftIO . atomically $ delGroup gid m
   getGroupMeta = createMeta GroupResource
 
 insertGroup :: Group -> Meta -> GroupStorage -> STM StoredGroup
@@ -116,7 +117,6 @@ updateUser uid user storage = do
       Map.insert newUser uid storage
       pure $ Right newUser
 
--- TODO: what needs checking here?
 -- (there seems to be no readOnly fields in User)
 assertMutability :: User -> StoredUser -> Bool
 assertMutability _newUser _stored = True
@@ -176,4 +176,3 @@ put path = request methodPut path [(hContentType, "application/json")]
 
 patch :: ByteString -> L.ByteString -> WaiSession SResponse
 patch path = request methodPatch path [(hContentType, "application/json")]
-
