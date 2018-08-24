@@ -191,6 +191,9 @@ uncheckedDeleteTeam zusr zcon tid = do
         let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
         pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : ue)
         void . fork $ void $ External.deliver be
+        -- TODO: we don't delete bots here, but we should do that, since
+        -- every bot user can only be in a single conversation. Just
+        -- deleting conversations from the database is not enough.
         when ((view teamBinding . tdTeam <$> team) == Just Binding) $ do
             mapM_ (deleteUser . view userId) membs
             Journal.teamDelete tid
@@ -385,6 +388,8 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
         []     -> push1 p
         (m:mm) -> pushSome [p, newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
     void . fork $ void $ External.deliver (bots `zip` repeat ce)
+    -- TODO: we don't delete bots here, but we should do that, since every
+    -- bot user can only be in a single conversation
     Data.removeTeamConv tid cid
     pure empty
 
