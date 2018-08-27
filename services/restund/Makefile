@@ -1,3 +1,4 @@
+LANG := en_US.UTF-8
 SHELL           := /usr/bin/env bash
 
 BUILD_NUMBER    ?= 0
