@@ -327,7 +327,7 @@ spec = do
           liftIO $ do
             statusCode resp1 `shouldBe` 201
             statusCode resp2 `shouldBe` 400
-            responseJSON resp2 `shouldBe` Right (TestErrorLabel "todo-figure-out-label")
+            responseJSON resp2 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
 
       context "everything in order" $ do
         it "responds with 2xx; makes makes IdP available for GET /identity-providers/" $ do

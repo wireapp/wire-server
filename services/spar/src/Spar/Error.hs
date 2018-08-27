@@ -46,6 +46,7 @@ data SparCustomError
   | SparNewIdPBadMetaSig
   | SparNewIdPBadReqUrl LT
   | SparNewIdPPubkeyMismatch
+  | SparNewIdPAlreadyInUse
   deriving (Eq, Show)
 
 sparToServantErr :: SparError -> ServantErr
@@ -68,10 +69,10 @@ sparToWaiError (SAML.CustomError (SparBadUserName msg))                   = Righ
 sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)                = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
 sparToWaiError (SAML.CustomError (SparCouldNotParseBrigResponse msg))     = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
 sparToWaiError (SAML.CustomError SparCouldNotRetrieveCookie)              = Right $ Wai.Error status502 "bad-upstream" "Unable to get a cookie from an upstream server."
-sparToWaiError (SAML.CustomError (SparCassandraError msg))                = Right $ Wai.Error status500 "server-error" ("DB error: " <> msg)
+sparToWaiError (SAML.CustomError (SparCassandraError msg))                = Right $ Wai.Error status500 "server-error" msg  -- TODO: should we be more specific here and make it 'db-error'?
 sparToWaiError (SAML.UnknownIdP _msg)                                     = Right $ Wai.Error status404 "not-found" "IdP not found."
 sparToWaiError (SAML.Forbidden msg)                                       = Right $ Wai.Error status403 "forbidden" ("Forbidden: " <> msg)
-sparToWaiError (SAML.BadSamlResponse msg)                                 = Right $ Wai.Error status400 "no-matching-auth-req" ("Missing auth request: " <> msg)
+sparToWaiError (SAML.BadSamlResponse msg)                                 = Right $ Wai.Error status400 "no-matching-auth-req" ("Missing auth request: " <> msg) -- (need to fix this: it could also be an error parsing the response)
 sparToWaiError (SAML.CustomError SparNotFound)                            = Right $ Wai.Error status404 "not-found" "Could not find IdP."
 sparToWaiError (SAML.CustomError SparMissingZUsr)                         = Right $ Wai.Error status400 "client-error" "[header] 'Z-User' required"
 sparToWaiError (SAML.CustomError SparNotInTeam)                           = Right $ Wai.Error status403 "no-team-member" "Requesting user is not a team member or not a member of this team."
@@ -83,5 +84,6 @@ sparToWaiError (SAML.CustomError (SparNewIdPBadMetaUrl msg))              = Righ
 sparToWaiError (SAML.CustomError SparNewIdPBadMetaSig)                    = Right $ Wai.Error status400 "invalid-signature" "bad metadata signature"
 sparToWaiError (SAML.CustomError (SparNewIdPBadReqUrl msg))               = Right $ Wai.Error status400 "invalid-req-url" ("bad request url: " <> msg)
 sparToWaiError (SAML.CustomError SparNewIdPPubkeyMismatch)                = Right $ Wai.Error status400 "key-mismatch" "public keys in body, metadata do not match"
+sparToWaiError (SAML.CustomError SparNewIdPAlreadyInUse)                  = Right $ Wai.Error status400 "idp-already-in-use" "an idp issuer can only be used within one team"
 -- Other
 sparToWaiError (SAML.CustomServant err)                                   = Left err

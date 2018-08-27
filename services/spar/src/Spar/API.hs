@@ -222,12 +222,14 @@ initializeIdP (SAML.NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey)
   pure SAML.IdPConfig {..}
 
 
-type MonadValidateIdP m = (MonadHttp m, MonadIO m)
-
 -- | FUTUREWORK: much of this function could move to the saml2-web-sso package.
-validateNewIdP :: forall m. (HasCallStack, MonadError SparError m, MonadValidateIdP m)
+validateNewIdP :: forall m. (HasCallStack, m ~ Spar)
                => SAML.NewIdP -> m ()
 validateNewIdP newidp = do
+  wrapMonadClient (Data.getIdPIdByIssuer (newidp ^. SAML.nidpIssuer)) >>= \case
+    Nothing -> pure ()
+    Just _ -> throwSpar SparNewIdPAlreadyInUse
+
   let uri2req :: URI.URI -> m Request
       uri2req = either (throwSpar . SparNewIdPBadMetaUrl . cs . show) pure
               . Rq.parseRequest . cs . SAML.renderURI
