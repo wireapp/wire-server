@@ -235,10 +235,11 @@ validateNewIdP newidp = do
       fetch :: URI.URI -> (Request -> Request) -> m (Bilge.Response (Maybe LBS))
       fetch uri modify = do
         req <- uri2req uri
-        tweakleft (httpLbs req modify)
+        ntm (httpLbs req modify)
 
-      tweakleft :: Http a -> m a
-      tweakleft (HttpT action) = liftIO . runReaderT action =<< getManager
+      -- natural transformation into 'm'
+      ntm :: Http a -> m a
+      ntm (HttpT action) = liftIO . runReaderT action =<< getManager
 
   metaResp :: Bilge.Response (Maybe LBS)
     <- fetch (newidp ^. SAML.nidpMetadata) (method GET . expect2xx)
