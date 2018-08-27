@@ -27,6 +27,7 @@ import GHC.Stack
 import Lens.Micro
 import Prelude hiding (head)
 import SAML2.WebSSO as SAML
+import SAML2.WebSSO.Test.Credentials
 import SAML2.WebSSO.Test.MockResponse
 import Spar.Types
 import Text.XML
@@ -287,39 +288,54 @@ spec = do
           --
           -- spar will request the metadata url; validate the metadata received from the mock idp we
           -- just loaded here; and return the expected error (or not).
-          createIdpMockErr :: HasCallStack => Maybe [Node] -> TestErrorLabel -> ReaderT TestEnv IO ()
+          createIdpMockErr :: HasCallStack => Maybe (NewIdP -> IO [Node]) -> TestErrorLabel -> ReaderT TestEnv IO ()
           createIdpMockErr metadata errlabel = do
             env <- ask
             newidp <- makeTestNewIdP =<< liftIO UUID.nextRandom
-            liftIO . atomically $ writeTChan (env ^. teIdPChan) `mapM_` metadata
+            case metadata of
+              Nothing -> pure ()
+              Just mk -> liftIO $ mk newidp >>= atomically . writeTChan (env ^. teIdPChan)
             callIdpCreate' (env ^. teSpar) (Just (env ^. teUserId)) newidp
               `shouldRespondWith` checkErr (== 400) errlabel
 
       context "bad metadata answer" $ do
-        it "rejects" $ createIdpMockErr
-          (Just [NodeElement (Element "bloo" mempty mempty)])
-          "invalid-signature"  -- well, this is just what it checks first...
+        it "rejects" $ do
+          createIdpMockErr
+            (Just . const . pure $ [NodeElement (Element "bloo" mempty mempty)])
+            "invalid-signature"  -- well, this is just what it checks first...
 
       context "invalid metadata signature" $ do
-        it "rejects" $ pending >> createIdpMockErr
-          undefined
-          "todo-figure-out-label"
+        it "rejects" $ do
+          createIdpMockErr
+            (Just $ sampleIdPMetadata' sampleIdPPrivkey2 sampleIdPCert)
+            "invalid-signature"
 
       context "pubkey in IdPConfig does not match the one provided in metadata url" $ do
-        it "rejects" $ pending >> createIdpMockErr
-          undefined
-          "todo-figure-out-label"
+        it "rejects" $ do
+          createIdpMockErr
+            (Just $ sampleIdPMetadata' sampleIdPPrivkey sampleIdPCert2)
+            "key-mismatch"
 
       context "idp (identified by issuer) is in use by other team" $ do
         it "rejects" $ do
-          pending
+          env <- ask
+          (uid1, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          (uid2, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          newidp    <- makeTestNewIdP =<< liftIO UUID.nextRandom
+          resp1     <- call $ callIdpCreate' (env ^. teSpar) (Just uid1) newidp
+          resp2     <- call $ callIdpCreate' (env ^. teSpar) (Just uid2) newidp
+          liftIO $ do
+            statusCode resp1 `shouldBe` 201
+            statusCode resp2 `shouldBe` 400
+            responseJSON resp2 `shouldBe` Right (TestErrorLabel "todo-figure-out-label")
 
       context "everything in order" $ do
-        it "responds with 2xx" $ do
-          pending
-
-        it "makes IdP available for GET /identity-providers/" $ do
-          pending
+        it "responds with 2xx; makes makes IdP available for GET /identity-providers/" $ do
+          env <- ask
+          newidp <- makeTestNewIdP =<< liftIO UUID.nextRandom
+          idp <- call $ callIdpCreate (env ^. teSpar) (Just (env ^. teUserId)) newidp
+          idp' <- call $ callIdpGet (env ^. teSpar) (Just (env ^. teUserId)) (idp ^. idpId)
+          liftIO $ idp `shouldBe` idp'
 
 
     describe "test helper functions" $ do

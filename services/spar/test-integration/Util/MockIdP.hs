@@ -38,6 +38,7 @@ import Util.Options
 import Util.Types
 
 import qualified Control.Concurrent.Async          as Async
+import qualified Data.X509                         as X509
 import qualified Network.Wai.Handler.Warp          as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 
@@ -67,21 +68,24 @@ serveSampleIdP newidp = do
   pure (app, chan)
 
 sampleIdPMetadata :: NewIdP -> IO [Node]
-sampleIdPMetadata newidp = signElementIO sampleIdPPrivkey [xml|
+sampleIdPMetadata newidp = sampleIdPMetadata' sampleIdPPrivkey (newidp ^. nidpPublicKey) newidp
+
+sampleIdPMetadata' :: SignPrivCreds -> X509.SignedCertificate -> NewIdP -> IO [Node]
+sampleIdPMetadata' privKey cert newidp = signElementIO privKey [xml|
     <EntityDescriptor
       ID="#{descID}"
       entityID="#{entityID}"
       xmlns="urn:oasis:names:tc:SAML:2.0:metadata">
         <IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
             <KeyDescriptor use="signing">
-                ^{signingCert}
+                ^{certNodes}
             <SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="#{authnUrl}">
   |]
   where
     descID = "_0c29ba62-a541-11e8-8042-873ef87bdcba"
     entityID = renderURI . _fromIssuer $ newidp ^. nidpIssuer
     authnUrl = newidp ^. nidpRequestUri . to renderURI
-    signingCert = case parseLBS def . cs . renderKeyInfo $ newidp ^. nidpPublicKey of
+    certNodes = case parseLBS def . cs . renderKeyInfo $ cert of
       Right (Document _ sc _) -> [NodeElement sc]
       bad -> error $ show bad
 
