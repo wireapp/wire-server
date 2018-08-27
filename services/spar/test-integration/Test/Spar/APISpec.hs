@@ -31,6 +31,7 @@ import SAML2.WebSSO.Test.Credentials
 import SAML2.WebSSO.Test.MockResponse
 import Spar.Types
 import Text.XML
+import URI.ByteString.QQ (uri)
 import Util
 
 import qualified Spar.Intra.Brig as Intra
@@ -144,22 +145,22 @@ spec = do
           it "logs out user B, logs in user A" $ do
             pending
 
-      context "unknown IdP" $ do
+      context "unknown IdP Issuer" $ do
+        it "rejects" $ do
+          (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          authnresp <- liftIO $ mkAuthnResponse privcreds (idp & idpIssuer .~ Issuer [uri|http://unknown-issuer/|]) authnreq True
+          sparresp <- submitAuthnResponse authnresp
+          liftIO $ do
+            statusCode sparresp `shouldBe` 404
+            responseJSON sparresp `shouldBe` Right (TestErrorLabel "not-found")
+
+      context "AuthnResponse does not match any request" $ do
         it "rejects" $ do
           pending
 
-      context "bad AuthnRequest" $ do
+      context "AuthnResponse contains assertions that have been offered before" $ do
         it "rejects" $ do
           pending
-
-      context "response does not match any request" $ do
-        it "rejects" $ do
-          pending
-
-      context "response contains assertions that have been offered before" $ do
-        it "rejects" $ do
-          pending
-
 
     let checkErr :: (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
         checkErr statusIs label resp = statusIs (statusCode resp) && responseJSON resp == Right label
