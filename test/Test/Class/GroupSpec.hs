@@ -5,16 +5,17 @@
 
 module Test.Class.GroupSpec (spec) where
 
+import           Test.Util
+
 import           Network.Wai (Application)
 import           Servant.Generic
 import           Servant (Proxy(Proxy), Handler)
 import           Web.SCIM.Class.Group (GroupAPI, GroupDB, groupServer)
 import           Web.SCIM.Server (mkapp, App)
+import           Web.SCIM.Server.Mock
 import           Data.ByteString.Lazy (ByteString)
 import           Test.Hspec hiding (shouldSatisfy)
 import           Test.Hspec.Wai      hiding (post, put, patch)
-import           Test.Hspec.Wai.JSON
-import           Mock
 import qualified STMContainers.Map   as Map
 
 
@@ -26,7 +27,7 @@ spec :: Spec
 spec = beforeAll ((\s -> app (nt s)) <$> (TestStorage <$> Map.newIO <*> Map.newIO)) $ do
   describe "GET & POST /" $ do
     it "responds with [] in empty environment" $ do
-      get "/" `shouldRespondWith` [json|[]|]
+      get "/" `shouldRespondWith` [scim|[]|]
 
     it "can insert then retrieve stored group" $ do
       post "/" adminGroup `shouldRespondWith` 201
@@ -60,7 +61,7 @@ spec = beforeAll ((\s -> app (nt s)) <$> (TestStorage <$> Map.newIO <*> Map.newI
 
 
 adminGroup :: ByteString
-adminGroup = [json|
+adminGroup = [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:Group"],
           "displayName":"Admin",
           "members":[]
@@ -68,7 +69,7 @@ adminGroup = [json|
 
 
 groups :: ResponseMatcher
-groups = [json|
+groups = [scim|
         [{ "schemas":["urn:ietf:params:scim:schemas:core:2.0:Group"],
            "displayName":"Admin",
            "members":[],
@@ -83,7 +84,7 @@ groups = [json|
         }]|]
 
 admins :: ResponseMatcher
-admins = [json|
+admins = [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:Group"],
            "displayName":"Admin",
            "members":[],
@@ -98,7 +99,7 @@ admins = [json|
         }|]
 
 adminUpdate0 :: ByteString
-adminUpdate0 = [json|
+adminUpdate0 = [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:Group"],
           "displayName":"Admin",
           "members":[
@@ -110,7 +111,7 @@ adminUpdate0 = [json|
         }|]
 
 updatedAdmins0 :: ResponseMatcher
-updatedAdmins0 = [json|
+updatedAdmins0 = [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:Group"],
            "displayName":"Admin",
            "members":[
@@ -130,7 +131,7 @@ updatedAdmins0 = [json|
 
 
 unknown :: ResponseMatcher
-unknown = [json|
+unknown = [scim|
        { "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
          "status": "404",
          "detail": "Resource unknown not found"

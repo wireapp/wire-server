@@ -14,11 +14,14 @@ module Web.SCIM.Capabilities.MetaSchema (
   , empty
   ) where
 
+import           Web.SCIM.Schema.Schema
+import           Web.SCIM.Schema.ListResponse as ListResponse
 import           Web.SCIM.Capabilities.MetaSchema.User
 import           Web.SCIM.Capabilities.MetaSchema.SPConfig
 import           Web.SCIM.Capabilities.MetaSchema.Group
 import           Web.SCIM.Capabilities.MetaSchema.Schema
 import           Web.SCIM.Capabilities.MetaSchema.ResourceType
+import           Web.SCIM.ContentType
 import           Control.Monad.Except
 import           Control.Error.Util (note)
 import           Data.Aeson
@@ -67,6 +70,7 @@ instance ToJSON AuthenticationScheme
 
 data Configuration = Configuration
   { documentationUri :: Maybe Text -- TODO: URI
+  , schemas :: [Schema]
   , patch :: Supported ()
   , bulk :: Supported BulkConfig
   , filter :: Supported FilterConfig
@@ -81,6 +85,12 @@ instance ToJSON Configuration
 empty :: Configuration
 empty = Configuration
   { documentationUri = Nothing
+  , schemas = [ User20
+              , ServiceProviderConfig20
+              , Group20
+              , Schema20
+              , ResourceType20
+              ]
   , patch = Supported False ()
   , bulk = Supported False $ BulkConfig 0 0
   , filter = Supported False $ FilterConfig 0
@@ -94,32 +104,20 @@ configServer :: MonadError ServantErr m =>
                 Configuration -> ConfigAPI (AsServerT m)
 configServer config = ConfigAPI
   { spConfig = pure config
-  , schemas = pure [ userSchema
-                   , spConfigSchema
-                   , groupSchema
-                   , metaSchema
-                   , resourceSchema
-                   ]
-  , schema = either throwError pure . note err404 . getSchema
+  , getSchemas = pure $
+      ListResponse.fromList [ userSchema
+                            , spConfigSchema
+                            , groupSchema
+                            , metaSchema
+                            , resourceSchema
+                            ]
+  , schema = either throwError pure . note err404 . (getSchema <=< fromSchemaUri)
   , resourceTypes = pure ""
   }
 
-getSchema :: Text -> Maybe Value
-getSchema "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig" =
-  pure spConfigSchema
-getSchema "urn:ietf:params:scim:schemas:core:2.0:User" =
-  pure userSchema
-getSchema "urn:ietf:params:scim:schemas:core:2.0:Group" =
-  pure groupSchema
-getSchema "urn:ietf:params:scim:schemas:core:2.0:Schema" =
-  pure metaSchema
-getSchema "urn:ietf:params:scim:schemas:core:2.0:ResourceType" =
-  pure resourceSchema
-getSchema _ = Nothing
-
 data ConfigAPI route = ConfigAPI
-  { spConfig :: route :- "ServiceProviderConfig" :> Get '[JSON] Configuration
-  , schemas :: route :- "Schemas" :> Get '[JSON] [Value]
-  , schema :: route :- "Schemas" :> Capture "id" Text :> Get '[JSON] Value
-  , resourceTypes :: route :- "ResourceTypes" :> Get '[JSON] Text
+  { spConfig :: route :- "ServiceProviderConfig" :> Get '[SCIM] Configuration
+  , getSchemas :: route :- "Schemas" :> Get '[SCIM] (ListResponse Value)
+  , schema :: route :- "Schemas" :> Capture "id" Text :> Get '[SCIM] Value
+  , resourceTypes :: route :- "ResourceTypes" :> Get '[SCIM] Text
   } deriving (Generic)

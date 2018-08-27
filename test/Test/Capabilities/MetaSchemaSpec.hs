@@ -1,13 +1,17 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Test.Capabilities.MetaSchemaSpec (spec) where
 
-import           Data.Aeson hiding (json)
-import qualified Data.HashMap.Strict as SMap
-import           Data.Maybe (catMaybes)
-import qualified Data.Vector as Vector
+import           Test.Util
+
+import qualified Data.List as List
+import           Data.Aeson
+import           Data.Monoid
+import           Data.Text (Text)
+import           Data.Coerce
 import           Web.SCIM.Capabilities.MetaSchema
 import           Network.Wai.Test (SResponse (..))
 import           Servant
@@ -15,7 +19,6 @@ import           Servant.Generic
 import           Test.Hspec hiding (shouldSatisfy)
 import qualified Test.Hspec.Expectations as Expect
 import           Test.Hspec.Wai      hiding (post, put, patch)
-import           Test.Hspec.Wai.JSON
 
 server :: Proxy (ToServant (ConfigAPI AsApi))
 server = Proxy
@@ -26,14 +29,19 @@ app = serve server $ toServant $ configServer empty
 shouldSatisfy :: (Show a, FromJSON a) =>
                  WaiSession SResponse -> (a -> Bool) -> WaiExpectation
 shouldSatisfy resp predicate = do
-  maybeDecoded <- decode . simpleBody <$> resp
+  maybeDecoded <- eitherDecode . simpleBody <$> resp
   case maybeDecoded of
-    Nothing -> liftIO $ Expect.expectationFailure "decode error"
-    (Just decoded) -> liftIO $ Expect.shouldSatisfy decoded predicate
+    Left err -> liftIO $ Expect.expectationFailure ("decode error: " <> err)
+    Right decoded -> liftIO $ Expect.shouldSatisfy decoded predicate
 
+-- | A type that helps us parse out the pieces that we're interested in
+-- (specifically, a list of schema URIs). The whole response is very big and
+-- we don't want to print it out when the response parses correctly but the
+-- sets of schemas don't match.
+type SchemasResponse = Field "Resources" [Field "id" Text]
 
-coreSchemas :: [Value]
-coreSchemas = String <$>
+coreSchemas :: [Text]
+coreSchemas =
   [ "urn:ietf:params:scim:schemas:core:2.0:User"
   , "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"
   , "urn:ietf:params:scim:schemas:core:2.0:Group"
@@ -41,25 +49,13 @@ coreSchemas = String <$>
   , "urn:ietf:params:scim:schemas:core:2.0:ResourceType"
   ]
 
-hasSchemas :: Value -> Bool
--- TODO: these needs to be sorted, but there's no Ord on Value
--- (and I'm lazy)
-hasSchemas (Array arr) = coreSchemas == getSchemaIds arr
-hasSchemas _ = False
-
-getSchemaIds :: Array -> [Value]
-getSchemaIds arr = catMaybes . Vector.toList $ getSchemaId <$> arr
-
-getSchemaId :: Value -> Maybe Value
-getSchemaId (Object o) = SMap.lookup "id" o
-getSchemaId _ = Nothing
-
 spec :: Spec
 spec = with (pure app) $ do
   describe "GET /Schemas" $ do
     it "lists schemas" $ do
       get "/Schemas" `shouldRespondWith` 200
-      get "/Schemas" `shouldSatisfy` hasSchemas
+      get "/Schemas" `shouldSatisfy` \(resp :: SchemasResponse) ->
+        List.sort (coerce resp) == List.sort coreSchemas
 
   describe "GET /Schemas/:id" $ do
     it "returns valid schema" $ do
@@ -76,8 +72,13 @@ spec = with (pure app) $ do
 
 -- FIXME: missing some "supported" fields and URI should not be null
 spConfig :: ResponseMatcher
-spConfig = [json|
+spConfig = [scim|
 {"documentationUri":null,
+ "schemas":["urn:ietf:params:scim:schemas:core:2.0:User",
+            "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig",
+            "urn:ietf:params:scim:schemas:core:2.0:Group",
+            "urn:ietf:params:scim:schemas:core:2.0:Schema",
+            "urn:ietf:params:scim:schemas:core:2.0:ResourceType"],
  "etag":{"supported":false},
  "bulk":{"maxOperations":0,
          "maxPayloadSize":0,

@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 
 module Web.SCIM.Schema.ListResponse (ListResponse, fromList) where
 
@@ -23,5 +24,9 @@ instance FromJSON a => FromJSON (ListResponse a) where
   parseJSON = genericParseJSON parseOptions . jsonLower
 
 instance ToJSON a => ToJSON (ListResponse a) where
-  toJSON = genericToJSON serializeOptions
+  toJSON ListResponse{..} =
+    object [ "Resources" .= resources
+           , "schemas" .= schemas
+           , "totalResults" .= totalResults
+           ]
 

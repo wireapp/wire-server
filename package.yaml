@@ -37,11 +37,25 @@ dependencies:
   - unordered-containers
   - email-validate
   - errors
+  - stm
+  - list-t
+  - http-types
+  - stm-containers
+  - http-media
 
 ghc-options: -Wall
 
 library:
   source-dirs: src
+
+executables:
+  hscim-server:
+    main: Main.hs
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    source-dirs: server
+    dependencies:
+      - hscim
+      - warp
 
 tests:
   spec:
@@ -56,22 +70,20 @@ tests:
       - hscim
       - hspec
       - hspec-wai
-      - hspec-wai-json
       - aeson
       - aeson-qq
       - http-types
-      - stm-containers
       - text
       - bytestring
       - wai-extra
-      - stm
       - stm-containers
       - mtl
-      - list-t
       - time
       - servant-server
       - vector
       - hspec-expectations
       - hspec-discover
       - warp
+      - template-haskell
+      - aeson-qq
       - wai-logger

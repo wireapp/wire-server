@@ -2,12 +2,13 @@
 
 module Test.Class.UserSpec (spec) where
 
+import           Test.Util
+
 import           Web.SCIM.Capabilities.MetaSchema (empty)
 import           Web.SCIM.Server
+import           Web.SCIM.Server.Mock
 import           Test.Hspec
 import           Test.Hspec.Wai      hiding (post, put, patch)
-import           Test.Hspec.Wai.JSON
-import           Mock
 import           Data.ByteString.Lazy (ByteString)
 import qualified STMContainers.Map   as Map
 
@@ -49,7 +50,7 @@ spec = beforeAll ((\s -> app empty (nt s)) <$> (TestStorage <$> Map.newIO <*> Ma
 
 
 newBarbara :: ByteString
-newBarbara = [json|
+newBarbara = [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
           "userName":"bjensen",
           "externalId":"bjensen",
@@ -62,7 +63,7 @@ newBarbara = [json|
 
 
 barbara :: ResponseMatcher
-barbara = [json|
+barbara = [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
           "userName":"bjensen",
           "name": {
@@ -82,10 +83,10 @@ barbara = [json|
         }|]
 
 users :: ResponseMatcher
-users = [json|
+users = [scim|
         { "schemas":["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
           "totalResults": 1,
-          "resources":
+          "Resources":
             [{ "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
                "userName":"bjensen",
                "externalId":"bjensen",
@@ -107,7 +108,7 @@ users = [json|
 
 -- source: https://tools.ietf.org/html/rfc7644#section-3.5.1 (p. 30)
 barbUpdate0 :: ByteString
-barbUpdate0 = [json|
+barbUpdate0 = [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
           "id":"0",
           "userName":"bjensen",
@@ -131,7 +132,7 @@ barbUpdate0 = [json|
 
 
 updatedBarb0 :: ResponseMatcher
-updatedBarb0 = [json|
+updatedBarb0 = [scim|
         { "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
           "id":"0",
           "userName":"bjensen",
@@ -160,14 +161,14 @@ updatedBarb0 = [json|
         }|]
 
 emptyList :: ResponseMatcher
-emptyList = [json|
+emptyList = [scim|
        { "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
-         "resources":[],
+         "Resources":[],
          "totalResults":0
        }|]
 
 unknown :: ResponseMatcher
-unknown = [json|
+unknown = [scim|
        { "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
          "status": "404",
          "detail": "Resource unknown not found"

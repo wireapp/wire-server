@@ -22,6 +22,7 @@ import           GHC.Generics (Generic)
 import           Web.SCIM.Schema.Common
 import           Web.SCIM.Schema.Error
 import           Web.SCIM.Schema.Meta
+import           Web.SCIM.ContentType
 import           Servant
 import           Servant.Generic
 
@@ -70,17 +71,17 @@ class GroupDB m where
 
 data GroupSite route = GroupSite
   { getGroups :: route :-
-        Get '[JSON] [StoredGroup]
+        Get '[SCIM] [StoredGroup]
   , getGroup :: route :-
-        Capture "id" Text :> Get '[JSON] StoredGroup
+        Capture "id" Text :> Get '[SCIM] StoredGroup
   , postGroup :: route :-
-        ReqBody '[JSON] Group :> PostCreated '[JSON] StoredGroup
+        ReqBody '[SCIM] Group :> PostCreated '[SCIM] StoredGroup
   , putGroup :: route :-
-      Capture "id" Text :> ReqBody '[JSON] Group :> Put '[JSON] StoredGroup
+      Capture "id" Text :> ReqBody '[SCIM] Group :> Put '[SCIM] StoredGroup
   , patchGroup :: route :-
-      Capture "id" Text :> Patch '[JSON] StoredGroup
+      Capture "id" Text :> Patch '[SCIM] StoredGroup
   , deleteGroup :: route :-
-      Capture "id" Text :> DeleteNoContent '[JSON] NoContent
+      Capture "id" Text :> DeleteNoContent '[SCIM] NoContent
   } deriving (Generic)
 
 groupServer :: GroupHandler m => GroupSite (AsServerT m)

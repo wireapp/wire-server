@@ -43,7 +43,7 @@ fromErrorType typ =
         , detail = Nothing
         }
   in err400 { errBody = encode body
-            , errHeaders = [("Content-Type", "application/json")]
+            , errHeaders = [("Content-Type", "application/scim+json;charset=utf-8")]
             }
 
 notFound :: Text -> ServantErr
@@ -55,7 +55,7 @@ notFound rid =
         , detail = pure $ "Resource " <> rid <> " not found"
         }
   in err404 { errBody = encode body
-            , errHeaders = [("Content-Type", "application/json")]
+            , errHeaders = [("Content-Type", "application/scim+json;charset=utf-8")]
             }
 
 -- wrapped in a newtype because SCIM wants strings for status codes

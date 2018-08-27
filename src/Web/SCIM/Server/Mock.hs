@@ -3,21 +3,20 @@
 {-# LANGUAGE DataKinds       #-}
 {-# LANGUAGE TypeOperators   #-}
 
-module Mock where
+-- | A mock server for use in our testsuite, as well as for automated
+-- compliance testing (e.g. with Runscope – see
+-- https://developer.okta.com/standards/SCIM/#step-2-test-your-scim-server).
 
+module Web.SCIM.Server.Mock where
 
 import           Web.SCIM.Class.Group
 import           Web.SCIM.Class.User
 import           Control.Monad.STM
 import           Control.Monad.Reader
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy as L
 import           Data.Text
 import           Data.Time.Clock
 import           Data.Time.Calendar
 import           ListT
-import           Network.HTTP.Types
-import           Network.Wai.Test (SResponse)
 import qualified STMContainers.Map as Map
 import           STMContainers.Map    (Map)
 import           Web.SCIM.Schema.User
@@ -26,7 +25,6 @@ import           Web.SCIM.Schema.ListResponse
 import           Web.SCIM.Schema.Common (WithId(WithId))
 import qualified Web.SCIM.Schema.Common     as Common
 import           Servant
-import           Test.Hspec.Wai    hiding (post, put, patch)
 
 import Prelude hiding (id)
 
@@ -166,13 +164,3 @@ insertUser user met storage = do
 -- this takes the initial environment and returns the transformation
 nt :: r -> ReaderT r m a -> m a
 nt = flip runReaderT
-
--- Redefine wai test helpers to include json content type
-post :: ByteString -> L.ByteString -> WaiSession SResponse
-post path = request methodPost path [(hContentType, "application/json")]
-
-put :: ByteString -> L.ByteString -> WaiSession SResponse
-put path = request methodPut path [(hContentType, "application/json")]
-
-patch :: ByteString -> L.ByteString -> WaiSession SResponse
-patch path = request methodPatch path [(hContentType, "application/json")]

@@ -21,6 +21,7 @@ import           Web.SCIM.Schema.Meta
 import           Web.SCIM.Schema.Common
 import           Web.SCIM.Schema.Error
 import           Web.SCIM.Schema.ListResponse
+import           Web.SCIM.ContentType
 import           Servant
 import           Servant.Generic
 
@@ -46,17 +47,17 @@ class UserDB m where
 
 data UserSite route = UserSite
   { getUsers :: route :-
-      Get '[JSON] (ListResponse StoredUser)
+      Get '[SCIM] (ListResponse StoredUser)
   , getUser :: route :-
-      Capture "id" Text :> Get '[JSON] StoredUser
+      Capture "id" Text :> Get '[SCIM] StoredUser
   , postUser :: route :-
-      ReqBody '[JSON] User :> PostCreated '[JSON] StoredUser
+      ReqBody '[SCIM] User :> PostCreated '[SCIM] StoredUser
   , putUser :: route :-
-      Capture "id" Text :> ReqBody '[JSON] User :> Put '[JSON] StoredUser
+      Capture "id" Text :> ReqBody '[SCIM] User :> Put '[SCIM] StoredUser
   , patchUser :: route :-
-      Capture "id" Text :> Patch '[JSON] StoredUser
+      Capture "id" Text :> Patch '[SCIM] StoredUser
   , deleteUser :: route :-
-      Capture "id" Text :> DeleteNoContent '[JSON] NoContent
+      Capture "id" Text :> DeleteNoContent '[SCIM] NoContent
   } deriving (Generic)
 
 userServer :: UserHandler m => UserSite (AsServerT m)
