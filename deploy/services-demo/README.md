@@ -75,5 +75,15 @@ Note: This demo setup comes bundled with a postfix email sending docker image; h
 Example:
 
 ```
-../../dist/api-smoketest --api-host=127.0.0.1 --api-port=8080 --api-websocket-host=127.0.0.1 --api-websocket-port=8081 --mailbox-config=<path_to_mailboxes_file> --sender-email=backend-demo@mail.wiredemo.example.com --mailbox-folder INBOX --mailbox-folder '[Gmail]/Spam' --enable-asserts
+# from the wire-server directory, after having compiled everything with 'make install'
+./dist/api-smoketest \
+    --api-host=127.0.0.1 \
+    --api-port=8080 \
+    --api-websocket-host=127.0.0.1 \
+    --api-websocket-port=8081 \
+    --mailbox-config=<path_to_mailboxes_file> \
+    --sender-email=backend-demo@mail.wiredemo.example.com \
+    --mailbox-folder INBOX \
+    --mailbox-folder '[Gmail]/Spam' \
+    --enable-asserts
 ```
