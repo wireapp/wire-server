@@ -62,6 +62,7 @@ import Data.Monoid
 import Data.Timeout (Timeout, TimeoutUnit (..), (#))
 import Data.Typeable
 import Data.Word
+import GHC.Stack
 import Gundeck.Types
 import Network.HTTP.Client
 import Network.HTTP.Types.Status
@@ -223,38 +224,38 @@ awaitMatch t ws match = go [] []
 
     refill = mapM_ (liftIO . atomically . writeTChan (wsChan ws))
 
-assertMatch :: (MonadIO m, MonadCatch m)
+assertMatch :: (HasCallStack, MonadIO m, MonadCatch m)
             => Timeout
             -> WebSocket
             -> (Notification -> Assertion)
             -> m Notification
 assertMatch t ws f = awaitMatch t ws f >>= assertSuccess
 
-assertMatch_ :: (MonadIO m, MonadCatch m)
+assertMatch_ :: (HasCallStack, MonadIO m, MonadCatch m)
              => Timeout
              -> WebSocket
              -> (Notification -> Assertion)
              -> m ()
 assertMatch_ t w = void . assertMatch t w
 
-awaitMatchN :: MonadIO m
+awaitMatchN :: (HasCallStack, MonadIO m)
             => Timeout
             -> [WebSocket]
             -> (Notification -> Assertion)
             -> m [Either MatchTimeout Notification]
 awaitMatchN t wss f = liftIO $ mapConcurrently (\ws -> awaitMatch t ws f) wss
 
-assertMatchN :: (MonadIO m, MonadThrow m)
+assertMatchN :: (HasCallStack, MonadIO m, MonadThrow m)
              => Timeout
              -> [WebSocket]
              -> (Notification -> Assertion)
              -> m [Notification]
 assertMatchN t wss f = awaitMatchN t wss f >>= mapM assertSuccess
 
-assertSuccess :: (MonadIO m, MonadThrow m) => Either MatchTimeout Notification -> m Notification
+assertSuccess :: (HasCallStack, MonadIO m, MonadThrow m) => Either MatchTimeout Notification -> m Notification
 assertSuccess = either throwM return
 
-assertNoEvent :: (MonadIO m, MonadCatch m) => Timeout -> [WebSocket] -> m ()
+assertNoEvent :: (HasCallStack, MonadIO m, MonadCatch m) => Timeout -> [WebSocket] -> m ()
 assertNoEvent t ww = do
     results <- awaitMatchN t ww (const $ pure ())
     for_ results $
