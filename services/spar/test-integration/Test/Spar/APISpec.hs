@@ -37,9 +37,6 @@ import Util
 import qualified Spar.Intra.Brig as Intra
 
 
--- TODO: what else needs to be tested, beyond the pending tests listed here?
-
-
 spec :: SpecWith TestEnv
 spec = do
     describe "CORS" $ do
@@ -363,3 +360,10 @@ spec = do
               ]
 
         sequence_ [ check tryowner perms | tryowner <- [minBound..], perms <- [0.. (length permses - 1)] ]
+
+
+
+
+-- TODO: go through DataSpec, APISpec and check that all the tests still make sense with the new implicit mock idp.
+-- TODO: what else needs to be tested, beyond the pending tests listed here?
+-- TODO: what tests can go to saml2-web-sso package?
