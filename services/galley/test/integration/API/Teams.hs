@@ -188,7 +188,6 @@ testCreateOne2OneWithMembers g b c a = do
         Util.addTeamMemberInternal g tid mem1
         checkTeamMemberJoin tid (mem1^.userId) wsMem1
         assertQueue "team member join" a $ tUpdate 2 [owner]
-        WS.assertNoEvent timeout [wsMem1]
 
     void $ retryWhileN 10 repeatIf (Util.createOne2OneTeamConv g owner (mem1^.userId) Nothing tid)
 
@@ -763,7 +762,7 @@ checkUserDeleteEvent uid w = WS.assertMatch_ timeout w $ \notif -> do
     euser @?= Just (UUID.toText (toUUID uid))
 
 checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> Http ()
-checkTeamMemberJoin tid uid w = WS.assertMatch_ timeout w $ \notif -> do
+checkTeamMemberJoin tid uid w = WS.awaitMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
     e^.eventType @?= MemberJoin
