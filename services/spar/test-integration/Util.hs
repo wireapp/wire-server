@@ -55,7 +55,6 @@ module Util
 import Bilge
 import Bilge.Assert ((!!!), (===), (<!!))
 import Cassandra as Cas
-import Control.Concurrent (threadDelay)
 import Control.Exception
 import Control.Monad
 import Control.Monad.Catch
