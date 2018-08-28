@@ -657,6 +657,7 @@ testRegisterPushToken g _ b _ = do
     _ <- registerPushToken uid t22 g
 
     -- Check tokens
+    void $ retryWhileN 12 ((/= 5) . length) (listPushTokens uid g)
     _tokens <- sortPushTokens <$> listPushTokens uid g
     let _expected = sortPushTokens [t11, t12, t13, t21, t22]
     liftIO $ assertEqual "unexpected tokens" _expected _tokens
@@ -667,6 +668,7 @@ testRegisterPushToken g _ b _ = do
     _ <- registerPushToken uid t22' g
 
     -- Check tokens
+    void $ retryWhileN 12 ((/= 5) . length) (listPushTokens uid g)
     _tokens <- sortPushTokens <$> listPushTokens uid g
     let _expected = sortPushTokens [t11', t12, t13, t21, t22']
     liftIO $ assertEqual "unexpected tokens" _expected _tokens
@@ -676,6 +678,7 @@ testRegisterPushToken g _ b _ = do
     unregisterClient g uid c1 !!! const 404 === statusCode
     unregisterClient g uid c2 !!! const 200 === statusCode
     unregisterClient g uid c2 !!! const 404 === statusCode
+    void $ retryWhileN 12 (not . null) (listPushTokens uid g)
     _tokens <- listPushTokens uid g
     liftIO $ assertEqual "unexpected tokens" [] _tokens
 
