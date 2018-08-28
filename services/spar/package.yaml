@@ -106,6 +106,7 @@ executables:
       - hspec-discover
       - lens-aeson
       - random
+      - retry
       - servant-client
       - spar
       - stm
