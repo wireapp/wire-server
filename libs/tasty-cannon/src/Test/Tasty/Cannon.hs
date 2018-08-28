@@ -201,10 +201,16 @@ instance Show RegistrationTimeout where
 await :: MonadIO m => Timeout -> WebSocket -> m (Maybe Notification)
 await t = liftIO . timeout t . atomically . readTChan . wsChan
 
--- | 'await' a 'Notification' on the 'WebSocket'.  If it satisfies the 'Assertion', return it in the
--- 'Right' case.  Otherwise, feed the 'Notification' back into the web socket queue, and collect the
--- exception thrown by the 'Assertion'.  If an asynchronous exception hits us, return all collected
--- exceptions in the 'Left' case.
+-- | 'await' a 'Notification' on the 'WebSocket'.  If it satisfies the 'Assertion', return it.
+-- Otherwise, collect the 'Notification' and the exception thrown by the 'Assertion', and keep
+-- 'await'ing.  If 'await' times out or a satisfactory notification is available, fill all
+-- unsatisfactory notifications back to the web socket.
+--
+-- NB: (1) if 'await' receives irrelevant 'Notification's frequently enough, this function will
+-- never terminate.  The 'Timeout' argument is just passed through to 'await'.  (2) If an
+-- asynchronous exception is thrown, this drops all collected 'Notification's and exceptions, and
+-- re-throws.  This may be surprising if you run 'awaitMatch' inside a 'timeout' guard, and want to
+-- resume testing other things once the timeout triggers.
 awaitMatch :: (HasCallStack, MonadIO m, MonadCatch m)
            => Timeout
            -> WebSocket
