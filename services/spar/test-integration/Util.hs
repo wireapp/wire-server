@@ -55,6 +55,7 @@ module Util
 import Bilge
 import Bilge.Assert ((!!!), (===), (<!!))
 import Cassandra as Cas
+import Control.Concurrent (threadDelay)
 import Control.Exception
 import Control.Monad
 import Control.Monad.Catch
@@ -125,7 +126,9 @@ mkEnv _teTstOpts _teOpts = do
   let srv = Warp.runSettings (endpointToSettings _teIdPEndpoint) app
   _teIdPHandle <- Async.async srv
 
-  (_teUserId, _teTeamId, _teIdP) <- createTestIdPFrom _teNewIdP _teMgr _teBrig _teGalley _teSpar
+  (_teUserId, _teTeamId, _teIdP) <- do
+    threadDelay 3000000
+    createTestIdPFrom _teNewIdP _teMgr _teBrig _teGalley _teSpar
 
   pure TestEnv {..}
 
