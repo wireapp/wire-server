@@ -24,6 +24,7 @@ module Test.Tasty.Cannon
     , MatchFailure (..)
     , await
     , awaitMatch
+    , awaitMatch_
     , awaitMatchN
     , assertMatch
     , assertMatch_
@@ -200,7 +201,11 @@ instance Show RegistrationTimeout where
 await :: MonadIO m => Timeout -> WebSocket -> m (Maybe Notification)
 await t = liftIO . timeout t . atomically . readTChan . wsChan
 
-awaitMatch :: (MonadIO m, MonadCatch m)
+-- | 'await' a 'Notification' on the 'WebSocket'.  If it satisfies the 'Assertion', return it in the
+-- 'Right' case.  Otherwise, feed the 'Notification' back into the web socket queue, and collect the
+-- exception thrown by the 'Assertion'.  If an asynchronous exception hits us, return all collected
+-- exceptions in the 'Left' case.
+awaitMatch :: (HasCallStack, MonadIO m, MonadCatch m)
            => Timeout
            -> WebSocket
            -> (Notification -> Assertion)
@@ -216,13 +221,20 @@ awaitMatch t ws match = go [] []
                 return (Right n)
               `catchAll` \e -> case asyncExceptionFromException e of
                 Just  x -> throwM (x :: SomeAsyncException)
-                Nothing -> let e' = MatchFailure (SomeException e)
+                Nothing -> let e' = MatchFailure e
                            in go (n : buf) (e' : errs)
             Nothing -> do
                 refill buf
                 return (Left (MatchTimeout errs))
 
     refill = mapM_ (liftIO . atomically . writeTChan (wsChan ws))
+
+awaitMatch_ :: (HasCallStack, MonadIO m, MonadCatch m)
+           => Timeout
+           -> WebSocket
+           -> (Notification -> Assertion)
+           -> m ()
+awaitMatch_ t w = void . awaitMatch t w
 
 assertMatch :: (HasCallStack, MonadIO m, MonadCatch m)
             => Timeout
