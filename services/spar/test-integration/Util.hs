@@ -61,6 +61,7 @@ import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
+import Control.Retry
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
 import Data.ByteString.Conversion
@@ -127,10 +128,18 @@ mkEnv _teTstOpts _teOpts = do
   _teIdPHandle <- Async.async srv
 
   (_teUserId, _teTeamId, _teIdP) <- do
-    threadDelay 3000000
+    True <- waitForService _teMgr _teSpar
     createTestIdPFrom _teNewIdP _teMgr _teBrig _teGalley _teSpar
 
   pure TestEnv {..}
+
+waitForService :: Manager -> (Request -> Request) -> IO Bool
+waitForService mgr req =
+  retrying (constantDelay 100000 <> limitRetries 50) (\_ b -> pure b) (\_ -> serviceIsUp mgr req)
+
+serviceIsUp :: Manager -> (Request -> Request) -> IO Bool
+serviceIsUp mgr req = (runHttpT mgr (Bilge.get req) >> pure True)
+  `Control.Exception.catch` \(_ :: HttpException) -> pure False
 
 destroyEnv :: HasCallStack => TestEnv -> IO ()
 destroyEnv = Async.cancel . (^. teIdPHandle)
