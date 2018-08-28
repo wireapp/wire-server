@@ -704,9 +704,9 @@ testUnregisterPushToken g _ b _ = do
     clt <- randomClient g uid
     tkn <- randomToken clt gcmToken
     void $ registerPushToken uid tkn g
-    void $ retryWhileN 12 (not . null) (listPushTokens uid g)
-    unregisterPushToken uid (tkn^.token) g !!! const 204 === statusCode
     void $ retryWhileN 12 null (listPushTokens uid g)
+    unregisterPushToken uid (tkn^.token) g !!! const 204 === statusCode
+    void $ retryWhileN 12 (not . null) (listPushTokens uid g)
     unregisterPushToken uid (tkn^.token) g !!! const 404 === statusCode
 
 testSharePushToken :: TestSignature ()
