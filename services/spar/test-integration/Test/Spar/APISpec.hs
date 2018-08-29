@@ -20,7 +20,6 @@ import Data.List (isInfixOf)
 import Data.Maybe
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
-import Data.UUID.V4 as UUID
 import Galley.Types.Teams as Galley
 import GHC.Stack
 import Lens.Micro
@@ -295,7 +294,7 @@ spec = do
           createIdpMockErr :: HasCallStack => Maybe (NewIdP -> IO [Node]) -> TestErrorLabel -> ReaderT TestEnv IO ()
           createIdpMockErr metadata errlabel = do
             env <- ask
-            newidp <- makeTestNewIdP =<< liftIO UUID.nextRandom
+            newidp <- makeTestNewIdP
             case metadata of
               Nothing -> pure ()
               Just mk -> liftIO $ mk newidp >>= atomically . writeTChan (env ^. teIdPChan)
@@ -325,7 +324,7 @@ spec = do
           env <- ask
           (uid1, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           (uid2, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          newidp    <- makeTestNewIdP =<< liftIO UUID.nextRandom
+          newidp    <- makeTestNewIdP
           resp1     <- call $ callIdpCreate' (env ^. teSpar) (Just uid1) newidp
           resp2     <- call $ callIdpCreate' (env ^. teSpar) (Just uid2) newidp
           liftIO $ do
@@ -336,7 +335,7 @@ spec = do
       context "everything in order" $ do
         it "responds with 2xx; makes makes IdP available for GET /identity-providers/" $ do
           env <- ask
-          newidp <- makeTestNewIdP =<< liftIO UUID.nextRandom
+          newidp <- makeTestNewIdP
           idp <- call $ callIdpCreate (env ^. teSpar) (Just (env ^. teUserId)) newidp
           idp' <- call $ callIdpGet (env ^. teSpar) (Just (env ^. teUserId)) (idp ^. idpId)
           liftIO $ idp `shouldBe` idp'

@@ -339,9 +339,10 @@ ping req = void . get $ req . path "/i/status" . expect2xx
 -- | Create a cloned 'NewIdP' corresponding to the mock idp from the config and suitable for
 -- registering with spar.  The issuer id can be used to do this several times without getting the
 -- error that this issuer is already used for another team.
-makeTestNewIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => UUID -> m NewIdP
-makeTestNewIdP issuerid = do
+makeTestNewIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m NewIdP
+makeTestNewIdP = do
   env <- ask
+  issuerid <- liftIO $ UUID.nextRandom
   let Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp
       mkurl = either (error . show) id . SAML.parseURI' . (("http://" <> ephost <> ":" <> epport) <>)
   pure $ (env ^. teNewIdP) & nidpIssuer .~ Issuer (mkurl $ "/_" <> UUID.toText issuerid)
