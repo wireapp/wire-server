@@ -26,6 +26,7 @@ import Data.String.Conversions
 import Data.String (fromString)
 import Lens.Micro
 import Network.HTTP.Client (responseTimeoutMicro)
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai (Application)
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Spar.API
@@ -41,9 +42,6 @@ import Util.Options (epHost, epPort)
 
 import qualified Cassandra.Schema as Cas
 import qualified Cassandra.Settings as Cas
-import qualified Network.Connection as TLS
-import qualified Network.HTTP.Client.TLS as TLS
-import qualified Network.TLS as TLS
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
@@ -99,15 +97,9 @@ runServer sparCtxOpts = do
   let settings = Warp.defaultSettings
         & Warp.setHost (fromString $ sparCtxOpts ^. to saml . SAML.cfgSPHost)
         . Warp.setPort (sparCtxOpts ^. to saml . SAML.cfgSPPort)
-  sparCtxHttpManager
-    <- let tlsSettings = (TLS.mkManagerSettings (TLS.TLSSettings clientSettings) Nothing)
-             { managerResponseTimeout     = responseTimeoutMicro (10 * 1000 * 1000)
-             , managerConnCount           = 10   -- (this is the default)
-             , managerIdleConnectionCount = 512  -- (this is the default)
-             }
-           clientSettings = TLS.defaultParamsClient mempty mempty
-             -- TODO: consult 'initHttpManager' in brig on how to tweak these settings.
-       in newManager tlsSettings
+  sparCtxHttpManager <- newManager tlsManagerSettings
+      { managerResponseTimeout = responseTimeoutMicro (10 * 1000 * 1000)
+      }
   let sparCtxHttpBrig = Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
                       . Bilge.port (sparCtxOpts ^. to brig . epPort)
                       $ Bilge.empty
