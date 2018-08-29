@@ -201,7 +201,7 @@ testLoginFailure brig = do
                 ]
     res <- post (brig . path "/i/users" . contentJson . Http.body newUser) <!!
         const 201 === statusCode
-    let uid = fromMaybe (error "Failed to parse user") (userId <$> decodeBody res)
+    uid <- userId <$> decodeBody res
     eml <- randomEmail
 
     -- Add email

@@ -6,6 +6,8 @@
 
 module Brig.Options where
 
+import Brig.Queue.Types (Queue (..))
+import Brig.SMTP (SMTPConnType (..))
 import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
@@ -49,17 +51,45 @@ data ElasticSearchOpts = ElasticSearchOpts
 instance FromJSON ElasticSearchOpts
 
 data AWSOpts = AWSOpts
-    { sesQueue         :: !Text
-    , internalQueue    :: !Text
-    , userJournalQueue :: !(Maybe Text)
-    , blacklistTable   :: !Text
+    { userJournalQueue :: !(Maybe Text)
     , prekeyTable      :: !Text
-    , sesEndpoint      :: !AWSEndpoint
     , sqsEndpoint      :: !AWSEndpoint
     , dynamoDBEndpoint :: !AWSEndpoint
     } deriving (Show, Generic)
 
 instance FromJSON AWSOpts
+
+data EmailAWSOpts = EmailAWSOpts
+    { sesQueue         :: !Text
+    , sesEndpoint      :: !AWSEndpoint
+    } deriving (Show, Generic)
+
+instance FromJSON EmailAWSOpts
+
+data EmailSMTPOpts = EmailSMTPOpts
+    { smtpEndpoint :: !Text
+    , smtpUsername :: !Text
+    , smtpPassword :: !FilePathSecrets
+    , smtpConnType :: !SMTPConnType
+    } deriving (Show, Generic)
+
+instance FromJSON EmailSMTPOpts
+
+data StompOpts = StompOpts
+    { stompHost :: !Text
+    , stompPort :: !Int
+    , stompTls  :: !Bool
+    } deriving (Show, Generic)
+
+instance FromJSON StompOpts
+
+data InternalEventsOpts = InternalEventsOpts
+    { internalEventsQueue :: !Queue
+    } deriving (Show)
+
+instance FromJSON InternalEventsOpts where
+    parseJSON = Y.withObject "InternalEventsOpts" $ \o ->
+        InternalEventsOpts <$> parseJSON (Y.Object o)
 
 data EmailSMSGeneralOpts = EmailSMSGeneralOpts
     { templateDir :: !FilePath
@@ -97,8 +127,17 @@ data TeamOpts = TeamOpts
 
 instance FromJSON TeamOpts
 
+data EmailOpts = EmailAWS  EmailAWSOpts
+               | EmailSMTP EmailSMTPOpts
+               deriving (Show, Generic)
+
+instance FromJSON EmailOpts where
+    parseJSON o =  EmailAWS <$> parseJSON o
+               <|> EmailSMTP <$> parseJSON o
+
 data EmailSMSOpts = EmailSMSOpts
-    { general  :: !EmailSMSGeneralOpts
+    { email    :: !EmailOpts
+    , general  :: !EmailSMSGeneralOpts
     , user     :: !EmailUserOpts
     , provider :: !ProviderOpts
     , team     :: !TeamOpts
@@ -136,6 +175,7 @@ data Opts = Opts
     , cassandra     :: !CassandraOpts
     , elasticsearch :: !ElasticSearchOpts
     , aws           :: !AWSOpts
+    , stomp         :: !(Maybe StompOpts)
 
     -- Email & SMS
     , emailSMS      :: !EmailSMSOpts
@@ -146,6 +186,7 @@ data Opts = Opts
     -- Misc.
     , discoUrl      :: !(Maybe Text)
     , geoDb         :: !(Maybe FilePath)
+    , internalEvents :: !InternalEventsOpts
 
     -- TURN
     , turn          :: !TurnOpts
@@ -160,6 +201,7 @@ data Settings = Settings
     , setTeamInvitationTimeout :: !Timeout
     , setTwilio                :: !FilePathSecrets
     , setNexmo                 :: !FilePathSecrets
+    , setStomp                 :: !(Maybe FilePathSecrets)
     , setWhitelist             :: !(Maybe Whitelist)
     , setUserMaxConnections    :: !Int64
     , setCookieDomain          :: !Text
@@ -168,7 +210,8 @@ data Settings = Settings
     , setUserCookieLimit       :: !Int
     , setUserCookieThrottle    :: !CookieThrottle
     , setDefaultLocale         :: !Locale
-    , setMaxConvAndTeamSize    :: !Word16 -- NOTE: This must be in sync with galley
+    , setMaxTeamSize           :: !Word16 -- NOTE: This must be in sync with galley
+    , setMaxConvSize           :: !Word16 -- NOTE: This must be in sync with galley
     , setProviderSearchFilter  :: !(Maybe ProviderId)
     -- ^ Temporary optional provider ID to use for filtering services during search
     } deriving (Show, Generic)
@@ -221,31 +264,30 @@ optsParser =
       showDefault <>
       help "The name of the ElasticSearch user index")) <*>
     (AWSOpts <$>
-     (textOption $
-      long "aws-ses-queue" <> metavar "STRING" <>
-      help "Event feedback queue for SES (e.g. for email bounces and complaints)") <*>
-     (textOption $
-      long "aws-internal-queue" <> metavar "STRING" <>
-      help "Event queue for internal brig generated events (e.g. user deletion)") <*>
      (optional $ textOption $
       long "aws-user-journal-queue" <> metavar "STRING" <>
       help "Event journal queue for user events (e.g. user deletion)") <*>
      (textOption $
-      long "aws-dynamo-blacklist" <> metavar "STRING" <>
-      help "Dynamo table for storing blacklisted user keys") <*>
-     (textOption $
       long "aws-dynamo-prekeys" <> metavar "STRING" <>
       help "Dynamo table for storing prekey data") <*>
-     (option parseAWSEndpoint $
-      long "aws-ses-endpoint" <> value (AWSEndpoint "email.eu-west-1.amazonaws.com" True 443)
-      <> metavar "STRING" <> showDefault <> help "aws SES endpoint") <*>
      (option parseAWSEndpoint $
       long "aws-sqs-endpoint" <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443)
       <> metavar "STRING" <> showDefault <> help "aws SQS endpoint") <*>
      (option parseAWSEndpoint $
       long "aws-dynamodb-endpoint" <> value (AWSEndpoint "dynamodb.eu-west-1.amazonaws.com" True 443)
       <> metavar "STRING" <> showDefault <> help "aws DYNAMODB endpoint")) <*>
+    (optional $ StompOpts <$>
+     (textOption $
+      long "stomp-host" <> metavar "URL" <>
+      help "STOMP broker URL (e.g. for RabbitMQ or ActiveMQ)") <*>
+     (option auto $
+      long "stomp-port" <> metavar "INT" <>
+      help "STOMP broker port (usually 61613 or 61614)") <*>
+     (switch $
+      long "stomp-tls" <>
+      help "Connect to the STOMP broker via TLS")) <*>
     (EmailSMSOpts <$>
+     emailOptsParser <*>
      (EmailSMSGeneralOpts <$>
       (strOption $
        long "template-dir" <> metavar "FILE" <>
@@ -321,6 +363,10 @@ optsParser =
     (optional discoUrlParser) <*>
     (optional $
      option auto $ long "geodb" <> metavar "FILE" <> help "GeoDB file path") <*>
+    (InternalEventsOpts <$>
+     (queueOption $
+      long "internal-events-queue" <> metavar "STRING" <>
+      help "Queue to use for internal events. Either 'stomp:...' or 'sqs:...'")) <*>
     (TurnOpts <$>
      (strOption $
       long "turn-servers" <> metavar "FILE" <>
@@ -342,6 +388,35 @@ optsParser =
       help "Number of seconds until a new TURN configuration should be fetched.")) <*>
     settingsParser
 
+emailOptsParser :: Parser EmailOpts
+emailOptsParser = EmailAWS <$> emailAWSOptsParser <|> EmailSMTP <$> emailSMTPOptsParser
+
+emailAWSOptsParser :: Parser EmailAWSOpts
+emailAWSOptsParser =
+     EmailAWSOpts <$>
+      (textOption $
+        long "aws-ses-queue" <> metavar "STRING" <>
+        help "Event feedback queue for SES (e.g. for email bounces and complaints)") <*>
+      (option parseAWSEndpoint $
+        long "aws-ses-endpoint" <> value (AWSEndpoint "email.eu-west-1.amazonaws.com" True 443)
+        <> metavar "STRING" <> showDefault <> help "aws SES endpoint")
+
+emailSMTPOptsParser :: Parser EmailSMTPOpts
+emailSMTPOptsParser =
+    EmailSMTPOpts <$>
+      (textOption $
+        long "smtp-hostname" <> metavar "STRING" <>
+        help "Hostname of the SMTP server to connect to") <*>
+      (textOption $
+        long "smtp-username" <> metavar "STRING" <>
+        help "Username to authenticate against the SMTP server") <*>
+      (FilePathSecrets <$> (strOption $
+        long "smtp-password" <> metavar "FILE" <>
+        help "File containing password to authenticate against the SMTP server" <> action "file")) <*>
+      (smtpConnTypeOption $
+        long "smtp-conn-type" <> metavar "STRING" <> value "tls" <> showDefault <>
+        help "Which type of connection to use against the SMTP server {tls,ssl,plain}")
+
 settingsParser :: Parser Settings
 settingsParser =
     Settings <$>
@@ -357,6 +432,8 @@ settingsParser =
      long "twilio-credentials" <> metavar "FILE" <> help "File containing Twilio credentials" <> action "file")) <*>
     (FilePathSecrets <$> (strOption $
      long "nexmo-credentials" <> metavar "FILE" <> help "File containing Nexmo credentials" <> action "file")) <*>
+    (optional $ FilePathSecrets <$> (strOption $
+     long "stomp-credentials" <> metavar "FILE" <> help "File containing STOMP broker credentials" <> action "file")) <*>
     (optional $
      Whitelist <$>
      (textOption $
@@ -400,11 +477,25 @@ settingsParser =
      long "default-locale" <> metavar "STRING" <> value "en" <> showDefault <>
      help "Default locale to use (e.g. when selecting templates)") <*>
     (option auto $
-     long "conv-team-max-size" <> metavar "INT" <> value 128 <> showDefault <>
-     help "Max. # of members in a team/conversation.") <*>
+     long "team-max-size" <> metavar "INT" <>
+     help "Max. # of members in a team") <*>
+    (option auto $
+     long "conv-max-size" <> metavar "INT" <>
+     help "Max. # of members in a conversation") <*>
     (optional $ option providerIdOption $
      long "provider-id-search-filter" <> metavar "STRING" <>
      help "Filter _ONLY_ services with the given provider id")
+
+queueOption :: Mod OptionFields String -> Parser Queue
+queueOption =
+    fmap
+        (\s -> let (type_, name_) = break (== ':') s in
+               case type_ of
+                   "stomp" -> StompQueue (T.pack $ drop 1 name_)
+                   "sqs"   -> SqsQueue (T.pack $ drop 1 name_)
+                   _       -> error ("Unknown queue type: " <> show type_)
+        ) .
+    strOption
 
 localeOption :: Mod OptionFields String -> Parser Locale
 localeOption =
@@ -423,3 +514,10 @@ emailOption =
 providerIdOption :: ReadM ProviderId
 providerIdOption = readerAsk >>=
     maybe (fail "Failed to parse ") pure . fromByteString . pack
+
+smtpConnTypeOption :: Mod OptionFields String -> Parser SMTPConnType
+smtpConnTypeOption =
+    fmap
+        (fromMaybe (error "Ensure proper STMP conn type is used") .
+        Y.decode . pack) .
+    strOption

@@ -1,3 +1,4 @@
+LANG := en_US.UTF-8
 SHELL        := /usr/bin/env bash
 NAME         := brig-schema
 VERSION       = $(shell sed -n 's/^version: *\(.*\)$$/\1/p' ../brig.cabal)

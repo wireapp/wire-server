@@ -11,27 +11,43 @@
 module Test.Spar.APISpec where
 
 import Bilge
+import Brig.Types.User
+import Control.Concurrent.STM (atomically, writeTChan)
 import Control.Monad.Reader
-import Data.Aeson as Aeson hiding (json)
-import Data.Aeson.QQ as Aeson
-import Data.Either (isRight)
+import Data.ByteString.Conversion
+import Data.Id
 import Data.List (isInfixOf)
+import Data.Maybe
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
+import Galley.Types.Teams as Galley
+import GHC.Stack
 import Lens.Micro
+import Prelude hiding (head)
 import SAML2.WebSSO as SAML
-import Spar.API ()
+import SAML2.WebSSO.Test.Credentials
+import SAML2.WebSSO.Test.MockResponse
 import Spar.Types
-import URI.ByteString.QQ
+import Text.XML
+import URI.ByteString.QQ (uri)
 import Util
 
-
--- TODO: what else needs to be tested, beyond the pending tests listed here?
+import qualified Spar.Intra.Brig as Intra
 
 
 spec :: SpecWith TestEnv
 spec = do
-    describe "status, metainfo" $ do
+    describe "CORS" $ do
+      it "is disabled" $ do
+        -- I put this there because I was playing with a CORS middleware to make swagger browsing more
+        -- convenient, but went for a simpler work flow that didn't require that in the end.  I left
+        -- it in so if we ever start adding CORS headers, whether by accident or intentionally, we
+        -- will fall over this test and will have to extend it to document the new behavior.
+        env <- ask
+        get ((env ^. teSpar) . path "/i/status" . expect2xx)
+          `shouldRespondWith` (\(responseHeaders -> hdrs) -> isNothing $ lookup "Access-Control-Allow-Origin" hdrs)
+
+    describe "status, metadata" $ do
       it "brig /i/status" $ do
         env <- ask
         ping (env ^. teBrig) `shouldRespondWith` (== ())
@@ -40,27 +56,42 @@ spec = do
         env <- ask
         ping (env ^. teSpar) `shouldRespondWith` (== ())
 
-      it "metainfo" $ do
+      it "metadata" $ do
         env <- ask
-        get ((env ^. teSpar) . path "/sso/metainfo" . expect2xx)
+        get ((env ^. teSpar) . path "/sso/metadata" . expect2xx)
           `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                 [ "md:SPSSODescriptor"
                                 , "validUntil"
                                 , "WantAssertionsSigned=\"true\""
                                 ])
 
-    describe "/sso/initiate-login/:idp" $ do
+    describe "HEAD /sso/initiate-login/:idp" $ do
+      context "unknown IdP" $ do
+        it "responds with 404" $ do
+          env <- ask
+          let uuid = cs $ UUID.toText UUID.nil
+          head ((env ^. teSpar) . path ("/sso/initiate-login/" <> uuid))
+            `shouldRespondWith` ((== 404) . statusCode)
+
+      context "known IdP" $ do
+        it "responds with 200" $ do
+          env <- ask
+          let idp = cs . UUID.toText . fromIdPId $ env ^. teIdP . idpId
+          head ((env ^. teSpar) . path ("/sso/initiate-login/" <> idp) . expect2xx)
+            `shouldRespondWith`  ((== 200) . statusCode)
+
+    describe "GET /sso/initiate-login/:idp" $ do
       context "unknown IdP" $ do
         it "responds with 'not found'" $ do
           env <- ask
           let uuid = cs $ UUID.toText UUID.nil
           get ((env ^. teSpar) . path ("/sso/initiate-login/" <> uuid))
-            `shouldRespondWith` ((>= 400) . statusCode)
+            `shouldRespondWith` ((== 404) . statusCode)
 
       context "known IdP" $ do
         it "responds with request" $ do
           env <- ask
-          (_, _, cs . UUID.toText . fromIdPId -> idp) <- createTestIdP
+          let idp = cs . UUID.toText . fromIdPId $ env ^. teIdP . idpId
           get ((env ^. teSpar) . path ("/sso/initiate-login/" <> idp) . expect2xx)
             `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                   [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
@@ -68,148 +99,288 @@ spec = do
                                   , "<input name=\"SAMLRequest\" type=\"hidden\" "
                                   ])
 
-    describe "/sso/finalize-login" $ do  -- TODO: either use workingIdP or mock one locally.  the
-                                         -- latter is faster to run, but we need the former anyway,
-                                         -- so we might as well rely on that.
+    describe "/sso/finalize-login" $ do
       context "access denied" $ do
-        it "responds with 'forbidden'" $ do
-          pending
+        it "responds with a very peculiar 'forbidden' HTTP response" $ do
+          (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          authnresp <- liftIO $ mkAuthnResponse privcreds idp authnreq False
+          sparresp <- submitAuthnResponse authnresp
+          liftIO $ do
+            -- import Text.XML
+            -- putStrLn $ unlines
+            --   [ cs . renderLBS def { rsPretty = True } . fromSignedAuthnResponse $ authnresp
+            --   , show sparresp
+            --   , maybe "Nothing" cs (responseBody sparresp)
+            --   ]
+            statusCode sparresp `shouldBe` 200
+            let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+            bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+            bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+            bdy `shouldContain` "<title>wire:sso:error:forbidden</title>"
+            bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_ERROR', payload: {label: 'forbidden'}}, receiverOrigin)"
 
       context "access granted" $ do
-        it "responds with redirect to app" $ do
-          pending
+        it "responds with a very peculiar 'allowed' HTTP response" $ do
+          (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          authnresp <- liftIO $ mkAuthnResponse privcreds idp authnreq True
+          sparresp <- submitAuthnResponse authnresp
+          liftIO $ do
+            statusCode sparresp `shouldBe` 200
+            let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+            bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+            bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+            bdy `shouldContain` "<title>wire:sso:success</title>"
+            bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
 
         context "unknown user" $ do
           it "creates the user" $ do
             pending
 
-      context "unknown IdP" $ do
+        context "known user A, but client device (probably a browser?) is already authenticated as another (probably non-sso) user B" $ do
+          it "logs out user B, logs in user A" $ do
+            pending
+
+      context "unknown IdP Issuer" $ do
+        it "rejects" $ do
+          (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          authnresp <- liftIO $ mkAuthnResponse privcreds (idp & idpIssuer .~ Issuer [uri|http://unknown-issuer/|]) authnreq True
+          sparresp <- submitAuthnResponse authnresp
+          liftIO $ do
+            statusCode sparresp `shouldBe` 404
+            responseJSON sparresp `shouldBe` Right (TestErrorLabel "not-found")
+
+      context "AuthnResponse does not match any request" $ do
         it "rejects" $ do
           pending
 
-      context "bad AuthnRequest" $ do
+      context "AuthnResponse contains assertions that have been offered before" $ do
         it "rejects" $ do
           pending
 
-      context "response does not match any request" $ do
-        it "rejects" $ do
-          pending
+    let checkErr :: (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
+        checkErr statusIs label resp = statusIs (statusCode resp) && responseJSON resp == Right label
 
-      context "response contains assertions that have been offered before" $ do
-        it "rejects" $ do
-          pending
+        testGetPutDelete :: (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
+        testGetPutDelete whichone = do
+          context "unknown IdP" $ do
+            it "responds with 'not found'" $ do
+              env <- ask
+              whichone (env ^. teSpar) Nothing (IdPId UUID.nil)
+                `shouldRespondWith` checkErr (== 404) "not-found"
 
+          context "no zuser" $ do
+            it "responds with 'client error'" $ do
+              env <- ask
+              let idpid = env ^. teIdP . idpId
+              whichone (env ^. teSpar) Nothing idpid
+                `shouldRespondWith` checkErr (== 400) "client-error"
+
+          context "zuser has no team" $ do
+            it "responds with 'no team member'" $ do
+              env <- ask
+              let idpid = env ^. teIdP . idpId
+              (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
+              whichone (env ^. teSpar) (Just uid) idpid
+                `shouldRespondWith` checkErr (== 403) "no-team-member"
+
+          context "zuser has wrong team" $ do
+            it "responds with 'no team member'" $ do
+              env <- ask
+              let idpid = env ^. teIdP . idpId
+              (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+              whichone (env ^. teSpar) (Just uid) idpid
+                `shouldRespondWith` checkErr (== 403) "no-team-member"
+
+          context "zuser is a team member, but not a team owner" $ do
+            it "responds with 'insufficient-permissions' and a helpful message" $ do
+              env <- ask
+              let idpid = env ^. teIdP . idpId
+                  teamid = env ^. teTeamId
+              newmember <- let Just perms = newPermissions mempty mempty
+                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
+              whichone (env ^. teSpar) (Just newmember) idpid
+                `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
     describe "GET /identity-providers/:idp" $ do
-      context "unknown IdP" $ do
-        it "responds with 'not found'" $ do
-          env <- ask
-          callIdpGet' ((env ^. teSpar)) Nothing (IdPId UUID.nil)
-            `shouldRespondWith` ((>= 400) . statusCode)
+      testGetPutDelete callIdpGet'
 
-      context "known IdP, but no zuser" $ do
-        it "responds with 'not found'" $ do
-          env <- ask
-          (_, _, idp) <- createTestIdP
-          callIdpGet' ((env ^. teSpar)) Nothing idp
-            `shouldRespondWith` ((>= 400) . statusCode)
-
-      context "known IdP that does not belong to user" $ do
-        it "responds with 'not found'" $ do
-          env <- ask
-          (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
-          (_, _, idp) <- createTestIdP
-          callIdpGet' ((env ^. teSpar)) (Just uid) idp
-            `shouldRespondWith` ((>= 400) . statusCode)
-
-      context "known IdP" $ do
+      context "known IdP, client is team owner" $ do
         it "responds with 2xx and IdP" $ do
           env <- ask
-          (uid, _, idp) <- createTestIdP
-          callIdpGet' ((env ^. teSpar)) (Just uid) idp
-            `shouldRespondWith` (\resp -> statusCode resp < 300 && isRight (responseJSON @IdP resp))
+          let idpid = env ^. teIdP . idpId
+              userid = env ^. teUserId
+          _ <- call $ callIdpGet (env ^. teSpar) (Just userid) idpid
+          passes
+
+    describe "GET /identity-providers" $ do
+      context "client is not team owner" $ do
+        it "rejects" $ do
+          env <- ask
+          (_owner :: UserId, teamid :: TeamId)
+            <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          member :: UserId
+            <- let Just perms = newPermissions mempty mempty
+               in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
+          callIdpGetAll' (env ^. teSpar) (Just member)
+            `shouldRespondWith` ((== 403) . statusCode)
+
+      context "client is team owner" $ do
+        context "no idps registered" $ do
+          it "returns an empty list" $ do
+            env <- ask
+            (owner :: UserId, _teamid :: TeamId)
+              <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            callIdpGetAll (env ^. teSpar) (Just owner)
+              `shouldRespondWith` (null . _idplProviders)
+
+        context "some idps are registered" $ do
+          it "returns a non-empty empty list" $ do
+            env <- ask
+            newidp <- makeTestNewIdP
+            (owner, _, _) <- createTestIdPFrom newidp (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
+            callIdpGetAll (env ^. teSpar) (Just owner)
+              `shouldRespondWith` (not . null . _idplProviders)
 
     describe "DELETE /identity-providers/:idp" $ do
-      context "unknown IdP" $ do
-        it "responds with 'not found'" $ do
-          env <- ask
-          callIdpDelete' ((env ^. teSpar)) Nothing (IdPId UUID.nil)
-            `shouldRespondWith` ((>= 400) . statusCode)
+      testGetPutDelete callIdpDelete'
 
-      context "known IdP, but no zuser" $ do
-        it "responds with 'not found'" $ do
-          env <- ask
-          (_, _, idp) <- createTestIdP
-          callIdpDelete' ((env ^. teSpar)) Nothing idp
-            `shouldRespondWith` ((>= 400) . statusCode)
-
-      context "known IdP that does not belong to user" $ do
-        it "responds with 'not found'" $ do
-          env <- ask
-          (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          (_, _, idp) <- createTestIdP
-          callIdpDelete' ((env ^. teSpar)) (Just uid) idp
-            `shouldRespondWith` ((>= 400) . statusCode)
-
-      context "known IdP" $ do
+      context "known IdP, client is team owner" $ do
         it "responds with 2xx and removes IdP" $ do
           env <- ask
-          (uid, _, idp) <- createTestIdP
-          callIdpDelete' ((env ^. teSpar)) (Just uid) idp
+          let idpid = env ^. teIdP . idpId
+              userid = env ^. teUserId
+          callIdpDelete' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` \resp -> statusCode resp < 300
-          callIdpGet' ((env ^. teSpar)) (Just uid) idp
-            `shouldRespondWith` ((>= 400) . statusCode)
+          callIdpGet' (env ^. teSpar) (Just userid) idpid
+            `shouldRespondWith` checkErr (== 404) "not-found"
 
-    describe "POST /identity-providers/:idp" $ do
-      let check :: (Int -> Bool) -> Value -> ResponseLBS -> Bool
-          check statusIs msg resp = statusIs (statusCode resp) && responseJSON resp == Right msg
+    describe "PUT /identity-providers/:idp" $ do
+      xdescribe "need to implement `callIdpGet'` for these tests" $ do
+        let callIdpPut' :: SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS
+            callIdpPut' = undefined  -- (we need to change the type of 'testGetPutDelete', too, to accomodate the PUT body.)
+        testGetPutDelete callIdpPut'
 
+      context "known IdP, client is team owner" $ do
+        it "responds with 2xx and updates IdP" $ do
+          pending
+
+        context "invalid body" $ do
+          it "rejects" $ do
+            pending  -- (only test for signature here, but make sure that the same validity tests
+                     -- are performed as for POST in Spar.API.)
+
+    describe "POST /identity-providers" $ do
       context "no zuser" $ do
-        it "responds with 'forbidden' and a helpful message" $ do
+        it "responds with 'client error'" $ do
           env <- ask
-          callIdpCreate' ((env ^. teSpar)) Nothing (env ^. teNewIdp)
-            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"no auth token"}|]
+          callIdpCreate' (env ^. teSpar) Nothing (env ^. teNewIdP)
+            `shouldRespondWith` checkErr (== 400) "client-error"
 
       context "zuser has no team" $ do
-        it "responds with 'forbidden' and a helpful message" $ do
+        it "responds with 'no team member'" $ do
           env <- ask
-          (uid, _) <- call $ createRandomPhoneUser ((env ^. teBrig))
-          callIdpCreate' ((env ^. teSpar)) (Just uid) (env ^. teNewIdp)
-            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"you need to be team admin to create an IdP"}|]
+          (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
+          callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teNewIdP)
+            `shouldRespondWith` checkErr (== 403) "no-team-member"
 
-      context "zuser is a team member, not a team admin" $ do
-        it "responds with 'forbidden' and a helpful message" $ do
+      context "zuser is a team member, but not a team owner" $ do
+        it "responds with 'insufficient-permissions' and a helpful message" $ do
+          env <- ask
+          (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          newmember <- let Just perms = newPermissions mempty mempty
+                       in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
+          callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teNewIdP)
+            `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
+
+      let -- | test that illegal create idp requests are rejected: create a 'NewIdP' value with a
+          -- fresh 'Issuer' value (same IdP issuer can't serve two different teams); load a metadata
+          -- file that is broken in some interesting way into the mock IdP started in module 'Spec';
+          -- then attempt to register the 'NewIdP'.
+          --
+          -- spar will request the metadata url; validate the metadata received from the mock idp we
+          -- just loaded here; and return the expected error (or not).
+          createIdpMockErr :: HasCallStack => Maybe (NewIdP -> IO [Node]) -> TestErrorLabel -> ReaderT TestEnv IO ()
+          createIdpMockErr metadata errlabel = do
+            env <- ask
+            newidp <- makeTestNewIdP
+            case metadata of
+              Nothing -> pure ()
+              Just mk -> liftIO $ mk newidp >>= atomically . writeTChan (env ^. teIdPChan)
+            callIdpCreate' (env ^. teSpar) (Just (env ^. teUserId)) newidp
+              `shouldRespondWith` checkErr (== 400) errlabel
+
+      context "metadata url contains invalid hostname" $ do
+        it "rejects with a useful error message" $ do
           pending
 
-      context "invalid metainfo url or bad answer" $ do
-        xit "rejects" $ \env -> (`runReaderT` env) $ do
-          (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
-          callIdpCreate' ((env ^. teSpar)) (Just uid) ((env ^. teNewIdp) & nidpMetadata .~ [uri|http://www.example.com/|])
-            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"not a SAML metainfo URL"}|]
-
-      context "invalid metainfo content" $ do
+      context "bad metadata answer" $ do
         it "rejects" $ do
-          pending
+          createIdpMockErr
+            (Just . const . pure $ [NodeElement (Element "bloo" mempty mempty)])
+            "invalid-signature"  -- well, this is just what it checks first...
 
-      context "invalid metainfo signature" $ do
+      context "invalid metadata signature" $ do
         it "rejects" $ do
-          pending
+          createIdpMockErr
+            (Just $ sampleIdPMetadata' sampleIdPPrivkey2 sampleIdPCert)
+            "invalid-signature"
 
-      context "invalid or unresponsive login request url" $ do
-        xit "rejects" $ \env -> (`runReaderT` env) $ do
-          (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
-          callIdpCreate' ((env ^. teSpar)) (Just uid) ((env ^. teNewIdp) & nidpRequestUri .~ [uri|http://www.example.com/|])
-            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"not a SAML SSO request URL"}|]
+      context "pubkey in IdPConfig does not match the one provided in metadata url" $ do
+        it "rejects" $ do
+          createIdpMockErr
+            (Just $ sampleIdPMetadata' sampleIdPPrivkey sampleIdPCert2)
+            "key-mismatch"
 
-      context "pubkey in IdPConfig does not match the one provided in metainfo url" $ do
-        xit "rejects" $ \env -> (`runReaderT` env) $ do
-          (uid, _) <- call $ createUserWithTeam ((env ^. teBrig)) (env ^. teGalley)
-          callIdpCreate' ((env ^. teSpar)) (Just uid) ((env ^. teNewIdp) & nidpPublicKey .~ samplePublicKey2)
-            `shouldRespondWith` check (>= 400) [aesonQQ|{"error":"public keys in request body and metainfo do not match"}|]
+      context "idp (identified by issuer) is in use by other team" $ do
+        it "rejects" $ do
+          env <- ask
+          (uid1, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          (uid2, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          newidp    <- makeTestNewIdP
+          resp1     <- call $ callIdpCreate' (env ^. teSpar) (Just uid1) newidp
+          resp2     <- call $ callIdpCreate' (env ^. teSpar) (Just uid2) newidp
+          liftIO $ do
+            statusCode resp1 `shouldBe` 201
+            statusCode resp2 `shouldBe` 400
+            responseJSON resp2 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
 
       context "everything in order" $ do
-        it "responds with 2xx" $ do
-          pending
+        it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
+          env <- ask
+          newidp <- makeTestNewIdP
+          idp <- call $ callIdpCreate (env ^. teSpar) (Just (env ^. teUserId)) newidp
+          idp' <- call $ callIdpGet (env ^. teSpar) (Just (env ^. teUserId)) (idp ^. idpId)
+          liftIO $ idp `shouldBe` idp'
 
-        it "makes IdP available for GET /identity-providers/" $ do
-          pending
+
+    describe "test helper functions" $ do
+      describe "createTeamMember" $ do
+        let check :: HasCallStack => Bool -> Int -> SpecWith TestEnv
+            check tryowner permsix =
+              it ("works: tryowner == " <> show (tryowner, permsix)) $ do
+                env <- ask
+                (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+                newmember <- if tryowner
+                  then pure undefined
+                  else call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid (permses !! permsix)
+                rawResp <- call $ get ((env ^. teBrig)
+                              . path "/self"
+                              . header "Z-User" (toByteString' $ if tryowner then owner else newmember)
+                              . expect2xx)
+                parsedResp <- either (error . show) pure $ selfUser <$> Intra.parseResponse @SelfProfile rawResp
+                liftIO $ userTeam parsedResp `shouldSatisfy` isJust
+
+            permses :: [Permissions]
+            permses = fromJust <$>
+              [ Just fullPermissions
+              , newPermissions mempty mempty
+              ]
+
+        sequence_ [ check tryowner perms | tryowner <- [minBound..], perms <- [0.. (length permses - 1)] ]
+
+
+
+
+-- TODO: go through DataSpec, APISpec and check that all the tests still make sense with the new implicit mock idp.
+-- TODO: what else needs to be tested, beyond the pending tests listed here?
+-- TODO: what tests can go to saml2-web-sso package?

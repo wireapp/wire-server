@@ -3,6 +3,8 @@
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE NondecreasingIndentation #-}
 
 module API.Provider (tests, Config) where
 
@@ -11,6 +13,7 @@ import Bilge.Assert
 import Brig.Types hiding (NewPasswordReset (..), CompletePasswordReset(..), EmailUpdate (..), PasswordReset (..), PasswordChange (..))
 import Brig.Types.Provider
 import Brig.Types.Provider.Tag
+import Control.Arrow ((&&&))
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout
 import Control.Lens ((^.))
@@ -32,7 +35,9 @@ import Data.Text (Text, isPrefixOf, toLower)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
-import Galley.Types (NewConv (..), NewConvUnmanaged (..), Conversation (..), Members (..))
+import Galley.Types (
+    Access (..), AccessRole (..), ConversationAccessUpdate (..),
+    NewConv (..), NewConvUnmanaged (..), Conversation (..), Members (..))
 import Galley.Types (ConvMembers (..), OtherMember (..))
 import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
@@ -88,13 +93,14 @@ tests conf p db b c g = do
     crt <- optOrEnv cert conf id "TEST_CERT"
     return $ testGroup "provider"
         [ testGroup "account"
-            [ test p "register"       $ testRegisterProvider db b
-            , test p "login"          $ testLoginProvider db b
-            , test p "update"         $ testUpdateProvider db b
-            , test p "delete"         $ testDeleteProvider db b
-            , test p "password-reset" $ testPasswordResetProvider db b
+            [ test p "register"                     $ testRegisterProviderDB db b
+            , test p "register + activate internal" $ testRegisterProviderInternal b
+            , test p "login"                        $ testLoginProvider db b
+            , test p "update"                       $ testUpdateProvider db b
+            , test p "delete"                       $ testDeleteProvider db b
+            , test p "password-reset"               $ testPasswordResetProvider db b
             , test p "email/password update with password reset"
-                                      $ testPasswordResetAfterEmailUpdateProvider db b
+                                                    $ testPasswordResetAfterEmailUpdateProvider db b
             ]
         , testGroup "service"
             [ test p "add-get fail (bad key)" $ testAddGetServiceBadKey conf db b
@@ -102,7 +108,22 @@ tests conf p db b c g = do
             , test p "update"                 $ testUpdateService conf db b
             , test p "update-conn"            $ testUpdateServiceConn conf db b
             , test p "search (tag/prefix)"    $ testListServices conf db b
-            , test p "delete"                 $ testDeleteService conf db b
+            , test p "delete"                 $ testDeleteService conf crt db b g c
+            ]
+        , testGroup "service whitelist"
+            [ test p "search permissions"
+                              $ testWhitelistSearchPermissions conf db b g
+            , test p "update permissions"
+                              $ testWhitelistUpdatePermissions conf db b g
+            , test p "basic functionality"
+                              $ testWhitelistBasic conf crt db b g
+            , test p "search" $ testSearchWhitelist conf db b g
+            , test p "search honors enabling and whitelisting"
+                              $ testSearchWhitelistHonorUpdates conf db b g
+            , test p "de-whitelisted bots are removed"
+                              $ testWhitelistKickout conf crt db b g c
+            , test p "de-whitelisting works with deleted conversations"
+                              $ testDeWhitelistDeletedConv conf crt db b g c
             ]
         , testGroup "bot"
             [ test p "add-remove" $ testAddRemoveBot conf crt db b g c
@@ -110,6 +131,7 @@ tests conf p db b c g = do
             ]
         , testGroup "bot-teams"
             [ test p "add-remove"  $ testAddRemoveBotTeam conf crt db b g c
+            , test p "team-only"   $ testBotTeamOnlyConv conf crt db b g c
             , test p "message"     $ testMessageBotTeam conf crt db b g c
             , test p "delete conv" $ testDeleteConvBotTeam conf crt db b g c
             , test p "delete team" $ testDeleteTeamBotTeam conf crt db b g c
@@ -119,54 +141,13 @@ tests conf p db b c g = do
 -------------------------------------------------------------------------------
 -- Provider Accounts
 
--- | Step-by-step registration procedure with verification
--- of pre- and post-conditions.
-testRegisterProvider :: DB.ClientState -> Brig -> Http ()
-testRegisterProvider db brig = do
-    email <- mkSimulatorEmail "success"
-    gen   <- Code.mkGen (Code.ForEmail email)
+-- | Test provider register by accessing the DB directly
+testRegisterProviderDB :: DB.ClientState -> Brig -> Http ()
+testRegisterProviderDB = testRegisterProvider . Just
 
-    let new = defNewProvider email
-
-    _rs <- registerProvider brig new <!!
-        const 201 === statusCode
-
-    let Just npr = decodeBody _rs :: Maybe NewProviderResponse
-    -- Since a password was given, none should have been generated
-    liftIO $ assertBool "password" (isNothing (rsNewProviderPassword npr))
-    let pid = rsNewProviderId npr
-
-    -- No login possible directly after registration
-    loginProvider brig email defProviderPassword !!!
-        const 403 === statusCode
-
-    -- Activate email
-    Just vcode <- lookupCode db gen Code.IdentityVerification
-    activateProvider brig (Code.codeKey vcode) (Code.codeValue vcode) !!!
-        const 200 === statusCode
-
-    -- Login succeeds after activation (due to auto-approval)
-    loginProvider brig email defProviderPassword !!!
-        const 200 === statusCode
-
-    -- Email address is now taken
-    registerProvider brig new !!!
-        const 409 === statusCode
-
-    -- Retrieve full account and public profile
-    -- (these are identical for now).
-    uid <- randomId
-    _rs <- getProvider brig pid <!! const 200 === statusCode
-    let Just p  = decodeBody _rs
-    _rs <- getProviderProfile brig pid uid <!! const 200 === statusCode
-    let Just pp = decodeBody _rs
-    liftIO $ do
-        assertEqual "id" pid (providerId p)
-        assertEqual "name" defProviderName (providerName p)
-        assertEqual "email" email (providerEmail p)
-        assertEqual "url" defProviderUrl (providerUrl p)
-        assertEqual "description" defProviderDescr (providerDescr p)
-        assertEqual "profile" (ProviderProfile p) pp
+-- | Test provider register using an internal HTTP endpoint
+testRegisterProviderInternal :: Brig -> Http ()
+testRegisterProviderInternal = testRegisterProvider Nothing
 
 testLoginProvider :: DB.ClientState -> Brig -> Http ()
 testLoginProvider db brig = do
@@ -263,7 +244,7 @@ testPasswordResetAfterEmailUpdateProvider db brig = do
     activateProvider brig (Code.codeKey vcodeEm) (Code.codeValue vcodeEm) !!!
         const 200 === statusCode
 
-    Just p <- decodeBody <$> (getProvider brig pid <!! const 200 === statusCode)
+    p <- decodeBody =<< (getProvider brig pid <!! const 200 === statusCode)
     liftIO $ assertEqual "email" newEmail (providerEmail p)
 
     -- attempting to complete password reset should fail
@@ -418,144 +399,99 @@ testListServices config db brig = do
     -- (and repeatedly) against a shared database and thus a shared
     -- "name index" per tag.
     uniq <- UUID.toText . toUUID <$> randomId
-    new  <- defNewService config
-    let taggedNames = mkTaggedNames uniq
-    svcs <- mapM (addGetService brig pid . mkNew new) (reverse taggedNames)
+    new <- defNewService config
+    let mkName n = Name (uniq <> "|" <> n)
+    svcs <- mapM (addGetService brig pid . mkNew new) (taggedServiceNames uniq)
     mapM_ (enableService brig pid . serviceId) svcs
+    let services :: [(ServiceId, Name)]
+        services = map (serviceId &&& serviceName) svcs
 
-    let _tags = Just (match1 SocialTag)
-    let names = fst (unzip taggedNames)
+    -- This is how we're going to call our /services endpoint. Every time we
+    -- would call it twice (with tags and without) and assert that results
+    -- match.
+    let search :: HasCallStack => Name -> Http ServiceProfilePage
+        search name = do
+            r1 <- searchServices brig 20 uid (Just name) Nothing
+            r2 <- searchServices brig 20 uid (Just name) (Just (match1 SocialTag))
+            -- We could also compare 'serviceProfilePageHasMore' here, but
+            -- then the test wouldn't pass (even though it should!).
+            -- See Note [buggy pagination] for more details.
+            liftIO $ assertEqual ("search for " <> show name <> " without and with tags")
+                                 (serviceProfilePageResults r1)
+                                 (serviceProfilePageResults r2)
+            return r1
+    -- This function searches for a prefix and check that the results match
+    -- our known list of services
+    let searchAndCheck :: HasCallStack => Name -> Http [ServiceProfile]
+        searchAndCheck name = do
+            result <- search name
+            assertServiceDetails ("name " <> show name) (select name services) result
+            return (serviceProfilePageResults result)
 
-    -- List services with different start names, that all start with the
-    -- same prefix.
-    void $ searchAndAssert uid _tags (Name uniq) 20 names
+    -- Search for our unique prefix and check that all services are found
+    search (Name uniq) >>= assertServiceDetails ("all with prefix " <> show uniq) services
 
-    -- Search by exact name
-    forM_ names $ \n -> searchAndAssert uid _tags n 10 [n]
+    -- Search by exact name and check that only one service is found
+    forM_ (take 3 services) $ \(sid, name) ->
+        search name >>= assertServiceDetails ("name " <> show name) [(sid, name)]
 
-    -- Chosen prefixes
-
-    -- Only Bjørn should be returned
-    let _search = mkName uniq "Bjø"
-    void $ searchAndAssert uid _tags _search 10 (select _search names)
-
-    -- Both Bjørn and Bjorn should be returned
-    let _search = mkName uniq "Bj"
-    void $ searchAndAssert uid _tags _search 10 (select _search names)
-
-    -- CHRISTMAS should be returned
-    let _search = mkName uniq "chris"
-    void $ searchAndAssert uid _tags _search 10 (select _search names)
+    -- Some chosen prefixes
+    -- # Bjø -> Bjørn
+    _found <- map serviceProfileName <$> searchAndCheck (mkName "Bjø")
+    liftIO $ assertEqual "Bjø" [mkName "Bjørn"] _found
+    -- # Bj -> bjorn, Bjørn
+    _found <- map serviceProfileName <$> searchAndCheck (mkName "Bj")
+    liftIO $ assertEqual "Bj" [mkName "bjorn", mkName "Bjørn"] _found
+    -- # chris -> CHRISTMAS
+    _found <- map serviceProfileName <$> searchAndCheck (mkName "chris")
+    liftIO $ assertEqual "chris" [mkName "CHRISTMAS"] _found
 
     -- Ensure name changes are also indexed properly
-    forM_ svcs $ searchAndAssertNameChange pid uid _tags uniq
+    forM_ (take 3 services) $ \(sid, _) ->
+        searchAndAssertNameChange brig pid sid uid uniq search
   where
-    getPage :: UserId -> Maybe MatchAny -> Maybe Name -> Int -> HttpT IO [ServiceProfile]
-    getPage uid (Just tag) start size = do
-        rs <- listServiceProfilesByTag brig uid tag start size <!! const 200 === statusCode
-        let Just ls = serviceProfilePageResults <$> decodeBody rs
-        return ls
-    getPage uid Nothing (Just start) size = do
-        rs <- listServiceProfilesByPrefix brig uid start size <!! const 200 === statusCode
-        let Just ls = serviceProfilePageResults <$> decodeBody rs
-        return ls
-    getPage _ Nothing Nothing _ = error "Query not supported"
-
-    searchAndAssertNameChange :: ProviderId -> UserId -> Maybe MatchAny -> Text -> Service -> Http ()
-    searchAndAssertNameChange pid uid tags uniq svc = do
-        let sid = serviceId svc
-        Just svp <- decodeBody <$> (getServiceProfile brig uid pid sid
-                               <!!  const 200 === statusCode)
-        let origName = serviceProfileName svp
-        searchAndAssertWithSid uid tags origName 10 [origName] [sid]
-
-        let newName = mkName uniq "Wire"
-        let _upd = emptyUpdateService { updateServiceName = Just newName }
-        updateService brig pid (serviceId svc) _upd !!! const 200 === statusCode
-
-        -- Now we should find no such service with the original name, only with the new name
-        searchAndAssertWithSid uid tags origName 10 []        []
-        searchAndAssertWithSid uid tags newName  10 [newName] [sid]
-
-        -- Let's rollback
-        let _upd = emptyUpdateService { updateServiceName = Just origName }
-        updateService brig pid (serviceId svc) _upd !!! const 200 === statusCode
-
-        -- Searching the new name should return nothing
-        searchAndAssertWithSid uid tags newName  10 []         []
-        searchAndAssertWithSid uid tags origName 10 [origName] [sid]
-
-    searchAndAssertWithSid uid tags qry size expectsNames expectsSids = do
-        -- Test _with_ and _without_ tags and check we got the right sid back
-        _ls <- searchAndAssert uid tags qry size expectsNames
-        liftIO $ assertEqual ("check sid size: " ++ show qry) (length expectsSids) (length _ls)
-        let _sids = map serviceProfileId _ls
-        liftIO $ assertEqual ("check sid str: " ++ show qry) expectsSids _sids
-
-    searchAndAssert uid tags qry size expectsNames = do
-        -- Search with tag and name
-        _ls <- getPage uid tags (Just qry) size
-        liftIO $ assertEqual ("get page with tag, size: " ++ show qry) (length expectsNames) (length _ls)
-        let _names = map serviceProfileName _ls
-        liftIO $ assertEqual ("get page with tag, str: " ++ show qry) expectsNames _names
-        -- Search with name only
-        _ls <- getPage uid Nothing (Just qry) size
-        liftIO $ assertEqual ("get page no tag, size: " ++ show qry) (length expectsNames) (length _ls)
-        let _names = map serviceProfileName _ls
-        liftIO $ assertEqual ("get page no tag: " ++ show qry) expectsNames _names
-        return _ls
-
-    -- 20 names, all using the given unique prefix
-    mkTaggedNames uniq =
-        [ (mkName uniq "Alpha",     [SocialTag, QuizTag, BusinessTag])
-        , (mkName uniq "Beta",      [SocialTag, MusicTag, LifestyleTag])
-        , (mkName uniq "Bjorn",     [SocialTag, QuizTag, TravelTag])
-        , (mkName uniq "Bjørn",     [SocialTag, MusicTag, LifestyleTag])
-        , (mkName uniq "CHRISTMAS", [SocialTag, QuizTag, WeatherTag])
-        , (mkName uniq "Delta",     [SocialTag, MusicTag, LifestyleTag])
-        , (mkName uniq "Epsilon",   [SocialTag, QuizTag, BusinessTag])
-        , (mkName uniq "Freer",     [SocialTag, MusicTag, LifestyleTag])
-        , (mkName uniq "Gamma",     [SocialTag, QuizTag, WeatherTag])
-        , (mkName uniq "Gramma",    [SocialTag, MusicTag, LifestyleTag])
-        , (mkName uniq "Hera",      [SocialTag, QuizTag, TravelTag])
-        , (mkName uniq "Io",        [SocialTag, MusicTag, LifestyleTag])
-        , (mkName uniq "Jojo",      [SocialTag, QuizTag, WeatherTag])
-        , (mkName uniq "Kuba",      [SocialTag, MusicTag, LifestyleTag])
-        , (mkName uniq "Lawn",      [SocialTag, QuizTag, TravelTag])
-        , (mkName uniq "Mango",     [SocialTag, MusicTag, LifestyleTag])
-        , (mkName uniq "North",     [SocialTag, QuizTag, WeatherTag])
-        , (mkName uniq "Yak",       [SocialTag, MusicTag, LifestyleTag])
-        , (mkName uniq "Zeta",      [SocialTag, QuizTag, TravelTag])
-        , (mkName uniq "Zulu",      [SocialTag, MusicTag, LifestyleTag])
-        ]
-
-    mkName uniq n = Name (uniq <> n)
-
     mkNew new (n, t) = new { newServiceName = n
                            , newServiceTags = unsafeRange (Set.fromList t)
                            }
-    select (Name prefix) nm = filter (isPrefixOf (toLower prefix) . toLower . fromName) nm
+    select (Name prefix) = filter (isPrefixOf (toLower prefix) . toLower . fromName . snd)
 
-    emptyUpdateService = UpdateService
-        { updateServiceName    = Nothing
-        , updateServiceSummary = Nothing
-        , updateServiceDescr   = Nothing
-        , updateServiceAssets  = Nothing
-        , updateServiceTags    = Nothing
-        }
+testDeleteService :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testDeleteService config crt db brig galley cannon = withTestService config crt db brig defServiceApp $ \sref buf -> do
+    let pid = sref^.serviceRefProvider
+    let sid = sref^.serviceRefId
 
-testDeleteService :: Maybe Config -> DB.ClientState -> Brig -> Http ()
-testDeleteService config db brig = do
-    prv <- randomProvider db brig
-    let pid = providerId prv
-    svc <- addGetService brig pid =<< defNewService config
-    let sid = serviceId svc
-    deleteService brig pid sid defProviderPassword !!!
-        const 200 === statusCode
+    -- Create a conversation
+    u1 <- createUser "Ernie" "success@simulator.amazonses.com" brig
+    u2 <- createUser "Bert"  "success@simulator.amazonses.com" brig
+    let uid1 = userId u1
+    let uid2 = userId u2
+    postConnection brig uid1 uid2 !!! const 201 === statusCode
+    putConnection brig uid2 uid1 Accepted !!! const 200 === statusCode
+    cnv <- decodeBody =<< (createConv galley uid1 [uid2] <!! const 201 === statusCode)
+    let cid = cnvId cnv
+
+    -- Add two bots there
+    bid1 <- addBotConv brig cannon uid1 uid2 cid pid sid buf
+    bid2 <- addBotConv brig cannon uid1 uid2 cid pid sid buf
+    liftIO $ assertBool "bot ids should be different" (bid1 /= bid2)
+    let buid1 = botUserId bid1
+        buid2 = botUserId bid2
+
+    -- Delete the service; the bots should be removed from the conversation
+    WS.bracketR cannon uid1 $ \ws -> do
+        deleteService brig pid sid defProviderPassword !!!
+            const 202 === statusCode
+        _ <- waitFor (5 # Second) not (isMember galley buid1 cid)
+        _ <- waitFor (5 # Second) not (isMember galley buid2 cid)
+        getBotConv galley bid1 cid !!! const 404 === statusCode
+        getBotConv galley bid2 cid !!! const 404 === statusCode
+        wsAssertMemberLeave ws cid buid1 [buid1]
+        wsAssertMemberLeave ws cid buid2 [buid2]
+
+    -- The service should not be available
     getService brig pid sid !!!
         const 404 === statusCode
-    uid <- randomId
-    getServiceProfile brig uid pid sid !!!
+    getServiceProfile brig uid1 pid sid !!!
         const 404 === statusCode
 
 testAddRemoveBot :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
@@ -590,7 +526,7 @@ testMessageBot config crt db brig galley cannon = withTestService config crt db 
     usr <- createUser "User" "success@simulator.amazonses.com" brig
     let uid = userId usr
     let new = defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0)
-    _rs <- addClient brig usr new <!! const 201 === statusCode
+    _rs <- addClient brig uid new <!! const 201 === statusCode
     let Just uc = clientId <$> decodeBody _rs
 
     -- Create conversation
@@ -608,8 +544,36 @@ testAddRemoveBotTeam config crt db brig galley cannon = withTestService config c
     addBot brig uid1 pid sid cidFail !!! do
         const 403 === statusCode
         const (Just "invalid-conversation") === fmap Error.label . decodeBody
-
     testAddRemoveBotUtil pid sid cid u1 u2 h sref buf brig galley cannon
+
+testBotTeamOnlyConv :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testBotTeamOnlyConv config crt db brig galley cannon = withTestService config crt db brig defServiceApp $ \sref buf -> do
+    (u1, u2, _h, _tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
+    let (uid1, uid2) = (userId u1, userId u2)
+    -- Make the conversation team-only and check that the bot can't be added
+    -- to the conversation
+    setAccessRole uid1 cid TeamAccessRole
+    addBot brig uid1 pid sid cid !!! do
+        const 403 === statusCode
+        const (Just "invalid-conversation") === fmap Error.label . decodeBody
+    -- Make the conversation allowed for guests and add the bot successfully
+    setAccessRole uid1 cid NonActivatedAccessRole
+    bid <- addBotConv brig cannon uid1 uid2 cid pid sid buf
+    let buid = botUserId bid
+    -- Make the conversation team-only again and check that the bot has been removed
+    WS.bracketR cannon uid1 $ \ws -> do
+        setAccessRole uid1 cid TeamAccessRole
+        _ <- waitFor (5 # Second) not (isMember galley buid cid)
+        getBotConv galley bid cid !!!
+            const 404 === statusCode
+        svcAssertConvAccessUpdate buf uid1
+            (ConversationAccessUpdate [InviteAccess] TeamAccessRole) cid
+        svcAssertMemberLeave buf buid [buid] cid
+        wsAssertMemberLeave ws cid buid [buid]
+  where
+    setAccessRole uid cid role =
+        updateConversationAccess galley uid cid [InviteAccess] role !!!
+           const 200 === statusCode
 
 testMessageBotTeam :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testMessageBotTeam config crt db brig galley cannon = withTestService config crt db brig defServiceApp $ \sref buf -> do
@@ -617,12 +581,13 @@ testMessageBotTeam config crt db brig galley cannon = withTestService config crt
     let sid = sref^.serviceRefId
 
     -- Prepare user with client
-    usr <- createUser "User" "success@simulator.amazonses.com" brig
-    let uid = userId usr
+    (uid, tid) <- Team.createUserWithTeam brig galley
     let new = defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0)
-    _rs <- addClient brig usr new <!! const 201 === statusCode
+    _rs <- addClient brig uid new <!! const 201 === statusCode
     let Just uc = clientId <$> decodeBody _rs
-    tid <- Team.createTeam uid galley
+
+    -- Whitelist the bot
+    whitelistService brig uid tid pid sid
 
     -- Create conversation
     cid <- Team.createTeamConv galley tid uid [] Nothing
@@ -675,6 +640,241 @@ testDeleteTeamBotTeam config crt db brig galley cannon = withTestService config 
     -- Check the bot cannot see the conversation either
     getBotConv galley bid cid !!! const 404 === statusCode
 
+-------------------------------------------------------------------------------
+-- Service Whitelist
+
+testWhitelistSearchPermissions :: Maybe Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testWhitelistSearchPermissions _config _db brig galley = do
+    -- Create a team
+    (owner, tid) <- Team.createUserWithTeam brig galley
+    -- Check that users who are not on the team can't search
+    nonMember <- userId <$> randomUser brig
+    listTeamServiceProfilesByPrefix brig nonMember tid Nothing True 20 !!! do
+        const 403 === statusCode
+        const (Just "insufficient-permissions") === fmap Error.label . decodeBody
+    -- Check that team members with no permissions can search
+    member <- userId <$> Team.createTeamMember brig galley owner tid Team.noPermissions
+    listTeamServiceProfilesByPrefix brig member tid Nothing True 20 !!!
+        const 200 === statusCode
+
+testWhitelistUpdatePermissions :: Maybe Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testWhitelistUpdatePermissions config db brig galley = do
+    -- Create a team
+    (owner, tid) <- Team.createUserWithTeam brig galley
+    -- Create a team admin
+    let Just adminPermissions = Team.newPermissions Team.serviceWhitelistPermissions mempty
+    admin <- userId <$> Team.createTeamMember brig galley owner tid adminPermissions
+    -- Create a service
+    pid <- providerId <$> randomProvider db brig
+    new <- defNewService config
+    sid <- serviceId <$> addGetService brig pid new
+    enableService brig pid sid
+    -- Check that a random user can't add it to the whitelist
+    _uid <- userId <$> randomUser brig
+    updateServiceWhitelist brig _uid tid (UpdateServiceWhitelist pid sid True) !!! do
+        const 403 === statusCode
+        const (Just "insufficient-permissions") === fmap Error.label . decodeBody
+    -- Check that a member who's not a team admin also can't add it to the whitelist
+    _uid <- userId <$> Team.createTeamMember brig galley owner tid Team.noPermissions
+    updateServiceWhitelist brig _uid tid (UpdateServiceWhitelist pid sid True) !!! do
+        const 403 === statusCode
+        const (Just "insufficient-permissions") === fmap Error.label . decodeBody
+    -- Check that a team admin can add and remove from the whitelist
+    whitelistService brig admin tid pid sid
+    dewhitelistService brig admin tid pid sid
+
+testSearchWhitelist :: Maybe Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testSearchWhitelist config db brig galley = do
+    -- Create a team, a team owner, and a team member with no permissions
+    (owner, tid) <- Team.createUserWithTeam brig galley
+    uid <- userId <$> Team.createTeamMember brig galley owner tid Team.noPermissions
+
+    -- Create services and add them all to the whitelist
+    pid  <- providerId <$> randomProvider db brig
+    uniq <- UUID.toText . toUUID <$> randomId
+    new  <- defNewService config
+    svcs <- mapM (addGetService brig pid . mkNew new) (taggedServiceNames uniq)
+    forM_ svcs $ \svc -> do
+        let sid = serviceId svc
+        enableService brig pid sid
+        whitelistService brig owner tid pid sid
+    let mkName n = Name (uniq <> "|" <> n)
+
+    let services :: [(ServiceId, Name)]
+        services = map (serviceId &&& serviceName) svcs
+
+    -- This is how we're going to call our .../services/whitelisted
+    -- endpoint. Every time we call it twice (with filter_disabled=false and
+    -- without) and assert that results match – which should always be the
+    -- case since in this test we won't have any disabled services.
+    let search :: HasCallStack => Maybe Text -> Http ServiceProfilePage
+        search mbName = do
+            r1 <- searchServiceWhitelist    brig 20 uid tid mbName
+            r2 <- searchServiceWhitelistAll brig 20 uid tid mbName
+            liftIO $ assertEqual
+                ("search for " <> show mbName <> " with and without filtering")
+                r1 r2
+            return r1
+
+    -- Check that search finds all services that we created
+    search (Just uniq) >>=
+        assertServiceDetails ("all with prefix " <> show uniq) services
+
+    -- Check that search works without a prefix
+    do
+        -- with the zeroes around, this service should be the first on the
+        -- resulting search results list
+        uniq2 <- mappend "0000000000|" . UUID.toText . toUUID <$> randomId
+        let name = Name (uniq2 <> "|Extra")
+        sid <- serviceId <$> addGetService brig pid (mkNew new (name, [PollTag]))
+        enableService brig pid sid
+        whitelistService brig owner tid pid sid
+        page <- search Nothing
+        assertServiceDetails "without prefix" ((sid, name) : take 19 services) page
+        liftIO $ assertEqual "has more" True (serviceProfilePageHasMore page)
+
+    -- This function searches for a prefix and check that the results match
+    -- our known list of services
+    let searchAndCheck :: HasCallStack => Name -> Http [ServiceProfile]
+        searchAndCheck (Name name) = do
+            result <- search (Just name)
+            assertServiceDetails ("name " <> show name) (select name services) result
+            return (serviceProfilePageResults result)
+
+    -- Search by exact name and check that only one service is found
+    forM_ (take 3 services) $ \(sid, Name name) ->
+        search (Just name) >>= assertServiceDetails ("name " <> show name) [(sid, Name name)]
+
+    -- Check some chosen prefixes.
+    -- # Bjø -> Bjørn
+    _found <- map serviceProfileName <$> searchAndCheck (mkName "Bjø")
+    liftIO $ assertEqual "Bjø" [mkName "Bjørn"] _found
+    -- # Bj -> bjorn, Bjørn
+    _found <- map serviceProfileName <$> searchAndCheck (mkName "Bj")
+    liftIO $ assertEqual "Bj" [mkName "bjorn", mkName "Bjørn"] _found
+    -- # chris -> CHRISTMAS
+    _found <- map serviceProfileName <$> searchAndCheck (mkName "chris")
+    liftIO $ assertEqual "chris" [mkName "CHRISTMAS"] _found
+
+    -- Ensure name changes are also indexed properly
+    forM_ (take 3 services) $ \(sid, _) ->
+        searchAndAssertNameChange brig pid sid uid uniq (search . Just . fromName)
+  where
+    mkNew new (n, t) = new { newServiceName = n
+                           , newServiceTags = unsafeRange (Set.fromList t)
+                           }
+    select prefix = filter (isPrefixOf (toLower prefix) . toLower . fromName . snd)
+
+testSearchWhitelistHonorUpdates :: Maybe Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testSearchWhitelistHonorUpdates config db brig galley = do
+    -- Create a team with an owner
+    (uid, tid) <- Team.createUserWithTeam brig galley
+
+    let expectWhitelist ifAll ifEnabled = do
+            searchServiceWhitelistAll brig 20 uid tid Nothing >>=
+                assertServiceDetails "search all" ifAll
+            searchServiceWhitelist    brig 20 uid tid Nothing >>=
+                assertServiceDetails "search enabled" ifEnabled
+
+    -- Check that the whitelist is initially empty
+    expectWhitelist [] []
+
+    -- Add a (initially disabled) service and whitelist it
+    pid <- providerId <$> randomProvider db brig
+    new <- defNewService config
+    sid <- serviceId <$> addGetService brig pid new
+    let name = newServiceName new
+    whitelistService brig uid tid pid sid
+
+    -- The service should be found by 'searchServiceWhitelistAll' but not
+    -- the standard version
+    expectWhitelist [(sid, name)] []
+    -- After enabling it, it should be found by both variants
+    enableService brig pid sid
+    expectWhitelist [(sid, name)] [(sid, name)]
+    -- After removing it from the whitelist, it should not be found
+    dewhitelistService brig uid tid pid sid
+    expectWhitelist [] []
+
+testWhitelistBasic :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Http ()
+testWhitelistBasic config crt db brig galley =
+  withTestService config crt db brig defServiceApp $ \sref buf -> do
+    let pid = sref^.serviceRefProvider
+    let sid = sref^.serviceRefId
+    -- Create a team
+    (owner, tid) <- Team.createUserWithTeam brig galley
+    -- Check that the service can't be added to a conversation by default
+    cid <- Team.createTeamConv galley tid owner [] Nothing
+    addBot brig owner pid sid cid !!! do
+        const 403 === statusCode
+        const (Just "service-not-whitelisted") === fmap Error.label . decodeBody
+    -- Check that after whitelisting the service, it can be added to the conversation
+    whitelistService brig owner tid pid sid
+    bid <- fmap rsAddBotId . decodeBody =<<
+           (addBot brig owner pid sid cid <!! const 201 === statusCode)
+    _ <- svcAssertBotCreated buf bid cid
+    -- Check that after de-whitelisting the service can't be added to conversations
+    removeBot brig owner cid bid !!!
+        const 200 === statusCode
+    dewhitelistService brig owner tid pid sid
+    addBot brig owner pid sid cid !!! do
+        const 403 === statusCode
+        const (Just "service-not-whitelisted") === fmap Error.label . decodeBody
+    -- Check that a disabled service can be whitelisted
+    disableService brig pid sid
+    whitelistService brig owner tid pid sid
+
+testWhitelistKickout :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testWhitelistKickout config crt db brig galley cannon = do
+    -- Create a team and a conversation
+    (owner, tid) <- Team.createUserWithTeam brig galley
+    cid <- Team.createTeamConv galley tid owner [] Nothing
+    -- Create a service
+    withTestService config crt db brig defServiceApp $ \sref buf -> do
+    -- Add it to the conversation
+    let pid = sref^.serviceRefProvider
+        sid = sref^.serviceRefId
+    whitelistService brig owner tid pid sid
+    bot <- decodeBody =<<
+           (addBot brig owner pid sid cid <!! const 201 === statusCode)
+    let bid  = rsAddBotId bot
+        buid = botUserId bid
+    _ <- svcAssertBotCreated buf bid cid
+    svcAssertMemberJoin buf owner [buid] cid
+    -- De-whitelist the service; both bots should be kicked out
+    WS.bracketR cannon owner $ \ws -> do
+        dewhitelistService brig owner tid pid sid
+        _ <- waitFor (2 # Second) not (isMember galley buid cid)
+        getBotConv galley bid cid !!!
+            const 404 === statusCode
+        wsAssertMemberLeave ws cid owner [buid]
+        svcAssertMemberLeave buf owner [buid] cid
+    -- The bot should not get any further events
+    liftIO $ timeout (2 # Second) (readChan buf) >>= \case
+        Nothing -> pure ()
+        Just (TestBotCreated _) -> assertFailure "bot got a TestBotCreated event"
+        Just (TestBotMessage e) -> assertFailure ("bot got an event: " <> show (evtType e))
+
+testDeWhitelistDeletedConv :: Maybe Config -> FilePath -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testDeWhitelistDeletedConv config crt db brig galley cannon = do
+    -- Create a service
+    withTestService config crt db brig defServiceApp $ \sref buf -> do
+    -- Create a team and a conversation
+    (u1, u2, _h, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
+    let uid1 = userId u1
+        uid2 = userId u2
+
+    -- Add a bot there
+    _bid1 <- addBotConv brig cannon uid1 uid2 cid pid sid buf
+
+    -- Delete conversation (to ensure deleteService can be called even with a deleted conversation)
+    Team.deleteTeamConv galley tid cid uid1
+
+    -- De-whitelist the service
+    -- this should work (not throw a 500) even with brig being unaware of deleted conversations
+    -- TODO: we should think of a way to synchronize this conversation information between galley and brig
+    dewhitelistService brig uid1 tid pid sid
+
 --------------------------------------------------------------------------------
 -- API Operations
 
@@ -686,6 +886,14 @@ registerProvider brig new = post $ brig
     . path "/provider/register"
     . contentJson
     . body (RequestBodyLBS (encode new))
+
+getProviderActivationCodeInternal
+    :: Brig
+    -> Email
+    -> Http ResponseLBS
+getProviderActivationCodeInternal brig email = get $ brig
+    . path "/i/provider/activation-code"
+    . queryItem "email" (toByteString' email)
 
 activateProvider
     :: Brig
@@ -851,6 +1059,20 @@ updateServiceConn brig pid sid upd = put $ brig
     . contentJson
     . body (RequestBodyLBS (encode upd))
 
+updateServiceWhitelist
+    :: Brig
+    -> UserId
+    -> TeamId
+    -> UpdateServiceWhitelist
+    -> Http ResponseLBS
+updateServiceWhitelist brig uid tid upd = post $ brig
+    . paths ["teams", toByteString' tid, "services", "whitelist"]
+    . header "Z-Type" "access"
+    . header "Z-User" (toByteString' uid)
+    . header "Z-Connection" "conn"
+    . contentJson
+    . body (RequestBodyLBS (encode upd))
+
 deleteService
     :: Brig
     -> ProviderId
@@ -873,6 +1095,22 @@ listServiceProfilesByPrefix
 listServiceProfilesByPrefix brig uid start size = get $ brig
     . path "/services"
     . queryItem "start" (toByteString' start)
+    . queryItem "size" (toByteString' size)
+    . header "Z-Type" "access"
+    . header "Z-User" (toByteString' uid)
+
+listTeamServiceProfilesByPrefix
+    :: Brig
+    -> UserId
+    -> TeamId
+    -> Maybe Text
+    -> Bool               -- ^ Filter out disabled
+    -> Int
+    -> Http ResponseLBS
+listTeamServiceProfilesByPrefix brig uid tid mbPrefix filterDisabled size = get $ brig
+    . paths ["teams", toByteString' tid, "services", "whitelisted"]
+    . maybe id (queryItem "prefix" . toByteString') mbPrefix
+    . (if filterDisabled then id else queryItem "filter_disabled" "false")
     . queryItem "size" (toByteString' size)
     . header "Z-Type" "access"
     . header "Z-User" (toByteString' uid)
@@ -981,6 +1219,23 @@ getBotConv galley bid cid = get $ galley
     . header "Z-Bot" (toByteString' bid)
     . header "Z-Conversation" (toByteString' cid)
 
+updateConversationAccess
+    :: Galley
+    -> UserId
+    -> ConvId
+    -> [Access]
+    -> AccessRole
+    -> Http ResponseLBS
+updateConversationAccess galley uid cid access role = put $ galley
+    . paths ["conversations", toByteString' cid, "access"]
+    . header "Z-Type" "access"
+    . header "Z-User" (toByteString' uid)
+    . header "Z-Connection" "conn"
+    . contentJson
+    . body (RequestBodyLBS (encode upd))
+  where
+    upd = ConversationAccessUpdate access role
+
 --------------------------------------------------------------------------------
 -- DB Operations
 
@@ -989,6 +1244,71 @@ lookupCode db gen = liftIO . DB.runClient db . Code.lookup (Code.genKey gen)
 
 --------------------------------------------------------------------------------
 -- Utilities
+
+-- | Step-by-step registration procedure with verification
+-- of pre- and post-conditions. Activation can be done through
+-- direct DB access (if given) otherwise it falls back to using
+-- an internal endpoint
+testRegisterProvider :: Maybe DB.ClientState -> Brig -> Http ()
+testRegisterProvider db' brig = do
+    email <- mkSimulatorEmail "success"
+
+    let new = defNewProvider email
+
+    _rs <- registerProvider brig new <!!
+        const 201 === statusCode
+
+    let Just npr = decodeBody _rs :: Maybe NewProviderResponse
+    -- Since a password was given, none should have been generated
+    liftIO $ assertBool "password" (isNothing (rsNewProviderPassword npr))
+    let pid = rsNewProviderId npr
+
+    -- No login possible directly after registration
+    loginProvider brig email defProviderPassword !!! do
+        const 403 === statusCode
+        const (Just "invalid-credentials") === fmap Error.label . decodeBody
+
+    -- Activate email
+    case db' of
+        Just db -> do
+            -- Activate email
+            gen <- Code.mkGen (Code.ForEmail email)
+            Just vcode <- lookupCode db gen Code.IdentityVerification
+            activateProvider brig (Code.codeKey vcode) (Code.codeValue vcode) !!!
+                const 200 === statusCode
+        Nothing -> do
+            _rs <- getProviderActivationCodeInternal brig email <!!
+                const 200 === statusCode
+
+            let Just pair = decodeBody _rs :: Maybe Code.KeyValuePair
+            activateProvider brig (Code.kcKey pair) (Code.kcCode pair) !!!
+                const 200 === statusCode
+
+    -- Login succeeds after activation (due to auto-approval)
+    loginProvider brig email defProviderPassword !!!
+        const 200 === statusCode
+
+    -- Email address is now taken
+    registerProvider brig new !!! do
+        const 409 === statusCode
+        const (Just "email-exists") === fmap Error.label . decodeBody
+
+    -- Retrieve full account and public profile
+    -- (these are identical for now).
+    uid <- randomId
+    _rs <- getProvider brig pid <!! const 200 === statusCode
+    let Just p  = decodeBody _rs
+    _rs <- getProviderProfile brig pid uid <!! const 200 === statusCode
+    let Just pp = decodeBody _rs
+    -- When updating the Provider dataype, one _must_ remember to also add
+    -- an extra check in this integration test.
+    liftIO $ do
+        assertEqual "id" pid (providerId p)
+        assertEqual "name" defProviderName (providerName p)
+        assertEqual "email" email (providerEmail p)
+        assertEqual "url" defProviderUrl (providerUrl p)
+        assertEqual "description" defProviderDescr (providerDescr p)
+        assertEqual "profile" (ProviderProfile p) pp
 
 randomProvider :: HasCallStack => DB.ClientState -> Brig -> Http Provider
 randomProvider db brig = do
@@ -1023,6 +1343,40 @@ enableService brig pid sid = do
             { updateServiceConnEnabled  = Just True
             }
     updateServiceConn brig pid sid upd !!!
+        const 200 === statusCode
+
+disableService :: HasCallStack => Brig -> ProviderId -> ServiceId -> Http ()
+disableService brig pid sid = do
+    let upd = (mkUpdateServiceConn defProviderPassword)
+            { updateServiceConnEnabled  = Just False
+            }
+    updateServiceConn brig pid sid upd !!!
+        const 200 === statusCode
+
+whitelistService
+    :: HasCallStack
+    => Brig
+    -> UserId           -- ^ Team owner
+    -> TeamId           -- ^ Team
+    -> ProviderId
+    -> ServiceId
+    -> Http ()
+whitelistService brig uid tid pid sid =
+    updateServiceWhitelist brig uid tid (UpdateServiceWhitelist pid sid True) !!!
+        -- TODO: allow both 200 and 204 here and use it in 'testWhitelistEvents'
+        const 200 === statusCode
+
+dewhitelistService
+    :: HasCallStack
+    => Brig
+    -> UserId           -- ^ Team owner
+    -> TeamId           -- ^ Team
+    -> ProviderId
+    -> ServiceId
+    -> Http ()
+dewhitelistService brig uid tid pid sid =
+    updateServiceWhitelist brig uid tid (UpdateServiceWhitelist pid sid False) !!!
+        -- TODO: allow both 200 and 204 here and use it in 'testWhitelistEvents'
         const 200 === statusCode
 
 defNewService :: MonadIO m => Maybe Config -> m NewService
@@ -1154,7 +1508,7 @@ data TestBotEvent
 -- TODO: Test that the authorization header is properly set
 defServiceApp :: Chan TestBotEvent -> Application
 defServiceApp buf = Wai.route
-    [ ("/bots",                onBotCreate)
+    [ ("/bots",               onBotCreate)
     , ("/bots/:bot/messages", onBotMessage)
     ]
   where
@@ -1257,6 +1611,17 @@ svcAssertMemberLeave buf usr gone cnv = liftIO $ do
             assertEqual "event data" (Just (EdMembers msg)) (evtData e)
         _ -> assertFailure "Event timeout (TestBotMessage: member-leave)"
 
+svcAssertConvAccessUpdate :: MonadIO m => Chan TestBotEvent -> UserId -> ConversationAccessUpdate -> ConvId -> m ()
+svcAssertConvAccessUpdate buf usr upd cnv = liftIO $ do
+    evt <- timeout (5 # Second) $ readChan buf
+    case evt of
+        Just (TestBotMessage e) -> do
+            assertEqual "event type" ConvAccessUpdate (evtType e)
+            assertEqual "conv" cnv (evtConv e)
+            assertEqual "user" usr (evtFrom e)
+            assertEqual "event data" (Just (EdConvAccessUpdate upd)) (evtData e)
+        _ -> assertFailure "Event timeout (TestBotMessage: conv-access-update)"
+
 svcAssertConvDelete :: MonadIO m => Chan TestBotEvent -> UserId -> ConvId -> m ()
 svcAssertConvDelete buf usr cnv = liftIO $ do
     evt <- timeout (5 # Second) $ readChan buf
@@ -1319,6 +1684,36 @@ mkMessage fromc rcps = object
 
     text :: (FromByteString a, ToByteString a) => a -> Text
     text = fromJust . fromByteString . toByteString'
+
+-- | A list of 20 services, all having names that begin with the given prefix.
+--
+-- NB: in some of the tests above, we depend on the fact that there are
+-- exactly 20 services here.
+taggedServiceNames :: Text -> [(Name, [ServiceTag])]
+taggedServiceNames prefix =
+    [ (mkName "Alpha",     [SocialTag, QuizTag, BusinessTag])
+    , (mkName "Beta",      [SocialTag, MusicTag, LifestyleTag])
+    , (mkName "bjorn",     [SocialTag, QuizTag, TravelTag])
+    , (mkName "Bjørn",     [SocialTag, MusicTag, LifestyleTag])
+    , (mkName "CHRISTMAS", [SocialTag, QuizTag, WeatherTag])
+    , (mkName "Delta",     [SocialTag, MusicTag, LifestyleTag])
+    , (mkName "Epsilon",   [SocialTag, QuizTag, BusinessTag])
+    , (mkName "Freer",     [SocialTag, MusicTag, LifestyleTag])
+    , (mkName "Gamma",     [SocialTag, QuizTag, WeatherTag])
+    , (mkName "Gramma",    [SocialTag, MusicTag, LifestyleTag])
+    , (mkName "Hera",      [SocialTag, QuizTag, TravelTag])
+    , (mkName "Io",        [SocialTag, MusicTag, LifestyleTag])
+    , (mkName "Jojo",      [SocialTag, QuizTag, WeatherTag])
+    , (mkName "Kuba",      [SocialTag, MusicTag, LifestyleTag])
+    , (mkName "Lawn",      [SocialTag, QuizTag, TravelTag])
+    , (mkName "Mango",     [SocialTag, MusicTag, LifestyleTag])
+    , (mkName "North",     [SocialTag, QuizTag, WeatherTag])
+    , (mkName "Yak",       [SocialTag, MusicTag, LifestyleTag])
+    , (mkName "Zeta",      [SocialTag, QuizTag, TravelTag])
+    , (mkName "Zulu",      [SocialTag, MusicTag, LifestyleTag])
+    ]
+  where
+    mkName n = Name (prefix <> "|" <> n)
 
 testAddRemoveBotUtil :: ProviderId
                      -> ServiceId
@@ -1431,7 +1826,7 @@ testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
         assertEqual "members" [OtherMember uid Nothing] (bcnv^.Ext.botConvMembers)
 
     -- The user can identify the bot in the member list
-    Just mems <- fmap cnvMembers . decodeBody <$> getConversation galley uid cid
+    mems <- fmap cnvMembers . decodeBody =<< getConversation galley uid cid
     let other = listToMaybe (cmOthers mems)
     liftIO $ do
         assertEqual "id" (Just buid) (omId <$> other)
@@ -1449,17 +1844,10 @@ testMessageBotUtil uid uc cid pid sid sref buf brig galley cannon = do
     let msg = OtrMessage uc bc "Hi Bot" (Just "data")
     svcAssertMessage buf uid msg cid
 
-    -- Remove the entire service; existing bots should remain where they are.
-    deleteService brig pid sid defProviderPassword !!!
-        const 200 === statusCode
-    _im <- isMember galley buid cid
-    liftIO $ assertBool "bot is not a member" _im
-
-    -- Writing another message triggers orphaned bots to be auto-removed due
-    -- to the service being gone.
+    -- Remove the entire service; the bot should be removed from the conversation
     WS.bracketR cannon uid $ \ws -> do
-        postMessage galley uid uc cid [(buid, bc, "Still there?")] !!!
-            const 201 === statusCode
+        deleteService brig pid sid defProviderPassword !!!
+            const 202 === statusCode
         _ <- waitFor (5 # Second) not (isMember galley buid cid)
         getBotConv galley bid cid !!!
             const 404 === statusCode
@@ -1475,15 +1863,15 @@ prepareBotUsersTeam brig galley sref = do
     let sid = sref^.serviceRefId
 
     -- Prepare users
-    u1 <- createUser "Ernie" "success@simulator.amazonses.com" brig
-    u2 <- createUser "Bert"  "success@simulator.amazonses.com" brig
-    let uid1 = userId u1
+    (uid1, tid) <- Team.createUserWithTeam brig galley
+    u1 <- selfUser <$> getSelfProfile brig uid1
+    u2 <- Team.createTeamMember brig galley uid1 tid Team.fullPermissions
     let uid2 = userId u2
     h <- randomHandle
     putHandle brig uid1 h !!! const 200 === statusCode
 
-    tid <- Team.createTeam uid1 galley
-    Team.addTeamMember galley tid $ Team.newNewTeamMember $ Team.newTeamMember uid2 Team.fullPermissions
+    -- Whitelist the bot
+    whitelistService brig uid1 tid pid sid
 
     -- Create conversation
     cid <- Team.createTeamConv galley tid uid1 [uid2] Nothing
@@ -1515,3 +1903,98 @@ addBotConv brig cannon uid1 uid2 cid pid sid buf =
         -- Member join event for the bot
         svcAssertMemberJoin buf uid1 [botUserId bid] cid
         return (rsAddBotId rs)
+
+----------------------------------------------------------------------------
+-- Service search utilities (abstracted out because we have more than one
+-- service search endpoint)
+
+-- | Given some endpoint that can search for services by name prefix, check
+-- that it doesn't break when service name changes.
+searchAndAssertNameChange
+    :: HasCallStack
+    => Brig
+    -> ProviderId    -- ^ Service provider
+    -> ServiceId     -- ^ Service which will have its name changed
+    -> UserId        -- ^ User who will perform the change
+    -> Text          -- ^ Unique service name prefix
+    -> (Name -> Http ServiceProfilePage) -- ^ Endpoint
+    -> Http ()
+searchAndAssertNameChange brig pid sid uid uniq search = do
+    -- First let's figure out how the service is called now
+    origName <- fmap serviceProfileName . decodeBody =<<
+        (getServiceProfile brig uid pid sid <!! const 200 === statusCode)
+    -- Check that we can find the service
+    searchFor "before name change" origName [(sid, origName)]
+    -- Change service name; now we should find no such service with the
+    -- original name, only with the new name
+    let _upd = emptyUpdateService { updateServiceName = Just newName }
+    updateService brig pid sid _upd !!! const 200 === statusCode
+    searchFor "after name change" origName []
+    searchFor "after name change" newName [(sid, newName)]
+    -- Let's rollback; now searching for the new name should return nothing
+    let _upd = emptyUpdateService { updateServiceName = Just origName }
+    updateService brig pid sid _upd !!! const 200 === statusCode
+    searchFor "after rollback" newName []
+    searchFor "after rollback" origName [(sid, origName)]
+  where
+    newName = Name (uniq <> "|NewName")
+    searchFor testName qry expected =
+        search qry >>=
+        assertServiceDetails (testName <> ": searching for " <> show qry) expected
+    emptyUpdateService = UpdateService
+        { updateServiceName    = Nothing
+        , updateServiceSummary = Nothing
+        , updateServiceDescr   = Nothing
+        , updateServiceAssets  = Nothing
+        , updateServiceTags    = Nothing
+        }
+
+-- | Check that lists match and there are no results on the second page.
+assertServiceDetails
+    :: (HasCallStack, MonadIO m)
+    => String -> [(ServiceId, Name)] -> ServiceProfilePage -> m ()
+assertServiceDetails testName expected page = liftIO $ do
+    let ids   = map serviceProfileId   (serviceProfilePageResults page)
+    let names = map serviceProfileName (serviceProfilePageResults page)
+    assertEqual (testName <> ": names") (map (fromName . snd) expected) (map fromName names)
+    assertEqual (testName <> ": ids") (map fst expected) ids
+    -- This is commented out because otherwise tests wouldn't pass
+    -- (even though they should!). See Note [buggy pagination] for more
+    -- details.
+    --
+    -- assertEqual (testName <> ": no hidden results") False (serviceProfilePageHasMore page)
+
+-- | Call the endpoint that searches through all services.
+searchServices
+    :: HasCallStack
+    => Brig -> Int -> UserId -> Maybe Name -> Maybe MatchAny -> Http ServiceProfilePage
+searchServices brig size uid mbStart mbTags = case (mbStart, mbTags) of
+    (Nothing, Nothing) ->
+        error "searchServices: query not supported"
+    (Just start, Nothing) ->
+        decodeBody =<<
+            (listServiceProfilesByPrefix brig uid start size
+             <!! const 200 === statusCode)
+    (_, Just tags) ->
+        decodeBody =<<
+            (listServiceProfilesByTag brig uid tags mbStart size
+             <!! const 200 === statusCode)
+
+-- | Call the endpoint that searches through whitelisted services.
+searchServiceWhitelist
+    :: HasCallStack
+    => Brig -> Int -> UserId -> TeamId -> Maybe Text -> Http ServiceProfilePage
+searchServiceWhitelist brig size uid tid mbStart =
+    decodeBody =<<
+        (listTeamServiceProfilesByPrefix brig uid tid mbStart True size
+         <!! const 200 === statusCode)
+
+-- | Call the endpoint that searches through whitelisted services, and don't
+-- filter out disabled services.
+searchServiceWhitelistAll
+    :: HasCallStack
+    => Brig -> Int -> UserId -> TeamId -> Maybe Text -> Http ServiceProfilePage
+searchServiceWhitelistAll brig size uid tid mbStart =
+    decodeBody =<<
+        (listTeamServiceProfilesByPrefix brig uid tid mbStart False size
+         <!! const 200 === statusCode)

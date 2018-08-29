@@ -226,7 +226,7 @@ uploadAsset c usr dat = do
                 . content "multipart/mixed"
                 . lbytes (toLazyByteString mpb)
                 ) <!! const 201 === statusCode
-    return $ fromMaybe (error "Failed to decode asset body") (decodeBody rsp)
+    decodeBody rsp
 
 downloadAsset :: CargoHold -> UserId -> ByteString -> Http (Response (Maybe LB.ByteString))
 downloadAsset c usr ast =

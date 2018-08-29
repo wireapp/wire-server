@@ -9,7 +9,7 @@ license-file:  LICENSE
 category:      System
 description:   'See README.md'
 
-ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror
+ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror -optP-Wno-nonportable-include-path
 
 dependencies:
   - aeson
@@ -21,21 +21,25 @@ dependencies:
   - brig-types
   - bytestring
   - bytestring-conversion
+  - case-insensitive
   - cassandra-util
   - containers
   - cookie
+  - cryptonite
   - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
   - ghc-prim
   - http-client
+  - http-client-tls
   - http-types
+  - interpolate
   - metrics-core
   - microlens
   - microlens-th
   - mtl
   - optparse-applicative
   - raw-strings-qq
-  - saml2-web-sso
+  - saml2-web-sso >= 0.6
   - scientific
   - servant
   - servant-multipart
@@ -50,9 +54,11 @@ dependencies:
   - types-common
   - uri-bytestring
   - uuid
+  - wai
   - wai-utilities
   - warp
   - x509
+  - xml-conduit
   - yaml
 
 library:
@@ -93,11 +99,17 @@ executables:
       - test-integration
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
+      - async
       - base64-bytestring
       - galley-types
       - hspec
       - hspec-discover
       - lens-aeson
       - random
+      - servant-client
       - spar
+      - stm
+      - wai
       - xml-conduit
+      - xml-hamlet
+      - xml-lens

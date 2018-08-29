@@ -1,4 +1,4 @@
-# How to run `wire-server` with "fake" AWS dependencies
+# How to run `wire-server` with "fake" AWS dependencies in demo mode
 
 This document assumes that you have already compiled all services (i.e., you read all of the `README.md` from the top level folder and ran `make services` there) and now you want to see how it all fits together.
 
@@ -37,7 +37,17 @@ resources                            <- folder which contains secrets or other r
 
 ### Why do you describe this as a _demo_?
 
-The way that the data stores used are set up is done in a simple way that is not advisable for a production environment (e.g., cassandra uses a single node and Docker will manage the storage of your database data by writing the database files to disk on the host system using its own internal volume management). Also, some other dependencies (such as the "fake" AWS services) do not provide the full functionality of the real AWS services (for instance, large resumable uploads are not supported) nor do they have the same reliability and availability.
+* **no optimal performance; not highly-available**: The way that the data stores used are set up is done in a simple way that is not advisable for a production environment (e.g., cassandra uses a single node and Docker will manage the storage of your database data by writing the database files to disk on the host system using its own internal volume management). 
+* **missing functionality**: Some other dependencies (such as the "fake" AWS services) do not provide the full functionality of the real AWS services (for instance, the fake SES doesn't actually send emails) nor do they have the same reliability and availability.
+* :warning: **insecure by default** :warning: :
+    * **no private network**: Not only is `nginz` reachable on port 8080 from the outside world, but all other services and databases are also reachable from localhost, which, if you run this from e.g. your laptop, allows any other concurrently running process (or exploits thereof) to
+        * query any user's information,
+        * make use of internal endpoints not requiring additional authorization,
+        * impersonate other users by making HTTP requests directly to services (such as brig) using a Z-User: <other user's uuid> header,
+        * talk directly to the databases and modifying information there, giving arbitrary control over accounts, conversation membership, allows deleting messages for recipients that are offline, etc.
+    * **no HTTPS by default**: The demo setup exposes nginz on plain http, so if you don't have your own ssl termination server in front or configure nginz with an SSL certificate, that allows all kinds of metadata (who, with which device/browser accessed which endpoint with which content at what time) to be read by all routers and people in the networks in between a user and the server.
+    * **inadequate process isolation**: Running different services on the same physical or virtual machine is NOT recommended for security. Example: Even in a modified demo setup (in which only nginz is reachable from outside; and SSL/HTTPS in enforced), a temporary bug in nginz could allow an attacker to gain access to that machine, therefore also to the disk and RAM in use by other services (allowing to steal e.g. the private key used by the brig service to sign access tokens; allowing user impersonation even after the nginx bug is fixed (if keys are not rotated)).
+    * **dependence on insecurely-downloaded docker images**
 
 It is however very straightforward to setup all the necessary dependencies to run `wire-server` and it is what we use in our integration tests as well (as can be seen in our [integration bash script](../../services/integration.sh)).
 
@@ -57,13 +67,22 @@ In order to view the API, you need to create a regular user. For that purpose, y
 
 ### This is fantastic, all services up & running... what now, can I run some kind of smoketests?
 
-Short answer: yes and no. At the moment, you need _one_ AWS service in order to test your cluster with our automated smoketester tool. The `sesEndpoint` in `brig`'s [example configuration](https://github.com/wireapp/wire-server/blob/develop/services/brig/brig.integration.yaml) needs to point to a real AWS SES endpoint.
+Yes. You need to specify an email address that the smoketests can log in to via IMAP for it to read and act upon registration/activation emails. Have a look at what the configuration for the [api-smoketest](../../tools/api-simulations/README.md) should be. Once you have the correct `mailboxes.json`, this should just work from the top level directory (note the `sender-email` must match brig's [sender-email](https://github.com/wireapp/wire-server/blob/develop/services/brig/brig.integration.yaml#L35))
 
-In your environment, you can configure `AWS_REGION`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` for your correct AWS account. Note that there are other ways to specify these credentials (to be detailed later).
+Note: This demo setup comes bundled with a postfix email sending docker image; however due to the minimal setup, emails will likely land in the Spam/Junk folder of the target email address, if you configure a common email provider. To get the smoketester to check the Spam folder as well, use e.g. (in the case of gmail) `--mailbox-folder INBOX --mailbox-folder '[Gmail]/Spam'`.
 
-Then, have a look at what the configuration for the [api-smoketest](../../tools/api-simulations/README.md) should be. Once you have the correct `mailboxes.json`, this should just work from the top level directory (note the `sender-email` must match brig's [sender-email](https://github.com/wireapp/wire-server/blob/develop/services/brig/brig.integration.yaml#L35))
+Example:
 
 ```
-# This assumes, for now, that brig is configured to use a real AWS SES endpoint
-../../dist/api-smoketest --api-host=127.0.0.1 --api-port=8080 --api-websocket-host=127.0.0.1 --api-websocket-port=8081 --mailbox-config=<path_to_mailboxes_file> --sender-email=backend-integration@wire.com --enable-asserts
+# from the wire-server directory, after having compiled everything with 'make install'
+./dist/api-smoketest \
+    --api-host=127.0.0.1 \
+    --api-port=8080 \
+    --api-websocket-host=127.0.0.1 \
+    --api-websocket-port=8081 \
+    --mailbox-config=<path_to_mailboxes_file> \
+    --sender-email=backend-demo@mail.wiredemo.example.com \
+    --mailbox-folder INBOX \
+    --mailbox-folder '[Gmail]/Spam' \
+    --enable-asserts
 ```

@@ -22,6 +22,7 @@ library
         Brig.Data.PasswordReset
         Brig.Options
         Brig.Provider.DB
+        Brig.RPC
         Brig.User.Auth.Cookie.Limit
         Brig.User.Search.Index
         Brig.ZAuth
@@ -34,10 +35,9 @@ library
       , Brig.API.Properties
       , Brig.API.Types
       , Brig.API.User
-      , Brig.AWS.InternalPublish
-      , Brig.AWS.InternalEvent
+      , Brig.InternalEvent.Types
+      , Brig.InternalEvent.Process
       , Brig.AWS.SesNotification
-      , Brig.Blacklist
       , Brig.Budget
       , Brig.Email
       , Brig.Data.Activation
@@ -61,7 +61,10 @@ library
       , Brig.Provider.Email
       , Brig.Provider.RPC
       , Brig.Provider.Template
-      , Brig.RPC
+      , Brig.Queue
+      , Brig.Queue.Stomp
+      , Brig.Queue.Types
+      , Brig.SMTP
       , Brig.Team.API
       , Brig.Team.DB
       , Brig.Team.Email
@@ -100,6 +103,7 @@ library
       , async                     >= 2.1
       , auto-update               >= 0.1
       , base                      == 4.*
+      , base-prelude
       , base16-bytestring         >= 0.1
       , base64-bytestring         >= 1.0
       , bilge                     >= 0.21.1
@@ -111,6 +115,7 @@ library
       , cassandra-util            >= 0.16.2
       , currency-codes            >= 2.0
       , cookie                    >= 0.4
+      , conduit                   >= 1.2.8
       , containers                >= 0.5
       , cryptobox-haskell         >= 0.1.1
       , data-default              >= 0.5
@@ -121,6 +126,7 @@ library
       , enclosed-exceptions       >= 1.0
       , errors                    >= 1.4
       , exceptions                >= 0.5
+      , extended
       , extra                     >= 1.3
       , geoip2                    >= 0.3.1.0
       , galley-types              >= 0.75.3
@@ -133,6 +139,8 @@ library
       , http-client               >= 0.5
       , http-client-openssl-ext   >= 0.1
       , http-types                >= 0.8
+      , HaskellNet                >= 0.3
+      , HaskellNet-SSL            >= 0.3
       , HsOpenSSL                 >= 0.10
       , HsOpenSSL-x509-system     >= 0.1
       , iproute                   >= 1.5
@@ -140,6 +148,7 @@ library
       , lens-aeson                >= 1.0
       , lifted-async              >= 0.9.3
       , lifted-base               >= 0.2
+      , mime
       , mime-mail                 >= 0.4
       , metrics-core              >= 0.3
       , metrics-wai               >= 0.3
@@ -149,19 +158,23 @@ library
       , multihash                 >= 0.1.3
       , mwc-random
       , network                   >= 2.4
+      , network-conduit-tls
       , network-uri               >= 2.6
       , old-locale                >= 1.0
       , optparse-applicative      >= 0.11
       , pem                       >= 0.2
       , proto-lens                >= 0.1
       , resourcet                 >= 1.1
+      , resource-pool             >= 0.2
       , ropes                     >= 0.4.20
       , safe                      >= 0.3
       , scientific                >= 0.3.4
       , scrypt                    >= 0.5
+      , smtp-mail                 >= 0.1
       , split                     >= 0.2
       , semigroups                >= 0.15
       , singletons                >= 2.0
+      , stomp-queue               >= 0.3
       , string-conversions
       , random-shuffle            >= 0.0.3
       , sodium-crypto-sign        >= 0.1
@@ -179,6 +192,7 @@ library
       , types-common              >= 0.16
       , types-common-journal      >= 0.1
       , retry                     >= 0.7
+      , unliftio
       , unordered-containers      >= 0.2
       , uri-bytestring            >= 0.2
       , uuid                      >= 1.3.5
@@ -270,6 +284,8 @@ executable brig-schema
         V49
         V50
         V51
+        V52
+        V53
 
     build-depends:
         base

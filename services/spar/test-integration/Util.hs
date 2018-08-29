@@ -4,39 +4,52 @@
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QuasiQuotes         #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
--- | FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
+-- | Two (weak) reasons why I implemented the clients without the help of servant-client: (1) I
+-- wanted smooth integration in 'HttpMonad'; (2) I wanted the choice of receiving the unparsed
+-- 'ResponseLBS' rather than the parsed result (or a hard-to examine error).  this is important for
+-- testing for expected failures.  See also: https://github.com/haskell-servant/servant/issues/1004
+--
+-- FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( TestEnv(..), teMgr, teCql, teBrig, teGalley, teSpar, teNewIdp, teOpts
-  , Select, mkEnv, it, pending, pendingWith
+  ( TestEnv(..)
+  , teMgr, teCql, teBrig, teGalley, teSpar
+  , teNewIdP, teIdPEndpoint, teUserId, teTeamId, teIdP, teIdPHandle, teIdPChan
+  , teOpts, teTstOpts
+  , Select, mkEnv, destroyEnv, passes, it, pending, pendingWith
   , IntegrationConfig(..)
   , BrigReq
   , GalleyReq
   , SparReq
   , ResponseLBS
+  , TestErrorLabel(..)
   , createUserWithTeam
+  , createTeamMember
   , createRandomPhoneUser
   , zUser
   , shouldRespondWith
   , call
   , ping
-  , createTestIdP
-  , sampleIdP
-  , samplePublicKey1
-  , samplePublicKey2
+  , makeTestNewIdP
+  , createTestIdPFrom
+  , negotiateAuthnRequest
+  , submitAuthnResponse
   , responseJSON
+  , callAuthnReqPrecheck'
   , callAuthnReq, callAuthnReq'
   , callIdpGet, callIdpGet'
+  , callIdpGetAll, callIdpGetAll'
   , callIdpCreate, callIdpCreate'
   , callIdpDelete, callIdpDelete'
   , initCassandra
   , module Test.Hspec
+  , module Util.MockIdP
   ) where
 
 import Bilge
@@ -49,7 +62,6 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
-import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Either
 import Data.EitherR (fmapL)
@@ -60,28 +72,32 @@ import Data.Range
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID (nextRandom)
-import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
+import Network.HTTP.Client.MultipartFormData
 import Lens.Micro
-import Lens.Micro.TH
-import SAML2.WebSSO.Config.TH (deriveJSONOptions)
+import Prelude hiding (head)
+import SAML2.WebSSO
+import SAML2.WebSSO.Test.Credentials
+import SAML2.WebSSO.Test.MockResponse
 import Spar.API ()
 import Spar.Options as Options
 import Spar.Run
 import Spar.Types
 import System.Random (randomRIO)
-import Test.Hspec hiding (it, pending, pendingWith)
+import Test.Hspec hiding (it, xit, pending, pendingWith)
 import URI.ByteString
-import URI.ByteString.QQ
+import Util.MockIdP
 import Util.Options
+import Util.Types
 
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
+import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
-import qualified Data.X509 as X509
 import qualified Galley.Types.Teams as Galley
+import qualified Network.Wai.Handler.Warp as Warp
 import qualified SAML2.WebSSO as SAML
 import qualified Test.Hspec
 import qualified Text.XML as XML
@@ -90,68 +106,61 @@ import qualified Text.XML.DSig as SAML
 import qualified Text.XML.Util as SAML
 
 
-type BrigReq   = Request -> Request
-type GalleyReq = Request -> Request
-type SparReq   = Request -> Request
-
-data TestEnv = TestEnv
-  { _teMgr    :: Manager
-  , _teCql    :: Cas.ClientState
-  , _teBrig   :: BrigReq
-  , _teGalley :: GalleyReq
-  , _teSpar   :: SparReq
-  , _teNewIdp :: NewIdP
-  , _teOpts   :: Opts
-  }
-
-type Select = TestEnv -> (Request -> Request)
-
-data IntegrationConfig = IntegrationConfig
-  { cfgBrig   :: Endpoint
-  , cfgGalley :: Endpoint
-  , cfgSpar   :: Endpoint
-  , cfgNewIdp :: NewIdP
-  } deriving (Show, Generic)
-
-deriveFromJSON deriveJSONOptions ''IntegrationConfig
-
-type ResponseLBS = Response (Maybe LBS)
-
-
-mkEnv :: IntegrationConfig -> Opts -> IO TestEnv
-mkEnv integrationOpts serviceOpts = do
-  mgr :: Manager <- newManager defaultManagerSettings
-  cql :: ClientState <- initCassandra serviceOpts =<< mkLogger serviceOpts
+mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
+mkEnv _teTstOpts _teOpts = do
+  _teMgr :: Manager <- newManager defaultManagerSettings
+  _teCql :: ClientState <- initCassandra _teOpts =<< mkLogger _teOpts
   let mkreq :: (IntegrationConfig -> Endpoint) -> (Request -> Request)
-      mkreq selector = Bilge.host (selector integrationOpts ^. epHost . to cs)
-                     . Bilge.port (selector integrationOpts ^. epPort)
-  pure $ TestEnv mgr cql (mkreq cfgBrig) (mkreq cfgGalley) (mkreq cfgSpar) (cfgNewIdp integrationOpts) serviceOpts
+      mkreq selector = Bilge.host (selector _teTstOpts ^. epHost . to cs)
+                     . Bilge.port (selector _teTstOpts ^. epPort)
 
-it :: m ~ IO
+      _teBrig    = mkreq cfgBrig
+      _teGalley  = mkreq cfgGalley
+      _teSpar    = mkreq cfgSpar
+
+      _teNewIdP  = cfgNewIdp _teTstOpts
+      _teIdPEndpoint = cfgMockIdp _teTstOpts
+
+  (app, _teIdPChan) <- serveSampleIdP _teNewIdP
+  let srv = Warp.runSettings (endpointToSettings _teIdPEndpoint) app
+  _teIdPHandle <- Async.async srv
+
+  (_teUserId, _teTeamId, _teIdP) <- createTestIdPFrom _teNewIdP _teMgr _teBrig _teGalley _teSpar
+
+  pure TestEnv {..}
+
+destroyEnv :: HasCallStack => TestEnv -> IO ()
+destroyEnv = Async.cancel . (^. teIdPHandle)
+
+
+passes :: MonadIO m => m ()
+passes = liftIO $ True `shouldBe` True
+
+it :: (HasCallStack, m ~ IO)
        -- or, more generally:
        -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
    => String -> ReaderT TestEnv m () -> SpecWith TestEnv
 it msg bdy = Test.Hspec.it msg $ runReaderT bdy
 
-pending :: MonadIO m => m ()
+pending :: (HasCallStack, MonadIO m) => m ()
 pending = liftIO Test.Hspec.pending
 
-pendingWith :: MonadIO m => String -> m ()
+pendingWith :: (HasCallStack, MonadIO m) => String -> m ()
 pendingWith = liftIO . Test.Hspec.pendingWith
 
 
 createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
 createUserWithTeam brg gly = do
     e <- randomEmail
-    n <- pure ("randomName" :: String)  -- TODO!
-    let p = RequestBodyLBS . encode $ object
+    n <- UUID.toString <$> liftIO UUID.nextRandom
+    let p = RequestBodyLBS . Aeson.encode $ object
             [ "name"            .= n
             , "email"           .= Brig.fromEmail e
             , "password"        .= defPassword
             , "team"            .= newTeam
             ]
-    bdy <- decodeBody <$> post (brg . path "/i/users" . contentJson . body p)
-    let (Just uid, Just (Just tid)) = (Brig.userId <$> bdy, Brig.userTeam <$> bdy)
+    bdy <- decodeBody' <$> post (brg . path "/i/users" . contentJson . body p)
+    let (uid, Just tid) = (Brig.userId bdy, Brig.userTeam bdy)
     (team:_) <- (^. Galley.teamListTeams) <$> getTeams uid gly
     () <- Control.Exception.assert {- "Team ID in registration and team table do not match" -} (tid ==  team ^. Galley.teamId)
           $ pure ()
@@ -160,13 +169,41 @@ createUserWithTeam brg gly = do
           $ pure ()
     return (uid, tid)
 
+-- | NB: this does create an SSO UserRef on brig, but not on spar.  this is inconsistent, but the
+-- inconsistency does not affect the tests we're running with this.  to resolve it, we could add an
+-- internal end-point to spar that allows us to create users without idp response verification.
+createTeamMember :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
+                 => BrigReq -> GalleyReq -> TeamId -> Galley.Permissions -> m UserId
+createTeamMember brigreq galleyreq teamid perms = do
+  let randomtxt = liftIO $ UUID.toText <$> UUID.nextRandom
+      randomssoid = Brig.UserSSOId <$> randomtxt <*> randomtxt
+  name  <- randomtxt
+  ssoid <- randomssoid
+  resp :: ResponseLBS
+    <- postUser name Nothing (Just ssoid) (Just teamid) brigreq
+       <!! const 201 === statusCode
+  let nobody :: UserId            = Brig.userId (decodeBody' @Brig.User resp)
+      tmem   :: Galley.TeamMember = Galley.newTeamMember nobody perms
+  addTeamMember galleyreq teamid (Galley.newNewTeamMember tmem)
+  pure nobody
+
+addTeamMember :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
+              => GalleyReq -> TeamId -> Galley.NewTeamMember -> m ()
+addTeamMember galleyreq tid mem =
+    void $ post ( galleyreq
+                . paths ["i", "teams", toByteString' tid, "members"]
+                . contentJson
+                . expect2xx
+                . lbytes (Aeson.encode mem)
+                )
+
 createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Brig.Phone)
 createRandomPhoneUser brig_ = do
     usr <- randomUser brig_
     let uid = Brig.userId usr
     phn <- liftIO randomPhone
     -- update phone
-    let phoneUpdate = RequestBodyLBS . encode $ Brig.PhoneUpdate phn
+    let phoneUpdate = RequestBodyLBS . Aeson.encode $ Brig.PhoneUpdate phn
     put (brig_ . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!!
         (const 202 === statusCode)
     -- activate
@@ -177,12 +214,15 @@ createRandomPhoneUser brig_ = do
     -- check new phone
     get (brig_ . path "/self" . zUser uid) !!! do
         const 200 === statusCode
-        const (Just phn) === (Brig.userPhone <=< decodeBody)
+        const (Right (Just phn)) === (fmap Brig.userPhone . decodeBody)
 
     return (uid, phn)
 
-decodeBody :: (HasCallStack, FromJSON a) => ResponseLBS -> Maybe a
-decodeBody = responseBody >=> decode'
+decodeBody :: (HasCallStack, FromJSON a) => ResponseLBS -> Either String a
+decodeBody = maybe (Left "no body") (\s -> (<> (": " <> cs (show s))) `fmapL` eitherDecode' s) . responseBody
+
+decodeBody' :: (HasCallStack, FromJSON a) => ResponseLBS -> a
+decodeBody' = either (error . show) id . decodeBody
 
 getTeams :: (HasCallStack, MonadHttp m, MonadIO m) => UserId -> GalleyReq -> m Galley.TeamList
 getTeams u gly = do
@@ -191,12 +231,12 @@ getTeams u gly = do
              . zAuthAccess u "conn"
              . expect2xx
              )
-    return $ fromMaybe (error "getTeams: failed to parse response") (decodeBody r)
+    return $ decodeBody' r
 
 getSelfProfile :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> UserId -> m Brig.SelfProfile
 getSelfProfile brg usr = do
     rsp <- get $ brg . path "/self" . zUser usr
-    return $ fromMaybe (error $ "getSelfProfile: failed to decode: " ++ show rsp) (decodeBody rsp)
+    return $ decodeBody' rsp
 
 zAuthAccess :: UserId -> SBS -> Request -> Request
 zAuthAccess u c = header "Z-Type" "access" . zUser u . zConn c
@@ -217,21 +257,21 @@ randomPhone = liftIO $ do
 
 randomUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m Brig.User
 randomUser brig_ = do
-    let n = "randomName"  -- TODO: see above
+    n <- cs . UUID.toString <$> liftIO UUID.nextRandom
     createUser n "success@simulator.amazonses.com" brig_
 
 createUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
            => ST -> ST -> BrigReq -> m Brig.User
 createUser name email brig_ = do
     r <- postUser name (Just email) Nothing Nothing brig_ <!! const 201 === statusCode
-    return $ fromMaybe (error "createUser: failed to parse response") (decodeBody r)
+    return $ decodeBody' r
 
 -- more flexible variant of 'createUser' (see above).
 postUser :: (HasCallStack, MonadIO m, MonadHttp m)
          => ST -> Maybe ST -> Maybe Brig.UserSSOId -> Maybe TeamId -> BrigReq -> m ResponseLBS
 postUser name email ssoid teamid brig_ = do
     email' <- maybe (pure Nothing) (fmap (Just . Brig.fromEmail) . mkEmailRandomLocalSuffix) email
-    let p = RequestBodyLBS . encode $ object
+    let p = RequestBodyLBS . Aeson.encode $ object
             [ "name"            .= name
             , "email"           .= email'
             , "password"        .= defPassword
@@ -278,11 +318,6 @@ zConn :: SBS -> Request -> Request
 zConn = header "Z-Connection"
 
 
--- TH
-
-makeLenses ''TestEnv
-
-
 -- spar specifics
 
 shouldRespondWith :: forall a. (HasCallStack, Show a, Eq a)
@@ -295,37 +330,57 @@ shouldRespondWith action proper = do
 -- envit :: Example (r -> m a) => String -> ReaderT r m a -> SpecWith (Arg (r -> m a))
 -- envit msg action = it msg $ \env -> action `runReaderT` env
 
-call :: Http a -> ReaderT TestEnv IO a
+call :: (MonadIO m, MonadReader TestEnv m) => Http a -> m a
 call req = ask >>= \env -> liftIO $ runHttpT (env ^. teMgr) req
 
 ping :: (Request -> Request) -> Http ()
 ping req = void . get $ req . path "/i/status" . expect2xx
 
 
-createTestIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (UserId, TeamId, SAML.IdPId)
-createTestIdP = do
+-- | Create a cloned 'NewIdP' corresponding to the mock idp from the config and suitable for
+-- registering with spar.  The issuer id can be used to do this several times without getting the
+-- error that this issuer is already used for another team.
+makeTestNewIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m NewIdP
+makeTestNewIdP = do
   env <- ask
-  liftIO . runHttpT (env ^. teMgr) $ do
-    (uid, tid) <- createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-    (uid, tid,) . (^. SAML.idpId) <$> callIdpCreate (env ^. teSpar) (Just uid) sampleIdP
-
-sampleIdP :: NewIdP
-sampleIdP = NewIdP
-  { _nidpMetadata        = [uri|http://idp.net/meta|]
-  , _nidpIssuer          = SAML.Issuer [uri|http://idp.net/|]
-  , _nidpRequestUri      = [uri|http://idp.net/sso/request|]
-  , _nidpPublicKey       = samplePublicKey1
-  }
-
-samplePublicKey1 :: X509.SignedCertificate
-samplePublicKey1 = either (error . show) id $ SAML.parseKeyInfo "<KeyInfo xmlns=\"http://www.w3.org/2000/09/xmldsig#\"><X509Data><X509Certificate>MIIDBTCCAe2gAwIBAgIQev76BWqjWZxChmKkGqoAfDANBgkqhkiG9w0BAQsFADAtMSswKQYDVQQDEyJhY2NvdW50cy5hY2Nlc3Njb250cm9sLndpbmRvd3MubmV0MB4XDTE4MDIxODAwMDAwMFoXDTIwMDIxOTAwMDAwMFowLTErMCkGA1UEAxMiYWNjb3VudHMuYWNjZXNzY29udHJvbC53aW5kb3dzLm5ldDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMgmGiRfLh6Fdi99XI2VA3XKHStWNRLEy5Aw/gxFxchnh2kPdk/bejFOs2swcx7yUWqxujjCNRsLBcWfaKUlTnrkY7i9x9noZlMrijgJy/Lk+HH5HX24PQCDf+twjnHHxZ9G6/8VLM2e5ZBeZm+t7M3vhuumEHG3UwloLF6cUeuPdW+exnOB1U1fHBIFOG8ns4SSIoq6zw5rdt0CSI6+l7b1DEjVvPLtJF+zyjlJ1Qp7NgBvAwdiPiRMU4l8IRVbuSVKoKYJoyJ4L3eXsjczoBSTJ6VjV2mygz96DC70MY3avccFrk7tCEC6ZlMRBfY1XPLyldT7tsR3EuzjecSa1M8CAwEAAaMhMB8wHQYDVR0OBBYEFIks1srixjpSLXeiR8zES5cTY6fBMA0GCSqGSIb3DQEBCwUAA4IBAQCKthfK4C31DMuDyQZVS3F7+4Evld3hjiwqu2uGDK+qFZas/D/eDunxsFpiwqC01RIMFFN8yvmMjHphLHiBHWxcBTS+tm7AhmAvWMdxO5lzJLS+UWAyPF5ICROe8Mu9iNJiO5JlCo0Wpui9RbB1C81Xhax1gWHK245ESL6k7YWvyMYWrGqr1NuQcNS0B/AIT1Nsj1WY7efMJQOmnMHkPUTWryVZlthijYyd7P2Gz6rY5a81DAFqhDNJl2pGIAE6HWtSzeUEh3jCsHEkoglKfm4VrGJEuXcALmfCMbdfTvtu4rlsaP2hQad+MG/KJFlenoTK34EMHeBPDCpqNDz8UVNk</X509Certificate></X509Data></KeyInfo>"
-
-samplePublicKey2 :: X509.SignedCertificate
-samplePublicKey2 = either (error . show) id $ SAML.parseKeyInfo "<ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"><ds:X509Data><ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAWOMMryDMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEUMBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi02MDc2NDgxHDAaBgkqhkiG9w0BCQEWDWluZm9Ab2t0YS5jb20wHhcNMTgwNTIzMDg1MTA1WhcNMjgwNTIzMDg1MjA1WjCBkjELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNVBAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtNjA3NjQ4MRwwGgYJKoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2HkpOuMhVFUCptrVB/Zm36cuFM+YMQjKdtqEoBJDLbtSbb7uFuvm5rMJ+1VSK5GKAM/Bec5WXTE2WMkifK5JaGOLS7q8+pgiWmqKE3KHMUmLAioe/1jzHkCobxis0FIVhyarRY97w0VMbDGzhPiU7pEopYpicJBzRL2UrzR+PebGgllvnaPzlg8ePtr9/xMv0QTJlYEyCctO4vT5Qa5Xlfek3Ox5yMJM1JPXzn7yuJN5R/Nf8jFprsdBSxNMzkcTRFGy8as2GCt/Xh9H+ef4CxSgRK5UXcUCrb5YMnBehEp2YiuWtw8QsGRR8elgnF3Uw9J2xEDkZIhurPy8OYmGNQIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQA7kxxg2aVjo7Oml83bUWk4UtaQKYMEY74mygG/JV09g1DVMAPAyjaaMFamDSjortKarMQ3ET5tj2DggQBsWQNzsr3iZkmijab8JLwzA2+I1q63S68OaW5uaR5iMR8zZCTh/fWWYqa1AP64XeGHp+RLGfbp/eToNfkQWu7fH2QtDMOeLe5VmIV9pOFHnySszoR/epMd3sdDLVgmz4qbrMTBWD+5rxWdYS2glmRXl7IIQHrdBTRMll7S6ks5prqKFTwfPvZVrTnzD83a39wl2jBJhOQLjmSfSwP9H0YFNb/NRaDbSDS7BPuAlotZsaPZIN95tu+t9wmFwdxcVG/9q/Vu</ds:X509Certificate></ds:X509Data></ds:KeyInfo>"
+  issuerid <- liftIO $ UUID.nextRandom
+  let Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp
+      mkurl = either (error . show) id . SAML.parseURI' . (("http://" <> ephost <> ":" <> epport) <>)
+  pure $ (env ^. teNewIdP) & nidpIssuer .~ Issuer (mkurl $ "/_" <> UUID.toText issuerid)
 
 
--- TODO: do we want to implement these with servant-client?  if not, are there better idioms for
--- handling the various errors?
+-- | Create new user, team, idp from given 'NewIdP'.
+createTestIdPFrom :: (HasCallStack, MonadIO m)
+                  => NewIdP -> Manager -> BrigReq -> GalleyReq -> SparReq -> m (UserId, TeamId, IdP)
+createTestIdPFrom newidp mgr brig galley spar = do
+  liftIO . runHttpT mgr $ do
+    (uid, tid) <- createUserWithTeam brig galley
+    (uid, tid,) <$> callIdpCreate spar (Just uid) newidp
+
+
+negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+                      => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
+negotiateAuthnRequest = do
+  env <- ask
+  let idp = env ^. teIdP
+  resp :: ResponseLBS
+    <- call $ get
+           ( (env ^. teSpar)
+           . path ("/sso/initiate-login/" <> (cs . UUID.toText . fromIdPId . (^. SAML.idpId) $ idp))
+           . expect2xx
+           )
+  (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
+  pure (idp, sampleIdPPrivkey, authnreq)
+
+
+submitAuthnResponse :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+                    => SignedAuthnResponse -> m ResponseLBS
+submitAuthnResponse (SignedAuthnResponse authnresp) = do
+  env <- ask
+  req :: Request
+    <- formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
+  call $ post' req ((env ^. teSpar) . path "/sso/finalize-login")
+
 
 -- TODO: move this to /lib/bilge?
 responseJSON :: FromJSON a => ResponseLBS -> Either String a
@@ -373,6 +428,10 @@ callAuthnReq' :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m Response
 callAuthnReq' sparreq_ idpid = do
   get $ sparreq_ . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid))
 
+callAuthnReqPrecheck' :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
+callAuthnReqPrecheck' sparreq_ idpid = do
+  head $ sparreq_ . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid))
+
 callIdpGet :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m IdP
 callIdpGet sparreq_ muid idpid = do
   resp <- callIdpGet' (sparreq_ . expect2xx) muid idpid
@@ -383,13 +442,23 @@ callIdpGet' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId
 callIdpGet' sparreq_ muid idpid = do
   get $ sparreq_ . maybe id zUser muid . path ("/identity-providers/" <> cs (SAML.idPIdToST idpid))
 
-callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> NewIdP -> m IdP
+callIdpGetAll :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m IdPList
+callIdpGetAll sparreq_ muid = do
+  resp <- callIdpGetAll' (sparreq_ . expect2xx) muid
+  either (liftIO . throwIO . ErrorCall . show) pure
+    $ responseJSON resp
+
+callIdpGetAll' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m ResponseLBS
+callIdpGetAll' sparreq_ muid = do
+  get $ sparreq_ . maybe id zUser muid . path "/identity-providers"
+
+callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.NewIdP -> m IdP
 callIdpCreate sparreq_ muid newidp = do
   resp <- callIdpCreate' (sparreq_ . expect2xx) muid newidp
   either (liftIO . throwIO . ErrorCall . show) pure
     $ responseJSON @IdP resp
 
-callIdpCreate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> NewIdP -> m ResponseLBS
+callIdpCreate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.NewIdP -> m ResponseLBS
 callIdpCreate' sparreq_ muid newidp = do
   post $ sparreq_ . maybe id zUser muid . path "/identity-providers/" . json newidp
 

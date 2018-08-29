@@ -287,7 +287,7 @@ testCreateUserBlacklist brig aws =
             post (brig . path "/register" . contentJson . body (p e)) !!! const 201 === statusCode
             -- If we are using a local env, we need to fake this bounce
             unless (Util.isRealSESEnv aws) $
-                publishMessage typ e aws
+                forceBlacklist typ e
             -- Typically bounce/complaint messages arrive instantaneously
             awaitBlacklist 30 e
             post (brig . path "/register" . contentJson . body (p e)) !!! do
@@ -299,14 +299,19 @@ testCreateUserBlacklist brig aws =
                                                , "password" .= defPassword
                                                ]
 
-    publishMessage :: Text -> Email -> AWS.Env -> Http ()
-    publishMessage typ em env = do
+    -- If there is no queue available, we need to force it either by publishing an event or using the API
+    forceBlacklist :: Text -> Email -> Http ()
+    forceBlacklist typ em = case aws^.AWS.sesQueue of
+        Just queue -> publishMessage typ em queue
+        Nothing    -> Bilge.post (brig . path "i/users/blacklist" . queryItem "email" (toByteString' em)) !!! const 200 === statusCode
+
+    publishMessage :: Text -> Email -> Text -> Http ()
+    publishMessage typ em queue = do
         let bdy = encode $ case typ of
                         "bounce"    -> MailBounce BouncePermanent [em]
                         "complaint" -> MailComplaint [em]
                         x           -> error ("Unsupported message type: " ++ show x)
-        let queue = env^.AWS.sesQueue
-        void $ AWS.execute env (AWS.enqueueStandard queue bdy)
+        void . AWS.execute aws $ AWS.enqueueStandard queue bdy
 
     awaitBlacklist :: Int -> Email -> Http ()
     awaitBlacklist n e = do
@@ -332,7 +337,7 @@ testCreateUserExternalSSO brig = do
 
 testActivateWithExpiry :: Brig -> Opt.Timeout -> Http ()
 testActivateWithExpiry brig timeout = do
-    Just u <- decodeBody <$> registerUser "dilbert" "success@simulator.amazonses.com" brig
+    u <- decodeBody =<< registerUser "dilbert" "success@simulator.amazonses.com" brig
     let email = fromMaybe (error "missing email") (userEmail u)
     act <- getActivationCode brig (Left email)
     case act of
@@ -518,7 +523,8 @@ testEmailUpdate brig aws = do
     flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
   where
     ensureNoOtherUserWithEmail eml = do
-        tk <- decodeBody <$> login brig (defEmailLogin eml) SessionCookie
+        tk :: Maybe AccessToken <-
+            decodeBody <$> login brig (defEmailLogin eml) SessionCookie
         for_ tk $ \t -> do
             deleteUser (Auth.user t) (Just defPassword) brig !!! const 200 === statusCode
             liftIO $ Util.assertUserJournalQueue "user deletion" aws (userDeleteJournaled $ Auth.user t)
@@ -813,7 +819,7 @@ testDeleteUserByPassword brig cannon aws = do
     con23 <- getConnection brig uid2 uid3 <!! const 200 === statusCode
 
     -- Register a client
-    addClient brig u (defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0))
+    addClient brig uid1 (defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0))
         !!! const 201 === statusCode
 
     -- Initial login

@@ -104,23 +104,25 @@ data ConvType
     | ConnectConv
     deriving (Eq, Show)
 
--- Access define how users can join conversations
+-- | Access define how users can join conversations
 data Access
-    = PrivateAccess -- Made obsolete by PrivateAccessRole
-    | InviteAccess  -- User A can add User B
-    | LinkAccess    -- User can join knowing conversation id
-    | CodeAccess    -- User can join knowing [changeable/revokable] code
+    = PrivateAccess  -- ^ Made obsolete by PrivateAccessRole
+    | InviteAccess   -- ^ User A can add User B
+    | LinkAccess     -- ^ User can join knowing conversation id
+    | CodeAccess     -- ^ User can join knowing [changeable/revokable] code
     deriving (Eq, Ord, Show)
 
--- AccessRoles define who can join conversations
--- the roles are "supersets", i.e. Activated includes Team
--- and NonActivated includes Activated
+-- | AccessRoles define who can join conversations. The roles are
+-- "supersets", i.e. Activated includes Team and NonActivated includes
+-- Activated.
 data AccessRole
-    = PrivateAccessRole
-    | TeamAccessRole
-    | ActivatedAccessRole    -- has activated email or phone
-    | NonActivatedAccessRole -- has nothing
-    deriving (Eq, Show)
+    = PrivateAccessRole      -- ^ Nobody can be invited to this conversation
+                             --   (e.g. it's a 1:1 conversation)
+    | TeamAccessRole         -- ^ Team-only conversation
+    | ActivatedAccessRole    -- ^ Conversation for users who have activated
+                             --   email or phone
+    | NonActivatedAccessRole -- ^ No checks
+    deriving (Eq, Ord, Show)
 
 data ConvMembers = ConvMembers
     { cmSelf   :: !Member

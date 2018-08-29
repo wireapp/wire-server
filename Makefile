@@ -1,3 +1,4 @@
+LANG := en_US.UTF-8
 HASKELL_SERVICES := proxy cannon cargohold brig galley gundeck
 SERVICES         := $(HASKELL_SERVICES) nginz
 DOCKER_USER      ?= wireserver
@@ -36,6 +37,14 @@ integration: fast
 	$(MAKE) -C services/brig i
 	$(MAKE) -C services/gundeck i-fake-aws
 	$(MAKE) -C services/spar i
+
+.PHONY: haddock
+haddock:
+	WIRE_STACK_OPTIONS="--haddock --haddock-internal" make fast
+
+.PHONY: haddock-shallow
+haddock-shallow:
+	WIRE_STACK_OPTIONS="--haddock --haddock-internal --no-haddock-deps" make fast
 
 #################################
 ## docker targets

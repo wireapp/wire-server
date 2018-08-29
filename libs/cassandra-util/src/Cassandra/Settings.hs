@@ -21,7 +21,8 @@ module Cassandra.Settings
     , setResponseTimeout
     , setRetrySettings
     , setPolicy
-    , initialContacts
+    , initialContactsDisco
+    , initialContactsDNS
     ) where
 
 import Control.Lens
@@ -29,12 +30,17 @@ import Control.Monad.IO.Class
 import Data.Aeson.Lens
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Monoid
-import Data.Text (pack, stripSuffix, unpack)
+import Data.Text (pack, stripSuffix, unpack, Text)
+import Data.Text.Encoding (encodeUtf8)
 import Database.CQL.IO
+import Network.DNS.Lookup
+import Network.DNS.Resolver
 import Network.Wreq
 
-initialContacts :: MonadIO m => String -> String -> m (NonEmpty String)
-initialContacts (pack -> srv) url = liftIO $ do
+import qualified Data.List.NonEmpty as NE
+
+initialContactsDisco :: MonadIO m => String -> String -> m (NonEmpty String)
+initialContactsDisco (pack -> srv) url = liftIO $ do
     rs <- asValue =<< get url
     let srvs = case stripSuffix "_seed" srv of
                    Nothing -> [srv, srv <> "_seed"]
@@ -50,3 +56,13 @@ initialContacts (pack -> srv) url = liftIO $ do
     case ip of
         i:ii -> return (i :| ii)
         _    -> error "initial-contacts: no IP addresses found."
+
+initialContactsDNS :: MonadIO m => Text -> m (NonEmpty String)
+initialContactsDNS address = liftIO $ do
+    rs  <- makeResolvSeed defaultResolvConf
+    ips <- withResolver rs $ \resolver -> lookupA resolver (encodeUtf8 address)
+    return $ case ips of
+      Right (x:xs) -> NE.map show (x :| xs)
+      _            -> fallback
+  where
+    fallback = unpack address :| [] -- If it's not a valid DNS name, just try using it anyway

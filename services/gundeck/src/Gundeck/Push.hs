@@ -452,7 +452,7 @@ notFound = empty & setStatus status404
 
 listTokens :: UserId ::: JSON -> Gundeck Response
 listTokens (uid ::: _) =
-    setStatus status200 . json . map toToken <$> Data.lookup uid Data.Quorum
+    setStatus status200 . json . PushTokenList . map toToken <$> Data.lookup uid Data.Quorum
   where
     toToken a = pushToken (a^.addrTransport) (a^.addrApp) (a^.addrToken) (a^.addrClient)
 

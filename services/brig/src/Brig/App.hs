@@ -18,6 +18,8 @@ module Brig.App
     , newEnv
     , closeEnv
     , awsEnv
+    , smtpEnv
+    , stompEnv
     , cargohold
     , galley
     , gundeck
@@ -39,6 +41,7 @@ module Brig.App
     , applog
     , turnEnv
     , turnEnvV2
+    , internalEvents
 
       -- * App Monad
     , AppT
@@ -53,6 +56,7 @@ module Brig.App
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import Brig.Options (Opts, Settings)
+import Brig.Queue.Types (Queue (..))
 import Brig.Template (Localised, forLocale)
 import Brig.Provider.Template
 import Brig.Team.Template
@@ -94,11 +98,14 @@ import OpenSSL.EVP.Digest (getDigestByName, Digest)
 import OpenSSL.Session (SSLOption (..))
 import System.Directory (canonicalizePath)
 import System.Logger.Class hiding (Settings, settings)
+import UnliftIO (MonadUnliftIO (..))
 import Util.Options
 
 import qualified Bilge                    as RPC
 import qualified Brig.AWS                 as AWS
+import qualified Brig.Queue.Stomp         as Stomp
 import qualified Brig.Options             as Opt
+import qualified Brig.SMTP                as SMTP
 import qualified Brig.TURN                as TURN
 import qualified Brig.ZAuth               as ZAuth
 import qualified Cassandra                as Cas
@@ -120,7 +127,7 @@ import qualified System.Logger            as Log
 import qualified System.Logger.Class      as LC
 
 schemaVersion :: Int32
-schemaVersion = 51
+schemaVersion = 53
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -130,9 +137,12 @@ data Env = Env
     , _galley        :: RPC.Request
     , _gundeck       :: RPC.Request
     , _casClient     :: Cas.ClientState
+    , _smtpEnv       :: Maybe SMTP.SMTP
     , _awsEnv        :: AWS.Env
+    , _stompEnv      :: Maybe Stomp.Env
     , _metrics       :: Metrics
     , _applog        :: Logger
+    , _internalEvents :: Queue
     , _requestId     :: RequestId
     , _usrTemplates  :: Localised UserTemplates
     , _provTemplates :: Localised ProviderTemplates
@@ -168,7 +178,8 @@ newEnv o = do
     utp <- loadUserTemplates o
     ptp <- loadProviderTemplates o
     ttp <- loadTeamTemplates o
-    aws <- AWS.mkEnv lgr (Opt.aws o) mgr
+    (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS o)
+    aws <- AWS.mkEnv lgr (Opt.aws o) emailAWSOpts mgr
     zau <- initZAuth o
     clock <- mkAutoUpdate defaultUpdateSettings { updateAction = getCurrentTime }
     w   <- FS.startManagerConf
@@ -178,14 +189,27 @@ newEnv o = do
     let sett = Opt.optSettings o
     nxm <- initCredentials (Opt.setNexmo sett)
     twl <- initCredentials (Opt.setTwilio sett)
+    stomp <- case (Opt.stomp o, Opt.setStomp sett) of
+        (Nothing, Nothing) -> pure Nothing
+        (Just s, Just c)   -> Just . Stomp.mkEnv s <$> initCredentials c
+        (Just _, Nothing)  -> error "STOMP is configured but 'setStomp' is not set"
+        (Nothing, Just _)  -> error "'setStomp' is present but STOMP is not configured"
+    -- This is messy. See Note [queue refactoring] to learn how we
+    -- eventually plan to solve this mess.
+    eventsQueue <- case Opt.internalEventsQueue (Opt.internalEvents o) of
+        StompQueue q -> pure (StompQueue q)
+        SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
     return $! Env
         { _cargohold     = mkEndpoint $ Opt.cargohold o
         , _galley        = mkEndpoint $ Opt.galley o
         , _gundeck       = mkEndpoint $ Opt.gundeck o
         , _casClient     = cas
+        , _smtpEnv       = emailSMTP
         , _awsEnv        = aws
+        , _stompEnv      = stomp
         , _metrics       = mtr
         , _applog        = lgr
+        , _internalEvents = eventsQueue
         , _requestId     = mempty
         , _usrTemplates  = utp
         , _provTemplates = ptp
@@ -206,6 +230,14 @@ newEnv o = do
         , _indexEnv      = mkIndexEnv o lgr mgr mtr
         }
   where
+    emailConn _   (Opt.EmailAWS aws) = return (Just aws, Nothing)
+    emailConn lgr (Opt.EmailSMTP  s) = do
+        let host = Opt.smtpEndpoint s
+            user = SMTP.Username (Opt.smtpUsername s)
+        pass <- initCredentials (Opt.smtpPassword s)
+        smtp <- SMTP.initSMTP lgr host user (SMTP.Password pass) (Opt.smtpConnType s)
+        return (Nothing, Just smtp)
+
     mkEndpoint service = RPC.host (encodeUtf8 (service^.epHost)) . RPC.port (service^.epPort) $ RPC.empty
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> IndexEnv
@@ -235,7 +267,6 @@ turnSetup lgr w dig o = do
         te      <- newIORef =<< TURN.newEnv dig servers (Opt.tokenTTL o) (Opt.configTTL o) secret
         startWatching w path (replaceTurnServers lgr te)
         return te
-
 
 startWatching :: FS.WatchManager -> FilePath -> FS.Action -> IO ()
 startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
@@ -314,8 +345,8 @@ initExtGetManager = do
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g = do
-    c <- maybe (return $ NE.fromList [unpack ((Opt.cassandra o)^.casEndpoint.epHost)])
-               (Cas.initialContacts "cassandra_brig")
+    c <- maybe (Cas.initialContactsDNS ((Opt.cassandra o)^.casEndpoint.epHost))
+               (Cas.initialContactsDisco "cassandra_brig")
                (unpack <$> Opt.discoUrl o)
     p <- Cas.init (Log.clone (Just "cassandra.brig") g)
             $ Cas.setContacts (NE.head c) (NE.tail c)
@@ -402,6 +433,12 @@ instance MonadBaseControl IO AppIO where
     type StM AppIO a = StM (ReaderT Env Client) a
     liftBaseWith     f = AppT $ liftBaseWith $ \run -> f (run . unAppT)
     restoreM           = AppT . restoreM
+
+instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
+    withRunInIO inner =
+      AppT $ ReaderT $ \r ->
+      withRunInIO $ \run ->
+      inner (run . flip runReaderT r . unAppT)
 
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e

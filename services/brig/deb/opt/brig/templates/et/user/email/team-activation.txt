@@ -7,10 +7,8 @@ aadress veebibrauserisse:
 
 ${url}
 
-Kui te ei proovinud selle meiliaadressiga Wire teenuspakkuja kontot luua, siis
-võite selle kirja lihtsalt kustutada. Kui soovite teatada oma meiliaadressi
-väärkasutusest, siis palun võtke meiega ühendust.
-[https://support.wire.com/hc/requests/new]
+Küsimuste korral võtke ühendust [https://support.wire.com/hc/en-us/requests/new]
+.
 
 
 --------------------------------------------------------------------------------

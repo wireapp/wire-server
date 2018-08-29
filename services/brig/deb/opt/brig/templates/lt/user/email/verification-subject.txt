@@ -1,0 +1,1 @@
+Wire patvirtinimo kodas yra ${code}

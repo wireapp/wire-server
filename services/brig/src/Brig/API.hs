@@ -11,11 +11,11 @@
 module Brig.API (runServer, parseOptions) where
 
 import Brig.App
-import Brig.AWS (sesQueue, internalQueue)
+import Brig.AWS (sesQueue)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
-import Brig.Options hiding (sesQueue, internalQueue)
+import Brig.Options hiding (sesQueue, internalEvents)
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User (NewUserNoSSO(NewUserNoSSO))
@@ -30,7 +30,8 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import Data.Foldable (for_, forM_)
+import Data.Foldable (for_)
+import Data.Traversable (for)
 import Data.Id
 import Data.Int
 import Data.Metrics.Middleware hiding (metrics)
@@ -58,13 +59,14 @@ import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
 import qualified Brig.API.Properties           as API
 import qualified Brig.API.User                 as API
+import qualified Brig.Queue                    as Queue
 import qualified Brig.Team.Util                as Team
 import qualified Brig.User.API.Auth            as Auth
 import qualified Brig.User.API.Search          as Search
 import qualified Brig.User.Auth.Cookie         as Auth
 import qualified Brig.AWS                      as AWS
 import qualified Brig.AWS.SesNotification      as SesNotification
-import qualified Brig.AWS.InternalEvent        as InternalNotification
+import qualified Brig.InternalEvent.Process    as Internal
 import qualified Brig.Types.Swagger            as Doc
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Data.Swagger.Build.Api        as Doc
@@ -88,13 +90,15 @@ runServer :: Opts -> IO ()
 runServer o = do
     e <- newEnv o
     s <- Server.newSettings (server e)
-    f <- Async.async $ AWS.execute (e^.awsEnv)
-                     $ AWS.listen (e^.awsEnv.sesQueue) (runAppT e . SesNotification.onEvent)
-    g <- Async.async $ AWS.execute (e^.awsEnv)
-                     $ AWS.listen (e^.awsEnv.internalQueue) (runAppT e . InternalNotification.onEvent)
+    emailListener <- for (e^.awsEnv.sesQueue) $ \q ->
+        Async.async $
+        AWS.execute (e^.awsEnv) $
+        AWS.listen q (runAppT e . SesNotification.onEvent)
+    internalEventListener <- Async.async $
+        runAppT e $ Queue.listen (e^.internalEvents) Internal.onEvent
     runSettingsWithShutdown s (pipeline e) 5 `finally` do
-        Async.cancel f
-        Async.cancel g
+        mapM_ Async.cancel emailListener
+        Async.cancel internalEventListener
         closeEnv e
   where
     rtree      = compile (sitemap o)
@@ -192,7 +196,13 @@ sitemap o = do
     post "/i/users/blacklist" (continue addBlacklist) $
         param "email" ||| param "phone"
 
+    -- is :uid not team owner, or there are other team owners?
     get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeleted) $
+      capture "uid"
+      .&. capture "tid"
+
+    -- is :uid team owner (the only one or one of several)?
+    get "/i/users/:uid/is-team-owner/:tid" (continue isTeamOwner) $
       capture "uid"
       .&. capture "tid"
 
@@ -306,7 +316,8 @@ sitemap o = do
 
     document "POST" "getMultiPrekeyBundles" $ do
         Doc.summary "Given a map of user IDs to client IDs return a \
-        \prekey for each one. The maximum map size is 128 entries."
+        \prekey for each one. You can't request information for more users than \
+        \maximum conversation size."
         Doc.notes "Prekeys of all clients of a multiple users. \
         \The result is a map of maps, i.e. { UserId : { ClientId : Maybe Prekey } }"
         Doc.body (Doc.ref Doc.userClients) $
@@ -956,7 +967,7 @@ setProperty (u ::: c ::: k ::: req ::: _) = do
     lbs <- Lazy.take (maxValueLen + 1) <$> liftIO (lazyRequestBody req)
     unless (Lazy.length lbs <= maxValueLen) $
         throwStd propertyValueTooLarge
-    val <- hoistEither $ fmapL (StdError . badRequest . pack) (parsePropertyValue lbs)
+    val <- hoistEither $ fmapL (StdError . badRequest . pack) (eitherDecode lbs)
     API.setProperty u c k val !>> propDataError
     return empty
   where
@@ -992,7 +1003,7 @@ getPrekeyBundle (u ::: _) = json <$> lift (API.claimPrekeyBundle u)
 getMultiPrekeyBundles :: Request ::: JSON ::: JSON -> Handler Response
 getMultiPrekeyBundles (req ::: _) = do
     body <- parseJsonBody req
-    maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+    maxSize <- fromIntegral . setMaxConvSize <$> view settings
     when (Map.size (userClients body) > maxSize) $
         throwStd tooManyClients
     json <$> lift (API.claimMultiPrekeyBundles body)
@@ -1106,7 +1117,7 @@ createUserNoVerify (_ ::: _ ::: req) = do
     let uid = userId usr
     let eac = createdEmailActivation result
     let pac = createdPhoneActivation result
-    forM_ (catMaybes [eac, pac]) $ \adata ->
+    for_ (catMaybes [eac, pac]) $ \adata ->
         let key  = ActivateKey $ activationKey adata
             code = activationCode adata
         in API.activate key code (Just uid) !>> actError
@@ -1377,14 +1388,24 @@ addBlacklist emailOrPhone = do
 
 canBeDeleted :: UserId ::: TeamId -> Handler Response
 canBeDeleted (uid ::: tid) = do
-    onlyOwner <- lift (Team.isOnlyTeamOwner uid tid)
+    onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
     case onlyOwner of
        Team.IsOnlyTeamOwner       -> throwStd noOtherOwner
        Team.IsOneOfManyTeamOwners -> pure ()
        Team.IsNotTeamOwner        -> pure ()
-       Team.NoTeamOwnersAreLeft   -> do
+       Team.NoTeamOwnersAreLeft   -> do  -- (keeping the user won't help in this case)
            Log.warn $ Log.field "user" (toByteString uid)
                     . Log.msg (Log.val "Team.NoTeamOwnersAreLeft")
+    return empty
+
+isTeamOwner :: UserId ::: TeamId -> Handler Response
+isTeamOwner (uid ::: tid) = do
+    onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
+    case onlyOwner of
+       Team.IsOnlyTeamOwner       -> pure ()
+       Team.IsOneOfManyTeamOwners -> pure ()
+       Team.IsNotTeamOwner        -> throwStd insufficientTeamPermissions
+       Team.NoTeamOwnersAreLeft   -> throwStd insufficientTeamPermissions
     return empty
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response

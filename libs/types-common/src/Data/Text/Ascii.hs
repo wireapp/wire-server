@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
 
 -- | Text containing (extensible) subsets of the ASCII character set,
@@ -58,6 +59,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Semigroup (Semigroup)
 import Data.Char
+import Data.Hashable (Hashable)
 import Data.String (IsString (..))
 import Data.Text (Text)
 import Data.Text.Encoding (decodeLatin1, decodeUtf8')
@@ -67,6 +69,7 @@ import Database.CQL.Protocol hiding (Ascii, check)
 #ifdef WITH_ARBITRARY
 import Test.QuickCheck
 #endif
+import GHC.Generics (Generic)
 
 import qualified Data.ByteString.Char8      as C8
 import qualified Data.ByteString.Base16     as B16
@@ -77,7 +80,8 @@ import qualified Data.Text                  as Text
 -- | 'AsciiText' is text that is known to contain only the subset
 -- of ASCII characters indicated by its character set @c@.
 newtype AsciiText c = AsciiText { toText :: Text }
-    deriving (Eq, Ord, Show, Semigroup, Monoid, NFData, ToByteString)
+    deriving (Eq, Ord, Show, Semigroup, Monoid, NFData, ToByteString,
+              FromJSONKey, ToJSONKey, Generic, Hashable)
 
 -- | Class of types representing subsets of ASCII characters.
 class AsciiChars c where

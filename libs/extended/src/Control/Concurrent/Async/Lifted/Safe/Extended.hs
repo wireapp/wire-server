@@ -7,6 +7,7 @@ module Control.Concurrent.Async.Lifted.Safe.Extended
     ( module Control.Concurrent.Async.Lifted.Safe
     -- * Pooled functions (using at most T threads)
     , forPooled
+    , mapMPooled
     , replicatePooled
     , sequencePooled
     ) where
@@ -23,6 +24,16 @@ forPooled
     :: forall m a b . (MonadBaseControl IO m, Forall (Pure m))
     => Int -> [a] -> (a -> m b) -> m [b]
 forPooled t xs f =
+    (\\ (inst :: Forall (Pure m) :- Pure m b)) $
+    liftBaseWith $ \runInIO ->
+    Pool.withTaskGroup t $ \tg ->
+      Pool.mapConcurrently tg (runInIO . f) xs
+
+-- | A concurrent variant of 'mapM' that uses at most T threads.
+mapMPooled
+    :: forall m a b . (MonadBaseControl IO m, Forall (Pure m))
+    => Int -> (a -> m b) -> [a] -> m [b]
+mapMPooled t f xs =
     (\\ (inst :: Forall (Pure m) :- Pure m b)) $
     liftBaseWith $ \runInIO ->
     Pool.withTaskGroup t $ \tg ->
