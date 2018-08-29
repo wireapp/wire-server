@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -111,13 +112,9 @@ mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
   _teCql :: ClientState <- initCassandra _teOpts =<< mkLogger _teOpts
-  let mkreq :: (IntegrationConfig -> Endpoint) -> (Request -> Request)
-      mkreq selector = Bilge.host (selector _teTstOpts ^. epHost . to cs)
-                     . Bilge.port (selector _teTstOpts ^. epPort)
-
-      _teBrig    = mkreq cfgBrig
-      _teGalley  = mkreq cfgGalley
-      _teSpar    = mkreq cfgSpar
+  let _teBrig    = endpointToReq (cfgBrig   _teTstOpts)
+      _teGalley  = endpointToReq (cfgGalley _teTstOpts)
+      _teSpar    = endpointToReq (cfgSpar   _teTstOpts)
 
       _teNewIdP  = cfgNewIdp _teTstOpts
       _teIdPEndpoint = cfgMockIdp _teTstOpts
@@ -125,12 +122,20 @@ mkEnv _teTstOpts _teOpts = do
   (app, _teIdPChan) <- serveSampleIdP _teNewIdP
   let srv = Warp.runSettings (endpointToSettings _teIdPEndpoint) app
   _teIdPHandle <- Async.async srv
+  assertServiceIsUp _teIdPHandle _teMgr (endpointToReq _teIdPEndpoint)
 
   (_teUserId, _teTeamId, _teIdP) <- do
-    True <- waitForService _teMgr _teSpar
     createTestIdPFrom _teNewIdP _teMgr _teBrig _teGalley _teSpar
 
   pure TestEnv {..}
+
+assertServiceIsUp :: Show a => Async.Async a -> Manager -> (Request -> Request) -> IO ()
+assertServiceIsUp async mgr req = waitForService mgr req >>= \case
+  True  -> pure ()
+  False -> Async.poll async >>= \case
+    Nothing        -> throwIO . ErrorCall $ "mock idp is not responding"
+    Just (Left e)  -> throwIO . ErrorCall $ "mock idp failed with " <> show e
+    Just (Right a) -> throwIO . ErrorCall $ "mock idp returned " <> show a
 
 waitForService :: Manager -> (Request -> Request) -> IO Bool
 waitForService mgr req =
@@ -139,6 +144,7 @@ waitForService mgr req =
 serviceIsUp :: Manager -> (Request -> Request) -> IO Bool
 serviceIsUp mgr req = (runHttpT mgr (Bilge.get req) >> pure True)
   `Control.Exception.catch` \(_ :: HttpException) -> pure False
+
 
 destroyEnv :: HasCallStack => TestEnv -> IO ()
 destroyEnv = Async.cancel . (^. teIdPHandle)

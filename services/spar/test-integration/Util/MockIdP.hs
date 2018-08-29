@@ -37,6 +37,7 @@ import URI.ByteString
 import Util.Options
 import Util.Types
 
+import qualified Bilge
 import qualified Control.Concurrent.Async          as Async
 import qualified Data.X509                         as X509
 import qualified Network.Wai.Handler.Warp          as Warp
@@ -91,6 +92,9 @@ sampleIdPMetadata' privKey cert newidp = signElementIO privKey [xml|
 
 
 -- auxiliaries
+
+endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
+endpointToReq ep = Bilge.host (ep ^. epHost . to cs) . Bilge.port (ep ^. epPort)
 
 endpointToSettings :: Endpoint -> Warp.Settings
 endpointToSettings endpoint = Warp.defaultSettings { Warp.settingsHost = host, Warp.settingsPort = port }
