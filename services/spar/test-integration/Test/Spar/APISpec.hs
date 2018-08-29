@@ -309,6 +309,10 @@ spec = do
             callIdpCreate' (env ^. teSpar) (Just (env ^. teUserId)) newidp
               `shouldRespondWith` checkErr (== 400) errlabel
 
+      context "metadata url contains invalid hostname" $ do
+        it "rejects with a useful error message" $ do
+          pending
+
       context "bad metadata answer" $ do
         it "rejects" $ do
           createIdpMockErr
