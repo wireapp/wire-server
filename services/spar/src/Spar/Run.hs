@@ -26,9 +26,9 @@ import Data.String.Conversions
 import Data.String (fromString)
 import Lens.Micro
 import Network.HTTP.Client (responseTimeoutMicro)
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai (Application)
 import Network.Wai.Utilities.Request (lookupRequestId)
-import OpenSSL (withOpenSSL)
 import Spar.API
 import Spar.API.Instances ()
 import Spar.API.Swagger ()
@@ -90,14 +90,14 @@ mkLogger opts = Log.new $ Log.defSettings
 -- servant / wai / warp
 
 runServer :: Opts -> IO ()
-runServer sparCtxOpts = withOpenSSL $ do
+runServer sparCtxOpts = do
   sparCtxLogger <- mkLogger sparCtxOpts
   mx <- metrics
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   let settings = Warp.defaultSettings
         & Warp.setHost (fromString $ sparCtxOpts ^. to saml . SAML.cfgSPHost)
         . Warp.setPort (sparCtxOpts ^. to saml . SAML.cfgSPPort)
-  sparCtxHttpManager <- newManager defaultManagerSettings
+  sparCtxHttpManager <- newManager tlsManagerSettings
       { managerResponseTimeout = responseTimeoutMicro (10 * 1000 * 1000)
       }
   let sparCtxHttpBrig = Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)

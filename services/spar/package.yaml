@@ -29,8 +29,8 @@ dependencies:
   - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
   - ghc-prim
-  - HsOpenSSL
   - http-client
+  - http-client-tls
   - http-types
   - interpolate
   - metrics-core
