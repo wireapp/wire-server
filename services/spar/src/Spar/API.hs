@@ -230,6 +230,16 @@ validateNewIdP newidp = do
   wrapMonadClient (Data.getIdPIdByIssuer (newidp ^. SAML.nidpIssuer)) >>= \case
     Nothing -> pure ()
     Just _ -> throwSpar SparNewIdPAlreadyInUse
+    -- each idp (issuer) can only be created once.  if you want to update (one of) your team's
+    -- idp(s), either use put (not implemented), or delete the old one before creating a new one
+    -- (already works, even though it may create a brief time window in which users experience
+    -- broken login behavior).
+    --
+    -- rationale: the issuer is how the idp self-identifies.  we can't allow the same idp to serve
+    -- two teams because of implicit user creation: if an unknown user arrives, we use the
+    -- idp-to-team mapping to decide which team to create the user in.  if we wanted to trust the
+    -- idp to decide this for us, we would have to think of a way to prevent rogue idps from
+    -- creating users in victim teams.
 
   let uri2req :: URI.URI -> m Request
       uri2req = either (throwSpar . SparNewIdPBadMetaUrl . cs . show) pure
@@ -240,7 +250,9 @@ validateNewIdP newidp = do
         req <- uri2req uri
         ntm (httpLbs req modify)
 
-      -- natural transformation into 'm'
+      -- natural transformation into 'm'.  needed for the http client that fetches the metadata url.
+      -- if 'IO' throws an exception, we capture it with 'try' and re-throw it inside 'm', which
+      -- yields much nicer client errors and logs.
       ntm :: forall a. Http a -> m a
       ntm (HttpT action) = do
         mgr :: Manager <- getManager
