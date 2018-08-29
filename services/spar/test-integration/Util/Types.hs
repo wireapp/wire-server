@@ -33,6 +33,7 @@ module Util.Types
   , Select
   , ResponseLBS
   , IntegrationConfig(..)
+  , MockTLSConfig(..)
   , TestErrorLabel(..)
   ) where
 
@@ -91,9 +92,17 @@ data IntegrationConfig = IntegrationConfig
   , cfgSpar    :: Endpoint
   , cfgNewIdp  :: SAML.NewIdP
   , cfgMockIdp :: Endpoint
+  , cfgMockTLS :: MockTLSConfig
+  } deriving (Show, Generic)
+
+data MockTLSConfig = MockTLSConfig
+  { mocktlscfgPrivateKey :: FilePath
+  , mocktlscfgPublicKey  :: FilePath
+  , mocktlscfgCert       :: FilePath
   } deriving (Show, Generic)
 
 deriveFromJSON deriveJSONOptions ''IntegrationConfig
+deriveFromJSON deriveJSONOptions ''MockTLSConfig
 makeLenses ''TestEnv
 
 
