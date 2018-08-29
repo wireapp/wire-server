@@ -23,6 +23,7 @@ dependencies:
   - bytestring-conversion
   - case-insensitive
   - cassandra-util
+  - connection
   - containers
   - cookie
   - cryptonite
