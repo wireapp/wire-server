@@ -37,6 +37,7 @@ module Util
   , call
   , ping
   , makeTestNewIdP
+  , createTestIdPFrom
   , negotiateAuthnRequest
   , submitAuthnResponse
   , responseJSON

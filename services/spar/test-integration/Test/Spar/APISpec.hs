@@ -227,11 +227,19 @@ spec = do
       context "client is team owner" $ do
         context "no idps registered" $ do
           it "returns an empty list" $ do
-            pending
+            env <- ask
+            (owner :: UserId, _teamid :: TeamId)
+              <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            callIdpGetAll (env ^. teSpar) (Just owner)
+              `shouldRespondWith` (null . _idplProviders)
 
         context "some idps are registered" $ do
           it "returns a non-empty empty list" $ do
-            pending
+            env <- ask
+            newidp <- makeTestNewIdP
+            (owner, _, _) <- createTestIdPFrom newidp (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
+            callIdpGetAll (env ^. teSpar) (Just owner)
+              `shouldRespondWith` (not . null . _idplProviders)
 
     describe "DELETE /identity-providers/:idp" $ do
       testGetPutDelete callIdpDelete'
