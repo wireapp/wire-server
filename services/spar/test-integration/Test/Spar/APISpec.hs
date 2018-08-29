@@ -269,7 +269,7 @@ spec = do
             pending  -- (only test for signature here, but make sure that the same validity tests
                      -- are performed as for POST in Spar.API.)
 
-    describe "POST /identity-providers/:idp" $ do
+    describe "POST /identity-providers" $ do
       context "no zuser" $ do
         it "responds with 'client error'" $ do
           env <- ask
