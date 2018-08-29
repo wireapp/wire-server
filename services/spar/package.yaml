@@ -23,6 +23,7 @@ dependencies:
   - bytestring-conversion
   - case-insensitive
   - cassandra-util
+  - connection
   - containers
   - cookie
   - cryptonite
@@ -50,6 +51,7 @@ dependencies:
   - text
   - time
   - tinylog
+  - tls
   - transformers
   - types-common
   - uri-bytestring
