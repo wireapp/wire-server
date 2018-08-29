@@ -6,10 +6,7 @@ import Brig.Types.TURN hiding (turnURI)
 import Data.Aeson
 import Test.Brig.Types.Arbitrary ()
 import Test.Tasty
-import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
-import Data.List1
-import Data.Foldable
 
 tests :: TestTree
 tests = testGroup "TURN"

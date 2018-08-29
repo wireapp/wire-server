@@ -66,6 +66,9 @@ routes = do
         Doc.summary "Retrieve all TURN server addresses and credentials. \
                     \Clients are expected to do a DNS lookup to resolve \
                     \the IP addresses of the given hostnames "
+        Doc.parameter Doc.Query "limit" Doc.int32' $ do
+            Doc.description "Limit resulting list. Allowes values [1..10]"
+            Doc.optional
         Doc.returns (Doc.ref Doc.rtcConfiguration)
         Doc.response 200 "RTCConfiguration" Doc.end
 
