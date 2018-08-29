@@ -1,3 +1,4 @@
+LANG := en_US.UTF-8
 SHELL   := /usr/bin/env bash
 VERSION := "3.0.0"
 ARCH    := amd64

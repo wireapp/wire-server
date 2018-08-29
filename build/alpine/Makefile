@@ -1,3 +1,4 @@
+LANG := en_US.UTF-8
 DOCKER_USER   ?= quay.io/wire
 DOCKER_TAG    ?= local
 
