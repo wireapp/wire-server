@@ -22,7 +22,7 @@ module Util
   , teMgr, teCql, teBrig, teGalley, teSpar
   , teNewIdP, teIdPEndpoint, teUserId, teTeamId, teIdP, teIdPHandle, teIdPChan
   , teOpts, teTstOpts
-  , Select, mkEnv, destroyEnv, it, pending, pendingWith
+  , Select, mkEnv, destroyEnv, passes, it, pending, pendingWith
   , IntegrationConfig(..)
   , BrigReq
   , GalleyReq
@@ -43,6 +43,7 @@ module Util
   , callAuthnReqPrecheck'
   , callAuthnReq, callAuthnReq'
   , callIdpGet, callIdpGet'
+  , callIdpGetAll, callIdpGetAll'
   , callIdpCreate, callIdpCreate'
   , callIdpDelete, callIdpDelete'
   , initCassandra
@@ -130,6 +131,9 @@ mkEnv _teTstOpts _teOpts = do
 destroyEnv :: HasCallStack => TestEnv -> IO ()
 destroyEnv = Async.cancel . (^. teIdPHandle)
 
+
+passes :: MonadIO m => m ()
+passes = liftIO $ True `shouldBe` True
 
 it :: (HasCallStack, m ~ IO)
        -- or, more generally:
@@ -435,6 +439,16 @@ callIdpGet sparreq_ muid idpid = do
 callIdpGet' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpGet' sparreq_ muid idpid = do
   get $ sparreq_ . maybe id zUser muid . path ("/identity-providers/" <> cs (SAML.idPIdToST idpid))
+
+callIdpGetAll :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m IdPList
+callIdpGetAll sparreq_ muid = do
+  resp <- callIdpGetAll' (sparreq_ . expect2xx) muid
+  either (liftIO . throwIO . ErrorCall . show) pure
+    $ responseJSON resp
+
+callIdpGetAll' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m ResponseLBS
+callIdpGetAll' sparreq_ muid = do
+  get $ sparreq_ . maybe id zUser muid . path "/identity-providers"
 
 callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.NewIdP -> m IdP
 callIdpCreate sparreq_ muid newidp = do

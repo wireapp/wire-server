@@ -15,7 +15,6 @@ import Brig.Types.User
 import Control.Concurrent.STM (atomically, writeTChan)
 import Control.Monad.Reader
 import Data.ByteString.Conversion
-import Data.Either (isRight)
 import Data.Id
 import Data.List (isInfixOf)
 import Data.Maybe
@@ -211,13 +210,20 @@ spec = do
           env <- ask
           let idpid = env ^. teIdP . idpId
               userid = env ^. teUserId
-          callIdpGet' (env ^. teSpar) (Just userid) idpid
-            `shouldRespondWith` (\resp -> statusCode resp == 200 && isRight (responseJSON @IdP resp))
+          _ <- call $ callIdpGet (env ^. teSpar) (Just userid) idpid
+          passes
 
     describe "GET /identity-providers" $ do
       context "client is not team owner" $ do
         it "rejects" $ do
-          pending
+          env <- ask
+          (_owner :: UserId, teamid :: TeamId)
+            <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          member :: UserId
+            <- let Just perms = newPermissions mempty mempty
+               in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
+          callIdpGetAll' (env ^. teSpar) (Just member)
+            `shouldRespondWith` ((== 403) . statusCode)
 
       context "client is team owner" $ do
         context "no idps registered" $ do
