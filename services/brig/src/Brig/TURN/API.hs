@@ -104,9 +104,10 @@ newConfig env limit = do
 
     limitedList :: List1 TurnURI -> Int -> List1 TurnURI
     limitedList uris lim = do
-        -- if limitServers is safe (returning at least 1 element if limit>=1)
-        -- since the input is List1 and limit in Range 1 10
-        -- this should also be safe.
+        -- if limitServers is safe (returning at not fewer elements than limit or the size of its input)
+        -- (see quickcheck tests in brig-types)
+        -- since the input is List1 and limit is in Range 1 10
+        -- it should also be safe to assume the returning list has length >= 1
         let (x:xs) = limitServers (toList uris) lim
         List1.list1 x xs
 

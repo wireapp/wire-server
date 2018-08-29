@@ -275,10 +275,6 @@ limitServers uris lim = do
         -- is there an easier way to write others?
         others = ((uris \\ udps) \\ tlss) \\ tcps
         -- others = filter (liftM not (liftM2 (&&) udp (liftM2 (&&) tcp tls))) ?
-
-        -- if limitHeuristic is safe (returning at least 1 element if limit>=1)
-        -- since the input is List1 and limit in Range 1 10
-        -- this should also be safe.
         in limitHeuristic [] (udps,tlss,tcps,others) lim
 
 -- | helper function for 'limitServers'
@@ -298,12 +294,12 @@ limitHeuristic xs (udp:udps, tls:tlss, [], o) lim = case lim - length(xs) of
         1          ->  limitHeuristic (udp:xs) (udps, tls:tlss, [], o) lim
         _          -> xs
 -- case at least one udp available
-limitHeuristic xs (udp:udps, _tlss, _tcps, o) lim = case lim - length(xs) of
-        x | x >= 1 ->  limitHeuristic (udp:xs) (udps, [], [], o) lim
+limitHeuristic xs (udp:udps, tlss, tcps, o) lim = case lim - length(xs) of
+        x | x >= 1 ->  limitHeuristic (udp:xs) (udps, tlss, tcps, o) lim
         _          -> xs
 -- case at least one tls available
-limitHeuristic xs (_udps, tls:tlss, _tcps, o) lim = case lim - length(xs) of
-        x | x >= 1 ->  limitHeuristic (tls:xs) ([], tlss, [], o) lim
+limitHeuristic xs (udps, tls:tlss, tcps, o) lim = case lim - length(xs) of
+        x | x >= 1 ->  limitHeuristic (tls:xs) (udps, tlss, tcps, o) lim
         _          -> xs
 -- case limit not reached yet, but no more udp/tls: fill with whatever is left
 limitHeuristic xs (udps, tlss, tcps, o) lim = case lim - length(xs) of
