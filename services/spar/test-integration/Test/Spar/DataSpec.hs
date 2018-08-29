@@ -10,7 +10,6 @@
 module Test.Spar.DataSpec where
 
 import Bilge
-import Cassandra as Cas
 import Control.Concurrent
 import Control.Exception
 import Control.Monad.Catch
@@ -34,6 +33,7 @@ import Util
 import Util.Options
 import Web.Cookie
 
+import qualified Cassandra as Cas
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.List as List
 import qualified SAML2.WebSSO as SAML
@@ -47,6 +47,10 @@ spec :: SpecWith TestEnv
 spec = do
   describe "TTL" $ do
     it "works in seconds" $ do
+      -- NB: this test calls C* directly.  no deeper reason for that, it just seemed more convenient
+      -- at the time, and @fisx is of the opinion that integration tests do not have to limit
+      -- themselves to particular ways of trying to break the testee.
+
       env <- ask
       let idpid = env ^. teIdP . SAML.idpId
       (_, req) <- call $ callAuthnReq (env ^. teSpar) idpid
@@ -54,7 +58,7 @@ spec = do
       let probe :: IO Bool
           probe = do
             denv :: Data.Env <- Data.mkEnv (env ^. teOpts) <$> getCurrentTime
-            runClient (env ^. teCql) (checkAgainstRequest (req ^. SAML.rqID) `runReaderT` denv)
+            Cas.runClient (env ^. teCql) (checkAgainstRequest (req ^. SAML.rqID) `runReaderT` denv)
 
           maxttl :: Int  -- musec
           maxttl = (fromIntegral . fromTTL $ env ^. teOpts . to maxttlAuthreq) * 1000 * 1000
