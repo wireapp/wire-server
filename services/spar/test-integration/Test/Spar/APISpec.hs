@@ -345,7 +345,7 @@ spec = do
             responseJSON resp2 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
 
       context "everything in order" $ do
-        it "responds with 2xx; makes makes IdP available for GET /identity-providers/" $ do
+        it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
           env <- ask
           newidp <- makeTestNewIdP
           idp <- call $ callIdpCreate (env ^. teSpar) (Just (env ^. teUserId)) newidp
