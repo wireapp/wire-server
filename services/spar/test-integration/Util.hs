@@ -22,7 +22,7 @@ module Util
   , teMgr, teCql, teBrig, teGalley, teSpar
   , teNewIdP, teIdPEndpoint, teUserId, teTeamId, teIdP, teIdPHandle, teIdPChan
   , teOpts, teTstOpts
-  , Select, mkEnv, destroyEnv, it, pending, pendingWith
+  , Select, mkEnv, destroyEnv, passes, it, pending, pendingWith
   , IntegrationConfig(..)
   , BrigReq
   , GalleyReq
@@ -37,12 +37,14 @@ module Util
   , call
   , ping
   , makeTestNewIdP
+  , createTestIdPFrom
   , negotiateAuthnRequest
   , submitAuthnResponse
   , responseJSON
   , callAuthnReqPrecheck'
   , callAuthnReq, callAuthnReq'
   , callIdpGet, callIdpGet'
+  , callIdpGetAll, callIdpGetAll'
   , callIdpCreate, callIdpCreate'
   , callIdpDelete, callIdpDelete'
   , initCassandra
@@ -130,6 +132,9 @@ mkEnv _teTstOpts _teOpts = do
 destroyEnv :: HasCallStack => TestEnv -> IO ()
 destroyEnv = Async.cancel . (^. teIdPHandle)
 
+
+passes :: MonadIO m => m ()
+passes = liftIO $ True `shouldBe` True
 
 it :: (HasCallStack, m ~ IO)
        -- or, more generally:
@@ -335,9 +340,10 @@ ping req = void . get $ req . path "/i/status" . expect2xx
 -- | Create a cloned 'NewIdP' corresponding to the mock idp from the config and suitable for
 -- registering with spar.  The issuer id can be used to do this several times without getting the
 -- error that this issuer is already used for another team.
-makeTestNewIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => UUID -> m NewIdP
-makeTestNewIdP issuerid = do
+makeTestNewIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m NewIdP
+makeTestNewIdP = do
   env <- ask
+  issuerid <- liftIO $ UUID.nextRandom
   let Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp
       mkurl = either (error . show) id . SAML.parseURI' . (("http://" <> ephost <> ":" <> epport) <>)
   pure $ (env ^. teNewIdP) & nidpIssuer .~ Issuer (mkurl $ "/_" <> UUID.toText issuerid)
@@ -435,6 +441,16 @@ callIdpGet sparreq_ muid idpid = do
 callIdpGet' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpGet' sparreq_ muid idpid = do
   get $ sparreq_ . maybe id zUser muid . path ("/identity-providers/" <> cs (SAML.idPIdToST idpid))
+
+callIdpGetAll :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m IdPList
+callIdpGetAll sparreq_ muid = do
+  resp <- callIdpGetAll' (sparreq_ . expect2xx) muid
+  either (liftIO . throwIO . ErrorCall . show) pure
+    $ responseJSON resp
+
+callIdpGetAll' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m ResponseLBS
+callIdpGetAll' sparreq_ muid = do
+  get $ sparreq_ . maybe id zUser muid . path "/identity-providers"
 
 callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.NewIdP -> m IdP
 callIdpCreate sparreq_ muid newidp = do

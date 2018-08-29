@@ -15,27 +15,24 @@ import Brig.Types.User
 import Control.Concurrent.STM (atomically, writeTChan)
 import Control.Monad.Reader
 import Data.ByteString.Conversion
-import Data.Either (isRight)
 import Data.Id
 import Data.List (isInfixOf)
 import Data.Maybe
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
-import Data.UUID.V4 as UUID
 import Galley.Types.Teams as Galley
 import GHC.Stack
 import Lens.Micro
 import Prelude hiding (head)
 import SAML2.WebSSO as SAML
+import SAML2.WebSSO.Test.Credentials
 import SAML2.WebSSO.Test.MockResponse
 import Spar.Types
 import Text.XML
+import URI.ByteString.QQ (uri)
 import Util
 
 import qualified Spar.Intra.Brig as Intra
-
-
--- TODO: what else needs to be tested, beyond the pending tests listed here?
 
 
 spec :: SpecWith TestEnv
@@ -143,22 +140,22 @@ spec = do
           it "logs out user B, logs in user A" $ do
             pending
 
-      context "unknown IdP" $ do
+      context "unknown IdP Issuer" $ do
+        it "rejects" $ do
+          (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          authnresp <- liftIO $ mkAuthnResponse privcreds (idp & idpIssuer .~ Issuer [uri|http://unknown-issuer/|]) authnreq True
+          sparresp <- submitAuthnResponse authnresp
+          liftIO $ do
+            statusCode sparresp `shouldBe` 404
+            responseJSON sparresp `shouldBe` Right (TestErrorLabel "not-found")
+
+      context "AuthnResponse does not match any request" $ do
         it "rejects" $ do
           pending
 
-      context "bad AuthnRequest" $ do
+      context "AuthnResponse contains assertions that have been offered before" $ do
         it "rejects" $ do
           pending
-
-      context "response does not match any request" $ do
-        it "rejects" $ do
-          pending
-
-      context "response contains assertions that have been offered before" $ do
-        it "rejects" $ do
-          pending
-
 
     let checkErr :: (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
         checkErr statusIs label resp = statusIs (statusCode resp) && responseJSON resp == Right label
@@ -212,22 +209,37 @@ spec = do
           env <- ask
           let idpid = env ^. teIdP . idpId
               userid = env ^. teUserId
-          callIdpGet' (env ^. teSpar) (Just userid) idpid
-            `shouldRespondWith` (\resp -> statusCode resp == 200 && isRight (responseJSON @IdP resp))
+          _ <- call $ callIdpGet (env ^. teSpar) (Just userid) idpid
+          passes
 
     describe "GET /identity-providers" $ do
       context "client is not team owner" $ do
         it "rejects" $ do
-          pending
+          env <- ask
+          (_owner :: UserId, teamid :: TeamId)
+            <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          member :: UserId
+            <- let Just perms = newPermissions mempty mempty
+               in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
+          callIdpGetAll' (env ^. teSpar) (Just member)
+            `shouldRespondWith` ((== 403) . statusCode)
 
       context "client is team owner" $ do
         context "no idps registered" $ do
           it "returns an empty list" $ do
-            pending
+            env <- ask
+            (owner :: UserId, _teamid :: TeamId)
+              <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            callIdpGetAll (env ^. teSpar) (Just owner)
+              `shouldRespondWith` (null . _idplProviders)
 
         context "some idps are registered" $ do
           it "returns a non-empty empty list" $ do
-            pending
+            env <- ask
+            newidp <- makeTestNewIdP
+            (owner, _, _) <- createTestIdPFrom newidp (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
+            callIdpGetAll (env ^. teSpar) (Just owner)
+              `shouldRespondWith` (not . null . _idplProviders)
 
     describe "DELETE /identity-providers/:idp" $ do
       testGetPutDelete callIdpDelete'
@@ -257,7 +269,7 @@ spec = do
             pending  -- (only test for signature here, but make sure that the same validity tests
                      -- are performed as for POST in Spar.API.)
 
-    describe "POST /identity-providers/:idp" $ do
+    describe "POST /identity-providers" $ do
       context "no zuser" $ do
         it "responds with 'client error'" $ do
           env <- ask
@@ -287,39 +299,58 @@ spec = do
           --
           -- spar will request the metadata url; validate the metadata received from the mock idp we
           -- just loaded here; and return the expected error (or not).
-          createIdpMockErr :: HasCallStack => Maybe [Node] -> TestErrorLabel -> ReaderT TestEnv IO ()
+          createIdpMockErr :: HasCallStack => Maybe (NewIdP -> IO [Node]) -> TestErrorLabel -> ReaderT TestEnv IO ()
           createIdpMockErr metadata errlabel = do
             env <- ask
-            newidp <- makeTestNewIdP =<< liftIO UUID.nextRandom
-            liftIO . atomically $ writeTChan (env ^. teIdPChan) `mapM_` metadata
+            newidp <- makeTestNewIdP
+            case metadata of
+              Nothing -> pure ()
+              Just mk -> liftIO $ mk newidp >>= atomically . writeTChan (env ^. teIdPChan)
             callIdpCreate' (env ^. teSpar) (Just (env ^. teUserId)) newidp
               `shouldRespondWith` checkErr (== 400) errlabel
 
+      context "metadata url contains invalid hostname" $ do
+        it "rejects with a useful error message" $ do
+          pending
+
       context "bad metadata answer" $ do
-        it "rejects" $ createIdpMockErr
-          (Just [NodeElement (Element "bloo" mempty mempty)])
-          "invalid-signature"  -- well, this is just what it checks first...
+        it "rejects" $ do
+          createIdpMockErr
+            (Just . const . pure $ [NodeElement (Element "bloo" mempty mempty)])
+            "invalid-signature"  -- well, this is just what it checks first...
 
       context "invalid metadata signature" $ do
-        it "rejects" $ pending >> createIdpMockErr
-          undefined
-          "todo-figure-out-label"
+        it "rejects" $ do
+          createIdpMockErr
+            (Just $ sampleIdPMetadata' sampleIdPPrivkey2 sampleIdPCert)
+            "invalid-signature"
 
       context "pubkey in IdPConfig does not match the one provided in metadata url" $ do
-        it "rejects" $ pending >> createIdpMockErr
-          undefined
-          "todo-figure-out-label"
+        it "rejects" $ do
+          createIdpMockErr
+            (Just $ sampleIdPMetadata' sampleIdPPrivkey sampleIdPCert2)
+            "key-mismatch"
 
       context "idp (identified by issuer) is in use by other team" $ do
         it "rejects" $ do
-          pending
+          env <- ask
+          (uid1, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          (uid2, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          newidp    <- makeTestNewIdP
+          resp1     <- call $ callIdpCreate' (env ^. teSpar) (Just uid1) newidp
+          resp2     <- call $ callIdpCreate' (env ^. teSpar) (Just uid2) newidp
+          liftIO $ do
+            statusCode resp1 `shouldBe` 201
+            statusCode resp2 `shouldBe` 400
+            responseJSON resp2 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
 
       context "everything in order" $ do
-        it "responds with 2xx" $ do
-          pending
-
-        it "makes IdP available for GET /identity-providers/" $ do
-          pending
+        it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
+          env <- ask
+          newidp <- makeTestNewIdP
+          idp <- call $ callIdpCreate (env ^. teSpar) (Just (env ^. teUserId)) newidp
+          idp' <- call $ callIdpGet (env ^. teSpar) (Just (env ^. teUserId)) (idp ^. idpId)
+          liftIO $ idp `shouldBe` idp'
 
 
     describe "test helper functions" $ do
@@ -346,3 +377,10 @@ spec = do
               ]
 
         sequence_ [ check tryowner perms | tryowner <- [minBound..], perms <- [0.. (length permses - 1)] ]
+
+
+
+
+-- TODO: go through DataSpec, APISpec and check that all the tests still make sense with the new implicit mock idp.
+-- TODO: what else needs to be tested, beyond the pending tests listed here?
+-- TODO: what tests can go to saml2-web-sso package?

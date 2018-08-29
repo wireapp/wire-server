@@ -34,6 +34,7 @@ module Spar.API
 
 import Bilge
 import Brig.Types.User as Brig
+import Control.Exception
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Either
@@ -222,12 +223,24 @@ initializeIdP (SAML.NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey)
   pure SAML.IdPConfig {..}
 
 
-type MonadValidateIdP m = (MonadHttp m, MonadIO m)
-
 -- | FUTUREWORK: much of this function could move to the saml2-web-sso package.
-validateNewIdP :: forall m. (HasCallStack, MonadError SparError m, MonadValidateIdP m)
+validateNewIdP :: forall m. (HasCallStack, m ~ Spar)
                => SAML.NewIdP -> m ()
 validateNewIdP newidp = do
+  wrapMonadClient (Data.getIdPIdByIssuer (newidp ^. SAML.nidpIssuer)) >>= \case
+    Nothing -> pure ()
+    Just _ -> throwSpar SparNewIdPAlreadyInUse
+    -- each idp (issuer) can only be created once.  if you want to update (one of) your team's
+    -- idp(s), either use put (not implemented), or delete the old one before creating a new one
+    -- (already works, even though it may create a brief time window in which users experience
+    -- broken login behavior).
+    --
+    -- rationale: the issuer is how the idp self-identifies.  we can't allow the same idp to serve
+    -- two teams because of implicit user creation: if an unknown user arrives, we use the
+    -- idp-to-team mapping to decide which team to create the user in.  if we wanted to trust the
+    -- idp to decide this for us, we would have to think of a way to prevent rogue idps from
+    -- creating users in victim teams.
+
   let uri2req :: URI.URI -> m Request
       uri2req = either (throwSpar . SparNewIdPBadMetaUrl . cs . show) pure
               . Rq.parseRequest . cs . SAML.renderURI
@@ -235,10 +248,16 @@ validateNewIdP newidp = do
       fetch :: URI.URI -> (Request -> Request) -> m (Bilge.Response (Maybe LBS))
       fetch uri modify = do
         req <- uri2req uri
-        tweakleft (httpLbs req modify)
+        ntm (httpLbs req modify)
 
-      tweakleft :: Http a -> m a
-      tweakleft (HttpT action) = liftIO . runReaderT action =<< getManager
+      -- natural transformation into 'm'.  needed for the http client that fetches the metadata url.
+      -- if 'IO' throws an exception, we capture it with 'try' and re-throw it inside 'm', which
+      -- yields much nicer client errors and logs.
+      ntm :: forall a. Http a -> m a
+      ntm (HttpT action) = do
+        mgr :: Manager <- getManager
+        result :: Either SomeException a <- liftIO . try $ runReaderT action mgr
+        either (throwSpar . SparNewIdPBadMetaUrl . cs . show @SomeException) pure result
 
   metaResp :: Bilge.Response (Maybe LBS)
     <- fetch (newidp ^. SAML.nidpMetadata) (method GET . expect2xx)

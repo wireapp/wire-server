@@ -1,9 +1,9 @@
 saml:
-  version:     SAML2.0
-  logLevel:   Debug
+  version:   SAML2.0
+  logLevel:  Debug
 
-  spHost:     0.0.0.0
-  spPort:     8088
+  spHost:    0.0.0.0
+  spPort:    8088
   spAppUri:  http://localhost:8088/
   spSsoUri:  http://localhost:8088/sso
 

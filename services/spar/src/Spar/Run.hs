@@ -26,6 +26,7 @@ import Data.String.Conversions
 import Data.String (fromString)
 import Lens.Micro
 import Network.HTTP.Client (responseTimeoutMicro)
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wai (Application)
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Spar.API
@@ -96,7 +97,7 @@ runServer sparCtxOpts = do
   let settings = Warp.defaultSettings
         & Warp.setHost (fromString $ sparCtxOpts ^. to saml . SAML.cfgSPHost)
         . Warp.setPort (sparCtxOpts ^. to saml . SAML.cfgSPPort)
-  sparCtxHttpManager <- newManager defaultManagerSettings
+  sparCtxHttpManager <- newManager tlsManagerSettings
       { managerResponseTimeout = responseTimeoutMicro (10 * 1000 * 1000)
       }
   let sparCtxHttpBrig = Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
