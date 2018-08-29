@@ -267,6 +267,14 @@ optional x = option Nothing (Just <$> x)
 
 -- | given a list of URIs and a size, limit URIs
 -- with order priority from highest to lowest: UDP -> TLS -> TCP
+-- i.e. (if enough servers of each type are available)
+--   1 -> 1x UDP
+--   2 -> 1x UDP, 1x TLS
+--   3 -> 1x UDP, 1x TLS, 1x TCP
+--   4 -> 2x UDP, 1x TLS, 1x TCP
+--   5 -> 2x UDP, 2x TLS, 1x TCP
+--    ... etc
+-- if not enough servers are available, prefer udp, then tls
 limitServers :: [TurnURI] -> Int -> [TurnURI]
 limitServers uris lim = do
     let udps = filter isUdp uris
