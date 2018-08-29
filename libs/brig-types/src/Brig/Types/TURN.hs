@@ -35,6 +35,11 @@ module Brig.Types.TURN
     , tuKeyindex
     , tuT
     , tuRandom
+
+    , isUdp
+    , isTcp
+    , isTls
+    , limitServers
     )
 where
 
@@ -46,6 +51,7 @@ import           Data.Attoparsec.Text       hiding (parse)
 import           Data.ByteString            (ByteString)
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Conversion as BC
+import           Data.List ((\\))
 import           Data.List1
 import           Data.Misc                  (Port (..))
 import           Data.Monoid
@@ -258,3 +264,61 @@ instance ToJSON Transport where
 -- Convenience
 optional :: (Alternative f, Functor f) => f a -> f (Maybe a)
 optional x = option Nothing (Just <$> x)
+
+-- | given a list of URIs and a size, limit URIs
+-- with order priority from highest to lowest: UDP -> TLS -> TCP
+limitServers :: [TurnURI] -> Int -> [TurnURI]
+limitServers uris lim = do
+    let udps = filter isUdp uris
+        tcps = filter isTcp uris
+        tlss = filter isTls uris
+        -- is there an easier way to write others?
+        others = ((uris \\ udps) \\ tlss) \\ tcps
+        -- others = filter (liftM not (liftM2 (&&) udp (liftM2 (&&) tcp tls))) ?
+
+        -- if limitHeuristic is safe (returning at least 1 element if limit>=1)
+        -- since the input is List1 and limit in Range 1 10
+        -- this should also be safe.
+        in limitHeuristic [] (udps,tlss,tcps,others) lim
+
+-- | helper function for 'limitServers'
+limitHeuristic :: [TurnURI]
+  -> ([TurnURI], [TurnURI], [TurnURI], [TurnURI])
+  -> Int
+  -> [TurnURI]
+-- case at least one of each available
+limitHeuristic xs (udp:udps, tls:tlss, tcp:tcps, o) lim = case lim - length(xs) of
+        x | x >= 3 ->  limitHeuristic (udp:tls:tcp:xs) (udps, tlss, tcps, o) lim
+        2          ->  limitHeuristic (udp:tls:xs) (udps, tlss, tcp:tcps, o) lim
+        1          ->  limitHeuristic (udp:xs) (udps, tls:tlss, tcp:tcps, o) lim
+        _          -> xs
+-- case at least one of udp/tls available
+limitHeuristic xs (udp:udps, tls:tlss, [], o) lim = case lim - length(xs) of
+        x | x >= 2 ->  limitHeuristic (udp:tls:xs) (udps, tlss, [], o) lim
+        1          ->  limitHeuristic (udp:xs) (udps, tls:tlss, [], o) lim
+        _          -> xs
+-- case at least one udp available
+limitHeuristic xs (udp:udps, _tlss, _tcps, o) lim = case lim - length(xs) of
+        x | x >= 1 ->  limitHeuristic (udp:xs) (udps, [], [], o) lim
+        _          -> xs
+-- case at least one tls available
+limitHeuristic xs (_udps, tls:tlss, _tcps, o) lim = case lim - length(xs) of
+        x | x >= 1 ->  limitHeuristic (tls:xs) ([], tlss, [], o) lim
+        _          -> xs
+-- case limit not reached yet, but no more udp/tls: fill with whatever is left
+limitHeuristic xs (udps, tlss, tcps, o) lim = case lim - length(xs) of
+        x | x >= 1 -> (Prelude.take x (udps++tlss++tcps++o))++xs
+        _          -> xs
+
+isUdp :: TurnURI -> Bool
+isUdp uri = uri^.turiScheme == SchemeTurn
+        && ( uri^.turiTransport == Just(TransportUDP)
+            || uri^.turiTransport == Nothing )
+
+isTcp :: TurnURI -> Bool
+isTcp uri = uri^.turiScheme == SchemeTurn
+        && uri^.turiTransport == Just(TransportTCP)
+
+isTls :: TurnURI -> Bool
+isTls uri = uri^.turiScheme == SchemeTurns
+        && uri^.turiTransport == Just(TransportTCP)
