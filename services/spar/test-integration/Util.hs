@@ -21,7 +21,7 @@
 module Util
   ( TestEnv(..)
   , teMgr, teCql, teBrig, teGalley, teSpar
-  , teNewIdP, teIdPEndpoint, teUserId, teTeamId, teIdP, teIdPHandle, teIdPChan
+  , teNewIdP, teUserId, teTeamId, teIdP, teIdPHandle, teIdPChan
   , teOpts, teTstOpts
   , Select, mkEnv, destroyEnv, passes, it, pending, pendingWith
   , IntegrationConfig(..)
@@ -115,21 +115,19 @@ mkEnv _teTstOpts _teOpts = do
   let _teBrig    = endpointToReq (cfgBrig   _teTstOpts)
       _teGalley  = endpointToReq (cfgGalley _teTstOpts)
       _teSpar    = endpointToReq (cfgSpar   _teTstOpts)
-
       _teNewIdP  = cfgNewIdp _teTstOpts
-      _teIdPEndpoint = cfgMockIdp _teTstOpts
 
   (app, _teIdPChan) <- serveSampleIdP _teNewIdP
-  let srv = Warp.runSettings (endpointToSettings _teIdPEndpoint) app
+  let srv = Warp.runSettings (endpointToSettings . mockidpBind . cfgMockIdp $ _teTstOpts) app
   _teIdPHandle <- Async.async srv
-  assertServiceIsUp _teIdPHandle _teMgr (endpointToReq _teIdPEndpoint)
+  assertServiceIsUp _teIdPHandle _teMgr (endpointToReq . mockidpConnect . cfgMockIdp $ _teTstOpts)
 
   (_teUserId, _teTeamId, _teIdP) <- do
     createTestIdPFrom _teNewIdP _teMgr _teBrig _teGalley _teSpar
 
   pure TestEnv {..}
 
-assertServiceIsUp :: Show a => Async.Async a -> Manager -> (Request -> Request) -> IO ()
+assertServiceIsUp :: (HasCallStack, Show a) => Async.Async a -> Manager -> (Request -> Request) -> IO ()
 assertServiceIsUp async mgr req = waitForService mgr req >>= \case
   True  -> pure ()
   False -> Async.poll async >>= \case
@@ -361,7 +359,7 @@ makeTestNewIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m NewIdP
 makeTestNewIdP = do
   env <- ask
   issuerid <- liftIO $ UUID.nextRandom
-  let Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp
+  let Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp . to mockidpConnect
       mkurl = either (error . show) id . SAML.parseURI' . (("http://" <> ephost <> ":" <> epport) <>)
   pure $ (env ^. teNewIdP) & nidpIssuer .~ Issuer (mkurl $ "/_" <> UUID.toText issuerid)
 

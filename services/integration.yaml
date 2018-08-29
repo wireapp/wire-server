@@ -47,5 +47,9 @@ newIdp:
 # case in production, but according to the standard it is technically
 # legal.
 mockIdp:
-  host: 127.0.0.1
-  port: 9001
+  bind:  # what should the mock idp bind to?  (usually 0.0.0.0 or 127.0.0.1)
+    host: 127.0.0.1
+    port: 9001
+  connect:  # where should integration tests send their requests?
+    host: 127.0.0.1
+    port: 9001

@@ -50,7 +50,7 @@ withMockIdP
     :: forall a m. (MonadIO m, MonadMask m, MonadReader TestEnv m)
     => Application -> m a -> m a
 withMockIdP app go = do
-  defs <- asks (endpointToSettings . (^. teIdPEndpoint))
+  defs <- asks (endpointToSettings . (^. teTstOpts . to cfgMockIdp . to mockidpBind))
   srv <- liftIO . Async.async . Warp.runSettings defs $ app
   go `Control.Monad.Catch.finally` liftIO (Async.cancel srv)
 
@@ -65,7 +65,7 @@ serveSampleIdP newidp = do
       app req cont = case pathInfo req of
         ["meta"] -> cont . responseLBS status200 [] . renderLBS def . nodesToDoc =<< getNextMeta
         ["resp"] -> cont $ responseLBS status400 [] ""  -- we do that without the mock server, via 'mkAuthnResponse'
-        bad      -> error $ show bad
+        _        -> cont $ responseLBS status404 [] ""
   pure (app, chan)
 
 sampleIdPMetadata :: NewIdP -> IO [Node]

@@ -22,7 +22,6 @@ module Util.Types
   , teGalley
   , teSpar
   , teNewIdP
-  , teIdPEndpoint
   , teUserId
   , teTeamId
   , teIdP
@@ -33,6 +32,7 @@ module Util.Types
   , Select
   , ResponseLBS
   , IntegrationConfig(..)
+  , MockIdPConfig(..)
   , TestErrorLabel(..)
   ) where
 
@@ -71,7 +71,6 @@ data TestEnv = TestEnv
   , _teGalley      :: GalleyReq
   , _teSpar        :: SparReq
   , _teNewIdP      :: SAML.NewIdP
-  , _teIdPEndpoint :: Endpoint
   , _teUserId      :: UserId
   , _teTeamId      :: TeamId
   , _teIdP         :: IdP
@@ -90,10 +89,16 @@ data IntegrationConfig = IntegrationConfig
   , cfgGalley  :: Endpoint
   , cfgSpar    :: Endpoint
   , cfgNewIdp  :: SAML.NewIdP
-  , cfgMockIdp :: Endpoint
+  , cfgMockIdp :: MockIdPConfig
+  } deriving (Show, Generic)
+
+data MockIdPConfig = MockIdPConfig
+  { mockidpBind    :: Endpoint
+  , mockidpConnect :: Endpoint
   } deriving (Show, Generic)
 
 deriveFromJSON deriveJSONOptions ''IntegrationConfig
+deriveFromJSON deriveJSONOptions ''MockIdPConfig
 makeLenses ''TestEnv
 
 
