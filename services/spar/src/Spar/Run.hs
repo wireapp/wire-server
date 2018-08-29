@@ -28,6 +28,7 @@ import Lens.Micro
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.Wai (Application)
 import Network.Wai.Utilities.Request (lookupRequestId)
+import OpenSSL (withOpenSSL)
 import Spar.API
 import Spar.API.Instances ()
 import Spar.API.Swagger ()
@@ -89,7 +90,7 @@ mkLogger opts = Log.new $ Log.defSettings
 -- servant / wai / warp
 
 runServer :: Opts -> IO ()
-runServer sparCtxOpts = do
+runServer sparCtxOpts = withOpenSSL $ do
   sparCtxLogger <- mkLogger sparCtxOpts
   mx <- metrics
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
