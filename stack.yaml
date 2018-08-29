@@ -68,7 +68,7 @@ packages:
 # services/spar:
 - location:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: b2d42ee479377105225c101dbc4e138404f4d5a8
+    commit: 6c4dd0cd8120443e40f0f405a69460b81cf46e0d
   extra-dep: true
 - location:
     git: https://github.com/wireapp/hsaml2

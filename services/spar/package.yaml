@@ -38,7 +38,7 @@ dependencies:
   - mtl
   - optparse-applicative
   - raw-strings-qq
-  - saml2-web-sso >= 0.5
+  - saml2-web-sso >= 0.6
   - scientific
   - servant
   - servant-multipart
@@ -111,3 +111,4 @@ executables:
       - wai
       - xml-conduit
       - xml-hamlet
+      - xml-lens
