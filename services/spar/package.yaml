@@ -111,6 +111,7 @@ executables:
       - spar
       - stm
       - wai
+      - warp-tls
       - xml-conduit
       - xml-hamlet
       - xml-lens

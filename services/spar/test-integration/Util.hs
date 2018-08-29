@@ -99,7 +99,7 @@ import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
 import qualified Galley.Types.Teams as Galley
-import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Handler.WarpTLS as Warp
 import qualified SAML2.WebSSO as SAML
 import qualified Test.Hspec
 import qualified Text.XML as XML
@@ -118,7 +118,11 @@ mkEnv _teTstOpts _teOpts = do
       _teNewIdP  = cfgNewIdp _teTstOpts
 
   (app, _teIdPChan) <- serveSampleIdP _teNewIdP
-  let srv = Warp.runSettings (endpointToSettings . mockidpBind . cfgMockIdp $ _teTstOpts) app
+  let srv     = Warp.runTLS tlss defs app
+      tlss    = Warp.tlsSettings (mockidpCert mocktls) (mockidpPrivateKey mocktls)
+      mocktls = cfgMockIdp _teTstOpts
+      defs    = endpointToSettings . mockidpBind . cfgMockIdp $ _teTstOpts
+
   _teIdPHandle <- Async.async srv
   assertServiceIsUp _teIdPHandle _teMgr (endpointToReq . mockidpConnect . cfgMockIdp $ _teTstOpts)
 

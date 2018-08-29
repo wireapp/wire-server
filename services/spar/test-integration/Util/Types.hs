@@ -93,8 +93,11 @@ data IntegrationConfig = IntegrationConfig
   } deriving (Show, Generic)
 
 data MockIdPConfig = MockIdPConfig
-  { mockidpBind    :: Endpoint
-  , mockidpConnect :: Endpoint
+  { mockidpBind       :: Endpoint
+  , mockidpConnect    :: Endpoint
+  , mockidpPrivateKey :: FilePath
+  , mockidpPublicKey  :: FilePath
+  , mockidpCert       :: FilePath
   } deriving (Show, Generic)
 
 deriveFromJSON deriveJSONOptions ''IntegrationConfig
