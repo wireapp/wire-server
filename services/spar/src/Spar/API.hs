@@ -34,6 +34,7 @@ module Spar.API
 
 import Bilge
 import Brig.Types.User as Brig
+import Control.Exception
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Either
@@ -240,8 +241,11 @@ validateNewIdP newidp = do
         ntm (httpLbs req modify)
 
       -- natural transformation into 'm'
-      ntm :: Http a -> m a
-      ntm (HttpT action) = liftIO . runReaderT action =<< getManager
+      ntm :: forall a. Http a -> m a
+      ntm (HttpT action) = do
+        mgr :: Manager <- getManager
+        result :: Either SomeException a <- liftIO . try $ runReaderT action mgr
+        either (throwSpar . SparNewIdPBadMetaUrl . cs . show @SomeException) pure result
 
   metaResp :: Bilge.Response (Maybe LBS)
     <- fetch (newidp ^. SAML.nidpMetadata) (method GET . expect2xx)
