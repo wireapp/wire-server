@@ -18,8 +18,8 @@ import Control.Concurrent.STM.TChan
 import Control.Lens                   ((&), (.~), (^.), (^?), view)
 import Control.Monad.IO.Class         (MonadIO)
 import Control.Monad.Reader
-import Control.Monad.STM       hiding (retry)
-import Control.Retry
+import Control.Monad.STM
+import Control.Retry (retrying, constantDelay, limitRetries)
 import Data.Aeson              hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Char8          (ByteString)
@@ -701,7 +701,9 @@ testUnregisterPushToken g _ b _ = do
     clt <- randomClient g uid
     tkn <- randomToken clt gcmToken
     void $ registerPushToken uid tkn g
+    void $ retryWhileN 12 null (listPushTokens uid g)
     unregisterPushToken uid (tkn^.token) g !!! const 204 === statusCode
+    void $ retryWhileN 12 (not . null) (listPushTokens uid g)
     unregisterPushToken uid (tkn^.token) g !!! const 404 === statusCode
 
 testSharePushToken :: TestSignature ()

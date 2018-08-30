@@ -23,6 +23,7 @@ dependencies:
   - bytestring-conversion
   - case-insensitive
   - cassandra-util
+  - connection
   - containers
   - cookie
   - cryptonite
@@ -106,10 +107,12 @@ executables:
       - hspec-discover
       - lens-aeson
       - random
+      - retry
       - servant-client
       - spar
       - stm
       - wai
+      - warp-tls
       - xml-conduit
       - xml-hamlet
       - xml-lens

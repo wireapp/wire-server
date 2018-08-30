@@ -37,6 +37,7 @@ import URI.ByteString
 import Util.Options
 import Util.Types
 
+import qualified Bilge
 import qualified Control.Concurrent.Async          as Async
 import qualified Data.X509                         as X509
 import qualified Network.Wai.Handler.Warp          as Warp
@@ -49,7 +50,7 @@ withMockIdP
     :: forall a m. (MonadIO m, MonadMask m, MonadReader TestEnv m)
     => Application -> m a -> m a
 withMockIdP app go = do
-  defs <- asks (endpointToSettings . (^. teIdPEndpoint))
+  defs <- asks (endpointToSettings . (^. teTstOpts . to cfgMockIdp . to mockidpBind))
   srv <- liftIO . Async.async . Warp.runSettings defs $ app
   go `Control.Monad.Catch.finally` liftIO (Async.cancel srv)
 
@@ -64,7 +65,7 @@ serveSampleIdP newidp = do
       app req cont = case pathInfo req of
         ["meta"] -> cont . responseLBS status200 [] . renderLBS def . nodesToDoc =<< getNextMeta
         ["resp"] -> cont $ responseLBS status400 [] ""  -- we do that without the mock server, via 'mkAuthnResponse'
-        bad      -> error $ show bad
+        _        -> cont $ responseLBS status404 [] ""
   pure (app, chan)
 
 sampleIdPMetadata :: NewIdP -> IO [Node]
@@ -91,6 +92,9 @@ sampleIdPMetadata' privKey cert newidp = signElementIO privKey [xml|
 
 
 -- auxiliaries
+
+endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
+endpointToReq ep = Bilge.host (ep ^. epHost . to cs) . Bilge.port (ep ^. epPort)
 
 endpointToSettings :: Endpoint -> Warp.Settings
 endpointToSettings endpoint = Warp.defaultSettings { Warp.settingsHost = host, Warp.settingsPort = port }

@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE RecordWildCards     #-}
@@ -20,7 +21,7 @@
 module Util
   ( TestEnv(..)
   , teMgr, teCql, teBrig, teGalley, teSpar
-  , teNewIdP, teIdPEndpoint, teUserId, teTeamId, teIdP, teIdPHandle, teIdPChan
+  , teNewIdP, teUserId, teTeamId, teIdP, teIdPHandle, teIdPChan
   , teOpts, teTstOpts
   , Select, mkEnv, destroyEnv, passes, it, pending, pendingWith
   , IntegrationConfig(..)
@@ -60,6 +61,7 @@ import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
+import Control.Retry
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
 import Data.ByteString.Conversion
@@ -97,7 +99,7 @@ import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
 import qualified Galley.Types.Teams as Galley
-import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Handler.WarpTLS as Warp
 import qualified SAML2.WebSSO as SAML
 import qualified Test.Hspec
 import qualified Text.XML as XML
@@ -110,24 +112,41 @@ mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
   _teCql :: ClientState <- initCassandra _teOpts =<< mkLogger _teOpts
-  let mkreq :: (IntegrationConfig -> Endpoint) -> (Request -> Request)
-      mkreq selector = Bilge.host (selector _teTstOpts ^. epHost . to cs)
-                     . Bilge.port (selector _teTstOpts ^. epPort)
-
-      _teBrig    = mkreq cfgBrig
-      _teGalley  = mkreq cfgGalley
-      _teSpar    = mkreq cfgSpar
-
+  let _teBrig    = endpointToReq (cfgBrig   _teTstOpts)
+      _teGalley  = endpointToReq (cfgGalley _teTstOpts)
+      _teSpar    = endpointToReq (cfgSpar   _teTstOpts)
       _teNewIdP  = cfgNewIdp _teTstOpts
-      _teIdPEndpoint = cfgMockIdp _teTstOpts
 
   (app, _teIdPChan) <- serveSampleIdP _teNewIdP
-  let srv = Warp.runSettings (endpointToSettings _teIdPEndpoint) app
-  _teIdPHandle <- Async.async srv
+  let srv     = Warp.runTLS tlss defs app
+      tlss    = Warp.tlsSettings (mockidpCert mocktls) (mockidpPrivateKey mocktls)
+      mocktls = cfgMockIdp _teTstOpts
+      defs    = endpointToSettings . mockidpBind . cfgMockIdp $ _teTstOpts
 
-  (_teUserId, _teTeamId, _teIdP) <- createTestIdPFrom _teNewIdP _teMgr _teBrig _teGalley _teSpar
+  _teIdPHandle <- Async.async srv
+  assertServiceIsUp _teIdPHandle _teMgr (endpointToReq . mockidpConnect . cfgMockIdp $ _teTstOpts)
+
+  (_teUserId, _teTeamId, _teIdP) <- do
+    createTestIdPFrom _teNewIdP _teMgr _teBrig _teGalley _teSpar
 
   pure TestEnv {..}
+
+assertServiceIsUp :: (HasCallStack, Show a) => Async.Async a -> Manager -> (Request -> Request) -> IO ()
+assertServiceIsUp async mgr req = waitForService mgr req >>= \case
+  True  -> pure ()
+  False -> Async.poll async >>= \case
+    Nothing        -> throwIO . ErrorCall $ "mock idp is not responding"
+    Just (Left e)  -> throwIO . ErrorCall $ "mock idp failed with " <> show e
+    Just (Right a) -> throwIO . ErrorCall $ "mock idp returned " <> show a
+
+waitForService :: Manager -> (Request -> Request) -> IO Bool
+waitForService mgr req =
+  retrying (constantDelay 100000 <> limitRetries 50) (\_ -> pure . not) (\_ -> serviceIsUp mgr req)
+
+serviceIsUp :: Manager -> (Request -> Request) -> IO Bool
+serviceIsUp mgr req = (runHttpT mgr (Bilge.get req) >> pure True)
+  `Control.Exception.catch` \(_ :: HttpException) -> pure False
+
 
 destroyEnv :: HasCallStack => TestEnv -> IO ()
 destroyEnv = Async.cancel . (^. teIdPHandle)
@@ -344,7 +363,7 @@ makeTestNewIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m NewIdP
 makeTestNewIdP = do
   env <- ask
   issuerid <- liftIO $ UUID.nextRandom
-  let Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp
+  let Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp . to mockidpConnect
       mkurl = either (error . show) id . SAML.parseURI' . (("http://" <> ephost <> ":" <> epport) <>)
   pure $ (env ^. teNewIdP) & nidpIssuer .~ Issuer (mkurl $ "/_" <> UUID.toText issuerid)
 
