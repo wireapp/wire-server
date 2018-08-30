@@ -89,11 +89,14 @@ getCallsConfig (_ ::: _ ::: _) = do
 newConfig :: MonadIO m => TURN.Env -> Maybe (Range 1 10 Int) -> m RTCConfiguration
 newConfig env limit = do
     let (sha, secret, tTTL, cTTL, prng) = (env^.turnSHA512, env^.turnSecret, env^.turnTokenTTL, env^.turnConfigTTL, env^.turnPrng)
-    let uris = case (fromRange <$> limit) of
-                   Nothing     -> env^.turnServers
-                   Just (lim)  -> limitedList (env^.turnServers) lim
-    randomizedUris <- liftIO $ randomize uris
-    srvs <- for randomizedUris $ \uri -> do
+    -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
+    randomizedUris <- liftIO $ randomize (env^.turnServers)
+    let limitedUris = case (fromRange <$> limit) of
+                   Nothing     -> randomizedUris
+                   Just (lim)  -> limitedList (randomizedUris) lim
+    -- randomize again (as limitedList partially re-orders uris)
+    finalUris <- liftIO $ randomize limitedUris
+    srvs <- for finalUris $ \uri -> do
                 u <- liftIO $ genUsername tTTL prng
                 pure $ rtcIceServer (List1.singleton uri) u (computeCred sha secret u)
     pure $ rtcConfiguration srvs cTTL
