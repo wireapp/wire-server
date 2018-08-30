@@ -92,8 +92,8 @@ newConfig env limit = do
     -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
     randomizedUris <- liftIO $ randomize (env^.turnServers)
     let limitedUris = case limit of
-                   Nothing     -> randomizedUris
-                   Just (lim)  -> limitedList (randomizedUris) lim
+               Nothing  -> randomizedUris
+               Just lim -> limitedList randomizedUris lim
     -- randomize again (as limitedList partially re-orders uris)
     finalUris <- liftIO $ randomize limitedUris
     srvs <- for finalUris $ \uri -> do

@@ -51,6 +51,7 @@ import           Data.Attoparsec.Text       hiding (parse)
 import           Data.ByteString            (ByteString)
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Conversion as BC
+import           Data.List (partition)
 import           Data.List1
 import           Data.Misc                  (Port (..))
 import           Data.Monoid
@@ -275,43 +276,25 @@ optional x = option Nothing (Just <$> x)
 --    ... etc
 -- if not enough servers are available, prefer udp, then tls
 limitServers :: [TurnURI] -> Int -> [TurnURI]
-limitServers uris = limitHeuristic [] (splitByType ([],[],[],[]) uris)
+limitServers uris lim = limitServers' [] lim uris
   where
-    splitByType acc       [] = acc
-    splitByType (a,b,c,d) (x:xs)
-        | isUdp x   = splitByType (x:a, b  , c  ,  d) xs
-        | isTls x   = splitByType (a  , x:b, c  ,  d) xs
-        | isTcp x   = splitByType (a  , b  , x:c,  d) xs
-        | otherwise = splitByType (a  , b  , c  ,x:d) xs
+    limitServers' acc 0 _     = acc -- Already have accumulated enough
+    limitServers' acc _ []    = acc -- No more input
+    limitServers' acc _ input = do
+        let (udps, noUdps) = partition isUdp input
+            (udp, forTls)  = (Prelude.take 1 udps, noUdps ++ drop 1 udps)
 
--- | helper function for 'limitServers'
-limitHeuristic :: [TurnURI]
-  -> ([TurnURI], [TurnURI], [TurnURI], [TurnURI])
-  -> Int
-  -> [TurnURI]
--- case at least one of each available
-limitHeuristic xs (udp:udps, tls:tlss, tcp:tcps, o) lim = case lim - length(xs) of
-        x | x >= 3 ->  limitHeuristic (udp:tls:tcp:xs) (udps, tlss, tcps, o) lim
-        2          ->  limitHeuristic (udp:tls:xs) (udps, tlss, tcp:tcps, o) lim
-        1          ->  limitHeuristic (udp:xs) (udps, tls:tlss, tcp:tcps, o) lim
-        _          -> xs
--- case at least one of udp/tls available
-limitHeuristic xs (udp:udps, tls:tlss, [], o) lim = case lim - length(xs) of
-        x | x >= 2 ->  limitHeuristic (udp:tls:xs) (udps, tlss, [], o) lim
-        1          ->  limitHeuristic (udp:xs) (udps, tls:tlss, [], o) lim
-        _          -> xs
--- case at least one udp available
-limitHeuristic xs (udp:udps, tlss, tcps, o) lim = case lim - length(xs) of
-        x | x >= 1 ->  limitHeuristic (udp:xs) (udps, tlss, tcps, o) lim
-        _          -> xs
--- case at least one tls available
-limitHeuristic xs (udps, tls:tlss, tcps, o) lim = case lim - length(xs) of
-        x | x >= 1 ->  limitHeuristic (tls:xs) (udps, tlss, tcps, o) lim
-        _          -> xs
--- case limit not reached yet, but no more udp/tls: fill with whatever is left
-limitHeuristic xs (udps, tlss, tcps, o) lim = case lim - length(xs) of
-        x | x >= 1 -> (Prelude.take x (udps++tlss++tcps++o))++xs
-        _          -> xs
+            (tlss, noTlss) = partition isTls forTls
+            (tls, forTcp)  = (Prelude.take 1 tlss, noTlss ++ drop 1 tlss)
+
+            (tcps, noTcps) = partition isTcp forTcp
+            (tcp, rest)    = (Prelude.take 1 tcps, noTcps ++ drop 1 tcps)
+
+            new = udp ++ tls ++ tcp
+            newAcc = Prelude.take lim $ acc ++ new
+        if null new -- Did we find anything interesting? If not, time to go
+            then Prelude.take lim $ acc ++ rest
+            else limitServers' newAcc (lim - length newAcc) rest
 
 isUdp :: TurnURI -> Bool
 isUdp uri = uri^.turiScheme == SchemeTurn
