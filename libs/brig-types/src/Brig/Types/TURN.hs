@@ -51,7 +51,6 @@ import           Data.Attoparsec.Text       hiding (parse)
 import           Data.ByteString            (ByteString)
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Conversion as BC
-import           Data.List ((\\))
 import           Data.List1
 import           Data.Misc                  (Port (..))
 import           Data.Monoid
@@ -276,14 +275,14 @@ optional x = option Nothing (Just <$> x)
 --    ... etc
 -- if not enough servers are available, prefer udp, then tls
 limitServers :: [TurnURI] -> Int -> [TurnURI]
-limitServers uris lim = do
-    let udps = filter isUdp uris
-        tcps = filter isTcp uris
-        tlss = filter isTls uris
-        -- is there an easier way to write others?
-        others = ((uris \\ udps) \\ tlss) \\ tcps
-        -- others = filter (liftM not (liftM2 (&&) udp (liftM2 (&&) tcp tls))) ?
-        in limitHeuristic [] (udps,tlss,tcps,others) lim
+limitServers uris = limitHeuristic [] (splitByType ([],[],[],[]) uris)
+  where
+    splitByType acc       [] = acc
+    splitByType (a,b,c,d) (x:xs)
+        | isUdp x   = splitByType (x:a, b  , c  ,  d) xs
+        | isTls x   = splitByType (a  , x:b, c  ,  d) xs
+        | isTcp x   = splitByType (a  , b  , x:c,  d) xs
+        | otherwise = splitByType (a  , b  , c  ,x:d) xs
 
 -- | helper function for 'limitServers'
 limitHeuristic :: [TurnURI]
