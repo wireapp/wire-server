@@ -19,17 +19,7 @@
 -- FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( TestEnv(..)
-  , teMgr, teCql, teBrig, teGalley, teSpar
-  , teNewIdP, teUserId, teTeamId, teIdP, teIdPHandle, teIdPChan
-  , teOpts, teTstOpts
-  , Select, mkEnv, destroyEnv, passes, it, pending, pendingWith
-  , IntegrationConfig(..)
-  , BrigReq
-  , GalleyReq
-  , SparReq
-  , ResponseLBS
-  , TestErrorLabel(..)
+  ( mkEnv, destroyEnv, passes, it, pending, pendingWith
   , createUserWithTeam
   , createTeamMember
   , createRandomPhoneUser
@@ -37,6 +27,7 @@ module Util
   , shouldRespondWith
   , call
   , ping
+  , makeIssuer
   , makeTestNewIdP
   , createTestIdPFrom
   , negotiateAuthnRequest
@@ -51,6 +42,7 @@ module Util
   , initCassandra
   , module Test.Hspec
   , module Util.MockIdP
+  , module Util.Types
   ) where
 
 import Bilge
@@ -68,6 +60,7 @@ import Data.ByteString.Conversion
 import Data.Either
 import Data.EitherR (fmapL)
 import Data.Id
+import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
 import Data.Range
@@ -89,7 +82,6 @@ import System.Random (randomRIO)
 import Test.Hspec hiding (it, xit, pending, pendingWith)
 import URI.ByteString
 import Util.MockIdP
-import Util.Options
 import Util.Types
 
 import qualified Brig.Types.Activation as Brig
@@ -115,9 +107,10 @@ mkEnv _teTstOpts _teOpts = do
   let _teBrig    = endpointToReq (cfgBrig   _teTstOpts)
       _teGalley  = endpointToReq (cfgGalley _teTstOpts)
       _teSpar    = endpointToReq (cfgSpar   _teTstOpts)
-      _teNewIdP  = cfgNewIdp _teTstOpts
+      _teNewIdP  = NewIdP (mockidpMetadataURI mockidp) (mockidpDSigCert mockidp)
+      mockidp    = cfgMockIdp _teTstOpts
 
-  (app, _teIdPChan) <- serveSampleIdP _teNewIdP
+  (app, _teIdPChan) <- serveSampleIdP _teNewIdP makeIssuer (mockidpRequestURI mockidp)
   let srv     = Warp.runTLS tlss defs app
       tlss    = Warp.tlsSettings (mockidpCert mocktls) (mockidpPrivateKey mocktls)
       mocktls = cfgMockIdp _teTstOpts
@@ -356,16 +349,24 @@ ping :: (Request -> Request) -> Http ()
 ping req = void . get $ req . path "/i/status" . expect2xx
 
 
+makeIssuer :: MonadIO m => m Issuer
+makeIssuer = do
+  uuid <- liftIO UUID.nextRandom
+  either (liftIO . throwIO . ErrorCall . show)
+         (pure . Issuer)
+         (SAML.parseURI' ("https://issuer/_" <> UUID.toText uuid))
+
 -- | Create a cloned 'NewIdP' corresponding to the mock idp from the config and suitable for
 -- registering with spar.  The issuer id can be used to do this several times without getting the
 -- error that this issuer is already used for another team.
-makeTestNewIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m NewIdP
+makeTestNewIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m (NewIdP, IdPMetadata)
 makeTestNewIdP = do
   env <- ask
-  issuerid <- liftIO $ UUID.nextRandom
-  let Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp . to mockidpConnect
-      mkurl = either (error . show) id . SAML.parseURI' . (("http://" <> ephost <> ":" <> epport) <>)
-  pure $ (env ^. teNewIdP) & nidpIssuer .~ Issuer (mkurl $ "/_" <> UUID.toText issuerid)
+  let idp    = env ^. teNewIdP
+      requri = env ^. teTstOpts . to cfgMockIdp . to mockidpRequestURI
+      cert   = env ^. teTstOpts . to cfgMockIdp . to mockidpDSigCert
+  issuer <- makeIssuer
+  pure (idp, IdPMetadata issuer requri (cert :| []))
 
 
 -- | Create new user, team, idp from given 'NewIdP'.

@@ -40,6 +40,7 @@ import Control.Monad.Reader
 import Data.Either
 import Data.EitherR (fmapL)
 import Data.Id
+import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Maybe (isJust, fromJust)
 import Data.Proxy
 import Data.String.Conversions
@@ -60,6 +61,7 @@ import Spar.Options
 import Spar.Types
 
 import qualified Data.ByteString as SBS
+import qualified Data.X509 as X509
 import qualified Network.HTTP.Client as Rq
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
@@ -185,8 +187,7 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
 idpCreate :: ZUsr -> SAML.NewIdP -> Spar IdP
 idpCreate zusr newIdP = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- getZUsrOwnedTeam zusr
-  validateNewIdP newIdP
-  idp <- initializeIdP newIdP teamid
+  idp <- validateNewIdP newIdP teamid
   SAML.storeIdPConfig idp
   pure idp
 
@@ -215,19 +216,19 @@ getZUsrOwnedTeam (Just uid) = do
     Nothing -> throwSpar SparNotInTeam
     Just teamid -> teamid <$ Intra.assertIsTeamOwner uid teamid
 
-initializeIdP :: SAML.NewIdP -> TeamId -> Spar IdP
-initializeIdP (SAML.NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpeTeam = do
-  _idpId <- SAML.IdPId <$> SAML.createUUID
-  _idpeSPInfo <- wrapMonadClientWithEnv $ Data.getSPInfo _idpId
-  let _idpExtraInfo = IdPExtra { _idpeTeam, _idpeSPInfo }
-  pure SAML.IdPConfig {..}
-
 
 -- | FUTUREWORK: much of this function could move to the saml2-web-sso package.
 validateNewIdP :: forall m. (HasCallStack, m ~ Spar)
-               => SAML.NewIdP -> m ()
-validateNewIdP newidp = do
-  wrapMonadClient (Data.getIdPIdByIssuer (newidp ^. SAML.nidpIssuer)) >>= \case
+               => SAML.NewIdP -> TeamId -> m IdP
+validateNewIdP (SAML.NewIdP _idpMetadataURI metadataPublicKey) _idpeTeam = do
+  _idpId <- SAML.IdPId <$> SAML.createUUID
+  _idpeSPInfo <- wrapMonadClientWithEnv $ Data.getSPInfo _idpId
+  let _idpExtraInfo = IdPExtra { _idpeTeam, _idpeSPInfo }
+
+  _idpMetadata :: SAML.IdPMetadata
+    <- fetchMetadata _idpMetadataURI metadataPublicKey
+
+  wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
     Nothing -> pure ()
     Just _ -> throwSpar SparNewIdPAlreadyInUse
     -- each idp (issuer) can only be created once.  if you want to update (one of) your team's
@@ -241,14 +242,18 @@ validateNewIdP newidp = do
     -- idp to decide this for us, we would have to think of a way to prevent rogue idps from
     -- creating users in victim teams.
 
-  let uri2req :: URI.URI -> m Request
-      uri2req = either (throwSpar . SparNewIdPBadMetaUrl . cs . show) pure
-              . Rq.parseRequest . cs . SAML.renderURI
+  pure SAML.IdPConfig {..}
 
-      fetch :: URI.URI -> (Request -> Request) -> m (Bilge.Response (Maybe LBS))
+fetchMetadata :: forall m. (HasCallStack, m ~ Spar) => URI.URI -> X509.SignedCertificate -> m SAML.IdPMetadata
+fetchMetadata metadataUrl pubkey = do
+  let fetch :: URI.URI -> (Request -> Request) -> m (Bilge.Response (Maybe LBS))
       fetch uri modify = do
         req <- uri2req uri
         ntm (httpLbs req modify)
+
+      uri2req :: URI.URI -> m Request
+      uri2req = either (throwSpar . SparNewIdPBadMetaUrl . cs . show) pure
+              . Rq.parseRequest . cs . SAML.renderURI
 
       -- natural transformation into 'm'.  needed for the http client that fetches the metadata url.
       -- if 'IO' throws an exception, we capture it with 'try' and re-throw it inside 'm', which
@@ -260,19 +265,18 @@ validateNewIdP newidp = do
         either (throwSpar . SparNewIdPBadMetaUrl . cs . show @SomeException) pure result
 
   metaResp :: Bilge.Response (Maybe LBS)
-    <- fetch (newidp ^. SAML.nidpMetadata) (method GET . expect2xx)
+    <- fetch metadataUrl (method GET . expect2xx)
   metaBody :: LBS
     <- maybe (throwSpar $ SparNewIdPBadMetaUrl "No body in response.") pure $ responseBody metaResp
   when (isLeft $ do
-           creds <- SAML.certToCreds $ newidp ^. SAML.nidpPublicKey
-           SAML.verifyRoot creds metaBody) $ do
+           creds <- SAML.certToCreds pubkey
+           SAML.verifyRoot (creds :| []) metaBody) $ do
     throwSpar SparNewIdPBadMetaSig
-  meta :: SAML.IdPDesc
+  meta :: SAML.IdPMetadata
     <- either (throwSpar . SparNewIdPBadMetaUrl . cs) pure $ do
          XML.Document _ el _ <- fmapL show $ XML.parseLBS XML.def metaBody
-         SAML.parseIdPDesc el
-  when (newidp ^. SAML.nidpPublicKey `notElem` meta ^. SAML.edPublicKeys) $
-    throwSpar SparNewIdPPubkeyMismatch
+         SAML.parseIdPMetadata el
+  pure meta
 
 
 -- | Type families to convert spar's 'API' type into an "outside-world-view" API type

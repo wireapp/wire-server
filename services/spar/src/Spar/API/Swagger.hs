@@ -115,6 +115,9 @@ instance ToSchema IdPExtra where
 instance ToSchema a => ToSchema (SAML.IdPConfig a) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
+instance ToSchema SAML.IdPMetadata where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
 instance ToSchema IdPList where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 

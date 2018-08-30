@@ -23,8 +23,6 @@ import Test.QuickCheck
 instance Arbitrary SAML.NewIdP where
   arbitrary = do
     _nidpMetadata   <- arbitrary
-    _nidpIssuer     <- arbitrary
-    _nidpRequestUri <- arbitrary
     _nidpPublicKey  <- arbitrary
     pure $ SAML.NewIdP {..}
 

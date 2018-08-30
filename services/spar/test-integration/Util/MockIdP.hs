@@ -20,7 +20,6 @@ import Control.Exception
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
-import Data.Maybe (fromMaybe)
 import Data.String
 import Data.String.Conversions
 import GHC.Stack
@@ -57,22 +56,32 @@ withMockIdP app go = do
 
 -- test applications
 
-serveSampleIdP :: HasCallStack => NewIdP -> IO (Application, TChan [Node])
-serveSampleIdP newidp = do
-  metaDflt <- sampleIdPMetadata newidp
+serveSampleIdP
+  :: HasCallStack
+  => NewIdP
+  -> IO Issuer  -- ^ every call to `/meta` is responded with a fresh issuer.  this is what we
+                -- want in most test cases: every idp is created only once.  to testing what
+                -- happens if we try to register the same idp twice, we just need to submit
+                -- custom metadata through the 'TChan'.
+  -> URI  -- ^ request URI
+  -> IO (Application, TChan [Node])
+serveSampleIdP newidp mkissuer requri = do
+  let mkMetaDflt = do
+        issuer <- mkissuer
+        sampleIdPMetadata newidp issuer requri
   chan <- atomically newTChan
-  let getNextMeta = atomically $ fromMaybe metaDflt <$> tryReadTChan chan
+  let getNextMeta = maybe mkMetaDflt pure =<< atomically (tryReadTChan chan)
       app req cont = case pathInfo req of
         ["meta"] -> cont . responseLBS status200 [] . renderLBS def . nodesToDoc =<< getNextMeta
         ["resp"] -> cont $ responseLBS status400 [] ""  -- we do that without the mock server, via 'mkAuthnResponse'
         _        -> cont $ responseLBS status404 [] ""
   pure (app, chan)
 
-sampleIdPMetadata :: NewIdP -> IO [Node]
-sampleIdPMetadata newidp = sampleIdPMetadata' sampleIdPPrivkey (newidp ^. nidpPublicKey) newidp
+sampleIdPMetadata :: MonadIO m => NewIdP -> Issuer -> URI -> m [Node]
+sampleIdPMetadata newidp issuer requri = sampleIdPMetadata' sampleIdPPrivkey (newidp ^. nidpPublicKey) issuer requri
 
-sampleIdPMetadata' :: SignPrivCreds -> X509.SignedCertificate -> NewIdP -> IO [Node]
-sampleIdPMetadata' privKey cert newidp = signElementIO privKey [xml|
+sampleIdPMetadata' :: MonadIO m => SignPrivCreds -> X509.SignedCertificate -> Issuer -> URI -> m [Node]
+sampleIdPMetadata' privKey cert issuer requri = liftIO $ signElementIO privKey [xml|
     <EntityDescriptor
       ID="#{descID}"
       entityID="#{entityID}"
@@ -84,8 +93,8 @@ sampleIdPMetadata' privKey cert newidp = signElementIO privKey [xml|
   |]
   where
     descID = "_0c29ba62-a541-11e8-8042-873ef87bdcba"
-    entityID = renderURI . _fromIssuer $ newidp ^. nidpIssuer
-    authnUrl = newidp ^. nidpRequestUri . to renderURI
+    entityID = renderURI $ issuer ^. fromIssuer
+    authnUrl = renderURI $ requri
     certNodes = case parseLBS def . cs . renderKeyInfo $ cert of
       Right (Document _ sc _) -> [NodeElement sc]
       bad -> error $ show bad
