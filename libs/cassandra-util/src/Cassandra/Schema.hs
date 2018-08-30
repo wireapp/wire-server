@@ -1,6 +1,7 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE DeriveGeneric          #-}
+{-# LANGUAGE OverloadedStrings      #-}
+{-# LANGUAGE RecordWildCards        #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
 
 module Cassandra.Schema
     ( Migration           (..)
@@ -18,11 +19,14 @@ module Cassandra.Schema
     ) where
 
 import Cassandra
+import Cassandra.Settings
 import Control.Applicative
-import Control.Monad.Catch
 import Control.Error
 import Control.Monad
+import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Control.Exception (throwIO, ErrorCall (..))
+import Control.Retry
 import Data.Aeson
 import Data.Int
 import Data.IORef
@@ -34,15 +38,17 @@ import Data.Text (Text, pack, intercalate)
 import Data.Text.Lazy (fromStrict)
 import Data.Text.Lazy.Builder (fromText, fromString, toLazyText)
 import Data.Time.Clock
+import Data.UUID (UUID)
 import Data.Word
 import Database.CQL.IO
 import Database.CQL.Protocol (Request (..), Query (..), Response(..), Result (..))
-import GHC.Generics hiding (to, from, S)
+import GHC.Generics hiding (to, from, S, R)
 import Options.Applicative hiding (info)
 import Prelude hiding (log)
 import System.Logger (Logger, Level (..), log, msg)
 
 import qualified Data.Text.Lazy as LT
+import qualified Data.List.NonEmpty as NonEmpty
 
 data Migration = Migration
     { migVersion :: Int32
@@ -141,12 +147,24 @@ useKeyspace (Keyspace k) = do
 
 migrateSchema :: Logger -> MigrationOpts -> [Migration] -> IO ()
 migrateSchema l o ms = do
+    -- if migHost is a DNS name, resolve it and connect to all nodes
+    hosts <- initialContactsDNS $ pack (migHost o)
     p <- Database.CQL.IO.init l $
-            setContacts (migHost o) []
+            setContacts (NonEmpty.head hosts) (NonEmpty.tail hosts)
           . setPortNumber (fromIntegral $ migPort o)
           . setMaxConnections 1
           . setPoolStripes 1
+          -- 'migrationPolicy' ensures we only talk to one host for all queries
+          -- required for correct functioning of 'waitForSchemaConsistency'
           . setPolicy migrationPolicy
+          -- use higher timeouts on schema migrations to reduce the probability
+          -- of a timeout happening during 'migAction' or 'metaInsert',
+          -- as that can lead to a state where schema migrations cannot be re-run
+          -- without manual action.
+          -- (due to e.g. "cannot create table X, already exists" errors)
+          . setConnectTimeout 20
+          . setSendTimeout 20
+          . setResponseTimeout 50
           . setProtocolVersion V3
           $ defSettings
     runClient p $ do
@@ -166,6 +184,9 @@ migrateSchema l o ms = do
             migAction
             now <- liftIO getCurrentTime
             write metaInsert (params All (migVersion, migText, now))
+            info "Waiting for schema version consistency across peers..."
+            waitForSchemaConsistency
+            info "... done waiting."
   where
     newer v = dropWhile (maybe (const False) (>=) v . migVersion)
             . sortBy (\x y -> migVersion x `compare` migVersion y)
@@ -182,6 +203,49 @@ migrateSchema l o ms = do
     metaInsert :: QueryString W (Int32, Text, UTCTime) ()
     metaInsert = "insert into meta (id, version, descr, date) values (1,?,?,?)"
 
+-- | Retrieve and compare local and peer system schema versions.
+-- if they don't match, retry once per second for 30 seconds
+waitForSchemaConsistency :: Client ()
+waitForSchemaConsistency = do
+    void $ retryWhileN 30 inDisagreement getSystemVersions
+  where
+    getSystemVersions :: Client (UUID, [UUID])
+    getSystemVersions = do
+        -- These two sub-queries must be made to the same node.
+        -- (comparing local from node A and peers from node B wouldn't be correct)
+        -- using the custom 'migrationPolicy' when connecting to cassandra ensures this.
+        local <- systemLocalVersion
+        peers <- systemPeerVersions
+        case local of
+            Just localVersion -> return $ (localVersion, peers)
+            Nothing           -> liftIO $ throwIO $ ErrorCall
+                "No system_version in system.local (should not happen)"
+
+    inDisagreement :: (UUID, [UUID]) -> Bool
+    inDisagreement (localVersion, peers) = not $ all (== localVersion) peers
+
+    systemPeerVersions :: Client [UUID]
+    systemPeerVersions = fmap runIdentity <$> qry
+      where
+        qry = retry x1 (query cql (params One ()))
+
+        cql :: PrepQuery R () (Identity UUID)
+        cql = "select schema_version from system.peers"
+
+    systemLocalVersion :: Client (Maybe UUID)
+    systemLocalVersion = fmap runIdentity <$> qry
+      where
+        qry = retry x1 (query1 cql (params One ()))
+
+        cql :: PrepQuery R () (Identity UUID)
+        cql = "select schema_version from system.local"
+
+retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
+retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
+                             (const (return . f))
+                             (const m)
+
+-- | The migrationPolicy selects only one and always the same host
 migrationPolicy :: IO Policy
 migrationPolicy = do
     h <- newIORef Nothing
