@@ -18,8 +18,8 @@ tests = testGroup "TURN"
 turnURIid :: TurnURI -> Property
 turnURIid t = Just t === (decode . encode) t
 
-lengthMaxProp :: [TurnURI] -> Property
-lengthMaxProp uris = length (limitServers uris 3) === min 3 (length uris)
+lengthMaxProp :: (ZeroToTen, [TurnURI]) -> Property
+lengthMaxProp (ZeroToTen len, uris) = length (limitServers uris len) === min len (length uris)
 
 udpPriority :: [TurnURI] -> Bool
 udpPriority uris = do
@@ -28,3 +28,10 @@ udpPriority uris = do
         length (filter isUdp (limitServers uris 4)) >= 2
     else
         True
+
+
+newtype ZeroToTen = ZeroToTen Int
+  deriving (Eq, Show)
+
+instance Arbitrary ZeroToTen where
+  arbitrary = ZeroToTen <$> choose (0, 10)
