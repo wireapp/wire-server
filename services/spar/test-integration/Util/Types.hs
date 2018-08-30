@@ -54,30 +54,33 @@ import Spar.API ()
 import Spar.Options as Options
 import Spar.Types
 import Text.XML
+import URI.ByteString
 import Util.Options
 
 import qualified Control.Concurrent.Async as Async
 import qualified Data.Aeson as Aeson
+import qualified Data.X509 as X509
 
 
 type BrigReq   = Request -> Request
 type GalleyReq = Request -> Request
 type SparReq   = Request -> Request
 
+-- | See 'mkEnv' about what's in here.
 data TestEnv = TestEnv
   { _teMgr         :: Manager
   , _teCql         :: Cas.ClientState
   , _teBrig        :: BrigReq
   , _teGalley      :: GalleyReq
   , _teSpar        :: SparReq
-  , _teNewIdP      :: SAML.NewIdP
-  , _teUserId      :: UserId
-  , _teTeamId      :: TeamId
-  , _teIdP         :: IdP
-  , _teIdPChan     :: TChan [Node]
-  , _teIdPHandle   :: Async.Async ()
-  , _teOpts        :: Opts
-  , _teTstOpts     :: IntegrationConfig
+  , _teNewIdP      :: SAML.NewIdP        -- ^ used for registering the mock idp with spar
+  , _teUserId      :: UserId             -- ^ owner of the mock idp's home team
+  , _teTeamId      :: TeamId             -- ^ home team of the mock idp
+  , _teIdP         :: IdP                -- ^ mock idp details
+  , _teIdPChan     :: TChan [Node]       -- ^ channel for feeding (broken) metadata values for testing error handling
+  , _teIdPHandle   :: Async.Async ()     -- ^ mock idp thread handle
+  , _teOpts        :: Opts               -- ^ spar config
+  , _teTstOpts     :: IntegrationConfig  -- ^ integration test config
   }
 
 type Select = TestEnv -> (Request -> Request)
@@ -88,16 +91,19 @@ data IntegrationConfig = IntegrationConfig
   { cfgBrig    :: Endpoint
   , cfgGalley  :: Endpoint
   , cfgSpar    :: Endpoint
-  , cfgNewIdp  :: SAML.NewIdP
   , cfgMockIdp :: MockIdPConfig
   } deriving (Show, Generic)
 
 data MockIdPConfig = MockIdPConfig
-  { mockidpBind       :: Endpoint
-  , mockidpConnect    :: Endpoint
-  , mockidpPrivateKey :: FilePath
-  , mockidpPublicKey  :: FilePath
-  , mockidpCert       :: FilePath
+  { mockidpBind        :: Endpoint
+  , mockidpConnect     :: Endpoint
+  , mockidpPrivateKey  :: FilePath
+  , mockidpPublicKey   :: FilePath
+  , mockidpCert        :: FilePath
+  , mockidpMetadataURI :: URI
+  , mockidpIssuer      :: Issuer
+  , mockidpRequestURI  :: URI
+  , mockidpDSigCert    :: X509.SignedCertificate
   } deriving (Show, Generic)
 
 deriveFromJSON deriveJSONOptions ''IntegrationConfig

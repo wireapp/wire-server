@@ -29,6 +29,7 @@ import SAML2.WebSSO.Test.Credentials
 import SAML2.WebSSO.Test.MockResponse
 import Spar.Types
 import Text.XML
+import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
 
@@ -236,7 +237,7 @@ spec = do
         context "some idps are registered" $ do
           it "returns a non-empty empty list" $ do
             env <- ask
-            newidp <- makeTestNewIdP
+            (newidp, _) <- makeTestNewIdP
             (owner, _, _) <- createTestIdPFrom newidp (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
             callIdpGetAll (env ^. teSpar) (Just owner)
               `shouldRespondWith` (not . null . _idplProviders)
@@ -299,13 +300,13 @@ spec = do
           --
           -- spar will request the metadata url; validate the metadata received from the mock idp we
           -- just loaded here; and return the expected error (or not).
-          createIdpMockErr :: HasCallStack => Maybe (NewIdP -> IO [Node]) -> TestErrorLabel -> ReaderT TestEnv IO ()
-          createIdpMockErr metadata errlabel = do
+          createIdpMockErr :: HasCallStack => Maybe (Issuer -> URI -> IO [Node]) -> TestErrorLabel -> ReaderT TestEnv IO ()
+          createIdpMockErr mkMetadata errlabel = do
             env <- ask
-            newidp <- makeTestNewIdP
-            case metadata of
+            (newidp, IdPMetadata issuer requri _certs) <- makeTestNewIdP
+            case mkMetadata of
               Nothing -> pure ()
-              Just mk -> liftIO $ mk newidp >>= atomically . writeTChan (env ^. teIdPChan)
+              Just mk -> liftIO $ mk issuer requri >>= atomically . writeTChan (env ^. teIdPChan)
             callIdpCreate' (env ^. teSpar) (Just (env ^. teUserId)) newidp
               `shouldRespondWith` checkErr (== 400) errlabel
 
@@ -316,7 +317,7 @@ spec = do
       context "bad metadata answer" $ do
         it "rejects" $ do
           createIdpMockErr
-            (Just . const . pure $ [NodeElement (Element "bloo" mempty mempty)])
+            (Just $ \_ _ -> pure [NodeElement (Element "bloo" mempty mempty)])
             "invalid-signature"  -- well, this is just what it checks first...
 
       context "invalid metadata signature" $ do
@@ -325,29 +326,34 @@ spec = do
             (Just $ sampleIdPMetadata' sampleIdPPrivkey2 sampleIdPCert)
             "invalid-signature"
 
-      context "pubkey in IdPConfig does not match the one provided in metadata url" $ do
-        it "rejects" $ do
-          createIdpMockErr
-            (Just $ sampleIdPMetadata' sampleIdPPrivkey sampleIdPCert2)
-            "key-mismatch"
-
       context "idp (identified by issuer) is in use by other team" $ do
         it "rejects" $ do
           env <- ask
+          let newidp = env ^. teNewIdP
+              requri = env ^. teTstOpts . to cfgMockIdp . to mockidpRequestURI
+          resetMeta <- do
+            issuer <- makeIssuer
+            metadata <- sampleIdPMetadata newidp issuer requri
+            pure . liftIO . atomically $ writeTChan (env ^. teIdPChan) metadata
+
           (uid1, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           (uid2, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          newidp    <- makeTestNewIdP
+          resetMeta
           resp1     <- call $ callIdpCreate' (env ^. teSpar) (Just uid1) newidp
-          resp2     <- call $ callIdpCreate' (env ^. teSpar) (Just uid2) newidp
+          resetMeta
+          resp2     <- call $ callIdpCreate' (env ^. teSpar) (Just uid1) newidp
+          resetMeta
+          resp3     <- call $ callIdpCreate' (env ^. teSpar) (Just uid2) newidp
           liftIO $ do
             statusCode resp1 `shouldBe` 201
             statusCode resp2 `shouldBe` 400
+            statusCode resp3 `shouldBe` 400
             responseJSON resp2 `shouldBe` Right (TestErrorLabel "idp-already-in-use")
 
       context "everything in order" $ do
         it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
           env <- ask
-          newidp <- makeTestNewIdP
+          (newidp, _) <- makeTestNewIdP
           idp <- call $ callIdpCreate (env ^. teSpar) (Just (env ^. teUserId)) newidp
           idp' <- call $ callIdpGet (env ^. teSpar) (Just (env ^. teUserId)) (idp ^. idpId)
           liftIO $ idp `shouldBe` idp'
