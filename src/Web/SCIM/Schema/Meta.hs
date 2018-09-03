@@ -33,7 +33,8 @@ data Meta = Meta
   , location :: URI
   } deriving (Eq, Show, Generic)
 
-instance ToJSON Meta
+instance ToJSON Meta where
+  toJSON = genericToJSON serializeOptions
 
 data WithMeta a = WithMeta
   { meta :: Meta

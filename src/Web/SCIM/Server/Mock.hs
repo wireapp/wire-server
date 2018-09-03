@@ -2,6 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DataKinds       #-}
 {-# LANGUAGE TypeOperators   #-}
+{-# LANGUAGE LambdaCase      #-}
 
 -- | A mock server for use in our testsuite, as well as for automated
 -- compliance testing (e.g. with Runscope – see
@@ -11,29 +12,33 @@ module Web.SCIM.Server.Mock where
 
 import           Web.SCIM.Class.Group
 import           Web.SCIM.Class.User
+import           Web.SCIM.Class.Auth
 import           Control.Monad.STM
 import           Control.Monad.Reader
 import           Data.Text
+import           Data.Text.Encoding
 import           Data.Time.Clock
 import           Data.Time.Calendar
 import           ListT
-import qualified STMContainers.Map as Map
-import           STMContainers.Map    (Map)
+import qualified STMContainers.Map as STMMap
 import           Web.SCIM.Schema.User
 import           Web.SCIM.Schema.Meta
 import           Web.SCIM.Schema.ListResponse
 import           Web.SCIM.Schema.Common (WithId(WithId))
 import qualified Web.SCIM.Schema.Common     as Common
-import           Servant
+import           Servant hiding (BadPassword, NoSuchUser)
+import           Servant.Auth.Server
 
 import Prelude hiding (id)
 
-type UserStorage = Map Text StoredUser
-type GroupStorage = Map Text StoredGroup
+type UserStorage  = STMMap.Map Text StoredUser
+type GroupStorage = STMMap.Map Text StoredGroup
+type AdminStorage = STMMap.Map Text (Admin, Text) -- (Admin, Pass)
 
 data TestStorage = TestStorage
   { userDB :: UserStorage
   , groupDB :: GroupStorage
+  , authDB :: AdminStorage
   }
 
 -- in-memory implementation of the API for tests
@@ -45,11 +50,11 @@ liftAtomic = liftIO . atomically
 instance UserDB TestServer where
   list = do
     m <- userDB <$> ask
-    l <- liftIO . atomically $ ListT.toList $ Map.stream m
+    l <- liftIO . atomically $ ListT.toList $ STMMap.stream m
     return $ fromList $ snd <$> l
   get i = do
     m <- userDB <$> ask
-    liftIO . atomically $ Map.lookup i m
+    liftIO . atomically $ STMMap.lookup i m
   create user = do
     m <- userDB <$> ask
     met <- getMeta
@@ -67,11 +72,11 @@ instance UserDB TestServer where
 instance GroupDB TestServer where
   list = do
     m <- groupDB <$> ask
-    l <- liftIO . atomically $ ListT.toList $ Map.stream m
+    l <- liftIO . atomically $ ListT.toList $ STMMap.stream m
     return $ snd <$> l
   get i = do
     m <- groupDB <$> ask
-    liftIO . atomically $ Map.lookup i m
+    liftIO . atomically $ STMMap.lookup i m
   create = \grp -> do
     storage <- groupDB <$> ask
     met <- getGroupMeta
@@ -85,34 +90,44 @@ instance GroupDB TestServer where
     liftIO . atomically $ delGroup gid m
   getGroupMeta = createMeta GroupResource
 
+instance AuthDB TestServer where
+  mkAuthChecker = do
+    m <- authDB <$> ask
+    pure $ \(BasicAuthData login pass) ->
+      atomically (STMMap.lookup (decodeUtf8 login) m) >>= \case
+        Just (admin, adminPass)
+          | decodeUtf8 pass == adminPass -> pure (Authenticated admin)
+          | otherwise -> pure BadPassword
+        Nothing -> pure NoSuchUser
+
 insertGroup :: Group -> Meta -> GroupStorage -> STM StoredGroup
 insertGroup grp met storage = do
-  size <- Map.size storage
+  size <- STMMap.size storage
   let gid = pack . show $ size
       newGroup = WithMeta met $ WithId gid grp
-  Map.insert newGroup gid storage
+  STMMap.insert newGroup gid storage
   return newGroup
 
 updateGroup :: GroupId -> Group -> GroupStorage  -> STM (Either ServantErr StoredGroup)
 updateGroup gid grp storage = do
-  existing <- Map.lookup gid storage
+  existing <- STMMap.lookup gid storage
   case existing of
     Nothing -> pure $ Left err400
     Just stored -> do
       let newMeta = meta stored
           newGroup = WithMeta newMeta $ WithId gid grp
-      Map.insert newGroup gid storage
+      STMMap.insert newGroup gid storage
       pure $ Right newGroup
 
 updateUser :: UserId -> User -> UserStorage  -> STM (Either UpdateError StoredUser)
 updateUser uid user storage = do
-  existing <- Map.lookup uid storage
+  existing <- STMMap.lookup uid storage
   case existing of
     Nothing -> pure $ Left NonExisting
     Just stored -> do
       let newMeta = meta stored
           newUser = WithMeta newMeta $ WithId uid user
-      Map.insert newUser uid storage
+      STMMap.insert newUser uid storage
       pure $ Right newUser
 
 -- (there seems to be no readOnly fields in User)
@@ -121,17 +136,17 @@ assertMutability _newUser _stored = True
 
 delGroup :: GroupId -> GroupStorage -> STM Bool
 delGroup gid storage = do
-  g <- Map.lookup gid storage
+  g <- STMMap.lookup gid storage
   case g of
     Nothing -> return False
-    Just _ -> Map.delete gid storage >> return True
+    Just _ -> STMMap.delete gid storage >> return True
 
 delUser :: UserId -> UserStorage -> STM Bool
 delUser uid storage = do
-  u <- Map.lookup uid storage
+  u <- STMMap.lookup uid storage
   case u of
     Nothing -> return False
-    Just _ -> Map.delete uid storage >> return True
+    Just _ -> STMMap.delete uid storage >> return True
 
 -- 2018-01-01 00:00
 testDate :: UTCTime
@@ -153,10 +168,10 @@ createMeta rType = return $ Meta
 -- insert with a simple incrementing integer id (good for testing)
 insertUser :: User -> Meta -> UserStorage -> STM StoredUser
 insertUser user met storage = do
-  size <- Map.size storage
+  size <- STMMap.size storage
   let uid = pack . show $ size
       newUser = WithMeta met $ WithId uid user
-  Map.insert newUser uid storage
+  STMMap.insert newUser uid storage
   return newUser
 
 -- Natural transformation from our transformer stack to the Servant

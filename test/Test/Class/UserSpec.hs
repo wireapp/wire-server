@@ -1,52 +1,61 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Test.Class.UserSpec (spec) where
 
 import           Test.Util
 
-import           Web.SCIM.Capabilities.MetaSchema (empty)
-import           Web.SCIM.Server
+import           Web.SCIM.Server (mkapp, App, UserAPI, userServer)
 import           Web.SCIM.Server.Mock
 import           Test.Hspec
 import           Test.Hspec.Wai      hiding (post, put, patch)
 import           Data.ByteString.Lazy (ByteString)
-import qualified STMContainers.Map   as Map
+import           Servant (Proxy(Proxy), Handler)
+import           Servant.Generic
+import           Network.Wai (Application)
+import qualified STMContainers.Map   as STMMap
 
+
+app :: App m UserAPI => (forall a. m a -> Handler a) -> IO Application
+app = mkapp (Proxy :: Proxy UserAPI) (toServant userServer)
+
+storage :: IO TestStorage
+storage = TestStorage <$> STMMap.newIO <*> STMMap.newIO <*> STMMap.newIO
 
 spec :: Spec
-spec = beforeAll ((\s -> app empty (nt s)) <$> (TestStorage <$> Map.newIO <*> Map.newIO)) $ do
+spec = beforeAll ((\s -> app (nt s)) =<< storage) $ do
   describe "GET & POST /Users" $ do
     it "responds with [] in empty environment" $ do
-      get "/Users" `shouldRespondWith` emptyList
+      get "/" `shouldRespondWith` emptyList
 
     it "can insert then retrieve stored Users" $ do
-      post "/Users" newBarbara `shouldRespondWith` 201
-      get "/Users" `shouldRespondWith` users
+      post "/" newBarbara `shouldRespondWith` 201
+      get "/" `shouldRespondWith` users
 
   describe "GET /Users/:id" $ do
     it "responds with 404 for unknown user" $ do
-      get "/Users/unknown" `shouldRespondWith` unknown
+      get "/unknown" `shouldRespondWith` unknown
 
     it "retrieves stored user" $ do
       -- the test implementation stores users with uid [0,1..n-1]
-      get "/Users/0" `shouldRespondWith` barbara
+      get "/0" `shouldRespondWith` barbara
 
   describe "PUT /Users/:id" $ do
     it "updates mutable fields" $ do
-      put "/Users/0" barbUpdate0 `shouldRespondWith` updatedBarb0
+      put "/0" barbUpdate0 `shouldRespondWith` updatedBarb0
 
     it "does not create new user " $ do
-      put "/Users/nonexisting" newBarbara `shouldRespondWith` 400
+      put "/nonexisting" newBarbara `shouldRespondWith` 400
 
   describe "DELETE /Users/:id" $ do
     it "responds with 404 for unknown user" $ do
-      delete "/Users/unknown" `shouldRespondWith` 404
+      delete "/unknown" `shouldRespondWith` 404
 
     it "deletes a stored user" $ do
-      delete "/Users/0" `shouldRespondWith` 204
+      delete "/0" `shouldRespondWith` 204
       -- user should be gone
-      get    "/Users/0" `shouldRespondWith` 404
-      delete "/Users/0" `shouldRespondWith` 404
+      get    "/0" `shouldRespondWith` 404
+      delete "/0" `shouldRespondWith` 404
 
 
 newBarbara :: ByteString

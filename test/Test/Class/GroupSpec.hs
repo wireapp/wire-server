@@ -10,22 +10,23 @@ import           Test.Util
 import           Network.Wai (Application)
 import           Servant.Generic
 import           Servant (Proxy(Proxy), Handler)
-import           Web.SCIM.Class.Group (GroupAPI, GroupDB, groupServer)
-import           Web.SCIM.Server (mkapp, App)
+import           Web.SCIM.Server (mkapp, App, GroupAPI, groupServer)
 import           Web.SCIM.Server.Mock
 import           Data.ByteString.Lazy (ByteString)
 import           Test.Hspec hiding (shouldSatisfy)
 import           Test.Hspec.Wai      hiding (post, put, patch)
-import qualified STMContainers.Map   as Map
+import qualified STMContainers.Map   as STMMap
 
 
-app :: (GroupDB m, App m GroupAPI) => (forall a. m a -> Handler a) -> Application
+app :: App m GroupAPI => (forall a. m a -> Handler a) -> IO Application
 app = mkapp (Proxy :: Proxy GroupAPI) (toServant groupServer)
 
+storage :: IO TestStorage
+storage = TestStorage <$> STMMap.newIO <*> STMMap.newIO <*> STMMap.newIO
 
 spec :: Spec
-spec = beforeAll ((\s -> app (nt s)) <$> (TestStorage <$> Map.newIO <*> Map.newIO)) $ do
-  describe "GET & POST /" $ do
+spec = beforeAll ((\s -> app (nt s)) =<< storage) $ do
+  describe "GET & POST /Groups" $ do
     it "responds with [] in empty environment" $ do
       get "/" `shouldRespondWith` [scim|[]|]
 
@@ -33,7 +34,7 @@ spec = beforeAll ((\s -> app (nt s)) <$> (TestStorage <$> Map.newIO <*> Map.newI
       post "/" adminGroup `shouldRespondWith` 201
       get "/" `shouldRespondWith` groups
 
-  describe "GET /:id" $ do
+  describe "GET /Groups/:id" $ do
     it "responds with 404 for unknown group" $ do
       get "/unknown" `shouldRespondWith` unknown
 
@@ -41,14 +42,14 @@ spec = beforeAll ((\s -> app (nt s)) <$> (TestStorage <$> Map.newIO <*> Map.newI
       -- the test implementation stores users with uid [0,1..n-1]
       get "/0" `shouldRespondWith` admins
 
-  describe "PUT /:id" $ do
+  describe "PUT /Groups/:id" $ do
     it "adds member to existing group" $ do
       put "/0" adminUpdate0 `shouldRespondWith` updatedAdmins0
 
     it "does not create new group" $ do
       put "/nonexisting" adminGroup `shouldRespondWith` 400
 
-  describe "DELETE /:id" $ do
+  describe "DELETE /Groups/:id" $ do
     it "responds with 404 for unknown group" $ do
       delete "/Users/unknown" `shouldRespondWith` 404
 

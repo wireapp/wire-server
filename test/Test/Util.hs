@@ -90,7 +90,7 @@ newtype Field (s :: Symbol) a = Field a
 getField :: Field s a -> a
 getField (Field a) = a
 
--- Copied from http://hackage.haskell.org/package/aeson-extra-0.4.1.1/docs/src/Data.Aeson.Extra.SingObject.html
+-- Copied from https://hackage.haskell.org/package/aeson-extra-0.4.1.1/docs/src/Data.Aeson.Extra.SingObject.html
 instance (KnownSymbol s, FromJSON a) => FromJSON (Field s a) where
   parseJSON = withObject ("Field " <> show key) $ \obj ->
     case SMap.lookup key obj of

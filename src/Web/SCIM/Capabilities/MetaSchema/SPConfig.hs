@@ -5,6 +5,8 @@ module Web.SCIM.Capabilities.MetaSchema.SPConfig (spConfigSchema) where
 import Data.Aeson (Value)
 import Data.Aeson.QQ
 
+-- NB: it looks like 'authenticationSchemes' should also have a 'type'
+-- attribute. The sample schema from the RFC doesn't list it, though.
 spConfigSchema :: Value
 spConfigSchema = [aesonQQ|
 {

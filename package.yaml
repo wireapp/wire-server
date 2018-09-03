@@ -24,16 +24,20 @@ extra-source-files:
 
 dependencies:
   - base >= 4.7 && < 5
+  - bytestring
   - aeson
   - aeson-qq
   - mtl
   - servant
   - servant-server
+  - servant-auth
+  - servant-auth-server
   - servant-generic
   - text
   - time
   - wai
   - network-uri
+  - network-uri-static
   - unordered-containers
   - email-validate
   - errors
@@ -87,3 +91,4 @@ tests:
       - template-haskell
       - aeson-qq
       - wai-logger
+      - base64-bytestring

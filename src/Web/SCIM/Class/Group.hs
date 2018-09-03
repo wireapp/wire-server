@@ -11,7 +11,6 @@ module Web.SCIM.Class.Group (
   , GroupId
   , Member (..)
   , groupServer
-  , GroupAPI
   ) where
 
 import           Control.Monad.Except
@@ -28,7 +27,6 @@ import           Servant.Generic
 
 
 type GroupHandler m = (MonadError ServantErr m, GroupDB m)
-type GroupAPI = ToServant (GroupSite AsApi)
 
 type GroupId = Text
 
@@ -54,8 +52,11 @@ data Group = Group
   }
   deriving (Show, Eq, Generic)
 
-instance FromJSON Group
-instance ToJSON Group
+instance FromJSON Group where
+  parseJSON = genericParseJSON parseOptions . jsonLower
+
+instance ToJSON Group where
+  toJSON = genericToJSON serializeOptions
 
 type StoredGroup = WithMeta (WithId Group)
 

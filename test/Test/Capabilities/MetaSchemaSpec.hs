@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Test.Capabilities.MetaSchemaSpec (spec) where
 
@@ -13,6 +14,7 @@ import           Data.Monoid
 import           Data.Text (Text)
 import           Data.Coerce
 import           Web.SCIM.Capabilities.MetaSchema
+import           Web.SCIM.Server (ConfigAPI)
 import           Network.Wai.Test (SResponse (..))
 import           Servant
 import           Servant.Generic
@@ -20,11 +22,8 @@ import           Test.Hspec hiding (shouldSatisfy)
 import qualified Test.Hspec.Expectations as Expect
 import           Test.Hspec.Wai      hiding (post, put, patch)
 
-server :: Proxy (ToServant (ConfigAPI AsApi))
-server = Proxy
-
 app :: Application
-app = serve server $ toServant $ configServer empty
+app = serve (Proxy @ConfigAPI) $ toServant $ configServer empty
 
 shouldSatisfy :: (Show a, FromJSON a) =>
                  WaiSession SResponse -> (a -> Bool) -> WaiExpectation
@@ -70,11 +69,10 @@ spec = with (pure app) $ do
       get "/ServiceProviderConfig" `shouldRespondWith` spConfig
 
 
--- FIXME: missing some "supported" fields and URI should not be null
+-- FIXME: missing some "supported" fields
 spConfig :: ResponseMatcher
 spConfig = [scim|
-{"documentationUri":null,
- "schemas":["urn:ietf:params:scim:schemas:core:2.0:User",
+{"schemas":["urn:ietf:params:scim:schemas:core:2.0:User",
             "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig",
             "urn:ietf:params:scim:schemas:core:2.0:Group",
             "urn:ietf:params:scim:schemas:core:2.0:Schema",
@@ -85,7 +83,14 @@ spConfig = [scim|
          "supported":false
         },
  "patch":{"supported":false},
- "authenticationSchemes":[],
+ "authenticationSchemes":[
+   {"type":"httpbasic",
+    "name":"HTTP Basic",
+    "description":"Authentication via the HTTP Basic standard",
+    "specUri":"https://tools.ietf.org/html/rfc7617",
+    "documentationUri":"https://en.wikipedia.org/wiki/Basic_access_authentication"
+   }
+ ],
  "changePassword":{"supported":false},
  "sort":{"supported":false},
  "filter":{"maxResults":0,

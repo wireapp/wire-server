@@ -4,17 +4,18 @@
 {-# LANGUAGE ConstraintKinds   #-}
 
 module Web.SCIM.Capabilities.MetaSchema (
-  ConfigAPI
+  ConfigSite
   , configServer
   , Supported (..)
   , BulkConfig (..)
   , FilterConfig (..)
-  , AuthenticationScheme (..)
   , Configuration (..)
   , empty
   ) where
 
 import           Web.SCIM.Schema.Schema
+import           Web.SCIM.Schema.Common
+import           Web.SCIM.Schema.AuthenticationScheme
 import           Web.SCIM.Schema.ListResponse as ListResponse
 import           Web.SCIM.Capabilities.MetaSchema.User
 import           Web.SCIM.Capabilities.MetaSchema.SPConfig
@@ -28,7 +29,7 @@ import           Data.Aeson
 import qualified Data.HashMap.Lazy as HML
 import           Data.Text (Text)
 import           GHC.Generics (Generic)
-import           Servant
+import           Servant hiding (URI)
 import           Servant.Generic
 
 import           Prelude hiding (filter)
@@ -49,27 +50,18 @@ data BulkConfig = BulkConfig
   , maxPayloadSize :: Int
   } deriving (Show, Eq, Generic)
 
-instance ToJSON BulkConfig
+instance ToJSON BulkConfig where
+  toJSON = genericToJSON serializeOptions
 
 data FilterConfig = FilterConfig
   { maxResults :: Int
   } deriving (Show, Eq, Generic)
 
-instance ToJSON FilterConfig
-
--- TODO
-data AuthenticationScheme = AuthenticationScheme
-  { typ :: Text
-  , name :: Text
-  , description :: Text
-  , specUri :: Text -- TODO: URI
-  -- , documentationUri :: URI
-  } deriving (Show, Eq, Generic)
-
-instance ToJSON AuthenticationScheme
+instance ToJSON FilterConfig where
+  toJSON = genericToJSON serializeOptions
 
 data Configuration = Configuration
-  { documentationUri :: Maybe Text -- TODO: URI
+  { documentationUri :: Maybe URI
   , schemas :: [Schema]
   , patch :: Supported ()
   , bulk :: Supported BulkConfig
@@ -80,7 +72,8 @@ data Configuration = Configuration
   , authenticationSchemes :: [AuthenticationScheme]
   } deriving (Show, Eq, Generic)
 
-instance ToJSON Configuration
+instance ToJSON Configuration where
+  toJSON = genericToJSON serializeOptions
 
 empty :: Configuration
 empty = Configuration
@@ -97,12 +90,12 @@ empty = Configuration
   , changePassword = Supported False ()
   , sort = Supported False ()
   , etag = Supported False ()
-  , authenticationSchemes = []
+  , authenticationSchemes = [AuthHttpBasic]
   }
 
 configServer :: MonadError ServantErr m =>
-                Configuration -> ConfigAPI (AsServerT m)
-configServer config = ConfigAPI
+                Configuration -> ConfigSite (AsServerT m)
+configServer config = ConfigSite
   { spConfig = pure config
   , getSchemas = pure $
       ListResponse.fromList [ userSchema
@@ -115,7 +108,7 @@ configServer config = ConfigAPI
   , resourceTypes = pure ""
   }
 
-data ConfigAPI route = ConfigAPI
+data ConfigSite route = ConfigSite
   { spConfig :: route :- "ServiceProviderConfig" :> Get '[SCIM] Configuration
   , getSchemas :: route :- "Schemas" :> Get '[SCIM] (ListResponse Value)
   , schema :: route :- "Schemas" :> Capture "id" Text :> Get '[SCIM] Value
