@@ -276,11 +276,11 @@ optional x = option Nothing (Just <$> x)
 --    ... etc
 -- if not enough servers are available, prefer udp, then tls
 limitServers :: [TurnURI] -> Int -> [TurnURI]
-limitServers uris lim = limitServers' [] lim uris
+limitServers uris limit = limitServers' [] limit uris
   where
-    limitServers' acc 0 _     = acc -- Already have accumulated enough
-    limitServers' acc _ []    = acc -- No more input
-    limitServers' acc _ input = do
+    limitServers' acc x _  | x <= 0 = acc -- Already have accumulated enough
+    limitServers' acc _ []          = acc -- No more input
+    limitServers' acc _ input       = do
         let (udps, noUdps) = partition isUdp input
             (udp, forTls)  = (Prelude.take 1 udps, noUdps ++ drop 1 udps)
 
@@ -291,10 +291,10 @@ limitServers uris lim = limitServers' [] lim uris
             (tcp, rest)    = (Prelude.take 1 tcps, noTcps ++ drop 1 tcps)
 
             new = udp ++ tls ++ tcp
-            newAcc = Prelude.take lim $ acc ++ new
+            newAcc = Prelude.take limit $ acc ++ new
         if null new -- Did we find anything interesting? If not, time to go
-            then Prelude.take lim $ acc ++ rest
-            else limitServers' newAcc (lim - length newAcc) rest
+            then Prelude.take limit $ acc ++ rest
+            else limitServers' newAcc (limit - length newAcc) rest
 
 isUdp :: TurnURI -> Bool
 isUdp uri = uri^.turiScheme == SchemeTurn
