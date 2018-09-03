@@ -170,7 +170,7 @@ getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
 ----------------------------------------------------------------------
 -- idp
 
-type IdPConfigRow = (SAML.IdPId, URI, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId)
+type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId)
 
 storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig IdPExtra -> m ()
 storeIdPConfig idp = retry x5 . batch $ do
@@ -178,7 +178,6 @@ storeIdPConfig idp = retry x5 . batch $ do
   setConsistency Quorum
   addPrepQuery ins
     ( idp ^. SAML.idpId
-    , idp ^. SAML.idpMetadataURI
     , idp ^. SAML.idpIssuer
     , idp ^. SAML.idpRequestUri
     , NL.head (idp ^. SAML.idpPublicKeys)
@@ -196,7 +195,7 @@ storeIdPConfig idp = retry x5 . batch $ do
     )
   where
     ins :: PrepQuery W IdPConfigRow ()
-    ins = "INSERT INTO idp (idp, metadata, issuer, request_uri, public_key, extra_public_keys, team) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team) VALUES (?, ?, ?, ?, ?, ?)"
 
     byIssuer :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
     byIssuer = "INSERT INTO issuer_idp (idp, issuer) VALUES (?, ?)"
@@ -217,7 +216,6 @@ getIdPConfig idpid =
   where
     toIdp :: IdPConfigRow -> m IdP
     toIdp ( _idpId
-          , _idpMetadataURI
           -- metadata
           , _edIssuer
           , _edRequestURI
@@ -233,7 +231,7 @@ getIdPConfig idpid =
       pure $ SAML.IdPConfig {..}
 
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
-    sel = "SELECT idp, metadata, issuer, request_uri, public_key, extra_public_keys, team FROM idp WHERE idp = ?"
+    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team FROM idp WHERE idp = ?"
 
 getIdPConfigByIssuer
   :: (HasCallStack, MonadClient m, MonadReader Env m)

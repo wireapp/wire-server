@@ -21,24 +21,19 @@ module Util.Types
   , teBrig
   , teGalley
   , teSpar
-  , teNewIdP
   , teUserId
   , teTeamId
   , teIdP
-  , teIdPChan
-  , teIdPHandle
   , teOpts
   , teTstOpts
   , Select
   , ResponseLBS
   , IntegrationConfig(..)
-  , MockIdPConfig(..)
   , TestErrorLabel(..)
   ) where
 
 import Bilge
 import Cassandra as Cas
-import Control.Concurrent.STM.TChan
 import Control.Exception
 import Control.Monad
 import Data.Aeson
@@ -48,18 +43,13 @@ import Data.String
 import Data.String.Conversions
 import GHC.Generics (Generic)
 import Lens.Micro.TH
-import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
 import Spar.Options as Options
 import Spar.Types
-import Text.XML
-import URI.ByteString
 import Util.Options
 
-import qualified Control.Concurrent.Async as Async
 import qualified Data.Aeson as Aeson
-import qualified Data.X509 as X509
 
 
 type BrigReq   = Request -> Request
@@ -73,14 +63,13 @@ data TestEnv = TestEnv
   , _teBrig        :: BrigReq
   , _teGalley      :: GalleyReq
   , _teSpar        :: SparReq
-  , _teNewIdP      :: SAML.NewIdP        -- ^ used for registering the mock idp with spar
-  , _teUserId      :: UserId             -- ^ owner of the mock idp's home team
-  , _teTeamId      :: TeamId             -- ^ home team of the mock idp
-  , _teIdP         :: IdP                -- ^ mock idp details
-  , _teIdPChan     :: TChan [Node]       -- ^ channel for feeding (broken) metadata values for testing error handling
-  , _teIdPHandle   :: Async.Async ()     -- ^ mock idp thread handle
   , _teOpts        :: Opts               -- ^ spar config
   , _teTstOpts     :: IntegrationConfig  -- ^ integration test config
+
+    -- user, team, idp details created on spar:
+  , _teUserId      :: UserId             -- ^ owner of the idp's home team
+  , _teTeamId      :: TeamId             -- ^ home team of the idp
+  , _teIdP         :: IdP                -- ^ details of the idp
   }
 
 type Select = TestEnv -> (Request -> Request)
@@ -91,23 +80,9 @@ data IntegrationConfig = IntegrationConfig
   { cfgBrig    :: Endpoint
   , cfgGalley  :: Endpoint
   , cfgSpar    :: Endpoint
-  , cfgMockIdp :: MockIdPConfig
-  } deriving (Show, Generic)
-
-data MockIdPConfig = MockIdPConfig
-  { mockidpBind        :: Endpoint
-  , mockidpConnect     :: Endpoint
-  , mockidpPrivateKey  :: FilePath
-  , mockidpPublicKey   :: FilePath
-  , mockidpCert        :: FilePath
-  , mockidpMetadataURI :: URI
-  , mockidpIssuer      :: Issuer
-  , mockidpRequestURI  :: URI
-  , mockidpDSigCert    :: X509.SignedCertificate
   } deriving (Show, Generic)
 
 deriveFromJSON deriveJSONOptions ''IntegrationConfig
-deriveFromJSON deriveJSONOptions ''MockIdPConfig
 makeLenses ''TestEnv
 
 
