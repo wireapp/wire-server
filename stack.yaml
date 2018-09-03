@@ -68,7 +68,7 @@ packages:
 # services/spar:
 - location:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: e0b21d3fe724b27c51718fa1b2a81ae179da4fb3
+    commit: bb4c66d553891891f1e2888444562be45e4a2d8d
   extra-dep: true
 - location:
     git: https://github.com/wireapp/hsaml2
@@ -77,10 +77,6 @@ packages:
 - location:
     git: https://github.com/wireapp/hspec-wai
     commit: ca10d13deab929f1cc3a569abea2e7fbe35fdbe3  # https://github.com/hspec/hspec-wai/pull/49
-  extra-dep: true
-- location:
-    git: https://github.com/wireapp/hs-connection
-    commit: f5b3a4aade27df8d214930e22db8528e5cf2d79e  # https://github.com/vincenthz/hs-connection/pull/36
   extra-dep: true
 
 extra-deps:

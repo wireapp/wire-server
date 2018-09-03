@@ -20,11 +20,12 @@ import Spar.Types
 import Test.QuickCheck
 
 
-instance Arbitrary SAML.NewIdP where
+instance Arbitrary SAML.IdPMetadata where
   arbitrary = do
-    _nidpMetadata   <- arbitrary
-    _nidpPublicKey  <- arbitrary
-    pure $ SAML.NewIdP {..}
+    _edIssuer <- arbitrary
+    _edRequestURI <- arbitrary
+    _edCertAuthnResponse <- arbitrary
+    pure $ SAML.IdPMetadata {..}
 
 instance Arbitrary SPInfo where
   arbitrary = do

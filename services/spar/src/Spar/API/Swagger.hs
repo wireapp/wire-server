@@ -121,9 +121,6 @@ instance ToSchema SAML.IdPMetadata where
 instance ToSchema IdPList where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
-instance ToSchema SAML.NewIdP where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
 instance ToSchema (SAML.ID SAML.AuthnRequest) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 

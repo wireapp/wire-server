@@ -38,7 +38,6 @@ data Opts = Opts
     , maxttlAuthresp :: !(TTL "authresp")
     , discoUrl       :: !(Maybe Text) -- Wire/AWS specific; optional; used to discover cassandra instance IPs using describe-instances
     , logNetStrings  :: !Bool
-    , tlsDisableCertValidation :: !Bool -- always set to 'False' in production!  see 'sparManager'.
     -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
     }
   deriving (Show, Generic)
