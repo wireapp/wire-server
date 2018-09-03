@@ -1,3 +1,4 @@
+LANG := en_US.UTF-8
 HASKELL_SERVICES := proxy cannon cargohold brig galley gundeck
 SERVICES         := $(HASKELL_SERVICES) nginz
 DOCKER_USER      ?= wireserver

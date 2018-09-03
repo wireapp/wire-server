@@ -23,6 +23,7 @@ module Spar.API
   ( app, api
   , API
   , APIMeta
+  , APIAuthReqPrecheck
   , APIAuthReq
   , APIAuthResp
   , IdpGet
@@ -33,6 +34,7 @@ module Spar.API
 
 import Bilge
 import Brig.Types.User as Brig
+import Control.Exception
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Either
@@ -77,6 +79,7 @@ app ctx = SAML.setHttpCachePolicy
 type API = "i" :> "status" :> Get '[JSON] NoContent
       :<|> "sso" :> "api-docs" :> Get '[JSON] Swagger
       :<|> APIMeta
+      :<|> APIAuthReqPrecheck
       :<|> APIAuthReq
       :<|> APIAuthResp
       :<|> IdpGet
@@ -86,7 +89,15 @@ type API = "i" :> "status" :> Get '[JSON] NoContent
       :<|> "i" :> "integration-tests" :> IntegrationTests
       -- NB. If you add endpoints here, also update Test.Spar.APISpec
 
+type CheckOK = Verb 'HEAD 200
+
 type APIMeta     = "sso" :> "metadata" :> SAML.APIMeta
+type APIAuthReqPrecheck
+                 = "sso" :> "initiate-login"
+                :> QueryParam "success_redirect" URI.URI
+                :> QueryParam "error_redirect" URI.URI
+                :> Capture "idp" SAML.IdPId
+                :> CheckOK '[PlainText] NoContent
 type APIAuthReq  = "sso" :> "initiate-login"
                 :> QueryParam "success_redirect" URI.URI
                 :> QueryParam "error_redirect" URI.URI
@@ -95,7 +106,7 @@ type APIAuthResp = "sso" :> "finalize-login" :> SAML.APIAuthResp
 
 type IdpGet     = Header "Z-User" UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
 type IdpGetAll  = Header "Z-User" UserId :> "identity-providers" :> Get '[JSON] IdPList
-type IdpCreate  = Header "Z-User" UserId :> "identity-providers" :> ReqBody '[JSON] NewIdP :> PostCreated '[JSON] IdP
+type IdpCreate  = Header "Z-User" UserId :> "identity-providers" :> ReqBody '[JSON] SAML.NewIdP :> PostCreated '[JSON] IdP
 type IdpDelete  = Header "Z-User" UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 -- FUTUREWORK (thanks jschaul): In a more recent version of servant, using Header '[Strict] becomes
@@ -107,6 +118,7 @@ api opts =
        pure NoContent
   :<|> pure (toSwagger (Proxy @OutsideWorldAPI))
   :<|> SAML.meta appName (Proxy @API) (Proxy @APIAuthResp)
+  :<|> authreqPrecheck
   :<|> authreq (maxttlAuthreqDiffTime opts)
   :<|> SAML.authresp (SAML.HandleVerdictRaw verdictHandler)
   :<|> idpGet
@@ -118,21 +130,28 @@ api opts =
 appName :: ST
 appName = "spar"
 
+authreqPrecheck :: Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar NoContent
+authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
+                                *> SAML.getIdPConfig idpid
+                                *> return NoContent
 
 authreq :: NominalDiffTime -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar (SAML.FormRedirect SAML.AuthnRequest)
 authreq authreqttl msucc merr idpid = do
-  vformat <- case (msucc, merr) of
-    (Nothing, Nothing) -> pure VerdictFormatWeb
-    (Just ok, Just err) -> do
-      validateRedirectURL `mapM_` [ok, err]
-      pure $ VerdictFormatMobile ok err
-    _ -> throwSpar $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
+  vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
   pure form
 
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
+
+validateAuthreqParams :: Maybe URI.URI -> Maybe URI.URI -> Spar VerdictFormat
+validateAuthreqParams msucc merr = case (msucc, merr) of
+  (Nothing, Nothing) -> pure VerdictFormatWeb
+  (Just ok, Just err) -> do
+    validateRedirectURL `mapM_` [ok, err]
+    pure $ VerdictFormatMobile ok err
+  _ -> throwSpar $ SparBadInitiateLoginQueryParams "need-both-redirect-urls"
 
 validateRedirectURL :: URI.URI -> Spar ()
 validateRedirectURL uri = do
@@ -163,7 +182,7 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     return NoContent
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreate :: ZUsr -> NewIdP -> Spar IdP
+idpCreate :: ZUsr -> SAML.NewIdP -> Spar IdP
 idpCreate zusr newIdP = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- getZUsrOwnedTeam zusr
   validateNewIdP newIdP
@@ -196,20 +215,32 @@ getZUsrOwnedTeam (Just uid) = do
     Nothing -> throwSpar SparNotInTeam
     Just teamid -> teamid <$ Intra.assertIsTeamOwner uid teamid
 
-initializeIdP :: NewIdP -> TeamId -> Spar IdP
-initializeIdP (NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpeTeam = do
+initializeIdP :: SAML.NewIdP -> TeamId -> Spar IdP
+initializeIdP (SAML.NewIdP _idpMetadata _idpIssuer _idpRequestUri _idpPublicKey) _idpeTeam = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
   _idpeSPInfo <- wrapMonadClientWithEnv $ Data.getSPInfo _idpId
   let _idpExtraInfo = IdPExtra { _idpeTeam, _idpeSPInfo }
   pure SAML.IdPConfig {..}
 
 
-type MonadValidateIdP m = (MonadHttp m, MonadIO m)
-
 -- | FUTUREWORK: much of this function could move to the saml2-web-sso package.
-validateNewIdP :: forall m. (HasCallStack, MonadError SparError m, MonadValidateIdP m)
-               => NewIdP -> m ()
-validateNewIdP newidp = if True then pure () else do  -- TODO: validation breaks current integration test suite, so it's disabled.
+validateNewIdP :: forall m. (HasCallStack, m ~ Spar)
+               => SAML.NewIdP -> m ()
+validateNewIdP newidp = do
+  wrapMonadClient (Data.getIdPIdByIssuer (newidp ^. SAML.nidpIssuer)) >>= \case
+    Nothing -> pure ()
+    Just _ -> throwSpar SparNewIdPAlreadyInUse
+    -- each idp (issuer) can only be created once.  if you want to update (one of) your team's
+    -- idp(s), either use put (not implemented), or delete the old one before creating a new one
+    -- (already works, even though it may create a brief time window in which users experience
+    -- broken login behavior).
+    --
+    -- rationale: the issuer is how the idp self-identifies.  we can't allow the same idp to serve
+    -- two teams because of implicit user creation: if an unknown user arrives, we use the
+    -- idp-to-team mapping to decide which team to create the user in.  if we wanted to trust the
+    -- idp to decide this for us, we would have to think of a way to prevent rogue idps from
+    -- creating users in victim teams.
+
   let uri2req :: URI.URI -> m Request
       uri2req = either (throwSpar . SparNewIdPBadMetaUrl . cs . show) pure
               . Rq.parseRequest . cs . SAML.renderURI
@@ -217,28 +248,31 @@ validateNewIdP newidp = if True then pure () else do  -- TODO: validation breaks
       fetch :: URI.URI -> (Request -> Request) -> m (Bilge.Response (Maybe LBS))
       fetch uri modify = do
         req <- uri2req uri
-        tweakleft (httpLbs req modify)
+        ntm (httpLbs req modify)
 
-      tweakleft :: Http a -> m a
-      tweakleft (HttpT action) = liftIO . runReaderT action =<< getManager
+      -- natural transformation into 'm'.  needed for the http client that fetches the metadata url.
+      -- if 'IO' throws an exception, we capture it with 'try' and re-throw it inside 'm', which
+      -- yields much nicer client errors and logs.
+      ntm :: forall a. Http a -> m a
+      ntm (HttpT action) = do
+        mgr :: Manager <- getManager
+        result :: Either SomeException a <- liftIO . try $ runReaderT action mgr
+        either (throwSpar . SparNewIdPBadMetaUrl . cs . show @SomeException) pure result
 
   metaResp :: Bilge.Response (Maybe LBS)
-    <- fetch (newidp ^. nidpMetadata) (method GET . expect2xx)
+    <- fetch (newidp ^. SAML.nidpMetadata) (method GET . expect2xx)
   metaBody :: LBS
     <- maybe (throwSpar $ SparNewIdPBadMetaUrl "No body in response.") pure $ responseBody metaResp
-  when (isLeft $ SAML.verifyRoot (newidp ^. nidpPublicKey) metaBody) $ do
+  when (isLeft $ do
+           creds <- SAML.certToCreds $ newidp ^. SAML.nidpPublicKey
+           SAML.verifyRoot creds metaBody) $ do
     throwSpar SparNewIdPBadMetaSig
   meta :: SAML.IdPDesc
     <- either (throwSpar . SparNewIdPBadMetaUrl . cs) pure $ do
          XML.Document _ el _ <- fmapL show $ XML.parseLBS XML.def metaBody
          SAML.parseIdPDesc el
-  when (newidp ^. nidpPublicKey `notElem` meta ^. SAML.edPublicKeys) $
+  when (newidp ^. SAML.nidpPublicKey `notElem` meta ^. SAML.edPublicKeys) $
     throwSpar SparNewIdPPubkeyMismatch
-  respResp :: Bilge.Response (Maybe LBS)
-    <- fetch (newidp ^. nidpRequestUri) (method POST . body "request")
-  when (statusCode respResp >= 400) $ do
-    let msg = (cs . show . responseStatus $ respResp) <> (maybe "" ((": " <>) . cs) $ responseBody respResp)
-    throwSpar $ SparNewIdPBadReqUrl msg
 
 
 -- | Type families to convert spar's 'API' type into an "outside-world-view" API type

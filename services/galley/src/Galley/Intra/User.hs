@@ -112,7 +112,7 @@ canBeDeleted members uid tid = if askGalley then pure True else askBrig
   where
     -- team members without full permissions can always be deleted.
     askGalley = case filter ((== uid) . (^. userId)) members of
-        (mem:_) -> mem ^. permissions /= fullPermissions
+        (mem:_) -> not (isTeamOwner mem)
         _ -> False  -- e.g., if caller has no members and passes an empty list.
 
     -- only if still in doubt, ask brig.

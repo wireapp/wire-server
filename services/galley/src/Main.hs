@@ -9,5 +9,5 @@ main :: IO ()
 main = withOpenSSL $ do
   let desc = "Galley - Conversation service"
       defaultPath = "/etc/wire/galley/conf/galley.yaml"
-  options <- getOptions desc optsParser defaultPath
+  options <- getOptions desc (Just optsParser) defaultPath
   run options

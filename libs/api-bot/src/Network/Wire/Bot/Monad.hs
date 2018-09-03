@@ -79,6 +79,7 @@ import Control.Monad (forever, when, unless, void, (>=>))
 import Control.Monad.Base
 import Control.Monad.Catch hiding (try)
 import Control.Monad.IO.Class
+import Control.Monad.IO.Unlift
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Reader
@@ -129,16 +130,17 @@ import qualified System.Random.MWC        as MWC
 -- * BotNetEnv
 
 data BotNetEnv = BotNetEnv
-    { botNetGen       :: MWC.GenIO
-    , botNetMailboxes :: [Mailbox]
-    , botNetSender    :: Email
-    , botNetUsers     :: Cache
-    , botNetServer    :: Server
-    , botNetLogger    :: Logger
-    , botNetAssert    :: !Bool
-    , botNetSettings  :: BotSettings
-    , botNetMetrics   :: Metrics
-    , botNetReportDir :: Maybe FilePath
+    { botNetGen            :: MWC.GenIO
+    , botNetMailboxes      :: [Mailbox]
+    , botNetSender         :: Email
+    , botNetUsers          :: Cache
+    , botNetServer         :: Server
+    , botNetLogger         :: Logger
+    , botNetAssert         :: !Bool
+    , botNetSettings       :: BotSettings
+    , botNetMetrics        :: Metrics
+    , botNetReportDir      :: Maybe FilePath
+    , botNetMailboxFolders :: [String]
     }
 
 newBotNetEnv :: Manager -> Logger -> BotNetSettings -> IO BotNetEnv
@@ -156,16 +158,17 @@ newBotNetEnv manager logger o = do
             , serverManager = manager
             }
     return $! BotNetEnv
-        { botNetGen       = gen
-        , botNetMailboxes = mbx
-        , botNetSender    = setBotNetSender o
-        , botNetUsers     = usr
-        , botNetServer    = srv
-        , botNetLogger    = logger
-        , botNetAssert    = setBotNetAssert o
-        , botNetSettings  = setBotNetBotSettings o
-        , botNetMetrics   = met
-        , botNetReportDir = setBotNetReportDir o
+        { botNetGen            = gen
+        , botNetMailboxes      = mbx
+        , botNetSender         = setBotNetSender o
+        , botNetUsers          = usr
+        , botNetServer         = srv
+        , botNetLogger         = logger
+        , botNetAssert         = setBotNetAssert o
+        , botNetSettings       = setBotNetBotSettings o
+        , botNetMetrics        = met
+        , botNetReportDir      = setBotNetReportDir o
+        , botNetMailboxFolders = setBotNetMailboxFolders o
         }
 
 -- Note: Initializing metrics to avoid race conditions on first access and thus
@@ -202,7 +205,7 @@ initMetrics = do
 
 newtype BotNet a = BotNet { unBotNet :: ReaderT BotNetEnv IO a }
     deriving (Functor, Applicative, Monad, MonadIO, MonadThrow,
-              MonadCatch, MonadMask, MonadBase IO)
+              MonadCatch, MonadMask, MonadBase IO, MonadUnliftIO)
 
 class MonadIO m => MonadBotNet m where
     liftBotNet :: BotNet a -> m a
@@ -400,7 +403,8 @@ newBot tag = liftBotNet $ do
     user <- registerUser new
     log Info $ botLogFields (userId user) tag . msg (val "Await activation mail")
     sndr <- BotNet $ asks botNetSender
-    keys <- liftIO $ awaitActivationMail mbox sndr email
+    folders <- BotNet $ asks botNetMailboxFolders
+    keys <- liftIO $ awaitActivationMail mbox folders sndr email
     log Info $ botLogFields (userId user) tag . msg (val "Activate user")
     forM_ keys (uncurry activateKey >=> flip assertTrue "Activation failed.")
     bot <- mkBot tag user pw

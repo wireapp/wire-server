@@ -23,6 +23,7 @@ import Options.Applicative.Types
 import System.Directory
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
+import System.Exit (die)
 import URI.ByteString
 import Util.Options.Common
 
@@ -89,22 +90,31 @@ loadSecret (FilePathSecrets p) = do
         then return . decode =<< BS.readFile path
         else return Nothing
 
-getOptions :: (FromJSON a) => String -> Parser a -> FilePath -> IO a
+getOptions
+    :: FromJSON a
+    => String            -- ^ Program description
+    -> Maybe (Parser a)  -- ^ CLI parser for the options (if there is no config)
+    -> FilePath          -- ^ Default config path, can be overridden with @--config-file@
+    -> IO a
 getOptions desc pars defaultPath = do
     path <- parseConfigPath defaultPath mkDesc
     file <- doesFileExist path
-    if file
-        then do
+    case (file, pars) of
+        -- Config exists, we can just take options from there
+        (True, _) -> do
             configFile <- decodeFileEither path
             case configFile of
                 Left e  -> fail $ show e
                 Right o -> return o
-        else do
+        -- Config doesn't exist but at least we have a CLI options parser
+        (False, Just p) -> do
             hPutStrLn stderr $
-                "Config file at " ++
-                path ++
+                "Config file at " ++ path ++
                 " does not exist, falling back to command-line arguments. \n"
-            execParser (info (helper <*> pars) mkDesc)
+            execParser (info (helper <*> p) mkDesc)
+        -- No config, no parser :(
+        (False, Nothing) -> do
+            die $ "Config file at " ++ path ++ " does not exist. \n"
   where
     mkDesc = header desc <> fullDesc
 

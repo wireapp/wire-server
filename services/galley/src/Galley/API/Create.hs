@@ -72,8 +72,8 @@ internalCreateManagedConversation (zusr ::: zcon ::: req ::: _) = do
 createRegularGroupConv :: UserId -> ConnId -> NewConvUnmanaged -> Galley Response
 createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
     name <- rangeCheckedMaybe (newConvName body)
-    uids <- checkedConvAndTeamSize (newConvUsers body)
-    ensureConnected zusr (fromConvTeamSize uids)
+    uids <- checkedConvSize (newConvUsers body)
+    ensureConnected zusr (fromConvSize uids)
     c <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body) (newConvMessageTimer body)
     notifyCreatedConversation Nothing zusr (Just zcon) c
     conversationResponse status201 zusr c
@@ -89,17 +89,17 @@ createTeamGroupConv zusr zcon tinfo body = do
     uids <-
         if cnvManaged tinfo then do
             let uu = filter (/= zusr) $ map (view userId) mems
-            checkedConvAndTeamSize uu
+            checkedConvSize uu
         else do
             void $ permissionCheck zusr AddConversationMember mems
-            uu <- checkedConvAndTeamSize (newConvUsers body)
-            ensureConnected zusr (notTeamMember (fromConvTeamSize uu) mems)
+            uu <- checkedConvSize (newConvUsers body)
+            ensureConnected zusr (notTeamMember (fromConvSize uu) mems)
             pure uu
     conv <- Data.createConversation zusr name (access body) (accessRole body) uids (newConvTeam body) (newConvMessageTimer body)
     now  <- liftIO getCurrentTime
     let d = Teams.EdConvCreate (Data.convId conv)
     let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
-    let notInConv = Set.fromList (map (view userId) mems) \\ Set.fromList (zusr : fromConvTeamSize uids)
+    let notInConv = Set.fromList (map (view userId) mems) \\ Set.fromList (zusr : fromConvSize uids)
     for_ (newPush zusr (TeamEvent e) (map userRecipient (Set.toList notInConv))) push1
     notifyCreatedConversation (Just now) zusr (Just zcon) conv
     conversationResponse status201 zusr conv

@@ -29,11 +29,13 @@ import Brig.Types.Common
 import Brig.Types.User
 import Brig.Types.Team.Invitation
 import Cassandra
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently_)
+import Control.Concurrent.Async.Lifted.Safe.Extended (mapMPooled)
 import Control.Lens
 import Control.Monad.IO.Class
-import Control.Monad (when)
+import Control.Monad.IO.Unlift
+import Control.Monad (void)
 import Data.Id
+import Data.Conduit ((.|), runConduit)
 import Data.Int
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Maybe (fromMaybe)
@@ -42,6 +44,8 @@ import Data.Text.Ascii (encodeBase64Url)
 import Data.UUID.V4
 import Data.Time.Clock
 import OpenSSL.Random (randBytes)
+
+import qualified Data.Conduit.List as C
 
 mkInvitationCode :: IO InvitationCode
 mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24
@@ -132,16 +136,12 @@ deleteInvitation t i = do
     cqlInvitationInfo :: PrepQuery W (Identity InvitationCode) ()
     cqlInvitationInfo = "DELETE FROM team_invitation_info WHERE code = ?"
 
-deleteInvitations :: MonadClient m => TeamId -> m ()
-deleteInvitations t = do
-    page <- retry x1 $ paginate cqlSelect (paramsP Quorum (Identity t) 100)
-    deleteAll page
+deleteInvitations :: (MonadClient m, MonadUnliftIO m) => TeamId -> m ()
+deleteInvitations t =
+    liftClient $
+    runConduit $ paginateC cqlSelect (paramsP Quorum (Identity t) 100) x1
+              .| C.mapM_ (void . mapMPooled 16 (deleteInvitation t . runIdentity))
   where
-    deleteAll page = do
-        liftClient $ mapConcurrently_ (deleteInvitation t . runIdentity) (result page)
-        when (hasMore page) $
-            liftClient (nextPage page) >>= deleteAll
-
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity InvitationId)
     cqlSelect = "SELECT id FROM team_invitation WHERE team = ? ORDER BY id ASC"
 

@@ -21,32 +21,42 @@ module Util.Types
   , teBrig
   , teGalley
   , teSpar
-  , teNewIdp
-  , teMockIdp
+  , teNewIdP
+  , teUserId
+  , teTeamId
+  , teIdP
+  , teIdPChan
+  , teIdPHandle
   , teOpts
   , teTstOpts
   , Select
   , ResponseLBS
   , IntegrationConfig(..)
+  , MockIdPConfig(..)
   , TestErrorLabel(..)
   ) where
 
 import Bilge
 import Cassandra as Cas
+import Control.Concurrent.STM.TChan
 import Control.Exception
 import Control.Monad
 import Data.Aeson
 import Data.Aeson.TH
+import Data.Id
 import Data.String
 import Data.String.Conversions
 import GHC.Generics (Generic)
 import Lens.Micro.TH
-import SAML2.WebSSO.Config.TH (deriveJSONOptions)
+import SAML2.WebSSO as SAML
+import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
 import Spar.Options as Options
 import Spar.Types
+import Text.XML
 import Util.Options
 
+import qualified Control.Concurrent.Async as Async
 import qualified Data.Aeson as Aeson
 
 
@@ -55,30 +65,43 @@ type GalleyReq = Request -> Request
 type SparReq   = Request -> Request
 
 data TestEnv = TestEnv
-  { _teMgr     :: Manager
-  , _teCql     :: Cas.ClientState
-  , _teBrig    :: BrigReq
-  , _teGalley  :: GalleyReq
-  , _teSpar    :: SparReq
-  , _teNewIdp  :: NewIdP
-  , _teMockIdp :: Endpoint
-  , _teOpts    :: Opts
-  , _teTstOpts :: IntegrationConfig
+  { _teMgr         :: Manager
+  , _teCql         :: Cas.ClientState
+  , _teBrig        :: BrigReq
+  , _teGalley      :: GalleyReq
+  , _teSpar        :: SparReq
+  , _teNewIdP      :: SAML.NewIdP
+  , _teUserId      :: UserId
+  , _teTeamId      :: TeamId
+  , _teIdP         :: IdP
+  , _teIdPChan     :: TChan [Node]
+  , _teIdPHandle   :: Async.Async ()
+  , _teOpts        :: Opts
+  , _teTstOpts     :: IntegrationConfig
   }
 
 type Select = TestEnv -> (Request -> Request)
 
-type ResponseLBS = Response (Maybe LBS)
+type ResponseLBS = Bilge.Response (Maybe LBS)
 
 data IntegrationConfig = IntegrationConfig
   { cfgBrig    :: Endpoint
   , cfgGalley  :: Endpoint
   , cfgSpar    :: Endpoint
-  , cfgNewIdp  :: NewIdP
-  , cfgMockIdp :: Endpoint
+  , cfgNewIdp  :: SAML.NewIdP
+  , cfgMockIdp :: MockIdPConfig
+  } deriving (Show, Generic)
+
+data MockIdPConfig = MockIdPConfig
+  { mockidpBind       :: Endpoint
+  , mockidpConnect    :: Endpoint
+  , mockidpPrivateKey :: FilePath
+  , mockidpPublicKey  :: FilePath
+  , mockidpCert       :: FilePath
   } deriving (Show, Generic)
 
 deriveFromJSON deriveJSONOptions ''IntegrationConfig
+deriveFromJSON deriveJSONOptions ''MockIdPConfig
 makeLenses ''TestEnv
 
 

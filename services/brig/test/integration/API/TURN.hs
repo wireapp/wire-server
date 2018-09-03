@@ -101,6 +101,17 @@ testCallsConfigMultipleV2 b turnUpdaterV2 = do
                                 [toTurnURI SchemeTurns "localhost" 3479 $ Just TransportTCP]
     modifyAndAssert b uid getTurnConfigurationV2 turnUpdaterV2 _changes _expected
 
+    -- Ensure limit=1 returns only the udp server (see brig-types/tests for other use cases involving 'limit')
+    let _changes  = "turn:localhost:3478?transport=udp\nturns:localhost:3479?transport=tcp"
+    let _expected2 = List1.list1 (toTurnURI SchemeTurn  "localhost" 3478 $ Just TransportUDP)
+                                [toTurnURI SchemeTurns "localhost" 3479 $ Just TransportTCP]
+    let _expected1 = List1.list1 (toTurnURI SchemeTurn  "localhost" 3478 $ Just TransportUDP) []
+    liftIO $ turnUpdaterV2 _changes
+    _cfg <- getAndValidateTurnConfigurationLimit 2 uid b
+    assertConfiguration _cfg _expected2
+    _cfg <- getAndValidateTurnConfigurationLimit 1 uid b
+    assertConfiguration _cfg _expected1
+
     -- Revert the config file back to the original
     let _expected = List1.singleton (toTurnURI SchemeTurn "localhost" 3478 Nothing)
     modifyAndAssert b uid getTurnConfigurationV2 turnUpdaterV2 "turn:localhost:3478" _expected
@@ -140,9 +151,20 @@ getTurnConfiguration suffix u b = get ( b
                                 )
 
 getAndValidateTurnConfiguration :: HasCallStack => ByteString -> UserId -> Brig -> Http RTCConfiguration
-getAndValidateTurnConfiguration suffix u b = do
-    r <- getTurnConfiguration suffix u b <!! const 200 === statusCode
-    return $ fromMaybe (error "getTurnConfiguration: failed to parse response") (decodeBody r)
+getAndValidateTurnConfiguration suffix u b =
+    decodeBody =<< (getTurnConfiguration suffix u b <!! const 200 === statusCode)
+
+getTurnConfigurationV2Limit :: Int -> UserId -> Brig -> Http (Response (Maybe LB.ByteString))
+getTurnConfigurationV2Limit limit u b = get ( b
+                                . paths ["/calls/config/v2"]
+                                . zUser u
+                                . zConn "conn"
+                                . queryItem "limit" (toByteString' limit)
+                                )
+
+getAndValidateTurnConfigurationLimit :: HasCallStack => Int -> UserId -> Brig -> Http RTCConfiguration
+getAndValidateTurnConfigurationLimit limit u b =
+    decodeBody =<< (getTurnConfigurationV2Limit limit u b <!! const 200 === statusCode)
 
 toTurnURILegacy :: ByteString -> Port -> TurnURI
 toTurnURILegacy h p = toTurnURI SchemeTurn h p Nothing

@@ -18,7 +18,8 @@ gundeck:
 
 settings:
   httpPoolSize: 128
-  maxConvAndTeamSize: 16
+  maxTeamSize: 32
+  maxConvSize: 16
   intraListing: false
   conversationCodeURI: https://app.wire.com/join/
 

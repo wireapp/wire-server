@@ -3,11 +3,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
-module Brig.Provider.API (routes) where
+module Brig.Provider.API
+    ( -- * Main stuff
+      routes
+      -- * Event handlers
+    , finishDeleteService
+    ) where
 
-import Brig.App (settings)
+import Brig.App (settings, AppIO, internalEvents)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types (PasswordResetError (..))
@@ -16,17 +24,20 @@ import Brig.Options (Settings (..))
 import Brig.Password
 import Brig.Provider.DB (ServiceConn (..))
 import Brig.Provider.Email
+import Brig.Team.Util
 import Brig.Types.Intra (UserAccount (..), AccountStatus (..))
 import Brig.Types.Client
 import Brig.Types.User (publicProfile, User (..), Pict (..))
 import Brig.Types.Provider
 import Brig.Types.Search
-import Control.Lens (view)
+import Control.Concurrent.Async.Lifted.Safe.Extended (mapMPooled)
+import Control.Lens (view, (^.))
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
 import Control.Monad (join, when, unless, (>=>), liftM2)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
+import Data.Functor (void)
 import Data.ByteString.Conversion
 import Data.Foldable (for_, forM_)
 import Data.Hashable (hash)
@@ -40,12 +51,12 @@ import Data.Predicate
 import Data.Range
 import Data.String (fromString)
 import Data.Text (Text)
-import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..))
+import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..), AccessRole (..))
 import Galley.Types (OtherMember (..))
 import Galley.Types (Event, userClients)
-import Galley.Types.Bot (newServiceRef)
-import Galley.Types.Teams (managedConversation)
+import Galley.Types.Bot (newServiceRef, serviceRefProvider, serviceRefId)
 import Data.Traversable (forM)
+import Data.Conduit ((.|), runConduit)
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)
 import Network.Wai.Predicate (contentType, accept, request, query, def, opt)
@@ -64,11 +75,15 @@ import qualified Brig.IO.Intra                as RPC
 import qualified Brig.Provider.DB             as DB
 import qualified Brig.Provider.RPC            as RPC
 import qualified Brig.Types.Provider.External as Ext
+import qualified Brig.Queue                   as Queue
+import qualified Brig.InternalEvent.Types     as Internal
 import qualified Data.ByteString.Lazy.Char8   as LC8
 import qualified Data.List                    as List
 import qualified Data.Map.Strict              as Map
 import qualified Data.Swagger.Build.Api       as Doc
 import qualified Data.Text.Ascii              as Ascii
+import qualified Data.Set                     as Set
+import qualified Data.Conduit.List            as C
 import qualified OpenSSL.PEM                  as SSL
 import qualified OpenSSL.RSA                  as SSL
 import qualified OpenSSL.EVP.Digest           as SSL
@@ -77,7 +92,7 @@ import qualified Ssl.Util                     as SSL
 import qualified Data.Text.Encoding           as Text
 import qualified Network.Wai.Utilities.Error  as Wai
 import qualified Brig.ZAuth                   as ZAuth
-
+import qualified Galley.Types.Teams           as Teams
 
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
@@ -218,6 +233,22 @@ routes = do
         accept "application" "json"
         .&> zauth ZAuthAccess
 
+    get "/teams/:tid/services/whitelisted" (continue searchTeamServiceProfiles) $
+        accept "application" "json"
+        .&> zauthUserId
+        .&. capture "tid"
+        .&. opt (query "prefix")
+        .&. def True (query "filter_disabled")
+        .&. def (unsafeRange 20) (query "size")
+
+    post "/teams/:tid/services/whitelist" (continue updateServiceWhitelist) $
+        accept "application" "json"
+        .&> zauth ZAuthAccess
+        .&> zauthUserId
+        .&. zauthConnId
+        .&. capture "tid"
+        .&. request
+
     post "/conversations/:cnv/bots" (continue addBot) $
         contentType "application" "json"
         .&> accept "application" "json"
@@ -277,6 +308,12 @@ routes = do
         accept "application" "json"
         .&> zauth ZAuthBot
         .&> capture "uid"
+
+    -- Internal API ------------------------------------------------------------
+
+    get "/i/provider/activation-code" (continue getActivationCode) $
+        accept "application" "json"
+        .&> param "email"
 
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
@@ -341,6 +378,17 @@ activateAccountKey (key ::: val) = do
             activate pid Nothing email
             lift $ sendApprovalConfirmMail name email
             return $ json (ProviderActivationResponse email)
+
+getActivationCode :: Email -> Handler Response
+getActivationCode e = do
+    email <- case validateEmail e of
+        Just em -> return em
+        Nothing -> throwStd invalidEmail
+    gen  <- Code.mkGen (Code.ForEmail email)
+    code <- Code.lookup (Code.genKey gen) Code.IdentityVerification
+    maybe (throwStd activationKeyNotFound) (return . found) code
+  where
+    found vcode = json $ Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
 
 approveAccountKey :: Code.Key ::: Code.Value -> Handler Response
 approveAccountKey (key ::: val) = do
@@ -500,6 +548,7 @@ updateServiceConn (pid ::: sid ::: req) = do
         throwStd badCredentials
 
     scon <- DB.lookupServiceConn pid sid >>= maybeServiceNotFound
+    svc <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
 
     let newBaseUrl = updateServiceConnUrl upd
     let newTokens  = List1 <$> (nonEmpty . fromRange =<< updateServiceConnTokens upd)
@@ -522,7 +571,6 @@ updateServiceConn (pid ::: sid ::: req) = do
         lift $ RPC.setServiceConn scon'
         -- If the service got enabled or disabled, update the tag index.
         unless (sconEnabled scon && sconEnabled scon') $ do
-            svc <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
             let name = serviceProfileName svc
             let tags = unsafeRange (serviceProfileTags svc)
             -- Update index, make it visible over search
@@ -534,18 +582,37 @@ updateServiceConn (pid ::: sid ::: req) = do
 
     return empty
 
+-- | The endpoint that is called to delete a service.
+--
+-- Since deleting a service can be costly, it just marks the service as
+-- disabled and then creates an event that will, when processed, actually
+-- delete the service. See 'finishDeleteService'.
 deleteService :: ProviderId ::: ServiceId ::: Request -> Handler Response
 deleteService (pid ::: sid ::: req) = do
     del  <- parseJsonBody req
     pass <- DB.lookupPassword pid >>= maybeBadCredentials
     unless (verifyPassword (deleteServicePassword del) pass) $
         throwStd badCredentials
-    svc  <- DB.lookupService pid sid >>= maybeServiceNotFound
-    let tags = unsafeRange (serviceTags svc)
-        name = serviceName svc
-    lift $ RPC.removeServiceConn pid sid
-    DB.deleteService pid sid name tags
-    return empty
+    _ <- DB.lookupService pid sid >>= maybeServiceNotFound
+    -- Disable the service
+    DB.updateServiceConn pid sid Nothing Nothing Nothing (Just False)
+    -- Create an event
+    queue <- view internalEvents
+    lift $ Queue.enqueue queue (Internal.DeleteService pid sid)
+    return $ setStatus status202 empty
+
+finishDeleteService :: ProviderId -> ServiceId -> AppIO ()
+finishDeleteService pid sid = do
+    mbSvc <- DB.lookupService pid sid
+    for_ mbSvc $ \svc -> do
+        let tags = unsafeRange (serviceTags svc)
+            name = serviceName svc
+        runConduit $ User.lookupServiceUsers pid sid
+                  .| C.mapM_ (void . mapMPooled 16 kick)
+        RPC.removeServiceConn pid sid
+        DB.deleteService pid sid name tags
+  where
+    kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
 deleteAccount :: ProviderId ::: Request -> Handler Response
 deleteAccount (pid ::: req) = do
@@ -583,10 +650,14 @@ getServiceProfile (pid ::: sid) = do
     s <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
     return (json s)
 
+-- TODO: in order to actually make it possible for clients to implement
+-- pagination here, we need both 'start' and 'prefix'.
+--
+-- Also see Note [buggy pagination].
 searchServiceProfiles :: Maybe (QueryAnyTags 1 3) ::: Maybe Text ::: Range 10 100 Int32 -> Handler Response
 searchServiceProfiles (Nothing ::: Just start ::: size) = do
     prefix <- rangeChecked start :: Handler (Range 1 128 Text)
-    ss <- DB.paginateServiceNames prefix (fromRange size) =<< setProviderSearchFilter <$> view settings
+    ss <- DB.paginateServiceNames (Just prefix) (fromRange size) =<< setProviderSearchFilter <$> view settings
     return (json ss)
 searchServiceProfiles (Just tags ::: start ::: size) = do
     ss <- DB.paginateServiceTags tags start (fromRange size) =<< setProviderSearchFilter <$> view settings
@@ -594,10 +665,53 @@ searchServiceProfiles (Just tags ::: start ::: size) = do
 searchServiceProfiles (Nothing ::: Nothing ::: _) =
     throwStd $ badRequest "At least `tags` or `start` must be provided."
 
+-- NB: unlike 'searchServiceProfiles', we don't filter by service provider here
+searchTeamServiceProfiles
+    :: UserId ::: TeamId ::: Maybe (Range 1 128 Text) ::: Bool ::: Range 10 100 Int32
+    -> Handler Response
+searchTeamServiceProfiles (uid ::: tid ::: prefix ::: filterDisabled ::: size) = do
+    -- Check that the user actually belong to the team they claim they
+    -- belong to. (Note: the 'tid' team might not even exist but we'll throw
+    -- 'insufficientTeamPermissions' anyway)
+    teamId <- lift $ User.lookupUserTeam uid
+    unless (Just tid == teamId) $
+        throwStd insufficientTeamPermissions
+    -- Get search results
+    json <$> DB.paginateServiceWhitelist tid prefix filterDisabled (fromRange size)
+
 getServiceTagList :: () -> Handler Response
 getServiceTagList _ = return (json (ServiceTagList allTags))
   where
     allTags = [(minBound :: ServiceTag) ..]
+
+updateServiceWhitelist :: UserId ::: ConnId ::: TeamId ::: Request -> Handler Response
+updateServiceWhitelist (uid ::: con ::: tid ::: req) = do
+    upd :: UpdateServiceWhitelist <- parseJsonBody req
+    let pid = updateServiceWhitelistProvider upd
+        sid = updateServiceWhitelistService upd
+        newWhitelisted = updateServiceWhitelistStatus upd
+
+    -- Preconditions
+    ensurePermissions uid tid (Set.toList Teams.serviceWhitelistPermissions)
+    _ <- DB.lookupService pid sid >>= maybeServiceNotFound
+
+    -- Add to various tables
+    whitelisted <- DB.getServiceWhitelistStatus tid pid sid
+    case (whitelisted, newWhitelisted) of
+        (False, False) -> return (setStatus status204 empty)
+        (True,  True)  -> return (setStatus status204 empty)
+        (False, True)  -> do
+            DB.insertServiceWhitelist tid pid sid
+            return (setStatus status200 empty)
+        (True, False)  -> do
+            -- When the service is de-whitelisted, remove its bots from team
+            -- conversations
+            lift $ runConduit
+                   $ User.lookupServiceUsersForTeam pid sid tid
+                  .| C.mapM_ (void . mapMPooled 16 (\(bid, cid) ->
+                                deleteBot uid (Just con) bid cid))
+            DB.deleteServiceWhitelist (Just tid) pid sid
+            return (setStatus status200 empty)
 
 addBot :: UserId ::: ConnId ::: ConvId ::: Request -> Handler Response
 addBot (zuid ::: zcon ::: cid ::: req) = do
@@ -612,16 +726,28 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let mems = cnvMembers cnv
     unless (cnvType cnv == RegularConv) $
         throwStd invalidConv
-    maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+    maxSize <- fromIntegral . setMaxConvSize <$> view settings
     unless (length (cmOthers mems) < maxSize - 1) $
         throwStd tooManyMembers
-    for_ (cnvTeam cnv) $ ensureNotManagedConv
+
+    -- For team conversations: bots are not allowed in managed and in
+    -- team-only conversations
+    when (cnvAccessRole cnv == TeamAccessRole) $
+        throwStd invalidConv
+    for_ (cnvTeam cnv) $ \tid -> do
+        tc <- lift (RPC.getTeamConv zuid tid cid) >>= maybeConvNotFound
+        when (view Teams.managedConversation tc) $
+            throwStd invalidConv
 
     -- Lookup the relevant service data
     scon <- DB.lookupServiceConn pid sid >>= maybeServiceNotFound
     unless (sconEnabled scon) $
         throwStd serviceDisabled
     svp <- DB.lookupServiceProfile pid sid >>= maybeServiceNotFound
+    for_ (cnvTeam cnv) $ \tid -> do
+        whitelisted <- DB.getServiceWhitelistStatus tid pid sid
+        unless whitelisted $
+            throwStd serviceNotWhitelisted
 
     -- Prepare a user ID, client ID and token for the bot.
     bid <- BotId <$> randomId
@@ -648,7 +774,7 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
     let newClt = (newClient PermanentClient (Ext.rsNewBotLastPrekey rs) ())
                { newClientPrekeys = Ext.rsNewBotPrekeys rs
                }
-    lift $ User.insertAccount (UserAccount usr Active) Nothing True (SearchableStatus True)
+    lift $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True (SearchableStatus True)
     (clt, _, _) <- User.addClient (botUserId bid) bcl newClt Nothing
                    !>> const (StdError badGateway) -- MalformedPrekeys
 
@@ -663,11 +789,6 @@ addBot (zuid ::: zcon ::: cid ::: req) = do
         , rsAddBotAssets = assets
         , rsAddBotEvent  = ev
         }
-  where
-    ensureNotManagedConv tid = do
-        tc <- lift (RPC.getTeamConv zuid tid cid) >>= maybeConvNotFound
-        when (view managedConversation tc) $
-            throwStd invalidConv
 
 removeBot :: UserId ::: ConnId ::: ConvId ::: BotId -> Handler Response
 removeBot (zusr ::: zcon ::: cid ::: bid) = do
@@ -683,7 +804,7 @@ removeBot (zusr ::: zcon ::: cid ::: bid) = do
     case bot >>= omService of
         Nothing -> return (setStatus status204 empty)
         Just  _ -> do
-            ev <- deleteBot zusr (Just zcon) bid cid
+            ev <- lift $ deleteBot zusr (Just zcon) bid cid
             return $ case ev of
                 Just  e -> json (RemoveBotResponse e)
                 Nothing -> setStatus status204 empty
@@ -722,7 +843,7 @@ botUpdatePrekeys (bot ::: req) = do
 botClaimUsersPrekeys :: Request -> Handler Response
 botClaimUsersPrekeys req = do
     body <- parseJsonBody req
-    maxSize <- fromIntegral . setMaxConvAndTeamSize <$> view settings
+    maxSize <- fromIntegral . setMaxConvSize <$> view settings
     when (Map.size (userClients body) > maxSize) $
         throwStd tooManyClients
     json <$> lift (Client.claimMultiPrekeyBundles body)
@@ -742,7 +863,7 @@ botDeleteSelf :: BotId ::: ConvId -> Handler Response
 botDeleteSelf (bid ::: cid) = do
     bot <- lift $ User.lookupUser (botUserId bid)
     _   <- maybeInvalidBot (userService =<< bot)
-    _   <- deleteBot (botUserId bid) Nothing bid cid
+    _   <- lift $ deleteBot (botUserId bid) Nothing bid cid
     return empty
 
 --------------------------------------------------------------------------------
@@ -759,16 +880,21 @@ activate pid old new = do
         throwStd emailExists
     DB.insertKey pid (mkEmailKey <$> old) emailKey
 
-deleteBot :: UserId -> Maybe ConnId -> BotId -> ConvId -> Handler (Maybe Event)
+deleteBot :: UserId -> Maybe ConnId -> BotId -> ConvId -> AppIO (Maybe Event)
 deleteBot zusr zcon bid cid = do
     -- Remove the bot from the conversation
-    ev <- lift $ RPC.removeBotMember zusr zcon cid bid
+    ev <- RPC.removeBotMember zusr zcon cid bid
     -- Delete the bot user and client
     let buid = botUserId bid
-    lift $ User.lookupClients buid >>= mapM_ (User.rmClient buid . clientId)
+    mbUser <- User.lookupUser buid
+    User.lookupClients buid >>= mapM_ (User.rmClient buid . clientId)
+    for_ (userService =<< mbUser) $ \sref -> do
+        let pid = sref ^. serviceRefProvider
+            sid = sref ^. serviceRefId
+        User.deleteServiceUser pid sid bid
     -- TODO: Consider if we can actually delete the bot user entirely,
     -- i.e. not just marking the account as deleted.
-    lift $ User.updateStatus buid Deleted
+    User.updateStatus buid Deleted
     return ev
 
 validateServiceKey :: MonadIO m => ServiceKeyPEM -> m (Maybe (ServiceKey, Fingerprint Rsa))
@@ -868,6 +994,9 @@ tooManyBots = Wai.Error status409 "too-many-bots" "Maximum number of bots for th
 
 serviceDisabled :: Wai.Error
 serviceDisabled = Wai.Error status403 "service-disabled" "The desired service is currently disabled."
+
+serviceNotWhitelisted :: Wai.Error
+serviceNotWhitelisted = Wai.Error status403 "service-not-whitelisted" "The desired service is not on the whitelist of allowed services for this team."
 
 serviceError :: RPC.ServiceError -> Wai.Error
 serviceError RPC.ServiceUnavailable = badGateway

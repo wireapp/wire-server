@@ -10,7 +10,6 @@
 module Test.Spar.DataSpec where
 
 import Bilge
-import Cassandra as Cas
 import Control.Concurrent
 import Control.Exception
 import Control.Monad.Catch
@@ -28,13 +27,13 @@ import Spar.API.Instances ()
 import Spar.API.Test (IntegrationTests)
 import Spar.Data as Data
 import Spar.Options as Options
-import Spar.Types
 import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
 import Util.Options
 import Web.Cookie
 
+import qualified Cassandra as Cas
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.List as List
 import qualified SAML2.WebSSO as SAML
@@ -48,14 +47,18 @@ spec :: SpecWith TestEnv
 spec = do
   describe "TTL" $ do
     it "works in seconds" $ do
+      -- NB: this test calls C* directly.  no deeper reason for that, it just seemed more convenient
+      -- at the time, and @fisx is of the opinion that integration tests do not have to limit
+      -- themselves to particular ways of trying to break the testee.
+
       env <- ask
-      (_, _, idpid) <- createTestIdP
+      let idpid = env ^. teIdP . SAML.idpId
       (_, req) <- call $ callAuthnReq (env ^. teSpar) idpid
 
       let probe :: IO Bool
           probe = do
             denv :: Data.Env <- Data.mkEnv (env ^. teOpts) <$> getCurrentTime
-            runClient (env ^. teCql) (checkAgainstRequest (req ^. SAML.rqID) `runReaderT` denv)
+            Cas.runClient (env ^. teCql) (checkAgainstRequest (req ^. SAML.rqID) `runReaderT` denv)
 
           maxttl :: Int  -- musec
           maxttl = (fromIntegral . fromTTL $ env ^. teOpts . to maxttlAuthreq) * 1000 * 1000
@@ -63,10 +66,10 @@ spec = do
       liftIO $ do
         maxttl `shouldSatisfy` (< 60 * 1000 * 1000)  -- otherwise the test will be really slow.
         probe `shouldReturn` True
-        threadDelay ((maxttl `div` 10) * 8)
-        probe `shouldReturn` True
-        threadDelay  ((maxttl `div` 10) * 4)
-        probe `shouldReturn` False
+        threadDelay (maxttl `div` 2)
+        probe `shouldReturn` True  -- 0.5 lifetimes after birth
+        threadDelay  maxttl
+        probe `shouldReturn` False  -- 1.5 lifetimes after birth
 
 
   describe "cql binding" $ do
@@ -187,7 +190,7 @@ spec = do
 
         context "denied" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, outcome, _, _) <- prepareAccessVerdictCore False mkAuthnReqWeb
+            (_, outcome, _, _) <- requestAccessVerdict False mkAuthnReqWeb
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -198,7 +201,7 @@ spec = do
 
         context "granted" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, outcome, _, _) <- prepareAccessVerdictCore True mkAuthnReqWeb
+            (_, outcome, _, _) <- requestAccessVerdict True mkAuthnReqWeb
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
               Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -216,7 +219,7 @@ spec = do
 
         context "denied" $ do
           it "responds with status 303 with appropriate details." $ do
-            (_uid, outcome, loc, qry) <- prepareAccessVerdictCore False mkAuthnReqMobile
+            (_uid, outcome, loc, qry) <- requestAccessVerdict False mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -228,7 +231,7 @@ spec = do
 
         context "granted" $ do
           it "responds with status 303 with appropriate details." $ do
-            (uid, outcome, loc, qry) <- prepareAccessVerdictCore True mkAuthnReqMobile
+            (uid, outcome, loc, qry) <- requestAccessVerdict True mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -316,18 +319,20 @@ mkAuthnReqMobile idpid = do
       arPath = cs $ "/sso/initiate-login/" <> cs (SAML.idPIdToST idpid) <> "?" <> arQueries
   call $ get ((env ^. teSpar) . path arPath . expect2xx)
 
-prepareAccessVerdictCore :: HasCallStack
-                         => Bool                                             -- is the verdict granted?
-                         -> (SAML.IdPId -> ReaderT TestEnv IO ResponseLBS)   -- raw authnreq
-                         -> ReaderT TestEnv IO ( UserId
-                                               , SAML.ResponseVerdict
-                                               , URI                         -- location header
-                                               , [(SBS, SBS)]                -- query params
-                                               )
-prepareAccessVerdictCore isGranted mkAuthnReq = do
-  (uid, _, idpid) <- createTestIdP
+requestAccessVerdict :: HasCallStack
+                     => Bool                                             -- ^ is the verdict granted?
+                     -> (SAML.IdPId -> ReaderT TestEnv IO ResponseLBS)   -- ^ raw authnreq
+                     -> ReaderT TestEnv IO ( UserId
+                                           , SAML.ResponseVerdict
+                                           , URI                         -- ^ location header
+                                           , [(SBS, SBS)]                -- ^ query params
+                                           )
+requestAccessVerdict isGranted mkAuthnReq = do
   env <- ask
-  let tenant  = sampleIdP ^. nidpIssuer
+  let uid = env ^. teUserId
+      idp = env ^. teIdP
+  let idpid   = idp ^. SAML.idpId
+      tenant  = idp ^. SAML.idpIssuer
       subject = SAML.opaqueNameID "blee"
       uref    = SAML.UserRef tenant subject
   call $ runInsertUser env uref uid

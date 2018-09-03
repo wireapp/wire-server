@@ -1,5 +1,5 @@
 brig:
-  host: 0.0.0.0
+  host: 127.0.0.1
   port: 8082
 
 cassandra:
@@ -25,18 +25,23 @@ gundeck:
   port: 8086
 
 aws:
-  blacklistTable: integration-brig-userkey-blacklist
   prekeyTable: integration-brig-prekeys
-  internalQueue: integration-brig-events-internal
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
+
+internalEvents:
+  queueType: sqs
+  queueName: integration-brig-events-internal
+
 emailSMS:
   email:
-    sesQueue: integration-brig-events
-    sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
+    smtpEndpoint: 127.0.0.1
+    smtpUsername: dummy
+    smtpPassword: resources/smtp-secret.txt
+    smtpConnType: plain
   general:
     templateDir: resources/templates
-    emailSender: backend-integration@wire.com
+    emailSender: backend-demo@mail.wiredemo.example.com
     smsSender: "<insert-sender-number-here>"
 
   user:
@@ -91,4 +96,5 @@ optSettings:
     stdDev: 3000      # 50 minutes
     retryAfter: 86400 # 1 day
   setDefaultLocale: en
-  setMaxConvAndTeamSize: 128
+  setMaxTeamSize: 128
+  setMaxConvSize: 128

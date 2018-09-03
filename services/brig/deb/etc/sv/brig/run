@@ -92,8 +92,7 @@ exec chpst -u $USER \
     --team-creator-welcome-url=${BRIG_TEAM_CREATOR_WELCOME_URL?'unset'} \
     --team-member-welcome-url=${BRIG_TEAM_MEMBER_WELCOME_URL?'unset'} \
     --aws-ses-queue=${BRIG_AWS_SES_QUEUE?'unset'} \
-    --aws-internal-queue=${BRIG_AWS_INTERNAL_QUEUE?'unset'} \
-    --aws-dynamo-blacklist=${BRIG_AWS_DYNAMO_BLACKLIST?'unset'} \
+    --internal-events-queue=${BRIG_INTERNAL_EVENTS_QUEUE?'unset'} \
     --aws-dynamo-prekeys=${BRIG_AWS_DYNAMO_PREKEYS?'unset'} \
     --aws-ses-endpoint=${BRIG_SES_ENDPOINT?'unset'} \
     --aws-sqs-endpoint=${BRIG_SQS_ENDPOINT?'unset'} \
@@ -101,6 +100,7 @@ exec chpst -u $USER \
     --twilio-credentials=${BRIG_TWILIO_CREDENTIALS?'unset'} \
     --twilio-sender=${BRIG_TWILIO_SENDER?'unset'} \
     --nexmo-credentials=${BRIG_NEXMO_CREDENTIALS?'unset'} \
+    `# --stomp-credentials=${BRIG_STOMP_CREDENTIALS}` \
     --template-dir=${TEMPLATE_DIR?'unset'} \
     --email-sender=${BRIG_EMAIL_SENDER?'unset'} \
     --disco-url=${DISCO_URL?'unset'} \
@@ -127,7 +127,8 @@ exec chpst -u $USER \
     --turn-servers=${BRIG_TURN_SERVERS?'unset'} \
     --turn-servers-v2=${BRIG_TURN_SERVERS_V2?'unset'} \
     --turn-secret=${BRIG_TURN_SECRET?'unset'} \
-    --conv-team-max-size=${BRIG_CONV_TEAM_MAX_SIZE:-128} \
+    --team-max-size=${BRIG_TEAM_MAX_SIZE?'unset'} \
+    --conv-max-size=${BRIG_CONV_MAX_SIZE?'unset'} \
     ${TURN_TOKEN_LIFETIME} \
     ${TURN_CONFIG_TTL} \
     ${AWS_ACCESS_KEY_ID} \
