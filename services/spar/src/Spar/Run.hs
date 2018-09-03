@@ -126,9 +126,9 @@ sparManager disableCertificateValidation = newManager (TLS.mkManagerSettings tls
   { managerResponseTimeout = responseTimeoutMicro (10 * 1000 * 1000)
   }
   where
-    tlss = TLS.TLSSettingsSimple
+    tlss = TLS.TLSSettingsSimpleWithCiphers
       { TLS.settingDisableCertificateValidation = disableCertificateValidation
-      , TLS.settingSupportedCiphers = TLS.ciphersuite_default  -- this is why we are pinned to https://github.com/vincenthz/hs-connection/pull/34
+      , TLS.settingSupportedCiphers = TLS.ciphersuite_default  -- this is why we are pinned to https://github.com/vincenthz/hs-connection/pull/36
       , TLS.settingDisableSession = False
       , TLS.settingUseServerName = False
       }
