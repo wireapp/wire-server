@@ -43,6 +43,7 @@ import qualified Cassandra.Schema as Cas
 import qualified Cassandra.Settings as Cas
 import qualified Network.Connection as TLS
 import qualified Network.HTTP.Client.TLS as TLS
+import qualified Network.TLS.Extra.Cipher as TLS
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
@@ -127,6 +128,7 @@ sparManager disableCertificateValidation = newManager (TLS.mkManagerSettings tls
   where
     tlss = TLS.TLSSettingsSimple
       { TLS.settingDisableCertificateValidation = disableCertificateValidation
+      , TLS.settingSupportedCiphers = TLS.ciphersuite_default  -- this is why we are pinned to https://github.com/vincenthz/hs-connection/pull/34
       , TLS.settingDisableSession = False
       , TLS.settingUseServerName = False
       }
