@@ -141,6 +141,13 @@ spec = do
           it "logs out user B, logs in user A" $ do
             pending
 
+        context "more than one dsig cert" $ do
+          it "accepts the first of two certs for signatures" $ do
+            pending
+
+          it "accepts the second of two certs for signatures" $ do
+            pending
+
       context "unknown IdP Issuer" $ do
         it "rejects" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
