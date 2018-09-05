@@ -36,7 +36,7 @@ import Web.Cookie (SetCookie)
 import qualified Data.Swagger.SchemaOptions as Swagger
 import qualified Data.X509 as X509
 import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Config.TH as SAML
+import qualified SAML2.WebSSO.Types.TH as SAML
 import qualified Servant.Multipart as SM
 import qualified URI.ByteString as URI
 
@@ -118,7 +118,7 @@ instance ToSchema a => ToSchema (SAML.IdPConfig a) where
 instance ToSchema IdPList where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
-instance ToSchema NewIdP where
+instance ToSchema SAML.NewIdP where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema (SAML.ID SAML.AuthnRequest) where

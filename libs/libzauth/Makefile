@@ -1,3 +1,4 @@
+LANG := en_US.UTF-8
 dist:
 	$(MAKE) -C libzauth-c $@
 	cp libzauth-c/target/release/*.deb .

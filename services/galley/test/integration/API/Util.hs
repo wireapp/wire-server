@@ -10,7 +10,7 @@ import Control.Error
 import Control.Lens hiding ((.=), from, to, (#))
 import Control.Monad hiding (mapM_)
 import Control.Monad.IO.Class
-import Control.Retry
+import Control.Retry (retrying, constantDelay, limitRetries)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key)
 import Data.ByteString.Char8 (pack, ByteString, intercalate)

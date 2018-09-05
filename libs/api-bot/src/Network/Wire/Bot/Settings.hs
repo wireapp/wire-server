@@ -30,17 +30,18 @@ import qualified Data.Text as Text
 -- BotNetSettings
 
 data BotNetSettings = BotNetSettings
-    { setBotNetApiHost       :: !ByteString
-    , setBotNetApiPort       :: !Word16
-    , setBotNetApiWsHost     :: !(Maybe ByteString)
-    , setBotNetApiWsPort     :: !(Maybe Word16)
-    , setBotNetApiSSL        :: !Bool
-    , setBotNetAssert        :: !Bool
-    , setBotNetMailboxConfig :: !(Maybe FilePath)
-    , setBotNetSender        :: !Email
-    , setBotNetUsersFile     :: !(Maybe FilePath)
-    , setBotNetReportDir     :: !(Maybe FilePath)
-    , setBotNetBotSettings   :: !BotSettings
+    { setBotNetApiHost        :: !ByteString
+    , setBotNetApiPort        :: !Word16
+    , setBotNetApiWsHost      :: !(Maybe ByteString)
+    , setBotNetApiWsPort      :: !(Maybe Word16)
+    , setBotNetApiSSL         :: !Bool
+    , setBotNetAssert         :: !Bool
+    , setBotNetMailboxConfig  :: !(Maybe FilePath)
+    , setBotNetSender         :: !Email
+    , setBotNetUsersFile      :: !(Maybe FilePath)
+    , setBotNetReportDir      :: !(Maybe FilePath)
+    , setBotNetBotSettings    :: !BotSettings
+    , setBotNetMailboxFolders :: ![String]
     } deriving (Eq, Show)
 
 botNetSettingsParser :: Parser BotNetSettings
@@ -56,6 +57,7 @@ botNetSettingsParser = BotNetSettings
     <*> usersFileOption
     <*> reportDirOption
     <*> botSettingsParser
+    <*> mailboxFoldersOption
 
 apiHostOption :: Parser ByteString
 apiHostOption = bsOption $
@@ -116,6 +118,14 @@ reportDirOption = optional . strOption $
     long "report-dir"
     <> metavar "DIR"
     <> help "Output directory for reports"
+
+mailboxFoldersOption :: Parser [String]
+mailboxFoldersOption = (some . strOption $
+    long "mailbox-folder"
+    <> help "In which mailbox folder to search for emails. \
+    \ Defaults to 'INBOX' if not specified. \
+    \ Can be specified multiple times for multiple folders."
+    ) <|> pure ["INBOX"]
 
 -------------------------------------------------------------------------------
 -- BotSettings

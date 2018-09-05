@@ -24,7 +24,7 @@ mkspec = do
   integrationOpts :: IntegrationConfig <- Yaml.decodeFileEither integrationConfigFilePath >>= either (error . show) pure
   serviceOpts :: Opts <- Yaml.decodeFileEither configFilePath >>= either (error . show) pure
 
-  pure . beforeAll (mkEnv integrationOpts serviceOpts) $ do
+  pure . beforeAll (mkEnv integrationOpts serviceOpts) . afterAll destroyEnv $ do
     describe "Test.Spar.Data" Test.Spar.DataSpec.spec
     describe "Test.Spar.API" $ Test.Spar.APISpec.spec
 

@@ -196,7 +196,10 @@ verdictHandler aresp verdict = do
     Nothing -> throwError $ SAML.BadSamlResponse "AuthRequest seems to have disappeared (could not find verdict format)."
                -- (this shouldn't happen too often, see 'storeVerdictFormat')
 
-data VerdictHandlerResult = VerifyHandlerDenied | VerifyHandlerGranted SetCookie UserId
+data VerdictHandlerResult
+  = VerifyHandlerDenied
+  | VerifyHandlerGranted SetCookie UserId
+
 
 verdictHandlerResult :: HasCallStack => SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResult = \case

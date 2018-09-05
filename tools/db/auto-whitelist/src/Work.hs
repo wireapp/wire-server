@@ -50,7 +50,6 @@ doesServiceExist (pid, sid, _) =
 -- | Add the service to the whitelist
 whitelistService :: Logger -> (ProviderId, ServiceId, TeamId) -> Client ()
 whitelistService l (pid, sid, tid) = do
-    liftIO $ print (pid, sid, tid)
     Log.info l $ Log.msg (Log.val "Whitelisting")
                . Log.field "provider" (show pid)
                . Log.field "service" (show sid)
