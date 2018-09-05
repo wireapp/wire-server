@@ -25,7 +25,6 @@ import Control.Error
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Exception (throwIO, ErrorCall (..))
 import Control.Retry
 import Data.Aeson
 import Data.Int
@@ -218,8 +217,7 @@ waitForSchemaConsistency = do
         peers <- systemPeerVersions
         case local of
             Just localVersion -> return $ (localVersion, peers)
-            Nothing           -> liftIO $ throwIO $ ErrorCall
-                "No system_version in system.local (should not happen)"
+            Nothing           -> error "No system_version in system.local (should never happen)"
 
     inDisagreement :: (UUID, [UUID]) -> Bool
     inDisagreement (localVersion, peers) = not $ all (== localVersion) peers
