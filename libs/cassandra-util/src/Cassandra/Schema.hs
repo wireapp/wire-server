@@ -224,14 +224,6 @@ waitForSchemaConsistency = do
     inDisagreement :: (UUID, [UUID]) -> Bool
     inDisagreement (localVersion, peers) = not $ all (== localVersion) peers
 
-    systemPeerVersions :: Client [UUID]
-    systemPeerVersions = fmap runIdentity <$> qry
-      where
-        qry = retry x1 (query cql (params One ()))
-
-        cql :: PrepQuery R () (Identity UUID)
-        cql = "select schema_version from system.peers"
-
     systemLocalVersion :: Client (Maybe UUID)
     systemLocalVersion = fmap runIdentity <$> qry
       where
@@ -239,6 +231,14 @@ waitForSchemaConsistency = do
 
         cql :: PrepQuery R () (Identity UUID)
         cql = "select schema_version from system.local"
+
+    systemPeerVersions :: Client [UUID]
+    systemPeerVersions = fmap runIdentity <$> qry
+      where
+        qry = retry x1 (query cql (params One ()))
+
+        cql :: PrepQuery R () (Identity UUID)
+        cql = "select schema_version from system.peers"
 
 retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
 retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
