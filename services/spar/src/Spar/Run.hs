@@ -27,7 +27,7 @@ import Data.String (fromString)
 import Lens.Micro
 import Network.Wai (Application)
 import Network.Wai.Utilities.Request (lookupRequestId)
-import Spar.API
+import Spar.API (app)
 import Spar.API.Instances ()
 import Spar.API.Swagger ()
 import Spar.App
