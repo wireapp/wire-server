@@ -147,7 +147,11 @@ spec = do
       context "unknown IdP Issuer" $ do
         it "rejects" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          authnresp <- liftIO $ mkAuthnResponse privcreds (idp & idpIssuer .~ Issuer [uri|http://unknown-issuer/|]) authnreq True
+          authnresp <- liftIO $ mkAuthnResponse
+            privcreds
+            (idp & idpMetadata . edIssuer .~ Issuer [uri|http://unknown-issuer/|])
+            authnreq
+            True
           sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 404

@@ -178,16 +178,16 @@ storeIdPConfig idp = retry x5 . batch $ do
   setConsistency Quorum
   addPrepQuery ins
     ( idp ^. SAML.idpId
-    , idp ^. SAML.idpIssuer
-    , idp ^. SAML.idpRequestUri
-    , NL.head (idp ^. SAML.idpPublicKeys)
-    , NL.tail (idp ^. SAML.idpPublicKeys)
+    , idp ^. SAML.idpMetadata . SAML.edIssuer
+    , idp ^. SAML.idpMetadata . SAML.edRequestURI
+    , NL.head (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
+    , NL.tail (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
       -- (the 'List1' is split up into head and tail to make migration from one-element-only easier.)
     , idp ^. SAML.idpExtraInfo . idpeTeam
     )
   addPrepQuery byIssuer
     ( idp ^. SAML.idpId
-    , idp ^. SAML.idpIssuer
+    , idp ^. SAML.idpMetadata . SAML.edIssuer
     )
   addPrepQuery byTeam
     ( idp ^. SAML.idpId

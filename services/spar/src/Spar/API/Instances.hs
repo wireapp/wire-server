@@ -22,7 +22,7 @@ import Data.String.Conversions
 import Data.Time
 import GHC.Generics
 import SAML2.WebSSO.Types
-import SAML2.WebSSO.XML
+import SAML2.WebSSO.XML as SAML
 import Servant hiding (URI)
 import Text.XML.Util (parseURI')
 import URI.ByteString
@@ -73,8 +73,11 @@ instance ToJSON AccessVerdict
 instance FromJSON AuthnResponse
 instance ToJSON AuthnResponse
 
-instance FromJSON Status
-instance ToJSON Status
+instance FromJSON Status where
+  parseJSON = withText "Status" $ either fail pure . SAML.decodeElem . cs
+
+instance ToJSON Status where
+  toJSON = String . cs . SAML.encodeElem
 
 instance FromJSON Assertion
 instance ToJSON Assertion

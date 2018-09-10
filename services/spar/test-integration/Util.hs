@@ -118,12 +118,13 @@ mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
   _teCql :: ClientState <- initCassandra _teOpts =<< mkLogger _teOpts
+  issuer :: Issuer <- makeIssuer
   let _teBrig    = endpointToReq (cfgBrig   _teTstOpts)
       _teGalley  = endpointToReq (cfgGalley _teTstOpts)
       _teSpar    = endpointToReq (cfgSpar   _teTstOpts)
 
       _teMetadata :: IdPMetadata
-      _teMetadata = sampleIdPMetadata (Issuer [uri|http://issuer.net/|]) [uri|http://requri.net/|]
+      _teMetadata = sampleIdPMetadata issuer [uri|http://requri.net/|]
 
   (_teUserId, _teTeamId, _teIdP) <- do
     createTestIdPFrom _teMetadata _teMgr _teBrig _teGalley _teSpar

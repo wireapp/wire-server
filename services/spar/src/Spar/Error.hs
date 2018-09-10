@@ -31,7 +31,7 @@ data SparCustomError
   | SparNotInTeam
   | SparNotTeamOwner
 
-  | SparNoRequestRefInResponse  -- (this is technically legal, but unnecessary, and should probably fixed in saml2-web-sso.)
+  | SparNoRequestRefInResponse LT
   | SparCouldNotSubstituteSuccessURI LT
   | SparCouldNotSubstituteFailureURI LT
   | SparBadInitiateLoginQueryParams LT
@@ -61,7 +61,7 @@ waiToServant waierr@(Wai.Error status label _) = ServantErr
   }
 
 sparToWaiError :: SparError -> Either ServantErr Wai.Error
-sparToWaiError (SAML.CustomError SparNoRequestRefInResponse)              = Right $ Wai.Error status400 "server-error-unsupported-saml" "The IdP needs to provide an InResponseTo attribute in the top-level element of the response."
+sparToWaiError (SAML.CustomError (SparNoRequestRefInResponse msg))        = Right $ Wai.Error status400 "server-error-unsupported-saml" ("The IdP needs to provide an InResponseTo attribute in the assertion: " <> msg)
 sparToWaiError (SAML.CustomError (SparCouldNotSubstituteSuccessURI msg))  = Right $ Wai.Error status400 "bad-success-redirect" ("re-parsing the substituted URI failed: " <> msg)
 sparToWaiError (SAML.CustomError (SparCouldNotSubstituteFailureURI msg))  = Right $ Wai.Error status400 "bad-failure-redirect" ("re-parsing the substituted URI failed: " <> msg)
 sparToWaiError (SAML.CustomError (SparBadInitiateLoginQueryParams label)) = Right $ Wai.Error status400 label label

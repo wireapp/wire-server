@@ -187,8 +187,10 @@ instance Intra.MonadSparToBrig Spar where
 -- latter.
 verdictHandler :: HasCallStack => SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
 verdictHandler aresp verdict = do
-  reqid <- maybe (throwSpar SparNoRequestRefInResponse) pure $ aresp ^. SAML.rspInRespTo
-                  -- (this shouldn't happen since the response is validated)
+  -- [3/4.1.4.2]
+  -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
+  -- the InResponseTo attribute MUST match the request's ID.
+  reqid <- either (throwSpar . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
   format :: Maybe VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
   case format of
     Just (VerdictFormatWeb) -> verdictHandlerWeb verdict
@@ -199,7 +201,6 @@ verdictHandler aresp verdict = do
 data VerdictHandlerResult
   = VerifyHandlerDenied
   | VerifyHandlerGranted SetCookie UserId
-
 
 verdictHandlerResult :: HasCallStack => SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResult = \case

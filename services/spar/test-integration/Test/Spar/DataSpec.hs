@@ -2,6 +2,7 @@
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QuasiQuotes         #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
@@ -37,6 +38,8 @@ import qualified Cassandra as Cas
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.List as List
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Test.Credentials as SAML
+import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified Servant
 import qualified Servant.Client as Servant
 import qualified Text.XML as XML
@@ -330,7 +333,7 @@ requestAccessVerdict isGranted mkAuthnReq = do
   let uid     = env ^. teUserId
       idp     = env ^. teIdP
       idpid   = idp ^. SAML.idpId
-      tenant  = idp ^. SAML.idpIssuer
+      tenant  = idp ^. SAML.idpMetadata . SAML.edIssuer
       subject = SAML.opaqueNameID "blee"
       uref    = SAML.UserRef tenant subject
   call $ runInsertUser env uref uid
@@ -338,8 +341,8 @@ requestAccessVerdict isGranted mkAuthnReq = do
     raw <- mkAuthnReq idpid
     bdy <- maybe (error "authreq") pure $ responseBody raw
     either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
-  let authnresp = fleshOutResponse emptyAuthnResponse authnreq
-      verdict = if isGranted
+  authnresp <- liftIO $ mkAuthnResponse idp authnreq
+  let verdict = if isGranted
         then SAML.AccessGranted uref
         else SAML.AccessDenied ["we don't like you", "seriously"]
   outcome <- call $ runPostVerdict env (authnresp, verdict)
@@ -352,18 +355,7 @@ requestAccessVerdict isGranted mkAuthnReq = do
   pure (uid, outcome, loc, qry)
 
 
-emptyAuthnResponse :: SAML.AuthnResponse
-emptyAuthnResponse = SAML.Response
-  { SAML._rspID           = SAML.ID "bleep"
-  , SAML._rspInRespTo     = Nothing
-  , SAML._rspVersion      = SAML.Version_2_0
-  , SAML._rspIssueInstant = SAML.unsafeReadTime "2018-04-13T06:33:02.772Z"
-  , SAML._rspDestination  = Nothing
-  , SAML._rspIssuer       = Nothing
-  , SAML._rspStatus       = SAML.StatusSuccess
-  , SAML._rspPayload      = []
-  }
-
--- | See 'verdictHandler' on the question of why we don't need an 'Assertion' in the payload here.
-fleshOutResponse :: SAML.AuthnResponse -> SAML.FormRedirect SAML.AuthnRequest -> SAML.AuthnResponse
-fleshOutResponse resp (SAML.FormRedirect _ req) = resp & SAML.rspInRespTo .~ Just (req ^. SAML.rqID)
+mkAuthnResponse :: SAML.IdPConfig extra -> SAML.FormRedirect SAML.AuthnRequest -> IO SAML.AuthnResponse
+mkAuthnResponse idp (SAML.FormRedirect _ req) = do
+  SAML.SignedAuthnResponse (XML.Document _ el _) <- liftIO $ SAML.mkAuthnResponse SAML.sampleIdPPrivkey idp req True
+  either (throwIO . ErrorCall . show) pure $ SAML.parse [XML.NodeElement el]

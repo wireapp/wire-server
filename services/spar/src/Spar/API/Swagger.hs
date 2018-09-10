@@ -102,6 +102,12 @@ instance ToSchema SAML.IdPId where
 instance ToSchema SAML.AuthnRequest where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
+instance ToSchema SAML.NameIdPolicy where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
+instance ToSchema SAML.NameIDFormat where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
 instance ToSchema (SAML.FormRedirect SAML.AuthnRequest) where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
   -- TODO: would be nice to add an example here, but that only works for json?
