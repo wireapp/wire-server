@@ -46,6 +46,8 @@ dependencies:
   - http-types
   - stm-containers
   - http-media
+  - uuid
+  - template-haskell
 
 ghc-options: -Wall
 

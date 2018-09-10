@@ -8,13 +8,13 @@ module Web.SCIM.Class.Auth
     ) where
 
 import Data.Aeson
-import Data.Text
 import GHC.Generics
 import Servant.Auth.Server
+import Data.UUID
 
 -- | Someone who is allowed to provision users via SCIM.
 data Admin = Admin
-  { name :: Text   -- TODO: change to UUID
+  { adminId :: UUID
   } deriving (Eq, Show, Read, Generic)
 
 instance ToJSON Admin
@@ -24,7 +24,7 @@ instance FromJWT Admin
 
 -- | Unfortunately, we have to pass an "authentication callback" to Servant
 -- by instantiating a zero-argument type family. This can only be done once
--- per application.
+-- per application, which is not the best possible design.
 type instance BasicAuthCfg = BasicAuthData -> IO (AuthResult Admin)
 
 instance FromBasicAuthData Admin where

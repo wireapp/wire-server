@@ -2,6 +2,8 @@
 
 module Web.SCIM.Schema.AuthenticationScheme
   ( AuthenticationScheme(..)
+  , AuthenticationSchemeEncoding
+  , authHttpBasicEncoding
   ) where
 
 import Web.SCIM.Schema.Common
@@ -10,6 +12,9 @@ import Data.Aeson
 import Data.Text
 import GHC.Generics
 import Network.URI.Static
+
+----------------------------------------------------------------------------
+-- Types
 
 -- | Possible authentication schemes. The specification defines the values
 -- "oauth", "oauth2", "oauthbearertoken", "httpbasic", and "httpdigest".
@@ -44,12 +49,15 @@ instance ToJSON AuthenticationSchemeEncoding where
   toJSON = genericToJSON serializeOptions
   -- NB: "typ" will be converted to "type" thanks to 'serializeOptions'
 
-instance ToJSON AuthenticationScheme where
-  toJSON AuthHttpBasic = toJSON AuthenticationSchemeEncoding
-    { typ = "httpbasic"
-    , name = "HTTP Basic"
-    , description = "Authentication via the HTTP Basic standard"
-    , specUri = Just $ URI [uri|https://tools.ietf.org/html/rfc7617|]
-    , documentationUri = Just $ URI [uri|https://en.wikipedia.org/wiki/Basic_access_authentication|]
-    }
-  toJSON x = error ("not implemented: toJSON " ++ show x)
+----------------------------------------------------------------------------
+-- Scheme encodings
+
+-- | The description of the 'AuthHttpBasic' scheme.
+authHttpBasicEncoding :: AuthenticationSchemeEncoding
+authHttpBasicEncoding = AuthenticationSchemeEncoding
+  { typ = "httpbasic"
+  , name = "HTTP Basic"
+  , description = "Authentication via the HTTP Basic standard"
+  , specUri = Just $ URI [uri|https://tools.ietf.org/html/rfc7617|]
+  , documentationUri = Just $ URI [uri|https://en.wikipedia.org/wiki/Basic_access_authentication|]
+  }

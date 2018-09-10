@@ -24,16 +24,18 @@ import qualified STMContainers.Map as STMMap
 import           Web.SCIM.Schema.User
 import           Web.SCIM.Schema.Meta
 import           Web.SCIM.Schema.ListResponse
+import           Web.SCIM.Schema.ResourceType
 import           Web.SCIM.Schema.Common (WithId(WithId))
 import qualified Web.SCIM.Schema.Common     as Common
 import           Servant hiding (BadPassword, NoSuchUser)
 import           Servant.Auth.Server
+import           Data.UUID as UUID
 
 import Prelude hiding (id)
 
 type UserStorage  = STMMap.Map Text StoredUser
 type GroupStorage = STMMap.Map Text StoredGroup
-type AdminStorage = STMMap.Map Text (Admin, Text) -- (Admin, Pass)
+type AdminStorage = STMMap.Map UUID (Admin, Text) -- (Admin, Pass)
 
 data TestStorage = TestStorage
   { userDB :: UserStorage
@@ -94,11 +96,17 @@ instance AuthDB TestServer where
   mkAuthChecker = do
     m <- authDB <$> ask
     pure $ \(BasicAuthData login pass) ->
-      atomically (STMMap.lookup (decodeUtf8 login) m) >>= \case
-        Just (admin, adminPass)
-          | decodeUtf8 pass == adminPass -> pure (Authenticated admin)
-          | otherwise -> pure BadPassword
+      case UUID.fromASCIIBytes login of
         Nothing -> pure NoSuchUser
+        Just loginUuid -> atomically (STMMap.lookup loginUuid m) >>= \case
+          Just (admin, adminPass)
+            | decodeUtf8 pass == adminPass -> pure (Authenticated admin)
+            -- Note: somebody can figure out if whether the given user
+            -- exists, but since the admin users are represented with UUIDs
+            -- (which are pretty hard to bruteforce), it's okay. It also
+            -- makes debugging easier.
+            | otherwise -> pure BadPassword
+          Nothing -> pure NoSuchUser
 
 insertGroup :: Group -> Meta -> GroupStorage -> STM StoredGroup
 insertGroup grp met storage = do

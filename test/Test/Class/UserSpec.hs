@@ -95,6 +95,8 @@ users :: ResponseMatcher
 users = [scim|
         { "schemas":["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
           "totalResults": 1,
+          "itemsPerPage": 1,
+          "startIndex": 0,
           "Resources":
             [{ "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
                "userName":"bjensen",
@@ -173,7 +175,9 @@ emptyList :: ResponseMatcher
 emptyList = [scim|
        { "schemas": ["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
          "Resources":[],
-         "totalResults":0
+         "totalResults":0,
+         "itemsPerPage":0,
+         "startIndex":0
        }|]
 
 unknown :: ResponseMatcher

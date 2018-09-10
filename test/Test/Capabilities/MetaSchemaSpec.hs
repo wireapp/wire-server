@@ -68,6 +68,10 @@ spec = with (pure app) $ do
     it "returns configuration" $ do
       get "/ServiceProviderConfig" `shouldRespondWith` spConfig
 
+  describe "GET /ResourceTypes" $ do
+    it "returns resource types" $ do
+      get "/ResourceTypes" `shouldRespondWith` resourceTypes
+
 
 -- FIXME: missing some "supported" fields
 spConfig :: ResponseMatcher
@@ -96,5 +100,21 @@ spConfig = [scim|
  "filter":{"maxResults":0,
            "supported":false
           }
+}
+|]
+
+resourceTypes :: ResponseMatcher
+resourceTypes = [scim|
+{"schemas":["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
+ "Resources":[
+   {"schema":"urn:ietf:params:scim:schemas:core:2.0:User",
+    "name":"User",
+    "endpoint":"/Users"},
+   {"schema":"urn:ietf:params:scim:schemas:core:2.0:Group",
+    "name":"Group",
+    "endpoint":"/Groups"}],
+ "totalResults":2,
+ "startIndex":0,
+ "itemsPerPage":2
 }
 |]

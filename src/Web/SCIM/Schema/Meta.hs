@@ -6,17 +6,10 @@ import Prelude hiding (map)
 import Data.Text (Text)
 import Data.Aeson
 import Web.SCIM.Schema.Common
+import Web.SCIM.Schema.ResourceType
 import GHC.Generics (Generic)
 import qualified Data.HashMap.Lazy as HML
 import Data.Time.Clock
-
-data ResourceType = UserResource
-                  | GroupResource
-  deriving (Eq, Show)
-
-instance ToJSON ResourceType where
-  toJSON UserResource = "User"
-  toJSON GroupResource = "Group"
 
 data ETag = Weak Text | Strong Text
   deriving (Eq, Show)

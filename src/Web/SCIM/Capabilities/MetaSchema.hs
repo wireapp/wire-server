@@ -15,6 +15,7 @@ module Web.SCIM.Capabilities.MetaSchema (
 
 import           Web.SCIM.Schema.Schema
 import           Web.SCIM.Schema.Common
+import           Web.SCIM.Schema.ResourceType hiding (schema)
 import           Web.SCIM.Schema.AuthenticationScheme
 import           Web.SCIM.Schema.ListResponse as ListResponse
 import           Web.SCIM.Capabilities.MetaSchema.User
@@ -69,7 +70,7 @@ data Configuration = Configuration
   , changePassword :: Supported ()
   , sort :: Supported ()
   , etag :: Supported ()
-  , authenticationSchemes :: [AuthenticationScheme]
+  , authenticationSchemes :: [AuthenticationSchemeEncoding]
   } deriving (Show, Eq, Generic)
 
 instance ToJSON Configuration where
@@ -90,7 +91,7 @@ empty = Configuration
   , changePassword = Supported False ()
   , sort = Supported False ()
   , etag = Supported False ()
-  , authenticationSchemes = [AuthHttpBasic]
+  , authenticationSchemes = [authHttpBasicEncoding]
   }
 
 configServer :: MonadError ServantErr m =>
@@ -105,12 +106,15 @@ configServer config = ConfigSite
                             , resourceSchema
                             ]
   , schema = either throwError pure . note err404 . (getSchema <=< fromSchemaUri)
-  , resourceTypes = pure ""
+  , resourceTypes = pure $
+      ListResponse.fromList [ usersResource
+                            , groupsResource
+                            ]
   }
 
 data ConfigSite route = ConfigSite
   { spConfig :: route :- "ServiceProviderConfig" :> Get '[SCIM] Configuration
   , getSchemas :: route :- "Schemas" :> Get '[SCIM] (ListResponse Value)
   , schema :: route :- "Schemas" :> Capture "id" Text :> Get '[SCIM] Value
-  , resourceTypes :: route :- "ResourceTypes" :> Get '[SCIM] Text
+  , resourceTypes :: route :- "ResourceTypes" :> Get '[SCIM] (ListResponse Resource)
   } deriving (Generic)
