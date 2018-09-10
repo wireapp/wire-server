@@ -104,6 +104,16 @@ import qualified Text.XML.DSig as SAML
 import qualified Text.XML.Util as SAML
 
 
+-- | Create an environment for integration tests from integration and spar config files.
+--
+-- NB: We used to have a mock IdP server here that allowed spar to resolve metadata URLs and pull
+-- metadata.  (It *could* have been used by the test suite to get 'AuthnRequest' values as well, but
+-- that's no more interesting than simulating the idp end-point from inside the spar-integration
+-- executable as a monadic function, only more complicated.)  Since spar does not accept metadata
+-- URLs any more <https://github.com/wireapp/wire-server/pull/466#issuecomment-419396359>, we
+-- removed the mock idp functionality.  if you want to re-introduce it,
+-- <https://github.com/wireapp/wire-server/pull/466/commits/9c93f1e278500522a0565639140ac55dc21ee2d2>
+-- would be a good place to look for code to steal.
 mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
