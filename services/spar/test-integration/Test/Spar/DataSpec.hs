@@ -280,7 +280,6 @@ clientGetAuthnRequest :: Maybe URI -> Maybe URI -> SAML.IdPId -> Servant.ClientM
 clientGetAuthnRequest = Servant.client (Servant.Proxy @APIAuthReq)
 
 
-
 runInsertUser :: TestEnv -> SAML.UserRef -> UserId -> Http ()
 runInsertUser env uref = runServantClient env . clientPostUser uref
 
@@ -306,7 +305,6 @@ mkAuthnReqWeb idpid = do
   -- runServantClient env $ clientGetAuthnRequest Nothing Nothing idpid
   call $ get ((env ^. teSpar) . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid)) . expect2xx)
 
-
 mkAuthnReqMobile :: SAML.IdPId -> ReaderT TestEnv IO ResponseLBS
 mkAuthnReqMobile idpid = do
   env <- ask
@@ -329,9 +327,9 @@ requestAccessVerdict :: HasCallStack
                                            )
 requestAccessVerdict isGranted mkAuthnReq = do
   env <- ask
-  let uid = env ^. teUserId
-      idp = env ^. teIdP
-  let idpid   = idp ^. SAML.idpId
+  let uid     = env ^. teUserId
+      idp     = env ^. teIdP
+      idpid   = idp ^. SAML.idpId
       tenant  = idp ^. SAML.idpIssuer
       subject = SAML.opaqueNameID "blee"
       uref    = SAML.UserRef tenant subject
