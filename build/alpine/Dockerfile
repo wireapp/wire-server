@@ -13,9 +13,9 @@ FROM ${builder} as builder
 ARG service
 ARG target=install
 
-# FIXME: this merges two directories (the one from the builder and the local
-# one), which can lead to problems such as
-# https://github.com/wireapp/wire-server/pull/332#pullrequestreview-122162356.
+# ensure no stale files remain if they get deleted from the branch.
+RUN find /src/wire-server/ -maxdepth 1 -mindepth 1 | grep -v .stack- | xargs rm -rf
+
 COPY . /src/wire-server/
 
 RUN cd /src/wire-server/services/${service} && make ${target}
