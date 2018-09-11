@@ -12,6 +12,9 @@ ARG deps=quay.io/wire/alpine-deps
 #--- Builder stage ---
 FROM ${builder} as builder
 
+# ensure no stale files remain if they get deleted from the branch.
+RUN find /src/wire-server/ -maxdepth 1 -mindepth 1 | grep -v .stack- | xargs rm -rf
+
 COPY . /src/wire-server/
 
 RUN cd /src/wire-server && make clean install

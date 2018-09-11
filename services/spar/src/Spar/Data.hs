@@ -34,6 +34,7 @@ import Spar.Options as Options
 import Spar.Types
 import URI.ByteString
 
+import qualified Data.List.NonEmpty as NL
 import qualified Data.UUID as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Data.ByteString.Char8 as BSC
@@ -169,7 +170,7 @@ getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
 ----------------------------------------------------------------------
 -- idp
 
-type IdPConfigRow = (SAML.IdPId, URI, SAML.Issuer, URI, SignedCertificate, TeamId)
+type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId)
 
 storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig IdPExtra -> m ()
 storeIdPConfig idp = retry x5 . batch $ do
@@ -177,10 +178,11 @@ storeIdPConfig idp = retry x5 . batch $ do
   setConsistency Quorum
   addPrepQuery ins
     ( idp ^. SAML.idpId
-    , idp ^. SAML.idpMetadata
     , idp ^. SAML.idpIssuer
     , idp ^. SAML.idpRequestUri
-    , idp ^. SAML.idpPublicKey
+    , NL.head (idp ^. SAML.idpPublicKeys)
+    , NL.tail (idp ^. SAML.idpPublicKeys)
+      -- (the 'List1' is split up into head and tail to make migration from one-element-only easier.)
     , idp ^. SAML.idpExtraInfo . idpeTeam
     )
   addPrepQuery byIssuer
@@ -193,7 +195,7 @@ storeIdPConfig idp = retry x5 . batch $ do
     )
   where
     ins :: PrepQuery W IdPConfigRow ()
-    ins = "INSERT INTO idp (idp, metadata, issuer, request_uri, public_key, team) VALUES (?, ?, ?, ?, ?, ?)"
+    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team) VALUES (?, ?, ?, ?, ?, ?)"
 
     byIssuer :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
     byIssuer = "INSERT INTO issuer_idp (idp, issuer) VALUES (?, ?)"
@@ -214,19 +216,22 @@ getIdPConfig idpid =
   where
     toIdp :: IdPConfigRow -> m IdP
     toIdp ( _idpId
-          , _idpMetadata
-          , _idpIssuer
-          , _idpRequestUri
-          , _idpPublicKey
+          -- metadata
+          , _edIssuer
+          , _edRequestURI
+          , certsHead
+          , certsTail
           -- extras
           , _idpeTeam
           ) = do
       _idpeSPInfo <- getSPInfo _idpId
-      let _idpExtraInfo = IdPExtra { _idpeTeam, _idpeSPInfo }
+      let _edCertAuthnResponse = certsHead NL.:| certsTail
+          _idpMetadata = SAML.IdPMetadata {..}
+          _idpExtraInfo = IdPExtra { _idpeTeam, _idpeSPInfo }
       pure $ SAML.IdPConfig {..}
 
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
-    sel = "SELECT idp, metadata, issuer, request_uri, public_key, team FROM idp WHERE idp = ?"
+    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team FROM idp WHERE idp = ?"
 
 getIdPConfigByIssuer
   :: (HasCallStack, MonadClient m, MonadReader Env m)

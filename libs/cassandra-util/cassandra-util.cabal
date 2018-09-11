@@ -44,3 +44,5 @@ library
       , tinylog              >= 0.7
       , unliftio-core        >= 0.1
       , wreq                 >= 0.2
+      , uuid
+      , retry

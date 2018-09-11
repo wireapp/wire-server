@@ -9,6 +9,7 @@ import Util.Options
 
 import qualified V0
 import qualified V1
+import qualified V2
 
 main :: IO ()
 main = do
@@ -19,4 +20,5 @@ main = do
     migrateSchema l o
         [ V0.migration
         , V1.migration
+        , V2.migration
         ] `finally` close l
