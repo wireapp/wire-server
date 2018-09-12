@@ -993,6 +993,7 @@ putMemberOk update g b ca = do
                   { memId = bob
                   , memService = Nothing
                   , memOtrMuted = fromMaybe False (mupOtrMute update)
+                  , memOtrMutedStatus = mupOtrMuteStatus update
                   , memOtrMutedRef = mupOtrMuteRef update
                   , memOtrArchived = fromMaybe False (mupOtrArchive update)
                   , memOtrArchivedRef = mupOtrArchiveRef update
