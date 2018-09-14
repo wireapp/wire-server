@@ -18,6 +18,8 @@ default-extensions:
   - FlexibleInstances
   - TypeSynonymInstances
   - DeriveGeneric
+  - LambdaCase
+  - TypeApplications
 
 extra-source-files:
   - README.md
@@ -48,6 +50,11 @@ dependencies:
   - http-media
   - uuid
   - template-haskell
+  - scientific
+  - attoparsec
+  - microlens
+  - http-api-data
+  - exceptions
 
 ghc-options: -Wall
 

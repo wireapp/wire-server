@@ -2,7 +2,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DataKinds       #-}
 {-# LANGUAGE TypeOperators   #-}
-{-# LANGUAGE LambdaCase      #-}
 
 -- | A mock server for use in our testsuite, as well as for automated
 -- compliance testing (e.g. with Runscope – see
@@ -10,23 +9,28 @@
 
 module Web.SCIM.Server.Mock where
 
-import           Web.SCIM.Class.Group
+import           Web.SCIM.Class.Group hiding (value)
 import           Web.SCIM.Class.User
 import           Web.SCIM.Class.Auth
-import           Control.Monad.STM
+import           Control.Monad.STM (STM, atomically)
 import           Control.Monad.Reader
-import           Data.Text
+import           Control.Monad.Catch (throwM)
+import           Data.Maybe
+import           Data.Text (Text, pack)
 import           Data.Text.Encoding
 import           Data.Time.Clock
 import           Data.Time.Calendar
+import           GHC.Exts (sortWith)
 import           ListT
 import qualified STMContainers.Map as STMMap
 import           Web.SCIM.Schema.User
+import           Web.SCIM.Schema.Error
 import           Web.SCIM.Schema.Meta
 import           Web.SCIM.Schema.ListResponse
 import           Web.SCIM.Schema.ResourceType
-import           Web.SCIM.Schema.Common (WithId(WithId))
+import           Web.SCIM.Schema.Common (WithId(WithId, value))
 import qualified Web.SCIM.Schema.Common     as Common
+import           Web.SCIM.Filter
 import           Servant hiding (BadPassword, NoSuchUser)
 import           Servant.Auth.Server
 import           Data.UUID as UUID
@@ -44,53 +48,67 @@ data TestStorage = TestStorage
   }
 
 -- in-memory implementation of the API for tests
-type TestServer = ReaderT TestStorage Handler
+type TestServer = ReaderT TestStorage IO
 
-liftAtomic :: STM a -> ReaderT TestStorage Handler a
-liftAtomic = liftIO . atomically
+liftSTM :: MonadIO m => STM a -> m a
+liftSTM = liftIO . atomically
 
 instance UserDB TestServer where
-  list = do
+  list mbFilter = do
+    -- Note: in production instances it would make sense to remove this code
+    -- and let the implementor of the 'UserDB' instance do filtering (e.g.
+    -- doing case-insensitive queries on common attributes can be done
+    -- faster if the underlying database has indices). However, it might
+    -- still be useful to provide a default implementation in @hscim@ and
+    -- let users of the library decide whether they want to use it or not.
     m <- userDB <$> ask
-    l <- liftIO . atomically $ ListT.toList $ STMMap.stream m
-    return $ fromList $ snd <$> l
+    users <- liftSTM $ ListT.toList $ STMMap.stream m
+    let check user = case mbFilter of
+          Nothing -> pure True
+          Just filter_ -> do
+            let user' = value (thing user)      -- unwrap
+            case filterUser filter_ user' of
+              Right res -> pure res
+              Left err  -> throwM (badRequest InvalidFilter (Just err))
+    fromList . sortWith (Common.id . thing) <$>
+      filterM check (snd <$> users)
   get i = do
     m <- userDB <$> ask
-    liftIO . atomically $ STMMap.lookup i m
+    liftSTM $ STMMap.lookup i m
   create user = do
     m <- userDB <$> ask
     met <- getMeta
-    newUser <- liftIO . atomically $ insertUser user met m
+    newUser <- liftSTM $ insertUser user met m
     return newUser
   update uid user = do
     storage <- userDB <$> ask
-    liftAtomic $ updateUser uid user storage
+    liftSTM $ updateUser uid user storage
   delete uid = do
     m <- userDB <$> ask
-    liftIO . atomically $ delUser uid m
-  getMeta = createMeta UserResource
-  patch = undefined
+    liftSTM $ delUser uid m
+  getMeta = return (createMeta UserResource)
+  patch = error "PATCH /Users: not implemented"
 
 instance GroupDB TestServer where
   list = do
     m <- groupDB <$> ask
-    l <- liftIO . atomically $ ListT.toList $ STMMap.stream m
-    return $ snd <$> l
+    groups <- liftSTM $ ListT.toList $ STMMap.stream m
+    return $ sortWith (Common.id . thing) $ snd <$> groups
   get i = do
     m <- groupDB <$> ask
-    liftIO . atomically $ STMMap.lookup i m
+    liftSTM $ STMMap.lookup i m
   create = \grp -> do
     storage <- groupDB <$> ask
     met <- getGroupMeta
-    newGroup <- liftIO . atomically $ insertGroup grp met storage
+    newGroup <- liftSTM $ insertGroup grp met storage
     pure newGroup
   update i g = do
     m <- groupDB <$> ask
-    liftAtomic $ updateGroup i g m
+    liftSTM $ updateGroup i g m
   delete gid = do
     m <- groupDB <$> ask
-    liftIO . atomically $ delGroup gid m
-  getGroupMeta = createMeta GroupResource
+    liftSTM $ delGroup gid m
+  getGroupMeta = return (createMeta GroupResource)
 
 instance AuthDB TestServer where
   mkAuthChecker = do
@@ -116,27 +134,27 @@ insertGroup grp met storage = do
   STMMap.insert newGroup gid storage
   return newGroup
 
-updateGroup :: GroupId -> Group -> GroupStorage  -> STM (Either ServantErr StoredGroup)
+updateGroup :: GroupId -> Group -> GroupStorage -> STM StoredGroup
 updateGroup gid grp storage = do
   existing <- STMMap.lookup gid storage
   case existing of
-    Nothing -> pure $ Left err400
+    Nothing -> throwM (notFound "Group" gid)
     Just stored -> do
       let newMeta = meta stored
           newGroup = WithMeta newMeta $ WithId gid grp
       STMMap.insert newGroup gid storage
-      pure $ Right newGroup
+      pure newGroup
 
-updateUser :: UserId -> User -> UserStorage  -> STM (Either UpdateError StoredUser)
+updateUser :: UserId -> User -> UserStorage -> STM StoredUser
 updateUser uid user storage = do
   existing <- STMMap.lookup uid storage
   case existing of
-    Nothing -> pure $ Left NonExisting
+    Nothing -> throwM (notFound "User" uid)
     Just stored -> do
       let newMeta = meta stored
           newUser = WithMeta newMeta $ WithId uid user
       STMMap.insert newUser uid storage
-      pure $ Right newUser
+      pure newUser
 
 -- (there seems to be no readOnly fields in User)
 assertMutability :: User -> StoredUser -> Bool
@@ -164,8 +182,8 @@ testDate = UTCTime
   }
 
 -- static meta for testing
-createMeta :: ResourceType -> ReaderT TestStorage Handler Meta
-createMeta rType = return $ Meta
+createMeta :: ResourceType -> Meta
+createMeta rType = Meta
   { resourceType = rType
   , created = testDate
   , lastModified = testDate

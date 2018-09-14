@@ -17,6 +17,7 @@ data Schema = User20
             | Schema20
             | ResourceType20
             | ListResponse2_0
+            | Error2_0
   deriving (Show, Eq)
 
 instance FromJSON Schema where
@@ -41,6 +42,8 @@ getSchemaUri ResourceType20 =
   "urn:ietf:params:scim:schemas:core:2.0:ResourceType"
 getSchemaUri ListResponse2_0 =
   "urn:ietf:params:scim:api:messages:2.0:ListResponse"
+getSchemaUri Error2_0 =
+  "urn:ietf:params:scim:api:messages:2.0:Error"
 
 -- | Get a schema by its URI.
 fromSchemaUri :: Text -> Maybe Schema
@@ -57,6 +60,8 @@ fromSchemaUri s = case s of
     pure ResourceType20
   "urn:ietf:params:scim:api:messages:2.0:ListResponse" ->
     pure ListResponse2_0
+  "urn:ietf:params:scim:api:messages:2.0:Error" ->
+    pure Error2_0
   _ ->
     Nothing
 
@@ -72,6 +77,8 @@ getSchema Schema20 =
   pure metaSchema
 getSchema ResourceType20 =
   pure resourceSchema
+-- Schemas for these types are not in the SCIM standard
 getSchema ListResponse2_0 =
-  Nothing    -- it's possible that a schema for ListResponse exists, but I
-             -- haven't found it
+  Nothing
+getSchema Error2_0 =
+  Nothing

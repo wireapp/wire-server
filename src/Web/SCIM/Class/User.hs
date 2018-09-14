@@ -6,48 +6,44 @@
 module Web.SCIM.Class.User
     ( UserDB (..)
     , StoredUser
-    , UpdateError (..)
     , UserSite (..)
     , userServer
     ) where
 
 import           Control.Applicative ((<|>), Alternative)
-import           Control.Monad.Except
-import           Control.Error.Util (note)
+import           Control.Monad
+import           Control.Monad.Catch
 import           Data.Text
 import           GHC.Generics (Generic)
 import           Web.SCIM.Schema.User hiding (schemas)
 import           Web.SCIM.Schema.Meta
 import           Web.SCIM.Schema.Common
 import           Web.SCIM.Schema.Error
-import           Web.SCIM.Schema.ListResponse
+import           Web.SCIM.Schema.ListResponse hiding (schemas)
+import           Web.SCIM.Filter
 import           Web.SCIM.ContentType
 import           Servant
 import           Servant.Generic
 
 
-type UserHandler m = (MonadError ServantErr m, UserDB m)
+type UserHandler m = (MonadThrow m, UserDB m)
 
 type StoredUser = WithMeta (WithId User)
 
-data UpdateError = NonExisting
-                 | Mutability
-
-
 -- TODO: parameterize UserId
 class UserDB m where
-  list     :: m (ListResponse StoredUser)
+  list     :: Maybe Filter -> m (ListResponse StoredUser)
   get      :: UserId -> m (Maybe StoredUser)
   create   :: User -> m StoredUser
-  update   :: UserId -> User -> m (Either UpdateError StoredUser)
+  update   :: UserId -> User -> m StoredUser
   patch    :: UserId -> m StoredUser
-  delete   :: UserId -> m Bool
+  delete   :: UserId -> m Bool  -- ^ Return 'False' if the group didn't exist
   getMeta  :: m Meta
 
 
 data UserSite route = UserSite
   { getUsers :: route :-
-      Get '[SCIM] (ListResponse StoredUser)
+      QueryParam "filter" Filter :> Get '[SCIM] (ListResponse StoredUser)
   , getUser :: route :-
       Capture "id" Text :> Get '[SCIM] StoredUser
   , postUser :: route :-
@@ -64,36 +60,44 @@ userServer :: UserHandler m => UserSite (AsServerT m)
 userServer = UserSite
   { getUsers   = list
   , getUser    = getUser'
-  , postUser   = create
+  , postUser   = postUser'
   , putUser    = updateUser'
   , patchUser  = patch
   , deleteUser = deleteUser'
   }
 
+postUser' :: UserHandler m => User -> m StoredUser
+postUser' user = do
+  -- Find users with the same username (case-insensitive)
+  --
+  -- TODO: it might be worth it to let 'create' handle conflicts if it can
+  -- do it in one pass instead of two passes. Same applies to 'updateUser''
+  -- and similar functions.
+  let filter_ = FilterAttrCompare AttrUserName OpEq (ValString (userName user))
+  stored <- list (Just filter_)
+  when (totalResults stored > 0) $
+    throwM conflict
+  create user
 
 updateUser' :: UserHandler m => UserId -> User -> m StoredUser
 updateUser' uid updatedUser = do
-  -- TODO: don't fetch here, let User.update do it
   stored <- get uid
   case stored of
-    Just (WithMeta _meta (WithId _ existing)) ->
+    Just (WithMeta _meta (WithId _ existing)) -> do
       let newUser = existing `overwriteWith` updatedUser
-      in do
-        t <- update uid newUser
-        case t of
-          Left _err -> throwError err400
-          Right newStored -> pure newStored
-    Nothing -> throwError err400
+      update uid newUser
+    Nothing -> throwM (notFound "User" uid)
 
 getUser' :: UserHandler m => UserId -> m StoredUser
 getUser' uid = do
   maybeUser <- get uid
-  either throwError pure $ note (notFound uid) maybeUser
+  maybe (throwM (notFound "User" uid)) pure maybeUser
 
 deleteUser' :: UserHandler m => UserId -> m NoContent
 deleteUser' uid = do
-    deleted <- delete uid
-    if deleted then return NoContent else throwError err404
+  deleted <- delete uid
+  unless deleted $ throwM (notFound "User" uid)
+  pure NoContent
 
 overwriteWith :: User -> User -> User
 overwriteWith old new = old

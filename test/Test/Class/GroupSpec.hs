@@ -9,7 +9,7 @@ import           Test.Util
 
 import           Network.Wai (Application)
 import           Servant.Generic
-import           Servant (Proxy(Proxy), Handler)
+import           Servant (Proxy(Proxy))
 import           Web.SCIM.Server (mkapp, App, GroupAPI, groupServer)
 import           Web.SCIM.Server.Mock
 import           Data.ByteString.Lazy (ByteString)
@@ -18,8 +18,8 @@ import           Test.Hspec.Wai      hiding (post, put, patch)
 import qualified STMContainers.Map   as STMMap
 
 
-app :: App m GroupAPI => (forall a. m a -> Handler a) -> IO Application
-app = mkapp (Proxy :: Proxy GroupAPI) (toServant groupServer)
+app :: App m GroupAPI => (forall a. m a -> IO a) -> IO Application
+app = mkapp (Proxy @GroupAPI) (toServant groupServer)
 
 storage :: IO TestStorage
 storage = TestStorage <$> STMMap.newIO <*> STMMap.newIO <*> STMMap.newIO
@@ -47,7 +47,7 @@ spec = beforeAll ((\s -> app (nt s)) =<< storage) $ do
       put "/0" adminUpdate0 `shouldRespondWith` updatedAdmins0
 
     it "does not create new group" $ do
-      put "/nonexisting" adminGroup `shouldRespondWith` 400
+      put "/nonexisting" adminGroup `shouldRespondWith` 404
 
   describe "DELETE /Groups/:id" $ do
     it "responds with 404 for unknown group" $ do
@@ -55,7 +55,7 @@ spec = beforeAll ((\s -> app (nt s)) =<< storage) $ do
 
     it "deletes a stored group" $ do
       delete "/0" `shouldRespondWith` 204
-      -- user should be gone
+      -- group should be gone
       get    "/0" `shouldRespondWith` 404
       delete "/0" `shouldRespondWith` 404
 
@@ -135,5 +135,5 @@ unknown :: ResponseMatcher
 unknown = [scim|
        { "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
          "status": "404",
-         "detail": "Resource unknown not found"
+         "detail": "Group 'unknown' not found"
        }|] { matchStatus = 404 }

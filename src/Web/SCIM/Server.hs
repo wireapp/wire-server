@@ -4,7 +4,6 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Web.SCIM.Server
@@ -22,9 +21,10 @@ import qualified Data.ByteString.Lazy.Char8 as BL
 import           Web.SCIM.Class.User (UserSite (..), UserDB, userServer)
 import           Web.SCIM.Class.Group (GroupSite (..), GroupDB, groupServer)
 import           Web.SCIM.Class.Auth (Admin, AuthDB (..))
+import           Web.SCIM.Schema.Error
 import           Web.SCIM.Capabilities.MetaSchema (ConfigSite, Configuration, configServer)
+import           Control.Monad.Catch hiding (Handler)
 import           Control.Monad.Except
-import           Control.Exception (throw)
 import           GHC.Generics (Generic)
 import           Network.Wai
 import           Servant hiding (BasicAuth, NoSuchUser)
@@ -38,7 +38,7 @@ import           Servant.Utils.Enter
 ----------------------------------------------------------------------------
 -- API specification
 
-type SCIMHandler m = (MonadError ServantErr m, UserDB m, GroupDB m, AuthDB m)
+type SCIMHandler m = (MonadThrow m, UserDB m, GroupDB m, AuthDB m)
 
 type ConfigAPI = ToServant (ConfigSite AsApi)
 type UserAPI   = ToServant (UserSite AsApi)
@@ -96,9 +96,9 @@ siteServer conf = Site
     -- (Either ServantErr)@ and hoist it to become @ServerT api m@.
     --
     -- @Either ServantErr@ is the simplest type that is supported by 'throwAll'
-    -- and that can be converted into a @MonadError ServantErr m@.
+    -- and that can be converted into a @MonadThrow m@.
     nt :: Either ServantErr a -> m a
-    nt = either throwError pure
+    nt = either throwM pure
 
 ----------------------------------------------------------------------------
 -- Server-starting utilities
@@ -112,10 +112,15 @@ type App m api = ( SCIMHandler m
                  )
 
 mkapp :: forall m api. (App m api)
-      => Proxy api -> ServerT api m -> (forall a. m a -> Handler a) -> IO Application
-mkapp proxy api nt = do
+      => Proxy api
+      -> ServerT api m
+      -> (forall a. m a -> IO a)    -- Usually the transformation is "m a -> Handler a",
+                                    -- but in this library we give up on Servant's
+                                    -- 'MonadError' and just throw things via IO
+      -> IO Application
+mkapp proxy api toIO = do
   jwtKey <- generateKey
-  authCfg <- either throw pure =<< runHandler (nt mkAuthChecker)
+  authCfg <- either throwM pure =<< runHandler (nt mkAuthChecker)
   let jwtCfg = defaultJWTSettings jwtKey
       cfg = jwtCfg :. defaultCookieSettings :. authCfg :. EmptyContext
   pure $ serveWithContext proxy cfg $
@@ -124,6 +129,15 @@ mkapp proxy api nt = do
 #else
     enter (NT nt) api
 #endif
+  where
+    -- Our handlers can throw two kinds of exceptions that we care about:
+    -- ServantErr and SCIMError. We catch both and rethrow them via ExceptT
+    -- (which is how Servant expects to get them).
+    nt :: forall a. m a -> Handler a
+    nt act = Handler $ ExceptT $
+      fmap Right (toIO act)
+        `catch` (\(e :: SCIMError) -> pure (Left (scimToServantErr e)))
+        `catch` (\(e :: ServantErr) -> pure (Left e))
 
-app :: forall m. App m SiteAPI => Configuration -> (forall a. m a -> Handler a) -> IO Application
-app c = mkapp (Proxy :: Proxy SiteAPI) (toServant $ siteServer c)
+app :: forall m. App m SiteAPI => Configuration -> (forall a. m a -> IO a) -> IO Application
+app c = mkapp (Proxy @SiteAPI) (toServant $ siteServer c)

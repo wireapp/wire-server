@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Test.Capabilities.MetaSchemaSpec (spec) where
 
@@ -14,16 +14,21 @@ import           Data.Monoid
 import           Data.Text (Text)
 import           Data.Coerce
 import           Web.SCIM.Capabilities.MetaSchema
-import           Web.SCIM.Server (ConfigAPI)
+import           Web.SCIM.Server (ConfigAPI, mkapp, App)
+import           Web.SCIM.Server.Mock
 import           Network.Wai.Test (SResponse (..))
 import           Servant
 import           Servant.Generic
 import           Test.Hspec hiding (shouldSatisfy)
 import qualified Test.Hspec.Expectations as Expect
 import           Test.Hspec.Wai      hiding (post, put, patch)
+import qualified STMContainers.Map   as STMMap
 
-app :: Application
-app = serve (Proxy @ConfigAPI) $ toServant $ configServer empty
+app :: App m ConfigAPI => (forall a. m a -> IO a) -> IO Application
+app = mkapp (Proxy @ConfigAPI) (toServant (configServer empty))
+
+storage :: IO TestStorage
+storage = TestStorage <$> STMMap.newIO <*> STMMap.newIO <*> STMMap.newIO
 
 shouldSatisfy :: (Show a, FromJSON a) =>
                  WaiSession SResponse -> (a -> Bool) -> WaiExpectation
@@ -49,7 +54,7 @@ coreSchemas =
   ]
 
 spec :: Spec
-spec = with (pure app) $ do
+spec = beforeAll ((\s -> app (nt s)) =<< storage) $ do
   describe "GET /Schemas" $ do
     it "lists schemas" $ do
       get "/Schemas" `shouldRespondWith` 200

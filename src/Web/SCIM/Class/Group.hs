@@ -13,8 +13,8 @@ module Web.SCIM.Class.Group (
   , groupServer
   ) where
 
-import           Control.Monad.Except
-import           Control.Error.Util (note)
+import           Control.Monad.Catch
+import           Control.Monad
 import           Data.Text
 import           Data.Aeson
 import           GHC.Generics (Generic)
@@ -25,8 +25,7 @@ import           Web.SCIM.ContentType
 import           Servant
 import           Servant.Generic
 
-
-type GroupHandler m = (MonadError ServantErr m, GroupDB m)
+type GroupHandler m = (MonadThrow m, GroupDB m)
 
 type GroupId = Text
 
@@ -64,10 +63,8 @@ class GroupDB m where
   list :: m [StoredGroup]
   get :: GroupId -> m (Maybe StoredGroup)
   create :: Group -> m StoredGroup
-  update :: GroupId -> Group -> m (Either ServantErr StoredGroup)
-  --                                      ^
-  -- TODO: should be UpdateError         /
-  delete :: GroupId -> m Bool
+  update :: GroupId -> Group -> m StoredGroup
+  delete :: GroupId -> m Bool  -- ^ Return 'False' if the group didn't exist
   getGroupMeta :: m Meta
 
 data GroupSite route = GroupSite
@@ -90,22 +87,18 @@ groupServer = GroupSite
   { getGroups = list
   , getGroup = getGroup'
   , postGroup = create
-  , putGroup = putGroup'
-  , patchGroup = undefined
+  , putGroup = update
+  , patchGroup = error "PATCH /Groups: not implemented"
   , deleteGroup = deleteGroup'
   }
 
 getGroup' :: GroupHandler m => GroupId -> m StoredGroup
 getGroup' gid = do
   maybeGroup <- get gid
-  either throwError pure $ note (notFound gid) maybeGroup
-
-putGroup' :: GroupHandler m => GroupId -> Group -> m StoredGroup
-putGroup' gid grp = do
-  updated <- update gid grp
-  either throwError pure updated
+  maybe (throwM (notFound "Group" gid)) pure maybeGroup
 
 deleteGroup' :: GroupHandler m => GroupId -> m NoContent
 deleteGroup' gid = do
-    deleted <- delete gid
-    if deleted then return NoContent else throwError err404
+  deleted <- delete gid
+  unless deleted $ throwM (notFound "Group" gid)
+  pure NoContent

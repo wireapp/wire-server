@@ -1,5 +1,4 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeApplications #-}
 
 -- | SCIM defines its own content type (application/scim+json). It's
 -- intended to be used for all requests and responses; see the first

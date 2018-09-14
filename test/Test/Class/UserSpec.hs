@@ -10,14 +10,14 @@ import           Web.SCIM.Server.Mock
 import           Test.Hspec
 import           Test.Hspec.Wai      hiding (post, put, patch)
 import           Data.ByteString.Lazy (ByteString)
-import           Servant (Proxy(Proxy), Handler)
+import           Servant (Proxy(Proxy))
 import           Servant.Generic
 import           Network.Wai (Application)
 import qualified STMContainers.Map   as STMMap
 
 
-app :: App m UserAPI => (forall a. m a -> Handler a) -> IO Application
-app = mkapp (Proxy :: Proxy UserAPI) (toServant userServer)
+app :: App m UserAPI => (forall a. m a -> IO a) -> IO Application
+app = mkapp (Proxy @UserAPI) (toServant userServer)
 
 storage :: IO TestStorage
 storage = TestStorage <$> STMMap.newIO <*> STMMap.newIO <*> STMMap.newIO
@@ -30,7 +30,28 @@ spec = beforeAll ((\s -> app (nt s)) =<< storage) $ do
 
     it "can insert then retrieve stored Users" $ do
       post "/" newBarbara `shouldRespondWith` 201
-      get "/" `shouldRespondWith` users
+      post "/" newJim `shouldRespondWith` 201
+      get "/" `shouldRespondWith` allUsers
+
+    it "doesn't allow duplicate usernames" $ do
+      post "/" newBarbara' `shouldRespondWith` conflict
+
+    describe "filtering" $ do
+      it "can filter by username" $ do
+        get "/?filter=userName eq \"bjensen\"" `shouldRespondWith` onlyBarbara
+
+      it "is case-insensitive regarding syntax" $ do
+        get "/?filter=USERName EQ \"bjensen\"" `shouldRespondWith` onlyBarbara
+
+      it "is case-insensitive regarding usernames" $ do
+        get "/?filter=userName eq \"BJensen\"" `shouldRespondWith` onlyBarbara
+
+      it "handles malformed filter syntax" $ do
+        get "/?filter=userName eqq \"bjensen\"" `shouldRespondWith` 400
+        -- TODO: would be nice to check the error message as well
+
+      it "handles type errors in comparisons" $ do
+        get "/?filter=userName eq true" `shouldRespondWith` 400
 
   describe "GET /Users/:id" $ do
     it "responds with 404 for unknown user" $ do
@@ -44,8 +65,8 @@ spec = beforeAll ((\s -> app (nt s)) =<< storage) $ do
     it "updates mutable fields" $ do
       put "/0" barbUpdate0 `shouldRespondWith` updatedBarb0
 
-    it "does not create new user " $ do
-      put "/nonexisting" newBarbara `shouldRespondWith` 400
+    it "does not create new user" $ do
+      put "/nonexisting" newBarbara `shouldRespondWith` 404
 
   describe "DELETE /Users/:id" $ do
     it "responds with 404 for unknown user" $ do
@@ -66,10 +87,34 @@ newBarbara = [scim|
           "name":{
             "formatted":"Ms. Barbara J Jensen III",
             "familyName":"Jensen",
-             "givenName":"Barbara"
+            "givenName":"Barbara"
           }
         }|]
 
+-- Same as 'newBarbara', but with a different userName (the names only differ in case)
+newBarbara' :: ByteString
+newBarbara' = [scim|
+        { "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
+          "userName":"BJensen",
+          "externalId":"bjensen",
+          "name":{
+            "formatted":"Ms. Barbara J Jensen III",
+            "familyName":"Jensen",
+            "givenName":"Barbara"
+          }
+        }|]
+
+newJim :: ByteString
+newJim = [scim|
+        { "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
+          "userName":"jim",
+          "externalId":"jim",
+          "name":{
+            "formatted":"Jim",
+            "familyName":"",
+            "givenName":"Jim"
+          }
+        }|]
 
 barbara :: ResponseMatcher
 barbara = [scim|
@@ -91,8 +136,51 @@ barbara = [scim|
           }
         }|]
 
-users :: ResponseMatcher
-users = [scim|
+allUsers :: ResponseMatcher
+allUsers = [scim|
+        { "schemas":["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
+          "totalResults": 2,
+          "itemsPerPage": 2,
+          "startIndex": 0,
+          "Resources":
+            [{ "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
+               "userName":"bjensen",
+               "externalId":"bjensen",
+               "id" : "0",
+               "name":{
+                 "formatted":"Ms. Barbara J Jensen III",
+                 "familyName":"Jensen",
+                 "givenName":"Barbara"
+               },
+               "meta":{
+                 "resourceType":"User",
+                 "location":"todo",
+                 "created":"2018-01-01T00:00:00Z",
+                 "version":"W/\"testVersion\"",
+                 "lastModified":"2018-01-01T00:00:00Z"
+               }
+             },
+             { "schemas":["urn:ietf:params:scim:schemas:core:2.0:User"],
+               "userName":"jim",
+               "externalId":"jim",
+               "id" : "1",
+               "name":{
+                 "formatted":"Jim",
+                 "familyName":"",
+                 "givenName":"Jim"
+               },
+               "meta":{
+                 "resourceType":"User",
+                 "location":"todo",
+                 "created":"2018-01-01T00:00:00Z",
+                 "version":"W/\"testVersion\"",
+                 "lastModified":"2018-01-01T00:00:00Z"
+               }
+             }]
+        }|]
+
+onlyBarbara :: ResponseMatcher
+onlyBarbara = [scim|
         { "schemas":["urn:ietf:params:scim:api:messages:2.0:ListResponse"],
           "totalResults": 1,
           "itemsPerPage": 1,
@@ -184,5 +272,12 @@ unknown :: ResponseMatcher
 unknown = [scim|
        { "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
          "status": "404",
-         "detail": "Resource unknown not found"
+         "detail": "User 'unknown' not found"
        }|] { matchStatus = 404 }
+
+conflict :: ResponseMatcher
+conflict = [scim|
+       { "schemas": ["urn:ietf:params:scim:api:messages:2.0:Error"],
+         "scimType": "uniqueness",
+         "status": "409"
+       }|] { matchStatus = 409 }

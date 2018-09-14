@@ -15,17 +15,17 @@ module Web.SCIM.Capabilities.MetaSchema (
 
 import           Web.SCIM.Schema.Schema
 import           Web.SCIM.Schema.Common
+import           Web.SCIM.Schema.Error hiding (schemas)
 import           Web.SCIM.Schema.ResourceType hiding (schema)
 import           Web.SCIM.Schema.AuthenticationScheme
-import           Web.SCIM.Schema.ListResponse as ListResponse
+import           Web.SCIM.Schema.ListResponse as ListResponse hiding (schemas)
 import           Web.SCIM.Capabilities.MetaSchema.User
 import           Web.SCIM.Capabilities.MetaSchema.SPConfig
 import           Web.SCIM.Capabilities.MetaSchema.Group
 import           Web.SCIM.Capabilities.MetaSchema.Schema
 import           Web.SCIM.Capabilities.MetaSchema.ResourceType
 import           Web.SCIM.ContentType
-import           Control.Monad.Except
-import           Control.Error.Util (note)
+import           Control.Monad.Catch
 import           Data.Aeson
 import qualified Data.HashMap.Lazy as HML
 import           Data.Text (Text)
@@ -94,7 +94,7 @@ empty = Configuration
   , authenticationSchemes = [authHttpBasicEncoding]
   }
 
-configServer :: MonadError ServantErr m =>
+configServer :: MonadThrow m =>
                 Configuration -> ConfigSite (AsServerT m)
 configServer config = ConfigSite
   { spConfig = pure config
@@ -105,7 +105,9 @@ configServer config = ConfigSite
                             , metaSchema
                             , resourceSchema
                             ]
-  , schema = either throwError pure . note err404 . (getSchema <=< fromSchemaUri)
+  , schema = \uri -> case getSchema =<< fromSchemaUri uri of
+      Nothing -> throwM (notFound "Schema" uri)
+      Just s  -> pure s
   , resourceTypes = pure $
       ListResponse.fromList [ usersResource
                             , groupsResource

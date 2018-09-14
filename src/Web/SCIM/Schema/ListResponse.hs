@@ -1,6 +1,9 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Web.SCIM.Schema.ListResponse (ListResponse, fromList) where
+module Web.SCIM.Schema.ListResponse
+  ( ListResponse(..)
+  , fromList
+  ) where
 
 import Data.Aeson
 import GHC.Generics (Generic)
