@@ -524,8 +524,8 @@ memberLists convs = do
         let f = (Just . maybe [mem] (mem :))
         in Map.alter f conv acc
 
-    mkMem (cnv, usr, srv, prv, st, omu, omur, omus, oar, oarr, hid, hidr) =
-        (cnv, ) <$> toMember (usr, srv, prv, st, omu, omur, omus, oar, oarr, hid, hidr)
+    mkMem (cnv, usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr) =
+        (cnv, ) <$> toMember (usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr)
 
 members :: MonadClient m => ConvId -> m [Member]
 members conv = join <$> memberLists [conv]
@@ -599,19 +599,19 @@ newMember u = Member
     }
 
 toMember :: ( UserId, Maybe ServiceId, Maybe ProviderId, Maybe Cql.MemberStatus
-            , Maybe Bool, Maybe Text, Maybe MutedStatus -- otr muted
+            , Maybe Bool, Maybe MutedStatus, Maybe Text -- otr muted
             , Maybe Bool, Maybe Text                    -- otr archived
             , Maybe Bool, Maybe Text                    -- hidden
             ) -> Maybe Member
-toMember (usr, srv, prv, sta, omu, omur, omus, oar, oarr, hid, hidr) =
+toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr) =
     if sta /= Just 0
         then Nothing
         else Just $ Member
             { memId             = usr
             , memService        = newServiceRef <$> srv <*> prv
             , memOtrMuted       = fromMaybe False omu
-            , memOtrMutedRef    = omur
             , memOtrMutedStatus = omus
+            , memOtrMutedRef    = omur
             , memOtrArchived    = fromMaybe False oar
             , memOtrArchivedRef = oarr
             , memHidden         = fromMaybe False hid

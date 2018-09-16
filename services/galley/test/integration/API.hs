@@ -956,7 +956,7 @@ putConvRenameOk g b c _ = do
 
 putMemberOtrMuteOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 putMemberOtrMuteOk g b c _ = do
-    putMemberOk (memberUpdate { mupOtrMute = Just True, mupOtrMuteRef = Just "ref" }) g b c
+    putMemberOk (memberUpdate { mupOtrMute = Just True, mupOtrMuteStatus = Just 0, mupOtrMuteRef = Just "ref" }) g b c
     putMemberOk (memberUpdate { mupOtrMute = Just False }) g b c
 
 putMemberOtrArchiveOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
@@ -973,6 +973,7 @@ putMemberAllOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 putMemberAllOk g b c _ = putMemberOk
     (memberUpdate
         { mupOtrMute = Just True
+        , mupOtrMuteStatus = Just 0
         , mupOtrMuteRef = Just "mref"
         , mupOtrArchive = Just True
         , mupOtrArchiveRef = Just "aref"
