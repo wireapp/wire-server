@@ -26,6 +26,7 @@ import Network.Wire.Client.API.Push
 import Network.Wire.Client.API.Search
 import Network.Wire.Client.API.User
 import System.Logger.Class
+import Named
 
 import qualified Codec.MIME.Type          as MIME
 import qualified Data.ByteString.Lazy     as LBS
@@ -110,7 +111,9 @@ mainBotNet n = do
 
     info $ msg "Basic search reachability"
 
-    _ <- runBotSession ally $ search (SearchParams "whatever" 3 10 True)
+    _ <- runBotSession ally $
+        search ! #query "whatever"
+               ! #limit 10
 
     info $ msg "Registering clients for everyone"
 

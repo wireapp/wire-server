@@ -15,6 +15,12 @@ description:
 
 library
     default-language: Haskell2010
+    default-extensions:
+        DataKinds
+        OverloadedLabels
+        ViewPatterns
+        TypeOperators
+
     hs-source-dirs:   src
     ghc-options:      -Wall -O2 -fwarn-tabs
 
@@ -66,3 +72,4 @@ library
       , unordered-containers  >= 0.2
       , uuid                  >= 1.3
       , websockets            >= 0.9
+      , named                 == 0.2.*
