@@ -133,8 +133,9 @@ data BotNetEnv = BotNetEnv
     , botNetMailboxes      :: [Mailbox]
     , botNetSender         :: Email
     , botNetUsers          :: Cache
-    , botNetServer         :: Server
+    , botNetServer         :: Service -> Server
     , botNetLogger         :: Logger
+    , botNetManager        :: Manager
     , botNetAssert         :: !Bool
     , botNetSettings       :: BotSettings
     , botNetMetrics        :: Metrics
@@ -148,21 +149,21 @@ newBotNetEnv manager logger o = do
     usr <- maybe Cache.empty (Cache.fromFile logger gen) (setBotNetUsersFile o)
     mbx <- maybe (return []) loadMailboxConfig (setBotNetMailboxConfig o)
     met <- initMetrics
-    let srv = Server
+    let getSrv = \_ -> Server
             { serverHost    = setBotNetApiHost   o
             , serverPort    = setBotNetApiPort   o
             , serverWsHost  = setBotNetApiWsHost o
             , serverWsPort  = setBotNetApiWsPort o
             , serverSSL     = setBotNetApiSSL    o
-            , serverManager = manager
             }
     return $! BotNetEnv
         { botNetGen            = gen
         , botNetMailboxes      = mbx
         , botNetSender         = setBotNetSender o
         , botNetUsers          = usr
-        , botNetServer         = srv
+        , botNetServer         = getSrv
         , botNetLogger         = logger
+        , botNetManager        = manager
         , botNetAssert         = setBotNetAssert o
         , botNetSettings       = setBotNetBotSettings o
         , botNetMetrics        = met
@@ -218,10 +219,10 @@ instance MonadBaseControl IO BotNet where
     restoreM       = BotNet . restoreM
 
 instance MonadHttp BotNet where
-    getManager = serverManager <$> getServer
+    getManager = BotNet $ asks botNetManager
 
 instance MonadClient BotNet where
-    getServer = BotNet $ asks botNetServer
+    getServer service = BotNet $ fmap ($ service) $ asks botNetServer
     getLogger = BotNet $ asks botNetLogger
 
 instance MonadLogger BotNet where
@@ -257,10 +258,10 @@ instance MonadBaseControl IO BotSession where
     restoreM       = BotSession . restoreM
 
 instance MonadHttp BotSession where
-    getManager = serverManager <$> getServer
+    getManager = liftBotNet getManager
 
 instance MonadClient BotSession where
-    getServer = liftBotNet getServer
+    getServer = liftBotNet . getServer
     getLogger = liftBotNet getLogger
 
 instance MonadSession BotSession where
@@ -293,7 +294,10 @@ data Bot = Bot
     , botSettings     :: BotSettings
     , botUser         :: User
       -- TODO: Move into BotClient?
-    , botAuth         :: IORef (Auth, UTCTime)
+    -- | Authentication used for requests. The second component of the tuple
+    -- specifies when we should try to refresh the token, with 'Nothing'
+    -- meaning that the token never expires.
+    , botAuth         :: IORef (Auth, Maybe UTCTime)
     , botEvents       :: TVar (Word16, [(UTCTime, Event)])
     , botAsserts      :: TQueue EventAssertion
     , botBacklog      :: TVar [EventAssertion]
@@ -667,8 +671,8 @@ heartbeat bot e = forever $ do
     now <- getCurrentTime
     let l = botNetLogger e
     -- Refresh the auth token, if necessary
-    (auth, expiry) <- readIORef $ botAuth bot
-    when (now > expiry) $
+    (auth, mbExpiry) <- readIORef $ botAuth bot
+    forM_ mbExpiry $ \expiry -> when (now > expiry) $
         void . forkIO . runBotNet e . runBotSession bot $ do
             log Debug $ msg (val "Refreshing auth token")
             refreshAuth auth >>= maybe
@@ -766,10 +770,12 @@ gcBacklog bot now = do
 
     return del
 
-nextAuthRefresh :: MonadIO m => Auth -> m UTCTime
-nextAuthRefresh (Auth _ tok) = liftIO $ do
+-- | When should we refresh the token?
+nextAuthRefresh :: MonadIO m => Auth -> m (Maybe UTCTime)
+nextAuthRefresh (PublicAuth _ tok) = liftIO $ do
     now <- getCurrentTime
-    return $ (fromInteger (expiresIn tok) - 60) `addUTCTime` now
+    return $ Just $ (fromInteger (expiresIn tok) - 60) `addUTCTime` now
+nextAuthRefresh (ZUserAuth _) = pure Nothing
 
 -------------------------------------------------------------------------------
 -- * Reports & Metrics

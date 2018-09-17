@@ -4,9 +4,9 @@
 module Network.Wire.Client.API.Auth
     ( login
     , refreshAuth
+    , addAuth
     , Auth (..)
     , AuthCookie
-    , token
     , module Auth
     ) where
 
@@ -15,7 +15,9 @@ import Brig.Types.User.Auth as Auth hiding (Cookie, user)
 import Control.Monad.IO.Class
 import Data.List.NonEmpty
 import Data.Monoid
+import Data.Id (UserId)
 import Data.Time (getCurrentTime)
+import Data.ByteString.Conversion (toByteString')
 import Network.HTTP.Client (generateCookie)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
@@ -29,19 +31,26 @@ import qualified Data.Text.Encoding    as T
 
 newtype AuthCookie = AuthCookie Cookie
 
-data Auth = Auth
-    { authCookie :: !AuthCookie
-    , authToken  :: !AccessToken
-    }
+-- | Authentication details sent during an API call.
+data Auth
+    -- | Authentication for calls that pass nginz (i.e. all official instances)
+    = PublicAuth
+        { authCookie :: !AuthCookie
+        , authToken  :: !AccessToken
+        }
+    -- | Authentication by providing a Z-User header (for e.g. integration tests)
+    | ZUserAuth
+        { authUser :: !UserId
+        }
 
 -------------------------------------------------------------------------------
 -- Unauthenticated
 
 login :: MonadClient m => Login -> m (Maybe Auth)
 login l = do
-    rs <- clientRequest req rsc consumeBody
-    sv <- getServer
-    liftIO $ tokenResponse (setServer sv req) rs Nothing
+    token <- clientRequest Brig req rsc consumeBody
+    server <- getServer Brig
+    liftIO $ tokenResponse (setServer server req) token Nothing
   where
     req = method POST
         . path "/login"
@@ -54,31 +63,35 @@ login l = do
 -- Authenticated
 
 refreshAuth :: MonadClient m => Auth -> m (Maybe Auth)
-refreshAuth (Auth ac@(AuthCookie c) t) = do
-    sv <- getServer
-    rs <- clientRequest (req sv) rsc consumeBody
-    liftIO $ tokenResponse (setServer sv $ req sv) rs (Just ac)
+refreshAuth (PublicAuth ac@(AuthCookie c) t) = do
+    server <- getServer Brig
+    rs <- clientRequest Brig (req server) rsc consumeBody
+    liftIO $ tokenResponse (setServer server $ req server) rs (Just ac)
   where
     req s = method POST
           . path "/access"
           . acceptJson
           . setCookie s
-          . token t
+          . addAuth (PublicAuth ac t)
           $ empty
     rsc = status200 :| [status403]
-
     setCookie sv
         | serverSSL sv = cookie c
         | otherwise    = header "Cookie" (cookie_name c <> "=" <> cookie_value c)
+refreshAuth auth@(ZUserAuth _) = pure (Just auth)
 
 -------------------------------------------------------------------------------
 -- Utilities
 
-token :: AccessToken -> Request -> Request
-token t = header "Authorization" (tokType <> " " <> tokValue)
+-- | Add authentication headers to a request.
+addAuth :: Auth -> Request -> Request
+addAuth (PublicAuth _ t) =
+    header "Authorization" (tokType <> " " <> tokValue)
   where
     tokType  = C.pack (show (tokenType t))
     tokValue = Lazy.toStrict (access t)
+addAuth (ZUserAuth uid) =
+    header "Z-User" (toByteString' uid)
 
 -- | Construct an 'Auth'orisation out of an access token response.
 tokenResponse :: Request
@@ -96,7 +109,7 @@ tokenResponse rq rs ck
     mkAuth = do
         cok <- mkCookie $ parseSetCookie <$> getHeader "Set-Cookie" rs
         tok <- fromBody rs
-        return . Just $ Auth cok tok
+        return . Just $ PublicAuth cok tok
 
     mkCookie Nothing    = maybe (unexpected rs "missing set-cookie") return ck
     mkCookie (Just hdr) = do

@@ -38,7 +38,7 @@ instance MonadHttp Session where
     getManager = Session $ lift getManager
 
 instance MonadClient Session where
-    getServer = Session $ lift getServer
+    getServer = Session . lift . getServer
     getLogger = Session $ lift getLogger
 
 instance MonadSession Session where
@@ -51,19 +51,20 @@ instance MonadLogger Session where
 -- | Perform an HTTP request against the API in the context of a session,
 -- i.e. including an 'Authorization' header.
 sessionRequest :: MonadSession m
-               => Request                       -- ^ The request to send.
+               => Service                       -- ^ Service to send the request to.
+               -> Request                       -- ^ The request to send.
                -> NonEmpty Status               -- ^ Expected response codes.
                -> (Response BodyReader -> IO a) -- ^ Handler function.
                -> m a
-sessionRequest rq expected f =
+sessionRequest service rq expected f =
     either retry return =<< exec (\rs ->
         if Bilge.statusCode rs == 401
             then Left  <$> mkErrorResponse rs
             else Right <$> f rs)
   where
     exec h = do
-        Auth _ t <- getAuth
-        clientRequest (token t rq) (status401 <| expected) h
+        auth <- getAuth
+        clientRequest service (addAuth auth rq) (status401 <| expected) h
 
     retry e = do
         a  <- getAuth >>= refreshAuth

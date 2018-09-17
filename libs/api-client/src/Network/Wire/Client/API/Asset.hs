@@ -26,6 +26,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Session
+import Network.Wire.Client.Monad
 
 import qualified Codec.MIME.Type      as MIME
 import qualified Data.ByteString.Lazy as Lazy
@@ -37,7 +38,7 @@ postAsset :: MonadSession m
           -> AssetSettings
           -> AssetData
           -> m Asset
-postAsset ctyp sets dat = sessionRequest req rsc readBody
+postAsset ctyp sets dat = sessionRequest Cargohold req rsc readBody
   where
     req = method POST
         . paths ["assets", "v3"]
@@ -49,7 +50,7 @@ postAsset ctyp sets dat = sessionRequest req rsc readBody
 
 getAsset :: MonadSession m => AssetKey -> Maybe AssetToken -> m (Maybe AssetData)
 getAsset key tok = do
-    rs <- sessionRequest req rsc consumeBody
+    rs <- sessionRequest Cargohold req rsc consumeBody
     liftIO $ case statusCode rs of
         200 -> maybe (unexpected rs "getAsset: missing body") (return . Just) (responseBody rs)
         404 -> return Nothing

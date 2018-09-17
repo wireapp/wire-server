@@ -22,10 +22,11 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Session
+import Network.Wire.Client.Monad
 import Network.Wire.Client.API.Push (ConvEvent)
 
 postOtrMessage :: MonadSession m => ConvId -> NewOtrMessage -> m ClientMismatch
-postOtrMessage cnv msg = sessionRequest req rsc readBody
+postOtrMessage cnv msg = sessionRequest Galley req rsc readBody
   where
     req = method POST
         . paths ["conversations", toByteString' cnv, "otr", "messages"]
@@ -42,7 +43,7 @@ postOtrMessage cnv msg = sessionRequest req rsc readBody
 -- others will not.
 addMembers :: MonadSession m => ConvId -> List1 UserId -> m (Maybe (ConvEvent Members))
 addMembers cnv mems = do
-    rs <- sessionRequest req rsc consumeBody
+    rs <- sessionRequest Galley req rsc consumeBody
     case statusCode rs of
         200 -> Just <$> fromBody rs
         204 -> return Nothing
@@ -59,7 +60,7 @@ addMembers cnv mems = do
 -- to the user removal.
 removeMember :: MonadSession m => ConvId -> UserId -> m (Maybe (ConvEvent Members))
 removeMember cnv mem = do
-    rs <- sessionRequest req rsc consumeBody
+    rs <- sessionRequest Galley req rsc consumeBody
     case statusCode rs of
         200 -> Just <$> fromBody rs
         204 -> return Nothing
@@ -72,7 +73,7 @@ removeMember cnv mem = do
     rsc = status200 :| [status204]
 
 memberUpdate :: MonadSession m => ConvId -> MemberUpdateData -> m ()
-memberUpdate cnv updt = sessionRequest req rsc (const $ return ())
+memberUpdate cnv updt = sessionRequest Galley req rsc (const $ return ())
   where
     req = method PUT
         . paths ["conversations", toByteString' cnv, "self"]
@@ -83,7 +84,7 @@ memberUpdate cnv updt = sessionRequest req rsc (const $ return ())
 
 getConv :: MonadSession m => ConvId -> m (Maybe Conversation)
 getConv cnv = do
-    rs <- sessionRequest req rsc consumeBody
+    rs <- sessionRequest Galley req rsc consumeBody
     case statusCode rs of
         200 -> fromBody rs
         404 -> return Nothing
@@ -101,7 +102,7 @@ createConv :: MonadSession m
            => [UserId]            -- ^ Other users to add to the conversation
            -> Maybe Text          -- ^ Conversation name
            -> m Conversation
-createConv users name = sessionRequest req rsc readBody
+createConv users name = sessionRequest Galley req rsc readBody
   where
     req = method POST
         . path "conversations"

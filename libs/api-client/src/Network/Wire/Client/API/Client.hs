@@ -22,10 +22,11 @@ import Gundeck.Types.Push
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP
+import Network.Wire.Client.Monad
 import Network.Wire.Client.Session
 
 registerClient :: MonadSession m => NewClient SignalingKeys -> m M.Client
-registerClient a = sessionRequest req rsc readBody
+registerClient a = sessionRequest Brig req rsc readBody
   where
     req = method POST
         . path "/clients"
@@ -35,7 +36,7 @@ registerClient a = sessionRequest req rsc readBody
     rsc = status201 :| []
 
 removeClient :: MonadSession m => ClientId -> RmClient -> m ()
-removeClient cid r = sessionRequest req rsc (const $ return ())
+removeClient cid r = sessionRequest Brig req rsc (const $ return ())
   where
     req = method DELETE
         . paths ["clients", toByteString' cid]
@@ -45,7 +46,7 @@ removeClient cid r = sessionRequest req rsc (const $ return ())
     rsc = status200 :| []
 
 getClients :: MonadSession m => m [M.Client]
-getClients = sessionRequest req rsc readBody
+getClients = sessionRequest Brig req rsc readBody
   where
     req = method GET
         . path "/clients"
@@ -54,7 +55,7 @@ getClients = sessionRequest req rsc readBody
     rsc = status200 :| []
 
 updateClient :: MonadSession m => ClientId -> UpdateClient SignalingKeys -> m ()
-updateClient cid r = sessionRequest req rsc (const $ return ())
+updateClient cid r = sessionRequest Brig req rsc (const $ return ())
   where
     req = method PUT
         . paths ["clients", toByteString' cid]
@@ -64,7 +65,7 @@ updateClient cid r = sessionRequest req rsc (const $ return ())
     rsc = status200 :| []
 
 getUserPrekeys :: MonadSession m => UserId -> m PrekeyBundle
-getUserPrekeys u = sessionRequest req rsc readBody
+getUserPrekeys u = sessionRequest Brig req rsc readBody
   where
     req = method GET
         . paths ["users", toByteString' u, "prekeys"]
@@ -73,7 +74,7 @@ getUserPrekeys u = sessionRequest req rsc readBody
     rsc = status200 :| []
 
 getPrekey :: MonadSession m => UserId -> ClientId -> m ClientPrekey
-getPrekey u c = sessionRequest req rsc readBody
+getPrekey u c = sessionRequest Brig req rsc readBody
   where
     req = method GET
         . paths ["users", toByteString' u, "prekeys", toByteString' c]

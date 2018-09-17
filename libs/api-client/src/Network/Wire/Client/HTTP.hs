@@ -47,12 +47,13 @@ instance FromJSON Error where
 -- Performing Requests
 
 clientRequest :: MonadClient m
-              => Request                       -- ^ The request to send.
+              => Service                       -- ^ Service to send the request to.
+              -> Request                       -- ^ The request to send.
               -> NonEmpty Status               -- ^ Expected response codes.
               -> (Response BodyReader -> IO a) -- ^ Handler function.
               -> m a
-clientRequest rq expected f = do
-    s <- getServer
+clientRequest service rq expected f = do
+    s <- getServer service
     l <- getLogger
     m <- getManager
     liftIO $ recovering retry3x handlers (const (exec l s m))

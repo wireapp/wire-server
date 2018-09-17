@@ -3,7 +3,8 @@
 {-# LANGUAGE OverloadedStrings          #-}
 
 module Network.Wire.Client.Monad
-    ( Server (..)
+    ( Service (..)
+    , Server (..)
     , setServer
     , Client
     , MonadClient (..)
@@ -28,9 +29,13 @@ import Prelude hiding (log)
 
 import qualified System.Logger as Logger
 
+data Service = Brig | Galley | Gundeck | Cargohold | Cannon | Proxy | Spar
+    deriving (Eq, Ord, Show)
+
 data Env = Env
-    { clientServer :: Server
-    , clientLogger :: Logger
+    { clientServer  :: Service -> Server
+    , clientLogger  :: Logger
+    , clientManager :: Manager
     }
 
 newtype Client a = Client (ReaderT Env IO a)
@@ -42,31 +47,30 @@ data Server = Server
     , serverWsHost  :: Maybe ByteString
     , serverWsPort  :: Maybe Word16
     , serverSSL     :: Bool
-    , serverManager :: Manager
     }
 
 class (MonadHttp m, MonadLogger m, MonadIO m) => MonadClient m where
-    getServer :: m Server
+    getServer :: Service -> m Server
     getLogger :: m Logger
 
 instance MonadHttp Client where
-    getManager = Client $ asks (serverManager . clientServer)
+    getManager = Client $ asks clientManager
 
 instance MonadClient Client where
-    getServer = Client $ asks clientServer
+    getServer service = Client $ fmap ($ service) $ asks clientServer
     getLogger = Client $ asks clientLogger
 
 instance MonadLogger Client where
     log l m = getLogger >>= \lg -> Logger.log lg l m
 
 setServer :: Server -> Request -> Request
-setServer (Server h p _ _ s _) = host h . port p . (if s then secure else id)
+setServer (Server h p _ _ s) = host h . port p . (if s then secure else id)
 
 asyncClient :: Client a -> Client (Async a)
 asyncClient (Client c) = Client $ mapReaderT async c
 
-runClient :: MonadIO m => Server -> Logger -> Client a -> m a
-runClient s l (Client c) = liftIO $ runReaderT c (Env s l)
+runClient :: MonadIO m => (Service -> Server) -> Logger -> Manager -> Client a -> m a
+runClient s l m (Client c) = liftIO $ runReaderT c (Env s l m)
 
 data ClientException
     = ErrorResponse Int Text Text

@@ -73,7 +73,7 @@ awaitNotifications :: (MonadSession m, Functor m)
                    => (Notification -> IO ())
                    -> m (Async ())
 awaitNotifications f = do
-    s <- getServer
+    s <- getServer Cannon
     l <- getLogger
     a <- access . authToken <$> getAuth
     let hst = C.unpack $ fromMaybe (serverHost s) (serverWsHost s)
@@ -111,7 +111,7 @@ fetchNotifications :: MonadSession m
                    => Maybe ByteString
                    -> m (Bool, [Notification])
 fetchNotifications snc = do
-    rs <- sessionRequest req rsc consumeBody
+    rs <- sessionRequest Gundeck req rsc consumeBody
     case statusCode rs of
         200 -> (True,)  <$> fromBody rs
         404 -> (False,) <$> fromBody rs
@@ -126,7 +126,7 @@ fetchNotifications snc = do
 
 lastNotification :: MonadSession m => m (Maybe Notification)
 lastNotification = do
-    rs <- sessionRequest req rsc consumeBody
+    rs <- sessionRequest Gundeck req rsc consumeBody
     case statusCode rs of
         200 -> Just <$> fromBody rs
         404 -> return Nothing

@@ -28,7 +28,7 @@ import qualified Data.ByteString.Char8 as C
 -- Unauthenticated
 
 registerUser :: MonadClient m => NewUser -> m User
-registerUser u = clientRequest req rsc readBody
+registerUser u = clientRequest Brig req rsc readBody
   where
     req = method POST
         . path "/register"
@@ -39,7 +39,7 @@ registerUser u = clientRequest req rsc readBody
 
 activateKey :: MonadClient m => ActivationKey -> ActivationCode -> m Bool
 activateKey (ActivationKey key) (ActivationCode code) = do
-    status <- clientRequest req rsc (return . statusCode)
+    status <- clientRequest Brig req rsc (return . statusCode)
     return $ status /= 404
   where
     req = method GET
@@ -52,7 +52,7 @@ activateKey (ActivationKey key) (ActivationCode code) = do
 -- Authenticated
 
 getSelfProfile :: MonadSession m => m User
-getSelfProfile = sessionRequest req rsc readBody
+getSelfProfile = sessionRequest Brig req rsc readBody
   where
     req = method GET
         . path "/self"
@@ -61,7 +61,7 @@ getSelfProfile = sessionRequest req rsc readBody
     rsc = status200 :| []
 
 getProfile :: MonadSession m => UserId -> m UserProfile
-getProfile uid = sessionRequest req rsc readBody
+getProfile uid = sessionRequest Brig req rsc readBody
   where
     req = method GET
         . paths ["users", C.pack (show uid)]
@@ -70,7 +70,7 @@ getProfile uid = sessionRequest req rsc readBody
     rsc = status200 :| []
 
 connectTo :: MonadSession m => ConnectionRequest -> m UserConnection
-connectTo cr = sessionRequest req rsc readBody
+connectTo cr = sessionRequest Brig req rsc readBody
   where
     req = method POST
         . path "/connections"
@@ -80,7 +80,7 @@ connectTo cr = sessionRequest req rsc readBody
     rsc = status201 :| [status200]
 
 updateConnection :: MonadSession m => UserId -> ConnectionUpdate -> m UserConnection
-updateConnection u cu = sessionRequest req rsc readBody
+updateConnection u cu = sessionRequest Brig req rsc readBody
   where
     req = method PUT
         . paths ["connections", C.pack (show u)]
@@ -91,7 +91,7 @@ updateConnection u cu = sessionRequest req rsc readBody
 
 getConnection :: MonadSession m => UserId -> m (Maybe UserConnection)
 getConnection u = do
-    rs <- sessionRequest req rsc consumeBody
+    rs <- sessionRequest Brig req rsc consumeBody
     case statusCode rs of
         200 -> fromBody rs
         404 -> return Nothing

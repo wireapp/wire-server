@@ -16,6 +16,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status200)
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Session
+import Network.Wire.Client.Monad
 import Named
 
 import qualified Data.ByteString.Char8 as C
@@ -30,7 +31,7 @@ search
     (arg #query -> searchQuery)
     (argDef #limit 15 -> searchLimit)
     =
-    sessionRequest req rsc readBody
+    sessionRequest Brig req rsc readBody
   where
     req = method GET
         . path "/search/contacts"
