@@ -24,8 +24,8 @@ data Contact = Contact
     } deriving Show
 
 -- | Encodes whether the (current) user has opted in/out of search
-newtype SearchableStatus = SearchableStatus { isSearchable :: Bool }
-    deriving Show
+newtype SearchableStatus = SearchableStatus { unSearchableStatus :: Bool }
+    deriving (Eq, Show)
 
 instance ToJSON a => ToJSON (SearchResult a) where
     toJSON r = object

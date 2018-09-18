@@ -36,6 +36,7 @@ import Web.Cookie (parseSetCookie, setCookieName)
 import Util
 import Util.AWS as Util
 import Util.Options.Common
+import Network.Wire.Client.API.Search
 
 import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt

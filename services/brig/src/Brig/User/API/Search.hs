@@ -50,7 +50,7 @@ routes = do
         .&. header "Z-User"
 
     document "GET" "getSearchableStatus" $ do
-        Doc.summary "Determine whether you are disoverable via /search/contacts."
+        Doc.summary "Determine whether you are discoverable via /search/contacts."
         Doc.returns (Doc.ref Doc.searchableStatus)
         Doc.response 200 "Searchable status." Doc.end
 

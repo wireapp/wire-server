@@ -477,7 +477,7 @@ reindexRowToIndexUser
     version = mkIndexVersion . getMax . mconcat . fmap Max . catMaybes
 
     shouldIndex = and
-        [ fromMaybe True (isSearchable <$> searchable) -- implicit opt-in
+        [ fromMaybe True (unSearchableStatus <$> searchable) -- implicit opt-in
         , not suspended
         , activated
         , isNothing service
@@ -487,4 +487,3 @@ reindexRowToIndexUser
         Just Active -> False
         Nothing     -> False
         _           -> True
-

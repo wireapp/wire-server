@@ -16,44 +16,10 @@ import Test.Tasty.HUnit
 import Network.Wire.Client.Monad
 import Network.Wire.Client.Session
 import Network.Wire.Client.API.Search
-import Network.Wire.Client.HTTP
 import Network.HTTP.Types
 import Data.List.NonEmpty (NonEmpty (..))
 import Named
 
-
-optIn,optOut :: SearchableStatus
-optIn  = SearchableStatus True
-optOut = SearchableStatus False
-
-updateSearchableStatus :: HasCallStack => SearchableStatus -> Test ()
-updateSearchableStatus status =
-    sessionRequest Brig
-        ( method PUT
-            . path "/self/searchable"
-            . contentJson
-            . body (RequestBodyLBS (encode status))
-            $ empty)
-        (status200 :| [])
-        (const $ return ())
-
-refreshIndex :: HasCallStack => Test ()
-refreshIndex =
-    sessionRequest Brig
-        (method POST
-           . path "/i/index/refresh"
-           $ empty)
-        (status200 :| [])
-        (const $ return ())
-
-reindex :: HasCallStack => Test ()
-reindex =
-    sessionRequest Brig
-        (method POST
-           . path "/i/index/reindex"
-           $ empty)
-        (status200 :| [])
-        (const $ return ())
 
 randomUserWithHandle :: HasCallStack => Test User
 randomUserWithHandle = do
@@ -96,11 +62,6 @@ assertCan'tFind expected q = do
         notElem expected . map contactUserId $ r
 
 assertSearchable :: HasCallStack => String -> Bool -> Test ()
-assertSearchable label status = do
-    response <- sessionRequest Brig
-        (method GET
-           . path "/self/searchable"
-           $ empty)
-        (status200 :| [])
-        readBody
-    liftIO $ assertEqual label (Just status) (isSearchable <$> response)
+assertSearchable label expectedStatus = do
+    status <- isSearchable
+    liftIO $ assertEqual label (SearchableStatus expectedStatus) status

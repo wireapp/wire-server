@@ -42,14 +42,14 @@ testOptInOut = do
     asUser uid2 $ assertCanFind uid1 h1
 
     asUser uid1 $ do
-        updateSearchableStatus optOut
+        setSearchable optOut
         refreshIndex
         assertSearchable "opted out" False
     asUser uid2 $
         assertCan'tFind uid1 h1
 
     asUser uid1 $ do
-        updateSearchableStatus optIn
+        setSearchable optIn
         refreshIndex
         assertSearchable "opted in" True
     asUser uid2 $
@@ -93,7 +93,7 @@ testReindex = do
     asUser (userId u) $ do
 
         ((), regular, tinfoil, unfoil) <- runConcurrently $ (,,,)
-            <$> Concurrently reindex
+            <$> Concurrently reindexAll
             <*> Concurrently (replicateM 5 $ delayed *> mkRegularUser)
             <*> Concurrently (replicateM 5 $ delayed *> mkInvisibleUser)
             <*> Concurrently (replicateM 5 $ delayed *> mkTmpInvisibleUser)
@@ -125,12 +125,12 @@ testReindex = do
     mkInvisibleUser = do
         u <- randomUserWithHandle
         asUser (userId u) $
-            updateSearchableStatus optOut
+            setSearchable optOut
         pure u
 
     mkTmpInvisibleUser = do
         u <- randomUserWithHandle
         asUser (userId u) $ do
-            updateSearchableStatus optOut
-            updateSearchableStatus optIn
+            setSearchable optOut
+            setSearchable optIn
         pure u

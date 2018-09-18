@@ -26,6 +26,7 @@ import Network.Wire.Client.Monad as Client
 import Util
 
 import qualified API.Search.Util             as Search
+import qualified Network.Wire.Client.API.Search as Search
 import qualified Brig.Options                as Opt
 import qualified Data.List1                  as List1
 import qualified Data.UUID                   as UUID

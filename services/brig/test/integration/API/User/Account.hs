@@ -46,6 +46,7 @@ import Util as Util
 import Util.AWS as Util
 
 import qualified API.Search.Util             as Search
+import qualified Network.Wire.Client.API.Search as Search
 import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt
 import qualified Brig.Types.User.Auth        as Auth
