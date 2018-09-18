@@ -36,8 +36,7 @@ setRandomHandle = do
            . path "/self/handle"
            . contentJson
            . zConn "c"
-           . body (RequestBodyLBS . encode $ HandleUpdate h)
-           $ empty)
+           . body (RequestBodyLBS . encode $ HandleUpdate h))
         (status200 :| [])
         (const $ return ())
     return (Handle h)

@@ -46,18 +46,22 @@ instance FromJSON Error where
 -------------------------------------------------------------------------------
 -- Performing Requests
 
-clientRequest :: MonadClient m
-              => Service                       -- ^ Service to send the request to.
-              -> Request                       -- ^ The request to send.
-              -> NonEmpty Status               -- ^ Expected response codes.
-              -> (Response BodyReader -> IO a) -- ^ Handler function.
-              -> m a
-clientRequest service rq expected f = do
+clientRequest
+    :: MonadClient m
+    => Service                       -- ^ Service to send the request to.
+    -> (Request -> Request)          -- ^ The request to send. This function
+                                     --   will be applied to 'empty' to get
+                                     --   the request.
+    -> NonEmpty Status               -- ^ Expected response codes.
+    -> (Response BodyReader -> IO a) -- ^ Handler function.
+    -> m a
+clientRequest service rqBuilder expected f = do
     s <- getServer service
     l <- getLogger
     m <- getManager
     liftIO $ recovering retry3x handlers (const (exec l s m))
   where
+    rq = rqBuilder empty
     idempotent = Rq.method rq `elem` ["GET", "PUT", "DELETE", "HEAD", "OPTIONS"]
     canRetry c = idempotent && c `elem` [408, 420, 500, 502, 503, 504]
     retry3x    = limitRetries 3 <> exponentialBackoff 1000000

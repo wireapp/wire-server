@@ -45,7 +45,6 @@ postAsset ctyp sets dat = sessionRequest Cargohold req rsc readBody
         . acceptJson
         . header "Content-Type" "multipart/mixed"
         . body (RequestBodyLBS $ toLazyByteString $ buildMultipartBody sets ctyp dat)
-        $ empty
     rsc = status201 :| []
 
 getAsset :: MonadSession m => AssetKey -> Maybe AssetToken -> m (Maybe AssetData)
@@ -59,6 +58,4 @@ getAsset key tok = do
     req = method GET
         . paths ["assets", "v3", toByteString' key]
         . maybe id (header "Asset-Token" . toByteString') tok
-        $ empty
     rsc = status200 :| [status404]
-

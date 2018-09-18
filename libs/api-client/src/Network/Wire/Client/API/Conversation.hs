@@ -32,7 +32,6 @@ postOtrMessage cnv msg = sessionRequest Galley req rsc readBody
         . paths ["conversations", toByteString' cnv, "otr", "messages"]
         . acceptJson
         . json msg
-        $ empty
     rsc = status201 :| [status412]
 
 -- | Add one or more users and (in case of success) return the event
@@ -53,7 +52,6 @@ addMembers cnv mems = do
         . paths ["conversations", toByteString' cnv, "members"]
         . acceptJson
         . json (Invite mems)
-        $ empty
     rsc = status200 :| [status204]
 
 -- | Remove a user and (in case of success) return the event corresponding
@@ -69,7 +67,6 @@ removeMember cnv mem = do
     req = method DELETE
         . paths ["conversations", toByteString' cnv, "members", toByteString' mem]
         . acceptJson
-        $ empty
     rsc = status200 :| [status204]
 
 memberUpdate :: MonadSession m => ConvId -> MemberUpdateData -> m ()
@@ -79,7 +76,6 @@ memberUpdate cnv updt = sessionRequest Galley req rsc (const $ return ())
         . paths ["conversations", toByteString' cnv, "self"]
         . acceptJson
         . json updt
-        $ empty
     rsc = status200 :| []
 
 getConv :: MonadSession m => ConvId -> m (Maybe Conversation)
@@ -93,7 +89,6 @@ getConv cnv = do
     req = method GET
         . paths ["conversations", toByteString' cnv]
         . acceptJson
-        $ empty
     rsc = status200 :| [status404]
 
 -- | Create a conversation with the session user in it and any number of
@@ -108,5 +103,4 @@ createConv users name = sessionRequest Galley req rsc readBody
         . path "conversations"
         . acceptJson
         . json (NewConvUnmanaged (NewConv users name mempty Nothing Nothing Nothing))
-        $ empty
     rsc = status201 :| []

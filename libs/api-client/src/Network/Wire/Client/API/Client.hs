@@ -32,7 +32,6 @@ registerClient a = sessionRequest Brig req rsc readBody
         . path "/clients"
         . acceptJson
         . json a
-        $ empty
     rsc = status201 :| []
 
 removeClient :: MonadSession m => ClientId -> RmClient -> m ()
@@ -42,7 +41,6 @@ removeClient cid r = sessionRequest Brig req rsc (const $ return ())
         . paths ["clients", toByteString' cid]
         . acceptJson
         . json r
-        $ empty
     rsc = status200 :| []
 
 getClients :: MonadSession m => m [M.Client]
@@ -51,7 +49,6 @@ getClients = sessionRequest Brig req rsc readBody
     req = method GET
         . path "/clients"
         . acceptJson
-        $ empty
     rsc = status200 :| []
 
 updateClient :: MonadSession m => ClientId -> UpdateClient SignalingKeys -> m ()
@@ -61,7 +58,6 @@ updateClient cid r = sessionRequest Brig req rsc (const $ return ())
         . paths ["clients", toByteString' cid]
         . acceptJson
         . json r
-        $ empty
     rsc = status200 :| []
 
 getUserPrekeys :: MonadSession m => UserId -> m PrekeyBundle
@@ -70,7 +66,6 @@ getUserPrekeys u = sessionRequest Brig req rsc readBody
     req = method GET
         . paths ["users", toByteString' u, "prekeys"]
         . acceptJson
-        $ empty
     rsc = status200 :| []
 
 getPrekey :: MonadSession m => UserId -> ClientId -> m ClientPrekey
@@ -79,5 +74,4 @@ getPrekey u c = sessionRequest Brig req rsc readBody
     req = method GET
         . paths ["users", toByteString' u, "prekeys", toByteString' c]
         . acceptJson
-        $ empty
     rsc = status200 :| []

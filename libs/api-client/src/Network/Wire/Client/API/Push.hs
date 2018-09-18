@@ -121,7 +121,6 @@ fetchNotifications snc = do
         . paths ["notifications"]
         . acceptJson
         . maybe id (queryItem "since") snc
-        $ empty
     rsc = status200 :| [status404]
 
 lastNotification :: MonadSession m => m (Maybe Notification)
@@ -135,7 +134,6 @@ lastNotification = do
     req = method GET
         . paths ["notifications", "last"]
         . acceptJson
-        $ empty
     rsc = status200 :| [status404]
 
 -------------------------------------------------------------------------------

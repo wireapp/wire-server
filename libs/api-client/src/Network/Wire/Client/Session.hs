@@ -50,12 +50,15 @@ instance MonadLogger Session where
 
 -- | Perform an HTTP request against the API in the context of a session,
 -- i.e. including an 'Authorization' header.
-sessionRequest :: MonadSession m
-               => Service                       -- ^ Service to send the request to.
-               -> Request                       -- ^ The request to send.
-               -> NonEmpty Status               -- ^ Expected response codes.
-               -> (Response BodyReader -> IO a) -- ^ Handler function.
-               -> m a
+sessionRequest
+    :: MonadSession m
+    => Service                       -- ^ Service to send the request to.
+    -> (Request -> Request)          -- ^ The request to send. This function
+                                     --   will be applied to 'empty' to get
+                                     --   the request.
+    -> NonEmpty Status               -- ^ Expected response codes.
+    -> (Response BodyReader -> IO a) -- ^ Handler function.
+    -> m a
 sessionRequest service rq expected f =
     either retry return =<< exec (\rs ->
         if Bilge.statusCode rs == 401
@@ -64,7 +67,7 @@ sessionRequest service rq expected f =
   where
     exec h = do
         auth <- getAuth
-        clientRequest service (addAuth auth rq) (status401 <| expected) h
+        clientRequest service (addAuth auth . rq) (status401 <| expected) h
 
     retry e = do
         a  <- getAuth >>= refreshAuth

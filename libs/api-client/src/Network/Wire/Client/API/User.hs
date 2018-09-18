@@ -34,7 +34,6 @@ registerUser u = clientRequest Brig req rsc readBody
         . path "/register"
         . acceptJson
         . json u
-        $ empty
     rsc = status201 :| []
 
 activateKey :: MonadClient m => ActivationKey -> ActivationCode -> m Bool
@@ -45,7 +44,6 @@ activateKey (ActivationKey key) (ActivationCode code) = do
     req = method GET
         . path "/activate"
         . query [("key", Just (toByteString' key)), ("code", Just (toByteString' code))]
-        $ empty
     rsc = status200 :| [status204, status404]
 
 -------------------------------------------------------------------------------
@@ -57,7 +55,6 @@ getSelfProfile = sessionRequest Brig req rsc readBody
     req = method GET
         . path "/self"
         . acceptJson
-        $ empty
     rsc = status200 :| []
 
 getProfile :: MonadSession m => UserId -> m UserProfile
@@ -66,7 +63,6 @@ getProfile uid = sessionRequest Brig req rsc readBody
     req = method GET
         . paths ["users", C.pack (show uid)]
         . acceptJson
-        $ empty
     rsc = status200 :| []
 
 connectTo :: MonadSession m => ConnectionRequest -> m UserConnection
@@ -76,7 +72,6 @@ connectTo cr = sessionRequest Brig req rsc readBody
         . path "/connections"
         . acceptJson
         . json cr
-        $ empty
     rsc = status201 :| [status200]
 
 updateConnection :: MonadSession m => UserId -> ConnectionUpdate -> m UserConnection
@@ -86,7 +81,6 @@ updateConnection u cu = sessionRequest Brig req rsc readBody
         . paths ["connections", C.pack (show u)]
         . acceptJson
         . json cu
-        $ empty
     rsc = status200 :| []
 
 getConnection :: MonadSession m => UserId -> m (Maybe UserConnection)
@@ -100,5 +94,4 @@ getConnection u = do
     req = method GET
         . paths ["connections", C.pack (show u)]
         . acceptJson
-        $ empty
     rsc = status200 :| [status404]

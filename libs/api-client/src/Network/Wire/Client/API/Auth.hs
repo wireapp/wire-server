@@ -54,13 +54,12 @@ login :: MonadClient m => Login -> m (Maybe Auth)
 login l = do
     token <- clientRequest Brig req rsc consumeBody
     server <- getServer Brig
-    liftIO $ tokenResponse (setServer server req) token Nothing
+    liftIO $ tokenResponse (setServer server . req $ empty) token Nothing
   where
     req = method POST
         . path "/login"
         . acceptJson
         . json l
-        $ empty
     rsc = status200 :| [status403]
 
 -------------------------------------------------------------------------------
@@ -70,14 +69,13 @@ refreshAuth :: MonadClient m => Auth -> m (Maybe Auth)
 refreshAuth (PublicAuth ac@(AuthCookie c) t) = do
     server <- getServer Brig
     rs <- clientRequest Brig (req server) rsc consumeBody
-    liftIO $ tokenResponse (setServer server $ req server) rs (Just ac)
+    liftIO $ tokenResponse (setServer server . req server $ empty) rs (Just ac)
   where
     req s = method POST
           . path "/access"
           . acceptJson
           . setCookie s
           . addAuth (PublicAuth ac t)
-          $ empty
     rsc = status200 :| [status403]
     setCookie sv
         | serverSSL sv = cookie c

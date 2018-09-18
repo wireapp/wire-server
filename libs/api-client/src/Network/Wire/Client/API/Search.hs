@@ -63,7 +63,6 @@ search
         . acceptJson
         . queryItem "q" (encodeUtf8 searchQuery)
         . queryItem "size" (C.pack $ show searchLimit)
-        $ empty
     rsc = status200 :| []
 
 -- | Determine whether you are discoverable via @\/search\/contacts@.
@@ -75,7 +74,6 @@ isSearchable
   where
     req = method GET
         . path "/self/searchable"
-        $ empty
     rsc = status200 :| []
 
 -- | Opt in or out of being included in search results.
@@ -90,7 +88,6 @@ setSearchable status
         . path "/self/searchable"
         . contentJson
         . body (RequestBodyLBS (encode status))
-        $ empty
     rsc = status200 :| []
 
 ----------------------------------------------------------------------------
@@ -105,7 +102,6 @@ refreshIndex
   where
     req = method POST
         . path "/i/index/refresh"
-        $ empty
     rsc = status200 :| []
 
 -- | Reindex from Cassandra.
@@ -117,5 +113,4 @@ reindexAll
   where
     req = method POST
         . path "/i/index/reindex"
-        $ empty
     rsc = status200 :| []
