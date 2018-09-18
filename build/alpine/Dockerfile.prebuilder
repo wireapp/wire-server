@@ -97,7 +97,7 @@ RUN cd /tmp/ghc && \
     rm -rf /tmp/ghc
 
 # Upgrade stack (there is no binary for stack-1.7.1 on alpine, so this is the easiest way.)
-run stack update && \
+RUN stack update && \
     stack upgrade && \
     rm -f /usr/local/bin/stack && \
     cp /root/.local/bin/stack /usr/local/bin/stack
