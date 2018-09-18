@@ -35,7 +35,7 @@ RUN apk add --no-cache \
 
 # get static version of Haskell Stack and use system ghc by default
 ARG STACK_ALPINE_VERSION=1.6.3
-RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${STACK_ALPINE_VERSION}/stack-${STACK_VERSION}-linux-x86_64-static.tar.gz \
+RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${STACK_ALPINE_VERSION}/stack-${STACK_ALPINE_VERSION}-linux-x86_64-static.tar.gz \
     | tar --wildcards -C /usr/local/bin --strip-components=1 -xzvf - '*/stack' && chmod 755 /usr/local/bin/stack && \
     stack config set system-ghc --global true
 
