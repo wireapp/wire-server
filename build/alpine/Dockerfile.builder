@@ -7,11 +7,6 @@ WORKDIR /src/wire-server
 
 # Get newer Stack
 
-# later versions don't have static binaries (temporarily)
-ARG STACK_VERSION=1.6.5
-RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${STACK_VERSION}/stack-${STACK_VERSION}-linux-x86_64-static.tar.gz \
-    | tar --wildcards -C /usr/local/bin --strip-components=1 -xzvf - '*/stack' && chmod 755 /usr/local/bin/stack
-
 # Download stack indices and compile/cache dependencies to speed up subsequent
 # container creation.
 #
