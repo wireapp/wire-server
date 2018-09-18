@@ -21,4 +21,6 @@ main = do
         [ V0.migration
         , V1.migration
         , V2.migration
+        -- When adding migrations here, don't forget to update
+        -- 'schemaVersion' in Spar.Data
         ] `finally` close l
