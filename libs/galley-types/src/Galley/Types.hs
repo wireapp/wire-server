@@ -392,6 +392,7 @@ data Connect = Connect
 
 data MemberUpdateData = MemberUpdateData
     { misOtrMuted       :: !(Maybe Bool)
+    , misOtrMutedStatus :: !(Maybe MutedStatus)
     , misOtrMutedRef    :: !(Maybe Text)
     , misOtrArchived    :: !(Maybe Bool)
     , misOtrArchivedRef :: !(Maybe Text)
@@ -838,6 +839,7 @@ instance ToJSON MemberUpdate where
 instance FromJSON MemberUpdateData where
     parseJSON = withObject "member-update event data" $ \m ->
         MemberUpdateData <$> m .:? "otr_muted"
+                         <*> m .:? "otr_muted_status"
                          <*> m .:? "otr_muted_ref"
                          <*> m .:? "otr_archived"
                          <*> m .:? "otr_archived_ref"
@@ -847,6 +849,7 @@ instance FromJSON MemberUpdateData where
 instance ToJSON MemberUpdateData where
     toJSON m = object
         $ "otr_muted"        .= misOtrMuted m
+        # "otr_muted_status" .= misOtrMutedStatus m
         # "otr_muted_ref"    .= misOtrMutedRef m
         # "otr_archived"     .= misOtrArchived m
         # "otr_archived_ref" .= misOtrArchivedRef m

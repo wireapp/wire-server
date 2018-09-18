@@ -181,6 +181,9 @@ removeMember = "delete from member where conv = ? and user = ?"
 updateOtrMemberMuted :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
 updateOtrMemberMuted = "update member set otr_muted = ?, otr_muted_ref = ? where conv = ? and user = ?"
 
+updateOtrMemberMutedStatus :: PrepQuery W (MutedStatus, Maybe Text, ConvId, UserId) ()
+updateOtrMemberMutedStatus = "update member set otr_muted_status = ?, otr_muted_ref = ? where conv = ? and user = ?"
+
 updateOtrMemberArchived :: PrepQuery W (Bool, Maybe Text, ConvId, UserId) ()
 updateOtrMemberArchived = "update member set otr_archived = ?, otr_archived_ref = ? where conv = ? and user = ?"
 
