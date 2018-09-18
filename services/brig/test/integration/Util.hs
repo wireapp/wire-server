@@ -2,6 +2,8 @@
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE StandaloneDeriving   #-}
+{-# LANGUAGE FlexibleInstances    #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- for SES notifications
 
 module Util where
@@ -11,13 +13,14 @@ import Bilge.Assert
 import Brig.AWS.Types
 import Brig.Types.Activation
 import Brig.Types.Connection
-import Brig.Types.Client
+import Brig.Types.Client hiding (Client)
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Lens ((^?), (^?!))
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Reader
 import Control.Monad.Catch (MonadThrow)
 import Control.Retry
 import Data.Aeson
@@ -37,11 +40,16 @@ import Galley.Types (Member (..))
 import GHC.Stack (HasCallStack)
 import Gundeck.Types.Notification
 import Gundeck.Types.Push (SignalingKeys (..), EncKey (..), MacKey (..))
+import Network.Wire.Client.API.Auth
+import Network.Wire.Client.Monad as Client hiding (Proxy)
+import Network.Wire.Client.Session
 import System.Random (randomRIO, randomIO)
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit
 import Test.Tasty.Cannon
 import Util.AWS
+import System.Logger.Class (MonadLogger (..))
+import Prelude hiding (log)
 
 import qualified Galley.Types.Teams as Team
 import qualified Brig.AWS as AWS
@@ -62,6 +70,42 @@ type CargoHold = Request -> Request
 type Galley    = Request -> Request
 
 type ResponseLBS = Response (Maybe Lazy.ByteString)
+
+-- TODO: move somewhere
+type Test = ReaderT Auth Client
+
+instance MonadLogger Test where
+    log l = lift . log l
+
+instance MonadHttp Test where
+    getManager = lift getManager
+
+instance MonadClient Test where
+    getServer = lift . getServer
+    getLogger = lift getLogger
+
+instance MonadSession Test where
+    getAuth = ask
+    setAuth = error "setAuth @Test: should not be used"
+
+-- TODO remove
+getBrig :: Test Brig
+getBrig = do
+    server <- getServer Brig
+    pure (setServer server)
+
+liftHttp :: Http a -> Test a
+liftHttp act = do
+    manager <- getManager
+    liftIO $ runHttpT manager act
+
+liftTest :: Client.Env -> Test a -> Http a
+liftTest env =
+    runClient env .
+    flip runReaderT NoAuth
+
+asUser :: UserId -> Test a -> Test a
+asUser uid = local (const (ZUserAuth uid))
 
 instance ToJSON SESBounceType where
     toJSON BounceUndetermined = String "Undetermined"
@@ -84,6 +128,12 @@ instance ToJSON SESNotification where
 
 test :: Manager -> TestName -> Http a -> TestTree
 test m n h = testCase n (void $ runHttpT m h)
+
+testNew :: Client.Env -> TestName -> Test a -> TestTree
+testNew env name =
+    testCase name . void .
+    runClient env .
+    flip runReaderT NoAuth
 
 test' :: AWS.Env -> Manager -> TestName -> Http a -> TestTree
 test' e m n h = testCase n $ void $ runHttpT m (liftIO (purgeJournalQueue e) >> h)

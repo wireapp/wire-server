@@ -45,11 +45,12 @@ import qualified Network.Wai.Utilities.Error as Error
 import qualified Galley.Types.Teams          as Team
 import qualified Galley.Types.Teams.Intra    as Team
 import qualified Test.Tasty.Cannon           as WS
+import qualified Network.Wire.Client         as Client
 
 newtype TeamSizeLimit = TeamSizeLimit Word16
 
-tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
-tests conf m b c g aws = do
+tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> AWS.Env -> Client.Env -> IO TestTree
+tests conf m b c g aws env = do
     tl <- optOrEnv (TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings) conf (TeamSizeLimit . read) "TEAM_MAX_SIZE"
     it <- optOrEnv (Opt.setTeamInvitationTimeout . Opt.optSettings)              conf read                   "TEAM_INVITATION_TIMEOUT"
     return $ testGroup "team"
@@ -76,7 +77,7 @@ tests conf m b c g aws = do
             , test m "post /connections - 403 (same binding team)"         $ testConnectionSameTeam b g
             ]
         , testGroup "search"
-            [ test m "post /register members are unsearchable"           $ testNonSearchableDefault b g
+            [ test m "post /register members are unsearchable"           $ testNonSearchableDefault b g env
             ]
         , testGroup "sso"
             [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g
@@ -515,9 +516,9 @@ testConnectionSameTeam brig galley = do
 -------------------------------------------------------------------------------
 -- Search
 
-testNonSearchableDefault :: Brig -> Galley -> Http ()
-testNonSearchableDefault brig galley = do
-    nonMember <- randomUserWithHandle brig
+testNonSearchableDefault :: Brig -> Galley -> Client.Env -> Http ()
+testNonSearchableDefault brig galley env = do
+    nonMember <- liftTest env $ randomUserWithHandle
     email     <- randomEmail
     rsp       <- register email newTeam brig
 
@@ -530,9 +531,13 @@ testNonSearchableDefault brig galley = do
     [team]  <- view Team.teamListTeams <$> getTeams (userId creator) galley
     let tid = view Team.teamId team
     invitee <- inviteAndRegisterUser (userId creator) tid brig
-    creatorWithHandle <- setRandomHandle brig creator
-    inviteeWithHandle <- setRandomHandle brig invitee
-    refreshIndex brig
+    creatorWithHandle <- liftTest env $ do
+        handle <- asUser (userId creator) setRandomHandle
+        pure creator { userHandle = Just handle }
+    inviteeWithHandle <- liftTest env $ do
+        handle <- asUser (userId invitee) setRandomHandle
+        pure invitee { userHandle = Just handle }
+    liftTest env $ refreshIndex
 
     let uid1 = userId nonMember
         uid2 = userId creatorWithHandle
@@ -541,17 +546,18 @@ testNonSearchableDefault brig galley = do
         Just cHandle = fromHandle <$> userHandle creatorWithHandle
         Just iHandle = fromHandle <$> userHandle inviteeWithHandle
 
-    -- users are searchable by default
-    assertSearchable "user is searchable" brig uid1 True
-    assertCanFind brig uid2 uid1 uHandle
+    liftTest env $ do
+        -- users are searchable by default
+        asUser uid1 $ assertSearchable "user is searchable" True
+        asUser uid2 $ assertCanFind uid1 uHandle
 
-    -- team owners are not searchable by default
-    assertSearchable "owner isn't searchable" brig uid2 False
-    assertCan'tFind brig uid1 uid2 cHandle
+        -- team owners are not searchable by default
+        asUser uid2 $ assertSearchable "owner isn't searchable" False
+        asUser uid1 $ assertCan'tFind uid2 cHandle
 
-    -- team members are not searchable by default
-    assertSearchable "member isn't searchable" brig uid3 False
-    assertCan'tFind brig uid1 uid3 iHandle
+        -- team members are not searchable by default
+        asUser uid3 $ assertSearchable "member isn't searchable" False
+        asUser uid1 $ assertCan'tFind uid3 iHandle
 
 ----------------------------------------------------------------------
 -- SSO

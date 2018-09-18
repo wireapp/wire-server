@@ -25,18 +25,19 @@ import qualified API.User.Property
 import qualified Brig.AWS     as AWS
 import qualified Brig.Options as Opt
 import qualified Brig.ZAuth   as ZAuth
+import qualified Network.Wire.Client as Client
 
-tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> IO TestTree
-tests conf p b c ch g aws = do
+tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> Client.Env -> IO TestTree
+tests conf p b c ch g aws env = do
     cl <- optOrEnv (ConnectionLimit . Opt.setUserMaxConnections . Opt.optSettings) conf (ConnectionLimit . read) "USER_CONNECTION_LIMIT"
     at <- optOrEnv (Opt.setActivationTimeout . Opt.optSettings)                    conf read                     "USER_ACTIVATION_TIMEOUT"
     z  <- mkZAuthEnv conf
     return $ testGroup "user"
-        [ API.User.Account.tests       cl at conf p b c ch g aws
+        [ API.User.Account.tests       cl at conf p b c ch g aws env
         , API.User.Auth.tests          conf p z b
         , API.User.Client.tests        cl at conf p b c g
         , API.User.Connection.tests    cl at conf p b c g
-        , API.User.Handles.tests       cl at conf p b c g
+        , API.User.Handles.tests       cl at conf p b c g env
         , API.User.Onboarding.tests    cl at conf p b c g
         , API.User.PasswordReset.tests cl at conf p b c g
         , API.User.Property.tests      cl at conf p b c g

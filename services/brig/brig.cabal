@@ -330,6 +330,10 @@ executable brig-index
 
 executable brig-integration
     default-language:   Haskell2010
+    default-extensions:
+        OverloadedLabels
+        TypeApplications
+
     main-is:            Main.hs
     hs-source-dirs:     test/integration
     ghc-options:
@@ -358,6 +362,7 @@ executable brig-integration
 
     build-depends:
         base                  == 4.*
+      , api-client
       , async
       , brig
       , aeson                 >= 0.11
@@ -419,3 +424,4 @@ executable brig-integration
       , warp-tls              >= 3.2
       , zauth
       , yaml                  >= 0.8.22
+      , named                 == 0.2.*

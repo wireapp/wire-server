@@ -22,6 +22,7 @@ import Gundeck.Types.Notification
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import Test.Tasty.HUnit
+import Network.Wire.Client.Monad as Client
 import Util
 
 import qualified API.Search.Util             as Search
@@ -31,15 +32,16 @@ import qualified Data.UUID                   as UUID
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon           as WS
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
-tests _cl _at _conf p b c _g = testGroup "handles"
-    [ test p "handles/update" $ testHandleUpdate b c
+tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> Client.Env -> TestTree
+tests _cl _at _conf p b c _g env = testGroup "handles"
+    [ test p "handles/update" $ testHandleUpdate b c env
     , test p "handles/race"   $ testHandleRace b
     , test p "handles/query"  $ testHandleQuery b
     ]
 
-testHandleUpdate :: Brig -> Cannon -> Http ()
-testHandleUpdate brig cannon = do
+-- TODO: convert into proper 'Test'
+testHandleUpdate :: Brig -> Cannon -> Client.Env -> Http ()
+testHandleUpdate brig cannon env = do
     uid <- userId <$> randomUser brig
 
     -- Invalid handles are rejected
@@ -76,8 +78,9 @@ testHandleUpdate brig cannon = do
         const (Just "handle-exists") === fmap Error.label . decodeBody
 
     -- The owner appears by that handle in search
-    Search.refreshIndex brig
-    Search.assertCanFind brig uid2 uid hdl
+    liftTest env $ do
+        Search.refreshIndex
+        asUser uid2 $ Search.assertCanFind uid hdl
 
     -- Change the handle again, thus freeing the old handle
     hdl2 <- randomHandle
@@ -88,9 +91,11 @@ testHandleUpdate brig cannon = do
         const 404 === statusCode
 
     -- The owner appears by the new handle in search
-    Search.refreshIndex brig
-    Search.assertCan'tFind brig uid2 uid hdl
-    Search.assertCanFind   brig uid2 uid hdl2
+    liftTest env $ do
+        Search.refreshIndex
+        asUser uid2 $ do
+            Search.assertCan'tFind uid hdl
+            Search.assertCanFind   uid hdl2
 
     -- Other users cannot immediately claim the old handle since the previous claim
     -- is still active.

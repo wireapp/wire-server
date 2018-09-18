@@ -18,6 +18,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import GHC.Generics
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Network.Wire.Client as Client
 import OpenSSL (withOpenSSL)
 import Options.Applicative
 import System.Environment (getArgs, getEnv, withArgs)
@@ -68,10 +69,27 @@ runTests iConf bConf otherArgs = do
     emailAWSOpts <- parseEmailAWSOpts
     awsEnv <- AWS.mkEnv lg awsOpts emailAWSOpts mg
 
-    userApi     <- User.tests bConf mg b c ch g awsEnv
+    env <- do
+        brigServer <- mkServer <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
+        cannonServer <- mkServer <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
+        cargoholdServer <- mkServer <$> optOrEnv cargohold iConf (local . read) "CARGOHOLD_WEB_PORT"
+        galleyServer <- mkServer <$> optOrEnv galley iConf (local . read) "GALLEY_WEB_PORT"
+        let srv = \case
+                Brig -> brigServer
+                Cannon -> cannonServer
+                Cargohold -> cargoholdServer
+                Galley -> galleyServer
+                other -> error ("no endpoint specified for " <> show other)
+        pure Client.Env
+            { clientServer = srv
+            , clientLogger = lg
+            , clientManager = mg
+            }
+
+    userApi     <- User.tests bConf mg b c ch g awsEnv env
     providerApi <- Provider.tests (provider <$> iConf) mg db b c g
-    searchApis  <- Search.tests mg b
-    teamApis    <- Team.tests bConf mg b c g awsEnv
+    searchApis  <- Search.tests env
+    teamApis    <- Team.tests bConf mg b c g awsEnv env
     turnApi     <- TURN.tests mg b turnFile turnFileV2
 
     withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
@@ -83,6 +101,14 @@ runTests iConf bConf otherArgs = do
         ]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
+
+    mkServer (Endpoint h p) = Server
+        { serverHost = encodeUtf8 h
+        , serverPort = p
+        , serverWsHost = Nothing
+        , serverWsPort = Nothing
+        , serverSSL = False
+        }
 
     -- Using config files only would certainly simplify this quite a bit
     parseAWSEnv :: Maybe Opts.AWSOpts -> IO (Opts.AWSOpts)

@@ -59,15 +59,16 @@ import qualified Data.UUID.V4                as UUID
 import qualified Data.Vector                 as Vec
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon           as WS
+import qualified Network.Wire.Client         as Client
 
-tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
-tests _cl at _conf p b c ch g aws = testGroup "account"
+tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> Client.Env -> TestTree
+tests _cl at _conf p b c ch g aws env = testGroup "account"
     [ test' aws p "post /register - 201 (with preverified)"  $ testCreateUserWithPreverified b aws
     , test' aws p "post /register - 201"                     $ testCreateUser b g
     , test' aws p "post /register - 201 + no email"          $ testCreateUserNoEmailNoPassword b
-    , test' aws p "post /register - 201 anonymous"           $ testCreateUserAnon b g
+    , test' aws p "post /register - 201 anonymous"           $ testCreateUserAnon b g env
     , test' aws p "post /register - 201 anonymous expiry"    $ testCreateUserAnonExpiry b
-    , test' aws p "post /register - 201 pending"             $ testCreateUserPending b
+    , test' aws p "post /register - 201 pending"             $ testCreateUserPending b env
     , test' aws p "post /register - 201 existing activation" $ testCreateAccountPendingActivationKey b
     , test' aws p "post /register - 409 conflict"            $ testCreateUserConflict b
     , test' aws p "post /register - 400"                     $ testCreateUserInvalidPhone b
@@ -77,20 +78,20 @@ tests _cl at _conf p b c ch g aws = testGroup "account"
     , test' aws p "get /users/:id - 404"                     $ testNonExistingUser b
     , test' aws p "get /users/:id - 200"                     $ testExistingUser b
     , test' aws p "get /users?:id=.... - 200"                $ testMultipleUsers b
-    , test' aws p "put /self - 200"                          $ testUserUpdate b c aws
+    , test' aws p "put /self - 200"                          $ testUserUpdate b c aws env
     , test' aws p "put /self/email - 2xx"                    $ testEmailUpdate b aws
     , test' aws p "put /self/phone - 202"                    $ testPhoneUpdate b
     , test' aws p "head /self/password - 200/404"            $ testPasswordSet b
     , test' aws p "put /self/password - 200"                 $ testPasswordChange b
     , test' aws p "put /self/locale - 200"                   $ testUserLocaleUpdate b aws
     , test' aws p "post /activate/send - 200"                $ testSendActivationCode b
-    , test' aws p "put /i/users/:id/status (suspend)"        $ testSuspendUser b
+    , test' aws p "put /i/users/:id/status (suspend)"        $ testSuspendUser b env
     , test' aws p "get /i/users?:(email|phone) - 200"        $ testGetByIdentity b
     , test' aws p "delete/phone-email"                       $ testEmailPhoneDelete b c
-    , test' aws p "delete/by-password"                       $ testDeleteUserByPassword b c aws
+    , test' aws p "delete/by-password"                       $ testDeleteUserByPassword b c aws env
     , test' aws p "delete/by-code"                           $ testDeleteUserByCode b
     , test' aws p "delete/anonymous"                         $ testDeleteAnonUser b
-    , test' aws p "delete /i/users/:id - 202"                $ testDeleteInternal b c aws
+    , test' aws p "delete /i/users/:id - 202"                $ testDeleteInternal b c aws env
     , test' aws p "delete with profile pic"                  $ testDeleteWithProfilePic b ch
     ]
 
@@ -155,8 +156,8 @@ testCreateUser brig galley = do
             b <- responseBody r
             b ^? key "conversations" . nth 0 . key "type" >>= maybeFromJSON
 
-testCreateUserAnon :: Brig -> Galley -> Http ()
-testCreateUserAnon brig galley = do
+testCreateUserAnon :: Brig -> Galley -> Client.Env -> Http ()
+testCreateUserAnon brig galley env = do
     let p = RequestBodyLBS . encode $ object
             [ "name" .= ("Mr. Pink" :: Text) ]
     rs <- post (brig . path "/register" . contentJson . body p) <!!
@@ -184,11 +185,12 @@ testCreateUserAnon brig galley = do
 
     -- should not appear in search
     suid <- userId <$> randomUser brig
-    Search.refreshIndex brig
-    Search.assertCan'tFind brig suid uid "Mr. Pink"
+    liftTest env $ do
+        Search.refreshIndex
+        asUser suid $ Search.assertCan'tFind uid "Mr. Pink"
 
-testCreateUserPending :: Brig -> Http ()
-testCreateUserPending brig = do
+testCreateUserPending :: Brig -> Client.Env -> Http ()
+testCreateUserPending brig env = do
     e <- randomEmail
     let p = RequestBodyLBS . encode $ object
             [ "name"     .= ("Mr. Pink" :: Text)
@@ -217,8 +219,9 @@ testCreateUserPending brig = do
 
     -- should not appear in search
     suid <- userId <$> randomUser brig
-    Search.refreshIndex brig
-    Search.assertCan'tFind brig suid uid "Mr. Pink"
+    liftTest env $ do
+        Search.refreshIndex
+        asUser suid $ Search.assertCan'tFind uid "Mr. Pink"
 
 testCreateUserNoEmailNoPassword :: Brig -> Http ()
 testCreateUserNoEmailNoPassword brig = do
@@ -451,8 +454,8 @@ testCreateUserAnonExpiry b = do
     field f u = u ^? key f >>= maybeFromJSON
 
 
-testUserUpdate :: Brig -> Cannon -> AWS.Env -> Http ()
-testUserUpdate brig cannon aws = do
+testUserUpdate :: Brig -> Cannon -> AWS.Env -> Client.Env -> Http ()
+testUserUpdate brig cannon aws env = do
     aliceUser <- randomUser brig
     liftIO $ Util.assertUserJournalQueue "user create alice" aws (userActivateJournaled aliceUser)
     let alice = userId aliceUser
@@ -494,9 +497,10 @@ testUserUpdate brig cannon aws = do
 
     -- should appear in search by 'newName'
     suid <- userId <$> randomUser brig
-    Search.refreshIndex brig
-    assertSearchable "alice should be searchable" brig alice True
-    Search.assertCanFind brig suid alice "dogbert"
+    liftTest env $ do
+        Search.refreshIndex
+        asUser alice $ assertSearchable "alice should be searchable" True
+        asUser suid $ Search.assertCanFind alice "dogbert"
 
 testEmailUpdate :: Brig -> AWS.Env -> Http ()
 testEmailUpdate brig aws = do
@@ -603,8 +607,8 @@ testUserLocaleUpdate brig aws = do
   where
     locale l = body . RequestBodyLBS . encode $ object ["locale" .= l]
 
-testSuspendUser :: Brig -> Http ()
-testSuspendUser brig = do
+testSuspendUser :: Brig -> Client.Env -> Http ()
+testSuspendUser brig env = do
     u <- randomUser brig
     let uid        = userId u
         Just email = userEmail u
@@ -617,15 +621,17 @@ testSuspendUser brig = do
     chkStatus brig uid Suspended
     -- should not appear in search
     suid <- userId <$> randomUser brig
-    Search.refreshIndex brig
-    Search.assertCan'tFind brig suid uid (fromName (userName u))
+    liftTest env $ do
+        Search.refreshIndex
+        asUser suid $ Search.assertCan'tFind uid (fromName (userName u))
 
     -- re-activate
     setStatus uid Active
     chkStatus brig uid Active
     -- should appear in search again
-    Search.refreshIndex brig
-    Search.assertCanFind brig suid uid (fromName (userName u))
+    liftTest env $ do
+        Search.refreshIndex
+        asUser suid $ Search.assertCanFind uid (fromName (userName u))
   where
     setStatus u s =
         let js = RequestBodyLBS . encode $ AccountStatusUpdate s
@@ -789,8 +795,8 @@ testEmailPhoneDelete brig cannon = do
         const 200     === statusCode
         const Nothing === (userPhone <=< decodeBody)
 
-testDeleteUserByPassword :: Brig -> Cannon -> AWS.Env -> Http ()
-testDeleteUserByPassword brig cannon aws = do
+testDeleteUserByPassword :: Brig -> Cannon -> AWS.Env -> Client.Env -> Http ()
+testDeleteUserByPassword brig cannon aws env = do
     u <- randomUser brig
     liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled u)
     let uid1  = userId u
@@ -828,7 +834,7 @@ testDeleteUserByPassword brig cannon aws = do
     n1 <- countCookies brig uid1 defCookieLabel
     liftIO $ Just 1 @=? n1
 
-    setHandleAndDeleteUser brig cannon u [] aws $
+    setHandleAndDeleteUser brig cannon u [] aws env $
         \uid -> deleteUser uid (Just defPassword) brig !!! const 200 === statusCode
 
     -- Activating the new email address now should not work
@@ -883,11 +889,11 @@ testDeleteAnonUser brig = do
     deleteUser uid Nothing brig
         !!! const 200 === statusCode
 
-testDeleteInternal :: Brig -> Cannon -> AWS.Env -> Http ()
-testDeleteInternal brig cannon aws = do
+testDeleteInternal :: Brig -> Cannon -> AWS.Env -> Client.Env -> Http ()
+testDeleteInternal brig cannon aws env = do
     u <- randomUser brig
     liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled u)
-    setHandleAndDeleteUser brig cannon u [] aws $
+    setHandleAndDeleteUser brig cannon u [] aws env $
         \uid -> delete (brig . paths ["/i/users", toByteString' uid]) !!! const 202 === statusCode
     -- Check that user deletion is also triggered
     -- liftIO $ Util.assertUserJournalQueue "user deletion testDeleteInternal2: " aws (userDeleteJournaled $ userId u)
@@ -912,8 +918,8 @@ testDeleteWithProfilePic brig cargohold = do
     -- Check that the asset gets deleted
     downloadAsset cargohold uid (toByteString' (ast^.CHV3.assetKey)) !!! const 404 === statusCode
 
-setHandleAndDeleteUser :: Brig -> Cannon -> User -> [UserId] -> AWS.Env -> (UserId -> HttpT IO ()) -> Http ()
-setHandleAndDeleteUser brig cannon u others aws execDelete = do
+setHandleAndDeleteUser :: Brig -> Cannon -> User -> [UserId] -> AWS.Env -> Client.Env -> (UserId -> HttpT IO ()) -> Http ()
+setHandleAndDeleteUser brig cannon u others aws env execDelete = do
     let uid   = userId u
         email = fromMaybe (error "Must have an email set") (userEmail u)
 
@@ -951,12 +957,13 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
     -- Deleted flag appears in self profile; email, handle and picture are gone
     get (brig . path "/self" . zUser uid) !!! assertDeletedProfileSelf
 
-    Search.refreshIndex brig
+    liftTest env $ Search.refreshIndex
     -- Does not appear in search; public profile shows the user as deleted
     forM_ others $ \usr -> do
         get (brig . paths ["users", toByteString' uid] . zUser usr) !!! assertDeletedProfilePublic
-        Search.assertCan'tFind brig usr uid (fromName (userName u))
-        Search.assertCan'tFind brig usr uid hdl
+        liftTest env $ asUser usr $ do
+            Search.assertCan'tFind uid (fromName (userName u))
+            Search.assertCan'tFind uid hdl
 
     -- Email address is available again
     let Object o = object [ "name"     .= ("Someone Else" :: Text)
