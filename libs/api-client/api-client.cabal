@@ -60,6 +60,7 @@ library
       , http-types            >= 0.8
       , memory                >= 0.12
       , mime                  >= 0.4
+      , monad-control         >= 1.0
       , mtl                   >= 2.1
       , network               >= 2.4
       , retry                 >= 0.7
@@ -68,6 +69,7 @@ library
       , time                  >= 1.5
       , transformers          >= 0.3
       , tinylog               >= 0.14
+      , transformers-base     >= 0.4
       , types-common          >= 0.16
       , unordered-containers  >= 0.2
       , uuid                  >= 1.3

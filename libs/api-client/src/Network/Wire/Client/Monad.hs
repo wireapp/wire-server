@@ -1,12 +1,16 @@
 {-# LANGUAGE DeriveDataTypeable         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE UndecidableInstances       #-}
 
 module Network.Wire.Client.Monad
     ( Service (..)
     , Server (..)
     , setServer
     , Client
+    , Env (..)
     , MonadClient (..)
     , asyncClient
     , runClient
@@ -16,9 +20,11 @@ module Network.Wire.Client.Monad
 import Bilge
 import Control.Applicative
 import Control.Concurrent.Async
+import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
+import Control.Monad.Trans.Control
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Typeable
@@ -38,7 +44,7 @@ data Env = Env
     , clientManager :: Manager
     }
 
-newtype Client a = Client (ReaderT Env IO a)
+newtype Client a = Client { unClient :: ReaderT Env IO a }
     deriving (Functor, Applicative, Monad, MonadIO)
 
 data Server = Server
@@ -63,14 +69,22 @@ instance MonadClient Client where
 instance MonadLogger Client where
     log l m = getLogger >>= \lg -> Logger.log lg l m
 
+instance MonadBase IO Client where
+    liftBase = liftIO
+
+instance MonadBaseControl IO Client where
+    type StM Client a = StM (ReaderT Env IO) a
+    liftBaseWith f = Client $ liftBaseWith (\run -> f (run . unClient))
+    restoreM       = Client . restoreM
+
 setServer :: Server -> Request -> Request
 setServer (Server h p _ _ s) = host h . port p . (if s then secure else id)
 
 asyncClient :: Client a -> Client (Async a)
 asyncClient (Client c) = Client $ mapReaderT async c
 
-runClient :: MonadIO m => (Service -> Server) -> Logger -> Manager -> Client a -> m a
-runClient s l m (Client c) = liftIO $ runReaderT c (Env s l m)
+runClient :: MonadIO m => Env -> Client a -> m a
+runClient env (Client c) = liftIO $ runReaderT c env
 
 data ClientException
     = ErrorResponse Int Text Text
