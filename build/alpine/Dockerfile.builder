@@ -15,7 +15,6 @@ WORKDIR /src/wire-server
 # https://github.com/commercialhaskell/stack/issues/4032
 
 RUN apk add --no-cache git ncurses && \
-    stack update && stack upgrade && \
     mkdir -p /src && cd /src && \
     git clone -b develop https://github.com/wireapp/wire-server.git && \
     cd wire-server && \
