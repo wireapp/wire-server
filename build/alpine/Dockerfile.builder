@@ -19,7 +19,7 @@ RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${S
 # they have to be built in a separate directory. See this issue:
 # https://github.com/commercialhaskell/stack/issues/4032
 
-RUN apk add --no-cache git ncurses libxml2-dev && \
+RUN apk add --no-cache git ncurses && \
     mkdir -p /src && cd /src && \
     git clone -b develop https://github.com/wireapp/wire-server.git && \
     cd wire-server && \
