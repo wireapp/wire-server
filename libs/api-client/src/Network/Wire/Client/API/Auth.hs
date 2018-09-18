@@ -33,11 +33,15 @@ newtype AuthCookie = AuthCookie Cookie
 
 -- | Authentication details sent during an API call.
 data Auth
+    -- | No authentication
+    = NoAuth
+
     -- | Authentication for calls that pass nginz (i.e. all official instances)
-    = PublicAuth
+    | PublicAuth
         { authCookie :: !AuthCookie
         , authToken  :: !AccessToken
         }
+
     -- | Authentication by providing a Z-User header (for e.g. integration tests)
     | ZUserAuth
         { authUser :: !UserId
@@ -79,6 +83,7 @@ refreshAuth (PublicAuth ac@(AuthCookie c) t) = do
         | serverSSL sv = cookie c
         | otherwise    = header "Cookie" (cookie_name c <> "=" <> cookie_value c)
 refreshAuth auth@(ZUserAuth _) = pure (Just auth)
+refreshAuth auth@NoAuth = pure (Just auth)
 
 -------------------------------------------------------------------------------
 -- Utilities
@@ -92,6 +97,7 @@ addAuth (PublicAuth _ t) =
     tokValue = Lazy.toStrict (access t)
 addAuth (ZUserAuth uid) =
     header "Z-User" (toByteString' uid)
+addAuth NoAuth = id
 
 -- | Construct an 'Auth'orisation out of an access token response.
 tokenResponse :: Request

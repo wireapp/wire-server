@@ -776,6 +776,7 @@ nextAuthRefresh (PublicAuth _ tok) = liftIO $ do
     now <- getCurrentTime
     return $ Just $ (fromInteger (expiresIn tok) - 60) `addUTCTime` now
 nextAuthRefresh (ZUserAuth _) = pure Nothing
+nextAuthRefresh NoAuth = pure Nothing
 
 -------------------------------------------------------------------------------
 -- * Reports & Metrics
