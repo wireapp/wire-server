@@ -245,6 +245,14 @@ data AssertionFailure
 
 instance Exception AssertionFailure
 
+-- TODO:
+--
+--   * introduce default assertions (200 for GET, 201/204??? for PUT, etc)
+--   * is it okay if retries are always done and not as per policy in Bilge.Retry?
+--   * bring back Request instead of Request -> Request, it's simpler this way
+--   * ??? and <?? should transform the call, not do the call
+--   * just ignore the body when (), don't require it to be empty
+
 ----------------------------------------------------------------------------
 -- Utilities
 
