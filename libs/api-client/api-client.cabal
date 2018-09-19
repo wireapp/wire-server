@@ -26,6 +26,7 @@ library
 
     exposed-modules:
         Network.Wire.Client
+        Network.Wire.Client.Call
         Network.Wire.Client.API.Auth
         Network.Wire.Client.API.Asset
         Network.Wire.Client.API.Conversation
@@ -33,7 +34,6 @@ library
         Network.Wire.Client.API.Search
         Network.Wire.Client.API.User
         Network.Wire.Client.API.Client
-        Network.Wire.Client.HTTP
         Network.Wire.Client.Monad
         Network.Wire.Client.Session
 

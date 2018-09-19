@@ -35,29 +35,8 @@ import Prelude hiding (log)
 
 import qualified System.Logger as Logger
 
-data Service = Brig | Galley | Gundeck | Cargohold | Cannon | Proxy | Spar
-    deriving (Eq, Ord, Show)
-
-data Env = Env
-    { clientServer  :: Service -> Server
-    , clientLogger  :: Logger
-    , clientManager :: Manager
-    }
-
 newtype Client a = Client { unClient :: ReaderT Env IO a }
     deriving (Functor, Applicative, Monad, MonadIO)
-
-data Server = Server
-    { serverHost    :: ByteString
-    , serverPort    :: Word16
-    , serverWsHost  :: Maybe ByteString
-    , serverWsPort  :: Maybe Word16
-    , serverSSL     :: Bool
-    }
-
-class (MonadHttp m, MonadLogger m, MonadIO m) => MonadClient m where
-    getServer :: Service -> m Server
-    getLogger :: m Logger
 
 instance MonadHttp Client where
     getManager = Client $ asks clientManager
@@ -77,9 +56,6 @@ instance MonadBaseControl IO Client where
     liftBaseWith f = Client $ liftBaseWith (\run -> f (run . unClient))
     restoreM       = Client . restoreM
 
-setServer :: Server -> Request -> Request
-setServer (Server h p _ _ s) = host h . port p . (if s then secure else id)
-
 asyncClient :: Client a -> Client (Async a)
 asyncClient (Client c) = Client $ mapReaderT async c
 
@@ -87,6 +63,7 @@ runClient :: MonadIO m => Env -> Client a -> m a
 runClient env (Client c) = liftIO $ runReaderT c env
 
 data ClientException
+    -- TODO: we need this in the 'CallException' too
     = ErrorResponse Int Text Text
         -- ^ An error response from the API (code + label + message)
     | UnexpectedResponse Status ResponseHeaders Text

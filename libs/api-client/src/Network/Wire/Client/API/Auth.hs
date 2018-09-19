@@ -21,7 +21,7 @@ import Data.ByteString.Conversion (toByteString')
 import Network.HTTP.Client (generateCookie)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
-import Network.Wire.Client.HTTP
+import Network.Wire.Client.Call
 import Network.Wire.Client.Monad
 import Web.Cookie (parseSetCookie)
 
