@@ -108,11 +108,11 @@ instance SPStoreIdP SparError Spar where
   getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig IdPExtra)
   getIdPConfigByIssuer = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer
 
--- | 'wrapMonadClient' with an 'Env' in a 'ReaderT'.
-wrapMonadClientWithEnv :: ReaderT Data.Env Cas.Client a -> Spar a
+-- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions.
+wrapMonadClientWithEnv :: forall a. ReaderT Data.Env (ExceptT TTLError Cas.Client) a -> Spar a
 wrapMonadClientWithEnv action = do
   denv <- Data.mkEnv <$> (sparCtxOpts <$> ask) <*> (fromTime <$> getNow)
-  wrapMonadClient (action `runReaderT` denv)
+  either (throwSpar . SparCassandraTTLError) pure =<< wrapMonadClient (runExceptT $ action `runReaderT` denv)
 
 -- | Call a cassandra command in the 'Spar' monad.  Catch all exceptions and re-throw them as 500 in
 -- Handler.

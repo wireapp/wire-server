@@ -15,8 +15,6 @@
 module Spar.Data where
 
 import Cassandra as Cas
-import Control.Exception
-import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Identity
 import Control.Monad.Reader
@@ -79,9 +77,6 @@ mkTTL now maxttl endOfLife = if
   where
     actualttl = TTL . nominalDiffToSeconds $ endOfLife `diffUTCTime` now
 
-err2err :: (m ~ Either TTLError, MonadThrow m') => m a -> m' a
-err2err = either (throwM . ErrorCall . show) pure
-
 nominalDiffToSeconds :: NominalDiffTime -> Int32
 nominalDiffToSeconds = round @Double . realToFrac
 
@@ -89,11 +84,11 @@ nominalDiffToSeconds = round @Double . realToFrac
 ----------------------------------------------------------------------
 -- saml state handling
 
-storeRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
+storeRequest :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
              => AReqId -> SAML.Time -> m ()
 storeRequest (SAML.ID rid) (SAML.Time endOfLife) = do
     env <- ask
-    TTL actualEndOfLife <- err2err $ mkTTLAuthnRequests env endOfLife
+    TTL actualEndOfLife <- mkTTLAuthnRequests env endOfLife
     retry x5 . write ins $ params Quorum (rid, endOfLife, actualEndOfLife)
   where
     ins :: PrepQuery W (ST, UTCTime, Int32) ()
@@ -113,11 +108,11 @@ checkAgainstRequest (SAML.ID rid) = do
 -- expired?  if yes, that would greatly simplify this table.  if no, we might still be able to push
 -- the end_of_life comparison into the database, rather than retrieving the value and comparing it
 -- in haskell.  (also check the other functions in this module.)
-storeAssertion :: (HasCallStack, MonadReader Env m, MonadClient m)
+storeAssertion :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
                => SAML.ID SAML.Assertion -> SAML.Time -> m Bool
 storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
     env <- ask
-    TTL actualEndOfLife <- err2err $ mkTTLAssertions env endOfLifeNew
+    TTL actualEndOfLife <- mkTTLAssertions env endOfLifeNew
     notAReplay :: Bool <- (retry x1 . query1 sel . params Quorum $ Identity aid) <&>
         maybe True ((< dataEnvNow env) . runIdentity)
     when notAReplay $ do
