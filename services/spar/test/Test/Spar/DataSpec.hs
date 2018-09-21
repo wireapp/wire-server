@@ -25,9 +25,9 @@ spec :: Spec
 spec = do
   describe "mkTTL" $ do
     check 1 (mkDataEnv "1924-07-14T09:00:00Z" 30) "1924-07-14T09:00:15Z" (Right 15)
-    check 2 (mkDataEnv "1924-07-14T09:00:00Z" 30) "1924-07-14T09:00:40Z" (Left TTLTooLong)
-    check 3 (mkDataEnv "1924-07-14T09:00:00Z" 30) "1924-07-14T09:00:00Z" (Left TTLNegative)
-    check 4 (mkDataEnv "1924-07-14T09:00:00Z" 30) "1924-07-14T08:30:00Z" (Left TTLNegative)
+    check 2 (mkDataEnv "1924-07-14T09:00:00Z" 30) "1924-07-14T09:00:40Z" (Left (TTLTooLong "TTL:authresp:40" "TTL:authresp:30"))
+    check 3 (mkDataEnv "1924-07-14T09:00:00Z" 30) "1924-07-14T09:00:00Z" (Left (TTLNegative "TTL:authresp:0"))
+    check 4 (mkDataEnv "1924-07-14T09:00:00Z" 30) "1924-07-14T08:30:00Z" (Left (TTLNegative "TTL:authresp:-1800"))
 
   describe "ttlToNominalDiffTime" $ do
     it "" $ do

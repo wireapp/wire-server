@@ -28,6 +28,7 @@ import Data.String.Conversions
 import Data.Time
 import Data.X509 (SignedCertificate)
 import GHC.Stack
+import GHC.TypeLits (KnownSymbol)
 import Lens.Micro
 import Spar.Data.Instances (VerdictFormatRow, VerdictFormatCon, fromVerdictFormat, toVerdictFormat)
 import Spar.Options as Options
@@ -70,10 +71,10 @@ mkTTLAuthnRequests (Env now _ maxttl _) = mkTTL now maxttl
 mkTTLAssertions :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authresp")
 mkTTLAssertions (Env now _ _ maxttl) = mkTTL now maxttl
 
-mkTTL :: MonadError TTLError m => UTCTime -> TTL a -> UTCTime -> m (TTL a)
+mkTTL :: (MonadError TTLError m, KnownSymbol a) => UTCTime -> TTL a -> UTCTime -> m (TTL a)
 mkTTL now maxttl endOfLife = if
-  | actualttl > maxttl -> throwError TTLTooLong
-  | actualttl <= 0     -> throwError TTLNegative
+  | actualttl > maxttl -> throwError $ TTLTooLong (show actualttl) (show maxttl)
+  | actualttl <= 0     -> throwError $ TTLNegative (show actualttl)
   | otherwise          -> pure actualttl
   where
     actualttl = TTL . nominalDiffToSeconds $ endOfLife `diffUTCTime` now
