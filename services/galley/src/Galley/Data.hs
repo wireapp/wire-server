@@ -131,7 +131,7 @@ import qualified System.Logger.Class  as Log
 newtype ResultSet a = ResultSet { page :: Page a }
 
 schemaVersion :: Int32
-schemaVersion = 27
+schemaVersion = 28
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
@@ -524,8 +524,8 @@ memberLists convs = do
         let f = (Just . maybe [mem] (mem :))
         in Map.alter f conv acc
 
-    mkMem (cnv, usr, srv, prv, st, omu, omur, oar, oarr, hid, hidr) =
-        (cnv, ) <$> toMember (usr, srv, prv, st, omu, omur, oar, oarr, hid, hidr)
+    mkMem (cnv, usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr) =
+        (cnv, ) <$> toMember (usr, srv, prv, st, omu, omus, omur, oar, oarr, hid, hidr)
 
 members :: MonadClient m => ConvId -> m [Member]
 members conv = join <$> memberLists [conv]
@@ -554,12 +554,15 @@ updateMember cid uid mup = do
         setConsistency Quorum
         for_ (mupOtrMute mup) $ \m ->
             addPrepQuery Cql.updateOtrMemberMuted (m, mupOtrMuteRef mup, cid, uid)
+        for_ (mupOtrMuteStatus mup) $ \ms ->
+            addPrepQuery Cql.updateOtrMemberMutedStatus (ms, mupOtrMuteRef mup, cid, uid)
         for_ (mupOtrArchive mup) $ \a ->
             addPrepQuery Cql.updateOtrMemberArchived (a, mupOtrArchiveRef mup, cid, uid)
         for_ (mupHidden mup) $ \h ->
             addPrepQuery Cql.updateMemberHidden (h, mupHiddenRef mup, cid, uid)
     return MemberUpdateData
         { misOtrMuted = mupOtrMute mup
+        , misOtrMutedStatus = mupOtrMuteStatus mup
         , misOtrMutedRef = mupOtrMuteRef mup
         , misOtrArchived = mupOtrArchive mup
         , misOtrArchivedRef = mupOtrArchiveRef mup
@@ -590,6 +593,7 @@ newMember u = Member
     { memId             = u
     , memService        = Nothing
     , memOtrMuted       = False
+    , memOtrMutedStatus = Nothing
     , memOtrMutedRef    = Nothing
     , memOtrArchived    = False
     , memOtrArchivedRef = Nothing
@@ -598,17 +602,18 @@ newMember u = Member
     }
 
 toMember :: ( UserId, Maybe ServiceId, Maybe ProviderId, Maybe Cql.MemberStatus
-            , Maybe Bool, Maybe Text -- otr muted
-            , Maybe Bool, Maybe Text -- otr archived
-            , Maybe Bool, Maybe Text -- hidden
+            , Maybe Bool, Maybe MutedStatus, Maybe Text -- otr muted
+            , Maybe Bool, Maybe Text                    -- otr archived
+            , Maybe Bool, Maybe Text                    -- hidden
             ) -> Maybe Member
-toMember (usr, srv, prv, sta, omu, omur, oar, oarr, hid, hidr) =
+toMember (usr, srv, prv, sta, omu, omus, omur, oar, oarr, hid, hidr) =
     if sta /= Just 0
         then Nothing
         else Just $ Member
             { memId             = usr
             , memService        = newServiceRef <$> srv <*> prv
             , memOtrMuted       = fromMaybe False omu
+            , memOtrMutedStatus = omus
             , memOtrMutedRef    = omur
             , memOtrArchived    = fromMaybe False oar
             , memOtrArchivedRef = oarr
@@ -624,7 +629,7 @@ updateClient add usr cls = do
     retry x5 $ write (q cls) (params Quorum (Identity usr))
 
 -- Do, at most, 16 parallel lookups of up to 128 users each
-lookupClients :: (MonadClient m, MonadBaseControl IO m, Forall (Pure m)) 
+lookupClients :: (MonadClient m, MonadBaseControl IO m, Forall (Pure m))
               => [UserId] -> m Clients
 lookupClients users = Clients.fromList . concat . concat <$>
     forM (chunksOf 2048 users) (mapConcurrently getClients . chunksOf 128)
