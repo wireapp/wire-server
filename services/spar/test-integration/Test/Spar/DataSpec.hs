@@ -226,7 +226,7 @@ spec = do
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
-              Servant.errBody outcome `shouldBe` mempty
+              Servant.errBody outcome `shouldBe` "[\"we don't like you\",\"seriously\"]"
               uriScheme loc `shouldBe` (URI.Scheme "wire")
               List.lookup "userid" qry `shouldBe` Nothing
               List.lookup "cookie" qry `shouldBe` Nothing

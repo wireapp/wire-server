@@ -114,7 +114,11 @@ spec = do
             bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
             bdy `shouldContain` "<title>wire:sso:error:forbidden</title>"
-            bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_ERROR', payload: {label: 'forbidden'}}, receiverOrigin)"
+            bdy `shouldContain` "window.opener.postMessage({"
+            bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
+            bdy `shouldContain` "\"payload\":{"
+            bdy `shouldContain` "\"label\":\"forbidden\""
+            bdy `shouldContain` "}, receiverOrigin)"
 
       context "access granted" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do

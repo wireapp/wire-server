@@ -16,6 +16,7 @@ import Cassandra
 import Control.Exception (SomeException, assert)
 import Control.Monad.Except
 import Control.Monad.Reader
+import Data.Aeson as Aeson (encode, object, (.=))
 import Data.EitherR (fmapL)
 import Data.Id
 import Data.String.Conversions
@@ -29,8 +30,8 @@ import Spar.Error
 import Spar.Options as Options
 import Spar.Types
 import Text.XML.Util (renderURI)
-import Web.Cookie (SetCookie, renderSetCookie)
 import URI.ByteString as URI
+import Web.Cookie (SetCookie, renderSetCookie)
 
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
@@ -199,14 +200,14 @@ verdictHandler aresp verdict = do
                -- (this shouldn't happen too often, see 'storeVerdictFormat')
 
 data VerdictHandlerResult
-  = VerifyHandlerDenied
+  = VerifyHandlerDenied [ST]
   | VerifyHandlerGranted SetCookie UserId
 
 verdictHandlerResult :: HasCallStack => SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResult = \case
-  SAML.AccessDenied reasons -> do
-    SAML.logger SAML.Debug (show reasons)
-    pure VerifyHandlerDenied
+  denied@(SAML.AccessDenied reasons) -> do
+    SAML.logger SAML.Debug (show denied)
+    pure $ VerifyHandlerDenied reasons
   SAML.AccessGranted userref -> do
     uid :: UserId    <- maybe (createUser userref) pure =<< getUser userref
     cky :: SetCookie <- Intra.ssoLogin uid  -- TODO: can this be a race condition?  (user is not
@@ -226,11 +227,11 @@ verdictHandlerWeb :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVer
 verdictHandlerWeb verdict = do
   outcome <- verdictHandlerResult verdict
   pure $ case outcome of
-    VerifyHandlerDenied -> forbiddenPage
+    VerifyHandlerDenied reasons -> forbiddenPage reasons
     VerifyHandlerGranted cky _uid -> successPage cky
   where
-    forbiddenPage :: SAML.ResponseVerdict
-    forbiddenPage = ServantErr
+    forbiddenPage :: [ST] -> SAML.ResponseVerdict
+    forbiddenPage reasons = ServantErr
       { errHTTPCode     = 200
       , errReasonPhrase = "forbidden"  -- (not sure what this is used for)
       , errBody         = easyHtml $
@@ -238,11 +239,17 @@ verdictHandlerWeb verdict = do
                           "  <title>wire:sso:error:forbidden</title>" <>
                           "   <script type=\"text/javascript\">" <>
                           "       const receiverOrigin = '*';" <>
-                          "       window.opener.postMessage({type: 'AUTH_ERROR', payload: {label: 'forbidden'}}, receiverOrigin);" <>
+                          "       window.opener.postMessage(" <> Aeson.encode errval <> ", receiverOrigin);" <>
                           "   </script>" <>
                           "</head>"
       , errHeaders      = []
       }
+      where
+        errval = object [ "type" .= ("AUTH_ERROR" :: ST)
+                        , "payload" .= object [ "label" .= ("forbidden" :: ST)
+                                              , "errors" .= reasons
+                                              ]
+                        ]
 
     successPage :: SetCookie -> SAML.ResponseVerdict
     successPage cky = ServantErr
@@ -272,17 +279,20 @@ verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> SAML.AccessVerdict
 verdictHandlerMobile granted denied verdict = do
   outcome <- verdictHandlerResult verdict
   case outcome of
-    VerifyHandlerDenied
+    VerifyHandlerDenied reasons
       -> mkVerdictDeniedFormatMobile denied "forbidden" &
-         either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage)
+         either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage reasons)
     VerifyHandlerGranted cky uid
       -> mkVerdictGrantedFormatMobile granted cky uid &
          either (throwSpar . SparCouldNotSubstituteSuccessURI . cs) (pure . successPage cky)
   where
-    forbiddenPage :: URI.URI -> SAML.ResponseVerdict
-    forbiddenPage uri = err303
+    forbiddenPage :: [ST] -> URI.URI -> SAML.ResponseVerdict
+    forbiddenPage errs uri = err303
       { errReasonPhrase = "forbidden"
-      , errHeaders = [ ("Location", cs $ renderURI uri) ]
+      , errHeaders = [ ("Location", cs $ renderURI uri)
+                     , ("Content-Type", "application/json")
+                     ]
+      , errBody = Aeson.encode errs
       }
 
     successPage :: SetCookie -> URI.URI -> SAML.ResponseVerdict
