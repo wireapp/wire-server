@@ -313,6 +313,8 @@ data OtherMember = OtherMember
 instance Ord OtherMember where
     compare a b = compare (omId a) (omId b)
 
+-- Inbound member updates.  This is what galley expects on its endpoint.  See also
+-- 'MemberUpdateData'.
 data MemberUpdate = MemberUpdate
     { mupOtrMute       :: !(Maybe Bool)
     , mupOtrMuteStatus :: !(Maybe MutedStatus)
@@ -390,6 +392,8 @@ data Connect = Connect
     , cEmail     :: !(Maybe Text)
     } deriving (Eq, Show)
 
+-- Outbound member updates.  Used for events (sent over the websocket, etc.).  See also
+-- 'MemberUpdate'.
 data MemberUpdateData = MemberUpdateData
     { misOtrMuted       :: !(Maybe Bool)
     , misOtrMutedStatus :: !(Maybe MutedStatus)
