@@ -133,7 +133,7 @@ apiSSO opts
   :<|> authreq (maxttlAuthreqDiffTime opts)
   :<|> SAML.authresp (SAML.JudgeCtx <$> getRespURI) (SAML.HandleVerdictRaw verdictHandler)
   where
-    getRespURI = SAML.getSsoURI (Proxy @API) (Proxy @("sso" :> APIAuthResp))
+    getRespURI = SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthResp)
 
 apiIDP :: ServerT APIIDP Spar
 apiIDP
