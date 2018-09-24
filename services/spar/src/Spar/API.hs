@@ -67,58 +67,86 @@ app :: Env -> Application
 app ctx = SAML.setHttpCachePolicy
         $ serve (Proxy @API) (enter (NT (SAML.nt @SparError @Spar ctx)) (api $ sparCtxOpts ctx) :: Server API)
 
-type API = "i" :> "status" :> Get '[JSON] NoContent
-      :<|> "sso" :> "api-docs" :> Get '[JSON] Swagger
-      :<|> APIMeta
-      :<|> APIAuthReqPrecheck
-      :<|> APIAuthReq
-      :<|> APIAuthResp
-      :<|> IdpGet
-      :<|> IdpGetAll
-      :<|> IdpCreate
-      :<|> IdpDelete
-      :<|> "i" :> "integration-tests" :> IntegrationTests
-      -- NB. If you add endpoints here, also update Test.Spar.APISpec
+type API
+     = "sso" :> APISSO
+  :<|> "identity-providers" :> APIIDP
+  :<|> "i" :> APIINTERNAL
+  -- NB. If you add endpoints here, also update Test.Spar.APISpec
+
+type APISSO
+     = "api-docs" :> Get '[JSON] Swagger
+  :<|> APIMeta
+  :<|> APIAuthReqPrecheck
+  :<|> APIAuthReq
+  :<|> APIAuthResp
 
 type CheckOK = Verb 'HEAD 200
 
-type APIMeta     = "sso" :> "metadata" :> SAML.APIMeta
-type APIAuthReqPrecheck
-                 = "sso" :> "initiate-login"
-                :> QueryParam "success_redirect" URI.URI
-                :> QueryParam "error_redirect" URI.URI
-                :> Capture "idp" SAML.IdPId
-                :> CheckOK '[PlainText] NoContent
-type APIAuthReq  = "sso" :> "initiate-login"
-                :> QueryParam "success_redirect" URI.URI
-                :> QueryParam "error_redirect" URI.URI
-                :> SAML.APIAuthReq
-type APIAuthResp = "sso" :> "finalize-login" :> SAML.APIAuthResp
+type APIMeta
+     = "metadata" :> SAML.APIMeta
 
-type IdpGet     = Header "Z-User" UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> Get '[JSON] IdP
-type IdpGetAll  = Header "Z-User" UserId :> "identity-providers" :> Get '[JSON] IdPList
-type IdpCreate  = Header "Z-User" UserId :> "identity-providers" :> ReqBody '[SAML.XML] SAML.IdPMetadata :> PostCreated '[JSON] IdP
-type IdpDelete  = Header "Z-User" UserId :> "identity-providers" :> Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
+type APIAuthReqPrecheck
+     = "initiate-login"
+    :> QueryParam "success_redirect" URI.URI
+    :> QueryParam "error_redirect" URI.URI
+    :> Capture "idp" SAML.IdPId
+    :> CheckOK '[PlainText] NoContent
+
+type APIAuthReq
+     = "initiate-login"
+    :> QueryParam "success_redirect" URI.URI
+    :> QueryParam "error_redirect" URI.URI
+    :> SAML.APIAuthReq
+
+type APIAuthResp
+     = "finalize-login"
+    :> SAML.APIAuthResp
+
+type APIIDP
+     = Header "Z-User" UserId :> IdpGet
+  :<|> Header "Z-User" UserId :> IdpGetAll
+  :<|> Header "Z-User" UserId :> IdpCreate
+  :<|> Header "Z-User" UserId :> IdpDelete
+
+type IdpGet     = Capture "id" SAML.IdPId :> Get '[JSON] IdP
+type IdpGetAll  = Get '[JSON] IdPList
+type IdpCreate  = ReqBody '[SAML.XML] SAML.IdPMetadata :> PostCreated '[JSON] IdP
+type IdpDelete  = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
+
+type APIINTERNAL
+     = "status" :> Get '[JSON] NoContent
+  :<|> "integration-tests" :> IntegrationTests
 
 -- FUTUREWORK (thanks jschaul): In a more recent version of servant, using Header '[Strict] becomes
 -- an option, removing the need for the Maybe and the extra checks. Probably once
 -- https://github.com/wireapp/wire-server/pull/373 is merged this can be done.
 
+
 api :: Opts -> ServerT API Spar
-api opts =
-       pure NoContent
-  :<|> pure (toSwagger (Proxy @OutsideWorldAPI))
-  :<|> SAML.meta appName (Proxy @API) (Proxy @APIAuthResp)
+api opts = apiSSO opts :<|> apiIDP :<|> apiINTERNAL
+
+apiSSO :: Opts -> ServerT APISSO Spar
+apiSSO opts
+     = pure (toSwagger (Proxy @OutsideWorldAPI))
+  :<|> SAML.meta appName (Proxy @API) (Proxy @("sso" :> APIAuthResp))
   :<|> authreqPrecheck
   :<|> authreq (maxttlAuthreqDiffTime opts)
   :<|> SAML.authresp
-         (SAML.JudgeCtx <$> SAML.getSsoURI (Proxy @API) (Proxy @APIAuthResp))
+         (SAML.JudgeCtx <$> SAML.getSsoURI (Proxy @API) (Proxy @("sso" :> APIAuthResp)))
          (SAML.HandleVerdictRaw verdictHandler)
-  :<|> idpGet
+
+apiIDP :: ServerT APIIDP Spar
+apiIDP
+     = idpGet
   :<|> idpGetAll
   :<|> idpCreate
   :<|> idpDelete
+
+apiINTERNAL :: ServerT APIINTERNAL Spar
+apiINTERNAL
+     = pure NoContent
   :<|> integrationTests
+
 
 appName :: ST
 appName = "spar"
