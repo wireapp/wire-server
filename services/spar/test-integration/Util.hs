@@ -81,7 +81,6 @@ import Spar.Run
 import Spar.Types
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, xit, pending, pendingWith)
-import Text.XML.Util
 import URI.ByteString
 import URI.ByteString.QQ (uri)
 import Util.Options
@@ -101,7 +100,6 @@ import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
-import qualified Text.XML.Util as SAML
 
 
 -- | Create an environment for integration tests from integration and spar config files.
@@ -330,12 +328,12 @@ endpointToSettings endpoint = Warp.defaultSettings
   }
 
 endpointToURL :: MonadIO m => Endpoint -> ST -> m URI
-endpointToURL endpoint urlpath = either err pure $ parseURI' urlst
+endpointToURL endpoint urlpath = either err pure url
   where
-    urlst   = "http://" <> urlhost <> ":" <> urlport <> "/" <> urlpath
+    url     = parseURI' ("http://" <> urlhost <> ":" <> urlport) <&> (=/ urlpath)
     urlhost = cs $ endpoint ^. epHost
     urlport = cs . show $ endpoint ^. epPort
-    err     = liftIO . throwIO . ErrorCall . show . (, (endpoint, urlst))
+    err     = liftIO . throwIO . ErrorCall . show . (, (endpoint, url))
 
 
 -- spar specifics
@@ -391,7 +389,7 @@ negotiateAuthnRequest = do
   resp :: ResponseLBS
     <- call $ get
            ( (env ^. teSpar)
-           . path ("/sso/initiate-login/" <> (cs . UUID.toText . fromIdPId . (^. SAML.idpId) $ idp))
+           . path (cs $ "/sso/initiate-login/" -/ (UUID.toText . fromIdPId . (^. SAML.idpId) $ idp))
            . expect2xx
            )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
@@ -451,11 +449,11 @@ safeHead msg []    = throwError $ msg <> ": []"
 
 callAuthnReq' :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
 callAuthnReq' sparreq_ idpid = do
-  get $ sparreq_ . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid))
+  get $ sparreq_ . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid)
 
 callAuthnReqPrecheck' :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
 callAuthnReqPrecheck' sparreq_ idpid = do
-  head $ sparreq_ . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid))
+  head $ sparreq_ . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid)
 
 callIdpGet :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m IdP
 callIdpGet sparreq_ muid idpid = do
@@ -465,7 +463,7 @@ callIdpGet sparreq_ muid idpid = do
 
 callIdpGet' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpGet' sparreq_ muid idpid = do
-  get $ sparreq_ . maybe id zUser muid . path ("/identity-providers/" <> cs (SAML.idPIdToST idpid))
+  get $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
 
 callIdpGetAll :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m IdPList
 callIdpGetAll sparreq_ muid = do
@@ -496,4 +494,4 @@ callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx)
 
 callIdpDelete' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpDelete' sparreq_ muid idpid = do
-  delete $ sparreq_ . maybe id zUser muid . path ("/identity-providers/" <> cs (SAML.idPIdToST idpid))
+  delete $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)

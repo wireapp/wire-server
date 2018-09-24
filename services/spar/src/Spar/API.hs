@@ -111,7 +111,9 @@ api opts =
   :<|> SAML.meta appName (Proxy @API) (Proxy @APIAuthResp)
   :<|> authreqPrecheck
   :<|> authreq (maxttlAuthreqDiffTime opts)
-  :<|> SAML.authresp (SAML.HandleVerdictRaw verdictHandler)
+  :<|> SAML.authresp
+         (SAML.JudgeCtx <$> SAML.getSsoURI (Proxy @API) (Proxy @APIAuthResp))
+         (SAML.HandleVerdictRaw verdictHandler)
   :<|> idpGet
   :<|> idpGetAll
   :<|> idpCreate

@@ -142,7 +142,7 @@ instance ToSchema SAML.Version where
 instance ToSchema X509.SignedCertificate where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
-instance ToSchema SAML.SPDesc where
+instance ToSchema SAML.SPMetadata where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
 instance ToSchema URI.URI where

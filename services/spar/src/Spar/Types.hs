@@ -19,9 +19,9 @@ import Data.Id (TeamId, UserId)
 import Data.String.Conversions
 import GHC.Generics
 import Lens.Micro.TH (makeLenses)
+import SAML2.Util (renderURI, parseURI')
 import SAML2.WebSSO (IdPConfig, ID, AuthnRequest)
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
-import Text.XML.Util (renderURI, parseURI')
 import URI.ByteString
 import Web.Cookie
 

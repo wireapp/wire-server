@@ -22,6 +22,7 @@ import Data.Id
 import Data.String.Conversions
 import GHC.Stack
 import Lens.Micro
+import SAML2.Util (renderURI)
 import SAML2.WebSSO hiding (UserRef(..))
 import Servant
 import Spar.API.Instances ()
@@ -29,7 +30,6 @@ import Spar.API.Swagger ()
 import Spar.Error
 import Spar.Options as Options
 import Spar.Types
-import Text.XML.Util (renderURI)
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
 

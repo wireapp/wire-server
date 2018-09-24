@@ -9,13 +9,13 @@ module Spar.Data.Instances where
 import Cassandra as Cas
 import Data.String.Conversions
 import Data.X509 (SignedCertificate)
+import SAML2.Util (parseURI')
+import Spar.Types
 import Text.XML.DSig (renderKeyInfo, parseKeyInfo)
 import URI.ByteString
-import Text.XML.Util (parseURI')
-import Spar.Types
 
 import qualified SAML2.WebSSO as SAML
-import qualified Text.XML.Util as SAML
+
 
 instance Cql (SignedCertificate) where
     ctype = Tagged BlobColumn

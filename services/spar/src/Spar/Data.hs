@@ -36,7 +36,6 @@ import URI.ByteString
 import qualified Data.List.NonEmpty as NL
 import qualified Data.UUID as UUID
 import qualified SAML2.WebSSO as SAML
-import qualified Data.ByteString.Char8 as BSC
 
 
 -- | NB: this is a lower bound (@<=@, not @==@).
@@ -207,7 +206,7 @@ storeIdPConfig idp = retry x5 . batch $ do
 getSPInfo :: MonadReader Env m => SAML.IdPId -> m SPInfo
 getSPInfo (SAML.IdPId idp) = do
   env <- ask
-  pure $ dataEnvSPInfo env & spiLoginURI . pathL %~ (<> BSC.pack (UUID.toString idp))
+  pure $ dataEnvSPInfo env & spiLoginURI %~ (SAML.=/ UUID.toText idp)
 
 getIdPConfig
   :: forall m. (HasCallStack, MonadClient m, MonadReader Env m)

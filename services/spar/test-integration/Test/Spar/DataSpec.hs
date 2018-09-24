@@ -23,6 +23,7 @@ import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Lens.Micro
+import SAML2.Util ((-/))
 import Spar.API
 import Spar.API.Instances ()
 import Spar.API.Test (IntegrationTests)
@@ -43,7 +44,6 @@ import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified Servant
 import qualified Servant.Client as Servant
 import qualified Text.XML as XML
-import qualified Text.XML.Util as SAML
 
 
 spec :: SpecWith TestEnv
@@ -306,18 +306,18 @@ mkAuthnReqWeb idpid = do
   env <- ask
   -- TODO: the following fails, i think there is something wrong with query encoding.
   -- runServantClient env $ clientGetAuthnRequest Nothing Nothing idpid
-  call $ get ((env ^. teSpar) . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid)) . expect2xx)
+  call $ get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid) . expect2xx)
 
 mkAuthnReqMobile :: SAML.IdPId -> ReaderT TestEnv IO ResponseLBS
 mkAuthnReqMobile idpid = do
   env <- ask
   -- (see the TODO under "web" above)
   -- call . runServantClient env $ clientGetAuthnRequest (Just succurl) (Just errurl) idpid
-  let succurl = [uri|wire://login-granted/?cookie=$cookie&userid=$userid|]
-      errurl = [uri|wire://login-denied/?label=$label|]
-      mk = Builder.toLazyByteString . urlEncode [] . serializeURIRef'
-      arQueries = "success_redirect=" <> mk succurl <> "&error_redirect=" <> mk errurl
-      arPath = cs $ "/sso/initiate-login/" <> cs (SAML.idPIdToST idpid) <> "?" <> arQueries
+  let succurl   = [uri|wire://login-granted/?cookie=$cookie&userid=$userid|]
+      errurl    = [uri|wire://login-denied/?label=$label|]
+      mk        = Builder.toLazyByteString . urlEncode [] . serializeURIRef'
+      arQueries = cs $ "success_redirect=" <> mk succurl <> "&error_redirect=" <> mk errurl
+      arPath    = cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid <> "?" <> arQueries
   call $ get ((env ^. teSpar) . path arPath . expect2xx)
 
 requestAccessVerdict :: HasCallStack

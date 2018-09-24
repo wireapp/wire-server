@@ -21,10 +21,10 @@ import Data.Id
 import Data.String.Conversions
 import Data.Time
 import GHC.Generics
+import SAML2.Util (parseURI')
 import SAML2.WebSSO.Types
 import SAML2.WebSSO.XML as SAML
 import Servant hiding (URI)
-import Text.XML.Util (parseURI')
 import URI.ByteString
 
 

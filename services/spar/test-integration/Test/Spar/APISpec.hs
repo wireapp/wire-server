@@ -67,14 +67,14 @@ spec = do
         it "responds with 404" $ do
           env <- ask
           let uuid = cs $ UUID.toText UUID.nil
-          head ((env ^. teSpar) . path ("/sso/initiate-login/" <> uuid))
+          head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ uuid))
             `shouldRespondWith` ((== 404) . statusCode)
 
       context "known IdP" $ do
         it "responds with 200" $ do
           env <- ask
           let idp = cs . UUID.toText . fromIdPId $ env ^. teIdP . idpId
-          head ((env ^. teSpar) . path ("/sso/initiate-login/" <> idp) . expect2xx)
+          head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
             `shouldRespondWith`  ((== 200) . statusCode)
 
     describe "GET /sso/initiate-login/:idp" $ do
@@ -82,14 +82,14 @@ spec = do
         it "responds with 'not found'" $ do
           env <- ask
           let uuid = cs $ UUID.toText UUID.nil
-          get ((env ^. teSpar) . path ("/sso/initiate-login/" <> uuid))
+          get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ uuid))
             `shouldRespondWith` ((== 404) . statusCode)
 
       context "known IdP" $ do
         it "responds with request" $ do
           env <- ask
           let idp = cs . UUID.toText . fromIdPId $ env ^. teIdP . idpId
-          get ((env ^. teSpar) . path ("/sso/initiate-login/" <> idp) . expect2xx)
+          get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
             `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                   [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
                                   , "<body onload=\"document.forms[0].submit()\">"
