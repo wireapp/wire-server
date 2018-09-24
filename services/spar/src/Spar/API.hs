@@ -128,12 +128,12 @@ api opts = apiSSO opts :<|> apiIDP :<|> apiINTERNAL
 apiSSO :: Opts -> ServerT APISSO Spar
 apiSSO opts
      = pure (toSwagger (Proxy @OutsideWorldAPI))
-  :<|> SAML.meta appName (Proxy @API) (Proxy @("sso" :> APIAuthResp))
+  :<|> SAML.meta appName getRespURI
   :<|> authreqPrecheck
   :<|> authreq (maxttlAuthreqDiffTime opts)
-  :<|> SAML.authresp
-         (SAML.JudgeCtx <$> SAML.getSsoURI (Proxy @API) (Proxy @("sso" :> APIAuthResp)))
-         (SAML.HandleVerdictRaw verdictHandler)
+  :<|> SAML.authresp (SAML.JudgeCtx <$> getRespURI) (SAML.HandleVerdictRaw verdictHandler)
+  where
+    getRespURI = SAML.getSsoURI (Proxy @API) (Proxy @("sso" :> APIAuthResp))
 
 apiIDP :: ServerT APIIDP Spar
 apiIDP
