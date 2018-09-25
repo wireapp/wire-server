@@ -31,7 +31,6 @@ import Servant
 import Servant.Swagger
 import Spar.API.Instances ()
 import Spar.Types
-import Web.Cookie (SetCookie)
 
 import qualified Data.Swagger.SchemaOptions as Swagger
 import qualified Data.X509 as X509
@@ -151,5 +150,5 @@ instance ToSchema URI.URI where
 instance ToParamSchema URI.URI where
   toParamSchema _ = toParamSchema (Proxy @String)
 
-instance ToParamSchema SetCookie where
+instance ToParamSchema SAML.SetSAMLCookie where
   toParamSchema _ = toParamSchema (Proxy @Bool)

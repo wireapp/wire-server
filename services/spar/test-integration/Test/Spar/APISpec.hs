@@ -100,7 +100,8 @@ spec = do
       context "access denied" $ do
         it "responds with a very peculiar 'forbidden' HTTP response" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          authnresp <- liftIO $ mkAuthnResponse privcreds idp authnreq False
+          spmeta <- getTestSPMetadata
+          authnresp <- liftIO $ mkAuthnResponse privcreds idp spmeta authnreq False
           sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             -- import Text.XML
@@ -123,7 +124,8 @@ spec = do
       context "access granted" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          authnresp <- liftIO $ mkAuthnResponse privcreds idp authnreq True
+          spmeta <- getTestSPMetadata
+          authnresp <- liftIO $ mkAuthnResponse privcreds idp spmeta authnreq True
           sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 200
@@ -151,9 +153,11 @@ spec = do
       context "unknown IdP Issuer" $ do
         it "rejects" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          spmeta <- getTestSPMetadata
           authnresp <- liftIO $ mkAuthnResponse
             privcreds
             (idp & idpMetadata . edIssuer .~ Issuer [uri|http://unknown-issuer/|])
+            spmeta
             authnreq
             True
           sparresp <- submitAuthnResponse authnresp

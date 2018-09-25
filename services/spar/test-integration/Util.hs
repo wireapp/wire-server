@@ -32,6 +32,7 @@ module Util
   , ping
   , makeIssuer
   , makeTestIdPMetadata
+  , getTestSPMetadata
   , createTestIdPFrom
   , negotiateAuthnRequest
   , submitAuthnResponse
@@ -370,6 +371,16 @@ makeTestIdPMetadata = do
   env <- ask
   issuer <- makeIssuer
   pure ((env ^. teIdP . idpMetadata) & edIssuer .~ issuer)
+
+
+getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m SPMetadata
+getTestSPMetadata = do
+  env  <- ask
+  resp <- call . get $ (env ^. teSpar) . path "/sso/metadata" . expect2xx
+  raw  <- maybe (crash_ "no body") (pure . cs) $ responseBody resp
+  either (crash_ . show) pure (SAML.decode raw)
+  where
+    crash_ = liftIO . throwIO . ErrorCall
 
 
 -- | Create new user, team, idp from given 'IdPMetadata'.
