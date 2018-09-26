@@ -34,7 +34,6 @@ import Spar.Types
 import URI.ByteString
 
 import qualified Data.List.NonEmpty as NL
-import qualified Data.UUID as UUID
 import qualified SAML2.WebSSO as SAML
 
 
@@ -48,7 +47,6 @@ schemaVersion = 2
 
 data Env = Env
   { dataEnvNow                :: UTCTime
-  , dataEnvSPInfo             :: SPInfo
   , dataEnvMaxTTLAuthRequests :: TTL "authreq"
   , dataEnvMaxTTLAssertions   :: TTL "authresp"
   }
@@ -57,16 +55,15 @@ data Env = Env
 mkEnv :: Options.Opts -> UTCTime -> Env
 mkEnv opts now =
   Env { dataEnvNow                = now
-      , dataEnvSPInfo             = Options.spInfo opts
       , dataEnvMaxTTLAuthRequests = Options.maxttlAuthreq opts
       , dataEnvMaxTTLAssertions   = Options.maxttlAuthresp opts
       }
 
 mkTTLAuthnRequests :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authreq")
-mkTTLAuthnRequests (Env now _ maxttl _) = mkTTL now maxttl
+mkTTLAuthnRequests (Env now maxttl _) = mkTTL now maxttl
 
 mkTTLAssertions :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authresp")
-mkTTLAssertions (Env now _ _ maxttl) = mkTTL now maxttl
+mkTTLAssertions (Env now _ maxttl) = mkTTL now maxttl
 
 mkTTL :: (MonadError TTLError m, KnownSymbol a) => UTCTime -> TTL a -> UTCTime -> m (TTL a)
 mkTTL now maxttl endOfLife = if
@@ -172,7 +169,7 @@ getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
 
 type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId)
 
-storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig IdPExtra -> m ()
+storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig TeamId -> m ()
 storeIdPConfig idp = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
@@ -183,7 +180,7 @@ storeIdPConfig idp = retry x5 . batch $ do
     , NL.head (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
     , NL.tail (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
       -- (the 'List1' is split up into head and tail to make migration from one-element-only easier.)
-    , idp ^. SAML.idpExtraInfo . idpeTeam
+    , idp ^. SAML.idpExtraInfo
     )
   addPrepQuery byIssuer
     ( idp ^. SAML.idpId
@@ -191,7 +188,7 @@ storeIdPConfig idp = retry x5 . batch $ do
     )
   addPrepQuery byTeam
     ( idp ^. SAML.idpId
-    , idp ^. SAML.idpExtraInfo . idpeTeam
+    , idp ^. SAML.idpExtraInfo
     )
   where
     ins :: PrepQuery W IdPConfigRow ()
@@ -202,11 +199,6 @@ storeIdPConfig idp = retry x5 . batch $ do
 
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
-
-getSPInfo :: MonadReader Env m => SAML.IdPId -> m SPInfo
-getSPInfo (SAML.IdPId idp) = do
-  env <- ask
-  pure $ dataEnvSPInfo env & spiLoginURI %~ (SAML.=/ UUID.toText idp)
 
 getIdPConfig
   :: forall m. (HasCallStack, MonadClient m, MonadReader Env m)
@@ -222,12 +214,10 @@ getIdPConfig idpid =
           , certsHead
           , certsTail
           -- extras
-          , _idpeTeam
+          , _idpExtraInfo
           ) = do
-      _idpeSPInfo <- getSPInfo _idpId
       let _edCertAuthnResponse = certsHead NL.:| certsTail
           _idpMetadata = SAML.IdPMetadata {..}
-          _idpExtraInfo = IdPExtra { _idpeTeam, _idpeSPInfo }
       pure $ SAML.IdPConfig {..}
 
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow

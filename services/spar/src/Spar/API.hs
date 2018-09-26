@@ -208,7 +208,7 @@ idpDelete :: ZUsr -> SAML.IdPId -> Spar NoContent
 idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     idp <- SAML.getIdPConfig idpid
     authorizeIdP zusr idp
-    wrapMonadClient $ Data.deleteIdPConfig idpid (idp ^. SAML.idpMetadata . SAML.edIssuer) (idp ^. SAML.idpExtraInfo . idpeTeam)
+    wrapMonadClient $ Data.deleteIdPConfig idpid (idp ^. SAML.idpMetadata . SAML.edIssuer) (idp ^. SAML.idpExtraInfo)
     return NoContent
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
@@ -232,7 +232,7 @@ authorizeIdP :: (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSpa
              => ZUsr -> IdP -> m ()
 authorizeIdP zusr idp = do
   teamid <- getZUsrOwnedTeam zusr
-  when (teamid /= idp ^. SAML.idpExtraInfo . idpeTeam) $ throwSpar SparNotInTeam
+  when (teamid /= idp ^. SAML.idpExtraInfo) $ throwSpar SparNotInTeam
 
 -- | Called by post handler, and by 'authorizeIdP'.
 getZUsrOwnedTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSparToBrig m)
@@ -249,10 +249,8 @@ getZUsrOwnedTeam (Just uid) = do
 -- update, delete of idps.)
 validateNewIdP :: forall m. (HasCallStack, m ~ Spar)
                => SAML.IdPMetadata -> TeamId -> m IdP
-validateNewIdP _idpMetadata _idpeTeam = do
+validateNewIdP _idpMetadata _idpExtraInfo = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
-  _idpeSPInfo <- wrapMonadClientWithEnv $ Data.getSPInfo _idpId
-  let _idpExtraInfo = IdPExtra { _idpeTeam, _idpeSPInfo }
 
   wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
     Nothing -> pure ()

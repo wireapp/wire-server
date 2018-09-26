@@ -29,30 +29,8 @@ import qualified Data.ByteString.Builder as Builder
 import qualified Data.Text as ST
 
 
--- | Info about the service provider that can be given to the identity
--- provider to configure the service provider.
-data SPInfo = SPInfo
-  { _spiMetaURI  :: URI  -- ^ corresponds to 'APIMeta' (unique for Wire)
-  , _spiLoginURI :: URI  -- ^ corresponds to 'APIAuthReq' (the prefix without the identity provider id)
-  }
-  deriving (Eq, Show, Generic)
-
-makeLenses ''SPInfo
-deriveJSON deriveJSONOptions ''SPInfo
-
 -- | The identity provider type used in Spar.
-type IdP = IdPConfig IdPExtra
-
--- | Extra information stored for each 'IdP'. The SAML library handles it
--- but never inspects it (see the '_idpExtraInfo' field).
-data IdPExtra = IdPExtra
-  { _idpeTeam   :: TeamId
-  , _idpeSPInfo :: SPInfo
-  }
-  deriving (Eq, Show, Generic)
-
-makeLenses ''IdPExtra
-deriveJSON deriveJSONOptions ''IdPExtra
+type IdP = IdPConfig TeamId
 
 -- | A list of 'IdP's, returned by some endpoints. Wrapped into an object to
 -- allow extensibility later on.

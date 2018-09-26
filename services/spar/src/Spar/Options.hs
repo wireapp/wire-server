@@ -16,6 +16,7 @@ module Spar.Options
 
 import Control.Exception
 import Data.Aeson
+import Data.Id (TeamId)
 import Data.Int
 import Data.Monoid
 import Data.Proxy (Proxy(Proxy))
@@ -26,7 +27,6 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
 import Lens.Micro
 import Options.Applicative
-import Spar.Types (IdPExtra, SPInfo)
 import Util.Options
 
 import qualified Data.Yaml as Yaml
@@ -34,8 +34,7 @@ import qualified SAML2.WebSSO.Config as SAML
 
 
 data Opts = Opts
-    { saml           :: !(SAML.Config IdPExtra)
-    , spInfo         :: !SPInfo
+    { saml           :: !(SAML.Config TeamId)
     , brig           :: !Endpoint
     , cassandra      :: !CassandraOpts
     , maxttlAuthreq  :: !(TTL "authreq")

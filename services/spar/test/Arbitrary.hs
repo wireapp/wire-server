@@ -19,18 +19,6 @@ import Spar.Types
 import Test.QuickCheck
 
 
-instance Arbitrary SPInfo where
-  arbitrary = do
-    _spiMetaURI  <- arbitrary
-    _spiLoginURI <- arbitrary
-    pure $ SPInfo {..}
-
-instance Arbitrary IdPExtra where
-  arbitrary = do
-    _idpeTeam   <- arbitrary
-    _idpeSPInfo <- arbitrary
-    pure $ IdPExtra {..}
-
 instance Arbitrary IdPList where
   arbitrary = do
     _idplProviders <- arbitrary

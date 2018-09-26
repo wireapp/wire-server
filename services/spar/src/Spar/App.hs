@@ -57,7 +57,7 @@ data Env = Env
   }
 
 instance HasConfig Spar where
-  type ConfigExtra Spar = IdPExtra
+  type ConfigExtra Spar = TeamId
   getConfig = asks (saml . sparCtxOpts)
 
 instance SP Spar where
@@ -100,13 +100,13 @@ instance SPStore Spar where
   storeAssertion i r    = wrapMonadClientWithEnv $ Data.storeAssertion i r
 
 instance SPStoreIdP SparError Spar where
-  storeIdPConfig :: IdPConfig IdPExtra -> Spar ()
+  storeIdPConfig :: IdPConfig TeamId -> Spar ()
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 
-  getIdPConfig :: IdPId -> Spar (IdPConfig IdPExtra)
+  getIdPConfig :: IdPId -> Spar (IdPConfig TeamId)
   getIdPConfig = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
 
-  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig IdPExtra)
+  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig TeamId)
   getIdPConfigByIssuer = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer
 
 -- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions.
@@ -158,7 +158,7 @@ getUser uref = do
 createUser :: SAML.UserRef -> Spar UserId
 createUser suid = do
   buid <- Id <$> liftIO UUID.nextRandom
-  teamid <- (^. idpExtraInfo . idpeTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
+  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
   buid' <- Intra.createUser suid buid teamid
   assert (buid == buid') $ pure buid
