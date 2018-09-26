@@ -28,6 +28,7 @@ dependencies:
   - cryptonite
   - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
+  - galley-types
   - ghc-prim
   - http-client
   - http-client-tls
@@ -45,6 +46,7 @@ dependencies:
   - servant-multipart
   - servant-server
   - servant-swagger
+  - servant-generic
   - string-conversions
   - swagger2
   - text
@@ -60,6 +62,8 @@ dependencies:
   - x509
   - xml-conduit
   - yaml
+  - hscim
+  - email-validate
 
 library:
   source-dirs:

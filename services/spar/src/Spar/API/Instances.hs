@@ -31,10 +31,10 @@ import URI.ByteString
 instance FromHttpApiData URI where
   parseUrlPiece = either (fail . show) pure . parseURI' <=< parseUrlPiece
 
-instance FromHttpApiData UserId where
+instance FromHttpApiData (Id a) where
   parseUrlPiece = fmap Id . parseUrlPiece
 
-instance ToHttpApiData UserId where
+instance ToHttpApiData (Id a) where
   toUrlPiece = toUrlPiece . show
 
 instance FromHttpApiData (ID a) where

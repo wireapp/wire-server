@@ -43,6 +43,9 @@ data SparCustomError
   | SparCouldNotRetrieveCookie
   | SparCassandraError LT
   | SparCassandraTTLError TTLError
+  | SparNoBodyInGalleyResponse
+  | SparCouldNotParseGalleyResponse LT
+  | SparGalleyError LT
 
   | SparNewIdPBadMetaUrl LT
   | SparNewIdPBadMetaSig
@@ -68,8 +71,13 @@ sparToWaiError (SAML.CustomError (SparCouldNotSubstituteSuccessURI msg))  = Righ
 sparToWaiError (SAML.CustomError (SparCouldNotSubstituteFailureURI msg))  = Right $ Wai.Error status400 "bad-failure-redirect" ("re-parsing the substituted URI failed: " <> msg)
 sparToWaiError (SAML.CustomError (SparBadInitiateLoginQueryParams label)) = Right $ Wai.Error status400 label label
 sparToWaiError (SAML.CustomError (SparBadUserName msg))                   = Right $ Wai.Error status400 "bad-username" ("Bad UserName in SAML response, except len [1, 128]: " <> msg)
+-- Brig-specific errors
 sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)                = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
 sparToWaiError (SAML.CustomError (SparCouldNotParseBrigResponse msg))     = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
+-- Galley-specific errors
+sparToWaiError (SAML.CustomError SparNoBodyInGalleyResponse)                = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
+sparToWaiError (SAML.CustomError (SparCouldNotParseGalleyResponse msg))     = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
+sparToWaiError (SAML.CustomError (SparGalleyError msg))                   = Right $ Wai.Error status500 "bad-upstream" msg
 sparToWaiError (SAML.CustomError SparCouldNotRetrieveCookie)              = Right $ Wai.Error status502 "bad-upstream" "Unable to get a cookie from an upstream server."
 sparToWaiError (SAML.CustomError (SparCassandraError msg))                = Right $ Wai.Error status500 "server-error" msg  -- TODO: should we be more specific here and make it 'db-error'?
 sparToWaiError (SAML.CustomError (SparCassandraTTLError ttlerr))          = Right $ Wai.Error status400 "ttl-error" (cs $ show ttlerr)

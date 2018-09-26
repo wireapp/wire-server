@@ -54,6 +54,7 @@ import Spar.Error
 import Spar.Options
 import Spar.Types
 
+import qualified Spar.SCIM as SCIM
 import qualified Data.ByteString as SBS
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
@@ -70,6 +71,7 @@ app ctx = SAML.setHttpCachePolicy
 type API
      = "sso" :> APISSO
   :<|> "identity-providers" :> APIIDP
+  :<|> "scim" :> SCIM.API
   :<|> "i" :> APIINTERNAL
   -- NB. If you add endpoints here, also update Test.Spar.APISpec
 
@@ -123,7 +125,7 @@ type APIINTERNAL
 
 
 api :: Opts -> ServerT API Spar
-api opts = apiSSO opts :<|> apiIDP :<|> apiINTERNAL
+api opts = apiSSO opts :<|> apiIDP :<|> SCIM.api :<|> apiINTERNAL
 
 apiSSO :: Opts -> ServerT APISSO Spar
 apiSSO opts
@@ -271,11 +273,16 @@ validateNewIdP _idpMetadata _idpExtraInfo = do
 
 -- | Type families to convert spar's 'API' type into an "outside-world-view" API type
 -- to expose as swagger docs intended to be used by client developers.
+--
 -- Here we assume the 'spar' service is only accessible from behind the 'nginz' proxy, which
 --   * does not expose routes prefixed with /i/
 --   * handles authorization (adding a Z-User header if requests are authorized)
 --   * does not show the swagger end-point itself
-type OutsideWorldAPI = StripSwagger (StripInternal (StripAuth API))
+--
+-- In addition, we strip the SCIM documentation because SCIM doesn't have
+-- Swagger schemas yet.
+type OutsideWorldAPI =
+  StripSwagger (StripSCIM (StripInternal (StripAuth API)))
 
 -- | Strip the nginz-set, internal-only Z-User header
 type family StripAuth api where
@@ -289,7 +296,14 @@ type family StripInternal api where
     StripInternal (a :<|> b) = (StripInternal a) :<|> (StripInternal b)
     StripInternal x = x
 
+-- | Strip the endpoint that exposes documentation.
 type family StripSwagger api where
-    StripSwagger ("sso" :> "api-docs" :> Get '[JSON] Swagger :<|> b) = StripSwagger b
+    StripSwagger ("sso" :> "api-docs" :> Get '[JSON] Swagger) = EmptyAPI
     StripSwagger (a :<|> b) = StripSwagger a :<|> StripSwagger b
     StripSwagger x = x
+
+-- | Strip SCIM.
+type family StripSCIM api where
+    StripSCIM ("scim" :> a) = EmptyAPI
+    StripSCIM (a :<|> b) = StripSCIM a :<|> StripSCIM b
+    StripSCIM x = x
