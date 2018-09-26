@@ -128,12 +128,21 @@ api opts = apiSSO opts :<|> apiIDP :<|> apiINTERNAL
 apiSSO :: Opts -> ServerT APISSO Spar
 apiSSO opts
      = pure (toSwagger (Proxy @OutsideWorldAPI))
-  :<|> SAML.meta appName getRespURI
+  :<|> SAML.meta appName sparRequestIssuer sparResponseURI
   :<|> authreqPrecheck
   :<|> authreq (maxttlAuthreqDiffTime opts)
-  :<|> SAML.authresp (SAML.JudgeCtx <$> getRespURI) (SAML.HandleVerdictRaw verdictHandler)
+  :<|> SAML.authresp sparRequestIssuer sparResponseURI (SAML.HandleVerdictRaw verdictHandler)
+
+sparRequestIssuer :: SAML.HasConfig m => SAML.IdPId -> m SAML.Issuer
+sparRequestIssuer = fmap SAML.Issuer <$> SAML.getSsoURI' p p
   where
-    getRespURI = SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthResp)
+    p = Proxy @("initiate-login" :> SAML.APIAuthReq)
+      -- we can't use the 'APIAuthReq' route here because it has extra query params that translate
+      -- into function arguments to 'safeLink', but 'SAML.getSsoURI'' does not support that.
+
+sparResponseURI :: SAML.HasConfig m => SAML.IdPId -> m URI.URI
+sparResponseURI = SAML.getSsoURI' (Proxy @APISSO) (Proxy @APIAuthResp)
+
 
 apiIDP :: ServerT APIIDP Spar
 apiIDP
@@ -159,7 +168,7 @@ authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
 authreq :: NominalDiffTime -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar (SAML.FormRedirect SAML.AuthnRequest)
 authreq authreqttl msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
-  form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl idpid
+  form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl sparRequestIssuer idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
   pure form
 

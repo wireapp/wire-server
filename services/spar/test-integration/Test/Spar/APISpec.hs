@@ -55,7 +55,7 @@ spec = do
 
       it "metadata" $ do
         env <- ask
-        get ((env ^. teSpar) . path "/sso/metadata" . expect2xx)
+        get ((env ^. teSpar) . path "/sso/metadata/0d784c66-c1c6-11e8-9576-2bdb3c574a4d" . expect2xx)
           `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                 [ "md:SPSSODescriptor"
                                 , "validUntil"
@@ -100,9 +100,9 @@ spec = do
       context "access denied" $ do
         it "responds with a very peculiar 'forbidden' HTTP response" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          spmeta <- getTestSPMetadata
+          spmeta <- getTestSPMetadata (idp ^. idpId)
           authnresp <- liftIO $ mkAuthnResponse privcreds idp spmeta authnreq False
-          sparresp <- submitAuthnResponse authnresp
+          sparresp <- submitAuthnResponse (idp ^. idpId) authnresp
           liftIO $ do
             -- import Text.XML
             -- putStrLn $ unlines
@@ -124,9 +124,9 @@ spec = do
       context "access granted" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          spmeta <- getTestSPMetadata
+          spmeta <- getTestSPMetadata (idp ^. idpId)
           authnresp <- liftIO $ mkAuthnResponse privcreds idp spmeta authnreq True
-          sparresp <- submitAuthnResponse authnresp
+          sparresp <- submitAuthnResponse (idp ^. idpId) authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 200
             let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
@@ -153,14 +153,14 @@ spec = do
       context "unknown IdP Issuer" $ do
         it "rejects" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          spmeta <- getTestSPMetadata
+          spmeta <- getTestSPMetadata (idp ^. idpId)
           authnresp <- liftIO $ mkAuthnResponse
             privcreds
             (idp & idpMetadata . edIssuer .~ Issuer [uri|http://unknown-issuer/|])
             spmeta
             authnreq
             True
-          sparresp <- submitAuthnResponse authnresp
+          sparresp <- submitAuthnResponse (idp ^. idpId) authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 404
             responseJSON sparresp `shouldBe` Right (TestErrorLabel "not-found")

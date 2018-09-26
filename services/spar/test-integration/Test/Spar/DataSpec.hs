@@ -341,7 +341,7 @@ requestAccessVerdict isGranted mkAuthnReq = do
     raw <- mkAuthnReq idpid
     bdy <- maybe (error "authreq") pure $ responseBody raw
     either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
-  spmeta <- getTestSPMetadata
+  spmeta <- getTestSPMetadata idpid
   authnresp <- liftIO $ mkAuthnResponse idp spmeta authnreq
   let verdict = if isGranted
         then SAML.AccessGranted uref

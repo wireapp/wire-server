@@ -51,9 +51,6 @@ instance ToHttpApiData Time where
   toUrlPiece =
     toUrlPiece . formatTime defaultTimeLocale timeFormat . fromTime
 
-instance ToHttpApiData IdPId where
-  toUrlPiece (IdPId uuid) = toUrlPiece uuid
-
 instance ToJSON UserRef where
   toJSON (UserRef tenant subject) =
     object ["tenant" .= encodeElem tenant, "subject" .= encodeElem subject]

@@ -373,10 +373,10 @@ makeTestIdPMetadata = do
   pure ((env ^. teIdP . idpMetadata) & edIssuer .~ issuer)
 
 
-getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m SPMetadata
-getTestSPMetadata = do
+getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => IdPId -> m SPMetadata
+getTestSPMetadata idpid = do
   env  <- ask
-  resp <- call . get $ (env ^. teSpar) . path "/sso/metadata" . expect2xx
+  resp <- call . get $ (env ^. teSpar) . path (cs $ "/sso/metadata/" -/ idPIdToST idpid) . expect2xx
   raw  <- maybe (crash_ "no body") (pure . cs) $ responseBody resp
   either (crash_ . show) pure (SAML.decode raw)
   where
@@ -408,12 +408,12 @@ negotiateAuthnRequest = do
 
 
 submitAuthnResponse :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-                    => SignedAuthnResponse -> m ResponseLBS
-submitAuthnResponse (SignedAuthnResponse authnresp) = do
+                    => IdPId -> SignedAuthnResponse -> m ResponseLBS
+submitAuthnResponse idpid (SignedAuthnResponse authnresp) = do
   env <- ask
   req :: Request
     <- formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
-  call $ post' req ((env ^. teSpar) . path "/sso/finalize-login")
+  call $ post' req ((env ^. teSpar) . path (cs $ "/sso/finalize-login/" -/ idPIdToST idpid))
 
 
 -- TODO: move this to /lib/bilge?
