@@ -56,12 +56,14 @@ instance HasSwagger route => HasSwagger (SM.MultipartForm SM.Mem resp :> route) 
 
 `/sso/metadata` will be requested by the IdPs to learn how to talk to wire.
 
-`/sso/initiate-login/`, `/sso/finalize-login` are for the SAML authentication handshake performed by a user in order to log into wire.  They are not exactly standard in their details: they may return HTML or XML; redirect to error URLs instead of throwing errors, etc.
+`/sso/initiate-login`, `/sso/finalize-login` are for the SAML authentication handshake performed by a user in order to log into wire.  They are not exactly standard in their details: they may return HTML or XML; redirect to error URLs instead of throwing errors, etc.
 
 `/identity-providers` end-points are for use in the team settings page when IdPs are registered.  They talk json.
 
 
 # Configuring IdPs
+
+IdPs usually allow you to copy the metadata into your clipboard.  That should contain all the details you need to post the idp in your team under `/identity-providers`.  (Team id is derived from the authorization credentials of the request.)
 
 ## okta.com
 
@@ -70,6 +72,10 @@ Okta will ask you to provide two URLs when you set it up for talking to wireapp:
 1. The `Single sign on URL`.  This is the end-point that accepts the user's credentials after successful authentication against the IdP.  Choose `/sso/finalize-login` with schema and hostname of the wire server you are configuring.
 
 2. The `Audience URI`.  You can find this in the metadata returned by the `/sso/metadata` end-point.  It is the contents of the `md:OrganizationURL` element.
+
+## centrify.com
+
+Centrify allows you to upload the metadata xml document that you get from the `/sso/metadata` end-point.  You can also enter the metadata url and have centrify retrieve the xml, but to guarantee integrity of the setup, the metadata should be copied from the team settings page and pasted into the centrify setup page without any URL indirections.
 
 ## microsoft azure active directory
 
