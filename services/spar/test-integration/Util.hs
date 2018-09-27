@@ -32,6 +32,7 @@ module Util
   , ping
   , makeIssuer
   , makeTestIdPMetadata
+  , getTestSPMetadata
   , createTestIdPFrom
   , negotiateAuthnRequest
   , submitAuthnResponse
@@ -81,7 +82,6 @@ import Spar.Run
 import Spar.Types
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, xit, pending, pendingWith)
-import Text.XML.Util
 import URI.ByteString
 import URI.ByteString.QQ (uri)
 import Util.Options
@@ -101,19 +101,29 @@ import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
-import qualified Text.XML.Util as SAML
 
 
+-- | Create an environment for integration tests from integration and spar config files.
+--
+-- NB: We used to have a mock IdP server here that allowed spar to resolve metadata URLs and pull
+-- metadata.  (It *could* have been used by the test suite to get 'AuthnRequest' values as well, but
+-- that's no more interesting than simulating the idp end-point from inside the spar-integration
+-- executable as a monadic function, only more complicated.)  Since spar does not accept metadata
+-- URLs any more <https://github.com/wireapp/wire-server/pull/466#issuecomment-419396359>, we
+-- removed the mock idp functionality.  if you want to re-introduce it,
+-- <https://github.com/wireapp/wire-server/pull/466/commits/9c93f1e278500522a0565639140ac55dc21ee2d2>
+-- would be a good place to look for code to steal.
 mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
   _teCql :: ClientState <- initCassandra _teOpts =<< mkLogger _teOpts
+  issuer :: Issuer <- makeIssuer
   let _teBrig    = endpointToReq (cfgBrig   _teTstOpts)
       _teGalley  = endpointToReq (cfgGalley _teTstOpts)
       _teSpar    = endpointToReq (cfgSpar   _teTstOpts)
 
       _teMetadata :: IdPMetadata
-      _teMetadata = sampleIdPMetadata (Issuer [uri|http://issuer.net/|]) [uri|http://requri.net/|]
+      _teMetadata = sampleIdPMetadata issuer [uri|http://requri.net/|]
 
   (_teUserId, _teTeamId, _teIdP) <- do
     createTestIdPFrom _teMetadata _teMgr _teBrig _teGalley _teSpar
@@ -319,12 +329,12 @@ endpointToSettings endpoint = Warp.defaultSettings
   }
 
 endpointToURL :: MonadIO m => Endpoint -> ST -> m URI
-endpointToURL endpoint urlpath = either err pure $ parseURI' urlst
+endpointToURL endpoint urlpath = either err pure url
   where
-    urlst   = "http://" <> urlhost <> ":" <> urlport <> "/" <> urlpath
+    url     = parseURI' ("http://" <> urlhost <> ":" <> urlport) <&> (=/ urlpath)
     urlhost = cs $ endpoint ^. epHost
     urlport = cs . show $ endpoint ^. epPort
-    err     = liftIO . throwIO . ErrorCall . show . (, (endpoint, urlst))
+    err     = liftIO . throwIO . ErrorCall . show . (, (endpoint, url))
 
 
 -- spar specifics
@@ -363,6 +373,16 @@ makeTestIdPMetadata = do
   pure ((env ^. teIdP . idpMetadata) & edIssuer .~ issuer)
 
 
+getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => IdPId -> m SPMetadata
+getTestSPMetadata idpid = do
+  env  <- ask
+  resp <- call . get $ (env ^. teSpar) . path (cs $ "/sso/metadata/" -/ idPIdToST idpid) . expect2xx
+  raw  <- maybe (crash_ "no body") (pure . cs) $ responseBody resp
+  either (crash_ . show) pure (SAML.decode raw)
+  where
+    crash_ = liftIO . throwIO . ErrorCall
+
+
 -- | Create new user, team, idp from given 'IdPMetadata'.
 createTestIdPFrom :: (HasCallStack, MonadIO m)
                   => IdPMetadata -> Manager -> BrigReq -> GalleyReq -> SparReq -> m (UserId, TeamId, IdP)
@@ -380,7 +400,7 @@ negotiateAuthnRequest = do
   resp :: ResponseLBS
     <- call $ get
            ( (env ^. teSpar)
-           . path ("/sso/initiate-login/" <> (cs . UUID.toText . fromIdPId . (^. SAML.idpId) $ idp))
+           . path (cs $ "/sso/initiate-login/" -/ (UUID.toText . fromIdPId . (^. SAML.idpId) $ idp))
            . expect2xx
            )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
@@ -388,12 +408,12 @@ negotiateAuthnRequest = do
 
 
 submitAuthnResponse :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-                    => SignedAuthnResponse -> m ResponseLBS
-submitAuthnResponse (SignedAuthnResponse authnresp) = do
+                    => IdPId -> SignedAuthnResponse -> m ResponseLBS
+submitAuthnResponse idpid (SignedAuthnResponse authnresp) = do
   env <- ask
   req :: Request
     <- formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
-  call $ post' req ((env ^. teSpar) . path "/sso/finalize-login")
+  call $ post' req ((env ^. teSpar) . path (cs $ "/sso/finalize-login/" -/ idPIdToST idpid))
 
 
 -- TODO: move this to /lib/bilge?
@@ -440,11 +460,11 @@ safeHead msg []    = throwError $ msg <> ": []"
 
 callAuthnReq' :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
 callAuthnReq' sparreq_ idpid = do
-  get $ sparreq_ . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid))
+  get $ sparreq_ . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid)
 
 callAuthnReqPrecheck' :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
 callAuthnReqPrecheck' sparreq_ idpid = do
-  head $ sparreq_ . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid))
+  head $ sparreq_ . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid)
 
 callIdpGet :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m IdP
 callIdpGet sparreq_ muid idpid = do
@@ -454,7 +474,7 @@ callIdpGet sparreq_ muid idpid = do
 
 callIdpGet' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpGet' sparreq_ muid idpid = do
-  get $ sparreq_ . maybe id zUser muid . path ("/identity-providers/" <> cs (SAML.idPIdToST idpid))
+  get $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
 
 callIdpGetAll :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m IdPList
 callIdpGetAll sparreq_ muid = do
@@ -485,4 +505,4 @@ callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx)
 
 callIdpDelete' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpDelete' sparreq_ muid idpid = do
-  delete $ sparreq_ . maybe id zUser muid . path ("/identity-providers/" <> cs (SAML.idPIdToST idpid))
+  delete $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)

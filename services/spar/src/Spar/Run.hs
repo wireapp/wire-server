@@ -19,7 +19,6 @@ module Spar.Run (initCassandra, mkLogger, runServer) where
 
 import Bilge
 import Cassandra as Cas
-import Data.Int
 import Data.List.NonEmpty as NE
 import Data.Metrics (metrics)
 import Data.String.Conversions
@@ -43,15 +42,13 @@ import qualified Cassandra.Settings as Cas
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
+import qualified Spar.Data as Data
 import qualified Spar.Options as Opts
 import qualified System.Logger as Log
 
 
 ----------------------------------------------------------------------
 -- cassandra
-
-schemaVersion :: Int32
-schemaVersion = 0
 
 initCassandra :: Opts.Opts -> Logger -> IO ClientState
 initCassandra opts lgr = do
@@ -69,7 +66,7 @@ initCassandra opts lgr = do
       & Cas.setSendTimeout 3
       & Cas.setResponseTimeout 10
       & Cas.setProtocolVersion V3
-    runClient cas $ Cas.versionCheck schemaVersion
+    runClient cas $ Cas.versionCheck Data.schemaVersion
     pure cas
 
 

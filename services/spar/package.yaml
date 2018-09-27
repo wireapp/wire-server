@@ -39,7 +39,7 @@ dependencies:
   - mtl
   - optparse-applicative
   - raw-strings-qq
-  - saml2-web-sso >= 0.11
+  - saml2-web-sso >= 0.17
   - scientific
   - servant
   - servant-multipart
