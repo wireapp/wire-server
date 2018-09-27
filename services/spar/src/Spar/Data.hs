@@ -67,8 +67,8 @@ mkTTLAssertions (Env now _ maxttl) = mkTTL now maxttl
 
 mkTTL :: (MonadError TTLError m, KnownSymbol a) => UTCTime -> TTL a -> UTCTime -> m (TTL a)
 mkTTL now maxttl endOfLife = if
-  | actualttl > maxttl -> throwError $ TTLTooLong (show actualttl) (show maxttl)
-  | actualttl <= 0     -> throwError $ TTLNegative (show actualttl)
+  | actualttl > maxttl -> throwError $ TTLTooLong (showTTL actualttl) (showTTL maxttl)
+  | actualttl <= 0     -> throwError $ TTLNegative (showTTL actualttl)
   | otherwise          -> pure actualttl
   where
     actualttl = TTL . nominalDiffToSeconds $ endOfLife `diffUTCTime` now

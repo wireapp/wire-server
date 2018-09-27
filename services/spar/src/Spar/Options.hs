@@ -7,7 +7,7 @@
 
 module Spar.Options
   ( Opts(..)
-  , TTL(..), TTLError(..)
+  , TTL(..), TTLError(..), showTTL
   , getOpts
   , readOptsFile
   , ttlToNominalDiffTime
@@ -49,10 +49,10 @@ instance FromJSON Opts
 
 -- | (seconds)
 newtype TTL (tablename :: Symbol) = TTL { fromTTL :: Int32 }
-  deriving (Eq, Ord, Num)
+  deriving (Eq, Ord, Show, Num)
 
-instance KnownSymbol a =>  Show (TTL a) where
-  show (TTL i :: TTL a) = "TTL:" <> (symbolVal (Proxy @a)) <> ":" <> show i
+showTTL :: KnownSymbol a => TTL a -> String
+showTTL (TTL i :: TTL a) = "TTL:" <> (symbolVal (Proxy @a)) <> ":" <> show i
 
 instance FromJSON (TTL a) where
   parseJSON = withScientific "TTL value (seconds)" (pure . TTL . round)
