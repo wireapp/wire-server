@@ -44,6 +44,7 @@ import Data.Text.Encoding
 import Data.Aeson as Aeson
 import Text.Email.Validate
 import Servant.Generic
+import Text.Read (readMaybe)
 
 import qualified Data.Text    as Text
 import qualified SAML2.WebSSO as SAML
@@ -201,13 +202,18 @@ instance SCIM.UserDB (ReaderT TeamId Spar) where
     -- TODO: once bigger teams arrive, we should have pagination here.
     SCIM.fromList <$> filterM check users
 
-{-
-  get uid = do
+  -- | Get a single user by its ID.
+  get uidText = do
     tid <- ask
-    assert that the user is a team member
-    fetch the user
-    convert to storeduser
--}
+    uid <- case readMaybe (Text.unpack uidText) of
+      Just u -> pure u
+      Nothing -> SCIM.throwSCIM $
+        SCIM.notFound "user" uidText
+    lift (getUser uid) >>= traverse (\user -> do
+      when (userTeam user /= Just tid) $ SCIM.throwSCIM $
+        SCIM.notFound "user" (idToText uid)
+      pure (toSCIMUser user))
+
   -- create   :: User -> m StoredUser
   -- update   :: UserId -> User -> m StoredUser
   -- patch    :: UserId -> m StoredUser
