@@ -18,9 +18,18 @@ DEST_PATH      ?= /opt/nginz
 LOG_PATH       ?= /var/log/nginz
 CONF_PATH      ?= /etc/nginz
 PID_PATH       ?= /var/run
-# You may need to use this if you have some dependencies in non-standard locations
-EXTRA_CC_INC   ?=
-EXTRA_CC_LIB   ?=
+
+# You may need to use this if you have some dependencies in non-standard
+# locations. For macOS, we use Brew default directories for OpenSSL (if they
+# exist). These variables can be always overridden when running the
+# Makefile, though.
+ifeq ($(wildcard /usr/local/opt/openssl/.),)
+    EXTRA_CC_INC ?=
+    EXTRA_CC_LIB ?=
+else
+    EXTRA_CC_INC ?= -I/usr/local/opt/openssl/include
+    EXTRA_CC_LIB ?= -L/usr/local/opt/openssl/lib
+endif
 
 # Where should we look for packages, locally or globally?
 EXTRA_PKG_PATH := $(shell [ -w /usr/local ] && echo /usr/local || echo "$(HOME)/.wire-dev")/lib/pkgconfig
