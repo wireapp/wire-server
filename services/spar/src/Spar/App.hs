@@ -41,6 +41,7 @@ import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
+import qualified Spar.Intra.Galley as Intra
 import qualified System.Logger as Log
 
 
@@ -53,6 +54,7 @@ data Env = Env
   , sparCtxCas          :: Cas.ClientState
   , sparCtxHttpManager  :: Bilge.Manager
   , sparCtxHttpBrig     :: Bilge.Request
+  , sparCtxHttpGalley   :: Bilge.Request
   , sparCtxRequestId    :: RequestId
   }
 
@@ -174,6 +176,11 @@ instance MonadHttp Spar where
 instance Intra.MonadSparToBrig Spar where
   call modreq = do
     req <- asks sparCtxHttpBrig
+    httpLbs req modreq
+
+instance Intra.MonadSparToGalley Spar where
+  call modreq = do
+    req <- asks sparCtxHttpGalley
     httpLbs req modreq
 
 

@@ -17,6 +17,7 @@ module Spar.Intra.Galley where
 import Bilge
 import Galley.Types.Teams
 import Control.Monad.Except
+import Control.Monad.Reader
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Id (TeamId)
@@ -38,6 +39,9 @@ parseResponse resp = do
 
 class Monad m => MonadSparToGalley m where
   call :: (Request -> Request) -> m (Response (Maybe LBS))
+
+instance MonadSparToGalley m => MonadSparToGalley (ReaderT r m) where
+  call = lift . call
 
 -- | Get all members of a team.
 getTeamMembers

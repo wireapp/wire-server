@@ -36,6 +36,7 @@ import qualified SAML2.WebSSO.Config as SAML
 data Opts = Opts
     { saml           :: !(SAML.Config TeamId)
     , brig           :: !Endpoint
+    , galley         :: !Endpoint
     , cassandra      :: !CassandraOpts
     , maxttlAuthreq  :: !(TTL "authreq")
     , maxttlAuthresp :: !(TTL "authresp")

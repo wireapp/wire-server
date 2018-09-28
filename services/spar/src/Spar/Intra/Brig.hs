@@ -21,6 +21,7 @@ import Bilge
 import Brig.Types.User
 import Brig.Types.User.Auth (SsoLogin(..))
 import Control.Monad.Except
+import Control.Monad.Reader
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Id (Id(Id), UserId, TeamId)
@@ -71,6 +72,9 @@ respToCookie resp = do
 class Monad m => MonadSparToBrig m where
   call :: (Request -> Request) -> m (Response (Maybe LBS))
 
+instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
+  call = lift . call
+
 
 -- | Create a user on brig.
 createUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => SAML.UserRef -> UserId -> TeamId -> m UserId
@@ -103,16 +107,17 @@ createUser suid (Id buid) teamid = do
   userId . selfUser <$> parseResponse @SelfProfile resp
 
 
+-- | Get a user; returns 'Nothing' if the user was not found.
 getUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m (Maybe User)
 getUser buid = do
   resp :: Response (Maybe LBS) <- call
     $ method GET
     . path "/self"
     . header "Z-User" (toByteString' buid)
-
-  if statusCode resp /= 200
-    then pure Nothing
-    else Just . selfUser <$> parseResponse @SelfProfile resp
+  case statusCode resp of
+    200 -> Just . selfUser <$> parseResponse @SelfProfile resp
+    404 -> pure Nothing
+    _   -> throwSpar (SparBrigError "Could not retrieve user")
 
 
 -- | Check that a user locally created on spar exists on brig and has a team id.

@@ -23,15 +23,19 @@ module Spar.SCIM
   , api
   ) where
 
-import Brig.Types.User
+import Brig.Types.User       as Brig
+import Galley.Types.Teams    as Galley
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.Catch
 import Control.Exception
 import Data.Id
+import Lens.Micro
 import Servant
 import Spar.App (Spar)
 import Spar.Error
+import Spar.Intra.Brig
+import Spar.Intra.Galley
 import Data.UUID as UUID
 import Crypto.Hash
 import Data.Time
@@ -52,6 +56,7 @@ import qualified Web.SCIM.Handler                 as SCIM
 import qualified Web.SCIM.Schema.Common           as SCIM
 import qualified Web.SCIM.Schema.Meta             as SCIM
 import qualified Web.SCIM.Schema.ResourceType     as SCIM
+import qualified Web.SCIM.Schema.ListResponse     as SCIM
 import qualified Web.SCIM.Schema.Error            as SCIM
 
 import qualified Web.SCIM.Schema.User             as SCIM.User
@@ -89,22 +94,23 @@ toSCIMUser :: User -> SCIM.StoredUser
 toSCIMUser user = SCIM.WithMeta meta thing
   where
     -- The representation of the user, without the meta information
-    thing = SCIM.WithId (idToText (userId user)) $ SCIM.User.empty
+    thing = SCIM.WithId (idToText (Brig.userId user)) $ SCIM.User.empty
       {
-      -- TODO what should we do if the user doesn't have a handle?
-        SCIM.User.userName = fromJust (error "no handle") (userHandle user)
-      -- TODO: what is externalId?
-      -- , externalId = ?
+      -- TODO what should we do if the user doesn't have a handle? also,
+      -- those handles are supposed to be unique and case-insensitive -- I'm
+      -- not sure our handles satisfy those requirements
+        SCIM.User.userName = maybe "" fromHandle (userHandle user)
       , SCIM.User.name = Just (toSCIMName (userName user))
       , SCIM.User.displayName = Just (fromName (userName user))
       , SCIM.User.emails = (:[]) . toSCIMEmail <$>
           (emailIdentity =<< userIdentity user)
       , SCIM.User.phoneNumbers = (:[]) . toSCIMPhone <$>
           (phoneIdentity =<< userIdentity user)
-      -- , photos = ?
+      -- , photos = <TODO profile pic here>
       }
     -- The hash of the user representation (used as an ETag)
     thingHash = hashlazy (Aeson.encode thing) :: Digest SHA256
+    -- meta-info about the user
     meta = SCIM.Meta
       { SCIM.resourceType = SCIM.UserResource
       , SCIM.created = testDate
@@ -137,7 +143,7 @@ toSCIMName (Name name) =
     , SCIM.User.honorificSuffix = Nothing
     }
   where
-    (first, Text.tail -> rest) = Text.breakOn " " name
+    (first, Text.drop 1 -> rest) = Text.breakOn " " name
 
 -- | Convert from the Wire phone type to the SCIM phone type.
 toSCIMPhone :: Phone -> SCIM.User.Phone
@@ -157,12 +163,39 @@ toSCIMEmail (Email eLocal eDomain) =
     , SCIM.User.primary = Just True
     }
 
+-- Note [error handling]
+-- ~~~~~~~~~~~~~~~~~
+--
+-- There are two problems with error handling here:
+--
+-- 1. We want all errors originating from SCIM handlers to be thrown as SCIM
+--    errors, not as Spar errors. Currently errors thrown from things like
+--    'getTeamMembers' will look like Spar errors and won't be wrapped into
+--    the 'SCIMError' type. This might or might not be important, depending
+--    on what is expected by apps that use the SCIM interface.
+--
+-- 2. We want generic error descriptions in response bodies, while still
+--    logging nice error messages internally.
+
 instance SCIM.UserDB (ReaderT TeamId Spar) where
-  -- list     :: Maybe Filter -> m (ListResponse StoredUser)
   list mbFilter = case mbFilter of
-    Just _ -> error "filters are not implemented"
-    Nothing -> error "sorry"
-  -- get      :: UserId -> m (Maybe StoredUser)
+    Just _ ->
+      error "filters are not implemented"
+    Nothing -> do
+      tid <- ask
+      members <- lift $ getTeamMembers tid
+      fmap SCIM.fromList $ forM members $ \member ->
+        lift (getUser (member ^. Galley.userId)) >>= \case
+          Nothing -> SCIM.throwSCIM (SCIM.serverError "Database is inconsistent")
+          Just user -> pure (toSCIMUser user)
+
+{-
+  get uid = do
+    tid <- ask
+    assert that the user is a team member
+    fetch the user
+    convert to storeduser
+-}
   -- create   :: User -> m StoredUser
   -- update   :: UserId -> User -> m StoredUser
   -- patch    :: UserId -> m StoredUser
