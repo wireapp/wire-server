@@ -53,6 +53,7 @@ import qualified Web.SCIM.Class.Group             as SCIM
 import qualified Web.SCIM.Class.Auth              as SCIM
 import qualified Web.SCIM.Server                  as SCIM
 import qualified Web.SCIM.Handler                 as SCIM
+import qualified Web.SCIM.Filter                  as SCIM
 import qualified Web.SCIM.Schema.Common           as SCIM
 import qualified Web.SCIM.Schema.Meta             as SCIM
 import qualified Web.SCIM.Schema.ResourceType     as SCIM
@@ -65,6 +66,8 @@ import qualified Web.SCIM.Schema.User.Phone       as SCIM.User
 import qualified Web.SCIM.Schema.User.Name        as SCIM.User
 
 import qualified Web.SCIM.Capabilities.MetaSchema as SCIM.Meta
+
+import qualified Web.SCIM.Schema.Common           as SCIM.Common
 
 -- | SCIM config for our server.
 --
@@ -178,16 +181,25 @@ toSCIMEmail (Email eLocal eDomain) =
 --    logging nice error messages internally.
 
 instance SCIM.UserDB (ReaderT TeamId Spar) where
-  list mbFilter = case mbFilter of
-    Just _ ->
-      error "filters are not implemented"
-    Nothing -> do
-      tid <- ask
-      members <- lift $ getTeamMembers tid
-      fmap SCIM.fromList $ forM members $ \member ->
-        lift (getUser (member ^. Galley.userId)) >>= \case
-          Nothing -> SCIM.throwSCIM (SCIM.serverError "Database is inconsistent")
-          Just user -> pure (toSCIMUser user)
+  -- | List all users, possibly filtered by some predicate.
+  list mbFilter = do
+    tid <- ask
+    members <- lift $ getTeamMembers tid
+    users <- forM members $ \member ->
+      lift (getUser (member ^. Galley.userId)) >>= \case
+        Just user -> pure (toSCIMUser user)
+        Nothing -> SCIM.throwSCIM $
+          SCIM.serverError "Database is inconsistent"
+    let check user = case mbFilter of
+          Nothing -> pure True
+          Just filter_ ->
+            let user' = SCIM.Common.value (SCIM.thing user)
+            in case SCIM.filterUser filter_ user' of
+                 Right res -> pure res
+                 Left err  -> SCIM.throwSCIM $
+                   SCIM.badRequest SCIM.InvalidFilter (Just err)
+    -- TODO: once bigger teams arrive, we should have pagination here.
+    SCIM.fromList <$> filterM check users
 
 {-
   get uid = do
