@@ -35,7 +35,10 @@ module Util
   , getTestSPMetadata
   , createTestIdPFrom
   , negotiateAuthnRequest
+  , negotiateAuthnRequest'
   , submitAuthnResponse
+  , submitAuthnResponse'
+  , loginSsoUserFirstTime
   , responseJSON
   , callAuthnReqPrecheck'
   , callAuthnReq, callAuthnReq'
@@ -86,7 +89,6 @@ import URI.ByteString
 import URI.ByteString.QQ (uri)
 import Util.Options
 import Util.Types
-
 
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
@@ -394,26 +396,67 @@ createTestIdPFrom metadata mgr brig galley spar = do
 
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
-negotiateAuthnRequest = do
+negotiateAuthnRequest = negotiateAuthnRequest' id <&> \case
+  (idp, creds, req, Nothing) -> (idp, creds, req)
+  (_, _, _, Just _)          -> error "unexpected bind cookie."
+
+negotiateAuthnRequest' :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+                      => (Request -> Request) -> m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SBS)
+negotiateAuthnRequest' modreq = do
   env <- ask
   let idp = env ^. teIdP
   resp :: ResponseLBS
     <- call $ get
-           ( (env ^. teSpar)
+           ( modreq
+           . (env ^. teSpar)
            . path (cs $ "/sso/initiate-login/" -/ (idPIdToST $ idp ^. SAML.idpId))
            . expect2xx
            )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
-  pure (idp, sampleIdPPrivkey, authnreq)
+  let wireCookie = lookup "Set-Cookie" $ responseHeaders resp
+  pure (idp, sampleIdPPrivkey, authnreq, wireCookie)
 
 
 submitAuthnResponse :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                     => IdPId -> SignedAuthnResponse -> m ResponseLBS
-submitAuthnResponse idpid (SignedAuthnResponse authnresp) = do
+submitAuthnResponse = submitAuthnResponse' id
+
+submitAuthnResponse' :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+                    => (Request -> Request) -> IdPId -> SignedAuthnResponse -> m ResponseLBS
+submitAuthnResponse' reqmod idpid (SignedAuthnResponse authnresp) = do
   env <- ask
   req :: Request
     <- formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
-  call $ post' req ((env ^. teSpar) . path (cs $ "/sso/finalize-login/" -/ idPIdToST idpid))
+  call $ post' req (reqmod . (env ^. teSpar) . path (cs $ "/sso/finalize-login/" -/ idPIdToST idpid))
+
+
+loginSsoUserFirstTime :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => m UserId
+loginSsoUserFirstTime = do
+  env <- ask
+  (idp, privCreds, authnReq) <- negotiateAuthnRequest
+  spmeta <- getTestSPMetadata (idp ^. idpId)
+  authnResp <- liftIO $ mkAuthnResponse privCreds idp spmeta authnReq True
+  sparAuthnResp <- submitAuthnResponse (idp ^. idpId) authnResp
+  let wireCookie = maybe (error "no wire cookie") id . lookup "Set-Cookie" $ responseHeaders sparAuthnResp
+
+  accessResp :: ResponseLBS <- call $
+    post ((env ^. teBrig) . path "/access" . header "Cookie" wireCookie . expect2xx)
+
+  let uid :: UserId
+      uid = Id . fromMaybe (error "bad user field in /access response body") . UUID.fromText $ uidRaw
+
+      uidRaw :: HasCallStack => ST
+      uidRaw = accessToken ^?! Aeson.key "user" . _String
+
+      accessToken :: HasCallStack => Aeson.Value
+      accessToken = tok
+        where
+          tok = either (error . ("parse error in /access response body: " <>)) id $
+            Aeson.eitherDecode raw
+          raw = fromMaybe (error "no body in /access response") $
+            responseBody accessResp
+
+  pure uid
 
 
 -- TODO: move this to /lib/bilge?

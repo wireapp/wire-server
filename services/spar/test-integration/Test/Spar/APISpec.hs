@@ -29,6 +29,7 @@ import Spar.Types
 import URI.ByteString.QQ (uri)
 import Util
 
+import qualified Data.Aeson as Aeson
 import qualified Spar.Intra.Brig as Intra
 
 
@@ -38,6 +39,7 @@ spec = do
   specMetadata
   specInitiateLogin
   specFinalizeLogin
+  specBindingUsers
   specCRUDIdentityProvider
   specAux
 
@@ -196,6 +198,101 @@ specFinalizeLogin = do
       context "AuthnResponse contains assertions that have been offered before" $ do
         it "rejects" $ do
           pending
+
+
+specBindingUsers :: SpecWith TestEnv
+specBindingUsers = describe "binding existing users to sso identities" $ do
+    describe "HEAD /sso/initiate-login/:idp" $ do
+      context "known IdP, running session with non-sso user" $ do
+        it "responds with 200" $ do
+          env <- ask
+          let idp = idPIdToST $ env ^. teIdP . idpId
+          void . call $ head ( (env ^. teSpar)
+                             . path (cs $ "/sso/initiate-login/" -/ idp)
+                             . header "Z-User" (toByteString' $ env ^. teUserId)
+                             . expect2xx
+                             )
+
+      context "known IdP, running session with sso user" $ do
+        it "responds with 400" $ do
+          uid <- loginSsoUserFirstTime
+          env <- ask
+          let idp = idPIdToST $ env ^. teIdP . idpId
+          void . call $ head ( (env ^. teSpar)
+                             . header "Z-User" (toByteString' uid)
+                             . path (cs $ "/sso/initiate-login/" -/ idp)
+                             . expect4xx
+                             )
+
+    describe "GET /sso/initiate-login/:idp" $ do
+      let checkRespBody :: HasCallStack => ResponseLBS -> Bool
+          checkRespBody (responseBody -> Just (cs -> bdy)) = all (`isInfixOf` bdy)
+            [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
+            , "<body onload=\"document.forms[0].submit()\">"
+            , "<input name=\"SAMLRequest\" type=\"hidden\" "
+            ]
+          checkRespBody bad = error $ show bad
+
+          hasSetCookieHeader :: Bilge.Response lbs -> Bool
+          hasSetCookieHeader = isJust . lookup "Set-Cookie" . responseHeaders
+
+      context "known IdP, running session with non-sso user" $ do
+        it "responds with 200 and a bind cookie" $ do
+          env <- ask
+          let idp = idPIdToST $ env ^. teIdP . idpId
+          (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
+          get ( (env ^. teSpar)
+              . header "Z-User" (toByteString' uid)
+              . path (cs $ "/sso/initiate-login/" -/ idp)
+              . expect2xx
+              )
+            `shouldRespondWith` (\resp -> checkRespBody resp && hasSetCookieHeader resp)
+
+      context "known IdP, running session with sso user" $ do
+        it "responds with 400 and NO bind cookie" $ do
+          env <- ask
+          let idp = idPIdToST $ env ^. teIdP . idpId
+          uid <- loginSsoUserFirstTime
+          get ( (env ^. teSpar)
+              . header "Z-User" (toByteString' uid)
+              . path (cs $ "/sso/initiate-login/" -/ idp)
+              . expect4xx
+              )
+            `shouldRespondWith` (not . hasSetCookieHeader)
+
+    describe "POST /sso/finalize-login/:idp" $ do
+      context "AuthnResponse is fine, request contains bind cookie" $ do
+        it "Sends user back to the app and adds UserSSOId to brig user" $ do
+          env <- ask
+          (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
+          (idp, privCreds, authnReq, Just wireCookie) <- negotiateAuthnRequest' (header "Z-User" $ toByteString' uid)
+          spmeta <- getTestSPMetadata (idp ^. idpId)
+          authnResp <- liftIO $ mkAuthnResponse privCreds idp spmeta authnReq True
+          sparAuthnResp <- submitAuthnResponse' (header "Cookie" wireCookie) (idp ^. idpId) authnResp
+          liftIO $ (cs @_ @String . fromJust . responseBody $ sparAuthnResp)
+            `shouldContain` "<title>wire:sso:success</title>"
+
+          resp <- call $
+            get ( (env ^. teBrig)
+                . header "Z-User" (toByteString' uid)
+                . path "/self"
+                . expect2xx
+                )
+
+          let hasUserSSOId :: Either String SelfProfile -> Bool
+              hasUserSSOId (Left _) = False
+              hasUserSSOId (Right selfprof) = case userIdentity $ selfUser selfprof of
+                Just (SSOIdentity _ _ _) -> True
+                Just (FullIdentity _ _)  -> False
+                Just (EmailIdentity _)   -> False
+                Just (PhoneIdentity _)   -> False
+                Nothing                  -> False
+
+          liftIO $ ( Aeson.eitherDecode
+                   . fromMaybe (error "no resp body from spar")
+                   $ responseBody resp
+                   )
+            `shouldSatisfy` hasUserSSOId
 
 
 -- | FUTUREWORK: this function deletes the test IdP from the test env.  (it should probably not do
