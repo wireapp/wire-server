@@ -39,7 +39,7 @@ import qualified SAML2.WebSSO as SAML
 
 -- | NB: this is a lower bound (@<=@, not @==@).
 schemaVersion :: Int32
-schemaVersion = 2
+schemaVersion = 3
 
 
 ----------------------------------------------------------------------
