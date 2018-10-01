@@ -400,7 +400,7 @@ negotiateAuthnRequest = do
   resp :: ResponseLBS
     <- call $ get
            ( (env ^. teSpar)
-           . path (cs $ "/sso/initiate-login/" -/ (UUID.toText . fromIdPId . (^. SAML.idpId) $ idp))
+           . path (cs $ "/sso/initiate-login/" -/ (idPIdToST $ idp ^. SAML.idpId))
            . expect2xx
            )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp

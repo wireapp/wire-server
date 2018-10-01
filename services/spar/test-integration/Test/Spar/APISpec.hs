@@ -34,6 +34,16 @@ import qualified Spar.Intra.Brig as Intra
 
 spec :: SpecWith TestEnv
 spec = do
+  specMisc
+  specMetadata
+  specInitiateLogin
+  specFinalizeLogin
+  specCRUDIdentityProvider
+  specAux
+
+
+specMisc :: SpecWith TestEnv
+specMisc = do
     describe "CORS" $ do
       it "is disabled" $ do
         -- I put this there because I was playing with a CORS middleware to make swagger browsing more
@@ -44,7 +54,8 @@ spec = do
         get ((env ^. teSpar) . path "/i/status" . expect2xx)
           `shouldRespondWith` (\(responseHeaders -> hdrs) -> isNothing $ lookup "Access-Control-Allow-Origin" hdrs)
 
-    describe "status, metadata" $ do
+
+    describe "status" $ do
       it "brig /i/status" $ do
         env <- ask
         ping (env ^. teBrig) `shouldRespondWith` (== ())
@@ -53,6 +64,10 @@ spec = do
         env <- ask
         ping (env ^. teSpar) `shouldRespondWith` (== ())
 
+
+specMetadata :: SpecWith TestEnv
+specMetadata = do
+    describe "metadata" $ do
       it "metadata" $ do
         env <- ask
         get ((env ^. teSpar) . path "/sso/metadata/0d784c66-c1c6-11e8-9576-2bdb3c574a4d" . expect2xx)
@@ -62,20 +77,22 @@ spec = do
                                 , "WantAssertionsSigned=\"true\""
                                 ])
 
+
+specInitiateLogin :: SpecWith TestEnv
+specInitiateLogin = do
     describe "HEAD /sso/initiate-login/:idp" $ do
       context "unknown IdP" $ do
         it "responds with 404" $ do
           env <- ask
           let uuid = cs $ UUID.toText UUID.nil
-          head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ uuid))
-            `shouldRespondWith` ((== 404) . statusCode)
+          void . call $ head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ uuid) . expect4xx)
 
       context "known IdP" $ do
         it "responds with 200" $ do
           env <- ask
-          let idp = cs . UUID.toText . fromIdPId $ env ^. teIdP . idpId
-          head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
-            `shouldRespondWith`  ((== 200) . statusCode)
+          let idp = idPIdToST $ env ^. teIdP . idpId
+          void . call $ head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
+
 
     describe "GET /sso/initiate-login/:idp" $ do
       context "unknown IdP" $ do
@@ -85,18 +102,25 @@ spec = do
           get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ uuid))
             `shouldRespondWith` ((== 404) . statusCode)
 
+      let checkRespBody :: HasCallStack => ResponseLBS -> Bool
+          checkRespBody (responseBody -> Just (cs -> bdy)) = all (`isInfixOf` bdy)
+            [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
+            , "<body onload=\"document.forms[0].submit()\">"
+            , "<input name=\"SAMLRequest\" type=\"hidden\" "
+            ]
+          checkRespBody bad = error $ show bad
+
       context "known IdP" $ do
         it "responds with request" $ do
           env <- ask
-          let idp = cs . UUID.toText . fromIdPId $ env ^. teIdP . idpId
+          let idp = idPIdToST $ env ^. teIdP . idpId
           get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
-            `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
-                                  [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
-                                  , "<body onload=\"document.forms[0].submit()\">"
-                                  , "<input name=\"SAMLRequest\" type=\"hidden\" "
-                                  ])
+            `shouldRespondWith` checkRespBody
 
-    describe "/sso/finalize-login" $ do
+
+specFinalizeLogin :: SpecWith TestEnv
+specFinalizeLogin = do
+    describe "POST /sso/finalize-login/:idp" $ do
       context "access denied" $ do
         it "responds with a very peculiar 'forbidden' HTTP response" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
@@ -173,6 +197,11 @@ spec = do
         it "rejects" $ do
           pending
 
+
+-- | FUTUREWORK: this function deletes the test IdP from the test env.  (it should probably not do
+-- that, so other tests after this can still use it.)
+specCRUDIdentityProvider :: SpecWith TestEnv
+specCRUDIdentityProvider = do
     let checkErr :: (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
         checkErr statusIs label resp = statusIs (statusCode resp) && responseJSON resp == Right label
 
@@ -217,6 +246,7 @@ spec = do
               whichone (env ^. teSpar) (Just newmember) idpid
                 `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
+
     describe "GET /identity-providers/:idp" $ do
       testGetPutDelete callIdpGet'
 
@@ -227,6 +257,7 @@ spec = do
               userid = env ^. teUserId
           _ <- call $ callIdpGet (env ^. teSpar) (Just userid) idpid
           passes
+
 
     describe "GET /identity-providers" $ do
       context "client is not team owner" $ do
@@ -257,6 +288,7 @@ spec = do
             callIdpGetAll (env ^. teSpar) (Just owner)
               `shouldRespondWith` (not . null . _idplProviders)
 
+
     describe "DELETE /identity-providers/:idp" $ do
       testGetPutDelete callIdpDelete'
 
@@ -269,6 +301,7 @@ spec = do
             `shouldRespondWith` \resp -> statusCode resp < 300
           callIdpGet' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` checkErr (== 404) "not-found"
+
 
     describe "PUT /identity-providers/:idp" $ do
       xdescribe "need to implement `callIdpGet'` for these tests" $ do
@@ -284,6 +317,7 @@ spec = do
           it "rejects" $ do
             pending  -- (only test for signature here, but make sure that the same validity tests
                      -- are performed as for POST in Spar.API.)
+
 
     describe "POST /identity-providers" $ do
       context "no zuser" $ do
@@ -337,6 +371,8 @@ spec = do
           liftIO $ idp `shouldBe` idp'
 
 
+specAux :: SpecWith TestEnv
+specAux = do
     describe "test helper functions" $ do
       describe "createTeamMember" $ do
         let check :: HasCallStack => Bool -> Int -> SpecWith TestEnv
