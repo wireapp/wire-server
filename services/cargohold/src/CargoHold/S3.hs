@@ -510,7 +510,6 @@ completeResumable r = do
     chunkSource man env s3c b cs = case Seq.viewl cs of
         EmptyL  -> mempty
         c :< cc -> do
-            -- (src, fin) <- lift $ do
             src <- lift $ do
                 let S3ChunkKey ck = mkChunkKey (resumableKey r) (chunkNr c)
                 (_, gor) <- recovering x3 handlers $ const $
@@ -837,4 +836,3 @@ getOtrMetadata cnv ast = do
     let S3AssetKey key = otrKey cnv ast
     (_, r) <- tryS3 . recovering x3 handlers . const $ exec (headObject b key)
     return $ (omUserMetadata <$> horMetadata r) >>= getAmzMetaUser
-
