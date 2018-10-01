@@ -90,7 +90,7 @@ storeRequest (SAML.ID rid) (SAML.Time endOfLife) = do
     ins :: PrepQuery W (ST, Int32) ()
     ins = "INSERT INTO authreq (req) VALUES (?) USING TTL ?"
 
-checkAgainstRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
+checkAgainstRequest :: (HasCallStack, MonadClient m)
                     => AReqId -> m Bool
 checkAgainstRequest (SAML.ID rid) =
     (==) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity rid)
