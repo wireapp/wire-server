@@ -194,8 +194,10 @@ verdictHandler _ aresp verdict = do
   reqid <- either (throwSpar . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
   format :: Maybe VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
   case format of
-    Just (VerdictFormatWeb) -> verdictHandlerWeb verdict
-    Just (VerdictFormatMobile granted denied) -> verdictHandlerMobile granted denied verdict
+    Just (VerdictFormatWeb)
+      -> verdictHandlerResult verdict >>= verdictHandlerWeb
+    Just (VerdictFormatMobile granted denied)
+      -> verdictHandlerResult verdict >>= verdictHandlerMobile granted denied
     Nothing -> throwError $ SAML.BadSamlResponse "AuthRequest seems to have disappeared (could not find verdict format)."
                -- (this shouldn't happen too often, see 'storeVerdictFormat')
 
@@ -223,10 +225,8 @@ verdictHandlerResult = \case
 -- - A title element with contents @wire:sso:<outcome>@.  This is chosen to be easily parseable and
 --   not be the title of any page sent by the IdP while it negotiates with the user.
 -- - The page broadcasts a message to '*', to be picked up by the app.
-verdictHandlerWeb :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVerdict
-verdictHandlerWeb verdict = do
-  outcome <- verdictHandlerResult verdict
-  pure $ case outcome of
+verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Spar SAML.ResponseVerdict
+verdictHandlerWeb = pure . \case
     VerifyHandlerDenied reasons -> forbiddenPage reasons
     VerifyHandlerGranted cky _uid -> successPage cky
   where
@@ -275,10 +275,8 @@ easyHtml doc =
 -- | If the client is mobile, it has picked error and success redirect urls (see
 -- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'); variables in these URLs are here
 -- substituted and the client is redirected accordingly.
-verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
-verdictHandlerMobile granted denied verdict = do
-  outcome <- verdictHandlerResult verdict
-  case outcome of
+verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> VerdictHandlerResult -> Spar SAML.ResponseVerdict
+verdictHandlerMobile granted denied = \case
     VerifyHandlerDenied reasons
       -> mkVerdictDeniedFormatMobile denied "forbidden" &
          either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage reasons)
