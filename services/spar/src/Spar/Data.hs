@@ -62,16 +62,22 @@ mkEnv opts now =
 mkTTLAuthnRequests :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authreq")
 mkTTLAuthnRequests (Env now maxttl _) = mkTTL now maxttl
 
+mkTTLAuthnRequestsNDT :: MonadError TTLError m => Env -> NominalDiffTime -> m (TTL "authreq")
+mkTTLAuthnRequestsNDT (Env _ maxttl _) = mkTTLNDT maxttl
+
 mkTTLAssertions :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authresp")
 mkTTLAssertions (Env now _ maxttl) = mkTTL now maxttl
 
 mkTTL :: (MonadError TTLError m, KnownSymbol a) => UTCTime -> TTL a -> UTCTime -> m (TTL a)
-mkTTL now maxttl endOfLife = if
+mkTTL now maxttl endOfLife = mkTTLNDT maxttl $ endOfLife `diffUTCTime` now
+
+mkTTLNDT :: (MonadError TTLError m, KnownSymbol a) => TTL a -> NominalDiffTime -> m (TTL a)
+mkTTLNDT maxttl ttlNDT = if
   | actualttl > maxttl -> throwError $ TTLTooLong (showTTL actualttl) (showTTL maxttl)
   | actualttl <= 0     -> throwError $ TTLNegative (showTTL actualttl)
   | otherwise          -> pure actualttl
   where
-    actualttl = TTL . nominalDiffToSeconds $ endOfLife `diffUTCTime` now
+    actualttl = TTL . nominalDiffToSeconds $ ttlNDT
 
 nominalDiffToSeconds :: NominalDiffTime -> Int32
 nominalDiffToSeconds = round @Double . realToFrac
@@ -84,8 +90,8 @@ storeRequest :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLE
              => AReqId -> SAML.Time -> m ()
 storeRequest (SAML.ID rid) (SAML.Time endOfLife) = do
     env <- ask
-    TTL actualEndOfLife <- mkTTLAuthnRequests env endOfLife
-    retry x5 . write ins $ params Quorum (rid, actualEndOfLife)
+    TTL ttl <- mkTTLAuthnRequests env endOfLife
+    retry x5 . write ins $ params Quorum (rid, ttl)
   where
     ins :: PrepQuery W (ST, Int32) ()
     ins = "INSERT INTO authreq (req) VALUES (?) USING TTL ?"
@@ -102,10 +108,10 @@ storeAssertion :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TT
                => SAML.ID SAML.Assertion -> SAML.Time -> m Bool
 storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
     env <- ask
-    TTL actualEndOfLife <- mkTTLAssertions env endOfLifeNew
+    TTL ttl <- mkTTLAssertions env endOfLifeNew
     notAReplay <- (/=) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity aid)
     when notAReplay $ do
-        retry x5 . write ins $ params Quorum (aid, actualEndOfLife)
+        retry x5 . write ins $ params Quorum (aid, ttl)
     pure notAReplay
   where
     sel :: PrepQuery R (Identity ST) (Identity Int64)
@@ -160,11 +166,24 @@ getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
 ----------------------------------------------------------------------
 -- bind cookies
 
-insertBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> UserId -> m ()
-insertBindCookie = undefined
+-- | Associate a 'BindCookie' with its 'UserId'.  The 'TTL' of this entry should be the same as the
+-- one of the 'AuthnRequest' sent with the cookie.
+insertBindCookie :: (HasCallStack, MonadClient m, MonadReader Env m, MonadError TTLError m)
+                 => BindCookie -> UserId -> NominalDiffTime -> m ()
+insertBindCookie cky uid ttlNDT = do
+  env <- ask
+  TTL ttlInt32 <- mkTTLAuthnRequestsNDT env ttlNDT
+  retry x5 . write ins $ params Quorum (cky, uid, ttlInt32)
+  where
+    ins :: PrepQuery W (BindCookie, UserId, Int32) ()
+    ins = "INSERT INTO bind_cookie (cookie, session_owner) VALUES (?, ?) USING TTL ?"
 
-lookupBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> m UserId
-lookupBindCookie = undefined
+lookupBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> m (Maybe UserId)
+lookupBindCookie cky = fmap runIdentity <$>
+  (retry x1 . query1 sel $ params Quorum (Identity cky))
+  where
+    sel :: PrepQuery R (Identity BindCookie) (Identity UserId)
+    sel = "SELECT session_owner FROM bind_cookie WHERE cookie = ?"
 
 
 ----------------------------------------------------------------------

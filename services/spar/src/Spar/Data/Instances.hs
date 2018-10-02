@@ -13,9 +13,16 @@ import SAML2.Util (parseURI')
 import Spar.Types
 import Text.XML.DSig (renderKeyInfo, parseKeyInfo)
 import URI.ByteString
+import Servant.API (toUrlPiece, parseUrlPiece)
 
 import qualified SAML2.WebSSO as SAML
 
+
+instance Cql BindCookie where
+    ctype = Tagged TextColumn
+    toCql = CqlText . toUrlPiece
+    fromCql (CqlText t) = either (Left . cs) Right $ parseUrlPiece t
+    fromCql _           = fail "BindCookie: expected CqlText"
 
 instance Cql (SignedCertificate) where
     ctype = Tagged BlobColumn
