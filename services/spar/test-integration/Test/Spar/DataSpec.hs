@@ -25,6 +25,7 @@ import Data.UUID.V4 as UUID
 import Lens.Micro
 import SAML2.Util ((-/))
 import Spar.API
+import Spar.API.Types
 import Spar.API.Instances ()
 import Spar.API.Test (IntegrationTests)
 import Spar.Data as Data
@@ -279,8 +280,9 @@ clientPostRequest     Servant.:<|>
   clientPostVerdict
   = Servant.client (Servant.Proxy @IntegrationTests)
 
-clientGetAuthnRequest :: Maybe URI -> Maybe URI -> SAML.IdPId -> Servant.ClientM (SAML.FormRedirect SAML.AuthnRequest)
-clientGetAuthnRequest = Servant.client (Servant.Proxy @APIAuthReq)
+clientGetAuthnRequest :: Maybe URI -> Maybe URI -> SAML.IdPId
+                      -> Servant.ClientM (WithBindCookie (SAML.FormRedirect SAML.AuthnRequest))
+clientGetAuthnRequest = Servant.client (Servant.Proxy @APIAuthReq) Nothing
 
 
 runInsertUser :: TestEnv -> SAML.UserRef -> UserId -> Http ()

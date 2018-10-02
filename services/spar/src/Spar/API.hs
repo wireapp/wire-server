@@ -41,6 +41,7 @@ import Data.String.Conversions
 import Data.Time
 import GHC.Stack
 import Lens.Micro
+import OpenSSL.Random (randBytes)
 import Servant
 import Servant.Swagger
 import Spar.API.Instances ()
@@ -72,18 +73,7 @@ apiSSO opts
   :<|> SAML.meta appName sparRequestIssuer sparResponseURI
   :<|> authreqPrecheck
   :<|> authreq (maxttlAuthreqDiffTime opts)
-  :<|> SAML.authresp sparRequestIssuer sparResponseURI (SAML.HandleVerdictRaw verdictHandler)
-
-sparRequestIssuer :: SAML.HasConfig m => SAML.IdPId -> m SAML.Issuer
-sparRequestIssuer = fmap SAML.Issuer <$> SAML.getSsoURI' p p
-  where
-    p = Proxy @("initiate-login" :> SAML.APIAuthReq)
-      -- we can't use the 'APIAuthReq' route here because it has extra query params that translate
-      -- into function arguments to 'safeLink', but 'SAML.getSsoURI'' does not support that.
-
-sparResponseURI :: SAML.HasConfig m => SAML.IdPId -> m URI.URI
-sparResponseURI = SAML.getSsoURI' (Proxy @APISSO) (Proxy @APIAuthResp)
-
+  :<|> authresp
 
 apiIDP :: ServerT APIIDP Spar
 apiIDP
@@ -106,12 +96,25 @@ authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
                                 *> SAML.getIdPConfig idpid
                                 *> return NoContent
 
-authreq :: NominalDiffTime -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar (SAML.FormRedirect SAML.AuthnRequest)
-authreq authreqttl msucc merr idpid = do
+authreq :: NominalDiffTime -> ZUsr -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId
+        -> Spar (WithBindCookie (SAML.FormRedirect SAML.AuthnRequest))
+authreq authreqttl zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl sparRequestIssuer idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
-  pure form
+  initializeBindCookie zusr idpid <&> (`addHeader` form)
+
+-- | Create bind cookie with 60 minutes life expectancy; *iff* the user is already authenticated,
+-- store it with the bind cookies.  If user already has a 'UserSSOId' (need to ask brig for that),
+-- throw an error.
+initializeBindCookie :: ZUsr -> SAML.IdPId -> Spar BindCookie
+initializeBindCookie zusr idpid = do
+  path <- sparResponseURI idpid <&> URI.uriPath
+  secret <- liftIO $ cs <$> randBytes 32
+  let msecret = if isJust zusr then Just secret else Nothing
+      cky = SAML.toggleCookie path msecret
+  forM_ zusr $ \userid -> wrapMonadClient $ Data.insertBindCookie cky userid
+  pure cky
 
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
@@ -131,7 +134,11 @@ validateRedirectURL uri = do
   unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
-type ZUsr = Maybe UserId
+
+authresp :: Maybe (SAML.SimpleSetCookie "wire.com") -> SAML.IdPId -> SAML.AuthnResponseBody -> Spar Void
+authresp cky = SAML.authresp sparRequestIssuer sparResponseURI $
+  \resp verdict -> throwError . SAML.CustomServant =<< verdictHandler cky resp verdict
+
 
 idpGet :: ZUsr -> SAML.IdPId -> Spar IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do

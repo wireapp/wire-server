@@ -186,8 +186,8 @@ instance Intra.MonadSparToBrig Spar where
 -- signed in-response-to info in the assertions matches the unsigned in-response-to field in the
 -- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
 -- latter.
-verdictHandler :: HasCallStack => SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
-verdictHandler aresp verdict = do
+verdictHandler :: HasCallStack => Maybe BindCookie -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandler _ aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.

@@ -20,7 +20,9 @@
 module Spar.API.Types where
 
 import Data.Id
+import Data.Proxy
 import Servant
+import Servant.Multipart
 import Spar.API.Test
 import Spar.Types
 
@@ -65,13 +67,22 @@ type APIAuthReqPrecheck
 
 type APIAuthReq
      = "initiate-login"
+    :> Header "Z-User" UserId
     :> QueryParam "success_redirect" URI.URI
     :> QueryParam "error_redirect" URI.URI
-    :> SAML.APIAuthReq
+       -- (SAML.APIAuthReq from here on, except for the cookies)
+    :> Capture "idp" SAML.IdPId
+    :> Get '[SAML.HTML] (WithBindCookie (SAML.FormRedirect SAML.AuthnRequest))
+
+type WithBindCookie = Headers '[Servant.Header "Set-Cookie" BindCookie]
 
 type APIAuthResp
      = "finalize-login"
-    :> SAML.APIAuthResp
+    :> Header "Cookie" BindCookie
+       -- (SAML.APIAuthResp from here on, except for response)
+    :> Capture "idp" SAML.IdPId
+    :> MultipartForm Mem SAML.AuthnResponseBody
+    :> Post '[PlainText] Void
 
 type APIIDP
      = Header "Z-User" UserId :> IdpGet
@@ -87,6 +98,17 @@ type IdpDelete  = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 type APIINTERNAL
      = "status" :> Get '[JSON] NoContent
   :<|> "integration-tests" :> IntegrationTests
+
+
+sparRequestIssuer :: SAML.HasConfig m => SAML.IdPId -> m SAML.Issuer
+sparRequestIssuer = fmap SAML.Issuer <$> SAML.getSsoURI' p p
+  where
+    p = Proxy @("initiate-login" :> SAML.APIAuthReq)
+      -- we can't use the 'APIAuthReq' route here because it has extra query params that translate
+      -- into function arguments to 'safeLink', but 'SAML.getSsoURI'' does not support that.
+
+sparResponseURI :: SAML.HasConfig m => SAML.IdPId -> m URI.URI
+sparResponseURI = SAML.getSsoURI' (Proxy @APISSO) (Proxy @APIAuthResp)
 
 
 -- | Type families to convert spar's 'API' type into an "outside-world-view" API type

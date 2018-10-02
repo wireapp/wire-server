@@ -20,7 +20,7 @@ import Data.String.Conversions
 import GHC.Generics
 import Lens.Micro.TH (makeLenses)
 import SAML2.Util (renderURI, parseURI')
-import SAML2.WebSSO (IdPConfig, ID, AuthnRequest)
+import SAML2.WebSSO (IdPConfig, ID, AuthnRequest, SimpleSetCookie)
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import URI.ByteString
 import Web.Cookie
@@ -28,6 +28,12 @@ import Web.Cookie
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.Text as ST
 
+
+data Void
+
+type ZUsr = Maybe UserId
+
+type BindCookie = SimpleSetCookie "wire.com"
 
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig TeamId

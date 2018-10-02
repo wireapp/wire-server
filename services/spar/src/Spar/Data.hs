@@ -158,6 +158,16 @@ getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
 
 
 ----------------------------------------------------------------------
+-- bind cookies
+
+insertBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> UserId -> m ()
+insertBindCookie = undefined
+
+lookupBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> m UserId
+lookupBindCookie = undefined
+
+
+----------------------------------------------------------------------
 -- idp
 
 type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId)

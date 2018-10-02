@@ -25,8 +25,12 @@ import SAML2.Util (parseURI')
 import SAML2.WebSSO.Types
 import SAML2.WebSSO.XML as SAML
 import Servant hiding (URI)
+import Spar.Types
 import URI.ByteString
 
+
+instance MimeRender PlainText Void where
+  mimeRender _ = error "instance MimeRender HTML Void: impossible"
 
 instance FromHttpApiData URI where
   parseUrlPiece = either (fail . show) pure . parseURI' <=< parseUrlPiece
