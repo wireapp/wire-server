@@ -187,7 +187,7 @@ instance Intra.MonadSparToBrig Spar where
 -- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
 -- latter.
 verdictHandler :: HasCallStack => Maybe BindCookie -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
-verdictHandler _ aresp verdict = do
+verdictHandler cky aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
@@ -195,9 +195,9 @@ verdictHandler _ aresp verdict = do
   format :: Maybe VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
   case format of
     Just (VerdictFormatWeb)
-      -> verdictHandlerResult verdict >>= verdictHandlerWeb
+      -> verdictHandlerResult cky verdict >>= verdictHandlerWeb
     Just (VerdictFormatMobile granted denied)
-      -> verdictHandlerResult verdict >>= verdictHandlerMobile granted denied
+      -> verdictHandlerResult cky verdict >>= verdictHandlerMobile granted denied
     Nothing -> throwError $ SAML.BadSamlResponse "AuthRequest seems to have disappeared (could not find verdict format)."
                -- (this shouldn't happen too often, see 'storeVerdictFormat')
 
@@ -205,13 +205,23 @@ data VerdictHandlerResult
   = VerifyHandlerDenied [ST]
   | VerifyHandlerGranted SetCookie UserId
 
-verdictHandlerResult :: HasCallStack => SAML.AccessVerdict -> Spar VerdictHandlerResult
-verdictHandlerResult = \case
+verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
+verdictHandlerResult bindCky = \case
   denied@(SAML.AccessDenied reasons) -> do
     SAML.logger SAML.Debug (show denied)
     pure $ VerifyHandlerDenied reasons
+
   SAML.AccessGranted userref -> do
-    uid :: UserId    <- maybe (createUser userref) pure =<< getUser userref
+    uid :: UserId <- do
+      fromBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
+      fromBrig       <- getUser userref
+      case (fromBindCookie, fromBrig) of
+        (Nothing,  Nothing)  -> createUser userref
+        (_,        Just uid) -> pure uid
+        (Just uid, Nothing)  -> Intra.bindUser uid userref >> pure uid
+        -- (if both bind cookie and sso user lookup are 'Just', it just means that the user
+        -- attempted an SSO login when already logged in.  point-, but also harmless.)
+
     cky :: SetCookie <- Intra.ssoLogin uid  -- TODO: can this be a race condition?  (user is not
                                             -- quite created yet when we ask for a cookie?  do we do
                                             -- quorum reads / writes here?  writes: probably yes,

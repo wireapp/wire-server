@@ -115,6 +115,10 @@ getUser buid = do
     else Just . selfUser <$> parseResponse @SelfProfile resp
 
 
+bindUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> SAML.UserRef -> m ()
+bindUser = undefined
+
+
 -- | Check that a user locally created on spar exists on brig and has a team id.
 confirmUserId :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m (Maybe UserId)
 confirmUserId buid = do
