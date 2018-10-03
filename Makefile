@@ -1,4 +1,5 @@
-LANG := en_US.UTF-8
+SHELL            := /usr/bin/env bash
+LANG             := en_US.UTF-8
 HASKELL_SERVICES := proxy cannon cargohold brig galley gundeck
 SERVICES         := $(HASKELL_SERVICES) nginz
 DOCKER_USER      ?= wireserver
@@ -37,6 +38,16 @@ integration: fast
 	$(MAKE) -C services/brig i
 	$(MAKE) -C services/gundeck i-fake-aws
 	$(MAKE) -C services/spar i
+
+.PHONY: integration-aws
+integration-aws: fast
+	# We run "i" instead of "integration" to avoid useless rebuilds
+	# (since after "fast" everything will be built already)
+	$(MAKE) -C services/cargohold i-aws
+	$(MAKE) -C services/galley i-aws
+	$(MAKE) -C services/brig i-aws
+	$(MAKE) -C services/gundeck i-aws
+	$(MAKE) -C services/spar i-aws
 
 .PHONY: haddock
 haddock:
