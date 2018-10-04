@@ -19,25 +19,20 @@
 -- FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( TestEnv(..)
-  , teMgr, teCql, teBrig, teGalley, teSpar
-  , teNewIdP, teUserId, teTeamId, teIdP, teIdPHandle, teIdPChan
-  , teOpts, teTstOpts
-  , Select, mkEnv, destroyEnv, passes, it, pending, pendingWith
-  , IntegrationConfig(..)
-  , BrigReq
-  , GalleyReq
-  , SparReq
-  , ResponseLBS
-  , TestErrorLabel(..)
+  ( mkEnv, destroyEnv, passes, it, pending, pendingWith
   , createUserWithTeam
   , createTeamMember
   , createRandomPhoneUser
   , zUser
+  , endpointToReq
+  , endpointToSettings
+  , endpointToURL
   , shouldRespondWith
   , call
   , ping
-  , makeTestNewIdP
+  , makeIssuer
+  , makeTestIdPMetadata
+  , getTestSPMetadata
   , createTestIdPFrom
   , negotiateAuthnRequest
   , submitAuthnResponse
@@ -50,7 +45,7 @@ module Util
   , callIdpDelete, callIdpDelete'
   , initCassandra
   , module Test.Hspec
-  , module Util.MockIdP
+  , module Util.Types
   ) where
 
 import Bilge
@@ -61,7 +56,6 @@ import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
-import Control.Retry
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
 import Data.ByteString.Conversion
@@ -71,6 +65,7 @@ import Data.Id
 import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
 import Data.Range
+import Data.String
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID (nextRandom)
@@ -88,68 +83,55 @@ import Spar.Types
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, xit, pending, pendingWith)
 import URI.ByteString
-import Util.MockIdP
+import URI.ByteString.QQ (uri)
 import Util.Options
 import Util.Types
+
 
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
-import qualified Control.Concurrent.Async as Async
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
 import qualified Galley.Types.Teams as Galley
-import qualified Network.Wai.Handler.WarpTLS as Warp
+import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified SAML2.WebSSO as SAML
 import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
-import qualified Text.XML.Util as SAML
 
 
+-- | Create an environment for integration tests from integration and spar config files.
+--
+-- NB: We used to have a mock IdP server here that allowed spar to resolve metadata URLs and pull
+-- metadata.  (It *could* have been used by the test suite to get 'AuthnRequest' values as well, but
+-- that's no more interesting than simulating the idp end-point from inside the spar-integration
+-- executable as a monadic function, only more complicated.)  Since spar does not accept metadata
+-- URLs any more <https://github.com/wireapp/wire-server/pull/466#issuecomment-419396359>, we
+-- removed the mock idp functionality.  if you want to re-introduce it,
+-- <https://github.com/wireapp/wire-server/pull/466/commits/9c93f1e278500522a0565639140ac55dc21ee2d2>
+-- would be a good place to look for code to steal.
 mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
   _teCql :: ClientState <- initCassandra _teOpts =<< mkLogger _teOpts
+  issuer :: Issuer <- makeIssuer
   let _teBrig    = endpointToReq (cfgBrig   _teTstOpts)
       _teGalley  = endpointToReq (cfgGalley _teTstOpts)
       _teSpar    = endpointToReq (cfgSpar   _teTstOpts)
-      _teNewIdP  = cfgNewIdp _teTstOpts
 
-  (app, _teIdPChan) <- serveSampleIdP _teNewIdP
-  let srv     = Warp.runTLS tlss defs app
-      tlss    = Warp.tlsSettings (mockidpCert mocktls) (mockidpPrivateKey mocktls)
-      mocktls = cfgMockIdp _teTstOpts
-      defs    = endpointToSettings . mockidpBind . cfgMockIdp $ _teTstOpts
-
-  _teIdPHandle <- Async.async srv
-  assertServiceIsUp _teIdPHandle _teMgr (endpointToReq . mockidpConnect . cfgMockIdp $ _teTstOpts)
+      _teMetadata :: IdPMetadata
+      _teMetadata = sampleIdPMetadata issuer [uri|http://requri.net/|]
 
   (_teUserId, _teTeamId, _teIdP) <- do
-    createTestIdPFrom _teNewIdP _teMgr _teBrig _teGalley _teSpar
+    createTestIdPFrom _teMetadata _teMgr _teBrig _teGalley _teSpar
 
   pure TestEnv {..}
 
-assertServiceIsUp :: (HasCallStack, Show a) => Async.Async a -> Manager -> (Request -> Request) -> IO ()
-assertServiceIsUp async mgr req = waitForService mgr req >>= \case
-  True  -> pure ()
-  False -> Async.poll async >>= \case
-    Nothing        -> throwIO . ErrorCall $ "mock idp is not responding"
-    Just (Left e)  -> throwIO . ErrorCall $ "mock idp failed with " <> show e
-    Just (Right a) -> throwIO . ErrorCall $ "mock idp returned " <> show a
-
-waitForService :: Manager -> (Request -> Request) -> IO Bool
-waitForService mgr req =
-  retrying (constantDelay 100000 <> limitRetries 50) (\_ -> pure . not) (\_ -> serviceIsUp mgr req)
-
-serviceIsUp :: Manager -> (Request -> Request) -> IO Bool
-serviceIsUp mgr req = (runHttpT mgr (Bilge.get req) >> pure True)
-  `Control.Exception.catch` \(_ :: HttpException) -> pure False
-
-
 destroyEnv :: HasCallStack => TestEnv -> IO ()
-destroyEnv = Async.cancel . (^. teIdPHandle)
+destroyEnv _ = pure ()
 
 
 passes :: MonadIO m => m ()
@@ -337,6 +319,24 @@ zConn :: SBS -> Request -> Request
 zConn = header "Z-Connection"
 
 
+endpointToReq :: Endpoint -> (Bilge.Request -> Bilge.Request)
+endpointToReq ep = Bilge.host (ep ^. epHost . to cs) . Bilge.port (ep ^. epPort)
+
+endpointToSettings :: Endpoint -> Warp.Settings
+endpointToSettings endpoint = Warp.defaultSettings
+  { Warp.settingsHost = Data.String.fromString . cs $ endpoint ^. epHost
+  , Warp.settingsPort = fromIntegral $ endpoint ^. epPort
+  }
+
+endpointToURL :: MonadIO m => Endpoint -> ST -> m URI
+endpointToURL endpoint urlpath = either err pure url
+  where
+    url     = parseURI' ("http://" <> urlhost <> ":" <> urlport) <&> (=/ urlpath)
+    urlhost = cs $ endpoint ^. epHost
+    urlport = cs . show $ endpoint ^. epPort
+    err     = liftIO . throwIO . ErrorCall . show . (, (endpoint, url))
+
+
 -- spar specifics
 
 shouldRespondWith :: forall a. (HasCallStack, Show a, Eq a)
@@ -356,25 +356,40 @@ ping :: (Request -> Request) -> Http ()
 ping req = void . get $ req . path "/i/status" . expect2xx
 
 
--- | Create a cloned 'NewIdP' corresponding to the mock idp from the config and suitable for
--- registering with spar.  The issuer id can be used to do this several times without getting the
--- error that this issuer is already used for another team.
-makeTestNewIdP :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m NewIdP
-makeTestNewIdP = do
+makeIssuer :: MonadIO m => m Issuer
+makeIssuer = do
+  uuid <- liftIO UUID.nextRandom
+  either (liftIO . throwIO . ErrorCall . show)
+         (pure . Issuer)
+         (SAML.parseURI' ("https://issuer.net/_" <> UUID.toText uuid))
+
+-- | Create a cloned new 'IdPMetadata' value from the sample value already registered, but with a
+-- fresh random 'Issuer'.  This is the simplest way to get such a value for registration of a new
+-- 'IdP' (registering the same 'Issuer' twice is an error).
+makeTestIdPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m IdPMetadata
+makeTestIdPMetadata = do
   env <- ask
-  issuerid <- liftIO $ UUID.nextRandom
-  let Endpoint ephost (cs . show -> epport) = env ^. teTstOpts . to cfgMockIdp . to mockidpConnect
-      mkurl = either (error . show) id . SAML.parseURI' . (("http://" <> ephost <> ":" <> epport) <>)
-  pure $ (env ^. teNewIdP) & nidpIssuer .~ Issuer (mkurl $ "/_" <> UUID.toText issuerid)
+  issuer <- makeIssuer
+  pure ((env ^. teIdP . idpMetadata) & edIssuer .~ issuer)
 
 
--- | Create new user, team, idp from given 'NewIdP'.
+getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => IdPId -> m SPMetadata
+getTestSPMetadata idpid = do
+  env  <- ask
+  resp <- call . get $ (env ^. teSpar) . path (cs $ "/sso/metadata/" -/ idPIdToST idpid) . expect2xx
+  raw  <- maybe (crash_ "no body") (pure . cs) $ responseBody resp
+  either (crash_ . show) pure (SAML.decode raw)
+  where
+    crash_ = liftIO . throwIO . ErrorCall
+
+
+-- | Create new user, team, idp from given 'IdPMetadata'.
 createTestIdPFrom :: (HasCallStack, MonadIO m)
-                  => NewIdP -> Manager -> BrigReq -> GalleyReq -> SparReq -> m (UserId, TeamId, IdP)
-createTestIdPFrom newidp mgr brig galley spar = do
+                  => IdPMetadata -> Manager -> BrigReq -> GalleyReq -> SparReq -> m (UserId, TeamId, IdP)
+createTestIdPFrom metadata mgr brig galley spar = do
   liftIO . runHttpT mgr $ do
     (uid, tid) <- createUserWithTeam brig galley
-    (uid, tid,) <$> callIdpCreate spar (Just uid) newidp
+    (uid, tid,) <$> callIdpCreate spar (Just uid) metadata
 
 
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
@@ -385,7 +400,7 @@ negotiateAuthnRequest = do
   resp :: ResponseLBS
     <- call $ get
            ( (env ^. teSpar)
-           . path ("/sso/initiate-login/" <> (cs . UUID.toText . fromIdPId . (^. SAML.idpId) $ idp))
+           . path (cs $ "/sso/initiate-login/" -/ (UUID.toText . fromIdPId . (^. SAML.idpId) $ idp))
            . expect2xx
            )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
@@ -393,12 +408,12 @@ negotiateAuthnRequest = do
 
 
 submitAuthnResponse :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-                    => SignedAuthnResponse -> m ResponseLBS
-submitAuthnResponse (SignedAuthnResponse authnresp) = do
+                    => IdPId -> SignedAuthnResponse -> m ResponseLBS
+submitAuthnResponse idpid (SignedAuthnResponse authnresp) = do
   env <- ask
   req :: Request
     <- formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
-  call $ post' req ((env ^. teSpar) . path "/sso/finalize-login")
+  call $ post' req ((env ^. teSpar) . path (cs $ "/sso/finalize-login/" -/ idPIdToST idpid))
 
 
 -- TODO: move this to /lib/bilge?
@@ -445,11 +460,11 @@ safeHead msg []    = throwError $ msg <> ": []"
 
 callAuthnReq' :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
 callAuthnReq' sparreq_ idpid = do
-  get $ sparreq_ . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid))
+  get $ sparreq_ . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid)
 
 callAuthnReqPrecheck' :: (MonadIO m, MonadHttp m) => SparReq -> SAML.IdPId -> m ResponseLBS
 callAuthnReqPrecheck' sparreq_ idpid = do
-  head $ sparreq_ . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid))
+  head $ sparreq_ . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid)
 
 callIdpGet :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m IdP
 callIdpGet sparreq_ muid idpid = do
@@ -459,7 +474,7 @@ callIdpGet sparreq_ muid idpid = do
 
 callIdpGet' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpGet' sparreq_ muid idpid = do
-  get $ sparreq_ . maybe id zUser muid . path ("/identity-providers/" <> cs (SAML.idPIdToST idpid))
+  get $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
 
 callIdpGetAll :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m IdPList
 callIdpGetAll sparreq_ muid = do
@@ -471,19 +486,23 @@ callIdpGetAll' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> m Respo
 callIdpGetAll' sparreq_ muid = do
   get $ sparreq_ . maybe id zUser muid . path "/identity-providers"
 
-callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.NewIdP -> m IdP
-callIdpCreate sparreq_ muid newidp = do
-  resp <- callIdpCreate' (sparreq_ . expect2xx) muid newidp
+callIdpCreate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPMetadata -> m IdP
+callIdpCreate sparreq_ muid metadata = do
+  resp <- callIdpCreate' (sparreq_ . expect2xx) muid metadata
   either (liftIO . throwIO . ErrorCall . show) pure
     $ responseJSON @IdP resp
 
-callIdpCreate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.NewIdP -> m ResponseLBS
-callIdpCreate' sparreq_ muid newidp = do
-  post $ sparreq_ . maybe id zUser muid . path "/identity-providers/" . json newidp
+callIdpCreate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPMetadata -> m ResponseLBS
+callIdpCreate' sparreq_ muid metadata = do
+  post $ sparreq_
+    . maybe id zUser muid
+    . path "/identity-providers/"
+    . body (RequestBodyLBS . cs $ SAML.encode metadata)
+    . header "Content-Type" "application/xml"
 
 callIdpDelete :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ()
 callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx) muid idpid
 
 callIdpDelete' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpDelete' sparreq_ muid idpid = do
-  delete $ sparreq_ . maybe id zUser muid . path ("/identity-providers/" <> cs (SAML.idPIdToST idpid))
+  delete $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)

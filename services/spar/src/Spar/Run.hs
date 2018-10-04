@@ -19,16 +19,14 @@ module Spar.Run (initCassandra, mkLogger, runServer) where
 
 import Bilge
 import Cassandra as Cas
-import Data.Int
 import Data.List.NonEmpty as NE
 import Data.Metrics (metrics)
 import Data.String.Conversions
 import Data.String (fromString)
 import Lens.Micro
-import Network.HTTP.Client (responseTimeoutMicro)
 import Network.Wai (Application)
 import Network.Wai.Utilities.Request (lookupRequestId)
-import Spar.API
+import Spar.API (app)
 import Spar.API.Instances ()
 import Spar.API.Swagger ()
 import Spar.App
@@ -41,20 +39,16 @@ import Util.Options (epHost, epPort)
 
 import qualified Cassandra.Schema as Cas
 import qualified Cassandra.Settings as Cas
-import qualified Network.Connection as TLS
-import qualified Network.HTTP.Client.TLS as TLS
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
+import qualified Spar.Data as Data
 import qualified Spar.Options as Opts
 import qualified System.Logger as Log
 
 
 ----------------------------------------------------------------------
 -- cassandra
-
-schemaVersion :: Int32
-schemaVersion = 0
 
 initCassandra :: Opts.Opts -> Logger -> IO ClientState
 initCassandra opts lgr = do
@@ -72,7 +66,7 @@ initCassandra opts lgr = do
       & Cas.setSendTimeout 3
       & Cas.setResponseTimeout 10
       & Cas.setProtocolVersion V3
-    runClient cas $ Cas.versionCheck schemaVersion
+    runClient cas $ Cas.versionCheck Data.schemaVersion
     pure cas
 
 
@@ -98,7 +92,7 @@ runServer sparCtxOpts = do
   let settings = Warp.defaultSettings
         & Warp.setHost (fromString $ sparCtxOpts ^. to saml . SAML.cfgSPHost)
         . Warp.setPort (sparCtxOpts ^. to saml . SAML.cfgSPPort)
-  sparCtxHttpManager <- sparManager (tlsDisableCertValidation sparCtxOpts)
+  sparCtxHttpManager <- newManager defaultManagerSettings
   let sparCtxHttpBrig = Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
                       . Bilge.port (sparCtxOpts ^. to brig . epPort)
                       $ Bilge.empty
@@ -111,25 +105,6 @@ runServer sparCtxOpts = do
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}
   WU.runSettingsWithShutdown settings wrappedApp 5
-
--- | Create a TLS-capabable manager for fetching metadata from IdPs.
---
--- NB: In integration tests, we turn certificate validation off.  This is not ideal, but the
--- alternative would be to register a mock certificate with the production spar service, which is
--- not trivial and thus not risk-free either:
---
--- * https://stackoverflow.com/questions/25833305/accepting-specific-certificate-with-http-client-tls-or-tls
--- * https://stackoverflow.com/questions/40081508/how-to-provide-a-client-certificate-to-http-client-tls#40082394
-sparManager :: Bool -> IO Manager
-sparManager disableCertificateValidation = newManager (TLS.mkManagerSettings tlss Nothing)
-  { managerResponseTimeout = responseTimeoutMicro (10 * 1000 * 1000)
-  }
-  where
-    tlss = TLS.TLSSettingsSimple
-      { TLS.settingDisableCertificateValidation = disableCertificateValidation
-      , TLS.settingDisableSession = False
-      , TLS.settingUseServerName = False
-      }
 
 lookupRequestIdMiddleware :: (RequestId -> Application) -> Application
 lookupRequestIdMiddleware mkapp req cont = do

@@ -34,8 +34,8 @@ RUN apk add --no-cache \
         libxml2-dev
 
 # get static version of Haskell Stack and use system ghc by default
-ARG STACK_VERSION=1.6.3
-RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${STACK_VERSION}/stack-${STACK_VERSION}-linux-x86_64-static.tar.gz \
+ARG STACK_ALPINE_VERSION=1.6.3
+RUN curl -sSfL https://github.com/commercialhaskell/stack/releases/download/v${STACK_ALPINE_VERSION}/stack-${STACK_ALPINE_VERSION}-linux-x86_64-static.tar.gz \
     | tar --wildcards -C /usr/local/bin --strip-components=1 -xzvf - '*/stack' && chmod 755 /usr/local/bin/stack && \
     stack config set system-ghc --global true
 
@@ -95,3 +95,10 @@ RUN cd /tmp/ghc && \
     make install &> /dev/null && \
     mv /tmp/config.yaml /root/.stack/ && \
     rm -rf /tmp/ghc
+
+# Upgrade stack (there is no binary for stack-1.7.1 on alpine, so this is the easiest way.)
+ARG STACK_VERSION=1.7.1
+RUN stack update && \
+    stack upgrade --binary-version ${STACK_VERSION} && \
+    rm -f /usr/local/bin/stack && \
+    cp /root/.local/bin/stack /usr/local/bin/stack

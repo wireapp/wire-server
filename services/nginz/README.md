@@ -7,7 +7,7 @@ To build nginz natively, ensure to have the usual C compiler toolchains installe
 * gpg (needed to verify nginx's signatures)
 * openssl
 * libossp-uuid
-* [libzauth](../../libs/libzauth) 
+* [libzauth](../../libs/libzauth)
     * depends on the rust compiler, libsodium, [makedeb](../../tools/makedeb)
 
 If you're on alpine, see the [Dockerfile](Dockerfile) for the precise dependency names. If you're on another platform, their names might differ slightly.
@@ -41,11 +41,7 @@ with nginx by using --with-openssl=<path> option.
 
 openssl is required to compile nginx and it may be installed in a "non-standard" path in your system. Once you are sure you have installed it, look for `EXTRA_CC_INC` and `EXTRA_CC_LIB` in the `Makefile` and point them to the correct location in your system.
 
-For instance, if you are using OSX and used `brew` to install openssl, you most likely need to change the `Makefile` to:
-```
-EXTRA_CC_INC ?= -I/usr/local/opt/openssl/include
-EXTRA_CC_LIB ?= -L/usr/local/opt/openssl/lib
-```
+If you are using macOS and you used `brew` to install openssl, the `Makefile` already contains the right paths so you should not be seeing that error.
 
 ## Compile with docker
 

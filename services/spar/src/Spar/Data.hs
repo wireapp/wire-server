@@ -15,8 +15,6 @@
 module Spar.Data where
 
 import Cassandra as Cas
-import Control.Exception
-import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Identity
 import Control.Monad.Reader
@@ -28,15 +26,20 @@ import Data.String.Conversions
 import Data.Time
 import Data.X509 (SignedCertificate)
 import GHC.Stack
+import GHC.TypeLits (KnownSymbol)
 import Lens.Micro
 import Spar.Data.Instances (VerdictFormatRow, VerdictFormatCon, fromVerdictFormat, toVerdictFormat)
 import Spar.Options as Options
 import Spar.Types
 import URI.ByteString
 
-import qualified Data.UUID as UUID
+import qualified Data.List.NonEmpty as NL
 import qualified SAML2.WebSSO as SAML
-import qualified Data.ByteString.Char8 as BSC
+
+
+-- | NB: this is a lower bound (@<=@, not @==@).
+schemaVersion :: Int32
+schemaVersion = 2
 
 
 ----------------------------------------------------------------------
@@ -44,7 +47,6 @@ import qualified Data.ByteString.Char8 as BSC
 
 data Env = Env
   { dataEnvNow                :: UTCTime
-  , dataEnvSPInfo             :: SPInfo
   , dataEnvMaxTTLAuthRequests :: TTL "authreq"
   , dataEnvMaxTTLAssertions   :: TTL "authresp"
   }
@@ -53,27 +55,23 @@ data Env = Env
 mkEnv :: Options.Opts -> UTCTime -> Env
 mkEnv opts now =
   Env { dataEnvNow                = now
-      , dataEnvSPInfo             = Options.spInfo opts
       , dataEnvMaxTTLAuthRequests = Options.maxttlAuthreq opts
       , dataEnvMaxTTLAssertions   = Options.maxttlAuthresp opts
       }
 
 mkTTLAuthnRequests :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authreq")
-mkTTLAuthnRequests (Env now _ maxttl _) = mkTTL now maxttl
+mkTTLAuthnRequests (Env now maxttl _) = mkTTL now maxttl
 
 mkTTLAssertions :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authresp")
-mkTTLAssertions (Env now _ _ maxttl) = mkTTL now maxttl
+mkTTLAssertions (Env now _ maxttl) = mkTTL now maxttl
 
-mkTTL :: MonadError TTLError m => UTCTime -> TTL a -> UTCTime -> m (TTL a)
+mkTTL :: (MonadError TTLError m, KnownSymbol a) => UTCTime -> TTL a -> UTCTime -> m (TTL a)
 mkTTL now maxttl endOfLife = if
-  | actualttl > maxttl -> throwError TTLTooLong
-  | actualttl <= 0     -> throwError TTLNegative
+  | actualttl > maxttl -> throwError $ TTLTooLong (showTTL actualttl) (showTTL maxttl)
+  | actualttl <= 0     -> throwError $ TTLNegative (showTTL actualttl)
   | otherwise          -> pure actualttl
   where
     actualttl = TTL . nominalDiffToSeconds $ endOfLife `diffUTCTime` now
-
-err2err :: (m ~ Either TTLError, MonadThrow m') => m a -> m' a
-err2err = either (throwM . ErrorCall . show) pure
 
 nominalDiffToSeconds :: NominalDiffTime -> Int32
 nominalDiffToSeconds = round @Double . realToFrac
@@ -82,11 +80,11 @@ nominalDiffToSeconds = round @Double . realToFrac
 ----------------------------------------------------------------------
 -- saml state handling
 
-storeRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
+storeRequest :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
              => AReqId -> SAML.Time -> m ()
 storeRequest (SAML.ID rid) (SAML.Time endOfLife) = do
     env <- ask
-    TTL actualEndOfLife <- err2err $ mkTTLAuthnRequests env endOfLife
+    TTL actualEndOfLife <- mkTTLAuthnRequests env endOfLife
     retry x5 . write ins $ params Quorum (rid, endOfLife, actualEndOfLife)
   where
     ins :: PrepQuery W (ST, UTCTime, Int32) ()
@@ -106,11 +104,11 @@ checkAgainstRequest (SAML.ID rid) = do
 -- expired?  if yes, that would greatly simplify this table.  if no, we might still be able to push
 -- the end_of_life comparison into the database, rather than retrieving the value and comparing it
 -- in haskell.  (also check the other functions in this module.)
-storeAssertion :: (HasCallStack, MonadReader Env m, MonadClient m)
+storeAssertion :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
                => SAML.ID SAML.Assertion -> SAML.Time -> m Bool
 storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
     env <- ask
-    TTL actualEndOfLife <- err2err $ mkTTLAssertions env endOfLifeNew
+    TTL actualEndOfLife <- mkTTLAssertions env endOfLifeNew
     notAReplay :: Bool <- (retry x1 . query1 sel . params Quorum $ Identity aid) <&>
         maybe True ((< dataEnvNow env) . runIdentity)
     when notAReplay $ do
@@ -169,42 +167,38 @@ getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
 ----------------------------------------------------------------------
 -- idp
 
-type IdPConfigRow = (SAML.IdPId, URI, SAML.Issuer, URI, SignedCertificate, TeamId)
+type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId)
 
-storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig IdPExtra -> m ()
+storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig TeamId -> m ()
 storeIdPConfig idp = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
   addPrepQuery ins
     ( idp ^. SAML.idpId
-    , idp ^. SAML.idpMetadata
-    , idp ^. SAML.idpIssuer
-    , idp ^. SAML.idpRequestUri
-    , idp ^. SAML.idpPublicKey
-    , idp ^. SAML.idpExtraInfo . idpeTeam
+    , idp ^. SAML.idpMetadata . SAML.edIssuer
+    , idp ^. SAML.idpMetadata . SAML.edRequestURI
+    , NL.head (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
+    , NL.tail (idp ^. SAML.idpMetadata . SAML.edCertAuthnResponse)
+      -- (the 'List1' is split up into head and tail to make migration from one-element-only easier.)
+    , idp ^. SAML.idpExtraInfo
     )
   addPrepQuery byIssuer
     ( idp ^. SAML.idpId
-    , idp ^. SAML.idpIssuer
+    , idp ^. SAML.idpMetadata . SAML.edIssuer
     )
   addPrepQuery byTeam
     ( idp ^. SAML.idpId
-    , idp ^. SAML.idpExtraInfo . idpeTeam
+    , idp ^. SAML.idpExtraInfo
     )
   where
     ins :: PrepQuery W IdPConfigRow ()
-    ins = "INSERT INTO idp (idp, metadata, issuer, request_uri, public_key, team) VALUES (?, ?, ?, ?, ?, ?)"
+    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team) VALUES (?, ?, ?, ?, ?, ?)"
 
     byIssuer :: PrepQuery W (SAML.IdPId, SAML.Issuer) ()
     byIssuer = "INSERT INTO issuer_idp (idp, issuer) VALUES (?, ?)"
 
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
-
-getSPInfo :: MonadReader Env m => SAML.IdPId -> m SPInfo
-getSPInfo (SAML.IdPId idp) = do
-  env <- ask
-  pure $ dataEnvSPInfo env & spiLoginURI . pathL %~ (<> BSC.pack (UUID.toString idp))
 
 getIdPConfig
   :: forall m. (HasCallStack, MonadClient m, MonadReader Env m)
@@ -214,19 +208,20 @@ getIdPConfig idpid =
   where
     toIdp :: IdPConfigRow -> m IdP
     toIdp ( _idpId
-          , _idpMetadata
-          , _idpIssuer
-          , _idpRequestUri
-          , _idpPublicKey
+          -- metadata
+          , _edIssuer
+          , _edRequestURI
+          , certsHead
+          , certsTail
           -- extras
-          , _idpeTeam
+          , _idpExtraInfo
           ) = do
-      _idpeSPInfo <- getSPInfo _idpId
-      let _idpExtraInfo = IdPExtra { _idpeTeam, _idpeSPInfo }
+      let _edCertAuthnResponse = certsHead NL.:| certsTail
+          _idpMetadata = SAML.IdPMetadata {..}
       pure $ SAML.IdPConfig {..}
 
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
-    sel = "SELECT idp, metadata, issuer, request_uri, public_key, team FROM idp WHERE idp = ?"
+    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team FROM idp WHERE idp = ?"
 
 getIdPConfigByIssuer
   :: (HasCallStack, MonadClient m, MonadReader Env m)

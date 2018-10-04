@@ -15,6 +15,7 @@ import Data.Aeson
 import Data.String.Conversions
 import Network.HTTP.Types.Status
 import Servant
+import Spar.Options (TTLError)
 
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
@@ -31,7 +32,7 @@ data SparCustomError
   | SparNotInTeam
   | SparNotTeamOwner
 
-  | SparNoRequestRefInResponse  -- (this is technically legal, but unnecessary, and should probably fixed in saml2-web-sso.)
+  | SparNoRequestRefInResponse LT
   | SparCouldNotSubstituteSuccessURI LT
   | SparCouldNotSubstituteFailureURI LT
   | SparBadInitiateLoginQueryParams LT
@@ -41,6 +42,7 @@ data SparCustomError
   | SparCouldNotParseBrigResponse LT
   | SparCouldNotRetrieveCookie
   | SparCassandraError LT
+  | SparCassandraTTLError TTLError
 
   | SparNewIdPBadMetaUrl LT
   | SparNewIdPBadMetaSig
@@ -61,7 +63,7 @@ waiToServant waierr@(Wai.Error status label _) = ServantErr
   }
 
 sparToWaiError :: SparError -> Either ServantErr Wai.Error
-sparToWaiError (SAML.CustomError SparNoRequestRefInResponse)              = Right $ Wai.Error status400 "server-error-unsupported-saml" "The IdP needs to provide an InResponseTo attribute in the top-level element of the response."
+sparToWaiError (SAML.CustomError (SparNoRequestRefInResponse msg))        = Right $ Wai.Error status400 "server-error-unsupported-saml" ("The IdP needs to provide an InResponseTo attribute in the assertion: " <> msg)
 sparToWaiError (SAML.CustomError (SparCouldNotSubstituteSuccessURI msg))  = Right $ Wai.Error status400 "bad-success-redirect" ("re-parsing the substituted URI failed: " <> msg)
 sparToWaiError (SAML.CustomError (SparCouldNotSubstituteFailureURI msg))  = Right $ Wai.Error status400 "bad-failure-redirect" ("re-parsing the substituted URI failed: " <> msg)
 sparToWaiError (SAML.CustomError (SparBadInitiateLoginQueryParams label)) = Right $ Wai.Error status400 label label
@@ -70,6 +72,7 @@ sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)                = Righ
 sparToWaiError (SAML.CustomError (SparCouldNotParseBrigResponse msg))     = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
 sparToWaiError (SAML.CustomError SparCouldNotRetrieveCookie)              = Right $ Wai.Error status502 "bad-upstream" "Unable to get a cookie from an upstream server."
 sparToWaiError (SAML.CustomError (SparCassandraError msg))                = Right $ Wai.Error status500 "server-error" msg  -- TODO: should we be more specific here and make it 'db-error'?
+sparToWaiError (SAML.CustomError (SparCassandraTTLError ttlerr))          = Right $ Wai.Error status400 "ttl-error" (cs $ show ttlerr)
 sparToWaiError (SAML.UnknownIdP _msg)                                     = Right $ Wai.Error status404 "not-found" "IdP not found."
 sparToWaiError (SAML.Forbidden msg)                                       = Right $ Wai.Error status403 "forbidden" ("Forbidden: " <> msg)
 sparToWaiError (SAML.BadSamlResponse msg)                                 = Right $ Wai.Error status400 "no-matching-auth-req" ("Missing auth request: " <> msg) -- (need to fix this: it could also be an error parsing the response)

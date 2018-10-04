@@ -34,25 +34,3 @@ provider:
   cert: test/resources/cert.pem
   botHost: https://127.0.0.1
   botPort: 9000
-
-# Used by spar-integration
-newIdp:
-  metadata: https://localhost:9001/meta
-  issuer: https://localhost:9001/
-  requestUri: https://localhost:9001/resp
-  publicKey: '<ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Data><ds:X509Certificate>MIIB/zCCASigAwIBAgIOEyBZjWrTHqmgBPAVkAUwDQYJKoZIhvcNAQELBQAwADAeFw0xODA4MTYxMjQzNTdaFw0zODA4MTExMjQzNTdaMAAwgd0wDQYJKoZIhvcNAQEBBQADgcsAMIHHAoHBAMHb4Ne1z2cQD1TXcVmYBy0Q1EnmQl5IncCfC6/eGrp0qpa5sqaQPlRtvS3UEczpAgf9ml+kL6aK56xEBH2Zv/mlkvBEbxASxVha3LhcIg9TNAg0vm2KJBG1pZvHx8OIKhpDCfabkSJF+MxXvtTrp0JTRfQr2BHkegZNX3hCaF5JGyGIMBinTRwEi5duDfNUsJoG5MwNq/hrd7pLdjOWgs4CLlNV6L+3rvhhYt+e0QUeh9QrZFUfhXxezlfYfP36WQIBETANBgkqhkiG9w0BAQsFAAOBwQBtZqvROSfV1znZws9h6M749g1HRpm3vub3RKAZOWfqP2Qag2ML+BjAqEIH1SAaQSZlFbKRsKM2Bp/QpG5ByshwrxoS9ausPNynulMA7dEPvWOExfqYO9Vj/0ejxwAmilseKrVfv333yvcgVRNRqP/LMxqe/8Hw3Ax+Ul83usIZLQ5m4sW9/IUVwlDLk31ddIkPVpx2USKL9eVDXjVhIl7itgJxPyG0wc0I9Ad/ZWy/Dbbilwz1tHcZSZsxSdNFW+k=</ds:X509Certificate></ds:X509Data></ds:KeyInfo>'
-
-# Used by spar-integration
-# NB: this will run on http, without SSL.  this "should" not be the
-# case in production, but according to the standard it is technically
-# legal.
-mockIdp:
-  bind:  # what should the mock idp bind to?  (usually 0.0.0.0 or 127.0.0.1)
-    host: 127.0.0.1
-    port: 9001
-  connect:  # where should integration tests send their requests?
-    host: 127.0.0.1
-    port: 9001
-  privateKey: test-integration/resources/key.pem
-  publicKey: test-integration/resources/pubkey.pem
-  cert: test-integration/resources/cert.pem

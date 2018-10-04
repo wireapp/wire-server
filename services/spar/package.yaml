@@ -23,7 +23,6 @@ dependencies:
   - bytestring-conversion
   - case-insensitive
   - cassandra-util
-  - connection
   - containers
   - cookie
   - cryptonite
@@ -40,7 +39,7 @@ dependencies:
   - mtl
   - optparse-applicative
   - raw-strings-qq
-  - saml2-web-sso >= 0.6
+  - saml2-web-sso >= 0.17
   - scientific
   - servant
   - servant-multipart

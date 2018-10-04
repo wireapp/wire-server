@@ -13,32 +13,11 @@ import Data.Proxy
 import "swagger2" Data.Swagger hiding (Header(..))
 import Data.Aeson
 import Data.Id ()
-import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Arbitrary ()
 import Servant.API.ContentTypes
 import Spar.Types
 import Test.QuickCheck
 
-
-instance Arbitrary SAML.NewIdP where
-  arbitrary = do
-    _nidpMetadata   <- arbitrary
-    _nidpIssuer     <- arbitrary
-    _nidpRequestUri <- arbitrary
-    _nidpPublicKey  <- arbitrary
-    pure $ SAML.NewIdP {..}
-
-instance Arbitrary SPInfo where
-  arbitrary = do
-    _spiMetaURI  <- arbitrary
-    _spiLoginURI <- arbitrary
-    pure $ SPInfo {..}
-
-instance Arbitrary IdPExtra where
-  arbitrary = do
-    _idpeTeam   <- arbitrary
-    _idpeSPInfo <- arbitrary
-    pure $ IdPExtra {..}
 
 instance Arbitrary IdPList where
   arbitrary = do

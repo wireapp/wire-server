@@ -88,6 +88,7 @@ mainBotNet n = do
     runBotSession bill $ do
         let update = MemberUpdateData
                    { misOtrMuted       = Nothing
+                   , misOtrMutedStatus = Nothing
                    , misOtrMutedRef    = Nothing
                    , misOtrArchived    = Just True
                    , misOtrArchivedRef = Nothing
