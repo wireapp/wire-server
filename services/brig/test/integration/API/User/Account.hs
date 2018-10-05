@@ -61,7 +61,7 @@ import qualified Network.Wai.Utilities.Error as Error
 import qualified Test.Tasty.Cannon           as WS
 
 tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
-tests _cl at _conf p b c ch g aws = testGroup "account"
+tests _ at _ p b c ch g aws = testGroup "account"
     [ test' aws p "post /register - 201 (with preverified)"  $ testCreateUserWithPreverified b aws
     , test' aws p "post /register - 201"                     $ testCreateUser b g
     , test' aws p "post /register - 201 + no email"          $ testCreateUserNoEmailNoPassword b
@@ -911,6 +911,9 @@ testDeleteWithProfilePic brig cargohold = do
 
     -- Check that the asset gets deleted
     downloadAsset cargohold uid (toByteString' (ast^.CHV3.assetKey)) !!! const 404 === statusCode
+
+
+-- helpers
 
 setHandleAndDeleteUser :: Brig -> Cannon -> User -> [UserId] -> AWS.Env -> (UserId -> HttpT IO ()) -> Http ()
 setHandleAndDeleteUser brig cannon u others aws execDelete = do
