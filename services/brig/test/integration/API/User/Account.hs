@@ -914,7 +914,7 @@ testDeleteWithProfilePic brig cargohold = do
     downloadAsset cargohold uid (toByteString' (ast^.CHV3.assetKey)) !!! const 404 === statusCode
 
 -- | Users with phone, or email, or both, or combinations thereof plus ssoid, will all be updated
--- correctly.  (This does NOT test that email and phone number remain intact.  Should it?)
+-- correctly, and hpone and email are not changed.
 testUpdateSSOId :: Brig -> Http ()
 testUpdateSSOId brig = do
     let ssoids =
@@ -923,18 +923,21 @@ testUpdateSSOId brig = do
             , UserSSOId "2" "1"
             ]
 
-        mkUser :: Text -> Maybe Text -> Maybe Text -> Http UserId
-        mkUser name email phone =
-            userId <$> (decodeBody =<< postUser name email phone Nothing Nothing brig)
+        mkUser :: Text -> Maybe Text -> Maybe Text -> Http User
+        mkUser name email phone = decodeBody =<< postUser name email phone Nothing Nothing brig
 
-        goTwice, go :: UserId -> UserSSOId -> Http ()
-        goTwice uid ssoid = go uid ssoid >> go uid ssoid
+        goTwice, go :: User -> UserSSOId -> Http ()
+        goTwice user ssoid = go user ssoid >> go user ssoid
 
-        go uid ssoid = do
+        go user ssoid = do
+            let uid = userId user
             put (brig . paths ["/i/users", toByteString' uid, "/sso-id"] . contentJson . Bilge.json ssoid)
                 !!! const 200 === statusCode
-            SSOIdentity ssoid' _ _ <- decodeBody =<< get (brig . path "/self" . zUser uid)
-            liftIO $ assertEqual "updateSSOId" ssoid ssoid'
+            SSOIdentity ssoid' mEmail mPhone <- decodeBody =<< get (brig . path "/self" . zUser uid)
+            liftIO $ do
+                assertEqual "updateSSOId/ssoid" ssoid ssoid'
+                assertEqual "updateSSOId/email" (userEmail user) mEmail
+                assertEqual "updateSSOId/phone" (userPhone user) mPhone
 
     users <- sequence
         [ mkUser "f83584ac" (Just "f83584ac@example.com") Nothing

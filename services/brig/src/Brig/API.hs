@@ -209,6 +209,8 @@ sitemap o = do
 
     put "/i/users/:uid/sso-id" (continue updateSSOId) $
       capture "uid"
+      .&. accept "application" "json"
+      .&. contentType "application" "json"
       .&. request
 
     post "/i/clients" (continue internalListClients) $
