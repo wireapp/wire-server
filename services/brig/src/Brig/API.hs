@@ -1415,10 +1415,11 @@ isTeamOwner (uid ::: tid) = do
        Team.NoTeamOwnersAreLeft   -> throwStd insufficientTeamPermissions
     return empty
 
-updateSSOId :: UserId ::: Request -> Handler Response
-updateSSOId (uid ::: req) = do
+updateSSOId :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
+updateSSOId (uid ::: _ ::: _ ::: req) = do
     ssoid :: UserSSOId <- parseJsonBody req
-    API.updateSSOId uid ssoid
+    lift $ Data.updateSSOId uid ssoid
+    return (setStatus status200 empty)
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response
 deleteUser (u ::: r ::: _ ::: _) = do
