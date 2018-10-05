@@ -174,6 +174,7 @@ initHttpManager o = do
         , managerIdleConnectionCount = 3 * (o^.optSettings.setHttpPoolSize)
         }
 
+-- TODO: somewhat duplicates Brig.App.initExtGetManager
 initExtEnv :: IO ExtEnv
 initExtEnv = do
     ctx <- Ssl.context

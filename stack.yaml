@@ -73,7 +73,11 @@ packages:
   extra-dep: true
 
 # Our fork gives us access to some guts that the upstream 'http-client'
-# doesn't expose; see https://github.com/wireapp/wire-server/pull/373
+# doesn't expose; see https://github.com/wireapp/wire-server/pull/373#issuecomment-400251467
+#
+# The important commits for us are:
+#
+#   * https://github.com/snoyberg/http-client/compare/master...neongreen:connection-guts
 - location:
     git: https://github.com/neongreen/http-client
     commit: 6a4ac55edf5e62574210c77a1468fa7accb81670
@@ -91,6 +95,11 @@ packages:
 # two libraries out of it: amazonka and amazonka-core. Other packages
 # weren't changed between 1.6.0 and this commit, so we can use
 # Stackage-supplied versions for them.
+#
+# The important commits for us are:
+#
+#   * https://github.com/brendanhay/amazonka/commit/2688190f659e4d87fd6862b52b04be706b17d251
+#   * https://github.com/brendanhay/amazonka/pull/493/files
 - location:
     git: https://github.com/neongreen/amazonka
     commit: 52896fd46ef6812708e9e4d7456becc692698f6b

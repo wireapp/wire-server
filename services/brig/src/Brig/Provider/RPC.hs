@@ -67,17 +67,17 @@ createBot scon new = do
     (man, verifyFingerprints) <- view extGetManager
     extHandleAll onExc $ do
         rs <- lift $ recovering x3 httpHandlers $ const $ liftIO $
-            withVerifiedSslConnection (verifyFingerprints fprs) man req $ \req' ->
-                Http.httpLbs req' man
+            withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->
+                Http.httpLbs req man
         case Bilge.statusCode rs of
             201 -> decodeBytes "External" (responseBody rs)
             409 -> throwE ServiceBotConflict
             _   -> extLogError scon rs >> throwE ServiceUnavailable
   where
-    req = extReq scon ["bots"]
+    reqBuilder
+        = extReq scon ["bots"]
         . method POST
         . Bilge.json new
-        $ empty
 
     onExc ex = extLogError scon ex >> throwE ServiceUnavailable
 

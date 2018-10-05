@@ -87,7 +87,6 @@ import qualified Codec.MIME.Type              as MIME
 import qualified Codec.MIME.Parse             as MIME
 import qualified Data.ByteString.Char8        as C8
 import qualified Data.ByteString.Lazy         as LBS
--- import qualified Data.Conduit                 as Conduit
 import qualified Data.Conduit.Binary          as Conduit
 import qualified Data.Sequence                as Seq
 import qualified Data.Text                    as Text

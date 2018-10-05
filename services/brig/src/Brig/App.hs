@@ -330,6 +330,7 @@ initHttpManager = do
 -- it should be fine to reuse the context, and reusing it is probably
 -- faster. So, we reuse the context.
 
+-- TODO: somewhat duplicates Galley.App.initExtEnv
 initExtGetManager :: IO (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
 initExtGetManager = do
     ctx <- SSL.context
