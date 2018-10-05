@@ -55,7 +55,7 @@ spec = do
 
       it "metadata" $ do
         env <- ask
-        get ((env ^. teSpar) . path "/sso/metadata" . expect2xx)
+        get ((env ^. teSpar) . path "/sso/metadata/0d784c66-c1c6-11e8-9576-2bdb3c574a4d" . expect2xx)
           `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                 [ "md:SPSSODescriptor"
                                 , "validUntil"
@@ -67,14 +67,14 @@ spec = do
         it "responds with 404" $ do
           env <- ask
           let uuid = cs $ UUID.toText UUID.nil
-          head ((env ^. teSpar) . path ("/sso/initiate-login/" <> uuid))
+          head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ uuid))
             `shouldRespondWith` ((== 404) . statusCode)
 
       context "known IdP" $ do
         it "responds with 200" $ do
           env <- ask
           let idp = cs . UUID.toText . fromIdPId $ env ^. teIdP . idpId
-          head ((env ^. teSpar) . path ("/sso/initiate-login/" <> idp) . expect2xx)
+          head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
             `shouldRespondWith`  ((== 200) . statusCode)
 
     describe "GET /sso/initiate-login/:idp" $ do
@@ -82,14 +82,14 @@ spec = do
         it "responds with 'not found'" $ do
           env <- ask
           let uuid = cs $ UUID.toText UUID.nil
-          get ((env ^. teSpar) . path ("/sso/initiate-login/" <> uuid))
+          get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ uuid))
             `shouldRespondWith` ((== 404) . statusCode)
 
       context "known IdP" $ do
         it "responds with request" $ do
           env <- ask
           let idp = cs . UUID.toText . fromIdPId $ env ^. teIdP . idpId
-          get ((env ^. teSpar) . path ("/sso/initiate-login/" <> idp) . expect2xx)
+          get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
             `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                   [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
                                   , "<body onload=\"document.forms[0].submit()\">"
@@ -100,8 +100,9 @@ spec = do
       context "access denied" $ do
         it "responds with a very peculiar 'forbidden' HTTP response" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          authnresp <- liftIO $ mkAuthnResponse privcreds idp authnreq False
-          sparresp <- submitAuthnResponse authnresp
+          spmeta <- getTestSPMetadata (idp ^. idpId)
+          authnresp <- liftIO $ mkAuthnResponse privcreds idp spmeta authnreq False
+          sparresp <- submitAuthnResponse (idp ^. idpId) authnresp
           liftIO $ do
             -- import Text.XML
             -- putStrLn $ unlines
@@ -114,13 +115,18 @@ spec = do
             bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
             bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
             bdy `shouldContain` "<title>wire:sso:error:forbidden</title>"
-            bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_ERROR', payload: {label: 'forbidden'}}, receiverOrigin)"
+            bdy `shouldContain` "window.opener.postMessage({"
+            bdy `shouldContain` "\"type\":\"AUTH_ERROR\""
+            bdy `shouldContain` "\"payload\":{"
+            bdy `shouldContain` "\"label\":\"forbidden\""
+            bdy `shouldContain` "}, receiverOrigin)"
 
       context "access granted" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          authnresp <- liftIO $ mkAuthnResponse privcreds idp authnreq True
-          sparresp <- submitAuthnResponse authnresp
+          spmeta <- getTestSPMetadata (idp ^. idpId)
+          authnresp <- liftIO $ mkAuthnResponse privcreds idp spmeta authnreq True
+          sparresp <- submitAuthnResponse (idp ^. idpId) authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 200
             let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
@@ -147,8 +153,14 @@ spec = do
       context "unknown IdP Issuer" $ do
         it "rejects" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          authnresp <- liftIO $ mkAuthnResponse privcreds (idp & idpIssuer .~ Issuer [uri|http://unknown-issuer/|]) authnreq True
-          sparresp <- submitAuthnResponse authnresp
+          spmeta <- getTestSPMetadata (idp ^. idpId)
+          authnresp <- liftIO $ mkAuthnResponse
+            privcreds
+            (idp & idpMetadata . edIssuer .~ Issuer [uri|http://unknown-issuer/|])
+            spmeta
+            authnreq
+            True
+          sparresp <- submitAuthnResponse (idp ^. idpId) authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 404
             responseJSON sparresp `shouldBe` Right (TestErrorLabel "not-found")

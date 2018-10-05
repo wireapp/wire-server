@@ -2,6 +2,7 @@
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QuasiQuotes         #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
@@ -22,6 +23,7 @@ import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Lens.Micro
+import SAML2.Util ((-/))
 import Spar.API
 import Spar.API.Instances ()
 import Spar.API.Test (IntegrationTests)
@@ -37,10 +39,11 @@ import qualified Cassandra as Cas
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.List as List
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Test.Credentials as SAML
+import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified Servant
 import qualified Servant.Client as Servant
 import qualified Text.XML as XML
-import qualified Text.XML.Util as SAML
 
 
 spec :: SpecWith TestEnv
@@ -223,7 +226,7 @@ spec = do
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
-              Servant.errBody outcome `shouldBe` mempty
+              Servant.errBody outcome `shouldBe` "[\"we don't like you\",\"seriously\"]"
               uriScheme loc `shouldBe` (URI.Scheme "wire")
               List.lookup "userid" qry `shouldBe` Nothing
               List.lookup "cookie" qry `shouldBe` Nothing
@@ -303,18 +306,18 @@ mkAuthnReqWeb idpid = do
   env <- ask
   -- TODO: the following fails, i think there is something wrong with query encoding.
   -- runServantClient env $ clientGetAuthnRequest Nothing Nothing idpid
-  call $ get ((env ^. teSpar) . path ("/sso/initiate-login/" <> cs (SAML.idPIdToST idpid)) . expect2xx)
+  call $ get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid) . expect2xx)
 
 mkAuthnReqMobile :: SAML.IdPId -> ReaderT TestEnv IO ResponseLBS
 mkAuthnReqMobile idpid = do
   env <- ask
   -- (see the TODO under "web" above)
   -- call . runServantClient env $ clientGetAuthnRequest (Just succurl) (Just errurl) idpid
-  let succurl = [uri|wire://login-granted/?cookie=$cookie&userid=$userid|]
-      errurl = [uri|wire://login-denied/?label=$label|]
-      mk = Builder.toLazyByteString . urlEncode [] . serializeURIRef'
-      arQueries = "success_redirect=" <> mk succurl <> "&error_redirect=" <> mk errurl
-      arPath = cs $ "/sso/initiate-login/" <> cs (SAML.idPIdToST idpid) <> "?" <> arQueries
+  let succurl   = [uri|wire://login-granted/?cookie=$cookie&userid=$userid|]
+      errurl    = [uri|wire://login-denied/?label=$label|]
+      mk        = Builder.toLazyByteString . urlEncode [] . serializeURIRef'
+      arQueries = cs $ "success_redirect=" <> mk succurl <> "&error_redirect=" <> mk errurl
+      arPath    = cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid <> "?" <> arQueries
   call $ get ((env ^. teSpar) . path arPath . expect2xx)
 
 requestAccessVerdict :: HasCallStack
@@ -330,7 +333,7 @@ requestAccessVerdict isGranted mkAuthnReq = do
   let uid     = env ^. teUserId
       idp     = env ^. teIdP
       idpid   = idp ^. SAML.idpId
-      tenant  = idp ^. SAML.idpIssuer
+      tenant  = idp ^. SAML.idpMetadata . SAML.edIssuer
       subject = SAML.opaqueNameID "blee"
       uref    = SAML.UserRef tenant subject
   call $ runInsertUser env uref uid
@@ -338,8 +341,9 @@ requestAccessVerdict isGranted mkAuthnReq = do
     raw <- mkAuthnReq idpid
     bdy <- maybe (error "authreq") pure $ responseBody raw
     either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
-  let authnresp = fleshOutResponse emptyAuthnResponse authnreq
-      verdict = if isGranted
+  spmeta <- getTestSPMetadata idpid
+  authnresp <- liftIO $ mkAuthnResponse idp spmeta authnreq
+  let verdict = if isGranted
         then SAML.AccessGranted uref
         else SAML.AccessDenied ["we don't like you", "seriously"]
   outcome <- call $ runPostVerdict env (authnresp, verdict)
@@ -352,18 +356,7 @@ requestAccessVerdict isGranted mkAuthnReq = do
   pure (uid, outcome, loc, qry)
 
 
-emptyAuthnResponse :: SAML.AuthnResponse
-emptyAuthnResponse = SAML.Response
-  { SAML._rspID           = SAML.ID "bleep"
-  , SAML._rspInRespTo     = Nothing
-  , SAML._rspVersion      = SAML.Version_2_0
-  , SAML._rspIssueInstant = SAML.unsafeReadTime "2018-04-13T06:33:02.772Z"
-  , SAML._rspDestination  = Nothing
-  , SAML._rspIssuer       = Nothing
-  , SAML._rspStatus       = SAML.StatusSuccess
-  , SAML._rspPayload      = []
-  }
-
--- | See 'verdictHandler' on the question of why we don't need an 'Assertion' in the payload here.
-fleshOutResponse :: SAML.AuthnResponse -> SAML.FormRedirect SAML.AuthnRequest -> SAML.AuthnResponse
-fleshOutResponse resp (SAML.FormRedirect _ req) = resp & SAML.rspInRespTo .~ Just (req ^. SAML.rqID)
+mkAuthnResponse :: SAML.IdPConfig extra -> SAML.SPMetadata -> SAML.FormRedirect SAML.AuthnRequest -> IO SAML.AuthnResponse
+mkAuthnResponse idp spmeta (SAML.FormRedirect _ req) = do
+  SAML.SignedAuthnResponse (XML.Document _ el _) <- liftIO $ SAML.mkAuthnResponse SAML.sampleIdPPrivkey idp spmeta req True
+  either (throwIO . ErrorCall . show) pure $ SAML.parse [XML.NodeElement el]

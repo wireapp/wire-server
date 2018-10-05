@@ -170,6 +170,11 @@ push ps = do
         & Gundeck.recipientClients  .~ _recipientClients r
         & Gundeck.recipientFallback .~ not (_recipientMuted r)
 
+    -- TODO: ^ memOtrMuted/recipientMuted is now deprecated. Thus,
+    --         we should remove the usage of recipientFallback, which
+    --         is already irrelevant since gundeck _never_ send fallbacks.
+    --         Removing this logic both on galley and gundeck should be
+    --         done in a (single) separate PR.
 -----------------------------------------------------------------------------
 -- Helpers
 

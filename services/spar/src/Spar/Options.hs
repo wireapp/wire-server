@@ -2,10 +2,12 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeApplications           #-}
 
 module Spar.Options
   ( Opts(..)
-  , TTL(..), TTLError(..)
+  , TTL(..), TTLError(..), showTTL
   , getOpts
   , readOptsFile
   , ttlToNominalDiffTime
@@ -14,24 +16,25 @@ module Spar.Options
 
 import Control.Exception
 import Data.Aeson
+import Data.Id (TeamId)
 import Data.Int
 import Data.Monoid
+import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
 import Data.Time
 import GHC.Generics (Generic)
+import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
 import Lens.Micro
 import Options.Applicative
 import Util.Options
-import Spar.Types (IdPExtra, SPInfo)
 
 import qualified Data.Yaml as Yaml
 import qualified SAML2.WebSSO.Config as SAML
 
 
 data Opts = Opts
-    { saml           :: !(SAML.Config IdPExtra)
-    , spInfo         :: !SPInfo
+    { saml           :: !(SAML.Config TeamId)
     , brig           :: !Endpoint
     , cassandra      :: !CassandraOpts
     , maxttlAuthreq  :: !(TTL "authreq")
@@ -48,10 +51,13 @@ instance FromJSON Opts
 newtype TTL (tablename :: Symbol) = TTL { fromTTL :: Int32 }
   deriving (Eq, Ord, Show, Num)
 
+showTTL :: KnownSymbol a => TTL a -> String
+showTTL (TTL i :: TTL a) = "TTL:" <> (symbolVal (Proxy @a)) <> ":" <> show i
+
 instance FromJSON (TTL a) where
   parseJSON = withScientific "TTL value (seconds)" (pure . TTL . round)
 
-data TTLError = TTLTooLong | TTLNegative
+data TTLError = TTLTooLong String String | TTLNegative String
   deriving (Eq, Show)
 
 ttlToNominalDiffTime :: TTL a -> NominalDiffTime

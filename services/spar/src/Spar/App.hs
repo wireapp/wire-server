@@ -16,11 +16,13 @@ import Cassandra
 import Control.Exception (SomeException, assert)
 import Control.Monad.Except
 import Control.Monad.Reader
+import Data.Aeson as Aeson (encode, object, (.=))
 import Data.EitherR (fmapL)
 import Data.Id
 import Data.String.Conversions
 import GHC.Stack
 import Lens.Micro
+import SAML2.Util (renderURI)
 import SAML2.WebSSO hiding (UserRef(..))
 import Servant
 import Spar.API.Instances ()
@@ -28,9 +30,8 @@ import Spar.API.Swagger ()
 import Spar.Error
 import Spar.Options as Options
 import Spar.Types
-import Text.XML.Util (renderURI)
-import Web.Cookie (SetCookie, renderSetCookie)
 import URI.ByteString as URI
+import Web.Cookie (SetCookie, renderSetCookie)
 
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
@@ -56,7 +57,7 @@ data Env = Env
   }
 
 instance HasConfig Spar where
-  type ConfigExtra Spar = IdPExtra
+  type ConfigExtra Spar = TeamId
   getConfig = asks (saml . sparCtxOpts)
 
 instance SP Spar where
@@ -99,20 +100,20 @@ instance SPStore Spar where
   storeAssertion i r    = wrapMonadClientWithEnv $ Data.storeAssertion i r
 
 instance SPStoreIdP SparError Spar where
-  storeIdPConfig :: IdPConfig IdPExtra -> Spar ()
+  storeIdPConfig :: IdPConfig TeamId -> Spar ()
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 
-  getIdPConfig :: IdPId -> Spar (IdPConfig IdPExtra)
+  getIdPConfig :: IdPId -> Spar (IdPConfig TeamId)
   getIdPConfig = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfig
 
-  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig IdPExtra)
+  getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig TeamId)
   getIdPConfigByIssuer = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer
 
--- | 'wrapMonadClient' with an 'Env' in a 'ReaderT'.
-wrapMonadClientWithEnv :: ReaderT Data.Env Cas.Client a -> Spar a
+-- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions.
+wrapMonadClientWithEnv :: forall a. ReaderT Data.Env (ExceptT TTLError Cas.Client) a -> Spar a
 wrapMonadClientWithEnv action = do
   denv <- Data.mkEnv <$> (sparCtxOpts <$> ask) <*> (fromTime <$> getNow)
-  wrapMonadClient (action `runReaderT` denv)
+  either (throwSpar . SparCassandraTTLError) pure =<< wrapMonadClient (runExceptT $ action `runReaderT` denv)
 
 -- | Call a cassandra command in the 'Spar' monad.  Catch all exceptions and re-throw them as 500 in
 -- Handler.
@@ -157,7 +158,7 @@ getUser uref = do
 createUser :: SAML.UserRef -> Spar UserId
 createUser suid = do
   buid <- Id <$> liftIO UUID.nextRandom
-  teamid <- (^. idpExtraInfo . idpeTeam) <$> getIdPConfigByIssuer (suid ^. uidTenant)
+  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
   buid' <- Intra.createUser suid buid teamid
   assert (buid == buid') $ pure buid
@@ -187,8 +188,10 @@ instance Intra.MonadSparToBrig Spar where
 -- latter.
 verdictHandler :: HasCallStack => SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
 verdictHandler aresp verdict = do
-  reqid <- maybe (throwSpar SparNoRequestRefInResponse) pure $ aresp ^. SAML.rspInRespTo
-                  -- (this shouldn't happen since the response is validated)
+  -- [3/4.1.4.2]
+  -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
+  -- the InResponseTo attribute MUST match the request's ID.
+  reqid <- either (throwSpar . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
   format :: Maybe VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
   case format of
     Just (VerdictFormatWeb) -> verdictHandlerWeb verdict
@@ -197,15 +200,14 @@ verdictHandler aresp verdict = do
                -- (this shouldn't happen too often, see 'storeVerdictFormat')
 
 data VerdictHandlerResult
-  = VerifyHandlerDenied
+  = VerifyHandlerDenied [ST]
   | VerifyHandlerGranted SetCookie UserId
-
 
 verdictHandlerResult :: HasCallStack => SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResult = \case
-  SAML.AccessDenied reasons -> do
-    SAML.logger SAML.Debug (show reasons)
-    pure VerifyHandlerDenied
+  denied@(SAML.AccessDenied reasons) -> do
+    SAML.logger SAML.Debug (show denied)
+    pure $ VerifyHandlerDenied reasons
   SAML.AccessGranted userref -> do
     uid :: UserId    <- maybe (createUser userref) pure =<< getUser userref
     cky :: SetCookie <- Intra.ssoLogin uid  -- TODO: can this be a race condition?  (user is not
@@ -225,11 +227,11 @@ verdictHandlerWeb :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVer
 verdictHandlerWeb verdict = do
   outcome <- verdictHandlerResult verdict
   pure $ case outcome of
-    VerifyHandlerDenied -> forbiddenPage
+    VerifyHandlerDenied reasons -> forbiddenPage reasons
     VerifyHandlerGranted cky _uid -> successPage cky
   where
-    forbiddenPage :: SAML.ResponseVerdict
-    forbiddenPage = ServantErr
+    forbiddenPage :: [ST] -> SAML.ResponseVerdict
+    forbiddenPage reasons = ServantErr
       { errHTTPCode     = 200
       , errReasonPhrase = "forbidden"  -- (not sure what this is used for)
       , errBody         = easyHtml $
@@ -237,11 +239,17 @@ verdictHandlerWeb verdict = do
                           "  <title>wire:sso:error:forbidden</title>" <>
                           "   <script type=\"text/javascript\">" <>
                           "       const receiverOrigin = '*';" <>
-                          "       window.opener.postMessage({type: 'AUTH_ERROR', payload: {label: 'forbidden'}}, receiverOrigin);" <>
+                          "       window.opener.postMessage(" <> Aeson.encode errval <> ", receiverOrigin);" <>
                           "   </script>" <>
                           "</head>"
       , errHeaders      = []
       }
+      where
+        errval = object [ "type" .= ("AUTH_ERROR" :: ST)
+                        , "payload" .= object [ "label" .= ("forbidden" :: ST)
+                                              , "errors" .= reasons
+                                              ]
+                        ]
 
     successPage :: SetCookie -> SAML.ResponseVerdict
     successPage cky = ServantErr
@@ -271,17 +279,20 @@ verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> SAML.AccessVerdict
 verdictHandlerMobile granted denied verdict = do
   outcome <- verdictHandlerResult verdict
   case outcome of
-    VerifyHandlerDenied
+    VerifyHandlerDenied reasons
       -> mkVerdictDeniedFormatMobile denied "forbidden" &
-         either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage)
+         either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage reasons)
     VerifyHandlerGranted cky uid
       -> mkVerdictGrantedFormatMobile granted cky uid &
          either (throwSpar . SparCouldNotSubstituteSuccessURI . cs) (pure . successPage cky)
   where
-    forbiddenPage :: URI.URI -> SAML.ResponseVerdict
-    forbiddenPage uri = err303
+    forbiddenPage :: [ST] -> URI.URI -> SAML.ResponseVerdict
+    forbiddenPage errs uri = err303
       { errReasonPhrase = "forbidden"
-      , errHeaders = [ ("Location", cs $ renderURI uri) ]
+      , errHeaders = [ ("Location", cs $ renderURI uri)
+                     , ("Content-Type", "application/json")
+                     ]
+      , errBody = Aeson.encode errs
       }
 
     successPage :: SetCookie -> URI.URI -> SAML.ResponseVerdict
