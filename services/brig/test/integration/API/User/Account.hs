@@ -92,6 +92,7 @@ tests _ at _ p b c ch g aws = testGroup "account"
     , test' aws p "delete/anonymous"                         $ testDeleteAnonUser b
     , test' aws p "delete /i/users/:id - 202"                $ testDeleteInternal b c aws
     , test' aws p "delete with profile pic"                  $ testDeleteWithProfilePic b ch
+    , test' aws p "put /i/users/:uid/sso-id"                 $ testUpdateSSOId b
     ]
 
 testCreateUserWithPreverified :: Brig -> AWS.Env -> Http ()
@@ -911,6 +912,37 @@ testDeleteWithProfilePic brig cargohold = do
 
     -- Check that the asset gets deleted
     downloadAsset cargohold uid (toByteString' (ast^.CHV3.assetKey)) !!! const 404 === statusCode
+
+-- | Users with phone, or email, or both, or combinations thereof plus ssoid, will all be updated
+-- correctly.  (This does NOT test that email and phone number remain intact.  Should it?)
+testUpdateSSOId :: Brig -> Http ()
+testUpdateSSOId brig = do
+    let ssoids =
+            [ UserSSOId "1" "1"
+            , UserSSOId "1" "2"
+            , UserSSOId "2" "1"
+            ]
+
+        mkUser :: Text -> Maybe Text -> Maybe Text -> Http UserId
+        mkUser name email phone =
+            userId <$> (decodeBody =<< postUser name email phone Nothing Nothing brig)
+
+        goTwice, go :: UserId -> UserSSOId -> Http ()
+        goTwice uid ssoid = go uid ssoid >> go uid ssoid
+
+        go uid ssoid = do
+            put (brig . paths ["/i/users", toByteString' uid, "/sso-id"] . contentJson . Bilge.json ssoid)
+                !!! const 200 === statusCode
+            SSOIdentity ssoid' _ _ <- decodeBody =<< get (brig . path "/self" . zUser uid)
+            liftIO $ assertEqual "updateSSOId" ssoid ssoid'
+
+    users <- sequence
+        [ mkUser "f83584ac" (Just "f83584ac@example.com") Nothing
+        , mkUser "f83584ad" Nothing                       (Just "+4917382659")
+        , mkUser "f83584ae" (Just "f83584ae@example.com") (Just "+3117382659")
+        ]
+
+    sequence_ $ zipWith goTwice users ssoids
 
 
 -- helpers

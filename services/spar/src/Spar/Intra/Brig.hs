@@ -116,7 +116,11 @@ getUser buid = do
 
 
 bindUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> SAML.UserRef -> m ()
-bindUser = undefined
+bindUser uid (toUserSSOId -> ussoid) = void . call
+  $ method PUT
+  . paths ["/i/users", toByteString' uid, "ssoid"]
+  . json ussoid
+  . expect2xx
 
 
 -- | Check that a user locally created on spar exists on brig and has a team id.

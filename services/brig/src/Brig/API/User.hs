@@ -638,6 +638,10 @@ mkPasswordResetKey ident = case ident of
   where
     user uk = lift (Data.lookupKey uk) >>= maybe (throwE InvalidPasswordResetKey) return
 
+updateSSOId :: UserId -> UserSSOId -> ExceptT UpdateSSOIdError AppIO ()
+updateSSOId uid ssoid = lift $ Data.updateSSOId uid ssoid
+
+
 -------------------------------------------------------------------------------
 -- User Deletion
 

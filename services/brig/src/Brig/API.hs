@@ -59,6 +59,7 @@ import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
 import qualified Brig.API.Properties           as API
 import qualified Brig.API.User                 as API
+import qualified Brig.Data.User                as Data
 import qualified Brig.Queue                    as Queue
 import qualified Brig.Team.Util                as Team
 import qualified Brig.User.API.Auth            as Auth
@@ -205,6 +206,10 @@ sitemap o = do
     get "/i/users/:uid/is-team-owner/:tid" (continue isTeamOwner) $
       capture "uid"
       .&. capture "tid"
+
+    put "/i/users/:uid/sso-id" (continue updateSSOId) $
+      capture "uid"
+      .&. request
 
     post "/i/clients" (continue internalListClients) $
       accept "application" "json"
@@ -1407,6 +1412,11 @@ isTeamOwner (uid ::: tid) = do
        Team.IsNotTeamOwner        -> throwStd insufficientTeamPermissions
        Team.NoTeamOwnersAreLeft   -> throwStd insufficientTeamPermissions
     return empty
+
+updateSSOId :: UserId ::: Request -> Handler Response
+updateSSOId (uid ::: req) = do
+    ssoid :: UserSSOId <- parseJsonBody req
+    API.updateSSOId uid ssoid
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response
 deleteUser (u ::: r ::: _ ::: _) = do

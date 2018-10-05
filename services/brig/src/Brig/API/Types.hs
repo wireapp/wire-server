@@ -151,6 +151,10 @@ data RemoveIdentityError
     | NoPassword
     | NoIdentity
 
+data UpdateSSOIdError
+    = UpdateSSOIdErrorNoSuchUser
+    | UpdateSSOIdErrorInternal
+
 data DeleteUserError
     = DeleteUserInvalid
     | DeleteUserInvalidCode

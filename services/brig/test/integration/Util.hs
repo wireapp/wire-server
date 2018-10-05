@@ -95,7 +95,7 @@ randomUser brig = do
 
 createUser :: HasCallStack => Text -> Text -> Brig -> Http User
 createUser name email brig = do
-    r <- postUser name (Just email) Nothing Nothing brig <!!
+    r <- postUser name (Just email) Nothing Nothing Nothing brig <!!
            const 201 === statusCode
     decodeBody r
 
@@ -151,12 +151,13 @@ getConnection brig from to = get $ brig
     . zConn "conn"
 
 -- more flexible variant of 'createUser' (see above).
-postUser :: Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
-postUser name email ssoid teamid brig = do
+postUser :: Text -> Maybe Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser name email phone ssoid teamid brig = do
     email' <- maybe (pure Nothing) (fmap (Just . fromEmail) . mkEmailRandomLocalSuffix) email
     let p = RequestBodyLBS . encode $ object
             [ "name"            .= name
             , "email"           .= email'
+            , "phone"           .= phone
             , "password"        .= defPassword
             , "cookie"          .= defCookieLabel
             , "sso_id"          .= ssoid
