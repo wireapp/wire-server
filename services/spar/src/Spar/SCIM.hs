@@ -21,6 +21,9 @@
 module Spar.SCIM
   ( API
   , api
+
+  -- * The mapping between Wire and SCIM users
+  -- $mapping
   ) where
 
 import Brig.Types.User       as Brig
@@ -93,28 +96,43 @@ api tid = hoistSCIM (toServant (SCIM.siteServer configuration))
 ----------------------------------------------------------------------------
 -- UserDB
 
--- | Export a Wire user as an SCIM user.
+-- $mapping
+--
+--   * @userName@ is mapped to our 'userHandle'. If there is no handle, we
+--     use 'userId', because having some unique @userName@ is a SCIM
+--     requirement.
+--
+--   * @name@ is left empty and is never stored, even when it's sent to us
+--   * via SCIM.
+--
+--   * @displayName@ is mapped to our 'userName'.
+--
+-- We don't handle emails and phone numbers for now, because we'd like to
+-- ensure that only verified emails and phone numbers end up in our
+-- database, and implementing verification requires design decisions that we
+-- haven't made yet.
+--
+-- Regarding names: some systems like Okta require given name and family
+-- name to be present, but it's a poor model for names, and in practice many
+-- other apps also ignore this model. Leaving @name@ empty will prevent the
+-- confusion that might appear when somebody tries to set @name@ to some
+-- value and the @displayName@ won't be affected by that change.
+
+-- | Expose a Wire user as an SCIM user.
 toSCIMUser :: User -> SCIM.StoredUser
 toSCIMUser user = SCIM.WithMeta meta thing
   where
+    -- User ID in the text format
+    idText = idToText (Brig.userId user)
     -- The representation of the user, without the meta information
-    thing = SCIM.WithId (idToText (Brig.userId user)) $ SCIM.User.empty
-      {
-      -- TODO what should we do if the user doesn't have a handle? also,
-      -- those handles are supposed to be unique and case-insensitive -- I'm
-      -- not sure our handles satisfy those requirements
-        SCIM.User.userName = maybe "" fromHandle (userHandle user)
-      , SCIM.User.name = Just (toSCIMName (userName user))
+    thing = SCIM.WithId idText $ SCIM.User.empty
+      { SCIM.User.userName = maybe idText fromHandle (userHandle user)
+      , SCIM.User.name = Just emptySCIMName
       , SCIM.User.displayName = Just (fromName (userName user))
-      , SCIM.User.emails = (:[]) . toSCIMEmail <$>
-          (emailIdentity =<< userIdentity user)
-      , SCIM.User.phoneNumbers = (:[]) . toSCIMPhone <$>
-          (phoneIdentity =<< userIdentity user)
-      -- , photos = <TODO profile pic here>
       }
-    -- The hash of the user representation (used as an ETag)
+    -- The hash of the user representation (used as a version, i.e. ETag)
     thingHash = hashlazy (Aeson.encode thing) :: Digest SHA256
-    -- meta-info about the user
+    -- Meta-info about the user
     meta = SCIM.Meta
       { SCIM.resourceType = SCIM.UserResource
       , SCIM.created = testDate
@@ -131,6 +149,20 @@ testDate = UTCTime
   { utctDay = ModifiedJulianDay 58119
   , utctDayTime = 0
   }
+
+emptySCIMName :: SCIM.User.Name
+emptySCIMName =
+  SCIM.User.Name
+    { SCIM.User.formatted = Nothing
+    , SCIM.User.givenName = Just ""
+    , SCIM.User.familyName = Just ""
+    , SCIM.User.middleName = Nothing
+    , SCIM.User.honorificPrefix = Nothing
+    , SCIM.User.honorificSuffix = Nothing
+    }
+
+{- TODO: might be useful later.
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 -- | Parse a name from a user profile into an SCIM name (Okta wants given
 -- name and last name, so we break our names up to satisfy Okta).
@@ -166,6 +198,8 @@ toSCIMEmail (Email eLocal eDomain) =
         (unsafeEmailAddress (encodeUtf8 eLocal) (encodeUtf8 eDomain))
     , SCIM.User.primary = Just True
     }
+
+-}
 
 -- Note [error handling]
 -- ~~~~~~~~~~~~~~~~~

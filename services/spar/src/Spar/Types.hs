@@ -29,6 +29,9 @@ import qualified Data.ByteString.Builder as Builder
 import qualified Data.Text as ST
 
 
+----------------------------------------------------------------------------
+-- Identity provider
+
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig TeamId
 
@@ -41,6 +44,9 @@ data IdPList = IdPList
 
 makeLenses ''IdPList
 deriveJSON deriveJSONOptions ''IdPList
+
+----------------------------------------------------------------------------
+-- Requests and verdicts
 
 type AReqId = ID AuthnRequest
 
