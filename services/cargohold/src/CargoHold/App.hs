@@ -15,6 +15,7 @@ module CargoHold.App
     , newEnv
     , closeEnv
     , CargoHold.App.aws
+    , httpManager
     , metrics
     , appLogger
     , requestId

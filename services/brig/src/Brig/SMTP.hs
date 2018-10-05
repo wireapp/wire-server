@@ -8,7 +8,6 @@ module Brig.SMTP where
 import Control.Lens
 import Control.Monad (unless)
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Control
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Char (toLower)
@@ -65,5 +64,5 @@ initSMTP lg host (Username user) (Password pass) connType = do
       SMTP.closeSMTP c
       Logger.log lg Logger.Debug (msg $ val "Closing connection to: " +++ host)
 
-sendMail :: (MonadBaseControl IO m, MonadIO m) => SMTP -> Mail -> m ()
-sendMail s m = withResource (s^.pool) $ liftIO . SMTP.sendMimeMail2 m
+sendMail :: MonadIO m => SMTP -> Mail -> m ()
+sendMail s m = liftIO $ withResource (s^.pool) $ SMTP.sendMimeMail2 m

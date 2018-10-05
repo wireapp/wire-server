@@ -41,7 +41,7 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Control
+import Control.Monad.IO.Unlift
 import Control.Retry
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Foldable (for_)
@@ -307,7 +307,7 @@ withOptLock u c ma = go (10 :: Int)
         e   <- view (awsEnv.amazonkaEnv)
         execDyn' e cnv cmd
       where
-        execDyn' :: (AWS.AWSRequest r, MonadMask m, MonadIO m, Typeable m, MonadBaseControl IO m)
+        execDyn' :: (AWS.AWSRequest r, MonadUnliftIO m, MonadMask m, MonadIO m, Typeable m)
                         => AWS.Env
                         -> (AWS.Rs r -> Maybe a)
                         -> r

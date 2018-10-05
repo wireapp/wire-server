@@ -53,6 +53,7 @@ import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.Reader
 import Control.Monad.Trans.Control
+import Control.Monad.IO.Unlift
 import Network.HTTP.Client hiding (method, httpLbs)
 import Network.HTTP.Types
 import Bilge.Request
@@ -99,6 +100,12 @@ instance MonadBaseControl IO (HttpT IO) where
     type StM (HttpT IO) a = ComposeSt HttpT IO a
     liftBaseWith = defaultLiftBaseWith
     restoreM = defaultRestoreM
+
+instance MonadUnliftIO m => MonadUnliftIO (HttpT m) where
+    withRunInIO inner =
+      HttpT $ ReaderT $ \r ->
+      withRunInIO $ \run ->
+      inner (run . runHttpT r)
 
 runHttpT :: Monad m => Manager -> HttpT m a -> m a
 runHttpT m h = runReaderT (unwrap h) m

@@ -24,11 +24,10 @@ module Galley.Aws
 
 import Blaze.ByteString.Builder (toLazyByteString)
 import Control.Lens hiding ((.=))
-import Control.Monad.Base
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Control.Monad.IO.Unlift
 import Control.Monad.Reader
-import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
 import Control.Retry (retrying, limitRetries, exponentialBackoff)
 import Data.Monoid ((<>))
@@ -78,7 +77,6 @@ newtype Amazon a = Amazon
                , Applicative
                , Monad
                , MonadIO
-               , MonadBase IO
                , MonadThrow
                , MonadCatch
                , MonadMask
@@ -86,13 +84,13 @@ newtype Amazon a = Amazon
                , MonadResource
                )
 
+instance MonadUnliftIO Amazon where
+    askUnliftIO = Amazon $ ReaderT $ \r ->
+                    withUnliftIO $ \u ->
+                        return (UnliftIO (unliftIO u . flip runReaderT r . unAmazon))
+
 instance MonadLogger Amazon where
     log l m = view logger >>= \g -> Logger.log g l m
-
-instance MonadBaseControl IO Amazon where
-    type StM Amazon a = StM (ReaderT Env (ResourceT IO)) a
-    liftBaseWith    f = Amazon $ liftBaseWith $ \run -> f (run . unAmazon)
-    restoreM          = Amazon . restoreM
 
 instance AWS.MonadAWS Amazon where
     liftAWS aws = view awsEnv >>= \e -> AWS.runAWS e aws

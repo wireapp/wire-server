@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- | RPCs towards service providers.
@@ -39,14 +40,15 @@ import Data.Monoid
 import Data.Word
 import Galley.Types (Event)
 import Network.HTTP.Types.Method
+import Ssl.Util (withVerifiedSslConnection)
 import Network.HTTP.Types.Status
 import System.Logger.Class (MonadLogger, msg, val, field ,(~~))
 import URI.ByteString
 
-import qualified Data.List1          as List1
-import qualified Galley.Types.Bot    as Galley
-import qualified Network.HTTP.Client as Http
-import qualified System.Logger.Class as Log
+import qualified Data.List1                   as List1
+import qualified Galley.Types.Bot             as Galley
+import qualified Network.HTTP.Client          as Http
+import qualified System.Logger.Class          as Log
 
 --------------------------------------------------------------------------------
 -- External RPC
@@ -61,10 +63,12 @@ data ServiceError
 -- or the response body cannot be parsed, a 'ServiceError' is returned.
 createBot :: ServiceConn -> NewBotRequest -> ExceptT ServiceError AppIO NewBotResponse
 createBot scon new = do
-    mg <- ($ toList (sconFingerprints scon)) <$> view extGetManager
+    let fprs = toList (sconFingerprints scon)
+    (man, verifyFingerprints) <- view extGetManager
     extHandleAll onExc $ do
-        rs <- lift $ recovering x3 httpHandlers $ const $
-            liftIO $ Http.httpLbs req mg
+        rs <- lift $ recovering x3 httpHandlers $ const $ liftIO $
+            withVerifiedSslConnection (verifyFingerprints fprs) man req $ \req' ->
+                Http.httpLbs req' man
         case Bilge.statusCode rs of
             201 -> decodeBytes "External" (responseBody rs)
             409 -> throwE ServiceBotConflict

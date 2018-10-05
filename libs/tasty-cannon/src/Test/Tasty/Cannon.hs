@@ -169,8 +169,8 @@ instance Exception MatchFailure
 
 instance Show MatchFailure where
     show (MatchFailure ex) = case fromException ex of
-        Just (HUnitFailure msg) -> msg
-        Nothing                 -> show ex
+        Just (HUnitFailure _src msg) -> msg
+        Nothing                      -> show ex
 
 newtype MatchTimeout = MatchTimeout
     { timeoutFailures :: [MatchFailure]
