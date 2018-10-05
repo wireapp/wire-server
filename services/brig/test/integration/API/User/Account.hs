@@ -923,8 +923,18 @@ testUpdateSSOId brig = do
             , UserSSOId "2" "1"
             ]
 
-        mkUser :: Text -> Maybe Text -> Maybe Text -> Http User
-        mkUser name email phone = decodeBody =<< postUser name email phone Nothing Nothing brig
+        mkUser :: Bool -> Bool -> Http User
+        mkUser hasEmail hasPhone = do
+            name <- emailLocal <$> randomEmail
+            let email = if hasEmail
+                        then Just "prefix@example.com"  -- (postUser randomizes the local part)
+                        else Nothing
+            phone <- if hasPhone
+                     then Just . fromPhone <$> randomPhone
+                     else pure Nothing
+            resp <- postUser name email phone Nothing Nothing brig <!!
+                      const 201 === statusCode
+            decodeBody resp
 
         goTwice, go :: User -> UserSSOId -> Http ()
         goTwice user ssoid = go user ssoid >> go user ssoid
