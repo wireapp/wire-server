@@ -931,18 +931,19 @@ testUpdateSSOId brig = do
 
         go user ssoid = do
             let uid = userId user
-            put (brig . paths ["/i/users", toByteString' uid, "/sso-id"] . contentJson . Bilge.json ssoid)
+            put (brig . paths ["i", "users", toByteString' uid, "sso-id"] . Bilge.json ssoid)
                 !!! const 200 === statusCode
-            SSOIdentity ssoid' mEmail mPhone <- decodeBody =<< get (brig . path "/self" . zUser uid)
+            profile :: SelfProfile <- decodeBody =<< get (brig . path "/self" . zUser uid)
+            let Just (SSOIdentity ssoid' mEmail mPhone) = userIdentity . selfUser $ profile
             liftIO $ do
                 assertEqual "updateSSOId/ssoid" ssoid ssoid'
                 assertEqual "updateSSOId/email" (userEmail user) mEmail
                 assertEqual "updateSSOId/phone" (userPhone user) mPhone
 
     users <- sequence
-        [ mkUser "f83584ac" (Just "f83584ac@example.com") Nothing
-        , mkUser "f83584ad" Nothing                       (Just "+4917382659")
-        , mkUser "f83584ae" (Just "f83584ae@example.com") (Just "+3117382659")
+        [ mkUser True  False
+        , mkUser False True
+        , mkUser True  True
         ]
 
     sequence_ $ zipWith goTwice users ssoids

@@ -154,7 +154,7 @@ getConnection brig from to = get $ brig
 postUser :: Text -> Maybe Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
 postUser name email phone ssoid teamid brig = do
     email' <- maybe (pure Nothing) (fmap (Just . fromEmail) . mkEmailRandomLocalSuffix) email
-    let p = RequestBodyLBS . encode $ object
+    let p = object
             [ "name"            .= name
             , "email"           .= email'
             , "phone"           .= phone
@@ -163,7 +163,7 @@ postUser name email phone ssoid teamid brig = do
             , "sso_id"          .= ssoid
             , "team_id"         .= teamid
             ]
-    post (brig . path "/i/users" . contentJson . body p)
+    post (brig . path "/i/users" . Bilge.json p)
 
 postUserInternal :: Object -> Brig -> Http User
 postUserInternal payload brig = do
