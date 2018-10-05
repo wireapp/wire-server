@@ -61,9 +61,9 @@ main = do
     opts <- parseOpts
     runConduit
           $ CB.sourceHandle stdin
-        =$= CB.lines
-        =$= CL.mapM (fmtKibana opts)
-        =$= CB.sinkHandle stdout
+         .| CB.lines
+         .| CL.mapM (fmtKibana opts)
+         .| CB.sinkHandle stdout
 
 fmtKibana :: Opts -> ByteString -> IO ByteString
 fmtKibana Opts{..} line = do

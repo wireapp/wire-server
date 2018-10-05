@@ -90,9 +90,9 @@ main = execParser optInfo >>= \ Opts{..} -> do
     cs <- replicateM concurrency $
         async $ consume buffer req signal mgr maxBulkSize
     -- Setup producer pipeline
-    CB.sourceHandle stdin
-        $$ breakByte 0
-        =$ CL.mapM_ (produce buffer maxBufferSize)
+    runConduit $ CB.sourceHandle stdin
+        .| breakByte 0
+        .| CL.mapM_ (produce buffer maxBufferSize)
     -- Graceful stop
     drain buffer >> atomically (writeTVar signal Stop) >> mapM_ wait cs
   where
@@ -127,7 +127,7 @@ main = execParser optInfo >>= \ Opts{..} -> do
             drain b
 
 -- | Like 'Data.Conduit.Binary.lines', but split on an arbitrary delimiter
-breakByte :: Monad m => Word8 -> Conduit ByteString m ByteString
+breakByte :: Monad m => Word8 -> ConduitT ByteString ByteString m ()
 breakByte delim = loop id
   where
     loop front = await >>= maybe (finish front) (go front)

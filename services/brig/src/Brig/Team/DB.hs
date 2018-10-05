@@ -32,6 +32,7 @@ import Cassandra
 import Control.Concurrent.Async.Lifted.Safe.Extended (mapMPooled)
 import Control.Lens
 import Control.Monad.IO.Class
+import Control.Monad.IO.Unlift
 import Control.Monad (void)
 import Data.Id
 import Data.Conduit ((.|), runConduit)
@@ -135,7 +136,7 @@ deleteInvitation t i = do
     cqlInvitationInfo :: PrepQuery W (Identity InvitationCode) ()
     cqlInvitationInfo = "DELETE FROM team_invitation_info WHERE code = ?"
 
-deleteInvitations :: MonadClient m => TeamId -> m ()
+deleteInvitations :: (MonadClient m, MonadUnliftIO m) => TeamId -> m ()
 deleteInvitations t =
     liftClient $
     runConduit $ paginateC cqlSelect (paramsP Quorum (Identity t) 100) x1

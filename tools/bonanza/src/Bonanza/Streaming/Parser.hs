@@ -23,7 +23,7 @@ import qualified Data.Attoparsec.Types            as A
 import           Data.ByteString                  (ByteString)
 import qualified Data.ByteString.Char8            as BC
 import           Data.Char
-import           Data.Conduit                     (Conduit)
+import           Data.Conduit                     (ConduitT)
 import qualified Data.Conduit                     as Conduit
 import           Data.Maybe
 
@@ -57,7 +57,7 @@ jsonParser = do
         Error   e -> fail e
         Success a -> return a
 
-stream :: Monad m => Parser -> Conduit ByteString m LogEvent
+stream :: Monad m => Parser -> ConduitT ByteString LogEvent m ()
 stream (MkParser p) = next
   where
     next = Conduit.await >>= go

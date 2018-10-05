@@ -79,6 +79,7 @@ import Control.Monad (forever, when, unless, void, (>=>))
 import Control.Monad.Base
 import Control.Monad.Catch hiding (try)
 import Control.Monad.IO.Class
+import Control.Monad.IO.Unlift
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Control
 import Control.Monad.Trans.Reader
@@ -204,7 +205,7 @@ initMetrics = do
 
 newtype BotNet a = BotNet { unBotNet :: ReaderT BotNetEnv IO a }
     deriving (Functor, Applicative, Monad, MonadIO, MonadThrow,
-              MonadCatch, MonadMask, MonadBase IO)
+              MonadCatch, MonadMask, MonadBase IO, MonadUnliftIO)
 
 class MonadIO m => MonadBotNet m where
     liftBotNet :: BotNet a -> m a
