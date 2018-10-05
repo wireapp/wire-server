@@ -31,7 +31,10 @@ import Galley.Options (JournalOpts(..))
 import GHC.Stack (HasCallStack)
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
+import Ssl.Util
 import OpenSSL.Session as Ssl
+import Proto.TeamEvents as E
+import Proto.TeamEvents_Fields as E
 import System.Logger.Class
 import Test.Tasty.HUnit
 
@@ -43,7 +46,6 @@ import qualified Galley.Aws as Aws
 import qualified Network.AWS as AWS
 import qualified Network.AWS.SQS as SQS
 import qualified OpenSSL.X509.SystemStore as Ssl
-import qualified Proto.TeamEvents as E
 import qualified System.Logger as L
 
 ensureQueueEmpty :: MonadIO m => Maybe Aws.Env -> m ()
@@ -65,32 +67,32 @@ assertQueueEmpty Nothing    = return ()
 
 tActivateWithCurrency :: HasCallStack => Maybe Currency.Alpha -> String -> Maybe E.TeamEvent -> IO ()
 tActivateWithCurrency c l (Just e) = do
-    assertEqual (l <> ": eventType") E.TeamEvent'TEAM_ACTIVATE (e^.E.eventType)
-    assertEqual "count" 1 (e^.E.eventData^.E.memberCount)
-    -- NOTE: protobuf decodes absent, optional fields as (Just "")
-    let cur = maybe "" (pack . show) c
-    assertEqual "currency" (Just cur) (e^.E.eventData^?E.currency)
+    assertEqual (l <> ": eventType") E.TeamEvent'TEAM_ACTIVATE (e^.eventType)
+    assertEqual "count" 1 (e^.eventData.memberCount)
+    -- NOTE: protobuf used to decodes absent, optional fields as (Just "") but not when using `maybe'<field>`
+    let cur = maybe Nothing (Just . pack . show) c
+    assertEqual "currency" cur (e^.eventData.maybe'currency)
 tActivateWithCurrency _ l Nothing  = assertFailure $ l <> ": Expected 1 TeamActivate, got nothing"
 
 tActivate :: HasCallStack => String -> Maybe E.TeamEvent -> IO ()
 tActivate l (Just e) = do
-    assertEqual (l <> ": eventType") E.TeamEvent'TEAM_ACTIVATE (e^.E.eventType)
-    assertEqual "count" 1 (e^.E.eventData^.E.memberCount)
+    assertEqual (l <> ": eventType") E.TeamEvent'TEAM_ACTIVATE (e^.eventType)
+    assertEqual "count" 1 (e^.eventData.memberCount)
 tActivate l Nothing  = assertFailure $ l <> ": Expected 1 TeamActivate, got nothing"
 
 tDelete :: HasCallStack => String -> Maybe E.TeamEvent -> IO ()
-tDelete l (Just e) = assertEqual (l <> ": eventType") E.TeamEvent'TEAM_DELETE (e^.E.eventType)
+tDelete l (Just e) = assertEqual (l <> ": eventType") E.TeamEvent'TEAM_DELETE (e^.eventType)
 tDelete l Nothing  = assertFailure $ l <> ": Expected 1 TeamDelete, got nothing"
 
 tSuspend :: HasCallStack => String -> Maybe E.TeamEvent -> IO ()
-tSuspend l (Just e) = assertEqual (l  <> "eventType") E.TeamEvent'TEAM_SUSPEND (e^.E.eventType)
+tSuspend l (Just e) = assertEqual (l  <> "eventType") E.TeamEvent'TEAM_SUSPEND (e^.eventType)
 tSuspend l Nothing  = assertFailure $ l <> ": Expected 1 TeamSuspend, got nothing"
 
 tUpdate :: HasCallStack => Int32 -> [UserId] -> String -> Maybe E.TeamEvent -> IO ()
 tUpdate c uids l (Just e) = do
-    assertEqual (l <> "eventType") E.TeamEvent'TEAM_UPDATE (e^.E.eventType)
-    assertEqual "count" c (e^.E.eventData^.E.memberCount)
-    assertEqual "billing users" (toStrict . UUID.toByteString . toUUID <$> uids) (e^.E.eventData^.E.billingUser)
+    assertEqual (l <> "eventType") E.TeamEvent'TEAM_UPDATE (e^.eventType)
+    assertEqual "count" c (e^.eventData.memberCount)
+    assertEqual "billing users" (toStrict . UUID.toByteString . toUUID <$> uids) (e^.eventData.billingUser)
 tUpdate _ _ l Nothing = assertFailure $ l <> ": Expected 1 TeamUpdate, got nothing"
 
 ensureNoMessages :: HasCallStack => Amazon ()
@@ -205,7 +207,7 @@ initHttpManager = do
     Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
     Ssl.contextSetCiphers ctx rsaCiphers
     Ssl.contextLoadSystemCerts ctx
-    newManager (opensslManagerSettings ctx)
+    newManager (opensslManagerSettings (pure ctx))  -- see Note [SSL context]
         { managerResponseTimeout     = responseTimeoutMicro 10000000
         , managerConnCount           = 100
         , managerIdleConnectionCount = 300

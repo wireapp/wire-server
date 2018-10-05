@@ -20,6 +20,7 @@ import qualified Data.Text            as Text
 import qualified Data.Text.Encoding   as Text
 import qualified Data.UUID            as UUID
 import qualified Proto.UserEvents     as PU
+import qualified Proto.UserEvents_Fields as PU
 import qualified Util.Test.SQS        as SQS
 
 isRealSESEnv :: AWS.Env -> Bool

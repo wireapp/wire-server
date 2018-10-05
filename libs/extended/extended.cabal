@@ -27,9 +27,8 @@ library
     build-depends:
         base
       , base-prelude
-      , constraints
       , async-pool
       , lifted-async
-      , monad-control
+      , unliftio-core
       , optparse-applicative
       , extra

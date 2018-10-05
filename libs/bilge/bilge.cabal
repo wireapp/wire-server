@@ -49,3 +49,4 @@ library
       , transformers      >= 0.4
       , transformers-base >= 0.4
       , types-common      >= 0.7
+      , unliftio-core     >= 0.1

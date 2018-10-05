@@ -25,7 +25,9 @@ library
         Data.Proto
         Data.Proto.Id
         Proto.TeamEvents
+        Proto.TeamEvents_Fields
         Proto.UserEvents
+        Proto.UserEvents_Fields
 
     build-depends:
           base                  == 4.*

@@ -69,7 +69,7 @@ runCommand l env c start = void $ C.runClient c $ do
     publish tid typ time dat = do
         -- writetime is in microseconds in cassandra 3.11
         creationTimeSeconds <- maybe now (return . (`div` 1000000) . view tcTime) time
-        let event = TeamEvent typ (Proto.toBytes tid) creationTimeSeconds dat
+        let event = TeamEvent typ (Proto.toBytes tid) creationTimeSeconds dat []
         Aws.execute env (Aws.enqueue event)
 
 -- CQL queries

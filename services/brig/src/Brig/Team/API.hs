@@ -224,7 +224,7 @@ getInvitationByCode (_ ::: c) = do
 suspendTeam :: JSON ::: TeamId -> Handler Response
 suspendTeam (_ ::: tid) = do
     changeTeamAccountStatuses tid Suspended
-    DB.deleteInvitations tid
+    lift $ DB.deleteInvitations tid
     lift $ Intra.changeTeamStatus tid Team.Suspended Nothing
     return empty
 

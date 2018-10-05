@@ -88,7 +88,7 @@ import qualified OpenSSL.PEM                  as SSL
 import qualified OpenSSL.RSA                  as SSL
 import qualified OpenSSL.EVP.Digest           as SSL
 import qualified OpenSSL.EVP.PKey             as SSL
-import qualified Network.HTTP.Client.OpenSSL  as SSL
+import qualified Ssl.Util                     as SSL
 import qualified Data.Text.Encoding           as Text
 import qualified Network.Wai.Utilities.Error  as Wai
 import qualified Brig.ZAuth                   as ZAuth
