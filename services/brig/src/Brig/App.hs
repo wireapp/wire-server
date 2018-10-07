@@ -231,10 +231,15 @@ newEnv o = do
   where
     emailConn _   (Opt.EmailAWS aws) = return (Just aws, Nothing)
     emailConn lgr (Opt.EmailSMTP  s) = do
-        let host = Opt.smtpEndpoint s
-            user = SMTP.Username (Opt.smtpUsername s)
-        pass <- initCredentials (Opt.smtpPassword s)
-        smtp <- SMTP.initSMTP lgr host user (SMTP.Password pass) (Opt.smtpConnType s)
+        let host = (Opt.smtpEndpoint s)^.epHost
+            port = Just $ fromInteger $ toInteger $ (Opt.smtpEndpoint s)^.epPort
+
+        smtpCredentials <- case Opt.smtpCredentials s of
+            Just (Opt.EmailSMTPCredentials u p) -> do
+                pass <- initCredentials p
+                return $ Just (SMTP.Username u, SMTP.Password pass)
+            _                                   -> return Nothing
+        smtp <- SMTP.initSMTP lgr host port smtpCredentials (Opt.smtpConnType s)
         return (Nothing, Just smtp)
 
     mkEndpoint service = RPC.host (encodeUtf8 (service^.epHost)) . RPC.port (service^.epPort) $ RPC.empty
