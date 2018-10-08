@@ -47,7 +47,6 @@ import Control.Error hiding (err, isRight)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Trans.Resource
-import Control.Monad.IO.Unlift
 import Control.Retry (retrying, limitRetries)
 import Data.Aeson (decodeStrict)
 import Data.Attoparsec.Text
@@ -66,7 +65,6 @@ import Network.HTTP.Types
 import System.Logger.Class
 import UnliftIO.Async
 import UnliftIO.Exception
-import UnliftIO.Concurrent
 import Util.Options
 
 import qualified Control.Monad.Trans.AWS as AWST
