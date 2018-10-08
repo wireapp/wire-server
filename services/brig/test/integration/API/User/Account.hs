@@ -925,10 +925,10 @@ testUpdateSSOId brig = do
 
         mkUser :: Bool -> Bool -> Http User
         mkUser hasEmail hasPhone = do
-            name <- emailLocal <$> randomEmail
+            name <- UUID.toText <$> liftIO UUID.nextRandom
             let email = if hasEmail
-                        then Just "prefix@example.com"  -- (postUser randomizes the local part)
-                        else Nothing
+                     then Just "success@simulator.amazonses.com"
+                     else Nothing
             phone <- if hasPhone
                      then Just . fromPhone <$> randomPhone
                      else pure Nothing
@@ -936,9 +936,13 @@ testUpdateSSOId brig = do
                       const 201 === statusCode
             decodeBody resp
 
-        goTwice, go :: User -> UserSSOId -> Http ()
-        goTwice user ssoid = go user ssoid >> go user ssoid
+    users <- sequence
+        [ mkUser True  False
+        , mkUser False True
+        , mkUser True  True
+        ]
 
+    let go, goTwice :: User -> UserSSOId -> Http ()
         go user ssoid = do
             let uid = userId user
             put (brig . paths ["i", "users", toByteString' uid, "sso-id"] . Bilge.json ssoid)
@@ -950,11 +954,7 @@ testUpdateSSOId brig = do
                 assertEqual "updateSSOId/email" (userEmail user) mEmail
                 assertEqual "updateSSOId/phone" (userPhone user) mPhone
 
-    users <- sequence
-        [ mkUser True  False
-        , mkUser False True
-        , mkUser True  True
-        ]
+        goTwice user ssoid = go user ssoid >> go user ssoid
 
     sequence_ $ zipWith goTwice users ssoids
 

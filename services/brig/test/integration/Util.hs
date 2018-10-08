@@ -163,6 +163,7 @@ postUser name email phone ssoid teamid brig = do
             , "sso_id"          .= ssoid
             , "team_id"         .= teamid
             ]
+    -- liftIO $ print (eitherDecode @NewUser (encode p))
     post (brig . path "/i/users" . Bilge.json p)
 
 postUserInternal :: Object -> Brig -> Http User
