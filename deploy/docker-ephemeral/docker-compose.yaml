@@ -84,7 +84,6 @@ services:
       - fake_sqs
       - fake_s3
       - fake_localstack
-      - fake_s3
     links:
       - fake_dynamodb:dynamodb
       - fake_sqs:sqs

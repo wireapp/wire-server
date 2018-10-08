@@ -35,10 +35,9 @@ import CargoHold.CloudFront
 import CargoHold.Error
 import CargoHold.Options
 import Control.Lens hiding ((.=))
-import Control.Monad.Base
 import Control.Monad.Catch
+import Control.Monad.IO.Unlift
 import Control.Monad.Reader
-import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.Monoid
@@ -69,7 +68,6 @@ newtype Amazon a = Amazon
                , Applicative
                , Monad
                , MonadIO
-               , MonadBase IO
                , MonadThrow
                , MonadCatch
                , MonadMask
@@ -80,16 +78,23 @@ newtype Amazon a = Amazon
 instance MonadLogger Amazon where
     log l m = view logger >>= \g -> Logger.log g l m
 
-instance MonadBaseControl IO Amazon where
-    type StM Amazon a = StM (ReaderT Env (ResourceT IO)) a
-    liftBaseWith    f = Amazon $ liftBaseWith $ \run -> f (run . unAmazon)
-    restoreM          = Amazon . restoreM
+instance MonadUnliftIO Amazon where
+    askUnliftIO = Amazon $ ReaderT $ \r ->
+                    withUnliftIO $ \u ->
+                        return (UnliftIO (unliftIO u . flip runReaderT r . unAmazon))
 
 instance AWS.MonadAWS Amazon where
     liftAWS a = view amazonkaEnv >>= flip AWS.runAWS a
 
-mkEnv :: Logger -> AWSEndpoint -> Text -> Maybe CloudFrontOpts -> Manager -> IO Env
-mkEnv lgr s3End bucket cfOpts mgr = do
+mkEnv
+    :: Logger
+    -> AWSEndpoint   -- ^ S3 endpoint
+    -> AWSEndpoint   -- ^ Endpoint for downloading assets (for the external world)
+    -> Text          -- ^ Bucket
+    -> Maybe CloudFrontOpts
+    -> Manager
+    -> IO Env
+mkEnv lgr s3End s3Download bucket cfOpts mgr = do
     let g = Logger.clone (Just "aws.cargohold") lgr
     e  <- mkAwsEnv g (mkEndpoint S3.s3 s3End)
     cf <- mkCfEnv cfOpts
@@ -97,7 +102,7 @@ mkEnv lgr s3End bucket cfOpts mgr = do
   where
     mkCfEnv (Just o) = Just <$> initCloudFront (o^.cfPrivateKey) (o^.cfKeyPairId) 300 (o^.cfDomain)
     mkCfEnv Nothing  = return Nothing
-    
+
     mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
 
     mkAwsEnv g s3 =  set AWS.envLogger (awsLogger g)
@@ -126,12 +131,12 @@ send r = throwA =<< sendCatch r
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) return
 
-execCatch :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m)
+execCatch :: (AWSRequest a, AWS.HasEnv r, MonadUnliftIO m, MonadCatch m, MonadThrow m)
           => r -> a -> m (Either AWS.Error (Rs a))
 execCatch e cmd = runResourceT . AWST.runAWST e
                 $ AWST.trying AWS._Error $ AWST.send cmd
 
-exec :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m)
+exec :: (AWSRequest a, AWS.HasEnv r, MonadUnliftIO m, MonadCatch m, MonadThrow m)
      => r -> a -> m (Rs a)
 exec e cmd = execCatch e cmd >>= either (throwM . GeneralError) return
 

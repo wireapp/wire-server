@@ -339,7 +339,7 @@ createResumable
     -> V3.Principal
     -> MIME.Type
     -> V3.TotalSize
-    -> Maybe V3.AssetTokenf
+    -> Maybe V3.AssetToken
     -> ExceptT Error App S3Resumable
 createResumable k p typ size tok = do
     let csize = calculateChunkSize size
