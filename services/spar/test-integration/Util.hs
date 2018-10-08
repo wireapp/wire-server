@@ -36,6 +36,10 @@ module Util
   , createTestIdPFrom
   , negotiateAuthnRequest
   , negotiateAuthnRequest'
+  , isDeleteBindCookieHeader
+  , hasDeleteBindCookieHeader
+  , isSetBindCookieHeader
+  , hasSetBindCookieHeader
   , submitAuthnResponse
   , submitAuthnResponse'
   , loginSsoUserFirstTime
@@ -47,6 +51,7 @@ module Util
   , callIdpCreate, callIdpCreate'
   , callIdpDelete, callIdpDelete'
   , initCassandra
+  , ssoToUidSpar
   , module Test.Hspec
   , module Util.Types
   ) where
@@ -93,6 +98,7 @@ import Util.Types
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
+import qualified Control.Monad.Catch as Catch
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
@@ -100,10 +106,13 @@ import qualified Galley.Types.Teams as Galley
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified SAML2.WebSSO as SAML
+import qualified Spar.Data as Data
+import qualified Spar.Intra.Brig as Intra
 import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
+import qualified Web.Cookie as Web
 
 
 -- | Create an environment for integration tests from integration and spar config files.
@@ -130,6 +139,8 @@ mkEnv _teTstOpts _teOpts = do
 
   (_teUserId, _teTeamId, _teIdP) <- do
     createTestIdPFrom _teMetadata _teMgr _teBrig _teGalley _teSpar
+
+  _teSparCass <- initCassandra _teOpts =<< mkLogger _teOpts
 
   pure TestEnv {..}
 
@@ -398,18 +409,33 @@ createTestIdPFrom metadata mgr brig galley spar = do
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
 negotiateAuthnRequest = negotiateAuthnRequest' id >>= \case
-  (idp, creds, req, cky) -> if deletesBindCookie cky
+  (idp, creds, req, cky) -> if isDeleteBindCookieHeader cky
     then pure (idp, creds, req)
     else error $ "unexpected bind cookie: " <> show cky
 
 -- | A bind cookie is always sent, but if we do not want to send one, it looks like this:
 -- "wire.com=; Path=/sso/finalize-login/0fc38390-8288-4a29-ad89-dd212af281a8; Expires=Thu,
 -- 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure"
-deletesBindCookie :: HasCallStack => Maybe SBS -> Bool
-deletesBindCookie Nothing = True  -- we don't expect this, but it's ok if the implementation changes to it.
-deletesBindCookie (Just txt)
+isDeleteBindCookieHeader :: HasCallStack => Maybe SBS -> Bool
+isDeleteBindCookieHeader Nothing = True  -- we don't expect this, but it's ok if the implementation changes to it.
+isDeleteBindCookieHeader (Just txt)
   | "Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure" `SBS.isSuffixOf` txt = True
   | otherwise = error $ "unexpected bind cookie: " <> show txt
+
+hasDeleteBindCookieHeader :: HasCallStack => Bilge.Response a -> Bool
+hasDeleteBindCookieHeader = isDeleteBindCookieHeader . lookup "Set-Cookie" . responseHeaders
+
+isSetBindCookieHeader :: HasCallStack => Maybe SBS -> Bool
+isSetBindCookieHeader Nothing = False
+isSetBindCookieHeader (Just (Web.parseSetCookie -> cky)) = and
+  [ Web.setCookieName cky == "wire.com"
+  , maybe False ("/sso/finalize-login/" `SBS.isPrefixOf`) $ Web.setCookiePath cky
+  , Web.setCookieSecure cky
+  , Web.setCookieSameSite cky == Just Web.sameSiteStrict
+  ]
+
+hasSetBindCookieHeader :: HasCallStack => Bilge.Response a -> Bool
+hasSetBindCookieHeader = isSetBindCookieHeader . lookup "Set-Cookie" . responseHeaders
 
 negotiateAuthnRequest' :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => (Request -> Request) -> m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SBS)
@@ -560,3 +586,18 @@ callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx)
 callIdpDelete' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpDelete' sparreq_ muid idpid = do
   delete $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
+
+
+-- helpers talking to spar's cassandra directly
+
+-- | Look up 'UserId' under 'UserSSOId' on spar's cassandra directly.
+ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => Brig.UserSSOId -> m (Maybe UserId)
+ssoToUidSpar ssoref = do
+  ssoid <- either (error . ("could not parse UserRef: " <>)) pure $ Intra.fromUserSSOId ssoref
+  runSparCass $ Data.getUser ssoid
+
+runSparCass :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => Client a -> m a
+runSparCass action = do
+  env <- ask
+  liftIO $ runClient (env ^. teSparCass) action
+             `Catch.catch` (throwIO . ErrorCall . show @SomeException)

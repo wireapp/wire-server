@@ -5,6 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TupleSections              #-}
@@ -21,6 +22,7 @@ module Util.Types
   , teBrig
   , teGalley
   , teSpar
+  , teSparCass
   , teUserId
   , teTeamId
   , teIdP
@@ -63,6 +65,7 @@ data TestEnv = TestEnv
   , _teBrig        :: BrigReq
   , _teGalley      :: GalleyReq
   , _teSpar        :: SparReq
+  , _teSparCass    :: ClientState
   , _teOpts        :: Opts               -- ^ spar config
   , _teTstOpts     :: IntegrationConfig  -- ^ integration test config
 

@@ -112,12 +112,12 @@ specInitiateLogin = do
             ]
           checkRespBody bad = error $ show bad
 
-      context "known IdP" $ do
-        it "responds with request" $ do
+      context "known IdP, no z-user" $ do  -- see 'specBindingUsers' below for the "with z-user" case.
+        it "responds with authentication request and NO bind cookie" $ do
           env <- ask
           let idp = idPIdToST $ env ^. teIdP . idpId
           get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
-            `shouldRespondWith` checkRespBody
+            `shouldRespondWith` \resp -> checkRespBody resp && hasDeleteBindCookieHeader resp
 
 
 specFinalizeLogin :: SpecWith TestEnv
@@ -221,7 +221,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           void . call $ head ( (env ^. teSpar)
                              . header "Z-User" (toByteString' uid)
                              . path (cs $ "/sso/initiate-login/" -/ idp)
-                             . expect4xx
+                             . expect2xx
                              )
 
     describe "GET /sso/initiate-login/:idp" $ do
@@ -233,9 +233,6 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             ]
           checkRespBody bad = error $ show bad
 
-          hasSetCookieHeader :: Bilge.Response lbs -> Bool
-          hasSetCookieHeader = isJust . lookup "Set-Cookie" . responseHeaders
-
       context "known IdP, running session with non-sso user" $ do
         it "responds with 200 and a bind cookie" $ do
           env <- ask
@@ -246,7 +243,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
               . path (cs $ "/sso/initiate-login/" -/ idp)
               . expect2xx
               )
-            `shouldRespondWith` (\resp -> checkRespBody resp && hasSetCookieHeader resp)
+            `shouldRespondWith` (\resp -> checkRespBody resp && hasSetBindCookieHeader resp)
 
       context "known IdP, running session with sso user" $ do
         it "responds with 400 and NO bind cookie" $ do
@@ -256,9 +253,9 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           get ( (env ^. teSpar)
               . header "Z-User" (toByteString' uid)
               . path (cs $ "/sso/initiate-login/" -/ idp)
-              . expect4xx
+              . expect2xx
               )
-            `shouldRespondWith` (not . hasSetCookieHeader)
+            `shouldRespondWith` hasSetBindCookieHeader
 
     describe "POST /sso/finalize-login/:idp" $ do
       context "AuthnResponse is fine, request contains bind cookie" $ do
@@ -279,20 +276,24 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                 . expect2xx
                 )
 
-          let hasUserSSOId :: Either String SelfProfile -> Bool
-              hasUserSSOId (Left _) = False
-              hasUserSSOId (Right selfprof) = case userIdentity $ selfUser selfprof of
-                Just (SSOIdentity _ _ _) -> True
-                Just (FullIdentity _ _)  -> False
-                Just (EmailIdentity _)   -> False
-                Just (PhoneIdentity _)   -> False
-                Nothing                  -> False
+          let getUserSSOId :: ResponseLBS -> Maybe UserSSOId
+              getUserSSOId (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
+                = case userIdentity $ selfUser selfprof of
+                    Just (SSOIdentity ssoid _ _) -> Just ssoid
+                    Just (FullIdentity _ _)  -> Nothing
+                    Just (EmailIdentity _)   -> Nothing
+                    Just (PhoneIdentity _)   -> Nothing
+                    Nothing                  -> Nothing
+              getUserSSOId _ = Nothing
 
-          liftIO $ ( Aeson.eitherDecode
-                   . fromMaybe (error "no resp body from spar")
-                   $ responseBody resp
-                   )
-            `shouldSatisfy` hasUserSSOId
+          let mssoid = getUserSSOId resp
+          liftIO $ mssoid `shouldSatisfy` isJust
+          muid' <- maybe (pure Nothing) ssoToUidSpar mssoid
+          liftIO $ muid' `shouldBe` Just uid
+
+      context "known IdP, running session with sso user" $ do
+        it "overwrites UserSSOId on both brig and spar" $ do
+          undefined
 
 
 -- | FUTUREWORK: this function deletes the test IdP from the test env.  (it should probably not do
