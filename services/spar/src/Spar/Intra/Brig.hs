@@ -18,6 +18,7 @@ module Spar.Intra.Brig where
 -- master data (first name, last name, ...)
 
 import Bilge
+import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth (SsoLogin(..))
 import Control.Monad.Except
@@ -119,6 +120,32 @@ getUser buid = do
     404 -> pure Nothing
     _   -> throwSpar (SparBrigError "Could not retrieve user")
 
+-- | Get a user; returns 'Nothing' if the user was not found.
+getUserByHandle :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => Handle -> m (Maybe User)
+getUserByHandle handle = do
+  resp :: Response (Maybe LBS) <- call
+    $ method GET
+    . path "/i/users"
+    . queryItem "handles" (toByteString' handle)
+  -- This returns [UserAccount]
+  case statusCode resp of
+    200 -> parse <$> parseResponse @[UserAccount] resp
+    404 -> pure Nothing
+    _   -> throwSpar (SparBrigError "Could not retrieve user")
+ where
+  parse :: [UserAccount] -> Maybe User
+  parse (x:[]) = Just $ accountUser x
+  parse _      = Nothing -- TODO: What if more accounts get returned?
+
+-- | Get a user; returns 'Nothing' if the user was not found.
+setHandle :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> Handle -> m ()
+setHandle buid (Handle handle) = void $ call
+    $ method PUT
+    . path "/self/handle"
+    . header "Z-User" (toByteString' buid)
+    . header "Z-Connection" ""
+    . expect2xx
+    . json (HandleUpdate handle)
 
 -- | Check that a user locally created on spar exists on brig and has a team id.
 confirmUserId :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m (Maybe UserId)

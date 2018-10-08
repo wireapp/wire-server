@@ -50,6 +50,7 @@ import Servant.Generic
 import Text.Read (readMaybe)
 
 import qualified Data.Text    as Text
+import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 
 import qualified Web.SCIM.Class.User              as SCIM
@@ -86,12 +87,12 @@ api :: ServerT API Spar
 api tid = hoistSCIM (toServant (SCIM.siteServer configuration))
   where
     hoistSCIM =
-      enter @(ServerT SCIM.SiteAPI (SCIM.SCIMHandler (ReaderT TeamId Spar)))
-            @(SCIM.SCIMHandler (ReaderT TeamId Spar))
-            @Spar
-            @(ServerT SCIM.SiteAPI Spar)
-        (NT (flip runReaderT tid . SCIM.fromSCIMHandler fromError))
+      hoistServer proxy
+        (flip runReaderT tid . SCIM.fromSCIMHandler fromError)
     fromError = throwError . SAML.CustomServant . SCIM.scimToServantErr
+
+    proxy :: Proxy SCIM.SiteAPI
+    proxy = Proxy
 
 ----------------------------------------------------------------------------
 -- UserDB
@@ -103,7 +104,7 @@ api tid = hoistSCIM (toServant (SCIM.siteServer configuration))
 --     requirement.
 --
 --   * @name@ is left empty and is never stored, even when it's sent to us
---   * via SCIM.
+--     via SCIM.
 --
 --   * @displayName@ is mapped to our 'userName'.
 --
@@ -248,7 +249,32 @@ instance SCIM.UserDB (ReaderT TeamId Spar) where
         SCIM.notFound "user" (idToText uid)
       pure (toSCIMUser user))
 
-  -- create   :: User -> m StoredUser
+  -- | create :: User -> m StoredUser
+  create user = do
+    tid   <- ask
+    (extId, handl) <- case (SCIM.User.externalId user, parseHandle $ SCIM.User.userName user) of
+      (Nothing, _) -> error "We need an external ID!"
+      (_, Nothing) -> error "Failed to parse userName!"
+      -- We assume that checking that the user does _not_ exist was already done before
+      (Just extId, Just handl) -> pure (extId, handl)
+
+    buid <- Id <$> liftIO UUID.nextRandom
+    -- TODO: Assume that externalID is the subjectID, let's figure out how to extract that later
+    uref <- case fromUserSSOId $ UserSSOId (idToText tid) extId of
+              Left str  -> SCIM.throwSCIM $ SCIM.badRequest SCIM.InvalidValue (Just $ Text.pack str)
+              Right ref -> pure ref
+
+    -- TODO: Adding a handle should be done _DURING_ the creation
+    _ <- lift $ createUser uref buid tid >> setHandle buid handl
+
+    maybe (error "How can there be no user?") (return . toSCIMUser) =<< (lift $ getUser buid)
+
+    -- does the handle already exist? bad
+    -- does the user already exist? bad
+    -- is the handle non-compliant? bad
+    -- was the handle non-specified? bad
+    -- were any fields specified that we can't handle? bad
+
   -- update   :: UserId -> User -> m StoredUser
   -- patch    :: UserId -> m StoredUser
   -- delete   :: UserId -> m Bool  -- ^ Return 'False' if the group didn't exist
