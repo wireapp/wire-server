@@ -102,7 +102,9 @@ authreq authreqttl zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl sparRequestIssuer idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
-  initializeBindCookie zusr idpid authreqttl <&> (`addHeader` form)
+  cky <- initializeBindCookie zusr idpid authreqttl
+  SAML.logger SAML.Debug $ "setting bind cookie: " <> show cky
+  pure $ addHeader cky form
 
 -- | Create bind cookie with 60 minutes life expectancy; *iff* the user is already authenticated,
 -- store it with the bind cookies.  If user already has a 'UserSSOId' (need to ask brig for that),

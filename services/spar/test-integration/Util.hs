@@ -419,7 +419,7 @@ negotiateAuthnRequest = negotiateAuthnRequest' id >>= \case
 isDeleteBindCookieHeader :: HasCallStack => Maybe SBS -> Bool
 isDeleteBindCookieHeader Nothing = True  -- we don't expect this, but it's ok if the implementation changes to it.
 isDeleteBindCookieHeader (Just txt)
-  | "Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure" `SBS.isSuffixOf` txt = True
+  | "Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure" `SBS.isInfixOf` txt = True
   | otherwise = error $ "unexpected bind cookie: " <> show txt
 
 hasDeleteBindCookieHeader :: HasCallStack => Bilge.Response a -> Bool
@@ -429,7 +429,7 @@ isSetBindCookieHeader :: HasCallStack => Maybe SBS -> Bool
 isSetBindCookieHeader Nothing = False
 isSetBindCookieHeader (Just (Web.parseSetCookie -> cky)) = and
   [ Web.setCookieName cky == "wire.com"
-  , maybe False ("/sso/finalize-login/" `SBS.isPrefixOf`) $ Web.setCookiePath cky
+  , maybe False ("/sso/finalize-login" `SBS.isPrefixOf`) $ Web.setCookiePath cky
   , Web.setCookieSecure cky
   , Web.setCookieSameSite cky == Just Web.sameSiteStrict
   ]
@@ -592,9 +592,9 @@ callIdpDelete' sparreq_ muid idpid = do
 
 -- | Look up 'UserId' under 'UserSSOId' on spar's cassandra directly.
 ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => Brig.UserSSOId -> m (Maybe UserId)
-ssoToUidSpar ssoref = do
-  ssoid <- either (error . ("could not parse UserRef: " <>)) pure $ Intra.fromUserSSOId ssoref
-  runSparCass $ Data.getUser ssoid
+ssoToUidSpar ssoid = do
+  ssoref <- either (error . ("could not parse UserRef: " <>)) pure $ Intra.fromUserSSOId ssoid
+  runSparCass $ Data.getUser ssoref
 
 runSparCass :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => Client a -> m a
 runSparCass action = do

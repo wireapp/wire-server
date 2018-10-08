@@ -214,7 +214,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                              )
 
       context "known IdP, running session with sso user" $ do
-        it "responds with 400" $ do
+        it "responds with 2xx" $ do
           uid <- loginSsoUserFirstTime
           env <- ask
           let idp = idPIdToST $ env ^. teIdP . idpId
@@ -245,8 +245,8 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
               )
             `shouldRespondWith` (\resp -> checkRespBody resp && hasSetBindCookieHeader resp)
 
-      context "known IdP, running session with sso user" $ do
-        it "responds with 400 and NO bind cookie" $ do
+      context "known IdP, running session with sso user" $ do  -- TODO: this is *almost* the same test as above.
+        it "responds with 2xx and bind cookie" $ do
           env <- ask
           let idp = idPIdToST $ env ^. teIdP . idpId
           uid <- loginSsoUserFirstTime
@@ -262,10 +262,10 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         it "Sends user back to the app and adds UserSSOId to brig user" $ do
           env <- ask
           (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
-          (idp, privCreds, authnReq, Just wireCookie) <- negotiateAuthnRequest' (header "Z-User" $ toByteString' uid)
+          (idp, privCreds, authnReq, Just bindCookie) <- negotiateAuthnRequest' (header "Z-User" $ toByteString' uid)
           spmeta <- getTestSPMetadata (idp ^. idpId)
           authnResp <- liftIO $ mkAuthnResponse privCreds idp spmeta authnReq True
-          sparAuthnResp <- submitAuthnResponse' (header "Cookie" wireCookie) (idp ^. idpId) authnResp
+          sparAuthnResp <- submitAuthnResponse' (header "Cookie" bindCookie) (idp ^. idpId) authnResp
           liftIO $ (cs @_ @String . fromJust . responseBody $ sparAuthnResp)
             `shouldContain` "<title>wire:sso:success</title>"
 
@@ -286,9 +286,12 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                     Nothing                  -> Nothing
               getUserSSOId _ = Nothing
 
-          let mssoid = getUserSSOId resp
-          liftIO $ mssoid `shouldSatisfy` isJust
-          muid' <- maybe (pure Nothing) ssoToUidSpar mssoid
+          authnRespParsed :: AuthnResponse
+            <- either error pure . parseFromDocument $ fromSignedAuthnResponse authnResp
+          let ssoid = either error Intra.toUserSSOId $ getUserRef authnRespParsed
+              mssoid' = getUserSSOId resp
+          liftIO $ mssoid' `shouldBe` Just ssoid
+          muid' <- ssoToUidSpar ssoid
           liftIO $ muid' `shouldBe` Just uid
 
       context "known IdP, running session with sso user" $ do
