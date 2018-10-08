@@ -93,6 +93,7 @@ import Util.Types
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
+import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
 import qualified Galley.Types.Teams as Galley
@@ -396,9 +397,19 @@ createTestIdPFrom metadata mgr brig galley spar = do
 
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
-negotiateAuthnRequest = negotiateAuthnRequest' id <&> \case
-  (idp, creds, req, Nothing) -> (idp, creds, req)
-  (_, _, _, Just _)          -> error "unexpected bind cookie."
+negotiateAuthnRequest = negotiateAuthnRequest' id >>= \case
+  (idp, creds, req, cky) -> if deletesBindCookie cky
+    then pure (idp, creds, req)
+    else error $ "unexpected bind cookie: " <> show cky
+
+-- | A bind cookie is always sent, but if we do not want to send one, it looks like this:
+-- "wire.com=; Path=/sso/finalize-login/0fc38390-8288-4a29-ad89-dd212af281a8; Expires=Thu,
+-- 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure"
+deletesBindCookie :: HasCallStack => Maybe SBS -> Bool
+deletesBindCookie Nothing = True  -- we don't expect this, but it's ok if the implementation changes to it.
+deletesBindCookie (Just txt)
+  | "Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure" `SBS.isSuffixOf` txt = True
+  | otherwise = error $ "unexpected bind cookie: " <> show txt
 
 negotiateAuthnRequest' :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => (Request -> Request) -> m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SBS)
