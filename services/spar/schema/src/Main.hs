@@ -21,6 +21,10 @@ main = do
         [ V0.migration
         , V1.migration
         , V2.migration
+        -- TODO: Add a V3 migration that removes unused fields
+        -- (we don't want to risk running a migration which would
+        -- effectively break the currently deployed spar service)
+
         -- When adding migrations here, don't forget to update
         -- 'schemaVersion' in Spar.Data
         ] `finally` close l

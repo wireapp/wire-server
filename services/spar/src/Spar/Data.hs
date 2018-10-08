@@ -85,41 +85,34 @@ storeRequest :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLE
 storeRequest (SAML.ID rid) (SAML.Time endOfLife) = do
     env <- ask
     TTL actualEndOfLife <- mkTTLAuthnRequests env endOfLife
-    retry x5 . write ins $ params Quorum (rid, endOfLife, actualEndOfLife)
+    retry x5 . write ins $ params Quorum (rid, actualEndOfLife)
   where
-    ins :: PrepQuery W (ST, UTCTime, Int32) ()
-    ins = "INSERT INTO authreq (req, end_of_life) VALUES (?, ?) USING TTL ?"
+    ins :: PrepQuery W (ST, Int32) ()
+    ins = "INSERT INTO authreq (req) VALUES (?) USING TTL ?"
 
-checkAgainstRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
+checkAgainstRequest :: (HasCallStack, MonadClient m)
                     => AReqId -> m Bool
-checkAgainstRequest (SAML.ID rid) = do
-    env <- ask
-    (retry x1 . query1 sel . params Quorum $ Identity rid) <&>
-        maybe False ((>= dataEnvNow env) . runIdentity)
+checkAgainstRequest (SAML.ID rid) =
+    (==) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity rid)
   where
-    sel :: PrepQuery R (Identity ST) (Identity UTCTime)
-    sel = "SELECT end_of_life FROM authreq WHERE req = ?"
+    sel :: PrepQuery R (Identity ST) (Identity Int64)
+    sel = "SELECT COUNT(*) FROM authreq WHERE req = ?"
 
--- FUTUREWORK: is there a guarantee in cassandra that records are not returned once their TTL has
--- expired?  if yes, that would greatly simplify this table.  if no, we might still be able to push
--- the end_of_life comparison into the database, rather than retrieving the value and comparing it
--- in haskell.  (also check the other functions in this module.)
 storeAssertion :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
                => SAML.ID SAML.Assertion -> SAML.Time -> m Bool
 storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
     env <- ask
     TTL actualEndOfLife <- mkTTLAssertions env endOfLifeNew
-    notAReplay :: Bool <- (retry x1 . query1 sel . params Quorum $ Identity aid) <&>
-        maybe True ((< dataEnvNow env) . runIdentity)
+    notAReplay <- (/=) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity aid)
     when notAReplay $ do
-        retry x5 . write ins $ params Quorum (aid, endOfLifeNew, actualEndOfLife)
+        retry x5 . write ins $ params Quorum (aid, actualEndOfLife)
     pure notAReplay
   where
-    sel :: PrepQuery R (Identity ST) (Identity UTCTime)
-    sel = "SELECT end_of_life FROM authresp WHERE resp = ?"
+    sel :: PrepQuery R (Identity ST) (Identity Int64)
+    sel = "SELECT COUNT(*) FROM authresp WHERE resp = ?"
 
-    ins :: PrepQuery W (ST, UTCTime, Int32) ()
-    ins = "INSERT INTO authresp (resp, end_of_life) VALUES (?, ?) USING TTL ?"
+    ins :: PrepQuery W (ST, Int32) ()
+    ins = "INSERT INTO authresp (resp) VALUES (?) USING TTL ?"
 
 
 ----------------------------------------------------------------------

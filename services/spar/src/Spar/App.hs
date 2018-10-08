@@ -96,7 +96,7 @@ fromLevel = \case
 
 instance SPStore Spar where
   storeRequest i r      = wrapMonadClientWithEnv $ Data.storeRequest i r
-  checkAgainstRequest r = wrapMonadClientWithEnv $ Data.checkAgainstRequest r
+  checkAgainstRequest r = wrapMonadClient        $ Data.checkAgainstRequest r
   storeAssertion i r    = wrapMonadClientWithEnv $ Data.storeAssertion i r
 
 instance SPStoreIdP SparError Spar where
