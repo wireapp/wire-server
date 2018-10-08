@@ -31,7 +31,6 @@ import qualified API
 import qualified API.Util               as Util
 import qualified API.SQS                as SQS
 import qualified Data.ByteString.Char8  as BS
-import qualified System.Posix.Env       as Posix
 
 data IntegrationConfig = IntegrationConfig
   -- internal endpoints
@@ -84,14 +83,14 @@ main = withOpenSSL $ runTests go
         -- unset this env variable in galley's config to disable testing SQS team events
         q <- join <$> optOrEnvSafe queueName gConf (Just . pack) "GALLEY_SQS_TEAM_EVENTS"
         e <- join <$> optOrEnvSafe endpoint gConf (fromByteString . BS.pack) "GALLEY_SQS_ENDPOINT"
-        convTeamMaxSize <- optOrEnv maxSize gConf read "CONV_AND_TEAM_MAX_SIZE"
+        convMaxSize <- optOrEnv maxSize gConf read "CONV_MAX_SIZE"
         awsEnv <- initAwsEnv e q
         SQS.ensureQueueEmpty awsEnv
-        return $ Util.TestSetup m g b c awsEnv convTeamMaxSize
+        return $ Util.TestSetup m g b c awsEnv convMaxSize
 
     queueName = fmap (view awsQueueName) . view optJournal
     endpoint = fmap (view awsEndpoint) . view optJournal
-    maxSize = view (optSettings.setMaxConvAndTeamSize)
+    maxSize = view (optSettings.setMaxConvSize)
 
     initAwsEnv (Just e) (Just q) = Just <$> SQS.mkAWSEnv (JournalOpts q e)
     initAwsEnv _ _               = return Nothing
@@ -99,9 +98,3 @@ main = withOpenSSL $ runTests go
     releaseOpts _ = return ()
 
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p
-
--- similar to optOrEnv, except return None if an environment variable is not defined
-optOrEnvSafe :: (a -> b) -> Maybe a -> (String -> b) -> String -> IO (Maybe b)
-optOrEnvSafe getter conf reader var = case conf of
-    Nothing -> fmap reader <$> Posix.getEnv var
-    Just c  -> pure $ Just (getter c)

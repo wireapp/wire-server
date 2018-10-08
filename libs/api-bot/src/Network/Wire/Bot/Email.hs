@@ -79,11 +79,12 @@ newMailbox s@(MailboxSettings host usr pwd conns) =
 -- | Awaits activation e-mail to arrive at a mailbox with
 -- the designated recipient address.
 awaitActivationMail :: Mailbox
-                    -> Email -- ^ Expected "FROM"
-                    -> Email -- ^ Expected "TO"
+                    -> [String] -- ^ Mailbox folders to search in, e.g. ["INBOX"]
+                    -> Email    -- ^ Expected "FROM"
+                    -> Email    -- ^ Expected "TO"
                     -> IO (NonEmpty (ActivationKey, ActivationCode))
-awaitActivationMail mbox from to = do
-    msgs <- awaitMail mbox from to "Activation"
+awaitActivationMail mbox folders from to = do
+    msgs <- awaitMail mbox folders from to "Activation"
     forM msgs $ \msg -> do
         let hdrs    = mime_val_headers msg
         let keyHdr  = find ((=="x-zeta-key")  . paramName) hdrs
@@ -96,11 +97,12 @@ awaitActivationMail mbox from to = do
             Nothing -> throwIO MissingEmailHeaders
 
 awaitPasswordResetMail :: Mailbox
-                       -> Email   -- ^ Expected "FROM"
-                       -> Email   -- ^ Expected "TO"
+                       -> [String] -- ^ Mailbox folders to search in, e.g. ["INBOX"]
+                       -> Email    -- ^ Expected "FROM"
+                       -> Email    -- ^ Expected "TO"
                        -> IO (NonEmpty (PasswordResetKey, PasswordResetCode))
-awaitPasswordResetMail mbox from to = do
-    msgs <- awaitMail mbox from to "PasswordReset"
+awaitPasswordResetMail mbox folders from to = do
+    msgs <- awaitMail mbox folders from to "PasswordReset"
     forM msgs $ \msg -> do
         let hdrs    = mime_val_headers msg
         let keyHdr  = find ((=="x-zeta-key")  . paramName) hdrs
@@ -113,11 +115,12 @@ awaitPasswordResetMail mbox from to = do
             Nothing -> throwIO MissingEmailHeaders
 
 awaitInvitationMail :: Mailbox
-                    -> Email   -- ^ Expected "FROM"
-                    -> Email   -- ^ Expected "TO"
+                    -> [String] -- ^ Mailbox folders to search in, e.g. ["INBOX"]
+                    -> Email    -- ^ Expected "FROM"
+                    -> Email    -- ^ Expected "TO"
                     -> IO (NonEmpty InvitationId)
-awaitInvitationMail mbox from to = do
-    msgs <- awaitMail mbox from to "Invitation"
+awaitInvitationMail mbox folders from to = do
+    msgs <- awaitMail mbox folders from to "Invitation"
     forM msgs $ \msg -> do
         let hdrs   = mime_val_headers msg
         let invHdr = find ((=="x-zeta-code") . paramName) hdrs
@@ -126,32 +129,37 @@ awaitInvitationMail mbox from to = do
             Nothing -> throwIO MissingEmailHeaders
 
 awaitMail :: Mailbox
-          -> Email   -- ^ Expected "FROM"
-          -> Email   -- ^ Expected "TO"
-          -> Text    -- ^ Expected "X-Zeta-Purpose"
+          -> [String] -- ^ Mailbox folders to search in, e.g. ["INBOX"]
+          -> Email    -- ^ Expected "FROM"
+          -> Email    -- ^ Expected "TO"
+          -> Text     -- ^ Expected "X-Zeta-Purpose"
           -> IO (NonEmpty MIMEValue)
-awaitMail mbox from to purpose = go 0
+awaitMail mbox folders from to purpose = go 0
   where
     sleep   = 5000000    -- every 5 seconds
     timeout = sleep * 24 -- for up to 2 minutes
     go t = do
-        msgs <- fetchMail mbox from to purpose -- TODO: Retry on (some?) exceptions
+        msgs <- fetchMail mbox folders from to purpose -- TODO: Retry on (some?) exceptions
         case msgs of
             [] | t >= timeout -> throwIO EmailTimeout
             []                -> threadDelay sleep >> go (t + sleep)
             (m:ms) -> return (m :| ms)
 
 fetchMail :: Mailbox
-          -> Email   -- ^ Expected "FROM"
-          -> Email   -- ^ Expected "TO"
-          -> Text    -- ^ Expected "X-Zeta-Purpose"
+          -> [String] -- ^ Mailbox folders to search in, e.g. ["INBOX"]
+          -> Email    -- ^ Expected "FROM"
+          -> Email    -- ^ Expected "TO"
+          -> Text     -- ^ Expected "X-Zeta-Purpose"
           -> IO [MIMEValue]
-fetchMail mbox from to purpose = withResource (mailboxPool mbox) $ \c -> do
-    select c "INBOX"
-    msgIds <- search c [ NOTs (FLAG Seen)
-                       , FROMs (T.unpack $ fromEmail from)
-                       , TOs (T.unpack $ fromEmail to)
-                       , HEADERs "X-Zeta-Purpose" (show purpose)
-                       ]
+fetchMail mbox folders from to purpose = withResource (mailboxPool mbox) $ \c -> do
+    msgIds <- concat <$> forM folders (searchMail c)
     msgs <- mapM (fetch c) msgIds
     return $ map (parseMIMEMessage . T.decodeLatin1) msgs
+  where
+    searchMail c folder = do
+        select c folder
+        search c [ NOTs (FLAG Seen)
+                 , FROMs (T.unpack $ fromEmail from)
+                 , TOs (T.unpack $ fromEmail to)
+                 , HEADERs "X-Zeta-Purpose" (show purpose)
+                 ]

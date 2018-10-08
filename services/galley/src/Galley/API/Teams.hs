@@ -51,6 +51,7 @@ import Data.Set (fromList, toList)
 import Galley.App
 import Galley.API.Error
 import Galley.API.Util
+import Galley.Data.Types
 import Galley.Data.Services (BotMember)
 import Galley.Intra.Push
 import Galley.Intra.User
@@ -190,6 +191,9 @@ uncheckedDeleteTeam zusr zcon tid = do
         let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
         pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : ue)
         void . fork $ void $ External.deliver be
+        -- TODO: we don't delete bots here, but we should do that, since
+        -- every bot user can only be in a single conversation. Just
+        -- deleting conversations from the database is not enough.
         when ((view teamBinding . tdTeam <$> team) == Just Binding) $ do
             mapM_ (deleteUser . view userId) membs
             Journal.teamDelete tid
@@ -215,7 +219,7 @@ getTeamMembers (zusr::: tid ::: _) = do
             pure (json $ teamMemberListJson withPerm (newTeamMemberList mems))
 
 getTeamMember :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
-getTeamMember (zusr::: tid ::: uid ::: _) = do
+getTeamMember (zusr ::: tid ::: uid ::: _) = do
     mems <- Data.teamMembers tid
     case findTeamMember zusr mems of
         Nothing -> throwM noTeamMember
@@ -235,7 +239,7 @@ uncheckedGetTeamMembers (tid ::: _) = do
     return . json $ teamMemberListJson True (newTeamMemberList mems)
 
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
-addTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
+addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
     nmem <- fromBody req invalidPayload
     mems <- Data.teamMembers tid
 
@@ -260,7 +264,7 @@ uncheckedAddTeamMember (tid ::: req ::: _) = do
 
 updateTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON
                  -> Galley Response
-updateTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
+updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
     -- the team member to be updated
     targetMember <- view ntmNewTeamMember <$> fromBody req invalidPayload
     let targetId          = targetMember^.userId
@@ -279,8 +283,8 @@ updateTeamMember (zusr::: zcon ::: tid ::: req ::: _) = do
       throwM teamMemberNotFound
 
     -- cannot demote only owner (effectively removing the last owner)
-    when (targetId `isOnlyOwner` members
-          && targetPermissions /= fullPermissions) $
+    okToDelete <- canBeDeleted members targetId tid
+    when (not okToDelete && targetPermissions /= fullPermissions) $
         throwM noOtherOwner
 
     -- update target in Cassandra
@@ -317,8 +321,8 @@ deleteTeamMember :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Mayb
 deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
     mems <- Data.teamMembers tid
     void $ permissionCheck zusr RemoveTeamMember mems
-    when (remove `isOnlyOwner` mems) $
-        throwM noOtherOwner
+    okToDelete <- canBeDeleted [] remove tid
+    unless okToDelete $ throwM noOtherOwner
     team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
     if team^.teamBinding == Binding && isTeamMember remove mems then do
         body <- fromBody req invalidPayload
@@ -374,6 +378,7 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
     tmems <- Data.teamMembers tid
     void $ permissionCheck zusr DeleteConversation tmems
     (bots, cmems) <- botsAndUsers <$> Data.members cid
+    flip Data.deleteCode ReusableCode =<< mkKey cid
     now <- liftIO getCurrentTime
     let te = newEvent Teams.ConvDelete tid now & eventData .~ Just (Teams.EdConvDelete cid)
     let ce = Conv.Event Conv.ConvDelete cid zusr now Nothing
@@ -383,6 +388,8 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
         []     -> push1 p
         (m:mm) -> pushSome [p, newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
     void . fork $ void $ External.deliver (bots `zip` repeat ce)
+    -- TODO: we don't delete bots here, but we should do that, since every
+    -- bot user can only be in a single conversation
     Data.removeTeamConv tid cid
     pure empty
 
@@ -445,7 +452,7 @@ ensureNotElevated targetPermissions member =
 addTeamMemberInternal :: TeamId -> Maybe UserId -> Maybe ConnId -> NewTeamMember -> [TeamMember] -> Galley Response
 addTeamMemberInternal tid origin originConn newMem mems = do
     o <- view options
-    unless (length mems < fromIntegral (o^.optSettings.setMaxConvAndTeamSize)) $
+    unless (length mems < fromIntegral (o^.optSettings.setMaxTeamSize)) $
         throwM tooManyTeamMembers
     let new = newMem^.ntmNewTeamMember
     Data.addTeamMember tid new

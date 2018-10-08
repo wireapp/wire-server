@@ -145,6 +145,12 @@ routes = do
 
     -- Internal
 
+    post "/i/sso-login" (continue ssoLogin) $
+        request
+        .&. def False (query "persist")
+        .&. accept "application" "json"
+        .&. contentType "application" "json"
+
     get "/i/users/login-code" (continue getLoginCode) $
         accept "application" "json"
         .&. param "phone"
@@ -179,6 +185,13 @@ login (req ::: persist ::: _) = do
     l <- parseJsonBody req
     let typ = if persist then PersistentCookie else SessionCookie
     a <- Auth.login l typ !>> loginError
+    tokenResponse a
+
+ssoLogin :: Request ::: Bool ::: JSON ::: JSON -> Handler Response
+ssoLogin (req ::: persist ::: _) = do
+    l <- parseJsonBody req
+    let typ = if persist then PersistentCookie else SessionCookie
+    a <- Auth.ssoLogin l typ !>> loginError
     tokenResponse a
 
 logout :: JSON ::: Maybe ZAuth.UserToken ::: Maybe ZAuth.AccessToken -> Handler Response
@@ -242,4 +255,3 @@ tokenRequest = opt userToken .&. opt accessToken
 tokenResponse :: Auth.Access -> Handler Response
 tokenResponse (Auth.Access t  Nothing) = return (json t)
 tokenResponse (Auth.Access t (Just c)) = lift $ Auth.setResponseCookie c (json t)
-

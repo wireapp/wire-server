@@ -50,9 +50,10 @@ module Galley.Types.Teams
     , Permissions
     , newPermissions
     , fullPermissions
+    , noPermissions
+    , serviceWhitelistPermissions
     , hasPermission
-    , isOwner
-    , isOnlyOwner
+    , isTeamOwner
     , self
     , copy
 
@@ -116,23 +117,10 @@ import Data.Set (Set)
 import Data.Text (Text)
 import Data.Time (UTCTime)
 import Data.Word
+import Galley.Types.Teams.Internal
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
-
-data TeamBinding =
-      Binding
-    | NonBinding
-    deriving (Eq, Show)
-
-data Team = Team
-    { _teamId      :: TeamId
-    , _teamCreator :: UserId
-    , _teamName    :: Text
-    , _teamIcon    :: Text
-    , _teamIconKey :: Maybe Text
-    , _teamBinding :: TeamBinding
-    } deriving (Eq, Show)
 
 data Event = Event
     { _eventType :: EventType
@@ -140,6 +128,40 @@ data Event = Event
     , _eventTime :: UTCTime
     , _eventData :: Maybe EventData
     } deriving Eq
+
+-- Note [whitelist events]
+-- ~~~~~~~~~~~~~~~
+--
+-- When a service is put off the whitelist, we want to notify users about
+-- this so that they would be able to update their whitelists in real time
+-- (or at least this could be useful for the team admin console). For this
+-- we might eventually have events 'ServiceWhitelistAdd' and
+-- 'ServiceWhitelistRemove'.
+--
+-- However, they're not really necessary for clients, and currently
+-- implementing them is problematic. There are three choices and all are
+-- bad:
+--
+--   1. If we decide to send them to all users, this would be an expensive
+--      operation – especially once we have bigger teams. We can send these
+--      events asynchonously, but it's still somewhat painful.
+--
+--   2. If we decide to only send them to e.g. team admins, now we have to
+--      figure out who *are* team admins, and currently the backend doesn't
+--      have a notion of a team admin at all. See Note [team roles].
+--
+--   3. We could create a new permission (e.g. "CanWhitelistServices") and
+--      only send the event to users with this permission, because
+--      presumably only they care about it. However, we can't do this
+--      either, because adding new permissions is tricky.
+--      See Note [team roles] again.
+--
+-- So, we don't send these events at all. An implementation was done, but
+-- then removed in commit b4d777ede1c7f73e42b2e1bc356ce7346e0355bc.
+--
+-- It's also unclear whether these event types belong in Brig or in Galley;
+-- arguably the code would be simpler if they were in Brig, so we should
+-- think about that if we want to get them in.
 
 data EventType =
       TeamCreate
@@ -210,17 +232,15 @@ data Perm =
     | SetMemberPermissions
     | GetTeamConversations
     | DeleteTeam
-    deriving (Eq, Ord, Show)
-
-data NewTeam a = NewTeam
-    { _newTeamName    :: Range 1 256 Text
-    , _newTeamIcon    :: Range 1 256 Text
-    , _newTeamIconKey :: Maybe (Range 1 256 Text)
-    , _newTeamMembers :: Maybe a
-    }
+    -- If you ever think about adding a new permission flag,
+    -- read Note [team roles] first.
+    deriving (Eq, Ord, Show, Enum, Bounded)
 
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
+    deriving (Eq, Show)
+
 newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]))
+    deriving (Eq, Show)
 
 newtype NewTeamMember = NewTeamMember
     { _ntmNewTeamMember :: TeamMember
@@ -300,7 +320,11 @@ isTeamMember u = isJust . findTeamMember u
 findTeamMember :: Foldable m => UserId -> m TeamMember -> Maybe TeamMember
 findTeamMember u = find ((u ==) . view userId)
 
-newPermissions :: Set Perm -> Set Perm -> Maybe Permissions
+newPermissions
+    :: Set Perm            -- ^ User's permissions
+    -> Set Perm            -- ^ Permissions that the user will be able to
+                           --   grant to other users (must be a subset)
+    -> Maybe Permissions
 newPermissions a b
     | b `Set.isSubsetOf` a = Just (Permissions a b)
     | otherwise            = Nothing
@@ -308,20 +332,60 @@ newPermissions a b
 fullPermissions :: Permissions
 fullPermissions = let p = intToPerms maxBound in Permissions p p
 
+noPermissions :: Permissions
+noPermissions = Permissions mempty mempty
+
+-- | Permissions that a user needs to be considered a "service whitelist
+-- admin" (can add and remove services from the whitelist).
+serviceWhitelistPermissions :: Set Perm
+serviceWhitelistPermissions = Set.fromList
+    [ AddTeamMember, RemoveTeamMember
+    , RemoveConversationMember
+    , SetTeamData
+    ]
+
 hasPermission :: TeamMember -> Perm -> Bool
 hasPermission tm p = p `Set.member` (tm^.permissions.self)
 
---------------------------------------------------------
--- NOTE: By convention, we define an _owner_ as a member
---       with full permissions
---------------------------------------------------------
-isOwner :: TeamMember -> Bool
-isOwner = (== fullPermissions) . view permissions
+-- Note [team roles]
+-- ~~~~~~~~~~~~
+--
+-- Client apps have a notion of *team roles*. They are defined as sets of
+-- permissions:
+--
+--     member =
+--         {Add/RemoveConversationMember, Create/DeleteConversation,
+--         GetMemberPermissions, GetTeamConversations}
+--
+--     admin = member +
+--         {Add/RemoveTeamMember, SetMemberPermissions, SetTeamData}
+--
+--     owner = admin +
+--         {DeleteTeam, Get/SetBilling}
+--
+-- For instance, here: https://github.com/wireapp/wire-webapp/blob/dev/app/script/team/TeamPermission.js
+--
+-- Whenever a user has one of those specific sets of permissions, they are
+-- considered a member/admin/owner and the client treats them accordingly
+-- (e.g. for an admin it might show a certain button, while for an ordinary
+-- user it won't).
+--
+-- On the backend, however, we don't have such a notion. Instead we have
+-- granular (in fact, probably *too* granular) permission masks. Look at
+-- 'Perm' and 'Permissions'.
+--
+-- Admins as a concept don't exist at all, and team owners are defined as
+-- "full bitmask". When we do checks like "the backend must not let the last
+-- team owner leave the team", this is what we test for. We also never test
+-- for "team admin", and instead look at specific permissions.
+--
+-- Creating a new permission flag is thus very tricky, because if we decide
+-- that all team admins must have this new permission, we will have to
+-- identify all existing team admins. And if it turns out that some users
+-- don't fit into one of those three team roles, we're screwed.
 
-isOnlyOwner :: Foldable m => UserId -> m TeamMember -> Bool
-isOnlyOwner u =  not . any otherOwner
-  where
-    otherOwner x = isOwner x && x^.userId /= u
+isTeamOwner :: TeamMember -> Bool
+isTeamOwner tm = fullPermissions == (tm^.permissions)
 
 permToInt :: Perm -> Word64
 permToInt CreateConversation       = 0x0001
@@ -361,34 +425,6 @@ intToPerms n =
 
 permsToInt :: Set Perm -> Word64
 permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0
-
-instance ToJSON TeamBinding where
-    toJSON Binding    = Bool True
-    toJSON NonBinding = Bool False
-
-instance ToJSON Team where
-    toJSON t = object
-        $ "id"       .= _teamId t
-        # "creator"  .= _teamCreator t
-        # "name"     .= _teamName t
-        # "icon"     .= _teamIcon t
-        # "icon_key" .= _teamIconKey t
-        # "binding"  .= _teamBinding t
-        # []
-
-instance FromJSON TeamBinding where
-    parseJSON (Bool True)  = pure Binding
-    parseJSON (Bool False) = pure NonBinding
-    parseJSON other        = fail $ "Unknown binding type: " <> show other
-
-instance FromJSON Team where
-    parseJSON = withObject "team" $ \o -> do
-        Team <$> o .:  "id"
-             <*> o .:  "creator"
-             <*> o .:  "name"
-             <*> o .:  "icon"
-             <*> o .:? "icon_key"
-             <*> o .:? "binding" .!= NonBinding
 
 instance ToJSON TeamList where
     toJSON t = object
@@ -450,7 +486,7 @@ instance FromJSON Permissions where
             Just ps -> pure ps
 
 newTeamJson :: NewTeam a -> [Pair]
-newTeamJson (NewTeam n i ik _) = 
+newTeamJson (NewTeam n i ik _) =
           "name"     .= fromRange n
         # "icon"     .= fromRange i
         # "icon_key" .= (fromRange <$> ik)
@@ -460,24 +496,13 @@ instance ToJSON BindingNewTeam where
     toJSON (BindingNewTeam t) = object $ newTeamJson t
 
 instance ToJSON NonBindingNewTeam where
-    toJSON (NonBindingNewTeam t) = 
+    toJSON (NonBindingNewTeam t) =
         object
         $ "members" .= (map (teamMemberJson True) . fromRange <$> _newTeamMembers t)
         # newTeamJson t
 
 deriving instance FromJSON BindingNewTeam
 deriving instance FromJSON NonBindingNewTeam
-
-instance (FromJSON a) => FromJSON (NewTeam a) where
-    parseJSON = withObject "new-team" $ \o -> do
-        name <- o .:  "name"
-        icon <- o .:  "icon"
-        key  <- o .:? "icon_key"
-        mems <- o .:? "members"
-        either fail pure $ NewTeam <$> checkedEitherMsg "name" name
-                                   <*> checkedEitherMsg "icon" icon
-                                   <*> maybe (pure Nothing) (fmap Just . checkedEitherMsg "icon_key") key
-                                   <*> pure mems
 
 instance ToJSON NewTeamMember where
     toJSON t = object ["member" .= teamMemberJson True (_ntmNewTeamMember t)]

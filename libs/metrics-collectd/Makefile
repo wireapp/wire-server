@@ -1,3 +1,4 @@
+LANG := en_US.UTF-8
 SHELL        := /usr/bin/env bash
 NAME         := $(lastword $(subst /, ,$(CURDIR)))
 VERSION       = $(shell sed -n 's/^version: *\(.*\)$$/\1/p' $(NAME).cabal)
@@ -15,21 +16,21 @@ init:
 
 .PHONY: clean
 clean:
-	stack clean
+	stack clean metrics-collectd
 	-rm -rf dist
 	-rm -f .metadata
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist
+	stack install . --pedantic --test --local-bin-path=dist
 
 .PHONY:
 compile:
-	stack build --pedantic --test --no-copy-bins
+	stack build . --pedantic --test --no-copy-bins
 
 .PHONY: sdist
 sdist: init
-	stack sdist
+	stack sdist .
 	cp "$(shell stack path --dist-dir)/$(NAME)-$(VERSION).tar.gz" dist/
 
 .PHONY: dist

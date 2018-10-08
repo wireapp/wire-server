@@ -9,7 +9,7 @@ import Data.Text (Text)
 import Brig.Types (Email, fromEmail)
 import System.Logger.Class (field, msg, (~~))
 
-import qualified Brig.Blacklist      as Blacklist
+import qualified Brig.Data.Blacklist as Blacklist
 import qualified System.Logger.Class as Log
 
 onEvent :: SESNotification -> AppIO ()

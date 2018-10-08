@@ -84,7 +84,6 @@ import qualified Codec.MIME.Parse             as MIME
 import qualified Data.ByteString.Char8        as C8
 import qualified Data.ByteString.Lazy         as LBS
 import qualified Data.CaseInsensitive         as CI
-import qualified Data.Conduit                 as Conduit
 import qualified Data.Conduit.Binary          as Conduit
 import qualified Data.List.NonEmpty           as NE
 import qualified Data.Sequence                as Seq
@@ -109,7 +108,7 @@ uploadV3 :: V3.Principal
          -> V3.AssetKey
          -> V3.AssetHeaders
          -> Maybe V3.AssetToken
-         -> Source (ResourceT IO) ByteString
+         -> ConduitM () ByteString (ResourceT IO) ()
          -> ExceptT Error App ()
 uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
     Log.debug $ "remote" .= val "S3"
@@ -164,7 +163,7 @@ updateMetadataV3 (s3Key . mkKey -> key) (S3AssetMeta prc tok ct) = do
         ~~ msg (val "Updating asset metadata")
     void $ exec req
   where
-    copySrc b = decodeLatin1 . LBS.toStrict . toLazyByteString 
+    copySrc b = decodeLatin1 . LBS.toStrict . toLazyByteString
               $ urlEncode [] $ Text.encodeUtf8 (b <> "/" <> key)
 
     req b = copyObject (BucketName b) (copySrc b) (ObjectKey key)
@@ -181,7 +180,7 @@ signedURL path = do
     let req = getObject (BucketName b) (ObjectKey . Text.decodeLatin1 $ toByteString' path)
     signed <- AWS.execute e (presignURL now (Seconds $ fromIntegral ttl) req)
     return =<< toUri signed
-  where 
+  where
     toUri x = case parseURI strictURIParserOptions x of
         Left e  -> do
             Log.err $ "remote" .= val "S3"
@@ -308,13 +307,15 @@ minBigSize = 5 * 1024 * 1024 -- 5 MiB
 getResumable :: V3.AssetKey -> ExceptT Error App (Maybe S3Resumable)
 getResumable k = do
     Log.debug $ "remote" .= val "S3"
-        ~~ "asset"       .= toByteString k
-        ~~ "asset.key"   .= toByteString rk
+        ~~ "asset"          .= toByteString k
+        ~~ "asset.key"      .= toByteString rk
+        ~~ "asset.key.meta" .= toByteString mk
         ~~ msg (val "Getting resumable asset metadata")
-    maybe (return Nothing) handle =<< execCatch req            
+    maybe (return Nothing) handle =<< execCatch req
   where
     rk    = mkResumableKey k
-    req b = headObject (BucketName b) (ObjectKey $ s3ResumableKey rk)
+    mk    = mkResumableKeyMeta k
+    req b = headObject (BucketName b) (ObjectKey $ s3ResumableKey mk)
 
     handle r = do
         let ct = fromMaybe octets (parseMIMEType =<< view horsContentType r)
@@ -338,16 +339,17 @@ createResumable
     -> V3.Principal
     -> MIME.Type
     -> V3.TotalSize
-    -> Maybe V3.AssetToken
+    -> Maybe V3.AssetTokenf
     -> ExceptT Error App S3Resumable
 createResumable k p typ size tok = do
     let csize = calculateChunkSize size
     ex <- addUTCTime V3.assetVolatileSeconds <$> liftIO getCurrentTime
     let key = mkResumableKey k
+        mk  = mkResumableKeyMeta k
     let res = S3Resumable key k p csize size typ tok ex Nothing Seq.empty
     up <- initMultipart res
     let ct = resumableType res
-    void . exec $ first (s3ResumableKey key) ct (resumableMeta csize ex up)
+    void . exec $ first (s3ResumableKey mk) ct (resumableMeta csize ex up)
     return res { resumableUploadId = up }
   where
     initMultipart r
@@ -385,8 +387,8 @@ createResumable k p typ size tok = do
 uploadChunk
     :: S3Resumable
     -> V3.Offset
-    -> ResumableSource IO ByteString
-    -> ExceptT Error App (S3Resumable, ResumableSource IO ByteString)
+    -> SealedConduitT () ByteString IO ()
+    -> ExceptT Error App (S3Resumable, SealedConduitT () ByteString IO ())
 uploadChunk r offset rsrc = do
     let chunkSize = fromIntegral (resumableChunkSize r)
     (rest, chunk) <- liftIO $ rsrc $$++ Conduit.take chunkSize
@@ -453,9 +455,10 @@ completeResumable r = do
     assembleLocal :: Seq S3Chunk -> ExceptT Error App ()
     assembleLocal chunks = do
         e <- view aws
+        man <- view httpManager
         let totalSize = fromIntegral (resumableTotalSize r)
         let chunkSize = calcChunkSize chunks
-        let reqBdy = Chunked $ ChunkedBody chunkSize totalSize (chunkSource e chunks)
+        let reqBdy = Chunked $ ChunkedBody chunkSize totalSize (chunkSource man e chunks)
         let putRq b = putObject (BucketName b) (ObjectKey (s3Key (mkKey ast))) reqBdy
                     & poContentType ?~ encodeMIMEType (resumableType r)
                     & poMetadata    .~ metaHeaders (resumableToken r) own
@@ -501,10 +504,11 @@ completeResumable r = do
             throwE $ uploadIncomplete (resumableTotalSize r) total
 
     -- Construct a 'Source' by downloading the chunks.
-    chunkSource :: AWS.Env
+    chunkSource :: Manager
+                -> AWS.Env
                 -> Seq S3Chunk
                 -> Source (ResourceT IO) ByteString
-    chunkSource env cs = case Seq.viewl cs of
+    chunkSource man env cs = case Seq.viewl cs of
         EmptyL  -> mempty
         c :< cc -> do
             let S3ChunkKey ck = mkChunkKey (resumableKey r) (chunkNr c)
@@ -512,7 +516,7 @@ completeResumable r = do
             let req = getObject (BucketName b) (ObjectKey ck)
             v <- lift $ AWS.execute env $ AWS.send req
                       >>= flip sinkBody Conduit.sinkLbs . view gorsBody
-            Conduit.yield (LBS.toStrict v) >> chunkSource env cc
+            Conduit.yield (LBS.toStrict v) >> chunkSource man env cc
 
 listChunks :: S3Resumable -> ExceptT Error App (Maybe (Seq S3Chunk))
 listChunks r = do
@@ -563,12 +567,16 @@ listChunks r = do
                 etag = S3ETag (Text.decodeLatin1 y)
             in Just $! S3Chunk nr off size etag
         _                               -> Nothing
-        
+
     parseNr = fmap S3ChunkNr . readMay . Text.unpack . snd . Text.breakOnEnd "/"
 
 mkResumableKey :: V3.AssetKey -> S3ResumableKey
 mkResumableKey (V3.AssetKeyV3 aid _) =
     S3ResumableKey $ "v3/resumable/" <> UUID.toText (toUUID aid)
+
+mkResumableKeyMeta :: V3.AssetKey -> S3ResumableKey
+mkResumableKeyMeta (V3.AssetKeyV3 aid _) =
+    S3ResumableKey $ "v3/resumable/" <> UUID.toText (toUUID aid) <> "/meta"
 
 mkChunkKey :: S3ResumableKey -> S3ChunkNr -> S3ChunkKey
 mkChunkKey (S3ResumableKey k) (S3ChunkNr n) =

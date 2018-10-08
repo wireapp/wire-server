@@ -1,0 +1,3 @@
+„Wire“ prisijungimo kodas yra ${code}.
+
+Atvėrę ${url} galėsite prisijungti.

@@ -506,6 +506,8 @@ sitemap = do
 
     document "POST" "createConversationCode" $ do
         summary "Create or recreate a conversation code"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
         returns (ref Model.event)
         returns (ref Model.conversationCode)
         response 201 "Conversation code created." (model Model.event)
@@ -522,6 +524,8 @@ sitemap = do
 
     document "DELETE" "deleteConversationCode" $ do
         summary "Delete conversation code"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
         returns (ref Model.event)
         response 200 "Conversation code deleted." end
         errorResponse Error.convNotFound
@@ -535,6 +539,8 @@ sitemap = do
 
     document "GET" "getConversationCode" $ do
         summary "Get existing conversation code"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
         returns (ref Model.conversationCode)
         response 200 "Conversation Code" end
         errorResponse Error.convNotFound
@@ -551,8 +557,11 @@ sitemap = do
 
     document "PUT" "updateConversationAccess" $ do
         summary "Update access modes for a conversation"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
         returns (ref Model.event)
         response 200 "Conversation access updated." end
+        response 204 "Conversation access unchanged." end
         body (ref Model.conversationAccessUpdate) $
             description "JSON body"
         errorResponse Error.convNotFound
@@ -561,7 +570,30 @@ sitemap = do
         errorResponse Error.invalidSelfOp
         errorResponse Error.invalidOne2OneOp
         errorResponse Error.invalidConnectOp
-        errorResponse Error.invalidTargetAccess
+
+    ---
+
+    put "/conversations/:cnv/message-timer" (continue updateConversationMessageTimer) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. request
+        .&. contentType "application" "json"
+
+    document "PUT" "updateConversationMessageTimer" $ do
+        summary "Update the message timer for a conversation"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        returns (ref Model.event)
+        response 200 "Message timer updated." end
+        response 204 "Message timer unchanged." end
+        body (ref Model.conversationMessageTimerUpdate) $
+            description "JSON body"
+        errorResponse Error.convNotFound
+        errorResponse Error.accessDenied
+        errorResponse Error.invalidSelfOp
+        errorResponse Error.invalidOne2OneOp
+        errorResponse Error.invalidConnectOp
 
     ---
 
@@ -664,7 +696,7 @@ sitemap = do
         .&. contentType "application" "json"
 
     document "POST" "postOtrBroadcast" $ do
-        summary "Broadcast an encrypted message to all team members and all contacts"
+        summary "Broadcast an encrypted message to all team members and all contacts (accepts JSON)"
         parameter Query "ignore_missing" bool' $ do
             description "Force message delivery even when clients are missing."
             optional
@@ -686,9 +718,19 @@ sitemap = do
         .&. contentType "application" "x-protobuf"
 
     document "POST" "postOtrBroadcast" $ do
-        summary "Broadcast an encrypted message to all team members and all contacts"
+        summary "Broadcast an encrypted message to all team members and all contacts (accepts Protobuf)"
         parameter Query "ignore_missing" bool' $ do
-            description "Force message delivery even when clients are missing."
+            description "Force message delivery even when clients are missing. \
+                        \NOTE: can also be a comma-separated list of user IDs, \
+                        \in which case it specifies who exactly is allowed to \
+                        \have missing clients."
+            optional
+        parameter Query "report_missing" bool' $ do
+            description "Don't allow message delivery when clients are missing \
+                        \('ignore_missing' takes precedence when present). \
+                        \NOTE: can also be a comma-separated list of user IDs, \
+                        \in which case it specifies who exactly is forbidden from \
+                        \having missing clients."
             optional
         body (ref Model.newOtrMessage) $
             description "Protobuf body"
@@ -709,11 +751,21 @@ sitemap = do
         .&. contentType "application" "json"
 
     document "POST" "postOtrMessage" $ do
-        summary "Post an encrypted message to a conversation"
+        summary "Post an encrypted message to a conversation (accepts JSON)"
         parameter Path "cnv" bytes' $
             description "Conversation ID"
         parameter Query "ignore_missing" bool' $ do
-            description "Force message delivery even when clients are missing."
+            description "Force message delivery even when clients are missing. \
+                        \NOTE: can also be a comma-separated list of user IDs, \
+                        \in which case it specifies who exactly is allowed to \
+                        \have missing clients."
+            optional
+        parameter Query "report_missing" bool' $ do
+            description "Don't allow message delivery when clients are missing \
+                        \('ignore_missing' takes precedence when present). \
+                        \NOTE: can also be a comma-separated list of user IDs, \
+                        \in which case it specifies who exactly is forbidden from \
+                        \having missing clients."
             optional
         body (ref Model.newOtrMessage) $
             description "JSON body"
@@ -733,7 +785,7 @@ sitemap = do
         .&. contentType "application" "x-protobuf"
 
     document "POST" "postProtoOtrMessage" $ do
-        summary "Post an encrypted message to a conversation"
+        summary "Post an encrypted message to a conversation (accepts Protobuf)"
         parameter Path "cnv" bytes' $
             description "Conversation ID"
         parameter Query "ignore_missing" bool' $ do
@@ -770,6 +822,12 @@ sitemap = do
     get "/i/conversations/:cnv/members/:usr" (continue internalGetMember) $
         capture "cnv"
         .&. capture "usr"
+
+    post "/i/conversations/managed" (continue internalCreateManagedConversation) $
+        zauthUserId
+        .&. zauthConnId
+        .&. request
+        .&. contentType "application" "json"
 
     post "/i/conversations/connect" (continue createConnectConversation) $
         zauthUserId
@@ -904,4 +962,7 @@ filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
                           $ P.setReason P.TypeError
                           $ P.setSource src
                           $ P.err status400
+        -- NB. 'fromByteString' parses a comma-separated list ('List') of
+        -- user IDs, and then 'fromList' unwraps it; took me a while to
+        -- understand this
         Just  l -> P.Okay 0 (Set.fromList (fromList l))

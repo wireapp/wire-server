@@ -18,6 +18,9 @@ module Brig.App
     , newEnv
     , closeEnv
     , awsEnv
+    , smtpEnv
+    , stompEnv
+    , cargohold
     , galley
     , gundeck
     , userTemplates
@@ -37,6 +40,8 @@ module Brig.App
     , metrics
     , applog
     , turnEnv
+    , turnEnvV2
+    , internalEvents
 
       -- * App Monad
     , AppT
@@ -51,6 +56,7 @@ module Brig.App
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import Brig.Options (Opts, Settings)
+import Brig.Queue.Types (Queue (..))
 import Brig.Template (Localised, forLocale)
 import Brig.Provider.Template
 import Brig.Team.Template
@@ -58,7 +64,7 @@ import Brig.User.Search.Index (runIndexIO, IndexEnv (..), MonadIndexIO (..))
 import Brig.User.Template
 import Brig.Types (Locale (..), TurnURI)
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
-import Cassandra (MonadClient (..), Keyspace (..), runClient, Client)
+import Cassandra (MonadClient (..), Keyspace (..), runClient)
 import Cassandra.Schema (versionCheck)
 import Control.AutoUpdate
 import Control.Concurrent (forkIO)
@@ -66,12 +72,10 @@ import Control.Error
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding ((.=), index)
 import Control.Monad (void, (>=>))
-import Control.Monad.Base
 import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
 import Control.Monad.IO.Class
 import Control.Monad.Reader.Class
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.Control
 import Control.Monad.Trans.Reader (ReaderT (..), runReaderT)
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
@@ -90,13 +94,17 @@ import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (getDigestByName, Digest)
 import OpenSSL.Session (SSLOption (..))
+import Ssl.Util
 import System.Directory (canonicalizePath)
 import System.Logger.Class hiding (Settings, settings)
+import UnliftIO (MonadUnliftIO (..))
 import Util.Options
 
 import qualified Bilge                    as RPC
 import qualified Brig.AWS                 as AWS
+import qualified Brig.Queue.Stomp         as Stomp
 import qualified Brig.Options             as Opt
+import qualified Brig.SMTP                as SMTP
 import qualified Brig.TURN                as TURN
 import qualified Brig.ZAuth               as ZAuth
 import qualified Cassandra                as Cas
@@ -118,30 +126,35 @@ import qualified System.Logger            as Log
 import qualified System.Logger.Class      as LC
 
 schemaVersion :: Int32
-schemaVersion = 49
+schemaVersion = 53
 
 -------------------------------------------------------------------------------
 -- Environment
 
 data Env = Env
-    { _galley        :: RPC.Request
+    { _cargohold     :: RPC.Request
+    , _galley        :: RPC.Request
     , _gundeck       :: RPC.Request
     , _casClient     :: Cas.ClientState
+    , _smtpEnv       :: Maybe SMTP.SMTP
     , _awsEnv        :: AWS.Env
+    , _stompEnv      :: Maybe Stomp.Env
     , _metrics       :: Metrics
     , _applog        :: Logger
+    , _internalEvents :: Queue
     , _requestId     :: RequestId
     , _usrTemplates  :: Localised UserTemplates
     , _provTemplates :: Localised ProviderTemplates
     , _tmTemplates   :: Localised TeamTemplates
     , _httpManager   :: Manager
-    , _extGetManager :: [Fingerprint Rsa] -> Manager
+    , _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
     , _settings      :: Settings
     , _nexmoCreds    :: Nexmo.Credentials
     , _twilioCreds   :: Twilio.Credentials
     , _geoDb         :: Maybe (IORef GeoIp.GeoDB)
     , _fsWatcher     :: FS.WatchManager
     , _turnEnv       :: IORef TURN.Env
+    , _turnEnvV2     :: IORef TURN.Env
     , _currentTime   :: IO UTCTime
     , _zauthEnv      :: ZAuth.Env
     , _digestSHA256  :: Digest
@@ -164,23 +177,38 @@ newEnv o = do
     utp <- loadUserTemplates o
     ptp <- loadProviderTemplates o
     ttp <- loadTeamTemplates o
-    aws <- AWS.mkEnv lgr (Opt.aws o) mgr
+    (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS o)
+    aws <- AWS.mkEnv lgr (Opt.aws o) emailAWSOpts mgr
     zau <- initZAuth o
     clock <- mkAutoUpdate defaultUpdateSettings { updateAction = getCurrentTime }
     w   <- FS.startManagerConf
          $ FS.defaultConfig { FS.confDebounce = FS.Debounce 0.5, FS.confPollInterval = 10000000 }
     g   <- geoSetup lgr w $ Opt.geoDb o
-    t   <- turnSetup lgr w sha512 (Opt.turn o)
+    (turn, turnV2) <- turnSetup lgr w sha512 (Opt.turn o)
     let sett = Opt.optSettings o
     nxm <- initCredentials (Opt.setNexmo sett)
     twl <- initCredentials (Opt.setTwilio sett)
+    stomp <- case (Opt.stomp o, Opt.setStomp sett) of
+        (Nothing, Nothing) -> pure Nothing
+        (Just s, Just c)   -> Just . Stomp.mkEnv s <$> initCredentials c
+        (Just _, Nothing)  -> error "STOMP is configured but 'setStomp' is not set"
+        (Nothing, Just _)  -> error "'setStomp' is present but STOMP is not configured"
+    -- This is messy. See Note [queue refactoring] to learn how we
+    -- eventually plan to solve this mess.
+    eventsQueue <- case Opt.internalEventsQueue (Opt.internalEvents o) of
+        StompQueue q -> pure (StompQueue q)
+        SqsQueue q -> SqsQueue <$> AWS.getQueueUrl (aws ^. AWS.amazonkaEnv) q
     return $! Env
-        { _galley        = mkEndpoint $ Opt.galley o
+        { _cargohold     = mkEndpoint $ Opt.cargohold o
+        , _galley        = mkEndpoint $ Opt.galley o
         , _gundeck       = mkEndpoint $ Opt.gundeck o
         , _casClient     = cas
+        , _smtpEnv       = emailSMTP
         , _awsEnv        = aws
+        , _stompEnv      = stomp
         , _metrics       = mtr
         , _applog        = lgr
+        , _internalEvents = eventsQueue
         , _requestId     = mempty
         , _usrTemplates  = utp
         , _provTemplates = ptp
@@ -191,7 +219,8 @@ newEnv o = do
         , _nexmoCreds    = nxm
         , _twilioCreds   = twl
         , _geoDb         = g
-        , _turnEnv       = t
+        , _turnEnv       = turn
+        , _turnEnvV2     = turnV2
         , _fsWatcher     = w
         , _currentTime   = clock
         , _zauthEnv      = zau
@@ -200,6 +229,14 @@ newEnv o = do
         , _indexEnv      = mkIndexEnv o lgr mgr mtr
         }
   where
+    emailConn _   (Opt.EmailAWS aws) = return (Just aws, Nothing)
+    emailConn lgr (Opt.EmailSMTP  s) = do
+        let host = Opt.smtpEndpoint s
+            user = SMTP.Username (Opt.smtpUsername s)
+        pass <- initCredentials (Opt.smtpPassword s)
+        smtp <- SMTP.initSMTP lgr host user (SMTP.Password pass) (Opt.smtpConnType s)
+        return (Nothing, Just smtp)
+
     mkEndpoint service = RPC.host (encodeUtf8 (service^.epHost)) . RPC.port (service^.epPort) $ RPC.empty
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> IndexEnv
@@ -216,14 +253,19 @@ geoSetup lgr w (Just db) = do
     startWatching w path (replaceGeoDb lgr geodb)
     return $ Just geodb
 
-turnSetup :: Logger -> FS.WatchManager -> Digest -> Opt.TurnOpts -> IO (IORef TURN.Env)
+turnSetup :: Logger -> FS.WatchManager -> Digest -> Opt.TurnOpts -> IO (IORef TURN.Env, IORef TURN.Env)
 turnSetup lgr w dig o = do
-    secret  <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret o)
-    path    <- canonicalizePath (Opt.servers o)
-    servers <- fromMaybe (error "Empty TURN list, check turn file!") <$> readTurnList path
-    te      <- newIORef =<< TURN.newEnv dig servers (Opt.tokenTTL o) (Opt.configTTL o) secret
-    startWatching w path (replaceTurnServers lgr te)
-    return te
+    secret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret o)
+    cfg    <- setupTurn secret (Opt.servers o)
+    cfgV2  <- setupTurn secret (Opt.serversV2 o)
+    return (cfg, cfgV2)
+  where
+    setupTurn secret cfg = do
+        path    <- canonicalizePath cfg
+        servers <- fromMaybe (error "Empty TURN list, check turn file!") <$> readTurnList path
+        te      <- newIORef =<< TURN.newEnv dig servers (Opt.tokenTTL o) (Opt.configTTL o) secret
+        startWatching w path (replaceTurnServers lgr te)
+        return te
 
 startWatching :: FS.WatchManager -> FilePath -> FS.Action -> IO ()
 startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
@@ -262,6 +304,7 @@ initZAuth o = do
 
 initHttpManager :: IO Manager
 initHttpManager = do
+    -- See Note [SSL context]
     ctx <- SSL.context
     SSL.contextAddOption ctx SSL_OP_NO_SSLv2
     SSL.contextAddOption ctx SSL_OP_NO_SSLv3
@@ -272,13 +315,23 @@ initHttpManager = do
     -- Unfortunately, there are quite some AWS services we talk to
     -- (e.g. SES, Dynamo) that still only support TLSv1.
     -- Ideally: SSL.contextAddOption ctx SSL_OP_NO_TLSv1
-    newManager (opensslManagerSettings ctx)
+    newManager (opensslManagerSettings (pure ctx))
         { managerConnCount           = 1024
         , managerIdleConnectionCount = 4096
         , managerResponseTimeout     = responseTimeoutMicro 10000000
         }
 
-initExtGetManager :: IO ([Fingerprint Rsa] -> Manager)
+-- Note [SSL context]
+-- ~~~~~~~~~~~~
+--
+-- 'openSslManagerSettings' takes an IO action for creating the context;
+-- presumably a new context is created for each connection, then. However,
+-- judging by comments at https://github.com/snoyberg/http-client/pull/227,
+-- it should be fine to reuse the context, and reusing it is probably
+-- faster. So, we reuse the context.
+
+-- TODO: somewhat duplicates Galley.App.initExtEnv
+initExtGetManager :: IO (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
 initExtGetManager = do
     ctx <- SSL.context
     SSL.contextAddOption ctx SSL_OP_NO_SSLv2
@@ -288,22 +341,22 @@ initExtGetManager = do
     -- support self-signed certificates as well, hence 'VerifyNone'.
     SSL.contextSetVerificationMode ctx SSL.VerifyNone
     SSL.contextLoadSystemCerts ctx
-    mgr <- newManager (opensslManagerSettings ctx)
+    mgr <- newManager (opensslManagerSettings (pure ctx))  -- see Note [SSL context]
         { managerConnCount           = 100
         , managerIdleConnectionCount = 512
         , managerResponseTimeout     = responseTimeoutMicro 10000000
         }
     Just sha <- getDigestByName "SHA256"
-    return (mkManager ctx sha mgr)
+    return (mgr, mkVerify sha)
   where
-    mkManager ctx sha mgr fprs =
+    mkVerify sha fprs =
         let pinset = map toByteString' fprs
-        in setOnConnection ctx (verifyRsaFingerprint sha pinset) mgr
+        in  verifyRsaFingerprint sha pinset
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g = do
-    c <- maybe (return $ NE.fromList [unpack ((Opt.cassandra o)^.casEndpoint.epHost)])
-               (Cas.initialContacts "cassandra_brig")
+    c <- maybe (Cas.initialContactsDNS ((Opt.cassandra o)^.casEndpoint.epHost))
+               (Cas.initialContactsDisco "cassandra_brig")
                (unpack <$> Opt.discoUrl o)
     p <- Cas.init (Log.clone (Just "cassandra.brig") g)
             $ Cas.setContacts (NE.head c) (NE.tail c)
@@ -321,7 +374,7 @@ initCassandra o g = do
 initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
 initCredentials secretFile = do
     dat <- loadSecret secretFile
-    return $ fromMaybe (error $ "Could not secrets from " ++ show secretFile) dat
+    return $ fromMaybe (error $ "Could not load secrets from " ++ show secretFile) dat
 
 userTemplates :: Monad m => Maybe Locale -> AppT m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
@@ -383,13 +436,11 @@ instance MonadIndexIO AppIO where
 instance Monad m => HasRequestId (AppT m) where
     getRequestId = view requestId
 
-instance MonadBase IO AppIO where
-    liftBase = liftIO
-
-instance MonadBaseControl IO AppIO where
-    type StM AppIO a = StM (ReaderT Env Client) a
-    liftBaseWith     f = AppT $ liftBaseWith $ \run -> f (run . unAppT)
-    restoreM           = AppT . restoreM
+instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
+    withRunInIO inner =
+      AppT $ ReaderT $ \r ->
+      withRunInIO $ \run ->
+      inner (run . flip runReaderT r . unAppT)
 
 runAppT :: Env -> AppT m a -> m a
 runAppT e (AppT ma) = runReaderT ma e

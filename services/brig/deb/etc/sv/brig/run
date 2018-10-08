@@ -58,6 +58,12 @@ else
     PROVIDER_ID_SEARCH_FILTER=""
 fi
 
+if [ -n "$BRIG_AWS_USER_JOURNAL_QUEUE" ]; then
+    USER_QUEUE_JOURNAL="--aws-user-journal-queue=$BRIG_AWS_USER_JOURNAL_QUEUE"
+else
+    USER_QUEUE_JOURNAL=""
+fi
+
 cd $HOME
 
 ulimit -n 65536
@@ -70,6 +76,8 @@ exec chpst -u $USER \
     --galley-port=${BRIG_GALLEY_PORT?'unset'} \
     --gundeck-host=${BRIG_GUNDECK_HOST?'unset'} \
     --gundeck-port=${BRIG_GUNDECK_PORT?'unset'} \
+    --cargohold-host=${BRIG_CARGOHOLD_HOST?'unset'} \
+    --cargohold-port=${BRIG_CARGOHOLD_PORT?'unset'} \
     --cassandra-host=${BRIG_CASSANDRA_HOST?'unset'} \
     --cassandra-port=${BRIG_CASSANDRA_PORT?'unset'} \
     --cassandra-keyspace=${BRIG_CASSANDRA_KEYSPACE?'unset'} \
@@ -79,14 +87,12 @@ exec chpst -u $USER \
     --team-invitation-timeout=${BRIG_TEAM_INVITATION_TIMEOUT?'unset'} \
     --sms-activation-url=${BRIG_SMS_ACTIVATION_URL?'unset'} \
     --password-reset-url=${BRIG_PASSWORD_RESET_URL?'unset'} \
-    --invitation-url=${BRIG_INVITATION_URL?'unset'} \
     --deletion-url=${BRIG_DELETION_URL?'unset'} \
     --team-invitation-url=${BRIG_TEAM_INVITATION_URL?'unset'} \
     --team-creator-welcome-url=${BRIG_TEAM_CREATOR_WELCOME_URL?'unset'} \
     --team-member-welcome-url=${BRIG_TEAM_MEMBER_WELCOME_URL?'unset'} \
     --aws-ses-queue=${BRIG_AWS_SES_QUEUE?'unset'} \
-    --aws-internal-queue=${BRIG_AWS_INTERNAL_QUEUE?'unset'} \
-    --aws-dynamo-blacklist=${BRIG_AWS_DYNAMO_BLACKLIST?'unset'} \
+    --internal-events-queue=${BRIG_INTERNAL_EVENTS_QUEUE?'unset'} \
     --aws-dynamo-prekeys=${BRIG_AWS_DYNAMO_PREKEYS?'unset'} \
     --aws-ses-endpoint=${BRIG_SES_ENDPOINT?'unset'} \
     --aws-sqs-endpoint=${BRIG_SQS_ENDPOINT?'unset'} \
@@ -94,6 +100,7 @@ exec chpst -u $USER \
     --twilio-credentials=${BRIG_TWILIO_CREDENTIALS?'unset'} \
     --twilio-sender=${BRIG_TWILIO_SENDER?'unset'} \
     --nexmo-credentials=${BRIG_NEXMO_CREDENTIALS?'unset'} \
+    `# --stomp-credentials=${BRIG_STOMP_CREDENTIALS}` \
     --template-dir=${TEMPLATE_DIR?'unset'} \
     --email-sender=${BRIG_EMAIL_SENDER?'unset'} \
     --disco-url=${DISCO_URL?'unset'} \
@@ -118,8 +125,10 @@ exec chpst -u $USER \
     --elasticsearch-url=${BRIG_ELASTICSEARCH_URL?'unset'} \
     --elasticsearch-user-index=${BRIG_ELASTICSEARCH_USER_INDEX?'unset'} \
     --turn-servers=${BRIG_TURN_SERVERS?'unset'} \
+    --turn-servers-v2=${BRIG_TURN_SERVERS_V2?'unset'} \
     --turn-secret=${BRIG_TURN_SECRET?'unset'} \
-    --conv-team-max-size=${BRIG_CONV_TEAM_MAX_SIZE:-128} \
+    --team-max-size=${BRIG_TEAM_MAX_SIZE?'unset'} \
+    --conv-max-size=${BRIG_CONV_MAX_SIZE?'unset'} \
     ${TURN_TOKEN_LIFETIME} \
     ${TURN_CONFIG_TTL} \
     ${AWS_ACCESS_KEY_ID} \
@@ -128,4 +137,5 @@ exec chpst -u $USER \
     ${WHITELIST_URL} \
     ${WHITELIST_USER} \
     ${WHITELIST_PASS} \
-    ${PROVIDER_ID_SEARCH_FILTER}
+    ${PROVIDER_ID_SEARCH_FILTER} \
+    ${USER_QUEUE_JOURNAL}

@@ -1,0 +1,2 @@
+Spustelėję ištrinsite „Wire“ paskyrą.
+${url} 

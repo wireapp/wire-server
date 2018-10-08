@@ -25,7 +25,7 @@ function list_descendants () {
 }
 
 function kill_gracefully() {
-    pkill "gundeck|brig|galley|cargohold|cannon"
+    pkill "gundeck|brig|galley|cargohold|cannon|spar"
     sleep 1
     kill $(list_descendants $PARENT_PID) &> /dev/null
 }
@@ -36,12 +36,12 @@ function check_prerequisites() {
     nc -z 127.0.0.1 9042 \
         && nc -z 127.0.0.1 9200 \
         && nc -z 127.0.0.1 6379 \
-        || { echo "Databases not up. Maybe run 'cd deploy/docker-ephemeral && docker-compose up' in a separate terminal first?";  exit 1; }
-    test -f ${DIR}/../dist/brig \
-        && test -f ${DIR}/../dist/galley \
-        && test -f ${DIR}/../dist/cannon \
-        && test -f ${DIR}/../dist/gundeck \
-        && test -f ${DIR}/../dist/cargohold \
+        || { echo "Databases not up. Maybe run 'deploy/docker-ephemeral/run.sh' in a separate terminal first?";  exit 1; }
+    test -f ${TOP_LEVEL}/dist/brig \
+        && test -f ${TOP_LEVEL}/dist/galley \
+        && test -f ${TOP_LEVEL}/dist/cannon \
+        && test -f ${TOP_LEVEL}/dist/gundeck \
+        && test -f ${TOP_LEVEL}/dist/cargohold \
         || { echo "Not all services are compiled. How about you run 'cd ${TOP_LEVEL} && make' first?"; exit 1; }
 }
 
@@ -56,7 +56,7 @@ function run() {
     service=$1
     colour=$2
     export LOG_LEVEL=$3
-    (cd ${DIR}/${service} && ${DIR}/../dist/${service} -c ${service}.integration.yaml || kill_all) \
+    (cd ${DIR}/${service} && ${TOP_LEVEL}/dist/${service} -c ${service}.integration.yaml || kill_all) \
         | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
 
@@ -64,8 +64,8 @@ function run() {
 # even if those are not used/can be dummy values with the fake sqs/ses/etc containers used (see deploy/docker-ephemeral/docker-compose.yaml )
 # TODO: If we want to use real AWS services, we should ignore these
 export AWS_REGION=eu-west-1
-# export AWS_ACCESS_KEY_ID=dummy
-# export AWS_SECRET_ACCESS_KEY=dummy
+# export AWS_ACCESS_KEY_ID=dummykey
+# export AWS_SECRET_ACCESS_KEY=dummysecret
 
 check_prerequisites
 
@@ -74,8 +74,19 @@ run galley ${yellow} Info
 run gundeck ${blue} Info
 run cannon ${orange} Info
 run cargohold ${purpleish} Info
+run spar ${orange} Info
 
-sleep 3 # wait for services to start before starting integration executable
+# the ports are copied from ./integration.yaml
+while [ "$all_services_are_up" == "" ]; do
+    export all_services_are_up="1"
+    for port in `seq 8082 8086` 8088; do
+        ( curl --write-out %{http_code} --silent --output /dev/null http://localhost:$port/i/status \
+                | grep -q '^20[04]' ) \
+            || export all_services_are_up=""
+    done
+    sleep 1
+done
+echo "all services are up!"
 
 ${EXE} "${@:2}" && echo 0 > ${EXIT_STATUS_LOCATION} && kill_gracefully || kill_gracefully &
 

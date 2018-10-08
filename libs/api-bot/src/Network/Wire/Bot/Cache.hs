@@ -3,7 +3,7 @@
 module Network.Wire.Bot.Cache
     ( CachedUser (..)
     , Cache
-    , new
+    , fromFile
     , Network.Wire.Bot.Cache.empty
     , get
     , put
@@ -21,34 +21,47 @@ import Data.Monoid
 import Data.Text.Encoding
 import Data.Text.Lazy hiding (length, map)
 import Data.Text.Lazy.IO
+import GHC.Stack (HasCallStack)
 import Network.Wire.Client.API.User
 import Prelude hiding (lines, readFile)
 import System.Logger hiding (new)
 import System.Random.MWC
+import System.Random.MWC.Distributions (uniformShuffle)
+
+import qualified Data.Vector as V
 
 newtype Cache = Cache { cache :: IORef [CachedUser] }
 
 data CachedUser = CachedUser !PlainTextPassword !User
 
--- TODO: Use GenIO to randomise the order or remove the argument.
-new :: Logger -> GenIO -> FilePath -> IO Cache
-new l _ p = do
-    c <- newIORef =<< foldM (toUser l) [] =<< map (splitOn ",") . lines <$> readFile p
+-- | Load users out of a file in the following format:
+--
+-- @
+-- user1's UUID,email1,password1
+-- user2's UUID,email2,password2
+-- ...
+-- @
+fromFile :: Logger -> GenIO -> FilePath -> IO Cache
+fromFile logger gen path = do
+    triples <- map (splitOn ",") . lines <$> readFile path
+    shuffled <- V.toList <$> uniformShuffle (V.fromList triples) gen
+    c <- newIORef =<< foldM (toUser logger) [] shuffled
     return (Cache c)
 
 empty :: IO Cache
 empty = Cache <$> newIORef []
 
-get :: MonadIO m => Cache -> m CachedUser
+get :: (MonadIO m, HasCallStack) => Cache -> m CachedUser
 get c = liftIO $ atomicModifyIORef (cache c) $ \u ->
     case u of
-        []     -> error "empty cache"
+        []     -> error "Cache.get: an account was requested from the cache, \
+                        \but the cache of available user accounts is empty"
         (x:xs) -> (xs, x)
 
 put :: MonadIO m => Cache -> CachedUser -> m ()
 put c a = liftIO $ atomicModifyIORef (cache c) $ \u -> (a:u, ())
 
-toUser :: Logger -> [CachedUser] -> [Text] -> IO [CachedUser]
+toUser :: HasCallStack => Logger -> [CachedUser] -> [Text] -> IO [CachedUser]
 toUser _ acc [i, e, p] = do
     let pw = PlainTextPassword . toStrict $ strip p
     let iu = error "Cache.toUser: invalid user"

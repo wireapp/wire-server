@@ -4,6 +4,10 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleInstances #-}
+
+{-# OPTIONS_GHC -fno-warn-orphans #-}  -- for Show UserRowInsert
 
 -- TODO: Move to Brig.User.Account.DB
 module Brig.Data.User
@@ -22,6 +26,7 @@ module Brig.Data.User
     , lookupLocale
     , lookupPassword
     , lookupStatus
+    , lookupUserTeam
     , insertAccount
     , updateUser
     , updateEmail
@@ -34,6 +39,9 @@ module Brig.Data.User
     , updateSearchableStatus
     , deleteEmail
     , deletePhone
+    , deleteServiceUser
+    , lookupServiceUsers
+    , lookupServiceUsersForTeam
     , updateHandle
     ) where
 
@@ -52,9 +60,11 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.Foldable (for_)
 import Data.Id
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range (fromRange)
-import Data.Time (UTCTime, addUTCTime)
+import Data.Time (addUTCTime)
+import Data.Conduit (ConduitM)
 import Data.UUID.V4
 import Galley.Types.Bot
 
@@ -75,7 +85,11 @@ data ReAuthError
 newAccount :: NewUser -> Maybe InvitationId -> Maybe TeamId -> AppIO (UserAccount, Maybe Password)
 newAccount u inv tid = do
     defLoc  <- setDefaultLocale <$> view settings
-    uid     <- Id <$> maybe (liftIO nextRandom) (return . toUUID) inv
+    uid     <- Id <$> do
+        case (inv, newUserUUID u) of
+            (Just (toUUID -> uuid), _) -> pure uuid
+            (_, Just uuid)             -> pure uuid
+            (Nothing, Nothing)         -> liftIO nextRandom
     passwd  <- maybe (return Nothing) (fmap Just . liftIO . mkSafePassword) pass
     expiry  <- case status of
                    Ephemeral -> do
@@ -84,7 +98,7 @@ newAccount u inv tid = do
                        let ZAuth.SessionTokenTimeout defTTL = e^.ZAuth.settings.ZAuth.sessionTokenTimeout
                            ttl = fromMaybe defTTL (fromRange <$> newUserExpiresIn u)
                        now <- liftIO =<< view currentTime
-                       return $ Just (addUTCTime (fromIntegral ttl) now)
+                       return . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
                    _ -> return Nothing
     return (UserAccount (user uid (locale defLoc) expiry) status, passwd)
   where
@@ -132,29 +146,53 @@ reauthenticate u pw = lift (lookupAuth u) >>= \case
             unless (verifyPassword p pw') $
                 throwE (ReAuthError AuthInvalidCredentials)
 
-insertAccount :: UserAccount -> Maybe Password -> Bool -> SearchableStatus -> AppIO ()
-insertAccount (UserAccount u status) password activated searchable = do
+insertAccount
+    :: UserAccount
+    -> Maybe (ConvId, Maybe TeamId) -- ^ If a bot: conversation and team
+                                    --   (if a team conversation)
+    -> Maybe Password
+    -> Bool                         -- ^ Whether the user is activated
+    -> SearchableStatus
+    -> AppIO ()
+insertAccount (UserAccount u status) mbConv password activated searchable = retry x5 $ batch $ do
+    setType BatchLogged
+    setConsistency Quorum
     let Locale l c = userLocale u
-    retry x5 $ write userInsert $ params Quorum
+    addPrepQuery userInsert
         ( userId u, userName u, userPict u, userAssets u, userEmail u
-        , userPhone u, userAccentId u, password, activated
-        , status, (userExpire u), l, c
+        , userPhone u, userSSOId u, userAccentId u, password, activated
+        , status, userExpire u, l, c
         , view serviceRefProvider <$> userService u
         , view serviceRefId <$> userService u
         , userHandle u
         , searchable
         , userTeam u
         )
+    for_ ((,) <$> userService u <*> mbConv) $ \(sref, (cid, mbTid)) -> do
+        let pid = sref ^. serviceRefProvider
+            sid = sref ^. serviceRefId
+        addPrepQuery cqlServiceUser (pid, sid, BotId (userId u), cid, mbTid)
+        for_ mbTid $ \tid ->
+            addPrepQuery cqlServiceTeam (pid, sid, BotId (userId u), cid, tid)
+  where
+    cqlServiceUser :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId) ()
+    cqlServiceUser = "INSERT INTO service_user (provider, service, user, conv, team) \
+                     \VALUES (?, ?, ?, ?, ?)"
+    cqlServiceTeam :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, TeamId) ()
+    cqlServiceTeam = "INSERT INTO service_team (provider, service, user, conv, team) \
+                     \VALUES (?, ?, ?, ?, ?)"
 
 updateLocale :: UserId -> Locale -> AppIO ()
 updateLocale u (Locale l c) = write userLocaleUpdate (params Quorum (l, c, u))
 
 updateUser :: UserId -> UserUpdate -> AppIO ()
-updateUser u UserUpdate{..} = do
-    for_ uupName     $ \n -> write userNameUpdate     (params Quorum (n, u))
-    for_ uupPict     $ \p -> write userPictUpdate     (params Quorum (p, u))
-    for_ uupAssets   $ \a -> write userAssetsUpdate   (params Quorum (a, u))
-    for_ uupAccentId $ \c -> write userAccentIdUpdate (params Quorum (c, u))
+updateUser u UserUpdate{..} = retry x5 $ batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    for_ uupName     $ \n -> addPrepQuery userNameUpdate     (n, u)
+    for_ uupPict     $ \p -> addPrepQuery userPictUpdate     (p, u)
+    for_ uupAssets   $ \a -> addPrepQuery userAssetsUpdate   (a, u)
+    for_ uupAccentId $ \c -> addPrepQuery userAccentIdUpdate (c, u)
 
 updateEmail :: UserId -> Email -> AppIO ()
 updateEmail u e = retry x5 $ write userEmailUpdate (params Quorum (e, u))
@@ -175,6 +213,24 @@ deleteEmail u = retry x5 $ write userEmailDelete (params Quorum (Identity u))
 
 deletePhone :: UserId -> AppIO ()
 deletePhone u = retry x5 $ write userPhoneDelete (params Quorum (Identity u))
+
+deleteServiceUser :: ProviderId -> ServiceId -> BotId -> AppIO ()
+deleteServiceUser pid sid bid = do
+    lookupServiceUser pid sid bid >>= \case
+        Nothing -> pure ()
+        Just (_, mbTid) -> retry x5 $ batch $ do
+            setType BatchLogged
+            setConsistency Quorum
+            addPrepQuery cql (pid, sid, bid)
+            for_ mbTid $ \tid ->
+                addPrepQuery cqlTeam (pid, sid, tid, bid)
+  where
+    cql :: PrepQuery W (ProviderId, ServiceId, BotId) ()
+    cql = "DELETE FROM service_user \
+          \WHERE provider = ? AND service = ? AND user = ?"
+    cqlTeam :: PrepQuery W (ProviderId, ServiceId, TeamId, BotId) ()
+    cqlTeam = "DELETE FROM service_team \
+              \WHERE provider = ? AND service = ? AND team = ? AND user = ?"
 
 updateStatus :: UserId -> AccountStatus -> AppIO ()
 updateStatus u s = retry x5 $ write userStatusUpdate (params Quorum (s, u))
@@ -227,6 +283,10 @@ lookupStatus :: UserId -> AppIO (Maybe AccountStatus)
 lookupStatus u = join . fmap runIdentity <$>
     retry x1 (query1 statusSelect (params Quorum (Identity u)))
 
+lookupUserTeam :: UserId -> AppIO (Maybe TeamId)
+lookupUserTeam u = join . fmap runIdentity <$>
+    retry x1 (query1 teamSelect (params Quorum (Identity u)))
+
 lookupAuth :: (MonadClient m) => UserId -> m (Maybe (Maybe Password, AccountStatus))
 lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params Quorum (Identity u)))
   where
@@ -245,23 +305,60 @@ lookupAccounts usrs = do
     loc <- setDefaultLocale  <$> view settings
     fmap (toUserAccount loc) <$> retry x1 (query accountsSelect (params Quorum (Identity usrs)))
 
+lookupServiceUser :: ProviderId -> ServiceId -> BotId -> AppIO (Maybe (ConvId, Maybe TeamId))
+lookupServiceUser pid sid bid = retry x1 (query1 cql (params Quorum (pid, sid, bid)))
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId, BotId) (ConvId, Maybe TeamId)
+    cql = "SELECT conv, team FROM service_user \
+          \WHERE provider = ? AND service = ? AND user = ?"
+
+-- | NB: might return a lot of users, and therefore we do streaming here (page-by-page).
+lookupServiceUsers
+    :: ProviderId
+    -> ServiceId
+    -> ConduitM () [(BotId, ConvId, Maybe TeamId)] AppIO ()
+lookupServiceUsers pid sid =
+    paginateC cql (paramsP Quorum (pid, sid) 100) x1
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId) (BotId, ConvId, Maybe TeamId)
+    cql = "SELECT user, conv, team FROM service_user \
+          \WHERE provider = ? AND service = ?"
+
+lookupServiceUsersForTeam
+    :: ProviderId
+    -> ServiceId
+    -> TeamId
+    -> ConduitM () [(BotId, ConvId)] AppIO ()
+lookupServiceUsersForTeam pid sid tid =
+    paginateC cql (paramsP Quorum (pid, sid, tid) 100) x1
+  where
+    cql :: PrepQuery R (ProviderId, ServiceId, TeamId) (BotId, ConvId)
+    cql = "SELECT user, conv FROM service_team \
+          \WHERE provider = ? AND service = ? AND team = ?"
+
 -------------------------------------------------------------------------------
 -- Queries
 
 type Activated = Bool
 
-type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, ColourId,
-                Maybe [Asset], Activated, Maybe AccountStatus, Maybe UTCTime, Maybe Language,
+type UserRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
+                Maybe [Asset], Activated, Maybe AccountStatus, Maybe UTCTimeMillis, Maybe Language,
                 Maybe Country, Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
 
-type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone,
+type UserRowInsert = (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone, Maybe UserSSOId, ColourId,
+                      Maybe Password, Bool, AccountStatus, Maybe UTCTimeMillis, Language, Maybe Country,
+                      Maybe ProviderId, Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId)
+
+deriving instance Show UserRowInsert
+
+type AccountRow = (UserId, Name, Maybe Pict, Maybe Email, Maybe Phone, Maybe UserSSOId,
                    ColourId, Maybe [Asset], Bool, Maybe AccountStatus,
-                   Maybe UTCTime, Maybe Language, Maybe Country,
+                   Maybe UTCTimeMillis, Maybe Language, Maybe Country,
                    Maybe ProviderId, Maybe ServiceId, Maybe Handle, Maybe TeamId)
 
 
 usersSelect :: PrepQuery R (Identity [UserId]) UserRow
-usersSelect = "SELECT id, name, picture, email, phone, accent_id, assets, \
+usersSelect = "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
               \activated, status, expires, language, country, provider, service, handle, team \
               \FROM user where id IN ?"
 
@@ -286,20 +383,20 @@ accountStateSelectAll = "SELECT id, activated, status FROM user WHERE id IN ?"
 statusSelect :: PrepQuery R (Identity UserId) (Identity (Maybe AccountStatus))
 statusSelect = "SELECT status FROM user WHERE id = ?"
 
+teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
+teamSelect = "SELECT team FROM user WHERE id = ?"
+
 accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
-accountsSelect = "SELECT id, name, picture, email, phone, accent_id, assets, \
+accountsSelect = "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
                  \activated, status, expires, language, country, provider, \
                  \service, handle, team \
                  \FROM user WHERE id IN ?"
 
-userInsert :: PrepQuery W (UserId, Name, Pict, [Asset], Maybe Email, Maybe Phone,
-                           ColourId, Maybe Password, Bool, AccountStatus, Maybe UTCTime,
-                           Language, Maybe Country, Maybe ProviderId,
-                           Maybe ServiceId, Maybe Handle, SearchableStatus, Maybe TeamId) ()
-userInsert = "INSERT INTO user (id, name, picture, assets, email, phone, \
+userInsert :: PrepQuery W UserRowInsert ()
+userInsert = "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
                                \accent_id, password, activated, status, expires, language, \
                                \country, provider, service, handle, searchable, team) \
-                               \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                               \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userNameUpdate :: PrepQuery W (Name, UserId) ()
 userNameUpdate = "UPDATE user SET name = ? WHERE id = ?"
@@ -350,10 +447,10 @@ userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
 -- Conversions
 
 toUserAccount :: Locale -> AccountRow -> UserAccount
-toUserAccount defaultLocale (uid, name, pict, email, phone, accent, assets,
+toUserAccount defaultLocale (uid, name, pict, email, phone, ssoid, accent, assets,
                              activated, status, expires, lan, con, pid, sid,
                              handle, tid) =
-    let ident = toIdentity activated email phone
+    let ident = toIdentity activated email phone ssoid
         deleted = maybe False (== Deleted) status
         expiration = if status == Just Ephemeral then expires else Nothing
         loc = toLocale defaultLocale (lan, con)
@@ -365,9 +462,9 @@ toUserAccount defaultLocale (uid, name, pict, email, phone, accent, assets,
 toUsers :: Locale -> [UserRow] -> [User]
 toUsers defaultLocale = fmap mk
   where
-    mk (uid, name, pict, email, phone, accent, assets, activated, status,
+    mk (uid, name, pict, email, phone, ssoid, accent, assets, activated, status,
         expires, lan, con, pid, sid, handle, tid) =
-        let ident = toIdentity activated email phone
+        let ident = toIdentity activated email phone ssoid
             deleted = maybe False (== Deleted) status
             expiration = if status == Just Ephemeral then expires else Nothing
             loc = toLocale defaultLocale (lan, con)
@@ -379,8 +476,10 @@ toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
 toLocale _ (Just l, c) = Locale l c
 toLocale l _           = l
 
-toIdentity :: Bool -> Maybe Email -> Maybe Phone -> Maybe UserIdentity
-toIdentity True (Just e) (Just p) = Just $! FullIdentity e p
-toIdentity True (Just e) Nothing  = Just $! EmailIdentity e
-toIdentity True Nothing  (Just p) = Just $! PhoneIdentity p
-toIdentity _    _        _        = Nothing
+toIdentity :: Bool -> Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
+toIdentity True  (Just e) (Just p) Nothing      = Just $! FullIdentity e p
+toIdentity True  (Just e) Nothing  Nothing      = Just $! EmailIdentity e
+toIdentity True  Nothing  (Just p) Nothing      = Just $! PhoneIdentity p
+toIdentity True  email    phone    (Just ssoid) = Just $! SSOIdentity ssoid email phone
+toIdentity True  Nothing  Nothing  Nothing      = Nothing
+toIdentity False _        _        _            = Nothing

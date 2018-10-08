@@ -14,6 +14,8 @@ import Data.ByteString.Conversion
 import Data.Monoid ((<>))
 import Data.Int
 import Data.Maybe (fromMaybe)
+import Data.Proto
+import Data.Proto.Id as Proto
 import Proto.TeamEvents
 import Galley.Types.Teams (TeamCreationTime (..), tcTime)
 import Galley.Types.Teams.Intra
@@ -23,7 +25,6 @@ import qualified System.Logger        as Log
 import qualified Galley.Data          as Data
 import qualified Galley.Intra.Journal as Journal
 import qualified Galley.Aws           as Aws
-
 
 runCommand :: Logger -> Aws.Env -> ClientState -> Maybe TeamId -> IO ()
 runCommand l env c start = void $ C.runClient c $ do
@@ -67,8 +68,8 @@ runCommand l env c start = void $ C.runClient c $ do
     publish :: TeamId -> TeamEvent'EventType -> Maybe TeamCreationTime -> Maybe TeamEvent'EventData -> C.Client ()
     publish tid typ time dat = do
         -- writetime is in microseconds in cassandra 3.11
-        creationTimeSeconds <- maybe Journal.nowInt (return . (`div` 1000000) . view tcTime) time
-        let event = TeamEvent typ (Journal.bytes tid) creationTimeSeconds dat
+        creationTimeSeconds <- maybe now (return . (`div` 1000000) . view tcTime) time
+        let event = TeamEvent typ (Proto.toBytes tid) creationTimeSeconds dat []
         Aws.execute env (Aws.enqueue event)
 
 -- CQL queries

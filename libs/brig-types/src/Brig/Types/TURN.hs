@@ -17,11 +17,16 @@ module Brig.Types.TURN
 
     , TurnURI
     , turnURI
+    , turiScheme
+    , Scheme (..)
     , turiHost
     , turiPort
+    , turiTransport
+    , Transport (..)
 
-    , TurnHost
-    , _TurnHost
+    , TurnHost -- Re-export
+    , isHostName
+    , parseTurnHost
 
     , TurnUsername
     , turnUsername
@@ -30,29 +35,34 @@ module Brig.Types.TURN
     , tuKeyindex
     , tuT
     , tuRandom
+
+    , isUdp
+    , isTcp
+    , isTls
+    , limitServers
     )
 where
 
+import           Brig.Types.TURN.Internal
 import           Control.Lens               hiding ((.=))
 import           Data.Aeson
 import           Data.Aeson.Encoding        (text)
-import           Data.Aeson.Lens
-import           Data.Attoparsec.Text
+import           Data.Attoparsec.Text       hiding (parse)
+import           Data.ByteString            (ByteString)
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Conversion as BC
+import           Data.List (partition)
 import           Data.List1
-import           Data.Misc                  (IpAddr, Port (portNumber))
+import           Data.Misc                  (Port (..))
 import           Data.Monoid
 import           Data.Text                  (Text)
-import qualified Data.Text                  as T
 import           Data.Text.Ascii
-import qualified Data.Text.Lazy.Builder.Int as TB
-import           Data.Text.Lazy.Lens        (builder)
+import qualified Data.Text.Encoding         as TE
 import           Data.Text.Strict.Lens      (utf8)
 import           Data.Time.Clock.POSIX
 import           Data.Word
+import           GHC.Base                   (Alternative)
 import           GHC.Generics               (Generic)
-import           Safe                       (readMay)
 
 -- | A configuration object resembling \"RTCConfiguration\"
 --
@@ -75,16 +85,28 @@ data RTCIceServer = RTCIceServer
     , _iceCredential :: AsciiBase64
     } deriving (Show, Generic)
 
--- | TURN server URI of the form \"turn:<addr>:<port>\"
+-- | TURN server URI as described in https://tools.ietf.org/html/rfc7065, minus ext
+-- |
+-- | turnURI       = scheme ":" host [ ":" port ]
+-- |                 [ "?transport=" transport ]
+-- | scheme        = "turn" / "turns"
+-- | transport     = "udp" / "tcp" / transport-ext
+-- | transport-ext = 1*unreserved
+--
 data TurnURI = TurnURI
-    { _turiHost :: TurnHost
-    , _turiPort :: Port
-    }
-    deriving (Eq, Show, Generic)
+    { _turiScheme    :: Scheme
+    , _turiHost      :: TurnHost
+    , _turiPort      :: Port
+    , _turiTransport :: Maybe Transport
+    } deriving (Eq, Show, Generic)
 
--- future versions may allow using a hostname
-newtype TurnHost = TurnHost IpAddr
-    deriving (Eq, Show, Generic)
+data Scheme = SchemeTurn
+            | SchemeTurns
+            deriving (Eq, Show, Generic, Bounded, Enum)
+
+data Transport = TransportUDP
+               | TransportTCP
+               deriving (Eq, Show, Generic, Enum, Bounded)
 
 data TurnUsername = TurnUsername
     { _tuExpiresAt :: POSIXTime
@@ -101,12 +123,8 @@ rtcConfiguration = RTCConfiguration
 rtcIceServer :: List1 TurnURI -> TurnUsername -> AsciiBase64 -> RTCIceServer
 rtcIceServer = RTCIceServer
 
-turnURI :: TurnHost -> Port -> TurnURI
+turnURI :: Scheme -> TurnHost -> Port -> Maybe Transport -> TurnURI
 turnURI = TurnURI
-
--- turn into a 'Prism'' once hostnames are supported
-_TurnHost :: Iso' TurnHost IpAddr
-_TurnHost = iso (\(TurnHost ip) -> ip) TurnHost
 
 -- note that the random value is not checked for well-formedness
 turnUsername :: POSIXTime -> Text -> TurnUsername
@@ -145,13 +163,17 @@ instance FromJSON RTCIceServer where
     parseJSON = withObject "RTCIceServer" $ \o ->
         RTCIceServer <$> o .: "urls" <*> o .: "username" <*> o .: "credential"
 
+instance BC.ToByteString TurnURI where
+    builder (TurnURI s h (Port p) tp) =
+           BC.builder s
+        <> byteString ":"
+        <> BC.builder h
+        <> byteString ":"
+        <> BC.builder p
+        <> maybe mempty ((byteString "?transport=" <>) . BC.builder) tp
 
 instance ToJSON TurnURI where
-    toEncoding uri = text . view (from builder . strict) $
-          "turn:"^.builder
-       <> view (turiHost . re (_JSON :: Prism' Value TurnHost) . _String . lazy . builder) uri
-       <> ":"^.builder
-       <> TB.decimal (portNumber (view turiPort uri))
+    toJSON = String . TE.decodeUtf8 . BC.toByteString'
 
 instance BC.FromByteString TurnURI where
     parser = BC.parser >>= either fail pure . parseTurnURI
@@ -163,17 +185,19 @@ parseTurnURI :: Text -> Either String TurnURI
 parseTurnURI = parseOnly (parser <* endOfInput)
   where
     parser = TurnURI
-          <$> ((string "turn:" *> takeWhile1 (/=':') <* char ':') >>= parseHost)
-          <*> decimal
+          <$> ((takeWhile1 (/=':') <* char ':' >>= parseScheme)                   <?> "parsingScheme")
+          <*> ((takeWhile1 (/=':') <* char ':' >>= parseHost)                     <?> "parsingHost")
+          <*> (decimal                                                            <?> "parsingPort")
+          <*> ((optional ((string "?transport=" *> takeText) >>= parseTransport)) <?> "parsingTransport")
 
-    parseHost t = case readMay (T.unpack t) of
-        Just h  -> return (TurnHost h)
-        Nothing -> fail ("txtToTurnHost: Could not parse as IpAddr: " ++ show t)
+    parseScheme    = parse "parseScheme"
+    parseHost      = parse "parseHost"
+    parseTransport = parse "parseTransport"
 
-
-instance ToJSON   TurnHost
-instance FromJSON TurnHost
-
+    parse :: (BC.FromByteString b, Monad m) => String -> Text -> m b
+    parse err x = case BC.fromByteString (TE.encodeUtf8 x) of
+        Just ok -> return ok
+        Nothing -> fail (err ++ " failed when parsing: " ++ show x)
 
 instance ToJSON TurnUsername where
     toEncoding = text . view utf8 . BC.toByteString'
@@ -202,3 +226,85 @@ parseTurnUsername = TurnUsername
     <*> (string ".k=" *> decimal)
     <*> (string ".t=" *> anyChar)
     <*> (string ".r=" *> takeWhile1 (inClass "a-z0-9"))
+
+instance BC.FromByteString Scheme where
+    parser = BC.parser >>= \t -> case (t :: ByteString) of
+        "turn"  -> pure SchemeTurn
+        "turns" -> pure SchemeTurns
+        _       -> fail $ "Invalid turn scheme: " ++ show t
+
+instance BC.ToByteString Scheme where
+    builder SchemeTurn  = "turn"
+    builder SchemeTurns = "turns"
+
+instance FromJSON Scheme where
+    parseJSON = withText "Scheme" $
+        either fail pure . BC.runParser BC.parser . TE.encodeUtf8
+
+instance ToJSON Scheme where
+    toJSON = String . TE.decodeUtf8 . BC.toByteString'
+
+instance BC.FromByteString Transport where
+    parser = BC.parser >>= \t -> case (t :: ByteString) of
+        "udp" -> pure TransportUDP
+        "tcp" -> pure TransportTCP
+        _     -> fail $ "Invalid turn transport: " ++ show t
+
+instance BC.ToByteString Transport where
+    builder TransportUDP = "udp"
+    builder TransportTCP = "tcp"
+
+instance FromJSON Transport where
+    parseJSON = withText "Transport" $
+        either fail pure . BC.runParser BC.parser . TE.encodeUtf8
+
+instance ToJSON Transport where
+    toJSON = String . TE.decodeUtf8 . BC.toByteString'
+
+-- Convenience
+optional :: (Alternative f, Functor f) => f a -> f (Maybe a)
+optional x = option Nothing (Just <$> x)
+
+-- | given a list of URIs and a size, limit URIs
+-- with order priority from highest to lowest: UDP -> TLS -> TCP
+-- i.e. (if enough servers of each type are available)
+--   1 -> 1x UDP
+--   2 -> 1x UDP, 1x TLS
+--   3 -> 1x UDP, 1x TLS, 1x TCP
+--   4 -> 2x UDP, 1x TLS, 1x TCP
+--   5 -> 2x UDP, 2x TLS, 1x TCP
+--    ... etc
+-- if not enough servers are available, prefer udp, then tls
+limitServers :: [TurnURI] -> Int -> [TurnURI]
+limitServers uris limit = limitServers' [] limit uris
+  where
+    limitServers' acc x _  | x <= 0 = acc -- Already have accumulated enough
+    limitServers' acc _ []          = acc -- No more input
+    limitServers' acc _ input       = do
+        let (udps, noUdps) = partition isUdp input
+            (udp, forTls)  = (Prelude.take 1 udps, noUdps ++ drop 1 udps)
+
+            (tlss, noTlss) = partition isTls forTls
+            (tls, forTcp)  = (Prelude.take 1 tlss, noTlss ++ drop 1 tlss)
+
+            (tcps, noTcps) = partition isTcp forTcp
+            (tcp, rest)    = (Prelude.take 1 tcps, noTcps ++ drop 1 tcps)
+
+            new = udp ++ tls ++ tcp
+            newAcc = Prelude.take limit $ acc ++ new
+        if null new -- Did we find anything interesting? If not, time to go
+            then Prelude.take limit $ acc ++ rest
+            else limitServers' newAcc (limit - length newAcc) rest
+
+isUdp :: TurnURI -> Bool
+isUdp uri = uri^.turiScheme == SchemeTurn
+        && ( uri^.turiTransport == Just(TransportUDP)
+            || uri^.turiTransport == Nothing )
+
+isTcp :: TurnURI -> Bool
+isTcp uri = uri^.turiScheme == SchemeTurn
+        && uri^.turiTransport == Just(TransportTCP)
+
+isTls :: TurnURI -> Bool
+isTls uri = uri^.turiScheme == SchemeTurns
+        && uri^.turiTransport == Just(TransportTCP)

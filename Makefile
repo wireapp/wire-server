@@ -1,3 +1,4 @@
+LANG := en_US.UTF-8
 HASKELL_SERVICES := proxy cannon cargohold brig galley gundeck
 SERVICES         := $(HASKELL_SERVICES) nginz
 DOCKER_USER      ?= wireserver
@@ -14,24 +15,36 @@ install: init
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --local-bin-path=dist --fast
+	stack install --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: clean
 clean:
 	stack clean
+	$(MAKE) -C services/nginz clean
 	-rm -rf dist
 	-rm -f .metadata
 
 .PHONY: services
-services:
-	$(foreach service,$(HASKELL_SERVICES),$(MAKE) -C services/$(service);)
+services: init install
+	$(MAKE) -C services/nginz
 
 .PHONY: integration
 integration: fast
-	$(MAKE) -C services/cargohold integration-fake-aws
-	$(MAKE) -C services/galley integration
-	$(MAKE) -C services/brig integration
-	$(MAKE) -C services/gundeck integration-fake-aws
+	# We run "i" instead of "integration" to avoid useless rebuilds
+	# (since after "fast" everything will be built already)
+	$(MAKE) -C services/cargohold i
+	$(MAKE) -C services/galley i
+	$(MAKE) -C services/brig i
+	$(MAKE) -C services/gundeck i-fake-aws
+	$(MAKE) -C services/spar i
+
+.PHONY: haddock
+haddock:
+	WIRE_STACK_OPTIONS="--haddock --haddock-internal" make fast
+
+.PHONY: haddock-shallow
+haddock-shallow:
+	WIRE_STACK_OPTIONS="--haddock --haddock-internal --no-haddock-deps" make fast
 
 #################################
 ## docker targets
@@ -70,3 +83,19 @@ docker-exe-%:
 .PHONY: docker-service-%
 docker-service-%:
 	$(MAKE) -C services/"$*" docker
+
+DOCKER_DEV_NETWORK := --net=host
+DOCKER_DEV_VOLUMES := -v `pwd`:/src/wire-server
+DOCKER_DEV_IMAGE   := quay.io/wire/alpine-builder:local
+.PHONY: run-docker-builder
+run-docker-builder:
+	docker run -it $(DOCKER_DEV_NETWORK) $(DOCKER_DEV_VOLUMES) --rm $(DOCKER_DEV_IMAGE) /bin/bash || \
+	( echo "$(DOCKER_DEV_IMAGE) not found.  building locally.  hit ^C to interrupt." && \
+	  make -C build/alpine builder && \
+	  make $@ )
+
+#################################
+## dependencies
+
+libzauth:
+	$(MAKE) -C libs/libzauth install

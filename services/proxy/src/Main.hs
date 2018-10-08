@@ -6,7 +6,7 @@ import Util.Options
 
 main :: IO ()
 main = do
-    opts <- getOptions desc optsParser defaultPath
+    opts <- getOptions desc (Just optsParser) defaultPath
     run opts
   where
     desc = "Proxy - 3rd party proxy"

@@ -13,13 +13,13 @@ import Data.ByteString (ByteString)
 import Data.Foldable (for_, toList)
 import Data.Id
 import Data.Int
+import Data.Misc (Milliseconds (..))
 import Data.Predicate
 import Data.Range
 import Data.Time.Clock.POSIX
 import Gundeck.API.Error
 import Gundeck.Monad
 import Gundeck.Types.Notification
-import Gundeck.Types.Presence (Milliseconds (..))
 import Gundeck.Util
 import Network.HTTP.Types.Status
 import Network.Wai (Response)

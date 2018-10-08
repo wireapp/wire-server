@@ -18,6 +18,17 @@ Documentation on how to self host your own Wire-Server is not yet available but 
 
 See more in "[Open sourcing Wire server code](https://medium.com/@wireapp/open-sourcing-wire-server-code-ef7866a731d5)".
 
+## Table of contents
+
+-   [Content of the repository](#content-of-the-repository)
+-   [Architecture Overview](#architecture-overview)
+-   [Development setup](#development-setup)
+    -   [How to build `wire-server` binaries](#how-to-build-wire-server-binaries)
+    -   [How to run integration tests](#how-to-run-integration-tests)
+-   [How to run `wire-server` with "fake" external dependencies](#how-to-run-wire-server-with-fake-external-dependencies)
+-   [How to run `wire-server` with real AWS services](#how-to-run-wire-server-with-real-aws-services)
+-   [Roadmap](#roadmap)
+
 ## Content of the repository
 
 This repository contains the following source code:
@@ -30,10 +41,14 @@ This repository contains the following source code:
    - **cannon**: WebSocket Push Notifications
    - **cargohold**: Asset (image, file, ...) Storage
    - **proxy**: 3rd Party API Integration
+   - **restund**: STUN/TURN server for use in Audio/Video calls
+
 - **tools**
    - **api-simulations**: Run automated smoke and load tests
    - **makedeb**: Create Debian packages
    - **bonanza**: Transform and forward log data
+   - **db/**: Migration tools (e.g. when new tables are added)
+
 - **libs**: Shared libraries
 
 It also contains
@@ -60,14 +75,14 @@ private network.
 
 There are two options:
 
-#### 1. Compile sources natively. 
+#### 1. Compile sources natively.
 
 This requires a range of dependencies that depend on your platform/OS, such as:
 
-- Haskell & Rust compiler and package managers 
+- Haskell & Rust compiler and package managers
 - Some package dependencies (libsodium, openssl, protobuf, icu, geoip, snappy, [cryptobox-c](https://github.com/wireapp/cryptobox-c), ...) that depend on your platform/OS
 
-See [doc/Dependencies.md](doc/Dependencies.md) for details. 
+See [doc/Dependencies.md](doc/Dependencies.md) for details.
 
 Once all dependencies are set up, the following should succeed:
 
@@ -76,13 +91,15 @@ Once all dependencies are set up, the following should succeed:
 make
 # build one haskell service, e.g. brig:
 cd services/brig && make
-# build nginz
-cd services/nginz && make
 ```
+
+The default make target (`fast`) compiles unoptimized (faster compilation time, slower binaries), which should be fine for development purposes. Use `make install` to get optimized binaries.
+
+For building nginz, see [services/nginz/README.md](services/nginz/README.md)
 
 #### 2. Use docker
 
-*If you don't wish to build all docker images from scratch (e.g. the `alpine-builder` takes a very long time), ready-built images can be downloaded from [here](https://hub.docker.com/r/wireserver/).*
+*If you don't wish to build all docker images from scratch (e.g. the `alpine-builder` takes a very long time), ready-built images can be downloaded from [here](https://quay.io/organization/wire).*
 
 If you wish to build your own docker images, you need [docker version >= 17.05](https://www.docker.com/) and [`make`](https://www.gnu.org/software/make/). Then,
 
@@ -92,7 +109,7 @@ make docker-services
 
 will, eventually, have built a range of docker images. See the `Makefile`s and `Dockerfile`s, as well as [build/alpine/README.md](build/alpine/README.md) for details.
 
-## How to run integration tests
+### How to run integration tests
 
 Integration tests require all of the haskell services (brig,galley,cannon,gundeck,proxy,cargohold) to be correctly configured and running, before being able to execute e.g. the `brig-integration` binary. This requires most of the deployment dependencies as seen in the architecture diagram to also be available:
 
@@ -111,7 +128,7 @@ Integration tests require all of the haskell services (brig,galley,cannon,gundec
 Setting up these real, but in-memory internal and "fake" external dependencies is done easiest using [`docker-compose`](https://docs.docker.com/compose/install/). Run the following in a separate terminal (it will block that terminal, C-c to shut all these docker images down again):
 
 ```
-cd deploy/docker-ephemeral && docker-compose up
+deploy/docker-ephemeral/run.sh
 ```
 
 Then, to run all integration tests:
@@ -122,9 +139,21 @@ make integration
 
 Or, alternatively, `make` on the top-level directory (to produce all the service's binaries) followed by e.g `cd services/brig && make integration` to run one service's integration tests only.
 
-## How to run `wire-server`
+You can use `$WIRE_STACK_OPTIONS` to pass arguments to stack through the `Makefile`s.  This is useful to e.g. pass arguments to tasty or temporarily disable `-Werror` without the risk of accidentally committing anything, like this:
 
-Documentation, configuration, and code for this is **not ready yet** (please do not open an issue to ask about this!). More information on how to run `wire-server` might be available here at some point in the future.
+```bash
+WIRE_STACK_OPTIONS='--ghc-options=-Wwarn --test-arguments="--quickcheck-tests=19919 --quickcheck-replay=651712"' make integration
+```
+
+Note that [tasty supports passing arguments vie shell variables directly](https://github.com/feuerbach/tasty#runtime).
+
+## How to run `wire-server` with "fake" external dependencies
+
+See [this README](deploy/services-demo/README.md)
+
+## How to run `wire-server` with real AWS services
+
+Documentation, configuration, and code for this is **not fully ready yet** (please do not open an issue to ask about this!). More information on how to run `wire-server` will be available here in the near future.
 
 As a brief overview, it requires setting up
 
@@ -145,4 +174,4 @@ As a brief overview, it requires setting up
 
 ## Roadmap
 
-- Build and deployment options
+- Deployment options

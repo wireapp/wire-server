@@ -1,8 +1,8 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
 # Requires to have created the wire-server-builder and wire-server-deps docker images
 
-ARG builder=wireserver/alpine-builder
-ARG deps=wireserver/alpine-deps
+ARG builder=quay.io/wire/alpine-builder
+ARG deps=quay.io/wire/alpine-deps
 
 #--- Builder stage ---
 FROM ${builder} as builder

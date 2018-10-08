@@ -8,7 +8,7 @@ import Bilge.Retry
 import Bilge.RPC
 import Brig.App
 import Control.Exception
-import Control.Lens (view)
+import Control.Lens
 import Control.Monad (when)
 import Control.Monad.Catch
 import Control.Retry
@@ -25,6 +25,7 @@ import System.Logger.Class hiding ((.=), name)
 
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text            as Text
+import qualified Data.Text.Lazy       as LT
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
@@ -54,21 +55,30 @@ expect ss rq = rq { checkResponse = check }
         when (statusIsServerError s || s `notElem` ss) $
             throwM $ HttpExceptionRequest rq' (StatusCodeException rs' mempty)
 
+cargoholdRequest :: StdMethod
+                 -> (Request -> Request)
+                 -> AppIO (Response (Maybe BL.ByteString))
+cargoholdRequest = serviceRequest "cargohold" cargohold
+
 galleyRequest :: StdMethod
               -> (Request -> Request)
               -> AppIO (Response (Maybe BL.ByteString))
-galleyRequest m r = do
-    g <- view galley
-    recovering x3 rpcHandlers $ const $
-        rpc' "galley" g (method m . r)
+galleyRequest = serviceRequest "galley" galley
 
 gundeckRequest :: StdMethod
                -> (Request -> Request)
                -> AppIO (Response (Maybe BL.ByteString))
-gundeckRequest m r = do
-    g <- view gundeck
+gundeckRequest = serviceRequest "gundeck" gundeck
+
+serviceRequest :: LT.Text
+               -> Control.Lens.Getting Request Env Request
+               -> StdMethod
+               -> (Request -> Request)
+               -> AppIO (Response (Maybe BL.ByteString))
+serviceRequest nm svc m r = do
+    service <- view svc
     recovering x3 rpcHandlers $ const $
-        rpc' "gundeck" g (method m . r)
+        rpc' nm service (method m . r)
 
 -- | Failed to parse a response from another service.
 data ParseException = ParseException

@@ -559,7 +559,7 @@ login = defineModel "Login" $ do
         description "The login code for an SMS login."
         optional
     property "label" string' $ do
-        description "A label to associate with the returned a cookie. \
+        description "A label to associate with the returned cookie. \
                     \Every client should have a unique and stable (persistent) label \
                     \to allow targeted revocation of all cookies granted to that \
                     \specific client."

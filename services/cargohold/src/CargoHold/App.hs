@@ -14,6 +14,7 @@ module CargoHold.App
     , newEnv
     , closeEnv
     , aws
+    , httpManager
     , metrics
     , appLogger
     , requestId
@@ -41,6 +42,7 @@ import Control.Monad.Reader
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Data.Default
 import Data.Metrics.Middleware (Metrics)
+import Data.Maybe
 import Data.Monoid
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.TLS
@@ -87,9 +89,12 @@ newEnv o = do
 initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
 initAws o l m = AWS.mkEnv l
                           (o^.awsS3Endpoint)
+                          downloadEndpoint
                           (o^.awsS3Bucket)
                           (o^.awsCloudFront)
                           m
+  where
+    downloadEndpoint = fromMaybe (o^.awsS3Endpoint) (o^.awsS3DownloadEndpoint)
 
 initHttpManager :: IO Manager
 initHttpManager = do
@@ -164,4 +169,3 @@ runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO Re
 runHandler e r h k =
     let e' = set requestId (maybe mempty RequestId (lookupRequestId r)) e
     in runAppT e' (exceptT (Server.onError (_appLogger e) (_metrics e) r k) return h)
-

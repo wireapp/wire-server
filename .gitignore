@@ -13,6 +13,7 @@ Cargo.lock
 *.rlib
 *.so
 *.tar
+*.asc
 *.tmp
 *~
 .*.sw[a-z]
@@ -24,7 +25,10 @@ dist
 gen-hs
 log
 tags
+TAGS
 .stack-work
+.stack-docker
+.stack-docker-profile
 .metadata
 *.tix
 *.pem
@@ -44,3 +48,5 @@ gundeck-schema.yaml
 gundeck.yaml
 proxy.yaml
 DOCKER_ID*
+swagger-ui
+services/spar/spar.cabal

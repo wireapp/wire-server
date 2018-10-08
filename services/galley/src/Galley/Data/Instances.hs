@@ -20,6 +20,7 @@ import Galley.Types.Teams.Intra
 import qualified Data.Set
 
 deriving instance Cql ServiceToken
+deriving instance Cql MutedStatus
 
 instance Cql ConvType where
     ctype = Tagged IntColumn

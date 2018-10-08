@@ -40,6 +40,8 @@ module Brig.IO.Intra
     , getTeamName
     , getTeamId
     , getTeamContacts
+    , getTeamOwners
+    , getTeamOwnersWithEmail
     , changeTeamStatus
     ) where
 
@@ -48,6 +50,7 @@ import Bilge.Retry
 import Bilge.RPC
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
+import Brig.Data.User (lookupUsers)
 import Brig.API.Error (incorrectPermissions)
 import Brig.API.Types
 import Brig.RPC
@@ -74,13 +77,15 @@ import Galley.Types (Connect (..), Conversation)
 import Gundeck.Types.Push.V2
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
-import System.Logger.Class hiding ((.=), name)
+import System.Logger.Class as Log hiding ((.=), name)
 
 import qualified Brig.User.Search.Index      as Search
 import qualified Brig.User.Event.Log         as Log
+import qualified Brig.IO.Journal             as Journal
 import qualified Data.ByteString.Lazy        as BL
 import qualified Data.Currency               as Currency
 import qualified Data.HashMap.Strict         as M
+import qualified Data.Map                    as Map
 import qualified Data.Set                    as Set
 import qualified Gundeck.Types.Push.V2       as Push
 import qualified Galley.Types.Teams          as Team
@@ -91,7 +96,9 @@ import qualified Galley.Types.Teams.Intra    as Team
 
 onUserEvent :: UserId -> Maybe ConnId -> UserEvent -> AppIO ()
 onUserEvent orig conn e =
-    updateSearchIndex orig e *> dispatchNotifications orig conn e
+    updateSearchIndex orig e *>
+    dispatchNotifications orig conn e *>
+    journalEvent orig e
 
 onConnectionEvent :: UserId          -- ^ Originator of the event.
                   -> Maybe ConnId    -- ^ Client connection ID, if any.
@@ -143,6 +150,16 @@ updateSearchIndex orig e = case e of
                              ]
         when (interesting) $ Search.reindex orig
 
+journalEvent :: UserId -> UserEvent -> AppIO ()
+journalEvent orig e = case e of
+    UserActivated acc                   -> Journal.userActivate (accountUser acc)
+    UserLocaleUpdated _ loc             -> Journal.userUpdate orig Nothing (Just loc) Nothing
+    UserUpdated _ (Just name) _ _ _ _ _ -> Journal.userUpdate orig Nothing Nothing (Just name)
+    UserIdentityUpdated _ (Just em) _   -> Journal.userUpdate orig (Just em) Nothing Nothing
+    UserIdentityRemoved _ (Just em) _   -> Journal.userEmailRemove orig em
+    UserDeleted{}                       -> Journal.userDelete orig
+    _                                   -> return ()
+
 -------------------------------------------------------------------------------
 -- Low-Level Event Notification
 
@@ -175,25 +192,39 @@ push :: List1 Event  -- ^ The events to push.
      -> Push.Route   -- ^ The push routing strategy.
      -> Maybe ConnId -- ^ The originating device connection.
      -> AppIO ()
-push (toList -> evts) usrs orig route conn = do
-    let events = mapMaybe toPushData evts
-    unless (null events) $ do
-      for_ events $ \e -> debug $ remote "gundeck" . msg (fst e)
-      g <- view gundeck
-      forM_ recipients $ \rcps ->
-        void . recovering x3 rpcHandlers $ const $ rpc' "gundeck" g
-            ( method POST
-            . path "/i/push/v2"
-            . zUser orig
-            . json (map (mkPush rcps . snd) events)
-            . expect2xx
-            )
+push (toList -> events) usrs orig route conn =
+    case mapMaybe toPushData events of
+        []   -> pure ()
+        x:xs -> rawPush (list1 x xs) usrs orig route conn
   where
-    toPushData :: Event -> Maybe (Event, (Object, Maybe ApsData))
+    toPushData :: Event -> Maybe (Builder, (Object, Maybe ApsData))
     toPushData e = case toPushFormat e of
-          Just o  -> Just (e, (o, toApsData e))
+          Just o  -> Just (Log.bytes e, (o, toApsData e))
           Nothing -> Nothing
 
+-- | Push encoded events to other users. Useful if you want to push
+-- something that's not defined in Brig.
+rawPush
+    :: List1 (Builder, (Object, Maybe ApsData)) -- ^ The events to push.
+    -> List1 UserId -- ^ The users to push to.
+    -> UserId       -- ^ The originator of the events.
+    -> Push.Route   -- ^ The push routing strategy.
+    -> Maybe ConnId -- ^ The originating device connection.
+    -> AppIO ()
+-- TODO: if we decide to have service whitelist events in Brig instead of
+-- Galley, let's merge 'push' and 'rawPush' back. See Note [whitelist events].
+rawPush (toList -> events) usrs orig route conn = do
+    for_ events $ \e -> debug $ remote "gundeck" . msg (fst e)
+    g <- view gundeck
+    forM_ recipients $ \rcps ->
+      void . recovering x3 rpcHandlers $ const $ rpc' "gundeck" g
+          ( method POST
+          . path "/i/push/v2"
+          . zUser orig
+          . json (map (mkPush rcps . snd) events)
+          . expect2xx
+          )
+  where
     recipients :: [Range 1 1024 (Set.Set Recipient)]
     recipients = map (unsafeRange . Set.fromList)
                $ chunksOf 512
@@ -334,7 +365,6 @@ toPushFormat (ClientEvent (ClientRemoved _ c)) = Just $ M.fromList
     [ "type"   .= ("user.client-remove" :: Text)
     , "client" .= object ["id" .= clientId c]
     ]
-toPushFormat (InvitationEvent _) = Nothing
 
 toApsData :: Event -> Maybe ApsData
 toApsData (ConnectionEvent (ConnectionUpdated uc _ name)) =
@@ -445,8 +475,8 @@ getTeamConv usr tid cnv = do
 -------------------------------------------------------------------------------
 -- User management
 
-rmUser :: UserId -> AppIO ()
-rmUser usr = do
+rmUser :: UserId -> [Asset] -> AppIO ()
+rmUser usr asts = do
     debug $ remote "gundeck"
           . field "user" (toByteString usr)
           . msg (val "remove user")
@@ -456,6 +486,15 @@ rmUser usr = do
           . field "user" (toByteString usr)
           . msg (val "remove user")
     void $ galleyRequest DELETE (path "/i/user" . zUser usr . expect2xx)
+
+    debug $ remote "cargohold"
+          . field "user" (toByteString usr)
+          . msg (val "remove profile assets")
+    -- Note that we _may_ not get a 2xx response code from cargohold (e.g., client has
+    -- deleted the asset "directly" with cargohold; on our side, we just do our best to
+    -- delete it in case it is still there
+    forM_ asts $ \ast ->
+        cargoholdRequest DELETE (paths ["assets/v3", toByteString' $ assetKey ast] . zUser usr)
 
 -------------------------------------------------------------------------------
 -- Client management
@@ -575,6 +614,7 @@ getTeamMembers tid = do
     req = paths ["i", "teams", toByteString' tid, "members"]
         . expect2xx
 
+-- | Only works on 'BindingTeam's!
 getTeamContacts :: UserId -> AppIO (Maybe Team.TeamMemberList)
 getTeamContacts u = do
     debug $ remote "galley" . msg (val "Get team contacts")
@@ -585,6 +625,37 @@ getTeamContacts u = do
   where
     req = paths ["i", "users", toByteString' u, "team", "members"]
         . expect [status200, status404]
+
+-- | 'Nothing' means no team could be found.  'Just' contains all members of the team that have full
+-- permissions.
+--
+-- TODO: This could arguably also live in galley, since it is about teams.  But it also needs emails
+-- of users, so no matter whether it lives in galley or brig, one has to call the other for this to
+-- be decided.  A small refactoring to improve on this: split up 'getTeamOwners' into the part that
+-- fetches the team members from galley, and the part that filters them for permissions and email
+-- addresses.  When galley wants to know, the second part can be called from
+-- /i/users/:uid/can-be-deleted directly with a list of team members passed to that end-point in the
+-- body.  When brig wants to know, it can call both parts.  These thoughts may all become obsolete
+-- if we introduce a deletion service in the future.
+getTeamOwners :: TeamId -> AppIO [Team.TeamMember]
+getTeamOwners tid = filter Team.isTeamOwner . view Team.teamMembers <$> getTeamMembers tid
+
+-- | Like 'getTeamOwners', but only returns owners with an email address.
+getTeamOwnersWithEmail :: TeamId -> AppIO [Team.TeamMember]
+getTeamOwnersWithEmail tid = do
+    mems <- getTeamOwners tid
+    usrList :: [User] <- lookupUsers ((^. Team.userId) <$> mems)
+
+    let usrMap :: Map.Map UserId Bool
+        usrMap = Map.fromList $ mkListItem <$> usrList
+
+        mkListItem :: User -> (UserId, Bool)
+        mkListItem usr = (userId usr, isJust $ userEmail usr)
+
+        hasEmail :: Team.TeamMember -> Bool
+        hasEmail mem = maybe False id $ Map.lookup (mem ^. Team.userId) usrMap
+
+    pure $ filter hasEmail mems
 
 getTeamId :: UserId -> AppIO (Maybe TeamId)
 getTeamId u = do
@@ -622,4 +693,3 @@ changeTeamStatus tid s cur = do
         . header "Content-Type" "application/json"
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
-

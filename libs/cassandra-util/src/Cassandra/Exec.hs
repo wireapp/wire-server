@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+{-# OPTIONS_GHC -Wno-orphans #-} -- for MonadUnliftIO Client
+
 module Cassandra.Exec
     ( Client
     , MonadClient    (..)
@@ -24,6 +26,7 @@ module Cassandra.Exec
     , write
     , schema
     , paginate
+    , paginateC
 
       -- * Prepared Queries
     , PrepQuery
@@ -55,11 +58,16 @@ module Cassandra.Exec
 
 import Cassandra.CQL
 import Control.Exception (IOException)
+import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Class
+import Control.Monad.IO.Unlift
+import Control.Monad.Reader
 import Data.Int
 import Data.Text (Text)
 import Database.CQL.IO
+import Data.Conduit
 
 params :: Tuple a => Consistency -> a -> QueryParams a
 params c p = QueryParams c False p Nothing Nothing Nothing
@@ -90,3 +98,21 @@ syncCassandra m = catches (Right <$> m)
     , Handler $ \(e :: IOException)   -> return . Left . Comm $ e
     , Handler $ \(e :: SomeException) -> return . Left . Other $ e
     ]
+
+-- | Stream results of a query.
+--
+-- You can execute this conduit by doing @transPipe (runClient ...)@.
+paginateC :: (Tuple a, Tuple b, RunQ q, MonadClient m)
+          => q R a b -> QueryParams a -> RetrySettings -> ConduitM () [b] m ()
+paginateC q p r = go =<< lift (retry r (paginate q p))
+  where
+    go page = do
+        unless (null (result page)) $
+            yield (result page)
+        when (hasMore page) $
+            go =<< lift (retry r (liftClient (nextPage page)))
+
+instance MonadUnliftIO Client where
+    askUnliftIO = do
+        env <- ask
+        pure $ UnliftIO (runClient env)

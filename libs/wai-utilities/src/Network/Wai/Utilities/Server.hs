@@ -176,7 +176,9 @@ compile routes = Route.prepare (Route.renderer predicateError >> routes)
     messageStr Nothing  = mempty
 
 route :: (MonadCatch m, MonadIO m) => Tree (App m) -> Request -> Continue IO -> m ResponseReceived
-route rt rq k = Route.route rt rq (liftIO . k)
+route rt rq k = Route.routeWith (Route.Config $ errorRs' noEndpoint) rt rq (liftIO . k)
+  where
+    noEndpoint = Error status404 "no-endpoint" "The requested endpoint does not exist"
 {-# INLINEABLE route #-}
 
 --------------------------------------------------------------------------------

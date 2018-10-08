@@ -20,6 +20,7 @@ module Galley.API.Update
     , rmCode
     , getCode
     , updateConversationAccess
+    , updateConversationMessageTimer
 
       -- * Managing Members
     , Galley.API.Update.addMembers
@@ -44,15 +45,18 @@ module Galley.API.Update
 
 import Control.Applicative hiding (empty)
 import Control.Concurrent.Lifted (fork)
-import Control.Lens ((&), (.~), (?~), (^.), (<&>), set, view)
+import Control.Lens
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Control.Monad.Trans (lift)
+import Control.Monad.State
 import Data.Bool (bool)
 import Data.Code
 import Data.Foldable
+import Data.Set (Set)
+import Data.List ((\\))
 import Data.Id
-import Data.List1 (singleton)
 import Data.Maybe (fromMaybe, catMaybes)
 import Data.List1
 import Data.Text (Text)
@@ -73,7 +77,7 @@ import Galley.Types.Teams hiding (EventType (..), EventData (..), Event)
 import Galley.Validation
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (setStatus, failure)
+import Network.Wai.Predicate hiding (_1, _2, setStatus, failure)
 import Network.Wai.Utilities
 import Prelude hiding (any, elem, head)
 
@@ -99,8 +103,7 @@ blockConv (usr ::: cnv) = do
     unless (Data.convType conv `elem` [ConnectConv, One2OneConv]) $
         throwM $ invalidOp "block: invalid conversation type"
     let mems  = Data.convMembers conv
-    if | usr `isMember` mems -> Data.removeMember usr cnv
-       | otherwise           -> return ()
+    when (usr `isMember` mems) $ Data.removeMember usr cnv
     return empty
 
 unblockConv :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
@@ -116,73 +119,127 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     body <- fromBody req invalidPayload :: Galley ConversationAccessUpdate
     let targetAccess = Set.fromList (toList (cupAccess body))
         targetRole = cupAccessRole body
-    -- checks and balances
+    -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
+    -- so on; users are not supposed to be able to make other conversations
+    -- have 'PrivateAccessRole'
     when (PrivateAccess `elem` targetAccess || PrivateAccessRole == targetRole) $
         throwM invalidTargetAccess
+    -- The user who initiated access change has to be a conversation member
     (bots, users) <- botsAndUsers <$> Data.members cnv
-    unless (usr `isMember` users) $
-        throwM convNotFound
+    ensureConvMember users usr
+    -- The conversation has to be a group conversation
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     ensureGroupConv conv
+    -- Team conversations incur another round of checks
+    case Data.convTeam conv of
+        Just tid -> checkTeamConv tid
+        Nothing  -> when (targetRole == TeamAccessRole) $ throwM invalidTargetAccess
+    -- When there is no update to be done, we return 204; otherwise we go
+    -- with 'uncheckedUpdateConversationAccess', which will potentially kick
+    -- out some users and do DB updates.
     let currentAccess = Set.fromList (toList $ Data.convAccess conv)
         currentRole = Data.convAccessRole conv
-    if currentAccess == targetAccess && currentRole == targetRole then
-        return $ empty & setStatus status204
-    else do
-        case Data.convTeam conv of
-            Nothing     -> when (targetRole == TeamAccessRole) $
-                               throwM invalidTargetAccess
-            Just tid    -> handleTeamConv tid targetRole users bots conv
-        when (targetRole == ActivatedAccessRole && currentRole == NonActivatedAccessRole) $
-            removeNonActivatedMembers users bots conv
-        -- remove conversation codes if CodeAccess is revoked
-        when (CodeAccess `elem` currentAccess && CodeAccess `notElem` targetAccess) $ do
-            key <- mkKey cnv
-            Data.deleteCode key ReusableCode
-        -- update cassandra & send event
-        now <- liftIO getCurrentTime
-        let e = Event ConvAccessUpdate cnv usr now (Just $ EdConvAccessUpdate body)
-        Data.updateConversationAccess cnv (cupAccess body) (cupAccessRole body)
-        pushEvent e users bots zcon
-        return $ json e & setStatus status200
+    if currentAccess == targetAccess && currentRole == targetRole
+        then return $ empty & setStatus status204
+        else uncheckedUpdateConversationAccess body usr zcon conv
+                 (currentAccess, targetAccess)
+                 (currentRole,   targetRole)
+                 users bots
   where
-    handleTeamConv tid targetRole users bots conv = do
+    checkTeamConv tid = do
         tMembers <- Data.teamMembers tid
-        -- only team members can change access mode
+        -- Only team members can change access mode
         unless (usr `elem` (view userId <$> tMembers)) $
             throwM accessDenied
-        -- access mode change for managed conversation is not allowed
+        -- Access mode change for managed conversation is not allowed
         tcv <- Data.teamConversation tid cnv
         when (maybe False (view managedConversation) tcv) $
             throwM invalidManagedConvOp
-        -- remove non-team users if target role is TeamAccessRole
-        when (targetRole == TeamAccessRole) $
-            removeNonTeamMembers tMembers users bots conv
-
-    removeNonTeamMembers :: [TeamMember] -> [Member] -> [BotMember] -> Data.Conversation -> Galley ()
-    removeNonTeamMembers tMembers users bots conv = do
+        -- Access mode change might result in members being removed from the
+        -- conversation, so the user must have the necessary permission flag
         void $ permissionCheck usr RemoveConversationMember tMembers
-        let tUids = view userId <$> tMembers
-            toRemove = filter (`notElem` tUids) (memId <$> users)
-        remove toRemove users bots conv
 
-    removeNonActivatedMembers :: [Member] -> [BotMember] -> Data.Conversation -> Galley ()
-    removeNonActivatedMembers users bots conv = do
-        let mIds = memId <$> users
-        activated <- fmap User.userId <$> lookupActivatedUsers mIds
-        let toRemove = filter (`notElem` activated) mIds
-        remove toRemove users bots conv
+uncheckedUpdateConversationAccess
+    :: ConversationAccessUpdate -> UserId -> ConnId -> Data.Conversation
+    -> (Set Access, Set Access) -> (AccessRole, AccessRole)
+    -> [Member] -> [BotMember]
+    -> Galley Response
+uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAccess) (currentRole, targetRole) users bots = do
+    let cnv = convId conv
+    -- Remove conversation codes if CodeAccess is revoked
+    when (CodeAccess `elem` currentAccess && CodeAccess `notElem` targetAccess) $ do
+        key <- mkKey cnv
+        Data.deleteCode key ReusableCode
 
-    remove :: [UserId] -> [Member] -> [BotMember] -> Data.Conversation -> Galley ()
-    remove toRemove users bots conv = case toRemove of
-        []      -> return ()
-        x:xs    -> do
+    -- Depending on a variety of things, some bots and users have to be
+    -- removed from the conversation. We keep track of them using 'State'.
+    (newUsers, newBots) <- flip execStateT (users, bots) $ do
+        -- We might have to remove non-activated members
+        when (currentRole > ActivatedAccessRole && targetRole <= ActivatedAccessRole) $ do
+            mIds <- map memId <$> use usersL
+            activated <- fmap User.userId <$> lift (lookupActivatedUsers mIds)
+            usersL %= filter (\user -> memId user `elem` activated)
+        -- In a team-only conversation we also want to remove bots and guests
+        case (targetRole, Data.convTeam conv) of
+            (TeamAccessRole, Just tid) -> do
+                tMembers <- map (view userId) <$> lift (Data.teamMembers tid)
+                usersL %= filter (\user -> memId user `elem` tMembers)
+                botsL .= []
+            _ -> return ()
+
+    -- Update Cassandra & send an event
+    now <- liftIO getCurrentTime
+    let accessEvent = Event ConvAccessUpdate cnv usr now (Just $ EdConvAccessUpdate body)
+    Data.updateConversationAccess cnv targetAccess targetRole
+    pushEvent accessEvent users bots zcon
+
+    -- Remove users and bots
+    let removedUsers = map memId users \\ map memId newUsers
+        removedBots  = map botMemId bots \\ map botMemId newBots
+    mapM_ (deleteBot cnv) removedBots
+    case removedUsers of
+        []   -> return ()
+        x:xs -> do
             e <- Data.removeMembers conv usr (list1 x xs)
-            pushEvent e users bots zcon
             -- push event to all clients, including zconn
             -- since updateConversationAccess generates a second (member removal) event here
             for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
-            void . fork $ void $ External.deliver (bots `zip` repeat e)
+            void . fork $ void $ External.deliver (newBots `zip` repeat e)
+
+    -- Return the event
+    return $ json accessEvent & setStatus status200
+
+  where
+    usersL :: Lens' ([Member], [BotMember]) [Member]
+    usersL = _1
+    botsL :: Lens' ([Member], [BotMember]) [BotMember]
+    botsL = _2
+
+updateConversationMessageTimer :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
+updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req ::: _ ) = do
+    body <- fromBody req invalidPayload :: Galley ConversationMessageTimerUpdate
+    let messageTimer = cupMessageTimer body
+    -- checks and balances
+    (bots, users) <- botsAndUsers <$> Data.members cnv
+    ensureConvMember users usr
+    conv <- Data.conversation cnv >>= ifNothing convNotFound
+    ensureGroupConv conv
+    traverse_ ensureTeamMember $ Data.convTeam conv -- only team members can change the timer
+    let currentTimer = Data.convMessageTimer conv
+    if currentTimer == messageTimer then
+        return $ empty & setStatus status204
+    else do
+        -- update cassandra & send event
+        now <- liftIO getCurrentTime
+        let e = Event ConvMessageTimerUpdate cnv usr now (Just $ EdConvMessageTimerUpdate body)
+        Data.updateConversationMessageTimer cnv messageTimer
+        pushEvent e users bots zcon
+        return $ json e & setStatus status200
+  where
+    ensureTeamMember tid = do
+        tMembers <- Data.teamMembers tid
+        unless (usr `elem` (view userId <$> tMembers)) $
+            throwM accessDenied
 
 pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
 pushEvent e users bots zcon = do
@@ -270,9 +327,7 @@ joinConversation :: UserId -> ConnId -> ConvId -> Access -> Galley Response
 joinConversation zusr zcon cnv access = do
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     ensureAccess conv access
-    mbTms <- case Data.convTeam conv of
-        Just tid -> Just <$> Data.teamMembers tid
-        Nothing -> return Nothing
+    mbTms <- traverse Data.teamMembers $ Data.convTeam conv
     ensureAccessRole (Data.convAccessRole conv) [zusr] mbTms
     let newUsers = filter (notIsMember conv) [zusr]
     ensureMemberLimit (toList $ Data.convMembers conv) newUsers
@@ -340,11 +395,7 @@ removeMember (zusr ::: zcon ::: cid ::: victim) = do
     case Data.convTeam conv of
         Nothing -> regularConvChecks users
         Just ti -> teamConvChecks ti
-    case Data.convType conv of
-        SelfConv    -> throwM invalidSelfOp
-        One2OneConv -> throwM invalidOne2OneOp
-        ConnectConv -> throwM invalidConnectOp
-        _           -> return ()
+    ensureGroupConv conv
     if victim `isMember` users then do
         e <- Data.removeMembers conv zusr (singleton victim)
         for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
@@ -565,7 +616,7 @@ ensureGroupConv c = case Data.convType c of
 ensureMemberLimit :: [Member] -> [UserId] -> Galley ()
 ensureMemberLimit old new = do
     o <- view options
-    let maxSize = fromIntegral (o^.optSettings.setMaxConvAndTeamSize)
+    let maxSize = fromIntegral (o^.optSettings.setMaxConvSize)
     when (length old + length new > maxSize) $
         throwM tooManyMembers
 

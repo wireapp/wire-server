@@ -21,6 +21,7 @@ import Data.Range
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
+import GHC.Stack
 import Gundeck.Types.Notification
 import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
@@ -62,6 +63,7 @@ tests s = testGroup "Teams API"
     , test s "remove team member" testRemoveTeamMember
     , test s "remove team member (binding)" testRemoveBindingTeamMember
     , test s "add team conversation" testAddTeamConv
+    , test s "add managed conversation through public endpoint (fail)" testAddManagedConv
     , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
     , test s "add team member to conversation without connection" testAddTeamMemberToConv
     , test s "delete non-binding team" testDeleteTeam
@@ -174,7 +176,7 @@ testCreateOne2OneFailNonBindingTeamMembers g b _ a = do
         const 403 === statusCode
         const "non-binding-team-members" === (Error.label . Util.decodeBody' "error label")
 
-testCreateOne2OneWithMembers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testCreateOne2OneWithMembers :: HasCallStack => Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testCreateOne2OneWithMembers g b c a = do
     owner <- Util.randomUser b
     tid   <- Util.createTeamInternal g "foo" owner
@@ -186,7 +188,6 @@ testCreateOne2OneWithMembers g b c a = do
         Util.addTeamMemberInternal g tid mem1
         checkTeamMemberJoin tid (mem1^.userId) wsMem1
         assertQueue "team member join" a $ tUpdate 2 [owner]
-        WS.assertNoEvent timeout [wsMem1]
 
     void $ retryWhileN 10 repeatIf (Util.createOne2OneTeamConv g owner (mem1^.userId) Nothing tid)
 
@@ -273,13 +274,13 @@ testRemoveTeamMember g b c _ = do
     tid <- Util.createTeam g "foo" owner [mem1, mem2]
 
     -- Managed conversation:
-    void $ Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "gossip") Nothing
+    void $ Util.createManagedConv g owner tid [] (Just "gossip") Nothing Nothing
     -- Regular conversation:
-    cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [mem1^.userId, mem2^.userId, mext1] (Just "blaa") Nothing
+    cid2 <- Util.createTeamConv g owner tid [mem1^.userId, mem2^.userId, mext1] (Just "blaa") Nothing Nothing
     -- Member external 2 is a guest and not a part of any conversation that mem1 is a part of
-    void $ Util.createTeamConv g owner (ConvTeamInfo tid False) [mem2^.userId, mext2] (Just "blaa") Nothing
+    void $ Util.createTeamConv g owner tid [mem2^.userId, mext2] (Just "blaa") Nothing Nothing
     -- Member external 3 is a guest and part of a conversation that mem1 is a part of
-    cid3 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [mem1^.userId, mext3] (Just "blaa") Nothing
+    cid3 <- Util.createTeamConv g owner tid [mem1^.userId, mext3] (Just "blaa") Nothing Nothing
 
     WS.bracketRN c [owner, mem1^.userId, mem2^.userId, mext1, mext2, mext3] $ \ws@[wsOwner, wsMem1, wsMem2, wsMext1, _wsMext2, wsMext3] -> do
         -- `mem1` lacks permission to remove team members
@@ -315,7 +316,7 @@ testRemoveBindingTeamMember g b c a = do
     Util.addTeamMemberInternal g tid mem1
     assertQueue "team member join" a $ tUpdate 2 [owner]
     Util.connectUsers b owner (singleton mext)
-    cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [(mem1^.userId), mext] (Just "blaa") Nothing
+    cid1 <- Util.createTeamConv g owner tid [(mem1^.userId), mext] (Just "blaa") Nothing Nothing
 
     -- Deleting from a binding team without a password is a bad request
     delete ( g
@@ -366,12 +367,12 @@ testAddTeamConv g b c _ = do
 
     WS.bracketRN c [owner, extern, mem1^.userId, mem2^.userId]  $ \ws@[wsOwner, wsExtern, wsMem1, wsMem2] -> do
         -- Managed conversation:
-        cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "gossip") Nothing
+        cid1 <- Util.createManagedConv g owner tid [] (Just "gossip") Nothing Nothing
         checkConvCreateEvent cid1 wsOwner
         checkConvCreateEvent cid1 wsMem2
 
         -- Regular conversation:
-        cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [extern] (Just "blaa") Nothing
+        cid2 <- Util.createTeamConv g owner tid [extern] (Just "blaa") Nothing Nothing
         checkConvCreateEvent cid2 wsOwner
         checkConvCreateEvent cid2 wsExtern
         -- mem2 is not a conversation member but still receives an event that
@@ -390,7 +391,7 @@ testAddTeamConv g b c _ = do
         Util.assertNotConvMember g (mem1^.userId) cid2
 
         -- Managed team conversations get all team members added implicitly.
-        cid3 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "blup") Nothing
+        cid3 <- Util.createManagedConv g owner tid [] (Just "blup") Nothing Nothing
         for_ [owner, mem1^.userId, mem2^.userId] $ \u ->
             Util.assertConvMember g u cid3
 
@@ -403,21 +404,22 @@ testAddTeamConv g b c _ = do
             Util.assertNotConvMember g extern
 
         WS.assertNoEvent timeout ws
-  where
-    checkTeamConvCreateEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
-        let e = List1.head (WS.unpackPayload notif)
-        e^.eventType @?= ConvCreate
-        e^.eventTeam @?= tid
-        e^.eventData @?= Just (EdConvCreate cid)
 
-    checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
-        let e = List1.head (WS.unpackPayload notif)
-        evtType e @?= Conv.ConvCreate
-        case evtData e of
-            Just (Conv.EdConversation x) -> cnvId x @?= cid
-            other                        -> assertFailure $ "Unexpected event data: " <> show other
+testAddManagedConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testAddManagedConv g b _c _ = do
+    owner <- Util.randomUser b
+    tid <- Util.createTeam g "foo" owner []
+    let tinfo = ConvTeamInfo tid True
+    let conv = NewConvManaged $
+               NewConv [owner] (Just "blah") (Set.fromList []) Nothing (Just tinfo) Nothing
+    post ( g
+         . path "/conversations"
+         . zUser owner
+         . zConn "conn"
+         . zType "access"
+         . json conv
+         )
+       !!! const 400 === statusCode
 
 testAddTeamConvWithUsers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testAddTeamConvWithUsers g b _ _ = do
@@ -426,7 +428,7 @@ testAddTeamConvWithUsers g b _ _ = do
     Util.connectUsers b owner (list1 extern [])
     tid <- Util.createTeam g "foo" owner []
     -- Create managed team conversation and erroneously specify external users.
-    cid <- Util.createTeamConv g owner (ConvTeamInfo tid True) [extern] (Just "gossip") Nothing
+    cid <- Util.createManagedConv g owner tid [extern] (Just "gossip") Nothing Nothing
     -- External users have been ignored.
     Util.assertNotConvMember g extern cid
     -- Team members are present.
@@ -444,7 +446,7 @@ testAddTeamMemberToConv g b _ _ = do
     tid <- Util.createTeam g "foo" owner [mem1, mem2, mem3]
 
     -- Team owner creates new regular team conversation:
-    cid <- Util.createTeamConv g owner (ConvTeamInfo tid False) [] (Just "blaa") Nothing
+    cid <- Util.createTeamConv g owner tid [] (Just "blaa") Nothing Nothing
 
     -- Team member 1 (who is *not* a member of the new conversation)
     -- can add other team members without requiring a user connection
@@ -470,8 +472,8 @@ testDeleteTeam g b c a = do
     Util.connectUsers b owner (list1 (member^.userId) [extern])
 
     tid  <- Util.createTeam g "foo" owner [member]
-    cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [] (Just "blaa") Nothing
-    cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "blup") Nothing
+    cid1 <- Util.createTeamConv g owner tid [] (Just "blaa") Nothing Nothing
+    cid2 <- Util.createManagedConv g owner tid [] (Just "blup") Nothing Nothing
 
     Util.assertConvMember g owner cid2
     Util.assertConvMember g (member^.userId) cid2
@@ -583,8 +585,11 @@ testDeleteTeamConv g b c _ = do
     Util.connectUsers b owner (list1 (member^.userId) [extern])
 
     tid  <- Util.createTeam g "foo" owner [member]
-    cid1 <- Util.createTeamConv g owner (ConvTeamInfo tid False) [] (Just "blaa") Nothing
-    cid2 <- Util.createTeamConv g owner (ConvTeamInfo tid True) [] (Just "blup") Nothing
+    cid1 <- Util.createTeamConv g owner tid [] (Just "blaa") Nothing Nothing
+    let access = ConversationAccessUpdate [InviteAccess, CodeAccess] ActivatedAccessRole
+    putAccessUpdate g owner cid1 access !!! const 200 === statusCode
+    code <- decodeConvCodeEvent <$> (postConvCode g owner cid1 <!! const 201 === statusCode)
+    cid2 <- Util.createManagedConv g owner tid [] (Just "blup") Nothing Nothing
 
     Util.postMembers g owner (list1 extern [member^.userId]) cid1 !!! const 200 === statusCode
 
@@ -617,6 +622,8 @@ testDeleteTeamConv g b c _ = do
         for_ [owner, member^.userId, extern] $ \u -> do
             Util.getConv g u x !!! const 404 === statusCode
             Util.assertNotConvMember g u x
+
+    postConvCodeCheck g code !!! const 404 === statusCode
   where
     checkTeamConvDeleteEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
@@ -746,7 +753,7 @@ testUpdateTeamStatus g b _ a = do
         const 403 === statusCode
         const "invalid-team-status-update" === (Error.label . Util.decodeBody' "error label")
 
-checkUserDeleteEvent :: UserId -> WS.WebSocket -> Http ()
+checkUserDeleteEvent :: HasCallStack => UserId -> WS.WebSocket -> Http ()
 checkUserDeleteEvent uid w = WS.assertMatch_ timeout w $ \notif -> do
     let j = Object $ List1.head (ntfPayload notif)
     let etype = j ^? key "type" . _String
@@ -754,15 +761,15 @@ checkUserDeleteEvent uid w = WS.assertMatch_ timeout w $ \notif -> do
     etype @?= Just "user.delete"
     euser @?= Just (UUID.toText (toUUID uid))
 
-checkTeamMemberJoin :: TeamId -> UserId -> WS.WebSocket -> Http ()
-checkTeamMemberJoin tid uid w = WS.assertMatch_ timeout w $ \notif -> do
+checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> Http ()
+checkTeamMemberJoin tid uid w = WS.awaitMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
     e^.eventType @?= MemberJoin
     e^.eventTeam @?= tid
     e^.eventData @?= Just (EdMemberJoin uid)
 
-checkTeamMemberLeave :: TeamId -> UserId -> WS.WebSocket -> Http ()
+checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> Http ()
 checkTeamMemberLeave tid usr w = WS.assertMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
@@ -770,7 +777,24 @@ checkTeamMemberLeave tid usr w = WS.assertMatch_ timeout w $ \notif -> do
     e^.eventTeam @?= tid
     e^.eventData @?= Just (EdMemberLeave usr)
 
-checkTeamDeleteEvent :: TeamId -> WS.WebSocket -> Http ()
+checkTeamConvCreateEvent :: HasCallStack => TeamId -> ConvId -> WS.WebSocket -> Http ()
+checkTeamConvCreateEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
+    ntfTransient notif @?= False
+    let e = List1.head (WS.unpackPayload notif)
+    e^.eventType @?= ConvCreate
+    e^.eventTeam @?= tid
+    e^.eventData @?= Just (EdConvCreate cid)
+
+checkConvCreateEvent :: HasCallStack => ConvId -> WS.WebSocket -> Http ()
+checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
+    ntfTransient notif @?= False
+    let e = List1.head (WS.unpackPayload notif)
+    evtType e @?= Conv.ConvCreate
+    case evtData e of
+        Just (Conv.EdConversation x) -> cnvId x @?= cid
+        other                        -> assertFailure $ "Unexpected event data: " <> show other
+
+checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> Http ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
@@ -778,7 +802,7 @@ checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
     e^.eventTeam @?= tid
     e^.eventData @?= Nothing
 
-checkConvDeleteEvent :: ConvId -> WS.WebSocket -> Http ()
+checkConvDeleteEvent :: HasCallStack => ConvId -> WS.WebSocket -> Http ()
 checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
     ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
@@ -786,7 +810,7 @@ checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
     evtConv e @?= cid
     evtData e @?= Nothing
 
-checkConvMemberLeaveEvent :: ConvId -> UserId -> WS.WebSocket -> Http ()
+checkConvMemberLeaveEvent :: HasCallStack => ConvId -> UserId -> WS.WebSocket -> Http ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)

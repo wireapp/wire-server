@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="x-ua-compatible" content="IE=edge">
+  <title>Swagger UI</title>
+  <link rel="icon" type="image/png" href="swagger-ui/images/favicon-32x32.png" sizes="32x32" />
+  <link rel="icon" type="image/png" href="swagger-ui/images/favicon-16x16.png" sizes="16x16" />
+  <link href='swagger-ui/css/typography.css' media='screen' rel='stylesheet' type='text/css'/>
+  <link href='swagger-ui/css/reset.css' media='screen' rel='stylesheet' type='text/css'/>
+  <link href='swagger-ui/css/screen.css' media='screen' rel='stylesheet' type='text/css'/>
+  <link href='swagger-ui/css/reset.css' media='print' rel='stylesheet' type='text/css'/>
+  <link href='swagger-ui/css/print.css' media='print' rel='stylesheet' type='text/css'/>
+
+  <script src='swagger-ui/lib/object-assign-pollyfill.js' type='text/javascript'></script>
+  <script src='swagger-ui/lib/jquery-1.8.0.min.js' type='text/javascript'></script>
+  <script src='swagger-ui/lib/jquery.slideto.min.js' type='text/javascript'></script>
+  <script src='swagger-ui/lib/jquery.wiggle.min.js' type='text/javascript'></script>
+  <script src='swagger-ui/lib/jquery.ba-bbq.min.js' type='text/javascript'></script>
+  <script src='swagger-ui/lib/handlebars-4.0.5.js' type='text/javascript'></script>
+  <script src='swagger-ui/lib/lodash.min.js' type='text/javascript'></script>
+  <script src='swagger-ui/lib/backbone-min.js' type='text/javascript'></script>
+  <script src='swagger-ui/swagger-ui.js' type='text/javascript'></script>
+  <script src='swagger-ui/lib/highlight.9.1.0.pack.js' type='text/javascript'></script>
+  <script src='swagger-ui/lib/highlight.9.1.0.pack_extended.js' type='text/javascript'></script>
+  <script src='swagger-ui/lib/jsoneditor.min.js' type='text/javascript'></script>
+  <script src='swagger-ui/lib/marked.js' type='text/javascript'></script>
+  <script src='swagger-ui/lib/swagger-oauth.js' type='text/javascript'></script>
+
+  <script type="text/javascript">
+  $(function() {
+
+     var base_url = "http://127.0.0.1:8080";
+     document.getElementById('input_base_url').value = base_url;
+     // extract query parameters (used for setting the base_url)
+     function getUrlVars() {
+         var vars = [],
+             hash;
+         var hashes = window.location.href.slice(window.location.href.indexOf('?') + 1).split('&');
+         for (var i = 0; i < hashes.length; i++) {
+             hash = hashes[i].split('=');
+             vars.push(hash[0]);
+             vars[hash[0]] = hash[1];
+         }
+         return vars;
+     }
+     var get = getUrlVars();
+     var suffix = get['url_suffix'];
+     if (suffix && suffix.length > 1) {
+        document.getElementById('input_url_suffix').value = suffix;
+     }
+
+     // -- Init
+     var access_token = '';
+     var timer = null;
+     hljs.configure({
+         highlightSizeThreshold: 5000
+     });
+     $('#access-token').hide();
+     $('#show-access-token').hide();
+     $('#hide-access-token').hide();
+     $('#form_logout').hide();
+     // -- Handlers
+     $('#input_login').click(function() {
+         login($('#input_email')[0].value, $('#input_password')[0].value);
+     });
+     $('#input_logout').click(function() {
+         logout();
+     });
+     $('#show-access-token').click(function() {
+         $('#access-token').show();
+         $('#show-access-token').hide();
+         $('#hide-access-token').show();
+     });
+     $('#hide-access-token').click(function() {
+         $('#access-token').hide();
+         $('#show-access-token').show();
+         $('#hide-access-token').hide();
+     });
+     window.swaggerUi = new SwaggerUi({
+         url: $('#input_base_url')[0].value + '/' + $('#input_url_suffix')[0].value + '/api-docs/',
+         dom_id: "swagger-ui-container",
+         supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
+         onComplete: function(swaggerApi, swaggerUi) {
+             log("Loaded SwaggerUI");
+             if (typeof initOAuth == "function") {
+                 /*
+                   initOAuth({
+                     clientId: "your-client-id",
+                     realm: "your-realms",
+                     appName: "your-app-name"
+                   });
+                   */
+             }
+             $('pre code').each(function(i, e) {
+                 hljs.highlightBlock(e)
+             });
+         },
+         onFailure: function(data) {
+             log("Unable to Load SwaggerUI");
+         },
+         docExpansion: "none",
+         jsonEditor: false,
+         defaultModelRendering: 'model',
+     });
+     window.swaggerUi.load();
+
+     function log() {
+         if ('console' in window) {
+             console.log.apply(console, arguments);
+         }
+     }
+     var login = function(email, password) {
+         $.ajax({
+             url: $('#input_base_url')[0].value + "/login",
+             type: "POST",
+             contentType: "application/json",
+             data: JSON.stringify({
+                 email: email,
+                 password: password
+             }),
+             success: function(result) {
+                 var json = eval(result);
+                 window.swaggerUi.api.clientAuthorizations.add("key", new SwaggerClient.ApiKeyAuthorization("Authorization", "Bearer " + json.access_token, "header"));
+                 // Update UI
+                 $('#form_login').hide();
+                 $('#form_logout').show();
+                 if (!$('#hide-access-token').is(':visible')) {
+                     $('#show-access-token').show();
+                 }
+                 $('#access-token').text(json.access_token);
+                 $('#swagger-ui-container').show();
+                 window.swaggerUi.listAll();
+                 // Update token & schedule refresh
+                 access_token = json.access_token;
+                 refresh();
+                 refresh();
+                 timer = setTimeout(function() {
+                     refresh();
+                 }, (json.expires_in * 1000) - 1000);
+             },
+             error: function(xhr, s, err) {
+                 console.log(err);
+                 $('#form_login').show();
+             }
+         });
+     };
+     var refresh = function() {
+         $.ajax({
+             url: $('#input_base_url')[0].value + "/access",
+             type: "POST",
+             contentType: "application/json",
+             headers: {
+                 "Authorization": "Bearer " + access_token
+             },
+             success: function(result) {
+                 var json = eval(result);
+                 window.swaggerUi.api.clientAuthorizations.add("key", new SwaggerClient.ApiKeyAuthorization("Authorization", "Bearer " + json.access_token, "header"));
+                 $('#access-token').text(json.access_token);
+                 // Update token & schedule refresh
+                 access_token = json.access_token;
+                 timer = setTimeout(function() {
+                     refresh();
+                 }, (json.expires_in * 1000) - 1000);
+             },
+             error: function(xhr, s, err) {
+                 console.log(err);
+                 $('#form_login').show();
+             }
+         });
+     };
+     var logout = function() {
+         $('#access-token').text('');
+         if (timer != null) {
+             clearTimeout(timer);
+         }
+         $('#swagger-ui-container').hide();
+         $('#form_login').show();
+         $('#form_logout').hide();
+     };
+  });
+
+  </script>
+</head>
+
+<body class="swagger-section">
+<br/>
+<div align="center">
+
+  <svg xmlns="http://www.w3.org/2000/svg" width="57" height="18" viewBox="0 0 57 18"><path fill-rule="evenodd" d="M10.857 14.767a5.45 5.45 0 0 1-1.277-3.51l.002-8.688c0-.708.573-1.284 1.277-1.284s1.277.576 1.277 1.284l-.002 8.687a5.45 5.45 0 0 1-1.277 3.51zm9.58-3.51c0 3.01-2.409 5.458-5.402 5.458a5.413 5.413 0 0 1-3.233-1.073 6.72 6.72 0 0 0 1.61-4.386l.002-8.687A2.565 2.565 0 0 0 10.859 0a2.565 2.565 0 0 0-2.555 2.569l-.002 8.687c0 1.675.64 3.206 1.65 4.386a5.413 5.413 0 0 1-3.233 1.073c-2.993 0-5.442-2.449-5.442-5.459V.66H0v10.597C0 14.975 3.035 18 6.733 18a6.681 6.681 0 0 0 4.164-1.458A6.587 6.587 0 0 0 15.028 18c3.698 0 6.686-3.025 6.686-6.744V.66h-1.278v10.597zm5.11 6.403h1.278V.624h-1.277V17.66zM38.008.327a7.337 7.337 0 0 0-6.073 3.233V.624h-1.278V17.66h1.278V7.72c0-3.367 2.725-6.106 6.073-6.106V.327zm2.394 13.705c-2.485-2.965-2.342-7.416.432-10.208a7.478 7.478 0 0 1 10.141-.436L40.401 14.032zM52.784 3.386a8.75 8.75 0 0 0-12.854-.471c-3.424 3.446-3.424 9.054 0 12.5a8.75 8.75 0 0 0 12.417.002l-.903-.91a7.478 7.478 0 0 1-10.14.434l5.285-5.32 6.195-6.235zM53.964.77h.447v1.16h.136V.77h.45V.643h-1.033V.77zM56.34.643l-.445 1.116L55.45.643h-.21v1.286h.131V.779l.457 1.15h.124l.455-1.145v1.145h.132V.643h-.201z"/></svg>
+  <br/><br/>
+
+  <form action="" id="form_login" onsubmit="return false;">
+    <br/>
+    <div class='input'><input placeholder="E-Mail" id="input_email" name="email" type="text"/></div>
+    <div class='input'><input placeholder="Password" id="input_password" name="password" type="password"/></div>
+    <div class='input'><input placeholder="BaseURL" id="input_base_url" name="base_url" type="hidden"></div>
+    <div class='input'><input placeholder="SwaggerSuffix" id="input_url_suffix" name="url_suffix" type="hidden"></div>
+    <input type="submit" value="Login" id="input_login"/>
+  </form>
+
+  <form action="" id="form_logout" onsubmit="return false;">
+    <input type="submit" value="Logout" id="input_logout"/>
+  </form>
+
+</div>
+
+<div align="center" style="font-family: Verdana, sans-serif, 10pt">
+  <a href="#" id="show-access-token">Show Access Token</a>
+  <a href="#" id="hide-access-token">Hide Access Token</a>
+  <div id="access-token" style="padding: 5px"></div>
+</div>
+
+<div id="message-bar" class="swagger-ui-wrap" data-sw-translate>&nbsp;</div>
+<div id="swagger-ui-container" class="swagger-ui-wrap"></div>
+
+</body>
+</html>

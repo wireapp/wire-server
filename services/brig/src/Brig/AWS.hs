@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
@@ -16,8 +17,7 @@ module Brig.AWS
     , amazonkaEnv
     , execute
     , sesQueue
-    , internalQueue
-    , blacklistTable
+    , userJournalQueue
     , prekeyTable
 
     , Error (..)
@@ -27,7 +27,9 @@ module Brig.AWS
 
       -- * SQS
     , listen
-    , enqueue
+    , enqueueFIFO
+    , enqueueStandard
+    , getQueueUrl
 
       -- * AWS
     , exec
@@ -36,15 +38,11 @@ module Brig.AWS
     ) where
 
 import Blaze.ByteString.Builder (toLazyByteString)
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
-import Control.Concurrent.Lifted (threadDelay)
-import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding ((.=))
 import Control.Monad
-import Control.Monad.Base
 import Control.Monad.Catch
+import Control.Monad.IO.Unlift
 import Control.Monad.Reader
-import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.Aeson hiding ((.=))
@@ -52,6 +50,7 @@ import Data.Foldable (for_)
 import Data.Monoid
 import Data.Text (Text, isPrefixOf)
 import Data.Typeable
+import Data.UUID
 import Data.Yaml (FromJSON (..))
 import Network.AWS (AWSRequest, Rs)
 import Network.AWS.SQS (rmrsMessages)
@@ -60,6 +59,9 @@ import Network.HTTP.Client (Manager, HttpException (..), HttpExceptionContent (.
 import Network.HTTP.Types.Status (status400)
 import Network.Mail.Mime
 import System.Logger.Class
+import UnliftIO.Async
+import UnliftIO.Exception
+import UnliftIO.Concurrent
 import Util.Options
 
 import qualified Brig.Options            as Opt
@@ -75,12 +77,11 @@ import qualified Network.AWS.DynamoDB    as DDB
 import qualified System.Logger           as Logger
 
 data Env = Env
-    { _logger         :: !Logger
-    , _sesQueue       :: !Text
-    , _internalQueue  :: !Text
-    , _blacklistTable :: !Text
-    , _prekeyTable    :: !Text
-    , _amazonkaEnv    :: !AWS.Env
+    { _logger           :: !Logger
+    , _sesQueue         :: !(Maybe Text)
+    , _userJournalQueue :: !(Maybe Text)
+    , _prekeyTable      :: !Text
+    , _amazonkaEnv      :: !AWS.Env
     }
 
 makeLenses ''Env
@@ -91,7 +92,6 @@ newtype Amazon a = Amazon
                , Applicative
                , Monad
                , MonadIO
-               , MonadBase IO
                , MonadThrow
                , MonadCatch
                , MonadMask
@@ -99,33 +99,34 @@ newtype Amazon a = Amazon
                , MonadResource
                )
 
+instance MonadUnliftIO Amazon where
+    askUnliftIO = Amazon $ ReaderT $ \r ->
+                    withUnliftIO $ \u ->
+                        return (UnliftIO (unliftIO u . flip runReaderT r . unAmazon))
+
 instance MonadLogger Amazon where
     log l m = view logger >>= \g -> Logger.log g l m
-
-instance MonadBaseControl IO Amazon where
-    type StM Amazon a = StM (ReaderT Env (ResourceT IO)) a
-    liftBaseWith    f = Amazon $ liftBaseWith $ \run -> f (run . unAmazon)
-    restoreM          = Amazon . restoreM
 
 instance AWS.MonadAWS Amazon where
     liftAWS a = view amazonkaEnv >>= flip AWS.runAWS a
 
-mkEnv :: Logger -> Opt.AWSOpts -> Manager -> IO Env
-mkEnv lgr opts mgr = do
-    let g = Logger.clone (Just "aws.brig") lgr
-    let (bl, pk) = (Opt.blacklistTable opts, Opt.prekeyTable opts)
-    e  <- mkAwsEnv g (mkEndpoint SES.ses      (Opt.sesEndpoint opts))
+mkEnv :: Logger -> Opt.AWSOpts -> Maybe Opt.EmailAWSOpts -> Manager -> IO Env
+mkEnv lgr opts emailOpts mgr = do
+    let g  = Logger.clone (Just "aws.brig") lgr
+    let pk = Opt.prekeyTable opts
+    let sesEndpoint = mkEndpoint SES.ses . Opt.sesEndpoint <$> emailOpts
+    e  <- mkAwsEnv g sesEndpoint
                      (mkEndpoint SQS.sqs      (Opt.sqsEndpoint opts))
                      (mkEndpoint DDB.dynamoDB (Opt.dynamoDBEndpoint opts))
-    sq <- getQueueUrl e (Opt.sesQueue opts)
-    iq <- getQueueUrl e (Opt.internalQueue opts)
-    return (Env g sq iq bl pk e)
+    sq <- maybe (return Nothing) (fmap Just . getQueueUrl e . Opt.sesQueue) emailOpts
+    jq <- maybe (return Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
+    return (Env g sq jq pk e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
 
     mkAwsEnv g ses sqs dyn =  set AWS.envLogger (awsLogger g)
                           <$> AWS.newEnvWith AWS.Discover Nothing mgr
-                          <&> AWS.configure ses
+                          <&> maybe id AWS.configure ses
                           <&> AWS.configure sqs
                           <&> AWS.configure dyn
 
@@ -145,7 +146,9 @@ mkEnv lgr opts mgr = do
     -- they are still revealed on debug level.
     mapLevel AWS.Error = Logger.Debug
 
-    getQueueUrl e q = view SQS.gqursQueueURL <$> exec e (SQS.getQueueURL q)
+getQueueUrl :: (MonadUnliftIO m, MonadCatch m)
+            => AWS.Env -> Text -> m Text
+getQueueUrl e q = view SQS.gqursQueueURL <$> exec e (SQS.getQueueURL q)
 
 execute :: MonadIO m => Env -> Amazon a -> m a
 execute e m = liftIO $ runResourceT (runReaderT (unAmazon m) e)
@@ -185,10 +188,17 @@ listen url callback = do
         err $ "error" .= show x ~~ msg (val "Failed to read from SQS")
         threadDelay 3000000
 
-enqueue :: Text -> BL.ByteString -> Amazon (SQS.SendMessageResponse)
-enqueue url m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
+enqueueStandard :: Text -> BL.ByteString -> Amazon (SQS.SendMessageResponse)
+enqueueStandard url m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
   where
     req = SQS.sendMessage url $ Text.decodeLatin1 (BL.toStrict m)
+
+enqueueFIFO :: Text -> Text -> UUID -> BL.ByteString -> Amazon (SQS.SendMessageResponse)
+enqueueFIFO url group dedup m = retrying retry5x (const canRetry) (const (sendCatch req)) >>= throwA
+  where
+    req = SQS.sendMessage url ( Text.decodeLatin1 (BL.toStrict m))
+                              & SQS.smMessageGroupId .~ Just group
+                              & SQS.smMessageDeduplicationId .~ Just (toText dedup)
 
 -------------------------------------------------------------------------------
 -- SES
@@ -227,12 +237,12 @@ send r = throwA =<< sendCatch r
 throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) return
 
-execCatch :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m)
+execCatch :: (AWSRequest a, AWS.HasEnv r, MonadUnliftIO m, MonadCatch m, MonadThrow m, MonadIO m)
           => r -> a -> m (Either AWS.Error (Rs a))
 execCatch e cmd = runResourceT . AWST.runAWST e
                 $ AWST.trying AWS._Error $ AWST.send cmd
 
-exec :: (AWSRequest a, AWS.HasEnv r, MonadCatch m, MonadThrow m, MonadBaseControl IO m, MonadBase IO m, MonadIO m)
+exec :: (AWSRequest a, AWS.HasEnv r, MonadUnliftIO m, MonadCatch m, MonadThrow m, MonadIO m)
      => r -> a -> m (Rs a)
 exec e cmd = execCatch e cmd >>= either (throwM . GeneralError) return
 

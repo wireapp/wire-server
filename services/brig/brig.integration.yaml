@@ -12,6 +12,10 @@ elasticsearch:
   url: http://127.0.0.1:9200
   index: directory_test
 
+cargohold:
+  host: 127.0.0.1
+  port: 8084
+
 galley:
   host: 127.0.0.1
   port: 8085
@@ -20,38 +24,70 @@ gundeck:
   host: 127.0.0.1
   port: 8086
 
-# You can set up local SQS/Dynamo running e.g. `docker-compose -f ../../deploy/docker-ephemeral/docker-compose.yaml up`
+# You can set up local SQS/Dynamo running e.g. `../../deploy/docker-ephemeral/run.sh`
 aws:
-  sesQueue: integration-brig-events
-  internalQueue: integration-brig-events-internal
-  blacklistTable: integration-brig-userkey-blacklist
+  userJournalQueue: integration-user-events.fifo
+  # ^ Comment this out if you don't want to journal user events
   prekeyTable: integration-brig-prekeys
-  sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   dynamoDBEndpoint: http://localhost:4567 # https://dynamodb.eu-west-1.amazonaws.com
+
+# Uncomment this if you want STOMP.
+#
+# stomp:
+#   stompHost: localhost
+#   stompPort: 61613
+#   stompTls: false
+
+# TODO: possibly move 'userJournalQueue' to the top level as well
+internalEvents:
+  queueType: sqs
+  queueName: integration-brig-events-internal
+  # queueType: stomp
+  # queueName: /queue/integration-brig-events-internal
+
 emailSMS:
+  # You can either use SES directly (in which case, ensure a feedback queue is configured)
+  # or you can use SMTP directly (blacklisting of email/phone must be otherwise handled by
+  # the operator).
+  email:
+    sesQueue: integration-brig-events
+    sesEndpoint: http://localhost:4569 # https://email.eu-west-1.amazonaws.com
+    # If you prefer to use SMTP directly, uncomment the following lines
+    # and set the correct credentials.
+    # NOTE: In case a user tries to supply config values for both SES and SMTP,
+    #       SES takes precedence and gets used instead
+    # smtpEndpoint: <hostname>
+    # smtpUsername: <username>
+    # smtpPassword: test/resources/smtp-secret.txt
+    # smtpConnType: tls
+    # ^ NOTE: blacklisting of emails (processing of bounces and complaints)  is only done
+    #         automatically IF sesQueue/sesEndpoint are used. If SMTP is used directly, the
+    #         operator must handle these notifications "manually" (there are internal endpoints)
+    #         that may be used for this
+
   general:
     templateDir: deb/opt/brig/templates
     emailSender: backend-integration@wire.com
     smsSender: "<insert-sender-number-here>"
 
   user:
-    activationUrl: http://127.0.0.1:8080/activate?key=\${key}\&code=\${code}
-    smsActivationUrl: http://127.0.0.1:8080/v/\${code}
-    passwordResetUrl: http://127.0.0.1:8080/password-reset/\${key}?code=\${code}
-    invitationUrl: http://127.0.0.1:8080/register?invitation_code=\${code}
-    deletionUrl: http://127.0.0.1:8080/users/delete?key=\${key}\&code=\${code}
+    activationUrl: http://127.0.0.1:8080/activate?key=${key}&code=${code}
+    smsActivationUrl: http://127.0.0.1:8080/v/${code}
+    passwordResetUrl: http://127.0.0.1:8080/password-reset/${key}?code=${code}
+    invitationUrl: http://127.0.0.1:8080/register?invitation_code=${code}
+    deletionUrl: http://127.0.0.1:8080/users/delete?key=${key}&code=${code}
 
   provider:
     homeUrl: https://provider.localhost/
-    providerActivationUrl: http://127.0.0.1:8080/provider/activate?key=\${key}\&code=\${code}
-    approvalUrl: http://127.0.0.1:8080/provider/approve?key=\${key}\&code=\${code}
+    providerActivationUrl: http://127.0.0.1:8080/provider/activate?key=${key}&code=${code}
+    approvalUrl: http://127.0.0.1:8080/provider/approve?key=${key}&code=${code}
     approvalTo: success@simulator.amazonses.com
-    providerPwResetUrl: http://127.0.0.1:8080/provider/password-reset?key=\${key}\&code=\${code}
+    providerPwResetUrl: http://127.0.0.1:8080/provider/password-reset?key=${key}&code=${code}
 
   team:
-    tInvitationUrl: http://127.0.0.1:8080/register?team=\${team}\&team_code=\${code}
-    tActivationUrl: http://127.0.0.1:8080/register?team=\${team}\&team_code=\${code}
+    tInvitationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
+    tActivationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
     tCreatorWelcomeUrl: http://127.0.0.1:8080/creator-welcome-website
     tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
 
@@ -66,7 +102,10 @@ zauth:
     providerTokenTimeout: 60
 
 turn:
+  # Replace this with the list of supported URIs
   servers: test/resources/turn/servers.txt
+  serversV2: test/resources/turn/servers-v2.txt
+  # This should be the same secret as used by the TURN servers
   secret: test/resources/turn/secret.txt
   configTTL: 3600
   tokenTTL: 21600
@@ -76,6 +115,7 @@ optSettings:
   setTeamInvitationTimeout: 5
   setTwilio: test/resources/twilio-credentials.yaml
   setNexmo: test/resources/nexmo-credentials.yaml
+  # setStomp: test/resources/stomp-credentials.yaml
   setUserMaxConnections: 16
   setCookieDomain: 127.0.0.1
   setCookieInsecure: true
@@ -85,4 +125,5 @@ optSettings:
     stdDev: 5
     retryAfter: 1
   setDefaultLocale: en
-  setMaxConvAndTeamSize: 16
+  setMaxTeamSize: 32
+  setMaxConvSize: 16

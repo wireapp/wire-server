@@ -29,7 +29,7 @@ import Crypto.Random (getRandomBytes)
 import Data.Aeson (eitherDecodeStrict')
 import Data.Attoparsec.ByteString.Char8
 import Data.ByteString (ByteString)
-import Data.Conduit (Source, ResumableSource, Consumer, ($=), ($$+), ($$++))
+import Data.Conduit
 import Data.Id
 import Data.List (intercalate)
 import Data.Text.Encoding (decodeLatin1)
@@ -53,7 +53,7 @@ import qualified Data.Conduit.Binary     as Conduit
 import qualified Data.Text.Ascii         as Ascii
 import qualified Data.Text.Lazy          as LT
 
-upload :: V3.Principal -> Source (ResourceT IO) ByteString -> Handler V3.Asset
+upload :: V3.Principal -> ConduitM () ByteString (ResourceT IO) () -> Handler V3.Asset
 upload own bdy = do
     (rsrc, sets) <- parseMetadata bdy assetSettings
     (src,  hdrs) <- parseHeaders rsrc assetHeaders
@@ -63,7 +63,7 @@ upload own bdy = do
     maxTotalBytes <- view (settings.setMaxTotalBytes)
     when (cl > maxTotalBytes) $
         throwE assetTooLarge
-    let stream = src $= Conduit.isolate cl
+    let stream = src .| Conduit.isolate cl
     ast <- liftIO $ Id <$> nextRandom
     tok <- if sets^.V3.setAssetPublic then return Nothing else Just <$> randToken
     let ret = fromMaybe V3.AssetPersistent (sets^.V3.setAssetRetention)
@@ -119,18 +119,18 @@ delete own key = do
 -----------------------------------------------------------------------------
 -- Streaming multipart parsing
 
-parseMetadata :: Source (ResourceT IO) ByteString -> Parser a -> Handler (ResumableSource (ResourceT IO) ByteString, a)
+parseMetadata :: ConduitM () ByteString (ResourceT IO) () -> Parser a -> Handler (SealedConduitT () ByteString (ResourceT IO) (), a)
 parseMetadata src psr = do
     (rsrc, meta) <- liftIO . runResourceT $ src $$+ sinkParser psr
     (rsrc,) <$> hoistEither meta
 
-parseHeaders :: ResumableSource (ResourceT IO) ByteString -> Parser a -> Handler (Source (ResourceT IO) ByteString, a)
+parseHeaders :: SealedConduitT () ByteString (ResourceT IO) () -> Parser a -> Handler (ConduitM () ByteString (ResourceT IO) (), a)
 parseHeaders src prs = do
-    (rsrc, hdrs) <- liftIO . runResourceT $ src $$++ sinkParser prs
-    (src',    _) <- liftIO . runResourceT $ Conduit.unwrapResumable rsrc
+    (rsrc, hdrs) <- liftIO $ runResourceT $ src $$++ sinkParser prs
+    let src' = Conduit.unsealConduitT rsrc
     (src',) <$> hoistEither hdrs
 
-sinkParser :: Parser a -> Consumer ByteString (ResourceT IO) (Either Error a)
+sinkParser :: Parser a -> ConduitM ByteString o (ResourceT IO) (Either Error a)
 sinkParser p = fmapL mkError <$> Conduit.sinkParserEither p
   where
     mkError = clientError . LT.pack . mkMsg

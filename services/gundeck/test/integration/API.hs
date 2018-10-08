@@ -18,8 +18,8 @@ import Control.Concurrent.STM.TChan
 import Control.Lens                   ((&), (.~), (^.), (^?), view)
 import Control.Monad.IO.Class         (MonadIO)
 import Control.Monad.Reader
-import Control.Monad.STM       hiding (retry)
-import Control.Retry
+import Control.Monad.STM
+import Control.Retry (retrying, constantDelay, limitRetries)
 import Data.Aeson              hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Char8          (ByteString)
@@ -701,7 +701,9 @@ testUnregisterPushToken g _ b _ = do
     clt <- randomClient g uid
     tkn <- randomToken clt gcmToken
     void $ registerPushToken uid tkn g
+    void $ retryWhileN 12 null (listPushTokens uid g)
     unregisterPushToken uid (tkn^.token) g !!! const 204 === statusCode
+    void $ retryWhileN 12 (not . null) (listPushTokens uid g)
     unregisterPushToken uid (tkn^.token) g !!! const 404 === statusCode
 
 testSharePushToken :: TestSignature ()
@@ -783,7 +785,7 @@ testLongPushToken g _ b _ = do
 
 -- * Helpers
 
-registerUser :: Gundeck -> Cannon -> Http (UserId, ConnId)
+registerUser :: HasCallStack => Gundeck -> Cannon -> Http (UserId, ConnId)
 registerUser gu ca = do
     uid <- randomId
     con <- randomConnId
@@ -791,7 +793,7 @@ registerUser gu ca = do
     ensurePresent gu uid 1
     return (uid, con)
 
-ensurePresent :: Gundeck -> UserId -> Int -> Http ()
+ensurePresent :: HasCallStack => Gundeck -> UserId -> Int -> Http ()
 ensurePresent gu u n =
     retryWhile ((n /=) . length . decodePresence) (getPresence gu (showUser u)) !!!
         (const n === length . decodePresence)
@@ -890,15 +892,15 @@ unregisterPushToken u t g = do
 listPushTokens :: UserId -> Gundeck -> Http [PushToken]
 listPushTokens u g = do
     rs <- get ( runGundeck g
-              . path "/i/push/tokens"
+              . path "/push/tokens"
               . zUser u
               . zConn "random"
               )
     maybe (error "Failed to decode push tokens")
-          return
+          (return . pushTokens)
           (responseBody rs >>= decode)
 
-listNotifications :: UserId -> Maybe ClientId -> Gundeck -> Http [QueuedNotification]
+listNotifications :: HasCallStack => UserId -> Maybe ClientId -> Gundeck -> Http [QueuedNotification]
 listNotifications u c g = do
     rs <- getNotifications g u c <!! const 200 === statusCode
     case responseBody rs >>= decode of
@@ -919,11 +921,11 @@ getLastNotification gu u c = get $ runGundeck gu
     . paths ["notifications", "last"]
     . maybe id (queryItem "client" . toByteString') c
 
-sendPush :: Gundeck -> Push -> Http ()
+sendPush :: HasCallStack => Gundeck -> Push -> Http ()
 sendPush gu push =
     post ( runGundeck gu . path "i/push" . json [push] ) !!! const 200 === statusCode
 
-sendBulkPushCannon :: Cannon -> BulkPushRequest -> Http BulkPushResponse
+sendBulkPushCannon :: HasCallStack => Cannon -> BulkPushRequest -> Http BulkPushResponse
 sendBulkPushCannon ca pushes = do
     resp <- post ( runCannon ca . path "i/bulkpush" . json pushes ) <!! const 200 === statusCode
     either (error "failed to decode bulkpush response from cannon") pure .
@@ -986,14 +988,14 @@ randomUser br = do
         uid <- nextRandom
         return $ loc <> "+" <> UUID.toText uid <> "@" <> dom
 
-randomClient :: Gundeck -> UserId -> Http ClientId
+randomClient :: HasCallStack => Gundeck -> UserId -> Http ClientId
 randomClient g u = do
     c <- randomClientId
     s <- randomSignalingKeys
     void $ registerClient g u c s !!! const 200 === statusCode
     return c
 
-deleteUser :: Gundeck -> UserId -> Http ()
+deleteUser :: HasCallStack => Gundeck -> UserId -> Http ()
 deleteUser g uid = delete (runGundeck g . zUser uid . path "/i/user") !!! const 200 === statusCode
 
 toRecipients :: [UserId] -> Range 1 1024 (Set Recipient)

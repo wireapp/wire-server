@@ -24,16 +24,21 @@ import Brig.Types.Intra
 import Cassandra
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Concurrent.Async.Lifted.Safe.Extended (mapMPooled)
+import Data.Conduit ((.|), runConduit)
 import Data.Functor.Identity
 import Data.Id
 import Data.Int
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.List (foldl')
 import Data.Range
-import Data.Time (UTCTime, getCurrentTime)
+import Data.Time (getCurrentTime)
+
+import qualified Data.Conduit.List as C
 
 connectUsers :: UserId -> [(UserId, ConvId)] -> AppIO [UserConnection]
 connectUsers from to = do
-    now <- liftIO getCurrentTime
+    now <- toUTCTimeMillis <$> liftIO getCurrentTime
     retry x5 $ batch $ do
         setType BatchLogged
         setConsistency Quorum
@@ -52,13 +57,13 @@ insertConnection :: UserId -- ^ From
                  -> ConvId
                  -> AppIO UserConnection
 insertConnection from to status msg cid = do
-    now <- liftIO getCurrentTime
+    now <- toUTCTimeMillis <$> liftIO getCurrentTime
     retry x5 . write connectionInsert $ params Quorum (from, to, status, now, msg, cid)
     return $ toUserConnection (from, to, status, now, msg, Just cid)
 
 updateConnection :: UserConnection -> Relation -> AppIO UserConnection
 updateConnection c@UserConnection{..} status = do
-    now <- liftIO getCurrentTime
+    now <- toUTCTimeMillis <$> liftIO getCurrentTime
     retry x5 . write connectionUpdate $ params Quorum (status, now, ucFrom, ucTo)
     return $ c { ucStatus     = status
                , ucLastUpdate = now
@@ -106,25 +111,21 @@ countConnections u r = do
 
 deleteConnections :: UserId -> AppIO ()
 deleteConnections u = do
-    page <- retry x1 (paginate contactsSelect (paramsP Quorum (Identity u) 100))
-    deleteAll page
+    runConduit $ paginateC contactsSelect (paramsP Quorum (Identity u) 100) x1
+              .| C.mapM_ (void . mapMPooled 16 delete)
     retry x1 . write connectionClear $ params Quorum (Identity u)
   where
-    deleteAll page = do
-        forM_ (result page) $ \(other, _status) ->
-            retry x1 . write connectionDelete $ params Quorum (other, u)
-        when (hasMore page) $
-            liftClient (nextPage page) >>= deleteAll
+    delete (other, _status) = write connectionDelete $ params Quorum (other, u)
 
 -- Queries
 
-connectionInsert :: PrepQuery W (UserId, UserId, Relation, UTCTime, Maybe Message, ConvId) ()
+connectionInsert :: PrepQuery W (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, ConvId) ()
 connectionInsert = "INSERT INTO connection (left, right, status, last_update, message, conv) VALUES (?, ?, ?, ?, ?, ?)"
 
-connectionUpdate :: PrepQuery W (Relation, UTCTime, UserId, UserId) ()
+connectionUpdate :: PrepQuery W (Relation, UTCTimeMillis, UserId, UserId) ()
 connectionUpdate = "UPDATE connection SET status = ?, last_update = ? WHERE left = ? AND right = ?"
 
-connectionSelect :: PrepQuery R (UserId, UserId) (UserId, UserId, Relation, UTCTime, Maybe Message, Maybe ConvId)
+connectionSelect :: PrepQuery R (UserId, UserId) (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, Maybe ConvId)
 connectionSelect = "SELECT left, right, status, last_update, message, conv FROM connection WHERE left = ? AND right = ?"
 
 connectionStatusSelect :: PrepQuery R ([UserId], [UserId]) (UserId, UserId, Relation)
@@ -133,10 +134,10 @@ connectionStatusSelect = "SELECT left, right, status FROM connection WHERE left 
 contactsSelect :: PrepQuery R (Identity UserId) (UserId, Relation)
 contactsSelect = "SELECT right, status FROM connection WHERE left = ?"
 
-connectionsSelect :: PrepQuery R (Identity UserId) (UserId, UserId, Relation, UTCTime, Maybe Message, Maybe ConvId)
+connectionsSelect :: PrepQuery R (Identity UserId) (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, Maybe ConvId)
 connectionsSelect = "SELECT left, right, status, last_update, message, conv FROM connection WHERE left = ? ORDER BY right ASC"
 
-connectionsSelectFrom :: PrepQuery R (UserId, UserId) (UserId, UserId, Relation, UTCTime, Maybe Message, Maybe ConvId)
+connectionsSelectFrom :: PrepQuery R (UserId, UserId) (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, Maybe ConvId)
 connectionsSelectFrom = "SELECT left, right, status, last_update, message, conv FROM connection WHERE left = ? AND right > ? ORDER BY right ASC"
 
 connectionDelete :: PrepQuery W (UserId, UserId) ()
@@ -147,7 +148,7 @@ connectionClear = "DELETE FROM connection WHERE left = ?"
 
 -- Conversions
 
-toUserConnection :: (UserId, UserId, Relation, UTCTime, Maybe Message, Maybe ConvId) -> UserConnection
+toUserConnection :: (UserId, UserId, Relation, UTCTimeMillis, Maybe Message, Maybe ConvId) -> UserConnection
 toUserConnection (l, r, rel, time, msg, cid) = UserConnection l r rel time msg cid
 
 toConnectionStatus :: (UserId, UserId, Relation) -> ConnectionStatus

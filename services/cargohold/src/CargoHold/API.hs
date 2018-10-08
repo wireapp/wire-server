@@ -149,6 +149,8 @@ sitemap = do
         Doc.parameter Doc.Path "key" Doc.bytes' $
             Doc.description "Asset key"
         Doc.response 200 "Asset token renewed" Doc.end
+        Doc.errorResponse Error.assetNotFound
+        Doc.errorResponse Error.unauthorised
 
     delete "/assets/v3/:key/token" (continue deleteTokenV3) $
         header "Z-User"
@@ -166,6 +168,14 @@ sitemap = do
     delete "/assets/v3/:key" (continue deleteAssetV3) $
         header "Z-User"
         .&. capture "key"
+
+    document "DELETE" "deleteAsset" $ do
+        Doc.summary "Delete an asset"
+        Doc.parameter Doc.Path "key" Doc.bytes' $
+            Doc.description "Asset key"
+        Doc.response 200 "Asset deleted" Doc.end
+        Doc.errorResponse Error.assetNotFound
+        Doc.errorResponse Error.unauthorised
 
     ---------------------------------------------------------------------------
     -- Provider API

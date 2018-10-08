@@ -29,18 +29,23 @@ import Brig.Types.Common
 import Brig.Types.User
 import Brig.Types.Team.Invitation
 import Cassandra
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently_)
+import Control.Concurrent.Async.Lifted.Safe.Extended (mapMPooled)
 import Control.Lens
 import Control.Monad.IO.Class
-import Control.Monad (when)
+import Control.Monad.IO.Unlift
+import Control.Monad (void)
 import Data.Id
+import Data.Conduit ((.|), runConduit)
 import Data.Int
+import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Maybe (fromMaybe)
 import Data.Range
-import Data.UUID.V4
 import Data.Text.Ascii (encodeBase64Url)
+import Data.UUID.V4
 import Data.Time.Clock
 import OpenSSL.Random (randBytes)
+
+import qualified Data.Conduit.List as C
 
 mkInvitationCode :: IO InvitationCode
 mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24
@@ -60,7 +65,7 @@ insertInvitation :: MonadClient m
                  -> UTCTime
                  -> Timeout -- ^ The timeout for the invitation code.
                  -> m (Invitation, InvitationCode)
-insertInvitation t email now timeout = do
+insertInvitation t email (toUTCTimeMillis -> now) timeout = do
     iid  <- liftIO mkInvitationId
     code <- liftIO mkInvitationCode
     let inv = Invitation t iid email now
@@ -74,7 +79,7 @@ insertInvitation t email now timeout = do
     cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
     cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?"
 
-    cqlInvitation :: PrepQuery W (TeamId, InvitationId, InvitationCode, Email, UTCTime, Int32) ()
+    cqlInvitation :: PrepQuery W (TeamId, InvitationId, InvitationCode, Email, UTCTimeMillis, Int32) ()
     cqlInvitation = "INSERT INTO team_invitation (team, id, code, email, created_at) VALUES (?, ?, ?, ?, ?) USING TTL ?"
 
 lookupInvitation :: MonadClient m => TeamId -> InvitationId -> m (Maybe Invitation)
@@ -131,16 +136,12 @@ deleteInvitation t i = do
     cqlInvitationInfo :: PrepQuery W (Identity InvitationCode) ()
     cqlInvitationInfo = "DELETE FROM team_invitation_info WHERE code = ?"
 
-deleteInvitations :: MonadClient m => TeamId -> m ()
-deleteInvitations t = do
-    page <- retry x1 $ paginate cqlSelect (paramsP Quorum (Identity t) 100)
-    deleteAll page
+deleteInvitations :: (MonadClient m, MonadUnliftIO m) => TeamId -> m ()
+deleteInvitations t =
+    liftClient $
+    runConduit $ paginateC cqlSelect (paramsP Quorum (Identity t) 100) x1
+              .| C.mapM_ (void . mapMPooled 16 (deleteInvitation t . runIdentity))
   where
-    deleteAll page = do
-        liftClient $ mapConcurrently_ (deleteInvitation t . runIdentity) (result page)
-        when (hasMore page) $
-            liftClient (nextPage page) >>= deleteAll
-
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity InvitationId)
     cqlSelect = "SELECT id FROM team_invitation WHERE team = ? ORDER BY id ASC"
 
@@ -164,4 +165,4 @@ countInvitations t = fromMaybe 0 . fmap runIdentity <$>
 
 -- Helper
 toInvitation :: (TeamId, InvitationId, Email, UTCTime) -> Invitation
-toInvitation (t, i, e, tm) = Invitation t i e tm
+toInvitation (t, i, e, toUTCTimeMillis -> tm) = Invitation t i e tm

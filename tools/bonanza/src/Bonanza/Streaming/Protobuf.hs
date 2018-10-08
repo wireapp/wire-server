@@ -10,7 +10,7 @@ import           Bonanza.Types                 (ToLogEvent (..))
 import           Control.Monad.Catch           (MonadThrow)
 import           Data.ByteString               (ByteString)
 import qualified Data.ByteString               as BS
-import           Data.Conduit                  (Conduit)
+import           Data.Conduit                  (ConduitT)
 import           Data.Conduit.Cereal           (conduitGet2)
 import           Data.Int
 import           Data.ProtocolBuffers          (Decode, decodeMessage)
@@ -23,7 +23,7 @@ newtype Decoder a = Decoder (Get (Decoded a))
 decoder :: Decode a => Decoder a
 decoder = Decoder decodeLengthPrefixedMessage
 
-decode :: MonadThrow m => Decoder a -> Conduit ByteString m (Decoded a)
+decode :: MonadThrow m => Decoder a -> ConduitT ByteString (Decoded a) m ()
 decode (Decoder d) = conduitGet2 d
 
 

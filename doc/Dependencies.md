@@ -2,7 +2,7 @@
 
 This page documents how to install necessary dependencies to work with the wire-server code base.
 
-In addition to the information below, you can also consult the Dockerfiles for Alpine Linux, that could serve as inspiration: 
+In addition to the information below, you can also consult the Dockerfiles for Alpine Linux, that could serve as inspiration:
 
 * [alpine setup for Haskell services](../build/alpine/Dockerfile.builder)
 * [alpine setup for nginz](../services/nginz/Dockerfile)
@@ -12,23 +12,33 @@ In addition to the information below, you can also consult the Dockerfiles for A
 #### Fedora:
 
 ```bash
-sudo yum install haskell-platform libstdc++-devel libstdc++-static gcc-c++ libtool automake openssl-devel libsodium-devel ncurses-compat-libs libicu-devel -y
+sudo yum install pkgconfig haskell-platform libstdc++-devel libstdc++-static gcc-c++ libtool automake openssl-devel libsodium-devel ncurses-compat-libs libicu-devel -y
 ```
 
 #### Debian:
 
 ```bash
-sudo apt install libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler -y
+sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler -y
 ```
+
+If `openssl-dev` does not work for you, try `libssl-dev`.
 
 #### Ubuntu:
 
-Hopefully almost like Debian. Instead of `openssl-dev`, try `libssl-dev`.
+Hopefully almost like Debian.
+
+#### Arch:
+
+```
+# You might also need 'sudo pacman -S base-devel' if you haven't
+# installed the base-devel group already.
+sudo pacman -S geoip snappy icu openssl
+```
 
 #### macOS:
 
 ```bash
-brew install libsodium openssl automake icu4c
+brew install pkg-config libsodium openssl automake icu4c geoip snappy protobuf
 ```
 
 _Note_: macOS users will need to make sure to link Haskell services against a more recent version of OpenSSL than what ships with the OS by default. Additionally, `icu4c` is installed in a non-standard location by `homebrew`. Add the following to your `.stack/config.yaml`:
@@ -47,7 +57,7 @@ extra-lib-dirs:
 
 ```bash
 curl -sSL https://get.haskellstack.org/ | sh
-# or 
+# or
 wget -qO- https://get.haskellstack.org/ | sh
 ```
 
@@ -94,7 +104,7 @@ extra-lib-dirs:
 Create debian packages, optional, only used in `make dist`
 
 ```bash
-git clone https://github.com/wire-server && cd wire-server/tools/makedeb
+git clone https://github.com/wireapp/wire-server && cd wire-server/tools/makedeb
 stack install
 ```
 

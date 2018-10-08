@@ -14,7 +14,6 @@ module Network.Wire.Client.API.Conversation
 import Bilge
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Foldable (toList)
 import Data.List.NonEmpty hiding (cons, toList)
 import Data.List1
 import Data.Text (Text)
@@ -35,6 +34,12 @@ postOtrMessage cnv msg = sessionRequest req rsc readBody
         $ empty
     rsc = status201 :| [status412]
 
+-- | Add one or more users and (in case of success) return the event
+-- corresponding to the users addition.
+--
+-- If some users can not be added to the conversation, 'UnexpectedResponse'
+-- will be thrown. It's not possible that some users will be added and
+-- others will not.
 addMembers :: MonadSession m => ConvId -> List1 UserId -> m (Maybe (ConvEvent Members))
 addMembers cnv mems = do
     rs <- sessionRequest req rsc consumeBody
@@ -50,6 +55,8 @@ addMembers cnv mems = do
         $ empty
     rsc = status200 :| [status204]
 
+-- | Remove a user and (in case of success) return the event corresponding
+-- to the user removal.
 removeMember :: MonadSession m => ConvId -> UserId -> m (Maybe (ConvEvent Members))
 removeMember cnv mem = do
     rs <- sessionRequest req rsc consumeBody
@@ -88,16 +95,17 @@ getConv cnv = do
         $ empty
     rsc = status200 :| [status404]
 
+-- | Create a conversation with the session user in it and any number of
+-- other users (possibly zero).
 createConv :: MonadSession m
-           => UserId
-           -> List1 UserId
-           -> Maybe Text
+           => [UserId]            -- ^ Other users to add to the conversation
+           -> Maybe Text          -- ^ Conversation name
            -> m Conversation
-createConv user (toList -> others) name = sessionRequest req rsc readBody
+createConv users name = sessionRequest req rsc readBody
   where
     req = method POST
         . path "conversations"
         . acceptJson
-        . json (NewConv (user : others) name mempty Nothing Nothing)
+        . json (NewConvUnmanaged (NewConv users name mempty Nothing Nothing Nothing))
         $ empty
     rsc = status201 :| []

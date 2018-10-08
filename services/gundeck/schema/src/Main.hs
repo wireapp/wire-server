@@ -17,7 +17,7 @@ import qualified V7
 
 main :: IO ()
 main = do
-    o <- getOptions desc migrationOptsParser defaultPath
+    o <- getOptions desc (Just migrationOptsParser) defaultPath
     l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
     migrateSchema l o
         [ V1.migration

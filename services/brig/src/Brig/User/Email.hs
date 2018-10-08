@@ -6,7 +6,6 @@ module Brig.User.Email
     , sendVerificationMail
     , sendTeamActivationMail
     , sendPasswordResetMail
-    , sendInvitationMail
     , sendDeletionEmail
     , sendNewClientEmail
 
@@ -19,6 +18,7 @@ import Brig.Email
 import Brig.Locale (formatDateTime, timeLocale)
 import Brig.User.Template
 import Brig.Types
+import Data.Json.Util (fromUTCTimeMillis)
 import Data.Maybe (fromMaybe, isNothing)
 import Data.Range
 import Data.Text (Text)
@@ -50,12 +50,6 @@ sendPasswordResetMail to pair loc = do
     tpl <- passwordResetEmail . snd <$> userTemplates loc
     let mail = PasswordResetEmail to pair
     Email.sendMail $ renderPwResetMail mail tpl
-
-sendInvitationMail :: Email -> Name -> Message -> Name -> InvitationCode -> Maybe Locale -> AppIO ()
-sendInvitationMail email other msg self code loc = do
-    tpl <- invitationEmail . snd <$> userTemplates loc
-    let mail = InvitationEmail email code other self msg
-    Email.sendMail $ renderInvitationEmail mail tpl
 
 sendDeletionEmail :: Name -> Email -> Code.Key -> Code.Value -> Locale -> AppIO ()
 sendDeletionEmail name email key code locale = do
@@ -104,7 +98,7 @@ renderNewClientEmail NewClientEmailTemplate{..} NewClientEmail{..} =
     replace "model" = fromMaybe "N/A" (clientModel nclClient)
     replace "date"  = formatDateTime "%A %e %B %Y, %H:%M - %Z"
                                      (timeLocale nclLocale)
-                                     (clientTime nclClient)
+                                     (fromUTCTimeMillis $ clientTime nclClient)
     replace x       = x
 
 -------------------------------------------------------------------------------
@@ -295,48 +289,3 @@ renderPwResetUrl t (PasswordResetKey k, PasswordResetCode c) =
     replace "key"  = Ascii.toText k
     replace "code" = Ascii.toText c
     replace x      = x
-
--------------------------------------------------------------------------------
--- Invitation Email
-
-data InvitationEmail = InvitationEmail
-    { invTo          :: !Email
-    , invInvCode     :: !InvitationCode
-    , invInviteeName :: !Name
-    , invInviterName :: !Name
-    , invMessage     :: !Message
-    }
-
-renderInvitationEmail :: InvitationEmail -> InvitationEmailTemplate -> Mail
-renderInvitationEmail InvitationEmail{..} InvitationEmailTemplate{..} =
-    (emptyMail from)
-        { mailTo      = [ to ]
-        , mailHeaders = [ ("Subject", toStrict subj)
-                        , ("X-Zeta-Purpose", "Invitation")
-                        , ("X-Zeta-Code", Ascii.toText code)
-                        ]
-        , mailParts   = [ [ plainPart txt, htmlPart html ] ]
-        }
-  where
-    (InvitationCode code) = invInvCode
-
-    from = Address (Just invitationEmailSenderName) (fromEmail invitationEmailSender)
-    to   = mkMimeAddress invInviteeName invTo
-    txt  = renderText invitationEmailBodyText replace
-    html = renderHtml invitationEmailBodyHtml replace
-    subj = renderText invitationEmailSubject  replace
-
-    replace "url"      = renderInvitationUrl invitationEmailUrl invInvCode
-    replace "email"    = fromEmail invTo
-    replace "invitee"  = fromName invInviteeName
-    replace "inviter"  = fromName invInviterName
-    replace "message"  = messageText invMessage
-    replace x          = x
-
-renderInvitationUrl :: Template -> InvitationCode -> Text
-renderInvitationUrl t (InvitationCode c) =
-    toStrict $ renderText t replace
-  where
-    replace "code" = Ascii.toText c
-    replace x      = x
-

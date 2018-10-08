@@ -9,11 +9,11 @@ import Control.AutoUpdate
 import Control.Lens ((^.), makeLenses)
 import Data.Int (Int32)
 import Data.Metrics.Middleware (Metrics)
+import Data.Misc (Milliseconds (..))
 import Data.Text (unpack)
 import Data.Time.Clock.POSIX
 import Util.Options
 import Gundeck.Options as Opt
-import Gundeck.Types.Presence (Milliseconds (..))
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import OpenSSL.EVP.Cipher (Cipher, getCipherByName)
@@ -51,8 +51,8 @@ schemaVersion = 7
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
     l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
-    c <- maybe (return $ NE.fromList [unpack (o^.optCassandra.casEndpoint.epHost)])
-               (C.initialContacts "cassandra_gundeck")
+    c <- maybe (C.initialContactsDNS (o^.optCassandra.casEndpoint.epHost))
+               (C.initialContactsDisco "cassandra_gundeck")
                (unpack <$> o^.optDiscoUrl)
     n <- newManager tlsManagerSettings
             { managerConnCount           = (o^.optSettings.setHttpPoolSize)

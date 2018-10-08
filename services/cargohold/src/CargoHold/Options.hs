@@ -27,9 +27,10 @@ deriveFromJSON toOptionFieldName ''CloudFrontOpts
 makeLenses ''CloudFrontOpts
 
 data AWSOpts = AWSOpts
-    { _awsS3Endpoint   :: AWSEndpoint
-    , _awsS3Bucket     :: Text
-    , _awsCloudFront   :: Maybe CloudFrontOpts
+    { _awsS3Endpoint         :: !AWSEndpoint
+    , _awsS3DownloadEndpoint :: !(Maybe AWSEndpoint)
+    , _awsS3Bucket           :: !Text
+    , _awsCloudFront         :: !(Maybe CloudFrontOpts)
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''AWSOpts
@@ -61,7 +62,7 @@ optsParser :: Parser Opts
 optsParser = Opts <$>
     (Endpoint <$>
         (textOption $
-            long "host" 
+            long "host"
             <> value "*4"
             <> showDefault
             <> metavar "HOSTNAME"
@@ -97,9 +98,15 @@ optsParser = Opts <$>
             (option parseAWSEndpoint $
                 long "aws-s3-endpoint"
                 <> value (AWSEndpoint "s3.eu-west-1.amazonaws.com" True 443)
-                <> metavar "STRING" 
+                <> metavar "STRING"
                 <> showDefault
                 <> help "aws S3 endpoint")
+
+        <*> optional (option parseAWSEndpoint $
+                long "aws-s3-download-endpoint"
+                <> metavar "STRING"
+                <> showDefault
+                <> help "aws S3 endpoint used for generating download links")
 
         <*> (fmap T.pack . strOption $
                 long "aws-s3-bucket"

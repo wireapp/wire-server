@@ -16,25 +16,15 @@ module Brig.API.Connection
     , Data.lookupConnectionStatus
     , Data.lookupContactList
 
-      -- * Invitations
-    , createInvitation
-    , lookupInvitations
-    , deleteInvitation
-    , Data.lookupInvitation
-    , Data.lookupInvitationCode
-    , Data.lookupInvitationByCode
-
       -- * Onboarding
     , onboarding
     ) where
 
 import Brig.App
 import Brig.API.Types
-import Brig.Data.UserKey (userEmailKey)
 import Brig.Options (setUserMaxConnections)
 import Brig.Types
 import Brig.Types.Intra
-import Brig.User.Email (sendInvitationMail, validateEmail)
 import Brig.User.Event
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Error
@@ -54,9 +44,7 @@ import Data.Traversable (for)
 import Galley.Types (cnvType, ConvType (..))
 import System.Logger.Message
 
-import qualified Brig.Blacklist       as Blacklist
 import qualified Brig.Data.Connection as Data
-import qualified Brig.Data.Invitation as Data
 import qualified Brig.Data.User       as Data
 import qualified Brig.Data.UserKey    as Data
 import qualified Brig.IO.Intra        as Intra
@@ -80,11 +68,11 @@ createConnection self ConnectionRequest{..} conn = do
     otherActive <- lift $ Data.isActivated crUser
     unless otherActive $
         throwE $ InvalidUser crUser
-    
+
     sameTeam <- lift $ belongSameTeam
     when sameTeam $
         throwE ConnectSameBindingTeamUsers
-    
+
     s2o <- lift $ Data.lookupConnection self   crUser
     o2s <- lift $ Data.lookupConnection crUser self
 
@@ -252,27 +240,6 @@ updateConnection self other newStatus conn = do
 
     connection a b = lift (Data.lookupConnection a b) >>= tryJust (NotConnected a b)
 
-createInvitation :: UserId -> InvitationRequest -> ConnId -> ExceptT ConnectionError AppIO (Either ConnectionResult Invitation)
-createInvitation self InvitationRequest{..} conn = do
-    selfName <- lift (Data.lookupUser self) >>= \case
-        Just profile | isJust $ userIdentity profile -> return $ userName profile
-                     | otherwise                     -> throwE ConnectNoIdentity
-        Nothing -> throwE $ InvalidUser self
-    email <- maybe (throwE $ ConnectInvalidEmail irEmail) return (validateEmail irEmail)
-    let uk = userEmailKey email
-    blacklisted <- lift $ Blacklist.exists uk
-    when blacklisted $
-        throwE (ConnectBlacklistedUserKey uk)
-    user <- lift $ Data.lookupKey uk
-    case user of
-        Just uid -> Left  <$> createConnection self (ConnectionRequest uid (fromName irName) irMessage) conn
-        Nothing  -> Right <$> doInvite email selfName
-  where
-    doInvite email nm = lift $ do
-        (newInv, code) <- Data.insertInvitation self email irName
-        void $ sendInvitationMail email irName irMessage nm code irLocale
-        return newInv
-
 autoConnect :: UserId
             -> Set UserId
             -> Maybe ConnId
@@ -321,14 +288,6 @@ lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> AppIO UserCo
 lookupConnections from start size = do
     rs <- Data.lookupConnections from start size
     return $! UserConnectionList (Data.resultList rs) (Data.resultHasMore rs)
-
-lookupInvitations :: UserId -> Maybe InvitationId -> Range 1 500 Int32 -> AppIO InvitationList
-lookupInvitations from start size = do
-    rs <- Data.lookupInvitations from start size
-    return $! InvitationList (Data.resultList rs) (Data.resultHasMore rs)
-
-deleteInvitation :: UserId -> InvitationId -> AppIO ()
-deleteInvitation = Data.deleteInvitation
 
 onboarding :: UserId -> AddressBook -> ExceptT ConnectionError AppIO MatchingResult
 onboarding uid ab = do

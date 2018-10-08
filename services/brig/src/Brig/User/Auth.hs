@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | High-level user authentication and access control.
 module Brig.User.Auth
@@ -11,6 +12,7 @@ module Brig.User.Auth
 
       -- * Internal
     , lookupLoginCode
+    , ssoLogin
 
       -- * Re-exports
     , listCookies
@@ -165,6 +167,7 @@ isPendingActivation ident = case ident of
             Just (EmailIdentity  e) -> userEmailKey e /= k
             Just (PhoneIdentity  p) -> userPhoneKey p /= k
             Just (FullIdentity e p) -> userEmailKey e /= k && userPhoneKey p /= k
+            Just SSOIdentity {}     -> False  -- sso-created users are activated immediately.
             Nothing                 -> True
 
 validateTokens
@@ -181,3 +184,15 @@ validateTokens ut at = do
                 unless (e == ZAuth.Expired) (throwE e)
     ck <- lift (lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) return
     return (ZAuth.userTokenOf ut, ck)
+
+-- | Allow to login as any user without having the credentials.
+ssoLogin :: SsoLogin -> CookieType -> ExceptT LoginError AppIO Access
+ssoLogin (SsoLogin uid label) typ = do
+    Data.reauthenticate uid Nothing `catchE` \case
+        ReAuthMissingPassword -> pure ()
+        ReAuthError e -> case e of
+            AuthInvalidCredentials -> pure ()
+            AuthSuspended          -> throwE LoginSuspended
+            AuthEphemeral          -> throwE LoginEphemeral
+            AuthInvalidUser        -> throwE LoginFailed
+    newAccess uid typ label

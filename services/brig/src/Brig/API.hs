@@ -1,20 +1,24 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 
 module Brig.API (runServer, parseOptions) where
 
 import Brig.App
-import Brig.AWS (sesQueue, internalQueue)
+import Brig.AWS (sesQueue)
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
-import Brig.Options hiding (sesQueue, internalQueue)
+import Brig.Options hiding (sesQueue, internalEvents)
 import Brig.Types
 import Brig.Types.Intra
+import Brig.Types.User (NewUserNoSSO(NewUserNoSSO))
 import Brig.Types.User.Auth
 import Brig.User.Email
 import Brig.User.Phone
@@ -26,7 +30,8 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import Data.Foldable (for_, forM_)
+import Data.Foldable (for_)
+import Data.Traversable (for)
 import Data.Id
 import Data.Int
 import Data.Metrics.Middleware hiding (metrics)
@@ -54,12 +59,14 @@ import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
 import qualified Brig.API.Properties           as API
 import qualified Brig.API.User                 as API
+import qualified Brig.Queue                    as Queue
+import qualified Brig.Team.Util                as Team
 import qualified Brig.User.API.Auth            as Auth
 import qualified Brig.User.API.Search          as Search
 import qualified Brig.User.Auth.Cookie         as Auth
 import qualified Brig.AWS                      as AWS
 import qualified Brig.AWS.SesNotification      as SesNotification
-import qualified Brig.AWS.InternalEvent        as InternalNotification
+import qualified Brig.InternalEvent.Process    as Internal
 import qualified Brig.Types.Swagger            as Doc
 import qualified Network.Wai.Utilities.Swagger as Doc
 import qualified Data.Swagger.Build.Api        as Doc
@@ -77,18 +84,21 @@ import qualified Brig.Provider.API             as Provider
 import qualified Brig.Team.API                 as Team
 import qualified Brig.Team.Email               as Team
 import qualified Brig.TURN.API                 as TURN
+import qualified System.Logger.Class           as Log
 
 runServer :: Opts -> IO ()
 runServer o = do
     e <- newEnv o
     s <- Server.newSettings (server e)
-    f <- Async.async $ AWS.execute (e^.awsEnv)
-                     $ AWS.listen (e^.awsEnv.sesQueue) (runAppT e . SesNotification.onEvent)
-    g <- Async.async $ AWS.execute (e^.awsEnv)
-                     $ AWS.listen (e^.awsEnv.internalQueue) (runAppT e . InternalNotification.onEvent)
+    emailListener <- for (e^.awsEnv.sesQueue) $ \q ->
+        Async.async $
+        AWS.execute (e^.awsEnv) $
+        AWS.listen q (runAppT e . SesNotification.onEvent)
+    internalEventListener <- Async.async $
+        runAppT e $ Queue.listen (e^.internalEvents) Internal.onEvent
     runSettingsWithShutdown s (pipeline e) 5 `finally` do
-        Async.cancel f
-        Async.cancel g
+        mapM_ Async.cancel emailListener
+        Async.cancel internalEventListener
         closeEnv e
   where
     rtree      = compile (sitemap o)
@@ -127,11 +137,22 @@ sitemap o = do
         .&. contentType "application" "json"
         .&. request
 
+    put "/i/self/email" (continue changeSelfEmailNoSend) $
+        contentType "application" "json"
+        .&. header "Z-User"
+        .&. request
+
     delete "/i/users/:id" (continue deleteUserNoVerify) $
         capture "id"
 
-    get "/i/users/connections-status" (continue getConnectionStatus) $
+    get "/i/users/connections-status" (continue deprecatedGetConnectionsStatus) $
         query "users"
+        .&. opt (query "filter")
+
+    post "/i/users/connections-status" (continue getConnectionsStatus) $
+        accept "application" "json"
+        .&. contentType "application" "json"
+        .&. request
         .&. opt (query "filter")
 
     get "/i/users" (continue listActivatedAccounts) $
@@ -159,11 +180,6 @@ sitemap o = do
         accept "application" "json"
         .&. (param "email" ||| param "phone")
 
-    get "/i/users/invitation-code" (continue getInvitationCode) $
-        accept "application" "json"
-        .&. param "inviter"
-        .&. param "invitation_id"
-
     get "/i/users/password-reset-code" (continue getPasswordResetCode) $
         accept "application" "json"
         .&. (param "email" ||| param "phone")
@@ -180,11 +196,20 @@ sitemap o = do
     post "/i/users/blacklist" (continue addBlacklist) $
         param "email" ||| param "phone"
 
+    -- is :uid not team owner, or there are other team owners?
+    get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeleted) $
+      capture "uid"
+      .&. capture "tid"
+
+    -- is :uid team owner (the only one or one of several)?
+    get "/i/users/:uid/is-team-owner/:tid" (continue isTeamOwner) $
+      capture "uid"
+      .&. capture "tid"
+
     post "/i/clients" (continue internalListClients) $
       accept "application" "json"
       .&. contentType "application" "json"
       .&. request
-
 
     -- /users -----------------------------------------------------------------
 
@@ -291,7 +316,8 @@ sitemap o = do
 
     document "POST" "getMultiPrekeyBundles" $ do
         Doc.summary "Given a map of user IDs to client IDs return a \
-        \prekey for each one. The maximum map size is 128 entries."
+        \prekey for each one. You can't request information for more users than \
+        \maximum conversation size."
         Doc.notes "Prekeys of all clients of a multiple users. \
         \The result is a map of maps, i.e. { UserId : { ClientId : Maybe Prekey } }"
         Doc.body (Doc.ref Doc.userClients) $
@@ -397,7 +423,7 @@ sitemap o = do
 
     ---
 
-    put "/self/email" (continue changeEmail) $
+    put "/self/email" (continue changeSelfEmail) $
         contentType "application" "json"
         .&. header "Z-User"
         .&. header "Z-Connection"
@@ -408,6 +434,7 @@ sitemap o = do
         Doc.body (Doc.ref Doc.emailUpdate) $
             Doc.description "JSON body"
         Doc.response 202 "Update accepted and pending activation of the new email." Doc.end
+        Doc.response 204 "No update, current and new email address are the same." Doc.end
         Doc.errorResponse invalidEmail
         Doc.errorResponse userKeyExists
         Doc.errorResponse blacklistedEmail
@@ -427,6 +454,16 @@ sitemap o = do
             Doc.description "JSON body"
         Doc.response 202 "Update accepted and pending activation of the new phone number." Doc.end
         Doc.errorResponse userKeyExists
+
+    ---
+
+    head "/self/password" (continue checkPasswordExists) $
+        header "Z-User"
+
+    document "HEAD" "checkPassword" $ do
+        Doc.summary "Check that your passowrd is set"
+        Doc.response 200 "Password is set." Doc.end
+        Doc.response 404 "Password is not set." Doc.end
 
     ---
 
@@ -515,7 +552,7 @@ sitemap o = do
         Doc.notes "If the account has a verified identity, a verification \
                   \code is sent and needs to be confirmed to authorise the \
                   \deletion. If the account has no verified identity but a \
-                  \password, it must be provided. In that case, and if neither \
+                  \password, it must be provided. If password is correct, or if neither \
                   \a verified identity nor a password exists, account deletion \
                   \is scheduled immediately."
         Doc.body (Doc.ref Doc.delete) $
@@ -538,74 +575,6 @@ sitemap o = do
             Doc.description "JSON body"
         Doc.response 200 "Deletion is initiated." Doc.end
         Doc.errorResponse invalidCode
-
-    ---
-
-    post "/invitations" (continue inviteUser) $
-        accept "application" "json"
-        .&. header "Z-User"
-        .&. header "Z-Connection"
-        .&. request
-
-    document "POST" "sendInvitation" $ do
-        Doc.summary "Create and send a new invitation."
-        Doc.notes "Invitations are sent by email."
-        Doc.body (Doc.ref Doc.invitationRequest) $
-            Doc.description "JSON body"
-        Doc.returns (Doc.ref Doc.invitation)
-        Doc.response 201 "Invitation was created and sent." Doc.end
-        Doc.response 201 "A connection request was sent since the invitee is registered.\
-                         \ The response body will be empty and the Location header point\
-                         \ to the created connection." Doc.end
-        Doc.response 303 "A connection to the invitee exists at the returned Location." Doc.end
-        Doc.errorResponse connectionLimitReached
-        Doc.errorResponse invalidTransition
-
-    ---
-
-    get "/invitations" (continue listInvitations) $
-        accept "application" "json"
-        .&. header "Z-User"
-        .&. opt (query "start")
-        .&. def (unsafeRange 100) (query "size")
-
-    document "GET" "invitations" $ do
-        Doc.summary "List the sent invitations"
-        Doc.parameter Doc.Query "start" Doc.string' $ do
-            Doc.description "Email address to start from (ascending)."
-            Doc.optional
-        Doc.parameter Doc.Query "size" Doc.int32' $ do
-            Doc.description "Number of results to return (default 100, max 500)."
-            Doc.optional
-        Doc.returns (Doc.ref Doc.invitationList)
-        Doc.response 200 "List of sent invitations" Doc.end
-
-    ---
-
-    get "/invitations/:id" (continue getInvitation) $
-        accept "application" "json"
-        .&. header "Z-User"
-        .&. capture "id"
-
-    document "GET" "invitation" $ do
-        Doc.summary "Get a pending invitation by ID."
-        Doc.parameter Doc.Path "id" Doc.bytes' $
-            Doc.description "Invitation ID"
-        Doc.returns (Doc.ref Doc.invitation)
-        Doc.response 200 "Invitation" Doc.end
-
-    ---
-
-    delete "/invitations/:id" (continue deleteInvitation) $
-        accept "application" "json"
-        .&. header "Z-User"
-        .&. capture "id"
-
-    document "DELETE" "invitation" $ do
-        Doc.summary "Delete a pending invitation by ID."
-        Doc.parameter Doc.Path "id" Doc.bytes' $
-            Doc.description "Invitation ID"
-        Doc.response 200 "Invitation deleted." Doc.end
 
     ---
 
@@ -873,20 +842,6 @@ sitemap o = do
 
     ---
 
-    get "/invitations/info" (continue getInvitationByCode) $
-        accept "application" "json"
-        .&. query "code"
-
-    document "GET" "invitation" $ do
-        Doc.summary "Get invitation info given a code."
-        Doc.parameter Doc.Query "code" Doc.bytes' $
-            Doc.description "Invitation code"
-        Doc.returns (Doc.ref Doc.invitation)
-        Doc.response 200 "Invitation successful." Doc.end
-        Doc.errorResponse invalidInvitationCode
-
-    ---
-
     get "/activate" (continue activate') $
         query "key"
         .&. query "code"
@@ -1012,7 +967,7 @@ setProperty (u ::: c ::: k ::: req ::: _) = do
     lbs <- Lazy.take (maxValueLen + 1) <$> liftIO (lazyRequestBody req)
     unless (Lazy.length lbs <= maxValueLen) $
         throwStd propertyValueTooLarge
-    val <- hoistEither $ fmapL (StdError . badRequest . pack) (parsePropertyValue lbs)
+    val <- hoistEither $ fmapL (StdError . badRequest . pack) (eitherDecode lbs)
     API.setProperty u c k val !>> propDataError
     return empty
   where
@@ -1048,7 +1003,8 @@ getPrekeyBundle (u ::: _) = json <$> lift (API.claimPrekeyBundle u)
 getMultiPrekeyBundles :: Request ::: JSON ::: JSON -> Handler Response
 getMultiPrekeyBundles (req ::: _) = do
     body <- parseJsonBody req
-    when (Map.size (userClients body) > 128) $
+    maxSize <- fromIntegral . setMaxConvSize <$> view settings
+    when (Map.size (userClients body) > maxSize) $
         throwStd tooManyClients
     json <$> lift (API.claimMultiPrekeyBundles body)
 
@@ -1115,7 +1071,7 @@ autoConnect(_ ::: _ ::: uid ::: conn ::: req) = do
 
 createUser :: JSON ::: JSON ::: Request -> Handler Response
 createUser (_ ::: _ ::: req) = do
-    new <- parseJsonBody req
+    NewUserNoSSO new <- parseJsonBody req
     for_ (newUserEmail new) $ checkWhitelist . Left
     for_ (newUserPhone new) $ checkWhitelist . Right
     result <- API.createUser new !>> newUserError
@@ -1150,17 +1106,18 @@ createUser (_ ::: _ ::: req) = do
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail _ (CreateUserTeam _ _) (NewTeamCreator _) _ = return ()
     sendWelcomeEmail e (CreateUserTeam t n) (NewTeamMember  _) l = Team.sendMemberWelcomeMail e t n l
+    sendWelcomeEmail e (CreateUserTeam t n) (NewTeamMemberSSO _) l = Team.sendMemberWelcomeMail e t n l
 
 createUserNoVerify :: JSON ::: JSON ::: Request -> Handler Response
 createUserNoVerify (_ ::: _ ::: req) = do
-    uData  <- parseJsonBody req
+    (uData :: NewUser)  <- parseJsonBody req
     result <- API.createUser uData !>> newUserError
     let acc = createdAccount result
     let usr = accountUser acc
     let uid = userId usr
     let eac = createdEmailActivation result
     let pac = createdPhoneActivation result
-    forM_ (catMaybes [eac, pac]) $ \adata ->
+    for_ (catMaybes [eac, pac]) $ \adata ->
         let key  = ActivateKey $ activationKey adata
             code = activationCode adata
         in API.activate key code (Just uid) !>> actError
@@ -1173,6 +1130,9 @@ deleteUserNoVerify uid = do
     void $ lift (API.lookupAccount uid) >>= ifNothing userNotFound
     lift $ API.deleteUserNoVerify uid
     return $ setStatus status202 empty
+
+changeSelfEmailNoSend :: JSON ::: UserId ::: Request -> Handler Response
+changeSelfEmailNoSend (_ ::: u ::: req) = changeEmail u req False
 
 checkUserExists :: UserId ::: UserId -> Handler Response
 checkUserExists (self ::: uid) = do
@@ -1231,13 +1191,6 @@ getActivationCode (_ ::: emailOrPhone) = do
   where
     found (k, c) = json $ object [ "key" .= k, "code" .= c ]
 
-getInvitationCode :: JSON ::: UserId ::: InvitationId -> Handler Response
-getInvitationCode (_ ::: u ::: r) = do
-    code <- lift $ API.lookupInvitationCode u r
-    maybe (throwStd invalidInvitationCode) (return . found) code
-  where
-    found c = json $ object [ "code" .= c ]
-
 getPasswordResetCode :: JSON ::: Either Email Phone -> Handler Response
 getPasswordResetCode (_ ::: emailOrPhone) = do
     apair <- lift $ API.lookupPasswordResetCode emailOrPhone
@@ -1282,6 +1235,11 @@ removeEmail :: UserId ::: ConnId -> Handler Response
 removeEmail (self ::: conn) = do
     API.removeEmail self conn !>> idtError
     return empty
+
+checkPasswordExists :: UserId -> Handler Response
+checkPasswordExists self = do
+    exists <- lift $ isJust <$> API.lookupPassword self
+    return $ if exists then empty else setStatus status404 empty
 
 changePassword :: JSON ::: UserId ::: Request -> Handler Response
 changePassword (_ ::: u ::: req) = do
@@ -1357,52 +1315,29 @@ sendActivationCode (_ ::: req) = do
     API.sendActivationCode saUserKey saLocale saCall !>> sendActCodeError
     return empty
 
-changeEmail :: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
-changeEmail (_ ::: u ::: _ ::: req) = do
-    email  <- euEmail <$> parseJsonBody req
-    (adata, en) <- API.changeEmail u email !>> changeEmailError
-    usr <- maybe (throwStd invalidUser) return =<< lift (API.lookupUser u)
-    let apair = (activationKey adata, activationCode adata)
-    let name  = userName usr
-    let ident = userIdentity usr
-    let lang  = userLocale usr
-    lift $ sendActivationMail en name apair (Just lang) ident
-    return $ setStatus status202 empty
+changeSelfEmail :: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
+changeSelfEmail (_ ::: u ::: _ ::: req) = changeEmail u req True
 
-getConnectionStatus :: List UserId ::: Maybe Relation -> Handler Response
-getConnectionStatus (users ::: flt) = do
+-- Deprecated and to be removed after new versions of brig and galley are
+-- deployed. Reason for deprecation: it returns N^2 things (which is not
+-- needed), it doesn't scale, and it accepts everything in URL parameters,
+-- which doesn't work when the list of users is long.
+deprecatedGetConnectionsStatus :: List UserId ::: Maybe Relation -> Handler Response
+deprecatedGetConnectionsStatus (users ::: flt) = do
     r <- lift $ API.lookupConnectionStatus (fromList users) (fromList users)
     return . json $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((==rel) . csStatus) l
 
-inviteUser :: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
-inviteUser (_ ::: self ::: conn ::: req) = do
-    ir <- parseJsonBody req
-    rs <- API.createInvitation self ir conn !>> connError
-    return $ case rs of
-        Left  (ConnectionCreated uc) -> setStatus status201 . loc uc $ empty
-        Left  (ConnectionExists  uc) -> setStatus status303 . loc uc $ empty
-        Right iv                     -> setStatus status201 $ json iv
+getConnectionsStatus
+    :: JSON ::: JSON ::: Request ::: Maybe Relation
+    -> Handler Response
+getConnectionsStatus (_ ::: _ ::: req ::: flt) = do
+    ConnectionsStatusRequest{csrFrom, csrTo} <- parseJsonBody req
+    r <- lift $ API.lookupConnectionStatus csrFrom csrTo
+    return . json $ maybe r (filterByRelation r) flt
   where
-    loc uc = addHeader "Location"
-           $ "/connections/" <> toByteString' (ucTo uc)
-
-listInvitations :: JSON ::: UserId ::: Maybe InvitationId ::: Range 1 500 Int32 -> Handler Response
-listInvitations (_ ::: uid ::: start ::: size) = json <$>
-    lift (API.lookupInvitations uid start size)
-
-getInvitation :: JSON ::: UserId ::: InvitationId -> Handler Response
-getInvitation (_ ::: uid ::: iid) = lift $ do
-    inv <- API.lookupInvitation uid iid
-    return $ case inv of
-        Just i  -> json i
-        Nothing -> setStatus status404 empty
-
-deleteInvitation :: JSON ::: UserId ::: InvitationId -> Handler Response
-deleteInvitation (_ ::: uid ::: iid) = lift $ do
-    void $ API.deleteInvitation uid iid
-    return empty
+    filterByRelation l rel = filter ((==rel) . csStatus) l
 
 createConnection :: JSON ::: JSON ::: UserId ::: ConnId ::: Request -> Handler Response
 createConnection (_ ::: _ ::: self ::: conn ::: req) = do
@@ -1451,10 +1386,27 @@ addBlacklist emailOrPhone = do
     void . lift $ API.blacklistInsert emailOrPhone
     return empty
 
-getInvitationByCode :: JSON ::: InvitationCode -> Handler Response
-getInvitationByCode (_ ::: c) = do
-    inv <- lift $ API.lookupInvitationByCode c
-    maybe (throwStd invalidInvitationCode) (return . json) inv
+canBeDeleted :: UserId ::: TeamId -> Handler Response
+canBeDeleted (uid ::: tid) = do
+    onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
+    case onlyOwner of
+       Team.IsOnlyTeamOwner       -> throwStd noOtherOwner
+       Team.IsOneOfManyTeamOwners -> pure ()
+       Team.IsNotTeamOwner        -> pure ()
+       Team.NoTeamOwnersAreLeft   -> do  -- (keeping the user won't help in this case)
+           Log.warn $ Log.field "user" (toByteString uid)
+                    . Log.msg (Log.val "Team.NoTeamOwnersAreLeft")
+    return empty
+
+isTeamOwner :: UserId ::: TeamId -> Handler Response
+isTeamOwner (uid ::: tid) = do
+    onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
+    case onlyOwner of
+       Team.IsOnlyTeamOwner       -> pure ()
+       Team.IsOneOfManyTeamOwners -> pure ()
+       Team.IsNotTeamOwner        -> throwStd insufficientTeamPermissions
+       Team.NoTeamOwnersAreLeft   -> throwStd insufficientTeamPermissions
+    return empty
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response
 deleteUser (u ::: r ::: _ ::: _) = do
@@ -1506,6 +1458,23 @@ activate (Activate tgt code dryrun)
   where
     respond (Just ident) first = setStatus status200 $ json (ActivationResponse ident first)
     respond Nothing      _     = setStatus status200 empty
+
+changeEmail :: UserId -> Request -> Bool -> Handler Response
+changeEmail u req sendOutEmail = do
+    email <- euEmail <$> parseJsonBody req
+    API.changeEmail u email !>> changeEmailError >>= \case
+        ChangeEmailIdempotent                       -> respond status204
+        ChangeEmailNeedsActivation (usr, adata, en) -> handleActivation usr adata en
+  where
+    respond = return . flip setStatus empty
+    handleActivation usr adata en = do
+        when sendOutEmail $ do
+            let apair = (activationKey adata, activationCode adata)
+            let name  = userName usr
+            let ident = userIdentity usr
+            let lang  = userLocale usr
+            lift $ sendActivationMail en name apair (Just lang) ident
+        respond status202
 
 validateHandle :: Text -> Handler Handle
 validateHandle = maybe (throwE (StdError invalidHandle)) return . parseHandle

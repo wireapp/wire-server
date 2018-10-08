@@ -4,14 +4,18 @@
 #   (from wire-server root directory)
 #   SERVICE=galley; docker build -f build/alpine/Dockerfile -t $SERVICE --build-arg service=$SERVICE .
 
-ARG builder=wireserver/alpine-builder
-ARG deps=wireserver/alpine-deps
+ARG builder=quay.io/wire/alpine-builder
+ARG deps=quay.io/wire/alpine-deps
 
 #--- Builder stage ---
 FROM ${builder} as builder
 
 ARG service
 ARG target=install
+
+# ensure no stale files remain if they get deleted from the branch.
+RUN find /src/wire-server/ -maxdepth 1 -mindepth 1 | grep -v .stack- | xargs rm -rf
+
 COPY . /src/wire-server/
 
 RUN cd /src/wire-server/services/${service} && make ${target}

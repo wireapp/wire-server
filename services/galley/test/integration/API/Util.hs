@@ -10,7 +10,7 @@ import Control.Error
 import Control.Lens hiding ((.=), from, to, (#))
 import Control.Monad hiding (mapM_)
 import Control.Monad.IO.Class
-import Control.Retry
+import Control.Retry (retrying, constantDelay, limitRetries)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key)
 import Data.ByteString.Char8 (pack, ByteString, intercalate)
@@ -34,6 +34,7 @@ import Data.Word
 import Galley.Types
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
+import GHC.Stack (HasCallStack)
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
 import Prelude hiding (head, mapM_)
@@ -65,7 +66,7 @@ data TestSetup = TestSetup
   , brig            :: Brig
   , cannon          :: Cannon
   , awsEnv          :: Maybe Aws.Env
-  , maxConvTeamSize :: Word16
+  , maxConvSize     :: Word16
   }
 
 -------------------------------------------------------------------------------
@@ -74,7 +75,7 @@ data TestSetup = TestSetup
 symmPermissions :: [Perm] -> Permissions
 symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
-createTeam :: Galley -> Text -> UserId -> [TeamMember] -> Http TeamId
+createTeam :: HasCallStack => Galley -> Text -> UserId -> [TeamMember] -> Http TeamId
 createTeam g name owner mems = do
     let mm = if null mems then Nothing else Just $ unsafeRange (take 127 mems)
     let nt = NonBindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon") & newTeamMembers .~ mm
@@ -83,19 +84,19 @@ createTeam g name owner mems = do
         const True === isJust . getHeader "Location"
     fromBS (getHeader' "Location" resp)
 
-changeTeamStatus :: Galley -> TeamId -> TeamStatus -> Http ()
+changeTeamStatus :: HasCallStack => Galley -> TeamId -> TeamStatus -> Http ()
 changeTeamStatus g tid s = put
         ( g . paths ["i", "teams", toByteString' tid, "status"]
         . json (TeamStatusUpdate s Nothing)
         ) !!! const 200 === statusCode
 
-createTeamInternal :: Galley -> Text -> UserId -> Http TeamId
+createTeamInternal :: HasCallStack => Galley -> Text -> UserId -> Http TeamId
 createTeamInternal g name owner = do
     tid <- createTeamInternalNoActivate g name owner
     changeTeamStatus g tid Active
     return tid
 
-createTeamInternalNoActivate :: Galley -> Text -> UserId -> Http TeamId
+createTeamInternalNoActivate :: HasCallStack => Galley -> Text -> UserId -> Http TeamId
 createTeamInternalNoActivate g name owner = do
     tid <- randomId
     let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
@@ -104,56 +105,58 @@ createTeamInternalNoActivate g name owner = do
         const True === isJust . getHeader "Location"
     return tid
 
-createTeamInternalWithCurrency :: Galley -> Text -> UserId -> Currency.Alpha -> Http TeamId
+createTeamInternalWithCurrency :: HasCallStack => Galley -> Text -> UserId -> Currency.Alpha -> Http TeamId
 createTeamInternalWithCurrency g name owner cur = do
     tid <- createTeamInternalNoActivate g name owner
     _ <- put (g . paths ["i", "teams", toByteString' tid, "status"] . json (TeamStatusUpdate Active $ Just cur)) !!!
         const 200 === statusCode
     return tid
 
-getTeam :: Galley -> UserId -> TeamId -> Http Team
+getTeam :: HasCallStack => Galley -> UserId -> TeamId -> Http Team
 getTeam g usr tid = do
     r <- get (g . paths ["teams", toByteString' tid] . zUser usr) <!! const 200 === statusCode
     pure (fromJust (decodeBody r))
 
-getTeamMembers :: Galley -> UserId -> TeamId -> Http TeamMemberList
+getTeamMembers :: HasCallStack => Galley -> UserId -> TeamId -> Http TeamMemberList
 getTeamMembers g usr tid = do
     r <- get (g . paths ["teams", toByteString' tid, "members"] . zUser usr) <!! const 200 === statusCode
     pure (fromJust (decodeBody r))
 
-getTeamMember :: Galley -> UserId -> TeamId -> UserId -> Http TeamMember
+getTeamMember :: HasCallStack => Galley -> UserId -> TeamId -> UserId -> Http TeamMember
 getTeamMember g usr tid mid = do
     r <- get (g . paths ["teams", toByteString' tid, "members", toByteString' mid] . zUser usr) <!! const 200 === statusCode
     pure (fromJust (decodeBody r))
 
-getTeamMemberInternal :: Galley -> TeamId -> UserId -> Http TeamMember
+getTeamMemberInternal :: HasCallStack => Galley -> TeamId -> UserId -> Http TeamMember
 getTeamMemberInternal g tid mid = do
     r <- get (g . paths ["i", "teams", toByteString' tid, "members", toByteString' mid]) <!! const 200 === statusCode
     pure (fromJust (decodeBody r))
 
-addTeamMember :: Galley -> UserId -> TeamId -> TeamMember -> Http ()
+addTeamMember :: HasCallStack => Galley -> UserId -> TeamId -> TeamMember -> Http ()
 addTeamMember g usr tid mem = do
     let payload = json (newNewTeamMember mem)
     post (g . paths ["teams", toByteString' tid, "members"] . zUser usr . zConn "conn" .payload) !!!
         const 200 === statusCode
 
-addTeamMemberInternal :: Galley -> TeamId -> TeamMember -> Http ()
+addTeamMemberInternal :: HasCallStack => Galley -> TeamId -> TeamMember -> Http ()
 addTeamMemberInternal g tid mem = do
     let payload = json (newNewTeamMember mem)
     post (g . paths ["i", "teams", toByteString' tid, "members"] . payload) !!!
         const 200 === statusCode
 
-createTeamConv :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Http ConvId
-createTeamConv g u tinfo us name acc = createTeamConvAccess g u tinfo us name acc Nothing
+createTeamConv :: HasCallStack => Galley -> UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> Http ConvId
+createTeamConv g u tid us name acc mtimer = createTeamConvAccess g u tid us name acc Nothing mtimer
 
-createTeamConvAccess :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Http ConvId
-createTeamConvAccess g u tinfo us name acc role = do
-    r <- createTeamConvAccessRaw g u tinfo us name acc role <!! const 201 === statusCode
+createTeamConvAccess :: HasCallStack => Galley -> UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Http ConvId
+createTeamConvAccess g u tid us name acc role mtimer = do
+    r <- createTeamConvAccessRaw g u tid us name acc role mtimer <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
-createTeamConvAccessRaw :: Galley -> UserId -> ConvTeamInfo -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Http ResponseLBS
-createTeamConvAccessRaw g u tinfo us name acc role = do
-    let conv = NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo)
+createTeamConvAccessRaw :: Galley -> UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe AccessRole -> Maybe Milliseconds -> Http ResponseLBS
+createTeamConvAccessRaw g u tid us name acc role mtimer = do
+    let tinfo = ConvTeamInfo tid False
+    let conv = NewConvUnmanaged $
+               NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer
     post ( g
           . path "/conversations"
           . zUser u
@@ -162,14 +165,30 @@ createTeamConvAccessRaw g u tinfo us name acc role = do
           . json conv
           )
 
+createManagedConv :: HasCallStack => Galley -> UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> Http ConvId
+createManagedConv g u tid us name acc mtimer = do
+    let tinfo = ConvTeamInfo tid True
+    let conv = NewConvManaged $
+               NewConv us name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer
+    r <- post ( g
+              . path "i/conversations/managed"
+              . zUser u
+              . zConn "conn"
+              . zType "access"
+              . json conv
+              )
+         <!! const 201 === statusCode
+    fromBS (getHeader' "Location" r)
+
 createOne2OneTeamConv :: Galley -> UserId -> UserId -> Maybe Text -> TeamId -> Http ResponseLBS
 createOne2OneTeamConv g u1 u2 n tid = do
-    let conv = NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False)
+    let conv = NewConvUnmanaged $
+               NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
-postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Http ResponseLBS
-postConv g u us name a r = do
-    let conv = NewConv us name (Set.fromList a) r  Nothing
+postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> Http ResponseLBS
+postConv g u us name a r mtimer = do
+    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: Galley -> UserId -> Http ResponseLBS
@@ -177,7 +196,7 @@ postSelfConv g u = post $ g . path "/conversations/self" . zUser u . zConn "conn
 
 postO2OConv :: Galley -> UserId -> UserId -> Maybe Text -> Http ResponseLBS
 postO2OConv g u1 u2 n = do
-    let conv = NewConv [u2] n mempty Nothing Nothing
+    let conv = NewConvUnmanaged $ NewConv [u2] n mempty Nothing Nothing Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: Galley -> UserId -> UserId -> Text -> Text -> Maybe Text -> Http ResponseLBS
@@ -324,6 +343,15 @@ putAccessUpdate g u c acc = put $ g
     . zType "access"
     . json acc
 
+putMessageTimerUpdate
+    :: Galley -> UserId -> ConvId -> ConversationMessageTimerUpdate -> Http ResponseLBS
+putMessageTimerUpdate g u c acc = put $ g
+    . paths ["/conversations", toByteString' c, "message-timer"]
+    . zUser u
+    . zConn "conn"
+    . zType "access"
+    . json acc
+
 postConvCode :: Galley -> UserId -> ConvId -> Http ResponseLBS
 postConvCode g u c = post $ g
     . paths ["/conversations", toByteString' c, "code"]
@@ -356,16 +384,16 @@ deleteClientInternal g u c = delete $ g
     . zConn "conn"
     . paths ["i", "clients", toByteString' c]
 
-deleteUser :: Galley -> UserId -> Http ()
+deleteUser :: HasCallStack => Galley -> UserId -> Http ()
 deleteUser g u = delete (g . path "/i/user" . zUser u) !!! const 200 === statusCode
 
-assertConvMember :: Galley -> UserId -> ConvId -> Http ()
+assertConvMember :: HasCallStack => Galley -> UserId -> ConvId -> Http ()
 assertConvMember g u c =
     getSelfMember g u c !!! do
         const 200      === statusCode
         const (Just u) === (fmap memId <$> decodeBody)
 
-assertNotConvMember :: Galley -> UserId -> ConvId -> Http ()
+assertNotConvMember :: HasCallStack => Galley -> UserId -> ConvId -> Http ()
 assertNotConvMember g u c =
     getSelfMember g u c !!! do
         const 200         === statusCode
@@ -374,7 +402,7 @@ assertNotConvMember g u c =
 -------------------------------------------------------------------------------
 -- Common Assertions
 
-assertConvEquals :: MonadIO m => Conversation -> Conversation -> m ()
+assertConvEquals :: (HasCallStack, MonadIO m) => Conversation -> Conversation -> m ()
 assertConvEquals c1 c2 = liftIO $ do
     assertEqual "id"              (cnvId        c1) (cnvId        c2)
     assertEqual "type"            (cnvType      c1) (cnvType      c2)
@@ -388,14 +416,16 @@ assertConvEquals c1 c2 = liftIO $ do
     selfMember   = cmSelf . cnvMembers
     otherMembers = Set.fromList . cmOthers . cnvMembers
 
-assertConv :: Response (Maybe Lazy.ByteString)
+assertConv :: HasCallStack
+           => Response (Maybe Lazy.ByteString)
            -> ConvType
            -> UserId
            -> UserId
            -> [UserId]
            -> Maybe Text
+           -> Maybe Milliseconds
            -> Http ConvId
-assertConv r t c s us n = do
+assertConv r t c s us n mt = do
     cId <- fromBS $ getHeader' "Location" r
     let cnv = decodeBody r :: Maybe Conversation
     let _self = cmSelf . cnvMembers <$> cnv
@@ -405,6 +435,7 @@ assertConv r t c s us n = do
         assertEqual "name" n (cnv >>= cnvName)
         assertEqual "type" (Just t) (cnvType <$> cnv)
         assertEqual "creator" (Just c) (cnvCreator <$> cnv)
+        assertEqual "message_timer" (Just mt) (cnvMessageTimer <$> cnv)
         assertEqual "self" (Just s) (memId <$> _self)
         assertEqual "others" (Just $ Set.fromList us) (Set.fromList . map omId . toList <$> others)
         assertBool  "otr muted not false" (Just False == (memOtrMuted <$> _self))
@@ -449,6 +480,15 @@ wsAssertConvAccessUpdate conv usr new n = do
     evtFrom      e @?= usr
     evtData      e @?= Just (EdConvAccessUpdate new)
 
+wsAssertConvMessageTimerUpdate :: ConvId -> UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
+wsAssertConvMessageTimerUpdate conv usr new n = do
+    let e = List1.head (WS.unpackPayload n)
+    ntfTransient n @?= False
+    evtConv      e @?= conv
+    evtType      e @?= ConvMessageTimerUpdate
+    evtFrom      e @?= usr
+    evtData      e @?= Just (EdConvMessageTimerUpdate new)
+
 wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
 wsAssertMemberLeave conv usr old n = do
     let e = List1.head (WS.unpackPayload n)
@@ -461,12 +501,13 @@ wsAssertMemberLeave conv usr old n = do
     sorted (Just (EdMembers (Members m))) = Just (EdMembers (Members (sort m)))
     sorted x = x
 
-assertNoMsg :: WS.WebSocket -> (Notification -> Assertion) -> Http ()
+assertNoMsg :: HasCallStack => WS.WebSocket -> (Notification -> Assertion) -> Http ()
 assertNoMsg ws f = do
     x <- WS.awaitMatch (1 # Second) ws f
     liftIO $ case x of
         Left  _ -> return () -- expected
         Right _ -> assertFailure "Unexpected message"
+
 -------------------------------------------------------------------------------
 -- Helpers
 
@@ -507,6 +548,8 @@ zConv = header "Z-Conversation" . toByteString'
 zType :: ByteString -> Request -> Request
 zType = header "Z-Type"
 
+-- TODO: it'd be nicer to just take a list here and handle the cases with 0
+-- users differently
 connectUsers :: Brig -> UserId -> List1 UserId -> Http ()
 connectUsers b u us = void $ connectUsersWith expect2xx b u us
 
@@ -540,17 +583,28 @@ connectUsersWith fn b u us = mapM connectTo us
             )
         return (r1, r2)
 
+-- | A copy of 'putConnection' from Brig integration tests.
+putConnection :: Brig -> UserId -> UserId -> Relation -> Http ResponseLBS
+putConnection b from to r = put $ b
+    . paths ["/connections", toByteString' to]
+    . contentJson
+    . body payload
+    . zUser from
+    . zConn "conn"
+  where
+    payload = RequestBodyLBS . encode $ object [ "status" .= r ]
+
 randomUsers :: Brig -> Int -> Http [UserId]
 randomUsers b n = replicateM n (randomUser b)
 
-randomUser :: Brig -> Http UserId
+randomUser :: HasCallStack => Brig -> Http UserId
 randomUser b = do
     e <- liftIO randomEmail
     let p = object [ "name" .= fromEmail e, "email" .= fromEmail e, "password" .= defPassword ]
     r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
-ephemeralUser :: Brig -> Http UserId
+ephemeralUser :: HasCallStack => Brig -> Http UserId
 ephemeralUser b = do
     name <- UUID.toText <$> liftIO nextRandom
     let p = object [ "name" .= name ]
@@ -558,7 +612,7 @@ ephemeralUser b = do
     let user = fromMaybe (error "createEphemeralUser: failed to parse response") (decodeBody r)
     return $ Brig.Types.userId user
 
-randomClient :: Brig -> UserId -> LastPrekey -> Http ClientId
+randomClient :: HasCallStack => Brig -> UserId -> LastPrekey -> Http ClientId
 randomClient b usr lk = do
     q <- post (b . path "/clients" . zUser usr . zConn "conn" . json newClientBody)
             <!! const 201 === statusCode
@@ -570,7 +624,7 @@ randomClient b usr lk = do
             { newClientPassword = Just (PlainTextPassword defPassword)
             }
 
-ensureDeletedState :: Brig -> Bool -> UserId -> UserId -> Http ()
+ensureDeletedState :: HasCallStack => Brig -> Bool -> UserId -> UserId -> Http ()
 ensureDeletedState b check from u =
     get ( b
         . paths ["users", toByteString' u]
@@ -592,7 +646,7 @@ deleteClient b u c pw = delete $ b
         ]
 
 -- TODO: Refactor, as used also in brig
-isUserDeleted :: Brig -> UserId -> Http Bool
+isUserDeleted :: HasCallStack => Brig -> UserId -> Http Bool
 isUserDeleted b u = do
     r <- get (b . paths ["i", "users", toByteString' u, "status"]) <!!
         const 200 === statusCode
@@ -639,17 +693,17 @@ randomUserWithClient b lk = do
 newNonce :: Http (Id ())
 newNonce = randomId
 
-decodeBody :: FromJSON a => Response (Maybe Lazy.ByteString) -> Maybe a
+decodeBody :: (HasCallStack, FromJSON a) => Response (Maybe Lazy.ByteString) -> Maybe a
 decodeBody r = do
     b <- responseBody r
     case decode b of
         Nothing -> traceShow b Nothing
         Just  a -> Just a
 
-decodeBody' :: FromJSON a => String -> Response (Maybe Lazy.ByteString) -> a
+decodeBody' :: (HasCallStack, FromJSON a) => String -> Response (Maybe Lazy.ByteString) -> a
 decodeBody' s = fromMaybe (error $ "decodeBody: " ++ s) . decodeBody
 
-fromBS :: (FromByteString a, Monad m) => ByteString -> m a
+fromBS :: (HasCallStack, FromByteString a, Monad m) => ByteString -> m a
 fromBS = maybe (fail "fromBS: no parse") return . fromByteString
 
 convRange :: Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Request -> Request
@@ -683,7 +737,7 @@ encodeCiphertext :: ByteString -> Text
 encodeCiphertext = decodeUtf8 . B64.encode
 
 memberUpdate :: MemberUpdate
-memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing
+memberUpdate = MemberUpdate Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 genRandom :: (Q.Arbitrary a, MonadIO m) => m a
 genRandom = liftIO . Q.generate $ Q.arbitrary
