@@ -421,7 +421,7 @@ userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
 userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ?"
 
 userSSOIdUpdate :: PrepQuery W (UserSSOId, UserId) ()
-userSSOIdUpdate = "UPDATE user SET ssoid = ? WHERE id = ?"
+userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
 
 userHandleUpdate :: PrepQuery W (Handle, UserId) ()
 userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"
