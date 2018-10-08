@@ -1,4 +1,4 @@
-resolver: lts-12.4
+resolver: lts-12.10
 
 packages:
 - libs/api-bot
