@@ -257,17 +257,17 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
               )
             `shouldRespondWith` hasSetBindCookieHeader
 
-    describe "POST /sso/finalize-login/:idp" $ do
-      context "AuthnResponse is fine, request contains bind cookie" $ do
-        it "Sends user back to the app and adds UserSSOId to brig user" $ do
+    let checkFinalizeLogin :: ReaderT TestEnv IO UserId -> ReaderT TestEnv IO ()
+        checkFinalizeLogin createUser = do
           env <- ask
-          (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
+          uid <- createUser
           (idp, privCreds, authnReq, Just bindCookie) <- negotiateAuthnRequest' (header "Z-User" $ toByteString' uid)
           spmeta <- getTestSPMetadata (idp ^. idpId)
           authnResp <- liftIO $ mkAuthnResponse privCreds idp spmeta authnReq True
           sparAuthnResp <- submitAuthnResponse' (header "Cookie" bindCookie) (idp ^. idpId) authnResp
           liftIO $ (cs @_ @String . fromJust . responseBody $ sparAuthnResp)
             `shouldContain` "<title>wire:sso:success</title>"
+                            -- TODO: check that this has the wire cookie set!
 
           resp <- call $
             get ( (env ^. teBrig)
@@ -294,9 +294,14 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           muid' <- ssoToUidSpar ssoid
           liftIO $ muid' `shouldBe` Just uid
 
+    describe "POST /sso/finalize-login/:idp" $ do
+      context "AuthnResponse is fine, request contains bind cookie" $ do
+        it "Sends user back to the app and adds UserSSOId to brig user" $ do
+          checkFinalizeLogin (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+
       context "known IdP, running session with sso user" $ do
         it "overwrites UserSSOId on both brig and spar" $ do
-          undefined
+          checkFinalizeLogin loginSsoUserFirstTime
 
 
 -- | FUTUREWORK: this function deletes the test IdP from the test env.  (it should probably not do
