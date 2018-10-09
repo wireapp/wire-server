@@ -205,7 +205,7 @@ testSimpleS3ClosedConnectionReuse c = go >> wait >> go
     go = do
         uid <- liftIO $ Id <$> nextRandom
         let sets  = V3.defAssetSettings & set V3.setAssetRetention (Just V3.AssetVolatile)
-        let part2 = (MIME.Type (MIME.Text "plain") [], C8.replicate 1000 'c')
+        let part2 = (MIME.Type (MIME.Text "plain") [], C8.replicate 100000 'c')
         uploadSimple (c . path "/assets/v3") uid sets part2 !!!
             const 201 === statusCode
 
