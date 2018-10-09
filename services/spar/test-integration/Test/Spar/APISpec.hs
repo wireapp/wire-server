@@ -13,6 +13,7 @@ module Test.Spar.APISpec where
 import Bilge
 import Brig.Types.User
 import Control.Monad.Reader
+import Control.Retry
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List (isInfixOf)
@@ -257,42 +258,54 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
               )
             `shouldRespondWith` hasSetBindCookieHeader
 
-    let checkFinalizeLogin :: ReaderT TestEnv IO UserId -> ReaderT TestEnv IO ()
+    let checkFinalizeLogin :: forall m. m ~ ReaderT TestEnv IO => m UserId -> m ()
         checkFinalizeLogin createUser = do
           env <- ask
           uid <- createUser
           (idp, privCreds, authnReq, Just bindCookie) <- negotiateAuthnRequest' (header "Z-User" $ toByteString' uid)
           spmeta <- getTestSPMetadata (idp ^. idpId)
           authnResp <- liftIO $ mkAuthnResponse privCreds idp spmeta authnReq True
-          sparAuthnResp <- submitAuthnResponse' (header "Cookie" bindCookie) (idp ^. idpId) authnResp
-          liftIO $ (cs @_ @String . fromJust . responseBody $ sparAuthnResp)
-            `shouldContain` "<title>wire:sso:success</title>"
-                            -- TODO: check that this has the wire cookie set!
+          sparAuthnResp :: ResponseLBS
+            <- submitAuthnResponse' (header "Cookie" bindCookie) (idp ^. idpId) authnResp
+          liftIO $ do
+            (cs @_ @String . fromJust . responseBody $ sparAuthnResp)
+              `shouldContain` "<title>wire:sso:success</title>"
+            responseHeaders sparAuthnResp
+              `shouldSatisfy` (isJust . lookup "set-cookie")
 
-          resp <- call $
-            get ( (env ^. teBrig)
-                . header "Z-User" (toByteString' uid)
-                . path "/self"
-                . expect2xx
-                )
+          ssoidViaAuthResp :: UserSSOId <- do
+            authnRespParsed :: AuthnResponse
+              <- either error pure . parseFromDocument $ fromSignedAuthnResponse authnResp
+            either error (pure . Intra.toUserSSOId) $ getUserRef authnRespParsed
 
-          let getUserSSOId :: ResponseLBS -> Maybe UserSSOId
-              getUserSSOId (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
-                = case userIdentity $ selfUser selfprof of
-                    Just (SSOIdentity ssoid _ _) -> Just ssoid
-                    Just (FullIdentity _ _)  -> Nothing
-                    Just (EmailIdentity _)   -> Nothing
-                    Just (PhoneIdentity _)   -> Nothing
-                    Nothing                  -> Nothing
-              getUserSSOId _ = Nothing
+          ssoidViaSelf :: UserSSOId <- do
+            let probe :: m (Maybe UserSSOId)
+                probe = fmap getUserSSOId . call . get $
+                  ( (env ^. teBrig)
+                  . header "Z-User" (toByteString' uid)
+                  . path "/self"
+                  . expect2xx
+                  )
 
-          authnRespParsed :: AuthnResponse
-            <- either error pure . parseFromDocument $ fromSignedAuthnResponse authnResp
-          let ssoid = either error Intra.toUserSSOId $ getUserRef authnRespParsed
-              mssoid' = getUserSSOId resp
-          liftIO $ mssoid' `shouldBe` Just ssoid
-          muid' <- ssoToUidSpar ssoid
-          liftIO $ muid' `shouldBe` Just uid
+                getUserSSOId :: ResponseLBS -> Maybe UserSSOId
+                getUserSSOId (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
+                  = case userIdentity $ selfUser selfprof of
+                      Just (SSOIdentity ssoid _ _) -> Just ssoid
+                      Just (FullIdentity _ _)  -> Nothing
+                      Just (EmailIdentity _)   -> Nothing
+                      Just (PhoneIdentity _)   -> Nothing
+                      Nothing                  -> Nothing
+                getUserSSOId _ = Nothing
+
+            Just ssoid <- liftIO $ retrying
+              (exponentialBackoff 50 <> limitRetries 5)
+              (\_ -> pure . isNothing)
+              (\_ -> probe `runReaderT` env)
+            pure ssoid
+
+          liftIO $ ('s', ssoidViaSelf) `shouldBe` ('s', ssoidViaAuthResp)
+          Just uidViaSpar <- ssoToUidSpar ssoidViaAuthResp
+          liftIO $ ('u', uidViaSpar) `shouldBe` ('u', uid)
 
     describe "POST /sso/finalize-login/:idp" $ do
       context "AuthnResponse is fine, request contains bind cookie" $ do
