@@ -12,7 +12,27 @@
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE ViewPatterns               #-}
 
-module Spar.Data where
+module Spar.Data
+  ( schemaVersion
+  , Env(..)
+  , mkEnv
+  , mkTTLAssertions
+  , storeRequest
+  , checkAgainstRequest
+  , storeAssertion
+  , storeVerdictFormat
+  , getVerdictFormat
+  , insertUser
+  , getUser
+  , insertBindCookie
+  , lookupBindCookie
+  , storeIdPConfig
+  , getIdPConfig
+  , getIdPConfigByIssuer
+  , getIdPIdByIssuer
+  , getIdPConfigsByTeam
+  , deleteIdPConfig
+  ) where
 
 import Cassandra as Cas
 import Control.Monad.Except

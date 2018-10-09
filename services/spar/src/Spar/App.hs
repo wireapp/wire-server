@@ -9,7 +9,15 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE ViewPatterns               #-}
 
-module Spar.App where
+module Spar.App
+  ( Spar(..)
+  , Env(..)
+  , condenseLogMsg
+  , toLevel
+  , wrapMonadClientWithEnv
+  , wrapMonadClient
+  , verdictHandler
+  ) where
 
 import Bilge
 import Cassandra
@@ -84,15 +92,6 @@ toLevel = \case
   SAML.Info  -> Log.Info
   SAML.Debug -> Log.Debug
   SAML.Trace -> Log.Trace
-
-fromLevel :: Log.Level -> SAML.Level
-fromLevel = \case
-  Log.Fatal -> SAML.Fatal
-  Log.Error -> SAML.Error
-  Log.Warn  -> SAML.Warn
-  Log.Info  -> SAML.Info
-  Log.Debug -> SAML.Debug
-  Log.Trace -> SAML.Trace
 
 instance SPStore Spar where
   storeRequest i r      = wrapMonadClientWithEnv $ Data.storeRequest i r

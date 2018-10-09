@@ -15,7 +15,11 @@
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Spar.Run (initCassandra, mkLogger, runServer) where
+module Spar.Run
+  ( initCassandra
+  , mkLogger
+  , runServer
+  ) where
 
 import Bilge
 import Cassandra as Cas
