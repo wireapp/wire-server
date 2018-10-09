@@ -250,11 +250,10 @@ verdictHandlerResult bindCky = \case
 retrySparAction :: Spar a -> Spar a
 retrySparAction action = do
   env <- ask
-  result <- liftIO $ retrying
+  either throwError pure =<< liftIO (retrying
     (exponentialBackoff 50 <> limitRetries 5)
     (\_ -> pure . either (const True) (const False))
-    (\_ -> runExceptT $ fromSpar action `runReaderT` env)
-  either throwError pure result
+    (\_ -> runExceptT $ fromSpar action `runReaderT` env))
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
 -- to log the user in or show an error.

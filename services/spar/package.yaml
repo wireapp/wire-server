@@ -41,6 +41,7 @@ dependencies:
   - mtl
   - optparse-applicative
   - raw-strings-qq
+  - retry
   - saml2-web-sso >= 0.17
   - scientific
   - servant
@@ -107,7 +108,6 @@ executables:
       - hspec-discover
       - lens-aeson
       - random
-      - retry
       - servant-client
       - spar
       - stm
