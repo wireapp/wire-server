@@ -16,6 +16,7 @@ module Util.Types
   ( BrigReq
   , GalleyReq
   , SparReq
+  , TestSpar
   , TestEnv(..)
   , teMgr
   , teCql
@@ -38,6 +39,7 @@ import Bilge
 import Cassandra as Cas
 import Control.Exception
 import Control.Monad
+import Control.Monad.Reader
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Id
@@ -57,6 +59,8 @@ import qualified Data.Aeson as Aeson
 type BrigReq   = Request -> Request
 type GalleyReq = Request -> Request
 type SparReq   = Request -> Request
+
+type TestSpar = ReaderT TestEnv IO
 
 -- | See 'mkEnv' about what's in here.
 data TestEnv = TestEnv

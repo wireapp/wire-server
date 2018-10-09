@@ -152,10 +152,10 @@ destroyEnv _ = pure ()
 passes :: MonadIO m => m ()
 passes = liftIO $ True `shouldBe` True
 
-it :: (HasCallStack, m ~ IO)
+it :: HasCallStack
        -- or, more generally:
        -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
-   => String -> ReaderT TestEnv m () -> SpecWith TestEnv
+   => String -> TestSpar () -> SpecWith TestEnv
 it msg bdy = Test.Hspec.it msg $ runReaderT bdy
 
 pending :: (HasCallStack, MonadIO m) => m ()
@@ -355,7 +355,7 @@ endpointToURL endpoint urlpath = either err pure url
 -- spar specifics
 
 shouldRespondWith :: forall a. (HasCallStack, Show a, Eq a)
-                  => Http a -> (a -> Bool) -> ReaderT TestEnv IO ()
+                  => Http a -> (a -> Bool) -> TestSpar ()
 shouldRespondWith action proper = do
   resp <- call action
   liftIO $ resp `shouldSatisfy` proper

@@ -225,7 +225,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                              . expect2xx
                              )
 
-    let checkInitiateLogin :: forall m. m ~ ReaderT TestEnv IO => m UserId -> m ()
+    let checkInitiateLogin :: forall m. m ~ TestSpar => m UserId -> m ()
         checkInitiateLogin createUser = do
           let checkRespBody :: HasCallStack => ResponseLBS -> Bool
               checkRespBody (responseBody -> Just (cs -> bdy)) = all (`isInfixOf` bdy)
@@ -254,7 +254,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         it "responds with 2xx and bind cookie" $ do
           checkInitiateLogin loginSsoUserFirstTime
 
-    let checkFinalizeLogin :: forall m. m ~ ReaderT TestEnv IO => m UserId -> m ()
+    let checkFinalizeLogin :: forall m. m ~ TestSpar => m UserId -> m ()
         checkFinalizeLogin createUser = do
           env <- ask
           uid <- createUser

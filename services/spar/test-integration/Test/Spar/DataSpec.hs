@@ -303,14 +303,14 @@ runPostVerdict :: HasCallStack => TestEnv -> (SAML.AuthnResponse, SAML.AccessVer
 runPostVerdict env = runServantClient env . clientPostVerdict
 
 
-mkAuthnReqWeb :: SAML.IdPId -> ReaderT TestEnv IO ResponseLBS
+mkAuthnReqWeb :: SAML.IdPId -> TestSpar ResponseLBS
 mkAuthnReqWeb idpid = do
   env <- ask
   -- TODO: the following fails, i think there is something wrong with query encoding.
   -- runServantClient env $ clientGetAuthnRequest Nothing Nothing idpid
   call $ get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid) . expect2xx)
 
-mkAuthnReqMobile :: SAML.IdPId -> ReaderT TestEnv IO ResponseLBS
+mkAuthnReqMobile :: SAML.IdPId -> TestSpar ResponseLBS
 mkAuthnReqMobile idpid = do
   env <- ask
   -- (see the TODO under "web" above)
@@ -323,13 +323,13 @@ mkAuthnReqMobile idpid = do
   call $ get ((env ^. teSpar) . path arPath . expect2xx)
 
 requestAccessVerdict :: HasCallStack
-                     => Bool                                             -- ^ is the verdict granted?
-                     -> (SAML.IdPId -> ReaderT TestEnv IO ResponseLBS)   -- ^ raw authnreq
-                     -> ReaderT TestEnv IO ( UserId
-                                           , SAML.ResponseVerdict
-                                           , URI                         -- ^ location header
-                                           , [(SBS, SBS)]                -- ^ query params
-                                           )
+                     => Bool                                   -- ^ is the verdict granted?
+                     -> (SAML.IdPId -> TestSpar ResponseLBS)   -- ^ raw authnreq
+                     -> TestSpar ( UserId
+                                 , SAML.ResponseVerdict
+                                 , URI                         -- ^ location header
+                                 , [(SBS, SBS)]                -- ^ query params
+                                 )
 requestAccessVerdict isGranted mkAuthnReq = do
   env <- ask
   let uid     = env ^. teUserId
