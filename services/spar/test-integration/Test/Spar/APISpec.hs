@@ -27,6 +27,7 @@ import Prelude hiding (head)
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.MockResponse
 import Spar.Types
+import Spar.API.Types
 import URI.ByteString.QQ (uri)
 import Util
 
@@ -203,13 +204,13 @@ specFinalizeLogin = do
 
 specBindingUsers :: SpecWith TestEnv
 specBindingUsers = describe "binding existing users to sso identities" $ do
-    describe "HEAD /sso/initiate-login/:idp" $ do
+    describe "HEAD /sso/initiate-bind/:idp" $ do
       context "known IdP, running session with non-sso user" $ do
         it "responds with 200" $ do
           env <- ask
           let idp = idPIdToST $ env ^. teIdP . idpId
           void . call $ head ( (env ^. teSpar)
-                             . path (cs $ "/sso/initiate-login/" -/ idp)
+                             . path (cs $ "/sso/initiate-bind/" -/ idp)
                              . header "Z-User" (toByteString' $ env ^. teUserId)
                              . expect2xx
                              )
@@ -221,7 +222,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           let idp = idPIdToST $ env ^. teIdP . idpId
           void . call $ head ( (env ^. teSpar)
                              . header "Z-User" (toByteString' uid)
-                             . path (cs $ "/sso/initiate-login/" -/ idp)
+                             . path (cs $ "/sso/initiate-bind/" -/ idp)
                              . expect2xx
                              )
 
@@ -240,12 +241,12 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           uid <- createUser
           get ( (env ^. teSpar)
               . header "Z-User" (toByteString' uid)
-              . path (cs $ "/sso/initiate-login/" -/ idp)
+              . path (cs $ "/sso/initiate-bind/" -/ idp)
               . expect2xx
               )
             `shouldRespondWith` (\resp -> checkRespBody resp && hasSetBindCookieHeader resp)
 
-    describe "GET /sso/initiate-login/:idp" $ do
+    describe "GET /sso/initiate-bind/:idp" $ do
       context "known IdP, running session with non-sso user" $ do
         it "responds with 200 and a bind cookie" $ do
           checkInitiateLogin (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
@@ -260,7 +261,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           uid <- createUser
           (idp, privCreds, authnReq, Just bindCookie) <- do
             (_, _, idp) <- createTestIdP
-            negotiateAuthnRequest' (Just idp) (header "Z-User" $ toByteString' uid)
+            negotiateAuthnRequest' DoInitiateBind (Just idp) (header "Z-User" $ toByteString' uid)
           spmeta <- getTestSPMetadata (idp ^. idpId)
           authnResp <- liftIO $ mkAuthnResponse privCreds idp spmeta authnReq True
           sparAuthnResp :: ResponseLBS

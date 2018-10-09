@@ -73,7 +73,8 @@ apiSSO opts
      = pure (toSwagger (Proxy @OutsideWorldAPI))
   :<|> SAML.meta appName sparRequestIssuer sparResponseURI
   :<|> authreqPrecheck
-  :<|> authreq (maxttlAuthreqDiffTime opts)
+  :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
+  :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateBind
   :<|> authresp
 
 apiIDP :: ServerT APIIDP Spar
@@ -97,9 +98,11 @@ authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
                                 *> SAML.getIdPConfig idpid
                                 *> return NoContent
 
-authreq :: NominalDiffTime -> Maybe UserId -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId
+authreq :: NominalDiffTime -> DoInitiate -> Maybe UserId -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId
         -> Spar (WithBindCookie (SAML.FormRedirect SAML.AuthnRequest))
-authreq authreqttl zusr msucc merr idpid = do
+authreq _ DoInitiateLogin (Just _) _ _ _ = throwSpar SparInitLoginWithAuth
+authreq _ DoInitiateBind Nothing _ _ _   = throwSpar SparInitBindWithoutAuth
+authreq authreqttl _ zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl sparRequestIssuer idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat

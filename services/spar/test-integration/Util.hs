@@ -85,7 +85,7 @@ import Prelude hiding (head)
 import SAML2.WebSSO
 import SAML2.WebSSO.Test.Credentials
 import SAML2.WebSSO.Test.MockResponse
-import Spar.API ()
+import Spar.API.Types
 import Spar.Options as Options
 import Spar.Run
 import Spar.Types
@@ -415,13 +415,6 @@ createTestIdPFrom metadata mgr brig galley spar = do
     (uid, tid,) <$> callIdpCreate spar (Just uid) metadata
 
 
-negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-                      => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
-negotiateAuthnRequest = negotiateAuthnRequest' Nothing id >>= \case
-  (idp, creds, req, cky) -> if isDeleteBindCookieHeader cky
-    then pure (idp, creds, req)
-    else error $ "unexpected bind cookie: " <> show cky
-
 -- | A bind cookie is always sent, but if we do not want to send one, it looks like this:
 -- "wire.com=; Path=/sso/finalize-login/0fc38390-8288-4a29-ad89-dd212af281a8; Expires=Thu,
 -- 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure"
@@ -446,16 +439,24 @@ isSetBindCookieHeader (Just (Web.parseSetCookie -> cky)) = and
 hasSetBindCookieHeader :: HasCallStack => Bilge.Response a -> Bool
 hasSetBindCookieHeader = isSetBindCookieHeader . lookup "Set-Cookie" . responseHeaders
 
-negotiateAuthnRequest' :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-                      => Maybe IdP -> (Request -> Request) -> m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SBS)
-negotiateAuthnRequest' midp modreq = do
+negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+                      => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
+negotiateAuthnRequest = negotiateAuthnRequest' DoInitiateLogin Nothing id >>= \case
+  (idp, creds, req, cky) -> if isDeleteBindCookieHeader cky
+    then pure (idp, creds, req)
+    else error $ "unexpected bind cookie: " <> show cky
+
+negotiateAuthnRequest'
+  :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+  => DoInitiate -> Maybe IdP -> (Request -> Request) -> m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SBS)
+negotiateAuthnRequest' (doInitiatePath -> doInit) midp modreq = do
   env <- ask
   let idp = fromMaybe (env ^. teIdP) midp
   resp :: ResponseLBS
     <- call $ get
            ( modreq
            . (env ^. teSpar)
-           . path (cs $ "/sso/initiate-login/" -/ (idPIdToST $ idp ^. SAML.idpId))
+           . paths ["sso", cs doInit, cs . idPIdToST $ idp ^. SAML.idpId]
            . expect2xx
            )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp

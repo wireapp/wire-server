@@ -21,6 +21,7 @@ module Spar.API.Types where
 
 import Data.Id
 import Data.Proxy
+import Data.String.Conversions
 import Servant
 import Servant.Multipart
 import Spar.API.Test
@@ -49,8 +50,9 @@ type API
 type APISSO
      = "api-docs" :> Get '[JSON] Swagger
   :<|> APIMeta
-  :<|> APIAuthReqPrecheck
-  :<|> APIAuthReq
+  :<|> "initiate-login" :> APIAuthReqPrecheck
+  :<|> "initiate-login" :> APIAuthReq
+  :<|> "initiate-bind"  :> APIAuthReq          -- (see comment on 'APIAuthReq')
   :<|> APIAuthResp
 
 type CheckOK = Verb 'HEAD 200
@@ -59,20 +61,29 @@ type APIMeta
      = "metadata" :> SAML.APIMeta
 
 type APIAuthReqPrecheck
-     = "initiate-login"
-    :> QueryParam "success_redirect" URI.URI
+     = QueryParam "success_redirect" URI.URI
     :> QueryParam "error_redirect" URI.URI
     :> Capture "idp" SAML.IdPId
     :> CheckOK '[PlainText] NoContent
 
+-- | The route for bind and login, without the prefix.  We need to use two different prefices
+-- because one requires unauthenticated requests, and one requires authenticated requests.  nginz
+-- only supports mandatory and no, but not optional authentication for any given end-point.  See
+-- also: 'DoInitiate'.)
 type APIAuthReq
-     = "initiate-login"
-    :> Header "Z-User" UserId
+     = Header "Z-User" UserId
     :> QueryParam "success_redirect" URI.URI
     :> QueryParam "error_redirect" URI.URI
        -- (SAML.APIAuthReq from here on, except for the cookies)
     :> Capture "idp" SAML.IdPId
     :> Get '[SAML.HTML] (WithBindCookie (SAML.FormRedirect SAML.AuthnRequest))
+
+data DoInitiate = DoInitiateLogin | DoInitiateBind
+  deriving (Eq, Show, Bounded, Enum)
+
+doInitiatePath :: DoInitiate -> ST
+doInitiatePath DoInitiateLogin = "initiate-login"
+doInitiatePath DoInitiateBind  = "initiate-bind"
 
 type WithBindCookie = Headers '[Servant.Header "Set-Cookie" BindCookie]
 
