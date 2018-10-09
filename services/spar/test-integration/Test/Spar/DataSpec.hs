@@ -344,7 +344,12 @@ requestAccessVerdict isGranted mkAuthnReq = do
     bdy <- maybe (error "authreq") pure $ responseBody raw
     either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
   spmeta <- getTestSPMetadata idpid
-  authnresp <- liftIO $ mkAuthnResponse idp spmeta authnreq
+  authnresp <- liftIO $ do
+    let mk :: SAML.FormRedirect SAML.AuthnRequest -> IO SAML.AuthnResponse
+        mk (SAML.FormRedirect _ req) = do
+          SAML.SignedAuthnResponse (XML.Document _ el _) <- liftIO $ SAML.mkAuthnResponse SAML.sampleIdPPrivkey idp spmeta req True
+          either (throwIO . ErrorCall . show) pure $ SAML.parse [XML.NodeElement el]
+    mk authnreq
   let verdict = if isGranted
         then SAML.AccessGranted uref
         else SAML.AccessDenied ["we don't like you", "seriously"]
@@ -356,9 +361,3 @@ requestAccessVerdict isGranted mkAuthnReq = do
       qry :: [(SBS, SBS)]
       qry = queryPairs $ uriQuery loc
   pure (uid, outcome, loc, qry)
-
-
-mkAuthnResponse :: SAML.IdPConfig extra -> SAML.SPMetadata -> SAML.FormRedirect SAML.AuthnRequest -> IO SAML.AuthnResponse
-mkAuthnResponse idp spmeta (SAML.FormRedirect _ req) = do
-  SAML.SignedAuthnResponse (XML.Document _ el _) <- liftIO $ SAML.mkAuthnResponse SAML.sampleIdPPrivkey idp spmeta req True
-  either (throwIO . ErrorCall . show) pure $ SAML.parse [XML.NodeElement el]

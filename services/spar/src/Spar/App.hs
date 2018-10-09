@@ -137,7 +137,9 @@ getUser uref = do
   muid <- wrapMonadClient $ Data.getUser uref
   case muid of
     Nothing -> pure Nothing
-    Just uid -> Intra.confirmUserId uid
+    Just uid -> do
+      itis <- Intra.isTeamUser uid
+      pure $ if itis then Just uid else Nothing
 
 -- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
 -- create user on brig with that 'UserId'.  See also: 'Spar.App.getUser'.
