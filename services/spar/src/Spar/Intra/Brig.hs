@@ -126,9 +126,13 @@ bindUser uid (toUserSSOId -> ussoid) = void . call
 
 -- | Check that a user id exists on brig and has a team id.
 isTeamUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m Bool
-isTeamUser buid = do
+isTeamUser buid = isJust <$> getUserTeam buid
+
+-- | Check that a user id exists on brig and has a team id.
+getUserTeam :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m (Maybe TeamId)
+getUserTeam buid = do
   usr <- getUser buid
-  pure $ isJust (userTeam =<< usr)
+  pure $ userTeam =<< usr
 
 
 -- | If user is not in team, throw 'SparNotInTeam'; if user is in team but not owner, throw

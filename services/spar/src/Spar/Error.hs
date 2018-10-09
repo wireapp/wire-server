@@ -38,6 +38,7 @@ data SparCustomError
   | SparCouldNotSubstituteSuccessURI LT
   | SparCouldNotSubstituteFailureURI LT
   | SparBadInitiateLoginQueryParams LT
+  | SparBindFromWrongOrNoTeam LT
 
   | SparBadUserName LT
   | SparNoBodyInBrigResponse
@@ -69,6 +70,8 @@ sparToWaiError (SAML.CustomError (SparNoRequestRefInResponse msg))        = Righ
 sparToWaiError (SAML.CustomError (SparCouldNotSubstituteSuccessURI msg))  = Right $ Wai.Error status400 "bad-success-redirect" ("re-parsing the substituted URI failed: " <> msg)
 sparToWaiError (SAML.CustomError (SparCouldNotSubstituteFailureURI msg))  = Right $ Wai.Error status400 "bad-failure-redirect" ("re-parsing the substituted URI failed: " <> msg)
 sparToWaiError (SAML.CustomError (SparBadInitiateLoginQueryParams label)) = Right $ Wai.Error status400 label label
+sparToWaiError (SAML.CustomError (SparBindFromWrongOrNoTeam msg))         = Right $ Wai.Error status400 "forbidden" ("Forbidden: wrong user team " <> msg)
+
 sparToWaiError (SAML.CustomError (SparBadUserName msg))                   = Right $ Wai.Error status400 "bad-username" ("Bad UserName in SAML response, except len [1, 128]: " <> msg)
 sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)                = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
 sparToWaiError (SAML.CustomError (SparCouldNotParseBrigResponse msg))     = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)

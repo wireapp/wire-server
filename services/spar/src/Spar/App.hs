@@ -164,9 +164,14 @@ createUser suid = do
   buid' <- Intra.createUser suid buid teamid
   assert (buid == buid') $ pure buid
 
+-- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
+-- 'UserRef' into the 'UserIdentity'.  Otherwise, throw an error.
 bindUser :: UserId -> SAML.UserRef -> Spar UserId
 bindUser buid userref = do
-  -- teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (userref ^. uidTenant)  -- TODO: bindUser should only work if the user is in the right team!
+  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (userref ^. uidTenant)
+  uteamid <- Intra.getUserTeam buid
+  unless (uteamid == Just teamid)
+    (throwSpar . SparBindFromWrongOrNoTeam . cs . show $ uteamid)
   insertUser userref buid
   Intra.bindUser buid userref
   pure buid
