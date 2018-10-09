@@ -33,6 +33,7 @@ module Util
   , makeIssuer
   , makeTestIdPMetadata
   , getTestSPMetadata
+  , createTestIdP
   , createTestIdPFrom
   , negotiateAuthnRequest
   , negotiateAuthnRequest'
@@ -134,11 +135,11 @@ mkEnv _teTstOpts _teOpts = do
       _teGalley  = endpointToReq (cfgGalley _teTstOpts)
       _teSpar    = endpointToReq (cfgSpar   _teTstOpts)
 
-      _teMetadata :: IdPMetadata
-      _teMetadata = sampleIdPMetadata issuer [uri|http://requri.net/|]
+      idpmeta :: IdPMetadata
+      idpmeta = sampleIdPMetadata issuer [uri|http://requri.net/|]
 
   (_teUserId, _teTeamId, _teIdP) <- do
-    createTestIdPFrom _teMetadata _teMgr _teBrig _teGalley _teSpar
+    createTestIdPFrom idpmeta _teMgr _teBrig _teGalley _teSpar
 
   _teSparCass <- initCassandra _teOpts =<< mkLogger _teOpts
 
@@ -397,6 +398,14 @@ getTestSPMetadata idpid = do
     crash_ = liftIO . throwIO . ErrorCall
 
 
+createTestIdP :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+              => m (UserId, TeamId, IdP)
+createTestIdP = do
+  issuer <- makeIssuer
+  let idpmeta = sampleIdPMetadata issuer [uri|http://requri.net/|]
+  env <- ask
+  createTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
+
 -- | Create new user, team, idp from given 'IdPMetadata'.
 createTestIdPFrom :: (HasCallStack, MonadIO m)
                   => IdPMetadata -> Manager -> BrigReq -> GalleyReq -> SparReq -> m (UserId, TeamId, IdP)
@@ -408,7 +417,7 @@ createTestIdPFrom metadata mgr brig galley spar = do
 
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
-negotiateAuthnRequest = negotiateAuthnRequest' id >>= \case
+negotiateAuthnRequest = negotiateAuthnRequest' Nothing id >>= \case
   (idp, creds, req, cky) -> if isDeleteBindCookieHeader cky
     then pure (idp, creds, req)
     else error $ "unexpected bind cookie: " <> show cky
@@ -438,10 +447,10 @@ hasSetBindCookieHeader :: HasCallStack => Bilge.Response a -> Bool
 hasSetBindCookieHeader = isSetBindCookieHeader . lookup "Set-Cookie" . responseHeaders
 
 negotiateAuthnRequest' :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-                      => (Request -> Request) -> m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SBS)
-negotiateAuthnRequest' modreq = do
+                      => Maybe IdP -> (Request -> Request) -> m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SBS)
+negotiateAuthnRequest' midp modreq = do
   env <- ask
-  let idp = env ^. teIdP
+  let idp = fromMaybe (env ^. teIdP) midp
   resp :: ResponseLBS
     <- call $ get
            ( modreq

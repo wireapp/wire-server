@@ -225,20 +225,19 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                              . expect2xx
                              )
 
-    describe "GET /sso/initiate-login/:idp" $ do
-      let checkRespBody :: HasCallStack => ResponseLBS -> Bool
-          checkRespBody (responseBody -> Just (cs -> bdy)) = all (`isInfixOf` bdy)
-            [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
-            , "<body onload=\"document.forms[0].submit()\">"
-            , "<input name=\"SAMLRequest\" type=\"hidden\" "
-            ]
-          checkRespBody bad = error $ show bad
+    let checkInitiateLogin :: forall m. m ~ ReaderT TestEnv IO => m UserId -> m ()
+        checkInitiateLogin createUser = do
+          let checkRespBody :: HasCallStack => ResponseLBS -> Bool
+              checkRespBody (responseBody -> Just (cs -> bdy)) = all (`isInfixOf` bdy)
+                [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
+                    , "<body onload=\"document.forms[0].submit()\">"
+                , "<input name=\"SAMLRequest\" type=\"hidden\" "
+                    ]
+              checkRespBody bad = error $ show bad
 
-      context "known IdP, running session with non-sso user" $ do
-        it "responds with 200 and a bind cookie" $ do
           env <- ask
           let idp = idPIdToST $ env ^. teIdP . idpId
-          (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
+          uid <- createUser
           get ( (env ^. teSpar)
               . header "Z-User" (toByteString' uid)
               . path (cs $ "/sso/initiate-login/" -/ idp)
@@ -246,23 +245,22 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
               )
             `shouldRespondWith` (\resp -> checkRespBody resp && hasSetBindCookieHeader resp)
 
-      context "known IdP, running session with sso user" $ do  -- TODO: this is *almost* the same test as above.
+    describe "GET /sso/initiate-login/:idp" $ do
+      context "known IdP, running session with non-sso user" $ do
+        it "responds with 200 and a bind cookie" $ do
+          checkInitiateLogin (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+
+      context "known IdP, running session with sso user" $ do
         it "responds with 2xx and bind cookie" $ do
-          env <- ask
-          let idp = idPIdToST $ env ^. teIdP . idpId
-          uid <- loginSsoUserFirstTime
-          get ( (env ^. teSpar)
-              . header "Z-User" (toByteString' uid)
-              . path (cs $ "/sso/initiate-login/" -/ idp)
-              . expect2xx
-              )
-            `shouldRespondWith` hasSetBindCookieHeader
+          checkInitiateLogin loginSsoUserFirstTime
 
     let checkFinalizeLogin :: forall m. m ~ ReaderT TestEnv IO => m UserId -> m ()
         checkFinalizeLogin createUser = do
           env <- ask
           uid <- createUser
-          (idp, privCreds, authnReq, Just bindCookie) <- negotiateAuthnRequest' (header "Z-User" $ toByteString' uid)
+          (idp, privCreds, authnReq, Just bindCookie) <- do
+            (_, _, idp) <- createTestIdP
+            negotiateAuthnRequest' (Just idp) (header "Z-User" $ toByteString' uid)
           spmeta <- getTestSPMetadata (idp ^. idpId)
           authnResp <- liftIO $ mkAuthnResponse privCreds idp spmeta authnReq True
           sparAuthnResp :: ResponseLBS
