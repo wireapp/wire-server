@@ -55,6 +55,7 @@ import URI.ByteString
 
 import qualified Data.List.NonEmpty as NL
 import qualified SAML2.WebSSO as SAML
+import qualified Web.Cookie as Cky
 
 
 -- | NB: this is a lower bound (@<=@, not @==@).
@@ -186,23 +187,26 @@ getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
 ----------------------------------------------------------------------
 -- bind cookies
 
--- | Associate a 'BindCookie' with its 'UserId'.  The 'TTL' of this entry should be the same as the
--- one of the 'AuthnRequest' sent with the cookie.
+-- | Associate the value of a 'BindCookie' with its 'UserId'.  The 'TTL' of this entry should be the
+-- same as the one of the 'AuthnRequest' sent with the cookie.
 insertBindCookie :: (HasCallStack, MonadClient m, MonadReader Env m, MonadError TTLError m)
                  => BindCookie -> UserId -> NominalDiffTime -> m ()
 insertBindCookie cky uid ttlNDT = do
   env <- ask
   TTL ttlInt32 <- mkTTLAuthnRequestsNDT env ttlNDT
-  retry x5 . write ins $ params Quorum (cky, uid, ttlInt32)
+  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie $ cky
+  retry x5 . write ins $ params Quorum (ckyval, uid, ttlInt32)
   where
-    ins :: PrepQuery W (BindCookie, UserId, Int32) ()
+    ins :: PrepQuery W (ST, UserId, Int32) ()
     ins = "INSERT INTO bind_cookie (cookie, session_owner) VALUES (?, ?) USING TTL ?"
 
+-- | The counter-part of 'insertBindCookie'.
 lookupBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> m (Maybe UserId)
-lookupBindCookie cky = fmap runIdentity <$>
-  (retry x1 . query1 sel $ params Quorum (Identity cky))
+lookupBindCookie cky = fmap runIdentity <$> do
+  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie $ cky
+  (retry x1 . query1 sel $ params Quorum (Identity ckyval))
   where
-    sel :: PrepQuery R (Identity BindCookie) (Identity UserId)
+    sel :: PrepQuery R (Identity ST) (Identity UserId)
     sel = "SELECT session_owner FROM bind_cookie WHERE cookie = ?"
 
 
