@@ -94,7 +94,7 @@ mkEnv
     -> Maybe CloudFrontOpts
     -> Manager
     -> IO Env
-mkEnv lgr s3End s3Download bucket cfOpts mgr = do
+mkEnv lgr s3End _s3Download bucket cfOpts mgr = do
     let g = Logger.clone (Just "aws.cargohold") lgr
     e  <- mkAwsEnv g (mkEndpoint S3.s3 s3End)
     cf <- mkCfEnv cfOpts

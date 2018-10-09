@@ -84,6 +84,7 @@ import qualified Codec.MIME.Parse             as MIME
 import qualified Data.ByteString.Char8        as C8
 import qualified Data.ByteString.Lazy         as LBS
 import qualified Data.CaseInsensitive         as CI
+import qualified Data.Conduit                 as Conduit
 import qualified Data.Conduit.Binary          as Conduit
 import qualified Data.List.NonEmpty           as NE
 import qualified Data.Sequence                as Seq
@@ -455,10 +456,9 @@ completeResumable r = do
     assembleLocal :: Seq S3Chunk -> ExceptT Error App ()
     assembleLocal chunks = do
         e <- view aws
-        man <- view httpManager
         let totalSize = fromIntegral (resumableTotalSize r)
         let chunkSize = calcChunkSize chunks
-        let reqBdy = Chunked $ ChunkedBody chunkSize totalSize (chunkSource man e chunks)
+        let reqBdy = Chunked $ ChunkedBody chunkSize totalSize (chunkSource e chunks)
         let putRq b = putObject (BucketName b) (ObjectKey (s3Key (mkKey ast))) reqBdy
                     & poContentType ?~ encodeMIMEType (resumableType r)
                     & poMetadata    .~ metaHeaders (resumableToken r) own
@@ -504,11 +504,10 @@ completeResumable r = do
             throwE $ uploadIncomplete (resumableTotalSize r) total
 
     -- Construct a 'Source' by downloading the chunks.
-    chunkSource :: Manager
-                -> AWS.Env
-                -> Seq S3Chunk
-                -> Source (ResourceT IO) ByteString
-    chunkSource man env cs = case Seq.viewl cs of
+    -- chunkSource :: AWS.Env
+    --             -> Seq S3Chunk
+    --             -> Source (ResourceT IO) ByteString
+    chunkSource env cs = case Seq.viewl cs of
         EmptyL  -> mempty
         c :< cc -> do
             let S3ChunkKey ck = mkChunkKey (resumableKey r) (chunkNr c)
@@ -516,7 +515,7 @@ completeResumable r = do
             let req = getObject (BucketName b) (ObjectKey ck)
             v <- lift $ AWS.execute env $ AWS.send req
                       >>= flip sinkBody Conduit.sinkLbs . view gorsBody
-            Conduit.yield (LBS.toStrict v) >> chunkSource man env cc
+            Conduit.yield (LBS.toStrict v) >> chunkSource env cc
 
 listChunks :: S3Resumable -> ExceptT Error App (Maybe (Seq S3Chunk))
 listChunks r = do

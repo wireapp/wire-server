@@ -87,7 +87,8 @@ testSimpleRoundtrip c = do
         uid2 <- liftIO $ Id <$> nextRandom
 
         -- Initial upload
-        let bdy = (applicationText, "Hello World")
+        let dat = C8.replicate 100000 'h'
+        let bdy = (applicationText, dat)
         r1 <- uploadSimple (c . path "/assets/v3") uid sets bdy <!!
             const 201 === statusCode
 
@@ -112,7 +113,7 @@ testSimpleRoundtrip c = do
             assertEqual "content-type mismatch" (Just applicationText) (getContentType r3)
             assertEqual "token mismatch" tok (decodeHeader "x-amz-meta-token" r3)
             assertEqual "user mismatch" uid (decodeHeader "x-amz-meta-user" r3)
-            assertEqual "data mismatch" (Just "Hello World") (responseBody r3)
+            assertEqual "data mismatch" (Just $ Lazy.fromStrict dat) (responseBody r3)
 
         -- Delete (forbidden for other users)
         deleteAsset c uid2 (view V3.assetKey ast) !!! const 403 === statusCode
@@ -204,7 +205,7 @@ testSimpleS3ClosedConnectionReuse c = go >> wait >> go
     go = do
         uid <- liftIO $ Id <$> nextRandom
         let sets  = V3.defAssetSettings & set V3.setAssetRetention (Just V3.AssetVolatile)
-        let part2 = (MIME.Type (MIME.Text "plain") [], C8.replicate 100000 'c')
+        let part2 = (MIME.Type (MIME.Text "plain") [], C8.replicate 1000 'c')
         uploadSimple (c . path "/assets/v3") uid sets part2 !!!
             const 201 === statusCode
 
@@ -333,7 +334,7 @@ uploadStepwise c u k s d = next 0 d
   where
     totalSize = fromIntegral (C8.length d)
     chunkSize = fromIntegral s
-    next pos dat = do 
+    next pos dat = do
         off <- uploadResumable c u k pos (C8.take chunkSize dat)
         unless (V3.offsetBytes off == totalSize) $ do
             off' <- getResumableStatus c u k
