@@ -13,13 +13,9 @@ module Gundeck.Push.Native.Fallback.Queue
     , drainQueue
     ) where
 
-import Control.Concurrent (threadDelay, forkIO)
+import Imports
 import Control.Concurrent.Async (Async, async)
-import Control.Monad
-import Control.Monad.IO.Class
 import Data.Id
-import Data.IORef
-import Data.Word (Word16)
 import Gundeck.Types.Notification
 import Gundeck.Util.DelayQueue (DelayQueue, Delay (..), Limit (..), Clock (..))
 

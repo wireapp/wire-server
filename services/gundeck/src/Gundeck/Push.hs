@@ -15,19 +15,16 @@ module Gundeck.Push
     , cancelFallback
     ) where
 
+import Imports
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async.Lifted.Safe (async, wait)
 import Control.Concurrent.Lifted (fork)
 import Control.Error
 import Control.Exception (ErrorCall(ErrorCall))
-import Control.Lens ((^.), (&), (.~), (%~), _2, view, set)
-import Control.Monad (when, unless, void)
+import Control.Lens ((^.), (.~), (%~), _2, view, set)
 import Control.Monad.Catch
-import Data.Foldable (toList, forM_, foldl')
 import Data.Id
-import Data.List (partition)
 import Data.List1 (List1, list1)
-import Data.Monoid
 import Data.Predicate ((:::)(..))
 import Data.Range
 import Gundeck.Aws (endpointUsers)

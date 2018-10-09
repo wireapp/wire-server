@@ -8,6 +8,7 @@ packages:
 - libs/cargohold-types
 - libs/cassandra-util
 - libs/extended
+- libs/imports
 - libs/galley-types
 - libs/gundeck-types
 - libs/ssl-util

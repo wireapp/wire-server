@@ -7,17 +7,14 @@
 
 module Proxy.API (Proxy.API.run) where
 
-import Control.Monad
+import Imports hiding (head)
+
 import Control.Monad.Catch
-import Control.Monad.IO.Class (liftIO, MonadIO)
-import Control.Concurrent (threadDelay)
 import Control.Lens hiding ((.=))
 import Control.Retry
-import Data.ByteString (ByteString, breakSubstring)
+import Data.ByteString (breakSubstring)
 import Data.CaseInsensitive (CI)
 import Data.Metrics.Middleware hiding (path)
-import Data.Monoid
-import Data.Text (Text)
 import Network.HTTP.ReverseProxy
 import Network.HTTP.Types
 import Network.Wai
@@ -27,7 +24,6 @@ import Network.Wai.Predicate.Request (getRequest)
 import Network.Wai.Routing hiding (path, route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Server hiding (serverPort)
-import Prelude hiding (head)
 import Proxy.Env
 import Proxy.Proxy
 import Proxy.Options

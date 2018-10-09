@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Imports
 import Proxy.API
 import Proxy.Options
 import Util.Options
