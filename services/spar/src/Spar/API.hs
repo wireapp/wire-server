@@ -97,7 +97,7 @@ authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
                                 *> SAML.getIdPConfig idpid
                                 *> return NoContent
 
-authreq :: NominalDiffTime -> ZUsr -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId
+authreq :: NominalDiffTime -> Maybe UserId -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId
         -> Spar (WithBindCookie (SAML.FormRedirect SAML.AuthnRequest))
 authreq authreqttl zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
@@ -110,7 +110,7 @@ authreq authreqttl zusr msucc merr idpid = do
 -- | Create bind cookie with 60 minutes life expectancy; *iff* the user is already authenticated,
 -- store it with the bind cookies.  If user already has a 'UserSSOId' (need to ask brig for that),
 -- throw an error.
-initializeBindCookie :: ZUsr -> SAML.IdPId -> NominalDiffTime -> Spar BindCookie
+initializeBindCookie :: Maybe UserId -> SAML.IdPId -> NominalDiffTime -> Spar BindCookie
 initializeBindCookie zusr idpid authreqttl = do
   path <- sparResponseURI idpid <&> URI.uriPath
   secret <- liftIO $ cs . ES.encode <$> randBytes 32
@@ -143,19 +143,19 @@ authresp cky = SAML.authresp sparRequestIssuer sparResponseURI $
   \resp verdict -> throwError . SAML.CustomServant =<< verdictHandler cky resp verdict
 
 
-idpGet :: ZUsr -> SAML.IdPId -> Spar IdP
+idpGet :: Maybe UserId -> SAML.IdPId -> Spar IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
   idp <- SAML.getIdPConfig idpid
   authorizeIdP zusr idp
   pure idp
 
-idpGetAll :: ZUsr -> Spar IdPList
+idpGetAll :: Maybe UserId -> Spar IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
   teamid <- getZUsrOwnedTeam zusr
   _idplProviders <- wrapMonadClientWithEnv $ Data.getIdPConfigsByTeam teamid
   pure IdPList{..}
 
-idpDelete :: ZUsr -> SAML.IdPId -> Spar NoContent
+idpDelete :: Maybe UserId -> SAML.IdPId -> Spar NoContent
 idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     idp <- SAML.getIdPConfig idpid
     authorizeIdP zusr idp
@@ -163,7 +163,7 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     return NoContent
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
-idpCreate :: ZUsr -> SAML.IdPMetadata -> Spar IdP
+idpCreate :: Maybe UserId -> SAML.IdPMetadata -> Spar IdP
 idpCreate zusr idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
   teamid <- getZUsrOwnedTeam zusr
   idp <- validateNewIdP idpmeta teamid
@@ -180,14 +180,14 @@ withDebugLog msg showval action = do
 
 -- | Called by get, put, delete handlers.
 authorizeIdP :: (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSparToBrig m)
-             => ZUsr -> IdP -> m ()
+             => Maybe UserId -> IdP -> m ()
 authorizeIdP zusr idp = do
   teamid <- getZUsrOwnedTeam zusr
   when (teamid /= idp ^. SAML.idpExtraInfo) $ throwSpar SparNotInTeam
 
 -- | Called by post handler, and by 'authorizeIdP'.
 getZUsrOwnedTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSparToBrig m)
-            => ZUsr -> m TeamId
+            => Maybe UserId -> m TeamId
 getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
 getZUsrOwnedTeam (Just uid) = do
   usr <- Intra.getUser uid

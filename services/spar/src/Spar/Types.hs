@@ -31,8 +31,6 @@ import qualified Data.Text as ST
 
 data Void
 
-type ZUsr = Maybe UserId
-
 type BindCookie = SimpleSetCookie "wire.com"
 
 -- | The identity provider type used in Spar.
