@@ -118,7 +118,7 @@ getUser buid = do
 bindUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> SAML.UserRef -> m ()
 bindUser uid (toUserSSOId -> ussoid) = void . call
   $ method PUT
-  . paths ["/i/users", toByteString' uid, "ssoid"]
+  . paths ["/i/users", toByteString' uid, "sso-id"]
   . json ussoid
   . expect2xx
 

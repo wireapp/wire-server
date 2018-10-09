@@ -54,6 +54,7 @@ import Spar.Options
 import Spar.Types
 
 import qualified Data.ByteString as SBS
+import qualified Data.ByteString.Base64 as ES
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
@@ -112,7 +113,7 @@ authreq authreqttl zusr msucc merr idpid = do
 initializeBindCookie :: ZUsr -> SAML.IdPId -> NominalDiffTime -> Spar BindCookie
 initializeBindCookie zusr idpid authreqttl = do
   path <- sparResponseURI idpid <&> URI.uriPath
-  secret <- liftIO $ cs <$> randBytes 32
+  secret <- liftIO $ cs . ES.encode <$> randBytes 32
   let msecret = if isJust zusr then Just secret else Nothing
       cky = SAML.toggleCookie path msecret
   forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl

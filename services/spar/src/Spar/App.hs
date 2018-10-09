@@ -163,6 +163,13 @@ createUser suid = do
   buid' <- Intra.createUser suid buid teamid
   assert (buid == buid') $ pure buid
 
+bindUser :: UserId -> SAML.UserRef -> Spar UserId
+bindUser buid userref = do
+  -- teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (userref ^. uidTenant)  -- TODO: bindUser should only work if the user is in the right team!
+  insertUser userref buid
+  Intra.bindUser buid userref
+  pure buid
+
 
 instance SPHandler SparError Spar where
   type NTCTX Spar = Env
@@ -211,16 +218,22 @@ verdictHandlerResult bindCky = \case
     SAML.logger SAML.Debug (show denied)
     pure $ VerifyHandlerDenied reasons
 
-  SAML.AccessGranted userref -> do
+  granted@(SAML.AccessGranted userref) -> do
     uid :: UserId <- do
+      SAML.logger SAML.Debug (show granted)
       fromBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
-      fromBrig       <- getUser userref
-      case (fromBindCookie, fromBrig) of
-        (Nothing,  Nothing)  -> createUser userref
-        (_,        Just uid) -> pure uid
-        (Just uid, Nothing)  -> Intra.bindUser uid userref >> pure uid
-        -- (if both bind cookie and sso user lookup are 'Just', it just means that the user
-        -- attempted an SSO login when already logged in.  point-, but also harmless.)
+      fromSparCass   <- getUser userref
+        -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
+        -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
+        -- idempotent.
+
+      case (fromBindCookie, fromSparCass) of
+        (Nothing,  Nothing)   -> createUser userref    -- first sso authentication
+        (Nothing,  Just uid)  -> pure uid              -- sso re-authentication
+        (Just uid, Nothing)   -> bindUser uid userref  -- bind existing user (non-sso or sso) to ssoid
+        (Just uid, Just uid')
+          | uid == uid'       -> pure uid              -- redundant binding (no change to brig or spar)
+          | otherwise         -> error "TODO: what now?"  -- attempt to use ssoid for a second wire user
 
     cky :: SetCookie <- Intra.ssoLogin uid  -- TODO: can this be a race condition?  (user is not
                                             -- quite created yet when we ask for a cookie?  do we do
