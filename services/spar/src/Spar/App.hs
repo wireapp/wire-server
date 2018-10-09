@@ -234,12 +234,12 @@ verdictHandlerResult bindCky = \case
         -- idempotent.
 
       case (fromBindCookie, fromSparCass) of
-        (Nothing,  Nothing)   -> createUser userref    -- first sso authentication
-        (Nothing,  Just uid)  -> pure uid              -- sso re-authentication
-        (Just uid, Nothing)   -> bindUser uid userref  -- bind existing user (non-sso or sso) to ssoid
+        (Nothing,  Nothing)   -> createUser userref      -- first sso authentication
+        (Nothing,  Just uid)  -> pure uid                -- sso re-authentication
+        (Just uid, Nothing)   -> bindUser uid userref    -- bind existing user (non-sso or sso) to ssoid
         (Just uid, Just uid')
-          | uid == uid'       -> pure uid              -- redundant binding (no change to brig or spar)
-          | otherwise         -> error "TODO: what now?"  -- attempt to use ssoid for a second wire user
+          | uid == uid' -> pure uid                      -- redundant binding (no change to brig or spar)
+          | otherwise -> throwSpar SparBindUserRefTaken  -- attempt to use ssoid for a second wire user
 
     cky :: SetCookie <- Intra.ssoLogin uid  -- TODO: can this be a race condition?  (user is not
                                             -- quite created yet when we ask for a cookie?  do we do

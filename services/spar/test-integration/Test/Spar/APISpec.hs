@@ -20,6 +20,7 @@ import Data.List (isInfixOf)
 import Data.Maybe
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
+import Data.UUID.V4 as UUID
 import Galley.Types.Teams as Galley
 import GHC.Stack
 import Lens.Micro
@@ -226,7 +227,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                              . expect2xx
                              )
 
-    let checkInitiateLogin :: forall m. m ~ TestSpar => m UserId -> m ()
+    let checkInitiateLogin :: HasCallStack => TestSpar UserId -> TestSpar ()
         checkInitiateLogin createUser = do
           let checkRespBody :: HasCallStack => ResponseLBS -> Bool
               checkRespBody (responseBody -> Just (cs -> bdy)) = all (`isInfixOf` bdy)
@@ -255,65 +256,121 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         it "responds with 2xx and bind cookie" $ do
           checkInitiateLogin loginSsoUserFirstTime
 
-    let checkFinalizeLogin :: forall m. m ~ TestSpar => m UserId -> m ()
-        checkFinalizeLogin createUser = do
-          env <- ask
-          uid <- createUser
-          (idp, privCreds, authnReq, Just bindCookie) <- do
-            (_, _, idp) <- createTestIdP
-            negotiateAuthnRequest' DoInitiateBind (Just idp) (header "Z-User" $ toByteString' uid)
-          spmeta <- getTestSPMetadata (idp ^. idpId)
-          authnResp <- liftIO $ mkAuthnResponse privCreds idp spmeta authnReq True
-          sparAuthnResp :: ResponseLBS
-            <- submitAuthnResponse' (header "Cookie" bindCookie) (idp ^. idpId) authnResp
-          liftIO $ do
-            (cs @_ @String . fromJust . responseBody $ sparAuthnResp)
-              `shouldContain` "<title>wire:sso:success</title>"
-            responseHeaders sparAuthnResp
-              `shouldSatisfy` (isJust . lookup "set-cookie")
+    describe "POST /sso/finalize-login/:idp" $ do
+      let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
+          checkGrantingAuthnResp uid spararesp aresp = do
+            liftIO $ do
+              (cs @_ @String . fromJust . responseBody $ aresp)
+                `shouldContain` "<title>wire:sso:success</title>"
+              responseHeaders aresp
+                `shouldSatisfy` (isJust . lookup "set-cookie")
 
-          ssoidViaAuthResp :: UserSSOId <- do
-            authnRespParsed :: AuthnResponse
-              <- either error pure . parseFromDocument $ fromSignedAuthnResponse authnResp
-            either error (pure . Intra.toUserSSOId) $ getUserRef authnRespParsed
+            ssoidViaAuthResp <- getSsoidViaAuthResp spararesp
+            ssoidViaSelf <- getSsoidViaSelf uid
 
-          ssoidViaSelf :: UserSSOId <- do
-            let probe :: m (Maybe UserSSOId)
-                probe = fmap getUserSSOId . call . get $
-                  ( (env ^. teBrig)
-                  . header "Z-User" (toByteString' uid)
-                  . path "/self"
-                  . expect2xx
-                  )
+            liftIO $ ('s', ssoidViaSelf) `shouldBe` ('s', ssoidViaAuthResp)
+            Just uidViaSpar <- ssoToUidSpar ssoidViaAuthResp
+            liftIO $ ('u', uidViaSpar) `shouldBe` ('u', uid)
 
-                getUserSSOId :: ResponseLBS -> Maybe UserSSOId
-                getUserSSOId (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
-                  = case userIdentity $ selfUser selfprof of
-                      Just (SSOIdentity ssoid _ _) -> Just ssoid
-                      Just (FullIdentity _ _)  -> Nothing
-                      Just (EmailIdentity _)   -> Nothing
-                      Just (PhoneIdentity _)   -> Nothing
-                      Nothing                  -> Nothing
-                getUserSSOId _ = Nothing
+          getSsoidViaAuthResp :: SignedAuthnResponse -> TestSpar UserSSOId
+          getSsoidViaAuthResp aresp = do
+            parsed :: AuthnResponse
+              <- either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
+            either error (pure . Intra.toUserSSOId) $ getUserRef parsed
 
+          getSsoidViaSelf :: UserId -> TestSpar UserSSOId
+          getSsoidViaSelf uid = do
+            env <- ask
             Just ssoid <- liftIO $ retrying
               (exponentialBackoff 50 <> limitRetries 5)
               (\_ -> pure . isNothing)
-              (\_ -> probe `runReaderT` env)
+              (\_ -> probe uid `runReaderT` env)
             pure ssoid
 
-          liftIO $ ('s', ssoidViaSelf) `shouldBe` ('s', ssoidViaAuthResp)
-          Just uidViaSpar <- ssoToUidSpar ssoidViaAuthResp
-          liftIO $ ('u', uidViaSpar) `shouldBe` ('u', uid)
+          probe :: UserId -> TestSpar (Maybe UserSSOId)
+          probe uid = do
+            env <- ask
+            fmap getUserSSOId . call . get $
+              ( (env ^. teBrig)
+              . header "Z-User" (toByteString' uid)
+              . path "/self"
+              . expect2xx
+              )
 
-    describe "POST /sso/finalize-login/:idp" $ do
-      context "AuthnResponse is fine, request contains bind cookie" $ do
-        it "Sends user back to the app and adds UserSSOId to brig user" $ do
-          checkFinalizeLogin (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+          getUserSSOId :: ResponseLBS -> Maybe UserSSOId
+          getUserSSOId (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
+            = case userIdentity $ selfUser selfprof of
+                Just (SSOIdentity ssoid _ _) -> Just ssoid
+                Just (FullIdentity _ _)  -> Nothing
+                Just (EmailIdentity _)   -> Nothing
+                Just (PhoneIdentity _)   -> Nothing
+                Nothing                  -> Nothing
+          getUserSSOId _ = Nothing
 
-      context "known IdP, running session with sso user" $ do
-        it "overwrites UserSSOId on both brig and spar" $ do
-          checkFinalizeLogin loginSsoUserFirstTime
+          initialBind :: UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
+          initialBind uid idp = do
+            subj <- SAML.opaqueNameID . UUID.toText <$> liftIO UUID.nextRandom
+            (authnResp, sparAuthnResp) <- reBindSame uid idp subj
+            pure (subj, authnResp, sparAuthnResp)
+
+          reBindSame :: UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
+          reBindSame uid idp subj = do
+            (_, privCreds, authnReq, Just bindCookie) <- do
+              negotiateAuthnRequest' DoInitiateBind (Just idp) (header "Z-User" $ toByteString' uid)
+            spmeta <- getTestSPMetadata (idp ^. idpId)
+            authnResp <- liftIO $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
+            sparAuthnResp :: ResponseLBS
+              <- submitAuthnResponse' (header "Cookie" bindCookie) (idp ^. idpId) authnResp
+            pure (authnResp, sparAuthnResp)
+
+          reBindDifferent :: UserId -> TestSpar (SignedAuthnResponse, ResponseLBS)
+          reBindDifferent uid = do
+            env <- ask
+            idp <- call . callIdpCreate (env ^. teSpar) (Just uid) =<< makeTestIdPMetadata
+            (_, authnResp, sparAuthnResp) <- initialBind uid idp
+            pure (authnResp, sparAuthnResp)
+
+
+      context "initial bind" $ do
+        it "allowed" $ do
+          (uid, _, idp)                 <- createTestIdP
+          (_, authnResp, sparAuthnResp) <- initialBind uid idp
+          checkGrantingAuthnResp uid authnResp sparAuthnResp
+
+      context "re-bind to same UserRef" $ do
+        it "allowed" $ do
+          (uid, _, idp)              <- createTestIdP
+          (subj, _, _)               <- initialBind uid idp
+          (authnResp, sparAuthnResp) <- reBindSame uid idp subj
+          checkGrantingAuthnResp uid authnResp sparAuthnResp
+
+      context "re-bind to new UserRef from different IdP" $ do
+        it "allowed" $ do
+          (uid, _, idp)              <- createTestIdP
+          _                          <- initialBind uid idp
+          (authnResp, sparAuthnResp) <- reBindDifferent uid
+          checkGrantingAuthnResp uid authnResp sparAuthnResp
+
+      context "bind to UserRef in use by other wire user" $ do
+        it "forbidden" $ do
+          env <- ask
+          (uid, teamid, idp) <- createTestIdP
+          (subj, _, _)       <- initialBind uid idp
+          uid'               <- let Just perms = newPermissions mempty mempty
+                                in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
+          (_, sparAuthnResp) <- reBindSame uid' idp subj
+          liftIO $ do
+            statusCode sparAuthnResp `shouldBe` 403
+            responseJSON sparAuthnResp `shouldBe` Right (TestErrorLabel "subject-id-taken")
+
+      context "bind to UserRef from different team" $ do
+        it "forbidden" $ do
+          (uid, _, _) <- createTestIdP
+          (_, _, idp) <- createTestIdP
+          (_, _, sparAuthnResp) <- initialBind uid idp
+          liftIO $ do
+            statusCode sparAuthnResp `shouldBe` 403
+            responseJSON sparAuthnResp `shouldBe` Right (TestErrorLabel "bad-team")
 
 
 -- | FUTUREWORK: this function deletes the test IdP from the test env.  (it should probably not do

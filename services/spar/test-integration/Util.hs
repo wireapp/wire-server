@@ -401,8 +401,7 @@ getTestSPMetadata idpid = do
 createTestIdP :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
               => m (UserId, TeamId, IdP)
 createTestIdP = do
-  issuer <- makeIssuer
-  let idpmeta = sampleIdPMetadata issuer [uri|http://requri.net/|]
+  idpmeta <- makeTestIdPMetadata
   env <- ask
   createTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
 
