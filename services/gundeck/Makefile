@@ -29,18 +29,18 @@ init:
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
+	stack install . --pedantic --test --bench --no-run-benchmarks --bench --no-run-benchmarks --local-bin-path=dist
 	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" ../../dist/
 	cp "$(shell stack path --dist-dir)/build/$(NAME)-bench/$(NAME)-bench" ../../dist/
 
 .PHONY: fast
 fast: init
-	stack install . --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 	cp "$(shell stack path --dist-dir)/build/$(NAME)-tests/$(NAME)-tests" ../../dist/
 
 .PHONY: compile
 compile:
-	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
+	stack build . --pedantic --test --bench --no-run-benchmarks --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: clean
 clean:
