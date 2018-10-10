@@ -123,8 +123,9 @@ initializeBindCookie zusr authreqttl = do
     domain <- let unwrap = maybe (throwError $ SAML.BadServerConfig "No domain in response URI") pure
               in URI.hostBS . URI.authorityHost <$> unwrap (URI.uriAuthority respuri)
     pure (path, domain)
-  secret <- liftIO $ cs . ES.encode <$> randBytes 32
-  let msecret = if isJust zusr then Just secret else Nothing
+  msecret <- if isJust zusr
+             then liftIO $ Just . cs . ES.encode <$> randBytes 32
+             else pure Nothing
   cky <- (SAML.toggleCookie path $ (, authreqttl) <$> msecret :: Spar BindCookie)
          <&> \(SAML.SimpleSetCookie raw) -> SAML.SimpleSetCookie raw { Cky.setCookieDomain = Just domain }
   forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
