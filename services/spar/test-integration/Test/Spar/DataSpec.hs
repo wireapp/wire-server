@@ -343,7 +343,7 @@ requestAccessVerdict isGranted mkAuthnReq = do
     raw <- mkAuthnReq idpid
     bdy <- maybe (error "authreq") pure $ responseBody raw
     either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
-  spmeta <- getTestSPMetadata idpid
+  spmeta <- getTestSPMetadata
   authnresp <- liftIO $ do
     let mk :: SAML.FormRedirect SAML.AuthnRequest -> IO SAML.AuthnResponse
         mk (SAML.FormRedirect _ req) = do

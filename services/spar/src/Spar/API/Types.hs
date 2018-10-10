@@ -90,7 +90,6 @@ type APIAuthResp
      = "finalize-login"
     :> Header "Cookie" BindCookie
        -- (SAML.APIAuthResp from here on, except for response)
-    :> Capture "idp" SAML.IdPId
     :> MultipartForm Mem SAML.AuthnResponseBody
     :> Post '[PlainText] Void
 
@@ -110,15 +109,11 @@ type APIINTERNAL
   :<|> "integration-tests" :> IntegrationTests
 
 
-sparRequestIssuer :: SAML.HasConfig m => SAML.IdPId -> m SAML.Issuer
-sparRequestIssuer = fmap SAML.Issuer <$> SAML.getSsoURI' p p
-  where
-    p = Proxy @("initiate-login" :> SAML.APIAuthReq)
-      -- we can't use the 'APIAuthReq' route here because it has extra query params that translate
-      -- into function arguments to 'safeLink', but 'SAML.getSsoURI'' does not support that.
+sparSPIssuer :: SAML.HasConfig m => m SAML.Issuer
+sparSPIssuer = SAML.Issuer <$> SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthResp)
 
-sparResponseURI :: SAML.HasConfig m => SAML.IdPId -> m URI.URI
-sparResponseURI = SAML.getSsoURI' (Proxy @APISSO) (Proxy @APIAuthResp)
+sparResponseURI :: SAML.HasConfig m => m URI.URI
+sparResponseURI = SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthResp)
 
 
 -- | Type families to convert spar's 'API' type into an "outside-world-view" API type

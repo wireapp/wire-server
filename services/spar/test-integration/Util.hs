@@ -388,10 +388,10 @@ makeTestIdPMetadata = do
   pure ((env ^. teIdP . idpMetadata) & edIssuer .~ issuer)
 
 
-getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => IdPId -> m SPMetadata
-getTestSPMetadata idpid = do
+getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m SPMetadata
+getTestSPMetadata = do
   env  <- ask
-  resp <- call . get $ (env ^. teSpar) . path (cs $ "/sso/metadata/" -/ idPIdToST idpid) . expect2xx
+  resp <- call . get $ (env ^. teSpar) . path "/sso/metadata" . expect2xx
   raw  <- maybe (crash_ "no body") (pure . cs) $ responseBody resp
   either (crash_ . show) pure (SAML.decode raw)
   where
@@ -415,8 +415,7 @@ createTestIdPFrom metadata mgr brig galley spar = do
 
 
 -- | A bind cookie is always sent, but if we do not want to send one, it looks like this:
--- "wire.com=; Path=/sso/finalize-login/0fc38390-8288-4a29-ad89-dd212af281a8; Expires=Thu,
--- 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure"
+-- "wire.com=; Path=/sso/finalize-login; Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure"
 isDeleteBindCookieHeader :: HasCallStack => Maybe SBS -> Bool
 isDeleteBindCookieHeader Nothing = True  -- we don't expect this, but it's ok if the implementation changes to it.
 isDeleteBindCookieHeader (Just txt)
@@ -464,25 +463,25 @@ negotiateAuthnRequest' (doInitiatePath -> doInit) midp modreq = do
 
 
 submitAuthnResponse :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-                    => IdPId -> SignedAuthnResponse -> m ResponseLBS
+                    => SignedAuthnResponse -> m ResponseLBS
 submitAuthnResponse = submitAuthnResponse' id
 
 submitAuthnResponse' :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-                    => (Request -> Request) -> IdPId -> SignedAuthnResponse -> m ResponseLBS
-submitAuthnResponse' reqmod idpid (SignedAuthnResponse authnresp) = do
+                    => (Request -> Request) -> SignedAuthnResponse -> m ResponseLBS
+submitAuthnResponse' reqmod (SignedAuthnResponse authnresp) = do
   env <- ask
   req :: Request
     <- formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
-  call $ post' req (reqmod . (env ^. teSpar) . path (cs $ "/sso/finalize-login/" -/ idPIdToST idpid))
+  call $ post' req (reqmod . (env ^. teSpar) . path "/sso/finalize-login/")
 
 
 loginSsoUserFirstTime :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => m UserId
 loginSsoUserFirstTime = do
   env <- ask
   (idp, privCreds, authnReq) <- negotiateAuthnRequest
-  spmeta <- getTestSPMetadata (idp ^. idpId)
+  spmeta <- getTestSPMetadata
   authnResp <- liftIO $ mkAuthnResponse privCreds idp spmeta authnReq True
-  sparAuthnResp <- submitAuthnResponse (idp ^. idpId) authnResp
+  sparAuthnResp <- submitAuthnResponse authnResp
   let wireCookie = maybe (error "no wire cookie") id . lookup "Set-Cookie" $ responseHeaders sparAuthnResp
 
   accessResp :: ResponseLBS <- call $

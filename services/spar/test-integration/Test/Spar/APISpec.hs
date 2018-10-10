@@ -75,7 +75,7 @@ specMetadata = do
     describe "metadata" $ do
       it "metadata" $ do
         env <- ask
-        get ((env ^. teSpar) . path "/sso/metadata/0d784c66-c1c6-11e8-9576-2bdb3c574a4d" . expect2xx)
+        get ((env ^. teSpar) . path "/sso/metadata" . expect2xx)
           `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                 [ "md:SPSSODescriptor"
                                 , "validUntil"
@@ -125,13 +125,13 @@ specInitiateLogin = do
 
 specFinalizeLogin :: SpecWith TestEnv
 specFinalizeLogin = do
-    describe "POST /sso/finalize-login/:idp" $ do
+    describe "POST /sso/finalize-login" $ do
       context "access denied" $ do
         it "responds with a very peculiar 'forbidden' HTTP response" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          spmeta <- getTestSPMetadata (idp ^. idpId)
+          spmeta <- getTestSPMetadata
           authnresp <- liftIO $ mkAuthnResponse privcreds idp spmeta authnreq False
-          sparresp <- submitAuthnResponse (idp ^. idpId) authnresp
+          sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             -- import Text.XML
             -- putStrLn $ unlines
@@ -153,9 +153,9 @@ specFinalizeLogin = do
       context "access granted" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          spmeta <- getTestSPMetadata (idp ^. idpId)
+          spmeta <- getTestSPMetadata
           authnresp <- liftIO $ mkAuthnResponse privcreds idp spmeta authnreq True
-          sparresp <- submitAuthnResponse (idp ^. idpId) authnresp
+          sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 200
             let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
@@ -182,14 +182,14 @@ specFinalizeLogin = do
       context "unknown IdP Issuer" $ do
         it "rejects" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          spmeta <- getTestSPMetadata (idp ^. idpId)
+          spmeta <- getTestSPMetadata
           authnresp <- liftIO $ mkAuthnResponse
             privcreds
             (idp & idpMetadata . edIssuer .~ Issuer [uri|http://unknown-issuer/|])
             spmeta
             authnreq
             True
-          sparresp <- submitAuthnResponse (idp ^. idpId) authnresp
+          sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 404
             responseJSON sparresp `shouldBe` Right (TestErrorLabel "not-found")
@@ -256,7 +256,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         it "responds with 2xx and bind cookie" $ do
           checkInitiateLogin loginSsoUserFirstTime
 
-    describe "POST /sso/finalize-login/:idp" $ do
+    describe "POST /sso/finalize-login" $ do
       let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
           checkGrantingAuthnResp uid spararesp aresp = do
             liftIO $ do
@@ -317,10 +317,10 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           reBindSame uid idp subj = do
             (_, privCreds, authnReq, Just bindCookie) <- do
               negotiateAuthnRequest' DoInitiateBind (Just idp) (header "Z-User" $ toByteString' uid)
-            spmeta <- getTestSPMetadata (idp ^. idpId)
+            spmeta <- getTestSPMetadata
             authnResp <- liftIO $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
             sparAuthnResp :: ResponseLBS
-              <- submitAuthnResponse' (header "Cookie" bindCookie) (idp ^. idpId) authnResp
+              <- submitAuthnResponse' (header "Cookie" bindCookie) authnResp
             pure (authnResp, sparAuthnResp)
 
           reBindDifferent :: UserId -> TestSpar (SignedAuthnResponse, ResponseLBS)
