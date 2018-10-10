@@ -12,6 +12,7 @@
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
@@ -118,7 +119,7 @@ initializeBindCookie zusr authreqttl = do
   path <- sparResponseURI <&> URI.uriPath
   secret <- liftIO $ cs . ES.encode <$> randBytes 32
   let msecret = if isJust zusr then Just secret else Nothing
-      cky = SAML.toggleCookie path msecret
+      cky = SAML.toggleCookie path $ (, authreqttl) <$> msecret
   forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
   pure cky
 
