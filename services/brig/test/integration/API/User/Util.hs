@@ -52,7 +52,6 @@ checkHandles brig uid hs num =
 -- Note: This actually _will_ send out an email so make sure we don't use any
 --       inexistent email addresses or ones that bounce! Perhaps we should
 --       ensure that the email used here has a domain 'simulator.amazonses.com'
--- TODO: register
 registerUser :: Text -> Text -> Brig -> Http ResponseLBS
 registerUser name email brig = do
     e <- mkEmailRandomLocalSuffix email
