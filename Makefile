@@ -89,10 +89,8 @@ DOCKER_DEV_VOLUMES := -v `pwd`:/src/wire-server
 DOCKER_DEV_IMAGE   := quay.io/wire/alpine-builder:local
 .PHONY: run-docker-builder
 run-docker-builder:
-	docker run -it $(DOCKER_DEV_NETWORK) $(DOCKER_DEV_VOLUMES) --rm $(DOCKER_DEV_IMAGE) /bin/bash || \
-	( echo "$(DOCKER_DEV_IMAGE) not found.  building locally.  hit ^C to interrupt." && \
-	  make -C build/alpine builder && \
-	  make $@ )
+	@echo "if this does not work, consider 'docker pull', 'docker tag', or 'make -C build-alpine builder'."
+	docker run -it $(DOCKER_DEV_NETWORK) $(DOCKER_DEV_VOLUMES) --rm $(DOCKER_DEV_IMAGE) /bin/bash
 
 #################################
 ## dependencies
