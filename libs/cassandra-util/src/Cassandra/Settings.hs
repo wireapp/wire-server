@@ -39,6 +39,10 @@ import Network.Wreq
 
 import qualified Data.List.NonEmpty as NE
 
+-- | This function is likely only useful at Wire, as it is AWS/describe-instances specific.
+-- Given a server name and a url returning a wire-custom "disco" json (AWS describe-instances-like json), e.g.
+-- { "roles" : { "server_name": [ {...}, {...} ] } },
+-- return a list of IP addresses.
 initialContactsDisco :: MonadIO m => String -> String -> m (NonEmpty String)
 initialContactsDisco (pack -> srv) url = liftIO $ do
     rs <- asValue =<< get url
@@ -57,6 +61,7 @@ initialContactsDisco (pack -> srv) url = liftIO $ do
         i:ii -> return (i :| ii)
         _    -> error "initial-contacts: no IP addresses found."
 
+-- | Given a DNS name or single IP, return a list of IP addresses.
 initialContactsDNS :: MonadIO m => Text -> m (NonEmpty String)
 initialContactsDNS address = liftIO $ do
     rs  <- makeResolvSeed defaultResolvConf
