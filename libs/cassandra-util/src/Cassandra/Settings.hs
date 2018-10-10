@@ -23,6 +23,7 @@ module Cassandra.Settings
     , setPolicy
     , initialContactsDisco
     , initialContactsDNS
+    , initialContactsPlain
     ) where
 
 import Control.Lens
@@ -39,9 +40,9 @@ import Network.Wreq
 
 import qualified Data.List.NonEmpty as NE
 
--- | This function is likely only useful at Wire, as it is AWS/describe-instances specific.
+-- | This function is likely only useful at Wire, as it is Wire-infra specific.
 -- Given a server name and a url returning a wire-custom "disco" json (AWS describe-instances-like json), e.g.
--- { "roles" : { "server_name": [ {...}, {...} ] } },
+-- { "roles" : { "server_name": [ {"privateIpAddress": "...", ...}, {...} ] } },
 -- return a list of IP addresses.
 initialContactsDisco :: MonadIO m => String -> String -> m (NonEmpty String)
 initialContactsDisco (pack -> srv) url = liftIO $ do
@@ -61,7 +62,7 @@ initialContactsDisco (pack -> srv) url = liftIO $ do
         i:ii -> return (i :| ii)
         _    -> error "initial-contacts: no IP addresses found."
 
--- | Given a DNS name or single IP, return a list of IP addresses.
+-- | Given a DNS name or single IP, resolve DNS and return a list of IP addresses.
 initialContactsDNS :: MonadIO m => Text -> m (NonEmpty String)
 initialContactsDNS address = liftIO $ do
     rs  <- makeResolvSeed defaultResolvConf
@@ -71,3 +72,7 @@ initialContactsDNS address = liftIO $ do
       _            -> fallback
   where
     fallback = unpack address :| [] -- If it's not a valid DNS name, just try using it anyway
+
+-- | Puts the address into a list using the same signature as the other initalContacts
+initialContactsPlain :: MonadIO m => Text -> m (NonEmpty String)
+initialContactsPlain address = liftIO $ unpack address :| []

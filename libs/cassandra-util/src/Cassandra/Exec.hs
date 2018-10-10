@@ -1,8 +1,6 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-{-# OPTIONS_GHC -Wno-orphans #-} -- for MonadUnliftIO Client
-
 module Cassandra.Exec
     ( Client
     , MonadClient    (..)
@@ -111,8 +109,3 @@ paginateC q p r = go =<< lift (retry r (paginate q p))
             yield (result page)
         when (hasMore page) $
             go =<< lift (retry r (liftClient (nextPage page)))
-
-instance MonadUnliftIO Client where
-    askUnliftIO = do
-        env <- ask
-        pure $ UnliftIO (runClient env)
