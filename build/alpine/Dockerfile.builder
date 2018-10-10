@@ -19,6 +19,6 @@ RUN apk add --no-cache git ncurses && \
     git clone -b develop https://github.com/wireapp/wire-server.git && \
     cd wire-server && \
     stack update && \
-    echo -e "allow-different-user: true\n" >> /root/.stack/config.yaml && \
+    echo -e "allow-different-user: true\nwork-dir: .stack-docker\n" >> /root/.stack/config.yaml && \
     stack --work-dir .stack-docker-profile build --pedantic --haddock --test --dependencies-only --no-run-tests --profile && \
     stack --work-dir .stack-docker         build --pedantic --haddock --test --dependencies-only --no-run-tests
