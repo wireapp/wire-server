@@ -27,7 +27,6 @@ import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import GHC.Stack (HasCallStack)
-import System.Random (randomIO)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
@@ -138,12 +137,11 @@ testHandleLogin brig = do
     let l = PasswordLogin (LoginByHandle (Handle hdl)) defPassword Nothing
     login brig l PersistentCookie !!! const 200 === statusCode
 
+-- | Check that local part after @+@ is ignored by equality on email addresses if the domain is
+-- untrusted.
 testLoginUntrustedDomain :: Brig -> Http ()
 testLoginUntrustedDomain brig = do
-    -- NOTE: local part cannot be longer than 64 octets
-    rd <- liftIO (randomIO :: IO Integer)
-    let email = (Text.pack $ show rd) <> "@zinfra.io"
-    Just (Email loc dom) <- userEmail <$> createUser "Homer" email brig
+    Just (Email loc dom) <- userEmail <$> createUserUntrustedEmail "Homer" brig
     -- login without "+" suffix
     let email' = Email (Text.takeWhile (/= '+') loc) dom
     login brig (defEmailLogin email') PersistentCookie !!!

@@ -240,7 +240,7 @@ testPasswordResetProvider db brig = do
 
 testPasswordResetAfterEmailUpdateProvider :: DB.ClientState -> Brig -> Http ()
 testPasswordResetAfterEmailUpdateProvider db brig = do
-    newEmail <- mkSimulatorEmail "success"
+    newEmail <- randomEmail
     prv <- randomProvider db brig
     let pid = providerId prv
     let origEmail = providerEmail prv
@@ -478,8 +478,8 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
     let sid = sref^.serviceRefId
 
     -- Create a conversation
-    u1 <- createUser "Ernie" "success@simulator.amazonses.com" brig
-    u2 <- createUser "Bert"  "success@simulator.amazonses.com" brig
+    u1 <- createUser "Ernie" brig
+    u2 <- createUser "Bert"  brig
     let uid1 = userId u1
     let uid2 = userId u2
     postConnection brig uid1 uid2 !!! const 201 === statusCode
@@ -517,8 +517,8 @@ testAddRemoveBot config db brig galley cannon = withTestService config db brig d
     let sid = sref^.serviceRefId
 
     -- Prepare users
-    u1 <- createUser "Ernie" "success@simulator.amazonses.com" brig
-    u2 <- createUser "Bert"  "success@simulator.amazonses.com" brig
+    u1 <- createUser "Ernie" brig
+    u2 <- createUser "Bert"  brig
     let uid1 = userId u1
     let uid2 = userId u2
     h <- randomHandle
@@ -540,7 +540,7 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
     let sid = sref^.serviceRefId
 
     -- Prepare user with client
-    usr <- createUser "User" "success@simulator.amazonses.com" brig
+    usr <- createUser "User" brig
     let uid = userId usr
     let new = defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0)
     _rs <- addClient brig uid new <!! const 201 === statusCode
@@ -564,7 +564,7 @@ testBadFingerprint config db brig galley _cannon = do
         let pid = sref^.serviceRefProvider
         let sid = sref^.serviceRefId
         -- Prepare user with client
-        usr <- createUser "User" "success@simulator.amazonses.com" brig
+        usr <- createUser "User" brig
         let uid = userId usr
         let new = defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0)
         _rs <- addClient brig uid new <!! const 201 === statusCode
@@ -1291,7 +1291,7 @@ lookupCode db gen = liftIO . DB.runClient db . Code.lookup (Code.genKey gen)
 -- an internal endpoint
 testRegisterProvider :: Maybe DB.ClientState -> Brig -> Http ()
 testRegisterProvider db' brig = do
-    email <- mkSimulatorEmail "success"
+    email <- randomEmail
 
     let new = defNewProvider email
 
@@ -1352,7 +1352,7 @@ testRegisterProvider db' brig = do
 
 randomProvider :: HasCallStack => DB.ClientState -> Brig -> Http Provider
 randomProvider db brig = do
-    email <- mkSimulatorEmail "success"
+    email <- randomEmail
     gen   <- Code.mkGen (Code.ForEmail email)
     -- Register
     let new = defNewProvider email

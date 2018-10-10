@@ -562,13 +562,13 @@ testCreateUserInternalSSO brig galley = do
     let ssoid = UserSSOId "nil" "nil"
 
     -- creating users requires both sso_id and team_id
-    postUser' False "dummy" (Just "success@simulator.amazonses.com") Nothing (Just ssoid) Nothing brig
+    postUser' False "dummy" True False (Just ssoid) Nothing brig
         !!! const 400 === statusCode
-    postUser' False "dummy" (Just "success@simulator.amazonses.com") Nothing Nothing (Just teamid) brig
+    postUser' False "dummy" True False Nothing (Just teamid) brig
         !!! const 400 === statusCode
 
     -- creating user with sso_id, team_id is ok
-    resp <- postUser "dummy" (Just "success@simulator.amazonses.com") Nothing (Just ssoid) (Just teamid) brig <!! do
+    resp <- postUser "dummy" True False (Just ssoid) (Just teamid) brig <!! do
         const 201 === statusCode
         const (Just ssoid) === (userSSOId . selfUser <=< decodeBody)
 
@@ -595,10 +595,8 @@ testDeleteUserSSO brig galley = do
     let ssoid = UserSSOId "nil" "nil"
         mkuser :: Bool -> Http (Maybe User)
         mkuser withemail = decodeBody <$>
-            (postUser "dummy" email Nothing (Just ssoid) (Just tid) brig
+            (postUser "dummy" withemail False (Just ssoid) (Just tid) brig
              <!! const 201 === statusCode)
-          where
-            email = if withemail then Just "success@simulator.amazonses.com" else Nothing
 
     -- create and delete sso user (with email)
     Just (userId -> user1) <- mkuser True
