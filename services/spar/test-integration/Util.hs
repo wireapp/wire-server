@@ -195,7 +195,7 @@ createTeamMember brigreq galleyreq teamid perms = do
   name  <- randomtxt
   ssoid <- randomssoid
   resp :: ResponseLBS
-    <- postUser name Nothing (Just ssoid) (Just teamid) brigreq
+    <- postUser name False (Just ssoid) (Just teamid) brigreq
        <!! const 201 === statusCode
   let nobody :: UserId            = Brig.userId (decodeBody' @Brig.User resp)
       tmem   :: Galley.TeamMember = Galley.newTeamMember nobody perms
@@ -273,22 +273,23 @@ randomPhone = liftIO $ do
 randomUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m Brig.User
 randomUser brig_ = do
     n <- cs . UUID.toString <$> liftIO UUID.nextRandom
-    createUser n "success@simulator.amazonses.com" brig_
+    createUser n brig_
 
 createUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
-           => ST -> ST -> BrigReq -> m Brig.User
-createUser name email brig_ = do
-    r <- postUser name (Just email) Nothing Nothing brig_ <!! const 201 === statusCode
+           => ST -> BrigReq -> m Brig.User
+createUser name brig_ = do
+    r <- postUser name True Nothing Nothing brig_ <!! const 201 === statusCode
     return $ decodeBody' r
 
--- more flexible variant of 'createUser' (see above).
+-- more flexible variant of 'createUser' (see above).  (check the variant that brig has before you
+-- clone this again!)
 postUser :: (HasCallStack, MonadIO m, MonadHttp m)
-         => ST -> Maybe ST -> Maybe Brig.UserSSOId -> Maybe TeamId -> BrigReq -> m ResponseLBS
-postUser name email ssoid teamid brig_ = do
-    email' <- maybe (pure Nothing) (fmap (Just . Brig.fromEmail) . mkEmailRandomLocalSuffix) email
+         => ST -> Bool -> Maybe Brig.UserSSOId -> Maybe TeamId -> BrigReq -> m ResponseLBS
+postUser name haveEmail ssoid teamid brig_ = do
+    email <- if haveEmail then Just <$> randomEmail else pure Nothing
     let p = RequestBodyLBS . Aeson.encode $ object
             [ "name"            .= name
-            , "email"           .= email'
+            , "email"           .= email
             , "password"        .= defPassword
             , "cookie"          .= defCookieLabel
             , "sso_id"          .= ssoid
@@ -301,13 +302,6 @@ defPassword = PlainTextPassword "secret"
 
 defCookieLabel :: Brig.CookieLabel
 defCookieLabel = Brig.CookieLabel "auth"
-
-mkEmailRandomLocalSuffix :: MonadIO m => ST -> m Brig.Email
-mkEmailRandomLocalSuffix e = do
-    uid <- liftIO UUID.nextRandom
-    case Brig.parseEmail e of
-        Just (Brig.Email loc dom) -> return $ Brig.Email (loc <> "+" <> UUID.toText uid) dom
-        Nothing              -> fail $ "Invalid email address: " ++ cs e
 
 getActivationCode :: (HasCallStack, MonadIO m, MonadHttp m)
                   => BrigReq -> Either Brig.Email Brig.Phone -> m (Maybe (Brig.ActivationKey, Brig.ActivationCode))
