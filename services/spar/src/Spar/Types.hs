@@ -31,7 +31,7 @@ import qualified Data.Text as ST
 
 data Void
 
-type BindCookie = SimpleSetCookie "wire.com"
+type BindCookie = SimpleSetCookie "zbind"
 
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig TeamId

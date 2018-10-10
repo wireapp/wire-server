@@ -1419,7 +1419,7 @@ updateSSOId :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
 updateSSOId (uid ::: _ ::: _ ::: req) = do
     ssoid :: UserSSOId <- parseJsonBody req
     lift $ Data.updateSSOId uid ssoid
-    return (setStatus status200 empty)
+    return empty
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response
 deleteUser (u ::: r ::: _ ::: _) = do

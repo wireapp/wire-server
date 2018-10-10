@@ -419,7 +419,7 @@ createTestIdPFrom metadata mgr brig galley spar = do
 isDeleteBindCookieHeader :: HasCallStack => Maybe SBS -> Bool
 isDeleteBindCookieHeader Nothing = True  -- we don't expect this, but it's ok if the implementation changes to it.
 isDeleteBindCookieHeader (Just txt)
-  | "Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure" `SBS.isInfixOf` txt = True
+  | "Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1" `SBS.isInfixOf` txt = True
   | otherwise = error $ "unexpected bind cookie: " <> show txt
 
 hasDeleteBindCookieHeader :: HasCallStack => Bilge.Response a -> Bool
@@ -428,7 +428,7 @@ hasDeleteBindCookieHeader = isDeleteBindCookieHeader . lookup "Set-Cookie" . res
 isSetBindCookieHeader :: HasCallStack => Maybe SBS -> Bool
 isSetBindCookieHeader Nothing = False
 isSetBindCookieHeader (Just (Web.parseSetCookie -> cky)) = and
-  [ Web.setCookieName cky == "wire.com"
+  [ Web.setCookieName cky == "zbind"
   , maybe False ("/sso/finalize-login" `SBS.isPrefixOf`) $ Web.setCookiePath cky
   , Web.setCookieSecure cky
   , Web.setCookieSameSite cky == Just Web.sameSiteStrict

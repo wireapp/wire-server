@@ -60,6 +60,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified URI.ByteString as URI
+import qualified Web.Cookie as Cky
 
 
 app :: Env -> Application
@@ -116,10 +117,16 @@ authreq authreqttl _ zusr msucc merr idpid = do
 -- throw an error.
 initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar BindCookie
 initializeBindCookie zusr authreqttl = do
-  path <- sparResponseURI <&> URI.uriPath
+  (path, domain) <- do
+    respuri <- sparResponseURI
+    let path = URI.uriPath respuri
+    domain <- let unwrap = maybe (throwError $ SAML.BadServerConfig "No domain in response URI") pure
+              in URI.hostBS . URI.authorityHost <$> unwrap (URI.uriAuthority respuri)
+    pure (path, domain)
   secret <- liftIO $ cs . ES.encode <$> randBytes 32
   let msecret = if isJust zusr then Just secret else Nothing
-      cky = SAML.toggleCookie path $ (, authreqttl) <$> msecret
+  cky <- (SAML.toggleCookie path $ (, authreqttl) <$> msecret :: Spar BindCookie)
+         <&> \(SAML.SimpleSetCookie raw) -> SAML.SimpleSetCookie raw { Cky.setCookieDomain = Just domain }
   forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
   pure cky
 
