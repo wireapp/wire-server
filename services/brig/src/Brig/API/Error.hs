@@ -49,15 +49,15 @@ connError NotConnected{}                = StdError notConnected
 connError InvalidUser{}                 = StdError invalidUser
 connError ConnectNoIdentity{}           = StdError noIdentity
 connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
-connError ConnectInvalidEmail{}         = StdError invalidEmail
+connError (ConnectInvalidEmail _ _)     = StdError invalidEmail
 connError ConnectInvalidPhone{}         = StdError invalidPhone
 connError ConnectSameBindingTeamUsers   = StdError sameBindingTeamUsers
 
 actError :: ActivationError -> Error
-actError (UserKeyExists          _) = StdError userKeyExists
-actError (InvalidActivationCode  e) = StdError (invalidActivationCode e)
-actError (InvalidActivationEmail _) = StdError invalidEmail
-actError (InvalidActivationPhone _) = StdError invalidPhone
+actError (UserKeyExists          _)   = StdError userKeyExists
+actError (InvalidActivationCode  e)   = StdError (invalidActivationCode e)
+actError (InvalidActivationEmail _ _) = StdError invalidEmail
+actError (InvalidActivationPhone _)   = StdError invalidPhone
 
 pwResetError :: PasswordResetError -> Error
 pwResetError InvalidPasswordResetKey            = StdError invalidPwResetKey
@@ -69,7 +69,7 @@ pwResetError (PasswordResetInProgress (Just t)) = RichError duplicatePwResetCode
 newUserError :: CreateUserError -> Error
 newUserError InvalidInvitationCode    = StdError invalidInvitationCode
 newUserError MissingIdentity          = StdError missingIdentity
-newUserError (InvalidEmail _)         = StdError invalidEmail
+newUserError (InvalidEmail _ _)       = StdError invalidEmail
 newUserError (InvalidPhone _)         = StdError invalidPhone
 newUserError (DuplicateUserKey _)     = StdError userKeyExists
 newUserError (EmailActivationError e) = actError e
@@ -87,7 +87,7 @@ sendActCodeError (UserKeyInUse     _)             = StdError userKeyExists
 sendActCodeError (ActivationBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const blacklistedPhone) k
 
 changeEmailError :: ChangeEmailError -> Error
-changeEmailError (InvalidNewEmail        _) = StdError invalidEmail
+changeEmailError (InvalidNewEmail      _ _) = StdError invalidEmail
 changeEmailError (EmailExists            _) = StdError userKeyExists
 changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
 

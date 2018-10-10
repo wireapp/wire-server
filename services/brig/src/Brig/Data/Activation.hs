@@ -54,7 +54,7 @@ data Activation = Activation
 data ActivationError
     = UserKeyExists          !LT.Text
     | InvalidActivationCode  !LT.Text
-    | InvalidActivationEmail !Email
+    | InvalidActivationEmail !Email !String
     | InvalidActivationPhone !Phone
 
 data ActivationEvent

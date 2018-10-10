@@ -69,7 +69,7 @@ data CreateUserError
     | MissingIdentity
     | EmailActivationError ActivationError
     | PhoneActivationError ActivationError
-    | InvalidEmail Email
+    | InvalidEmail Email String
     | InvalidPhone Phone
     | DuplicateUserKey UserKey
     | BlacklistedUserKey UserKey
@@ -95,7 +95,7 @@ data ConnectionError
         -- no verified user identity.
     | ConnectBlacklistedUserKey UserKey
         -- ^ An attempt at creating an invitation to a blacklisted user key.
-    | ConnectInvalidEmail Email
+    | ConnectInvalidEmail Email String
         -- ^ An attempt at creating an invitation to an invalid email address.
     | ConnectInvalidPhone Phone
         -- ^ An attempt at creating an invitation to an invalid phone nbumber.
@@ -123,7 +123,7 @@ data ChangePhoneError
     | InvalidNewPhone !Phone
 
 data ChangeEmailError
-    = InvalidNewEmail !Email
+    = InvalidNewEmail !Email !String
     | EmailExists !Email
     | ChangeBlacklistedEmail !Email
 
