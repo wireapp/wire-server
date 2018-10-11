@@ -116,12 +116,14 @@ getUser buid = do
     else Just . selfUser <$> parseResponse @SelfProfile resp
 
 
-bindUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> SAML.UserRef -> m ()
-bindUser uid (toUserSSOId -> ussoid) = void . call
-  $ method PUT
-  . paths ["/i/users", toByteString' uid, "sso-id"]
-  . json ussoid
-  . expect2xx
+-- | This works under the assumption that the user must exist on brig.  If it does not, brig
+-- responds with 404 and this function returns 'False'.
+bindUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool
+bindUser uid (toUserSSOId -> ussoid) = do
+  resp <- call $ method PUT
+    . paths ["/i/users", toByteString' uid, "sso-id"]
+    . json ussoid
+  pure $ Bilge.statusCode resp < 300
 
 
 -- | Check that a user id exists on brig and has a team id.

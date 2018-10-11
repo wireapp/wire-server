@@ -172,8 +172,9 @@ bindUser buid userref = do
   unless (uteamid == Just teamid)
     (throwSpar . SparBindFromWrongOrNoTeam . cs . show $ uteamid)
   insertUser userref buid
-  Intra.bindUser buid userref
-  pure buid
+  Intra.bindUser buid userref >>= \case
+    True  -> pure buid
+    False -> throwSpar SparBindUserDisappearedFromBrig
 
 
 instance SPHandler SparError Spar where

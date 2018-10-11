@@ -201,8 +201,14 @@ updateEmail u e = retry x5 $ write userEmailUpdate (params Quorum (e, u))
 updatePhone :: UserId -> Phone -> AppIO ()
 updatePhone u p = retry x5 $ write userPhoneUpdate (params Quorum (p, u))
 
-updateSSOId :: UserId -> UserSSOId -> AppIO ()
-updateSSOId u ssoid = retry x5 $ write userSSOIdUpdate (params Quorum (ssoid, u))
+updateSSOId :: UserId -> UserSSOId -> AppIO Bool
+updateSSOId u ssoid = do
+  mteamid <- lookupUserTeam u
+  case mteamid of
+    Just _ -> do
+      retry x5 $ write userSSOIdUpdate (params Quorum (ssoid, u))
+      pure True
+    Nothing -> pure False
 
 updateHandle :: UserId -> Handle -> AppIO ()
 updateHandle u h = retry x5 $ write userHandleUpdate (params Quorum (h, u))

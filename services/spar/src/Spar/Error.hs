@@ -33,6 +33,7 @@ data SparCustomError
   | SparNotTeamOwner
   | SparInitLoginWithAuth
   | SparInitBindWithoutAuth
+  | SparBindUserDisappearedFromBrig
 
   | SparNoRequestRefInResponse LT
   | SparCouldNotSubstituteSuccessURI LT
@@ -89,6 +90,7 @@ sparToWaiError (SAML.CustomError SparNotInTeam)                           = Righ
 sparToWaiError (SAML.CustomError SparNotTeamOwner)                        = Right $ Wai.Error status403 "insufficient-permissions" "You need to be team owner to create an IdP."
 sparToWaiError (SAML.CustomError SparInitLoginWithAuth)                   = Right $ Wai.Error status403 "login-with-auth" "This end-point is only for login, not binding."
 sparToWaiError (SAML.CustomError SparInitBindWithoutAuth)                 = Right $ Wai.Error status403 "bind-without-auth" "This end-point is only for binding, not login."
+sparToWaiError (SAML.CustomError SparBindUserDisappearedFromBrig)         = Right $ Wai.Error status404 "bind-user-disappeared" "Your user appears to have been deleted?"
 sparToWaiError SAML.UnknownError                                          = Right $ Wai.Error status500 "server-error" "Unknown server error."
 sparToWaiError (SAML.BadServerConfig msg)                                 = Right $ Wai.Error status500 "server-error" ("Error in server config: " <> msg)
 -- Errors related to IdP creation

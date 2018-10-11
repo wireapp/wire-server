@@ -1418,8 +1418,10 @@ isTeamOwner (uid ::: tid) = do
 updateSSOId :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
 updateSSOId (uid ::: _ ::: _ ::: req) = do
     ssoid :: UserSSOId <- parseJsonBody req
-    lift $ Data.updateSSOId uid ssoid
-    return empty
+    status <- lift $ Data.updateSSOId uid ssoid
+    if status
+      then return empty
+      else return $ setStatus status404 empty
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response
 deleteUser (u ::: r ::: _ ::: _) = do
