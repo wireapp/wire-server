@@ -20,3 +20,38 @@ for service in "${services[@]}"; do
     yq r "${DIR}/integration-aws.yaml" "${service}" > "/tmp/${service}-aws.yaml"
     yq m -a "/tmp/${service}-aws.yaml" "${DIR}/${service}/${service}.integration.yaml" > "${DIR}/${service}/${service}.integration-aws.yaml"
 done
+
+# Example of what the integration-aws.yaml could look like
+# brig:
+#   aws:
+#     userJournalQueue: <queue_name>.fifo
+#     prekeyTable: <table_name>
+#     sqsEndpoint: https://sqs.eu-west-1.amazonaws.com
+#     dynamoDBEndpoint: https://dynamodb.eu-west-1.amazonaws.com
+#   internalEvents:
+#     queueType: sqs
+#     queueName: <queue_name>
+#   emailSMS:
+#     email:
+#       sesQueue: <queue_name>
+#       sesEndpoint: https://email.eu-west-1.amazonaws.com
+#
+# cargohold:
+#   aws:
+#     s3Bucket: <bucket_name>
+#     s3Endpoint: https://s3.eu-west-1.amazonaws.com
+#
+# galley:
+#   journal:
+#     queueName: <queue_name>.fifo
+#     endpoint: https://sqs.eu-west-1.amazonaws.com
+#     region: eu-west-1
+#
+# gundeck:
+#   aws:
+#     queueName: integration-gundeck-events
+#     region: eu-west-1
+#     account: "<account_nr>"
+#     arnEnv: <some_arn_env>
+#     sqsEndpoint: https://sqs.eu-west-1.amazonaws.com
+#     snsEndpoint: https://sns.eu-west-1.amazonaws.com
