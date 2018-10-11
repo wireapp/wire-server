@@ -8,7 +8,7 @@ set -e
 #
 # Usage:
 #   register_idp.sh idp-metadata.xml
-#   WIRE_TRACE=1 WIRE_BACKEND=prod-nginz-https.wire.com register_idp.sh idp-metadata.xml
+#   WIRE_TRACE=1 WIRE_BACKEND=our-wire-backend.example.com register_idp.sh idp-metadata.xml
 #
 # the script will prompt you for your wire login and password.  your
 # user needs to be a team admin, and the idp will be registered with
@@ -24,7 +24,7 @@ fi
 if [ -n "$WIRE_BACKEND" ]; then
     backend="$WIRE_BACKEND"
 else
-    backend="prod-nginz-https.wire.com"
+    backend="localhost:8080"
 fi
 
 if [ "$WIRE_TRACE" == "1" ]; then
