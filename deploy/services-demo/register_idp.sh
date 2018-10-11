@@ -54,7 +54,7 @@ fi
 
 payload="{\"email\":\"$login\",\"password\":\"$password\"}"
 test -n "$trace" && echo "$curl_exe -is --show-error -XPOST https://$backend/login -H'Content-type: application/json' -d$payload"
-access_token=$($curl_exe -s --show-error -XPOST https://$backend/login -H'Content-type: application/json' -d$payload | jq -r .access_token)
+access_token=$($curl_exe -s --show-error -XPOST https://$backend/login -H'Content-type: application/json' -d$payload | $jq_exe -r .access_token)
 
 # register idp
 test -n "$trace" && echo "$curl_exe -is --show-error -XPOST https://$backend/identity-providers -H\"Authorization: Bearer $access_token\" -H'Content-type: application/xml' -d@\"$metadata_file\""
