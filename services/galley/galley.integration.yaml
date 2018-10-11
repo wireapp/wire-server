@@ -32,6 +32,5 @@ settings:
 #
 #journal: # if set, journals; if not set, disables journaling
 #  queueName: integration-team-events.fifo
-#   endpoint: https://sqs.eu-west-1.amazonaws.com
-#  endpoint: http://localhost:4568
+#  endpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
 #  region: eu-west-1
