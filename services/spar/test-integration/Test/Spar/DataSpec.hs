@@ -29,7 +29,7 @@ import Spar.API.Types
 import Spar.API.Instances ()
 import Spar.API.Test (IntegrationTests)
 import Spar.Data as Data
-import Spar.Options as Options
+import Spar.Types
 import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util

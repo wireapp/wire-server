@@ -86,7 +86,6 @@ import SAML2.WebSSO
 import SAML2.WebSSO.Test.Credentials
 import SAML2.WebSSO.Test.MockResponse
 import Spar.API.Types
-import Spar.Options as Options
 import Spar.Run
 import Spar.Types
 import System.Random (randomRIO)

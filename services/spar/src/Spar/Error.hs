@@ -15,7 +15,7 @@ import Data.Aeson
 import Data.String.Conversions
 import Network.HTTP.Types.Status
 import Servant
-import Spar.Options (TTLError)
+import Spar.Types (TTLError)
 
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML

@@ -315,12 +315,12 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
           reBindSame :: UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
           reBindSame uid idp subj = do
-            (_, privCreds, authnReq, Just bindCookie) <- do
+            (_, privCreds, authnReq, Just bindCky) <- do
               negotiateAuthnRequest' DoInitiateBind (Just idp) (header "Z-User" $ toByteString' uid)
             spmeta <- getTestSPMetadata
             authnResp <- liftIO $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
             sparAuthnResp :: ResponseLBS
-              <- submitAuthnResponse' (header "Cookie" bindCookie) authnResp
+              <- submitAuthnResponse' (header "Cookie" bindCky) authnResp
             pure (authnResp, sparAuthnResp)
 
           reBindDifferent :: UserId -> TestSpar (SignedAuthnResponse, ResponseLBS)

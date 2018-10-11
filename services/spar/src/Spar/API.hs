@@ -35,6 +35,7 @@ module Spar.API
 
 import Brig.Types.User as Brig
 import Control.Monad.Except
+import Control.Monad.Reader
 import Data.Id
 import Data.Maybe (isJust, fromJust)
 import Data.Proxy
@@ -51,7 +52,6 @@ import Spar.API.Test
 import Spar.API.Types
 import Spar.App
 import Spar.Error
-import Spar.Options
 import Spar.Types
 
 import qualified Data.ByteString as SBS
@@ -117,12 +117,7 @@ authreq authreqttl _ zusr msucc merr idpid = do
 -- throw an error.
 initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar BindCookie
 initializeBindCookie zusr authreqttl = do
-  (path, domain) <- do
-    respuri <- sparResponseURI
-    let path = URI.uriPath respuri
-    domain <- let unwrap = maybe (throwError $ SAML.BadServerConfig "No domain in response URI") pure
-              in URI.hostBS . URI.authorityHost <$> unwrap (URI.uriAuthority respuri)
-    pure (path, domain)
+  DerivedOpts path domain <- asks (derivedOpts . sparCtxOpts)
   msecret <- if isJust zusr
              then liftIO $ Just . cs . ES.encode <$> randBytes 32
              else pure Nothing

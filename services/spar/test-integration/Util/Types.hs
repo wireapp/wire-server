@@ -49,7 +49,6 @@ import GHC.Generics (Generic)
 import Lens.Micro.TH
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
-import Spar.Options as Options
 import Spar.Types
 import Util.Options
 

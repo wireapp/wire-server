@@ -36,7 +36,6 @@ import Servant
 import Spar.API.Instances ()
 import Spar.API.Swagger ()
 import Spar.Error
-import Spar.Options as Options
 import Spar.Types
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)

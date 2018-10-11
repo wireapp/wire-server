@@ -49,7 +49,6 @@ import GHC.Stack
 import GHC.TypeLits (KnownSymbol)
 import Lens.Micro
 import Spar.Data.Instances (VerdictFormatRow, VerdictFormatCon, fromVerdictFormat, toVerdictFormat)
-import Spar.Options as Options
 import Spar.Types
 import URI.ByteString
 
@@ -73,11 +72,11 @@ data Env = Env
   }
   deriving (Eq, Show)
 
-mkEnv :: Options.Opts -> UTCTime -> Env
+mkEnv :: Opts -> UTCTime -> Env
 mkEnv opts now =
   Env { dataEnvNow                = now
-      , dataEnvMaxTTLAuthRequests = Options.maxttlAuthreq opts
-      , dataEnvMaxTTLAssertions   = Options.maxttlAuthresp opts
+      , dataEnvMaxTTLAuthRequests = maxttlAuthreq opts
+      , dataEnvMaxTTLAssertions   = maxttlAuthresp opts
       }
 
 mkTTLAuthnRequests :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authreq")
