@@ -24,7 +24,6 @@ import Cassandra
 import Control.Exception (SomeException, assert)
 import Control.Monad.Except
 import Control.Monad.Reader
-import Control.Retry
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.EitherR (fmapL)
 import Data.Id
@@ -242,18 +241,9 @@ verdictHandlerResult bindCky = \case
           | uid == uid' -> pure uid                      -- redundant binding (no change to brig or spar)
           | otherwise -> throwSpar SparBindUserRefTaken  -- attempt to use ssoid for a second wire user
 
-    cky :: SetCookie <- retrySparAction $ Intra.ssoLogin uid
-      -- there is a potential race condition here, where the user has not yet been created on brig
-      -- when the login request hits it.  so we just retry for a few milliseconds.
+    cky :: SetCookie <- Intra.ssoLogin uid
+      -- (creating users is synchronous and does a quorum vote, so there is no race condition here.)
     pure $ VerifyHandlerGranted cky uid
-
-retrySparAction :: Spar a -> Spar a
-retrySparAction action = do
-  env <- ask
-  either throwError pure =<< liftIO (retrying
-    (exponentialBackoff 50 <> limitRetries 5)
-    (\_ -> pure . either (const True) (const False))
-    (\_ -> runExceptT $ fromSpar action `runReaderT` env))
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
 -- to log the user in or show an error.

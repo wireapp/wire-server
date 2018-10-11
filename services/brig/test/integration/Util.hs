@@ -43,6 +43,7 @@ import Test.Tasty.HUnit
 import Test.Tasty.Cannon
 import Util.AWS
 
+import qualified Data.Aeson.Types as Aeson
 import qualified Galley.Types.Teams as Team
 import qualified Brig.AWS as AWS
 import qualified Brig.RPC as RPC
@@ -154,7 +155,7 @@ getConnection brig from to = get $ brig
 postUser :: Text -> Maybe Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
 postUser name email phone ssoid teamid brig = do
     email' <- maybe (pure Nothing) (fmap (Just . fromEmail) . mkEmailRandomLocalSuffix) email
-    let p = object
+    let Aeson.Success (p :: NewUser) = Aeson.parse parseJSON $ object
             [ "name"            .= name
             , "email"           .= email'
             , "phone"           .= phone
@@ -163,7 +164,6 @@ postUser name email phone ssoid teamid brig = do
             , "sso_id"          .= ssoid
             , "team_id"         .= teamid
             ]
-    -- liftIO $ print (eitherDecode @NewUser (encode p))
     post (brig . path "/i/users" . Bilge.json p)
 
 postUserInternal :: Object -> Brig -> Http User
