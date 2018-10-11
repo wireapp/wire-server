@@ -19,6 +19,15 @@ RUN apk add --no-cache git ncurses && \
     git clone -b develop https://github.com/wireapp/wire-server.git && \
     cd wire-server && \
     stack update && \
-    echo -e "allow-different-user: true\nwork-dir: .stack-docker\n" >> /root/.stack/config.yaml && \
+    echo "allow-different-user: true"                                       >> /root/.stack/config.yaml && \
+    echo                                                                    >> /root/.stack/config.yaml && \
+    echo '# NB: do not touch following line!'                               >> /root/.stack/config.yaml && \
+    echo '# this image is used both for building docker images with the'    >> /root/.stack/config.yaml && \
+    echo '# integration tests (so they can be run on the ci) and for'       >> /root/.stack/config.yaml && \
+    echo '# interactive integration testing (with the working copy of the'  >> /root/.stack/config.yaml && \
+    echo '# host system mounted into the docker container).  in the latter' >> /root/.stack/config.yaml && \
+    echo '# use case, we want the docker container to write to its own'     >> /root/.stack/config.yaml && \
+    echo '# stack-work directory and not pollute the one on the host.'      >> /root/.stack/config.yaml && \
+    echo 'work-dir: .stack-docker'                                          >> /root/.stack/config.yaml && \
     stack --work-dir .stack-docker-profile build --pedantic --haddock --test --dependencies-only --no-run-tests --profile && \
     stack --work-dir .stack-docker         build --pedantic --haddock --test --dependencies-only --no-run-tests
