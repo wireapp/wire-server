@@ -43,6 +43,7 @@ import Test.Tasty.HUnit
 import Test.Tasty.Cannon
 import Util.AWS
 
+import qualified Data.Aeson.Types as Aeson
 import qualified Galley.Types.Teams as Team
 import qualified Brig.AWS as AWS
 import qualified Brig.RPC as RPC
@@ -95,7 +96,7 @@ randomUser brig = do
 
 createUser :: HasCallStack => Text -> Text -> Brig -> Http User
 createUser name email brig = do
-    r <- postUser name (Just email) Nothing Nothing brig <!!
+    r <- postUser name (Just email) Nothing Nothing Nothing brig <!!
            const 201 === statusCode
     decodeBody r
 
@@ -151,18 +152,26 @@ getConnection brig from to = get $ brig
     . zConn "conn"
 
 -- more flexible variant of 'createUser' (see above).
-postUser :: Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
-postUser name email ssoid teamid brig = do
+postUser :: Text -> Maybe Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser = postUser' True
+
+postUser' :: Bool -> Text -> Maybe Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser' validateBody name email phone ssoid teamid brig = do
     email' <- maybe (pure Nothing) (fmap (Just . fromEmail) . mkEmailRandomLocalSuffix) email
-    let p = RequestBodyLBS . encode $ object
+    let o = object
             [ "name"            .= name
             , "email"           .= email'
+            , "phone"           .= phone
             , "password"        .= defPassword
             , "cookie"          .= defCookieLabel
             , "sso_id"          .= ssoid
             , "team_id"         .= teamid
             ]
-    post (brig . path "/i/users" . contentJson . body p)
+        p = case Aeson.parse parseJSON o of
+              Aeson.Success (p_ :: NewUser) -> p_
+              bad -> error $ show (bad, o)
+        bdy = if validateBody then Bilge.json p else Bilge.json o
+    post (brig . path "/i/users" . bdy)
 
 postUserInternal :: Object -> Brig -> Http User
 postUserInternal payload brig = do
@@ -381,6 +390,20 @@ randomPhone = liftIO $ do
     nrs <- map show <$> replicateM 14 (randomRIO (0,9) :: IO Int)
     let phone = parsePhone . Text.pack $ "+0" ++ concat nrs
     return $ fromMaybe (error "Invalid random phone#") phone
+
+updatePhone :: Brig -> UserId -> Phone -> Http ()
+updatePhone brig uid phn = do
+    -- update phone
+    let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
+    put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!!
+        (const 202 === statusCode)
+    -- activate
+    act <- getActivationCode brig (Right phn)
+    case act of
+        Nothing -> liftIO $ assertFailure "missing activation key/code"
+        Just kc -> activate brig kc !!! do
+            const 200 === statusCode
+            const (Just False) === fmap activatedFirst . decodeBody
 
 defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)

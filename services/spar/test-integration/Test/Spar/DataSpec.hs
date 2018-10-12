@@ -25,10 +25,11 @@ import Data.UUID.V4 as UUID
 import Lens.Micro
 import SAML2.Util ((-/))
 import Spar.API
+import Spar.API.Types
 import Spar.API.Instances ()
 import Spar.API.Test (IntegrationTests)
 import Spar.Data as Data
-import Spar.Options as Options
+import Spar.Types
 import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
@@ -279,8 +280,9 @@ clientPostRequest     Servant.:<|>
   clientPostVerdict
   = Servant.client (Servant.Proxy @IntegrationTests)
 
-clientGetAuthnRequest :: Maybe URI -> Maybe URI -> SAML.IdPId -> Servant.ClientM (SAML.FormRedirect SAML.AuthnRequest)
-clientGetAuthnRequest = Servant.client (Servant.Proxy @APIAuthReq)
+clientGetAuthnRequest :: Maybe URI -> Maybe URI -> SAML.IdPId
+                      -> Servant.ClientM (WithBindCookie (SAML.FormRedirect SAML.AuthnRequest))
+clientGetAuthnRequest = Servant.client (Servant.Proxy @APIAuthReq) Nothing
 
 
 runInsertUser :: TestEnv -> SAML.UserRef -> UserId -> Http ()
@@ -301,14 +303,14 @@ runPostVerdict :: HasCallStack => TestEnv -> (SAML.AuthnResponse, SAML.AccessVer
 runPostVerdict env = runServantClient env . clientPostVerdict
 
 
-mkAuthnReqWeb :: SAML.IdPId -> ReaderT TestEnv IO ResponseLBS
+mkAuthnReqWeb :: SAML.IdPId -> TestSpar ResponseLBS
 mkAuthnReqWeb idpid = do
   env <- ask
   -- TODO: the following fails, i think there is something wrong with query encoding.
   -- runServantClient env $ clientGetAuthnRequest Nothing Nothing idpid
   call $ get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid) . expect2xx)
 
-mkAuthnReqMobile :: SAML.IdPId -> ReaderT TestEnv IO ResponseLBS
+mkAuthnReqMobile :: SAML.IdPId -> TestSpar ResponseLBS
 mkAuthnReqMobile idpid = do
   env <- ask
   -- (see the TODO under "web" above)
@@ -321,13 +323,13 @@ mkAuthnReqMobile idpid = do
   call $ get ((env ^. teSpar) . path arPath . expect2xx)
 
 requestAccessVerdict :: HasCallStack
-                     => Bool                                             -- ^ is the verdict granted?
-                     -> (SAML.IdPId -> ReaderT TestEnv IO ResponseLBS)   -- ^ raw authnreq
-                     -> ReaderT TestEnv IO ( UserId
-                                           , SAML.ResponseVerdict
-                                           , URI                         -- ^ location header
-                                           , [(SBS, SBS)]                -- ^ query params
-                                           )
+                     => Bool                                   -- ^ is the verdict granted?
+                     -> (SAML.IdPId -> TestSpar ResponseLBS)   -- ^ raw authnreq
+                     -> TestSpar ( UserId
+                                 , SAML.ResponseVerdict
+                                 , URI                         -- ^ location header
+                                 , [(SBS, SBS)]                -- ^ query params
+                                 )
 requestAccessVerdict isGranted mkAuthnReq = do
   env <- ask
   let uid     = env ^. teUserId
@@ -341,8 +343,13 @@ requestAccessVerdict isGranted mkAuthnReq = do
     raw <- mkAuthnReq idpid
     bdy <- maybe (error "authreq") pure $ responseBody raw
     either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
-  spmeta <- getTestSPMetadata idpid
-  authnresp <- liftIO $ mkAuthnResponse idp spmeta authnreq
+  spmeta <- getTestSPMetadata
+  authnresp <- liftIO $ do
+    let mk :: SAML.FormRedirect SAML.AuthnRequest -> IO SAML.AuthnResponse
+        mk (SAML.FormRedirect _ req) = do
+          SAML.SignedAuthnResponse (XML.Document _ el _) <- liftIO $ SAML.mkAuthnResponse SAML.sampleIdPPrivkey idp spmeta req True
+          either (throwIO . ErrorCall . show) pure $ SAML.parse [XML.NodeElement el]
+    mk authnreq
   let verdict = if isGranted
         then SAML.AccessGranted uref
         else SAML.AccessDenied ["we don't like you", "seriously"]
@@ -354,9 +361,3 @@ requestAccessVerdict isGranted mkAuthnReq = do
       qry :: [(SBS, SBS)]
       qry = queryPairs $ uriQuery loc
   pure (uid, outcome, loc, qry)
-
-
-mkAuthnResponse :: SAML.IdPConfig extra -> SAML.SPMetadata -> SAML.FormRedirect SAML.AuthnRequest -> IO SAML.AuthnResponse
-mkAuthnResponse idp spmeta (SAML.FormRedirect _ req) = do
-  SAML.SignedAuthnResponse (XML.Document _ el _) <- liftIO $ SAML.mkAuthnResponse SAML.sampleIdPPrivkey idp spmeta req True
-  either (throwIO . ErrorCall . show) pure $ SAML.parse [XML.NodeElement el]

@@ -42,4 +42,4 @@ integrationTests
  :<|> (\assid endoflife -> wrapMonadClientWithEnv $ Data.storeAssertion assid endoflife)
  :<|> (\uref uid -> wrapMonadClient $ Data.insertUser uref uid)
  :<|> wrapMonadClient . Data.getUser
- :<|> uncurry verdictHandler
+ :<|> uncurry (verdictHandler Nothing)

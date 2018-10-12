@@ -19,7 +19,7 @@ import qualified SAML2.WebSSO as SAML
 
 instance Cql (SignedCertificate) where
     ctype = Tagged BlobColumn
-    toCql = CqlText . cs . renderKeyInfo
+    toCql = CqlBlob . cs . renderKeyInfo
 
     fromCql (CqlBlob t) = parseKeyInfo (cs t)
     fromCql _           = fail "SignedCertificate: expected CqlBlob"

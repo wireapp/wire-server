@@ -15,7 +15,7 @@ import Data.Aeson
 import Data.String.Conversions
 import Network.HTTP.Types.Status
 import Servant
-import Spar.Options (TTLError)
+import Spar.Types (TTLError)
 
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
@@ -31,11 +31,16 @@ data SparCustomError
   | SparMissingZUsr
   | SparNotInTeam
   | SparNotTeamOwner
+  | SparInitLoginWithAuth
+  | SparInitBindWithoutAuth
+  | SparBindUserDisappearedFromBrig
 
   | SparNoRequestRefInResponse LT
   | SparCouldNotSubstituteSuccessURI LT
   | SparCouldNotSubstituteFailureURI LT
   | SparBadInitiateLoginQueryParams LT
+  | SparBindFromWrongOrNoTeam LT
+  | SparBindUserRefTaken
 
   | SparBadUserName LT
   | SparNoBodyInBrigResponse
@@ -67,6 +72,9 @@ sparToWaiError (SAML.CustomError (SparNoRequestRefInResponse msg))        = Righ
 sparToWaiError (SAML.CustomError (SparCouldNotSubstituteSuccessURI msg))  = Right $ Wai.Error status400 "bad-success-redirect" ("re-parsing the substituted URI failed: " <> msg)
 sparToWaiError (SAML.CustomError (SparCouldNotSubstituteFailureURI msg))  = Right $ Wai.Error status400 "bad-failure-redirect" ("re-parsing the substituted URI failed: " <> msg)
 sparToWaiError (SAML.CustomError (SparBadInitiateLoginQueryParams label)) = Right $ Wai.Error status400 label label
+sparToWaiError (SAML.CustomError (SparBindFromWrongOrNoTeam msg))         = Right $ Wai.Error status403 "bad-team" ("Forbidden: wrong user team " <> msg)
+sparToWaiError (SAML.CustomError SparBindUserRefTaken)                    = Right $ Wai.Error status403 "subject-id-taken" "Forbidden: SubjectID is used by another wire user.  If you have an old user bound to this IdP, unbind or delete that user."
+
 sparToWaiError (SAML.CustomError (SparBadUserName msg))                   = Right $ Wai.Error status400 "bad-username" ("Bad UserName in SAML response, except len [1, 128]: " <> msg)
 sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)                = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
 sparToWaiError (SAML.CustomError (SparCouldNotParseBrigResponse msg))     = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
@@ -80,6 +88,9 @@ sparToWaiError (SAML.CustomError SparNotFound)                            = Righ
 sparToWaiError (SAML.CustomError SparMissingZUsr)                         = Right $ Wai.Error status400 "client-error" "[header] 'Z-User' required"
 sparToWaiError (SAML.CustomError SparNotInTeam)                           = Right $ Wai.Error status403 "no-team-member" "Requesting user is not a team member or not a member of this team."
 sparToWaiError (SAML.CustomError SparNotTeamOwner)                        = Right $ Wai.Error status403 "insufficient-permissions" "You need to be team owner to create an IdP."
+sparToWaiError (SAML.CustomError SparInitLoginWithAuth)                   = Right $ Wai.Error status403 "login-with-auth" "This end-point is only for login, not binding."
+sparToWaiError (SAML.CustomError SparInitBindWithoutAuth)                 = Right $ Wai.Error status403 "bind-without-auth" "This end-point is only for binding, not login."
+sparToWaiError (SAML.CustomError SparBindUserDisappearedFromBrig)         = Right $ Wai.Error status404 "bind-user-disappeared" "Your user appears to have been deleted?"
 sparToWaiError SAML.UnknownError                                          = Right $ Wai.Error status500 "server-error" "Unknown server error."
 sparToWaiError (SAML.BadServerConfig msg)                                 = Right $ Wai.Error status500 "server-error" ("Error in server config: " <> msg)
 -- Errors related to IdP creation

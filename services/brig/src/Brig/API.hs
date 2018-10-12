@@ -59,6 +59,7 @@ import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
 import qualified Brig.API.Properties           as API
 import qualified Brig.API.User                 as API
+import qualified Brig.Data.User                as Data
 import qualified Brig.Queue                    as Queue
 import qualified Brig.Team.Util                as Team
 import qualified Brig.User.API.Auth            as Auth
@@ -205,6 +206,12 @@ sitemap o = do
     get "/i/users/:uid/is-team-owner/:tid" (continue isTeamOwner) $
       capture "uid"
       .&. capture "tid"
+
+    put "/i/users/:uid/sso-id" (continue updateSSOId) $
+      capture "uid"
+      .&. accept "application" "json"
+      .&. contentType "application" "json"
+      .&. request
 
     post "/i/clients" (continue internalListClients) $
       accept "application" "json"
@@ -1407,6 +1414,14 @@ isTeamOwner (uid ::: tid) = do
        Team.IsNotTeamOwner        -> throwStd insufficientTeamPermissions
        Team.NoTeamOwnersAreLeft   -> throwStd insufficientTeamPermissions
     return empty
+
+updateSSOId :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
+updateSSOId (uid ::: _ ::: _ ::: req) = do
+    ssoid :: UserSSOId <- parseJsonBody req
+    success <- lift $ Data.updateSSOId uid ssoid
+    if success
+      then return empty
+      else return . setStatus status404 $ plain "User does not exist or has no team."
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response
 deleteUser (u ::: r ::: _ ::: _) = do

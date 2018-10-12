@@ -24,6 +24,7 @@ import Control.Monad.Except
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Id (Id(Id), UserId, TeamId)
+import Data.Maybe (isJust)
 import Data.Range
 import Data.String.Conversions
 import GHC.Stack
@@ -115,11 +116,25 @@ getUser buid = do
     else Just . selfUser <$> parseResponse @SelfProfile resp
 
 
--- | Check that a user locally created on spar exists on brig and has a team id.
-confirmUserId :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m (Maybe UserId)
-confirmUserId buid = do
+-- | This works under the assumption that the user must exist on brig.  If it does not, brig
+-- responds with 404 and this function returns 'False'.
+bindUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool
+bindUser uid (toUserSSOId -> ussoid) = do
+  resp <- call $ method PUT
+    . paths ["/i/users", toByteString' uid, "sso-id"]
+    . json ussoid
+  pure $ Bilge.statusCode resp < 300
+
+
+-- | Check that a user id exists on brig and has a team id.
+isTeamUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m Bool
+isTeamUser buid = isJust <$> getUserTeam buid
+
+-- | Check that a user id exists on brig and has a team id.
+getUserTeam :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m (Maybe TeamId)
+getUserTeam buid = do
   usr <- getUser buid
-  maybe (pure Nothing) (const . pure . Just $ buid) (userTeam =<< usr)
+  pure $ userTeam =<< usr
 
 
 -- | If user is not in team, throw 'SparNotInTeam'; if user is in team but not owner, throw

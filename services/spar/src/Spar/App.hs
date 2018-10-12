@@ -9,7 +9,15 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE ViewPatterns               #-}
 
-module Spar.App where
+module Spar.App
+  ( Spar(..)
+  , Env(..)
+  , condenseLogMsg
+  , toLevel
+  , wrapMonadClientWithEnv
+  , wrapMonadClient
+  , verdictHandler
+  ) where
 
 import Bilge
 import Cassandra
@@ -28,7 +36,6 @@ import Servant
 import Spar.API.Instances ()
 import Spar.API.Swagger ()
 import Spar.Error
-import Spar.Options as Options
 import Spar.Types
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
@@ -85,15 +92,6 @@ toLevel = \case
   SAML.Debug -> Log.Debug
   SAML.Trace -> Log.Trace
 
-fromLevel :: Log.Level -> SAML.Level
-fromLevel = \case
-  Log.Fatal -> SAML.Fatal
-  Log.Error -> SAML.Error
-  Log.Warn  -> SAML.Warn
-  Log.Info  -> SAML.Info
-  Log.Debug -> SAML.Debug
-  Log.Trace -> SAML.Trace
-
 instance SPStore Spar where
   storeRequest i r      = wrapMonadClientWithEnv $ Data.storeRequest i r
   checkAgainstRequest r = wrapMonadClient        $ Data.checkAgainstRequest r
@@ -137,7 +135,9 @@ getUser uref = do
   muid <- wrapMonadClient $ Data.getUser uref
   case muid of
     Nothing -> pure Nothing
-    Just uid -> Intra.confirmUserId uid
+    Just uid -> do
+      itis <- Intra.isTeamUser uid
+      pure $ if itis then Just uid else Nothing
 
 -- | Create a fresh 'Data.Id.UserId', store it on C* locally together with 'SAML.UserRef', then
 -- create user on brig with that 'UserId'.  See also: 'Spar.App.getUser'.
@@ -163,6 +163,21 @@ createUser suid = do
   buid' <- Intra.createUser suid buid teamid
   assert (buid == buid') $ pure buid
 
+-- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
+-- 'UserRef' into the 'UserIdentity'.  Otherwise, throw an error.
+bindUser :: UserId -> SAML.UserRef -> Spar UserId
+bindUser buid userref = do
+  teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (userref ^. uidTenant)
+  uteamid <- Intra.getUserTeam buid
+  unless (uteamid == Just teamid)
+    (throwSpar . SparBindFromWrongOrNoTeam . cs . show $ uteamid)
+  insertUser userref buid
+  Intra.bindUser buid userref >>= \case
+    True  -> pure buid
+    False -> do
+      SAML.logger SAML.Warn $ "SparBindUserDisappearedFromBrig: " <> show buid
+      throwSpar SparBindUserDisappearedFromBrig
+
 
 instance SPHandler SparError Spar where
   type NTCTX Spar = Env
@@ -186,16 +201,18 @@ instance Intra.MonadSparToBrig Spar where
 -- signed in-response-to info in the assertions matches the unsigned in-response-to field in the
 -- 'SAML.Response', and fills in the response id in the header if missing, we can just go for the
 -- latter.
-verdictHandler :: HasCallStack => SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
-verdictHandler aresp verdict = do
+verdictHandler :: HasCallStack => Maybe BindCookie -> SAML.AuthnResponse -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
+verdictHandler cky aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
   reqid <- either (throwSpar . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
   format :: Maybe VerdictFormat <- wrapMonadClient $ Data.getVerdictFormat reqid
   case format of
-    Just (VerdictFormatWeb) -> verdictHandlerWeb verdict
-    Just (VerdictFormatMobile granted denied) -> verdictHandlerMobile granted denied verdict
+    Just (VerdictFormatWeb)
+      -> verdictHandlerResult cky verdict >>= verdictHandlerWeb
+    Just (VerdictFormatMobile granted denied)
+      -> verdictHandlerResult cky verdict >>= verdictHandlerMobile granted denied
     Nothing -> throwError $ SAML.BadSamlResponse "AuthRequest seems to have disappeared (could not find verdict format)."
                -- (this shouldn't happen too often, see 'storeVerdictFormat')
 
@@ -203,17 +220,31 @@ data VerdictHandlerResult
   = VerifyHandlerDenied [ST]
   | VerifyHandlerGranted SetCookie UserId
 
-verdictHandlerResult :: HasCallStack => SAML.AccessVerdict -> Spar VerdictHandlerResult
-verdictHandlerResult = \case
+verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
+verdictHandlerResult bindCky = \case
   denied@(SAML.AccessDenied reasons) -> do
     SAML.logger SAML.Debug (show denied)
     pure $ VerifyHandlerDenied reasons
-  SAML.AccessGranted userref -> do
-    uid :: UserId    <- maybe (createUser userref) pure =<< getUser userref
-    cky :: SetCookie <- Intra.ssoLogin uid  -- TODO: can this be a race condition?  (user is not
-                                            -- quite created yet when we ask for a cookie?  do we do
-                                            -- quorum reads / writes here?  writes: probably yes,
-                                            -- reads: probably no.)
+
+  granted@(SAML.AccessGranted userref) -> do
+    uid :: UserId <- do
+      SAML.logger SAML.Debug (show granted)
+      fromBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
+      fromSparCass   <- getUser userref
+        -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
+        -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
+        -- idempotent.
+
+      case (fromBindCookie, fromSparCass) of
+        (Nothing,  Nothing)   -> createUser userref      -- first sso authentication
+        (Nothing,  Just uid)  -> pure uid                -- sso re-authentication
+        (Just uid, Nothing)   -> bindUser uid userref    -- bind existing user (non-sso or sso) to ssoid
+        (Just uid, Just uid')
+          | uid == uid' -> pure uid                      -- redundant binding (no change to brig or spar)
+          | otherwise -> throwSpar SparBindUserRefTaken  -- attempt to use ssoid for a second wire user
+
+    cky :: SetCookie <- Intra.ssoLogin uid
+      -- (creating users is synchronous and does a quorum vote, so there is no race condition here.)
     pure $ VerifyHandlerGranted cky uid
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
@@ -223,10 +254,8 @@ verdictHandlerResult = \case
 -- - A title element with contents @wire:sso:<outcome>@.  This is chosen to be easily parseable and
 --   not be the title of any page sent by the IdP while it negotiates with the user.
 -- - The page broadcasts a message to '*', to be picked up by the app.
-verdictHandlerWeb :: HasCallStack => SAML.AccessVerdict -> Spar SAML.ResponseVerdict
-verdictHandlerWeb verdict = do
-  outcome <- verdictHandlerResult verdict
-  pure $ case outcome of
+verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Spar SAML.ResponseVerdict
+verdictHandlerWeb = pure . \case
     VerifyHandlerDenied reasons -> forbiddenPage reasons
     VerifyHandlerGranted cky _uid -> successPage cky
   where
@@ -275,10 +304,8 @@ easyHtml doc =
 -- | If the client is mobile, it has picked error and success redirect urls (see
 -- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'); variables in these URLs are here
 -- substituted and the client is redirected accordingly.
-verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> SAML.AccessVerdict -> Spar SAML.ResponseVerdict
-verdictHandlerMobile granted denied verdict = do
-  outcome <- verdictHandlerResult verdict
-  case outcome of
+verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> VerdictHandlerResult -> Spar SAML.ResponseVerdict
+verdictHandlerMobile granted denied = \case
     VerifyHandlerDenied reasons
       -> mkVerdictDeniedFormatMobile denied "forbidden" &
          either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage reasons)
