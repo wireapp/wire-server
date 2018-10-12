@@ -174,7 +174,9 @@ bindUser buid userref = do
   insertUser userref buid
   Intra.bindUser buid userref >>= \case
     True  -> pure buid
-    False -> throwSpar SparBindUserDisappearedFromBrig
+    False -> do
+      SAML.logger SAML.Warn $ "SparBindUserDisappearedFromBrig: " <> show buid
+      throwSpar SparBindUserDisappearedFromBrig
 
 
 instance SPHandler SparError Spar where
