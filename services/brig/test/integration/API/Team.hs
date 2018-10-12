@@ -561,27 +561,23 @@ testCreateUserInternalSSO brig galley = do
     teamid <- snd <$> createUserWithTeam brig galley
     let ssoid = UserSSOId "nil" "nil"
 
-        getUserSSOId :: UserIdentity -> Maybe UserSSOId
-        getUserSSOId (SSOIdentity i _ _) = Just i
-        getUserSSOId _ = Nothing
-
     -- creating users requires both sso_id and team_id
-    postUser "dummy" (Just "success@simulator.amazonses.com") Nothing (Just ssoid) Nothing brig
+    postUser' False "dummy" (Just "success@simulator.amazonses.com") Nothing (Just ssoid) Nothing brig
         !!! const 400 === statusCode
-    postUser "dummy" (Just "success@simulator.amazonses.com") Nothing Nothing (Just teamid) brig
+    postUser' False "dummy" (Just "success@simulator.amazonses.com") Nothing Nothing (Just teamid) brig
         !!! const 400 === statusCode
 
     -- creating user with sso_id, team_id is ok
     resp <- postUser "dummy" (Just "success@simulator.amazonses.com") Nothing (Just ssoid) (Just teamid) brig <!! do
         const 201 === statusCode
-        const (Just ssoid) === (getUserSSOId <=< userIdentity . selfUser <=< decodeBody)
+        const (Just ssoid) === (userSSOId . selfUser <=< decodeBody)
 
     -- self profile contains sso id
     let Just uid = userId <$> decodeBody resp
     profile <- getSelfProfile brig uid
     liftIO $ assertEqual "self profile user identity mismatch"
         (Just ssoid)
-        (getUserSSOId =<< userIdentity (selfUser profile))
+        (userSSOId $ selfUser profile)
 
     -- sso-managed users must have team id.
     let Just teamid' = userTeam $ selfUser profile

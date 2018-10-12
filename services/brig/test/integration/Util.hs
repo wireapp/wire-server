@@ -153,9 +153,12 @@ getConnection brig from to = get $ brig
 
 -- more flexible variant of 'createUser' (see above).
 postUser :: Text -> Maybe Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
-postUser name email phone ssoid teamid brig = do
+postUser = postUser' True
+
+postUser' :: Bool -> Text -> Maybe Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser' validateBody name email phone ssoid teamid brig = do
     email' <- maybe (pure Nothing) (fmap (Just . fromEmail) . mkEmailRandomLocalSuffix) email
-    let Aeson.Success (p :: NewUser) = Aeson.parse parseJSON $ object
+    let o = object
             [ "name"            .= name
             , "email"           .= email'
             , "phone"           .= phone
@@ -164,7 +167,11 @@ postUser name email phone ssoid teamid brig = do
             , "sso_id"          .= ssoid
             , "team_id"         .= teamid
             ]
-    post (brig . path "/i/users" . Bilge.json p)
+        p = case Aeson.parse parseJSON o of
+              Aeson.Success (p_ :: NewUser) -> p_
+              bad -> error $ show (bad, o)
+        bdy = if validateBody then Bilge.json p else Bilge.json o
+    post (brig . path "/i/users" . bdy)
 
 postUserInternal :: Object -> Brig -> Http User
 postUserInternal payload brig = do
@@ -383,6 +390,20 @@ randomPhone = liftIO $ do
     nrs <- map show <$> replicateM 14 (randomRIO (0,9) :: IO Int)
     let phone = parsePhone . Text.pack $ "+0" ++ concat nrs
     return $ fromMaybe (error "Invalid random phone#") phone
+
+updatePhone :: Brig -> UserId -> Phone -> Http ()
+updatePhone brig uid phn = do
+    -- update phone
+    let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
+    put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!!
+        (const 202 === statusCode)
+    -- activate
+    act <- getActivationCode brig (Right phn)
+    case act of
+        Nothing -> liftIO $ assertFailure "missing activation key/code"
+        Just kc -> activate brig kc !!! do
+            const 200 === statusCode
+            const (Just False) === fmap activatedFirst . decodeBody
 
 defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)

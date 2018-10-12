@@ -7,6 +7,7 @@
 module API.User.Account (tests) where
 
 import API.Search.Util (assertSearchable)
+import API.Team.Util (createUserWithTeam, createTeamMember)
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
@@ -36,6 +37,7 @@ import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Clock (diffUTCTime)
 import Data.Text (Text)
 import Data.Vector (Vector)
+import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
@@ -92,7 +94,7 @@ tests _ at _ p b c ch g aws = testGroup "account"
     , test' aws p "delete/anonymous"                         $ testDeleteAnonUser b
     , test' aws p "delete /i/users/:id - 202"                $ testDeleteInternal b c aws
     , test' aws p "delete with profile pic"                  $ testDeleteWithProfilePic b ch
-    , test' aws p "put /i/users/:uid/sso-id"                 $ testUpdateSSOId b
+    , test' aws p "put /i/users/:uid/sso-id"                 $ testUpdateSSOId b g
     ]
 
 testCreateUserWithPreverified :: Brig -> AWS.Env -> Http ()
@@ -543,17 +545,7 @@ testPhoneUpdate :: Brig -> Http ()
 testPhoneUpdate brig = do
     uid <- userId <$> randomUser brig
     phn <- randomPhone
-    -- update phone
-    let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
-    put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!!
-        (const 202 === statusCode)
-    -- activate
-    act <- getActivationCode brig (Right phn)
-    case act of
-        Nothing -> liftIO $ assertFailure "missing activation key/code"
-        Just kc -> activate brig kc !!! do
-            const 200 === statusCode
-            const (Just False) === fmap activatedFirst . decodeBody
+    updatePhone brig uid phn
     -- check new phone
     get (brig . path "/self" . zUser uid) !!! do
         const 200 === statusCode
@@ -913,39 +905,22 @@ testDeleteWithProfilePic brig cargohold = do
     -- Check that the asset gets deleted
     downloadAsset cargohold uid (toByteString' (ast^.CHV3.assetKey)) !!! const 404 === statusCode
 
--- | Users with phone, or email, or both, or combinations thereof plus ssoid, will all be updated
--- correctly, and hpone and email are not changed.
-testUpdateSSOId :: Brig -> Http ()
-testUpdateSSOId brig = do
-    let ssoids =
-            [ UserSSOId "1" "1"
-            , UserSSOId "1" "2"
-            , UserSSOId "2" "1"
-            ]
+testUpdateSSOId :: Brig -> Galley -> Http ()
+testUpdateSSOId brig galley = do
+    noSuchUserId <- Id <$> liftIO UUID.nextRandom
+    put ( brig
+        . paths ["i", "users", toByteString' noSuchUserId, "sso-id"]
+        . Bilge.json (UserSSOId "1" "1")
+        )
+        !!! const 404 === statusCode
 
-        mkUser :: Bool -> Bool -> Http User
-        mkUser hasEmail hasPhone = do
-            name <- UUID.toText <$> liftIO UUID.nextRandom
-            let email = if hasEmail
-                     then Just "success@simulator.amazonses.com"
-                     else Nothing
-            phone <- if hasPhone
-                     then Just . fromPhone <$> randomPhone
-                     else pure Nothing
-            resp <- postUser name email phone Nothing Nothing brig <!!
-                      const 201 === statusCode
-            decodeBody resp
-
-    users <- sequence
-        [ mkUser True  False
-        , mkUser False True
-        , mkUser True  True
-        ]
-
-    let go, goTwice :: User -> UserSSOId -> Http ()
+    let go :: HasCallStack => User -> UserSSOId -> Http ()
         go user ssoid = do
             let uid = userId user
-            put (brig . paths ["i", "users", toByteString' uid, "sso-id"] . Bilge.json ssoid)
+            put ( brig
+                . paths ["i", "users", toByteString' uid, "sso-id"]
+                . Bilge.json ssoid
+                )
                 !!! const 200 === statusCode
             profile :: SelfProfile <- decodeBody =<< get (brig . path "/self" . zUser uid)
             let Just (SSOIdentity ssoid' mEmail mPhone) = userIdentity . selfUser $ profile
@@ -954,9 +929,30 @@ testUpdateSSOId brig = do
                 assertEqual "updateSSOId/email" (userEmail user) mEmail
                 assertEqual "updateSSOId/phone" (userPhone user) mPhone
 
-        goTwice user ssoid = go user ssoid >> go user ssoid
+    (owner, teamid) <- createUserWithTeam brig galley
 
-    sequence_ $ zipWith goTwice users ssoids
+    let mkMember :: Bool -> Bool -> Http User
+        mkMember hasEmail hasPhone = do
+            member <- createTeamMember brig galley owner teamid noPermissions
+            when hasPhone $ do
+                updatePhone brig (userId member) =<< randomPhone
+            when (not hasEmail) $ do
+                error "not implemented"
+            selfUser <$> (decodeBody =<< get (brig . path "/self" . zUser (userId member)))
+
+    let ssoids1 = [ UserSSOId "1" "1", UserSSOId "1" "2" ]
+        ssoids2 = [ UserSSOId "2" "1", UserSSOId "2" "2" ]
+
+    users <- sequence
+        [ mkMember True  False
+        , mkMember True  True
+        -- the following two could be implemented by creating the user implicitly via SSO login.
+        -- , mkMember False  False
+        -- , mkMember False  True
+        ]
+
+    sequence_ $ zipWith go users ssoids1
+    sequence_ $ zipWith go users ssoids2
 
 
 -- helpers

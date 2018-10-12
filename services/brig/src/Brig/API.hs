@@ -1418,10 +1418,10 @@ isTeamOwner (uid ::: tid) = do
 updateSSOId :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
 updateSSOId (uid ::: _ ::: _ ::: req) = do
     ssoid :: UserSSOId <- parseJsonBody req
-    status <- lift $ Data.updateSSOId uid ssoid
-    if status
+    success <- lift $ Data.updateSSOId uid ssoid
+    if success
       then return empty
-      else return $ setStatus status404 empty
+      else return . setStatus status404 $ plain "User does not exist or has no team."
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response
 deleteUser (u ::: r ::: _ ::: _) = do
