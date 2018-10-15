@@ -5,14 +5,10 @@
 
 module Gundeck.Options where
 
+import Imports
 import Control.Lens
 import Data.Aeson.TH
-import Data.Monoid
-import Data.String
-import Data.Text (Text)
-import Data.Word
 import Data.Yaml (FromJSON)
-import GHC.Generics
 import Gundeck.Aws.Arn
 import Options.Applicative
 import Options.Applicative.Types

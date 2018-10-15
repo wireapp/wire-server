@@ -8,7 +8,7 @@
 
 module Gundeck.Instances () where
 
-import Control.Lens
+import Imports
 import Cassandra.CQL
 import Data.Id
 import Gundeck.Aws.Arn (EndpointArn)

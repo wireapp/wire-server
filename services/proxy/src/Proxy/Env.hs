@@ -13,7 +13,7 @@ module Proxy.Env
     , secrets
     ) where
 
-import Control.Concurrent (killThread, ThreadId)
+import Imports
 import Control.Lens (makeLenses, (^.))
 import Data.Configurator
 import Data.Configurator.Types

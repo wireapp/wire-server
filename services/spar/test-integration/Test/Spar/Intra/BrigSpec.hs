@@ -1,0 +1,24 @@
+{-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE QuasiQuotes         #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE ViewPatterns        #-}
+
+module Test.Spar.Intra.BrigSpec where
+
+import Prelude hiding (head)
+import Util
+
+
+spec :: SpecWith TestEnv
+spec = do
+  describe "user deletion between brig and spar" $ do
+    it "if a user gets deleted on brig, it will be deleted on spar as well." $ do
+      pending
+
+    it "if a user gets deleted on spar, it will be deleted on spar as well." $ do
+      pendingWith "or deactivated?  we should decide what we want here."

@@ -5,6 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TupleSections              #-}
@@ -15,12 +16,14 @@ module Util.Types
   ( BrigReq
   , GalleyReq
   , SparReq
+  , TestSpar
   , TestEnv(..)
   , teMgr
   , teCql
   , teBrig
   , teGalley
   , teSpar
+  , teSparCass
   , teUserId
   , teTeamId
   , teIdP
@@ -36,6 +39,7 @@ import Bilge
 import Cassandra as Cas
 import Control.Exception
 import Control.Monad
+import Control.Monad.Reader
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Id
@@ -45,7 +49,6 @@ import GHC.Generics (Generic)
 import Lens.Micro.TH
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
-import Spar.Options as Options
 import Spar.Types
 import Util.Options
 
@@ -56,6 +59,8 @@ type BrigReq   = Request -> Request
 type GalleyReq = Request -> Request
 type SparReq   = Request -> Request
 
+type TestSpar = ReaderT TestEnv IO
+
 -- | See 'mkEnv' about what's in here.
 data TestEnv = TestEnv
   { _teMgr         :: Manager
@@ -63,6 +68,7 @@ data TestEnv = TestEnv
   , _teBrig        :: BrigReq
   , _teGalley      :: GalleyReq
   , _teSpar        :: SparReq
+  , _teSparCass    :: ClientState
   , _teOpts        :: Opts               -- ^ spar config
   , _teTstOpts     :: IntegrationConfig  -- ^ integration test config
 

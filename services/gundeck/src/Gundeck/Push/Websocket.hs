@@ -8,6 +8,7 @@
 
 module Gundeck.Push.Websocket (push, bulkPush) where
 
+import Imports
 import Bilge
 import Bilge.Retry (rpcHandlers)
 import Bilge.RPC
@@ -15,24 +16,15 @@ import Control.Arrow ((&&&))
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Exception (ErrorCall(ErrorCall))
 import Control.Exception.Enclosed (handleAny)
-import Control.Monad (forM, forM_, foldM, when)
-import Control.Monad.Catch (MonadThrow, SomeException (..), throwM, catch, try)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Reader (MonadReader)
+import Control.Monad.Catch (MonadThrow, throwM, catch, try)
 import Control.Monad.Trans.Control
 import Control.Lens ((^.), (%~), _2, view)
 import Control.Retry
 import Data.Aeson (encode, eitherDecode)
 import Data.ByteString.Conversion
-import Data.Either (rights)
-import Data.Foldable (toList)
-import Data.Function (on)
 import Data.Id
-import Data.List (groupBy, sortBy, foldl')
 import Data.List1
 import Data.Misc (Milliseconds (..))
-import Data.Monoid ((<>))
-import Data.Set (Set)
 import Data.Time.Clock.POSIX
 import Gundeck.Monad
 import Gundeck.Types.Notification
@@ -207,10 +199,10 @@ mkPresencesByCannon prcs uri = maybe (throwM err) pure $ Map.lookup uri mp
   where
     err = ErrorCall "internal error in Gundeck: invalid URL in bulkpush result"
 
-    mp :: Map.Map URI [Presence]
+    mp :: Map URI [Presence]
     mp = foldl' collect mempty $ (bulkresource &&& id) <$> prcs
 
-    collect :: Map.Map URI [Presence] -> (URI, Presence) -> Map.Map URI [Presence]
+    collect :: Map URI [Presence] -> (URI, Presence) -> Map URI [Presence]
     collect mp' (uri', prc) = Map.alter (go prc) uri' mp'
 
     go :: Presence -> Maybe [Presence] -> Maybe [Presence]
@@ -224,7 +216,7 @@ mkPresenceByPushTarget prcs ptarget = maybe (throwM err) pure $ Map.lookup ptarg
   where
     err = ErrorCall "internal error in Cannon: invalid PushTarget in bulkpush response"
 
-    mp :: Map.Map PushTarget Presence
+    mp :: Map PushTarget Presence
     mp = Map.fromList $ (mkPushTarget &&& id) <$> prcs
 
 

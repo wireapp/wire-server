@@ -14,6 +14,7 @@ import Data.Char (toLower)
 import Data.Pool
 import Data.Text (Text, unpack)
 import Network.Mail.Mime
+import Network.Socket (PortNumber)
 import System.Logger.Class hiding (create)
 
 import qualified Network.HaskellNet.SMTP     as SMTP
@@ -36,8 +37,8 @@ deriveJSON defaultOptions { constructorTagModifier = map toLower } ''SMTPConnTyp
 
 makeLenses ''SMTP
 
-initSMTP :: Logger -> Text -> Username -> Password -> SMTPConnType -> IO SMTP
-initSMTP lg host (Username user) (Password pass) connType = do
+initSMTP :: Logger -> Text -> Maybe PortNumber -> Maybe (Username, Password) -> SMTPConnType -> IO SMTP
+initSMTP lg host port credentials connType = do
     -- Try to initiate a connection and fail badly right away in case of bad auth
     -- otherwise config errors will be detected "too late"
     (success, _) <- connect
@@ -46,11 +47,18 @@ initSMTP lg host (Username user) (Password pass) connType = do
     SMTP <$> createPool create destroy 1 5 5
   where
     connect = do
-      conn <- case connType of
-                  Plain -> SMTP.connectSMTP (unpack host)
-                  TLS   -> SMTP.connectSMTPSTARTTLS (unpack host)
-                  SSL   -> SMTP.connectSMTPSSL (unpack host)
-      ok   <- SMTP.authenticate SMTP.LOGIN (unpack user) (unpack pass) conn
+      conn <- case (connType, port) of
+              (Plain, Nothing) -> SMTP.connectSMTP (unpack host)
+              (Plain, Just  p) -> SMTP.connectSMTPPort (unpack host) p
+              (TLS,   Nothing) -> SMTP.connectSMTPSTARTTLS (unpack host)
+              (TLS,   Just  p) -> SMTP.connectSMTPSTARTTLSWithSettings (unpack host)
+                                $ SMTP.defaultSettingsSMTPSTARTTLS { SMTP.sslPort = p }
+              (SSL,   Nothing) -> SMTP.connectSMTPSSL (unpack host)
+              (SSL,   Just  p) -> SMTP.connectSMTPSSLWithSettings (unpack host)
+                                $ SMTP.defaultSettingsSMTPSSL { SMTP.sslPort = p }
+      ok   <- case credentials of
+              (Just (Username u, Password p)) -> SMTP.authenticate SMTP.LOGIN (unpack u) (unpack p) conn
+              _                               -> return True
       return (ok, conn)
 
     create = do

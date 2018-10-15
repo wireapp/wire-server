@@ -3,13 +3,13 @@
 
 module Native where
 
+import Imports
+
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
 import Data.Aeson
-import Data.ByteString (ByteString)
 import Data.Id (UserId, randomId, ConnId (..), ClientId (..))
-import Data.Text (Text)
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
 import Gundeck.Push.Native.Crypto

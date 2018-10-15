@@ -33,9 +33,17 @@ module Util
   , makeIssuer
   , makeTestIdPMetadata
   , getTestSPMetadata
+  , createTestIdP
   , createTestIdPFrom
   , negotiateAuthnRequest
+  , negotiateAuthnRequest'
+  , isDeleteBindCookieHeader
+  , hasDeleteBindCookieHeader
+  , isSetBindCookieHeader
+  , hasSetBindCookieHeader
   , submitAuthnResponse
+  , submitAuthnResponse'
+  , loginSsoUserFirstTime
   , responseJSON
   , callAuthnReqPrecheck'
   , callAuthnReq, callAuthnReq'
@@ -44,6 +52,7 @@ module Util
   , callIdpCreate, callIdpCreate'
   , callIdpDelete, callIdpDelete'
   , initCassandra
+  , ssoToUidSpar
   , module Test.Hspec
   , module Util.Types
   ) where
@@ -76,8 +85,7 @@ import Prelude hiding (head)
 import SAML2.WebSSO
 import SAML2.WebSSO.Test.Credentials
 import SAML2.WebSSO.Test.MockResponse
-import Spar.API ()
-import Spar.Options as Options
+import Spar.API.Types
 import Spar.Run
 import Spar.Types
 import System.Random (randomRIO)
@@ -87,20 +95,24 @@ import URI.ByteString.QQ (uri)
 import Util.Options
 import Util.Types
 
-
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
+import qualified Control.Monad.Catch as Catch
+import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
 import qualified Galley.Types.Teams as Galley
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified SAML2.WebSSO as SAML
+import qualified Spar.Data as Data
+import qualified Spar.Intra.Brig as Intra
 import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
+import qualified Web.Cookie as Web
 
 
 -- | Create an environment for integration tests from integration and spar config files.
@@ -122,11 +134,13 @@ mkEnv _teTstOpts _teOpts = do
       _teGalley  = endpointToReq (cfgGalley _teTstOpts)
       _teSpar    = endpointToReq (cfgSpar   _teTstOpts)
 
-      _teMetadata :: IdPMetadata
-      _teMetadata = sampleIdPMetadata issuer [uri|http://requri.net/|]
+      idpmeta :: IdPMetadata
+      idpmeta = sampleIdPMetadata issuer [uri|http://requri.net/|]
 
   (_teUserId, _teTeamId, _teIdP) <- do
-    createTestIdPFrom _teMetadata _teMgr _teBrig _teGalley _teSpar
+    createTestIdPFrom idpmeta _teMgr _teBrig _teGalley _teSpar
+
+  _teSparCass <- initCassandra _teOpts =<< mkLogger _teOpts
 
   pure TestEnv {..}
 
@@ -137,10 +151,10 @@ destroyEnv _ = pure ()
 passes :: MonadIO m => m ()
 passes = liftIO $ True `shouldBe` True
 
-it :: (HasCallStack, m ~ IO)
+it :: HasCallStack
        -- or, more generally:
        -- MonadIO m, Example (TestEnv -> m ()), Arg (TestEnv -> m ()) ~ TestEnv
-   => String -> ReaderT TestEnv m () -> SpecWith TestEnv
+   => String -> TestSpar () -> SpecWith TestEnv
 it msg bdy = Test.Hspec.it msg $ runReaderT bdy
 
 pending :: (HasCallStack, MonadIO m) => m ()
@@ -340,7 +354,7 @@ endpointToURL endpoint urlpath = either err pure url
 -- spar specifics
 
 shouldRespondWith :: forall a. (HasCallStack, Show a, Eq a)
-                  => Http a -> (a -> Bool) -> ReaderT TestEnv IO ()
+                  => Http a -> (a -> Bool) -> TestSpar ()
 shouldRespondWith action proper = do
   resp <- call action
   liftIO $ resp `shouldSatisfy` proper
@@ -373,15 +387,22 @@ makeTestIdPMetadata = do
   pure ((env ^. teIdP . idpMetadata) & edIssuer .~ issuer)
 
 
-getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => IdPId -> m SPMetadata
-getTestSPMetadata idpid = do
+getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => m SPMetadata
+getTestSPMetadata = do
   env  <- ask
-  resp <- call . get $ (env ^. teSpar) . path (cs $ "/sso/metadata/" -/ idPIdToST idpid) . expect2xx
+  resp <- call . get $ (env ^. teSpar) . path "/sso/metadata" . expect2xx
   raw  <- maybe (crash_ "no body") (pure . cs) $ responseBody resp
   either (crash_ . show) pure (SAML.decode raw)
   where
     crash_ = liftIO . throwIO . ErrorCall
 
+
+createTestIdP :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+              => m (UserId, TeamId, IdP)
+createTestIdP = do
+  idpmeta <- makeTestIdPMetadata
+  env <- ask
+  createTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
 
 -- | Create new user, team, idp from given 'IdPMetadata'.
 createTestIdPFrom :: (HasCallStack, MonadIO m)
@@ -392,28 +413,94 @@ createTestIdPFrom metadata mgr brig galley spar = do
     (uid, tid,) <$> callIdpCreate spar (Just uid) metadata
 
 
+-- | A bind cookie is always sent, but if we do not want to send one, it looks like this:
+-- "wire.com=; Path=/sso/finalize-login; Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure"
+isDeleteBindCookieHeader :: HasCallStack => Maybe SBS -> Bool
+isDeleteBindCookieHeader Nothing = True  -- we don't expect this, but it's ok if the implementation changes to it.
+isDeleteBindCookieHeader (Just txt)
+  | "Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1" `SBS.isInfixOf` txt = True
+  | otherwise = error $ "unexpected bind cookie: " <> show txt
+
+hasDeleteBindCookieHeader :: HasCallStack => Bilge.Response a -> Bool
+hasDeleteBindCookieHeader = isDeleteBindCookieHeader . lookup "Set-Cookie" . responseHeaders
+
+isSetBindCookieHeader :: HasCallStack => Maybe SBS -> Bool
+isSetBindCookieHeader Nothing = False
+isSetBindCookieHeader (Just (Web.parseSetCookie -> cky)) = and
+  [ Web.setCookieName cky == "zbind"
+  , maybe False ("/sso/finalize-login" `SBS.isPrefixOf`) $ Web.setCookiePath cky
+  , Web.setCookieSecure cky
+  , Web.setCookieSameSite cky == Just Web.sameSiteStrict
+  ]
+
+hasSetBindCookieHeader :: HasCallStack => Bilge.Response a -> Bool
+hasSetBindCookieHeader = isSetBindCookieHeader . lookup "Set-Cookie" . responseHeaders
+
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
-negotiateAuthnRequest = do
+negotiateAuthnRequest = negotiateAuthnRequest' DoInitiateLogin Nothing id >>= \case
+  (idp, creds, req, cky) -> if isDeleteBindCookieHeader cky
+    then pure (idp, creds, req)
+    else error $ "unexpected bind cookie: " <> show cky
+
+negotiateAuthnRequest'
+  :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+  => DoInitiate -> Maybe IdP -> (Request -> Request) -> m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SBS)
+negotiateAuthnRequest' (doInitiatePath -> doInit) midp modreq = do
   env <- ask
-  let idp = env ^. teIdP
+  let idp = fromMaybe (env ^. teIdP) midp
   resp :: ResponseLBS
     <- call $ get
-           ( (env ^. teSpar)
-           . path (cs $ "/sso/initiate-login/" -/ (UUID.toText . fromIdPId . (^. SAML.idpId) $ idp))
+           ( modreq
+           . (env ^. teSpar)
+           . paths ["sso", cs doInit, cs . idPIdToST $ idp ^. SAML.idpId]
            . expect2xx
            )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
-  pure (idp, sampleIdPPrivkey, authnreq)
+  let wireCookie = lookup "Set-Cookie" $ responseHeaders resp
+  pure (idp, sampleIdPPrivkey, authnreq, wireCookie)
 
 
 submitAuthnResponse :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-                    => IdPId -> SignedAuthnResponse -> m ResponseLBS
-submitAuthnResponse idpid (SignedAuthnResponse authnresp) = do
+                    => SignedAuthnResponse -> m ResponseLBS
+submitAuthnResponse = submitAuthnResponse' id
+
+submitAuthnResponse' :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+                    => (Request -> Request) -> SignedAuthnResponse -> m ResponseLBS
+submitAuthnResponse' reqmod (SignedAuthnResponse authnresp) = do
   env <- ask
   req :: Request
     <- formDataBody [partLBS "SAMLResponse" . EL.encode . XML.renderLBS XML.def $ authnresp] empty
-  call $ post' req ((env ^. teSpar) . path (cs $ "/sso/finalize-login/" -/ idPIdToST idpid))
+  call $ post' req (reqmod . (env ^. teSpar) . path "/sso/finalize-login/")
+
+
+loginSsoUserFirstTime :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => m UserId
+loginSsoUserFirstTime = do
+  env <- ask
+  (idp, privCreds, authnReq) <- negotiateAuthnRequest
+  spmeta <- getTestSPMetadata
+  authnResp <- liftIO $ mkAuthnResponse privCreds idp spmeta authnReq True
+  sparAuthnResp <- submitAuthnResponse authnResp
+  let wireCookie = maybe (error "no wire cookie") id . lookup "Set-Cookie" $ responseHeaders sparAuthnResp
+
+  accessResp :: ResponseLBS <- call $
+    post ((env ^. teBrig) . path "/access" . header "Cookie" wireCookie . expect2xx)
+
+  let uid :: UserId
+      uid = Id . fromMaybe (error "bad user field in /access response body") . UUID.fromText $ uidRaw
+
+      uidRaw :: HasCallStack => ST
+      uidRaw = accessToken ^?! Aeson.key "user" . _String
+
+      accessToken :: HasCallStack => Aeson.Value
+      accessToken = tok
+        where
+          tok = either (error . ("parse error in /access response body: " <>)) id $
+            Aeson.eitherDecode raw
+          raw = fromMaybe (error "no body in /access response") $
+            responseBody accessResp
+
+  pure uid
 
 
 -- TODO: move this to /lib/bilge?
@@ -506,3 +593,18 @@ callIdpDelete sparreq_ muid idpid = void $ callIdpDelete' (sparreq_ . expect2xx)
 callIdpDelete' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> SAML.IdPId -> m ResponseLBS
 callIdpDelete' sparreq_ muid idpid = do
   delete $ sparreq_ . maybe id zUser muid . path (cs $ "/identity-providers/" -/ SAML.idPIdToST idpid)
+
+
+-- helpers talking to spar's cassandra directly
+
+-- | Look up 'UserId' under 'UserSSOId' on spar's cassandra directly.
+ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => Brig.UserSSOId -> m (Maybe UserId)
+ssoToUidSpar ssoid = do
+  ssoref <- either (error . ("could not parse UserRef: " <>)) pure $ Intra.fromUserSSOId ssoid
+  runSparCass $ Data.getUser ssoref
+
+runSparCass :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => Client a -> m a
+runSparCass action = do
+  env <- ask
+  liftIO $ runClient (env ^. teSparCass) action
+             `Catch.catch` (throwIO . ErrorCall . show @SomeException)

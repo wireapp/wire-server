@@ -19,6 +19,7 @@ flag static
 
 library
     default-language: Haskell2010
+    default-extensions: NoImplicitPrelude
     hs-source-dirs:   src
     ghc-options:      -Wall -fwarn-tabs -O2
 
@@ -96,10 +97,12 @@ library
       , warp                 >= 3.0
       , xml-conduit          >= 1.3
       , yaml                 >= 0.8
+      , imports
 
 executable cargohold
     main-is:            src/Main.hs
     default-language:   Haskell2010
+    default-extensions: NoImplicitPrelude
     ghc-options:
         -Wall
         -O2
@@ -113,12 +116,14 @@ executable cargohold
       , cargohold
       , HsOpenSSL >= 0.11
       , types-common
+      , imports
 
     if flag(static)
         ld-options: -static
 
 executable cargohold-integration
     default-language:   Haskell2010
+    default-extensions: NoImplicitPrelude
     main-is:            Main.hs
     hs-source-dirs:     test/integration
 
@@ -161,3 +166,4 @@ executable cargohold-integration
       , HsOpenSSL         >= 0.11
       , wai-utilities     >= 0.12
       , yaml              >= 0.8
+      , imports

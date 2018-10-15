@@ -1,78 +1,67 @@
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeApplications           #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 module Spar.Options
-  ( Opts(..)
-  , TTL(..), TTLError(..), showTTL
-  , getOpts
+  ( getOpts
+  , deriveOpts
   , readOptsFile
-  , ttlToNominalDiffTime
-  , maxttlAuthreqDiffTime
   ) where
 
 import Control.Exception
-import Data.Aeson
-import Data.Id (TeamId)
-import Data.Int
+import Control.Monad.Catch
+import Control.Monad.Reader
+import Data.Id
 import Data.Monoid
-import Data.Proxy (Proxy(Proxy))
-import Data.Text (Text)
-import Data.Time
-import GHC.Generics (Generic)
-import GHC.TypeLits (KnownSymbol, symbolVal)
-import GHC.Types (Symbol)
 import Lens.Micro
 import Options.Applicative
-import Util.Options
+import Spar.API.Types
+import Spar.Types
+import URI.ByteString as URI
 
 import qualified Data.Yaml as Yaml
-import qualified SAML2.WebSSO.Config as SAML
+import qualified SAML2.WebSSO as SAML
 
 
-data Opts = Opts
-    { saml           :: !(SAML.Config TeamId)
-    , brig           :: !Endpoint
-    , galley         :: !Endpoint
-    , cassandra      :: !CassandraOpts
-    , maxttlAuthreq  :: !(TTL "authreq")
-    , maxttlAuthresp :: !(TTL "authresp")
-    , discoUrl       :: !(Maybe Text) -- Wire/AWS specific; optional; used to discover cassandra instance IPs using describe-instances
-    , logNetStrings  :: !Bool
-    -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
-    }
-  deriving (Show, Generic)
-
-instance FromJSON Opts
-
--- | (seconds)
-newtype TTL (tablename :: Symbol) = TTL { fromTTL :: Int32 }
-  deriving (Eq, Ord, Show, Num)
-
-showTTL :: KnownSymbol a => TTL a -> String
-showTTL (TTL i :: TTL a) = "TTL:" <> (symbolVal (Proxy @a)) <> ":" <> show i
-
-instance FromJSON (TTL a) where
-  parseJSON = withScientific "TTL value (seconds)" (pure . TTL . round)
-
-data TTLError = TTLTooLong String String | TTLNegative String
-  deriving (Eq, Show)
-
-ttlToNominalDiffTime :: TTL a -> NominalDiffTime
-ttlToNominalDiffTime (TTL i32) = fromIntegral i32
-
-maxttlAuthreqDiffTime :: Opts -> NominalDiffTime
-maxttlAuthreqDiffTime = ttlToNominalDiffTime . maxttlAuthreq
-
+type OptsRaw = Opts' (Maybe ())
 
 -- | Throws an exception if no config file is found.
 getOpts :: IO Opts
 getOpts = do
   let desc = "Spar - SSO Service"
-  readOptsFile =<< execParser (info (helper <*> cliOptsParser) (header desc <> fullDesc))
+  deriveOpts
+    =<< readOptsFile
+    =<< execParser (info (helper <*> cliOptsParser) (header desc <> fullDesc))
+
+deriveOpts :: OptsRaw -> IO Opts
+deriveOpts raw = do
+  derived <- do
+    let respuri = runWithConfig raw sparResponseURI
+        derivedOptsBindCookiePath = URI.uriPath respuri
+        unwrap = maybe (throwM $ ErrorCall "Bad server config: no domain in response URI") pure
+    derivedOptsBindCookieDomain <- URI.hostBS . URI.authorityHost <$> unwrap (URI.uriAuthority respuri)
+    pure DerivedOpts {..}
+  pure $ derived <$ raw
+
+-- | This should not leave this module.  It is only for callling 'sparResponseURI' before the 'Spar'
+-- monad is fully initialized.
+newtype WithConfig a = WithConfig (Reader OptsRaw a)
+  deriving (Functor, Applicative, Monad)
+
+instance SAML.HasConfig WithConfig where
+  type ConfigExtra WithConfig = TeamId
+  getConfig = WithConfig $ asks saml
+
+runWithConfig :: OptsRaw -> WithConfig a -> a
+runWithConfig opts (WithConfig act) = act `runReader` opts
+
 
 -- | Accept config file location as cli option.
 --
@@ -88,7 +77,7 @@ cliOptsParser = strOption $
   where
     defaultSparPath = "/etc/wire/spar/conf/spar.yaml"
 
-readOptsFile :: FilePath -> IO Opts
+readOptsFile :: FilePath -> IO OptsRaw
 readOptsFile path =
   either err1 (\opts -> if hasNoIdPs opts then pure opts else err2)
     =<< Yaml.decodeFileEither path
@@ -96,5 +85,5 @@ readOptsFile path =
     err1 = throwIO . ErrorCall . ("no or bad config file: " <>) . show
     err2 = throwIO $ ErrorCall "idps field is not supported by spar."
 
-    hasNoIdPs :: Opts -> Bool
+    hasNoIdPs :: OptsRaw -> Bool
     hasNoIdPs = null . (^. to saml . SAML.cfgIdps)

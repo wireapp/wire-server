@@ -638,6 +638,7 @@ mkPasswordResetKey ident = case ident of
   where
     user uk = lift (Data.lookupKey uk) >>= maybe (throwE InvalidPasswordResetKey) return
 
+
 -------------------------------------------------------------------------------
 -- User Deletion
 

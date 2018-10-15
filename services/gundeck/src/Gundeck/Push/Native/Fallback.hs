@@ -8,11 +8,9 @@ module Gundeck.Push.Native.Fallback
     , cancel
     ) where
 
-import Control.Lens ((^.), (&), (?~), (.~), view)
-import Control.Monad
-import Control.Monad.Reader
+import Imports
+import Control.Lens ((^.), (?~), (.~), view)
 import Data.ByteString.Conversion
-import Data.Foldable (for_)
 import Data.Id
 import Gundeck.Aws.Arn (toText)
 import Gundeck.Monad
@@ -22,7 +20,6 @@ import Gundeck.Types.Push
 import Gundeck.Push.Native.Types
 import System.Logger.Class (val, (~~), (.=))
 
-import qualified Data.List                          as List
 import qualified Data.Metrics                       as Metrics
 import qualified Gundeck.Push.Native.Fallback.Data  as Data
 import qualified Gundeck.Push.Data                  as Push
@@ -39,7 +36,7 @@ data Candidates s = Candidates
 -- | Screen native push results for fallback candidates.
 -- | Ensure we never send a fallback to the origin user.
 prepare :: UserId -> [Result s] -> Maybe (Candidates s)
-prepare orig rs = case List.foldl' go ([], []) rs of
+prepare orig rs = case foldl' go ([], []) rs of
     ([], []) -> Nothing
     (ns, qs) -> Just (Candidates ns qs)
   where
@@ -79,7 +76,7 @@ execute nid prio (Candidates now queue) = do
         unless cancelled $ do
             -- TODO: We could avoid looking up the addresses here again, if we
             --       retain the fallback addresses in `Gundeck.Push.nativeTargets`.
-            addr <- List.find (fallbackAddress clt app trp)
+            addr <- find (fallbackAddress clt app trp)
                 <$> Push.lookup usr Push.One
             for_ addr $ \a -> do
                 Log.debug $ logMsg usr clt app trp "Sending fallback notification"

@@ -27,6 +27,7 @@ module Gundeck.Monad
     , posixTime
     ) where
 
+import Imports
 import Bilge hiding (Request, header, statusCode, options)
 import Bilge.RPC
 import Cassandra hiding (Error)
@@ -34,8 +35,6 @@ import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
 import Control.Monad.Base
 import Control.Monad.Catch hiding (tryJust)
-import Control.Monad.IO.Class
-import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Data.Aeson (FromJSON)
 import Data.Misc (Milliseconds (..))
@@ -44,7 +43,6 @@ import Network.Wai
 import Network.Wai.Utilities
 import System.Logger.Class hiding (Error, info)
 
-import qualified Data.Text.Lazy    as Lazy
 import qualified Database.Redis.IO as Redis
 import qualified System.Logger     as Logger
 
@@ -95,7 +93,7 @@ lookupReqId :: Request -> RequestId
 lookupReqId = maybe mempty RequestId . lookup requestIdName . requestHeaders
 {-# INLINE lookupReqId #-}
 
-fromBody :: FromJSON a => Request -> (Lazy.Text -> Error) -> Gundeck a
+fromBody :: FromJSON a => Request -> (LText -> Error) -> Gundeck a
 fromBody r f = exceptT (throwM . f) return (parseBody r)
 {-# INLINE fromBody #-}
 

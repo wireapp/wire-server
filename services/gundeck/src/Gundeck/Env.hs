@@ -3,11 +3,11 @@
 
 module Gundeck.Env where
 
+import Imports
 import Bilge
 import Cassandra (ClientState, Keyspace (..))
 import Control.AutoUpdate
 import Control.Lens ((^.), makeLenses)
-import Data.Int (Int32)
 import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
 import Data.Text (unpack)

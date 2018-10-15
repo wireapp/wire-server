@@ -10,6 +10,7 @@ module CargoHold.API.V3.Resumable
     , upload
     ) where
 
+import Imports
 import CargoHold.App
 import CargoHold.API.V3 (randToken)
 import CargoHold.Options
@@ -17,14 +18,10 @@ import CargoHold.Types.V3 as V3
 import CargoHold.Types.V3.Resumable as V3
 import Control.Error (throwE)
 import Control.Lens (view, (&), set)
-import Control.Monad (when, unless)
-import Control.Monad.IO.Class (liftIO)
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Coerce
 import Data.Conduit
 import Data.Id
-import Data.Maybe
 import Data.Time.Clock
 import Data.UUID.V4 (nextRandom)
 import System.Logger.Class ((~~), field, msg, val)
