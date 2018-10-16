@@ -29,7 +29,6 @@ module Brig.Email
 import Brig.App (awsEnv, smtpEnv, AppIO)
 import Brig.Types
 import Control.Applicative (optional)
-import Control.Error (hush)
 import Control.Lens (view)
 import Data.Attoparsec.ByteString.Char8
 import Data.Monoid
@@ -50,23 +49,24 @@ sendMail m = view smtpEnv >>= \case
 
 -- Validation
 
-validateEmail :: Email -> Maybe Email
+-- | (Check out 'mkEmailKey' if you wonder about equality of emails with @+@ in their local part.)
+validateEmail :: Email -> Either String Email
 validateEmail (fromEmail -> e) =
     validateLength  >>=
-    validateRfc5322 >>=
+    Email.validate  >>=
     validateDomain  >>=
-        Just . mkEmail
+        pure . mkEmail
   where
-    validateLength | Text.length e <= 100 = Just (encodeUtf8 e)
-                   | otherwise            = Nothing
-
-    validateRfc5322 = either (const Nothing) Just . Email.validate
+    len = Text.length e
+    validateLength
+        | len <= 100 = Right $ encodeUtf8 e
+        | otherwise  = Left  $ "length " <> show len <> " exceeds 100"
 
     -- cf. https://en.wikipedia.org/wiki/Email_address#Domain
     -- n.b. We do not allow IP address literals, comments or non-ASCII
     --      characters, mostly because SES (and probably many other mail
     --      systems) don't support that (yet?) either.
-    validateDomain e' = hush (parseOnly parser (Email.domainPart e'))
+    validateDomain e' = parseOnly parser (Email.domainPart e')
       where
         parser = label *> many1 (char '.' *> label) *> endOfInput *> pure e'
         label  = satisfy (inClass "a-zA-Z0-9")
@@ -125,4 +125,3 @@ mkMimeAddress name email =
     in if Text.compareLength (renderAddress addr) 320 == GT
         then Address Nothing (fromEmail email)
         else addr
-

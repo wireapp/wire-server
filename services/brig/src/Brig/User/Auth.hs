@@ -138,9 +138,9 @@ resolveLoginId li = do
 
 validateLoginId :: LoginId -> ExceptT LoginError AppIO (Either UserKey Handle)
 validateLoginId (LoginByEmail email) =
-    maybe (throwE LoginFailed)
-          (return . Left . userEmailKey)
-          (validateEmail email)
+    either (const $ throwE LoginFailed)
+           (return . Left . userEmailKey)
+           (validateEmail email)
 validateLoginId (LoginByPhone phone) =
     maybe (throwE LoginFailed)
           (return . Left . userPhoneKey)
