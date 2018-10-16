@@ -98,9 +98,6 @@ newEnv o = do
 
 initAws :: Opts -> Logger -> Manager -> IO AwsEnv
 initAws o l m = do
-    -- TODO: The AWS package can also load them from the env, check the latest API
-    -- https://hackage.haskell.org/package/aws-0.17.1/docs/src/Aws-Core.html#loadCredentialsFromFile
-    -- which would avoid the need to specify them in a config file when running tests
     let awsOpts = o^.optAws
     amz  <- Aws.newEnv l m $ liftM2 (,) (awsOpts^.awsKeyId) (awsOpts^.awsSecretKey)
     sig  <- newCloudFrontEnv (o^.optAws.awsCloudFront) (o^.optSettings.setDownloadLinkTTL)
