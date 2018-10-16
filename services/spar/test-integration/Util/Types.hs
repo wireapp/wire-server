@@ -23,7 +23,7 @@ module Util.Types
   , teBrig
   , teGalley
   , teSpar
-  , teSparCass
+  , teSparEnv
   , teUserId
   , teTeamId
   , teIdP
@@ -53,6 +53,7 @@ import Spar.Types
 import Util.Options
 
 import qualified Data.Aeson as Aeson
+import qualified Spar.App as Spar
 
 
 type BrigReq   = Request -> Request
@@ -68,7 +69,7 @@ data TestEnv = TestEnv
   , _teBrig        :: BrigReq
   , _teGalley      :: GalleyReq
   , _teSpar        :: SparReq
-  , _teSparCass    :: ClientState
+  , _teSparEnv     :: Spar.Env
   , _teOpts        :: Opts               -- ^ spar config
   , _teTstOpts     :: IntegrationConfig  -- ^ integration test config
 

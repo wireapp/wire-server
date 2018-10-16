@@ -48,7 +48,6 @@ import Servant
 import Servant.Swagger
 import Spar.API.Instances ()
 import Spar.API.Swagger ()
-import Spar.API.Test
 import Spar.API.Types
 import Spar.App
 import Spar.Error
@@ -89,7 +88,6 @@ apiIDP
 apiINTERNAL :: ServerT APIINTERNAL Spar
 apiINTERNAL
      = pure NoContent
-  :<|> integrationTests
 
 
 appName :: ST

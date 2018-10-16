@@ -17,6 +17,7 @@ module Spar.App
   , wrapMonadClientWithEnv
   , wrapMonadClient
   , verdictHandler
+  , insertUser
   ) where
 
 import Bilge
@@ -64,7 +65,6 @@ data Env = Env
   }
 
 instance HasConfig Spar where
-  type ConfigExtra Spar = TeamId
   getConfig = asks (saml . sparCtxOpts)
 
 instance SP Spar where
@@ -92,12 +92,19 @@ toLevel = \case
   SAML.Debug -> Log.Debug
   SAML.Trace -> Log.Trace
 
-instance SPStore Spar where
-  storeRequest i r      = wrapMonadClientWithEnv $ Data.storeRequest i r
-  checkAgainstRequest r = wrapMonadClient        $ Data.checkAgainstRequest r
-  storeAssertion i r    = wrapMonadClientWithEnv $ Data.storeAssertion i r
+instance SPStoreID AuthnRequest Spar where
+  storeID i r = wrapMonadClientWithEnv $ Data.storeAReqID i r
+  unStoreID r = wrapMonadClient        $ Data.unStoreAReqID r
+  isAliveID r = wrapMonadClient        $ Data.isAliveAReqID r
+
+instance SPStoreID Assertion Spar where
+  storeID i r = wrapMonadClientWithEnv $ Data.storeAssID i r
+  unStoreID r = wrapMonadClient        $ Data.unStoreAssID r
+  isAliveID r = wrapMonadClient        $ Data.isAliveAssID r
 
 instance SPStoreIdP SparError Spar where
+  type IdPConfigExtra Spar = TeamId
+
   storeIdPConfig :: IdPConfig TeamId -> Spar ()
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 

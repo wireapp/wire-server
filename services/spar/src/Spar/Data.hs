@@ -17,9 +17,8 @@ module Spar.Data
   , Env(..)
   , mkEnv
   , mkTTLAssertions
-  , storeRequest
-  , checkAgainstRequest
-  , storeAssertion
+  , storeAReqID, unStoreAReqID, isAliveAReqID
+  , storeAssID, unStoreAssID, isAliveAssID
   , storeVerdictFormat
   , getVerdictFormat
   , insertUser
@@ -106,9 +105,10 @@ nominalDiffToSeconds = round @Double . realToFrac
 ----------------------------------------------------------------------
 -- saml state handling
 
-storeRequest :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
-             => AReqId -> SAML.Time -> m ()
-storeRequest (SAML.ID rid) (SAML.Time endOfLife) = do
+storeAReqID
+  :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
+  => AReqId -> SAML.Time -> m ()
+storeAReqID (SAML.ID rid) (SAML.Time endOfLife) = do
     env <- ask
     TTL ttl <- mkTTLAuthnRequests env endOfLife
     retry x5 . write ins $ params Quorum (rid, ttl)
@@ -116,29 +116,51 @@ storeRequest (SAML.ID rid) (SAML.Time endOfLife) = do
     ins :: PrepQuery W (ST, Int32) ()
     ins = "INSERT INTO authreq (req) VALUES (?) USING TTL ?"
 
-checkAgainstRequest :: (HasCallStack, MonadClient m)
-                    => AReqId -> m Bool
-checkAgainstRequest (SAML.ID rid) =
+unStoreAReqID
+  :: (HasCallStack, MonadClient m)
+  => AReqId -> m ()
+unStoreAReqID (SAML.ID rid) = retry x5 . write del . params Quorum $ Identity rid
+  where
+    del :: PrepQuery W (Identity ST) ()
+    del = "DELETE FROM authreq WHERE req = ?"
+
+isAliveAReqID
+  :: (HasCallStack, MonadClient m)
+  => AReqId -> m Bool
+isAliveAReqID (SAML.ID rid) =
     (==) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity rid)
   where
     sel :: PrepQuery R (Identity ST) (Identity Int64)
     sel = "SELECT COUNT(*) FROM authreq WHERE req = ?"
 
-storeAssertion :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
-               => SAML.ID SAML.Assertion -> SAML.Time -> m Bool
-storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
+
+storeAssID
+  :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
+  => AssId -> SAML.Time -> m ()
+storeAssID (SAML.ID aid) (SAML.Time endOfLife) = do
     env <- ask
-    TTL ttl <- mkTTLAssertions env endOfLifeNew
-    notAReplay <- (/=) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity aid)
-    when notAReplay $ do
-        retry x5 . write ins $ params Quorum (aid, ttl)
-    pure notAReplay
+    TTL ttl <- mkTTLAssertions env endOfLife
+    retry x5 . write ins $ params Quorum (aid, ttl)
+  where
+    ins :: PrepQuery W (ST, Int32) ()
+    ins = "INSERT INTO authresp (resp) VALUES (?) USING TTL ?"
+
+unStoreAssID
+  :: (HasCallStack, MonadClient m)
+  => AssId -> m ()
+unStoreAssID (SAML.ID aid) = retry x5 . write del . params Quorum $ Identity aid
+  where
+    del :: PrepQuery W (Identity ST) ()
+    del = "DELETE FROM authresp WHERE resp = ?"
+
+isAliveAssID
+  :: (HasCallStack, MonadClient m)
+  => AssId -> m Bool
+isAliveAssID (SAML.ID aid) =
+    (==) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity aid)
   where
     sel :: PrepQuery R (Identity ST) (Identity Int64)
     sel = "SELECT COUNT(*) FROM authresp WHERE resp = ?"
-
-    ins :: PrepQuery W (ST, Int32) ()
-    ins = "INSERT INTO authresp (resp) VALUES (?) USING TTL ?"
 
 
 ----------------------------------------------------------------------
@@ -214,7 +236,9 @@ lookupBindCookie cky = fmap runIdentity <$> do
 
 type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId)
 
-storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig TeamId -> m ()
+storeIdPConfig
+  :: (HasCallStack, MonadClient m)
+  => SAML.IdPConfig TeamId -> m ()
 storeIdPConfig idp = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
@@ -246,7 +270,7 @@ storeIdPConfig idp = retry x5 . batch $ do
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
 
 getIdPConfig
-  :: forall m. (HasCallStack, MonadClient m, MonadReader Env m)
+  :: forall m. (HasCallStack, MonadClient m)
   => SAML.IdPId -> m (Maybe IdP)
 getIdPConfig idpid =
   traverse toIdp =<< retry x1 (query1 sel $ params Quorum (Identity idpid))
@@ -269,7 +293,7 @@ getIdPConfig idpid =
     sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team FROM idp WHERE idp = ?"
 
 getIdPConfigByIssuer
-  :: (HasCallStack, MonadClient m, MonadReader Env m)
+  :: (HasCallStack, MonadClient m)
   => SAML.Issuer -> m (Maybe IdP)
 getIdPConfigByIssuer issuer = do
   getIdPIdByIssuer issuer >>= \case
@@ -288,7 +312,7 @@ getIdPIdByIssuer issuer = do
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"
 
 getIdPConfigsByTeam
-  :: (HasCallStack, MonadClient m, MonadReader Env m)
+  :: (HasCallStack, MonadClient m)
   => TeamId -> m [IdP]
 getIdPConfigsByTeam team = do
     idpids <- runIdentity <$$> retry x1 (query sel $ params Quorum (Identity team))
@@ -297,7 +321,9 @@ getIdPConfigsByTeam team = do
     sel :: PrepQuery R (Identity TeamId) (Identity SAML.IdPId)
     sel = "SELECT idp FROM team_idp WHERE team = ?"
 
-deleteIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPId -> SAML.Issuer -> TeamId -> m ()
+deleteIdPConfig
+  :: (HasCallStack, MonadClient m)
+  => SAML.IdPId -> SAML.Issuer -> TeamId -> m ()
 deleteIdPConfig idp issuer team = retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum

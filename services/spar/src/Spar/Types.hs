@@ -31,7 +31,7 @@ import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
 import Lens.Micro.TH (makeLenses)
 import SAML2.Util (renderURI, parseURI')
-import SAML2.WebSSO (IdPConfig, ID, AuthnRequest, SimpleSetCookie)
+import SAML2.WebSSO (IdPConfig, ID, AuthnRequest, Assertion, SimpleSetCookie)
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import URI.ByteString
 import Util.Options
@@ -60,6 +60,7 @@ makeLenses ''IdPList
 deriveJSON deriveJSONOptions ''IdPList
 
 type AReqId = ID AuthnRequest
+type AssId = ID Assertion
 
 -- | Clients can request different ways of receiving the final 'AccessVerdict' when fetching their
 -- 'AuthnRequest'.  Web-based clients want an html page, mobile clients want to set two URIs for the
@@ -95,7 +96,7 @@ substituteVar' var val = ST.intercalate val . ST.splitOn var
 
 type Opts = Opts' DerivedOpts
 data Opts' a = Opts
-    { saml           :: !(SAML.Config TeamId)
+    { saml           :: !SAML.Config
     , brig           :: !Endpoint
     , cassandra      :: !CassandraOpts
     , maxttlAuthreq  :: !(TTL "authreq")

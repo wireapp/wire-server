@@ -24,7 +24,6 @@ import Data.Proxy
 import Data.String.Conversions
 import Servant
 import Servant.Multipart
-import Spar.API.Test
 import Spar.Types
 
 import qualified SAML2.WebSSO as SAML
@@ -106,7 +105,6 @@ type IdpDelete  = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 type APIINTERNAL
      = "status" :> Get '[JSON] NoContent
-  :<|> "integration-tests" :> IntegrationTests
 
 
 sparSPIssuer :: SAML.HasConfig m => m SAML.Issuer
