@@ -291,6 +291,7 @@ runInsertUser env uref = runServantClient env . clientPostUser uref
 runGetUser :: TestEnv -> SAML.UserRef -> Http (Maybe UserId)
 runGetUser env = runServantClient env . clientGetUser
 
+-- | Generate a random 'UserRef'.
 nextUserRef :: MonadIO m => m SAML.UserRef
 nextUserRef = liftIO $ do
   (UUID.toText -> tenant) <- UUID.nextRandom

@@ -29,6 +29,7 @@ module Util.Types
   , teIdP
   , teOpts
   , teTstOpts
+  , teScimAdmin
   , Select
   , ResponseLBS
   , IntegrationConfig(..)
@@ -52,7 +53,8 @@ import Spar.API ()
 import Spar.Types
 import Util.Options
 
-import qualified Data.Aeson as Aeson
+import qualified Data.Aeson          as Aeson
+import qualified Web.SCIM.Class.Auth as SCIM
 
 
 type BrigReq   = Request -> Request
@@ -76,6 +78,9 @@ data TestEnv = TestEnv
   , _teUserId      :: UserId             -- ^ owner of the idp's home team
   , _teTeamId      :: TeamId             -- ^ home team of the idp
   , _teIdP         :: IdP                -- ^ details of the idp
+
+    -- SCIM config:
+  , _teScimAdmin   :: SCIM.SCIMAuthData  -- ^ SCIM admin credentials
   }
 
 type Select = TestEnv -> (Request -> Request)

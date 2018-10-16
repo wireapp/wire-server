@@ -139,7 +139,7 @@ toSCIMUser user = SCIM.WithMeta meta thing
       , SCIM.created = testDate
       , SCIM.lastModified = testDate
       , SCIM.version = SCIM.Strong (Text.pack (show thingHash))
-      , SCIM.location = SCIM.URI $ URI "TODO" Nothing "" "" ""
+      , SCIM.location = SCIM.URI $ URI "https://TODO" Nothing "" "" ""
       }
 
 -- 2018-01-01 00:00
@@ -251,18 +251,21 @@ instance SCIM.UserDB (ReaderT TeamId Spar) where
 
   -- | create :: User -> m StoredUser
   create user = do
-    tid   <- ask
+    tid <- ask
     (extId, handl) <- case (SCIM.User.externalId user, parseHandle $ SCIM.User.userName user) of
+      -- TODO: report these errors as SCIM errors
       (Nothing, _) -> error "We need an external ID!"
       (_, Nothing) -> error "Failed to parse userName!"
       -- We assume that checking that the user does _not_ exist was already done before
       (Just extId, Just handl) -> pure (extId, handl)
 
     buid <- Id <$> liftIO UUID.nextRandom
-    -- TODO: Assume that externalID is the subjectID, let's figure out how to extract that later
-    uref <- case fromUserSSOId $ UserSSOId (idToText tid) extId of
-              Left str  -> SCIM.throwSCIM $ SCIM.badRequest SCIM.InvalidValue (Just $ Text.pack str)
-              Right ref -> pure ref
+    -- TODO: Assume that externalID is the subjectID, let's figure out how
+    -- to extract that later. The question of "who's the issuer?" is a very
+    -- tricky one and we don't have a decision here yet.
+    let uref = SAML.UserRef
+          (SAML.Issuer $ SAML.unsafeParseURI ("https://unknown.issuer.org"))
+          (SAML.opaqueNameID extId)
 
     -- TODO: Adding a handle should be done _DURING_ the creation
     _ <- lift $ createUser uref buid tid >> setHandle buid handl

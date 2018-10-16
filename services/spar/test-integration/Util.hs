@@ -19,16 +19,26 @@
 -- FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( mkEnv, destroyEnv, passes, it, pending, pendingWith
+  (
+  -- * Test environment
+    mkEnv, destroyEnv
+  -- * Test helpers
+  , passes, it, pending, pendingWith
+  , shouldRespondWith
+  , module Test.Hspec
+  -- * HTTP
+  , call
+  , endpointToReq
+  , endpointToSettings
+  , endpointToURL
+  , responseJSON
+  , decodeBody
+  , decodeBody'
+  -- * Other
   , createUserWithTeam
   , createTeamMember
   , createRandomPhoneUser
   , zUser
-  , endpointToReq
-  , endpointToSettings
-  , endpointToURL
-  , shouldRespondWith
-  , call
   , ping
   , makeIssuer
   , makeTestIdPMetadata
@@ -44,7 +54,6 @@ module Util
   , submitAuthnResponse
   , submitAuthnResponse'
   , loginSsoUserFirstTime
-  , responseJSON
   , callAuthnReqPrecheck'
   , callAuthnReq, callAuthnReq'
   , callIdpGet, callIdpGet'
@@ -53,7 +62,6 @@ module Util
   , callIdpDelete, callIdpDelete'
   , initCassandra
   , ssoToUidSpar
-  , module Test.Hspec
   , module Util.Types
   ) where
 
@@ -113,6 +121,7 @@ import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
 import qualified Web.Cookie as Web
+import qualified Web.SCIM.Class.Auth as SCIM
 
 
 -- | Create an environment for integration tests from integration and spar config files.
@@ -141,6 +150,11 @@ mkEnv _teTstOpts _teOpts = do
     createTestIdPFrom idpmeta _teMgr _teBrig _teGalley _teSpar
 
   _teSparCass <- initCassandra _teOpts =<< mkLogger _teOpts
+
+  -- TODO: for now, our SCIM implementation accepts any set of credentials
+  _teScimAdmin <- SCIM.SCIMAuthData
+      <$> liftIO UUID.nextRandom
+      <*> pure "password"
 
   pure TestEnv {..}
 
