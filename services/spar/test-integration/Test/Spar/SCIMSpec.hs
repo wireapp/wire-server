@@ -80,12 +80,20 @@ specUsers = describe "operations with users" $ do
             -- Check that the (non-SCIM-provisioned) team owner is present
             liftIO $ users `shouldSatisfy`
                 any ((== env^.teUserId) . scimUserId)
-
-    describe "GET /Users/:userName" $ do
-        it "finds a SCIM-provisioned user by username" $ do
+        it "finds a SCIM-provisioned user by username" $
             pending
-            -- check that the SCIM-provisioned user is get-table
-        it "finds the pre-existing user by username" $ do
+        it "finds a pre-existing user by username" $
+            pending
+
+    describe "GET /Users/:id" $ do
+        it "finds a SCIM-provisioned user" $ do
+            -- Create a user via SCIM
+            user <- randomUser
+            storedUser <- createUser user
+            -- Check that the SCIM-provisioned user can be fetched
+            storedUser' <- getUser (scimUserId storedUser)
+            liftIO $ storedUser' `shouldBe` storedUser
+        it "finds a pre-existing user" $ do
             pending
             -- check that the pre-existing user is get-table
         it "doesn't find a user that's not part of the team" $ do
@@ -138,6 +146,20 @@ listUsers mbFilter = do
               \is not supported yet"
     pure (SCIM.resources r')
 
+-- | Get a user belonging to the default 'TestEnv' team.
+getUser
+    :: UserId
+    -> TestSpar SCIM.StoredUser
+getUser userid = do
+    env <- ask
+    r <- getUser_
+             (Just (env ^. teScimAdmin))
+             (env ^. teTeamId)
+             userid
+             (env ^. teSpar)
+         <!! const 200 === statusCode
+    pure (decodeBody' r)
+
 ----------------------------------------------------------------------------
 -- Low-level SCIM API
 
@@ -173,6 +195,21 @@ listUsers_ auth teamid mbFilter spar_ = do
         ( spar_
         . paths ["scim", toByteString' teamid, "Users"]
         . queryItem' "filter" (toByteString' . SCIM.renderFilter <$> mbFilter)
+        . scimAuth auth
+        . acceptScim
+        )
+
+-- | Get one user.
+getUser_
+    :: Maybe SCIM.SCIMAuthData  -- ^ Admin credentials for authentication
+    -> TeamId                   -- ^ Team
+    -> UserId                   -- ^ User
+    -> SparReq                  -- ^ Spar endpoint
+    -> TestSpar ResponseLBS
+getUser_ auth teamid userid spar_ = do
+    call . get $
+        ( spar_
+        . paths ["scim", toByteString' teamid, "Users", toByteString' userid]
         . scimAuth auth
         . acceptScim
         )
