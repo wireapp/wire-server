@@ -21,25 +21,17 @@ import Data.Id
 import Data.Monoid
 import Lens.Micro
 import Data.UUID as UUID hiding (null, fromByteString)
-import Data.Text (pack)
+import Data.Text (pack, unpack)
 import System.Random
--- import Control.Retry
--- import Data.List (isInfixOf)
--- import Data.Maybe
--- import Data.String.Conversions
--- import Data.UUID.V4 as UUID
--- import Galley.Types.Teams as Galley
--- import Prelude hiding (head)
--- import SAML2.WebSSO as SAML
--- import SAML2.WebSSO.Test.MockResponse
--- import Spar.Types
--- import Spar.API.Types
+import Text.Read (readEither)
 import Util
 
 import qualified Web.SCIM.Class.User              as SCIM
 import qualified Web.SCIM.Class.Auth              as SCIM
+import qualified Web.SCIM.Schema.ListResponse     as SCIM
 import qualified Web.SCIM.Schema.Common           as SCIM
 import qualified Web.SCIM.Schema.Meta             as SCIM
+import qualified Web.SCIM.Filter                  as SCIM
 
 import qualified Web.SCIM.Schema.User             as SCIM.User
 
@@ -59,7 +51,7 @@ specUsers = describe "operations with users" $ do
             -- Create a user via SCIM
             user <- randomUser
             storedUser <- createUser user
-            let userid = SCIM.id (SCIM.thing storedUser)
+            let userid = scimUserId storedUser
             -- Check that this user is present in Brig
             brigUser <- fmap decodeBody' . call . get $
                 ( (env ^. teBrig)
@@ -69,7 +61,7 @@ specUsers = describe "operations with users" $ do
                 )
             -- Check that the fields were set correctly
             liftIO $ do
-                idToText (userId brigUser) `shouldBe` userid
+                userId brigUser `shouldBe` userid
                 userHandle brigUser `shouldBe`
                     Just (Handle (SCIM.User.userName user))
                 Just (userName brigUser) `shouldBe`
@@ -77,11 +69,20 @@ specUsers = describe "operations with users" $ do
 
     describe "GET /Users" $ do
         it "lists all users in a team" $ do
-            pending
-            -- check that both normally created and SCIM-created user are listable
+            env <- ask
+            -- Create a user via SCIM
+            user <- randomUser
+            storedUser <- createUser user
+            -- Get all users via SCIM
+            users <- listUsers Nothing
+            -- Check that the SCIM user is present
+            liftIO $ users `shouldContain` [storedUser]
+            -- Check that the (non-SCIM-provisioned) team owner is present
+            liftIO $ users `shouldSatisfy`
+                any ((== env^.teUserId) . scimUserId)
 
     describe "GET /Users/:userName" $ do
-        it "finds the SCIM-provisioned user by username" $ do
+        it "finds a SCIM-provisioned user by username" $ do
             pending
             -- check that the SCIM-provisioned user is get-table
         it "finds the pre-existing user by username" $ do
@@ -111,7 +112,7 @@ createUser
     -> TestSpar SCIM.StoredUser
 createUser user = do
     env <- ask
-    r <- postUser
+    r <- createUser_
              (Just (env ^. teScimAdmin))
              (env ^. teTeamId)
              user
@@ -119,17 +120,35 @@ createUser user = do
          <!! const 201 === statusCode
     pure (decodeBody' r)
 
+-- | List all users in the default 'TestEnv' team.
+listUsers
+    :: Maybe SCIM.Filter
+    -> TestSpar [SCIM.StoredUser]
+listUsers mbFilter = do
+    env <- ask
+    r <- listUsers_
+             (Just (env ^. teScimAdmin))
+             (env ^. teTeamId)
+             mbFilter
+             (env ^. teSpar)
+         <!! const 200 === statusCode
+    let r' = decodeBody' r
+    when (SCIM.totalResults r' /= length (SCIM.resources r')) $
+        error "listUsers: got a paginated result, but pagination \
+              \is not supported yet"
+    pure (SCIM.resources r')
+
 ----------------------------------------------------------------------------
 -- Low-level SCIM API
 
 -- | Create a user.
-postUser
+createUser_
     :: Maybe SCIM.SCIMAuthData  -- ^ Admin credentials for authentication
     -> TeamId                   -- ^ Team
     -> SCIM.User.User           -- ^ User data
     -> SparReq                  -- ^ Spar endpoint
     -> TestSpar ResponseLBS
-postUser auth teamid user spar_ = do
+createUser_ auth teamid user spar_ = do
     -- NB: we don't use 'mkEmailRandomLocalSuffix' here, because emails
     -- shouldn't be submitted via SCIM anyway.
     let p = RequestBodyLBS . Aeson.encode $ user
@@ -137,8 +156,25 @@ postUser auth teamid user spar_ = do
         ( spar_
         . paths ["scim", toByteString' teamid, "Users"]
         . scimAuth auth
-        . contentJson
+        . contentScim
         . body p
+        . acceptScim
+        )
+
+-- | List all users.
+listUsers_
+    :: Maybe SCIM.SCIMAuthData  -- ^ Admin credentials for authentication
+    -> TeamId                   -- ^ Team
+    -> Maybe SCIM.Filter        -- ^ Predicate to filter the results
+    -> SparReq                  -- ^ Spar endpoint
+    -> TestSpar ResponseLBS
+listUsers_ auth teamid mbFilter spar_ = do
+    call . get $
+        ( spar_
+        . paths ["scim", toByteString' teamid, "Users"]
+        . queryItem' "filter" (toByteString' . SCIM.renderFilter <$> mbFilter)
+        . scimAuth auth
+        . acceptScim
         )
 
 ----------------------------------------------------------------------------
@@ -151,3 +187,18 @@ scimAuth (Just auth) =
     applyBasicAuth
         (UUID.toASCIIBytes (SCIM.scimAdmin auth))
         (SCIM.scimPassword auth)
+
+-- | Signal that the body is an SCIM payload.
+contentScim :: Request -> Request
+contentScim = content "application/scim+json"
+
+-- | Signal that the response type is expected to be an SCIM payload.
+acceptScim :: Request -> Request
+acceptScim = accept "application/scim+json"
+
+-- | Get ID of a user returned from SCIM.
+scimUserId :: SCIM.StoredUser -> UserId
+scimUserId storedUser = either err id (readEither id_)
+  where
+    id_ = unpack (SCIM.id (SCIM.thing storedUser))
+    err e = error $ "scimUserId: couldn't parse ID " ++ id_ ++ ": " ++ e
