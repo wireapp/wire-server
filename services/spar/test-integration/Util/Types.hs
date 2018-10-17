@@ -38,6 +38,7 @@ module Util.Types
 import Bilge
 import Cassandra as Cas
 import Control.Exception
+import Control.Lens (makeLenses)
 import Control.Monad
 import Control.Monad.Reader
 import Data.Aeson
@@ -46,7 +47,6 @@ import Data.Id
 import Data.String
 import Data.String.Conversions
 import GHC.Generics (Generic)
-import Lens.Micro.TH
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
 import Spar.Types

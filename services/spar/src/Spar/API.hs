@@ -34,6 +34,7 @@ module Spar.API
   ) where
 
 import Brig.Types.User as Brig
+import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Id
@@ -42,7 +43,6 @@ import Data.Proxy
 import Data.String.Conversions
 import Data.Time
 import GHC.Stack
-import Lens.Micro
 import OpenSSL.Random (randBytes)
 import Servant
 import Servant.Swagger

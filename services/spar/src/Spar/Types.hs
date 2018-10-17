@@ -15,6 +15,7 @@
 
 module Spar.Types where
 
+import Control.Lens (makeLenses)
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
@@ -29,7 +30,6 @@ import Data.Time
 import GHC.Generics
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
-import Lens.Micro.TH (makeLenses)
 import SAML2.Util (renderURI, parseURI')
 import SAML2.WebSSO (IdPConfig, ID, AuthnRequest, Assertion, SimpleSetCookie)
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)

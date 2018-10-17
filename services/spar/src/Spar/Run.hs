@@ -23,11 +23,11 @@ module Spar.Run
 
 import Bilge
 import Cassandra as Cas
+import Control.Lens
 import Data.List.NonEmpty as NE
 import Data.Metrics (metrics)
 import Data.String.Conversions
 import Data.String (fromString)
-import Lens.Micro
 import Network.Wai (Application)
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Spar.API (app)

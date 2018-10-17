@@ -12,6 +12,7 @@ module Test.Spar.APISpec (spec) where
 
 import Bilge
 import Brig.Types.User
+import Control.Lens
 import Control.Monad.Reader
 import Control.Retry
 import Data.ByteString.Conversion
@@ -23,12 +24,11 @@ import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID
 import Galley.Types.Teams as Galley
 import GHC.Stack
-import Lens.Micro
 import Prelude hiding (head)
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.MockResponse
-import Spar.Types
 import Spar.API.Types
+import Spar.Types
 import URI.ByteString.QQ (uri)
 import Util
 

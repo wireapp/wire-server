@@ -34,8 +34,8 @@ module Spar.Data
   ) where
 
 import Cassandra as Cas
+import Control.Lens
 import Control.Monad.Except
-import Control.Monad.Identity
 import Control.Monad.Reader
 import Data.Id
 import Data.Int
@@ -46,7 +46,6 @@ import Data.Time
 import Data.X509 (SignedCertificate)
 import GHC.Stack
 import GHC.TypeLits (KnownSymbol)
-import Lens.Micro
 import Spar.Data.Instances (VerdictFormatRow, VerdictFormatCon, fromVerdictFormat, toVerdictFormat)
 import Spar.Types
 import URI.ByteString

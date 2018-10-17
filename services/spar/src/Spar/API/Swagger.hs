@@ -18,6 +18,7 @@
 
 module Spar.API.Swagger where
 
+import Control.Lens
 import Data.Id
 import Data.Proxy
 import Data.UUID (UUID)
@@ -26,7 +27,6 @@ import Data.String.Interpolate as QQ
 import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
-import Lens.Micro
 import Servant
 import Servant.Swagger
 import Spar.API.Instances ()

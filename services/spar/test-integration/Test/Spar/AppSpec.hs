@@ -12,13 +12,13 @@ module Test.Spar.AppSpec (spec) where
 
 import Bilge
 import Control.Exception
+import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Either (isRight)
 import Data.Id
 import Data.Maybe (isJust)
 import Data.String.Conversions
-import Lens.Micro
 import SAML2.Util ((-/))
 import SAML2.WebSSO as SAML
 import Spar.API.Instances ()

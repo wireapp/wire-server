@@ -12,13 +12,13 @@ module Test.Spar.DataSpec (spec) where
 
 import Cassandra
 import Control.Concurrent
+import Control.Lens
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.String.Conversions
 import Data.Typeable
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
-import Lens.Micro
 import SAML2.WebSSO as SAML
 import Spar.Data as Data
 import Spar.Types

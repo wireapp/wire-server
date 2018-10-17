@@ -20,6 +20,7 @@ module Spar.Intra.Brig where
 import Bilge
 import Brig.Types.User
 import Brig.Types.User.Auth (SsoLogin(..))
+import Control.Lens
 import Control.Monad.Except
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
@@ -28,7 +29,6 @@ import Data.Maybe (isJust)
 import Data.Range
 import Data.String.Conversions
 import GHC.Stack
-import Lens.Micro
 import Network.HTTP.Types.Method
 import Spar.Error
 import Web.Cookie

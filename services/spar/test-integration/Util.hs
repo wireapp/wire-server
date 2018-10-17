@@ -67,6 +67,7 @@ import Bilge
 import Bilge.Assert ((!!!), (===), (<!!))
 import Cassandra as Cas
 import Control.Exception
+import Control.Lens hiding ((.=))
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Except
@@ -87,7 +88,6 @@ import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID (nextRandom)
 import GHC.Stack (HasCallStack)
 import Network.HTTP.Client.MultipartFormData
-import Lens.Micro
 import Prelude hiding (head)
 import SAML2.WebSSO
 import SAML2.WebSSO.Test.Credentials
