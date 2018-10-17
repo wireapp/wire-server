@@ -366,6 +366,7 @@ testRemoveBindingTeamMember ownerHasPassword g b c a = do
                    . json (newTeamMemberDeleteData Nothing)
                    ) !!! const 202 === statusCode
 
+        checkNoConvMemberLeaveEvent cid1 wsOwner
         checkTeamMemberLeave tid (mem1^.userId) wsOwner
         checkConvMemberLeaveEvent cid1 (mem1^.userId) wsMext
 
@@ -855,6 +856,16 @@ checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
     evtType e @?= Conv.ConvDelete
     evtConv e @?= cid
     evtData e @?= Nothing
+
+checkNoConvMemberLeaveEvent :: HasCallStack => ConvId -> WS.WebSocket -> Http ()
+checkNoConvMemberLeaveEvent cid w = WS.assertNoMatch timeout w
+    (\notif ->
+        case List1.head (WS.unpackEitherPayload notif) of
+            Right (e :: Conv.Event) -> and
+                [ evtConv e == cid
+                , evtType e == Conv.MemberLeave
+                ]
+            Left _ -> False)
 
 checkConvMemberLeaveEvent :: HasCallStack => ConvId -> UserId -> WS.WebSocket -> Http ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
