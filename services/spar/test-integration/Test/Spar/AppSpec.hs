@@ -143,7 +143,8 @@ requestAccessVerdict isGranted mkAuthnReq = do
   authnresp <- do
     let mk :: SAML.FormRedirect SAML.AuthnRequest -> TestSpar SAML.AuthnResponse
         mk (SAML.FormRedirect _ req) = do
-          SAML.SignedAuthnResponse (XML.Document _ el _) <- runSimpleSP $ SAML.mkAuthnResponse SAML.sampleIdPPrivkey idp spmeta req True
+          SAML.SignedAuthnResponse (XML.Document _ el _) <- runSimpleSP $
+            SAML.mkAuthnResponse SAML.sampleIdPPrivkey idp spmeta req True
           either (liftIO . throwIO . ErrorCall . show) pure $ SAML.parse [XML.NodeElement el]
     mk authnreq
   let verdict = if isGranted
