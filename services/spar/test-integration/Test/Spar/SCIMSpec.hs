@@ -57,15 +57,9 @@ specUsers = describe "operations with users" $ do
         it "creates a user in an existing team" $ do
             env <- ask
             -- Create a user via SCIM
-            suffix <- pack <$> replicateM 6 (liftIO (randomRIO ('a', 'z')))
-            let handl = "bob_scim_" <> suffix
-            let user = SCIM.User.empty
-                  { SCIM.User.userName = handl
-                  , SCIM.User.displayName = Just "Bob Scim"
-                  , SCIM.User.externalId = Just ("bob_scim_external_" <> suffix)
-                  }
-            scimUser <- createUser user
-            let userid = SCIM.id (SCIM.thing scimUser)
+            user <- randomUser
+            storedUser <- createUser user
+            let userid = SCIM.id (SCIM.thing storedUser)
             -- Check that this user is present in Brig
             brigUser <- fmap decodeBody' . call . get $
                 ( (env ^. teBrig)
@@ -76,8 +70,10 @@ specUsers = describe "operations with users" $ do
             -- Check that the fields were set correctly
             liftIO $ do
                 idToText (userId brigUser) `shouldBe` userid
-                userHandle brigUser `shouldBe` Just (Handle handl)
-                userName brigUser `shouldBe` Name "Bob Scim"
+                userHandle brigUser `shouldBe`
+                    Just (Handle (SCIM.User.userName user))
+                Just (userName brigUser) `shouldBe`
+                    Name <$> SCIM.User.displayName user
 
     describe "GET /Users" $ do
         it "lists all users in a team" $ do
@@ -95,6 +91,16 @@ specUsers = describe "operations with users" $ do
             pending
             -- create another team and another user in it
             -- check that this user can not be found in the "wrong" team
+
+-- | Generate a SCIM user with a random name and handle.
+randomUser :: TestSpar SCIM.User.User
+randomUser = do
+    suffix <- pack <$> replicateM 5 (liftIO (randomRIO ('0', '9')))
+    pure $ SCIM.User.empty
+        { SCIM.User.userName    = "scimuser_" <> suffix
+        , SCIM.User.displayName = Just ("Scim User #" <> suffix)
+        , SCIM.User.externalId  = Just ("scimuser_extid_" <> suffix)
+        }
 
 ----------------------------------------------------------------------------
 -- High-level SCIM API
