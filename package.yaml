@@ -13,13 +13,22 @@ build-type:          Simple
 github:              wireapp/hscim
 
 default-extensions:
-  - OverloadedStrings
+  - ConstraintKinds
+  - DataKinds
+  - DeriveFunctor
+  - DeriveGeneric
   - FlexibleContexts
   - FlexibleInstances
-  - TypeSynonymInstances
-  - DeriveGeneric
+  - KindSignatures
   - LambdaCase
+  - MultiParamTypeClasses
+  - OverloadedStrings
+  - RankNTypes
+  - ScopedTypeVariables
   - TypeApplications
+  - TypeFamilies
+  - TypeOperators
+  - TypeSynonymInstances
 
 extra-source-files:
   - README.md
@@ -27,13 +36,12 @@ extra-source-files:
 dependencies:
   - base >= 4.7 && < 5
   - bytestring
+  - base64-bytestring
   - aeson
   - aeson-qq
   - mtl
   - servant
   - servant-server
-  - servant-auth
-  - servant-auth-server
   - servant-generic
   - text
   - time
@@ -54,7 +62,7 @@ dependencies:
   - attoparsec
   - microlens
   - http-api-data
-  - exceptions
+  - mmorph
 
 ghc-options: -Wall
 

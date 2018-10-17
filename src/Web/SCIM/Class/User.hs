@@ -1,8 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE TypeOperators   #-}
-{-# LANGUAGE ConstraintKinds   #-}
-
 module Web.SCIM.Class.User
     ( UserDB (..)
     , StoredUser
@@ -12,7 +7,6 @@ module Web.SCIM.Class.User
 
 import           Control.Applicative ((<|>), Alternative)
 import           Control.Monad
-import           Control.Monad.Catch
 import           Data.Text
 import           GHC.Generics (Generic)
 import           Web.SCIM.Schema.User hiding (schemas)
@@ -20,25 +14,24 @@ import           Web.SCIM.Schema.Meta
 import           Web.SCIM.Schema.Common
 import           Web.SCIM.Schema.Error
 import           Web.SCIM.Schema.ListResponse hiding (schemas)
+import           Web.SCIM.Handler
 import           Web.SCIM.Filter
 import           Web.SCIM.ContentType
 import           Servant
 import           Servant.Generic
 
 
-type UserHandler m = (MonadThrow m, UserDB m)
-
 type StoredUser = WithMeta (WithId User)
 
 -- TODO: parameterize UserId
-class UserDB m where
-  list     :: Maybe Filter -> m (ListResponse StoredUser)
-  get      :: UserId -> m (Maybe StoredUser)
-  create   :: User -> m StoredUser
-  update   :: UserId -> User -> m StoredUser
-  patch    :: UserId -> m StoredUser
-  delete   :: UserId -> m Bool  -- ^ Return 'False' if the group didn't exist
-  getMeta  :: m Meta
+class Monad m => UserDB m where
+  list     :: Maybe Filter -> SCIMHandler m (ListResponse StoredUser)
+  get      :: UserId -> SCIMHandler m (Maybe StoredUser)
+  create   :: User -> SCIMHandler m StoredUser
+  update   :: UserId -> User -> SCIMHandler m StoredUser
+  patch    :: UserId -> SCIMHandler m StoredUser
+  delete   :: UserId -> SCIMHandler m Bool  -- ^ Return 'False' if the user didn't exist
+  getMeta  :: SCIMHandler m Meta
 
 
 data UserSite route = UserSite
@@ -56,7 +49,7 @@ data UserSite route = UserSite
       Capture "id" Text :> DeleteNoContent '[SCIM] NoContent
   } deriving (Generic)
 
-userServer :: UserHandler m => UserSite (AsServerT m)
+userServer :: UserDB m => UserSite (AsServerT (SCIMHandler m))
 userServer = UserSite
   { getUsers   = list
   , getUser    = getUser'
@@ -66,7 +59,7 @@ userServer = UserSite
   , deleteUser = deleteUser'
   }
 
-postUser' :: UserHandler m => User -> m StoredUser
+postUser' :: UserDB m => User -> SCIMHandler m StoredUser
 postUser' user = do
   -- Find users with the same username (case-insensitive)
   --
@@ -76,27 +69,27 @@ postUser' user = do
   let filter_ = FilterAttrCompare AttrUserName OpEq (ValString (userName user))
   stored <- list (Just filter_)
   when (totalResults stored > 0) $
-    throwM conflict
+    throwSCIM conflict
   create user
 
-updateUser' :: UserHandler m => UserId -> User -> m StoredUser
+updateUser' :: UserDB m => UserId -> User -> SCIMHandler m StoredUser
 updateUser' uid updatedUser = do
   stored <- get uid
   case stored of
     Just (WithMeta _meta (WithId _ existing)) -> do
       let newUser = existing `overwriteWith` updatedUser
       update uid newUser
-    Nothing -> throwM (notFound "User" uid)
+    Nothing -> throwSCIM (notFound "User" uid)
 
-getUser' :: UserHandler m => UserId -> m StoredUser
+getUser' :: UserDB m => UserId -> SCIMHandler m StoredUser
 getUser' uid = do
   maybeUser <- get uid
-  maybe (throwM (notFound "User" uid)) pure maybeUser
+  maybe (throwSCIM (notFound "User" uid)) pure maybeUser
 
-deleteUser' :: UserHandler m => UserId -> m NoContent
+deleteUser' :: UserDB m => UserId -> SCIMHandler m NoContent
 deleteUser' uid = do
   deleted <- delete uid
-  unless deleted $ throwM (notFound "User" uid)
+  unless deleted $ throwSCIM (notFound "User" uid)
   pure NoContent
 
 overwriteWith :: User -> User -> User

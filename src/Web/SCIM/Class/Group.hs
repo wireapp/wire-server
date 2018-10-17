@@ -1,8 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE TypeOperators   #-}
-{-# LANGUAGE ConstraintKinds   #-}
-
 module Web.SCIM.Class.Group (
   GroupSite (..)
   , GroupDB (..)
@@ -13,7 +8,6 @@ module Web.SCIM.Class.Group (
   , groupServer
   ) where
 
-import           Control.Monad.Catch
 import           Control.Monad
 import           Data.Text
 import           Data.Aeson
@@ -22,10 +16,9 @@ import           Web.SCIM.Schema.Common
 import           Web.SCIM.Schema.Error
 import           Web.SCIM.Schema.Meta
 import           Web.SCIM.ContentType
+import           Web.SCIM.Handler
 import           Servant
 import           Servant.Generic
-
-type GroupHandler m = (MonadThrow m, GroupDB m)
 
 type GroupId = Text
 
@@ -59,21 +52,21 @@ instance ToJSON Group where
 
 type StoredGroup = WithMeta (WithId Group)
 
-class GroupDB m where
-  list :: m [StoredGroup]
-  get :: GroupId -> m (Maybe StoredGroup)
-  create :: Group -> m StoredGroup
-  update :: GroupId -> Group -> m StoredGroup
-  delete :: GroupId -> m Bool  -- ^ Return 'False' if the group didn't exist
-  getGroupMeta :: m Meta
+class Monad m => GroupDB m where
+  list :: SCIMHandler m [StoredGroup]
+  get :: GroupId -> SCIMHandler m (Maybe StoredGroup)
+  create :: Group -> SCIMHandler m StoredGroup
+  update :: GroupId -> Group -> SCIMHandler m StoredGroup
+  delete :: GroupId -> SCIMHandler m Bool  -- ^ Return 'False' if the group didn't exist
+  getGroupMeta :: SCIMHandler m Meta
 
 data GroupSite route = GroupSite
   { getGroups :: route :-
-        Get '[SCIM] [StoredGroup]
+      Get '[SCIM] [StoredGroup]
   , getGroup :: route :-
-        Capture "id" Text :> Get '[SCIM] StoredGroup
+      Capture "id" Text :> Get '[SCIM] StoredGroup
   , postGroup :: route :-
-        ReqBody '[SCIM] Group :> PostCreated '[SCIM] StoredGroup
+      ReqBody '[SCIM] Group :> PostCreated '[SCIM] StoredGroup
   , putGroup :: route :-
       Capture "id" Text :> ReqBody '[SCIM] Group :> Put '[SCIM] StoredGroup
   , patchGroup :: route :-
@@ -82,7 +75,7 @@ data GroupSite route = GroupSite
       Capture "id" Text :> DeleteNoContent '[SCIM] NoContent
   } deriving (Generic)
 
-groupServer :: GroupHandler m => GroupSite (AsServerT m)
+groupServer :: GroupDB m => GroupSite (AsServerT (SCIMHandler m))
 groupServer = GroupSite
   { getGroups = list
   , getGroup = getGroup'
@@ -92,13 +85,13 @@ groupServer = GroupSite
   , deleteGroup = deleteGroup'
   }
 
-getGroup' :: GroupHandler m => GroupId -> m StoredGroup
+getGroup' :: GroupDB m => GroupId -> SCIMHandler m StoredGroup
 getGroup' gid = do
   maybeGroup <- get gid
-  maybe (throwM (notFound "Group" gid)) pure maybeGroup
+  maybe (throwSCIM (notFound "Group" gid)) pure maybeGroup
 
-deleteGroup' :: GroupHandler m => GroupId -> m NoContent
+deleteGroup' :: GroupDB m => GroupId -> SCIMHandler m NoContent
 deleteGroup' gid = do
   deleted <- delete gid
-  unless deleted $ throwM (notFound "Group" gid)
+  unless deleted $ throwSCIM (notFound "Group" gid)
   pure NoContent

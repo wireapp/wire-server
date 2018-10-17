@@ -1,8 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE TypeOperators   #-}
-{-# LANGUAGE ConstraintKinds   #-}
-
 module Web.SCIM.Capabilities.MetaSchema (
   ConfigSite
   , configServer
@@ -25,7 +20,7 @@ import           Web.SCIM.Capabilities.MetaSchema.Group
 import           Web.SCIM.Capabilities.MetaSchema.Schema
 import           Web.SCIM.Capabilities.MetaSchema.ResourceType
 import           Web.SCIM.ContentType
-import           Control.Monad.Catch
+import           Web.SCIM.Handler
 import           Data.Aeson
 import qualified Data.HashMap.Lazy as HML
 import           Data.Text (Text)
@@ -94,8 +89,9 @@ empty = Configuration
   , authenticationSchemes = [authHttpBasicEncoding]
   }
 
-configServer :: MonadThrow m =>
-                Configuration -> ConfigSite (AsServerT m)
+configServer
+  :: Monad m
+  => Configuration -> ConfigSite (AsServerT (SCIMHandler m))
 configServer config = ConfigSite
   { spConfig = pure config
   , getSchemas = pure $
@@ -106,7 +102,7 @@ configServer config = ConfigSite
                             , resourceSchema
                             ]
   , schema = \uri -> case getSchema =<< fromSchemaUri uri of
-      Nothing -> throwM (notFound "Schema" uri)
+      Nothing -> throwSCIM (notFound "Schema" uri)
       Just s  -> pure s
   , resourceTypes = pure $
       ListResponse.fromList [ usersResource

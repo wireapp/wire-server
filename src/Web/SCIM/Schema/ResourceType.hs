@@ -24,6 +24,12 @@ instance ToJSON ResourceType where
   toJSON UserResource = "User"
   toJSON GroupResource = "Group"
 
+instance FromJSON ResourceType where
+  parseJSON = withText "ResourceType" $ \case
+    "User" -> pure UserResource
+    "Group" -> pure GroupResource
+    other -> fail ("unknown ResourceType: " ++ show other)
+
 -- | Definitions of endpoints, returned by @/ResourceTypes@.
 data Resource = Resource
   { name :: Text
@@ -33,6 +39,9 @@ data Resource = Resource
 
 instance ToJSON Resource where
   toJSON = genericToJSON serializeOptions
+
+instance FromJSON Resource where
+  parseJSON = genericParseJSON parseOptions . jsonLower
 
 ----------------------------------------------------------------------------
 -- Available resource endpoints

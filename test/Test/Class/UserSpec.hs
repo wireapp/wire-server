@@ -1,11 +1,10 @@
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Test.Class.UserSpec (spec) where
 
 import           Test.Util
 
-import           Web.SCIM.Server (mkapp, App, UserAPI, userServer)
+import           Web.SCIM.Server (mkapp, UserAPI, userServer)
 import           Web.SCIM.Server.Mock
 import           Test.Hspec
 import           Test.Hspec.Wai      hiding (post, put, patch)
@@ -13,17 +12,15 @@ import           Data.ByteString.Lazy (ByteString)
 import           Servant (Proxy(Proxy))
 import           Servant.Generic
 import           Network.Wai (Application)
-import qualified STMContainers.Map   as STMMap
 
 
-app :: App m UserAPI => (forall a. m a -> IO a) -> IO Application
-app = mkapp (Proxy @UserAPI) (toServant userServer)
-
-storage :: IO TestStorage
-storage = TestStorage <$> STMMap.newIO <*> STMMap.newIO <*> STMMap.newIO
+app :: IO Application
+app = do
+  storage <- emptyTestStorage
+  pure $ mkapp (Proxy @UserAPI) (toServant userServer) (nt storage)
 
 spec :: Spec
-spec = beforeAll ((\s -> app (nt s)) =<< storage) $ do
+spec = beforeAll app $ do
   describe "GET & POST /Users" $ do
     it "responds with [] in empty environment" $ do
       get "/" `shouldRespondWith` emptyList

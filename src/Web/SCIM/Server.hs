@@ -1,44 +1,40 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
 
 module Web.SCIM.Server
-  ( app
-  , SiteAPI
-  , mkapp, App
+  (
+  -- * WAI application
+  app, mkapp, App
 
-  -- * API subtrees, useful for tests
+  -- * API tree
+  , SiteAPI, siteServer
+  -- ** API subtrees, useful for tests
   , ConfigAPI, configServer
   , UserAPI, userServer
   , GroupAPI, groupServer
   ) where
 
-import qualified Data.ByteString.Lazy.Char8 as BL
 import           Web.SCIM.Class.User (UserSite (..), UserDB, userServer)
 import           Web.SCIM.Class.Group (GroupSite (..), GroupDB, groupServer)
-import           Web.SCIM.Class.Auth (Admin, AuthDB (..))
-import           Web.SCIM.Schema.Error
+import           Web.SCIM.Class.Auth (AuthDB (..), SCIMAuthData (..))
 import           Web.SCIM.Capabilities.MetaSchema (ConfigSite, Configuration, configServer)
-import           Control.Monad.Catch hiding (Handler)
-import           Control.Monad.Except
+import           Web.SCIM.Handler
+import           Web.SCIM.Schema.Error
 import           GHC.Generics (Generic)
+import           Data.Text
 import           Network.Wai
-import           Servant hiding (BasicAuth, NoSuchUser)
-import           Servant.Generic
-import           Servant.Auth
-import           Servant.Auth.Server
-#if !MIN_VERSION_servant_server(0,12,0)
+import           Servant.Generic hiding (fromServant)
+#if MIN_VERSION_servant_server(0,12,0)
+import           Servant hiding (hoistServer)
+import qualified Servant
+#else
+import           Servant
 import           Servant.Utils.Enter
 #endif
 
 ----------------------------------------------------------------------------
 -- API specification
 
-type SCIMHandler m = (MonadThrow m, UserDB m, GroupDB m, AuthDB m)
+type DB m = (UserDB m, GroupDB m, AuthDB m)
 
 type ConfigAPI = ToServant (ConfigSite AsApi)
 type UserAPI   = ToServant (UserSite AsApi)
@@ -49,95 +45,97 @@ data Site route = Site
   { config :: route :-
       ConfigAPI
   , users :: route :-
-      Auth '[BasicAuth] Admin :>
+      Header "Authorization" SCIMAuthData :>
       "Users" :> UserAPI
   , groups :: route :-
-      Auth '[BasicAuth] Admin :>
+      Header "Authorization" SCIMAuthData :>
       "Groups" :> GroupAPI
   } deriving (Generic)
 
 ----------------------------------------------------------------------------
--- API implementation
+-- Compatibility
 
--- TODO: this is horrible, let's switch to servant-server-0.12 as soon as possible
+-- TODO: this is horrible, let's switch to servant-server-0.12 as soon as possible.  if that has
+-- happened, simply remove the CPP language extension and clean up after the errors.
+
 #if MIN_VERSION_servant_server(0,12,0)
 type EnterBoilerplate m = ( Functor m )  -- `()` is parsed as a type
 #else
 type EnterBoilerplate m =
-  ( Enter (ServerT UserAPI (Either ServantErr)) (Either ServantErr) m (ServerT UserAPI m)
-  , Enter (ServerT GroupAPI (Either ServantErr)) (Either ServantErr) m (ServerT GroupAPI m)
+  ( Enter (ServerT UserAPI m) m m (ServerT UserAPI m)
+  , Enter (ServerT GroupAPI m) m m (ServerT GroupAPI m)
   )
 #endif
 
+type MoreEnterBoilerplate (m :: * -> *) api =
+#if MIN_VERSION_servant_server(0,12,0)
+  () ~ ()
+#else
+  Enter (ServerT api (SCIMHandler m)) (SCIMHandler m) Handler (Server api)
+#endif
+
+hoistServer :: forall api (m :: * -> *) (n :: * -> *).
+               ( HasServer api '[]
+#if !MIN_VERSION_servant_server(0,12,0)
+               , Enter (ServerT api m) m Handler (ServerT api Handler)
+               , Enter (ServerT api m) m n (ServerT api n)
+#endif
+               ) =>
+               Proxy api -> (forall x. m x -> n x) -> ServerT api m -> ServerT api n
+#if MIN_VERSION_servant_server(0,12,0)
+hoistServer = Servant.hoistServer
+#else
+hoistServer _ nt = enter (NT nt)
+#endif
+
+
+----------------------------------------------------------------------------
+-- API implementation
+
 siteServer ::
-  forall m. (SCIMHandler m, EnterBoilerplate m) =>
-  Configuration -> Site (AsServerT m)
+  forall m. (DB m, EnterBoilerplate (SCIMHandler m)) =>
+  Configuration -> Site (AsServerT (SCIMHandler m))
 siteServer conf = Site
   { config = toServant $ configServer conf
-  , users = \authResult -> case authResult of
-      Authenticated _ -> toServant userServer
-#if MIN_VERSION_servant_server(0,12,0)
-      _ -> hoistServer (Proxy @UserAPI) nt (noAuth authResult)
-#else
-      _ -> enter (NT nt) (noAuth authResult)
-#endif
-  , groups = \authResult -> case authResult of
-      Authenticated _ -> toServant groupServer
-#if MIN_VERSION_servant_server(0,12,0)
-      _ -> hoistServer (Proxy @GroupAPI) nt (noAuth authResult)
-#else
-      _ -> enter (NT nt) (noAuth authResult)
-#endif
+  , users = \auth ->
+      hoistServer (Proxy @UserAPI) (addAuth auth) (toServant userServer)
+  , groups = \auth ->
+      hoistServer (Proxy @GroupAPI) (addAuth auth) (toServant groupServer)
   }
   where
-    noAuth res = throwAll $ err401 { errBody = BL.pack (show res) }
-    -- Due to overlapping instances, we can't just use 'throwAll' to get a
-    -- @ServerT ... m@. Instead we first generate a very simple @ServerT api
-    -- (Either ServantErr)@ and hoist it to become @ServerT api m@.
-    --
-    -- @Either ServantErr@ is the simplest type that is supported by 'throwAll'
-    -- and that can be converted into a @MonadThrow m@.
-    nt :: Either ServantErr a -> m a
-    nt = either throwM pure
+    -- Perform authentication in a handler. This function will be applied to
+    -- all leaves of the API.
+    addAuth :: forall a. Maybe SCIMAuthData
+            -> SCIMHandler m a
+            -> SCIMHandler m a
+    addAuth auth handler = do
+      authResult <- authCheck auth
+      case authResult of
+        Authorized _ -> handler
+        _ -> throwSCIM (unauthorized (scimAdmin <$> auth)
+                                     (pack (show authResult)))
 
 ----------------------------------------------------------------------------
 -- Server-starting utilities
 
-type App m api = ( SCIMHandler m
-                 , HasServer api '[JWTSettings, CookieSettings, BasicAuthCfg]
-                 , EnterBoilerplate m
-#if !MIN_VERSION_servant_server(0,12,0)
-                 , Enter (ServerT api m) m Handler (Server api)
-#endif
-                 )
+type App m api =
+  ( DB m
+  , HasServer api '[]
+  , EnterBoilerplate m
+  , MoreEnterBoilerplate m api
+  )
 
 mkapp :: forall m api. (App m api)
       => Proxy api
-      -> ServerT api m
-      -> (forall a. m a -> IO a)    -- Usually the transformation is "m a -> Handler a",
-                                    -- but in this library we give up on Servant's
-                                    -- 'MonadError' and just throw things via IO
-      -> IO Application
-mkapp proxy api toIO = do
-  jwtKey <- generateKey
-  authCfg <- either throwM pure =<< runHandler (nt mkAuthChecker)
-  let jwtCfg = defaultJWTSettings jwtKey
-      cfg = jwtCfg :. defaultCookieSettings :. authCfg :. EmptyContext
-  pure $ serveWithContext proxy cfg $
-#if MIN_VERSION_servant_server(0,12,0)
-    hoistServerWithContext proxy (Proxy @[JWTSettings, CookieSettings, BasicAuthCfg]) nt api
-#else
-    enter (NT nt) api
-#endif
-  where
-    -- Our handlers can throw two kinds of exceptions that we care about:
-    -- ServantErr and SCIMError. We catch both and rethrow them via ExceptT
-    -- (which is how Servant expects to get them).
-    nt :: forall a. m a -> Handler a
-    nt act = Handler $ ExceptT $
-      fmap Right (toIO act)
-        `catch` (\(e :: SCIMError) -> pure (Left (scimToServantErr e)))
-        `catch` (\(e :: ServantErr) -> pure (Left e))
+      -> ServerT api (SCIMHandler m)
+      -> (forall a. SCIMHandler m a -> Handler a)
+      -> Application
+mkapp proxy api nt =
+  serve proxy $
+    hoistServer proxy nt api
 
-app :: forall m. App m SiteAPI => Configuration -> (forall a. m a -> IO a) -> IO Application
+app :: forall m. App m SiteAPI
+    => Configuration
+    -> (forall a. SCIMHandler m a -> Handler a)
+    -> Application
 app c = mkapp (Proxy @SiteAPI) (toServant $ siteServer c)

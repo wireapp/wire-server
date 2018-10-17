@@ -1,4 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Test.Class.AuthSpec (spec) where
@@ -33,7 +32,7 @@ testStorage = do
   TestStorage <$> STMMap.newIO <*> STMMap.newIO <*> pure authMap
 
 spec :: Spec
-spec = beforeAll ((\s -> app empty (nt s)) =<< testStorage) $ do
+spec = beforeAll ((\s -> app empty (nt s)) <$> testStorage) $ do
   describe "/ServiceProviderConfig" $ do
     it "is accessible without authentication" $ do
       get "/ServiceProviderConfig" `shouldRespondWith` 200

@@ -24,7 +24,7 @@ import           Text.Email.Validate
 main :: IO ()
 main = do
   storage <- TestStorage <$> mkUserDB <*> STMMap.newIO <*> mkAuthDB
-  run 9000 =<< app MetaSchema.empty (nt storage)
+  run 9000 (app MetaSchema.empty (nt storage))
 
 -- | Create a UserDB with a single user:
 --

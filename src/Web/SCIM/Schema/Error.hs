@@ -10,6 +10,8 @@ module Web.SCIM.Schema.Error
   , notFound
   , badRequest
   , conflict
+  , unauthorized
+  , serverError
 
   -- * Servant interoperability
   , scimToServantErr
@@ -22,12 +24,18 @@ import Control.Exception
 import Web.SCIM.Schema.Common
 import Web.SCIM.Schema.Schema
 import Servant (ServantErr (..))
+import Data.UUID (UUID)
 
 import GHC.Generics (Generic)
 
 ----------------------------------------------------------------------------
 -- Types
 
+-- | An ADT for error types in the SCIM specification. Not all possible SCIM
+-- errors have a corresponding 'SCIMErrorType' (for instance, authorization
+-- is not covered by this type).
+--
+-- See <https://tools.ietf.org/html/rfc7644#page-69>
 data SCIMErrorType
   = InvalidFilter
   | TooMany
@@ -108,6 +116,33 @@ conflict =
     , detail = Nothing
     }
 
+unauthorized
+  :: Maybe UUID   -- ^ Admin ID
+  -> Text         -- ^ Error details
+  -> SCIMError
+unauthorized mbAdmin details =
+  SCIMError
+    { schemas = [Error2_0]
+    , status = Status 401
+    , scimType = Nothing
+    , detail = pure $
+        "authorization failed: " <> details <>
+        case mbAdmin of
+          Nothing    -> " (no authorization provided)"
+          Just admin -> " (admin ID: " <> pack (show admin) <> ")"
+    }
+
+serverError
+  :: Text         -- ^ Error details
+  -> SCIMError
+serverError details =
+  SCIMError
+    { schemas = [Error2_0]
+    , status = Status 500
+    , scimType = Nothing
+    , detail = pure details
+    }
+
 ----------------------------------------------------------------------------
 -- Servant
 
@@ -123,7 +158,7 @@ scimToServantErr err =
     }
 
 -- | A mapping of error code "reason phrases" (e.g. "Method Not Allowed")
--- for all 4xx errors.
+-- for all 4xx and 5xx errors.
 reasonPhrase :: Status -> String
 reasonPhrase = \case
   Status 400 -> "Bad Request"
@@ -145,4 +180,10 @@ reasonPhrase = \case
   Status 416 -> "Range Not Satisfiable"
   Status 417 -> "Expectation Failed"
   Status 422 -> "Unprocessable Entity"
+  Status 500 -> "Internal Server Error"
+  Status 501 -> "Not Implemented"
+  Status 502 -> "Bad Gateway"
+  Status 503 -> "Service Unavailable"
+  Status 504 -> "Gateway Time-out"
+  Status 505 -> "HTTP Version not supported"
   other      -> show other

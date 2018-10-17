@@ -20,6 +20,10 @@ instance (ToJSON a) => ToJSON (WithId a) where
     (Object o) -> Object (HML.insert "id" (String i) o)
     other      -> other
 
+instance (FromJSON a) => FromJSON (WithId a) where
+  parseJSON = withObject "WithId" $ \o ->
+    WithId <$> o .: "id" <*> parseJSON (Object o)
+
 
 newtype URI = URI { unURI :: Network.URI }
   deriving (Show, Eq)

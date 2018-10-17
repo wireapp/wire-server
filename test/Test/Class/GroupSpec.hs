@@ -1,6 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 module Test.Class.GroupSpec (spec) where
@@ -10,22 +7,20 @@ import           Test.Util
 import           Network.Wai (Application)
 import           Servant.Generic
 import           Servant (Proxy(Proxy))
-import           Web.SCIM.Server (mkapp, App, GroupAPI, groupServer)
+import           Web.SCIM.Server (mkapp, GroupAPI, groupServer)
 import           Web.SCIM.Server.Mock
 import           Data.ByteString.Lazy (ByteString)
 import           Test.Hspec hiding (shouldSatisfy)
 import           Test.Hspec.Wai      hiding (post, put, patch)
-import qualified STMContainers.Map   as STMMap
 
 
-app :: App m GroupAPI => (forall a. m a -> IO a) -> IO Application
-app = mkapp (Proxy @GroupAPI) (toServant groupServer)
-
-storage :: IO TestStorage
-storage = TestStorage <$> STMMap.newIO <*> STMMap.newIO <*> STMMap.newIO
+app :: IO Application
+app = do
+  storage <- emptyTestStorage
+  pure $ mkapp (Proxy @GroupAPI) (toServant groupServer) (nt storage)
 
 spec :: Spec
-spec = beforeAll ((\s -> app (nt s)) =<< storage) $ do
+spec = beforeAll app $ do
   describe "GET & POST /Groups" $ do
     it "responds with [] in empty environment" $ do
       get "/" `shouldRespondWith` [scim|[]|]
