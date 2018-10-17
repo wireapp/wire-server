@@ -22,8 +22,8 @@ module Util
   ( mkEnv, destroyEnv, passes, it, pending, pendingWith
   , createUserWithTeam
   , createTeamMember
-  , nextId
-  , nextID
+  , nextWireId
+  , nextSAMLID
   , nextUserRef
   , createRandomPhoneUser
   , zUser
@@ -226,11 +226,13 @@ addTeamMember galleyreq tid mem =
                 . lbytes (Aeson.encode mem)
                 )
 
-nextId :: MonadIO m => m (Id a)
-nextId = Id <$> liftIO UUID.nextRandom
+-- | See also: 'nextSAMLID', 'nextUserRef'.  The names are chosed to be consistent with
+-- 'UUID.nextRandom'.
+nextWireId :: MonadIO m => m (Id a)
+nextWireId = Id <$> liftIO UUID.nextRandom
 
-nextID :: MonadIO m => m (ID a)
-nextID = ID . UUID.toText <$> liftIO UUID.nextRandom
+nextSAMLID :: MonadIO m => m (ID a)
+nextSAMLID = ID . UUID.toText <$> liftIO UUID.nextRandom
 
 nextUserRef :: MonadIO m => m SAML.UserRef
 nextUserRef = liftIO $ do

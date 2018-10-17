@@ -62,7 +62,7 @@ spec = do
     describe "VerdictFormat" $ do
       context "insert and get are \"inverses\"" $ do
         let check vf = it (show vf) $ do
-              vid <- nextID
+              vid <- nextSAMLID
               ()  <- runSparCass $ storeVerdictFormat 1 vid vf
               mvf <- runSparCass $ getVerdictFormat vid
               liftIO $ mvf `shouldBe` Just vf
@@ -74,7 +74,7 @@ spec = do
 
       context "has timed out" $ do
         it "getVerdictFormat returns Nothing" $ do
-          vid <- nextID
+          vid <- nextSAMLID
           ()  <- runSparCass $ storeVerdictFormat 1 vid VerdictFormatWeb
           liftIO $ threadDelay 2000000
           mvf <- runSparCass $ getVerdictFormat vid
@@ -82,7 +82,7 @@ spec = do
 
       context "does not exist" $ do
         it "getVerdictFormat returns Nothing" $ do
-          vid <- nextID
+          vid <- nextSAMLID
           mvf <- runSparCass $ getVerdictFormat vid
           liftIO $ mvf `shouldBe` Nothing
 
@@ -96,7 +96,7 @@ spec = do
 
         it "inserts new user and responds with 201 / returns new user" $ do
           uref <- nextUserRef
-          uid  <- nextId
+          uid  <- nextWireId
           ()   <- runSparCass $ insertUser uref uid
           muid <- runSparCass $ getUser uref
           liftIO $ muid `shouldBe` Just uid
@@ -104,8 +104,8 @@ spec = do
       context "user already exists (idempotency)" $ do
         it "inserts new user and responds with 201 / returns new user" $ do
           uref <- nextUserRef
-          uid  <- nextId
-          uid' <- nextId
+          uid  <- nextWireId
+          uid' <- nextWireId
           ()   <- runSparCass $ insertUser uref uid
           ()   <- runSparCass $ insertUser uref uid'
           muid <- runSparCass $ getUser uref
@@ -117,7 +117,7 @@ spec = do
           mkcky = runSimpleSP . SAML.toggleCookie "/" . Just . (, 1) . UUID.toText =<< liftIO UUID.nextRandom
 
       it "insert and get are \"inverses\"" $ do
-        uid  <- nextId
+        uid  <- nextWireId
         cky  <- mkcky
         ()   <- runSparCassWithEnv $ insertBindCookie cky uid 1
         muid <- runSparCass $ lookupBindCookie cky
@@ -125,7 +125,7 @@ spec = do
 
       context "has timed out" $ do
         it "lookupBindCookie returns Nothing" $ do
-          uid  <- nextId
+          uid  <- nextWireId
           cky  <- mkcky
           ()   <- runSparCassWithEnv $ insertBindCookie cky uid 1
           liftIO $ threadDelay 2000000
@@ -141,32 +141,32 @@ spec = do
 
     describe "IdPConfig" $ do
       it "storeIdPConfig, getIdPConfig are \"inverses\"" $ do
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> nextId
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> nextWireId
         () <- runSparCass $ Data.storeIdPConfig idp
         midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
         liftIO $ midp `shouldBe` Just idp
 
       it "getIdPConfigByIssuer works" $ do
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> nextId
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> nextWireId
         () <- runSparCass $ Data.storeIdPConfig idp
         midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer)
         liftIO $ midp `shouldBe` Just idp
 
       it "getIdPIdByIssuer works" $ do
-        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> nextId
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> nextWireId
         () <- runSparCass $ Data.storeIdPConfig idp
         midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer)
         liftIO $ midp `shouldBe` Just (idp ^. idpId)
 
       it "getIdPConfigsByTeam works" $ do
-        teamid <- nextId
+        teamid <- nextWireId
         idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> pure teamid
         () <- runSparCass $ Data.storeIdPConfig idp
         idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
         liftIO $ idps `shouldBe` [idp]
 
       it "deleteIdPConfig works" $ do
-        teamid <- nextId
+        teamid <- nextWireId
         idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> pure teamid
         () <- runSparCass $ Data.storeIdPConfig idp
         do
@@ -198,7 +198,7 @@ testSPStoreID store unstore isalive = do
   describe ("SPStoreID @" <> show (typeOf (undefined :: a))) $ do
     context "within TTL" $ do
       it "isAliveID is True" $ do
-        xid :: SAML.ID a <- nextID
+        xid :: SAML.ID a <- nextSAMLID
         eol :: Time      <- addTime 5 <$> runSimpleSP getNow
         () <- runSparCassWithEnv $ store xid eol
         isit <- runSparCassWithEnv $ isalive xid
@@ -206,7 +206,7 @@ testSPStoreID store unstore isalive = do
 
     context "after TTL" $ do
       it "isAliveID returns False" $ do
-        xid :: SAML.ID a <- nextID
+        xid :: SAML.ID a <- nextSAMLID
         eol :: Time      <- addTime 2 <$> runSimpleSP getNow
         () <- runSparCassWithEnv $ store xid eol
         liftIO $ threadDelay 3000000
@@ -215,7 +215,7 @@ testSPStoreID store unstore isalive = do
 
     context "after call to unstore" $ do
       it "isAliveID returns False" $ do
-        xid :: SAML.ID a <- nextID
+        xid :: SAML.ID a <- nextSAMLID
         eol :: Time      <- addTime 5 <$> runSimpleSP getNow
         () <- runSparCassWithEnv $ store xid eol
         () <- runSparCassWithEnv $ unstore xid
