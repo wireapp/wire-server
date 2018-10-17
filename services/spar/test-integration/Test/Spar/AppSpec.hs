@@ -19,6 +19,8 @@ import Data.Either (isRight)
 import Data.Id
 import Data.Maybe (isJust)
 import Data.String.Conversions
+import Data.UUID as UUID
+import Data.UUID.V4 as UUID
 import SAML2.Util ((-/))
 import SAML2.WebSSO as SAML
 import Spar.API.Instances ()
@@ -128,12 +130,12 @@ requestAccessVerdict :: HasCallStack
                                  )
 requestAccessVerdict isGranted mkAuthnReq = do
   env <- ask
-  let uid     = env ^. teUserId
+  uid <- nextWireId
+  subject <- SAML.opaqueNameID . UUID.toText <$> liftIO UUID.nextRandom
+  let uref    = SAML.UserRef tenant subject
       idp     = env ^. teIdP
       idpid   = idp ^. SAML.idpId
       tenant  = idp ^. SAML.idpMetadata . SAML.edIssuer
-      subject = SAML.opaqueNameID "blee"
-      uref    = SAML.UserRef tenant subject
   runSpar $ Spar.insertUser uref uid
   authnreq :: SAML.FormRedirect SAML.AuthnRequest <- do
     raw <- mkAuthnReq idpid
