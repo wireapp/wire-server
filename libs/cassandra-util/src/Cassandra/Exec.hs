@@ -42,13 +42,7 @@ module Cassandra.Exec
 
       -- * Retry Settings
     , RetrySettings
-    , noRetry
-    , retryForever
-    , maxRetries
     , adjustConsistency
-    , constDelay
-    , expBackoff
-    , fibBackoff
     , adjustSendTimeout
     , adjustResponseTimeout
     , retry
@@ -59,28 +53,30 @@ import Control.Exception (IOException)
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
 import Control.Monad.IO.Unlift
 import Control.Monad.Reader
+import Control.Monad.Trans.Class
+import Control.Retry
+import Data.Conduit
 import Data.Int
+import Data.Monoid
 import Data.Text (Text)
 import Database.CQL.IO
-import Data.Conduit
 
 params :: Tuple a => Consistency -> a -> QueryParams a
-params c p = QueryParams c False p Nothing Nothing Nothing
+params c p = QueryParams c False p Nothing Nothing Nothing Nothing
 {-# INLINE params #-}
 
 paramsP :: Consistency -> a -> Int32 -> QueryParams a
-paramsP c p n = QueryParams c False p (Just n) Nothing Nothing
+paramsP c p n = QueryParams c False p (Just n) Nothing Nothing Nothing
 {-# INLINE paramsP #-}
 
 x5 :: RetrySettings
-x5 = maxRetries 5 . expBackoff 0.1 5 $ retryForever
+x5 = setRetryPolicy (limitRetries 5 <> (capDelay 5000000 (exponentialBackoff 100000))) defRetrySettings
 {-# INLINE x5 #-}
 
 x1 :: RetrySettings
-x1 = maxRetries 1 retryForever
+x1 = setRetryPolicy (limitRetries 1) defRetrySettings
 {-# INLINE x1 #-}
 
 data CassandraError

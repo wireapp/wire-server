@@ -33,7 +33,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Monoid
 import Data.Text (pack, stripSuffix, unpack, Text)
 import Data.Text.Encoding (encodeUtf8)
-import Database.CQL.IO
+import Database.CQL.IO hiding (values)
 import Network.DNS.Lookup
 import Network.DNS.Resolver
 import Network.Wreq
@@ -75,4 +75,4 @@ initialContactsDNS address = liftIO $ do
 
 -- | Puts the address into a list using the same signature as the other initalContacts
 initialContactsPlain :: MonadIO m => Text -> m (NonEmpty String)
-initialContactsPlain address = liftIO $ unpack address :| []
+initialContactsPlain address = pure $ unpack address :| []
