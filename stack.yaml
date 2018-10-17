@@ -36,11 +36,11 @@ packages:
 - tools/db/service-backfill
 - tools/db/auto-whitelist
 
-  # cql-io 1.0.1 plus the changes from
+  # cql-io 1.1.0 (unreleased), includes the changes from
   # https://gitlab.com/twittner/cql-io/merge_requests/14
 - location:
     git: https://gitlab.com/twittner/cql-io.git
-    commit: 736ed643858e8301943ecfab7fdb00c3626e4c31
+    commit: 8b91d053c469887a427e8c075cef43139fa189c4
   extra-dep: true
 
 - location:

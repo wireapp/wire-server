@@ -73,6 +73,6 @@ initialContactsDNS address = liftIO $ do
   where
     fallback = unpack address :| [] -- If it's not a valid DNS name, just try using it anyway
 
--- | Puts the address into a list using the same signature as the other initalContacts
+-- | Puts the address into a list using the same signature as the other initialContacts
 initialContactsPlain :: MonadIO m => Text -> m (NonEmpty String)
 initialContactsPlain address = pure $ unpack address :| []

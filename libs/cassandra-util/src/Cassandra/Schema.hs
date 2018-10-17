@@ -40,7 +40,7 @@ import Data.Time.Clock
 import Data.UUID (UUID)
 import Data.Word
 import Database.CQL.IO
-import Database.CQL.Protocol (Request (..), Query (..), Response(..), Result (..))
+import Database.CQL.Protocol (Request (..), Query (..))
 import GHC.Generics hiding (to, from, S, R)
 import Options.Applicative hiding (info)
 import Prelude hiding (log)
@@ -141,8 +141,7 @@ useKeyspace (Keyspace k) = void . getResult =<< qry
 
 migrateSchema :: Logger -> MigrationOpts -> [Migration] -> IO ()
 migrateSchema l o ms = do
-    -- if migHost is a DNS name, resolve it and connect to all nodes
-    hosts <- initialContactsDNS $ pack (migHost o)
+    hosts <- initialContactsPlain $ pack (migHost o)
     p <- Database.CQL.IO.init l $
             setContacts (NonEmpty.head hosts) (NonEmpty.tail hosts)
           . setPortNumber (fromIntegral $ migPort o)

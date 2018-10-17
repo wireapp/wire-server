@@ -141,7 +141,7 @@ createEnv m o = do
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
-    c <- maybe (C.initialContactsDNS (o^.optCassandra.casEndpoint.epHost))
+    c <- maybe (C.initialContactsPlain (o^.optCassandra.casEndpoint.epHost))
                (C.initialContactsDisco "cassandra_galley")
                (unpack <$> o^.optDiscoUrl)
     C.init (Logger.clone (Just "cassandra.galley") l) $
