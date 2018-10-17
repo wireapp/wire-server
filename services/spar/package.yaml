@@ -37,7 +37,6 @@ dependencies:
   - interpolate
   - lens
   - metrics-core
-  - microlens-th
   - mtl
   - optparse-applicative
   - raw-strings-qq
