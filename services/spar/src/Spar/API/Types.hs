@@ -39,7 +39,7 @@ import "swagger2" Data.Swagger hiding (Header(..))
 -- FUTUREWORK (thanks jschaul): Use @Header' '[Strict]@ to avoid the need for the 'Maybe' and the
 -- extra checks.
 
--- FUTUREWORK: use servant-generic?
+-- FUTUREWORK: use https://hackage.haskell.org/package/servant-0.14.1/docs/Servant-API-Generic.html?
 
 type API
      = "sso" :> APISSO

@@ -79,10 +79,22 @@ instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
 
 
 -- | Create a user on brig.
-createUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => SAML.UserRef -> UserId -> TeamId -> m UserId
-createUser suid (Id buid) teamid = do
-  uname :: Name <- maybe (throwSpar . SparBadUserName . SAML.encodeElem $ suid ^. SAML.uidSubject) pure $ do
-    Name . fromRange <$> (SAML.shortShowNameID >=> checked @ST @1 @128) (suid ^. SAML.uidSubject)
+createUser
+  :: (HasCallStack, MonadError SparError m, MonadSparToBrig m)
+  => SAML.UserRef    -- ^ SSO identity
+  -> UserId
+  -> TeamId
+  -> Maybe Name      -- ^ User name (if 'Nothing', the subject ID will be used)
+  -> m UserId
+createUser suid (Id buid) teamid mbName = do
+  uname :: Name <- case mbName of
+    Just n -> pure n
+    Nothing -> do
+      let subject = suid ^. SAML.uidSubject
+          badName = throwSpar . SparBadUserName $ SAML.encodeElem subject
+          mkName  = Name . fromRange <$>
+                    (SAML.shortShowNameID >=> checked @ST @1 @128) subject
+      maybe badName pure mkName
 
   let newUser :: NewUser
       newUser = NewUser

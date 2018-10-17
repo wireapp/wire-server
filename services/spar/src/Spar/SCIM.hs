@@ -33,6 +33,7 @@ import Control.Monad.Reader
 import Control.Monad.Catch
 import Control.Exception
 import Data.Id
+import Data.Range
 import Lens.Micro
 import Servant
 import Spar.App (Spar)
@@ -249,15 +250,21 @@ instance SCIM.UserDB (ReaderT TeamId Spar) where
         SCIM.notFound "user" (idToText uid)
       pure (toSCIMUser user))
 
-  -- | create :: User -> m StoredUser
+  -- | Create a new user.
   create user = do
     tid <- ask
-    (extId, handl) <- case (SCIM.User.externalId user, parseHandle $ SCIM.User.userName user) of
-      -- TODO: report these errors as SCIM errors
-      (Nothing, _) -> error "We need an external ID!"
-      (_, Nothing) -> error "Failed to parse userName!"
-      -- We assume that checking that the user does _not_ exist was already done before
-      (Just extId, Just handl) -> pure (extId, handl)
+    -- TODO: report these errors as SCIM errors
+    extId <- maybe (error "We need an externalId!") pure $
+               SCIM.User.externalId user
+    handl <- maybe (error "Failed to parse userName!") pure $
+               parseHandle (SCIM.User.userName user)
+    -- We check the name for validity, but only if it's present
+    mbName <- forM (SCIM.User.displayName user) $ \n ->
+      either error (pure . Name . fromRange) $
+      checkedEitherMsg @_ @1 @128 "displayName" n
+    -- NB: We assume that checking that the user does _not_ exist has
+    -- already been already done before -- the hscim library check does a
+    -- 'get' before a 'create'
 
     buid <- Id <$> liftIO UUID.nextRandom
     -- TODO: Assume that externalID is the subjectID, let's figure out how
@@ -268,15 +275,12 @@ instance SCIM.UserDB (ReaderT TeamId Spar) where
           (SAML.opaqueNameID extId)
 
     -- TODO: Adding a handle should be done _DURING_ the creation
-    _ <- lift $ createUser uref buid tid >> setHandle buid handl
+    lift $ do
+      _ <- createUser uref buid tid mbName
+      setHandle buid handl
 
-    maybe (error "How can there be no user?") (return . toSCIMUser) =<< (lift $ getUser buid)
-
-    -- does the handle already exist? bad
-    -- does the user already exist? bad
-    -- is the handle non-compliant? bad
-    -- was the handle non-specified? bad
-    -- were any fields specified that we can't handle? bad
+    maybe (error "How can there be no user?") (pure . toSCIMUser) =<<
+        lift (getUser buid)
 
   -- update   :: UserId -> User -> m StoredUser
   -- patch    :: UserId -> m StoredUser
