@@ -29,7 +29,7 @@ import Brig.Types.Common
 import Brig.Types.User
 import Brig.Types.Team.Invitation
 import Cassandra
-import Control.Concurrent.Async.Lifted.Safe.Extended (mapMPooled)
+import UnliftIO.Async.Extended (mapMPooled)
 import Control.Lens
 import Control.Monad.IO.Class
 import Control.Monad.IO.Unlift

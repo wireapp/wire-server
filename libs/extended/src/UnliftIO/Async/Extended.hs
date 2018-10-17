@@ -2,9 +2,9 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- | A version of "Control.Concurrent.Async.Lifted.Safe" with extra utilities.
-module Control.Concurrent.Async.Lifted.Safe.Extended
-    ( module Control.Concurrent.Async.Lifted.Safe
+-- | A version of "UnliftIO.Async" with extra utilities.
+module UnliftIO.Async.Extended
+    ( module UnliftIO.Async
     -- * Pooled functions (using at most T threads)
     , forPooled
     , mapMPooled
@@ -12,8 +12,8 @@ module Control.Concurrent.Async.Lifted.Safe.Extended
     , sequencePooled
     ) where
 
-import Control.Monad.IO.Unlift
-import Control.Concurrent.Async.Lifted.Safe
+import UnliftIO
+import UnliftIO.Async
 
 import qualified Control.Concurrent.Async.Pool as Pool
 

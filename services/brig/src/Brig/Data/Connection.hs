@@ -24,7 +24,7 @@ import Brig.Types.Intra
 import Cassandra
 import Control.Monad
 import Control.Monad.IO.Class
-import Control.Concurrent.Async.Lifted.Safe.Extended (mapMPooled)
+import UnliftIO.Async.Extended (mapMPooled)
 import Data.Conduit ((.|), runConduit)
 import Data.Functor.Identity
 import Data.Id
