@@ -9,7 +9,6 @@ import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Lens ((^?), (^?!))
 import Control.Monad
 import Control.Monad.IO.Class
@@ -23,6 +22,7 @@ import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import Test.Tasty.HUnit
 import Util
+import UnliftIO (mapConcurrently)
 
 import qualified API.Search.Util             as Search
 import qualified Brig.Options                as Opt

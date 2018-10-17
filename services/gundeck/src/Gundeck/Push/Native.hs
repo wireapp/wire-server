@@ -8,8 +8,6 @@ module Gundeck.Push.Native
     ) where
 
 import Imports
-import Control.Concurrent.Async.Lifted.Safe
-import Control.Exception.Enclosed (handleAny)
 import Control.Lens ((^.), view, (.~))
 import Control.Monad.Catch
 import Data.ByteString.Conversion.To
@@ -25,6 +23,7 @@ import Gundeck.Types
 import Gundeck.Util
 import Network.AWS.Data (toText)
 import System.Logger.Class (MonadLogger, (~~), msg, val, field)
+import UnliftIO (mapConcurrently, handleAny)
 
 import qualified Data.Set                  as Set
 import qualified Data.Text                 as Text

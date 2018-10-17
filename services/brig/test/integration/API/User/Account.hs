@@ -17,7 +17,6 @@ import Brig.Types.Intra
 import Brig.Types.User.Auth hiding (user)
 import Control.Arrow ((&&&))
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently_)
 import Control.Lens ((^?), (^.))
 import Control.Monad
 import Control.Monad.Catch
@@ -45,6 +44,7 @@ import Test.Tasty.HUnit
 import Web.Cookie (parseSetCookie)
 import Util as Util
 import Util.AWS as Util
+import UnliftIO (mapConcurrently_)
 
 import qualified API.Search.Util             as Search
 import qualified Brig.AWS                    as AWS

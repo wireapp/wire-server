@@ -35,7 +35,6 @@ import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Types
 import Brig.Types.User.Auth (CookieLabel)
 import Cassandra hiding (Client)
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Error
 import Control.Lens
 import Control.Monad
@@ -56,6 +55,7 @@ import Data.Word
 import Safe (readMay)
 import System.CryptoBox (Result (Success))
 import System.Logger.Class (field, msg, val)
+import UnliftIO (mapConcurrently)
 
 import qualified Brig.Data.User         as User
 import qualified Control.Exception.Lens as EL

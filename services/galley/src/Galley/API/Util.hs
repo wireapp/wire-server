@@ -11,7 +11,6 @@ import Control.Lens (view, (&), (.~))
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Concurrent.Async.Lifted.Safe
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Foldable (find, for_, toList)
@@ -30,6 +29,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate
 import Network.Wai.Utilities
+import UnliftIO (concurrently)
 
 import qualified Data.Text.Lazy as LT
 import qualified Galley.Data    as Data

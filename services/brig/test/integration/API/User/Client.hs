@@ -10,7 +10,6 @@ import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
 import Brig.Types.User.Auth hiding (user)
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Lens ((^?), preview)
 import Control.Monad
 import Control.Monad.IO.Class
@@ -27,6 +26,7 @@ import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import Test.Tasty.HUnit
 import Util
+import UnliftIO (mapConcurrently)
 
 import qualified Brig.Options                as Opt
 import qualified Data.List1                  as List1

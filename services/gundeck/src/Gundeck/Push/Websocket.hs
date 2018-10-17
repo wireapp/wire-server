@@ -13,11 +13,8 @@ import Bilge
 import Bilge.Retry (rpcHandlers)
 import Bilge.RPC
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async (mapConcurrently)
 import Control.Exception (ErrorCall(ErrorCall))
-import Control.Exception.Enclosed (handleAny)
 import Control.Monad.Catch (MonadThrow, throwM, catch, try)
-import Control.Monad.Trans.Control
 import Control.Lens ((^.), (%~), _2, view)
 import Control.Retry
 import Data.Aeson (encode, eitherDecode)
@@ -34,6 +31,7 @@ import Gundeck.Util
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..))
 import Network.HTTP.Types (StdMethod (POST), status200, status410)
 import System.Logger.Class ((~~), val, (+++))
+import UnliftIO (mapConcurrently, handleAny)
 
 import qualified Data.ByteString.Lazy         as L
 import qualified Data.Metrics                 as Metrics
@@ -49,7 +47,7 @@ import qualified System.Logger.Class          as Log
 bulkPush :: [(Notification, [Presence])] -> Gundeck [(NotificationId, [Presence])]
 bulkPush notifs = do
     let reqs = fanOut notifs
-    flbck <- flowBack <$> (uncurry bulkSend `mapConcurrentlyMBC` reqs)
+    flbck <- flowBack <$> (uncurry bulkSend `mapConcurrently` reqs)
 
     let -- lookup by 'URI' can fail iff we screwed up URI handling in this module.
         presencesByCannon = mkPresencesByCannon . mconcat $ snd <$> notifs
@@ -78,14 +76,6 @@ bulkPush notifs = do
         pure deletions
 
     pure (groupAssoc successes)
-
-
--- (this could be moved to /libs/types-common.)
-mapConcurrentlyMBC :: (MonadBaseControl IO m, Traversable t) => (a -> m b) -> t a -> m (t b)
-mapConcurrentlyMBC action inputs = liftBaseWith
-    (\runInBase -> (runInBase . action) `mapConcurrently` inputs)
-        >>= mapM restoreM
-
 
 logCannonsGone :: (MonadIO m, MonadReader Env m, Log.MonadLogger m)
                => (uri, (err, [Presence])) -> m ()

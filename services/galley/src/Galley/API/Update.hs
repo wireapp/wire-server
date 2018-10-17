@@ -44,7 +44,6 @@ module Galley.API.Update
 
 
 import Control.Applicative hiding (empty)
-import Control.Concurrent.Lifted (fork)
 import Control.Lens
 import Control.Monad
 import Control.Monad.Catch
@@ -80,6 +79,7 @@ import Network.Wai
 import Network.Wai.Predicate hiding (_1, _2, setStatus, failure)
 import Network.Wai.Utilities
 import Prelude hiding (any, elem, head)
+import UnliftIO.Concurrent (forkIO)
 
 import qualified Brig.Types.User      as User
 import qualified Data.Map.Strict      as Map
@@ -204,7 +204,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
             -- push event to all clients, including zconn
             -- since updateConversationAccess generates a second (member removal) event here
             for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p -> push1 p
-            void . fork $ void $ External.deliver (newBots `zip` repeat e)
+            void . forkIO $ void $ External.deliver (newBots `zip` repeat e)
 
     -- Return the event
     return $ json accessEvent & setStatus status200
@@ -245,7 +245,7 @@ pushEvent :: Event -> [Member] -> [BotMember] -> ConnId -> Galley ()
 pushEvent e users bots zcon = do
     for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn ?~ zcon
-    void . fork $ void $ External.deliver (bots `zip` repeat e)
+    void . forkIO $ void $ External.deliver (bots `zip` repeat e)
 
 addCode :: UserId ::: ConnId ::: ConvId -> Galley Response
 addCode (usr ::: zcon ::: cnv) = do
@@ -400,7 +400,7 @@ removeMember (zusr ::: zcon ::: cid ::: victim) = do
         e <- Data.removeMembers conv zusr (singleton victim)
         for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
             push1 $ p & pushConn ?~ zcon
-        void . fork $ void $ External.deliver (bots `zip` repeat e)
+        void . forkIO $ void $ External.deliver (bots `zip` repeat e)
         return $ json e & setStatus status200
     else
         return $ empty & setStatus status204
@@ -456,7 +456,7 @@ postNewOtrMessage usr con cnv val msg = do
     withValidOtrRecipients usr sender cnv recvrs val now $ \rs -> do
         let (toBots, toUsers) = foldr (newMessage usr con (Just cnv) msg now) ([],[]) rs
         pushSome (catMaybes toUsers)
-        void . fork $ do
+        void . forkIO $ do
             gone <- External.deliver toBots
             mapM_ (deleteBot cnv . botMemId) gone
 
@@ -505,7 +505,7 @@ updateConversation (zusr ::: zcon ::: cnv ::: req ::: _) = do
     let e = Event ConvRename cnv zusr now (Just $ EdConvRename body)
     for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn ?~ zcon
-    void . fork $ void $ External.deliver (bots `zip` repeat e)
+    void . forkIO $ void $ External.deliver (bots `zip` repeat e)
     return $ json e & setStatus status200
 
 isTyping :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
@@ -546,7 +546,7 @@ addBot (zusr ::: zcon ::: req ::: _) = do
     (e, bm) <- Data.addBotMember zusr (b^.addBotService) (b^.addBotId) (b^.addBotConv) t
     for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> users)) $ \p ->
         push1 $ p & pushConn ?~ zcon
-    void . fork $ void $ External.deliver ((bm:bots) `zip` repeat e)
+    void . forkIO $ void $ External.deliver ((bm:bots) `zip` repeat e)
     return (json e)
   where
     regularConvChecks b c = do
@@ -582,7 +582,7 @@ rmBot (zusr ::: zcon ::: req ::: _) = do
                 push1 $ p & pushConn .~ zcon
             Data.removeMember (botUserId (b^.rmBotId)) (Data.convId c)
             Data.eraseClients (botUserId (b^.rmBotId))
-            void . fork $ void $ External.deliver (bots `zip` repeat e)
+            void . forkIO $ void $ External.deliver (bots `zip` repeat e)
             return (json e)
 
 -------------------------------------------------------------------------------
@@ -597,7 +597,7 @@ addToConversation (bots, others) usr conn xs c = do
     (e, mm) <- Data.addMembers now (Data.convId c) usr mems
     for_ (newPush (evtFrom e) (ConvEvent e) (recipient <$> allMembers (toList mm))) $ \p ->
         push1 $ p & pushConn ?~ conn
-    void . fork $ void $ External.deliver (bots `zip` repeat e)
+    void . forkIO $ void $ External.deliver (bots `zip` repeat e)
     return $ json e & setStatus status200
   where
     allMembers new = foldl' fn new others
