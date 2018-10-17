@@ -58,16 +58,54 @@ services:
     ports:
       - "127.0.0.1:9042:9042"
 
-  db_migrations:
-    image: quay.io/wire/migrations
+  db_migrations_brig_schema:
+    image: quay.io/wire/brig-schema
+    depends_on:
+      - cassandra
+    command: /scripts/db-migrate/brig-schema.sh
+    volumes:
+      - ./:/scripts
+    links:
+      - cassandra
+
+  db_migrations_brig_index:
+    image: quay.io/wire/brig-index
     depends_on:
       - elasticsearch
-      - cassandra
-    command: /scripts/db-migrate.sh
+    command: /scripts/db-migrate/brig-index.sh
     volumes:
       - ./:/scripts
     links:
       - elasticsearch
+
+  db_migrations_galley:
+    image: quay.io/wire/galley-schema
+    depends_on:
+      - cassandra
+    command: /scripts/db-migrate/galley-schema.sh
+    volumes:
+      - ./:/scripts
+    links:
+      - cassandra
+
+  db_migrations_gundeck:
+    image: quay.io/wire/gundeck-schema
+    depends_on:
+      - cassandra
+    command: /scripts/db-migrate/gundeck-schema.sh
+    volumes:
+      - ./:/scripts
+    links:
+      - cassandra
+
+  db_migrations_spar:
+    image: quay.io/wire/spar-schema
+    depends_on:
+      - cassandra
+    command: /scripts/db-migrate/spar-schema.sh
+    volumes:
+      - ./:/scripts
+    links:
       - cassandra
 
   aws_cli:
