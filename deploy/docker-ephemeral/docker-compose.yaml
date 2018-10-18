@@ -62,7 +62,7 @@ services:
     image: quay.io/wire/brig-schema
     depends_on:
       - cassandra
-    command: /scripts/db-migrate/brig-schema.sh
+    entrypoint: /scripts/db-migrate/brig-schema.sh
     volumes:
       - ./:/scripts
     links:
@@ -72,7 +72,7 @@ services:
     image: quay.io/wire/brig-index
     depends_on:
       - elasticsearch
-    command: /scripts/db-migrate/brig-index.sh
+    entrypoint: /scripts/db-migrate/brig-index.sh
     volumes:
       - ./:/scripts
     links:
@@ -82,7 +82,7 @@ services:
     image: quay.io/wire/galley-schema
     depends_on:
       - cassandra
-    command: /scripts/db-migrate/galley-schema.sh
+    entrypoint: /scripts/db-migrate/galley-schema.sh
     volumes:
       - ./:/scripts
     links:
@@ -92,7 +92,7 @@ services:
     image: quay.io/wire/gundeck-schema
     depends_on:
       - cassandra
-    command: /scripts/db-migrate/gundeck-schema.sh
+    entrypoint: /scripts/db-migrate/gundeck-schema.sh
     volumes:
       - ./:/scripts
     links:
@@ -102,7 +102,7 @@ services:
     image: quay.io/wire/spar-schema
     depends_on:
       - cassandra
-    command: /scripts/db-migrate/spar-schema.sh
+    entrypoint: /scripts/db-migrate/spar-schema.sh
     volumes:
       - ./:/scripts
     links:
