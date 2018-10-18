@@ -134,6 +134,9 @@ getUser buid = do
     _   -> throwSpar (SparBrigError "Could not retrieve user")
 
 -- | Get a user; returns 'Nothing' if the user was not found.
+--
+-- TODO: currently this is not used, but it might be useful later when/if
+-- @hscim@ stops doing checks during user creation.
 getUserByHandle :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => Handle -> m (Maybe User)
 getUserByHandle handle = do
   resp :: Response (Maybe LBS) <- call
@@ -150,7 +153,7 @@ getUserByHandle handle = do
   parse (x:[]) = Just $ accountUser x
   parse _      = Nothing -- TODO: What if more accounts get returned?
 
--- | Get a user; returns 'Nothing' if the user was not found.
+-- | Set user's handle.
 setHandle :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> Handle -> m ()
 setHandle buid (Handle handle) = void $ call
     $ method PUT
