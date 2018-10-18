@@ -63,6 +63,9 @@ schemaVersion = 3
 ----------------------------------------------------------------------
 -- helpers
 
+-- | Carry some time constants we do not want to pull from Options, IO, respectively.  This way the
+-- functions in this module need fewer effects.  See 'wrapMonadClientWithEnv' (as opposed to
+-- 'wrapMonadClient' where we don't need an 'Env').
 data Env = Env
   { dataEnvNow                :: UTCTime
   , dataEnvMaxTTLAuthRequests :: TTL "authreq"
