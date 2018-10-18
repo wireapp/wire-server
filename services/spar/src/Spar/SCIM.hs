@@ -124,7 +124,7 @@ api tid = hoistSCIM (toServant (SCIM.siteServer configuration))
 toSCIMUser :: User -> SCIM.StoredUser
 toSCIMUser user = SCIM.WithMeta meta thing
   where
-    -- User ID in the text format
+    -- User ID in text format
     idText = idToText (Brig.userId user)
     -- The representation of the user, without the meta information
     thing = SCIM.WithId idText $ SCIM.User.empty
