@@ -133,18 +133,18 @@ type OutsideWorldAPI =
 -- | Strip the nginz-set, internal-only Z-User header
 type family StripAuth api where
     StripAuth (Header "Z-User" a :> b) = b
-    StripAuth (a :<|> b) = (StripAuth a) :<|> (StripAuth b)
+    StripAuth (a :<|> b) = StripAuth a :<|> StripAuth b
     StripAuth x = x
 
 -- | Strip internal endpoints (prefixed with /i/)
 type family StripInternal api where
     StripInternal ("i" :> b) = EmptyAPI
-    StripInternal (a :<|> b) = (StripInternal a) :<|> (StripInternal b)
+    StripInternal (a :<|> b) = StripInternal a :<|> StripInternal b
     StripInternal x = x
 
 -- | Strip the endpoint that exposes documentation.
 type family StripSwagger api where
-    StripSwagger ("sso" :> "api-docs" :> Get '[JSON] Swagger :<|> b) = EmptyAPI
+    StripSwagger ("sso" :> "api-docs" :> a) = EmptyAPI
     StripSwagger (a :<|> b) = StripSwagger a :<|> StripSwagger b
     StripSwagger x = x
 
