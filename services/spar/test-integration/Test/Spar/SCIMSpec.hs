@@ -77,7 +77,7 @@ specUsers = describe "operations with users" $ do
                 any ((== env^.teUserId) . scimUserId)
         it "finds a SCIM-provisioned user by username" $
             pending
-        it "finds a pre-existing user by username" $
+        it "finds a non-SCIM-provisioned user by username" $
             pending
 
     describe "GET /Users/:id" $ do
@@ -88,7 +88,7 @@ specUsers = describe "operations with users" $ do
             -- Check that the SCIM-provisioned user can be fetched
             storedUser' <- getUser (scimUserId storedUser)
             liftIO $ storedUser' `shouldBe` storedUser
-        it "finds a pre-existing user" $ do
+        it "finds a non-SCIM-provisioned user" $ do
             env <- ask
             -- Check that the (non-SCIM-provisioned) team owner can be fetched
             -- and that the data from Brig matches
@@ -245,12 +245,14 @@ scimUserId storedUser = either err id (readEither id_)
     err e = error $ "scimUserId: couldn't parse ID " ++ id_ ++ ": " ++ e
 
 -- | Check that some properties match between an SCIM user and a Brig user.
-userShouldMatch :: MonadIO m => SCIM.StoredUser -> User -> m ()
+userShouldMatch
+    :: (HasCallStack, MonadIO m)
+    => SCIM.StoredUser -> User -> m ()
 userShouldMatch scimStoredUser brigUser = liftIO $ do
     let scimUser = SCIM.value (SCIM.thing scimStoredUser)
-    userId brigUser `shouldBe`
-        scimUserId scimStoredUser
-    userHandle brigUser `shouldBe`
-        Just (Handle (SCIM.User.userName scimUser))
-    Just (userName brigUser) `shouldBe`
-        Name <$> SCIM.User.displayName scimUser
+    scimUserId scimStoredUser `shouldBe`
+        userId brigUser
+    Just (Handle (SCIM.User.userName scimUser)) `shouldBe`
+        userHandle brigUser
+    fmap Name (SCIM.User.displayName scimUser) `shouldBe`
+        Just (userName brigUser)
