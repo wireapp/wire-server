@@ -50,22 +50,17 @@ specUsers = describe "operations with users" $ do
             env <- ask
             -- Create a user via SCIM
             user <- randomUser
-            storedUser <- createUser user
-            let userid = scimUserId storedUser
-            -- Check that this user is present in Brig
+            scimStoredUser <- createUser user
+            let userid = scimUserId scimStoredUser
+            -- Check that this user is present in Brig and that Brig's view
+            -- of the user matches SCIM's view of the user
             brigUser <- fmap decodeBody' . call . get $
                 ( (env ^. teBrig)
                 . header "Z-User" (toByteString' userid)
                 . path "/self"
                 . expect2xx
                 )
-            -- Check that the fields were set correctly
-            liftIO $ do
-                userId brigUser `shouldBe` userid
-                userHandle brigUser `shouldBe`
-                    Just (Handle (SCIM.User.userName user))
-                Just (userName brigUser) `shouldBe`
-                    Name <$> SCIM.User.displayName user
+            scimStoredUser `userShouldMatch` brigUser
 
     describe "GET /Users" $ do
         it "lists all users in a team" $ do
@@ -94,8 +89,17 @@ specUsers = describe "operations with users" $ do
             storedUser' <- getUser (scimUserId storedUser)
             liftIO $ storedUser' `shouldBe` storedUser
         it "finds a pre-existing user" $ do
-            pending
-            -- check that the pre-existing user is get-table
+            env <- ask
+            -- Check that the (non-SCIM-provisioned) team owner can be fetched
+            -- and that the data from Brig matches
+            brigUser <- fmap decodeBody' . call . get $
+                ( (env ^. teBrig)
+                . header "Z-User" (toByteString' (env^.teUserId))
+                . path "/self"
+                . expect2xx
+                )
+            scimStoredUser <- getUser (env^.teUserId)
+            scimStoredUser `userShouldMatch` brigUser
         it "doesn't find a user that's not part of the team" $ do
             pending
             -- create another team and another user in it
@@ -239,3 +243,14 @@ scimUserId storedUser = either err id (readEither id_)
   where
     id_ = unpack (SCIM.id (SCIM.thing storedUser))
     err e = error $ "scimUserId: couldn't parse ID " ++ id_ ++ ": " ++ e
+
+-- | Check that some properties match between an SCIM user and a Brig user.
+userShouldMatch :: MonadIO m => SCIM.StoredUser -> User -> m ()
+userShouldMatch scimStoredUser brigUser = liftIO $ do
+    let scimUser = SCIM.value (SCIM.thing scimStoredUser)
+    userId brigUser `shouldBe`
+        scimUserId scimStoredUser
+    userHandle brigUser `shouldBe`
+        Just (Handle (SCIM.User.userName scimUser))
+    Just (userName brigUser) `shouldBe`
+        Name <$> SCIM.User.displayName scimUser
