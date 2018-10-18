@@ -67,7 +67,9 @@ data Env = Env
 instance HasConfig Spar where
   getConfig = asks (saml . sparCtxOpts)
 
-instance SP Spar where
+instance HasNow Spar where
+instance HasCreateUUID Spar where
+instance HasLogger Spar where
   -- FUTUREWORK: optionally use 'field' to index user or idp ids for easier logfile processing.
   logger (toLevel -> lv) mg = do
     lg <- asks sparCtxLogger
