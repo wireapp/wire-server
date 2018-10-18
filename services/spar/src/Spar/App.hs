@@ -17,11 +17,13 @@ module Spar.App
   , wrapMonadClientWithEnv
   , wrapMonadClient
   , verdictHandler
+  , insertUser
   ) where
 
 import Bilge
 import Cassandra
 import Control.Exception (SomeException, assert)
+import Control.Lens hiding ((.=))
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.Aeson as Aeson (encode, object, (.=))
@@ -29,7 +31,6 @@ import Data.EitherR (fmapL)
 import Data.Id
 import Data.String.Conversions
 import GHC.Stack
-import Lens.Micro
 import SAML2.Util (renderURI)
 import SAML2.WebSSO hiding (UserRef(..))
 import Servant
@@ -64,10 +65,11 @@ data Env = Env
   }
 
 instance HasConfig Spar where
-  type ConfigExtra Spar = TeamId
   getConfig = asks (saml . sparCtxOpts)
 
-instance SP Spar where
+instance HasNow Spar where
+instance HasCreateUUID Spar where
+instance HasLogger Spar where
   -- FUTUREWORK: optionally use 'field' to index user or idp ids for easier logfile processing.
   logger (toLevel -> lv) mg = do
     lg <- asks sparCtxLogger
@@ -92,12 +94,19 @@ toLevel = \case
   SAML.Debug -> Log.Debug
   SAML.Trace -> Log.Trace
 
-instance SPStore Spar where
-  storeRequest i r      = wrapMonadClientWithEnv $ Data.storeRequest i r
-  checkAgainstRequest r = wrapMonadClient        $ Data.checkAgainstRequest r
-  storeAssertion i r    = wrapMonadClientWithEnv $ Data.storeAssertion i r
+instance SPStoreID AuthnRequest Spar where
+  storeID i r = wrapMonadClientWithEnv $ Data.storeAReqID i r
+  unStoreID r = wrapMonadClient        $ Data.unStoreAReqID r
+  isAliveID r = wrapMonadClient        $ Data.isAliveAReqID r
+
+instance SPStoreID Assertion Spar where
+  storeID i r = wrapMonadClientWithEnv $ Data.storeAssID i r
+  unStoreID r = wrapMonadClient        $ Data.unStoreAssID r
+  isAliveID r = wrapMonadClient        $ Data.isAliveAssID r
 
 instance SPStoreIdP SparError Spar where
+  type IdPConfigExtra Spar = TeamId
+
   storeIdPConfig :: IdPConfig TeamId -> Spar ()
   storeIdPConfig idp = wrapMonadClient $ Data.storeIdPConfig idp
 

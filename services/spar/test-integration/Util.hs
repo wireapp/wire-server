@@ -22,6 +22,9 @@ module Util
   ( mkEnv, destroyEnv, passes, it, pending, pendingWith
   , createUserWithTeam
   , createTeamMember
+  , nextWireId
+  , nextSAMLID
+  , nextUserRef
   , createRandomPhoneUser
   , zUser
   , endpointToReq
@@ -53,6 +56,9 @@ module Util
   , callIdpDelete, callIdpDelete'
   , initCassandra
   , ssoToUidSpar
+  , runSparCass, runSparCassWithEnv
+  , runSimpleSP
+  , runSpar
   , module Test.Hspec
   , module Util.Types
   ) where
@@ -61,6 +67,7 @@ import Bilge
 import Bilge.Assert ((!!!), (===), (<!!))
 import Cassandra as Cas
 import Control.Exception
+import Control.Lens hiding ((.=))
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Except
@@ -76,11 +83,11 @@ import Data.Misc (PlainTextPassword(..))
 import Data.Range
 import Data.String
 import Data.String.Conversions
+import Data.Time
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID (nextRandom)
 import GHC.Stack (HasCallStack)
 import Network.HTTP.Client.MultipartFormData
-import Lens.Micro
 import Prelude hiding (head)
 import SAML2.WebSSO
 import SAML2.WebSSO.Test.Credentials
@@ -98,14 +105,15 @@ import Util.Types
 import qualified Brig.Types.Activation as Brig
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
-import qualified Control.Monad.Catch as Catch
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
 import qualified Galley.Types.Teams as Galley
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
+import qualified SAML2.WebSSO.API.Example as SAML
 import qualified SAML2.WebSSO as SAML
+import qualified Spar.App as Spar
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Test.Hspec
@@ -128,7 +136,8 @@ import qualified Web.Cookie as Web
 mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
-  _teCql :: ClientState <- initCassandra _teOpts =<< mkLogger _teOpts
+  sparCtxLogger <- mkLogger _teOpts
+  _teCql :: ClientState <- initCassandra _teOpts sparCtxLogger
   issuer :: Issuer <- makeIssuer
   let _teBrig    = endpointToReq (cfgBrig   _teTstOpts)
       _teGalley  = endpointToReq (cfgGalley _teTstOpts)
@@ -140,7 +149,12 @@ mkEnv _teTstOpts _teOpts = do
   (_teUserId, _teTeamId, _teIdP) <- do
     createTestIdPFrom idpmeta _teMgr _teBrig _teGalley _teSpar
 
-  _teSparCass <- initCassandra _teOpts =<< mkLogger _teOpts
+  let _teSparEnv = Spar.Env {..}
+      sparCtxOpts        = _teOpts
+      sparCtxCas         = _teCql
+      sparCtxHttpManager = _teMgr
+      sparCtxHttpBrig    = _teBrig empty
+      sparCtxRequestId   = RequestId "<fake request id>"
 
   pure TestEnv {..}
 
@@ -211,6 +225,22 @@ addTeamMember galleyreq tid mem =
                 . expect2xx
                 . lbytes (Aeson.encode mem)
                 )
+
+-- | See also: 'nextSAMLID', 'nextUserRef'.  The names are chosed to be consistent with
+-- 'UUID.nextRandom'.
+nextWireId :: MonadIO m => m (Id a)
+nextWireId = Id <$> liftIO UUID.nextRandom
+
+nextSAMLID :: MonadIO m => m (ID a)
+nextSAMLID = ID . UUID.toText <$> liftIO UUID.nextRandom
+
+nextUserRef :: MonadIO m => m SAML.UserRef
+nextUserRef = liftIO $ do
+  (UUID.toText -> tenant) <- UUID.nextRandom
+  (UUID.toText -> subject) <- UUID.nextRandom
+  pure $ SAML.UserRef
+    (SAML.Issuer $ SAML.unsafeParseURI ("http://" <> tenant))
+    (SAML.opaqueNameID subject)
 
 createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Brig.Phone)
 createRandomPhoneUser brig_ = do
@@ -430,6 +460,7 @@ isSetBindCookieHeader (Just (Web.parseSetCookie -> cky)) = and
 hasSetBindCookieHeader :: HasCallStack => Bilge.Response a -> Bool
 hasSetBindCookieHeader = isSetBindCookieHeader . lookup "Set-Cookie" . responseHeaders
 
+-- | see also: 'callAuthnReq'
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
 negotiateAuthnRequest = negotiateAuthnRequest' DoInitiateLogin Nothing id >>= \case
@@ -473,7 +504,7 @@ loginSsoUserFirstTime = do
   env <- ask
   (idp, privCreds, authnReq) <- negotiateAuthnRequest
   spmeta <- getTestSPMetadata
-  authnResp <- liftIO $ mkAuthnResponse privCreds idp spmeta authnReq True
+  authnResp <- runSimpleSP $ mkAuthnResponse privCreds idp spmeta authnReq True
   sparAuthnResp <- submitAuthnResponse authnResp
   let wireCookie = maybe (error "no wire cookie") id . lookup "Set-Cookie" $ responseHeaders sparAuthnResp
 
@@ -595,10 +626,38 @@ callIdpDelete' sparreq_ muid idpid = do
 ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => Brig.UserSSOId -> m (Maybe UserId)
 ssoToUidSpar ssoid = do
   ssoref <- either (error . ("could not parse UserRef: " <>)) pure $ Intra.fromUserSSOId ssoid
-  runSparCass $ Data.getUser ssoref
+  runSparCass @Client $ Data.getUser ssoref
 
-runSparCass :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => Client a -> m a
+runSparCass
+  :: (HasCallStack, m ~ Client, MonadIO m', MonadReader TestEnv m')
+  => m a -> m' a
 runSparCass action = do
   env <- ask
-  liftIO $ runClient (env ^. teSparCass) action
-             `Catch.catch` (throwIO . ErrorCall . show @SomeException)
+  liftIO $ runClient (env ^. teCql) action
+
+runSparCassWithEnv
+  :: ( HasCallStack
+     , m ~ ReaderT Data.Env (ExceptT TTLError Cas.Client)
+     , MonadIO m', MonadReader TestEnv m'
+     )
+  => m a -> m' a
+runSparCassWithEnv action = do
+  env  <- ask
+  denv <- Data.mkEnv <$> (pure $ env ^. teOpts) <*> liftIO getCurrentTime
+  val  <- runSparCass (runExceptT (action `runReaderT` denv))
+  either (liftIO . throwIO . ErrorCall . show) pure val
+
+runSimpleSP :: (MonadReader TestEnv m, MonadIO m) => SAML.SimpleSP a -> m a
+runSimpleSP action = do
+  env    <- ask
+  liftIO $ do
+    ctx    <- SAML.mkSimpleSPCtx (env ^. teOpts . to saml) []
+    result <- SAML.runSimpleSP ctx action
+    either (throwIO . ErrorCall . show) pure result
+
+runSpar :: (MonadReader TestEnv m, MonadIO m) => Spar.Spar a -> m a
+runSpar (Spar.Spar action) = do
+  env    <- (^. teSparEnv) <$> ask
+  liftIO $ do
+    result <- runExceptT $ action `runReaderT` env
+    either (throwIO . ErrorCall . show) pure result

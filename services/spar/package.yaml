@@ -35,9 +35,8 @@ dependencies:
   - http-client-tls
   - http-types
   - interpolate
+  - lens
   - metrics-core
-  - microlens
-  - microlens-th
   - mtl
   - optparse-applicative
   - raw-strings-qq

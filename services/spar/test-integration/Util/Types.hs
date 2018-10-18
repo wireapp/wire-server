@@ -23,7 +23,7 @@ module Util.Types
   , teBrig
   , teGalley
   , teSpar
-  , teSparCass
+  , teSparEnv
   , teUserId
   , teTeamId
   , teIdP
@@ -38,6 +38,7 @@ module Util.Types
 import Bilge
 import Cassandra as Cas
 import Control.Exception
+import Control.Lens (makeLenses)
 import Control.Monad
 import Control.Monad.Reader
 import Data.Aeson
@@ -46,13 +47,13 @@ import Data.Id
 import Data.String
 import Data.String.Conversions
 import GHC.Generics (Generic)
-import Lens.Micro.TH
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
 import Spar.Types
 import Util.Options
 
 import qualified Data.Aeson as Aeson
+import qualified Spar.App as Spar
 
 
 type BrigReq   = Request -> Request
@@ -68,7 +69,7 @@ data TestEnv = TestEnv
   , _teBrig        :: BrigReq
   , _teGalley      :: GalleyReq
   , _teSpar        :: SparReq
-  , _teSparCass    :: ClientState
+  , _teSparEnv     :: Spar.Env
   , _teOpts        :: Opts               -- ^ spar config
   , _teTstOpts     :: IntegrationConfig  -- ^ integration test config
 

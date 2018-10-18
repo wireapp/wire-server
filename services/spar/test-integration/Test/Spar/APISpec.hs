@@ -8,10 +8,11 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Test.Spar.APISpec where
+module Test.Spar.APISpec (spec) where
 
 import Bilge
 import Brig.Types.User
+import Control.Lens
 import Control.Monad.Reader
 import Control.Retry
 import Data.ByteString.Conversion
@@ -23,12 +24,11 @@ import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID
 import Galley.Types.Teams as Galley
 import GHC.Stack
-import Lens.Micro
 import Prelude hiding (head)
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.MockResponse
-import Spar.Types
 import Spar.API.Types
+import Spar.Types
 import URI.ByteString.QQ (uri)
 import Util
 
@@ -130,7 +130,7 @@ specFinalizeLogin = do
         it "responds with a very peculiar 'forbidden' HTTP response" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
           spmeta <- getTestSPMetadata
-          authnresp <- liftIO $ mkAuthnResponse privcreds idp spmeta authnreq False
+          authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq False
           sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             -- import Text.XML
@@ -154,7 +154,7 @@ specFinalizeLogin = do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
           spmeta <- getTestSPMetadata
-          authnresp <- liftIO $ mkAuthnResponse privcreds idp spmeta authnreq True
+          authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
           sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 200
@@ -183,7 +183,7 @@ specFinalizeLogin = do
         it "rejects" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
           spmeta <- getTestSPMetadata
-          authnresp <- liftIO $ mkAuthnResponse
+          authnresp <- runSimpleSP $ mkAuthnResponse
             privcreds
             (idp & idpMetadata . edIssuer .~ Issuer [uri|http://unknown-issuer/|])
             spmeta
@@ -318,7 +318,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             (_, privCreds, authnReq, Just bindCky) <- do
               negotiateAuthnRequest' DoInitiateBind (Just idp) (header "Z-User" $ toByteString' uid)
             spmeta <- getTestSPMetadata
-            authnResp <- liftIO $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
+            authnResp <- runSimpleSP $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
             sparAuthnResp :: ResponseLBS
               <- submitAuthnResponse' (header "Cookie" bindCky) authnResp
             pure (authnResp, sparAuthnResp)

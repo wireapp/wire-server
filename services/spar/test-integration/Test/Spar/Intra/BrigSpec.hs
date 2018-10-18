@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Test.Spar.Intra.BrigSpec where
+module Test.Spar.Intra.BrigSpec (spec) where
 
 import Prelude hiding (head)
 import Util
