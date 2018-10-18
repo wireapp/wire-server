@@ -98,6 +98,8 @@ spec = describe "accessVerdict" $ do
               List.lookup "userid" qry `shouldBe` (Just . cs . show $ uid)
               List.lookup "cookie" qry `shouldNotBe` Nothing
               List.lookup "cookie" qry `shouldNotBe` Just "$cookie"
+                  -- cookie variable should be substituted with value.  see
+                  -- 'mkVerdictGrantedFormatMobile', 'mkVerdictDeniedFormatMobile'
               let Just (ckies :: SBS) = List.lookup "cookie" qry
                   cky :: SetCookie = parseSetCookie ckies
               setCookieName cky `shouldBe` "zuid"
