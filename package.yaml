@@ -109,3 +109,5 @@ tests:
       - aeson-qq
       - wai-logger
       - base64-bytestring
+      - hedgehog
+      - hw-hspec-hedgehog

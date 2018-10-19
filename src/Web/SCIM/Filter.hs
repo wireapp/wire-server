@@ -15,8 +15,13 @@
 -- * Fully qualified attribute names (schema prefixes, attribute paths)
 
 module Web.SCIM.Filter
-  ( Filter(..)
+  (
+  -- * Filter type
+    Filter(..)
   , parseFilter
+  , renderFilter
+
+  -- * Filtering logic
   , filterUser
 
   -- * Constructing filters
@@ -28,8 +33,12 @@ module Web.SCIM.Filter
 import Data.Scientific
 import Data.Text
 import Data.Text.Encoding
+import Data.Text.Lazy (toStrict)
 import Data.Attoparsec.ByteString.Char8
 import Data.Aeson.Parser as Aeson
+import Data.Aeson.Text as Aeson
+import Data.Aeson as Aeson
+import Data.Monoid
 import Lens.Micro
 import Web.HttpApiData
 
@@ -37,6 +46,8 @@ import Web.SCIM.Schema.User
 
 ----------------------------------------------------------------------------
 -- Types
+
+-- NB: when extending these types, don't forget to update Test.FilterSpec
 
 -- | A value type. Attributes are compared against literal values.
 data CompValue
@@ -75,6 +86,7 @@ data Attribute
 data Filter
   -- | Compare the attribute value with a literal
   = FilterAttrCompare Attribute CompareOp CompValue
+  deriving (Eq, Show)
 
 ----------------------------------------------------------------------------
 -- Parsing
@@ -137,6 +149,42 @@ skipSpace1 :: Parser ()
 skipSpace1 = space *> skipSpace
 
 ----------------------------------------------------------------------------
+-- Rendering
+
+-- | Render a filter according to the SCIM spec.
+renderFilter :: Filter -> Text
+renderFilter filter_ = case filter_ of
+  FilterAttrCompare attr op val ->
+    rAttribute attr <> " " <> rCompareOp op <> " " <> rCompValue val
+
+-- | Value literal renderer.
+rCompValue :: CompValue -> Text
+rCompValue = \case
+  ValNull       -> "null"
+  ValBool True  -> "true"
+  ValBool False -> "false"
+  ValNumber n   -> toStrict $ Aeson.encodeToLazyText (Aeson.Number n)
+  ValString s   -> toStrict $ Aeson.encodeToLazyText (Aeson.String s)
+
+-- | Comparison operator renderer.
+rCompareOp :: CompareOp -> Text
+rCompareOp = \case
+  OpEq -> "eq"
+  OpNe -> "ne"
+  OpCo -> "co"
+  OpSw -> "sw"
+  OpEw -> "ew"
+  OpGt -> "gt"
+  OpGe -> "ge"
+  OpLt -> "lt"
+  OpLe -> "le"
+
+-- | Attribute name renderer.
+rAttribute :: Attribute -> Text
+rAttribute = \case
+  AttrUserName -> "username"
+
+----------------------------------------------------------------------------
 -- Applying
 
 -- | Check whether a user satisfies the filter.
@@ -170,3 +218,6 @@ compareStr = \case
 
 instance FromHttpApiData Filter where
   parseUrlPiece = parseFilter
+
+instance ToHttpApiData Filter where
+  toUrlPiece = renderFilter
