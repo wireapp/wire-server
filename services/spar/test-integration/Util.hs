@@ -163,6 +163,7 @@ mkEnv _teTstOpts _teOpts = do
       sparCtxCas         = _teCql
       sparCtxHttpManager = _teMgr
       sparCtxHttpBrig    = _teBrig empty
+      sparCtxHttpGalley  = _teGalley empty
       sparCtxRequestId   = RequestId "<fake request id>"
 
   -- TODO: for now, our SCIM implementation accepts any set of credentials
