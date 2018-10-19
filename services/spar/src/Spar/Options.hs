@@ -18,9 +18,7 @@ module Spar.Options
 import Control.Exception
 import Control.Monad.Catch
 import Control.Monad.Reader
-import Data.Id
 import Data.Monoid
-import Lens.Micro
 import Options.Applicative
 import Spar.API.Types
 import Spar.Types
@@ -56,7 +54,6 @@ newtype WithConfig a = WithConfig (Reader OptsRaw a)
   deriving (Functor, Applicative, Monad)
 
 instance SAML.HasConfig WithConfig where
-  type ConfigExtra WithConfig = TeamId
   getConfig = WithConfig $ asks saml
 
 runWithConfig :: OptsRaw -> WithConfig a -> a
@@ -79,11 +76,6 @@ cliOptsParser = strOption $
 
 readOptsFile :: FilePath -> IO OptsRaw
 readOptsFile path =
-  either err1 (\opts -> if hasNoIdPs opts then pure opts else err2)
-    =<< Yaml.decodeFileEither path
+  either err1 pure =<< Yaml.decodeFileEither path
   where
     err1 = throwIO . ErrorCall . ("no or bad config file: " <>) . show
-    err2 = throwIO $ ErrorCall "idps field is not supported by spar."
-
-    hasNoIdPs :: OptsRaw -> Bool
-    hasNoIdPs = null . (^. to saml . SAML.cfgIdps)

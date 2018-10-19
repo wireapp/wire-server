@@ -49,13 +49,11 @@ checkHandles brig uid hs num =
         js   = RequestBodyLBS $ encode $ CheckHandles hs' num'
     in post (brig . path "/users/handles" . contentJson . zUser uid . body js)
 
--- Note: This actually _will_ send out an email so make sure we don't use any
---       inexistent email addresses or ones that bounce! Perhaps we should
---       ensure that the email used here has a domain 'simulator.amazonses.com'
--- TODO: register
-registerUser :: Text -> Text -> Brig -> Http ResponseLBS
-registerUser name email brig = do
-    e <- mkEmailRandomLocalSuffix email
+-- Note: This actually _will_ send out an email, so we ensure that the email
+--       used here has a domain 'simulator.amazonses.com'.
+registerUser :: Text -> Brig -> Http ResponseLBS
+registerUser name brig = do
+    e <- randomEmail
     let p = RequestBodyLBS . encode $ object
             [ "name"     .= name
             , "email"    .= fromEmail e

@@ -8,357 +8,216 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Test.Spar.DataSpec where
+module Test.Spar.DataSpec (spec) where
 
-import Bilge
+import Cassandra
 import Control.Concurrent
-import Control.Exception
-import Control.Monad.Catch
+import Control.Lens
+import Control.Monad.Except
 import Control.Monad.Reader
-import Data.Either (isRight)
-import Data.Id
-import Data.Maybe (isJust)
 import Data.String.Conversions
-import Data.Time
+import Data.Typeable
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
-import Lens.Micro
-import SAML2.Util ((-/))
-import Spar.API
-import Spar.API.Types
-import Spar.API.Instances ()
-import Spar.API.Test (IntegrationTests)
+import SAML2.WebSSO as SAML
 import Spar.Data as Data
 import Spar.Types
-import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
-import Util.Options
-import Web.Cookie
-
-import qualified Cassandra as Cas
-import qualified Data.ByteString.Builder as Builder
-import qualified Data.List as List
-import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Test.Credentials as SAML
-import qualified SAML2.WebSSO.Test.MockResponse as SAML
-import qualified Servant
-import qualified Servant.Client as Servant
-import qualified Text.XML as XML
 
 
 spec :: SpecWith TestEnv
 spec = do
   describe "TTL" $ do
     it "works in seconds" $ do
-      -- NB: this test calls C* directly.  no deeper reason for that, it just seemed more convenient
-      -- at the time, and @fisx is of the opinion that integration tests do not have to limit
-      -- themselves to particular ways of trying to break the testee.
-
       env <- ask
       let idpid = env ^. teIdP . SAML.idpId
       (_, req) <- call $ callAuthnReq (env ^. teSpar) idpid
 
-      let probe :: IO Bool
-          probe = do
-            denv :: Data.Env <- Data.mkEnv (env ^. teOpts) <$> getCurrentTime
-            Cas.runClient (env ^. teCql) (checkAgainstRequest (req ^. SAML.rqID) `runReaderT` denv)
+      let probe :: (MonadIO m, MonadReader TestEnv m) => m Bool
+          probe = runSparCass $ isAliveAReqID (req ^. SAML.rqID)
 
           maxttl :: Int  -- musec
           maxttl = (fromIntegral . fromTTL $ env ^. teOpts . to maxttlAuthreq) * 1000 * 1000
 
-      liftIO $ do
-        maxttl `shouldSatisfy` (< 60 * 1000 * 1000)  -- otherwise the test will be really slow.
-        probe `shouldReturn` True
-        threadDelay (maxttl `div` 2)
-        probe `shouldReturn` True  -- 0.5 lifetimes after birth
-        threadDelay  maxttl
-        probe `shouldReturn` False  -- 1.5 lifetimes after birth
+      liftIO $ maxttl `shouldSatisfy` (< 60 * 1000 * 1000)  -- otherwise the test will be really slow.
+      p1 <- probe
+      liftIO $ p1 `shouldBe` True
+      liftIO $ threadDelay (maxttl `div` 2)
+      p2 <- probe
+      liftIO $ p2 `shouldBe` True  -- 0.5 lifetimes after birth
+      liftIO $ threadDelay  maxttl
+      p3 <- probe
+      liftIO $ p3 `shouldBe` False  -- 1.5 lifetimes after birth
 
 
   describe "cql binding" $ do
+    describe "AuthnRequest" $ do
+      testSPStoreID storeAReqID unStoreAReqID isAliveAReqID
 
-    -- requests
-
-    let runStoreReq :: TestEnv -> SAML.ID SAML.AuthnRequest -> Http ()
-        runStoreReq env authreqid = do
-          endoflife <- getTime (fromIntegral ttlReqs)
-          runServantClient env $ clientPostRequest authreqid endoflife
-
-        runCheckReq :: TestEnv -> SAML.ID SAML.AuthnRequest -> Http Bool
-        runCheckReq env authreqid = do
-          runServantClient env $ clientGetRequest authreqid
-
-        getID :: MonadIO m => m (SAML.ID a)
-        getID = SAML.ID . UUID.toText <$> liftIO UUID.nextRandom
-
-        getTime :: MonadIO m => NominalDiffTime -> m SAML.Time
-        getTime secs = (SAML.addTime secs) . SAML.Time <$> liftIO getCurrentTime
-
-        ttlReqs :: Int
-        ttlReqs = 3
-
-    describe "storeRequest" $ do
-      it "responds with 2xx" $ do
-        env <- ask
-        reqid <- getID
-        runStoreReq env reqid `shouldRespondWith` (== ())
-
-    describe "checkAgainstRequest" $ do
-      context "request exists and is alive" $ do
-        it "returns True" $ do
-          env <- ask
-          reqid <- getID
-          runStoreReq env reqid `shouldRespondWith` (== ())
-          runCheckReq env reqid `shouldRespondWith` (== True)
-
-      context "request does not exist" $ do
-        it "returns False" $ do
-          env <- ask
-          reqid <- getID
-          runCheckReq env reqid `shouldRespondWith` (== False)
-
-      context "request exists, but is outdated" $ do
-        it "returns False" $ do
-          env <- ask
-          reqid <- getID
-          runStoreReq env reqid `shouldRespondWith` (== ())
-          liftIO $ threadDelay (ttlReqs * 1000 * 1000)
-          runCheckReq env reqid `shouldRespondWith` (== False)
+    describe "Assertion" $ do
+      testSPStoreID storeAssID unStoreAssID isAliveAssID
 
 
-    -- assertions
+    describe "VerdictFormat" $ do
+      context "insert and get are \"inverses\"" $ do
+        let check vf = it (show vf) $ do
+              vid <- nextSAMLID
+              ()  <- runSparCass $ storeVerdictFormat 1 vid vf
+              mvf <- runSparCass $ getVerdictFormat vid
+              liftIO $ mvf `shouldBe` Just vf
 
-    let runStoreAssertion :: TestEnv -> SAML.ID SAML.Assertion -> NominalDiffTime -> Http Bool
-        runStoreAssertion env assid ttl = do
-          endoflife <- getTime ttl
-          runServantClient env $ clientPostAssertion assid endoflife
+        check `mapM_`
+          [ VerdictFormatWeb
+          , VerdictFormatMobile [uri|https://fw/ooph|] [uri|https://lu/gn|]
+          ]
 
-    describe "storeAssertion" $ do
-      context "assertion does not exist" $ do
-        it "returns True" $ do
-          env  <- ask
-          uuid <- SAML.ID . UUID.toText <$> liftIO UUID.nextRandom
-          runStoreAssertion env uuid 1 `shouldRespondWith` (== True)
+      context "has timed out" $ do
+        it "getVerdictFormat returns Nothing" $ do
+          vid <- nextSAMLID
+          ()  <- runSparCass $ storeVerdictFormat 1 vid VerdictFormatWeb
+          liftIO $ threadDelay 2000000
+          mvf <- runSparCass $ getVerdictFormat vid
+          liftIO $ mvf `shouldBe` Nothing
 
-      context "assertion exists, but is outdated" $ do
-        it "returns True" $ do
-          env  <- ask
-          uuid <- SAML.ID . UUID.toText <$> liftIO UUID.nextRandom
-          runStoreAssertion env uuid 1 `shouldRespondWith` (== True)
-          liftIO $ threadDelay (2 * 1000 * 1000)
-          runStoreAssertion env uuid 1 `shouldRespondWith` (== True)
-
-      context "assertion exists and is alive" $ do
-        it "returns False" $ do
-          env  <- ask
-          uuid <- SAML.ID . UUID.toText <$> liftIO UUID.nextRandom
-          runStoreAssertion env uuid 2 `shouldRespondWith` (== True)
-          runStoreAssertion env uuid 2 `shouldRespondWith` (== False)
+      context "does not exist" $ do
+        it "getVerdictFormat returns Nothing" $ do
+          vid <- nextSAMLID
+          mvf <- runSparCass $ getVerdictFormat vid
+          liftIO $ mvf `shouldBe` Nothing
 
 
-    -- users
-
-    describe "insertUser, getUser" $ do
+    describe "User" $ do
       context "user is new" $ do
         it "getUser returns Nothing" $ do
-          env  <- ask
           uref <- nextUserRef
-          runGetUser env uref `shouldRespondWith` (== Nothing)
+          muid <- runSparCass $ getUser uref
+          liftIO $ muid `shouldBe` Nothing
 
         it "inserts new user and responds with 201 / returns new user" $ do
-          env  <- ask
           uref <- nextUserRef
-          uid  <- Id <$> liftIO UUID.nextRandom
-          runInsertUser env uref uid `shouldRespondWith` (== ())  -- no exception
-          runGetUser env uref `shouldRespondWith` (== Just uid)
+          uid  <- nextWireId
+          ()   <- runSparCass $ insertUser uref uid
+          muid <- runSparCass $ getUser uref
+          liftIO $ muid `shouldBe` Just uid
 
       context "user already exists (idempotency)" $ do
         it "inserts new user and responds with 201 / returns new user" $ do
-          env  <- ask
           uref <- nextUserRef
-          uid  <- Id <$> liftIO UUID.nextRandom
-          uid' <- Id <$> liftIO UUID.nextRandom
-          runInsertUser env uref uid `shouldRespondWith` (== ())
-          runInsertUser env uref uid' `shouldRespondWith` (== ())
-          runGetUser env uref `shouldRespondWith` (== Just uid')
+          uid  <- nextWireId
+          uid' <- nextWireId
+          ()   <- runSparCass $ insertUser uref uid
+          ()   <- runSparCass $ insertUser uref uid'
+          muid <- runSparCass $ getUser uref
+          liftIO $ muid `shouldBe` Just uid'
 
 
-    -- access verdict
+    describe "BindCookie" $ do
+      let mkcky :: TestSpar BindCookie
+          mkcky = runSimpleSP . SAML.toggleCookie "/" . Just . (, 1) . UUID.toText =<< liftIO UUID.nextRandom
 
-    describe "accessVerdict" $ do
-      context "web" $ do
-        context "invalid idp" $ do
-          it "responds with status 200 and a valid html page with constant expected title." $ do
-            pending
+      it "insert and get are \"inverses\"" $ do
+        uid  <- nextWireId
+        cky  <- mkcky
+        ()   <- runSparCassWithEnv $ insertBindCookie cky uid 1
+        muid <- runSparCass $ lookupBindCookie cky
+        liftIO $ muid `shouldBe` Just uid
 
-        context "denied" $ do
-          it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, outcome, _, _) <- requestAccessVerdict False mkAuthnReqWeb
-            liftIO $ do
-              Servant.errHTTPCode outcome `shouldBe` 200
-              Servant.errReasonPhrase outcome `shouldBe` "forbidden"
-              ('1', cs @LBS @String (Servant.errBody outcome))
-                `shouldSatisfy` (("<title>wire:sso:error:forbidden</title>" `List.isInfixOf`) . snd)
-              ('2', XML.parseLBS XML.def $ Servant.errBody outcome)
-                `shouldSatisfy` (isRight . snd)
+      context "has timed out" $ do
+        it "lookupBindCookie returns Nothing" $ do
+          uid  <- nextWireId
+          cky  <- mkcky
+          ()   <- runSparCassWithEnv $ insertBindCookie cky uid 1
+          liftIO $ threadDelay 2000000
+          muid <- runSparCass $ lookupBindCookie cky
+          liftIO $ muid `shouldBe` Nothing
 
-        context "granted" $ do
-          it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, outcome, _, _) <- requestAccessVerdict True mkAuthnReqWeb
-            liftIO $ do
-              Servant.errHTTPCode outcome `shouldBe` 200
-              Servant.errReasonPhrase outcome `shouldBe` "success"
-              ('1', cs @LBS @String (Servant.errBody outcome))
-                `shouldSatisfy` (("<title>wire:sso:success</title>" `List.isInfixOf`) . snd)
-              ('2', XML.parseLBS XML.def (Servant.errBody outcome))
-                `shouldSatisfy` (isRight . snd)
-              ('3', List.lookup "Set-Cookie" . Servant.errHeaders $ outcome)
-                `shouldSatisfy` (isJust . snd)
-
-      context "mobile" $ do
-        context "invalid idp" $ do
-          it "responds with status 303 with appropriate details." $ do
-            pending
-
-        context "denied" $ do
-          it "responds with status 303 with appropriate details." $ do
-            (_uid, outcome, loc, qry) <- requestAccessVerdict False mkAuthnReqMobile
-            liftIO $ do
-              Servant.errHTTPCode outcome `shouldBe` 303
-              Servant.errReasonPhrase outcome `shouldBe` "forbidden"
-              Servant.errBody outcome `shouldBe` "[\"we don't like you\",\"seriously\"]"
-              uriScheme loc `shouldBe` (URI.Scheme "wire")
-              List.lookup "userid" qry `shouldBe` Nothing
-              List.lookup "cookie" qry `shouldBe` Nothing
-              List.lookup "label"  qry `shouldBe` Just "forbidden"
-
-        context "granted" $ do
-          it "responds with status 303 with appropriate details." $ do
-            (uid, outcome, loc, qry) <- requestAccessVerdict True mkAuthnReqMobile
-            liftIO $ do
-              Servant.errHTTPCode outcome `shouldBe` 303
-              Servant.errReasonPhrase outcome `shouldBe` "success"
-              Servant.errBody outcome `shouldBe` mempty
-              uriScheme loc `shouldBe` (URI.Scheme "wire")
-              List.lookup "label"  qry `shouldBe` Nothing
-              List.lookup "userid" qry `shouldBe` (Just . cs . show $ uid)
-              List.lookup "cookie" qry `shouldNotBe` Nothing
-              List.lookup "cookie" qry `shouldNotBe` Just "$cookie"
-              let Just (ckies :: SBS) = List.lookup "cookie" qry
-                  cky :: SetCookie = parseSetCookie ckies
-              setCookieName cky `shouldBe` "zuid"
-              ('s', setCookieSecure cky) `shouldBe` ('s', False)  -- we're in integration test mode, no https here!
-              ('h', setCookieHttpOnly cky) `shouldBe` ('h', True)
+      context "does not exist" $ do
+        it "lookupBindCookie returns Nothing" $ do
+          cky  <- mkcky
+          muid <- runSparCass $ lookupBindCookie cky
+          liftIO $ muid `shouldBe` Nothing
 
 
-runServantClient :: HasCallStack => TestEnv -> Servant.ClientM a -> Http a
-runServantClient tenv = hoist . (`Servant.runClientM` cenv)
-  where
-    hoist :: IO (Either Servant.ServantError a) -> Http a
-    hoist = HttpT . ReaderT . const . (>>= either (throwM . ErrorCall . show) pure)
+    describe "IdPConfig" $ do
+      it "storeIdPConfig, getIdPConfig are \"inverses\"" $ do
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> nextWireId
+        () <- runSparCass $ Data.storeIdPConfig idp
+        midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
+        liftIO $ midp `shouldBe` Just idp
 
-    cenv :: Servant.ClientEnv
-    cenv = Servant.mkClientEnv (tenv ^. teMgr) (tenv ^. teTstOpts . to cfgSpar . to endpointToUrl)
-      where
-        endpointToUrl :: Endpoint -> Servant.BaseUrl
-        endpointToUrl (Endpoint sparhost sparport) =
-          Servant.BaseUrl Servant.Http (cs sparhost) (fromIntegral sparport) "/i/integration-tests"
+      it "getIdPConfigByIssuer works" $ do
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> nextWireId
+        () <- runSparCass $ Data.storeIdPConfig idp
+        midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer)
+        liftIO $ midp `shouldBe` Just idp
 
-clientPostRequest   :: SAML.ID SAML.AuthnRequest -> SAML.Time -> Servant.ClientM ()
-clientGetRequest    :: SAML.ID SAML.AuthnRequest -> Servant.ClientM Bool
-clientPostAssertion :: SAML.ID SAML.Assertion -> SAML.Time -> Servant.ClientM Bool
-clientPostUser      :: SAML.UserRef -> UserId -> Servant.ClientM ()
-clientGetUser       :: SAML.UserRef -> Servant.ClientM (Maybe UserId)
-clientPostVerdict   :: (SAML.AuthnResponse, SAML.AccessVerdict) -> Servant.ClientM Servant.ServantErr
+      it "getIdPIdByIssuer works" $ do
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> nextWireId
+        () <- runSparCass $ Data.storeIdPConfig idp
+        midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer)
+        liftIO $ midp `shouldBe` Just (idp ^. idpId)
 
-clientPostRequest     Servant.:<|>
-  clientGetRequest    Servant.:<|>
-  clientPostAssertion Servant.:<|>
-  clientPostUser      Servant.:<|>
-  clientGetUser       Servant.:<|>
-  clientPostVerdict
-  = Servant.client (Servant.Proxy @IntegrationTests)
+      it "getIdPConfigsByTeam works" $ do
+        teamid <- nextWireId
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> pure teamid
+        () <- runSparCass $ Data.storeIdPConfig idp
+        idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
+        liftIO $ idps `shouldBe` [idp]
 
-clientGetAuthnRequest :: Maybe URI -> Maybe URI -> SAML.IdPId
-                      -> Servant.ClientM (WithBindCookie (SAML.FormRedirect SAML.AuthnRequest))
-clientGetAuthnRequest = Servant.client (Servant.Proxy @APIAuthReq) Nothing
+      it "deleteIdPConfig works" $ do
+        teamid <- nextWireId
+        idp <- IdPConfig <$> (IdPId <$> liftIO UUID.nextRandom) <*> makeTestIdPMetadata <*> pure teamid
+        () <- runSparCass $ Data.storeIdPConfig idp
+        do
+          midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
+          liftIO $ midp `shouldBe` Just idp
 
-
-runInsertUser :: TestEnv -> SAML.UserRef -> UserId -> Http ()
-runInsertUser env uref = runServantClient env . clientPostUser uref
-
-runGetUser :: TestEnv -> SAML.UserRef -> Http (Maybe UserId)
-runGetUser env = runServantClient env . clientGetUser
-
--- | Generate a random 'UserRef'.
-nextUserRef :: MonadIO m => m SAML.UserRef
-nextUserRef = liftIO $ do
-  (UUID.toText -> tenant) <- UUID.nextRandom
-  (UUID.toText -> subject) <- UUID.nextRandom
-  pure $ SAML.UserRef
-    (SAML.Issuer $ SAML.unsafeParseURI ("http://" <> tenant))
-    (SAML.opaqueNameID subject)
-
-runPostVerdict :: HasCallStack => TestEnv -> (SAML.AuthnResponse, SAML.AccessVerdict) -> Http SAML.ResponseVerdict
-runPostVerdict env = runServantClient env . clientPostVerdict
+        () <- runSparCass $ Data.deleteIdPConfig (idp ^. idpId) (idp ^. idpMetadata . edIssuer) teamid
+        do
+          midp <- runSparCass $ Data.getIdPConfig (idp ^. idpId)
+          liftIO $ midp `shouldBe` Nothing
+        do
+          midp <- runSparCass $ Data.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer)
+          liftIO $ midp `shouldBe` Nothing
+        do
+          midp <- runSparCass $ Data.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer)
+          liftIO $ midp `shouldBe` Nothing
+        do
+          idps <- runSparCass $ Data.getIdPConfigsByTeam teamid
+          liftIO $ idps `shouldBe` []
 
 
-mkAuthnReqWeb :: SAML.IdPId -> TestSpar ResponseLBS
-mkAuthnReqWeb idpid = do
-  env <- ask
-  -- TODO: the following fails, i think there is something wrong with query encoding.
-  -- runServantClient env $ clientGetAuthnRequest Nothing Nothing idpid
-  call $ get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid) . expect2xx)
+testSPStoreID
+  :: forall m a. (m ~ ReaderT Data.Env (ExceptT TTLError Client), Typeable a)
+  => (SAML.ID a -> SAML.Time -> m ())
+  -> (SAML.ID a -> m ())
+  -> (SAML.ID a -> m Bool)
+  -> SpecWith TestEnv
+testSPStoreID store unstore isalive = do
+  describe ("SPStoreID @" <> show (typeOf (undefined :: a))) $ do
+    context "within TTL" $ do
+      it "isAliveID is True" $ do
+        xid :: SAML.ID a <- nextSAMLID
+        eol :: Time      <- addTime 5 <$> runSimpleSP getNow
+        () <- runSparCassWithEnv $ store xid eol
+        isit <- runSparCassWithEnv $ isalive xid
+        liftIO $ isit `shouldBe` True
 
-mkAuthnReqMobile :: SAML.IdPId -> TestSpar ResponseLBS
-mkAuthnReqMobile idpid = do
-  env <- ask
-  -- (see the TODO under "web" above)
-  -- call . runServantClient env $ clientGetAuthnRequest (Just succurl) (Just errurl) idpid
-  let succurl   = [uri|wire://login-granted/?cookie=$cookie&userid=$userid|]
-      errurl    = [uri|wire://login-denied/?label=$label|]
-      mk        = Builder.toLazyByteString . urlEncode [] . serializeURIRef'
-      arQueries = cs $ "success_redirect=" <> mk succurl <> "&error_redirect=" <> mk errurl
-      arPath    = cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid <> "?" <> arQueries
-  call $ get ((env ^. teSpar) . path arPath . expect2xx)
+    context "after TTL" $ do
+      it "isAliveID returns False" $ do
+        xid :: SAML.ID a <- nextSAMLID
+        eol :: Time      <- addTime 2 <$> runSimpleSP getNow
+        () <- runSparCassWithEnv $ store xid eol
+        liftIO $ threadDelay 3000000
+        isit <- runSparCassWithEnv $ isalive xid
+        liftIO $ isit `shouldBe` False
 
-requestAccessVerdict :: HasCallStack
-                     => Bool                                   -- ^ is the verdict granted?
-                     -> (SAML.IdPId -> TestSpar ResponseLBS)   -- ^ raw authnreq
-                     -> TestSpar ( UserId
-                                 , SAML.ResponseVerdict
-                                 , URI                         -- ^ location header
-                                 , [(SBS, SBS)]                -- ^ query params
-                                 )
-requestAccessVerdict isGranted mkAuthnReq = do
-  env <- ask
-  let uid     = env ^. teUserId
-      idp     = env ^. teIdP
-      idpid   = idp ^. SAML.idpId
-      tenant  = idp ^. SAML.idpMetadata . SAML.edIssuer
-      subject = SAML.opaqueNameID "blee"
-      uref    = SAML.UserRef tenant subject
-  call $ runInsertUser env uref uid
-  authnreq :: SAML.FormRedirect SAML.AuthnRequest <- do
-    raw <- mkAuthnReq idpid
-    bdy <- maybe (error "authreq") pure $ responseBody raw
-    either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
-  spmeta <- getTestSPMetadata
-  authnresp <- liftIO $ do
-    let mk :: SAML.FormRedirect SAML.AuthnRequest -> IO SAML.AuthnResponse
-        mk (SAML.FormRedirect _ req) = do
-          SAML.SignedAuthnResponse (XML.Document _ el _) <- liftIO $ SAML.mkAuthnResponse SAML.sampleIdPPrivkey idp spmeta req True
-          either (throwIO . ErrorCall . show) pure $ SAML.parse [XML.NodeElement el]
-    mk authnreq
-  let verdict = if isGranted
-        then SAML.AccessGranted uref
-        else SAML.AccessDenied ["we don't like you", "seriously"]
-  outcome <- call $ runPostVerdict env (authnresp, verdict)
-  let loc :: URI.URI
-      loc = maybe (error "no location") (either error id . SAML.parseURI' . cs)
-          . List.lookup "Location" . Servant.errHeaders
-          $ outcome
-      qry :: [(SBS, SBS)]
-      qry = queryPairs $ uriQuery loc
-  pure (uid, outcome, loc, qry)
+    context "after call to unstore" $ do
+      it "isAliveID returns False" $ do
+        xid :: SAML.ID a <- nextSAMLID
+        eol :: Time      <- addTime 5 <$> runSimpleSP getNow
+        () <- runSparCassWithEnv $ store xid eol
+        () <- runSparCassWithEnv $ unstore xid
+        isit <- runSparCassWithEnv $ isalive xid
+        liftIO $ isit `shouldBe` False

@@ -92,13 +92,24 @@ test' e m n h = testCase n $ void $ runHttpT m (liftIO (purgeJournalQueue e) >> 
 randomUser :: HasCallStack => Brig -> Http User
 randomUser brig = do
     n <- fromName <$> randomName
-    createUser n "success@simulator.amazonses.com" brig
+    createUser n brig
 
-createUser :: HasCallStack => Text -> Text -> Brig -> Http User
-createUser name email brig = do
-    r <- postUser name (Just email) Nothing Nothing Nothing brig <!!
+createUser :: HasCallStack => Text -> Brig -> Http User
+createUser name brig = do
+    r <- postUser name True False Nothing Nothing brig <!!
            const 201 === statusCode
     decodeBody r
+
+createUserWithEmail :: HasCallStack => Text -> Email -> Brig -> Http User
+createUserWithEmail name email brig = do
+    r <- postUserWithEmail True name (Just email) False Nothing Nothing brig <!!
+           const 201 === statusCode
+    decodeBody r
+
+createUserUntrustedEmail :: HasCallStack => Text -> Brig -> Http User
+createUserUntrustedEmail name brig = do
+    email <- randomUntrustedEmail
+    createUserWithEmail name email brig
 
 createAnonUser :: HasCallStack => Text -> Brig -> Http User
 createAnonUser = createAnonUserExpiry Nothing
@@ -151,16 +162,28 @@ getConnection brig from to = get $ brig
     . zUser from
     . zConn "conn"
 
--- more flexible variant of 'createUser' (see above).
-postUser :: Text -> Maybe Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+-- | More flexible variant of 'createUser' (see above).
+postUser :: Text -> Bool -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
 postUser = postUser' True
 
-postUser' :: Bool -> Text -> Maybe Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
-postUser' validateBody name email phone ssoid teamid brig = do
-    email' <- maybe (pure Nothing) (fmap (Just . fromEmail) . mkEmailRandomLocalSuffix) email
+-- | Use @postUser' False@ instead of 'postUser' if you want to send broken bodies to test error
+-- messages.
+postUser' :: Bool -> Text -> Bool -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser' validateBody name haveEmail havePhone ssoid teamid brig = do
+    email <- if haveEmail
+        then Just <$> randomEmail
+        else pure Nothing
+    postUserWithEmail validateBody name email havePhone ssoid teamid brig
+
+-- | More flexible variant of 'createUserUntrustedEmail' (see above).
+postUserWithEmail :: Bool -> Text -> Maybe Email -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUserWithEmail validateBody name email havePhone ssoid teamid brig = do
+    phone <- if havePhone
+        then Just <$> randomPhone
+        else pure Nothing
     let o = object
             [ "name"            .= name
-            , "email"           .= email'
+            , "email"           .= (fromEmail <$> email)
             , "phone"           .= phone
             , "password"        .= defPassword
             , "cookie"          .= defCookieLabel
@@ -379,8 +402,18 @@ mkEmailRandomLocalSuffix e = do
         Just (Email loc dom) -> return $ Email (loc <> "+" <> UUID.toText uid) dom
         Nothing              -> fail $ "Invalid email address: " ++ Text.unpack e
 
+-- | Generate emails that are in the trusted whitelist of domains whose @+@ suffices count for email
+-- disambiguation.  See also: 'Brig.Email.mkEmailKey'.
 randomEmail :: MonadIO m => m Email
 randomEmail = mkSimulatorEmail "success"
+
+-- | To test the behavior of email addresses with untrusted domains (two emails are equal even if
+-- their local part after @+@ differs), we need to generate them.
+randomUntrustedEmail :: MonadIO m => m Email
+randomUntrustedEmail = do
+    -- NOTE: local part cannot be longer than 64 octets
+    rd <- liftIO (randomIO :: IO Integer)
+    pure $ Email (Text.pack $ show rd) "zinfra.io"
 
 mkSimulatorEmail :: MonadIO m => Text -> m Email
 mkSimulatorEmail loc = mkEmailRandomLocalSuffix (loc <> "@simulator.amazonses.com")

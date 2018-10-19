@@ -323,8 +323,8 @@ newAccount req = do
     new <- parseJsonBody req
 
     email <- case validateEmail (newProviderEmail new) of
-        Just em -> return em
-        Nothing -> throwStd invalidEmail
+        Right em -> return em
+        Left _   -> throwStd invalidEmail
 
     let name  = newProviderName new
     let pass  = newProviderPassword new
@@ -382,8 +382,8 @@ activateAccountKey (key ::: val) = do
 getActivationCode :: Email -> Handler Response
 getActivationCode e = do
     email <- case validateEmail e of
-        Just em -> return em
-        Nothing -> throwStd invalidEmail
+        Right em -> return em
+        Left _   -> throwStd invalidEmail
     gen  <- Code.mkGen (Code.ForEmail email)
     code <- Code.lookup (Code.genKey gen) Code.IdentityVerification
     maybe (throwStd activationKeyNotFound) (return . found) code
@@ -464,8 +464,8 @@ updateAccountEmail :: ProviderId ::: Request -> Handler Response
 updateAccountEmail (pid ::: req) = do
     EmailUpdate new <- parseJsonBody req
     email <- case validateEmail new of
-        Just em -> return em
-        Nothing -> throwStd invalidEmail
+        Right em -> return em
+        Left _   -> throwStd invalidEmail
 
     let emailKey = mkEmailKey email
     DB.lookupKey emailKey >>= mapM_ (const $ throwStd emailExists)
