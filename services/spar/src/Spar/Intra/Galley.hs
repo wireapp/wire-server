@@ -18,12 +18,12 @@ import Bilge
 import Galley.Types.Teams
 import Control.Monad.Except
 import Control.Monad.Reader
+import Control.Lens
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Id (TeamId)
 import Data.String.Conversions
 import GHC.Stack
-import Lens.Micro
 import Network.HTTP.Types.Method
 import Spar.Error
 

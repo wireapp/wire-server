@@ -14,12 +14,12 @@ module Test.Spar.SCIMSpec where
 import Bilge
 import Bilge.Assert
 import Brig.Types.User
+import Control.Lens
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Monoid
-import Lens.Micro
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.Text (pack, unpack)
 import System.Random

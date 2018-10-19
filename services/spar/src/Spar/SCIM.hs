@@ -32,9 +32,9 @@ import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.Catch
 import Control.Exception
+import Control.Lens
 import Data.Id
 import Data.Range
-import Lens.Micro
 import Servant
 import Spar.App (Spar)
 import Spar.Error
