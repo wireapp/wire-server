@@ -47,7 +47,7 @@ dependencies:
   - time
   - wai
   - network-uri
-  - network-uri-static
+  - network-uri-static >= 0.1.1.0
   - unordered-containers
   - email-validate
   - errors

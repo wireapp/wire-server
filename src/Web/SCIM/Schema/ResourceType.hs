@@ -6,8 +6,8 @@ import Prelude hiding (map)
 
 import Data.Text (Text)
 import Data.Aeson
+import Network.URI.Static
 
-import Web.SCIM.Util
 import Web.SCIM.Schema.Common
 import Web.SCIM.Schema.Schema (Schema(..))
 
@@ -49,13 +49,13 @@ instance FromJSON Resource where
 usersResource :: Resource
 usersResource = Resource
   { name = "User"
-  , endpoint = URI [relativeUri|/Users|]
+  , endpoint = URI [relativeReference|/Users|]
   , schema = User20
   }
 
 groupsResource :: Resource
 groupsResource = Resource
   { name = "Group"
-  , endpoint = URI [relativeUri|/Groups|]
+  , endpoint = URI [relativeReference|/Groups|]
   , schema = Group20
   }

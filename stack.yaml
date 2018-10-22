@@ -6,4 +6,4 @@ packages:
 extra-deps:
 - servant-auth-0.3.2.0
 - servant-auth-server-0.4.0.0
-- network-uri-static-0.1.0.0
+- network-uri-static-0.1.1.0

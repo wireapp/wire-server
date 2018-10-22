@@ -2,7 +2,6 @@
 
 module Main where
 
-import           Web.SCIM.Util
 import           Web.SCIM.Server
 import           Web.SCIM.Server.Mock
 import           Web.SCIM.Schema.Meta hiding (meta)
@@ -16,6 +15,7 @@ import           Web.SCIM.Capabilities.MetaSchema as MetaSchema
 
 import           Data.Time
 import           Network.Wai.Handler.Warp
+import           Network.URI.Static
 import qualified STMContainers.Map as STMMap
 import           Control.Monad.STM (atomically)
 import           Data.UUID as UUID
@@ -40,7 +40,7 @@ mkUserDB = do
         , created = now
         , lastModified = now
         , version = Weak "0" -- we don't support etags
-        , location = Common.URI [relativeUri|/Users/sample-user|]
+        , location = Common.URI [relativeReference|/Users/sample-user|]
         }
   -- Note: Okta required at least one email, 'active', 'name.familyName',
   -- and 'name.givenName'. We might want to be able to express these
