@@ -41,6 +41,7 @@ import "swagger2" Data.Swagger hiding (Header(..))
 
 type API
      = "sso" :> APISSO
+  :<|> "sso-initiate-bind"  :> APIAuthReq  -- (see comment on 'APIAuthReq')
   :<|> "identity-providers" :> APIIDP
   :<|> "i" :> APIINTERNAL
   -- NB. If you add endpoints here, also update Test.Spar.APISpec
@@ -50,7 +51,6 @@ type APISSO
   :<|> APIMeta
   :<|> "initiate-login" :> APIAuthReqPrecheck
   :<|> "initiate-login" :> APIAuthReq
-  :<|> "initiate-bind"  :> APIAuthReq          -- (see comment on 'APIAuthReq')
   :<|> APIAuthResp
 
 type CheckOK = Verb 'HEAD 200
@@ -79,9 +79,9 @@ type APIAuthReq
 data DoInitiate = DoInitiateLogin | DoInitiateBind
   deriving (Eq, Show, Bounded, Enum)
 
-doInitiatePath :: DoInitiate -> ST
-doInitiatePath DoInitiateLogin = "initiate-login"
-doInitiatePath DoInitiateBind  = "initiate-bind"
+doInitiatePath :: DoInitiate -> [ST]
+doInitiatePath DoInitiateLogin = ["sso", "initiate-login"]
+doInitiatePath DoInitiateBind  = ["sso-initiate-bind"]
 
 type WithBindCookie = Headers '[Servant.Header "Set-Cookie" BindCookie]
 

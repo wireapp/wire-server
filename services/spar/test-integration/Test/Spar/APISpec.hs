@@ -211,7 +211,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           env <- ask
           let idp = idPIdToST $ env ^. teIdP . idpId
           void . call $ head ( (env ^. teSpar)
-                             . path (cs $ "/sso/initiate-bind/" -/ idp)
+                             . path (cs $ "/sso-initiate-bind/" -/ idp)
                              . header "Z-User" (toByteString' $ env ^. teUserId)
                              . expect2xx
                              )
@@ -223,7 +223,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           let idp = idPIdToST $ env ^. teIdP . idpId
           void . call $ head ( (env ^. teSpar)
                              . header "Z-User" (toByteString' uid)
-                             . path (cs $ "/sso/initiate-bind/" -/ idp)
+                             . path (cs $ "/sso-initiate-bind/" -/ idp)
                              . expect2xx
                              )
 
@@ -242,12 +242,12 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           uid <- createUser
           get ( (env ^. teSpar)
               . header "Z-User" (toByteString' uid)
-              . path (cs $ "/sso/initiate-bind/" -/ idp)
+              . path (cs $ "/sso-initiate-bind/" -/ idp)
               . expect2xx
               )
             `shouldRespondWith` (\resp -> checkRespBody resp && hasSetBindCookieHeader resp)
 
-    describe "GET /sso/initiate-bind/:idp" $ do
+    describe "GET /sso-initiate-bind/:idp" $ do
       context "known IdP, running session with non-sso user" $ do
         it "responds with 200 and a bind cookie" $ do
           checkInitiateLogin (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
