@@ -478,7 +478,7 @@ negotiateAuthnRequest' (doInitiatePath -> doInit) midp modreq = do
     <- call $ get
            ( modreq
            . (env ^. teSpar)
-           . paths (cs <$> (doInit) <> [idPIdToST $ idp ^. SAML.idpId])
+           . paths (cs <$> (doInit <> [idPIdToST $ idp ^. SAML.idpId]))
            . expect2xx
            )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
