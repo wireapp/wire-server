@@ -204,12 +204,17 @@ getZUsrOwnedTeam (Just uid) = do
     Just teamid -> teamid <$ Intra.assertIsTeamOwner uid teamid
 
 
--- | FUTUREWORK: move this to the saml2-web-sso package.  (same probably goes for get, create,
+-- | Check that issuer is fresh (see longer comment in source) and request URI is https.
+--
+-- FUTUREWORK: move this to the saml2-web-sso package.  (same probably goes for get, create,
 -- update, delete of idps.)
 validateNewIdP :: forall m. (HasCallStack, m ~ Spar)
                => SAML.IdPMetadata -> TeamId -> m IdP
 validateNewIdP _idpMetadata _idpExtraInfo = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
+
+  unless ((_idpMetadata ^. SAML.edRequestURI . URI.uriSchemeL) /= URI.Scheme "https") $ do
+    throwSpar SparNewIdPWantHttps
 
   wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
     Nothing -> pure ()
