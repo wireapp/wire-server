@@ -76,7 +76,7 @@ tests conf m z b = testGroup "auth"
             , test m "logout" (testLogout b)
             ]
         , testGroup "reauth"
-            [ test m "reauthorisation" (testReauthorisation b)
+            [ test m "reauthentication" (testReauthentication b)
             ]
         ]
 
@@ -514,8 +514,8 @@ testLogout b = do
     post (b . path "/access" . cookie c) !!!
         const 403 === statusCode
 
-testReauthorisation :: Brig -> Http ()
-testReauthorisation b = do
+testReauthentication :: Brig -> Http ()
+testReauthentication b = do
     u <- userId <$> randomUser b
 
     let js = Http.body . RequestBodyLBS . encode $ object ["foo" .= ("bar" :: Text) ]
