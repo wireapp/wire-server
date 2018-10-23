@@ -122,6 +122,7 @@ instance ToJSON UserSet where
 -- only for users that have already set a password.
 newtype ReAuthUser = ReAuthUser
     { reAuthPassword :: Maybe PlainTextPassword }
+  deriving (Eq, Show)
 
 instance FromJSON ReAuthUser where
     parseJSON = withObject "reauth-user" $ \o ->

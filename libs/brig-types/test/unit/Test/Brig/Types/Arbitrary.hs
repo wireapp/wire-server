@@ -16,6 +16,7 @@ module Test.Brig.Types.Arbitrary where
 
 import Brig.Types.Activation
 import Brig.Types.Code
+import Brig.Types.Intra
 import Brig.Types.Provider (UpdateServiceWhitelist(..))
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
@@ -173,6 +174,9 @@ instance Arbitrary AsciiBase64Url where
 
 instance Arbitrary PlainTextPassword where
     arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
+
+instance Arbitrary ReAuthUser where
+    arbitrary = ReAuthUser <$> arbitrary
 
 instance Arbitrary DeleteUser where
     arbitrary = DeleteUser <$> arbitrary
