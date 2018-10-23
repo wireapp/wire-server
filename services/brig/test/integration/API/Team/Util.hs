@@ -151,7 +151,7 @@ deleteTeam g tid u = do
            . paths ["teams", toByteString' tid]
            . zUser u
            . zConn "conn"
-           . lbytes (encode $ Team.newTeamDeleteData Util.defPassword)
+           . lbytes (encode $ Team.newTeamDeleteData $ Just Util.defPassword)
            ) !!! const 202 === statusCode
 
 getTeams :: UserId -> Galley -> Http Team.TeamList

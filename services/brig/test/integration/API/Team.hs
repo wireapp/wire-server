@@ -562,9 +562,9 @@ testCreateUserInternalSSO brig galley = do
     let ssoid = UserSSOId "nil" "nil"
 
     -- creating users requires both sso_id and team_id
-    postUser' False "dummy" True False (Just ssoid) Nothing brig
+    postUser' True False "dummy" True False (Just ssoid) Nothing brig
         !!! const 400 === statusCode
-    postUser' False "dummy" True False Nothing (Just teamid) brig
+    postUser' True False "dummy" True False Nothing (Just teamid) brig
         !!! const 400 === statusCode
 
     -- creating user with sso_id, team_id is ok

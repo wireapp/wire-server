@@ -90,19 +90,25 @@ test' :: AWS.Env -> Manager -> TestName -> Http a -> TestTree
 test' e m n h = testCase n $ void $ runHttpT m (liftIO (purgeJournalQueue e) >> h)
 
 randomUser :: HasCallStack => Brig -> Http User
-randomUser brig = do
+randomUser = randomUser' True
+
+randomUser' :: HasCallStack => Bool -> Brig -> Http User
+randomUser' hasPwd brig = do
     n <- fromName <$> randomName
-    createUser n brig
+    createUser' hasPwd n brig
 
 createUser :: HasCallStack => Text -> Brig -> Http User
-createUser name brig = do
-    r <- postUser name True False Nothing Nothing brig <!!
+createUser = createUser' True
+
+createUser' :: HasCallStack => Bool -> Text -> Brig -> Http User
+createUser' hasPwd name brig = do
+    r <- postUser' hasPwd True name True False Nothing Nothing brig <!!
            const 201 === statusCode
     decodeBody r
 
 createUserWithEmail :: HasCallStack => Text -> Email -> Brig -> Http User
 createUserWithEmail name email brig = do
-    r <- postUserWithEmail True name (Just email) False Nothing Nothing brig <!!
+    r <- postUserWithEmail True True name (Just email) False Nothing Nothing brig <!!
            const 201 === statusCode
     decodeBody r
 
@@ -164,32 +170,32 @@ getConnection brig from to = get $ brig
 
 -- | More flexible variant of 'createUser' (see above).
 postUser :: Text -> Bool -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
-postUser = postUser' True
+postUser = postUser' True True
 
--- | Use @postUser' False@ instead of 'postUser' if you want to send broken bodies to test error
--- messages.
-postUser' :: Bool -> Text -> Bool -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
-postUser' validateBody name haveEmail havePhone ssoid teamid brig = do
+-- | Use @postUser' True False@ instead of 'postUser' if you want to send broken bodies to test error
+-- messages.  Or @postUser' False True@ if you want to validate the body, but not set a password.
+postUser' :: Bool -> Bool -> Text -> Bool -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser' hasPassword validateBody name haveEmail havePhone ssoid teamid brig = do
     email <- if haveEmail
         then Just <$> randomEmail
         else pure Nothing
-    postUserWithEmail validateBody name email havePhone ssoid teamid brig
+    postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid brig
 
 -- | More flexible variant of 'createUserUntrustedEmail' (see above).
-postUserWithEmail :: Bool -> Text -> Maybe Email -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
-postUserWithEmail validateBody name email havePhone ssoid teamid brig = do
+postUserWithEmail :: Bool -> Bool -> Text -> Maybe Email -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid brig = do
     phone <- if havePhone
         then Just <$> randomPhone
         else pure Nothing
-    let o = object
+    let o = object $
             [ "name"            .= name
             , "email"           .= (fromEmail <$> email)
             , "phone"           .= phone
-            , "password"        .= defPassword
             , "cookie"          .= defCookieLabel
             , "sso_id"          .= ssoid
             , "team_id"         .= teamid
-            ]
+            ] <>
+            [ "password"        .= defPassword | hasPassword ]
         p = case Aeson.parse parseJSON o of
               Aeson.Success (p_ :: NewUser) -> p_
               bad -> error $ show (bad, o)
