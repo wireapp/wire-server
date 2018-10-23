@@ -153,6 +153,8 @@ toSCIMUser user = SCIM.WithMeta meta thing
       , SCIM.created = testDate
       , SCIM.lastModified = testDate
       , SCIM.version = SCIM.Strong (Text.pack (show thingHash))
+      -- TODO: The location should be /Users/<uid>. It might also have to
+      -- include the baseurl of our server -- this has to be checked.
       , SCIM.location = SCIM.URI $ URI "https://TODO" Nothing "" "" ""
       }
 
