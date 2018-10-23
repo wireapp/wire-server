@@ -278,8 +278,8 @@ instance SCIM.UserDB (ReaderT TeamId Spar) where
       either error (pure . Name . fromRange) $
       checkedEitherMsg @_ @1 @128 "displayName" n
     -- NB: We assume that checking that the user does _not_ exist has
-    -- already been already done before -- the hscim library check does a
-    -- 'get' before a 'create'
+    -- already been done before -- the hscim library check does a 'get'
+    -- before a 'create'
 
     buid <- Id <$> liftIO UUID.nextRandom
     -- TODO: Assume that externalID is the subjectID, let's figure out how
