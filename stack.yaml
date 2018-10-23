@@ -36,6 +36,13 @@ packages:
 - tools/db/service-backfill
 - tools/db/auto-whitelist
 
+  # cql-io 1.1.0 (unreleased), includes the changes from
+  # https://gitlab.com/twittner/cql-io/merge_requests/14
+- location:
+    git: https://gitlab.com/twittner/cql-io.git
+    commit: 8b91d053c469887a427e8c075cef43139fa189c4
+  extra-dep: true
+
 - location:
     git: https://github.com/tiago-loureiro/haskell-multihash.git
     commit: 7622cfcff97fa1e207ec91bb11495a207e6c0195
@@ -124,8 +131,13 @@ packages:
   extra-dep: true
 
 extra-deps:
+- async-2.2.1
+- lifted-async-0.10.0.3
+- hinotify-0.4
+- fsnotify-0.3.0.1
 - base-prelude-1.3
 - base58-bytestring-0.1.0
+- cql-4.0.1
 - currency-codes-2.0.0.0
 - data-timeout-0.3
 - geoip2-0.3.1.0

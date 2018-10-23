@@ -54,7 +54,7 @@ import qualified System.Logger as Log
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra opts lgr = do
     connectString <- maybe
-               (Cas.initialContactsDNS (Types.cassandra opts ^. casEndpoint . epHost))
+               (Cas.initialContactsPlain (Types.cassandra opts ^. casEndpoint . epHost))
                (Cas.initialContactsDisco "cassandra_spar")
                (cs <$> Types.discoUrl opts)
     cas <- Cas.init (Log.clone (Just "cassandra.spar") lgr) $ Cas.defSettings

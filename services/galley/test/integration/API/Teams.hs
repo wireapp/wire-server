@@ -27,9 +27,9 @@ import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
 import API.SQS
+import UnliftIO (mapConcurrently_)
 
 import qualified API.Util as Util
-import qualified Control.Concurrent.Async.Lifted.Safe as AsyncSafe
 import qualified Data.Currency as Currency
 import qualified Data.List1 as List1
 import qualified Data.Set as Set
@@ -220,7 +220,7 @@ testAddTeamMember g b c _ = do
     WS.bracketRN c [owner, (mem1^.userId), (mem2^.userId), (mem3^.userId)] $ \[wsOwner, wsMem1, wsMem2, wsMem3] -> do
         -- `mem2` has `AddTeamMember` permission
         Util.addTeamMember g (mem2^.userId) tid mem3
-        AsyncSafe.mapConcurrently_ (checkTeamMemberJoin tid (mem3^.userId)) [wsOwner, wsMem1, wsMem2, wsMem3]
+        mapConcurrently_ (checkTeamMemberJoin tid (mem3^.userId)) [wsOwner, wsMem1, wsMem2, wsMem3]
 
 testAddTeamMemberCheckBound :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testAddTeamMemberCheckBound g b _ a = do
@@ -300,7 +300,7 @@ testRemoveTeamMember g b c _ = do
         -- Ensure that `mem1` is still a user (tid is not a binding team)
         Util.ensureDeletedState b False owner (mem1^.userId)
 
-        AsyncSafe.mapConcurrently_ (checkTeamMemberLeave tid (mem1^.userId)) [wsOwner, wsMem1, wsMem2]
+        mapConcurrently_ (checkTeamMemberLeave tid (mem1^.userId)) [wsOwner, wsMem1, wsMem2]
         checkConvMemberLeaveEvent cid2 (mem1^.userId) wsMext1
         checkConvMemberLeaveEvent cid3 (mem1^.userId) wsMext3
         WS.assertNoEvent timeout ws

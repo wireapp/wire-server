@@ -83,11 +83,9 @@ import Cassandra
 import Cassandra.Util
 import Control.Applicative
 import Control.Arrow (second)
-import Control.Concurrent.Async.Lifted.Safe
 import Control.Lens hiding ((<|))
 import Control.Monad (join, forM)
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Control
 import Data.ByteString.Conversion hiding (parser)
 import Data.Foldable (toList, foldrM, for_)
 import Data.Id
@@ -112,6 +110,7 @@ import Galley.Validation
 import Prelude hiding (max)
 import System.Logger.Class (MonadLogger)
 import System.Logger.Message (msg, (+++), val)
+import UnliftIO (mapConcurrently, MonadUnliftIO, async, wait)
 
 import qualified Data.Map.Strict      as Map
 import qualified Data.Set
@@ -298,7 +297,7 @@ isConvAlive cid = do
         Just (Just True)  -> pure False
         Just (Just False) -> pure True
 
-conversation :: (MonadBaseControl IO m, MonadClient m, Forall (Pure m))
+conversation :: (MonadUnliftIO m, MonadClient m)
              => ConvId
              -> m (Maybe Conversation)
 conversation conv = do
@@ -316,7 +315,7 @@ conversationGC conv = case join (convDeleted <$> conv) of
         return Nothing
     _           -> return conv
 
-conversations :: (MonadLogger m, MonadBaseControl IO m, MonadClient m, Forall (Pure m))
+conversations :: (MonadLogger m, MonadUnliftIO m, MonadClient m)
               => [ConvId]
               -> m [Conversation]
 conversations []  = return []
@@ -629,7 +628,7 @@ updateClient add usr cls = do
     retry x5 $ write (q cls) (params Quorum (Identity usr))
 
 -- Do, at most, 16 parallel lookups of up to 128 users each
-lookupClients :: (MonadClient m, MonadBaseControl IO m, Forall (Pure m))
+lookupClients :: (MonadClient m, MonadUnliftIO m)
               => [UserId] -> m Clients
 lookupClients users = Clients.fromList . concat . concat <$>
     forM (chunksOf 2048 users) (mapConcurrently getClients . chunksOf 128)

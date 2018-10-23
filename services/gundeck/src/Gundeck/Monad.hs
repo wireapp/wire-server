@@ -33,9 +33,7 @@ import Bilge.RPC
 import Cassandra hiding (Error)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
-import Control.Monad.Base
 import Control.Monad.Catch hiding (tryJust)
-import Control.Monad.Trans.Control
 import Data.Aeson (FromJSON)
 import Data.Misc (Milliseconds (..))
 import Gundeck.Env
@@ -61,13 +59,11 @@ newtype Gundeck a = Gundeck
                , MonadClient
                )
 
-instance MonadBase IO Gundeck where
-    liftBase = liftIO
-
-instance MonadBaseControl IO Gundeck where
-    type StM Gundeck a = StM (ReaderT Env IO) a
-    liftBaseWith     f = Gundeck $ liftBaseWith $ \run -> f (run . unGundeck)
-    restoreM           = Gundeck . restoreM
+instance MonadUnliftIO Gundeck where
+    askUnliftIO =
+        Gundeck $ ReaderT $ \r ->
+        withUnliftIO $ \u ->
+        return (UnliftIO (unliftIO u . flip runReaderT r . unGundeck))
 
 instance Redis.MonadClient Gundeck where
     liftClient m = view rstate >>= \p -> Redis.runRedis p m

@@ -10,7 +10,7 @@ import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.ZAuth (ZAuth, runZAuth)
 import Control.Concurrent
-import Control.Concurrent.Async.Lifted.Safe.Extended hiding (wait)
+import UnliftIO.Async.Extended hiding (wait)
 import Control.Lens ((^?), set)
 import Control.Monad
 import Control.Monad.IO.Class

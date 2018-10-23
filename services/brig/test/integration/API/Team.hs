@@ -16,7 +16,7 @@ import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
 import Control.Concurrent (threadDelay)
-import Control.Concurrent.Async.Lifted.Safe.Extended
+import UnliftIO.Async.Extended
     (mapConcurrently_, replicateConcurrently, forPooled, replicatePooled)
 import Control.Lens ((^.), view)
 import Control.Monad
