@@ -520,7 +520,9 @@ testReauthentication b = do
 
     let js = Http.body . RequestBodyLBS . encode $ object ["foo" .= ("bar" :: Text) ]
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . js) !!! do
-        const 400 === statusCode
+        const 403 === statusCode
+        -- it's ok to not give a password in the request body, but if the user has a password set,
+        -- response will be `forbidden`.
 
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just $ PlainTextPassword "123456")) !!! do
         const 403 === statusCode
