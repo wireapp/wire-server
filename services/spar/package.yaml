@@ -57,6 +57,7 @@ dependencies:
   - uri-bytestring
   - uuid
   - wai
+  - wai-middleware-prometheus
   - wai-utilities
   - warp
   - x509
