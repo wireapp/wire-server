@@ -82,6 +82,19 @@ import qualified Web.SCIM.Schema.Common           as SCIM.Common
 configuration :: SCIM.Meta.Configuration
 configuration = SCIM.Meta.empty
 
+-- The SCIM standard doesn't specify a way to let endpoint callers provide
+-- info about what organization's users they want to manage, so they have to
+-- communicate that information in *some* way.
+--
+-- Currently it's done by encoding the 'TeamId' in the path. However, this
+-- will go away once we rework the authentication system for SCIM. The
+-- alternative system we want is as follows:
+--
+--   * A single authentication token is passed as a header
+--   * That token can be mapped to the team ID
+--   * Simultaneously, this token provides authentication (the provisioning
+--     tool knows the token and therefore can perform SCIM operations,
+--     but nobody else does)
 type API = Capture "team" TeamId :> SCIM.SiteAPI
 
 api :: ServerT API Spar
