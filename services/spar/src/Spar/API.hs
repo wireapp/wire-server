@@ -67,7 +67,11 @@ app ctx = SAML.setHttpCachePolicy
         $ serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @Spar ctx) (api $ sparCtxOpts ctx) :: Server API)
 
 api :: Opts -> ServerT API Spar
-api opts = apiSSO opts :<|> apiIDP :<|> apiINTERNAL
+api opts
+     = apiSSO opts
+  :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateBind
+  :<|> apiIDP
+  :<|> apiINTERNAL
 
 apiSSO :: Opts -> ServerT APISSO Spar
 apiSSO opts
@@ -75,7 +79,6 @@ apiSSO opts
   :<|> SAML.meta appName sparSPIssuer sparResponseURI
   :<|> authreqPrecheck
   :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
-  :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateBind
   :<|> authresp
 
 apiIDP :: ServerT APIIDP Spar
