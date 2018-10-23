@@ -522,16 +522,16 @@ testReauthorisation b = do
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . js) !!! do
         const 400 === statusCode
 
-    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (PlainTextPassword "123456")) !!! do
+    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just $ PlainTextPassword "123456")) !!! do
         const 403 === statusCode
         const (Just "invalid-credentials") === errorLabel
 
-    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload defPassword) !!! do
+    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just defPassword)) !!! do
         const 200 === statusCode
 
     setStatus b u Suspended
 
-    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload defPassword) !!! do
+    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just defPassword)) !!! do
         const 403 === statusCode
         const (Just "suspended") === errorLabel
   where

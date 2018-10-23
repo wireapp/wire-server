@@ -121,11 +121,11 @@ instance ToJSON UserSet where
 -- | Certain operations might require reauth of the user. These are available
 -- only for users that have already set a password.
 newtype ReAuthUser = ReAuthUser
-    { reAuthPassword :: PlainTextPassword }
+    { reAuthPassword :: Maybe PlainTextPassword }
 
 instance FromJSON ReAuthUser where
     parseJSON = withObject "reauth-user" $ \o ->
-        ReAuthUser <$> o .: "password"
+        ReAuthUser <$> o .:? "password"
 
 instance ToJSON ReAuthUser where
     toJSON ru = object

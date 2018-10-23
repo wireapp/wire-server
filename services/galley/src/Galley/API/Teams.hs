@@ -167,7 +167,7 @@ deleteTeam (zusr::: zcon ::: tid ::: req ::: _ ::: _) = do
             void $ permissionCheck zusr DeleteTeam =<< Data.teamMembers tid
             when ((tdTeam team)^.teamBinding == Binding) $ do
                 body <- fromBody req invalidPayload
-                ensureReAuthorised zusr (body^.tdAuthPassword)
+                ensureReAuthorised zusr (body^?tdAuthPassword)
             queueDelete
   where
     queueDelete = do
@@ -326,7 +326,7 @@ deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
     team <- tdTeam <$> (Data.team tid >>= ifNothing teamNotFound)
     if team^.teamBinding == Binding && isTeamMember remove mems then do
         body <- fromBody req invalidPayload
-        ensureReAuthorised zusr (body^.tmdAuthPassword)
+        ensureReAuthorised zusr (body^?tmdAuthPassword)
         deleteUser remove
         Journal.teamUpdate tid (filter (\u -> u^.userId /= remove) mems)
         pure (empty & setStatus status202)
