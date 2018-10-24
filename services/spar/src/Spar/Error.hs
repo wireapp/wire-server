@@ -94,6 +94,7 @@ sparToWaiError (SAML.CustomError SparInitBindWithoutAuth)                 = Righ
 sparToWaiError (SAML.CustomError SparBindUserDisappearedFromBrig)         = Right $ Wai.Error status404 "bind-user-disappeared" "Your user appears to have been deleted?"
 sparToWaiError SAML.UnknownError                                          = Right $ Wai.Error status500 "server-error" "Unknown server error."
 sparToWaiError (SAML.BadServerConfig msg)                                 = Right $ Wai.Error status500 "server-error" ("Error in server config: " <> msg)
+sparToWaiError (SAML.InvalidCert msg)                                     = Right $ Wai.Error status500 "invalid-certificate" ("Error in idp certificate: " <> msg)
 -- Errors related to IdP creation
 sparToWaiError (SAML.CustomError (SparNewIdPBadMetaUrl msg))              = Right $ Wai.Error status400 "idp-error" ("Bad or unresponsive metadata url: " <> msg)
 sparToWaiError (SAML.CustomError SparNewIdPBadMetaSig)                    = Right $ Wai.Error status400 "invalid-signature" "bad metadata signature"
