@@ -122,11 +122,8 @@ sparResponseURI = SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthResp)
 --   * does not expose routes prefixed with /i/
 --   * handles authorization (adding a Z-User header if requests are authorized)
 --   * does not show the swagger end-point itself
---
--- In addition, we strip the SCIM documentation because SCIM doesn't have
--- Swagger schemas yet.
 type OutsideWorldAPI =
-    StripSwagger (StripSCIM (StripInternal (StripAuth API)))
+    StripSwagger (StripInternal (StripAuth API))
 
 -- | Strip the nginz-set, internal-only Z-User header
 type family StripAuth api where
@@ -145,9 +142,3 @@ type family StripSwagger api where
     StripSwagger ("sso" :> "api-docs" :> a) = EmptyAPI
     StripSwagger (a :<|> b) = StripSwagger a :<|> StripSwagger b
     StripSwagger x = x
-
--- | Strip SCIM.
-type family StripSCIM api where
-    StripSCIM ("scim" :> a) = EmptyAPI
-    StripSCIM (a :<|> b) = StripSCIM a :<|> StripSCIM b
-    StripSCIM x = x
