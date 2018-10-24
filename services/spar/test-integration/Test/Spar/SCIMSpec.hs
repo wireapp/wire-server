@@ -89,8 +89,8 @@ specUsers = describe "operations with users" $ do
             storedUser' <- getUser (scimUserId storedUser)
             liftIO $ storedUser' `shouldBe` storedUser
         it "finds a non-SCIM-provisioned user" $ do
-            pending
-            {- TODO: this test fails because the user has no handle
+            pendingWith "TODO: fails because the user has no handle"
+            {-
             env <- ask
             -- Check that the (non-SCIM-provisioned) team owner can be fetched
             -- and that the data from Brig matches
