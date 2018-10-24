@@ -27,7 +27,6 @@ import Servant.Multipart
 import Spar.Types
 
 import qualified SAML2.WebSSO as SAML
-import qualified Spar.SCIM as SCIM
 import qualified URI.ByteString as URI
 
 import "swagger2" Data.Swagger hiding (Header(..))
@@ -43,7 +42,8 @@ import "swagger2" Data.Swagger hiding (Header(..))
 type API
      = "sso" :> APISSO
   :<|> "identity-providers" :> APIIDP
-  :<|> "scim" :> SCIM.API
+  -- TODO: reenable once SCIM is ready
+  -- :<|> "scim" :> SCIM.API
   :<|> "i" :> APIINTERNAL
   -- NB. If you add endpoints here, also update Test.Spar.APISpec
 
