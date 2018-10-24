@@ -63,7 +63,7 @@ ensureConnected u uids = do
     unless (length connsFrom == length uids && length connsTo == length uids) $
         throwM notConnected
 
-ensureReAuthorised :: UserId -> PlainTextPassword -> Galley ()
+ensureReAuthorised :: UserId -> Maybe PlainTextPassword -> Galley ()
 ensureReAuthorised u secret = do
     reAuthed <- reAuthUser u (ReAuthUser secret)
     unless reAuthed $

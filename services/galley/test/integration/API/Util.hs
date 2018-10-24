@@ -598,9 +598,13 @@ randomUsers :: Brig -> Int -> Http [UserId]
 randomUsers b n = replicateM n (randomUser b)
 
 randomUser :: HasCallStack => Brig -> Http UserId
-randomUser b = do
+randomUser = randomUser' True
+
+randomUser' :: HasCallStack => Bool -> Brig -> Http UserId
+randomUser' hasPassword b = do
     e <- liftIO randomEmail
-    let p = object [ "name" .= fromEmail e, "email" .= fromEmail e, "password" .= defPassword ]
+    let p = object $ [ "name" .= fromEmail e, "email" .= fromEmail e]
+                  <> [ "password" .= defPassword | hasPassword]
     r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
