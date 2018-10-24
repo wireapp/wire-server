@@ -44,6 +44,7 @@ import Data.UUID as UUID
 import Crypto.Hash
 import Data.Time
 import Data.Maybe
+import Data.Monoid ((<>))
 import Data.Text.Encoding
 import Data.Aeson as Aeson
 import Text.Email.Validate
@@ -268,15 +269,23 @@ instance SCIM.UserDB (ReaderT TeamId Spar) where
   -- | Create a new user.
   create user = do
     tid <- ask
-    -- TODO: report these errors as SCIM errors
-    extId <- maybe (error "We need an externalId!") pure $
-               SCIM.User.externalId user
-    handl <- maybe (error "Failed to parse userName!") pure $
-               parseHandle (SCIM.User.userName user)
+    extId <- case SCIM.User.externalId user of
+      Just x -> pure x
+      Nothing -> SCIM.throwSCIM $
+        SCIM.badRequest SCIM.InvalidValue (Just "externalId is required")
+    handl <- case parseHandle (SCIM.User.userName user) of
+      Just x -> pure x
+      Nothing -> SCIM.throwSCIM $
+        SCIM.badRequest SCIM.InvalidValue (Just "userName is not compliant")
+
     -- We check the name for validity, but only if it's present
     mbName <- forM (SCIM.User.displayName user) $ \n ->
-      either error (pure . Name . fromRange) $
-      checkedEitherMsg @_ @1 @128 "displayName" n
+      case checkedEitherMsg @_ @1 @128 "displayName" n of
+        Right x -> pure $ Name (fromRange x)
+        Left err -> SCIM.throwSCIM $
+          SCIM.badRequest
+            SCIM.InvalidValue
+            (Just ("displayName is not compliant: " <> Text.pack err))
     -- NB: We assume that checking that the user does _not_ exist has
     -- already been done before -- the hscim library check does a 'get'
     -- before a 'create'
@@ -295,7 +304,7 @@ instance SCIM.UserDB (ReaderT TeamId Spar) where
       setHandle buid handl
 
     maybe (error "How can there be no user?") (pure . toSCIMUser) =<<
-        lift (getUser buid)
+      lift (getUser buid)
 
   -- update   :: UserId -> User -> m StoredUser
   -- patch    :: UserId -> m StoredUser
