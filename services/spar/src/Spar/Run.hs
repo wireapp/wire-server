@@ -28,7 +28,8 @@ import Data.List.NonEmpty as NE
 import Data.Metrics (metrics)
 import Data.String.Conversions
 import Data.String (fromString)
-import Network.Wai (Application)
+import Network.HTTP.Types.Status (status413)
+import Network.Wai (Application, Middleware, pathInfo, requestBodyLength, RequestBodyLength(..), responseLBS)
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Spar.API (app)
 import Spar.API.Instances ()
@@ -41,6 +42,7 @@ import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 
 import qualified Cassandra.Schema as Cas
 import qualified Cassandra.Settings as Cas
+import qualified Data.List as List
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Network.Wai.Utilities.Server as WU
@@ -99,7 +101,8 @@ runServer sparCtxOpts = do
                       . Bilge.port (sparCtxOpts ^. to brig . epPort)
                       $ Bilge.empty
   let wrappedApp
-        = WU.catchErrors sparCtxLogger mx
+        = responseSizeLimitMiddleware authnRespSizeLimit
+        . WU.catchErrors sparCtxLogger mx
         . Promth.prometheus Promth.def { Promth.prometheusEndPoint = ["i", "monitoring"] }
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
@@ -110,3 +113,26 @@ lookupRequestIdMiddleware :: (RequestId -> Application) -> Application
 lookupRequestIdMiddleware mkapp req cont = do
   let reqid = maybe mempty RequestId $ lookupRequestId req
   mkapp reqid req cont
+
+-- | `/sso/finalize-login` is computationally expensive, e.g. if bodies are crafted to impose
+-- maximum cost on signature verification.
+--
+-- FUTUREWORK: move this to saml2-web-sso?
+responseSizeLimitMiddleware :: Int -> Middleware
+responseSizeLimitMiddleware limit applic req cont = do
+  if ["sso", "finalize-login"] `List.isPrefixOf` pathInfo req
+    then case requestBodyLength req of
+           KnownLength len
+             -> if fromIntegral len < limit
+                then applic req cont
+                else cont $ responseLBS status413 mempty "body too large"
+           ChunkedBody
+             -> cont $ responseLBS status413 mempty "chunked body not supported"
+    else applic req cont
+
+-- | AuthnResponse documents in all vendor tests were always around 10k or smaller.  multiply this
+-- by 8 to be safe.
+--
+-- TODO: move this to "Options".
+authnRespSizeLimit :: Int
+authnRespSizeLimit = 80 * 1000
