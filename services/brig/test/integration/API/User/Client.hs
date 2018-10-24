@@ -45,7 +45,7 @@ tests _cl _at _conf p b c g = testGroup "client"
     , test p "get /clients/:client/prekeys - 200"     $ testListPrekeyIds b
     , test p "post /clients - 400"                    $ testTooManyClients b
     , test p "delete /clients/:client - 200 (pwd)"    $ testRemoveClient True b c
-    -- , test p "delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c  -- TODO: is there an easy way with phone user?
+    , test p "delete /clients/:client - 200 (no pwd)" $ testRemoveClient False b c
     , test p "put /clients/:client - 200"             $ testUpdateClient b
     , test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g
     , test p "client/prekeys/race"                    $ testPreKeyRace b
@@ -186,19 +186,19 @@ testTooManyClients brig = do
 
 testRemoveClient :: Bool -> Brig -> Cannon -> Http ()
 testRemoveClient hasPwd brig cannon = do
-    unless hasPwd $ error
-      "not implemented: for password-less users, we need to figure out another way to login."
-
     u <- randomUser' hasPwd brig
     let uid = userId u
     let Just email = userEmail u
 
     -- Permanent client with attached cookie
-    login brig (defEmailLogin email) PersistentCookie
-        !!! const 200 === statusCode
-    numCookies <- countCookies brig uid defCookieLabel
-    liftIO $ Just 1 @=? numCookies
+    when hasPwd $ do
+        login brig (defEmailLogin email) PersistentCookie
+            !!! const 200 === statusCode
+        numCookies <- countCookies brig uid defCookieLabel
+        liftIO $ Just 1 @=? numCookies
+
     c <- decodeBody =<< addClient brig uid (client PermanentClient (someLastPrekeys !! 10))
+
     when hasPwd $ do
         -- Missing password
         deleteClient brig uid (clientId c) Nothing !!! const 403 === statusCode
