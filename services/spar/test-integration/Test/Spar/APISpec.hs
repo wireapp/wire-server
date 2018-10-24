@@ -70,6 +70,19 @@ specMisc = do
         ping (env ^. teSpar) `shouldRespondWith` (== ())
 
 
+    describe "metrics" $ do
+      it "spar /i/monitoring" $ do
+        env <- ask
+        get ((env ^. teSpar) . path "/i/monitoring")
+          `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
+                                [ "http_request_duration_seconds_bucket"
+                                , "handler="
+                                , "method="
+                                , "status_code="
+                                , "le="
+                                ])
+
+
 specMetadata :: SpecWith TestEnv
 specMetadata = do
     describe "metadata" $ do

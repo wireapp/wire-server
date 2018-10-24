@@ -42,6 +42,7 @@ import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 import qualified Cassandra.Schema as Cas
 import qualified Cassandra.Settings as Cas
 import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
@@ -98,10 +99,8 @@ runServer sparCtxOpts = do
                       . Bilge.port (sparCtxOpts ^. to brig . epPort)
                       $ Bilge.empty
   let wrappedApp
-    -- . WU.measureRequests mx _
-        -- TODO: we need the swagger sitemap from servant for this.  we also want this to be
-        -- prometheus-compatible.  not sure about the order in which to do these.
         = WU.catchErrors sparCtxLogger mx
+        . Promth.prometheus Promth.def { Promth.prometheusEndPoint = ["i", "monitoring"] }
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}
