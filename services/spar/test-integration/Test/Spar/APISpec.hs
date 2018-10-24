@@ -73,7 +73,7 @@ specMisc = do
     describe "metrics" $ do
       it "spar /i/monitoring" $ do
         env <- ask
-        get ((env ^. teSpar) . path "/i/monitoring")
+        get ((env ^. teSpar) . path "/metrics")
           `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                 [ "http_request_duration_seconds_bucket"
                                 , "handler="
