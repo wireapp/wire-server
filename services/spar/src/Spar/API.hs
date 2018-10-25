@@ -214,7 +214,7 @@ validateNewIdP _idpMetadata _idpExtraInfo = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
 
   let requri = _idpMetadata ^. SAML.edRequestURI
-  unless (requri ^. URI.uriSchemeL /= URI.Scheme "https") $ do
+  unless (requri ^. URI.uriSchemeL == URI.Scheme "https") $ do
     throwSpar (SparNewIdPWantHttps . cs . SAML.renderURI $ requri)
 
   wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
