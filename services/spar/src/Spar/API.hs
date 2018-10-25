@@ -213,8 +213,9 @@ validateNewIdP :: forall m. (HasCallStack, m ~ Spar)
 validateNewIdP _idpMetadata _idpExtraInfo = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
 
-  unless ((_idpMetadata ^. SAML.edRequestURI . URI.uriSchemeL) /= URI.Scheme "https") $ do
-    throwSpar SparNewIdPWantHttps
+  let requri = _idpMetadata ^. SAML.edRequestURI
+  unless (requri ^. URI.uriSchemeL == URI.Scheme "https") $ do
+    throwSpar (SparNewIdPWantHttps . cs . SAML.renderURI $ requri)
 
   wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
     Nothing -> pure ()
