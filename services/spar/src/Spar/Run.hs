@@ -100,7 +100,7 @@ runServer sparCtxOpts = do
                       $ Bilge.empty
   let wrappedApp
         = WU.catchErrors sparCtxLogger mx
-        . Promth.prometheus Promth.def { Promth.prometheusEndPoint = ["i", "monitoring"] }
+        . Promth.prometheus Promth.def
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}
