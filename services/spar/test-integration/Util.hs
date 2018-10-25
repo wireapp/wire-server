@@ -144,7 +144,7 @@ mkEnv _teTstOpts _teOpts = do
       _teSpar    = endpointToReq (cfgSpar   _teTstOpts)
 
       idpmeta :: IdPMetadata
-      idpmeta = sampleIdPMetadata issuer [uri|http://requri.net/|]
+      idpmeta = sampleIdPMetadata issuer [uri|https://requri.net/|]
 
   (_teUserId, _teTeamId, _teIdP) <- do
     createTestIdPFrom idpmeta _teMgr _teBrig _teGalley _teSpar
