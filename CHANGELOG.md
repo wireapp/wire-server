@@ -1,3 +1,36 @@
+# 2018-10-25  #500
+
+## New Features
+
+  * SSO: team member deletion, team deletion do not require
+    the user to have chosen a password.  (Needed for
+    SAML-authenticated team co-admins.)  #497
+
+  * SSO: `sso-initiate-bind` end-point for inviting ("binding")
+    existing users to SAML auth.  #496
+
+  * SSO: shell script for registering IdPs in wire-teams.
+    (`/deploy/services-demo/register_idp.sh`)  #489
+
+  * Allow setting a different endpoint for generating download links.
+    #480
+
+  * Allow setting specific ports for SMTP and use different image for
+    SMTP.  #481
+
+  * Route calls/config in the demo to brig.  #487
+
+## Internal Changes
+
+  * Metrics for spar (service for SSO).  #498
+
+  * Upgrade to stackage lts-11.  #478
+
+  * Upgrade cql-io library.  #495
+
+  * Allow easily running tests against AWS.  #482
+
+
 # 2018-10-04  #477
 
 ## Highlights
