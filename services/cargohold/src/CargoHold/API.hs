@@ -4,17 +4,16 @@
 
 module CargoHold.API (runServer, parseOptions) where
 
+import Imports hiding (head)
 import CargoHold.App
 import CargoHold.Options
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad
 import Control.Monad.Catch (finally)
 import Data.Aeson (encode)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Metrics.Middleware hiding (metrics)
-import Data.Monoid
 import Data.Predicate
 import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
@@ -27,7 +26,6 @@ import Network.Wai.Utilities hiding (message)
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import Network.Wai.Utilities.ZAuth
-import Prelude hiding (head)
 import URI.ByteString
 import Util.Options
 

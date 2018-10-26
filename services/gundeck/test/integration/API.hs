@@ -9,36 +9,22 @@
 
 module API where
 
+import Imports
 import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
-import Control.Concurrent
 import Control.Concurrent.Async       (Async, async, wait)
-import Control.Concurrent.STM.TChan
-import Control.Lens                   ((&), (.~), (^.), (^?), view)
-import Control.Monad.IO.Class         (MonadIO)
-import Control.Monad.Reader
-import Control.Monad.STM
+import Control.Lens                   ((.~), (^.), (^?), view)
 import Control.Retry (retrying, constantDelay, limitRetries)
 import Data.Aeson              hiding (json)
 import Data.Aeson.Lens
-import Data.ByteString.Char8          (ByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy           (fromStrict)
-import Data.Foldable                  (toList)
-import Data.Function                  (on)
 import Data.Id
-import Data.List                      (sortBy)
 import Data.List1                     (List1)
-import Data.Maybe
 import Data.Misc                      ((<$$>))
-import Data.Monoid                    ((<>))
 import Data.Range
-import Data.Set                       (Set)
-import Data.Text                      (Text)
 import Data.UUID.V4
-import Data.Word
-import GHC.Stack (HasCallStack)
 import Gundeck.Types
 import Gundeck.Types.BulkPush
 import Network.URI                    (parseURI)
@@ -65,6 +51,7 @@ import qualified Gundeck.Client.Data    as Clients
 import qualified Gundeck.Push.Data      as Push
 import qualified Network.HTTP.Client    as Http
 import qualified Network.WebSockets     as WS
+import qualified Prelude
 
 appName :: AppName
 appName = AppName "test"

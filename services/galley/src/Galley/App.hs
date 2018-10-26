@@ -42,11 +42,9 @@ import Bilge.RPC
 import Cassandra hiding (Error, Set)
 import Control.Error
 import Control.Lens hiding ((.=))
-import Control.Monad.Base
 import Control.Monad.Catch hiding (tryJust)
 import Control.Monad.IO.Class
 import Control.Monad.Reader
-import Control.Monad.Trans.Control
 import Data.Aeson (FromJSON)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (TeamId, UserId, ConnId)
@@ -62,8 +60,10 @@ import Network.Wai
 import Network.Wai.Utilities
 import OpenSSL.EVP.Digest (getDigestByName)
 import OpenSSL.Session as Ssl
+import Ssl.Util
 import System.Logger.Class hiding (Error, info)
 import Util.Options
+import UnliftIO (MonadUnliftIO(..), withUnliftIO, UnliftIO(..))
 
 import qualified Cassandra                as C
 import qualified Cassandra.Settings       as C
@@ -94,7 +94,7 @@ data Env = Env
 -- | Environment specific to the communication with external
 -- service providers.
 data ExtEnv = ExtEnv
-    { _extGetManager :: [Fingerprint Rsa] -> Manager
+    { _extGetManager :: (Manager, [Fingerprint Rsa] -> Ssl.SSL -> IO ())
     }
 
 makeLenses ''Env
@@ -113,13 +113,11 @@ newtype Galley a = Galley
                , MonadClient
                )
 
-instance MonadBase IO Galley where
-    liftBase = liftIO
-
-instance MonadBaseControl IO Galley where
-    type StM Galley a = StM (ReaderT Env Client) a
-    liftBaseWith f    = Galley $ liftBaseWith $ \run -> f (run . unGalley)
-    restoreM          = Galley . restoreM
+instance MonadUnliftIO Galley where
+    askUnliftIO =
+        Galley $ ReaderT $ \r ->
+        withUnliftIO $ \u ->
+        return (UnliftIO (unliftIO u . flip runReaderT r . unGalley))
 
 instance MonadLogger Galley where
     log l m = do
@@ -143,7 +141,7 @@ createEnv m o = do
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
-    c <- maybe (C.initialContactsDNS (o^.optCassandra.casEndpoint.epHost))
+    c <- maybe (C.initialContactsPlain (o^.optCassandra.casEndpoint.epHost))
                (C.initialContactsDisco "cassandra_galley")
                (unpack <$> o^.optDiscoUrl)
     C.init (Logger.clone (Just "cassandra.galley") l) $
@@ -167,12 +165,13 @@ initHttpManager o = do
     Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
     Ssl.contextSetCiphers ctx rsaCiphers
     Ssl.contextLoadSystemCerts ctx
-    newManager (opensslManagerSettings ctx)
+    newManager (opensslManagerSettings (pure ctx))
         { managerResponseTimeout     = responseTimeoutMicro 10000000
         , managerConnCount           = o^.optSettings.setHttpPoolSize
         , managerIdleConnectionCount = 3 * (o^.optSettings.setHttpPoolSize)
         }
 
+-- TODO: somewhat duplicates Brig.App.initExtGetManager
 initExtEnv :: IO ExtEnv
 initExtEnv = do
     ctx <- Ssl.context
@@ -182,16 +181,16 @@ initExtEnv = do
     Ssl.contextAddOption ctx SSL_OP_NO_TLSv1
     Ssl.contextSetCiphers ctx rsaCiphers
     Ssl.contextLoadSystemCerts ctx
-    mgr <- newManager (opensslManagerSettings ctx)
+    mgr <- newManager (opensslManagerSettings (pure ctx))
         { managerResponseTimeout = responseTimeoutMicro 10000000
         , managerConnCount       = 100
         }
     Just sha <- getDigestByName "SHA256"
-    return $ ExtEnv (mkManager ctx sha mgr)
+    return $ ExtEnv (mgr, mkVerify sha)
   where
-    mkManager ctx sha mgr fprs =
+    mkVerify sha fprs =
         let pinset = map toByteString' fprs
-        in setOnConnection ctx (verifyRsaFingerprint sha pinset) mgr
+        in  verifyRsaFingerprint sha pinset
 
 runGalley :: Env -> Request -> Galley ResponseReceived -> IO ResponseReceived
 runGalley e r m =

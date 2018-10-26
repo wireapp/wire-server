@@ -7,12 +7,9 @@ module Gundeck.Notification
     , getLast
     ) where
 
-import Control.Monad ((>=>), when)
+import Imports hiding (getLast)
 import Control.Monad.Catch (throwM)
-import Data.ByteString (ByteString)
-import Data.Foldable (for_, toList)
 import Data.Id
-import Data.Int
 import Data.Misc (Milliseconds (..))
 import Data.Predicate
 import Data.Range

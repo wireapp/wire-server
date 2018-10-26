@@ -35,13 +35,12 @@ import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Types
 import Brig.Types.User.Auth (CookieLabel)
 import Cassandra hiding (Client)
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Error
 import Control.Lens
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-import Control.Monad.Trans.Control
+import Control.Monad.IO.Unlift
 import Control.Retry
 import Data.ByteString.Conversion (toByteString, toByteString')
 import Data.Foldable (for_)
@@ -56,6 +55,7 @@ import Data.Word
 import Safe (readMay)
 import System.CryptoBox (Result (Success))
 import System.Logger.Class (field, msg, val)
+import UnliftIO (mapConcurrently)
 
 import qualified Brig.Data.User         as User
 import qualified Control.Exception.Lens as EL
@@ -307,7 +307,7 @@ withOptLock u c ma = go (10 :: Int)
         e   <- view (awsEnv.amazonkaEnv)
         execDyn' e cnv cmd
       where
-        execDyn' :: (AWS.AWSRequest r, MonadMask m, MonadIO m, Typeable m, MonadBaseControl IO m)
+        execDyn' :: (AWS.AWSRequest r, MonadUnliftIO m, MonadMask m, MonadIO m, Typeable m)
                         => AWS.Env
                         -> (AWS.Rs r -> Maybe a)
                         -> r

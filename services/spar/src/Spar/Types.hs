@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -13,21 +15,36 @@
 
 module Spar.Types where
 
+import Control.Lens (makeLenses)
 import Control.Monad.Except
+import Data.Aeson
 import Data.Aeson.TH
 import Data.Id (TeamId, UserId)
+import Data.Int
+import Data.Monoid
+import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions
+import Data.String.Conversions (ST)
+import Data.Text (Text)
+import Data.Time
 import GHC.Generics
-import Lens.Micro.TH (makeLenses)
+import GHC.TypeLits (KnownSymbol, symbolVal)
+import GHC.Types (Symbol)
 import SAML2.Util (renderURI, parseURI')
-import SAML2.WebSSO (IdPConfig, ID, AuthnRequest)
+import SAML2.WebSSO (IdPConfig, ID, AuthnRequest, Assertion, SimpleSetCookie)
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import URI.ByteString
+import Util.Options
 import Web.Cookie
 
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.Text as ST
+import qualified SAML2.WebSSO as SAML
 
+
+data Void
+
+type BindCookie = SimpleSetCookie "zbind"
 
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig TeamId
@@ -43,6 +60,7 @@ makeLenses ''IdPList
 deriveJSON deriveJSONOptions ''IdPList
 
 type AReqId = ID AuthnRequest
+type AssId = ID Assertion
 
 -- | Clients can request different ways of receiving the final 'AccessVerdict' when fetching their
 -- 'AuthnRequest'.  Web-based clients want an html page, mobile clients want to set two URIs for the
@@ -74,3 +92,45 @@ substituteVar var val = substituteVar' ("$" <> var) val . substituteVar' ("%24" 
 
 substituteVar' :: ST -> ST -> ST -> ST
 substituteVar' var val = ST.intercalate val . ST.splitOn var
+
+
+type Opts = Opts' DerivedOpts
+data Opts' a = Opts
+    { saml           :: !SAML.Config
+    , brig           :: !Endpoint
+    , cassandra      :: !CassandraOpts
+    , maxttlAuthreq  :: !(TTL "authreq")
+    , maxttlAuthresp :: !(TTL "authresp")
+    , discoUrl       :: !(Maybe Text) -- Wire/AWS specific; optional; used to discover cassandra instance IPs using describe-instances
+    , logNetStrings  :: !Bool
+    -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
+    , derivedOpts    :: !a
+    }
+  deriving (Functor, Show, Generic)
+
+instance FromJSON (Opts' (Maybe ()))
+
+data DerivedOpts = DerivedOpts
+    { derivedOptsBindCookiePath   :: !SBS
+    , derivedOptsBindCookieDomain :: !SBS
+    }
+  deriving (Show, Generic)
+
+-- | (seconds)
+newtype TTL (tablename :: Symbol) = TTL { fromTTL :: Int32 }
+  deriving (Eq, Ord, Show, Num)
+
+showTTL :: KnownSymbol a => TTL a -> String
+showTTL (TTL i :: TTL a) = "TTL:" <> (symbolVal (Proxy @a)) <> ":" <> show i
+
+instance FromJSON (TTL a) where
+  parseJSON = withScientific "TTL value (seconds)" (pure . TTL . round)
+
+data TTLError = TTLTooLong String String | TTLNegative String
+  deriving (Eq, Show)
+
+ttlToNominalDiffTime :: TTL a -> NominalDiffTime
+ttlToNominalDiffTime (TTL i32) = fromIntegral i32
+
+maxttlAuthreqDiffTime :: Opts -> NominalDiffTime
+maxttlAuthreqDiffTime = ttlToNominalDiffTime . maxttlAuthreq

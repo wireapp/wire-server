@@ -15,7 +15,7 @@ import Data.Id
 import Data.Maybe
 import System.Logger (Logger)
 import Data.Functor.Identity
-import Control.Concurrent.Async.Lifted.Safe.Extended (mapMPooled)
+import UnliftIO.Async.Extended (mapMPooled)
 import Data.List.Extra (nubOrd)
 
 import qualified System.Logger as Log

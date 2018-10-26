@@ -30,7 +30,7 @@ module Gundeck.Push.Native.Types
     , mkEndpointTopic
     ) where
 
-import Control.Exception (SomeException)
+import Imports
 import Control.Lens (makeLenses, (^.))
 import Data.Id (UserId, ConnId, ClientId)
 import Data.Singletons.TypeLits (Symbol)

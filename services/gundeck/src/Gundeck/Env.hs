@@ -3,11 +3,11 @@
 
 module Gundeck.Env where
 
+import Imports
 import Bilge
 import Cassandra (ClientState, Keyspace (..))
 import Control.AutoUpdate
 import Control.Lens ((^.), makeLenses)
-import Data.Int (Int32)
 import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
 import Data.Text (unpack)
@@ -51,7 +51,7 @@ schemaVersion = 7
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
     l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
-    c <- maybe (C.initialContactsDNS (o^.optCassandra.casEndpoint.epHost))
+    c <- maybe (C.initialContactsPlain (o^.optCassandra.casEndpoint.epHost))
                (C.initialContactsDisco "cassandra_gundeck")
                (unpack <$> o^.optDiscoUrl)
     n <- newManager tlsManagerSettings

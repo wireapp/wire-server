@@ -12,11 +12,30 @@
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE ViewPatterns               #-}
 
-module Spar.Data where
+module Spar.Data
+  ( schemaVersion
+  , Env(..)
+  , mkEnv
+  , mkTTLAssertions
+  , storeAReqID, unStoreAReqID, isAliveAReqID
+  , storeAssID, unStoreAssID, isAliveAssID
+  , storeVerdictFormat
+  , getVerdictFormat
+  , insertUser
+  , getUser
+  , insertBindCookie
+  , lookupBindCookie
+  , storeIdPConfig
+  , getIdPConfig
+  , getIdPConfigByIssuer
+  , getIdPIdByIssuer
+  , getIdPConfigsByTeam
+  , deleteIdPConfig
+  ) where
 
 import Cassandra as Cas
+import Control.Lens
 import Control.Monad.Except
-import Control.Monad.Identity
 import Control.Monad.Reader
 import Data.Id
 import Data.Int
@@ -27,24 +46,26 @@ import Data.Time
 import Data.X509 (SignedCertificate)
 import GHC.Stack
 import GHC.TypeLits (KnownSymbol)
-import Lens.Micro
 import Spar.Data.Instances (VerdictFormatRow, VerdictFormatCon, fromVerdictFormat, toVerdictFormat)
-import Spar.Options as Options
 import Spar.Types
 import URI.ByteString
 
 import qualified Data.List.NonEmpty as NL
 import qualified SAML2.WebSSO as SAML
+import qualified Web.Cookie as Cky
 
 
 -- | NB: this is a lower bound (@<=@, not @==@).
 schemaVersion :: Int32
-schemaVersion = 2
+schemaVersion = 3
 
 
 ----------------------------------------------------------------------
 -- helpers
 
+-- | Carry some time constants we do not want to pull from Options, IO, respectively.  This way the
+-- functions in this module need fewer effects.  See 'wrapMonadClientWithEnv' (as opposed to
+-- 'wrapMonadClient' where we don't need an 'Env').
 data Env = Env
   { dataEnvNow                :: UTCTime
   , dataEnvMaxTTLAuthRequests :: TTL "authreq"
@@ -52,26 +73,32 @@ data Env = Env
   }
   deriving (Eq, Show)
 
-mkEnv :: Options.Opts -> UTCTime -> Env
+mkEnv :: Opts -> UTCTime -> Env
 mkEnv opts now =
   Env { dataEnvNow                = now
-      , dataEnvMaxTTLAuthRequests = Options.maxttlAuthreq opts
-      , dataEnvMaxTTLAssertions   = Options.maxttlAuthresp opts
+      , dataEnvMaxTTLAuthRequests = maxttlAuthreq opts
+      , dataEnvMaxTTLAssertions   = maxttlAuthresp opts
       }
 
 mkTTLAuthnRequests :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authreq")
 mkTTLAuthnRequests (Env now maxttl _) = mkTTL now maxttl
 
+mkTTLAuthnRequestsNDT :: MonadError TTLError m => Env -> NominalDiffTime -> m (TTL "authreq")
+mkTTLAuthnRequestsNDT (Env _ maxttl _) = mkTTLNDT maxttl
+
 mkTTLAssertions :: MonadError TTLError m => Env -> UTCTime -> m (TTL "authresp")
 mkTTLAssertions (Env now _ maxttl) = mkTTL now maxttl
 
 mkTTL :: (MonadError TTLError m, KnownSymbol a) => UTCTime -> TTL a -> UTCTime -> m (TTL a)
-mkTTL now maxttl endOfLife = if
+mkTTL now maxttl endOfLife = mkTTLNDT maxttl $ endOfLife `diffUTCTime` now
+
+mkTTLNDT :: (MonadError TTLError m, KnownSymbol a) => TTL a -> NominalDiffTime -> m (TTL a)
+mkTTLNDT maxttl ttlNDT = if
   | actualttl > maxttl -> throwError $ TTLTooLong (showTTL actualttl) (showTTL maxttl)
   | actualttl <= 0     -> throwError $ TTLNegative (showTTL actualttl)
   | otherwise          -> pure actualttl
   where
-    actualttl = TTL . nominalDiffToSeconds $ endOfLife `diffUTCTime` now
+    actualttl = TTL . nominalDiffToSeconds $ ttlNDT
 
 nominalDiffToSeconds :: NominalDiffTime -> Int32
 nominalDiffToSeconds = round @Double . realToFrac
@@ -80,46 +107,62 @@ nominalDiffToSeconds = round @Double . realToFrac
 ----------------------------------------------------------------------
 -- saml state handling
 
-storeRequest :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
-             => AReqId -> SAML.Time -> m ()
-storeRequest (SAML.ID rid) (SAML.Time endOfLife) = do
+storeAReqID
+  :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
+  => AReqId -> SAML.Time -> m ()
+storeAReqID (SAML.ID rid) (SAML.Time endOfLife) = do
     env <- ask
-    TTL actualEndOfLife <- mkTTLAuthnRequests env endOfLife
-    retry x5 . write ins $ params Quorum (rid, endOfLife, actualEndOfLife)
+    TTL ttl <- mkTTLAuthnRequests env endOfLife
+    retry x5 . write ins $ params Quorum (rid, ttl)
   where
-    ins :: PrepQuery W (ST, UTCTime, Int32) ()
-    ins = "INSERT INTO authreq (req, end_of_life) VALUES (?, ?) USING TTL ?"
+    ins :: PrepQuery W (ST, Int32) ()
+    ins = "INSERT INTO authreq (req) VALUES (?) USING TTL ?"
 
-checkAgainstRequest :: (HasCallStack, MonadReader Env m, MonadClient m)
-                    => AReqId -> m Bool
-checkAgainstRequest (SAML.ID rid) = do
+unStoreAReqID
+  :: (HasCallStack, MonadClient m)
+  => AReqId -> m ()
+unStoreAReqID (SAML.ID rid) = retry x5 . write del . params Quorum $ Identity rid
+  where
+    del :: PrepQuery W (Identity ST) ()
+    del = "DELETE FROM authreq WHERE req = ?"
+
+isAliveAReqID
+  :: (HasCallStack, MonadClient m)
+  => AReqId -> m Bool
+isAliveAReqID (SAML.ID rid) =
+    (==) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity rid)
+  where
+    sel :: PrepQuery R (Identity ST) (Identity Int64)
+    sel = "SELECT COUNT(*) FROM authreq WHERE req = ?"
+
+
+storeAssID
+  :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
+  => AssId -> SAML.Time -> m ()
+storeAssID (SAML.ID aid) (SAML.Time endOfLife) = do
     env <- ask
-    (retry x1 . query1 sel . params Quorum $ Identity rid) <&>
-        maybe False ((>= dataEnvNow env) . runIdentity)
+    TTL ttl <- mkTTLAssertions env endOfLife
+    retry x5 . write ins $ params Quorum (aid, ttl)
   where
-    sel :: PrepQuery R (Identity ST) (Identity UTCTime)
-    sel = "SELECT end_of_life FROM authreq WHERE req = ?"
+    ins :: PrepQuery W (ST, Int32) ()
+    ins = "INSERT INTO authresp (resp) VALUES (?) USING TTL ?"
 
--- FUTUREWORK: is there a guarantee in cassandra that records are not returned once their TTL has
--- expired?  if yes, that would greatly simplify this table.  if no, we might still be able to push
--- the end_of_life comparison into the database, rather than retrieving the value and comparing it
--- in haskell.  (also check the other functions in this module.)
-storeAssertion :: (HasCallStack, MonadReader Env m, MonadClient m, MonadError TTLError m)
-               => SAML.ID SAML.Assertion -> SAML.Time -> m Bool
-storeAssertion (SAML.ID aid) (SAML.Time endOfLifeNew) = do
-    env <- ask
-    TTL actualEndOfLife <- mkTTLAssertions env endOfLifeNew
-    notAReplay :: Bool <- (retry x1 . query1 sel . params Quorum $ Identity aid) <&>
-        maybe True ((< dataEnvNow env) . runIdentity)
-    when notAReplay $ do
-        retry x5 . write ins $ params Quorum (aid, endOfLifeNew, actualEndOfLife)
-    pure notAReplay
+unStoreAssID
+  :: (HasCallStack, MonadClient m)
+  => AssId -> m ()
+unStoreAssID (SAML.ID aid) = retry x5 . write del . params Quorum $ Identity aid
   where
-    sel :: PrepQuery R (Identity ST) (Identity UTCTime)
-    sel = "SELECT end_of_life FROM authresp WHERE resp = ?"
+    del :: PrepQuery W (Identity ST) ()
+    del = "DELETE FROM authresp WHERE resp = ?"
 
-    ins :: PrepQuery W (ST, UTCTime, Int32) ()
-    ins = "INSERT INTO authresp (resp, end_of_life) VALUES (?, ?) USING TTL ?"
+isAliveAssID
+  :: (HasCallStack, MonadClient m)
+  => AssId -> m Bool
+isAliveAssID (SAML.ID aid) =
+    (==) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity aid)
+  where
+    sel :: PrepQuery R (Identity ST) (Identity Int64)
+    sel = "SELECT COUNT(*) FROM authresp WHERE resp = ?"
 
 
 ----------------------------------------------------------------------
@@ -165,11 +208,39 @@ getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
 
 
 ----------------------------------------------------------------------
+-- bind cookies
+
+-- | Associate the value of a 'BindCookie' with its 'UserId'.  The 'TTL' of this entry should be the
+-- same as the one of the 'AuthnRequest' sent with the cookie.
+insertBindCookie :: (HasCallStack, MonadClient m, MonadReader Env m, MonadError TTLError m)
+                 => BindCookie -> UserId -> NominalDiffTime -> m ()
+insertBindCookie cky uid ttlNDT = do
+  env <- ask
+  TTL ttlInt32 <- mkTTLAuthnRequestsNDT env ttlNDT
+  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie $ cky
+  retry x5 . write ins $ params Quorum (ckyval, uid, ttlInt32)
+  where
+    ins :: PrepQuery W (ST, UserId, Int32) ()
+    ins = "INSERT INTO bind_cookie (cookie, session_owner) VALUES (?, ?) USING TTL ?"
+
+-- | The counter-part of 'insertBindCookie'.
+lookupBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> m (Maybe UserId)
+lookupBindCookie cky = fmap runIdentity <$> do
+  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie $ cky
+  (retry x1 . query1 sel $ params Quorum (Identity ckyval))
+  where
+    sel :: PrepQuery R (Identity ST) (Identity UserId)
+    sel = "SELECT session_owner FROM bind_cookie WHERE cookie = ?"
+
+
+----------------------------------------------------------------------
 -- idp
 
 type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId)
 
-storeIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPConfig TeamId -> m ()
+storeIdPConfig
+  :: (HasCallStack, MonadClient m)
+  => SAML.IdPConfig TeamId -> m ()
 storeIdPConfig idp = retry x5 . batch $ do
   setType BatchLogged
   setConsistency Quorum
@@ -201,7 +272,7 @@ storeIdPConfig idp = retry x5 . batch $ do
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
 
 getIdPConfig
-  :: forall m. (HasCallStack, MonadClient m, MonadReader Env m)
+  :: forall m. (HasCallStack, MonadClient m)
   => SAML.IdPId -> m (Maybe IdP)
 getIdPConfig idpid =
   traverse toIdp =<< retry x1 (query1 sel $ params Quorum (Identity idpid))
@@ -224,7 +295,7 @@ getIdPConfig idpid =
     sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team FROM idp WHERE idp = ?"
 
 getIdPConfigByIssuer
-  :: (HasCallStack, MonadClient m, MonadReader Env m)
+  :: (HasCallStack, MonadClient m)
   => SAML.Issuer -> m (Maybe IdP)
 getIdPConfigByIssuer issuer = do
   getIdPIdByIssuer issuer >>= \case
@@ -243,7 +314,7 @@ getIdPIdByIssuer issuer = do
     sel = "SELECT idp FROM issuer_idp WHERE issuer = ?"
 
 getIdPConfigsByTeam
-  :: (HasCallStack, MonadClient m, MonadReader Env m)
+  :: (HasCallStack, MonadClient m)
   => TeamId -> m [IdP]
 getIdPConfigsByTeam team = do
     idpids <- runIdentity <$$> retry x1 (query sel $ params Quorum (Identity team))
@@ -252,7 +323,9 @@ getIdPConfigsByTeam team = do
     sel :: PrepQuery R (Identity TeamId) (Identity SAML.IdPId)
     sel = "SELECT idp FROM team_idp WHERE team = ?"
 
-deleteIdPConfig :: (HasCallStack, MonadClient m) => SAML.IdPId -> SAML.Issuer -> TeamId -> m ()
+deleteIdPConfig
+  :: (HasCallStack, MonadClient m)
+  => SAML.IdPId -> SAML.Issuer -> TeamId -> m ()
 deleteIdPConfig idp issuer team = retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum

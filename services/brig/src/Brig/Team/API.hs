@@ -172,7 +172,7 @@ createInvitation (_ ::: uid ::: tid ::: req) = do
     idt  <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail)    return (emailIdentity idt)
     ensurePermissions uid tid [Team.AddTeamMember]
-    email <- maybe (throwStd invalidEmail) return (validateEmail (irEmail body))
+    email <- either (const $ throwStd invalidEmail) return (validateEmail (irEmail body))
     let uk = userEmailKey email
     blacklisted <- lift $ Blacklist.exists uk
     when blacklisted $
@@ -224,7 +224,7 @@ getInvitationByCode (_ ::: c) = do
 suspendTeam :: JSON ::: TeamId -> Handler Response
 suspendTeam (_ ::: tid) = do
     changeTeamAccountStatuses tid Suspended
-    DB.deleteInvitations tid
+    lift $ DB.deleteInvitations tid
     lift $ Intra.changeTeamStatus tid Team.Suspended Nothing
     return empty
 

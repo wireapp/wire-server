@@ -2,12 +2,11 @@
 
 module DelayQueue where
 
+import Imports
+
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
-import Control.Monad
-import Data.IORef
-import Data.Word
 import Gundeck.Util.DelayQueue
 
 import qualified Gundeck.Util.DelayQueue as DelayQueue

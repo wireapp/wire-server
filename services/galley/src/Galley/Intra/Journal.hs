@@ -44,14 +44,14 @@ journalEvent :: TeamEvent'EventType -> TeamId -> Maybe TeamEvent'EventData -> Ma
 journalEvent typ tid dat tim = view aEnv >>= \mEnv -> for_ mEnv $ \e -> do
     -- writetime is in microseconds in cassandra 3.11
     ts <- maybe now (return . (`div` 1000000) . view tcTime) tim
-    let ev = TeamEvent typ (toBytes tid) ts dat
+    let ev = TeamEvent typ (toBytes tid) ts dat []
     Aws.execute e (Aws.enqueue ev)
 
 ----------------------------------------------------------------------------
 -- utils
 
 evData :: [TeamMember] -> Maybe Currency.Alpha -> TeamEvent'EventData
-evData mems cur = TeamEvent'EventData count (toBytes <$> uids) (pack . show <$> cur)
+evData mems cur = TeamEvent'EventData count (toBytes <$> uids) (pack . show <$> cur) []
   where
     uids  = view userId <$> filter (`hasPermission` SetBilling) mems
     count = fromIntegral $ length mems

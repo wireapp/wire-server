@@ -9,12 +9,10 @@ module Gundeck.Client
     , removeUser
     ) where
 
-import Control.Concurrent.Async.Lifted.Safe
+import Imports
 import Control.Lens (view, (^.), set)
-import Control.Monad
 import Control.Monad.Catch
 import Data.Id
-import Data.Maybe (isNothing)
 import Data.Predicate
 import Gundeck.Monad
 import Gundeck.Push.Native
@@ -22,6 +20,7 @@ import Gundeck.Util
 import Network.HTTP.Types
 import Network.Wai (Request, Response)
 import Network.Wai.Utilities
+import UnliftIO (mapConcurrently)
 
 import qualified Gundeck.Client.Data       as Clients
 import qualified Gundeck.Notification.Data as Notifications

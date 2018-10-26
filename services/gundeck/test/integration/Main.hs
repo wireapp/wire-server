@@ -3,18 +3,16 @@
 
 module Main (main) where
 
+import Imports hiding (local)
 import Bilge hiding (header, body)
 import Control.Lens
 import Cassandra.Util
 import Data.Aeson
-import Data.Monoid
 import Data.Proxy
 import Data.Tagged
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
-import Data.Typeable
 import Data.Yaml (decodeFileEither)
-import GHC.Generics
 import Gundeck.Options
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS

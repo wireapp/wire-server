@@ -10,6 +10,7 @@ module CargoHold.API.V3.Resumable
     , upload
     ) where
 
+import Imports
 import CargoHold.App
 import CargoHold.API.V3 (randToken)
 import CargoHold.Options
@@ -17,14 +18,10 @@ import CargoHold.Types.V3 as V3
 import CargoHold.Types.V3.Resumable as V3
 import Control.Error (throwE)
 import Control.Lens (view, (&), set)
-import Control.Monad (when, unless)
-import Control.Monad.IO.Class (liftIO)
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Coerce
 import Data.Conduit
 import Data.Id
-import Data.Maybe
 import Data.Time.Clock
 import Data.UUID.V4 (nextRandom)
 import System.Logger.Class ((~~), field, msg, val)
@@ -73,7 +70,7 @@ status own key = do
                 offset = S3.resumableOffset r
             in Just (offset, total)
 
-upload :: V3.Principal -> AssetKey -> Offset -> Word -> Source IO ByteString -> Handler (Offset, UTCTime)
+upload :: V3.Principal -> AssetKey -> Offset -> Word -> ConduitM () ByteString IO () -> Handler (Offset, UTCTime)
 upload own key off len src = do
     r <- getResumable key
     let offset = S3.resumableOffset r
@@ -92,7 +89,7 @@ upload own key off len src = do
         Log.debug $ field "asset" (toByteString key)
                  ~~ field "asset.offset" (toByteString offset)
                  ~~ msg (val "Resuming upload")
-        (r', offset') <- consume r offset len (newResumableSource src)
+        (r', offset') <- consume r offset len (sealConduitT src)
         when (offset' == Offset (totalSize r')) $
             -- TODO: Completion might take a while, such that we may need to
             -- keep the client connection alive by sending whitespace after the

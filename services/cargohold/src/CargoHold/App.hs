@@ -15,6 +15,7 @@ module CargoHold.App
     , newEnv
     , closeEnv
     , CargoHold.App.aws
+    , httpManager
     , metrics
     , appLogger
     , requestId
@@ -31,19 +32,16 @@ module CargoHold.App
     , runHandler
     ) where
 
+import Imports hiding (log)
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import CargoHold.CloudFront
 import CargoHold.Options as Opt
-import Control.Applicative
 import Control.Error (ExceptT, exceptT)
 import Control.Lens (view, makeLenses, set, (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow, MonadMask)
-import Control.Monad.Reader
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Data.Metrics.Middleware (Metrics)
-import Data.Monoid
-import Data.Text (Text)
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import Network.Wai (Request, ResponseReceived)
@@ -51,7 +49,6 @@ import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities (Error (..), lookupRequestId)
 import OpenSSL.Session (SSLContext, SSLOption (..))
 import System.Logger.Class hiding (settings)
-import Prelude hiding (log)
 import Util.Options
 
 import qualified Aws
@@ -101,14 +98,13 @@ newEnv o = do
 
 initAws :: Opts -> Logger -> Manager -> IO AwsEnv
 initAws o l m = do
-    -- TODO: The AWS package can also load them from the env, check the latest API
-    -- https://hackage.haskell.org/package/aws-0.17.1/docs/src/Aws-Core.html#loadCredentialsFromFile
-    -- which would avoid the need to specify them in a config file when running tests
     let awsOpts = o^.optAws
     amz  <- Aws.newEnv l m $ liftM2 (,) (awsOpts^.awsKeyId) (awsOpts^.awsSecretKey)
     sig  <- newCloudFrontEnv (o^.optAws.awsCloudFront) (o^.optSettings.setDownloadLinkTTL)
-    let s3cfg = endpointToConfig (awsOpts^.awsS3Endpoint)
-    return $! AwsEnv amz s3cfg s3cfg (awsOpts^.awsS3Bucket) sig
+    let s3cfg         = endpointToConfig (awsOpts^.awsS3Endpoint)
+        s3cfgDownload = maybe s3cfg endpointToConfig (awsOpts^.awsS3DownloadEndpoint)
+
+    return $! AwsEnv amz s3cfgDownload s3cfg (awsOpts^.awsS3Bucket) sig
   where
     newCloudFrontEnv Nothing   _   = return Nothing
     newCloudFrontEnv (Just cf) ttl = return . Just =<< initCloudFront (cf^.cfPrivateKey)
@@ -201,4 +197,3 @@ runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO Re
 runHandler e r h k =
     let e' = set requestId (maybe mempty RequestId (lookupRequestId r)) e
     in runAppT e' (exceptT (Server.onError (_appLogger e) (_metrics e) r k) return h)
-

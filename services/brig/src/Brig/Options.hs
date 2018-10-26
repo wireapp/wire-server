@@ -66,11 +66,17 @@ data EmailAWSOpts = EmailAWSOpts
 
 instance FromJSON EmailAWSOpts
 
-data EmailSMTPOpts = EmailSMTPOpts
-    { smtpEndpoint :: !Text
-    , smtpUsername :: !Text
+data EmailSMTPCredentials = EmailSMTPCredentials
+    { smtpUsername :: !Text
     , smtpPassword :: !FilePathSecrets
-    , smtpConnType :: !SMTPConnType
+    } deriving (Show, Generic)
+
+instance FromJSON EmailSMTPCredentials
+
+data EmailSMTPOpts = EmailSMTPOpts
+    { smtpEndpoint    :: !Endpoint
+    , smtpCredentials :: !(Maybe EmailSMTPCredentials)
+    , smtpConnType    :: !SMTPConnType
     } deriving (Show, Generic)
 
 instance FromJSON EmailSMTPOpts
@@ -404,19 +410,24 @@ emailAWSOptsParser =
 emailSMTPOptsParser :: Parser EmailSMTPOpts
 emailSMTPOptsParser =
     EmailSMTPOpts <$>
-      (textOption $
-        long "smtp-hostname" <> metavar "STRING" <>
-        help "Hostname of the SMTP server to connect to") <*>
-      (textOption $
-        long "smtp-username" <> metavar "STRING" <>
-        help "Username to authenticate against the SMTP server") <*>
-      (FilePathSecrets <$> (strOption $
-        long "smtp-password" <> metavar "FILE" <>
-        help "File containing password to authenticate against the SMTP server" <> action "file")) <*>
+      (Endpoint <$>
+       (textOption $ long "smtp-host" <> metavar "HOSTNAME" <> help "SMTP hostname") <*>
+       (option auto $ long "smtp-port" <> metavar "PORT" <> help "SMTP port")) <*>
+      (optional smtpCredentialsParser) <*>
       (smtpConnTypeOption $
         long "smtp-conn-type" <> metavar "STRING" <> value "tls" <> showDefault <>
         help "Which type of connection to use against the SMTP server {tls,ssl,plain}")
 
+  where
+    smtpCredentialsParser :: Parser EmailSMTPCredentials
+    smtpCredentialsParser =
+      EmailSMTPCredentials <$>
+        (textOption $
+          long "smtp-username" <> metavar "STRING" <>
+          help "Username to authenticate against the SMTP server") <*>
+        (FilePathSecrets <$> (strOption $
+          long "smtp-password" <> metavar "FILE" <>
+          help "File containing password to authenticate against the SMTP server" <> action "file"))
 settingsParser :: Parser Settings
 settingsParser =
     Settings <$>

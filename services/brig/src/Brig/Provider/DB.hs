@@ -12,7 +12,6 @@ import Brig.Types.Common
 import Brig.Types.Provider hiding (updateServiceTags)
 import Cassandra
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Monad (when)
 import Control.Monad.IO.Class
 import Data.Foldable (for_, toList)
@@ -26,6 +25,7 @@ import Data.Maybe (isJust, catMaybes, fromMaybe, mapMaybe)
 import Data.Misc
 import Data.Range (Range, fromRange, rnil, rcast)
 import Data.Text (Text, toLower, isPrefixOf)
+import UnliftIO (mapConcurrently)
 
 import qualified Data.Set as Set
 import qualified Data.Text as Text

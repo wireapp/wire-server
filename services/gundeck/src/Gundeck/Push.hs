@@ -15,19 +15,14 @@ module Gundeck.Push
     , cancelFallback
     ) where
 
+import Imports
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async.Lifted.Safe (async, wait)
-import Control.Concurrent.Lifted (fork)
 import Control.Error
 import Control.Exception (ErrorCall(ErrorCall))
-import Control.Lens ((^.), (&), (.~), (%~), _2, view, set)
-import Control.Monad (when, unless, void)
+import Control.Lens ((^.), (.~), (%~), _2, view, set)
 import Control.Monad.Catch
-import Data.Foldable (toList, forM_, foldl')
 import Data.Id
-import Data.List (partition)
 import Data.List1 (List1, list1)
-import Data.Monoid
 import Data.Predicate ((:::)(..))
 import Data.Range
 import Gundeck.Aws (endpointUsers)
@@ -42,6 +37,8 @@ import Network.HTTP.Types
 import Network.Wai (Request, Response)
 import Network.Wai.Utilities
 import System.Logger.Class (msg, (.=), (~~), val, (+++))
+import UnliftIO (async, wait)
+import UnliftIO.Concurrent (forkIO)
 
 import qualified Data.List.Extra              as List
 import qualified Data.Sequence                as Seq
@@ -93,7 +90,7 @@ pushAny' p = do
     let tgts  = mkTarget <$> uniq
     unless (p^.pushTransient) $
         Stream.add i tgts pload =<< view (options.optSettings.setNotificationTTL)
-    void . fork $ do
+    void . forkIO $ do
         prs <- Web.push notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
         pushNative sendNotice notif p =<< nativeTargets p prs
   where

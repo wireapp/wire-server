@@ -2,9 +2,11 @@
 
 module Main where
 
+import Control.Exception
 import Data.Monoid
 import Options.Applicative
 import Spar.Options
+import Spar.Types
 import System.Environment
 import Test.Hspec
 import Util
@@ -22,7 +24,7 @@ mkspec = do
   let desc = "Spar - SSO Service Integration Test Suite"
   (integrationConfigFilePath, configFilePath) <- execParser (info (helper <*> cliOptsParser) (header desc <> fullDesc))
   integrationOpts :: IntegrationConfig <- Yaml.decodeFileEither integrationConfigFilePath >>= either (error . show) pure
-  serviceOpts :: Opts <- Yaml.decodeFileEither configFilePath >>= either (error . show) pure
+  serviceOpts :: Opts <- Yaml.decodeFileEither configFilePath >>= either (throwIO . ErrorCall . show) deriveOpts
 
   pure . beforeAll (mkEnv integrationOpts serviceOpts) . afterAll destroyEnv $ do
     describe "Test.Spar.Data" Test.Spar.DataSpec.spec

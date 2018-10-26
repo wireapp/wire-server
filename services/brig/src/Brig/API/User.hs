@@ -128,9 +128,9 @@ createUser :: NewUser -> ExceptT CreateUserError AppIO CreateUserResult
 createUser new@NewUser{..} = do
     -- Validate e-mail
     email <- for (newUserEmail new) $ \e ->
-        maybe (throwE (InvalidEmail e))
-              return
-              (validateEmail e)
+        either (throwE . InvalidEmail e)
+               return
+               (validateEmail e)
 
     -- Validate phone
     phone <- for (newUserPhone new) $ \p ->
@@ -346,9 +346,9 @@ checkHandles check num = reverse <$> collectFree [] check num
 
 changeEmail :: UserId -> Email -> ExceptT ChangeEmailError AppIO ChangeEmailResult
 changeEmail u email = do
-    em <- maybe (throwE $ InvalidNewEmail email)
-                return
-                (validateEmail email)
+    em <- either (throwE . InvalidNewEmail email)
+                 return
+                 (validateEmail email)
     let ek = userEmailKey em
     blacklisted <- lift $ Blacklist.exists ek
     when blacklisted $
@@ -511,9 +511,9 @@ onActivated (PhoneActivated uid phone) = do
 sendActivationCode :: Either Email Phone -> Maybe Locale -> Bool -> ExceptT SendActivationCodeError AppIO ()
 sendActivationCode emailOrPhone loc call = case emailOrPhone of
     Left email -> do
-        ek <- maybe (throwE $ InvalidRecipient (userEmailKey email))
-                    (return . userEmailKey)
-                    (validateEmail email)
+        ek <- either (const . throwE . InvalidRecipient $ userEmailKey email)
+                     (return . userEmailKey)
+                     (validateEmail email)
         exists <- lift $ isJust <$> Data.lookupKey ek
         when exists $
             throwE $ UserKeyInUse ek
@@ -579,9 +579,9 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
 mkActivationKey :: ActivationTarget -> ExceptT ActivationError AppIO ActivationKey
 mkActivationKey (ActivateKey   k) = return k
 mkActivationKey (ActivateEmail e) = do
-    ek <- maybe (throwE $ InvalidActivationEmail e)
-                (return . userEmailKey)
-                (validateEmail e)
+    ek <- either (throwE . InvalidActivationEmail e)
+                 (return . userEmailKey)
+                 (validateEmail e)
     liftIO $ Data.mkActivationKey ek
 mkActivationKey (ActivatePhone p) = do
     pk <- maybe (throwE $ InvalidActivationPhone p)
@@ -637,6 +637,7 @@ mkPasswordResetKey ident = case ident of
     PasswordResetPhoneIdentity p -> user (userPhoneKey p) >>= liftIO . Data.mkPasswordResetKey
   where
     user uk = lift (Data.lookupKey uk) >>= maybe (throwE InvalidPasswordResetKey) return
+
 
 -------------------------------------------------------------------------------
 -- User Deletion

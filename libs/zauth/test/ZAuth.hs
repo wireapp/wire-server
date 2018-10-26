@@ -52,7 +52,7 @@ testNotExpired p = do
     u <- liftIO nextRandom
     t <- userToken defDuration u 100
     x <- liftIO $ runValidate p $ check t
-    liftIO $ assert (isRight x)
+    liftIO $ assertBool "testNotExpired: validation failed" (isRight x)
 
 testExpired :: V.Env -> Create ()
 testExpired p = do
@@ -67,7 +67,7 @@ testSignAndVerify p = do
     u <- liftIO nextRandom
     t <- userToken defDuration u 100
     x <- liftIO $ runValidate p $ check t
-    liftIO $ assert (isRight x)
+    liftIO $ assertBool "testSignAndVerify: validation failed" (isRight x)
 
 testRandDevIds :: Create ()
 testRandDevIds = do

@@ -52,19 +52,31 @@ orange=3
 yellow=11
 purpleish=13
 
+if [[ $INTEGRATION_USE_REAL_AWS -eq 1 ]]; then
+    echo 'Attempting to run integration tests using real AWS services!'
+    [ -z "$AWS_REGION" ] && echo "Need to set AWS_REGION in your environment" && exit 1;
+    [ -z "$AWS_ACCESS_KEY_ID" ] && echo "Need to set AWS_ACCESS_KEY_ID in your environment" && exit 1;
+    [ -z "$AWS_SECRET_ACCESS_KEY" ] && echo "Need to set AWS_SECRET_ACCESS_KEY in your environment" && exit 1;
+    ${TOP_LEVEL}/services/gen-aws-conf.sh
+    integration_file_extension='-aws.yaml'
+else
+    # brig,gundeck,galley use the amazonka library's 'Discover', which expects AWS credentials
+    # even if those are not used/can be dummy values with the fake sqs/ses/etc containers used
+    # (see deploy/docker-ephemeral/docker-compose.yaml )
+    echo 'Running tests using mocked AWS services'
+    export AWS_REGION=eu-west-1
+    export AWS_ACCESS_KEY_ID=dummykey
+    export AWS_SECRET_ACCESS_KEY=dummysecret
+    integration_file_extension='.yaml'
+fi
+
 function run() {
     service=$1
     colour=$2
     export LOG_LEVEL=$3
-    (cd ${DIR}/${service} && ${TOP_LEVEL}/dist/${service} -c ${service}.integration.yaml || kill_all) \
+    (cd ${DIR}/${service} && ${TOP_LEVEL}/dist/${service} -c ${service}.integration${integration_file_extension} || kill_all) \
         | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
-
-# brig,gundeck,galley use the amazonka library's 'Discover', which expects AWS credentials
-# even if those are not used/can be dummy values with the fake sqs/ses/etc containers used (see deploy/docker-ephemeral/docker-compose.yaml )
-export AWS_REGION=eu-west-1
-export AWS_ACCESS_KEY_ID=dummykey
-export AWS_SECRET_ACCESS_KEY=dummysecret
 
 check_prerequisites
 

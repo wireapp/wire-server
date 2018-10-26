@@ -15,15 +15,19 @@
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Spar.Run (initCassandra, mkLogger, runServer) where
+module Spar.Run
+  ( initCassandra
+  , mkLogger
+  , runServer
+  ) where
 
 import Bilge
 import Cassandra as Cas
+import Control.Lens
 import Data.List.NonEmpty as NE
 import Data.Metrics (metrics)
 import Data.String.Conversions
 import Data.String (fromString)
-import Lens.Micro
 import Network.Wai (Application)
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Spar.API (app)
@@ -31,35 +35,33 @@ import Spar.API.Instances ()
 import Spar.API.Swagger ()
 import Spar.App
 import Spar.Data.Instances ()
-import Spar.Options
-import Spar.Options as Options
+import Spar.Types as Types
 import System.Logger (Logger)
-import Util.Options (casEndpoint, casKeyspace)
-import Util.Options (epHost, epPort)
+import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 
 import qualified Cassandra.Schema as Cas
 import qualified Cassandra.Settings as Cas
 import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
-import qualified Spar.Options as Opts
 import qualified System.Logger as Log
 
 
 ----------------------------------------------------------------------
 -- cassandra
 
-initCassandra :: Opts.Opts -> Logger -> IO ClientState
+initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra opts lgr = do
     connectString <- maybe
-               (Cas.initialContactsDNS (Opts.cassandra opts ^. casEndpoint . epHost))
+               (Cas.initialContactsPlain (Types.cassandra opts ^. casEndpoint . epHost))
                (Cas.initialContactsDisco "cassandra_spar")
-               (cs <$> Opts.discoUrl opts)
+               (cs <$> Types.discoUrl opts)
     cas <- Cas.init (Log.clone (Just "cassandra.spar") lgr) $ Cas.defSettings
       & Cas.setContacts (NE.head connectString) (NE.tail connectString)
-      & Cas.setPortNumber (fromIntegral $ Options.cassandra opts ^. casEndpoint . epPort)
-      & Cas.setKeyspace (Keyspace $ Options.cassandra opts ^. casKeyspace)
+      & Cas.setPortNumber (fromIntegral $ Types.cassandra opts ^. casEndpoint . epPort)
+      & Cas.setKeyspace (Keyspace $ Types.cassandra opts ^. casKeyspace)
       & Cas.setMaxConnections 4
       & Cas.setMaxStreams 128
       & Cas.setPoolStripes 4
@@ -97,10 +99,8 @@ runServer sparCtxOpts = do
                       . Bilge.port (sparCtxOpts ^. to brig . epPort)
                       $ Bilge.empty
   let wrappedApp
-    -- . WU.measureRequests mx _
-        -- TODO: we need the swagger sitemap from servant for this.  we also want this to be
-        -- prometheus-compatible.  not sure about the order in which to do these.
         = WU.catchErrors sparCtxLogger mx
+        . Promth.prometheus Promth.def
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}

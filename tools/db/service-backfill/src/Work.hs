@@ -15,7 +15,7 @@ import Data.Id
 import Data.Int
 import System.Logger (Logger)
 import Data.Functor.Identity
-import Control.Concurrent.Async.Lifted.Safe.Extended (mapMPooled)
+import UnliftIO.Async.Extended (mapMPooled)
 import Data.Conduit
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C

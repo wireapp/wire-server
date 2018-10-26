@@ -8,32 +8,47 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Test.Spar.APISpec where
+module Test.Spar.APISpec (spec) where
 
 import Bilge
 import Brig.Types.User
+import Control.Lens
 import Control.Monad.Reader
+import Control.Retry
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List (isInfixOf)
 import Data.Maybe
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
+import Data.UUID.V4 as UUID
 import Galley.Types.Teams as Galley
 import GHC.Stack
-import Lens.Micro
 import Prelude hiding (head)
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.MockResponse
+import Spar.API.Types
 import Spar.Types
 import URI.ByteString.QQ (uri)
 import Util
 
+import qualified Data.Aeson as Aeson
 import qualified Spar.Intra.Brig as Intra
 
 
 spec :: SpecWith TestEnv
 spec = do
+  specMisc
+  specMetadata
+  specInitiateLogin
+  specFinalizeLogin
+  specBindingUsers
+  specCRUDIdentityProvider
+  specAux
+
+
+specMisc :: SpecWith TestEnv
+specMisc = do
     describe "CORS" $ do
       it "is disabled" $ do
         -- I put this there because I was playing with a CORS middleware to make swagger browsing more
@@ -44,7 +59,8 @@ spec = do
         get ((env ^. teSpar) . path "/i/status" . expect2xx)
           `shouldRespondWith` (\(responseHeaders -> hdrs) -> isNothing $ lookup "Access-Control-Allow-Origin" hdrs)
 
-    describe "status, metadata" $ do
+
+    describe "status" $ do
       it "brig /i/status" $ do
         env <- ask
         ping (env ^. teBrig) `shouldRespondWith` (== ())
@@ -53,29 +69,61 @@ spec = do
         env <- ask
         ping (env ^. teSpar) `shouldRespondWith` (== ())
 
+
+    describe "metrics" $ do
+      it "spar /i/monitoring" $ do
+        env <- ask
+        get ((env ^. teSpar) . path "/metrics")
+          `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
+                                [ "http_request_duration_seconds_bucket"
+                                , "handler="
+                                , "method="
+                                , "status_code="
+                                , "le="
+                                ])
+
+
+    describe "rule do disallow http idp urls." $ do
+      let check :: Bool -> TestSpar ()
+          check isHttps = do
+            let somemeta = either (error . show) id $ SAML.decode ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"" <> (if isHttps then "https" else "http") <> "://www.okta.com/exkgxxperpx1txfkY0h7\"><md:IDPSSODescriptor WantAuthnRequestsSigned=\"false\" protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\"><md:KeyDescriptor use=\"signing\"><ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"><ds:X509Data><ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAWSx7x1HMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEG\nA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEU\nMBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi01MDA1MDgxHDAaBgkqhkiG9w0BCQEW\nDWluZm9Ab2t0YS5jb20wHhcNMTgwNzE5MDk0NTM1WhcNMjgwNzE5MDk0NjM0WjCBkjELMAkGA1UE\nBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNV\nBAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtNTAwNTA4MRwwGgYJ\nKoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\nhUaQm/3dgPws1A5IjFK9ZQpj170vIqENuDG0tapAzkvk6+9vyhduGckHTeZF3k5MMlW9iix2Eg0q\na1oS/Wrq/aBf7+BH6y1MJlQnaKQ3hPL+OFvYzbnrN8k2uC2LivP7Y90dXwtN3P63rA4QSyDPYEMv\ndKSubUKX/HNsUg4I2PwHmpfWBNgoMkqe0bxQILBv+84L62IYSd6k77XXnCFb/usHpG/gY6sJsTQ2\naFl9FuJ51uf67AOj8RzPXstgtUaXbdJI0kAqKIb3j9Zv3mpPCy/GHnyB3PMalvtc1uaz1ZnwO2el\niqhwB6/8W6CPutFo1Bhq1glQIX+1OD7906iORwIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQB0h6vK\nAywJwH3g0RnocOpBvT42QW57TZ3Wzm9gbg6dQL0rB+NHDx2V0VIh51E3YHL1os9W09MreM7I74D/\nfX27r1Q3+qAsL1v3CN8WIVh9eYitBCtF7DwZmL2UXTia+GWPrabO14qAztFmTXfqNuCZej7gJd/K\n2r0KBiZtZ6o58WBREW2F70a6nN6Nk1yjzBkDTJMMf8OMXHphTaalMBXojN9W6HEDpGBE0qY7c70P\nqvfUEzd8wHWcDxo6+3jajajelk0V4rg7Cqxccr+WwjYtENEuQypNG2mbI52iPZked0QWKy0WzhSM\nw5wjJ+QDG31vJInAB2769C2KmhPDyNhU</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor><md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat><md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat><md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"" <> (if isHttps then "https" else "http") <> "://dev-500508.oktapreview.com/app/wireswissgmbhdev500508_z1tejapsbeyonce_1/exkgxxperpx1txfkY0h7/sso/saml\"/><md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" Location=\"" <> (if isHttps then "https" else "http") <> "://dev-500508.oktapreview.com/app/wireswissgmbhdev500508_z1tejapsbeyonce_1/exkgxxperpx1txfkY0h7/sso/saml\"/></md:IDPSSODescriptor></md:EntityDescriptor>")
+            env <- ask
+            uid <- fst <$> call (createUserWithTeam (env ^. teBrig) (env ^. teGalley))
+            resp <- call $ callIdpCreate' (env ^. teSpar) (Just uid) somemeta
+            liftIO $ statusCode resp `shouldBe` if isHttps then 201 else 400
+
+      it "does not trigger on https urls" $ check True
+      it "does trigger on http urls" $ check False
+
+
+specMetadata :: SpecWith TestEnv
+specMetadata = do
+    describe "metadata" $ do
       it "metadata" $ do
         env <- ask
-        get ((env ^. teSpar) . path "/sso/metadata/0d784c66-c1c6-11e8-9576-2bdb3c574a4d" . expect2xx)
+        get ((env ^. teSpar) . path "/sso/metadata" . expect2xx)
           `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
                                 [ "md:SPSSODescriptor"
                                 , "validUntil"
                                 , "WantAssertionsSigned=\"true\""
                                 ])
 
+
+specInitiateLogin :: SpecWith TestEnv
+specInitiateLogin = do
     describe "HEAD /sso/initiate-login/:idp" $ do
       context "unknown IdP" $ do
         it "responds with 404" $ do
           env <- ask
           let uuid = cs $ UUID.toText UUID.nil
-          head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ uuid))
-            `shouldRespondWith` ((== 404) . statusCode)
+          void . call $ head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ uuid) . expect4xx)
 
       context "known IdP" $ do
         it "responds with 200" $ do
           env <- ask
-          let idp = cs . UUID.toText . fromIdPId $ env ^. teIdP . idpId
-          head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
-            `shouldRespondWith`  ((== 200) . statusCode)
+          let idp = idPIdToST $ env ^. teIdP . idpId
+          void . call $ head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
+
 
     describe "GET /sso/initiate-login/:idp" $ do
       context "unknown IdP" $ do
@@ -85,24 +133,31 @@ spec = do
           get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ uuid))
             `shouldRespondWith` ((== 404) . statusCode)
 
-      context "known IdP" $ do
-        it "responds with request" $ do
-          env <- ask
-          let idp = cs . UUID.toText . fromIdPId $ env ^. teIdP . idpId
-          get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
-            `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
-                                  [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
-                                  , "<body onload=\"document.forms[0].submit()\">"
-                                  , "<input name=\"SAMLRequest\" type=\"hidden\" "
-                                  ])
+      let checkRespBody :: HasCallStack => ResponseLBS -> Bool
+          checkRespBody (responseBody -> Just (cs -> bdy)) = all (`isInfixOf` bdy)
+            [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
+            , "<body onload=\"document.forms[0].submit()\">"
+            , "<input name=\"SAMLRequest\" type=\"hidden\" "
+            ]
+          checkRespBody bad = error $ show bad
 
-    describe "/sso/finalize-login" $ do
+      context "known IdP, no z-user" $ do  -- see 'specBindingUsers' below for the "with z-user" case.
+        it "responds with authentication request and NO bind cookie" $ do
+          env <- ask
+          let idp = idPIdToST $ env ^. teIdP . idpId
+          get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
+            `shouldRespondWith` \resp -> checkRespBody resp && hasDeleteBindCookieHeader resp
+
+
+specFinalizeLogin :: SpecWith TestEnv
+specFinalizeLogin = do
+    describe "POST /sso/finalize-login" $ do
       context "access denied" $ do
         it "responds with a very peculiar 'forbidden' HTTP response" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          spmeta <- getTestSPMetadata (idp ^. idpId)
-          authnresp <- liftIO $ mkAuthnResponse privcreds idp spmeta authnreq False
-          sparresp <- submitAuthnResponse (idp ^. idpId) authnresp
+          spmeta <- getTestSPMetadata
+          authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq False
+          sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             -- import Text.XML
             -- putStrLn $ unlines
@@ -124,9 +179,9 @@ spec = do
       context "access granted" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          spmeta <- getTestSPMetadata (idp ^. idpId)
-          authnresp <- liftIO $ mkAuthnResponse privcreds idp spmeta authnreq True
-          sparresp <- submitAuthnResponse (idp ^. idpId) authnresp
+          spmeta <- getTestSPMetadata
+          authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
+          sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 200
             let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
@@ -153,14 +208,14 @@ spec = do
       context "unknown IdP Issuer" $ do
         it "rejects" $ do
           (idp, privcreds, authnreq) <- negotiateAuthnRequest
-          spmeta <- getTestSPMetadata (idp ^. idpId)
-          authnresp <- liftIO $ mkAuthnResponse
+          spmeta <- getTestSPMetadata
+          authnresp <- runSimpleSP $ mkAuthnResponse
             privcreds
             (idp & idpMetadata . edIssuer .~ Issuer [uri|http://unknown-issuer/|])
             spmeta
             authnreq
             True
-          sparresp <- submitAuthnResponse (idp ^. idpId) authnresp
+          sparresp <- submitAuthnResponse authnresp
           liftIO $ do
             statusCode sparresp `shouldBe` 404
             responseJSON sparresp `shouldBe` Right (TestErrorLabel "not-found")
@@ -173,6 +228,181 @@ spec = do
         it "rejects" $ do
           pending
 
+
+specBindingUsers :: SpecWith TestEnv
+specBindingUsers = describe "binding existing users to sso identities" $ do
+    describe "HEAD /sso/initiate-bind/:idp" $ do
+      context "known IdP, running session with non-sso user" $ do
+        it "responds with 200" $ do
+          env <- ask
+          let idp = idPIdToST $ env ^. teIdP . idpId
+          void . call $ head ( (env ^. teSpar)
+                             . path (cs $ "/sso-initiate-bind/" -/ idp)
+                             . header "Z-User" (toByteString' $ env ^. teUserId)
+                             . expect2xx
+                             )
+
+      context "known IdP, running session with sso user" $ do
+        it "responds with 2xx" $ do
+          uid <- loginSsoUserFirstTime
+          env <- ask
+          let idp = idPIdToST $ env ^. teIdP . idpId
+          void . call $ head ( (env ^. teSpar)
+                             . header "Z-User" (toByteString' uid)
+                             . path (cs $ "/sso-initiate-bind/" -/ idp)
+                             . expect2xx
+                             )
+
+    let checkInitiateLogin :: HasCallStack => TestSpar UserId -> TestSpar ()
+        checkInitiateLogin createUser = do
+          let checkRespBody :: HasCallStack => ResponseLBS -> Bool
+              checkRespBody (responseBody -> Just (cs -> bdy)) = all (`isInfixOf` bdy)
+                [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
+                    , "<body onload=\"document.forms[0].submit()\">"
+                , "<input name=\"SAMLRequest\" type=\"hidden\" "
+                    ]
+              checkRespBody bad = error $ show bad
+
+          env <- ask
+          let idp = idPIdToST $ env ^. teIdP . idpId
+          uid <- createUser
+          get ( (env ^. teSpar)
+              . header "Z-User" (toByteString' uid)
+              . path (cs $ "/sso-initiate-bind/" -/ idp)
+              . expect2xx
+              )
+            `shouldRespondWith` (\resp -> checkRespBody resp && hasSetBindCookieHeader resp)
+
+    describe "GET /sso-initiate-bind/:idp" $ do
+      context "known IdP, running session with non-sso user" $ do
+        it "responds with 200 and a bind cookie" $ do
+          checkInitiateLogin (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+
+      context "known IdP, running session with sso user" $ do
+        it "responds with 2xx and bind cookie" $ do
+          checkInitiateLogin loginSsoUserFirstTime
+
+    describe "POST /sso/finalize-login" $ do
+      let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
+          checkGrantingAuthnResp uid spararesp aresp = do
+            liftIO $ do
+              (cs @_ @String . fromJust . responseBody $ aresp)
+                `shouldContain` "<title>wire:sso:success</title>"
+              responseHeaders aresp
+                `shouldSatisfy` (isJust . lookup "set-cookie")
+
+            ssoidViaAuthResp <- getSsoidViaAuthResp spararesp
+            ssoidViaSelf <- getSsoidViaSelf uid
+
+            liftIO $ ('s', ssoidViaSelf) `shouldBe` ('s', ssoidViaAuthResp)
+            Just uidViaSpar <- ssoToUidSpar ssoidViaAuthResp
+            liftIO $ ('u', uidViaSpar) `shouldBe` ('u', uid)
+
+          getSsoidViaAuthResp :: SignedAuthnResponse -> TestSpar UserSSOId
+          getSsoidViaAuthResp aresp = do
+            parsed :: AuthnResponse
+              <- either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
+            either error (pure . Intra.toUserSSOId) $ getUserRef parsed
+
+          getSsoidViaSelf :: UserId -> TestSpar UserSSOId
+          getSsoidViaSelf uid = do
+            env <- ask
+            Just ssoid <- liftIO $ retrying
+              (exponentialBackoff 50 <> limitRetries 5)
+              (\_ -> pure . isNothing)
+              (\_ -> probe uid `runReaderT` env)
+            pure ssoid
+
+          probe :: UserId -> TestSpar (Maybe UserSSOId)
+          probe uid = do
+            env <- ask
+            fmap getUserSSOId . call . get $
+              ( (env ^. teBrig)
+              . header "Z-User" (toByteString' uid)
+              . path "/self"
+              . expect2xx
+              )
+
+          getUserSSOId :: ResponseLBS -> Maybe UserSSOId
+          getUserSSOId (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
+            = case userIdentity $ selfUser selfprof of
+                Just (SSOIdentity ssoid _ _) -> Just ssoid
+                Just (FullIdentity _ _)  -> Nothing
+                Just (EmailIdentity _)   -> Nothing
+                Just (PhoneIdentity _)   -> Nothing
+                Nothing                  -> Nothing
+          getUserSSOId _ = Nothing
+
+          initialBind :: UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
+          initialBind uid idp = do
+            subj <- SAML.opaqueNameID . UUID.toText <$> liftIO UUID.nextRandom
+            (authnResp, sparAuthnResp) <- reBindSame uid idp subj
+            pure (subj, authnResp, sparAuthnResp)
+
+          reBindSame :: UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
+          reBindSame uid idp subj = do
+            (_, privCreds, authnReq, Just bindCky) <- do
+              negotiateAuthnRequest' DoInitiateBind (Just idp) (header "Z-User" $ toByteString' uid)
+            spmeta <- getTestSPMetadata
+            authnResp <- runSimpleSP $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
+            sparAuthnResp :: ResponseLBS
+              <- submitAuthnResponse' (header "Cookie" bindCky) authnResp
+            pure (authnResp, sparAuthnResp)
+
+          reBindDifferent :: UserId -> TestSpar (SignedAuthnResponse, ResponseLBS)
+          reBindDifferent uid = do
+            env <- ask
+            idp <- call . callIdpCreate (env ^. teSpar) (Just uid) =<< makeTestIdPMetadata
+            (_, authnResp, sparAuthnResp) <- initialBind uid idp
+            pure (authnResp, sparAuthnResp)
+
+
+      context "initial bind" $ do
+        it "allowed" $ do
+          (uid, _, idp)                 <- createTestIdP
+          (_, authnResp, sparAuthnResp) <- initialBind uid idp
+          checkGrantingAuthnResp uid authnResp sparAuthnResp
+
+      context "re-bind to same UserRef" $ do
+        it "allowed" $ do
+          (uid, _, idp)              <- createTestIdP
+          (subj, _, _)               <- initialBind uid idp
+          (authnResp, sparAuthnResp) <- reBindSame uid idp subj
+          checkGrantingAuthnResp uid authnResp sparAuthnResp
+
+      context "re-bind to new UserRef from different IdP" $ do
+        it "allowed" $ do
+          (uid, _, idp)              <- createTestIdP
+          _                          <- initialBind uid idp
+          (authnResp, sparAuthnResp) <- reBindDifferent uid
+          checkGrantingAuthnResp uid authnResp sparAuthnResp
+
+      context "bind to UserRef in use by other wire user" $ do
+        it "forbidden" $ do
+          env <- ask
+          (uid, teamid, idp) <- createTestIdP
+          (subj, _, _)       <- initialBind uid idp
+          uid'               <- let Just perms = newPermissions mempty mempty
+                                in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
+          (_, sparAuthnResp) <- reBindSame uid' idp subj
+          liftIO $ do
+            statusCode sparAuthnResp `shouldBe` 403
+            responseJSON sparAuthnResp `shouldBe` Right (TestErrorLabel "subject-id-taken")
+
+      context "bind to UserRef from different team" $ do
+        it "forbidden" $ do
+          (uid, _, _) <- createTestIdP
+          (_, _, idp) <- createTestIdP
+          (_, _, sparAuthnResp) <- initialBind uid idp
+          liftIO $ do
+            statusCode sparAuthnResp `shouldBe` 403
+            responseJSON sparAuthnResp `shouldBe` Right (TestErrorLabel "bad-team")
+
+
+-- | FUTUREWORK: this function deletes the test IdP from the test env.  (it should probably not do
+-- that, so other tests after this can still use it.)
+specCRUDIdentityProvider :: SpecWith TestEnv
+specCRUDIdentityProvider = do
     let checkErr :: (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
         checkErr statusIs label resp = statusIs (statusCode resp) && responseJSON resp == Right label
 
@@ -217,6 +447,7 @@ spec = do
               whichone (env ^. teSpar) (Just newmember) idpid
                 `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
+
     describe "GET /identity-providers/:idp" $ do
       testGetPutDelete callIdpGet'
 
@@ -227,6 +458,7 @@ spec = do
               userid = env ^. teUserId
           _ <- call $ callIdpGet (env ^. teSpar) (Just userid) idpid
           passes
+
 
     describe "GET /identity-providers" $ do
       context "client is not team owner" $ do
@@ -257,6 +489,7 @@ spec = do
             callIdpGetAll (env ^. teSpar) (Just owner)
               `shouldRespondWith` (not . null . _idplProviders)
 
+
     describe "DELETE /identity-providers/:idp" $ do
       testGetPutDelete callIdpDelete'
 
@@ -269,6 +502,7 @@ spec = do
             `shouldRespondWith` \resp -> statusCode resp < 300
           callIdpGet' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` checkErr (== 404) "not-found"
+
 
     describe "PUT /identity-providers/:idp" $ do
       xdescribe "need to implement `callIdpGet'` for these tests" $ do
@@ -284,6 +518,7 @@ spec = do
           it "rejects" $ do
             pending  -- (only test for signature here, but make sure that the same validity tests
                      -- are performed as for POST in Spar.API.)
+
 
     describe "POST /identity-providers" $ do
       context "no zuser" $ do
@@ -337,6 +572,8 @@ spec = do
           liftIO $ idp `shouldBe` idp'
 
 
+specAux :: SpecWith TestEnv
+specAux = do
     describe "test helper functions" $ do
       describe "createTeamMember" $ do
         let check :: HasCallStack => Bool -> Int -> SpecWith TestEnv

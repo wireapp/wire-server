@@ -2,10 +2,10 @@
 
 module Main where
 
+import Imports
 import Criterion.Main
 import Data.Aeson
 import Data.Id (randomId, ConnId (..), ClientId (..))
-import Data.Text (Text)
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
 import Gundeck.Push.Native.Serialise

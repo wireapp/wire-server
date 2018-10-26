@@ -43,6 +43,7 @@ import Test.Tasty.HUnit
 import Test.Tasty.Cannon
 import Util.AWS
 
+import qualified Data.Aeson.Types as Aeson
 import qualified Galley.Types.Teams as Team
 import qualified Brig.AWS as AWS
 import qualified Brig.RPC as RPC
@@ -89,15 +90,32 @@ test' :: AWS.Env -> Manager -> TestName -> Http a -> TestTree
 test' e m n h = testCase n $ void $ runHttpT m (liftIO (purgeJournalQueue e) >> h)
 
 randomUser :: HasCallStack => Brig -> Http User
-randomUser brig = do
-    n <- fromName <$> randomName
-    createUser n "success@simulator.amazonses.com" brig
+randomUser = randomUser' True
 
-createUser :: HasCallStack => Text -> Text -> Brig -> Http User
-createUser name email brig = do
-    r <- postUser name (Just email) Nothing Nothing brig <!!
+randomUser' :: HasCallStack => Bool -> Brig -> Http User
+randomUser' hasPwd brig = do
+    n <- fromName <$> randomName
+    createUser' hasPwd n brig
+
+createUser :: HasCallStack => Text -> Brig -> Http User
+createUser = createUser' True
+
+createUser' :: HasCallStack => Bool -> Text -> Brig -> Http User
+createUser' hasPwd name brig = do
+    r <- postUser' hasPwd True name True False Nothing Nothing brig <!!
            const 201 === statusCode
     decodeBody r
+
+createUserWithEmail :: HasCallStack => Text -> Email -> Brig -> Http User
+createUserWithEmail name email brig = do
+    r <- postUserWithEmail True True name (Just email) False Nothing Nothing brig <!!
+           const 201 === statusCode
+    decodeBody r
+
+createUserUntrustedEmail :: HasCallStack => Text -> Brig -> Http User
+createUserUntrustedEmail name brig = do
+    email <- randomUntrustedEmail
+    createUserWithEmail name email brig
 
 createAnonUser :: HasCallStack => Text -> Brig -> Http User
 createAnonUser = createAnonUserExpiry Nothing
@@ -150,19 +168,39 @@ getConnection brig from to = get $ brig
     . zUser from
     . zConn "conn"
 
--- more flexible variant of 'createUser' (see above).
-postUser :: Text -> Maybe Text -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
-postUser name email ssoid teamid brig = do
-    email' <- maybe (pure Nothing) (fmap (Just . fromEmail) . mkEmailRandomLocalSuffix) email
-    let p = RequestBodyLBS . encode $ object
+-- | More flexible variant of 'createUser' (see above).
+postUser :: Text -> Bool -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser = postUser' True True
+
+-- | Use @postUser' True False@ instead of 'postUser' if you want to send broken bodies to test error
+-- messages.  Or @postUser' False True@ if you want to validate the body, but not set a password.
+postUser' :: Bool -> Bool -> Text -> Bool -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUser' hasPassword validateBody name haveEmail havePhone ssoid teamid brig = do
+    email <- if haveEmail
+        then Just <$> randomEmail
+        else pure Nothing
+    postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid brig
+
+-- | More flexible variant of 'createUserUntrustedEmail' (see above).
+postUserWithEmail :: Bool -> Bool -> Text -> Maybe Email -> Bool -> Maybe UserSSOId -> Maybe TeamId -> Brig -> Http ResponseLBS
+postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid brig = do
+    phone <- if havePhone
+        then Just <$> randomPhone
+        else pure Nothing
+    let o = object $
             [ "name"            .= name
-            , "email"           .= email'
-            , "password"        .= defPassword
+            , "email"           .= (fromEmail <$> email)
+            , "phone"           .= phone
             , "cookie"          .= defCookieLabel
             , "sso_id"          .= ssoid
             , "team_id"         .= teamid
-            ]
-    post (brig . path "/i/users" . contentJson . body p)
+            ] <>
+            [ "password"        .= defPassword | hasPassword ]
+        p = case Aeson.parse parseJSON o of
+              Aeson.Success (p_ :: NewUser) -> p_
+              bad -> error $ show (bad, o)
+        bdy = if validateBody then Bilge.json p else Bilge.json o
+    post (brig . path "/i/users" . bdy)
 
 postUserInternal :: Object -> Brig -> Http User
 postUserInternal payload brig = do
@@ -370,8 +408,18 @@ mkEmailRandomLocalSuffix e = do
         Just (Email loc dom) -> return $ Email (loc <> "+" <> UUID.toText uid) dom
         Nothing              -> fail $ "Invalid email address: " ++ Text.unpack e
 
+-- | Generate emails that are in the trusted whitelist of domains whose @+@ suffices count for email
+-- disambiguation.  See also: 'Brig.Email.mkEmailKey'.
 randomEmail :: MonadIO m => m Email
 randomEmail = mkSimulatorEmail "success"
+
+-- | To test the behavior of email addresses with untrusted domains (two emails are equal even if
+-- their local part after @+@ differs), we need to generate them.
+randomUntrustedEmail :: MonadIO m => m Email
+randomUntrustedEmail = do
+    -- NOTE: local part cannot be longer than 64 octets
+    rd <- liftIO (randomIO :: IO Integer)
+    pure $ Email (Text.pack $ show rd) "zinfra.io"
 
 mkSimulatorEmail :: MonadIO m => Text -> m Email
 mkSimulatorEmail loc = mkEmailRandomLocalSuffix (loc <> "@simulator.amazonses.com")
@@ -381,6 +429,20 @@ randomPhone = liftIO $ do
     nrs <- map show <$> replicateM 14 (randomRIO (0,9) :: IO Int)
     let phone = parsePhone . Text.pack $ "+0" ++ concat nrs
     return $ fromMaybe (error "Invalid random phone#") phone
+
+updatePhone :: Brig -> UserId -> Phone -> Http ()
+updatePhone brig uid phn = do
+    -- update phone
+    let phoneUpdate = RequestBodyLBS . encode $ PhoneUpdate phn
+    put (brig . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate) !!!
+        (const 202 === statusCode)
+    -- activate
+    act <- getActivationCode brig (Right phn)
+    case act of
+        Nothing -> liftIO $ assertFailure "missing activation key/code"
+        Just kc -> activate brig kc !!! do
+            const 200 === statusCode
+            const (Just False) === fmap activatedFirst . decodeBody
 
 defEmailLogin :: Email -> Login
 defEmailLogin e = emailLogin e defPassword (Just defCookieLabel)

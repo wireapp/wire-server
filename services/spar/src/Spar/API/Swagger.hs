@@ -18,6 +18,7 @@
 
 module Spar.API.Swagger where
 
+import Control.Lens
 import Data.Id
 import Data.Proxy
 import Data.UUID (UUID)
@@ -26,7 +27,6 @@ import Data.String.Interpolate as QQ
 import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
-import Lens.Micro
 import Servant
 import Servant.Swagger
 import Spar.API.Instances ()
@@ -150,5 +150,8 @@ instance ToSchema URI.URI where
 instance ToParamSchema URI.URI where
   toParamSchema _ = toParamSchema (Proxy @String)
 
-instance ToParamSchema SAML.SetSAMLCookie where
-  toParamSchema _ = toParamSchema (Proxy @Bool)
+instance ToParamSchema BindCookie where
+  toParamSchema _ = toParamSchema (Proxy @String)
+
+instance ToSchema Void where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)

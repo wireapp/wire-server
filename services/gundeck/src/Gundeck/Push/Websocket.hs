@@ -8,31 +8,20 @@
 
 module Gundeck.Push.Websocket (push, bulkPush) where
 
+import Imports
 import Bilge
 import Bilge.Retry (rpcHandlers)
 import Bilge.RPC
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async (mapConcurrently)
 import Control.Exception (ErrorCall(ErrorCall))
-import Control.Exception.Enclosed (handleAny)
-import Control.Monad (forM, forM_, foldM, when)
-import Control.Monad.Catch (MonadThrow, SomeException (..), throwM, catch, try)
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Reader (MonadReader)
-import Control.Monad.Trans.Control
+import Control.Monad.Catch (MonadThrow, throwM, catch, try)
 import Control.Lens ((^.), (%~), _2, view)
 import Control.Retry
 import Data.Aeson (encode, eitherDecode)
 import Data.ByteString.Conversion
-import Data.Either (rights)
-import Data.Foldable (toList)
-import Data.Function (on)
 import Data.Id
-import Data.List (groupBy, sortBy, foldl')
 import Data.List1
 import Data.Misc (Milliseconds (..))
-import Data.Monoid ((<>))
-import Data.Set (Set)
 import Data.Time.Clock.POSIX
 import Gundeck.Monad
 import Gundeck.Types.Notification
@@ -42,6 +31,7 @@ import Gundeck.Util
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..))
 import Network.HTTP.Types (StdMethod (POST), status200, status410)
 import System.Logger.Class ((~~), val, (+++))
+import UnliftIO (mapConcurrently, handleAny)
 
 import qualified Data.ByteString.Lazy         as L
 import qualified Data.Metrics                 as Metrics
@@ -57,7 +47,7 @@ import qualified System.Logger.Class          as Log
 bulkPush :: [(Notification, [Presence])] -> Gundeck [(NotificationId, [Presence])]
 bulkPush notifs = do
     let reqs = fanOut notifs
-    flbck <- flowBack <$> (uncurry bulkSend `mapConcurrentlyMBC` reqs)
+    flbck <- flowBack <$> (uncurry bulkSend `mapConcurrently` reqs)
 
     let -- lookup by 'URI' can fail iff we screwed up URI handling in this module.
         presencesByCannon = mkPresencesByCannon . mconcat $ snd <$> notifs
@@ -86,14 +76,6 @@ bulkPush notifs = do
         pure deletions
 
     pure (groupAssoc successes)
-
-
--- (this could be moved to /libs/types-common.)
-mapConcurrentlyMBC :: (MonadBaseControl IO m, Traversable t) => (a -> m b) -> t a -> m (t b)
-mapConcurrentlyMBC action inputs = liftBaseWith
-    (\runInBase -> (runInBase . action) `mapConcurrently` inputs)
-        >>= mapM restoreM
-
 
 logCannonsGone :: (MonadIO m, MonadReader Env m, Log.MonadLogger m)
                => (uri, (err, [Presence])) -> m ()
@@ -207,10 +189,10 @@ mkPresencesByCannon prcs uri = maybe (throwM err) pure $ Map.lookup uri mp
   where
     err = ErrorCall "internal error in Gundeck: invalid URL in bulkpush result"
 
-    mp :: Map.Map URI [Presence]
+    mp :: Map URI [Presence]
     mp = foldl' collect mempty $ (bulkresource &&& id) <$> prcs
 
-    collect :: Map.Map URI [Presence] -> (URI, Presence) -> Map.Map URI [Presence]
+    collect :: Map URI [Presence] -> (URI, Presence) -> Map URI [Presence]
     collect mp' (uri', prc) = Map.alter (go prc) uri' mp'
 
     go :: Presence -> Maybe [Presence] -> Maybe [Presence]
@@ -224,7 +206,7 @@ mkPresenceByPushTarget prcs ptarget = maybe (throwM err) pure $ Map.lookup ptarg
   where
     err = ErrorCall "internal error in Cannon: invalid PushTarget in bulkpush response"
 
-    mp :: Map.Map PushTarget Presence
+    mp :: Map PushTarget Presence
     mp = Map.fromList $ (mkPushTarget &&& id) <$> prcs
 
 

@@ -30,7 +30,7 @@ import Brig.Types.Client
 import Brig.Types.User (publicProfile, User (..), Pict (..))
 import Brig.Types.Provider
 import Brig.Types.Search
-import Control.Concurrent.Async.Lifted.Safe.Extended (mapMPooled)
+import UnliftIO.Async.Extended (mapMPooled)
 import Control.Lens (view, (^.))
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
@@ -88,7 +88,7 @@ import qualified OpenSSL.PEM                  as SSL
 import qualified OpenSSL.RSA                  as SSL
 import qualified OpenSSL.EVP.Digest           as SSL
 import qualified OpenSSL.EVP.PKey             as SSL
-import qualified Network.HTTP.Client.OpenSSL  as SSL
+import qualified Ssl.Util                     as SSL
 import qualified Data.Text.Encoding           as Text
 import qualified Network.Wai.Utilities.Error  as Wai
 import qualified Brig.ZAuth                   as ZAuth
@@ -323,8 +323,8 @@ newAccount req = do
     new <- parseJsonBody req
 
     email <- case validateEmail (newProviderEmail new) of
-        Just em -> return em
-        Nothing -> throwStd invalidEmail
+        Right em -> return em
+        Left _   -> throwStd invalidEmail
 
     let name  = newProviderName new
     let pass  = newProviderPassword new
@@ -382,8 +382,8 @@ activateAccountKey (key ::: val) = do
 getActivationCode :: Email -> Handler Response
 getActivationCode e = do
     email <- case validateEmail e of
-        Just em -> return em
-        Nothing -> throwStd invalidEmail
+        Right em -> return em
+        Left _   -> throwStd invalidEmail
     gen  <- Code.mkGen (Code.ForEmail email)
     code <- Code.lookup (Code.genKey gen) Code.IdentityVerification
     maybe (throwStd activationKeyNotFound) (return . found) code
@@ -464,8 +464,8 @@ updateAccountEmail :: ProviderId ::: Request -> Handler Response
 updateAccountEmail (pid ::: req) = do
     EmailUpdate new <- parseJsonBody req
     email <- case validateEmail new of
-        Just em -> return em
-        Nothing -> throwStd invalidEmail
+        Right em -> return em
+        Left _   -> throwStd invalidEmail
 
     let emailKey = mkEmailKey email
     DB.lookupKey emailKey >>= mapM_ (const $ throwStd emailExists)

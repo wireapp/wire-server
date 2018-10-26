@@ -86,6 +86,10 @@ $(DEB_INDEX): install
 i:
 	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
 
+.PHONY: i-aws
+i-aws:
+	INTEGRATION_USE_REAL_AWS=1 ../integration.sh $(EXE_IT) -s $(NAME).integration-aws.yaml -i ../integration.yaml
+
 .PHONY: i-list
 i-list:
 	$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l

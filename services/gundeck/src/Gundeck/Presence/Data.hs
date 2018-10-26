@@ -7,22 +7,19 @@ module Gundeck.Presence.Data
     , deleteAll
     ) where
 
-import Control.Monad
+import Imports
 import Control.Monad.Catch
 import Data.Aeson
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion hiding (fromList)
-import Data.ByteString (ByteString, isPrefixOf)
-import Data.Foldable (for_)
 import Data.Id
-import Data.Maybe (mapMaybe)
 import Data.Misc (Milliseconds)
-import Data.Monoid
 import Database.Redis.IO hiding (Milliseconds)
 import Gundeck.Monad (Gundeck, posixTime)
 import Gundeck.Types
 import Gundeck.Util.Redis
 
+import qualified Data.ByteString as Strict
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LazyChars
 
@@ -114,7 +111,7 @@ fromField = ConnId . Lazy.toStrict . LazyChars.takeWhile (/= '@')
 
 readPresence :: UserId -> (Field, ByteString) -> Maybe Presence
 readPresence u (f, b) = do
-    PresenceData uri clt tme <- if "http" `isPrefixOf` b
+    PresenceData uri clt tme <- if "http" `Strict.isPrefixOf` b
         then PresenceData <$> fromByteString b <*> pure Nothing <*> pure 0
         else decodeStrict' b
     return (Presence u (fromField f) uri clt tme f)

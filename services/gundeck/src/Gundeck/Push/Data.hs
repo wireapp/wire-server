@@ -9,9 +9,8 @@ module Gundeck.Push.Data
     , Consistency (..)
     ) where
 
+import Imports
 import Cassandra
-import Control.Lens
-import Control.Monad (foldM)
 import Data.ByteString.Conversion
 import Data.Id (UserId, ClientId, ConnId)
 import Gundeck.Instances ()

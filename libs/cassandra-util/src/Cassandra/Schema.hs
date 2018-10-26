@@ -40,7 +40,7 @@ import Data.Time.Clock
 import Data.UUID (UUID)
 import Data.Word
 import Database.CQL.IO
-import Database.CQL.Protocol (Request (..), Query (..), Response(..), Result (..))
+import Database.CQL.Protocol (Request (..), Query (..))
 import GHC.Generics hiding (to, from, S, R)
 import Options.Applicative hiding (info)
 import Prelude hiding (log)
@@ -133,21 +133,15 @@ createKeyspace (Keyspace k) rs = void $ schema (cql rs) (params All ())
     pair (dc, ReplicationFactor n) = "'" <> dc <> "': " <> pack (show n)
 
 useKeyspace :: Keyspace -> Client ()
-useKeyspace (Keyspace k) = do
-    r <- qry
-    case r of
-        RsResult _ (SetKeyspaceResult _) -> return ()
-        RsError _ e                      -> throwM e
-        _                                -> throwM (UnexpectedResponse' r)
+useKeyspace (Keyspace k) = void . getResult =<< qry
   where
-    qry  = request (RqQuery (Query cql prms)) :: Client (Response () () ())
-    prms = QueryParams One False () Nothing Nothing Nothing
-    cql  = QueryString $ "use \"" <> fromStrict k <> "\""
+    qry  = request (RqQuery (Query cql prms)) :: Client (HostResponse () () ())
+    prms = QueryParams One False () Nothing Nothing Nothing Nothing
+    cql = QueryString $ "use \"" <> fromStrict k <> "\""
 
 migrateSchema :: Logger -> MigrationOpts -> [Migration] -> IO ()
 migrateSchema l o ms = do
-    -- if migHost is a DNS name, resolve it and connect to all nodes
-    hosts <- initialContactsDNS $ pack (migHost o)
+    hosts <- initialContactsPlain $ pack (migHost o)
     p <- Database.CQL.IO.init l $
             setContacts (NonEmpty.head hosts) (NonEmpty.tail hosts)
           . setPortNumber (fromIntegral $ migPort o)
