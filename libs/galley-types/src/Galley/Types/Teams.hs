@@ -247,11 +247,11 @@ newtype NewTeamMember = NewTeamMember
     }
 
 newtype TeamMemberDeleteData = TeamMemberDeleteData
-    { _tmdAuthPassword :: PlainTextPassword
+    { _tmdAuthPassword :: Maybe PlainTextPassword
     }
 
 newtype TeamDeleteData = TeamDeleteData
-    { _tdAuthPassword :: PlainTextPassword
+    { _tdAuthPassword :: Maybe PlainTextPassword
     }
 
 -- This is the cassandra timestamp of writetime(binding)
@@ -289,10 +289,10 @@ newEvent typ tid tme = Event typ tid tme Nothing
 newTeamUpdateData :: TeamUpdateData
 newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing
 
-newTeamMemberDeleteData :: PlainTextPassword -> TeamMemberDeleteData
+newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
 newTeamMemberDeleteData = TeamMemberDeleteData
 
-newTeamDeleteData :: PlainTextPassword -> TeamDeleteData
+newTeamDeleteData :: Maybe PlainTextPassword -> TeamDeleteData
 newTeamDeleteData = TeamDeleteData
 
 makeLenses ''Team

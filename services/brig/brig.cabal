@@ -421,3 +421,4 @@ executable brig-integration
       , warp-tls              >= 3.2
       , zauth
       , yaml                  >= 0.8.22
+      , unliftio

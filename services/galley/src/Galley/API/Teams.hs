@@ -31,8 +31,6 @@ module Galley.API.Teams
     ) where
 
 import Cassandra (result, hasMore)
-import Control.Concurrent.Async (mapConcurrently)
-import Control.Concurrent.Lifted (fork)
 import Control.Lens hiding (from, to)
 import Control.Monad (unless, when, void)
 import Control.Monad.Catch
@@ -63,6 +61,8 @@ import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result, or)
 import Network.Wai.Utilities
 import Prelude hiding (head, mapM)
+import UnliftIO (mapConcurrently)
+import UnliftIO.Concurrent (forkIO)
 
 import qualified Data.Set as Set
 import qualified Galley.Data as Data
@@ -190,7 +190,7 @@ uncheckedDeleteTeam zusr zcon tid = do
         let e = newEvent TeamDelete tid now
         let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) membs)
         pushSome ((newPush1 zusr (TeamEvent e) r & pushConn .~ zcon) : ue)
-        void . fork $ void $ External.deliver be
+        void . forkIO $ void $ External.deliver be
         -- TODO: we don't delete bots here, but we should do that, since
         -- every bot user can only be in a single conversation. Just
         -- deleting conversations from the database is not enough.
@@ -357,7 +357,7 @@ uncheckedRemoveTeamMember zusr zcon tid remove mems = do
         let y = Conv.Event Conv.MemberLeave (Data.convId dc) zusr now (Just edata)
         for_ (newPush zusr (ConvEvent y) (recipient <$> x)) $ \p ->
             push1 $ p & pushConn .~ zcon
-        void . fork $ void $ External.deliver (bots `zip` repeat y)
+        void . forkIO $ void $ External.deliver (bots `zip` repeat y)
 
 getTeamConversations :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeamConversations (zusr::: tid ::: _) = do
@@ -387,7 +387,7 @@ deleteTeamConversation (zusr::: zcon ::: tid ::: cid ::: _) = do
     case map recipient (nonTeamMembers cmems tmems) of
         []     -> push1 p
         (m:mm) -> pushSome [p, newPush1 zusr (ConvEvent ce) (list1 m mm) & pushConn .~ Just zcon]
-    void . fork $ void $ External.deliver (bots `zip` repeat ce)
+    void . forkIO $ void $ External.deliver (bots `zip` repeat ce)
     -- TODO: we don't delete bots here, but we should do that, since every
     -- bot user can only be in a single conversation
     Data.removeTeamConv tid cid

@@ -42,8 +42,6 @@ import Galley.App
 import Galley.Options
 import Galley.Types
 import Control.Applicative
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
-import Control.Concurrent.Lifted (fork)
 import Control.Lens (makeLenses, set, view, (.~), (&), (^.))
 import Control.Monad.Catch
 import Control.Monad (void, (>=>))
@@ -63,8 +61,10 @@ import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types.Method
 import Safe (headDef, tailDef)
 import System.Logger.Class hiding (new)
-import Prelude hiding (mapM_, foldr)
+import Prelude hiding (foldr)
 import Util.Options
+import UnliftIO (mapConcurrently)
+import UnliftIO.Concurrent (forkIO)
 
 import qualified Data.Set               as Set
 import qualified Data.Text.Lazy         as LT
@@ -190,7 +190,7 @@ gundeckReq ps = do
         . expect2xx
 
 callAsync :: LT.Text -> (Request -> Request) -> Galley ()
-callAsync n r = void . fork $ void (call n r) `catches` handlers
+callAsync n r = void . forkIO $ void (call n r) `catches` handlers
   where
     handlers =
         [ Handler $ \(x :: RPCException)  -> err (rpcExceptionMsg x)
@@ -202,4 +202,3 @@ call n r = recovering x3 rpcHandlers (const (rpc n r))
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
-

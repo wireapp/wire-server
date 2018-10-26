@@ -68,7 +68,11 @@ app ctx = SAML.setHttpCachePolicy
 
 -- TODO: re-enable SCIM.api once it's ready to use.
 api :: Opts -> ServerT API Spar
-api opts = apiSSO opts :<|> apiIDP :<|> apiINTERNAL
+api opts
+     = apiSSO opts
+  :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateBind
+  :<|> apiIDP
+  :<|> apiINTERNAL
 
 apiSSO :: Opts -> ServerT APISSO Spar
 apiSSO opts
@@ -76,7 +80,6 @@ apiSSO opts
   :<|> SAML.meta appName sparSPIssuer sparResponseURI
   :<|> authreqPrecheck
   :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
-  :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateBind
   :<|> authresp
 
 apiIDP :: ServerT APIIDP Spar
@@ -202,12 +205,18 @@ getZUsrOwnedTeam (Just uid) = do
     Just teamid -> teamid <$ Intra.assertIsTeamOwner uid teamid
 
 
--- | FUTUREWORK: move this to the saml2-web-sso package.  (same probably goes for get, create,
+-- | Check that issuer is fresh (see longer comment in source) and request URI is https.
+--
+-- FUTUREWORK: move this to the saml2-web-sso package.  (same probably goes for get, create,
 -- update, delete of idps.)
 validateNewIdP :: forall m. (HasCallStack, m ~ Spar)
                => SAML.IdPMetadata -> TeamId -> m IdP
 validateNewIdP _idpMetadata _idpExtraInfo = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
+
+  let requri = _idpMetadata ^. SAML.edRequestURI
+  unless (requri ^. URI.uriSchemeL == URI.Scheme "https") $ do
+    throwSpar (SparNewIdPWantHttps . cs . SAML.renderURI $ requri)
 
   wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
     Nothing -> pure ()

@@ -42,6 +42,7 @@ import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 import qualified Cassandra.Schema as Cas
 import qualified Cassandra.Settings as Cas
 import qualified Network.Wai.Handler.Warp as Warp
+import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
@@ -54,7 +55,7 @@ import qualified System.Logger as Log
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra opts lgr = do
     connectString <- maybe
-               (Cas.initialContactsDNS (Types.cassandra opts ^. casEndpoint . epHost))
+               (Cas.initialContactsPlain (Types.cassandra opts ^. casEndpoint . epHost))
                (Cas.initialContactsDisco "cassandra_spar")
                (cs <$> Types.discoUrl opts)
     cas <- Cas.init (Log.clone (Just "cassandra.spar") lgr) $ Cas.defSettings
@@ -103,10 +104,8 @@ runServer sparCtxOpts = do
         . Bilge.port (sparCtxOpts ^. to galley . epPort)
         $ Bilge.empty
   let wrappedApp
-    -- . WU.measureRequests mx _
-        -- TODO: we need the swagger sitemap from servant for this.  we also want this to be
-        -- prometheus-compatible.  not sure about the order in which to do these.
         = WU.catchErrors sparCtxLogger mx
+        . Promth.prometheus Promth.def
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}

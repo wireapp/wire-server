@@ -70,6 +70,32 @@ specMisc = do
         ping (env ^. teSpar) `shouldRespondWith` (== ())
 
 
+    describe "metrics" $ do
+      it "spar /i/monitoring" $ do
+        env <- ask
+        get ((env ^. teSpar) . path "/metrics")
+          `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
+                                [ "http_request_duration_seconds_bucket"
+                                , "handler="
+                                , "method="
+                                , "status_code="
+                                , "le="
+                                ])
+
+
+    describe "rule do disallow http idp urls." $ do
+      let check :: Bool -> TestSpar ()
+          check isHttps = do
+            let somemeta = either (error . show) id $ SAML.decode ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"" <> (if isHttps then "https" else "http") <> "://www.okta.com/exkgxxperpx1txfkY0h7\"><md:IDPSSODescriptor WantAuthnRequestsSigned=\"false\" protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\"><md:KeyDescriptor use=\"signing\"><ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"><ds:X509Data><ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAWSx7x1HMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEG\nA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEU\nMBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi01MDA1MDgxHDAaBgkqhkiG9w0BCQEW\nDWluZm9Ab2t0YS5jb20wHhcNMTgwNzE5MDk0NTM1WhcNMjgwNzE5MDk0NjM0WjCBkjELMAkGA1UE\nBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNV\nBAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtNTAwNTA4MRwwGgYJ\nKoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\nhUaQm/3dgPws1A5IjFK9ZQpj170vIqENuDG0tapAzkvk6+9vyhduGckHTeZF3k5MMlW9iix2Eg0q\na1oS/Wrq/aBf7+BH6y1MJlQnaKQ3hPL+OFvYzbnrN8k2uC2LivP7Y90dXwtN3P63rA4QSyDPYEMv\ndKSubUKX/HNsUg4I2PwHmpfWBNgoMkqe0bxQILBv+84L62IYSd6k77XXnCFb/usHpG/gY6sJsTQ2\naFl9FuJ51uf67AOj8RzPXstgtUaXbdJI0kAqKIb3j9Zv3mpPCy/GHnyB3PMalvtc1uaz1ZnwO2el\niqhwB6/8W6CPutFo1Bhq1glQIX+1OD7906iORwIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQB0h6vK\nAywJwH3g0RnocOpBvT42QW57TZ3Wzm9gbg6dQL0rB+NHDx2V0VIh51E3YHL1os9W09MreM7I74D/\nfX27r1Q3+qAsL1v3CN8WIVh9eYitBCtF7DwZmL2UXTia+GWPrabO14qAztFmTXfqNuCZej7gJd/K\n2r0KBiZtZ6o58WBREW2F70a6nN6Nk1yjzBkDTJMMf8OMXHphTaalMBXojN9W6HEDpGBE0qY7c70P\nqvfUEzd8wHWcDxo6+3jajajelk0V4rg7Cqxccr+WwjYtENEuQypNG2mbI52iPZked0QWKy0WzhSM\nw5wjJ+QDG31vJInAB2769C2KmhPDyNhU</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor><md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat><md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat><md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"" <> (if isHttps then "https" else "http") <> "://dev-500508.oktapreview.com/app/wireswissgmbhdev500508_z1tejapsbeyonce_1/exkgxxperpx1txfkY0h7/sso/saml\"/><md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" Location=\"" <> (if isHttps then "https" else "http") <> "://dev-500508.oktapreview.com/app/wireswissgmbhdev500508_z1tejapsbeyonce_1/exkgxxperpx1txfkY0h7/sso/saml\"/></md:IDPSSODescriptor></md:EntityDescriptor>")
+            env <- ask
+            uid <- fst <$> call (createUserWithTeam (env ^. teBrig) (env ^. teGalley))
+            resp <- call $ callIdpCreate' (env ^. teSpar) (Just uid) somemeta
+            liftIO $ statusCode resp `shouldBe` if isHttps then 201 else 400
+
+      it "does not trigger on https urls" $ check True
+      it "does trigger on http urls" $ check False
+
+
 specMetadata :: SpecWith TestEnv
 specMetadata = do
     describe "metadata" $ do
@@ -211,7 +237,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           env <- ask
           let idp = idPIdToST $ env ^. teIdP . idpId
           void . call $ head ( (env ^. teSpar)
-                             . path (cs $ "/sso/initiate-bind/" -/ idp)
+                             . path (cs $ "/sso-initiate-bind/" -/ idp)
                              . header "Z-User" (toByteString' $ env ^. teUserId)
                              . expect2xx
                              )
@@ -223,7 +249,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           let idp = idPIdToST $ env ^. teIdP . idpId
           void . call $ head ( (env ^. teSpar)
                              . header "Z-User" (toByteString' uid)
-                             . path (cs $ "/sso/initiate-bind/" -/ idp)
+                             . path (cs $ "/sso-initiate-bind/" -/ idp)
                              . expect2xx
                              )
 
@@ -242,12 +268,12 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           uid <- createUser
           get ( (env ^. teSpar)
               . header "Z-User" (toByteString' uid)
-              . path (cs $ "/sso/initiate-bind/" -/ idp)
+              . path (cs $ "/sso-initiate-bind/" -/ idp)
               . expect2xx
               )
             `shouldRespondWith` (\resp -> checkRespBody resp && hasSetBindCookieHeader resp)
 
-    describe "GET /sso/initiate-bind/:idp" $ do
+    describe "GET /sso-initiate-bind/:idp" $ do
       context "known IdP, running session with non-sso user" $ do
         it "responds with 200 and a bind cookie" $ do
           checkInitiateLogin (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))

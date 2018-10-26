@@ -10,7 +10,7 @@ import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.ZAuth (ZAuth, runZAuth)
 import Control.Concurrent
-import Control.Concurrent.Async.Lifted.Safe.Extended hiding (wait)
+import UnliftIO.Async.Extended hiding (wait)
 import Control.Lens ((^?), set)
 import Control.Monad
 import Control.Monad.IO.Class
@@ -76,7 +76,7 @@ tests conf m z b = testGroup "auth"
             , test m "logout" (testLogout b)
             ]
         , testGroup "reauth"
-            [ test m "reauthorisation" (testReauthorisation b)
+            [ test m "reauthentication" (testReauthentication b)
             ]
         ]
 
@@ -514,24 +514,26 @@ testLogout b = do
     post (b . path "/access" . cookie c) !!!
         const 403 === statusCode
 
-testReauthorisation :: Brig -> Http ()
-testReauthorisation b = do
+testReauthentication :: Brig -> Http ()
+testReauthentication b = do
     u <- userId <$> randomUser b
 
     let js = Http.body . RequestBodyLBS . encode $ object ["foo" .= ("bar" :: Text) ]
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . js) !!! do
-        const 400 === statusCode
+        const 403 === statusCode
+        -- it's ok to not give a password in the request body, but if the user has a password set,
+        -- response will be `forbidden`.
 
-    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (PlainTextPassword "123456")) !!! do
+    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just $ PlainTextPassword "123456")) !!! do
         const 403 === statusCode
         const (Just "invalid-credentials") === errorLabel
 
-    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload defPassword) !!! do
+    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just defPassword)) !!! do
         const 200 === statusCode
 
     setStatus b u Suspended
 
-    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload defPassword) !!! do
+    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just defPassword)) !!! do
         const 403 === statusCode
         const (Just "suspended") === errorLabel
   where

@@ -14,15 +14,14 @@ module Gundeck.Notification.Data
 
 import Imports hiding (Set)
 import Cassandra
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently, Forall, Pure)
 import Control.Lens ((^.), _1)
-import Control.Monad.Trans.Control
 import Data.Id
 import Data.List1 (List1)
 import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, (><), (<|), ViewL (..), ViewR (..))
 import Gundeck.Types.Notification
 import Gundeck.Options (NotificationTTL (..))
+import UnliftIO (mapConcurrently)
 
 import qualified Data.Aeson      as JSON
 import qualified Data.List.Extra as List
@@ -40,7 +39,7 @@ data ResultPage = ResultPage
         -- iff a start ID ('since') has been given which could not be found.
     }
 
-add :: (MonadClient m, MonadBaseControl IO m, Forall (Pure m))
+add :: (MonadClient m, MonadUnliftIO m)
     => NotificationId
     -> List1 NotificationTarget
     -> List1 JSON.Object

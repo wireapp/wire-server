@@ -6,7 +6,6 @@
 module Journal where
 
 import Cassandra as C
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Lens
 import Control.Monad.Except
 import Data.Id
@@ -20,6 +19,7 @@ import Proto.TeamEvents
 import Galley.Types.Teams (TeamCreationTime (..), tcTime)
 import Galley.Types.Teams.Intra
 import System.Logger (Logger)
+import UnliftIO (mapConcurrently)
 
 import qualified System.Logger        as Log
 import qualified Galley.Data          as Data

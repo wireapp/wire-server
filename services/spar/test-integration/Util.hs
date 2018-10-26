@@ -153,7 +153,7 @@ mkEnv _teTstOpts _teOpts = do
       _teSpar    = endpointToReq (cfgSpar   _teTstOpts)
 
       idpmeta :: IdPMetadata
-      idpmeta = sampleIdPMetadata issuer [uri|http://requri.net/|]
+      idpmeta = sampleIdPMetadata issuer [uri|https://requri.net/|]
 
   (_teUserId, _teTeamId, _teIdP) <- do
     createTestIdPFrom idpmeta _teMgr _teBrig _teGalley _teSpar
@@ -493,7 +493,7 @@ negotiateAuthnRequest' (doInitiatePath -> doInit) midp modreq = do
     <- call $ get
            ( modreq
            . (env ^. teSpar)
-           . paths ["sso", cs doInit, cs . idPIdToST $ idp ^. SAML.idpId]
+           . paths (cs <$> (doInit <> [idPIdToST $ idp ^. SAML.idpId]))
            . expect2xx
            )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp

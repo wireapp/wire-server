@@ -177,7 +177,7 @@ getLoginCode (_ ::: phone) = do
 reAuthUser :: JSON ::: UserId ::: Request -> Handler Response
 reAuthUser (_ ::: uid ::: req) = do
     body <- parseJsonBody req
-    User.reauthenticate uid (Just $ reAuthPassword body) !>> reauthError
+    User.reauthenticate uid (reAuthPassword body) !>> reauthError
     return empty
 
 login :: Request ::: Bool ::: JSON ::: JSON -> Handler Response

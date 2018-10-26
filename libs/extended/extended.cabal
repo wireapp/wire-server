@@ -21,14 +21,13 @@ library
     ghc-options:      -Wall -O2 -fwarn-tabs
 
     exposed-modules:
-        Control.Concurrent.Async.Lifted.Safe.Extended
+        UnliftIO.Async.Extended
         Options.Applicative.Extended
 
     build-depends:
         base
       , base-prelude
       , async-pool
-      , lifted-async
-      , unliftio-core
+      , unliftio
       , optparse-applicative
       , extra

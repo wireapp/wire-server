@@ -244,6 +244,7 @@ executable galley-integration
       , wai-utilities
       , warp
       , yaml
+      , unliftio
 
 executable galley-journaler
     main-is:            Main.hs
@@ -279,6 +280,7 @@ executable galley-journaler
       , bytestring
       , uuid
       , ssl-util
+      , unliftio
 
     other-modules:
         Journal
