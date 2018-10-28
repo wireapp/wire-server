@@ -22,6 +22,7 @@ module Cassandra.Exec
     , query
     , query1
     , write
+    , trans
     , schema
     , paginate
     , paginateC
