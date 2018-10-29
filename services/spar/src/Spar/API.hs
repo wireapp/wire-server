@@ -102,22 +102,20 @@ authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
                                 *> return NoContent
 
 authreq :: NominalDiffTime -> DoInitiate -> Maybe UserId -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId
-        -> Spar (WithBindCookie (SAML.FormRedirect SAML.AuthnRequest))
+        -> Spar (SAML.FormRedirect SAML.AuthnRequest)
 authreq _ DoInitiateLogin (Just _) _ _ _ = throwSpar SparInitLoginWithAuth
 authreq _ DoInitiateBind Nothing _ _ _   = throwSpar SparInitBindWithoutAuth
-authreq authreqttl _ zusr msucc merr idpid = do
+authreq authreqttl _ _zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl sparSPIssuer idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
-  cky <- initializeBindCookie zusr authreqttl
-  SAML.logger SAML.Debug $ "setting bind cookie: " <> show cky
-  pure $ addHeader cky form
+  pure form
 
 -- | Create bind cookie with 60 minutes life expectancy; *iff* the user is already authenticated,
 -- store it with the bind cookies.  If user already has a 'UserSSOId' (need to ask brig for that),
 -- throw an error.
-initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar BindCookie
-initializeBindCookie zusr authreqttl = do
+_initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar BindCookie
+_initializeBindCookie zusr authreqttl = do
   DerivedOpts path domain <- asks (derivedOpts . sparCtxOpts)
   msecret <- if isJust zusr
              then liftIO $ Just . cs . ES.encode <$> randBytes 32
@@ -146,9 +144,9 @@ validateRedirectURL uri = do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
 
-authresp :: Maybe BindCookie -> SAML.AuthnResponseBody -> Spar Void
-authresp cky = SAML.authresp sparSPIssuer sparResponseURI $
-  \resp verdict -> throwError . SAML.CustomServant =<< verdictHandler cky resp verdict
+authresp :: SAML.AuthnResponseBody -> Spar Void
+authresp = SAML.authresp sparSPIssuer sparResponseURI $
+  \resp verdict -> throwError . SAML.CustomServant =<< verdictHandler Nothing resp verdict
 
 
 idpGet :: Maybe UserId -> SAML.IdPId -> Spar IdP
