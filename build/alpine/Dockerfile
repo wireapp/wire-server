@@ -24,7 +24,7 @@ RUN cd /src/wire-server/services/${service} && make ${target}
 FROM ${deps}
 
 ARG executable
-COPY --from=builder /src/wire-server/dist/${executable} /usr/bin/${exectuable}
+COPY --from=builder /src/wire-server/dist/${executable} /usr/bin/${executable}
 
 # ARGs are not available at runtime, create symlink at build time
 # more info: https://stackoverflow.com/questions/40902445/using-variable-interpolation-in-string-in-docker
