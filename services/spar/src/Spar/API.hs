@@ -102,27 +102,29 @@ authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
                                 *> return NoContent
 
 authreq :: NominalDiffTime -> DoInitiate -> Maybe UserId -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId
-        -> Spar (SAML.FormRedirect SAML.AuthnRequest)
+        -> Spar (WithBindCookie (SAML.FormRedirect SAML.AuthnRequest))
 authreq _ DoInitiateLogin (Just _) _ _ _ = throwSpar SparInitLoginWithAuth
 authreq _ DoInitiateBind Nothing _ _ _   = throwSpar SparInitBindWithoutAuth
-authreq authreqttl _ _zusr msucc merr idpid = do
+authreq authreqttl _ zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl sparSPIssuer idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
-  pure form
+  mcky <- initializeBindCookie zusr authreqttl
+  when (isJust mcky) $ do
+    SAML.logger SAML.Debug $ "setting bind cookie: " <> show mcky
+  pure $ addHeader mcky form
 
--- | Create bind cookie with 60 minutes life expectancy; *iff* the user is already authenticated,
--- store it with the bind cookies.  If user already has a 'UserSSOId' (need to ask brig for that),
--- throw an error.
-_initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar BindCookie
-_initializeBindCookie zusr authreqttl = do
+-- | *Iff* the user is already authenticated, create bind cookie with 60 minutes life expectancy and
+-- our domain, and store it with the bind cookies.  If user already has a 'UserSSOId' (need to ask
+-- brig for that), throw an error.
+initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar (Maybe BindCookie)
+initializeBindCookie Nothing _ = pure Nothing
+initializeBindCookie (Just userid) authreqttl = Just <$> do
   DerivedOpts path domain <- asks (derivedOpts . sparCtxOpts)
-  msecret <- if isJust zusr
-             then liftIO $ Just . cs . ES.encode <$> randBytes 32
-             else pure Nothing
-  cky <- (SAML.toggleCookie path $ (, authreqttl) <$> msecret :: Spar BindCookie)
+  secret <- liftIO $ cs . ES.encode <$> randBytes 32
+  cky <- (SAML.toggleCookie path $ Just (secret, authreqttl) :: Spar BindCookie)
          <&> \(SAML.SimpleSetCookie raw) -> SAML.SimpleSetCookie raw { Cky.setCookieDomain = Just domain }
-  forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
+  wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
   pure cky
 
 redirectURLMaxLength :: Int

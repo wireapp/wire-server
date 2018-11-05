@@ -256,8 +256,8 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                              . expect2xx
                              )
 
-    let checkInitiateLogin :: HasCallStack => TestSpar UserId -> TestSpar ()
-        checkInitiateLogin createUser = do
+    let checkInitiateLogin :: HasCallStack => Bool -> TestSpar UserId -> TestSpar ()
+        checkInitiateLogin hasZUser createUser = do
           let checkRespBody :: HasCallStack => ResponseLBS -> Bool
               checkRespBody (responseBody -> Just (cs -> bdy)) = all (`isInfixOf` bdy)
                 [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
@@ -270,20 +270,26 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           let idp = idPIdToST $ env ^. teIdP . idpId
           uid <- createUser
           get ( (env ^. teSpar)
-              . header "Z-User" (toByteString' uid)
+              . (if hasZUser then header "Z-User" (toByteString' uid) else id)
               . path (cs $ "/sso-initiate-bind/" -/ idp)
               . expect2xx
               )
-            `shouldRespondWith` (\resp -> checkRespBody resp && hasSetBindCookieHeader resp)
+            `shouldRespondWith` (\resp ->
+                                   checkRespBody resp &&
+                                   ((if hasZUser then id else not) $ hasSetBindCookieHeader resp))
 
     describe "GET /sso-initiate-bind/:idp" $ do
+      context "known IdP, running session without authentication" $ do
+        it "responds with 200 and NO bind cookie" $ do
+          checkInitiateLogin False (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+
       context "known IdP, running session with non-sso user" $ do
         it "responds with 200 and a bind cookie" $ do
-          checkInitiateLogin (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+          checkInitiateLogin True (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
 
       context "known IdP, running session with sso user" $ do
         it "responds with 2xx and bind cookie" $ do
-          checkInitiateLogin loginSsoUserFirstTime
+          checkInitiateLogin True loginSsoUserFirstTime
 
     describe "POST /sso/finalize-login" $ do
       let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
@@ -292,7 +298,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
               (cs @_ @String . fromJust . responseBody $ aresp)
                 `shouldContain` "<title>wire:sso:success</title>"
               responseHeaders aresp
-                `shouldSatisfy` (isJust . lookup "set-cookie")
+                `shouldSatisfy` (isJust . lookup "set-cookie")  -- (this is the wire cookie, not the bind cookie)
 
             ssoidViaAuthResp <- getSsoidViaAuthResp spararesp
             ssoidViaSelf <- getSsoidViaSelf uid
@@ -300,6 +306,13 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             liftIO $ ('s', ssoidViaSelf) `shouldBe` ('s', ssoidViaAuthResp)
             Just uidViaSpar <- ssoToUidSpar ssoidViaAuthResp
             liftIO $ ('u', uidViaSpar) `shouldBe` ('u', uid)
+
+          checkDenyingAuthnResp :: Bilge.Response (Maybe LBS) -> ST -> TestSpar ()
+          checkDenyingAuthnResp sparAuthnResp errorlabel = do
+            _ -- TODO: no!  this must be an html page containg the error label, we're still in web client mode!
+            liftIO $ do
+              statusCode sparAuthnResp `shouldBe` 403
+              responseJSON sparAuthnResp `shouldBe` Right (TestErrorLabel errorlabel)
 
           getSsoidViaAuthResp :: SignedAuthnResponse -> TestSpar UserSSOId
           getSsoidViaAuthResp aresp = do
@@ -337,19 +350,28 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           getUserSSOId _ = Nothing
 
           initialBind :: UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
-          initialBind uid idp = do
+          initialBind = initialBind' Just
+
+          initialBind' :: (SBS -> Maybe SBS) -> UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
+          initialBind' tweakcookies uid idp = do
             subj <- SAML.opaqueNameID . UUID.toText <$> liftIO UUID.nextRandom
-            (authnResp, sparAuthnResp) <- reBindSame uid idp subj
+            (authnResp, sparAuthnResp) <- reBindSame' tweakcookies uid idp subj
             pure (subj, authnResp, sparAuthnResp)
 
           reBindSame :: UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
-          reBindSame uid idp subj = do
+          reBindSame = reBindSame' Just
+
+          reBindSame' :: (SBS -> Maybe SBS) -> UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
+          reBindSame' tweakcookies uid idp subj = do
             (_, privCreds, authnReq, Just bindCky) <- do
               negotiateAuthnRequest' DoInitiateBind (Just idp) (header "Z-User" $ toByteString' uid)
             spmeta <- getTestSPMetadata
             authnResp <- runSimpleSP $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
+            let cookiehdr = case tweakcookies bindCky of
+                  Just val -> header "Cookie" val
+                  Nothing  -> id
             sparAuthnResp :: ResponseLBS
-              <- submitAuthnResponse' (header "Cookie" bindCky) authnResp
+              <- submitAuthnResponse' cookiehdr authnResp
             pure (authnResp, sparAuthnResp)
 
           reBindDifferent :: UserId -> TestSpar (SignedAuthnResponse, ResponseLBS)
@@ -388,18 +410,40 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           uid'               <- let Just perms = newPermissions mempty mempty
                                 in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
           (_, sparAuthnResp) <- reBindSame uid' idp subj
-          liftIO $ do
-            statusCode sparAuthnResp `shouldBe` 403
-            responseJSON sparAuthnResp `shouldBe` Right (TestErrorLabel "subject-id-taken")
+          checkDenyingAuthnResp sparAuthnResp "subject-id-taken"
 
       context "bind to UserRef from different team" $ do
         it "forbidden" $ do
           (uid, _, _) <- createTestIdP
           (_, _, idp) <- createTestIdP
           (_, _, sparAuthnResp) <- initialBind uid idp
-          liftIO $ do
-            statusCode sparAuthnResp `shouldBe` 403
-            responseJSON sparAuthnResp `shouldBe` Right (TestErrorLabel "bad-team")
+          checkDenyingAuthnResp sparAuthnResp "bad-team"
+
+      describe "cookie corner cases" $ do
+        let check :: (SBS -> Maybe SBS) -> Either ST () -> SpecWith TestEnv
+            check tweakcookie outcome = do
+              it (either (const "denies") (const "grants") outcome) $ do
+                env <- ask
+                (uid, teamid, idp) <- createTestIdP
+                (_, authnResp, sparAuthnResp) <- initialBind' tweakcookie uid idp
+                case outcome of
+                  Right () -> checkGrantingAuthnResp uid authnResp sparAuthnResp
+                  Left msg -> checkDenyingAuthnResp sparAuthnResp msg
+
+        context "with no cookies header in the request" $ do
+          check (const Nothing) (Left "no-bind-cookie")
+
+        context "with empty cookies header in the request" $ do
+          check (const $ Just mempty) (Left "no-bind-cookie")
+
+        context "with no bind cookie and one other cookie in the request" $ do
+          check _ (Left "no-bind-cookie")
+
+        context "with bind cookie and one other cookie in the request" $ do
+          check _ (Right ())
+
+        context "with bind cookie and two other cookies in the request" $ do
+          check _ (Right ())
 
 
 -- | FUTUREWORK: this function deletes the test IdP from the test env.  (it should probably not do
