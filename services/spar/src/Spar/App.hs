@@ -34,7 +34,7 @@ import GHC.Stack
 import SAML2.Util (renderURI)
 import SAML2.WebSSO hiding (UserRef(..))
 import Servant
-import Spar.API.Instances ()
+import Spar.Orphans ()
 import Spar.API.Swagger ()
 import Spar.Error
 import Spar.Types
@@ -233,7 +233,7 @@ verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -
 verdictHandlerResult bindCky = \case
   denied@(SAML.AccessDenied reasons) -> do
     SAML.logger SAML.Debug (show denied)
-    pure $ VerifyHandlerDenied reasons
+    pure . VerifyHandlerDenied $ explainDeniedReason <$> reasons
 
   granted@(SAML.AccessGranted userref) -> do
     uid :: UserId <- do

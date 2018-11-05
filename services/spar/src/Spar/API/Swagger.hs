@@ -29,7 +29,7 @@ import "swagger2" Data.Swagger hiding (Header(..))
   -- clash other than -XPackageImports.
 import Servant
 import Servant.Swagger
-import Spar.API.Instances ()
+import Spar.Orphans ()
 import Spar.Types
 
 import qualified Data.Swagger.SchemaOptions as Swagger
@@ -133,9 +133,6 @@ instance ToSchema SAML.Issuer where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
 instance ToSchema SAML.Time where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
-instance ToSchema SAML.Version where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToSchema X509.SignedCertificate where

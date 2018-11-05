@@ -21,7 +21,6 @@ module Spar.API.Types where
 
 import Data.Id
 import Data.Proxy
-import Data.String.Conversions
 import Servant
 import Servant.Multipart
 import Spar.Types
@@ -78,10 +77,6 @@ type APIAuthReq
 
 data DoInitiate = DoInitiateLogin | DoInitiateBind
   deriving (Eq, Show, Bounded, Enum)
-
-doInitiatePath :: DoInitiate -> [ST]
-doInitiatePath DoInitiateLogin = ["sso", "initiate-login"]
-doInitiatePath DoInitiateBind  = ["sso-initiate-bind"]
 
 type WithBindCookie = Headers '[Servant.Header "Set-Cookie" BindCookie]
 

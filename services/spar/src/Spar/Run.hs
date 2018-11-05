@@ -31,10 +31,10 @@ import Data.String (fromString)
 import Network.Wai (Application)
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Spar.API (app)
-import Spar.API.Instances ()
 import Spar.API.Swagger ()
 import Spar.App
 import Spar.Data.Instances ()
+import Spar.Orphans ()
 import Spar.Types as Types
 import System.Logger (Logger)
 import Util.Options (casEndpoint, casKeyspace, epHost, epPort)

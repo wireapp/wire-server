@@ -46,7 +46,7 @@ import GHC.Stack
 import OpenSSL.Random (randBytes)
 import Servant
 import Servant.Swagger
-import Spar.API.Instances ()
+import Spar.Orphans ()
 import Spar.API.Swagger ()
 import Spar.API.Types
 import Spar.App

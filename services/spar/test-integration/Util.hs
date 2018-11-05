@@ -468,6 +468,10 @@ negotiateAuthnRequest = negotiateAuthnRequest' DoInitiateLogin Nothing id >>= \c
     then pure (idp, creds, req)
     else error $ "unexpected bind cookie: " <> show cky
 
+doInitiatePath :: DoInitiate -> [ST]
+doInitiatePath DoInitiateLogin = ["sso", "initiate-login"]
+doInitiatePath DoInitiateBind  = ["sso-initiate-bind"]
+
 negotiateAuthnRequest'
   :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
   => DoInitiate -> Maybe IdP -> (Request -> Request) -> m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SBS)
