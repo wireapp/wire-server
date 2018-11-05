@@ -233,7 +233,7 @@ specFinalizeLogin = do
 
 
 specBindingUsers :: SpecWith TestEnv
-specBindingUsers = xdescribe "binding existing users to sso identities" $ do
+specBindingUsers = describe "binding existing users to sso identities" $ do
     describe "HEAD /sso/initiate-bind/:idp" $ do
       context "known IdP, running session with non-sso user" $ do
         it "responds with 200" $ do
