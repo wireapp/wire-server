@@ -34,6 +34,7 @@ import GHC.Stack
 import SAML2.Util (renderURI)
 import SAML2.WebSSO hiding (UserRef(..))
 import Servant
+import Servant.Server (errReasonPhrase, errBody)
 import Spar.Orphans ()
 import Spar.API.Swagger ()
 import Spar.Error
@@ -43,9 +44,10 @@ import Web.Cookie (SetCookie, renderSetCookie)
 
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
-import qualified Data.Text as ST
 import qualified Data.ByteString.Builder as Builder
+import qualified Data.Text as ST
 import qualified Data.UUID.V4 as UUID
+import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
@@ -226,11 +228,21 @@ verdictHandler cky aresp verdict = do
                -- (this shouldn't happen too often, see 'storeVerdictFormat')
 
 data VerdictHandlerResult
-  = VerifyHandlerDenied [ST]
-  | VerifyHandlerGranted SetCookie UserId
+  = VerifyHandlerGranted SetCookie UserId
+  | VerifyHandlerDenied [ST]
+  | VerifyHandlerError ST ST
+
+catchVerdictErrors :: Spar VerdictHandlerResult -> Spar VerdictHandlerResult
+catchVerdictErrors (Spar act) = Spar (ReaderT (\env -> ExceptT $ runExceptT (act `runReaderT` env) <&> Right . recvr))
+  where
+    recvr :: Either SparError VerdictHandlerResult -> VerdictHandlerResult
+    recvr (Right v) = v
+    recvr (Left e) = case sparToWaiError e of
+      Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
+      Left (serr :: ServantErr) -> VerifyHandlerError (cs $ errReasonPhrase serr) (cs $ errBody serr)
 
 verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
-verdictHandlerResult bindCky = \case
+verdictHandlerResult bindCky = catchVerdictErrors . \case
   denied@(SAML.AccessDenied reasons) -> do
     SAML.logger SAML.Debug (show denied)
     pure . VerifyHandlerDenied $ explainDeniedReason <$> reasons
@@ -265,16 +277,17 @@ verdictHandlerResult bindCky = \case
 -- - The page broadcasts a message to '*', to be picked up by the app.
 verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Spar SAML.ResponseVerdict
 verdictHandlerWeb = pure . \case
-    VerifyHandlerDenied reasons -> forbiddenPage reasons
     VerifyHandlerGranted cky _uid -> successPage cky
+    VerifyHandlerDenied reasons   -> forbiddenPage "forbidden" reasons
+    VerifyHandlerError lbl msg    -> forbiddenPage lbl [msg]
   where
-    forbiddenPage :: [ST] -> SAML.ResponseVerdict
-    forbiddenPage reasons = ServantErr
+    forbiddenPage :: ST -> [ST] -> SAML.ResponseVerdict
+    forbiddenPage errlbl reasons = ServantErr
       { errHTTPCode     = 200
-      , errReasonPhrase = "forbidden"  -- (not sure what this is used for)
+      , errReasonPhrase = cs errlbl  -- (not sure what this is used for)
       , errBody         = easyHtml $
                           "<head>" <>
-                          "  <title>wire:sso:error:forbidden</title>" <>
+                          "  <title>wire:sso:error:" <> cs errlbl <> "</title>" <>
                           "   <script type=\"text/javascript\">" <>
                           "       const receiverOrigin = '*';" <>
                           "       window.opener.postMessage(" <> Aeson.encode errval <> ", receiverOrigin);" <>
@@ -315,16 +328,19 @@ easyHtml doc =
 -- substituted and the client is redirected accordingly.
 verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> VerdictHandlerResult -> Spar SAML.ResponseVerdict
 verdictHandlerMobile granted denied = \case
-    VerifyHandlerDenied reasons
-      -> mkVerdictDeniedFormatMobile denied "forbidden" &
-         either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage reasons)
     VerifyHandlerGranted cky uid
       -> mkVerdictGrantedFormatMobile granted cky uid &
          either (throwSpar . SparCouldNotSubstituteSuccessURI . cs) (pure . successPage cky)
+    VerifyHandlerDenied reasons
+      -> mkVerdictDeniedFormatMobile denied "forbidden" &
+         either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage "forbidden" reasons)
+    VerifyHandlerError lbl msg
+      -> mkVerdictDeniedFormatMobile denied lbl &
+         either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage lbl [msg])
   where
-    forbiddenPage :: [ST] -> URI.URI -> SAML.ResponseVerdict
-    forbiddenPage errs uri = err303
-      { errReasonPhrase = "forbidden"
+    forbiddenPage :: ST -> [ST] -> URI.URI -> SAML.ResponseVerdict
+    forbiddenPage errlbl errs uri = err303
+      { errReasonPhrase = cs errlbl
       , errHeaders = [ ("Location", cs $ renderURI uri)
                      , ("Content-Type", "application/json")
                      ]

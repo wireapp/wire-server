@@ -8,6 +8,7 @@ module Spar.Error
   , SparCustomError(..)
   , throwSpar
   , sparToServantErr
+  , sparToWaiError
   ) where
 
 import Control.Monad.Except
