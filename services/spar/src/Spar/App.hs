@@ -238,13 +238,13 @@ verdictHandlerResult bindCky = \case
   granted@(SAML.AccessGranted userref) -> do
     uid :: UserId <- do
       SAML.logger SAML.Debug (show granted)
-      fromBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
-      fromSparCass   <- getUser userref
+      viaBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
+      viaSparCass   <- getUser userref
         -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
         -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
         -- idempotent.
 
-      case (fromBindCookie, fromSparCass) of
+      case (viaBindCookie, viaSparCass) of
         (Nothing,  Nothing)   -> createUser userref      -- first sso authentication
         (Nothing,  Just uid)  -> pure uid                -- sso re-authentication
         (Just uid, Nothing)   -> bindUser uid userref    -- bind existing user (non-sso or sso) to ssoid

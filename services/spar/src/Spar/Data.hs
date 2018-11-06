@@ -43,7 +43,6 @@ import Data.Maybe (catMaybes)
 import Data.Misc ((<$$>))
 import Data.String.Conversions
 import Data.Time
-import Data.UUID as UUID
 import Data.X509 (SignedCertificate)
 import GHC.Stack
 import GHC.TypeLits (KnownSymbol)
@@ -226,7 +225,7 @@ insertBindCookie cky uid ttlNDT = do
 
 -- | The counter-part of 'insertBindCookie'.
 lookupBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> m (Maybe UserId)
-lookupBindCookie (UUID.toText -> ckyval) = fmap runIdentity <$> do
+lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) = fmap runIdentity <$> do
   (retry x1 . query1 sel $ params Quorum (Identity ckyval))
   where
     sel :: PrepQuery R (Identity ST) (Identity UserId)

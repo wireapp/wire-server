@@ -120,8 +120,7 @@ spec = do
         uid  <- nextWireId
         cky  <- mkcky
         ()   <- runSparCassWithEnv $ insertBindCookie cky uid 1
-        let Just cval = setBindCookieValue cky
-        muid <- runSparCass $ lookupBindCookie cval
+        muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
         liftIO $ muid `shouldBe` Just uid
 
       context "has timed out" $ do
@@ -130,15 +129,13 @@ spec = do
           cky  <- mkcky
           ()   <- runSparCassWithEnv $ insertBindCookie cky uid 1
           liftIO $ threadDelay 2000000
-          let Just cval = setBindCookieValue cky
-          muid <- runSparCass $ lookupBindCookie cval
+          muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
           liftIO $ muid `shouldBe` Nothing
 
       context "does not exist" $ do
         it "lookupBindCookie returns Nothing" $ do
           cky  <- mkcky
-          let Just cval = setBindCookieValue cky
-          muid <- runSparCass $ lookupBindCookie cval
+          muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
           liftIO $ muid `shouldBe` Nothing
 
 
