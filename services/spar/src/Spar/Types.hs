@@ -48,13 +48,20 @@ data Void
 
 type SetBindCookie = SimpleSetCookie "zbind"
 
-newtype BindCookie = BindCookie { fromBindCookie :: SBS }
+newtype BindCookie = BindCookie { fromBindCookie :: ST }
 
+-- | This instance is used by the 'Cookie' request header parser to extract just the @zbind@ cookie
+-- we're interested in here.
 instance FromHttpApiData BindCookie where
-  parseUrlPiece = pure . BindCookie . cs
+  parseUrlPiece = maybe (Left "no cookie named zbind found") Right . bindCookieFromHeader
+
+bindCookieFromHeader :: ST -> Maybe BindCookie
+bindCookieFromHeader = fmap BindCookie . lookup "zbind" . parseCookiesText . cs
+  -- (we could rewrite this as @SAML.cookieName SetBindCookie@ if 'cookieName'
+  -- accepted any @proxy :: Symbol -> *@ rather than just 'Proxy'.)
 
 setBindCookieValue :: HasCallStack => SetBindCookie -> BindCookie
-setBindCookieValue = BindCookie . setCookieValue . SAML.fromSimpleSetCookie
+setBindCookieValue = BindCookie . cs . setCookieValue . SAML.fromSimpleSetCookie
 
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig TeamId
