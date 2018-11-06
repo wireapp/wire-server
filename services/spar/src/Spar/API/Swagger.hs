@@ -147,7 +147,7 @@ instance ToSchema URI.URI where
 instance ToParamSchema URI.URI where
   toParamSchema _ = toParamSchema (Proxy @String)
 
-instance ToParamSchema (Maybe SetBindCookie) where
+instance ToParamSchema SetBindCookie where
   toParamSchema _ = toParamSchema (Proxy @String)
 
 instance ToSchema Void where

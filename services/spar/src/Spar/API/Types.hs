@@ -78,7 +78,7 @@ type APIAuthReq
 data DoInitiate = DoInitiateLogin | DoInitiateBind
   deriving (Eq, Show, Bounded, Enum)
 
-type WithSetBindCookie = Headers '[Servant.Header "Set-Cookie" (Maybe SetBindCookie)]
+type WithSetBindCookie = Headers '[Servant.Header "Set-Cookie" SetBindCookie]
 
 type APIAuthResp
      = "finalize-login"

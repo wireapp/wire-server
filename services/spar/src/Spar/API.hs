@@ -109,22 +109,22 @@ authreq authreqttl _ zusr msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- SAML.authreq authreqttl sparSPIssuer idpid
   wrapMonadClient $ Data.storeVerdictFormat authreqttl reqid vformat
-  mcky <- initializeBindCookie zusr authreqttl
-  when (isJust mcky) $ do
-    SAML.logger SAML.Debug $ "setting bind cookie: " <> show mcky
-  pure $ addHeader mcky form
+  cky <- initializeBindCookie zusr authreqttl
+  SAML.logger SAML.Debug $ "setting bind cookie: " <> show cky
+  pure $ addHeader cky form
 
--- | *Iff* the user is already authenticated, create bind cookie with 60 minutes life expectancy and
--- our domain, and store it with the bind cookies.  If user already has a 'UserSSOId' (need to ask
--- brig for that), throw an error.
-initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar (Maybe SetBindCookie)
-initializeBindCookie Nothing _ = pure Nothing
-initializeBindCookie (Just userid) authreqttl = Just <$> do
+-- | If the user is already authenticated, create bind cookie with a given life expectancy and our
+-- domain, and store it in C*.  If the user is not authenticated, return a deletion 'SetCookie'
+-- value that deletes any bind cookies on the client.
+initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar SetBindCookie
+initializeBindCookie zusr authreqttl = do
   DerivedOpts path domain <- asks (derivedOpts . sparCtxOpts)
-  secret <- liftIO $ cs . ES.encode <$> randBytes 32
-  cky <- (SAML.toggleCookie path $ Just (secret, authreqttl) :: Spar SetBindCookie)
-         <&> \(SAML.SimpleSetCookie raw) -> SAML.SimpleSetCookie raw { Cky.setCookieDomain = Just domain }
-  wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
+  msecret <- if isJust zusr
+             then liftIO $ Just . cs . ES.encode <$> randBytes 32
+             else pure Nothing
+  let updSetCkyDom (SAML.SimpleSetCookie raw) = SAML.SimpleSetCookie raw { Cky.setCookieDomain = Just domain }
+  cky <- updSetCkyDom <$> (SAML.toggleCookie path $ (, authreqttl) <$> msecret :: Spar SetBindCookie)
+  forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
   pure cky
 
 redirectURLMaxLength :: Int
