@@ -321,7 +321,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           checkDenyingAuthnResp sparresp errorlabel = do
             liftIO $ do
               (cs @_ @String . fromJust . responseBody $ sparresp)
-                `shouldContain` ("<title>wire:sso:" <> cs errorlabel <> "</title>")
+                `shouldContain` ("<title>wire:sso:error:" <> cs errorlabel <> "</title>")
               responseHeaders sparresp
                 `shouldSatisfy` (isNothing . lookup "set-cookie")
 
@@ -431,11 +431,11 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           checkDenyingAuthnResp sparresp "bad-team"
 
       describe "cookie corner cases" $ do
-        let check :: (SBS -> Maybe SBS) -> Either ST () -> SpecWith TestEnv
-            check tweakcookie outcome = do
+        let check :: HasCallStack => (SBS -> Maybe SBS) -> Either ST () -> SpecWith TestEnv
+            check tweakcookies outcome = do
               it (either (const "denies") (const "grants") outcome) $ do
                 (uid, _, idp) <- createTestIdP
-                (_, sparrq, sparresp) <- initialBind' tweakcookie uid idp
+                (_, sparrq, sparresp) <- initialBind' tweakcookies uid idp
                 case outcome of
                   Right () -> checkGrantingAuthnResp uid sparrq sparresp
                   Left msg -> checkDenyingAuthnResp sparresp msg
@@ -447,9 +447,10 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             addAtEnd = addAtBeginning' reverse
 
             addAtBeginning' :: (Cky.Cookies -> Cky.Cookies) -> Cky.SetCookie -> SBS -> SBS
-            addAtBeginning' tweak cky = cs . LB.toLazyByteString . Cky.renderCookies
-                                        . tweak . ((Cky.setCookieName cky, Cky.setCookieValue cky):) . tweak
-                                        . Cky.parseCookies
+            addAtBeginning' tweak cky
+              = cs . LB.toLazyByteString . Cky.renderCookies
+                . tweak . ((Cky.setCookieName cky, Cky.setCookieValue cky):) . tweak
+                . Cky.parseCookies
 
             cky1, cky2, cky3 :: Cky.SetCookie
             cky1 = Cky.def { Cky.setCookieName = "cky1", Cky.setCookieValue = "val1" }
@@ -472,14 +473,14 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           check (\bindcky -> Just . addAtEnd cky1 . addAtEnd cky2 . addAtBeginning cky3 $ bindcky) (Right ())
 
 
--- | FUTUREWORK: this function deletes the test IdP from the test env.  (it should probably not do
--- that, so other tests after this can still use it.)
+-- | FUTUREWORK: this function deletes the test IdP from the test env.  it should probably not do
+-- that, so other tests after this can still use it.
 specCRUDIdentityProvider :: SpecWith TestEnv
 specCRUDIdentityProvider = do
-    let checkErr :: (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
+    let checkErr :: HasCallStack => (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
         checkErr statusIs label resp = statusIs (statusCode resp) && responseJSON resp == Right label
 
-        testGetPutDelete :: (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
+        testGetPutDelete :: HasCallStack => (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
         testGetPutDelete whichone = do
           context "unknown IdP" $ do
             it "responds with 'not found'" $ do
