@@ -293,26 +293,27 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
     describe "POST /sso/finalize-login" $ do
       let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
-          checkGrantingAuthnResp uid spararesp aresp = do
+          checkGrantingAuthnResp uid sparrq sparresp = do
             liftIO $ do
-              (cs @_ @String . fromJust . responseBody $ aresp)
+              (cs @_ @String . fromJust . responseBody $ sparresp)
                 `shouldContain` "<title>wire:sso:success</title>"
-              responseHeaders aresp
+              responseHeaders sparresp
                 `shouldSatisfy` (isJust . lookup "set-cookie")  -- (this is the wire cookie, not the bind cookie)
 
-            ssoidViaAuthResp <- getSsoidViaAuthResp spararesp
+            ssoidViaAuthResp <- getSsoidViaAuthResp sparrq
             ssoidViaSelf <- getSsoidViaSelf uid
 
             liftIO $ ('s', ssoidViaSelf) `shouldBe` ('s', ssoidViaAuthResp)
             Just uidViaSpar <- ssoToUidSpar ssoidViaAuthResp
             liftIO $ ('u', uidViaSpar) `shouldBe` ('u', uid)
 
-          checkDenyingAuthnResp :: Bilge.Response (Maybe LBS) -> ST -> TestSpar ()
-          checkDenyingAuthnResp sparAuthnResp errorlabel = do
-            _ -- TODO: no!  this must be an html page containg the error label, we're still in web client mode!
+          checkDenyingAuthnResp :: ResponseLBS -> ST -> TestSpar ()
+          checkDenyingAuthnResp sparresp errorlabel = do
             liftIO $ do
-              statusCode sparAuthnResp `shouldBe` 403
-              responseJSON sparAuthnResp `shouldBe` Right (TestErrorLabel errorlabel)
+              (cs @_ @String . fromJust . responseBody $ sparresp)
+                `shouldContain` ("<title>wire:sso:" <> cs errorlabel <> "</title>")
+              responseHeaders sparresp
+                `shouldSatisfy` (isNothing . lookup "set-cookie")
 
           getSsoidViaAuthResp :: SignedAuthnResponse -> TestSpar UserSSOId
           getSsoidViaAuthResp aresp = do
@@ -390,17 +391,17 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
       context "re-bind to same UserRef" $ do
         it "allowed" $ do
-          (uid, _, idp)              <- createTestIdP
-          (subj, _, _)               <- initialBind uid idp
-          (authnResp, sparAuthnResp) <- reBindSame uid idp subj
-          checkGrantingAuthnResp uid authnResp sparAuthnResp
+          (uid, _, idp)      <- createTestIdP
+          (subj, _, _)       <- initialBind uid idp
+          (sparrq, sparresp) <- reBindSame uid idp subj
+          checkGrantingAuthnResp uid sparrq sparresp
 
       context "re-bind to new UserRef from different IdP" $ do
         it "allowed" $ do
-          (uid, _, idp)              <- createTestIdP
-          _                          <- initialBind uid idp
-          (authnResp, sparAuthnResp) <- reBindDifferent uid
-          checkGrantingAuthnResp uid authnResp sparAuthnResp
+          (uid, _, idp)      <- createTestIdP
+          _                  <- initialBind uid idp
+          (sparrq, sparresp) <- reBindDifferent uid
+          checkGrantingAuthnResp uid sparrq sparresp
 
       context "bind to UserRef in use by other wire user" $ do
         it "forbidden" $ do
@@ -409,15 +410,15 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           (subj, _, _)       <- initialBind uid idp
           uid'               <- let Just perms = newPermissions mempty mempty
                                 in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
-          (_, sparAuthnResp) <- reBindSame uid' idp subj
-          checkDenyingAuthnResp sparAuthnResp "subject-id-taken"
+          (_, sparresp)      <- reBindSame uid' idp subj
+          checkDenyingAuthnResp sparresp "subject-id-taken"
 
       context "bind to UserRef from different team" $ do
         it "forbidden" $ do
           (uid, _, _) <- createTestIdP
           (_, _, idp) <- createTestIdP
-          (_, _, sparAuthnResp) <- initialBind uid idp
-          checkDenyingAuthnResp sparAuthnResp "bad-team"
+          (_, _, sparresp) <- initialBind uid idp
+          checkDenyingAuthnResp sparresp "bad-team"
 
       describe "cookie corner cases" $ do
         let check :: (SBS -> Maybe SBS) -> Either ST () -> SpecWith TestEnv
@@ -425,10 +426,10 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
               it (either (const "denies") (const "grants") outcome) $ do
                 env <- ask
                 (uid, teamid, idp) <- createTestIdP
-                (_, authnResp, sparAuthnResp) <- initialBind' tweakcookie uid idp
+                (_, sparrq, sparresp) <- initialBind' tweakcookie uid idp
                 case outcome of
-                  Right () -> checkGrantingAuthnResp uid authnResp sparAuthnResp
-                  Left msg -> checkDenyingAuthnResp sparAuthnResp msg
+                  Right () -> checkGrantingAuthnResp uid sparrq sparresp
+                  Left msg -> checkDenyingAuthnResp sparresp msg
 
         context "with no cookies header in the request" $ do
           check (const Nothing) (Left "no-bind-cookie")
