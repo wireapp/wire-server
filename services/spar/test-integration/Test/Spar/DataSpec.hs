@@ -113,14 +113,15 @@ spec = do
 
 
     describe "BindCookie" $ do
-      let mkcky :: TestSpar BindCookie
+      let mkcky :: TestSpar SetBindCookie
           mkcky = runSimpleSP . SAML.toggleCookie "/" . Just . (, 1) . UUID.toText =<< liftIO UUID.nextRandom
 
       it "insert and get are \"inverses\"" $ do
         uid  <- nextWireId
         cky  <- mkcky
         ()   <- runSparCassWithEnv $ insertBindCookie cky uid 1
-        muid <- runSparCass $ lookupBindCookie cky
+        let Just cval = setBindCookieValue cky
+        muid <- runSparCass $ lookupBindCookie cval
         liftIO $ muid `shouldBe` Just uid
 
       context "has timed out" $ do
@@ -129,13 +130,15 @@ spec = do
           cky  <- mkcky
           ()   <- runSparCassWithEnv $ insertBindCookie cky uid 1
           liftIO $ threadDelay 2000000
-          muid <- runSparCass $ lookupBindCookie cky
+          let Just cval = setBindCookieValue cky
+          muid <- runSparCass $ lookupBindCookie cval
           liftIO $ muid `shouldBe` Nothing
 
       context "does not exist" $ do
         it "lookupBindCookie returns Nothing" $ do
           cky  <- mkcky
-          muid <- runSparCass $ lookupBindCookie cky
+          let Just cval = setBindCookieValue cky
+          muid <- runSparCass $ lookupBindCookie cval
           liftIO $ muid `shouldBe` Nothing
 
 

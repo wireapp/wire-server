@@ -73,15 +73,16 @@ type APIAuthReq
     :> QueryParam "error_redirect" URI.URI
        -- (SAML.APIAuthReq from here on, except for the cookies)
     :> Capture "idp" SAML.IdPId
-    :> Get '[SAML.HTML] (WithBindCookie (SAML.FormRedirect SAML.AuthnRequest))
+    :> Get '[SAML.HTML] (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
 
 data DoInitiate = DoInitiateLogin | DoInitiateBind
   deriving (Eq, Show, Bounded, Enum)
 
-type WithBindCookie = Headers '[Servant.Header "Set-Cookie" (Maybe BindCookie)]
+type WithSetBindCookie = Headers '[Servant.Header "Set-Cookie" (Maybe SetBindCookie)]
 
 type APIAuthResp
      = "finalize-login"
+    :> Header "Cookie" BindCookie
        -- (SAML.APIAuthResp from here on, except for response)
     :> MultipartForm Mem SAML.AuthnResponseBody
     :> Post '[PlainText] Void

@@ -102,7 +102,7 @@ authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
                                 *> return NoContent
 
 authreq :: NominalDiffTime -> DoInitiate -> Maybe UserId -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId
-        -> Spar (WithBindCookie (SAML.FormRedirect SAML.AuthnRequest))
+        -> Spar (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
 authreq _ DoInitiateLogin (Just _) _ _ _ = throwSpar SparInitLoginWithAuth
 authreq _ DoInitiateBind Nothing _ _ _   = throwSpar SparInitBindWithoutAuth
 authreq authreqttl _ zusr msucc merr idpid = do
@@ -117,12 +117,12 @@ authreq authreqttl _ zusr msucc merr idpid = do
 -- | *Iff* the user is already authenticated, create bind cookie with 60 minutes life expectancy and
 -- our domain, and store it with the bind cookies.  If user already has a 'UserSSOId' (need to ask
 -- brig for that), throw an error.
-initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar (Maybe BindCookie)
+initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar (Maybe SetBindCookie)
 initializeBindCookie Nothing _ = pure Nothing
 initializeBindCookie (Just userid) authreqttl = Just <$> do
   DerivedOpts path domain <- asks (derivedOpts . sparCtxOpts)
   secret <- liftIO $ cs . ES.encode <$> randBytes 32
-  cky <- (SAML.toggleCookie path $ Just (secret, authreqttl) :: Spar BindCookie)
+  cky <- (SAML.toggleCookie path $ Just (secret, authreqttl) :: Spar SetBindCookie)
          <&> \(SAML.SimpleSetCookie raw) -> SAML.SimpleSetCookie raw { Cky.setCookieDomain = Just domain }
   wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
   pure cky
@@ -146,9 +146,9 @@ validateRedirectURL uri = do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
 
-authresp :: SAML.AuthnResponseBody -> Spar Void
-authresp = SAML.authresp sparSPIssuer sparResponseURI $
-  \resp verdict -> throwError . SAML.CustomServant =<< verdictHandler Nothing resp verdict
+authresp :: Maybe BindCookie -> SAML.AuthnResponseBody -> Spar Void
+authresp cky = SAML.authresp sparSPIssuer sparResponseURI $
+  \resp verdict -> throwError . SAML.CustomServant =<< verdictHandler cky resp verdict
 
 
 idpGet :: Maybe UserId -> SAML.IdPId -> Spar IdP

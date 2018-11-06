@@ -43,6 +43,7 @@ import Data.Maybe (catMaybes)
 import Data.Misc ((<$$>))
 import Data.String.Conversions
 import Data.Time
+import Data.UUID as UUID
 import Data.X509 (SignedCertificate)
 import GHC.Stack
 import GHC.TypeLits (KnownSymbol)
@@ -213,7 +214,7 @@ getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
 -- | Associate the value of a 'BindCookie' with its 'UserId'.  The 'TTL' of this entry should be the
 -- same as the one of the 'AuthnRequest' sent with the cookie.
 insertBindCookie :: (HasCallStack, MonadClient m, MonadReader Env m, MonadError TTLError m)
-                 => BindCookie -> UserId -> NominalDiffTime -> m ()
+                 => SetBindCookie -> UserId -> NominalDiffTime -> m ()
 insertBindCookie cky uid ttlNDT = do
   env <- ask
   TTL ttlInt32 <- mkTTLAuthnRequestsNDT env ttlNDT
@@ -225,8 +226,7 @@ insertBindCookie cky uid ttlNDT = do
 
 -- | The counter-part of 'insertBindCookie'.
 lookupBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> m (Maybe UserId)
-lookupBindCookie cky = fmap runIdentity <$> do
-  let ckyval = cs . Cky.setCookieValue . SAML.fromSimpleSetCookie $ cky
+lookupBindCookie (UUID.toText -> ckyval) = fmap runIdentity <$> do
   (retry x1 . query1 sel $ params Quorum (Identity ckyval))
   where
     sel :: PrepQuery R (Identity ST) (Identity UserId)

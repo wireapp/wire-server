@@ -27,7 +27,9 @@ import Data.String.Conversions
 import Data.String.Conversions (ST)
 import Data.Text (Text)
 import Data.Time
+import Data.UUID as UUID
 import GHC.Generics
+import GHC.Stack
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
 import SAML2.Util (renderURI, parseURI')
@@ -44,7 +46,11 @@ import qualified SAML2.WebSSO as SAML
 
 data Void
 
-type BindCookie = SimpleSetCookie "zbind"
+type SetBindCookie = SimpleSetCookie "zbind"
+type BindCookie = UUID.UUID
+
+setBindCookieValue :: HasCallStack => SetBindCookie -> Maybe BindCookie
+setBindCookieValue = UUID.fromText . cs . setCookieValue . SAML.fromSimpleSetCookie
 
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig TeamId
