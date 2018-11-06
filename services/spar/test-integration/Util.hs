@@ -89,7 +89,7 @@ import Data.UUID.V4 as UUID (nextRandom)
 import GHC.Stack (HasCallStack)
 import Network.HTTP.Client.MultipartFormData
 import Prelude hiding (head)
-import SAML2.WebSSO
+import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Credentials
 import SAML2.WebSSO.Test.MockResponse
 import Spar.API.Types
@@ -107,12 +107,12 @@ import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64.Lazy as EL
+import qualified Data.ByteString.Builder as LB
 import qualified Data.Text.Ascii as Ascii
 import qualified Galley.Types.Teams as Galley
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified SAML2.WebSSO.API.Example as SAML
-import qualified SAML2.WebSSO as SAML
 import qualified Spar.App as Spar
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
@@ -441,9 +441,7 @@ createTestIdPFrom metadata mgr brig galley spar = do
 -- "wire.com=; Path=/sso/finalize-login; Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure"
 isDeleteBindCookieHeader :: HasCallStack => Maybe SBS -> Bool
 isDeleteBindCookieHeader Nothing = True  -- we don't expect this, but it's ok if the implementation changes to it.
-isDeleteBindCookieHeader (Just txt)
-  | "Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1" `SBS.isInfixOf` txt = True
-  | otherwise = error $ "unexpected bind cookie: " <> show txt
+isDeleteBindCookieHeader (Just txt) = "Expires=Thu, 01-Jan-1970 00:00:00 GMT" `SBS.isInfixOf` txt
 
 hasDeleteBindCookieHeader :: HasCallStack => Bilge.Response a -> Bool
 hasDeleteBindCookieHeader = isDeleteBindCookieHeader . lookup "Set-Cookie" . responseHeaders
@@ -464,9 +462,12 @@ hasSetBindCookieHeader = isSetBindCookieHeader . lookup "Set-Cookie" . responseH
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
 negotiateAuthnRequest = negotiateAuthnRequest' DoInitiateLogin Nothing id >>= \case
-  (idp, creds, req, cky) -> if isDeleteBindCookieHeader cky
+  (idp, creds, req, cky) -> if isDeleteBindCookieHeader (rndr <$> cky)
     then pure (idp, creds, req)
     else error $ "unexpected bind cookie: " <> show cky
+  where
+    rndr :: SetBindCookie -> SBS
+    rndr = cs . LB.toLazyByteString . Web.renderSetCookie . SAML.fromSimpleSetCookie
 
 doInitiatePath :: DoInitiate -> [ST]
 doInitiatePath DoInitiateLogin = ["sso", "initiate-login"]
@@ -474,7 +475,7 @@ doInitiatePath DoInitiateBind  = ["sso-initiate-bind"]
 
 negotiateAuthnRequest'
   :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-  => DoInitiate -> Maybe IdP -> (Request -> Request) -> m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SBS)
+  => DoInitiate -> Maybe IdP -> (Request -> Request) -> m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SetBindCookie)
 negotiateAuthnRequest' (doInitiatePath -> doInit) midp modreq = do
   env <- ask
   let idp = fromMaybe (env ^. teIdP) midp
@@ -486,7 +487,8 @@ negotiateAuthnRequest' (doInitiatePath -> doInit) midp modreq = do
            . expect2xx
            )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
-  let wireCookie = lookup "Set-Cookie" $ responseHeaders resp
+  let wireCookie = SAML.SimpleSetCookie . Web.parseSetCookie
+                     <$> lookup "Set-Cookie" (responseHeaders resp)
   pure (idp, sampleIdPPrivkey, authnreq, wireCookie)
 
 

@@ -363,7 +363,9 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           initialBind :: HasCallStack => UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
           initialBind = initialBind' Just
 
-          initialBind' :: HasCallStack => (SBS -> Maybe SBS) -> UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
+          initialBind'
+            :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies)
+            -> UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
           initialBind' tweakcookies uid idp = do
             subj <- SAML.opaqueNameID . UUID.toText <$> liftIO UUID.nextRandom
             (authnResp, sparAuthnResp) <- reBindSame' tweakcookies uid idp subj
@@ -372,14 +374,16 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           reBindSame :: HasCallStack => UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
           reBindSame = reBindSame' Just
 
-          reBindSame' :: HasCallStack => (SBS -> Maybe SBS) -> UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
+          reBindSame'
+            :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies)
+            -> UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
           reBindSame' tweakcookies uid idp subj = do
-            (_, privCreds, authnReq, Just bindCky) <- do
+            (_, privCreds, authnReq, Just (SimpleSetCookie bindCky)) <- do
               negotiateAuthnRequest' DoInitiateBind (Just idp) (header "Z-User" $ toByteString' uid)
             spmeta <- getTestSPMetadata
             authnResp <- runSimpleSP $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
-            let cookiehdr = case tweakcookies bindCky of
-                  Just val -> header "Cookie" val
+            let cookiehdr = case tweakcookies [(Cky.setCookieName bindCky, Cky.setCookieValue bindCky)] of
+                  Just val -> header "Cookie" . cs . LB.toLazyByteString $ Cky.renderCookies val
                   Nothing  -> id
             sparAuthnResp :: ResponseLBS
               <- submitAuthnResponse' cookiehdr authnResp
@@ -431,7 +435,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           checkDenyingAuthnResp sparresp "bad-team"
 
       describe "cookie corner cases" $ do
-        let check :: HasCallStack => (SBS -> Maybe SBS) -> Either ST () -> SpecWith TestEnv
+        let check :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies) -> Either ST () -> SpecWith TestEnv
             check tweakcookies outcome = do
               it (either (const "denies") (const "grants") outcome) $ do
                 (uid, _, idp) <- createTestIdP
@@ -440,17 +444,11 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                   Right () -> checkGrantingAuthnResp uid sparrq sparresp
                   Left msg -> checkDenyingAuthnResp sparresp msg
 
-            addAtBeginning :: Cky.SetCookie -> SBS -> SBS
-            addAtBeginning = addAtBeginning' id
+            addAtBeginning :: Cky.SetCookie -> Cky.Cookies -> Cky.Cookies
+            addAtBeginning cky = ((Cky.setCookieName cky, Cky.setCookieValue cky):)
 
-            addAtEnd :: Cky.SetCookie -> SBS -> SBS
-            addAtEnd = addAtBeginning' reverse
-
-            addAtBeginning' :: (Cky.Cookies -> Cky.Cookies) -> Cky.SetCookie -> SBS -> SBS
-            addAtBeginning' tweak cky
-              = cs . LB.toLazyByteString . Cky.renderCookies
-                . tweak . ((Cky.setCookieName cky, Cky.setCookieValue cky):) . tweak
-                . Cky.parseCookies
+            addAtEnd :: Cky.SetCookie -> Cky.Cookies -> Cky.Cookies
+            addAtEnd cky = addAtBeginning cky . reverse
 
             cky1, cky2, cky3 :: Cky.SetCookie
             cky1 = Cky.def { Cky.setCookieName = "cky1", Cky.setCookieValue = "val1" }
