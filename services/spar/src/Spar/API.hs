@@ -146,8 +146,8 @@ validateRedirectURL uri = do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
 
-authresp :: Maybe BindCookie -> SAML.AuthnResponseBody -> Spar Void
-authresp cky = SAML.authresp sparSPIssuer sparResponseURI $
+authresp :: Maybe ST -> SAML.AuthnResponseBody -> Spar Void
+authresp ((>>= bindCookieFromHeader) -> cky) = SAML.authresp sparSPIssuer sparResponseURI $
   \resp verdict -> throwError . SAML.CustomServant =<< verdictHandler cky resp verdict
 
 

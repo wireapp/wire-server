@@ -21,6 +21,7 @@ module Spar.API.Types where
 
 import Data.Id
 import Data.Proxy
+import Data.String.Conversions (ST)
 import Servant
 import Servant.Multipart
 import Spar.Types
@@ -82,7 +83,7 @@ type WithSetBindCookie = Headers '[Servant.Header "Set-Cookie" SetBindCookie]
 
 type APIAuthResp
      = "finalize-login"
-    :> Header "Cookie" BindCookie
+    :> Header "Cookie" ST
        -- (SAML.APIAuthResp from here on, except for response)
     :> MultipartForm Mem SAML.AuthnResponseBody
     :> Post '[PlainText] Void

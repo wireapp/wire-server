@@ -34,7 +34,6 @@ import GHC.Types (Symbol)
 import SAML2.Util (renderURI, parseURI')
 import SAML2.WebSSO (IdPConfig, ID, AuthnRequest, Assertion, SimpleSetCookie)
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
-import Servant (FromHttpApiData, parseUrlPiece)
 import URI.ByteString
 import Util.Options
 import Web.Cookie
@@ -50,11 +49,7 @@ type SetBindCookie = SimpleSetCookie "zbind"
 
 newtype BindCookie = BindCookie { fromBindCookie :: ST }
 
--- | This instance is used by the 'Cookie' request header parser to extract just the @zbind@ cookie
--- we're interested in here.
-instance FromHttpApiData BindCookie where
-  parseUrlPiece = maybe (Left "no cookie named zbind found") Right . bindCookieFromHeader
-
+-- | Extract @zbind@ cookie from HTTP header contents if it exists.
 bindCookieFromHeader :: ST -> Maybe BindCookie
 bindCookieFromHeader = fmap BindCookie . lookup "zbind" . parseCookiesText . cs
   -- (we could rewrite this as @SAML.cookieName SetBindCookie@ if 'cookieName'
