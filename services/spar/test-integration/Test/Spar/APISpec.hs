@@ -426,8 +426,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         let check :: (SBS -> Maybe SBS) -> Either ST () -> SpecWith TestEnv
             check tweakcookie outcome = do
               it (either (const "denies") (const "grants") outcome) $ do
-                env <- ask
-                (uid, teamid, idp) <- createTestIdP
+                (uid, _, idp) <- createTestIdP
                 (_, sparrq, sparresp) <- initialBind' tweakcookie uid idp
                 case outcome of
                   Right () -> checkGrantingAuthnResp uid sparrq sparresp
