@@ -33,7 +33,9 @@ import URI.ByteString.QQ (uri)
 import Util
 
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Builder as LB
 import qualified Spar.Intra.Brig as Intra
+import qualified Web.Cookie as Cky
 
 
 spec :: SpecWith TestEnv
@@ -431,6 +433,22 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                   Right () -> checkGrantingAuthnResp uid sparrq sparresp
                   Left msg -> checkDenyingAuthnResp sparresp msg
 
+            addAtBeginning :: Cky.SetCookie -> SBS -> SBS
+            addAtBeginning = addAtBeginning' id
+
+            addAtEnd :: Cky.SetCookie -> SBS -> SBS
+            addAtEnd = addAtBeginning' reverse
+
+            addAtBeginning' :: (Cky.Cookies -> Cky.Cookies) -> Cky.SetCookie -> SBS -> SBS
+            addAtBeginning' tweak cky = cs . LB.toLazyByteString . Cky.renderCookies
+                                        . tweak . ((Cky.setCookieName cky, Cky.setCookieValue cky):) . tweak
+                                        . Cky.parseCookies
+
+            cky1, cky2, cky3 :: Cky.SetCookie
+            cky1 = Cky.def { Cky.setCookieName = "cky1", Cky.setCookieValue = "val1" }
+            cky2 = Cky.def { Cky.setCookieName = "cky2", Cky.setCookieValue = "val2" }
+            cky3 = Cky.def { Cky.setCookieName = "cky3", Cky.setCookieValue = "val3" }
+
         context "with no cookies header in the request" $ do
           check (const Nothing) (Left "no-bind-cookie")
 
@@ -438,13 +456,13 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           check (const $ Just mempty) (Left "no-bind-cookie")
 
         context "with no bind cookie and one other cookie in the request" $ do
-          check _ (Left "no-bind-cookie")
+          check (\_ -> Just $ addAtBeginning cky1 mempty) (Left "no-bind-cookie")
 
         context "with bind cookie and one other cookie in the request" $ do
-          check _ (Right ())
+          check (\bindcky -> Just $ addAtBeginning cky1 bindcky) (Right ())
 
         context "with bind cookie and two other cookies in the request" $ do
-          check _ (Right ())
+          check (\bindcky -> Just . addAtEnd cky1 . addAtEnd cky2 . addAtBeginning cky3 $ bindcky) (Right ())
 
 
 -- | FUTUREWORK: this function deletes the test IdP from the test env.  (it should probably not do
