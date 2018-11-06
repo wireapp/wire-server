@@ -12,6 +12,7 @@ module Test.Spar.APISpec (spec) where
 
 import Bilge
 import Brig.Types.User
+import Cassandra (runClient)
 import Control.Lens
 import Control.Monad.Reader
 import Control.Retry
@@ -34,6 +35,7 @@ import Util
 
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Builder as LB
+import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Web.Cookie as Cky
 
@@ -333,22 +335,30 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
           getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
           getSsoidViaSelf uid = do
+            let probe :: HasCallStack => TestSpar (Maybe UserSSOId)
+                probe = do
+                  env <- ask
+                  fmap getUserSSOId . call . get $
+                    ( (env ^. teBrig)
+                    . header "Z-User" (toByteString' uid)
+                    . path "/self"
+                    . expect2xx
+                    )
             env <- ask
             Just ssoid <- liftIO $ retrying
               (exponentialBackoff 50 <> limitRetries 5)
               (\_ -> pure . isNothing)
-              (\_ -> probe uid `runReaderT` env)
+              (\_ -> probe `runReaderT` env)
             pure ssoid
 
-          probe :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
-          probe uid = do
+          getUserIdViaRef :: HasCallStack => UserRef -> TestSpar UserId
+          getUserIdViaRef uref = do
             env <- ask
-            fmap getUserSSOId . call . get $
-              ( (env ^. teBrig)
-              . header "Z-User" (toByteString' uid)
-              . path "/self"
-              . expect2xx
-              )
+            Just ssoid <- liftIO $ retrying
+              (exponentialBackoff 50 <> limitRetries 5)
+              (\_ -> pure . isNothing)
+              (\_ -> runClient (env ^. teCql) $ Data.getUser uref)
+            pure ssoid
 
           getUserSSOId :: HasCallStack => ResponseLBS -> Maybe UserSSOId
           getUserSSOId (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
@@ -435,14 +445,22 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           checkDenyingAuthnResp sparresp "bad-team"
 
       describe "cookie corner cases" $ do
-        let check :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies) -> Either ST () -> SpecWith TestEnv
-            check tweakcookies outcome = do
-              it (either (const "denies") (const "grants") outcome) $ do
+        -- attempt to bind with different 'Cookie' headers in the request to finalize-login.  if the
+        -- zbind cookie cannot be found, the user is created from scratch, and the old, existing one
+        -- is "detached".  if the zbind cookie is found, the binding is successful.
+        let check :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies) -> Bool -> SpecWith TestEnv
+            check tweakcookies bindsucceeds = do
+              it (if bindsucceeds then "binds existing user" else "creates new user") $ do
                 (uid, _, idp) <- createTestIdP
-                (_, sparrq, sparresp) <- initialBind' tweakcookies uid idp
-                case outcome of
-                  Right () -> checkGrantingAuthnResp uid sparrq sparresp
-                  Left msg -> checkDenyingAuthnResp sparresp msg
+                (subj :: NameID, sparrq, sparresp) <- initialBind' tweakcookies uid idp
+                uid' <- getUserIdViaRef $ UserRef (idp ^. idpMetadata . edIssuer) subj
+                if bindsucceeds
+                  then do
+                    liftIO $ uid' `shouldBe` uid
+                    checkGrantingAuthnResp uid sparrq sparresp
+                  else do
+                    liftIO $ uid' `shouldNotBe` uid
+                    checkGrantingAuthnResp uid' sparrq sparresp
 
             addAtBeginning :: Cky.SetCookie -> Cky.Cookies -> Cky.Cookies
             addAtBeginning cky = ((Cky.setCookieName cky, Cky.setCookieValue cky):)
@@ -456,19 +474,19 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             cky3 = Cky.def { Cky.setCookieName = "cky3", Cky.setCookieValue = "val3" }
 
         context "with no cookies header in the request" $ do
-          check (const Nothing) (Left "no-bind-cookie")
+          check (const Nothing) False
 
         context "with empty cookies header in the request" $ do
-          check (const $ Just mempty) (Left "no-bind-cookie")
+          check (const $ Just mempty) False
 
         context "with no bind cookie and one other cookie in the request" $ do
-          check (\_ -> Just $ addAtBeginning cky1 mempty) (Left "no-bind-cookie")
+          check (\_ -> Just $ addAtBeginning cky1 mempty) False
 
         context "with bind cookie and one other cookie in the request" $ do
-          check (\bindcky -> Just $ addAtBeginning cky1 bindcky) (Right ())
+          check (\bindcky -> Just $ addAtBeginning cky1 bindcky) True
 
         context "with bind cookie and two other cookies in the request" $ do
-          check (\bindcky -> Just . addAtEnd cky1 . addAtEnd cky2 . addAtBeginning cky3 $ bindcky) (Right ())
+          check (\bindcky -> Just . addAtEnd cky1 . addAtEnd cky2 . addAtBeginning cky3 $ bindcky) True
 
 
 -- | FUTUREWORK: this function deletes the test IdP from the test env.  it should probably not do
