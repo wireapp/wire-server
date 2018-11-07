@@ -306,11 +306,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
     describe "POST /sso/finalize-login" $ do
       let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
           checkGrantingAuthnResp uid sparrq sparresp = do
-            liftIO $ do
-              (cs @_ @String . fromJust . responseBody $ sparresp)
-                `shouldContain` "<title>wire:sso:success</title>"
-              responseHeaders sparresp
-                `shouldSatisfy` (isJust . lookup "set-cookie")  -- (this is the wire cookie, not the bind cookie)
+            checkGrantingAuthnResp' sparresp
 
             ssoidViaAuthResp <- getSsoidViaAuthResp sparrq
             ssoidViaSelf <- getSsoidViaSelf uid
@@ -318,6 +314,14 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             liftIO $ ('s', ssoidViaSelf) `shouldBe` ('s', ssoidViaAuthResp)
             Just uidViaSpar <- ssoToUidSpar ssoidViaAuthResp
             liftIO $ ('u', uidViaSpar) `shouldBe` ('u', uid)
+
+          checkGrantingAuthnResp' :: HasCallStack => ResponseLBS -> TestSpar ()
+          checkGrantingAuthnResp' sparresp = do
+            liftIO $ do
+              (cs @_ @String . fromJust . responseBody $ sparresp)
+                `shouldContain` "<title>wire:sso:success</title>"
+              responseHeaders sparresp
+                `shouldSatisfy` (isJust . lookup "set-cookie")  -- (this is the wire cookie, not the bind cookie)
 
           checkDenyingAuthnResp :: HasCallStack => ResponseLBS -> ST -> TestSpar ()
           checkDenyingAuthnResp sparresp errorlabel = do
@@ -393,7 +397,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             spmeta <- getTestSPMetadata
             authnResp <- runSimpleSP $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
             let cookiehdr = case tweakcookies [(Cky.setCookieName bindCky, Cky.setCookieValue bindCky)] of
-                  Just val -> header "Cookie" . cs . LB.toLazyByteString $ Cky.renderCookies val
+                  Just val -> header "Cookie" . cs . LB.toLazyByteString . Cky.renderCookies $ val
                   Nothing  -> id
             sparAuthnResp :: ResponseLBS
               <- submitAuthnResponse' cookiehdr authnResp
@@ -444,7 +448,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           (_, _, sparresp) <- initialBind uid idp
           checkDenyingAuthnResp sparresp "bad-team"
 
-      describe "cookie corner cases" $ do
+      describe "### cookie corner cases" $ do
         -- attempt to bind with different 'Cookie' headers in the request to finalize-login.  if the
         -- zbind cookie cannot be found, the user is created from scratch, and the old, existing one
         -- is "detached".  if the zbind cookie is found, the binding is successful.
@@ -453,14 +457,14 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
               it (if bindsucceeds then "binds existing user" else "creates new user") $ do
                 (uid, _, idp) <- createTestIdP
                 (subj :: NameID, sparrq, sparresp) <- initialBind' tweakcookies uid idp
+                checkGrantingAuthnResp' sparresp
+
                 uid' <- getUserIdViaRef $ UserRef (idp ^. idpMetadata . edIssuer) subj
-                if bindsucceeds
-                  then do
-                    liftIO $ uid' `shouldBe` uid
-                    checkGrantingAuthnResp uid sparrq sparresp
-                  else do
-                    liftIO $ uid' `shouldNotBe` uid
-                    checkGrantingAuthnResp uid' sparrq sparresp
+                checkGrantingAuthnResp uid' sparrq sparresp
+                liftIO $ if bindsucceeds
+                  then uid' `shouldBe` uid
+                  else uid' `shouldNotBe` uid
+                liftIO $ (if bindsucceeds then shouldBe else shouldNotBe) uid' uid
 
             addAtBeginning :: Cky.SetCookie -> Cky.Cookies -> Cky.Cookies
             addAtBeginning cky = ((Cky.setCookieName cky, Cky.setCookieValue cky):)

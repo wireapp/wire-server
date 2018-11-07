@@ -41,7 +41,7 @@ dependencies:
   - optparse-applicative
   - raw-strings-qq
   - retry
-  - saml2-web-sso >= 0.17
+  - saml2-web-sso >= 0.18
   - scientific
   - servant
   - servant-multipart
