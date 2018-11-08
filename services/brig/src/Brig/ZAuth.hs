@@ -61,9 +61,8 @@ module Brig.ZAuth
     , PublicKey
     ) where
 
+import Imports
 import Control.Lens ((^.), makeLenses, over)
-import Control.Monad.IO.Class
-import Control.Monad.Reader
 import Data.Aeson
 import Data.Bits
 import Data.ByteString.Conversion.To
@@ -71,9 +70,7 @@ import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
-import Data.Word
 import Data.ZAuth.Token
-import GHC.Generics
 import OpenSSL.Random
 import Sodium.Crypto.Sign
 
@@ -243,4 +240,3 @@ randomValue :: IO Word32
 randomValue = BS.foldl' f 0 <$> randBytes 4
   where
     f r w = shiftL r 8 .|. fromIntegral w
-

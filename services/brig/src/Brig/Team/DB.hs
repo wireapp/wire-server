@@ -22,6 +22,7 @@ module Brig.Team.DB
     , InvitationInfo (..)
     ) where
 
+import Imports
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
 import Brig.Options
@@ -30,15 +31,9 @@ import Brig.Types.User
 import Brig.Types.Team.Invitation
 import Cassandra
 import UnliftIO.Async.Extended (mapMPooled)
-import Control.Lens
-import Control.Monad.IO.Class
-import Control.Monad.IO.Unlift
-import Control.Monad (void)
 import Data.Id
 import Data.Conduit ((.|), runConduit)
-import Data.Int
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import Data.Maybe (fromMaybe)
 import Data.Range
 import Data.Text.Ascii (encodeBase64Url)
 import Data.UUID.V4

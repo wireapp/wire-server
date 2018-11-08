@@ -3,13 +3,12 @@
 
 module Eval (runCommand) where
 
+import Imports
 import           Brig.User.Search.Index
 import qualified Cassandra              as C
 import qualified Cassandra.Settings     as C
 import           Control.Lens
 import           Control.Monad.Catch
-import           Control.Monad.Reader
-import           Data.Bifunctor
 import qualified Data.Metrics           as Metrics
 import           Data.Text.Strict.Lens
 import qualified Database.V5.Bloodhound as ES
@@ -62,7 +61,7 @@ _ESServer = prism toS fromS
         . set fragmentL mempty
 
     fromS x@(ES.Server s)
-        = first (const x)
+        = set _Left x
         . parseURI strictURIParserOptions
         $ review utf8 s
 
@@ -87,4 +86,3 @@ instance MonadLogger ReindexIO where
     log lvl msg = do
         l <- ReindexIO . lift $ asks idxLogger
         Log.log l lvl msg
-

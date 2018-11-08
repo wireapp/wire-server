@@ -4,14 +4,12 @@
 
 module Brig.User.API.Search (routes) where
 
+import Imports
 import Brig.API.Handler
 import Brig.User.Event
 import Brig.User.Search.Index
-import Control.Monad.Except
 import Data.Id
-import Data.Int
 import Data.Range
-import Data.Text (Text)
 import Data.Predicate
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)

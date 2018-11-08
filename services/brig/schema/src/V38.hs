@@ -3,6 +3,7 @@
 
 module V38 (migration) where
 
+import Imports
 import Cassandra.Schema
 import Text.RawString.QQ
 
@@ -28,4 +29,3 @@ migration = Migration 38 "Add user handles" $ do
     schema' [r|
         alter table user add handle text;
     |]
-

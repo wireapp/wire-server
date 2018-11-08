@@ -2,15 +2,11 @@
 
 module Util.AWS where
 
+import Imports
 import Brig.Types
 import Control.Lens
-import Control.Monad (join)
 import Data.ByteString.Conversion
-import Data.Foldable (for_)
 import Data.Id
-import Data.Maybe
-import Data.Monoid
-import GHC.Stack
 import Test.Tasty.HUnit
 
 import qualified Brig.AWS             as AWS

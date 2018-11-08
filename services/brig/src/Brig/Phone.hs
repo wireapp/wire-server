@@ -22,22 +22,17 @@ module Brig.Phone
     , Phone (..)
     ) where
 
+import Imports
 import Bilge.Retry (httpHandlers)
 import Brig.App
 import Brig.Budget
 import Brig.Types
 import Control.Lens (view)
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Control.Retry
 import Data.Char (isSpace)
-import Data.Foldable (for_)
 import Data.LanguageCodes
-import Data.Monoid
-import Data.Text (Text, isPrefixOf)
 import Data.Time.Clock
-import Data.Typeable (Typeable)
 import Network.HTTP.Client (HttpException, Manager)
 import Ropes.Twilio (LookupDetail (..))
 import System.Logger.Message (val, msg, field, (~~))
@@ -196,7 +191,7 @@ validatePhone (Phone p)
             Left  e -> throwM e
 
 isTestPhone :: Text -> Bool
-isTestPhone = isPrefixOf "+0"
+isTestPhone = Text.isPrefixOf "+0"
 
 --------------------------------------------------------------------------------
 -- SMS Budgeting

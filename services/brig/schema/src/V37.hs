@@ -3,6 +3,7 @@
 
 module V37 (migration) where
 
+import Imports
 import Cassandra.Schema
 import Text.RawString.QQ
 
@@ -16,4 +17,3 @@ migration = Migration 37 "Add budget table" $
             ) with compaction = {'class': 'LeveledCompactionStrategy'}
               and gc_grace_seconds = 0;
     |]
-

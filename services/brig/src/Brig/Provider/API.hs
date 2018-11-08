@@ -15,6 +15,7 @@ module Brig.Provider.API
     , finishDeleteService
     ) where
 
+import Imports
 import Brig.App (settings, AppIO, internalEvents)
 import Brig.API.Error
 import Brig.API.Handler
@@ -34,28 +35,18 @@ import UnliftIO.Async.Extended (mapMPooled)
 import Control.Lens (view, (^.))
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
-import Control.Monad (join, when, unless, (>=>), liftM2)
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
-import Data.Functor (void)
 import Data.ByteString.Conversion
-import Data.Foldable (for_, forM_)
 import Data.Hashable (hash)
 import Data.Id
-import Data.Int
 import Data.List1 (List1 (..))
 import Data.List.NonEmpty (nonEmpty)
-import Data.Maybe
 import Data.Misc (Fingerprint (..), Rsa)
 import Data.Predicate
 import Data.Range
-import Data.String (fromString)
-import Data.Text (Text)
 import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..), AccessRole (..))
 import Galley.Types (OtherMember (..))
 import Galley.Types (Event, userClients)
 import Galley.Types.Bot (newServiceRef, serviceRefProvider, serviceRefId)
-import Data.Traversable (forM)
 import Data.Conduit ((.|), runConduit)
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)

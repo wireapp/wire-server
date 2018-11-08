@@ -5,12 +5,11 @@
 
 module API.User.Onboarding (tests) where
 
+import Imports
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Brig.Types
 import Brig.Types.Intra
-import Control.Monad.IO.Class
-import Data.Maybe
 import Test.Tasty hiding (Timeout)
 import Util
 

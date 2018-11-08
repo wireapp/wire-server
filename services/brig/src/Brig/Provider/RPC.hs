@@ -16,6 +16,7 @@ module Brig.Provider.RPC
     , removeBotMember
     ) where
 
+import Imports
 import Bilge
 import Bilge.Retry (httpHandlers)
 import Brig.App
@@ -24,25 +25,17 @@ import Brig.RPC
 import Brig.Types.Provider (HttpsUrl (..))
 import Brig.Types.Provider.External
 import Control.Error
-import Control.Exception (SomeAsyncException)
-import Control.Lens (view, set, (^.), (&), (<&>))
-import Control.Monad (void)
+import Control.Lens (view, set, (^.), (<&>))
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
 import Control.Retry (recovering)
 import Data.Aeson
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
-import Data.Foldable (toList)
 import Data.Id
-import Data.Monoid
-import Data.Word
 import Galley.Types (Event)
 import Network.HTTP.Types.Method
 import Ssl.Util (withVerifiedSslConnection)
 import Network.HTTP.Types.Status
-import System.Logger.Class (MonadLogger, msg, val, field ,(~~))
+import System.Logger.Class (MonadLogger, msg, val, field, (~~))
 import URI.ByteString
 
 import qualified Data.List1                   as List1

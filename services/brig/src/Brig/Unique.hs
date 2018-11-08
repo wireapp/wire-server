@@ -12,14 +12,11 @@ module Brig.Unique
     , (#)
     ) where
 
+import Imports hiding (Set)
 import Brig.Data.Instances ()
 import Cassandra
 import Control.Concurrent.Timeout
-import Control.Monad.IO.Class
-import Data.Functor.Identity
 import Data.Id
-import Data.Int
-import Data.Text (Text)
 import Data.Timeout
 
 -- | Obtain a (temporary) exclusive claim on a 'Text' value for some
@@ -84,4 +81,3 @@ minTtl = 60 -- Seconds
 -- 3. The 'IO' computation that is run while holding a claim must complete
 --    within the given timeout. The effective timeout (i.e. the row TTL)
 --    is doubled, for an extra safety margin.
-

@@ -19,6 +19,7 @@ module Brig.API.Client
     , Data.lookupClientIds
     ) where
 
+import Imports
 import Brig.App
 import Brig.API.Types
 import Brig.Types
@@ -27,12 +28,7 @@ import Brig.User.Email
 import Brig.User.Event
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Error
-import Control.Monad (unless, when, forM)
-import Control.Monad.Reader.Class
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
 import Data.ByteString.Conversion
-import Data.Foldable
 import Data.Hashable (hash)
 import Data.Id (UserId, ClientId, newClientId, ConnId)
 import Data.IP (IP)
@@ -154,4 +150,3 @@ pubClient c = PubClient
     { pubClientId    = clientId c
     , pubClientClass = clientClass c
     }
-

@@ -16,21 +16,17 @@ module Brig.Data.Connection
     , deleteConnections
     ) where
 
+import Imports
 import Brig.App (AppIO)
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
 import Brig.Types
 import Brig.Types.Intra
 import Cassandra
-import Control.Monad
-import Control.Monad.IO.Class
 import UnliftIO.Async.Extended (mapMPooled)
 import Data.Conduit ((.|), runConduit)
-import Data.Functor.Identity
 import Data.Id
-import Data.Int
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import Data.List (foldl')
 import Data.Range
 import Data.Time (getCurrentTime)
 

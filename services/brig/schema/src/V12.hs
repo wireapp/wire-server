@@ -3,8 +3,8 @@
 
 module V12 (migration) where
 
+import Imports
 import Cassandra.Schema
-import Control.Monad (void)
 import Text.RawString.QQ
 
 migration :: Migration

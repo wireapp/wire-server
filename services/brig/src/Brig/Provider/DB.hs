@@ -3,6 +3,7 @@
 
 module Brig.Provider.DB where
 
+import Imports hiding (Set)
 import Brig.Data.Instances ()
 import Brig.Email (EmailKey, emailKeyUniq, emailKeyOrig)
 import Brig.Password
@@ -12,19 +13,11 @@ import Brig.Types.Common
 import Brig.Types.Provider hiding (updateServiceTags)
 import Cassandra
 import Control.Arrow ((&&&))
-import Control.Monad (when)
-import Control.Monad.IO.Class
-import Data.Foldable (for_, toList)
-import Data.Function (on)
-import Data.Functor.Identity
 import Data.Id
-import Data.Int
 import Data.List1 (List1)
 import Data.List (unfoldr, minimumBy, uncons, sortOn)
-import Data.Maybe (isJust, catMaybes, fromMaybe, mapMaybe)
 import Data.Misc
 import Data.Range (Range, fromRange, rnil, rcast)
-import Data.Text (Text, toLower, isPrefixOf)
 import UnliftIO (mapConcurrently)
 
 import qualified Data.Set as Set
@@ -458,8 +451,8 @@ updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
         deleteTags oldNameLower (unfoldTags oldTags)
         insertTags newNameLower (unfoldTags newTags)
   where
-    oldNameLower = Name (toLower (fromName oldName))
-    newNameLower = Name (toLower (fromName newName))
+    oldNameLower = Name (Text.toLower (fromName oldName))
+    newNameLower = Name (Text.toLower (fromName newName))
 
     eqTags  = oldTags      == newTags
     eqNames = oldNameLower == newNameLower
@@ -515,7 +508,7 @@ paginateServiceTags tags start size providerFilter = liftClient $ do
     -- See Note [buggy pagination]
     return $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
-    start' = maybe "" toLower start
+    start' = maybe "" Text.toLower start
 
     unpackTags :: QueryAnyTags 1 3 -> [QueryAllTags 1 3]
     unpackTags = Set.toList . fromRange . queryAnyTagsRange
@@ -595,7 +588,7 @@ paginateServiceNames mbPrefix size providerFilter = liftClient $ do
         Nothing ->
             filterResults providerFilter "" <$> queryAll size'
         Just prefix ->
-            let prefix' = toLower (fromRange prefix)
+            let prefix' = Text.toLower (fromRange prefix)
             in  filterResults providerFilter prefix' <$> queryPrefixes prefix' size'
     r <- mapConcurrently resolveRow (result p)
     -- See Note [buggy pagination]
@@ -631,7 +624,7 @@ filterbyProvider pid p = do
 
 filterPrefix :: Text -> Page IndexRow -> Page IndexRow
 filterPrefix prefix p = do
-    let prefixed = filter (\(Name n, _, _) -> prefix `isPrefixOf` (toLower n)) (result p)
+    let prefixed = filter (\(Name n, _, _) -> prefix `Text.isPrefixOf` (Text.toLower n)) (result p)
         -- if they were all valid prefixes, there may be more in Cassandra
         allValid = length prefixed == length (result p)
         more     = allValid && hasMore p
@@ -706,7 +699,7 @@ paginateServiceWhitelist tid mbPrefix filterDisabled size = liftClient $ do
     -- more->filter->... if we get unlucky.
     p <- retry x1 $ query cql $ params One (Identity tid)
     r <- maybeFilterPrefix .
-         sortOn (toLower . fromName . serviceProfileName) .
+         sortOn (Text.toLower . fromName . serviceProfileName) .
          maybeFilterDisabled .
          catMaybes <$>
              mapConcurrently (uncurry lookupServiceProfile) p
@@ -723,8 +716,8 @@ paginateServiceWhitelist tid mbPrefix filterDisabled size = liftClient $ do
         | otherwise = id
     maybeFilterPrefix
         | Just prefix <- mbPrefix =
-              let prefix' = toLower (fromRange prefix)
-              in  filter ((prefix' `isPrefixOf`) . toLower . fromName . serviceProfileName)
+              let prefix' = Text.toLower (fromRange prefix)
+              in  filter ((prefix' `Text.isPrefixOf`) . Text.toLower . fromName . serviceProfileName)
         | otherwise = id
 
 getServiceWhitelistStatus
@@ -748,7 +741,7 @@ mkPrefixIndex :: Name -> Text
 mkPrefixIndex = Text.toLower . Text.take 1 . fromName
 
 toLowerName :: Name -> Name
-toLowerName = Name . toLower . fromName
+toLowerName = Name . Text.toLower . fromName
 
 trim :: Int32 -> [a] -> [a]
 trim = take . fromIntegral
