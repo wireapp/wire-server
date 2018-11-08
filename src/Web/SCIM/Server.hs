@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP #-}
-
 module Web.SCIM.Server
   (
   -- * WAI application
@@ -23,13 +21,7 @@ import           GHC.Generics (Generic)
 import           Data.Text
 import           Network.Wai
 import           Servant.Generic hiding (fromServant)
-#if MIN_VERSION_servant_server(0,12,0)
-import           Servant hiding (hoistServer)
-import qualified Servant
-#else
 import           Servant
-import           Servant.Utils.Enter
-#endif
 
 ----------------------------------------------------------------------------
 -- API specification
@@ -53,47 +45,10 @@ data Site route = Site
   } deriving (Generic)
 
 ----------------------------------------------------------------------------
--- Compatibility
-
--- TODO: this is horrible, let's switch to servant-server-0.12 as soon as possible.  if that has
--- happened, simply remove the CPP language extension and clean up after the errors.
-
-#if MIN_VERSION_servant_server(0,12,0)
-type EnterBoilerplate m = ( Functor m )  -- `()` is parsed as a type
-#else
-type EnterBoilerplate m =
-  ( Enter (ServerT UserAPI m) m m (ServerT UserAPI m)
-  , Enter (ServerT GroupAPI m) m m (ServerT GroupAPI m)
-  )
-#endif
-
-type MoreEnterBoilerplate (m :: * -> *) api =
-#if MIN_VERSION_servant_server(0,12,0)
-  () ~ ()
-#else
-  Enter (ServerT api (SCIMHandler m)) (SCIMHandler m) Handler (Server api)
-#endif
-
-hoistServer :: forall api (m :: * -> *) (n :: * -> *).
-               ( HasServer api '[]
-#if !MIN_VERSION_servant_server(0,12,0)
-               , Enter (ServerT api m) m Handler (ServerT api Handler)
-               , Enter (ServerT api m) m n (ServerT api n)
-#endif
-               ) =>
-               Proxy api -> (forall x. m x -> n x) -> ServerT api m -> ServerT api n
-#if MIN_VERSION_servant_server(0,12,0)
-hoistServer = Servant.hoistServer
-#else
-hoistServer _ nt = enter (NT nt)
-#endif
-
-
-----------------------------------------------------------------------------
 -- API implementation
 
 siteServer ::
-  forall m. (DB m, EnterBoilerplate (SCIMHandler m)) =>
+  forall m. DB m =>
   Configuration -> Site (AsServerT (SCIMHandler m))
 siteServer conf = Site
   { config = toServant $ configServer conf
@@ -121,8 +76,6 @@ siteServer conf = Site
 type App m api =
   ( DB m
   , HasServer api '[]
-  , EnterBoilerplate m
-  , MoreEnterBoilerplate m api
   )
 
 mkapp :: forall m api. (App m api)

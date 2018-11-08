@@ -41,7 +41,7 @@ dependencies:
   - aeson-qq
   - mtl
   - servant
-  - servant-server
+  - servant-server >= 0.12
   - servant-generic
   - text
   - time

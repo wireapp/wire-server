@@ -13,7 +13,6 @@ addons:
       - libgmp-dev
 
 env:
-- RESOLVER=lts-10.3
 - RESOLVER=lts-11.13
 
 before_install:
