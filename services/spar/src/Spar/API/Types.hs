@@ -37,12 +37,14 @@ import "swagger2" Data.Swagger hiding (Header(..))
 -- FUTUREWORK (thanks jschaul): Use @Header' '[Strict]@ to avoid the need for the 'Maybe' and the
 -- extra checks.
 
--- FUTUREWORK: use servant-generic?
+-- FUTUREWORK: use https://hackage.haskell.org/package/servant-0.14.1/docs/Servant-API-Generic.html?
 
 type API
      = "sso" :> APISSO
   :<|> "sso-initiate-bind"  :> APIAuthReq  -- (see comment on 'APIAuthReq')
   :<|> "identity-providers" :> APIIDP
+  -- TODO: reenable once SCIM is ready
+  -- :<|> "scim" :> SCIM.API
   :<|> "i" :> APIINTERNAL
   -- NB. If you add endpoints here, also update Test.Spar.APISpec
 
@@ -120,21 +122,23 @@ sparResponseURI = SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthResp)
 --   * does not expose routes prefixed with /i/
 --   * handles authorization (adding a Z-User header if requests are authorized)
 --   * does not show the swagger end-point itself
-type OutsideWorldAPI = StripSwagger (StripInternal (StripAuth API))
+type OutsideWorldAPI =
+    StripSwagger (StripInternal (StripAuth API))
 
 -- | Strip the nginz-set, internal-only Z-User header
 type family StripAuth api where
     StripAuth (Header "Z-User" a :> b) = b
-    StripAuth (a :<|> b) = (StripAuth a) :<|> (StripAuth b)
+    StripAuth (a :<|> b) = StripAuth a :<|> StripAuth b
     StripAuth x = x
 
 -- | Strip internal endpoints (prefixed with /i/)
 type family StripInternal api where
     StripInternal ("i" :> b) = EmptyAPI
-    StripInternal (a :<|> b) = (StripInternal a) :<|> (StripInternal b)
+    StripInternal (a :<|> b) = StripInternal a :<|> StripInternal b
     StripInternal x = x
 
+-- | Strip the endpoint that exposes documentation.
 type family StripSwagger api where
-    StripSwagger ("sso" :> "api-docs" :> Get '[JSON] Swagger :<|> b) = StripSwagger b
+    StripSwagger ("sso" :> "api-docs" :> a) = EmptyAPI
     StripSwagger (a :<|> b) = StripSwagger a :<|> StripSwagger b
     StripSwagger x = x

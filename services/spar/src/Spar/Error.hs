@@ -45,6 +45,10 @@ data SparCustomError
   | SparBadUserName LT
   | SparNoBodyInBrigResponse
   | SparCouldNotParseBrigResponse LT
+  | SparBrigError LT
+  | SparNoBodyInGalleyResponse
+  | SparCouldNotParseGalleyResponse LT
+  | SparGalleyError LT
   | SparCouldNotRetrieveCookie
   | SparCassandraError LT
   | SparCassandraTTLError TTLError
@@ -77,8 +81,14 @@ sparToWaiError (SAML.CustomError (SparBindFromWrongOrNoTeam msg))         = Righ
 sparToWaiError (SAML.CustomError SparBindUserRefTaken)                    = Right $ Wai.Error status403 "subject-id-taken" "Forbidden: SubjectID is used by another wire user.  If you have an old user bound to this IdP, unbind or delete that user."
 
 sparToWaiError (SAML.CustomError (SparBadUserName msg))                   = Right $ Wai.Error status400 "bad-username" ("Bad UserName in SAML response, except len [1, 128]: " <> msg)
+-- Brig-specific errors
 sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)                = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
 sparToWaiError (SAML.CustomError (SparCouldNotParseBrigResponse msg))     = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
+sparToWaiError (SAML.CustomError (SparBrigError msg))                     = Right $ Wai.Error status500 "bad-upstream" msg
+-- Galley-specific errors
+sparToWaiError (SAML.CustomError SparNoBodyInGalleyResponse)              = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
+sparToWaiError (SAML.CustomError (SparCouldNotParseGalleyResponse msg))   = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
+sparToWaiError (SAML.CustomError (SparGalleyError msg))                   = Right $ Wai.Error status500 "bad-upstream" msg
 sparToWaiError (SAML.CustomError SparCouldNotRetrieveCookie)              = Right $ Wai.Error status502 "bad-upstream" "Unable to get a cookie from an upstream server."
 sparToWaiError (SAML.CustomError (SparCassandraError msg))                = Right $ Wai.Error status500 "server-error" msg  -- TODO: should we be more specific here and make it 'db-error'?
 sparToWaiError (SAML.CustomError (SparCassandraTTLError ttlerr))          = Right $ Wai.Error status400 "ttl-error" (cs $ show ttlerr)

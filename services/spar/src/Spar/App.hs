@@ -21,6 +21,7 @@ module Spar.App
   ) where
 
 import Bilge
+import Brig.Types (Name)
 import Cassandra
 import Control.Exception (SomeException, assert)
 import Control.Lens hiding ((.=))
@@ -49,6 +50,7 @@ import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
+import qualified Spar.Intra.Galley as Intra
 import qualified System.Logger as Log
 
 
@@ -61,6 +63,7 @@ data Env = Env
   , sparCtxCas          :: Cas.ClientState
   , sparCtxHttpManager  :: Bilge.Manager
   , sparCtxHttpBrig     :: Bilge.Request
+  , sparCtxHttpGalley   :: Bilge.Request
   , sparCtxRequestId    :: RequestId
   }
 
@@ -164,12 +167,12 @@ getUser uref = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-createUser :: SAML.UserRef -> Spar UserId
-createUser suid = do
+createUser :: SAML.UserRef -> Maybe Name -> Spar UserId
+createUser suid mbName = do
   buid <- Id <$> liftIO UUID.nextRandom
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
-  buid' <- Intra.createUser suid buid teamid
+  buid' <- Intra.createUser suid buid teamid mbName
   assert (buid == buid') $ pure buid
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
@@ -198,6 +201,11 @@ instance MonadHttp Spar where
 instance Intra.MonadSparToBrig Spar where
   call modreq = do
     req <- asks sparCtxHttpBrig
+    httpLbs req modreq
+
+instance Intra.MonadSparToGalley Spar where
+  call modreq = do
+    req <- asks sparCtxHttpGalley
     httpLbs req modreq
 
 
@@ -245,7 +253,7 @@ verdictHandlerResult bindCky = \case
         -- idempotent.
 
       case (fromBindCookie, fromSparCass) of
-        (Nothing,  Nothing)   -> createUser userref      -- first sso authentication
+        (Nothing,  Nothing)   -> createUser userref Nothing -- first sso authentication
         (Nothing,  Just uid)  -> pure uid                -- sso re-authentication
         (Just uid, Nothing)   -> bindUser uid userref    -- bind existing user (non-sso or sso) to ssoid
         (Just uid, Just uid')

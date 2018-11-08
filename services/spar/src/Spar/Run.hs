@@ -95,9 +95,14 @@ runServer sparCtxOpts = do
         & Warp.setHost (fromString $ sparCtxOpts ^. to saml . SAML.cfgSPHost)
         . Warp.setPort (sparCtxOpts ^. to saml . SAML.cfgSPPort)
   sparCtxHttpManager <- newManager defaultManagerSettings
-  let sparCtxHttpBrig = Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
-                      . Bilge.port (sparCtxOpts ^. to brig . epPort)
-                      $ Bilge.empty
+  let sparCtxHttpBrig =
+          Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
+        . Bilge.port (sparCtxOpts ^. to brig . epPort)
+        $ Bilge.empty
+  let sparCtxHttpGalley =
+          Bilge.host (sparCtxOpts ^. to galley . epHost . to cs)
+        . Bilge.port (sparCtxOpts ^. to galley . epPort)
+        $ Bilge.empty
   let wrappedApp
         = WU.catchErrors sparCtxLogger mx
         . Promth.prometheus Promth.def

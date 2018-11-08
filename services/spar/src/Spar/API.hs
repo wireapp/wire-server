@@ -66,6 +66,7 @@ app :: Env -> Application
 app ctx = SAML.setHttpCachePolicy
         $ serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @Spar ctx) (api $ sparCtxOpts ctx) :: Server API)
 
+-- TODO: re-enable SCIM.api once it's ready to use.
 api :: Opts -> ServerT API Spar
 api opts
      = apiSSO opts
