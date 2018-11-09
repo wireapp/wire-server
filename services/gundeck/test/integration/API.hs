@@ -90,6 +90,7 @@ tests s = testGroup "Gundeck integration tests" [
         , test s "Single user push"      $ singleUserPush
         , test2 s "Push many to Cannon via bulkpush" $ gundeckBulkPush 4 1
         , test2 s "Push many to Cannon via bulkpush (multiple devices per user)" $ gundeckBulkPush 5 3
+        , test2 s "Push many to Cannon via bulkpush (multiple devices per user, directed)" $ gundeckBulkPush' 5 3
         , test2 s "Push many to Cannon via bulkpush (multiple devices per user II)" $ gundeckBulkPush 10 8
         , test s "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback
         , test s "Targeted push by connection" $ targetConnectionPush
@@ -234,6 +235,38 @@ gundeckBulkPush numUsers numConnsPerUser gu ca ca2 _ _ = do
 
     pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
+
+gundeckBulkPush' :: Int -> Int -> TestSignature2 ()
+gundeckBulkPush' numUsers numConnsPerUser gu ca ca2 _ _ = do
+    (uid:uids) <- replicateM numUsers randomId
+    (connIds@((connID:_):_)) <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
+    let (uidConns1, uidConns2) = splitAt (fromIntegral ((length uids) `div` 2)) (zip uids connIds)
+    chs1       <- zip uidConns1 <$> connectUsersAndDevices gu ca  uidConns1
+    chs2       <- zip uidConns2 <$> connectUsersAndDevices gu ca2 uidConns2
+
+    --mconcat . fmap snd
+
+    --[(UserId, [TChan ByteString])]
+
+    let pushData = push uid (uid:uids) connID : [push uid (uid:uids) connID]
+    sendPush' gu pushData
+
+    liftIO $ forM_ (chs1 ++ chs2) $ \ch -> do
+        --ch :: ((Id U, [ConnId]), (UserId, [TChan ByteString]))
+        checkMsg ch
+        checkMsg ch
+
+  where
+    checkMsg ch = do
+        msg <- waitForMessage ch
+        assertBool  "No push message received" (isJust msg)
+        assertEqual "Payload altered during transmission"
+            (Just pload)
+            (ntfPayload <$> (decode . fromStrict . fromJust) msg)
+
+    pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
+    push u us conn = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
+                                                       & pushConnections .~ Set.singleton conn
 
 sendSingleUserNoPiggyback :: TestSignature ()
 sendSingleUserNoPiggyback gu ca _ _ = do
