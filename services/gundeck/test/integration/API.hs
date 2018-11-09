@@ -81,8 +81,9 @@ tests s = testGroup "Gundeck integration tests" [
         , test s "Replace presence"      $ replacePresence
         , test s "Remove stale presence" $ removeStalePresence
         , test s "Single user push"      $ singleUserPush
-        , test s "Push many to Cannon via bulkpush" $ cannonBulkPush 4 1
-        , test s "Push many to Cannon via bulkpush (multiple devices per user)" $ cannonBulkPush 5 3
+        , test s "Push many to Cannon via bulkpush" $ gundeckBulkPush 4 1
+        , test s "Push many to Cannon via bulkpush (multiple devices per user)" $ gundeckBulkPush 5 3
+        , test s "Push many to Cannon via bulkpush (multiple devices per user II)" $ gundeckBulkPush 20 8
         , test s "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback
         , test s "Targeted push by connection" $ targetConnectionPush
         , test s "Targeted push by client" $ targetClientPush
@@ -201,32 +202,46 @@ singleUserPush gu ca _ _ = do
 
 -- TODO: send same notification (with same ID) to more than one push target?
 -- TODO: test distribution of devices over multiple cannons.
-cannonBulkPush :: Int -> Int -> TestSignature ()
-cannonBulkPush numUsers numConnsPerUser gu ca _ _ = do
-    uids     <- replicateM numUsers randomId
-    connIds  <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
-    chs      <- connectUsersAndDevices gu ca (zip uids connIds)
-    notifIds :: [NotificationId] <- replicateM numUsers randomId
-    let ptrgts :: [[PushTarget]] = zipWith (\u cs -> PushTarget u <$> cs) uids connIds
-        pushes :: [(Notification, [PushTarget])] = pushCannon <$> zip notifIds ptrgts
-    BulkPushResponse resp <- sendBulkPushCannon ca $ BulkPushRequest pushes
-    liftIO $ do
-        assertEqual "Unexpected response body from Cannon (length)"
-            (length resp) (numUsers * numConnsPerUser)
+gundeckBulkPush :: Int -> Int -> TestSignature ()
+gundeckBulkPush numUsers numConnsPerUser gu ca _ _ = do
+    (uid:uids) <- replicateM numUsers randomId
+    connIds    <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
+    chs        <- mconcat . fmap snd <$> connectUsersAndDevices gu ca (zip uids connIds)
 
-        let expectResp :: [(NotificationId, PushTarget, PushStatus)]
-            expectResp = mconcat $ zipWith run notifIds ptrgts
-              where
-                run :: NotificationId -> [PushTarget] -> [(NotificationId, PushTarget, PushStatus)]
-                run n ts = (\t -> (n, t, PushStatusOk)) <$> ts
-        assertEqual "Unexpected response body from Cannon (contents)"
-            resp expectResp
+    sendPush gu (push uid (uid:uids))
 
-        msgs <- let run :: (UserId, [TChan ByteString]) -> IO [(UserId, Maybe ByteString)]
-                    run (uid, connids) = (uid,) <$$> (waitForMessage `mapM` connids)
-                in mconcat <$> run `mapM` chs
-        assertions `mapM_` msgs
+    liftIO $ forM_ chs $ \ch -> do
+        msg <- waitForMessage ch
+        assertBool  "No push message received" (isJust msg)
+        assertEqual "Payload altered during transmission"
+            (Just pload)
+            (ntfPayload <$> (decode . fromStrict . fromJust) msg)
+
+    -- notifIds :: [NotificationId] <- replicateM numUsers randomId
+    -- let ptrgts :: [[PushTarget]] = zipWith (\u cs -> PushTarget u <$> cs) uids connIds
+    --     pushes :: [(Notification, [PushTarget])] = pushCannon <$> zip notifIds ptrgts
+    -- BulkPushResponse resp <- sendBulkPushCannon ca $ BulkPushRequest pushes
+
+    -- liftIO $ do
+    --     assertEqual "Unexpected response body from Cannon (length)"
+    --         (length resp) (numUsers * numConnsPerUser)
+
+    --     let expectResp :: [(NotificationId, PushTarget, PushStatus)]
+    --         expectResp = mconcat $ zipWith run notifIds ptrgts
+    --           where
+    --             run :: NotificationId -> [PushTarget] -> [(NotificationId, PushTarget, PushStatus)]
+    --             run n ts = (\t -> (n, t, PushStatusOk)) <$> ts
+    --     assertEqual "Unexpected response body from Cannon (contents)"
+    --         resp expectResp
+
+    --     msgs <- let run :: (UserId, [TChan ByteString]) -> IO [(UserId, Maybe ByteString)]
+    --                 run (uid, connids) = (uid,) <$$> (waitForMessage `mapM` connids)
+    --             in mconcat <$> run `mapM` chs
+    --     assertions `mapM_` msgs
   where
+    pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
+    push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
+
     assertions :: (UserId, Maybe ByteString) -> IO ()
     assertions (rcpid, msg) = do
               assertBool  "No push message received" (isJust msg)
@@ -910,7 +925,7 @@ getLastNotification gu u c = get $ runGundeck gu
 
 sendPush :: HasCallStack => Gundeck -> Push -> Http ()
 sendPush gu push =
-    post ( runGundeck gu . path "i/push" . json [push] ) !!! const 200 === statusCode
+    post ( runGundeck gu . path "i/push/v2" . json [push] ) !!! const 200 === statusCode
 
 sendBulkPushCannon :: HasCallStack => Cannon -> BulkPushRequest -> Http BulkPushResponse
 sendBulkPushCannon ca pushes = do
