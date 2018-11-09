@@ -6,6 +6,7 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 
 -- TODO remove
 {-# OPTIONS_GHC
@@ -19,8 +20,9 @@
 --
 -- See <https://en.wikipedia.org/wiki/System_for_Cross-domain_Identity_Management>
 module Spar.SCIM
-  ( API
-  , api
+  ( SCIM.SiteAPI
+  , scimApi
+  , ScimToken(..)
 
   -- * The mapping between Wire and SCIM users
   -- $mapping
@@ -47,6 +49,7 @@ import Data.Text.Encoding
 import Data.Aeson as Aeson
 import Text.Email.Validate
 import Servant.Generic
+import Web.HttpApiData
 
 import qualified Data.Text    as Text
 import qualified Data.UUID.V4 as UUID
@@ -80,31 +83,13 @@ import qualified Web.SCIM.Schema.Common           as SCIM.Common
 configuration :: SCIM.Meta.Configuration
 configuration = SCIM.Meta.empty
 
--- The SCIM standard doesn't specify a way to let endpoint callers provide
--- info about what organization's users they want to manage, so they have to
--- communicate that information in *some* way.
---
--- Currently it's done by encoding the 'TeamId' in the path. However, this
--- will go away once we rework the authentication system for SCIM. The
--- alternative system we want is as follows:
---
---   * A single authentication token is passed as a header
---   * That token can be mapped to the team ID
---   * Simultaneously, this token provides authentication (the provisioning
---     tool knows the token and therefore can perform SCIM operations,
---     but nobody else does)
-type API = Capture "team" TeamId :> SCIM.SiteAPI
+type ScimApi = SCIM.SiteAPI ScimToken
 
-api :: ServerT API Spar
-api tid = hoistSCIM (toServant (SCIM.siteServer configuration))
+scimApi :: ServerT ScimApi Spar
+scimApi = hoistSCIM (toServant (SCIM.siteServer configuration))
   where
-    hoistSCIM =
-      hoistServer proxy
-        (flip runReaderT tid . SCIM.fromSCIMHandler fromError)
+    hoistSCIM = hoistServer (Proxy @ScimApi) (SCIM.fromSCIMHandler fromError)
     fromError = throwError . SAML.CustomServant . SCIM.scimToServantErr
-
-    proxy :: Proxy SCIM.SiteAPI
-    proxy = Proxy
 
 ----------------------------------------------------------------------------
 -- UserDB
@@ -230,10 +215,9 @@ toSCIMEmail (Email eLocal eDomain) =
 -- 2. We want generic error descriptions in response bodies, while still
 --    logging nice error messages internally.
 
-instance SCIM.UserDB (ReaderT TeamId Spar) where
+instance SCIM.UserDB Spar where
   -- | List all users, possibly filtered by some predicate.
-  list mbFilter = do
-    tid <- ask
+  list tid mbFilter = do
     members <- lift $ getTeamMembers tid
     users <- forM members $ \member ->
       lift (getUser (member ^. Galley.userId)) >>= \case
@@ -252,8 +236,7 @@ instance SCIM.UserDB (ReaderT TeamId Spar) where
     SCIM.fromList <$> filterM check users
 
   -- | Get a single user by its ID.
-  get uidText = do
-    tid <- ask
+  get tid uidText = do
     uid <- case readMaybe (Text.unpack uidText) of
       Just u -> pure u
       Nothing -> SCIM.throwSCIM $
@@ -264,8 +247,7 @@ instance SCIM.UserDB (ReaderT TeamId Spar) where
       pure (toSCIMUser user))
 
   -- | Create a new user.
-  create user = do
-    tid <- ask
+  create tid user = do
     extId <- case SCIM.User.externalId user of
       Just x -> pure x
       Nothing -> SCIM.throwSCIM $
@@ -303,23 +285,37 @@ instance SCIM.UserDB (ReaderT TeamId Spar) where
     maybe (error "How can there be no user?") (pure . toSCIMUser) =<<
       lift (getUser buid)
 
-  -- update   :: UserId -> User -> m StoredUser
-  -- patch    :: UserId -> m StoredUser
-  -- delete   :: UserId -> m Bool  -- ^ Return 'False' if the group didn't exist
-  -- getMeta  :: m Meta
+  -- update   :: TeamId -> UserId -> User -> m StoredUser
+  -- patch    :: TeamId -> UserId -> m StoredUser
+  -- delete   :: TeamId -> UserId -> m Bool  -- ^ Return 'False' if the group didn't exist
+  -- getMeta  :: TeamId -> m Meta
 
 ----------------------------------------------------------------------------
 -- GroupDB
 
-instance SCIM.GroupDB (ReaderT TeamId Spar) where
+instance SCIM.GroupDB Spar where
   -- TODO
 
 ----------------------------------------------------------------------------
 -- AuthDB
 
-instance SCIM.AuthDB (ReaderT TeamId Spar) where
+-- | A bearer token that authorizes a provisioning tool to perform actions
+-- with a team. Each token corresponds to one team.
+newtype ScimToken = ScimToken { fromScimToken :: Text }
+  deriving (Eq, Show)
+
+instance FromHttpApiData ScimToken where
+  parseHeader h = ScimToken <$> parseHeaderWithPrefix "Bearer " h
+  parseQueryParam p = ScimToken <$> parseQueryParam p
+
+instance ToHttpApiData ScimToken where
+  toHeader (ScimToken s) = "Bearer " <> encodeUtf8 s
+  toQueryParam (ScimToken s) = toQueryParam s
+
+instance SCIM.AuthDB Spar where
+  type AuthData Spar = ScimToken
+  type AuthInfo Spar = TeamId
+
   -- TODO
-  authCheck Nothing =
-    pure Unauthorized
-  authCheck (Just (SCIM.SCIMAuthData uuid _pass)) =
-    pure (Authorized (SCIM.Admin uuid))
+  authCheck _ = SCIM.throwSCIM $
+      SCIM.unauthorized "authorization not implemented"

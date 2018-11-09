@@ -18,13 +18,13 @@ import Brig.Types.User
 import Control.Lens
 import Data.ByteString.Conversion
 import Data.Id
-import Data.UUID as UUID hiding (null, fromByteString)
 import Data.Text (pack, unpack)
 import System.Random
 import Util
+import Spar.SCIM (ScimToken)
+import Web.HttpApiData (toHeader)
 
 import qualified Web.SCIM.Class.User              as SCIM
-import qualified Web.SCIM.Class.Auth              as SCIM
 import qualified Web.SCIM.Schema.ListResponse     as SCIM
 import qualified Web.SCIM.Schema.Common           as SCIM
 import qualified Web.SCIM.Schema.Meta             as SCIM
@@ -125,8 +125,7 @@ createUser
 createUser user = do
     env <- ask
     r <- createUser_
-             (Just (env ^. teScimAdmin))
-             (env ^. teTeamId)
+             (Just (env ^. teScimToken))
              user
              (env ^. teSpar)
          <!! const 201 === statusCode
@@ -139,8 +138,7 @@ listUsers
 listUsers mbFilter = do
     env <- ask
     r <- listUsers_
-             (Just (env ^. teScimAdmin))
-             (env ^. teTeamId)
+             (Just (env ^. teScimToken))
              mbFilter
              (env ^. teSpar)
          <!! const 200 === statusCode
@@ -157,8 +155,7 @@ getUser
 getUser userid = do
     env <- ask
     r <- getUser_
-             (Just (env ^. teScimAdmin))
-             (env ^. teTeamId)
+             (Just (env ^. teScimToken))
              userid
              (env ^. teSpar)
          <!! const 200 === statusCode
@@ -169,18 +166,17 @@ getUser userid = do
 
 -- | Create a user.
 createUser_
-    :: Maybe SCIM.SCIMAuthData  -- ^ Admin credentials for authentication
-    -> TeamId                   -- ^ Team
+    :: Maybe ScimToken          -- ^ Authentication
     -> SCIM.User.User           -- ^ User data
     -> SparReq                  -- ^ Spar endpoint
     -> TestSpar ResponseLBS
-createUser_ auth teamid user spar_ = do
+createUser_ auth user spar_ = do
     -- NB: we don't use 'mkEmailRandomLocalSuffix' here, because emails
     -- shouldn't be submitted via SCIM anyway.
     let p = RequestBodyLBS . Aeson.encode $ user
     call . post $
         ( spar_
-        . paths ["scim", toByteString' teamid, "Users"]
+        . paths ["scim", "v2", "Users"]
         . scimAuth auth
         . contentScim
         . body p
@@ -189,15 +185,14 @@ createUser_ auth teamid user spar_ = do
 
 -- | List all users.
 listUsers_
-    :: Maybe SCIM.SCIMAuthData  -- ^ Admin credentials for authentication
-    -> TeamId                   -- ^ Team
+    :: Maybe ScimToken          -- ^ Authentication
     -> Maybe SCIM.Filter        -- ^ Predicate to filter the results
     -> SparReq                  -- ^ Spar endpoint
     -> TestSpar ResponseLBS
-listUsers_ auth teamid mbFilter spar_ = do
+listUsers_ auth mbFilter spar_ = do
     call . get $
         ( spar_
-        . paths ["scim", toByteString' teamid, "Users"]
+        . paths ["scim", "v2", "Users"]
         . queryItem' "filter" (toByteString' . SCIM.renderFilter <$> mbFilter)
         . scimAuth auth
         . acceptScim
@@ -205,15 +200,14 @@ listUsers_ auth teamid mbFilter spar_ = do
 
 -- | Get one user.
 getUser_
-    :: Maybe SCIM.SCIMAuthData  -- ^ Admin credentials for authentication
-    -> TeamId                   -- ^ Team
+    :: Maybe ScimToken          -- ^ Authentication
     -> UserId                   -- ^ User
     -> SparReq                  -- ^ Spar endpoint
     -> TestSpar ResponseLBS
-getUser_ auth teamid userid spar_ = do
+getUser_ auth userid spar_ = do
     call . get $
         ( spar_
-        . paths ["scim", toByteString' teamid, "Users", toByteString' userid]
+        . paths ["scim", "v2", "Users", toByteString' userid]
         . scimAuth auth
         . acceptScim
         )
@@ -221,13 +215,10 @@ getUser_ auth teamid userid spar_ = do
 ----------------------------------------------------------------------------
 -- Utilities
 
--- | Add SCIM authentication credentials to a request.
-scimAuth :: Maybe SCIM.SCIMAuthData -> Request -> Request
+-- | Add SCIM authentication to a request.
+scimAuth :: Maybe ScimToken -> Request -> Request
 scimAuth Nothing = id
-scimAuth (Just auth) =
-    applyBasicAuth
-        (UUID.toASCIIBytes (SCIM.scimAdmin auth))
-        (SCIM.scimPassword auth)
+scimAuth (Just auth) = header "Authorization" (toHeader auth)
 
 -- | Signal that the body is an SCIM payload.
 contentScim :: Request -> Request

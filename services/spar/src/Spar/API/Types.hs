@@ -45,7 +45,7 @@ type API
   :<|> "sso-initiate-bind"  :> APIAuthReq  -- (see comment on 'APIAuthReq')
   :<|> "identity-providers" :> APIIDP
   -- TODO: reenable once SCIM is ready
-  -- :<|> "scim" :> SCIM.API
+  -- :<|> "scim" :> "v2" :> ScimApi
   :<|> "i" :> APIINTERNAL
   -- NB. If you add endpoints here, also update Test.Spar.APISpec
 
