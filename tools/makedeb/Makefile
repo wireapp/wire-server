@@ -29,11 +29,11 @@ clean:
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --local-bin-path=dist
+	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
 .PHONY:
 compile:
-	stack build . --pedantic --test --no-copy-bins
+	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: dist
 dist: guard-VERSION install $(DEB) .metadata
@@ -49,4 +49,3 @@ $(DEB):
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
-

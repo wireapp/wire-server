@@ -26,11 +26,11 @@ clean:
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --local-bin-path=dist
+	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
 .PHONY: compile
 compile:
-	stack build . --pedantic --test --no-copy-bins --fast $(WIRE_STACK_OPTIONS)
+	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: dist
 dist: guard-VERSION $(DEB)

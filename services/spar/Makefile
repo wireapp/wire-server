@@ -24,11 +24,11 @@ init:
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist spar
+	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist spar
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS) spar
+	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS) spar
 
 .PHONY: clean
 clean:
@@ -37,7 +37,7 @@ clean:
 
 .PHONY: compile
 compile:
-	stack build --fast --test --no-copy-bins spar
+	stack build --fast --test --bench --no-run-benchmarks --no-copy-bins spar
 
 .PHONY: dist
 dist: guard-VERSION install $(DEB) $(DEB_SCHEMA) .metadata
