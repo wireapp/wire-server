@@ -18,6 +18,10 @@ brig:
   host: 127.0.0.1
   port: 8082
 
+galley:
+  host: 127.0.0.1
+  port: 8085
+
 cassandra:
   endpoint:
     host: 127.0.0.1

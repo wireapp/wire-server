@@ -58,6 +58,9 @@ bindCookieFromHeader = fmap BindCookie . lookup "zbind" . parseCookiesText . cs
 setBindCookieValue :: HasCallStack => SetBindCookie -> BindCookie
 setBindCookieValue = BindCookie . cs . setCookieValue . SAML.fromSimpleSetCookie
 
+----------------------------------------------------------------------------
+-- Identity provider
+
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig TeamId
 
@@ -70,6 +73,9 @@ data IdPList = IdPList
 
 makeLenses ''IdPList
 deriveJSON deriveJSONOptions ''IdPList
+
+----------------------------------------------------------------------------
+-- Requests and verdicts
 
 type AReqId = ID AuthnRequest
 type AssId = ID Assertion
@@ -110,6 +116,7 @@ type Opts = Opts' DerivedOpts
 data Opts' a = Opts
     { saml           :: !SAML.Config
     , brig           :: !Endpoint
+    , galley         :: !Endpoint
     , cassandra      :: !CassandraOpts
     , maxttlAuthreq  :: !(TTL "authreq")
     , maxttlAuthresp :: !(TTL "authresp")

@@ -18,10 +18,12 @@ module Spar.Intra.Brig where
 -- master data (first name, last name, ...)
 
 import Bilge
+import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth (SsoLogin(..))
 import Control.Lens
 import Control.Monad.Except
+import Control.Monad.Reader
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Id (Id(Id), UserId, TeamId)
@@ -72,12 +74,27 @@ respToCookie resp = do
 class Monad m => MonadSparToBrig m where
   call :: (Request -> Request) -> m (Response (Maybe LBS))
 
+instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
+  call = lift . call
+
 
 -- | Create a user on brig.
-createUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => SAML.UserRef -> UserId -> TeamId -> m UserId
-createUser suid (Id buid) teamid = do
-  uname :: Name <- maybe (throwSpar . SparBadUserName . SAML.encodeElem $ suid ^. SAML.uidSubject) pure $ do
-    Name . fromRange <$> (SAML.shortShowNameID >=> checked @ST @1 @128) (suid ^. SAML.uidSubject)
+createUser
+  :: (HasCallStack, MonadError SparError m, MonadSparToBrig m)
+  => SAML.UserRef    -- ^ SSO identity
+  -> UserId
+  -> TeamId
+  -> Maybe Name      -- ^ User name (if 'Nothing', the subject ID will be used)
+  -> m UserId
+createUser suid (Id buid) teamid mbName = do
+  uname :: Name <- case mbName of
+    Just n -> pure n
+    Nothing -> do
+      let subject = suid ^. SAML.uidSubject
+          badName = throwSpar . SparBadUserName $ SAML.encodeElem subject
+          mkName  = Name . fromRange <$>
+                    (SAML.shortShowNameID >=> checked @ST @1 @128) subject
+      maybe badName pure mkName
 
   let newUser :: NewUser
       newUser = NewUser
@@ -104,17 +121,47 @@ createUser suid (Id buid) teamid = do
   userId . selfUser <$> parseResponse @SelfProfile resp
 
 
+-- | Get a user; returns 'Nothing' if the user was not found.
 getUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m (Maybe User)
 getUser buid = do
   resp :: Response (Maybe LBS) <- call
     $ method GET
     . path "/self"
     . header "Z-User" (toByteString' buid)
+  case statusCode resp of
+    200 -> Just . selfUser <$> parseResponse @SelfProfile resp
+    404 -> pure Nothing
+    _   -> throwSpar (SparBrigError "Could not retrieve user")
 
-  if statusCode resp /= 200
-    then pure Nothing
-    else Just . selfUser <$> parseResponse @SelfProfile resp
+-- | Get a user; returns 'Nothing' if the user was not found.
+--
+-- TODO: currently this is not used, but it might be useful later when/if
+-- @hscim@ stops doing checks during user creation.
+getUserByHandle :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => Handle -> m (Maybe User)
+getUserByHandle handle = do
+  resp :: Response (Maybe LBS) <- call
+    $ method GET
+    . path "/i/users"
+    . queryItem "handles" (toByteString' handle)
+  -- This returns [UserAccount]
+  case statusCode resp of
+    200 -> parse <$> parseResponse @[UserAccount] resp
+    404 -> pure Nothing
+    _   -> throwSpar (SparBrigError "Could not retrieve user")
+ where
+  parse :: [UserAccount] -> Maybe User
+  parse (x:[]) = Just $ accountUser x
+  parse _      = Nothing -- TODO: What if more accounts get returned?
 
+-- | Set user's handle.
+setHandle :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> Handle -> m ()
+setHandle buid (Handle handle) = void $ call
+    $ method PUT
+    . path "/self/handle"
+    . header "Z-User" (toByteString' buid)
+    . header "Z-Connection" ""
+    . expect2xx
+    . json (HandleUpdate handle)
 
 -- | This works under the assumption that the user must exist on brig.  If it does not, brig
 -- responds with 404 and this function returns 'False'.
