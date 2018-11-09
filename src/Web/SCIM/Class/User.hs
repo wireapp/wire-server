@@ -17,22 +17,14 @@ import           Web.SCIM.Schema.ListResponse hiding (schemas)
 import           Web.SCIM.Handler
 import           Web.SCIM.Filter
 import           Web.SCIM.ContentType
+import           Web.SCIM.Class.Auth
 import           Servant
 import           Servant.Generic
 
+----------------------------------------------------------------------------
+-- /Users API
 
 type StoredUser = WithMeta (WithId User)
-
--- TODO: parameterize UserId
-class Monad m => UserDB m where
-  list     :: Maybe Filter -> SCIMHandler m (ListResponse StoredUser)
-  get      :: UserId -> SCIMHandler m (Maybe StoredUser)
-  create   :: User -> SCIMHandler m StoredUser
-  update   :: UserId -> User -> SCIMHandler m StoredUser
-  patch    :: UserId -> SCIMHandler m StoredUser
-  delete   :: UserId -> SCIMHandler m Bool  -- ^ Return 'False' if the user didn't exist
-  getMeta  :: SCIMHandler m Meta
-
 
 data UserSite route = UserSite
   { getUsers :: route :-
@@ -49,48 +41,92 @@ data UserSite route = UserSite
       Capture "id" Text :> DeleteNoContent '[SCIM] NoContent
   } deriving (Generic)
 
-userServer :: UserDB m => UserSite (AsServerT (SCIMHandler m))
-userServer = UserSite
-  { getUsers   = list
-  , getUser    = getUser'
-  , postUser   = postUser'
-  , putUser    = updateUser'
-  , patchUser  = patch
-  , deleteUser = deleteUser'
+----------------------------------------------------------------------------
+-- Methods used by the API
+
+-- TODO: parameterize UserId
+class (Monad m, AuthDB m) => UserDB m where
+  list :: AuthInfo m -> Maybe Filter -> SCIMHandler m (ListResponse StoredUser)
+  get :: AuthInfo m -> UserId -> SCIMHandler m (Maybe StoredUser)
+  create :: AuthInfo m -> User -> SCIMHandler m StoredUser
+  update :: AuthInfo m -> UserId -> User -> SCIMHandler m StoredUser
+  delete :: AuthInfo m -> UserId -> SCIMHandler m Bool  -- ^ Return 'False' if the user didn't exist
+  getMeta :: AuthInfo m -> SCIMHandler m Meta
+
+----------------------------------------------------------------------------
+-- API handlers
+
+userServer
+    :: UserDB m
+    => Maybe (AuthData m) -> UserSite (AsServerT (SCIMHandler m))
+userServer authData = UserSite
+  { getUsers = \mbFilter -> do
+      auth <- authCheck authData
+      getUsers' auth mbFilter
+  , getUser = \uid -> do
+      auth <- authCheck authData
+      getUser' auth uid
+  , postUser = \user -> do
+      auth <- authCheck authData
+      postUser' auth user
+  , putUser = \uid user -> do
+      auth <- authCheck authData
+      putUser' auth uid user
+  , patchUser = error "PATCH /Users: not implemented"
+  , deleteUser = \uid -> do
+      auth <- authCheck authData
+      deleteUser' auth uid
   }
 
-postUser' :: UserDB m => User -> SCIMHandler m StoredUser
-postUser' user = do
+getUsers'
+    :: UserDB m
+    => AuthInfo m -> Maybe Filter -> SCIMHandler m (ListResponse StoredUser)
+getUsers' auth mbFilter = do
+  list auth mbFilter
+
+getUser'
+    :: UserDB m
+    => AuthInfo m -> UserId -> SCIMHandler m StoredUser
+getUser' auth uid = do
+  maybeUser <- get auth uid
+  maybe (throwSCIM (notFound "User" uid)) pure maybeUser
+
+postUser'
+    :: UserDB m
+    => AuthInfo m -> User -> SCIMHandler m StoredUser
+postUser' auth user = do
   -- Find users with the same username (case-insensitive)
   --
   -- TODO: it might be worth it to let 'create' handle conflicts if it can
   -- do it in one pass instead of two passes. Same applies to 'updateUser''
   -- and similar functions.
   let filter_ = FilterAttrCompare AttrUserName OpEq (ValString (userName user))
-  stored <- list (Just filter_)
+  stored <- list auth (Just filter_)
   when (totalResults stored > 0) $
     throwSCIM conflict
-  create user
+  create auth user
 
-updateUser' :: UserDB m => UserId -> User -> SCIMHandler m StoredUser
-updateUser' uid updatedUser = do
-  stored <- get uid
+putUser'
+    :: UserDB m
+    => AuthInfo m -> UserId -> User -> SCIMHandler m StoredUser
+putUser' auth uid updatedUser = do
+  stored <- get auth uid
   case stored of
     Just (WithMeta _meta (WithId _ existing)) -> do
       let newUser = existing `overwriteWith` updatedUser
-      update uid newUser
+      update auth uid newUser
     Nothing -> throwSCIM (notFound "User" uid)
 
-getUser' :: UserDB m => UserId -> SCIMHandler m StoredUser
-getUser' uid = do
-  maybeUser <- get uid
-  maybe (throwSCIM (notFound "User" uid)) pure maybeUser
-
-deleteUser' :: UserDB m => UserId -> SCIMHandler m NoContent
-deleteUser' uid = do
-  deleted <- delete uid
+deleteUser'
+    :: UserDB m
+    => AuthInfo m -> UserId -> SCIMHandler m NoContent
+deleteUser' auth uid = do
+  deleted <- delete auth uid
   unless deleted $ throwSCIM (notFound "User" uid)
   pure NoContent
+
+----------------------------------------------------------------------------
+-- Utilities
 
 overwriteWith :: User -> User -> User
 overwriteWith old new = old

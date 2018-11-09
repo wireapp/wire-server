@@ -17,7 +17,8 @@ import           Test.Hspec.Wai      hiding (post, put, patch)
 app :: IO Application
 app = do
   storage <- emptyTestStorage
-  pure $ mkapp (Proxy @GroupAPI) (toServant groupServer) (nt storage)
+  let auth = Just "authorized"
+  pure $ mkapp (Proxy @GroupAPI) (toServant (groupServer auth)) (nt storage)
 
 spec :: Spec
 spec = beforeAll app $ do

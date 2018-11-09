@@ -13,12 +13,10 @@ module Web.SCIM.Server
 
 import           Web.SCIM.Class.User (UserSite (..), UserDB, userServer)
 import           Web.SCIM.Class.Group (GroupSite (..), GroupDB, groupServer)
-import           Web.SCIM.Class.Auth (AuthDB (..), SCIMAuthData (..))
+import           Web.SCIM.Class.Auth (AuthDB (..))
 import           Web.SCIM.Capabilities.MetaSchema (ConfigSite, Configuration, configServer)
 import           Web.SCIM.Handler
-import           Web.SCIM.Schema.Error
 import           GHC.Generics (Generic)
-import           Data.Text
 import           Network.Wai
 import           Servant.Generic hiding (fromServant)
 import           Servant
@@ -28,19 +26,19 @@ import           Servant
 
 type DB m = (UserDB m, GroupDB m, AuthDB m)
 
-type ConfigAPI = ToServant (ConfigSite AsApi)
-type UserAPI   = ToServant (UserSite AsApi)
-type GroupAPI  = ToServant (GroupSite AsApi)
-type SiteAPI   = ToServant (Site AsApi)
+type ConfigAPI        = ToServant (ConfigSite AsApi)
+type UserAPI          = ToServant (UserSite AsApi)
+type GroupAPI         = ToServant (GroupSite AsApi)
+type SiteAPI authData = ToServant (Site authData AsApi)
 
-data Site route = Site
+data Site authData route = Site
   { config :: route :-
       ConfigAPI
   , users :: route :-
-      Header "Authorization" SCIMAuthData :>
+      Header "Authorization" authData :>
       "Users" :> UserAPI
   , groups :: route :-
-      Header "Authorization" SCIMAuthData :>
+      Header "Authorization" authData :>
       "Groups" :> GroupAPI
   } deriving (Generic)
 
@@ -49,26 +47,13 @@ data Site route = Site
 
 siteServer ::
   forall m. DB m =>
-  Configuration -> Site (AsServerT (SCIMHandler m))
+  Configuration -> Site (AuthData m) (AsServerT (SCIMHandler m))
 siteServer conf = Site
   { config = toServant $ configServer conf
-  , users = \auth ->
-      hoistServer (Proxy @UserAPI) (addAuth auth) (toServant userServer)
-  , groups = \auth ->
-      hoistServer (Proxy @GroupAPI) (addAuth auth) (toServant groupServer)
+  , users = \authData -> toServant (userServer authData)
+  , groups = \authData -> toServant (groupServer authData)
   }
   where
-    -- Perform authentication in a handler. This function will be applied to
-    -- all leaves of the API.
-    addAuth :: forall a. Maybe SCIMAuthData
-            -> SCIMHandler m a
-            -> SCIMHandler m a
-    addAuth auth handler = do
-      authResult <- authCheck auth
-      case authResult of
-        Authorized _ -> handler
-        _ -> throwSCIM (unauthorized (scimAdmin <$> auth)
-                                     (pack (show authResult)))
 
 ----------------------------------------------------------------------------
 -- Server-starting utilities
@@ -87,8 +72,8 @@ mkapp proxy api nt =
   serve proxy $
     hoistServer proxy nt api
 
-app :: forall m. App m SiteAPI
+app :: forall m. App m (SiteAPI (AuthData m))
     => Configuration
     -> (forall a. SCIMHandler m a -> Handler a)
     -> Application
-app c = mkapp (Proxy @SiteAPI) (toServant $ siteServer c)
+app c = mkapp (Proxy @(SiteAPI (AuthData m))) (toServant $ siteServer c)

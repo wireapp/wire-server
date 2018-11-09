@@ -13,7 +13,6 @@ import           Control.Monad.STM (STM, atomically)
 import           Control.Monad.Reader
 import           Control.Monad.Morph
 import           Data.Text (Text, pack)
-import           Data.Text.Encoding
 import           Data.Time.Clock
 import           Data.Time.Calendar
 import           GHC.Exts (sortWith)
@@ -29,21 +28,18 @@ import qualified Web.SCIM.Schema.Common     as Common
 import           Web.SCIM.Filter
 import           Web.SCIM.Handler
 import           Servant
-import           Data.UUID as UUID
 
 type UserStorage  = STMMap.Map Text StoredUser
 type GroupStorage = STMMap.Map Text StoredGroup
-type AdminStorage = STMMap.Map UUID (Admin, Text) -- (Admin, Pass)
 
 data TestStorage = TestStorage
   { userDB :: UserStorage
   , groupDB :: GroupStorage
-  , authDB :: AdminStorage
   }
 
 emptyTestStorage :: IO TestStorage
 emptyTestStorage =
-  TestStorage <$> STMMap.newIO <*> STMMap.newIO <*> STMMap.newIO
+  TestStorage <$> STMMap.newIO <*> STMMap.newIO
 
 -- in-memory implementation of the API for tests
 type TestServer = ReaderT TestStorage Handler
@@ -55,7 +51,7 @@ hoistSTM :: (MFunctor t, MonadIO m) => t STM a -> t m a
 hoistSTM = hoist liftSTM
 
 instance UserDB TestServer where
-  list mbFilter = do
+  list () mbFilter = do
     -- Note: in production instances it would make sense to remove this code
     -- and let the implementor of the 'UserDB' instance do filtering (e.g.
     -- doing case-insensitive queries on common attributes can be done
@@ -73,57 +69,49 @@ instance UserDB TestServer where
               Left err  -> throwSCIM (badRequest InvalidFilter (Just err))
     fromList . sortWith (Common.id . thing) <$>
       filterM check (snd <$> users)
-  get i = do
+  get () i = do
     m <- userDB <$> ask
     liftSTM $ STMMap.lookup i m
-  create user = do
+  create auth user = do
     m <- userDB <$> ask
-    met <- getMeta
+    met <- getMeta auth
     newUser <- hoistSTM $ insertUser user met m
     return newUser
-  update uid user = do
+  update () uid user = do
     storage <- userDB <$> ask
     hoistSTM $ updateUser uid user storage
-  delete uid = do
+  delete () uid = do
     m <- userDB <$> ask
     hoistSTM $ delUser uid m
-  getMeta = return (createMeta UserResource)
-  patch = error "PATCH /Users: not implemented"
+  getMeta () = return (createMeta UserResource)
 
 instance GroupDB TestServer where
-  list = do
+  list () = do
     m <- groupDB <$> ask
     groups <- liftSTM $ ListT.toList $ STMMap.stream m
     return $ sortWith (Common.id . thing) $ snd <$> groups
-  get i = do
+  get () i = do
     m <- groupDB <$> ask
     liftSTM $ STMMap.lookup i m
-  create = \grp -> do
+  create auth grp = do
     storage <- groupDB <$> ask
-    met <- getGroupMeta
+    met <- getGroupMeta auth
     newGroup <- hoistSTM $ insertGroup grp met storage
     pure newGroup
-  update i g = do
+  update () i g = do
     m <- groupDB <$> ask
     hoistSTM $ updateGroup i g m
-  delete gid = do
+  delete () gid = do
     m <- groupDB <$> ask
     hoistSTM $ delGroup gid m
-  getGroupMeta = return (createMeta GroupResource)
+  getGroupMeta () = return (createMeta GroupResource)
 
 instance AuthDB TestServer where
-  authCheck Nothing = pure Unauthorized
-  authCheck (Just (SCIMAuthData uuid pass)) = do
-    m <- authDB <$> ask
-    liftIO (atomically (STMMap.lookup uuid m)) >>= \case
-        Just (admin, adminPass)
-          | decodeUtf8 pass == adminPass -> pure (Authorized admin)
-          -- Note: somebody can figure out if whether the given user
-          -- exists, but since the admin users are represented with UUIDs
-          -- (which are pretty hard to bruteforce), it's okay. It also
-          -- makes debugging easier.
-          | otherwise -> pure BadPassword
-        Nothing -> pure NoSuchUser
+  type AuthData TestServer = Text
+  type AuthInfo TestServer = ()
+  authCheck = \case
+      Just "authorized" -> pure ()
+      _ -> throwSCIM (unauthorized "expected 'authorized'")
 
 insertGroup :: Group -> Meta -> GroupStorage -> SCIMHandler STM StoredGroup
 insertGroup grp met storage = do

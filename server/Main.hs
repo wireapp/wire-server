@@ -10,7 +10,6 @@ import           Web.SCIM.Schema.ResourceType hiding (name)
 import           Web.SCIM.Schema.User as User
 import           Web.SCIM.Schema.User.Name
 import           Web.SCIM.Schema.User.Email as E
-import           Web.SCIM.Class.Auth
 import           Web.SCIM.Capabilities.MetaSchema as MetaSchema
 
 import           Data.Time
@@ -18,12 +17,11 @@ import           Network.Wai.Handler.Warp
 import           Network.URI.Static
 import qualified STMContainers.Map as STMMap
 import           Control.Monad.STM (atomically)
-import           Data.UUID as UUID
 import           Text.Email.Validate
 
 main :: IO ()
 main = do
-  storage <- TestStorage <$> mkUserDB <*> STMMap.newIO <*> mkAuthDB
+  storage <- TestStorage <$> mkUserDB <*> STMMap.newIO
   run 9000 (app MetaSchema.empty (nt storage))
 
 -- | Create a UserDB with a single user:
@@ -66,22 +64,4 @@ mkUserDB = do
         , emails = Just [email]
         }
   atomically $ STMMap.insert (WithMeta meta (WithId "elton" user)) "elton" db
-  pure db
-
--- | Create an AuthDB with a single admin:
---
--- @
--- UUID: 00000500-0000-0000-0000-000000000001
--- pass: password
--- @
---
--- The authorization header for this admin (which you can regenerate by
--- following the logic in 'authHeader'):
---
--- @Basic MDAwMDA1MDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxOnBhc3N3b3Jk@
-mkAuthDB :: IO AdminStorage
-mkAuthDB = do
-  db <- STMMap.newIO
-  let uuid = UUID.fromWords 0x500 0 0 1
-  atomically $ STMMap.insert (Admin uuid, "password") uuid db
   pure db

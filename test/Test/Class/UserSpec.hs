@@ -17,7 +17,8 @@ import           Network.Wai (Application)
 app :: IO Application
 app = do
   storage <- emptyTestStorage
-  pure $ mkapp (Proxy @UserAPI) (toServant userServer) (nt storage)
+  let auth = Just "authorized"
+  pure $ mkapp (Proxy @UserAPI) (toServant (userServer auth)) (nt storage)
 
 spec :: Spec
 spec = beforeAll app $ do

@@ -36,7 +36,6 @@ extra-source-files:
 dependencies:
   - base >= 4.7 && < 5
   - bytestring
-  - base64-bytestring
   - aeson
   - aeson-qq
   - mtl
@@ -108,6 +107,5 @@ tests:
       - template-haskell
       - aeson-qq
       - wai-logger
-      - base64-bytestring
       - hedgehog
       - hw-hspec-hedgehog

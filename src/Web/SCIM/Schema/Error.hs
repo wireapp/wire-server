@@ -24,7 +24,6 @@ import Control.Exception
 import Web.SCIM.Schema.Common
 import Web.SCIM.Schema.Schema
 import Servant (ServantErr (..))
-import Data.UUID (UUID)
 
 import GHC.Generics (Generic)
 
@@ -117,19 +116,14 @@ conflict =
     }
 
 unauthorized
-  :: Maybe UUID   -- ^ Admin ID
-  -> Text         -- ^ Error details
+  :: Text         -- ^ Error details
   -> SCIMError
-unauthorized mbAdmin details =
+unauthorized details =
   SCIMError
     { schemas = [Error2_0]
     , status = Status 401
     , scimType = Nothing
-    , detail = pure $
-        "authorization failed: " <> details <>
-        case mbAdmin of
-          Nothing    -> " (no authorization provided)"
-          Just admin -> " (admin ID: " <> pack (show admin) <> ")"
+    , detail = pure $ "authorization failed: " <> details
     }
 
 serverError
