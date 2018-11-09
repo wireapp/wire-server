@@ -12,9 +12,9 @@ module Brig.Unique
     , (#)
     ) where
 
-import Imports hiding (Set)
+import Imports
 import Brig.Data.Instances ()
-import Cassandra
+import Cassandra as C
 import Control.Concurrent.Timeout
 import Data.Id
 import Data.Timeout
@@ -43,13 +43,13 @@ withClaim u v t io = do
     -- [Note: Guarantees]
     claim = do
         let ttl = max minTtl (fromIntegral (t #> Second))
-        retry x5 $ write cql $ params Quorum (ttl * 2, Set [u], v)
+        retry x5 $ write cql $ params Quorum (ttl * 2, C.Set [u], v)
         claimed <- (== [u]) <$> lookupClaims v
         if claimed
             then liftIO $ timeout (fromIntegral ttl # Second) io
             else return Nothing
 
-    cql :: PrepQuery W (Int32, Set (Id a), Text) ()
+    cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
     cql = "UPDATE unique_claims USING TTL ? SET claims = claims + ? WHERE value = ?"
 
 -- | Lookup the current claims on a value.
@@ -57,7 +57,7 @@ lookupClaims :: MonadClient m => Text -> m [Id a]
 lookupClaims v = fmap (maybe [] (fromSet . runIdentity)) $
     retry x1 $ query1 cql $ params Quorum (Identity v)
   where
-    cql :: PrepQuery R (Identity Text) (Identity (Set (Id a)))
+    cql :: PrepQuery R (Identity Text) (Identity (C.Set (Id a)))
     cql = "SELECT claims FROM unique_claims WHERE value = ?"
 
 minTtl :: Int32

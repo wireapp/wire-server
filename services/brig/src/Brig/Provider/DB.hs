@@ -3,7 +3,7 @@
 
 module Brig.Provider.DB where
 
-import Imports hiding (Set)
+import Imports
 import Brig.Data.Instances ()
 import Brig.Email (EmailKey, emailKeyUniq, emailKeyOrig)
 import Brig.Password
@@ -11,7 +11,7 @@ import Brig.Provider.DB.Instances ()
 import Brig.Provider.DB.Tag
 import Brig.Types.Common
 import Brig.Types.Provider hiding (updateServiceTags)
-import Cassandra
+import Cassandra as C
 import Control.Arrow ((&&&))
 import Data.Id
 import Data.List1 (List1)
@@ -171,13 +171,13 @@ insertService :: MonadClient m
     -> m ServiceId
 insertService pid name summary descr url token key fprint assets tags = do
     sid <- randomId
-    let tagSet = Set (Set.toList tags)
+    let tagSet = C.Set (Set.toList tags)
     retry x5 $ write cql $ params Quorum
         (pid, sid, name, summary, descr, url, [token], [key], [fprint], assets, tagSet, False)
     return sid
   where
     cql :: PrepQuery W (ProviderId, ServiceId, Name, Text, Text, HttpsUrl, [ServiceToken],
-                        [ServiceKey], [Fingerprint Rsa], [Asset], Set ServiceTag, Bool)
+                        [ServiceKey], [Fingerprint Rsa], [Asset], C.Set ServiceTag, Bool)
                        ()
     cql = "INSERT INTO service (provider, id, name, summary, descr, base_url, auth_tokens, \
                                \pubkeys, fingerprints, assets, tags, enabled) \
@@ -191,7 +191,7 @@ lookupService pid sid = fmap (fmap mk) $
     retry x1 $ query1 cql $ params Quorum (pid, sid)
   where
     cql :: PrepQuery R (ProviderId, ServiceId)
-                       (Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], Set ServiceTag, Bool)
+                       (Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], C.Set ServiceTag, Bool)
     cql = "SELECT name, summary, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
           \FROM service WHERE provider = ? AND id = ?"
 
@@ -205,7 +205,7 @@ listServices p = fmap (map mk) $
     retry x1 $ query cql $ params Quorum (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId)
-                       (ServiceId, Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], Set ServiceTag, Bool)
+                       (ServiceId, Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], C.Set ServiceTag, Bool)
     cql = "SELECT id, name, summary, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
           \FROM service WHERE provider = ?"
 
@@ -236,7 +236,7 @@ updateService pid sid svcName svcTags nameChange summary descr assets tagsChange
             updateServiceTags   pid sid (oldName, svcTags) (newName, svcTags)
     -- If there is a tag change, update the service tags; if enabled, update indexes
     for_ tagsChange $ \(oldTags, newTags) -> do
-        let newTags' = Set . Set.toList . fromRange $ newTags
+        let newTags' = C.Set . Set.toList . fromRange $ newTags
         addPrepQuery cqlTags (newTags', pid, sid)
         when enabled $ case nameChange of
             Just (old, new) -> updateServiceTags pid sid (old, oldTags)     (new, newTags)
@@ -258,7 +258,7 @@ updateService pid sid svcName svcTags nameChange summary descr assets tagsChange
     cqlAssets :: PrepQuery W ([Asset], ProviderId, ServiceId) ()
     cqlAssets = "UPDATE service SET assets = ? WHERE provider = ? AND id = ?"
 
-    cqlTags :: PrepQuery W (Set ServiceTag, ProviderId, ServiceId) ()
+    cqlTags :: PrepQuery W (C.Set ServiceTag, ProviderId, ServiceId) ()
     cqlTags = "UPDATE service SET tags = ? WHERE provider = ? AND id = ?"
 
 -- NB: can take a significant amount of time if many teams were using the service
@@ -295,7 +295,7 @@ lookupServiceProfile :: MonadClient m
 lookupServiceProfile p s = fmap (fmap mk) $
     retry x1 $ query1 cql $ params One (p, s)
   where
-    cql :: PrepQuery R (ProviderId, ServiceId) (Name, Maybe Text, Text, [Asset], Set ServiceTag, Bool)
+    cql :: PrepQuery R (ProviderId, ServiceId) (Name, Maybe Text, Text, [Asset], C.Set ServiceTag, Bool)
     cql = "SELECT name, summary, descr, assets, tags, enabled \
           \FROM service WHERE provider = ? AND id = ?"
 
@@ -311,7 +311,7 @@ listServiceProfiles p = fmap (map mk) $
     retry x1 $ query cql $ params One (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId)
-                       (ServiceId, Name, Maybe Text, Text, [Asset], Set ServiceTag, Bool)
+                       (ServiceId, Name, Maybe Text, Text, [Asset], C.Set ServiceTag, Bool)
     cql = "SELECT id, name, summary, descr, assets, tags, enabled \
           \FROM service WHERE provider = ?"
 
