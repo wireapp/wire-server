@@ -10,6 +10,7 @@ module Galley.Intra.User
     , canBeDeleted
     ) where
 
+import Imports
 import Bilge hiding (options, getHeader, statusCode)
 import Brig.Types.Connection (UserIds (..))
 import Bilge.RPC
@@ -20,17 +21,16 @@ import Galley.App
 import Galley.Intra.Util
 import Galley.Types.Teams
 import Control.Lens
-import Control.Monad (void, when)
 import Control.Monad.Catch (throwM)
-import Data.ByteString.Char8 (pack, intercalate)
+import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
-import Data.Char (toLower)
 import Data.Id
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..))
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 
+import qualified Data.ByteString.Char8        as BSC
 import qualified Network.HTTP.Client.Internal as Http
 
 -- | Get statuses of all connections between two groups of users (the usual
@@ -88,7 +88,7 @@ lookupActivatedUsers uids = do
         . expect2xx
     parseResponse (Error status502 "server-error") r
   where
-    users = intercalate "," $ toByteString' <$> uids
+    users = BSC.intercalate "," $ toByteString' <$> uids
 
 deleteUser :: UserId -> Galley ()
 deleteUser uid = do

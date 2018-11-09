@@ -5,18 +5,14 @@
 
 module Galley.API.Util where
 
+import Imports
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
-import Control.Lens (view, (&), (.~))
-import Control.Monad
+import Control.Lens (view, (.~))
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Foldable (find, for_, toList)
-import Data.Maybe (isJust)
 import Data.Misc (PlainTextPassword (..))
-import Data.Semigroup ((<>))
 import Data.Time
 import Galley.App
 import Galley.API.Error

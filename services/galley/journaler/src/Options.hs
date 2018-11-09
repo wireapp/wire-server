@@ -17,12 +17,10 @@ module Options
     )
 where
 
+import Imports
 import Control.Lens
 import Data.Id
-import Data.Monoid
 import Data.Text.Strict.Lens
-import Data.Word
-import Data.Maybe
 import Galley.Options
 import Options.Applicative
 

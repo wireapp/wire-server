@@ -117,7 +117,7 @@ import UnliftIO.MVar
 import UnliftIO.IO hiding (Handle, getMonotonicTime)  -- Handle is hidden
                                                       -- because it's common
                                                       -- in Brig
-import UnliftIO.Directory
+import UnliftIO.Directory hiding (Permissions) -- Permissions is common in Galley
 import UnliftIO.STM
 
 import Data.Map (Map)    -- Lazy and strict versions are the same

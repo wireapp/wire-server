@@ -15,15 +15,12 @@ module Galley.Data.Types
     , mkKey
     ) where
 
+import Imports
 import Brig.Types.Code
 import Data.ByteString.Conversion
-import Control.Monad.IO.Class
 import Cassandra hiding (Value)
-import Data.Int (Int32)
 import Data.Id
 import Data.Range
-import Data.Text
-import Data.Maybe (fromMaybe, isJust)
 import Data.Misc (Milliseconds)
 import Galley.Types (ConvType (..), Access, Member (..), AccessRole)
 import OpenSSL.Random (randBytes)

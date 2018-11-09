@@ -6,6 +6,7 @@ module Galley.Intra.Util
     , x1
     ) where
 
+import Imports
 import Bilge hiding (options, getHeader, statusCode)
 import Bilge.RPC
 import Bilge.Retry
@@ -13,10 +14,8 @@ import Galley.App
 import Galley.Options
 import Control.Lens (view)
 import Control.Retry
-import Data.ByteString (ByteString)
 import Data.Misc (portNumber)
 import Data.Text.Encoding (encodeUtf8)
-import Data.Word (Word16)
 import Util.Options
 
 import qualified Data.ByteString.Lazy as LB

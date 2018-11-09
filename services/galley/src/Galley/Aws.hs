@@ -22,19 +22,14 @@ module Galley.Aws
     , Error (..)
     ) where
 
+import Imports
 import Blaze.ByteString.Builder (toLazyByteString)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.IO.Unlift
-import Control.Monad.Reader
 import Control.Monad.Trans.Resource
 import Control.Retry (retrying, limitRetries, exponentialBackoff)
-import Data.Monoid ((<>))
 import Data.ProtoLens.Encoding
-import Data.Text (Text)
 import Data.Text.Encoding (decodeLatin1)
-import Data.Typeable
 import Data.UUID.V4
 import Data.UUID (toText)
 import Galley.Options

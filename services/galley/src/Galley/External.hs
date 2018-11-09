@@ -4,18 +4,14 @@
 
 module Galley.External (deliver) where
 
+import Imports
 import Bilge.Request
 import Bilge.Retry (httpHandlers)
 import Control.Exception (fromException)
 import Control.Lens
-import Control.Monad
-import Control.Monad.IO.Class
 import Control.Retry
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion.To
 import Data.Misc
-import Data.Monoid
-import Data.Word
 import Galley.App
 import Galley.Data.Services (BotMember, botMemId, botMemService)
 import Galley.Types (Event)
