@@ -35,6 +35,7 @@ dependencies:
   - http-client
   - http-client-tls
   - http-types
+  - imports
   - interpolate
   - lens
   - metrics-core
@@ -67,6 +68,9 @@ dependencies:
   - yaml
   - hscim
   - email-validate
+
+default-extensions:
+  - NoImplicitPrelude
 
 library:
   source-dirs:

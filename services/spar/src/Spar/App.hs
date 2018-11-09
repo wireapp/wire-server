@@ -20,18 +20,17 @@ module Spar.App
   , insertUser
   ) where
 
+import Imports
 import Bilge
 import Brig.Types (Name)
 import Cassandra
-import Control.Exception (SomeException, assert)
+import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import Control.Monad.Except
-import Control.Monad.Reader
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.EitherR (fmapL)
 import Data.Id
 import Data.String.Conversions
-import GHC.Stack
 import SAML2.Util (renderURI)
 import SAML2.WebSSO hiding (UserRef(..))
 import Servant

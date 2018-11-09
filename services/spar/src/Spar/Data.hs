@@ -33,18 +33,15 @@ module Spar.Data
   , deleteIdPConfig
   ) where
 
+import Imports
 import Cassandra as Cas
 import Control.Lens
 import Control.Monad.Except
-import Control.Monad.Reader
 import Data.Id
-import Data.Int
-import Data.Maybe (catMaybes)
 import Data.Misc ((<$$>))
 import Data.String.Conversions
 import Data.Time
 import Data.X509 (SignedCertificate)
-import GHC.Stack
 import GHC.TypeLits (KnownSymbol)
 import Spar.Data.Instances (VerdictFormatRow, VerdictFormatCon, fromVerdictFormat, toVerdictFormat)
 import Spar.Types

@@ -18,6 +18,7 @@
 
 module Spar.API.Swagger where
 
+import Imports
 import Control.Lens
 import Data.Id
 import Data.Proxy

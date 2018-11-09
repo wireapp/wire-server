@@ -19,6 +19,7 @@
 
 module Spar.API.Types where
 
+import Imports
 import Data.Id
 import Data.Proxy
 import Data.String.Conversions (ST)

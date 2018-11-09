@@ -33,16 +33,14 @@ module Spar.API
   , IdpDelete
   ) where
 
+import Imports
 import Brig.Types.User as Brig
 import Control.Lens
 import Control.Monad.Except
-import Control.Monad.Reader
 import Data.Id
-import Data.Maybe (isJust, fromJust)
 import Data.Proxy
 import Data.String.Conversions
 import Data.Time
-import GHC.Stack
 import OpenSSL.Random (randBytes)
 import Servant
 import Servant.Swagger

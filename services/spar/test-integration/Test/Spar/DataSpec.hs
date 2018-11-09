@@ -10,12 +10,10 @@
 
 module Test.Spar.DataSpec (spec) where
 
+import Imports
 import Cassandra
-import Control.Concurrent
 import Control.Lens
 import Control.Monad.Except
-import Control.Monad.Reader
-import Data.String.Conversions
 import Data.Typeable
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID

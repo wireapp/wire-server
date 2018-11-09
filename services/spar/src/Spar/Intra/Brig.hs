@@ -17,6 +17,7 @@ module Spar.Intra.Brig where
 -- TODO: when creating user, we need to be able to provide more
 -- master data (first name, last name, ...)
 
+import Imports
 import Bilge
 import Brig.Types.Intra
 import Brig.Types.User
@@ -27,10 +28,8 @@ import Control.Monad.Reader
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Id (Id(Id), UserId, TeamId)
-import Data.Maybe (isJust)
 import Data.Range
 import Data.String.Conversions
-import GHC.Stack
 import Network.HTTP.Types.Method
 import Spar.Error
 import Web.Cookie

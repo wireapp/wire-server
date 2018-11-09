@@ -13,16 +13,15 @@
 
 module Spar.API.Instances where
 
+import Imports
 import Data.Aeson
 import Data.Aeson.Types
 import Data.CaseInsensitive
 import Data.Id
 import Data.String.Conversions
-import GHC.Generics
 import SAML2.WebSSO.Types
 import SAML2.WebSSO.XML as SAML
 import Servant hiding (URI)
-import Spar.Types
 
 
 instance MimeRender PlainText Void where
