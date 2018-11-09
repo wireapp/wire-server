@@ -29,7 +29,7 @@ module Util.Types
   , teIdP
   , teOpts
   , teTstOpts
-  , teScimAdmin
+  , teScimToken
   , Select
   , ResponseLBS
   , IntegrationConfig(..)
@@ -48,11 +48,11 @@ import Data.String.Conversions
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
 import Spar.Types
+import Spar.SCIM (ScimToken)
 import Util.Options
 
 import qualified Data.Aeson as Aeson
 import qualified Spar.App as Spar
-import qualified Web.SCIM.Class.Auth as SCIM
 
 
 type BrigReq   = Request -> Request
@@ -79,7 +79,8 @@ data TestEnv = TestEnv
   , _teIdP         :: IdP                -- ^ details of the idp
 
     -- SCIM config:
-  , _teScimAdmin   :: SCIM.SCIMAuthData  -- ^ SCIM admin credentials
+  , _teScimToken   :: ScimToken          -- ^ A token that would grant SCIM
+                                         --   access to the '_teTeamId' team
   }
 
 type Select = TestEnv -> (Request -> Request)

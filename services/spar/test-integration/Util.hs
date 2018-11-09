@@ -103,6 +103,7 @@ import SAML2.WebSSO.Test.MockResponse
 import Spar.API.Types
 import Spar.Run
 import Spar.Types
+import Spar.SCIM (ScimToken (..))
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, xit, pending, pendingWith)
 import URI.ByteString
@@ -129,7 +130,6 @@ import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
 import qualified Web.Cookie as Web
-import qualified Web.SCIM.Class.Auth as SCIM
 
 
 -- | Create an environment for integration tests from integration and spar config files.
@@ -166,10 +166,7 @@ mkEnv _teTstOpts _teOpts = do
       sparCtxHttpGalley  = _teGalley empty
       sparCtxRequestId   = RequestId "<fake request id>"
 
-  -- TODO: for now, our SCIM implementation accepts any set of credentials
-  _teScimAdmin <- SCIM.SCIMAuthData
-      <$> liftIO UUID.nextRandom
-      <*> pure "password"
+  let _teScimToken = ScimToken "scim-test-token"
 
   pure TestEnv {..}
 
