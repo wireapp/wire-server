@@ -97,7 +97,7 @@ docker-service-%:
 
 DOCKER_DEV_NETWORK := --net=host
 DOCKER_DEV_VOLUMES := -v `pwd`:/src/wire-server
-DOCKER_DEV_IMAGE   := quay.io/wire/alpine-builder:local
+DOCKER_DEV_IMAGE   := quay.io/wire/alpine-builder:$(DOCKER_TAG)
 .PHONY: run-docker-builder
 run-docker-builder:
 	@echo "if this does not work, consider 'docker pull', 'docker tag', or 'make -C build-alpine builder'."
