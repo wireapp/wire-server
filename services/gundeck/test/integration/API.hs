@@ -89,8 +89,8 @@ tests s = testGroup "Gundeck integration tests" [
         , test s "Replace presence"      $ replacePresence
         , test s "Remove stale presence" $ removeStalePresence
         , test s "Single user push"      $ singleUserPush
+        , test2 s "Push many to Cannon via bulkpush" $ bulkPush 50 8
         , test s "Push many to Cannon via bulkpush (circumventing gundeck)" $ bulkPushViaCannon 5 3
-        , test2 s "Push many to Cannon via bulkpush" $ bulkPush 10 8
         , test s "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback
         , test s "Targeted push by connection" $ targetConnectionPush
         , test s "Targeted push by client" $ targetClientPush
@@ -226,7 +226,8 @@ bulkPush numUsers numConnsPerUser gu ca ca2 _ _ = do
     liftIO $ forConcurrently_ chs $ replicateM 3 . checkMsg
   where
     -- associate chans with userid, connid.
-    injectucs :: Cannon -> [(UserId, [(ConnId, Bool)])] -> [[TChan ByteString]] -> [(Cannon, UserId, ((ConnId, Bool), TChan ByteString))]
+    injectucs :: Cannon -> [(UserId, [(ConnId, Bool)])] -> [[TChan ByteString]]
+              -> [(Cannon, UserId, ((ConnId, Bool), TChan ByteString))]
     injectucs ca_ ucs chs = mconcat $ zipWith (\(uid, connids) chs_ -> (ca_, uid,) <$> zip connids chs_) ucs chs
 
     -- will a notification actually be sent?
@@ -241,7 +242,6 @@ bulkPush numUsers numConnsPerUser gu ca ca2 _ _ = do
 
     push :: UserId -> [(UserId, [(ConnId, Bool)])] -> Push
     push u ucs = newPush u (toRecipients $ fst <$> ucs) pload
-                 & pushOriginConnection .~ Just (ConnId "dev")
                  & pushConnections .~ Set.fromList [ connid | (_, conns) <- ucs, (connid, shouldSend) <- conns, shouldSend ]
 
     checkMsg :: (cannon, userId, ((connId, Bool), TChan ByteString)) -> IO ()

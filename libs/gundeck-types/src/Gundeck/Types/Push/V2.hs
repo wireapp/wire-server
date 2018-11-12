@@ -212,6 +212,9 @@ instance FromJSON Priority where
 data Push = Push
     { _pushRecipients :: Range 1 1024 (Set Recipient)
       -- ^ Recipients
+      -- TODO: should be @Set (Recipient, Maybe (NonEmptySet ConnId))@, and '_pushConnections'
+      -- should go away.  (Coincidentally, where are we using '_pushConnections' to limit pushes to
+      -- individual devices?)
     , _pushOrigin :: !UserId
       -- ^ Originating user
     , _pushConnections :: !(Set ConnId)
