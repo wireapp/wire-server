@@ -238,35 +238,52 @@ gundeckBulkPush numUsers numConnsPerUser gu ca ca2 _ _ = do
 
 gundeckBulkPush' :: Int -> Int -> TestSignature2 ()
 gundeckBulkPush' numUsers numConnsPerUser gu ca ca2 _ _ = do
-    (uid:uids) <- replicateM numUsers randomId
-    (connIds@((connID:_):_)) <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
-    let (uidConns1, uidConns2) = splitAt (fromIntegral ((length uids) `div` 2)) (zip uids connIds)
-    chs1       <- zip uidConns1 <$> connectUsersAndDevices gu ca  uidConns1
-    chs2       <- zip uidConns2 <$> connectUsersAndDevices gu ca2 uidConns2
+    uids@(uid:_)        :: [UserId]   <- replicateM numUsers randomId
+    (connids@((_:_):_)) :: [[ConnId]] <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
+    let ucs  :: [(UserId, [ConnId])]         = zip uids connids
+        ucs' :: [(UserId, [(ConnId, Bool)])] = toggle (mconcat $ repeat [True, False]) ucs
+        (ucs1,  ucs2)  = splitAt (fromIntegral (length ucs `div` 2)) ucs
+        (ucs1', ucs2') = splitAt (fromIntegral (length ucs `div` 2)) ucs'
 
-    --mconcat . fmap snd
+    chs1 <- injectucs ca  ucs1' . fmap snd <$> connectUsersAndDevices gu ca  ucs1
+    chs2 <- injectucs ca2 ucs2' . fmap snd <$> connectUsersAndDevices gu ca2 ucs2
+    let chs = chs1 ++ chs2
 
-    --[(UserId, [TChan ByteString])]
-
-    let pushData = push uid (uid:uids) connID : [push uid (uid:uids) connID]
+    let pushData = replicate 3 $ push uid ucs'
     sendPush' gu pushData
 
-    liftIO $ forM_ (chs1 ++ chs2) $ \ch -> do
-        --ch :: ((Id U, [ConnId]), (UserId, [TChan ByteString]))
-        checkMsg ch
-        checkMsg ch
-
+    liftIO $ forM_ chs $ replicateM 3 . checkMsg
   where
-    checkMsg ch = do
-        msg <- waitForMessage ch
-        assertBool  "No push message received" (isJust msg)
-        assertEqual "Payload altered during transmission"
-            (Just pload)
-            (ntfPayload <$> (decode . fromStrict . fromJust) msg)
+    -- associate chans with userid, connid.
+    injectucs :: Cannon -> [(UserId, [(ConnId, Bool)])] -> [[TChan ByteString]] -> [(Cannon, UserId, ((ConnId, Bool), TChan ByteString))]
+    injectucs ca_ ucs chs = mconcat $ zipWith (\(uid, connids) chs_ -> (ca_, uid,) <$> zip connids chs_) ucs chs
 
-    pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
-    push u us conn = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
-                                                       & pushConnections .~ Set.singleton conn
+    -- will a notification actually be sent?
+    toggle :: [Bool] -> [(UserId, [ConnId])] -> [(UserId, [(ConnId, Bool)])]
+    toggle = f1
+      where
+        f1 _ [] = []
+        f1 shoulds ((uid, connids) : ucs') = (uid, zip connids shoulds) : f1 shoulds' ucs'
+          where shoulds' = drop (length connids) shoulds
+
+    pload = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
+
+    push :: UserId -> [(UserId, [(ConnId, Bool)])] -> Push
+    push u ucs = newPush u (toRecipients $ fst <$> ucs) pload
+                 & pushOriginConnection .~ Just (ConnId "dev")
+                 & pushConnections .~ Set.fromList [ connid | (_, conns) <- ucs, (connid, shouldSend) <- conns, shouldSend ]
+
+    checkMsg :: (cannon, userId, ((connId, Bool), TChan ByteString)) -> IO ()
+    checkMsg (_ca, _uid, ((_connid, shouldReceive), ch)) = do
+        msg <- waitForMessage ch
+        if shouldReceive
+            then do
+                assertBool  "No push message received" (isJust msg)
+                assertEqual "Payload altered during transmission"
+                    (Just pload)
+                    (ntfPayload <$> (decode . fromStrict . fromJust) msg)
+            else do
+                assertBool  "Unexpected push message received" (isNothing msg)
 
 sendSingleUserNoPiggyback :: TestSignature ()
 sendSingleUserNoPiggyback gu ca _ _ = do
