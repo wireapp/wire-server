@@ -7,25 +7,26 @@
 
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
-module API where
+module API (TestSetup(..), tests) where
 
-import Imports
 import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async       (Async, async, wait)
+import Control.Concurrent.Async       (Async, async, wait, forConcurrently_)
 import Control.Lens                   ((.~), (^.), (^?), view)
-import Control.Retry (retrying, constantDelay, limitRetries)
+import Control.Retry                  (retrying, constantDelay, limitRetries)
 import Data.Aeson              hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy           (fromStrict)
 import Data.Id
 import Data.List1                     (List1)
+import Data.Misc                      ((<$$>))
 import Data.Range
 import Data.UUID.V4
 import Gundeck.Types
 import Gundeck.Types.BulkPush
+import Imports
 import Network.URI                    (parseURI)
 import Safe
 import System.Random                  (randomIO)
@@ -35,6 +36,7 @@ import Test.Tasty.HUnit
 import Types
 
 import qualified Cassandra              as Cql
+import qualified Data.Aeson.Types       as Aeson
 import qualified Data.ByteString        as BS
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.ByteString.Char8  as C
@@ -44,7 +46,6 @@ import qualified Data.List1             as List1
 import qualified Data.Set               as Set
 import qualified Data.Text.Encoding     as T
 import qualified Data.UUID              as UUID
-import qualified Data.UUID.V1           as UUID
 import qualified Gundeck.Client.Data    as Clients
 import qualified Gundeck.Push.Data      as Push
 import qualified Network.HTTP.Client    as Http
@@ -88,10 +89,8 @@ tests s = testGroup "Gundeck integration tests" [
         , test s "Replace presence"      $ replacePresence
         , test s "Remove stale presence" $ removeStalePresence
         , test s "Single user push"      $ singleUserPush
-        , test2 s "Push many to Cannon via bulkpush" $ gundeckBulkPush 4 1
-        , test2 s "Push many to Cannon via bulkpush (multiple devices per user)" $ gundeckBulkPush 5 3
-        , test2 s "Push many to Cannon via bulkpush (multiple devices per user, directed)" $ gundeckBulkPush' 5 3
-        , test2 s "Push many to Cannon via bulkpush (multiple devices per user II)" $ gundeckBulkPush 10 8
+        , test s "Push many to Cannon via bulkpush (circumventing gundeck)" $ bulkPushViaCannon 5 3
+        , test2 s "Push many to Cannon via bulkpush" $ bulkPush 10 8
         , test s "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback
         , test s "Targeted push by connection" $ targetConnectionPush
         , test s "Targeted push by client" $ targetClientPush
@@ -208,36 +207,8 @@ singleUserPush gu ca _ _ = do
     pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
--- TODO: send same notification (with same ID) to more than one push target?
--- TODO: test distribution of devices over multiple cannons.
-gundeckBulkPush :: Int -> Int -> TestSignature2 ()
-gundeckBulkPush numUsers numConnsPerUser gu ca ca2 _ _ = do
-    (uid:uids) <- replicateM numUsers randomId
-    connIds    <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
-    let (uidConns1, uidConns2) = splitAt (fromIntegral ((length uids) `div` 2)) (zip uids connIds)
-    chs1       <- mconcat . fmap snd <$> connectUsersAndDevices gu ca  uidConns1
-    chs2       <- mconcat . fmap snd <$> connectUsersAndDevices gu ca2 uidConns2
-
-    let pushData = push uid (uid:uids) : [push uid (uid:uids)]
-    sendPush' gu pushData
-
-    liftIO $ forM_ (chs1 ++ chs2) $ \ch -> do
-        checkMsg ch
-        checkMsg ch
-
-  where
-    checkMsg ch = do
-        msg <- waitForMessage ch
-        assertBool  "No push message received" (isJust msg)
-        assertEqual "Payload altered during transmission"
-            (Just pload)
-            (ntfPayload <$> (decode . fromStrict . fromJust) msg)
-
-    pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
-    push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
-
-gundeckBulkPush' :: Int -> Int -> TestSignature2 ()
-gundeckBulkPush' numUsers numConnsPerUser gu ca ca2 _ _ = do
+bulkPush :: Int -> Int -> TestSignature2 ()
+bulkPush numUsers numConnsPerUser gu ca ca2 _ _ = do
     uids@(uid:_)        :: [UserId]   <- replicateM numUsers randomId
     (connids@((_:_):_)) :: [[ConnId]] <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
     let ucs  :: [(UserId, [ConnId])]         = zip uids connids
@@ -252,7 +223,7 @@ gundeckBulkPush' numUsers numConnsPerUser gu ca ca2 _ _ = do
     let pushData = replicate 3 $ push uid ucs'
     sendPush' gu pushData
 
-    liftIO $ forM_ chs $ replicateM 3 . checkMsg
+    liftIO $ forConcurrently_ chs $ replicateM 3 . checkMsg
   where
     -- associate chans with userid, connid.
     injectucs :: Cannon -> [(UserId, [(ConnId, Bool)])] -> [[TChan ByteString]] -> [(Cannon, UserId, ((ConnId, Bool), TChan ByteString))]
@@ -284,6 +255,68 @@ gundeckBulkPush' numUsers numConnsPerUser gu ca ca2 _ _ = do
                     (ntfPayload <$> (decode . fromStrict . fromJust) msg)
             else do
                 assertBool  "Unexpected push message received" (isNothing msg)
+
+-- | This test is hopefully redundant as long as we're running 'bulkPush', but it was here first,
+-- and it does test the part of cannon without involving gundeck, so we may as well keep it.
+bulkPushViaCannon :: Int -> Int -> TestSignature ()
+bulkPushViaCannon numUsers numConnsPerUser gu ca _ _ = do
+    uids     <- replicateM numUsers randomId
+    connIds  <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
+    chs      <- connectUsersAndDevices gu ca (zip uids connIds)
+    notifIds :: [NotificationId] <- replicateM numUsers randomId
+    let ptrgts :: [[PushTarget]] = zipWith (\u cs -> PushTarget u <$> cs) uids connIds
+        pushes :: [(Notification, [PushTarget])] = pushCannon <$> zip notifIds ptrgts
+    BulkPushResponse resp <- sendBulkPushCannon ca $ BulkPushRequest pushes
+    liftIO $ do
+        assertEqual "Unexpected response body from Cannon (length)"
+            (length resp) (numUsers * numConnsPerUser)
+
+        let expectResp :: [(NotificationId, PushTarget, PushStatus)]
+            expectResp = mconcat $ zipWith run notifIds ptrgts
+              where
+                run :: NotificationId -> [PushTarget] -> [(NotificationId, PushTarget, PushStatus)]
+                run n ts = (\t -> (n, t, PushStatusOk)) <$> ts
+        assertEqual "Unexpected response body from Cannon (contents)"
+            resp expectResp
+
+        msgs <- let run :: (UserId, [TChan ByteString]) -> IO [(UserId, Maybe ByteString)]
+                    run (uid, connids) = (uid,) <$$> (waitForMessage `mapM` connids)
+                in mconcat <$> run `mapM` chs
+        assertions `mapM_` msgs
+  where
+    sendBulkPushCannon :: HasCallStack => Cannon -> BulkPushRequest -> Http BulkPushResponse
+    sendBulkPushCannon ca pushes = do
+        resp <- post ( runCannon ca . path "i/bulkpush" . json pushes ) <!! const 200 === statusCode
+        either (error "failed to decode bulkpush response from cannon") pure .
+            eitherDecode .
+                fromMaybe (error "no body in bulkpush response from cannon") $
+                    responseBody resp
+
+    assertions :: (UserId, Maybe ByteString) -> IO ()
+    assertions (rcpid, msg) = do
+              assertBool  "No push message received" (isJust msg)
+              chkPLoad rcpid (ntfPayload <$> (decode . fromStrict . fromJust) msg)
+
+    pushCannon :: (NotificationId, [PushTarget]) -> (Notification, [PushTarget])
+    pushCannon (notifId, ts) = (Notification notifId False $ mkPLoad ts, ts)
+
+    mkPLoad :: [PushTarget] -> List1 Object
+    mkPLoad rcp = List1.singleton $ HashMap.fromList [ "recipients" .= rcp ]
+
+    readUserIds :: Object -> Aeson.Parser [UserId]
+    readUserIds (toList -> [pts :: Value]) = do
+        x1 :: [PushTarget] <- parseJSON pts >>= mapM parseJSON
+        pure $ ptUserId <$> x1
+    readUserIds bad = error $ show (bad, '*')
+
+    chkPLoad :: UserId -> Maybe (List1 Object) -> Assertion
+    chkPLoad usrid (Just (toList -> bad@[Aeson.parseEither readUserIds -> Right pushTargets])) =
+        assertBool msg (usrid `elem` pushTargets)
+      where
+        msg = "Notification payload does not contain target user: " <> show (bad, usrid)
+    chkPLoad usrid bad =
+        assertFailure $ "Bad notification payload in message: " <> show (bad, usrid)
+
 
 sendSingleUserNoPiggyback :: TestSignature ()
 sendSingleUserNoPiggyback gu ca _ _ = do
@@ -948,14 +981,6 @@ sendPush gu push =
 sendPush' :: HasCallStack => Gundeck -> [Push] -> Http ()
 sendPush' gu push =
     post ( runGundeck gu . path "i/push/v2" . json push ) !!! const 200 === statusCode
-
-sendBulkPushCannon :: HasCallStack => Cannon -> BulkPushRequest -> Http BulkPushResponse
-sendBulkPushCannon ca pushes = do
-    resp <- post ( runCannon ca . path "i/bulkpush" . json pushes ) <!! const 200 === statusCode
-    either (error "failed to decode bulkpush response from cannon") pure .
-        eitherDecode .
-            fromMaybe (error "no body in bulkpush response from cannon") $
-                responseBody resp
 
 buildPush :: HasCallStack => UserId -> [(UserId, [ClientId])] -> List1 Object -> Push
 buildPush sdr rcps pload =
