@@ -89,7 +89,7 @@ tests s = testGroup "Gundeck integration tests" [
         , test s "Replace presence"      $ replacePresence
         , test s "Remove stale presence" $ removeStalePresence
         , test s "Single user push"      $ singleUserPush
-        , test2 s "Push many to Cannon via bulkpush" $ bulkPush 50 8
+        , test2 s "Push many to Cannon via bulkpush (via gundeck)" $ bulkPush 80 8
         , test s "Push many to Cannon via bulkpush (circumventing gundeck)" $ bulkPushViaCannon 5 3
         , test s "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback
         , test s "Targeted push by connection" $ targetConnectionPush
@@ -246,7 +246,7 @@ bulkPush numUsers numConnsPerUser gu ca ca2 _ _ = do
 
     checkMsg :: (cannon, userId, ((connId, Bool), TChan ByteString)) -> IO ()
     checkMsg (_ca, _uid, ((_connid, shouldReceive), ch)) = do
-        let timeoutmusecs = max 1000000 ((1000000 * numUsers * numConnsPerUser) `div` 20)
+        let timeoutmusecs = 1000000 + 10000 * numUsers * numConnsPerUser  -- 10ms of extra timeout for every conn.
         msg <- waitForMessage' timeoutmusecs ch
         if shouldReceive
             then do

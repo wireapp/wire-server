@@ -17,9 +17,8 @@ import UnliftIO (async, waitCatch)
 
 type JSON = Media "application" "json"
 
-mkNotificationId :: (MonadIO m, MonadThrow m) => m NotificationId  -- ???  can nextUUID really fail?
-                                                                   -- i've called it in many places
-                                                                   -- without these countermeasures.
+-- | 'Data.UUID.V1.nextUUID' is sometimes unsuccessful, so we try a few times.
+mkNotificationId :: (MonadIO m, MonadThrow m) => m NotificationId
 mkNotificationId = do
     ni <- fmap Id <$> retrying x10 fun (const (liftIO nextUUID))
     maybe (throwM err) return ni
