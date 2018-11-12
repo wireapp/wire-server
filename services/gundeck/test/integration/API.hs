@@ -1025,14 +1025,6 @@ deleteUser g uid = delete (runGundeck g . zUser uid . path "/i/user") !!! const 
 toRecipients :: [UserId] -> Range 1 1024 (Set Recipient)
 toRecipients = unsafeRange . Set.fromList . map (`recipient` RouteAny)
 
-nextNotificationId :: Http NotificationId
-nextNotificationId = Id <$> liftIO next
-  where
-    next = fromJust
-        <$> retrying (limitRetries 5 <> constantDelay 10)
-                     (const (return . isJust))
-                     (const UUID.nextUUID)
-
 randomConnId :: MonadIO m => m ConnId
 randomConnId = liftIO $ ConnId <$> do
     r <- randomIO :: IO Word32
