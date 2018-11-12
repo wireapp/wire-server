@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -21,6 +22,7 @@ import Control.Error
 import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens ((^.), (.~), (%~), _2, view, set)
 import Control.Monad.Catch
+import Data.Aeson as Aeson (Object)
 import Data.Id
 import Data.List1 (List1, list1)
 import Data.Predicate ((:::)(..))
@@ -97,9 +99,27 @@ pushAny' p = do
     mkTarget :: Recipient -> NotificationTarget
     mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
 
+-- | This class abstracts over all effects in 'pushAll' in order to make unit testing possible.
+-- (Even though we ended up not having any unit tests in the end.)
+class (MonadThrow m, MonadReader Env m) =>  MonadPushAll m where
+  mpaMkNotificationId :: m NotificationId
+  mpaListAllPresences :: ([UserId] -> m [[Presence]])
+  mpaBulkPush         :: ([(Notification, [Presence])] -> m [(NotificationId, [Presence])])
+  mpaStreamAdd        :: NotificationId -> List1 NotificationTarget -> List1 Aeson.Object -> NotificationTTL -> m ()
+  mpaNativeTargets    :: Push -> [Presence] -> m [Address "no-keys"]
+  mpaPushNative       :: Bool -> Notification -> Push -> [Address "no-keys"] -> m ()
+
+instance MonadPushAll Gundeck where
+  mpaMkNotificationId = mkNotificationId
+  mpaListAllPresences = Presence.listAll
+  mpaBulkPush         = Web.bulkPush
+  mpaStreamAdd        = Stream.add
+  mpaNativeTargets    = nativeTargets
+  mpaPushNative       = pushNative
+
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
-pushAll :: [Push] -> Gundeck ()
+pushAll :: MonadPushAll m => [Push] -> m ()
 pushAll pushes = do
     targets :: [(Push, (Notification, List1 (Recipient, [Presence])))]
             <- zip pushes <$> (mkNotificationAndTargets `mapM` pushes)
@@ -114,20 +134,20 @@ pushAll pushes = do
                                    & targetClients .~ r ^. recipientClients
 
     forM_ cassandraTargets $ \(psh, (notif, notifTrgt)) -> unless (psh ^. pushTransient) $
-        Stream.add (ntfId notif) notifTrgt (psh ^. pushPayload)
+        mpaStreamAdd (ntfId notif) notifTrgt (psh ^. pushPayload)
           =<< view (options . optSettings . setNotificationTTL)
 
     -- websockets
 
     let notifIdMap = Map.fromList $ (\(psh, (notif, _)) -> (ntfId notif, (notif, psh))) <$> targets
-    resp <- mapM (compilePushResp notifIdMap) =<< Web.bulkPush (compilePushReq <$> targets)
+    resp <- mapM (compilePushResp notifIdMap) =<< mpaBulkPush (compilePushReq <$> targets)
 
     -- native push
 
     sendNotice <- view (options . optFallback . fbPreferNotice)
     forM_ resp $ \((notif, psh), alreadySent) -> do
-        natives <- nativeTargets psh alreadySent
-        pushNative sendNotice notif psh natives
+        natives <- mpaNativeTargets psh alreadySent
+        mpaPushNative sendNotice notif psh natives
 
 
 compilePushReq :: (Push, (Notification, List1 (Recipient, [Presence]))) -> (Notification, [Presence])
@@ -139,9 +159,10 @@ compilePushReq (psh, notifsAndTargets) =
                               . filter (uncurry (shouldActuallyPush psh))
                               $ (rcp,) <$> pre
 
-compilePushResp :: Map.Map NotificationId (Notification, Push)
+compilePushResp :: MonadThrow m
+                => Map.Map NotificationId (Notification, Push)
                 -> (NotificationId, [Presence])
-                -> Gundeck ((Notification, Push), [Presence])
+                -> m ((Notification, Push), [Presence])
 compilePushResp notifIdMap (notifId, prcs) = (, prcs) <$> lkup
   where
     lkup          = maybe (throwM internalError) pure $ Map.lookup notifId notifIdMap
@@ -154,21 +175,22 @@ compilePushResp notifIdMap (notifId, prcs) = (, prcs) <$> lkup
 -- 'Recipient' can be turned into 'NotificationTarget' needed for storing in C*; the 'Presence's can
 -- be turned into 'PushTarget' needed by Cannon and in 'nativeTargets' for filtering the devices
 -- that need no native push.
-mkNotificationAndTargets :: Push -> Gundeck (Notification, List1 (Recipient, [Presence]))
+mkNotificationAndTargets :: forall m. MonadPushAll m
+                         => Push -> m (Notification, List1 (Recipient, [Presence]))
 mkNotificationAndTargets psh = (,) <$> mkNotif <*> doCollect
   where
-    mkNotif :: Gundeck Notification
+    mkNotif :: m Notification
     mkNotif = do
-        notifId <- mkNotificationId
+        notifId <- mpaMkNotificationId
         pure $ Notification notifId (psh ^. pushTransient) (psh ^. pushPayload)
 
-    doCollect :: Gundeck (List1 (Recipient, [Presence]))
-    doCollect = zip1 rcps =<< Presence.listAll (view recipientId <$> rcps)
+    doCollect :: m (List1 (Recipient, [Presence]))
+    doCollect = zip1 rcps =<< mpaListAllPresences (view recipientId <$> rcps)
       where
         rcps :: [Recipient]
         rcps = toList . fromRange $ (psh ^. pushRecipients :: Range 1 1024 (Set.Set Recipient))
 
-        zip1 :: [a] -> [b] -> Gundeck (List1 (a, b))
+        zip1 :: [a] -> [b] -> m (List1 (a, b))
         zip1 (x:xs) (y:ys) = pure $ list1 (x, y) (zip xs ys)
         zip1 _ _ = throwM $ ErrorCall "mkNotificationAndTargets: internal error."  -- can @listAll@ return @[]@?
 
