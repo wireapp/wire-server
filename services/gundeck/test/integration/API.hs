@@ -13,7 +13,7 @@ import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async       (Async, async, wait, forConcurrently_)
-import Control.Lens                   ((.~), (^.), (^?), view)
+import Control.Lens                   ((.~), (^.), (^?), view, (<&>))
 import Control.Retry                  (retrying, constantDelay, limitRetries)
 import Data.Aeson              hiding (json)
 import Data.Aeson.Lens
@@ -89,7 +89,8 @@ tests s = testGroup "Gundeck integration tests" [
         , test s "Replace presence"      $ replacePresence
         , test s "Remove stale presence" $ removeStalePresence
         , test s "Single user push"      $ singleUserPush
-        , test2 s "Push many to Cannon via bulkpush (via gundeck)" $ bulkPush 80 8
+        , test2 s "Push many to Cannon via bulkpush (via gundeck; group notif)" $ bulkPush False 80 8
+        , test2 s "Push many to Cannon via bulkpush (via gundeck; e2e notif)" $ bulkPush True 80 8
         , test s "Push many to Cannon via bulkpush (circumventing gundeck)" $ bulkPushViaCannon 5 3
         , test s "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback
         , test s "Targeted push by connection" $ targetConnectionPush
@@ -207,8 +208,8 @@ singleUserPush gu ca _ _ = do
     pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
-bulkPush :: Int -> Int -> TestSignature2 ()
-bulkPush numUsers numConnsPerUser gu ca ca2 _ _ = do
+bulkPush :: Bool -> Int -> Int -> TestSignature2 ()
+bulkPush isE2E numUsers numConnsPerUser gu ca ca2 _ _ = do
     uids@(uid:_)        :: [UserId]   <- replicateM numUsers randomId
     (connids@((_:_):_)) :: [[ConnId]] <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
     let ucs  :: [(UserId, [ConnId])]         = zip uids connids
@@ -220,9 +221,8 @@ bulkPush numUsers numConnsPerUser gu ca ca2 _ _ = do
     chs2 <- injectucs ca2 ucs2' . fmap snd <$> connectUsersAndDevices gu ca2 ucs2
     let chs = chs1 ++ chs2
 
-    let pushData = replicate 3 $ push uid ucs'
+    let pushData = mconcat . replicate 3 $ (if isE2E then pushE2E else pushGroup) uid ucs'
     sendPush' gu pushData
-
     liftIO $ forConcurrently_ chs $ replicateM 3 . checkMsg
   where
     -- associate chans with userid, connid.
@@ -238,21 +238,38 @@ bulkPush numUsers numConnsPerUser gu ca ca2 _ _ = do
         f1 shoulds ((uid, connids) : ucs') = (uid, zip connids shoulds) : f1 shoulds' ucs'
           where shoulds' = drop (length connids) shoulds
 
-    pload = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
+    ploadGroup :: List1 Aeson.Object
+    ploadGroup = List1.singleton $ HashMap.fromList [ ("foo" :: Text) .= (42 :: Int)]
 
-    push :: UserId -> [(UserId, [(ConnId, Bool)])] -> Push
-    push u ucs = newPush u (toRecipients $ fst <$> ucs) pload
-                 & pushConnections .~ Set.fromList [ connid | (_, conns) <- ucs, (connid, shouldSend) <- conns, shouldSend ]
+    pushGroup :: UserId -> [(UserId, [(ConnId, Bool)])] -> [Push]
+    pushGroup u ucs = [newPush u (toRecipients $ fst <$> ucs) ploadGroup & pushConnections .~ Set.fromList conns]
+      where
+        conns = [ connid | (_, cns) <- ucs
+                         , (connid, shouldSend) <- cns
+                         , shouldSend ]
 
-    checkMsg :: (cannon, userId, ((connId, Bool), TChan ByteString)) -> IO ()
-    checkMsg (_ca, _uid, ((_connid, shouldReceive), ch)) = do
+    ploadE2E :: ConnId -> List1 Aeson.Object
+    ploadE2E connid = List1.singleton $ HashMap.fromList [ "connid" .= connid ]
+
+    pushE2E :: UserId -> [(UserId, [(ConnId, Bool)])] -> [Push]
+    pushE2E u ucs = targets <&> \(uid, connid) -> newPush u (toRecipients [uid]) (ploadE2E connid)
+                                                  & pushConnections .~ Set.singleton connid
+      where
+        targets :: [(UserId, ConnId)]
+        targets = [ (uid, connid) | (uid, cns) <- ucs
+                                  , (connid, shouldSend) <- cns
+                                  , shouldSend
+                                  ]
+
+    checkMsg :: (cannon, userId, ((ConnId, Bool), TChan ByteString)) -> IO ()
+    checkMsg (_ca, _uid, ((connid, shouldReceive), ch)) = do
         let timeoutmusecs = 1000000 + 10000 * numUsers * numConnsPerUser  -- 10ms of extra timeout for every conn.
         msg <- waitForMessage' timeoutmusecs ch
         if shouldReceive
             then do
                 assertBool  "No push message received" (isJust msg)
                 assertEqual "Payload altered during transmission"
-                    (Just pload)
+                    (Just $ if isE2E then ploadE2E connid else ploadGroup)
                     (ntfPayload <$> (decode . fromStrict . fromJust) msg)
             else do
                 assertBool  "Unexpected push message received" (isNothing msg)
