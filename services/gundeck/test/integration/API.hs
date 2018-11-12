@@ -266,7 +266,7 @@ bulkPushViaCannon numUsers numConnsPerUser gu ca _ _ = do
     notifIds :: [NotificationId] <- replicateM numUsers randomId
     let ptrgts :: [[PushTarget]] = zipWith (\u cs -> PushTarget u <$> cs) uids connIds
         pushes :: [(Notification, [PushTarget])] = pushCannon <$> zip notifIds ptrgts
-    BulkPushResponse resp <- sendBulkPushCannon ca $ BulkPushRequest pushes
+    BulkPushResponse resp <- sendBulkPushCannon $ BulkPushRequest pushes
     liftIO $ do
         assertEqual "Unexpected response body from Cannon (length)"
             (length resp) (numUsers * numConnsPerUser)
@@ -284,8 +284,8 @@ bulkPushViaCannon numUsers numConnsPerUser gu ca _ _ = do
                 in mconcat <$> run `mapM` chs
         assertions `mapM_` msgs
   where
-    sendBulkPushCannon :: HasCallStack => Cannon -> BulkPushRequest -> Http BulkPushResponse
-    sendBulkPushCannon ca pushes = do
+    sendBulkPushCannon :: HasCallStack => BulkPushRequest -> Http BulkPushResponse
+    sendBulkPushCannon pushes = do
         resp <- post ( runCannon ca . path "i/bulkpush" . json pushes ) <!! const 200 === statusCode
         either (error "failed to decode bulkpush response from cannon") pure .
             eitherDecode .
