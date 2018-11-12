@@ -246,7 +246,8 @@ bulkPush numUsers numConnsPerUser gu ca ca2 _ _ = do
 
     checkMsg :: (cannon, userId, ((connId, Bool), TChan ByteString)) -> IO ()
     checkMsg (_ca, _uid, ((_connid, shouldReceive), ch)) = do
-        msg <- waitForMessage ch
+        let timeoutmusecs = max 1000000 ((1000000 * numUsers * numConnsPerUser) `div` 20)
+        msg <- waitForMessage' timeoutmusecs ch
         if shouldReceive
             then do
                 assertBool  "No push message received" (isJust msg)
@@ -901,7 +902,10 @@ retryWhileN n f m = retrying (constantDelay 1000000 <> limitRetries n)
                              (const m)
 
 waitForMessage :: TChan ByteString -> IO (Maybe ByteString)
-waitForMessage = System.Timeout.timeout 1000000 . liftIO . atomically . readTChan
+waitForMessage = waitForMessage' 1000000
+
+waitForMessage' :: Int -> TChan ByteString -> IO (Maybe ByteString)
+waitForMessage' musecs = System.Timeout.timeout musecs . liftIO . atomically . readTChan
 
 registerClient :: Gundeck -> UserId -> ClientId -> SignalingKeys -> Http (Response (Maybe BL.ByteString))
 registerClient g uid cid keys = put $ runGundeck g
