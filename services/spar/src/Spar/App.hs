@@ -241,11 +241,10 @@ data VerdictHandlerResult
   | VerifyHandlerError ST ST
 
 catchVerdictErrors :: Spar VerdictHandlerResult -> Spar VerdictHandlerResult
-catchVerdictErrors (Spar act) = Spar (ReaderT (\env -> ExceptT $ runExceptT (act `runReaderT` env) <&> Right . recvr))
+catchVerdictErrors = (`catchError` pure . hndlr)
   where
-    recvr :: Either SparError VerdictHandlerResult -> VerdictHandlerResult
-    recvr (Right v) = v
-    recvr (Left e) = case sparToWaiError e of
+    hndlr :: SparError -> VerdictHandlerResult
+    hndlr err = case sparToWaiError err of
       Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
       Left (serr :: ServantErr) -> VerifyHandlerError (cs $ errReasonPhrase serr) (cs $ errBody serr)
 
