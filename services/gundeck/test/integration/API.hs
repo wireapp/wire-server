@@ -910,7 +910,7 @@ getLastNotification gu u c = get $ runGundeck gu
 
 sendPush :: HasCallStack => Gundeck -> Push -> Http ()
 sendPush gu push =
-    post ( runGundeck gu . path "i/push" . json [push] ) !!! const 200 === statusCode
+    post ( runGundeck gu . path "i/push/v2" . json [push] ) !!! const 200 === statusCode
 
 sendBulkPushCannon :: HasCallStack => Cannon -> BulkPushRequest -> Http BulkPushResponse
 sendBulkPushCannon ca pushes = do
