@@ -212,6 +212,13 @@ instance FromJSON Priority where
 data Push = Push
     { _pushRecipients :: Range 1 1024 (Set Recipient)
       -- ^ Recipients
+      --
+      -- TODO: should be @Set (Recipient, Maybe (NonEmptySet ConnId))@, and '_pushConnections'
+      -- should go away.  Rationale: the current setup only works under the assumption that no
+      -- 'ConnId' is used by two 'Recipient's.  This is *probably* correct, but not in any contract.
+      -- Coincidentally, where are we using '_pushConnections' to limit pushes to individual
+      -- devices?  Is it possible we can remove '_pushConnections' without touching
+      -- '_pushRecipients'?
     , _pushOrigin :: !UserId
       -- ^ Originating user
     , _pushConnections :: !(Set ConnId)

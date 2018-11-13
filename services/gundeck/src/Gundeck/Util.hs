@@ -17,6 +17,7 @@ import UnliftIO (async, waitCatch)
 
 type JSON = Media "application" "json"
 
+-- | 'Data.UUID.V1.nextUUID' is sometimes unsuccessful, so we try a few times.
 mkNotificationId :: (MonadIO m, MonadThrow m) => m NotificationId
 mkNotificationId = do
     ni <- fmap Id <$> retrying x10 fun (const (liftIO nextUUID))
