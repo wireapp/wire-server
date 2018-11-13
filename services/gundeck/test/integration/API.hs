@@ -89,9 +89,9 @@ tests s = testGroup "Gundeck integration tests" [
         , test s "Replace presence"      $ replacePresence
         , test s "Remove stale presence" $ removeStalePresence
         , test s "Single user push"      $ singleUserPush
-        , test2 s "Push many to Cannon via bulkpush (via gundeck; group notif)" $ bulkPush False 50 3
-        , test2 s "Push many to Cannon via bulkpush (via gundeck; e2e notif)" $ bulkPush True 50 3
-        , test s "Push many to Cannon via bulkpush (circumventing gundeck)" $ bulkPushViaCannon 50 3
+        , test2 s "Push many to Cannon via bulkpush (via gundeck; group notif)" $ bulkPush False 50 8
+        , test2 s "Push many to Cannon via bulkpush (via gundeck; e2e notif)" $ bulkPush True 50 8
+        , test s "Push many to Cannon via bulkpush (circumventing gundeck)" $ bulkPushViaCannon 50 8
         , test s "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback
         , test s "Targeted push by connection" $ targetConnectionPush
         , test s "Targeted push by client" $ targetClientPush
