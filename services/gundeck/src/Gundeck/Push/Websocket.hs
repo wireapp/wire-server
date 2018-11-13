@@ -41,6 +41,7 @@ import qualified Gundeck.Presence.Data        as Presence
 import qualified Network.HTTP.Client.Internal as Http
 import qualified Network.URI                  as URI
 import qualified System.Logger.Class          as Log
+import qualified System.Logger                as Logger
 
 -- | Send a 'Notification's to associated 'Presence's.  Send at most one request to each Cannon.
 -- Return the lists of 'Presence's successfully reached for each resp. 'Notification'.
@@ -118,7 +119,8 @@ bulkSend uri req = (uri,) <$> ((Right <$> bulkSend' uri req) `catch` (pure . Lef
 
 bulkSend' :: URI -> BulkPushRequest -> Gundeck BulkPushResponse
 bulkSend' uri (encode -> jsbody) = do
-    req <- ( check
+    logr <- view applog
+    req <- ( check logr
            . method POST
            . contentJson
            . lbytes jsbody
@@ -130,10 +132,13 @@ bulkSend' uri (encode -> jsbody) = do
   where
     submit req = recovering (limitRetries 1) rpcHandlers $ const (rpc' "cannon" req id)
 
-    check req = req { Http.checkResponse = \rq rs ->
-        when (responseStatus rs /= status200) $
+    check loggr req = req { Http.checkResponse = \rq rs ->
+        when (responseStatus rs /= status200) $ do
+            Logger.warn loggr $ Logger.msg (Logger.val $ toByteString' $ show $ responseStatus rs)
+            bdy <- responseBody rs
+            Logger.warn loggr $ Logger.msg (Logger.val $ toByteString' bdy)
             let ex = StatusCodeException (rs { responseBody = () }) mempty
-            in throwM $ HttpExceptionRequest rq ex
+            throwM $ HttpExceptionRequest rq ex
     }
 
     decodeBulkResp :: MonadThrow m => Maybe L.ByteString -> m BulkPushResponse
