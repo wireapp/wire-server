@@ -461,16 +461,13 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
                 uid' <- getUserIdViaRef $ UserRef (idp ^. idpMetadata . edIssuer) subj
                 checkGrantingAuthnResp uid' sparrq sparresp
-                liftIO $ if bindsucceeds
-                  then uid' `shouldBe` uid
-                  else uid' `shouldNotBe` uid
                 liftIO $ (if bindsucceeds then shouldBe else shouldNotBe) uid' uid
 
             addAtBeginning :: Cky.SetCookie -> Cky.Cookies -> Cky.Cookies
             addAtBeginning cky = ((Cky.setCookieName cky, Cky.setCookieValue cky):)
 
             addAtEnd :: Cky.SetCookie -> Cky.Cookies -> Cky.Cookies
-            addAtEnd cky = addAtBeginning cky . reverse
+            addAtEnd cky = (<> [(Cky.setCookieName cky, Cky.setCookieValue cky)])
 
             cky1, cky2, cky3 :: Cky.SetCookie
             cky1 = Cky.def { Cky.setCookieName = "cky1", Cky.setCookieValue = "val1" }
