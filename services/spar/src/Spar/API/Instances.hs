@@ -13,47 +13,26 @@
 
 module Spar.API.Instances where
 
-import Control.Monad
 import Data.Aeson
 import Data.Aeson.Types
 import Data.CaseInsensitive
 import Data.Id
 import Data.String.Conversions
-import Data.Time
 import GHC.Generics
-import SAML2.Util (parseURI')
 import SAML2.WebSSO.Types
 import SAML2.WebSSO.XML as SAML
 import Servant hiding (URI)
 import Spar.Types
-import URI.ByteString
 
 
 instance MimeRender PlainText Void where
   mimeRender _ = error "instance MimeRender HTML Void: impossible"
-
-instance FromHttpApiData URI where
-  parseUrlPiece = either (fail . show) pure . parseURI' <=< parseUrlPiece
 
 instance FromHttpApiData (Id a) where
   parseUrlPiece = fmap Id . parseUrlPiece
 
 instance ToHttpApiData (Id a) where
   toUrlPiece = toUrlPiece . show
-
-instance FromHttpApiData (ID a) where
-  parseUrlPiece = fmap ID . parseUrlPiece
-
-instance ToHttpApiData (ID a) where
-  toUrlPiece = toUrlPiece . renderID
-
-instance FromHttpApiData Time where
-  parseUrlPiece st =
-    fmap Time . parseTimeM True defaultTimeLocale timeFormat =<< parseUrlPiece @String st
-
-instance ToHttpApiData Time where
-  toUrlPiece =
-    toUrlPiece . formatTime defaultTimeLocale timeFormat . fromTime
 
 instance ToJSON UserRef where
   toJSON (UserRef tenant subject) =
@@ -70,63 +49,6 @@ instance FromJSON UserRef where
 
 instance FromJSON AccessVerdict
 instance ToJSON AccessVerdict
-
-instance FromJSON AuthnResponse
-instance ToJSON AuthnResponse
-
-instance FromJSON Status where
-  parseJSON = withText "Status" $ either fail pure . SAML.decodeElem . cs
-
-instance ToJSON Status where
-  toJSON = String . cs . SAML.encodeElem
-
-instance FromJSON Assertion
-instance ToJSON Assertion
-
-instance FromJSON SubjectAndStatements
-instance ToJSON SubjectAndStatements
-
-instance FromJSON Subject
-instance ToJSON Subject
-
-instance FromJSON SubjectConfirmation
-instance ToJSON SubjectConfirmation
-
-instance FromJSON SubjectConfirmationMethod
-instance ToJSON SubjectConfirmationMethod
-
-instance FromJSON SubjectConfirmationData
-instance ToJSON SubjectConfirmationData
-
-instance FromJSON IP
-instance ToJSON IP
-
-instance FromJSON Statement
-instance ToJSON Statement
-
-instance FromJSON Locality
-instance ToJSON Locality
-
-instance FromJSON Attribute
-instance ToJSON Attribute
-
-instance FromJSON AttributeValue
-instance ToJSON AttributeValue
-
-instance FromJSON (ID a)
-instance ToJSON (ID a)
-
-instance FromJSON NameID
-instance ToJSON NameID
-
-instance FromJSON UnqualifiedNameID
-instance ToJSON UnqualifiedNameID
-
-instance FromJSON Time
-instance ToJSON Time
-
-instance FromJSON Conditions
-instance ToJSON Conditions
 
 deriving instance Generic ServantErr
 instance FromJSON ServantErr

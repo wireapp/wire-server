@@ -2,7 +2,7 @@
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-{-# OPTIONS_GHC -fno-warn-orphans #-}  -- FUTUREWORK: get rid of this
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Spar.Data.Instances where
 

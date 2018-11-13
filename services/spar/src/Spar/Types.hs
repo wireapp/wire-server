@@ -28,6 +28,7 @@ import Data.String.Conversions (ST)
 import Data.Text (Text)
 import Data.Time
 import GHC.Generics
+import GHC.Stack
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
 import SAML2.Util (renderURI, parseURI')
@@ -44,7 +45,18 @@ import qualified SAML2.WebSSO as SAML
 
 data Void
 
-type BindCookie = SimpleSetCookie "zbind"
+type SetBindCookie = SimpleSetCookie "zbind"
+
+newtype BindCookie = BindCookie { fromBindCookie :: ST }
+
+-- | Extract @zbind@ cookie from HTTP header contents if it exists.
+bindCookieFromHeader :: ST -> Maybe BindCookie
+bindCookieFromHeader = fmap BindCookie . lookup "zbind" . parseCookiesText . cs
+  -- (we could rewrite this as @SAML.cookieName SetBindCookie@ if 'cookieName'
+  -- accepted any @proxy :: Symbol -> *@ rather than just 'Proxy'.)
+
+setBindCookieValue :: HasCallStack => SetBindCookie -> BindCookie
+setBindCookieValue = BindCookie . cs . setCookieValue . SAML.fromSimpleSetCookie
 
 ----------------------------------------------------------------------------
 -- Identity provider
