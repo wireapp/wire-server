@@ -3,8 +3,8 @@
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
--- | All general-purpose orphan instances used in Brig.
-module Brig.Orphans () where
+-- | Orphan instances for non-Wire-specific types and classes.
+module Orphans () where
 
 import Data.Aeson
 import GHC.Generics

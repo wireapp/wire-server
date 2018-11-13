@@ -12,13 +12,11 @@ import Brig.SMTP (SMTPConnType (..))
 import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
-import Brig.Orphans ()
 import Data.Aeson.Types (typeMismatch)
 import Data.Id
 import Data.Scientific (toBoundedInteger)
 import Data.Time.Clock (DiffTime, secondsToDiffTime)
 import Data.Yaml (FromJSON(..))
-import Options.Applicative
 import Util.Options
 import System.Logger (Level)
 
