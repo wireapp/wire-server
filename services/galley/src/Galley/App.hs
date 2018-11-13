@@ -37,21 +37,19 @@ module Galley.App
     , fromProtoBody
     ) where
 
+import Imports
 import Bilge hiding (Request, header, statusCode, options)
 import Bilge.RPC
 import Cassandra hiding (Error, Set)
 import Control.Error
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (tryJust)
-import Control.Monad.IO.Class
-import Control.Monad.Reader
 import Data.Aeson (FromJSON)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (TeamId, UserId, ConnId)
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
 import Data.Serialize.Get (runGetLazy)
-import Data.String (fromString)
 import Data.Text (unpack)
 import Galley.Options
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -63,7 +61,6 @@ import OpenSSL.Session as Ssl
 import Ssl.Util
 import System.Logger.Class hiding (Error, info)
 import Util.Options
-import UnliftIO (MonadUnliftIO(..), withUnliftIO, UnliftIO(..))
 
 import qualified Cassandra                as C
 import qualified Cassandra.Settings       as C

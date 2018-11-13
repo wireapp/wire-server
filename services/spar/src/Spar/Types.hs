@@ -15,20 +15,16 @@
 
 module Spar.Types where
 
+import Imports
 import Control.Lens (makeLenses)
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Id (TeamId, UserId)
-import Data.Int
-import Data.Monoid
 import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions
 import Data.String.Conversions (ST)
-import Data.Text (Text)
 import Data.Time
-import GHC.Generics
-import GHC.Stack
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
 import SAML2.Util (renderURI, parseURI')
@@ -42,8 +38,6 @@ import qualified Data.ByteString.Builder as Builder
 import qualified Data.Text as ST
 import qualified SAML2.WebSSO as SAML
 
-
-data Void
 
 type SetBindCookie = SimpleSetCookie "zbind"
 

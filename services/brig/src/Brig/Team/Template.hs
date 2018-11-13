@@ -15,10 +15,10 @@ module Brig.Team.Template
     , renderHtml
     ) where
 
+import Imports
 import Brig.Options
 import Brig.Template
 import Brig.Types
-import Data.Text (Text)
 
 data InvitationEmailTemplate = InvitationEmailTemplate
     { invitationEmailUrl        :: !Template
@@ -49,7 +49,7 @@ data MemberWelcomeEmailTemplate = MemberWelcomeEmailTemplate
 
 data TeamTemplates = TeamTemplates
     { invitationEmail     :: !InvitationEmailTemplate
-    , creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate 
+    , creatorWelcomeEmail :: !CreatorWelcomeEmailTemplate
     , memberWelcomeEmail  :: !MemberWelcomeEmailTemplate
     }
 

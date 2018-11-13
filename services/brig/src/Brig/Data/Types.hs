@@ -7,6 +7,7 @@ module Brig.Data.Types
     , cassandraResultPage
     ) where
 
+import Imports
 import qualified Cassandra
 
 -- | An opaque page of results with an indication of whether

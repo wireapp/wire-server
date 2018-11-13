@@ -5,6 +5,7 @@ module Brig.InternalEvent.Process
     ( onEvent
     ) where
 
+import Imports
 import Brig.App
 import Brig.InternalEvent.Types
 import Control.Monad.Catch

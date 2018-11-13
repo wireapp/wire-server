@@ -2,14 +2,13 @@
 
 module Brig.Team.Util where  -- TODO: remove this module and move contents to Brig.IO.Intra?
 
+import Imports
 import Brig.App
 import Control.Lens
 import Data.Id
 import Galley.Types.Teams
 import Brig.API.Error
 import Control.Error
-import Control.Monad.Trans.Class
-import Control.Monad
 
 import qualified Brig.IO.Intra as Intra
 import qualified Data.Set as Set

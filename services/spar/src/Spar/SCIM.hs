@@ -26,10 +26,10 @@ module Spar.SCIM
   -- $mapping
   ) where
 
+import Imports
 import Brig.Types.User       as Brig
 import Galley.Types.Teams    as Galley
 import Control.Monad.Except
-import Control.Monad.Reader
 import Control.Monad.Catch
 import Control.Exception
 import Control.Lens
@@ -43,13 +43,10 @@ import Spar.Intra.Galley
 import Data.UUID as UUID
 import Crypto.Hash
 import Data.Time
-import Data.Maybe
-import Data.Monoid ((<>))
 import Data.Text.Encoding
 import Data.Aeson as Aeson
 import Text.Email.Validate
 import Servant.Generic
-import Text.Read (readMaybe)
 
 import qualified Data.Text    as Text
 import qualified Data.UUID.V4 as UUID

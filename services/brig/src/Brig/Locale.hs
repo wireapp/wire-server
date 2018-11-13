@@ -5,10 +5,9 @@ module Brig.Locale
     , frFr
     ) where
 
+import Imports
 import Brig.Types (Language (..), Locale (..))
 import Data.LanguageCodes (ISO639_1 (DE, FR))
-import Data.String (fromString)
-import Data.Text (Text)
 import Data.Time.Format
 import Data.Time.Clock (UTCTime)
 import Data.Time.LocalTime (utc, TimeZone (..))
@@ -90,4 +89,3 @@ frFr = TimeLocale
         , TimeZone 120 True "HAEC"
         ]
     }
-

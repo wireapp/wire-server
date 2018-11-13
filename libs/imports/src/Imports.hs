@@ -81,9 +81,10 @@ import Prelude (
     IO, FilePath)
 import qualified Prelude as P
 
-import Control.Applicative hiding (empty, some, many) -- common in some libs
+import Control.Applicative hiding (optional, empty, some, many) -- common in
+                                                                -- some libs
 import Data.Functor
-import Data.Bifunctor
+import Data.Bifunctor hiding (first, second)
 import Data.Function
 import Data.Functor.Identity
 import Data.Int
@@ -98,7 +99,8 @@ import Data.Either
 import Data.Foldable
 import Data.Traversable
 import Data.Tuple
-import Data.List hiding (insert, delete)  -- common in database modules
+import Data.List hiding (insert, delete)  -- 'insert' and 'delete' are
+                                          -- common in database modules
 import Data.String
 import Control.Monad hiding (mapM_, sequence_, forM_, msum, mapM, sequence, forM)
 import Debug.Trace
@@ -112,8 +114,10 @@ import UnliftIO.Environment
 import UnliftIO.Exception
 import UnliftIO.IORef
 import UnliftIO.MVar
-import UnliftIO.IO hiding (getMonotonicTime)
-import UnliftIO.Directory
+import UnliftIO.IO hiding (Handle, getMonotonicTime)  -- Handle is hidden
+                                                      -- because it's common
+                                                      -- in Brig
+import UnliftIO.Directory hiding (Permissions) -- Permissions is common in Galley
 import UnliftIO.STM
 
 import Data.Map (Map)    -- Lazy and strict versions are the same
@@ -132,7 +136,7 @@ import Control.Monad.Trans.Reader (
     ReaderT(ReaderT), runReaderT, mapReaderT, withReaderT)
 import Control.Monad.IO.Unlift
 
-import Control.DeepSeq
+import Control.DeepSeq (NFData(..), deepseq)
 
 ----------------------------------------------------------------------------
 -- Type aliases

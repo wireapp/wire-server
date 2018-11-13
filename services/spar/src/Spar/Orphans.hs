@@ -13,10 +13,9 @@
 
 module Spar.Orphans where
 
+import Imports
 import Data.Id
 import Servant (FromHttpApiData(..), ToHttpApiData(..), MimeRender(..), PlainText)
-import Spar.Types
-
 
 instance FromHttpApiData UserId where
   parseUrlPiece = fmap Id . parseUrlPiece

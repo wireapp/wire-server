@@ -7,12 +7,12 @@ module Brig.API.Properties
     , Data.lookupPropertyKeys
     ) where
 
+import Imports
 import Brig.App
 import Brig.Data.Properties (PropertiesDataError)
 import Brig.Types
 import Brig.User.Event
 import Control.Error
-import Control.Monad.Trans.Class
 import Data.Id
 
 import qualified Brig.Data.Properties as Data

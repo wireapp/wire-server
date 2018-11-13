@@ -11,6 +11,7 @@ module Spar.Error
   , sparToWaiError
   ) where
 
+import Imports
 import Control.Monad.Except
 import Data.Aeson
 import Data.String.Conversions

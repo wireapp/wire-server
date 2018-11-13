@@ -13,6 +13,7 @@ module Brig.API.Handler
     , checkWhitelist
     ) where
 
+import Imports
 import Bilge (RequestId (..))
 import Brig.App (Env, AppIO, runAppT, requestId, applog, settings)
 import Brig.Options (setWhitelist)
@@ -21,11 +22,8 @@ import Brig.Email (Email)
 import Brig.Phone (Phone, PhoneException (..))
 import Control.Error
 import Control.Lens (set, view)
-import Control.Monad
 import Control.Monad.Catch (catches, throwM)
-import Control.Monad.Trans.Class
 import Data.Aeson (FromJSON)
-import Data.Monoid
 import Network.Wai.Predicate (Media)
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Routing (Continue)
@@ -93,4 +91,3 @@ checkWhitelist key = do
         Just  b -> do
             ok <- lift $ Whitelist.verify b key
             unless ok (throwStd whitelistError)
-

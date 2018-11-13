@@ -3,11 +3,10 @@
 
 module Galley.API.Mapping where
 
+import Imports
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Foldable (toList)
-import Data.Maybe (listToMaybe)
 import Galley.App
 import Galley.Types
 import Network.HTTP.Types.Status

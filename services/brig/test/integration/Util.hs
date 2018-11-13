@@ -6,6 +6,7 @@
 
 module Util where
 
+import Imports
 import Bilge
 import Bilge.Assert
 import Brig.AWS.Types
@@ -16,25 +17,18 @@ import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Lens ((^?), (^?!))
-import Control.Monad
-import Control.Monad.IO.Class
 import Control.Monad.Catch (MonadThrow)
 import Control.Retry
 import Data.Aeson
 import Data.Aeson.Lens (key, _String, _Integral)
-import Data.ByteString (ByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
-import Data.Char
 import Data.Id
 import Data.List1 (List1)
 import Data.Misc (PlainTextPassword(..))
-import Data.Maybe
-import Data.Monoid
-import Data.Text (Text)
-import Data.Typeable
+import Data.Proxy (Proxy(..))
+import Data.Typeable (typeRep)
 import Galley.Types (Member (..))
-import GHC.Stack (HasCallStack)
 import Gundeck.Types.Notification
 import Gundeck.Types.Push (SignalingKeys (..), EncKey (..), MacKey (..))
 import System.Random (randomRIO, randomIO)

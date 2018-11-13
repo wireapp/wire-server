@@ -5,21 +5,17 @@
 
 module API.User.Client (tests) where
 
+import Imports
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
 import Brig.Types.User.Auth hiding (user)
 import Control.Lens ((^?), preview)
-import Control.Monad
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
-import Data.Function (on)
 import Data.Id hiding (client)
-import Data.List (sort, sortBy, nub)
-import Data.Maybe
 import Gundeck.Types.Notification
 import Gundeck.Types.Push.V2
 import Test.Tasty hiding (Timeout)

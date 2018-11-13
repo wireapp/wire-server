@@ -2,8 +2,8 @@
 
 module Brig.User.Handle.Blacklist (isBlacklistedHandle) where
 
+import Imports
 import Brig.Types.Common (Handle (..))
-import Data.HashSet (HashSet)
 
 import qualified Data.HashSet as HashSet
 
@@ -49,4 +49,3 @@ blacklist = HashSet.fromList $ map Handle
     , "wirebot"
     , "wireteam"
     ]
-

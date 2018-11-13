@@ -13,15 +13,14 @@ module Brig.User.Email
     , validateEmail
     ) where
 
+import Imports
 import Brig.App
 import Brig.Email
 import Brig.Locale (formatDateTime, timeLocale)
 import Brig.User.Template
 import Brig.Types
 import Data.Json.Util (fromUTCTimeMillis)
-import Data.Maybe (fromMaybe, isNothing)
 import Data.Range
-import Data.Text (Text)
 import Data.Text.Lazy (toStrict)
 
 import qualified Brig.Email      as Email

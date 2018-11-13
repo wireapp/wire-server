@@ -2,14 +2,10 @@
 
 module API.Search (tests) where
 
+import Imports
 import API.Search.Util
 import Bilge
 import Brig.Types
-import Control.Concurrent              (threadDelay)
-import Control.Monad
-import Control.Monad.IO.Class
-import Data.Foldable
-import Data.Monoid
 import Network.HTTP.Client             (Manager)
 import Test.Tasty
 import Test.Tasty.HUnit

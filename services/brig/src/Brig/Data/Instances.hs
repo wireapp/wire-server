@@ -8,6 +8,7 @@
 
 module Brig.Data.Instances () where
 
+import Imports
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Provider ()
@@ -15,7 +16,6 @@ import Cassandra.CQL
 import Control.Error (note)
 import Data.Aeson (eitherDecode, encode)
 import Data.Id()
-import Data.Int
 import Data.Range()
 import Data.String.Conversions (cs, LBS, ST)
 import Data.Text.Ascii()

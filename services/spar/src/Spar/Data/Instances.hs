@@ -6,6 +6,7 @@
 
 module Spar.Data.Instances where
 
+import Imports
 import Cassandra as Cas
 import Data.String.Conversions
 import Data.X509 (SignedCertificate)

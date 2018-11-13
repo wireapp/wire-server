@@ -2,8 +2,8 @@
 
 module Main where
 
+import Imports
 import Control.Exception
-import Data.Monoid
 import Options.Applicative
 import Spar.Options
 import Spar.Types

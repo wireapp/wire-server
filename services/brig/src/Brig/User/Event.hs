@@ -3,6 +3,7 @@
 
 module Brig.User.Event where
 
+import Imports
 import Brig.Types
 import Brig.Types.Intra
 import Data.Id
@@ -110,4 +111,3 @@ propEventUserId :: PropertyEvent -> UserId
 propEventUserId (PropertySet       u _ _) = u
 propEventUserId (PropertyDeleted   u _  ) = u
 propEventUserId (PropertiesCleared u    ) = u
-

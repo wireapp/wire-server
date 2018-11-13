@@ -5,18 +5,16 @@
 
 module API.User.Handles (tests) where
 
+import Imports
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
 import Control.Lens ((^?), (^?!))
-import Control.Monad
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
-import Data.Maybe
 import Gundeck.Types.Notification
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)

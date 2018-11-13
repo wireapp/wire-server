@@ -11,6 +11,7 @@
 
 module Test.Spar.TypesSpec where
 
+import Imports
 import Data.Id
 import Data.UUID
 import Spar.Types

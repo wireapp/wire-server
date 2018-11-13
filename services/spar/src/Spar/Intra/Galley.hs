@@ -14,16 +14,15 @@
 -- | Spar talking to Galley.
 module Spar.Intra.Galley where
 
+import Imports
 import Bilge
 import Galley.Types.Teams
 import Control.Monad.Except
-import Control.Monad.Reader
 import Control.Lens
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Id (TeamId)
 import Data.String.Conversions
-import GHC.Stack
 import Network.HTTP.Types.Method
 import Spar.Error
 

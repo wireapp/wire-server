@@ -4,14 +4,12 @@
 
 module Brig.User.Search.Index.Types where
 
+import Imports
 import Brig.Types.User
-import Control.Exception
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id
 import Data.Json.Util ((#))
-import Data.Maybe
-import Data.Text (Text)
 import           Database.V5.Bloodhound     hiding (key)
 
 data IndexUpdate
@@ -84,5 +82,3 @@ mkIndexUser u v = IndexUser
     , _iuHandle     = Nothing
     , _iuColourId   = Nothing
     }
-
-

@@ -6,6 +6,7 @@
 
 module API.User.Account (tests) where
 
+import Imports
 import API.Search.Util (assertSearchable)
 import API.Team.Util (createUserWithTeam, createTeamMember)
 import API.User.Util
@@ -16,25 +17,18 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth hiding (user)
 import Control.Arrow ((&&&))
-import Control.Concurrent (threadDelay)
 import Control.Lens ((^?), (^.))
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Lens
-import Data.ByteString.Char8 (pack, intercalate)
+import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
-import Data.Foldable (for_)
 import Data.List1 (singleton)
-import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
-import Data.Monoid ((<>))
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Clock (diffUTCTime)
-import Data.Text (Text)
 import Data.Vector (Vector)
 import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
@@ -51,6 +45,7 @@ import qualified Brig.AWS                    as AWS
 import qualified Brig.Options                as Opt
 import qualified Brig.Types.User.Auth        as Auth
 import qualified CargoHold.Types.V3          as CHV3
+import qualified Data.ByteString.Char8       as C8
 import qualified Data.List1                  as List1
 import qualified Data.Set                    as Set
 import qualified Data.Text                   as T
@@ -381,7 +376,7 @@ testMultipleUsers brig = do
     u1 <- randomUser brig
     u2 <- randomUser brig
     u3 <- createAnonUser "a" brig
-    let uids = intercalate "," $ map (toByteString' . userId) [u1, u2, u3]
+    let uids = C8.intercalate "," $ map (toByteString' . userId) [u1, u2, u3]
         -- n.b. email addresses and phone numbers are never returned
         -- on this endpoint, only from the self profile (/self).
         expected = Set.fromList

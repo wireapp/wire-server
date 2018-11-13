@@ -11,7 +11,7 @@
 
 module Test.Spar.DataSpec where
 
-import Data.Maybe
+import Imports
 import Data.Time
 import Spar.Data
 import Spar.Types

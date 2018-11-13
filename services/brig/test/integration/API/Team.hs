@@ -6,6 +6,7 @@
 
 module API.Team (tests) where
 
+import Imports
 import API.Search.Util
 import API.Team.Util
 import Bilge hiding (accept, timeout, head)
@@ -15,20 +16,12 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
-import Control.Concurrent (threadDelay)
 import UnliftIO.Async.Extended
     (mapConcurrently_, replicateConcurrently, forPooled, replicatePooled)
 import Control.Lens ((^.), view)
-import Control.Monad
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy.Internal (ByteString)
 import Data.Id hiding (client)
-import Data.Maybe
-import Data.Monoid ((<>))
-import Data.Text (Text)
-import Data.Word (Word16)
 import Network.HTTP.Client             (Manager)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
@@ -308,7 +301,7 @@ testInvitationMutuallyExclusive brig = do
     req email (Just code) (Just newTeam) (Just code)  !!! const 400 === statusCode
   where
     req :: Email -> Maybe InvitationCode -> Maybe Team.BindingNewTeam -> Maybe InvitationCode
-        -> HttpT IO (Response (Maybe ByteString))
+        -> HttpT IO (Response (Maybe LByteString))
     req e c t i = post (brig . path "/register" . contentJson . body (
         RequestBodyLBS . encode  $ object
             [ "name"            .= ("Bob" :: Text)

@@ -2,17 +2,13 @@
 
 module API.Search.Util where
 
+import Imports
 import Bilge
 import Bilge.Assert
 import Brig.Types
-import Control.Monad.IO.Class
 import Data.Aeson             (decode, encode)
 import Data.Id
-import Data.Maybe
-import Data.Monoid
-import Data.Text              (Text)
 import Data.Text.Encoding     (encodeUtf8)
-import GHC.Stack (HasCallStack)
 import Util
 import Test.Tasty.HUnit
 

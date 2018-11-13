@@ -8,6 +8,7 @@ module Galley.API.Clients
     , rmClient
     ) where
 
+import Imports
 import Control.Lens (view)
 import Data.Id
 import Galley.App
