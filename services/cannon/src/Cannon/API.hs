@@ -32,7 +32,7 @@ import Network.Wai
 import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
 import Network.Wai.Utilities hiding (message)
-import Network.Wai.Utilities.Request (parseJsonBody)
+import Network.Wai.Utilities.Request (parseBody')
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Handler.Warp hiding (run)
@@ -143,7 +143,7 @@ push (user ::: conn ::: req) =
 -- | Parse the entire list of notifcations and targets, then call 'singlePush' on the each of them
 -- in order.
 bulkpush :: Request -> Cannon Response
-bulkpush req = json <$> (parseJsonBody req >>= bulkpush')
+bulkpush req = json <$> (parseBody' req >>= bulkpush')
 
 -- | The typed part of 'bulkpush'.
 bulkpush' :: BulkPushRequest -> Cannon BulkPushResponse
