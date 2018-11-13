@@ -12,6 +12,7 @@ import Brig.SMTP (SMTPConnType (..))
 import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist(..))
+import Brig.Orphans ()
 import Data.Aeson.Types (typeMismatch)
 import Data.Id
 import Data.Scientific (toBoundedInteger)
@@ -19,6 +20,7 @@ import Data.Time.Clock (DiffTime, secondsToDiffTime)
 import Data.Yaml (FromJSON(..))
 import Options.Applicative
 import Util.Options
+import System.Logger (Level)
 
 import qualified Brig.ZAuth  as ZAuth
 import qualified Data.Yaml   as Y
@@ -199,6 +201,11 @@ data Opts = Opts
     , internalEvents :: !InternalEventsOpts -- ^ Event queue for
                                             --   Brig-generated events (e.g.
                                             --   user deletion)
+
+    -- Logging
+    , logLevel      :: !Level              -- ^ Log level (Debug, Info, etc)
+    , logNetStrings :: !Bool               -- ^ Use netstrings encoding (see
+                                           --   <http://cr.yp.to/proto/netstrings.txt>)
 
     -- TURN
     , turn          :: !TurnOpts           -- ^ TURN server settings

@@ -73,6 +73,7 @@ fi
 function run() {
     service=$1
     colour=$2
+    # TODO can be removed once all services have been switched to YAML configs
     export LOG_LEVEL=$3
     (cd ${DIR}/${service} && ${TOP_LEVEL}/dist/${service} -c ${service}.integration${integration_file_extension} || kill_all) \
         | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
@@ -80,7 +81,7 @@ function run() {
 
 check_prerequisites
 
-run brig ${green} Warn
+run brig ${green}
 run galley ${yellow} Info
 run gundeck ${blue} Info
 run cannon ${orange} Info

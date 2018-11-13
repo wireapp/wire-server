@@ -53,6 +53,7 @@ library
       , Brig.IO.Intra
       , Brig.IO.Journal
       , Brig.Locale
+      , Brig.Orphans
       , Brig.Password
       , Brig.Phone
       , Brig.Provider.API

@@ -12,9 +12,6 @@ BIN=$HOME/bin/$APP
 
 if [ ! -f $CONFIG ]; then exec chpst -u $USER get_config; fi
 
-export LOG_LEVEL=${BRIG_LOG_LEVEL:-Info}
-export LOG_NETSTR=${BRIG_LOG_NETSTR:-True}
-
 cd $HOME
 
 ulimit -n 65536
