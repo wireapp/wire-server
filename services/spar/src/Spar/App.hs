@@ -236,9 +236,9 @@ verdictHandler cky aresp verdict = do
                -- (this shouldn't happen too often, see 'storeVerdictFormat')
 
 data VerdictHandlerResult
-  = VerifyHandlerGranted SetCookie UserId
-  | VerifyHandlerDenied [ST]
-  | VerifyHandlerError ST ST
+  = VerifyHandlerGranted { _vhrCookie :: SetCookie, _vhrUserId :: UserId }
+  | VerifyHandlerDenied { _vhrReasons :: [SAML.DeniedReason] }
+  | VerifyHandlerError { _vhrLabel :: ST, _vhrMessage :: ST }
 
 catchVerdictErrors :: Spar VerdictHandlerResult -> Spar VerdictHandlerResult
 catchVerdictErrors = (`catchError` pure . hndlr)
@@ -246,13 +246,13 @@ catchVerdictErrors = (`catchError` pure . hndlr)
     hndlr :: SparError -> VerdictHandlerResult
     hndlr err = case sparToWaiError err of
       Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
-      Left (serr :: ServantErr) -> VerifyHandlerError (cs $ errReasonPhrase serr) (cs $ errBody serr)
+      Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
 
 verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
 verdictHandlerResult bindCky = catchVerdictErrors . \case
   denied@(SAML.AccessDenied reasons) -> do
     SAML.logger SAML.Debug (show denied)
-    pure . VerifyHandlerDenied $ explainDeniedReason <$> reasons
+    pure $ VerifyHandlerDenied reasons
 
   granted@(SAML.AccessGranted userref) -> do
     uid :: UserId <- do
@@ -285,7 +285,7 @@ verdictHandlerResult bindCky = catchVerdictErrors . \case
 verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Spar SAML.ResponseVerdict
 verdictHandlerWeb = pure . \case
     VerifyHandlerGranted cky _uid -> successPage cky
-    VerifyHandlerDenied reasons   -> forbiddenPage "forbidden" reasons
+    VerifyHandlerDenied reasons   -> forbiddenPage "forbidden" (explainDeniedReason <$> reasons)
     VerifyHandlerError lbl msg    -> forbiddenPage lbl [msg]
   where
     forbiddenPage :: ST -> [ST] -> SAML.ResponseVerdict
@@ -337,13 +337,16 @@ verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> VerdictHandlerResu
 verdictHandlerMobile granted denied = \case
     VerifyHandlerGranted cky uid
       -> mkVerdictGrantedFormatMobile granted cky uid &
-         either (throwSpar . SparCouldNotSubstituteSuccessURI . cs) (pure . successPage cky)
+         either (throwSpar . SparCouldNotSubstituteSuccessURI . cs)
+                (pure . successPage cky)
     VerifyHandlerDenied reasons
       -> mkVerdictDeniedFormatMobile denied "forbidden" &
-         either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage "forbidden" reasons)
+         either (throwSpar . SparCouldNotSubstituteFailureURI . cs)
+                (pure . forbiddenPage "forbidden" (explainDeniedReason <$> reasons))
     VerifyHandlerError lbl msg
       -> mkVerdictDeniedFormatMobile denied lbl &
-         either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage lbl [msg])
+         either (throwSpar . SparCouldNotSubstituteFailureURI . cs)
+                (pure . forbiddenPage lbl [msg])
   where
     forbiddenPage :: ST -> [ST] -> URI.URI -> SAML.ResponseVerdict
     forbiddenPage errlbl errs uri = err303
