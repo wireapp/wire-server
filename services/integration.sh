@@ -78,12 +78,21 @@ function run() {
         | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
 
+function run2() {
+    service=$1
+    colour=$2
+    export LOG_LEVEL=$3
+    (cd ${DIR}/${service} && ${TOP_LEVEL}/dist/${service} -c ${service}2.integration${integration_file_extension} || kill_all) \
+        | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
+}
+
 check_prerequisites
 
 run brig ${green} Warn
 run galley ${yellow} Info
 run gundeck ${blue} Info
 run cannon ${orange} Info
+run2 cannon ${orange} Info
 run cargohold ${purpleish} Info
 run spar ${orange} Info
 
