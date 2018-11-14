@@ -202,6 +202,6 @@ ssoLogin buid = do
     $ method POST
     . path "/i/sso-login"
     . json (SsoLogin buid Nothing)
-    . queryItem "persistent" "true"
+    . queryItem "persist" "true"
     . expect2xx
   respToCookie resp
