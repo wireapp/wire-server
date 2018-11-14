@@ -40,6 +40,7 @@ import Data.Range
 import Servant
 import Spar.App (Spar)
 import Spar.Error
+import Spar.Types
 import Spar.Intra.Brig
 import Spar.Intra.Galley
 import Data.UUID as UUID
@@ -49,7 +50,6 @@ import Data.Text.Encoding
 import Data.Aeson as Aeson
 import Text.Email.Validate
 import Servant.Generic
-import Web.HttpApiData
 
 import qualified Data.Text    as Text
 import qualified Data.UUID.V4 as UUID
@@ -298,19 +298,6 @@ instance SCIM.GroupDB Spar where
 
 ----------------------------------------------------------------------------
 -- AuthDB
-
--- | A bearer token that authorizes a provisioning tool to perform actions
--- with a team. Each token corresponds to one team.
-newtype ScimToken = ScimToken { fromScimToken :: Text }
-  deriving (Eq, Show)
-
-instance FromHttpApiData ScimToken where
-  parseHeader h = ScimToken <$> parseHeaderWithPrefix "Bearer " h
-  parseQueryParam p = ScimToken <$> parseQueryParam p
-
-instance ToHttpApiData ScimToken where
-  toHeader (ScimToken s) = "Bearer " <> encodeUtf8 s
-  toQueryParam (ScimToken s) = toQueryParam s
 
 instance SCIM.AuthDB Spar where
   type AuthData Spar = ScimToken

@@ -66,3 +66,5 @@ toVerdictFormat :: VerdictFormatRow -> Maybe VerdictFormat
 toVerdictFormat (VerdictFormatConWeb, Nothing, Nothing)                 = Just VerdictFormatWeb
 toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir) = Just $ VerdictFormatMobile succredir errredir
 toVerdictFormat _                                                       = Nothing
+
+deriving instance Cql ScimToken
