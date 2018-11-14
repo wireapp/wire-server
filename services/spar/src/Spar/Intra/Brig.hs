@@ -194,7 +194,7 @@ assertIsTeamOwner buid tid = do
   when (statusCode resp >= 400) $ throwSpar SparNotTeamOwner
 
 
--- | Get session token from brig and redirect user past login process.
+-- | Get persistent cookie from brig and redirect user past login process.
 ssoLogin :: (HasCallStack, MonadError SparError m, SAML.HasConfig m, MonadSparToBrig m)
          => UserId -> m SetCookie
 ssoLogin buid = do
