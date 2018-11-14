@@ -22,7 +22,6 @@
 module Spar.SCIM
   ( SCIM.SiteAPI
   , scimApi
-  , ScimToken(..)
 
   -- * The mapping between Wire and SCIM users
   -- $mapping

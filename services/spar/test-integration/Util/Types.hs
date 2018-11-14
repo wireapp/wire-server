@@ -48,7 +48,6 @@ import Data.String.Conversions
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
 import Spar.Types
-import Spar.SCIM (ScimToken)
 import Util.Options
 
 import qualified Data.Aeson as Aeson

@@ -105,7 +105,6 @@ import SAML2.WebSSO.Test.MockResponse
 import Spar.API.Types
 import Spar.Run
 import Spar.Types
-import Spar.SCIM (ScimToken (..))
 import System.Random (randomRIO)
 import Test.Hspec hiding (it, xit, pending, pendingWith)
 import URI.ByteString
