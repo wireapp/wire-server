@@ -448,7 +448,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           (_, _, sparresp) <- initialBind uid idp
           checkDenyingAuthnResp sparresp "bad-team"
 
-      describe "### cookie corner cases" $ do
+      describe "cookie corner cases" $ do
         -- attempt to bind with different 'Cookie' headers in the request to finalize-login.  if the
         -- zbind cookie cannot be found, the user is created from scratch, and the old, existing one
         -- is "detached".  if the zbind cookie is found, the binding is successful.
