@@ -20,8 +20,8 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Text (pack, unpack)
 import System.Random
+import Spar.Types (ScimToken)
 import Util
-import Spar.SCIM (ScimToken)
 import Web.HttpApiData (toHeader)
 
 import qualified Web.SCIM.Class.User              as SCIM
