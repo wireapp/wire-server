@@ -21,6 +21,7 @@ import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Id (TeamId, UserId)
+import Data.Text.Encoding (encodeUtf8)
 import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions
 import Data.String.Conversions (ST)
@@ -33,6 +34,7 @@ import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import URI.ByteString
 import Util.Options
 import Web.Cookie
+import Web.HttpApiData
 
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.Text as ST
@@ -67,6 +69,22 @@ data IdPList = IdPList
 
 makeLenses ''IdPList
 deriveJSON deriveJSONOptions ''IdPList
+
+----------------------------------------------------------------------------
+-- SCIM
+
+-- | A bearer token that authorizes a provisioning tool to perform actions
+-- with a team. Each token corresponds to one team.
+newtype ScimToken = ScimToken { fromScimToken :: Text }
+  deriving (Eq, Show)
+
+instance FromHttpApiData ScimToken where
+  parseHeader h = ScimToken <$> parseHeaderWithPrefix "Bearer " h
+  parseQueryParam p = ScimToken <$> parseQueryParam p
+
+instance ToHttpApiData ScimToken where
+  toHeader (ScimToken s) = "Bearer " <> encodeUtf8 s
+  toQueryParam (ScimToken s) = toQueryParam s
 
 ----------------------------------------------------------------------------
 -- Requests and verdicts
