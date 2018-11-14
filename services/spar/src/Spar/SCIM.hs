@@ -38,7 +38,7 @@ import Control.Lens
 import Data.Id
 import Data.Range
 import Servant
-import Spar.App (Spar)
+import Spar.App (Spar, wrapMonadClient)
 import Spar.Error
 import Spar.Types
 import Spar.Intra.Brig
@@ -54,6 +54,7 @@ import Servant.Generic
 import qualified Data.Text    as Text
 import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
+import qualified Spar.Data    as Data
 
 import qualified Web.SCIM.Class.User              as SCIM
 import qualified Web.SCIM.Class.Group             as SCIM
@@ -217,7 +218,7 @@ toSCIMEmail (Email eLocal eDomain) =
 
 instance SCIM.UserDB Spar where
   -- | List all users, possibly filtered by some predicate.
-  list tid mbFilter = do
+  list (tid, _) mbFilter = do
     members <- lift $ getTeamMembers tid
     users <- forM members $ \member ->
       lift (getUser (member ^. Galley.userId)) >>= \case
@@ -236,7 +237,7 @@ instance SCIM.UserDB Spar where
     SCIM.fromList <$> filterM check users
 
   -- | Get a single user by its ID.
-  get tid uidText = do
+  get (tid, _) uidText = do
     uid <- case readMaybe (Text.unpack uidText) of
       Just u -> pure u
       Nothing -> SCIM.throwSCIM $
@@ -247,7 +248,7 @@ instance SCIM.UserDB Spar where
       pure (toSCIMUser user))
 
   -- | Create a new user.
-  create tid user = do
+  create (tid, mbIdp) user = do
     extId <- case SCIM.User.externalId user of
       Just x -> pure x
       Nothing -> SCIM.throwSCIM $
@@ -271,11 +272,15 @@ instance SCIM.UserDB Spar where
 
     buid <- Id <$> liftIO UUID.nextRandom
     -- TODO: Assume that externalID is the subjectID, let's figure out how
-    -- to extract that later. The question of "who's the issuer?" is a very
-    -- tricky one and we don't have a decision here yet.
-    let uref = SAML.UserRef
-          (SAML.Issuer $ SAML.unsafeParseURI ("https://unknown.issuer.org"))
-          (SAML.opaqueNameID extId)
+    -- to extract that later
+    -- TODO: when the issuer is deleted, the token still remains, so we can
+    -- fail here
+    issuer <- case mbIdp of
+        Nothing -> error "No IdP configured for the provisioning token"
+        Just idp -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
+            Nothing -> error "IdP not found"
+            Just idpConfig -> pure (idpConfig ^. SAML.idpMetadata . SAML.edIssuer)
+    let uref = SAML.UserRef issuer (SAML.opaqueNameID extId)
 
     -- TODO: Adding a handle should be done _DURING_ the creation
     lift $ do
@@ -301,8 +306,12 @@ instance SCIM.GroupDB Spar where
 
 instance SCIM.AuthDB Spar where
   type AuthData Spar = ScimToken
-  type AuthInfo Spar = TeamId
+  type AuthInfo Spar = (TeamId, Maybe SAML.IdPId)
 
-  -- TODO
-  authCheck _ = SCIM.throwSCIM $
-      SCIM.unauthorized "authorization not implemented"
+  authCheck Nothing =
+      SCIM.throwSCIM (SCIM.unauthorized "Token not provided")
+  authCheck (Just token) =
+      maybe (SCIM.throwSCIM (SCIM.unauthorized "Invalid token")) pure =<<
+      lift (wrapMonadClient (Data.lookupScimToken token))
+
+-- TODO: don't forget to delete the tokens when the team is deleted
