@@ -45,10 +45,6 @@ import qualified URI.ByteString as URI
 
 -- TODO: steal from https://github.com/haskell-servant/servant-swagger/blob/master/example/src/Todo.hs
 
-instance ToSchema Swagger where
-  declareNamedSchema _proxy = genericDeclareNamedSchema defaultSchemaOptions (Proxy @())
-    & mapped . schema . description ?~ "The swagger docs you are looking at (all details hidden)."
-
 instance HasSwagger route => HasSwagger (SM.MultipartForm SM.Mem resp :> route) where
   toSwagger _proxy = toSwagger (Proxy @route)
     & info . description ?~ cs [QQ.i|

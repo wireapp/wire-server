@@ -22,7 +22,7 @@
 
 module Spar.API
   ( app, api
-  , API
+  , API, OutsideWorldAPI
   , APIMeta
   , APIAuthReqPrecheck
   , APIAuthReq

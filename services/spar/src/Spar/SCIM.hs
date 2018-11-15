@@ -38,6 +38,7 @@ import Data.Id
 import Data.Range
 import Servant
 import Spar.App (Spar, wrapMonadClient)
+import Spar.API.Util
 import Spar.Error
 import Spar.Types
 import Spar.Intra.Brig
@@ -83,7 +84,8 @@ import qualified Web.SCIM.Schema.Common           as SCIM.Common
 configuration :: SCIM.Meta.Configuration
 configuration = SCIM.Meta.empty
 
-type APIScim = SCIM.SiteAPI ScimToken
+type APIScim
+     = OmitDocs :> "v2" :> SCIM.SiteAPI ScimToken
 
 apiScim :: ServerT APIScim Spar
 apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
