@@ -15,7 +15,6 @@ module Options
 where
 
 import Control.Lens
-import Data.Monoid
 import Data.Text.Strict.Lens
 import Data.Word
 import Options.Applicative

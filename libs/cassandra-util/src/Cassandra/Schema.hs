@@ -25,6 +25,7 @@ import Control.Error
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
+import Control.Retry
 import Data.Aeson hiding (Result)
 import Data.Int
 import Data.IORef

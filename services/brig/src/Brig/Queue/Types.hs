@@ -6,7 +6,6 @@ module Brig.Queue.Types
     ) where
 
 import Data.Aeson
-import Data.Monoid
 import Data.Text (Text)
 
 -- | A remote queue that you can publish to and listen from.
