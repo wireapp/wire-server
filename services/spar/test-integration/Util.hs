@@ -468,7 +468,7 @@ hasPersistentCookieHeader :: ResponseLBS -> Either String ()
 hasPersistentCookieHeader rsp = do
   cky <- getCookie (Proxy @"zuid") rsp
   when (isNothing . Web.setCookieExpires $ fromSimpleSetCookie cky) $
-    Left $ "expiration date shoult NOT empty: " <> show cky
+    Left $ "expiration date should NOT empty: " <> show cky
 
 -- | A bind cookie is always sent, but if we do not want to send one, it looks like this:
 -- "wire.com=; Path=/sso/finalize-login; Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure"
