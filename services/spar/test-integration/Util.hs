@@ -166,7 +166,14 @@ mkEnv _teTstOpts _teOpts = do
       sparCtxHttpGalley  = _teGalley empty
       sparCtxRequestId   = RequestId "<fake request id>"
 
-  let _teScimToken = ScimToken "scim-test-token"
+  let _teScimToken = ScimToken $
+          "scim-test-token/" <> "team=" <> idToText _teTeamId
+  runClient _teCql $
+      Data.insertScimToken
+          _teTeamId
+          _teScimToken
+          (Just (_teIdP ^. idpId))
+          "_teScimToken test token"
 
   pure TestEnv {..}
 
