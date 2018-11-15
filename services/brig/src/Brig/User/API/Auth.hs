@@ -16,7 +16,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Predicate
 import Network.HTTP.Types.Status
-import Network.Wai (Request, Response, responseHeaders)
+import Network.Wai (Request, Response)
 import Network.Wai.Predicate
 import Network.Wai.Predicate.Request
 import Network.Wai.Routing
@@ -187,12 +187,11 @@ login (req ::: persist ::: _) = do
     tokenResponse a
 
 ssoLogin :: Request ::: Bool ::: JSON ::: JSON -> Handler Response
-ssoLogin (req ::: persist ::: _) = traceShow (req, persist) $ do
+ssoLogin (req ::: persist ::: _) = do
     l <- parseJsonBody req
     let typ = if persist then PersistentCookie else SessionCookie
     a <- Auth.ssoLogin l typ !>> loginError
-    resp <- tokenResponse a
-    traceShow (responseHeaders resp) $ pure resp
+    tokenResponse a
 
 logout :: JSON ::: Maybe ZAuth.UserToken ::: Maybe ZAuth.AccessToken -> Handler Response
 logout (_ ::: Nothing ::: Nothing) = throwStd authMissingCookieAndToken
