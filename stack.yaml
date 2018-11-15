@@ -125,20 +125,6 @@ packages:
   - hedgehog-quickcheck
   extra-dep: true
 
-# We want to have at least this commit in:
-# https://gitlab.com/twittner/cql-io/commit/94facaca2d9970b91353f947da84634fcd6d78cc
-- location:
-    git: https://gitlab.com/twittner/cql-io
-    commit: 94facaca2d9970b91353f947da84634fcd6d78cc
-  extra-dep: true
-
-# Doesn't compile with GHC 8.4; see
-# https://gitlab.com/twittner/redis-resp/issues/2
-- location:
-    git: https://github.com/neongreen/redis-resp
-    commit: 86ae383e88dafa4d1a559929e1b75dbba1fd9078
-  extra-dep: true
-
 # services/spar:
 - location:
     git: https://github.com/wireapp/saml2-web-sso
@@ -174,7 +160,6 @@ extra-deps:
 - invertible-hxt-0.1  # for hsaml2 / spar
 - stomp-queue-0.3.1  # for Brig.Queue.Stomp
 - stompl-0.5.0
-- servant-multipart-0.11.2
 # for hscim
 - network-uri-static-0.1.0.0
 - list-t-1.0.1  # 1.0.0.1 doesn't build
@@ -185,8 +170,11 @@ extra-deps:
 - template-0.2.0.10
 - wai-route-0.4.0
 - text-format-0.3.2
-- redis-io-0.7.0
-#- redis-resp-0.4.0
+- redis-io-1.0.0
+- redis-resp-1.0.0
+- servant-multipart-0.11.2
+- wai-middleware-prometheus-1.0.0
+- prometheus-client-1.0.0
 #- hedgehog-quickcheck-0.1
 
 flags:

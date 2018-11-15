@@ -49,7 +49,6 @@ dependencies:
   - servant-multipart
   - servant-server
   - servant-swagger
-  - servant-generic
   - string-conversions
   - swagger2
   - text
