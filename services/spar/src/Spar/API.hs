@@ -50,6 +50,7 @@ import Spar.API.Types
 import Spar.App
 import Spar.Error
 import Spar.Types
+import Spar.SCIM
 
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64 as ES
@@ -70,6 +71,7 @@ api opts
      = apiSSO opts
   :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateBind
   :<|> apiIDP
+  :<|> apiScim
   :<|> apiINTERNAL
 
 apiSSO :: Opts -> ServerT APISSO Spar

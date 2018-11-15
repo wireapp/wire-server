@@ -26,6 +26,7 @@ import Data.String.Conversions (ST)
 import Servant
 import Servant.Multipart
 import Spar.Types
+import Spar.SCIM (APIScim)
 
 import qualified SAML2.WebSSO as SAML
 import qualified URI.ByteString as URI
@@ -44,8 +45,7 @@ type API
      = "sso" :> APISSO
   :<|> "sso-initiate-bind"  :> APIAuthReq  -- (see comment on 'APIAuthReq')
   :<|> "identity-providers" :> APIIDP
-  -- TODO: reenable once SCIM is ready
-  -- :<|> "scim" :> "v2" :> ScimApi
+  :<|> "scim" :> "v2" :> APIScim
   :<|> "i" :> APIINTERNAL
   -- NB. If you add endpoints here, also update Test.Spar.APISpec
 
@@ -167,8 +167,10 @@ sparResponseURI = SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthResp)
 --   * does not expose routes prefixed with /i/
 --   * handles authorization (adding a Z-User header if requests are authorized)
 --   * does not show the swagger end-point itself
+--
+-- We also strip the SCIM endpoint because SCIM schemas aren't ready yet.
 type OutsideWorldAPI =
-    StripSwagger (StripInternal (StripAuth API))
+    StripSwagger (StripScim (StripInternal (StripAuth API)))
 
 -- | Strip the nginz-set, internal-only Z-User header
 type family StripAuth api where
@@ -181,6 +183,12 @@ type family StripInternal api where
     StripInternal ("i" :> b) = EmptyAPI
     StripInternal (a :<|> b) = StripInternal a :<|> StripInternal b
     StripInternal x = x
+
+-- | Strip SCIM endpoints (excluding the SCIM token endpoints)
+type family StripScim api where
+    StripScim ("scim" :> "v2" :> b) = EmptyAPI
+    StripScim (a :<|> b) = StripScim a :<|> StripScim b
+    StripScim x = x
 
 -- | Strip the endpoint that exposes documentation.
 type family StripSwagger api where
