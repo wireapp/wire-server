@@ -3,6 +3,7 @@
 
 module Brig.Whitelist (Whitelist (..), verify) where
 
+import Imports
 import Data.Aeson
 import Bilge.IO
 import Bilge.Request
@@ -10,11 +11,9 @@ import Bilge.Response
 import Bilge.Retry
 import Brig.Types
 import Control.Monad.Catch (MonadMask, throwM)
-import Control.Monad.IO.Class
 import Control.Retry
 import Data.Text
 import Data.Text.Encoding (encodeUtf8)
-import GHC.Generics
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), parseRequest)
 
 data Whitelist = Whitelist

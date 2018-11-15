@@ -5,8 +5,8 @@ module Brig.Queue.Types
     ( Queue (..)
     ) where
 
+import Imports
 import Data.Aeson
-import Data.Text (Text)
 
 -- | A remote queue that you can publish to and listen from.
 data Queue = StompQueue Text | SqsQueue Text

@@ -22,7 +22,7 @@ module Cassandra.Settings
     , setRetrySettings
     , setPolicy
     , initialContactsDisco
-    , initialContactsDNS
+    , initialContactsPlain
     ) where
 
 import Control.Lens
@@ -30,14 +30,15 @@ import Control.Monad.IO.Class
 import Data.Aeson.Lens
 import Database.CQL.IO hiding (values)
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Text.Encoding (encodeUtf8)
+import Data.Monoid
 import Data.Text (pack, stripSuffix, unpack, Text)
-import Network.DNS.Lookup
-import Network.DNS.Resolver
+import Database.CQL.IO hiding (values)
 import Network.Wreq
 
-import qualified Data.List.NonEmpty as NE
-
+-- | This function is likely only useful at Wire, as it is Wire-infra specific.
+-- Given a server name and a url returning a wire-custom "disco" json (AWS describe-instances-like json), e.g.
+-- { "roles" : { "server_name": [ {"privateIpAddress": "...", ...}, {...} ] } },
+-- return a list of IP addresses.
 initialContactsDisco :: MonadIO m => String -> String -> m (NonEmpty String)
 initialContactsDisco (pack -> srv) url = liftIO $ do
     rs <- asValue =<< get url
@@ -56,12 +57,6 @@ initialContactsDisco (pack -> srv) url = liftIO $ do
         i:ii -> return (i :| ii)
         _    -> error "initial-contacts: no IP addresses found."
 
-initialContactsDNS :: MonadIO m => Text -> m (NonEmpty String)
-initialContactsDNS address = liftIO $ do
-    rs  <- makeResolvSeed defaultResolvConf
-    ips <- withResolver rs $ \resolver -> lookupA resolver (encodeUtf8 address)
-    return $ case ips of
-      Right (x:xs) -> NE.map show (x :| xs)
-      _            -> fallback
-  where
-    fallback = unpack address :| [] -- If it's not a valid DNS name, just try using it anyway
+-- | Puts the address into a list using the same signature as the other initialContacts
+initialContactsPlain :: MonadIO m => Text -> m (NonEmpty String)
+initialContactsPlain address = pure $ unpack address :| []

@@ -4,15 +4,12 @@
 
 module Galley.Options where
 
+import Imports
 import Control.Lens hiding ((.=))
 import Data.Aeson.TH (deriveFromJSON)
-import Data.Text (Text)
-import Data.Word (Word16)
-import GHC.Generics
 import Options.Applicative
 import Util.Options
 import Data.ByteString.Conversion
-import Data.Maybe
 import Util.Options.Common
 import Data.Misc
 

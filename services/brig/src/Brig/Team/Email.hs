@@ -10,16 +10,17 @@ module Brig.Team.Email
     , sendMemberWelcomeMail
     ) where
 
+import Imports
 import Brig.App
 import Brig.Email
 import Brig.Team.Template
 import Brig.Types
 import Data.Id (idToText, TeamId)
-import Data.Text (Text)
 import Data.Text.Lazy (toStrict)
 
 import qualified Brig.Email      as Email
 import qualified Data.Text.Ascii as Ascii
+
 -------------------------------------------------------------------------------
 -- Invitation Email
 

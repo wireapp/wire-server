@@ -5,7 +5,7 @@
 module Network.Wire.Simulations.LoadTest where
 
 import Control.Concurrent
-import Control.Concurrent.Async.Lifted.Safe.Extended as Async
+import UnliftIO.Async.Extended as Async
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Id (ConvId)
@@ -249,4 +249,3 @@ postAssetTime = Metrics.path "post-asset.time"
 
 between :: MonadBotNet m => Int -> Int -> m Int
 between x y = getGen >>= liftIO . MWC.uniformR (max 0 x, max x y)
-

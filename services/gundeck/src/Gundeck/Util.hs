@@ -4,21 +4,16 @@
 
 module Gundeck.Util where
 
-import Control.Concurrent.Async.Lifted.Safe
-import Control.Monad ((<=<))
+import Imports
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Control
 import Control.Retry
 import Data.Id
-import Data.Maybe (isNothing)
-import Data.Traversable (mapM)
 import Data.UUID.V1
 import Gundeck.Types.Notification
 import Network.HTTP.Types.Status
 import Network.Wai.Predicate.MediaType (Media)
 import Network.Wai.Utilities
-import Prelude hiding (mapM)
+import UnliftIO (async, waitCatch)
 
 type JSON = Media "application" "json"
 
@@ -31,7 +26,7 @@ mkNotificationId = do
     fun = const (return . isNothing)
     err = Error status500 "internal-error" "unable to generate notification ID"
 
-mapAsync :: (MonadBaseControl IO m, Traversable t, Forall (Pure m))
+mapAsync :: (MonadUnliftIO m, Traversable t)
          => (a -> m b)
          -> t a
          -> m (t (Either SomeException b))

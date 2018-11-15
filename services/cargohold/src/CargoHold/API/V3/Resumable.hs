@@ -17,7 +17,7 @@ import CargoHold.Options
 import CargoHold.Types.V3 as V3
 import CargoHold.Types.V3.Resumable as V3
 import Control.Error (throwE)
-import Control.Lens (view, (&), set)
+import Control.Lens (view, set)
 import Data.ByteString.Conversion
 import Data.Coerce
 import Data.Conduit
@@ -135,4 +135,3 @@ getResumable :: AssetKey -> Handler S3.S3Resumable
 getResumable key = do
     rs <- S3.getResumable key
     maybe (throwE Error.assetNotFound) return rs
-

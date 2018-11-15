@@ -9,6 +9,7 @@
 
 module API.Provider (tests, Config) where
 
+import Imports hiding (threadDelay)
 import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
 import Brig.Types hiding (NewPasswordReset (..), CompletePasswordReset(..), EmailUpdate (..), PasswordReset (..), PasswordChange (..))
@@ -16,22 +17,16 @@ import Brig.Types.Provider
 import Brig.Types.Provider.Tag
 import Control.Arrow ((&&&))
 import Control.Concurrent.Chan
-import Control.Concurrent.Timeout
+import Control.Concurrent.Timeout (timeout, threadDelay)
 import Control.Lens ((^.))
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.ByteString.Conversion
-import Data.Foldable (toList)
 import Data.Id hiding (client)
 import Data.List1 (List1)
-import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
 import Data.PEM
 import Data.Range
-import Data.Set (Set)
-import Data.Text (Text, isPrefixOf, toLower)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
@@ -41,15 +36,11 @@ import Galley.Types (
 import Galley.Types (ConvMembers (..), OtherMember (..))
 import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
-import GHC.Generics hiding (to, from)
-import GHC.Stack (HasCallStack)
 import Gundeck.Types.Notification
 import Network.HTTP.Types.Status (status200, status201, status400)
 import Network.Wai (Application, responseLBS, strictRequestBody)
 import OpenSSL.PEM (writePublicKey)
 import OpenSSL.RSA (generateRSAKey')
-import System.Environment (getEnv)
-import System.IO (hClose)
 import System.IO.Temp (withSystemTempFile)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
@@ -69,6 +60,7 @@ import qualified Data.HashMap.Strict               as HashMap
 import qualified Data.List1                        as List1
 import qualified Data.Set                          as Set
 import qualified Data.Text.Ascii                   as Ascii
+import qualified Data.Text                         as Text
 import qualified Data.Text.Encoding                as Text
 import qualified Data.UUID                         as UUID
 import qualified Data.ZAuth.Token                  as ZAuth
@@ -469,7 +461,7 @@ testListServices config db brig = do
     mkNew new (n, t) = new { newServiceName = n
                            , newServiceTags = unsafeRange (Set.fromList t)
                            }
-    select (Name prefix) = filter (isPrefixOf (toLower prefix) . toLower . fromName . snd)
+    select (Name prefix) = filter (Text.isPrefixOf (Text.toLower prefix) . Text.toLower . fromName . snd)
 
 testDeleteService :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testDeleteService config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
@@ -802,7 +794,7 @@ testSearchWhitelist config db brig galley = do
     mkNew new (n, t) = new { newServiceName = n
                            , newServiceTags = unsafeRange (Set.fromList t)
                            }
-    select prefix = filter (isPrefixOf (toLower prefix) . toLower . fromName . snd)
+    select prefix = filter (Text.isPrefixOf (Text.toLower prefix) . Text.toLower . fromName . snd)
 
 testSearchWhitelistHonorUpdates :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
 testSearchWhitelistHonorUpdates config db brig galley = do

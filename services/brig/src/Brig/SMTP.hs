@@ -5,14 +5,13 @@
 
 module Brig.SMTP where
 
+import Imports
 import Control.Lens
-import Control.Monad (unless)
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Char (toLower)
 import Data.Pool
-import Data.Text (Text, unpack)
+import Data.Text (unpack)
 import Network.Mail.Mime
 import Network.Socket (PortNumber)
 import System.Logger.Class hiding (create)

@@ -2,6 +2,7 @@
 
 module Main (main) where
 
+import           Imports
 import           Eval
 import           Options
 import           Options.Applicative

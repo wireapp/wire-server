@@ -6,6 +6,7 @@
 
 module Brig.Options where
 
+import Imports
 import Brig.Queue.Types (Queue (..))
 import Brig.SMTP (SMTPConnType (..))
 import Brig.Types
@@ -15,14 +16,9 @@ import Data.Aeson.Types (typeMismatch)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Int (Int64)
-import Data.Maybe
 import Data.Scientific (toBoundedInteger)
-import Data.Text (Text)
 import Data.Time.Clock (DiffTime, secondsToDiffTime)
-import Data.Word (Word16, Word32)
 import Data.Yaml (FromJSON(..))
-import GHC.Generics
 import Options.Applicative
 import Options.Applicative.Types (readerAsk)
 import Util.Options

@@ -23,9 +23,9 @@ module Brig.User.Template
     , renderHtml
     ) where
 
+import Imports
 import Brig.Template
 import Brig.Types
-import Data.Text (Text)
 
 import qualified Brig.Options       as Opt
 

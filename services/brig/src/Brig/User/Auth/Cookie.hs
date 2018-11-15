@@ -24,12 +24,12 @@ module Brig.User.Auth.Cookie
     , ZAuth.UserToken
     ) where
 
+import Imports
 import Brig.App
 import Brig.Options hiding (user)
 import Brig.Types.User.Auth hiding (user)
 import Brig.User.Auth.Cookie.Limit
 import Control.Lens (view)
-import Control.Monad.IO.Class
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Text.Encoding (encodeUtf8)
@@ -209,4 +209,3 @@ trackSuperseded u c = do
     Log.warn $ msg (val "Superseded cookie used")
         ~~ field "user" (toByteString u)
         ~~ field "cookie" (cookieIdNum c)
-

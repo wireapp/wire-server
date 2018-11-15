@@ -8,10 +8,10 @@
 
 module Galley.Data.Instances where
 
+import Imports
 import Cassandra.CQL
 import Control.Lens ((^.))
 import Control.Error (note)
-import Data.Int
 import Galley.Types
 import Galley.Types.Bot
 import Galley.Types.Teams

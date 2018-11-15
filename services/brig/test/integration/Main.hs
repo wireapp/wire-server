@@ -4,22 +4,19 @@
 
 module Main (main) where
 
+import Imports hiding (local)
 import Bilge hiding (header)
 import Cassandra.Util
 import Control.Lens
-import Control.Monad (join)
 import Data.Aeson
 import Data.ByteString.Conversion
-import Data.Maybe (fromMaybe)
-import Data.List (foldl', (\\))
 import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
-import GHC.Generics
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import OpenSSL (withOpenSSL)
 import Options.Applicative
-import System.Environment (getArgs, getEnv, withArgs)
+import System.Environment (withArgs)
 import Test.Tasty
 import Util.Options
 import Util.Options.Common

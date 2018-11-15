@@ -3,6 +3,7 @@
 
 module V32 (migration) where
 
+import Imports
 import Cassandra.Schema
 import Text.RawString.QQ
 

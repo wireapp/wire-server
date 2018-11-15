@@ -4,16 +4,12 @@
 
 module Galley.API.Query where
 
+import Imports
 import Cassandra (result, hasMore)
-import Control.Lens
-import Control.Monad
 import Control.Monad.Catch
 import Data.Aeson (Value (Null))
 import Data.ByteString.Conversion
-import Data.Foldable (toList)
 import Data.Id
-import Data.Int
-import Data.Maybe (mapMaybe)
 import Data.Range
 import Galley.App
 import Galley.API.Error

@@ -7,9 +7,9 @@ module Brig.AWS.Types
     , SESBounceType (..)
     ) where
 
+import Imports
 import Brig.Types (Email (..))
 import Data.Aeson
-import Data.Text (Text)
 
 -------------------------------------------------------------------------------
 -- Notifications

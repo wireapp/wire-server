@@ -9,16 +9,13 @@ module Brig.Data.Properties
     , lookupPropertyKeys
     ) where
 
+import Imports
 import Brig.App (AppIO)
 import Brig.Data.Instances ()
 import Brig.Types.Properties
 import Cassandra
 import Control.Error
-import Control.Lens
-import Control.Monad
-import Control.Monad.Trans.Class
 import Data.Id
-import Data.Int
 
 maxProperties :: Int64
 maxProperties = 16

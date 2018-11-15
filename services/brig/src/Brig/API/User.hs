@@ -62,6 +62,7 @@ module Brig.API.User
     , fetchUserIdentity
     ) where
 
+import Imports
 import Brig.App
 import Brig.API.Types
 import Brig.Data.Activation (ActivationEvent (..))
@@ -78,24 +79,17 @@ import Brig.User.Event
 import Brig.User.Handle
 import Brig.User.Handle.Blacklist
 import Brig.User.Phone
-import Control.Applicative ((<|>))
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async (mapConcurrently, mapConcurrently_)
 import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad (when, unless, void, join)
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Reader
 import Data.ByteString.Conversion
-import Data.Foldable
 import Data.Id
 import Data.Json.Util
-import Data.List (nub)
 import Data.List1 (List1)
 import Data.Misc (PlainTextPassword (..))
 import Data.Time.Clock (diffUTCTime)
-import Data.Traversable (for)
 import Data.UUID.V4 (nextRandom)
 import Network.Wai.Utilities
 import System.Logger.Message

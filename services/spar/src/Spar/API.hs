@@ -33,20 +33,18 @@ module Spar.API
   , IdpDelete
   ) where
 
+import Imports
 import Brig.Types.User as Brig
 import Control.Lens
 import Control.Monad.Except
-import Control.Monad.Reader
 import Data.Id
-import Data.Maybe (isJust, fromJust)
 import Data.Proxy
 import Data.String.Conversions
 import Data.Time
-import GHC.Stack
 import OpenSSL.Random (randBytes)
 import Servant
 import Servant.Swagger
-import Spar.API.Instances ()
+import Spar.Orphans ()
 import Spar.API.Swagger ()
 import Spar.API.Types
 import Spar.App
@@ -66,8 +64,13 @@ app :: Env -> Application
 app ctx = SAML.setHttpCachePolicy
         $ serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @Spar ctx) (api $ sparCtxOpts ctx) :: Server API)
 
+-- TODO: re-enable SCIM.api once it's ready to use.
 api :: Opts -> ServerT API Spar
-api opts = apiSSO opts :<|> apiIDP :<|> apiINTERNAL
+api opts
+     = apiSSO opts
+  :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateBind
+  :<|> apiIDP
+  :<|> apiINTERNAL
 
 apiSSO :: Opts -> ServerT APISSO Spar
 apiSSO opts
@@ -75,7 +78,6 @@ apiSSO opts
   :<|> SAML.meta appName sparSPIssuer sparResponseURI
   :<|> authreqPrecheck
   :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
-  :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateBind
   :<|> authresp
 
 apiIDP :: ServerT APIIDP Spar
@@ -99,7 +101,7 @@ authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
                                 *> return NoContent
 
 authreq :: NominalDiffTime -> DoInitiate -> Maybe UserId -> Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId
-        -> Spar (WithBindCookie (SAML.FormRedirect SAML.AuthnRequest))
+        -> Spar (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
 authreq _ DoInitiateLogin (Just _) _ _ _ = throwSpar SparInitLoginWithAuth
 authreq _ DoInitiateBind Nothing _ _ _   = throwSpar SparInitBindWithoutAuth
 authreq authreqttl _ zusr msucc merr idpid = do
@@ -110,17 +112,17 @@ authreq authreqttl _ zusr msucc merr idpid = do
   SAML.logger SAML.Debug $ "setting bind cookie: " <> show cky
   pure $ addHeader cky form
 
--- | Create bind cookie with 60 minutes life expectancy; *iff* the user is already authenticated,
--- store it with the bind cookies.  If user already has a 'UserSSOId' (need to ask brig for that),
--- throw an error.
-initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar BindCookie
+-- | If the user is already authenticated, create bind cookie with a given life expectancy and our
+-- domain, and store it in C*.  If the user is not authenticated, return a deletion 'SetCookie'
+-- value that deletes any bind cookies on the client.
+initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar SetBindCookie
 initializeBindCookie zusr authreqttl = do
   DerivedOpts path domain <- asks (derivedOpts . sparCtxOpts)
   msecret <- if isJust zusr
              then liftIO $ Just . cs . ES.encode <$> randBytes 32
              else pure Nothing
-  cky <- (SAML.toggleCookie path $ (, authreqttl) <$> msecret :: Spar BindCookie)
-         <&> \(SAML.SimpleSetCookie raw) -> SAML.SimpleSetCookie raw { Cky.setCookieDomain = Just domain }
+  let updSetCkyDom (SAML.SimpleSetCookie raw) = SAML.SimpleSetCookie raw { Cky.setCookieDomain = Just domain }
+  cky <- updSetCkyDom <$> (SAML.toggleCookie path $ (, authreqttl) <$> msecret :: Spar SetBindCookie)
   forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
   pure cky
 
@@ -143,8 +145,8 @@ validateRedirectURL uri = do
     throwSpar $ SparBadInitiateLoginQueryParams "url-too-long"
 
 
-authresp :: Maybe BindCookie -> SAML.AuthnResponseBody -> Spar Void
-authresp cky = SAML.authresp sparSPIssuer sparResponseURI $
+authresp :: Maybe ST -> SAML.AuthnResponseBody -> Spar Void
+authresp ((>>= bindCookieFromHeader) -> cky) = SAML.authresp sparSPIssuer sparResponseURI $
   \resp verdict -> throwError . SAML.CustomServant =<< verdictHandler cky resp verdict
 
 
@@ -201,12 +203,18 @@ getZUsrOwnedTeam (Just uid) = do
     Just teamid -> teamid <$ Intra.assertIsTeamOwner uid teamid
 
 
--- | FUTUREWORK: move this to the saml2-web-sso package.  (same probably goes for get, create,
+-- | Check that issuer is fresh (see longer comment in source) and request URI is https.
+--
+-- FUTUREWORK: move this to the saml2-web-sso package.  (same probably goes for get, create,
 -- update, delete of idps.)
 validateNewIdP :: forall m. (HasCallStack, m ~ Spar)
                => SAML.IdPMetadata -> TeamId -> m IdP
 validateNewIdP _idpMetadata _idpExtraInfo = do
   _idpId <- SAML.IdPId <$> SAML.createUUID
+
+  let requri = _idpMetadata ^. SAML.edRequestURI
+  unless (requri ^. URI.uriSchemeL == URI.Scheme "https") $ do
+    throwSpar (SparNewIdPWantHttps . cs . SAML.renderURI $ requri)
 
   wrapMonadClient (Data.getIdPIdByIssuer (_idpMetadata ^. SAML.edIssuer)) >>= \case
     Nothing -> pure ()

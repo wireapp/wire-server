@@ -5,19 +5,14 @@
 
 module Galley.API.Util where
 
+import Imports
 import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
-import Control.Lens (view, (&), (.~))
-import Control.Monad
+import Control.Lens (view, (.~))
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Concurrent.Async.Lifted.Safe
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Foldable (find, for_, toList)
-import Data.Maybe (isJust)
 import Data.Misc (PlainTextPassword (..))
-import Data.Semigroup ((<>))
 import Data.Time
 import Galley.App
 import Galley.API.Error
@@ -30,6 +25,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate
 import Network.Wai.Utilities
+import UnliftIO (concurrently)
 
 import qualified Data.Text.Lazy as LT
 import qualified Galley.Data    as Data
@@ -63,7 +59,7 @@ ensureConnected u uids = do
     unless (length connsFrom == length uids && length connsTo == length uids) $
         throwM notConnected
 
-ensureReAuthorised :: UserId -> PlainTextPassword -> Galley ()
+ensureReAuthorised :: UserId -> Maybe PlainTextPassword -> Galley ()
 ensureReAuthorised u secret = do
     reAuthed <- reAuthUser u (ReAuthUser secret)
     unless reAuthed $

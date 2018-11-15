@@ -17,6 +17,7 @@ module Brig.Data.Activation
     , verifyCode
     ) where
 
+import Imports
 import Brig.App (AppIO)
 import Brig.Options
 import Brig.Data.User
@@ -25,16 +26,9 @@ import Brig.Data.PasswordReset
 import Brig.Types
 import Brig.Types.Intra
 import Cassandra
-import Control.Applicative ((<|>))
 import Control.Error
-import Control.Monad
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
-import Data.Foldable (for_)
-import Data.Functor.Identity
 import Data.Id
-import Data.Int (Int32)
-import Data.Text (Text, pack)
+import Data.Text (pack)
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (getDigestByName, digestBS)
 import Text.Printf (printf)

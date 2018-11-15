@@ -8,6 +8,7 @@
 
 module Test.Spar.Intra.BrigSpec where
 
+import Imports
 import Arbitrary ()
 import Brig.Types.User (UserSSOId(UserSSOId))
 import Data.String.Conversions (ST, cs)

@@ -51,7 +51,7 @@ schemaVersion = 7
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
     l <- new $ setOutput StdOut . setFormat Nothing $ defSettings
-    c <- maybe (C.initialContactsDNS (o^.optCassandra.casEndpoint.epHost))
+    c <- maybe (C.initialContactsPlain (o^.optCassandra.casEndpoint.epHost))
                (C.initialContactsDisco "cassandra_gundeck")
                (unpack <$> o^.optDiscoUrl)
     n <- newManager tlsManagerSettings

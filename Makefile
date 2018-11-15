@@ -12,11 +12,11 @@ init:
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --local-bin-path=dist
+	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: clean
 clean:
@@ -97,7 +97,7 @@ docker-service-%:
 
 DOCKER_DEV_NETWORK := --net=host
 DOCKER_DEV_VOLUMES := -v `pwd`:/src/wire-server
-DOCKER_DEV_IMAGE   := quay.io/wire/alpine-builder:local
+DOCKER_DEV_IMAGE   := quay.io/wire/alpine-builder:$(DOCKER_TAG)
 .PHONY: run-docker-builder
 run-docker-builder:
 	@echo "if this does not work, consider 'docker pull', 'docker tag', or 'make -C build-alpine builder'."

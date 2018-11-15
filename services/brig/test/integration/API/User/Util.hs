@@ -5,6 +5,7 @@
 
 module API.User.Util where
 
+import Imports
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
@@ -12,22 +13,14 @@ import Brig.Types.Intra
 import Brig.Types.User.Auth hiding (user)
 import Brig.Data.PasswordReset
 import Control.Lens ((^?), preview)
-import Control.Monad
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Lens
-import Data.ByteString (ByteString)
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
-import Data.Int (Int64)
-import Data.List (sort)
-import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
 import Data.Range (unsafeRange)
-import Data.Text (Text)
-import GHC.Stack (HasCallStack)
 import OpenSSL.EVP.Digest (getDigestByName, digestBS)
 import Test.Tasty.HUnit
 import Util

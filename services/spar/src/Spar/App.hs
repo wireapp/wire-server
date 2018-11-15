@@ -20,21 +20,22 @@ module Spar.App
   , insertUser
   ) where
 
+import Imports
 import Bilge
+import Brig.Types (Name)
 import Cassandra
-import Control.Exception (SomeException, assert)
+import Control.Exception (assert)
 import Control.Lens hiding ((.=))
 import Control.Monad.Except
-import Control.Monad.Reader
 import Data.Aeson as Aeson (encode, object, (.=))
 import Data.EitherR (fmapL)
 import Data.Id
 import Data.String.Conversions
-import GHC.Stack
 import SAML2.Util (renderURI)
 import SAML2.WebSSO hiding (UserRef(..))
 import Servant
-import Spar.API.Instances ()
+import Servant.Server (errReasonPhrase, errBody)
+import Spar.Orphans ()
 import Spar.API.Swagger ()
 import Spar.Error
 import Spar.Types
@@ -43,12 +44,14 @@ import Web.Cookie (SetCookie, renderSetCookie)
 
 import qualified Cassandra as Cas
 import qualified Control.Monad.Catch as Catch
-import qualified Data.Text as ST
 import qualified Data.ByteString.Builder as Builder
+import qualified Data.Text as ST
 import qualified Data.UUID.V4 as UUID
+import qualified Network.Wai.Utilities.Error as Wai
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
+import qualified Spar.Intra.Galley as Intra
 import qualified System.Logger as Log
 
 
@@ -61,6 +64,7 @@ data Env = Env
   , sparCtxCas          :: Cas.ClientState
   , sparCtxHttpManager  :: Bilge.Manager
   , sparCtxHttpBrig     :: Bilge.Request
+  , sparCtxHttpGalley   :: Bilge.Request
   , sparCtxRequestId    :: RequestId
   }
 
@@ -164,12 +168,12 @@ getUser uref = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-createUser :: SAML.UserRef -> Spar UserId
-createUser suid = do
+createUser :: SAML.UserRef -> Maybe Name -> Spar UserId
+createUser suid mbName = do
   buid <- Id <$> liftIO UUID.nextRandom
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
-  buid' <- Intra.createUser suid buid teamid
+  buid' <- Intra.createUser suid buid teamid mbName
   assert (buid == buid') $ pure buid
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
@@ -200,6 +204,11 @@ instance Intra.MonadSparToBrig Spar where
     req <- asks sparCtxHttpBrig
     httpLbs req modreq
 
+instance Intra.MonadSparToGalley Spar where
+  call modreq = do
+    req <- asks sparCtxHttpGalley
+    httpLbs req modreq
+
 
 -- | The from of the response on the finalize-login request depends on the verdict (denied or
 -- granted), plus the choice that the client has made during the initiate-login request.  Here we
@@ -226,11 +235,20 @@ verdictHandler cky aresp verdict = do
                -- (this shouldn't happen too often, see 'storeVerdictFormat')
 
 data VerdictHandlerResult
-  = VerifyHandlerDenied [ST]
-  | VerifyHandlerGranted SetCookie UserId
+  = VerifyHandlerGranted { _vhrCookie :: SetCookie, _vhrUserId :: UserId }
+  | VerifyHandlerDenied { _vhrReasons :: [SAML.DeniedReason] }
+  | VerifyHandlerError { _vhrLabel :: ST, _vhrMessage :: ST }
+
+catchVerdictErrors :: Spar VerdictHandlerResult -> Spar VerdictHandlerResult
+catchVerdictErrors = (`catchError` pure . hndlr)
+  where
+    hndlr :: SparError -> VerdictHandlerResult
+    hndlr err = case sparToWaiError err of
+      Right (werr :: Wai.Error) -> VerifyHandlerError (cs $ Wai.label werr) (cs $ Wai.message werr)
+      Left (serr :: ServantErr) -> VerifyHandlerError "unknown-error" (cs (errReasonPhrase serr) <> " " <> cs (errBody serr))
 
 verdictHandlerResult :: HasCallStack => Maybe BindCookie -> SAML.AccessVerdict -> Spar VerdictHandlerResult
-verdictHandlerResult bindCky = \case
+verdictHandlerResult bindCky = catchVerdictErrors . \case
   denied@(SAML.AccessDenied reasons) -> do
     SAML.logger SAML.Debug (show denied)
     pure $ VerifyHandlerDenied reasons
@@ -238,14 +256,14 @@ verdictHandlerResult bindCky = \case
   granted@(SAML.AccessGranted userref) -> do
     uid :: UserId <- do
       SAML.logger SAML.Debug (show granted)
-      fromBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
-      fromSparCass   <- getUser userref
+      viaBindCookie <- maybe (pure Nothing) (wrapMonadClient . Data.lookupBindCookie) bindCky
+      viaSparCass   <- getUser userref
         -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
         -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
         -- idempotent.
 
-      case (fromBindCookie, fromSparCass) of
-        (Nothing,  Nothing)   -> createUser userref      -- first sso authentication
+      case (viaBindCookie, viaSparCass) of
+        (Nothing,  Nothing)   -> createUser userref Nothing  -- first sso authentication
         (Nothing,  Just uid)  -> pure uid                -- sso re-authentication
         (Just uid, Nothing)   -> bindUser uid userref    -- bind existing user (non-sso or sso) to ssoid
         (Just uid, Just uid')
@@ -265,16 +283,17 @@ verdictHandlerResult bindCky = \case
 -- - The page broadcasts a message to '*', to be picked up by the app.
 verdictHandlerWeb :: HasCallStack => VerdictHandlerResult -> Spar SAML.ResponseVerdict
 verdictHandlerWeb = pure . \case
-    VerifyHandlerDenied reasons -> forbiddenPage reasons
     VerifyHandlerGranted cky _uid -> successPage cky
+    VerifyHandlerDenied reasons   -> forbiddenPage "forbidden" (explainDeniedReason <$> reasons)
+    VerifyHandlerError lbl msg    -> forbiddenPage lbl [msg]
   where
-    forbiddenPage :: [ST] -> SAML.ResponseVerdict
-    forbiddenPage reasons = ServantErr
+    forbiddenPage :: ST -> [ST] -> SAML.ResponseVerdict
+    forbiddenPage errlbl reasons = ServantErr
       { errHTTPCode     = 200
-      , errReasonPhrase = "forbidden"  -- (not sure what this is used for)
+      , errReasonPhrase = cs errlbl  -- (not sure what this is used for)
       , errBody         = easyHtml $
                           "<head>" <>
-                          "  <title>wire:sso:error:forbidden</title>" <>
+                          "  <title>wire:sso:error:" <> cs errlbl <> "</title>" <>
                           "   <script type=\"text/javascript\">" <>
                           "       const receiverOrigin = '*';" <>
                           "       window.opener.postMessage(" <> Aeson.encode errval <> ", receiverOrigin);" <>
@@ -315,16 +334,22 @@ easyHtml doc =
 -- substituted and the client is redirected accordingly.
 verdictHandlerMobile :: HasCallStack => URI.URI -> URI.URI -> VerdictHandlerResult -> Spar SAML.ResponseVerdict
 verdictHandlerMobile granted denied = \case
-    VerifyHandlerDenied reasons
-      -> mkVerdictDeniedFormatMobile denied "forbidden" &
-         either (throwSpar . SparCouldNotSubstituteFailureURI . cs) (pure . forbiddenPage reasons)
     VerifyHandlerGranted cky uid
       -> mkVerdictGrantedFormatMobile granted cky uid &
-         either (throwSpar . SparCouldNotSubstituteSuccessURI . cs) (pure . successPage cky)
+         either (throwSpar . SparCouldNotSubstituteSuccessURI . cs)
+                (pure . successPage cky)
+    VerifyHandlerDenied reasons
+      -> mkVerdictDeniedFormatMobile denied "forbidden" &
+         either (throwSpar . SparCouldNotSubstituteFailureURI . cs)
+                (pure . forbiddenPage "forbidden" (explainDeniedReason <$> reasons))
+    VerifyHandlerError lbl msg
+      -> mkVerdictDeniedFormatMobile denied lbl &
+         either (throwSpar . SparCouldNotSubstituteFailureURI . cs)
+                (pure . forbiddenPage lbl [msg])
   where
-    forbiddenPage :: [ST] -> URI.URI -> SAML.ResponseVerdict
-    forbiddenPage errs uri = err303
-      { errReasonPhrase = "forbidden"
+    forbiddenPage :: ST -> [ST] -> URI.URI -> SAML.ResponseVerdict
+    forbiddenPage errlbl errs uri = err303
+      { errReasonPhrase = cs errlbl
       , errHeaders = [ ("Location", cs $ renderURI uri)
                      , ("Content-Type", "application/json")
                      ]

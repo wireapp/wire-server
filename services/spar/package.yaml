@@ -29,11 +29,13 @@ dependencies:
   - cryptonite
   - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
+  - galley-types
   - ghc-prim
   - HsOpenSSL
   - http-client
   - http-client-tls
   - http-types
+  - imports
   - interpolate
   - lens
   - metrics-core
@@ -41,12 +43,13 @@ dependencies:
   - optparse-applicative
   - raw-strings-qq
   - retry
-  - saml2-web-sso >= 0.17
+  - saml2-web-sso >= 0.18
   - scientific
   - servant
   - servant-multipart
   - servant-server
   - servant-swagger
+  - servant-generic
   - string-conversions
   - swagger2
   - text
@@ -57,11 +60,17 @@ dependencies:
   - uri-bytestring
   - uuid
   - wai
+  - wai-middleware-prometheus
   - wai-utilities
   - warp
   - x509
   - xml-conduit
   - yaml
+  - hscim
+  - email-validate
+
+default-extensions:
+  - NoImplicitPrelude
 
 library:
   source-dirs:

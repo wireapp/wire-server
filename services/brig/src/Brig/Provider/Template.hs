@@ -16,12 +16,12 @@ module Brig.Provider.Template
     , renderHtml
     ) where
 
+import Imports
 import Brig.Options
 import Brig.Template
 import Brig.Types
 import Data.ByteString.Conversion (fromByteString)
 import Data.Misc (HttpsUrl)
-import Data.Maybe (fromMaybe)
 import Data.Text.Encoding (encodeUtf8)
 
 data ProviderTemplates = ProviderTemplates
@@ -115,4 +115,3 @@ loadProviderTemplates o = readLocalesDir defLocale (templateDir gOptions) "provi
     activationUrl' = template $ providerActivationUrl pOptions
     approvalUrl'   = template $ approvalUrl pOptions
     pwResetUrl'    = template $ providerPwResetUrl pOptions
-

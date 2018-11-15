@@ -26,6 +26,7 @@ module Brig.Data.Client
     , lookupPrekeyIds
     ) where
 
+import Imports
 import Bilge.Retry (httpHandlers)
 import Brig.App (AppIO, currentTime, awsEnv)
 import Brig.AWS
@@ -35,26 +36,18 @@ import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Types
 import Brig.Types.User.Auth (CookieLabel)
 import Cassandra hiding (Client)
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Error
 import Control.Lens
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.IO.Unlift
 import Control.Retry
 import Data.ByteString.Conversion (toByteString, toByteString')
-import Data.Foldable (for_)
 import Data.Id
 import Data.List.Split (chunksOf)
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc
-import Data.Text (Text)
-import Data.Typeable
-import Data.Word
-import Safe (readMay)
 import System.CryptoBox (Result (Success))
 import System.Logger.Class (field, msg, val)
+import UnliftIO (mapConcurrently)
 
 import qualified Brig.Data.User         as User
 import qualified Control.Exception.Lens as EL
@@ -270,12 +263,10 @@ withOptLock u c ma = go (10 :: Int)
             Just _          -> return a
 
     version :: AWS.GetItemResponse -> Maybe Word32
-    version v = join
-              $ fmap conv
-              $ Map.lookup ddbVersion (view AWS.girsItem v)
+    version v = conv =<< Map.lookup ddbVersion (view AWS.girsItem v)
       where
         conv :: AWS.AttributeValue -> Maybe Word32
-        conv = maybe Nothing (readMay . Text.unpack) . view AWS.avN
+        conv = readMaybe . Text.unpack <=< view AWS.avN
 
     get :: Text -> AWS.GetItem
     get t = AWS.getItem t & AWS.giKey .~ (key u c)

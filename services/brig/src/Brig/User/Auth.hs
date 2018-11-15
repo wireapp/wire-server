@@ -18,6 +18,7 @@ module Brig.User.Auth
     , listCookies
     ) where
 
+import Imports
 import Brig.App
 import Brig.API.Types
 import Brig.Email
@@ -31,8 +32,6 @@ import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth hiding (user)
 import Control.Error
-import Control.Monad
-import Control.Monad.Trans.Class
 import Data.Id
 import Data.Misc (PlainTextPassword (..))
 

@@ -5,6 +5,7 @@
 
 module API.Team.Util where
 
+import Imports
 import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
 import Brig.Types.User
@@ -12,19 +13,13 @@ import Brig.Types.Team.Invitation
 import Brig.Types.Activation
 import Brig.Types.Connection
 import Control.Lens (view, (^?))
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
-import Data.Maybe (fromMaybe)
 import Data.Misc (Milliseconds)
-import Data.Text (Text)
-import Data.Typeable (Typeable)
-import Data.ByteString.Lazy (ByteString)
 import Data.Range
 import Galley.Types (ConvTeamInfo (..), NewConv (..), NewConvUnmanaged (..), NewConvManaged (..))
-import GHC.Stack (HasCallStack)
 import Test.Tasty.HUnit
 import Util
 
@@ -151,7 +146,7 @@ deleteTeam g tid u = do
            . paths ["teams", toByteString' tid]
            . zUser u
            . zConn "conn"
-           . lbytes (encode $ Team.newTeamDeleteData Util.defPassword)
+           . lbytes (encode $ Team.newTeamDeleteData $ Just Util.defPassword)
            ) !!! const 202 === statusCode
 
 getTeams :: UserId -> Galley -> Http Team.TeamList
@@ -174,7 +169,7 @@ accept email code = RequestBodyLBS . encode $ object
     , "team_code" .= code
     ]
 
-register :: Email -> Team.BindingNewTeam -> Brig -> Http (Response (Maybe ByteString))
+register :: Email -> Team.BindingNewTeam -> Brig -> Http (Response (Maybe LByteString))
 register e t brig = post (brig . path "/register" . contentJson . body (
     RequestBodyLBS . encode  $ object
         [ "name"            .= ("Bob" :: Text)
@@ -184,7 +179,7 @@ register e t brig = post (brig . path "/register" . contentJson . body (
         ]
     ))
 
-register' :: Email -> Team.BindingNewTeam -> ActivationCode -> Brig -> Http (Response (Maybe ByteString))
+register' :: Email -> Team.BindingNewTeam -> ActivationCode -> Brig -> Http (Response (Maybe LByteString))
 register' e t c brig = post (brig . path "/register" . contentJson . body (
     RequestBodyLBS . encode  $ object
         [ "name"            .= ("Bob" :: Text)
@@ -217,7 +212,7 @@ postInvitation brig t u i = post $ brig
     . body (RequestBodyLBS $ encode i)
     . zAuthAccess u "conn"
 
-suspendTeam :: Brig -> TeamId -> Http (Response (Maybe ByteString))
+suspendTeam :: Brig -> TeamId -> Http (Response (Maybe LByteString))
 suspendTeam brig t = post $ brig
     . paths ["i", "teams", toByteString' t, "suspend"]
     . contentJson
@@ -251,7 +246,7 @@ assertNoInvitationCode brig t i =
           const 400 === statusCode
           const (Just "invalid-invitation-code") === fmap Error.label . decodeBody
 
-decodeBody' :: (Typeable a, FromJSON a) => Response (Maybe ByteString) -> Http a
+decodeBody' :: (Typeable a, FromJSON a) => Response (Maybe LByteString) -> Http a
 decodeBody' x = maybe (error $ "Failed to decodeBody: " ++ show x) return $ decodeBody x
 
 isActivatedUser :: UserId -> Brig -> Http Bool

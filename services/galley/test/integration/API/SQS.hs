@@ -9,25 +9,18 @@
 -- instead.
 module API.SQS where
 
-import Control.Concurrent (threadDelay)
+import Imports hiding (trace)
 import Control.Exception (SomeAsyncException, asyncExceptionFromException)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (bracket)
-import Control.Monad.IO.Class
-import Control.Monad.Reader
-import Data.Either
-import Data.Foldable (for_)
 import Data.Id
-import Data.Int
 import Data.Text (pack)
 import Data.UUID.V4 (nextRandom)
 import Safe (headDef)
 import Data.ByteString.Lazy (toStrict)
 import Data.ProtoLens.Encoding
-import Data.Text (Text)
 import Galley.Aws
 import Galley.Options (JournalOpts(..))
-import GHC.Stack (HasCallStack)
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
 import Ssl.Util

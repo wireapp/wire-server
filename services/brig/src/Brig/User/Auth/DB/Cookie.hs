@@ -3,14 +3,11 @@
 
 module Brig.User.Auth.DB.Cookie where
 
+import Imports
 import Brig.User.Auth.DB.Instances ()
 import Brig.Types.User.Auth
 import Cassandra
-import Data.Foldable (for_)
-import Data.Functor.Identity
 import Data.Id
-import Data.Int
-import Data.Maybe
 import Data.Time.Clock
 
 newtype TTL = TTL { ttlSeconds :: Int32 }
@@ -85,4 +82,3 @@ deleteAllCookies u = retry x5 (write cql (params Quorum (Identity u)))
   where
     cql :: PrepQuery W (Identity UserId) ()
     cql = "DELETE FROM user_cookies WHERE user = ?"
-

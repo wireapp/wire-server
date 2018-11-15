@@ -10,7 +10,6 @@ module Gundeck.Client
     ) where
 
 import Imports
-import Control.Concurrent.Async.Lifted.Safe
 import Control.Lens (view, (^.), set)
 import Control.Monad.Catch
 import Data.Id
@@ -21,6 +20,7 @@ import Gundeck.Util
 import Network.HTTP.Types
 import Network.Wai (Request, Response)
 import Network.Wai.Utilities
+import UnliftIO (mapConcurrently)
 
 import qualified Gundeck.Client.Data       as Clients
 import qualified Gundeck.Notification.Data as Notifications

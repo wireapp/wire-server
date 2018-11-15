@@ -15,19 +15,16 @@
 
 module Spar.Types where
 
+import Imports
 import Control.Lens (makeLenses)
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Id (TeamId, UserId)
-import Data.Int
-import Data.Monoid
 import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions
 import Data.String.Conversions (ST)
-import Data.Text (Text)
 import Data.Time
-import GHC.Generics
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
 import SAML2.Util (renderURI, parseURI')
@@ -42,9 +39,21 @@ import qualified Data.Text as ST
 import qualified SAML2.WebSSO as SAML
 
 
-data Void
+type SetBindCookie = SimpleSetCookie "zbind"
 
-type BindCookie = SimpleSetCookie "zbind"
+newtype BindCookie = BindCookie { fromBindCookie :: ST }
+
+-- | Extract @zbind@ cookie from HTTP header contents if it exists.
+bindCookieFromHeader :: ST -> Maybe BindCookie
+bindCookieFromHeader = fmap BindCookie . lookup "zbind" . parseCookiesText . cs
+  -- (we could rewrite this as @SAML.cookieName SetBindCookie@ if 'cookieName'
+  -- accepted any @proxy :: Symbol -> *@ rather than just 'Proxy'.)
+
+setBindCookieValue :: HasCallStack => SetBindCookie -> BindCookie
+setBindCookieValue = BindCookie . cs . setCookieValue . SAML.fromSimpleSetCookie
+
+----------------------------------------------------------------------------
+-- Identity provider
 
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig TeamId
@@ -58,6 +67,9 @@ data IdPList = IdPList
 
 makeLenses ''IdPList
 deriveJSON deriveJSONOptions ''IdPList
+
+----------------------------------------------------------------------------
+-- Requests and verdicts
 
 type AReqId = ID AuthnRequest
 type AssId = ID Assertion
@@ -98,6 +110,7 @@ type Opts = Opts' DerivedOpts
 data Opts' a = Opts
     { saml           :: !SAML.Config
     , brig           :: !Endpoint
+    , galley         :: !Endpoint
     , cassandra      :: !CassandraOpts
     , maxttlAuthreq  :: !(TTL "authreq")
     , maxttlAuthresp :: !(TTL "authresp")

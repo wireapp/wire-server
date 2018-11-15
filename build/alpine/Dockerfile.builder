@@ -29,5 +29,5 @@ RUN apk add --no-cache git ncurses && \
     echo '# use case, we want the docker container to write to its own'     >> /root/.stack/config.yaml && \
     echo '# stack-work directory and not pollute the one on the host.'      >> /root/.stack/config.yaml && \
     echo 'work-dir: .stack-docker'                                          >> /root/.stack/config.yaml && \
-    stack --work-dir .stack-docker-profile build --pedantic --haddock --test --dependencies-only --no-run-tests --profile && \
-    stack --work-dir .stack-docker         build --pedantic --haddock --test --dependencies-only --no-run-tests
+    stack --work-dir .stack-docker-profile build --pedantic --haddock --test --no-run-tests --bench --no-run-benchmarks --dependencies-only --profile && \
+    stack --work-dir .stack-docker         build --pedantic --haddock --test --no-run-tests --bench --no-run-benchmarks --dependencies-only

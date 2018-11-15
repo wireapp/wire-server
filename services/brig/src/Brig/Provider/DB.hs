@@ -3,6 +3,7 @@
 
 module Brig.Provider.DB where
 
+import Imports
 import Brig.Data.Instances ()
 import Brig.Email (EmailKey, emailKeyUniq, emailKeyOrig)
 import Brig.Password
@@ -10,22 +11,14 @@ import Brig.Provider.DB.Instances ()
 import Brig.Provider.DB.Tag
 import Brig.Types.Common
 import Brig.Types.Provider hiding (updateServiceTags)
-import Cassandra
+import Cassandra as C
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
-import Control.Monad (when)
-import Control.Monad.IO.Class
-import Data.Foldable (for_, toList)
-import Data.Function (on)
-import Data.Functor.Identity
 import Data.Id
-import Data.Int
 import Data.List1 (List1)
 import Data.List (unfoldr, minimumBy, uncons, sortOn)
-import Data.Maybe (isJust, catMaybes, fromMaybe, mapMaybe)
 import Data.Misc
 import Data.Range (Range, fromRange, rnil, rcast)
-import Data.Text (Text, toLower, isPrefixOf)
+import UnliftIO (mapConcurrently)
 
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -178,13 +171,13 @@ insertService :: MonadClient m
     -> m ServiceId
 insertService pid name summary descr url token key fprint assets tags = do
     sid <- randomId
-    let tagSet = Set (Set.toList tags)
+    let tagSet = C.Set (Set.toList tags)
     retry x5 $ write cql $ params Quorum
         (pid, sid, name, summary, descr, url, [token], [key], [fprint], assets, tagSet, False)
     return sid
   where
     cql :: PrepQuery W (ProviderId, ServiceId, Name, Text, Text, HttpsUrl, [ServiceToken],
-                        [ServiceKey], [Fingerprint Rsa], [Asset], Set ServiceTag, Bool)
+                        [ServiceKey], [Fingerprint Rsa], [Asset], C.Set ServiceTag, Bool)
                        ()
     cql = "INSERT INTO service (provider, id, name, summary, descr, base_url, auth_tokens, \
                                \pubkeys, fingerprints, assets, tags, enabled) \
@@ -198,7 +191,7 @@ lookupService pid sid = fmap (fmap mk) $
     retry x1 $ query1 cql $ params Quorum (pid, sid)
   where
     cql :: PrepQuery R (ProviderId, ServiceId)
-                       (Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], Set ServiceTag, Bool)
+                       (Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], C.Set ServiceTag, Bool)
     cql = "SELECT name, summary, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
           \FROM service WHERE provider = ? AND id = ?"
 
@@ -212,7 +205,7 @@ listServices p = fmap (map mk) $
     retry x1 $ query cql $ params Quorum (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId)
-                       (ServiceId, Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], Set ServiceTag, Bool)
+                       (ServiceId, Name, Maybe Text, Text, HttpsUrl, List1 ServiceToken, List1 ServiceKey, [Asset], C.Set ServiceTag, Bool)
     cql = "SELECT id, name, summary, descr, base_url, auth_tokens, pubkeys, assets, tags, enabled \
           \FROM service WHERE provider = ?"
 
@@ -243,7 +236,7 @@ updateService pid sid svcName svcTags nameChange summary descr assets tagsChange
             updateServiceTags   pid sid (oldName, svcTags) (newName, svcTags)
     -- If there is a tag change, update the service tags; if enabled, update indexes
     for_ tagsChange $ \(oldTags, newTags) -> do
-        let newTags' = Set . Set.toList . fromRange $ newTags
+        let newTags' = C.Set . Set.toList . fromRange $ newTags
         addPrepQuery cqlTags (newTags', pid, sid)
         when enabled $ case nameChange of
             Just (old, new) -> updateServiceTags pid sid (old, oldTags)     (new, newTags)
@@ -265,7 +258,7 @@ updateService pid sid svcName svcTags nameChange summary descr assets tagsChange
     cqlAssets :: PrepQuery W ([Asset], ProviderId, ServiceId) ()
     cqlAssets = "UPDATE service SET assets = ? WHERE provider = ? AND id = ?"
 
-    cqlTags :: PrepQuery W (Set ServiceTag, ProviderId, ServiceId) ()
+    cqlTags :: PrepQuery W (C.Set ServiceTag, ProviderId, ServiceId) ()
     cqlTags = "UPDATE service SET tags = ? WHERE provider = ? AND id = ?"
 
 -- NB: can take a significant amount of time if many teams were using the service
@@ -302,7 +295,7 @@ lookupServiceProfile :: MonadClient m
 lookupServiceProfile p s = fmap (fmap mk) $
     retry x1 $ query1 cql $ params One (p, s)
   where
-    cql :: PrepQuery R (ProviderId, ServiceId) (Name, Maybe Text, Text, [Asset], Set ServiceTag, Bool)
+    cql :: PrepQuery R (ProviderId, ServiceId) (Name, Maybe Text, Text, [Asset], C.Set ServiceTag, Bool)
     cql = "SELECT name, summary, descr, assets, tags, enabled \
           \FROM service WHERE provider = ? AND id = ?"
 
@@ -318,7 +311,7 @@ listServiceProfiles p = fmap (map mk) $
     retry x1 $ query cql $ params One (Identity p)
   where
     cql :: PrepQuery R (Identity ProviderId)
-                       (ServiceId, Name, Maybe Text, Text, [Asset], Set ServiceTag, Bool)
+                       (ServiceId, Name, Maybe Text, Text, [Asset], C.Set ServiceTag, Bool)
     cql = "SELECT id, name, summary, descr, assets, tags, enabled \
           \FROM service WHERE provider = ?"
 
@@ -458,8 +451,8 @@ updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
         deleteTags oldNameLower (unfoldTags oldTags)
         insertTags newNameLower (unfoldTags newTags)
   where
-    oldNameLower = Name (toLower (fromName oldName))
-    newNameLower = Name (toLower (fromName newName))
+    oldNameLower = Name (Text.toLower (fromName oldName))
+    newNameLower = Name (Text.toLower (fromName newName))
 
     eqTags  = oldTags      == newTags
     eqNames = oldNameLower == newNameLower
@@ -515,7 +508,7 @@ paginateServiceTags tags start size providerFilter = liftClient $ do
     -- See Note [buggy pagination]
     return $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
-    start' = maybe "" toLower start
+    start' = maybe "" Text.toLower start
 
     unpackTags :: QueryAnyTags 1 3 -> [QueryAllTags 1 3]
     unpackTags = Set.toList . fromRange . queryAnyTagsRange
@@ -595,7 +588,7 @@ paginateServiceNames mbPrefix size providerFilter = liftClient $ do
         Nothing ->
             filterResults providerFilter "" <$> queryAll size'
         Just prefix ->
-            let prefix' = toLower (fromRange prefix)
+            let prefix' = Text.toLower (fromRange prefix)
             in  filterResults providerFilter prefix' <$> queryPrefixes prefix' size'
     r <- mapConcurrently resolveRow (result p)
     -- See Note [buggy pagination]
@@ -631,7 +624,7 @@ filterbyProvider pid p = do
 
 filterPrefix :: Text -> Page IndexRow -> Page IndexRow
 filterPrefix prefix p = do
-    let prefixed = filter (\(Name n, _, _) -> prefix `isPrefixOf` (toLower n)) (result p)
+    let prefixed = filter (\(Name n, _, _) -> prefix `Text.isPrefixOf` (Text.toLower n)) (result p)
         -- if they were all valid prefixes, there may be more in Cassandra
         allValid = length prefixed == length (result p)
         more     = allValid && hasMore p
@@ -706,7 +699,7 @@ paginateServiceWhitelist tid mbPrefix filterDisabled size = liftClient $ do
     -- more->filter->... if we get unlucky.
     p <- retry x1 $ query cql $ params One (Identity tid)
     r <- maybeFilterPrefix .
-         sortOn (toLower . fromName . serviceProfileName) .
+         sortOn (Text.toLower . fromName . serviceProfileName) .
          maybeFilterDisabled .
          catMaybes <$>
              mapConcurrently (uncurry lookupServiceProfile) p
@@ -723,8 +716,8 @@ paginateServiceWhitelist tid mbPrefix filterDisabled size = liftClient $ do
         | otherwise = id
     maybeFilterPrefix
         | Just prefix <- mbPrefix =
-              let prefix' = toLower (fromRange prefix)
-              in  filter ((prefix' `isPrefixOf`) . toLower . fromName . serviceProfileName)
+              let prefix' = Text.toLower (fromRange prefix)
+              in  filter ((prefix' `Text.isPrefixOf`) . Text.toLower . fromName . serviceProfileName)
         | otherwise = id
 
 getServiceWhitelistStatus
@@ -748,7 +741,7 @@ mkPrefixIndex :: Name -> Text
 mkPrefixIndex = Text.toLower . Text.take 1 . fromName
 
 toLowerName :: Name -> Name
-toLowerName = Name . toLower . fromName
+toLowerName = Name . Text.toLower . fromName
 
 trim :: Int32 -> [a] -> [a]
 trim = take . fromIntegral

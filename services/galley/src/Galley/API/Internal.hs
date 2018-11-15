@@ -7,19 +7,13 @@ module Galley.API.Internal
     , deleteLoop
     ) where
 
+import Imports
 import Cassandra
-import Control.Concurrent (threadDelay)
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
-import Control.Monad
-import Control.Monad.IO.Class (liftIO)
-import Data.Foldable (for_)
-import Data.Traversable (for)
 import Data.Id
-import Data.Int
 import Data.List.NonEmpty (nonEmpty)
 import Data.List1
-import Data.Maybe (catMaybes)
 import Data.Range
 import Galley.API.Util (isMember)
 import Galley.API.Teams (uncheckedRemoveTeamMember)

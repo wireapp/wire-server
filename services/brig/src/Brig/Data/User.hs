@@ -46,6 +46,7 @@ module Brig.Data.User
     , updateHandle
     ) where
 
+import Imports
 import Brig.App (AppIO, settings, zauthEnv, currentTime)
 import Brig.Data.Instances ()
 import Brig.Options
@@ -56,10 +57,6 @@ import Brig.Types.User (newUserExpiresIn)
 import Cassandra
 import Control.Error
 import Control.Lens hiding (from)
-import Control.Monad
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
-import Data.Foldable (for_)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc (PlainTextPassword (..))

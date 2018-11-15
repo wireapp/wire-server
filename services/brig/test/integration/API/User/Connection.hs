@@ -5,18 +5,16 @@
 
 module API.User.Connection (tests) where
 
+import Imports
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
-import Control.Monad
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
-import Data.Maybe
 import Data.Vector (Vector)
 import Galley.Types
 import Test.Tasty hiding (Timeout)

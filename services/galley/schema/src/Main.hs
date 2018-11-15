@@ -2,6 +2,7 @@
 
 module Main where
 
+import Imports
 import Cassandra.Schema
 import Control.Exception (finally)
 import Options.Applicative

@@ -19,8 +19,9 @@ import CargoHold.API.Error
 import CargoHold.Options
 import CargoHold.Types.V3
 import CargoHold.Util
+import Control.Applicative (optional)
 import Control.Error
-import Control.Lens (view, (^.), set, (&))
+import Control.Lens (view, (^.), set)
 import Crypto.Hash
 import Data.Aeson (eitherDecodeStrict')
 import Data.Attoparsec.ByteString.Char8

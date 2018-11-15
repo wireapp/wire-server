@@ -4,18 +4,14 @@
 
 module Galley.External (deliver) where
 
+import Imports
 import Bilge.Request
 import Bilge.Retry (httpHandlers)
-import Control.Concurrent.Async.Lifted.Safe
 import Control.Exception (fromException)
 import Control.Lens
-import Control.Monad
-import Control.Monad.IO.Class
 import Control.Retry
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion.To
 import Data.Misc
-import Data.Word
 import Galley.App
 import Galley.Data.Services (BotMember, botMemId, botMemService)
 import Galley.Types (Event)
@@ -25,6 +21,7 @@ import Network.HTTP.Types.Status (status410)
 import Ssl.Util (withVerifiedSslConnection)
 import System.Logger.Message (msg, val, field, (~~))
 import URI.ByteString
+import UnliftIO (async, Async, waitCatch)
 
 import qualified Network.HTTP.Client          as Http
 import qualified Galley.Data.Services         as Data

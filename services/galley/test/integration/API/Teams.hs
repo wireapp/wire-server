@@ -2,17 +2,14 @@
 
 module API.Teams (tests) where
 
+import Imports
 import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
-import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens hiding ((#), (.=))
-import Control.Monad (void)
-import Control.Monad.IO.Class
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
-import Data.Foldable (forM_, for_)
 import Data.Id
 import Data.List1
 import Data.Misc (PlainTextPassword (..))
@@ -20,15 +17,14 @@ import Data.Range
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import GHC.Stack
 import Gundeck.Types.Notification
 import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
 import API.SQS
+import UnliftIO (mapConcurrently, mapConcurrently_)
 
 import qualified API.Util as Util
-import qualified Control.Concurrent.Async.Lifted.Safe as AsyncSafe
 import qualified Data.Currency as Currency
 import qualified Data.List1 as List1
 import qualified Data.Set as Set
@@ -60,13 +56,15 @@ tests s = testGroup "Teams API"
     , test s "add new team member binding teams" testAddTeamMemberCheckBound
     , test s "add new team member internal" testAddTeamMemberInternal
     , test s "remove team member" testRemoveTeamMember
-    , test s "remove team member (binding)" testRemoveBindingTeamMember
+    , test s "remove team member (binding, owner has passwd)" (testRemoveBindingTeamMember True)
+    , test s "remove team member (binding, owner has no passwd)" (testRemoveBindingTeamMember False)
     , test s "add team conversation" testAddTeamConv
     , test s "add managed conversation through public endpoint (fail)" testAddManagedConv
     , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
     , test s "add team member to conversation without connection" testAddTeamMemberToConv
     , test s "delete non-binding team" testDeleteTeam
-    , test s "delete binding team" testDeleteBindingTeam
+    , test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True)
+    , test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False)
     , test s "delete team conversation" testDeleteTeamConv
     , test s "update team data" testUpdateTeam
     , test s "update team member" testUpdateTeamMember
@@ -219,7 +217,7 @@ testAddTeamMember g b c _ = do
     WS.bracketRN c [owner, (mem1^.userId), (mem2^.userId), (mem3^.userId)] $ \[wsOwner, wsMem1, wsMem2, wsMem3] -> do
         -- `mem2` has `AddTeamMember` permission
         Util.addTeamMember g (mem2^.userId) tid mem3
-        AsyncSafe.mapConcurrently_ (checkTeamMemberJoin tid (mem3^.userId)) [wsOwner, wsMem1, wsMem2, wsMem3]
+        mapConcurrently_ (checkTeamMemberJoin tid (mem3^.userId)) [wsOwner, wsMem1, wsMem2, wsMem3]
 
 testAddTeamMemberCheckBound :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testAddTeamMemberCheckBound g b _ a = do
@@ -299,14 +297,14 @@ testRemoveTeamMember g b c _ = do
         -- Ensure that `mem1` is still a user (tid is not a binding team)
         Util.ensureDeletedState b False owner (mem1^.userId)
 
-        AsyncSafe.mapConcurrently_ (checkTeamMemberLeave tid (mem1^.userId)) [wsOwner, wsMem1, wsMem2]
+        mapConcurrently_ (checkTeamMemberLeave tid (mem1^.userId)) [wsOwner, wsMem1, wsMem2]
         checkConvMemberLeaveEvent cid2 (mem1^.userId) wsMext1
         checkConvMemberLeaveEvent cid3 (mem1^.userId) wsMext3
         WS.assertNoEvent timeout ws
 
-testRemoveBindingTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testRemoveBindingTeamMember g b c a = do
-    owner <- Util.randomUser b
+testRemoveBindingTeamMember :: Bool -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testRemoveBindingTeamMember ownerHasPassword g b c a = do
+    owner <- Util.randomUser' ownerHasPassword b
     tid   <- Util.createTeamInternal g "foo" owner
     assertQueue "create team" a tActivate
     mext  <- Util.randomUser b
@@ -317,18 +315,28 @@ testRemoveBindingTeamMember g b c a = do
     Util.connectUsers b owner (singleton mext)
     cid1 <- Util.createTeamConv g owner tid [(mem1^.userId), mext] (Just "blaa") Nothing Nothing
 
-    -- Deleting from a binding team without a password is a bad request
-    delete ( g
-           . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
-           . zUser owner
-           . zConn "conn"
-           ) !!! const 400 === statusCode
+    when ownerHasPassword $ do
+        -- Deleting from a binding team with empty body is invalid
+        delete ( g
+               . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
+               . zUser owner
+               . zConn "conn"
+               ) !!! const 400 === statusCode
 
+        -- Deleting from a binding team without a password is forbidden
+        delete ( g
+               . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
+               . zUser owner
+               . zConn "conn"
+               . json (newTeamMemberDeleteData Nothing)
+               ) !!! const 403 === statusCode
+
+    -- Deleting from a binding team with wrong password
     delete ( g
            . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
            . zUser owner
            . zConn "conn"
-           . json (newTeamMemberDeleteData (PlainTextPassword "wrong passwd"))
+           . json (newTeamMemberDeleteData (Just $ PlainTextPassword "wrong passwd"))
            ) !!! do
         const 403 === statusCode
         const "access-denied" === (Error.label . Util.decodeBody' "error label")
@@ -337,12 +345,24 @@ testRemoveBindingTeamMember g b c a = do
     Util.ensureDeletedState b False owner (mem1^.userId)
 
     WS.bracketR2 c owner mext $ \(wsOwner, wsMext) -> do
-        delete ( g
-               . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
-               . zUser owner
-               . zConn "conn"
-               . json (newTeamMemberDeleteData (PlainTextPassword Util.defPassword))
-               ) !!! const 202 === statusCode
+        if ownerHasPassword
+          then do
+            delete ( g
+                   . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
+                   . zUser owner
+                   . zConn "conn"
+                   . json (newTeamMemberDeleteData (Just $ PlainTextPassword Util.defPassword))
+                   ) !!! const 202 === statusCode
+
+          else do
+            -- Deleting from a binding team without a password is fine if the owner is
+            -- authenticated, but has none.
+            delete ( g
+                   . paths ["teams", toByteString' tid, "members", toByteString' (mem1^.userId)]
+                   . zUser owner
+                   . zConn "conn"
+                   . json (newTeamMemberDeleteData Nothing)
+                   ) !!! const 202 === statusCode
 
         checkTeamMemberLeave tid (mem1^.userId) wsOwner
         checkConvMemberLeaveEvent cid1 (mem1^.userId) wsMext
@@ -510,9 +530,9 @@ testDeleteTeam g b c a = do
                 const (Just Null) === Util.decodeBody
     assertQueueEmpty a
 
-testDeleteBindingTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testDeleteBindingTeam g b c a = do
-    owner  <- Util.randomUser b
+testDeleteBindingTeam :: Bool -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testDeleteBindingTeam ownerHasPassword g b c a = do
+    owner  <- Util.randomUser' ownerHasPassword b
     tid    <- Util.createTeamInternal g "foo" owner
     assertQueue "create team" a tActivate
     let p1 = Util.symmPermissions [AddConversationMember]
@@ -533,7 +553,7 @@ testDeleteBindingTeam g b c a = do
            . paths ["teams", toByteString' tid]
            . zUser owner
            . zConn "conn"
-           . json (newTeamDeleteData (PlainTextPassword "wrong passwd"))
+           . json (newTeamDeleteData (Just $ PlainTextPassword "wrong passwd"))
            ) !!! do
         const 403 === statusCode
         const "access-denied" === (Error.label . Util.decodeBody' "error label")
@@ -542,7 +562,9 @@ testDeleteBindingTeam g b c a = do
            . paths ["teams", toByteString' tid, "members", toByteString' (mem3^.userId)]
            . zUser owner
            . zConn "conn"
-           . json (newTeamMemberDeleteData (PlainTextPassword Util.defPassword))
+           . json (newTeamMemberDeleteData (if ownerHasPassword
+                                            then Just $ PlainTextPassword Util.defPassword
+                                            else Nothing))
            ) !!! const 202 === statusCode
     assertQueue "team member leave 1" a $ tUpdate 3 [owner]
 
@@ -551,7 +573,9 @@ testDeleteBindingTeam g b c a = do
                . paths ["teams", toByteString' tid]
                . zUser owner
                . zConn "conn"
-               . json (newTeamDeleteData (PlainTextPassword Util.defPassword))
+               . json (newTeamDeleteData (if ownerHasPassword
+                                          then Just $ PlainTextPassword Util.defPassword
+                                          else Nothing))
                ) !!! const 202 === statusCode
 
         checkUserDeleteEvent owner wsOwner
@@ -961,7 +985,7 @@ postCryptoBroadcastMessage100OrMaxConns g b c a = do
         Util.postOtrBroadcastMessage id g alice ac msg !!! do
             const 201 === statusCode
             assertTrue_ (eqMismatch [] [] [] . decodeBody)
-        void . liftIO $ WS.assertMatch t (Prelude.head ws) (wsAssertOtr (selfConv bob) alice ac bc "ciphertext")
+        void . liftIO $ WS.assertMatch t (Imports.head ws) (wsAssertOtr (selfConv bob) alice ac bc "ciphertext")
         for_ (zip (tail ws) others) $ \(wsU, (u, clt)) ->
             liftIO $ WS.assertMatch t wsU (wsAssertOtr (selfConv u) alice ac clt "ciphertext")
   where

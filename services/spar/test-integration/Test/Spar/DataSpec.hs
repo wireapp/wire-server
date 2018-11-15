@@ -10,12 +10,10 @@
 
 module Test.Spar.DataSpec (spec) where
 
+import Imports
 import Cassandra
-import Control.Concurrent
 import Control.Lens
 import Control.Monad.Except
-import Control.Monad.Reader
-import Data.String.Conversions
 import Data.Typeable
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
@@ -113,14 +111,14 @@ spec = do
 
 
     describe "BindCookie" $ do
-      let mkcky :: TestSpar BindCookie
+      let mkcky :: TestSpar SetBindCookie
           mkcky = runSimpleSP . SAML.toggleCookie "/" . Just . (, 1) . UUID.toText =<< liftIO UUID.nextRandom
 
       it "insert and get are \"inverses\"" $ do
         uid  <- nextWireId
         cky  <- mkcky
         ()   <- runSparCassWithEnv $ insertBindCookie cky uid 1
-        muid <- runSparCass $ lookupBindCookie cky
+        muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
         liftIO $ muid `shouldBe` Just uid
 
       context "has timed out" $ do
@@ -129,13 +127,13 @@ spec = do
           cky  <- mkcky
           ()   <- runSparCassWithEnv $ insertBindCookie cky uid 1
           liftIO $ threadDelay 2000000
-          muid <- runSparCass $ lookupBindCookie cky
+          muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
           liftIO $ muid `shouldBe` Nothing
 
       context "does not exist" $ do
         it "lookupBindCookie returns Nothing" $ do
           cky  <- mkcky
-          muid <- runSparCass $ lookupBindCookie cky
+          muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
           liftIO $ muid `shouldBe` Nothing
 
 

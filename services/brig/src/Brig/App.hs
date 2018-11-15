@@ -53,6 +53,7 @@ module Brig.App
     , locationOf
     ) where
 
+import Imports
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import Brig.Options (Opts, Settings)
@@ -67,16 +68,10 @@ import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import Cassandra (MonadClient (..), Keyspace (..), runClient)
 import Cassandra.Schema (versionCheck)
 import Control.AutoUpdate
-import Control.Concurrent (forkIO)
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding ((.=), index)
-import Control.Monad (void, (>=>))
 import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
-import Control.Monad.IO.Class
-import Control.Monad.Reader.Class
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Reader (ReaderT (..), runReaderT)
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Id (UserId)
@@ -84,8 +79,6 @@ import Data.IP
 import Data.List1 (list1, List1)
 import Data.Metrics (Metrics)
 import Data.Misc
-import Data.Int (Int32)
-import Data.IORef
 import Data.Text (unpack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
@@ -95,9 +88,7 @@ import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (getDigestByName, Digest)
 import OpenSSL.Session (SSLOption (..))
 import Ssl.Util
-import System.Directory (canonicalizePath)
 import System.Logger.Class hiding (Settings, settings)
-import UnliftIO (MonadUnliftIO (..))
 import Util.Options
 
 import qualified Bilge                    as RPC
@@ -361,7 +352,7 @@ initExtGetManager = do
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g = do
-    c <- maybe (Cas.initialContactsDNS ((Opt.cassandra o)^.casEndpoint.epHost))
+    c <- maybe (Cas.initialContactsPlain ((Opt.cassandra o)^.casEndpoint.epHost))
                (Cas.initialContactsDisco "cassandra_brig")
                (unpack <$> Opt.discoUrl o)
     p <- Cas.init (Log.clone (Just "cassandra.brig") g)

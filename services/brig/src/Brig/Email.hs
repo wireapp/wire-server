@@ -26,12 +26,12 @@ module Brig.Email
     , sendMail
     ) where
 
+import Imports
 import Brig.App (awsEnv, smtpEnv, AppIO)
 import Brig.Types
 import Control.Applicative (optional)
 import Control.Lens (view)
 import Data.Attoparsec.ByteString.Char8
-import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Network.Mail.Mime
 
@@ -101,12 +101,13 @@ instance Eq EmailKey where
 --     part is contained in a trusted whitelist.
 --
 mkEmailKey :: Email -> EmailKey
-mkEmailKey orig@(Email local domain) =
-    let uniq = Text.toLower local' <> "@" <> Text.toLower domain
+mkEmailKey orig@(Email localPart domain) =
+    let uniq = Text.toLower localPart' <> "@" <> Text.toLower domain
     in EmailKey uniq orig
   where
-    local' | domain `notElem` trusted = Text.takeWhile (/= '+') local
-           | otherwise                = local
+    localPart'
+        | domain `notElem` trusted = Text.takeWhile (/= '+') localPart
+        | otherwise                = localPart
 
     trusted = ["wearezeta.com", "wire.com", "simulator.amazonses.com"]
 
