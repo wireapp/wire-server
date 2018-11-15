@@ -462,7 +462,7 @@ getCookie proxy rsp = do
     then Right $ SimpleSetCookie web
     else Left $ "bad cookie name.  (found, expected) == " <> show (Web.setCookieName web, SAML.cookieName proxy)
 
--- | In 'setResponseCookie' we set no expiration date iff cookie is persistent.  So here we test for
+-- | In 'setResponseCookie' we set an expiration date iff cookie is persistent.  So here we test for
 -- expiration date.  Easier than parsing and inspecting the cookie value.
 hasPersistentCookieHeader :: ResponseLBS -> Either String ()
 hasPersistentCookieHeader rsp = do
