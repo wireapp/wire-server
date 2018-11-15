@@ -2,12 +2,7 @@
 
 module Gundeck.Push.Native.Crypto (CipherData (..), encrypt) where
 
-<<<<<<< HEAD
 import Imports
-=======
-import Control.Monad.IO.Class
-import Data.ByteString (ByteString)
->>>>>>> bcca3a25... Imports (you can skip this one)
 import Gundeck.Types
 import OpenSSL.EVP.Digest
 import OpenSSL.EVP.Cipher

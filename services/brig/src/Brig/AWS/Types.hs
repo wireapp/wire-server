@@ -9,11 +9,6 @@ module Brig.AWS.Types
 
 import Brig.Types (Email (..))
 import Data.Aeson
-<<<<<<< HEAD
-import Data.Monoid ((<>))
-=======
-import Data.Id
->>>>>>> bcca3a25... Imports (you can skip this one)
 import Data.Text (Text)
 
 -------------------------------------------------------------------------------

@@ -9,11 +9,6 @@ import Imports
 import CargoHold.CloudFront (Domain (..), KeyPairId (..))
 import Control.Lens
 import Data.Aeson.TH
-<<<<<<< HEAD
-=======
-import Data.Text (Text)
-import GHC.Generics
->>>>>>> bcca3a25... Imports (you can skip this one)
 import Options.Applicative
 import Util.Options
 import Util.Options.Common

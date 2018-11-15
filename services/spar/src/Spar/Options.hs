@@ -16,19 +16,9 @@ module Spar.Options
   ) where
 
 import Control.Exception
-<<<<<<< HEAD
 import Control.Monad.Catch
 import Control.Monad.Reader
-import Data.Monoid
-=======
 import Data.Aeson
-import Data.Int
-import Data.Text (Text)
-import Data.Time
-import GHC.Generics (Generic)
-import GHC.Types (Symbol)
-import Lens.Micro
->>>>>>> bcca3a25... Imports (you can skip this one)
 import Options.Applicative
 import Spar.API.Types
 import Spar.Types

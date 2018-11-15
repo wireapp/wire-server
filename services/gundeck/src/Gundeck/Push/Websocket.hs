@@ -25,10 +25,6 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.List1
 import Data.Misc (Milliseconds (..))
-<<<<<<< HEAD
-=======
-import Data.Set (Set)
->>>>>>> bcca3a25... Imports (you can skip this one)
 import Data.Time.Clock.POSIX
 import Gundeck.Monad
 import Gundeck.Types.Notification

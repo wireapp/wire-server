@@ -15,10 +15,6 @@ import Control.Retry
 import Data.ByteString (breakSubstring)
 import Data.CaseInsensitive (CI)
 import Data.Metrics.Middleware hiding (path)
-<<<<<<< HEAD
-=======
-import Data.Text (Text)
->>>>>>> bcca3a25... Imports (you can skip this one)
 import Network.HTTP.ReverseProxy
 import Network.HTTP.Types
 import Network.Wai

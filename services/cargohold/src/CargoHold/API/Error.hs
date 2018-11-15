@@ -4,10 +4,6 @@ module CargoHold.API.Error where
 
 import Imports
 import CargoHold.Types.V3.Resumable (Offset, TotalSize)
-<<<<<<< HEAD
-=======
-import Data.Text.Lazy (Text)
->>>>>>> bcca3a25... Imports (you can skip this one)
 import Data.Text.Lazy.Builder
 import Data.Text.Lazy.Builder.Int
 import Network.HTTP.Types.Status
@@ -59,4 +55,3 @@ clientError = Error status400 "client-error"
 
 serverError :: Error
 serverError = Error status500 "server-error" "Server Error."
-

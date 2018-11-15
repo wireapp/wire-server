@@ -2,11 +2,8 @@
 
 module Main where
 
-<<<<<<< HEAD
 import Control.Exception
 import Data.Monoid
-=======
->>>>>>> bcca3a25... Imports (you can skip this one)
 import Options.Applicative
 import Spar.Options
 import Spar.Types

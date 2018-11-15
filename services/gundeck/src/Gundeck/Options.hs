@@ -8,12 +8,6 @@ module Gundeck.Options where
 import Imports
 import Control.Lens
 import Data.Aeson.TH
-<<<<<<< HEAD
-=======
-import Data.String
-import Data.Text (Text)
-import Data.Word
->>>>>>> bcca3a25... Imports (you can skip this one)
 import Data.Yaml (FromJSON)
 import Gundeck.Aws.Arn
 import Options.Applicative

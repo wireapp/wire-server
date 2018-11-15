@@ -6,10 +6,6 @@ module Gundeck.Util.Redis where
 import Imports
 import Control.Monad.Catch
 import Control.Retry
-<<<<<<< HEAD
-=======
-import Data.ByteString.Lazy (isPrefixOf)
->>>>>>> bcca3a25... Imports (you can skip this one)
 import Database.Redis.IO
 
 import qualified Data.ByteString.Lazy as BSL

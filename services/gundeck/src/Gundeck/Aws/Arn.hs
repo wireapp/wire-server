@@ -38,10 +38,6 @@ module Gundeck.Aws.Arn
 import Imports
 import Control.Lens
 import Data.Attoparsec.Text
-<<<<<<< HEAD
-=======
-import Data.Text (Text, intercalate)
->>>>>>> bcca3a25... Imports (you can skip this one)
 import Data.Yaml (FromJSON)
 import Gundeck.Types (AppName (..), Transport (..))
 import Network.AWS (Region (..))

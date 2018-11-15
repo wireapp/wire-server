@@ -42,10 +42,6 @@ import Control.Lens (view, makeLenses, set, (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow, MonadMask)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Data.Metrics.Middleware (Metrics)
-<<<<<<< HEAD
-=======
-import Data.Text (Text)
->>>>>>> bcca3a25... Imports (you can skip this one)
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import Network.Wai (Request, ResponseReceived)

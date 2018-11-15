@@ -25,12 +25,7 @@ import Control.Error
 import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.IO.Class
-<<<<<<< HEAD
-import Control.Retry
-import Data.Aeson
-=======
 import Data.Aeson hiding (Result)
->>>>>>> a30f208a... Use newer cql-io to fix the "read-loop: AsyncCancelled" warning
 import Data.Int
 import Data.IORef
 import Data.Functor.Identity

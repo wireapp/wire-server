@@ -14,10 +14,6 @@ import Control.Error
 import Control.Lens
 import Data.Aeson
 import Data.Aeson.Lens
-<<<<<<< HEAD
-=======
-import Data.Text (Text)
->>>>>>> bcca3a25... Imports (you can skip this one)
 import Gundeck.Aws.Arn (EndpointArn)
 import Network.AWS.Data (fromText, ToText (..))
 
