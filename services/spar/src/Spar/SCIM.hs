@@ -20,8 +20,8 @@
 --
 -- See <https://en.wikipedia.org/wiki/System_for_Cross-domain_Identity_Management>
 module Spar.SCIM
-  ( SCIM.SiteAPI
-  , scimApi
+  ( APIScim
+  , apiScim
 
   -- * The mapping between Wire and SCIM users
   -- $mapping
@@ -83,12 +83,12 @@ import qualified Web.SCIM.Schema.Common           as SCIM.Common
 configuration :: SCIM.Meta.Configuration
 configuration = SCIM.Meta.empty
 
-type ScimApi = SCIM.SiteAPI ScimToken
+type APIScim = SCIM.SiteAPI ScimToken
 
-scimApi :: ServerT ScimApi Spar
-scimApi = hoistSCIM (toServant (SCIM.siteServer configuration))
+apiScim :: ServerT APIScim Spar
+apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
   where
-    hoistSCIM = hoistServer (Proxy @ScimApi) (SCIM.fromSCIMHandler fromError)
+    hoistSCIM = hoistServer (Proxy @APIScim) (SCIM.fromSCIMHandler fromError)
     fromError = throwError . SAML.CustomServant . SCIM.scimToServantErr
 
 ----------------------------------------------------------------------------
