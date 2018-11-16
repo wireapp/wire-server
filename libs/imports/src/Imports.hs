@@ -66,6 +66,8 @@ module Imports
     , Text, LText
     ) where
 
+import Orphans ()
+
 -- Explicitly saying what to import because some things from Prelude clash
 -- with e.g. UnliftIO modules
 import Prelude (

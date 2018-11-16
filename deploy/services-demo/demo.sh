@@ -36,7 +36,7 @@ trap "kill_gracefully; kill_all" INT TERM ERR
 
 function check_secrets() {
     test -f ${DIR}/../dist/zauth || { echo "zauth is not compiled. How about you run 'cd ${TOP_LEVEL} && make services' first?"; exit 1; }
-    
+
     if [[ ! -f ${SCRIPT_DIR}/resources/turn/secret.txt ]]; then
         echo "Generate a secret for the TURN servers (must match the turn.secret key in brig's config)..."
         openssl rand -base64 64 | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 42 > ${SCRIPT_DIR}/resources/turn/secret.txt
@@ -82,6 +82,7 @@ blueish=4
 function run_haskell_service() {
     service=$1
     colour=$2
+    # TODO can be removed once all services have been switched to YAML configs
     export LOG_LEVEL=$3
     (cd ${SCRIPT_DIR} && ${DIR}/../dist/${service} -c ${SCRIPT_DIR}/conf/${service}.demo.yaml || kill_all) \
         | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
@@ -103,7 +104,7 @@ export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-dummy}
 check_secrets
 check_prerequisites
 
-run_haskell_service brig ${green} Debug
+run_haskell_service brig ${green}
 run_haskell_service galley ${yellow} Info
 run_haskell_service gundeck ${blue} Info
 run_haskell_service cannon ${orange} Info
