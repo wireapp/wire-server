@@ -4,6 +4,8 @@ synopsis:       Very common imports
 description:
   A single module combining some common imports. Designed to be
   usable as a drop-in Prelude replacement.
+  .
+  Also exports common orphan instances.
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2018 Wire Swiss GmbH
@@ -22,8 +24,12 @@ library
     exposed-modules:
         Imports
 
+    other-modules:
+        Orphans
+
     build-depends:
         base
+      , aeson
       , unliftio
       , unliftio-core
       , containers
@@ -33,3 +39,4 @@ library
       , mtl
       , transformers
       , deepseq
+      , tinylog
