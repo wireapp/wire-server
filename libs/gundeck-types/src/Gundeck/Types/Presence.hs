@@ -16,7 +16,7 @@ import qualified Data.ByteString.Lazy as Lazy
 data Presence = Presence
     { userId    :: !UserId
     , connId    :: !ConnId
-    , resource  :: !URI
+    , resource  :: !URI  -- ^ cannon instance hosting the presence
     , clientId  :: !(Maybe ClientId)
     , createdAt :: !Milliseconds
     , __field   :: !Lazy.ByteString -- temp. addition to ease migration
