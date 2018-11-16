@@ -86,7 +86,7 @@ logBadCannons (uri, (err, prcs)) = do
     forM_ prcs $ \prc ->
         Log.warn $ logPresence prc
             ~~ Log.field "created_at" (ms $ createdAt prc)
-            ~~ Log.msg (val "WebSocket presence unreachable: " +++ toByteString (resource prc))
+            ~~ Log.msg (val "WebSocket presence unreachable: " +++ (toByteString $ show (uri, err, resource prc)))
 
 logPrcsGone :: Log.MonadLogger m => Presence -> m ()
 logPrcsGone prc = Log.debug $ logPresence prc ~~ Log.msg (val "WebSocket presence gone")
