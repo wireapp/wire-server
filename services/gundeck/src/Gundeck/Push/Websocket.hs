@@ -55,7 +55,7 @@ bulkPush notifs = do
         -- lookup by 'PushTarget' can fail iff Cannon sends an invalid key.
         presenceByPushTarget = mkPresenceByPushTarget . mconcat $ snd <$> notifs
 
-    cannonsGone :: [(URI, (SomeException, [Presence]))]
+    badCannons :: [(URI, (SomeException, [Presence]))]
         <- forM (flowBackBadCannons flbck) $ \(uri, e) -> (uri,) . (e,) <$> presencesByCannon uri
 
     prcsGone :: [Presence]
@@ -64,22 +64,23 @@ bulkPush notifs = do
     successes :: [(NotificationId, Presence)]
         <- (\(nid, trgt) -> (nid,) <$> presenceByPushTarget trgt) `mapM` flowBackDelivered flbck
 
-    logCannonsGone `mapM_` cannonsGone
+    logBadCannons  `mapM_` badCannons
     logPrcsGone    `mapM_` prcsGone
     logSuccesses   `mapM_` successes
 
     Presence.deleteAll =<< do
         now <- posixTime
-        let deletions = prcsGone <> (filter dead . mconcat $ snd . snd <$> cannonsGone)
+        let deletions = prcsGone <> (filter dead . mconcat $ snd . snd <$> badCannons)
             dead prc  = now - createdAt prc > 10 * posixDay
             posixDay  = Ms (round (1000 * posixDayLength))
         pure deletions
 
     pure (groupAssoc successes)
 
-logCannonsGone :: (MonadIO m, MonadReader Env m, Log.MonadLogger m)
-               => (uri, (err, [Presence])) -> m ()
-logCannonsGone (_uri, (_err, prcs)) = do
+-- | log all cannons with response status @/= 200@.
+logBadCannons :: (MonadIO m, MonadReader Env m, Log.MonadLogger m)
+               => (URI, (SomeException, [Presence])) -> m ()
+logBadCannons (uri, (err, prcs)) = do
     view monitor >>= Metrics.counterAdd (fromIntegral $ length prcs)
         (Metrics.path "push.ws.unreachable")
     forM_ prcs $ \prc ->
