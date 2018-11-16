@@ -64,7 +64,6 @@ push1 m a = do
     -- * Others use the default level of the specific platforms, which is 4 weeks
     --   for both APNS* and GCM
     ttl d
-        | msgTransient m = Just (Aws.Seconds 0)
         | hasFallback    = Just (Aws.Seconds (fromIntegral (d - 15)))
         | otherwise      = Nothing
 

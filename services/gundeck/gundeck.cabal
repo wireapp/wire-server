@@ -76,6 +76,7 @@ library
         , errors                >= 2.0
         , exceptions            >= 0.4
         , extra                 >= 1.1
+        , ghc-prim
         , gundeck-types         >= 1.0
         , HsOpenSSL             >= 0.11
         , http-client           >= 0.4
@@ -196,27 +197,6 @@ test-suite gundeck-tests
       , tasty
       , tasty-hunit
       , tasty-quickcheck
-      , text
-      , types-common
-      , unordered-containers
-      , imports
-
-benchmark gundeck-bench
-    type:             exitcode-stdio-1.0
-    main-is:          Main.hs
-    ghc-options:      -Wall
-    default-language: Haskell2010
-    default-extensions: NoImplicitPrelude
-    hs-source-dirs:   test/bench
-    build-depends:
-        base
-      , aeson
-      , amazonka
-      , bytestring
-      , criterion
-      , gundeck
-      , gundeck-types
-      , HsOpenSSL
       , text
       , types-common
       , unordered-containers

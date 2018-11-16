@@ -51,7 +51,7 @@ serialiseOkProp t = ioProperty $ do
     n <- randNotif (0, 1280)
     c <- aes256
     d <- sha256
-    m <- randMessage n c d
+    let m = randMessage n
     r <- serialise m a
     let sn = either (const Nothing) Just r >>= decode' . LT.encodeUtf8
     let equalTransport = fmap snsNotifTransport sn == Just t
@@ -72,16 +72,9 @@ sizeLimitProp :: Transport -> Property
 sizeLimitProp t = ioProperty $ do
     a <- mkAddress t
     let lim = fromIntegral (maxPayloadSize t)
-    c <- aes256
-    d <- sha256
     n <- randNotif (lim + 1, lim + 10000)
-    m <- randMessage n c d
-    r <- serialise m a
-    return $ case (m, r) of
-        (Notice {}, Left PayloadTooLarge) -> False
-        (Notice {}, Right              _) -> True
-        (        _, Left PayloadTooLarge) -> True
-        (        _,                    _) -> False
+    let m = randMessage n
+    isRight <$> serialise m a
 
 blockSizeProp :: (TestKeys, ByteString) -> Property
 blockSizeProp (TestKeys keys, input) = ioProperty $ do
@@ -213,12 +206,8 @@ randNotif size = do
         let pload = List1.singleton (HashMap.fromList ["data" .= v])
         Notification i <$> arbitrary <*> pure pload
 
-randMessage :: Notification -> EVP.Cipher -> EVP.Digest -> IO (Message "keys")
-randMessage n c d = generate (elements [plaintext, ciphertext, notice])
-  where
-    plaintext  = Plaintext n HighPriority Nothing
-    ciphertext = Ciphertext n c d HighPriority Nothing
-    notice     = Notice (ntfId n) HighPriority Nothing
+randMessage :: Notification -> Message "keys"
+randMessage n = Notice (ntfId n) HighPriority Nothing
 
 genKeys :: Gen TestKeys
 genKeys = TestKeys <$> (SignalingKeys <$> (EncKey <$> genKey) <*> (MacKey <$> genKey))

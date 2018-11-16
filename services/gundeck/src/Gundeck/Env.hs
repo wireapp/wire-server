@@ -16,8 +16,6 @@ import Util.Options
 import Gundeck.Options as Opt
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
-import OpenSSL.EVP.Cipher (Cipher, getCipherByName)
-import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import System.Logger.Class hiding (Error, info)
 
 import qualified Cassandra as C
@@ -37,8 +35,6 @@ data Env = Env
     , _cstate  :: !ClientState
     , _rstate  :: !Redis.Pool
     , _awsEnv  :: !Aws.Env
-    , _digest  :: !Digest
-    , _cipher  :: !Cipher
     , _fbQueue :: !Fallback.Queue
     , _time    :: !(IO Milliseconds)
     }
@@ -79,13 +75,11 @@ createEnv m o = do
             . C.setProtocolVersion C.V3
             $ C.defSettings
     a <- Aws.mkEnv l o n
-    dg <- getDigestByName "SHA256" >>= maybe (error "OpenSSL: SHA256 digest not found") return
-    ci <- getCipherByName "AES-256-CBC" >>= maybe (error "OpenSSL: AES-256-CBC cipher not found") return
     qu <- initFallbackQueue o
     io <- mkAutoUpdate defaultUpdateSettings {
             updateAction = Ms . round . (* 1000) <$> getPOSIXTime
     }
-    return $! Env mempty m o l n p r a dg ci qu io
+    return $! Env mempty m o l n p r a qu io
 
 initFallbackQueue :: Opts -> IO Fallback.Queue
 initFallbackQueue o =
