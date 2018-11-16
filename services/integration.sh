@@ -72,22 +72,22 @@ fi
 
 function run() {
     service=$1
-    colour=$2
-    export LOG_LEVEL=$3
-    instance=$4
+    instance=$2
+    colour=$3
+    export LOG_LEVEL=$4
     (cd ${DIR}/${service} && ${TOP_LEVEL}/dist/${service} -c ${service}${instance}.integration${integration_file_extension} || kill_all) \
         | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
 
 check_prerequisites
 
-run brig ${green} Warn
-run galley ${yellow} Info
-run gundeck ${blue} Info
-run cannon ${orange} Info
-run cannon ${orange} Info "2"
-run cargohold ${purpleish} Info
-run spar ${orange} Info
+run brig "" ${green} Warn
+run galley "" ${yellow} Info
+run gundeck "" ${blue} Info
+run cannon "" ${orange} Info
+run cannon "2" ${orange} Info
+run cargohold "" ${purpleish} Info
+run spar "" ${orange} Info
 
 # the ports are copied from ./integration.yaml
 while [ "$all_services_are_up" == "" ]; do
