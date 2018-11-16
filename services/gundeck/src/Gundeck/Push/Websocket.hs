@@ -80,12 +80,12 @@ bulkPush notifs = do
 logCannonsGone :: (MonadIO m, MonadReader Env m, Log.MonadLogger m)
                => (uri, (err, [Presence])) -> m ()
 logCannonsGone (_uri, (_err, prcs)) = do
-        view monitor >>= Metrics.counterAdd (fromIntegral $ length prcs)
-            (Metrics.path "push.ws.unreachable")
-        forM_ prcs $ \prc ->
-            Log.warn $ logPresence prc
-                ~~ Log.field "created_at" (ms $ createdAt prc)
-                ~~ Log.msg (val "WebSocket presence unreachable: " +++ toByteString (resource prc))
+    view monitor >>= Metrics.counterAdd (fromIntegral $ length prcs)
+        (Metrics.path "push.ws.unreachable")
+    forM_ prcs $ \prc ->
+        Log.warn $ logPresence prc
+            ~~ Log.field "created_at" (ms $ createdAt prc)
+            ~~ Log.msg (val "WebSocket presence unreachable: " +++ toByteString (resource prc))
 
 logPrcsGone :: Log.MonadLogger m => Presence -> m ()
 logPrcsGone prc = Log.debug $ logPresence prc ~~ Log.msg (val "WebSocket presence gone")
