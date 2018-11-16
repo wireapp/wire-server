@@ -43,7 +43,8 @@ function check_prerequisites() {
       && [ ! -f "${TOP_LEVEL}/dist/galley" ] \
       && [ ! -f "${TOP_LEVEL}/dist/cannon" ] \
       && [ ! -f "${TOP_LEVEL}/dist/gundeck" ] \
-      && [ ! -f "${TOP_LEVEL}/dist/cargohold" ]; then
+      && [ ! -f "${TOP_LEVEL}/dist/cargohold" ] \
+      && [ ! -f "${TOP_LEVEL}/dist/spar" ]; then
         echo "Not all services are compiled. How about you run 'cd ${TOP_LEVEL} && make' first?"; exit 1;
     fi
 }
