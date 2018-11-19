@@ -5,14 +5,12 @@
 
 module API.User.Property (tests) where
 
+import Imports
 import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
-import Control.Monad
 import Data.Aeson
-import Data.Monoid ((<>))
-import Data.Text (Text)
 import Test.Tasty hiding (Timeout)
 import Util
 

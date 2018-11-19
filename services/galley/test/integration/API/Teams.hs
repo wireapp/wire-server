@@ -2,32 +2,27 @@
 
 module API.Teams (tests) where
 
+import Imports
 import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
-import Control.Concurrent.Async (mapConcurrently)
 import Control.Lens hiding ((#), (.=))
-import Control.Monad (void, when)
-import Control.Monad.IO.Class
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
-import Data.Foldable (forM_, for_)
 import Data.Id
 import Data.List1
 import Data.Misc (PlainTextPassword (..))
-import Data.Monoid
 import Data.Range
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import GHC.Stack
 import Gundeck.Types.Notification
 import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
 import API.SQS
-import UnliftIO (mapConcurrently_)
+import UnliftIO (mapConcurrently, mapConcurrently_)
 
 import qualified API.Util as Util
 import qualified Data.Currency as Currency
@@ -990,7 +985,7 @@ postCryptoBroadcastMessage100OrMaxConns g b c a = do
         Util.postOtrBroadcastMessage id g alice ac msg !!! do
             const 201 === statusCode
             assertTrue_ (eqMismatch [] [] [] . decodeBody)
-        void . liftIO $ WS.assertMatch t (Prelude.head ws) (wsAssertOtr (selfConv bob) alice ac bc "ciphertext")
+        void . liftIO $ WS.assertMatch t (Imports.head ws) (wsAssertOtr (selfConv bob) alice ac bc "ciphertext")
         for_ (zip (tail ws) others) $ \(wsU, (u, clt)) ->
             liftIO $ WS.assertMatch t wsU (wsAssertOtr (selfConv u) alice ac clt "ciphertext")
   where

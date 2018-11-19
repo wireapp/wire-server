@@ -5,15 +5,12 @@
 
 module Galley.Data.Queries where
 
+import Imports
 import Brig.Types.Code
-import Cassandra hiding (Value)
+import Cassandra as C hiding (Value)
 import Cassandra.Util
-import Data.Functor.Identity
 import Data.Id
-import Data.Int
 import Data.Misc
-import Data.Monoid
-import Data.Text (Text)
 import Galley.Data.Types
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot
@@ -104,19 +101,19 @@ updateTeamStatus = "update team set status = ? where team = ?"
 
 -- Conversations ------------------------------------------------------------
 
-selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds)
+selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (C.Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds)
 selectConv = "select type, creator, access, access_role, name, team, deleted, message_timer from conversation where conv = ?"
 
-selectConvs :: PrepQuery R (Identity [ConvId]) (ConvId, ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds)
+selectConvs :: PrepQuery R (Identity [ConvId]) (ConvId, ConvType, UserId, Maybe (C.Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds)
 selectConvs = "select conv, type, creator, access, access_role, name, team, deleted, message_timer from conversation where conv in ?"
 
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
-insertConv :: PrepQuery W (ConvId, ConvType, UserId, Set Access, AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds) ()
+insertConv :: PrepQuery W (ConvId, ConvType, UserId, C.Set Access, AccessRole, Maybe Text, Maybe TeamId, Maybe Milliseconds) ()
 insertConv = "insert into conversation (conv, type, creator, access, access_role, name, team, message_timer) values (?, ?, ?, ?, ?, ?, ?, ?)"
 
-updateConvAccess :: PrepQuery W (Set Access, AccessRole, ConvId) ()
+updateConvAccess :: PrepQuery W (C.Set Access, AccessRole, ConvId) ()
 updateConvAccess = "update conversation set access = ?, access_role = ? where conv = ?"
 
 updateConvMessageTimer :: PrepQuery W (Maybe Milliseconds, ConvId) ()
@@ -192,7 +189,7 @@ updateMemberHidden = "update member set hidden = ?, hidden_ref = ? where conv = 
 
 -- Clients ------------------------------------------------------------------
 
-selectClients :: PrepQuery R (Identity [UserId]) (UserId, Set ClientId)
+selectClients :: PrepQuery R (Identity [UserId]) (UserId, C.Set ClientId)
 selectClients = "select user, clients from clients where user in ?"
 
 rmClients :: PrepQuery W (Identity UserId) ()
@@ -213,10 +210,10 @@ rmMemberClient c =
 rmSrv :: PrepQuery W (ProviderId, ServiceId) ()
 rmSrv = "delete from service where provider = ? AND id = ?"
 
-insertSrv :: PrepQuery W (ProviderId, ServiceId, HttpsUrl, ServiceToken, Set (Fingerprint Rsa), Bool) ()
+insertSrv :: PrepQuery W (ProviderId, ServiceId, HttpsUrl, ServiceToken, C.Set (Fingerprint Rsa), Bool) ()
 insertSrv = "insert into service (provider, id, base_url, auth_token, fingerprints, enabled) values (?, ?, ?, ?, ?, ?)"
 
-selectSrv :: PrepQuery R (ProviderId, ServiceId) (HttpsUrl, ServiceToken, Set (Fingerprint Rsa), Bool)
+selectSrv :: PrepQuery R (ProviderId, ServiceId) (HttpsUrl, ServiceToken, C.Set (Fingerprint Rsa), Bool)
 selectSrv = "select base_url, auth_token, fingerprints, enabled from service where provider = ? AND id = ?"
 
 -- Bots ---------------------------------------------------------------------

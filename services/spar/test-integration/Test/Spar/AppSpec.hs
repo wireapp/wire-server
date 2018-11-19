@@ -10,20 +10,17 @@
 
 module Test.Spar.AppSpec (spec) where
 
+import Imports
 import Bilge
 import Control.Exception
 import Control.Lens
-import Control.Monad.Except
-import Control.Monad.Reader
-import Data.Either (isRight)
 import Data.Id
-import Data.Maybe (isJust)
 import Data.String.Conversions
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import SAML2.Util ((-/))
 import SAML2.WebSSO as SAML
-import Spar.API.Instances ()
+import Spar.Orphans ()
 import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
@@ -153,7 +150,7 @@ requestAccessVerdict isGranted mkAuthnReq = do
     mk authnreq
   let verdict = if isGranted
         then SAML.AccessGranted uref
-        else SAML.AccessDenied ["we don't like you", "seriously"]
+        else SAML.AccessDenied [DeniedNoBearerConfSubj, DeniedNoAuthnStatement]
   outcome <- runSpar $ Spar.verdictHandler Nothing authnresp verdict
   let loc :: URI.URI
       loc = maybe (error "no location") (either error id . SAML.parseURI' . cs)

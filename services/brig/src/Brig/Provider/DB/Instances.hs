@@ -6,12 +6,12 @@
 
 module Brig.Provider.DB.Instances () where
 
+import Imports
 import Brig.Provider.DB.Tag
 import Brig.Types.Provider
 import Cassandra.CQL
 import Data.ByteString.Conversion
 import Data.Id()
-import Data.Int
 import Data.Misc()
 import Data.Range()
 import Data.Text.Ascii()
@@ -63,4 +63,3 @@ instance Cql ServiceKey where
         , ("size", toCql siz)
         , ("pem",  toCql pem)
         ]
-

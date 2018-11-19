@@ -37,19 +37,13 @@ module Brig.AWS
 
     ) where
 
+import Imports hiding (group)
 import Blaze.ByteString.Builder (toLazyByteString)
 import Control.Lens hiding ((.=))
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Unlift
-import Control.Monad.Reader
 import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.Aeson hiding ((.=))
-import Data.Foldable (for_)
-import Data.Monoid
-import Data.Text (Text, isPrefixOf)
-import Data.Typeable
 import Data.UUID
 import Data.Yaml (FromJSON (..))
 import Network.AWS (AWSRequest, Rs)
@@ -61,12 +55,12 @@ import Network.Mail.Mime
 import System.Logger.Class
 import UnliftIO.Async
 import UnliftIO.Exception
-import UnliftIO.Concurrent
 import Util.Options
 
 import qualified Brig.Options            as Opt
 import qualified Control.Monad.Trans.AWS as AWST
 import qualified Data.ByteString.Lazy    as BL
+import qualified Data.Text               as Text
 import qualified Data.Text.Encoding      as Text
 import qualified Network.AWS             as AWS
 import qualified Network.AWS.Data        as AWS
@@ -222,7 +216,7 @@ sendMail m = do
         -- after the fact.
         AWS.ServiceError se
             |  se^.AWS.serviceStatus == status400
-            && "Invalid domain name" `isPrefixOf` AWS.toText (se^.AWS.serviceCode) -> throwM SESInvalidDomain
+            && "Invalid domain name" `Text.isPrefixOf` AWS.toText (se^.AWS.serviceCode) -> throwM SESInvalidDomain
         _                                                                          -> throwM (GeneralError x)
 
 --------------------------------------------------------------------------------

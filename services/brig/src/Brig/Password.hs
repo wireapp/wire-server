@@ -7,8 +7,8 @@ module Brig.Password
     , verifyPassword
     ) where
 
+import Imports
 import Cassandra
-import Control.Monad.IO.Class
 import Crypto.Scrypt
 import Data.ByteString.Lazy (toStrict, fromStrict)
 import Data.Misc (PlainTextPassword (..))

@@ -119,7 +119,7 @@ packages:
 # services/spar:
 - location:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: a1504fd07f4292528b1fd8b974495c49a368c4a8
+    commit: 00ff14e65945d750b001838e7eb3b0462d7b9bcf
   extra-dep: true
 - location:
     git: https://github.com/wireapp/hsaml2
@@ -128,6 +128,10 @@ packages:
 - location:
     git: https://github.com/wireapp/hspec-wai
     commit: ca10d13deab929f1cc3a569abea2e7fbe35fdbe3  # https://github.com/hspec/hspec-wai/pull/49
+  extra-dep: true
+- location:
+    git: https://github.com/wireapp/hscim
+    commit: b92140a0ee5209b24a25f0c4a222c69771283744
   extra-dep: true
 
 extra-deps:
@@ -154,6 +158,9 @@ extra-deps:
 - stomp-queue-0.3.1  # for Brig.Queue.Stomp
 - stompl-0.5.0
 - servant-multipart-0.11.2
+# for hscim
+- network-uri-static-0.1.0.0
+- list-t-1.0.1  # 1.0.0.1 doesn't build
 
 flags:
   types-common:

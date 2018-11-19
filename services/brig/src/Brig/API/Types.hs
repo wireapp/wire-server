@@ -12,6 +12,7 @@ module Brig.API.Types
     , foldKey
     ) where
 
+import Imports
 import Brig.Data.Activation (ActivationError (..), Activation (..))
 import Brig.Data.Client (ClientDataError (..))
 import Brig.Data.User (AuthError (..), ReAuthError (..))
@@ -21,10 +22,7 @@ import Brig.Types
 import Brig.Types.Code (Timeout)
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie (RetryAfter (..))
-import Control.Exception
 import Data.Id
-import Data.Text (Text)
-import Data.Typeable
 
 -------------------------------------------------------------------------------
 -- Successes

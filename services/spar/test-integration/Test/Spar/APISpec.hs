@@ -12,6 +12,7 @@ module Test.Spar.APISpec (spec) where
 
 import Bilge
 import Brig.Types.User
+import Cassandra (runClient)
 import Control.Lens
 import Control.Monad.Reader
 import Control.Retry
@@ -33,7 +34,10 @@ import URI.ByteString.QQ (uri)
 import Util
 
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Builder as LB
+import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
+import qualified Web.Cookie as Cky
 
 
 spec :: SpecWith TestEnv
@@ -86,7 +90,10 @@ specMisc = do
     describe "rule do disallow http idp urls." $ do
       let check :: Bool -> TestSpar ()
           check isHttps = do
-            let somemeta = either (error . show) id $ SAML.decode ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"" <> (if isHttps then "https" else "http") <> "://www.okta.com/exkgxxperpx1txfkY0h7\"><md:IDPSSODescriptor WantAuthnRequestsSigned=\"false\" protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\"><md:KeyDescriptor use=\"signing\"><ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"><ds:X509Data><ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAWSx7x1HMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEG\nA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEU\nMBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi01MDA1MDgxHDAaBgkqhkiG9w0BCQEW\nDWluZm9Ab2t0YS5jb20wHhcNMTgwNzE5MDk0NTM1WhcNMjgwNzE5MDk0NjM0WjCBkjELMAkGA1UE\nBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNV\nBAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtNTAwNTA4MRwwGgYJ\nKoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\nhUaQm/3dgPws1A5IjFK9ZQpj170vIqENuDG0tapAzkvk6+9vyhduGckHTeZF3k5MMlW9iix2Eg0q\na1oS/Wrq/aBf7+BH6y1MJlQnaKQ3hPL+OFvYzbnrN8k2uC2LivP7Y90dXwtN3P63rA4QSyDPYEMv\ndKSubUKX/HNsUg4I2PwHmpfWBNgoMkqe0bxQILBv+84L62IYSd6k77XXnCFb/usHpG/gY6sJsTQ2\naFl9FuJ51uf67AOj8RzPXstgtUaXbdJI0kAqKIb3j9Zv3mpPCy/GHnyB3PMalvtc1uaz1ZnwO2el\niqhwB6/8W6CPutFo1Bhq1glQIX+1OD7906iORwIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQB0h6vK\nAywJwH3g0RnocOpBvT42QW57TZ3Wzm9gbg6dQL0rB+NHDx2V0VIh51E3YHL1os9W09MreM7I74D/\nfX27r1Q3+qAsL1v3CN8WIVh9eYitBCtF7DwZmL2UXTia+GWPrabO14qAztFmTXfqNuCZej7gJd/K\n2r0KBiZtZ6o58WBREW2F70a6nN6Nk1yjzBkDTJMMf8OMXHphTaalMBXojN9W6HEDpGBE0qY7c70P\nqvfUEzd8wHWcDxo6+3jajajelk0V4rg7Cqxccr+WwjYtENEuQypNG2mbI52iPZked0QWKy0WzhSM\nw5wjJ+QDG31vJInAB2769C2KmhPDyNhU</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor><md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat><md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat><md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"" <> (if isHttps then "https" else "http") <> "://dev-500508.oktapreview.com/app/wireswissgmbhdev500508_z1tejapsbeyonce_1/exkgxxperpx1txfkY0h7/sso/saml\"/><md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" Location=\"" <> (if isHttps then "https" else "http") <> "://dev-500508.oktapreview.com/app/wireswissgmbhdev500508_z1tejapsbeyonce_1/exkgxxperpx1txfkY0h7/sso/saml\"/></md:IDPSSODescriptor></md:EntityDescriptor>")
+            somemeta <- do
+              issuer <- makeIssuer
+              let nonfresh = either (error . show) id $ SAML.decode ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><md:EntityDescriptor xmlns:md=\"urn:oasis:names:tc:SAML:2.0:metadata\" entityID=\"" <> (if isHttps then "https" else "http") <> "://www.okta.com/exkgxxperpx1txfkY0h7\"><md:IDPSSODescriptor WantAuthnRequestsSigned=\"false\" protocolSupportEnumeration=\"urn:oasis:names:tc:SAML:2.0:protocol\"><md:KeyDescriptor use=\"signing\"><ds:KeyInfo xmlns:ds=\"http://www.w3.org/2000/09/xmldsig#\"><ds:X509Data><ds:X509Certificate>MIIDpDCCAoygAwIBAgIGAWSx7x1HMA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEG\nA1UECAwKQ2FsaWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwET2t0YTEU\nMBIGA1UECwwLU1NPUHJvdmlkZXIxEzARBgNVBAMMCmRldi01MDA1MDgxHDAaBgkqhkiG9w0BCQEW\nDWluZm9Ab2t0YS5jb20wHhcNMTgwNzE5MDk0NTM1WhcNMjgwNzE5MDk0NjM0WjCBkjELMAkGA1UE\nBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcMDVNhbiBGcmFuY2lzY28xDTALBgNV\nBAoMBE9rdGExFDASBgNVBAsMC1NTT1Byb3ZpZGVyMRMwEQYDVQQDDApkZXYtNTAwNTA4MRwwGgYJ\nKoZIhvcNAQkBFg1pbmZvQG9rdGEuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA\nhUaQm/3dgPws1A5IjFK9ZQpj170vIqENuDG0tapAzkvk6+9vyhduGckHTeZF3k5MMlW9iix2Eg0q\na1oS/Wrq/aBf7+BH6y1MJlQnaKQ3hPL+OFvYzbnrN8k2uC2LivP7Y90dXwtN3P63rA4QSyDPYEMv\ndKSubUKX/HNsUg4I2PwHmpfWBNgoMkqe0bxQILBv+84L62IYSd6k77XXnCFb/usHpG/gY6sJsTQ2\naFl9FuJ51uf67AOj8RzPXstgtUaXbdJI0kAqKIb3j9Zv3mpPCy/GHnyB3PMalvtc1uaz1ZnwO2el\niqhwB6/8W6CPutFo1Bhq1glQIX+1OD7906iORwIDAQABMA0GCSqGSIb3DQEBCwUAA4IBAQB0h6vK\nAywJwH3g0RnocOpBvT42QW57TZ3Wzm9gbg6dQL0rB+NHDx2V0VIh51E3YHL1os9W09MreM7I74D/\nfX27r1Q3+qAsL1v3CN8WIVh9eYitBCtF7DwZmL2UXTia+GWPrabO14qAztFmTXfqNuCZej7gJd/K\n2r0KBiZtZ6o58WBREW2F70a6nN6Nk1yjzBkDTJMMf8OMXHphTaalMBXojN9W6HEDpGBE0qY7c70P\nqvfUEzd8wHWcDxo6+3jajajelk0V4rg7Cqxccr+WwjYtENEuQypNG2mbI52iPZked0QWKy0WzhSM\nw5wjJ+QDG31vJInAB2769C2KmhPDyNhU</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor><md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat><md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat><md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST\" Location=\"" <> (if isHttps then "https" else "http") <> "://dev-500508.oktapreview.com/app/wireswissgmbhdev500508_z1tejapsbeyonce_1/exkgxxperpx1txfkY0h7/sso/saml\"/><md:SingleSignOnService Binding=\"urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect\" Location=\"" <> (if isHttps then "https" else "http") <> "://dev-500508.oktapreview.com/app/wireswissgmbhdev500508_z1tejapsbeyonce_1/exkgxxperpx1txfkY0h7/sso/saml\"/></md:IDPSSODescriptor></md:EntityDescriptor>")
+              pure $ nonfresh & edIssuer .~ issuer
             env <- ask
             uid <- fst <$> call (createUserWithTeam (env ^. teBrig) (env ^. teGalley))
             resp <- call $ callIdpCreate' (env ^. teSpar) (Just uid) somemeta
@@ -145,8 +152,10 @@ specInitiateLogin = do
         it "responds with authentication request and NO bind cookie" $ do
           env <- ask
           let idp = idPIdToST $ env ^. teIdP . idpId
-          get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
-            `shouldRespondWith` \resp -> checkRespBody resp && hasDeleteBindCookieHeader resp
+          resp <- call $ get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
+          liftIO $ do
+            resp `shouldSatisfy` checkRespBody
+            hasDeleteBindCookieHeader resp `shouldBe` Right ()
 
 
 specFinalizeLogin :: SpecWith TestEnv
@@ -175,6 +184,7 @@ specFinalizeLogin = do
             bdy `shouldContain` "\"payload\":{"
             bdy `shouldContain` "\"label\":\"forbidden\""
             bdy `shouldContain` "}, receiverOrigin)"
+            hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
 
       context "access granted" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
@@ -189,6 +199,7 @@ specFinalizeLogin = do
             bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
             bdy `shouldContain` "<title>wire:sso:success</title>"
             bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
+            hasPersistentCookieHeader sparresp `shouldBe` Right ()
 
         context "unknown user" $ do
           it "creates the user" $ do
@@ -253,77 +264,109 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                              . expect2xx
                              )
 
-    let checkInitiateLogin :: HasCallStack => TestSpar UserId -> TestSpar ()
-        checkInitiateLogin createUser = do
-          let checkRespBody :: HasCallStack => ResponseLBS -> Bool
+    let checkInitiateLogin :: HasCallStack => Bool -> TestSpar UserId -> SpecWith TestEnv
+        checkInitiateLogin hasZUser createUser = do
+          let testmsg = if hasZUser
+                        then "responds with 200 and a bind cookie"
+                        else "responds with 403 and 'bind-without-auth'"
+
+              checkRespBody :: HasCallStack => ResponseLBS -> Bool
               checkRespBody (responseBody -> Just (cs -> bdy)) = all (`isInfixOf` bdy)
                 [ "<html xml:lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">"
-                    , "<body onload=\"document.forms[0].submit()\">"
+                , "<body onload=\"document.forms[0].submit()\">"
                 , "<input name=\"SAMLRequest\" type=\"hidden\" "
-                    ]
+                ]
               checkRespBody bad = error $ show bad
 
-          env <- ask
-          let idp = idPIdToST $ env ^. teIdP . idpId
-          uid <- createUser
-          get ( (env ^. teSpar)
-              . header "Z-User" (toByteString' uid)
-              . path (cs $ "/sso-initiate-bind/" -/ idp)
-              . expect2xx
-              )
-            `shouldRespondWith` (\resp -> checkRespBody resp && hasSetBindCookieHeader resp)
+          it testmsg $ do
+            env <- ask
+            let idp = idPIdToST $ env ^. teIdP . idpId
+            uid <- createUser
+            resp <- call $ get ( (env ^. teSpar)
+                               . (if hasZUser then header "Z-User" (toByteString' uid) else id)
+                               . path (cs $ "/sso-initiate-bind/" -/ idp)
+                               )
+            liftIO $ if hasZUser
+              then do
+                statusCode resp `shouldBe` 200
+                resp `shouldSatisfy` checkRespBody
+                hasSetBindCookieHeader resp `shouldBe` Right ()
+              else do
+                statusCode resp `shouldBe` 403
+                resp `shouldSatisfy` (not . checkRespBody)
+                hasSetBindCookieHeader resp `shouldBe` Left "no set-cookie header"
+                responseJSON resp `shouldBe` Right (TestErrorLabel "bind-without-auth")
 
     describe "GET /sso-initiate-bind/:idp" $ do
+      context "known IdP, running session without authentication" $ do
+        checkInitiateLogin False (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+
       context "known IdP, running session with non-sso user" $ do
-        it "responds with 200 and a bind cookie" $ do
-          checkInitiateLogin (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
+        checkInitiateLogin True (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
 
       context "known IdP, running session with sso user" $ do
-        it "responds with 2xx and bind cookie" $ do
-          checkInitiateLogin loginSsoUserFirstTime
+        checkInitiateLogin True loginSsoUserFirstTime
 
     describe "POST /sso/finalize-login" $ do
       let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
-          checkGrantingAuthnResp uid spararesp aresp = do
-            liftIO $ do
-              (cs @_ @String . fromJust . responseBody $ aresp)
-                `shouldContain` "<title>wire:sso:success</title>"
-              responseHeaders aresp
-                `shouldSatisfy` (isJust . lookup "set-cookie")
+          checkGrantingAuthnResp uid sparrq sparresp = do
+            checkGrantingAuthnResp' sparresp
 
-            ssoidViaAuthResp <- getSsoidViaAuthResp spararesp
+            ssoidViaAuthResp <- getSsoidViaAuthResp sparrq
             ssoidViaSelf <- getSsoidViaSelf uid
 
             liftIO $ ('s', ssoidViaSelf) `shouldBe` ('s', ssoidViaAuthResp)
             Just uidViaSpar <- ssoToUidSpar ssoidViaAuthResp
             liftIO $ ('u', uidViaSpar) `shouldBe` ('u', uid)
 
-          getSsoidViaAuthResp :: SignedAuthnResponse -> TestSpar UserSSOId
+          checkGrantingAuthnResp' :: HasCallStack => ResponseLBS -> TestSpar ()
+          checkGrantingAuthnResp' sparresp = do
+            liftIO $ do
+              (cs @_ @String . fromJust . responseBody $ sparresp)
+                `shouldContain` "<title>wire:sso:success</title>"
+              hasPersistentCookieHeader sparresp `shouldBe` Right ()
+
+          checkDenyingAuthnResp :: HasCallStack => ResponseLBS -> ST -> TestSpar ()
+          checkDenyingAuthnResp sparresp errorlabel = do
+            liftIO $ do
+              (cs @_ @String . fromJust . responseBody $ sparresp)
+                `shouldContain` ("<title>wire:sso:error:" <> cs errorlabel <> "</title>")
+              hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
+
+          getSsoidViaAuthResp :: HasCallStack => SignedAuthnResponse -> TestSpar UserSSOId
           getSsoidViaAuthResp aresp = do
             parsed :: AuthnResponse
               <- either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
             either error (pure . Intra.toUserSSOId) $ getUserRef parsed
 
-          getSsoidViaSelf :: UserId -> TestSpar UserSSOId
+          getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
           getSsoidViaSelf uid = do
+            let probe :: HasCallStack => TestSpar (Maybe UserSSOId)
+                probe = do
+                  env <- ask
+                  fmap getUserSSOId . call . get $
+                    ( (env ^. teBrig)
+                    . header "Z-User" (toByteString' uid)
+                    . path "/self"
+                    . expect2xx
+                    )
             env <- ask
             Just ssoid <- liftIO $ retrying
               (exponentialBackoff 50 <> limitRetries 5)
               (\_ -> pure . isNothing)
-              (\_ -> probe uid `runReaderT` env)
+              (\_ -> probe `runReaderT` env)
             pure ssoid
 
-          probe :: UserId -> TestSpar (Maybe UserSSOId)
-          probe uid = do
+          getUserIdViaRef :: HasCallStack => UserRef -> TestSpar UserId
+          getUserIdViaRef uref = do
             env <- ask
-            fmap getUserSSOId . call . get $
-              ( (env ^. teBrig)
-              . header "Z-User" (toByteString' uid)
-              . path "/self"
-              . expect2xx
-              )
+            Just ssoid <- liftIO $ retrying
+              (exponentialBackoff 50 <> limitRetries 5)
+              (\_ -> pure . isNothing)
+              (\_ -> runClient (env ^. teCql) $ Data.getUser uref)
+            pure ssoid
 
-          getUserSSOId :: ResponseLBS -> Maybe UserSSOId
+          getUserSSOId :: HasCallStack => ResponseLBS -> Maybe UserSSOId
           getUserSSOId (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
             = case userIdentity $ selfUser selfprof of
                 Just (SSOIdentity ssoid _ _) -> Just ssoid
@@ -333,23 +376,36 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
                 Nothing                  -> Nothing
           getUserSSOId _ = Nothing
 
-          initialBind :: UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
-          initialBind uid idp = do
+          initialBind :: HasCallStack => UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
+          initialBind = initialBind' Just
+
+          initialBind'
+            :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies)
+            -> UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
+          initialBind' tweakcookies uid idp = do
             subj <- SAML.opaqueNameID . UUID.toText <$> liftIO UUID.nextRandom
-            (authnResp, sparAuthnResp) <- reBindSame uid idp subj
+            (authnResp, sparAuthnResp) <- reBindSame' tweakcookies uid idp subj
             pure (subj, authnResp, sparAuthnResp)
 
-          reBindSame :: UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
-          reBindSame uid idp subj = do
-            (_, privCreds, authnReq, Just bindCky) <- do
+          reBindSame :: HasCallStack => UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
+          reBindSame = reBindSame' Just
+
+          reBindSame'
+            :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies)
+            -> UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
+          reBindSame' tweakcookies uid idp subj = do
+            (_, privCreds, authnReq, Just (SimpleSetCookie bindCky)) <- do
               negotiateAuthnRequest' DoInitiateBind (Just idp) (header "Z-User" $ toByteString' uid)
             spmeta <- getTestSPMetadata
             authnResp <- runSimpleSP $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
+            let cookiehdr = case tweakcookies [(Cky.setCookieName bindCky, Cky.setCookieValue bindCky)] of
+                  Just val -> header "Cookie" . cs . LB.toLazyByteString . Cky.renderCookies $ val
+                  Nothing  -> id
             sparAuthnResp :: ResponseLBS
-              <- submitAuthnResponse' (header "Cookie" bindCky) authnResp
+              <- submitAuthnResponse' cookiehdr authnResp
             pure (authnResp, sparAuthnResp)
 
-          reBindDifferent :: UserId -> TestSpar (SignedAuthnResponse, ResponseLBS)
+          reBindDifferent :: HasCallStack => UserId -> TestSpar (SignedAuthnResponse, ResponseLBS)
           reBindDifferent uid = do
             env <- ask
             idp <- call . callIdpCreate (env ^. teSpar) (Just uid) =<< makeTestIdPMetadata
@@ -365,17 +421,17 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
       context "re-bind to same UserRef" $ do
         it "allowed" $ do
-          (uid, _, idp)              <- createTestIdP
-          (subj, _, _)               <- initialBind uid idp
-          (authnResp, sparAuthnResp) <- reBindSame uid idp subj
-          checkGrantingAuthnResp uid authnResp sparAuthnResp
+          (uid, _, idp)      <- createTestIdP
+          (subj, _, _)       <- initialBind uid idp
+          (sparrq, sparresp) <- reBindSame uid idp subj
+          checkGrantingAuthnResp uid sparrq sparresp
 
       context "re-bind to new UserRef from different IdP" $ do
         it "allowed" $ do
-          (uid, _, idp)              <- createTestIdP
-          _                          <- initialBind uid idp
-          (authnResp, sparAuthnResp) <- reBindDifferent uid
-          checkGrantingAuthnResp uid authnResp sparAuthnResp
+          (uid, _, idp)      <- createTestIdP
+          _                  <- initialBind uid idp
+          (sparrq, sparresp) <- reBindDifferent uid
+          checkGrantingAuthnResp uid sparrq sparresp
 
       context "bind to UserRef in use by other wire user" $ do
         it "forbidden" $ do
@@ -384,29 +440,66 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           (subj, _, _)       <- initialBind uid idp
           uid'               <- let Just perms = newPermissions mempty mempty
                                 in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
-          (_, sparAuthnResp) <- reBindSame uid' idp subj
-          liftIO $ do
-            statusCode sparAuthnResp `shouldBe` 403
-            responseJSON sparAuthnResp `shouldBe` Right (TestErrorLabel "subject-id-taken")
+          (_, sparresp)      <- reBindSame uid' idp subj
+          checkDenyingAuthnResp sparresp "subject-id-taken"
 
       context "bind to UserRef from different team" $ do
         it "forbidden" $ do
           (uid, _, _) <- createTestIdP
           (_, _, idp) <- createTestIdP
-          (_, _, sparAuthnResp) <- initialBind uid idp
-          liftIO $ do
-            statusCode sparAuthnResp `shouldBe` 403
-            responseJSON sparAuthnResp `shouldBe` Right (TestErrorLabel "bad-team")
+          (_, _, sparresp) <- initialBind uid idp
+          checkDenyingAuthnResp sparresp "bad-team"
+
+      describe "cookie corner cases" $ do
+        -- attempt to bind with different 'Cookie' headers in the request to finalize-login.  if the
+        -- zbind cookie cannot be found, the user is created from scratch, and the old, existing one
+        -- is "detached".  if the zbind cookie is found, the binding is successful.
+        let check :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies) -> Bool -> SpecWith TestEnv
+            check tweakcookies bindsucceeds = do
+              it (if bindsucceeds then "binds existing user" else "creates new user") $ do
+                (uid, _, idp) <- createTestIdP
+                (subj :: NameID, sparrq, sparresp) <- initialBind' tweakcookies uid idp
+                checkGrantingAuthnResp' sparresp
+
+                uid' <- getUserIdViaRef $ UserRef (idp ^. idpMetadata . edIssuer) subj
+                checkGrantingAuthnResp uid' sparrq sparresp
+                liftIO $ (if bindsucceeds then shouldBe else shouldNotBe) uid' uid
+
+            addAtBeginning :: Cky.SetCookie -> Cky.Cookies -> Cky.Cookies
+            addAtBeginning cky = ((Cky.setCookieName cky, Cky.setCookieValue cky):)
+
+            addAtEnd :: Cky.SetCookie -> Cky.Cookies -> Cky.Cookies
+            addAtEnd cky = (<> [(Cky.setCookieName cky, Cky.setCookieValue cky)])
+
+            cky1, cky2, cky3 :: Cky.SetCookie
+            cky1 = Cky.def { Cky.setCookieName = "cky1", Cky.setCookieValue = "val1" }
+            cky2 = Cky.def { Cky.setCookieName = "cky2", Cky.setCookieValue = "val2" }
+            cky3 = Cky.def { Cky.setCookieName = "cky3", Cky.setCookieValue = "val3" }
+
+        context "with no cookies header in the request" $ do
+          check (const Nothing) False
+
+        context "with empty cookies header in the request" $ do
+          check (const $ Just mempty) False
+
+        context "with no bind cookie and one other cookie in the request" $ do
+          check (\_ -> Just $ addAtBeginning cky1 mempty) False
+
+        context "with bind cookie and one other cookie in the request" $ do
+          check (\bindcky -> Just $ addAtBeginning cky1 bindcky) True
+
+        context "with bind cookie and two other cookies in the request" $ do
+          check (\bindcky -> Just . addAtEnd cky1 . addAtEnd cky2 . addAtBeginning cky3 $ bindcky) True
 
 
--- | FUTUREWORK: this function deletes the test IdP from the test env.  (it should probably not do
--- that, so other tests after this can still use it.)
+-- | FUTUREWORK: this function deletes the test IdP from the test env.  it should probably not do
+-- that, so other tests after this can still use it.
 specCRUDIdentityProvider :: SpecWith TestEnv
 specCRUDIdentityProvider = do
-    let checkErr :: (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
+    let checkErr :: HasCallStack => (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
         checkErr statusIs label resp = statusIs (statusCode resp) && responseJSON resp == Right label
 
-        testGetPutDelete :: (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
+        testGetPutDelete :: HasCallStack => (SparReq -> Maybe UserId -> IdPId -> Http ResponseLBS) -> SpecWith TestEnv
         testGetPutDelete whichone = do
           context "unknown IdP" $ do
             it "responds with 'not found'" $ do

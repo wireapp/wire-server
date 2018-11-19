@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies      #-}
 
-module Galley.Validation 
+module Galley.Validation
    ( rangeChecked
    , rangeCheckedMaybe
 
@@ -17,11 +17,11 @@ module Galley.Validation
    , checkedMemberAddSize
    ) where
 
+import Imports
 import Control.Lens
 import Control.Monad.Catch
 import Data.List1 (list1, List1)
 import Data.Range
-import Data.String (fromString)
 import Galley.API.Error
 import Galley.App
 import Galley.Options

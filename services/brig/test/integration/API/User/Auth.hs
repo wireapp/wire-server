@@ -3,30 +3,22 @@
 
 module API.User.Auth (tests) where
 
+import Imports
 import Bilge hiding (body)
 import Bilge.Assert hiding (assert)
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.ZAuth (ZAuth, runZAuth)
-import Control.Concurrent
 import UnliftIO.Async.Extended hiding (wait)
 import Control.Lens ((^?), set)
-import Control.Monad
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Lens
-import Data.ByteString (intercalate)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.List (sort, partition)
-import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
-import Data.Monoid
-import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
-import GHC.Stack (HasCallStack)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
@@ -36,6 +28,7 @@ import qualified Brig.Options         as Opts
 import qualified Brig.Types.User.Auth as Auth
 import qualified Brig.Types.Code      as Code
 import qualified Bilge                as Http
+import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.Text.Lazy       as Lazy
 import qualified Brig.ZAuth           as ZAuth
@@ -568,7 +561,7 @@ listCookiesWithLabel b u l = do
     let Just cs = cookieList <$> decodeBody rs
     return cs
   where
-    labels = intercalate "," $ map toByteString' l
+    labels = BS.intercalate "," $ map toByteString' l
 
 -- | Check that the cookie returned after login is sane.
 --

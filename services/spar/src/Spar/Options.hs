@@ -15,10 +15,9 @@ module Spar.Options
   , readOptsFile
   ) where
 
+import Imports
 import Control.Exception
 import Control.Monad.Catch
-import Control.Monad.Reader
-import Data.Monoid
 import Options.Applicative
 import Spar.API.Types
 import Spar.Types

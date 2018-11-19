@@ -21,20 +21,20 @@ module Spar.Run
   , runServer
   ) where
 
+import Imports
 import Bilge
 import Cassandra as Cas
 import Control.Lens
 import Data.List.NonEmpty as NE
 import Data.Metrics (metrics)
 import Data.String.Conversions
-import Data.String (fromString)
 import Network.Wai (Application)
 import Network.Wai.Utilities.Request (lookupRequestId)
 import Spar.API (app)
-import Spar.API.Instances ()
 import Spar.API.Swagger ()
 import Spar.App
 import Spar.Data.Instances ()
+import Spar.Orphans ()
 import Spar.Types as Types
 import System.Logger (Logger)
 import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
@@ -95,9 +95,14 @@ runServer sparCtxOpts = do
         & Warp.setHost (fromString $ sparCtxOpts ^. to saml . SAML.cfgSPHost)
         . Warp.setPort (sparCtxOpts ^. to saml . SAML.cfgSPPort)
   sparCtxHttpManager <- newManager defaultManagerSettings
-  let sparCtxHttpBrig = Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
-                      . Bilge.port (sparCtxOpts ^. to brig . epPort)
-                      $ Bilge.empty
+  let sparCtxHttpBrig =
+          Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
+        . Bilge.port (sparCtxOpts ^. to brig . epPort)
+        $ Bilge.empty
+  let sparCtxHttpGalley =
+          Bilge.host (sparCtxOpts ^. to galley . epHost . to cs)
+        . Bilge.port (sparCtxOpts ^. to galley . epPort)
+        $ Bilge.empty
   let wrappedApp
         = WU.catchErrors sparCtxLogger mx
         . Promth.prometheus Promth.def

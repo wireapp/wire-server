@@ -12,8 +12,8 @@ module Gundeck.Notification.Data
     , deleteAll
     ) where
 
-import Imports hiding (Set)
-import Cassandra
+import Imports
+import Cassandra as C
 import Control.Lens ((^.), _1)
 import Data.Id
 import Data.List1 (List1)
@@ -48,10 +48,10 @@ add :: (MonadClient m, MonadUnliftIO m)
 add n (List.chunksOf 32 . toList -> tgts) (Blob . JSON.encode -> p) (notificationTTLSeconds -> t) =
     forM_ tgts $ mapConcurrently $ \tgt ->
         let u  = tgt^.targetUser
-            cs = Set (tgt^.targetClients)
+            cs = C.Set (tgt^.targetClients)
         in write cqlInsert (params Quorum (u, n, p, cs, fromIntegral t)) & retry x5
   where
-    cqlInsert :: PrepQuery W (UserId, NotificationId, Blob, Set ClientId, Int32) ()
+    cqlInsert :: PrepQuery W (UserId, NotificationId, Blob, C.Set ClientId, Int32) ()
     cqlInsert =
         "INSERT INTO notifications \
         \(user, id, payload, clients) VALUES \
@@ -62,7 +62,7 @@ fetchId :: MonadClient m => UserId -> NotificationId -> Maybe ClientId -> m (May
 fetchId u n c = listToMaybe . foldr' (toNotif c) [] <$>
     query cqlById (params Quorum (u, n)) & retry x1
   where
-    cqlById :: PrepQuery R (UserId, NotificationId) (TimeUuid, Blob, Maybe (Set ClientId))
+    cqlById :: PrepQuery R (UserId, NotificationId) (TimeUuid, Blob, Maybe (C.Set ClientId))
     cqlById =
         "SELECT id, payload, clients \
         \FROM notifications \
@@ -87,14 +87,14 @@ fetchLast u c = do
             Just  n -> return (Just n)
             Nothing -> f
 
-    cqlLast :: PrepQuery R (Identity UserId) (TimeUuid, Blob, Maybe (Set ClientId))
+    cqlLast :: PrepQuery R (Identity UserId) (TimeUuid, Blob, Maybe (C.Set ClientId))
     cqlLast =
         "SELECT id, payload, clients \
         \FROM notifications \
         \WHERE user = ? \
         \ORDER BY id DESC LIMIT 1"
 
-    cqlSeek :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Blob, Maybe (Set ClientId))
+    cqlSeek :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Blob, Maybe (C.Set ClientId))
     cqlSeek =
         "SELECT id, payload, clients \
         \FROM notifications \
@@ -139,14 +139,14 @@ fetch u c since (fromRange -> size) = do
                                 EmptyR  -> ns
                                 xs :> _ -> xs
 
-    cqlStart :: PrepQuery R (Identity UserId) (TimeUuid, Blob, Maybe (Set ClientId))
+    cqlStart :: PrepQuery R (Identity UserId) (TimeUuid, Blob, Maybe (C.Set ClientId))
     cqlStart =
         "SELECT id, payload, clients \
         \FROM notifications \
         \WHERE user = ? \
         \ORDER BY id ASC"
 
-    cqlSince :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Blob, Maybe (Set ClientId))
+    cqlSince :: PrepQuery R (UserId, TimeUuid) (TimeUuid, Blob, Maybe (C.Set ClientId))
     cqlSince =
         "SELECT id, payload, clients \
         \FROM notifications \
@@ -163,7 +163,7 @@ deleteAll u = write cql (params Quorum (Identity u)) & retry x5
 -- Conversions
 
 toNotif :: Maybe ClientId
-        -> (TimeUuid, Blob, Maybe (Set ClientId))
+        -> (TimeUuid, Blob, Maybe (C.Set ClientId))
         -> [QueuedNotification]
         -> [QueuedNotification]
 toNotif c (i, b, cs) ns =

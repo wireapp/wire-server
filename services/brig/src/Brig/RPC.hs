@@ -3,21 +3,17 @@
 -- | General RPC utilities.
 module Brig.RPC where
 
+import Imports
 import Bilge
 import Bilge.Retry
 import Bilge.RPC
 import Brig.App
-import Control.Exception
 import Control.Lens
-import Control.Monad (when)
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Monoid
-import Data.Text (Text)
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), checkResponse)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
@@ -92,4 +88,3 @@ instance Show ParseException where
       ++ Text.unpack r ++ " with message: " ++ m
 
 instance Exception ParseException
-

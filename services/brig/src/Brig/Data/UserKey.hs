@@ -20,6 +20,7 @@ module Brig.Data.UserKey
     , lookupPhoneHashes
     ) where
 
+import Imports
 import Brig.App (AppIO, digestSHA256)
 import Brig.Data.Instances ()
 import Brig.Email
@@ -27,13 +28,8 @@ import Brig.Phone
 import Brig.Types
 import Cassandra
 import Control.Lens (view)
-import Control.Monad
-import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (toStrict)
-import Data.Functor.Identity
 import Data.Id
-import Data.Maybe
-import Data.Text (Text)
 import OpenSSL.EVP.Digest (digestBS)
 
 import qualified Brig.Data.User         as User

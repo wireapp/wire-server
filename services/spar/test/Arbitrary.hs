@@ -9,6 +9,7 @@
 
 module Arbitrary where
 
+import Imports
 import Data.Proxy
 import "swagger2" Data.Swagger hiding (Header(..))
 import Data.Aeson

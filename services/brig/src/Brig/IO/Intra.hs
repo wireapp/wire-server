@@ -45,6 +45,7 @@ module Brig.IO.Intra
     , changeTeamStatus
     ) where
 
+import Imports
 import Bilge hiding (head, options, requestId)
 import Bilge.Retry
 import Bilge.RPC
@@ -57,22 +58,17 @@ import Brig.RPC
 import Brig.Types
 import Brig.Types.Intra
 import Brig.User.Event
-import Control.Applicative (liftA2)
-import Control.Lens (view, (.~), (?~), (&), (^.))
+import Control.Lens (view, (.~), (?~), (^.))
 import Control.Lens.Prism (_Just)
 import Control.Monad.Catch
-import Control.Monad.Reader
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import Data.Foldable (toList, for_)
 import Data.Id
 import Data.Json.Util ((#))
 import Data.List1 (List1, list1, singleton)
 import Data.List.Split (chunksOf)
-import Data.Maybe (isJust, mapMaybe)
 import Data.Range
-import Data.Text (Text)
 import Galley.Types (Connect (..), Conversation)
 import Gundeck.Types.Push.V2
 import Network.HTTP.Types.Method

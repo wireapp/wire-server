@@ -2,9 +2,9 @@
 
 module Main where
 
+import Imports
 import Cassandra.Schema
 import Control.Exception (finally)
-import Data.Monoid ((<>))
 import Options.Applicative
 import System.Logger hiding (info)
 

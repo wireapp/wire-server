@@ -8,6 +8,7 @@ module Brig.Provider.Email
     , sendPasswordResetMail
     ) where
 
+import Imports
 import Brig.App
 import Brig.Email
 import Brig.Provider.Template
@@ -15,7 +16,7 @@ import Brig.Types.Common
 import Brig.Types.Provider
 import Data.ByteString.Conversion
 import Data.Range
-import Data.Text (Text, pack)
+import Data.Text (pack)
 
 import qualified Brig.Types.Code    as Code
 import qualified Data.Text.Ascii    as Ascii

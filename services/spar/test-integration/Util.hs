@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
@@ -19,7 +20,22 @@
 -- FUTUREWORK: this is all copied from /services/galley/test/integration/API/Util.hs and some other
 -- places; should we make this a new library?  (@tiago-loureiro says no that's fine.)
 module Util
-  ( mkEnv, destroyEnv, passes, it, pending, pendingWith
+  (
+  -- * Test environment
+    mkEnv, destroyEnv
+  -- * Test helpers
+  , passes, it, pending, pendingWith
+  , shouldRespondWith
+  , module Test.Hspec
+  -- * HTTP
+  , call
+  , endpointToReq
+  , endpointToSettings
+  , endpointToURL
+  , responseJSON
+  , decodeBody
+  , decodeBody'
+  -- * Other
   , createUserWithTeam
   , createTeamMember
   , nextWireId
@@ -27,11 +43,6 @@ module Util
   , nextUserRef
   , createRandomPhoneUser
   , zUser
-  , endpointToReq
-  , endpointToSettings
-  , endpointToURL
-  , shouldRespondWith
-  , call
   , ping
   , makeIssuer
   , makeTestIdPMetadata
@@ -40,14 +51,12 @@ module Util
   , createTestIdPFrom
   , negotiateAuthnRequest
   , negotiateAuthnRequest'
-  , isDeleteBindCookieHeader
+  , hasPersistentCookieHeader
   , hasDeleteBindCookieHeader
-  , isSetBindCookieHeader
   , hasSetBindCookieHeader
   , submitAuthnResponse
   , submitAuthnResponse'
   , loginSsoUserFirstTime
-  , responseJSON
   , callAuthnReqPrecheck'
   , callAuthnReq, callAuthnReq'
   , callIdpGet, callIdpGet'
@@ -59,11 +68,10 @@ module Util
   , runSparCass, runSparCassWithEnv
   , runSimpleSP
   , runSpar
-  , module Test.Hspec
   , module Util.Types
   ) where
 
-import Bilge
+import Bilge hiding (getCookie)  -- we use Web.Cookie instead of the http-client type
 import Bilge.Assert ((!!!), (===), (<!!))
 import Cassandra as Cas
 import Control.Exception
@@ -80,6 +88,7 @@ import Data.EitherR (fmapL)
 import Data.Id
 import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
+import Data.Proxy
 import Data.Range
 import Data.String
 import Data.String.Conversions
@@ -87,9 +96,10 @@ import Data.Time
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID (nextRandom)
 import GHC.Stack (HasCallStack)
+import GHC.TypeLits
 import Network.HTTP.Client.MultipartFormData
 import Prelude hiding (head)
-import SAML2.WebSSO
+import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Credentials
 import SAML2.WebSSO.Test.MockResponse
 import Spar.API.Types
@@ -112,7 +122,6 @@ import qualified Galley.Types.Teams as Galley
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
 import qualified SAML2.WebSSO.API.Example as SAML
-import qualified SAML2.WebSSO as SAML
 import qualified Spar.App as Spar
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
@@ -121,6 +130,7 @@ import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
 import qualified Web.Cookie as Web
+import qualified Web.SCIM.Class.Auth as SCIM
 
 
 -- | Create an environment for integration tests from integration and spar config files.
@@ -154,7 +164,13 @@ mkEnv _teTstOpts _teOpts = do
       sparCtxCas         = _teCql
       sparCtxHttpManager = _teMgr
       sparCtxHttpBrig    = _teBrig empty
+      sparCtxHttpGalley  = _teGalley empty
       sparCtxRequestId   = RequestId "<fake request id>"
+
+  -- TODO: for now, our SCIM implementation accepts any set of credentials
+  _teScimAdmin <- SCIM.SCIMAuthData
+      <$> liftIO UUID.nextRandom
+      <*> pure "password"
 
   pure TestEnv {..}
 
@@ -437,40 +453,67 @@ createTestIdPFrom metadata mgr brig galley spar = do
     (uid, tid,) <$> callIdpCreate spar (Just uid) metadata
 
 
+getCookie :: KnownSymbol name => proxy name -> ResponseLBS -> Either String (SAML.SimpleSetCookie name)
+getCookie proxy rsp = do
+  web :: Web.SetCookie
+    <- Web.parseSetCookie <$> maybe (Left "no set-cookie header") Right
+                                    (lookup "set-cookie" (responseHeaders rsp))
+  if Web.setCookieName web == SAML.cookieName proxy
+    then Right $ SimpleSetCookie web
+    else Left $ "bad cookie name.  (found, expected) == " <> show (Web.setCookieName web, SAML.cookieName proxy)
+
+-- | In 'setResponseCookie' we set an expiration date iff cookie is persistent.  So here we test for
+-- expiration date.  Easier than parsing and inspecting the cookie value.
+hasPersistentCookieHeader :: ResponseLBS -> Either String ()
+hasPersistentCookieHeader rsp = do
+  cky <- getCookie (Proxy @"zuid") rsp
+  when (isNothing . Web.setCookieExpires $ fromSimpleSetCookie cky) $
+    Left $ "expiration date should NOT empty: " <> show cky
+
 -- | A bind cookie is always sent, but if we do not want to send one, it looks like this:
 -- "wire.com=; Path=/sso/finalize-login; Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure"
-isDeleteBindCookieHeader :: HasCallStack => Maybe SBS -> Bool
-isDeleteBindCookieHeader Nothing = True  -- we don't expect this, but it's ok if the implementation changes to it.
-isDeleteBindCookieHeader (Just txt)
-  | "Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1" `SBS.isInfixOf` txt = True
-  | otherwise = error $ "unexpected bind cookie: " <> show txt
+hasDeleteBindCookieHeader :: HasCallStack => ResponseLBS -> Either String ()
+hasDeleteBindCookieHeader rsp = isDeleteBindCookie =<< getCookie (Proxy @"zbind") rsp
 
-hasDeleteBindCookieHeader :: HasCallStack => Bilge.Response a -> Bool
-hasDeleteBindCookieHeader = isDeleteBindCookieHeader . lookup "Set-Cookie" . responseHeaders
+isDeleteBindCookie :: HasCallStack => SetBindCookie -> Either String ()
+isDeleteBindCookie (SimpleSetCookie cky) =
+  if (SAML.Time <$> Web.setCookieExpires cky) == Just (SAML.unsafeReadTime "1970-01-01T00:00:00Z")
+  then Right ()
+  else Left $ "expiration should be empty: " <> show cky
 
-isSetBindCookieHeader :: HasCallStack => Maybe SBS -> Bool
-isSetBindCookieHeader Nothing = False
-isSetBindCookieHeader (Just (Web.parseSetCookie -> cky)) = and
-  [ Web.setCookieName cky == "zbind"
-  , maybe False ("/sso/finalize-login" `SBS.isPrefixOf`) $ Web.setCookiePath cky
-  , Web.setCookieSecure cky
-  , Web.setCookieSameSite cky == Just Web.sameSiteStrict
-  ]
+hasSetBindCookieHeader :: HasCallStack => ResponseLBS -> Either String ()
+hasSetBindCookieHeader rsp = isSetBindCookie =<< getCookie (Proxy @"zbind") rsp
 
-hasSetBindCookieHeader :: HasCallStack => Bilge.Response a -> Bool
-hasSetBindCookieHeader = isSetBindCookieHeader . lookup "Set-Cookie" . responseHeaders
+isSetBindCookie :: HasCallStack => SetBindCookie -> Either String ()
+isSetBindCookie (SimpleSetCookie cky) = do
+  unless (Web.setCookieName cky == "zbind") $ do
+    Left $ "expected zbind cookie: " <> show cky
+
+  unless (maybe False ("/sso/finalize-login" `SBS.isPrefixOf`) $ Web.setCookiePath cky) $ do
+    Left $ "expected path prefix /sso/finalize-login: " <> show cky
+
+  unless (Web.setCookieSecure cky) $ do
+    Left $ "cookie must be secure: " <> show cky
+
+  unless (Web.setCookieSameSite cky == Just Web.sameSiteStrict) $ do
+    Left $ "cookie must be same-site: " <> show cky
+
 
 -- | see also: 'callAuthnReq'
 negotiateAuthnRequest :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
                       => m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest)
 negotiateAuthnRequest = negotiateAuthnRequest' DoInitiateLogin Nothing id >>= \case
-  (idp, creds, req, cky) -> if isDeleteBindCookieHeader cky
-    then pure (idp, creds, req)
-    else error $ "unexpected bind cookie: " <> show cky
+  (idp, creds, req, cky) -> case maybe (Left "missing") isDeleteBindCookie cky of
+    Right () -> pure (idp, creds, req)
+    Left msg -> error $ "unexpected bind cookie: " <> show (cky, msg)
+
+doInitiatePath :: DoInitiate -> [ST]
+doInitiatePath DoInitiateLogin = ["sso", "initiate-login"]
+doInitiatePath DoInitiateBind  = ["sso-initiate-bind"]
 
 negotiateAuthnRequest'
   :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
-  => DoInitiate -> Maybe IdP -> (Request -> Request) -> m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SBS)
+  => DoInitiate -> Maybe IdP -> (Request -> Request) -> m (IdP, SAML.SignPrivCreds, SAML.AuthnRequest, Maybe SetBindCookie)
 negotiateAuthnRequest' (doInitiatePath -> doInit) midp modreq = do
   env <- ask
   let idp = fromMaybe (env ^. teIdP) midp
@@ -482,7 +525,8 @@ negotiateAuthnRequest' (doInitiatePath -> doInit) midp modreq = do
            . expect2xx
            )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
-  let wireCookie = lookup "Set-Cookie" $ responseHeaders resp
+  let wireCookie = SAML.SimpleSetCookie . Web.parseSetCookie
+                     <$> lookup "Set-Cookie" (responseHeaders resp)
   pure (idp, sampleIdPPrivkey, authnreq, wireCookie)
 
 

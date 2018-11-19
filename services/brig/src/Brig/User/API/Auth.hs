@@ -6,13 +6,12 @@
 
 module Brig.User.API.Auth (routes) where
 
+import Imports
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.Phone
 import Brig.Types.Intra (reAuthPassword)
 import Brig.Types.User.Auth
-import Control.Monad.Except
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Predicate

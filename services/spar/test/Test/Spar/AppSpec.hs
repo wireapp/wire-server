@@ -9,6 +9,7 @@
 
 module Test.Spar.AppSpec where
 
+import Imports
 import Arbitrary ()
 import Data.String.Conversions
 import Spar.App

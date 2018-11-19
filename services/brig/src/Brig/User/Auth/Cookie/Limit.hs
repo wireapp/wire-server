@@ -3,14 +3,12 @@
 
 module Brig.User.Auth.Cookie.Limit where
 
+import Imports
 import Data.Aeson
 import Brig.Types.User.Auth
-import Data.Int
 import Data.List (sortBy)
-import Data.Ord (comparing)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
-import GHC.Generics
 
 import qualified Data.Vector       as Vector
 import qualified Statistics.Sample as Stats
@@ -86,4 +84,3 @@ cookieStats cc =
     let xs = map (round . utcTimeToPOSIXSeconds . cookieCreated) cc
         sd = Stats.stdDev (Vector.fromList (map fromIntegral (xs :: [Int64])))
     in (StdDev sd, maximum xs)
-
