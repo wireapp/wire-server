@@ -10,6 +10,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE InstanceSigs #-}
 
 -- TODO remove
 {-# OPTIONS_GHC
@@ -59,6 +60,7 @@ import Text.Email.Validate
 import Servant.Generic
 import OpenSSL.Random (randBytes)
 import Data.String.Conversions
+import SAML2.WebSSO (IdPId)
 
 import qualified Data.Text    as Text
 import qualified Data.UUID.V4 as UUID
@@ -233,6 +235,9 @@ toSCIMEmail (Email eLocal eDomain) =
 
 instance SCIM.UserDB Spar where
   -- | List all users, possibly filtered by some predicate.
+  list :: (TeamId, Maybe IdPId)
+       -> Maybe SCIM.Filter
+       -> SCIM.SCIMHandler Spar (SCIM.ListResponse SCIM.StoredUser)
   list (tid, _) mbFilter = do
     members <- lift $ getTeamMembers tid
     users <- forM members $ \member ->
@@ -252,6 +257,9 @@ instance SCIM.UserDB Spar where
     SCIM.fromList <$> filterM check users
 
   -- | Get a single user by its ID.
+  get :: (TeamId, Maybe IdPId)
+      -> Text
+      -> SCIM.SCIMHandler Spar (Maybe SCIM.StoredUser)
   get (tid, _) uidText = do
     uid <- case readMaybe (Text.unpack uidText) of
       Just u -> pure u
@@ -263,6 +271,9 @@ instance SCIM.UserDB Spar where
       pure (toSCIMUser user))
 
   -- | Create a new user.
+  create :: (TeamId, Maybe IdPId)
+         -> SCIM.User.User
+         -> SCIM.SCIMHandler Spar SCIM.StoredUser
   create (tid, mbIdp) user = do
     extId <- case SCIM.User.externalId user of
       Just x -> pure x
@@ -307,10 +318,17 @@ instance SCIM.UserDB Spar where
     maybe (error "How can there be no user?") (pure . toSCIMUser) =<<
       lift (getUser buid)
 
-  -- update   :: TeamId -> UserId -> User -> m StoredUser
-  -- patch    :: TeamId -> UserId -> m StoredUser
-  -- delete   :: TeamId -> UserId -> m Bool  -- ^ Return 'False' if the group didn't exist
-  -- getMeta  :: TeamId -> m Meta
+  update :: (TeamId, Maybe IdPId)
+         -> Text
+         -> SCIM.User.User
+         -> SCIM.SCIMHandler Spar SCIM.StoredUser
+  update = error "SCIM.User.update is not implemented yet"
+
+  delete :: (TeamId, Maybe IdPId) -> Text -> SCIM.SCIMHandler Spar Bool
+  delete = error "SCIM.User.delete is not implemented yet"
+
+  getMeta :: (TeamId, Maybe IdPId) -> SCIM.SCIMHandler Spar SCIM.Meta
+  getMeta = error "SCIM.User.getMeta is not implemented yet"
 
 ----------------------------------------------------------------------------
 -- GroupDB
@@ -323,7 +341,7 @@ instance SCIM.GroupDB Spar where
 
 instance SCIM.AuthDB Spar where
   type AuthData Spar = ScimToken
-  type AuthInfo Spar = (TeamId, Maybe SAML.IdPId)
+  type AuthInfo Spar = (TeamId, Maybe IdPId)
 
   authCheck Nothing =
       SCIM.throwSCIM (SCIM.unauthorized "Token not provided")
