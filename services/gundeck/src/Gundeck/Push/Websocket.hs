@@ -41,7 +41,6 @@ import qualified Gundeck.Presence.Data        as Presence
 import qualified Network.HTTP.Client.Internal as Http
 import qualified Network.URI                  as URI
 import qualified System.Logger.Class          as Log
-import qualified System.Logger                as Logger
 
 -- | Send a 'Notification's to associated 'Presence's.  Send at most one request to each Cannon.
 -- Return the lists of 'Presence's successfully reached for each resp. 'Notification'.
@@ -84,7 +83,7 @@ logCannonsGone (_uri, (_err, prcs)) = do
         view monitor >>= Metrics.counterAdd (fromIntegral $ length prcs)
             (Metrics.path "push.ws.unreachable")
         forM_ prcs $ \prc ->
-            Log.info $ logPresence prc
+            Log.warn $ logPresence prc
                 ~~ Log.field "created_at" (ms $ createdAt prc)
                 ~~ Log.msg (val "WebSocket presence unreachable: " +++ toByteString (resource prc))
 
@@ -119,8 +118,7 @@ bulkSend uri req = (uri,) <$> ((Right <$> bulkSend' uri req) `catch` (pure . Lef
 
 bulkSend' :: URI -> BulkPushRequest -> Gundeck BulkPushResponse
 bulkSend' uri (encode -> jsbody) = do
-    logr <- view applog
-    req <- ( check logr
+    req <- ( check
            . method POST
            . contentJson
            . lbytes jsbody
@@ -132,13 +130,10 @@ bulkSend' uri (encode -> jsbody) = do
   where
     submit req = recovering (limitRetries 1) rpcHandlers $ const (rpc' "cannon" req id)
 
-    check loggr req = req { Http.checkResponse = \rq rs ->
-        when (responseStatus rs /= status200) $ do
-            Logger.warn loggr $ Logger.msg (Logger.val $ toByteString' $ show $ responseStatus rs)
-            bdy <- responseBody rs
-            Logger.warn loggr $ Logger.msg (Logger.val $ toByteString' bdy)
+    check req = req { Http.checkResponse = \rq rs ->
+        when (responseStatus rs /= status200) $
             let ex = StatusCodeException (rs { responseBody = () }) mempty
-            throwM $ HttpExceptionRequest rq ex
+            in throwM $ HttpExceptionRequest rq ex
     }
 
     decodeBulkResp :: MonadThrow m => Maybe L.ByteString -> m BulkPushResponse
