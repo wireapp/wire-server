@@ -1,3 +1,26 @@
+# 2018-11-16  #515
+
+## Bug Fixes
+
+  * Fix: spar session cookie (#512)
+
+  * SSO: fix cookie handling around binding users (#505)
+
+## Internal Changes
+
+  * partial implementation of SCIM (without exposure to the spar routing table)
+
+  * Always build benchmarks (#486)
+
+  * Fix: gundeck compilation (#506)
+
+  * Fix: use available env var for docker tag in dev make rule.  (#509)
+
+  * Use Imports.hs in Brig, Spar, Galley (#507)
+
+  * update dependencies docs (#514)
+
+
 # 2018-10-25  #500
 
 ## New Features
