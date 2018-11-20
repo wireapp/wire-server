@@ -5,8 +5,6 @@ ARG prebuilder=quay.io/wire/alpine-prebuilder
 FROM ${prebuilder}
 WORKDIR /src/wire-server
 
-# Get newer Stack
-
 # Download stack indices and compile/cache dependencies to speed up subsequent
 # container creation.
 #

@@ -1,5 +1,5 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
-FROM alpine:3.7 as libzauth-builder
+FROM alpine:3.8 as libzauth-builder
 
 # Compile libzauth
 COPY libs/libzauth /src/libzauth
@@ -9,7 +9,7 @@ RUN cd /src/libzauth/libzauth-c \
     && make install
 
 # Nginz container
-FROM alpine:3.7
+FROM alpine:3.8
 
 ENV NGINX_VERSION 1.12.2
 
