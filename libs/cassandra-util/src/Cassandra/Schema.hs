@@ -138,13 +138,6 @@ useKeyspace (Keyspace k) = void . getResult =<< qry
     prms = QueryParams One False () Nothing Nothing Nothing Nothing
     cql  = QueryString $ "use \"" <> fromStrict k <> "\""
 
--- Copied from Database.CQL.IO.Client; see https://gitlab.com/twittner/cql-io/issues/15
-getResult :: MonadThrow m => HostResponse k a b -> m (Result k a b)
-getResult (HostResponse _ (RsResult _ _ r)) = return r
-getResult (HostResponse h (RsError  t w e)) = throwM (ResponseError h t w e)
-getResult (HostResponse h r)                = throwM (UnexpectedResponse h r)
-{-# INLINE getResult #-}
-
 migrateSchema :: Logger -> MigrationOpts -> [Migration] -> IO ()
 migrateSchema l o ms = do
     hosts <- initialContactsPlain $ pack (migHost o)

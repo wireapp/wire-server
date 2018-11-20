@@ -30,9 +30,7 @@ import Control.Monad.IO.Class
 import Data.Aeson.Lens
 import Database.CQL.IO hiding (values)
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Monoid
 import Data.Text (pack, stripSuffix, unpack, Text)
-import Database.CQL.IO hiding (values)
 import Network.Wreq
 
 -- | This function is likely only useful at Wire, as it is Wire-infra specific.

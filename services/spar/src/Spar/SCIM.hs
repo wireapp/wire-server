@@ -46,7 +46,7 @@ import Data.Time
 import Data.Text.Encoding
 import Data.Aeson as Aeson
 import Text.Email.Validate
-import Servant.Generic
+import Servant.API.Generic
 
 import qualified Data.Text    as Text
 import qualified Data.UUID.V4 as UUID
