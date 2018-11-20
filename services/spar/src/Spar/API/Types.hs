@@ -92,7 +92,7 @@ type APIAuthReqPrecheck
 --   5. spar identifies the user both via the bind cookie and via the SAML authentication response,
 --      and performs the binding.
 --
--- Why a special cookie, and not the session cookie, or the session token?  The wire session cookie
+-- Why a special cookie, and not the cookie already available, or the session token?  The wire cookie
 -- gets only sent to `/access`, and we would need to change that; session tokens are hard to handle
 -- while switching between app context and browser context.  Having a separate cookie makes both the
 -- context switching simple and allows us to set a different cookie recipient end-point and short

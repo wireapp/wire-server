@@ -152,8 +152,10 @@ specInitiateLogin = do
         it "responds with authentication request and NO bind cookie" $ do
           env <- ask
           let idp = idPIdToST $ env ^. teIdP . idpId
-          get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
-            `shouldRespondWith` \resp -> checkRespBody resp && hasDeleteBindCookieHeader resp
+          resp <- call $ get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
+          liftIO $ do
+            resp `shouldSatisfy` checkRespBody
+            hasDeleteBindCookieHeader resp `shouldBe` Right ()
 
 
 specFinalizeLogin :: SpecWith TestEnv
@@ -182,6 +184,7 @@ specFinalizeLogin = do
             bdy `shouldContain` "\"payload\":{"
             bdy `shouldContain` "\"label\":\"forbidden\""
             bdy `shouldContain` "}, receiverOrigin)"
+            hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
 
       context "access granted" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
@@ -196,6 +199,7 @@ specFinalizeLogin = do
             bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
             bdy `shouldContain` "<title>wire:sso:success</title>"
             bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
+            hasPersistentCookieHeader sparresp `shouldBe` Right ()
 
         context "unknown user" $ do
           it "creates the user" $ do
@@ -286,11 +290,11 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
               then do
                 statusCode resp `shouldBe` 200
                 resp `shouldSatisfy` checkRespBody
-                resp `shouldSatisfy` hasSetBindCookieHeader
+                hasSetBindCookieHeader resp `shouldBe` Right ()
               else do
                 statusCode resp `shouldBe` 403
                 resp `shouldSatisfy` (not . checkRespBody)
-                resp `shouldSatisfy` (not . hasSetBindCookieHeader)
+                hasSetBindCookieHeader resp `shouldBe` Left "no set-cookie header"
                 responseJSON resp `shouldBe` Right (TestErrorLabel "bind-without-auth")
 
     describe "GET /sso-initiate-bind/:idp" $ do
@@ -320,16 +324,14 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             liftIO $ do
               (cs @_ @String . fromJust . responseBody $ sparresp)
                 `shouldContain` "<title>wire:sso:success</title>"
-              responseHeaders sparresp
-                `shouldSatisfy` (isJust . lookup "set-cookie")  -- (this is the wire cookie, not the bind cookie)
+              hasPersistentCookieHeader sparresp `shouldBe` Right ()
 
           checkDenyingAuthnResp :: HasCallStack => ResponseLBS -> ST -> TestSpar ()
           checkDenyingAuthnResp sparresp errorlabel = do
             liftIO $ do
               (cs @_ @String . fromJust . responseBody $ sparresp)
                 `shouldContain` ("<title>wire:sso:error:" <> cs errorlabel <> "</title>")
-              responseHeaders sparresp
-                `shouldSatisfy` (isNothing . lookup "set-cookie")
+              hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
 
           getSsoidViaAuthResp :: HasCallStack => SignedAuthnResponse -> TestSpar UserSSOId
           getSsoidViaAuthResp aresp = do
@@ -448,7 +450,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           (_, _, sparresp) <- initialBind uid idp
           checkDenyingAuthnResp sparresp "bad-team"
 
-      describe "### cookie corner cases" $ do
+      describe "cookie corner cases" $ do
         -- attempt to bind with different 'Cookie' headers in the request to finalize-login.  if the
         -- zbind cookie cannot be found, the user is created from scratch, and the old, existing one
         -- is "detached".  if the zbind cookie is found, the binding is successful.

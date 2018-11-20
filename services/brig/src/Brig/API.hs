@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeOperators     #-}
 {-# LANGUAGE NamedFieldPuns    #-}
 
-module Brig.API (runServer, parseOptions) where
+module Brig.API (runServer) where
 
 import Brig.App
 import Brig.AWS (sesQueue)
