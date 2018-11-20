@@ -19,7 +19,8 @@ import           Web.SCIM.ContentType
 import           Web.SCIM.Handler
 import           Web.SCIM.Class.Auth
 import           Servant
-import           Servant.Generic
+import           Servant.API.Generic
+import           Servant.Server.Generic
 
 ----------------------------------------------------------------------------
 -- /Groups API

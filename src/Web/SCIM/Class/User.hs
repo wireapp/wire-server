@@ -19,7 +19,8 @@ import           Web.SCIM.Filter
 import           Web.SCIM.ContentType
 import           Web.SCIM.Class.Auth
 import           Servant
-import           Servant.Generic
+import           Servant.API.Generic
+import           Servant.Server.Generic
 
 ----------------------------------------------------------------------------
 -- /Users API

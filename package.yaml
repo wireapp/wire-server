@@ -34,14 +34,13 @@ extra-source-files:
   - README.md
 
 dependencies:
-  - base >= 4.7 && < 5
+  - base >= 4.11 && < 5
   - bytestring
   - aeson
   - aeson-qq
   - mtl
   - servant
-  - servant-server >= 0.12
-  - servant-generic
+  - servant-server >= 0.14.1
   - text
   - time
   - wai

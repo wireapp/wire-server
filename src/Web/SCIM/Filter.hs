@@ -38,7 +38,6 @@ import Data.Attoparsec.ByteString.Char8
 import Data.Aeson.Parser as Aeson
 import Data.Aeson.Text as Aeson
 import Data.Aeson as Aeson
-import Data.Monoid
 import Lens.Micro
 import Web.HttpApiData
 

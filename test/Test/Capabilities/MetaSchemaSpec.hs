@@ -6,7 +6,6 @@ import           Test.Util
 
 import qualified Data.List as List
 import           Data.Aeson
-import           Data.Monoid
 import           Data.Text (Text)
 import           Data.Coerce
 import           Web.SCIM.Capabilities.MetaSchema
@@ -14,7 +13,8 @@ import           Web.SCIM.Server (ConfigAPI, mkapp)
 import           Web.SCIM.Server.Mock
 import           Network.Wai.Test (SResponse (..))
 import           Servant
-import           Servant.Generic
+import           Servant.API.Generic
+
 import           Test.Hspec hiding (shouldSatisfy)
 import qualified Test.Hspec.Expectations as Expect
 import           Test.Hspec.Wai      hiding (post, put, patch)

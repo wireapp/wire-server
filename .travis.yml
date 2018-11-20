@@ -13,7 +13,7 @@ addons:
       - libgmp-dev
 
 env:
-- RESOLVER=lts-11.13
+- RESOLVER=lts-12.10
 
 before_install:
 - mkdir -p ~/.local/bin

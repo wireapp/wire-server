@@ -15,7 +15,6 @@ import qualified Data.ByteString.Lazy as L
 import           Data.Aeson
 import           Data.Aeson.Internal (JSONPathElement (Key), (<?>))
 import           Data.Aeson.QQ
-import           Data.Monoid
 import           Data.Text
 import           Language.Haskell.TH.Quote
 import           Network.HTTP.Types

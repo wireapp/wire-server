@@ -6,7 +6,6 @@ import Prelude hiding (map)
 import Data.Text (Text, unpack, pack)
 import qualified Data.Text as Text
 import Text.Read (readEither)
-import Data.Monoid ((<>))
 import Data.Aeson
 import Web.SCIM.Schema.Common
 import Web.SCIM.Schema.ResourceType

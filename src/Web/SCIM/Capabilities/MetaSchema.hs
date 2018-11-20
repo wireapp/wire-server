@@ -26,7 +26,8 @@ import qualified Data.HashMap.Lazy as HML
 import           Data.Text (Text)
 import           GHC.Generics (Generic)
 import           Servant hiding (URI)
-import           Servant.Generic
+import           Servant.API.Generic
+import           Servant.Server.Generic
 
 import           Prelude hiding (filter)
 

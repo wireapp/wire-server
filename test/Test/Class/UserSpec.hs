@@ -10,8 +10,8 @@ import           Test.Hspec
 import           Test.Hspec.Wai      hiding (post, put, patch)
 import           Data.ByteString.Lazy (ByteString)
 import           Servant (Proxy(Proxy))
-import           Servant.Generic
 import           Network.Wai (Application)
+import           Servant.API.Generic
 
 
 app :: IO Application

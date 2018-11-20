@@ -18,18 +18,19 @@ import           Web.SCIM.Capabilities.MetaSchema (ConfigSite, Configuration, co
 import           Web.SCIM.Handler
 import           GHC.Generics (Generic)
 import           Network.Wai
-import           Servant.Generic hiding (fromServant)
 import           Servant
+import           Servant.API.Generic
+import           Servant.Server.Generic
 
 ----------------------------------------------------------------------------
 -- API specification
 
 type DB m = (UserDB m, GroupDB m, AuthDB m)
 
-type ConfigAPI        = ToServant (ConfigSite AsApi)
-type UserAPI          = ToServant (UserSite AsApi)
-type GroupAPI         = ToServant (GroupSite AsApi)
-type SiteAPI authData = ToServant (Site authData AsApi)
+type ConfigAPI        = ToServantApi ConfigSite
+type UserAPI          = ToServantApi UserSite
+type GroupAPI         = ToServantApi GroupSite
+type SiteAPI authData = ToServantApi (Site authData)
 
 data Site authData route = Site
   { config :: route :-

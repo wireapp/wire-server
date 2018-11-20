@@ -19,7 +19,6 @@ module Web.SCIM.Schema.Error
 
 import Data.Text (Text, pack)
 import Data.Aeson hiding (Error)
-import Data.Monoid ((<>))
 import Control.Exception
 import Web.SCIM.Schema.Common
 import Web.SCIM.Schema.Schema
