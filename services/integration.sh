@@ -86,7 +86,7 @@ function run() {
 check_prerequisites
 
 run brig "" ${green}
-run galley "" ${yellow} Info
+run galley "" ${yellow}
 run gundeck "" ${blue} Info
 run cannon "" ${orange} Info
 run cannon "2" ${orange} Info

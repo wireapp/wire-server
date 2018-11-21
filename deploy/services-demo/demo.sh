@@ -105,7 +105,7 @@ check_secrets
 check_prerequisites
 
 run_haskell_service brig ${green}
-run_haskell_service galley ${yellow} Info
+run_haskell_service galley ${yellow}
 run_haskell_service gundeck ${blue} Info
 run_haskell_service cannon ${orange} Info
 run_haskell_service cargohold ${purpleish} Info
