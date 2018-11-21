@@ -7,7 +7,6 @@ module Galley.Options where
 import Imports
 import Control.Lens hiding ((.=), Level)
 import Data.Aeson.TH (deriveFromJSON)
-import Options.Applicative
 import Util.Options
 import Util.Options.Common
 import System.Logger (Level)
@@ -55,17 +54,3 @@ data Opts = Opts
 
 deriveFromJSON toOptionFieldName ''Opts
 makeLenses ''Opts
-
--- Used by the journaler
-journalOptsParser :: Parser JournalOpts
-journalOptsParser = JournalOpts
-    <$> (textOption $
-            long "team-events-queue-name"
-            <> metavar "STRING"
-            <> help "sqs queue name to send team events")
-    <*> (option parseAWSEndpoint $
-            long "aws-sqs-endpoint"
-            <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443)
-            <> metavar "STRING"
-            <> showDefault
-            <> help "aws endpoint")
