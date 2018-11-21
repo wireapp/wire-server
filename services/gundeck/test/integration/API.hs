@@ -91,7 +91,7 @@ tests s = testGroup "Gundeck integration tests" [
         , test s "Single user push"      $ singleUserPush
         , test2 s "Push many to Cannon via bulkpush (via gundeck; group notif)" $ bulkPush False 50 8
         , test2 s "Push many to Cannon via bulkpush (via gundeck; e2e notif)" $ bulkPush True 50 8
-        , test s "Push many to Cannon via bulkpush (circumventing gundeck)" $ bulkPushViaCannon 50 8
+        -- , test s "Push many to Cannon via bulkpush (circumventing gundeck)" $ bulkPushViaCannon 50 8
         , test s "Send a push, ensure origin does not receive it" $ sendSingleUserNoPiggyback
         , test s "Targeted push by connection" $ targetConnectionPush
         , test s "Targeted push by client" $ targetClientPush
@@ -282,8 +282,11 @@ bulkPush isE2E numUsers numConnsPerUser gu ca ca2 _ _ = do
 
 -- | This test is hopefully redundant as long as we're running 'bulkPush', but it was here first,
 -- and it does test the part of cannon without involving gundeck, so we may as well keep it.
-bulkPushViaCannon :: Int -> Int -> TestSignature ()
-bulkPushViaCannon numUsers numConnsPerUser gu ca _ _ = do
+_bulkPushViaCannon :: Int -> Int -> TestSignature ()
+_bulkPushViaCannon numUsers numConnsPerUser gu ca _ _ = do
+
+    -- TODO: this fails if cannon is a set of k8s replicas.
+
     uids     <- replicateM numUsers randomId
     connIds  <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
     chs      <- connectUsersAndDevices gu ca (zip uids connIds)
