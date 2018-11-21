@@ -32,6 +32,7 @@ data IntegrationConfig = IntegrationConfig
   -- internal endpoints
   { gundeck   :: Endpoint
   , cannon    :: Endpoint
+  , cannon2   :: Endpoint
   , brig      :: Endpoint
   } deriving (Show, Generic)
 
@@ -78,6 +79,7 @@ main = withOpenSSL $ runTests go
         iConf <- handleParseError =<< decodeFileEither iFile
         g <- Gundeck . mkRequest <$> optOrEnv gundeck iConf (local . read) "GUNDECK_WEB_PORT"
         c <- Cannon  . mkRequest <$> optOrEnv cannon iConf (local . read) "CANNON_WEB_PORT"
+        c2 <- Cannon  . mkRequest <$> optOrEnv cannon2 iConf (local . read) "CANNON2_WEB_PORT"
         b <- Brig    . mkRequest <$> optOrEnv brig iConf (local . read) "BRIG_WEB_PORT"
         ch <- optOrEnv (\v -> v^.optCassandra.casEndpoint.epHost) gConf pack "GUNDECK_CASSANDRA_HOST"
         cp <- optOrEnv (\v -> v^.optCassandra.casEndpoint.epPort) gConf read "GUNDECK_CASSANDRA_PORT"
@@ -86,7 +88,7 @@ main = withOpenSSL $ runTests go
         lg <- Logger.new Logger.defSettings
         db <- defInitCassandra ck ch cp lg
 
-        return $ API.TestSetup m g c b db
+        return $ API.TestSetup m g c c2 b db
 
     releaseOpts _ = return ()
 
