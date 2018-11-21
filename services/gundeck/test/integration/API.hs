@@ -208,18 +208,24 @@ singleUserPush gu ca _ _ = do
     pload     = List1.singleton $ HashMap.fromList [ "foo" .= (42 :: Int) ]
     push u us = newPush u (toRecipients us) pload & pushOriginConnection .~ Just (ConnId "dev")
 
+-- | Create a number of users with a number of connections each, and connect each user's connections
+-- to one of two cannons at random.  Push either encrypted notifications (@isE2E == True@) or
+-- notifications from server (@isE2E == False@) to all connections, and make sure they all arrive at
+-- the destination devices.  This also works if you pass the same 'Cannon' twice, even if 'Cannon'
+-- is a k8s load balancer that dispatches requests to different replicas.
 bulkPush :: Bool -> Int -> Int -> TestSignature2 ()
 bulkPush isE2E numUsers numConnsPerUser gu ca ca2 _ _ = do
     uids@(uid:_)        :: [UserId]   <- replicateM numUsers randomId
     (connids@((_:_):_)) :: [[ConnId]] <- replicateM numUsers $ replicateM numConnsPerUser randomConnId
     let ucs  :: [(UserId, [ConnId])]         = zip uids connids
         ucs' :: [(UserId, [(ConnId, Bool)])] = toggle (mconcat $ repeat [True, False]) ucs
-        (ucs1,  ucs2)  = splitAt (fromIntegral (length ucs `div` 2)) ucs
-        (ucs1', ucs2') = splitAt (fromIntegral (length ucs `div` 2)) ucs'
 
-    chs1 <- injectucs ca  ucs1' . fmap snd <$> connectUsersAndDevices gu ca  ucs1
-    chs2 <- injectucs ca2 ucs2' . fmap snd <$> connectUsersAndDevices gu ca2 ucs2
-    let chs = chs1 ++ chs2
+    chs <- do
+      let (ucs1,  ucs2)  = splitAt (fromIntegral (length ucs `div` 2)) ucs
+          (ucs1', ucs2') = splitAt (fromIntegral (length ucs `div` 2)) ucs'
+      chs1 <- injectucs ca  ucs1' . fmap snd <$> connectUsersAndDevices gu ca  ucs1
+      chs2 <- injectucs ca2 ucs2' . fmap snd <$> connectUsersAndDevices gu ca2 ucs2
+      pure $ chs1 ++ chs2
 
     let pushData = mconcat . replicate 3 $ (if isE2E then pushE2E else pushGroup) uid ucs'
     sendPushes gu pushData
