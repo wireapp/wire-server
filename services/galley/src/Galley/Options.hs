@@ -5,11 +5,12 @@
 module Galley.Options where
 
 import Imports
-import Control.Lens hiding ((.=))
+import Control.Lens hiding ((.=), Level)
 import Data.Aeson.TH (deriveFromJSON)
 import Options.Applicative
 import Util.Options
 import Util.Options.Common
+import System.Logger (Level)
 import Data.Misc
 
 data Settings = Settings
@@ -46,6 +47,10 @@ data Opts = Opts
     , _optSettings  :: !Settings             -- ^ Other settings
     , _optJournal   :: !(Maybe JournalOpts)  -- ^ Journaling options ('Nothing'
                                              --   disables journaling)
+    -- Logging
+    , _optLogLevel      :: !Level            -- ^ Log level (Debug, Info, etc)
+    , _optLogNetStrings :: !Bool             -- ^ Use netstrings encoding:
+                                             --   <http://cr.yp.to/proto/netstrings.txt>
     }
 
 deriveFromJSON toOptionFieldName ''Opts
