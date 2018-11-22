@@ -23,6 +23,9 @@ settings:
   intraListing: false
   conversationCodeURI: https://app.wire.com/join/
 
+logLevel: Info
+logNetStrings: true
+
 ### Journaling of team events
 #
 # If you want to use journaling but journal to a fake sqs service
