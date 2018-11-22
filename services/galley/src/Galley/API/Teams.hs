@@ -63,6 +63,7 @@ import qualified Galley.Queue as Q
 import qualified Galley.Types as Conv
 import qualified Galley.Types.Teams as Teams
 import qualified Galley.Intra.Journal as Journal
+import qualified Galley.Intra.Spar as Spar
 
 getTeam :: UserId ::: TeamId ::: JSON -> Galley Response
 getTeam (zusr::: tid ::: _) =
@@ -175,6 +176,7 @@ uncheckedDeleteTeam :: UserId -> Maybe ConnId -> TeamId -> Galley ()
 uncheckedDeleteTeam zusr zcon tid = do
     team <- Data.team tid
     when (isJust team) $ do
+        Spar.deleteTeam tid
         membs    <- Data.teamMembers tid
         now      <- liftIO getCurrentTime
         convs    <- filter (not . view managedConversation) <$> Data.teamConversations tid
