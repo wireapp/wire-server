@@ -63,6 +63,7 @@ data SparCustomError
   | SparNewIdPWantHttps LT
 
   | SparProvisioningNoSingleIdP LT
+  | SparProvisioningTokenLimitReached
   deriving (Eq, Show)
 
 sparToServantErr :: SparError -> ServantErr
@@ -118,5 +119,6 @@ sparToWaiError (SAML.CustomError SparNewIdPAlreadyInUse)                  = Righ
 sparToWaiError (SAML.CustomError (SparNewIdPWantHttps msg))               = Right $ Wai.Error status400 "idp-must-be-https" ("an idp request uri must be https, not http or other: " <> msg)
 -- Errors related to provisioning
 sparToWaiError (SAML.CustomError (SparProvisioningNoSingleIdP msg))       = Right $ Wai.Error status400 "no-single-idp" ("Team should have exactly one IdP configured: " <> msg)
+sparToWaiError (SAML.CustomError SparProvisioningTokenLimitReached)       = Right $ Wai.Error status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"
 -- Other
 sparToWaiError (SAML.CustomServant err)                                   = Left err

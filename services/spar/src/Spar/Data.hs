@@ -376,13 +376,12 @@ lookupScimToken token =
     sel = "SELECT team, idp FROM team_provisioning_rev WHERE token_ = ?"
 
 -- | List all tokens associated with a team.
---
--- TODO: some kind of token limit? Or perhaps have a limit on insertion? Or
--- for now we'll only allow one token?
 getScimTokens
   :: (HasCallStack, MonadClient m)
   => TeamId -> m [(ScimToken, Maybe SAML.IdPId, Text)]
 getScimTokens team =
+  -- We don't need pagination here because the limit should be pretty low
+  -- (e.g. 16). If the limit grows, we might have to introduce pagination.
   retry x1 . query sel $ params Quorum (Identity team)
   where
     sel :: PrepQuery R (Identity TeamId) (ScimToken, Maybe SAML.IdPId, Text)

@@ -31,6 +31,8 @@ cassandra:
 maxttlAuthreq: 28800 # 8h
 maxttlAuthresp: 28800 # 8h
 
+maxScimTokens: 16
+
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)
 
 spInfo:

@@ -132,7 +132,11 @@ data Opts' a = Opts
     , cassandra      :: !CassandraOpts
     , maxttlAuthreq  :: !(TTL "authreq")
     , maxttlAuthresp :: !(TTL "authresp")
-    , discoUrl       :: !(Maybe Text) -- Wire/AWS specific; optional; used to discover cassandra instance IPs using describe-instances
+    -- | The maximum number of SCIM tokens that we will allow teams to have.
+    , maxScimTokens  :: !Int
+    -- | Wire/AWS specific; optional; used to discover Cassandra instance
+    -- IPs using describe-instances.
+    , discoUrl       :: !(Maybe Text)
     , logNetStrings  :: !Bool
     -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
     , derivedOpts    :: !a

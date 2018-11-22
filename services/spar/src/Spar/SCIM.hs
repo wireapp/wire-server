@@ -45,7 +45,7 @@ import Control.Lens hiding ((.=), Strict)
 import Data.Id
 import Data.Range
 import Servant
-import Spar.App (Spar, wrapMonadClient)
+import Spar.App (Spar, wrapMonadClient, sparCtxOpts)
 import Spar.API.Util
 import Spar.Error
 import Spar.Types
@@ -399,6 +399,10 @@ createScimToken :: Maybe UserId -> CreateScimToken -> Spar ScimToken
 createScimToken zusr CreateScimToken{..} = do
     let descr = createScimTokenDescription
     teamid <- getZUsrOwnedTeam zusr
+    tokenNumber <- fmap length $ wrapMonadClient $ Data.getScimTokens teamid
+    maxTokens <- asks (maxScimTokens . sparCtxOpts)
+    unless (tokenNumber < maxTokens) $
+        throwSpar SparProvisioningTokenLimitReached
     idps <- wrapMonadClient $ Data.getIdPConfigsByTeam teamid
     case idps of
         [idp] -> do
