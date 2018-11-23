@@ -21,6 +21,7 @@ import Data.Id
 import Data.Text (pack, unpack)
 import System.Random
 import Spar.Types (ScimToken)
+import Spar.SCIM (CreateScimToken(..))
 import Util
 import Web.HttpApiData (toHeader)
 
@@ -38,7 +39,7 @@ import qualified Data.Aeson as Aeson
 spec :: SpecWith TestEnv
 spec = do
     specUsers
-
+    specTokens
 
 specUsers :: SpecWith TestEnv
 specUsers = describe "operations with users" $ do
@@ -115,12 +116,57 @@ randomUser = do
         , SCIM.User.externalId  = Just ("scimuser_extid_" <> suffix)
         }
 
+specTokens :: SpecWith TestEnv
+specTokens = describe "operations with provisioning tokens" $ do
+    describe "POST /auth-tokens" $ do
+        it "creates a usable token" $ do
+            env <- ask
+            -- Create a token
+            token <- createToken CreateScimToken
+                { createScimTokenDescription = "token creation test" }
+            -- Try to execute a SCIM operation without a token and check
+            -- that it fails
+            listUsers_ Nothing Nothing (env ^. teSpar)
+                !!! const 401 === statusCode
+            -- Try to execute the same SCIM operation with the generated
+            -- token; it should succeed now
+            listUsers_ (Just token) Nothing (env ^. teSpar)
+                !!! const 200 === statusCode
+            -- Cleanup
+            deleteToken token
+        it "respects the token limit (2 for integration tests)" $ do
+            env <- ask
+            -- Try to create two tokens; the second attempt should fail
+            token1 <- createToken CreateScimToken
+                { createScimTokenDescription = "token limit test / #1" }
+            createToken_ (env ^. teUserId) CreateScimToken
+                { createScimTokenDescription = "token limit test / #2" }
+                (env ^. teSpar)
+                !!! const 403 === statusCode
+            -- Cleanup
+            deleteToken token1
+
+    describe "DELETE /auth-tokens/:token" $ do
+        it "makes the token unusable" $ do
+            env <- ask
+            -- Create a token
+            token <- createToken CreateScimToken
+                { createScimTokenDescription = "token deletion test" }
+            -- An operation with the token should succeed
+            listUsers_ (Just token) Nothing (env ^. teSpar)
+                !!! const 200 === statusCode
+            -- Delete the token and now the operation should fail
+            deleteToken token
+            listUsers_ (Just token) Nothing (env ^. teSpar)
+                !!! const 401 === statusCode
+
 ----------------------------------------------------------------------------
--- High-level SCIM API
+-- API wrappers
 
 -- | Create a user in the default 'TestEnv' team.
 createUser
-    :: SCIM.User.User
+    :: HasCallStack
+    => SCIM.User.User
     -> TestSpar SCIM.StoredUser
 createUser user = do
     env <- ask
@@ -133,7 +179,8 @@ createUser user = do
 
 -- | List all users in the default 'TestEnv' team.
 listUsers
-    :: Maybe SCIM.Filter
+    :: HasCallStack
+    => Maybe SCIM.Filter
     -> TestSpar [SCIM.StoredUser]
 listUsers mbFilter = do
     env <- ask
@@ -150,7 +197,8 @@ listUsers mbFilter = do
 
 -- | Get a user belonging to the default 'TestEnv' team.
 getUser
-    :: UserId
+    :: HasCallStack
+    => UserId
     -> TestSpar SCIM.StoredUser
 getUser userid = do
     env <- ask
@@ -161,8 +209,35 @@ getUser userid = do
          <!! const 200 === statusCode
     pure (decodeBody' r)
 
+-- | Create a SCIM token for the default 'TestEnv' team.
+createToken
+    :: HasCallStack
+    => CreateScimToken
+    -> TestSpar ScimToken
+createToken payload = do
+    env <- ask
+    r <- createToken_
+             (env ^. teUserId)
+             payload
+             (env ^. teSpar)
+         <!! const 200 === statusCode
+    pure (decodeBody' r)
+
+-- | Delete a SCIM token belonging to the default 'TestEnv' team.
+deleteToken
+    :: HasCallStack
+    => ScimToken                -- ^ Token to delete
+    -> TestSpar ()
+deleteToken token = do
+    env <- ask
+    deleteToken_
+        (env ^. teUserId)
+        token
+        (env ^. teSpar)
+        !!! const 204 === statusCode
+
 ----------------------------------------------------------------------------
--- Low-level SCIM API
+-- "Raw" API requests
 
 -- | Create a user.
 createUser_
@@ -173,13 +248,12 @@ createUser_
 createUser_ auth user spar_ = do
     -- NB: we don't use 'mkEmailRandomLocalSuffix' here, because emails
     -- shouldn't be submitted via SCIM anyway.
-    let p = RequestBodyLBS . Aeson.encode $ user
     call . post $
         ( spar_
         . paths ["scim", "v2", "Users"]
         . scimAuth auth
         . contentScim
-        . body p
+        . body (RequestBodyLBS . Aeson.encode $ user)
         . acceptScim
         )
 
@@ -210,6 +284,36 @@ getUser_ auth userid spar_ = do
         . paths ["scim", "v2", "Users", toByteString' userid]
         . scimAuth auth
         . acceptScim
+        )
+
+-- | Create a SCIM token.
+createToken_
+    :: UserId                   -- ^ User
+    -> CreateScimToken
+    -> SparReq                  -- ^ Spar endpoint
+    -> TestSpar ResponseLBS
+createToken_ userid payload spar_ = do
+    call . post $
+        ( spar_
+        . paths ["scim", "auth-tokens"]
+        . zUser userid
+        . contentJson
+        . body (RequestBodyLBS . Aeson.encode $ payload)
+        . acceptJson
+        )
+
+-- | Delete a SCIM token.
+deleteToken_
+    :: UserId                   -- ^ User
+    -> ScimToken                -- ^ Token to delete
+    -> SparReq                  -- ^ Spar endpoint
+    -> TestSpar ResponseLBS
+deleteToken_ userid token spar_ = do
+    call . delete $
+        ( spar_
+        . paths ["scim", "auth-tokens"]
+        . queryItem "token" (toByteString' token)
+        . zUser userid
         )
 
 ----------------------------------------------------------------------------

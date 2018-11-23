@@ -21,6 +21,7 @@ import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Id (TeamId, UserId)
+import Data.ByteString.Conversion
 import Data.Text.Encoding (encodeUtf8)
 import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions
@@ -76,7 +77,7 @@ deriveJSON deriveJSONOptions ''IdPList
 -- | A bearer token that authorizes a provisioning tool to perform actions
 -- with a team. Each token corresponds to one team.
 newtype ScimToken = ScimToken { fromScimToken :: Text }
-  deriving (Eq, Show, FromJSON, ToJSON)
+  deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
 
 instance FromHttpApiData ScimToken where
   parseHeader h = ScimToken <$> parseHeaderWithPrefix "Bearer " h
