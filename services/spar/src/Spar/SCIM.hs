@@ -398,6 +398,8 @@ instance Swagger.ToSchema CreateScimToken where
 createScimToken :: Maybe UserId -> CreateScimToken -> Spar ScimToken
 createScimToken zusr CreateScimToken{..} = do
     let descr = createScimTokenDescription
+    -- Don't enable this endpoint until SCIM is ready.
+    _ <- error "Creating SCIM tokens is not supported yet."
     teamid <- getZUsrOwnedTeam zusr
     tokenNumber <- fmap length $ wrapMonadClient $ Data.getScimTokens teamid
     maxTokens <- asks (maxScimTokens . sparCtxOpts)

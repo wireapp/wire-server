@@ -117,7 +117,7 @@ randomUser = do
         }
 
 specTokens :: SpecWith TestEnv
-specTokens = describe "operations with provisioning tokens" $ do
+specTokens = xdescribe "operations with provisioning tokens" $ do
     describe "POST /auth-tokens" $ do
         it "creates a usable token" $ do
             env <- ask
