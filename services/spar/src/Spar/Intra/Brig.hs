@@ -193,6 +193,18 @@ assertIsTeamOwner buid tid = do
     . paths ["i", "users", toByteString' buid, "is-team-owner", toByteString' tid]
   when (statusCode resp >= 400) $ throwSpar SparNotTeamOwner
 
+-- | Get the team that the user is an owner of.
+--
+-- Called by post handler, and by 'authorizeIdP'.
+getZUsrOwnedTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, MonadSparToBrig m)
+            => Maybe UserId -> m TeamId
+getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
+getZUsrOwnedTeam (Just uid) = do
+  usr <- getUser uid
+  case userTeam =<< usr of
+    Nothing -> throwSpar SparNotInTeam
+    Just teamid -> teamid <$ assertIsTeamOwner uid teamid
+
 
 -- | Get persistent cookie from brig and redirect user past login process.
 ssoLogin :: (HasCallStack, MonadError SparError m, SAML.HasConfig m, MonadSparToBrig m)
