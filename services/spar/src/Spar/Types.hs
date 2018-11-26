@@ -76,7 +76,7 @@ deriveJSON deriveJSONOptions ''IdPList
 -- | A bearer token that authorizes a provisioning tool to perform actions
 -- with a team. Each token corresponds to one team.
 newtype ScimToken = ScimToken { fromScimToken :: Text }
-  deriving (Eq, Show)
+  deriving (Eq, Show, FromJSON, ToJSON)
 
 instance FromHttpApiData ScimToken where
   parseHeader h = ScimToken <$> parseHeaderWithPrefix "Bearer " h

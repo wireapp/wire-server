@@ -152,3 +152,10 @@ instance ToParamSchema BindCookie where
 
 instance ToSchema Void where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
+
+instance ToParamSchema ScimToken where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance ToSchema ScimToken where
+  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
+    & mapped . schema . description ?~ "Authentication token"

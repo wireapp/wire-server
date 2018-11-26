@@ -61,6 +61,8 @@ data SparCustomError
   | SparNewIdPPubkeyMismatch
   | SparNewIdPAlreadyInUse
   | SparNewIdPWantHttps LT
+
+  | SparProvisioningNoSingleIdP LT
   deriving (Eq, Show)
 
 sparToServantErr :: SparError -> ServantErr
@@ -114,5 +116,7 @@ sparToWaiError (SAML.CustomError (SparNewIdPBadReqUrl msg))               = Righ
 sparToWaiError (SAML.CustomError SparNewIdPPubkeyMismatch)                = Right $ Wai.Error status400 "key-mismatch" "public keys in body, metadata do not match"
 sparToWaiError (SAML.CustomError SparNewIdPAlreadyInUse)                  = Right $ Wai.Error status400 "idp-already-in-use" "an idp issuer can only be used within one team"
 sparToWaiError (SAML.CustomError (SparNewIdPWantHttps msg))               = Right $ Wai.Error status400 "idp-must-be-https" ("an idp request uri must be https, not http or other: " <> msg)
+-- Errors related to provisioning
+sparToWaiError (SAML.CustomError (SparProvisioningNoSingleIdP msg))       = Right $ Wai.Error status400 "no-single-idp" ("Team should have exactly one IdP configured: " <> msg)
 -- Other
 sparToWaiError (SAML.CustomServant err)                                   = Left err

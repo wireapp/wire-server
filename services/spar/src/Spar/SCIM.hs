@@ -7,6 +7,9 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE OverloadedLists #-}
 
 -- TODO remove
 {-# OPTIONS_GHC
@@ -20,8 +23,12 @@
 --
 -- See <https://en.wikipedia.org/wiki/System_for_Cross-domain_Identity_Management>
 module Spar.SCIM
-  ( APIScim
+  (
+  -- * The API
+    APIScim
   , apiScim
+  -- ** Request types
+  , CreateScimToken(..)
 
   -- * The mapping between Wire and SCIM users
   -- $mapping
@@ -33,7 +40,7 @@ import Galley.Types.Teams    as Galley
 import Control.Monad.Except
 import Control.Monad.Catch
 import Control.Exception
-import Control.Lens
+import Control.Lens hiding ((.=), Strict)
 import Data.Id
 import Data.Range
 import Servant
@@ -50,11 +57,15 @@ import Data.Text.Encoding
 import Data.Aeson as Aeson
 import Text.Email.Validate
 import Servant.Generic
+import OpenSSL.Random (randBytes)
+import Data.String.Conversions
 
 import qualified Data.Text    as Text
 import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data    as Data
+import qualified Data.ByteString.Base64 as ES
+import qualified "swagger2" Data.Swagger as Swagger
 
 import qualified Web.SCIM.Class.User              as SCIM
 import qualified Web.SCIM.Class.Group             as SCIM
@@ -86,11 +97,14 @@ configuration = SCIM.Meta.empty
 
 type APIScim
      = OmitDocs :> "v2" :> SCIM.SiteAPI ScimToken
+  :<|> "auth-tokens" :> APIScimToken
 
 apiScim :: ServerT APIScim Spar
 apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
+     :<|> apiScimToken
   where
-    hoistSCIM = hoistServer (Proxy @APIScim) (SCIM.fromSCIMHandler fromError)
+    hoistSCIM = hoistServer (Proxy @(SCIM.SiteAPI ScimToken))
+                            (SCIM.fromSCIMHandler fromError)
     fromError = throwError . SAML.CustomServant . SCIM.scimToServantErr
 
 ----------------------------------------------------------------------------
@@ -318,3 +332,73 @@ instance SCIM.AuthDB Spar where
       lift (wrapMonadClient (Data.lookupScimToken token))
 
 -- TODO: don't forget to delete the tokens when the team is deleted
+
+----------------------------------------------------------------------------
+-- API for manipulating authentication tokens
+
+type APIScimToken
+     = Header "Z-User" UserId :> APIScimTokenCreate
+  :<|> Header "Z-User" UserId :> APIScimTokenDelete
+
+type APIScimTokenCreate
+     = ReqBody '[JSON] CreateScimToken
+    :> Post '[JSON] ScimToken
+
+type APIScimTokenDelete
+     = QueryParam' '[Required, Strict] "token" ScimToken
+    :> DeleteNoContent '[JSON] NoContent
+
+apiScimToken :: ServerT APIScimToken Spar
+apiScimToken
+     = createScimToken
+  :<|> deleteScimToken
+
+data CreateScimToken = CreateScimToken
+  { createScimTokenDescription :: Text
+  } deriving (Eq, Show)
+
+instance FromJSON CreateScimToken where
+  parseJSON = withObject "CreateScimToken" $ \o -> do
+    createScimTokenDescription <- o .: "description"
+    pure CreateScimToken{..}
+
+instance ToJSON CreateScimToken where
+  toJSON CreateScimToken{..} = object
+    [ "description" .= createScimTokenDescription
+    ]
+
+instance Swagger.ToSchema CreateScimToken where
+  declareNamedSchema _ = do
+    textSchema <- Swagger.declareSchemaRef (Proxy @Text)
+    return $ Swagger.NamedSchema (Just "CreateScimToken") $ mempty
+      & Swagger.type_ .~ Swagger.SwaggerObject
+      & Swagger.properties .~
+          [ ("description", textSchema)
+          ]
+      & Swagger.required .~ [ "description" ]
+
+createScimToken :: Maybe UserId -> CreateScimToken -> Spar ScimToken
+createScimToken zusr CreateScimToken{..} = do
+    let descr = createScimTokenDescription
+    teamid <- getZUsrOwnedTeam zusr
+    idps <- wrapMonadClient $ Data.getIdPConfigsByTeam teamid
+    case idps of
+        [idp] -> do
+            -- TODO: sign tokens. Also, we might want to use zauth, if we can / if
+            -- it makes sense semantically
+            token <- ScimToken . cs . ES.encode <$> liftIO (randBytes 32)
+            let idpid = idp ^. SAML.idpId
+            wrapMonadClient $ Data.insertScimToken teamid token (Just idpid) descr
+            pure token
+        [] -> throwSpar $ SparProvisioningNoSingleIdP
+                "SCIM tokens can only be created for a team with an IdP, \
+                \but none are found"
+        _  -> throwSpar $ SparProvisioningNoSingleIdP
+                "SCIM tokens can only be created for a team with exactly one IdP, \
+                \but more are found"
+
+deleteScimToken :: Maybe UserId -> ScimToken -> Spar NoContent
+deleteScimToken zusr token = do
+    teamid <- getZUsrOwnedTeam zusr
+    wrapMonadClient $ Data.deleteScimToken teamid token
+    pure NoContent
