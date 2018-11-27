@@ -231,7 +231,7 @@ verdictHandler cky aresp verdict = do
       -> verdictHandlerResult cky verdict >>= verdictHandlerWeb
     Just (VerdictFormatMobile granted denied)
       -> verdictHandlerResult cky verdict >>= verdictHandlerMobile granted denied
-    Nothing -> throwError $ SAML.BadSamlResponse "AuthRequest seems to have disappeared (could not find verdict format)."
+    Nothing -> throwSpar SparNoSuchRequest
                -- (this shouldn't happen too often, see 'storeVerdictFormat')
 
 data VerdictHandlerResult
