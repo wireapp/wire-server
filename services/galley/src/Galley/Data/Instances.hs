@@ -21,6 +21,7 @@ import qualified Data.Set
 
 deriving instance Cql ServiceToken
 deriving instance Cql MutedStatus
+deriving instance Cql Receipt
 
 instance Cql ConvType where
     ctype = Tagged IntColumn

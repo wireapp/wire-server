@@ -47,6 +47,7 @@ module Galley.Data
     , isConvAlive
     , updateConversation
     , updateConversationAccess
+    , updateConversationReceipt
     , updateConversationMessageTimer
     , deleteConversation
 
@@ -130,7 +131,7 @@ import qualified System.Logger.Class  as Log
 newtype ResultSet a = ResultSet { page :: Page a }
 
 schemaVersion :: Int32
-schemaVersion = 28
+schemaVersion = 29
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
@@ -436,6 +437,9 @@ updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum
 
 updateConversationAccess :: MonadClient m => ConvId -> Data.Set.Set Access -> AccessRole -> m ()
 updateConversationAccess cid acc role = retry x5 $ write Cql.updateConvAccess (params Quorum (Set (toList acc), role, cid))
+
+updateConversationReceipt :: MonadClient m => ConvId -> Receipt -> m ()
+updateConversationReceipt cid receipt = retry x5 $ write Cql.updateConvReceipt (params Quorum (receipt, cid))
 
 updateConversationMessageTimer :: MonadClient m => ConvId -> Maybe Milliseconds -> m ()
 updateConversationMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params Quorum (mtimer, cid))

@@ -573,6 +573,26 @@ sitemap = do
 
     ---
 
+    put "/conversations/:cnv/receipts" (continue updateConversationReceipts) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. request
+        .&. contentType "application" "json"
+
+    document "PUT" "updateConversationReceipts" $ do
+        summary "Update receipts mode for a conversation"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        returns (ref Model.event)
+        response 200 "Conversation receipts mode updated." end
+        body (ref Model.conversationReceiptsUpdate) $
+            description "JSON body"
+        errorResponse Error.convNotFound
+        errorResponse Error.accessDenied
+
+    ---
+
     put "/conversations/:cnv/message-timer" (continue updateConversationMessageTimer) $
         zauthUserId
         .&. zauthConnId

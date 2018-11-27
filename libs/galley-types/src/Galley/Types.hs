@@ -39,6 +39,7 @@ module Galley.Types
     , ConversationMeta          (..)
     , ConversationRename        (..)
     , ConversationAccessUpdate  (..)
+    , ConversationReceiptUpdate (..)
     , ConversationMessageTimerUpdate (..)
     , ConvType                  (..)
     , Invite                    (..)
@@ -47,6 +48,7 @@ module Galley.Types
     , NewConvUnmanaged          (..)
     , MemberUpdate              (..)
     , MutedStatus               (..)
+    , Receipt                   (..)
     , TypingStatus              (..)
     , UserClientMap             (..)
     , UserClients               (..)
@@ -99,6 +101,16 @@ data ConvType
     | ConnectConv
     deriving (Eq, Show)
 
+-- | Define whether receipts should sent in the given conversation
+--   This datatype is defined as an int32 but the Backend does not
+--   interpret it in any way, rather just stores and forwards it
+--   for clients
+--   E.g. of an implementation: 0 - send no receipts
+--                              1 - send read receipts
+--                              2 - send delivery receipts
+--                              ...
+newtype Receipt = Receipt { unReceipt :: Int32 } deriving (Eq, Ord, Show)
+
 -- | Access define how users can join conversations
 data Access
     = PrivateAccess  -- ^ Made obsolete by PrivateAccessRole
@@ -150,6 +162,10 @@ deriving instance Show ConversationRename
 data ConversationAccessUpdate = ConversationAccessUpdate
     { cupAccess     :: [Access]
     , cupAccessRole :: AccessRole
+    } deriving (Eq, Show)
+
+data ConversationReceiptUpdate = ConversationReceiptUpdate
+    { cruReceipt :: !Receipt
     } deriving (Eq, Show)
 
 data ConversationMessageTimerUpdate = ConversationMessageTimerUpdate
@@ -350,6 +366,7 @@ data EventType
     | ConvCreate
     | ConvConnect
     | ConvDelete
+    | ConvReceipt
     | OtrMessageAdd
     | Typing
     deriving (Eq, Show)
@@ -357,6 +374,7 @@ data EventType
 data EventData
     = EdMembers             !Members
     | EdConnect             !Connect
+    | EdConvReceipt         !Receipt
     | EdConvRename          !ConversationRename
     | EdConvAccessUpdate    !ConversationAccessUpdate
     | EdConvMessageTimerUpdate !ConversationMessageTimerUpdate
@@ -452,6 +470,11 @@ instance FromJSON AccessRole where
             "non_activated"     -> return NonActivatedAccessRole
             x                   -> fail ("Invalid Access Role: " ++ show x)
 
+instance FromJSON Receipt where
+    parseJSON x = Receipt <$> parseJSON x
+
+instance ToJSON Receipt where
+    toJSON = toJSON . unReceipt
 
 instance ToJSON AccessRole where
     toJSON PrivateAccessRole        = String "private"
@@ -636,6 +659,7 @@ parseEventData ConvCodeUpdate v    = Just . EdConvCodeUpdate <$> parseJSON v
 parseEventData ConvCodeDelete _    = pure Nothing
 parseEventData ConvConnect v       = Just . EdConnect <$> parseJSON v
 parseEventData ConvCreate v        = Just . EdConversation <$> parseJSON v
+parseEventData ConvReceipt v       = Just . EdConvReceipt <$> parseJSON v
 parseEventData Typing v            = Just . EdTyping <$> parseJSON v
 parseEventData OtrMessageAdd v     = Just . EdOtrMessage <$> parseJSON v
 parseEventData ConvDelete _        = pure Nothing
@@ -647,6 +671,7 @@ instance ToJSON EventData where
     toJSON (EdConvAccessUpdate x)   = toJSON x
     toJSON (EdConvMessageTimerUpdate x) = toJSON x
     toJSON (EdConvCodeUpdate x)     = toJSON x
+    toJSON (EdConvReceipt x)        = toJSON x
     toJSON (EdMemberUpdate x)       = toJSON x
     toJSON (EdConversation x)       = toJSON x
     toJSON (EdTyping x)             = toJSON x
@@ -676,6 +701,7 @@ instance FromJSON EventType where
     parseJSON (String "conversation.create")          = return ConvCreate
     parseJSON (String "conversation.delete")          = return ConvDelete
     parseJSON (String "conversation.connect-request") = return ConvConnect
+    parseJSON (String "conversation.receipt")         = return ConvReceipt
     parseJSON (String "conversation.typing")          = return Typing
     parseJSON (String "conversation.otr-message-add") = return OtrMessageAdd
     parseJSON x                                       = fail $ "No event-type: " <> show (encode x)
@@ -692,6 +718,7 @@ instance ToJSON EventType where
     toJSON ConvCreate             = String "conversation.create"
     toJSON ConvDelete             = String "conversation.delete"
     toJSON ConvConnect            = String "conversation.connect-request"
+    toJSON ConvReceipt            = String "conversation.receipt"
     toJSON Typing                 = String "conversation.typing"
     toJSON OtrMessageAdd          = String "conversation.otr-message-add"
 
@@ -784,6 +811,15 @@ instance FromJSON ConversationAccessUpdate where
    parseJSON = withObject "conversation-access-update" $ \o ->
        ConversationAccessUpdate <$> o .:  "access"
                                 <*> o .:  "access_role"
+
+instance FromJSON ConversationReceiptUpdate where
+    parseJSON = withObject "conversation-receipt-update" $ \o ->
+        ConversationReceiptUpdate <$> o .: "receipt"
+
+instance ToJSON ConversationReceiptUpdate where
+    toJSON c = object
+        [ "receipt" .= cruReceipt c
+        ]
 
 instance ToJSON ConversationMessageTimerUpdate where
     toJSON c = object

@@ -87,6 +87,7 @@ tests s = testGroup "Galley integration tests"
         , test s "member update (otr archive)" putMemberOtrArchiveOk
         , test s "member update (hidden)" putMemberHiddenOk
         , test s "member update (everything b)" putMemberAllOk
+        , test s "conversation receipt mode update" putReceiptModeOk
         , test s "send typing indicators" postTypingIndicators
         , test s "leave connect conversation" leaveConnectConversation
         , test s "post cryptomessage 1" postCryptoMessage1
@@ -1025,6 +1026,9 @@ putMemberOk update g b ca = do
         assertEqual  "otr_archived_ref" (memOtrArchivedRef memberBob) (memOtrArchivedRef newBob)
         assertEqual  "hidden"           (memHidden memberBob)         (memHidden newBob)
         assertEqual  "hidden__ref"      (memHiddenRef memberBob)      (memHiddenRef newBob)
+
+putReceiptModeOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
+putReceiptModeOk _ _ _ _ = error "TODO"
 
 postTypingIndicators :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postTypingIndicators g b _ _ = do
