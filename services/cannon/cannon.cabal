@@ -16,10 +16,10 @@ flag static
     Default:     False
 
 library
-    default-language: Haskell2010
+    default-language:   Haskell2010
     default-extensions: NoImplicitPrelude
-    hs-source-dirs:   src
-    ghc-options:      -Wall -O2 -fwarn-tabs
+    hs-source-dirs:     src
+    ghc-options:        -Wall -O2 -fwarn-tabs
     exposed-modules:
           Cannon.API
         , Cannon.Dict
