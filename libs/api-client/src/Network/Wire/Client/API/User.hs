@@ -11,6 +11,7 @@ module Network.Wire.Client.API.User
     , module M
     ) where
 
+import Imports
 import Bilge
 import Brig.Types as M
 import Data.ByteString.Conversion
