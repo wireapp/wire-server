@@ -4,7 +4,7 @@
 
 module Brig.Types.Properties where
 
-import GHC.Generics (Generic)
+import Imports
 import Data.Hashable (Hashable)
 import Data.Aeson
 import Data.ByteString.Conversion

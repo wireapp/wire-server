@@ -2,6 +2,7 @@
 
 module Brig.Types.Team.Invitation where
 
+import Imports
 import Brig.Types.Common
 import Data.Aeson
 import Data.Id

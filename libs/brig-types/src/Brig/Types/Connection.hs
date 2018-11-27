@@ -9,17 +9,16 @@ module Brig.Types.Connection
     , module C
     ) where
 
+import Imports
 import Brig.Types.Common as C
-import Control.Monad
 import Data.Aeson
 import Data.Aeson.Types (Parser)
 import Data.Attoparsec.ByteString (takeByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
-import Data.Monoid ((<>))
 import Data.Range
-import Data.Text (Text, pack, toLower)
+import Data.Text as Text
 
 newtype Message = Message { messageText :: Text }
     deriving (Eq, Ord, Show, ToJSON)
@@ -73,7 +72,7 @@ instance FromJSON Message where
     parseJSON x = Message . fromRange <$> (parseJSON x :: Parser (Range 1 256 Text))
 
 instance ToJSON Relation where
-    toJSON = String . toLower . pack . show
+    toJSON = String . Text.toLower . pack . show
 
 instance FromJSON Relation where
     parseJSON (String "accepted")  = return Accepted

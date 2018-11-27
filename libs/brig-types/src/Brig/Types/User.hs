@@ -12,21 +12,18 @@ module Brig.Types.User
     , module C
     ) where
 
+import Imports
 import Brig.Types.Activation (ActivationCode)
 import Brig.Types.Common as C
 import Brig.Types.User.Auth (CookieLabel)
-import Control.Applicative
-import Control.Monad ((<=<), when)
 import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#), UTCTimeMillis)
-import Data.Maybe (isJust)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
 import Data.Text.Ascii
-import Data.Text (Text)
 import Data.UUID (UUID)
 import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)

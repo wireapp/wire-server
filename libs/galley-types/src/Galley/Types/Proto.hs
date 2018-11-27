@@ -40,17 +40,12 @@ module Galley.Types.Proto
     , toNewOtrMessage
     ) where
 
+import Imports
 import Control.Lens (view)
-import Data.ByteString (ByteString)
-import Data.List (foldl')
-import Data.Maybe (fromMaybe)
 import Data.Orphans () -- See note [orphans]
 import Data.ProtocolBuffers
-import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.Text.Lazy.Read (hexadecimal)
-import Data.Word (Word64)
-import GHC.Generics (Generic)
 
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.Id                as Id

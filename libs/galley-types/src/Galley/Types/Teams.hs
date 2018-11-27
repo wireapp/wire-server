@@ -100,23 +100,16 @@ module Galley.Types.Teams
     , newTeamDeleteData
     ) where
 
+import Imports
 import Control.Lens (makeLenses, view, (^.))
-import Control.Monad (when)
 import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
 import Data.Bits (testBit, (.|.))
 import Data.Id (TeamId, ConvId, UserId)
-import Data.Int (Int64)
 import Data.Json.Util
-import Data.List (find)
-import Data.Maybe (mapMaybe, isJust, isNothing)
 import Data.Misc (PlainTextPassword (..))
-import Data.Monoid
 import Data.Range
-import Data.Set (Set)
-import Data.Text (Text)
 import Data.Time (UTCTime)
-import Data.Word
 import Galley.Types.Teams.Internal
 
 import qualified Data.HashMap.Strict as HashMap

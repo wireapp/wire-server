@@ -3,11 +3,10 @@
 
 module Galley.Types.Teams.Intra where
 
+import Imports
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Json.Util
-import Data.Monoid
-import Data.Text (Text)
 import Data.Time (UTCTime)
 import Galley.Types.Teams (Team)
 
