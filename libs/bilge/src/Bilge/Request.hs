@@ -44,14 +44,12 @@ module Bilge.Request
     , Rq.getUri
     ) where
 
+import Imports hiding (intercalate)
 import Control.Exception
 import Data.Aeson (ToJSON, encode)
-import Data.ByteString (ByteString, intercalate)
+import Data.ByteString (intercalate)
 import Data.CaseInsensitive (original)
 import Data.Id (RequestId (..))
-import Data.List (foldl')
-import Data.Monoid
-import Data.Word
 import Network.HTTP.Client (Request, RequestBody (..), Cookie)
 import Network.HTTP.Client.Internal (CookieJar (..), brReadSome, throwHttp)
 import Network.HTTP.Types
