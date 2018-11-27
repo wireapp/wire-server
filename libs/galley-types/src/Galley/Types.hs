@@ -53,21 +53,14 @@ module Galley.Types
     , filterClients
     ) where
 
-import Control.Monad
-import Control.Lens ((&), (.~))
+import Imports
+import Control.Lens ((.~))
 import Data.Aeson
 import Data.Aeson.Types (Parser)
 import Data.ByteString.Conversion
-import Data.Foldable (foldrM)
-import Data.Map.Strict (Map)
-import Data.Maybe (isJust)
 import Data.Misc
-import Data.Monoid
-import Data.Set (Set)
-import Data.Text (Text)
 import Data.Time
 import Data.Id
-import Data.Int
 import Data.Json.Util
 import Data.List1
 import Data.UUID (toASCIIBytes)

@@ -8,12 +8,11 @@
 
 module Galley.Types.Teams.Internal where
 
+import Imports
 import Data.Json.Util
-import Data.Monoid
 import Data.Aeson
 import Data.Id (TeamId, UserId)
 import Data.Range
-import Data.Text (Text)
 
 
 data TeamBinding =
