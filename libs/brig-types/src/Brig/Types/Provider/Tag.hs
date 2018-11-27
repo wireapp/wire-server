@@ -2,10 +2,9 @@
 
 module Brig.Types.Provider.Tag where
 
+import Imports
 import Data.Aeson
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
-import Data.Set (Set)
 
 import qualified Data.Set           as Set
 import qualified Data.Text.Encoding as Text
@@ -150,4 +149,3 @@ match1 = matchAll . match
 
 match :: ServiceTag -> MatchAll
 match = MatchAll . Set.singleton
-

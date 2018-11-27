@@ -3,10 +3,10 @@
 
 module Brig.Types.Search where
 
+import Imports
 import Data.Aeson
 import Data.Id        (UserId)
 import Data.Json.Util
-import Data.Text      (Text)
 
 
 data SearchResult a = SearchResult

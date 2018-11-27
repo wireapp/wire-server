@@ -6,11 +6,10 @@ module Brig.Types.AddressBook
     ( module Brig.Types.AddressBook
     ) where
 
+import Imports
 import Data.Aeson
-import Data.ByteString (ByteString)
 import Data.Id
 import Data.Json.Util
-import Data.Text (Text)
 
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.Text.Encoding     as T
