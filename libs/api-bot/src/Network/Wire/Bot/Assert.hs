@@ -3,11 +3,8 @@
 
 module Network.Wire.Bot.Assert where
 
-import Control.Monad
-import Data.Foldable (toList)
+import Imports
 import Data.Id (ConvId, UserId)
-import Data.List ((\\))
-import GHC.Stack (HasCallStack)
 import Network.Wire.Bot.Monad
 import Network.Wire.Client.API.Conversation
 import Network.Wire.Client.API.Push
