@@ -10,7 +10,7 @@
 
 module Test.Spar.Intra.BrigSpec (spec) where
 
-import Prelude hiding (head)
+import Imports hiding (head)
 import Util
 
 
