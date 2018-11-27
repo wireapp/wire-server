@@ -3,17 +3,14 @@
 
 module API.MessageTimer (tests) where
 
+import Imports hiding (head)
 import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
-import Control.Monad hiding (mapM_)
-import Control.Monad.IO.Class
 import Data.List1
 import Data.Misc
-import Data.Maybe
 import Galley.Types
 import Network.Wai.Utilities.Error
-import Prelude hiding (head, mapM_)
 import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
