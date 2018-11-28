@@ -13,6 +13,7 @@ cabal-version: >= 1.10
 library
     hs-source-dirs:     src
     default-language:   Haskell2010
+    default-extensions: NoImplicitPrelude
     ghc-options:        -Wall -O2 -fwarn-tabs
 
     exposed-modules:
@@ -32,6 +33,7 @@ library
       , dns                  >= 3.0
       , errors               >= 1.4
       , exceptions           >= 0.6
+      , imports
       , lens                 >= 4.4
       , lens-aeson           >= 1.0
       , mtl                  == 2.*

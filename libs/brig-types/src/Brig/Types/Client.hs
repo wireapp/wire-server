@@ -8,6 +8,7 @@ module Brig.Types.Client
     , module P
     ) where
 
+import Imports
 import Brig.Types.User.Auth (CookieLabel)
 import Brig.Types.Common as C
 import Brig.Types.Client.Prekey as P
@@ -15,7 +16,6 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util
 import Data.Misc (Location, PlainTextPassword (..))
-import Data.Text (Text)
 
 
 -- * Data Types:

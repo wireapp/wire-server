@@ -23,11 +23,11 @@ module Galley.Types.Bot
     , module Service
     ) where
 
+import Imports
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id
 import Data.Json.Util ((#))
-import Data.Text (Text)
 import Galley.Types (OtherMember (..))
 import Galley.Types.Bot.Service as Service
 
@@ -109,4 +109,3 @@ instance ToJSON BotConvView where
         # "name"    .= _botConvName c
         # "members" .= _botConvMembers c
         # []
-

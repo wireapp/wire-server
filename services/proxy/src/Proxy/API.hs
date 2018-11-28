@@ -8,7 +8,6 @@
 module Proxy.API (Proxy.API.run) where
 
 import Imports hiding (head)
-
 import Control.Monad.Catch
 import Control.Lens hiding ((.=))
 import Control.Retry

@@ -4,14 +4,11 @@
 
 module Test.Cannon.Dict where
 
+import Imports
 import Cannon.Dict (Dict)
 import Cannon.WS (Key, mkKey)
-import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async
-import Control.Monad
-import Data.ByteString (ByteString)
 import Data.Id
-import Data.Maybe (isJust)
 import Data.UUID hiding (fromString)
 import Data.UUID.V4
 import System.Random

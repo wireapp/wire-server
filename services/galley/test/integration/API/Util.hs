@@ -2,46 +2,30 @@
 
 module API.Util where
 
+import Imports
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
-import Control.Applicative hiding (empty)
-import Control.Error
 import Control.Lens hiding ((.=), from, to, (#))
-import Control.Monad hiding (mapM_)
-import Control.Monad.IO.Class
 import Control.Retry (retrying, constantDelay, limitRetries)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key)
-import Data.ByteString.Char8 (pack, ByteString, intercalate)
 import Data.ByteString.Conversion
-import Data.Foldable (toList)
 import Data.Id
-import Data.Int
-import Data.List (sort)
 import Data.List1 as List1
-import Data.Maybe
 import Data.Misc
-import Data.Monoid
 import Data.ProtocolBuffers (encodeMessage)
 import Data.Range
-import Data.Set (Set)
 import Data.Serialize (runPut)
-import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V4
-import Data.Word
 import Galley.Types
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
-import GHC.Stack (HasCallStack)
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
-import Prelude hiding (head, mapM_)
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
-
-import Debug.Trace (traceShow)
 
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8  as C
@@ -209,7 +193,7 @@ postConnectConv g a b name msg email = post $ g
 
 putConvAccept :: Galley -> UserId -> ConvId -> Http ResponseLBS
 putConvAccept g invited cid = put $ g
-    . paths ["/i/conversations", pack $ show cid, "accept", "v2"]
+    . paths ["/i/conversations", C.pack $ show cid, "accept", "v2"]
     . zUser invited
     . zType "access"
     . zConn "conn"
@@ -712,9 +696,9 @@ fromBS = maybe (fail "fromBS: no parse") return . fromByteString
 
 convRange :: Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Request -> Request
 convRange range size =
-      maybe id (queryItem "size" . pack . show) size
+      maybe id (queryItem "size" . C.pack . show) size
     . case range of
-        Just (Left  l) -> queryItem "ids" (intercalate "," $ map toByteString' l)
+        Just (Left  l) -> queryItem "ids" (C.intercalate "," $ map toByteString' l)
         Just (Right c) -> queryItem "start" (toByteString' c)
         Nothing        -> id
 

@@ -8,14 +8,15 @@
 
 module Test.Brig.Types.User where
 
+import Imports
 import Brig.Types.Activation
 import Brig.Types.Intra
 import Brig.Types.Provider (UpdateServiceWhitelist)
 import Brig.Types.User
 import Data.Aeson
 import Data.Aeson.Types
-import Data.Monoid
-import Data.Typeable
+import Data.Proxy
+import Data.Typeable (typeOf)
 import Test.Brig.Types.Arbitrary ()
 import Test.QuickCheck
 import Test.Tasty

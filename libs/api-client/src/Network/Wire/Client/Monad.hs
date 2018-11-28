@@ -12,19 +12,11 @@ module Network.Wire.Client.Monad
     , ClientException (..)
     ) where
 
+import Imports hiding (log)
 import Bilge
-import Control.Applicative
 import Control.Concurrent.Async
-import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Reader
-import Data.ByteString (ByteString)
-import Data.Text (Text)
-import Data.Typeable
-import Data.Word (Word16)
 import Network.HTTP.Types
 import System.Logger.Class
-import Prelude hiding (log)
 
 import qualified System.Logger as Logger
 

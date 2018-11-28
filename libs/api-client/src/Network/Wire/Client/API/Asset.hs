@@ -16,9 +16,9 @@ module Network.Wire.Client.API.Asset
     , getAsset
     ) where
 
+import Imports
 import Bilge
 import CargoHold.Types
-import Control.Monad.IO.Class
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.List.NonEmpty
@@ -27,10 +27,9 @@ import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Session
 
-import qualified Codec.MIME.Type      as MIME
-import qualified Data.ByteString.Lazy as Lazy
+import qualified Codec.MIME.Type as MIME
 
-type AssetData = Lazy.ByteString
+type AssetData = LByteString
 
 postAsset :: MonadSession m
           => MIME.Type
@@ -60,4 +59,3 @@ getAsset key tok = do
         . maybe id (header "Asset-Token" . toByteString') tok
         $ empty
     rsc = status200 :| [status404]
-
