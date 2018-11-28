@@ -27,14 +27,9 @@ module Network.Wire.Bot.Report
     , eventTypeSection
     ) where
 
-import Control.Monad (foldM)
-import Control.Monad.IO.Class
-import Data.HashMap.Strict (HashMap)
-import Data.Maybe (fromMaybe)
+import Imports
 import Data.Metrics
 import Data.Metrics.Buckets
-import Data.Monoid
-import Data.Text (Text)
 import Data.Time.Clock
 import Network.Wire.Client.API.Push (EventType (..), eventTypeText)
 import Network.Wire.Bot.Metrics

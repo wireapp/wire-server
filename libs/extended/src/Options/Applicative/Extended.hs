@@ -7,7 +7,7 @@ module Options.Applicative.Extended
     , autoRange
     ) where
 
-import BasePrelude
+import Imports
 import Data.List.Extra (stripInfix)
 import Options.Applicative
 

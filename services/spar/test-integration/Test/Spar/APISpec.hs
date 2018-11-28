@@ -10,22 +10,18 @@
 
 module Test.Spar.APISpec (spec) where
 
+import Imports hiding (head)
 import Bilge
 import Brig.Types.User
 import Cassandra (runClient)
 import Control.Lens
-import Control.Monad.Reader
 import Control.Retry
 import Data.ByteString.Conversion
 import Data.Id
-import Data.List (isInfixOf)
-import Data.Maybe
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID
 import Galley.Types.Teams as Galley
-import GHC.Stack
-import Prelude hiding (head)
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.MockResponse
 import Spar.API.Types

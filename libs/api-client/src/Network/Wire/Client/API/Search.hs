@@ -8,13 +8,12 @@ module Network.Wire.Client.API.Search
     , search
     ) where
 
+import Imports
 import Bilge
 import Brig.Types
 import Data.Default.Class
 import Data.List.NonEmpty
-import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
-import Data.Word (Word8)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status200)
 import Network.Wire.Client.HTTP
@@ -45,4 +44,3 @@ search SearchParams{..} = sessionRequest req rsc readBody
         . queryItem "d" (if searchDirectory then "1" else "0")
         $ empty
     rsc = status200 :| []
-

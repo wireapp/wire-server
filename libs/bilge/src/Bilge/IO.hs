@@ -47,13 +47,10 @@ module Bilge.IO
     , HttpException (..)
     ) where
 
-import Prelude hiding (head)
-import Control.Monad
+import Imports hiding (head, trace)
 import Control.Monad.Base
 import Control.Monad.Catch
-import Control.Monad.Reader
 import Control.Monad.Trans.Control
-import Control.Monad.IO.Unlift
 import Network.HTTP.Client hiding (method, httpLbs)
 import Network.HTTP.Types
 import Bilge.Request

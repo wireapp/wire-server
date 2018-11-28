@@ -12,6 +12,7 @@ module UnliftIO.Async.Extended
     , sequencePooled
     ) where
 
+import Imports
 import UnliftIO
 import UnliftIO.Async
 
