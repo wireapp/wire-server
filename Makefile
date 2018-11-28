@@ -30,9 +30,10 @@ services: init install
 	$(MAKE) -C services/nginz
 
 .PHONY: integration
-integration: fast
-	# We run "i" instead of "integration" to avoid useless rebuilds
-	# (since after "fast" everything will be built already)
+integration: fast i
+
+.PHONY: i
+i:
 	$(MAKE) -C services/cargohold i
 	$(MAKE) -C services/galley i
 	$(MAKE) -C services/brig i
@@ -40,9 +41,10 @@ integration: fast
 	$(MAKE) -C services/spar i
 
 .PHONY: integration-aws
-integration-aws: fast
-	# We run "i" instead of "integration" to avoid useless rebuilds
-	# (since after "fast" everything will be built already)
+integration-aws: fast i-aws
+
+.PHONY: i-aws
+i-aws:
 	$(MAKE) -C services/cargohold i-aws
 	$(MAKE) -C services/galley i-aws
 	$(MAKE) -C services/brig i-aws
