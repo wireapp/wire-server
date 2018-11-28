@@ -8,6 +8,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE InstanceSigs #-}
@@ -235,11 +236,11 @@ toSCIMEmail (Email eLocal eDomain) =
 
 instance SCIM.UserDB Spar where
   -- | List all users, possibly filtered by some predicate.
-  list :: (TeamId, Maybe IdPId)
+  list :: ScimTokenInfo
        -> Maybe SCIM.Filter
        -> SCIM.SCIMHandler Spar (SCIM.ListResponse SCIM.StoredUser)
-  list (tid, _) mbFilter = do
-    members <- lift $ getTeamMembers tid
+  list ScimTokenInfo{stiTeam} mbFilter = do
+    members <- lift $ getTeamMembers stiTeam
     users <- forM members $ \member ->
       lift (getUser (member ^. Galley.userId)) >>= \case
         Just user -> pure (toSCIMUser user)
@@ -257,24 +258,24 @@ instance SCIM.UserDB Spar where
     SCIM.fromList <$> filterM check users
 
   -- | Get a single user by its ID.
-  get :: (TeamId, Maybe IdPId)
+  get :: ScimTokenInfo
       -> Text
       -> SCIM.SCIMHandler Spar (Maybe SCIM.StoredUser)
-  get (tid, _) uidText = do
+  get ScimTokenInfo{stiTeam} uidText = do
     uid <- case readMaybe (Text.unpack uidText) of
       Just u -> pure u
       Nothing -> SCIM.throwSCIM $
         SCIM.notFound "user" uidText
     lift (getUser uid) >>= traverse (\user -> do
-      when (userTeam user /= Just tid) $ SCIM.throwSCIM $
+      when (userTeam user /= Just stiTeam) $ SCIM.throwSCIM $
         SCIM.notFound "user" (idToText uid)
       pure (toSCIMUser user))
 
   -- | Create a new user.
-  create :: (TeamId, Maybe IdPId)
+  create :: ScimTokenInfo
          -> SCIM.User.User
          -> SCIM.SCIMHandler Spar SCIM.StoredUser
-  create (tid, mbIdp) user = do
+  create ScimTokenInfo{stiTeam, stiIdP} user = do
     extId <- case SCIM.User.externalId user of
       Just x -> pure x
       Nothing -> SCIM.throwSCIM $
@@ -302,7 +303,7 @@ instance SCIM.UserDB Spar where
     -- TODO: when the issuer is deleted, the token still remains, so we can
     -- fail here
     -- TODO: throw SCIM errors here
-    issuer <- case mbIdp of
+    issuer <- case stiIdP of
         Nothing -> error "No IdP configured for the provisioning token"
         Just idp -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
             Nothing -> error "IdP not found"
@@ -311,22 +312,22 @@ instance SCIM.UserDB Spar where
 
     -- TODO: Adding a handle should be done _DURING_ the creation
     lift $ do
-      _ <- createUser uref buid tid mbName
+      _ <- createUser uref buid stiTeam mbName
       setHandle buid handl
 
     maybe (error "How can there be no user?") (pure . toSCIMUser) =<<
       lift (getUser buid)
 
-  update :: (TeamId, Maybe IdPId)
+  update :: ScimTokenInfo
          -> Text
          -> SCIM.User.User
          -> SCIM.SCIMHandler Spar SCIM.StoredUser
   update = error "SCIM.User.update is not implemented yet"
 
-  delete :: (TeamId, Maybe IdPId) -> Text -> SCIM.SCIMHandler Spar Bool
+  delete :: ScimTokenInfo -> Text -> SCIM.SCIMHandler Spar Bool
   delete = error "SCIM.User.delete is not implemented yet"
 
-  getMeta :: (TeamId, Maybe IdPId) -> SCIM.SCIMHandler Spar SCIM.Meta
+  getMeta :: ScimTokenInfo -> SCIM.SCIMHandler Spar SCIM.Meta
   getMeta = error "SCIM.User.getMeta is not implemented yet"
 
 ----------------------------------------------------------------------------
@@ -340,7 +341,7 @@ instance SCIM.GroupDB Spar where
 
 instance SCIM.AuthDB Spar where
   type AuthData Spar = ScimToken
-  type AuthInfo Spar = (TeamId, Maybe IdPId)
+  type AuthInfo Spar = ScimTokenInfo
 
   authCheck Nothing =
       SCIM.throwSCIM (SCIM.unauthorized "Token not provided")
@@ -411,7 +412,13 @@ createScimToken zusr CreateScimToken{..} = do
             -- it makes sense semantically
             token <- ScimToken . cs . ES.encode <$> liftIO (randBytes 32)
             let idpid = idp ^. SAML.idpId
-            wrapMonadClient $ Data.insertScimToken teamid token (Just idpid) descr
+            wrapMonadClient $ Data.insertScimToken
+                ScimTokenInfo
+                    { stiTeam  = teamid
+                    , stiToken = token
+                    , stiIdP   = Just idpid
+                    , stiDescr = descr
+                    }
             pure token
         [] -> throwSpar $ SparProvisioningNoSingleIdP
                 "SCIM tokens can only be created for a team with an IdP, \

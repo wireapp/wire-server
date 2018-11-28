@@ -30,7 +30,7 @@ import Data.Time
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
 import SAML2.Util (renderURI, parseURI')
-import SAML2.WebSSO (IdPConfig, ID, AuthnRequest, Assertion, SimpleSetCookie)
+import SAML2.WebSSO (IdPConfig, IdPId, ID, AuthnRequest, Assertion, SimpleSetCookie)
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import URI.ByteString
 import Util.Options
@@ -78,6 +78,16 @@ deriveJSON deriveJSONOptions ''IdPList
 -- with a team. Each token corresponds to one team.
 newtype ScimToken = ScimToken { fromScimToken :: Text }
   deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
+
+-- | Data that we store about each token.
+data ScimTokenInfo = ScimTokenInfo
+  { stiToken :: !ScimToken      -- ^ Token itself
+  , stiTeam  :: !TeamId         -- ^ Which team can be managed with the token
+  , stiIdP   :: !(Maybe IdPId)  -- ^ IdP that created users will "belong" to
+  , stiDescr :: !Text           -- ^ Free-form token description, can be set
+                                --   by the token creator
+  }
+  deriving (Eq, Show)
 
 instance FromHttpApiData ScimToken where
   parseHeader h = ScimToken <$> parseHeaderWithPrefix "Bearer " h

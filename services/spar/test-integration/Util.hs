@@ -162,12 +162,13 @@ mkEnv _teTstOpts _teOpts = do
 
   let _teScimToken = ScimToken $
           "scim-test-token/" <> "team=" <> idToText _teTeamId
-  runClient _teCql $
-      Data.insertScimToken
-          _teTeamId
-          _teScimToken
-          (Just (_teIdP ^. idpId))
-          "_teScimToken test token"
+  runClient _teCql $ Data.insertScimToken
+      ScimTokenInfo
+          { stiTeam  = _teTeamId
+          , stiToken = _teScimToken
+          , stiIdP   = Just (_teIdP ^. idpId)
+          , stiDescr = "_teScimToken test token"
+          }
 
   pure TestEnv {..}
 
