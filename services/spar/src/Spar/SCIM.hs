@@ -304,7 +304,6 @@ instance SCIM.UserDB Spar where
     -- TODO: throw SCIM errors here
     issuer <- case mbIdp of
         Nothing -> error "No IdP configured for the provisioning token"
-        -- TODO: should 'wrapMonadClient' or 'wrapMonadClientWithEnv' be used here?
         Just idp -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
             Nothing -> error "IdP not found"
             Just idpConfig -> pure (idpConfig ^. SAML.idpMetadata . SAML.edIssuer)

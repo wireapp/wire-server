@@ -120,7 +120,8 @@ instance SPStoreIdP SparError Spar where
   getIdPConfigByIssuer :: Issuer -> Spar (IdPConfig TeamId)
   getIdPConfigByIssuer = (>>= maybe (throwSpar SparNotFound) pure) . wrapMonadClientWithEnv . Data.getIdPConfigByIssuer
 
--- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions.
+-- | 'wrapMonadClient' with an 'Env' in a 'ReaderT', and exceptions. If you
+-- don't need either of those, 'wrapMonadClient' will suffice.
 wrapMonadClientWithEnv :: forall a. ReaderT Data.Env (ExceptT TTLError Cas.Client) a -> Spar a
 wrapMonadClientWithEnv action = do
   denv <- Data.mkEnv <$> (sparCtxOpts <$> ask) <*> (fromTime <$> getNow)

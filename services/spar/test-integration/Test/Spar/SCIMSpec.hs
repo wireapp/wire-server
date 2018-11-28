@@ -136,7 +136,10 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
             deleteToken token
         it "respects the token limit (2 for integration tests)" $ do
             env <- ask
-            -- Try to create two tokens; the second attempt should fail
+            -- Try to create two more tokens (in addition to the already
+            -- existing token that's created in 'mkEnv'). Creating the
+            -- second token should succeed, and creating the third token
+            -- should fail.
             token1 <- createToken CreateScimToken
                 { createScimTokenDescription = "token limit test / #1" }
             createToken_ (env ^. teUserId) CreateScimToken
