@@ -819,12 +819,12 @@ instance FromJSON ConversationAccessUpdate where
                                 <*> o .:  "access_role"
 
 instance FromJSON ConversationReceiptModeUpdate where
-    parseJSON = withObject "conversation-ReceiptMode-update" $ \o ->
-        ConversationReceiptModeUpdate <$> o .: "ReceiptMode"
+    parseJSON = withObject "conversation-receipt-mode-update" $ \o ->
+        ConversationReceiptModeUpdate <$> o .: "receipt_mode"
 
 instance ToJSON ConversationReceiptModeUpdate where
     toJSON c = object
-        [ "ReceiptMode" .= cruReceiptMode c
+        [ "receipt_mode" .= cruReceiptMode c
         ]
 
 instance ToJSON ConversationMessageTimerUpdate where

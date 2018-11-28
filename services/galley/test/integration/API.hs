@@ -1035,12 +1035,16 @@ putReceiptModeOk g b c _ = do
     connectUsers b alice (list1 bob [jane])
     cnv <- decodeConvId <$> postConv g alice [bob, jane] (Just "gossip") [] Nothing Nothing
     WS.bracketR3 c alice bob jane $ \(_wsA, wsB, _wsJ) -> do
+        getConv g alice cnv !!! do
+            const 200 === statusCode
+            const (Just Nothing) === fmap cnvReceiptMode . decodeBody
+        -- Set receipt mode
         put ( g
          . paths ["conversations", toByteString' cnv, "receipt-mode"]
          . zUser alice
          . zConn "conn"
          . zType "access"
-         . json (ReceiptMode 0)
+         . json (ConversationReceiptModeUpdate $ ReceiptMode 0)
          ) !!! const 200 === statusCode
         void . liftIO $ checkWs alice (cnv, wsB)
         -- No changes
@@ -1049,8 +1053,12 @@ putReceiptModeOk g b c _ = do
          . zUser alice
          . zConn "conn"
          . zType "access"
-         . json (ReceiptMode 0)
+         . json (ConversationReceiptModeUpdate $ ReceiptMode 0)
          ) !!! const 204 === statusCode
+        -- Ensure that the new field is set
+        getConv g alice cnv !!! do
+            const 200 === statusCode
+            const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . decodeBody
   where
     checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
         ntfTransient n @?= False
@@ -1058,9 +1066,9 @@ putReceiptModeOk g b c _ = do
         evtConv e @?= cnv
         evtType e @?= ConvReceiptModeUpdate
         evtFrom e @?= alice
-        -- case evtData e of
-        --     Just (EdConversation c') -> assertConvEquals cnv c'
-        --     _                        -> assertFailure "Unexpected event data"
+        case evtData e of
+            Just (EdConvReceiptModeUpdate (ReceiptMode mode)) -> assertEqual "modes should match" mode 0
+            _                                                 -> assertFailure "Unexpected event data"
 
 postTypingIndicators :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postTypingIndicators g b _ _ = do
