@@ -29,6 +29,9 @@ clean:
 services: init install
 	$(MAKE) -C services/nginz
 
+.PHONY: integration
+integration: fast i
+
 .PHONY: i
 i:
 	$(MAKE) -C services/cargohold i
@@ -37,8 +40,8 @@ i:
 	$(MAKE) -C services/gundeck i-fake-aws
 	$(MAKE) -C services/spar i
 
-.PHONY: integration
-integration: fast i
+.PHONY: integration-aws
+integration-aws: fast i-aws
 
 .PHONY: i-aws
 i-aws:
@@ -47,9 +50,6 @@ i-aws:
 	$(MAKE) -C services/brig i-aws
 	$(MAKE) -C services/gundeck i-aws
 	$(MAKE) -C services/spar i-aws
-
-.PHONY: integration-aws
-integration-aws: fast i-aws
 
 .PHONY: haddock
 haddock:
