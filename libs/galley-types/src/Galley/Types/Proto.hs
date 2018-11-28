@@ -42,7 +42,6 @@ module Galley.Types.Proto
 
 import Imports
 import Control.Lens (view)
-import Data.Orphans () -- See note [orphans]
 import Data.ProtocolBuffers
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.Text.Lazy.Read (hexadecimal)
@@ -192,11 +191,6 @@ fromPriority Gundeck.LowPriority  = LowPriority
 fromPriority Gundeck.HighPriority = HighPriority
 
 -- NewOtrMessage ------------------------------------------------------------
-
--- Note [orphans]
--- ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
--- Orphan instance for (Foldable Last) is needed for optional enumerations.
--- cf. https://github.com/alphaHeavy/protobuf/issues/3
 
 data NewOtrMessage = NewOtrMessage
     { _newOtrSender         :: !(Required 1 (Message ClientId))
