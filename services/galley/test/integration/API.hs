@@ -1035,9 +1035,11 @@ putReceiptModeOk g b c _ = do
     connectUsers b alice (list1 bob [jane])
     cnv <- decodeConvId <$> postConv g alice [bob, jane] (Just "gossip") [] Nothing Nothing
     WS.bracketR3 c alice bob jane $ \(_wsA, wsB, _wsJ) -> do
+        -- By default, nothing is set
         getConv g alice cnv !!! do
             const 200 === statusCode
             const (Just Nothing) === fmap cnvReceiptMode . decodeBody
+
         -- Set receipt mode
         put ( g
          . paths ["conversations", toByteString' cnv, "receipt-mode"]
@@ -1046,7 +1048,14 @@ putReceiptModeOk g b c _ = do
          . zType "access"
          . json (ConversationReceiptModeUpdate $ ReceiptMode 0)
          ) !!! const 200 === statusCode
+
+        -- Ensure the field is properly set
+        getConv g alice cnv !!! do
+            const 200 === statusCode
+            const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . decodeBody
+
         void . liftIO $ checkWs alice (cnv, wsB)
+
         -- No changes
         put ( g
          . paths ["conversations", toByteString' cnv, "receipt-mode"]
@@ -1055,7 +1064,10 @@ putReceiptModeOk g b c _ = do
          . zType "access"
          . json (ConversationReceiptModeUpdate $ ReceiptMode 0)
          ) !!! const 204 === statusCode
-        -- Ensure that the new field is set
+        -- No event should have been generated
+        WS.assertNoEvent (1 # Second) [wsB]
+
+        -- Ensure that the new field remains unchanged
         getConv g alice cnv !!! do
             const 200 === statusCode
             const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . decodeBody

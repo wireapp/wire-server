@@ -384,7 +384,6 @@ createConversation usr name acc role others tinfo mtimer = do
             addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer)
             addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
     mems <- snd <$> addMembersUnchecked now conv usr (list1 usr $ fromConvSize others)
-    -- TODO: Should there be a default for the ReceiptMode ?
     return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer Nothing
 
 createSelfConversation :: MonadClient m => UserId -> Maybe (Range 1 256 Text) -> m Conversation
