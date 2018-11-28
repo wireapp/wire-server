@@ -37,9 +37,10 @@ i:
 	$(MAKE) -C services/gundeck i-fake-aws
 	$(MAKE) -C services/spar i
 
+.PHONY: integration
 integration: fast i
 
-.PHONY: integration-aws
+.PHONY: i-aws
 i-aws:
 	$(MAKE) -C services/cargohold i-aws
 	$(MAKE) -C services/galley i-aws
@@ -47,6 +48,7 @@ i-aws:
 	$(MAKE) -C services/gundeck i-aws
 	$(MAKE) -C services/spar i-aws
 
+.PHONY: integration-aws
 integration-aws: fast i-aws
 
 .PHONY: haddock
