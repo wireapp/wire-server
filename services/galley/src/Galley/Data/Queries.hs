@@ -101,11 +101,14 @@ updateTeamStatus = "update team set status = ? where team = ?"
 
 -- Conversations ------------------------------------------------------------
 
-selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (C.Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds)
-selectConv = "select type, creator, access, access_role, name, team, deleted, message_timer from conversation where conv = ?"
+selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (C.Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode)
+selectConv = "select type, creator, access, access_role, name, team, deleted, message_timer, receipt_mode from conversation where conv = ?"
 
-selectConvs :: PrepQuery R (Identity [ConvId]) (ConvId, ConvType, UserId, Maybe (C.Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds)
-selectConvs = "select conv, type, creator, access, access_role, name, team, deleted, message_timer from conversation where conv in ?"
+selectConvs :: PrepQuery R (Identity [ConvId]) (ConvId, ConvType, UserId, Maybe (C.Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode)
+selectConvs = "select conv, type, creator, access, access_role, name, team, deleted, message_timer, receipt_mode from conversation where conv in ?"
+
+selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
+selectReceiptMode = "select receipt_mode from conversation where conv = ?"
 
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
@@ -116,8 +119,8 @@ insertConv = "insert into conversation (conv, type, creator, access, access_role
 updateConvAccess :: PrepQuery W (C.Set Access, AccessRole, ConvId) ()
 updateConvAccess = "update conversation set access = ?, access_role = ? where conv = ?"
 
-updateConvReceipt :: PrepQuery W (Receipt, ConvId) ()
-updateConvReceipt = "update conversation set receipt = ? where conv = ?"
+updateConvReceiptMode :: PrepQuery W (ReceiptMode, ConvId) ()
+updateConvReceiptMode = "update conversation set receipt_mode = ? where conv = ?"
 
 updateConvMessageTimer :: PrepQuery W (Maybe Milliseconds, ConvId) ()
 updateConvMessageTimer = "update conversation set message_timer = ? where conv = ?"

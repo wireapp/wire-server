@@ -800,7 +800,7 @@ accessConvMeta g b _ _ = do
     chuck <- randomUser b
     connectUsers b alice (list1 bob [chuck])
     conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") [] Nothing Nothing
-    let meta = ConversationMeta conv RegularConv alice [InviteAccess] ActivatedAccessRole (Just "gossip") Nothing Nothing
+    let meta = ConversationMeta conv RegularConv alice [InviteAccess] ActivatedAccessRole (Just "gossip") Nothing Nothing Nothing
     get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
         const 200         === statusCode
         const (Just meta) === (decode <=< responseBody)
@@ -1028,7 +1028,39 @@ putMemberOk update g b ca = do
         assertEqual  "hidden__ref"      (memHiddenRef memberBob)      (memHiddenRef newBob)
 
 putReceiptModeOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
-putReceiptModeOk _ _ _ _ = error "TODO"
+putReceiptModeOk g b c _ = do
+    alice <- randomUser b
+    bob   <- randomUser b
+    jane  <- randomUser b
+    connectUsers b alice (list1 bob [jane])
+    cnv <- decodeConvId <$> postConv g alice [bob, jane] (Just "gossip") [] Nothing Nothing
+    WS.bracketR3 c alice bob jane $ \(_wsA, wsB, _wsJ) -> do
+        put ( g
+         . paths ["conversations", toByteString' cnv, "receipt-mode"]
+         . zUser alice
+         . zConn "conn"
+         . zType "access"
+         . json (ReceiptMode 0)
+         ) !!! const 200 === statusCode
+        void . liftIO $ checkWs alice (cnv, wsB)
+        -- No changes
+        put ( g
+         . paths ["conversations", toByteString' cnv, "receipt-mode"]
+         . zUser alice
+         . zConn "conn"
+         . zType "access"
+         . json (ReceiptMode 0)
+         ) !!! const 204 === statusCode
+  where
+    checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
+        ntfTransient n @?= False
+        let e = List1.head (WS.unpackPayload n)
+        evtConv e @?= cnv
+        evtType e @?= ConvReceiptModeUpdate
+        evtFrom e @?= alice
+        -- case evtData e of
+        --     Just (EdConversation c') -> assertConvEquals cnv c'
+        --     _                        -> assertFailure "Unexpected event data"
 
 postTypingIndicators :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postTypingIndicators g b _ _ = do

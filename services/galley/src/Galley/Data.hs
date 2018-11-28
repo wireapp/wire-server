@@ -47,9 +47,10 @@ module Galley.Data
     , isConvAlive
     , updateConversation
     , updateConversationAccess
-    , updateConversationReceipt
+    , updateConversationReceiptMode
     , updateConversationMessageTimer
     , deleteConversation
+    , lookupReceiptMode
 
     -- * Conversation Members
     , addMember
@@ -328,7 +329,7 @@ conversations ids = do
   where
     fetchConvs = do
         cs <- retry x1 $ query Cql.selectConvs (params Quorum (Identity ids))
-        let m = Map.fromList $ map (\(c,t,u,n,a,r,i,d,mt) -> (c, (t,u,n,a,r,i,d,mt))) cs
+        let m = Map.fromList $ map (\(c,t,u,n,a,r,i,d,mt,rm) -> (c, (t,u,n,a,r,i,d,mt,rm))) cs
         return $ map (`Map.lookup` m) ids
 
     flatten (i, c) cc = case c of
@@ -339,18 +340,18 @@ conversations ids = do
 
 toConv :: ConvId
        -> [Member]
-       -> Maybe (ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds)
+       -> Maybe (ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode)
        -> Maybe Conversation
 toConv cid mms conv =
     f mms <$> conv
   where
-    f ms (cty, uid, acc, role, nme, ti, del, timer) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms ti del timer
+    f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms ti del timer rm
 
 conversationMeta :: MonadClient m => ConvId -> m (Maybe ConversationMeta)
 conversationMeta conv = fmap toConvMeta <$>
     retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
   where
-    toConvMeta (t, c, a, r, n, i, _, mt) = ConversationMeta conv t c (defAccess t a) (maybeRole t r) n i mt
+    toConvMeta (t, c, a, r, n, i, _, mt, rm) = ConversationMeta conv t c (defAccess t a) (maybeRole t r) n i mt rm
 
 conversationIdsFrom :: MonadClient m => UserId -> Maybe ConvId -> Range 1 1000 Int32 -> m (ResultSet ConvId)
 conversationIdsFrom usr range (fromRange -> max) =
@@ -383,7 +384,8 @@ createConversation usr name acc role others tinfo mtimer = do
             addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer)
             addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
     mems <- snd <$> addMembersUnchecked now conv usr (list1 usr $ fromConvSize others)
-    return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer
+    -- TODO: Should there be a default for the ReceiptMode ?
+    return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer Nothing
 
 createSelfConversation :: MonadClient m => UserId -> Maybe (Range 1 256 Text) -> m Conversation
 createSelfConversation usr name = do
@@ -392,7 +394,7 @@ createSelfConversation usr name = do
     retry x5 $
         write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing))
     mems <- snd <$> addMembersUnchecked now conv usr (singleton usr)
-    return $ newConv conv SelfConv usr (toList mems) [PrivateAccess] privateRole name Nothing Nothing
+    return $ newConv conv SelfConv usr (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing
 
 createConnectConversation :: MonadClient m
                           => U.UUID U.V4
@@ -410,7 +412,7 @@ createConnectConversation a b name conn = do
     -- when the other user accepts the connection request.
     mems <- snd <$> addMembersUnchecked now conv a' (singleton a')
     let e = Event ConvConnect conv a' now (Just $ EdConnect conn)
-    return (newConv conv ConnectConv a' (toList mems) [PrivateAccess] privateRole name Nothing Nothing, e)
+    return (newConv conv ConnectConv a' (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing, e)
 
 createOne2OneConversation :: U.UUID U.V4
                           -> U.UUID U.V4
@@ -430,7 +432,7 @@ createOne2OneConversation a b name ti = do
             addPrepQuery Cql.insertConv (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Just tid, Nothing)
             addPrepQuery Cql.insertTeamConv (tid, conv, False)
     mems <- snd <$> addMembersUnchecked now conv a' (list1 a' [b'])
-    return $ newConv conv One2OneConv a' (toList mems) [PrivateAccess] privateRole name ti Nothing
+    return $ newConv conv One2OneConv a' (toList mems) [PrivateAccess] privateRole name ti Nothing Nothing
 
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
 updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum (fromRange name, cid))
@@ -438,8 +440,11 @@ updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum
 updateConversationAccess :: MonadClient m => ConvId -> Data.Set.Set Access -> AccessRole -> m ()
 updateConversationAccess cid acc role = retry x5 $ write Cql.updateConvAccess (params Quorum (Set (toList acc), role, cid))
 
-updateConversationReceipt :: MonadClient m => ConvId -> Receipt -> m ()
-updateConversationReceipt cid receipt = retry x5 $ write Cql.updateConvReceipt (params Quorum (receipt, cid))
+updateConversationReceiptMode :: MonadClient m => ConvId -> ReceiptMode -> m ()
+updateConversationReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMode (params Quorum (receiptMode, cid))
+
+lookupReceiptMode :: MonadClient m => ConvId -> m (Maybe ReceiptMode)
+lookupReceiptMode cid = join . fmap runIdentity <$> retry x1 (query1 Cql.selectReceiptMode (params Quorum (Identity cid)))
 
 updateConversationMessageTimer :: MonadClient m => ConvId -> Maybe Milliseconds -> m ()
 updateConversationMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params Quorum (mtimer, cid))
@@ -466,8 +471,9 @@ newConv :: ConvId
         -> Maybe (Range 1 256 Text)
         -> Maybe TeamId
         -> Maybe Milliseconds
+        -> Maybe ReceiptMode
         -> Conversation
-newConv cid ct usr mems acc role name tid mtimer = Conversation
+newConv cid ct usr mems acc role name tid mtimer rMode = Conversation
     { convId      = cid
     , convType    = ct
     , convCreator = usr
@@ -478,6 +484,7 @@ newConv cid ct usr mems acc role name tid mtimer = Conversation
     , convTeam    = tid
     , convDeleted = Nothing
     , convMessageTimer = mtimer
+    , convReceiptMode  = rMode
     }
 
 defAccess :: ConvType -> Maybe (Set Access) -> [Access]

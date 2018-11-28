@@ -9,4 +9,4 @@ import Text.RawString.QQ
 
 migration :: Migration
 migration = Migration 29 "Add conversation receipt" $
-    schema' [r| ALTER TABLE conversation ADD receipt int; |]
+    schema' [r| ALTER TABLE conversation ADD receipt_mode int; |]

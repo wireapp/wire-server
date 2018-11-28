@@ -240,10 +240,10 @@ conversationAccessUpdate = defineModel "ConversationAccessUpdate" $ do
     property "access" (unique $ array bytes') $
         description "List of conversation access modes: []|[invite]|[invite,code]"
 
-conversationReceiptsUpdate :: Model
-conversationReceiptsUpdate = defineModel "conversationReceiptsUpdate" $ do
+conversationReceiptModeUpdate :: Model
+conversationReceiptModeUpdate = defineModel "conversationReceiptModeUpdate" $ do
     description "Contains conversation receipt mode to update"
-    property "receipt" (unique $ array bytes') $
+    property "receipt_mode" int32' $
         description "Receipt mode: int32"
 
 conversationMessageTimerUpdate :: Model
