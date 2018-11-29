@@ -207,7 +207,7 @@ randNotif size = do
         Notification i <$> arbitrary <*> pure pload
 
 randMessage :: Notification -> Message "keys"
-randMessage n = Notice (ntfId n) HighPriority (ntfTransient n) Nothing
+randMessage n = Notice (ntfId n) HighPriority Nothing
 
 genKeys :: Gen TestKeys
 genKeys = TestKeys <$> (SignalingKeys <$> (EncKey <$> genKey) <*> (MacKey <$> genKey))

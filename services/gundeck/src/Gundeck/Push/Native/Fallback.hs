@@ -51,12 +51,11 @@ prepare orig rs = case foldl' go ([], []) rs of
 
 -- | Send a fallback notification to the given candidates.
 execute :: NotificationId -- ^ The ID of the fallback notification.
-        -> Bool           -- ^ transient flag of fallback notification.
         -> Priority       -- ^ The priority of the fallback notification.
         -> Candidates s   -- ^ The candidates for receiving the fallback notification.
         -> Gundeck [Result s]
-execute nid trans prio (Candidates now queue) = do
-    let m = Native.Notice nid prio trans (Just apsFallback)
+execute nid prio (Candidates now queue) = do
+    let m = Native.Notice nid prio (Just apsFallback)
     r <- Native.push m now
     unless (null queue) $ do
         e <- ask
