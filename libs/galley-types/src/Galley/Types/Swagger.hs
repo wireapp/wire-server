@@ -242,7 +242,9 @@ conversationAccessUpdate = defineModel "ConversationAccessUpdate" $ do
 
 conversationReceiptModeUpdate :: Model
 conversationReceiptModeUpdate = defineModel "conversationReceiptModeUpdate" $ do
-    description "Contains conversation receipt mode to update"
+    description "Contains conversation receipt mode to update to. Receipt mode tells \
+                \clients whether certain types of receipts should be sent in the given \
+                \conversation or not. How this value is interpreted is up to clients."
     property "receipt_mode" int32' $
         description "Receipt mode: int32"
 

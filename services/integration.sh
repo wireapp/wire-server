@@ -85,7 +85,7 @@ function run() {
 
 check_prerequisites
 
-# One still needs to pass a value since it's set in _run_
+# One still needs to pass a LOG LEVEL since it's set in _run_ which always requires 4 arguments
 run brig "" ${green} Info
 run galley "" ${yellow} Info
 run gundeck "" ${blue} Info
