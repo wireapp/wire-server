@@ -12,6 +12,7 @@ description:    API types of Gundeck.
 
 library
     default-language:   Haskell2010
+    default-extensions: NoImplicitPrelude
     hs-source-dirs:     src
 
     exposed-modules:
@@ -33,6 +34,7 @@ library
         , bytestring            >= 0.10
         , bytestring-conversion >= 0.2
         , containers            >= 0.5
+        , imports
         , lens                  >= 4.11
         , network-uri           >= 2.6
         , text                  >= 0.11

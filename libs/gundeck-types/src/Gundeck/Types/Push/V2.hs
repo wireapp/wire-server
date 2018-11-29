@@ -59,20 +59,15 @@ module Gundeck.Types.Push.V2
     , SignalingKeys (..)
     ) where
 
+import Imports
 import Control.Lens (makeLenses)
-import Control.Monad
 import Data.Aeson
 import Data.Attoparsec.ByteString (takeByteString)
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
-import Data.Monoid
 import Data.List1
 import Data.Range
-import Data.Set (Set)
-import Data.String
-import Data.Text (Text)
 import Data.Text.Encoding
 
 import qualified Data.ByteString.Base64 as B64

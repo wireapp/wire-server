@@ -6,6 +6,7 @@ module Gundeck.Types.Presence
     , module Common
     ) where
 
+import Imports
 import Data.Aeson
 import Data.Id
 import Data.Misc (Milliseconds)
