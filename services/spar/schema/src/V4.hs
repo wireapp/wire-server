@@ -21,27 +21,24 @@ migration = Migration 4 "Store SCIM authentication tokens" $ do
     --
     -- 2. Each token can have an IdP associated with it; this will be the
     --    IdP used to authenticate the user.
-    --
-    -- 3. We need to be able to query the team by the token (when doing
-    --    authentication); however, we also need to be able to list all
-    --    tokens belonging to a team (when displaying tokens on the team
-    --    settings page). This means that we have to maintain two tables.
     void $ schema' [r|
-        CREATE TABLE if not exists team_provisioning
-            ( team          uuid
-            , token_        text
-            , idp           uuid         -- optional
-            , descr         text
-            , PRIMARY KEY (team, token_)
-            ) with compaction = {'class': 'LeveledCompactionStrategy'};
-    |]
-
-    void $ schema' [r|
-        CREATE TABLE if not exists team_provisioning_rev
+        CREATE TABLE if not exists team_provisioning_by_token
             ( team          uuid
             , token_        text
             , idp           uuid         -- optional
             , descr         text
             , PRIMARY KEY (token_)
+            ) with compaction = {'class': 'LeveledCompactionStrategy'};
+    |]
+
+    -- We also need to be able to list all tokens belonging to a team (when
+    -- displaying tokens on the team settings page).
+    void $ schema' [r|
+        CREATE TABLE if not exists team_provisioning_by_team
+            ( team          uuid
+            , token_        text
+            , idp           uuid         -- optional
+            , descr         text
+            , PRIMARY KEY (team, token_)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
     |]

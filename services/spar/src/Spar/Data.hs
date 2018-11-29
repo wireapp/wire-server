@@ -357,14 +357,14 @@ insertScimToken
 insertScimToken ScimTokenInfo{..} = retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
-    addPrepQuery ins    (stiTeam, stiToken, stiIdP, stiDescr)
-    addPrepQuery insRev (stiTeam, stiToken, stiIdP, stiDescr)
+    addPrepQuery insByToken (stiTeam, stiToken, stiIdP, stiDescr)
+    addPrepQuery insByTeam  (stiTeam, stiToken, stiIdP, stiDescr)
   where
-    ins, insRev :: PrepQuery W ScimTokenRow ()
-    ins    = "INSERT INTO team_provisioning (team, token_, idp, descr) \
-             \VALUES (?, ?, ?, ?)"
-    insRev = "INSERT INTO team_provisioning_rev (team, token_, idp, descr) \
-             \VALUES (?, ?, ?, ?)"
+    insByToken, insByTeam :: PrepQuery W ScimTokenRow ()
+    insByToken = "INSERT INTO team_provisioning_by_token \
+                 \(team, token_, idp, descr) VALUES (?, ?, ?, ?)"
+    insByTeam  = "INSERT INTO team_provisioning_by_team \
+                 \(team, token_, idp, descr) VALUES (?, ?, ?, ?)"
 
 -- | Check whether a token exists and if yes, what team and IdP are
 -- associated with it.
@@ -377,7 +377,7 @@ lookupScimToken token = do
   where
     sel :: PrepQuery R (Identity ScimToken) ScimTokenRow
     sel = "SELECT team, token_, idp, descr \
-          \FROM team_provisioning_rev WHERE token_ = ?"
+          \FROM team_provisioning_by_token WHERE token_ = ?"
 
 -- | List all tokens associated with a team.
 getScimTokens
@@ -391,7 +391,7 @@ getScimTokens team = do
   where
     sel :: PrepQuery R (Identity TeamId) ScimTokenRow
     sel = "SELECT team, token_, idp, descr \
-          \FROM team_provisioning WHERE team = ?"
+          \FROM team_provisioning_by_team WHERE team = ?"
 
 -- | Delete a token.
 deleteScimToken
@@ -400,11 +400,13 @@ deleteScimToken
 deleteScimToken team token = retry x5 $ batch $ do
     setType BatchLogged
     setConsistency Quorum
-    addPrepQuery del (team, token)
-    addPrepQuery delRev (Identity token)
+    addPrepQuery delByTeam (team, token)
+    addPrepQuery delByToken (Identity token)
   where
-    del :: PrepQuery W (TeamId, ScimToken) ()
-    del = "DELETE FROM team_provisioning WHERE team = ? AND token_ = ?"
+    delByTeam :: PrepQuery W (TeamId, ScimToken) ()
+    delByTeam = "DELETE FROM team_provisioning_by_team \
+                \WHERE team = ? AND token_ = ?"
 
-    delRev :: PrepQuery W (Identity ScimToken) ()
-    delRev = "DELETE FROM team_provisioning_rev WHERE token_ = ?"
+    delByToken :: PrepQuery W (Identity ScimToken) ()
+    delByToken = "DELETE FROM team_provisioning_by_token \
+                 \WHERE token_ = ?"
