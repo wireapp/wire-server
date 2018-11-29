@@ -1,3 +1,22 @@
+# 2018-11-28 #527
+
+## Bug Fixes
+
+  * spar now handles base64 input more leniently (#526)
+
+  * More lenient IdP metadata parsing (#522)
+
+## Internal Changes
+
+  * Refactor Haskell module imports (#524, #521, #520)
+
+  * Switch Galley, Brig to YAML-only config (#517, #510)
+
+  * Better SAML error types (#522)
+
+  * Fix: gundeck bulkpush option. (#511)
+
+
 # 2018-11-16  #515
 
 ## Bug Fixes
