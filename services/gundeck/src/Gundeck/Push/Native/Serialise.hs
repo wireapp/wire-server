@@ -30,7 +30,7 @@ serialise m a = do
 
 prepare :: Message s -> Address s -> IO (Either Failure (Value, Priority, Maybe ApsData))
 prepare m a = case m of
-    Notice nid prio aps ->
+    Notice nid prio _trans aps ->
         let o = object
               [ "type" .= ("notice" :: Text)
               , "data" .= object ["id" .= nid]

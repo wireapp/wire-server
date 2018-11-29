@@ -7,7 +7,6 @@ module Gundeck.Push.Native.Types
     ( Result  (..)
     , Failure (..)
     , Message (..)
-    , msgApsData
     , Address (Address)
     , addrUser
     , addrTransport
@@ -78,11 +77,9 @@ data Failure
     | PushException !SomeException
     deriving (Show)
 
-data Message (s :: Symbol) where
-    Notice     :: NotificationId
-               -> Priority
-               -> Maybe ApsData
-               -> Message s
-
-msgApsData :: Message s -> Maybe ApsData
-msgApsData (Notice _ _ a) = a
+data Message (s :: Symbol) = Notice
+    { msgNotificationId :: NotificationId
+    , msgPriority       :: Priority
+    , msgTransient      :: Bool
+    , msgApsData        :: Maybe ApsData
+    }

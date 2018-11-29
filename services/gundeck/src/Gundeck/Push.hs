@@ -216,7 +216,7 @@ pushNative :: Notification -> Push -> [Address s] -> Gundeck ()
 pushNative _     _   [] = return ()
 pushNative notif p rcps = do
     let prio = p^.pushNativePriority
-    r <- Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
+    r <- Native.push (Native.Notice (ntfId notif) prio (ntfTransient notif) Nothing) rcps
     pushFallback (p^.pushOrigin) notif r prio
 
 -- Process fallback notifications, which can either be immediate (e.g.
@@ -229,7 +229,7 @@ pushFallback orig notif r prio = case Fallback.prepare orig r of
     Just can ->
         if ntfTransient notif
             then Log.warn $ msg (val "Transient notification failed")
-            else void $ Fallback.execute (ntfId notif) prio can
+            else void $ Fallback.execute (ntfId notif) (ntfTransient notif) prio can
 
 nativeTargets :: Push -> [Presence] -> Gundeck [Address "no-keys"]
 nativeTargets p pres =
