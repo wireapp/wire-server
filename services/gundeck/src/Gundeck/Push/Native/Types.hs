@@ -7,7 +7,6 @@ module Gundeck.Push.Native.Types
     ( Result  (..)
     , Failure (..)
     , Message (..)
-    , msgApsData
     , Address (Address)
     , addrUser
     , addrTransport
@@ -78,11 +77,12 @@ data Failure
     | PushException !SomeException
     deriving (Show)
 
-data Message (s :: Symbol) where
-    Notice     :: NotificationId
-               -> Priority
-               -> Maybe ApsData
-               -> Message s
-
-msgApsData :: Message s -> Maybe ApsData
-msgApsData (Notice _ _ a) = a
+-- | A native push notification (which does not carry the 'Notification', the client has to pull
+-- that from the queue).  This is always transient.
+--
+-- REFACTOR: rename to @data NativePushNotif ... = NativePushNotif { ... }@.
+data Message (s :: Symbol) = Notice
+    { msgNotificationId :: NotificationId
+    , msgPriority       :: Priority
+    , msgApsData        :: Maybe ApsData
+    }
