@@ -12,19 +12,14 @@ module Network.Wire.Bot.Email
     , awaitInvitationMail
     ) where
 
+import Imports
 import Codec.MIME.Parse
 import Codec.MIME.Type
-import Control.Concurrent
 import Control.Exception
-import Control.Monad (liftM2)
 import Data.Aeson
 import Data.Id (InvitationId)
-import Data.List (find)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Pool (Pool, createPool, withResource)
-import Data.Text (Text)
-import Data.Traversable (forM)
-import Data.Typeable
 import Network.HaskellNet.IMAP
 import Network.HaskellNet.IMAP.Connection
 import Network.HaskellNet.IMAP.SSL

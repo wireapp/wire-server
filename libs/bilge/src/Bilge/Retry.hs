@@ -2,6 +2,7 @@
 
 module Bilge.Retry where
 
+import Imports
 import Bilge.RPC (RPCException (..))
 import Control.Monad.Catch
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), responseStatus)

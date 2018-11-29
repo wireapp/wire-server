@@ -8,36 +8,32 @@
 
 module Cannon.API (run) where
 
+import Imports hiding (head)
 import Bilge (newManager, defaultManagerSettings, ManagerSettings (..))
 import Cannon.App
 import Cannon.Types
 import Cannon.Options
 import Cannon.WS hiding (env)
-import Control.Applicative hiding (empty, optional)
 import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.Aeson (encode)
-import Data.ByteString (ByteString)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
-import Data.Monoid
 import Data.Swagger.Build.Api hiding (def, Response)
-import Data.Text (Text, strip, pack)
+import Data.Text (strip, pack)
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types
-import Data.Maybe
 import Gundeck.Types
 import Gundeck.Types.BulkPush
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
 import Network.Wai.Utilities hiding (message)
-import Network.Wai.Utilities.Request (parseJsonBody)
+import Network.Wai.Utilities.Request (parseBody')
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Handler.WebSockets
-import Prelude hiding (head)
 import System.Logger.Class hiding (Error)
 import System.Random.MWC (createSystemRandom)
 
@@ -143,7 +139,7 @@ push (user ::: conn ::: req) =
 -- | Parse the entire list of notifcations and targets, then call 'singlePush' on the each of them
 -- in order.
 bulkpush :: Request -> Cannon Response
-bulkpush req = json <$> (parseJsonBody req >>= bulkpush')
+bulkpush req = json <$> (parseBody' req >>= bulkpush')
 
 -- | The typed part of 'bulkpush'.
 bulkpush' :: BulkPushRequest -> Cannon BulkPushResponse

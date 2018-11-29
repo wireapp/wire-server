@@ -11,12 +11,12 @@ module Network.Wire.Client.API.Conversation
     , module M
     ) where
 
+import Imports
 import Bilge
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty hiding (cons, toList)
 import Data.List1
-import Data.Text (Text)
 import Galley.Types as M hiding (Event, EventType)
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)

@@ -3,30 +3,21 @@
 
 module API (tests) where
 
+import Imports
 import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
-import Control.Applicative hiding (empty)
-import Control.Error
 import Control.Lens ((^.))
-import Control.Monad hiding (mapM_)
-import Control.Monad.IO.Class
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import Data.Foldable (mapM_)
 import Data.Id
-import Data.Int
-import Data.List ((\\), find)
 import Data.List1
 import Data.Misc
-import Data.Maybe
-import Data.Monoid
 import Data.Range
 import Galley.Types
 import Gundeck.Types.Notification
 import Network.Wai.Utilities.Error
-import Prelude hiding (head, mapM_)
 import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit

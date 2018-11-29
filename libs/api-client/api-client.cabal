@@ -14,9 +14,10 @@ description:
     An (internal) client library for the Wire HTTP API.
 
 library
-    default-language: Haskell2010
-    hs-source-dirs:   src
-    ghc-options:      -Wall -O2 -fwarn-tabs
+    default-language:   Haskell2010
+    default-extensions: NoImplicitPrelude
+    hs-source-dirs:     src
+    ghc-options:        -Wall -O2 -fwarn-tabs
 
     exposed-modules:
         Network.Wire.Client
@@ -38,20 +39,21 @@ library
       , base64-bytestring     >= 1.0
       , bilge                 >= 0.21
       , brig-types            >= 0.84
+      , bytestring            >= 0.10
       , bytestring-conversion >= 0.2
       , cargohold-types       >= 0.25.6
-      , cookie                >= 0.4
       , connection            >= 0.2
+      , cookie                >= 0.4
       , cryptobox-haskell     >= 0.1.1
       , cryptonite            >= 0.17
       , data-default-class    >= 0.0
-      , bytestring            >= 0.10
       , errors                >= 2.1
       , exceptions            >= 0.8
       , galley-types          >= 0.66
       , gundeck-types         >= 1.24
       , http-client           >= 0.4
       , http-types            >= 0.8
+      , imports
       , memory                >= 0.12
       , mime                  >= 0.4
       , mtl                   >= 2.1
@@ -60,8 +62,8 @@ library
       , semigroups            >= 0.10
       , text                  >= 1.2
       , time                  >= 1.5
-      , transformers          >= 0.3
       , tinylog               >= 0.14
+      , transformers          >= 0.3
       , types-common          >= 0.16
       , unordered-containers  >= 0.2
       , uuid                  >= 1.3

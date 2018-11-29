@@ -6,8 +6,8 @@ module Brig.Types.Activation
     , module C
     ) where
 
+import Imports
 import Brig.Types.Common as C
-import Control.Applicative
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Json.Util ((#))

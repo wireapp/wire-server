@@ -31,28 +31,21 @@ module Cannon.WS
     )
 where
 
+import Imports hiding (threadDelay, trace)
 import Bilge hiding (trace)
 import Bilge.Retry
 import Bilge.RPC
 import Cannon.Dict (Dict)
-import Control.Concurrent (forkIO)
 import Control.Concurrent.Timeout
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Reader
 import Control.Retry
 import Data.Aeson hiding (Error)
-import Data.ByteString (ByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Hashable
 import Data.Id (ClientId, UserId, ConnId (..))
-import Data.IORef
-import Data.Monoid
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
-import Data.Word
 import Gundeck.Types
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status

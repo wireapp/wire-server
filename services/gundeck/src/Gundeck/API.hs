@@ -123,6 +123,8 @@ sitemap = do
 
     post "/i/push" (continue Push.push) $
         request .&. accept "application" "json"
+        -- TODO: this end-point is probably noise, and should be dropped.  @/i/push/v2@ does exactly
+        -- the same thing.
 
     post "/i/push/v2" (continue Push.push) $
         request .&. accept "application" "json"

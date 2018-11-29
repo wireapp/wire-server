@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Imports
 import qualified Test.Brig.Types.Common
 import qualified Test.Brig.Types.TURN
 import qualified Test.Brig.Types.User

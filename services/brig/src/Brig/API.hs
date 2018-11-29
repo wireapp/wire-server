@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeOperators     #-}
 {-# LANGUAGE NamedFieldPuns    #-}
 
-module Brig.API (runServer, parseOptions) where
+module Brig.API (runServer) where
 
 import Brig.App
 import Brig.AWS (sesQueue)
@@ -46,7 +46,7 @@ import Network.HTTP.Types.Status
 import Network.Wai (Request, Response, responseLBS, lazyRequestBody)
 import Network.Wai.Predicate hiding (setStatus, result)
 import Network.Wai.Routing
-import Network.Wai.Utilities hiding (parseJsonBody)
+import Network.Wai.Utilities
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import Prelude hiding (head)

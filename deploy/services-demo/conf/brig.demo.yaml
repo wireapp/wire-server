@@ -98,3 +98,6 @@ optSettings:
   setDefaultLocale: en
   setMaxTeamSize: 128
   setMaxConvSize: 128
+
+logLevel: Debug
+logNetStrings: true

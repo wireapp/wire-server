@@ -20,12 +20,12 @@ module CargoHold.Types.V3.Resumable
     , resumableChunkSize
     ) where
 
+import Imports
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Aeson.Types
 import Data.ByteString.Conversion
 import Data.Json.Util ((#), toUTCTimeMillis)
-import Data.Text (Text)
 import Data.Time.Clock
 import CargoHold.Types.V3
 

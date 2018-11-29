@@ -48,15 +48,10 @@ module Cassandra.Exec
     , retry
     ) where
 
+import Imports
 import Cassandra.CQL
-import Control.Exception (IOException)
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Reader
 import Data.Conduit
-import Data.Int
-import Data.Text (Text)
 import Database.CQL.IO
 
 params :: Tuple a => Consistency -> a -> QueryParams a

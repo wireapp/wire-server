@@ -4,6 +4,7 @@
 
 module Galley.Types.Bot.Service.Internal where
 
+import Imports
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.ByteString.Conversion

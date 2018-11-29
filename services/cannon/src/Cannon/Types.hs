@@ -19,6 +19,7 @@ module Cannon.Types
     , wsenv
     ) where
 
+import Imports
 import Bilge (Manager, RequestId (..), requestIdName)
 import Bilge.RPC (HasRequestId (..))
 import Cannon.Dict (Dict)
@@ -26,11 +27,7 @@ import Cannon.WS (Key, Websocket, Clock)
 import Cannon.Options
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Reader
-import Control.Monad.Reader (runReaderT)
 import Control.Lens
-import Data.ByteString (ByteString)
 import Data.Metrics.Middleware
 import Data.Text.Encoding
 import Network.Wai

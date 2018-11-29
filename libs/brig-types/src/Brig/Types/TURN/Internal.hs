@@ -3,10 +3,9 @@
 
 module Brig.Types.TURN.Internal where
 
+import Imports
 import Data.Aeson
 import Data.Misc (IpAddr (..))
-import Data.Text (Text)
-import GHC.Generics (Generic)
 import qualified Data.ByteString.Conversion as BC
 import qualified Data.Text.Encoding         as TE
 import           Text.Hostname

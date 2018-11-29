@@ -1,13 +1,11 @@
 module Cassandra.Util where
 
+import Imports hiding (init)
 import Cassandra
 import Cassandra.Settings
-import Data.Text (Text, unpack)
+import Data.Text (unpack)
 import Data.Time (UTCTime)
 import Data.Time.Clock.POSIX(posixSecondsToUTCTime)
-import Data.Int (Int64)
-import Data.Word (Word16)
-import Prelude hiding (init)
 import System.Logger (Logger)
 
 type Writetime a = Int64

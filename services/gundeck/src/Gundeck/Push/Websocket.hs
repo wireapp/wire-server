@@ -83,7 +83,7 @@ logCannonsGone (_uri, (_err, prcs)) = do
         view monitor >>= Metrics.counterAdd (fromIntegral $ length prcs)
             (Metrics.path "push.ws.unreachable")
         forM_ prcs $ \prc ->
-            Log.info $ logPresence prc
+            Log.warn $ logPresence prc
                 ~~ Log.field "created_at" (ms $ createdAt prc)
                 ~~ Log.msg (val "WebSocket presence unreachable: " +++ toByteString (resource prc))
 

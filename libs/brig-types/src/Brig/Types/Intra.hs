@@ -6,13 +6,12 @@
 -- TODO: Move to Brig.Types.User.Intra / Internal
 module Brig.Types.Intra where
 
+import Imports
 import Brig.Types.Connection
 import Brig.Types.User
-import Control.Monad (mzero)
 import Data.Aeson
 import Data.Id (UserId)
 import Data.Misc (PlainTextPassword (..))
-import Data.Set (Set)
 
 import qualified Data.HashMap.Strict as M
 import qualified Data.Text           as Text

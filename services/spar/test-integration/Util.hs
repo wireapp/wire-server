@@ -71,34 +71,28 @@ module Util
   , module Util.Types
   ) where
 
+import Imports hiding (head)
 import Bilge hiding (getCookie)  -- we use Web.Cookie instead of the http-client type
 import Bilge.Assert ((!!!), (===), (<!!))
 import Cassandra as Cas
 import Control.Exception
 import Control.Lens hiding ((.=))
-import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Except
-import Control.Monad.Reader
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
 import Data.ByteString.Conversion
-import Data.Either
 import Data.EitherR (fmapL)
 import Data.Id
-import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
 import Data.Proxy
 import Data.Range
-import Data.String
 import Data.String.Conversions
 import Data.Time
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID (nextRandom)
-import GHC.Stack (HasCallStack)
 import GHC.TypeLits
 import Network.HTTP.Client.MultipartFormData
-import Prelude hiding (head)
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.Credentials
 import SAML2.WebSSO.Test.MockResponse
@@ -378,7 +372,7 @@ endpointToReq ep = Bilge.host (ep ^. epHost . to cs) . Bilge.port (ep ^. epPort)
 
 endpointToSettings :: Endpoint -> Warp.Settings
 endpointToSettings endpoint = Warp.defaultSettings
-  { Warp.settingsHost = Data.String.fromString . cs $ endpoint ^. epHost
+  { Warp.settingsHost = Imports.fromString . cs $ endpoint ^. epHost
   , Warp.settingsPort = fromIntegral $ endpoint ^. epPort
   }
 

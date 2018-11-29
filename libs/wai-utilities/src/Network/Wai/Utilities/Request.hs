@@ -40,11 +40,10 @@ parseBody :: (MonadIO m, FromJSON a)
 #endif
 parseBody r = readBody r >>= hoistEither . fmapL Text.pack . eitherDecode'
 
-parseJsonBody :: (FromJSON a, MonadIO m, MonadThrow m) => Request -> m a
-parseJsonBody req = either thrw pure . eitherDecodeStrict =<< body
+parseBody' :: (FromJSON a, MonadIO m, MonadThrow m) => Request -> m a
+parseBody' r = either thrw pure =<< runExceptT (parseBody r)
   where
-    body = liftIO (requestBody req)
-    thrw msg = throwM $ Wai.Error status400 "bad-request" (Text.pack msg)
+    thrw msg = throwM $ Wai.Error status400 "bad-request" msg
 
 lookupRequestId :: Request -> Maybe ByteString
 lookupRequestId = lookup "Request-Id" . requestHeaders
