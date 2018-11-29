@@ -300,11 +300,13 @@ instance SCIM.UserDB Spar where
     buid <- Id <$> liftIO UUID.nextRandom
     -- TODO: Assume that externalID is the subjectID, let's figure out how
     -- to extract that later
-    -- TODO: throw SCIM errors here
     issuer <- case stiIdP of
-        Nothing -> error "No IdP configured for the provisioning token"
+        Nothing -> SCIM.throwSCIM $
+          SCIM.serverError "No IdP configured for the provisioning token"
         Just idp -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
-            Nothing -> error "IdP not found"
+            Nothing -> SCIM.throwSCIM $
+              SCIM.serverError "The IdP corresponding to the provisioning token \
+                               \was not found"
             Just idpConfig -> pure (idpConfig ^. SAML.idpMetadata . SAML.edIssuer)
     let uref = SAML.UserRef issuer (SAML.opaqueNameID extId)
 
@@ -313,20 +315,24 @@ instance SCIM.UserDB Spar where
       _ <- createUser uref buid stiTeam mbName
       setHandle buid handl
 
-    maybe (error "How can there be no user?") (pure . toSCIMUser) =<<
+    maybe (SCIM.throwSCIM (SCIM.serverError "How can there be no user?"))
+          (pure . toSCIMUser) =<<
       lift (getUser buid)
 
   update :: ScimTokenInfo
          -> Text
          -> SCIM.User.User
          -> SCIM.SCIMHandler Spar SCIM.StoredUser
-  update = error "SCIM.User.update is not implemented yet"
+  update _ _ _ =
+      SCIM.throwSCIM $ SCIM.serverError "User update is not implemented yet"
 
   delete :: ScimTokenInfo -> Text -> SCIM.SCIMHandler Spar Bool
-  delete = error "SCIM.User.delete is not implemented yet"
+  delete _ _ =
+      SCIM.throwSCIM $ SCIM.serverError "User delete is not implemented yet"
 
   getMeta :: ScimTokenInfo -> SCIM.SCIMHandler Spar SCIM.Meta
-  getMeta = error "SCIM.User.getMeta is not implemented yet"
+  getMeta _ =
+      SCIM.throwSCIM $ SCIM.serverError "User getMeta is not implemented yet"
 
 ----------------------------------------------------------------------------
 -- GroupDB
