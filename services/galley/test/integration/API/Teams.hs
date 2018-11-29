@@ -430,7 +430,7 @@ testAddManagedConv g b _c _ = do
     tid <- Util.createTeam g "foo" owner []
     let tinfo = ConvTeamInfo tid True
     let conv = NewConvManaged $
-               NewConv [owner] (Just "blah") (Set.fromList []) Nothing (Just tinfo) Nothing
+               NewConv [owner] (Just "blah") (Set.fromList []) Nothing (Just tinfo) Nothing Nothing
     post ( g
          . path "/conversations"
          . zUser owner

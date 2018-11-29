@@ -372,26 +372,27 @@ createConversation :: UserId
                    -> ConvSizeChecked [UserId]
                    -> Maybe ConvTeamInfo
                    -> Maybe Milliseconds                  -- ^ Message timer
+                   -> Maybe ReceiptMode
                    -> Galley Conversation
-createConversation usr name acc role others tinfo mtimer = do
+createConversation usr name acc role others tinfo mtimer recpt = do
     conv <- Id <$> liftIO nextRandom
     now  <- liftIO getCurrentTime
     retry x5 $ case tinfo of
-        Nothing -> write Cql.insertConv (params Quorum (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Nothing, mtimer))
+        Nothing -> write Cql.insertConv (params Quorum (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Nothing, mtimer, recpt))
         Just ti -> batch $ do
             setType BatchLogged
             setConsistency Quorum
-            addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer)
+            addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer, recpt)
             addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
     mems <- snd <$> addMembersUnchecked now conv usr (list1 usr $ fromConvSize others)
-    return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer Nothing
+    return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer recpt
 
 createSelfConversation :: MonadClient m => UserId -> Maybe (Range 1 256 Text) -> m Conversation
 createSelfConversation usr name = do
     let conv = selfConv usr
     now <- liftIO getCurrentTime
     retry x5 $
-        write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing))
+        write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
     mems <- snd <$> addMembersUnchecked now conv usr (singleton usr)
     return $ newConv conv SelfConv usr (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing
 
@@ -406,7 +407,7 @@ createConnectConversation a b name conn = do
         a'   = Id . U.unpack $ a
     now <- liftIO getCurrentTime
     retry x5 $
-        write Cql.insertConv (params Quorum (conv, ConnectConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing))
+        write Cql.insertConv (params Quorum (conv, ConnectConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
     -- We add only one member, second one gets added later,
     -- when the other user accepts the connection request.
     mems <- snd <$> addMembersUnchecked now conv a' (singleton a')
@@ -424,11 +425,11 @@ createOne2OneConversation a b name ti = do
         b'   = Id (U.unpack b)
     now <- liftIO getCurrentTime
     retry x5 $ case ti of
-        Nothing  -> write Cql.insertConv (params Quorum (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing))
+        Nothing  -> write Cql.insertConv (params Quorum (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
         Just tid -> batch $ do
             setType BatchLogged
             setConsistency Quorum
-            addPrepQuery Cql.insertConv (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Just tid, Nothing)
+            addPrepQuery Cql.insertConv (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Just tid, Nothing, Nothing)
             addPrepQuery Cql.insertTeamConv (tid, conv, False)
     mems <- snd <$> addMembersUnchecked now conv a' (list1 a' [b'])
     return $ newConv conv One2OneConv a' (toList mems) [PrivateAccess] privateRole name ti Nothing Nothing

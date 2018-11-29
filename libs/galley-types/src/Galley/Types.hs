@@ -48,7 +48,7 @@ module Galley.Types
     , NewConvUnmanaged          (..)
     , MemberUpdate              (..)
     , MutedStatus               (..)
-    , ReceiptMode                   (..)
+    , ReceiptMode               (..)
     , TypingStatus              (..)
     , UserClientMap             (..)
     , UserClients               (..)
@@ -186,6 +186,7 @@ data NewConv = NewConv
     , newConvAccessRole :: !(Maybe AccessRole)
     , newConvTeam   :: !(Maybe ConvTeamInfo)
     , newConvMessageTimer :: !(Maybe Milliseconds)
+    , newConvReceiptMode  :: !(Maybe ReceiptMode)
     }
 
 deriving instance Eq   NewConv
@@ -734,6 +735,7 @@ newConvParseJSON = withObject "new-conv object" $ \i ->
                 <*> i .:? "access_role"
                 <*> i .:? "team"
                 <*> i .:? "message_timer"
+                <*> i .:? "receipt_mode"
 
 newConvToJSON :: NewConv -> Value
 newConvToJSON i = object
@@ -743,6 +745,7 @@ newConvToJSON i = object
         # "access_role" .= newConvAccessRole i
         # "team"   .= newConvTeam i
         # "message_timer" .= newConvMessageTimer i
+        # "receipt_mode" .= newConvReceiptMode i
         # []
 
 instance ToJSON NewConvUnmanaged where

@@ -623,7 +623,7 @@ postO2OConvOk g b _ _ = do
 postConvO2OFailWithSelf :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postConvO2OFailWithSelf g b _ _ = do
     alice <- randomUser b
-    let inv = NewConvUnmanaged (NewConv [alice] Nothing mempty Nothing Nothing Nothing)
+    let inv = NewConvUnmanaged (NewConv [alice] Nothing mempty Nothing Nothing Nothing Nothing)
     post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
         const 403 === statusCode
         const (Just "invalid-op") === fmap label . decodeBody
@@ -1071,6 +1071,11 @@ putReceiptModeOk g b c _ = do
         getConv g alice cnv !!! do
             const 200 === statusCode
             const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . decodeBody
+
+    cnv' <- decodeConvId <$> postConvWithReceipt g alice [bob, jane] (Just "gossip") [] Nothing Nothing (ReceiptMode 0)
+    getConv g alice cnv' !!! do
+        const 200 === statusCode
+        const (Just (Just (ReceiptMode 0))) === fmap cnvReceiptMode . decodeBody
   where
     checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
         ntfTransient n @?= False
