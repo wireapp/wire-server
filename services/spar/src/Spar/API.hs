@@ -167,7 +167,17 @@ idpDelete :: Maybe UserId -> SAML.IdPId -> Spar NoContent
 idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     idp <- SAML.getIdPConfig idpid
     authorizeIdP zusr idp
-    wrapMonadClient $ Data.deleteIdPConfig idpid (idp ^. SAML.idpMetadata . SAML.edIssuer) (idp ^. SAML.idpExtraInfo)
+    wrapMonadClient $ do
+        let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+            team = idp ^. SAML.idpExtraInfo
+        -- Delete tokens associated with given IdP (we rely on the fact that
+        -- each IdP has exactly one team so we can look up all tokens
+        -- associated with the team and then filter them)
+        tokens <- Data.getScimTokens team
+        for_ tokens $ \ScimTokenInfo{..} ->
+            when (stiIdP == Just idpid) $ Data.deleteScimToken team stiToken
+        -- Delete IdP config
+        Data.deleteIdPConfig idpid issuer team
     return NoContent
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.

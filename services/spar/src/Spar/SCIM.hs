@@ -300,8 +300,6 @@ instance SCIM.UserDB Spar where
     buid <- Id <$> liftIO UUID.nextRandom
     -- TODO: Assume that externalID is the subjectID, let's figure out how
     -- to extract that later
-    -- TODO: when the issuer is deleted, the token still remains, so we can
-    -- fail here
     -- TODO: throw SCIM errors here
     issuer <- case stiIdP of
         Nothing -> error "No IdP configured for the provisioning token"
