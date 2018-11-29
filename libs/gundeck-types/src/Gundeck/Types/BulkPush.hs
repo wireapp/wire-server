@@ -9,10 +9,10 @@
 -- Gundeck.)
 module Gundeck.Types.BulkPush where
 
+import Imports
 import Data.Aeson
 import Data.Aeson.TH (deriveJSON)
 import Data.Id
-import GHC.Generics
 import Gundeck.Types.Notification
 
 
