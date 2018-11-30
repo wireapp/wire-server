@@ -51,7 +51,6 @@ serialiseOkProp r = property $
         in   (view recipientId       <$> r') == Just (view recipientId r)
           && (view recipientRoute    <$> r') == Just (view recipientRoute r)
           && (view recipientClients  <$> r') == Just (view recipientClients r)
-          && (view recipientFallback <$> r') == Just (view recipientFallback r)
 
 -----------------------------------------------------------------------------
 -- Randomness
@@ -63,8 +62,7 @@ genRecipient :: Gen Recipient
 genRecipient = do
     r <- recipient <$> arbitrary <*> elements [ RouteAny, RouteDirect, RouteNative ]
     c <- arbitrary
-    f <- arbitrary
-    return $ r & set recipientFallback f & set recipientClients c
+    return $ r & set recipientClients c
 
 genBulkPushRequest :: Gen BulkPushRequest
 genBulkPushRequest = BulkPushRequest <$>

@@ -248,7 +248,6 @@ mkAddress t = Address
     <*> pure (ConnId "conn")
     <*> pure (ClientId "client")
     <*> pure (Just (SignalingKeys encKey macKey))
-    <*> pure Nothing
 
 mkEndpoint :: Transport -> AppName -> EndpointArn
 mkEndpoint t a = mkSnsArn Ireland (Account "test") topic

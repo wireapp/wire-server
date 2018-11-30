@@ -25,7 +25,6 @@ module Gundeck.Types.Push.V2
     , recipientId
     , recipientRoute
     , recipientClients
-    , recipientFallback
 
     , Priority  (..)
     , Route     (..)
@@ -49,7 +48,6 @@ module Gundeck.Types.Push.V2
     , tokenTransport
     , tokenApp
     , tokenClient
-    , tokenFallback
     , token
 
     , PushTokenList (..)
@@ -102,11 +100,10 @@ data Recipient = Recipient
     { _recipientId        :: !UserId
     , _recipientRoute     :: !Route
     , _recipientClients   :: ![ClientId]
-    , _recipientFallback  :: !Bool
     } deriving (Show)
 
 instance Eq Recipient where
-    (Recipient uid1 _ _ _) == (Recipient uid2 _ _ _) = uid1 == uid2
+    (Recipient uid1 _ _) == (Recipient uid2 _ _) = uid1 == uid2
 
 instance Ord Recipient where
     compare r r' = compare (_recipientId r) (_recipientId r')
@@ -114,21 +111,19 @@ instance Ord Recipient where
 makeLenses ''Recipient
 
 recipient :: UserId -> Route -> Recipient
-recipient u r = Recipient u r [] True
+recipient u r = Recipient u r []
 
 instance FromJSON Recipient where
     parseJSON = withObject "Recipient" $ \p ->
       Recipient <$> p .:  "user_id"
                 <*> p .:  "route"
                 <*> p .:? "clients" .!= []
-                <*> p .:? "fallback" .!= True
 
 instance ToJSON Recipient where
-    toJSON (Recipient u r c f) = object
+    toJSON (Recipient u r c) = object
         $ "user_id"   .= u
         # "route"     .= r
         # "clients"   .= (if null c then Nothing else Just c)
-        # "fallback"  .= (if not f then Just False else Nothing)
         # []
 
 -----------------------------------------------------------------------------
@@ -338,13 +333,12 @@ data PushToken = PushToken
     , _tokenApp       :: !AppName
     , _token          :: !Token
     , _tokenClient    :: !ClientId
-    , _tokenFallback  :: !(Maybe Transport)
     } deriving (Eq, Ord, Show)
 
 makeLenses ''PushToken
 
 pushToken :: Transport -> AppName -> Token -> ClientId -> PushToken
-pushToken tp an tk cl = PushToken tp an tk cl Nothing
+pushToken tp an tk cl = PushToken tp an tk cl
 
 instance ToJSON PushToken where
     toJSON p = object
@@ -352,7 +346,6 @@ instance ToJSON PushToken where
         # "app"       .= _tokenApp p
         # "token"     .= _token p
         # "client"    .= _tokenClient p
-        # "fallback"  .= _tokenFallback p
         # []
 
 instance FromJSON PushToken where
@@ -361,7 +354,6 @@ instance FromJSON PushToken where
                   <*> p .:  "app"
                   <*> p .:  "token"
                   <*> p .:  "client"
-                  <*> p .:? "fallback"
 
 newtype PushTokenList = PushTokenList
     { pushTokens :: [PushToken]

@@ -18,7 +18,6 @@ module Gundeck.Push.Native.Types
     , addrConn
     , addrClient
     , addrKeys
-    , addrFallback
     , addrEqualClient
 
       -- * Re-Exports
@@ -49,7 +48,6 @@ data Address (s :: Symbol) = Address
     , _addrConn      :: !ConnId
     , _addrClient    :: !ClientId
     , _addrKeys      :: !(Maybe SignalingKeys)
-    , _addrFallback  :: !(Maybe Transport)
     }
 
 makeLenses ''Address
@@ -66,7 +64,6 @@ instance Show (Address s) where
            . showString ", endpoint = " . shows (a^.addrEndpoint)
            . showString ", conn = " . shows (a^.addrConn)
            . showString ", client = " . shows (a^.addrClient)
-           . showString ", fallback = " . shows (a^.addrFallback)
            $ "}"
 
 data Result s
