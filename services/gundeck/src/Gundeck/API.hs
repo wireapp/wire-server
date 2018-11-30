@@ -14,8 +14,8 @@ import Data.ByteString (ByteString)
 import Data.Metrics.Middleware
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response)
-import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
+import Data.Text (unpack)
 import Gundeck.API.Error
 import Gundeck.Env
 import Gundeck.Monad
@@ -32,13 +32,11 @@ import Prelude hiding (head)
 import Util.Options
 
 import qualified Control.Concurrent.Async as Async
-import qualified Data.Metrics as Metrics
 import qualified Data.Swagger.Build.Api as Swagger
 import qualified Gundeck.Aws as Aws
 import qualified Gundeck.Client as Client
 import qualified Gundeck.Notification as Notification
 import qualified Gundeck.Push as Push
-import qualified Gundeck.Push.Native.Fallback.Queue as Fallback
 import qualified Gundeck.Presence as Presence
 import qualified Gundeck.Types.Swagger as Model
 import qualified Network.Wai.Middleware.Gzip as GZip
@@ -56,8 +54,6 @@ runServer o = do
     app <- pipeline e
     lst <- Async.async $ Aws.execute (e^.awsEnv) (Aws.listen (runDirect e . onEvent))
     runSettingsWithShutdown s app 5 `finally` do
-        Log.info l $ Log.msg (Log.val "Draining fallback queue ...")
-        Fallback.drainQueue (e^.fbQueue) (fromIntegral (o^.optFallback.fbQueueDelay) + 1)
         Log.info l $ Log.msg (Log.val "Shutting down ...")
         shutdown (e^.cstate)
         Async.cancel lst
@@ -102,7 +98,9 @@ sitemap = do
         response 204 "Push token unregistered" end
         response 404 "Push token does not exist" end
 
-    post "/push/fallback/:notif/cancel" (continue Push.cancelFallback) $
+    -- REFACTOR: this doesn't do anything any more.  deprecate it on swagger, figure out how to get
+    -- rid of it entirely, and when (in the distant future?).
+    post "/push/fallback/:notif/cancel" (continue Push.fakeCancelFallback) $
         header "Z-User"
         .&. capture "notif"
 
@@ -242,9 +240,8 @@ docs (url ::: _) =
     let doc = encode $ mkSwaggerApi (decodeLatin1 url) Model.gundeckModels sitemap in
     return $ responseLBS status200 [jsonContent] doc
 
+-- REFACTOR: what does this function still do, after the fallback queue is gone?
 monitoring :: JSON -> Gundeck Response
 monitoring = const $ do
     m  <- view monitor
-    ql <- Fallback.queueLength =<< view fbQueue
-    Metrics.gaugeSet ql (Metrics.path "push.fallback.queue_length") m
     json <$> render m

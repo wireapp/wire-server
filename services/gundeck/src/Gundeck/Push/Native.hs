@@ -41,8 +41,7 @@ push m addrs = mapConcurrently (push1 m) addrs
 push1 :: Message s -> Address s -> Gundeck (Result s)
 push1 m a = do
     e <- view awsEnv
-    d <- view (options.optFallback.fbQueueDelay)
-    r <- Aws.execute e $ publish m a (ttl d)
+    r <- Aws.execute e $ publish m a ttl
     case r of
         Success _                    -> do
             Log.debug $ field "user" (toByteString (a^.addrUser))
@@ -59,16 +58,11 @@ push1 m a = do
     return r
   where
     -- * Transient notifications must be delivered "now or never".
-    -- * Those with a fallback, should use the "time in the queue - 15 seconds"
-    --   to try and avoid sending both
     -- * Others use the default level of the specific platforms, which is 4 weeks
     --   for both APNS* and GCM
-    ttl d
-        | msgTransient m = Just (Aws.Seconds 0)
-        | hasFallback    = Just (Aws.Seconds (fromIntegral (d - 15)))
-        | otherwise      = Nothing
-
-    hasFallback = isJust (a^.addrFallback)
+    ttl = if msgTransient m
+          then Just (Aws.Seconds 0)
+          else Nothing
 
     onDisabled =
         handleAny (logError a "Failed to cleanup disabled endpoint") $ do

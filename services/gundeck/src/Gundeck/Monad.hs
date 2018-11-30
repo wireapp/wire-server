@@ -15,7 +15,6 @@ module Gundeck.Monad
     , applog
     , manager
     , cstate
-    , fbQueue
     , createEnv
 
       -- * Gundeck monad

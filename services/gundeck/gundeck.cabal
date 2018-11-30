@@ -46,8 +46,6 @@ library
         Gundeck.Push
         Gundeck.Push.Native
         Gundeck.Push.Native.Fallback
-        Gundeck.Push.Native.Fallback.Data
-        Gundeck.Push.Native.Fallback.Queue
         Gundeck.Push.Websocket
         Gundeck.React
         Gundeck.Util
@@ -158,6 +156,7 @@ executable gundeck-schema
         V5
         V6
         V7
+        V8
 
     build-depends:
           base
