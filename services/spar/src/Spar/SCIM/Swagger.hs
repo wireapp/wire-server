@@ -23,6 +23,7 @@ import Imports
 import Control.Lens
 import Data.Id
 import Data.Proxy
+import Data.Time
 import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
@@ -42,19 +43,21 @@ instance ToSchema ScimToken where
 
 instance ToSchema ScimTokenInfo where
   declareNamedSchema _ = do
-    teamSchema  <- declareSchemaRef (Proxy @TeamId)
-    idSchema    <- declareSchemaRef (Proxy @ScimTokenId)
-    idpSchema   <- declareSchemaRef (Proxy @SAML.IdPId)
-    descrSchema <- declareSchemaRef (Proxy @Text)
+    teamSchema      <- declareSchemaRef (Proxy @TeamId)
+    idSchema        <- declareSchemaRef (Proxy @ScimTokenId)
+    createdAtSchema <- declareSchemaRef (Proxy @UTCTime)
+    idpSchema       <- declareSchemaRef (Proxy @SAML.IdPId)
+    descrSchema     <- declareSchemaRef (Proxy @Text)
     return $ NamedSchema (Just "ScimTokenInfo") $ mempty
       & type_ .~ SwaggerObject
       & properties .~
           [ ("team", teamSchema)
           , ("id", idSchema)
+          , ("created_at", createdAtSchema)
           , ("idp", idpSchema)
           , ("description", descrSchema)
           ]
-      & required .~ [ "team", "id", "description" ]
+      & required .~ [ "team", "id", "created_at", "description" ]
 
 instance ToSchema CreateScimToken where
   declareNamedSchema _ = do

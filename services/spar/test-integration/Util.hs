@@ -163,13 +163,15 @@ mkEnv _teTstOpts _teOpts = do
   let _teScimToken = ScimToken $
           "scim-test-token/" <> "team=" <> idToText _teTeamId
   scimTokenId <- randomId
+  now <- liftIO getCurrentTime
   runClient _teCql $ Data.insertScimToken
       _teScimToken
       ScimTokenInfo
-          { stiTeam  = _teTeamId
-          , stiId    = scimTokenId
-          , stiIdP   = Just (_teIdP ^. idpId)
-          , stiDescr = "_teScimToken test token"
+          { stiTeam      = _teTeamId
+          , stiId        = scimTokenId
+          , stiCreatedAt = now
+          , stiIdP       = Just (_teIdP ^. idpId)
+          , stiDescr     = "_teScimToken test token"
           }
 
   pure TestEnv {..}

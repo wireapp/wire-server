@@ -82,11 +82,12 @@ newtype ScimToken = ScimToken { fromScimToken :: Text }
 
 -- | Metadata that we store about each token.
 data ScimTokenInfo = ScimTokenInfo
-  { stiTeam  :: !TeamId         -- ^ Which team can be managed with the token
-  , stiId    :: !ScimTokenId    -- ^ Token ID, can be used to e.g. delete the token
-  , stiIdP   :: !(Maybe IdPId)  -- ^ IdP that created users will "belong" to
-  , stiDescr :: !Text           -- ^ Free-form token description, can be set
-                                --   by the token creator as a mental aid
+  { stiTeam      :: !TeamId        -- ^ Which team can be managed with the token
+  , stiId        :: !ScimTokenId   -- ^ Token ID, can be used to eg. delete the token
+  , stiCreatedAt :: !UTCTime       -- ^ Time of token creation
+  , stiIdP       :: !(Maybe IdPId) -- ^ IdP that created users will "belong" to
+  , stiDescr     :: !Text          -- ^ Free-form token description, can be set
+                                   --   by the token creator as a mental aid
   }
   deriving (Eq, Show)
 
@@ -100,16 +101,18 @@ instance ToHttpApiData ScimToken where
 
 instance FromJSON ScimTokenInfo where
   parseJSON = withObject "ScimTokenInfo" $ \o -> do
-    stiTeam  <- o .: "team"
-    stiId    <- o .: "id"
-    stiIdP   <- o .: "idp"
-    stiDescr <- o .: "description"
+    stiTeam      <- o .: "team"
+    stiId        <- o .: "id"
+    stiCreatedAt <- o .: "created_at"
+    stiIdP       <- o .: "idp"
+    stiDescr     <- o .: "description"
     pure ScimTokenInfo{..}
 
 instance ToJSON ScimTokenInfo where
   toJSON s = object
       $ "team"        .= stiTeam s
       # "id"          .= stiId s
+      # "created_at"  .= stiCreatedAt s
       # "idp"         .= stiIdP s
       # "description" .= stiDescr s
       # []

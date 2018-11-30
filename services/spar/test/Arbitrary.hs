@@ -31,7 +31,12 @@ instance Arbitrary IdPList where
 deriving instance Arbitrary ScimToken
 
 instance Arbitrary ScimTokenInfo where
-  arbitrary = ScimTokenInfo <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  arbitrary = ScimTokenInfo
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
 
 instance Arbitrary CreateScimToken where
   arbitrary = CreateScimToken <$> arbitrary

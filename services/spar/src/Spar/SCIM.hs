@@ -456,12 +456,14 @@ createScimToken zusr CreateScimToken{..} = do
             -- it makes sense semantically
             token <- ScimToken . cs . ES.encode <$> liftIO (randBytes 32)
             tokenid <- randomId
+            now <- liftIO getCurrentTime
             let idpid = idp ^. SAML.idpId
                 info = ScimTokenInfo
-                    { stiId    = tokenid
-                    , stiTeam  = teamid
-                    , stiIdP   = Just idpid
-                    , stiDescr = descr
+                    { stiId        = tokenid
+                    , stiTeam      = teamid
+                    , stiCreatedAt = now
+                    , stiIdP       = Just idpid
+                    , stiDescr     = descr
                     }
             wrapMonadClient $ Data.insertScimToken token info
             pure $ CreateScimTokenResponse token info
