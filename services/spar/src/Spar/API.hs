@@ -175,7 +175,7 @@ idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
         -- associated with the team and then filter them)
         tokens <- Data.getScimTokens team
         for_ tokens $ \ScimTokenInfo{..} ->
-            when (stiIdP == Just idpid) $ Data.deleteScimToken team stiToken
+            when (stiIdP == Just idpid) $ Data.deleteScimToken team stiId
         -- Delete IdP config
         Data.deleteIdPConfig idpid issuer team
     return NoContent

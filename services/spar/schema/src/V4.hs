@@ -23,8 +23,9 @@ migration = Migration 4 "Store SCIM authentication tokens" $ do
     --    IdP used to authenticate the user.
     void $ schema' [r|
         CREATE TABLE if not exists team_provisioning_by_token
-            ( team          uuid
-            , token_        text
+            ( token_        text
+            , team          uuid
+            , id            uuid
             , idp           uuid         -- optional
             , descr         text
             , PRIMARY KEY (token_)
@@ -35,10 +36,11 @@ migration = Migration 4 "Store SCIM authentication tokens" $ do
     -- displaying tokens on the team settings page).
     void $ schema' [r|
         CREATE TABLE if not exists team_provisioning_by_team
-            ( team          uuid
-            , token_        text
+            ( token_        text
+            , team          uuid
+            , id            uuid
             , idp           uuid         -- optional
             , descr         text
-            , PRIMARY KEY (team, token_)
+            , PRIMARY KEY (team, id)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
     |]

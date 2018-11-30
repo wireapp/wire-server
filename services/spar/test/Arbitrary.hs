@@ -30,11 +30,17 @@ instance Arbitrary IdPList where
 
 deriving instance Arbitrary ScimToken
 
-instance Arbitrary NoContent where
-  arbitrary = pure NoContent
+instance Arbitrary ScimTokenInfo where
+  arbitrary = ScimTokenInfo <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary CreateScimToken where
   arbitrary = CreateScimToken <$> arbitrary
+
+instance Arbitrary CreateScimTokenResponse where
+  arbitrary = CreateScimTokenResponse <$> arbitrary <*> arbitrary
+
+instance Arbitrary NoContent where
+  arbitrary = pure NoContent
 
 -- This is not required by the servant-server instances, but the swagger
 -- tests want it. See https://github.com/haskell-servant/servant-swagger/issues/58

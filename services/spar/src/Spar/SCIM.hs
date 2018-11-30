@@ -29,8 +29,9 @@ module Spar.SCIM
   -- * The API
     APIScim
   , apiScim
-  -- ** Request types
+  -- ** Request and response types
   , CreateScimToken(..)
+  , CreateScimTokenResponse(..)
 
   -- * The mapping between Wire and SCIM users
   -- $mapping
@@ -364,10 +365,10 @@ type APIScimToken
 
 type APIScimTokenCreate
      = ReqBody '[JSON] CreateScimToken
-    :> Post '[JSON] ScimToken
+    :> Post '[JSON] CreateScimTokenResponse
 
 type APIScimTokenDelete
-     = QueryParam' '[Required, Strict] "token" ScimToken
+     = QueryParam' '[Required, Strict] "id" ScimTokenId
     :> DeleteNoContent '[JSON] NoContent
 
 apiScimToken :: ServerT APIScimToken Spar
@@ -376,17 +377,17 @@ apiScimToken
   :<|> deleteScimToken
 
 data CreateScimToken = CreateScimToken
-  { createScimTokenDescription :: Text
+  { createScimTokenDescr :: Text
   } deriving (Eq, Show)
 
 instance FromJSON CreateScimToken where
   parseJSON = withObject "CreateScimToken" $ \o -> do
-    createScimTokenDescription <- o .: "description"
+    createScimTokenDescr <- o .: "description"
     pure CreateScimToken{..}
 
 instance ToJSON CreateScimToken where
   toJSON CreateScimToken{..} = object
-    [ "description" .= createScimTokenDescription
+    [ "description" .= createScimTokenDescr
     ]
 
 instance Swagger.ToSchema CreateScimToken where
@@ -399,9 +400,38 @@ instance Swagger.ToSchema CreateScimToken where
           ]
       & Swagger.required .~ [ "description" ]
 
-createScimToken :: Maybe UserId -> CreateScimToken -> Spar ScimToken
+data CreateScimTokenResponse = CreateScimTokenResponse
+  { createScimTokenResponseToken :: ScimToken
+  , createScimTokenResponseInfo  :: ScimTokenInfo
+  } deriving (Eq, Show)
+
+instance FromJSON CreateScimTokenResponse where
+  parseJSON = withObject "CreateScimTokenResponse" $ \o -> do
+    createScimTokenResponseToken <- o .: "token"
+    createScimTokenResponseInfo  <- o .: "info"
+    pure CreateScimTokenResponse{..}
+
+instance ToJSON CreateScimTokenResponse where
+  toJSON CreateScimTokenResponse{..} = object
+    [ "token" .= createScimTokenResponseToken
+    , "info"  .= createScimTokenResponseInfo
+    ]
+
+instance Swagger.ToSchema CreateScimTokenResponse where
+  declareNamedSchema _ = do
+    tokenSchema <- Swagger.declareSchemaRef (Proxy @ScimToken)
+    infoSchema  <- Swagger.declareSchemaRef (Proxy @ScimTokenInfo)
+    return $ Swagger.NamedSchema (Just "CreateScimTokenResponse") $ mempty
+      & Swagger.type_ .~ Swagger.SwaggerObject
+      & Swagger.properties .~
+          [ ("token", tokenSchema)
+          , ("info", infoSchema)
+          ]
+      & Swagger.required .~ [ "token", "info" ]
+
+createScimToken :: Maybe UserId -> CreateScimToken -> Spar CreateScimTokenResponse
 createScimToken zusr CreateScimToken{..} = do
-    let descr = createScimTokenDescription
+    let descr = createScimTokenDescr
     -- Don't enable this endpoint until SCIM is ready.
     _ <- error "Creating SCIM tokens is not supported yet."
     teamid <- getZUsrOwnedTeam zusr
@@ -415,15 +445,16 @@ createScimToken zusr CreateScimToken{..} = do
             -- TODO: sign tokens. Also, we might want to use zauth, if we can / if
             -- it makes sense semantically
             token <- ScimToken . cs . ES.encode <$> liftIO (randBytes 32)
+            tokenid <- randomId
             let idpid = idp ^. SAML.idpId
-            wrapMonadClient $ Data.insertScimToken
-                ScimTokenInfo
-                    { stiTeam  = teamid
-                    , stiToken = token
+                info = ScimTokenInfo
+                    { stiId    = tokenid
+                    , stiTeam  = teamid
                     , stiIdP   = Just idpid
                     , stiDescr = descr
                     }
-            pure token
+            wrapMonadClient $ Data.insertScimToken token info
+            pure $ CreateScimTokenResponse token info
         [] -> throwSpar $ SparProvisioningNoSingleIdP
                 "SCIM tokens can only be created for a team with an IdP, \
                 \but none are found"
@@ -431,8 +462,8 @@ createScimToken zusr CreateScimToken{..} = do
                 "SCIM tokens can only be created for a team with exactly one IdP, \
                 \but more are found"
 
-deleteScimToken :: Maybe UserId -> ScimToken -> Spar NoContent
-deleteScimToken zusr token = do
+deleteScimToken :: Maybe UserId -> ScimTokenId -> Spar NoContent
+deleteScimToken zusr tokenid = do
     teamid <- getZUsrOwnedTeam zusr
-    wrapMonadClient $ Data.deleteScimToken teamid token
+    wrapMonadClient $ Data.deleteScimToken teamid tokenid
     pure NoContent

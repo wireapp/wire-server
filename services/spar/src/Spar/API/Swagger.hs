@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedLists            #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PackageImports             #-}
 {-# LANGUAGE QuasiQuotes                #-}
@@ -85,19 +86,15 @@ Centrify allows you to upload the metadata xml document that you get from the `/
 samlSchemaOptions :: SchemaOptions
 samlSchemaOptions = Swagger.fromAesonOptions SAML.deriveJSONOptions
 
-instance ToParamSchema TeamId where
-  toParamSchema _ = toParamSchema (Proxy @UUID)
-
-instance ToParamSchema UserId where
+instance ToParamSchema (Id a) where
   toParamSchema _ = toParamSchema (Proxy @UUID)
 
 instance ToParamSchema SAML.IdPId where
   toParamSchema _ = toParamSchema (Proxy @UUID)
 
-instance ToSchema TeamId where
+instance ToSchema (Id a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
-instance ToSchema UserId where
-  declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
+
 instance ToSchema SAML.IdPId where
   declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
 
@@ -159,3 +156,19 @@ instance ToParamSchema ScimToken where
 instance ToSchema ScimToken where
   declareNamedSchema _ = declareNamedSchema (Proxy @Text)
     & mapped . schema . description ?~ "Authentication token"
+
+instance ToSchema ScimTokenInfo where
+  declareNamedSchema _ = do
+    teamSchema  <- declareSchemaRef (Proxy @TeamId)
+    idSchema    <- declareSchemaRef (Proxy @ScimTokenId)
+    idpSchema   <- declareSchemaRef (Proxy @SAML.IdPId)
+    descrSchema <- declareSchemaRef (Proxy @Text)
+    return $ NamedSchema (Just "ScimTokenInfo") $ mempty
+      & type_ .~ SwaggerObject
+      & properties .~
+          [ ("team", teamSchema)
+          , ("id", idSchema)
+          , ("idp", idpSchema)
+          , ("description", descrSchema)
+          ]
+      & required .~ [ "team", "id", "description" ]

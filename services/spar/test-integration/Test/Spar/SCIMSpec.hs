@@ -20,8 +20,8 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Text (pack, unpack)
 import System.Random
-import Spar.Types (ScimToken)
-import Spar.SCIM (CreateScimToken(..))
+import Spar.Types (ScimToken, ScimTokenInfo(..))
+import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..))
 import Util
 import Web.HttpApiData (toHeader)
 
@@ -122,8 +122,9 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
         it "creates a usable token" $ do
             env <- ask
             -- Create a token
-            token <- createToken CreateScimToken
-                { createScimTokenDescription = "token creation test" }
+            CreateScimTokenResponse token tokenInfo <-
+                createToken CreateScimToken
+                    { createScimTokenDescr = "token creation test" }
             -- Try to execute a SCIM operation without a token and check
             -- that it fails
             listUsers_ Nothing Nothing (env ^. teSpar)
@@ -133,33 +134,35 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
             listUsers_ (Just token) Nothing (env ^. teSpar)
                 !!! const 200 === statusCode
             -- Cleanup
-            deleteToken token
+            deleteToken (stiId tokenInfo)
         it "respects the token limit (2 for integration tests)" $ do
             env <- ask
             -- Try to create two more tokens (in addition to the already
             -- existing token that's created in 'mkEnv'). Creating the
             -- second token should succeed, and creating the third token
             -- should fail.
-            token1 <- createToken CreateScimToken
-                { createScimTokenDescription = "token limit test / #1" }
+            CreateScimTokenResponse _ tokenInfo1 <-
+                createToken CreateScimToken
+                    { createScimTokenDescr = "token limit test / #1" }
             createToken_ (env ^. teUserId) CreateScimToken
-                { createScimTokenDescription = "token limit test / #2" }
+                { createScimTokenDescr = "token limit test / #2" }
                 (env ^. teSpar)
                 !!! const 403 === statusCode
             -- Cleanup
-            deleteToken token1
+            deleteToken (stiId tokenInfo1)
 
-    describe "DELETE /auth-tokens/:token" $ do
+    describe "DELETE /auth-tokens/:id" $ do
         it "makes the token unusable" $ do
             env <- ask
             -- Create a token
-            token <- createToken CreateScimToken
-                { createScimTokenDescription = "token deletion test" }
+            CreateScimTokenResponse token tokenInfo <-
+                createToken CreateScimToken
+                    { createScimTokenDescr = "token deletion test" }
             -- An operation with the token should succeed
             listUsers_ (Just token) Nothing (env ^. teSpar)
                 !!! const 200 === statusCode
             -- Delete the token and now the operation should fail
-            deleteToken token
+            deleteToken (stiId tokenInfo)
             listUsers_ (Just token) Nothing (env ^. teSpar)
                 !!! const 401 === statusCode
 
@@ -216,7 +219,7 @@ getUser userid = do
 createToken
     :: HasCallStack
     => CreateScimToken
-    -> TestSpar ScimToken
+    -> TestSpar CreateScimTokenResponse
 createToken payload = do
     env <- ask
     r <- createToken_
@@ -229,13 +232,13 @@ createToken payload = do
 -- | Delete a SCIM token belonging to the default 'TestEnv' team.
 deleteToken
     :: HasCallStack
-    => ScimToken                -- ^ Token to delete
+    => ScimTokenId                -- ^ Token to delete
     -> TestSpar ()
-deleteToken token = do
+deleteToken tokenid = do
     env <- ask
     deleteToken_
         (env ^. teUserId)
-        token
+        tokenid
         (env ^. teSpar)
         !!! const 204 === statusCode
 
@@ -308,14 +311,14 @@ createToken_ userid payload spar_ = do
 -- | Delete a SCIM token.
 deleteToken_
     :: UserId                   -- ^ User
-    -> ScimToken                -- ^ Token to delete
+    -> ScimTokenId              -- ^ Token to delete
     -> SparReq                  -- ^ Spar endpoint
     -> TestSpar ResponseLBS
-deleteToken_ userid token spar_ = do
+deleteToken_ userid tokenid spar_ = do
     call . delete $
         ( spar_
         . paths ["scim", "auth-tokens"]
-        . queryItem "token" (toByteString' token)
+        . queryItem "id" (toByteString' tokenid)
         . zUser userid
         )
 

@@ -17,10 +17,10 @@ import Imports
 import Data.Id
 import Servant (FromHttpApiData(..), ToHttpApiData(..), MimeRender(..), PlainText)
 
-instance FromHttpApiData UserId where
+instance FromHttpApiData (Id a) where
   parseUrlPiece = fmap Id . parseUrlPiece
 
-instance ToHttpApiData UserId where
+instance ToHttpApiData (Id a) where
   toUrlPiece = toUrlPiece . show
 
 instance MimeRender PlainText Void where

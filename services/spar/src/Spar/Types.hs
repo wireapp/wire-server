@@ -20,8 +20,9 @@ import Control.Lens (makeLenses)
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
-import Data.Id (TeamId, UserId)
+import Data.Id (TeamId, UserId, ScimTokenId)
 import Data.ByteString.Conversion
+import Data.Json.Util
 import Data.Text.Encoding (encodeUtf8)
 import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions
@@ -79,13 +80,13 @@ deriveJSON deriveJSONOptions ''IdPList
 newtype ScimToken = ScimToken { fromScimToken :: Text }
   deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
 
--- | Data that we store about each token.
+-- | Metadata that we store about each token.
 data ScimTokenInfo = ScimTokenInfo
-  { stiToken :: !ScimToken      -- ^ Token itself
-  , stiTeam  :: !TeamId         -- ^ Which team can be managed with the token
+  { stiTeam  :: !TeamId         -- ^ Which team can be managed with the token
+  , stiId    :: !ScimTokenId    -- ^ Token ID, can be used to e.g. delete the token
   , stiIdP   :: !(Maybe IdPId)  -- ^ IdP that created users will "belong" to
   , stiDescr :: !Text           -- ^ Free-form token description, can be set
-                                --   by the token creator
+                                --   by the token creator as a mental aid
   }
   deriving (Eq, Show)
 
@@ -96,6 +97,22 @@ instance FromHttpApiData ScimToken where
 instance ToHttpApiData ScimToken where
   toHeader (ScimToken s) = "Bearer " <> encodeUtf8 s
   toQueryParam (ScimToken s) = toQueryParam s
+
+instance FromJSON ScimTokenInfo where
+  parseJSON = withObject "ScimTokenInfo" $ \o -> do
+    stiTeam  <- o .: "team"
+    stiId    <- o .: "id"
+    stiIdP   <- o .: "idp"
+    stiDescr <- o .: "description"
+    pure ScimTokenInfo{..}
+
+instance ToJSON ScimTokenInfo where
+  toJSON s = object
+      $ "team"        .= stiTeam s
+      # "id"          .= stiId s
+      # "idp"         .= stiIdP s
+      # "description" .= stiDescr s
+      # []
 
 ----------------------------------------------------------------------------
 -- Requests and verdicts
