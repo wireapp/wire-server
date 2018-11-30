@@ -18,3 +18,9 @@ newtype PropertyKey = PropertyKey
 newtype PropertyValue = PropertyValue
     { propertyValueJson :: Value }
     deriving (Eq, Show, FromJSON, ToJSON, Generic, Hashable)
+
+newtype PropertyKeysAndValues = PropertyKeysAndValues [(PropertyKey, PropertyValue)]
+    deriving (Eq, Show, Generic, Hashable)
+
+instance ToJSON PropertyKeysAndValues where
+    toJSON (PropertyKeysAndValues kvs) = object [ toText k .= v | (PropertyKey k, v) <- kvs ]

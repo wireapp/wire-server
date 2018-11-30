@@ -24,6 +24,7 @@ tests _cl _at _conf p b _c _g = testGroup "property"
     [ test p "put/get /properties/:key - 200" $ testSetGetProperty b
     , test p "delete /properties/:key - 200"  $ testDeleteProperty b
     , test p "get /properties - 200"          $ testListPropertyKeys b
+    , test p "get /properties-values - 200"   $ testListPropertyKeysAndValues b
     , test p "delete /properties - 200"       $ testClearProperties b
     , test p "put /properties/:key - 403"     $ testPropertyLimits b
     ]
@@ -71,16 +72,23 @@ testDeleteProperty brig = do
         const 404 === statusCode
 
 testListPropertyKeys :: Brig -> Http ()
-testListPropertyKeys brig = do
+testListPropertyKeys = testListProperties' "/properties"
+    (toJSON ["bar" :: Text, "foo"])
+
+testListPropertyKeysAndValues :: Brig -> Http ()
+testListPropertyKeysAndValues = testListProperties' "/properties-values"
+    (object ["bar" .= String "hello", "foo" .= True])
+
+testListProperties' :: ByteString -> Value -> Brig -> Http ()
+testListProperties' endpoint rval brig = do
     u <- randomUser brig
     setProperty brig (userId u) "foo" (Bool True) !!!
         const 200 === statusCode
     setProperty brig (userId u) "bar" (String "hello") !!!
         const 200 === statusCode
-    let keys = toJSON ["bar" :: Text, "foo"]
-    get (brig . path "/properties" . zUser (userId u)) !!! do
+    get (brig . path endpoint . zUser (userId u)) !!! do
         const 200         === statusCode
-        const (Just keys) === decodeBody
+        const (Just rval) === decodeBody
 
 testClearProperties :: Brig -> Http ()
 testClearProperties brig = do

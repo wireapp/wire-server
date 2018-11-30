@@ -5,6 +5,7 @@ module Brig.API.Properties
     , clearProperties
     , Data.lookupProperty
     , Data.lookupPropertyKeys
+    , Data.lookupPropertyKeysAndValues
     ) where
 
 import Imports
