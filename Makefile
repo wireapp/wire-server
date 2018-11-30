@@ -29,9 +29,22 @@ clean:
 services: init install
 	$(MAKE) -C services/nginz
 
+.PHONY: haddock
+haddock:
+	WIRE_STACK_OPTIONS="--haddock --haddock-internal" make fast
+
+.PHONY: haddock-shallow
+haddock-shallow:
+	WIRE_STACK_OPTIONS="--haddock --haddock-internal --no-haddock-deps" make fast
+
+#################################
+## integration tests
+
+# Build services with --fast and run tests
 .PHONY: integration
 integration: fast i
 
+# Run tests without building services
 .PHONY: i
 i:
 	$(MAKE) -C services/cargohold i
@@ -40,9 +53,11 @@ i:
 	$(MAKE) -C services/gundeck i
 	$(MAKE) -C services/spar i
 
+# Build services and run tests using AWS
 .PHONY: integration-aws
 integration-aws: fast i-aws
 
+# Run tests using AWS
 .PHONY: i-aws
 i-aws:
 	$(MAKE) -C services/cargohold i-aws
@@ -51,13 +66,25 @@ i-aws:
 	$(MAKE) -C services/gundeck i-aws
 	$(MAKE) -C services/spar i-aws
 
-.PHONY: haddock
-haddock:
-	WIRE_STACK_OPTIONS="--haddock --haddock-internal" make fast
+# Build services and run tests of one service
+.PHONY: integration-%
+integration-%: fast
+	$(MAKE) i-"$*"
 
-.PHONY: haddock-shallow
-haddock-shallow:
-	WIRE_STACK_OPTIONS="--haddock --haddock-internal --no-haddock-deps" make fast
+# Run tests of one service
+.PHONY: i-%
+i-%:
+	$(MAKE) -C "services/$*" i
+
+# Build services and run tests of one service using AWS
+.PHONY: integration-aws-%
+integration-%: fast
+	$(MAKE) i-aws-"$*"
+
+# Run tests of one service using AWS
+.PHONY: i-aws-%
+i-aws-%:
+	$(MAKE) -C "services/$*" i-aws
 
 #################################
 ## docker targets
