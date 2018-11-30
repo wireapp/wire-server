@@ -66,16 +66,6 @@ i-aws:
 	$(MAKE) -C services/gundeck i-aws
 	$(MAKE) -C services/spar i-aws
 
-# Build services and run tests of one service
-.PHONY: integration-%
-integration-%: fast
-	$(MAKE) "i-$*"
-
-# Run tests of one service
-.PHONY: i-%
-i-%:
-	$(MAKE) -C "services/$*" i
-
 # Build services and run tests of one service using AWS
 .PHONY: integration-aws-%
 integration-%: fast
@@ -85,6 +75,16 @@ integration-%: fast
 .PHONY: i-aws-%
 i-aws-%:
 	$(MAKE) -C "services/$*" i-aws
+
+# Build services and run tests of one service
+.PHONY: integration-%
+integration-%: fast
+	$(MAKE) "i-$*"
+
+# Run tests of one service
+.PHONY: i-%
+i-%:
+	$(MAKE) -C "services/$*" i
 
 #################################
 ## docker targets
