@@ -573,6 +573,28 @@ sitemap = do
 
     ---
 
+    put "/conversations/:cnv/receipt-mode" (continue updateConversationReceiptMode) $
+        zauthUserId
+        .&. zauthConnId
+        .&. capture "cnv"
+        .&. request
+        .&. contentType "application" "json"
+        .&. accept "application" "json"
+
+    document "PUT" "updateConversationReceiptMode" $ do
+        summary "Update receipts mode for a conversation"
+        parameter Path "cnv" bytes' $
+            description "Conversation ID"
+        returns (ref Model.event)
+        response 200 "Conversation receipt mode updated." end
+        response 204 "Conversation receipt mode unchanged." end
+        body (ref Model.conversationReceiptModeUpdate) $
+            description "JSON body"
+        errorResponse Error.convNotFound
+        errorResponse Error.accessDenied
+
+    ---
+
     put "/conversations/:cnv/message-timer" (continue updateConversationMessageTimer) $
         zauthUserId
         .&. zauthConnId

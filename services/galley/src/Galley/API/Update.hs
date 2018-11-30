@@ -20,6 +20,7 @@ module Galley.API.Update
     , rmCode
     , getCode
     , updateConversationAccess
+    , updateConversationReceiptMode
     , updateConversationMessageTimer
 
       -- * Managing Members
@@ -214,6 +215,23 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
     usersL = _1
     botsL :: Lens' ([Member], [BotMember]) [BotMember]
     botsL = _2
+
+updateConversationReceiptMode :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON ::: JSON -> Galley Response
+updateConversationReceiptMode (usr ::: zcon ::: cnv ::: req ::: _ ::: _) = do
+    ConversationReceiptModeUpdate target <- fromBody req invalidPayload
+    (bots, users) <- botsAndUsers <$> Data.members cnv
+    current <- Data.lookupReceiptMode cnv
+    if current == Just target
+        then return $ empty & setStatus status204
+        else update users bots target
+  where
+    update users bots mode = do
+        -- Update Cassandra & send an event
+        Data.updateConversationReceiptMode cnv mode
+        now <- liftIO getCurrentTime
+        let receiptEvent = Event ConvReceiptModeUpdate cnv usr now (Just $ EdConvReceiptModeUpdate mode)
+        pushEvent receiptEvent users bots zcon
+        return $ json receiptEvent & setStatus status200
 
 updateConversationMessageTimer :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req ::: _ ) = do

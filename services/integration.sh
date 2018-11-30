@@ -85,8 +85,9 @@ function run() {
 
 check_prerequisites
 
-run brig "" ${green}
-run galley "" ${yellow}
+# One still needs to pass a LOG LEVEL since it's set in _run_ which always requires 4 arguments
+run brig "" ${green} Info
+run galley "" ${yellow} Info
 run gundeck "" ${blue} Info
 run cannon "" ${orange} Info
 run cannon "2" ${orange} Info

@@ -140,7 +140,7 @@ createTeamConvAccessRaw :: Galley -> UserId -> TeamId -> [UserId] -> Maybe Text 
 createTeamConvAccessRaw g u tid us name acc role mtimer = do
     let tinfo = ConvTeamInfo tid False
     let conv = NewConvUnmanaged $
-               NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer
+               NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing
     post ( g
           . path "/conversations"
           . zUser u
@@ -153,7 +153,7 @@ createManagedConv :: HasCallStack => Galley -> UserId -> TeamId -> [UserId] -> M
 createManagedConv g u tid us name acc mtimer = do
     let tinfo = ConvTeamInfo tid True
     let conv = NewConvManaged $
-               NewConv us name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer
+               NewConv us name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer Nothing
     r <- post ( g
               . path "i/conversations/managed"
               . zUser u
@@ -167,12 +167,17 @@ createManagedConv g u tid us name acc mtimer = do
 createOne2OneTeamConv :: Galley -> UserId -> UserId -> Maybe Text -> TeamId -> Http ResponseLBS
 createOne2OneTeamConv g u1 u2 n tid = do
     let conv = NewConvUnmanaged $
-               NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing
+               NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> Http ResponseLBS
 postConv g u us name a r mtimer = do
-    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer
+    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer Nothing
+    post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
+
+postConvWithReceipt :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> ReceiptMode -> Http ResponseLBS
+postConvWithReceipt g u us name a r mtimer rcpt = do
+    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer (Just rcpt)
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: Galley -> UserId -> Http ResponseLBS
@@ -180,7 +185,7 @@ postSelfConv g u = post $ g . path "/conversations/self" . zUser u . zConn "conn
 
 postO2OConv :: Galley -> UserId -> UserId -> Maybe Text -> Http ResponseLBS
 postO2OConv g u1 u2 n = do
-    let conv = NewConvUnmanaged $ NewConv [u2] n mempty Nothing Nothing Nothing
+    let conv = NewConvUnmanaged $ NewConv [u2] n mempty Nothing Nothing Nothing Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: Galley -> UserId -> UserId -> Text -> Text -> Maybe Text -> Http ResponseLBS
