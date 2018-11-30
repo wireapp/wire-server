@@ -135,6 +135,7 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
                 !!! const 200 === statusCode
             -- Cleanup
             deleteToken (stiId tokenInfo)
+
         it "respects the token limit (2 for integration tests)" $ do
             env <- ask
             -- Try to create two more tokens (in addition to the already
@@ -150,6 +151,18 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
                 !!! const 403 === statusCode
             -- Cleanup
             deleteToken (stiId tokenInfo1)
+
+        it "doesn't create a token for a team without IdP" $ do
+            env <- ask
+            -- Create a new team and don't associate an IdP with it
+            (userid, _teamid) <- runHttpT (env ^. teMgr) $
+                createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            -- Creating a token should fail now
+            createToken_
+                userid
+                CreateScimToken { createScimTokenDescr = "IdP-less team test" }
+                (env ^. teSpar)
+                !!! const 400 === statusCode
 
     describe "DELETE /auth-tokens/:id" $ do
         it "makes the token unusable" $ do
