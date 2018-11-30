@@ -37,7 +37,7 @@ i:
 	$(MAKE) -C services/cargohold i
 	$(MAKE) -C services/galley i
 	$(MAKE) -C services/brig i
-	$(MAKE) -C services/gundeck i-fake-aws
+	$(MAKE) -C services/gundeck i
 	$(MAKE) -C services/spar i
 
 .PHONY: integration-aws
