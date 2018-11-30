@@ -32,8 +32,7 @@ deriveFromJSON toOptionFieldName ''AWSOpts
 makeLenses ''AWSOpts
 
 data FallbackOpts = FallbackOpts
-    { _fbSkipFallbacks :: !Bool
-    , _fbPreferNotice  :: !Bool
+    { _fbPreferNotice  :: !Bool
     , _fbQueueDelay    :: !Word64
     , _fbQueueLimit    :: !Int
     , _fbQueueBurst    :: !Word16
@@ -140,16 +139,8 @@ optsParser = Opts <$>
             <> help "aws SNS endpoint")
 
     fallbackParser :: Parser FallbackOpts
-    fallbackParser = FallbackOpts <$>
-        -- NOTE: If set, notifications are still queued to be sent, etc. but never actually
-        -- end up getting sent out. This allows us to still keep track of how successful
-        -- we are with cancelling the fallback notifications and thus get a feeling of
-        --  where we stand today.
-        (switch $
-            long "skip-fallbacks"
-            <> help "Use this option if you wish to never send delayed fallback notifications.")
-
-        <*> (switch $
+    fallbackParser = FallbackOpts
+        <$> (switch $
                 long "prefer-notice"
                 <> help "Use this option if you always wish to send notifications of type notice.")
 

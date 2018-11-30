@@ -9,94 +9,47 @@ module Gundeck.Push.Native.Fallback
     ) where
 
 import Imports
-import Control.Lens ((^.), (?~), (.~), view)
+import Control.Lens ((?~), (.~), view)
 import Data.ByteString.Conversion
 import Data.Id
-import Gundeck.Aws.Arn (toText)
 import Gundeck.Monad
-import Gundeck.Options
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
 import Gundeck.Push.Native.Types
 import System.Logger.Class (val, (~~), (.=))
 
-import qualified Data.Metrics                       as Metrics
 import qualified Gundeck.Push.Native.Fallback.Data  as Data
-import qualified Gundeck.Push.Data                  as Push
 import qualified Gundeck.Push.Native                as Native
 import qualified Gundeck.Push.Native.Fallback.Queue as Q
 import qualified System.Logger.Class                as Log
 
 -- | Candidates for fallback notifications.
 data Candidates s = Candidates
-    { _canRetry    :: [Address s]
-    , _canFallback :: [(UserId, ClientId, AppName, Transport)]
+    { _canRetry :: [Address s]
     }
 
 -- | Screen native push results for fallback candidates.
 -- | Ensure we never send a fallback to the origin user.
+--
+-- REFACTOR: this can be syntactically sweetened some more, and _orig can be removed entirely.
 prepare :: UserId -> [Result s] -> Maybe (Candidates s)
-prepare orig rs = case foldl' go ([], []) rs of
-    ([], []) -> Nothing
-    (ns, qs) -> Just (Candidates ns qs)
+prepare _orig rs = case foldl' go [] rs of
+    [] -> Nothing
+    ns -> Just (Candidates ns)
   where
-    go cs@(now, queue) r = case r of
-        Failure PayloadTooLarge a -> (a : now, queue)
-        Failure MissingKeys     a -> (a : now, queue)
-        Success a
-            | Just t <- a^.addrFallback
-            , a^.addrUser /= orig
-            -> (now, (a^.addrUser, a^.addrClient, a^.addrApp, t) : queue)
-        _ -> cs
+    go cs@now r = case r of
+        Failure PayloadTooLarge a -> (a : now)
+        Failure MissingKeys     a -> (a : now)
+        _                         -> cs
 
 -- | Send a fallback notification to the given candidates.
 execute :: NotificationId -- ^ The ID of the fallback notification.
         -> Priority       -- ^ The priority of the fallback notification.
         -> Candidates s   -- ^ The candidates for receiving the fallback notification.
         -> Gundeck [Result s]
-execute nid prio (Candidates now queue) = do
+execute nid prio (Candidates now) = do
     let m = Native.Notice nid prio (Just apsFallback)
-    r <- Native.push m now
-    unless (null queue) $ do
-        e <- ask
-        n <- foldM (schedule e m) (0 :: Word) queue
-        Metrics.counterAdd n (Metrics.path "push.fallback.schedule") (e^.monitor)
-    return r
-  where
-    schedule e msg !n (usr, clt, app, trp) = do
-        Log.debug $ logMsg usr clt app trp "Scheduling fallback notification"
-        ok <- Q.schedule (e^.fbQueue) usr nid $
-            runDirect e (send usr clt app trp msg (e^.options.optFallback.fbSkipFallbacks))
-        if ok then return (n + 1) else do
-            Log.err $ logMsg usr clt app trp "Failed to schedule fallback notification"
-            return n
-
-    send usr clt app trp msg skip = do
-        cancelled <- Data.isCancelled usr nid
-        unless cancelled $ do
-            -- TODO: We could avoid looking up the addresses here again, if we
-            --       retain the fallback addresses in `Gundeck.Push.nativeTargets`.
-            addr <- find (fallbackAddress clt app trp)
-                <$> Push.lookup usr Push.One
-            for_ addr $ \a -> do
-                Log.debug $ logMsg usr clt app trp "Sending fallback notification"
-                    ~~ "arn" .= toText (a^.addrEndpoint)
-                unless skip $
-                    void $ Native.push msg [a]
-                Metrics.counterIncr (Metrics.path "push.fallback.send")
-                    =<< view monitor
-
-    fallbackAddress clt app trp a =
-        a^.addrClient    == clt &&
-        a^.addrApp       == app &&
-        a^.addrTransport == trp
-
-    logMsg usr clt app trp msg =
-           "user"      .= toByteString usr
-        ~~ "client"    .= toByteString clt
-        ~~ "app"       .= appNameText app
-        ~~ "transport" .= show trp
-        ~~ Log.msg (val msg)
+    Native.push m now
 
 -- | Cancel pending fallback notifications.
 cancel :: UserId -> NotificationId -> Gundeck ()
