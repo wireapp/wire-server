@@ -69,7 +69,6 @@ import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data    as Data
 import qualified Data.ByteString.Base64 as ES
-import qualified "swagger2" Data.Swagger as Swagger
 
 import qualified Web.SCIM.Class.User              as SCIM
 import qualified Web.SCIM.Class.Group             as SCIM
@@ -390,16 +389,6 @@ instance ToJSON CreateScimToken where
     [ "description" .= createScimTokenDescr
     ]
 
-instance Swagger.ToSchema CreateScimToken where
-  declareNamedSchema _ = do
-    textSchema <- Swagger.declareSchemaRef (Proxy @Text)
-    return $ Swagger.NamedSchema (Just "CreateScimToken") $ mempty
-      & Swagger.type_ .~ Swagger.SwaggerObject
-      & Swagger.properties .~
-          [ ("description", textSchema)
-          ]
-      & Swagger.required .~ [ "description" ]
-
 data CreateScimTokenResponse = CreateScimTokenResponse
   { createScimTokenResponseToken :: ScimToken
   , createScimTokenResponseInfo  :: ScimTokenInfo
@@ -416,18 +405,6 @@ instance ToJSON CreateScimTokenResponse where
     [ "token" .= createScimTokenResponseToken
     , "info"  .= createScimTokenResponseInfo
     ]
-
-instance Swagger.ToSchema CreateScimTokenResponse where
-  declareNamedSchema _ = do
-    tokenSchema <- Swagger.declareSchemaRef (Proxy @ScimToken)
-    infoSchema  <- Swagger.declareSchemaRef (Proxy @ScimTokenInfo)
-    return $ Swagger.NamedSchema (Just "CreateScimTokenResponse") $ mempty
-      & Swagger.type_ .~ Swagger.SwaggerObject
-      & Swagger.properties .~
-          [ ("token", tokenSchema)
-          , ("info", infoSchema)
-          ]
-      & Swagger.required .~ [ "token", "info" ]
 
 createScimToken :: Maybe UserId -> CreateScimToken -> Spar CreateScimTokenResponse
 createScimToken zusr CreateScimToken{..} = do

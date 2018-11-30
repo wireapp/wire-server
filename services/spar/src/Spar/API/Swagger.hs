@@ -149,26 +149,3 @@ instance ToParamSchema BindCookie where
 
 instance ToSchema Void where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
-
-instance ToParamSchema ScimToken where
-  toParamSchema _ = toParamSchema (Proxy @Text)
-
-instance ToSchema ScimToken where
-  declareNamedSchema _ = declareNamedSchema (Proxy @Text)
-    & mapped . schema . description ?~ "Authentication token"
-
-instance ToSchema ScimTokenInfo where
-  declareNamedSchema _ = do
-    teamSchema  <- declareSchemaRef (Proxy @TeamId)
-    idSchema    <- declareSchemaRef (Proxy @ScimTokenId)
-    idpSchema   <- declareSchemaRef (Proxy @SAML.IdPId)
-    descrSchema <- declareSchemaRef (Proxy @Text)
-    return $ NamedSchema (Just "ScimTokenInfo") $ mempty
-      & type_ .~ SwaggerObject
-      & properties .~
-          [ ("team", teamSchema)
-          , ("id", idSchema)
-          , ("idp", idpSchema)
-          , ("description", descrSchema)
-          ]
-      & required .~ [ "team", "id", "description" ]

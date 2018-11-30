@@ -50,6 +50,7 @@ import Spar.App
 import Spar.Error
 import Spar.Types
 import Spar.SCIM
+import Spar.SCIM.Swagger ()
 
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64 as ES
