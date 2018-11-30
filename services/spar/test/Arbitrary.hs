@@ -39,6 +39,9 @@ instance Arbitrary CreateScimToken where
 instance Arbitrary CreateScimTokenResponse where
   arbitrary = CreateScimTokenResponse <$> arbitrary <*> arbitrary
 
+instance Arbitrary ScimTokenList where
+  arbitrary = ScimTokenList <$> arbitrary
+
 instance Arbitrary NoContent where
   arbitrary = pure NoContent
 

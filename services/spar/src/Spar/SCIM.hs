@@ -32,6 +32,7 @@ module Spar.SCIM
   -- ** Request and response types
   , CreateScimToken(..)
   , CreateScimTokenResponse(..)
+  , ScimTokenList(..)
 
   -- * The mapping between Wire and SCIM users
   -- $mapping
@@ -361,6 +362,7 @@ instance SCIM.AuthDB Spar where
 type APIScimToken
      = Header "Z-User" UserId :> APIScimTokenCreate
   :<|> Header "Z-User" UserId :> APIScimTokenDelete
+  :<|> Header "Z-User" UserId :> APIScimTokenList
 
 type APIScimTokenCreate
      = ReqBody '[JSON] CreateScimToken
@@ -370,11 +372,19 @@ type APIScimTokenDelete
      = QueryParam' '[Required, Strict] "id" ScimTokenId
     :> DeleteNoContent '[JSON] NoContent
 
+type APIScimTokenList
+     = Get '[JSON] ScimTokenList
+
 apiScimToken :: ServerT APIScimToken Spar
 apiScimToken
      = createScimToken
   :<|> deleteScimToken
+  :<|> listScimTokens
 
+----------------------------------------------------------------------------
+-- Request and response types
+
+-- | Type used for request parameters to 'APIScimTokenCreate'.
 data CreateScimToken = CreateScimToken
   { createScimTokenDescr :: Text
   } deriving (Eq, Show)
@@ -389,6 +399,7 @@ instance ToJSON CreateScimToken where
     [ "description" .= createScimTokenDescr
     ]
 
+-- | Type used for the response of 'APIScimTokenCreate'.
 data CreateScimTokenResponse = CreateScimTokenResponse
   { createScimTokenResponseToken :: ScimToken
   , createScimTokenResponseInfo  :: ScimTokenInfo
@@ -405,6 +416,28 @@ instance ToJSON CreateScimTokenResponse where
     [ "token" .= createScimTokenResponseToken
     , "info"  .= createScimTokenResponseInfo
     ]
+
+-- | Type used for responses of endpoints that return a list of SCIM tokens.
+-- Wrapped into an object to allow extensibility later on.
+--
+-- We don't show tokens once they have been created – only their metadata.
+data ScimTokenList = ScimTokenList
+  { scimTokenListTokens :: [ScimTokenInfo]
+  }
+  deriving (Eq, Show)
+
+instance FromJSON ScimTokenList where
+  parseJSON = withObject "ScimTokenList" $ \o -> do
+    scimTokenListTokens <- o .: "tokens"
+    pure ScimTokenList{..}
+
+instance ToJSON ScimTokenList where
+  toJSON ScimTokenList{..} = object
+    [ "tokens" .= scimTokenListTokens
+    ]
+
+----------------------------------------------------------------------------
+-- Handlers
 
 createScimToken :: Maybe UserId -> CreateScimToken -> Spar CreateScimTokenResponse
 createScimToken zusr CreateScimToken{..} = do
@@ -444,3 +477,8 @@ deleteScimToken zusr tokenid = do
     teamid <- getZUsrOwnedTeam zusr
     wrapMonadClient $ Data.deleteScimToken teamid tokenid
     pure NoContent
+
+listScimTokens :: Maybe UserId -> Spar ScimTokenList
+listScimTokens zusr = do
+    teamid <- getZUsrOwnedTeam zusr
+    ScimTokenList <$> wrapMonadClient (Data.getScimTokens teamid)

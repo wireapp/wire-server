@@ -77,3 +77,13 @@ instance ToSchema CreateScimTokenResponse where
           , ("info", infoSchema)
           ]
       & required .~ [ "token", "info" ]
+
+instance ToSchema ScimTokenList where
+  declareNamedSchema _ = do
+    infoListSchema <- declareSchemaRef (Proxy @[ScimTokenInfo])
+    return $ NamedSchema (Just "ScimTokenList") $ mempty
+      & type_ .~ SwaggerObject
+      & properties .~
+          [ ("tokens", infoListSchema)
+          ]
+      & required .~ [ "tokens" ]
