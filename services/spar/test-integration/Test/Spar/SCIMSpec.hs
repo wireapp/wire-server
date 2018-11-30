@@ -21,7 +21,7 @@ import Data.Id
 import Data.Text (pack, unpack)
 import System.Random
 import Spar.Types (ScimToken, ScimTokenInfo(..))
-import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..))
+import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
 import Util
 import Web.HttpApiData (toHeader)
 
@@ -166,6 +166,22 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
             listUsers_ (Just token) Nothing (env ^. teSpar)
                 !!! const 401 === statusCode
 
+    describe "GET /auth-tokens" $ do
+        it "lists tokens" $ do
+            -- Create a token
+            CreateScimTokenResponse _ tokenInfo <-
+                createToken CreateScimToken
+                    { createScimTokenDescr = "token listing test" }
+            -- Both the default team token and this token should be present
+            do list <- scimTokenListTokens <$> listTokens
+               liftIO $ map stiDescr list `shouldBe`
+                   ["_teScimToken test token", "token listing test"]
+            -- Delete the token and now it shouldn't be on the list
+            deleteToken (stiId tokenInfo)
+            do list <- scimTokenListTokens <$> listTokens
+               liftIO $ map stiDescr list `shouldBe`
+                   ["_teScimToken test token"]
+
 ----------------------------------------------------------------------------
 -- API wrappers
 
@@ -241,6 +257,18 @@ deleteToken tokenid = do
         tokenid
         (env ^. teSpar)
         !!! const 204 === statusCode
+
+-- | List SCIM tokens belonging to the default 'TestEnv' team.
+listTokens
+    :: HasCallStack
+    => TestSpar ScimTokenList
+listTokens = do
+    env <- ask
+    r <- listTokens_
+             (env ^. teUserId)
+             (env ^. teSpar)
+         <!! const 200 === statusCode
+    pure (decodeBody' r)
 
 ----------------------------------------------------------------------------
 -- "Raw" API requests
@@ -319,6 +347,18 @@ deleteToken_ userid tokenid spar_ = do
         ( spar_
         . paths ["scim", "auth-tokens"]
         . queryItem "id" (toByteString' tokenid)
+        . zUser userid
+        )
+
+-- | List SCIM tokens.
+listTokens_
+    :: UserId                   -- ^ User
+    -> SparReq                  -- ^ Spar endpoint
+    -> TestSpar ResponseLBS
+listTokens_ userid spar_ = do
+    call . get $
+        ( spar_
+        . paths ["scim", "auth-tokens"]
         . zUser userid
         )
 
