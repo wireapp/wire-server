@@ -69,7 +69,7 @@ i-aws:
 # Build services and run tests of one service
 .PHONY: integration-%
 integration-%: fast
-	$(MAKE) i-"$*"
+	$(MAKE) "i-$*"
 
 # Run tests of one service
 .PHONY: i-%
@@ -79,7 +79,7 @@ i-%:
 # Build services and run tests of one service using AWS
 .PHONY: integration-aws-%
 integration-%: fast
-	$(MAKE) i-aws-"$*"
+	$(MAKE) "i-aws-$*"
 
 # Run tests of one service using AWS
 .PHONY: i-aws-%
@@ -122,7 +122,7 @@ docker-exe-%:
 
 .PHONY: docker-service-%
 docker-service-%:
-	$(MAKE) -C services/"$*" docker
+	$(MAKE) -C "services/$*" docker
 
 DOCKER_DEV_NETWORK := --net=host
 DOCKER_DEV_VOLUMES := -v `pwd`:/src/wire-server
