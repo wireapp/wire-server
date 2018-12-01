@@ -68,7 +68,7 @@ i-aws:
 
 # Build services and run tests of one service using AWS
 .PHONY: integration-aws-%
-integration-%: fast
+integration-aws-%: fast
 	$(MAKE) "i-aws-$*"
 
 # Run tests of one service using AWS
