@@ -19,6 +19,9 @@ services=( brig cargohold galley gundeck cannon proxy spar )
 for service in "${services[@]}"; do
     yq r "${DIR}/integration-aws.yaml" "${service}" > "/tmp/${service}-aws.yaml"
     yq m -a "/tmp/${service}-aws.yaml" "${DIR}/${service}/${service}.integration.yaml" > "${DIR}/${service}/${service}.integration-aws.yaml"
+    if [ -e "${DIR}/${service}/${service}2.integration.yaml" ]; then
+        yq m -a "/tmp/${service}-aws.yaml" "${DIR}/${service}/${service}2.integration.yaml" > "${DIR}/${service}/${service}2.integration-aws.yaml"
+    fi
 done
 
 # Example of what the integration-aws.yaml could look like
