@@ -15,7 +15,6 @@ import qualified V4
 import qualified V5
 import qualified V6
 import qualified V7
-import qualified V8
 
 main :: IO ()
 main = do
@@ -29,7 +28,6 @@ main = do
         , V5.migration
         , V6.migration
         , V7.migration
-        , V8.migration
         ] `finally` close l
   where
     desc = "Gundeck Cassandra Schema Migrations"

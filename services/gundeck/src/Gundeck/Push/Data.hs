@@ -32,7 +32,7 @@ insert :: MonadClient m => UserId -> Transport -> AppName -> Token -> EndpointAr
 insert u t a p e o c = retry x5 $ write q (params Quorum (u, t, a, p, e, o, c))
   where
     q :: PrepQuery W (UserId, Transport, AppName, Token, EndpointArn, ConnId, ClientId) ()
-    q = "insert into user_push (usr, transport, app, ptoken, arn, connection, client) values (?, ?, ?, ?, ?, ?, ?, ?)"
+    q = "insert into user_push (usr, transport, app, ptoken, arn, connection, client) values (?, ?, ?, ?, ?, ?, ?)"
 
 delete :: MonadClient m => UserId -> Transport -> AppName -> Token -> m ()
 delete u t a p = retry x5 $ write q (params Quorum (u, t, a, p))

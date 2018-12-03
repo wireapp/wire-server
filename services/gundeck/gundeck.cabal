@@ -156,7 +156,6 @@ executable gundeck-schema
         V5
         V6
         V7
-        V8
 
     build-depends:
           base
