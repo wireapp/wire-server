@@ -246,7 +246,7 @@ instance SCIM.UserDB Spar where
       lift (getUser (member ^. Galley.userId)) >>= \case
         Just user -> pure (toSCIMUser user)
         Nothing -> SCIM.throwSCIM $
-          SCIM.serverError "Database is inconsistent"
+          SCIM.serverError "SCIM.UserDB.list: couldn't fetch team member"
     let check user = case mbFilter of
           Nothing -> pure True
           Just filter_ ->
@@ -316,7 +316,7 @@ instance SCIM.UserDB Spar where
       _ <- createUser uref buid stiTeam mbName
       setHandle buid handl
 
-    maybe (SCIM.throwSCIM (SCIM.serverError "How can there be no user?"))
+    maybe (SCIM.throwSCIM (SCIM.serverError "SCIM.UserDB.create: user disappeared"))
           (pure . toSCIMUser) =<<
       lift (getUser buid)
 
