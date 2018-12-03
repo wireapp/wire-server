@@ -229,7 +229,7 @@ updateConversationReceiptMode (usr ::: zcon ::: cnv ::: req ::: _ ::: _) = do
         -- Update Cassandra & send an event
         Data.updateConversationReceiptMode cnv mode
         now <- liftIO getCurrentTime
-        let receiptEvent = Event ConvReceiptModeUpdate cnv usr now (Just $ EdConvReceiptModeUpdate mode)
+        let receiptEvent = Event ConvReceiptModeUpdate cnv usr now (Just $ EdConvReceiptModeUpdate (ConversationReceiptModeUpdate mode))
         pushEvent receiptEvent users bots zcon
         return $ json receiptEvent & setStatus status200
 
