@@ -1084,8 +1084,9 @@ putReceiptModeOk g b c _ = do
         evtType e @?= ConvReceiptModeUpdate
         evtFrom e @?= alice
         case evtData e of
-            Just (EdConvReceiptModeUpdate (ReceiptMode mode)) -> assertEqual "modes should match" mode 0
-            _                                                 -> assertFailure "Unexpected event data"
+            Just (EdConvReceiptModeUpdate (ConversationReceiptModeUpdate (ReceiptMode mode)))
+                -> assertEqual "modes should match" mode 0
+            _   -> assertFailure "Unexpected event data"
 
 postTypingIndicators :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postTypingIndicators g b _ _ = do

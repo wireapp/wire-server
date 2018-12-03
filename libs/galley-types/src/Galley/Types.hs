@@ -377,7 +377,7 @@ data EventType
 data EventData
     = EdMembers             !Members
     | EdConnect             !Connect
-    | EdConvReceiptModeUpdate  !ReceiptMode
+    | EdConvReceiptModeUpdate  !ConversationReceiptModeUpdate
     | EdConvRename          !ConversationRename
     | EdConvAccessUpdate    !ConversationAccessUpdate
     | EdConvMessageTimerUpdate !ConversationMessageTimerUpdate
