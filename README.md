@@ -116,7 +116,7 @@ will, eventually, have built a range of docker images. See the `Makefile`s and `
 
 ### How to run integration tests
 
-Integration tests require all of the haskell services (brig,galley,cannon,gundeck,proxy,cargohold,spar) to be correctly configured and running, before being able to execute e.g. the `brig-integration` binary. This requires most of the deployment dependencies as seen in the architecture diagram to also be available:
+Integration tests require all of the haskell services (brig, galley, cannon, gundeck, proxy, cargohold, spar) to be correctly configured and running, before being able to execute e.g. the `brig-integration` binary. This requires most of the deployment dependencies as seen in the architecture diagram to also be available:
 
 - Required internal dependencies:
     - cassandra (with the correct schema)
