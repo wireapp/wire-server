@@ -72,6 +72,7 @@ brigModels =
 
       -- Properties
     , propertyValue
+    , propertyDictionary
 
       -- Onboarding
     , addressBook
@@ -768,6 +769,10 @@ prekey = defineModel "Prekey" $ do
 propertyValue :: Model
 propertyValue = defineModel "PropertyValue" $
     description "A property value is any valid JSON value."
+
+propertyDictionary :: Model
+propertyDictionary = defineModel "PropertyDictionary" $
+    description "A JSON object with properties as attribute/value pairs."
 
 -----------------------------------------------------------------------------
 -- Onboarding

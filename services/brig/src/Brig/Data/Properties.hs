@@ -7,6 +7,7 @@ module Brig.Data.Properties
     , clearProperties
     , lookupProperty
     , lookupPropertyKeys
+    , lookupPropertyKeysAndValues
     ) where
 
 import Imports
@@ -44,6 +45,10 @@ lookupPropertyKeys :: UserId -> AppIO [PropertyKey]
 lookupPropertyKeys u = map runIdentity <$>
     retry x1 (query propertyKeysSelect (params Quorum (Identity u)))
 
+lookupPropertyKeysAndValues :: UserId -> AppIO PropertyKeysAndValues
+lookupPropertyKeysAndValues u = PropertyKeysAndValues <$>
+    retry x1 (query propertyKeysValuesSelect (params Quorum (Identity u)))
+
 -------------------------------------------------------------------------------
 -- Queries
 
@@ -61,6 +66,9 @@ propertySelect = "SELECT value FROM properties where user = ? and key = ?"
 
 propertyKeysSelect :: PrepQuery R (Identity UserId) (Identity PropertyKey)
 propertyKeysSelect = "SELECT key FROM properties where user = ?"
+
+propertyKeysValuesSelect :: PrepQuery R (Identity UserId) (PropertyKey, PropertyValue)
+propertyKeysValuesSelect = "SELECT key, value FROM properties where user = ?"
 
 propertyCount :: PrepQuery R (Identity UserId) (Identity Int64)
 propertyCount = "SELECT COUNT(*) FROM properties where user = ?"
