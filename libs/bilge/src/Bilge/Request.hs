@@ -6,6 +6,8 @@ module Bilge.Request
       -- * Builders
     , empty
     , accept
+    , acceptJson
+    , acceptProtobuf
     , body
     , bytes
     , lbytes
@@ -172,6 +174,12 @@ json a = contentJson . lbytes (encode a)
 
 accept :: ByteString -> Request -> Request
 accept = header hAccept
+
+acceptJson :: Request -> Request
+acceptJson = accept "application/json"
+
+acceptProtobuf :: Request -> Request
+acceptProtobuf = accept "application/x-protobuf"
 
 content :: ByteString -> Request -> Request
 content = header hContentType

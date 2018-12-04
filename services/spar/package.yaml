@@ -68,6 +68,7 @@ dependencies:
   - yaml
   - hscim
   - email-validate
+  - http-api-data
 
 default-extensions:
   - NoImplicitPrelude

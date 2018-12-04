@@ -124,7 +124,6 @@ import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
 import qualified Web.Cookie as Web
-import qualified Web.SCIM.Class.Auth as SCIM
 
 
 -- | Create an environment for integration tests from integration and spar config files.
@@ -161,10 +160,19 @@ mkEnv _teTstOpts _teOpts = do
       sparCtxHttpGalley  = _teGalley empty
       sparCtxRequestId   = RequestId "<fake request id>"
 
-  -- TODO: for now, our SCIM implementation accepts any set of credentials
-  _teScimAdmin <- SCIM.SCIMAuthData
-      <$> liftIO UUID.nextRandom
-      <*> pure "password"
+  let _teScimToken = ScimToken $
+          "scim-test-token/" <> "team=" <> idToText _teTeamId
+  scimTokenId <- randomId
+  now <- liftIO getCurrentTime
+  runClient _teCql $ Data.insertScimToken
+      _teScimToken
+      ScimTokenInfo
+          { stiTeam      = _teTeamId
+          , stiId        = scimTokenId
+          , stiCreatedAt = now
+          , stiIdP       = Just (_teIdP ^. idpId)
+          , stiDescr     = "_teScimToken test token"
+          }
 
   pure TestEnv {..}
 
