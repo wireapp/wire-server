@@ -11,7 +11,7 @@ command -v yq >/dev/null || \
       exit 22 \
     )
 
-command -v awscli >/dev/null || \
+command -v aws >/dev/null || \
     ( echo "*** please install awscli ( https://github.com/aws/aws-cli ) in your path."; \
       echo "    e.g.: pip install awscli"; \
       exit 22 \
