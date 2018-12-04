@@ -31,30 +31,30 @@ if [ "$WIRE_TRACE" == "1" ]; then
     trace="1"
 fi
 
-which curl >/dev/null || ( echo "*** please install https://curl.haxx.se/ in your path."; exit 81 )
-curl_exe=`which curl`
+command -v curl >/dev/null || ( echo "*** please install https://curl.haxx.se/ in your path."; exit 81 )
+curl_exe=$(command -v curl)
 
-which jq >/dev/null || ( echo "*** please install https://stedolan.github.io/jq/ in your path."; exit 82 )
-jq_exe=`which jq`
+command -v jq >/dev/null || ( echo "*** please install https://stedolan.github.io/jq/ in your path."; exit 82 )
+jq_exe=$(command -v jq)
 
 # login
 if [ -n "$WIRE_LOGIN" ]; then
     login="$WIRE_LOGIN"
 else
     echo -n "login email: "
-    read login
+    read -r login
 fi
 
 if [ -n "$WIRE_PASSWORD" ]; then
     password="$WIRE_PASSWORD"
 else
     echo -n "password: "
-    stty -echo; read password; stty echo; echo
+    stty -echo; read -r password; stty echo; echo
 fi
 
 payload="{\"email\":\"$login\",\"password\":\"$password\"}"
-test -n "$trace" && echo "$curl_exe -is --show-error -XPOST https://$backend/login -H'Content-type: application/json' -d$payload"
-access_token=$($curl_exe -s --show-error -XPOST https://$backend/login -H'Content-type: application/json' -d$payload | $jq_exe -r .access_token)
+test -n "$trace" && echo "$curl_exe -is --show-error -XPOST https://$backend/login -H'Content-type: application/json' -d\"$payload\""
+access_token=$($curl_exe -s --show-error -XPOST https://$backend/login -H'Content-type: application/json' -d"$payload" | $jq_exe -r .access_token)
 
 # register idp
 test -n "$trace" && echo "$curl_exe -is --show-error -XPOST https://$backend/identity-providers -H\"Authorization: Bearer $access_token\" -H'Content-type: application/xml' -d@\"$metadata_file\""

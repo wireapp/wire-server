@@ -16,10 +16,9 @@ module Network.Wire.Bot.Settings
     , setAssertTimeout
     ) where
 
-import Data.ByteString (ByteString)
+import Imports
 import Data.ByteString.Char8 (pack)
 import Data.Time.Clock (NominalDiffTime)
-import Data.Word (Word16)
 import Options.Applicative
 import Network.Wire.Client.API.User (Email (..), parseEmail)
 

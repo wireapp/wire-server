@@ -105,7 +105,7 @@ createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Mayb
 createTeamConv g tid u us mtimer = do
     let tinfo = Just $ ConvTeamInfo tid False
     let conv = NewConvUnmanaged $
-               NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer
+               NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer Nothing
     r <- post ( g
               . path "/conversations"
               . zUser u
@@ -121,7 +121,7 @@ createManagedConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> M
 createManagedConv g tid u us mtimer = do
     let tinfo = Just $ ConvTeamInfo tid True
     let conv = NewConvManaged $
-               NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer
+               NewConv us Nothing (Set.fromList []) Nothing tinfo mtimer Nothing
     r <- post ( g
               . path "/i/conversations/managed"
               . zUser u

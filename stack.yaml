@@ -116,19 +116,10 @@ packages:
   - core
   extra-dep: true
 
-# Needs to have QuickCheck bumped: see
-# https://github.com/hedgehogqa/haskell-hedgehog/issues/213
-- location:
-    git: https://github.com/hedgehogqa/haskell-hedgehog
-    commit: 7516d04673563455a55cf69eb1c490fbbb7f2a5f
-  subdirs:
-  - hedgehog-quickcheck
-  extra-dep: true
-
 # services/spar:
 - location:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: 743a31e177a89c7be5cfb451ebace27f58854358  # master (Nov 20, 2018)
+    commit: d69ef1338c7b13516eafd2f6f53cfe12c3aec36c  # master (Dec 4, 2018)
   extra-dep: true
 - location:
     git: https://github.com/wireapp/hsaml2
@@ -136,7 +127,8 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/wireapp/hspec-wai
-    commit: ca10d13deab929f1cc3a569abea2e7fbe35fdbe3  # https://github.com/hspec/hspec-wai/pull/49
+    # https://github.com/hspec/hspec-wai/pull/49
+    commit: ca10d13deab929f1cc3a569abea2e7fbe35fdbe3
   extra-dep: true
 - location:
     git: https://github.com/wireapp/hscim
@@ -175,7 +167,7 @@ extra-deps:
 - servant-multipart-0.11.2
 - wai-middleware-prometheus-1.0.0
 - prometheus-client-1.0.0
-#- hedgehog-quickcheck-0.1
+- hedgehog-quickcheck-0.1
 
 flags:
   types-common:

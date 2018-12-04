@@ -6,9 +6,8 @@ module Network.Wire.Bot.Report.Text
     , writeReport
     ) where
 
-import Control.Monad.IO.Class
-import Data.List (sort)
-import Data.Text.Lazy.Builder as Text
+import Imports
+import Data.Text.Lazy.Builder as Text hiding (fromString)
 import Data.Text.Lazy.Builder.Int
 import Network.Wire.Bot.Report hiding (section)
 import System.Console.ANSI

@@ -82,7 +82,7 @@ integration: fast i
 integration-list: fast i-list
 
 integration-%: fast
-	make i-"$*"
+	make "i-$*"
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \

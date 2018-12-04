@@ -39,6 +39,7 @@ module Galley.Types
     , ConversationMeta          (..)
     , ConversationRename        (..)
     , ConversationAccessUpdate  (..)
+    , ConversationReceiptModeUpdate (..)
     , ConversationMessageTimerUpdate (..)
     , ConvType                  (..)
     , Invite                    (..)
@@ -47,26 +48,21 @@ module Galley.Types
     , NewConvUnmanaged          (..)
     , MemberUpdate              (..)
     , MutedStatus               (..)
+    , ReceiptMode               (..)
     , TypingStatus              (..)
     , UserClientMap             (..)
     , UserClients               (..)
     , filterClients
     ) where
 
-import Control.Monad
-import Control.Lens ((&), (.~))
+import Imports
+import Control.Lens ((.~))
 import Data.Aeson
 import Data.Aeson.Types (Parser)
 import Data.ByteString.Conversion
-import Data.Foldable (foldrM)
-import Data.Map.Strict (Map)
-import Data.Maybe (isJust)
 import Data.Misc
-import Data.Set (Set)
-import Data.Text (Text)
 import Data.Time
 import Data.Id
-import Data.Int
 import Data.Json.Util
 import Data.List1
 import Data.UUID (toASCIIBytes)
@@ -96,6 +92,7 @@ data Conversation = Conversation
     , cnvMembers    :: !ConvMembers
     , cnvTeam       :: !(Maybe TeamId)
     , cnvMessageTimer :: !(Maybe Milliseconds)
+    , cnvReceiptMode  :: !(Maybe ReceiptMode)
     } deriving (Eq, Show)
 
 data ConvType
@@ -104,6 +101,16 @@ data ConvType
     | One2OneConv
     | ConnectConv
     deriving (Eq, Show)
+
+-- | Define whether receipts should be sent in the given conversation
+--   This datatype is defined as an int32 but the Backend does not
+--   interpret it in any way, rather just stores and forwards it
+--   for clients
+--   E.g. of an implementation: 0 - send no ReceiptModes
+--                              1 - send read ReceiptModes
+--                              2 - send delivery ReceiptModes
+--                              ...
+newtype ReceiptMode = ReceiptMode { unReceiptMode :: Int32 } deriving (Eq, Ord, Show)
 
 -- | Access define how users can join conversations
 data Access
@@ -139,6 +146,7 @@ data ConversationMeta = ConversationMeta
     , cmName        :: !(Maybe Text)
     , cmTeam        :: !(Maybe TeamId)
     , cmMessageTimer :: !(Maybe Milliseconds)
+    , cmReceiptMode  :: !(Maybe ReceiptMode)
     } deriving (Eq, Show)
 
 data ConversationList a = ConversationList
@@ -158,6 +166,10 @@ data ConversationAccessUpdate = ConversationAccessUpdate
     , cupAccessRole :: AccessRole
     } deriving (Eq, Show)
 
+data ConversationReceiptModeUpdate = ConversationReceiptModeUpdate
+    { cruReceiptMode :: !ReceiptMode
+    } deriving (Eq, Show)
+
 data ConversationMessageTimerUpdate = ConversationMessageTimerUpdate
     { cupMessageTimer :: !(Maybe Milliseconds)     -- ^ New message timer
     } deriving (Eq, Show)
@@ -174,6 +186,7 @@ data NewConv = NewConv
     , newConvAccessRole :: !(Maybe AccessRole)
     , newConvTeam   :: !(Maybe ConvTeamInfo)
     , newConvMessageTimer :: !(Maybe Milliseconds)
+    , newConvReceiptMode  :: !(Maybe ReceiptMode)
     }
 
 deriving instance Eq   NewConv
@@ -358,6 +371,7 @@ data EventType
     | ConvCreate
     | ConvConnect
     | ConvDelete
+    | ConvReceiptModeUpdate
     | OtrMessageAdd
     | Typing
     deriving (Eq, Show)
@@ -365,6 +379,7 @@ data EventType
 data EventData
     = EdMembers             !Members
     | EdConnect             !Connect
+    | EdConvReceiptModeUpdate  !ConversationReceiptModeUpdate
     | EdConvRename          !ConversationRename
     | EdConvAccessUpdate    !ConversationAccessUpdate
     | EdConvMessageTimerUpdate !ConversationMessageTimerUpdate
@@ -460,6 +475,11 @@ instance FromJSON AccessRole where
             "non_activated"     -> return NonActivatedAccessRole
             x                   -> fail ("Invalid Access Role: " ++ show x)
 
+instance FromJSON ReceiptMode where
+    parseJSON x = ReceiptMode <$> parseJSON x
+
+instance ToJSON ReceiptMode where
+    toJSON = toJSON . unReceiptMode
 
 instance ToJSON AccessRole where
     toJSON PrivateAccessRole        = String "private"
@@ -599,6 +619,7 @@ instance ToJSON Conversation where
         , "last_event_time"     .= ("1970-01-01T00:00:00.000Z" :: Text)
         , "team"                .= cnvTeam c
         , "message_timer"       .= cnvMessageTimer c
+        , "receipt_mode"        .= cnvReceiptMode c
         ]
 
 instance FromJSON Conversation where
@@ -612,6 +633,7 @@ instance FromJSON Conversation where
                     <*> o .:  "members"
                     <*> o .:? "team"
                     <*> o .:? "message_timer"
+                    <*> o .:? "receipt_mode"
 
 instance ToJSON ConvMembers where
    toJSON mm = object
@@ -644,6 +666,7 @@ parseEventData ConvCodeUpdate v    = Just . EdConvCodeUpdate <$> parseJSON v
 parseEventData ConvCodeDelete _    = pure Nothing
 parseEventData ConvConnect v       = Just . EdConnect <$> parseJSON v
 parseEventData ConvCreate v        = Just . EdConversation <$> parseJSON v
+parseEventData ConvReceiptModeUpdate v = Just . EdConvReceiptModeUpdate <$> parseJSON v
 parseEventData Typing v            = Just . EdTyping <$> parseJSON v
 parseEventData OtrMessageAdd v     = Just . EdOtrMessage <$> parseJSON v
 parseEventData ConvDelete _        = pure Nothing
@@ -655,6 +678,7 @@ instance ToJSON EventData where
     toJSON (EdConvAccessUpdate x)   = toJSON x
     toJSON (EdConvMessageTimerUpdate x) = toJSON x
     toJSON (EdConvCodeUpdate x)     = toJSON x
+    toJSON (EdConvReceiptModeUpdate x)  = toJSON x
     toJSON (EdMemberUpdate x)       = toJSON x
     toJSON (EdConversation x)       = toJSON x
     toJSON (EdTyping x)             = toJSON x
@@ -684,6 +708,7 @@ instance FromJSON EventType where
     parseJSON (String "conversation.create")          = return ConvCreate
     parseJSON (String "conversation.delete")          = return ConvDelete
     parseJSON (String "conversation.connect-request") = return ConvConnect
+    parseJSON (String "conversation.receipt-mode-update") = return ConvReceiptModeUpdate
     parseJSON (String "conversation.typing")          = return Typing
     parseJSON (String "conversation.otr-message-add") = return OtrMessageAdd
     parseJSON x                                       = fail $ "No event-type: " <> show (encode x)
@@ -700,6 +725,7 @@ instance ToJSON EventType where
     toJSON ConvCreate             = String "conversation.create"
     toJSON ConvDelete             = String "conversation.delete"
     toJSON ConvConnect            = String "conversation.connect-request"
+    toJSON ConvReceiptModeUpdate  = String "conversation.receipt-mode-update"
     toJSON Typing                 = String "conversation.typing"
     toJSON OtrMessageAdd          = String "conversation.otr-message-add"
 
@@ -711,6 +737,7 @@ newConvParseJSON = withObject "new-conv object" $ \i ->
                 <*> i .:? "access_role"
                 <*> i .:? "team"
                 <*> i .:? "message_timer"
+                <*> i .:? "receipt_mode"
 
 newConvToJSON :: NewConv -> Value
 newConvToJSON i = object
@@ -720,6 +747,7 @@ newConvToJSON i = object
         # "access_role" .= newConvAccessRole i
         # "team"   .= newConvTeam i
         # "message_timer" .= newConvMessageTimer i
+        # "receipt_mode" .= newConvReceiptMode i
         # []
 
 instance ToJSON NewConvUnmanaged where
@@ -769,6 +797,7 @@ instance FromJSON ConversationMeta where
                          <*> o .:  "name"
                          <*> o .:? "team"
                          <*> o .:? "message_timer"
+                         <*> o .:? "receipt_mode"
 
 instance ToJSON ConversationMeta where
     toJSON c = object
@@ -780,6 +809,7 @@ instance ToJSON ConversationMeta where
         # "name"        .= cmName c
         # "team"        .= cmTeam c
         # "message_timer" .= cmMessageTimer c
+        # "receipt_mode"  .= cmReceiptMode c
         # []
 
 instance ToJSON ConversationAccessUpdate where
@@ -792,6 +822,15 @@ instance FromJSON ConversationAccessUpdate where
    parseJSON = withObject "conversation-access-update" $ \o ->
        ConversationAccessUpdate <$> o .:  "access"
                                 <*> o .:  "access_role"
+
+instance FromJSON ConversationReceiptModeUpdate where
+    parseJSON = withObject "conversation-receipt-mode-update" $ \o ->
+        ConversationReceiptModeUpdate <$> o .: "receipt_mode"
+
+instance ToJSON ConversationReceiptModeUpdate where
+    toJSON c = object
+        [ "receipt_mode" .= cruReceiptMode c
+        ]
 
 instance ToJSON ConversationMessageTimerUpdate where
     toJSON c = object

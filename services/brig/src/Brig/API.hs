@@ -822,6 +822,17 @@ sitemap o = do
         Doc.returns (Doc.array Doc.string')
         Doc.response 200 "List of property keys." Doc.end
 
+    ---
+
+    get "/properties-values" (continue listPropertyKeysAndValues) $
+        header "Z-User"
+        .&. accept "application" "json"
+
+    document "GET" "listPropertyKeysAndValues" $ do
+        Doc.summary "List all properties with key and value."
+        Doc.returns (Doc.ref Doc.propertyDictionary)
+        Doc.response 200 "Object with properties as attributes." Doc.end
+
     -- /register, /activate, /password-reset ----------------------------------
 
     post "/register" (continue createUser) $
@@ -995,6 +1006,9 @@ getProperty (u ::: k ::: _) = do
 
 listPropertyKeys :: UserId ::: JSON -> Handler Response
 listPropertyKeys (u ::: _) = json <$> lift (API.lookupPropertyKeys u)
+
+listPropertyKeysAndValues :: UserId ::: JSON -> Handler Response
+listPropertyKeysAndValues (u ::: _) = json <$> lift (API.lookupPropertyKeysAndValues u)
 
 getPrekey :: UserId ::: ClientId ::: JSON -> Handler Response
 getPrekey (u ::: c ::: _) = do

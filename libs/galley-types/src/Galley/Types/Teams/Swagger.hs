@@ -2,8 +2,8 @@
 
 module Galley.Types.Teams.Swagger where
 
+import Imports hiding (min, max)
 import Data.Swagger.Build.Api
-import Prelude hiding (min, max)
 
 teamsModels :: [Model]
 teamsModels =

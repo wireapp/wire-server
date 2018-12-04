@@ -10,9 +10,9 @@ module Network.Wire.Client.API.Auth
     , module Auth
     ) where
 
+import Imports
 import Bilge
 import Brig.Types.User.Auth as Auth hiding (Cookie, user)
-import Control.Monad.IO.Class
 import Data.List.NonEmpty
 import Data.Time (getCurrentTime)
 import Network.HTTP.Client (generateCookie)
@@ -82,7 +82,7 @@ token t = header "Authorization" (tokType <> " " <> tokValue)
 -- | Construct an 'Auth'orisation out of an access token response.
 tokenResponse :: Request
                   -- ^ The associated request (for cookie verification).
-              -> Response (Maybe Lazy.ByteString)
+              -> Response (Maybe LByteString)
                   -- ^ The access token response.
               -> Maybe AuthCookie
                   -- ^ The cookie to use if none is provided in the response.

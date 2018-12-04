@@ -70,35 +70,22 @@ module Network.Wire.Bot.Monad
     , try
     ) where
 
+import Imports hiding (log, rem)
 import Bilge (MonadHttp (..), Manager)
-import Control.Applicative
-import Control.Concurrent (threadDelay, myThreadId, forkIO)
+import Control.Concurrent (myThreadId)
 import Control.Concurrent.Async
-import Control.Concurrent.STM
-import Control.Monad (forever, when, unless, void, (>=>))
+import Control.Concurrent.STM (retry)
 import Control.Monad.Base
 import Control.Monad.Catch hiding (try)
-import Control.Monad.IO.Class
-import Control.Monad.IO.Unlift
-import Control.Monad.Trans.Class
 import Control.Monad.Trans.Control
-import Control.Monad.Trans.Reader
-import Data.Foldable (for_, forM_, traverse_, sum)
-import Data.HashMap.Strict (HashMap)
 import Data.Id
-import Data.IORef
-import Data.List (foldl', partition)
-import Data.Maybe (fromMaybe, isNothing)
 import Data.Misc (PlainTextPassword(..))
 import Data.Metrics (Metrics)
-import Data.String (IsString)
-import Data.Text (Text, pack, unpack)
+import Data.Text (pack, unpack)
 import Data.Time.Clock
 import Data.Time.Format (parseTimeOrError, formatTime, defaultTimeLocale)
-import Data.Typeable
 import Data.UUID (toString)
 import Data.UUID.V4
-import Data.Word (Word16)
 import GHC.Stack
 import Network.HTTP.Client (HttpException)
 import Network.Wire.Bot.Cache (Cache, CachedUser (..))
@@ -113,7 +100,6 @@ import Network.Wire.Client.API.Auth
 import Network.Wire.Client.API.Client
 import Network.Wire.Client.API.Push
 import Network.Wire.Client.API.User
-import Prelude hiding (log, rem, sum)
 import System.CryptoBox (Box)
 import System.Logger.Class hiding (new)
 import System.FilePath.Posix ((</>))

@@ -1206,7 +1206,7 @@ createConv g u us = post $ g
     . contentJson
     . body (RequestBodyLBS (encode (NewConvUnmanaged conv)))
   where
-    conv = NewConv us Nothing Set.empty Nothing Nothing Nothing
+    conv = NewConv us Nothing Set.empty Nothing Nothing Nothing Nothing
 
 postMessage
     :: Galley

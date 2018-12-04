@@ -17,10 +17,8 @@ module Bilge.Response
     , responseBody
     ) where
 
-import Data.ByteString (ByteString)
+import Imports
 import Data.CaseInsensitive (original)
-import Data.List (foldl', find)
-import Data.Maybe
 import Network.HTTP.Client
 import Network.HTTP.Types (HeaderName, httpMajor, httpMinor)
 

@@ -25,9 +25,8 @@ module Network.Wire.Bot.Crypto
     , randomBytes
     ) where
 
-import Control.Monad
+import Imports
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Crypto.Cipher.AES
 import Crypto.Cipher.Types
 import Crypto.Data.Padding
@@ -36,12 +35,9 @@ import Crypto.Hash (digestFromByteString)
 import Crypto.Hash.Algorithms (SHA256)
 import Crypto.MAC.HMAC
 import Data.ByteArray (convert)
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Maybe (fromMaybe)
 import Data.Serialize
-import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Network.Wire.Bot.Clients
 import Network.Wire.Bot.Crypto.Glue (unwrap, randomBytes)
@@ -188,4 +184,3 @@ decodePrekey = decodeBase64 . prekeyKey . prekeyData
 
 decodeBase64 :: Text -> BotSession ByteString
 decodeBase64 = requireRight . B64.decode . encodeUtf8
-

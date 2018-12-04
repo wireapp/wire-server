@@ -14,22 +14,26 @@ No license is granted to the Wire trademark and its associated logos, all of whi
 
 This repository contains the source code for the Wire server. It contains all libraries and services necessary to run Wire.
 
-Documentation on how to self host your own Wire-Server is not yet available but is planned. Federation is on our long term roadmap.
+For documentation on how to self host your own Wire-Server see [this section](#how-to-install-and-run-wire-server). Federation is on our long term roadmap.
 
 See more in "[Open sourcing Wire server code](https://medium.com/@wireapp/open-sourcing-wire-server-code-ef7866a731d5)".
 
 ## Table of contents
 
--   [Content of the repository](#content-of-the-repository)
--   [Architecture Overview](#architecture-overview)
--   [Development setup](#development-setup)
-    -   [How to build `wire-server` binaries](#how-to-build-wire-server-binaries)
-    -   [How to run integration tests](#how-to-run-integration-tests)
--   [How to run `wire-server` with "fake" external dependencies](#how-to-run-wire-server-with-fake-external-dependencies)
--   [How to run `wire-server` with real AWS services](#how-to-run-wire-server-with-real-aws-services)
--   [Roadmap](#roadmap)
+<!-- vim-markdown-toc GFM -->
 
-## Content of the repository
+* [Contents of this repository](#contents-of-this-repository)
+* [Architecture Overview](#architecture-overview)
+* [Development setup](#development-setup)
+    * [How to build `wire-server` binaries](#how-to-build-wire-server-binaries)
+        * [1. Compile sources natively.](#1-compile-sources-natively)
+        * [2. Use docker](#2-use-docker)
+    * [How to run integration tests](#how-to-run-integration-tests)
+* [How to install and run `wire-server`](#how-to-install-and-run-wire-server)
+
+<!-- vim-markdown-toc -->
+
+## Contents of this repository
 
 This repository contains the following source code:
 
@@ -42,6 +46,7 @@ This repository contains the following source code:
    - **cargohold**: Asset (image, file, ...) Storage
    - **proxy**: 3rd Party API Integration
    - **restund**: STUN/TURN server for use in Audio/Video calls
+   - **spar**: Single-Sign-On (SSO)
 
 - **tools**
    - **api-simulations**: Run automated smoke and load tests
@@ -111,7 +116,7 @@ will, eventually, have built a range of docker images. See the `Makefile`s and `
 
 ### How to run integration tests
 
-Integration tests require all of the haskell services (brig,galley,cannon,gundeck,proxy,cargohold) to be correctly configured and running, before being able to execute e.g. the `brig-integration` binary. This requires most of the deployment dependencies as seen in the architecture diagram to also be available:
+Integration tests require all of the haskell services (brig, galley, cannon, gundeck, proxy, cargohold, spar) to be correctly configured and running, before being able to execute e.g. the `brig-integration` binary. This requires most of the deployment dependencies as seen in the architecture diagram to also be available:
 
 - Required internal dependencies:
     - cassandra (with the correct schema)
@@ -122,7 +127,6 @@ Integration tests require all of the haskell services (brig,galley,cannon,gundec
     - SQS
     - SNS
     - S3
-    - Cloudfront
     - DynamoDB
 
 Setting up these real, but in-memory internal and "fake" external dependencies is done easiest using [`docker-compose`](https://docs.docker.com/compose/install/). Run the following in a separate terminal (it will block that terminal, C-c to shut all these docker images down again):
@@ -147,31 +151,9 @@ WIRE_STACK_OPTIONS='--ghc-options=-Wwarn --test-arguments="--quickcheck-tests=19
 
 Note that [tasty supports passing arguments vie shell variables directly](https://github.com/feuerbach/tasty#runtime).
 
-## How to run `wire-server` with "fake" external dependencies
+## How to install and run `wire-server`
 
-See [this README](deploy/services-demo/README.md)
+You have two options:
 
-## How to run `wire-server` with real AWS services
-
-Documentation, configuration, and code for this is **not fully ready yet** (please do not open an issue to ask about this!). More information on how to run `wire-server` will be available here in the near future.
-
-As a brief overview, it requires setting up
-
-* database clusters (cassandra, redis, elasticsearch)
-* external dependencies
-    * Amazon account with access to
-      * SES
-      * SQS
-      * SNS
-      * S3
-      * Cloudfront
-      * DynamoDB
-    * Nexmo/Twilio accounts (if you want to send out SMSes)
-    * Giphy/Google/Spotify/Soundcloud API keys (if you want to support previews by proxying these services)
-    * TURN servers (if you want to support Voice/Video calls)
-* production-ready configuration for all services
-* additional infrastructure configuration (DNS, SSL certificates, metrics, logging, etc)
-
-## Roadmap
-
-- Deployment options
+* Option 1. (recommended) Install wire-server on kubernetes using the configuration and instructions provided in [wire-server-deploy](https://github.com/wireapp/wire-server-deploy). This is the best option to run it on a server and recommended if you want to self-host wire-server.
+* Option 2. Compile everything in this repo, then you can use the [docker-compose based demo](deploy/services-demo/README.md). This option is intended as a way to try out wire-server on your local development machine and is less suited when you want to install wire-server on a server.

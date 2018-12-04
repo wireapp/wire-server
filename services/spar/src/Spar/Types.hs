@@ -20,7 +20,10 @@ import Control.Lens (makeLenses)
 import Control.Monad.Except
 import Data.Aeson
 import Data.Aeson.TH
-import Data.Id (TeamId, UserId)
+import Data.Id (TeamId, UserId, ScimTokenId)
+import Data.ByteString.Conversion
+import Data.Json.Util
+import Data.Text.Encoding (encodeUtf8)
 import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions
 import Data.String.Conversions (ST)
@@ -28,11 +31,12 @@ import Data.Time
 import GHC.TypeLits (KnownSymbol, symbolVal)
 import GHC.Types (Symbol)
 import SAML2.Util (renderURI, parseURI')
-import SAML2.WebSSO (IdPConfig, ID, AuthnRequest, Assertion, SimpleSetCookie)
+import SAML2.WebSSO (IdPConfig, IdPId, ID, AuthnRequest, Assertion, SimpleSetCookie)
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import URI.ByteString
 import Util.Options
 import Web.Cookie
+import Web.HttpApiData
 
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.Text as ST
@@ -67,6 +71,51 @@ data IdPList = IdPList
 
 makeLenses ''IdPList
 deriveJSON deriveJSONOptions ''IdPList
+
+----------------------------------------------------------------------------
+-- SCIM
+
+-- | A bearer token that authorizes a provisioning tool to perform actions
+-- with a team. Each token corresponds to one team.
+newtype ScimToken = ScimToken { fromScimToken :: Text }
+  deriving (Eq, Show, FromJSON, ToJSON, FromByteString, ToByteString)
+
+-- | Metadata that we store about each token.
+data ScimTokenInfo = ScimTokenInfo
+  { stiTeam      :: !TeamId        -- ^ Which team can be managed with the token
+  , stiId        :: !ScimTokenId   -- ^ Token ID, can be used to eg. delete the token
+  , stiCreatedAt :: !UTCTime       -- ^ Time of token creation
+  , stiIdP       :: !(Maybe IdPId) -- ^ IdP that created users will "belong" to
+  , stiDescr     :: !Text          -- ^ Free-form token description, can be set
+                                   --   by the token creator as a mental aid
+  }
+  deriving (Eq, Show)
+
+instance FromHttpApiData ScimToken where
+  parseHeader h = ScimToken <$> parseHeaderWithPrefix "Bearer " h
+  parseQueryParam p = ScimToken <$> parseQueryParam p
+
+instance ToHttpApiData ScimToken where
+  toHeader (ScimToken s) = "Bearer " <> encodeUtf8 s
+  toQueryParam (ScimToken s) = toQueryParam s
+
+instance FromJSON ScimTokenInfo where
+  parseJSON = withObject "ScimTokenInfo" $ \o -> do
+    stiTeam      <- o .: "team"
+    stiId        <- o .: "id"
+    stiCreatedAt <- o .: "created_at"
+    stiIdP       <- o .: "idp"
+    stiDescr     <- o .: "description"
+    pure ScimTokenInfo{..}
+
+instance ToJSON ScimTokenInfo where
+  toJSON s = object
+      $ "team"        .= stiTeam s
+      # "id"          .= stiId s
+      # "created_at"  .= stiCreatedAt s
+      # "idp"         .= stiIdP s
+      # "description" .= stiDescr s
+      # []
 
 ----------------------------------------------------------------------------
 -- Requests and verdicts
@@ -114,7 +163,11 @@ data Opts' a = Opts
     , cassandra      :: !CassandraOpts
     , maxttlAuthreq  :: !(TTL "authreq")
     , maxttlAuthresp :: !(TTL "authresp")
-    , discoUrl       :: !(Maybe Text) -- Wire/AWS specific; optional; used to discover cassandra instance IPs using describe-instances
+    -- | The maximum number of SCIM tokens that we will allow teams to have.
+    , maxScimTokens  :: !Int
+    -- | Wire/AWS specific; optional; used to discover Cassandra instance
+    -- IPs using describe-instances.
+    , discoUrl       :: !(Maybe Text)
     , logNetStrings  :: !Bool
     -- , optSettings   :: !Settings  -- (nothing yet; see other services for what belongs in here.)
     , derivedOpts    :: !a

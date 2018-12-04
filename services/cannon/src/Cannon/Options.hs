@@ -19,11 +19,10 @@ module Cannon.Options
     )
 where
 
+import Imports
 import Control.Lens (makeFields)
 import Data.Aeson.APIFieldJsonTH
-import Data.Text (Text, pack)
-import Data.Word
-import GHC.Generics
+import Data.Text (pack)
 import Options.Applicative
 
 

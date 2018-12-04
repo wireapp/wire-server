@@ -43,6 +43,7 @@ brig.yaml
 brig.integration-aws.yaml
 cannon.yaml
 cannon.integration-aws.yaml
+cannon2.integration-aws.yaml
 cargohold.yaml
 cargohold.integration-aws.yaml
 galley-schema.yaml

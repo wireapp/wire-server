@@ -2,6 +2,7 @@
 
 module Network.Wire.Bot.Metrics where
 
+import Imports
 import Data.Metrics
 import Network.Wire.Client.API.Push (EventType, eventTypeText)
 

@@ -18,13 +18,14 @@ import Brig.Types.User
 import Control.Lens
 import Data.ByteString.Conversion
 import Data.Id
-import Data.UUID as UUID hiding (null, fromByteString)
 import Data.Text (pack, unpack)
 import System.Random
+import Spar.Types (ScimToken, ScimTokenInfo(..))
+import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
 import Util
+import Web.HttpApiData (toHeader)
 
 import qualified Web.SCIM.Class.User              as SCIM
-import qualified Web.SCIM.Class.Auth              as SCIM
 import qualified Web.SCIM.Schema.ListResponse     as SCIM
 import qualified Web.SCIM.Schema.Common           as SCIM
 import qualified Web.SCIM.Schema.Meta             as SCIM
@@ -38,7 +39,7 @@ import qualified Data.Aeson as Aeson
 spec :: SpecWith TestEnv
 spec = do
     specUsers
-
+    specTokens
 
 specUsers :: SpecWith TestEnv
 specUsers = describe "operations with users" $ do
@@ -115,18 +116,97 @@ randomUser = do
         , SCIM.User.externalId  = Just ("scimuser_extid_" <> suffix)
         }
 
+specTokens :: SpecWith TestEnv
+specTokens = xdescribe "operations with provisioning tokens" $ do
+    describe "POST /auth-tokens" $ do
+        it "creates a usable token" $ do
+            env <- ask
+            -- Create a token
+            CreateScimTokenResponse token tokenInfo <-
+                createToken CreateScimToken
+                    { createScimTokenDescr = "token creation test" }
+            -- Try to execute a SCIM operation without a token and check
+            -- that it fails
+            listUsers_ Nothing Nothing (env ^. teSpar)
+                !!! const 401 === statusCode
+            -- Try to execute the same SCIM operation with the generated
+            -- token; it should succeed now
+            listUsers_ (Just token) Nothing (env ^. teSpar)
+                !!! const 200 === statusCode
+            -- Cleanup
+            deleteToken (stiId tokenInfo)
+
+        it "respects the token limit (2 for integration tests)" $ do
+            env <- ask
+            -- Try to create two more tokens (in addition to the already
+            -- existing token that's created in 'mkEnv'). Creating the
+            -- second token should succeed, and creating the third token
+            -- should fail.
+            CreateScimTokenResponse _ tokenInfo1 <-
+                createToken CreateScimToken
+                    { createScimTokenDescr = "token limit test / #1" }
+            createToken_ (env ^. teUserId) CreateScimToken
+                { createScimTokenDescr = "token limit test / #2" }
+                (env ^. teSpar)
+                !!! const 403 === statusCode
+            -- Cleanup
+            deleteToken (stiId tokenInfo1)
+
+        it "doesn't create a token for a team without IdP" $ do
+            env <- ask
+            -- Create a new team and don't associate an IdP with it
+            (userid, _teamid) <- runHttpT (env ^. teMgr) $
+                createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+            -- Creating a token should fail now
+            createToken_
+                userid
+                CreateScimToken { createScimTokenDescr = "IdP-less team test" }
+                (env ^. teSpar)
+                !!! const 400 === statusCode
+
+    describe "DELETE /auth-tokens/:id" $ do
+        it "makes the token unusable" $ do
+            env <- ask
+            -- Create a token
+            CreateScimTokenResponse token tokenInfo <-
+                createToken CreateScimToken
+                    { createScimTokenDescr = "token deletion test" }
+            -- An operation with the token should succeed
+            listUsers_ (Just token) Nothing (env ^. teSpar)
+                !!! const 200 === statusCode
+            -- Delete the token and now the operation should fail
+            deleteToken (stiId tokenInfo)
+            listUsers_ (Just token) Nothing (env ^. teSpar)
+                !!! const 401 === statusCode
+
+    describe "GET /auth-tokens" $ do
+        it "lists tokens" $ do
+            -- Create a token
+            CreateScimTokenResponse _ tokenInfo <-
+                createToken CreateScimToken
+                    { createScimTokenDescr = "token listing test" }
+            -- Both the default team token and this token should be present
+            do list <- scimTokenListTokens <$> listTokens
+               liftIO $ map stiDescr list `shouldBe`
+                   ["_teScimToken test token", "token listing test"]
+            -- Delete the token and now it shouldn't be on the list
+            deleteToken (stiId tokenInfo)
+            do list <- scimTokenListTokens <$> listTokens
+               liftIO $ map stiDescr list `shouldBe`
+                   ["_teScimToken test token"]
+
 ----------------------------------------------------------------------------
--- High-level SCIM API
+-- API wrappers
 
 -- | Create a user in the default 'TestEnv' team.
 createUser
-    :: SCIM.User.User
+    :: HasCallStack
+    => SCIM.User.User
     -> TestSpar SCIM.StoredUser
 createUser user = do
     env <- ask
     r <- createUser_
-             (Just (env ^. teScimAdmin))
-             (env ^. teTeamId)
+             (Just (env ^. teScimToken))
              user
              (env ^. teSpar)
          <!! const 201 === statusCode
@@ -134,13 +214,13 @@ createUser user = do
 
 -- | List all users in the default 'TestEnv' team.
 listUsers
-    :: Maybe SCIM.Filter
+    :: HasCallStack
+    => Maybe SCIM.Filter
     -> TestSpar [SCIM.StoredUser]
 listUsers mbFilter = do
     env <- ask
     r <- listUsers_
-             (Just (env ^. teScimAdmin))
-             (env ^. teTeamId)
+             (Just (env ^. teScimToken))
              mbFilter
              (env ^. teSpar)
          <!! const 200 === statusCode
@@ -152,52 +232,88 @@ listUsers mbFilter = do
 
 -- | Get a user belonging to the default 'TestEnv' team.
 getUser
-    :: UserId
+    :: HasCallStack
+    => UserId
     -> TestSpar SCIM.StoredUser
 getUser userid = do
     env <- ask
     r <- getUser_
-             (Just (env ^. teScimAdmin))
-             (env ^. teTeamId)
+             (Just (env ^. teScimToken))
              userid
              (env ^. teSpar)
          <!! const 200 === statusCode
     pure (decodeBody' r)
 
+-- | Create a SCIM token for the default 'TestEnv' team.
+createToken
+    :: HasCallStack
+    => CreateScimToken
+    -> TestSpar CreateScimTokenResponse
+createToken payload = do
+    env <- ask
+    r <- createToken_
+             (env ^. teUserId)
+             payload
+             (env ^. teSpar)
+         <!! const 200 === statusCode
+    pure (decodeBody' r)
+
+-- | Delete a SCIM token belonging to the default 'TestEnv' team.
+deleteToken
+    :: HasCallStack
+    => ScimTokenId                -- ^ Token to delete
+    -> TestSpar ()
+deleteToken tokenid = do
+    env <- ask
+    deleteToken_
+        (env ^. teUserId)
+        tokenid
+        (env ^. teSpar)
+        !!! const 204 === statusCode
+
+-- | List SCIM tokens belonging to the default 'TestEnv' team.
+listTokens
+    :: HasCallStack
+    => TestSpar ScimTokenList
+listTokens = do
+    env <- ask
+    r <- listTokens_
+             (env ^. teUserId)
+             (env ^. teSpar)
+         <!! const 200 === statusCode
+    pure (decodeBody' r)
+
 ----------------------------------------------------------------------------
--- Low-level SCIM API
+-- "Raw" API requests
 
 -- | Create a user.
 createUser_
-    :: Maybe SCIM.SCIMAuthData  -- ^ Admin credentials for authentication
-    -> TeamId                   -- ^ Team
+    :: Maybe ScimToken          -- ^ Authentication
     -> SCIM.User.User           -- ^ User data
     -> SparReq                  -- ^ Spar endpoint
     -> TestSpar ResponseLBS
-createUser_ auth teamid user spar_ = do
+createUser_ auth user spar_ = do
     -- NB: we don't use 'mkEmailRandomLocalSuffix' here, because emails
     -- shouldn't be submitted via SCIM anyway.
-    let p = RequestBodyLBS . Aeson.encode $ user
     call . post $
         ( spar_
-        . paths ["scim", toByteString' teamid, "Users"]
+        . paths ["scim", "v2", "Users"]
         . scimAuth auth
         . contentScim
-        . body p
+        . body (RequestBodyLBS . Aeson.encode $ user)
         . acceptScim
         )
 
 -- | List all users.
 listUsers_
-    :: Maybe SCIM.SCIMAuthData  -- ^ Admin credentials for authentication
-    -> TeamId                   -- ^ Team
+    :: Maybe ScimToken          -- ^ Authentication
     -> Maybe SCIM.Filter        -- ^ Predicate to filter the results
     -> SparReq                  -- ^ Spar endpoint
     -> TestSpar ResponseLBS
-listUsers_ auth teamid mbFilter spar_ = do
+listUsers_ auth mbFilter spar_ = do
     call . get $
         ( spar_
-        . paths ["scim", toByteString' teamid, "Users"]
+        . paths ["scim", "v2", "Users"]
         . queryItem' "filter" (toByteString' . SCIM.renderFilter <$> mbFilter)
         . scimAuth auth
         . acceptScim
@@ -205,29 +321,67 @@ listUsers_ auth teamid mbFilter spar_ = do
 
 -- | Get one user.
 getUser_
-    :: Maybe SCIM.SCIMAuthData  -- ^ Admin credentials for authentication
-    -> TeamId                   -- ^ Team
+    :: Maybe ScimToken          -- ^ Authentication
     -> UserId                   -- ^ User
     -> SparReq                  -- ^ Spar endpoint
     -> TestSpar ResponseLBS
-getUser_ auth teamid userid spar_ = do
+getUser_ auth userid spar_ = do
     call . get $
         ( spar_
-        . paths ["scim", toByteString' teamid, "Users", toByteString' userid]
+        . paths ["scim", "v2", "Users", toByteString' userid]
         . scimAuth auth
         . acceptScim
+        )
+
+-- | Create a SCIM token.
+createToken_
+    :: UserId                   -- ^ User
+    -> CreateScimToken
+    -> SparReq                  -- ^ Spar endpoint
+    -> TestSpar ResponseLBS
+createToken_ userid payload spar_ = do
+    call . post $
+        ( spar_
+        . paths ["scim", "auth-tokens"]
+        . zUser userid
+        . contentJson
+        . body (RequestBodyLBS . Aeson.encode $ payload)
+        . acceptJson
+        )
+
+-- | Delete a SCIM token.
+deleteToken_
+    :: UserId                   -- ^ User
+    -> ScimTokenId              -- ^ Token to delete
+    -> SparReq                  -- ^ Spar endpoint
+    -> TestSpar ResponseLBS
+deleteToken_ userid tokenid spar_ = do
+    call . delete $
+        ( spar_
+        . paths ["scim", "auth-tokens"]
+        . queryItem "id" (toByteString' tokenid)
+        . zUser userid
+        )
+
+-- | List SCIM tokens.
+listTokens_
+    :: UserId                   -- ^ User
+    -> SparReq                  -- ^ Spar endpoint
+    -> TestSpar ResponseLBS
+listTokens_ userid spar_ = do
+    call . get $
+        ( spar_
+        . paths ["scim", "auth-tokens"]
+        . zUser userid
         )
 
 ----------------------------------------------------------------------------
 -- Utilities
 
--- | Add SCIM authentication credentials to a request.
-scimAuth :: Maybe SCIM.SCIMAuthData -> Request -> Request
+-- | Add SCIM authentication to a request.
+scimAuth :: Maybe ScimToken -> Request -> Request
 scimAuth Nothing = id
-scimAuth (Just auth) =
-    applyBasicAuth
-        (UUID.toASCIIBytes (SCIM.scimAdmin auth))
-        (SCIM.scimPassword auth)
+scimAuth (Just auth) = header "Authorization" (toHeader auth)
 
 -- | Signal that the body is an SCIM payload.
 contentScim :: Request -> Request

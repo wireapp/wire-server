@@ -43,25 +43,20 @@ module Brig.Types.TURN
     )
 where
 
+import           Imports
 import           Brig.Types.TURN.Internal
 import           Control.Lens               hiding ((.=))
 import           Data.Aeson
 import           Data.Aeson.Encoding        (text)
 import           Data.Attoparsec.Text       hiding (parse)
-import           Data.ByteString            (ByteString)
 import           Data.ByteString.Builder
 import qualified Data.ByteString.Conversion as BC
-import           Data.List (partition)
 import           Data.List1
 import           Data.Misc                  (Port (..))
-import           Data.Text                  (Text)
 import           Data.Text.Ascii
 import qualified Data.Text.Encoding         as TE
 import           Data.Text.Strict.Lens      (utf8)
 import           Data.Time.Clock.POSIX
-import           Data.Word
-import           GHC.Base                   (Alternative)
-import           GHC.Generics               (Generic)
 
 -- | A configuration object resembling \"RTCConfiguration\"
 --
@@ -281,18 +276,18 @@ limitServers uris limit = limitServers' [] limit uris
     limitServers' acc _ []          = acc -- No more input
     limitServers' acc _ input       = do
         let (udps, noUdps) = partition isUdp input
-            (udp, forTls)  = (Prelude.take 1 udps, noUdps ++ drop 1 udps)
+            (udp, forTls)  = (Imports.take 1 udps, noUdps ++ drop 1 udps)
 
             (tlss, noTlss) = partition isTls forTls
-            (tls, forTcp)  = (Prelude.take 1 tlss, noTlss ++ drop 1 tlss)
+            (tls, forTcp)  = (Imports.take 1 tlss, noTlss ++ drop 1 tlss)
 
             (tcps, noTcps) = partition isTcp forTcp
-            (tcp, rest)    = (Prelude.take 1 tcps, noTcps ++ drop 1 tcps)
+            (tcp, rest)    = (Imports.take 1 tcps, noTcps ++ drop 1 tcps)
 
             new = udp ++ tls ++ tcp
-            newAcc = Prelude.take limit $ acc ++ new
+            newAcc = Imports.take limit $ acc ++ new
         if null new -- Did we find anything interesting? If not, time to go
-            then Prelude.take limit $ acc ++ rest
+            then Imports.take limit $ acc ++ rest
             else limitServers' newAcc (limit - length newAcc) rest
 
 isUdp :: TurnURI -> Bool

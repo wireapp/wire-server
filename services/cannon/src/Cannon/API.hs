@@ -8,23 +8,21 @@
 
 module Cannon.API (run) where
 
+import Imports hiding (head)
 import Bilge (newManager, defaultManagerSettings, ManagerSettings (..))
 import Cannon.App
 import Cannon.Types
 import Cannon.Options
 import Cannon.WS hiding (env)
-import Control.Applicative hiding (empty, optional)
 import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.Aeson (encode)
-import Data.ByteString (ByteString)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
 import Data.Swagger.Build.Api hiding (def, Response)
-import Data.Text (Text, strip, pack)
+import Data.Text (strip, pack)
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types
-import Data.Maybe
 import Gundeck.Types
 import Gundeck.Types.BulkPush
 import Network.Wai
@@ -36,7 +34,6 @@ import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Handler.WebSockets
-import Prelude hiding (head)
 import System.Logger.Class hiding (Error)
 import System.Random.MWC (createSystemRandom)
 

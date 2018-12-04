@@ -13,12 +13,12 @@ module Brig.Types.Provider.External
     , botConvMembers
     ) where
 
+import Imports
 import Brig.Types.Client.Prekey
 import Brig.Types.Common
 import Data.Aeson
 import Data.Id
 import Data.Json.Util ((#))
-import Data.Text (Text)
 import Galley.Types.Bot
 
 --------------------------------------------------------------------------------
@@ -118,4 +118,3 @@ instance ToJSON BotUserView where
         , "handle"    .= botUserViewHandle u
         , "team"      .= botUserViewTeam u
         ]
-

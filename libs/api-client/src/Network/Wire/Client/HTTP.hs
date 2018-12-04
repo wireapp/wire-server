@@ -3,24 +3,21 @@
 
 module Network.Wire.Client.HTTP
     ( clientRequest
-    , acceptJson
     , readBody
     , fromBody
     , unexpected
     , mkErrorResponse
     ) where
 
+import Imports
 import Bilge
 import Control.Error
 import Control.Exception (throwIO)
-import Control.Monad ((>=>))
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Control.Retry
 import Data.Aeson hiding (Error)
-import Data.Function ((&))
-import Data.List.NonEmpty (NonEmpty, toList)
-import Data.Text (Text, pack)
+import Data.List.NonEmpty (NonEmpty)
+import Data.Text (pack)
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.HTTP.Types.Header (hUserAgent)
 import Network.Wire.Client.Monad
@@ -78,9 +75,6 @@ clientRequest rq expected f = do
 
 -------------------------------------------------------------------------------
 -- Utilities
-
-acceptJson :: Request -> Request
-acceptJson = accept "application/json"
 
 readBody :: FromJSON a => Response BodyReader -> IO a
 readBody = consumeBody >=> fromBody

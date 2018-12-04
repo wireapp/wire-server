@@ -22,7 +22,7 @@ import Cassandra hiding (Value)
 import Data.Id
 import Data.Range
 import Data.Misc (Milliseconds)
-import Galley.Types (ConvType (..), Access, Member (..), AccessRole)
+import Galley.Types (ConvType (..), Access, Member (..), AccessRole, ReceiptMode)
 import OpenSSL.Random (randBytes)
 import OpenSSL.EVP.Digest (getDigestByName, digestBS)
 
@@ -43,6 +43,7 @@ data Conversation = Conversation
     , convTeam    :: Maybe TeamId
     , convDeleted :: Maybe Bool
     , convMessageTimer :: Maybe Milliseconds      -- ^ Global message timer
+    , convReceiptMode  :: Maybe ReceiptMode
     } deriving (Eq, Show)
 
 isSelfConv :: Conversation -> Bool
