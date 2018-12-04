@@ -4,14 +4,14 @@ set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/" && pwd )"
 
-which yq >/dev/null || \
+command -v yq >/dev/null || \
     ( echo "*** please install yq ( https://github.com/mikefarah/yq ) in your path."; \
       echo "    e.g.: wget https://github.com/mikefarah/yq/releases/download/2.1.2/yq_linux_amd64 -O /usr/bin/yq && chmod +x /usr/bin/yq"; \
       echo "    NOTE: later versions may not work."; \
       exit 22 \
     )
 
-which awscli >/dev/null || \
+command -v awscli >/dev/null || \
     ( echo "*** please install awscli ( https://github.com/aws/aws-cli ) in your path."; \
       echo "    e.g.: pip install awscli"; \
       exit 22 \
