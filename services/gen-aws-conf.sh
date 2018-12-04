@@ -4,7 +4,20 @@ set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/" && pwd )"
 
-which yq >/dev/null || ( echo "*** please install yq ( https://github.com/mikefarah/yq ) in your path."; exit 22 )
+which yq >/dev/null || \
+    ( echo "*** please install yq ( https://github.com/mikefarah/yq ) in your path."; \
+      echo "    e.g.: wget https://github.com/mikefarah/yq/releases/download/2.1.2/yq_linux_amd64 -O /usr/bin/yq && chmod +x /usr/bin/yq"; \
+      echo "    NOTE: later versions may not work."; \
+      exit 22 \
+    )
+
+which awscli >/dev/null || \
+    ( echo "*** please install awscli ( https://github.com/aws/aws-cli ) in your path."; \
+      echo "    e.g.: pip install awscli"; \
+      exit 22 \
+    )
+
+echo -e "\nHINT: when prompted for an integration config, consider trying 'z-config/integration/integration-aws.yaml'.\n"
 
 # Ensure that we have a file named integration-aws.yaml in the current
 # dir. If not, fetch it from a known location on S3
