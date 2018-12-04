@@ -27,11 +27,6 @@ spec = do
               f (x : xs)         = x : f xs
               f []               = []
 
-              flatten '\n' = ' '
-              flatten '\r' = ' '
-              flatten '\t' = ' '
-              flatten '\v' = ' '
-              flatten '\f' = ' '
-              flatten c    = c
+              flatten c = if isSpace c then ' ' else c
 
       oldAndSlow someText === condenseLogMsg someText
