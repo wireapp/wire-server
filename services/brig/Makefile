@@ -110,11 +110,11 @@ integration-%: fast
 db: db-reset
 
 .PHONY: db-reset
-db-reset: install
+db-reset: fast
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1 --reset
 
 .PHONY: db-migrate
-db-migrate:
+db-migrate: fast
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1
 
 .PHONY: index

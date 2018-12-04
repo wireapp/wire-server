@@ -28,7 +28,7 @@ function list_descendants () {
 function kill_gracefully() {
     pkill "gundeck|brig|galley|cargohold|cannon|spar"
     sleep 1
-    kill "$(list_descendants $PARENT_PID)" &> /dev/null
+    kill $(list_descendants "$PARENT_PID") &> /dev/null
 }
 
 trap "kill_gracefully; kill_all" INT TERM ERR
