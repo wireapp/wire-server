@@ -84,10 +84,7 @@ instance HasLogger Spar where
     Spar . Log.log lg lv $ fields Log.~~ mg'
 
 condenseLogMsg :: ST -> ST
-condenseLogMsg = ST.intercalate " "
-               . filter (/= "")
-               . map ST.strip
-               . ST.split (`elem` (" \n\r\t\v\f" :: [Char]))
+condenseLogMsg = ST.intercalate " " . filter (not . ST.null) . ST.split isSpace
 
 toLevel :: SAML.Level -> Log.Level
 toLevel = \case
