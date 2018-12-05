@@ -28,10 +28,9 @@ mkspec = do
   serviceOpts :: Opts <- Yaml.decodeFileEither configFilePath >>= either (throwIO . ErrorCall . show) deriveOpts
 
   pure . beforeAll (mkEnv integrationOpts serviceOpts) . afterAll destroyEnv $ do
+    describe "Test.Spar.API" Test.Spar.APISpec.spec
     describe "Test.Spar.Data" Test.Spar.DataSpec.spec
     describe "Test.Spar.SCIM" Test.Spar.SCIMSpec.spec
-    -- This should be the last test, because it deletes the test IdP.
-    describe "Test.Spar.API" Test.Spar.APISpec.spec
 
 
 -- | Accept config file locations as cli options.

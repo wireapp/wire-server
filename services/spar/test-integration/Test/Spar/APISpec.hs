@@ -488,8 +488,6 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           check (\bindcky -> Just . addAtEnd cky1 . addAtEnd cky2 . addAtBeginning cky3 $ bindcky) True
 
 
--- | FUTUREWORK: this function deletes the test IdP from the test env.  it should probably not do
--- that, so other tests after this can still use it.
 specCRUDIdentityProvider :: SpecWith TestEnv
 specCRUDIdentityProvider = do
     let checkErr :: HasCallStack => (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
@@ -506,14 +504,14 @@ specCRUDIdentityProvider = do
           context "no zuser" $ do
             it "responds with 'client error'" $ do
               env <- ask
-              let idpid = env ^. teIdP . idpId
+              (_, _, (^. idpId) -> idpid) <- createTestIdP
               whichone (env ^. teSpar) Nothing idpid
                 `shouldRespondWith` checkErr (== 400) "client-error"
 
           context "zuser has no team" $ do
             it "responds with 'no team member'" $ do
               env <- ask
-              let idpid = env ^. teIdP . idpId
+              (_, _, (^. idpId) -> idpid) <- createTestIdP
               (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
               whichone (env ^. teSpar) (Just uid) idpid
                 `shouldRespondWith` checkErr (== 403) "no-team-member"
@@ -521,7 +519,7 @@ specCRUDIdentityProvider = do
           context "zuser has wrong team" $ do
             it "responds with 'no team member'" $ do
               env <- ask
-              let idpid = env ^. teIdP . idpId
+              (_, _, (^. idpId) -> idpid) <- createTestIdP
               (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
               whichone (env ^. teSpar) (Just uid) idpid
                 `shouldRespondWith` checkErr (== 403) "no-team-member"
@@ -529,8 +527,7 @@ specCRUDIdentityProvider = do
           context "zuser is a team member, but not a team owner" $ do
             it "responds with 'insufficient-permissions' and a helpful message" $ do
               env <- ask
-              let idpid = env ^. teIdP . idpId
-                  teamid = env ^. teTeamId
+              (_, teamid, (^. idpId) -> idpid) <- createTestIdP
               newmember <- let Just perms = newPermissions mempty mempty
                         in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
               whichone (env ^. teSpar) (Just newmember) idpid
@@ -585,8 +582,7 @@ specCRUDIdentityProvider = do
       context "known IdP, client is team owner" $ do
         it "responds with 2xx and removes IdP" $ do
           env <- ask
-          let idpid = env ^. teIdP . idpId
-              userid = env ^. teUserId
+          (userid, _, (^. idpId) -> idpid) <- createTestIdP
           callIdpDelete' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` \resp -> statusCode resp < 300
           callIdpGet' (env ^. teSpar) (Just userid) idpid
@@ -613,23 +609,25 @@ specCRUDIdentityProvider = do
       context "no zuser" $ do
         it "responds with 'client error'" $ do
           env <- ask
-          callIdpCreate' (env ^. teSpar) Nothing (env ^. teIdP . idpMetadata)
+          idpmeta <- makeTestIdPMetadata
+          callIdpCreate' (env ^. teSpar) Nothing idpmeta
             `shouldRespondWith` checkErr (== 400) "client-error"
 
       context "zuser has no team" $ do
         it "responds with 'no team member'" $ do
           env <- ask
           (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
-          callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teIdP . idpMetadata)
+          idpmeta <- makeTestIdPMetadata
+          callIdpCreate' (env ^. teSpar) (Just uid) idpmeta
             `shouldRespondWith` checkErr (== 403) "no-team-member"
 
       context "zuser is a team member, but not a team owner" $ do
         it "responds with 'insufficient-permissions' and a helpful message" $ do
           env <- ask
-          (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+          (_owner, tid, idp) <- createTestIdP
           newmember <- let Just perms = newPermissions mempty mempty
                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-          callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teIdP . idpMetadata)
+          callIdpCreate' (env ^. teSpar) (Just newmember) (idp ^. idpMetadata)
             `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
       context "idp (identified by issuer) is in use by other team" $ do
