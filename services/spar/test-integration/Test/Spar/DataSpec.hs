@@ -21,7 +21,8 @@ import SAML2.WebSSO as SAML
 import Spar.Data as Data
 import Spar.Types
 import URI.ByteString.QQ (uri)
-import Util
+import Util.Core
+import Util.Types
 
 
 spec :: SpecWith TestEnv
