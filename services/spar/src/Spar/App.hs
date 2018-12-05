@@ -18,6 +18,7 @@ module Spar.App
   , wrapMonadClient
   , verdictHandler
   , insertUser
+  , createUser
   ) where
 
 import Imports
