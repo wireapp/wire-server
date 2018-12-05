@@ -51,6 +51,7 @@ module Util.Core
   , createTestIdPFrom
   , negotiateAuthnRequest
   , negotiateAuthnRequest'
+  , getCookie
   , hasPersistentCookieHeader
   , hasDeleteBindCookieHeader
   , hasSetBindCookieHeader
@@ -68,16 +69,21 @@ module Util.Core
   , runSparCass, runSparCassWithEnv
   , runSimpleSP
   , runSpar
+  , getSsoidViaSelf
+  , getUserIdViaRef
   ) where
 
 import Imports hiding (head)
 import Bilge hiding (getCookie)  -- we use Web.Cookie instead of the http-client type
 import Bilge.Assert ((!!!), (===), (<!!))
+import Brig.Types.Common (UserSSOId(..), UserIdentity(..))
+import Brig.Types.User (userIdentity, selfUser)
 import Cassandra as Cas
 import Control.Exception
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
 import Control.Monad.Except
+import Control.Retry
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
 import Data.ByteString.Conversion
@@ -706,3 +712,42 @@ runSpar (Spar.Spar action) = do
   liftIO $ do
     result <- runExceptT $ action `runReaderT` env
     either (throwIO . ErrorCall . show) pure result
+
+
+getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
+getSsoidViaSelf uid = do
+  let probe :: HasCallStack => TestSpar (Maybe UserSSOId)
+      probe = do
+        env <- ask
+        fmap getUserSSOId . call . get $
+          ( (env ^. teBrig)
+          . header "Z-User" (toByteString' uid)
+          . path "/self"
+          . expect2xx
+          )
+
+      getUserSSOId :: HasCallStack => ResponseLBS -> Maybe UserSSOId
+      getUserSSOId (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
+        = case userIdentity $ selfUser selfprof of
+            Just (SSOIdentity ssoid _ _) -> Just ssoid
+            Just (FullIdentity _ _)  -> Nothing
+            Just (EmailIdentity _)   -> Nothing
+            Just (PhoneIdentity _)   -> Nothing
+            Nothing                  -> Nothing
+      getUserSSOId _ = Nothing
+
+  env <- ask
+  Just ssoid <- liftIO $ retrying
+    (exponentialBackoff 50 <> limitRetries 5)
+    (\_ -> pure . isNothing)
+    (\_ -> probe `runReaderT` env)
+  pure ssoid
+
+getUserIdViaRef :: HasCallStack => UserRef -> TestSpar UserId
+getUserIdViaRef uref = do
+  env <- ask
+  Just ssoid <- liftIO $ retrying
+    (exponentialBackoff 50 <> limitRetries 5)
+    (\_ -> pure . isNothing)
+    (\_ -> runClient (env ^. teCql) $ Data.getUser uref)
+  pure ssoid

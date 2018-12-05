@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -13,9 +14,7 @@ module Test.Spar.APISpec (spec) where
 import Imports hiding (head)
 import Bilge
 import Brig.Types.User
-import Cassandra (runClient)
 import Control.Lens
-import Control.Retry
 import Data.ByteString.Conversion
 import Data.Id
 import Data.String.Conversions
@@ -29,9 +28,7 @@ import Spar.Types
 import URI.ByteString.QQ (uri)
 import Util
 
-import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Builder as LB
-import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
 import qualified Web.Cookie as Cky
 
@@ -334,43 +331,6 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             parsed :: AuthnResponse
               <- either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
             either error (pure . Intra.toUserSSOId) $ getUserRef parsed
-
-          getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
-          getSsoidViaSelf uid = do
-            let probe :: HasCallStack => TestSpar (Maybe UserSSOId)
-                probe = do
-                  env <- ask
-                  fmap getUserSSOId . call . get $
-                    ( (env ^. teBrig)
-                    . header "Z-User" (toByteString' uid)
-                    . path "/self"
-                    . expect2xx
-                    )
-            env <- ask
-            Just ssoid <- liftIO $ retrying
-              (exponentialBackoff 50 <> limitRetries 5)
-              (\_ -> pure . isNothing)
-              (\_ -> probe `runReaderT` env)
-            pure ssoid
-
-          getUserIdViaRef :: HasCallStack => UserRef -> TestSpar UserId
-          getUserIdViaRef uref = do
-            env <- ask
-            Just ssoid <- liftIO $ retrying
-              (exponentialBackoff 50 <> limitRetries 5)
-              (\_ -> pure . isNothing)
-              (\_ -> runClient (env ^. teCql) $ Data.getUser uref)
-            pure ssoid
-
-          getUserSSOId :: HasCallStack => ResponseLBS -> Maybe UserSSOId
-          getUserSSOId (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
-            = case userIdentity $ selfUser selfprof of
-                Just (SSOIdentity ssoid _ _) -> Just ssoid
-                Just (FullIdentity _ _)  -> Nothing
-                Just (EmailIdentity _)   -> Nothing
-                Just (PhoneIdentity _)   -> Nothing
-                Nothing                  -> Nothing
-          getUserSSOId _ = Nothing
 
           initialBind :: HasCallStack => UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
           initialBind = initialBind' Just
