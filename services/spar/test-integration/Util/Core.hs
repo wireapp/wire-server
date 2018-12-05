@@ -69,8 +69,8 @@ module Util.Core
   , runSparCass, runSparCassWithEnv
   , runSimpleSP
   , runSpar
-  , getSsoidViaSelf
-  , getUserIdViaRef
+  , getSsoidViaSelf, getSsoidViaSelf'
+  , getUserIdViaRef, getUserIdViaRef'
   ) where
 
 import Imports hiding (head)
@@ -715,7 +715,10 @@ runSpar (Spar.Spar action) = do
 
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
-getSsoidViaSelf uid = do
+getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
+
+getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
+getSsoidViaSelf' uid = do
   let probe :: HasCallStack => TestSpar (Maybe UserSSOId)
       probe = do
         env <- ask
@@ -737,17 +740,18 @@ getSsoidViaSelf uid = do
       getUserSSOId _ = Nothing
 
   env <- ask
-  Just ssoid <- liftIO $ retrying
+  liftIO $ retrying
     (exponentialBackoff 50 <> limitRetries 5)
     (\_ -> pure . isNothing)
     (\_ -> probe `runReaderT` env)
-  pure ssoid
 
 getUserIdViaRef :: HasCallStack => UserRef -> TestSpar UserId
-getUserIdViaRef uref = do
+getUserIdViaRef uref = maybe (error "not found") pure =<< getUserIdViaRef' uref
+
+getUserIdViaRef' :: HasCallStack => UserRef -> TestSpar (Maybe UserId)
+getUserIdViaRef' uref = do
   env <- ask
-  Just ssoid <- liftIO $ retrying
+  liftIO $ retrying
     (exponentialBackoff 50 <> limitRetries 5)
     (\_ -> pure . isNothing)
     (\_ -> runClient (env ^. teCql) $ Data.getUser uref)
-  pure ssoid

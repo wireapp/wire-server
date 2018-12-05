@@ -26,11 +26,15 @@ import SAML2.WebSSO.Test.MockResponse
 import Spar.API.Types
 import Spar.Types
 import URI.ByteString.QQ (uri)
-import Util
+import Util.Core
+import Util.Types
 
 import qualified Data.ByteString.Builder as LB
 import qualified Spar.Intra.Brig as Intra
+import qualified Util.SCIM as SCIMT
 import qualified Web.Cookie as Cky
+import qualified Web.SCIM.Class.User as SCIM
+import qualified Web.SCIM.Schema.User as SCIM
 
 
 spec :: SpecWith TestEnv
@@ -41,6 +45,7 @@ spec = do
   specFinalizeLogin
   specBindingUsers
   specCRUDIdentityProvider
+  specSCIMAndSAML
   specAux
 
 
@@ -617,6 +622,27 @@ specCRUDIdentityProvider = do
           idp <- call $ callIdpCreate (env ^. teSpar) (Just (env ^. teUserId)) metadata
           idp' <- call $ callIdpGet (env ^. teSpar) (Just (env ^. teUserId)) (idp ^. idpId)
           liftIO $ idp `shouldBe` idp'
+
+
+specSCIMAndSAML :: SpecWith TestEnv
+specSCIMAndSAML = do
+    it "SCIM and SAML work together and SCIM-created users can login" $ do
+      env <- ask
+
+      -- create a user via scim
+      user           :: SCIM.User       <- SCIMT.randomSCIMUser
+      scimStoredUser :: SCIM.StoredUser <- SCIMT.createUser user
+      let userid     :: UserId           = SCIMT.scimUserId scimStoredUser
+          userref    :: UserRef          = UserRef tenant subject
+          tenant     :: Issuer           = env ^. teIdP . idpMetadata . edIssuer
+          subject    :: NameID           = opaqueNameID . fromMaybe (error "no external id") . SCIM.externalId $ user
+
+      -- UserRef maps onto correct UserId in spar (and back).
+      userid' <- getUserIdViaRef' userref
+      liftIO $ ('i', userid') `shouldBe` ('i', Just userid)
+
+      userssoid <- getSsoidViaSelf' userid
+      liftIO $ ('r', Intra.fromUserSSOId <$> userssoid) `shouldBe` ('r', Just (Right userref))
 
 
 specAux :: SpecWith TestEnv
