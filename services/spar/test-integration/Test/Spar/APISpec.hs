@@ -15,12 +15,14 @@ import Imports hiding (head)
 import Bilge
 import Brig.Types.User
 import Control.Lens
+import Data.Aeson
+import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Proxy
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID
-import Galley.Types.Teams as Galley
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.MockResponse
 import Spar.API.Types
@@ -30,6 +32,9 @@ import Util.Core
 import Util.Types
 
 import qualified Data.ByteString.Builder as LB
+import qualified Data.ZAuth.Token as ZAuth
+import qualified Data.ZAuth.Validation as ZAuth
+import qualified Galley.Types.Teams as Galley
 import qualified Spar.Intra.Brig as Intra
 import qualified Util.SCIM as SCIMT
 import qualified Web.Cookie as Cky
@@ -399,7 +404,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           env <- ask
           (uid, teamid, idp) <- createTestIdP
           (subj, _, _)       <- initialBind uid idp
-          uid'               <- let Just perms = newPermissions mempty mempty
+          uid'               <- let Just perms = Galley.newPermissions mempty mempty
                                 in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
           (_, sparresp)      <- reBindSame uid' idp subj
           checkDenyingAuthnResp sparresp "subject-id-taken"
@@ -493,7 +498,7 @@ specCRUDIdentityProvider = do
             it "responds with 'insufficient-permissions' and a helpful message" $ do
               env <- ask
               (_, teamid, (^. idpId) -> idpid) <- createTestIdP
-              newmember <- let Just perms = newPermissions mempty mempty
+              newmember <- let Just perms = Galley.newPermissions mempty mempty
                         in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
               whichone (env ^. teSpar) (Just newmember) idpid
                 `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
@@ -518,7 +523,7 @@ specCRUDIdentityProvider = do
           (_owner :: UserId, teamid :: TeamId)
             <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           member :: UserId
-            <- let Just perms = newPermissions mempty mempty
+            <- let Just perms = Galley.newPermissions mempty mempty
                in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
           callIdpGetAll' (env ^. teSpar) (Just member)
             `shouldRespondWith` ((== 403) . statusCode)
@@ -590,7 +595,7 @@ specCRUDIdentityProvider = do
         it "responds with 'insufficient-permissions' and a helpful message" $ do
           env <- ask
           (_owner, tid, idp) <- createTestIdP
-          newmember <- let Just perms = newPermissions mempty mempty
+          newmember <- let Just perms = Galley.newPermissions mempty mempty
                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
           callIdpCreate' (env ^. teSpar) (Just newmember) (idp ^. idpMetadata)
             `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
@@ -630,12 +635,12 @@ specSCIMAndSAML = do
       env <- ask
 
       -- create a user via scim
-      user           :: SCIM.User       <- SCIMT.randomSCIMUser
-      scimStoredUser :: SCIM.StoredUser <- SCIMT.createUser user
+      usr            :: SCIM.User       <- SCIMT.randomSCIMUser
+      scimStoredUser :: SCIM.StoredUser <- SCIMT.createUser usr
       let userid     :: UserId           = SCIMT.scimUserId scimStoredUser
           userref    :: UserRef          = UserRef tenant subject
           tenant     :: Issuer           = env ^. teIdP . idpMetadata . edIssuer
-          subject    :: NameID           = opaqueNameID . fromMaybe (error "no external id") . SCIM.externalId $ user
+          subject    :: NameID           = opaqueNameID . fromMaybe (error "no external id") . SCIM.externalId $ usr
 
       -- UserRef maps onto correct UserId in spar (and back).
       userid' <- getUserIdViaRef' userref
@@ -664,10 +669,10 @@ specAux = do
                 parsedResp <- either (error . show) pure $ selfUser <$> Intra.parseResponse @SelfProfile rawResp
                 liftIO $ userTeam parsedResp `shouldSatisfy` isJust
 
-            permses :: [Permissions]
+            permses :: [Galley.Permissions]
             permses = fromJust <$>
-              [ Just fullPermissions
-              , newPermissions mempty mempty
+              [ Just Galley.fullPermissions
+              , Galley.newPermissions mempty mempty
               ]
 
         sequence_ [ check tryowner perms | tryowner <- [minBound..], perms <- [0.. (length permses - 1)] ]
