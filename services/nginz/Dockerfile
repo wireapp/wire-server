@@ -11,7 +11,7 @@ RUN cd /src/libzauth/libzauth-c \
 # Nginz container
 FROM alpine:3.8
 
-ENV NGINX_VERSION 1.12.2
+ENV NGINX_VERSION 1.14.2
 
 # Install libzauth
 COPY --from=libzauth-builder /usr/include/zauth.h /usr/include/zauth.h
@@ -61,12 +61,12 @@ RUN apk add --no-cache inotify-tools dumb-init bash curl && \
         zlib-dev \
         linux-headers \
         curl \
-        gnupg \
+        gnupg1 \
         libxslt-dev \
         gd-dev \
         geoip-dev \
-    && curl -fSL http://nginx.org/download/nginx-$NGINX_VERSION.tar.gz -o nginx.tar.gz \
-    && curl -fSL http://nginx.org/download/nginx-$NGINX_VERSION.tar.gz.asc  -o nginx.tar.gz.asc \
+    && curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz -o nginx.tar.gz \
+    && curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz.asc  -o nginx.tar.gz.asc \
     && found=''; \
     for server in \
         ha.pool.sks-keyservers.net \
@@ -79,6 +79,7 @@ RUN apk add --no-cache inotify-tools dumb-init bash curl && \
     done; \
     test -z "$found" && echo >&2 "error: failed to fetch GPG key $GPG_KEYS" && exit 1; \
     gpg --batch --verify nginx.tar.gz.asc nginx.tar.gz \
+    && rm -rf "$GNUPGHOME" nginx.tar.gz.asc \
     && mkdir -p /usr/src \
     && tar -zxC /usr/src -f nginx.tar.gz \
     && rm nginx.tar.gz \
@@ -106,17 +107,23 @@ RUN apk add --no-cache inotify-tools dumb-init bash curl && \
     && apk add --no-cache --virtual .gettext gettext \
     && mv /usr/bin/envsubst /tmp/ \
     \
-    && runDeps="$( \
-        scanelf --needed --nobanner /usr/sbin/nginx /usr/lib/nginx/modules/*.so /tmp/envsubst \
-            | awk '{ gsub(/,/, "\nso:", $2); print "so:" $2 }' \
+    && runDepsTmp="$( \
+        scanelf --needed --nobanner --format '%n#p' /usr/sbin/nginx /usr/lib/nginx/modules/*.so /tmp/envsubst \
+            | tr ',' '\n' \
             | sort -u \
-            | xargs -r apk info --installed \
-            | sort -u \
+            | awk 'system("[ -e /usr/local/lib/" $1 " ]") == 0 { next } { print "so:" $1 }' \
     )" \
+    \
+    # exclude libzauth from runDeps
+    && runDeps=${runDepsTmp/so:libzauth.so/''} \
     && apk add --no-cache --virtual .nginx-rundeps $runDeps \
     && apk del .build-deps \
     && apk del .gettext \
     && mv /tmp/envsubst /usr/local/bin/ \
+    \
+    # Bring in tzdata so users could set the timezones through the environment
+    # variables
+    && apk add --no-cache tzdata \
     \
     # add libzauth runtime dependencies back in
     && apk add --no-cache libsodium llvm-libunwind \
