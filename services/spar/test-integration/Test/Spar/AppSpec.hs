@@ -81,7 +81,7 @@ spec = describe "accessVerdict" $ do
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
-              Servant.errBody outcome `shouldBe` "[\"we don't like you\",\"seriously\"]"
+              Servant.errBody outcome `shouldBe` "[\"No Bearer SubjectConfirmation\",\"no AuthnStatement\"]"
               uriScheme loc `shouldBe` (URI.Scheme "wire")
               List.lookup "userid" qry `shouldBe` Nothing
               List.lookup "cookie" qry `shouldBe` Nothing
@@ -149,7 +149,7 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
     let mk :: SAML.FormRedirect SAML.AuthnRequest -> TestSpar SAML.AuthnResponse
         mk (SAML.FormRedirect _ req) = do
           SAML.SignedAuthnResponse (XML.Document _ el _) <- runSimpleSP $
-            SAML.mkAuthnResponse SAML.sampleIdPPrivkey idp spmeta req True
+            SAML.mkAuthnResponseWithSubj subject SAML.sampleIdPPrivkey idp spmeta req True
           either (liftIO . throwIO . ErrorCall . show) pure $ SAML.parse [XML.NodeElement el]
     mk authnreq
   let verdict = if isGranted
