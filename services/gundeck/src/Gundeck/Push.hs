@@ -218,12 +218,12 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
             _                  -> True
 
 
+-- | REFACTOR: if the order of arguments of pushNative, pushNotice, pushData is aligned, we could do
+-- three eta-reductions here!
 pushNative :: Bool -> Notification -> Push -> [Address "no-keys"] -> Gundeck ()
-pushNative sendNotice notif p rcps
-    | ntfTransient notif = if sendNotice
-        then pushNotice p notif rcps
-        else pushData p notif rcps
-    | otherwise = pushNotice p notif rcps
+pushNative sendNotice notif p rcps = if sendNotice
+                                     then pushNotice p notif rcps
+                                     else pushData p notif rcps
 
 pushNotice :: Push -> Notification -> [Address s] -> Gundeck ()
 pushNotice _     _   [] = return ()
