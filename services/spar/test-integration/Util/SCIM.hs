@@ -14,13 +14,17 @@ module Util.SCIM where
 import Bilge
 import Bilge.Assert
 import Brig.Types.User
+import Cassandra
 import Control.Lens
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Text (pack, unpack)
+import Data.Time
 import Imports
+import SAML2.WebSSO.Types (IdPId, idpId)
+import Spar.Data as Data
 import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
-import Spar.Types (ScimToken)
+import Spar.Types (ScimToken(..), ScimTokenInfo(..), IdP)
 import System.Random
 import Util.Core
 import Util.Types
@@ -35,6 +39,28 @@ import qualified Web.SCIM.Schema.Meta             as SCIM
 import qualified Web.SCIM.Schema.User             as SCIM.User
 
 
+registerIdPAndSCIMToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP))
+registerIdPAndSCIMToken = do
+  team@(_owner, teamid, idp) <- createTestIdP
+  (, team) <$> registerSCIMToken teamid (Just (idp ^. idpId))
+
+registerSCIMToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
+registerSCIMToken teamid midpid = do
+  env <- ask
+  let tok = ScimToken $ "scim-test-token/" <> "team=" <> idToText teamid
+  scimTokenId <- randomId
+  now <- liftIO getCurrentTime
+  runClient (env ^. teCql) $ Data.insertScimToken
+      tok
+      ScimTokenInfo
+          { stiTeam      = teamid
+          , stiId        = scimTokenId
+          , stiCreatedAt = now
+          , stiIdP       = midpid
+          , stiDescr     = "_teScimToken test token"
+          }
+  pure tok
+
 -- | Generate a SCIM user with a random name and handle.
 randomSCIMUser :: TestSpar SCIM.User.User
 randomSCIMUser = do
@@ -48,29 +74,31 @@ randomSCIMUser = do
 ----------------------------------------------------------------------------
 -- API wrappers
 
--- | Create a user in the default 'TestEnv' team.
+-- | Create a user.
 createUser
     :: HasCallStack
-    => SCIM.User.User
+    => ScimToken
+    -> SCIM.User.User
     -> TestSpar SCIM.StoredUser
-createUser user = do
+createUser tok user = do
     env <- ask
     r <- createUser_
-             (Just (env ^. teScimToken))
+             (Just tok)
              user
              (env ^. teSpar)
          <!! const 201 === statusCode
     pure (decodeBody' r)
 
--- | List all users in the default 'TestEnv' team.
+-- | List all users.
 listUsers
     :: HasCallStack
-    => Maybe SCIM.Filter
+    => ScimToken
+    -> Maybe SCIM.Filter
     -> TestSpar [SCIM.StoredUser]
-listUsers mbFilter = do
+listUsers tok mbFilter = do
     env <- ask
     r <- listUsers_
-             (Just (env ^. teScimToken))
+             (Just tok)
              mbFilter
              (env ^. teSpar)
          <!! const 200 === statusCode
@@ -80,55 +108,59 @@ listUsers mbFilter = do
               \is not supported yet"
     pure (SCIM.resources r')
 
--- | Get a user belonging to the default 'TestEnv' team.
+-- | Get a user.
 getUser
     :: HasCallStack
-    => UserId
+    => ScimToken
+    -> UserId
     -> TestSpar SCIM.StoredUser
-getUser userid = do
+getUser tok userid = do
     env <- ask
     r <- getUser_
-             (Just (env ^. teScimToken))
+             (Just tok)
              userid
              (env ^. teSpar)
          <!! const 200 === statusCode
     pure (decodeBody' r)
 
--- | Create a SCIM token for the default 'TestEnv' team.
+-- | Create a SCIM token.
 createToken
     :: HasCallStack
-    => CreateScimToken
+    => UserId
+    -> CreateScimToken
     -> TestSpar CreateScimTokenResponse
-createToken payload = do
+createToken zusr payload = do
     env <- ask
     r <- createToken_
-             (env ^. teUserId)
+             zusr
              payload
              (env ^. teSpar)
          <!! const 200 === statusCode
     pure (decodeBody' r)
 
--- | Delete a SCIM token belonging to the default 'TestEnv' team.
+-- | Delete a SCIM token.
 deleteToken
     :: HasCallStack
-    => ScimTokenId                -- ^ Token to delete
+    => UserId
+    -> ScimTokenId                -- ^ Token to delete
     -> TestSpar ()
-deleteToken tokenid = do
+deleteToken zusr tokenid = do
     env <- ask
     deleteToken_
-        (env ^. teUserId)
+        zusr
         tokenid
         (env ^. teSpar)
         !!! const 204 === statusCode
 
--- | List SCIM tokens belonging to the default 'TestEnv' team.
+-- | List SCIM tokens.
 listTokens
     :: HasCallStack
-    => TestSpar ScimTokenList
-listTokens = do
+    => UserId
+    -> TestSpar ScimTokenList
+listTokens zusr = do
     env <- ask
     r <- listTokens_
-             (env ^. teUserId)
+             zusr
              (env ^. teSpar)
          <!! const 200 === statusCode
     pure (decodeBody' r)

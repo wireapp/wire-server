@@ -130,7 +130,7 @@ specInitiateLogin = do
       context "known IdP" $ do
         it "responds with 200" $ do
           env <- ask
-          let idp = idPIdToST $ env ^. teIdP . idpId
+          (_, _, idPIdToST . (^. idpId) -> idp) <- createTestIdP
           void . call $ head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
 
 
@@ -153,7 +153,7 @@ specInitiateLogin = do
       context "known IdP, no z-user" $ do  -- see 'specBindingUsers' below for the "with z-user" case.
         it "responds with authentication request and NO bind cookie" $ do
           env <- ask
-          let idp = idPIdToST $ env ^. teIdP . idpId
+          (_, _, idPIdToST . (^. idpId) -> idp) <- createTestIdP
           resp <- call $ get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
           liftIO $ do
             resp `shouldSatisfy` checkRespBody
@@ -165,7 +165,8 @@ specFinalizeLogin = do
     describe "POST /sso/finalize-login" $ do
       context "access denied" $ do
         it "responds with a very peculiar 'forbidden' HTTP response" $ do
-          (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          (_, _, idp) <- createTestIdP
+          (privcreds, authnreq) <- negotiateAuthnRequest idp
           spmeta <- getTestSPMetadata
           authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq False
           sparresp <- submitAuthnResponse authnresp
@@ -190,7 +191,8 @@ specFinalizeLogin = do
 
       context "access granted" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
-          (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          (_, _, idp) <- createTestIdP
+          (privcreds, authnreq) <- negotiateAuthnRequest idp
           spmeta <- getTestSPMetadata
           authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
           sparresp <- submitAuthnResponse authnresp
@@ -220,7 +222,8 @@ specFinalizeLogin = do
 
       context "unknown IdP Issuer" $ do
         it "rejects" $ do
-          (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          (_, _, idp) <- createTestIdP
+          (privcreds, authnreq) <- negotiateAuthnRequest idp
           spmeta <- getTestSPMetadata
           authnresp <- runSimpleSP $ mkAuthnResponse
             privcreds
@@ -248,21 +251,21 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
       context "known IdP, running session with non-sso user" $ do
         it "responds with 200" $ do
           env <- ask
-          let idp = idPIdToST $ env ^. teIdP . idpId
+          (owner, _, idPIdToST . (^. idpId) -> idp) <- createTestIdP
           void . call $ head ( (env ^. teSpar)
                              . path (cs $ "/sso-initiate-bind/" -/ idp)
-                             . header "Z-User" (toByteString' $ env ^. teUserId)
+                             . header "Z-User" (toByteString' owner)
                              . expect2xx
                              )
 
       context "known IdP, running session with sso user" $ do
         it "responds with 2xx" $ do
-          uid <- loginSsoUserFirstTime
+          (_, _, idp) <- createTestIdP
+          uid <- loginSsoUserFirstTime idp
           env <- ask
-          let idp = idPIdToST $ env ^. teIdP . idpId
           void . call $ head ( (env ^. teSpar)
                              . header "Z-User" (toByteString' uid)
-                             . path (cs $ "/sso-initiate-bind/" -/ idp)
+                             . path (cs $ "/sso-initiate-bind/" -/ (idPIdToST $ idp ^. idpId))
                              . expect2xx
                              )
 
@@ -282,7 +285,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
           it testmsg $ do
             env <- ask
-            let idp = idPIdToST $ env ^. teIdP . idpId
+            (_, _, idPIdToST . (^. idpId) -> idp) <- createTestIdP
             uid <- createUser
             resp <- call $ get ( (env ^. teSpar)
                                . (if hasZUser then header "Z-User" (toByteString' uid) else id)
@@ -307,7 +310,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         checkInitiateLogin True (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
 
       context "known IdP, running session with sso user" $ do
-        checkInitiateLogin True loginSsoUserFirstTime
+        checkInitiateLogin True (createTestIdP >>= \(_, _, idp) -> loginSsoUserFirstTime idp)
 
     describe "POST /sso/finalize-login" $ do
       let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
@@ -359,8 +362,8 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies)
             -> UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
           reBindSame' tweakcookies uid idp subj = do
-            (_, privCreds, authnReq, Just (SimpleSetCookie bindCky)) <- do
-              negotiateAuthnRequest' DoInitiateBind (Just idp) (header "Z-User" $ toByteString' uid)
+            (privCreds, authnReq, Just (SimpleSetCookie bindCky)) <- do
+              negotiateAuthnRequest' DoInitiateBind idp (header "Z-User" $ toByteString' uid)
             spmeta <- getTestSPMetadata
             authnResp <- runSimpleSP $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
             let cookiehdr = case tweakcookies [(Cky.setCookieName bindCky, Cky.setCookieValue bindCky)] of
@@ -509,9 +512,8 @@ specCRUDIdentityProvider = do
       context "known IdP, client is team owner" $ do
         it "responds with 2xx and IdP" $ do
           env <- ask
-          let idpid = env ^. teIdP . idpId
-              userid = env ^. teUserId
-          _ <- call $ callIdpGet (env ^. teSpar) (Just userid) idpid
+          (owner, _, (^. idpId) -> idpid) <- createTestIdP
+          _ <- call $ callIdpGet (env ^. teSpar) (Just owner) idpid
           passes
 
 
@@ -622,9 +624,10 @@ specCRUDIdentityProvider = do
       context "everything in order" $ do
         it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
           env <- ask
+          (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           metadata <- makeTestIdPMetadata
-          idp <- call $ callIdpCreate (env ^. teSpar) (Just (env ^. teUserId)) metadata
-          idp' <- call $ callIdpGet (env ^. teSpar) (Just (env ^. teUserId)) (idp ^. idpId)
+          idp <- call $ callIdpCreate (env ^. teSpar) (Just owner) metadata
+          idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
           liftIO $ idp `shouldBe` idp'
 
 
@@ -634,11 +637,12 @@ specSCIMAndSAML = do
       env <- ask
 
       -- create a user via scim
+      (tok, (_, _, idp))                <- SCIMT.registerIdPAndSCIMToken
       usr            :: SCIM.User       <- SCIMT.randomSCIMUser
-      scimStoredUser :: SCIM.StoredUser <- SCIMT.createUser usr
+      scimStoredUser :: SCIM.StoredUser <- SCIMT.createUser tok usr
       let userid     :: UserId           = SCIMT.scimUserId scimStoredUser
           userref    :: UserRef          = UserRef tenant subject
-          tenant     :: Issuer           = env ^. teIdP . idpMetadata . edIssuer
+          tenant     :: Issuer           = idp ^. idpMetadata . edIssuer
           subject    :: NameID           = opaqueNameID . fromMaybe (error "no external id") . SCIM.externalId $ usr
 
       -- UserRef maps onto correct UserId in spar (and back).
@@ -649,7 +653,7 @@ specSCIMAndSAML = do
       liftIO $ ('r', Intra.fromUserSSOId <$> userssoid) `shouldBe` ('r', Just (Right userref))
 
       -- login a user for the first time with the scim-supplied credentials
-      (idp, privcreds, authnreq) <- negotiateAuthnRequest
+      (privcreds, authnreq) <- negotiateAuthnRequest idp
       spmeta <- getTestSPMetadata
       authnresp  :: SignedAuthnResponse <- runSimpleSP $ mkAuthnResponseWithSubj subject privcreds idp spmeta authnreq True
       sparresp   :: ResponseLBS         <- submitAuthnResponse authnresp

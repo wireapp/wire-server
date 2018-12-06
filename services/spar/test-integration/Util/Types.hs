@@ -24,12 +24,8 @@ module Util.Types
   , teGalley
   , teSpar
   , teSparEnv
-  , teUserId
-  , teTeamId
-  , teIdP
   , teOpts
   , teTstOpts
-  , teScimToken
   , Select
   , ResponseLBS
   , IntegrationConfig(..)
@@ -43,7 +39,6 @@ import Control.Exception
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Aeson.TH
-import Data.Id
 import Data.String.Conversions
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
@@ -70,16 +65,6 @@ data TestEnv = TestEnv
   , _teSparEnv     :: Spar.Env
   , _teOpts        :: Opts               -- ^ spar config
   , _teTstOpts     :: IntegrationConfig  -- ^ integration test config
-
-    -- user, team, idp details created on spar:
-    -- TODO: rename to _teOwnerId
-  , _teUserId      :: UserId             -- ^ owner of the idp's home team
-  , _teTeamId      :: TeamId             -- ^ home team of the idp
-  , _teIdP         :: IdP                -- ^ details of the idp
-
-    -- SCIM config:
-  , _teScimToken   :: ScimToken          -- ^ A token that would grant SCIM
-                                         --   access to the '_teTeamId' team
   }
 
 type Select = TestEnv -> (Request -> Request)

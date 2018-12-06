@@ -21,6 +21,7 @@ import Data.UUID.V4 as UUID
 import SAML2.Util ((-/))
 import SAML2.WebSSO as SAML
 import Spar.Orphans ()
+import Spar.Types (IdP)
 import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
@@ -44,7 +45,8 @@ spec = describe "accessVerdict" $ do
 
         context "denied" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, outcome, _, _) <- requestAccessVerdict False mkAuthnReqWeb
+            (_, _, idp) <- createTestIdP
+            (_, outcome, _, _) <- requestAccessVerdict idp False mkAuthnReqWeb
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -55,7 +57,8 @@ spec = describe "accessVerdict" $ do
 
         context "granted" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, outcome, _, _) <- requestAccessVerdict True mkAuthnReqWeb
+            (_, _, idp) <- createTestIdP
+            (_, outcome, _, _) <- requestAccessVerdict idp True mkAuthnReqWeb
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
               Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -73,7 +76,8 @@ spec = describe "accessVerdict" $ do
 
         context "denied" $ do
           it "responds with status 303 with appropriate details." $ do
-            (_uid, outcome, loc, qry) <- requestAccessVerdict False mkAuthnReqMobile
+            (_, _, idp) <- createTestIdP
+            (_uid, outcome, loc, qry) <- requestAccessVerdict idp False mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -85,7 +89,8 @@ spec = describe "accessVerdict" $ do
 
         context "granted" $ do
           it "responds with status 303 with appropriate details." $ do
-            (uid, outcome, loc, qry) <- requestAccessVerdict True mkAuthnReqMobile
+            (_, _, idp) <- createTestIdP
+            (uid, outcome, loc, qry) <- requestAccessVerdict idp True mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -120,19 +125,18 @@ mkAuthnReqMobile idpid = do
   call $ get ((env ^. teSpar) . path arPath . expect2xx)
 
 requestAccessVerdict :: HasCallStack
-                     => Bool                                   -- ^ is the verdict granted?
+                     => IdP
+                     -> Bool                                   -- ^ is the verdict granted?
                      -> (SAML.IdPId -> TestSpar ResponseLBS)   -- ^ raw authnreq
                      -> TestSpar ( UserId
                                  , SAML.ResponseVerdict
                                  , URI                         -- ^ location header
                                  , [(SBS, SBS)]                -- ^ query params
                                  )
-requestAccessVerdict isGranted mkAuthnReq = do
-  env <- ask
+requestAccessVerdict idp isGranted mkAuthnReq = do
   uid <- nextWireId
   subject <- SAML.opaqueNameID . UUID.toText <$> liftIO UUID.nextRandom
   let uref    = SAML.UserRef tenant subject
-      idp     = env ^. teIdP
       idpid   = idp ^. SAML.idpId
       tenant  = idp ^. SAML.idpMetadata . SAML.edIssuer
   runSpar $ Spar.insertUser uref uid

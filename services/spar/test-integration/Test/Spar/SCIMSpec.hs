@@ -33,7 +33,8 @@ specUsers = describe "operations with users" $ do
             env <- ask
             -- Create a user via SCIM
             user <- randomSCIMUser
-            scimStoredUser <- createUser user
+            (tok, _) <- registerIdPAndSCIMToken
+            scimStoredUser <- createUser tok user
             let userid = scimUserId scimStoredUser
             -- Check that this user is present in Brig and that Brig's view
             -- of the user matches SCIM's view of the user
@@ -47,17 +48,17 @@ specUsers = describe "operations with users" $ do
 
     describe "GET /Users" $ do
         it "lists all users in a team" $ do
-            env <- ask
             -- Create a user via SCIM
             user <- randomSCIMUser
-            storedUser <- createUser user
+            (tok, (owner, _, _)) <- registerIdPAndSCIMToken
+            storedUser <- createUser tok user
             -- Get all users via SCIM
-            users <- listUsers Nothing
+            users <- listUsers tok Nothing
             -- Check that the SCIM user is present
             liftIO $ users `shouldContain` [storedUser]
             -- Check that the (non-SCIM-provisioned) team owner is present
             liftIO $ users `shouldSatisfy`
-                any ((== env^.teUserId) . scimUserId)
+                any ((== owner) . scimUserId)
         it "finds a SCIM-provisioned user by username" $
             pending
         it "finds a non-SCIM-provisioned user by username" $
@@ -67,9 +68,10 @@ specUsers = describe "operations with users" $ do
         it "finds a SCIM-provisioned user" $ do
             -- Create a user via SCIM
             user <- randomSCIMUser
-            storedUser <- createUser user
+            (tok, _) <- registerIdPAndSCIMToken
+            storedUser <- createUser tok user
             -- Check that the SCIM-provisioned user can be fetched
-            storedUser' <- getUser (scimUserId storedUser)
+            storedUser' <- getUser tok (scimUserId storedUser)
             liftIO $ storedUser' `shouldBe` storedUser
         it "finds a non-SCIM-provisioned user" $ do
             pendingWith "TODO: fails because the user has no handle"
@@ -97,8 +99,9 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
         it "creates a usable token" $ do
             env <- ask
             -- Create a token
+            (owner, _, _) <- createTestIdP
             CreateScimTokenResponse token tokenInfo <-
-                createToken CreateScimToken
+                createToken owner CreateScimToken
                     { createScimTokenDescr = "token creation test" }
             -- Try to execute a SCIM operation without a token and check
             -- that it fails
@@ -109,7 +112,7 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
             listUsers_ (Just token) Nothing (env ^. teSpar)
                 !!! const 200 === statusCode
             -- Cleanup
-            deleteToken (stiId tokenInfo)
+            deleteToken owner (stiId tokenInfo)
 
         it "respects the token limit (2 for integration tests)" $ do
             env <- ask
@@ -117,15 +120,16 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
             -- existing token that's created in 'mkEnv'). Creating the
             -- second token should succeed, and creating the third token
             -- should fail.
+            (owner, _, _) <- createTestIdP
             CreateScimTokenResponse _ tokenInfo1 <-
-                createToken CreateScimToken
+                createToken owner CreateScimToken
                     { createScimTokenDescr = "token limit test / #1" }
-            createToken_ (env ^. teUserId) CreateScimToken
+            createToken_ owner CreateScimToken
                 { createScimTokenDescr = "token limit test / #2" }
                 (env ^. teSpar)
                 !!! const 403 === statusCode
             -- Cleanup
-            deleteToken (stiId tokenInfo1)
+            deleteToken owner (stiId tokenInfo1)
 
         it "doesn't create a token for a team without IdP" $ do
             env <- ask
@@ -143,29 +147,31 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
         it "makes the token unusable" $ do
             env <- ask
             -- Create a token
+            (owner, _, _) <- createTestIdP
             CreateScimTokenResponse token tokenInfo <-
-                createToken CreateScimToken
+                createToken owner CreateScimToken
                     { createScimTokenDescr = "token deletion test" }
             -- An operation with the token should succeed
             listUsers_ (Just token) Nothing (env ^. teSpar)
                 !!! const 200 === statusCode
             -- Delete the token and now the operation should fail
-            deleteToken (stiId tokenInfo)
+            deleteToken owner (stiId tokenInfo)
             listUsers_ (Just token) Nothing (env ^. teSpar)
                 !!! const 401 === statusCode
 
     describe "GET /auth-tokens" $ do
         it "lists tokens" $ do
             -- Create a token
+            (owner, _, _) <- createTestIdP
             CreateScimTokenResponse _ tokenInfo <-
-                createToken CreateScimToken
+                createToken owner CreateScimToken
                     { createScimTokenDescr = "token listing test" }
             -- Both the default team token and this token should be present
-            do list <- scimTokenListTokens <$> listTokens
+            do list <- scimTokenListTokens <$> listTokens owner
                liftIO $ map stiDescr list `shouldBe`
                    ["_teScimToken test token", "token listing test"]
             -- Delete the token and now it shouldn't be on the list
-            deleteToken (stiId tokenInfo)
-            do list <- scimTokenListTokens <$> listTokens
+            deleteToken owner (stiId tokenInfo)
+            do list <- scimTokenListTokens <$> listTokens owner
                liftIO $ map stiDescr list `shouldBe`
                    ["_teScimToken test token"]
