@@ -136,22 +136,20 @@ requestAccessVerdict :: HasCallStack
 requestAccessVerdict idp isGranted mkAuthnReq = do
   uid <- nextWireId
   subject <- SAML.opaqueNameID . UUID.toText <$> liftIO UUID.nextRandom
-  let uref    = SAML.UserRef tenant subject
-      idpid   = idp ^. SAML.idpId
-      tenant  = idp ^. SAML.idpMetadata . SAML.edIssuer
+  let uref   = SAML.UserRef tenant subject
+      tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
   runSpar $ Spar.insertUser uref uid
   authnreq :: SAML.FormRedirect SAML.AuthnRequest <- do
-    raw <- mkAuthnReq idpid
+    raw <- mkAuthnReq (idp ^. SAML.idpId)
     bdy <- maybe (error "authreq") pure $ responseBody raw
     either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
   spmeta <- getTestSPMetadata
   authnresp <- do
-    let mk :: SAML.FormRedirect SAML.AuthnRequest -> TestSpar SAML.AuthnResponse
-        mk (SAML.FormRedirect _ req) = do
+    case authnreq of
+      (SAML.FormRedirect _ req) -> do
           SAML.SignedAuthnResponse (XML.Document _ el _) <- runSimpleSP $
             SAML.mkAuthnResponseWithSubj subject SAML.sampleIdPPrivkey idp spmeta req True
-          either (liftIO . throwIO . ErrorCall . show) pure $ SAML.parse [XML.NodeElement el]
-    mk authnreq
+          either (error . show) pure $ SAML.parse [XML.NodeElement el]
   let verdict = if isGranted
         then SAML.AccessGranted uref
         else SAML.AccessDenied [DeniedNoBearerConfSubj, DeniedNoAuthnStatement]
