@@ -10,14 +10,13 @@
 
 module Test.Spar.AppSpec (spec) where
 
-import Imports
 import Bilge
-import Control.Exception
 import Control.Lens
 import Data.Id
 import Data.String.Conversions
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
+import Imports
 import SAML2.Util ((-/))
 import SAML2.WebSSO as SAML
 import Spar.Orphans ()
@@ -33,6 +32,7 @@ import qualified SAML2.WebSSO.Test.Credentials as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified Servant
 import qualified Spar.App as Spar
+import qualified Spar.Data as Data
 import qualified Text.XML as XML
 
 
@@ -134,11 +134,9 @@ requestAccessVerdict :: HasCallStack
                                  , [(SBS, SBS)]                -- ^ query params
                                  )
 requestAccessVerdict idp isGranted mkAuthnReq = do
-  uid <- nextWireId
   subject <- SAML.opaqueNameID . UUID.toText <$> liftIO UUID.nextRandom
   let uref   = SAML.UserRef tenant subject
       tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
-  runSpar $ Spar.insertUser uref uid
   authnreq :: SAML.FormRedirect SAML.AuthnRequest <- do
     raw <- mkAuthnReq (idp ^. SAML.idpId)
     bdy <- maybe (error "authreq") pure $ responseBody raw
@@ -160,4 +158,5 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
           $ outcome
       qry :: [(SBS, SBS)]
       qry = queryPairs $ uriQuery loc
+  uid <- runSparCass $ maybe (error "uref not found") pure =<< Data.getUser uref
   pure (uid, outcome, loc, qry)
