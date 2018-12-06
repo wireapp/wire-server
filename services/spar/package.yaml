@@ -125,3 +125,4 @@ executables:
       - xml-conduit
       - xml-hamlet
       - xml-lens
+      - zauth

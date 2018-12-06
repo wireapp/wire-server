@@ -33,7 +33,6 @@ import Util.Types
 
 import qualified Data.ByteString.Builder as LB
 import qualified Data.ZAuth.Token as ZAuth
-import qualified Data.ZAuth.Validation as ZAuth
 import qualified Galley.Types.Teams as Galley
 import qualified Spar.Intra.Brig as Intra
 import qualified Util.SCIM as SCIMT
@@ -648,6 +647,46 @@ specSCIMAndSAML = do
 
       userssoid <- getSsoidViaSelf' userid
       liftIO $ ('r', Intra.fromUserSSOId <$> userssoid) `shouldBe` ('r', Just (Right userref))
+
+      -- login a user for the first time with the scim-supplied credentials
+      (idp, privcreds, authnreq) <- negotiateAuthnRequest
+      spmeta <- getTestSPMetadata
+      authnresp  :: SignedAuthnResponse <- runSimpleSP $ mkAuthnResponseWithSubj subject privcreds idp spmeta authnreq True
+      sparresp   :: ResponseLBS         <- submitAuthnResponse authnresp
+
+      -- user should receive a cookie
+      liftIO $ statusCode sparresp `shouldBe` 200
+      setcky :: SAML.SimpleSetCookie "zuid"
+        <- either error pure $ Util.Core.getCookie (Proxy @"zuid") sparresp
+
+      -- /access with that cookie should give us a token
+      let ckyraw = cookieRaw (Cky.setCookieName setcky') (Cky.setCookieValue setcky')
+          setcky' = fromSimpleSetCookie setcky
+
+      accessresp <- call . post $ (env ^. teBrig) . path "/access" . ckyraw
+      token :: Text <- liftIO $ do
+        statusCode accessresp `shouldBe` 200
+        bdy :: LBS   <- maybe (error "no body") pure $ responseBody accessresp
+        val :: Value <- either error pure            $ eitherDecode bdy
+        maybe (error "no access token") pure         $ val ^? key "access_token" . _String
+
+      -- token should contain the expected userid
+      userid'' <- do
+        parsed :: ZAuth.Token ZAuth.Access
+          <- maybe (error "bad access token") pure . fromByteString . cs $ token
+        pure $ Id (parsed ^. ZAuth.body . ZAuth.userId)
+      liftIO $ userid'' `shouldBe` userid
+
+      -- /self should contain the expected UserSSOId
+      self :: ResponseLBS
+        <- call . get $ (env ^. teBrig)
+           . path "/self"
+           . header "Z-User" (toByteString' userid'')
+      selfbdy :: SelfProfile
+        <- do
+             bdy :: LBS <- maybe (error "no self body") pure $ responseBody self
+             either error pure $ eitherDecode bdy
+      liftIO $ userId (selfUser selfbdy) `shouldBe` userid
 
 
 specAux :: SpecWith TestEnv
