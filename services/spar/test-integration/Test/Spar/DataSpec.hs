@@ -30,7 +30,7 @@ spec = do
   describe "TTL" $ do
     it "works in seconds" $ do
       env <- ask
-      (_, _, (^. SAML.idpId) -> idpid) <- createTestIdP
+      (_, _, (^. SAML.idpId) -> idpid) <- registerTestIdP
       (_, req) <- call $ callAuthnReq (env ^. teSpar) idpid
 
       let probe :: (MonadIO m, MonadReader TestEnv m) => m Bool

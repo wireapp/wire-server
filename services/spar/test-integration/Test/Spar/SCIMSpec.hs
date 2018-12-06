@@ -99,7 +99,7 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
         it "creates a usable token" $ do
             env <- ask
             -- Create a token
-            (owner, _, _) <- createTestIdP
+            (owner, _, _) <- registerTestIdP
             CreateScimTokenResponse token tokenInfo <-
                 createToken owner CreateScimToken
                     { createScimTokenDescr = "token creation test" }
@@ -120,7 +120,7 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
             -- existing token that's created in 'mkEnv'). Creating the
             -- second token should succeed, and creating the third token
             -- should fail.
-            (owner, _, _) <- createTestIdP
+            (owner, _, _) <- registerTestIdP
             CreateScimTokenResponse _ tokenInfo1 <-
                 createToken owner CreateScimToken
                     { createScimTokenDescr = "token limit test / #1" }
@@ -147,7 +147,7 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
         it "makes the token unusable" $ do
             env <- ask
             -- Create a token
-            (owner, _, _) <- createTestIdP
+            (owner, _, _) <- registerTestIdP
             CreateScimTokenResponse token tokenInfo <-
                 createToken owner CreateScimToken
                     { createScimTokenDescr = "token deletion test" }
@@ -162,7 +162,7 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
     describe "GET /auth-tokens" $ do
         it "lists tokens" $ do
             -- Create a token
-            (owner, _, _) <- createTestIdP
+            (owner, _, _) <- registerTestIdP
             CreateScimTokenResponse _ tokenInfo <-
                 createToken owner CreateScimToken
                     { createScimTokenDescr = "token listing test" }

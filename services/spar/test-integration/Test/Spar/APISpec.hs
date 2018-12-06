@@ -130,7 +130,7 @@ specInitiateLogin = do
       context "known IdP" $ do
         it "responds with 200" $ do
           env <- ask
-          (_, _, idPIdToST . (^. idpId) -> idp) <- createTestIdP
+          (_, _, idPIdToST . (^. idpId) -> idp) <- registerTestIdP
           void . call $ head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
 
 
@@ -153,7 +153,7 @@ specInitiateLogin = do
       context "known IdP, no z-user" $ do  -- see 'specBindingUsers' below for the "with z-user" case.
         it "responds with authentication request and NO bind cookie" $ do
           env <- ask
-          (_, _, idPIdToST . (^. idpId) -> idp) <- createTestIdP
+          (_, _, idPIdToST . (^. idpId) -> idp) <- registerTestIdP
           resp <- call $ get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
           liftIO $ do
             resp `shouldSatisfy` checkRespBody
@@ -165,7 +165,7 @@ specFinalizeLogin = do
     describe "POST /sso/finalize-login" $ do
       context "access denied" $ do
         it "responds with a very peculiar 'forbidden' HTTP response" $ do
-          (_, _, idp) <- createTestIdP
+          (_, _, idp) <- registerTestIdP
           (privcreds, authnreq) <- negotiateAuthnRequest idp
           spmeta <- getTestSPMetadata
           authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq False
@@ -191,7 +191,7 @@ specFinalizeLogin = do
 
       context "access granted" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
-          (_, _, idp) <- createTestIdP
+          (_, _, idp) <- registerTestIdP
           (privcreds, authnreq) <- negotiateAuthnRequest idp
           spmeta <- getTestSPMetadata
           authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
@@ -222,7 +222,7 @@ specFinalizeLogin = do
 
       context "unknown IdP Issuer" $ do
         it "rejects" $ do
-          (_, _, idp) <- createTestIdP
+          (_, _, idp) <- registerTestIdP
           (privcreds, authnreq) <- negotiateAuthnRequest idp
           spmeta <- getTestSPMetadata
           authnresp <- runSimpleSP $ mkAuthnResponse
@@ -251,7 +251,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
       context "known IdP, running session with non-sso user" $ do
         it "responds with 200" $ do
           env <- ask
-          (owner, _, idPIdToST . (^. idpId) -> idp) <- createTestIdP
+          (owner, _, idPIdToST . (^. idpId) -> idp) <- registerTestIdP
           void . call $ head ( (env ^. teSpar)
                              . path (cs $ "/sso-initiate-bind/" -/ idp)
                              . header "Z-User" (toByteString' owner)
@@ -260,7 +260,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
       context "known IdP, running session with sso user" $ do
         it "responds with 2xx" $ do
-          (_, _, idp) <- createTestIdP
+          (_, _, idp) <- registerTestIdP
           uid <- loginSsoUserFirstTime idp
           env <- ask
           void . call $ head ( (env ^. teSpar)
@@ -285,7 +285,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
           it testmsg $ do
             env <- ask
-            (_, _, idPIdToST . (^. idpId) -> idp) <- createTestIdP
+            (_, _, idPIdToST . (^. idpId) -> idp) <- registerTestIdP
             uid <- createUser
             resp <- call $ get ( (env ^. teSpar)
                                . (if hasZUser then header "Z-User" (toByteString' uid) else id)
@@ -310,7 +310,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         checkInitiateLogin True (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
 
       context "known IdP, running session with sso user" $ do
-        checkInitiateLogin True (createTestIdP >>= \(_, _, idp) -> loginSsoUserFirstTime idp)
+        checkInitiateLogin True (registerTestIdP >>= \(_, _, idp) -> loginSsoUserFirstTime idp)
 
     describe "POST /sso/finalize-login" $ do
       let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
@@ -383,20 +383,20 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
       context "initial bind" $ do
         it "allowed" $ do
-          (uid, _, idp)                 <- createTestIdP
+          (uid, _, idp)                 <- registerTestIdP
           (_, authnResp, sparAuthnResp) <- initialBind uid idp
           checkGrantingAuthnResp uid authnResp sparAuthnResp
 
       context "re-bind to same UserRef" $ do
         it "allowed" $ do
-          (uid, _, idp)      <- createTestIdP
+          (uid, _, idp)      <- registerTestIdP
           (subj, _, _)       <- initialBind uid idp
           (sparrq, sparresp) <- reBindSame uid idp subj
           checkGrantingAuthnResp uid sparrq sparresp
 
       context "re-bind to new UserRef from different IdP" $ do
         it "allowed" $ do
-          (uid, _, idp)      <- createTestIdP
+          (uid, _, idp)      <- registerTestIdP
           _                  <- initialBind uid idp
           (sparrq, sparresp) <- reBindDifferent uid
           checkGrantingAuthnResp uid sparrq sparresp
@@ -404,7 +404,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
       context "bind to UserRef in use by other wire user" $ do
         it "forbidden" $ do
           env <- ask
-          (uid, teamid, idp) <- createTestIdP
+          (uid, teamid, idp) <- registerTestIdP
           (subj, _, _)       <- initialBind uid idp
           uid'               <- let Just perms = Galley.newPermissions mempty mempty
                                 in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
@@ -413,8 +413,8 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
       context "bind to UserRef from different team" $ do
         it "forbidden" $ do
-          (uid, _, _) <- createTestIdP
-          (_, _, idp) <- createTestIdP
+          (uid, _, _) <- registerTestIdP
+          (_, _, idp) <- registerTestIdP
           (_, _, sparresp) <- initialBind uid idp
           checkDenyingAuthnResp sparresp "bad-team"
 
@@ -425,7 +425,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         let check :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies) -> Bool -> SpecWith TestEnv
             check tweakcookies bindsucceeds = do
               it (if bindsucceeds then "binds existing user" else "creates new user") $ do
-                (uid, _, idp) <- createTestIdP
+                (uid, _, idp) <- registerTestIdP
                 (subj :: NameID, sparrq, sparresp) <- initialBind' tweakcookies uid idp
                 checkGrantingAuthnResp' sparresp
 
@@ -476,14 +476,14 @@ specCRUDIdentityProvider = do
           context "no zuser" $ do
             it "responds with 'client error'" $ do
               env <- ask
-              (_, _, (^. idpId) -> idpid) <- createTestIdP
+              (_, _, (^. idpId) -> idpid) <- registerTestIdP
               whichone (env ^. teSpar) Nothing idpid
                 `shouldRespondWith` checkErr (== 400) "client-error"
 
           context "zuser has no team" $ do
             it "responds with 'no team member'" $ do
               env <- ask
-              (_, _, (^. idpId) -> idpid) <- createTestIdP
+              (_, _, (^. idpId) -> idpid) <- registerTestIdP
               (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
               whichone (env ^. teSpar) (Just uid) idpid
                 `shouldRespondWith` checkErr (== 403) "no-team-member"
@@ -491,7 +491,7 @@ specCRUDIdentityProvider = do
           context "zuser has wrong team" $ do
             it "responds with 'no team member'" $ do
               env <- ask
-              (_, _, (^. idpId) -> idpid) <- createTestIdP
+              (_, _, (^. idpId) -> idpid) <- registerTestIdP
               (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
               whichone (env ^. teSpar) (Just uid) idpid
                 `shouldRespondWith` checkErr (== 403) "no-team-member"
@@ -499,7 +499,7 @@ specCRUDIdentityProvider = do
           context "zuser is a team member, but not a team owner" $ do
             it "responds with 'insufficient-permissions' and a helpful message" $ do
               env <- ask
-              (_, teamid, (^. idpId) -> idpid) <- createTestIdP
+              (_, teamid, (^. idpId) -> idpid) <- registerTestIdP
               newmember <- let Just perms = Galley.newPermissions mempty mempty
                         in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
               whichone (env ^. teSpar) (Just newmember) idpid
@@ -512,7 +512,7 @@ specCRUDIdentityProvider = do
       context "known IdP, client is team owner" $ do
         it "responds with 2xx and IdP" $ do
           env <- ask
-          (owner, _, (^. idpId) -> idpid) <- createTestIdP
+          (owner, _, (^. idpId) -> idpid) <- registerTestIdP
           _ <- call $ callIdpGet (env ^. teSpar) (Just owner) idpid
           passes
 
@@ -542,7 +542,7 @@ specCRUDIdentityProvider = do
           it "returns a non-empty empty list" $ do
             env <- ask
             metadata <- makeTestIdPMetadata
-            (owner, _, _) <- createTestIdPFrom metadata (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
+            (owner, _, _) <- registerTestIdPFrom metadata (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
             callIdpGetAll (env ^. teSpar) (Just owner)
               `shouldRespondWith` (not . null . _idplProviders)
 
@@ -553,7 +553,7 @@ specCRUDIdentityProvider = do
       context "known IdP, client is team owner" $ do
         it "responds with 2xx and removes IdP" $ do
           env <- ask
-          (userid, _, (^. idpId) -> idpid) <- createTestIdP
+          (userid, _, (^. idpId) -> idpid) <- registerTestIdP
           callIdpDelete' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` \resp -> statusCode resp < 300
           callIdpGet' (env ^. teSpar) (Just userid) idpid
@@ -595,7 +595,7 @@ specCRUDIdentityProvider = do
       context "zuser is a team member, but not a team owner" $ do
         it "responds with 'insufficient-permissions' and a helpful message" $ do
           env <- ask
-          (_owner, tid, idp) <- createTestIdP
+          (_owner, tid, idp) <- registerTestIdP
           newmember <- let Just perms = Galley.newPermissions mempty mempty
                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
           callIdpCreate' (env ^. teSpar) (Just newmember) (idp ^. idpMetadata)

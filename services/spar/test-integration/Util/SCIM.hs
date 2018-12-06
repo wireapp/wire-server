@@ -41,7 +41,7 @@ import qualified Web.SCIM.Schema.User             as SCIM.User
 
 registerIdPAndSCIMToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP))
 registerIdPAndSCIMToken = do
-  team@(_owner, teamid, idp) <- createTestIdP
+  team@(_owner, teamid, idp) <- registerTestIdP
   (, team) <$> registerSCIMToken teamid (Just (idp ^. idpId))
 
 registerSCIMToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken

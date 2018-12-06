@@ -45,7 +45,7 @@ spec = describe "accessVerdict" $ do
 
         context "denied" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, _, idp) <- createTestIdP
+            (_, _, idp) <- registerTestIdP
             (_, outcome, _, _) <- requestAccessVerdict idp False mkAuthnReqWeb
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
@@ -57,7 +57,7 @@ spec = describe "accessVerdict" $ do
 
         context "granted" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, _, idp) <- createTestIdP
+            (_, _, idp) <- registerTestIdP
             (_, outcome, _, _) <- requestAccessVerdict idp True mkAuthnReqWeb
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
@@ -76,7 +76,7 @@ spec = describe "accessVerdict" $ do
 
         context "denied" $ do
           it "responds with status 303 with appropriate details." $ do
-            (_, _, idp) <- createTestIdP
+            (_, _, idp) <- registerTestIdP
             (_uid, outcome, loc, qry) <- requestAccessVerdict idp False mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
@@ -89,7 +89,7 @@ spec = describe "accessVerdict" $ do
 
         context "granted" $ do
           it "responds with status 303 with appropriate details." $ do
-            (_, _, idp) <- createTestIdP
+            (_, _, idp) <- registerTestIdP
             (uid, outcome, loc, qry) <- requestAccessVerdict idp True mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303

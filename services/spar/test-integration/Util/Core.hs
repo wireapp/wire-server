@@ -47,8 +47,8 @@ module Util.Core
   , makeIssuer
   , makeTestIdPMetadata
   , getTestSPMetadata
-  , createTestIdP
-  , createTestIdPFrom
+  , registerTestIdP
+  , registerTestIdPFrom
   , negotiateAuthnRequest
   , negotiateAuthnRequest'
   , getCookie
@@ -420,17 +420,17 @@ getTestSPMetadata = do
     crash_ = liftIO . throwIO . ErrorCall
 
 
-createTestIdP :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
+registerTestIdP :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
               => m (UserId, TeamId, IdP)
-createTestIdP = do
+registerTestIdP = do
   idpmeta <- makeTestIdPMetadata
   env <- ask
-  createTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
+  registerTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
 
 -- | Create new user, team, idp from given 'IdPMetadata'.
-createTestIdPFrom :: (HasCallStack, MonadIO m)
+registerTestIdPFrom :: (HasCallStack, MonadIO m)
                   => IdPMetadata -> Manager -> BrigReq -> GalleyReq -> SparReq -> m (UserId, TeamId, IdP)
-createTestIdPFrom metadata mgr brig galley spar = do
+registerTestIdPFrom metadata mgr brig galley spar = do
   liftIO . runHttpT mgr $ do
     (uid, tid) <- createUserWithTeam brig galley
     (uid, tid,) <$> callIdpCreate spar (Just uid) metadata
