@@ -12,9 +12,11 @@ import Test.Hspec
 import Util
 
 import qualified Data.Yaml as Yaml
-import qualified Test.Spar.DataSpec
-import qualified Test.Spar.SCIMSpec
 import qualified Test.Spar.APISpec
+import qualified Test.Spar.AppSpec
+import qualified Test.Spar.DataSpec
+import qualified Test.Spar.Intra.BrigSpec
+import qualified Test.Spar.SCIMSpec
 
 
 main :: IO ()
@@ -29,7 +31,9 @@ mkspec = do
 
   pure . beforeAll (mkEnv integrationOpts serviceOpts) . afterAll destroyEnv $ do
     describe "Test.Spar.API" Test.Spar.APISpec.spec
+    describe "Test.Spar.App" Test.Spar.AppSpec.spec
     describe "Test.Spar.Data" Test.Spar.DataSpec.spec
+    describe "Test.Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
     describe "Test.Spar.SCIM" Test.Spar.SCIMSpec.spec
 
 
