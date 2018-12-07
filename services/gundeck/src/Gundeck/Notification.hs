@@ -28,11 +28,11 @@ import qualified Gundeck.Notification.Data    as Data
 
 -- REFACTOR: cancelFallback is not used any more.  ignore that, make sure it (a) reflects on swagger
 -- and (b) is tolerant towards old clients, then notify all client teams.
-paginate :: JSON ::: UserId ::: Maybe ByteString ::: Maybe ClientId ::: Range 100 10000 Int32 -> Gundeck Response
-paginate (_ ::: uid ::: Nothing ::: clt ::: size) = do
+paginate :: JSON ::: UserId ::: Maybe ByteString ::: Maybe ClientId ::: Range 100 10000 Int32 ::: Maybe NotificationId -> Gundeck Response
+paginate (_ ::: uid ::: Nothing ::: clt ::: size ::: _cancelFallback) = do
     t <- posixTime
     pageResponse t <$> Data.fetch uid clt Nothing size
-paginate (_ ::: uid ::: Just since ::: clt ::: size) = do
+paginate (_ ::: uid ::: Just since ::: clt ::: size ::: _cancelFallback) = do
     t <- posixTime
     case parseUUID since of
         Nothing -> setStatus status404 . pageResponse t
@@ -43,8 +43,8 @@ paginate (_ ::: uid ::: Just since ::: clt ::: size) = do
     parseUUID  = UUID.fromASCIIBytes >=> isV1UUID >=> return . Id
     isV1UUID u = if UUID.version u == 1 then Just u else Nothing
 
-getById :: JSON ::: UserId ::: NotificationId ::: Maybe ClientId -> Gundeck Response
-getById (_ ::: uid ::: nid ::: clt) = do
+getById :: JSON ::: UserId ::: NotificationId ::: Maybe ClientId ::: Bool -> Gundeck Response
+getById (_ ::: uid ::: nid ::: clt ::: _cancelFallback) = do
     mn <- Data.fetchId uid nid clt
     case mn of
         Nothing -> throwM notificationNotFound

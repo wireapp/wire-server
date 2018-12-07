@@ -123,6 +123,7 @@ sitemap = do
         .&. opt (query "since")
         .&. opt (query "client")
         .&. def (unsafeRange 1000) (query "size")
+        .&. opt (query "cancel_fallback")
 
     document "GET" "fetchNotifications" $ do
         summary "Fetch notifications"
@@ -135,6 +136,9 @@ sitemap = do
         parameter Query "size" (int32 (Swagger.def 1000)) $ do
             optional
             description "Maximum number of notifications to return."
+        parameter Query "cancel_fallback" bytes' $ do
+            optional
+            description "Cancel pending fallback notifications for the given ID, if any."
         returns (ref Model.notificationList)
         response 200 "Notification list" end
         errorResponse' notificationNotFound Model.notificationList
@@ -144,6 +148,7 @@ sitemap = do
         .&. header "Z-User"
         .&. capture "id"
         .&. opt (query "client")
+        .&. def False (query "cancel_fallback")
 
     document "GET" "getNotification" $ do
         summary "Fetch a notification by ID."
@@ -152,6 +157,9 @@ sitemap = do
         parameter Query "client" bytes' $ do
             optional
             description "Only return notifications targeted at the given client."
+        parameter Query "cancel_fallback" (bool (Swagger.def False)) $ do
+            optional
+            description "Whether to cancel pending fallback notifications, if any."
         returns (ref Model.notification)
         response 200 "Notification found" end
         errorResponse notificationNotFound
