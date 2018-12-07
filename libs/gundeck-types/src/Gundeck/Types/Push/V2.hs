@@ -210,6 +210,8 @@ data Push = Push
       -- Coincidentally, where are we using '_pushConnections' to limit pushes to individual
       -- devices?  Is it possible we can remove '_pushConnections' without touching
       -- '_pushRecipients'?
+      --
+      -- REFACTOR: is it possible that 'pushOrigin' has been refactored away in #531?
     , _pushOrigin :: !UserId
       -- ^ Originating user
     , _pushConnections :: !(Set ConnId)

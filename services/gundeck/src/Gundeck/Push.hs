@@ -230,7 +230,7 @@ pushNotice _     _   [] = return ()
 pushNotice p notif rcps = do
     let prio = p^.pushNativePriority
     r <- Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
-    pushFallback (p^.pushOrigin) notif r prio
+    pushFallback notif r prio
 
 pushData :: Push -> Notification -> [Address "no-keys"] -> Gundeck ()
 pushData _     _   [] = return ()
@@ -242,22 +242,17 @@ pushData p notif rcps = do
         d <- view digest
         t <- Client.lookupKeys rcps
         r <- Native.push (Native.Ciphertext notif c d prio aps) t
-        pushFallback (p^.pushOrigin) notif r prio
+        pushFallback notif r prio
     else do
         r <- Native.push (Native.Plaintext notif prio aps) rcps
-        pushFallback (p^.pushOrigin) notif r prio
+        pushFallback notif r prio
 
--- Process fallback notifications, which can either be immediate (e.g.
--- because the push payload was too large) or delayed if a fallback push
--- address is set. Fallback notifications are always of type=notice and
--- thus only non-transient notifications are eligible for a fallback.
-pushFallback :: UserId -> Notification -> [Result s] -> Priority -> Gundeck ()
-pushFallback orig notif r prio = case Fallback.prepare orig r of
-    Nothing  -> return ()
-    Just can ->
-        if ntfTransient notif
-            then Log.warn $ msg (val "Transient notification failed")
-            else void $ Fallback.execute (ntfId notif) prio can
+-- | REFACTOR: this function has not been called with transient notifications in production in a
+-- while.  it is possible that we can simplify this further.
+pushFallback :: Notification -> [Result s] -> Priority -> Gundeck ()
+pushFallback notif r prio = if ntfTransient notif
+    then Log.warn $ msg (val "Transient notification failed")
+    else void $ Fallback.execute (ntfId notif) prio (Fallback.prepare r)
 
 nativeTargets :: Push -> [Presence] -> Gundeck [Address "no-keys"]
 nativeTargets p pres =
