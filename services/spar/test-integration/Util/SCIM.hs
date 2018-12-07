@@ -11,6 +11,7 @@
 
 module Util.SCIM where
 
+import Imports
 import Bilge
 import Bilge.Assert
 import Brig.Types.User
@@ -20,7 +21,8 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.Text (pack, unpack)
 import Data.Time
-import Imports
+import Data.UUID as UUID
+import Data.UUID.V4 as UUID
 import SAML2.WebSSO.Types (IdPId, idpId)
 import Spar.Data as Data
 import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
@@ -50,7 +52,9 @@ registerIdPAndSCIMToken = do
 registerSCIMToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
 registerSCIMToken teamid midpid = do
   env <- ask
-  let tok = ScimToken $ "scim-test-token/" <> "team=" <> idToText teamid
+  tok <- ScimToken <$> do
+    code <- liftIO UUID.nextRandom
+    pure $ "scim-test-token/" <> "team=" <> idToText teamid <> "/code=" <> UUID.toText code
   scimTokenId <- randomId
   now <- liftIO getCurrentTime
   runClient (env ^. teCql) $ Data.insertScimToken
@@ -60,7 +64,7 @@ registerSCIMToken teamid midpid = do
           , stiId        = scimTokenId
           , stiCreatedAt = now
           , stiIdP       = midpid
-          , stiDescr     = "_teScimToken test token"
+          , stiDescr     = "test token"
           }
   pure tok
 
