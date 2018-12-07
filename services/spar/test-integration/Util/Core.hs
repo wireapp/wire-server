@@ -420,6 +420,8 @@ getTestSPMetadata = do
     crash_ = liftIO . throwIO . ErrorCall
 
 
+-- | Create a fresh 'IdPMetadata' suitable for testing.  Call 'createUserWithTeam' and create the
+-- idp in the resulting team.  The user returned is the owner of the team.
 registerTestIdP :: (HasCallStack, MonadIO m, MonadReader TestEnv m)
               => m (UserId, TeamId, IdP)
 registerTestIdP = do
@@ -427,7 +429,7 @@ registerTestIdP = do
   env <- ask
   registerTestIdPFrom idpmeta (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
 
--- | Create new user, team, idp from given 'IdPMetadata'.
+-- | Helper for 'registerTestIdP'.
 registerTestIdPFrom :: (HasCallStack, MonadIO m)
                   => IdPMetadata -> Manager -> BrigReq -> GalleyReq -> SparReq -> m (UserId, TeamId, IdP)
 registerTestIdPFrom metadata mgr brig galley spar = do

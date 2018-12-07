@@ -39,11 +39,14 @@ import qualified Web.SCIM.Schema.Meta             as SCIM
 import qualified Web.SCIM.Schema.User             as SCIM.User
 
 
+-- | Call 'registerTestIdP', then 'registerSCIMToken'.  The user returned is the owner of the team;
+-- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
 registerIdPAndSCIMToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP))
 registerIdPAndSCIMToken = do
   team@(_owner, teamid, idp) <- registerTestIdP
   (, team) <$> registerSCIMToken teamid (Just (idp ^. idpId))
 
+-- | Create a fresh SCIM token and register it for the team.
 registerSCIMToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
 registerSCIMToken teamid midpid = do
   env <- ask
