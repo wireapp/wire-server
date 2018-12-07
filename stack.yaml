@@ -127,11 +127,13 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/wireapp/hspec-wai
-    commit: ca10d13deab929f1cc3a569abea2e7fbe35fdbe3  # https://github.com/hspec/hspec-wai/pull/49
+    # https://github.com/hspec/hspec-wai/pull/49
+    commit: ca10d13deab929f1cc3a569abea2e7fbe35fdbe3
   extra-dep: true
 - location:
     git: https://github.com/wireapp/hscim
-    commit: b92140a0ee5209b24a25f0c4a222c69771283744
+    # master (Nov 9, 2018)
+    commit: 9bcf39b182257e0c3d213e8cf330869718e6b871
   extra-dep: true
 
 extra-deps:
@@ -159,7 +161,7 @@ extra-deps:
 - stompl-0.5.0
 - servant-multipart-0.11.2
 # for hscim
-- network-uri-static-0.1.0.0
+- network-uri-static-0.1.1.0
 - list-t-1.0.1  # 1.0.0.1 doesn't build
 
 flags:

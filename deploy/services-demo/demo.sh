@@ -83,7 +83,7 @@ function run_haskell_service() {
     service=$1
     colour=$2
     # TODO can be removed once all services have been switched to YAML configs
-    export LOG_LEVEL=$3
+    [ $# -gt 2 ] && export LOG_LEVEL=$3
     (cd ${SCRIPT_DIR} && ${DIR}/../dist/${service} -c ${SCRIPT_DIR}/conf/${service}.demo.yaml || kill_all) \
         | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }

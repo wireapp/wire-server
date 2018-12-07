@@ -28,7 +28,7 @@ function list_descendants () {
 function kill_gracefully() {
     pkill "gundeck|brig|galley|cargohold|cannon|spar"
     sleep 1
-    kill "$(list_descendants $PARENT_PID)" &> /dev/null
+    kill $(list_descendants "$PARENT_PID") &> /dev/null
 }
 
 trap "kill_gracefully; kill_all" INT TERM ERR
@@ -78,7 +78,7 @@ function run() {
     instance=$2
     colour=$3
     # TODO can be removed once all services have been switched to YAML configs
-    export LOG_LEVEL=$4
+    [ $# -gt 3 ] && export LOG_LEVEL=$4
     ( ( cd "${DIR}/${service}" && "${TOP_LEVEL}/dist/${service}" -c "${service}${instance}.integration${integration_file_extension}" ) || kill_all) \
         | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }

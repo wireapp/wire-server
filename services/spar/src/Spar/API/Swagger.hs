@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedLists            #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PackageImports             #-}
 {-# LANGUAGE QuasiQuotes                #-}
@@ -45,10 +46,6 @@ import qualified URI.ByteString as URI
 
 -- TODO: steal from https://github.com/haskell-servant/servant-swagger/blob/master/example/src/Todo.hs
 
-instance ToSchema Swagger where
-  declareNamedSchema _proxy = genericDeclareNamedSchema defaultSchemaOptions (Proxy @())
-    & mapped . schema . description ?~ "The swagger docs you are looking at (all details hidden)."
-
 instance HasSwagger route => HasSwagger (SM.MultipartForm SM.Mem resp :> route) where
   toSwagger _proxy = toSwagger (Proxy @route)
     & info . description ?~ cs [QQ.i|
@@ -89,19 +86,15 @@ Centrify allows you to upload the metadata xml document that you get from the `/
 samlSchemaOptions :: SchemaOptions
 samlSchemaOptions = Swagger.fromAesonOptions SAML.deriveJSONOptions
 
-instance ToParamSchema TeamId where
-  toParamSchema _ = toParamSchema (Proxy @UUID)
-
-instance ToParamSchema UserId where
+instance ToParamSchema (Id a) where
   toParamSchema _ = toParamSchema (Proxy @UUID)
 
 instance ToParamSchema SAML.IdPId where
   toParamSchema _ = toParamSchema (Proxy @UUID)
 
-instance ToSchema TeamId where
+instance ToSchema (Id a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
-instance ToSchema UserId where
-  declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
+
 instance ToSchema SAML.IdPId where
   declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
 

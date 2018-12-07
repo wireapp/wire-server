@@ -6,6 +6,12 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE InstanceSigs #-}
 
 -- TODO remove
 {-# OPTIONS_GHC
@@ -19,8 +25,14 @@
 --
 -- See <https://en.wikipedia.org/wiki/System_for_Cross-domain_Identity_Management>
 module Spar.SCIM
-  ( API
-  , api
+  (
+  -- * The API
+    APIScim
+  , apiScim
+  -- ** Request and response types
+  , CreateScimToken(..)
+  , CreateScimTokenResponse(..)
+  , ScimTokenList(..)
 
   -- * The mapping between Wire and SCIM users
   -- $mapping
@@ -32,13 +44,14 @@ import Galley.Types.Teams    as Galley
 import Control.Monad.Except
 import Control.Monad.Catch
 import Control.Exception
-import Control.Lens
+import Control.Lens hiding ((.=), Strict)
 import Data.Id
 import Data.Range
 import Servant
-import Spar.App (Spar)
+import Spar.App (Spar, wrapMonadClient, sparCtxOpts, createUser)
+import Spar.API.Util
 import Spar.Error
-import Spar.Intra.Brig
+import Spar.Types
 import Spar.Intra.Galley
 import Data.UUID as UUID
 import Crypto.Hash
@@ -47,10 +60,16 @@ import Data.Text.Encoding
 import Data.Aeson as Aeson
 import Text.Email.Validate
 import Servant.Generic
+import OpenSSL.Random (randBytes)
+import Data.String.Conversions
+import SAML2.WebSSO (IdPId)
 
 import qualified Data.Text    as Text
 import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
+import qualified Spar.Data    as Data
+import qualified Data.ByteString.Base64 as ES
+import qualified Spar.Intra.Brig as Intra.Brig
 
 import qualified Web.SCIM.Class.User              as SCIM
 import qualified Web.SCIM.Class.Group             as SCIM
@@ -80,31 +99,17 @@ import qualified Web.SCIM.Schema.Common           as SCIM.Common
 configuration :: SCIM.Meta.Configuration
 configuration = SCIM.Meta.empty
 
--- The SCIM standard doesn't specify a way to let endpoint callers provide
--- info about what organization's users they want to manage, so they have to
--- communicate that information in *some* way.
---
--- Currently it's done by encoding the 'TeamId' in the path. However, this
--- will go away once we rework the authentication system for SCIM. The
--- alternative system we want is as follows:
---
---   * A single authentication token is passed as a header
---   * That token can be mapped to the team ID
---   * Simultaneously, this token provides authentication (the provisioning
---     tool knows the token and therefore can perform SCIM operations,
---     but nobody else does)
-type API = Capture "team" TeamId :> SCIM.SiteAPI
+type APIScim
+     = OmitDocs :> "v2" :> SCIM.SiteAPI ScimToken
+  :<|> "auth-tokens" :> APIScimToken
 
-api :: ServerT API Spar
-api tid = hoistSCIM (toServant (SCIM.siteServer configuration))
+apiScim :: ServerT APIScim Spar
+apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
+     :<|> apiScimToken
   where
-    hoistSCIM =
-      hoistServer proxy
-        (flip runReaderT tid . SCIM.fromSCIMHandler fromError)
+    hoistSCIM = hoistServer (Proxy @(SCIM.SiteAPI ScimToken))
+                            (SCIM.fromSCIMHandler fromError)
     fromError = throwError . SAML.CustomServant . SCIM.scimToServantErr
-
-    proxy :: Proxy SCIM.SiteAPI
-    proxy = Proxy
 
 ----------------------------------------------------------------------------
 -- UserDB
@@ -230,16 +235,18 @@ toSCIMEmail (Email eLocal eDomain) =
 -- 2. We want generic error descriptions in response bodies, while still
 --    logging nice error messages internally.
 
-instance SCIM.UserDB (ReaderT TeamId Spar) where
+instance SCIM.UserDB Spar where
   -- | List all users, possibly filtered by some predicate.
-  list mbFilter = do
-    tid <- ask
-    members <- lift $ getTeamMembers tid
+  list :: ScimTokenInfo
+       -> Maybe SCIM.Filter
+       -> SCIM.SCIMHandler Spar (SCIM.ListResponse SCIM.StoredUser)
+  list ScimTokenInfo{stiTeam} mbFilter = do
+    members <- lift $ getTeamMembers stiTeam
     users <- forM members $ \member ->
-      lift (getUser (member ^. Galley.userId)) >>= \case
+      lift (Intra.Brig.getUser (member ^. Galley.userId)) >>= \case
         Just user -> pure (toSCIMUser user)
         Nothing -> SCIM.throwSCIM $
-          SCIM.serverError "Database is inconsistent"
+          SCIM.serverError "SCIM.UserDB.list: couldn't fetch team member"
     let check user = case mbFilter of
           Nothing -> pure True
           Just filter_ ->
@@ -252,20 +259,24 @@ instance SCIM.UserDB (ReaderT TeamId Spar) where
     SCIM.fromList <$> filterM check users
 
   -- | Get a single user by its ID.
-  get uidText = do
-    tid <- ask
+  get :: ScimTokenInfo
+      -> Text
+      -> SCIM.SCIMHandler Spar (Maybe SCIM.StoredUser)
+  get ScimTokenInfo{stiTeam} uidText = do
     uid <- case readMaybe (Text.unpack uidText) of
       Just u -> pure u
       Nothing -> SCIM.throwSCIM $
         SCIM.notFound "user" uidText
-    lift (getUser uid) >>= traverse (\user -> do
-      when (userTeam user /= Just tid) $ SCIM.throwSCIM $
+    lift (Intra.Brig.getUser uid) >>= traverse (\user -> do
+      when (userTeam user /= Just stiTeam) $ SCIM.throwSCIM $
         SCIM.notFound "user" (idToText uid)
       pure (toSCIMUser user))
 
   -- | Create a new user.
-  create user = do
-    tid <- ask
+  create :: ScimTokenInfo
+         -> SCIM.User.User
+         -> SCIM.SCIMHandler Spar SCIM.StoredUser
+  create ScimTokenInfo{stiIdP} user = do
     extId <- case SCIM.User.externalId user of
       Just x -> pure x
       Nothing -> SCIM.throwSCIM $
@@ -287,39 +298,187 @@ instance SCIM.UserDB (ReaderT TeamId Spar) where
     -- already been done before -- the hscim library check does a 'get'
     -- before a 'create'
 
-    buid <- Id <$> liftIO UUID.nextRandom
     -- TODO: Assume that externalID is the subjectID, let's figure out how
-    -- to extract that later. The question of "who's the issuer?" is a very
-    -- tricky one and we don't have a decision here yet.
-    let uref = SAML.UserRef
-          (SAML.Issuer $ SAML.unsafeParseURI ("https://unknown.issuer.org"))
-          (SAML.opaqueNameID extId)
+    -- to extract that later
+    issuer <- case stiIdP of
+        Nothing -> SCIM.throwSCIM $
+          SCIM.serverError "No IdP configured for the provisioning token"
+        Just idp -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
+            Nothing -> SCIM.throwSCIM $
+              SCIM.serverError "The IdP corresponding to the provisioning token \
+                               \was not found"
+            Just idpConfig -> pure (idpConfig ^. SAML.idpMetadata . SAML.edIssuer)
+    let uref = SAML.UserRef issuer (SAML.opaqueNameID extId)
 
     -- TODO: Adding a handle should be done _DURING_ the creation
-    lift $ do
-      _ <- createUser uref buid tid mbName
-      setHandle buid handl
+    buid <- lift $ createUser uref mbName
+    lift $ Intra.Brig.setHandle buid handl
 
-    maybe (error "How can there be no user?") (pure . toSCIMUser) =<<
-      lift (getUser buid)
+    maybe (SCIM.throwSCIM (SCIM.serverError "SCIM.UserDB.create: user disappeared"))
+          (pure . toSCIMUser) =<<
+      lift (Intra.Brig.getUser buid)
 
-  -- update   :: UserId -> User -> m StoredUser
-  -- patch    :: UserId -> m StoredUser
-  -- delete   :: UserId -> m Bool  -- ^ Return 'False' if the group didn't exist
-  -- getMeta  :: m Meta
+  update :: ScimTokenInfo
+         -> Text
+         -> SCIM.User.User
+         -> SCIM.SCIMHandler Spar SCIM.StoredUser
+  update _ _ _ =
+      SCIM.throwSCIM $ SCIM.serverError "User update is not implemented yet"
+
+  delete :: ScimTokenInfo -> Text -> SCIM.SCIMHandler Spar Bool
+  delete _ _ =
+      SCIM.throwSCIM $ SCIM.serverError "User delete is not implemented yet"
+
+  getMeta :: ScimTokenInfo -> SCIM.SCIMHandler Spar SCIM.Meta
+  getMeta _ =
+      SCIM.throwSCIM $ SCIM.serverError "User getMeta is not implemented yet"
 
 ----------------------------------------------------------------------------
 -- GroupDB
 
-instance SCIM.GroupDB (ReaderT TeamId Spar) where
+instance SCIM.GroupDB Spar where
   -- TODO
 
 ----------------------------------------------------------------------------
 -- AuthDB
 
-instance SCIM.AuthDB (ReaderT TeamId Spar) where
-  -- TODO
+instance SCIM.AuthDB Spar where
+  type AuthData Spar = ScimToken
+  type AuthInfo Spar = ScimTokenInfo
+
   authCheck Nothing =
-    pure Unauthorized
-  authCheck (Just (SCIM.SCIMAuthData uuid _pass)) =
-    pure (Authorized (SCIM.Admin uuid))
+      SCIM.throwSCIM (SCIM.unauthorized "Token not provided")
+  authCheck (Just token) =
+      maybe (SCIM.throwSCIM (SCIM.unauthorized "Invalid token")) pure =<<
+      lift (wrapMonadClient (Data.lookupScimToken token))
+
+-- TODO: don't forget to delete the tokens when the team is deleted
+
+----------------------------------------------------------------------------
+-- API for manipulating authentication tokens
+
+type APIScimToken
+     = Header "Z-User" UserId :> APIScimTokenCreate
+  :<|> Header "Z-User" UserId :> APIScimTokenDelete
+  :<|> Header "Z-User" UserId :> APIScimTokenList
+
+type APIScimTokenCreate
+     = ReqBody '[JSON] CreateScimToken
+    :> Post '[JSON] CreateScimTokenResponse
+
+type APIScimTokenDelete
+     = QueryParam' '[Required, Strict] "id" ScimTokenId
+    :> DeleteNoContent '[JSON] NoContent
+
+type APIScimTokenList
+     = Get '[JSON] ScimTokenList
+
+apiScimToken :: ServerT APIScimToken Spar
+apiScimToken
+     = createScimToken
+  :<|> deleteScimToken
+  :<|> listScimTokens
+
+----------------------------------------------------------------------------
+-- Request and response types
+
+-- | Type used for request parameters to 'APIScimTokenCreate'.
+data CreateScimToken = CreateScimToken
+  { createScimTokenDescr :: Text
+  } deriving (Eq, Show)
+
+instance FromJSON CreateScimToken where
+  parseJSON = withObject "CreateScimToken" $ \o -> do
+    createScimTokenDescr <- o .: "description"
+    pure CreateScimToken{..}
+
+instance ToJSON CreateScimToken where
+  toJSON CreateScimToken{..} = object
+    [ "description" .= createScimTokenDescr
+    ]
+
+-- | Type used for the response of 'APIScimTokenCreate'.
+data CreateScimTokenResponse = CreateScimTokenResponse
+  { createScimTokenResponseToken :: ScimToken
+  , createScimTokenResponseInfo  :: ScimTokenInfo
+  } deriving (Eq, Show)
+
+instance FromJSON CreateScimTokenResponse where
+  parseJSON = withObject "CreateScimTokenResponse" $ \o -> do
+    createScimTokenResponseToken <- o .: "token"
+    createScimTokenResponseInfo  <- o .: "info"
+    pure CreateScimTokenResponse{..}
+
+instance ToJSON CreateScimTokenResponse where
+  toJSON CreateScimTokenResponse{..} = object
+    [ "token" .= createScimTokenResponseToken
+    , "info"  .= createScimTokenResponseInfo
+    ]
+
+-- | Type used for responses of endpoints that return a list of SCIM tokens.
+-- Wrapped into an object to allow extensibility later on.
+--
+-- We don't show tokens once they have been created – only their metadata.
+data ScimTokenList = ScimTokenList
+  { scimTokenListTokens :: [ScimTokenInfo]
+  }
+  deriving (Eq, Show)
+
+instance FromJSON ScimTokenList where
+  parseJSON = withObject "ScimTokenList" $ \o -> do
+    scimTokenListTokens <- o .: "tokens"
+    pure ScimTokenList{..}
+
+instance ToJSON ScimTokenList where
+  toJSON ScimTokenList{..} = object
+    [ "tokens" .= scimTokenListTokens
+    ]
+
+----------------------------------------------------------------------------
+-- Handlers
+
+createScimToken :: Maybe UserId -> CreateScimToken -> Spar CreateScimTokenResponse
+createScimToken zusr CreateScimToken{..} = do
+    let descr = createScimTokenDescr
+    -- Don't enable this endpoint until SCIM is ready.
+    _ <- error "Creating SCIM tokens is not supported yet."
+    teamid <- Intra.Brig.getZUsrOwnedTeam zusr
+    tokenNumber <- fmap length $ wrapMonadClient $ Data.getScimTokens teamid
+    maxTokens <- asks (maxScimTokens . sparCtxOpts)
+    unless (tokenNumber < maxTokens) $
+        throwSpar SparProvisioningTokenLimitReached
+    idps <- wrapMonadClient $ Data.getIdPConfigsByTeam teamid
+    case idps of
+        [idp] -> do
+            -- TODO: sign tokens. Also, we might want to use zauth, if we can / if
+            -- it makes sense semantically
+            token <- ScimToken . cs . ES.encode <$> liftIO (randBytes 32)
+            tokenid <- randomId
+            now <- liftIO getCurrentTime
+            let idpid = idp ^. SAML.idpId
+                info = ScimTokenInfo
+                    { stiId        = tokenid
+                    , stiTeam      = teamid
+                    , stiCreatedAt = now
+                    , stiIdP       = Just idpid
+                    , stiDescr     = descr
+                    }
+            wrapMonadClient $ Data.insertScimToken token info
+            pure $ CreateScimTokenResponse token info
+        [] -> throwSpar $ SparProvisioningNoSingleIdP
+                "SCIM tokens can only be created for a team with an IdP, \
+                \but none are found"
+        _  -> throwSpar $ SparProvisioningNoSingleIdP
+                "SCIM tokens can only be created for a team with exactly one IdP, \
+                \but more are found"
+
+deleteScimToken :: Maybe UserId -> ScimTokenId -> Spar NoContent
+deleteScimToken zusr tokenid = do
+    teamid <- Intra.Brig.getZUsrOwnedTeam zusr
+    wrapMonadClient $ Data.deleteScimToken teamid tokenid
+    pure NoContent
+
+listScimTokens :: Maybe UserId -> Spar ScimTokenList
+listScimTokens zusr = do
+    teamid <- Intra.Brig.getZUsrOwnedTeam zusr
+    ScimTokenList <$> wrapMonadClient (Data.getScimTokens teamid)

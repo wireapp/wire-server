@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds     #-}
+{-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -13,27 +14,31 @@ module Test.Spar.APISpec (spec) where
 import Imports hiding (head)
 import Bilge
 import Brig.Types.User
-import Cassandra (runClient)
 import Control.Lens
-import Control.Retry
+import Data.Aeson
+import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
+import Data.Proxy
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID
-import Galley.Types.Teams as Galley
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.MockResponse
 import Spar.API.Types
 import Spar.Types
 import URI.ByteString.QQ (uri)
-import Util
+import Util.Core
+import Util.Types
 
-import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Builder as LB
-import qualified Spar.Data as Data
+import qualified Data.ZAuth.Token as ZAuth
+import qualified Galley.Types.Teams as Galley
 import qualified Spar.Intra.Brig as Intra
+import qualified Util.SCIM as SCIMT
 import qualified Web.Cookie as Cky
+import qualified Web.SCIM.Class.User as SCIM
+import qualified Web.SCIM.Schema.User as SCIM
 
 
 spec :: SpecWith TestEnv
@@ -44,6 +49,7 @@ spec = do
   specFinalizeLogin
   specBindingUsers
   specCRUDIdentityProvider
+  specSCIMAndSAML
   specAux
 
 
@@ -124,7 +130,7 @@ specInitiateLogin = do
       context "known IdP" $ do
         it "responds with 200" $ do
           env <- ask
-          let idp = idPIdToST $ env ^. teIdP . idpId
+          (_, _, idPIdToST . (^. idpId) -> idp) <- registerTestIdP
           void . call $ head ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
 
 
@@ -147,7 +153,7 @@ specInitiateLogin = do
       context "known IdP, no z-user" $ do  -- see 'specBindingUsers' below for the "with z-user" case.
         it "responds with authentication request and NO bind cookie" $ do
           env <- ask
-          let idp = idPIdToST $ env ^. teIdP . idpId
+          (_, _, idPIdToST . (^. idpId) -> idp) <- registerTestIdP
           resp <- call $ get ((env ^. teSpar) . path (cs $ "/sso/initiate-login/" -/ idp) . expect2xx)
           liftIO $ do
             resp `shouldSatisfy` checkRespBody
@@ -159,7 +165,8 @@ specFinalizeLogin = do
     describe "POST /sso/finalize-login" $ do
       context "access denied" $ do
         it "responds with a very peculiar 'forbidden' HTTP response" $ do
-          (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          (_, _, idp) <- registerTestIdP
+          (privcreds, authnreq) <- negotiateAuthnRequest idp
           spmeta <- getTestSPMetadata
           authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq False
           sparresp <- submitAuthnResponse authnresp
@@ -184,7 +191,8 @@ specFinalizeLogin = do
 
       context "access granted" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
-          (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          (_, _, idp) <- registerTestIdP
+          (privcreds, authnreq) <- negotiateAuthnRequest idp
           spmeta <- getTestSPMetadata
           authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
           sparresp <- submitAuthnResponse authnresp
@@ -214,7 +222,8 @@ specFinalizeLogin = do
 
       context "unknown IdP Issuer" $ do
         it "rejects" $ do
-          (idp, privcreds, authnreq) <- negotiateAuthnRequest
+          (_, _, idp) <- registerTestIdP
+          (privcreds, authnreq) <- negotiateAuthnRequest idp
           spmeta <- getTestSPMetadata
           authnresp <- runSimpleSP $ mkAuthnResponse
             privcreds
@@ -242,21 +251,21 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
       context "known IdP, running session with non-sso user" $ do
         it "responds with 200" $ do
           env <- ask
-          let idp = idPIdToST $ env ^. teIdP . idpId
+          (owner, _, idPIdToST . (^. idpId) -> idp) <- registerTestIdP
           void . call $ head ( (env ^. teSpar)
                              . path (cs $ "/sso-initiate-bind/" -/ idp)
-                             . header "Z-User" (toByteString' $ env ^. teUserId)
+                             . header "Z-User" (toByteString' owner)
                              . expect2xx
                              )
 
       context "known IdP, running session with sso user" $ do
         it "responds with 2xx" $ do
-          uid <- loginSsoUserFirstTime
+          (_, _, idp) <- registerTestIdP
+          uid <- loginSsoUserFirstTime idp
           env <- ask
-          let idp = idPIdToST $ env ^. teIdP . idpId
           void . call $ head ( (env ^. teSpar)
                              . header "Z-User" (toByteString' uid)
-                             . path (cs $ "/sso-initiate-bind/" -/ idp)
+                             . path (cs $ "/sso-initiate-bind/" -/ (idPIdToST $ idp ^. idpId))
                              . expect2xx
                              )
 
@@ -276,7 +285,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
           it testmsg $ do
             env <- ask
-            let idp = idPIdToST $ env ^. teIdP . idpId
+            (_, _, idPIdToST . (^. idpId) -> idp) <- registerTestIdP
             uid <- createUser
             resp <- call $ get ( (env ^. teSpar)
                                . (if hasZUser then header "Z-User" (toByteString' uid) else id)
@@ -301,7 +310,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         checkInitiateLogin True (fmap fst . call . createRandomPhoneUser =<< asks (^. teBrig))
 
       context "known IdP, running session with sso user" $ do
-        checkInitiateLogin True loginSsoUserFirstTime
+        checkInitiateLogin True (registerTestIdP >>= \(_, _, idp) -> loginSsoUserFirstTime idp)
 
     describe "POST /sso/finalize-login" $ do
       let checkGrantingAuthnResp :: HasCallStack => UserId -> SignedAuthnResponse -> ResponseLBS -> TestSpar ()
@@ -335,43 +344,6 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
               <- either error pure . parseFromDocument $ fromSignedAuthnResponse aresp
             either error (pure . Intra.toUserSSOId) $ getUserRef parsed
 
-          getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
-          getSsoidViaSelf uid = do
-            let probe :: HasCallStack => TestSpar (Maybe UserSSOId)
-                probe = do
-                  env <- ask
-                  fmap getUserSSOId . call . get $
-                    ( (env ^. teBrig)
-                    . header "Z-User" (toByteString' uid)
-                    . path "/self"
-                    . expect2xx
-                    )
-            env <- ask
-            Just ssoid <- liftIO $ retrying
-              (exponentialBackoff 50 <> limitRetries 5)
-              (\_ -> pure . isNothing)
-              (\_ -> probe `runReaderT` env)
-            pure ssoid
-
-          getUserIdViaRef :: HasCallStack => UserRef -> TestSpar UserId
-          getUserIdViaRef uref = do
-            env <- ask
-            Just ssoid <- liftIO $ retrying
-              (exponentialBackoff 50 <> limitRetries 5)
-              (\_ -> pure . isNothing)
-              (\_ -> runClient (env ^. teCql) $ Data.getUser uref)
-            pure ssoid
-
-          getUserSSOId :: HasCallStack => ResponseLBS -> Maybe UserSSOId
-          getUserSSOId (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
-            = case userIdentity $ selfUser selfprof of
-                Just (SSOIdentity ssoid _ _) -> Just ssoid
-                Just (FullIdentity _ _)  -> Nothing
-                Just (EmailIdentity _)   -> Nothing
-                Just (PhoneIdentity _)   -> Nothing
-                Nothing                  -> Nothing
-          getUserSSOId _ = Nothing
-
           initialBind :: HasCallStack => UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
           initialBind = initialBind' Just
 
@@ -390,8 +362,8 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies)
             -> UserId -> IdP -> NameID -> TestSpar (SignedAuthnResponse, ResponseLBS)
           reBindSame' tweakcookies uid idp subj = do
-            (_, privCreds, authnReq, Just (SimpleSetCookie bindCky)) <- do
-              negotiateAuthnRequest' DoInitiateBind (Just idp) (header "Z-User" $ toByteString' uid)
+            (privCreds, authnReq, Just (SimpleSetCookie bindCky)) <- do
+              negotiateAuthnRequest' DoInitiateBind idp (header "Z-User" $ toByteString' uid)
             spmeta <- getTestSPMetadata
             authnResp <- runSimpleSP $ mkAuthnResponseWithSubj subj privCreds idp spmeta authnReq True
             let cookiehdr = case tweakcookies [(Cky.setCookieName bindCky, Cky.setCookieValue bindCky)] of
@@ -411,20 +383,20 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
 
       context "initial bind" $ do
         it "allowed" $ do
-          (uid, _, idp)                 <- createTestIdP
+          (uid, _, idp)                 <- registerTestIdP
           (_, authnResp, sparAuthnResp) <- initialBind uid idp
           checkGrantingAuthnResp uid authnResp sparAuthnResp
 
       context "re-bind to same UserRef" $ do
         it "allowed" $ do
-          (uid, _, idp)      <- createTestIdP
+          (uid, _, idp)      <- registerTestIdP
           (subj, _, _)       <- initialBind uid idp
           (sparrq, sparresp) <- reBindSame uid idp subj
           checkGrantingAuthnResp uid sparrq sparresp
 
       context "re-bind to new UserRef from different IdP" $ do
         it "allowed" $ do
-          (uid, _, idp)      <- createTestIdP
+          (uid, _, idp)      <- registerTestIdP
           _                  <- initialBind uid idp
           (sparrq, sparresp) <- reBindDifferent uid
           checkGrantingAuthnResp uid sparrq sparresp
@@ -432,17 +404,17 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
       context "bind to UserRef in use by other wire user" $ do
         it "forbidden" $ do
           env <- ask
-          (uid, teamid, idp) <- createTestIdP
+          (uid, teamid, idp) <- registerTestIdP
           (subj, _, _)       <- initialBind uid idp
-          uid'               <- let Just perms = newPermissions mempty mempty
+          uid'               <- let Just perms = Galley.newPermissions mempty mempty
                                 in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
           (_, sparresp)      <- reBindSame uid' idp subj
           checkDenyingAuthnResp sparresp "subject-id-taken"
 
       context "bind to UserRef from different team" $ do
         it "forbidden" $ do
-          (uid, _, _) <- createTestIdP
-          (_, _, idp) <- createTestIdP
+          (uid, _, _) <- registerTestIdP
+          (_, _, idp) <- registerTestIdP
           (_, _, sparresp) <- initialBind uid idp
           checkDenyingAuthnResp sparresp "bad-team"
 
@@ -453,7 +425,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         let check :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies) -> Bool -> SpecWith TestEnv
             check tweakcookies bindsucceeds = do
               it (if bindsucceeds then "binds existing user" else "creates new user") $ do
-                (uid, _, idp) <- createTestIdP
+                (uid, _, idp) <- registerTestIdP
                 (subj :: NameID, sparrq, sparresp) <- initialBind' tweakcookies uid idp
                 checkGrantingAuthnResp' sparresp
 
@@ -488,8 +460,6 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           check (\bindcky -> Just . addAtEnd cky1 . addAtEnd cky2 . addAtBeginning cky3 $ bindcky) True
 
 
--- | FUTUREWORK: this function deletes the test IdP from the test env.  it should probably not do
--- that, so other tests after this can still use it.
 specCRUDIdentityProvider :: SpecWith TestEnv
 specCRUDIdentityProvider = do
     let checkErr :: HasCallStack => (Int -> Bool) -> TestErrorLabel -> ResponseLBS -> Bool
@@ -506,14 +476,14 @@ specCRUDIdentityProvider = do
           context "no zuser" $ do
             it "responds with 'client error'" $ do
               env <- ask
-              let idpid = env ^. teIdP . idpId
+              (_, _, (^. idpId) -> idpid) <- registerTestIdP
               whichone (env ^. teSpar) Nothing idpid
                 `shouldRespondWith` checkErr (== 400) "client-error"
 
           context "zuser has no team" $ do
             it "responds with 'no team member'" $ do
               env <- ask
-              let idpid = env ^. teIdP . idpId
+              (_, _, (^. idpId) -> idpid) <- registerTestIdP
               (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
               whichone (env ^. teSpar) (Just uid) idpid
                 `shouldRespondWith` checkErr (== 403) "no-team-member"
@@ -521,7 +491,7 @@ specCRUDIdentityProvider = do
           context "zuser has wrong team" $ do
             it "responds with 'no team member'" $ do
               env <- ask
-              let idpid = env ^. teIdP . idpId
+              (_, _, (^. idpId) -> idpid) <- registerTestIdP
               (uid, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
               whichone (env ^. teSpar) (Just uid) idpid
                 `shouldRespondWith` checkErr (== 403) "no-team-member"
@@ -529,9 +499,8 @@ specCRUDIdentityProvider = do
           context "zuser is a team member, but not a team owner" $ do
             it "responds with 'insufficient-permissions' and a helpful message" $ do
               env <- ask
-              let idpid = env ^. teIdP . idpId
-                  teamid = env ^. teTeamId
-              newmember <- let Just perms = newPermissions mempty mempty
+              (_, teamid, (^. idpId) -> idpid) <- registerTestIdP
+              newmember <- let Just perms = Galley.newPermissions mempty mempty
                         in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
               whichone (env ^. teSpar) (Just newmember) idpid
                 `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
@@ -543,9 +512,8 @@ specCRUDIdentityProvider = do
       context "known IdP, client is team owner" $ do
         it "responds with 2xx and IdP" $ do
           env <- ask
-          let idpid = env ^. teIdP . idpId
-              userid = env ^. teUserId
-          _ <- call $ callIdpGet (env ^. teSpar) (Just userid) idpid
+          (owner, _, (^. idpId) -> idpid) <- registerTestIdP
+          _ <- call $ callIdpGet (env ^. teSpar) (Just owner) idpid
           passes
 
 
@@ -556,7 +524,7 @@ specCRUDIdentityProvider = do
           (_owner :: UserId, teamid :: TeamId)
             <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           member :: UserId
-            <- let Just perms = newPermissions mempty mempty
+            <- let Just perms = Galley.newPermissions mempty mempty
                in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
           callIdpGetAll' (env ^. teSpar) (Just member)
             `shouldRespondWith` ((== 403) . statusCode)
@@ -574,7 +542,7 @@ specCRUDIdentityProvider = do
           it "returns a non-empty empty list" $ do
             env <- ask
             metadata <- makeTestIdPMetadata
-            (owner, _, _) <- createTestIdPFrom metadata (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
+            (owner, _, _) <- registerTestIdPFrom metadata (env ^. teMgr) (env ^. teBrig) (env ^. teGalley) (env ^. teSpar)
             callIdpGetAll (env ^. teSpar) (Just owner)
               `shouldRespondWith` (not . null . _idplProviders)
 
@@ -585,8 +553,7 @@ specCRUDIdentityProvider = do
       context "known IdP, client is team owner" $ do
         it "responds with 2xx and removes IdP" $ do
           env <- ask
-          let idpid = env ^. teIdP . idpId
-              userid = env ^. teUserId
+          (userid, _, (^. idpId) -> idpid) <- registerTestIdP
           callIdpDelete' (env ^. teSpar) (Just userid) idpid
             `shouldRespondWith` \resp -> statusCode resp < 300
           callIdpGet' (env ^. teSpar) (Just userid) idpid
@@ -613,23 +580,25 @@ specCRUDIdentityProvider = do
       context "no zuser" $ do
         it "responds with 'client error'" $ do
           env <- ask
-          callIdpCreate' (env ^. teSpar) Nothing (env ^. teIdP . idpMetadata)
+          idpmeta <- makeTestIdPMetadata
+          callIdpCreate' (env ^. teSpar) Nothing idpmeta
             `shouldRespondWith` checkErr (== 400) "client-error"
 
       context "zuser has no team" $ do
         it "responds with 'no team member'" $ do
           env <- ask
           (uid, _) <- call $ createRandomPhoneUser (env ^. teBrig)
-          callIdpCreate' (env ^. teSpar) (Just uid) (env ^. teIdP . idpMetadata)
+          idpmeta <- makeTestIdPMetadata
+          callIdpCreate' (env ^. teSpar) (Just uid) idpmeta
             `shouldRespondWith` checkErr (== 403) "no-team-member"
 
       context "zuser is a team member, but not a team owner" $ do
         it "responds with 'insufficient-permissions' and a helpful message" $ do
           env <- ask
-          (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-          newmember <- let Just perms = newPermissions mempty mempty
+          (_owner, tid, idp) <- registerTestIdP
+          newmember <- let Just perms = Galley.newPermissions mempty mempty
                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-          callIdpCreate' (env ^. teSpar) (Just newmember) (env ^. teIdP . idpMetadata)
+          callIdpCreate' (env ^. teSpar) (Just newmember) (idp ^. idpMetadata)
             `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
 
       context "idp (identified by issuer) is in use by other team" $ do
@@ -655,10 +624,73 @@ specCRUDIdentityProvider = do
       context "everything in order" $ do
         it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
           env <- ask
+          (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           metadata <- makeTestIdPMetadata
-          idp <- call $ callIdpCreate (env ^. teSpar) (Just (env ^. teUserId)) metadata
-          idp' <- call $ callIdpGet (env ^. teSpar) (Just (env ^. teUserId)) (idp ^. idpId)
+          idp <- call $ callIdpCreate (env ^. teSpar) (Just owner) metadata
+          idp' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
           liftIO $ idp `shouldBe` idp'
+
+
+specSCIMAndSAML :: SpecWith TestEnv
+specSCIMAndSAML = do
+    it "SCIM and SAML work together and SCIM-created users can login" $ do
+      env <- ask
+
+      -- create a user via scim
+      (tok, (_, _, idp))                <- SCIMT.registerIdPAndSCIMToken
+      usr            :: SCIM.User       <- SCIMT.randomSCIMUser
+      scimStoredUser :: SCIM.StoredUser <- SCIMT.createUser tok usr
+      let userid     :: UserId           = SCIMT.scimUserId scimStoredUser
+          userref    :: UserRef          = UserRef tenant subject
+          tenant     :: Issuer           = idp ^. idpMetadata . edIssuer
+          subject    :: NameID           = opaqueNameID . fromMaybe (error "no external id") . SCIM.externalId $ usr
+
+      -- UserRef maps onto correct UserId in spar (and back).
+      userid' <- getUserIdViaRef' userref
+      liftIO $ ('i', userid') `shouldBe` ('i', Just userid)
+
+      userssoid <- getSsoidViaSelf' userid
+      liftIO $ ('r', Intra.fromUserSSOId <$> userssoid) `shouldBe` ('r', Just (Right userref))
+
+      -- login a user for the first time with the scim-supplied credentials
+      (privcreds, authnreq) <- negotiateAuthnRequest idp
+      spmeta <- getTestSPMetadata
+      authnresp  :: SignedAuthnResponse <- runSimpleSP $ mkAuthnResponseWithSubj subject privcreds idp spmeta authnreq True
+      sparresp   :: ResponseLBS         <- submitAuthnResponse authnresp
+
+      -- user should receive a cookie
+      liftIO $ statusCode sparresp `shouldBe` 200
+      setcky :: SAML.SimpleSetCookie "zuid"
+        <- either error pure $ Util.Core.getCookie (Proxy @"zuid") sparresp
+
+      -- /access with that cookie should give us a token
+      let ckyraw = cookieRaw (Cky.setCookieName setcky') (Cky.setCookieValue setcky')
+          setcky' = fromSimpleSetCookie setcky
+
+      accessresp <- call . post $ (env ^. teBrig) . path "/access" . ckyraw
+      token :: Text <- liftIO $ do
+        statusCode accessresp `shouldBe` 200
+        bdy :: LBS   <- maybe (error "no body") pure $ responseBody accessresp
+        val :: Value <- either error pure            $ eitherDecode bdy
+        maybe (error "no access token") pure         $ val ^? key "access_token" . _String
+
+      -- token should contain the expected userid
+      userid'' <- do
+        parsed :: ZAuth.Token ZAuth.Access
+          <- maybe (error "bad access token") pure . fromByteString . cs $ token
+        pure $ Id (parsed ^. ZAuth.body . ZAuth.userId)
+      liftIO $ userid'' `shouldBe` userid
+
+      -- /self should contain the expected UserSSOId
+      self :: ResponseLBS
+        <- call . get $ (env ^. teBrig)
+           . path "/self"
+           . header "Z-User" (toByteString' userid'')
+      selfbdy :: SelfProfile
+        <- do
+             bdy :: LBS <- maybe (error "no self body") pure $ responseBody self
+             either error pure $ eitherDecode bdy
+      liftIO $ userId (selfUser selfbdy) `shouldBe` userid
 
 
 specAux :: SpecWith TestEnv
@@ -680,10 +712,10 @@ specAux = do
                 parsedResp <- either (error . show) pure $ selfUser <$> Intra.parseResponse @SelfProfile rawResp
                 liftIO $ userTeam parsedResp `shouldSatisfy` isJust
 
-            permses :: [Permissions]
+            permses :: [Galley.Permissions]
             permses = fromJust <$>
-              [ Just fullPermissions
-              , newPermissions mempty mempty
+              [ Just Galley.fullPermissions
+              , Galley.newPermissions mempty mempty
               ]
 
         sequence_ [ check tryowner perms | tryowner <- [minBound..], perms <- [0.. (length permses - 1)] ]

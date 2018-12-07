@@ -86,14 +86,16 @@ mkLogger opts = Log.new $ Log.defSettings
 ----------------------------------------------------------------------
 -- servant / wai / warp
 
+-- | FUTUREWORK: figure out how to call 'Network.Wai.Utilities.Server.newSettings' here.  For once,
+-- this would create the "Listening on..." log message there, but it may also have other benefits.
 runServer :: Opts -> IO ()
 runServer sparCtxOpts = do
   sparCtxLogger <- mkLogger sparCtxOpts
   mx <- metrics
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
-  let settings = Warp.defaultSettings
-        & Warp.setHost (fromString $ sparCtxOpts ^. to saml . SAML.cfgSPHost)
-        . Warp.setPort (sparCtxOpts ^. to saml . SAML.cfgSPPort)
+  let settings = Warp.defaultSettings & Warp.setHost (fromString shost) . Warp.setPort sport
+      shost :: String = sparCtxOpts ^. to saml . SAML.cfgSPHost
+      sport :: Int    = sparCtxOpts ^. to saml . SAML.cfgSPPort
   sparCtxHttpManager <- newManager defaultManagerSettings
   let sparCtxHttpBrig =
           Bilge.host (sparCtxOpts ^. to brig . epHost . to cs)
@@ -109,6 +111,7 @@ runServer sparCtxOpts = do
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}
+  Log.info sparCtxLogger . Log.msg $ "Listening on " <> shost <> ":" <> show sport
   WU.runSettingsWithShutdown settings wrappedApp 5
 
 lookupRequestIdMiddleware :: (RequestId -> Application) -> Application

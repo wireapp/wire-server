@@ -3,7 +3,6 @@
 
 module Network.Wire.Client.HTTP
     ( clientRequest
-    , acceptJson
     , readBody
     , fromBody
     , unexpected
@@ -76,9 +75,6 @@ clientRequest rq expected f = do
 
 -------------------------------------------------------------------------------
 -- Utilities
-
-acceptJson :: Request -> Request
-acceptJson = accept "application/json"
 
 readBody :: FromJSON a => Response BodyReader -> IO a
 readBody = consumeBody >=> fromBody
