@@ -48,11 +48,10 @@ import Control.Lens hiding ((.=), Strict)
 import Data.Id
 import Data.Range
 import Servant
-import Spar.App (Spar, wrapMonadClient, sparCtxOpts)
+import Spar.App (Spar, wrapMonadClient, sparCtxOpts, createUser)
 import Spar.API.Util
 import Spar.Error
 import Spar.Types
-import Spar.Intra.Brig
 import Spar.Intra.Galley
 import Data.UUID as UUID
 import Crypto.Hash
@@ -70,6 +69,7 @@ import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data    as Data
 import qualified Data.ByteString.Base64 as ES
+import qualified Spar.Intra.Brig as Intra.Brig
 
 import qualified Web.SCIM.Class.User              as SCIM
 import qualified Web.SCIM.Class.Group             as SCIM
@@ -243,7 +243,7 @@ instance SCIM.UserDB Spar where
   list ScimTokenInfo{stiTeam} mbFilter = do
     members <- lift $ getTeamMembers stiTeam
     users <- forM members $ \member ->
-      lift (getUser (member ^. Galley.userId)) >>= \case
+      lift (Intra.Brig.getUser (member ^. Galley.userId)) >>= \case
         Just user -> pure (toSCIMUser user)
         Nothing -> SCIM.throwSCIM $
           SCIM.serverError "SCIM.UserDB.list: couldn't fetch team member"
@@ -267,7 +267,7 @@ instance SCIM.UserDB Spar where
       Just u -> pure u
       Nothing -> SCIM.throwSCIM $
         SCIM.notFound "user" uidText
-    lift (getUser uid) >>= traverse (\user -> do
+    lift (Intra.Brig.getUser uid) >>= traverse (\user -> do
       when (userTeam user /= Just stiTeam) $ SCIM.throwSCIM $
         SCIM.notFound "user" (idToText uid)
       pure (toSCIMUser user))
@@ -276,7 +276,7 @@ instance SCIM.UserDB Spar where
   create :: ScimTokenInfo
          -> SCIM.User.User
          -> SCIM.SCIMHandler Spar SCIM.StoredUser
-  create ScimTokenInfo{stiTeam, stiIdP} user = do
+  create ScimTokenInfo{stiIdP} user = do
     extId <- case SCIM.User.externalId user of
       Just x -> pure x
       Nothing -> SCIM.throwSCIM $
@@ -298,7 +298,6 @@ instance SCIM.UserDB Spar where
     -- already been done before -- the hscim library check does a 'get'
     -- before a 'create'
 
-    buid <- Id <$> liftIO UUID.nextRandom
     -- TODO: Assume that externalID is the subjectID, let's figure out how
     -- to extract that later
     issuer <- case stiIdP of
@@ -312,13 +311,12 @@ instance SCIM.UserDB Spar where
     let uref = SAML.UserRef issuer (SAML.opaqueNameID extId)
 
     -- TODO: Adding a handle should be done _DURING_ the creation
-    lift $ do
-      _ <- createUser uref buid stiTeam mbName
-      setHandle buid handl
+    buid <- lift $ createUser uref mbName
+    lift $ Intra.Brig.setHandle buid handl
 
     maybe (SCIM.throwSCIM (SCIM.serverError "SCIM.UserDB.create: user disappeared"))
           (pure . toSCIMUser) =<<
-      lift (getUser buid)
+      lift (Intra.Brig.getUser buid)
 
   update :: ScimTokenInfo
          -> Text
@@ -444,7 +442,7 @@ createScimToken zusr CreateScimToken{..} = do
     let descr = createScimTokenDescr
     -- Don't enable this endpoint until SCIM is ready.
     _ <- error "Creating SCIM tokens is not supported yet."
-    teamid <- getZUsrOwnedTeam zusr
+    teamid <- Intra.Brig.getZUsrOwnedTeam zusr
     tokenNumber <- fmap length $ wrapMonadClient $ Data.getScimTokens teamid
     maxTokens <- asks (maxScimTokens . sparCtxOpts)
     unless (tokenNumber < maxTokens) $
@@ -476,11 +474,11 @@ createScimToken zusr CreateScimToken{..} = do
 
 deleteScimToken :: Maybe UserId -> ScimTokenId -> Spar NoContent
 deleteScimToken zusr tokenid = do
-    teamid <- getZUsrOwnedTeam zusr
+    teamid <- Intra.Brig.getZUsrOwnedTeam zusr
     wrapMonadClient $ Data.deleteScimToken teamid tokenid
     pure NoContent
 
 listScimTokens :: Maybe UserId -> Spar ScimTokenList
 listScimTokens zusr = do
-    teamid <- getZUsrOwnedTeam zusr
+    teamid <- Intra.Brig.getZUsrOwnedTeam zusr
     ScimTokenList <$> wrapMonadClient (Data.getScimTokens teamid)

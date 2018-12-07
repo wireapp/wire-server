@@ -10,17 +10,17 @@
 
 module Test.Spar.AppSpec (spec) where
 
-import Imports
 import Bilge
-import Control.Exception
 import Control.Lens
 import Data.Id
 import Data.String.Conversions
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
+import Imports
 import SAML2.Util ((-/))
 import SAML2.WebSSO as SAML
 import Spar.Orphans ()
+import Spar.Types (IdP)
 import URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util
@@ -32,6 +32,7 @@ import qualified SAML2.WebSSO.Test.Credentials as SAML
 import qualified SAML2.WebSSO.Test.MockResponse as SAML
 import qualified Servant
 import qualified Spar.App as Spar
+import qualified Spar.Data as Data
 import qualified Text.XML as XML
 
 
@@ -44,7 +45,8 @@ spec = describe "accessVerdict" $ do
 
         context "denied" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, outcome, _, _) <- requestAccessVerdict False mkAuthnReqWeb
+            (_, _, idp) <- registerTestIdP
+            (Nothing, outcome, _, _) <- requestAccessVerdict idp False mkAuthnReqWeb
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
@@ -55,7 +57,8 @@ spec = describe "accessVerdict" $ do
 
         context "granted" $ do
           it "responds with status 200 and a valid html page with constant expected title." $ do
-            (_, outcome, _, _) <- requestAccessVerdict True mkAuthnReqWeb
+            (_, _, idp) <- registerTestIdP
+            (Just _, outcome, _, _) <- requestAccessVerdict idp True mkAuthnReqWeb
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 200
               Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -73,11 +76,12 @@ spec = describe "accessVerdict" $ do
 
         context "denied" $ do
           it "responds with status 303 with appropriate details." $ do
-            (_uid, outcome, loc, qry) <- requestAccessVerdict False mkAuthnReqMobile
+            (_, _, idp) <- registerTestIdP
+            (Nothing, outcome, loc, qry) <- requestAccessVerdict idp False mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "forbidden"
-              Servant.errBody outcome `shouldBe` "[\"we don't like you\",\"seriously\"]"
+              Servant.errBody outcome `shouldBe` "[\"No Bearer SubjectConfirmation\",\"no AuthnStatement\"]"
               uriScheme loc `shouldBe` (URI.Scheme "wire")
               List.lookup "userid" qry `shouldBe` Nothing
               List.lookup "cookie" qry `shouldBe` Nothing
@@ -85,7 +89,8 @@ spec = describe "accessVerdict" $ do
 
         context "granted" $ do
           it "responds with status 303 with appropriate details." $ do
-            (uid, outcome, loc, qry) <- requestAccessVerdict True mkAuthnReqMobile
+            (_, _, idp) <- registerTestIdP
+            (Just uid, outcome, loc, qry) <- requestAccessVerdict idp True mkAuthnReqMobile
             liftIO $ do
               Servant.errHTTPCode outcome `shouldBe` 303
               Servant.errReasonPhrase outcome `shouldBe` "success"
@@ -119,43 +124,45 @@ mkAuthnReqMobile idpid = do
       arPath    = cs $ "/sso/initiate-login/" -/ SAML.idPIdToST idpid <> "?" <> arQueries
   call $ get ((env ^. teSpar) . path arPath . expect2xx)
 
+
+-- | Take an idp, "granted" flag, and 'AuthnRequest' constructor.  Construct a fresh random
+-- 'UserRef' on that idp; construct the 'AuthnRequest'; construct a mock 'AuthnResponse' from the
+-- idp; call 'Spar.verdictHandler' on that response and return the outcome.  Since the 'UserRef' is
+-- fresh, iff the verdict is "granted" the user will be created during the call to
+-- 'Spar.verdictHandler'.
 requestAccessVerdict :: HasCallStack
-                     => Bool                                   -- ^ is the verdict granted?
+                     => IdP
+                     -> Bool                                   -- ^ is the verdict granted?
                      -> (SAML.IdPId -> TestSpar ResponseLBS)   -- ^ raw authnreq
-                     -> TestSpar ( UserId
+                     -> TestSpar ( Maybe UserId
                                  , SAML.ResponseVerdict
                                  , URI                         -- ^ location header
                                  , [(SBS, SBS)]                -- ^ query params
                                  )
-requestAccessVerdict isGranted mkAuthnReq = do
-  env <- ask
-  uid <- nextWireId
+requestAccessVerdict idp isGranted mkAuthnReq = do
   subject <- SAML.opaqueNameID . UUID.toText <$> liftIO UUID.nextRandom
-  let uref    = SAML.UserRef tenant subject
-      idp     = env ^. teIdP
-      idpid   = idp ^. SAML.idpId
-      tenant  = idp ^. SAML.idpMetadata . SAML.edIssuer
-  runSpar $ Spar.insertUser uref uid
+  let uref   = SAML.UserRef tenant subject
+      tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
   authnreq :: SAML.FormRedirect SAML.AuthnRequest <- do
-    raw <- mkAuthnReq idpid
+    raw <- mkAuthnReq (idp ^. SAML.idpId)
     bdy <- maybe (error "authreq") pure $ responseBody raw
     either (error . show) pure $ Servant.mimeUnrender (Servant.Proxy @SAML.HTML) bdy
   spmeta <- getTestSPMetadata
-  authnresp <- do
-    let mk :: SAML.FormRedirect SAML.AuthnRequest -> TestSpar SAML.AuthnResponse
-        mk (SAML.FormRedirect _ req) = do
+  authnresp :: SAML.AuthnResponse <- do
+    case authnreq of
+      (SAML.FormRedirect _ req) -> do
           SAML.SignedAuthnResponse (XML.Document _ el _) <- runSimpleSP $
-            SAML.mkAuthnResponse SAML.sampleIdPPrivkey idp spmeta req True
-          either (liftIO . throwIO . ErrorCall . show) pure $ SAML.parse [XML.NodeElement el]
-    mk authnreq
+            SAML.mkAuthnResponseWithSubj subject SAML.sampleIdPPrivkey idp spmeta req True
+          either (error . show) pure $ SAML.parse [XML.NodeElement el]
   let verdict = if isGranted
         then SAML.AccessGranted uref
         else SAML.AccessDenied [DeniedNoBearerConfSubj, DeniedNoAuthnStatement]
-  outcome <- runSpar $ Spar.verdictHandler Nothing authnresp verdict
+  outcome :: ResponseVerdict <- runSpar $ Spar.verdictHandler Nothing authnresp verdict
   let loc :: URI.URI
       loc = maybe (error "no location") (either error id . SAML.parseURI' . cs)
           . List.lookup "Location" . Servant.errHeaders
           $ outcome
       qry :: [(SBS, SBS)]
       qry = queryPairs $ uriQuery loc
-  pure (uid, outcome, loc, qry)
+  muid <- runSparCass $ Data.getUser uref
+  pure (muid, outcome, loc, qry)
