@@ -48,6 +48,7 @@ module Gundeck.Types.Push.V2
     , tokenTransport
     , tokenApp
     , tokenClient
+    , tokenFallback
     , token
 
     , PushTokenList (..)
@@ -333,12 +334,16 @@ data PushToken = PushToken
     , _tokenApp       :: !AppName
     , _token          :: !Token
     , _tokenClient    :: !ClientId
+    , _tokenFallback  :: !(Maybe Transport) -- ^ DEPRECATED: this is not used by the backend any
+                                            -- more, but we need to rule out that older clients
+                                            -- still expect it (it is exposed via the
+                                            -- `GET /push/tokens` end-point).
     } deriving (Eq, Ord, Show)
 
 makeLenses ''PushToken
 
 pushToken :: Transport -> AppName -> Token -> ClientId -> PushToken
-pushToken tp an tk cl = PushToken tp an tk cl
+pushToken tp an tk cl = PushToken tp an tk cl Nothing
 
 instance ToJSON PushToken where
     toJSON p = object
@@ -346,6 +351,7 @@ instance ToJSON PushToken where
         # "app"       .= _tokenApp p
         # "token"     .= _token p
         # "client"    .= _tokenClient p
+        # "fallback"  .= _tokenFallback p
         # []
 
 instance FromJSON PushToken where
@@ -354,6 +360,7 @@ instance FromJSON PushToken where
                   <*> p .:  "app"
                   <*> p .:  "token"
                   <*> p .:  "client"
+                  <*> p .:? "fallback"
 
 newtype PushTokenList = PushTokenList
     { pushTokens :: [PushToken]

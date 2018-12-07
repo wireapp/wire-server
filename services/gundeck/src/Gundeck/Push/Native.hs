@@ -171,7 +171,7 @@ deleteTokens tokens new = do
         forM_ xs $ \x ->
             when (x^.addrEndpoint == oldArn) $ do
                 Data.insert u (a^.addrTransport) (a^.addrApp) newTok newArn
-                              (a^.addrConn) (a^.addrClient)
+                              (a^.addrConn) (a^.addrClient) Nothing
                 Data.delete u (a^.addrTransport) (a^.addrApp) oldTok
 
 logError :: (Exception e, MonadLogger m) => Address s -> Text -> e -> m ()

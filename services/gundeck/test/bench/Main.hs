@@ -89,7 +89,7 @@ mkAddress t = do
     let tok = Token "test"
     let con = ConnId "conn"
     let clt = ClientId "client"
-    return $! Address u t app tok ept con clt (Just keys)
+    return $! Address u t app tok ept con clt (Just keys) Nothing
 
 mkEndpoint :: Transport -> AppName -> EndpointArn
 mkEndpoint t a = mkSnsArn Ireland (Account "test") topic

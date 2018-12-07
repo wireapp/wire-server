@@ -39,7 +39,7 @@ pushToken = defineModel "PushToken" $ do
         description "Client ID"
         optional
     property "fallback" pushTransport $ do
-        description "Fallback transport"
+        description "Fallback transport [DEPRECATED]"
         optional
 
 pushTokenList :: Model

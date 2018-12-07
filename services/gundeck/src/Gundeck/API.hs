@@ -105,7 +105,7 @@ sitemap = do
         .&. capture "notif"
 
     document "POST" "cancelFallback" $ do
-        summary "Cancel a pending fallback notification."
+        summary "Cancel a pending fallback notification.  [DEPRECATED]"
         parameter Path "notif" bytes' $
             description "The notification ID"
         response 200 "Pending fallback notification cancelled" end

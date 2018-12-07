@@ -362,7 +362,7 @@ addToken (uid ::: cid ::: req ::: _) = do
                 Log.info $ msg ("Push token is too long: token length = " ++ show l)
                 return (Left tokenTooLong)
             Right arn -> do
-                Data.insert uid trp app tok arn cid (t^.tokenClient)
+                Data.insert uid trp app tok arn cid (t^.tokenClient) (t^.tokenFallback)
                 return (Right (mkAddr t arn))
 
     update :: Int -> PushToken -> SnsArn EndpointTopic -> Gundeck (Either Response (Address a))
@@ -377,7 +377,7 @@ addToken (uid ::: cid ::: req ::: _) = do
             Just ep -> do
                 updateEndpoint uid t arn ep
                 Data.insert uid (t^.tokenTransport) (t^.tokenApp) (t^.token) arn cid
-                                (t^.tokenClient)
+                                (t^.tokenClient) (t^.tokenFallback)
                 return (Right (mkAddr t arn))
               `catch` \case
                 -- Note: If the endpoint was recently deleted (not necessarily
@@ -391,7 +391,7 @@ addToken (uid ::: cid ::: req ::: _) = do
                 ex                       -> throwM ex
 
     mkAddr t arn = Address uid (t^.tokenTransport) (t^.tokenApp) (t^.token)
-                           arn cid (t^.tokenClient) Nothing
+                           arn cid (t^.tokenClient) Nothing (t^.tokenFallback)
 
 -- | Update an SNS endpoint with the given user and token.
 updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.SNSEndpoint -> Gundeck ()
@@ -445,6 +445,7 @@ listTokens :: UserId ::: JSON -> Gundeck Response
 listTokens (uid ::: _) =
     setStatus status200 . json . PushTokenList . map toToken <$> Data.lookup uid Data.Quorum
   where
+    toToken :: Address s -> PushToken
     toToken a = pushToken (a^.addrTransport) (a^.addrApp) (a^.addrToken) (a^.addrClient)
 
 -- REFACTOR remove (see api end-point)
