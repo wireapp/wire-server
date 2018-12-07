@@ -308,7 +308,7 @@ instance SCIM.UserDB Spar where
               SCIM.serverError "The IdP corresponding to the provisioning token \
                                \was not found"
             Just idpConfig -> pure (idpConfig ^. SAML.idpMetadata . SAML.edIssuer)
-    let uref = traceShowId $ SAML.UserRef issuer (SAML.opaqueNameID extId)
+    let uref = SAML.UserRef issuer (SAML.opaqueNameID extId)
 
     -- TODO: Adding a handle should be done _DURING_ the creation
     buid <- lift $ createUser uref mbName
