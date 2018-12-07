@@ -13,6 +13,7 @@ module Gundeck.Push
     , addToken
     , listTokens
     , deleteToken
+    , fakeCancelFallback
     ) where
 
 import Imports
@@ -445,3 +446,7 @@ listTokens (uid ::: _) =
     setStatus status200 . json . PushTokenList . map toToken <$> Data.lookup uid Data.Quorum
   where
     toToken a = pushToken (a^.addrTransport) (a^.addrApp) (a^.addrToken) (a^.addrClient)
+
+-- REFACTOR remove (see api end-point)
+fakeCancelFallback :: UserId ::: NotificationId -> Gundeck Response
+fakeCancelFallback (_ ::: _) = return empty

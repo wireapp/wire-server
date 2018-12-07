@@ -98,6 +98,18 @@ sitemap = do
         response 204 "Push token unregistered" end
         response 404 "Push token does not exist" end
 
+    -- REFACTOR: this doesn't do anything any more.  deprecate it on swagger, figure out how to get
+    -- rid of it entirely, and when (in the distant future?).
+    post "/push/fallback/:notif/cancel" (continue Push.fakeCancelFallback) $
+        header "Z-User"
+        .&. capture "notif"
+
+    document "POST" "cancelFallback" $ do
+        summary "Cancel a pending fallback notification."
+        parameter Path "notif" bytes' $
+            description "The notification ID"
+        response 200 "Pending fallback notification cancelled" end
+
     get "/push/tokens" (continue Push.listTokens) $
         header "Z-User"
         .&. accept "application" "json"
