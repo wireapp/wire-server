@@ -211,7 +211,7 @@ randNotif size = do
         l <- choose size
         v <- T.pack <$> vectorOf l (elements ['a'..'z'])
         let pload = List1.singleton (HashMap.fromList ["data" .= v])
-        Notification i <$> arbitrary <*> pure pload
+        Notification i <$> pure pload
 
 randMessage :: Notification -> EVP.Cipher -> EVP.Digest -> IO (Message "keys")
 randMessage n c d = generate (elements [plaintext, ciphertext, notice])

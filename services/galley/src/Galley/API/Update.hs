@@ -504,7 +504,6 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
                     set pushConn con
                   . set pushNativePriority (newOtrNativePriority msg)
                   . set pushRoute          (bool RouteDirect RouteAny (newOtrNativePush msg))
-                  . set pushTransient      (newOtrTransient msg)
             in (toBots, p:toUsers)
 
 updateConversation :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
@@ -538,7 +537,6 @@ isTyping (zusr ::: zcon ::: cnv ::: req ::: _) = do
         push1 $ p
               & pushConn      ?~ zcon
               & pushRoute     .~ RouteDirect
-              & pushTransient .~ True
     return empty
 
 addService :: Request ::: JSON -> Galley Response

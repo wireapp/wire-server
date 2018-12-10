@@ -445,7 +445,6 @@ wsAssertOtr = wsAssertOtr' "data"
 wsAssertOtr' :: Text -> ConvId -> UserId -> ClientId -> ClientId -> Text -> Notification -> IO ()
 wsAssertOtr' evData conv usr from to txt n = do
     let e = List1.head (WS.unpackPayload n)
-    ntfTransient n @?= False
     evtConv      e @?= conv
     evtType      e @?= OtrMessageAdd
     evtFrom      e @?= usr
@@ -454,7 +453,6 @@ wsAssertOtr' evData conv usr from to txt n = do
 wsAssertMemberJoin :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
 wsAssertMemberJoin conv usr new n = do
     let e = List1.head (WS.unpackPayload n)
-    ntfTransient n @?= False
     evtConv      e @?= conv
     evtType      e @?= MemberJoin
     evtFrom      e @?= usr
@@ -463,7 +461,6 @@ wsAssertMemberJoin conv usr new n = do
 wsAssertConvAccessUpdate :: ConvId -> UserId -> ConversationAccessUpdate -> Notification -> IO ()
 wsAssertConvAccessUpdate conv usr new n = do
     let e = List1.head (WS.unpackPayload n)
-    ntfTransient n @?= False
     evtConv      e @?= conv
     evtType      e @?= ConvAccessUpdate
     evtFrom      e @?= usr
@@ -472,7 +469,6 @@ wsAssertConvAccessUpdate conv usr new n = do
 wsAssertConvMessageTimerUpdate :: ConvId -> UserId -> ConversationMessageTimerUpdate -> Notification -> IO ()
 wsAssertConvMessageTimerUpdate conv usr new n = do
     let e = List1.head (WS.unpackPayload n)
-    ntfTransient n @?= False
     evtConv      e @?= conv
     evtType      e @?= ConvMessageTimerUpdate
     evtFrom      e @?= usr
@@ -481,7 +477,6 @@ wsAssertConvMessageTimerUpdate conv usr new n = do
 wsAssertMemberLeave :: ConvId -> UserId -> [UserId] -> Notification -> IO ()
 wsAssertMemberLeave conv usr old n = do
     let e = List1.head (WS.unpackPayload n)
-    ntfTransient n      @?= False
     evtConv      e      @?= conv
     evtType      e      @?= MemberLeave
     evtFrom      e      @?= usr

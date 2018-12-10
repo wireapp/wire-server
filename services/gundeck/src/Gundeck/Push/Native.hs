@@ -60,9 +60,7 @@ push1 m a = do
     -- * Transient notifications must be delivered "now or never".
     -- * Others use the default level of the specific platforms, which is 4 weeks
     --   for both APNS* and GCM
-    ttl = if msgTransient m
-          then Just (Aws.Seconds 0)
-          else Nothing
+    ttl = Nothing
 
     onDisabled =
         handleAny (logError a "Failed to cleanup disabled endpoint") $ do

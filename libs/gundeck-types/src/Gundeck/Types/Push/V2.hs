@@ -11,7 +11,6 @@ module Gundeck.Types.Push.V2
     , pushOrigin
     , pushConnections
     , pushOriginConnection
-    , pushTransient
     , pushNativeIncludeOrigin
     , pushNativeEncrypt
     , pushNativeAps
@@ -218,8 +217,6 @@ data Push = Push
       -- ^ Destination connections, if a directed push is desired.
     , _pushOriginConnection :: !(Maybe ConnId)
       -- ^ Originating connection, if any.
-    , _pushTransient :: !Bool
-      -- ^ Transient payloads are not forwarded to the notification stream.
     , _pushNativeIncludeOrigin :: !Bool
       -- ^ Whether to send native notifications to other clients
       -- of the originating user, if he is among the recipients.
@@ -241,7 +238,6 @@ newPush from to pload = Push
     , _pushOrigin              = from
     , _pushConnections         = Set.empty
     , _pushOriginConnection    = Nothing
-    , _pushTransient           = False
     , _pushNativeIncludeOrigin = True
     , _pushNativeEncrypt       = True
     , _pushNativeAps           = Nothing
@@ -261,7 +257,6 @@ instance FromJSON Push where
              <*> p .:  "origin"
              <*> p .:? "connections"           .!= Set.empty
              <*> p .:? "origin_connection"
-             <*> p .:? "transient"             .!= False
              <*> p .:? "native_include_origin" .!= True
              <*> p .:? "native_encrypt"        .!= True
              <*> p .:? "native_aps"
@@ -274,7 +269,6 @@ instance ToJSON Push where
         # "origin"                .= _pushOrigin p
         # "connections"           .= ifNot Set.null (_pushConnections p)
         # "origin_connection"     .= _pushOriginConnection p
-        # "transient"             .= ifNot (== False) (_pushTransient p)
         # "native_include_origin" .= ifNot (== True) (_pushNativeIncludeOrigin p)
         # "native_encrypt"        .= ifNot (== True) (_pushNativeEncrypt p)
         # "native_aps"            .= _pushNativeAps p

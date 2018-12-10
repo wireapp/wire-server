@@ -17,7 +17,6 @@ module Galley.Intra.Push
 
       -- * Push Configuration
     , pushConn
-    , pushTransient
     , pushRoute
     , pushNativePriority
     , pushAsync
@@ -93,7 +92,6 @@ userRecipient u = Recipient u []
 
 data Push = Push
     { _pushConn           :: Maybe ConnId
-    , _pushTransient      :: Bool
     , _pushRoute          :: Gundeck.Route
     , _pushNativePriority :: Maybe Gundeck.Priority
     , _pushAsync          :: Bool
@@ -107,7 +105,6 @@ makeLenses ''Push
 newPush1 :: UserId -> PushEvent -> List1 Recipient -> Push
 newPush1 from e rr = Push
     { _pushConn           = Nothing
-    , _pushTransient      = False
     , _pushRoute          = Gundeck.RouteAny
     , _pushNativePriority = Nothing
     , _pushAsync          = False
@@ -156,10 +153,10 @@ push ps = do
 
     recipientList p = map (toRecipient p) . toList $ pushRecipients p
 
+    toPush :: Push -> [Gundeck.Recipient] -> Gundeck.Push
     toPush p r = let pload = Gundeck.singletonPayload (pushJson p) in
         Gundeck.newPush (pushOrigin p) (unsafeRange (Set.fromList r)) pload
             & Gundeck.pushOriginConnection .~ _pushConn p
-            & Gundeck.pushTransient        .~ _pushTransient p
             & maybe id (set Gundeck.pushNativePriority) (_pushNativePriority p)
 
 

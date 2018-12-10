@@ -16,7 +16,6 @@ import Data.List1
 import Data.Misc
 import Data.Range
 import Galley.Types
-import Gundeck.Types.Notification
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
@@ -135,7 +134,6 @@ postConvOk g b c _ = do
   where
     convView cnv usr = decodeBody' "conversation" <$> getConv g usr cnv
     checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
-        ntfTransient n @?= False
         let e = List1.head (WS.unpackPayload n)
         evtConv e @?= cnvId cnv
         evtType e @?= ConvCreate
@@ -940,7 +938,6 @@ putConvRenameOk g b c _ = do
             ) !!! const 200 === statusCode
         void. liftIO $ WS.assertMatchN (5 # Second) [wsA, wsB] $ \n -> do
             let e = List1.head (WS.unpackPayload n)
-            ntfTransient n @?= False
             evtConv      e @?= conv
             evtType      e @?= ConvRename
             evtFrom      e @?= bob
@@ -999,7 +996,6 @@ putMemberOk update g b ca = do
         putMember g bob update conv !!! const 200 === statusCode
         void. liftIO $ WS.assertMatch (5 # Second) ws $ \n -> do
             let e = List1.head (WS.unpackPayload n)
-            ntfTransient n @?= False
             evtConv      e @?= conv
             evtType      e @?= MemberStateUpdate
             evtFrom      e @?= bob
@@ -1078,7 +1074,6 @@ putReceiptModeOk g b c _ = do
         const (Just (Just (ReceiptMode 0))) === fmap cnvReceiptMode . decodeBody
   where
     checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
-        ntfTransient n @?= False
         let e = List1.head (WS.unpackPayload n)
         evtConv e @?= cnv
         evtType e @?= ConvReceiptModeUpdate
@@ -1140,7 +1135,6 @@ removeUser g b ca _ = do
   where
     matchMemberLeave conv u n = do
         let e = List1.head (WS.unpackPayload n)
-        ntfTransient n @?= False
         evtConv      e @?= conv
         evtType      e @?= MemberLeave
         evtFrom      e @?= u

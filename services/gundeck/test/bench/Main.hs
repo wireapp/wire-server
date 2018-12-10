@@ -57,7 +57,7 @@ plaintext l = do
     i <- randomId
     a <- mkAddress GCM
     let pload = List1.singleton (payload l)
-    let notif = Notification i False pload
+    let notif = Notification i pload
     let msg   = Plaintext notif HighPriority Nothing
     Right txt <- serialise msg a
     return $! LT.toStrict txt
@@ -67,7 +67,7 @@ ciphertext c d l = do
     i <- randomId
     a <- mkAddress GCM
     let pload = List1.singleton (payload l)
-    let notif = Notification i False pload
+    let notif = Notification i pload
     let msg   = Ciphertext notif c d HighPriority Nothing
     Right txt <- serialise msg a
     return $! LT.toStrict txt

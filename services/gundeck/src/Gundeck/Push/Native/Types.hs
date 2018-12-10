@@ -8,7 +8,6 @@ module Gundeck.Push.Native.Types
     , Failure (..)
     , Message (..)
     , msgApsData
-    , msgTransient
     , Address (Address)
     , addrUser
     , addrTransport
@@ -105,8 +104,3 @@ msgApsData :: Message s -> Maybe ApsData
 msgApsData (Plaintext  _     _ a) = a
 msgApsData (Ciphertext _ _ _ _ a) = a
 msgApsData (Notice     _     _ a) = a
-
-msgTransient :: Message s -> Bool
-msgTransient (Plaintext  n     _ _) = ntfTransient n
-msgTransient (Ciphertext n _ _ _ _) = ntfTransient n
-msgTransient Notice{}               = False

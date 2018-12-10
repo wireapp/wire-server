@@ -138,7 +138,7 @@ deleteToken u ev tk cl = do
     i <- mkNotificationId
     let t = mkPushToken ev tk cl
         p = singletonPayload (PushRemove t)
-        n = Notification i False p
+        n = Notification i p
         r = singleton (target u & targetClients .~ [cl])
     void $ Web.push n r u Nothing Set.empty
     Stream.add i r p =<< view (options.optSettings.setNotificationTTL)

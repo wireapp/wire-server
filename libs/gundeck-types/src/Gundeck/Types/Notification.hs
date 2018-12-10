@@ -38,7 +38,6 @@ import Data.Time.Clock (UTCTime)
 
 data Notification = Notification
     { ntfId        :: !NotificationId
-    , ntfTransient :: !Bool
     , ntfPayload   :: !(List1 Object)
     } deriving (Eq, Show)
 
@@ -47,13 +46,11 @@ type NotificationId = Id Notification
 instance FromJSON Notification where
     parseJSON = withObject "notification" $ \o ->
         Notification <$> o .:  "id"
-                     <*> o .:? "transient" .!= False
                      <*> o .:  "payload"
 
 instance ToJSON Notification where
-    toJSON (Notification i t p) = object
+    toJSON (Notification i p) = object
         [ "id"        .= i
-        , "transient" .= t
         , "payload"   .= p
         ]
 

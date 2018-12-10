@@ -1587,7 +1587,6 @@ wsAssertMemberJoin :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> [UserId] 
 wsAssertMemberJoin ws conv usr new = void $ liftIO $
     WS.assertMatch (5 # Second) ws $ \n -> do
         let e = List1.head (unpackEvents n)
-        ntfTransient n @?= False
         evtConv      e @?= conv
         evtType      e @?= MemberJoin
         evtFrom      e @?= usr
@@ -1597,7 +1596,6 @@ wsAssertMemberLeave :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> [UserId]
 wsAssertMemberLeave ws conv usr old = void $ liftIO $
     WS.assertMatch (5 # Second) ws $ \n -> do
         let e = List1.head (unpackEvents n)
-        ntfTransient n @?= False
         evtConv      e @?= conv
         evtType      e @?= MemberLeave
         evtFrom      e @?= usr
@@ -1607,7 +1605,6 @@ wsAssertTeamConvDelete :: MonadIO m => WS.WebSocket -> TeamId -> ConvId -> m ()
 wsAssertTeamConvDelete ws tid conv = void $ liftIO $
     WS.assertMatch (5 # Second) ws $ \n -> do
         let e = List1.head (WS.unpackPayload n)
-        ntfTransient n @?= False
         e^.(Team.eventType) @?= Team.ConvDelete
         e^.(Team.eventTeam) @?= tid
         e^.(Team.eventData) @?= Just (Team.EdConvDelete conv)
@@ -1616,7 +1613,6 @@ wsAssertMessage :: MonadIO m => WS.WebSocket -> ConvId -> UserId -> ClientId -> 
 wsAssertMessage ws conv fromu fromc to txt = void $ liftIO $
     WS.assertMatch (5 # Second) ws $ \n -> do
         let e = List1.head (unpackEvents n)
-        ntfTransient n @?= False
         evtConv      e @?= conv
         evtType      e @?= OtrMessageAdd
         evtFrom      e @?= fromu

@@ -89,7 +89,6 @@ testCreateTeam g b c a = do
         liftIO $ do
             assertEqual "owner" owner (team^.teamCreator)
             eventChecks <- WS.awaitMatch timeout wsOwner $ \notif -> do
-                ntfTransient notif @?= False
                 let e = List1.head (WS.unpackPayload notif)
                 e^.eventType @?= TeamCreate
                 e^.eventTeam @?= tid
@@ -143,7 +142,6 @@ testCreateTeamWithMembers g b c _ = do
             void $ mapConcurrently (checkCreateEvent team) [wsOwner, wsUser1, wsUser2]
   where
     checkCreateEvent team w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
         e^.eventType @?= TeamCreate
         e^.eventTeam @?= (team^.teamId)
@@ -251,7 +249,6 @@ testAddTeamMemberInternal g b c a = do
     void $ Util.getTeamMemberInternal g tid (mem1^.userId)
   where
     checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
         e^.eventType @?= MemberJoin
         e^.eventTeam @?= tid
@@ -649,14 +646,12 @@ testDeleteTeamConv g b c _ = do
     postConvCodeCheck g code !!! const 404 === statusCode
   where
     checkTeamConvDeleteEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
         e^.eventType @?= ConvDelete
         e^.eventTeam @?= tid
         e^.eventData @?= Just (EdConvDelete cid)
 
     checkConvDeletevent cid w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
         evtType e @?= Conv.ConvDelete
         evtConv e @?= cid
@@ -693,7 +688,6 @@ testUpdateTeam g b c _ = do
         WS.assertNoEvent timeout [wsOwner, wsMember]
   where
     checkTeamUpdateEvent tid upd w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
         e^.eventType @?= TeamUpdate
         e^.eventTeam @?= tid
@@ -746,7 +740,6 @@ testUpdateTeamMember g b c a = do
     assertQueueEmpty a
   where
     checkTeamMemberUpdateEvent tid uid w mPerm = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
         e^.eventType @?= MemberUpdate
         e^.eventTeam @?= tid
@@ -786,7 +779,6 @@ checkUserDeleteEvent uid w = WS.assertMatch_ timeout w $ \notif -> do
 
 checkTeamMemberJoin :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> Http ()
 checkTeamMemberJoin tid uid w = WS.awaitMatch_ timeout w $ \notif -> do
-    ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
     e^.eventType @?= MemberJoin
     e^.eventTeam @?= tid
@@ -794,7 +786,6 @@ checkTeamMemberJoin tid uid w = WS.awaitMatch_ timeout w $ \notif -> do
 
 checkTeamMemberLeave :: HasCallStack => TeamId -> UserId -> WS.WebSocket -> Http ()
 checkTeamMemberLeave tid usr w = WS.assertMatch_ timeout w $ \notif -> do
-    ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
     e^.eventType @?= MemberLeave
     e^.eventTeam @?= tid
@@ -802,7 +793,6 @@ checkTeamMemberLeave tid usr w = WS.assertMatch_ timeout w $ \notif -> do
 
 checkTeamConvCreateEvent :: HasCallStack => TeamId -> ConvId -> WS.WebSocket -> Http ()
 checkTeamConvCreateEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
-    ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
     e^.eventType @?= ConvCreate
     e^.eventTeam @?= tid
@@ -810,7 +800,6 @@ checkTeamConvCreateEvent tid cid w = WS.assertMatch_ timeout w $ \notif -> do
 
 checkConvCreateEvent :: HasCallStack => ConvId -> WS.WebSocket -> Http ()
 checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
-    ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
     evtType e @?= Conv.ConvCreate
     case evtData e of
@@ -819,7 +808,6 @@ checkConvCreateEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
 
 checkTeamDeleteEvent :: HasCallStack => TeamId -> WS.WebSocket -> Http ()
 checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
-    ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
     e^.eventType @?= TeamDelete
     e^.eventTeam @?= tid
@@ -827,7 +815,6 @@ checkTeamDeleteEvent tid w = WS.assertMatch_ timeout w $ \notif -> do
 
 checkConvDeleteEvent :: HasCallStack => ConvId -> WS.WebSocket -> Http ()
 checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
-    ntfTransient notif @?= False
     let e = List1.head (WS.unpackPayload notif)
     evtType e @?= Conv.ConvDelete
     evtConv e @?= cid
@@ -835,7 +822,6 @@ checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
 
 checkConvMemberLeaveEvent :: HasCallStack => ConvId -> UserId -> WS.WebSocket -> Http ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
-        ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
         evtConv e @?= cid
         evtType e @?= Conv.MemberLeave

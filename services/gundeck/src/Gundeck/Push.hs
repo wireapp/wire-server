@@ -49,12 +49,10 @@ import qualified Data.Text                    as Text
 import qualified Data.Text.Encoding           as Text
 import qualified Data.UUID                    as UUID
 import qualified Gundeck.Aws                  as Aws
-import qualified Gundeck.Client               as Client
 import qualified Gundeck.Notification.Data    as Stream
 import qualified Gundeck.Presence.Data        as Presence
 import qualified Gundeck.Push.Data            as Data
 import qualified Gundeck.Push.Native          as Native
-import qualified Gundeck.Push.Native.Fallback as Fallback
 import qualified Gundeck.Push.Websocket       as Web
 import qualified Gundeck.Types.Presence       as Presence
 import qualified System.Logger.Class          as Log
@@ -85,12 +83,11 @@ pushAny' p = do
     sendNotice <- view (options.optFallback.fbPreferNotice)
     i <- mkNotificationId
     let pload = p^.pushPayload
-    let notif = Notification i (p^.pushTransient) pload
+    let notif = Notification i pload
     let rcps  = fromRange (p^.pushRecipients)
     let uniq  = uncurry list1 $ head &&& tail $ toList rcps
     let tgts  = mkTarget <$> uniq
-    unless (p^.pushTransient) $
-        Stream.add i tgts pload =<< view (options.optSettings.setNotificationTTL)
+    Stream.add i tgts pload =<< view (options.optSettings.setNotificationTTL)
     void . forkIO $ do
         prs <- Web.push notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
         pushNative sendNotice notif p =<< nativeTargets p prs
@@ -134,7 +131,7 @@ pushAll pushes = do
             mkNotificationTarget r = target (r ^. recipientId)
                                    & targetClients .~ r ^. recipientClients
 
-    forM_ cassandraTargets $ \(psh, (notif, notifTrgt)) -> unless (psh ^. pushTransient) $
+    forM_ cassandraTargets $ \(psh, (notif, notifTrgt)) -> do
         mpaStreamAdd (ntfId notif) notifTrgt (psh ^. pushPayload)
           =<< view (options . optSettings . setNotificationTTL)
 
@@ -184,7 +181,7 @@ mkNotificationAndTargets psh = (,) <$> mkNotif <*> doCollect
     mkNotif :: m Notification
     mkNotif = do
         notifId <- mpaMkNotificationId
-        pure $ Notification notifId (psh ^. pushTransient) (psh ^. pushPayload)
+        pure $ Notification notifId (psh ^. pushPayload)
 
     doCollect :: m (List1 (Recipient, [Presence]))
     doCollect = zip1 rcps =<< mpaListAllPresences (view recipientId <$> rcps)
@@ -221,38 +218,13 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
 -- | REFACTOR: if the order of arguments of pushNative, pushNotice, pushData is aligned, we could do
 -- three eta-reductions here!
 pushNative :: Bool -> Notification -> Push -> [Address "no-keys"] -> Gundeck ()
-pushNative sendNotice notif p rcps = if sendNotice
-                                     then pushNotice p notif rcps
-                                     else pushData p notif rcps
+pushNative _sendNotice notif p rcps = pushNotice p notif rcps
 
 pushNotice :: Push -> Notification -> [Address s] -> Gundeck ()
 pushNotice _     _   [] = return ()
 pushNotice p notif rcps = do
     let prio = p^.pushNativePriority
-    r <- Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
-    pushFallback notif r prio
-
-pushData :: Push -> Notification -> [Address "no-keys"] -> Gundeck ()
-pushData _     _   [] = return ()
-pushData p notif rcps = do
-    let aps = p^.pushNativeAps
-    let prio = p^.pushNativePriority
-    if p^.pushNativeEncrypt then do
-        c <- view cipher
-        d <- view digest
-        t <- Client.lookupKeys rcps
-        r <- Native.push (Native.Ciphertext notif c d prio aps) t
-        pushFallback notif r prio
-    else do
-        r <- Native.push (Native.Plaintext notif prio aps) rcps
-        pushFallback notif r prio
-
--- | REFACTOR: this function has not been called with transient notifications in production in a
--- while.  it is possible that we can simplify this further.
-pushFallback :: Notification -> [Result s] -> Priority -> Gundeck ()
-pushFallback notif r prio = if ntfTransient notif
-    then Log.warn $ msg (val "Transient notification failed")
-    else void $ Fallback.execute (ntfId notif) prio (Fallback.prepare r)
+    void $ Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
 
 nativeTargets :: Push -> [Presence] -> Gundeck [Address "no-keys"]
 nativeTargets p pres =
