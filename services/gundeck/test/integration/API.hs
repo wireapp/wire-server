@@ -682,9 +682,9 @@ testRegisterPushToken g _ b _ = do
 
     -- Native push tokens are deleted together with the client
     unregisterClient g uid c1 !!! const 200 === statusCode
-    unregisterClient g uid c1 !!! const 404 === statusCode
+    unregisterClient g uid c1 !!! const 200 === statusCode  -- (deleting a non-existing token is ok.)
     unregisterClient g uid c2 !!! const 200 === statusCode
-    unregisterClient g uid c2 !!! const 404 === statusCode
+    unregisterClient g uid c2 !!! const 200 === statusCode  -- (deleting a non-existing token is ok.)
     _tokens <- listPushTokens uid g
     liftIO $ assertEqual "unexpected tokens" [] _tokens
 
