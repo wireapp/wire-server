@@ -8,6 +8,7 @@ import Bilge
 import Cassandra (ClientState, Keyspace (..))
 import Control.AutoUpdate
 import Control.Lens ((^.), makeLenses)
+import Data.Default (def)
 import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
 import Data.Text (unpack)
@@ -76,7 +77,7 @@ createEnv m o = do
     io <- mkAutoUpdate defaultUpdateSettings {
             updateAction = Ms . round . (* 1000) <$> getPOSIXTime
     }
-    return $! Env mempty m o l n p r a io
+    return $! Env def m o l n p r a io
 
 reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId

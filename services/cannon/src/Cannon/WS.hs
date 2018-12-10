@@ -42,6 +42,7 @@ import Control.Retry
 import Data.Aeson hiding (Error)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
+import Data.Default (def)
 import Data.Hashable
 import Data.Id (ClientId, UserId, ConnId (..))
 import Data.Text.Encoding (decodeUtf8)
@@ -163,7 +164,7 @@ env :: ByteString
     -> GenIO
     -> Clock
     -> Env
-env leh lp gh gp = Env leh lp (host gh . port gp $ empty) mempty
+env leh lp gh gp = Env leh lp (host gh . port gp $ empty) def
 
 runWS :: MonadIO m => Env -> WS a -> m a
 runWS e m = liftIO $ runReaderT (_conn m) e

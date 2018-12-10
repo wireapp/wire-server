@@ -39,6 +39,7 @@ library
         , bytestring            >= 0.10
         , bytestring-conversion >= 0.2
         , case-insensitive      >= 1.2
+        , data-default          >= 0.5
         , data-timeout          >= 0.3
         , exceptions            >= 0.6
         , gundeck-types

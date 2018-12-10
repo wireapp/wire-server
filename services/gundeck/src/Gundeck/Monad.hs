@@ -34,6 +34,7 @@ import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (tryJust)
 import Data.Aeson (FromJSON)
+import Data.Default (def)
 import Data.Misc (Milliseconds (..))
 import Gundeck.Env
 import Network.Wai
@@ -85,7 +86,7 @@ runDirect :: Env -> Gundeck a -> IO a
 runDirect e m = runClient (e^.cstate) (runReaderT (unGundeck m) e)
 
 lookupReqId :: Request -> RequestId
-lookupReqId = maybe mempty RequestId . lookup requestIdName . requestHeaders
+lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 {-# INLINE lookupReqId #-}
 
 fromBody :: FromJSON a => Request -> (LText -> Error) -> Gundeck a

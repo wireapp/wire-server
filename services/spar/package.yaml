@@ -27,6 +27,7 @@ dependencies:
   - containers
   - cookie
   - cryptonite
+  - data-default
   - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
   - galley-types

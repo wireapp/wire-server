@@ -41,6 +41,7 @@ import Control.Error (ExceptT, exceptT)
 import Control.Lens (view, makeLenses, set, (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow, MonadMask)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
+import Data.Default (def)
 import Data.Metrics.Middleware (Metrics)
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
@@ -94,7 +95,7 @@ newEnv o = do
                     $ Log.defSettings
     mgr  <- initHttpManager
     awe  <- initAws o lgr mgr
-    return $ Env awe met lgr mgr mempty (o^.optSettings)
+    return $ Env awe met lgr mgr def (o^.optSettings)
 
 initAws :: Opts -> Logger -> Manager -> IO AwsEnv
 initAws o l m = do
@@ -195,5 +196,5 @@ type Handler = ExceptT Error App
 
 runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO ResponseReceived
 runHandler e r h k =
-    let e' = set requestId (maybe mempty RequestId (lookupRequestId r)) e
+    let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
     in runAppT e' (exceptT (Server.onError (_appLogger e) (_metrics e) r k) return h)
