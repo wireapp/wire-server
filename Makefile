@@ -1,7 +1,5 @@
 SHELL            := /usr/bin/env bash
 LANG             := en_US.UTF-8
-HASKELL_SERVICES := proxy cannon cargohold brig galley gundeck
-SERVICES         := $(HASKELL_SERVICES) nginz
 DOCKER_USER      ?= wireserver
 DOCKER_TAG       ?= local
 
@@ -88,11 +86,6 @@ i-%:
 
 #################################
 ## docker targets
-
-.PHONY: docker-services
-docker-services:
-	$(MAKE) -C build/alpine
-	$(foreach service,$(SERVICES),$(MAKE) -C services/$(service) docker;)
 
 .PHONY: docker-deps
 docker-deps:
