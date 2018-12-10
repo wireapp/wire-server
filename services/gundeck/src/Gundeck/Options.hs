@@ -31,13 +31,6 @@ data AWSOpts = AWSOpts
 deriveFromJSON toOptionFieldName ''AWSOpts
 makeLenses ''AWSOpts
 
-data FallbackOpts = FallbackOpts
-    { _fbPreferNotice  :: !Bool
-    } deriving (Show, Generic)
-
-deriveFromJSON toOptionFieldName ''FallbackOpts
-makeLenses ''FallbackOpts
-
 data Settings = Settings
     { _setHttpPoolSize    :: !Int
     , _setNotificationTTL :: !NotificationTTL
@@ -53,7 +46,6 @@ data Opts = Opts
     , _optRedis     :: !Endpoint
     , _optAws       :: !AWSOpts
     , _optDiscoUrl  :: !(Maybe Text)
-    , _optFallback  :: !FallbackOpts
     , _optSettings  :: !Settings
     } deriving (Show, Generic)
 
@@ -84,7 +76,6 @@ optsParser = Opts <$>
   <*> redisParser
   <*> awsParser
   <*> optional discoUrlParser
-  <*> fallbackParser
   <*> settingsParser
   where
     redisParser :: Parser Endpoint
@@ -134,12 +125,6 @@ optsParser = Opts <$>
             <> value (AWSEndpoint "sns.eu-west-1.amazonaws.com" True 443)
             <> showDefault
             <> help "aws SNS endpoint")
-
-    fallbackParser :: Parser FallbackOpts
-    fallbackParser = FallbackOpts
-        <$> (switch $
-                long "prefer-notice"
-                <> help "Use this option if you always wish to send notifications of type notice.")
 
     settingsParser :: Parser Settings
     settingsParser = Settings <$>

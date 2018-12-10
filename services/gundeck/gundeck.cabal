@@ -25,7 +25,6 @@ library
         Gundeck.Client.Data
         Gundeck.Monad
         Gundeck.Options
-        Gundeck.Push.Native.Crypto
         Gundeck.Push.Native.Serialise
         Gundeck.Push.Native.Types
         Gundeck.Push.Data
