@@ -75,7 +75,7 @@ specUsers = describe "operations with users" $ do
             -- Delete the user (TODO: do it via SCIM) and wait until the
             -- user is truly gone
             call $ deleteUser (env ^. teBrig) userid
-            recoverAll (exponentialBackoff 100 <> limitRetries 5) $ \_ -> do
+            recoverAll (exponentialBackoff 30000 <> limitRetries 5) $ \_ -> do
                 profile <- call $ getSelfProfile (env ^. teBrig) userid
                 liftIO $ selfUser profile `shouldSatisfy` userDeleted
             -- Get all users
@@ -121,7 +121,7 @@ specUsers = describe "operations with users" $ do
             -- Delete the user (TODO: do it via SCIM) and wait until the
             -- user is truly gone
             call $ deleteUser (env ^. teBrig) userid
-            recoverAll (exponentialBackoff 100 <> limitRetries 5) $ \_ -> do
+            recoverAll (exponentialBackoff 30000 <> limitRetries 5) $ \_ -> do
                 profile <- call $ getSelfProfile (env ^. teBrig) userid
                 liftIO $ selfUser profile `shouldSatisfy` userDeleted
             -- Try to find the user
