@@ -3,6 +3,7 @@
 
 module V6 (migration) where
 
+import Imports
 import Cassandra.Schema
 import Text.RawString.QQ
 
@@ -18,3 +19,4 @@ migration = Migration 6 "Add fallback_cancel table" $ do
             ) with compaction = { 'class' : 'LeveledCompactionStrategy' }
                and gc_grace_seconds = 0;
         |]
+      -- TODO: fallback is deprecated as of https://github.com/wireapp/wire-server/pull/531

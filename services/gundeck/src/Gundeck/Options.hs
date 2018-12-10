@@ -32,11 +32,7 @@ deriveFromJSON toOptionFieldName ''AWSOpts
 makeLenses ''AWSOpts
 
 data FallbackOpts = FallbackOpts
-    { _fbSkipFallbacks :: !Bool
-    , _fbPreferNotice  :: !Bool
-    , _fbQueueDelay    :: !Word64
-    , _fbQueueLimit    :: !Int
-    , _fbQueueBurst    :: !Word16
+    { _fbPreferNotice  :: !Bool
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''FallbackOpts
@@ -140,44 +136,10 @@ optsParser = Opts <$>
             <> help "aws SNS endpoint")
 
     fallbackParser :: Parser FallbackOpts
-    fallbackParser = FallbackOpts <$>
-        -- NOTE: If set, notifications are still queued to be sent, etc. but never actually
-        -- end up getting sent out. This allows us to still keep track of how successful
-        -- we are with cancelling the fallback notifications and thus get a feeling of
-        --  where we stand today.
-        (switch $
-            long "skip-fallbacks"
-            <> help "Use this option if you wish to never send delayed fallback notifications.")
-
-        <*> (switch $
+    fallbackParser = FallbackOpts
+        <$> (switch $
                 long "prefer-notice"
                 <> help "Use this option if you always wish to send notifications of type notice.")
-
-        <*> (delayOption $
-                long "fallback-queue-delay"
-                <> metavar "SIZE"
-                <> showDefault
-                <> help "Delay (seconds) of notifications before sending a fallback. \
-                   \MUST be higher than 30 seconds."
-                <> value 300)
-
-        <*> (option auto $
-                long "fallback-queue-limit"
-                <> metavar "SIZE"
-                <> showDefault
-                <> help "Max. size of the notification fallback queue."
-                <> value 30000)
-
-        <*> (option auto $
-                long "fallback-queue-burst"
-                <> metavar "SIZE"
-                <> showDefault
-                <> help "Max. number of delayed notifications to fire in a row (i.e. per second)."
-                <> value 100)
-
-    delayOption = fmap check . option auto
-      where
-        check x = if x < 30 then error "Delay must > 30" else x
 
     settingsParser :: Parser Settings
     settingsParser = Settings <$>

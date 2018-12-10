@@ -46,8 +46,6 @@ library
         Gundeck.Push
         Gundeck.Push.Native
         Gundeck.Push.Native.Fallback
-        Gundeck.Push.Native.Fallback.Data
-        Gundeck.Push.Native.Fallback.Queue
         Gundeck.Push.Websocket
         Gundeck.React
         Gundeck.Util
@@ -123,10 +121,10 @@ library
         , imports
 
 executable gundeck
-    default-language:  Haskell2010
+    default-language:   Haskell2010
     default-extensions: NoImplicitPrelude
-    main-is:           src/Main.hs
-    ghc-options:       -Wall -fwarn-tabs -O2 -threaded -rtsopts -with-rtsopts=-T
+    main-is:            src/Main.hs
+    ghc-options:        -Wall -fwarn-tabs -O2 -threaded -rtsopts -with-rtsopts=-T
 
     build-depends:
           base
@@ -145,6 +143,7 @@ executable gundeck
 
 executable gundeck-schema
     default-language:   Haskell2010
+    default-extensions: NoImplicitPrelude
     hs-source-dirs:     schema/src
     main-is:            Main.hs
     ghc-options:        -Wall -fwarn-tabs -threaded
@@ -161,6 +160,7 @@ executable gundeck-schema
     build-depends:
           base
         , cassandra-util
+        , imports
         , optparse-applicative
         , raw-strings-qq
         , text
@@ -171,12 +171,12 @@ executable gundeck-schema
         ld-options: -static
 
 test-suite gundeck-tests
-    type:             exitcode-stdio-1.0
-    main-is:          Main.hs
-    ghc-options:      -Wall
-    default-language: Haskell2010
+    type:               exitcode-stdio-1.0
+    main-is:            Main.hs
+    ghc-options:        -Wall
+    default-language:   Haskell2010
     default-extensions: NoImplicitPrelude
-    hs-source-dirs:   test/unit
+    hs-source-dirs:     test/unit
 
     other-modules:
         DelayQueue

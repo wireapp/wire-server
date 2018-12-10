@@ -25,7 +25,6 @@ import qualified Cassandra.Settings as C
 import qualified Database.Redis.IO as Redis
 import qualified Data.List.NonEmpty as NE
 import qualified Gundeck.Aws as Aws
-import qualified Gundeck.Push.Native.Fallback.Queue as Fallback
 import qualified System.Logger as Logger
 
 data Env = Env
@@ -39,7 +38,6 @@ data Env = Env
     , _awsEnv  :: !Aws.Env
     , _digest  :: !Digest
     , _cipher  :: !Cipher
-    , _fbQueue :: !Fallback.Queue
     , _time    :: !(IO Milliseconds)
     }
 
@@ -81,18 +79,10 @@ createEnv m o = do
     a <- Aws.mkEnv l o n
     dg <- getDigestByName "SHA256" >>= maybe (error "OpenSSL: SHA256 digest not found") return
     ci <- getCipherByName "AES-256-CBC" >>= maybe (error "OpenSSL: AES-256-CBC cipher not found") return
-    qu <- initFallbackQueue o
     io <- mkAutoUpdate defaultUpdateSettings {
             updateAction = Ms . round . (* 1000) <$> getPOSIXTime
     }
-    return $! Env mempty m o l n p r a dg ci qu io
-
-initFallbackQueue :: Opts -> IO Fallback.Queue
-initFallbackQueue o =
-    let delay = Fallback.Delay (o^.optFallback.fbQueueDelay)
-        limit = Fallback.Limit (o^.optFallback.fbQueueLimit)
-        burst = Fallback.Burst (o^.optFallback.fbQueueBurst)
-    in Fallback.newQueue delay limit burst
+    return $! Env mempty m o l n p r a dg ci io
 
 reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId

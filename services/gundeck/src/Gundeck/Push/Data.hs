@@ -59,4 +59,3 @@ mkAddr (usr, trp, app, tok, arn, con, clt, fbt) = case (clt, arn) of
             ~~ msg (val "Deleting legacy push token without a client or ARN.")
         delete usr trp app tok
         return Nothing
-

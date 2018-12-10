@@ -28,7 +28,6 @@ module Galley.Intra.Push
     , userRecipient
     , recipientUserId
     , recipientClients
-    , recipientMuted
 
       -- * Re-Exports
     , Gundeck.Route    (..)
@@ -81,17 +80,16 @@ pushEventJson (TeamEvent e) = toJSONObject e
 
 data Recipient = Recipient
     { _recipientUserId  :: UserId
-    , _recipientMuted   :: Bool
     , _recipientClients :: [ClientId]
     }
 
 makeLenses ''Recipient
 
 recipient :: Member -> Recipient
-recipient m = Recipient (memId m) (memOtrMuted m) []
+recipient m = Recipient (memId m) []
 
 userRecipient :: UserId -> Recipient
-userRecipient u = Recipient u False []
+userRecipient u = Recipient u []
 
 data Push = Push
     { _pushConn           :: Maybe ConnId
@@ -168,13 +166,7 @@ push ps = do
     toRecipient p r =
           Gundeck.recipient (_recipientUserId r) (_pushRoute p)
         & Gundeck.recipientClients  .~ _recipientClients r
-        & Gundeck.recipientFallback .~ not (_recipientMuted r)
 
-    -- TODO: ^ memOtrMuted/recipientMuted is now deprecated. Thus,
-    --         we should remove the usage of recipientFallback, which
-    --         is already irrelevant since gundeck _never_ send fallbacks.
-    --         Removing this logic both on galley and gundeck should be
-    --         done in a (single) separate PR.
 -----------------------------------------------------------------------------
 -- Helpers
 

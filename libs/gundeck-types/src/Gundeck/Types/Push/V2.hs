@@ -25,7 +25,6 @@ module Gundeck.Types.Push.V2
     , recipientId
     , recipientRoute
     , recipientClients
-    , recipientFallback
 
     , Priority  (..)
     , Route     (..)
@@ -59,20 +58,15 @@ module Gundeck.Types.Push.V2
     , SignalingKeys (..)
     ) where
 
+import Imports
 import Control.Lens (makeLenses)
-import Control.Monad
 import Data.Aeson
 import Data.Attoparsec.ByteString (takeByteString)
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
-import Data.Monoid
 import Data.List1
 import Data.Range
-import Data.Set (Set)
-import Data.String
-import Data.Text (Text)
 import Data.Text.Encoding
 
 import qualified Data.ByteString.Base64 as B64
@@ -107,11 +101,10 @@ data Recipient = Recipient
     { _recipientId        :: !UserId
     , _recipientRoute     :: !Route
     , _recipientClients   :: ![ClientId]
-    , _recipientFallback  :: !Bool
     } deriving (Show)
 
 instance Eq Recipient where
-    (Recipient uid1 _ _ _) == (Recipient uid2 _ _ _) = uid1 == uid2
+    (Recipient uid1 _ _) == (Recipient uid2 _ _) = uid1 == uid2
 
 instance Ord Recipient where
     compare r r' = compare (_recipientId r) (_recipientId r')
@@ -119,21 +112,19 @@ instance Ord Recipient where
 makeLenses ''Recipient
 
 recipient :: UserId -> Route -> Recipient
-recipient u r = Recipient u r [] True
+recipient u r = Recipient u r []
 
 instance FromJSON Recipient where
     parseJSON = withObject "Recipient" $ \p ->
       Recipient <$> p .:  "user_id"
                 <*> p .:  "route"
                 <*> p .:? "clients" .!= []
-                <*> p .:? "fallback" .!= True
 
 instance ToJSON Recipient where
-    toJSON (Recipient u r c f) = object
+    toJSON (Recipient u r c) = object
         $ "user_id"   .= u
         # "route"     .= r
         # "clients"   .= (if null c then Nothing else Just c)
-        # "fallback"  .= (if not f then Just False else Nothing)
         # []
 
 -----------------------------------------------------------------------------
@@ -219,6 +210,8 @@ data Push = Push
       -- Coincidentally, where are we using '_pushConnections' to limit pushes to individual
       -- devices?  Is it possible we can remove '_pushConnections' without touching
       -- '_pushRecipients'?
+      --
+      -- REFACTOR: is it possible that 'pushOrigin' has been refactored away in #531?
     , _pushOrigin :: !UserId
       -- ^ Originating user
     , _pushConnections :: !(Set ConnId)
@@ -343,7 +336,10 @@ data PushToken = PushToken
     , _tokenApp       :: !AppName
     , _token          :: !Token
     , _tokenClient    :: !ClientId
-    , _tokenFallback  :: !(Maybe Transport)
+    , _tokenFallback  :: !(Maybe Transport) -- ^ DEPRECATED: this is not used by the backend any
+                                            -- more, but we need to rule out that older clients
+                                            -- still expect it (it is exposed via the
+                                            -- `GET /push/tokens` end-point).
     } deriving (Eq, Ord, Show)
 
 makeLenses ''PushToken
@@ -357,7 +353,7 @@ instance ToJSON PushToken where
         # "app"       .= _tokenApp p
         # "token"     .= _token p
         # "client"    .= _tokenClient p
-        # "fallback"  .= _tokenFallback p
+        # "fallback"  .= _tokenFallback p
         # []
 
 instance FromJSON PushToken where

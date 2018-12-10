@@ -49,7 +49,11 @@ data Address (s :: Symbol) = Address
     , _addrConn      :: !ConnId
     , _addrClient    :: !ClientId
     , _addrKeys      :: !(Maybe SignalingKeys)
-    , _addrFallback  :: !(Maybe Transport)
+    , _addrFallback  :: !(Maybe Transport)  -- ^ DEPRECATED: this is not used by the backend any
+                                            -- more, but we need to rule out that older clients
+                                            -- still expect it (it is exposed via the `GET
+                                            -- /push/tokens` end-point, where it is used to
+                                            -- construct 'PushToken' values).
     }
 
 makeLenses ''Address

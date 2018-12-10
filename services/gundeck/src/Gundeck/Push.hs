@@ -13,14 +13,14 @@ module Gundeck.Push
     , addToken
     , listTokens
     , deleteToken
-    , cancelFallback
+    , fakeCancelFallback
     ) where
 
 import Imports
 import Control.Arrow ((&&&))
 import Control.Error
 import Control.Exception (ErrorCall(ErrorCall))
-import Control.Lens ((^.), (.~), (%~), _2, view, set)
+import Control.Lens ((^.), (.~), (%~), _2, view)
 import Control.Monad.Catch
 import Data.Aeson as Aeson (Object)
 import Data.Id
@@ -39,7 +39,6 @@ import Network.HTTP.Types
 import Network.Wai (Request, Response)
 import Network.Wai.Utilities
 import System.Logger.Class (msg, (.=), (~~), val, (+++))
-import UnliftIO (async, wait)
 import UnliftIO.Concurrent (forkIO)
 
 import qualified Data.List.Extra              as List
@@ -219,36 +218,19 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
             _                  -> True
 
 
+-- | REFACTOR: if the order of arguments of pushNative, pushNotice, pushData is aligned, we could do
+-- three eta-reductions here!
 pushNative :: Bool -> Notification -> Push -> [Address "no-keys"] -> Gundeck ()
-pushNative sendNotice notif p rcps
-    | ntfTransient notif = if sendNotice
-        then pushNotice p notif rcps
-        else pushData p notif rcps
-    | otherwise = case partition (preferNotice sendNotice (p^.pushOrigin)) rcps of
-        (xs, []) -> pushNotice p notif xs
-        ([], ys) -> pushData p notif ys
-        (xs, ys) -> do
-            a <- async $ pushNotice p notif xs
-            pushData p notif ys
-            wait a
-
--- If a fallback address is set, the push is not transient, and
--- the address does not belong to the origin user, we prefer
--- type=notice notifications even for the first attempt, since the device
--- has to make a request to cancel the fallback notification in any
--- case, which it can combine with fetching the notification in a single
--- request. We can thus save the effort of encrypting and decrypting native
--- push payloads to such addresses.
-preferNotice :: Bool -> UserId -> Address s1 -> Bool
-preferNotice sendNotice orig a = sendNotice
-                                  || (isJust (a^.addrFallback) && orig /= (a^.addrUser))
+pushNative sendNotice notif p rcps = if sendNotice
+                                     then pushNotice p notif rcps
+                                     else pushData p notif rcps
 
 pushNotice :: Push -> Notification -> [Address s] -> Gundeck ()
 pushNotice _     _   [] = return ()
 pushNotice p notif rcps = do
     let prio = p^.pushNativePriority
     r <- Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
-    pushFallback (p^.pushOrigin) notif r prio
+    pushFallback notif r prio
 
 pushData :: Push -> Notification -> [Address "no-keys"] -> Gundeck ()
 pushData _     _   [] = return ()
@@ -260,22 +242,17 @@ pushData p notif rcps = do
         d <- view digest
         t <- Client.lookupKeys rcps
         r <- Native.push (Native.Ciphertext notif c d prio aps) t
-        pushFallback (p^.pushOrigin) notif r prio
+        pushFallback notif r prio
     else do
         r <- Native.push (Native.Plaintext notif prio aps) rcps
-        pushFallback (p^.pushOrigin) notif r prio
+        pushFallback notif r prio
 
--- Process fallback notifications, which can either be immediate (e.g.
--- because the push payload was too large) or delayed if a fallback push
--- address is set. Fallback notifications are always of type=notice and
--- thus only non-transient notifications are eligible for a fallback.
-pushFallback :: UserId -> Notification -> [Result s] -> Priority -> Gundeck ()
-pushFallback orig notif r prio = case Fallback.prepare orig r of
-    Nothing  -> return ()
-    Just can ->
-        if ntfTransient notif
-            then Log.warn $ msg (val "Transient notification failed")
-            else void $ Fallback.execute (ntfId notif) prio can
+-- | REFACTOR: this function has not been called with transient notifications in production in a
+-- while.  it is possible that we can simplify this further.
+pushFallback :: Notification -> [Result s] -> Priority -> Gundeck ()
+pushFallback notif r prio = if ntfTransient notif
+    then Log.warn $ msg (val "Transient notification failed")
+    else void $ Fallback.execute (ntfId notif) prio (Fallback.prepare r)
 
 nativeTargets :: Push -> [Presence] -> Gundeck [Address "no-keys"]
 nativeTargets p pres =
@@ -289,7 +266,6 @@ nativeTargets p pres =
     addresses u = do
         addrs <- Data.lookup (u^.recipientId) Data.One
         return $ preference
-               . map (checkFallback u)
                . filter (eligible u)
                $ addrs
 
@@ -300,10 +276,6 @@ nativeTargets p pres =
         | not (eligibleClient a (u^.recipientClients)) = False
         -- Include client if not found in presences.
         | otherwise = isNothing (List.find (isOnline a) pres)
-
-    checkFallback u a
-        | u^.recipientFallback = a
-        | otherwise            = set addrFallback Nothing a
 
     isOnline a x =  a^.addrUser == Presence.userId x
                 && (a^.addrConn == Presence.connId x || equalClient a x)
@@ -342,8 +314,6 @@ nativeTargets p pres =
 addToken :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Gundeck Response
 addToken (uid ::: cid ::: req ::: _) = do
     new <- fromBody req (Error status400 "bad-request")
-    unless (validFallback new) $
-        throwM invalidFallback
     (cur, old) <- foldl' (matching new) (Nothing, []) <$> Data.lookup uid Data.Quorum
     Log.info $ "user"  .= UUID.toASCIIBytes (toUUID uid)
             ~~ "token" .= Text.take 16 (tokenText (new^.token))
@@ -364,6 +334,7 @@ addToken (uid ::: cid ::: req ::: _) = do
     continue t Nothing  = create (0 :: Int) t
     continue t (Just a) = update (0 :: Int) t (a^.addrEndpoint)
 
+    create :: Int -> PushToken -> Gundeck (Either Response (Address a))
     create n t = do
         let trp = t^.tokenTransport
         let app = t^.tokenApp
@@ -389,6 +360,7 @@ addToken (uid ::: cid ::: req ::: _) = do
                 Data.insert uid trp app tok arn cid (t^.tokenClient) (t^.tokenFallback)
                 return (Right (mkAddr t arn))
 
+    update :: Int -> PushToken -> SnsArn EndpointTopic -> Gundeck (Either Response (Address a))
     update n t arn = do
         when (n >= 3) $ do
             Log.err $ msg (val "AWS SNS inconsistency w.r.t. " +++ toText arn)
@@ -415,14 +387,6 @@ addToken (uid ::: cid ::: req ::: _) = do
 
     mkAddr t arn = Address uid (t^.tokenTransport) (t^.tokenApp) (t^.token)
                            arn cid (t^.tokenClient) Nothing (t^.tokenFallback)
-
-    validFallback t = case (t^.tokenTransport, t^.tokenFallback) of
-        (              _,          Nothing) -> True
-        (       APNSVoIP,        Just APNS) -> True
-        (APNSVoIPSandbox, Just APNSSandbox) -> True
-        (              _,                _) -> False
-
-    invalidFallback = Error status403 "invalid-fallback" "Invalid fallback transport."
 
 -- | Update an SNS endpoint with the given user and token.
 updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.SNSEndpoint -> Gundeck ()
@@ -476,7 +440,9 @@ listTokens :: UserId ::: JSON -> Gundeck Response
 listTokens (uid ::: _) =
     setStatus status200 . json . PushTokenList . map toToken <$> Data.lookup uid Data.Quorum
   where
+    toToken :: Address s -> PushToken
     toToken a = pushToken (a^.addrTransport) (a^.addrApp) (a^.addrToken) (a^.addrClient)
 
-cancelFallback :: UserId ::: NotificationId -> Gundeck Response
-cancelFallback (u ::: n) = Fallback.cancel u n >> return empty
+-- REFACTOR remove (see api end-point)
+fakeCancelFallback :: UserId ::: NotificationId -> Gundeck Response
+fakeCancelFallback (_ ::: _) = return empty
