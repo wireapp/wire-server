@@ -64,7 +64,8 @@ push1 m a = do
     -- queue, and finding nothing in it (because we don't store transient notifications).
     --
     -- behavior as of this PR is the same as before: no 'Notice' values are ever considered
-    -- transient.  we should decided whether that's what we want in a separate PR.
+    -- transient, but transient 'Notification's are translated to 'Notice' and queued for native
+    -- push (i think).  we should decided whether that's what we want in a separate PR.
     ttl :: Maybe Aws.Seconds
     ttl = Nothing
 
