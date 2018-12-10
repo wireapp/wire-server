@@ -23,6 +23,7 @@ module Spar.Data
   , getVerdictFormat
   , insertUser
   , getUser
+  , deleteUsersByIssuer
   , insertBindCookie
   , lookupBindCookie
   , storeIdPConfig
@@ -210,6 +211,11 @@ getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
     sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
     sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
 
+deleteUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
+deleteUsersByIssuer issuer = retry x5 . write del $ params Quorum (Identity issuer)
+  where
+    del :: PrepQuery W (Identity SAML.Issuer) ()
+    del = "DELETE FROM user WHERE issuer = ?"
 
 ----------------------------------------------------------------------
 -- bind cookies

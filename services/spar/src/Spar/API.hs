@@ -245,11 +245,19 @@ validateNewIdP _idpMetadata _idpExtraInfo = do
 internalStatus :: Spar NoContent
 internalStatus = pure NoContent
 
--- | Handler that is called by Galley whenever a team is about to get
--- deleted.
+-- | Cleanup handler that is called by Galley whenever a team is about to
+-- get deleted.
 internalDeleteTeam :: TeamId -> Spar NoContent
 internalDeleteTeam team = do
-  -- Delete all tokens belonging to a team
-  wrapMonadClient $ Data.deleteTeamScimTokens team
-  -- TODO: should anything else happen here?
+  wrapMonadClient $ do
+    -- Delete all tokens belonging to a team.
+    Data.deleteTeamScimTokens team
+    -- Since IdPs are not shared between teams, we can look at the set of IdPs
+    -- used by the team, and remove everything related to those IdPs, too.
+    idps <- Data.getIdPConfigsByTeam team
+    for_ idps $ \idp -> do
+      let idpid = idp ^. SAML.idpId
+          issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+      Data.deleteIdPConfig idpid issuer team
+      Data.deleteUsersByIssuer issuer
   pure NoContent
