@@ -108,6 +108,7 @@ class (MonadThrow m, MonadReader Env m) =>  MonadPushAll m where
   mpaStreamAdd        :: NotificationId -> List1 NotificationTarget -> List1 Aeson.Object -> NotificationTTL -> m ()
   mpaNativeTargets    :: Push -> [Presence] -> m [Address "no-keys"]
   mpaPushNative       :: Bool -> Notification -> Push -> [Address "no-keys"] -> m ()
+  mpaForkIO           :: m () -> m ()
 
 instance MonadPushAll Gundeck where
   mpaMkNotificationId = mkNotificationId
@@ -116,6 +117,7 @@ instance MonadPushAll Gundeck where
   mpaStreamAdd        = Stream.add
   mpaNativeTargets    = nativeTargets
   mpaPushNative       = pushNative
+  mpaForkIO           = void . forkIO
 
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
@@ -137,17 +139,18 @@ pushAll pushes = do
         mpaStreamAdd (ntfId notif) notifTrgt (psh ^. pushPayload)
           =<< view (options . optSettings . setNotificationTTL)
 
-    -- websockets
+    mpaForkIO $ do
+        -- websockets
 
-    let notifIdMap = Map.fromList $ (\(psh, (notif, _)) -> (ntfId notif, (notif, psh))) <$> targets
-    resp <- mapM (compilePushResp notifIdMap) =<< mpaBulkPush (compilePushReq <$> targets)
+        let notifIdMap = Map.fromList $ (\(psh, (notif, _)) -> (ntfId notif, (notif, psh))) <$> targets
+        resp <- mapM (compilePushResp notifIdMap) =<< mpaBulkPush (compilePushReq <$> targets)
 
-    -- native push
+        -- native push
 
-    sendNotice <- view (options . optFallback . fbPreferNotice)
-    forM_ resp $ \((notif, psh), alreadySent) -> do
-        natives <- mpaNativeTargets psh alreadySent
-        mpaPushNative sendNotice notif psh natives
+        sendNotice <- view (options . optFallback . fbPreferNotice)
+        forM_ resp $ \((notif, psh), alreadySent) -> do
+            natives <- mpaNativeTargets psh alreadySent
+            mpaPushNative sendNotice notif psh natives
 
 
 compilePushReq :: (Push, (Notification, List1 (Recipient, [Presence]))) -> (Notification, [Presence])

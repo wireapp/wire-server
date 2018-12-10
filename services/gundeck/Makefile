@@ -89,7 +89,7 @@ bench: install
 
 .PHONY: i
 i:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "!/RealAWS/"
 
 .PHONY: i-aws
 i-aws:
@@ -102,9 +102,6 @@ i-list:
 i-%:
 	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
 
-i-fake-aws:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "!/RealAWS/"
-
 .PHONY: integration
 integration: fast i
 
@@ -112,19 +109,17 @@ integration: fast i
 integration-list: fast i-list
 
 integration-%: fast
-	make i-"$*"
-
-integration-fake-aws: fast i-fake-aws
+	make "i-$*"
 
 .PHONY: db
 db: db-reset
 
 .PHONY: db-reset
-db-reset: install
+db-reset: fast
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1 --reset
 
 .PHONY: db-migrate
-db-migrate: install
+db-migrate: fast
 	$(EXE_SCHEMA) --keyspace $(NAME)_test --replication-factor 1
 
 .PHONY: docker

@@ -1,3 +1,22 @@
+# 2018-12-07 #542
+
+## API changes
+
+  * New API endpoint (`/properties-values`) to get all properties keys and values
+
+## Bug Fixes
+
+  * Proper JSON object encapsulation for `conversation.receipt-mode-update` events (#535)
+  * Misc Makefile related changes to improve dev workflow
+
+## Internal Changes
+
+  * Gundeck now pushes events asynchronously after writing to Cassandra (#530)
+
+# Others
+
+  * Improved docs (yes!) with (#528)
+
 # 2018-11-28 #527
 
 ## Bug Fixes

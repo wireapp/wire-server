@@ -28,7 +28,7 @@ function list_descendants () {
 function kill_gracefully() {
     pkill "gundeck|brig|galley|cargohold|cannon|spar"
     sleep 1
-    kill "$(list_descendants $PARENT_PID)" &> /dev/null
+    kill $(list_descendants "$PARENT_PID") &> /dev/null
 }
 
 trap "kill_gracefully; kill_all" INT TERM ERR
@@ -85,8 +85,9 @@ function run() {
 
 check_prerequisites
 
-run brig "" ${green}
-run galley "" ${yellow}
+# One still needs to pass a LOG LEVEL since it's set in _run_ which always requires 4 arguments
+run brig "" ${green} Info
+run galley "" ${yellow} Info
 run gundeck "" ${blue} Info
 run cannon "" ${orange} Info
 run cannon "2" ${orange} Info

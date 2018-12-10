@@ -16,6 +16,7 @@ galleyModels =
     , conversationMembers
     , conversationUpdate
     , conversationAccessUpdate
+    , conversationReceiptModeUpdate
     , conversationMessageTimerUpdate
     , conversationCode
     , conversationUpdateEvent
@@ -60,6 +61,7 @@ event = defineModel "Event" $ do
                     , typingEvent
                     , otrMessageEvent
                     , conversationAccessUpdateEvent
+                    , conversationReceiptModeUpdateEvent
                     , conversationMessageTimerUpdateEvent
                     , conversationCodeUpdateEvent
                     , conversationCodeDeleteEvent
@@ -72,6 +74,7 @@ eventType = string $ enum
     , "conversation.member-update"
     , "conversation.rename"
     , "conversation.access-update"
+    , "conversation.receipt-mode-update"
     , "conversation.message-timer-update"
     , "conversation.code-update"
     , "conversation.code-delete"
@@ -106,6 +109,11 @@ conversationAccessUpdateEvent :: Model
 conversationAccessUpdateEvent = defineModel "ConversationAccessUpdateEvent" $ do
     description "conversation access update event"
     property "data" (ref conversationAccessUpdate) $ description "conversation access data"
+
+conversationReceiptModeUpdateEvent :: Model
+conversationReceiptModeUpdateEvent = defineModel "ConversationReceiptModeUpdateEvent" $ do
+    description "conversation receipt mode update event"
+    property "data" (ref conversationReceiptModeUpdate) $ description "conversation receipt mode data"
 
 conversationMessageTimerUpdateEvent :: Model
 conversationMessageTimerUpdateEvent = defineModel "ConversationMessageTimerUpdateEvent" $ do
@@ -240,6 +248,14 @@ conversationAccessUpdate = defineModel "ConversationAccessUpdate" $ do
     property "access" (unique $ array bytes') $
         description "List of conversation access modes: []|[invite]|[invite,code]"
 
+conversationReceiptModeUpdate :: Model
+conversationReceiptModeUpdate = defineModel "conversationReceiptModeUpdate" $ do
+    description "Contains conversation receipt mode to update to. Receipt mode tells \
+                \clients whether certain types of receipts should be sent in the given \
+                \conversation or not. How this value is interpreted is up to clients."
+    property "receipt_mode" int32' $
+        description "Receipt mode: int32"
+
 conversationMessageTimerUpdate :: Model
 conversationMessageTimerUpdate = defineModel "ConversationMessageTimerUpdate" $ do
     description "Contains conversation properties to update"
@@ -314,6 +330,9 @@ newConversation = defineModel "NewConversation" $ do
     -- property "access_role"
     property "message_timer" (int64 (Swagger.min 0)) $ do
         description "Per-conversation message timer"
+        optional
+    property "receipt_mode" (int32 (Swagger.min 0)) $ do
+        description "Conversation receipt mode"
         optional
 
 teamInfo :: Model
