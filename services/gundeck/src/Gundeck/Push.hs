@@ -53,7 +53,6 @@ import qualified Gundeck.Notification.Data    as Stream
 import qualified Gundeck.Presence.Data        as Presence
 import qualified Gundeck.Push.Data            as Data
 import qualified Gundeck.Push.Native          as Native
-import qualified Gundeck.Push.Native.Fallback as Fallback
 import qualified Gundeck.Push.Websocket       as Web
 import qualified Gundeck.Types.Presence       as Presence
 import qualified System.Logger.Class          as Log
@@ -215,22 +214,14 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
             _                  -> True
 
 
+-- | Failures to pushy natively can be ignored.  Logging already happens in
+-- 'Gundeck.Push.Native.push1', and we cannot recover from any of the error cases.
 pushNative :: Notification -> Push -> [Address "no-keys"] -> Gundeck ()
-pushNative _     _   [] = return ()
+pushNative (ntfTransient -> True) _ _ = Log.warn $ msg (val "Transient notification failed")
+pushNative _ _ [] = return ()
 pushNative notif p rcps = do
     let prio = p^.pushNativePriority
-    r <- Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
-    pushFallback notif r prio
-
--- | REFACTOR: this function has not been called with transient notifications in production in a
--- while.  it is possible that we can simplify this further.
---
--- TODO: in fact, this is highly suspicious: aren't we now sending out every native notice twice?
--- (is that what we've always done in the past?)
-pushFallback :: Notification -> [Result s] -> Priority -> Gundeck ()
-pushFallback notif r prio = if ntfTransient notif
-    then Log.warn $ msg (val "Transient notification failed")
-    else void $ Fallback.execute (ntfId notif) prio (Fallback.prepare r)
+    void $ Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
 
 nativeTargets :: Push -> [Presence] -> Gundeck [Address "no-keys"]
 nativeTargets p pres =

@@ -75,7 +75,6 @@ data Failure
     = PayloadTooLarge
     | EndpointInvalid
     | EndpointDisabled
-    | MissingKeys
     | PushException !SomeException
     deriving (Show)
 

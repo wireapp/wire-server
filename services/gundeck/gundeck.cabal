@@ -43,7 +43,6 @@ library
         Gundeck.Presence.Data
         Gundeck.Push
         Gundeck.Push.Native
-        Gundeck.Push.Native.Fallback
         Gundeck.Push.Websocket
         Gundeck.React
         Gundeck.Util

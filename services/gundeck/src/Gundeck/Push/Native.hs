@@ -51,7 +51,6 @@ push1 m a = do
         Failure EndpointDisabled   _ -> onDisabled
         Failure PayloadTooLarge    _ -> onPayloadTooLarge
         Failure EndpointInvalid    _ -> onInvalidEndpoint
-        Failure MissingKeys        _ -> onMissingKeys
         Failure (PushException ex) _ -> do
             logError a "Native push failed" ex
             view monitor >>= counterIncr (path "push.native.errors")
@@ -83,7 +82,7 @@ push1 m a = do
 
     onPayloadTooLarge = do
         view monitor >>= counterIncr (path "push.native.too_large")
-        Log.debug $ field "user" (toByteString (a^.addrUser))
+        Log.warn $ field "user" (toByteString (a^.addrUser))
                  ~~ field "arn" (toText (a^.addrEndpoint))
                  ~~ msg (val "Payload too large")
 
@@ -96,11 +95,6 @@ push1 m a = do
             view monitor >>= counterIncr (path "push.native.invalid")
             Data.delete (a^.addrUser) (a^.addrTransport) (a^.addrApp) (a^.addrToken)
             onTokenRemoved
-
-    onMissingKeys =
-        Log.warn $ field "user" (toByteString (a^.addrUser))
-                ~~ field "arn" (toText (a^.addrEndpoint))
-                ~~ msg (val "Missing signaling keys")
 
     onTokenRemoved = do
         i <- mkNotificationId
