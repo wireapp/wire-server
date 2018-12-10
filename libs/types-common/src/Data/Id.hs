@@ -250,11 +250,13 @@ newtype RequestId = RequestId
                , NFData
                )
 
-instance Monoid RequestId where
-    mempty = RequestId "N/A"
-    mappend a b
+instance Semigroup RequestId where
+    (<>) a b
         | a == mempty = b
         | otherwise   = a
+
+instance Monoid RequestId where
+    mempty = RequestId "N/A"
 
 instance ToJSON RequestId where
     toJSON (RequestId r) = String (decodeUtf8 r)

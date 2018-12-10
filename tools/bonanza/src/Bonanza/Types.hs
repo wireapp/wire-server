@@ -44,7 +44,6 @@ import           Data.Char           (toLower)
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as M
 import qualified Data.List           as L
-import           Data.Monoid
 import           Data.Text           (Text)
 import           Data.Text.Encoding  (decodeUtf8)
 import           Data.Time
@@ -70,14 +69,16 @@ instance FromJSON LogEvent where
         , Aeson.omitNothingFields  = True
         }
 
-instance Monoid LogEvent where
-    mempty      = LogEvent Nothing Nothing mempty mempty
-    mappend a b = LogEvent
+instance Semigroup LogEvent where
+    (<>) a b = LogEvent
         { _logTime    = _logTime    b `mplus`   _logTime    a
         , _logOrigin  = _logOrigin  b `mplus`   _logOrigin  a
         , _logTags    = _logTags    b `mappend` _logTags    a
         , _logMessage = _logMessage a `mappend` _logMessage b
         }
+
+instance Monoid LogEvent where
+    mempty      = LogEvent Nothing Nothing mempty mempty
 
 
 --------------------------------------------------------------------------------
@@ -96,9 +97,11 @@ instance FromJSON Tags where
                          $ o
     parseJSON _          = mzero
 
+instance Semigroup Tags where
+    (<>) a b = Tags $ fromTags a <> fromTags b
+
 instance Monoid Tags where
-    mempty      = Tags mempty
-    mappend a b = Tags $ fromTags a <> fromTags b
+    mempty = Tags mempty
 
 
 type TagValue = Aeson.Value

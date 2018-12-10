@@ -16,7 +16,6 @@ import Control.Monad                  (void)
 import Data.Collectd.PlainText
 import Data.Int                       (Int64)
 import Data.List                      (foldl', intercalate)
-import Data.Monoid
 import Data.Text                      (Text, pack)
 import Data.Text.Lazy.Builder
 import Data.Text.Lazy.Encoding

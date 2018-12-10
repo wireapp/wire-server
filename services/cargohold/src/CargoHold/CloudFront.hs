@@ -97,4 +97,3 @@ mkPOSIXClock =
     mkAutoUpdate defaultUpdateSettings {
         updateAction = getPOSIXTime
     }
-

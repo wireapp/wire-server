@@ -58,7 +58,6 @@ import Data.ByteString.Lazy (ByteString, toStrict)
 import Data.ByteString.Base64.URL
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Char8 (split, break, drop)
-import Data.Monoid
 import Data.UUID
 import Data.Word
 import Prelude hiding (break, drop)

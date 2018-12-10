@@ -237,6 +237,7 @@ newtype UserClientMap a = UserClientMap
                , Show
                , Functor
                , Foldable
+               , Semigroup
                , Monoid
                , Traversable
                )
@@ -247,6 +248,7 @@ newtype OtrRecipients = OtrRecipients
                , Show
                , ToJSON
                , FromJSON
+               , Semigroup
                , Monoid
                )
 
@@ -279,7 +281,7 @@ data NewOtrMessage = NewOtrMessage
 
 newtype UserClients = UserClients
     { userClients :: Map UserId (Set ClientId)
-    } deriving (Eq, Show, Monoid)
+    } deriving (Eq, Show, Semigroup, Monoid)
 
 filterClients :: (Set ClientId -> Bool) -> UserClients -> UserClients
 filterClients p (UserClients c) = UserClients $ Map.filter p c

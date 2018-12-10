@@ -4,7 +4,6 @@
 
 module Util.Test where
 
-import Data.Monoid
 import Data.Tagged
 import Data.Typeable
 import Options.Applicative

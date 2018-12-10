@@ -47,7 +47,6 @@ import Data.IORef
 import Data.Hashable
 import Data.HashMap.Strict (HashMap)
 import Data.Metrics.Buckets (Buckets)
-import Data.Monoid
 import Data.Word
 import Data.Text (Text)
 import Prelude hiding (lookup)
@@ -58,7 +57,7 @@ import qualified Data.HashMap.Strict  as Map
 import qualified Data.Metrics.Buckets as Buckets
 import qualified Data.Metrics.GC      as GC
 
-newtype Path = Path { _path :: Text } deriving (Eq, Hashable, Monoid)
+newtype Path = Path { _path :: Text } deriving (Eq, Hashable, Semigroup, Monoid)
 
 path :: Text -> Path
 path = Path

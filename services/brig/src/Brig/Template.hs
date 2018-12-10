@@ -25,7 +25,6 @@ import Control.Exception (catchJust)
 import Control.Monad (filterM)
 import Data.Map.Strict (Map)
 import Data.Maybe
-import Data.Monoid
 import Data.Text (Text, pack, unpack)
 import Data.Text.Template (Template, template)
 import System.Directory (doesFileExist, listDirectory, doesDirectoryExist)

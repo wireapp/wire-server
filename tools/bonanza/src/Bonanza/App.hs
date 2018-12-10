@@ -20,7 +20,6 @@ import           Data.Conduit.Binary       (sinkHandle, sourceHandle)
 import qualified Data.Conduit.List         as Conduit
 import qualified Data.Conduit.Zlib         as Conduit
 import           Data.IORef
-import           Data.Monoid
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 import           Data.Time

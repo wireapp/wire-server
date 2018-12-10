@@ -54,7 +54,6 @@ import Data.List.Extra (chunksOf)
 import Data.List1
 import Data.Json.Util
 import Data.Misc
-import Data.Monoid
 import Data.Range
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types.Method

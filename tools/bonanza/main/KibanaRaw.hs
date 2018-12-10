@@ -11,7 +11,6 @@ import qualified Data.ByteString.Lazy     as Lazy
 import           Data.Conduit
 import qualified Data.Conduit.Binary      as CB
 import qualified Data.Conduit.List        as CL
-import           Data.Monoid
 import qualified Data.Text                as Text
 import           Data.Text.Encoding       (decodeUtf8With)
 import           Data.Text.Encoding.Error (lenientDecode)

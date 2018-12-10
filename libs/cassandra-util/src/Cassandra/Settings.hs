@@ -28,9 +28,9 @@ module Cassandra.Settings
 import Imports
 import Control.Lens
 import Data.Aeson.Lens
+import Database.CQL.IO hiding (values)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (pack, stripSuffix, unpack)
-import Database.CQL.IO hiding (values)
 import Network.Wreq
 
 -- | This function is likely only useful at Wire, as it is Wire-infra specific.

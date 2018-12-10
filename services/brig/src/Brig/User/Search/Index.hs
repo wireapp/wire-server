@@ -297,7 +297,7 @@ updateIndex (IndexDeleteUser u) = liftIndexIO $ do
     r <- ES.getDocument idx mappingName (ES.DocId (review _TextId u))
     case statusCode (responseStatus r) of
         200 -> case preview (key "_version" . _Integer) (responseBody r) of
-            Nothing -> throwM $ ES.EsProtocolException (responseBody r)
+            Nothing -> throwM $ ES.EsProtocolException "'version' not found" (responseBody r)
             Just v  -> updateIndex . IndexUpdateUser
                      $ mkIndexUser u (mkIndexVersion (v + 1))
         404 -> pure ()

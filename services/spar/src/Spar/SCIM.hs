@@ -59,7 +59,7 @@ import Data.Time
 import Data.Text.Encoding
 import Data.Aeson as Aeson
 import Text.Email.Validate
-import Servant.Generic
+import Servant.API.Generic
 import OpenSSL.Random (randBytes)
 import Data.String.Conversions
 import SAML2.WebSSO (IdPId)

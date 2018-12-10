@@ -24,7 +24,6 @@ import qualified Data.ByteString.Builder    as BB
 import qualified Data.ByteString.Lazy       as BL
 import qualified Data.HashMap.Strict        as Map
 import           Data.Maybe
-import           Data.Monoid
 import           Data.String
 import           Data.Text                  (Text, pack)
 import qualified Data.Text                  as T

@@ -17,7 +17,6 @@ import Control.Monad.Trans.Control
 import Control.Monad.Reader
 import Data.Either
 import Data.Foldable (for_)
-import Data.Monoid ((<>))
 import Safe (headDef)
 import Data.ProtoLens
 import Data.Text (Text)

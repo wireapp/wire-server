@@ -11,7 +11,6 @@ import Data.Foldable (for_)
 import Data.Id (ConvId)
 import Data.List1
 import Data.Maybe (isNothing, fromMaybe)
-import Data.Monoid ((<>))
 import Data.String (fromString)
 import Data.Text (Text)
 import Data.Traversable (for)

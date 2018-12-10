@@ -7,7 +7,6 @@ module Main where
 import Control.Monad (unless, void)
 import Data.Foldable (asum)
 import Data.Maybe
-import Data.Monoid
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.Wire.Client.API.Push (EventType (..))

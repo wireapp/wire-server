@@ -42,7 +42,6 @@ import Data.Aeson
 import Data.Aeson.Types
 import Data.ByteString.Lazy (toStrict)
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Monoid ((<>))
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Time (UTCTime)

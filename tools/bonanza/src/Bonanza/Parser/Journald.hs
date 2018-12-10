@@ -12,7 +12,6 @@ import Bonanza.Types
 import Control.Applicative
 import Control.Lens                     ((&), (.~))
 import Data.Attoparsec.ByteString.Char8
-import Data.Monoid
 import Data.Text                        (Text)
 import Data.Time                        (UTCTime (..))
 

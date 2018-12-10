@@ -7,7 +7,6 @@ module System.MakeDeb (makeDeb, options, MakeDebOpts (..)) where
 
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.Monoid
 import Data.Text (Text, pack)
 import Filesystem.Path.CurrentOS (encodeString, decodeString)
 import Options.Applicative

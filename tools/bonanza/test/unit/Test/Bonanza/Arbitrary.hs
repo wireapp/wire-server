@@ -26,7 +26,6 @@ import qualified Data.ByteString.Lazy              as BL
 import           Data.Char
 import           Data.List                         (intersperse)
 import           Data.Maybe
-import           Data.Monoid
 import           Data.Scientific
 import           Data.Text                         (Text)
 import qualified Data.Text                         as T

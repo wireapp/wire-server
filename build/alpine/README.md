@@ -26,4 +26,6 @@ cd services/brig && make docker
 * `Dockerfile.intermediate` - based on `Dockerfile.deps`/`Dockerfile.builder`, this is an intermediate image compiling all dynamically linked binaries (obtained when running `make install` in the top-level directory).
 * `Dockerfile.executable` - based on `Dockerfile.deps`/`Dockerfile.intermediate`, this extracts a single executable from the intermediate image, yielding a small image with a single dynamically linked binary.
 * `Dockerfile.migrations` - same as `Dockerfile.executable`, with a fixed set of database migration binaries.
-* `Dockerfile.prebuilder` - dependencies of `Dockerfile.builder` that are expected to change very rarely (GHC, system libraries).
+* `Dockerfile.prebuilder` - dependencies of `Dockerfile.builder` that are expected to change very rarely (GHC, system libraries). Currently we're able to use system GHC, but if we require a newer version of GHC than the one provided by Alpine, we could build GHC in `Dockerfile.prebuilder` (as it has been [done before][2018-11-28]).
+
+[2018-11-28]: https://github.com/wireapp/wire-server/releases/tag/v2018-11-28
