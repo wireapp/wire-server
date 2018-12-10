@@ -22,7 +22,6 @@ library
 
     exposed-modules:
         Gundeck.API
-        Gundeck.Client.Data
         Gundeck.Monad
         Gundeck.Options
         Gundeck.Push.Native.Serialise
