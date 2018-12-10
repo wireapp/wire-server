@@ -13,7 +13,9 @@ module Test.Spar.SCIMSpec where
 
 import Bilge
 import Bilge.Assert
+import Brig.Types
 import Control.Lens
+import Control.Retry
 import Data.ByteString.Conversion
 import Imports
 import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
@@ -69,13 +71,17 @@ specUsers = describe "operations with users" $ do
             user <- randomSCIMUser
             (tok, _) <- registerIdPAndSCIMToken
             storedUser <- createUser tok user
-            -- Delete the user (TODO: do it via SCIM)
-            call $ deleteUser (env ^. teBrig) (scimUserId storedUser)
+            let userid = scimUserId storedUser
+            -- Delete the user (TODO: do it via SCIM) and wait until the
+            -- user is truly gone
+            call $ deleteUser (env ^. teBrig) userid
+            recoverAll (exponentialBackoff 100 <> limitRetries 5) $ \_ -> do
+                profile <- call $ getSelfProfile (env ^. teBrig) userid
+                liftIO $ selfUser profile `shouldSatisfy` userDeleted
             -- Get all users
             users <- listUsers tok Nothing
             -- Check that the user is absent
-            liftIO $ users `shouldSatisfy`
-                all ((/= scimUserId storedUser) . scimUserId)
+            liftIO $ users `shouldSatisfy` all ((/= userid) . scimUserId)
 
     describe "GET /Users/:id" $ do
         it "finds a SCIM-provisioned user" $ do
@@ -111,13 +117,15 @@ specUsers = describe "operations with users" $ do
             user <- randomSCIMUser
             (tok, _) <- registerIdPAndSCIMToken
             storedUser <- createUser tok user
-            -- Delete the user (TODO: do it via SCIM)
-            call $ deleteUser (env ^. teBrig) (scimUserId storedUser)
+            let userid = scimUserId storedUser
+            -- Delete the user (TODO: do it via SCIM) and wait until the
+            -- user is truly gone
+            call $ deleteUser (env ^. teBrig) userid
+            recoverAll (exponentialBackoff 100 <> limitRetries 5) $ \_ -> do
+                profile <- call $ getSelfProfile (env ^. teBrig) userid
+                liftIO $ selfUser profile `shouldSatisfy` userDeleted
             -- Try to find the user
-            getUser_
-                (Just tok)
-                (scimUserId storedUser)
-                (env ^. teSpar)
+            getUser_ (Just tok) userid (env ^. teSpar)
                 !!! const 404 === statusCode
 
 specTokens :: SpecWith TestEnv

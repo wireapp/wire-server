@@ -39,6 +39,8 @@ module Util.Core
   , createUserWithTeam
   , createTeamMember
   , deleteUser
+  , getTeams
+  , getSelfProfile
   , nextWireId
   , nextSAMLID
   , nextUserRef
