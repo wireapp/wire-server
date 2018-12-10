@@ -38,6 +38,7 @@ module Util.Core
   -- * Other
   , createUserWithTeam
   , createTeamMember
+  , deleteUser
   , nextWireId
   , nextSAMLID
   , nextUserRef
@@ -225,6 +226,14 @@ addTeamMember galleyreq tid mem =
                 . expect2xx
                 . lbytes (Aeson.encode mem)
                 )
+
+deleteUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
+           => BrigReq -> UserId -> m ()
+deleteUser brigreq uid =
+    void $ delete ( brigreq
+                  . paths ["i", "users", toByteString' uid]
+                  . expect2xx
+                  )
 
 -- | See also: 'nextSAMLID', 'nextUserRef'.  The names are chosed to be consistent with
 -- 'UUID.nextRandom'.

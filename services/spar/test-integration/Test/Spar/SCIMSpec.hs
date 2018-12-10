@@ -63,6 +63,19 @@ specUsers = describe "operations with users" $ do
             pending
         it "finds a non-SCIM-provisioned user by username" $
             pending
+        it "doesn't list deleted users" $ do
+            env <- ask
+            -- Create a user via SCIM
+            user <- randomSCIMUser
+            (tok, _) <- registerIdPAndSCIMToken
+            storedUser <- createUser tok user
+            -- Delete the user (TODO: do it via SCIM)
+            call $ deleteUser (env ^. teBrig) (scimUserId storedUser)
+            -- Get all users
+            users <- listUsers tok Nothing
+            -- Check that the user is absent
+            liftIO $ users `shouldSatisfy`
+                all ((/= scimUserId storedUser) . scimUserId)
 
     describe "GET /Users/:id" $ do
         it "finds a SCIM-provisioned user" $ do
@@ -92,6 +105,20 @@ specUsers = describe "operations with users" $ do
             pending
             -- create another team and another user in it
             -- check that this user can not be found in the "wrong" team
+        it "doesn't find a deleted user" $ do
+            env <- ask
+            -- Create a user via SCIM
+            user <- randomSCIMUser
+            (tok, _) <- registerIdPAndSCIMToken
+            storedUser <- createUser tok user
+            -- Delete the user (TODO: do it via SCIM)
+            call $ deleteUser (env ^. teBrig) (scimUserId storedUser)
+            -- Try to find the user
+            getUser_
+                (Just tok)
+                (scimUserId storedUser)
+                (env ^. teSpar)
+                !!! const 404 === statusCode
 
 specTokens :: SpecWith TestEnv
 specTokens = xdescribe "operations with provisioning tokens" $ do
