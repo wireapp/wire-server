@@ -5,7 +5,7 @@ saml:
   spHost:    127.0.0.1
   spPort:    8088
   spAppUri:  http://localhost:8080/ # <--- change this to point to a reachable web app
-  spSsoUri:  http://localhost:8080/
+  spSsoUri:  http://localhost:8080/sso # <--- change this to the URL by which spar can be reached from an external IdP
 
   contacts:
     - type: ContactBilling
@@ -34,7 +34,3 @@ maxttlAuthresp: 28800 # 8h
 maxScimTokens: 16
 
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)
-
-spInfo:
-  metaURI:  http://localhost:8088/sso/metadata
-  loginURI: http://localhost:8088/sso/initiate-login/
