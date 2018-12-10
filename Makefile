@@ -1,6 +1,6 @@
 SHELL            := /usr/bin/env bash
 LANG             := en_US.UTF-8
-HASKELL_SERVICES := proxy cannon cargohold brig galley gundeck
+HASKELL_SERVICES := proxy cannon cargohold brig galley gundeck spar
 SERVICES         := $(HASKELL_SERVICES) nginz
 DOCKER_USER      ?= wireserver
 DOCKER_TAG       ?= local
