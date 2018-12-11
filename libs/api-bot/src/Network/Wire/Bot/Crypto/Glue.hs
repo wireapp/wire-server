@@ -5,7 +5,6 @@ module Network.Wire.Bot.Crypto.Glue
     , deleteBox
     , genPrekeys
     , genLastKey
-    , genSigKeys
     , randomBytes
     , unwrap
     ) where
@@ -45,12 +44,6 @@ genLastKey box = C.lastPrekey . C.prekeyKey <$> genPrekey box 0xFFFF
 genPrekey :: Box -> Word16 -> IO C.Prekey
 genPrekey box i = C.Prekey (C.PrekeyId i) . decodeUtf8 . encode <$>
     (CBox.copyBytes . CBox.prekey =<< unwrap =<< CBox.newPrekey box i)
-
-genSigKeys :: Box -> IO C.SignalingKeys
-genSigKeys box = do
-    let action = randomBytes box 32
-    C.SignalingKeys <$> (C.EncKey <$> action)
-                    <*> (C.MacKey <$> action)
 
 randomBytes :: MonadIO m => Box -> Word32 -> m ByteString
 randomBytes b n = liftIO $ CBox.randomBytes b n >>= unwrap >>= CBox.copyBytes

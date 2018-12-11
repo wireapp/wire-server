@@ -30,7 +30,6 @@ import Data.Proxy (Proxy(..))
 import Data.Typeable (typeRep)
 import Galley.Types (Member (..))
 import Gundeck.Types.Notification
-import Gundeck.Types.Push (SignalingKeys (..), EncKey (..), MacKey (..))
 import System.Random (randomRIO, randomIO)
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit
@@ -299,10 +298,10 @@ putHandle brig usr h = put $ brig
   where
     payload = RequestBodyLBS . encode $ object [ "handle" .= h ]
 
-addClient :: ToJSON a => Brig -> UserId -> NewClient a -> Http ResponseLBS
+addClient :: Brig -> UserId -> NewClient -> Http ResponseLBS
 addClient brig uid new = post (addClientReq brig uid new)
 
-addClientReq :: ToJSON a => Brig -> UserId -> NewClient a -> (Request -> Request)
+addClientReq :: Brig -> UserId -> NewClient -> (Request -> Request)
 addClientReq brig uid new = brig
     . path "/clients"
     . zUser uid
@@ -310,9 +309,9 @@ addClientReq brig uid new = brig
     . contentJson
     . body (RequestBodyLBS $ encode new)
 
-defNewClient :: ClientType -> [Prekey] -> LastPrekey -> NewClient SignalingKeys
+defNewClient :: ClientType -> [Prekey] -> LastPrekey -> NewClient
 defNewClient ty pks lpk =
-    (newClient ty lpk defSignalingKeys)
+    (newClient ty lpk)
         { newClientPassword = Just defPassword
         , newClientPrekeys  = pks
         , newClientLabel    = Just "Test Device"
@@ -509,11 +508,6 @@ defPassword = PlainTextPassword "secret"
 
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"
-
-defSignalingKeys :: SignalingKeys
-defSignalingKeys = SignalingKeys
-    (EncKey $ BS.replicate 32 1)
-    (MacKey $ BS.replicate 32 2)
 
 randomBytes :: Int -> IO ByteString
 randomBytes n = BS.pack <$> replicateM n randomIO
