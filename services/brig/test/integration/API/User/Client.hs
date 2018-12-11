@@ -17,7 +17,6 @@ import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Gundeck.Types.Notification
-import Gundeck.Types.Push.V2
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import Test.Tasty.HUnit
