@@ -326,7 +326,7 @@ addToken (uid ::: cid ::: req ::: _) = do
                 Log.info $ msg ("Push token is too long: token length = " ++ show l)
                 return (Left tokenTooLong)
             Right arn -> do
-                Data.insert uid trp app tok arn cid (t^.tokenClient) (t^.tokenFallback)
+                Data.insert uid trp app tok arn cid (t^.tokenClient)
                 return (Right (mkAddr t arn))
 
     update :: Int -> PushToken -> SnsArn EndpointTopic -> Gundeck (Either Response (Address a))
@@ -341,7 +341,7 @@ addToken (uid ::: cid ::: req ::: _) = do
             Just ep -> do
                 updateEndpoint uid t arn ep
                 Data.insert uid (t^.tokenTransport) (t^.tokenApp) (t^.token) arn cid
-                                (t^.tokenClient) (t^.tokenFallback)
+                                (t^.tokenClient)
                 return (Right (mkAddr t arn))
               `catch` \case
                 -- Note: If the endpoint was recently deleted (not necessarily
@@ -355,7 +355,7 @@ addToken (uid ::: cid ::: req ::: _) = do
                 ex                       -> throwM ex
 
     mkAddr t arn = Address uid (t^.tokenTransport) (t^.tokenApp) (t^.token)
-                           arn cid (t^.tokenClient) (t^.tokenFallback)
+                           arn cid (t^.tokenClient)
 
 -- | Update an SNS endpoint with the given user and token.
 updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.SNSEndpoint -> Gundeck ()

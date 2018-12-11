@@ -148,7 +148,6 @@ mkAddress t = Address
     <*> pure (mkEndpoint t (AppName "test"))
     <*> pure (ConnId "conn")
     <*> pure (ClientId "client")
-    <*> pure Nothing
 
 mkEndpoint :: Transport -> AppName -> EndpointArn
 mkEndpoint t a = mkSnsArn Ireland (Account "test") topic
