@@ -106,7 +106,7 @@ tests s = testGroup "Gundeck integration tests" [
         , test s "Paging" $ testNotificationPaging
         ],
     testGroup "Clients"
-        [ test s "(un)register a client" $ testRegisterClient
+        [ test s "unregister a client" $ testUnregisterClient
         ],
     testGroup "Tokens"
         [ test s "register a push token"     $ testRegisterPushToken
@@ -627,13 +627,12 @@ testNotificationPaging gu _ _ _ = do
 -----------------------------------------------------------------------------
 -- Client registration
 
-testRegisterClient :: TestSignature ClientId
-testRegisterClient g _ _ _ = do
+testUnregisterClient :: TestSignature ()
+testUnregisterClient g _ _ _ = do
     uid <- randomId
     cid <- randomClientId
     unregisterClient g uid cid
         !!! const 200 === statusCode
-    return cid
 
 -----------------------------------------------------------------------------
 -- Native push token registration
