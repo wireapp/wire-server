@@ -13,9 +13,7 @@ module Test.Spar.SCIMSpec where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types
 import Control.Lens
-import Control.Retry
 import Data.ByteString.Conversion
 import Imports
 import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
@@ -72,12 +70,8 @@ specUsers = describe "operations with users" $ do
             (tok, _) <- registerIdPAndSCIMToken
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
-            -- Delete the user (TODO: do it via SCIM) and wait until the
-            -- user is truly gone
+            -- Delete the user (TODO: do it via SCIM)
             call $ deleteUser (env ^. teBrig) userid
-            recoverAll (exponentialBackoff 30000 <> limitRetries 5) $ \_ -> do
-                profile <- call $ getSelfProfile (env ^. teBrig) userid
-                liftIO $ selfUser profile `shouldSatisfy` userDeleted
             -- Get all users
             users <- listUsers tok Nothing
             -- Check that the user is absent
@@ -118,12 +112,8 @@ specUsers = describe "operations with users" $ do
             (tok, _) <- registerIdPAndSCIMToken
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
-            -- Delete the user (TODO: do it via SCIM) and wait until the
-            -- user is truly gone
+            -- Delete the user (TODO: do it via SCIM)
             call $ deleteUser (env ^. teBrig) userid
-            recoverAll (exponentialBackoff 30000 <> limitRetries 5) $ \_ -> do
-                profile <- call $ getSelfProfile (env ^. teBrig) userid
-                liftIO $ selfUser profile `shouldSatisfy` userDeleted
             -- Try to find the user
             getUser_ (Just tok) userid (env ^. teSpar)
                 !!! const 404 === statusCode
