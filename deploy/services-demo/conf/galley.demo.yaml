@@ -24,4 +24,4 @@ settings:
   conversationCodeURI: https://127.0.0.1/join/
 
 logLevel: Info
-logNetStrings: true
+logNetStrings: false

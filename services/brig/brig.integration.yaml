@@ -132,4 +132,4 @@ optSettings:
   setMaxConvSize: 16
 
 logLevel: Warn
-logNetStrings: true
+logNetStrings: false

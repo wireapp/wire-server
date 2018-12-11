@@ -110,7 +110,7 @@ run_haskell_service gundeck ${blue} Info
 run_haskell_service cannon ${orange} Info
 run_haskell_service cargohold ${purpleish} Info
 run_haskell_service proxy ${redish} Info
-run_haskell_service spar ${orange} Info
+run_haskell_service spar ${orange}
 run_nginz ${blueish}
 
 sleep 3 # wait a moment for services to start before continuing
