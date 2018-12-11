@@ -98,18 +98,6 @@ sitemap = do
         response 204 "Push token unregistered" end
         response 404 "Push token does not exist" end
 
-    -- REFACTOR: this doesn't do anything any more.  deprecate it on swagger, figure out how to get
-    -- rid of it entirely, and when (in the distant future?).
-    post "/push/fallback/:notif/cancel" (continue Push.fakeCancelFallback) $
-        header "Z-User"
-        .&. capture "notif"
-
-    document "POST" "cancelFallback" $ do
-        summary "Cancel a pending fallback notification.  [DEPRECATED]" -- REFACTOR
-        parameter Path "notif" bytes' $
-            description "The notification ID"
-        response 200 "Pending fallback notification cancelled" end
-
     get "/push/tokens" (continue Push.listTokens) $
         header "Z-User"
         .&. accept "application" "json"
@@ -135,7 +123,6 @@ sitemap = do
         .&. opt (query "since")
         .&. opt (query "client")
         .&. def (unsafeRange 1000) (query "size")
-        .&. opt (query "cancel_fallback")  -- REFACTOR: deprecated!
 
     document "GET" "fetchNotifications" $ do
         summary "Fetch notifications"
@@ -148,9 +135,6 @@ sitemap = do
         parameter Query "size" (int32 (Swagger.def 1000)) $ do
             optional
             description "Maximum number of notifications to return."
-        parameter Query "cancel_fallback" bytes' $ do
-            optional
-            description "Cancel pending fallback notifications for the given ID, if any.  [DEPRECATED]"  -- REFACTOR
         returns (ref Model.notificationList)
         response 200 "Notification list" end
         errorResponse' notificationNotFound Model.notificationList
@@ -160,7 +144,6 @@ sitemap = do
         .&. header "Z-User"
         .&. capture "id"
         .&. opt (query "client")
-        .&. def False (query "cancel_fallback")  -- REFACTOR
 
     document "GET" "getNotification" $ do
         summary "Fetch a notification by ID."
@@ -169,9 +152,6 @@ sitemap = do
         parameter Query "client" bytes' $ do
             optional
             description "Only return notifications targeted at the given client."
-        parameter Query "cancel_fallback" (bool (Swagger.def False)) $ do
-            optional
-            description "Whether to cancel pending fallback notifications, if any.  [DEPRECATED]"  -- REFACTOR
         returns (ref Model.notification)
         response 200 "Notification found" end
         errorResponse notificationNotFound
