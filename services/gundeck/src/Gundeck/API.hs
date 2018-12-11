@@ -105,7 +105,7 @@ sitemap = do
         .&. capture "notif"
 
     document "POST" "cancelFallback" $ do
-        summary "Cancel a pending fallback notification."
+        summary "Cancel a pending fallback notification.  [DEPRECATED]" -- REFACTOR
         parameter Path "notif" bytes' $
             description "The notification ID"
         response 200 "Pending fallback notification cancelled" end
@@ -135,7 +135,7 @@ sitemap = do
         .&. opt (query "since")
         .&. opt (query "client")
         .&. def (unsafeRange 1000) (query "size")
-        .&. opt (query "cancel_fallback")
+        .&. opt (query "cancel_fallback")  -- REFACTOR: deprecated!
 
     document "GET" "fetchNotifications" $ do
         summary "Fetch notifications"
@@ -150,7 +150,7 @@ sitemap = do
             description "Maximum number of notifications to return."
         parameter Query "cancel_fallback" bytes' $ do
             optional
-            description "Cancel pending fallback notifications for the given ID, if any."
+            description "Cancel pending fallback notifications for the given ID, if any.  [DEPRECATED]"  -- REFACTOR
         returns (ref Model.notificationList)
         response 200 "Notification list" end
         errorResponse' notificationNotFound Model.notificationList
@@ -160,7 +160,7 @@ sitemap = do
         .&. header "Z-User"
         .&. capture "id"
         .&. opt (query "client")
-        .&. def False (query "cancel_fallback")
+        .&. def False (query "cancel_fallback")  -- REFACTOR
 
     document "GET" "getNotification" $ do
         summary "Fetch a notification by ID."
@@ -171,7 +171,7 @@ sitemap = do
             description "Only return notifications targeted at the given client."
         parameter Query "cancel_fallback" (bool (Swagger.def False)) $ do
             optional
-            description "Whether to cancel pending fallback notifications, if any."
+            description "Whether to cancel pending fallback notifications, if any.  [DEPRECATED]"  -- REFACTOR
         returns (ref Model.notification)
         response 200 "Notification found" end
         errorResponse notificationNotFound
