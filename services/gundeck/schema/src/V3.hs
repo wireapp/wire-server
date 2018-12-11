@@ -18,7 +18,7 @@ migration = Migration 3 "Add clients table, push.client and user_push.client" $ 
             , primary key (user, client)
             ) with compaction = { 'class' : 'LeveledCompactionStrategy' };
         |]
-      -- REFACTOR: table clients is not used any more and should be removed at some point (as of
+      -- TODO: REFACTOR: table clients is not used any more and should be removed at some point (as of
       -- removing the --prefer-notice flag for gundeck; Mon Dec 10 15:04:21 CET 2018)
     schema' [r| alter columnfamily user_push add client text; |]
     schema' [r| alter columnfamily push add client text; |]

@@ -71,6 +71,7 @@ data Failure
     | PushException !SomeException
     deriving (Show)
 
+-- | REFACTOR: rename to @data NativePush (s :: Symbol) = NativePush { ntvpNotificationId :: ...@
 data Message (s :: Symbol) = Notice
     { msgNotificationid :: NotificationId
     , msgPriority       :: Priority
