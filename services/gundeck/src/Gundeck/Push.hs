@@ -217,8 +217,8 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
 -- | Failures to pushy natively can be ignored.  Logging already happens in
 -- 'Gundeck.Push.Native.push1', and we cannot recover from any of the error cases.
 pushNative :: Notification -> Push -> [Address "no-keys"] -> Gundeck ()
-pushNative (ntfTransient -> True) _ _ = Log.warn $ msg (val "Transient notification failed")
 pushNative _ _ [] = return ()
+pushNative (ntfTransient -> True) _ _ = Log.warn $ msg (val "Transient notification failed")
 pushNative notif p rcps = do
     let prio = p^.pushNativePriority
     void $ Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
