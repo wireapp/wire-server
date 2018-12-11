@@ -186,13 +186,6 @@ sitemap = do
 
     -- User-Client API -------------------------------------------------------
 
-    put "/i/clients/:cid" (continue Client.register) $
-        header "Z-User"
-        .&. param "cid"
-        .&. request
-        .&. contentType "application" "json"
-        .&. accept "application" "json"
-
     delete "/i/clients/:cid" (continue Client.unregister) $
         header "Z-User" .&. param "cid"
 
