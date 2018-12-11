@@ -24,6 +24,7 @@ import Control.Error
 import Control.Lens (set, view)
 import Control.Monad.Catch (catches, throwM)
 import Data.Aeson (FromJSON)
+import Data.Default (def)
 import Network.Wai.Predicate (Media)
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Routing (Continue)
@@ -45,7 +46,7 @@ type Handler = ExceptT Error AppIO
 
 runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO ResponseReceived
 runHandler e r h k = do
-    let e' = set requestId (maybe mempty RequestId (lookupRequestId r)) e
+    let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
     a <- runAppT e' (runExceptT h) `catches` errors
     either (onError (view applog e') r k) return a
   where

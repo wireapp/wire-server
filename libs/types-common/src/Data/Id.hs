@@ -18,6 +18,7 @@ import Data.ByteString (ByteString)
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion
 import Data.Char (isHexDigit)
+import Data.Default (Default(..))
 import Data.Hashable (Hashable)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -250,13 +251,9 @@ newtype RequestId = RequestId
                , NFData
                )
 
-instance Semigroup RequestId where
-    (<>) a b
-        | a == mempty = b
-        | otherwise   = a
-
-instance Monoid RequestId where
-    mempty = RequestId "N/A"
+-- | Returns "N/A"
+instance Default RequestId where
+    def = RequestId "N/A"
 
 instance ToJSON RequestId where
     toJSON (RequestId r) = String (decodeUtf8 r)

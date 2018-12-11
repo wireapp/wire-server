@@ -74,6 +74,7 @@ import Control.Lens hiding ((.=), index)
 import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
+import Data.Default (def)
 import Data.Id (UserId)
 import Data.IP
 import Data.List1 (list1, List1)
@@ -207,7 +208,7 @@ newEnv o = do
         , _metrics       = mtr
         , _applog        = lgr
         , _internalEvents = eventsQueue
-        , _requestId     = mempty
+        , _requestId     = def
         , _usrTemplates  = utp
         , _provTemplates = ptp
         , _tmTemplates   = ttp

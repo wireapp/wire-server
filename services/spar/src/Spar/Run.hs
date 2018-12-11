@@ -25,6 +25,7 @@ import Imports
 import Bilge
 import Cassandra as Cas
 import Control.Lens
+import Data.Default (def)
 import Data.List.NonEmpty as NE
 import Data.Metrics (metrics)
 import Data.String.Conversions
@@ -116,5 +117,5 @@ runServer sparCtxOpts = do
 
 lookupRequestIdMiddleware :: (RequestId -> Application) -> Application
 lookupRequestIdMiddleware mkapp req cont = do
-  let reqid = maybe mempty RequestId $ lookupRequestId req
+  let reqid = maybe def RequestId $ lookupRequestId req
   mkapp reqid req cont
