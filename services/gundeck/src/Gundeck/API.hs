@@ -186,6 +186,15 @@ sitemap = do
 
     -- User-Client API -------------------------------------------------------
 
+    -- DEPRECATED: this is deprecated as of https://github.com/wireapp/wire-server/pull/549 (can be
+    -- removed once brig is deployed everywhere and won't trip over this missing any more.)
+    put "/i/clients/:cid" (continue Client.register) $
+        header "Z-User"
+        .&. param "cid"
+        .&. request
+        .&. contentType "application" "json"
+        .&. accept "application" "json"
+
     delete "/i/clients/:cid" (continue Client.unregister) $
         header "Z-User" .&. param "cid"
 
