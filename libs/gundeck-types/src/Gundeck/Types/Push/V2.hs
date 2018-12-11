@@ -51,10 +51,6 @@ module Gundeck.Types.Push.V2
     , token
 
     , PushTokenList (..)
-
-    , EncKey        (..)
-    , MacKey        (..)
-    , SignalingKeys (..)
     ) where
 
 import Imports
@@ -66,9 +62,7 @@ import Data.Id
 import Data.Json.Util
 import Data.List1
 import Data.Range
-import Data.Text.Encoding
 
-import qualified Data.ByteString.Base64 as B64
 import qualified Data.List1             as List1
 import qualified Data.Range             as Range
 import qualified Data.Set               as Set
@@ -370,50 +364,3 @@ instance FromJSON PushTokenList where
 
 instance ToJSON PushTokenList where
     toJSON (PushTokenList t) = object ["tokens" .= t]
-
------------------------------------------------------------------------------
--- Native Push Encryption
-
-checkKeyLen :: ByteString -> Either String (Range 32 32 ByteString)
-checkKeyLen = Range.checkedEither
-
--- | Symmetric encryption key of a specific client for native push notifications.
-newtype EncKey = EncKey
-    { encKeyBytes :: ByteString
-    } deriving Eq
-
--- | MAC key of a specific client for native push notifications.
-newtype MacKey = MacKey
-    { macKeyBytes :: ByteString
-    } deriving Eq
-
-data SignalingKeys = SignalingKeys
-    { sigEncKey :: !EncKey
-    , sigMacKey :: !MacKey
-    }
-
-instance FromJSON EncKey where
-    parseJSON = withText "EncKey" $
-          either fail (return . EncKey . fromRange)
-        . (checkKeyLen <=< B64.decode)
-        . encodeUtf8
-
-instance ToJSON EncKey where
-    toJSON = String . decodeLatin1 . B64.encode . encKeyBytes
-
-instance FromJSON MacKey where
-    parseJSON = withText "MacKey" $
-          either fail (return . MacKey . fromRange)
-        . (checkKeyLen <=< B64.decode)
-        . encodeUtf8
-
-instance ToJSON MacKey where
-    toJSON = String . decodeLatin1 . B64.encode . macKeyBytes
-
-instance FromJSON SignalingKeys where
-    parseJSON = withObject "signaling-keys" $ \o ->
-        SignalingKeys <$> o .: "enckey" <*> o .: "mackey"
-
-instance ToJSON SignalingKeys where
-    toJSON (SignalingKeys ek mk) = object
-        [ "enckey" .= ek, "mackey" .= mk ]
