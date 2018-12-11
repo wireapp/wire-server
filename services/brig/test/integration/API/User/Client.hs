@@ -17,7 +17,6 @@ import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Gundeck.Types.Notification
-import Gundeck.Types.Push.V2
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import Test.Tasty.HUnit
@@ -244,7 +243,7 @@ testUpdateClient brig = do
         const (Just "featurephone") === (clientModel <=< decodeBody)
 
     let newPrekey = somePrekeys !! 2
-    let update    = UpdateClient [newPrekey] Nothing (Nothing :: Maybe SignalingKeys) (Just "label")
+    let update    = UpdateClient [newPrekey] Nothing (Just "label")
 
     put ( brig
         . paths ["clients", toByteString' (clientId c)]
@@ -269,7 +268,7 @@ testUpdateClient brig = do
         const (Just PhoneClient)  === (pubClientClass <=< decodeBody)
         const Nothing             === (preview (key "label") <=< asValue)
 
-    let update' = UpdateClient [] Nothing (Nothing :: Maybe SignalingKeys) Nothing
+    let update' = UpdateClient [] Nothing Nothing
 
     -- empty update should be a no-op
     put ( brig

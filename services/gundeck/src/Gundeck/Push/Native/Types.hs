@@ -15,7 +15,6 @@ module Gundeck.Push.Native.Types
     , addrEndpoint
     , addrConn
     , addrClient
-    , addrFallback
     , addrEqualClient
 
       -- * Re-Exports
@@ -43,11 +42,6 @@ data Address (s :: Symbol) = Address
     , _addrEndpoint  :: !EndpointArn
     , _addrConn      :: !ConnId
     , _addrClient    :: !ClientId
-    , _addrFallback  :: !(Maybe Transport)  -- ^ DEPRECATED: this is not used by the backend any
-                                            -- more, but we need to rule out that older clients
-                                            -- still expect it (it is exposed via the `GET
-                                            -- /push/tokens` end-point, where it is used to
-                                            -- construct 'PushToken' values).
     }
 
 makeLenses ''Address
@@ -64,7 +58,6 @@ instance Show (Address s) where
            . showString ", endpoint = " . shows (a^.addrEndpoint)
            . showString ", conn = " . shows (a^.addrConn)
            . showString ", client = " . shows (a^.addrClient)
-           . showString ", fallback = " . shows (a^.addrFallback)
            $ "}"
 
 data Result s
@@ -78,6 +71,7 @@ data Failure
     | PushException !SomeException
     deriving (Show)
 
+-- | REFACTOR: rename to @data NativePush (s :: Symbol) = NativePush { ntvpNotificationId :: ...@
 data Message (s :: Symbol) = Notice
     { msgNotificationid :: NotificationId
     , msgPriority       :: Priority

@@ -38,9 +38,6 @@ pushToken = defineModel "PushToken" $ do
     property "client" bytes' $ do
         description "Client ID"
         optional
-    property "fallback" pushTransport $ do
-        description "Fallback transport [DEPRECATED]"
-        optional
 
 pushTokenList :: Model
 pushTokenList = defineModel "PushTokenList" $ do

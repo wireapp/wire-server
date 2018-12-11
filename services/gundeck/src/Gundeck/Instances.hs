@@ -64,22 +64,6 @@ instance Cql AppName where
     fromCql (CqlText txt) = Right (AppName txt)
     fromCql _             = fail "App: Text expected"
 
-instance Cql EncKey where
-    ctype = Tagged BlobColumn
-
-    toCql (EncKey ek) = CqlBlob (Bytes.fromStrict ek)
-
-    fromCql (CqlBlob b) = return . EncKey $ Bytes.toStrict b
-    fromCql _ = fail "EncKey: blob expected"
-
-instance Cql MacKey where
-    ctype = Tagged BlobColumn
-
-    toCql (MacKey mk) = CqlBlob (Bytes.fromStrict mk)
-
-    fromCql (CqlBlob b) = return . MacKey $ Bytes.toStrict b
-    fromCql _ = fail "MacKey: blob expected"
-
 instance ToText (Id a) where
     toText = Text.decodeUtf8 . Uuid.toASCIIBytes . toUUID
 

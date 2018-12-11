@@ -13,7 +13,6 @@ module Gundeck.Push
     , addToken
     , listTokens
     , deleteToken
-    , fakeCancelFallback
     ) where
 
 import Imports
@@ -217,8 +216,8 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
 -- | Failures to pushy natively can be ignored.  Logging already happens in
 -- 'Gundeck.Push.Native.push1', and we cannot recover from any of the error cases.
 pushNative :: Notification -> Push -> [Address "no-keys"] -> Gundeck ()
-pushNative (ntfTransient -> True) _ _ = Log.warn $ msg (val "Transient notification failed")
 pushNative _ _ [] = return ()
+pushNative (ntfTransient -> True) _ _ = Log.warn $ msg (val "Transient notification failed")
 pushNative notif p rcps = do
     let prio = p^.pushNativePriority
     void $ Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
@@ -326,7 +325,7 @@ addToken (uid ::: cid ::: req ::: _) = do
                 Log.info $ msg ("Push token is too long: token length = " ++ show l)
                 return (Left tokenTooLong)
             Right arn -> do
-                Data.insert uid trp app tok arn cid (t^.tokenClient) (t^.tokenFallback)
+                Data.insert uid trp app tok arn cid (t^.tokenClient)
                 return (Right (mkAddr t arn))
 
     update :: Int -> PushToken -> SnsArn EndpointTopic -> Gundeck (Either Response (Address a))
@@ -341,7 +340,7 @@ addToken (uid ::: cid ::: req ::: _) = do
             Just ep -> do
                 updateEndpoint uid t arn ep
                 Data.insert uid (t^.tokenTransport) (t^.tokenApp) (t^.token) arn cid
-                                (t^.tokenClient) (t^.tokenFallback)
+                                (t^.tokenClient)
                 return (Right (mkAddr t arn))
               `catch` \case
                 -- Note: If the endpoint was recently deleted (not necessarily
@@ -355,7 +354,7 @@ addToken (uid ::: cid ::: req ::: _) = do
                 ex                       -> throwM ex
 
     mkAddr t arn = Address uid (t^.tokenTransport) (t^.tokenApp) (t^.token)
-                           arn cid (t^.tokenClient) (t^.tokenFallback)
+                           arn cid (t^.tokenClient)
 
 -- | Update an SNS endpoint with the given user and token.
 updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.SNSEndpoint -> Gundeck ()
@@ -411,7 +410,3 @@ listTokens (uid ::: _) =
   where
     toToken :: Address s -> PushToken
     toToken a = pushToken (a^.addrTransport) (a^.addrApp) (a^.addrToken) (a^.addrClient)
-
--- REFACTOR remove (see api end-point)
-fakeCancelFallback :: UserId ::: NotificationId -> Gundeck Response
-fakeCancelFallback (_ ::: _) = return empty

@@ -21,7 +21,7 @@ import Network.Wai.Utilities
 import qualified Gundeck.Notification.Data as Notifications
 import qualified Gundeck.Push.Data         as Push
 
--- | REFACTOR: this is deprecated
+-- | DEPRECATED: remove once brig is upgraded everywhere.
 register :: UserId ::: ClientId ::: Request ::: JSON ::: JSON -> Gundeck Response
 register (_uid ::: _cid ::: _req ::: _) = return empty
 
