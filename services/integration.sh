@@ -85,14 +85,13 @@ function run() {
 
 check_prerequisites
 
-# One still needs to pass a LOG LEVEL since it's set in _run_ which always requires 4 arguments
-run brig "" ${green} Info
-run galley "" ${yellow} Info
+run brig "" ${green}
+run galley "" ${yellow}
 run gundeck "" ${blue} Info
 run cannon "" ${orange} Info
 run cannon "2" ${orange} Info
 run cargohold "" ${purpleish} Info
-run spar "" ${orange} Info
+run spar "" ${orange}
 
 # the ports are copied from ./integration.yaml
 while [ "$all_services_are_up" == "" ]; do

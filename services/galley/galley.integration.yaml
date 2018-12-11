@@ -24,7 +24,7 @@ settings:
   conversationCodeURI: https://app.wire.com/join/
 
 logLevel: Info
-logNetStrings: true
+logNetStrings: false
 
 ### Journaling of team events
 #
