@@ -38,6 +38,9 @@ module Util.Core
   -- * Other
   , createUserWithTeam
   , createTeamMember
+  , deleteUser
+  , getTeams
+  , getSelfProfile
   , nextWireId
   , nextSAMLID
   , nextUserRef
@@ -225,6 +228,24 @@ addTeamMember galleyreq tid mem =
                 . expect2xx
                 . lbytes (Aeson.encode mem)
                 )
+
+-- | Delete a user from Brig and wait until it's gone.
+deleteUser :: (HasCallStack, MonadMask m, MonadCatch m, MonadIO m, MonadHttp m)
+           => BrigReq -> UserId -> m ()
+deleteUser brigreq uid = do
+    deleteUserNoWait brigreq uid
+    recoverAll (exponentialBackoff 30000 <> limitRetries 5) $ \_ -> do
+        profile <- getSelfProfile brigreq uid
+        liftIO $ selfUser profile `shouldSatisfy` Brig.userDeleted
+
+-- | Delete a user from Brig but don't wait.
+deleteUserNoWait :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
+                 => BrigReq -> UserId -> m ()
+deleteUserNoWait brigreq uid =
+    void $ delete ( brigreq
+                  . paths ["i", "users", toByteString' uid]
+                  . expect2xx
+                  )
 
 -- | See also: 'nextSAMLID', 'nextUserRef'.  The names are chosed to be consistent with
 -- 'UUID.nextRandom'.

@@ -242,9 +242,11 @@ instance SCIM.UserDB Spar where
        -> SCIM.SCIMHandler Spar (SCIM.ListResponse SCIM.StoredUser)
   list ScimTokenInfo{stiTeam} mbFilter = do
     members <- lift $ getTeamMembers stiTeam
-    users <- forM members $ \member ->
+    users <- fmap catMaybes $ forM members $ \member ->
       lift (Intra.Brig.getUser (member ^. Galley.userId)) >>= \case
-        Just user -> pure (toSCIMUser user)
+        Just user
+          | userDeleted user -> pure Nothing
+          | otherwise        -> pure (Just (toSCIMUser user))
         Nothing -> SCIM.throwSCIM $
           SCIM.serverError "SCIM.UserDB.list: couldn't fetch team member"
     let check user = case mbFilter of
@@ -268,8 +270,8 @@ instance SCIM.UserDB Spar where
       Nothing -> SCIM.throwSCIM $
         SCIM.notFound "user" uidText
     lift (Intra.Brig.getUser uid) >>= traverse (\user -> do
-      when (userTeam user /= Just stiTeam) $ SCIM.throwSCIM $
-        SCIM.notFound "user" (idToText uid)
+      when (userTeam user /= Just stiTeam || userDeleted user) $
+        SCIM.throwSCIM $ SCIM.notFound "user" (idToText uid)
       pure (toSCIMUser user))
 
   -- | Create a new user.
