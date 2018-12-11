@@ -51,18 +51,22 @@ push1 m a = do
         Failure EndpointDisabled   _ -> onDisabled
         Failure PayloadTooLarge    _ -> onPayloadTooLarge
         Failure EndpointInvalid    _ -> onInvalidEndpoint
-        Failure MissingKeys        _ -> onMissingKeys
         Failure (PushException ex) _ -> do
             logError a "Native push failed" ex
             view monitor >>= counterIncr (path "push.native.errors")
     return r
   where
-    -- * Transient notifications must be delivered "now or never".
-    -- * Others use the default level of the specific platforms, which is 4 weeks
-    --   for both APNS* and GCM
-    ttl = if msgTransient m
-          then Just (Aws.Seconds 0)
-          else Nothing
+    -- TODO: REFACTOR: this smells like a bug that we've dragged along for a while: according to
+    -- current logic (previous to this PR), 'Notice' is never transient.  but we have sent nothing
+    -- but 'Notice' native notifications for a while.  have we sent out native notifications for
+    -- transient messages at all?  that may have led to clients being woken up, pulling the event
+    -- queue, and finding nothing in it (because we don't store transient notifications).
+    --
+    -- behavior as of this PR is the same as before: no 'Notice' values are ever considered
+    -- transient, but transient 'Notification's are translated to 'Notice' and queued for native
+    -- push (i think).  we should decided whether that's what we want in a separate PR.
+    ttl :: Maybe Aws.Seconds
+    ttl = Nothing
 
     onDisabled =
         handleAny (logError a "Failed to cleanup disabled endpoint") $ do
@@ -78,7 +82,7 @@ push1 m a = do
 
     onPayloadTooLarge = do
         view monitor >>= counterIncr (path "push.native.too_large")
-        Log.debug $ field "user" (toByteString (a^.addrUser))
+        Log.warn $ field "user" (toByteString (a^.addrUser))
                  ~~ field "arn" (toText (a^.addrEndpoint))
                  ~~ msg (val "Payload too large")
 
@@ -91,11 +95,6 @@ push1 m a = do
             view monitor >>= counterIncr (path "push.native.invalid")
             Data.delete (a^.addrUser) (a^.addrTransport) (a^.addrApp) (a^.addrToken)
             onTokenRemoved
-
-    onMissingKeys =
-        Log.warn $ field "user" (toByteString (a^.addrUser))
-                ~~ field "arn" (toText (a^.addrEndpoint))
-                ~~ msg (val "Missing signaling keys")
 
     onTokenRemoved = do
         i <- mkNotificationId

@@ -7,8 +7,6 @@ module Gundeck.Push.Native.Types
     ( Result  (..)
     , Failure (..)
     , Message (..)
-    , msgApsData
-    , msgTransient
     , Address (Address)
     , addrUser
     , addrTransport
@@ -17,7 +15,6 @@ module Gundeck.Push.Native.Types
     , addrEndpoint
     , addrConn
     , addrClient
-    , addrKeys
     , addrFallback
     , addrEqualClient
 
@@ -36,8 +33,6 @@ import Data.Id (UserId, ConnId, ClientId)
 import Data.Singletons.TypeLits (Symbol)
 import Gundeck.Aws.Arn
 import Gundeck.Types
-import OpenSSL.EVP.Cipher (Cipher)
-import OpenSSL.EVP.Digest (Digest)
 
 -- | Native push address information of a device.
 data Address (s :: Symbol) = Address
@@ -48,7 +43,6 @@ data Address (s :: Symbol) = Address
     , _addrEndpoint  :: !EndpointArn
     , _addrConn      :: !ConnId
     , _addrClient    :: !ClientId
-    , _addrKeys      :: !(Maybe SignalingKeys)
     , _addrFallback  :: !(Maybe Transport)  -- ^ DEPRECATED: this is not used by the backend any
                                             -- more, but we need to rule out that older clients
                                             -- still expect it (it is exposed via the `GET
@@ -81,32 +75,11 @@ data Failure
     = PayloadTooLarge
     | EndpointInvalid
     | EndpointDisabled
-    | MissingKeys
     | PushException !SomeException
     deriving (Show)
 
-data Message s where
-    Plaintext  :: Notification
-               -> Priority
-               -> Maybe ApsData
-               -> Message s
-    Ciphertext :: Notification
-               -> Cipher
-               -> Digest
-               -> Priority
-               -> Maybe ApsData
-               -> Message "keys"
-    Notice     :: NotificationId
-               -> Priority
-               -> Maybe ApsData
-               -> Message s
-
-msgApsData :: Message s -> Maybe ApsData
-msgApsData (Plaintext  _     _ a) = a
-msgApsData (Ciphertext _ _ _ _ a) = a
-msgApsData (Notice     _     _ a) = a
-
-msgTransient :: Message s -> Bool
-msgTransient (Plaintext  n     _ _) = ntfTransient n
-msgTransient (Ciphertext n _ _ _ _) = ntfTransient n
-msgTransient Notice{}               = False
+data Message (s :: Symbol) = Notice
+    { msgNotificationid :: NotificationId
+    , msgPriority       :: Priority
+    , msgApsData        :: Maybe ApsData
+    }

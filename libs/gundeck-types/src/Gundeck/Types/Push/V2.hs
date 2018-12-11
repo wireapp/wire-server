@@ -225,6 +225,9 @@ data Push = Push
       -- of the originating user, if he is among the recipients.
     , _pushNativeEncrypt :: !Bool
       -- ^ Should native push payloads be encrypted?
+      --
+      -- REFACTOR: this make no sense any more since native push notifications have no more payload.
+      -- https://github.com/wireapp/wire-server/pull/546
     , _pushNativeAps :: !(Maybe ApsData)
       -- ^ APNs-specific metadata.
     , _pushNativePriority :: !Priority

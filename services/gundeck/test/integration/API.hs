@@ -44,7 +44,6 @@ import qualified Data.List1             as List1
 import qualified Data.Set               as Set
 import qualified Data.Text.Encoding     as T
 import qualified Data.UUID              as UUID
-import qualified Gundeck.Client.Data    as Clients
 import qualified Gundeck.Push.Data      as Push
 import qualified Network.HTTP.Client    as Http
 import qualified Network.WebSockets     as WS
@@ -140,9 +139,7 @@ removeUser g c _ s = do
     deleteUser g user
     ntfs <- listNotifications user Nothing g
     liftIO $ do
-        keys   <- Cql.runClient s (Clients.select user clt)
         tokens <- Cql.runClient s (Push.lookup user Push.Quorum)
-        isNothing keys @?= True
         null tokens    @?= True
         ntfs           @?= []
 
@@ -685,9 +682,9 @@ testRegisterPushToken g _ b _ = do
 
     -- Native push tokens are deleted together with the client
     unregisterClient g uid c1 !!! const 200 === statusCode
-    unregisterClient g uid c1 !!! const 404 === statusCode
+    unregisterClient g uid c1 !!! const 200 === statusCode  -- (deleting a non-existing token is ok.)
     unregisterClient g uid c2 !!! const 200 === statusCode
-    unregisterClient g uid c2 !!! const 404 === statusCode
+    unregisterClient g uid c2 !!! const 200 === statusCode  -- (deleting a non-existing token is ok.)
     _tokens <- listPushTokens uid g
     liftIO $ assertEqual "unexpected tokens" [] _tokens
 
