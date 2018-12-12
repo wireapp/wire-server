@@ -33,7 +33,7 @@ library
         , bytestring            >= 0.10
         , bytestring-conversion >= 0.3
         , containers            >= 0.5
-        , errors                >= 1.4
+        , errors                >= 2.0
         , exceptions            >= 0.6
         , http-types            >= 0.8
         , imports

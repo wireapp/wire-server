@@ -69,7 +69,7 @@ library
     , snappy
     , snappy-framing
     , text
-    , time                   < 1.9
+    , time                  >= 1.5 && < 1.9
     , types-common          >= 0.14.1
     , unordered-containers
     , vector
@@ -204,7 +204,6 @@ test-suite bonanza-tests
     , http-types
     , imports
     , lens
-    , old-locale
     , QuickCheck
     , scientific
     , tasty

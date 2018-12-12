@@ -27,7 +27,7 @@ library
       , aws                   >= 0.10.2
       , base                  == 4.*
       , bytestring            >= 0.9
-      , errors                >= 1.4
+      , errors                >= 2.0
       , exceptions            >= 0.6
       , http-client           >= 0.5
       , http-types            >= 0.7

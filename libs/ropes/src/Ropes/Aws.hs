@@ -145,11 +145,7 @@ newTempConfig lgr mgr = do
     tryMetadata :: IO (Maybe (Configuration, Maybe UTCTime))
     tryMetadata = do
         Logger.info lgr $ Logger.msg ("Fetching instance metadata" :: String)
-#if MIN_VERSION_errors(2,0,0)
         r <- runExceptT . syncIO $ fromMetadata mgr
-#else
-        r <- runEitherT . syncIO $ fromMetadata mgr
-#endif
         case r of
             Left  e -> Logger.err lgr (Logger.msg $ show e) >> return Nothing
             Right a -> do
