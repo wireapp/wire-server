@@ -5,12 +5,10 @@
 
 module System.MakeDeb (makeDeb, options, MakeDebOpts (..)) where
 
-import Control.Monad
-import Control.Monad.IO.Class
-import Data.Text (Text, pack)
+import Imports hiding (FilePath)
+import Data.Text (pack)
 import Filesystem.Path.CurrentOS (encodeString, decodeString)
 import Options.Applicative
-import Prelude hiding (FilePath)
 import Shelly
 import System.MakeDeb.FileUtils
 

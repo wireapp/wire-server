@@ -30,22 +30,16 @@ module Galley.API.Teams
     , withBindingTeam
     ) where
 
+import Imports
 import Cassandra (result, hasMore)
 import Control.Lens hiding (from, to)
-import Control.Monad (unless, when, void)
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Data.ByteString.Conversion hiding (fromList)
-import Data.Foldable (for_, foldrM)
-import Data.Int
 import Data.Id
 import Data.List1 (list1)
-import Data.List (partition)
-import Data.Maybe (catMaybes, isJust)
 import Data.Range
 import Data.Time.Clock (getCurrentTime, UTCTime (..))
-import Data.Traversable (mapM)
-import Data.Set (fromList, toList)
+import Data.Set (fromList)
 import Galley.App
 import Galley.API.Error
 import Galley.API.Util
@@ -60,9 +54,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus, result, or)
 import Network.Wai.Utilities
-import Prelude hiding (head, mapM)
 import UnliftIO (mapConcurrently)
-import UnliftIO.Concurrent (forkIO)
 
 import qualified Data.Set as Set
 import qualified Galley.Data as Data

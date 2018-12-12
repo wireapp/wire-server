@@ -2,6 +2,7 @@
 
 module Test.Bonanza.Parser (tests) where
 
+import Imports
 import Bonanza.Parser.Internal
 import Bonanza.Parser.Netstrings
 import Bonanza.Parser.Nginz
@@ -10,7 +11,6 @@ import Bonanza.Parser.Svlogd
 import Bonanza.Parser.Tinylog
 import Control.Arrow                    ((***))
 import Data.Attoparsec.ByteString.Char8 hiding (digit)
-import Data.Text                        (Text)
 import Test.Bonanza.Arbitrary
 import Test.Tasty
 import Test.Tasty.QuickCheck

@@ -10,15 +10,14 @@ module Galley.Intra.Journal
     , evData
     ) where
 
+import Imports hiding (head)
 import Control.Lens
-import Data.Foldable (for_)
 import Data.Id
 import Data.Text (pack)
 import Galley.Types.Teams
 import Data.Proto
 import Data.Proto.Id
 import Galley.App
-import Prelude hiding (head, mapM)
 import Proto.TeamEvents
 
 import qualified Data.Currency as Currency

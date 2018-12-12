@@ -7,6 +7,7 @@
 
 module Brig.Team.API where
 
+import Imports
 import Brig.App (currentTime, settings)
 import Brig.API.Error
 import Brig.API.Handler
@@ -19,15 +20,10 @@ import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (InvitationCode, emailIdentity)
 import Brig.Types.Intra (AccountStatus (..))
-import Control.Error
 import Control.Lens (view, (^.))
-import Control.Monad (when, void, unless)
-import Control.Monad.Trans
-import Control.Monad.Reader
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Int
 import Data.Range
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)
@@ -35,7 +31,6 @@ import Network.Wai.Predicate hiding (setStatus, result, and)
 import Network.Wai.Routing hiding (head)
 import Network.Wai.Utilities hiding (message, code)
 import Network.Wai.Utilities.Swagger (document)
-import Prelude
 
 import qualified Brig.API.User                 as API
 import qualified Brig.Data.Blacklist           as Blacklist

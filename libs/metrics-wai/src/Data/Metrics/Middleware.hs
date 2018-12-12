@@ -8,10 +8,8 @@ module Data.Metrics.Middleware
     , module Data.Metrics
     ) where
 
-import Data.List (intersperse)
-import Data.Maybe (fromMaybe)
+import Imports
 import Data.Metrics
-import Data.Text (Text)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Route.Tree (Tree)

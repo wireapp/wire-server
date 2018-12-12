@@ -9,16 +9,17 @@ module Bonanza.Parser.Svlogd
     )
 where
 
+import Imports
 import Bonanza.Parser.Internal
 import Bonanza.Parser.Time
 import Bonanza.Types
-import Control.Applicative
 import Data.Bifunctor
-import Control.Lens                     ((&), (.~))
+import Control.Applicative              (optional)
+import Control.Lens                     ((.~))
 import Data.Aeson
 import Data.Attoparsec.ByteString.Char8
 import Data.HashMap.Strict              (fromList)
-import Data.Text                        (Text, strip)
+import Data.Text                        (strip)
 import Data.Time                        (UTCTime (..))
 
 

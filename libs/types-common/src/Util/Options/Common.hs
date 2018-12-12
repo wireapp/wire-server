@@ -4,12 +4,9 @@
 
 module Util.Options.Common where
 
+import Imports hiding (reader)
 import Data.Aeson.TH
-import Data.ByteString (ByteString)
-import Data.Char (toLower, isUpper)
-import Data.Text (Text)
 import Options.Applicative
-import System.Environment
 
 import qualified Data.ByteString.Char8 as C
 import qualified Data.Text             as T

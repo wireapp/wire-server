@@ -24,25 +24,18 @@ module Data.Range
     , rsingleton
     ) where
 
-import Control.DeepSeq (NFData (..))
+import Imports
 import Data.Aeson
 import Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion
-import Data.HashMap.Strict (HashMap)
-import Data.HashSet (HashSet)
-import Data.Int
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1 (List1, toNonEmpty)
-import Data.Map (Map)
-import Data.Maybe
 import Data.Sequence (Seq)
-import Data.Set (Set)
 import Data.Singletons.Prelude.Num
 import Data.Singletons
 import Data.Singletons.Prelude.Ord
 import Data.Singletons.TypeLits
 import Data.Text.Ascii (AsciiText)
-import Data.Word
 #ifdef WITH_CQL
 import Database.CQL.Protocol hiding (Set, Map)
 #endif

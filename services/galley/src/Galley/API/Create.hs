@@ -12,18 +12,14 @@ module Galley.API.Create
     , createConnectConversation
     ) where
 
+import Imports hiding ((\\))
 import Control.Lens hiding ((??))
-import Control.Monad (when, void, unless)
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Data.Foldable (for_, toList)
 import Data.Id
-import Data.List1
-import Data.Maybe (fromMaybe)
+import Data.List1 (list1)
 import Data.Range
 import Data.Set ((\\))
 import Data.Time
-import Data.Traversable (mapM)
 import Galley.App
 import Galley.API.Error
 import Galley.API.Mapping
@@ -36,9 +32,7 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Utilities
-import Prelude hiding (head, mapM)
 
-import qualified Data.List          as List
 import qualified Data.Set           as Set
 import qualified Data.UUID.Tagged   as U
 import qualified Galley.Data        as Data
@@ -118,7 +112,7 @@ createSelfConversation zusr = do
 createOne2OneConversation :: UserId ::: ConnId ::: Request ::: JSON -> Galley Response
 createOne2OneConversation (zusr ::: zcon ::: req ::: _) = do
     NewConvUnmanaged j <- fromBody req invalidPayload
-    other  <- List.head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
+    other  <- head . fromRange <$> (rangeChecked (newConvUsers j) :: Galley (Range 1 1 [UserId]))
     (x, y) <- toUUIDs zusr other
     when (x == y) $
         throwM $ invalidOp "Cannot create a 1-1 with yourself"
@@ -167,7 +161,7 @@ createConnectConversation (usr ::: conn ::: req ::: _) = do
                 let conv' = conv {
                     Data.convMembers = Data.convMembers conv <> toList mm
                 }
-                if List.null mems then
+                if null mems then
                     connect n j conv'
                 else do
                     conv'' <- acceptOne2One usr conv' conn

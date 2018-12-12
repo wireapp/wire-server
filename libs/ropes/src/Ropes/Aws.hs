@@ -24,23 +24,17 @@ module Ropes.Aws
     , ResponseMetadata
     ) where
 
+import Imports
 import Aws (aws, Configuration (..))
 import Aws.Core
-import Control.Applicative
-import Control.Concurrent (threadDelay, forkIO)
 import Control.Error
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.Aeson
-import Data.ByteString (ByteString)
-import Data.Foldable (for_)
-import Data.IORef
-import Data.Text (Text, pack, unpack)
+import Data.Text (pack, unpack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
-import Data.Typeable
 import Network.HTTP.Client
 import System.Logger (Logger)
 
@@ -48,8 +42,6 @@ import qualified Aws
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy  as LB
 import qualified System.Logger         as Logger
-
-import Prelude
 
 
 -------------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 module Data.Proto.Id where
 
-import Data.ByteString
+import Imports
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Id
 

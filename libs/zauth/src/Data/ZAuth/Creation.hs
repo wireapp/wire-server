@@ -24,18 +24,15 @@ module Data.ZAuth.Creation
     , renewToken
     ) where
 
+import Imports
 import Control.Lens hiding (withIndex)
-import Control.Monad
 import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Reader
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.ByteString.Builder (toLazyByteString)
 import Data.Time.Clock.POSIX
 import Data.UUID
 import Data.Vector (Vector, (!))
-import Data.Word
 import Data.ZAuth.Token hiding (signature)
 import Sodium.Crypto.Sign
 import System.Random.MWC

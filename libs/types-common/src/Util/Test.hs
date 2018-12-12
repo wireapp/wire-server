@@ -4,8 +4,8 @@
 
 module Util.Test where
 
+import Imports
 import Data.Tagged
-import Data.Typeable
 import Options.Applicative
 import Test.Tasty.Options
 

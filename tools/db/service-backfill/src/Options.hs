@@ -14,9 +14,9 @@ module Options
     )
 where
 
+import Imports
 import Control.Lens
 import Data.Text.Strict.Lens
-import Data.Word
 import Options.Applicative
 
 import qualified Cassandra as C

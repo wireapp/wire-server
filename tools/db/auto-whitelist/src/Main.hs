@@ -2,6 +2,7 @@
 
 module Main (main) where
 
+import Imports
 import Cassandra as C
 import Cassandra.Settings as C
 import Control.Lens hiding ((.=))

@@ -3,6 +3,7 @@
 
 module Main where
 
+import Imports
 import Control.Concurrent.Async
 import Control.Exception (assert)
 import Criterion.Main

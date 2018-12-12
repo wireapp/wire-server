@@ -4,14 +4,9 @@
 
 module Network.Wire.Simulations.LoadTest where
 
-import Control.Concurrent
+import Imports hiding (log)
 import UnliftIO.Async.Extended as Async
-import Control.Monad
-import Control.Monad.IO.Class
 import Data.Id (ConvId)
-import Data.String
-import Data.Foldable (for_)
-import Data.Traversable (for)
 import Network.Wire.Bot
 import Network.Wire.Bot.Assert
 import Network.Wire.Bot.Crypto
@@ -20,7 +15,6 @@ import Network.Wire.Client.API.Conversation
 import Network.Wire.Client.API.User
 import Network.Wire.Simulations
 import System.Logger.Class
-import Prelude hiding (log)
 
 import qualified Codec.MIME.Type          as MIME
 import qualified Control.Monad.Catch      as Ex

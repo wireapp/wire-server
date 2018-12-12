@@ -34,22 +34,18 @@ module Galley.Intra.Push
     , Gundeck.Priority (..)
     ) where
 
+import Imports
 import Bilge hiding (options)
 import Bilge.RPC
 import Bilge.Retry
 import Galley.App
 import Galley.Options
 import Galley.Types
-import Control.Applicative
 import Control.Lens (makeLenses, set, view, (.~), (&), (^.))
 import Control.Monad.Catch
-import Control.Monad (void, (>=>))
 import Control.Retry
 import Data.Aeson (Object)
-import Data.ByteString.Lazy (ByteString)
-import Data.Foldable (toList, forM_, foldr)
 import Data.Id
-import Data.List (partition)
 import Data.List.Extra (chunksOf)
 import Data.List1
 import Data.Json.Util
@@ -59,10 +55,8 @@ import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types.Method
 import Safe (headDef, tailDef)
 import System.Logger.Class hiding (new)
-import Prelude hiding (foldr)
 import Util.Options
 import UnliftIO (mapConcurrently)
-import UnliftIO.Concurrent (forkIO)
 
 import qualified Data.Set               as Set
 import qualified Data.Text.Lazy         as LT
@@ -188,7 +182,7 @@ callAsync n r = void . forkIO $ void (call n r) `catches` handlers
         , Handler $ \(x :: SomeException) -> err $ "remote" .= n ~~ msg (show x)
         ]
 
-call :: LT.Text -> (Request -> Request) -> Galley (Response (Maybe ByteString))
+call :: LT.Text -> (Request -> Request) -> Galley (Response (Maybe LByteString))
 call n r = recovering x3 rpcHandlers (const (rpc n r))
 
 x3 :: RetryPolicy

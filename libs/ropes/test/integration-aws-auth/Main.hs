@@ -1,11 +1,9 @@
 module Main where
 
-import Control.Concurrent
-import Control.Monad
+import Imports
 import Data.Time.Clock
 import Network.HTTP.Client
 import Ropes.Aws
-import System.IO
 
 import qualified System.Logger as Logger
 

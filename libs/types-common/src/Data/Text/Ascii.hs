@@ -52,16 +52,11 @@ module Data.Text.Ascii
     , unsafeFromByteString
     ) where
 
-import Control.DeepSeq (NFData)
+import Imports
 import Data.Aeson
 import Data.Attoparsec.ByteString (Parser)
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
-import Data.Semigroup (Semigroup)
-import Data.Char
 import Data.Hashable (Hashable)
-import Data.String (IsString (..))
-import Data.Text (Text)
 import Data.Text.Encoding (decodeLatin1, decodeUtf8')
 #ifdef WITH_CQL
 import Database.CQL.Protocol hiding (Ascii, check)
@@ -69,7 +64,6 @@ import Database.CQL.Protocol hiding (Ascii, check)
 #ifdef WITH_ARBITRARY
 import Test.QuickCheck
 #endif
-import GHC.Generics (Generic)
 
 import qualified Data.ByteString.Char8      as C8
 import qualified Data.ByteString.Base16     as B16
@@ -321,4 +315,3 @@ unsafeString :: (Text -> Either String a) -> String -> a
 unsafeString f s = case f (Text.pack s) of
     Right a -> a
     Left  e -> error $ "Data.Text.Ascii.fromString: " ++ e ++ ": " ++ s
-

@@ -16,12 +16,9 @@ module Gundeck.Util.DelayQueue
     , limit
     ) where
 
-import Data.IORef
-import Data.Maybe (isJust)
+import Imports hiding (length)
 import Data.OrdPSQ (OrdPSQ)
 import Data.Tuple (swap)
-import Data.Word (Word64)
-import Prelude hiding (length)
 
 import qualified Data.OrdPSQ as PSQ
 

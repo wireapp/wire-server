@@ -1,9 +1,9 @@
 module System.Metrics.Collectd.Json where
 
+import Imports hiding (ap)
 import Data.Aeson
 import Data.Scientific
 import Data.Sequence hiding (reverse)
-import Data.Text (Text)
 import System.Metrics.Collectd.Json.Path
 
 import qualified Data.HashMap.Strict as Map

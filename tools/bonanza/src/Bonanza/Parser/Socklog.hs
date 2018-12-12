@@ -9,18 +9,17 @@ module Bonanza.Parser.Socklog
     )
 where
 
+import           Imports
 import           Bonanza.Parser.Internal
 import           Bonanza.Parser.IP
 import           Bonanza.Parser.Svlogd
 import           Bonanza.Types
-import           Control.Applicative
-import           Control.Lens                     ((&), (.~), (?~))
+import           Control.Applicative              (optional)
+import           Control.Lens                     ((.~), (?~))
 import           Data.Aeson
 import           Data.Attoparsec.ByteString.Char8
 import           Data.Bifunctor
 import           Data.HashMap.Strict              (fromList)
-import           Data.List                        (intersperse)
-import           Data.Text                        (Text)
 import           Data.Text.Lazy                   (toStrict)
 import           Data.Text.Lazy.Builder           (toLazyText)
 import qualified Data.Text.Lazy.Builder.Int       as T

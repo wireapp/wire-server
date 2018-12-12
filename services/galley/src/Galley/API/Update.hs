@@ -44,22 +44,13 @@ module Galley.API.Update
     ) where
 
 
-import Control.Applicative hiding (empty)
+import Imports
 import Control.Lens
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Trans (lift)
 import Control.Monad.State
-import Data.Bool (bool)
 import Data.Code
-import Data.Foldable
-import Data.Set (Set)
-import Data.List ((\\))
 import Data.Id
-import Data.Maybe (fromMaybe, catMaybes)
 import Data.List1
-import Data.Text (Text)
 import Data.Time
 import Galley.App
 import Galley.API.Error
@@ -79,8 +70,6 @@ import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (_1, _2, setStatus, failure)
 import Network.Wai.Utilities
-import Prelude hiding (any, elem, head)
-import UnliftIO.Concurrent (forkIO)
 
 import qualified Brig.Types.User      as User
 import qualified Data.Map.Strict      as Map

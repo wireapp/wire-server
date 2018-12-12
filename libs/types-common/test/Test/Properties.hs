@@ -6,6 +6,7 @@
 
 module Test.Properties (tests) where
 
+import Imports
 import Data.Aeson as Aeson
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy as L
@@ -15,7 +16,6 @@ import Data.ProtocolBuffers.Internal
 import Data.Serialize
 import Data.Time
 import Data.Time.Clock.POSIX
-import GHC.Stack
 import Data.UUID
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -109,7 +109,7 @@ tests = testGroup "Properties"
                   parseExact = parseTimeM True defaultTimeLocale "%FT%T%QZ"
                   formatRounded = formatTime defaultTimeLocale format t
                   format = "%FT%T." ++ formatMillis t ++ "Z"
-                  formatMillis = Prelude.take 3 . formatTime defaultTimeLocale "%q"
+                  formatMillis = Imports.take 3 . formatTime defaultTimeLocale "%q"
           in testProperty "toUTCTimeMillis" $
              \(t :: UTCTime) ->
                 Just (Util.fromUTCTimeMillis $ Util.toUTCTimeMillis t) == toUTCTimeMillisSlow t

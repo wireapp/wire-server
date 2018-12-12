@@ -24,12 +24,13 @@ flag arbitrary
     default:     False
 
 library
-    default-language: Haskell2010
-    hs-source-dirs:   src
-    ghc-options:      -Wall -O2 -fwarn-tabs
+    default-language:   Haskell2010
+    default-extensions: NoImplicitPrelude
+    hs-source-dirs:     src
+    ghc-options:        -Wall -O2 -fwarn-tabs
     if impl(ghc >= 8)
-        ghc-options:  -fno-warn-redundant-constraints
-    ghc-prof-options: -fprof-auto-exported
+        ghc-options:    -fno-warn-redundant-constraints
+    ghc-prof-options:   -fprof-auto-exported
 
     exposed-modules:
           Data.Code
@@ -63,6 +64,7 @@ library
         , errors                >= 2.0
         , ghc-prim
         , hashable              >= 1.2
+        , imports
         , iproute               >= 1.5
         , optparse-applicative  >= 0.10
         , lens                  >= 4.10
@@ -98,7 +100,9 @@ library
         build-depends: QuickCheck >= 2.9, quickcheck-instances >= 0.3.16
 
 test-suite tests
-    default-language: Haskell2010
+    default-language:   Haskell2010
+    default-extensions: NoImplicitPrelude
+
     type:             exitcode-stdio-1.0
     hs-source-dirs:   test
     main-is:          Main.hs
@@ -113,6 +117,7 @@ test-suite tests
         , cereal
         , bytestring
         , bytestring-conversion
+        , imports
         , protobuf
         , QuickCheck
         , tasty

@@ -2,6 +2,7 @@
 
 module Test.Bonanza.Streaming (tests) where
 
+import           Imports
 import           Bonanza.Parser.Nginz
 import           Bonanza.Parser.Socklog
 import           Bonanza.Parser.Svlogd
@@ -14,7 +15,6 @@ import qualified Data.ByteString.Lazy             as BL
 import           Data.Conduit                     (runConduit, (.|))
 import qualified Data.Conduit.Binary              as Conduit
 import qualified Data.Conduit.List                as Conduit
-import           Data.Text                        (Text)
 import           Test.Bonanza.Arbitrary
 import           Test.Tasty
 import           Test.Tasty.QuickCheck

@@ -4,19 +4,17 @@
 
 module Galley.API where
 
+import Imports hiding (head)
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import Control.Exception (finally)
 import Control.Lens hiding (enum)
-import Control.Monad
 import Data.Aeson (encode)
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion (fromByteString, fromList)
 import Data.Id (UserId, ConvId)
 import Data.Metrics.Middleware as Metrics
 import Data.Misc
 import Data.Range
-import Data.Set (Set)
 import Data.Swagger.Build.Api hiding (def, min, Response)
 import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
@@ -38,7 +36,6 @@ import Network.Wai.Utilities
 import Network.Wai.Utilities.ZAuth
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.Server hiding (serverPort)
-import Prelude hiding (head)
 import Util.Options
 
 import qualified Control.Concurrent.Async      as Async

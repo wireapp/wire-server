@@ -37,26 +37,20 @@ module Data.Misc
     , (<$$>), (<$$$>)
     ) where
 
-import Control.DeepSeq (NFData (..))
+import Imports
 import Control.Lens ((^.), makeLenses)
 import Data.Aeson
-import Data.ByteString (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
-import Data.Char (isSpace)
 import Data.Int (Int64)
 import Data.IP (IP)
-import Safe (readMay)
 import Data.Range
-import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.Word
 #ifdef WITH_CQL
 import Data.ByteString.Lazy (toStrict)
 import Database.CQL.Protocol hiding (unpack)
 #endif
-import GHC.Generics (Generic)
 import Text.Read (Read (..))
 import URI.ByteString hiding (Port)
 
@@ -73,7 +67,7 @@ newtype IpAddr = IpAddr { ipAddr :: IP } deriving (Eq, Ord, Show)
 instance FromByteString IpAddr where
     parser = do
         s <- Chars.takeWhile1 (not . isSpace)
-        case readMay (unpack s) of
+        case readMaybe (unpack s) of
             Nothing -> fail "Failed parsing bytestring as IpAddr."
             Just ip -> return (IpAddr ip)
 
@@ -97,7 +91,7 @@ instance ToJSON IpAddr where
 
 instance FromJSON IpAddr where
     parseJSON = withText "IpAddr" $ \txt ->
-        case readMay (Text.unpack txt) of
+        case readMaybe (Text.unpack txt) of
             Nothing -> fail "Failed parsing IP address."
             Just ip -> return (IpAddr ip)
 
