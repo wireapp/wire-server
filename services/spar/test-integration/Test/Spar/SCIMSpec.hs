@@ -11,11 +11,11 @@
 
 module Test.Spar.SCIMSpec where
 
+import Imports
 import Bilge
 import Bilge.Assert
 import Control.Lens
 import Data.ByteString.Conversion
-import Imports
 import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
 import Spar.Types (ScimTokenInfo(..))
 import Util

@@ -44,6 +44,7 @@ library
         Galley.Intra.User
         Galley.Intra.Util
         Galley.Intra.Client
+        Galley.Intra.Spar
         Galley.Queue
         Galley.Validation
         Galley.Types.Clients

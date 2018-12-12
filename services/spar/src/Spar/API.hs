@@ -65,7 +65,6 @@ app :: Env -> Application
 app ctx = SAML.setHttpCachePolicy
         $ serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @Spar ctx) (api $ sparCtxOpts ctx) :: Server API)
 
--- TODO: re-enable SCIM.api once it's ready to use.
 api :: Opts -> ServerT API Spar
 api opts
      = apiSSO opts
@@ -91,11 +90,15 @@ apiIDP
 
 apiINTERNAL :: ServerT APIINTERNAL Spar
 apiINTERNAL
-     = pure NoContent
+     = internalStatus
+  :<|> internalDeleteTeam
 
 
 appName :: ST
 appName = "spar"
+
+----------------------------------------------------------------------------
+-- SSO API
 
 authreqPrecheck :: Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar NoContent
 authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
@@ -151,6 +154,8 @@ authresp :: Maybe ST -> SAML.AuthnResponseBody -> Spar Void
 authresp ((>>= bindCookieFromHeader) -> cky) = SAML.authresp sparSPIssuer sparResponseURI $
   \resp verdict -> throwError . SAML.CustomServant =<< verdictHandler cky resp verdict
 
+----------------------------------------------------------------------------
+-- IdP API
 
 idpGet :: Maybe UserId -> SAML.IdPId -> Spar IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
@@ -233,3 +238,16 @@ validateNewIdP _idpMetadata _idpExtraInfo = do
     -- creating users in victim teams.
 
   pure SAML.IdPConfig {..}
+
+----------------------------------------------------------------------------
+-- Internal API
+
+internalStatus :: Spar NoContent
+internalStatus = pure NoContent
+
+-- | Cleanup handler that is called by Galley whenever a team is about to
+-- get deleted.
+internalDeleteTeam :: TeamId -> Spar NoContent
+internalDeleteTeam team = do
+  wrapMonadClient $ Data.deleteTeam team
+  pure NoContent

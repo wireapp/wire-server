@@ -156,6 +156,7 @@ type IdpDelete  = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 type APIINTERNAL
      = "status" :> Get '[JSON] NoContent
+  :<|> "teams" :> Capture "team" TeamId :> DeleteNoContent '[JSON] NoContent
 
 
 sparSPIssuer :: SAML.HasConfig m => m SAML.Issuer

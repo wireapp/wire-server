@@ -23,6 +23,7 @@ module Spar.Data
   , getVerdictFormat
   , insertUser
   , getUser
+  , deleteUsersByIssuer
   , insertBindCookie
   , lookupBindCookie
   , storeIdPConfig
@@ -31,12 +32,14 @@ module Spar.Data
   , getIdPIdByIssuer
   , getIdPConfigsByTeam
   , deleteIdPConfig
+  , deleteTeam
 
   -- * SCIM
   , insertScimToken
   , lookupScimToken
   , getScimTokens
   , deleteScimToken
+  , deleteTeamScimTokens
   ) where
 
 import Imports
@@ -209,6 +212,11 @@ getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
     sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
     sel = "SELECT uid FROM user WHERE issuer = ? AND sso_id = ?"
 
+deleteUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
+deleteUsersByIssuer issuer = retry x5 . write del $ params Quorum (Identity issuer)
+  where
+    del :: PrepQuery W (Identity SAML.Issuer) ()
+    del = "DELETE FROM user WHERE issuer = ?"
 
 ----------------------------------------------------------------------
 -- bind cookies
@@ -344,6 +352,21 @@ deleteIdPConfig idp issuer team = retry x5 $ batch $ do
     delTeamIdp :: PrepQuery W (TeamId, SAML.IdPId) ()
     delTeamIdp = "DELETE FROM team_idp WHERE team = ? and idp = ?"
 
+-- | Delete all tokens belonging to a team.
+deleteTeam
+  :: (HasCallStack, MonadClient m)
+  => TeamId -> m ()
+deleteTeam team = do
+    deleteTeamScimTokens team
+    -- Since IdPs are not shared between teams, we can look at the set of IdPs
+    -- used by the team, and remove everything related to those IdPs, too.
+    idps <- getIdPConfigsByTeam team
+    for_ idps $ \idp -> do
+      let idpid = idp ^. SAML.idpId
+          issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+      deleteUsersByIssuer issuer
+      deleteIdPConfig idpid issuer team
+
 ----------------------------------------------------------------------
 -- SCIM
 
@@ -423,3 +446,24 @@ deleteScimToken team tokenid = do
     delByToken :: PrepQuery W (Identity ScimToken) ()
     delByToken = "DELETE FROM team_provisioning_by_token \
                  \WHERE token_ = ?"
+
+-- | Delete all tokens belonging to a team.
+deleteTeamScimTokens
+  :: (HasCallStack, MonadClient m)
+  => TeamId -> m ()
+deleteTeamScimTokens team = do
+  tokens <- retry x5 $ query sel $ params Quorum (Identity team)
+  retry x5 $ batch $ do
+    setType BatchLogged
+    setConsistency Quorum
+    addPrepQuery delByTeam (Identity team)
+    mapM_ (addPrepQuery delByToken) tokens
+  where
+    sel :: PrepQuery R (Identity TeamId) (Identity ScimToken)
+    sel = "SELECT token_ FROM team_provisioning_by_team WHERE team = ?"
+
+    delByTeam :: PrepQuery W (Identity TeamId) ()
+    delByTeam = "DELETE FROM team_provisioning_by_team WHERE team = ?"
+
+    delByToken :: PrepQuery W (Identity ScimToken) ()
+    delByToken = "DELETE FROM team_provisioning_by_token WHERE token_ = ?"

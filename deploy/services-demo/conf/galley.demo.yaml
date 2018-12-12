@@ -16,6 +16,10 @@ gundeck:
   host: 127.0.0.1
   port: 8086
 
+spar:
+  host: 127.0.0.1
+  port: 8088
+
 settings:
   httpPoolSize: 1024
   maxTeamSize: 128
