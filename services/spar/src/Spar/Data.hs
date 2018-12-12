@@ -32,6 +32,7 @@ module Spar.Data
   , getIdPIdByIssuer
   , getIdPConfigsByTeam
   , deleteIdPConfig
+  , deleteTeam
 
   -- * SCIM
   , insertScimToken
@@ -350,6 +351,21 @@ deleteIdPConfig idp issuer team = retry x5 $ batch $ do
 
     delTeamIdp :: PrepQuery W (TeamId, SAML.IdPId) ()
     delTeamIdp = "DELETE FROM team_idp WHERE team = ? and idp = ?"
+
+-- | Delete all tokens belonging to a team.
+deleteTeam
+  :: (HasCallStack, MonadClient m)
+  => TeamId -> m ()
+deleteTeam team = do
+    deleteTeamScimTokens team
+    -- Since IdPs are not shared between teams, we can look at the set of IdPs
+    -- used by the team, and remove everything related to those IdPs, too.
+    idps <- getIdPConfigsByTeam team
+    for_ idps $ \idp -> do
+      let idpid = idp ^. SAML.idpId
+          issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+      deleteUsersByIssuer issuer
+      deleteIdPConfig idpid issuer team
 
 ----------------------------------------------------------------------
 -- SCIM
