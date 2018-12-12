@@ -5,11 +5,9 @@
 
 module Data.List1 where
 
+import Imports
 import Data.List.NonEmpty (NonEmpty)
-import Data.Semigroup (Semigroup)
-import Control.Monad
 import Data.Aeson
-import Data.Foldable (toList)
 #ifdef WITH_CQL
 import Database.CQL.Protocol
 #endif

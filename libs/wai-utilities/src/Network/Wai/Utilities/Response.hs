@@ -2,9 +2,8 @@
 
 module Network.Wai.Utilities.Response where
 
+import Imports
 import Data.Aeson hiding (Error, json)
-import Data.ByteString (ByteString)
-import Data.Text.Lazy (Text)
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Internal
@@ -27,7 +26,7 @@ json = responseLBS status200 [jsonContent] . encode
 jsonContent :: Header
 jsonContent = (hContentType, "application/json")
 
-errorRs :: Status -> Text -> Text -> Response
+errorRs :: Status -> LText -> LText -> Response
 errorRs s l m = errorRs' (Error s l m)
 
 errorRs' :: Error -> Response

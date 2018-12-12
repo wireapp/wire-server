@@ -8,10 +8,9 @@ module Data.Metrics.Buckets
     , toJson
     ) where
 
+import Imports
 import Data.Aeson
 import Data.Atomics.Counter (AtomicCounter)
-import Data.HashMap.Strict (HashMap)
-import Data.List (nub)
 import Data.Text (pack)
 import Data.Vector (Vector, (!))
 

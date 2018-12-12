@@ -14,6 +14,7 @@ module Data.Json.Util
     , Base64ByteString (..)
     ) where
 
+import Imports
 import Control.Lens ((%~), coerced)
 #ifdef WITH_CQL
 import qualified Database.CQL.Protocol as CQL
@@ -23,9 +24,7 @@ import Data.Aeson.Types
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import qualified Data.ByteString.Base64.Lazy as EL
-import Data.Char (isUpper)
 import Data.Fixed
-import Data.String
 import Data.Time.Clock
 import Data.Time.Format (formatTime, parseTimeM)
 import qualified Data.Time.Lens as TL
@@ -33,8 +32,6 @@ import Data.Time.Locale.Compat (defaultTimeLocale)
 import Data.Text (pack)
 import qualified Data.Text.Encoding
 import qualified Data.Text.Encoding.Error
-import GHC.Generics
-import GHC.Stack
 
 append :: Pair -> [Pair] -> [Pair]
 append (_, Null) pp = pp

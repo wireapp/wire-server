@@ -3,18 +3,13 @@
 
 module Network.Wai.Utilities.Request where
 
-import Control.Applicative
+import Imports
 import Control.Error
-import Control.Monad
 import Control.Monad.Catch (MonadThrow, throwM)
-import Control.Monad.IO.Class
 import Data.Aeson
-import Data.ByteString (ByteString)
-import Data.Text.Lazy (Text)
 import Network.HTTP.Types.Status (status400)
 import Network.Wai
 import Pipes
-import Prelude
 
 import qualified Data.ByteString      as B
 import qualified Data.ByteString.Lazy as Lazy
@@ -34,9 +29,9 @@ readBody r = liftIO $ Lazy.fromChunks <$> P.toListM chunks
 parseBody :: (MonadIO m, FromJSON a)
           => Request
 #if MIN_VERSION_errors(2,0,0)
-          -> ExceptT Text m a
+          -> ExceptT LText m a
 #else
-          -> EitherT Text m a
+          -> EitherT LText m a
 #endif
 parseBody r = readBody r >>= hoistEither . fmapL Text.pack . eitherDecode'
 

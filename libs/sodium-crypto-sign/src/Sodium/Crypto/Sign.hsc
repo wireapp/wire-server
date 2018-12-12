@@ -12,8 +12,7 @@ module Sodium.Crypto.Sign
     , verifyWith
     ) where
 
-import Control.Monad
-import Data.ByteString (ByteString)
+import Imports
 import Data.ByteString.Char8 (pack, unpack)
 import Data.ByteString.Base64.URL
 import Foreign hiding (void)
@@ -132,4 +131,3 @@ foreign import ccall unsafe "crypto_sign.h crypto_sign_open"
                        -> CULLong     -- signed message length
                        -> Ptr CUChar  -- public key
                        -> IO CInt
-

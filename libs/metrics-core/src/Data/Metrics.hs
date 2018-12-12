@@ -39,17 +39,11 @@ module Data.Metrics
     , render
     ) where
 
-import Control.Monad
-import Control.Monad.IO.Class
+import Imports hiding (lookup, union)
 import Data.Aeson
 import Data.Atomics.Counter (AtomicCounter)
-import Data.IORef
 import Data.Hashable
-import Data.HashMap.Strict (HashMap)
 import Data.Metrics.Buckets (Buckets)
-import Data.Word
-import Data.Text (Text)
-import Prelude hiding (lookup)
 
 import qualified Data.Atomics.Counter as Atomic
 import qualified Data.Text            as T
@@ -158,7 +152,7 @@ gaugeSub :: MonadIO m => Int -> Path -> Metrics -> m ()
 gaugeSub x = gaugeAdd (-x)
 
 gaugeValue :: MonadIO m => Gauge -> m Int
-gaugeValue (Gauge g) = liftIO $ Atomic.readCounter g 
+gaugeValue (Gauge g) = liftIO $ Atomic.readCounter g
 
 -----------------------------------------------------------------------------
 -- Label specifics
@@ -265,4 +259,3 @@ merge a = expand (expand mempty a)
     subtree t o = case Map.lookup t o of
         Just (Object x) -> x
         _               -> mempty
-

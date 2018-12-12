@@ -11,10 +11,9 @@ module System.Metrics.Collectd.Config
     , typename
     ) where
 
+import Imports
 import Data.Hashable
-import Data.HashMap.Strict (HashMap)
 import Data.Ini
-import Data.Text (Text)
 import System.Metrics.Collectd.Json.Path
 
 import qualified Data.HashMap.Strict as Map

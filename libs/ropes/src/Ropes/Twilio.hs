@@ -23,27 +23,20 @@ module Ropes.Twilio
     , tryTwilio
     ) where
 
-import Control.Applicative
+import Imports hiding (head, length)
 #if MIN_VERSION_errors(2,0,0)
 import Control.Error (ExceptT (..))
 #else
 import Control.Error (EitherT (..))
 #endif
 import Control.Exception
-import Control.Monad.IO.Class
 import Data.Aeson
-import Data.ByteString (ByteString)
 import Data.ISO3166_CountryCodes (CountryCode)
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Maybe (catMaybes)
-import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
-import Data.Traversable (forM)
-import Data.Typeable
 import Network.HTTP.Client
 import Network.HTTP.Types.Status
 import Network.HTTP.Types.URI
-import Prelude hiding (head, length)
 
 import qualified Data.ByteString.Char8 as C
 import qualified Data.List.NonEmpty as N

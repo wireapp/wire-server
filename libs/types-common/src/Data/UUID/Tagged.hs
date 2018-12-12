@@ -9,15 +9,11 @@ module Data.UUID.Tagged
     , unpack
     ) where
 
-import Control.Applicative
-import Control.DeepSeq     (NFData (..))
+import Imports
 import Data.Bits
-import Data.Word
 
 import qualified Data.UUID    as D
 import qualified Data.UUID.V4 as D4
-
-import Prelude
 
 
 -- | Versioned UUID.
