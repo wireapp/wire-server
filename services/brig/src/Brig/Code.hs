@@ -40,23 +40,19 @@ module Brig.Code
     , delete
     ) where
 
+import Imports hiding (lookup)
 import Brig.Data.Instances ()
 import Brig.Email (mkEmailKey, emailKeyUniq)
 import Brig.Phone (mkPhoneKey, phoneKeyUniq)
 import Brig.Types (Email, Phone)
 import Brig.Types.Code (Key (..), Value (..), Timeout (..), KeyValuePair (..))
 import Cassandra hiding (Value)
-import Control.Applicative ((<|>))
-import Control.Monad.IO.Class
-import Data.Int (Int32)
 import Data.Range
 import Data.UUID (UUID)
-import Data.Word
 import Text.Printf (printf)
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.Random (randBytes)
 import OpenSSL.EVP.Digest (getDigestByName, digestBS)
-import Prelude hiding (lookup)
 
 import qualified Data.ByteString    as BS
 import qualified Data.Text          as Text
@@ -272,4 +268,3 @@ toCode k s (val, ttl, retries, email, phone, account) =
             , codeFor     = cf
             , codeAccount = account
             }
-

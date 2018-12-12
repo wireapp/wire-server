@@ -10,6 +10,7 @@
 
 module Brig.API (runServer) where
 
+import Imports hiding (head)
 import Brig.App
 import Brig.AWS (sesQueue)
 import Brig.API.Error
@@ -22,22 +23,16 @@ import Brig.Types.User (NewUserNoSSO(NewUserNoSSO))
 import Brig.Types.User.Auth
 import Brig.User.Email
 import Brig.User.Phone
-import Control.Error
+import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
-import Control.Monad (liftM2, liftM3, unless, void, when)
 import Control.Monad.Catch (finally)
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import Data.Foldable (for_)
-import Data.Traversable (for)
 import Data.Id
-import Data.Int
 import Data.Metrics.Middleware hiding (metrics)
 import Data.Misc (IpAddr (..))
 import Data.Range
-import Data.Text (Text, unpack)
+import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import Galley.Types (UserClients (..))
@@ -48,7 +43,6 @@ import Network.Wai.Routing
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import Prelude hiding (head)
 import Util.Options
 
 import qualified Data.Text.Ascii               as Ascii

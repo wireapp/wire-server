@@ -7,33 +7,27 @@
 
 module Brig.TURN.API (routes) where
 
+import Imports hiding (head)
 import Brig.App
 import Brig.TURN hiding (Env)
 import Brig.Types.TURN
 import Brig.API.Handler
 import Control.Lens
-import Control.Monad.Reader
 import Control.Monad.Random.Class
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Lens
 import Data.Id
 import Data.Range
-import Data.IORef
 import Data.List1 (List1)
-import Data.Foldable (toList)
 import Data.Text.Ascii (AsciiBase64, encodeBase64)
 import Data.Text.Strict.Lens
 import Data.Time.Clock.POSIX (getPOSIXTime)
-import Data.Traversable
-import Data.Word
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (setStatus, result, and, (#))
 import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities hiding (message, code)
 import Network.Wai.Utilities.Swagger (document)
-import Prelude hiding (head)
 import System.Random.Shuffle
 
 import qualified Brig.Types.Swagger            as Doc

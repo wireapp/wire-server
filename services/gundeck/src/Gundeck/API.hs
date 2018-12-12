@@ -4,13 +4,12 @@
 
 module Gundeck.API where
 
+import Imports hiding (head)
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import Control.Exception (finally)
 import Control.Lens hiding (enum)
-import Control.Monad
 import Data.Aeson (encode)
-import Data.ByteString (ByteString)
 import Data.Metrics.Middleware
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response)
@@ -28,7 +27,6 @@ import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.Server hiding (serverPort)
-import Prelude hiding (head)
 import Util.Options
 
 import qualified Control.Concurrent.Async as Async

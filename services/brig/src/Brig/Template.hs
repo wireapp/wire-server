@@ -19,17 +19,12 @@ module Brig.Template
     , template
     ) where
 
+import Imports hiding (readFile)
 import Brig.Types (Locale (..), parseLocale, locToText)
-import Control.Applicative
 import Control.Exception (catchJust)
-import Control.Monad (filterM)
-import Data.Map.Strict (Map)
-import Data.Maybe
-import Data.Text (Text, pack, unpack)
+import Data.Text (pack, unpack)
 import Data.Text.Template (Template, template)
-import System.Directory (doesFileExist, listDirectory, doesDirectoryExist)
 import System.IO.Error (isDoesNotExistError)
-import Prelude hiding (readFile)
 
 import qualified Data.ByteString    as BS
 import qualified Data.Map.Strict    as Map
