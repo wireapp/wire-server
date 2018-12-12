@@ -17,19 +17,17 @@ module Bonanza.Parser.CommonLog
     )
 where
 
+import Imports                          hiding (isSpace)
 import Bonanza.Parser.Internal          hiding (quoted)
 import Bonanza.Parser.IP
 import Bonanza.Parser.Time
 import Bonanza.Types
-import Control.Applicative
+import Control.Applicative              (optional)
 import Control.Lens.Operators
 import Data.Aeson
 import Data.Attoparsec.ByteString.Char8
 import Data.ByteString.Char8            (unpack)
-import Data.Char                        (isUpper)
 import Data.HashMap.Strict              (fromList)
-import Data.Maybe
-import Data.Text                        (Text)
 import Data.Text.Encoding
 import Data.Time                        (UTCTime (..))
 import Network.HTTP.Types.Method

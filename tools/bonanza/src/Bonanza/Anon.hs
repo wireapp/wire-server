@@ -3,10 +3,10 @@ module Bonanza.Anon
     )
 where
 
+import Imports
 import Bonanza.Types
-import Control.Lens        ((%~), (&), _Wrapped', over)
+import Control.Lens        ((%~), _Wrapped', over)
 import Data.HashMap.Strict (filterWithKey)
-import Data.Text           (Text)
 
 
 anonymise :: [Text] -> LogEvent -> LogEvent

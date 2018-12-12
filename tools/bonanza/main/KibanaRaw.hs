@@ -3,10 +3,10 @@
 
 module Main (main) where
 
+import           Imports
 import           Crypto.Hash
 import           Data.Aeson.Encoding      (encodingToLazyByteString, pair, pairs)
 import qualified Data.Aeson.Encoding      as Encoding
-import           Data.ByteString          (ByteString)
 import qualified Data.ByteString.Lazy     as Lazy
 import           Data.Conduit
 import qualified Data.Conduit.Binary      as CB
@@ -20,7 +20,6 @@ import           Data.Version             (showVersion)
 import           Options.Applicative      hiding (action)
 import           Paths_bonanza            (version)
 import           System.Clock
-import           System.IO
 
 
 data Opts = Opts

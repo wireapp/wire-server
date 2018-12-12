@@ -16,20 +16,17 @@ module Bonanza.Streaming.Kibana
     )
 where
 
+import           Imports                    hiding (stripPrefix)
 import           Bonanza.Types
 import           Control.Lens               ((^.))
-import           Control.Monad
 import           Data.Aeson
 import qualified Data.ByteString.Builder    as BB
 import qualified Data.ByteString.Lazy       as BL
 import qualified Data.HashMap.Strict        as Map
-import           Data.Maybe
-import           Data.String
-import           Data.Text                  (Text, pack)
+import           Data.Text                  (pack)
 import qualified Data.Text                  as T
 import           Data.Time
 import           Data.Time.Clock.POSIX      (utcTimeToPOSIXSeconds)
-import           GHC.Generics
 import           Network.BSD                (getHostName)
 import           Network.Socket
 import           System.IO.Unsafe           (unsafePerformIO)

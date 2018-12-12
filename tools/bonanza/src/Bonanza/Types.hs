@@ -34,20 +34,15 @@ module Bonanza.Types
     )
 where
 
+import           Imports             hiding (stripPrefix)
 import           Bonanza.Parser.IP   (IPv4 (..))
 import           Control.Lens
-import           Control.Monad       (mplus, mzero)
 import           Data.Aeson          hiding (Value)
 import qualified Data.Aeson.Types    as Aeson
-import           Data.ByteString     (ByteString)
-import           Data.Char           (toLower)
-import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as M
 import qualified Data.List           as L
-import           Data.Text           (Text)
 import           Data.Text.Encoding  (decodeUtf8)
 import           Data.Time
-import           GHC.Generics        (Generic)
 
 
 -- | Canonical representation of a log record / event

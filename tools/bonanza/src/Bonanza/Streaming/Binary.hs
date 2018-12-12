@@ -6,12 +6,11 @@ module Bonanza.Streaming.Binary
     )
 where
 
+import           Imports
 import           Control.Monad.Catch
 import           Data.Binary.Get
-import           Data.ByteString     (ByteString)
 import qualified Data.ByteString     as BS
 import           Data.Conduit
-import           Data.Typeable
 
 
 data ParseError = ParseError ByteString ByteOffset String

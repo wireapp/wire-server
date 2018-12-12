@@ -4,30 +4,26 @@
 
 module Bonanza.App (runBonanza) where
 
+import           Imports
 import           Bonanza.Anon
 import           Bonanza.Geo
 import           Bonanza.Metrics
 import qualified Bonanza.Streaming.Kibana  as Kibana
 import qualified Bonanza.Streaming.Parser  as Parser
 import qualified Bonanza.Streaming.Snappy  as Snappy
-import           Control.Monad             (foldM, unless, when)
 import qualified Data.Aeson                as Aeson
-import           Data.ByteString           (ByteString)
 import qualified Data.ByteString           as BS
 import qualified Data.ByteString.Lazy      as BL
 import           Data.Conduit              (ConduitM, runConduit, (.|))
 import           Data.Conduit.Binary       (sinkHandle, sourceHandle)
 import qualified Data.Conduit.List         as Conduit
 import qualified Data.Conduit.Zlib         as Conduit
-import           Data.IORef
-import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 import           Data.Time
 import           Data.Version              (showVersion)
 import           Options.Applicative
 import           Paths_bonanza             (version)
 import           System.CPUTime
-import           System.IO                 (stdin, stdout)
 
 
 data Opts = Opts CommonOpts Command

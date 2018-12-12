@@ -9,16 +9,14 @@ module Bonanza.Parser.IP
     )
 where
 
-import           Control.Monad
+import           Imports
 import           Data.Aeson
 import           Data.Attoparsec.ByteString.Char8
 import           Data.Bits
-import           Data.Text                        (Text)
 import           Data.Text.Encoding
 import           Data.Text.Lazy                   (toStrict)
 import           Data.Text.Lazy.Builder           (singleton, toLazyText)
 import qualified Data.Text.Lazy.Builder.Int       as T
-import           Data.Word
 
 
 newtype IPv4 = IPv4 { fromIPv4 :: Word32 }
