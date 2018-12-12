@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP               #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -36,11 +35,6 @@ import qualified Data.Vector                       as V
 import           Network.HTTP.Types.Method
 import           Test.QuickCheck                   hiding ((.&.))
 
-
-#if MIN_VERSION_time(1,5,0)
-#else
-import System.Locale (defaultTimeLocale)
-#endif
 
 --------------------------------------------------------------------------------
 -- Text

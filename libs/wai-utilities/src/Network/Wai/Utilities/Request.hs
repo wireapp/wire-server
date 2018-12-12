@@ -28,11 +28,7 @@ readBody r = liftIO $ Lazy.fromChunks <$> P.toListM chunks
 
 parseBody :: (MonadIO m, FromJSON a)
           => Request
-#if MIN_VERSION_errors(2,0,0)
           -> ExceptT LText m a
-#else
-          -> EitherT LText m a
-#endif
 parseBody r = readBody r >>= hoistEither . fmapL Text.pack . eitherDecode'
 
 parseBody' :: (FromJSON a, MonadIO m, MonadThrow m) => Request -> m a

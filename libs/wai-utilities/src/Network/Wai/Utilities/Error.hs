@@ -37,9 +37,5 @@ instance FromJSON Error where
 
 -- FIXME: This should not live here.
 infixl 5 !>>
-#if MIN_VERSION_errors(2,0,0)
 (!>>) :: Monad m => ExceptT a m r -> (a -> b) -> ExceptT b m r
-#else
-(!>>) :: Monad m => EitherT a m r -> (a -> b) -> EitherT b m r
-#endif
 (!>>) = flip fmapLT
