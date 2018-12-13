@@ -88,8 +88,8 @@ check_prerequisites
 run brig "" ${green}
 run galley "" ${yellow}
 run gundeck "" ${blue} Info
-run cannon "" ${orange} Info
-run cannon "2" ${orange} Info
+run cannon "" ${orange}
+run cannon "2" ${orange}
 run cargohold "" ${purpleish} Info
 run spar "" ${orange}
 
