@@ -19,10 +19,3 @@ cd $HOME
 ulimit -n 131072
 
 exec chpst -u $USER $BIN --config-file=${CONFIG}
-
-
-#    -p ${CANNON_PORT?'unset'} \
-#    --host ${CANNON_HOST?'unset'} \
-#    --external-host ${CANNON_EXTERNAL_HOST:-127.0.0.1} \
-#    --gundeck-host=${CANNON_GUNDECK_HOST?'unset'} \
-#    --gundeck-port=${CANNON_GUNDECK_PORT?'unset'}
