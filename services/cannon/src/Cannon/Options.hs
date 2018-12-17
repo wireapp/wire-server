@@ -31,8 +31,6 @@ data Cannon = Cannon
     , _cannonPort             :: !Word16
     , _cannonExternalHost     :: !(Maybe Text)
     , _cannonExternalHostFile :: !(Maybe FilePath)
-    , _cannonLogLevel         :: !Level
-    , _cannonLogNetStrings    :: !Bool
     } deriving (Eq, Show, Generic)
 
 makeFields ''Cannon
@@ -47,8 +45,10 @@ makeFields ''Gundeck
 deriveApiFieldJSON ''Gundeck
 
 data Opts = Opts
-    { _optsCannon   :: !Cannon
-    , _optsGundeck  :: !Gundeck
+    { _optsCannon         :: !Cannon
+    , _optsGundeck        :: !Gundeck
+    , _optsLogLevel       :: !Level
+    , _optsLogNetStrings  :: !Bool
     } deriving (Eq, Show, Generic)
 
 makeFields ''Opts
