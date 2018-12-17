@@ -48,10 +48,10 @@ import qualified System.IO.Strict            as Strict
 
 mkLogger :: Opts -> IO Logger
 mkLogger o = Logger.new $ Logger.defSettings
-    & Logger.setLogLevel (o^.cannon.logLevel)
+    & Logger.setLogLevel (o^.logLevel)
     & Logger.setOutput Logger.StdOut
     & Logger.setFormat Nothing
-    & Logger.setNetStrings (o^.cannon.logNetStrings)
+    & Logger.setNetStrings (o^.logNetStrings)
 
 run :: Opts -> IO ()
 run o = do
