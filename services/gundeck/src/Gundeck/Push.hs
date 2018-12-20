@@ -165,9 +165,7 @@ compilePushReq (psh, notifsAndTargets) =
     notifsAndTargets & _2 %~ (mconcat . fmap compileTargets . toList)
   where
     compileTargets :: (Recipient, [Presence]) -> [Presence]
-    compileTargets (rcp, pre) = fmap snd
-                              . filter (uncurry (shouldActuallyPush psh))
-                              $ (rcp,) <$> pre
+    compileTargets (rcp, pre) = filter (shouldActuallyPush psh rcp) pre
 
 compilePushResp :: MonadThrow m
                 => Map.Map NotificationId (Notification, Push)
