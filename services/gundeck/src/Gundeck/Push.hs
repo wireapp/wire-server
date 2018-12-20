@@ -13,6 +13,11 @@ module Gundeck.Push
     , addToken
     , listTokens
     , deleteToken
+
+      -- (for testing)
+    , pushAll
+    , MonadPushAll(..)
+    , MonadNativeTarget(..)
     ) where
 
 import Imports
@@ -96,27 +101,37 @@ pushAny' p = do
 
 -- | This class abstracts over all effects in 'pushAll' in order to make unit testing possible.
 -- (Even though we ended up not having any unit tests in the end.)
-class (MonadThrow m, MonadReader Env m) =>  MonadPushAll m where
+class MonadThrow m =>  MonadPushAll m where
+  mpaNotificationTTL  :: m NotificationTTL
   mpaMkNotificationId :: m NotificationId
   mpaListAllPresences :: [UserId] -> m [[Presence]]
   mpaBulkPush         :: [(Notification, [Presence])] -> m [(NotificationId, [Presence])]
   mpaStreamAdd        :: NotificationId -> List1 NotificationTarget -> List1 Aeson.Object -> NotificationTTL -> m ()
-  mpaNativeTargets    :: Push -> [Presence] -> m [Address "no-keys"]
   mpaPushNative       :: Notification -> Push -> [Address "no-keys"] -> m ()
   mpaForkIO           :: m () -> m ()
 
 instance MonadPushAll Gundeck where
+  mpaNotificationTTL  = view (options . optSettings . setNotificationTTL)
   mpaMkNotificationId = mkNotificationId
   mpaListAllPresences = Presence.listAll
   mpaBulkPush         = Web.bulkPush
   mpaStreamAdd        = Stream.add
-  mpaNativeTargets    = nativeTargets
   mpaPushNative       = pushNative
   mpaForkIO           = void . forkIO
 
+class Monad m => MonadNativeTarget m where
+  mntgtLogErr        :: SomeException -> m ()
+  mntgtLookupAddress :: UserId -> m [Address "no-keys"]  -- ^ REFACTOR: rename to 'mntgtLookupAddresses'!
+  mntgtMapAsync      :: (a -> m b) -> [a] -> m [Either SomeException b]
+
+instance MonadNativeTarget Gundeck where
+  mntgtLogErr e = Log.err (msg (val "Failed to get native push address: " +++ show e))
+  mntgtLookupAddress rcp = Data.lookup rcp Data.One
+  mntgtMapAsync = mapAsync
+
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
-pushAll :: MonadPushAll m => [Push] -> m ()
+pushAll :: (MonadPushAll m, MonadNativeTarget m) => [Push] -> m ()
 pushAll pushes = do
     targets :: [(Push, (Notification, List1 (Recipient, [Presence])))]
             <- zip pushes <$> (mkNotificationAndTargets `mapM` pushes)
@@ -131,7 +146,7 @@ pushAll pushes = do
 
     forM_ cassandraTargets $ \(psh, (notif, notifTrgt)) -> unless (psh ^. pushTransient) $
         mpaStreamAdd (ntfId notif) notifTrgt (psh ^. pushPayload)
-          =<< view (options . optSettings . setNotificationTTL)
+          =<< mpaNotificationTTL
 
     mpaForkIO $ do
         -- websockets
@@ -140,7 +155,7 @@ pushAll pushes = do
 
         -- native push
         forM_ resp $ \((notif, psh), alreadySent) -> do
-            natives <- mpaNativeTargets psh alreadySent
+            natives <- nativeTargets psh alreadySent
             mpaPushNative notif psh natives
 
 
@@ -220,17 +235,18 @@ pushNative notif p rcps = do
     let prio = p^.pushNativePriority
     void $ Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
 
-nativeTargets :: Push -> [Presence] -> Gundeck [Address "no-keys"]
+nativeTargets :: forall m. MonadNativeTarget m => Push -> [Presence] -> m [Address "no-keys"]
 nativeTargets p pres =
     let rcps' = filter routeNative (toList (fromRange (p^.pushRecipients)))
-    in mapAsync addresses rcps' >>= fmap concat . mapM check
+    in mntgtMapAsync addresses rcps' >>= fmap concat . mapM check
   where
     -- Interested in native pushes?
     routeNative u = u^.recipientRoute /= RouteDirect
                  && (u^.recipientId /= p^.pushOrigin || p^.pushNativeIncludeOrigin)
 
+    addresses :: Recipient -> m [Address "no-keys"]
     addresses u = do
-        addrs <- Data.lookup (u^.recipientId) Data.One
+        addrs <- mntgtLookupAddress (u^.recipientId)
         return $ preference
                . filter (eligible u)
                $ addrs
@@ -273,8 +289,8 @@ nativeTargets p pres =
             LowPriority  -> ApsStdPreference
             HighPriority -> ApsVoIPPreference
 
-    check (Left  e) = Log.err (msg (val "Failed to get native push address: " +++ show e))
-                   >> return []
+    check :: Either SomeException [a] -> m [a]
+    check (Left  e) = mntgtLogErr e >> return []
     check (Right r) = return r
 
 addToken :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Gundeck Response
