@@ -46,15 +46,15 @@ import Network.AWS.Data
 import qualified Data.Text as Text
 
 newtype ArnEnv     = ArnEnv  { arnEnvText  :: Text } deriving (Show, ToText, FromJSON)
-newtype Account    = Account { fromAccount :: Text } deriving (Eq, Show, ToText, FromJSON)
-newtype EndpointId = EndpointId Text deriving (Eq, Show, ToText)
+newtype Account    = Account { fromAccount :: Text } deriving (Eq, Ord, Show, ToText, FromJSON)
+newtype EndpointId = EndpointId Text deriving (Eq, Ord, Show, ToText)
 
 data SnsArn a = SnsArn
     { _snsAsText  :: !Text
     , _snsRegion  :: !Region
     , _snsAccount :: !Account
     , _snsTopic   :: !a
-    } deriving (Eq, Show)
+    } deriving (Eq, Ord, Show)
 
 data AppTopic = AppTopic
     { _appAsText    :: !Text
@@ -67,7 +67,7 @@ data EndpointTopic = EndpointTopic
     , _endpointTransport :: !Transport
     , _endpointAppName   :: !AppName
     , _endpointId        :: !EndpointId
-    } deriving (Eq, Show)
+    } deriving (Eq, Ord, Show)
 
 type AppArn      = SnsArn AppTopic
 type EndpointArn = SnsArn EndpointTopic

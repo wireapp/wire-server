@@ -26,7 +26,7 @@ data Presence = Presence
                                       -- end-to-end crypto.
     , createdAt :: !Milliseconds
     , __field   :: !Lazy.ByteString -- ^ REFACTOR: temp. addition to ease migration
-    } deriving (Eq, Show)
+    } deriving (Eq, Ord, Show)
 
 instance ToJSON Presence where
     toJSON p = object
