@@ -150,8 +150,7 @@ pushAll pushes = do
 
     mpaForkIO $ do
         -- websockets
-        let notifIdMap = Map.fromList $ (\(psh, (notif, _)) -> (ntfId notif, (notif, psh))) <$> targets
-        resp <- mapM (compilePushResp notifIdMap) =<< mpaBulkPush (compilePushReq <$> targets)
+        resp <- compilePushResps targets <$> mpaBulkPush (compilePushReq <$> targets)
 
         -- native push
         forM_ resp $ \((notif, psh), alreadySent) -> do
@@ -167,14 +166,13 @@ compilePushReq (psh, notifsAndTargets) =
     compileTargets :: (Recipient, [Presence]) -> [Presence]
     compileTargets (rcp, pre) = filter (shouldActuallyPush psh rcp) pre
 
-compilePushResp :: MonadThrow m
-                => Map.Map NotificationId (Notification, Push)
-                -> (NotificationId, [Presence])
-                -> m ((Notification, Push), [Presence])
-compilePushResp notifIdMap (notifId, prcs) = (, prcs) <$> lkup
-  where
-    lkup          = maybe (throwM internalError) pure $ Map.lookup notifId notifIdMap
-    internalError = ErrorCall "bulkpush: dangling notificationId in response!"
+compilePushResps
+  :: [(Push, (Notification, any))]
+  -> [(NotificationId, [Presence])]
+  -> [((Notification, Push), [Presence])]
+compilePushResps notifIdMap (Map.fromList -> deliveries) =
+  notifIdMap <&>
+    (\(psh, (notif, _)) -> ((notif, psh), fromMaybe [] (Map.lookup (ntfId notif) deliveries)))
 
 
 -- | Look up 'Push' recipients in Redis, construct a notifcation, and return all the data needed for
