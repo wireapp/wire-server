@@ -18,7 +18,7 @@ module Push where
 import Imports
 import Control.Lens
 import Data.String.Conversions (cs)
-import Gundeck.Push (pushAll)
+import Gundeck.Push (pushAll, pushAny)
 import Gundeck.Push.Websocket as Web (bulkPush)
 import Gundeck.Types
 import MockGundeck
@@ -99,8 +99,11 @@ pushAllProp env (Pretty pushes) = counterexample (cs $ Aeson.encode (env, pushes
   where
     ((), realst) = runMockGundeck env (pushAll pushes)
     ((), mockst) = runMockGundeck env (mockPushAll pushes)
+    (errs, oldst) = runMockGundeck env (pushAny pushes)
     props = [ (Aeson.eitherDecode . Aeson.encode) pushes === Right pushes
             , (Aeson.eitherDecode . Aeson.encode) env === Right env
+            , whipeRandomGen realst === whipeRandomGen oldst
+            , isRight errs === True
             , whipeRandomGen realst === mockst
             ]
 

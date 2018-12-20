@@ -15,9 +15,10 @@ module Gundeck.Push
     , deleteToken
 
       -- (for testing)
-    , pushAll
+    , pushAll, pushAny
     , MonadPushAll(..)
     , MonadNativeTarget(..)
+    , MonadPushAny(..)
     ) where
 
 import Imports
@@ -94,6 +95,8 @@ instance MonadPushAll Gundeck where
   mpaPushNative       = pushNative
   mpaForkIO           = void . forkIO
 
+-- | REFACTOR: merge 'MonadNativeTarget' with 'MonadPushAll'?  the distinction used to *almost* make
+-- sense for 'pushAll', but now that it's also used in 'pushAny' i'm not sure any more.
 class Monad m => MonadNativeTarget m where
   mntgtLogErr        :: SomeException -> m ()
   mntgtLookupAddress :: UserId -> m [Address "no-keys"]  -- ^ REFACTOR: rename to 'mntgtLookupAddresses'!
@@ -104,27 +107,44 @@ instance MonadNativeTarget Gundeck where
   mntgtLookupAddress rcp = Data.lookup rcp Data.One
   mntgtMapAsync = mapAsync
 
--- | Send individual HTTP requests to cannon for every device and notification.  This should go away
--- in the future, once 'pushAll' has been proven to always do the same thing.
-pushAny :: [Push] -> Gundeck (Either (Seq.Seq SomeException) ())
-pushAny ps = collectErrors <$> mapAsync pushAny' ps
+class (MonadPushAll m, MonadNativeTarget m) => MonadPushAny m where
+  mpyPush :: Notification
+          -> List1 NotificationTarget
+          -> UserId
+          -> Maybe ConnId
+          -> Set ConnId
+          -> m [Presence]
+
+instance MonadPushAny Gundeck where
+  mpyPush = Web.push
+
+-- | Send individual HTTP requests to cannon for every device and notification.
+--
+-- REFACTOR: This should go away in the future, once 'pushAll' has been proven to always do the same
+-- thing.  also check what types this removal would make unnecessary.
+pushAny
+  :: forall m. (MonadPushAny m)
+  => [Push] -> m (Either (Seq.Seq SomeException) ())
+pushAny ps = collectErrors <$> mntgtMapAsync pushAny' ps
   where
     collectErrors :: [Either SomeException ()] -> Either (Seq.Seq SomeException) ()
     collectErrors = runAllE . foldMap (AllE . fmapL Seq.singleton)
 
-pushAny' :: Push -> Gundeck ()
+pushAny'
+  :: forall m. (MonadPushAny m)
+  => Push -> m ()
 pushAny' p = do
-    i <- mkNotificationId
+    i <- mpaMkNotificationId
     let pload = p^.pushPayload
     let notif = Notification i (p^.pushTransient) pload
     let rcps  = fromRange (p^.pushRecipients)
     let uniq  = uncurry list1 $ head &&& tail $ toList rcps
     let tgts  = mkTarget <$> uniq
     unless (p^.pushTransient) $
-        Stream.add i tgts pload =<< view (options.optSettings.setNotificationTTL)
-    void . forkIO $ do
-        prs <- Web.push notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
-        pushNative notif p =<< nativeTargets p prs
+        mpaStreamAdd i tgts pload =<< mpaNotificationTTL
+    mpaForkIO $ do
+        prs <- mpyPush notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
+        mpaPushNative notif p =<< nativeTargets p prs
   where
     mkTarget :: Recipient -> NotificationTarget
     mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients

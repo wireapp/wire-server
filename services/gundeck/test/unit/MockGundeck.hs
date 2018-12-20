@@ -359,6 +359,9 @@ instance MonadNativeTarget MockGundeck where
   mntgtLookupAddress = mockLookupAddress
   mntgtMapAsync f xs = Right <$$> mapM f xs  -- (no concurrency)
 
+instance MonadPushAny MockGundeck where
+  mpyPush = mockOldSimpleWebPush
+
 instance MonadBulkPush MockGundeck where
   mbpBulkSend = mockBulkSend
   mbpDeleteAllPresences _ = pure ()  -- TODO: test presence deletion logic
@@ -546,24 +549,53 @@ mockBulkSend
   => URI -> BulkPushRequest
   -> m (URI, Either SomeException BulkPushResponse)
 mockBulkSend uri notifs = do
-  reachables :: Set PushTarget
-    <- Set.map (uncurry PushTarget . (_2 %~ fakeConnId)) <$> asks (^. meWSReachable)
-
-  let getstatus trgt = if trgt `Set.member` reachables
-                       then PushStatusOk
-                       else PushStatusGone
-
-      flat :: [(Notification, PushTarget)]
+  getstatus <- mkWSStatus
+  let flat :: [(Notification, PushTarget)]
       flat = case notifs of
         (BulkPushRequest ntifs) ->
           mconcat $ (\(ntif, trgts) -> (ntif,) <$> trgts) <$> ntifs
 
   forM_ flat $ \(ntif, ptgt) -> do
     when (getstatus ptgt == PushStatusOk) $ do
-      modify $ msWSQueue %~ \queue -> deliver queue (ptUserId ptgt, clientIdFromConnId $ ptConnId ptgt) (ntfPayload ntif)
+      modify $ msWSQueue %~ \queue ->
+        deliver queue (ptUserId ptgt, clientIdFromConnId $ ptConnId ptgt) (ntfPayload ntif)
 
   pure . (uri,) . Right $ BulkPushResponse
     [ (ntfId ntif, trgt, getstatus trgt) | (ntif, trgt) <- flat ]
+
+mockOldSimpleWebPush
+  :: (HasCallStack, m ~ MockGundeck)
+  => Notification
+  -> List1 NotificationTarget
+  -> UserId
+  -> Maybe ConnId
+  -> Set ConnId
+  -> m [Presence]
+mockOldSimpleWebPush _ _ _ _ (Set.null -> False) =
+  error "connection whitelists are not implemented in this test."
+  -- TODO: i guess we could test this.
+
+mockOldSimpleWebPush notif tgts _senderid mconnid _ = do
+  getstatus <- mkWSStatus
+  let clients :: [(UserId, ClientId)]
+      clients
+        = -- reformat
+          fmap (\(PushTarget uid connid) -> (uid, clientIdFromConnId connid))
+          -- drop all broken web sockets
+        . filter ((== PushStatusOk) . getstatus)
+          -- do not push to sending device
+        . filter ((/= mconnid) . Just . ptConnId)
+          -- reformat
+        . mconcat . fmap (\tgt ->
+                            PushTarget (tgt ^. targetUser) . fakeConnId
+                              <$> (tgt ^. targetClients))
+        $ toList tgts
+
+  forM_ clients $ \(userid, clientid) -> do
+    modify $ msWSQueue %~ \queue ->
+      deliver queue (userid, clientid) (ntfPayload notif)
+
+  pure $ uncurry fakePresence <$> clients
 
 
 ----------------------------------------------------------------------
@@ -578,3 +610,9 @@ deliver queue qkey qval = Map.alter (Just . tweak) qkey queue
 payloadToInt :: Payload -> Int
 payloadToInt (List1 (toList -> [toList -> [Number x]])) = round $ toRational (x * 100)
 payloadToInt bad = error $ "unexpected Payload: " <> show bad
+
+mkWSStatus :: MockGundeck (PushTarget -> PushStatus)
+mkWSStatus = do
+  reachables :: Set PushTarget
+    <- Set.map (uncurry PushTarget . (_2 %~ fakeConnId)) <$> asks (^. meWSReachable)
+  pure $ \trgt -> if trgt `Set.member` reachables then PushStatusOk else PushStatusGone
