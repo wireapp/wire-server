@@ -83,6 +83,7 @@ data MockState = MockState
   { _msNonRandomGen    :: StdGen
   , _msWSQueue         :: NotifQueue
   , _msNativeQueue     :: NotifQueue
+  , _msCassQueue       :: NotifQueue
   }
   deriving (Eq, Show)
 
@@ -98,10 +99,11 @@ whipeRandomGen :: MockState -> MockState
 whipeRandomGen = msNonRandomGen .~ (mempty ^. msNonRandomGen)
 
 instance Semigroup MockState where
-  (MockState _ ws nat) <> (MockState gen ws' nat') = MockState gen (ws <> ws') (nat <> nat')
+  (MockState _ ws nat cass) <> (MockState gen ws' nat' cass') =
+    MockState gen (ws <> ws') (nat <> nat') (cass <> cass')
 
 instance Monoid MockState where
-  mempty = MockState (mkStdGen 0) mempty mempty
+  mempty = MockState (mkStdGen 0) mempty mempty mempty
 
 -- (serializing test cases makes replay easier.)
 instance ToJSON MockEnv where
@@ -382,8 +384,9 @@ mockPushAll
   => [Push] -> m ()
 mockPushAll pushes = do
   env <- ask
-  modify $ (msWSQueue .~ expectWS env)
+  modify $ (msWSQueue     .~ expectWS env)
          . (msNativeQueue .~ expectNative env)
+         . (msCassQueue   .~ expectCass)
   where
     expectWS :: MockEnv -> NotifQueue
     expectWS env
@@ -457,6 +460,17 @@ mockPushAll pushes = do
         -- otherwise, no special hidden meaning.
         insertAllClients same@(_, (Recipient _ _ (_:_), _)) = [same]
 
+    expectCass :: NotifQueue
+    expectCass = foldl' (uncurry . deliver) mempty . mconcat $ go <$> pushes
+      where
+        go :: Push -> [((UserId, ClientId), Payload)]
+        go psh =
+          [ ((uid, cid), psh ^. pushPayload)
+          | not $ psh ^. pushTransient
+          , Recipient uid _ cids <- toList . fromRange $ psh ^. pushRecipients
+          , cid <- cids
+          ]
+
     reformat :: [(Recipient, Payload)] -> [((UserId, ClientId), Payload)]
     reformat = mconcat . fmap go
       where
@@ -519,7 +533,8 @@ mockBulkPush notifs = do
 
   forM_ delivered $ \(notif, prcs) -> do
     forM_ prcs $ \prc -> do
-      modify $ msWSQueue %~ \queue -> deliver queue (userId prc, clientIdFromConnId $ connId prc) (ntfPayload notif)
+      modify $ msWSQueue %~ \queue ->
+        deliver queue (userId prc, clientIdFromConnId $ connId prc) (ntfPayload notif)
 
   pure $ (_1 %~ ntfId) <$> delivered
 
@@ -527,7 +542,11 @@ mockBulkPush notifs = do
 mockStreamAdd
   :: (HasCallStack, m ~ MockGundeck)
   => NotificationId -> List1 NotificationTarget -> Payload -> NotificationTTL -> m ()
-mockStreamAdd _ _ _ _ = pure ()
+mockStreamAdd _ (toList -> targets) pay _ =
+  forM_ targets $ \tgt ->
+    forM_ (tgt ^. targetClients) $ \cid ->
+      modify $ msCassQueue %~ \queue ->
+        deliver queue (tgt ^. targetUser, cid) pay
 
 mockPushNative
   :: (HasCallStack, m ~ MockGundeck)
@@ -535,7 +554,8 @@ mockPushNative
 mockPushNative _nid ((^. pushPayload) -> payload) addrs = do
   (flip elem -> isreachable) <- asks (^. meNativeReachable)
   forM_ addrs $ \addr -> do
-    when (isreachable addr) . modify $ msNativeQueue %~ \queue -> deliver queue (addr ^. addrUser, addr ^. addrClient) payload
+    when (isreachable addr) . modify $ msNativeQueue %~ \queue ->
+      deliver queue (addr ^. addrUser, addr ^. addrClient) payload
 
 mockLookupAddress
   :: (HasCallStack, m ~ MockGundeck)

@@ -108,9 +108,6 @@ pushAllProp env (Pretty pushes) = counterexample (cs $ Aeson.encode (env, pushes
             ]
 
 
-      -- TODO: test: meCassQueue (to be introduced) contains exactly those notifications that are
-      --       non-transient.
-
       -- TODO: test Presences with @ClientId = Nothing@ (what does this even mean?  where does this
       --       happen?  i think it can't happen in pushAll...)
 
