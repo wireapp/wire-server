@@ -98,8 +98,8 @@ pushAny' p = do
 -- (Even though we ended up not having any unit tests in the end.)
 class (MonadThrow m, MonadReader Env m) =>  MonadPushAll m where
   mpaMkNotificationId :: m NotificationId
-  mpaListAllPresences :: ([UserId] -> m [[Presence]])
-  mpaBulkPush         :: ([(Notification, [Presence])] -> m [(NotificationId, [Presence])])
+  mpaListAllPresences :: [UserId] -> m [[Presence]]
+  mpaBulkPush         :: [(Notification, [Presence])] -> m [(NotificationId, [Presence])]
   mpaStreamAdd        :: NotificationId -> List1 NotificationTarget -> List1 Aeson.Object -> NotificationTTL -> m ()
   mpaNativeTargets    :: Push -> [Presence] -> m [Address "no-keys"]
   mpaPushNative       :: Notification -> Push -> [Address "no-keys"] -> m ()
