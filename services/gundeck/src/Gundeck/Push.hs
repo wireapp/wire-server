@@ -122,7 +122,6 @@ pushAll pushes = do
             <- zip pushes <$> (mkNotificationAndTargets `mapM` pushes)
 
     -- persist push request
-
     let cassandraTargets :: [(Push, (Notification, List1 NotificationTarget))]
         cassandraTargets = (_2 . _2 %~ (mkNotificationTarget . fst <$>)) <$> targets
           where
@@ -136,12 +135,10 @@ pushAll pushes = do
 
     mpaForkIO $ do
         -- websockets
-
         let notifIdMap = Map.fromList $ (\(psh, (notif, _)) -> (ntfId notif, (notif, psh))) <$> targets
         resp <- mapM (compilePushResp notifIdMap) =<< mpaBulkPush (compilePushReq <$> targets)
 
         -- native push
-
         forM_ resp $ \((notif, psh), alreadySent) -> do
             natives <- mpaNativeTargets psh alreadySent
             mpaPushNative notif psh natives
