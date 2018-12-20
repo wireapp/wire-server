@@ -144,6 +144,7 @@ pushAll pushes = do
             mpaPushNative notif psh natives
 
 
+-- REFACTOR: @[Presence]@ here should be @newtype WebSockedDelivered = WebSockedDelivered [Presence]@
 compilePushReq :: (Push, (Notification, List1 (Recipient, [Presence]))) -> (Notification, [Presence])
 compilePushReq (psh, notifsAndTargets) =
     notifsAndTargets & _2 %~ (mconcat . fmap compileTargets . toList)

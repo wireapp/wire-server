@@ -72,8 +72,10 @@ import qualified Data.Set               as Set
 
 data Route
     = RouteAny
-    | RouteDirect
-    | RouteNative
+    | RouteDirect  -- ^ 'RouteDirect' messages are different from transient messages: they do not
+                   -- trigger native pushes if the web socket is unavaiable, but they are stored in
+                   -- cassandra for later pickup.
+    | RouteNative  -- ^ REFACTOR: this can probably be removed.
     deriving (Eq, Ord, Show)
 
 instance FromJSON Route where
@@ -93,7 +95,11 @@ instance ToJSON Route where
 data Recipient = Recipient
     { _recipientId        :: !UserId
     , _recipientRoute     :: !Route
-    , _recipientClients   :: ![ClientId]
+    , _recipientClients   :: ![ClientId]  -- ^ REFACTOR: if the client list is empty, that means
+                                          -- "all clients".  reshape this into @data
+                                          -- RecipientClients = RecipientClientsAll |
+                                          -- RecipientClientsSome (NonEmpty CientId)@ (without
+                                          -- changing the json representation).
     } deriving (Show)
 
 instance Eq Recipient where
@@ -177,6 +183,8 @@ instance FromJSON ApsData where
 -----------------------------------------------------------------------------
 -- Priority
 
+-- | REFACTOR: do we every ues LowPriority?  easy to test, just remove the constructor.  if it is
+-- not used anywhere, consider removing the entire type, or just the unused constructor.
 data Priority = LowPriority | HighPriority
     deriving (Eq, Show, Ord, Enum)
 
@@ -197,18 +205,21 @@ data Push = Push
     { _pushRecipients :: Range 1 1024 (Set Recipient)
       -- ^ Recipients
       --
-      -- TODO: should be @Set (Recipient, Maybe (NonEmptySet ConnId))@, and '_pushConnections'
-      -- should go away.  Rationale: the current setup only works under the assumption that no
-      -- 'ConnId' is used by two 'Recipient's.  This is *probably* correct, but not in any contract.
-      -- Coincidentally, where are we using '_pushConnections' to limit pushes to individual
-      -- devices?  Is it possible we can remove '_pushConnections' without touching
+      -- REFACTOR: '_pushRecipients' should be @Set (Recipient, Maybe (NonEmptySet ConnId))@, and
+      -- '_pushConnections' should go away.  Rationale: the current setup only works under the
+      -- assumption that no 'ConnId' is used by two 'Recipient's.  This is *probably* correct, but
+      -- not in any contract.  Coincidentally, where are we using '_pushConnections' to limit pushes
+      -- to individual devices?  Is it possible we can remove '_pushConnections' without touching
       -- '_pushRecipients'?
-      --
-      -- REFACTOR: is it possible that 'pushOrigin' has been refactored away in #531?
     , _pushOrigin :: !UserId
       -- ^ Originating user
+      --
+      -- REFACTOR: is it possible that 'pushOrigin' has been refactored away in #531?
     , _pushConnections :: !(Set ConnId)
-      -- ^ Destination connections, if a directed push is desired.
+      -- ^ Destination connections.  If empty, ignore.  Otherwise, filter the connections derived
+      -- from '_pushRecipients' and only push to those contained in this set.
+      --
+      -- REFACTOR: change this to @_pushConnectionWhitelist :: Maybe (Set ConnId)@.
     , _pushOriginConnection :: !(Maybe ConnId)
       -- ^ Originating connection, if any.
     , _pushTransient :: !Bool
@@ -222,7 +233,7 @@ data Push = Push
       -- REFACTOR: this make no sense any more since native push notifications have no more payload.
       -- https://github.com/wireapp/wire-server/pull/546
     , _pushNativeAps :: !(Maybe ApsData)
-      -- ^ APNs-specific metadata.
+      -- ^ APNs-specific metadata.  REFACTOR: can this be removed?
     , _pushNativePriority :: !Priority
       -- ^ Native push priority.
     , _pushPayload :: !(List1 Object)

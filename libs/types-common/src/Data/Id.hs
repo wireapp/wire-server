@@ -66,6 +66,8 @@ newtype Id a = Id
     { toUUID :: UUID
     } deriving (Eq, Ord, Generic, NFData)
 
+-- REFACTOR: non-derived, custom show instances break pretty-show and violate the law
+-- that @show . read == id@.  can we derive Show here?
 instance Show (Id a) where
     show = toString . toUUID
 
@@ -135,10 +137,11 @@ instance Arbitrary (Id a) where
 
 -- ConnId ----------------------------------------------------------------------
 
--- | Handle for a device.  Used mostly by Cannon and Gundeck to identify a websocket connection.
--- Historically, it is older than 'ClientId' and precedes end-to-end encryption, but it may be
--- replaced by 'ClientId' at some point in the future.  Unique only together with a 'UserId', stored
--- in Redis, lives as long as the device is connected.
+-- | Handle for a device.  Derived from the access token (see 'Data.ZAuth.Token.Access').  Unique
+-- only together with a 'UserId'.  Historically, it is older than 'ClientId' and precedes end-to-end
+-- encryption, but there are still situations in which 'ClientId' is not applicable (See also:
+-- 'Presence').  Used by Cannon and Gundeck to identify a websocket connection, but also in other
+-- places.
 newtype ConnId = ConnId
     { fromConnId :: ByteString
     } deriving ( Eq

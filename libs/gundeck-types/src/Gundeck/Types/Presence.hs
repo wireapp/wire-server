@@ -14,13 +14,18 @@ import Gundeck.Types.Common as Common
 
 import qualified Data.ByteString.Lazy as Lazy
 
+-- | This is created in gundeck by cannon every time the client opens a new websocket connection.
+-- (That's why we always have a 'ConnId' from the most recent connection by that client.)
 data Presence = Presence
     { userId    :: !UserId
     , connId    :: !ConnId
     , resource  :: !URI  -- ^ cannon instance hosting the presence
-    , clientId  :: !(Maybe ClientId)
+    , clientId  :: !(Maybe ClientId)  -- ^ This is 'Nothing' if either (a) the presence is older
+                                      -- than mandatory end-to-end encryption, or (b) the client is
+                                      -- operating the team settings pages without the need for
+                                      -- end-to-end crypto.
     , createdAt :: !Milliseconds
-    , __field   :: !Lazy.ByteString -- temp. addition to ease migration
+    , __field   :: !Lazy.ByteString -- ^ REFACTOR: temp. addition to ease migration
     } deriving (Eq, Show)
 
 instance ToJSON Presence where

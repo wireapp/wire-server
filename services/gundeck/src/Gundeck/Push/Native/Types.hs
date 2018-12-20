@@ -34,6 +34,9 @@ import Gundeck.Aws.Arn
 import Gundeck.Types
 
 -- | Native push address information of a device.
+--
+-- REFACTOR: the @s@ phantom type can probably go away, too!
+-- REFACTOR: PushToken is embedded in this type, that should probably become a tree?  especially since EnpointArn is also nested.
 data Address (s :: Symbol) = Address
     { _addrUser      :: !UserId
     , _addrTransport :: !Transport
