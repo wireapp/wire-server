@@ -1,0 +1,74 @@
+[
+   {
+      "meNativeReachable" : [
+         {
+            "addrClient" : "66a1e911da",
+            "addrEndpoint" : [
+               "V",
+               "APNS",
+               "AppName"
+            ],
+            "addrUser" : "3bd3364a-6079-4b79-8768-1bb105fcc302",
+            "addrApp" : "AppName",
+            "addrConn" : "66a1e911da",
+            "addrToken" : "tok",
+            "addrTransport" : "APNS"
+         }
+      ],
+      "meNativeAddress" : [
+         [
+            "3bd3364a-6079-4b79-8768-1bb105fcc302",
+            [
+               [
+                  "66a1e911da",
+                  {
+                     "addrConn" : "66a1e911da",
+                     "addrTransport" : "APNS",
+                     "addrToken" : "tok",
+                     "addrApp" : "AppName",
+                     "addrEndpoint" : [
+                        "V",
+                        "APNS",
+                        "AppName"
+                     ],
+                     "addrUser" : "3bd3364a-6079-4b79-8768-1bb105fcc302",
+                     "addrClient" : "66a1e911da"
+                  }
+               ]
+            ]
+         ]
+      ],
+      "meWSReachable" : [],
+      "meRecipients" : [
+         {
+            "user_id" : "3bd3364a-6079-4b79-8768-1bb105fcc302",
+            "clients" : [
+               "66a1e911da"
+            ],
+            "route" : "any"
+         }
+      ]
+   },
+   [
+      [
+         {
+            "transient" : false,
+            "payload" : [
+               {
+                  "val" : -2
+               }
+            ],
+            "id" : "1e81f02f-ee55-424d-a367-39c23fbb869b"
+         },
+         [
+            {
+               "client_id" : "66a1e911da",
+               "created_at" : 0,
+               "user_id" : "3bd3364a-6079-4b79-8768-1bb105fcc302",
+               "resource" : "http://example.com",
+               "device_id" : "66a1e911da"
+            }
+         ]
+      ]
+   ]
+]

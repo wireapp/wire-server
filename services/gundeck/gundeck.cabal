@@ -176,25 +176,41 @@ test-suite gundeck-tests
     other-modules:
         DelayQueue
         Json
+        MockGundeck
         Native
+        Push
 
     build-depends:
         base
       , aeson
+      , aeson-pretty
       , amazonka
       , base64-bytestring
       , bytestring
-      , HsOpenSSL
+      , containers
+      , exceptions
+      , filepath
       , gundeck
       , gundeck-types
+      , HsOpenSSL
+      , imports
       , lens
+      , mtl
+      , network-uri
+      , QuickCheck
+      , quickcheck-instances
+      , random
+      , string-conversions
       , tasty
       , tasty-hunit
       , tasty-quickcheck
       , text
+      , tinylog
+      , transformers
       , types-common
       , unordered-containers
-      , imports
+      , uuid
+      , vector
 
 benchmark gundeck-bench
     type:             exitcode-stdio-1.0

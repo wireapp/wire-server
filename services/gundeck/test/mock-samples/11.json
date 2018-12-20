@@ -1,0 +1,68 @@
+[
+   {
+      "meNativeAddress" : [],
+      "meWSReachable" : [
+         [
+            "01d2440a-872a-43a1-bed1-4ad3d2aa56a4",
+            "b15aa10155"
+         ],
+         [
+            "01d2440a-872a-43a1-bed1-4ad3d2aa56a4",
+            "fb4917d29b"
+         ]
+      ],
+      "meNativeReachable" : [],
+      "meRecipients" : [
+         {
+            "clients" : [
+               "b15aa10155",
+               "fb4917d29b"
+            ],
+            "route" : "any",
+            "user_id" : "01d2440a-872a-43a1-bed1-4ad3d2aa56a4"
+         }
+      ]
+   },
+   [
+      [
+         {
+            "transient" : false,
+            "id" : "35b82af2-d028-48f6-8d03-eac231884bef",
+            "payload" : [
+               {
+                  "val" : 3
+               }
+            ]
+         },
+         [
+            {
+               "created_at" : 0,
+               "user_id" : "01d2440a-872a-43a1-bed1-4ad3d2aa56a4",
+               "client_id" : "b15aa10155",
+               "resource" : "http://example.com",
+               "device_id" : "b15aa10155"
+            }
+         ]
+      ],
+      [
+         {
+            "id" : "1fbd3251-2fa1-4fed-a241-0766254b6b55",
+            "payload" : [
+               {
+                  "val" : 0
+               }
+            ],
+            "transient" : true
+         },
+         [
+            {
+               "device_id" : "b15aa10155",
+               "user_id" : "01d2440a-872a-43a1-bed1-4ad3d2aa56a4",
+               "resource" : "http://example.com",
+               "client_id" : "b15aa10155",
+               "created_at" : 0
+            }
+         ]
+      ]
+   ]
+]

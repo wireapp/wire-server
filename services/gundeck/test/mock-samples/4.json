@@ -1,0 +1,95 @@
+[
+   {
+      "meStdGen" : "1 1",
+      "meNativeAddress" : [
+         [
+            "3346f236-3019-47f5-8f85-0a6298f34f3d",
+            [
+               [
+                  "21646ab13b",
+                  {
+                     "addrToken" : "tok",
+                     "addrApp" : "AppName",
+                     "addrEndpoint" : [
+                        "M",
+                        "APNS_SANDBOX",
+                        "AppName"
+                     ],
+                     "addrTransport" : "APNS_SANDBOX",
+                     "addrConn" : "21646ab13b",
+                     "addrClient" : "21646ab13b",
+                     "addrUser" : "3346f236-3019-47f5-8f85-0a6298f34f3d"
+                  }
+               ],
+               [
+                  "a74d29f320",
+                  {
+                     "addrUser" : "3346f236-3019-47f5-8f85-0a6298f34f3d",
+                     "addrClient" : "a74d29f320",
+                     "addrConn" : "a74d29f320",
+                     "addrTransport" : "APNS_SANDBOX",
+                     "addrEndpoint" : [
+                        "M",
+                        "APNS_SANDBOX",
+                        "AppName"
+                     ],
+                     "addrApp" : "AppName",
+                     "addrToken" : "tok"
+                  }
+               ]
+            ]
+         ]
+      ],
+      "meNativeReachable" : [
+         {
+            "addrToken" : "tok",
+            "addrApp" : "AppName",
+            "addrTransport" : "APNS_SANDBOX",
+            "addrEndpoint" : [
+               "M",
+               "APNS_SANDBOX",
+               "AppName"
+            ],
+            "addrConn" : "21646ab13b",
+            "addrClient" : "21646ab13b",
+            "addrUser" : "3346f236-3019-47f5-8f85-0a6298f34f3d"
+         }
+      ],
+      "meWSReachable" : [
+         [
+            "3346f236-3019-47f5-8f85-0a6298f34f3d",
+            "a74d29f320"
+         ]
+      ],
+      "meRecipients" : [
+         {
+            "clients" : [
+               "21646ab13b",
+               "a74d29f320"
+            ],
+            "user_id" : "3346f236-3019-47f5-8f85-0a6298f34f3d",
+            "route" : "any"
+         }
+      ]
+   },
+   [
+      {
+         "payload" : [
+            {
+               "val" : 2
+            }
+         ],
+         "recipients" : [
+            {
+               "route" : "any",
+               "user_id" : "3346f236-3019-47f5-8f85-0a6298f34f3d",
+               "clients" : [
+                  "21646ab13b",
+                  "a74d29f320"
+               ]
+            }
+         ],
+         "origin" : "3346f236-3019-47f5-8f85-0a6298f34f3d"
+      }
+   ]
+]

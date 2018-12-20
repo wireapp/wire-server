@@ -1,0 +1,117 @@
+[
+   {
+      "meWSReachable" : [
+         [
+            "1115e2e5-6f47-49e7-b04e-c5293acd807e",
+            "a60f8fe0b4"
+         ],
+         [
+            "1f20e4e2-0788-4fad-a2b7-cf4e54a62c54",
+            "c55ddcee4c"
+         ]
+      ],
+      "meNativeReachable" : [
+         {
+            "addrUser" : "1f20e4e2-0788-4fad-a2b7-cf4e54a62c54",
+            "addrApp" : "AppName",
+            "addrEndpoint" : [
+               "'H~",
+               "APNS_VOIP",
+               "AppName"
+            ],
+            "addrTransport" : "APNS_VOIP",
+            "addrConn" : "c55ddcee4c",
+            "addrToken" : "tok",
+            "addrClient" : "c55ddcee4c"
+         }
+      ],
+      "meStdGen" : "4 1",
+      "meRecipients" : [
+         {
+            "user_id" : "1f20e4e2-0788-4fad-a2b7-cf4e54a62c54",
+            "clients" : [
+               "c55ddcee4c"
+            ],
+            "route" : "any"
+         },
+         {
+            "user_id" : "1115e2e5-6f47-49e7-b04e-c5293acd807e",
+            "clients" : [
+               "a60f8fe0b4"
+            ],
+            "route" : "any"
+         }
+      ],
+      "meNativeAddress" : [
+         [
+            "1115e2e5-6f47-49e7-b04e-c5293acd807e",
+            [
+               [
+                  "a60f8fe0b4",
+                  {
+                     "addrClient" : "a60f8fe0b4",
+                     "addrToken" : "tok",
+                     "addrConn" : "a60f8fe0b4",
+                     "addrEndpoint" : [
+                        "L",
+                        "APNS_VOIP",
+                        "AppName"
+                     ],
+                     "addrTransport" : "APNS_VOIP",
+                     "addrApp" : "AppName",
+                     "addrUser" : "1115e2e5-6f47-49e7-b04e-c5293acd807e"
+                  }
+               ]
+            ]
+         ],
+         [
+            "1f20e4e2-0788-4fad-a2b7-cf4e54a62c54",
+            [
+               [
+                  "c55ddcee4c",
+                  {
+                     "addrUser" : "1f20e4e2-0788-4fad-a2b7-cf4e54a62c54",
+                     "addrApp" : "AppName",
+                     "addrClient" : "c55ddcee4c",
+                     "addrToken" : "tok",
+                     "addrTransport" : "APNS_VOIP",
+                     "addrEndpoint" : [
+                        "'H~",
+                        "APNS_VOIP",
+                        "AppName"
+                     ],
+                     "addrConn" : "c55ddcee4c"
+                  }
+               ]
+            ]
+         ]
+      ]
+   },
+   [
+      {
+         "origin" : "1115e2e5-6f47-49e7-b04e-c5293acd807e",
+         "native_include_origin": false,
+         "payload" : [
+            {
+               "val" : -5
+            }
+         ],
+         "recipients" : [
+            {
+               "clients" : [
+                  "a60f8fe0b4"
+               ],
+               "user_id" : "1115e2e5-6f47-49e7-b04e-c5293acd807e",
+               "route" : "any"
+            },
+            {
+               "user_id" : "1f20e4e2-0788-4fad-a2b7-cf4e54a62c54",
+               "clients" : [
+                  "c55ddcee4c"
+               ],
+               "route" : "any"
+            }
+         ]
+      }
+   ]
+]

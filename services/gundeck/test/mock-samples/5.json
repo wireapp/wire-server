@@ -1,0 +1,73 @@
+[
+   {
+      "meWSReachable" : [],
+      "meStdGen" : "85 2",
+      "meNativeAddress" : [
+         [
+            "316f62a5-c6b4-4a15-9176-04a6e1be2b2a",
+            [
+               [
+                  "3611e76354",
+                  {
+                     "addrTransport" : "GCM",
+                     "addrConn" : "3611e76354",
+                     "addrEndpoint" : [
+                        "\u0006",
+                        "GCM",
+                        "AppName"
+                     ],
+                     "addrUser" : "316f62a5-c6b4-4a15-9176-04a6e1be2b2a",
+                     "addrApp" : "AppName",
+                     "addrClient" : "3611e76354",
+                     "addrToken" : "tok"
+                  }
+               ]
+            ]
+         ]
+      ],
+      "meRecipients" : [
+         {
+            "route" : "any",
+            "user_id" : "316f62a5-c6b4-4a15-9176-04a6e1be2b2a",
+            "clients" : [
+               "3611e76354"
+            ]
+         }
+      ],
+      "meNativeReachable" : [
+         {
+            "addrApp" : "AppName",
+            "addrClient" : "3611e76354",
+            "addrToken" : "tok",
+            "addrTransport" : "GCM",
+            "addrUser" : "316f62a5-c6b4-4a15-9176-04a6e1be2b2a",
+            "addrEndpoint" : [
+               "\u0006",
+               "GCM",
+               "AppName"
+            ],
+            "addrConn" : "3611e76354"
+         }
+      ]
+   },
+   [
+      {
+         "payload" : [
+            {
+               "val" : 2
+            }
+         ],
+         "recipients" : [
+            {
+               "route" : "any",
+               "user_id" : "316f62a5-c6b4-4a15-9176-04a6e1be2b2a",
+               "clients" : [
+                  "3611e76354"
+               ]
+            }
+         ],
+         "origin" : "316f62a5-c6b4-4a15-9176-04a6e1be2b2a",
+         "native_include_origin" : false
+      }
+   ]
+]

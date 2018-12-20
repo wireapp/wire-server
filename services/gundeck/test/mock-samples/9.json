@@ -1,0 +1,241 @@
+[
+   {
+      "meNativeAddress" : [
+         [
+            "15595eac-9632-4e8a-ac4f-f05c010cd3d4",
+            [
+               [
+                  "1ef72f46db",
+                  {
+                     "addrEndpoint" : [
+                        "򕥮R\u0017",
+                        "GCM",
+                        "AppName"
+                     ],
+                     "addrConn" : "1ef72f46db",
+                     "addrToken" : "tok",
+                     "addrTransport" : "GCM",
+                     "addrUser" : "15595eac-9632-4e8a-ac4f-f05c010cd3d4",
+                     "addrApp" : "AppName",
+                     "addrClient" : "1ef72f46db"
+                  }
+               ],
+               [
+                  "c9fabc4613",
+                  {
+                     "addrToken" : "tok",
+                     "addrConn" : "c9fabc4613",
+                     "addrEndpoint" : [
+                        "򕥮R\u0017",
+                        "GCM",
+                        "AppName"
+                     ],
+                     "addrApp" : "AppName",
+                     "addrClient" : "c9fabc4613",
+                     "addrTransport" : "GCM",
+                     "addrUser" : "15595eac-9632-4e8a-ac4f-f05c010cd3d4"
+                  }
+               ]
+            ]
+         ],
+         [
+            "fb1a9543-cf16-40de-8537-e1cd2d90a03a",
+            [
+               [
+                  "196eab5b1b",
+                  {
+                     "addrEndpoint" : [
+                        "",
+                        "GCM",
+                        "AppName"
+                     ],
+                     "addrToken" : "tok",
+                     "addrConn" : "196eab5b1b",
+                     "addrApp" : "AppName",
+                     "addrClient" : "196eab5b1b",
+                     "addrTransport" : "GCM",
+                     "addrUser" : "fb1a9543-cf16-40de-8537-e1cd2d90a03a"
+                  }
+               ],
+               [
+                  "5c95b55115",
+                  {
+                     "addrEndpoint" : [
+                        "",
+                        "GCM",
+                        "AppName"
+                     ],
+                     "addrConn" : "5c95b55115",
+                     "addrToken" : "tok",
+                     "addrTransport" : "GCM",
+                     "addrUser" : "fb1a9543-cf16-40de-8537-e1cd2d90a03a",
+                     "addrClient" : "5c95b55115",
+                     "addrApp" : "AppName"
+                  }
+               ],
+               [
+                  "a7b1f0f13",
+                  {
+                     "addrEndpoint" : [
+                        "",
+                        "GCM",
+                        "AppName"
+                     ],
+                     "addrToken" : "tok",
+                     "addrConn" : "a7b1f0f13",
+                     "addrApp" : "AppName",
+                     "addrClient" : "a7b1f0f13",
+                     "addrUser" : "fb1a9543-cf16-40de-8537-e1cd2d90a03a",
+                     "addrTransport" : "GCM"
+                  }
+               ],
+               [
+                  "cc2b05e74",
+                  {
+                     "addrClient" : "cc2b05e74",
+                     "addrApp" : "AppName",
+                     "addrUser" : "fb1a9543-cf16-40de-8537-e1cd2d90a03a",
+                     "addrTransport" : "GCM",
+                     "addrToken" : "tok",
+                     "addrConn" : "cc2b05e74",
+                     "addrEndpoint" : [
+                        "",
+                        "GCM",
+                        "AppName"
+                     ]
+                  }
+               ]
+            ]
+         ]
+      ],
+      "meWSReachable" : [
+         [
+            "fb1a9543-cf16-40de-8537-e1cd2d90a03a",
+            "196eab5b1b"
+         ],
+         [
+            "fb1a9543-cf16-40de-8537-e1cd2d90a03a",
+            "5c95b55115"
+         ]
+      ],
+      "meStdGen" : "1 1",
+      "meNativeReachable" : [
+         {
+            "addrEndpoint" : [
+               "򕥮R\u0017",
+               "GCM",
+               "AppName"
+            ],
+            "addrConn" : "1ef72f46db",
+            "addrToken" : "tok",
+            "addrUser" : "15595eac-9632-4e8a-ac4f-f05c010cd3d4",
+            "addrTransport" : "GCM",
+            "addrApp" : "AppName",
+            "addrClient" : "1ef72f46db"
+         },
+         {
+            "addrTransport" : "GCM",
+            "addrUser" : "15595eac-9632-4e8a-ac4f-f05c010cd3d4",
+            "addrClient" : "c9fabc4613",
+            "addrApp" : "AppName",
+            "addrConn" : "c9fabc4613",
+            "addrToken" : "tok",
+            "addrEndpoint" : [
+               "򕥮R\u0017",
+               "GCM",
+               "AppName"
+            ]
+         },
+         {
+            "addrConn" : "5c95b55115",
+            "addrToken" : "tok",
+            "addrEndpoint" : [
+               "",
+               "GCM",
+               "AppName"
+            ],
+            "addrTransport" : "GCM",
+            "addrUser" : "fb1a9543-cf16-40de-8537-e1cd2d90a03a",
+            "addrApp" : "AppName",
+            "addrClient" : "5c95b55115"
+         },
+         {
+            "addrToken" : "tok",
+            "addrConn" : "a7b1f0f13",
+            "addrEndpoint" : [
+               "",
+               "GCM",
+               "AppName"
+            ],
+            "addrClient" : "a7b1f0f13",
+            "addrApp" : "AppName",
+            "addrUser" : "fb1a9543-cf16-40de-8537-e1cd2d90a03a",
+            "addrTransport" : "GCM"
+         },
+         {
+            "addrToken" : "tok",
+            "addrConn" : "cc2b05e74",
+            "addrEndpoint" : [
+               "",
+               "GCM",
+               "AppName"
+            ],
+            "addrClient" : "cc2b05e74",
+            "addrApp" : "AppName",
+            "addrUser" : "fb1a9543-cf16-40de-8537-e1cd2d90a03a",
+            "addrTransport" : "GCM"
+         }
+      ],
+      "meRecipients" : [
+         {
+            "clients" : [
+               "cc2b05e74",
+               "5c95b55115",
+               "a7b1f0f13",
+               "196eab5b1b"
+            ],
+            "user_id" : "fb1a9543-cf16-40de-8537-e1cd2d90a03a",
+            "route" : "any"
+         },
+         {
+            "route" : "any",
+            "user_id" : "15595eac-9632-4e8a-ac4f-f05c010cd3d4",
+            "clients" : [
+               "1ef72f46db",
+               "c9fabc4613"
+            ]
+         }
+      ]
+   },
+   [
+      {
+         "recipients" : [
+            {
+               "route" : "any",
+               "clients" : [
+                  "1ef72f46db",
+                  "c9fabc4613"
+               ],
+               "user_id" : "15595eac-9632-4e8a-ac4f-f05c010cd3d4"
+            },
+            {
+               "route" : "any",
+               "user_id" : "fb1a9543-cf16-40de-8537-e1cd2d90a03a",
+               "clients" : [
+                  "cc2b05e74",
+                  "5c95b55115",
+                  "a7b1f0f13",
+                  "196eab5b1b"
+               ]
+            }
+         ],
+         "native_include_origin" : false,
+         "origin" : "15595eac-9632-4e8a-ac4f-f05c010cd3d4",
+         "payload" : [
+            {
+               "val" : 1
+            }
+         ]
+      }
+   ]
+]
