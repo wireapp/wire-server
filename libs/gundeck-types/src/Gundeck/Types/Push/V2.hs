@@ -20,7 +20,7 @@ module Gundeck.Types.Push.V2
     , singletonRecipient
     , singletonPayload
 
-    , Recipient
+    , Recipient (..)
     , recipient
     , recipientId
     , recipientRoute

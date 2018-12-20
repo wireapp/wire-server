@@ -7,7 +7,7 @@ module Gundeck.Push.Native.Types
     ( Result  (..)
     , Failure (..)
     , Message (..)
-    , Address (Address)
+    , Address (..)
     , addrUser
     , addrTransport
     , addrApp

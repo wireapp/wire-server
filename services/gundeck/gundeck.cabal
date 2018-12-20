@@ -22,14 +22,6 @@ library
 
     exposed-modules:
         Gundeck.API
-        Gundeck.Monad
-        Gundeck.Options
-        Gundeck.Push.Native.Serialise
-        Gundeck.Push.Native.Types
-        Gundeck.Push.Data
-        Gundeck.Util.DelayQueue
-
-    other-modules:
         Gundeck.API.Error
         Gundeck.Aws
         Gundeck.Aws.Arn
@@ -37,15 +29,21 @@ library
         Gundeck.Client
         Gundeck.Env
         Gundeck.Instances
+        Gundeck.Monad
         Gundeck.Notification
         Gundeck.Notification.Data
+        Gundeck.Options
         Gundeck.Presence
         Gundeck.Presence.Data
         Gundeck.Push
+        Gundeck.Push.Data
         Gundeck.Push.Native
+        Gundeck.Push.Native.Serialise
+        Gundeck.Push.Native.Types
         Gundeck.Push.Websocket
         Gundeck.React
         Gundeck.Util
+        Gundeck.Util.DelayQueue
         Gundeck.Util.Redis
 
     build-depends:
