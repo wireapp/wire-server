@@ -309,7 +309,8 @@ static ngx_int_t zauth_parse_request (ngx_http_request_t * r) {
                         return NGX_ERROR;
                 }
                 u_char* writer = query.data;
-                ngx_unescape_uri(&writer, &r->args.data, r->args.len, 0);
+                u_char* reqargs = r->args.data;
+                ngx_unescape_uri(&writer, &reqargs, r->args.len, 0);
                 query.len = writer - query.data;
                 res = token_from_query(&query, &tkn);
         } else {
