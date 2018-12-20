@@ -74,31 +74,6 @@ push (req ::: _) = do
             forM_ exs $ Log.err . msg . (val "Push failed: " +++) . show
             throwM (Error status500 "server-error" "Server Error")
 
--- | Send individual HTTP requests to cannon for every device and notification.  This should go away
--- in the future, once 'pushAll' has been proven to always do the same thing.
-pushAny :: [Push] -> Gundeck (Either (Seq.Seq SomeException) ())
-pushAny ps = collectErrors <$> mapAsync pushAny' ps
-  where
-    collectErrors :: [Either SomeException ()] -> Either (Seq.Seq SomeException) ()
-    collectErrors = runAllE . foldMap (AllE . fmapL Seq.singleton)
-
-pushAny' :: Push -> Gundeck ()
-pushAny' p = do
-    i <- mkNotificationId
-    let pload = p^.pushPayload
-    let notif = Notification i (p^.pushTransient) pload
-    let rcps  = fromRange (p^.pushRecipients)
-    let uniq  = uncurry list1 $ head &&& tail $ toList rcps
-    let tgts  = mkTarget <$> uniq
-    unless (p^.pushTransient) $
-        Stream.add i tgts pload =<< view (options.optSettings.setNotificationTTL)
-    void . forkIO $ do
-        prs <- Web.push notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
-        pushNative notif p =<< nativeTargets p prs
-  where
-    mkTarget :: Recipient -> NotificationTarget
-    mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
-
 -- | This class abstracts over all effects in 'pushAll' in order to make unit testing possible.
 -- (Even though we ended up not having any unit tests in the end.)
 class MonadThrow m =>  MonadPushAll m where
@@ -128,6 +103,31 @@ instance MonadNativeTarget Gundeck where
   mntgtLogErr e = Log.err (msg (val "Failed to get native push address: " +++ show e))
   mntgtLookupAddress rcp = Data.lookup rcp Data.One
   mntgtMapAsync = mapAsync
+
+-- | Send individual HTTP requests to cannon for every device and notification.  This should go away
+-- in the future, once 'pushAll' has been proven to always do the same thing.
+pushAny :: [Push] -> Gundeck (Either (Seq.Seq SomeException) ())
+pushAny ps = collectErrors <$> mapAsync pushAny' ps
+  where
+    collectErrors :: [Either SomeException ()] -> Either (Seq.Seq SomeException) ()
+    collectErrors = runAllE . foldMap (AllE . fmapL Seq.singleton)
+
+pushAny' :: Push -> Gundeck ()
+pushAny' p = do
+    i <- mkNotificationId
+    let pload = p^.pushPayload
+    let notif = Notification i (p^.pushTransient) pload
+    let rcps  = fromRange (p^.pushRecipients)
+    let uniq  = uncurry list1 $ head &&& tail $ toList rcps
+    let tgts  = mkTarget <$> uniq
+    unless (p^.pushTransient) $
+        Stream.add i tgts pload =<< view (options.optSettings.setNotificationTTL)
+    void . forkIO $ do
+        prs <- Web.push notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
+        pushNative notif p =<< nativeTargets p prs
+  where
+    mkTarget :: Recipient -> NotificationTarget
+    mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
 
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
