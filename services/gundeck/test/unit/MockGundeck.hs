@@ -300,7 +300,12 @@ genPush (Map.elems . (^. meRecipients) -> allrcps) = do
     unsafeRange . Set.fromList <$> dropSomeDevices `mapM` rcps
   pload <- genPayload
   inclorigin <- arbitrary
-  pure $ newPush sender rcps pload & pushNativeIncludeOrigin .~ inclorigin
+  pure $ newPush sender rcps pload
+    -- TODO: & pushConnections .~ _
+    -- TODO: & pushOriginConnection .~ _
+    -- TODO: & pushTransient .~ _
+    & pushNativeIncludeOrigin .~ inclorigin
+    -- (not covered: pushNativeAps, pushNativePriority)
 
 -- | Shuffle devices.  With probability 0.5, drop at least one device, but not all.  If number of
 -- devices is @<2@, the input is returned.
@@ -446,7 +451,7 @@ mockPushAll pushes = do
       = foldl' (uncurry . deliver) mempty
       . filter reachable
       . reformat
-      . mconcat . fmap removeSelf
+      . mconcat . fmap removeSome
       . mconcat . fmap insertAllClients
       $ rcps
       where
@@ -460,20 +465,19 @@ mockPushAll pushes = do
             reachableNative (uid, cid) = maybe False (`elem` (env ^. meNativeReachable)) adr
               where adr = (Map.lookup uid >=> Map.lookup cid) (env ^. meNativeAddress)
 
-        -- TODO: rename to 'removeSome'
-        removeSelf :: ((UserId, Maybe ClientId, Bool), (Recipient, Payload)) -> [(Recipient, Payload)]
-        removeSelf ((_, _, _), (Recipient _ RouteDirect _, _)) =
+        removeSome :: ((UserId, Maybe ClientId, Bool), (Recipient, Payload)) -> [(Recipient, Payload)]
+        removeSome ((_, _, _), (Recipient _ RouteDirect _, _)) =
           -- never native-push recipients marked 'RouteDirect'.
           []
-        removeSelf ((snduid, _, False), same@(Recipient rcpuid _ _, _)) =
+        removeSome ((snduid, _, False), same@(Recipient rcpuid _ _, _)) =
           -- if pushNativeIncludeOrigin is False, none of the originator's devices will receive
           -- native pushes.
           [same | snduid /= rcpuid]
-        removeSelf ((_, Just sndcid, True), (Recipient rcpuid route cids, pay)) =
+        removeSome ((_, Just sndcid, True), (Recipient rcpuid route cids, pay)) =
           -- if originating client is known and pushNativeIncludeOrigin is True, filter out just
           -- that client, and native-push to all other devices of the originator.
           [(Recipient rcpuid route $ filter (/= sndcid) cids, pay)]
-        removeSelf ((_, Nothing, True), same) =
+        removeSome ((_, Nothing, True), same) =
           -- if NO originating client is known and pushNativeIncludeOrigin is True, push to all
           -- originating devices.
           [same]
@@ -618,7 +622,7 @@ mockOldSimpleWebPush
   -> m [Presence]
 mockOldSimpleWebPush _ _ _ _ (Set.null -> False) =
   error "connection whitelists are not implemented in this test."
-  -- TODO: i guess we could test this.
+  -- (see 'genPush' above)
 
 mockOldSimpleWebPush notif tgts _senderid mconnid _ = do
   getrecp   <- mkGetRecipient
