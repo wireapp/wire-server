@@ -16,6 +16,22 @@
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
+-- | This is 'MockGundeck', a re-implementation of the 'Gundeck' monad with mock effects.  This has
+-- been developed to test 'Gundeck.Push.pushAll' and 'Gundeck.Push.Websocket.bulkPush', but can be
+-- extended.
+--
+-- Besides 'MockGundeck' and its instances, there are two important types: 'MockEnv' and
+-- 'MockState'.  'MockEnv' contains the system input to the test run; 'MockState' is manipulated by
+-- the mock implementations and can be examined to make sure all the expected effects have been
+-- caused.
+--
+-- This module is structured as follows: first, 'MockEnv' and 'MockState' are defined with their
+-- 'Arbitrary' generators.  Then, 'MockGundeck' and its instances are defined; then the actual mock
+-- effects are implemented.
+--
+-- There is a cascade of mockings: 'pushAll' can be run on the same input as 'mockPushAll', and
+-- outputs and states can be tested to be equal.  'pushAll' calls 'bulkPush', but in the @instance
+-- MonadPushAll MockGundeck@, you can either call the real thing or 'mockBulkPush'.
 module MockGundeck where
 
 import Imports
@@ -50,21 +66,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Vector as Vector
 import qualified Network.URI as URI
-
-
-----------------------------------------------------------------------
--- helpers (move to some more general-purpose test library?)
-
--- | (it may be possible to drop this type in favor of more sophisticated use of quickcheck's
--- counterexample.)
-newtype Pretty a = Pretty a
-  deriving (Eq, Ord)
-
-instance Aeson.ToJSON a => Show (Pretty a) where
-  show (Pretty a) = cs $ Aeson.encodePretty a
-
-shrinkPretty :: (a -> [a]) -> Pretty a -> [Pretty a]
-shrinkPretty shrnk (Pretty xs) = Pretty <$> shrnk xs
 
 
 ----------------------------------------------------------------------
@@ -258,11 +259,15 @@ genId = do
 genClientId :: Gen ClientId
 genClientId = newClientId <$> resize 50 arbitrary
 
+-- | See also: 'fakePresence'.
 fakePresences :: Recipient -> [Presence]
 fakePresences (Recipient uid _ cids) = fakePresence uid <$> cids
 
--- | In this module, we only create 'Presence's from 'Push' requests, which contains 'ClientId's
--- rather than 'ConnId's.  Therefore we do not cover the @isNothing (clientId prc)@ case.
+-- | Currently, we only create 'Presence's from 'Push' requests, which contains 'ClientId's, but no
+-- 'ConnId's.  So in contrast to the production code where the two are generated independently, we
+-- maintain identity (except for the type) between 'ClientId' and 'ConnId'.  (This makes switching
+-- back between the two trivial without having to maintain a stateful mapping.)  Furthermore, we do
+-- not cover the @isNothing (clientId prc)@ case.
 fakePresence :: UserId -> ClientId -> Presence
 fakePresence userId clientId_ = Presence {..}
   where
@@ -272,7 +277,7 @@ fakePresence userId clientId_ = Presence {..}
     createdAt = 0
     __field   = mempty
 
--- | TODO: explain why this keeps the distinction between client and connection intact.
+-- | See also: 'fakePresence'.
 fakeConnId :: ClientId -> ConnId
 fakeConnId = ConnId . cs . client
 
@@ -657,6 +662,18 @@ mockOldSimpleWebPush notif tgts _senderid mconnid _ = do
 
 ----------------------------------------------------------------------
 -- helpers
+
+-- | (it may be possible to drop this type in favor of more sophisticated use of quickcheck's
+-- counterexample.)
+newtype Pretty a = Pretty a
+  deriving (Eq, Ord)
+
+instance Aeson.ToJSON a => Show (Pretty a) where
+  show (Pretty a) = cs $ Aeson.encodePretty a
+
+shrinkPretty :: (a -> [a]) -> Pretty a -> [Pretty a]
+shrinkPretty shrnk (Pretty xs) = Pretty <$> shrnk xs
+
 
 deliver :: NotifQueue -> (UserId, ClientId) -> Payload -> NotifQueue
 deliver queue qkey qval = Map.alter (Just . tweak) qkey queue
