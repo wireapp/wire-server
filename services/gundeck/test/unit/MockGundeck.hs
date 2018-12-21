@@ -288,11 +288,19 @@ genPush allrcps = do
   sender :: UserId <- (^. recipientId) <$> QC.elements allrcps
   rcps :: Range 1 1024 (Set Recipient) <- do
     numrcp <- choose (1, min 1024 (length allrcps))
-    unsafeRange . Set.fromList . nubBy ((==) `on` (^. recipientId)) <$> vectorOf numrcp (QC.elements allrcps)
-                  -- TODO: sometimes we only want to send to some clients?  currently we always send to all explicitly
+    rcps   <- nubBy ((==) `on` (^. recipientId)) <$> vectorOf numrcp (QC.elements allrcps)
+    unsafeRange . Set.fromList <$> dropSomeDevices `mapM` rcps
   pload <- genPayload
   inclorigin <- arbitrary
   pure $ newPush sender rcps pload & pushNativeIncludeOrigin .~ inclorigin
+
+-- | Shuffle devices.  With probability 0.5, drop at least one device, but not all.
+dropSomeDevices :: Recipient -> Gen Recipient
+dropSomeDevices (Recipient uid route cids) = do
+  numdevs :: Int <- oneof [ pure $ length cids
+                          , choose (1, length cids - 1)
+                          ]
+  Recipient uid route . take numdevs <$> QC.shuffle cids
 
 shrinkPushes :: [Push] -> [[Push]]
 shrinkPushes = shrinkList shrinkPush
