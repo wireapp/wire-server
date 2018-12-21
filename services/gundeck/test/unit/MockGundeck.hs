@@ -301,7 +301,7 @@ genPush (Map.elems . (^. meRecipients) -> allrcps) = do
   sender :: UserId <- (^. recipientId) <$> QC.elements allrcps
   rcps :: Range 1 1024 (Set Recipient) <- do
     numrcp <- choose (1, min 1024 (length allrcps))
-    rcps   <- nubBy ((==) `on` (^. recipientId)) <$> vectorOf numrcp (QC.elements allrcps)
+    rcps   <- vectorOf numrcp (QC.elements allrcps)
     unsafeRange . Set.fromList <$> dropSomeDevices `mapM` rcps
   pload <- genPayload
   inclorigin <- arbitrary
