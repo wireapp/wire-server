@@ -102,17 +102,7 @@ pushAllProp env (Pretty pushes) = counterexample (cs $ Aeson.encode (env, pushes
     (errs, oldst) = runMockGundeck env (pushAny pushes)
     props = [ (Aeson.eitherDecode . Aeson.encode) pushes === Right pushes
             , (Aeson.eitherDecode . Aeson.encode) env === Right env
-            , whipeRandomGen realst === whipeRandomGen oldst
+            , realst === oldst
             , isRight errs === True
-            , whipeRandomGen realst === mockst
+            , realst === mockst
             ]
-
-
-      -- TODO: test Presences with @ClientId = Nothing@ (what does this even mean?  where does this
-      --       happen?  i think it can't happen in pushAll...)
-
-      -- TODO: test 'Route' more exhaustively.
-
-      -- TODO: newPush doesn't cover a lot of the domain of the 'Push' type.  figure out what the
-      --       actually expected values are, and constrain the type accordingly.  if we need to be
-      --       downwards compatible perhaps we can do that in the json parsers.

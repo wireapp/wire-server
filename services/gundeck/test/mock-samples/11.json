@@ -39,7 +39,7 @@
                "created_at" : 0,
                "user_id" : "01d2440a-872a-43a1-bed1-4ad3d2aa56a4",
                "client_id" : "b15aa10155",
-               "resource" : "http://example.com",
+               "resource" : "http://127.0.0.1:8080",
                "device_id" : "b15aa10155"
             }
          ]
@@ -58,7 +58,7 @@
             {
                "device_id" : "b15aa10155",
                "user_id" : "01d2440a-872a-43a1-bed1-4ad3d2aa56a4",
-               "resource" : "http://example.com",
+               "resource" : "http://127.0.0.1:8080",
                "client_id" : "b15aa10155",
                "created_at" : 0
             }

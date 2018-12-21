@@ -85,22 +85,26 @@ data MockState = MockState
   , _msNativeQueue     :: NotifQueue
   , _msCassQueue       :: NotifQueue
   }
-  deriving (Eq, Show)
 
+-- | Notification payload is aggregated as `Int`.  The same payload may be delivered in more than
+-- one notification.  We do not keep track of numbers of deliveries (relying on QuickCheck to the
+-- generate different payloads to get to other counter-examples for the same bugs).
 type NotifQueue = Map (UserId, ClientId) (Set Int)
-
-instance Eq StdGen where
-  (==) = (==) `on` show
 
 makeLenses ''MockEnv
 makeLenses ''MockState
 
-whipeRandomGen :: MockState -> MockState
-whipeRandomGen = msNonRandomGen .~ (mempty ^. msNonRandomGen)
+instance Eq MockState where
+  (MockState _ w n c) == (MockState _ w' n' c') = w == w' && n == n' && c == c'
+
+instance Show MockState where
+  show (MockState _ w n c) = intercalate "\n" ["", show w, show n, show c, ""]
 
 instance Semigroup MockState where
   (MockState _ ws nat cass) <> (MockState gen ws' nat' cass') =
-    MockState gen (ws <> ws') (nat <> nat') (cass <> cass')
+    MockState gen (Map.unionWith (<>) ws ws')
+                  (Map.unionWith (<>) nat nat')
+                  (Map.unionWith (<>) cass cass')
 
 instance Monoid MockState where
   mempty = MockState (mkStdGen 0) mempty mempty mempty
@@ -249,11 +253,14 @@ genClientId = newClientId <$> resize 50 arbitrary
 fakePresences :: Recipient -> [Presence]
 fakePresences (Recipient uid _ cids) = fakePresence uid <$> cids
 
+-- | In this module, we only create 'Presence's from 'Push' requests, which contains 'ClientId's
+-- rather than 'ConnId's.  Therefore we do not cover the @isNothing (clientId prc)@ case.
 fakePresence :: UserId -> ClientId -> Presence
-fakePresence userId (Just -> clientId) = Presence {..}
+fakePresence userId clientId_ = Presence {..}
   where
-    connId    = fakeConnId $ fromJust clientId
-    resource  = URI . fromJust $ URI.parseURI "http://example.com"
+    clientId  = Just clientId_
+    connId    = fakeConnId clientId_
+    resource  = URI . fromJust $ URI.parseURI "http://127.0.0.1:8080"
     createdAt = 0
     __field   = mempty
 
@@ -276,8 +283,6 @@ genProtoAddress = do
 genPushes :: [Recipient] -> Gen [Push]
 genPushes = listOf . genPush
 
--- | REFACTOR: What 'Route's are we still using, and what for?  This code is currently only testing
--- 'RouteAny'.
 genPush :: [Recipient] -> Gen Push
 genPush allrcps = do
   sender :: UserId <- (^. recipientId) <$> QC.elements allrcps
@@ -493,8 +498,6 @@ mockPushAll pushes = do
 
 -- | (There is certainly a fancier implementation using '<%=' or similar, but this one is easier to
 -- reverse engineer later.)
---
--- TODO: we shouldn't even pretend to use randomness here, and just return increasing numbers.
 mockMkNotificationId
   :: (HasCallStack, m ~ MockGundeck)
   => m NotificationId

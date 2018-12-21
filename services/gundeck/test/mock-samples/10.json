@@ -65,7 +65,7 @@
                "client_id" : "66a1e911da",
                "created_at" : 0,
                "user_id" : "3bd3364a-6079-4b79-8768-1bb105fcc302",
-               "resource" : "http://example.com",
+               "resource" : "http://127.0.0.1:8080",
                "device_id" : "66a1e911da"
             }
          ]
