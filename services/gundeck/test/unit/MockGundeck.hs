@@ -248,8 +248,12 @@ genRecipient :: HasCallStack => Gen Recipient
 genRecipient = do
   uid   <- genId
   cids  <- nub <$> listOf1 genClientId
-  route <- QC.elements [RouteAny, RouteDirect]  -- REFACTOR: see 'Route' type about missing 'RouteNative'.
+  route <- genRoute
   pure $ Recipient uid route cids
+
+-- REFACTOR: see 'Route' type about missing 'RouteNative'.
+genRoute :: HasCallStack => Gen Route
+genRoute = QC.elements [RouteAny, RouteDirect]
 
 genId :: Gen (Id a)
 genId = do
@@ -301,7 +305,11 @@ genPush (Map.elems . (^. meRecipients) -> allrcps) = do
   sender :: UserId <- (^. recipientId) <$> QC.elements allrcps
   rcps :: Range 1 1024 (Set Recipient) <- do
     numrcp <- choose (1, min 1024 (length allrcps))
-    rcps   <- vectorOf numrcp (QC.elements allrcps)
+    let pickrcp = do
+          rcp <- QC.elements allrcps
+          route <- genRoute
+          pure $ rcp & recipientRoute .~ route
+    rcps   <- vectorOf numrcp pickrcp
     unsafeRange . Set.fromList <$> dropSomeDevices `mapM` rcps
   pload <- genPayload
   inclorigin <- arbitrary
