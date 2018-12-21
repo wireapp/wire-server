@@ -35,7 +35,7 @@ import qualified Data.ByteString.Lazy as LBS
 
 tests :: TestTree
 tests = testGroup "bulkpush" $
-    ((\n -> testCase (show n) $ test pushAllProp n) <$> [1..9]) <>
+    ((\n -> testCase (show n) $ test pushAllProp n) <$> ([1..9] <> [12..13])) <>
     ((\n -> testCase (show n) $ test webBulkPushProp n) <$> [10..11]) <>
     [ testProperty "web sockets" webBulkPushProps
     , testProperty "native pushes" pushAllProps

@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
@@ -295,7 +296,8 @@ genPush allrcps = do
   inclorigin <- arbitrary
   pure $ newPush sender rcps pload & pushNativeIncludeOrigin .~ inclorigin
 
--- | Shuffle devices.  With probability 0.5, drop at least one device, but not all.
+-- | Shuffle devices.  With probability 0.5, drop at least one device, but not all.  If number of
+-- devices is @<2@, the input is returned.
 dropSomeDevices :: Recipient -> Gen Recipient
 dropSomeDevices (Recipient uid route cids) = do
   numdevs :: Int <- oneof [ pure $ length cids
@@ -450,7 +452,11 @@ mockPushAll pushes = do
             reachableNative (uid, cid) = maybe False (`elem` (env ^. meNativeReachable)) adr
               where adr = (Map.lookup uid >=> Map.lookup cid) (env ^. meNativeAddress)
 
+        -- TODO: rename to 'removeSome'
         removeSelf :: ((UserId, Maybe ClientId, Bool), (Recipient, Payload)) -> [(Recipient, Payload)]
+        removeSelf ((_, _, _), (Recipient _ RouteDirect _, _)) =
+          -- never native-push recipients marked 'RouteDirect'.
+          []
         removeSelf ((snduid, _, False), same@(Recipient rcpuid _ _, _)) =
           -- if pushNativeIncludeOrigin is False, none of the originator's devices will receive
           -- native pushes.
@@ -608,7 +614,9 @@ mockOldSimpleWebPush _ _ _ _ (Set.null -> False) =
   -- TODO: i guess we could test this.
 
 mockOldSimpleWebPush notif tgts _senderid mconnid _ = do
+  getrecp   <- mkGetRecipient
   getstatus <- mkWSStatus
+
   let clients :: [(UserId, ClientId)]
       clients
         = -- reformat
@@ -621,7 +629,13 @@ mockOldSimpleWebPush notif tgts _senderid mconnid _ = do
         . mconcat . fmap (\tgt ->
                             PushTarget (tgt ^. targetUser) . fakeConnId
                               <$> (tgt ^. targetClients))
+        . fmap emptyMeansFullHack
         $ toList tgts
+
+      emptyMeansFullHack :: NotificationTarget -> NotificationTarget
+      emptyMeansFullHack tgt = tgt & targetClients %~ \case
+        []   -> getrecp (tgt ^. targetUser) ^. recipientClients
+        same@(_:_) -> same
 
   forM_ clients $ \(userid, clientid) -> do
     modify $ msWSQueue %~ \queue ->
@@ -648,3 +662,10 @@ mkWSStatus = do
   reachables :: Set PushTarget
     <- Set.map (uncurry PushTarget . (_2 %~ fakeConnId)) <$> asks (^. meWSReachable)
   pure $ \trgt -> if trgt `Set.member` reachables then PushStatusOk else PushStatusGone
+
+-- | Throws an asynchronous error if 'MockEnv' does not contain the user (this should be ok for
+-- testing).
+mkGetRecipient :: MockGundeck (UserId -> Recipient)
+mkGetRecipient = do
+  allrcps <- Map.fromList <$> ((\rcp -> (rcp ^. recipientId, rcp)) <$$> asks (^. meRecipients))
+  pure $ \uid -> fromMaybe (error "User missing in MockEnv") $ Map.lookup uid allrcps

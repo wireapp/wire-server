@@ -1,0 +1,59 @@
+[
+   {
+      "meNativeAddress" : [
+         [
+            "17ca9669-3641-4f8b-a9cd-d0bb9aa1d031",
+            [
+               [
+                  "ce32255f2",
+                  {
+                     "addrClient" : "ce32255f2",
+                     "addrTransport" : "GCM",
+                     "addrApp" : "AppName",
+                     "addrEndpoint" : [
+                        "c",
+                        "GCM",
+                        "AppName"
+                     ],
+                     "addrConn" : "ce32255f2",
+                     "addrUser" : "17ca9669-3641-4f8b-a9cd-d0bb9aa1d031",
+                     "addrToken" : "tok"
+                  }
+               ]
+            ]
+         ]
+      ],
+      "meWSReachable" : [
+         [
+            "17ca9669-3641-4f8b-a9cd-d0bb9aa1d031",
+            "ce32255f2"
+         ]
+      ],
+      "meNativeReachable" : [],
+      "meRecipients" : [
+         {
+            "user_id" : "17ca9669-3641-4f8b-a9cd-d0bb9aa1d031",
+            "route" : "any",
+            "clients" : [
+               "ce32255f2"
+            ]
+         }
+      ]
+   },
+   [
+      {
+         "recipients" : [
+            {
+               "route" : "any",
+               "user_id" : "17ca9669-3641-4f8b-a9cd-d0bb9aa1d031"
+            }
+         ],
+         "payload" : [
+            {
+               "val" : -2
+            }
+         ],
+         "origin" : "17ca9669-3641-4f8b-a9cd-d0bb9aa1d031"
+      }
+   ]
+]
