@@ -238,9 +238,10 @@ genPredicate xs = Set.fromList <$> do
 
 genRecipient :: HasCallStack => Gen Recipient
 genRecipient = do
-  uid  <- genId
-  cids <- nub <$> listOf1 genClientId
-  pure $ Recipient uid RouteAny cids
+  uid   <- genId
+  cids  <- nub <$> listOf1 genClientId
+  route <- QC.elements [RouteAny, RouteDirect]  -- REFACTOR: see 'Route' type about missing 'RouteNative'.
+  pure $ Recipient uid route cids
 
 genId :: Gen (Id a)
 genId = do
