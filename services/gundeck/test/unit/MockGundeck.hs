@@ -99,7 +99,8 @@ instance Eq MockState where
   (MockState _ w n c) == (MockState _ w' n' c') = w == w' && n == n' && c == c'
 
 instance Show MockState where
-  show (MockState _ w n c) = intercalate "\n" ["", show w, show n, show c, ""]
+  show (MockState _ w n c) = intercalate "\n"
+    ["", "websocket: " <> show w, "native: " <> show n, "cassandra: " <> show c, ""]
 
 instance Semigroup MockState where
   (MockState _ ws nat cass) <> (MockState gen ws' nat' cass') =

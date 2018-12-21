@@ -102,7 +102,7 @@ pushAllProp env (Pretty pushes) = counterexample (cs $ Aeson.encode (env, pushes
     (errs, oldst) = runMockGundeck env (pushAny pushes)
     props = [ (Aeson.eitherDecode . Aeson.encode) pushes === Right pushes
             , (Aeson.eitherDecode . Aeson.encode) env === Right env
-            , realst === oldst
-            , isRight errs === True
-            , realst === mockst
+            , counterexample "real vs. old"  $ realst === oldst
+            , counterexample "old errors"    $ isRight errs === True
+            , counterexample "real vs. mock" $ realst === mockst
             ]
