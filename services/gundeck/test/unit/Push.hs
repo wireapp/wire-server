@@ -16,7 +16,6 @@
 module Push where
 
 import Imports
-import Control.Lens
 import Data.String.Conversions (cs)
 import Gundeck.Push (pushAll, pushAny)
 import Gundeck.Push.Websocket as Web (bulkPush)
@@ -35,8 +34,8 @@ import qualified Data.ByteString.Lazy as LBS
 
 tests :: TestTree
 tests = testGroup "bulkpush" $
-    ((\n -> testCase (show n) $ test pushAllProp n) <$> ([1..9] <> [12..13])) <>
-    ((\n -> testCase (show n) $ test webBulkPushProp n) <$> [10..11]) <>
+    (test "pushAllProp" pushAllProp <$> [1..11]) <>
+    (test "webBulkPushProp" webBulkPushProp <$> [1..2]) <>
     [ testProperty "web sockets" webBulkPushProps
     , testProperty "native pushes" pushAllProps
     ]
@@ -51,10 +50,11 @@ testRootPath = "test/mock-samples"
 
 test
   :: forall input. Aeson.FromJSON input
-  => (MockEnv -> Pretty input -> Property) -> Int -> Assertion
-test runtest i = do
+  => String -> (MockEnv -> Pretty input -> Property) -> Int -> TestTree
+test testname runtest i = testCase (testname <> "-" <> show i) $ do
+  let fulltestname = testRootPath </> testname <> "-" <> show i <> ".json"
   Just ((env, input) :: (MockEnv, input))
-    <- Aeson.decode <$> LBS.readFile (testRootPath </> show i <> ".json")
+    <- either (error . show) pure =<< (Aeson.eitherDecode <$> LBS.readFile fulltestname)
   runProp $ runtest env (Pretty input)
 
 runProp :: Property -> Assertion
@@ -69,7 +69,7 @@ webBulkPushProps plen@(Positive len) = mkEnv mkNotifs plen
   where
     mkNotifs :: Pretty MockEnv -> Property
     mkNotifs (Pretty env) = forAllShrink
-      (Pretty <$> resize len (genNotifs (env ^. meRecipients)))
+      (Pretty <$> resize len (genNotifs env))
       (shrinkPretty shrinkNotifs)
       (webBulkPushProp env)
 
@@ -89,7 +89,7 @@ pushAllProps plen@(Positive len) = mkEnv mkPushes plen
   where
     mkPushes :: Pretty MockEnv -> Property
     mkPushes (Pretty env) = forAllShrink
-      (Pretty <$> resize len (genPushes (env ^. meRecipients)))
+      (Pretty <$> resize len (genPushes env))
       (shrinkPretty shrinkPushes)
       (pushAllProp env)
 
