@@ -1,18 +1,18 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE PackageImports #-}
-{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -- TODO remove
 {-# OPTIONS_GHC
@@ -44,55 +44,55 @@ module Spar.SCIM
 
 import Imports
 import Brig.Types.User       as Brig
-import Galley.Types.Teams    as Galley
-import Control.Monad.Except
-import Control.Monad.Catch
 import Control.Exception
 import Control.Lens hiding ((.=), Strict)
+import Control.Monad.Catch
+import Control.Monad.Except
+import Crypto.Hash
+import Data.Aeson as Aeson
 import Data.Id
 import Data.Range
-import Servant
-import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, createUser)
-import Spar.API.Util
-import Spar.Error
-import Spar.Types
-import Spar.Intra.Galley
-import Data.UUID as UUID
-import Crypto.Hash
-import Data.Time
-import Data.Text.Encoding
-import Data.Aeson as Aeson
-import Text.Email.Validate
-import Servant.API.Generic
-import OpenSSL.Random (randBytes)
 import Data.String.Conversions
-import SAML2.WebSSO (IdPId)
+import Data.Text.Encoding
+import Data.Time
+import Data.UUID as UUID
+import Galley.Types.Teams    as Galley
 import Network.URI
+import OpenSSL.Random (randBytes)
+import SAML2.WebSSO (IdPId)
+import Servant
+import Servant.API.Generic
+import Spar.API.Util
+import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, createUser)
+import Spar.Error
+import Spar.Intra.Galley
+import Spar.Types
+import Text.Email.Validate
 
+import qualified Data.ByteString.Base64 as ES
 import qualified Data.Text    as Text
 import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data    as Data
-import qualified Data.ByteString.Base64 as ES
 import qualified Spar.Intra.Brig as Intra.Brig
 import qualified URI.ByteString as URIBS
 
-import qualified Web.SCIM.Class.User              as SCIM
-import qualified Web.SCIM.Class.Group             as SCIM
 import qualified Web.SCIM.Class.Auth              as SCIM
-import qualified Web.SCIM.Server                  as SCIM
-import qualified Web.SCIM.Handler                 as SCIM
+import qualified Web.SCIM.Class.Group             as SCIM
+import qualified Web.SCIM.Class.User              as SCIM
 import qualified Web.SCIM.Filter                  as SCIM
+import qualified Web.SCIM.Handler                 as SCIM
 import qualified Web.SCIM.Schema.Common           as SCIM
+import qualified Web.SCIM.Schema.Error            as SCIM
+import qualified Web.SCIM.Schema.ListResponse     as SCIM
 import qualified Web.SCIM.Schema.Meta             as SCIM
 import qualified Web.SCIM.Schema.ResourceType     as SCIM
-import qualified Web.SCIM.Schema.ListResponse     as SCIM
-import qualified Web.SCIM.Schema.Error            as SCIM
+import qualified Web.SCIM.Server                  as SCIM
 
 import qualified Web.SCIM.Schema.User             as SCIM.User
 import qualified Web.SCIM.Schema.User.Email       as SCIM.User
-import qualified Web.SCIM.Schema.User.Phone       as SCIM.User
 import qualified Web.SCIM.Schema.User.Name        as SCIM.User
+import qualified Web.SCIM.Schema.User.Phone       as SCIM.User
 
 import qualified Web.SCIM.Capabilities.MetaSchema as SCIM.Meta
 
@@ -175,6 +175,9 @@ toSCIMUser' now baseuri user = SCIM.WithMeta meta thing
       , SCIM.created = now
       , SCIM.lastModified = now
       , SCIM.version = SCIM.Strong (Text.pack (show thingHash))
+        -- TODO: it looks like (a) we need to add this to the HTTP header, and (b) this should be a
+        -- version (which is increasing over time), not a hash (which is not).
+        -- https://tools.ietf.org/html/rfc7644#section-3.14
       , SCIM.location = SCIM.URI . mkLocation $ "/Users/" <> show (Brig.userId user)
       }
 
@@ -265,7 +268,7 @@ instance SCIM.UserDB Spar where
                  Right res -> pure res
                  Left err  -> SCIM.throwSCIM $
                    SCIM.badRequest SCIM.InvalidFilter (Just err)
-    -- TODO: once bigger teams arrive, we should have pagination here.
+    -- FUTUREWORK: once bigger teams arrive, we should have pagination here.
     SCIM.fromList <$> filterM check users
 
   -- | Get a single user by its ID.
