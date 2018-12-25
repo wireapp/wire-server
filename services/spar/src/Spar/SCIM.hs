@@ -8,6 +8,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -36,6 +37,9 @@ module Spar.SCIM
 
   -- * The mapping between Wire and SCIM users
   -- $mapping
+
+  -- * testing
+  , toSCIMUser'
   ) where
 
 import Imports
@@ -48,7 +52,7 @@ import Control.Lens hiding ((.=), Strict)
 import Data.Id
 import Data.Range
 import Servant
-import Spar.App (Spar, wrapMonadClient, sparCtxOpts, createUser)
+import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, createUser)
 import Spar.API.Util
 import Spar.Error
 import Spar.Types
@@ -63,6 +67,7 @@ import Servant.API.Generic
 import OpenSSL.Random (randBytes)
 import Data.String.Conversions
 import SAML2.WebSSO (IdPId)
+import Network.URI
 
 import qualified Data.Text    as Text
 import qualified Data.UUID.V4 as UUID
@@ -70,6 +75,7 @@ import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data    as Data
 import qualified Data.ByteString.Base64 as ES
 import qualified Spar.Intra.Brig as Intra.Brig
+import qualified URI.ByteString as URIBS
 
 import qualified Web.SCIM.Class.User              as SCIM
 import qualified Web.SCIM.Class.Group             as SCIM
@@ -137,9 +143,22 @@ apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
 -- value and the @displayName@ won't be affected by that change.
 
 -- | Expose a Wire user as an SCIM user.
-toSCIMUser :: User -> SCIM.StoredUser
-toSCIMUser user = SCIM.WithMeta meta thing
+toSCIMUser :: (SAML.HasNow m, MonadReader Env m) => User -> m SCIM.StoredUser
+toSCIMUser user = do
+  SAML.Time now <- SAML.getNow
+  baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
+  pure $ toSCIMUser' now baseuri user
+
+-- | Pure part of 'toSCIMUser'.
+toSCIMUser' :: UTCTime -> URIBS.URI -> User -> SCIM.StoredUser
+toSCIMUser' now baseuri user = SCIM.WithMeta meta thing
   where
+    mkLocation :: String -> URI
+    mkLocation pathSuffix = convURI $ baseuri SAML.=/ cs pathSuffix
+      where
+        convURI uri = fromMaybe err . parseURI . cs . URIBS.serializeURIRef' $ uri
+          where err = error $ "internal error: " <> show uri
+
     -- User ID in text format
     idText = idToText (Brig.userId user)
     -- The representation of the user, without the meta information
@@ -153,22 +172,11 @@ toSCIMUser user = SCIM.WithMeta meta thing
     -- Meta-info about the user
     meta = SCIM.Meta
       { SCIM.resourceType = SCIM.UserResource
-      , SCIM.created = testDate
-      , SCIM.lastModified = testDate
+      , SCIM.created = now
+      , SCIM.lastModified = now
       , SCIM.version = SCIM.Strong (Text.pack (show thingHash))
-      -- TODO: The location should be /Users/<uid>. It might also have to
-      -- include the baseurl of our server -- this has to be checked.
-      , SCIM.location = SCIM.URI $ URI "https://TODO" Nothing "" "" ""
+      , SCIM.location = SCIM.URI . mkLocation $ "/Users/" <> show (Brig.userId user)
       }
-
--- 2018-01-01 00:00
---
--- TODO: real dates!
-testDate :: UTCTime
-testDate = UTCTime
-  { utctDay = ModifiedJulianDay 58119
-  , utctDayTime = 0
-  }
 
 emptySCIMName :: SCIM.User.Name
 emptySCIMName =
@@ -246,7 +254,7 @@ instance SCIM.UserDB Spar where
       lift (Intra.Brig.getUser (member ^. Galley.userId)) >>= \case
         Just user
           | userDeleted user -> pure Nothing
-          | otherwise        -> pure (Just (toSCIMUser user))
+          | otherwise        -> Just <$> lift (toSCIMUser user)
         Nothing -> SCIM.throwSCIM $
           SCIM.serverError "SCIM.UserDB.list: couldn't fetch team member"
     let check user = case mbFilter of
@@ -272,7 +280,7 @@ instance SCIM.UserDB Spar where
     lift (Intra.Brig.getUser uid) >>= traverse (\user -> do
       when (userTeam user /= Just stiTeam || userDeleted user) $
         SCIM.throwSCIM $ SCIM.notFound "user" (idToText uid)
-      pure (toSCIMUser user))
+      lift (toSCIMUser user))
 
   -- | Create a new user.
   create :: ScimTokenInfo
@@ -317,7 +325,7 @@ instance SCIM.UserDB Spar where
     lift $ Intra.Brig.setHandle buid handl
 
     maybe (SCIM.throwSCIM (SCIM.serverError "SCIM.UserDB.create: user disappeared"))
-          (pure . toSCIMUser) =<<
+          (lift . toSCIMUser) =<<
       lift (Intra.Brig.getUser buid)
 
   update :: ScimTokenInfo

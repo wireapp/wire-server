@@ -41,6 +41,7 @@ dependencies:
   - lens
   - metrics-core
   - mtl
+  - network-uri
   - optparse-applicative
   - raw-strings-qq
   - retry
@@ -53,6 +54,7 @@ dependencies:
   - string-conversions
   - swagger2
   - text
+  - text-latin1
   - time
   - tinylog
   - transformers
