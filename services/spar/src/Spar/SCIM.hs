@@ -41,7 +41,7 @@ module Spar.SCIM
   -- $mapping
 
   -- * testing
-  , toSCIMStoredUser
+  , toSCIMStoredUser'
   ) where
 
 import Imports

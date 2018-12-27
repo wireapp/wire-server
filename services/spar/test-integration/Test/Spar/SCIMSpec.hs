@@ -56,9 +56,8 @@ specUsers = describe "operations with users" $ do
             users <- listUsers tok Nothing
             -- Check that the SCIM user is present
             liftIO $ users `shouldContain` [storedUser]
-            -- Check that the (non-SCIM-provisioned) team owner is present
-            liftIO $ users `shouldSatisfy`
-                any ((== owner) . scimUserId)
+            -- Check that the (non-SCIM-provisioned) team owner is NOT present
+            liftIO $ (scimUserId <$> users) `shouldNotContain` [owner]
         it "finds a SCIM-provisioned user by username" $
             pending
         it "finds a non-SCIM-provisioned user by username" $
