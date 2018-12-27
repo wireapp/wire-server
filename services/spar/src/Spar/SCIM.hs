@@ -205,7 +205,7 @@ createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser user samlSubjectId hand
     buid <- Id <$> liftIO UUID.nextRandom
     -- Create SCIM user here in spar.
     storedUser <- lift $ toSCIMStoredUser buid user
-    lift . wrapMonadClient $ Data.insertScimUser storedUser
+    lift . wrapMonadClient $ Data.insertScimUser buid storedUser
     -- Create SAML user here in spar, which in turn creates a brig user.
     lift $ createUser' buid uref mbName
     -- Set user handle on brig (which can't be done during user creation).

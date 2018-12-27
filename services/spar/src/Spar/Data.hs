@@ -64,12 +64,12 @@ import URI.ByteString
 import qualified Data.List.NonEmpty as NL
 import qualified SAML2.WebSSO as SAML
 import qualified Web.Cookie as Cky
-import qualified Web.SCIM.Class.User as SCIM
+import qualified Web.SCIM.Class.User as SCIMC.User
 
 
 -- | NB: this is a lower bound (@<=@, not @==@).
 schemaVersion :: Int32
-schemaVersion = 4
+schemaVersion = 5
 
 
 ----------------------------------------------------------------------
@@ -485,17 +485,29 @@ deleteTeamScimTokens team = do
 -- in a separate column otherwise, allowing for fast version filtering on the database.
 insertScimUser
   :: (HasCallStack, MonadClient m)
-  => SCIM.StoredUser -> m ()
-insertScimUser = undefined
+  => UserId -> SCIMC.User.StoredUser -> m ()
+insertScimUser uid usr = retry x5 . write ins $
+  params Quorum (uid, usr)
+  where
+    ins :: PrepQuery W (UserId, SCIMC.User.StoredUser) ()
+    ins = "INSERT INTO scim_user (uid, json) VALUES (?, ?)"
 
 getScimUser
   :: (HasCallStack, MonadClient m)
-  => UserId -> m (Maybe SCIM.StoredUser)
-getScimUser = undefined
+  => UserId -> m (Maybe SCIMC.User.StoredUser)
+getScimUser uid = runIdentity <$$>
+  (retry x1 . query1 sel $ params Quorum (Identity uid))
+  where
+    sel :: PrepQuery R (Identity UserId) (Identity SCIMC.User.StoredUser)
+    sel = "SELECT json FROM scim_user WHERE uid = ?"
 
 -- | Return all users that can be found under a given list of 'UserId's.  If some cannot be found,
 -- the output list will just be shorter (no errors).
 getScimUsers
   :: (HasCallStack, MonadClient m)
-  => [UserId] -> m [SCIM.StoredUser]
-getScimUsers = undefined
+  => [UserId] -> m [SCIMC.User.StoredUser]
+getScimUsers uids = runIdentity <$$>
+  retry x1 (query sel (params Quorum (Identity uids)))
+  where
+    sel :: PrepQuery R (Identity [UserId]) (Identity SCIMC.User.StoredUser)
+    sel = "SELECT json FROM scim_user WHERE uid in ?"
