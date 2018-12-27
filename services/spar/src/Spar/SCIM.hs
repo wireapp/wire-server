@@ -198,8 +198,9 @@ createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser _user samlSubjectId han
             Just idpConfig -> pure $
               SAML.UserRef (idpConfig ^. SAML.idpMetadata . SAML.edIssuer) subj
 
-    -- TODO: Adding a handle should be done _DURING_ the creation
+    -- Create SAML user, which in turn creates a brig user.
     buid <- lift $ createUser uref mbName
+    -- Set user handle on brig (which can't be done during user creation).
     lift $ Intra.Brig.setHandle buid handl
 
     maybe (SCIM.throwSCIM (SCIM.serverError "SCIM.UserDB.create: user disappeared"))
