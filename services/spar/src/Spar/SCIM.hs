@@ -143,18 +143,18 @@ apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
 -- value and the @displayName@ won't be affected by that change.
 
 data ValidSCIMUser = ValidSCIMUser
-  { _vsuUser   :: SCIM.User.User
-  , _vsuExtId  :: Text
-  , _vsuHandle :: Handle
-  , _vsuName   :: Maybe Name
+  { _vsuUser          :: SCIM.User.User
+  , _vsuSAMLSubjectId :: Maybe SAML.NameID
+    -- ^ if the user should authenticate via SAML, use this subjId.
+  , _vsuHandle        :: Handle
+  , _vsuName          :: Maybe Name
   }
 
 validateSCIMUser :: Monad m => SCIM.User.User -> ExceptT SCIM.SCIMError m ValidSCIMUser
 validateSCIMUser user = do
-    extId <- case SCIM.User.externalId user of
-      Just x -> pure x
-      Nothing -> SCIM.throwSCIM $
-        SCIM.badRequest SCIM.InvalidValue (Just "externalId is required")
+    -- TODO: Assume that externalID is the subjectID, let's figure out how
+    -- to extract that later
+    let samlSubjectId = SAML.opaqueNameID <$> SCIM.User.externalId user
     handl <- case parseHandle (SCIM.User.userName user) of
       Just x -> pure x
       Nothing -> SCIM.throwSCIM $
@@ -172,21 +172,21 @@ validateSCIMUser user = do
     -- already been done before -- the hscim library check does a 'get'
     -- before a 'create'
 
-    pure $ ValidSCIMUser user extId handl mbName
+    pure $ ValidSCIMUser user samlSubjectId handl mbName
 
 createValidSCIMUser :: ScimTokenInfo -> ValidSCIMUser -> ExceptT SCIM.SCIMError Spar SCIM.StoredUser
-createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser _user extId handl mbName) = do
-    -- TODO: Assume that externalID is the subjectID, let's figure out how
-    -- to extract that later
-    issuer <- case stiIdP of
-        Nothing -> SCIM.throwSCIM $
+createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser _user samlSubjectId handl mbName) = do
+    uref <- case (stiIdP, samlSubjectId) of
+        (Nothing, _) -> SCIM.throwSCIM $
           SCIM.serverError "No IdP configured for the provisioning token"
-        Just idp -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
+        (_, Nothing) -> SCIM.throwSCIM $
+          SCIM.badRequest SCIM.InvalidValue (Just "externalId is required for SAML users")
+        (Just idp, Just subj) -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
             Nothing -> SCIM.throwSCIM $
               SCIM.serverError "The IdP corresponding to the provisioning token \
                                \was not found"
-            Just idpConfig -> pure (idpConfig ^. SAML.idpMetadata . SAML.edIssuer)
-    let uref = SAML.UserRef issuer (SAML.opaqueNameID extId)
+            Just idpConfig -> pure $
+              SAML.UserRef (idpConfig ^. SAML.idpMetadata . SAML.edIssuer) subj
 
     -- TODO: Adding a handle should be done _DURING_ the creation
     buid <- lift $ createUser uref mbName
