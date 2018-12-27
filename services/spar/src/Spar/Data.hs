@@ -67,7 +67,7 @@ import qualified Web.Cookie as Cky
 import qualified Web.SCIM.Class.User as SCIMC.User
 
 
--- | NB: this is a lower bound (@<=@, not @==@).
+-- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
 schemaVersion :: Int32
 schemaVersion = 5
 
@@ -212,7 +212,7 @@ insertUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params Quo
     ins = "INSERT INTO user (issuer, sso_id, uid) VALUES (?, ?, ?)"
 
 getUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> m (Maybe UserId)
-getUser (SAML.UserRef tenant subject) = fmap runIdentity <$>
+getUser (SAML.UserRef tenant subject) = runIdentity <$$>
   (retry x1 . query1 sel $ params Quorum (tenant, subject))
   where
     sel :: PrepQuery R (SAML.Issuer, SAML.NameID) (Identity UserId)
@@ -242,7 +242,7 @@ insertBindCookie cky uid ttlNDT = do
 
 -- | The counter-part of 'insertBindCookie'.
 lookupBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> m (Maybe UserId)
-lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) = fmap runIdentity <$> do
+lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) = runIdentity <$$> do
   (retry x1 . query1 sel $ params Quorum (Identity ckyval))
   where
     sel :: PrepQuery R (Identity ST) (Identity UserId)
@@ -254,6 +254,7 @@ lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) = fmap runIdentity <$> do
 
 type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId)
 
+-- (should be called 'insertIdPConfig' for consistency.)
 storeIdPConfig
   :: (HasCallStack, MonadClient m)
   => SAML.IdPConfig TeamId -> m ()

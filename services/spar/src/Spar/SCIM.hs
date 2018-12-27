@@ -353,15 +353,15 @@ instance SCIM.UserDB Spar where
          -> SCIM.User.User
          -> SCIM.SCIMHandler Spar SCIM.StoredUser
   update _ _ _ =
-      SCIM.throwSCIM $ SCIM.serverError "User update is not implemented yet"
+      SCIM.throwSCIM $ SCIM.serverError "User update is not implemented yet"  -- TODO
 
   delete :: ScimTokenInfo -> Text -> SCIM.SCIMHandler Spar Bool
   delete _ _ =
-      SCIM.throwSCIM $ SCIM.serverError "User delete is not implemented yet"
+      SCIM.throwSCIM $ SCIM.serverError "User delete is not implemented yet"  -- TODO
 
   getMeta :: ScimTokenInfo -> SCIM.SCIMHandler Spar SCIM.Meta
   getMeta _ =
-      SCIM.throwSCIM $ SCIM.serverError "User getMeta is not implemented yet"
+      SCIM.throwSCIM $ SCIM.serverError "User getMeta is not implemented yet"  -- TODO
 
 ----------------------------------------------------------------------------
 -- GroupDB
