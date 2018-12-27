@@ -306,13 +306,11 @@ instance SCIM.UserDB Spar where
        -> SCIM.SCIMHandler Spar (SCIM.ListResponse SCIM.StoredUser)
   list ScimTokenInfo{stiTeam} mbFilter = do
     members <- lift $ getTeamMembers stiTeam
-    users <- fmap catMaybes $ forM members $ \member ->
-      lift (Intra.Brig.getUser (member ^. Galley.userId)) >>= \case  -- TODO: inefficient!  all users should be pulled in one bulk request!
-        Just user
-          | userDeleted user -> pure Nothing
-          | otherwise        -> Just <$> lift (undefined user)  -- TODO
-        Nothing -> SCIM.throwSCIM $
-          SCIM.serverError "SCIM.UserDB.list: couldn't fetch team member"
+    brigusers :: [User]
+      <- filter (not . userDeleted) <$>
+         lift (Intra.Brig.getUsers ((^. Galley.userId) <$> members))
+    scimusers :: [SCIM.StoredUser]
+      <- lift . wrapMonadClient . Data.getScimUsers $ Brig.userId <$> brigusers
     let check user = case mbFilter of
           Nothing -> pure True
           Just filter_ ->
@@ -322,7 +320,7 @@ instance SCIM.UserDB Spar where
                  Left err  -> SCIM.throwSCIM $
                    SCIM.badRequest SCIM.InvalidFilter (Just err)
     -- FUTUREWORK: once bigger teams arrive, we should have pagination here.
-    SCIM.fromList <$> filterM check users
+    SCIM.fromList <$> filterM check scimusers
 
   -- | Get a single user by its ID.
   get :: ScimTokenInfo
@@ -333,10 +331,16 @@ instance SCIM.UserDB Spar where
       Just u -> pure u
       Nothing -> SCIM.throwSCIM $
         SCIM.notFound "user" uidText
-    lift (Intra.Brig.getUser uid) >>= traverse (\user -> do
-      when (userTeam user /= Just stiTeam || userDeleted user) $
-        SCIM.throwSCIM $ SCIM.notFound "user" (idToText uid)
-      lift (undefined user))  -- TODO
+    briguser <- lift $ Intra.Brig.getUser uid
+    scimuser <- maybe (pure Nothing)
+                      (lift . wrapMonadClient . Data.getScimUser . Brig.userId)
+                      briguser
+    if ( isNothing scimuser ||
+         userTeam (fromJust briguser) /= Just stiTeam ||
+         userDeleted (fromJust briguser)
+       )
+      then SCIM.throwSCIM $ SCIM.notFound "user" (idToText uid)
+      else pure scimuser
 
   -- | Create a new user.
   create :: ScimTokenInfo

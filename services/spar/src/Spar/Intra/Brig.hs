@@ -132,6 +132,12 @@ getUser buid = do
     404 -> pure Nothing
     _   -> throwSpar (SparBrigError "Could not retrieve user")
 
+-- | Get a list of users; returns a shorter list if some 'UserId's come up empty (no errors).
+--
+-- TODO: implement an internal end-point on brig that makes this possible with one request.
+getUsers :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => [UserId] -> m [User]
+getUsers = fmap catMaybes . mapM getUser
+
 -- | Get a user; returns 'Nothing' if the user was not found.
 --
 -- TODO: currently this is not used, but it might be useful later when/if

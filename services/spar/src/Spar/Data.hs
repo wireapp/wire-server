@@ -44,6 +44,7 @@ module Spar.Data
   -- * SCIM user records
   , insertScimUser
   , getScimUser
+  , getScimUsers
   ) where
 
 import Imports
@@ -489,5 +490,12 @@ insertScimUser = undefined
 
 getScimUser
   :: (HasCallStack, MonadClient m)
-  => UserId -> m SCIM.StoredUser
+  => UserId -> m (Maybe SCIM.StoredUser)
 getScimUser = undefined
+
+-- | Return all users that can be found under a given list of 'UserId's.  If some cannot be found,
+-- the output list will just be shorter (no errors).
+getScimUsers
+  :: (HasCallStack, MonadClient m)
+  => [UserId] -> m [SCIM.StoredUser]
+getScimUsers = undefined
