@@ -15,12 +15,13 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 
--- TODO remove
+-- TODO remove (orphans can be avoided by only implementing functions here, and gathering them in
+-- the instance near the Spar type.)
 {-# OPTIONS_GHC
     -Wno-missing-methods
     -Wno-unused-imports
     -Wno-orphans
-    -Wno-unused-top-binds
+    -Wunused-top-binds
   #-}
 
 -- | An implementation of the SCIM API for doing bulk operations with users.
@@ -40,7 +41,7 @@ module Spar.SCIM
   -- $mapping
 
   -- * testing
-  , toSCIMUser'
+  , toSCIMStoredUser
   ) where
 
 import Imports
@@ -65,7 +66,7 @@ import SAML2.WebSSO (IdPId)
 import Servant
 import Servant.API.Generic
 import Spar.API.Util
-import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, createUser)
+import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, createUser', wrapMonadClient)
 import Spar.Error
 import Spar.Intra.Galley
 import Spar.Types
@@ -152,6 +153,8 @@ data ValidSCIMUser = ValidSCIMUser
   , _vsuName          :: Maybe Name
   }
 
+-- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does not
+-- comply with the standard / our constraints.
 validateSCIMUser
   :: forall m m'. (m ~ SCIM.SCIMHandler m', Monad m')
   => SCIM.User.User -> m ValidSCIMUser
@@ -185,7 +188,7 @@ validateSCIMUser user = do
 -- | We only allow SCIM users that authenticate via SAML.  (This is by no means necessary, though.
 -- It can be relaxed to allow creating users with password authentication if that is a requirement.)
 createValidSCIMUser :: ScimTokenInfo -> ValidSCIMUser -> ExceptT SCIM.SCIMError Spar SCIM.StoredUser
-createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser _user samlSubjectId handl mbName) = do
+createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser user samlSubjectId handl mbName) = do
     uref <- case (stiIdP, samlSubjectId) of
         (Nothing, _) -> SCIM.throwSCIM $
           SCIM.serverError "No IdP configured for the provisioning token"
@@ -198,30 +201,29 @@ createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser _user samlSubjectId han
             Just idpConfig -> pure $
               SAML.UserRef (idpConfig ^. SAML.idpMetadata . SAML.edIssuer) subj
 
-    -- Create SAML user, which in turn creates a brig user.
-    buid <- lift $ createUser uref mbName
+    -- This UserId will be used both for scim user in spar and for brig.
+    buid <- Id <$> liftIO UUID.nextRandom
+    -- Create SCIM user here in spar.
+    storedUser <- lift $ toSCIMStoredUser buid user
+    lift . wrapMonadClient $ Data.insertScimUser storedUser
+    -- Create SAML user here in spar, which in turn creates a brig user.
+    lift $ createUser' buid uref mbName
     -- Set user handle on brig (which can't be done during user creation).
     lift $ Intra.Brig.setHandle buid handl
 
-    maybe (SCIM.throwSCIM (SCIM.serverError "SCIM.UserDB.create: user disappeared"))
-          (lift . toSCIMUser) =<<
-      lift (Intra.Brig.getUser buid)
+    pure storedUser
 
-
--- | Expose a Wire user as an SCIM user.
---
--- TODO: this function is conceptually broken: brig users contain strictly less information than
--- SCIM users, and that's a good thing.  instead, we need to store SCIM user records in spar, and
--- sync them with brig on a need-to-know basis.
-toSCIMUser :: (SAML.HasNow m, MonadReader Env m) => User -> m SCIM.StoredUser
-toSCIMUser user = do
-  SAML.Time now <- SAML.getNow
+toSCIMStoredUser
+  :: forall m. (SAML.HasNow m, MonadReader Env m)
+  => UserId -> SCIM.User.User -> m SCIM.StoredUser
+toSCIMStoredUser uid usr = do
+  now <- SAML.getNow
   baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
-  pure $ toSCIMUser' now baseuri user
+  pure $ toSCIMStoredUser' now baseuri uid usr
 
--- | Pure part of 'toSCIMUser'.
-toSCIMUser' :: UTCTime -> URIBS.URI -> User -> SCIM.StoredUser
-toSCIMUser' now baseuri user = SCIM.WithMeta meta thing
+toSCIMStoredUser'
+  :: SAML.Time -> URIBS.URI -> UserId -> SCIM.User.User -> SCIM.StoredUser
+toSCIMStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr = SCIM.WithMeta meta thing
   where
     mkLocation :: String -> URI
     mkLocation pathSuffix = convURI $ baseuri SAML.=/ cs pathSuffix
@@ -229,17 +231,9 @@ toSCIMUser' now baseuri user = SCIM.WithMeta meta thing
         convURI uri = fromMaybe err . parseURI . cs . URIBS.serializeURIRef' $ uri
           where err = error $ "internal error: " <> show uri
 
-    -- User ID in text format
-    idText = idToText (Brig.userId user)
-    -- The representation of the user, without the meta information
-    thing = SCIM.WithId idText $ SCIM.User.empty
-      { SCIM.User.userName = maybe idText fromHandle (userHandle user)
-      , SCIM.User.name = Just emptySCIMName
-      , SCIM.User.displayName = Just (fromName (userName user))
-      }
-    -- The hash of the user representation (used as a version, i.e. ETag)
+    thing = SCIM.WithId uid usr
     thingHash = hashlazy (Aeson.encode thing) :: Digest SHA256
-    -- Meta-info about the user
+
     meta = SCIM.Meta
       { SCIM.resourceType = SCIM.UserResource
       , SCIM.created = now
@@ -248,19 +242,8 @@ toSCIMUser' now baseuri user = SCIM.WithMeta meta thing
         -- TODO: it looks like (a) we need to add this to the HTTP header, and (b) this should be a
         -- version (which is increasing over time), not a hash (which is not).
         -- https://tools.ietf.org/html/rfc7644#section-3.14
-      , SCIM.location = SCIM.URI . mkLocation $ "/Users/" <> show (Brig.userId user)
+      , SCIM.location = SCIM.URI . mkLocation $ "/Users/" <> cs uid
       }
-
-emptySCIMName :: SCIM.User.Name
-emptySCIMName =
-  SCIM.User.Name
-    { SCIM.User.formatted = Nothing
-    , SCIM.User.givenName = Just ""
-    , SCIM.User.familyName = Just ""
-    , SCIM.User.middleName = Nothing
-    , SCIM.User.honorificPrefix = Nothing
-    , SCIM.User.honorificSuffix = Nothing
-    }
 
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -324,10 +307,10 @@ instance SCIM.UserDB Spar where
   list ScimTokenInfo{stiTeam} mbFilter = do
     members <- lift $ getTeamMembers stiTeam
     users <- fmap catMaybes $ forM members $ \member ->
-      lift (Intra.Brig.getUser (member ^. Galley.userId)) >>= \case
+      lift (Intra.Brig.getUser (member ^. Galley.userId)) >>= \case  -- TODO: inefficient!  all users should be pulled in one bulk request!
         Just user
           | userDeleted user -> pure Nothing
-          | otherwise        -> Just <$> lift (toSCIMUser user)
+          | otherwise        -> Just <$> lift (undefined user)  -- TODO
         Nothing -> SCIM.throwSCIM $
           SCIM.serverError "SCIM.UserDB.list: couldn't fetch team member"
     let check user = case mbFilter of
@@ -353,7 +336,7 @@ instance SCIM.UserDB Spar where
     lift (Intra.Brig.getUser uid) >>= traverse (\user -> do
       when (userTeam user /= Just stiTeam || userDeleted user) $
         SCIM.throwSCIM $ SCIM.notFound "user" (idToText uid)
-      lift (toSCIMUser user))
+      lift (undefined user))  -- TODO
 
   -- | Create a new user.
   create :: ScimTokenInfo

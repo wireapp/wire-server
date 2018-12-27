@@ -34,12 +34,16 @@ module Spar.Data
   , deleteIdPConfig
   , deleteTeam
 
-  -- * SCIM
+  -- * SCIM auth
   , insertScimToken
   , lookupScimToken
   , getScimTokens
   , deleteScimToken
   , deleteTeamScimTokens
+
+  -- * SCIM user records
+  , insertScimUser
+  , getScimUser
   ) where
 
 import Imports
@@ -59,6 +63,7 @@ import URI.ByteString
 import qualified Data.List.NonEmpty as NL
 import qualified SAML2.WebSSO as SAML
 import qualified Web.Cookie as Cky
+import qualified Web.SCIM.Class.User as SCIM
 
 
 -- | NB: this is a lower bound (@<=@, not @==@).
@@ -368,7 +373,7 @@ deleteTeam team = do
       deleteIdPConfig idpid issuer team
 
 ----------------------------------------------------------------------
--- SCIM
+-- SCIM auth
 
 type ScimTokenRow = (ScimToken, TeamId, ScimTokenId, UTCTime, Maybe SAML.IdPId, Text)
 
@@ -467,3 +472,22 @@ deleteTeamScimTokens team = do
 
     delByToken :: PrepQuery W (Identity ScimToken) ()
     delByToken = "DELETE FROM team_provisioning_by_token WHERE token_ = ?"
+
+----------------------------------------------------------------------
+-- SCIM user records
+
+-- | Store the scim user in its entirety and return the 'SCIM.StoredUser'.
+--
+-- NB: we can add optional columns in the future and extract parts of the json blob should the need
+-- arise.  For instance, if we want to support different versions of SCIM, we could extract
+-- 'SCIM.User.schemas' and, throw an exception if the list of values is not supported, and store it
+-- in a separate column otherwise, allowing for fast version filtering on the database.
+insertScimUser
+  :: (HasCallStack, MonadClient m)
+  => SCIM.StoredUser -> m ()
+insertScimUser = undefined
+
+getScimUser
+  :: (HasCallStack, MonadClient m)
+  => UserId -> m SCIM.StoredUser
+getScimUser = undefined
