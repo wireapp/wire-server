@@ -20,22 +20,26 @@ import qualified Test.Spar.SCIMSpec
 
 
 main :: IO ()
-main = withArgs [] . hspec =<< mkspec
+main = do
+  env <- mkEnvFromOptions
+  withArgs [] . hspec . beforeAll (pure env) . afterAll destroyEnv $ mkspec
 
-mkspec :: IO Spec
+mkspec :: SpecWith TestEnv
 mkspec = do
-  let desc = "Spar - SSO Service Integration Test Suite"
-  (integrationConfigFilePath, configFilePath) <- execParser (info (helper <*> cliOptsParser) (header desc <> fullDesc))
-  integrationOpts :: IntegrationConfig <- Yaml.decodeFileEither integrationConfigFilePath >>= either (error . show) pure
-  serviceOpts :: Opts <- Yaml.decodeFileEither configFilePath >>= either (throwIO . ErrorCall . show) deriveOpts
-
-  pure . beforeAll (mkEnv integrationOpts serviceOpts) . afterAll destroyEnv $ do
     describe "Test.Spar.API" Test.Spar.APISpec.spec
     describe "Test.Spar.App" Test.Spar.AppSpec.spec
     describe "Test.Spar.Data" Test.Spar.DataSpec.spec
     describe "Test.Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
     describe "Test.Spar.SCIM" Test.Spar.SCIMSpec.spec
 
+
+mkEnvFromOptions :: IO TestEnv
+mkEnvFromOptions = do
+  let desc = "Spar - SSO Service Integration Test Suite"
+  (integrationConfigFilePath, configFilePath) <- execParser (info (helper <*> cliOptsParser) (header desc <> fullDesc))
+  integrationOpts :: IntegrationConfig <- Yaml.decodeFileEither integrationConfigFilePath >>= either (error . show) pure
+  serviceOpts :: Opts <- Yaml.decodeFileEither configFilePath >>= either (throwIO . ErrorCall . show) deriveOpts
+  mkEnv integrationOpts serviceOpts
 
 -- | Accept config file locations as cli options.
 cliOptsParser :: Parser (String, String)
