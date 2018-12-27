@@ -142,6 +142,61 @@ apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
 -- confusion that might appear when somebody tries to set @name@ to some
 -- value and the @displayName@ won't be affected by that change.
 
+data ValidSCIMUser = ValidSCIMUser
+  { _vsuUser   :: SCIM.User.User
+  , _vsuExtId  :: Text
+  , _vsuHandle :: Handle
+  , _vsuName   :: Maybe Name
+  }
+
+validateSCIMUser :: Monad m => SCIM.User.User -> ExceptT SCIM.SCIMError m ValidSCIMUser
+validateSCIMUser user = do
+    extId <- case SCIM.User.externalId user of
+      Just x -> pure x
+      Nothing -> SCIM.throwSCIM $
+        SCIM.badRequest SCIM.InvalidValue (Just "externalId is required")
+    handl <- case parseHandle (SCIM.User.userName user) of
+      Just x -> pure x
+      Nothing -> SCIM.throwSCIM $
+        SCIM.badRequest SCIM.InvalidValue (Just "userName is not compliant")
+
+    -- We check the name for validity, but only if it's present
+    mbName <- forM (SCIM.User.displayName user) $ \n ->
+      case checkedEitherMsg @_ @1 @128 "displayName" n of
+        Right x -> pure $ Name (fromRange x)
+        Left err -> SCIM.throwSCIM $
+          SCIM.badRequest
+            SCIM.InvalidValue
+            (Just ("displayName is not compliant: " <> Text.pack err))
+    -- NB: We assume that checking that the user does _not_ exist has
+    -- already been done before -- the hscim library check does a 'get'
+    -- before a 'create'
+
+    pure $ ValidSCIMUser user extId handl mbName
+
+createValidSCIMUser :: ScimTokenInfo -> ValidSCIMUser -> ExceptT SCIM.SCIMError Spar SCIM.StoredUser
+createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser _user extId handl mbName) = do
+    -- TODO: Assume that externalID is the subjectID, let's figure out how
+    -- to extract that later
+    issuer <- case stiIdP of
+        Nothing -> SCIM.throwSCIM $
+          SCIM.serverError "No IdP configured for the provisioning token"
+        Just idp -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
+            Nothing -> SCIM.throwSCIM $
+              SCIM.serverError "The IdP corresponding to the provisioning token \
+                               \was not found"
+            Just idpConfig -> pure (idpConfig ^. SAML.idpMetadata . SAML.edIssuer)
+    let uref = SAML.UserRef issuer (SAML.opaqueNameID extId)
+
+    -- TODO: Adding a handle should be done _DURING_ the creation
+    buid <- lift $ createUser uref mbName
+    lift $ Intra.Brig.setHandle buid handl
+
+    maybe (SCIM.throwSCIM (SCIM.serverError "SCIM.UserDB.create: user disappeared"))
+          (lift . toSCIMUser) =<<
+      lift (Intra.Brig.getUser buid)
+
+
 -- | Expose a Wire user as an SCIM user.
 --
 -- TODO: this function is conceptually broken: brig users contain strictly less information than
@@ -293,47 +348,7 @@ instance SCIM.UserDB Spar where
   create :: ScimTokenInfo
          -> SCIM.User.User
          -> SCIM.SCIMHandler Spar SCIM.StoredUser
-  create ScimTokenInfo{stiIdP} user = do
-    extId <- case SCIM.User.externalId user of
-      Just x -> pure x
-      Nothing -> SCIM.throwSCIM $
-        SCIM.badRequest SCIM.InvalidValue (Just "externalId is required")
-    handl <- case parseHandle (SCIM.User.userName user) of
-      Just x -> pure x
-      Nothing -> SCIM.throwSCIM $
-        SCIM.badRequest SCIM.InvalidValue (Just "userName is not compliant")
-
-    -- We check the name for validity, but only if it's present
-    mbName <- forM (SCIM.User.displayName user) $ \n ->
-      case checkedEitherMsg @_ @1 @128 "displayName" n of
-        Right x -> pure $ Name (fromRange x)
-        Left err -> SCIM.throwSCIM $
-          SCIM.badRequest
-            SCIM.InvalidValue
-            (Just ("displayName is not compliant: " <> Text.pack err))
-    -- NB: We assume that checking that the user does _not_ exist has
-    -- already been done before -- the hscim library check does a 'get'
-    -- before a 'create'
-
-    -- TODO: Assume that externalID is the subjectID, let's figure out how
-    -- to extract that later
-    issuer <- case stiIdP of
-        Nothing -> SCIM.throwSCIM $
-          SCIM.serverError "No IdP configured for the provisioning token"
-        Just idp -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
-            Nothing -> SCIM.throwSCIM $
-              SCIM.serverError "The IdP corresponding to the provisioning token \
-                               \was not found"
-            Just idpConfig -> pure (idpConfig ^. SAML.idpMetadata . SAML.edIssuer)
-    let uref = SAML.UserRef issuer (SAML.opaqueNameID extId)
-
-    -- TODO: Adding a handle should be done _DURING_ the creation
-    buid <- lift $ createUser uref mbName
-    lift $ Intra.Brig.setHandle buid handl
-
-    maybe (SCIM.throwSCIM (SCIM.serverError "SCIM.UserDB.create: user disappeared"))
-          (lift . toSCIMUser) =<<
-      lift (Intra.Brig.getUser buid)
+  create tokinfo user = createValidSCIMUser tokinfo =<< validateSCIMUser user
 
   update :: ScimTokenInfo
          -> Text
