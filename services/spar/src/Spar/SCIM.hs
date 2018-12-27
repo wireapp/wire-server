@@ -9,6 +9,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
@@ -51,6 +52,7 @@ import Control.Monad.Except
 import Crypto.Hash
 import Data.Aeson as Aeson
 import Data.Id
+import Data.Misc ((<$$>))
 import Data.Range
 import Data.String.Conversions
 import Data.Text.Encoding
@@ -150,24 +152,30 @@ data ValidSCIMUser = ValidSCIMUser
   , _vsuName          :: Maybe Name
   }
 
-validateSCIMUser :: Monad m => SCIM.User.User -> ExceptT SCIM.SCIMError m ValidSCIMUser
+validateSCIMUser
+  :: forall m m'. (m ~ SCIM.SCIMHandler m', Monad m')
+  => SCIM.User.User -> m ValidSCIMUser
 validateSCIMUser user = do
+    let validateNameOrExtId :: Maybe Text -> m (Maybe Text)
+        validateNameOrExtId mtxt = forM mtxt $ \txt ->
+          case checkedEitherMsg @_ @1 @128 "displayName" txt of
+            Right rtxt -> pure $ fromRange rtxt
+            Left err -> SCIM.throwSCIM $ SCIM.badRequest SCIM.InvalidValue
+              (Just ("displayName is not compliant: " <> Text.pack err))
+
     -- TODO: Assume that externalID is the subjectID, let's figure out how
     -- to extract that later
-    let samlSubjectId = SAML.opaqueNameID <$> SCIM.User.externalId user
+    samlSubjectId <- SAML.opaqueNameID <$$>
+      validateNameOrExtId (SCIM.User.externalId user)
+
     handl <- case parseHandle (SCIM.User.userName user) of
       Just x -> pure x
       Nothing -> SCIM.throwSCIM $
         SCIM.badRequest SCIM.InvalidValue (Just "userName is not compliant")
 
     -- We check the name for validity, but only if it's present
-    mbName <- forM (SCIM.User.displayName user) $ \n ->
-      case checkedEitherMsg @_ @1 @128 "displayName" n of
-        Right x -> pure $ Name (fromRange x)
-        Left err -> SCIM.throwSCIM $
-          SCIM.badRequest
-            SCIM.InvalidValue
-            (Just ("displayName is not compliant: " <> Text.pack err))
+    mbName <- Name <$$> validateNameOrExtId (SCIM.User.displayName user)
+
     -- NB: We assume that checking that the user does _not_ exist has
     -- already been done before -- the hscim library check does a 'get'
     -- before a 'create'
