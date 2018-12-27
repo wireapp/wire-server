@@ -182,6 +182,8 @@ validateSCIMUser user = do
 
     pure $ ValidSCIMUser user samlSubjectId handl mbName
 
+-- | We only allow SCIM users that authenticate via SAML.  (This is by no means necessary, though.
+-- It can be relaxed to allow creating users with password authentication if that is a requirement.)
 createValidSCIMUser :: ScimTokenInfo -> ValidSCIMUser -> ExceptT SCIM.SCIMError Spar SCIM.StoredUser
 createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser _user samlSubjectId handl mbName) = do
     uref <- case (stiIdP, samlSubjectId) of
