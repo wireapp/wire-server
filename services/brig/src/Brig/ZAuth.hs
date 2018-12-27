@@ -5,6 +5,8 @@
 {-# LANGUAGE OverloadedStrings          #-}
 
 -- | 'zauth' token signing and verification.
+--
+-- REFACTOR: should this be moved to @/libs/zauth@?
 module Brig.ZAuth
     ( -- * Monad
       ZAuth
