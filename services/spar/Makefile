@@ -75,7 +75,7 @@ i-list:
 	$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
 
 i-%:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml --match="$*"
 
 .PHONY: integration
 integration: fast i

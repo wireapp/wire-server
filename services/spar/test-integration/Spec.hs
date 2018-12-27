@@ -12,7 +12,7 @@
 module Main where
 
 import Imports
-import System.Environment
+import System.Environment (withArgs)
 import Test.Hspec
 import Util
 
@@ -25,8 +25,17 @@ import qualified Test.Spar.SCIMSpec
 
 main :: IO ()
 main = do
-  env <- mkEnvFromOptions
-  withArgs [] . hspec . beforeAll (pure env) . afterAll destroyEnv $ mkspec
+  (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
+  env <- withArgs wireArgs mkEnvFromOptions
+  withArgs hspecArgs . hspec . beforeAll (pure env) . afterAll destroyEnv $ mkspec
+
+partitionArgs :: [String] -> ([String], [String])
+partitionArgs = go [] []
+  where
+    go wireArgs hspecArgs ("-s" : x : xs) = go (wireArgs <> ["-s", x]) hspecArgs xs
+    go wireArgs hspecArgs ("-i" : x : xs) = go (wireArgs <> ["-i", x]) hspecArgs xs
+    go wireArgs hspecArgs (x : xs)        = go wireArgs (hspecArgs <> [x]) xs
+    go wireArgs hspecArgs []              = (wireArgs, hspecArgs)
 
 mkspec :: SpecWith TestEnv
 mkspec = do
