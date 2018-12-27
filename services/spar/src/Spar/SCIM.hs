@@ -143,6 +143,10 @@ apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
 -- value and the @displayName@ won't be affected by that change.
 
 -- | Expose a Wire user as an SCIM user.
+--
+-- TODO: this function is conceptually broken: brig users contain strictly less information than
+-- SCIM users, and that's a good thing.  instead, we need to store SCIM user records in spar, and
+-- sync them with brig on a need-to-know basis.
 toSCIMUser :: (SAML.HasNow m, MonadReader Env m) => User -> m SCIM.StoredUser
 toSCIMUser user = do
   SAML.Time now <- SAML.getNow
