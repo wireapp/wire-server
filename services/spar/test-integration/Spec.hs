@@ -1,5 +1,14 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- | It would be nice to use hspec-discover, which even has support for
+-- <https://hspec.github.io/hspec-discover.html#using-a-custom-main-function custom main functions>.
+--
+-- This is trickier than expected, though: hspec-discover expects the modules to export 'spec ::
+-- Spec', but we would need that to be 'spec :: SpecWith TestEnv'.  On the other hand, we cannot
+-- easily 'mkEnvFromOptions' inside each module, since it requires '-s', '-i' command line modules,
+-- which will make 'hspec' choke.
+--
+-- Related, but not the solution: https://github.com/hspec/hspec/pull/397
 module Main where
 
 import Imports
