@@ -46,6 +46,12 @@ specUsers = describe "operations with users" $ do
                 )
             scimStoredUser `userShouldMatch` brigUser
 
+        it "gives created user a valid 'SAML.UserRef' for SSO." $ do
+            pending
+
+        it "attributes of brig user, scim user, saml user are mapped as documented." $ do
+            pending
+
     describe "GET /Users" $ do
         it "lists all users in a team" $ do
             -- Create a user via SCIM
@@ -85,8 +91,10 @@ specUsers = describe "operations with users" $ do
             -- Check that the SCIM-provisioned user can be fetched
             storedUser' <- getUser tok (scimUserId storedUser)
             liftIO $ storedUser' `shouldBe` storedUser
-        it "finds a non-SCIM-provisioned user" $ do
-            pendingWith "TODO: fails because the user has no handle"
+        it "does NOT find a non-SCIM-provisioned user" $ do
+            pendingWith "TODO: fails because the user has no handle (UPDATE: \
+                        \it *should* fail, too, just need to make sure it's \
+                        \for the right reasons.)"
             {-
             env <- ask
             -- Check that the (non-SCIM-provisioned) team owner can be fetched
@@ -111,11 +119,52 @@ specUsers = describe "operations with users" $ do
             (tok, _) <- registerIdPAndSCIMToken
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
-            -- Delete the user (TODO: do it via SCIM)
+            -- Delete the user
             call $ deleteUser (env ^. teBrig) userid
             -- Try to find the user
             getUser_ (Just tok) userid (env ^. teSpar)
                 !!! const 404 === statusCode
+            pendingWith "TODO: delete via SCIM"
+
+    describe "PUT /Users" $ do
+        it "responds with 404 (just making sure...)" $ do
+            pending
+
+    describe "PUT /Users/:id" $ do
+        it "updates the user attributes in scim_user" $ do
+            pending
+
+        it "updates the 'SAML.UserRef' in spar and brig" $ do
+            pendingWith "interesting race conditions and probably other corner cases here..."
+
+        it "updates the user attributes in brig as documented." $ do
+            pending
+
+        context "brig user is updated" $ do
+            it "does NOT mirror this in the scim user" $ do
+                pendingWith "this is arguably not great behavior, but \
+                            \i'm not sure we want to implement \
+                            \synchronisation from brig to spar right now?"
+
+            it "updates to scim user will overwrite these updates" $ do
+                pendingWith "that's probably what we want?"
+
+    describe "DELETE /Users" $ do
+        it "responds with 404 (just making sure...)" $ do
+            pending
+
+    describe "DELETE /Users/:id" $ do
+        it "sets the 'deleted' flag in brig, and does nothing otherwise." $ do
+            pendingWith "really?  how do we destroy the data then, and when?"
+
+    describe "GET /Meta" $ do  -- TODO: is that the end-point?  it's about the 'getMeta' method.
+        it "..." $ do
+            pending
+
+    describe "CRUD operations maintain invariants in mapScimToBrig, mapBrigToScim." $ do
+        it "..." $ do
+            pendingWith "this is a job for quickcheck-state-machine"
+
 
 specTokens :: SpecWith TestEnv
 specTokens = xdescribe "operations with provisioning tokens" $ do

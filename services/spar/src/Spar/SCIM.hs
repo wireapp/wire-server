@@ -38,7 +38,8 @@ module Spar.SCIM
   , ScimTokenList(..)
 
   -- * The mapping between Wire and SCIM users
-  -- $mapping
+  , mapScimToBrig
+  , mapBrigToScim
 
   -- * testing
   , toSCIMStoredUser'
@@ -123,7 +124,12 @@ apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
 ----------------------------------------------------------------------------
 -- UserDB
 
--- $mapping
+-- | Mapping from SCIM user to brig user.  This is ok to use in production, but
+-- it doesn't fit the brig rest api.  So we duplicate the behavior of this
+-- function in 'createValidSCIMUser' below and use this function (a) as
+-- executable documentation and (b) in the tests to make sure it's valid.
+-- The function takes an existing brig user that is updated in *some* fields,
+-- and left intact in others.
 --
 --   * @userName@ is mapped to our 'userHandle'. If there is no handle, we
 --     use 'userId', because having some unique @userName@ is a SCIM
@@ -144,7 +150,14 @@ apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
 -- other apps also ignore this model. Leaving @name@ empty will prevent the
 -- confusion that might appear when somebody tries to set @name@ to some
 -- value and the @displayName@ won't be affected by that change.
+mapScimToBrig :: SCIM.StoredUser -> Brig.User -> Brig.User
+mapScimToBrig = undefined
 
+mapBrigToScim :: Brig.User -> SCIM.StoredUser -> SCIM.StoredUser
+mapBrigToScim = undefined
+
+-- | SCIM user with some details gathered during validation.  Output type
+-- of 'validateSCIMUser', input type of 'createValidSCIMUser'.
 data ValidSCIMUser = ValidSCIMUser
   { _vsuUser          :: SCIM.User.User
   , _vsuSAMLSubjectId :: Maybe SAML.NameID
@@ -167,7 +180,9 @@ validateSCIMUser user = do
               (Just ("displayName is not compliant: " <> Text.pack err))
 
     -- TODO: Assume that externalID is the subjectID, let's figure out how
-    -- to extract that later
+    -- to extract that later.  We may need to make this configurable on a
+    -- per-team basis to correctly create subject IDs for either email or
+    -- persistent names, or possibly others.
     samlSubjectId <- SAML.opaqueNameID <$$>
       validateNameOrExtId (SCIM.User.externalId user)
 
@@ -187,7 +202,9 @@ validateSCIMUser user = do
 
 -- | We only allow SCIM users that authenticate via SAML.  (This is by no means necessary, though.
 -- It can be relaxed to allow creating users with password authentication if that is a requirement.)
-createValidSCIMUser :: ScimTokenInfo -> ValidSCIMUser -> ExceptT SCIM.SCIMError Spar SCIM.StoredUser
+createValidSCIMUser
+  :: forall m. (m ~ SCIM.SCIMHandler Spar)
+  => ScimTokenInfo -> ValidSCIMUser -> m SCIM.StoredUser
 createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser user samlSubjectId handl mbName) = do
     uref <- case (stiIdP, samlSubjectId) of
         (Nothing, _) -> SCIM.throwSCIM $

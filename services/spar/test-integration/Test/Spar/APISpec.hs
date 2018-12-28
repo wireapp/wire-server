@@ -189,6 +189,10 @@ specFinalizeLogin = do
             bdy `shouldContain` "}, receiverOrigin)"
             hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
 
+        context "user has been deleted" $ do
+          it "responds with 'forbidden'" $ do
+            pendingWith "or do we want to un-delete the user?  or create a new one?"
+
       context "access granted" $ do
         it "responds with a very peculiar 'allowed' HTTP response" $ do
           (_, _, idp) <- registerTestIdP
