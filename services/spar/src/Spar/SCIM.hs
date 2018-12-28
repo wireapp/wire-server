@@ -81,9 +81,9 @@ import qualified Spar.Data    as Data
 import qualified Spar.Intra.Brig as Intra.Brig
 import qualified URI.ByteString as URIBS
 
-import qualified Web.SCIM.Class.Auth              as SCIM
-import qualified Web.SCIM.Class.Group             as SCIM
-import qualified Web.SCIM.Class.User              as SCIM
+import qualified Web.SCIM.Class.Auth              as SCIM.Class.Auth
+import qualified Web.SCIM.Class.Group             as SCIM.Class.Group
+import qualified Web.SCIM.Class.User              as SCIM.Class.User
 import qualified Web.SCIM.Filter                  as SCIM
 import qualified Web.SCIM.Handler                 as SCIM
 import qualified Web.SCIM.Schema.Common           as SCIM
@@ -150,10 +150,10 @@ apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
 -- other apps also ignore this model. Leaving @name@ empty will prevent the
 -- confusion that might appear when somebody tries to set @name@ to some
 -- value and the @displayName@ won't be affected by that change.
-mapScimToBrig :: SCIM.StoredUser -> Brig.User -> Brig.User
+mapScimToBrig :: SCIM.Class.User.StoredUser -> Brig.User -> Brig.User
 mapScimToBrig = undefined
 
-mapBrigToScim :: Brig.User -> SCIM.StoredUser -> SCIM.StoredUser
+mapBrigToScim :: Brig.User -> SCIM.Class.User.StoredUser -> SCIM.Class.User.StoredUser
 mapBrigToScim = undefined
 
 -- | SCIM user with some details gathered during validation.  Output type
@@ -204,7 +204,7 @@ validateSCIMUser user = do
 -- It can be relaxed to allow creating users with password authentication if that is a requirement.)
 createValidSCIMUser
   :: forall m. (m ~ SCIM.SCIMHandler Spar)
-  => ScimTokenInfo -> ValidSCIMUser -> m SCIM.StoredUser
+  => ScimTokenInfo -> ValidSCIMUser -> m SCIM.Class.User.StoredUser
 createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser user samlSubjectId handl mbName) = do
     uref <- case (stiIdP, samlSubjectId) of
         (Nothing, _) -> SCIM.throwSCIM $
@@ -232,14 +232,14 @@ createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser user samlSubjectId hand
 
 toSCIMStoredUser
   :: forall m. (SAML.HasNow m, MonadReader Env m)
-  => UserId -> SCIM.User.User -> m SCIM.StoredUser
+  => UserId -> SCIM.User.User -> m SCIM.Class.User.StoredUser
 toSCIMStoredUser uid usr = do
   now <- SAML.getNow
   baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
   pure $ toSCIMStoredUser' now baseuri uid usr
 
 toSCIMStoredUser'
-  :: SAML.Time -> URIBS.URI -> UserId -> SCIM.User.User -> SCIM.StoredUser
+  :: SAML.Time -> URIBS.URI -> UserId -> SCIM.User.User -> SCIM.Class.User.StoredUser
 toSCIMStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr = SCIM.WithMeta meta thing
   where
     mkLocation :: String -> URI
@@ -316,17 +316,17 @@ toSCIMEmail (Email eLocal eDomain) =
 -- 2. We want generic error descriptions in response bodies, while still
 --    logging nice error messages internally.
 
-instance SCIM.UserDB Spar where
+instance SCIM.Class.User.UserDB Spar where
   -- | List all users, possibly filtered by some predicate.
   list :: ScimTokenInfo
        -> Maybe SCIM.Filter
-       -> SCIM.SCIMHandler Spar (SCIM.ListResponse SCIM.StoredUser)
+       -> SCIM.SCIMHandler Spar (SCIM.ListResponse SCIM.Class.User.StoredUser)
   list ScimTokenInfo{stiTeam} mbFilter = do
     members <- lift $ getTeamMembers stiTeam
     brigusers :: [User]
       <- filter (not . userDeleted) <$>
          lift (Intra.Brig.getUsers ((^. Galley.userId) <$> members))
-    scimusers :: [SCIM.StoredUser]
+    scimusers :: [SCIM.Class.User.StoredUser]
       <- lift . wrapMonadClient . Data.getScimUsers $ Brig.userId <$> brigusers
     let check user = case mbFilter of
           Nothing -> pure True
@@ -342,7 +342,7 @@ instance SCIM.UserDB Spar where
   -- | Get a single user by its ID.
   get :: ScimTokenInfo
       -> Text
-      -> SCIM.SCIMHandler Spar (Maybe SCIM.StoredUser)
+      -> SCIM.SCIMHandler Spar (Maybe SCIM.Class.User.StoredUser)
   get ScimTokenInfo{stiTeam} uidText = do
     uid <- case readMaybe (Text.unpack uidText) of
       Just u -> pure u
@@ -361,13 +361,13 @@ instance SCIM.UserDB Spar where
   -- | Create a new user.
   create :: ScimTokenInfo
          -> SCIM.User.User
-         -> SCIM.SCIMHandler Spar SCIM.StoredUser
+         -> SCIM.SCIMHandler Spar SCIM.Class.User.StoredUser
   create tokinfo user = createValidSCIMUser tokinfo =<< validateSCIMUser user
 
   update :: ScimTokenInfo
          -> Text
          -> SCIM.User.User
-         -> SCIM.SCIMHandler Spar SCIM.StoredUser
+         -> SCIM.SCIMHandler Spar SCIM.Class.User.StoredUser
   update _ _ _ =
       SCIM.throwSCIM $ SCIM.serverError "User update is not implemented yet"  -- TODO
 
@@ -382,13 +382,13 @@ instance SCIM.UserDB Spar where
 ----------------------------------------------------------------------------
 -- GroupDB
 
-instance SCIM.GroupDB Spar where
+instance SCIM.Class.Group.GroupDB Spar where
   -- TODO
 
 ----------------------------------------------------------------------------
 -- AuthDB
 
-instance SCIM.AuthDB Spar where
+instance SCIM.Class.Auth.AuthDB Spar where
   type AuthData Spar = ScimToken
   type AuthInfo Spar = ScimTokenInfo
 
