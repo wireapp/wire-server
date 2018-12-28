@@ -249,6 +249,13 @@ toSCIMStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr = SCIM.WithMeta 
       , SCIM.location = SCIM.URI . mkLocation $ "/Users/" <> cs uid
       }
 
+parseUid
+  :: forall m m'. (m ~ SCIM.SCIMHandler m', Monad m')
+  => Text -> m UserId
+parseUid uidText = maybe err pure $ readMaybe (Text.unpack uidText)
+  where err = SCIM.throwSCIM $ SCIM.notFound "user" uidText
+
+
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -331,10 +338,7 @@ instance SCIM.Class.User.UserDB Spar where
       -> Text
       -> SCIM.SCIMHandler Spar (Maybe SCIM.Class.User.StoredUser)
   get ScimTokenInfo{stiTeam} uidText = do
-    uid <- case readMaybe (Text.unpack uidText) of
-      Just u -> pure u
-      Nothing -> SCIM.throwSCIM $
-        SCIM.notFound "user" uidText
+    uid <- parseUid uidText
     briguser <- lift $ Intra.Brig.getUser uid
     scimuser <- maybe (pure Nothing)
                       (lift . wrapMonadClient . Data.getScimUser . Brig.userId)
