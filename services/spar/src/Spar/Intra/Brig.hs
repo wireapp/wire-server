@@ -34,6 +34,7 @@ import Spar.Error
 import Web.Cookie
 
 import qualified SAML2.WebSSO as SAML
+import qualified Data.Text as Text
 
 
 ----------------------------------------------------------------------
@@ -91,7 +92,7 @@ createUser suid (Id buid) teamid mbName = do
       let subject = suid ^. SAML.uidSubject
           badName = throwSpar . SparBadUserName $ SAML.encodeElem subject
           mkName  = Name . fromRange <$>
-                    (SAML.shortShowNameID >=> checked @ST @1 @128) subject
+                    (fmap (Text.take 128) . SAML.shortShowNameID >=> checked @ST @1 @128) subject
       maybe badName pure mkName
 
   let newUser :: NewUser
