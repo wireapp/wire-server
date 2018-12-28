@@ -22,7 +22,7 @@
 module Util.Core
   (
   -- * Test environment
-    mkEnv, destroyEnv
+    mkEnvFromOptions, mkEnv, destroyEnv
   -- * Test helpers
   , passes, it, pending, pendingWith
   , shouldRespondWith
@@ -120,19 +120,51 @@ import qualified Brig.Types.User.Auth as Brig
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64.Lazy as EL
 import qualified Data.Text.Ascii as Ascii
+import qualified Data.Yaml as Yaml
 import qualified Galley.Types.Teams as Galley
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
+import qualified Options.Applicative as OPA
 import qualified SAML2.WebSSO.API.Example as SAML
 import qualified Spar.App as Spar
 import qualified Spar.Data as Data
 import qualified Spar.Intra.Brig as Intra
+import qualified Spar.Options
 import qualified Test.Hspec
 import qualified Text.XML as XML
 import qualified Text.XML.Cursor as XML
 import qualified Text.XML.DSig as SAML
 import qualified Web.Cookie as Web
 
+
+-- | Call 'mkEnv' with options from config files.
+mkEnvFromOptions :: IO TestEnv
+mkEnvFromOptions = do
+  let desc = "Spar - SSO Service Integration Test Suite"
+  (integrationCfgFilePath, cfgFilePath) <- OPA.execParser (OPA.info (OPA.helper <*> cliOptsParser) (OPA.header desc <> OPA.fullDesc))
+  integrationOpts :: IntegrationConfig <- Yaml.decodeFileEither integrationCfgFilePath >>= either (error . show) pure
+  serviceOpts :: Opts <- Yaml.decodeFileEither cfgFilePath >>= either (throwIO . ErrorCall . show) Spar.Options.deriveOpts
+  mkEnv integrationOpts serviceOpts
+
+-- | Accept config file locations as cli options.
+cliOptsParser :: OPA.Parser (String, String)
+cliOptsParser = (,) <$>
+  (OPA.strOption $
+    OPA.long "integration-config"
+    <> OPA.short 'i'
+    <> OPA.help "Integration config to load"
+    <> OPA.showDefault
+    <> OPA.value defaultIntPath)
+  <*>
+  (OPA.strOption $
+    OPA.long "service-config"
+    <> OPA.short 's'
+    <> OPA.help "Spar application config to load"
+    <> OPA.showDefault
+    <> OPA.value defaultSparPath)
+  where
+    defaultIntPath = "/etc/wire/integration/integration.yaml"
+    defaultSparPath = "/etc/wire/spar/conf/spar.yaml"
 
 -- | Create an environment for integration tests from integration and spar config files.
 --
