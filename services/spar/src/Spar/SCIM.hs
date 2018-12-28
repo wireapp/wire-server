@@ -70,6 +70,7 @@ import Spar.API.Util
 import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, createUser', wrapMonadClient)
 import Spar.Error
 import Spar.Intra.Galley
+import Spar.SCIM.Types
 import Spar.Types
 import Text.Email.Validate
 
@@ -108,10 +109,6 @@ import qualified Web.SCIM.Schema.Common           as SCIM.Common
 -- filters, but we actually do; it's a bug in hscim
 configuration :: SCIM.Meta.Configuration
 configuration = SCIM.Meta.empty
-
-type APIScim
-     = OmitDocs :> "v2" :> SCIM.SiteAPI ScimToken
-  :<|> "auth-tokens" :> APIScimToken
 
 apiScim :: ServerT APIScim Spar
 apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
@@ -155,16 +152,6 @@ mapScimToBrig = undefined
 
 mapBrigToScim :: Brig.User -> SCIM.Class.User.StoredUser -> SCIM.Class.User.StoredUser
 mapBrigToScim = undefined
-
--- | SCIM user with some details gathered during validation.  Output type
--- of 'validateSCIMUser', input type of 'createValidSCIMUser'.
-data ValidSCIMUser = ValidSCIMUser
-  { _vsuUser          :: SCIM.User.User
-  , _vsuSAMLSubjectId :: Maybe SAML.NameID
-    -- ^ if the user should authenticate via SAML, use this subjId.
-  , _vsuHandle        :: Handle
-  , _vsuName          :: Maybe Name
-  }
 
 -- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does not
 -- comply with the standard / our constraints.
@@ -403,82 +390,11 @@ instance SCIM.Class.Auth.AuthDB Spar where
 ----------------------------------------------------------------------------
 -- API for manipulating authentication tokens
 
-type APIScimToken
-     = Header "Z-User" UserId :> APIScimTokenCreate
-  :<|> Header "Z-User" UserId :> APIScimTokenDelete
-  :<|> Header "Z-User" UserId :> APIScimTokenList
-
-type APIScimTokenCreate
-     = ReqBody '[JSON] CreateScimToken
-    :> Post '[JSON] CreateScimTokenResponse
-
-type APIScimTokenDelete
-     = QueryParam' '[Required, Strict] "id" ScimTokenId
-    :> DeleteNoContent '[JSON] NoContent
-
-type APIScimTokenList
-     = Get '[JSON] ScimTokenList
-
 apiScimToken :: ServerT APIScimToken Spar
 apiScimToken
      = createScimToken
   :<|> deleteScimToken
   :<|> listScimTokens
-
-----------------------------------------------------------------------------
--- Request and response types
-
--- | Type used for request parameters to 'APIScimTokenCreate'.
-data CreateScimToken = CreateScimToken
-  { createScimTokenDescr :: Text
-  } deriving (Eq, Show)
-
-instance FromJSON CreateScimToken where
-  parseJSON = withObject "CreateScimToken" $ \o -> do
-    createScimTokenDescr <- o .: "description"
-    pure CreateScimToken{..}
-
-instance ToJSON CreateScimToken where
-  toJSON CreateScimToken{..} = object
-    [ "description" .= createScimTokenDescr
-    ]
-
--- | Type used for the response of 'APIScimTokenCreate'.
-data CreateScimTokenResponse = CreateScimTokenResponse
-  { createScimTokenResponseToken :: ScimToken
-  , createScimTokenResponseInfo  :: ScimTokenInfo
-  } deriving (Eq, Show)
-
-instance FromJSON CreateScimTokenResponse where
-  parseJSON = withObject "CreateScimTokenResponse" $ \o -> do
-    createScimTokenResponseToken <- o .: "token"
-    createScimTokenResponseInfo  <- o .: "info"
-    pure CreateScimTokenResponse{..}
-
-instance ToJSON CreateScimTokenResponse where
-  toJSON CreateScimTokenResponse{..} = object
-    [ "token" .= createScimTokenResponseToken
-    , "info"  .= createScimTokenResponseInfo
-    ]
-
--- | Type used for responses of endpoints that return a list of SCIM tokens.
--- Wrapped into an object to allow extensibility later on.
---
--- We don't show tokens once they have been created – only their metadata.
-data ScimTokenList = ScimTokenList
-  { scimTokenListTokens :: [ScimTokenInfo]
-  }
-  deriving (Eq, Show)
-
-instance FromJSON ScimTokenList where
-  parseJSON = withObject "ScimTokenList" $ \o -> do
-    scimTokenListTokens <- o .: "tokens"
-    pure ScimTokenList{..}
-
-instance ToJSON ScimTokenList where
-  toJSON ScimTokenList{..} = object
-    [ "tokens" .= scimTokenListTokens
-    ]
 
 ----------------------------------------------------------------------------
 -- Handlers
