@@ -352,11 +352,10 @@ instance SCIM.UserDB Spar where
     scimuser <- maybe (pure Nothing)
                       (lift . wrapMonadClient . Data.getScimUser . Brig.userId)
                       briguser
-    if ( isNothing scimuser ||
-         userTeam (fromJust briguser) /= Just stiTeam ||
+    if ( userTeam (fromJust briguser) /= Just stiTeam ||
          userDeleted (fromJust briguser)
        )
-      then SCIM.throwSCIM $ SCIM.notFound "user" (idToText uid)
+      then pure Nothing
       else pure scimuser
 
   -- | Create a new user.
