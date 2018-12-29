@@ -156,14 +156,14 @@ mapBrigToScim = undefined
 -- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does not
 -- comply with the standard / our constraints.
 validateSCIMUser
-  :: forall m m'. (m ~ SCIM.SCIMHandler m', Monad m')
+  :: forall m. (MonadError SCIM.SCIMError m)
   => SCIM.User.User -> m ValidSCIMUser
 validateSCIMUser user = do
     let validateNameOrExtId :: Maybe Text -> m (Maybe Text)
         validateNameOrExtId mtxt = forM mtxt $ \txt ->
           case checkedEitherMsg @_ @1 @128 "displayName" txt of
             Right rtxt -> pure $ fromRange rtxt
-            Left err -> SCIM.throwSCIM $ SCIM.badRequest SCIM.InvalidValue
+            Left err -> throwError $ SCIM.badRequest SCIM.InvalidValue
               (Just ("displayName is not compliant: " <> Text.pack err))
 
     -- TODO: Assume that externalID is the subjectID, let's figure out how
@@ -175,7 +175,7 @@ validateSCIMUser user = do
 
     handl <- case parseHandle (SCIM.User.userName user) of
       Just x -> pure x
-      Nothing -> SCIM.throwSCIM $
+      Nothing -> throwError $
         SCIM.badRequest SCIM.InvalidValue (Just "userName is not compliant")
 
     -- We check the name for validity, but only if it's present
