@@ -78,12 +78,15 @@ import qualified Network.URI as URI
 -- code, so in the end it is more awkward than nice.
 type Payload = List1 Aeson.Object
 
-data MockEnv = MockEnv
-  { _meRecipients      :: Map UserId Recipient
-  , _meNativeAddress   :: Map UserId (Map ClientId (Address "no-keys"))
-  , _meWSReachable     :: Set (UserId, ClientId)
-  , _meNativeReachable :: Set (Address "no-keys")
-  }
+data ClientInfo = ClientInfo
+    { _ciNativeAddress   :: Maybe (Address "no-keys", Bool{- reachable -})
+    , _ciWSReachable     :: Bool
+    }
+  deriving (Eq, Show)
+
+newtype MockEnv = MockEnv
+    { _meClientInfos :: Map UserId (Map ClientId ClientInfo)
+    }
   deriving (Eq, Show)
 
 data MockState = MockState
@@ -100,6 +103,7 @@ data MockState = MockState
 -- generate different payloads to get to other counter-examples for the same bugs).
 type NotifQueue = Map (UserId, ClientId) (Set Int)
 
+makeLenses ''ClientInfo
 makeLenses ''MockEnv
 makeLenses ''MockState
 
@@ -121,12 +125,13 @@ instance Monoid MockState where
 
 -- (serializing test cases makes replay easier.)
 instance ToJSON MockEnv where
-  toJSON env = object
-    [ "meRecipients"      Aeson..= Map.elems (env ^. meRecipients)
-        -- (recipients are stored as list without keys for backwards compatibility)
-    , "meNativeAddress"   Aeson..= Map.toList (Map.toList <$> (env ^. meNativeAddress))
-    , "meWSReachable"     Aeson..= (env ^. meWSReachable)
-    , "meNativeReachable" Aeson..= (env ^. meNativeReachable)
+  toJSON (MockEnv mp) = Aeson.object
+    [ "clientInfos" Aeson..= Map.toList (Map.toList <$> mp) ]
+
+instance ToJSON ClientInfo where
+  toJSON (ClientInfo native wsreach) = Aeson.object
+    [ "native" Aeson..= native
+    , "wsReachable" Aeson..= wsreach
     ]
 
 instance ToJSON (Address s) where
@@ -149,10 +154,12 @@ serializeFakeAddrEndpoint ((^. snsTopic) -> eptopic) =
 
 instance FromJSON MockEnv where
   parseJSON = withObject "MockEnv" $ \env -> MockEnv
-    <$> (Map.fromList . fmap (\rcp -> (rcp ^. recipientId, rcp)) <$> (env Aeson..: "meRecipients"))
-    <*> (Map.fromList <$$> (Map.fromList <$> (env Aeson..: "meNativeAddress")))
-    <*> (env Aeson..: "meWSReachable")
-    <*> (env Aeson..: "meNativeReachable")
+    <$> (Map.fromList <$$> (Map.fromList <$> env Aeson..: "clientInfos"))
+
+instance FromJSON ClientInfo where
+  parseJSON = withObject "ClientInfo" $ \cinfo -> ClientInfo
+    <$> (cinfo Aeson..: "native")
+    <*> (cinfo Aeson..: "wsReachable")
 
 instance FromJSON (Address s) where
   parseJSON = withObject "Address" $ \adr -> Address
@@ -169,6 +176,9 @@ mkFakeAddrEndpoint (epid, transport, app) = Aws.mkSnsArn Tokyo (Account "acc") e
   where eptopic = mkEndpointTopic (ArnEnv "") transport app (EndpointId epid)
 
 
+----------------------------------------------------------------------
+-- env generators
+
 -- | Generate an environment probabilistically containing the following situations:
 --
 -- 1. web socket delivery will work
@@ -177,64 +187,35 @@ mkFakeAddrEndpoint (epid, transport, app) = Aws.mkSnsArn Tokyo (Account "acc") e
 -- 5. web socket delivery will NOT work, no native push token registered
 genMockEnv :: Gen MockEnv
 genMockEnv = do
-  recipientList :: [Recipient]
-    <- nubBy ((==) `on` (^. recipientId)) <$> listOf1 genRecipient
+  let genClientInfo :: UserId -> ClientId -> Gen ClientInfo
+      genClientInfo uid cid = do
+        _ciNativeAddress <- QC.oneof
+          [ pure Nothing
+          , do
+              protoaddr <- genProtoAddress
+              reachable <- arbitrary
+              pure $ Just (protoaddr uid cid, reachable)
+          ]
+        _ciWSReachable <- arbitrary
+        pure ClientInfo{..}
 
-  let _meRecipients :: Map UserId Recipient
-      _meRecipients = Map.fromList $ (\rcp -> (rcp ^. recipientId, rcp)) <$> recipientList
+  uids :: [UserId]
+    <- nub <$> listOf1 genId
 
-  protoaddrs :: [UserId -> ClientId -> Address "no-keys"]
-    <- do
-      len <- let l = length _meRecipients in choose (l `div` 2, l)
-      vectorOf len genProtoAddress
+  cidss :: [[ClientId]]
+    <- let gencids = do
+             len <- QC.choose (1, 8)
+             vectorOf len genClientId
+       in forM uids . const $ nub <$> gencids
 
-  let addrs :: [(Recipient, Address "no-keys")]
-      addrs = mconcat $ zipWith go recipientList protoaddrs
-        where go rcp@(Recipient uid _ cids) adr = (\cid -> (rcp, adr uid cid)) <$> cids
+  env <- MockEnv . Map.fromList . fmap (_2 %~ Map.fromList) <$> do
+    forM (zip uids cidss) $ \(uid, cids) -> (uid,) <$> do
+      forM cids $ \cid -> (cid,) <$> genClientInfo uid cid
 
-      -- A different shape of 'addrs' with the same addresses under the same user and client ids.
-      _meNativeAddress :: Map UserId (Map ClientId (Address "no-keys"))
-      _meNativeAddress = foldl' go mempty (snd <$> addrs)
-        where
-          go :: Map UserId (Map ClientId (Address "no-keys"))
-             -> Address "no-keys"
-             -> Map UserId (Map ClientId (Address "no-keys"))
-          go m addr = Map.alter (go' addr) (addr ^. addrUser) m
-
-          go' :: Address "no-keys"
-              -> Maybe (Map ClientId (Address "no-keys"))
-              -> Maybe (Map ClientId (Address "no-keys"))
-          go' addr = Just . maybe newEntries (newEntries <>)
-            where newEntries = Map.fromList [(addr ^. addrClient, addr)]
-
-  _meWSReachable <- genSubsetOf . mconcat $ recipientToIds <$> recipientList
-  _meNativeReachable <- genSubsetOf (snd <$> addrs)
-
-  let env = MockEnv {..}
   validateMockEnv env & either error (const $ pure env)
 
 shrinkMockEnv :: MockEnv -> [MockEnv]
-shrinkMockEnv env = do
-  rcps :: [(UserId, Recipient)]
-    <- shrinkList (const []) . Map.toList $ (env ^. meRecipients)
-
-  let env' :: MockEnv
-      env' = env
-        & meRecipients .~ Map.fromList rcps
-        & meNativeAddress %~ naddrs
-        & meWSReachable %~ wsrchbl
-        & meNativeReachable %~ ntrchbl
-
-      clients :: Set (UserId, ClientId)
-      clients = Set.fromList . mconcat $ (\(_, Recipient uid _ cids) -> (uid,) <$> cids) <$> rcps
-
-      naddrs  = Map.filterWithKey (\uid _ -> uid `Set.member` (fst `Set.map` clients))
-              . fmap (Map.filterWithKey (\cid _ -> cid `Set.member` (snd `Set.map` clients)))
-      wsrchbl = Set.filter (`Set.member` clients)
-      ntrchbl = Set.filter (`Set.member` flatten (env' ^. meNativeAddress))
-        where flatten = Set.fromList . mconcat . Map.elems . fmap Map.elems
-
-  [env' | not $ null rcps]
+shrinkMockEnv (MockEnv cis) = MockEnv . Map.fromList <$> (shrinkList (const []) (Map.toList cis))
 
 validateMockEnv :: forall m. MonadError String m => MockEnv -> m ()
 validateMockEnv env = do
@@ -244,13 +225,11 @@ validateMockEnv env = do
     -- UserId and ClientId contained in Address must match the keys under which they are stored.
     checkIdsInNativeAddresses :: m ()
     checkIdsInNativeAddresses = do
-      forM_ (Map.toList $ env ^. meNativeAddress) $ \(uid, el) -> do
-        forM_ (Map.toList el) $ \(cid, adr) -> do
-          unless (uid == adr ^. addrUser && cid == adr ^. addrClient) $ do
-            throwError (show (uid, cid, adr))
-
-recipientToIds :: Recipient -> [(UserId, ClientId)]
-recipientToIds (Recipient uid _ cids) = (uid,) <$> cids
+      forM_ (Map.toList $ env ^. meClientInfos) $ \(uid, cinfos) -> do
+        forM_ (Map.toList cinfos) $ \(cid, cinfo) -> do
+          forM_ (cinfo ^. ciNativeAddress) $ \(adr, _) -> do
+            unless (uid == adr ^. addrUser && cid == adr ^. addrClient) $ do
+              throwError (show (uid, cid, adr))
 
 genSubsetOf :: forall a. (Eq a, Ord a) => [a] -> Gen (Set a)
 genSubsetOf xs = Set.fromList <$> do
@@ -258,11 +237,11 @@ genSubsetOf xs = Set.fromList <$> do
   let reachables :: [a] = mconcat $ zipWith (\x yes -> [ x | yes ]) xs bools
   pure reachables
 
-genRecipient :: HasCallStack => Gen Recipient
-genRecipient = do
-  uid   <- genId
-  cids  <- nub <$> listOf1 genClientId
+genRecipient :: HasCallStack => MockEnv -> Gen Recipient
+genRecipient env = do
+  uid   <- QC.elements (allUsers env)
   route <- genRoute
+  cids  <- Set.toList <$> genSubsetOf (clientIdsOfUser env uid)
   pure $ Recipient uid route cids
 
 -- REFACTOR: see 'Route' type about missing 'RouteNative'.
@@ -277,31 +256,6 @@ genId = do
 genClientId :: Gen ClientId
 genClientId = newClientId <$> arbitrary
 
--- | See also: 'fakePresence'.
-fakePresences :: Recipient -> [Presence]
-fakePresences (Recipient uid _ cids) = fakePresence uid <$> cids
-
--- | Currently, we only create 'Presence's from 'Push' requests, which contains 'ClientId's, but no
--- 'ConnId's.  So in contrast to the production code where the two are generated independently, we
--- maintain identity (except for the type) between 'ClientId' and 'ConnId'.  (This makes switching
--- back between the two trivial without having to maintain a stateful mapping.)  Furthermore, we do
--- not cover the @isNothing (clientId prc)@ case.
-fakePresence :: UserId -> ClientId -> Presence
-fakePresence userId clientId_ = Presence {..}
-  where
-    clientId  = Just clientId_
-    connId    = fakeConnId clientId_
-    resource  = URI . fromJust $ URI.parseURI "http://127.0.0.1:8080"
-    createdAt = 0
-    __field   = mempty
-
--- | See also: 'fakePresence'.
-fakeConnId :: ClientId -> ConnId
-fakeConnId = ConnId . cs . client
-
-clientIdFromConnId :: ConnId -> ClientId
-clientIdFromConnId = ClientId . cs . fromConnId
-
 genProtoAddress :: Gen (UserId -> ClientId -> Address "no-keys")
 genProtoAddress = do
   _addrTransport <- QC.elements [minBound..]
@@ -315,15 +269,12 @@ genPushes :: MockEnv -> Gen [Push]
 genPushes = listOf . genPush
 
 genPush :: MockEnv -> Gen Push
-genPush (Map.elems . (^. meRecipients) -> allrcps) = do
-  sender :: UserId <- (^. recipientId) <$> QC.elements allrcps
+genPush env = do
+  let alluids = allUsers env
+  sender <- QC.elements alluids
   rcps :: Range 1 1024 (Set Recipient) <- do
-    numrcp <- choose (1, min 1024 (length allrcps))
-    let pickrcp = do
-          rcp <- QC.elements allrcps
-          route <- genRoute
-          pure $ rcp & recipientRoute .~ route
-    rcps   <- vectorOf numrcp pickrcp
+    numrcp <- choose (1, min 1024 (length alluids))
+    rcps   <- vectorOf numrcp (genRecipient env)
     unsafeRange . Set.fromList <$> dropSomeDevices `mapM` rcps
   pload <- genPayload
   inclorigin <- arbitrary
@@ -377,9 +328,8 @@ genNotif = Notification <$> genId <*> arbitrary <*> genPayload
 
 genNotifs :: MockEnv -> Gen [(Notification, [Presence])]
 genNotifs env = fmap uniqNotifs . listOf $ do
-  let allprcs = mconcat . fmap fakePresences . Map.elems $ env ^. meRecipients
   notif <- genNotif
-  prcs <- nub <$> listOf (QC.elements allprcs)
+  prcs <- nub . mconcat <$> listOf (fakePresences' <$> genRecipient env)
   pure (notif, prcs)
   where
     uniqNotifs = nubBy ((==) `on` (ntfId . fst))
@@ -440,13 +390,12 @@ mockPushAll
   => [Push] -> m ()
 mockPushAll pushes = do
   env <- ask
-  getrcp <- mkGetRecipient
-  modify $ (msWSQueue     .~ expectWS env getrcp)
+  modify $ (msWSQueue     .~ expectWS env)
          . (msNativeQueue .~ expectNative env)
          . (msCassQueue   .~ expectCass)
   where
-    expectWS :: MockEnv -> (UserId -> Recipient) -> NotifQueue
-    expectWS env getrcp
+    expectWS :: MockEnv -> NotifQueue
+    expectWS env
       = foldl' (uncurry . deliver) mempty
       . filter reachable
       . reformat
@@ -455,7 +404,7 @@ mockPushAll pushes = do
       $ rcps
       where
         reachable :: ((UserId, ClientId), payload) -> Bool
-        reachable (ids, _) = ids `elem` (env ^. meWSReachable)
+        reachable (ids, _) = wsReachable env ids
 
         removeSelf :: ((UserId, Maybe ClientId, any), (Recipient, Payload)) -> [(Recipient, Payload)]
         removeSelf ((_, Nothing, _), same) =
@@ -467,9 +416,7 @@ mockPushAll pushes = do
                          -> [(any, (Recipient, Payload))]
         -- if the recipient client list is empty, fill in all devices of that user
         insertAllClients (same, (Recipient uid route [], pay)) = [(same, (rcp', pay))]
-          where
-            rcp' = Recipient uid route defaults
-            defaults = getrcp uid ^. recipientClients
+          where rcp' = Recipient uid route (clientIdsOfUser env uid)
 
         -- otherwise, no special hidden meaning.
         insertAllClients same@(_, (Recipient _ _ (_:_), _)) = [same]
@@ -484,14 +431,7 @@ mockPushAll pushes = do
       $ rcps
       where
         reachable :: ((UserId, ClientId), payload) -> Bool
-        reachable (ids, _) = reachableNative ids && not (reachableWS ids)
-          where
-            reachableWS :: (UserId, ClientId) -> Bool
-            reachableWS = (`elem` (env ^. meWSReachable))
-
-            reachableNative :: (UserId, ClientId) -> Bool
-            reachableNative (uid, cid) = maybe False (`elem` (env ^. meNativeReachable)) adr
-              where adr = (Map.lookup uid >=> Map.lookup cid) (env ^. meNativeAddress)
+        reachable (ids, _) = nativeReachable env ids && not (wsReachable env ids)
 
         removeSome :: ((UserId, Maybe ClientId, Bool), (Recipient, Payload)) -> [(Recipient, Payload)]
         removeSome ((_, _, _), (Recipient _ RouteDirect _, _)) =
@@ -514,9 +454,7 @@ mockPushAll pushes = do
                          -> [(any, (Recipient, Payload))]
         -- if the recipient client list is empty, fill in all devices of that user
         insertAllClients (same, (Recipient uid route [], pay)) = [(same, (rcp', pay))]
-          where
-            rcp' = Recipient uid route defaults
-            defaults = maybe [] Map.keys . Map.lookup uid $ env ^. meNativeAddress
+          where rcp' = Recipient uid route (clientIdsOfUser env uid)
         -- otherwise, no special hidden meaning.
         insertAllClients same@(_, (Recipient _ _ (_:_), _)) = [same]
 
@@ -564,10 +502,8 @@ mockMkNotificationId = Id <$> state go
 mockListAllPresences
   :: (HasCallStack, m ~ MockGundeck)
   => [UserId] -> m [[Presence]]
-mockListAllPresences uids = do
-  allrecipients :: Map UserId Recipient
-    <- asks (^. meRecipients)
-  pure $ maybe [] fakePresences . (`Map.lookup` allrecipients) <$> uids
+mockListAllPresences uids =
+  asks $ fmap fakePresences . filter ((`elem` uids) . fst) . allRecipients
 
 -- | Fake implementation of 'Web.bulkPush'.
 mockBulkPush
@@ -583,10 +519,10 @@ mockBulkPush notifs = do
                    ]
 
       deliveredprcs :: [Presence]
-      deliveredprcs = filter isreachable . mconcat . fmap fakePresences $ Map.elems (env ^. meRecipients)
+      deliveredprcs = filter isreachable . mconcat . fmap fakePresences $ allRecipients env
 
       isreachable :: Presence -> Bool
-      isreachable prc = (userId prc, fromJust $ clientId prc) `elem` (env ^. meWSReachable)
+      isreachable prc = wsReachable env (userId prc, fromJust $ clientId prc)
 
   forM_ delivered $ \(notif, prcs) -> do
     forM_ prcs $ \prc -> do
@@ -609,17 +545,21 @@ mockPushNative
   :: (HasCallStack, m ~ MockGundeck)
   => Notification -> Push -> [Address "no-keys"] -> m ()
 mockPushNative _nid ((^. pushPayload) -> payload) addrs = do
-  (flip elem -> isreachable) <- asks (^. meNativeReachable)
+  env <- ask
   forM_ addrs $ \addr -> do
-    when (isreachable addr) . modify $ msNativeQueue %~ \queue ->
+    when (nativeReachableAddr env addr) . modify $ msNativeQueue %~ \queue ->
       deliver queue (addr ^. addrUser, addr ^. addrClient) payload
 
 mockLookupAddress
   :: (HasCallStack, m ~ MockGundeck)
   => UserId -> m [Address "no-keys"]
 mockLookupAddress uid = do
-  getaddr <- asks (^. meNativeAddress)
-  maybe (pure []) (pure . Map.elems) $ Map.lookup uid getaddr
+  cinfos :: [ClientInfo]
+    <- Map.elems .
+       fromMaybe (error $ "mockLookupAddress: unknown UserId: " <> show uid) .
+       Map.lookup uid <$>
+       asks (^. meClientInfos)
+  pure . catMaybes $ (^? ciNativeAddress . _Just . _1) <$> cinfos
 
 mockBulkSend
   :: (HasCallStack, m ~ MockGundeck)
@@ -653,7 +593,7 @@ mockOldSimpleWebPush _ _ _ _ (Set.null -> False) =
   -- (see 'genPush' above)
 
 mockOldSimpleWebPush notif tgts _senderid mconnid _ = do
-  getrecp   <- mkGetRecipient
+  env <- ask
   getstatus <- mkWSStatus
 
   let clients :: [(UserId, ClientId)]
@@ -673,7 +613,7 @@ mockOldSimpleWebPush notif tgts _senderid mconnid _ = do
 
       emptyMeansFullHack :: NotificationTarget -> NotificationTarget
       emptyMeansFullHack tgt = tgt & targetClients %~ \case
-        []   -> getrecp (tgt ^. targetUser) ^. recipientClients
+        []   -> clientIdsOfUser env (tgt ^. targetUser)
         same@(_:_) -> same
 
   forM_ clients $ \(userid, clientid) -> do
@@ -712,13 +652,59 @@ payloadToInt bad = error $ "unexpected Payload: " <> show bad
 
 mkWSStatus :: MockGundeck (PushTarget -> PushStatus)
 mkWSStatus = do
-  reachables :: Set PushTarget
-    <- Set.map (uncurry PushTarget . (_2 %~ fakeConnId)) <$> asks (^. meWSReachable)
-  pure $ \trgt -> if trgt `Set.member` reachables then PushStatusOk else PushStatusGone
+  env <- ask
+  pure $ \trgt -> if wsReachable env (ptUserId trgt, clientIdFromConnId $ ptConnId trgt)
+                  then PushStatusOk
+                  else PushStatusGone
 
--- | Throws an asynchronous error if 'MockEnv' does not contain the user (this should be ok for
--- testing).
-mkGetRecipient :: MockGundeck (UserId -> Recipient)
-mkGetRecipient = do
-  allrcps <- asks (^. meRecipients)
-  pure $ \uid -> fromMaybe (error "User missing in MockEnv") $ Map.lookup uid allrcps
+
+wsReachable :: MockEnv -> (UserId, ClientId) -> Bool
+wsReachable (MockEnv mp) (uid, cid) = maybe False (^. ciWSReachable) $
+  (Map.lookup uid >=> Map.lookup cid) mp
+
+nativeReachable :: MockEnv -> (UserId, ClientId) -> Bool
+nativeReachable (MockEnv mp) (uid, cid) = maybe False (^. _2) $
+  (Map.lookup uid >=> Map.lookup cid >=> (^. ciNativeAddress)) mp
+
+nativeReachableAddr :: MockEnv -> Address s -> Bool
+nativeReachableAddr env addr = nativeReachable env (addr ^. addrUser, addr ^. addrClient)
+
+allUsers :: MockEnv -> [UserId]
+allUsers = fmap fst . allRecipients
+
+allRecipients :: MockEnv -> [(UserId, [ClientId])]
+allRecipients (MockEnv mp) = (_2 %~ Map.keys) <$> Map.toList mp
+
+clientIdsOfUser :: HasCallStack => MockEnv -> UserId -> [ClientId]
+clientIdsOfUser (MockEnv mp) uid =
+  maybe (error "unknown UserId") Map.keys $ Map.lookup uid mp
+
+
+-- | See also: 'fakePresence'.
+fakePresences :: (UserId, [ClientId]) -> [Presence]
+fakePresences (uid, cids) = fakePresence uid <$> cids
+
+-- | See also: 'fakePresence'.
+fakePresences' :: Recipient -> [Presence]
+fakePresences' (Recipient uid _ cids) = fakePresence uid <$> cids
+
+-- | Currently, we only create 'Presence's from 'Push' requests, which contains 'ClientId's, but no
+-- 'ConnId's.  So in contrast to the production code where the two are generated independently, we
+-- maintain identity (except for the type) between 'ClientId' and 'ConnId'.  (This makes switching
+-- back between the two trivial without having to maintain a stateful mapping.)  Furthermore, we do
+-- not cover the @isNothing (clientId prc)@ case.
+fakePresence :: UserId -> ClientId -> Presence
+fakePresence userId clientId_ = Presence {..}
+  where
+    clientId  = Just clientId_
+    connId    = fakeConnId clientId_
+    resource  = URI . fromJust $ URI.parseURI "http://127.0.0.1:8080"
+    createdAt = 0
+    __field   = mempty
+
+-- | See also: 'fakePresence'.
+fakeConnId :: ClientId -> ConnId
+fakeConnId = ConnId . cs . client
+
+clientIdFromConnId :: ConnId -> ClientId
+clientIdFromConnId = ClientId . cs . fromConnId
