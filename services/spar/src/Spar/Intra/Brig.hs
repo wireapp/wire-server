@@ -33,8 +33,9 @@ import Network.HTTP.Types.Method
 import Spar.Error
 import Web.Cookie
 
-import qualified SAML2.WebSSO as SAML
+import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
+import qualified SAML2.WebSSO as SAML
 
 
 ----------------------------------------------------------------------
@@ -175,6 +176,24 @@ bindUser uid (toUserSSOId -> ussoid) = do
   resp <- call $ method PUT
     . paths ["/i/users", toByteString' uid, "sso-id"]
     . json ussoid
+  pure $ Bilge.statusCode resp < 300
+
+updateUserName :: (HasCallStack, MonadSparToBrig m) => UserId -> Name -> m Bool
+updateUserName uid name = do
+  resp <- call $ method PUT
+    . path "/self"
+    . header "Z-User" (toByteString' uid)
+    . header "Z-Connection" ""
+    . json (Aeson.object ["name" Aeson..= name])
+  pure $ Bilge.statusCode resp < 300
+
+updateUserHandle :: (HasCallStack, MonadSparToBrig m) => UserId -> Handle -> m Bool
+updateUserHandle uid handle = do
+  resp <- call $ method PUT
+    . path "/self/handle"
+    . header "Z-User" (toByteString' uid)
+    . header "Z-Connection" ""
+    . json (Aeson.object ["handle" Aeson..= handle])
   pure $ Bilge.statusCode resp < 300
 
 

@@ -154,7 +154,7 @@ mapBrigToScim :: Brig.User -> SCIM.Class.User.StoredUser -> SCIM.Class.User.Stor
 mapBrigToScim = undefined
 
 -- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does not
--- comply with the standard / our constraints.
+-- comply with the standard / our constraints.  See also: 'ValidSCIMUser'.
 validateSCIMUser
   :: forall m. (MonadError SCIM.SCIMError m)
   => SCIM.User.User -> m ValidSCIMUser
@@ -217,6 +217,53 @@ createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser user samlSubjectId hand
 
     pure storedUser
 
+updateValidSCIMUser
+  :: forall m. (m ~ SCIM.SCIMHandler Spar)
+  => ScimTokenInfo -> Text -> ValidSCIMUser -> m SCIM.Class.User.StoredUser
+updateValidSCIMUser tokinfo@ScimTokenInfo{stiIdP} uidText newScimUser = do
+
+    -- TODO: it's weird that uidText is not connected by code to any part of newScimUser (this is a
+    -- problem also outside of the 'update' method here.  shouldn't there be a function @getScimUid ::
+    -- SCIM.User.User -> Text@?  or, preferably @... -> UserId@?
+
+    -- TODO: how do we get this safe w.r.t. race conditions / crashes?
+
+    -- construct old and new user values with metadata.
+    uid :: UserId <- parseUid uidText
+    oldScimStoredUser :: SCIM.Class.User.StoredUser
+      <- let err = SCIM.throwSCIM $ SCIM.notFound "user" uidText
+         in maybe err pure =<< SCIM.Class.User.get tokinfo uidText
+
+    if SCIM.value (SCIM.thing oldScimStoredUser) == (newScimUser ^. vsuUser)
+      then pure oldScimStoredUser
+      else do
+        newScimStoredUser :: SCIM.Class.User.StoredUser
+          <- lift $ updSCIMStoredUser (newScimUser ^. vsuUser) oldScimStoredUser
+
+        -- update 'SAML.UserRef'
+        midp <- lift . wrapMonadClient $ maybe (pure Nothing) Data.getIdPConfig stiIdP
+        case (midp, newScimUser ^. vsuSAMLSubjectId) of
+          (Nothing, _) -> pure ()
+          (_, Nothing) -> pure ()
+          (Just idp, Just subjid) -> do
+            let uref = SAML.UserRef (idp ^. SAML.idpMetadata . SAML.edIssuer) subjid
+            lift . wrapMonadClient $ Data.insertUser uref uid  -- on spar
+            bindok <- lift $ Intra.Brig.bindUser uid uref  -- on brig
+            unless bindok . SCIM.throwSCIM $
+              SCIM.serverError "The UserId to be updated was not found on brig"
+
+        updnameok <- maybe (pure True) (lift . Intra.Brig.updateUserName uid) $ newScimUser ^. vsuName
+        updhandleok <- lift . Intra.Brig.updateUserHandle uid $ newScimUser ^. vsuHandle
+        unless (updnameok && updhandleok) . SCIM.throwSCIM $
+          SCIM.serverError "The UserId to be updated was not found on brig"
+
+        -- store new user value to scim_user table (spar).  (this must happen last, so in case of
+        -- crash the client can repeat the operation and it won't be considered a noop.)
+        lift . wrapMonadClient $ Data.insertScimUser uid newScimStoredUser
+
+        pure newScimStoredUser
+
+
 toSCIMStoredUser
   :: forall m. (SAML.HasNow m, MonadReader Env m)
   => UserId -> SCIM.User.User -> m SCIM.Class.User.StoredUser
@@ -248,6 +295,18 @@ toSCIMStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr = SCIM.WithMeta 
         -- https://tools.ietf.org/html/rfc7644#section-3.14
       , SCIM.location = SCIM.URI . mkLocation $ "/Users/" <> cs uid
       }
+
+updSCIMStoredUser
+  :: forall m. (SAML.HasNow m)
+  => SCIM.User.User -> SCIM.Class.User.StoredUser -> m SCIM.Class.User.StoredUser
+updSCIMStoredUser usr storedusr = do
+  now <- SAML.getNow
+  pure $ updSCIMStoredUser' now usr storedusr
+
+updSCIMStoredUser'
+  :: SAML.Time -> SCIM.User.User -> SCIM.Class.User.StoredUser -> SCIM.Class.User.StoredUser
+updSCIMStoredUser' (SAML.Time moddate) usr (SCIM.WithMeta meta (SCIM.WithId scimuid _)) =
+  SCIM.WithMeta (meta { SCIM.lastModified = moddate }) (SCIM.WithId scimuid usr)
 
 parseUid
   :: forall m m'. (m ~ SCIM.SCIMHandler m', Monad m')
@@ -353,14 +412,15 @@ instance SCIM.Class.User.UserDB Spar where
   create :: ScimTokenInfo
          -> SCIM.User.User
          -> SCIM.SCIMHandler Spar SCIM.Class.User.StoredUser
-  create tokinfo user = createValidSCIMUser tokinfo =<< validateSCIMUser user
+  create tokinfo user =
+    createValidSCIMUser tokinfo =<< validateSCIMUser user
 
   update :: ScimTokenInfo
          -> Text
          -> SCIM.User.User
          -> SCIM.SCIMHandler Spar SCIM.Class.User.StoredUser
-  update _ _ _ =
-      SCIM.throwSCIM $ SCIM.serverError "User update is not implemented yet"  -- TODO
+  update tokinfo uidText newScimUser =
+    updateValidSCIMUser tokinfo uidText =<< validateSCIMUser newScimUser
 
   delete :: ScimTokenInfo -> Text -> SCIM.SCIMHandler Spar Bool
   delete _ _ =
