@@ -70,7 +70,7 @@ respToCookie resp = do
 
 ----------------------------------------------------------------------
 
-class Monad m => MonadSparToBrig m where
+class MonadError SparError m => MonadSparToBrig m where
   call :: (Request -> Request) -> m (Response (Maybe LBS))
 
 instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
@@ -79,7 +79,7 @@ instance MonadSparToBrig m => MonadSparToBrig (ReaderT r m) where
 
 -- | Create a user on brig.
 createUser
-  :: (HasCallStack, MonadError SparError m, MonadSparToBrig m)
+  :: (HasCallStack, MonadSparToBrig m)
   => SAML.UserRef    -- ^ SSO identity
   -> UserId
   -> TeamId
@@ -121,7 +121,7 @@ createUser suid (Id buid) teamid mbName = do
 
 
 -- | Get a user; returns 'Nothing' if the user was not found.
-getUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m (Maybe User)
+getUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe User)
 getUser buid = do
   resp :: Response (Maybe LBS) <- call
     $ method GET
@@ -135,14 +135,14 @@ getUser buid = do
 -- | Get a list of users; returns a shorter list if some 'UserId's come up empty (no errors).
 --
 -- TODO: implement an internal end-point on brig that makes this possible with one request.
-getUsers :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => [UserId] -> m [User]
+getUsers :: (HasCallStack, MonadSparToBrig m) => [UserId] -> m [User]
 getUsers = fmap catMaybes . mapM getUser
 
 -- | Get a user; returns 'Nothing' if the user was not found.
 --
 -- TODO: currently this is not used, but it might be useful later when/if
 -- @hscim@ stops doing checks during user creation.
-getUserByHandle :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => Handle -> m (Maybe User)
+getUserByHandle :: (HasCallStack, MonadSparToBrig m) => Handle -> m (Maybe User)
 getUserByHandle handle = do
   resp :: Response (Maybe LBS) <- call
     $ method GET
@@ -159,7 +159,7 @@ getUserByHandle handle = do
   parse _      = Nothing -- TODO: What if more accounts get returned?
 
 -- | Set user's handle.
-setHandle :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> Handle -> m ()
+setHandle :: (HasCallStack, MonadSparToBrig m) => UserId -> Handle -> m ()
 setHandle buid (Handle handle) = void $ call
     $ method PUT
     . path "/self/handle"
@@ -170,7 +170,7 @@ setHandle buid (Handle handle) = void $ call
 
 -- | This works under the assumption that the user must exist on brig.  If it does not, brig
 -- responds with 404 and this function returns 'False'.
-bindUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool
+bindUser :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool
 bindUser uid (toUserSSOId -> ussoid) = do
   resp <- call $ method PUT
     . paths ["/i/users", toByteString' uid, "sso-id"]
@@ -179,11 +179,11 @@ bindUser uid (toUserSSOId -> ussoid) = do
 
 
 -- | Check that a user id exists on brig and has a team id.
-isTeamUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m Bool
+isTeamUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m Bool
 isTeamUser buid = isJust <$> getUserTeam buid
 
 -- | Check that a user id exists on brig and has a team id.
-getUserTeam :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m (Maybe TeamId)
+getUserTeam :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe TeamId)
 getUserTeam buid = do
   usr <- getUser buid
   pure $ userTeam =<< usr
@@ -191,7 +191,7 @@ getUserTeam buid = do
 
 -- | If user is not in team, throw 'SparNotInTeam'; if user is in team but not owner, throw
 -- 'SparNotTeamOwner'; otherwise, return.
-assertIsTeamOwner :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> TeamId -> m ()
+assertIsTeamOwner :: (HasCallStack, MonadSparToBrig m) => UserId -> TeamId -> m ()
 assertIsTeamOwner buid tid = do
   self <- maybe (throwSpar SparNotInTeam) pure =<< getUser buid
   when (userTeam self /= Just tid) $ (throwSpar SparNotInTeam)
@@ -203,7 +203,7 @@ assertIsTeamOwner buid tid = do
 -- | Get the team that the user is an owner of.
 --
 -- Called by post handler, and by 'authorizeIdP'.
-getZUsrOwnedTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, MonadSparToBrig m)
+getZUsrOwnedTeam :: (HasCallStack, SAML.SP m, MonadSparToBrig m)
             => Maybe UserId -> m TeamId
 getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
 getZUsrOwnedTeam (Just uid) = do
@@ -214,7 +214,7 @@ getZUsrOwnedTeam (Just uid) = do
 
 
 -- | Get persistent cookie from brig and redirect user past login process.
-ssoLogin :: (HasCallStack, MonadError SparError m, SAML.HasConfig m, MonadSparToBrig m)
+ssoLogin :: (HasCallStack, SAML.HasConfig m, MonadSparToBrig m)
          => UserId -> m SetCookie
 ssoLogin buid = do
   resp :: Response (Maybe LBS) <- call
