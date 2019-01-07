@@ -71,6 +71,11 @@ import qualified Network.URI as URI
 ----------------------------------------------------------------------
 -- env
 
+-- | We really don't care about the actual payloads anywhere in these tests, just that the right
+-- ones arrive over the right connections.  So 'genPayload' is not very exhaustive, but only
+-- generates small objects with one field containing a numeric value.  It would be nice to represent
+-- this in the 'Payload' type, but the 'List1 Aeson.Object' structure is used in the production
+-- code, so in the end it is more awkward than nice.
 type Payload = List1 Aeson.Object
 
 data MockEnv = MockEnv
@@ -350,6 +355,7 @@ shrinkPushes = shrinkList shrinkPush
     shrinkRecipient :: Recipient -> [Recipient]
     shrinkRecipient _ = []
 
+-- | See 'Payload'.
 genPayload :: Gen Payload
 genPayload = do
   num :: Int <- arbitrary
@@ -698,6 +704,8 @@ deliver queue qkey qval = Map.alter (Just . tweak) qkey queue
     tweak Nothing      = Set.singleton (payloadToInt qval)
     tweak (Just qvals) = Set.insert    (payloadToInt qval) qvals
 
+-- | Return the rounded number contained in the payload.  This is enough to detect message mixups,
+-- but less noisy in the printed counter-examples.
 payloadToInt :: Payload -> Int
 payloadToInt (List1 (toList -> [toList -> [Number x]])) = round $ toRational (x * 100)
 payloadToInt bad = error $ "unexpected Payload: " <> show bad
