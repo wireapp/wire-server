@@ -115,11 +115,21 @@ readLoop ws s = loop
                 send (connection ws) (pong p)
                 loop
             ControlMessage (Close _ _) -> return ()
-            _                          -> reset counter s 0 >> loop
+            _ -> do
+                reset counter s 0
+                sendAppLevelPong
+                loop
 
     adjustPingFreq p = case fromByteString (toStrict p) of
         Just i | i > 0 && i < maxPingInterval -> reset pingFreq s (i # Second)
         _                                     -> return ()
+
+    -- control messages are internal to the browser that manages the websockets
+    -- <https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_servers#Pings_and_Pongs_The_Heartbeat_of_WebSockets>.
+    -- since the browser may silently lose a websocket connection, wire clients are allowed send
+    -- 'DataMessage' pings as well, and we respond with a 'DataMessage' pong to allow them to
+    -- reliably decide whether the connection is still alive.
+    sendAppLevelPong = sendMsgIO "pong" ws
 
 rejectOnError :: PendingConnection -> HandshakeException -> IO a
 rejectOnError p x = do

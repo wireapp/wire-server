@@ -15,6 +15,7 @@ module Cannon.WS
     , isRemoteRegistered
     , registerRemote
     , sendMsg
+    , sendMsgIO
 
     , Clock
     , mkClock
@@ -203,7 +204,11 @@ sendMsg :: L.ByteString -> Key -> Websocket -> WS ()
 sendMsg m k c = do
     let kb = key2bytes k
     trace  $ client kb . msg (val "sendMsg: \"" +++ L.take 128 m +++ val "...\"")
-    liftIO $ recoverAll retry3x $ const $ sendBinaryData (connection c) m
+    liftIO $ sendMsgIO m c
+
+sendMsgIO :: L.ByteString -> Websocket -> IO ()
+sendMsgIO m c = do
+    recoverAll retry3x $ const $ sendBinaryData (connection c) m
 
 close :: Key -> Websocket -> WS ()
 close k c = do
