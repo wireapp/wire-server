@@ -21,21 +21,16 @@ import Gundeck.Push (pushAll, pushAny)
 import Gundeck.Push.Websocket as Web (bulkPush)
 import Gundeck.Types
 import MockGundeck
-import System.FilePath ((</>))
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Test.Tasty
-import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 
 import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Lazy as LBS
 
 
 tests :: TestTree
 tests = testGroup "bulkpush" $
-    (test "pushAllProp" pushAllProp <$> [1..11]) <>
-    (test "webBulkPushProp" webBulkPushProp <$> [1..2]) <>
     [ testProperty "web sockets" webBulkPushProps
     , testProperty "native pushes" pushAllProps
     ]
@@ -43,25 +38,6 @@ tests = testGroup "bulkpush" $
 
 mkEnv :: (Pretty MockEnv -> Property) -> Positive Int -> Property
 mkEnv prop (Positive len) = forAllShrink (Pretty <$> resize len genMockEnv) (shrinkPretty shrinkMockEnv) prop
-
-
-testRootPath :: FilePath
-testRootPath = "test/mock-samples"
-
-test
-  :: forall input. Aeson.FromJSON input
-  => String -> (MockEnv -> Pretty input -> Property) -> Int -> TestTree
-test testname runtest i = testCase (testname <> "-" <> show i) $ do
-  let fulltestname = testRootPath </> testname <> "-" <> show i <> ".json"
-  Just ((env, input) :: (MockEnv, input))
-    <- either (error . show) pure =<< (Aeson.eitherDecode <$> LBS.readFile fulltestname)
-  runProp $ runtest env (Pretty input)
-
-runProp :: Property -> Assertion
-runProp propty = quickCheckWithResult stdArgs { maxSuccess = 1, chatty = False } propty >>= \case
-  Success {} -> pure ()
-  bad@(Failure {}) -> assertBool (intercalate "\n" (failingTestCase bad)) False
-  bad -> assertBool (output bad) False
 
 
 webBulkPushProps :: Positive Int -> Property
