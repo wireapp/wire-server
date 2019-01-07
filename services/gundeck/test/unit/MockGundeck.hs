@@ -271,11 +271,11 @@ genRoute = QC.elements [RouteAny, RouteDirect]
 
 genId :: Gen (Id a)
 genId = do
-  gen <- mkStdGen <$> resize 100 arbitrary
+  gen <- mkStdGen <$> arbitrary
   pure . Id . fst $ random gen
 
 genClientId :: Gen ClientId
-genClientId = newClientId <$> resize 50 arbitrary
+genClientId = newClientId <$> arbitrary
 
 -- | See also: 'fakePresence'.
 fakePresences :: Recipient -> [Presence]
