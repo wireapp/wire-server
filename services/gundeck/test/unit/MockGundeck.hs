@@ -83,6 +83,8 @@ data MockEnv = MockEnv
 
 data MockState = MockState
   { _msNonRandomGen    :: StdGen
+    -- ^ the "non-random" in the name means that we always run 'MockGundeck' with the same 'StdGen'
+    -- state (look at the 'Monoid' instance below).
   , _msWSQueue         :: NotifQueue
   , _msNativeQueue     :: NotifQueue
   , _msCassQueue       :: NotifQueue
@@ -118,8 +120,8 @@ instance ToJSON MockEnv where
     [ "meRecipients"      Aeson..= Map.elems (env ^. meRecipients)
         -- (recipients are stored as list without keys for backwards compatibility)
     , "meNativeAddress"   Aeson..= Map.toList (Map.toList <$> (env ^. meNativeAddress))
-    , "meWSReachable"     Aeson..= Set.toList (env ^. meWSReachable)
-    , "meNativeReachable" Aeson..= Set.toList (env ^. meNativeReachable)
+    , "meWSReachable"     Aeson..= (env ^. meWSReachable)
+    , "meNativeReachable" Aeson..= (env ^. meNativeReachable)
     ]
 
 instance ToJSON (Address s) where
@@ -144,8 +146,8 @@ instance FromJSON MockEnv where
   parseJSON = withObject "MockEnv" $ \env -> MockEnv
     <$> (Map.fromList . fmap (\rcp -> (rcp ^. recipientId, rcp)) <$> (env Aeson..: "meRecipients"))
     <*> (Map.fromList <$$> (Map.fromList <$> (env Aeson..: "meNativeAddress")))
-    <*> (Set.fromList <$> (env Aeson..: "meWSReachable"))
-    <*> (Set.fromList <$> (env Aeson..: "meNativeReachable"))
+    <*> (env Aeson..: "meWSReachable")
+    <*> (env Aeson..: "meNativeReachable")
 
 instance FromJSON (Address s) where
   parseJSON = withObject "Address" $ \adr -> Address
@@ -185,6 +187,7 @@ genMockEnv = do
       addrs = mconcat $ zipWith go recipientList protoaddrs
         where go rcp@(Recipient uid _ cids) adr = (\cid -> (rcp, adr uid cid)) <$> cids
 
+      -- A different shape of 'addrs' with the same addresses under the same user and client ids.
       _meNativeAddress :: Map UserId (Map ClientId (Address "no-keys"))
       _meNativeAddress = foldl' go mempty (snd <$> addrs)
         where
@@ -199,8 +202,8 @@ genMockEnv = do
           go' addr = Just . maybe newEntries (newEntries <>)
             where newEntries = Map.fromList [(addr ^. addrClient, addr)]
 
-  _meWSReachable <- genPredicate . mconcat $ recipientToIds <$> recipientList
-  _meNativeReachable <- genPredicate (snd <$> addrs)
+  _meWSReachable <- genSubsetOf . mconcat $ recipientToIds <$> recipientList
+  _meNativeReachable <- genSubsetOf (snd <$> addrs)
 
   let env = MockEnv {..}
   validateMockEnv env & either error (const $ pure env)
@@ -228,18 +231,24 @@ shrinkMockEnv env = do
 
   [env' | not $ null rcps]
 
-validateMockEnv :: MockEnv -> Either String ()
+validateMockEnv :: forall m. MonadError String m => MockEnv -> m ()
 validateMockEnv env = do
-  forM_ (Map.toList $ env ^. meNativeAddress) $ \(uid, el) -> do
-    forM_ (Map.toList el) $ \(cid, adr) -> do
-      unless (uid == adr ^. addrUser && cid == adr ^. addrClient) $ do
-        throwError (show (uid, cid, adr))
+  checkIdsInNativeAddresses
+  -- (if you want to vaidate anything else, here is the place!)
+  where
+    -- UserId and ClientId contained in Address must match the keys under which they are stored.
+    checkIdsInNativeAddresses :: m ()
+    checkIdsInNativeAddresses = do
+      forM_ (Map.toList $ env ^. meNativeAddress) $ \(uid, el) -> do
+        forM_ (Map.toList el) $ \(cid, adr) -> do
+          unless (uid == adr ^. addrUser && cid == adr ^. addrClient) $ do
+            throwError (show (uid, cid, adr))
 
 recipientToIds :: Recipient -> [(UserId, ClientId)]
 recipientToIds (Recipient uid _ cids) = (uid,) <$> cids
 
-genPredicate :: forall a. (Eq a, Ord a) => [a] -> Gen (Set a)
-genPredicate xs = Set.fromList <$> do
+genSubsetOf :: forall a. (Eq a, Ord a) => [a] -> Gen (Set a)
+genSubsetOf xs = Set.fromList <$> do
   bools :: [Bool] <- vectorOf (length xs) arbitrary
   let reachables :: [a] = mconcat $ zipWith (\x yes -> [ x | yes ]) xs bools
   pure reachables
@@ -397,7 +406,7 @@ instance MonadPushAll MockGundeck where
   mpaForkIO = id  -- just don't fork.  (this *may* cause deadlocks in principle, but as long as it
                   -- doesn't, this is good enough for testing).
 
-instance MonadNativeTarget MockGundeck where
+instance MonadNativeTargets MockGundeck where
   mntgtLogErr _ = pure ()
   mntgtLookupAddress = mockLookupAddress
   mntgtMapAsync f xs = Right <$$> mapM f xs  -- (no concurrency)

@@ -17,7 +17,7 @@ module Gundeck.Push
       -- (for testing)
     , pushAll, pushAny
     , MonadPushAll(..)
-    , MonadNativeTarget(..)
+    , MonadNativeTargets(..)
     , MonadPushAny(..)
     ) where
 
@@ -75,8 +75,7 @@ push (req ::: _) = do
             forM_ exs $ Log.err . msg . (val "Push failed: " +++) . show
             throwM (Error status500 "server-error" "Server Error")
 
--- | This class abstracts over all effects in 'pushAll' in order to make unit testing possible.
--- (Even though we ended up not having any unit tests in the end.)
+-- | Abstract over all effects in 'pushAll' (for unit testing).
 class MonadThrow m =>  MonadPushAll m where
   mpaNotificationTTL  :: m NotificationTTL
   mpaMkNotificationId :: m NotificationId
@@ -95,19 +94,19 @@ instance MonadPushAll Gundeck where
   mpaPushNative       = pushNative
   mpaForkIO           = void . forkIO
 
--- | REFACTOR: merge 'MonadNativeTarget' with 'MonadPushAll'?  the distinction used to *almost* make
--- sense for 'pushAll', but now that it's also used in 'pushAny' i'm not sure any more.
-class Monad m => MonadNativeTarget m where
+-- | Abstract over all effects in 'nativeTargets' (for unit testing).
+class Monad m => MonadNativeTargets m where
   mntgtLogErr        :: SomeException -> m ()
   mntgtLookupAddress :: UserId -> m [Address "no-keys"]  -- ^ REFACTOR: rename to 'mntgtLookupAddresses'!
   mntgtMapAsync      :: (a -> m b) -> [a] -> m [Either SomeException b]
 
-instance MonadNativeTarget Gundeck where
+instance MonadNativeTargets Gundeck where
   mntgtLogErr e = Log.err (msg (val "Failed to get native push address: " +++ show e))
   mntgtLookupAddress rcp = Data.lookup rcp Data.One
   mntgtMapAsync = mapAsync
 
-class (MonadPushAll m, MonadNativeTarget m) => MonadPushAny m where
+-- | Abstract over all effects in 'pushAny' (for unit testing).
+class (MonadPushAll m, MonadNativeTargets m) => MonadPushAny m where
   mpyPush :: Notification
           -> List1 NotificationTarget
           -> UserId
@@ -151,7 +150,7 @@ pushAny' p = do
 
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
-pushAll :: (MonadPushAll m, MonadNativeTarget m) => [Push] -> m ()
+pushAll :: (MonadPushAll m, MonadNativeTargets m) => [Push] -> m ()
 pushAll pushes = do
     targets :: [(Push, (Notification, List1 (Recipient, [Presence])))]
             <- zip pushes <$> (mkNotificationAndTargets `mapM` pushes)
@@ -251,7 +250,7 @@ pushNative notif p rcps = do
     let prio = p^.pushNativePriority
     void $ Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
 
-nativeTargets :: forall m. MonadNativeTarget m => Push -> [Presence] -> m [Address "no-keys"]
+nativeTargets :: forall m. MonadNativeTargets m => Push -> [Presence] -> m [Address "no-keys"]
 nativeTargets p pres =
     let rcps' = filter routeNative (toList (fromRange (p^.pushRecipients)))
     in mntgtMapAsync addresses rcps' >>= fmap concat . mapM check
