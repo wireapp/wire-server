@@ -113,7 +113,7 @@ publicProfile u = (connectedProfile u)
 data User = User
     { userId       :: !UserId
     , userIdentity :: !(Maybe UserIdentity)
-    , userName     :: !Name
+    , userName     :: !Name  -- ^ required; non-unique
     , userPict     :: !Pict -- ^ DEPRECATED
     , userAssets   :: [Asset]
     , userAccentId :: !ColourId
@@ -122,7 +122,7 @@ data User = User
     , userService  :: !(Maybe ServiceRef)
         -- ^ Set if the user represents an external service,
         -- i.e. it is a "bot".
-    , userHandle   :: !(Maybe Handle)
+    , userHandle   :: !(Maybe Handle)  -- ^ not required; must be unique if present
     , userExpire   :: !(Maybe UTCTimeMillis)
         -- ^ Set if the user is ephemeral
     , userTeam     :: !(Maybe TeamId)
