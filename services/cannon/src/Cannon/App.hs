@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase           #-}
 {-# LANGUAGE MultiWayIf           #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
@@ -115,9 +116,9 @@ readLoop ws s = loop
                 send (connection ws) (pong p)
                 loop
             ControlMessage (Close _ _) -> return ()
-            _ -> do
+            perhapsPingMsg -> do
                 reset counter s 0
-                sendAppLevelPong
+                when (isAppLevelPing perhapsPingMsg) sendAppLevelPong
                 loop
 
     adjustPingFreq p = case fromByteString (toStrict p) of
@@ -129,6 +130,10 @@ readLoop ws s = loop
     -- since the browser may silently lose a websocket connection, wire clients are allowed send
     -- 'DataMessage' pings as well, and we respond with a 'DataMessage' pong to allow them to
     -- reliably decide whether the connection is still alive.
+    isAppLevelPing = \case
+        (DataMessage _ _ _ (Text "ping" _)) -> True
+        (DataMessage _ _ _ (Binary "ping")) -> True
+        _                                   -> False
     sendAppLevelPong = sendMsgIO "pong" ws
 
 rejectOnError :: PendingConnection -> HandshakeException -> IO a
