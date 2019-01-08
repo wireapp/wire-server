@@ -37,11 +37,8 @@ module Spar.SCIM
   , CreateScimTokenResponse(..)
   , ScimTokenList(..)
 
-  -- * The mapping between Wire and SCIM users
-  , mapUserScimToBrig
-  , mapUserBrigToScim
-
   -- * testing
+  , validateSCIMUser'
   , toSCIMStoredUser'
   ) where
 
@@ -123,12 +120,24 @@ apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
 ----------------------------------------------------------------------------
 -- UserDB
 
--- | Mapping from SCIM user to brig user.  This is ok to use in production, but
--- it doesn't fit the brig rest api.  So we duplicate the behavior of this
--- function in 'createValidSCIMUser' below and use this function (a) as
--- executable documentation and (b) in the tests to make sure it's valid.
--- The function takes an existing brig user that is updated in *some* fields,
--- and left intact in others.
+-- | Retrieve 'IdP' from 'ScimTokenInfo' and call 'validateSCIMUser''.
+validateSCIMUser
+  :: forall m. (m ~ SCIM.SCIMHandler Spar)
+  => ScimTokenInfo -> SCIM.User.User -> m ValidSCIMUser
+validateSCIMUser ScimTokenInfo{stiIdP} user = do
+    idp <- case stiIdP of
+        Nothing -> SCIM.throwSCIM $
+          SCIM.serverError "No IdP configured for the provisioning token"
+        (Just idp) -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
+            Nothing -> SCIM.throwSCIM $
+              SCIM.serverError "The IdP corresponding to the provisioning token \
+                               \was not found"
+            Just idpConfig -> pure idpConfig
+    validateSCIMUser' (Just idp) user
+
+-- | Map the SCIM data on the spar and brig schemata, and throw errors if
+-- the SCIM data does not comply with the standard / our constraints.
+-- See also: 'ValidSCIMUser'.
 --
 --   * @userName@ is mapped to our 'userHandle'. If there is no handle, we
 --     use 'userId', because having some unique @userName@ is a SCIM
@@ -138,6 +147,11 @@ apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
 --     via SCIM.
 --
 --   * @displayName@ is mapped to our 'userName'.
+--
+--   * A mandatory @SAML.UserRef@ is derived from 'SCIM.User.externalId'
+--     and the 'idpId' (retrieved via SCIM token).  TODO: We may need to
+--     make this configurable on a per-team basis to correctly create
+--     subject IDs for either email or persistent names, or possibly others.
 --
 -- We don't handle emails and phone numbers for now, because we'd like to
 -- ensure that only verified emails and phone numbers end up in our
@@ -149,18 +163,12 @@ apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
 -- other apps also ignore this model. Leaving @name@ empty will prevent the
 -- confusion that might appear when somebody tries to set @name@ to some
 -- value and the @displayName@ won't be affected by that change.
-mapUserScimToBrig :: SCIM.User.User -> Brig.User -> Brig.User
-mapUserScimToBrig = undefined
-
-mapUserBrigToScim :: Brig.User -> SCIM.User.User -> SCIM.User.User
-mapUserBrigToScim = undefined
-
--- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does not
--- comply with the standard / our constraints.  See also: 'ValidSCIMUser'.
-validateSCIMUser
+validateSCIMUser'
   :: forall m. (MonadError SCIM.SCIMError m)
-  => SCIM.User.User -> m ValidSCIMUser
-validateSCIMUser user = do
+  => Maybe IdP -> SCIM.User.User -> m ValidSCIMUser
+validateSCIMUser' Nothing _ =
+    throwError $ SCIM.serverError "SCIM users without SAML SSO are not supported"
+validateSCIMUser' (Just idp) user = do
     let validateNameOrExtId :: Maybe Text -> m (Maybe Text)
         validateNameOrExtId mtxt = forM mtxt $ \txt ->
           case checkedEitherMsg @_ @1 @128 "displayName" txt of
@@ -168,12 +176,15 @@ validateSCIMUser user = do
             Left err -> throwError $ SCIM.badRequest SCIM.InvalidValue
               (Just ("displayName is not compliant: " <> Text.pack err))
 
-    -- TODO: Assume that externalID is the subjectID, let's figure out how
-    -- to extract that later.  We may need to make this configurable on a
-    -- per-team basis to correctly create subject IDs for either email or
-    -- persistent names, or possibly others.
-    samlSubjectId <- SAML.opaqueNameID <$$>
-      validateNameOrExtId (SCIM.User.externalId user)
+    uref :: SAML.UserRef <- do
+      msubjid <- SAML.opaqueNameID <$$>
+        validateNameOrExtId (SCIM.User.externalId user)
+
+      case msubjid of
+        Just subj -> do
+            pure $ SAML.UserRef (idp ^. SAML.idpMetadata . SAML.edIssuer) subj
+        Nothing -> throwError $
+            SCIM.badRequest SCIM.InvalidValue (Just "externalId is required for SAML users")
 
     handl <- case parseHandle (SCIM.User.userName user) of
       Just x -> pure x
@@ -187,26 +198,14 @@ validateSCIMUser user = do
     -- already been done before -- the hscim library check does a 'get'
     -- before a 'create'
 
-    pure $ ValidSCIMUser user samlSubjectId handl mbName
+    pure $ ValidSCIMUser user uref handl mbName
 
 -- | We only allow SCIM users that authenticate via SAML.  (This is by no means necessary, though.
 -- It can be relaxed to allow creating users with password authentication if that is a requirement.)
 createValidSCIMUser
   :: forall m. (m ~ SCIM.SCIMHandler Spar)
-  => ScimTokenInfo -> ValidSCIMUser -> m SCIM.Class.User.StoredUser
-createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser user samlSubjectId handl mbName) = do
-    uref <- case (stiIdP, samlSubjectId) of
-        (Nothing, _) -> SCIM.throwSCIM $
-          SCIM.serverError "No IdP configured for the provisioning token"
-        (_, Nothing) -> SCIM.throwSCIM $
-          SCIM.badRequest SCIM.InvalidValue (Just "externalId is required for SAML users")
-        (Just idp, Just subj) -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
-            Nothing -> SCIM.throwSCIM $
-              SCIM.serverError "The IdP corresponding to the provisioning token \
-                               \was not found"
-            Just idpConfig -> pure $
-              SAML.UserRef (idpConfig ^. SAML.idpMetadata . SAML.edIssuer) subj
-
+  => ValidSCIMUser -> m SCIM.Class.User.StoredUser
+createValidSCIMUser (ValidSCIMUser user uref handl mbName) = do
     -- This UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
     -- Create SCIM user here in spar.
@@ -222,7 +221,7 @@ createValidSCIMUser ScimTokenInfo{stiIdP} (ValidSCIMUser user samlSubjectId hand
 updateValidSCIMUser
   :: forall m. (m ~ SCIM.SCIMHandler Spar)
   => ScimTokenInfo -> Text -> ValidSCIMUser -> m SCIM.Class.User.StoredUser
-updateValidSCIMUser tokinfo@ScimTokenInfo{stiIdP} uidText newScimUser = do
+updateValidSCIMUser tokinfo uidText newScimUser = do
 
     -- TODO: it's weird that uidText is not connected by code to any part of newScimUser (this is a
     -- problem also outside of the 'update' method here.  shouldn't there be a function @getScimUid ::
@@ -243,16 +242,11 @@ updateValidSCIMUser tokinfo@ScimTokenInfo{stiIdP} uidText newScimUser = do
           <- lift $ updSCIMStoredUser (newScimUser ^. vsuUser) oldScimStoredUser
 
         -- update 'SAML.UserRef'
-        midp <- lift . wrapMonadClient $ maybe (pure Nothing) Data.getIdPConfig stiIdP
-        case (midp, newScimUser ^. vsuSAMLSubjectId) of
-          (Nothing, _) -> pure ()
-          (_, Nothing) -> pure ()
-          (Just idp, Just subjid) -> do
-            let uref = SAML.UserRef (idp ^. SAML.idpMetadata . SAML.edIssuer) subjid
-            lift . wrapMonadClient $ Data.insertUser uref uid  -- on spar
-            bindok <- lift $ Intra.Brig.bindUser uid uref  -- on brig
-            unless bindok . SCIM.throwSCIM $
-              SCIM.serverError "The UserId to be updated was not found on brig"
+        let uref = newScimUser ^. vsuSAMLUserRef
+        lift . wrapMonadClient $ Data.insertUser uref uid  -- on spar
+        bindok <- lift $ Intra.Brig.bindUser uid uref  -- on brig
+        unless bindok . SCIM.throwSCIM $
+          SCIM.serverError "The UserId to be updated was not found on brig"
 
         updnameok <- maybe (pure True) (lift . Intra.Brig.updateUserName uid) $ newScimUser ^. vsuName
         updhandleok <- lift . Intra.Brig.updateUserHandle uid $ newScimUser ^. vsuHandle
@@ -415,14 +409,14 @@ instance SCIM.Class.User.UserDB Spar where
          -> SCIM.User.User
          -> SCIM.SCIMHandler Spar SCIM.Class.User.StoredUser
   create tokinfo user =
-    createValidSCIMUser tokinfo =<< validateSCIMUser user
+    createValidSCIMUser =<< validateSCIMUser tokinfo user
 
   update :: ScimTokenInfo
          -> Text
          -> SCIM.User.User
          -> SCIM.SCIMHandler Spar SCIM.Class.User.StoredUser
   update tokinfo uidText newScimUser =
-    updateValidSCIMUser tokinfo uidText =<< validateSCIMUser newScimUser
+    updateValidSCIMUser tokinfo uidText =<< validateSCIMUser tokinfo newScimUser
 
   delete :: ScimTokenInfo -> Text -> SCIM.SCIMHandler Spar Bool
   delete _ _ =

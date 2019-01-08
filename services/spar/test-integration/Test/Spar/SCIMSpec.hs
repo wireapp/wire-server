@@ -284,6 +284,6 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
                liftIO $ map stiDescr list `shouldBe`
                    ["_teScimToken test token"]
 
-    describe "validateSCIMUser" $ do
+    describe "validateSCIMUser'" $ do
         it "works" $ do
             pendingWith "write a list of unit tests here that make the mapping explicit, exhaustive, and easy to read."

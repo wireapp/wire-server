@@ -32,12 +32,16 @@ import qualified Web.SCIM.Schema.User             as SCIM.User
 import qualified Web.SCIM.Server                  as SCIM
 
 
--- | SCIM user with some details gathered during validation.  Output type
--- of 'validateSCIMUser', input type of 'createValidSCIMUser'.
+-- | SCIM user with 'SAML.UserRef' and mapping to 'Brig.User'.  Constructed by 'validateSCIMUser'.
 data ValidSCIMUser = ValidSCIMUser
   { _vsuUser          :: SCIM.User.User
-  , _vsuSAMLSubjectId :: Maybe SAML.NameID
-    -- ^ if the user should authenticate via SAML, use this subjId.
+
+    -- SAML SSO
+  , _vsuSAMLUserRef   :: SAML.UserRef
+      -- ^ (In the future, we may make this a 'Maybe' and allow for
+      -- SCIM users without a SAML SSO identity.)
+
+    -- mapping to 'Brig.User'
   , _vsuHandle        :: Handle
   , _vsuName          :: Maybe Name
   }
