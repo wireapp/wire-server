@@ -96,9 +96,13 @@ data MockState = MockState
   }
   deriving (Eq)
 
--- | Notification payload is aggregated as `Int`.  The same payload may be delivered in more than
--- one notification.  We do not keep track of numbers of deliveries (relying on QuickCheck to the
--- generate different payloads to get to other counter-examples for the same bugs).
+-- | For each client we store the set of notifications they are scheduled to receive.  Notification
+-- 'Payload's are converted into 'Int's for simplicity and to enable less verbose test errors (see
+-- 'payloadToInt').
+--
+-- In real world, the same payload may be delivered in more than one notification.  Here we do not
+-- keep track of duplicate payloads, relying on QuickCheck to generate different payloads to get to
+-- other counter-examples for the same bugs.
 type NotifQueue = Map (UserId, ClientId) (Set Int)
 
 makeLenses ''ClientInfo
@@ -174,14 +178,17 @@ mkFakeAddrEndpoint (epid, transport, app) = Aws.mkSnsArn Tokyo (Account "acc") e
 ----------------------------------------------------------------------
 -- env generators
 
--- | Generate an environment probabilistically containing the following situations:
+-- | Generate an environment containing a mix of recipients with different
+-- levels of brokenness:
 --
 -- 1. web socket delivery will work
 -- 2. web socket delivery will NOT work, native push token registered, push will succeed
--- 4. web socket delivery will NOT work, native push token registered, push will fail
--- 5. web socket delivery will NOT work, no native push token registered
+-- 3. web socket delivery will NOT work, native push token registered, push will fail
+-- 4. web socket delivery will NOT work, no native push token registered
 genMockEnv :: Gen MockEnv
 genMockEnv = do
+  -- This function generates a 'ClientInfo' that corresponds to one of the
+  -- four scenarios above
   let genClientInfo :: UserId -> ClientId -> Gen ClientInfo
       genClientInfo uid cid = do
         _ciNativeAddress <- QC.oneof
@@ -194,21 +201,26 @@ genMockEnv = do
         _ciWSReachable <- arbitrary
         pure ClientInfo{..}
 
+  -- Generate a list of users
   uids :: [UserId]
     <- nub <$> listOf1 genId
 
+  -- For every user, generate several clients
   cidss :: [[ClientId]]
     <- let gencids = do
              len <- QC.choose (1, 8)
              vectorOf len genClientId
        in forM uids . const $ nub <$> gencids
 
+  -- Build an 'MockEnv' containing a map with all those 'ClientInfo's, and
+  -- check that it validates
   env <- MockEnv . Map.fromList . fmap (_2 %~ Map.fromList) <$> do
     forM (zip uids cidss) $ \(uid, cids) -> (uid,) <$> do
       forM cids $ \cid -> (cid,) <$> genClientInfo uid cid
 
   validateMockEnv env & either error (const $ pure env)
 
+-- Try to shrink a 'MockEnv' by removing some users from '_meClientInfos'.
 shrinkMockEnv :: MockEnv -> [MockEnv]
 shrinkMockEnv (MockEnv cis) = MockEnv . Map.fromList <$> (shrinkList (const []) (Map.toList cis))
 
@@ -227,16 +239,13 @@ validateMockEnv env = do
               throwError (show (uid, cid, adr))
 
 genSubsetOf :: forall a. (Eq a, Ord a) => [a] -> Gen (Set a)
-genSubsetOf xs = Set.fromList <$> do
-  bools :: [Bool] <- vectorOf (length xs) arbitrary
-  let reachables :: [a] = mconcat $ zipWith (\x yes -> [ x | yes ]) xs bools
-  pure reachables
+genSubsetOf = fmap Set.fromList . sublistOf
 
 genRecipient :: HasCallStack => MockEnv -> Gen Recipient
 genRecipient env = do
   uid   <- QC.elements (allUsers env)
   route <- genRoute
-  cids  <- Set.toList <$> genSubsetOf (clientIdsOfUser env uid)
+  cids  <- sublistOf (clientIdsOfUser env uid)
   pure $ Recipient uid route cids
 
 -- REFACTOR: see 'Route' type about missing 'RouteNative'.
@@ -253,8 +262,8 @@ genClientId = newClientId <$> arbitrary
 
 genProtoAddress :: Gen (UserId -> ClientId -> Address "no-keys")
 genProtoAddress = do
-  _addrTransport <- QC.elements [minBound..]
-  arnEpId <- arbitrary
+  _addrTransport :: Transport <- QC.elements [minBound..maxBound]
+  arnEpId :: Text <- arbitrary
   let _addrApp = "AppName"
       _addrToken = Token "tok"
       _addrEndpoint = mkFakeAddrEndpoint (arnEpId, _addrTransport, _addrApp)
