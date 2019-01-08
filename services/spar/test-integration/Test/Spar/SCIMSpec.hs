@@ -20,6 +20,10 @@ import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenLis
 import Spar.Types (ScimTokenInfo(..))
 import Util
 
+import qualified Web.SCIM.Class.User              as SCIM.Class.User
+import qualified Web.SCIM.Schema.Common           as SCIM
+import qualified Web.SCIM.Schema.Meta             as SCIM
+
 
 spec :: SpecWith TestEnv
 spec = do
@@ -51,6 +55,9 @@ specUsers = describe "operations with users" $ do
 
         it "attributes of brig user, scim user, saml user are mapped as documented." $ do
             pending
+
+        it "writes all the stuff to all the places" $ do
+            pendingWith "factor this out of the PUT tests we already wrote."
 
     describe "GET /Users" $ do
         it "lists all users in a team" $ do
@@ -127,18 +134,46 @@ specUsers = describe "operations with users" $ do
             pendingWith "TODO: delete via SCIM"
 
     describe "PUT /Users" $ do
-        it "responds with 404 (just making sure...)" $ do
-            pending
+        it "responds with 4xx (just making sure...)" $ do
+            env <- ask
+            user <- randomSCIMUser
+            (tok, _) <- registerIdPAndSCIMToken
+            putUser_ (Just tok) Nothing user (env ^. teSpar)
+                !!! assertTrue_ ((>= 400) . statusCode)
 
     describe "PUT /Users/:id" $ do
         it "updates the user attributes in scim_user" $ do
-            pending
+            env <- ask
+            user <- randomSCIMUser
+            (tok, _) <- registerIdPAndSCIMToken
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            user' <- randomSCIMUser
+            putUser_ (Just tok) (Just userid) user' (env ^. teSpar)
+                !!! const 200 === statusCode
+            getresp <- getUser_ (Just tok) userid (env ^. teSpar)
+                <!! const 200 === statusCode
+            let storedUser' :: SCIM.Class.User.StoredUser = decodeBody' getresp
+            liftIO $ do
+                SCIM.value (SCIM.thing storedUser) `shouldBe` user
+                SCIM.value (SCIM.thing storedUser') `shouldBe` user'
+                SCIM.id (SCIM.thing storedUser') `shouldBe` SCIM.id (SCIM.thing storedUser)
+                let meta  = SCIM.meta storedUser
+                    meta' = SCIM.meta storedUser'
+                SCIM.resourceType meta `shouldBe` SCIM.resourceType meta'
+                SCIM.created  meta `shouldBe` SCIM.created  meta'
+                SCIM.version meta `shouldBe` SCIM.version meta'
+                SCIM.location meta `shouldBe` SCIM.location meta'
 
-        it "updates the 'SAML.UserRef' in spar and brig" $ do
+        it "updates 'SAML.UserRef' in spar" $ do
             pendingWith "interesting race conditions and probably other corner cases here..."
 
         it "updates the user attributes in brig as documented." $ do
             pending
+
+        context "scim_user has no entry with this id" $ do
+            it "fails" $ do
+                pending
 
         context "brig user is updated" $ do
             it "does NOT mirror this in the scim user" $ do
@@ -248,3 +283,7 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
             do list <- scimTokenListTokens <$> listTokens owner
                liftIO $ map stiDescr list `shouldBe`
                    ["_teScimToken test token"]
+
+    describe "validateSCIMUser" $ do
+        it "works" $ do
+            pendingWith "write a list of unit tests here that make the mapping explicit, exhaustive, and easy to read."

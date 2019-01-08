@@ -19,7 +19,7 @@ import Cassandra
 import Control.Lens
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Text (pack, unpack)
+import Data.String.Conversions (cs)
 import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
@@ -71,7 +71,7 @@ registerSCIMToken teamid midpid = do
 -- | Generate a SCIM user with a random name and handle.
 randomSCIMUser :: TestSpar SCIM.User.User
 randomSCIMUser = do
-    suffix <- pack <$> replicateM 5 (liftIO (randomRIO ('0', '9')))
+    suffix <- cs <$> replicateM 5 (liftIO (randomRIO ('0', '9')))
     pure $ SCIM.User.empty
         { SCIM.User.userName    = "scimuser_" <> suffix
         , SCIM.User.displayName = Just ("Scim User #" <> suffix)
@@ -184,9 +184,31 @@ createUser_
 createUser_ auth user spar_ = do
     -- NB: we don't use 'mkEmailRandomLocalSuffix' here, because emails
     -- shouldn't be submitted via SCIM anyway.
+    -- TODO: what's the consequence of this?  why not update emails via
+    -- SCIM?  how else should they be submitted?  i think this there is
+    -- still some confusion here about the distinction between *validated*
+    -- emails and *scim-provided* emails, which are two entirely
+    -- different things.
     call . post $
         ( spar_
         . paths ["scim", "v2", "Users"]
+        . scimAuth auth
+        . contentScim
+        . body (RequestBodyLBS . Aeson.encode $ user)
+        . acceptScim
+        )
+
+-- | Create a user.
+putUser_
+    :: Maybe ScimToken          -- ^ Authentication
+    -> Maybe UserId             -- ^ if no Id is provided, this will return 4xx.
+    -> SCIM.User.User           -- ^ User data
+    -> SparReq                  -- ^ Spar endpoint
+    -> TestSpar ResponseLBS
+putUser_ auth muid user spar_ = do
+    call . put $
+        ( spar_
+        . paths (["scim", "v2", "Users"] <> maybeToList (toByteString' <$> muid))
         . scimAuth auth
         . contentScim
         . body (RequestBodyLBS . Aeson.encode $ user)
@@ -284,7 +306,7 @@ acceptScim = accept "application/scim+json"
 scimUserId :: SCIM.StoredUser -> UserId
 scimUserId storedUser = either err id (readEither id_)
   where
-    id_ = unpack (SCIM.id (SCIM.thing storedUser))
+    id_ = cs (SCIM.id (SCIM.thing storedUser))
     err e = error $ "scimUserId: couldn't parse ID " ++ id_ ++ ": " ++ e
 
 -- | Check that some properties match between an SCIM user and a Brig user.

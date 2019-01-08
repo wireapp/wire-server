@@ -38,8 +38,8 @@ module Spar.SCIM
   , ScimTokenList(..)
 
   -- * The mapping between Wire and SCIM users
-  , mapScimToBrig
-  , mapBrigToScim
+  , mapUserScimToBrig
+  , mapUserBrigToScim
 
   -- * testing
   , toSCIMStoredUser'
@@ -82,6 +82,8 @@ import qualified Spar.Data    as Data
 import qualified Spar.Intra.Brig as Intra.Brig
 import qualified URI.ByteString as URIBS
 
+-- FUTUREWORK: these imports are not very handy.  split up Spar.SCIM into
+-- Spar.SCIM.{Core,User,Group} to avoid at least some of the hscim name clashes?
 import qualified Web.SCIM.Class.Auth              as SCIM.Class.Auth
 import qualified Web.SCIM.Class.Group             as SCIM.Class.Group
 import qualified Web.SCIM.Class.User              as SCIM.Class.User
@@ -147,11 +149,11 @@ apiScim = hoistSCIM (toServant (SCIM.siteServer configuration))
 -- other apps also ignore this model. Leaving @name@ empty will prevent the
 -- confusion that might appear when somebody tries to set @name@ to some
 -- value and the @displayName@ won't be affected by that change.
-mapScimToBrig :: SCIM.Class.User.StoredUser -> Brig.User -> Brig.User
-mapScimToBrig = undefined
+mapUserScimToBrig :: SCIM.User.User -> Brig.User -> Brig.User
+mapUserScimToBrig = undefined
 
-mapBrigToScim :: Brig.User -> SCIM.Class.User.StoredUser -> SCIM.Class.User.StoredUser
-mapBrigToScim = undefined
+mapUserBrigToScim :: Brig.User -> SCIM.User.User -> SCIM.User.User
+mapUserBrigToScim = undefined
 
 -- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does not
 -- comply with the standard / our constraints.  See also: 'ValidSCIMUser'.
