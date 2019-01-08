@@ -118,6 +118,7 @@ executables:
       - hspec
       - hspec-discover
       - lens-aeson
+      - MonadRandom
       - random
       - servant-client
       - spar

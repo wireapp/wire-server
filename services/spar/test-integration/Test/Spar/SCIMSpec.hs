@@ -14,12 +14,15 @@ module Test.Spar.SCIMSpec where
 import Imports
 import Bilge
 import Bilge.Assert
+import Brig.Types.User as Brig
 import Control.Lens
 import Data.ByteString.Conversion
-import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
+import Spar.SCIM
+import Spar.SCIM.Types
 import Spar.Types (ScimTokenInfo(..))
 import Util
 
+import qualified Spar.Data                        as Data
 import qualified Web.SCIM.Class.User              as SCIM.Class.User
 import qualified Web.SCIM.Schema.Common           as SCIM
 import qualified Web.SCIM.Schema.Meta             as SCIM
@@ -42,7 +45,7 @@ specUsers = describe "operations with users" $ do
             let userid = scimUserId scimStoredUser
             -- Check that this user is present in Brig and that Brig's view
             -- of the user matches SCIM's view of the user
-            brigUser <- fmap decodeBody' . call . get $
+            brigUser :: User <- fmap decodeBody' . call . get $
                 ( (env ^. teBrig)
                 . header "Z-User" (toByteString' userid)
                 . path "/self"
@@ -166,10 +169,31 @@ specUsers = describe "operations with users" $ do
                 SCIM.location meta `shouldBe` SCIM.location meta'
 
         it "updates 'SAML.UserRef' in spar" $ do
-            pendingWith "interesting race conditions and probably other corner cases here..."
+            env <- ask
+            user <- randomSCIMUser
+            (tok, (_, _, idp)) <- registerIdPAndSCIMToken
+            storedUser <- createUser tok user
+            user' <- randomSCIMUser
+            let userid = scimUserId storedUser
+            putUser_ (Just tok) (Just userid) user' (env ^. teSpar)
+                !!! const 200 === statusCode
+            vuser' <- either (error . show) pure $ validateSCIMUser' (Just idp) user'
+            muserid' <- runSparCass $ Data.getUser (vuser' ^. vsuSAMLUserRef)
+            liftIO $ do
+                muserid' `shouldBe` Just userid
 
-        it "updates the user attributes in brig as documented." $ do
-            pending
+        it "maps ValidSCIMUser to Brig.User completely and correctly (including 'SAML.UserRef')." $ do
+            env <- ask
+            user <- randomSCIMUser
+            (tok, (_, _, idp)) <- registerIdPAndSCIMToken
+            storedUser <- createUser tok user
+            user' <- randomSCIMUser
+            let userid = scimUserId storedUser
+            putUser_ (Just tok) (Just userid) user' (env ^. teSpar)
+                !!! const 200 === statusCode
+            validSCIMUser <- either (error . show) pure $ validateSCIMUser' (Just idp) user'
+            brigUser      <- maybe (error "no brig user") pure =<< getSelf userid
+            userShouldMatch validSCIMUser brigUser
 
         context "scim_user has no entry with this id" $ do
             it "fails" $ do

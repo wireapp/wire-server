@@ -45,6 +45,7 @@ data ValidSCIMUser = ValidSCIMUser
   , _vsuHandle        :: Handle
   , _vsuName          :: Maybe Name
   }
+  deriving (Eq, Show)
 
 makeLenses ''ValidSCIMUser
 

@@ -1,13 +1,18 @@
 {-# LANGUAGE ConstraintKinds     #-}
 {-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE GADTs               #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QuasiQuotes         #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ViewPatterns        #-}
-{-# LANGUAGE LambdaCase          #-}
 
 module Util.SCIM where
 
@@ -17,6 +22,7 @@ import Bilge.Assert
 import Brig.Types.User
 import Cassandra
 import Control.Lens
+import Control.Monad.Random
 import Data.ByteString.Conversion
 import Data.Id
 import Data.String.Conversions (cs)
@@ -26,19 +32,23 @@ import Data.UUID.V4 as UUID
 import SAML2.WebSSO.Types (IdPId, idpId)
 import Spar.Data as Data
 import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
+import Spar.SCIM.Types
 import Spar.Types (ScimToken(..), ScimTokenInfo(..), IdP)
-import System.Random
 import Util.Core
 import Util.Types
 import Web.HttpApiData (toHeader)
 
 import qualified Data.Aeson                       as Aeson
+import qualified SAML2.WebSSO                     as SAML
+import qualified Spar.Intra.Brig                  as Intra
+import qualified Text.Email.Parser                as Email
 import qualified Web.SCIM.Class.User              as SCIM
 import qualified Web.SCIM.Filter                  as SCIM
 import qualified Web.SCIM.Schema.Common           as SCIM
 import qualified Web.SCIM.Schema.ListResponse     as SCIM
 import qualified Web.SCIM.Schema.Meta             as SCIM
 import qualified Web.SCIM.Schema.User             as SCIM.User
+import qualified Web.SCIM.Schema.User.Email       as Email
 
 
 -- | Call 'registerTestIdP', then 'registerSCIMToken'.  The user returned is the owner of the team;
@@ -68,15 +78,32 @@ registerSCIMToken teamid midpid = do
           }
   pure tok
 
--- | Generate a SCIM user with a random name and handle.
-randomSCIMUser :: TestSpar SCIM.User.User
+-- | Generate a SCIM user with a random name and handle.  At the very least, everything considered
+-- in @instance UserShouldMatch SCIM.User.User User@ and @validateSCIMUser@ must be random here.
+-- FUTUREWORK: make this more exhaustive.  change everything that can be changed!  move this to the
+-- hspec package when done.
+randomSCIMUser :: MonadRandom m => m SCIM.User.User
 randomSCIMUser = do
-    suffix <- cs <$> replicateM 5 (liftIO (randomRIO ('0', '9')))
+    suffix <- cs <$> replicateM 5 (getRandomR ('0', '9'))
+    emails <- replicateM 3 randomSCIMEmail
     pure $ SCIM.User.empty
         { SCIM.User.userName    = "scimuser_" <> suffix
         , SCIM.User.displayName = Just ("Scim User #" <> suffix)
         , SCIM.User.externalId  = Just ("scimuser_extid_" <> suffix)
+        , SCIM.User.emails      = Just emails
         }
+
+randomSCIMEmail :: MonadRandom m => m Email.Email
+randomSCIMEmail = do
+    let typ     :: Maybe Text = Nothing
+        primary :: Maybe Bool = Nothing  -- TODO: where should we catch users with more than one
+                                         -- primary email?
+    value :: Email.EmailAddress2 <- do
+      localpart  <- cs <$> replicateM 15 (getRandomR ('a', 'z'))
+      domainpart <- (<> ".com") . cs <$> replicateM 15 (getRandomR ('a', 'z'))
+      pure . Email.EmailAddress2 $ Email.unsafeEmailAddress localpart domainpart
+    pure Email.Email{..}
+
 
 ----------------------------------------------------------------------------
 -- API wrappers
@@ -309,15 +336,43 @@ scimUserId storedUser = either err id (readEither id_)
     id_ = cs (SCIM.id (SCIM.thing storedUser))
     err e = error $ "scimUserId: couldn't parse ID " ++ id_ ++ ": " ++ e
 
--- | Check that some properties match between an SCIM user and a Brig user.
-userShouldMatch
-    :: (HasCallStack, MonadIO m)
-    => SCIM.StoredUser -> User -> m ()
-userShouldMatch scimStoredUser brigUser = liftIO $ do
+-- | There are a number of user types that all partially map on each other.  This class provides a
+-- uniform interface to express those mappings.
+class UserShouldMatch u1 u2 where
+  userShouldMatch
+    :: forall m. (HasCallStack, MonadIO m)
+    => u1 -> u2 -> m ()
+
+-- | 'ValidSCIMUser' is tested in SCIMSpec.hs exhaustively with literal inputs, so here we assume it
+-- is correct.
+instance UserShouldMatch ValidSCIMUser User where
+  userShouldMatch validSCIMUser brigUser = liftIO $ do
+    userShouldMatch (validSCIMUser ^. vsuUser) brigUser
+    (validSCIMUser ^. vsuSAMLUserRef) `shouldBe` urefFromBrig brigUser
+    Just (validSCIMUser ^. vsuHandle) `shouldBe` userHandle brigUser
+    (validSCIMUser ^. vsuName) `shouldBe` Just (userName brigUser)  -- TODO: why is vsuName Maybe again?
+
+instance UserShouldMatch SCIM.StoredUser User where
+  userShouldMatch scimStoredUser brigUser = liftIO $ do
     let scimUser = SCIM.value (SCIM.thing scimStoredUser)
     scimUserId scimStoredUser `shouldBe`
         userId brigUser
+    userShouldMatch scimUser brigUser
+
+instance UserShouldMatch SCIM.User.User User where
+  userShouldMatch scimUser brigUser = liftIO $ do
     Just (Handle (SCIM.User.userName scimUser)) `shouldBe`
         userHandle brigUser
     fmap Name (SCIM.User.displayName scimUser) `shouldBe`
         Just (userName brigUser)
+
+    let -- only test the SubjectID; the 'SCIM.StoredUser' does not contain the 'IdP':
+        subjIdFromSCIM = SAML.opaqueNameID <$> SCIM.User.externalId scimUser
+    case (urefFromBrig brigUser, subjIdFromSCIM) of
+        (SAML.UserRef _ subj, Just subj') -> subj `shouldBe` subj'
+        bad -> error $ "UserRef mismatch: " <> show bad
+
+urefFromBrig :: User -> SAML.UserRef
+urefFromBrig brigUser = case userIdentity brigUser of
+    Just (SSOIdentity (Intra.fromUserSSOId -> Right uref) _ _) -> uref
+    bad -> error $ "No UserRef from brig: " <> show bad
