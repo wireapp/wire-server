@@ -196,6 +196,7 @@ test-suite gundeck-tests
       , imports
       , lens
       , mtl
+      , MonadRandom
       , network-uri
       , QuickCheck
       , quickcheck-instances

@@ -38,6 +38,7 @@ import Imports
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Except
+import Control.Monad.Random
 import Control.Monad.State
 import Data.Aeson
 import Data.Id
@@ -54,7 +55,6 @@ import Gundeck.Push.Websocket as Web
 import Gundeck.Types
 import Gundeck.Types.BulkPush
 import System.Logger.Class as Log hiding (trace)
-import System.Random
 import Test.QuickCheck as QC
 import Test.QuickCheck.Instances ()
 
@@ -90,13 +90,11 @@ newtype MockEnv = MockEnv
   deriving (Eq, Show)
 
 data MockState = MockState
-  { _msNonRandomGen    :: StdGen
-    -- ^ the "non-random" in the name means that we always run 'MockGundeck' with the same 'StdGen'
-    -- state (look at the 'Monoid' instance below).
-  , _msWSQueue         :: NotifQueue
+  { _msWSQueue         :: NotifQueue
   , _msNativeQueue     :: NotifQueue
   , _msCassQueue       :: NotifQueue
   }
+  deriving (Eq)
 
 -- | Notification payload is aggregated as `Int`.  The same payload may be delivered in more than
 -- one notification.  We do not keep track of numbers of deliveries (relying on QuickCheck to the
@@ -107,21 +105,18 @@ makeLenses ''ClientInfo
 makeLenses ''MockEnv
 makeLenses ''MockState
 
-instance Eq MockState where
-  (MockState _ w n c) == (MockState _ w' n' c') = w == w' && n == n' && c == c'
-
 instance Show MockState where
-  show (MockState _ w n c) = intercalate "\n"
+  show (MockState w n c) = intercalate "\n"
     ["", "websocket: " <> show w, "native: " <> show n, "cassandra: " <> show c, ""]
 
 instance Semigroup MockState where
-  (MockState _ ws nat cass) <> (MockState gen ws' nat' cass') =
-    MockState gen (Map.unionWith (<>) ws ws')
-                  (Map.unionWith (<>) nat nat')
-                  (Map.unionWith (<>) cass cass')
+  (MockState ws nat cass) <> (MockState ws' nat' cass') =
+    MockState (Map.unionWith (<>) ws ws')
+              (Map.unionWith (<>) nat nat')
+              (Map.unionWith (<>) cass cass')
 
 instance Monoid MockState where
-  mempty = MockState (mkStdGen 0) mempty mempty mempty
+  mempty = MockState mempty mempty mempty
 
 -- (serializing test cases makes replay easier.)
 instance ToJSON MockEnv where
@@ -342,11 +337,12 @@ shrinkNotifs = shrinkList (\(notif, prcs) -> (notif,) <$> shrinkList (const []) 
 -- monad type and instances
 
 newtype MockGundeck a = MockGundeck
-  { fromMockGundeck :: ReaderT MockEnv (StateT MockState Identity) a }
-  deriving (Functor, Applicative, Monad, MonadReader MockEnv, MonadState MockState)
+  { fromMockGundeck :: ReaderT MockEnv (StateT MockState (RandT StdGen Identity)) a }
+  deriving (Functor, Applicative, Monad, MonadReader MockEnv, MonadState MockState, MonadRandom)
 
 runMockGundeck :: MockEnv -> MockGundeck a -> (a, MockState)
-runMockGundeck env (MockGundeck m) = runIdentity $ runStateT (runReaderT m env) mempty
+runMockGundeck env (MockGundeck m) =
+  runIdentity . (`evalRandT` mkStdGen 0) $ runStateT (runReaderT m env) mempty
 
 instance MonadThrow MockGundeck where
   throwM = error . show  -- (we are not expecting any interesting errors in these tests, so we might
@@ -494,10 +490,7 @@ mockPushAll pushes = do
 mockMkNotificationId
   :: (HasCallStack, m ~ MockGundeck)
   => m NotificationId
-mockMkNotificationId = Id <$> state go
-  where
-    go env = case random (env ^. msNonRandomGen) of
-      (uuid, g') -> (uuid, env & msNonRandomGen .~ g')
+mockMkNotificationId = Id <$> getRandom
 
 mockListAllPresences
   :: (HasCallStack, m ~ MockGundeck)
