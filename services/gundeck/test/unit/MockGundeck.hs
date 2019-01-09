@@ -113,14 +113,8 @@ instance Show MockState where
   show (MockState w n c) = intercalate "\n"
     ["", "websocket: " <> show w, "native: " <> show n, "cassandra: " <> show c, ""]
 
-instance Semigroup MockState where
-  (MockState ws nat cass) <> (MockState ws' nat' cass') =
-    MockState (Map.unionWith (<>) ws ws')
-              (Map.unionWith (<>) nat nat')
-              (Map.unionWith (<>) cass cass')
-
-instance Monoid MockState where
-  mempty = MockState mempty mempty mempty
+emptyMockState :: MockState
+emptyMockState = MockState mempty mempty mempty
 
 -- (serializing test cases makes replay easier.)
 instance ToJSON MockEnv where
@@ -351,7 +345,7 @@ newtype MockGundeck a = MockGundeck
 
 runMockGundeck :: MockEnv -> MockGundeck a -> (a, MockState)
 runMockGundeck env (MockGundeck m) =
-  runIdentity . (`evalRandT` mkStdGen 0) $ runStateT (runReaderT m env) mempty
+  runIdentity . (`evalRandT` mkStdGen 0) $ runStateT (runReaderT m env) emptyMockState
 
 instance MonadThrow MockGundeck where
   throwM = error . show  -- (we are not expecting any interesting errors in these tests, so we might
