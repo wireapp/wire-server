@@ -195,8 +195,9 @@ test-suite gundeck-tests
       , HsOpenSSL
       , imports
       , lens
-      , mtl
       , MonadRandom
+      , mtl
+      , multiset
       , network-uri
       , QuickCheck
       , quickcheck-instances

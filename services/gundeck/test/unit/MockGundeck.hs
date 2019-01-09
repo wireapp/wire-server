@@ -42,6 +42,7 @@ import Control.Monad.Random
 import Control.Monad.State
 import Data.Aeson
 import Data.Id
+import Data.IntMultiSet (IntMultiSet)
 import Data.List1
 import Data.Misc ((<$$>), Milliseconds(Ms))
 import Data.Range
@@ -61,6 +62,7 @@ import Test.QuickCheck.Instances ()
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
 import qualified Data.HashMap.Lazy as HashMap
+import qualified Data.IntMultiSet as MSet
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -103,11 +105,7 @@ data MockState = MockState
 -- | For each client we store the set of notifications they are scheduled to receive.  Notification
 -- 'Payload's are converted into 'Int's for simplicity and to enable less verbose test errors (see
 -- 'payloadToInt').
---
--- In real world, the same payload may be delivered in more than one notification.  Here we do not
--- keep track of duplicate payloads, relying on QuickCheck to generate different payloads to get to
--- other counter-examples for the same bugs.
-type NotifQueue = Map (UserId, ClientId) (Set Int)
+type NotifQueue = Map (UserId, ClientId) IntMultiSet
 
 makeLenses ''ClientInfo
 makeLenses ''MockEnv
@@ -652,8 +650,8 @@ shrinkPretty shrnk (Pretty xs) = Pretty <$> shrnk xs
 deliver :: NotifQueue -> (UserId, ClientId) -> Payload -> NotifQueue
 deliver queue qkey qval = Map.alter (Just . tweak) qkey queue
   where
-    tweak Nothing      = Set.singleton (payloadToInt qval)
-    tweak (Just qvals) = Set.insert    (payloadToInt qval) qvals
+    tweak Nothing      = MSet.singleton (payloadToInt qval)
+    tweak (Just qvals) = MSet.insert    (payloadToInt qval) qvals
 
 -- | Return the rounded number contained in the payload.  This is enough to detect message mixups,
 -- but less noisy in the printed counter-examples.
