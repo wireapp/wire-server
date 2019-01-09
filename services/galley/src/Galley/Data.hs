@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeOperators     #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -86,12 +87,14 @@ import Cassandra
 import Cassandra.Util
 import Control.Arrow (second)
 import Control.Lens hiding ((<|))
+import Control.Monad.Catch (MonadThrow)
 import Data.ByteString.Conversion hiding (parser)
 import Data.Id
-import Data.Range
-import Data.List.Split (chunksOf)
+import Data.Json.Util (UTCTimeMillis(..), toUTCTimeMillis)
 import Data.List1 (List1, list1, singleton)
+import Data.List.Split (chunksOf)
 import Data.Misc (Milliseconds)
+import Data.Range
 import Data.Time.Clock
 import Data.UUID.V4 (nextRandom)
 import Galley.App
@@ -125,7 +128,7 @@ import qualified System.Logger.Class  as Log
 newtype ResultSet a = ResultSet { page :: Page a }
 
 schemaVersion :: Int32
-schemaVersion = 29
+schemaVersion = 30
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
@@ -181,13 +184,21 @@ teamConversations :: MonadClient m => TeamId -> m [TeamConversation]
 teamConversations t = map (uncurry newTeamConversation) <$>
     retry x1 (query Cql.selectTeamConvs (params Quorum (Identity t)))
 
-teamMembers :: MonadClient m => TeamId -> m [TeamMember]
-teamMembers t = map (uncurry newTeamMember) <$>
+teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> m [TeamMember]
+teamMembers t = mapM newTeamMember' =<<
     retry x1 (query Cql.selectTeamMembers (params Quorum (Identity t)))
+  where
+    newTeamMember' :: (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis) -> m TeamMember
+    newTeamMember' (uid, perms, minvu, minvt) =
+        newTeamMemberRaw uid perms minvu (fromUTCTimeMillis <$> minvt)
 
-teamMember :: MonadClient m => TeamId -> UserId -> m (Maybe TeamMember)
-teamMember t u = fmap (newTeamMember u . runIdentity) <$>
-    retry x1 (query1 Cql.selectTeamMember (params Quorum (t, u)))
+teamMember :: forall m. (MonadThrow m, MonadClient m) => TeamId -> UserId -> m (Maybe TeamMember)
+teamMember t u = newTeamMember' u . fmap runIdentity =<< retry x1 (query1 Cql.selectTeamMember (params Quorum (t, u)))
+  where
+    newTeamMember' :: UserId -> Maybe (Permissions, Maybe UserId, Maybe UTCTimeMillis) -> m (Maybe TeamMember)
+    newTeamMember' _ Nothing = pure Nothing
+    newTeamMember' uid (Just (perms, minvu, minvt)) =
+        Just <$> newTeamMemberRaw uid perms minvu (fromUTCTimeMillis <$> minvt)
 
 userTeams :: MonadClient m => UserId -> m [TeamId]
 userTeams u = map runIdentity <$>
@@ -244,7 +255,12 @@ addTeamMember t m =
     retry x5 $ batch $ do
         setType BatchLogged
         setConsistency Quorum
-        addPrepQuery Cql.insertTeamMember (t, m^.userId, m^.permissions)
+        addPrepQuery Cql.insertTeamMember ( t
+                                          , m ^. userId
+                                          , m ^. permissions
+                                          , m ^? invitation . _Just . _1
+                                          , m ^? invitation . _Just . _2 . to toUTCTimeMillis
+                                          )
         addPrepQuery Cql.insertUserTeam   (m^.userId, t)
 
 updateTeamMember :: MonadClient m => TeamId -> UserId -> Permissions -> m ()

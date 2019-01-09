@@ -98,7 +98,7 @@ lookupTeam zusr tid = do
 createNonBindingTeam :: UserId ::: ConnId ::: Request ::: JSON ::: JSON -> Galley Response
 createNonBindingTeam (zusr::: zcon ::: req ::: _) = do
     NonBindingNewTeam body <- fromBody req invalidPayload
-    let owner  = newTeamMember zusr fullPermissions
+    let owner  = newTeamMember zusr fullPermissions Nothing{- TODO: really? -}
     let others = filter ((zusr /=) . view userId)
                . maybe [] fromRange
                $ body^.newTeamMembers
@@ -111,7 +111,7 @@ createNonBindingTeam (zusr::: zcon ::: req ::: _) = do
 createBindingTeam :: UserId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 createBindingTeam (zusr ::: tid ::: req ::: _) = do
     BindingNewTeam body <- fromBody req invalidPayload
-    let owner  = newTeamMember zusr fullPermissions
+    let owner  = newTeamMember zusr fullPermissions Nothing{- TODO: really? -}
     team <- Data.createTeam (Just tid) zusr (body^.newTeamName) (body^.newTeamIcon) (body^.newTeamIconKey) Binding
     finishCreateTeam team owner [] Nothing
 

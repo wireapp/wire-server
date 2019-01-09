@@ -26,8 +26,10 @@ module Galley.Types.Teams
 
     , TeamMember
     , newTeamMember
+    , newTeamMemberRaw
     , userId
     , permissions
+    , invitation
     , teamMemberJson
 
     , TeamMemberList
@@ -101,7 +103,9 @@ module Galley.Types.Teams
     ) where
 
 import Imports
+import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens (makeLenses, view, (^.))
+import Control.Monad.Catch
 import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
 import Data.Bits (testBit, (.|.))
@@ -191,6 +195,7 @@ data TeamList = TeamList
 data TeamMember = TeamMember
     { _userId      :: UserId
     , _permissions :: Permissions
+    , _invitation  :: Maybe (UserId, UTCTime)
     } deriving (Eq, Ord, Show)
 
 newtype TeamMemberList = TeamMemberList
@@ -258,8 +263,15 @@ newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
 
-newTeamMember :: UserId -> Permissions -> TeamMember
+newTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTime) -> TeamMember
 newTeamMember = TeamMember
+
+newTeamMemberRaw :: MonadThrow m => UserId -> Permissions -> Maybe UserId -> Maybe UTCTime -> m TeamMember
+newTeamMemberRaw uid perms (Just invu) (Just invt) = pure $ TeamMember uid perms (Just (invu, invt))
+newTeamMemberRaw uid perms Nothing Nothing         = pure $ TeamMember uid perms Nothing
+newTeamMemberRaw _ _ _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
+    -- TODO: question for the reviewer: is this exception type what we want to use here, and on the
+    -- calling side in "Galley.Data"?
 
 newTeamMemberList :: [TeamMember] -> TeamMemberList
 newTeamMemberList = TeamMemberList
@@ -439,9 +451,16 @@ teamMemberListJson withPerm l =
     object [ "members" .= map (teamMemberJson withPerm) (_teamMembers l) ]
 
 instance FromJSON TeamMember where
-    parseJSON = withObject "team-member" $ \o ->
-        TeamMember <$> o .:  "user"
-                   <*> o .:  "permissions"
+    parseJSON = withObject "team-member" $ \o -> do
+        user   <- o .:  "user"
+        perms  <- o .:  "permissions"
+        minvby <- o .:? "invited_by"
+        minvat <- o .:? "invited_at"
+        minv    <- case (minvby, minvat) of
+            (Just invby, Just invat) -> pure $ Just (invby, fromUTCTimeMillis invat)
+            (Nothing, Nothing)       -> pure Nothing
+            _                        -> fail "incomplete invitation metadata"
+        pure $ TeamMember user perms minv
 
 instance FromJSON TeamMemberList where
     parseJSON = withObject "team member list" $ \o ->
