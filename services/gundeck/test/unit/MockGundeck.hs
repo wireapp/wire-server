@@ -129,13 +129,13 @@ instance ToJSON ClientInfo where
 
 instance ToJSON (Address s) where
   toJSON adr = Aeson.object
-    [ "addrUser"      Aeson..= (adr ^. addrUser)
-    , "addrTransport" Aeson..= (adr ^. addrTransport)
-    , "addrApp"       Aeson..= (adr ^. addrApp)
-    , "addrToken"     Aeson..= (adr ^. addrToken)
-    , "addrEndpoint"  Aeson..= (serializeFakeAddrEndpoint $ adr ^. addrEndpoint)
-    , "addrConn"      Aeson..= (adr ^. addrConn)
-    , "addrClient"    Aeson..= (adr ^. addrClient)
+    [ "user"      Aeson..= (adr ^. addrUser)
+    , "transport" Aeson..= (adr ^. addrTransport)
+    , "app"       Aeson..= (adr ^. addrApp)
+    , "token"     Aeson..= (adr ^. addrToken)
+    , "endpoint"  Aeson..= (serializeFakeAddrEndpoint $ adr ^. addrEndpoint)
+    , "conn"      Aeson..= (adr ^. addrConn)
+    , "client"    Aeson..= (adr ^. addrClient)
     ]
 
 serializeFakeAddrEndpoint :: EndpointArn -> (Text, Transport, AppName)
@@ -156,13 +156,13 @@ instance FromJSON ClientInfo where
 
 instance FromJSON (Address s) where
   parseJSON = withObject "Address" $ \adr -> Address
-    <$> (adr Aeson..: "addrUser")
-    <*> (adr Aeson..: "addrTransport")
-    <*> (adr Aeson..: "addrApp")
-    <*> (adr Aeson..: "addrToken")
-    <*> (mkFakeAddrEndpoint <$> adr Aeson..: "addrEndpoint")
-    <*> (adr Aeson..: "addrConn")
-    <*> (adr Aeson..: "addrClient")
+    <$> (adr Aeson..: "user")
+    <*> (adr Aeson..: "transport")
+    <*> (adr Aeson..: "app")
+    <*> (adr Aeson..: "token")
+    <*> (mkFakeAddrEndpoint <$> adr Aeson..: "endpoint")
+    <*> (adr Aeson..: "conn")
+    <*> (adr Aeson..: "client")
 
 mkFakeAddrEndpoint :: (Text, Transport, AppName) -> EndpointArn
 mkFakeAddrEndpoint (epid, transport, app) = Aws.mkSnsArn Tokyo (Account "acc") eptopic
@@ -188,9 +188,9 @@ genMockEnv = do
         _ciNativeAddress <- QC.oneof
           [ pure Nothing
           , do
-              protoaddr <- genProtoAddress
+              protoaddr <- genProtoAddress uid cid
               reachable <- arbitrary
-              pure $ Just (protoaddr uid cid, reachable)
+              pure $ Just (protoaddr, reachable)
           ]
         _ciWSReachable <- arbitrary
         pure ClientInfo{..}
@@ -254,14 +254,15 @@ genId = do
 genClientId :: Gen ClientId
 genClientId = newClientId <$> arbitrary
 
-genProtoAddress :: Gen (UserId -> ClientId -> Address "no-keys")
-genProtoAddress = do
+genProtoAddress :: UserId -> ClientId -> Gen (Address "no-keys")
+genProtoAddress _addrUser _addrClient = do
   _addrTransport :: Transport <- QC.elements [minBound..maxBound]
   arnEpId :: Text <- arbitrary
   let _addrApp = "AppName"
       _addrToken = Token "tok"
       _addrEndpoint = mkFakeAddrEndpoint (arnEpId, _addrTransport, _addrApp)
-  pure $ \_addrUser _addrClient -> let _addrConn = fakeConnId _addrClient in Address {..}
+      _addrConn = fakeConnId _addrClient
+  pure Address {..}
 
 genPushes :: MockEnv -> Gen [Push]
 genPushes = listOf . genPush
