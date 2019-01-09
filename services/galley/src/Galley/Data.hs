@@ -90,7 +90,7 @@ import Control.Lens hiding ((<|))
 import Control.Monad.Catch (MonadThrow)
 import Data.ByteString.Conversion hiding (parser)
 import Data.Id
-import Data.Json.Util (UTCTimeMillis(..), toUTCTimeMillis)
+import Data.Json.Util (UTCTimeMillis(..))
 import Data.List1 (List1, list1, singleton)
 import Data.List.Split (chunksOf)
 import Data.Misc (Milliseconds)
@@ -190,7 +190,7 @@ teamMembers t = mapM newTeamMember' =<<
   where
     newTeamMember' :: (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis) -> m TeamMember
     newTeamMember' (uid, perms, minvu, minvt) =
-        newTeamMemberRaw uid perms minvu (fromUTCTimeMillis <$> minvt)
+        newTeamMemberRaw uid perms minvu minvt
 
 teamMember :: forall m. (MonadThrow m, MonadClient m) => TeamId -> UserId -> m (Maybe TeamMember)
 teamMember t u = newTeamMember' u . fmap runIdentity =<< retry x1 (query1 Cql.selectTeamMember (params Quorum (t, u)))
@@ -198,7 +198,7 @@ teamMember t u = newTeamMember' u . fmap runIdentity =<< retry x1 (query1 Cql.se
     newTeamMember' :: UserId -> Maybe (Permissions, Maybe UserId, Maybe UTCTimeMillis) -> m (Maybe TeamMember)
     newTeamMember' _ Nothing = pure Nothing
     newTeamMember' uid (Just (perms, minvu, minvt)) =
-        Just <$> newTeamMemberRaw uid perms minvu (fromUTCTimeMillis <$> minvt)
+        Just <$> newTeamMemberRaw uid perms minvu minvt
 
 userTeams :: MonadClient m => UserId -> m [TeamId]
 userTeams u = map runIdentity <$>
@@ -259,7 +259,7 @@ addTeamMember t m =
                                           , m ^. userId
                                           , m ^. permissions
                                           , m ^? invitation . _Just . _1
-                                          , m ^? invitation . _Just . _2 . to toUTCTimeMillis
+                                          , m ^? invitation . _Just . _2
                                           )
         addPrepQuery Cql.insertUserTeam   (m^.userId, t)
 

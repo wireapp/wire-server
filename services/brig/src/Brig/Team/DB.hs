@@ -1,7 +1,8 @@
 {-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns      #-}
 
 module Brig.Team.DB
@@ -160,5 +161,6 @@ countInvitations t = fromMaybe 0 . fmap runIdentity <$>
     cqlSelect = "SELECT count(*) FROM team_invitation WHERE team = ?"
 
 -- Helper
+-- TODO: can't we just read UTCTimeMillis from cql?
 toInvitation :: (TeamId, InvitationId, Email, UTCTime, Maybe UserId) -> Invitation
 toInvitation (t, i, e, toUTCTimeMillis -> tm, minviter) = Invitation t i e tm minviter

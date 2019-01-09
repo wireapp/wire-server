@@ -195,7 +195,7 @@ data TeamList = TeamList
 data TeamMember = TeamMember
     { _userId      :: UserId
     , _permissions :: Permissions
-    , _invitation  :: Maybe (UserId, UTCTime)
+    , _invitation  :: Maybe (UserId, UTCTimeMillis)
     } deriving (Eq, Ord, Show)
 
 newtype TeamMemberList = TeamMemberList
@@ -263,10 +263,10 @@ newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
 
-newTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTime) -> TeamMember
+newTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TeamMember
 newTeamMember = TeamMember
 
-newTeamMemberRaw :: MonadThrow m => UserId -> Permissions -> Maybe UserId -> Maybe UTCTime -> m TeamMember
+newTeamMemberRaw :: MonadThrow m => UserId -> Permissions -> Maybe UserId -> Maybe UTCTimeMillis -> m TeamMember
 newTeamMemberRaw uid perms (Just invu) (Just invt) = pure $ TeamMember uid perms (Just (invu, invt))
 newTeamMemberRaw uid perms Nothing Nothing         = pure $ TeamMember uid perms Nothing
 newTeamMemberRaw _ _ _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
@@ -457,7 +457,7 @@ instance FromJSON TeamMember where
         minvby <- o .:? "invited_by"
         minvat <- o .:? "invited_at"
         minv    <- case (minvby, minvat) of
-            (Just invby, Just invat) -> pure $ Just (invby, fromUTCTimeMillis invat)
+            (Just invby, Just invat) -> pure $ Just (invby, invat)
             (Nothing, Nothing)       -> pure Nothing
             _                        -> fail "incomplete invitation metadata"
         pure $ TeamMember user perms minv
