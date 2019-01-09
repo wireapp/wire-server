@@ -183,11 +183,11 @@ mkFakeAddrEndpoint (epid, transport, app) = Aws.mkSnsArn Tokyo (Account "acc") e
 -- 2. web socket delivery will NOT work, native push token registered, push will succeed
 -- 3. web socket delivery will NOT work, native push token registered, push will fail
 -- 4. web socket delivery will NOT work, no native push token registered
-genMockEnv :: Gen MockEnv
+genMockEnv :: HasCallStack => Gen MockEnv
 genMockEnv = do
   -- This function generates a 'ClientInfo' that corresponds to one of the
   -- four scenarios above
-  let genClientInfo :: UserId -> ClientId -> Gen ClientInfo
+  let genClientInfo :: HasCallStack => UserId -> ClientId -> Gen ClientInfo
       genClientInfo uid cid = do
         _ciNativeAddress <- QC.oneof
           [ pure Nothing
@@ -219,7 +219,7 @@ genMockEnv = do
   validateMockEnv env & either error (const $ pure env)
 
 -- Try to shrink a 'MockEnv' by removing some users from '_meClientInfos'.
-shrinkMockEnv :: MockEnv -> [MockEnv]
+shrinkMockEnv :: HasCallStack => MockEnv -> [MockEnv]
 shrinkMockEnv (MockEnv cis) = MockEnv . Map.fromList <$> (shrinkList (const []) (Map.toList cis))
 
 validateMockEnv :: forall m. MonadError String m => MockEnv -> m ()
@@ -267,7 +267,7 @@ genId = do
 genClientId :: Gen ClientId
 genClientId = newClientId <$> arbitrary
 
-genProtoAddress :: UserId -> ClientId -> Gen (Address "no-keys")
+genProtoAddress :: HasCallStack => UserId -> ClientId -> Gen (Address "no-keys")
 genProtoAddress _addrUser _addrClient = do
   _addrTransport :: Transport <- QC.elements [minBound..maxBound]
   arnEpId :: Text <- arbitrary
@@ -280,7 +280,7 @@ genProtoAddress _addrUser _addrClient = do
 genPushes :: MockEnv -> Gen [Push]
 genPushes = listOf . genPush
 
-genPush :: MockEnv -> Gen Push
+genPush :: HasCallStack => MockEnv -> Gen Push
 genPush env = do
   let alluids = allUsers env
   sender <- QC.elements alluids
@@ -307,16 +307,16 @@ dropSomeDevices (Recipient uid route cids) = do
                           ]
   Recipient uid route . take numdevs <$> QC.shuffle cids
 
-shrinkPushes :: [Push] -> [[Push]]
+shrinkPushes :: HasCallStack => [Push] -> [[Push]]
 shrinkPushes = shrinkList shrinkPush
   where
-    shrinkPush :: Push -> [Push]
+    shrinkPush :: HasCallStack => Push -> [Push]
     shrinkPush psh = (\rcps -> psh & pushRecipients .~ rcps) <$> shrinkRecipients (psh ^. pushRecipients)
 
-    shrinkRecipients :: Range 1 1024 (Set Recipient) -> [Range 1 1024 (Set Recipient)]
+    shrinkRecipients :: HasCallStack => Range 1 1024 (Set Recipient) -> [Range 1 1024 (Set Recipient)]
     shrinkRecipients = fmap unsafeRange . map Set.fromList . filter (not . null) . shrinkList shrinkRecipient . Set.toList . fromRange
 
-    shrinkRecipient :: Recipient -> [Recipient]
+    shrinkRecipient :: HasCallStack => Recipient -> [Recipient]
     shrinkRecipient _ = []
 
 -- | See 'Payload'.
@@ -347,7 +347,7 @@ genNotifs env = fmap uniqNotifs . listOf $ do
   where
     uniqNotifs = nubBy ((==) `on` (ntfId . fst))
 
-shrinkNotifs :: [(Notification, [Presence])] -> [[(Notification, [Presence])]]
+shrinkNotifs :: HasCallStack => [(Notification, [Presence])] -> [[(Notification, [Presence])]]
 shrinkNotifs = shrinkList (\(notif, prcs) -> (notif,) <$> shrinkList (const []) prcs)
 
 
@@ -645,7 +645,7 @@ newtype Pretty a = Pretty a
 instance Aeson.ToJSON a => Show (Pretty a) where
   show (Pretty a) = cs $ Aeson.encodePretty a
 
-shrinkPretty :: (a -> [a]) -> Pretty a -> [Pretty a]
+shrinkPretty :: HasCallStack => (a -> [a]) -> Pretty a -> [Pretty a]
 shrinkPretty shrnk (Pretty xs) = Pretty <$> shrnk xs
 
 
