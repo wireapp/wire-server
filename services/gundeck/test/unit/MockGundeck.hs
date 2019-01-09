@@ -90,8 +90,12 @@ newtype MockEnv = MockEnv
   deriving (Eq, Show)
 
 data MockState = MockState
-  { _msWSQueue         :: NotifQueue
+  { -- | A record of notifications that have been pushed via websockets.
+    _msWSQueue         :: NotifQueue
+    -- | A record of notifications that have been pushed via native push.
   , _msNativeQueue     :: NotifQueue
+    -- | Non-transient notifications that are stored in the database first thing before
+    -- delivery (so clients can always come back and pick them up later until they expire).
   , _msCassQueue       :: NotifQueue
   }
   deriving (Eq)
@@ -286,10 +290,11 @@ genPush env = do
     unsafeRange . Set.fromList <$> dropSomeDevices `mapM` rcps
   pload <- genPayload
   inclorigin <- arbitrary
+  transient <- arbitrary
   pure $ newPush sender rcps pload
     -- TODO: & pushConnections .~ _
     -- TODO: & pushOriginConnection .~ _
-    -- TODO: & pushTransient .~ _
+    & pushTransient .~ transient
     & pushNativeIncludeOrigin .~ inclorigin
     -- (not covered: pushNativeAps, pushNativePriority)
 
