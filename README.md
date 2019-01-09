@@ -112,7 +112,9 @@ If you wish to build your own docker images, you need [docker version >= 17.05](
 make docker-services
 ```
 
-will, eventually, have built a range of docker images. See the `Makefile`s and `Dockerfile`s, as well as [build/alpine/README.md](build/alpine/README.md) for details.
+will, eventually, have built a range of docker images. Make sure to [give Docker enough RAM](https://github.com/wireapp/wire-server/issues/562); if you see `make: *** [builder] Error 137`, it might be a sign that the build ran out of memory. You can also mix and match – e.g. pull the [`alpine-builder`](https://quay.io/repository/wire/alpine-builder?tab=tags) image and build the rest locally.
+
+See the `Makefile`s and `Dockerfile`s, as well as [build/alpine/README.md](build/alpine/README.md) for details.
 
 ### How to run integration tests
 
