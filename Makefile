@@ -113,9 +113,17 @@ docker-exe-%:
 	docker tag $(DOCKER_USER)/"$*":$(DOCKER_TAG) $(DOCKER_USER)/"$*":latest
 	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/"$*":$(DOCKER_TAG); docker push $(DOCKER_USER)/"$*":latest; fi;
 
-.PHONY: docker-service-%
-docker-service-%:
-	$(MAKE) -C "services/$*" docker
+.PHONY: docker-services
+docker-services: docker-intermediate
+	# foreach file in intermediate /dist
+	$(MAKE) docker-exe-brig
+	$(MAKE) docker-exe-galley
+	$(MAKE) docker-exe-gundeck
+	$(MAKE) docker-exe-cannon
+	$(MAKE) docker-exe-cargohold
+	$(MAKE) docker-exe-spar
+	$(MAKE) docker-exe-zauth
+	$(MAKE) -C services/nginz docker
 
 DOCKER_DEV_NETWORK := --net=host
 DOCKER_DEV_VOLUMES := -v `pwd`:/src/wire-server
