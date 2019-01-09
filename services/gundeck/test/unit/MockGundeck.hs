@@ -413,27 +413,27 @@ mockPushAll pushes = do
       = foldl' (uncurry . deliver) mempty
       . filter reachable
       . reformat
-      . mconcat . fmap removeSelf
-      . mconcat . fmap insertAllClients
+      . fmap removeSelf
+      . fmap insertAllClients
       $ rcps
       where
         reachable :: ((UserId, ClientId), payload) -> Bool
         reachable (ids, _) = wsReachable env ids
 
-        removeSelf :: ((UserId, Maybe ClientId, any), (Recipient, Payload)) -> [(Recipient, Payload)]
+        removeSelf :: ((UserId, Maybe ClientId, any), (Recipient, Payload)) -> (Recipient, Payload)
         removeSelf ((_, Nothing, _), same) =
-          [same]
+          same
         removeSelf ((_, Just sndcid, _), (Recipient rcpuid route cids, pay)) =
-          [(Recipient rcpuid route $ filter (/= sndcid) cids, pay)]
+          (Recipient rcpuid route $ filter (/= sndcid) cids, pay)
 
         insertAllClients :: (any, (Recipient, Payload))
-                         -> [(any, (Recipient, Payload))]
+                         -> (any, (Recipient, Payload))
         -- if the recipient client list is empty, fill in all devices of that user
-        insertAllClients (same, (Recipient uid route [], pay)) = [(same, (rcp', pay))]
+        insertAllClients (same, (Recipient uid route [], pay)) = (same, (rcp', pay))
           where rcp' = Recipient uid route (clientIdsOfUser env uid)
 
         -- otherwise, no special hidden meaning.
-        insertAllClients same@(_, (Recipient _ _ (_:_), _)) = [same]
+        insertAllClients same@(_, (Recipient _ _ (_:_), _)) = same
 
     expectNative :: MockEnv -> NotifQueue
     expectNative env
