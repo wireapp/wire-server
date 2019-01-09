@@ -19,6 +19,7 @@ data Invitation = Invitation
     , inInvitation :: !InvitationId
     , inIdentity   :: !Email
     , inCreatedAt  :: !UTCTimeMillis
+    , inCreatedBy  :: !(Maybe UserId)
     } deriving (Eq, Show)
 
 data InvitationList = InvitationList
@@ -44,13 +45,16 @@ instance FromJSON Invitation where
                    <*> o .: "id"
                    <*> o .: "email"
                    <*> o .: "created_at"
+                   <*> o .: "created_by"
 
 instance ToJSON Invitation where
-    toJSON i = object [ "team"       .= inTeam i
-                      , "id"            .= inInvitation i
-                      , "email"         .= inIdentity i
-                      , "created_at"    .= inCreatedAt i
-                      ]
+    toJSON i = object $
+        [ "team"       .= inTeam i
+        , "id"         .= inInvitation i
+        , "email"      .= inIdentity i
+        , "created_at" .= inCreatedAt i
+        ] <>
+        maybeToList (("created_by" .=) <$> inCreatedBy i)
 
 instance ToJSON InvitationList where
     toJSON (InvitationList l m) = object

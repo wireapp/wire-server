@@ -334,6 +334,14 @@ instance Arbitrary Country where
 instance Arbitrary UpdateServiceWhitelist where
     arbitrary = UpdateServiceWhitelist <$> arbitrary <*> arbitrary <*> arbitrary
 
+instance Arbitrary InvitationList where
+    arbitrary = _
+
+instance Arbitrary Invitation where
+    arbitrary = _
+
+instance Arbitrary InvitationRequest where
+    arbitrary = _
 
 ----------------------------------------------------------------------
 -- utilities

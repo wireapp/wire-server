@@ -99,7 +99,7 @@ updatePermissions from tid (to, perm) galley =
         . Bilge.json changeMember
         ) !!! const 200 === statusCode
   where
-    changeMember = Team.newNewTeamMember $ Team.newTeamMember to perm
+    changeMember = Team.newNewTeamMember $ Team.newTeamMember to perm Nothing{- TODO: really? -}
 
 createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
 createTeamConv g tid u us mtimer = do

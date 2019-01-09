@@ -549,7 +549,7 @@ addTeamMember u tid = do
                          , Team.GetTeamConversations
                          , Team.GetMemberPermissions
                          ]
-    t prm = Team.newNewTeamMember $ Team.newTeamMember u prm
+    t prm = Team.newNewTeamMember $ Team.newTeamMember u prm Nothing  -- TODO: really?
     req p = paths ["i", "teams", toByteString' tid, "members"]
           . header "Content-Type" "application/json"
           . zUser u

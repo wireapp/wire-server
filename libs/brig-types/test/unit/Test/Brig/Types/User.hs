@@ -76,6 +76,9 @@ roundtripTests =
     , run @EmailRemove Proxy
     , run @EmailUpdate Proxy
     , run @HandleUpdate Proxy
+    , run @InvitationList Proxy
+    , run @Invitation Proxy
+    , run @InvitationRequest Proxy
     , run @LocaleUpdate Proxy
     , run @NewPasswordReset Proxy
     , run @NewUser Proxy
