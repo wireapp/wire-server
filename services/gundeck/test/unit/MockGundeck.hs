@@ -235,9 +235,18 @@ validateMockEnv env = do
 genSubsetOf :: forall a. (Eq a, Ord a) => [a] -> Gen (Set a)
 genSubsetOf = fmap Set.fromList . sublistOf
 
+genRecipients :: HasCallStack => Int -> MockEnv -> Gen [Recipient]
+genRecipients numrcp env = do
+  uids  <- take numrcp <$> shuffle (allUsers env)
+  genRecipient' env `mapM` uids
+
 genRecipient :: HasCallStack => MockEnv -> Gen Recipient
 genRecipient env = do
   uid   <- QC.elements (allUsers env)
+  genRecipient' env uid
+
+genRecipient' :: HasCallStack => MockEnv -> UserId -> Gen Recipient
+genRecipient' env uid = do
   route <- genRoute
   cids  <- sublistOf (clientIdsOfUser env uid)
   pure $ Recipient uid route cids
@@ -273,7 +282,7 @@ genPush env = do
   sender <- QC.elements alluids
   rcps :: Range 1 1024 (Set Recipient) <- do
     numrcp <- choose (1, min 1024 (length alluids))
-    rcps   <- vectorOf numrcp (genRecipient env)
+    rcps   <- genRecipients numrcp env
     unsafeRange . Set.fromList <$> dropSomeDevices `mapM` rcps
   pload <- genPayload
   inclorigin <- arbitrary
