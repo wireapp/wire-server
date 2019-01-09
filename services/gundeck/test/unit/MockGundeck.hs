@@ -267,7 +267,7 @@ genClientId = newClientId <$> arbitrary
 
 genProtoAddress :: HasCallStack => UserId -> ClientId -> Gen (Address "no-keys")
 genProtoAddress _addrUser _addrClient = do
-  _addrTransport :: Transport <- QC.elements [minBound..maxBound]
+  _addrTransport :: Transport <- QC.elements [minBound..]
   arnEpId :: Text <- arbitrary
   let _addrApp = "AppName"
       _addrToken = Token "tok"
