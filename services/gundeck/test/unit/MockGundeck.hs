@@ -66,7 +66,6 @@ import qualified Data.IntMultiSet as MSet
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.Vector as Vector
 import qualified Network.URI as URI
 
 
@@ -326,17 +325,6 @@ genPayload :: Gen Payload
 genPayload = do
   num :: Int <- arbitrary
   pure $ List1 (HashMap.singleton "val" (Aeson.toJSON num) NE.:| [])
-
-instance Arbitrary Aeson.Value where
-  -- (not currently in use; 'genPayload' is built to be more compact.)
-  arbitrary = oneof
-    [ Aeson.object <$> listOf ((Aeson..=) <$> arbitrary <*> (scale (`div` 3) (arbitrary @Aeson.Value)))
-    , Aeson.Array . Vector.fromList <$> listOf (scale (`div` 3) (arbitrary @Aeson.Value))
-    , Aeson.String <$> arbitrary
-    , Aeson.Number <$> arbitrary
-    , Aeson.Bool <$> QC.elements [minBound..]
-    , pure Aeson.Null
-    ]
 
 genNotif :: Gen Notification
 genNotif = Notification <$> genId <*> arbitrary <*> genPayload
