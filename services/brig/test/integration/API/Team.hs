@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -329,29 +330,31 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
         const 403 === statusCode
         const (Just "too-many-team-members") === fmap Error.label . decodeBody
 
-testInvitationPaging :: Brig -> Galley -> Http ()
+testInvitationPaging :: HasCallStack => Brig -> Galley -> Http ()
 testInvitationPaging brig galley = do
-    (u, tid) <- createUserWithTeam brig galley
+    (uid, tid) <- createUserWithTeam brig galley
+
+    let total = 5
+        invite email = InvitationRequest email (Name "Bob") Nothing
+
     replicateM_ total $ do
         email <- randomEmail
-        postInvitation brig tid u (invite email) !!! const 201 === statusCode
-    foldM_ (next u tid 2) (0, Nothing) [2,2,1,0]
-    foldM_ (next u tid total) (0, Nothing) [total,0]
-  where
-    total = 5
+        postInvitation brig tid uid (invite email) !!! const 201 === statusCode
 
-    next :: UserId -> TeamId -> Int -> (Int, Maybe InvitationId) -> Int -> Http (Int, Maybe InvitationId)
-    next u t step (count, start) n = do
-        let count' = count + step
-        let range = queryRange (toByteString' <$> start) (Just step)
-        r <- get (brig . paths ["teams", toByteString' t, "invitations"] . zUser u . range) <!!
-            const 200 === statusCode
-        let (invs, more) = (fmap ilInvitations &&& fmap ilHasMore) $ decodeBody r
-        liftIO $ assertEqual "page size" (Just n) (length <$> invs)
-        liftIO $ assertEqual "has more" (Just (count' < total)) more
-        return . (count',) $ invs >>= fmap inInvitation . listToMaybe . reverse
+    let next :: HasCallStack => Int -> (Int, Maybe InvitationId) -> Int -> Http (Int, Maybe InvitationId)
+        next maxPageLen (count, start) actualPageLen = do
+            let count' = count + maxPageLen
+            let range = queryRange (toByteString' <$> start) (Just actualPageLen)
+            r <- get (brig . paths ["teams", toByteString' tid, "invitations"] . zUser uid . range) <!!
+                const 200 === statusCode
+            let (Just (invs, more)) = (ilInvitations &&& ilHasMore) <$> decodeBody r
+            liftIO $ assertEqual "page size" actualPageLen (length invs)
+            liftIO $ assertEqual "has more" (count' < total) more
+            return (count', fmap inInvitation . listToMaybe . reverse $ invs)
 
-    invite email = InvitationRequest email (Name "Bob") Nothing
+    foldM_ (next 2) (0, Nothing) [2,2,1,0]
+    foldM_ (next total) (0, Nothing) [total,0]
+    foldM_ (next (total + 1)) (0, Nothing) [total,0]
 
 testInvitationInfo :: Brig -> Galley -> Http ()
 testInvitationInfo brig galley = do
