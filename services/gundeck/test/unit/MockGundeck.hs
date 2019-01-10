@@ -401,7 +401,7 @@ mockPushAll pushes = do
     let origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)
     forM_ (fromRange _pushRecipients) $ \recipient -> do
       paPushWS origin recipient _pushPayload
-      paPushNative _pushNativeIncludeOrigin origin recipient _pushPayload
+      paPushNative _pushTransient _pushNativeIncludeOrigin origin recipient _pushPayload
       paPutInCass _pushTransient recipient _pushPayload
 
 -- | Check whether Gundeck will push the notification via websockets.  If yes, push it.
@@ -425,28 +425,31 @@ paPushWS origin (Recipient uid _ cids) payload = do
 -- | Check whether Gundeck will push the notification via native transport.  If yes, push it.
 paPushNative
   :: (HasCallStack, m ~ MockGundeck)
-  => Bool                               -- ^ 'pushNativeIncludeOrigin'
+  => Bool                               -- ^ 'pushTransient'
+  -> Bool                               -- ^ 'pushNativeIncludeOrigin'
   -> (UserId, Maybe ClientId)           -- ^ Originating device
   -> Recipient
   -> Payload
   -> m ()
-paPushNative includeOrigin origin (Recipient uid route cids) payload = do
+paPushNative transient includeOrigin origin (Recipient uid route cids) payload = do
   env <- ask
   let cids' = if null cids then clientIdsOfUser env uid else cids
   forM_ cids' $ \cid -> do
     -- Condition 1: 'RouteDirect' pushes are not eligible for pushing via native transport.
     let isNative = route /= RouteDirect
-    -- Condition 2: to get a native push, the device must be native-reachable but not
+    -- Condition 2: transient pushes are not sent via native transport.
+    let isTransient = transient
+    -- Condition 3: to get a native push, the device must be native-reachable but not
     -- websocket-reachable, as websockets take priority.
     let isReachable = nativeReachable env (uid, cid) && not (wsReachable env (uid, cid))
-    -- Condition 3: the originating *user* can receive a native push only if
+    -- Condition 4: the originating *user* can receive a native push only if
     -- 'pushNativeIncludeOrigin' is true. Even so, the originating *device* should never
     -- receive a push.
     let isOriginUser = uid == fst origin
         isOriginDevice = origin == (uid, Just cid)
         isAllowedPerOriginRules =
           not isOriginUser || (includeOrigin && not isOriginDevice)
-    when (isNative && isReachable && isAllowedPerOriginRules) $
+    when (isNative && not isTransient && isReachable && isAllowedPerOriginRules) $
       msNativeQueue %= deliver (uid, cid) payload
 
 -- | Check whether Gundeck will store the notification in Cassandra (to be later retrieved by

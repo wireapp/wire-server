@@ -143,7 +143,8 @@ pushAny' p = do
         mpaStreamAdd i tgts pload =<< mpaNotificationTTL
     mpaForkIO $ do
         prs <- mpyPush notif tgts (p^.pushOrigin) (p^.pushOriginConnection) (p^.pushConnections)
-        mpaPushNative notif p =<< nativeTargets p prs
+        unless (p^.pushTransient) $
+            mpaPushNative notif p =<< nativeTargets p prs
   where
     mkTarget :: Recipient -> NotificationTarget
     mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
@@ -172,9 +173,8 @@ pushAll pushes = do
         resp <- compilePushResps targets <$> mpaBulkPush (compilePushReq <$> targets)
 
         -- native push
-        forM_ resp $ \((notif, psh), alreadySent) -> do
-            natives <- nativeTargets psh alreadySent
-            mpaPushNative notif psh natives
+        forM_ resp $ \((notif, psh), alreadySent) -> unless (psh ^. pushTransient) $
+            mpaPushNative notif psh =<< nativeTargets psh alreadySent
 
 
 -- REFACTOR: @[Presence]@ here should be @newtype WebSockedDelivered = WebSockedDelivered [Presence]@
@@ -245,7 +245,6 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
 -- 'Gundeck.Push.Native.push1', and we cannot recover from any of the error cases.
 pushNative :: Notification -> Push -> [Address "no-keys"] -> Gundeck ()
 pushNative _ _ [] = return ()
-pushNative (ntfTransient -> True) _ _ = Log.warn $ msg (val "Transient notification failed")
 pushNative notif p rcps = do
     let prio = p^.pushNativePriority
     void $ Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
