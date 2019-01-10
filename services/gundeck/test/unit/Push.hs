@@ -51,7 +51,7 @@ webBulkPushProps plen@(Positive len) = mkEnv mkNotifs plen
 webBulkPushProp :: MockEnv -> Pretty [(Notification, [Presence])] -> Property
 webBulkPushProp env (Pretty notifs) =
     counterexample "^ environment, notifications\n" $
-    foldl' (.&&.) (once True) props
+    conjoin props
       where
         (realout, realst) = runMockGundeck env $ Web.bulkPush notifs
         (mockout, mockst) = runMockGundeck env $ mockBulkPush notifs
@@ -72,7 +72,7 @@ pushAllProps plen@(Positive len) = mkEnv mkPushes plen
 pushAllProp :: MockEnv -> Pretty [Push] -> Property
 pushAllProp env (Pretty pushes) =
     counterexample "^ environment, pushes\n" $
-    foldl' (.&&.) (once True) props
+    conjoin props
   where
     ((), realst) = runMockGundeck env (pushAll pushes)
     ((), mockst) = runMockGundeck env (mockPushAll pushes)
