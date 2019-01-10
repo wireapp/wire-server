@@ -357,13 +357,15 @@ testInvitationPaging brig galley = do
             let (Just (invs, more)) = (ilInvitations &&& ilHasMore) <$> decodeBody r
             liftIO $ assertEqual "page size" actualPageLen (length invs)
             liftIO $ assertEqual "has more" (count' < total) more
-            liftIO $ zipWithM_ validateInv [count..] invs
+            liftIO $ validateInv `mapM_` invs
             return (count', fmap inInvitation . listToMaybe . reverse $ invs)
 
-        validateInv :: Int -> Invitation -> Assertion
-        validateInv invix inv = do
+        validateInv :: Invitation -> Assertion
+        validateInv inv = do
             assertEqual "tid" tid (inTeam inv)
-            assertEqual "email" (emails !! invix) (inIdentity inv)
+            assertBool  "email" (inIdentity inv `elem` emails)
+                -- (the output list is not ordered chronologically and emails are unique, so we just
+                -- check whether the email is one of the valid ones.)
             assertBool  "timestamp" (inCreatedAt inv > before && inCreatedAt inv < after)
             assertEqual "uid" (Just uid) (inCreatedBy inv)
             -- not checked: @inInvitation inv :: InvitationId@
