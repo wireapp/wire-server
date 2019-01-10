@@ -23,6 +23,8 @@ import Control.Lens ((^.), view)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
+import Data.Json.Util (toUTCTimeMillis)
+import Data.Time (getCurrentTime)
 import Network.HTTP.Client             (Manager)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
@@ -332,14 +334,17 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
 
 testInvitationPaging :: HasCallStack => Brig -> Galley -> Http ()
 testInvitationPaging brig galley = do
+    before <- liftIO $ toUTCTimeMillis <$> getCurrentTime
     (uid, tid) <- createUserWithTeam brig galley
 
     let total = 5
         invite email = InvitationRequest email (Name "Bob") Nothing
 
-    replicateM_ total $ do
+    emails <- replicateM total $ do
         email <- randomEmail
         postInvitation brig tid uid (invite email) !!! const 201 === statusCode
+        pure email
+    after <- liftIO $ toUTCTimeMillis <$> getCurrentTime
 
     let next :: HasCallStack => Int -> (Int, Maybe InvitationId) -> Int -> Http (Int, Maybe InvitationId)
         next maxPageLen (count, start) actualPageLen = do
@@ -350,7 +355,16 @@ testInvitationPaging brig galley = do
             let (Just (invs, more)) = (ilInvitations &&& ilHasMore) <$> decodeBody r
             liftIO $ assertEqual "page size" actualPageLen (length invs)
             liftIO $ assertEqual "has more" (count' < total) more
+            liftIO $ zipWithM_ validateInv [count..] invs
             return (count', fmap inInvitation . listToMaybe . reverse $ invs)
+
+        validateInv :: Int -> Invitation -> Assertion
+        validateInv invix inv = do
+            assertEqual "tid" tid (inTeam inv)
+            assertEqual "email" (emails !! invix) (inIdentity inv)
+            assertBool  "timestamp" (inCreatedAt inv > before && inCreatedAt inv < after)
+            assertEqual "uid" (Just uid) (inCreatedBy inv)
+            -- not checked: @inInvitation inv :: InvitationId@
 
     foldM_ (next 2) (0, Nothing) [2,2,1,0]
     foldM_ (next total) (0, Nothing) [total,0]
