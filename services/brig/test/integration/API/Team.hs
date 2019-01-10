@@ -144,6 +144,7 @@ testInvitationEmailAccepted brig galley = do
     inviteeEmail <- randomEmail
     let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
     inv <- decodeBody =<< postInvitation brig tid inviter invite
+    let invmeta = Just (inviter, inCreatedAt inv)
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <- post (brig . path "/register"
                        . contentJson
@@ -157,6 +158,7 @@ testInvitationEmailAccepted brig galley = do
     -- Verify that the user is part of the team
     mem <- getTeamMember invitee tid galley
     liftIO $ assertEqual "Member not part of the team" invitee (mem ^. Team.userId)
+    liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
     conns <- listConnections invitee brig
     liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
 
