@@ -218,7 +218,9 @@ genMockEnv = do
 
 -- Try to shrink a 'MockEnv' by removing some users from '_meClientInfos'.
 shrinkMockEnv :: HasCallStack => MockEnv -> [MockEnv]
-shrinkMockEnv (MockEnv cis) = MockEnv . Map.fromList <$> (shrinkList (const []) (Map.toList cis))
+shrinkMockEnv (MockEnv cis) =
+    MockEnv . Map.fromList <$>
+    filter (not . null) (shrinkList (const []) (Map.toList cis))
 
 validateMockEnv :: forall m. MonadError String m => MockEnv -> m ()
 validateMockEnv env = do
