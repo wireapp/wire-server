@@ -397,21 +397,18 @@ mockPushAll
   :: (HasCallStack, m ~ MockGundeck)
   => [Push] -> m ()
 mockPushAll pushes = do
-  forM_ pushes $ \Push{..} -> do
-    let origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)
-    forM_ (fromRange _pushRecipients) $ \recipient -> do
-      paPushWS origin recipient _pushPayload
-      paPushNative _pushTransient _pushNativeIncludeOrigin origin recipient _pushPayload
-      paPutInCass _pushTransient recipient _pushPayload
+  forM_ pushes $ \psh -> do
+    forM_ (fromRange (psh ^. pushRecipients)) $ \recipient -> do
+      paPushWS     psh recipient
+      paPushNative psh recipient
+      paPutInCass  psh recipient
 
--- | Check whether Gundeck will push the notification via websockets.  If yes, push it.
+-- | Check whether Gundeck will push to a specific 'Recipient' via websockets.  If yes, perform
+-- the push.
 paPushWS
   :: (HasCallStack, m ~ MockGundeck)
-  => (UserId, Maybe ClientId)           -- ^ Originating device
-  -> Recipient
-  -> Payload
-  -> m ()
-paPushWS origin (Recipient uid _ cids) payload = do
+  => Push -> Recipient -> m ()
+paPushWS Push{..} (Recipient uid _ cids) = do
   env <- ask
   let cids' = if null cids then clientIdsOfUser env uid else cids
   forM_ cids' $ \cid -> do
@@ -420,25 +417,23 @@ paPushWS origin (Recipient uid _ cids) payload = do
     -- Condition 2: we never deliver pushes to the originating device.
     let isOriginDevice = origin == (uid, Just cid)
     when (isReachable && not isOriginDevice) $
-      msWSQueue %= deliver (uid, cid) payload
+      msWSQueue %= deliver (uid, cid) _pushPayload
+  where
+    origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)
 
--- | Check whether Gundeck will push the notification via native transport.  If yes, push it.
+-- | Check whether Gundeck will push to a specific 'Recipient' via native transport.  If yes,
+-- perform the push.
 paPushNative
   :: (HasCallStack, m ~ MockGundeck)
-  => Bool                               -- ^ 'pushTransient'
-  -> Bool                               -- ^ 'pushNativeIncludeOrigin'
-  -> (UserId, Maybe ClientId)           -- ^ Originating device
-  -> Recipient
-  -> Payload
-  -> m ()
-paPushNative transient includeOrigin origin (Recipient uid route cids) payload = do
+  => Push -> Recipient -> m ()
+paPushNative Push{..} (Recipient uid route cids) = do
   env <- ask
   let cids' = if null cids then clientIdsOfUser env uid else cids
   forM_ cids' $ \cid -> do
     -- Condition 1: 'RouteDirect' pushes are not eligible for pushing via native transport.
     let isNative = route /= RouteDirect
     -- Condition 2: transient pushes are not sent via native transport.
-    let isTransient = transient
+    let isTransient = _pushTransient
     -- Condition 3: to get a native push, the device must be native-reachable but not
     -- websocket-reachable, as websockets take priority.
     let isReachable = nativeReachable env (uid, cid) && not (wsReachable env (uid, cid))
@@ -448,23 +443,22 @@ paPushNative transient includeOrigin origin (Recipient uid route cids) payload =
     let isOriginUser = uid == fst origin
         isOriginDevice = origin == (uid, Just cid)
         isAllowedPerOriginRules =
-          not isOriginUser || (includeOrigin && not isOriginDevice)
+          not isOriginUser || (_pushNativeIncludeOrigin && not isOriginDevice)
     when (isNative && not isTransient && isReachable && isAllowedPerOriginRules) $
-      msNativeQueue %= deliver (uid, cid) payload
+      msNativeQueue %= deliver (uid, cid) _pushPayload
+  where
+    origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)
 
--- | Check whether Gundeck will store the notification in Cassandra (to be later retrieved by
--- clients).  If yes, store it.
+-- | Check whether Gundeck will store a notification for a specific 'Recipient' in Cassandra
+-- (to be later retrieved by the recipient's clients).  If yes, store it.
 paPutInCass
   :: (HasCallStack, m ~ MockGundeck)
-  => Bool                               -- ^ 'pushTransient'
-  -> Recipient
-  -> Payload
-  -> m ()
-paPutInCass transient (Recipient uid _ cids) payload = do
+  => Push -> Recipient -> m ()
+paPutInCass Push{..} (Recipient uid _ cids) = do
   forM_ cids $ \cid -> do
     -- Condition: transient pushes are not put into Cassandra.
-    when (not transient) $
-      msCassQueue %= deliver (uid, cid) payload
+    when (not _pushTransient) $
+      msCassQueue %= deliver (uid, cid) _pushPayload
 
 -- | (There is certainly a fancier implementation using '<%=' or similar, but this one is easier to
 -- reverse engineer later.)
