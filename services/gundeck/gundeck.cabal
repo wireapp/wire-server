@@ -202,6 +202,7 @@ test-suite gundeck-tests
       , QuickCheck
       , quickcheck-instances
       , random
+      , scientific
       , string-conversions
       , tasty
       , tasty-hunit

@@ -66,6 +66,7 @@ import qualified Data.IntMultiSet as MSet
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.Scientific as Scientific
 import qualified Network.URI as URI
 
 
@@ -609,10 +610,10 @@ deliver qkey qval queue = Map.alter (Just . tweak) qkey queue
     tweak Nothing      = MSet.singleton (payloadToInt qval)
     tweak (Just qvals) = MSet.insert    (payloadToInt qval) qvals
 
--- | Return the rounded number contained in the payload.  This is enough to detect message mixups,
--- but less noisy in the printed counter-examples.
+-- | Get the number contained in the payload.
 payloadToInt :: Payload -> Int
-payloadToInt (List1 (toList -> [toList -> [Number x]])) = round $ toRational (x * 100)
+payloadToInt (List1 (toList -> [toList -> [Number x]]))
+  | Just n <- Scientific.toBoundedInteger x = n
 payloadToInt bad = error $ "unexpected Payload: " <> show bad
 
 mkWSStatus :: MockGundeck (PushTarget -> PushStatus)
