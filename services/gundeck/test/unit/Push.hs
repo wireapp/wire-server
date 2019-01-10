@@ -16,7 +16,6 @@
 module Push where
 
 import Imports
-import Data.String.Conversions (cs)
 import Gundeck.Push (pushAll, pushAny)
 import Gundeck.Push.Websocket as Web (bulkPush)
 import Gundeck.Types
@@ -50,8 +49,9 @@ webBulkPushProps plen@(Positive len) = mkEnv mkNotifs plen
       (webBulkPushProp env)
 
 webBulkPushProp :: MockEnv -> Pretty [(Notification, [Presence])] -> Property
-webBulkPushProp env (Pretty notifs) = counterexample (cs $ Aeson.encode (env, notifs))
-                                    $ foldl' (.&&.) (once True) props
+webBulkPushProp env (Pretty notifs) =
+    counterexample "^ environment, notifications\n" $
+    foldl' (.&&.) (once True) props
       where
         (realout, realst) = runMockGundeck env $ Web.bulkPush notifs
         (mockout, mockst) = runMockGundeck env $ mockBulkPush notifs
@@ -70,15 +70,16 @@ pushAllProps plen@(Positive len) = mkEnv mkPushes plen
       (pushAllProp env)
 
 pushAllProp :: MockEnv -> Pretty [Push] -> Property
-pushAllProp env (Pretty pushes) = counterexample (cs $ Aeson.encode (env, pushes))
-                                $ foldl' (.&&.) (once True) props
+pushAllProp env (Pretty pushes) =
+    counterexample "^ environment, pushes\n" $
+    foldl' (.&&.) (once True) props
   where
     ((), realst) = runMockGundeck env (pushAll pushes)
     ((), mockst) = runMockGundeck env (mockPushAll pushes)
     (errs, oldst) = runMockGundeck env (pushAny pushes)
     props = [ (Aeson.eitherDecode . Aeson.encode) pushes === Right pushes
             , (Aeson.eitherDecode . Aeson.encode) env === Right env
-            , counterexample "real vs. old"  $ realst === oldst
-            , counterexample "old errors"    $ isRight errs === True
-            , counterexample "real vs. mock" $ realst === mockst
+            , counterexample "real vs. old:"  $ realst === oldst
+            , counterexample "old errors:"    $ isRight errs === True
+            , counterexample "real vs. mock:" $ realst === mockst
             ]
