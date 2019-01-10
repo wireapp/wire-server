@@ -24,7 +24,7 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Data.Json.Util (toUTCTimeMillis)
-import Data.Time (getCurrentTime)
+import Data.Time (getCurrentTime, addUTCTime)
 import Network.HTTP.Client             (Manager)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
@@ -336,7 +336,7 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
 
 testInvitationPaging :: HasCallStack => Brig -> Galley -> Http ()
 testInvitationPaging brig galley = do
-    before <- liftIO $ toUTCTimeMillis <$> getCurrentTime
+    before <- liftIO $ toUTCTimeMillis . addUTCTime (-1) <$> getCurrentTime
     (uid, tid) <- createUserWithTeam brig galley
 
     let total = 5
@@ -346,7 +346,7 @@ testInvitationPaging brig galley = do
         email <- randomEmail
         postInvitation brig tid uid (invite email) !!! const 201 === statusCode
         pure email
-    after <- liftIO $ toUTCTimeMillis <$> getCurrentTime
+    after <- liftIO $ toUTCTimeMillis . addUTCTime 1 <$> getCurrentTime
 
     let next :: HasCallStack => Int -> (Int, Maybe InvitationId) -> Int -> Http (Int, Maybe InvitationId)
         next step (count, start) actualPageLen = do
