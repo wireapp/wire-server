@@ -168,7 +168,7 @@ instance FromJSON ConnId where
 -- lives as long as the device is registered.  See also: 'ConnId'.
 newtype ClientId = ClientId
     { client :: Text
-    } deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, ToJSON)
+    } deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, ToJSON, ToJSONKey)
 
 instance FromByteString ClientId where
     parser = do
@@ -182,6 +182,12 @@ newClientId = ClientId . toStrict . toLazyText . hexadecimal
 
 instance FromJSON ClientId where
     parseJSON = withText "ClientId" $ \x -> do
+        unless (T.length x <= 20 && T.all isHexDigit x) $
+            fail "Invalid ClientId"
+        return (ClientId x)
+
+instance FromJSONKey ClientId where
+    fromJSONKey = FromJSONKeyTextParser $ \x -> do
         unless (T.length x <= 20 && T.all isHexDigit x) $
             fail "Invalid ClientId"
         return (ClientId x)

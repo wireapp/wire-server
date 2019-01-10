@@ -121,7 +121,7 @@ emptyMockState = MockState mempty mempty mempty
 -- (serializing test cases makes replay easier.)
 instance ToJSON MockEnv where
   toJSON (MockEnv mp) = Aeson.object
-    [ "clientInfos" Aeson..= Map.toList (Map.toList <$> mp) ]
+    [ "clientInfos" Aeson..= mp ]
 
 instance ToJSON ClientInfo where
   toJSON (ClientInfo native wsreach) = Aeson.object
@@ -149,7 +149,7 @@ serializeFakeAddrEndpoint ((^. snsTopic) -> eptopic) =
 
 instance FromJSON MockEnv where
   parseJSON = withObject "MockEnv" $ \env -> MockEnv
-    <$> (Map.fromList <$$> (Map.fromList <$> env Aeson..: "clientInfos"))
+    <$> env Aeson..: "clientInfos"
 
 instance FromJSON ClientInfo where
   parseJSON = withObject "ClientInfo" $ \cinfo -> ClientInfo
