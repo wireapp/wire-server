@@ -201,10 +201,12 @@ genMockEnv = do
   uids :: [UserId]
     <- nub <$> listOf1 genId
 
-  -- For every user, generate several clients
+  -- For every user, generate several clients (preferring less clients)
   cidss :: [[ClientId]]
     <- let gencids = do
-             len <- QC.choose (1, 8)
+             len <- QC.frequency [ (4, QC.choose (1, 3))
+                                 , (1, QC.choose (4, 8))
+                                 ]
              vectorOf len genClientId
        in forM uids . const $ nub <$> gencids
 
