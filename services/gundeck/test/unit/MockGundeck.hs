@@ -237,9 +237,6 @@ validateMockEnv env = do
             unless (uid == adr ^. addrUser && cid == adr ^. addrClient) $ do
               throwError (show (uid, cid, adr))
 
-genSubsetOf :: forall a. (Eq a, Ord a) => [a] -> Gen (Set a)
-genSubsetOf = fmap Set.fromList . sublistOf
-
 genRecipients :: HasCallStack => Int -> MockEnv -> Gen [Recipient]
 genRecipients numrcp env = do
   uids  <- take numrcp <$> shuffle (allUsers env)
