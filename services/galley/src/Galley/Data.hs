@@ -193,7 +193,7 @@ teamMembers t = mapM newTeamMember' =<<
         newTeamMemberRaw uid perms minvu minvt
 
 teamMember :: forall m. (MonadThrow m, MonadClient m) => TeamId -> UserId -> m (Maybe TeamMember)
-teamMember t u = newTeamMember' u . fmap runIdentity =<< retry x1 (query1 Cql.selectTeamMember (params Quorum (t, u)))
+teamMember t u = newTeamMember' u =<< retry x1 (query1 Cql.selectTeamMember (params Quorum (t, u)))
   where
     newTeamMember' :: UserId -> Maybe (Permissions, Maybe UserId, Maybe UTCTimeMillis) -> m (Maybe TeamMember)
     newTeamMember' _ Nothing = pure Nothing
