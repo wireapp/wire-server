@@ -23,7 +23,6 @@ import Galley.Types
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
 import Gundeck.Types.Notification
-import Gundeck.Types.Push
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
 
@@ -611,11 +610,9 @@ randomClient b usr lk = do
             <!! const 201 === statusCode
     fromBS $ getHeader' "Location" q
   where
-    newClientBody =
-        let sig = SignalingKeys (EncKey (C.replicate 32 'a')) (MacKey (C.replicate 32 'b'))
-        in (newClient PermanentClient lk sig)
-            { newClientPassword = Just (PlainTextPassword defPassword)
-            }
+    newClientBody = (newClient PermanentClient lk)
+        { newClientPassword = Just (PlainTextPassword defPassword)
+        }
 
 ensureDeletedState :: HasCallStack => Brig -> Bool -> UserId -> UserId -> Http ()
 ensureDeletedState b check from u =

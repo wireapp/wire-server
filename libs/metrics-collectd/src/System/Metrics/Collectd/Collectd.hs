@@ -9,13 +9,10 @@ module System.Metrics.Collectd.Collectd
     , putErr
     ) where
 
-import Data.List (intersperse)
-import Data.Monoid
+import Imports
 import Data.Scientific
-import Data.Text (Text)
 import Data.Text.Lazy.Builder.Scientific
 import Data.Time.Clock.POSIX
-import System.IO
 
 import qualified Data.Text.IO               as T
 import qualified Data.Text.Lazy             as L

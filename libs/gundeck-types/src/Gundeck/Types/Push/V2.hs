@@ -25,7 +25,6 @@ module Gundeck.Types.Push.V2
     , recipientId
     , recipientRoute
     , recipientClients
-    , recipientFallback
 
     , Priority  (..)
     , Route     (..)
@@ -49,33 +48,21 @@ module Gundeck.Types.Push.V2
     , tokenTransport
     , tokenApp
     , tokenClient
-    , tokenFallback
     , token
 
     , PushTokenList (..)
-
-    , EncKey        (..)
-    , MacKey        (..)
-    , SignalingKeys (..)
     ) where
 
+import Imports
 import Control.Lens (makeLenses)
-import Control.Monad
 import Data.Aeson
 import Data.Attoparsec.ByteString (takeByteString)
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
-import Data.Monoid
 import Data.List1
 import Data.Range
-import Data.Set (Set)
-import Data.String
-import Data.Text (Text)
-import Data.Text.Encoding
 
-import qualified Data.ByteString.Base64 as B64
 import qualified Data.List1             as List1
 import qualified Data.Range             as Range
 import qualified Data.Set               as Set
@@ -107,11 +94,10 @@ data Recipient = Recipient
     { _recipientId        :: !UserId
     , _recipientRoute     :: !Route
     , _recipientClients   :: ![ClientId]
-    , _recipientFallback  :: !Bool
     } deriving (Show)
 
 instance Eq Recipient where
-    (Recipient uid1 _ _ _) == (Recipient uid2 _ _ _) = uid1 == uid2
+    (Recipient uid1 _ _) == (Recipient uid2 _ _) = uid1 == uid2
 
 instance Ord Recipient where
     compare r r' = compare (_recipientId r) (_recipientId r')
@@ -119,21 +105,19 @@ instance Ord Recipient where
 makeLenses ''Recipient
 
 recipient :: UserId -> Route -> Recipient
-recipient u r = Recipient u r [] True
+recipient u r = Recipient u r []
 
 instance FromJSON Recipient where
     parseJSON = withObject "Recipient" $ \p ->
       Recipient <$> p .:  "user_id"
                 <*> p .:  "route"
                 <*> p .:? "clients" .!= []
-                <*> p .:? "fallback" .!= True
 
 instance ToJSON Recipient where
-    toJSON (Recipient u r c f) = object
+    toJSON (Recipient u r c) = object
         $ "user_id"   .= u
         # "route"     .= r
         # "clients"   .= (if null c then Nothing else Just c)
-        # "fallback"  .= (if not f then Just False else Nothing)
         # []
 
 -----------------------------------------------------------------------------
@@ -219,6 +203,8 @@ data Push = Push
       -- Coincidentally, where are we using '_pushConnections' to limit pushes to individual
       -- devices?  Is it possible we can remove '_pushConnections' without touching
       -- '_pushRecipients'?
+      --
+      -- REFACTOR: is it possible that 'pushOrigin' has been refactored away in #531?
     , _pushOrigin :: !UserId
       -- ^ Originating user
     , _pushConnections :: !(Set ConnId)
@@ -232,6 +218,9 @@ data Push = Push
       -- of the originating user, if he is among the recipients.
     , _pushNativeEncrypt :: !Bool
       -- ^ Should native push payloads be encrypted?
+      --
+      -- REFACTOR: this make no sense any more since native push notifications have no more payload.
+      -- https://github.com/wireapp/wire-server/pull/546
     , _pushNativeAps :: !(Maybe ApsData)
       -- ^ APNs-specific metadata.
     , _pushNativePriority :: !Priority
@@ -343,13 +332,12 @@ data PushToken = PushToken
     , _tokenApp       :: !AppName
     , _token          :: !Token
     , _tokenClient    :: !ClientId
-    , _tokenFallback  :: !(Maybe Transport)
     } deriving (Eq, Ord, Show)
 
 makeLenses ''PushToken
 
 pushToken :: Transport -> AppName -> Token -> ClientId -> PushToken
-pushToken tp an tk cl = PushToken tp an tk cl Nothing
+pushToken tp an tk cl = PushToken tp an tk cl
 
 instance ToJSON PushToken where
     toJSON p = object
@@ -357,7 +345,6 @@ instance ToJSON PushToken where
         # "app"       .= _tokenApp p
         # "token"     .= _token p
         # "client"    .= _tokenClient p
-        # "fallback"  .= _tokenFallback p
         # []
 
 instance FromJSON PushToken where
@@ -366,7 +353,6 @@ instance FromJSON PushToken where
                   <*> p .:  "app"
                   <*> p .:  "token"
                   <*> p .:  "client"
-                  <*> p .:? "fallback"
 
 newtype PushTokenList = PushTokenList
     { pushTokens :: [PushToken]
@@ -378,50 +364,3 @@ instance FromJSON PushTokenList where
 
 instance ToJSON PushTokenList where
     toJSON (PushTokenList t) = object ["tokens" .= t]
-
------------------------------------------------------------------------------
--- Native Push Encryption
-
-checkKeyLen :: ByteString -> Either String (Range 32 32 ByteString)
-checkKeyLen = Range.checkedEither
-
--- | Symmetric encryption key of a specific client for native push notifications.
-newtype EncKey = EncKey
-    { encKeyBytes :: ByteString
-    } deriving Eq
-
--- | MAC key of a specific client for native push notifications.
-newtype MacKey = MacKey
-    { macKeyBytes :: ByteString
-    } deriving Eq
-
-data SignalingKeys = SignalingKeys
-    { sigEncKey :: !EncKey
-    , sigMacKey :: !MacKey
-    }
-
-instance FromJSON EncKey where
-    parseJSON = withText "EncKey" $
-          either fail (return . EncKey . fromRange)
-        . (checkKeyLen <=< B64.decode)
-        . encodeUtf8
-
-instance ToJSON EncKey where
-    toJSON = String . decodeLatin1 . B64.encode . encKeyBytes
-
-instance FromJSON MacKey where
-    parseJSON = withText "MacKey" $
-          either fail (return . MacKey . fromRange)
-        . (checkKeyLen <=< B64.decode)
-        . encodeUtf8
-
-instance ToJSON MacKey where
-    toJSON = String . decodeLatin1 . B64.encode . macKeyBytes
-
-instance FromJSON SignalingKeys where
-    parseJSON = withObject "signaling-keys" $ \o ->
-        SignalingKeys <$> o .: "enckey" <*> o .: "mackey"
-
-instance ToJSON SignalingKeys where
-    toJSON (SignalingKeys ek mk) = object
-        [ "enckey" .= ek, "mackey" .= mk ]

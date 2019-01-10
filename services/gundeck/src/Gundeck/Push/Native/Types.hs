@@ -7,8 +7,6 @@ module Gundeck.Push.Native.Types
     ( Result  (..)
     , Failure (..)
     , Message (..)
-    , msgApsData
-    , msgTransient
     , Address (Address)
     , addrUser
     , addrTransport
@@ -17,8 +15,6 @@ module Gundeck.Push.Native.Types
     , addrEndpoint
     , addrConn
     , addrClient
-    , addrKeys
-    , addrFallback
     , addrEqualClient
 
       -- * Re-Exports
@@ -36,8 +32,6 @@ import Data.Id (UserId, ConnId, ClientId)
 import Data.Singletons.TypeLits (Symbol)
 import Gundeck.Aws.Arn
 import Gundeck.Types
-import OpenSSL.EVP.Cipher (Cipher)
-import OpenSSL.EVP.Digest (Digest)
 
 -- | Native push address information of a device.
 data Address (s :: Symbol) = Address
@@ -48,8 +42,6 @@ data Address (s :: Symbol) = Address
     , _addrEndpoint  :: !EndpointArn
     , _addrConn      :: !ConnId
     , _addrClient    :: !ClientId
-    , _addrKeys      :: !(Maybe SignalingKeys)
-    , _addrFallback  :: !(Maybe Transport)
     }
 
 makeLenses ''Address
@@ -66,7 +58,6 @@ instance Show (Address s) where
            . showString ", endpoint = " . shows (a^.addrEndpoint)
            . showString ", conn = " . shows (a^.addrConn)
            . showString ", client = " . shows (a^.addrClient)
-           . showString ", fallback = " . shows (a^.addrFallback)
            $ "}"
 
 data Result s
@@ -77,32 +68,12 @@ data Failure
     = PayloadTooLarge
     | EndpointInvalid
     | EndpointDisabled
-    | MissingKeys
     | PushException !SomeException
     deriving (Show)
 
-data Message s where
-    Plaintext  :: Notification
-               -> Priority
-               -> Maybe ApsData
-               -> Message s
-    Ciphertext :: Notification
-               -> Cipher
-               -> Digest
-               -> Priority
-               -> Maybe ApsData
-               -> Message "keys"
-    Notice     :: NotificationId
-               -> Priority
-               -> Maybe ApsData
-               -> Message s
-
-msgApsData :: Message s -> Maybe ApsData
-msgApsData (Plaintext  _     _ a) = a
-msgApsData (Ciphertext _ _ _ _ a) = a
-msgApsData (Notice     _     _ a) = a
-
-msgTransient :: Message s -> Bool
-msgTransient (Plaintext  n     _ _) = ntfTransient n
-msgTransient (Ciphertext n _ _ _ _) = ntfTransient n
-msgTransient Notice{}               = False
+-- | REFACTOR: rename to @data NativePush (s :: Symbol) = NativePush { ntvpNotificationId :: ...@
+data Message (s :: Symbol) = Notice
+    { msgNotificationid :: NotificationId
+    , msgPriority       :: Priority
+    , msgApsData        :: Maybe ApsData
+    }

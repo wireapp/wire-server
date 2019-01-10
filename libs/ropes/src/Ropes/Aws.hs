@@ -24,24 +24,17 @@ module Ropes.Aws
     , ResponseMetadata
     ) where
 
+import Imports
 import Aws (aws, Configuration (..))
 import Aws.Core
-import Control.Applicative
-import Control.Concurrent (threadDelay, forkIO)
 import Control.Error
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.Aeson
-import Data.ByteString (ByteString)
-import Data.Foldable (for_)
-import Data.IORef
-import Data.Monoid
-import Data.Text (Text, pack, unpack)
+import Data.Text (pack, unpack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
-import Data.Typeable
 import Network.HTTP.Client
 import System.Logger (Logger)
 
@@ -49,8 +42,6 @@ import qualified Aws
 import qualified Data.ByteString.Char8 as C
 import qualified Data.ByteString.Lazy  as LB
 import qualified System.Logger         as Logger
-
-import Prelude
 
 
 -------------------------------------------------------------------------------
@@ -154,11 +145,7 @@ newTempConfig lgr mgr = do
     tryMetadata :: IO (Maybe (Configuration, Maybe UTCTime))
     tryMetadata = do
         Logger.info lgr $ Logger.msg ("Fetching instance metadata" :: String)
-#if MIN_VERSION_errors(2,0,0)
         r <- runExceptT . syncIO $ fromMetadata mgr
-#else
-        r <- runEitherT . syncIO $ fromMetadata mgr
-#endif
         case r of
             Left  e -> Logger.err lgr (Logger.msg $ show e) >> return Nothing
             Right a -> do

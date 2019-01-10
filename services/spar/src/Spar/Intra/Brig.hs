@@ -34,6 +34,7 @@ import Spar.Error
 import Web.Cookie
 
 import qualified SAML2.WebSSO as SAML
+import qualified Data.Text as Text
 
 
 ----------------------------------------------------------------------
@@ -91,7 +92,7 @@ createUser suid (Id buid) teamid mbName = do
       let subject = suid ^. SAML.uidSubject
           badName = throwSpar . SparBadUserName $ SAML.encodeElem subject
           mkName  = Name . fromRange <$>
-                    (SAML.shortShowNameID >=> checked @ST @1 @128) subject
+                    (fmap (Text.take 128) . SAML.shortShowNameID >=> checked @ST @1 @128) subject
       maybe badName pure mkName
 
   let newUser :: NewUser
@@ -192,6 +193,18 @@ assertIsTeamOwner buid tid = do
     $ method GET
     . paths ["i", "users", toByteString' buid, "is-team-owner", toByteString' tid]
   when (statusCode resp >= 400) $ throwSpar SparNotTeamOwner
+
+-- | Get the team that the user is an owner of.
+--
+-- Called by post handler, and by 'authorizeIdP'.
+getZUsrOwnedTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, MonadSparToBrig m)
+            => Maybe UserId -> m TeamId
+getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
+getZUsrOwnedTeam (Just uid) = do
+  usr <- getUser uid
+  case userTeam =<< usr of
+    Nothing -> throwSpar SparNotInTeam
+    Just teamid -> teamid <$ assertIsTeamOwner uid teamid
 
 
 -- | Get persistent cookie from brig and redirect user past login process.

@@ -4,9 +4,8 @@
 
 module Util.Test where
 
-import Data.Monoid
+import Imports
 import Data.Tagged
-import Data.Typeable
 import Options.Applicative
 import Test.Tasty.Options
 

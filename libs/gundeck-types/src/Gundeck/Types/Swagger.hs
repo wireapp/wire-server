@@ -2,6 +2,7 @@
 
 module Gundeck.Types.Swagger where
 
+import Imports
 import Data.Swagger.Build.Api
 
 gundeckModels :: [Model]
@@ -37,9 +38,6 @@ pushToken = defineModel "PushToken" $ do
     property "client" bytes' $ do
         description "Client ID"
         optional
-    property "fallback" pushTransport $ do
-        description "Fallback transport"
-        optional
 
 pushTokenList :: Model
 pushTokenList = defineModel "PushTokenList" $ do
@@ -71,4 +69,3 @@ event = defineModel "NotificationEvent" $ do
     description "A single event"
     property "type" string' $
         description "Event type"
-

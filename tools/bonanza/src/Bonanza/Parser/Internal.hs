@@ -6,12 +6,10 @@ module Bonanza.Parser.Internal
     )
 where
 
+import           Imports
 import           Data.Attoparsec.ByteString.Char8
-import           Data.ByteString
-import           Data.Text                        (Text)
 import qualified Data.Text                        as T
 import           Data.Text.Encoding
-import           Text.Read
 
 
 toText :: ByteString -> Text

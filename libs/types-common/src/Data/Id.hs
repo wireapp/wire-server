@@ -7,19 +7,15 @@
 
 module Data.Id where
 
-import Control.DeepSeq (NFData (..))
-import Control.Monad (unless)
-import Control.Monad.IO.Class
+import Imports
 import Data.Aeson
 import Data.Aeson.Encoding (text)
 import Data.Aeson.Types (Parser)
 import Data.Attoparsec.ByteString (takeByteString)
-import Data.ByteString (ByteString)
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion
-import Data.Char (isHexDigit)
+import Data.Default (Default(..))
 import Data.Hashable (Hashable)
-import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder
@@ -29,8 +25,6 @@ import Data.UUID.V4
 #ifdef WITH_CQL
 import Database.CQL.Protocol hiding (S)
 #endif
-import Data.Word
-import GHC.Generics (Generic)
 #ifdef WITH_ARBITRARY
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
@@ -51,6 +45,7 @@ data U
 data P
 data S
 data T
+data STo
 
 type AssetId      = Id A
 type ConvId       = Id C
@@ -59,6 +54,7 @@ type UserId       = Id U
 type ProviderId   = Id P
 type ServiceId    = Id S
 type TeamId       = Id T
+type ScimTokenId  = Id STo
 
 -- Id -------------------------------------------------------------------------
 
@@ -248,11 +244,9 @@ newtype RequestId = RequestId
                , NFData
                )
 
-instance Monoid RequestId where
-    mempty = RequestId "N/A"
-    mappend a b
-        | a == mempty = b
-        | otherwise   = a
+-- | Returns "N/A"
+instance Default RequestId where
+    def = RequestId "N/A"
 
 instance ToJSON RequestId where
     toJSON (RequestId r) = String (decodeUtf8 r)

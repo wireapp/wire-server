@@ -100,4 +100,4 @@ optSettings:
   setMaxConvSize: 128
 
 logLevel: Debug
-logNetStrings: true
+logNetStrings: false

@@ -126,7 +126,7 @@ useKeyspace (Keyspace k) = void . getResult =<< qry
   where
     qry  = request (RqQuery (Query cql prms)) :: Client (HostResponse () () ())
     prms = QueryParams One False () Nothing Nothing Nothing Nothing
-    cql = QueryString $ "use \"" <> fromStrict k <> "\""
+    cql  = QueryString $ "use \"" <> fromStrict k <> "\""
 
 migrateSchema :: Logger -> MigrationOpts -> [Migration] -> IO ()
 migrateSchema l o ms = do

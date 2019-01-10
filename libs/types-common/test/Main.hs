@@ -1,5 +1,6 @@
 module Main (main) where
 
+import           Imports
 import qualified Test.Properties as Properties
 import           Test.Tasty
 

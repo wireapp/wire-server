@@ -46,6 +46,7 @@ import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (tryJust)
 import Data.Aeson (FromJSON)
 import Data.ByteString.Conversion (toByteString')
+import Data.Default (def)
 import Data.Id (TeamId, UserId, ConnId)
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
@@ -138,10 +139,10 @@ createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
     l   <- mkLogger o
     mgr <- initHttpManager o
-    Env mempty m o l mgr <$> initCassandra o l
-                         <*> Q.new 16000
-                         <*> initExtEnv
-                         <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o^.optJournal)
+    Env def m o l mgr <$> initCassandra o l
+                      <*> Q.new 16000
+                      <*> initExtEnv
+                      <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o^.optJournal)
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
@@ -205,7 +206,7 @@ evalGalley :: Env -> Galley a -> IO a
 evalGalley e m = runClient (e^.cstate) (runReaderT (unGalley m) e)
 
 lookupReqId :: Request -> RequestId
-lookupReqId = maybe mempty RequestId . lookup requestIdName . requestHeaders
+lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 
 reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId

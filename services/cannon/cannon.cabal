@@ -39,6 +39,7 @@ library
         , bytestring            >= 0.10
         , bytestring-conversion >= 0.2
         , case-insensitive      >= 1.2
+        , data-default          >= 0.5
         , data-timeout          >= 0.3
         , exceptions            >= 0.6
         , gundeck-types
@@ -50,7 +51,6 @@ library
         , metrics-wai           >= 0.4
         , mtl                   >= 2.2
         , mwc-random            >= 0.13
-        , optparse-applicative  >= 0.10
         , retry                 >= 0.7
         , singletons            >= 2.0
         , strict                >= 0.3.2

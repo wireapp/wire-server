@@ -325,7 +325,7 @@ uploadStepwise c u k s d = next 0 d
   where
     totalSize = fromIntegral (C8.length d)
     chunkSize = fromIntegral s
-    next pos dat = do 
+    next pos dat = do
         off <- uploadResumable c u k pos (C8.take chunkSize dat)
         unless (V3.offsetBytes off == totalSize) $ do
             off' <- getResumableStatus c u k
@@ -382,4 +382,3 @@ zConn = header "Z-Connection"
 
 decodeBody :: FromJSON a => Response (Maybe Lazy.ByteString) -> Maybe a
 decodeBody = responseBody >=> decode
-

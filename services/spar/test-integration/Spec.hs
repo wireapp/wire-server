@@ -1,55 +1,46 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- | It would be nice to use hspec-discover, which even has support for
+-- <https://hspec.github.io/hspec-discover.html#using-a-custom-main-function custom main functions>.
+--
+-- This is trickier than expected, though: hspec-discover expects the modules to export 'spec ::
+-- Spec', but we would need that to be 'spec :: SpecWith TestEnv'.  On the other hand, we cannot
+-- easily 'mkEnvFromOptions' inside each module, since it requires '-s', '-i' command line modules,
+-- which will make 'hspec' choke.
+--
+-- Related, but not the solution: https://github.com/hspec/hspec/pull/397
 module Main where
 
 import Imports
-import Control.Exception
-import Options.Applicative
-import Spar.Options
-import Spar.Types
-import System.Environment
+import System.Environment (withArgs)
 import Test.Hspec
 import Util
 
-import qualified Data.Yaml as Yaml
 import qualified Test.Spar.APISpec
--- import qualified Test.Spar.SCIMSpec
+import qualified Test.Spar.AppSpec
 import qualified Test.Spar.DataSpec
+import qualified Test.Spar.Intra.BrigSpec
+import qualified Test.Spar.SCIMSpec
 
 
 main :: IO ()
-main = withArgs [] . hspec =<< mkspec
+main = do
+  (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
+  env <- withArgs wireArgs mkEnvFromOptions
+  withArgs hspecArgs . hspec . beforeAll (pure env) . afterAll destroyEnv $ mkspec
 
-mkspec :: IO Spec
-mkspec = do
-  let desc = "Spar - SSO Service Integration Test Suite"
-  (integrationConfigFilePath, configFilePath) <- execParser (info (helper <*> cliOptsParser) (header desc <> fullDesc))
-  integrationOpts :: IntegrationConfig <- Yaml.decodeFileEither integrationConfigFilePath >>= either (error . show) pure
-  serviceOpts :: Opts <- Yaml.decodeFileEither configFilePath >>= either (throwIO . ErrorCall . show) deriveOpts
-
-  pure . beforeAll (mkEnv integrationOpts serviceOpts) . afterAll destroyEnv $ do
-    describe "Test.Spar.Data" Test.Spar.DataSpec.spec
-    describe "Test.Spar.API" $ Test.Spar.APISpec.spec
-    -- TODO: SCIM tests disabled until SCIM is in a better shape.
-    -- describe "Test.Spar.SCIM" $ Test.Spar.SCIMSpec.spec
-
-
--- | Accept config file locations as cli options.
-cliOptsParser :: Parser (String, String)
-cliOptsParser = (,) <$>
-  (strOption $
-    long "integration-config"
-    <> short 'i'
-    <> help "Integration config to load"
-    <> showDefault
-    <> value defaultIntPath)
-  <*>
-  (strOption $
-    long "service-config"
-    <> short 's'
-    <> help "Spar application config to load"
-    <> showDefault
-    <> value defaultSparPath)
+partitionArgs :: [String] -> ([String], [String])
+partitionArgs = go [] []
   where
-    defaultIntPath = "/etc/wire/integration/integration.yaml"
-    defaultSparPath = "/etc/wire/spar/conf/spar.yaml"
+    go wireArgs hspecArgs ("-s" : x : xs) = go (wireArgs <> ["-s", x]) hspecArgs xs
+    go wireArgs hspecArgs ("-i" : x : xs) = go (wireArgs <> ["-i", x]) hspecArgs xs
+    go wireArgs hspecArgs (x : xs)        = go wireArgs (hspecArgs <> [x]) xs
+    go wireArgs hspecArgs []              = (wireArgs, hspecArgs)
+
+mkspec :: SpecWith TestEnv
+mkspec = do
+    describe "Test.Spar.API" Test.Spar.APISpec.spec
+    describe "Test.Spar.App" Test.Spar.AppSpec.spec
+    describe "Test.Spar.Data" Test.Spar.DataSpec.spec
+    describe "Test.Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
+    describe "Test.Spar.SCIM" Test.Spar.SCIMSpec.spec

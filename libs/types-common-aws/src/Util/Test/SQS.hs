@@ -8,19 +8,13 @@
 
 module Util.Test.SQS where
 
-import Control.Concurrent (threadDelay)
+import Imports
 import Control.Exception (SomeAsyncException, asyncExceptionFromException)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (bracket)
-import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
-import Control.Monad.Reader
-import Data.Either
-import Data.Foldable (for_)
-import Data.Monoid ((<>))
 import Safe (headDef)
 import Data.ProtoLens
-import Data.Text (Text)
 import Test.Tasty.HUnit
 
 import qualified Data.ByteString.Base64 as B64

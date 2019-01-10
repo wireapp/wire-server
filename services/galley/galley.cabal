@@ -44,6 +44,7 @@ library
         Galley.Intra.User
         Galley.Intra.Util
         Galley.Intra.Client
+        Galley.Intra.Spar
         Galley.Queue
         Galley.Validation
         Galley.Types.Clients
@@ -71,6 +72,7 @@ library
       , cereal                  >= 0.4
       , containers              >= 0.5
       , currency-codes          >= 2.0
+      , data-default            >= 0.5
       , enclosed-exceptions     >= 1.0
       , errors                  >= 2.0
       , safe-exceptions         >= 0.1

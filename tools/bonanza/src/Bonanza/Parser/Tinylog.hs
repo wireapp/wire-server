@@ -9,18 +9,17 @@ module Bonanza.Parser.Tinylog
     )
 where
 
+import           Imports                          hiding (isDigit)
 import           Bonanza.Parser.Internal
 import           Bonanza.Parser.Netstrings
 import           Bonanza.Types
-import           Control.Applicative
+import           Control.Applicative             (optional)
 import           Control.Lens.Operators
 import           Data.Aeson
 import           Data.Attoparsec.ByteString.Char8
 import           Data.Bifunctor
 import qualified Data.ByteString.Char8            as B
 import           Data.HashMap.Strict              (fromList)
-import           Data.Maybe
-import           Data.Text                        (Text)
 import qualified Data.Text                        as T
 
 

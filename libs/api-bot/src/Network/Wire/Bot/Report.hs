@@ -80,10 +80,12 @@ data Data = Data
     , _gauges   :: HashMap Path Int
     } deriving (Eq)
 
+instance Semigroup Data where
+    (<>) (Data a b c d) (Data w x y z) =
+        Data (a <> w) (b <> x) (c <> y) (d <> z)
+
 instance Monoid Data where
     mempty = Data mempty mempty mempty mempty
-    mappend (Data a b c d) (Data w x y z) =
-        Data (a <> w) (b <> x) (c <> y) (d <> z)
 
 reportCounter :: Report -> Path -> Word
 reportCounter r p = fromMaybe 0 $ HashMap.lookup p (_counters (_data r))
@@ -100,7 +102,7 @@ reportBucket r p = fromMaybe mempty $ HashMap.lookup p (_buckets (_data r))
 -------------------------------------------------------------------------------
 -- * Structure Reports
 
-newtype SectionS = SectionS (Endo [Section]) deriving Monoid
+newtype SectionS = SectionS (Endo [Section]) deriving (Semigroup, Monoid)
 
 data Section = Section
     { sectionName    :: !Text

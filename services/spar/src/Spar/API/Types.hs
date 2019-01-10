@@ -26,6 +26,8 @@ import Data.String.Conversions (ST)
 import Servant
 import Servant.Multipart
 import Spar.Types
+import Spar.API.Util
+import Spar.SCIM (APIScim)
 
 import qualified SAML2.WebSSO as SAML
 import qualified URI.ByteString as URI
@@ -44,13 +46,15 @@ type API
      = "sso" :> APISSO
   :<|> "sso-initiate-bind"  :> APIAuthReq  -- (see comment on 'APIAuthReq')
   :<|> "identity-providers" :> APIIDP
-  -- TODO: reenable once SCIM is ready
-  -- :<|> "scim" :> SCIM.API
-  :<|> "i" :> APIINTERNAL
-  -- NB. If you add endpoints here, also update Test.Spar.APISpec
+  :<|> "scim" :> APIScim
+  :<|> OmitDocs :> "i" :> APIINTERNAL
+
+-- | API with internal endpoints and so on removed from the docs; see
+-- 'OutsideWorld' for more details.
+type OutsideWorldAPI = OutsideWorld API
 
 type APISSO
-     = "api-docs" :> Get '[JSON] Swagger
+     = OmitDocs :> "api-docs" :> Get '[JSON] Swagger
   :<|> APIMeta
   :<|> "initiate-login" :> APIAuthReqPrecheck
   :<|> "initiate-login" :> APIAuthReq
@@ -152,6 +156,7 @@ type IdpDelete  = Capture "id" SAML.IdPId :> DeleteNoContent '[JSON] NoContent
 
 type APIINTERNAL
      = "status" :> Get '[JSON] NoContent
+  :<|> "teams" :> Capture "team" TeamId :> DeleteNoContent '[JSON] NoContent
 
 
 sparSPIssuer :: SAML.HasConfig m => m SAML.Issuer
@@ -159,31 +164,3 @@ sparSPIssuer = SAML.Issuer <$> SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthRes
 
 sparResponseURI :: SAML.HasConfig m => m URI.URI
 sparResponseURI = SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthResp)
-
-
--- | Type families to convert spar's 'API' type into an "outside-world-view" API type
--- to expose as swagger docs intended to be used by client developers.
--- Here we assume the 'spar' service is only accessible from behind the 'nginz' proxy, which
---   * does not expose routes prefixed with /i/
---   * handles authorization (adding a Z-User header if requests are authorized)
---   * does not show the swagger end-point itself
-type OutsideWorldAPI =
-    StripSwagger (StripInternal (StripAuth API))
-
--- | Strip the nginz-set, internal-only Z-User header
-type family StripAuth api where
-    StripAuth (Header "Z-User" a :> b) = b
-    StripAuth (a :<|> b) = StripAuth a :<|> StripAuth b
-    StripAuth x = x
-
--- | Strip internal endpoints (prefixed with /i/)
-type family StripInternal api where
-    StripInternal ("i" :> b) = EmptyAPI
-    StripInternal (a :<|> b) = StripInternal a :<|> StripInternal b
-    StripInternal x = x
-
--- | Strip the endpoint that exposes documentation.
-type family StripSwagger api where
-    StripSwagger ("sso" :> "api-docs" :> a) = EmptyAPI
-    StripSwagger (a :<|> b) = StripSwagger a :<|> StripSwagger b
-    StripSwagger x = x

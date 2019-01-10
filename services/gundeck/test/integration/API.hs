@@ -44,7 +44,6 @@ import qualified Data.List1             as List1
 import qualified Data.Set               as Set
 import qualified Data.Text.Encoding     as T
 import qualified Data.UUID              as UUID
-import qualified Gundeck.Client.Data    as Clients
 import qualified Gundeck.Push.Data      as Push
 import qualified Network.HTTP.Client    as Http
 import qualified Network.WebSockets     as WS
@@ -107,7 +106,7 @@ tests s = testGroup "Gundeck integration tests" [
         , test s "Paging" $ testNotificationPaging
         ],
     testGroup "Clients"
-        [ test s "(un)register a client" $ testRegisterClient
+        [ test s "unregister a client" $ testUnregisterClient
         ],
     testGroup "Tokens"
         [ test s "register a push token"     $ testRegisterPushToken
@@ -133,16 +132,14 @@ addUser gu ca _ _ = registerUser gu ca
 removeUser :: TestSignature ()
 removeUser g c _ s = do
     user <- fst <$> registerUser g c
-    clt  <- randomClient g user
+    clt  <- randomClientId
     tok  <- randomToken clt gcmToken
     _    <- registerPushToken user tok g
     _    <- sendPush g (buildPush user [(user, [])] (textPayload "data"))
     deleteUser g user
     ntfs <- listNotifications user Nothing g
     liftIO $ do
-        keys   <- Cql.runClient s (Clients.select user clt)
         tokens <- Cql.runClient s (Push.lookup user Push.Quorum)
-        isNothing keys @?= True
         null tokens    @?= True
         ntfs           @?= []
 
@@ -295,7 +292,7 @@ sendMultipleUsers gu ca _ _ = do
     uid1 <- randomId -- offline and no native push
     uid2 <- randomId -- online
     uid3 <- randomId -- offline and native push
-    clt  <- randomClient gu uid3
+    clt  <- randomClientId
     tok  <- randomToken clt gcmToken
     _    <- registerPushToken uid3 tok gu
 
@@ -630,16 +627,12 @@ testNotificationPaging gu _ _ _ = do
 -----------------------------------------------------------------------------
 -- Client registration
 
-testRegisterClient :: TestSignature ClientId
-testRegisterClient g _ _ _ = do
+testUnregisterClient :: TestSignature ()
+testUnregisterClient g _ _ _ = do
     uid <- randomId
     cid <- randomClientId
-    sig <- randomSignalingKeys
-    registerClient g uid cid sig
-        !!! const 200 === statusCode
     unregisterClient g uid cid
         !!! const 200 === statusCode
-    return cid
 
 -----------------------------------------------------------------------------
 -- Native push token registration
@@ -649,14 +642,14 @@ testRegisterPushToken g _ b _ = do
     uid <- randomUser b
 
     -- Client 1 with 4 distinct tokens
-    c1   <- randomClient g uid
+    c1   <- randomClientId
     t11  <- randomToken c1 apnsToken
     t11' <- randomToken c1 apnsToken -- overlaps
     t12  <- randomToken c1 apnsToken{tName = (AppName "com.wire.ent")} -- different app
     t13  <- randomToken c1 gcmToken  -- different transport
 
     -- Client 2 with 1 token
-    c2   <- randomClient g uid
+    c2   <- randomClientId
     t21  <- randomToken c2 apnsToken
     t22  <- randomToken c2 gcmToken -- different transport
     t22' <- randomToken c2 gcmToken -- overlaps
@@ -685,9 +678,9 @@ testRegisterPushToken g _ b _ = do
 
     -- Native push tokens are deleted together with the client
     unregisterClient g uid c1 !!! const 200 === statusCode
-    unregisterClient g uid c1 !!! const 404 === statusCode
+    unregisterClient g uid c1 !!! const 200 === statusCode  -- (deleting a non-existing token is ok.)
     unregisterClient g uid c2 !!! const 200 === statusCode
-    unregisterClient g uid c2 !!! const 404 === statusCode
+    unregisterClient g uid c2 !!! const 200 === statusCode  -- (deleting a non-existing token is ok.)
     _tokens <- listPushTokens uid g
     liftIO $ assertEqual "unexpected tokens" [] _tokens
 
@@ -710,7 +703,7 @@ testRegisterTooManyTokens g _ _ _ = do
 testUnregisterPushToken :: TestSignature ()
 testUnregisterPushToken g _ b _ = do
     uid <- randomUser b
-    clt <- randomClient g uid
+    clt <- randomClientId
     tkn <- randomToken clt gcmToken
     void $ registerPushToken uid tkn g
     void $ retryWhileN 12 null (listPushTokens uid g)
@@ -728,8 +721,8 @@ testSharePushToken g _ b _ = do
     forM_ [tok1, tok2, tok3] $ \tk -> do
         u1 <- randomUser b
         u2 <- randomUser b
-        c1 <- randomClient g u1
-        c2 <- randomClient g u2
+        c1 <- randomClientId
+        c2 <- randomClientId
         let t1 = tk c1
         let t2 = tk c2
         t1' <- registerPushToken u1 t1 g
@@ -752,8 +745,8 @@ testReplaceSharedPushToken :: TestSignature ()
 testReplaceSharedPushToken g _ b _ = do
     u1 <- randomUser b
     u2 <- randomUser b
-    c1 <- randomClient g u1
-    c2 <- randomClient g u2
+    c1 <- randomClientId
+    c2 <- randomClientId
 
     -- Set up a shared token
     t1 <- Token . T.decodeUtf8 . toByteString' <$> randomId
@@ -777,7 +770,7 @@ testReplaceSharedPushToken g _ b _ = do
 testLongPushToken :: TestSignature ()
 testLongPushToken g _ b _ = do
     uid <- randomUser b
-    clt <- randomClient g uid
+    clt <- randomClientId
 
     -- normal size APNS token should succeed
     tkn1 <- randomToken clt apnsToken
@@ -864,13 +857,6 @@ waitForMessage = waitForMessage' 1000000
 
 waitForMessage' :: Int -> TChan ByteString -> IO (Maybe ByteString)
 waitForMessage' musecs = System.Timeout.timeout musecs . liftIO . atomically . readTChan
-
-registerClient :: Gundeck -> UserId -> ClientId -> SignalingKeys -> Http (Response (Maybe BL.ByteString))
-registerClient g uid cid keys = put $ runGundeck g
-    . zUser uid
-    . paths ["/i/clients", toByteString' cid]
-    . contentJson
-    . body (RequestBodyLBS $ encode keys)
 
 unregisterClient :: Gundeck -> UserId -> ClientId -> Http (Response (Maybe BL.ByteString))
 unregisterClient g uid cid = delete $ runGundeck g
@@ -998,13 +984,6 @@ randomUser br = do
         uid <- nextRandom
         return $ loc <> "+" <> UUID.toText uid <> "@" <> dom
 
-randomClient :: HasCallStack => Gundeck -> UserId -> Http ClientId
-randomClient g u = do
-    c <- randomClientId
-    s <- randomSignalingKeys
-    void $ registerClient g u c s !!! const 200 === statusCode
-    return c
-
 deleteUser :: HasCallStack => Gundeck -> UserId -> Http ()
 deleteUser g uid = delete (runGundeck g . zUser uid . path "/i/user") !!! const 200 === statusCode
 
@@ -1021,12 +1000,6 @@ randomClientId = liftIO $ newClientId <$> (randomIO :: IO Word64)
 
 randomBytes :: MonadIO m => Int -> m ByteString
 randomBytes n = liftIO $ BS.pack <$> replicateM n (randomIO :: IO Word8)
-
-randomSignalingKeys :: MonadIO m => m SignalingKeys
-randomSignalingKeys = liftIO $ do
-    enk <- EncKey <$> liftIO (randomBytes 32)
-    mak <- MacKey <$> liftIO (randomBytes 32)
-    return (SignalingKeys enk mak)
 
 textPayload :: Text -> List1 Object
 textPayload txt = List1.singleton (HashMap.fromList ["text" .= txt])

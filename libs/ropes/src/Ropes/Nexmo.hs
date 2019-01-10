@@ -35,23 +35,17 @@ module Ropes.Nexmo
     , msgIds
     ) where
 
-import Control.Applicative
+import Imports hiding (head, length)
 import Control.Exception
-import Control.Monad (unless)
 import Data.Aeson
 import Data.Aeson.Types
 import Data.ByteString.Lazy (toStrict)
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Monoid ((<>))
-import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Time (UTCTime)
 import Data.Time.Format (formatTime, defaultTimeLocale)
-import Data.Traversable (forM)
-import Data.Typeable
 import Network.HTTP.Client hiding (Response)
 import Network.HTTP.Types
-import Prelude hiding (head, length)
 
 import qualified Data.List.NonEmpty as N
 

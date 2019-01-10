@@ -22,7 +22,7 @@
 
 module Spar.API
   ( app, api
-  , API
+  , API, OutsideWorldAPI
   , APIMeta
   , APIAuthReqPrecheck
   , APIAuthReq
@@ -34,7 +34,6 @@ module Spar.API
   ) where
 
 import Imports
-import Brig.Types.User as Brig
 import Control.Lens
 import Control.Monad.Except
 import Data.Id
@@ -50,6 +49,8 @@ import Spar.API.Types
 import Spar.App
 import Spar.Error
 import Spar.Types
+import Spar.SCIM
+import Spar.SCIM.Swagger ()
 
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64 as ES
@@ -64,12 +65,12 @@ app :: Env -> Application
 app ctx = SAML.setHttpCachePolicy
         $ serve (Proxy @API) (hoistServer (Proxy @API) (SAML.nt @SparError @Spar ctx) (api $ sparCtxOpts ctx) :: Server API)
 
--- TODO: re-enable SCIM.api once it's ready to use.
 api :: Opts -> ServerT API Spar
 api opts
      = apiSSO opts
   :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateBind
   :<|> apiIDP
+  :<|> apiScim
   :<|> apiINTERNAL
 
 apiSSO :: Opts -> ServerT APISSO Spar
@@ -89,11 +90,15 @@ apiIDP
 
 apiINTERNAL :: ServerT APIINTERNAL Spar
 apiINTERNAL
-     = pure NoContent
+     = internalStatus
+  :<|> internalDeleteTeam
 
 
 appName :: ST
 appName = "spar"
+
+----------------------------------------------------------------------------
+-- SSO API
 
 authreqPrecheck :: Maybe URI.URI -> Maybe URI.URI -> SAML.IdPId -> Spar NoContent
 authreqPrecheck msucc merr idpid = validateAuthreqParams msucc merr
@@ -149,6 +154,8 @@ authresp :: Maybe ST -> SAML.AuthnResponseBody -> Spar Void
 authresp ((>>= bindCookieFromHeader) -> cky) = SAML.authresp sparSPIssuer sparResponseURI $
   \resp verdict -> throwError . SAML.CustomServant =<< verdictHandler cky resp verdict
 
+----------------------------------------------------------------------------
+-- IdP API
 
 idpGet :: Maybe UserId -> SAML.IdPId -> Spar IdP
 idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
@@ -158,7 +165,7 @@ idpGet zusr idpid = withDebugLog "idpGet" (Just . show . (^. SAML.idpId)) $ do
 
 idpGetAll :: Maybe UserId -> Spar IdPList
 idpGetAll zusr = withDebugLog "idpGetAll" (const Nothing) $ do
-  teamid <- getZUsrOwnedTeam zusr
+  teamid <- Intra.getZUsrOwnedTeam zusr
   _idplProviders <- wrapMonadClientWithEnv $ Data.getIdPConfigsByTeam teamid
   pure IdPList{..}
 
@@ -166,13 +173,23 @@ idpDelete :: Maybe UserId -> SAML.IdPId -> Spar NoContent
 idpDelete zusr idpid = withDebugLog "idpDelete" (const Nothing) $ do
     idp <- SAML.getIdPConfig idpid
     authorizeIdP zusr idp
-    wrapMonadClient $ Data.deleteIdPConfig idpid (idp ^. SAML.idpMetadata . SAML.edIssuer) (idp ^. SAML.idpExtraInfo)
+    wrapMonadClient $ do
+        let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+            team = idp ^. SAML.idpExtraInfo
+        -- Delete tokens associated with given IdP (we rely on the fact that
+        -- each IdP has exactly one team so we can look up all tokens
+        -- associated with the team and then filter them)
+        tokens <- Data.getScimTokens team
+        for_ tokens $ \ScimTokenInfo{..} ->
+            when (stiIdP == Just idpid) $ Data.deleteScimToken team stiId
+        -- Delete IdP config
+        Data.deleteIdPConfig idpid issuer team
     return NoContent
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 idpCreate :: Maybe UserId -> SAML.IdPMetadata -> Spar IdP
 idpCreate zusr idpmeta = withDebugLog "idpCreate" (Just . show . (^. SAML.idpId)) $ do
-  teamid <- getZUsrOwnedTeam zusr
+  teamid <- Intra.getZUsrOwnedTeam zusr
   idp <- validateNewIdP idpmeta teamid
   SAML.storeIdPConfig idp
   pure idp
@@ -189,18 +206,8 @@ withDebugLog msg showval action = do
 authorizeIdP :: (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSparToBrig m)
              => Maybe UserId -> IdP -> m ()
 authorizeIdP zusr idp = do
-  teamid <- getZUsrOwnedTeam zusr
+  teamid <- Intra.getZUsrOwnedTeam zusr
   when (teamid /= idp ^. SAML.idpExtraInfo) $ throwSpar SparNotInTeam
-
--- | Called by post handler, and by 'authorizeIdP'.
-getZUsrOwnedTeam :: (HasCallStack, MonadError SparError m, SAML.SP m, Intra.MonadSparToBrig m)
-            => Maybe UserId -> m TeamId
-getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
-getZUsrOwnedTeam (Just uid) = do
-  usr <- Intra.getUser uid
-  case Brig.userTeam =<< usr of
-    Nothing -> throwSpar SparNotInTeam
-    Just teamid -> teamid <$ Intra.assertIsTeamOwner uid teamid
 
 
 -- | Check that issuer is fresh (see longer comment in source) and request URI is https.
@@ -231,3 +238,16 @@ validateNewIdP _idpMetadata _idpExtraInfo = do
     -- creating users in victim teams.
 
   pure SAML.IdPConfig {..}
+
+----------------------------------------------------------------------------
+-- Internal API
+
+internalStatus :: Spar NoContent
+internalStatus = pure NoContent
+
+-- | Cleanup handler that is called by Galley whenever a team is about to
+-- get deleted.
+internalDeleteTeam :: TeamId -> Spar NoContent
+internalDeleteTeam team = do
+  wrapMonadClient $ Data.deleteTeam team
+  pure NoContent

@@ -14,14 +14,20 @@ import Imports
 import Cassandra
 import Control.Lens
 import Control.Monad.Except
+import Data.Text (unpack)
 import Data.Typeable
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import SAML2.WebSSO as SAML
 import Spar.Data as Data
+import Spar.Intra.Brig (fromUserSSOId)
 import Spar.Types
 import URI.ByteString.QQ (uri)
-import Util
+import Util.Core
+import Util.Types
+import Util.SCIM
+import Web.SCIM.Schema.Meta as SCIM.Meta
+import Web.SCIM.Schema.Common as SCIM.Common
 
 
 spec :: SpecWith TestEnv
@@ -29,7 +35,7 @@ spec = do
   describe "TTL" $ do
     it "works in seconds" $ do
       env <- ask
-      let idpid = env ^. teIdP . SAML.idpId
+      (_, _, (^. SAML.idpId) -> idpid) <- registerTestIdP
       (_, req) <- call $ callAuthnReq (env ^. teSpar) idpid
 
       let probe :: (MonadIO m, MonadReader TestEnv m) => m Bool
@@ -89,14 +95,14 @@ spec = do
       context "user is new" $ do
         it "getUser returns Nothing" $ do
           uref <- nextUserRef
-          muid <- runSparCass $ getUser uref
+          muid <- runSparCass $ Data.getUser uref
           liftIO $ muid `shouldBe` Nothing
 
         it "inserts new user and responds with 201 / returns new user" $ do
           uref <- nextUserRef
           uid  <- nextWireId
           ()   <- runSparCass $ insertUser uref uid
-          muid <- runSparCass $ getUser uref
+          muid <- runSparCass $ Data.getUser uref
           liftIO $ muid `shouldBe` Just uid
 
       context "user already exists (idempotency)" $ do
@@ -106,7 +112,7 @@ spec = do
           uid' <- nextWireId
           ()   <- runSparCass $ insertUser uref uid
           ()   <- runSparCass $ insertUser uref uid'
-          muid <- runSparCass $ getUser uref
+          muid <- runSparCass $ Data.getUser uref
           liftIO $ muid `shouldBe` Just uid'
 
 
@@ -136,6 +142,8 @@ spec = do
           muid <- runSparCass $ lookupBindCookie (setBindCookieValue cky)
           liftIO $ muid `shouldBe` Nothing
 
+    describe "Team" $ do
+      testDeleteTeam
 
     describe "IdPConfig" $ do
       it "storeIdPConfig, getIdPConfig are \"inverses\"" $ do
@@ -219,3 +227,45 @@ testSPStoreID store unstore isalive = do
         () <- runSparCassWithEnv $ unstore xid
         isit <- runSparCassWithEnv $ isalive xid
         liftIO $ isit `shouldBe` False
+
+-- | Test that when a team is deleted, all relevant data is pruned from the
+-- Spar database.
+testDeleteTeam :: SpecWith TestEnv
+testDeleteTeam = it "cleans up all the right tables after deletion" $ do
+    -- Create a team with two users and a SCIM token
+    (tok, (_uid, tid, idp)) <- registerIdPAndSCIMToken
+    user1 <- randomSCIMUser
+    user2 <- randomSCIMUser
+    storedUser1 <- createUser tok user1
+    storedUser2 <- createUser tok user2
+    -- Resolve the users' SSO ids
+    let getUid = read . unpack . SCIM.Common.id . SCIM.Meta.thing
+    ssoid1 <- getSsoidViaSelf (getUid storedUser1)
+    ssoid2 <- getSsoidViaSelf (getUid storedUser2)
+    -- Delete the team
+    runSparCass $ Data.deleteTeam tid
+    -- See that everything got cleaned up.
+    --
+    -- The token from 'team_provisioning_by_token':
+    do tokenInfo <- runSparCass $ Data.lookupScimToken tok
+       liftIO $ tokenInfo `shouldBe` Nothing
+    -- The team from 'team_provisioning_by_team':
+    do tokens <- runSparCass $ Data.getScimTokens tid
+       liftIO $ tokens `shouldBe` []
+    -- The users from 'user':
+    do let Right uref1 = fromUserSSOId ssoid1
+       mbUser1 <- runSparCass $ Data.getUser uref1
+       liftIO $ mbUser1 `shouldBe` Nothing
+    do let Right uref2 = fromUserSSOId ssoid2
+       mbUser2 <- runSparCass $ Data.getUser uref2
+       liftIO $ mbUser2 `shouldBe` Nothing
+    -- The config from 'idp':
+    do mbIdp <- runSparCass $ Data.getIdPConfig (idp ^. SAML.idpId)
+       liftIO $ mbIdp `shouldBe` Nothing
+    -- The config from 'issuer_idp':
+    do let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+       mbIdp <- runSparCass $ Data.getIdPIdByIssuer issuer
+       liftIO $ mbIdp `shouldBe` Nothing
+    -- The config from 'team_idp':
+    do idps <- runSparCass $ Data.getIdPConfigsByTeam tid
+       liftIO $ idps `shouldBe` []

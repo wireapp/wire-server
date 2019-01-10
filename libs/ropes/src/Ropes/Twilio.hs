@@ -23,28 +23,16 @@ module Ropes.Twilio
     , tryTwilio
     ) where
 
-import Control.Applicative
-#if MIN_VERSION_errors(2,0,0)
+import Imports hiding (head, length)
 import Control.Error (ExceptT (..))
-#else
-import Control.Error (EitherT (..))
-#endif
 import Control.Exception
-import Control.Monad.IO.Class
 import Data.Aeson
-import Data.ByteString (ByteString)
 import Data.ISO3166_CountryCodes (CountryCode)
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.Maybe (catMaybes)
-import Data.Monoid ((<>))
-import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
-import Data.Traversable (forM)
-import Data.Typeable
 import Network.HTTP.Client
 import Network.HTTP.Types.Status
 import Network.HTTP.Types.URI
-import Prelude hiding (head, length)
 
 import qualified Data.ByteString.Char8 as C
 import qualified Data.List.NonEmpty as N
@@ -141,13 +129,8 @@ instance FromJSON PhoneType where
 
 -- * Functions
 
-#if MIN_VERSION_errors(2,0,0)
 tryTwilio :: MonadIO m => IO a -> ExceptT ErrorResponse m a
 tryTwilio = ExceptT . liftIO . try
-#else
-tryTwilio :: MonadIO m => IO a -> EitherT ErrorResponse m a
-tryTwilio = EitherT . liftIO . try
-#endif
 
 sendMessage :: Credentials -> Manager -> Message -> IO MessageId
 sendMessage cr mgr msg = N.head <$> sendMessages cr mgr (msg :| [])

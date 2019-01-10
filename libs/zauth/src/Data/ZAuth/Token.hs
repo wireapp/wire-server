@@ -49,19 +49,16 @@ module Data.ZAuth.Token
     , writeData
     ) where
 
-import Control.Applicative
+import Imports hiding (break, drop)
 import Control.Error
 import Control.Lens
 import Data.Attoparsec.ByteString (takeLazyByteString)
 import Data.ByteString.Builder (Builder, byteString, char8)
-import Data.ByteString.Lazy (ByteString, toStrict)
+import Data.ByteString.Lazy (toStrict)
 import Data.ByteString.Base64.URL
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy.Char8 (split, break, drop)
-import Data.Monoid
 import Data.UUID
-import Data.Word
-import Prelude hiding (break, drop)
 import Sodium.Crypto.Sign (Signature (..))
 
 data Type = A | U | B | P deriving (Eq, Show)
@@ -101,7 +98,7 @@ newtype Provider = Provider
     { _provider :: UUID
     } deriving (Eq, Show)
 
-type Properties = [(ByteString, ByteString)]
+type Properties = [(LByteString, LByteString)]
 
 signature :: Getter (Token a) Signature
 signature = to _signature
@@ -169,7 +166,7 @@ mkProvider = Provider
 -----------------------------------------------------------------------------
 -- Reading
 
-readToken :: (Properties -> Maybe a) -> ByteString -> Maybe (Token a)
+readToken :: (Properties -> Maybe a) -> LByteString -> Maybe (Token a)
 readToken f b = case split '.' b of
     (s:rest) ->
         let p = map pairwise rest in
@@ -178,7 +175,7 @@ readToken f b = case split '.' b of
               <*> f p
     _ -> Nothing
   where
-    pairwise :: ByteString -> (ByteString, ByteString)
+    pairwise :: LByteString -> (LByteString, LByteString)
     pairwise x = let (k, v) = break (== '=') x in (k, drop 1 v)
 
 readHeader :: Properties -> Maybe Header
@@ -261,7 +258,7 @@ instance ToByteString Type where
 instance ToByteString Tag where
     builder S = char8 's'
 
-field :: ToByteString a => ByteString -> a -> Builder
+field :: ToByteString a => LByteString -> a -> Builder
 field k v = builder k <> eq <> builder v
 
 dot, eq :: Builder

@@ -42,6 +42,7 @@ data Opts = Opts
     , _optCassandra :: !CassandraOpts        -- ^ Cassandra settings
     , _optBrig      :: !Endpoint             -- ^ Brig endpoint
     , _optGundeck   :: !Endpoint             -- ^ Gundeck endpoint
+    , _optSpar      :: !Endpoint             -- ^ Spar endpoint
     , _optDiscoUrl  :: !(Maybe Text)         -- ^ Disco URL
     , _optSettings  :: !Settings             -- ^ Other settings
     , _optJournal   :: !(Maybe JournalOpts)  -- ^ Journaling options ('Nothing'

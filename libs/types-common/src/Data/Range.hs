@@ -24,29 +24,22 @@ module Data.Range
     , rsingleton
     ) where
 
-import Control.DeepSeq (NFData (..))
+import Imports
 import Data.Aeson
 import Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion
-import Data.HashMap.Strict (HashMap)
-import Data.HashSet (HashSet)
-import Data.Int
 import Data.List.NonEmpty (NonEmpty)
 import Data.List1 (List1, toNonEmpty)
-import Data.Map (Map)
-import Data.Maybe
-import Data.Monoid
 import Data.Sequence (Seq)
-import Data.Set (Set)
 import Data.Singletons.Prelude.Num
 import Data.Singletons
 import Data.Singletons.Prelude.Ord
 import Data.Singletons.TypeLits
 import Data.Text.Ascii (AsciiText)
-import Data.Word
 #ifdef WITH_CQL
 import Database.CQL.Protocol hiding (Set, Map)
 #endif
+import Numeric.Natural
 
 import qualified Data.Attoparsec.ByteString as Atto
 import qualified Data.ByteString            as B
@@ -88,14 +81,14 @@ instance (Within a n m, Cql a) => Cql (Range n m a) where
         msg sn sm = Left (errorMsg (fromSing sn) (fromSing sm) "")
 #endif
 
-type LTE (n :: Nat) (m :: Nat)      = (SingI n, SingI m, (n :<= m) ~ 'True)
+type LTE (n :: Nat) (m :: Nat)      = (SingI n, SingI m, (n <= m) ~ 'True)
 type Within a (n :: Nat) (m :: Nat) = (Bounds a, LTE n m)
 
 mk :: Bounds a => a -> SNat n -> SNat m -> Maybe (Range n m a)
 mk a sn sm =
     let n = fromSing sn
         m = fromSing sm
-    in if within a n m
+    in if within a (toInteger n) (toInteger m)
            then Just (Range a)
            else Nothing
 
@@ -135,22 +128,22 @@ unsafeRange x = fromMaybe (msg sing sing) (checked x)
             . errorMsg (fromSing sn) (fromSing sm)
             $ ""
 
-rcast :: (LTE n m, (m :<= m') ~ 'True, (n :>= n') ~ 'True) => Range n m a -> Range n' m' a
+rcast :: (LTE n m, (m <= m') ~ 'True, (n >= n') ~ 'True) => Range n m a -> Range n' m' a
 rcast (Range a) = Range a
 
 rnil :: Monoid a => Range 0 0 a
 rnil = Range mempty
 
-rcons, (<|) :: LTE n m => a -> Range n m [a] -> Range n (m :+ 1) [a]
+rcons, (<|) :: LTE n m => a -> Range n m [a] -> Range n (m + 1) [a]
 rcons a (Range aa) = Range (a:aa)
 
 infixr 5 <|
 (<|) = rcons
 
-rinc :: (Integral a, LTE n m ) => Range n m a -> Range n (m :+ 1) a
+rinc :: (Integral a, LTE n m ) => Range n m a -> Range n (m + 1) a
 rinc (Range a) = Range (a + 1)
 
-rappend :: (LTE n m, LTE n' m', Monoid a) => Range n m a -> Range n' m' a -> Range n (m :+ m') a
+rappend :: (LTE n m, LTE n' m', Monoid a) => Range n m a -> Range n' m' a -> Range n (m + m') a
 rappend (Range a) (Range b) = Range (a <> b)
 
 rsingleton :: a -> Range 1 1 [a]
@@ -171,6 +164,7 @@ instance Bounds Int8    where within = rangeCheck
 instance Bounds Int16   where within = rangeCheck
 instance Bounds Int32   where within = rangeCheck
 instance Bounds Int64   where within = rangeCheck
+instance Bounds Natural where within = rangeCheck
 instance Bounds Word    where within = rangeCheck
 instance Bounds Word8   where within = rangeCheck
 instance Bounds Word16  where within = rangeCheck

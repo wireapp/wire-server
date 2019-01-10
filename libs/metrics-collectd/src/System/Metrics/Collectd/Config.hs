@@ -11,17 +11,16 @@ module System.Metrics.Collectd.Config
     , typename
     ) where
 
+import Imports
 import Data.Hashable
-import Data.HashMap.Strict (HashMap)
 import Data.Ini
-import Data.Text (Text)
 import System.Metrics.Collectd.Json.Path
 
 import qualified Data.HashMap.Strict as Map
 import qualified Data.Text           as T
 import qualified Data.Text.IO        as T
 
-newtype Type = Type Text deriving (Eq, Show, Monoid)
+newtype Type = Type Text deriving (Eq, Show, Semigroup, Monoid)
 
 data Config = Config
     { interval :: !Int       -- milliseconds

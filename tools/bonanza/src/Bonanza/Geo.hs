@@ -7,19 +7,17 @@ module Bonanza.Geo
     )
 where
 
+import           Imports
 import           Bonanza.Parser.IP
 import           Bonanza.Types
 import           Control.Lens
-import           Control.Monad
 import           Data.Aeson
 import           Data.Aeson.Lens
 import           Data.Attoparsec.ByteString.Char8 (parseOnly)
 import qualified Data.ByteString                  as B
 import           Data.Geolocation.GeoIP
 import qualified Data.HashMap.Strict              as HashMap
-import           Data.Text                        (Text)
 import           Data.Text.Encoding               (decodeLatin1, encodeUtf8)
-import           System.IO
 
 
 mkGeo :: FilePath -> IO GeoDB

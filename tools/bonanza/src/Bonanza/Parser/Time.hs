@@ -9,13 +9,11 @@ module Bonanza.Parser.Time
     )
 where
 
-import Control.Applicative
-import Data.ByteString       (ByteString)
-import Data.Maybe (fromMaybe)
+import Imports hiding (take)
+import Control.Applicative (optional)
 import Data.Time
 import Data.Time.Clock.POSIX
 import Data.Time.Clock.TAI
-import Prelude               hiding (take)
 
 import Data.Attoparsec.ByteString.Char8
 import qualified Data.List as List

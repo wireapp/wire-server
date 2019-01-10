@@ -1,7 +1,7 @@
-LANG := en_US.UTF-8
+LANG           := en_US.UTF-8
 SHELL          := /usr/bin/env bash
 NAME           := nginz
-NGINX_VERSION   = 1.12.2
+NGINX_VERSION   = 1.14.2
 NGINZ_VERSION  ?=
 SWAGGER_VERSION:= 2.2.10
 SHELL          := /usr/bin/env bash
@@ -104,12 +104,10 @@ zwagger-ui/swagger-ui: $(SWAGGER_BUNDLE)
 $(SWAGGER_BUNDLE):
 	curl -L https://github.com/swagger-api/swagger-ui/archive/v$(SWAGGER_VERSION).tar.gz -o $(SWAGGER_BUNDLE)
 
-src: $(NGINX_BUNDLE) gcc8.patch
+src: $(NGINX_BUNDLE)
 	#Find keys on https://nginx.org/en/pgp_keys.html
 	gpg --verify $(NGINX_BUNDLE).asc $(NGINX_BUNDLE)
 	tar zxf $(NGINX_BUNDLE)
-	# Fix compilation with GCC 8; see https://github.com/wireapp/wire-server/issues/320
-	(cd nginx-$(NGINX_VERSION); patch -p1 -i ../gcc8.patch)
 	rm -rf src && mv nginx-$(NGINX_VERSION) src
 
 $(NGINX_BUNDLE):

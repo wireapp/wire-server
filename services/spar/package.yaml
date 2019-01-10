@@ -27,6 +27,7 @@ dependencies:
   - containers
   - cookie
   - cryptonite
+  - data-default
   - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
   - galley-types
@@ -49,7 +50,6 @@ dependencies:
   - servant-multipart
   - servant-server
   - servant-swagger
-  - servant-generic
   - string-conversions
   - swagger2
   - text
@@ -68,6 +68,7 @@ dependencies:
   - yaml
   - hscim
   - email-validate
+  - http-api-data
 
 default-extensions:
   - NoImplicitPrelude
@@ -124,3 +125,4 @@ executables:
       - xml-conduit
       - xml-hamlet
       - xml-lens
+      - zauth

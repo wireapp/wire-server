@@ -25,7 +25,6 @@ module Brig.IO.Intra
       -- * Clients
     , Brig.IO.Intra.newClient
     , rmClient
-    , updateSignalingKeys
 
       -- * Account Deletion
     , rmUser
@@ -495,31 +494,14 @@ rmUser usr asts = do
 -------------------------------------------------------------------------------
 -- Client management
 
-newClient :: UserId -> ClientId -> SignalingKeys -> AppIO ()
-newClient u c k = do
+newClient :: UserId -> ClientId -> AppIO ()
+newClient u c = do
     debug $ remote "galley"
           . field "user" (toByteString u)
           . field "client" (toByteString c)
           . msg (val "new client")
     let p = paths ["i", "clients", toByteString' c]
     void $ galleyRequest POST (p . zUser u . expect2xx)
-    updateSignalingKeys u c k
-
-updateSignalingKeys :: UserId -> ClientId -> SignalingKeys -> AppIO ()
-updateSignalingKeys u c k = do
-    debug $ remote "gundeck"
-          . field "user" (toByteString u)
-          . field "client" (toByteString c)
-          . msg (val "new signaling keys")
-    g <- view gundeck
-    void . recovering x3 rpcHandlers $ const $ rpc' "gundeck" g
-        ( method PUT
-        . header "Content-Type" "application/json"
-        . paths ["i", "clients", toByteString' c]
-        . zUser u
-        . expect2xx
-        . lbytes (encode k)
-        )
 
 rmClient :: UserId -> ClientId -> AppIO ()
 rmClient u c = do

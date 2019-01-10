@@ -34,6 +34,7 @@ module Brig.User.Search.Index
     )
 where
 
+import           Imports                    hiding (log, searchable)
 import           Brig.Data.Instances ()
 import           Brig.User.Search.Index.Types as Types
 import           Brig.Types.Search
@@ -41,27 +42,18 @@ import           Brig.Types.User
 import           Brig.Types.Intra
 import qualified Cassandra                  as C
 import           Control.Lens               hiding (( # ), (.=))
-import           Control.Monad              (unless, void)
 import           Control.Monad.Catch        (MonadThrow, MonadCatch, MonadMask, throwM)
-import           Control.Monad.IO.Class
 import           Control.Monad.Except
-import           Control.Monad.Reader
 import           Data.Aeson
 import           Data.Aeson.Encoding
 import           Data.Aeson.Lens
-import           Data.ByteString            (ByteString)
 import           Data.ByteString.Builder    (Builder, toLazyByteString)
 import qualified Data.ByteString.Conversion as Bytes
-import           Data.Foldable
 import           Data.Id
-import           Data.Int
 import qualified Data.Map                   as Map
-import           Data.Maybe
 import           Data.Metrics
-import           Data.Monoid
 import           Data.Range
 import           Data.Semigroup             (Max (..))
-import           Data.Text                  (Text)
 import           Data.Text.ICU.Translit     (trans, transliterate)
 import           Data.Text.Lazy.Builder.Int (decimal)
 import           Data.Text.Lens             hiding (text)
@@ -72,7 +64,6 @@ import           Network.HTTP.Types         (hContentType, statusCode)
 import           System.Logger.Class        (Logger, MonadLogger (..), field, info,
                                              msg, val, (~~), (+++))
 import qualified System.Logger              as Log
-import           Prelude                    hiding (log)
 
 --------------------------------------------------------------------------------
 -- IndexIO Monad
@@ -297,7 +288,7 @@ updateIndex (IndexDeleteUser u) = liftIndexIO $ do
     r <- ES.getDocument idx mappingName (ES.DocId (review _TextId u))
     case statusCode (responseStatus r) of
         200 -> case preview (key "_version" . _Integer) (responseBody r) of
-            Nothing -> throwM $ ES.EsProtocolException (responseBody r)
+            Nothing -> throwM $ ES.EsProtocolException "'version' not found" (responseBody r)
             Just v  -> updateIndex . IndexUpdateUser
                      $ mkIndexUser u (mkIndexVersion (v + 1))
         404 -> pure ()
@@ -487,4 +478,3 @@ reindexRowToIndexUser
         Just Active -> False
         Nothing     -> False
         _           -> True
-

@@ -5,16 +5,9 @@
 
 module Network.Wire.Simulations.SmokeTest (mainBotNet) where
 
-import Control.Monad (void)
-import Data.ByteString (ByteString)
-import Data.Foldable (for_)
+import Imports
 import Data.Id (ConvId)
 import Data.List1
-import Data.Maybe (isNothing, fromMaybe)
-import Data.Monoid ((<>))
-import Data.String (fromString)
-import Data.Text (Text)
-import Data.Traversable (for)
 import Network.Wire.Bot
 import Network.Wire.Bot.Assert
 import Network.Wire.Bot.Crypto

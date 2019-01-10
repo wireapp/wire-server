@@ -1,12 +1,9 @@
 module Ropes.Aws.Ses where
 
+import Imports
 import Aws.Ses
-import Control.Applicative
-import Control.Monad.IO.Class
 import Data.ByteString.Lazy (toStrict)
 import Network.Mail.Mime
-
-import Prelude
 
 
 -- | Convenience function for constructing a 'SendRawEmail' command,

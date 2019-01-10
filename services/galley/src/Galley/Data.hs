@@ -80,24 +80,18 @@ module Galley.Data
     , defRegularConvAccess
     ) where
 
+import Imports hiding (max, Set)
 import Brig.Types.Code
 import Cassandra
 import Cassandra.Util
-import Control.Applicative
 import Control.Arrow (second)
 import Control.Lens hiding ((<|))
-import Control.Monad (join, forM)
-import Control.Monad.IO.Class
 import Data.ByteString.Conversion hiding (parser)
-import Data.Foldable (toList, foldrM, for_)
 import Data.Id
 import Data.Range
 import Data.List.Split (chunksOf)
 import Data.List1 (List1, list1, singleton)
-import Data.Int
-import Data.Maybe (fromMaybe)
 import Data.Misc (Milliseconds)
-import Data.Text (Text)
 import Data.Time.Clock
 import Data.UUID.V4 (nextRandom)
 import Galley.App
@@ -109,10 +103,9 @@ import Galley.Types.Clients (Clients)
 import Galley.Types.Teams hiding (teamMembers, teamConversations, Event, EventType (..))
 import Galley.Types.Teams.Intra
 import Galley.Validation
-import Prelude hiding (max)
 import System.Logger.Class (MonadLogger)
 import System.Logger.Message (msg, (+++), val)
-import UnliftIO (mapConcurrently, MonadUnliftIO, async, wait)
+import UnliftIO (mapConcurrently, async, wait)
 
 import qualified Data.Map.Strict      as Map
 import qualified Data.Set

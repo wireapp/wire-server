@@ -20,16 +20,18 @@ library
       , Ropes.Twilio
 
     default-language:   Haskell2010
+    default-extensions: NoImplicitPrelude
 
     build-depends:
         aeson                 >= 0.6
       , aws                   >= 0.10.2
       , base                  == 4.*
       , bytestring            >= 0.9
-      , errors                >= 1.4
+      , errors                >= 2.0
       , exceptions            >= 0.6
       , http-client           >= 0.5
       , http-types            >= 0.7
+      , imports
       , iso3166-country-codes >= 0.20140203.7
       , mime-mail             >= 0.4
       , retry                 >= 0.7
@@ -47,6 +49,7 @@ library
 
 executable ropes-aws-test
     default-language:   Haskell2010
+    default-extensions: NoImplicitPrelude
     main-is:            Main.hs
     hs-source-dirs:     test/integration-aws
     other-modules:
@@ -63,6 +66,7 @@ executable ropes-aws-test
       , exceptions
       , http-client
       , http-client-tls
+      , imports
       , mime-mail    >= 0.4
       , resourcet
       , ropes
@@ -76,6 +80,7 @@ executable ropes-aws-test
 -- Tiny test program that can be run on an AWS instance
 executable ropes-aws-auth-test
     default-language:   Haskell2010
+    default-extensions: NoImplicitPrelude
     main-is:            Main.hs
     hs-source-dirs:     test/integration-aws-auth
     ghc-options:
@@ -86,6 +91,7 @@ executable ropes-aws-auth-test
         base         >= 4    && < 5
       , aws
       , http-client
+      , imports
       , ropes
       , time
       , tinylog

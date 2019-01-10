@@ -12,23 +12,12 @@ module System.Metrics.Collectd.IO
     , collectOne
     ) where
 
-import Control.Applicative
-import Control.Concurrent
+import Imports
 import Control.Concurrent.Async hiding (wait)
-import Control.Exception
-import Control.Monad hiding (mapM_)
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Reader
 import Data.Aeson
-import Data.Foldable (for_, mapM_)
-import Data.IORef
-import Data.List (intersperse)
-import Data.Monoid
 import Data.Time.Clock.POSIX
 import Data.Text (unpack)
 import Network.HTTP.Client
-import Prelude hiding (mapM_)
-import System.IO (hFlush, stdout)
 import System.Metrics.Collectd.Collectd hiding (values)
 import System.Metrics.Collectd.Config
 import System.Metrics.Collectd.Json

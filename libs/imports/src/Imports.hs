@@ -15,6 +15,7 @@ module Imports
     , module Data.Bool
     , module Data.Char
     , module Data.Ord
+    , module Data.Semigroup
     , module Data.Monoid
     , module Data.Maybe
     , module Data.Either
@@ -95,6 +96,7 @@ import Data.Void
 import Data.Bool
 import Data.Char
 import Data.Ord
+import Data.Semigroup (Semigroup)
 import Data.Monoid
 import Data.Maybe
 import Data.Either

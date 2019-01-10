@@ -35,7 +35,6 @@ import Data.IP (IP)
 import Data.List.Split (chunksOf)
 import Data.Misc (PlainTextPassword (..))
 import Galley.Types (UserClients (..), UserClientMap (..))
-import Gundeck.Types.Push.V2 (SignalingKeys)
 import Network.Wai.Utilities
 import System.Logger.Class (msg, val, field, (~~))
 
@@ -49,7 +48,7 @@ import qualified Brig.User.Auth.Cookie as Auth
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
-addClient :: UserId -> ConnId -> Maybe IP -> NewClient SignalingKeys -> ExceptT ClientError AppIO Client
+addClient :: UserId -> ConnId -> Maybe IP -> NewClient -> ExceptT ClientError AppIO Client
 addClient u con ip new = do
     acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
     loc <- maybe (return Nothing) locationOf ip
@@ -57,7 +56,7 @@ addClient u con ip new = do
     let usr = accountUser acc
     lift $ do
         for_ old $ execDelete u (Just con)
-        Intra.newClient u (clientId clt) (newClientSigKeys new)
+        Intra.newClient u (clientId clt)
         Intra.onClientEvent u (Just con) (ClientAdded u clt)
         when (count > 1) $
             for_ (userEmail usr) $ \email ->
@@ -68,7 +67,7 @@ addClient u con ip new = do
                 hashCode = hash (prekeyKey prekey)
             in newClientId (fromIntegral hashCode)
 
-updateClient :: UserId -> ClientId -> UpdateClient SignalingKeys -> ExceptT ClientError AppIO ()
+updateClient :: UserId -> ClientId -> UpdateClient -> ExceptT ClientError AppIO ()
 updateClient u c r = do
     ok <- lift $ Data.hasClient u c
     unless ok $
@@ -76,7 +75,6 @@ updateClient u c r = do
     for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
     let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
     Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError
-    for_ (updateClientSigKeys r) $ lift . Intra.updateSignalingKeys u c
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.

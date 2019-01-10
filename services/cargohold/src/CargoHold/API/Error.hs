@@ -55,4 +55,3 @@ clientError = Error status400 "client-error"
 
 serverError :: Error
 serverError = Error status500 "server-error" "Server Error."
-

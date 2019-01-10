@@ -307,7 +307,6 @@ data BotClient = BotClient
     { botClientId       :: !ClientId
     , botClientLabel    :: !(Maybe Text)
     , botClientBox      :: !Box
-    , botClientSigKeys  :: !SignalingKeys
     , botClientSessions :: !Clients -- TODO: Map UserId (Map ClientId Session)
     }
 
@@ -328,12 +327,10 @@ addBotClient self cty label = do
     box <- liftIO $ openBox (userId $ botUser self) label
     pks <- liftIO $ genPrekeys box 100
     lk  <- liftIO $ genLastKey box
-    sg  <- liftIO $ genSigKeys box
     let nc = NewClient
            { newClientPassword = Just (botPassphrase self)
            , newClientPrekeys  = pks
            , newClientLastKey  = lk
-           , newClientSigKeys  = sg
            , newClientLabel    = label
            , newClientType     = cty
            , newClientClass    = Nothing
@@ -341,7 +338,7 @@ addBotClient self cty label = do
            , newClientModel    = Nothing
            }
     cid <- clientId <$> runBotSession self (registerClient nc)
-    clt <- BotClient cid label box sg <$> liftIO Clients.empty
+    clt <- BotClient cid label box <$> liftIO Clients.empty
     liftIO . atomically $ modifyTVar' (botClients self) (clt:)
     return clt
 

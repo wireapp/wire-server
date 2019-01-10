@@ -4,31 +4,23 @@
 
 module Main (main) where
 
-import           Control.Applicative
-import           Control.Concurrent          (threadDelay)
+import           Imports
 import           Control.Concurrent.Async
-import           Control.Concurrent.STM
+import           Control.Concurrent.STM      (retry)
 import           Control.Error               (runExceptT, syncIO)
-import           Control.Monad               (replicateM, unless)
-import           Data.ByteString             (ByteString)
 import qualified Data.ByteString             as BS
 import qualified Data.ByteString.Lazy.Char8  as BLC
 import           Data.Conduit
 import qualified Data.Conduit.Binary         as CB
 import qualified Data.Conduit.List           as CL
-import           Data.Foldable               (mapM_)
-import           Data.Monoid
 import           Data.Sequence               ((|>))
 import qualified Data.Sequence               as Seq
 import           Data.Version                (showVersion)
-import           Data.Word
 import           Network.HTTP.Client
 import           Network.HTTP.Client.Conduit (requestBodySourceChunked)
 import           Network.HTTP.Client.TLS
 import           Options.Applicative
 import           Paths_bonanza               (version)
-import           Prelude                     hiding (mapM_)
-import           System.IO                   (stdin)
 
 data Opts = Opts
     { url           :: String

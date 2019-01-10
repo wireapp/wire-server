@@ -15,10 +15,11 @@ description:
     functions which are based on Ed25519.
 
 library
-    default-language:  Haskell2010
-    hs-source-dirs:    src
-    ghc-options:       -Wall -O2 -fwarn-tabs
-    ghc-prof-options:  -prof -auto-all
+    default-language:   Haskell2010
+    default-extensions: NoImplicitPrelude
+    hs-source-dirs:     src
+    ghc-options:        -Wall -O2 -fwarn-tabs
+    ghc-prof-options:   -prof -auto-all
 
     exposed-modules:   Sodium.Crypto.Sign
 
@@ -26,5 +27,6 @@ library
         base              >= 4.6   && < 5
       , base64-bytestring >= 1.0
       , bytestring        >= 0.10
+      , imports
 
     pkgconfig-depends: libsodium >= 0.4.5

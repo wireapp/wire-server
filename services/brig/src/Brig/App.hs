@@ -74,6 +74,7 @@ import Control.Lens hiding ((.=), index)
 import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
+import Data.Default (def)
 import Data.Id (UserId)
 import Data.IP
 import Data.List1 (list1, List1)
@@ -207,7 +208,7 @@ newEnv o = do
         , _metrics       = mtr
         , _applog        = lgr
         , _internalEvents = eventsQueue
-        , _requestId     = mempty
+        , _requestId     = def
         , _usrTemplates  = utp
         , _provTemplates = ptp
         , _tmTemplates   = ttp
@@ -378,7 +379,7 @@ initCassandra o g = do
 initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
 initCredentials secretFile = do
     dat <- loadSecret secretFile
-    return $ fromMaybe (error $ "Could not load secrets from " ++ show secretFile) dat
+    return $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
 
 userTemplates :: Monad m => Maybe Locale -> AppT m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates

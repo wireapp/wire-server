@@ -25,6 +25,7 @@ module Gundeck.Types.Notification
     , queuedTime
     ) where
 
+import Imports
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id
@@ -128,5 +129,3 @@ instance ToJSON QueuedNotificationList where
         # "time"          .= t
         # []
         )
-
-

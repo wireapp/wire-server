@@ -34,7 +34,8 @@ import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Handler.WebSockets
-import System.Logger.Class hiding (Error)
+import System.Logger (msg, val)
+import System.Logger.Class (Logger)
 import System.Random.MWC (createSystemRandom)
 
 import qualified Cannon.Dict                 as D
@@ -42,14 +43,21 @@ import qualified Data.ByteString.Lazy        as L
 import qualified Data.Metrics.Middleware     as Metrics
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified Network.WebSockets          as Ws
-import qualified System.Logger               as Logger
+import qualified System.Logger.Class         as Logger
 import qualified System.IO.Strict            as Strict
+
+mkLogger :: Opts -> IO Logger
+mkLogger o = Logger.new $ Logger.defSettings
+    & Logger.setLogLevel (o^.logLevel)
+    & Logger.setOutput Logger.StdOut
+    & Logger.setFormat Nothing
+    & Logger.setNetStrings (o^.logNetStrings)
 
 run :: Opts -> IO ()
 run o = do
     ext <- loadExternal
     m <- metrics
-    g <- new (setOutput StdOut . setFormat Nothing $ defSettings)
+    g <- mkLogger o
     e <- mkEnv <$> pure m
                <*> pure ext
                <*> pure o
@@ -159,11 +167,11 @@ singlePush :: Cannon L.ByteString -> PushTarget -> Cannon PushStatus
 singlePush notification (PushTarget usrid conid) = do
     let k = mkKey usrid conid
     d <- clients
-    debug $ client (key2bytes k) . msg (val "push")
+    Logger.debug $ client (key2bytes k) . msg (val "push")
     c <- D.lookup k d
     case c of
         Nothing -> do
-            debug $ client (key2bytes k) . msg (val "push: client gone")
+            Logger.debug $ client (key2bytes k) . msg (val "push: client gone")
             return PushStatusGone
         Just x -> do
             e <- wsenv

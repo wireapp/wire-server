@@ -2,10 +2,10 @@
 
 module Gundeck.Types.Common where
 
+import Imports
 import Data.Aeson
 import Data.Attoparsec.ByteString (takeByteString)
 import Data.ByteString.Conversion
-import Data.Text (Text)
 
 import qualified Data.ByteString.Char8 as Bytes
 import qualified Data.Text             as Text

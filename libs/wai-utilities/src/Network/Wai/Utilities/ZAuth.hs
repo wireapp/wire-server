@@ -14,7 +14,7 @@ module Network.Wai.Utilities.ZAuth
     , (.&>)
     ) where
 
-import Data.ByteString
+import Imports
 import Data.ByteString.Conversion
 import Data.Id
 import Network.HTTP.Types.Header
@@ -107,4 +107,3 @@ zheader = fmap (result (const $ Fail accessDenied) Okay) . header
 
 accessDenied :: Error
 accessDenied = setMessage "Access denied" (err status403)
-
