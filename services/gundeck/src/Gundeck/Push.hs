@@ -241,7 +241,7 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
             _                  -> True
 
 
--- | Failures to pushy natively can be ignored.  Logging already happens in
+-- | Failures to push natively can be ignored.  Logging already happens in
 -- 'Gundeck.Push.Native.push1', and we cannot recover from any of the error cases.
 pushNative :: Notification -> Push -> [Address "no-keys"] -> Gundeck ()
 pushNative _ _ [] = return ()
