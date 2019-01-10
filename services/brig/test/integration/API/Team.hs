@@ -349,9 +349,9 @@ testInvitationPaging brig galley = do
     after <- liftIO $ toUTCTimeMillis <$> getCurrentTime
 
     let next :: HasCallStack => Int -> (Int, Maybe InvitationId) -> Int -> Http (Int, Maybe InvitationId)
-        next maxPageLen (count, start) actualPageLen = do
-            let count' = count + maxPageLen
-            let range = queryRange (toByteString' <$> start) (Just actualPageLen)
+        next step (count, start) actualPageLen = do
+            let count' = count + step
+            let range = queryRange (toByteString' <$> start) (Just step)
             r <- get (brig . paths ["teams", toByteString' tid, "invitations"] . zUser uid . range) <!!
                 const 200 === statusCode
             let (Just (invs, more)) = (ilInvitations &&& ilHasMore) <$> decodeBody r
