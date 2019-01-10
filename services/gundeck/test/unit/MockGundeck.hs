@@ -491,7 +491,7 @@ mockPushAll pushes = do
         go (Recipient uid _ cids, pay) = (\cid -> ((uid, cid), pay)) <$> cids
 
     rcps :: [((UserId, Maybe ClientId, Bool), (Recipient, Payload))]
-    rcps = mconcat $ go <$> filter (not . (^. pushTransient)) pushes
+    rcps = concatMap go pushes
       where
         go :: Push -> [((UserId, Maybe ClientId, Bool), (Recipient, List1 Object))]
         go psh = do
