@@ -5,7 +5,7 @@
 {-# LANGUAGE TemplateHaskell            #-}
 
 module Gundeck.Types.Push.V2
-    ( Push
+    ( Push (..)
     , newPush
     , pushRecipients
     , pushOrigin

@@ -53,7 +53,7 @@ import Gundeck.Options
 import Gundeck.Push
 import Gundeck.Push.Native as Native
 import Gundeck.Push.Websocket as Web
-import Gundeck.Types
+import Gundeck.Types hiding (recipient)
 import Gundeck.Types.BulkPush
 import System.Logger.Class as Log hiding (trace)
 import Test.QuickCheck as QC
@@ -388,110 +388,80 @@ instance Log.MonadLogger MockGundeck where
 ----------------------------------------------------------------------
 -- monad implementation
 
--- | Expected behavior of 'Gundeck.Push.pushAll' (used in the property test).
+-- | For a set of push notifications, compute the expected result of sending all of them.
+-- This should match the result of doing 'Gundeck.Push.pushAll'.
+--
+-- A single 'Push' can have many recipients.  The complete logic of handling a push recipient
+-- is specified in 'paPushWS', 'paPushNative' and 'paPutInCass'.
 mockPushAll
   :: (HasCallStack, m ~ MockGundeck)
   => [Push] -> m ()
 mockPushAll pushes = do
+  forM_ pushes $ \Push{..} -> do
+    let origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)
+    forM_ (fromRange _pushRecipients) $ \recipient -> do
+      paPushWS origin recipient _pushPayload
+      paPushNative _pushNativeIncludeOrigin origin recipient _pushPayload
+      paPutInCass _pushTransient recipient _pushPayload
+
+-- | Check whether Gundeck will push the notification via websockets.  If yes, push it.
+paPushWS
+  :: (HasCallStack, m ~ MockGundeck)
+  => (UserId, Maybe ClientId)           -- ^ Originating device
+  -> Recipient
+  -> Payload
+  -> m ()
+paPushWS origin (Recipient uid _ cids) payload = do
   env <- ask
-  modify $ (msWSQueue     .~ expectWS env)
-         . (msNativeQueue .~ expectNative env)
-         . (msCassQueue   .~ expectCass)
-  where
-    expectWS :: MockEnv -> NotifQueue
-    expectWS env
-      = foldl' (uncurry . deliver) mempty
-      . filter reachable
-      . reformat
-      . fmap removeSelf
-      . fmap insertAllClients
-      $ rcps
-      where
-        reachable :: ((UserId, ClientId), payload) -> Bool
-        reachable (ids, _) = wsReachable env ids
+  let cids' = if null cids then clientIdsOfUser env uid else cids
+  forM_ cids' $ \cid -> do
+    -- Condition 1: only devices with a working websocket connection will get the push.
+    let isReachable = wsReachable env (uid, cid)
+    -- Condition 2: we never deliver pushes to the originating device.
+    let isOriginDevice = origin == (uid, Just cid)
+    when (isReachable && not isOriginDevice) $
+      msWSQueue %= deliver (uid, cid) payload
 
-        removeSelf :: ((UserId, Maybe ClientId, any), (Recipient, Payload)) -> (Recipient, Payload)
-        removeSelf ((_, Nothing, _), same) =
-          same
-        removeSelf ((_, Just sndcid, _), (Recipient rcpuid route cids, pay)) =
-          (Recipient rcpuid route $ filter (/= sndcid) cids, pay)
+-- | Check whether Gundeck will push the notification via native transport.  If yes, push it.
+paPushNative
+  :: (HasCallStack, m ~ MockGundeck)
+  => Bool                               -- ^ 'pushNativeIncludeOrigin'
+  -> (UserId, Maybe ClientId)           -- ^ Originating device
+  -> Recipient
+  -> Payload
+  -> m ()
+paPushNative includeOrigin origin (Recipient uid route cids) payload = do
+  env <- ask
+  let cids' = if null cids then clientIdsOfUser env uid else cids
+  forM_ cids' $ \cid -> do
+    -- Condition 1: 'RouteDirect' pushes are not eligible for pushing via native transport.
+    let isNative = route /= RouteDirect
+    -- Condition 2: to get a native push, the device must be native-reachable but not
+    -- websocket-reachable, as websockets take priority.
+    let isReachable = nativeReachable env (uid, cid) && not (wsReachable env (uid, cid))
+    -- Condition 3: the originating *user* can receive a native push only if
+    -- 'pushNativeIncludeOrigin' is true. Even so, the originating *device* should never
+    -- receive a push.
+    let isOriginUser = uid == fst origin
+        isOriginDevice = origin == (uid, Just cid)
+        isAllowedPerOriginRules =
+          not isOriginUser || (includeOrigin && not isOriginDevice)
+    when (isNative && isReachable && isAllowedPerOriginRules) $
+      msNativeQueue %= deliver (uid, cid) payload
 
-        insertAllClients :: (any, (Recipient, Payload))
-                         -> (any, (Recipient, Payload))
-        -- if the recipient client list is empty, fill in all devices of that user
-        insertAllClients (same, (Recipient uid route [], pay)) = (same, (rcp', pay))
-          where rcp' = Recipient uid route (clientIdsOfUser env uid)
-
-        -- otherwise, no special hidden meaning.
-        insertAllClients same@(_, (Recipient _ _ (_:_), _)) = same
-
-    expectNative :: MockEnv -> NotifQueue
-    expectNative env
-      = foldl' (uncurry . deliver) mempty
-      . filter reachable
-      . reformat
-      . mconcat . fmap removeSome
-      . mconcat . fmap insertAllClients
-      $ rcps
-      where
-        reachable :: ((UserId, ClientId), payload) -> Bool
-        reachable (ids, _) = nativeReachable env ids && not (wsReachable env ids)
-
-        removeSome :: ((UserId, Maybe ClientId, Bool), (Recipient, Payload)) -> [(Recipient, Payload)]
-        removeSome ((_, _, _), (Recipient _ RouteDirect _, _)) =
-          -- never native-push recipients marked 'RouteDirect'.
-          []
-        removeSome ((snduid, _, False), same@(Recipient rcpuid _ _, _)) =
-          -- if pushNativeIncludeOrigin is False, none of the originator's devices will receive
-          -- native pushes.
-          [same | snduid /= rcpuid]
-        removeSome ((_, Just sndcid, True), (Recipient rcpuid route cids, pay)) =
-          -- if originating client is known and pushNativeIncludeOrigin is True, filter out just
-          -- that client, and native-push to all other devices of the originator.
-          [(Recipient rcpuid route $ filter (/= sndcid) cids, pay)]
-        removeSome ((_, Nothing, True), same) =
-          -- if NO originating client is known and pushNativeIncludeOrigin is True, push to all
-          -- originating devices.
-          [same]
-
-        insertAllClients :: (any, (Recipient, Payload))
-                         -> [(any, (Recipient, Payload))]
-        -- if the recipient client list is empty, fill in all devices of that user
-        insertAllClients (same, (Recipient uid route [], pay)) = [(same, (rcp', pay))]
-          where rcp' = Recipient uid route (clientIdsOfUser env uid)
-        -- otherwise, no special hidden meaning.
-        insertAllClients same@(_, (Recipient _ _ (_:_), _)) = [same]
-
-    expectCass :: NotifQueue
-    expectCass = foldl' (uncurry . deliver) mempty . mconcat $ go <$> pushes
-      where
-        go :: Push -> [((UserId, ClientId), Payload)]
-        go psh =
-          [ ((uid, cid), psh ^. pushPayload)
-          | not $ psh ^. pushTransient
-          , Recipient uid _ cids <- toList . fromRange $ psh ^. pushRecipients
-          , cid <- cids
-          ]
-
-    reformat :: [(Recipient, Payload)] -> [((UserId, ClientId), Payload)]
-    reformat = mconcat . fmap go
-      where
-        go (Recipient uid _ cids, pay) = (\cid -> ((uid, cid), pay)) <$> cids
-
-    rcps :: [((UserId, Maybe ClientId, Bool), (Recipient, Payload))]
-    rcps = concatMap go pushes
-      where
-        go :: Push -> [((UserId, Maybe ClientId, Bool), (Recipient, List1 Object))]
-        go psh = do
-          rcp <- Set.toList . fromRange $ psh ^. pushRecipients
-          pure $
-            ( ( psh ^. pushOrigin
-              , clientIdFromConnId <$> psh ^. pushOriginConnection
-              , psh ^. pushNativeIncludeOrigin
-              )
-            , (rcp, psh ^. pushPayload)
-            )
-
+-- | Check whether Gundeck will store the notification in Cassandra (to be later retrieved by
+-- clients).  If yes, store it.
+paPutInCass
+  :: (HasCallStack, m ~ MockGundeck)
+  => Bool                               -- ^ 'pushTransient'
+  -> Recipient
+  -> Payload
+  -> m ()
+paPutInCass transient (Recipient uid _ cids) payload = do
+  forM_ cids $ \cid -> do
+    -- Condition: transient pushes are not put into Cassandra.
+    when (not transient) $
+      msCassQueue %= deliver (uid, cid) payload
 
 -- | (There is certainly a fancier implementation using '<%=' or similar, but this one is easier to
 -- reverse engineer later.)
@@ -526,9 +496,8 @@ mockBulkPush notifs = do
       isreachable prc = wsReachable env (userId prc, fromJust $ clientId prc)
 
   forM_ delivered $ \(notif, prcs) -> do
-    forM_ prcs $ \prc -> do
-      modify $ msWSQueue %~ \queue ->
-        deliver queue (userId prc, clientIdFromConnId $ connId prc) (ntfPayload notif)
+    forM_ prcs $ \prc -> msWSQueue %=
+      deliver (userId prc, clientIdFromConnId $ connId prc) (ntfPayload notif)
 
   pure $ (_1 %~ ntfId) <$> delivered
 
@@ -538,9 +507,8 @@ mockStreamAdd
   => NotificationId -> List1 NotificationTarget -> Payload -> NotificationTTL -> m ()
 mockStreamAdd _ (toList -> targets) pay _ =
   forM_ targets $ \tgt ->
-    forM_ (tgt ^. targetClients) $ \cid ->
-      modify $ msCassQueue %~ \queue ->
-        deliver queue (tgt ^. targetUser, cid) pay
+    forM_ (tgt ^. targetClients) $ \cid -> msCassQueue %=
+      deliver (tgt ^. targetUser, cid) pay
 
 mockPushNative
   :: (HasCallStack, m ~ MockGundeck)
@@ -548,8 +516,8 @@ mockPushNative
 mockPushNative _nid ((^. pushPayload) -> payload) addrs = do
   env <- ask
   forM_ addrs $ \addr -> do
-    when (nativeReachableAddr env addr) . modify $ msNativeQueue %~ \queue ->
-      deliver queue (addr ^. addrUser, addr ^. addrClient) payload
+    when (nativeReachableAddr env addr) $ msNativeQueue %=
+      deliver (addr ^. addrUser, addr ^. addrClient) payload
 
 mockLookupAddress
   :: (HasCallStack, m ~ MockGundeck)
@@ -574,9 +542,8 @@ mockBulkSend uri notifs = do
           mconcat $ (\(ntif, trgts) -> (ntif,) <$> trgts) <$> ntifs
 
   forM_ flat $ \(ntif, ptgt) -> do
-    when (getstatus ptgt == PushStatusOk) $ do
-      modify $ msWSQueue %~ \queue ->
-        deliver queue (ptUserId ptgt, clientIdFromConnId $ ptConnId ptgt) (ntfPayload ntif)
+    when (getstatus ptgt == PushStatusOk) $ msWSQueue %=
+      deliver (ptUserId ptgt, clientIdFromConnId $ ptConnId ptgt) (ntfPayload ntif)
 
   pure . (uri,) . Right $ BulkPushResponse
     [ (ntfId ntif, trgt, getstatus trgt) | (ntif, trgt) <- flat ]
@@ -618,8 +585,7 @@ mockOldSimpleWebPush notif tgts _senderid mconnid _ = do
         same@(_:_) -> same
 
   forM_ clients $ \(userid, clientid) -> do
-    modify $ msWSQueue %~ \queue ->
-      deliver queue (userid, clientid) (ntfPayload notif)
+    msWSQueue %= deliver (userid, clientid) (ntfPayload notif)
 
   pure $ uncurry fakePresence <$> clients
 
@@ -639,8 +605,8 @@ shrinkPretty :: HasCallStack => (a -> [a]) -> Pretty a -> [Pretty a]
 shrinkPretty shrnk (Pretty xs) = Pretty <$> shrnk xs
 
 
-deliver :: NotifQueue -> (UserId, ClientId) -> Payload -> NotifQueue
-deliver queue qkey qval = Map.alter (Just . tweak) qkey queue
+deliver :: (UserId, ClientId) -> Payload -> NotifQueue -> NotifQueue
+deliver qkey qval queue = Map.alter (Just . tweak) qkey queue
   where
     tweak Nothing      = MSet.singleton (payloadToInt qval)
     tweak (Just qvals) = MSet.insert    (payloadToInt qval) qvals
