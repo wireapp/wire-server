@@ -1000,7 +1000,8 @@ postCryptoBroadcastMessage100OrMaxConns g b c a = do
             (403, 403, _, (x:xs)) -> return (x, xs)
             (xxx, yyy, _, _     ) -> error ("Unexpected while connecting users: " ++ show xxx ++ " and " ++ show yyy)
 
--- TODO: test new TeamMember metadata!  (also, test invitations on brig better.)
+-- TODO: test new TeamMember metadata!  (also, test invitations on brig better.)  in particular,
+-- test that invitor in invitation contains the expected value.
 
 newTeamMember' :: Permissions -> UserId -> TeamMember
 newTeamMember' perms uid = newTeamMember uid perms Nothing

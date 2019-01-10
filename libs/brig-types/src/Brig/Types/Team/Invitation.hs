@@ -19,7 +19,7 @@ data Invitation = Invitation
     , inInvitation :: !InvitationId
     , inIdentity   :: !Email
     , inCreatedAt  :: !UTCTimeMillis
-    , inCreatedBy  :: !(Maybe UserId)
+    , inCreatedBy  :: !(Maybe UserId)  -- TODO: drop the `Maybe`?  (if so, also re-align Data.*)
     } deriving (Eq, Show)
 
 data InvitationList = InvitationList
