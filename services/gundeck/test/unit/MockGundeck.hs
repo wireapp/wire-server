@@ -463,8 +463,6 @@ handlePushCass Push{..} = do
     forM_ cids $ \cid ->
       msCassQueue %= deliver (uid, cid) _pushPayload
 
--- | (There is certainly a fancier implementation using '<%=' or similar, but this one is easier to
--- reverse engineer later.)
 mockMkNotificationId
   :: (HasCallStack, m ~ MockGundeck)
   => m NotificationId
