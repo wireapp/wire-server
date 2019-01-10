@@ -451,21 +451,24 @@ teamMemberJson withPerms m = object $
     invJson :: (UserId, UTCTimeMillis) -> Value
     invJson (by, at) = object [ "by" .= by, "at" .= at ]
 
+parseTeamMember :: Value -> Parser TeamMember
+parseTeamMember = withObject "team-member" $ \o ->
+    TeamMember <$> o .:  "user"
+               <*> o .:  "permissions"
+               <*> (parseInv =<< (o .:? "invited"))
+  where
+    parseInv Nothing = pure Nothing
+    parseInv (Just val) = Just <$> parseInv' val
+
+    parseInv' = withObject "team-member invitation metadata" $ \o ->
+        (,) <$> (o .: "by") <*> (o .: "at")
+
 teamMemberListJson :: Bool -> TeamMemberList -> Value
 teamMemberListJson withPerm l =
     object [ "members" .= map (teamMemberJson withPerm) (_teamMembers l) ]
 
 instance FromJSON TeamMember where
-    parseJSON = withObject "team-member" $ \o ->
-        TeamMember <$> o .:  "user"
-                   <*> o .:  "permissions"
-                   <*> (parseInv =<< (o .:? "invited"))
-      where
-        parseInv Nothing = pure Nothing
-        parseInv (Just val) = Just <$> parseInv' val
-
-        parseInv' = withObject "team-member invitation metadata" $ \o ->
-            (,) <$> (o .: "by") <*> (o .: "at")
+    parseJSON = parseTeamMember
 
 instance FromJSON TeamMemberList where
     parseJSON = withObject "team member list" $ \o ->
