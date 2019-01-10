@@ -391,73 +391,79 @@ instance Log.MonadLogger MockGundeck where
 -- | For a set of push notifications, compute the expected result of sending all of them.
 -- This should match the result of doing 'Gundeck.Push.pushAll'.
 --
--- A single 'Push' can have many recipients.  The complete logic of handling a push recipient
--- is specified in 'paPushWS', 'paPushNative' and 'paPutInCass'.
+-- Every push causes some notifications to be sent via websockets, sent via native transport,
+-- and stored in Cassandra. The complete logic of handling a push is correspondingly specified
+-- in 'handlePushWS', 'handlePushNative' and 'handlePushCass' respectively. Those parts are all
+-- independent of each other.
 mockPushAll
   :: (HasCallStack, m ~ MockGundeck)
   => [Push] -> m ()
 mockPushAll pushes = do
   forM_ pushes $ \psh -> do
-    forM_ (fromRange (psh ^. pushRecipients)) $ \recipient -> do
-      paPushWS     psh recipient
-      paPushNative psh recipient
-      paPutInCass  psh recipient
+    handlePushWS     psh
+    handlePushNative psh
+    handlePushCass   psh
 
--- | Check whether Gundeck will push to a specific 'Recipient' via websockets.  If yes, perform
--- the push.
-paPushWS
+-- | From a single 'Push', deliver only those notifications that real Gundeck would deliver via
+-- websockets.
+handlePushWS
   :: (HasCallStack, m ~ MockGundeck)
-  => Push -> Recipient -> m ()
-paPushWS Push{..} (Recipient uid _ cids) = do
+  => Push -> m ()
+handlePushWS Push{..} = do
   env <- ask
-  let cids' = if null cids then clientIdsOfUser env uid else cids
-  forM_ cids' $ \cid -> do
-    -- Condition 1: only devices with a working websocket connection will get the push.
-    let isReachable = wsReachable env (uid, cid)
-    -- Condition 2: we never deliver pushes to the originating device.
-    let isOriginDevice = origin == (uid, Just cid)
-    when (isReachable && not isOriginDevice) $
-      msWSQueue %= deliver (uid, cid) _pushPayload
+  forM_ (fromRange _pushRecipients) $ \(Recipient uid _ cids) -> do
+    let cids' = if null cids then clientIdsOfUser env uid else cids
+    forM_ cids' $ \cid -> do
+      -- Condition 1: only devices with a working websocket connection will get the push.
+      let isReachable = wsReachable env (uid, cid)
+      -- Condition 2: we never deliver pushes to the originating device.
+      let isOriginDevice = origin == (uid, Just cid)
+      when (isReachable && not isOriginDevice) $
+        msWSQueue %= deliver (uid, cid) _pushPayload
   where
     origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)
 
--- | Check whether Gundeck will push to a specific 'Recipient' via native transport.  If yes,
--- perform the push.
-paPushNative
+-- | From a single 'Push', deliver only those notifications that real Gundeck would deliver via
+-- native transport.
+handlePushNative
   :: (HasCallStack, m ~ MockGundeck)
-  => Push -> Recipient -> m ()
-paPushNative Push{..} (Recipient uid route cids) = do
+  => Push -> m ()
+handlePushNative Push{..}
+  -- Condition 1: transient pushes are not sent via native transport.
+  | _pushTransient = pure ()
+handlePushNative Push{..} = do
   env <- ask
-  let cids' = if null cids then clientIdsOfUser env uid else cids
-  forM_ cids' $ \cid -> do
-    -- Condition 1: 'RouteDirect' pushes are not eligible for pushing via native transport.
-    let isNative = route /= RouteDirect
-    -- Condition 2: transient pushes are not sent via native transport.
-    let isTransient = _pushTransient
-    -- Condition 3: to get a native push, the device must be native-reachable but not
-    -- websocket-reachable, as websockets take priority.
-    let isReachable = nativeReachable env (uid, cid) && not (wsReachable env (uid, cid))
-    -- Condition 4: the originating *user* can receive a native push only if
-    -- 'pushNativeIncludeOrigin' is true. Even so, the originating *device* should never
-    -- receive a push.
-    let isOriginUser = uid == fst origin
-        isOriginDevice = origin == (uid, Just cid)
-        isAllowedPerOriginRules =
-          not isOriginUser || (_pushNativeIncludeOrigin && not isOriginDevice)
-    when (isNative && not isTransient && isReachable && isAllowedPerOriginRules) $
-      msNativeQueue %= deliver (uid, cid) _pushPayload
+  forM_ (fromRange _pushRecipients) $ \(Recipient uid route cids) -> do
+    let cids' = if null cids then clientIdsOfUser env uid else cids
+    forM_ cids' $ \cid -> do
+      -- Condition 2: 'RouteDirect' pushes are not eligible for pushing via native transport.
+      let isNative = route /= RouteDirect
+      -- Condition 3: to get a native push, the device must be native-reachable but not
+      -- websocket-reachable, as websockets take priority.
+      let isReachable = nativeReachable env (uid, cid) && not (wsReachable env (uid, cid))
+      -- Condition 4: the originating *user* can receive a native push only if
+      -- 'pushNativeIncludeOrigin' is true. Even so, the originating *device* should never
+      -- receive a push.
+      let isOriginUser = uid == fst origin
+          isOriginDevice = origin == (uid, Just cid)
+          isAllowedPerOriginRules =
+            not isOriginUser || (_pushNativeIncludeOrigin && not isOriginDevice)
+      when (isNative && isReachable && isAllowedPerOriginRules) $
+        msNativeQueue %= deliver (uid, cid) _pushPayload
   where
     origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)
 
--- | Check whether Gundeck will store a notification for a specific 'Recipient' in Cassandra
--- (to be later retrieved by the recipient's clients).  If yes, store it.
-paPutInCass
+-- | From a single 'Push', store only those notifications that real Gundeck would put into
+-- Cassandra.
+handlePushCass
   :: (HasCallStack, m ~ MockGundeck)
-  => Push -> Recipient -> m ()
-paPutInCass Push{..} (Recipient uid _ cids) = do
-  forM_ cids $ \cid -> do
-    -- Condition: transient pushes are not put into Cassandra.
-    when (not _pushTransient) $
+  => Push -> m ()
+handlePushCass Push{..}
+  -- Condition 1: transient pushes are not put into Cassandra.
+  | _pushTransient = pure ()
+handlePushCass Push{..} = do
+  forM_ (fromRange _pushRecipients) $ \(Recipient uid _ cids) ->
+    forM_ cids $ \cid ->
       msCassQueue %= deliver (uid, cid) _pushPayload
 
 -- | (There is certainly a fancier implementation using '<%=' or similar, but this one is easier to
