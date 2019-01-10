@@ -156,7 +156,7 @@ testInvitationEmailAccepted brig galley = do
     login brig (defEmailLogin email2) PersistentCookie !!! const 200 === statusCode
     -- Verify that the user is part of the team
     mem <- getTeamMember invitee tid galley
-    liftIO $ assertBool "Member not part of the team" (invitee == mem ^. Team.userId)
+    liftIO $ assertEqual "Member not part of the team" invitee (mem ^. Team.userId)
     conns <- listConnections invitee brig
     liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
 
