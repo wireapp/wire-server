@@ -45,7 +45,7 @@ instance FromJSON Invitation where
                    <*> o .: "id"
                    <*> o .: "email"
                    <*> o .: "created_at"
-                   <*> o .: "created_by"
+                   <*> o .:? "created_by"
 
 instance ToJSON Invitation where
     toJSON i = object $

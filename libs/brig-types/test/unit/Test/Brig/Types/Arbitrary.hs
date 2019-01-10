@@ -19,6 +19,7 @@ import Brig.Types.Activation
 import Brig.Types.Code
 import Brig.Types.Intra
 import Brig.Types.Provider (UpdateServiceWhitelist(..))
+import Brig.Types.Team.Invitation
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
 import Brig.Types.User
@@ -335,13 +336,13 @@ instance Arbitrary UpdateServiceWhitelist where
     arbitrary = UpdateServiceWhitelist <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary InvitationList where
-    arbitrary = _
+    arbitrary = InvitationList <$> listOf arbitrary <*> arbitrary
 
 instance Arbitrary Invitation where
-    arbitrary = _
+    arbitrary = Invitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary InvitationRequest where
-    arbitrary = _
+    arbitrary = InvitationRequest <$> arbitrary <*> arbitrary <*> arbitrary
 
 ----------------------------------------------------------------------
 -- utilities

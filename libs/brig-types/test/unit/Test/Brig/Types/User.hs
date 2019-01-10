@@ -12,6 +12,7 @@ import Imports
 import Brig.Types.Activation
 import Brig.Types.Intra
 import Brig.Types.Provider (UpdateServiceWhitelist)
+import Brig.Types.Team.Invitation
 import Brig.Types.User
 import Data.Aeson
 import Data.Aeson.Types
