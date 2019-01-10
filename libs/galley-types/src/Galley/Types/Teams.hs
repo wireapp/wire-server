@@ -443,24 +443,29 @@ instance FromJSON TeamList where
                  <*> o .: "has_more"
 
 teamMemberJson :: Bool -> TeamMember -> Value
-teamMemberJson False m = object [ "user" .= _userId m ]
-teamMemberJson True  m = object [ "user" .= _userId m, "permissions" .= _permissions m ]
+teamMemberJson withPerms m = object $
+    [ "user" .= _userId m ] <>
+    [ "permissions" .= _permissions m | withPerms ] <>
+    (maybe [] (\inv -> ["invited" .= invJson inv]) (_invitation m))
+  where
+    invJson :: (UserId, UTCTimeMillis) -> Value
+    invJson (by, at) = object [ "by" .= by, "at" .= at ]
 
 teamMemberListJson :: Bool -> TeamMemberList -> Value
 teamMemberListJson withPerm l =
     object [ "members" .= map (teamMemberJson withPerm) (_teamMembers l) ]
 
 instance FromJSON TeamMember where
-    parseJSON = withObject "team-member" $ \o -> do
-        user   <- o .:  "user"
-        perms  <- o .:  "permissions"
-        minvby <- o .:? "invited_by"
-        minvat <- o .:? "invited_at"
-        minv    <- case (minvby, minvat) of
-            (Just invby, Just invat) -> pure $ Just (invby, invat)
-            (Nothing, Nothing)       -> pure Nothing
-            _                        -> fail "incomplete invitation metadata"
-        pure $ TeamMember user perms minv
+    parseJSON = withObject "team-member" $ \o ->
+        TeamMember <$> o .:  "user"
+                   <*> o .:  "permissions"
+                   <*> (parseInv =<< (o .:? "invited"))
+      where
+        parseInv Nothing = pure Nothing
+        parseInv (Just val) = Just <$> parseInv' val
+
+        parseInv' = withObject "team-member invitation metadata" $ \o ->
+            (,) <$> (o .: "by") <*> (o .: "at")
 
 instance FromJSON TeamMemberList where
     parseJSON = withObject "team member list" $ \o ->
