@@ -266,12 +266,13 @@ newTeamList = TeamList
 newTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TeamMember
 newTeamMember = TeamMember
 
+-- | This is called in "Galley.Data".  It throws an exception if the input is inconsistent, meaning
+-- that one of inviter and invitation timestamp is Nothing and the other is Just.  This is justified
+-- because it can only be caused by
 newTeamMemberRaw :: MonadThrow m => UserId -> Permissions -> Maybe UserId -> Maybe UTCTimeMillis -> m TeamMember
 newTeamMemberRaw uid perms (Just invu) (Just invt) = pure $ TeamMember uid perms (Just (invu, invt))
 newTeamMemberRaw uid perms Nothing Nothing         = pure $ TeamMember uid perms Nothing
 newTeamMemberRaw _ _ _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
-    -- TODO: question for the reviewer: is this exception type what we want to use here, and on the
-    -- calling side in "Galley.Data"?
 
 newTeamMemberList :: [TeamMember] -> TeamMemberList
 newTeamMemberList = TeamMemberList

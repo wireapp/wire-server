@@ -83,7 +83,7 @@ lookupInvitation :: MonadClient m => TeamId -> InvitationId -> m (Maybe Invitati
 lookupInvitation t r = fmap toInvitation <$>
     retry x1 (query1 cqlInvitation (params Quorum (t, r)))
   where
-    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, InvitationId, Email, UTCTime, Maybe UserId)
+    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, InvitationId, Email, UTCTimeMillis, Maybe UserId)
     cqlInvitation = "SELECT team, id, email, created_at, created_by FROM team_invitation WHERE team = ? AND id = ?"
 
 lookupInvitationByCode :: MonadClient m => InvitationCode -> m (Maybe Invitation)
@@ -109,10 +109,10 @@ lookupInvitations team start (fromRange -> size) = do
     toResult more invs = cassandraResultPage $ emptyPage { result  = invs
                                                          , hasMore = more
                                                          }
-    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, InvitationId, Email, UTCTime, Maybe UserId)
+    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, InvitationId, Email, UTCTimeMillis, Maybe UserId)
     cqlSelect = "SELECT team, id, email, created_at, created_by FROM team_invitation WHERE team = ? ORDER BY id ASC"
 
-    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, InvitationId, Email, UTCTime, Maybe UserId)
+    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, InvitationId, Email, UTCTimeMillis, Maybe UserId)
     cqlSelectFrom = "SELECT team, id, email, created_at, created_by FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
 
 deleteInvitation :: MonadClient m => TeamId -> InvitationId -> m ()
@@ -160,7 +160,5 @@ countInvitations t = fromMaybe 0 . fmap runIdentity <$>
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity Int64)
     cqlSelect = "SELECT count(*) FROM team_invitation WHERE team = ?"
 
--- Helper
--- TODO: can't we just read UTCTimeMillis from cql?
-toInvitation :: (TeamId, InvitationId, Email, UTCTime, Maybe UserId) -> Invitation
-toInvitation (t, i, e, toUTCTimeMillis -> tm, minviter) = Invitation t i e tm minviter
+toInvitation :: (TeamId, InvitationId, Email, UTCTimeMillis, Maybe UserId) -> Invitation
+toInvitation (t, i, e, tm, minviter) = Invitation t i e tm minviter
