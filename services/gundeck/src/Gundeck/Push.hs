@@ -150,7 +150,7 @@ pushAny' p = do
     mkTarget r =
       target (r^.recipientId)
         & targetClients .~ case r^.recipientClients of
-            RecipientClientsAll -> []  -- TODO: a comment saying why it makes sense
+            RecipientClientsAll -> []
             RecipientClientsSome cs -> toList cs
 
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
@@ -168,7 +168,9 @@ pushAll pushes = do
             mkTarget r =
               target (r^.recipientId)
                 & targetClients .~ case r^.recipientClients of
-                    RecipientClientsAll -> []  -- TODO: a comment saying why it makes sens
+                    RecipientClientsAll -> []
+                      -- clients are stored in cassandra as a list with a notification.  empty list
+                      -- is intepreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.
                     RecipientClientsSome cs -> toList cs
 
     forM_ cassandraTargets $ \(psh, (notif, notifTrgt)) -> unless (psh ^. pushTransient) $

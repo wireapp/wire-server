@@ -471,7 +471,10 @@ handlePushCass Push{..}
 handlePushCass Push{..} = do
   forM_ (fromRange _pushRecipients) $ \(Recipient uid _ cids) -> do
     let cids' = case cids of
-          RecipientClientsAll -> []  -- TODO: a comment saying why it makes sense
+          RecipientClientsAll -> [ClientId mempty]
+              -- clients are stored in cassandra as a list with a notification.  empty list is
+              -- intepreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.  (here, we just
+              -- store a specific 'ClientId' that signifies "no client".)
           RecipientClientsSome cc -> toList cc
     forM_ cids' $ \cid ->
       msCassQueue %= deliver (uid, cid) _pushPayload
@@ -517,9 +520,11 @@ mockStreamAdd
   :: (HasCallStack, m ~ MockGundeck)
   => NotificationId -> List1 NotificationTarget -> Payload -> NotificationTTL -> m ()
 mockStreamAdd _ (toList -> targets) pay _ =
-  forM_ targets $ \tgt ->
-    forM_ (tgt ^. targetClients) $ \cid -> msCassQueue %=
-      deliver (tgt ^. targetUser, cid) pay
+  forM_ targets $ \tgt -> case (tgt ^. targetClients) of
+    clients@(_:_) -> forM_ clients $ \cid ->
+      msCassQueue %= deliver (tgt ^. targetUser, cid) pay
+    [] ->
+      msCassQueue %= deliver (tgt ^. targetUser, ClientId mempty) pay
 
 mockPushNative
   :: (HasCallStack, m ~ MockGundeck)
