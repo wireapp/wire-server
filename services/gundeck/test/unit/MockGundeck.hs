@@ -293,9 +293,32 @@ genPush env = do
   pload <- genPayload
   inclorigin <- arbitrary
   transient <- arbitrary
+
+  let connIdsByUser = fmap fakeConnId <$> Map.fromList (allRecipients env)
+      allConnIds = mconcat $ Map.elems connIdsByUser
+  onlyPushToConnections <- do
+    -- from the list of all recipient connections, sometimes add some here.
+    oneof [ pure mempty
+          , fmap Set.fromList $ QC.sublistOf allConnIds
+          ]
+  originConnection <- do
+    -- if one of the recipients is the sender, we may 'Just' pick one of the devices of that
+    -- recipient here, or 'Nothing'.
+    let genOriginConnId = case mconcat . fmap extract . toList . fromRange $ rcps of
+          []          -> pure Nothing
+          conns@(_:_) -> Just <$> QC.elements conns
+          where
+            extract (Recipient uid _ _) | uid /= sender         = []
+            extract (Recipient _ _ (RecipientClientsSome cids)) = fakeConnId <$> toList cids
+            extract (Recipient _ _ RecipientClientsAll)         = lookupAll
+              where lookupAll = fromMaybe [] $ Map.lookup sender connIdsByUser
+    oneof [ pure Nothing
+          , genOriginConnId
+          ]
+
   pure $ newPush sender rcps pload
-    -- TODO: & pushConnections .~ _
-    -- TODO: & pushOriginConnection .~ _
+    & pushConnections .~ onlyPushToConnections
+    & pushOriginConnection .~ originConnection
     & pushTransient .~ transient
     & pushNativeIncludeOrigin .~ inclorigin
     -- (not covered: pushNativeAps, pushNativePriority)
@@ -572,11 +595,7 @@ mockOldSimpleWebPush
   -> Maybe ConnId
   -> Set ConnId
   -> m [Presence]
-mockOldSimpleWebPush _ _ _ _ (Set.null -> False) =
-  error "connection whitelists are not implemented in this test."
-  -- (see 'genPush' above)
-
-mockOldSimpleWebPush notif tgts _senderid mconnid _ = do
+mockOldSimpleWebPush notif tgts _senderid mconnid connWhitelist = do
   env <- ask
   getstatus <- mkWSStatus
 
@@ -592,8 +611,12 @@ mockOldSimpleWebPush notif tgts _senderid mconnid _ = do
         . mconcat . fmap (\tgt ->
                             PushTarget (tgt ^. targetUser) . fakeConnId
                               <$> (tgt ^. targetClients))
-        . fmap emptyMeansFullHack
+          -- apply filters
+        . fmap (connWhitelistSieve . emptyMeansFullHack)
         $ toList tgts
+
+      connWhitelistSieve :: NotificationTarget -> NotificationTarget
+      connWhitelistSieve = targetClients %~ filter ((`elem` connWhitelist) . fakeConnId)
 
       emptyMeansFullHack :: NotificationTarget -> NotificationTarget
       emptyMeansFullHack tgt = tgt & targetClients %~ \case

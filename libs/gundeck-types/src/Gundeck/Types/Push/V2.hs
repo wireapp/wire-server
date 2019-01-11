@@ -237,7 +237,7 @@ data Push = Push
     , _pushOrigin :: !UserId
       -- ^ Originating user
       --
-      -- REFACTOR: is it possible that 'pushOrigin' has been refactored away in #531?
+      -- REFACTOR: where is this required, and for what?  or can it be removed?  (see also: #531)
     , _pushConnections :: !(Set ConnId)
       -- ^ Destination connections.  If empty, ignore.  Otherwise, filter the connections derived
       -- from '_pushRecipients' and only push to those contained in this set.
