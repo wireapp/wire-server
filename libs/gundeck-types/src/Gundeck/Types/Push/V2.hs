@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeApplications           #-}
 
 module Gundeck.Types.Push.V2
     ( Push (..)
@@ -21,6 +22,7 @@ module Gundeck.Types.Push.V2
     , singletonPayload
 
     , Recipient (..)
+    , RecipientClients (..)
     , recipient
     , recipientId
     , recipientRoute
@@ -95,11 +97,7 @@ instance ToJSON Route where
 data Recipient = Recipient
     { _recipientId        :: !UserId
     , _recipientRoute     :: !Route
-    , _recipientClients   :: ![ClientId]  -- ^ REFACTOR: if the client list is empty, that means
-                                          -- "all clients".  reshape this into @data
-                                          -- RecipientClients = RecipientClientsAll |
-                                          -- RecipientClientsSome (NonEmpty CientId)@ (without
-                                          -- changing the json representation).
+    , _recipientClients   :: !RecipientClients
     } deriving (Show)
 
 instance Eq Recipient where
@@ -108,23 +106,39 @@ instance Eq Recipient where
 instance Ord Recipient where
     compare r r' = compare (_recipientId r) (_recipientId r')
 
+data RecipientClients
+    = RecipientClientsAll                    -- ^ All clients of some user
+    | RecipientClientsSome (List1 ClientId)  -- ^ An explicit list of clients
+    deriving (Eq, Show)
+
 makeLenses ''Recipient
 
 recipient :: UserId -> Route -> Recipient
-recipient u r = Recipient u r []
+recipient u r = Recipient u r RecipientClientsAll
 
 instance FromJSON Recipient where
     parseJSON = withObject "Recipient" $ \p ->
       Recipient <$> p .:  "user_id"
                 <*> p .:  "route"
-                <*> p .:? "clients" .!= []
+                <*> p .:? "clients" .!= RecipientClientsAll
 
 instance ToJSON Recipient where
     toJSON (Recipient u r c) = object
         $ "user_id"   .= u
         # "route"     .= r
-        # "clients"   .= (if null c then Nothing else Just c)
+        # "clients"   .= c
         # []
+
+-- "All clients" is encoded in the API as an empty list.
+instance FromJSON RecipientClients where
+    parseJSON x = parseJSON @[ClientId] x >>= \case
+        [] -> pure RecipientClientsAll
+        c:cs -> pure (RecipientClientsSome (list1 c cs))
+
+instance ToJSON RecipientClients where
+    toJSON = toJSON . \case
+        RecipientClientsAll -> []
+        RecipientClientsSome cs -> toList cs
 
 -----------------------------------------------------------------------------
 -- ApsData

@@ -147,7 +147,11 @@ pushAny' p = do
             mpaPushNative notif p =<< nativeTargets p prs
   where
     mkTarget :: Recipient -> NotificationTarget
-    mkTarget r = target (r^.recipientId) & targetClients .~ r^.recipientClients
+    mkTarget r =
+      target (r^.recipientId)
+        & targetClients .~ case r^.recipientClients of
+            RecipientClientsAll -> []  -- TODO: a comment saying why it makes sense
+            RecipientClientsSome cs -> toList cs
 
 -- | Construct and send a single bulk push request to the client.  Write the 'Notification's from
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
@@ -158,11 +162,14 @@ pushAll pushes = do
 
     -- persist push request
     let cassandraTargets :: [(Push, (Notification, List1 NotificationTarget))]
-        cassandraTargets = (_2 . _2 %~ (mkNotificationTarget . fst <$>)) <$> targets
+        cassandraTargets = (_2 . _2 %~ (mkTarget . fst <$>)) <$> targets
           where
-            mkNotificationTarget :: Recipient -> NotificationTarget
-            mkNotificationTarget r = target (r ^. recipientId)
-                                   & targetClients .~ r ^. recipientClients
+            mkTarget :: Recipient -> NotificationTarget
+            mkTarget r =
+              target (r^.recipientId)
+                & targetClients .~ case r^.recipientClients of
+                    RecipientClientsAll -> []  -- TODO: a comment saying why it makes sens
+                    RecipientClientsSome cs -> toList cs
 
     forM_ cassandraTargets $ \(psh, (notif, notifTrgt)) -> unless (psh ^. pushTransient) $
         mpaStreamAdd (ntfId notif) notifTrgt (psh ^. pushPayload)
@@ -237,8 +244,8 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
     okByRecipientWhitelist :: Bool
     okByRecipientWhitelist =
         case (rcp ^. recipientClients, clientId pres) of
-            (cs@(_:_), Just c) -> c `elem` cs
-            _                  -> True
+            (RecipientClientsSome cs, Just c) -> c `elem` cs
+            _                                 -> True
 
 
 -- | Failures to push natively can be ignored.  Logging already happens in
@@ -278,8 +285,8 @@ nativeTargets p pres =
 
     equalClient a x = Just (a^.addrClient) == Presence.clientId x
 
-    eligibleClient _ [] = True
-    eligibleClient a cs = (a^.addrClient) `elem` cs
+    eligibleClient _ RecipientClientsAll = True
+    eligibleClient a (RecipientClientsSome cs) = (a^.addrClient) `elem` cs
 
     -- Apply transport preference in case of alternative transports for the
     -- same client (currently only APNS vs APNS VoIP). If no explicit

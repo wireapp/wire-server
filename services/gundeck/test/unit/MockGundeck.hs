@@ -251,7 +251,10 @@ genRecipient env = do
 genRecipient' :: HasCallStack => MockEnv -> UserId -> Gen Recipient
 genRecipient' env uid = do
   route <- genRoute
-  cids  <- sublistOf (clientIdsOfUser env uid)
+  cids  <- QC.frequency
+    [ (1, pure RecipientClientsAll)
+    , (3, RecipientClientsSome <$> sublist1Of (clientIdsOfUser env uid))
+    ]
   pure $ Recipient uid route cids
 
 -- REFACTOR: see 'Route' type about missing 'RouteNative'.
@@ -298,13 +301,16 @@ genPush env = do
     -- (not covered: pushNativeAps, pushNativePriority)
 
 -- | Shuffle devices.  With probability 0.5, drop at least one device, but not all.  If number of
--- devices is @<2@, the input is returned.
+-- devices is @<2@ or if devices are set to 'RecipientClientsAll', the input is returned.
 dropSomeDevices :: Recipient -> Gen Recipient
-dropSomeDevices (Recipient uid route cids) = do
-  numdevs :: Int <- oneof [ pure $ length cids
-                          , choose (1, length cids - 1)
-                          ]
-  Recipient uid route . take numdevs <$> QC.shuffle cids
+dropSomeDevices = recipientClients %%~ \case
+  RecipientClientsAll -> pure RecipientClientsAll
+  RecipientClientsSome cids -> do
+    numdevs :: Int <- oneof [ pure $ length cids
+                            , choose (1, max 1 (length cids - 1))
+                            ]
+    RecipientClientsSome . unsafeList1 . take numdevs <$>
+      QC.shuffle (toList cids)
 
 shrinkPushes :: HasCallStack => [Push] -> [[Push]]
 shrinkPushes = shrinkList shrinkPush
@@ -330,7 +336,7 @@ genNotif = Notification <$> genId <*> arbitrary <*> genPayload
 genNotifs :: MockEnv -> Gen [(Notification, [Presence])]
 genNotifs env = fmap uniqNotifs . listOf $ do
   notif <- genNotif
-  prcs <- nub . mconcat <$> listOf (fakePresences' <$> genRecipient env)
+  prcs <- nub . mconcat <$> listOf (fakePresences' env <$> genRecipient env)
   pure (notif, prcs)
   where
     uniqNotifs = nubBy ((==) `on` (ntfId . fst))
@@ -410,7 +416,9 @@ handlePushWS
 handlePushWS Push{..} = do
   env <- ask
   forM_ (fromRange _pushRecipients) $ \(Recipient uid _ cids) -> do
-    let cids' = if null cids then clientIdsOfUser env uid else cids
+    let cids' = case cids of
+          RecipientClientsAll -> clientIdsOfUser env uid
+          RecipientClientsSome cc -> toList cc
     forM_ cids' $ \cid -> do
       -- Condition 1: only devices with a working websocket connection will get the push.
       let isReachable = wsReachable env (uid, cid)
@@ -432,7 +440,9 @@ handlePushNative Push{..}
 handlePushNative Push{..} = do
   env <- ask
   forM_ (fromRange _pushRecipients) $ \(Recipient uid route cids) -> do
-    let cids' = if null cids then clientIdsOfUser env uid else cids
+    let cids' = case cids of
+          RecipientClientsAll -> clientIdsOfUser env uid
+          RecipientClientsSome cc -> toList cc
     forM_ cids' $ \cid -> do
       -- Condition 2: 'RouteDirect' pushes are not eligible for pushing via native transport.
       let isNative = route /= RouteDirect
@@ -460,8 +470,11 @@ handlePushCass Push{..}
   -- Condition 1: transient pushes are not put into Cassandra.
   | _pushTransient = pure ()
 handlePushCass Push{..} = do
-  forM_ (fromRange _pushRecipients) $ \(Recipient uid _ cids) ->
-    forM_ cids $ \cid ->
+  forM_ (fromRange _pushRecipients) $ \(Recipient uid _ cids) -> do
+    let cids' = case cids of
+          RecipientClientsAll -> []  -- TODO: a comment saying why it makes sense
+          RecipientClientsSome cc -> toList cc
+    forM_ cids' $ \cid ->
       msCassQueue %= deliver (uid, cid) _pushPayload
 
 mockMkNotificationId
@@ -603,6 +616,15 @@ instance Aeson.ToJSON a => Show (Pretty a) where
 shrinkPretty :: HasCallStack => (a -> [a]) -> Pretty a -> [Pretty a]
 shrinkPretty shrnk (Pretty xs) = Pretty <$> shrnk xs
 
+sublist1Of :: HasCallStack => [a] -> Gen (List1 a)
+sublist1Of [] = error "sublist1Of: empty list"
+sublist1Of xs = sublistOf xs >>= \case
+  [] -> sublist1Of xs
+  c:cc -> pure (list1 c cc)
+
+unsafeList1 :: HasCallStack => [a] -> List1 a
+unsafeList1 [] = error "unsafeList1: empty list"
+unsafeList1 (x:xs) = list1 x xs
 
 deliver :: (UserId, ClientId) -> Payload -> NotifQueue -> NotifQueue
 deliver qkey qval queue = Map.alter (Just . tweak) qkey queue
@@ -651,8 +673,11 @@ fakePresences :: (UserId, [ClientId]) -> [Presence]
 fakePresences (uid, cids) = fakePresence uid <$> cids
 
 -- | See also: 'fakePresence'.
-fakePresences' :: Recipient -> [Presence]
-fakePresences' (Recipient uid _ cids) = fakePresence uid <$> cids
+fakePresences' :: MockEnv -> Recipient -> [Presence]
+fakePresences' env (Recipient uid _ cids) =
+  fakePresence uid <$> case cids of
+    RecipientClientsAll -> clientIdsOfUser env uid
+    RecipientClientsSome cc -> toList cc
 
 -- | Currently, we only create 'Presence's from 'Push' requests, which contains 'ClientId's, but no
 -- 'ConnId's.  So in contrast to the production code where the two are generated independently, we
