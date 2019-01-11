@@ -66,6 +66,7 @@ import Galley.Types.Bot
 import Galley.Types.Clients (Clients)
 import Galley.Types.Teams hiding (EventType (..), EventData (..), Event)
 import Galley.Validation
+import Gundeck.Types.Push.V2 (RecipientClients(..))
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (_1, _2, setStatus, failure)
@@ -485,7 +486,7 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
           }
         conv = fromMaybe (selfConv $ memId m) cnv -- use recipient's client's self conversation on broadcast
         e = Event OtrMessageAdd conv usr now (Just $ EdOtrMessage o)
-        r = recipient m & recipientClients .~ [c]
+        r = recipient m & recipientClients .~ (RecipientClientsSome $ singleton c)
     in case newBotMember m of
         Just  b -> ((b,e):toBots, toUsers)
         Nothing ->
