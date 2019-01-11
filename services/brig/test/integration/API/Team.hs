@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeApplications  #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -22,6 +23,8 @@ import Control.Lens ((^.), view)
 import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
+import Data.Json.Util (toUTCTimeMillis)
+import Data.Time (getCurrentTime, addUTCTime)
 import Network.HTTP.Client             (Manager)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
@@ -141,6 +144,7 @@ testInvitationEmailAccepted brig galley = do
     inviteeEmail <- randomEmail
     let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
     inv <- decodeBody =<< postInvitation brig tid inviter invite
+    let invmeta = Just (inviter, inCreatedAt inv)
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rsp2 <- post (brig . path "/register"
                        . contentJson
@@ -153,7 +157,8 @@ testInvitationEmailAccepted brig galley = do
     login brig (defEmailLogin email2) PersistentCookie !!! const 200 === statusCode
     -- Verify that the user is part of the team
     mem <- getTeamMember invitee tid galley
-    liftIO $ assertBool "Member not part of the team" (invitee == mem ^. Team.userId)
+    liftIO $ assertEqual "Member not part of the team" invitee (mem ^. Team.userId)
+    liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
     conns <- listConnections invitee brig
     liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
 
@@ -329,29 +334,45 @@ testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
         const 403 === statusCode
         const (Just "too-many-team-members") === fmap Error.label . decodeBody
 
-testInvitationPaging :: Brig -> Galley -> Http ()
+testInvitationPaging :: HasCallStack => Brig -> Galley -> Http ()
 testInvitationPaging brig galley = do
-    (u, tid) <- createUserWithTeam brig galley
-    replicateM_ total $ do
+    before <- liftIO $ toUTCTimeMillis . addUTCTime (-1) <$> getCurrentTime
+    (uid, tid) <- createUserWithTeam brig galley
+
+    let total = 5
+        invite email = InvitationRequest email (Name "Bob") Nothing
+
+    emails <- replicateM total $ do
         email <- randomEmail
-        postInvitation brig tid u (invite email) !!! const 201 === statusCode
-    foldM_ (next u tid 2) (0, Nothing) [2,2,1,0]
-    foldM_ (next u tid total) (0, Nothing) [total,0]
-  where
-    total = 5
+        postInvitation brig tid uid (invite email) !!! const 201 === statusCode
+        pure email
+    after <- liftIO $ toUTCTimeMillis . addUTCTime 1 <$> getCurrentTime
 
-    next :: UserId -> TeamId -> Int -> (Int, Maybe InvitationId) -> Int -> Http (Int, Maybe InvitationId)
-    next u t step (count, start) n = do
-        let count' = count + step
-        let range = queryRange (toByteString' <$> start) (Just step)
-        r <- get (brig . paths ["teams", toByteString' t, "invitations"] . zUser u . range) <!!
-            const 200 === statusCode
-        let (invs, more) = (fmap ilInvitations &&& fmap ilHasMore) $ decodeBody r
-        liftIO $ assertEqual "page size" (Just n) (length <$> invs)
-        liftIO $ assertEqual "has more" (Just (count' < total)) more
-        return . (count',) $ invs >>= fmap inInvitation . listToMaybe . reverse
+    let next :: HasCallStack => Int -> (Int, Maybe InvitationId) -> Int -> Http (Int, Maybe InvitationId)
+        next step (count, start) actualPageLen = do
+            let count' = count + step
+            let range = queryRange (toByteString' <$> start) (Just step)
+            r <- get (brig . paths ["teams", toByteString' tid, "invitations"] . zUser uid . range) <!!
+                const 200 === statusCode
+            let (Just (invs, more)) = (ilInvitations &&& ilHasMore) <$> decodeBody r
+            liftIO $ assertEqual "page size" actualPageLen (length invs)
+            liftIO $ assertEqual "has more" (count' < total) more
+            liftIO $ validateInv `mapM_` invs
+            return (count', fmap inInvitation . listToMaybe . reverse $ invs)
 
-    invite email = InvitationRequest email (Name "Bob") Nothing
+        validateInv :: Invitation -> Assertion
+        validateInv inv = do
+            assertEqual "tid" tid (inTeam inv)
+            assertBool  "email" (inIdentity inv `elem` emails)
+                -- (the output list is not ordered chronologically and emails are unique, so we just
+                -- check whether the email is one of the valid ones.)
+            assertBool  "timestamp" (inCreatedAt inv > before && inCreatedAt inv < after)
+            assertEqual "uid" (Just uid) (inCreatedBy inv)
+            -- not checked: @inInvitation inv :: InvitationId@
+
+    foldM_ (next 2) (0, Nothing) [2,2,1,0]
+    foldM_ (next total) (0, Nothing) [total,0]
+    foldM_ (next (total + 1)) (0, Nothing) [total,0]
 
 testInvitationInfo :: Brig -> Galley -> Http ()
 testInvitationInfo brig galley = do

@@ -168,6 +168,7 @@ executable galley-schema
         V27
         V28
         V29
+        V30
 
     build-depends:
         base
