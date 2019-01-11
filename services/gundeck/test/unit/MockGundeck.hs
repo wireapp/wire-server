@@ -118,7 +118,7 @@ instance Show MockState where
 emptyMockState :: MockState
 emptyMockState = MockState mempty mempty mempty
 
--- (serializing test cases makes replay easier.)
+-- these custom instances make for better error reports if tests fail.
 instance ToJSON MockEnv where
   toJSON (MockEnv mp) = Aeson.object
     [ "clientInfos" Aeson..= mp ]
@@ -380,7 +380,7 @@ instance MonadPushAny MockGundeck where
 
 instance MonadBulkPush MockGundeck where
   mbpBulkSend = mockBulkSend
-  mbpDeleteAllPresences _ = pure ()  -- TODO: test presence deletion logic
+  mbpDeleteAllPresences _ = pure ()  -- FUTUREWORK: test presence deletion logic
   mbpPosixTime = pure $ Ms 1545045904275  -- (time is constant)
   mbpMapConcurrently = mapM  -- (no concurrency)
   mbpMonitorBadCannons _ = pure ()  -- (no monitoring)
@@ -429,8 +429,7 @@ handlePushWS Push{..} = do
   where
     origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)
 
--- | From a single 'Push', deliver only those notifications that real Gundeck would deliver via
--- native transport.
+-- | From a single 'Push', deliver eligible 'Notification's via native transport.
 handlePushNative
   :: (HasCallStack, m ~ MockGundeck)
   => Push -> m ()

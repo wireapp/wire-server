@@ -200,6 +200,14 @@ instance FromJSON ApsData where
 -- | REFACTOR: do we ever use LowPriority?  to test, (a) remove the constructor and see what goes
 -- wrong; (b) log use of 'LowPriority' by clients in production and watch it a few days.  if it is
 -- not used anywhere, consider removing the entire type, or just the unused constructor.
+--
+-- @neongreen writes: [...] nobody seems to ever set `native_priority` in the client code. Exhibits
+-- A1 and A2:
+--
+-- * <https://github.com/search?q=org%3Awireapp+native_priority&type=Code>
+-- * <https://sourcegraph.com/search?q=native_priority+repo:^github\.com/wireapp/+#1>
+--
+-- see also: 'Galley.Types.Proto.Priority'.
 data Priority = LowPriority | HighPriority
     deriving (Eq, Show, Ord, Enum)
 
