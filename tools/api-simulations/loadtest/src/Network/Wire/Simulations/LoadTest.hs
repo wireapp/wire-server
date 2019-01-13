@@ -5,7 +5,7 @@
 module Network.Wire.Simulations.LoadTest where
 
 import Imports hiding (log)
-import UnliftIO.Async as Async
+import UnliftIO.Async
 import Data.Id (ConvId)
 import Network.Wire.Bot
 import Network.Wire.Bot.Assert
@@ -57,8 +57,8 @@ runLoadTest s = replicateM (conversationsTotal s) mkConv
 
 runConv :: LoadTestSettings -> ([BotNet Bot], [BotNet Bot]) -> BotNet ()
 runConv s g = do
-    active  <- Async.pooledMapConcurrentlyN (parallelRequests s) id (fst g)
-    passive <- Async.pooledMapConcurrentlyN (parallelRequests s) id (snd g)
+    active  <- pooledMapConcurrentlyN (parallelRequests s) id (fst g)
+    passive <- pooledMapConcurrentlyN (parallelRequests s) id (snd g)
     let bots = active ++ passive
     -- Clear existing clients ----------
     log Info $ msg $ val "Clearing existing clients"
