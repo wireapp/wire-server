@@ -31,7 +31,7 @@ import Brig.Types.Common
 import Brig.Types.User
 import Brig.Types.Team.Invitation
 import Cassandra
-import UnliftIO.Async.Extended (mapMPooled)
+import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Data.Id
 import Data.Conduit ((.|), runConduit)
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
@@ -137,7 +137,7 @@ deleteInvitations :: (MonadClient m, MonadUnliftIO m) => TeamId -> m ()
 deleteInvitations t =
     liftClient $
     runConduit $ paginateC cqlSelect (paramsP Quorum (Identity t) 100) x1
-              .| C.mapM_ (void . mapMPooled 16 (deleteInvitation t . runIdentity))
+              .| C.mapM_ (pooledMapConcurrentlyN_ 16 (deleteInvitation t . runIdentity))
   where
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity InvitationId)
     cqlSelect = "SELECT id FROM team_invitation WHERE team = ? ORDER BY id ASC"

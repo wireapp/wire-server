@@ -88,7 +88,6 @@ library
       , http-types              >= 0.8
       , imports
       , lens                    >= 4.4
-      , lifted-async            >= 0.2
       , lifted-base             >= 0.2
       , metrics-wai             >= 0.4
       , monad-control           >= 1.0
@@ -226,7 +225,6 @@ executable galley-integration
       , imports
       , lens
       , lens-aeson
-      , lifted-async
       , mtl
       , network
       , optparse-applicative
@@ -275,7 +273,6 @@ executable galley-journaler
       , cassandra-util
       , lens
       , text
-      , lifted-async
       , mtl
       , galley-types
       , proto-lens

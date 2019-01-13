@@ -17,8 +17,8 @@ import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth
 import Brig.Types.Intra
 import Control.Arrow ((&&&))
-import UnliftIO.Async.Extended
-    (mapConcurrently_, replicateConcurrently, forPooled, replicatePooled)
+import UnliftIO.Async
+    (mapConcurrently_, replicateConcurrently, pooledForConcurrentlyN_)
 import Control.Lens ((^.), view)
 import Data.Aeson
 import Data.ByteString.Conversion
@@ -129,7 +129,7 @@ testInvitationTooManyPending brig galley (TeamSizeLimit limit) = do
     (inviter, tid) <- createUserWithTeam brig galley
     emails <- replicateConcurrently (fromIntegral limit) randomEmail
     let invite e = InvitationRequest e (Name "Bob") Nothing
-    void $ forPooled 16 emails $ \email ->
+    pooledForConcurrentlyN_ 16 emails $ \email ->
         postInvitation brig tid inviter (invite email)
     e <- randomEmail
     -- TODO: If this test takes longer to run than `team-invitation-timeout`, then some of the
@@ -321,7 +321,7 @@ testInvitationMutuallyExclusive brig = do
 testInvitationTooManyMembers :: Brig -> Galley -> TeamSizeLimit -> Http ()
 testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
     (creator, tid) <- createUserWithTeam brig galley
-    void $ replicatePooled 16 (fromIntegral limit - 1) $
+    pooledForConcurrentlyN_ 16 [1..limit-1] $ \_ ->
         createTeamMember brig galley creator tid Team.fullPermissions
 
     em <- randomEmail

@@ -23,7 +23,7 @@ import Brig.Data.Types as T
 import Brig.Types
 import Brig.Types.Intra
 import Cassandra
-import UnliftIO.Async.Extended (mapMPooled)
+import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Data.Conduit ((.|), runConduit)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
@@ -108,7 +108,7 @@ countConnections u r = do
 deleteConnections :: UserId -> AppIO ()
 deleteConnections u = do
     runConduit $ paginateC contactsSelect (paramsP Quorum (Identity u) 100) x1
-              .| C.mapM_ (void . mapMPooled 16 delete)
+              .| C.mapM_ (pooledMapConcurrentlyN_ 16 delete)
     retry x1 . write connectionClear $ params Quorum (Identity u)
   where
     delete (other, _status) = write connectionDelete $ params Quorum (other, u)

@@ -148,7 +148,6 @@ library
       , iproute                   >= 1.5
       , lens                      >= 3.8
       , lens-aeson                >= 1.0
-      , lifted-async              >= 0.9.3
       , lifted-base               >= 0.2
       , mime
       , mime-mail                 >= 0.4
@@ -397,7 +396,6 @@ executable brig-integration
       , imports
       , lens                  >= 3.9
       , lens-aeson            >= 1.0
-      , lifted-async          >= 0.9.3
       , mime                  >= 0.4
       , mtl                   >= 2.1
       , network
