@@ -10,7 +10,7 @@ import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.ZAuth (ZAuth, runZAuth)
-import UnliftIO.Async.Extended hiding (wait)
+import UnliftIO.Async hiding (wait)
 import Control.Lens ((^?), set)
 import Data.Aeson
 import Data.Aeson.Lens
@@ -219,7 +219,8 @@ testThrottleLogins conf b = do
     u <- randomUser b
     let Just e = userEmail u
     -- Login exactly that amount of times, as fast as possible
-    void $ replicatePooled 8 l (login b (defEmailLogin e) SessionCookie)
+    pooledForConcurrentlyN_ 8 [1..l] $ \_ ->
+        login b (defEmailLogin e) SessionCookie
     -- Login once more. This should fail!
     x <- login b (defEmailLogin e) SessionCookie <!!
         const 429 === statusCode

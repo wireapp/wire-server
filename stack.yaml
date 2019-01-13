@@ -73,13 +73,6 @@ packages:
     commit: 7e996a93fec5901767f845a50316b3c18e51a61d
   extra-dep: true
 
-# The version on Haskage (0.9.0.2) deadlocks so here we're using master.
-# See https://github.com/jwiegley/async-pool/issues/2
-- location:
-    git: https://github.com/jwiegley/async-pool
-    commit: 5678c13c4ec7d96a55622f7171f8e6a6bb3a3947
-  extra-dep: true
-
 # Our fork gives us access to some guts that the upstream 'http-client'
 # doesn't expose; see https://github.com/wireapp/wire-server/pull/373#issuecomment-400251467
 #
@@ -137,7 +130,6 @@ packages:
 
 extra-deps:
 - async-2.2.1
-- lifted-async-0.10.0.3
 - hinotify-0.4
 - fsnotify-0.3.0.1
 - base-prelude-1.3
@@ -155,6 +147,7 @@ extra-deps:
 # for hscim
 - network-uri-static-0.1.1.0
 - list-t-1.0.1  # 1.0.0.1 doesn't build
+- unliftio-0.2.10  # for pooled concurrency utils in UnliftIO.Async
 
 # the following are just not on Stackage (and most of these were present in
 # LTS-11 but got evicted in LTS-12)
