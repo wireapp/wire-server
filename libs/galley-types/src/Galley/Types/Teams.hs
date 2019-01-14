@@ -394,19 +394,19 @@ isTeamOwner :: TeamMember -> Bool
 isTeamOwner tm = fullPermissions == (tm^.permissions)
 
 permToInt :: Perm -> Word64
-permToInt CreateConversation       = 0x0001
-permToInt DeleteConversation       = 0x0002
-permToInt AddTeamMember            = 0x0004
-permToInt RemoveTeamMember         = 0x0008
-permToInt AddConversationMember    = 0x0010
-permToInt RemoveConversationMember = 0x0020
+permToInt CreateConversation         = 0x0001
+permToInt DeleteConversation         = 0x0002
+permToInt AddTeamMember              = 0x0004
+permToInt RemoveTeamMember           = 0x0008
+permToInt AddConversationMember      = 0x0010
+permToInt RemoveConversationMember   = 0x0020
 permToInt ModifyConversationMetadata = 0x0040
-permToInt CRUDBilling              = 0x0080
-permToInt SetTeamData              = 0x0100
-permToInt GetMemberPermissions     = 0x0200
-permToInt GetTeamConversations     = 0x0400
-permToInt DeleteTeam               = 0x0800
-permToInt SetMemberPermissions     = 0x1000
+permToInt CRUDBilling                = 0x0080
+permToInt SetTeamData                = 0x0100
+permToInt GetMemberPermissions       = 0x0200
+permToInt GetTeamConversations       = 0x0400
+permToInt DeleteTeam                 = 0x0800
+permToInt SetMemberPermissions       = 0x1000
 
 intToPerm :: Word64 -> Maybe Perm
 intToPerm 0x0001 = Just CreateConversation
