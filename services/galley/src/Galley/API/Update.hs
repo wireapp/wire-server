@@ -1,11 +1,13 @@
 {-# LANGUAGE ConstraintKinds   #-}
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Galley.API.Update
     ( -- * Managing Conversations
@@ -122,7 +124,7 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     ensureGroupConv conv
     -- Team conversations incur another round of checks
     case Data.convTeam conv of
-        Just tid -> checkTeamConv tid
+        Just tid -> checkTeamConv tid >> permissionCheckConv usr cnv ModifyConversationMetadata
         Nothing  -> when (targetRole == TeamAccessRole) $ throwM invalidTargetAccess
     -- When there is no update to be done, we return 204; otherwise we go
     -- with 'uncheckedUpdateConversationAccess', which will potentially kick
@@ -208,6 +210,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
 updateConversationReceiptMode :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON ::: JSON -> Galley Response
 updateConversationReceiptMode (usr ::: zcon ::: cnv ::: req ::: _ ::: _) = do
     ConversationReceiptModeUpdate target <- fromBody req invalidPayload
+    permissionCheckConv usr cnv ModifyConversationMetadata
     (bots, users) <- botsAndUsers <$> Data.members cnv
     current <- Data.lookupReceiptMode cnv
     if current == Just target
@@ -232,6 +235,7 @@ updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     ensureGroupConv conv
     traverse_ ensureTeamMember $ Data.convTeam conv -- only team members can change the timer
+    permissionCheckConv usr cnv ModifyConversationMetadata
     let currentTimer = Data.convMessageTimer conv
     if currentTimer == messageTimer then
         return $ empty & setStatus status204
@@ -499,6 +503,7 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
 updateConversation :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateConversation (zusr ::: zcon ::: cnv ::: req ::: _) = do
     body <- fromBody req invalidPayload
+    permissionCheckConv zusr cnv ModifyConversationMetadata
     alive <- Data.isConvAlive cnv
     unless alive $ do
         Data.deleteConversation cnv
