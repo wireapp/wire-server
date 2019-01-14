@@ -616,7 +616,9 @@ mockOldSimpleWebPush notif tgts _senderid mconnid connWhitelist = do
         $ toList tgts
 
       connWhitelistSieve :: NotificationTarget -> NotificationTarget
-      connWhitelistSieve = targetClients %~ filter ((`elem` connWhitelist) . fakeConnId)
+      connWhitelistSieve = if Set.null connWhitelist
+        then id
+        else targetClients %~ filter ((`elem` connWhitelist) . fakeConnId)
 
       emptyMeansFullHack :: NotificationTarget -> NotificationTarget
       emptyMeansFullHack tgt = tgt & targetClients %~ \case
