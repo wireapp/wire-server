@@ -47,7 +47,6 @@ import Data.List1
 import Data.Misc ((<$$>), Milliseconds(Ms))
 import Data.Range
 import Data.String.Conversions
-import Data.UUID ()
 import Gundeck.Aws.Arn as Aws
 import Gundeck.Options
 import Gundeck.Push
