@@ -1,3 +1,30 @@
+# 2019-01-10 #567
+
+## API changes
+
+  * `sigkeys` attribute on POST|PUT to `/clients` is now deprecated and ignored (clients can stop sending it)
+  * `cancel_callback` parameter on GET `/notifications` is now deprecated and ignored (clients can stop sending it)
+  * deprecated `POST /push/fallback/<notif>/cancel` is removed
+  * deprecated `tokenFallback` field returned on `GET /push/tokens` is removed
+
+## Bug fixes
+
+  * Size-restrict SSO subject identities (#557)
+  * Propagate team deletions to spar (#519)
+  * allow using $arg_name in nginz (#538)
+
+## Internal changes
+
+  * Version upgrades to GHC 8.4 (LTS-12), nginx 14.2, alpine 3.8 (#527, #540)
+  * Code refactoring, consitency with Imports.hs (#543, #553, #552)
+  * improved test coverage on spar (#539)
+  * Use yaml configuration in cannon (#555)
+
+## Others
+
+  * Docs and local dev/demo improvements
+
+
 # 2018-12-07 #542
 
 ## API changes

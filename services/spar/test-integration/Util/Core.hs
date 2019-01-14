@@ -247,7 +247,7 @@ createTeamMember brigreq galleyreq teamid perms = do
     <- postUser name False (Just ssoid) (Just teamid) brigreq
        <!! const 201 === statusCode
   let nobody :: UserId            = Brig.userId (decodeBody' @Brig.User resp)
-      tmem   :: Galley.TeamMember = Galley.newTeamMember nobody perms
+      tmem   :: Galley.TeamMember = Galley.newTeamMember nobody perms Nothing
   addTeamMember galleyreq teamid (Galley.newNewTeamMember tmem)
   pure nobody
 

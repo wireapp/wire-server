@@ -68,6 +68,7 @@ import Data.Json.Util ((#))
 import Data.List1 (List1, list1, singleton)
 import Data.List.Split (chunksOf)
 import Data.Range
+import Data.Json.Util (UTCTimeMillis)
 import Galley.Types (Connect (..), Conversation)
 import Gundeck.Types.Push.V2
 import Network.HTTP.Types.Method
@@ -530,8 +531,8 @@ rmClient u c = do
 -------------------------------------------------------------------------------
 -- Team Management
 
-addTeamMember :: UserId -> TeamId -> AppIO Bool
-addTeamMember u tid = do
+addTeamMember :: UserId -> TeamId -> Maybe (UserId, UTCTimeMillis) -> AppIO Bool
+addTeamMember u tid minvmeta = do
     debug $ remote "galley"
             . msg (val "Adding member to team")
     permissions <- maybe (throwM incorrectPermissions)
@@ -549,7 +550,7 @@ addTeamMember u tid = do
                          , Team.GetTeamConversations
                          , Team.GetMemberPermissions
                          ]
-    t prm = Team.newNewTeamMember $ Team.newTeamMember u prm
+    t prm = Team.newNewTeamMember $ Team.newTeamMember u prm minvmeta
     req p = paths ["i", "teams", toByteString' tid, "members"]
           . header "Content-Type" "application/json"
           . zUser u

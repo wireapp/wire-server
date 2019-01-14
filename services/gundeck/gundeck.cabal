@@ -76,7 +76,6 @@ library
         , http-types            >= 0.8
         , lens                  >= 4.4
         , lens-aeson            >= 1.0
-        , lifted-async          >= 0.2
         , lifted-base           >= 0.2
         , metrics-core          >= 0.2.1
         , metrics-wai           >= 0.5.7

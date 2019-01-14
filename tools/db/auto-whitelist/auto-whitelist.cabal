@@ -28,13 +28,13 @@ executable auto-whitelist
       , galley-types
       , imports
       , lens
-      , lifted-async
       , mtl
       , optparse-applicative
       , text
       , time
       , tinylog
       , types-common
+      , unliftio
       , uuid
 
     other-modules:
