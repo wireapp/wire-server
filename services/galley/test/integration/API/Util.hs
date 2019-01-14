@@ -148,6 +148,14 @@ createTeamConvAccessRaw g u tid us name acc role mtimer = do
           . json conv
           )
 
+updateTeamConv :: Galley -> UserId -> ConvId -> ConversationRename -> Http ResponseLBS
+updateTeamConv g zusr convid upd = do
+    put ( g
+         . paths ["/conversations", toByteString' convid]
+         . zUser zusr
+         . json upd
+         )
+
 createManagedConv :: HasCallStack => Galley -> UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> Http ConvId
 createManagedConv g u tid us name acc mtimer = do
     let tinfo = ConvTeamInfo tid True
