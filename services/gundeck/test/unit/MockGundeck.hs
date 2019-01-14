@@ -203,12 +203,26 @@ genMockEnv = do
 
   -- For every user, generate several clients (preferring less clients)
   cidss :: [[ClientId]]
-    <- let gencids = do
+    <- let gencids _uid = do
              len <- QC.frequency [ (4, QC.choose (1, 3))
                                  , (1, QC.choose (4, 8))
                                  ]
              vectorOf len genClientId
-       in forM uids . const $ nub <$> gencids
+
+           nubrec = upper mempty
+             where
+               upper _ [] = []
+               upper visited (ys:xs) = case lower visited ys of
+                 ([], visited')  ->       upper visited' xs  -- uids, cidss are not aligned!
+                 (ys', visited') -> ys' : upper visited' xs
+
+               lower visited [] = ([], visited)
+               lower visited (y:ys) = if y `elem` visited
+                 then lower visited ys
+                 else case lower (y `Set.insert` visited) ys of
+                        (ys', visited') -> (y : ys', visited')
+
+       in nubrec <$> forM uids gencids
 
   -- Build an 'MockEnv' containing a map with all those 'ClientInfo's, and
   -- check that it validates
