@@ -241,7 +241,7 @@ testAddTeamMemberInternal :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http (
 testAddTeamMemberInternal g b c a = do
     owner <- Util.randomUser b
     tid <- Util.createTeam g "foo" owner []
-    let p1 = Util.symmPermissions [GetBilling] -- permissions are irrelevant on internal endpoint
+    let p1 = Util.symmPermissions [CRUDBilling] -- permissions are irrelevant on internal endpoint
     mem1 <- newTeamMember' p1 <$> Util.randomUser b
 
     WS.bracketRN c [owner, mem1^.userId] $ \[wsOwner, wsMem1] -> do

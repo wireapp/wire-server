@@ -223,8 +223,8 @@ data Perm =
     | RemoveTeamMember
     | AddConversationMember
     | RemoveConversationMember
-    | GetBilling
-    | SetBilling
+    | ModifyConversationMetadata
+    | CRUDBilling
     | SetTeamData
     | GetMemberPermissions
     | SetMemberPermissions
@@ -400,8 +400,8 @@ permToInt AddTeamMember            = 0x0004
 permToInt RemoveTeamMember         = 0x0008
 permToInt AddConversationMember    = 0x0010
 permToInt RemoveConversationMember = 0x0020
-permToInt GetBilling               = 0x0040
-permToInt SetBilling               = 0x0080
+permToInt ModifyConversationMetadata = 0x0040
+permToInt CRUDBilling              = 0x0080
 permToInt SetTeamData              = 0x0100
 permToInt GetMemberPermissions     = 0x0200
 permToInt GetTeamConversations     = 0x0400
@@ -415,8 +415,8 @@ intToPerm 0x0004 = Just AddTeamMember
 intToPerm 0x0008 = Just RemoveTeamMember
 intToPerm 0x0010 = Just AddConversationMember
 intToPerm 0x0020 = Just RemoveConversationMember
-intToPerm 0x0040 = Just GetBilling
-intToPerm 0x0080 = Just SetBilling
+intToPerm 0x0040 = Just ModifyConversationMetadata
+intToPerm 0x0080 = Just CRUDBilling
 intToPerm 0x0100 = Just SetTeamData
 intToPerm 0x0200 = Just GetMemberPermissions
 intToPerm 0x0400 = Just GetTeamConversations
