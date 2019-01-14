@@ -29,6 +29,7 @@ See more in "[Open sourcing Wire server code](https://medium.com/@wireapp/open-s
         * [1. Compile sources natively.](#1-compile-sources-natively)
         * [2. Use docker](#2-use-docker)
     * [How to run integration tests](#how-to-run-integration-tests)
+    * [when you need more fine-grained control over your build-test loops](#when-you-need-more-fine-grained-control-over-your-build-test-loops)
 * [How to install and run `wire-server`](#how-to-install-and-run-wire-server)
 
 <!-- vim-markdown-toc -->
