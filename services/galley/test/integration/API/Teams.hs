@@ -502,7 +502,7 @@ testUpdateTeamConv roleIsMember g b _ _ = do
             ]
     Util.connectUsers b owner (list1 member [])
     tid <- Util.createTeam g "foo" owner [newTeamMember member perms Nothing]
-    cid <- Util.createManagedConv g owner tid [member] (Just "gossip") Nothing Nothing
+    cid <- Util.createTeamConv g owner tid [member] (Just "gossip") Nothing Nothing
     resp <- updateTeamConv g member cid (ConversationRename "not gossip")
     liftIO $ assertEqual "status" (if roleIsMember then 200 else 403) (statusCode resp)
 
