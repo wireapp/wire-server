@@ -485,14 +485,7 @@ handlePushNative Push{..} = do
       let isNative = route /= RouteDirect
       -- Condition 3: to get a native push, the device must be native-reachable but not
       -- websocket-reachable, as websockets take priority.
-      let isReachable = nativeReachable env (uid, cid) &&
-                        (not (wsReachable env (uid, cid)) || weirdlyTrue)
-            where
-              -- if a notification could reach the websocket, but is not whitelisted in
-              -- 'pushConnections', strangely it does get pushed natively.
-              -- TODO: make sure this is not a bug in the production code!
-              weirdlyTrue = not (Set.null _pushConnections) &&
-                            fakeConnId cid `notElem` _pushConnections
+      let isReachable = nativeReachable env (uid, cid) && not (wsReachable env (uid, cid))
       -- Condition 4: the originating *user* can receive a native push only if
       -- 'pushNativeIncludeOrigin' is true. Even so, the originating *device* should never
       -- receive a push.
