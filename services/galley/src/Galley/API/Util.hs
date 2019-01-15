@@ -85,8 +85,10 @@ permissionCheck u p t =
             pure m
         Nothing -> throwM noTeamMember
 
-permissionCheckConv :: UserId -> ConvId -> Perm -> Galley ()
-permissionCheckConv zusr cnv perm = Data.conversation cnv >>= \case
+-- | If the conversation is in a team, throw iff zusr is a team member and does not have named
+-- permission.  If the conversation is not in a team, do nothing (no error).
+permissionCheckTeamConv :: UserId -> ConvId -> Perm -> Galley ()
+permissionCheckTeamConv zusr cnv perm = Data.conversation cnv >>= \case
     Just cnv' -> case Data.convTeam cnv' of
         Just tid -> void $ permissionCheck zusr perm =<< Data.teamMembers tid
         Nothing -> pure ()
