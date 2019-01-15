@@ -16,6 +16,7 @@ import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion
 import Data.Default (Default(..))
 import Data.Hashable (Hashable)
+import Data.String.Conversions (cs)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder
@@ -170,27 +171,24 @@ newtype ClientId = ClientId
     { client :: Text
     } deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, ToJSON, ToJSONKey)
 
-instance FromByteString ClientId where
-    parser = do
-        x <- takeByteString
-        unless (B.length x <= 20 && B.all isHexDigit x) $
-            fail "Invalid client ID"
-        either fail (return . ClientId) (runParser parser x)
-
 newClientId :: Word64 -> ClientId
 newClientId = ClientId . toStrict . toLazyText . hexadecimal
 
+clientIdFromByteString :: Text -> Either String ClientId
+clientIdFromByteString txt = if T.length txt <= 20 && T.all isHexDigit txt
+   then Right $ ClientId txt
+   else Left "Invalid ClientId"
+
+instance FromByteString ClientId where
+    parser = do
+        bs <- takeByteString
+        either fail pure $ clientIdFromByteString (cs bs)
+
 instance FromJSON ClientId where
-    parseJSON = withText "ClientId" $ \x -> do
-        unless (T.length x <= 20 && T.all isHexDigit x) $
-            fail "Invalid ClientId"
-        return (ClientId x)
+    parseJSON = withText "ClientId" $ either fail pure . clientIdFromByteString
 
 instance FromJSONKey ClientId where
-    fromJSONKey = FromJSONKeyTextParser $ \x -> do
-        unless (T.length x <= 20 && T.all isHexDigit x) $
-            fail "Invalid ClientId"
-        return (ClientId x)
+    fromJSONKey = FromJSONKeyTextParser $ either fail pure . clientIdFromByteString
 
 #ifdef WITH_CQL
 deriving instance Cql ClientId
