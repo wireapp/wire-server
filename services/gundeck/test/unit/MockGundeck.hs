@@ -493,7 +493,9 @@ handlePushNative Push{..} = do
           isOriginDevice = origin == (uid, Just cid)
           isAllowedPerOriginRules =
             not isOriginUser || (_pushNativeIncludeOrigin && not isOriginDevice)
-      when (isNative && isReachable && isAllowedPerOriginRules) $
+      -- Condition 5: push to cid iff (a) listed in pushConnections or (b) pushConnections is empty.
+      let isWhitelisted = Set.null _pushConnections || fakeConnId cid `elem` _pushConnections
+      when (isNative && isReachable && isAllowedPerOriginRules && isWhitelisted) $
         msNativeQueue %= deliver (uid, cid) _pushPayload
   where
     origin = (_pushOrigin, clientIdFromConnId <$> _pushOriginConnection)

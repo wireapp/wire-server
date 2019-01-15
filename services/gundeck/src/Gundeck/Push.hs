@@ -279,6 +279,8 @@ nativeTargets p pres =
         | a^.addrUser == p^.pushOrigin && Just (a^.addrConn) == p^.pushOriginConnection = False
         -- Is the specific client an intended recipient?
         | not (eligibleClient a (u^.recipientClients)) = False
+        -- Is the client not whitelisted?
+        | not (whitelistedOrNoWhitelist a) = False
         -- Include client if not found in presences.
         | otherwise = isNothing (List.find (isOnline a) pres)
 
@@ -289,6 +291,9 @@ nativeTargets p pres =
 
     eligibleClient _ RecipientClientsAll = True
     eligibleClient a (RecipientClientsSome cs) = (a^.addrClient) `elem` cs
+
+    whitelistedOrNoWhitelist a = p^.pushConnections == mempty
+                              || a^.addrConn `elem` p^.pushConnections
 
     -- Apply transport preference in case of alternative transports for the
     -- same client (currently only APNS vs APNS VoIP). If no explicit
