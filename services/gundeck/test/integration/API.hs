@@ -135,7 +135,7 @@ removeUser g c _ s = do
     clt  <- randomClientId
     tok  <- randomToken clt gcmToken
     _    <- registerPushToken user tok g
-    _    <- sendPush g (buildPush user [(user, [])] (textPayload "data"))
+    _    <- sendPush g (buildPush user [(user, RecipientClientsAll)] (textPayload "data"))
     deleteUser g user
     ntfs <- listNotifications user Nothing g
     liftIO $ do
@@ -389,7 +389,8 @@ targetClientPush gu ca _ _ = do
   where
     pevent c = HashMap.fromList [ "foo" .= client c ]
     pload  c = List1.singleton (pevent c)
-    rcpt u c = recipient u RouteAny & recipientClients .~ [c]
+    rcpt u c = recipient u RouteAny
+                 & recipientClients .~ RecipientClientsSome (List1.singleton c)
     push u c = newPush u (unsafeRange (Set.singleton (rcpt u c))) (pload c)
 
 -----------------------------------------------------------------------------
@@ -405,7 +406,7 @@ testFetchAllNotifs :: TestSignature ()
 testFetchAllNotifs gu _ _ _ = do
     ally <- randomId
     let pload = textPayload "hello"
-    replicateM_ 10 (sendPush gu (buildPush ally [(ally, [])] pload))
+    replicateM_ 10 (sendPush gu (buildPush ally [(ally, RecipientClientsAll)] pload))
     ns <- listNotifications ally Nothing gu
     liftIO $ assertEqual "Unexpected notification count" 10 (length ns)
     liftIO $ assertEqual "Unexpected notification payloads"
@@ -416,7 +417,7 @@ testFetchNewNotifs :: TestSignature ()
 testFetchNewNotifs gu _ _ _ = do
     ally <- randomId
     let pload = textPayload "hello"
-    replicateM_ 4 (sendPush gu (buildPush ally [(ally, [])] pload))
+    replicateM_ 4 (sendPush gu (buildPush ally [(ally, RecipientClientsAll)] pload))
     ns <- map (view queuedNotificationId) <$> listNotifications ally Nothing gu
     get ( runGundeck gu
         . zUser ally
@@ -429,7 +430,7 @@ testFetchNewNotifs gu _ _ _ = do
 testNoNewNotifs :: TestSignature ()
 testNoNewNotifs gu _ _ _ = do
     ally <- randomId
-    sendPush gu (buildPush ally [(ally, [])] (textPayload "hello"))
+    sendPush gu (buildPush ally [(ally, RecipientClientsAll)] (textPayload "hello"))
     (n:_) <- map (view queuedNotificationId) <$> listNotifications ally Nothing gu
     get ( runGundeck gu
         . zUser ally
@@ -442,10 +443,10 @@ testNoNewNotifs gu _ _ _ = do
 testMissingNotifs :: TestSignature ()
 testMissingNotifs gu _ _ _ = do
     other   <- randomId
-    sendPush gu (buildPush other [(other, [])] (textPayload "hello"))
+    sendPush gu (buildPush other [(other, RecipientClientsAll)] (textPayload "hello"))
     (old:_) <- map (view queuedNotificationId) <$> listNotifications other Nothing gu
     ally    <- randomId
-    sendPush gu (buildPush ally [(ally, [])] (textPayload "hello"))
+    sendPush gu (buildPush ally [(ally, RecipientClientsAll)] (textPayload "hello"))
     ns <- listNotifications ally Nothing gu
     get ( runGundeck gu
         . zUser ally
@@ -457,8 +458,8 @@ testMissingNotifs gu _ _ _ = do
 testFetchLastNotif :: TestSignature ()
 testFetchLastNotif gu _ _ _ = do
     ally <- randomId
-    sendPush gu (buildPush ally [(ally, [])] (textPayload "first"))
-    sendPush gu (buildPush ally [(ally, [])] (textPayload "last"))
+    sendPush gu (buildPush ally [(ally, RecipientClientsAll)] (textPayload "first"))
+    sendPush gu (buildPush ally [(ally, RecipientClientsAll)] (textPayload "last"))
     [_, n] <- listNotifications ally Nothing gu
     get (runGundeck gu . zUser ally . paths ["notifications", "last"]) !!! do
         const 200 === statusCode
@@ -474,7 +475,7 @@ testNoLastNotif gu _ _ _ = do
 testFetchNotifBadSince :: TestSignature ()
 testFetchNotifBadSince gu _ _ _ = do
     ally <- randomId
-    sendPush gu (buildPush ally [(ally, [])] (textPayload "first"))
+    sendPush gu (buildPush ally [(ally, RecipientClientsAll)] (textPayload "first"))
     ns <- listNotifications ally Nothing gu
     get ( runGundeck gu
         . zUser ally
@@ -488,8 +489,10 @@ testFetchNotifById gu _ _ _ = do
     ally <- randomId
     c1 <- randomClientId
     c2 <- randomClientId
-    sendPush gu (buildPush ally [(ally, [c1])] (textPayload "first"))
-    sendPush gu (buildPush ally [(ally, [c2])] (textPayload "second"))
+    sendPush gu (buildPush ally [(ally, RecipientClientsSome (List1.singleton c1))]
+                           (textPayload "first"))
+    sendPush gu (buildPush ally [(ally, RecipientClientsSome (List1.singleton c2))]
+                           (textPayload "second"))
     [n1, n2] <- listNotifications ally Nothing gu
     forM_ [(n1, c1), (n2, c2)] $ \(n, c) ->
         let nid = toByteString' (view queuedNotificationId n)
@@ -510,7 +513,8 @@ testFilterNotifByClient gu _ _ _ = do
     clt3  <- randomClientId
 
     -- Add a notification for client 1
-    sendPush gu (buildPush alice [(alice, [clt1])] (textPayload "first"))
+    sendPush gu (buildPush alice [(alice, RecipientClientsSome (List1.singleton clt1))]
+                                 (textPayload "first"))
     [n] <- listNotifications alice (Just clt1) gu
 
     -- get all for the first client
@@ -527,7 +531,8 @@ testFilterNotifByClient gu _ _ _ = do
         const (Just [n]) === parseNotifications
 
     -- Add another notification for client 3
-    sendPush gu (buildPush alice [(alice, [clt3])] (textPayload "last"))
+    sendPush gu (buildPush alice [(alice, RecipientClientsSome (List1.singleton clt3))]
+                                 (textPayload "last"))
     [n'] <- listNotifications alice (Just clt3) gu
 
     -- get last for the first client
@@ -548,8 +553,9 @@ testFilterNotifByClient gu _ _ _ = do
         const (Just n') === parseNotification
 
     -- Add a lot of notifications for client 3
-    replicateM_ 101 $ sendPush gu (buildPush alice [(alice, [clt3])]
-                                  (textPayload "final"))
+    replicateM_ 101 $ sendPush gu
+        (buildPush alice [(alice, RecipientClientsSome (List1.singleton clt3))]
+                         (textPayload "final"))
     ns <- listNotifications alice (Just clt3) gu
     liftIO $ assertBool "notification count" (length ns == 102)
 
@@ -572,7 +578,7 @@ testNotificationPaging :: TestSignature ()
 testNotificationPaging gu _ _ _ = do
     -- Without client ID
     u1 <- randomId
-    replicateM_ 399 (insert u1 Nothing)
+    replicateM_ 399 (insert u1 RecipientClientsAll)
     paging u1 Nothing 399 399 [399, 0]
     paging u1 Nothing 399 100 [100, 100, 100, 99, 0]
     paging u1 Nothing 399 101 [101, 101, 101, 96, 0]
@@ -581,7 +587,9 @@ testNotificationPaging gu _ _ _ = do
     u2 <- randomId
     clients@[c1, c2, c3] <- replicateM 3 randomClientId
     let numClients = length clients
-    forM_ [0..999] (insert u2 . Just . (clients !!) . (`mod` numClients))
+    forM_ [0..999] $ \i -> do
+        let c = clients !! (i `mod` numClients)
+        insert u2 (RecipientClientsSome (List1.singleton c))
     -- View of client 1
     paging u2 (Just c1) 334 100 [100, 100, 100, 34, 0]
     paging u2 (Just c1) 334 334 [334, 0]
@@ -594,14 +602,14 @@ testNotificationPaging gu _ _ _ = do
 
     -- With overlapped pages and excess elements on the last page
     u3 <- randomId
-    replicateM_ 90 (insert u3 (Just c1))
-    replicateM_ 20 (insert u3 (Just c2))
-    replicateM_ 20 (insert u3 (Just c1))
+    replicateM_ 90 $ insert u3 (RecipientClientsSome (List1.singleton c1))
+    replicateM_ 20 $ insert u3 (RecipientClientsSome (List1.singleton c2))
+    replicateM_ 20 $ insert u3 (RecipientClientsSome (List1.singleton c1))
     paging u3 (Just c1) 110 100 [100, 10, 0]
     paging u3 (Just c1) 110 110 [110, 0]
     paging u3 (Just c2)  20 100 [20, 0]
   where
-    insert u c = sendPush gu (buildPush u [(u, maybeToList c)] (textPayload "data"))
+    insert u c = sendPush gu (buildPush u [(u, c)] (textPayload "data"))
 
     paging u c total step = foldM_ (next u c (total, step)) (0, Nothing)
 
@@ -929,7 +937,9 @@ sendPushes :: HasCallStack => Gundeck -> [Push] -> Http ()
 sendPushes gu push =
     post ( runGundeck gu . path "i/push/v2" . json push ) !!! const 200 === statusCode
 
-buildPush :: HasCallStack => UserId -> [(UserId, [ClientId])] -> List1 Object -> Push
+buildPush
+    :: HasCallStack
+    => UserId -> [(UserId, RecipientClients)] -> List1 Object -> Push
 buildPush sdr rcps pload =
     let rcps' = Set.fromList (map (uncurry rcpt) rcps)
     in newPush sdr (unsafeRange rcps') pload
