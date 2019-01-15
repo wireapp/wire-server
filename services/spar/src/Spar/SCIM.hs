@@ -248,10 +248,8 @@ updateValidSCIMUser tokinfo uidText newScimUser = do
         unless bindok . SCIM.throwSCIM $
           SCIM.serverError "The UserId to be updated was not found on brig"
 
-        updnameok <- maybe (pure True) (lift . Intra.Brig.updateUserName uid) $ newScimUser ^. vsuName
-        updhandleok <- lift . Intra.Brig.updateUserHandle uid $ newScimUser ^. vsuHandle
-        unless (updnameok && updhandleok) . SCIM.throwSCIM $
-          SCIM.serverError "The UserId to be updated was not found on brig"
+        maybe (pure ()) (lift . Intra.Brig.setName uid) $ newScimUser ^. vsuName
+        lift . Intra.Brig.setHandle uid $ newScimUser ^. vsuHandle
 
         -- store new user value to scim_user table (spar).  (this must happen last, so in case of
         -- crash the client can repeat the operation and it won't be considered a noop.)

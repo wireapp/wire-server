@@ -33,7 +33,6 @@ import Network.HTTP.Types.Method
 import Spar.Error
 import Web.Cookie
 
-import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import qualified SAML2.WebSSO as SAML
 
@@ -159,7 +158,22 @@ getUserByHandle handle = do
   parse (x:[]) = Just $ accountUser x
   parse _      = Nothing -- TODO: What if more accounts get returned?
 
--- | Set user's handle.
+-- | Set user's name.
+setName :: (HasCallStack, MonadSparToBrig m) => UserId -> Name -> m ()
+setName buid name = void $ call
+    $ method PUT
+    . path "/self"
+    . header "Z-User" (toByteString' buid)
+    . header "Z-Connection" ""
+    . expect2xx
+    . json UserUpdate
+               { uupName = Just name
+               , uupPict = Nothing
+               , uupAssets = Nothing
+               , uupAccentId = Nothing
+               }
+
+-- | Set user's name.
 setHandle :: (HasCallStack, MonadSparToBrig m) => UserId -> Handle -> m ()
 setHandle buid (Handle handle) = void $ call
     $ method PUT
@@ -177,25 +191,6 @@ bindUser uid (toUserSSOId -> ussoid) = do
     . paths ["/i/users", toByteString' uid, "sso-id"]
     . json ussoid
   pure $ Bilge.statusCode resp < 300
-
-updateUserName :: (HasCallStack, MonadSparToBrig m) => UserId -> Name -> m Bool
-updateUserName uid name = do
-  resp <- call $ method PUT
-    . path "/self"
-    . header "Z-User" (toByteString' uid)
-    . header "Z-Connection" ""
-    . json (Aeson.object ["name" Aeson..= name])
-  pure $ Bilge.statusCode resp < 300
-
-updateUserHandle :: (HasCallStack, MonadSparToBrig m) => UserId -> Handle -> m Bool
-updateUserHandle uid handle = do
-  resp <- call $ method PUT
-    . path "/self/handle"
-    . header "Z-User" (toByteString' uid)
-    . header "Z-Connection" ""
-    . json (Aeson.object ["handle" Aeson..= handle])
-  pure $ Bilge.statusCode resp < 300
-
 
 -- | Check that a user id exists on brig and has a team id.
 isTeamUser :: (HasCallStack, MonadSparToBrig m) => UserId -> m Bool
