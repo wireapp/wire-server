@@ -153,6 +153,8 @@ updateTeamConv g zusr convid upd = do
     put ( g
          . paths ["/conversations", toByteString' convid]
          . zUser zusr
+         . zConn "conn"
+         . zType "access"
          . json upd
          )
 
