@@ -170,7 +170,7 @@ pushAll pushes = do
                 & targetClients .~ case r^.recipientClients of
                     RecipientClientsAll -> []
                       -- clients are stored in cassandra as a list with a notification.  empty list
-                      -- is intepreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.
+                      -- is interpreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.
                     RecipientClientsSome cs -> toList cs
 
     forM_ cassandraTargets $ \(psh, (notif, notifTrgt)) -> unless (psh ^. pushTransient) $
@@ -292,7 +292,7 @@ nativeTargets p pres =
     eligibleClient _ RecipientClientsAll = True
     eligibleClient a (RecipientClientsSome cs) = (a^.addrClient) `elem` cs
 
-    whitelistedOrNoWhitelist a = p^.pushConnections == mempty
+    whitelistedOrNoWhitelist a = null (p^.pushConnections)
                               || a^.addrConn `elem` p^.pushConnections
 
     -- Apply transport preference in case of alternative transports for the

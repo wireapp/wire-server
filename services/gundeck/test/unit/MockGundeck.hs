@@ -461,7 +461,7 @@ handlePushWS Push{..} = do
       -- Condition 2: we never deliver pushes to the originating device.
       let isOriginDevice = origin == (uid, Just cid)
       -- Condition 3: push to cid iff (a) listed in pushConnections or (b) pushConnections is empty.
-      let isWhitelisted = Set.null _pushConnections || fakeConnId cid `elem` _pushConnections
+      let isWhitelisted = null _pushConnections || fakeConnId cid `elem` _pushConnections
       when (isReachable && not isOriginDevice && isWhitelisted) $
         msWSQueue %= deliver (uid, cid) _pushPayload
   where
@@ -494,7 +494,7 @@ handlePushNative Push{..} = do
           isAllowedPerOriginRules =
             not isOriginUser || (_pushNativeIncludeOrigin && not isOriginDevice)
       -- Condition 5: push to cid iff (a) listed in pushConnections or (b) pushConnections is empty.
-      let isWhitelisted = Set.null _pushConnections || fakeConnId cid `elem` _pushConnections
+      let isWhitelisted = null _pushConnections || fakeConnId cid `elem` _pushConnections
       when (isNative && isReachable && isAllowedPerOriginRules && isWhitelisted) $
         msNativeQueue %= deliver (uid, cid) _pushPayload
   where
@@ -633,7 +633,7 @@ mockOldSimpleWebPush notif tgts _senderid mconnid connWhitelist = do
         $ toList tgts
 
       connWhitelistSieve :: NotificationTarget -> NotificationTarget
-      connWhitelistSieve = if Set.null connWhitelist
+      connWhitelistSieve = if null connWhitelist
         then id
         else targetClients %~ filter ((`elem` connWhitelist) . fakeConnId)
 
