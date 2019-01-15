@@ -231,9 +231,8 @@ data Push = Push
       -- REFACTOR: '_pushRecipients' should be @Set (Recipient, Maybe (NonEmptySet ConnId))@, and
       -- '_pushConnections' should go away.  Rationale: the current setup only works under the
       -- assumption that no 'ConnId' is used by two 'Recipient's.  This is *probably* correct, but
-      -- not in any contract.  Coincidentally, where are we using '_pushConnections' to limit pushes
-      -- to individual devices?  Is it possible we can remove '_pushConnections' without touching
-      -- '_pushRecipients'?
+      -- not in any contract.  (Changing this may require a new version module, since we need to
+      -- support both the old and the new data type simultaneously during upgrade.)
     , _pushOrigin :: !UserId
       -- ^ Originating user
       --
