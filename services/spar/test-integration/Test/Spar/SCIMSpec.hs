@@ -51,7 +51,7 @@ specUsers = describe "operations with users" $ do
                 . path "/self"
                 . expect2xx
                 )
-            scimStoredUser `userShouldMatch` brigUser
+            brigUser `userShouldMatch` scimStoredUser
 
         it "gives created user a valid 'SAML.UserRef' for SSO." $ do
             pending
@@ -193,7 +193,7 @@ specUsers = describe "operations with users" $ do
                 !!! const 200 === statusCode
             validSCIMUser <- either (error . show) pure $ validateSCIMUser' (Just idp) user'
             brigUser      <- maybe (error "no brig user") pure =<< getSelf userid
-            userShouldMatch validSCIMUser brigUser
+            brigUser `userShouldMatch` validSCIMUser
 
         context "scim_user has no entry with this id" $ do
             it "fails" $ do

@@ -337,42 +337,63 @@ scimUserId storedUser = either err id (readEither id_)
     err e = error $ "scimUserId: couldn't parse ID " ++ id_ ++ ": " ++ e
 
 -- | There are a number of user types that all partially map on each other.  This class provides a
--- uniform interface to express those mappings.
-class UserShouldMatch u1 u2 where
-  userShouldMatch
-    :: forall m. (HasCallStack, MonadIO m)
-    => u1 -> u2 -> m ()
+-- uniform interface to data stored in those types.
+class IsUser u where
+  maybeUserId :: u -> Maybe UserId
+  maybeHandle :: u -> Maybe (Maybe Handle)
+  maybeName :: u -> Maybe (Maybe Name)
+  maybeTenant :: u -> Maybe (Maybe SAML.Issuer)
+  maybeSubject :: u -> Maybe (Maybe SAML.NameID)
 
 -- | 'ValidSCIMUser' is tested in SCIMSpec.hs exhaustively with literal inputs, so here we assume it
--- is correct.
-instance UserShouldMatch ValidSCIMUser User where
-  userShouldMatch validSCIMUser brigUser = liftIO $ do
-    userShouldMatch (validSCIMUser ^. vsuUser) brigUser
-    (validSCIMUser ^. vsuSAMLUserRef) `shouldBe` urefFromBrig brigUser
-    Just (validSCIMUser ^. vsuHandle) `shouldBe` userHandle brigUser
-    (validSCIMUser ^. vsuName) `shouldBe` Just (userName brigUser)  -- TODO: why is vsuName Maybe again?
+-- is correct and don't aim to verify that name, handle, etc correspond to ones in 'vsuUser'.
+instance IsUser ValidSCIMUser where
+    maybeUserId = const Nothing
+    maybeHandle = Just . Just . view vsuHandle
+    maybeName = Just . view vsuName
+    maybeTenant = Just . Just . view (vsuSAMLUserRef . SAML.uidTenant)
+    maybeSubject = Just . Just . view (vsuSAMLUserRef . SAML.uidSubject)
 
-instance UserShouldMatch SCIM.StoredUser User where
-  userShouldMatch scimStoredUser brigUser = liftIO $ do
-    let scimUser = SCIM.value (SCIM.thing scimStoredUser)
-    scimUserId scimStoredUser `shouldBe`
-        userId brigUser
-    userShouldMatch scimUser brigUser
+instance IsUser SCIM.StoredUser where
+    maybeUserId = Just . scimUserId
+    maybeHandle = maybeHandle . SCIM.value . SCIM.thing
+    maybeName = maybeName . SCIM.value . SCIM.thing
+    maybeTenant = maybeTenant . SCIM.value . SCIM.thing
+    maybeSubject = maybeSubject . SCIM.value . SCIM.thing
 
-instance UserShouldMatch SCIM.User.User User where
-  userShouldMatch scimUser brigUser = liftIO $ do
-    Just (Handle (SCIM.User.userName scimUser)) `shouldBe`
-        userHandle brigUser
-    fmap Name (SCIM.User.displayName scimUser) `shouldBe`
-        Just (userName brigUser)
+instance IsUser SCIM.User.User where
+    maybeUserId = const Nothing
+    maybeHandle = Just . Just . Handle . SCIM.User.userName
+    maybeName = Just . fmap Name . SCIM.User.displayName
+    maybeTenant = const Nothing
+    maybeSubject = Just . fmap SAML.opaqueNameID . SCIM.User.externalId
 
-    let -- only test the SubjectID; the 'SCIM.StoredUser' does not contain the 'IdP':
-        subjIdFromSCIM = SAML.opaqueNameID <$> SCIM.User.externalId scimUser
-    case (urefFromBrig brigUser, subjIdFromSCIM) of
-        (SAML.UserRef _ subj, Just subj') -> subj `shouldBe` subj'
-        bad -> error $ "UserRef mismatch: " <> show bad
+instance IsUser User where
+    maybeUserId = Just . userId
+    maybeHandle = Just . userHandle
+    maybeName = Just . Just . userName
+    maybeTenant = Just . fmap (view SAML.uidTenant) . urefFromBrig
+    maybeSubject = Just . fmap (view SAML.uidSubject) . urefFromBrig
 
-urefFromBrig :: User -> SAML.UserRef
+-- | For all properties that are present in both @u1@ and @u2@, check that they match.
+userShouldMatch
+    :: (HasCallStack, MonadIO m, IsUser u1, IsUser u2)
+    => u1 -> u2 -> m ()
+userShouldMatch u1 u2 = liftIO $ do
+    check "userId" (maybeUserId u1) (maybeUserId u2)
+    check "handle" (maybeHandle u1) (maybeHandle u2)
+    check "name" (maybeName u1) (maybeName u2)
+    check "tenant" (maybeTenant u1) (maybeTenant u2)
+    check "subject" (maybeSubject u1) (maybeSubject u2)
+  where
+    check field (Just a) (Just b) = (field :: String, a) `shouldBe` (field, b)
+    check _ _ _ = pure ()
+
+urefFromBrig :: User -> Maybe SAML.UserRef
 urefFromBrig brigUser = case userIdentity brigUser of
-    Just (SSOIdentity (Intra.fromUserSSOId -> Right uref) _ _) -> uref
-    bad -> error $ "No UserRef from brig: " <> show bad
+    Just (SSOIdentity ssoid _ _) -> case Intra.fromUserSSOId ssoid of
+        Right uref -> Just uref
+        Left e     -> error $
+            "urefFromBrig: bad SSO id: " <>
+            "UserSSOId = " <> show ssoid <> ", error = " <> e
+    _ -> Nothing
