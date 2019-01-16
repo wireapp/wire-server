@@ -292,7 +292,8 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
 
     -- inform members of the team about the change
     -- some (privileged) users will be informed about which change was applied
-    let privilege = flip hasPermission GetMemberPermissions
+    let privilege mem = hasPermission mem GetMemberPermissions ||
+                        (mem ^. userId) == targetId
         privileged = filter privilege updatedMembers
         mkUpdate               = EdMemberUpdate targetId
         privilegedUpdate       = mkUpdate $ Just targetPermissions
