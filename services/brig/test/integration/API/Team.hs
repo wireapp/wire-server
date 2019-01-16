@@ -53,6 +53,7 @@ tests conf m b c g aws = do
             [ test m "post /teams/:tid/invitations - 201"                  $ testInvitationEmail b g
             , test m "post /teams/:tid/invitations - 403 no permission"    $ testInvitationNoPermission b g
             , test m "post /teams/:tid/invitations - 403 too many pending" $ testInvitationTooManyPending b g tl
+            , test m "post /teams/:tid/invitations - roles"                $ testInvitationRoles b g
             , test' aws m "post /register - 201 accepted"                  $ testInvitationEmailAccepted b g
             , test' aws m "post /register user & team - 201 accepted"      $ testCreateTeam b g aws
             , test' aws m "post /register user & team - 201 preverified"   $ testCreateTeamPreverified b g aws
@@ -137,6 +138,45 @@ testInvitationTooManyPending brig galley (TeamSizeLimit limit) = do
     postInvitation brig tid inviter (invite e) !!! do
         const 403 === statusCode
         const (Just "too-many-team-invitations") === fmap Error.label . decodeBody
+
+-- | Admins can invite collaborators, but not owners.
+testInvitationRoles :: HasCallStack => Brig -> Galley -> Http ()
+testInvitationRoles brig galley = do
+    (owner, tid) <- createUserWithTeam brig galley
+
+    let registerInvite :: Invitation -> Email -> Http UserId
+        registerInvite inv invemail = do
+            Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+            rsp <- post (brig . path "/register"
+                               . contentJson
+                               . body (accept invemail inviteeCode))
+                          <!! const 201 === statusCode
+            let Just invitee = userId <$> decodeBody rsp
+            pure invitee
+
+    alice <- do
+        aliceEmail <- randomEmail
+        let invite = InvitationRequest aliceEmail (Name "Alice") Nothing (Just Team.RoleAdmin)
+        inv <- decodeBody =<< postInvitation brig tid owner invite
+        registerInvite inv aliceEmail
+
+    do
+        bobEmail <- randomEmail
+        let invite = InvitationRequest bobEmail (Name "Bob") Nothing (Just Team.RoleCollaborator)
+        inv :: Invitation <- decodeBody =<< (postInvitation brig tid alice invite <!! do
+            const 201 === statusCode)
+        uid <- registerInvite inv bobEmail
+        let memreq = galley . zUser owner . zConn "c" .
+              paths ["teams", toByteString' tid, "members", toByteString' uid]
+        mem :: Team.TeamMember <- decodeBody =<< (get memreq <!! const 200 === statusCode)
+        liftIO $ assertEqual "perms" (Team.rolePermissions Team.RoleCollaborator) (mem ^. Team.permissions)
+
+    do
+        charlyEmail <- randomEmail
+        let invite = InvitationRequest charlyEmail (Name "Charly") Nothing (Just Team.RoleOwner)
+        postInvitation brig tid alice invite !!! do
+            const 403 === statusCode
+            const (Just "insufficient-permissions") === fmap Error.label . decodeBody
 
 testInvitationEmailAccepted :: Brig -> Galley -> Http ()
 testInvitationEmailAccepted brig galley = do
