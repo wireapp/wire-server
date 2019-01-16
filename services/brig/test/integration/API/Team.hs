@@ -47,7 +47,7 @@ newtype TeamSizeLimit = TeamSizeLimit Word16
 tests :: Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> AWS.Env -> IO TestTree
 tests conf m b c g aws = do
     tl <- optOrEnv (TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings) conf (TeamSizeLimit . read) "TEAM_MAX_SIZE"
-    it <- optOrEnv (Opt.setTeamInvitationTimeout . Opt.optSettings)              conf read                   "TEAM_INVITATION_TIMEOUT"
+    it <- optOrEnv (Opt.setTeamInvitationTimeout . Opt.optSettings) conf read "TEAM_INVITATION_TIMEOUT"
     return $ testGroup "team"
         [ testGroup "invitation"
             [ test m "post /teams/:tid/invitations - 201"                  $ testInvitationEmail b g
@@ -72,7 +72,7 @@ tests conf m b c g aws = do
             , test m "post /connections - 403 (same binding team)"         $ testConnectionSameTeam b g
             ]
         , testGroup "search"
-            [ test m "post /register members are unsearchable"           $ testNonSearchableDefault b g
+            [ test m "post /register members are unsearchable" $ testNonSearchableDefault b g
             ]
         , testGroup "sso"
             [ test m "post /i/users  - 201 internal-SSO" $ testCreateUserInternalSSO b g

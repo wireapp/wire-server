@@ -19,7 +19,7 @@ data Invitation = Invitation
     , inInvitation :: !InvitationId
     , inIdentity   :: !Email
     , inCreatedAt  :: !UTCTimeMillis
-    , inCreatedBy  :: !(Maybe UserId)  -- ^ this is always 'Just' for new invitationse, but for
+    , inCreatedBy  :: !(Maybe UserId)  -- ^ this is always 'Just' for new invitations, but for
                                        -- migration it is allowed to be 'Nothing'.
     } deriving (Eq, Show)
 

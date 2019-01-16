@@ -1,8 +1,9 @@
-{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators     #-}
 
 module Brig.Team.API where
@@ -162,7 +163,7 @@ getInvitationCode (_ ::: t ::: r) = do
 
 createInvitation :: JSON ::: UserId ::: TeamId ::: Request -> Handler Response
 createInvitation (_ ::: uid ::: tid ::: req) = do
-    body <- parseJsonBody req
+    body :: InvitationRequest <- parseJsonBody req
     idt  <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail)    return (emailIdentity idt)
     ensurePermissions uid tid [Team.AddTeamMember]
