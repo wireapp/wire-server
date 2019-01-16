@@ -89,20 +89,24 @@ i-%:
 
 .PHONY: docker-deps
 docker-deps:
+	# `docker-deps` needs to be built or pulled only once (unless native dependencies change)
 	$(MAKE) -C build/alpine deps
 
 .PHONY: docker-builder
 docker-builder:
+	# `docker-builder` needs to be built or pulled only once (unless native dependencies change)
 	$(MAKE) -C build/alpine builder
 
 .PHONY: docker-intermediate
 docker-intermediate:
+	# `docker-intermediate` needs to be built whenever code changes - this essentially runs `stack clean && stack install` on the whole repo
 	docker build -t $(DOCKER_USER)/alpine-intermediate:$(DOCKER_TAG) -f build/alpine/Dockerfile.intermediate --build-arg intermediate=$(DOCKER_USER)/alpine-intermediate --build-arg deps=$(DOCKER_USER)/alpine-deps .;
 	docker tag $(DOCKER_USER)/alpine-intermediate:$(DOCKER_TAG) $(DOCKER_USER)/alpine-intermediate:latest;
 	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/alpine-intermediate:$(DOCKER_TAG); docker push $(DOCKER_USER)/alpine-intermediate:latest; fi;
 
 .PHONY: docker-migrations
 docker-migrations:
+	# `docker-migrations` needs to be built whenever docker-intermediate was rebuilt AND new schema migrations were added.
 	docker build -t $(DOCKER_USER)/migrations:$(DOCKER_TAG) -f build/alpine/Dockerfile.migrations --build-arg intermediate=$(DOCKER_USER)/alpine-intermediate --build-arg deps=$(DOCKER_USER)/alpine-deps .
 	docker tag $(DOCKER_USER)/migrations:$(DOCKER_TAG) $(DOCKER_USER)/migrations:latest
 	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/migrations:$(DOCKER_TAG); docker push $(DOCKER_USER)/migrations:latest; fi;
@@ -117,6 +121,8 @@ docker-exe-%:
 
 .PHONY: docker-services
 docker-services:
+	# make docker-services doesn't compile, only makes small images out of the `docker-intermediate` image
+	# to recompile, run `docker-intermediate` first.
 	docker image ls | grep $(DOCKER_USER)/alpine-deps > /dev/null || (echo "'make docker-deps' required.", exit 1)
 	docker image ls | grep $(DOCKER_USER)/alpine-intermediate > /dev/null || (echo "'make docker-intermediate' required."; exit 1)
 	$(MAKE) -C services/brig docker

@@ -110,7 +110,12 @@ For building nginz, see [services/nginz/README.md](services/nginz/README.md)
 If you wish to build your own docker images, you need [docker version >= 17.05](https://www.docker.com/) and [`make`](https://www.gnu.org/software/make/). Then,
 
 ```bash
-make docker-services
+# optionally:
+# make docker-builder # if you don't run this, it pulls the alpine-builder image from quay.io
+make docker-deps docker-intermediate docker-services
+
+# subsequent times, after changing code, if you wish to re-create docker images, it's sufficient to
+make docker-intermediate docker-services
 ```
 
 will, eventually, have built a range of docker images. Make sure to [give Docker enough RAM](https://github.com/wireapp/wire-server/issues/562); if you see `make: *** [builder] Error 137`, it might be a sign that the build ran out of memory. You can also mix and match – e.g. pull the [`alpine-builder`](https://quay.io/repository/wire/alpine-builder?tab=tags) image and build the rest locally.
