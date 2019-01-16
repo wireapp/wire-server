@@ -754,8 +754,8 @@ testUpdateTeamMember g b c a = do
             ) !!! const 200 === statusCode
         owner' <- Util.getTeamMember g (member^.userId) tid owner
         liftIO $ assertEqual "permissions" (owner'^.permissions) (changeOwner^.ntmNewTeamMember.permissions)
-        -- owner no longer has GetPermissions so can't see actual update
-        checkTeamMemberUpdateEvent tid owner wsOwner Nothing
+        -- owner no longer has GetPermissions, but she can still see the update because it's about her!
+        checkTeamMemberUpdateEvent tid owner wsOwner (pure p)
         checkTeamMemberUpdateEvent tid owner wsMember (pure p)
         WS.assertNoEvent timeout [wsOwner, wsMember]
     assertQueueEmpty a
