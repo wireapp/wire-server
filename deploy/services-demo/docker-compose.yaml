@@ -23,10 +23,6 @@ services:
       - AWS_REGION=eu-west-1
       - AWS_ACCESS_KEY_ID=dummy
       - AWS_SECRET_ACCESS_KEY=dummy
-#noalias    links:
-#noalias      - cargohold:cargohold
-#noalias      - galley:galley
-#noalias      - gundeck:gundeck
     external_links:
       - demo_wire_cassandra:cassandra
       - demo_wire_elasticsearch:elasticsearch
@@ -51,10 +47,6 @@ services:
       - AWS_REGION=eu-west-1
       - AWS_ACCESS_KEY_ID=dummy
       - AWS_SECRET_ACCESS_KEY=dummy
-#noalias    links:
-#noalias      - brig:brig
-#noalias      - gundeck:gundeck
-#noalias      - spar:spar
     external_links:
       - demo_wire_cassandra:cassandra
     networks:
@@ -93,8 +85,6 @@ services:
       - -c
       - /configs/conf/cannon.demo-docker.yaml
     working_dir: /configs
-#noalias    links:
-#noalias      - gundeck:gundeck
     networks:
       - docker-ephemeral_demo_wire
 
@@ -139,9 +129,6 @@ services:
       - -c
       - /configs/conf/spar.demo-docker.yaml
     working_dir: /configs
-#noalias    links:
-#noalias      - brig:brig
-#noalias      - galley:galley
     external_links:
       - demo_wire_cassandra:cassandra
     networks:
@@ -149,6 +136,14 @@ services:
 
   nginz:
     image: nginz
+    depends_on:
+      - cargohold
+      - gundeck
+      - cannon
+      - galley
+      - proxy
+      - brig
+      - spar
     ports:
       - 127.0.0.1:8080:8080
       - 127.0.0.1:8081:8081
@@ -161,13 +156,5 @@ services:
       - -c
       - /configs/conf/nginz/nginx-docker.conf
     working_dir: /configs
-#noalias    links:
-#noalias      - cargohold:cargohold
-#noalias      - gundeck:gundeck
-#noalias      - cannon:cannon
-#noalias      - galley:galley
-#noalias      - proxy:proxy
-#noalias      - brig:brig
-#noalias      - spar:spar
     networks:
       - docker-ephemeral_demo_wire
