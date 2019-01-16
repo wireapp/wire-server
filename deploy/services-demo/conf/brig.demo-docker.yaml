@@ -1,5 +1,5 @@
 brig:
-  host: 127.0.0.1
+  host: brig
   port: 8082
 
 cassandra:
@@ -27,7 +27,7 @@ gundeck:
 aws:
   prekeyTable: integration-brig-prekeys
   sqsEndpoint: http://sqs:4568 # https://sqs.eu-west-1.amazonaws.com
-  dynamoDBEndpoint: http://dynamodb:4567 # https://dynamodb.eu-west-1.amazonaws.com
+  dynamoDBEndpoint: http://dynamodb:8000 # https://dynamodb.eu-west-1.amazonaws.com
 
 internalEvents:
   queueType: sqs
@@ -37,7 +37,7 @@ emailSMS:
   email:
     smtpEndpoint:
       host: smtp
-      port: 2500
+      port: 25
     smtpConnType: plain
   general:
     templateDir: resources/templates
@@ -45,24 +45,24 @@ emailSMS:
     smsSender: "<insert-sender-number-here>"
 
   user:
-    activationUrl: http://127.0.0.1:8080/activate?key=${key}&code=${code}
-    smsActivationUrl: http://127.0.0.1:8080/v/${code}
-    passwordResetUrl: http://127.0.0.1:8080/password-reset/${key}?code=${code}
-    invitationUrl: http://127.0.0.1:8080/register?invitation_code=${code}
-    deletionUrl: http://127.0.0.1:8080/users/delete?key=${key}&code=${code}
+    activationUrl: http://brig:8080/activate?key=${key}&code=${code}
+    smsActivationUrl: http://brig:8080/v/${code}
+    passwordResetUrl: http://brig:8080/password-reset/${key}?code=${code}
+    invitationUrl: http://brig:8080/register?invitation_code=${code}
+    deletionUrl: http://brig:8080/users/delete?key=${key}&code=${code}
 
   provider:
     homeUrl: https://provider.localhost/
-    providerActivationUrl: http://127.0.0.1:8080/provider/activate?key=${key}&code=${code}
-    approvalUrl: http://127.0.0.1:8080/provider/approve?key=${key}&code=${code}
+    providerActivationUrl: http://brig:8080/provider/activate?key=${key}&code=${code}
+    approvalUrl: http://brig:8080/provider/approve?key=${key}&code=${code}
     approvalTo: success@simulator.amazonses.com
-    providerPwResetUrl: http://127.0.0.1:8080/provider/password-reset?key=${key}&code=${code}
+    providerPwResetUrl: http://brig:8080/provider/password-reset?key=${key}&code=${code}
 
   team:
-    tInvitationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
-    tActivationUrl: http://127.0.0.1:8080/register?team=${team}&team_code=${code}
-    tCreatorWelcomeUrl: http://127.0.0.1:8080/creator-welcome-website
-    tMemberWelcomeUrl: http://127.0.0.1:8080/member-welcome-website
+    tInvitationUrl: http://brig:8080/register?team=${team}&team_code=${code}
+    tActivationUrl: http://brig:8080/register?team=${team}&team_code=${code}
+    tCreatorWelcomeUrl: http://brig:8080/creator-welcome-website
+    tMemberWelcomeUrl: http://brig:8080/member-welcome-website
 
 zauth:
   privateKeys: resources/zauth/privkeys.txt
@@ -88,7 +88,7 @@ optSettings:
   setActivationTimeout: 1209600     # 1 day
   setTeamInvitationTimeout: 1814400 # 21 days
   setUserMaxConnections: 1000
-  setCookieDomain: 127.0.0.1
+  setCookieDomain: brig
   setCookieInsecure: false
   setUserCookieRenewAge: 1209600 # 14 days
   setUserCookieLimit: 32

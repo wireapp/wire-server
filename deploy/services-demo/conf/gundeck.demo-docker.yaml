@@ -1,5 +1,5 @@
 gundeck:
-  host: 127.0.0.1
+  host: gundeck
   port: 8086
 
 cassandra:

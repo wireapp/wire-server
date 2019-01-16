@@ -63,3 +63,4 @@ DOCKER_ID*
 swagger-ui
 services/spar/spar.cabal
 deploy/services-demo/resources/templates/*
+deploy/services-demo/conf/nginz/zwagger-ui/*

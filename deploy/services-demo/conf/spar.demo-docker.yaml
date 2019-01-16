@@ -2,7 +2,7 @@ saml:
   version:   SAML2.0
   logLevel:  Debug
 
-  spHost:    127.0.0.1
+  spHost:    spar
   spPort:    8088
   spAppUri:  http://localhost:8080/ # <--- change this to point to a reachable web app
   spSsoUri:  http://localhost:8080/sso # <--- change this to the URL by which spar can be reached from an external IdP

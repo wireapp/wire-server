@@ -112,10 +112,16 @@ function run_nginz() {
         | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
 }
 
-function copy_templates() {
+function copy_brig_templates() {
     # Need to copy over the templates from Brig since symlinking does not
     # work with Docker
     cp -r "${SCRIPT_DIR}/../../services/brig/deb/opt/brig/templates/"* "${SCRIPT_DIR}/resources/templates/"
+}
+
+function copy_nginz_configs() {
+    # Need to copy over the configs from Nginz since symlinking does not
+    # work with Docker
+    cp -r "${SCRIPT_DIR}/../../services/nginz/zwagger-ui/"* "${SCRIPT_DIR}/conf/nginz/zwagger-ui/"
 }
 
 # brig,gundeck,galley use the amazonka library's 'Discover', which expects AWS credentials
@@ -126,7 +132,8 @@ export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-dummy}
 
 check_secrets
 check_prerequisites
-copy_templates
+copy_brig_templates
+copy_nginz_configs
 
 if [ "$docker_deployment" = "false" ]; then
     run_haskell_service brig ${green}

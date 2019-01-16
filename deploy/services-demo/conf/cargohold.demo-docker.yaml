@@ -1,5 +1,5 @@
 cargohold:
-  host: 127.0.0.1
+  host: cargohold
   port: 8084
 
 aws:

@@ -1,7 +1,7 @@
 cannon:
-  host: 127.0.0.1
+  host: cannon
   port: 8083
-  externalHost: 127.0.0.1
+  externalHost: cannon
 
 gundeck:
   host: gundeck
