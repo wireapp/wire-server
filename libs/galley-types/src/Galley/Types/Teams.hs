@@ -32,7 +32,6 @@ module Galley.Types.Teams
     , userId
     , permissions
     , invitation
-    , teamMemberJson
 
     , TeamMemberList
     , notTeamMember
@@ -40,7 +39,6 @@ module Galley.Types.Teams
     , isTeamMember
     , newTeamMemberList
     , teamMembers
-    , teamMemberListJson
 
     , TeamConversation
     , newTeamConversation
@@ -186,7 +184,7 @@ data EventData =
     | EdTeamUpdate   TeamUpdateData
     | EdMemberJoin   UserId
     | EdMemberLeave  UserId
-    | EdMemberUpdate UserId (Maybe Permissions)
+    | EdMemberUpdate UserId Permissions
     | EdConvCreate   ConvId
     | EdConvDelete   ConvId
     deriving (Eq, Show)
@@ -488,14 +486,15 @@ instance FromJSON TeamList where
         TeamList <$> o .: "teams"
                  <*> o .: "has_more"
 
-teamMemberJson :: Bool -> TeamMember -> Value
-teamMemberJson withPerms m = object $
-    [ "user" .= _userId m ] <>
-    [ "permissions" .= _permissions m | withPerms ] <>
-    (maybe [] (\inv -> ["invited" .= invJson inv]) (_invitation m))
-  where
-    invJson :: (UserId, UTCTimeMillis) -> Value
-    invJson (by, at) = object [ "by" .= by, "at" .= at ]
+instance ToJSON TeamMember where
+    toJSON m = object $
+        [ "user" .= _userId m
+        , "permissions" .= _permissions m
+        ] <>
+        (maybe [] (\inv -> ["invited" .= invJson inv]) (_invitation m))
+      where
+        invJson :: (UserId, UTCTimeMillis) -> Value
+        invJson (by, at) = object [ "by" .= by, "at" .= at ]
 
 parseTeamMember :: Value -> Parser TeamMember
 parseTeamMember = withObject "team-member" $ \o ->
@@ -509,9 +508,8 @@ parseTeamMember = withObject "team-member" $ \o ->
     parseInv' = withObject "team-member invitation metadata" $ \o ->
         (,) <$> (o .: "by") <*> (o .: "at")
 
-teamMemberListJson :: Bool -> TeamMemberList -> Value
-teamMemberListJson withPerm l =
-    object [ "members" .= map (teamMemberJson withPerm) (_teamMembers l) ]
+instance ToJSON TeamMemberList where
+    toJSON l = object [ "members" .= _teamMembers l ]
 
 instance FromJSON TeamMember where
     parseJSON = parseTeamMember
@@ -578,14 +576,14 @@ instance ToJSON BindingNewTeam where
 instance ToJSON NonBindingNewTeam where
     toJSON (NonBindingNewTeam t) =
         object
-        $ "members" .= (map (teamMemberJson True) . fromRange <$> _newTeamMembers t)
+        $ "members" .= (fromRange <$> _newTeamMembers t)
         # newTeamJson t
 
 deriving instance FromJSON BindingNewTeam
 deriving instance FromJSON NonBindingNewTeam
 
 instance ToJSON NewTeamMember where
-    toJSON t = object ["member" .= teamMemberJson True (_ntmNewTeamMember t)]
+    toJSON t = object ["member" .= (_ntmNewTeamMember t)]
 
 instance FromJSON NewTeamMember where
     parseJSON = withObject "add team member" $ \o ->
@@ -634,8 +632,8 @@ instance FromJSON Event where
 instance ToJSON EventData where
     toJSON (EdTeamCreate   tem)       = toJSON tem
     toJSON (EdMemberJoin   usr)       = object ["user" .= usr]
-    toJSON (EdMemberUpdate usr mPerm) = object $ "user" .= usr
-                                               # "permissions" .= mPerm
+    toJSON (EdMemberUpdate usr perm)  = object $ "user" .= usr
+                                               # "permissions" .= perm
                                                # []
     toJSON (EdMemberLeave  usr)       = object ["user" .= usr]
     toJSON (EdConvCreate   cnv)       = object ["conv" .= cnv]
@@ -650,7 +648,7 @@ parseEventData MemberJoin (Just j) = do
 
 parseEventData MemberUpdate Nothing  = fail "missing event data for type 'team.member-update"
 parseEventData MemberUpdate (Just j) = do
-    let f o = Just <$> (EdMemberUpdate <$> o .: "user" <*> o .:? "permissions")
+    let f o = Just <$> (EdMemberUpdate <$> o .: "user" <*> o .: "permissions")
     withObject "member update data" f j
 
 parseEventData MemberLeave Nothing  = fail "missing event data for type 'team.member-leave'"
