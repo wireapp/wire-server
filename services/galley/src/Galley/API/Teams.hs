@@ -293,22 +293,17 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
     -- inform members of the team about the change
     -- some (privileged) users will be informed about which change was applied
     let privilege = flip hasPermission GetMemberPermissions
-        (privileged, unprivileged) = partition privilege updatedMembers
+        privileged = filter privilege updatedMembers
         mkUpdate               = EdMemberUpdate targetId
         privilegedUpdate       = mkUpdate $ Just targetPermissions
-        unPrivilegedUpdate     = mkUpdate Nothing
         privilegedRecipients   = membersToRecipients Nothing privileged
-        unPrivilegedRecipients = membersToRecipients Nothing unprivileged
 
     now <- liftIO getCurrentTime
     let ePriv  = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
-        eUPriv = newEvent MemberUpdate tid now & eventData ?~ unPrivilegedUpdate
 
     -- push to all members (user is privileged)
     let pushPriv   = newPush zusr (TeamEvent ePriv) $ privilegedRecipients
-        pushUnPriv = newPush zusr (TeamEvent eUPriv) $ unPrivilegedRecipients
     for_ pushPriv   $ \p -> push1 $ p & pushConn .~ Just zcon
-    for_ pushUnPriv $ \p -> push1 $ p & pushConn .~ Just zcon
     pure empty
 
 deleteTeamMember :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
