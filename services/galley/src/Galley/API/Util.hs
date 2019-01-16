@@ -1,8 +1,8 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE MultiWayIf        #-}
-{-# LANGUAGE ViewPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Galley.API.Util where
 
@@ -73,6 +73,9 @@ bindingTeamMembers tid = do
         Binding -> Data.teamMembers tid
         NonBinding -> throwM nonBindingTeam
 
+-- | Pick a team member with a given user id from some team members.  If the filter comes up empty,
+-- throw 'noTeamMember'; if the user is found and does not have the given permission, throw
+-- 'operationDenied'.  Otherwise, return the found user.
 permissionCheck :: Foldable m => UserId -> Perm -> m TeamMember -> Galley TeamMember
 permissionCheck u p t =
     case find ((u ==) . view userId) t of
