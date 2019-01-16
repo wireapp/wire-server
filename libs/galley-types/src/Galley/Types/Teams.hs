@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -122,6 +123,10 @@ import Galley.Types.Teams.Internal
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
+#ifdef WITH_CQL
+import qualified Control.Error.Util as Err
+import qualified Database.CQL.Protocol as Cql
+#endif
 
 data Event = Event
     { _eventType :: EventType
@@ -703,3 +708,20 @@ instance ToJSON TeamDeleteData where
     toJSON tdd = object
         [ "password" .= _tdAuthPassword tdd
         ]
+
+#ifdef WITH_CQL
+instance Cql.Cql Permissions where
+    ctype = Cql.Tagged $ Cql.UdtColumn "permissions" [("self", Cql.BigIntColumn), ("copy", Cql.BigIntColumn)]
+
+    toCql p =
+        let f = Cql.CqlBigInt . fromIntegral . permsToInt in
+        Cql.CqlUdt [("self", f (p^.self)), ("copy", f (p^.copy))]
+
+    fromCql (Cql.CqlUdt p) = do
+        let f = intToPerms . fromIntegral :: Int64 -> Set.Set Perm
+        s <- Err.note "missing 'self' permissions" ("self" `lookup` p) >>= Cql.fromCql
+        d <- Err.note "missing 'copy' permissions" ("copy" `lookup` p) >>= Cql.fromCql
+        r <- Err.note "invalid permissions" (newPermissions (f s) (f d))
+        pure r
+    fromCql _ = fail "permissions: udt expected"
+#endif

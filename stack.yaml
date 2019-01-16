@@ -169,6 +169,9 @@ flags:
     protobuf: True
     arbitrary: True
 
+  galley-types:
+    cql: True
+
 extra-package-dbs: []
 
 allow-newer: False

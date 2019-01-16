@@ -77,7 +77,7 @@ createTeamMember brig galley owner tid perm = do
 inviteAndRegisterUser :: UserId -> TeamId -> Brig -> Http User
 inviteAndRegisterUser u tid brig = do
     inviteeEmail <- randomEmail
-    let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
+    let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
     inv <- decodeBody =<< postInvitation brig tid u invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rspInvitee <- post (brig . path "/register"

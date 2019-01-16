@@ -7,15 +7,18 @@ import Brig.Types.Common
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
+import Galley.Types.Teams (Role, Permissions)
 
 data InvitationRequest = InvitationRequest
     { irEmail    :: !Email
     , irName     :: !Name
     , irLocale   :: !(Maybe Locale)
+    , irRole     :: !(Maybe Role)
     } deriving (Eq, Show)
 
 data Invitation = Invitation
     { inTeam       :: !TeamId
+    , inPerms      :: !Permissions
     , inInvitation :: !InvitationId
     , inIdentity   :: !Email
     , inCreatedAt  :: !UTCTimeMillis
@@ -33,16 +36,19 @@ instance FromJSON InvitationRequest where
         InvitationRequest <$> o .:  "email"
                           <*> o .:  "inviter_name"
                           <*> o .:? "locale"
+                          <*> o .:? "role"
 
 instance ToJSON InvitationRequest where
-    toJSON i = object [ "email"        .= irEmail i
-                      , "inviter_name" .= irName i
-                      , "locale"       .= irLocale i
-                      ]
+    toJSON i = object $
+        [ "email"        .= irEmail i
+        , "inviter_name" .= irName i
+        , "locale"       .= irLocale i
+        ] <> maybe [] (\role -> ["role" .= role]) (irRole i)
 
 instance FromJSON Invitation where
     parseJSON = withObject "invitation" $ \o ->
         Invitation <$> o .: "team"
+                   <*> o .: "perms"
                    <*> o .: "id"
                    <*> o .: "email"
                    <*> o .: "created_at"
@@ -51,6 +57,7 @@ instance FromJSON Invitation where
 instance ToJSON Invitation where
     toJSON i = object $
         [ "team"       .= inTeam i
+        , "perms"      .= inPerms i
         , "id"         .= inInvitation i
         , "email"      .= inIdentity i
         , "created_at" .= inCreatedAt i
