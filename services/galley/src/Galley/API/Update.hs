@@ -126,7 +126,7 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     -- Team conversations incur another round of checks
     case Data.convTeam conv of
         Just tid -> checkTeamConv tid >>
-                    permissionCheckTeamConv usr cnv ModifyConversationMetadata
+                    permissionCheckTeamConv usr cnv ModifyConvMetadata
         Nothing  -> when (targetRole == TeamAccessRole) $ throwM invalidTargetAccess
     -- When there is no update to be done, we return 204; otherwise we go
     -- with 'uncheckedUpdateConversationAccess', which will potentially kick
@@ -151,7 +151,7 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
             throwM invalidManagedConvOp
         -- Access mode change might result in members being removed from the
         -- conversation, so the user must have the necessary permission flag
-        void $ permissionCheck usr RemoveConversationMember tMembers
+        void $ permissionCheck usr AddRemoveConvMember tMembers
 
 uncheckedUpdateConversationAccess
     :: ConversationAccessUpdate -> UserId -> ConnId -> Data.Conversation
@@ -212,7 +212,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
 updateConversationReceiptMode :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON ::: JSON -> Galley Response
 updateConversationReceiptMode (usr ::: zcon ::: cnv ::: req ::: _ ::: _) = do
     ConversationReceiptModeUpdate target <- fromBody req invalidPayload
-    permissionCheckTeamConv usr cnv ModifyConversationMetadata
+    permissionCheckTeamConv usr cnv ModifyConvMetadata
     (bots, users) <- botsAndUsers <$> Data.members cnv
     current <- Data.lookupReceiptMode cnv
     if current == Just target
@@ -237,7 +237,7 @@ updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     ensureGroupConv conv
     traverse_ ensureTeamMember $ Data.convTeam conv -- only team members can change the timer
-    permissionCheckTeamConv usr cnv ModifyConversationMetadata
+    permissionCheckTeamConv usr cnv ModifyConvMetadata
     let currentTimer = Data.convMessageTimer conv
     if currentTimer == messageTimer then
         return $ empty & setStatus status204
@@ -366,7 +366,7 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
     teamConvChecks tid newUsers conv = do
         tms <- Data.teamMembers tid
         ensureAccessRole (Data.convAccessRole conv) newUsers (Just tms)
-        void $ permissionCheck zusr AddConversationMember tms
+        void $ permissionCheck zusr AddRemoveConvMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged
@@ -423,7 +423,7 @@ removeMember (zusr ::: zcon ::: cid ::: victim) = do
 
     teamConvChecks tid = do
         unless (zusr == victim) $
-            void $ permissionCheck zusr RemoveConversationMember =<< Data.teamMembers tid
+            void $ permissionCheck zusr AddRemoveConvMember =<< Data.teamMembers tid
         tcv <- Data.teamConversation tid cid
         when (maybe False (view managedConversation) tcv) $
             throwM (invalidOp "Users can not be removed from managed conversations.")
@@ -505,7 +505,7 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
 updateConversation :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateConversation (zusr ::: zcon ::: cnv ::: req ::: _) = do
     body <- fromBody req invalidPayload
-    permissionCheckTeamConv zusr cnv ModifyConversationMetadata
+    permissionCheckTeamConv zusr cnv ModifyConvMetadata
     alive <- Data.isConvAlive cnv
     unless alive $ do
         Data.deleteConversation cnv
@@ -574,7 +574,7 @@ addBot (zusr ::: zcon ::: req ::: _) = do
 
     teamConvChecks cid tid = do
         tms <- Data.teamMembers tid
-        void $ permissionCheck zusr AddConversationMember tms
+        void $ permissionCheck zusr AddRemoveConvMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged

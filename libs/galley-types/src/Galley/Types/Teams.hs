@@ -221,15 +221,17 @@ data Perm =
     | DeleteConversation
     | AddTeamMember
     | RemoveTeamMember
-    | AddConversationMember
-    | RemoveConversationMember
-    | ModifyConversationMetadata
-    | CRUDBilling
+    | AddRemoveConvMember
+    | ModifyConvMetadata
+    | GetBilling
+    | SetBilling
     | SetTeamData
     | GetMemberPermissions
     | SetMemberPermissions
     | GetTeamConversations
     | DeleteTeam
+    -- FUTUREWORK: make the verbs in the roles more consistent
+    -- (CRUD vs. Add,Remove vs; Get,Set vs. Create,Delete etc).
     -- If you ever think about adding a new permission flag,
     -- read Note [team roles] first.
     deriving (Eq, Ord, Show, Enum, Bounded)
@@ -346,7 +348,7 @@ noPermissions = Permissions mempty mempty
 serviceWhitelistPermissions :: Set Perm
 serviceWhitelistPermissions = Set.fromList
     [ AddTeamMember, RemoveTeamMember
-    , RemoveConversationMember
+    , AddRemoveConvMember
     , SetTeamData
     ]
 
@@ -360,7 +362,7 @@ hasPermission tm p = p `Set.member` (tm^.permissions.self)
 -- permissions:
 --
 --     member =
---         {Add/RemoveConversationMember, Create/DeleteConversation,
+--         {AddRemoveConvMember, Create/DeleteConversation,
 --         GetMemberPermissions, GetTeamConversations}
 --
 --     admin = member +
@@ -394,29 +396,29 @@ isTeamOwner :: TeamMember -> Bool
 isTeamOwner tm = fullPermissions == (tm^.permissions)
 
 permToInt :: Perm -> Word64
-permToInt CreateConversation         = 0x0001
-permToInt DeleteConversation         = 0x0002
-permToInt AddTeamMember              = 0x0004
-permToInt RemoveTeamMember           = 0x0008
-permToInt AddConversationMember      = 0x0010
-permToInt RemoveConversationMember   = 0x0020
-permToInt ModifyConversationMetadata = 0x0040
-permToInt CRUDBilling                = 0x0080
-permToInt SetTeamData                = 0x0100
-permToInt GetMemberPermissions       = 0x0200
-permToInt GetTeamConversations       = 0x0400
-permToInt DeleteTeam                 = 0x0800
-permToInt SetMemberPermissions       = 0x1000
+permToInt CreateConversation       = 0x0001
+permToInt DeleteConversation       = 0x0002
+permToInt AddTeamMember            = 0x0004
+permToInt RemoveTeamMember         = 0x0008
+permToInt AddRemoveConvMember      = 0x0010
+permToInt ModifyConvMetadata       = 0x0020
+permToInt GetBilling               = 0x0040
+permToInt SetBilling               = 0x0080
+permToInt SetTeamData              = 0x0100
+permToInt GetMemberPermissions     = 0x0200
+permToInt GetTeamConversations     = 0x0400
+permToInt DeleteTeam               = 0x0800
+permToInt SetMemberPermissions     = 0x1000
 
 intToPerm :: Word64 -> Maybe Perm
 intToPerm 0x0001 = Just CreateConversation
 intToPerm 0x0002 = Just DeleteConversation
 intToPerm 0x0004 = Just AddTeamMember
 intToPerm 0x0008 = Just RemoveTeamMember
-intToPerm 0x0010 = Just AddConversationMember
-intToPerm 0x0020 = Just RemoveConversationMember
-intToPerm 0x0040 = Just ModifyConversationMetadata
-intToPerm 0x0080 = Just CRUDBilling
+intToPerm 0x0010 = Just AddRemoveConvMember
+intToPerm 0x0020 = Just ModifyConvMetadata
+intToPerm 0x0040 = Just GetBilling
+intToPerm 0x0080 = Just SetBilling
 intToPerm 0x0100 = Just SetTeamData
 intToPerm 0x0200 = Just GetMemberPermissions
 intToPerm 0x0400 = Just GetTeamConversations
