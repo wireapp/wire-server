@@ -36,3 +36,15 @@ ensurePermissions u t perms = do
     check :: Maybe TeamMember -> Bool
     check (Just m) = and $ hasPermission m <$> perms
     check Nothing  = False
+
+-- | (Some code duplication with 'Galley.API.Teams.ensureNotElevated'.)
+ensurePermissionToAddUser :: UserId -> TeamId -> Permissions -> ExceptT Error AppIO ()
+ensurePermissionToAddUser u t inviteePerms = do
+    m <- lift $ Intra.getTeamMember u t
+    unless (check m) $
+        throwStd insufficientTeamPermissions
+  where
+    check :: Maybe TeamMember -> Bool
+    check (Just m) = hasPermission m AddTeamMember &&
+                     and (hasCopyPermission m <$> (Set.toList $ inviteePerms ^. self))
+    check Nothing  = False

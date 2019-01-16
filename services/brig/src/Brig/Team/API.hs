@@ -17,7 +17,7 @@ import Brig.Data.UserKey (userEmailKey)
 import Brig.Email
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import Brig.Team.Email
-import Brig.Team.Util (ensurePermissions)
+import Brig.Team.Util (ensurePermissions, ensurePermissionToAddUser)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (InvitationCode, emailIdentity)
 import Brig.Types.Intra (AccountStatus (..))
@@ -166,7 +166,8 @@ createInvitation (_ ::: uid ::: tid ::: req) = do
     body :: InvitationRequest <- parseJsonBody req
     idt  <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail)    return (emailIdentity idt)
-    ensurePermissions uid tid [Team.AddTeamMember]
+    let inviteePerms = Team.rolePermissions . fromMaybe Team.RoleMember . irRole $ body
+    ensurePermissionToAddUser uid tid inviteePerms
     email <- either (const $ throwStd invalidEmail) return (validateEmail (irEmail body))
     let uk = userEmailKey email
     blacklisted <- lift $ Blacklist.exists uk
@@ -177,10 +178,9 @@ createInvitation (_ ::: uid ::: tid ::: req) = do
     when (fromIntegral pending >= maxSize) $
         throwStd tooManyTeamInvitations
     user <- lift $ Data.lookupKey uk
-    let perms = Team.rolePermissions . fromMaybe Team.RoleMember . irRole $ body
     case user of
         Just _  -> throwStd emailExists
-        Nothing -> doInvite perms email from (irLocale body)
+        Nothing -> doInvite inviteePerms email from (irLocale body)
   where
     doInvite perms to from lc = lift $ do
         now     <- liftIO =<< view currentTime
