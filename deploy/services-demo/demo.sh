@@ -4,10 +4,15 @@
 
 set -eo pipefail
 
-USAGE="$0 [test-executable args...]"
-EXE=$1
+USAGE="$0 [docker]"
+MODE="$1"
+docker_mode="false"
+if [ "$MODE" = "docker" ]; then
+    docker_deployment="true"
+fi
 TOP_LEVEL="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." && pwd )"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+DOCKER_FILE="$SCRIPT_DIR/docker-compose.yaml"
 DIR="${TOP_LEVEL}/services"
 PARENT_PID=$$
 rm -f /tmp/demo.* # remove previous temp files, if any
@@ -32,10 +37,20 @@ function kill_gracefully() {
     kill $(list_descendants $PARENT_PID) &> /dev/null
 }
 
+function run_zauth() {
+    if [ "$docker_deployment" = "false" ]; then
+        ${DIR}/../dist/zauth "$@"
+    else
+        docker run --entrypoint "/usr/bin/zauth" ${docker_zauth_image:-quay.io/wire/zauth} $@
+    fi
+}
+
 trap "kill_gracefully; kill_all" INT TERM ERR
 
 function check_secrets() {
-    test -f ${DIR}/../dist/zauth || { echo "zauth is not compiled. How about you run 'cd ${TOP_LEVEL} && make services' first?"; exit 1; }
+    if [ "$docker_deployment" = "false" ]; then
+        test -f ${DIR}/../dist/zauth || { echo "zauth is not compiled. How about you run 'cd ${TOP_LEVEL} && make services' first?"; exit 1; }
+    fi
 
     if [[ ! -f ${SCRIPT_DIR}/resources/turn/secret.txt ]]; then
         echo "Generate a secret for the TURN servers (must match the turn.secret key in brig's config)..."
@@ -46,7 +61,7 @@ function check_secrets() {
     if [[ ! -f ${SCRIPT_DIR}/resources/zauth/privkeys.txt || ! -f ${SCRIPT_DIR}/resources/zauth/pubkeys.txt ]]; then
         echo "Generate private and public keys (used both by brig and nginz)..."
         TMP_KEYS=$(mktemp "/tmp/demo.keys.XXXXXXXXXXX")
-        ${DIR}/../dist/zauth -m gen-keypair -i 1 > $TMP_KEYS
+        run_zauth -m gen-keypair -i 1 > $TMP_KEYS
         cat $TMP_KEYS | sed -n 's/public: \(.*\)/\1/p' > ${SCRIPT_DIR}/resources/zauth/pubkeys.txt
         cat $TMP_KEYS | sed -n 's/secret: \(.*\)/\1/p' > ${SCRIPT_DIR}/resources/zauth/privkeys.txt
     else
@@ -59,15 +74,17 @@ function check_prerequisites() {
         && nc -z 127.0.0.1 9200 \
         && nc -z 127.0.0.1 6379 \
         || { echo "Databases not up. Maybe run 'deploy/docker-ephemeral/run.sh' in a separate terminal first?";  exit 1; }
-    test -f ${DIR}/../dist/brig \
-        && test -f ${DIR}/../dist/galley \
-        && test -f ${DIR}/../dist/cannon \
-        && test -f ${DIR}/../dist/gundeck \
-        && test -f ${DIR}/../dist/cargohold \
-        && test -f ${DIR}/../dist/proxy \
-        && test -f ${DIR}/../dist/spar \
-        && test -f ${DIR}/../dist/nginx \
-        || { echo "Not all services are compiled. How about you run 'cd ${TOP_LEVEL} && make services' first?"; exit 1; }
+    if [ "$docker_deployment" = "false" ]; then
+        test -f ${DIR}/../dist/brig \
+            && test -f ${DIR}/../dist/galley \
+            && test -f ${DIR}/../dist/cannon \
+            && test -f ${DIR}/../dist/gundeck \
+            && test -f ${DIR}/../dist/cargohold \
+            && test -f ${DIR}/../dist/proxy \
+            && test -f ${DIR}/../dist/spar \
+            && test -f ${DIR}/../dist/nginx \
+            || { echo "Not all services are compiled. How about you run 'cd ${TOP_LEVEL} && make services' first?"; exit 1; }
+    fi
 }
 
 blue=6
@@ -95,6 +112,12 @@ function run_nginz() {
         | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
 }
 
+function copy_templates() {
+    # Need to copy over the templates from Brig since symlinking does not
+    # work with Docker
+    cp -r "${SCRIPT_DIR}/../../services/brig/deb/opt/brig/templates/"* "${SCRIPT_DIR}/resources/templates/"
+}
+
 # brig,gundeck,galley use the amazonka library's 'Discover', which expects AWS credentials
 # even if those are not used/can be dummy values with the fake sqs/ses/etc containers used (see deploy/docker-ephemeral/docker-compose.yaml)
 export AWS_REGION=${AWS_REGION:-eu-west-1}
@@ -103,15 +126,20 @@ export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-dummy}
 
 check_secrets
 check_prerequisites
+copy_templates
 
-run_haskell_service brig ${green}
-run_haskell_service galley ${yellow}
-run_haskell_service gundeck ${blue} Info
-run_haskell_service cannon ${orange}
-run_haskell_service cargohold ${purpleish} Info
-run_haskell_service proxy ${redish} Info
-run_haskell_service spar ${orange}
-run_nginz ${blueish}
+if [ "$docker_deployment" = "false" ]; then
+    run_haskell_service brig ${green}
+    run_haskell_service galley ${yellow}
+    run_haskell_service gundeck ${blue} Info
+    run_haskell_service cannon ${orange}
+    run_haskell_service cargohold ${purpleish} Info
+    run_haskell_service proxy ${redish} Info
+    run_haskell_service spar ${orange}
+    run_nginz ${blueish}
+else
+    docker-compose --file "$DOCKER_FILE" up
+fi
 
 sleep 3 # wait a moment for services to start before continuing
 

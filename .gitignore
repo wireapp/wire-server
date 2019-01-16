@@ -16,6 +16,8 @@ Cargo.lock
 *.asc
 *.tmp
 *~
+.#*
+*#*#
 .*.sw[a-z]
 .cabal-sandbox
 ID
@@ -60,3 +62,4 @@ integration-aws.yaml
 DOCKER_ID*
 swagger-ui
 services/spar/spar.cabal
+deploy/services-demo/resources/templates/*
