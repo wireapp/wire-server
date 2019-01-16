@@ -545,8 +545,8 @@ addTeamMember u tid minvmeta = do
   where
     perms = Set.fromList [ Team.CreateConversation
                          , Team.DeleteConversation
-                         , Team.AddConversationMember
-                         , Team.RemoveConversationMember
+                         , Team.CRUDConversationMember
+                         , Team.ModifyConvMetadata
                          , Team.GetTeamConversations
                          , Team.GetMemberPermissions
                          ]

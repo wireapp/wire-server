@@ -348,7 +348,7 @@ noPermissions = Permissions mempty mempty
 serviceWhitelistPermissions :: Set Perm
 serviceWhitelistPermissions = Set.fromList
     [ AddTeamMember, RemoveTeamMember
-    , RemoveConversationMember
+    , CRUDConversationMember
     , SetTeamData
     ]
 
@@ -362,7 +362,7 @@ hasPermission tm p = p `Set.member` (tm^.permissions.self)
 -- permissions:
 --
 --     member =
---         {Add/RemoveConversationMember, Create/DeleteConversation,
+--         {CRUDConversationMember, Create/DeleteConversation,
 --         GetMemberPermissions, GetTeamConversations}
 --
 --     admin = member +
