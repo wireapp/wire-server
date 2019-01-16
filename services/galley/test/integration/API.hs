@@ -419,7 +419,7 @@ postConvertTeamConv g b c setup = do
     alice <- randomUser b
     tid   <- createTeamInternal g "foo" alice
     assertQueue "create team" a tActivate
-    let p1 = symmPermissions [Teams.CRUDConversationMember]
+    let p1 = symmPermissions [Teams.AddRemoveConvMember]
     bobMem <- (\u -> Teams.newTeamMember u p1 Nothing) <$> randomUser b
     addTeamMemberInternal g tid bobMem
     let bob = bobMem^.Teams.userId

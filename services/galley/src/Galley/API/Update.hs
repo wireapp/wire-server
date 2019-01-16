@@ -151,7 +151,7 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
             throwM invalidManagedConvOp
         -- Access mode change might result in members being removed from the
         -- conversation, so the user must have the necessary permission flag
-        void $ permissionCheck usr CRUDConversationMember tMembers
+        void $ permissionCheck usr AddRemoveConvMember tMembers
 
 uncheckedUpdateConversationAccess
     :: ConversationAccessUpdate -> UserId -> ConnId -> Data.Conversation
@@ -366,7 +366,7 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
     teamConvChecks tid newUsers conv = do
         tms <- Data.teamMembers tid
         ensureAccessRole (Data.convAccessRole conv) newUsers (Just tms)
-        void $ permissionCheck zusr CRUDConversationMember tms
+        void $ permissionCheck zusr AddRemoveConvMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged
@@ -423,7 +423,7 @@ removeMember (zusr ::: zcon ::: cid ::: victim) = do
 
     teamConvChecks tid = do
         unless (zusr == victim) $
-            void $ permissionCheck zusr CRUDConversationMember =<< Data.teamMembers tid
+            void $ permissionCheck zusr AddRemoveConvMember =<< Data.teamMembers tid
         tcv <- Data.teamConversation tid cid
         when (maybe False (view managedConversation) tcv) $
             throwM (invalidOp "Users can not be removed from managed conversations.")
@@ -574,7 +574,7 @@ addBot (zusr ::: zcon ::: req ::: _) = do
 
     teamConvChecks cid tid = do
         tms <- Data.teamMembers tid
-        void $ permissionCheck zusr CRUDConversationMember tms
+        void $ permissionCheck zusr AddRemoveConvMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged

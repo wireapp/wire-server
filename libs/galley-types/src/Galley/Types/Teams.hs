@@ -221,7 +221,7 @@ data Perm =
     | DeleteConversation
     | AddTeamMember
     | RemoveTeamMember
-    | CRUDConversationMember
+    | AddRemoveConvMember
     | ModifyConvMetadata
     | GetBilling
     | SetBilling
@@ -348,7 +348,7 @@ noPermissions = Permissions mempty mempty
 serviceWhitelistPermissions :: Set Perm
 serviceWhitelistPermissions = Set.fromList
     [ AddTeamMember, RemoveTeamMember
-    , CRUDConversationMember
+    , AddRemoveConvMember
     , SetTeamData
     ]
 
@@ -362,7 +362,7 @@ hasPermission tm p = p `Set.member` (tm^.permissions.self)
 -- permissions:
 --
 --     member =
---         {CRUDConversationMember, Create/DeleteConversation,
+--         {AddRemoveConvMember, Create/DeleteConversation,
 --         GetMemberPermissions, GetTeamConversations}
 --
 --     admin = member +
@@ -400,7 +400,7 @@ permToInt CreateConversation       = 0x0001
 permToInt DeleteConversation       = 0x0002
 permToInt AddTeamMember            = 0x0004
 permToInt RemoveTeamMember         = 0x0008
-permToInt CRUDConversationMember   = 0x0010
+permToInt AddRemoveConvMember      = 0x0010
 permToInt ModifyConvMetadata       = 0x0020
 permToInt GetBilling               = 0x0040
 permToInt SetBilling               = 0x0080
@@ -415,7 +415,7 @@ intToPerm 0x0001 = Just CreateConversation
 intToPerm 0x0002 = Just DeleteConversation
 intToPerm 0x0004 = Just AddTeamMember
 intToPerm 0x0008 = Just RemoveTeamMember
-intToPerm 0x0010 = Just CRUDConversationMember
+intToPerm 0x0010 = Just AddRemoveConvMember
 intToPerm 0x0020 = Just ModifyConvMetadata
 intToPerm 0x0040 = Just GetBilling
 intToPerm 0x0080 = Just SetBilling

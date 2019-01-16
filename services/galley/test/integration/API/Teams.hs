@@ -130,7 +130,7 @@ testCreateTeamWithMembers g b c _ = do
     owner <- Util.randomUser b
     user1 <- Util.randomUser b
     user2 <- Util.randomUser b
-    let pp = Util.symmPermissions [CreateConversation, CRUDConversationMember]
+    let pp = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
     let m1 = newTeamMember' pp user1
     let m2 = newTeamMember' pp user2
     Util.connectUsers b owner (list1 user1 [user2])
@@ -154,8 +154,8 @@ testCreateTeamWithMembers g b c _ = do
 testCreateOne2OneFailNonBindingTeamMembers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testCreateOne2OneFailNonBindingTeamMembers g b _ a = do
     owner <- Util.randomUser b
-    let p1 = Util.symmPermissions [CreateConversation, CRUDConversationMember]
-    let p2 = Util.symmPermissions [CreateConversation, CRUDConversationMember, AddTeamMember]
+    let p1 = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
+    let p2 = Util.symmPermissions [CreateConversation, AddRemoveConvMember, AddTeamMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser b
     mem2 <- newTeamMember' p2 <$> Util.randomUser b
     Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId])
@@ -199,8 +199,8 @@ testCreateOne2OneWithMembers g b c a = do
 testAddTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testAddTeamMember g b c _ = do
     owner <- Util.randomUser b
-    let p1 = Util.symmPermissions [CreateConversation, CRUDConversationMember]
-    let p2 = Util.symmPermissions [CreateConversation, CRUDConversationMember, AddTeamMember]
+    let p1 = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
+    let p2 = Util.symmPermissions [CreateConversation, AddRemoveConvMember, AddTeamMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser b
     mem2 <- newTeamMember' p2 <$> Util.randomUser b
     Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId])
@@ -262,8 +262,8 @@ testAddTeamMemberInternal g b c a = do
 testRemoveTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testRemoveTeamMember g b c _ = do
     owner <- Util.randomUser b
-    let p1 = Util.symmPermissions [CRUDConversationMember]
-    let p2 = Util.symmPermissions [CRUDConversationMember, RemoveTeamMember]
+    let p1 = Util.symmPermissions [AddRemoveConvMember]
+    let p2 = Util.symmPermissions [AddRemoveConvMember, RemoveTeamMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser b
     mem2 <- newTeamMember' p2 <$> Util.randomUser b
     mext1 <- Util.randomUser b
@@ -310,7 +310,7 @@ testRemoveBindingTeamMember ownerHasPassword g b c a = do
     tid   <- Util.createTeamInternal g "foo" owner
     assertQueue "create team" a tActivate
     mext  <- Util.randomUser b
-    let p1 = Util.symmPermissions [CRUDConversationMember]
+    let p1 = Util.symmPermissions [AddRemoveConvMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser b
     Util.addTeamMemberInternal g tid mem1
     assertQueue "team member join" a $ tUpdate 2 [owner]
@@ -379,7 +379,7 @@ testAddTeamConv g b c _ = do
     owner  <- Util.randomUser b
     extern <- Util.randomUser b
 
-    let p = Util.symmPermissions [CreateConversation, CRUDConversationMember]
+    let p = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
     mem1 <- newTeamMember' p <$> Util.randomUser b
     mem2 <- newTeamMember' p <$> Util.randomUser b
 
@@ -458,7 +458,7 @@ testAddTeamConvWithUsers g b _ _ = do
 testAddTeamMemberToConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testAddTeamMemberToConv g b _ _ = do
     owner <- Util.randomUser b
-    let p = Util.symmPermissions [CRUDConversationMember]
+    let p = Util.symmPermissions [AddRemoveConvMember]
     mem1 <- newTeamMember' p <$> Util.randomUser b
     mem2 <- newTeamMember' p <$> Util.randomUser b
     mem3 <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser b
@@ -472,7 +472,7 @@ testAddTeamMemberToConv g b _ _ = do
     -- Team member 1 (who is *not* a member of the new conversation)
     -- can add other team members without requiring a user connection
     -- thanks to both being team members and member 1 having the permission
-    -- `CRUDConversationMember`.
+    -- `AddRemoveConvMember`.
     Util.assertNotConvMember g (mem1^.userId) cid
     Util.postMembers g (mem1^.userId) (list1 (mem2^.userId) []) cid !!! const 200 === statusCode
     Util.assertConvMember g (mem2^.userId) cid
@@ -495,7 +495,7 @@ testUpdateTeamConv roleIsMember g b _ _ = do
             ]
         permsCollaborator =
             [ CreateConversation
-            , CRUDConversationMember
+            , AddRemoveConvMember
             , ModifyConvMetadata
             , GetTeamConversations
             ]
@@ -508,7 +508,7 @@ testUpdateTeamConv roleIsMember g b _ _ = do
 testDeleteTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testDeleteTeam g b c a = do
     owner <- Util.randomUser b
-    let p = Util.symmPermissions [CRUDConversationMember]
+    let p = Util.symmPermissions [AddRemoveConvMember]
     member <- newTeamMember' p <$> Util.randomUser b
     extern <- Util.randomUser b
     Util.connectUsers b owner (list1 (member^.userId) [extern])
@@ -558,11 +558,11 @@ testDeleteBindingTeam ownerHasPassword g b c a = do
     owner  <- Util.randomUser' ownerHasPassword b
     tid    <- Util.createTeamInternal g "foo" owner
     assertQueue "create team" a tActivate
-    let p1 = Util.symmPermissions [CRUDConversationMember]
+    let p1 = Util.symmPermissions [AddRemoveConvMember]
     mem1 <- newTeamMember' p1 <$> Util.randomUser b
-    let p2 = Util.symmPermissions [CRUDConversationMember]
+    let p2 = Util.symmPermissions [AddRemoveConvMember]
     mem2 <- newTeamMember' p2 <$> Util.randomUser b
-    let p3 = Util.symmPermissions [CRUDConversationMember]
+    let p3 = Util.symmPermissions [AddRemoveConvMember]
     mem3 <- newTeamMember' p3 <$> Util.randomUser b
     Util.addTeamMemberInternal g tid mem1
     assertQueue "team member join 2" a $ tUpdate 2 [owner]
