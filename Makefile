@@ -125,6 +125,7 @@ docker-services:
 	# to recompile, run `docker-intermediate` first.
 	docker image ls | grep $(DOCKER_USER)/alpine-deps > /dev/null || (echo "'make docker-deps' required.", exit 1)
 	docker image ls | grep $(DOCKER_USER)/alpine-intermediate > /dev/null || (echo "'make docker-intermediate' required."; exit 1)
+	# `make -C services/brig docker` == `make docker-exe-brig docker-exe-brig-integration docker-exe-brig-schema docker-exe-brig-index`
 	$(MAKE) -C services/brig docker
 	$(MAKE) -C services/gundeck docker
 	$(MAKE) -C services/galley docker
