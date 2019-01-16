@@ -6,7 +6,7 @@ set -eo pipefail
 
 USAGE="$0 [docker]"
 MODE="$1"
-docker_mode="false"
+docker_deployment="false"
 if [ "$MODE" = "docker" ]; then
     docker_deployment="true"
 fi
@@ -115,12 +115,14 @@ function run_nginz() {
 function copy_brig_templates() {
     # Need to copy over the templates from Brig since symlinking does not
     # work with Docker
+    mkdir -p "${SCRIPT_DIR}/resources/templates"
     cp -r "${SCRIPT_DIR}/../../services/brig/deb/opt/brig/templates/"* "${SCRIPT_DIR}/resources/templates/"
 }
 
 function copy_nginz_configs() {
     # Need to copy over the configs from Nginz since symlinking does not
     # work with Docker
+    mkdir -p "${SCRIPT_DIR}/conf/nginz/zwagger-ui"
     cp -r "${SCRIPT_DIR}/../../services/nginz/zwagger-ui/"* "${SCRIPT_DIR}/conf/nginz/zwagger-ui/"
 }
 
