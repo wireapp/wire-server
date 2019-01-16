@@ -489,15 +489,15 @@ testUpdateTeamConv roleIsMember g b _ _ = do
     owner  <- Util.randomUser b
     member <- Util.randomUser b
     let perms = Util.symmPermissions $ if roleIsMember then permsMember else permsCollaborator
-        permsMember = permsCollaborator <>
-            [ DeleteConversation
-            , GetMemberPermissions
-            ]
         permsCollaborator =
             [ CreateConversation
+            , GetTeamConversations
+            ]
+        permsMember = permsCollaborator <>
+            [ DeleteConversation
             , AddRemoveConvMember
             , ModifyConvMetadata
-            , GetTeamConversations
+            , GetMemberPermissions
             ]
     Util.connectUsers b owner (list1 member [])
     tid <- Util.createTeam g "foo" owner [newTeamMember member perms Nothing]
