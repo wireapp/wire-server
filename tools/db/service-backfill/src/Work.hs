@@ -13,7 +13,7 @@ import Brig.Types hiding (Client)
 import Cassandra hiding (pageSize)
 import Data.Id
 import System.Logger (Logger)
-import UnliftIO.Async.Extended (mapMPooled)
+import UnliftIO.Async (pooledMapConcurrentlyN)
 import Data.Conduit
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
@@ -29,7 +29,7 @@ runCommand l brig galley =
                      (transPipe (runClient galley) getUsers)
        .| C.mapM (\(i, p) -> Log.info l (Log.field "convs" (show (i * pageSize))) >>
                              pure p)
-       .| C.mapM (runClient galley . mapMPooled 10 resolveBot)
+       .| C.mapM (runClient galley . pooledMapConcurrentlyN 10 resolveBot)
        .| C.concat .| C.catMaybes .| C.chunksOf 50
        .| C.mapM_ (runClient brig . writeBots)
 

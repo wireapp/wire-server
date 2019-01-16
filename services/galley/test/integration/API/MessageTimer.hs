@@ -84,7 +84,7 @@ messageTimerChangeGuest g b _ca _ = do
     -- Create a team and a guest user
     [owner, member, guest] <- randomUsers b 3
     connectUsers b owner (list1 member [guest])
-    tid <- createTeam g "team" owner [Teams.newTeamMember member Teams.fullPermissions]
+    tid <- createTeam g "team" owner [Teams.newTeamMember member Teams.fullPermissions Nothing]
     -- Create a conversation
     cid <- createTeamConv g owner tid [member, guest] Nothing Nothing Nothing
     -- Try to change the timer (as the guest user) and observe failure

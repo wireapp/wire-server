@@ -1,2 +1,5 @@
 **/.*
 **/dist
+**/target
+**/*.aci
+services/nginz/src/objs

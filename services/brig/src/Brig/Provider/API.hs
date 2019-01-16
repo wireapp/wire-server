@@ -31,7 +31,7 @@ import Brig.Types.Client
 import Brig.Types.User (publicProfile, User (..), Pict (..))
 import Brig.Types.Provider
 import Brig.Types.Search
-import UnliftIO.Async.Extended (mapMPooled)
+import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Control.Lens (view, (^.))
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
@@ -599,7 +599,7 @@ finishDeleteService pid sid = do
         let tags = unsafeRange (serviceTags svc)
             name = serviceName svc
         runConduit $ User.lookupServiceUsers pid sid
-                  .| C.mapM_ (void . mapMPooled 16 kick)
+                  .| C.mapM_ (pooledMapConcurrentlyN_ 16 kick)
         RPC.removeServiceConn pid sid
         DB.deleteService pid sid name tags
   where
@@ -699,7 +699,7 @@ updateServiceWhitelist (uid ::: con ::: tid ::: req) = do
             -- conversations
             lift $ runConduit
                    $ User.lookupServiceUsersForTeam pid sid tid
-                  .| C.mapM_ (void . mapMPooled 16 (\(bid, cid) ->
+                  .| C.mapM_ (pooledMapConcurrentlyN_ 16 (\(bid, cid) ->
                                 deleteBot uid (Just con) bid cid))
             DB.deleteServiceWhitelist (Just tid) pid sid
             return (setStatus status200 empty)

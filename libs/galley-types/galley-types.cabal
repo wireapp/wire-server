@@ -39,6 +39,7 @@ library
       , currency-codes        >= 2.0
       , data-default          >= 0.5
       , gundeck-types         >= 1.15.13
+      , exceptions            >= 0.10.0
       , lens                  >= 4.12
       , protobuf              >= 0.2
       , swagger               >= 0.1

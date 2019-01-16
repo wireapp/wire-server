@@ -1,11 +1,13 @@
 {-# LANGUAGE ConstraintKinds   #-}
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE TypeOperators     #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Galley.API.Update
     ( -- * Managing Conversations
@@ -66,6 +68,7 @@ import Galley.Types.Bot
 import Galley.Types.Clients (Clients)
 import Galley.Types.Teams hiding (EventType (..), EventData (..), Event)
 import Galley.Validation
+import Gundeck.Types.Push.V2 (RecipientClients(..))
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (_1, _2, setStatus, failure)
@@ -122,7 +125,8 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     ensureGroupConv conv
     -- Team conversations incur another round of checks
     case Data.convTeam conv of
-        Just tid -> checkTeamConv tid
+        Just tid -> checkTeamConv tid >>
+                    permissionCheckTeamConv usr cnv ModifyConvMetadata
         Nothing  -> when (targetRole == TeamAccessRole) $ throwM invalidTargetAccess
     -- When there is no update to be done, we return 204; otherwise we go
     -- with 'uncheckedUpdateConversationAccess', which will potentially kick
@@ -147,7 +151,7 @@ updateConversationAccess (usr ::: zcon ::: cnv ::: req ::: _ ) = do
             throwM invalidManagedConvOp
         -- Access mode change might result in members being removed from the
         -- conversation, so the user must have the necessary permission flag
-        void $ permissionCheck usr RemoveConversationMember tMembers
+        void $ permissionCheck usr AddRemoveConvMember tMembers
 
 uncheckedUpdateConversationAccess
     :: ConversationAccessUpdate -> UserId -> ConnId -> Data.Conversation
@@ -208,6 +212,7 @@ uncheckedUpdateConversationAccess body usr zcon conv (currentAccess, targetAcces
 updateConversationReceiptMode :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON ::: JSON -> Galley Response
 updateConversationReceiptMode (usr ::: zcon ::: cnv ::: req ::: _ ::: _) = do
     ConversationReceiptModeUpdate target <- fromBody req invalidPayload
+    permissionCheckTeamConv usr cnv ModifyConvMetadata
     (bots, users) <- botsAndUsers <$> Data.members cnv
     current <- Data.lookupReceiptMode cnv
     if current == Just target
@@ -232,6 +237,7 @@ updateConversationMessageTimer (usr ::: zcon ::: cnv ::: req ::: _ ) = do
     conv <- Data.conversation cnv >>= ifNothing convNotFound
     ensureGroupConv conv
     traverse_ ensureTeamMember $ Data.convTeam conv -- only team members can change the timer
+    permissionCheckTeamConv usr cnv ModifyConvMetadata
     let currentTimer = Data.convMessageTimer conv
     if currentTimer == messageTimer then
         return $ empty & setStatus status204
@@ -360,7 +366,7 @@ addMembers (zusr ::: zcon ::: cid ::: req ::: _) = do
     teamConvChecks tid newUsers conv = do
         tms <- Data.teamMembers tid
         ensureAccessRole (Data.convAccessRole conv) newUsers (Just tms)
-        void $ permissionCheck zusr AddConversationMember tms
+        void $ permissionCheck zusr AddRemoveConvMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged
@@ -417,7 +423,7 @@ removeMember (zusr ::: zcon ::: cid ::: victim) = do
 
     teamConvChecks tid = do
         unless (zusr == victim) $
-            void $ permissionCheck zusr RemoveConversationMember =<< Data.teamMembers tid
+            void $ permissionCheck zusr AddRemoveConvMember =<< Data.teamMembers tid
         tcv <- Data.teamConversation tid cid
         when (maybe False (view managedConversation) tcv) $
             throwM (invalidOp "Users can not be removed from managed conversations.")
@@ -485,7 +491,7 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
           }
         conv = fromMaybe (selfConv $ memId m) cnv -- use recipient's client's self conversation on broadcast
         e = Event OtrMessageAdd conv usr now (Just $ EdOtrMessage o)
-        r = recipient m & recipientClients .~ [c]
+        r = recipient m & recipientClients .~ (RecipientClientsSome $ singleton c)
     in case newBotMember m of
         Just  b -> ((b,e):toBots, toUsers)
         Nothing ->
@@ -499,6 +505,7 @@ newMessage usr con cnv msg now (m, c, t) ~(toBots, toUsers) =
 updateConversation :: UserId ::: ConnId ::: ConvId ::: Request ::: JSON -> Galley Response
 updateConversation (zusr ::: zcon ::: cnv ::: req ::: _) = do
     body <- fromBody req invalidPayload
+    permissionCheckTeamConv zusr cnv ModifyConvMetadata
     alive <- Data.isConvAlive cnv
     unless alive $ do
         Data.deleteConversation cnv
@@ -567,7 +574,7 @@ addBot (zusr ::: zcon ::: req ::: _) = do
 
     teamConvChecks cid tid = do
         tms <- Data.teamMembers tid
-        void $ permissionCheck zusr AddConversationMember tms
+        void $ permissionCheck zusr AddRemoveConvMember tms
         tcv <- Data.teamConversation tid cid
         when (maybe True (view managedConversation) tcv) $
             throwM noAddToManaged

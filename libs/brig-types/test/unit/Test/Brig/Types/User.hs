@@ -12,6 +12,7 @@ import Imports
 import Brig.Types.Activation
 import Brig.Types.Intra
 import Brig.Types.Provider (UpdateServiceWhitelist)
+import Brig.Types.Team.Invitation
 import Brig.Types.User
 import Data.Aeson
 import Data.Aeson.Types
@@ -76,6 +77,9 @@ roundtripTests =
     , run @EmailRemove Proxy
     , run @EmailUpdate Proxy
     , run @HandleUpdate Proxy
+    , run @InvitationList Proxy
+    , run @Invitation Proxy
+    , run @InvitationRequest Proxy
     , run @LocaleUpdate Proxy
     , run @NewPasswordReset Proxy
     , run @NewUser Proxy
