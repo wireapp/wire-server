@@ -128,7 +128,7 @@ index-reset: install
 docker:
 	$(foreach executable,$(EXECUTABLES),\
 	docker build -t $(executable) \
-	-f Dockerfile \
+	-f ../../build/alpine/Dockerfile.executable \
 	--build-arg executable=$(executable) \
 	../.. \
 	;)

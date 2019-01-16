@@ -101,8 +101,7 @@ db-migrate: fast
 docker:
 	$(foreach executable,$(EXECUTABLES),\
 	docker build -t $(executable) \
-	-f ../../build/alpine/Dockerfile \
-	--build-arg service=$(NAME) \
+	-f ../../build/alpine/Dockerfile.executable \
 	--build-arg executable=$(executable) \
 	../.. \
 	;)
