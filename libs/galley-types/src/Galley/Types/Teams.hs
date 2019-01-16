@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE StrictData                 #-}
@@ -64,6 +65,9 @@ module Galley.Types.Teams
     , permsToInt
     , intToPerm
     , intToPerms
+
+    , Role (..)
+    , rolePermissions
 
     , BindingNewTeam (..)
     , NonBindingNewTeam (..)
@@ -236,6 +240,35 @@ data Perm =
     -- read Note [team roles] first.
     deriving (Eq, Ord, Show, Enum, Bounded)
 
+data Role = RoleOwner | RoleAdmin | RoleMember | RoleCollaborator
+    deriving (Eq, Ord, Show, Enum, Bounded)
+
+rolePermissions :: Role -> Permissions
+rolePermissions role = Permissions p p  where p = rolePerms role
+
+rolePerms :: Role -> Set Perm
+rolePerms RoleOwner = rolePerms RoleAdmin <> Set.fromList
+    [ GetBilling
+    , SetBilling
+    , DeleteTeam
+    ]
+rolePerms RoleAdmin = rolePerms RoleMember <> Set.fromList
+    [ AddTeamMember
+    , RemoveTeamMember
+    , SetTeamData
+    , SetMemberPermissions
+    ]
+rolePerms RoleMember = rolePerms RoleCollaborator <> Set.fromList
+    [ DeleteConversation
+    , AddRemoveConvMember
+    , ModifyConvMetadata
+    , GetMemberPermissions
+    ]
+rolePerms RoleCollaborator = Set.fromList
+    [ CreateConversation
+    , GetTeamConversations
+    ]
+
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
     deriving (Eq, Show)
 
@@ -394,6 +427,7 @@ hasPermission tm p = p `Set.member` (tm^.permissions.self)
 
 isTeamOwner :: TeamMember -> Bool
 isTeamOwner tm = fullPermissions == (tm^.permissions)
+    -- (this should be reimplemented in terms of 'rolePermissions'.)
 
 permToInt :: Perm -> Word64
 permToInt CreateConversation       = 0x0001
@@ -507,6 +541,20 @@ instance FromJSON Permissions where
         case newPermissions s d of
             Nothing -> fail "invalid permissions"
             Just ps -> pure ps
+
+instance ToJSON Role where
+    toJSON RoleOwner        = "owner"
+    toJSON RoleAdmin        = "admin"
+    toJSON RoleMember       = "member"
+    toJSON RoleCollaborator = "collaborator"
+
+instance FromJSON Role where
+    parseJSON = withText "Role" $ \case
+        "owner"        -> pure RoleOwner
+        "admin"        -> pure RoleAdmin
+        "member"       -> pure RoleMember
+        "collaborator" -> pure RoleCollaborator
+        bad            -> fail $ "not a role: " <> show bad
 
 newTeamJson :: NewTeam a -> [Pair]
 newTeamJson (NewTeam n i ik _) =

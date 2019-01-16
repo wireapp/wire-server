@@ -344,6 +344,9 @@ instance Arbitrary Invitation where
 instance Arbitrary InvitationRequest where
     arbitrary = InvitationRequest <$> arbitrary <*> arbitrary <*> arbitrary
 
+instance Arbitrary Role where
+    arbitrary = elements [minBound..]
+
 ----------------------------------------------------------------------
 -- utilities
 
