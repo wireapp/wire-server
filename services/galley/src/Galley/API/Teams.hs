@@ -208,9 +208,9 @@ getTeamMembers (zusr::: tid ::: _) = do
     mems <- Data.teamMembers tid
     case findTeamMember zusr mems of
         Nothing -> throwM noTeamMember
-        Just  m -> do
-            let withPerm = m `hasPermission` GetMemberPermissions
-            pure (json $ teamMemberListJson withPerm (newTeamMemberList mems))
+        Just m -> do
+            unless (m `hasPermission` GetMemberPermissions) $ throwM accessDenied
+            pure (json $ teamMemberListJson True (newTeamMemberList mems))
 
 getTeamMember :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getTeamMember (zusr ::: tid ::: uid ::: _) = do
@@ -218,9 +218,9 @@ getTeamMember (zusr ::: tid ::: uid ::: _) = do
     case findTeamMember zusr mems of
         Nothing -> throwM noTeamMember
         Just  m -> do
-            let withPerm = m `hasPermission` GetMemberPermissions
-            let member   = findTeamMember uid mems
-            maybe (throwM teamMemberNotFound) (pure . json . teamMemberJson withPerm) member
+            unless (zusr == uid || m `hasPermission` GetMemberPermissions) $ throwM accessDenied
+            let member = findTeamMember uid mems
+            maybe (throwM teamMemberNotFound) (pure . json . teamMemberJson True) member
 
 uncheckedGetTeamMember :: TeamId ::: UserId ::: JSON -> Galley Response
 uncheckedGetTeamMember (tid ::: uid ::: _) = do
