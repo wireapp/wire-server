@@ -52,5 +52,5 @@ journalEvent typ tid dat tim = view aEnv >>= \mEnv -> for_ mEnv $ \e -> do
 evData :: [TeamMember] -> Maybe Currency.Alpha -> TeamEvent'EventData
 evData mems cur = TeamEvent'EventData count (toBytes <$> uids) (pack . show <$> cur) []
   where
-    uids  = view userId <$> filter (`hasPermission` CRUDBilling) mems
+    uids  = view userId <$> filter (`hasPermission` SetBilling) mems
     count = fromIntegral $ length mems
