@@ -489,6 +489,9 @@ instance FromJSON TeamList where
         TeamList <$> o .: "teams"
                  <*> o .: "has_more"
 
+instance ToJSON TeamMember where
+    toJSON = teamMemberJson (const True)
+
 teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
 teamMemberJson withPerms m = object $
     [ "user" .= _userId m ] <>
@@ -513,6 +516,9 @@ parseTeamMember = withObject "team-member" $ \o ->
 
     parseInv' = withObject "team-member invitation metadata" $ \o ->
         (,) <$> (o .: "by") <*> (o .: "at")
+
+instance ToJSON TeamMemberList where
+    toJSON = teamMemberListJson (const True)
 
 teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
 teamMemberListJson withPerms l =
@@ -583,14 +589,14 @@ instance ToJSON BindingNewTeam where
 instance ToJSON NonBindingNewTeam where
     toJSON (NonBindingNewTeam t) =
         object
-        $ "members" .= (map (teamMemberJson (const True)) . fromRange <$> _newTeamMembers t)
+        $ "members" .= (fromRange <$> _newTeamMembers t)
         # newTeamJson t
 
 deriving instance FromJSON BindingNewTeam
 deriving instance FromJSON NonBindingNewTeam
 
 instance ToJSON NewTeamMember where
-    toJSON t = object ["member" .= teamMemberJson (const True) (_ntmNewTeamMember t)]
+    toJSON t = object ["member" .= _ntmNewTeamMember t]
 
 instance FromJSON NewTeamMember where
     parseJSON = withObject "add team member" $ \o ->

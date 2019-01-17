@@ -226,12 +226,12 @@ getTeamMember (zusr ::: tid ::: uid ::: _) = do
 uncheckedGetTeamMember :: TeamId ::: UserId ::: JSON -> Galley Response
 uncheckedGetTeamMember (tid ::: uid ::: _) = do
     mem <- Data.teamMember tid uid >>= ifNothing teamMemberNotFound
-    return . json $ teamMemberJson (const True) mem
+    return $ json mem
 
 uncheckedGetTeamMembers :: TeamId ::: JSON -> Galley Response
 uncheckedGetTeamMembers (tid ::: _) = do
     mems <- Data.teamMembers tid
-    return . json $ teamMemberListJson (const True) (newTeamMemberList mems)
+    return . json $ newTeamMemberList mems
 
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -481,4 +481,4 @@ getBindingTeamId zusr = withBindingTeam zusr $ pure . json
 getBindingTeamMembers :: UserId -> Galley Response
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
     members <- Data.teamMembers tid
-    pure $ json $ teamMemberListJson (const True) (newTeamMemberList members)
+    pure . json $ newTeamMemberList members
