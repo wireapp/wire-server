@@ -5,7 +5,7 @@ networks:
 version: '2'
 services:
   brig:
-    image: brig
+    image: quay.io/wire/brig
     depends_on:
       - cargohold
       - galley
@@ -33,7 +33,7 @@ services:
       - docker-ephemeral_demo_wire
 
   galley:
-    image: galley
+    image: quay.io/wire/galley
     ports:
       - 127.0.0.1:8085:8085
     volumes:
@@ -53,7 +53,7 @@ services:
       - docker-ephemeral_demo_wire
 
   gundeck:
-    image: gundeck
+    image: quay.io/wire/gundeck
     ports:
       - 127.0.0.1:8086:8086
     volumes:
@@ -75,7 +75,7 @@ services:
       - docker-ephemeral_demo_wire
 
   cannon:
-    image: cannon
+    image: quay.io/wire/cannon
     ports:
         - 127.0.0.1:8083:8083
     volumes:
@@ -89,7 +89,7 @@ services:
       - docker-ephemeral_demo_wire
 
   cargohold:
-    image: cargohold
+    image: quay.io/wire/cargohold
     ports:
      - 127.0.0.1:8084:8084
     volumes:
@@ -105,7 +105,7 @@ services:
       - docker-ephemeral_demo_wire
 
   proxy:
-    image: proxy
+    image: quay.io/wire/proxy
     ports:
       - 127.0.0.1:8087:8087
     volumes:
@@ -119,7 +119,7 @@ services:
       - docker-ephemeral_demo_wire
 
   spar:
-    image: spar
+    image: quay.io/wire/spar
     ports:
       - 127.0.0.1:8088:8088
     volumes:
@@ -135,7 +135,7 @@ services:
       - docker-ephemeral_demo_wire
 
   nginz:
-    image: nginz
+    image: quay.io/wire/nginz
     depends_on:
       - cargohold
       - gundeck
