@@ -297,6 +297,7 @@ updSCIMStoredUser usr storedusr = do
   now <- SAML.getNow
   pure $ updSCIMStoredUser' now usr storedusr
 
+-- TODO: recalculate the 'version', too
 updSCIMStoredUser'
   :: SAML.Time -> SCIM.User.User -> SCIM.Class.User.StoredUser -> SCIM.Class.User.StoredUser
 updSCIMStoredUser' (SAML.Time moddate) usr (SCIM.WithMeta meta (SCIM.WithId scimuid _)) =
