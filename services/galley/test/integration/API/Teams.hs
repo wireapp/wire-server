@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module API.Teams (tests) where
 
@@ -304,7 +305,7 @@ testRemoveTeamMember g b c _ = do
         checkConvMemberLeaveEvent cid3 (mem1^.userId) wsMext3
         WS.assertNoEvent timeout ws
 
-testRemoveBindingTeamMember :: Bool -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testRemoveBindingTeamMember :: HasCallStack => Bool -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testRemoveBindingTeamMember ownerHasPassword g b c a = do
     owner <- Util.randomUser' ownerHasPassword b
     tid   <- Util.createTeamInternal g "foo" owner
@@ -366,8 +367,10 @@ testRemoveBindingTeamMember ownerHasPassword g b c a = do
                    . json (newTeamMemberDeleteData Nothing)
                    ) !!! const 202 === statusCode
 
+        checkNoConvMemberLeaveEvent cid1 wsOwner
         checkTeamMemberLeave tid (mem1^.userId) wsOwner
         checkConvMemberLeaveEvent cid1 (mem1^.userId) wsMext
+        -- TODO: check the external user does not get team leave event?
 
         assertQueue "team member leave" a $ tUpdate 1 [owner]
         WS.assertNoEvent timeout [wsMext]
@@ -855,6 +858,16 @@ checkConvDeleteEvent cid w = WS.assertMatch_ timeout w $ \notif -> do
     evtType e @?= Conv.ConvDelete
     evtConv e @?= cid
     evtData e @?= Nothing
+
+checkNoConvMemberLeaveEvent :: HasCallStack => ConvId -> WS.WebSocket -> Http ()
+checkNoConvMemberLeaveEvent cid w = WS.assertNoMatch timeout w
+    (\notif ->
+        case List1.head (WS.unpackEitherPayload notif) of
+            Right (e :: Conv.Event) -> and
+                [ evtConv e == cid
+                , evtType e == Conv.MemberLeave
+                ]
+            Left _ -> False)
 
 checkConvMemberLeaveEvent :: HasCallStack => ConvId -> UserId -> WS.WebSocket -> Http ()
 checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do

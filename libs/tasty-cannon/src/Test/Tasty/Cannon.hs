@@ -25,6 +25,7 @@ module Test.Tasty.Cannon
     , await
     , awaitMatch
     , awaitMatch_
+    , assertNoMatch
     , awaitMatchN
     , assertMatch
     , assertMatch_
@@ -34,6 +35,7 @@ module Test.Tasty.Cannon
 
       -- * Unpacking Notifications
     , unpackPayload
+    , unpackEitherPayload
 
       -- * Randomness
     , randomConnId
@@ -47,7 +49,8 @@ module Test.Tasty.Cannon
 import Imports
 import Control.Concurrent.Async
 import Control.Concurrent.Timeout hiding (threadDelay)
-import Control.Exception (SomeAsyncException, asyncExceptionFromException, throwIO)
+import Control.Exception (SomeAsyncException, ErrorCall(..), asyncExceptionFromException, throwIO)
+import Control.Monad (void, forever, unless)
 import Control.Monad.Catch hiding (bracket)
 import Data.Aeson (decodeStrict', FromJSON, fromJSON, Value (..))
 import Data.ByteString.Conversion
@@ -231,6 +234,27 @@ awaitMatch_ :: (HasCallStack, MonadIO m, MonadCatch m)
            -> m ()
 awaitMatch_ t w = void . awaitMatch t w
 
+-- | Like 'awaitMatch', but throws an exception iff there is an event matching a given boolean
+-- property.
+assertNoMatch
+  :: (HasCallStack, MonadIO m, MonadCatch m)
+  => Timeout -> WebSocket -> (Notification -> Bool) -> m ()
+assertNoMatch t ws prop = go []
+  where
+    go buf = do
+        mn <- await t ws
+        case mn of
+            Just  n -> if prop n
+                then do
+                    refill (n : buf)
+                    throwM . MatchFailure . SomeException . ErrorCall $
+                        show n <> ": shouldn't match, but does"
+                else go (n : buf)
+            Nothing -> do
+                refill buf
+
+    refill = mapM_ (liftIO . atomically . writeTChan (wsChan ws))
+
 assertMatch :: (HasCallStack, MonadIO m, MonadCatch m)
             => Timeout
             -> WebSocket
@@ -279,6 +303,13 @@ unpackPayload = fmap decodeEvent . ntfPayload
     decodeEvent o = case fromJSON (Object o) of
         JSON.Success x -> x
         JSON.Error   e -> error e
+
+unpackEitherPayload :: FromJSON a => Notification -> List1 (Either String a)
+unpackEitherPayload = fmap decodeEvent . ntfPayload
+  where
+    decodeEvent o = case fromJSON (Object o) of
+        JSON.Success x -> Right x
+        JSON.Error   e -> Left e
 
 -----------------------------------------------------------------------------
 -- Randomness

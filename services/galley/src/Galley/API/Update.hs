@@ -401,7 +401,15 @@ updateMember (zusr ::: zcon ::: cid ::: req ::: _) = do
         , memHiddenRef      = misHiddenRef u <|> memHiddenRef m
         }
 
-removeMember :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response
+removeMember :: UserId ::: ConnId ::: ConvId ::: UserId -> Galley Response  -- !! (we probably make
+                                                                            -- the mistake of
+                                                                            -- removing the deleted
+                                                                            -- user from all convs,
+                                                                            -- but not telling that
+                                                                            -- helper function that
+                                                                            -- we don't want to send
+                                                                            -- out leave
+                                                                            -- notifications.)
 removeMember (zusr ::: zcon ::: cid ::: victim) = do
     conv <- Data.conversation cid >>= ifNothing convNotFound
     let (bots, users) = botsAndUsers (Data.convMembers conv)
