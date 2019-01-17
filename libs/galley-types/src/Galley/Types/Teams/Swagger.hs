@@ -92,6 +92,8 @@ teamMember = defineModel "TeamMember" $ do
     property "permissions" (ref permissions) $
         description "The permissions this user has in the given team \
             \ (only visible with permission `GetMemberPermissions`)."
+        optional  -- not optional in the type, but in the json instance.  (in
+                  -- servant, we could probably just add a helper type for this.)
 
 permissions :: Model
 permissions = defineModel "Permissions" $ do
