@@ -210,7 +210,7 @@ getTeamMembers (zusr::: tid ::: _) = do
         Nothing -> throwM noTeamMember
         Just m -> do
             unless (m `hasPermission` GetMemberPermissions) $ throwM accessDenied
-            pure (json $ newTeamMemberList mems)
+            pure (json $ teamMemberListJson True (newTeamMemberList mems))
 
 getTeamMember :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getTeamMember (zusr ::: tid ::: uid ::: _) = do
@@ -220,17 +220,17 @@ getTeamMember (zusr ::: tid ::: uid ::: _) = do
         Just  m -> do
             unless (zusr == uid || m `hasPermission` GetMemberPermissions) $ throwM accessDenied
             let member = findTeamMember uid mems
-            maybe (throwM teamMemberNotFound) (pure . json) member
+            maybe (throwM teamMemberNotFound) (pure . json . teamMemberJson True) member
 
 uncheckedGetTeamMember :: TeamId ::: UserId ::: JSON -> Galley Response
 uncheckedGetTeamMember (tid ::: uid ::: _) = do
     mem <- Data.teamMember tid uid >>= ifNothing teamMemberNotFound
-    return $ json mem
+    return . json $ teamMemberJson True mem
 
 uncheckedGetTeamMembers :: TeamId ::: JSON -> Galley Response
 uncheckedGetTeamMembers (tid ::: _) = do
     mems <- Data.teamMembers tid
-    return . json $ newTeamMemberList mems
+    return . json $ teamMemberListJson True (newTeamMemberList mems)
 
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -296,7 +296,7 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
                         (mem ^. userId) == targetId
         privileged = filter privilege updatedMembers
         mkUpdate               = EdMemberUpdate targetId
-        privilegedUpdate       = mkUpdate targetPermissions
+        privilegedUpdate       = mkUpdate $ Just targetPermissions
         privilegedRecipients   = membersToRecipients Nothing privileged
 
     now <- liftIO getCurrentTime
@@ -482,4 +482,4 @@ getBindingTeamId zusr = withBindingTeam zusr $ pure . json
 getBindingTeamMembers :: UserId -> Galley Response
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
     members <- Data.teamMembers tid
-    pure . json $ newTeamMemberList members
+    pure $ json $ teamMemberListJson True (newTeamMemberList members)

@@ -741,8 +741,8 @@ testUpdateTeamMember g b c a = do
             ) !!! const 200 === statusCode
         member' <- Util.getTeamMember g owner tid (member^.userId)
         liftIO $ assertEqual "permissions" (member'^.permissions) (changeMember^.ntmNewTeamMember.permissions)
-        checkTeamMemberUpdateEvent tid (member^.userId) wsOwner fullPermissions
-        checkTeamMemberUpdateEvent tid (member^.userId) wsMember fullPermissions
+        checkTeamMemberUpdateEvent tid (member^.userId) wsOwner (pure fullPermissions)
+        checkTeamMemberUpdateEvent tid (member^.userId) wsMember (pure fullPermissions)
         WS.assertNoEvent timeout [wsOwner, wsMember]
     -- Now that the other member has full permissions, it can demote the owner
     WS.bracketR2 c (member^.userId) owner $ \(wsMember, wsOwner) -> do
@@ -755,8 +755,8 @@ testUpdateTeamMember g b c a = do
         owner' <- Util.getTeamMember g (member^.userId) tid owner
         liftIO $ assertEqual "permissions" (owner'^.permissions) (changeOwner^.ntmNewTeamMember.permissions)
         -- owner no longer has GetPermissions, but she can still see the update because it's about her!
-        checkTeamMemberUpdateEvent tid owner wsOwner p
-        checkTeamMemberUpdateEvent tid owner wsMember p
+        checkTeamMemberUpdateEvent tid owner wsOwner (pure p)
+        checkTeamMemberUpdateEvent tid owner wsMember (pure p)
         WS.assertNoEvent timeout [wsOwner, wsMember]
     assertQueueEmpty a
   where
