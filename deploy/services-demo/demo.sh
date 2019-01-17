@@ -122,6 +122,8 @@ function copy_brig_templates() {
 function copy_nginz_configs() {
     # Need to copy over the configs from Nginz since symlinking does not
     # work with Docker
+    # ensure swagger UI files are downloaded befory copying
+    make -C "${TOP_LEVEL}/services/nginz" zwagger-ui/swagger-ui
     mkdir -p "${SCRIPT_DIR}/conf/nginz/zwagger-ui"
     cp -r "${SCRIPT_DIR}/../../services/nginz/zwagger-ui/"* "${SCRIPT_DIR}/conf/nginz/zwagger-ui/"
 }
