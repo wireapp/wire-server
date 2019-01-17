@@ -6,15 +6,15 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Gundeck.Push.Websocket (push, bulkPush) where
+module Gundeck.Push.Websocket (push, bulkPush, MonadBulkPush(..)) where
 
 import Imports
-import Bilge
+import Bilge hiding (trace)
 import Bilge.Retry (rpcHandlers)
 import Bilge.RPC
 import Control.Arrow ((&&&))
 import Control.Exception (ErrorCall(ErrorCall))
-import Control.Monad.Catch (MonadThrow, throwM, catch, try)
+import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask, throwM, catch, try)
 import Control.Lens ((^.), (%~), _2, view)
 import Control.Retry
 import Data.Aeson (encode, eitherDecode)
@@ -42,12 +42,29 @@ import qualified Network.HTTP.Client.Internal as Http
 import qualified Network.URI                  as URI
 import qualified System.Logger.Class          as Log
 
+class (Monad m, MonadThrow m, Log.MonadLogger m) => MonadBulkPush m where
+  mbpBulkSend :: URI -> BulkPushRequest -> m (URI, Either SomeException BulkPushResponse)
+  mbpDeleteAllPresences :: [Presence] -> m ()
+  mbpPosixTime :: m Milliseconds
+  mbpMapConcurrently :: Traversable t => (a -> m b) -> t a -> m (t b)
+  mbpMonitorBadCannons :: (URI, (SomeException, [Presence])) -> m ()
+
+instance MonadBulkPush Gundeck where
+  mbpBulkSend = bulkSend
+  mbpDeleteAllPresences = Presence.deleteAll
+  mbpPosixTime = posixTime
+  mbpMapConcurrently = mapConcurrently
+  mbpMonitorBadCannons = monitorBadCannons
+
 -- | Send a 'Notification's to associated 'Presence's.  Send at most one request to each Cannon.
 -- Return the lists of 'Presence's successfully reached for each resp. 'Notification'.
-bulkPush :: [(Notification, [Presence])] -> Gundeck [(NotificationId, [Presence])]
+bulkPush :: forall m. MonadBulkPush m => [(Notification, [Presence])] -> m [(NotificationId, [Presence])]
+  -- REFACTOR: make presences lists (and notification list) non-empty where applicable?  are there
+  -- better types to express more of our semantics / invariants?  (what about duplicates in presence
+  -- lists?)
 bulkPush notifs = do
     let reqs = fanOut notifs
-    flbck <- flowBack <$> (uncurry bulkSend `mapConcurrently` reqs)
+    flbck <- flowBack <$> (uncurry mbpBulkSend `mbpMapConcurrently` reqs)
 
     let -- lookup by 'URI' can fail iff we screwed up URI handling in this module.
         presencesByCannon = mkPresencesByCannon . mconcat $ snd <$> notifs
@@ -64,12 +81,12 @@ bulkPush notifs = do
     successes :: [(NotificationId, Presence)]
         <- (\(nid, trgt) -> (nid,) <$> presenceByPushTarget trgt) `mapM` flowBackDelivered flbck
 
-    logBadCannons  `mapM_` badCannons
-    logPrcsGone    `mapM_` prcsGone
-    logSuccesses   `mapM_` successes
+    (\info -> mbpMonitorBadCannons info >> logBadCannons info) `mapM_` badCannons
+    logPrcsGone `mapM_` prcsGone
+    logSuccesses `mapM_` successes
 
-    Presence.deleteAll =<< do
-        now <- posixTime
+    mbpDeleteAllPresences =<< do
+        now <- mbpPosixTime
         let deletions = prcsGone <> (filter dead . mconcat $ snd . snd <$> badCannons)
             dead prc  = now - createdAt prc > 10 * posixDay
             posixDay  = Ms (round (1000 * posixDayLength))
@@ -78,11 +95,14 @@ bulkPush notifs = do
     pure (groupAssoc successes)
 
 -- | log all cannons with response status @/= 200@.
-logBadCannons :: (MonadIO m, MonadReader Env m, Log.MonadLogger m)
-               => (URI, (SomeException, [Presence])) -> m ()
-logBadCannons (uri, (err, prcs)) = do
+monitorBadCannons :: (MonadIO m, MonadReader Env m)
+               => (uri, (error, [Presence])) -> m ()
+monitorBadCannons (_uri, (_err, prcs)) = do
     view monitor >>= Metrics.counterAdd (fromIntegral $ length prcs)
         (Metrics.path "push.ws.unreachable")
+
+logBadCannons :: Log.MonadLogger m => (URI, (SomeException, [Presence])) -> m ()
+logBadCannons (uri, (err, prcs)) = do
     forM_ prcs $ \prc ->
         Log.warn $ logPresence prc
             ~~ Log.field "created_at" (ms $ createdAt prc)
@@ -114,10 +134,14 @@ fanOut
     pullUri :: (notif, [Presence]) -> [(notif, (URI, Presence))]
     pullUri (notif, prcs) = (notif,) . (bulkresource &&& id) <$> prcs
 
-bulkSend :: URI -> BulkPushRequest -> Gundeck (URI, Either SomeException BulkPushResponse)
+bulkSend
+  :: forall m. (MonadIO m, MonadThrow m, MonadCatch m, MonadMask m, HasRequestId m, MonadHttp m)
+  => URI -> BulkPushRequest -> m (URI, Either SomeException BulkPushResponse)
 bulkSend uri req = (uri,) <$> ((Right <$> bulkSend' uri req) `catch` (pure . Left))
 
-bulkSend' :: URI -> BulkPushRequest -> Gundeck BulkPushResponse
+bulkSend'
+  :: forall m. (MonadIO m, MonadThrow m, MonadCatch m, MonadMask m, HasRequestId m, MonadHttp m)
+  => URI -> BulkPushRequest -> m BulkPushResponse
 bulkSend' uri (encode -> jsbody) = do
     req <- ( check
            . method POST

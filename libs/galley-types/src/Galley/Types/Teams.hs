@@ -26,8 +26,10 @@ module Galley.Types.Teams
 
     , TeamMember
     , newTeamMember
+    , newTeamMemberRaw
     , userId
     , permissions
+    , invitation
     , teamMemberJson
 
     , TeamMemberList
@@ -101,7 +103,9 @@ module Galley.Types.Teams
     ) where
 
 import Imports
+import Control.Exception (ErrorCall(ErrorCall))
 import Control.Lens (makeLenses, view, (^.))
+import Control.Monad.Catch
 import Data.Aeson
 import Data.Aeson.Types (Parser, Pair)
 import Data.Bits (testBit, (.|.))
@@ -191,6 +195,7 @@ data TeamList = TeamList
 data TeamMember = TeamMember
     { _userId      :: UserId
     , _permissions :: Permissions
+    , _invitation  :: Maybe (UserId, UTCTimeMillis)
     } deriving (Eq, Ord, Show)
 
 newtype TeamMemberList = TeamMemberList
@@ -216,8 +221,8 @@ data Perm =
     | DeleteConversation
     | AddTeamMember
     | RemoveTeamMember
-    | AddConversationMember
-    | RemoveConversationMember
+    | AddRemoveConvMember
+    | ModifyConvMetadata
     | GetBilling
     | SetBilling
     | SetTeamData
@@ -225,6 +230,8 @@ data Perm =
     | SetMemberPermissions
     | GetTeamConversations
     | DeleteTeam
+    -- FUTUREWORK: make the verbs in the roles more consistent
+    -- (CRUD vs. Add,Remove vs; Get,Set vs. Create,Delete etc).
     -- If you ever think about adding a new permission flag,
     -- read Note [team roles] first.
     deriving (Eq, Ord, Show, Enum, Bounded)
@@ -258,8 +265,16 @@ newTeam tid uid nme ico bnd = Team tid uid nme ico Nothing bnd
 newTeamList :: [Team] -> Bool -> TeamList
 newTeamList = TeamList
 
-newTeamMember :: UserId -> Permissions -> TeamMember
+newTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TeamMember
 newTeamMember = TeamMember
+
+-- | This is called in "Galley.Data".  It throws an exception if the input is inconsistent, meaning
+-- that one of inviter and invitation timestamp is Nothing and the other is Just.  This is justified
+-- because it can only be caused by
+newTeamMemberRaw :: MonadThrow m => UserId -> Permissions -> Maybe UserId -> Maybe UTCTimeMillis -> m TeamMember
+newTeamMemberRaw uid perms (Just invu) (Just invt) = pure $ TeamMember uid perms (Just (invu, invt))
+newTeamMemberRaw uid perms Nothing Nothing         = pure $ TeamMember uid perms Nothing
+newTeamMemberRaw _ _ _ _ = throwM $ ErrorCall "TeamMember with incomplete metadata."
 
 newTeamMemberList :: [TeamMember] -> TeamMemberList
 newTeamMemberList = TeamMemberList
@@ -333,7 +348,7 @@ noPermissions = Permissions mempty mempty
 serviceWhitelistPermissions :: Set Perm
 serviceWhitelistPermissions = Set.fromList
     [ AddTeamMember, RemoveTeamMember
-    , RemoveConversationMember
+    , AddRemoveConvMember
     , SetTeamData
     ]
 
@@ -347,7 +362,7 @@ hasPermission tm p = p `Set.member` (tm^.permissions.self)
 -- permissions:
 --
 --     member =
---         {Add/RemoveConversationMember, Create/DeleteConversation,
+--         {AddRemoveConvMember, Create/DeleteConversation,
 --         GetMemberPermissions, GetTeamConversations}
 --
 --     admin = member +
@@ -385,8 +400,8 @@ permToInt CreateConversation       = 0x0001
 permToInt DeleteConversation       = 0x0002
 permToInt AddTeamMember            = 0x0004
 permToInt RemoveTeamMember         = 0x0008
-permToInt AddConversationMember    = 0x0010
-permToInt RemoveConversationMember = 0x0020
+permToInt AddRemoveConvMember      = 0x0010
+permToInt ModifyConvMetadata       = 0x0020
 permToInt GetBilling               = 0x0040
 permToInt SetBilling               = 0x0080
 permToInt SetTeamData              = 0x0100
@@ -400,8 +415,8 @@ intToPerm 0x0001 = Just CreateConversation
 intToPerm 0x0002 = Just DeleteConversation
 intToPerm 0x0004 = Just AddTeamMember
 intToPerm 0x0008 = Just RemoveTeamMember
-intToPerm 0x0010 = Just AddConversationMember
-intToPerm 0x0020 = Just RemoveConversationMember
+intToPerm 0x0010 = Just AddRemoveConvMember
+intToPerm 0x0020 = Just ModifyConvMetadata
 intToPerm 0x0040 = Just GetBilling
 intToPerm 0x0080 = Just SetBilling
 intToPerm 0x0100 = Just SetTeamData
@@ -431,17 +446,32 @@ instance FromJSON TeamList where
                  <*> o .: "has_more"
 
 teamMemberJson :: Bool -> TeamMember -> Value
-teamMemberJson False m = object [ "user" .= _userId m ]
-teamMemberJson True  m = object [ "user" .= _userId m, "permissions" .= _permissions m ]
+teamMemberJson withPerms m = object $
+    [ "user" .= _userId m ] <>
+    [ "permissions" .= _permissions m | withPerms ] <>
+    (maybe [] (\inv -> ["invited" .= invJson inv]) (_invitation m))
+  where
+    invJson :: (UserId, UTCTimeMillis) -> Value
+    invJson (by, at) = object [ "by" .= by, "at" .= at ]
+
+parseTeamMember :: Value -> Parser TeamMember
+parseTeamMember = withObject "team-member" $ \o ->
+    TeamMember <$> o .:  "user"
+               <*> o .:  "permissions"
+               <*> (parseInv =<< (o .:? "invited"))
+  where
+    parseInv Nothing = pure Nothing
+    parseInv (Just val) = Just <$> parseInv' val
+
+    parseInv' = withObject "team-member invitation metadata" $ \o ->
+        (,) <$> (o .: "by") <*> (o .: "at")
 
 teamMemberListJson :: Bool -> TeamMemberList -> Value
 teamMemberListJson withPerm l =
     object [ "members" .= map (teamMemberJson withPerm) (_teamMembers l) ]
 
 instance FromJSON TeamMember where
-    parseJSON = withObject "team-member" $ \o ->
-        TeamMember <$> o .:  "user"
-                   <*> o .:  "permissions"
+    parseJSON = parseTeamMember
 
 instance FromJSON TeamMemberList where
     parseJSON = withObject "team member list" $ \o ->

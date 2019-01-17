@@ -69,7 +69,6 @@ executable api-smoketest
       , http-client-tls      >= 0.2
       , imports
       , lens                 >= 4.1
-      , lifted-async         >= 0.2
       , mime                 >= 0.4
       , optparse-applicative >= 0.11
       , retry                >= 0.7
@@ -110,7 +109,6 @@ executable api-loadtest
       , http-client          >= 0.4
       , http-client-tls      >= 0.2
       , imports
-      , lifted-async         >= 0.2
       , metrics-core         >= 0.1
       , mime                 >= 0.4
       , monad-control        >= 0.3
@@ -122,4 +120,5 @@ executable api-loadtest
       , transformers         >= 0.3
       , tinylog              >= 0.14
       , types-common         >= 0.11
+      , unliftio             >= 0.2.10
       , uuid                 >= 1.3
