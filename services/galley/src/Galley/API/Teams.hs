@@ -209,8 +209,8 @@ getTeamMembers (zusr::: tid ::: _) = do
     case findTeamMember zusr mems of
         Nothing -> throwM noTeamMember
         Just  m -> do
-            let withPerm = m `hasPermission` GetMemberPermissions
-            pure (json $ teamMemberListJson withPerm (newTeamMemberList mems))
+            let withPerms = (m `canSeePermsOf`)
+            pure (json $ teamMemberListJson withPerms (newTeamMemberList mems))
 
 getTeamMember :: UserId ::: TeamId ::: UserId ::: JSON -> Galley Response
 getTeamMember (zusr ::: tid ::: uid ::: _) = do
@@ -218,19 +218,20 @@ getTeamMember (zusr ::: tid ::: uid ::: _) = do
     case findTeamMember zusr mems of
         Nothing -> throwM noTeamMember
         Just  m -> do
-            let withPerm = m `hasPermission` GetMemberPermissions
-            let member   = findTeamMember uid mems
-            maybe (throwM teamMemberNotFound) (pure . json . teamMemberJson withPerm) member
+            let withPerms = (m `canSeePermsOf`)
+            let member = findTeamMember uid mems
+            maybe (throwM teamMemberNotFound)
+                (pure . json . teamMemberJson withPerms) member
 
 uncheckedGetTeamMember :: TeamId ::: UserId ::: JSON -> Galley Response
 uncheckedGetTeamMember (tid ::: uid ::: _) = do
     mem <- Data.teamMember tid uid >>= ifNothing teamMemberNotFound
-    return . json $ teamMemberJson True mem
+    return . json $ teamMemberJson (const True) mem
 
 uncheckedGetTeamMembers :: TeamId ::: JSON -> Galley Response
 uncheckedGetTeamMembers (tid ::: _) = do
     mems <- Data.teamMembers tid
-    return . json $ teamMemberListJson True (newTeamMemberList mems)
+    return . json $ teamMemberListJson (const True) (newTeamMemberList mems)
 
 addTeamMember :: UserId ::: ConnId ::: TeamId ::: Request ::: JSON ::: JSON -> Galley Response
 addTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
@@ -292,9 +293,7 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
 
     -- inform members of the team about the change
     -- some (privileged) users will be informed about which change was applied
-    let privilege mem = hasPermission mem GetMemberPermissions ||
-                        (mem ^. userId) == targetId
-        privileged = filter privilege updatedMembers
+    let privileged             = filter (`canSeePermsOf` targetMember) updatedMembers
         mkUpdate               = EdMemberUpdate targetId
         privilegedUpdate       = mkUpdate $ Just targetPermissions
         privilegedRecipients   = membersToRecipients Nothing privileged
@@ -482,4 +481,4 @@ getBindingTeamId zusr = withBindingTeam zusr $ pure . json
 getBindingTeamMembers :: UserId -> Galley Response
 getBindingTeamMembers zusr = withBindingTeam zusr $ \tid -> do
     members <- Data.teamMembers tid
-    pure $ json $ teamMemberListJson True (newTeamMemberList members)
+    pure $ json $ teamMemberListJson (const True) (newTeamMemberList members)

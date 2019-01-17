@@ -33,6 +33,7 @@ module Galley.Types.Teams
     , permissions
     , invitation
     , teamMemberJson
+    , canSeePermsOf
 
     , TeamMemberList
     , notTeamMember
@@ -488,14 +489,18 @@ instance FromJSON TeamList where
         TeamList <$> o .: "teams"
                  <*> o .: "has_more"
 
-teamMemberJson :: Bool -> TeamMember -> Value
+teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
 teamMemberJson withPerms m = object $
     [ "user" .= _userId m ] <>
-    [ "permissions" .= _permissions m | withPerms ] <>
+    [ "permissions" .= _permissions m | withPerms m ] <>
     (maybe [] (\inv -> ["invited" .= invJson inv]) (_invitation m))
   where
     invJson :: (UserId, UTCTimeMillis) -> Value
     invJson (by, at) = object [ "by" .= by, "at" .= at ]
+
+canSeePermsOf :: TeamMember -> TeamMember -> Bool
+canSeePermsOf seeer seeee =
+    seeer `hasPermission` GetMemberPermissions || seeer == seeee
 
 parseTeamMember :: Value -> Parser TeamMember
 parseTeamMember = withObject "team-member" $ \o ->
@@ -509,9 +514,9 @@ parseTeamMember = withObject "team-member" $ \o ->
     parseInv' = withObject "team-member invitation metadata" $ \o ->
         (,) <$> (o .: "by") <*> (o .: "at")
 
-teamMemberListJson :: Bool -> TeamMemberList -> Value
-teamMemberListJson withPerm l =
-    object [ "members" .= map (teamMemberJson withPerm) (_teamMembers l) ]
+teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
+teamMemberListJson withPerms l =
+    object [ "members" .= map (teamMemberJson withPerms) (_teamMembers l) ]
 
 instance FromJSON TeamMember where
     parseJSON = parseTeamMember
@@ -578,14 +583,14 @@ instance ToJSON BindingNewTeam where
 instance ToJSON NonBindingNewTeam where
     toJSON (NonBindingNewTeam t) =
         object
-        $ "members" .= (map (teamMemberJson True) . fromRange <$> _newTeamMembers t)
+        $ "members" .= (map (teamMemberJson (const True)) . fromRange <$> _newTeamMembers t)
         # newTeamJson t
 
 deriving instance FromJSON BindingNewTeam
 deriving instance FromJSON NonBindingNewTeam
 
 instance ToJSON NewTeamMember where
-    toJSON t = object ["member" .= teamMemberJson True (_ntmNewTeamMember t)]
+    toJSON t = object ["member" .= teamMemberJson (const True) (_ntmNewTeamMember t)]
 
 instance FromJSON NewTeamMember where
     parseJSON = withObject "add team member" $ \o ->
