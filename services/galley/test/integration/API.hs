@@ -79,9 +79,9 @@ tests s = testGroup "Galley integration tests"
         , test s "add past members" postMembersOk3
         , test s "fail to add members when not connected" postMembersFail
         , test s "fail to add too many members" postTooManyMembersFail
-        , test s "remove members" deleteMembersOk
-        , test s "fail to remove members from self conv." deleteMembersFailSelf
-        , test s "fail to remove members from 1:1 conv." deleteMembersFailO2O
+        , test s "remove members" deleteMembersOk  --
+        , test s "fail to remove members from self conv." deleteMembersFailSelf  --
+        , test s "fail to remove members from 1:1 conv." deleteMembersFailO2O  --
         , test s "rename conversation" putConvRenameOk
         , test s "member update (otr mute)" putMemberOtrMuteOk
         , test s "member update (otr archive)" putMemberOtrArchiveOk
@@ -100,7 +100,7 @@ tests s = testGroup "Galley integration tests"
         , test s "convert invite to code-access conversation" postConvertCodeConv
         , test s "convert code to team-access conversation" postConvertTeamConv
         , test s "cannot join private conversation" postJoinConvFail
-        , test s "remove user" removeUser
+        , test s "remove user" removeUser  --
         ]
 
 -------------------------------------------------------------------------------

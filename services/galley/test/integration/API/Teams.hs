@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module API.Teams (tests) where
 
@@ -304,7 +305,7 @@ testRemoveTeamMember g b c _ = do
         checkConvMemberLeaveEvent cid3 (mem1^.userId) wsMext3
         WS.assertNoEvent timeout ws
 
-testRemoveBindingTeamMember :: Bool -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testRemoveBindingTeamMember :: HasCallStack => Bool -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testRemoveBindingTeamMember ownerHasPassword g b c a = do
     owner <- Util.randomUser' ownerHasPassword b
     tid   <- Util.createTeamInternal g "foo" owner
@@ -369,6 +370,7 @@ testRemoveBindingTeamMember ownerHasPassword g b c a = do
         checkNoConvMemberLeaveEvent cid1 wsOwner
         checkTeamMemberLeave tid (mem1^.userId) wsOwner
         checkConvMemberLeaveEvent cid1 (mem1^.userId) wsMext
+        -- TODO: check the external user does not get team leave event?
 
         assertQueue "team member leave" a $ tUpdate 1 [owner]
         WS.assertNoEvent timeout [wsMext]

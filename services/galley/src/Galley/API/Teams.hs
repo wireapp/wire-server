@@ -311,7 +311,7 @@ updateTeamMember (zusr ::: zcon ::: tid ::: req ::: _) = do
     for_ pushUnPriv $ \p -> push1 $ p & pushConn .~ Just zcon
     pure empty
 
-deleteTeamMember :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Maybe JSON ::: JSON -> Galley Response
+deleteTeamMember :: UserId ::: ConnId ::: TeamId ::: UserId ::: Request ::: Maybe JSON ::: JSON -> Galley Response  -- this is probably where it happens.
 deleteTeamMember (zusr::: zcon ::: tid ::: remove ::: req ::: _ ::: _) = do
     mems <- Data.teamMembers tid
     void $ permissionCheck zusr RemoveTeamMember mems
