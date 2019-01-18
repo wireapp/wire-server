@@ -254,7 +254,7 @@ lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) = runIdentity <$$> do
 
 type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId)
 
--- (should be called 'insertIdPConfig' for consistency.)
+-- FUTUREWORK: should be called 'insertIdPConfig' for consistency.
 storeIdPConfig
   :: (HasCallStack, MonadClient m)
   => SAML.IdPConfig TeamId -> m ()

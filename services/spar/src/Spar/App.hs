@@ -18,7 +18,7 @@ module Spar.App
   , wrapMonadClient
   , verdictHandler
   , insertUser
-  , createUser, createUser'
+  , createUser, createUser_
   ) where
 
 import Imports
@@ -170,11 +170,12 @@ getUser uref = do
 createUser :: SAML.UserRef -> Maybe Name -> Spar UserId
 createUser suid mbName = do
   buid <- Id <$> liftIO UUID.nextRandom
-  createUser' buid suid mbName
+  createUser_ buid suid mbName
   pure buid
 
-createUser' :: UserId -> SAML.UserRef -> Maybe Name -> Spar ()
-createUser' buid suid mbName = do
+-- | Like 'createUser', but doesn't return the 'UserId'.
+createUser_ :: UserId -> SAML.UserRef -> Maybe Name -> Spar ()
+createUser_ buid suid mbName = do
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
   buid' <- Intra.createUser suid buid teamid mbName

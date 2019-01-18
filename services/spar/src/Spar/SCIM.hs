@@ -64,7 +64,7 @@ import SAML2.WebSSO (IdPId)
 import Servant
 import Servant.API.Generic
 import Spar.API.Util
-import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, createUser', wrapMonadClient)
+import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, createUser_, wrapMonadClient)
 import Spar.Error
 import Spar.Intra.Galley
 import Spar.SCIM.Types
@@ -212,7 +212,7 @@ createValidSCIMUser (ValidSCIMUser user uref handl mbName) = do
     storedUser <- lift $ toSCIMStoredUser buid user
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
     -- Create SAML user here in spar, which in turn creates a brig user.
-    lift $ createUser' buid uref mbName
+    lift $ createUser_ buid uref mbName
     -- Set user handle on brig (which can't be done during user creation).
     lift $ Intra.Brig.setHandle buid handl
 
