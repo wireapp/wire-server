@@ -491,7 +491,7 @@ insertScimUser uid usr = retry x5 . write ins $
   params Quorum (uid, usr)
   where
     ins :: PrepQuery W (UserId, SCIMC.User.StoredUser) ()
-    ins = "INSERT INTO scim_user (uid, json) VALUES (?, ?)"
+    ins = "INSERT INTO scim_user (id, json) VALUES (?, ?)"
 
 getScimUser
   :: (HasCallStack, MonadClient m)
@@ -500,7 +500,7 @@ getScimUser uid = runIdentity <$$>
   (retry x1 . query1 sel $ params Quorum (Identity uid))
   where
     sel :: PrepQuery R (Identity UserId) (Identity SCIMC.User.StoredUser)
-    sel = "SELECT json FROM scim_user WHERE uid = ?"
+    sel = "SELECT json FROM scim_user WHERE id = ?"
 
 -- | Return all users that can be found under a given list of 'UserId's.  If some cannot be found,
 -- the output list will just be shorter (no errors).
@@ -511,4 +511,4 @@ getScimUsers uids = runIdentity <$$>
   retry x1 (query sel (params Quorum (Identity uids)))
   where
     sel :: PrepQuery R (Identity [UserId]) (Identity SCIMC.User.StoredUser)
-    sel = "SELECT json FROM scim_user WHERE uid in ?"
+    sel = "SELECT json FROM scim_user WHERE id in ?"

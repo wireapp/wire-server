@@ -11,8 +11,8 @@ migration :: Migration
 migration = Migration 5 "Store SCIM user blobs" $ do
     void $ schema' [r|
         CREATE TABLE if not exists scim_user
-            ( uid    uuid
+            ( id     uuid
             , json   blob
-            , PRIMARY KEY (uid)
+            , PRIMARY KEY (id)
             ) with compaction = {'class': 'LeveledCompactionStrategy'};
     |]
