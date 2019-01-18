@@ -154,12 +154,14 @@ testInvitationRoles brig galley = do
             let Just invitee = userId <$> decodeBody rsp
             pure invitee
 
+    -- owner creates a member alice.
     alice :: UserId <- do
         aliceEmail <- randomEmail
         let invite = InvitationRequest aliceEmail (Name "Alice") Nothing (Just Team.RoleAdmin)
-        inv <- decodeBody =<< postInvitation brig tid owner invite
+        inv :: Invitation <- decodeBody =<< postInvitation brig tid owner invite
         registerInvite inv aliceEmail
 
+    -- alice creates a collaborator bob.  success!  bob only has collaborator perms.
     do
         bobEmail <- randomEmail
         let invite = InvitationRequest bobEmail (Name "Bob") Nothing (Just Team.RoleCollaborator)
@@ -171,6 +173,7 @@ testInvitationRoles brig galley = do
         mem :: Team.TeamMember <- decodeBody =<< (get memreq <!! const 200 === statusCode)
         liftIO $ assertEqual "perms" (Team.rolePermissions Team.RoleCollaborator) (mem ^. Team.permissions)
 
+    -- alice creates an owner charly.  failure!
     do
         charlyEmail <- randomEmail
         let invite = InvitationRequest charlyEmail (Name "Charly") Nothing (Just Team.RoleOwner)

@@ -437,7 +437,6 @@ mayGrantPermission tm p = p `Set.member` (tm^.permissions.copy)
 
 isTeamOwner :: TeamMember -> Bool
 isTeamOwner tm = fullPermissions == (tm^.permissions)
-    -- (this should be reimplemented in terms of 'rolePermissions'.)
 
 permToInt :: Perm -> Word64
 permToInt CreateConversation       = 0x0001
