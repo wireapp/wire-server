@@ -49,7 +49,7 @@ instance ToJSON InvitationRequest where
 instance FromJSON Invitation where
     parseJSON = withObject "invitation" $ \o ->
         Invitation <$> o .: "team"
-                   <*> o .: "role"
+                   <*> o .:? "role"
                    <*> o .: "id"
                    <*> o .: "email"
                    <*> o .: "created_at"
