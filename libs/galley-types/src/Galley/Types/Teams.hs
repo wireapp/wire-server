@@ -497,7 +497,7 @@ teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
 teamMemberJson withPerms m = object $
     [ "user" .= _userId m ] <>
     [ "permissions" .= _permissions m | withPerms m ] <>
-    [ "invited" .= invmetaJson (_invitation m) ]
+    [ "invited" .= (invmetaJson <$> _invitation m) ]
   where
     invmetaJson :: (UserId, UTCTimeMillis) -> Value
     invmetaJson (by, at) = object [ "by" .= by, "at" .= at ]
