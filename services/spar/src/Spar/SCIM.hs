@@ -149,9 +149,10 @@ validateSCIMUser ScimTokenInfo{stiIdP} user = do
 --   * @displayName@ is mapped to our 'userName'.
 --
 --   * A mandatory @SAML.UserRef@ is derived from 'SCIM.User.externalId'
---     and the 'idpId' (retrieved via SCIM token).  TODO: We may need to
---     make this configurable on a per-team basis to correctly create
---     subject IDs for either email or persistent names, or possibly others.
+--     and the 'idpId' (retrieved via SCIM token).  FUTUREWORK: We may
+--     need to make the SAML NameID type derived from the available SCIM
+--     data configurable on a per-team basis in the future, to accomodate
+--     different legal uses of externalId by different users.
 --
 -- We don't handle emails and phone numbers for now, because we'd like to
 -- ensure that only verified emails and phone numbers end up in our
