@@ -43,7 +43,8 @@ instance ToJSON InvitationRequest where
         [ "email"        .= irEmail i
         , "inviter_name" .= irName i
         , "locale"       .= irLocale i
-        ] <> maybe [] (\role -> ["role" .= role]) (irRole i)
+        , "role"         .= irRole i
+        ]
 
 instance FromJSON Invitation where
     parseJSON = withObject "invitation" $ \o ->
@@ -61,8 +62,8 @@ instance ToJSON Invitation where
         , "id"         .= inInvitation i
         , "email"      .= inIdentity i
         , "created_at" .= inCreatedAt i
-        ] <>
-        maybeToList (("created_by" .=) <$> inCreatedBy i)
+        , "created_by" .= inCreatedBy i
+        ]
 
 instance ToJSON InvitationList where
     toJSON (InvitationList l m) = object

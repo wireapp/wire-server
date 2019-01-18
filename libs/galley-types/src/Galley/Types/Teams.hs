@@ -498,10 +498,10 @@ teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
 teamMemberJson withPerms m = object $
     [ "user" .= _userId m ] <>
     [ "permissions" .= _permissions m | withPerms m ] <>
-    (maybe [] (\inv -> ["invited" .= invJson inv]) (_invitation m))
+    [ "invited" .= invmetaJson (_invitation m) ]
   where
-    invJson :: (UserId, UTCTimeMillis) -> Value
-    invJson (by, at) = object [ "by" .= by, "at" .= at ]
+    invmetaJson :: (UserId, UTCTimeMillis) -> Value
+    invmetaJson (by, at) = object [ "by" .= by, "at" .= at ]
 
 -- | Use this to construct the condition expected by 'teamMemberJson', 'teamMemberListJson'
 canSeePermsOf :: TeamMember -> TeamMember -> Bool
