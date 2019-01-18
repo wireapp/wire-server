@@ -30,7 +30,7 @@ import Brig.Options
 import Brig.Types.Common
 import Brig.Types.User
 import Brig.Types.Team.Invitation
-import Galley.Types.Teams (Permissions)
+import Galley.Types.Teams (Role)
 import Cassandra
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Data.Id
@@ -58,35 +58,35 @@ data InvitationInfo = InvitationInfo
 
 insertInvitation :: MonadClient m
                  => TeamId
-                 -> Permissions
+                 -> Maybe Role
                  -> Email
                  -> UTCTime
                  -> Maybe UserId
                  -> Timeout -- ^ The timeout for the invitation code.
                  -> m (Invitation, InvitationCode)
-insertInvitation t perms email (toUTCTimeMillis -> now) minviter timeout = do
+insertInvitation t role email (toUTCTimeMillis -> now) minviter timeout = do
     iid  <- liftIO mkInvitationId
     code <- liftIO mkInvitationCode
-    let inv = Invitation t perms iid email now minviter
+    let inv = Invitation t role iid email now minviter
     retry x5 $ batch $ do
         setType BatchLogged
         setConsistency Quorum
-        addPrepQuery cqlInvitation (t, perms, iid, code, email, now, minviter, round timeout)
+        addPrepQuery cqlInvitation (t, role, iid, code, email, now, minviter, round timeout)
         addPrepQuery cqlInvitationInfo (code, t, iid, round timeout)
     return (inv, code)
   where
     cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
     cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?"
 
-    cqlInvitation :: PrepQuery W (TeamId, Permissions, InvitationId, InvitationCode, Email, UTCTimeMillis, Maybe UserId, Int32) ()
-    cqlInvitation = "INSERT INTO team_invitation (team, perms, id, code, email, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?) USING TTL ?"
+    cqlInvitation :: PrepQuery W (TeamId, Maybe Role, InvitationId, InvitationCode, Email, UTCTimeMillis, Maybe UserId, Int32) ()
+    cqlInvitation = "INSERT INTO team_invitation (team, role, id, code, email, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?) USING TTL ?"
 
 lookupInvitation :: MonadClient m => TeamId -> InvitationId -> m (Maybe Invitation)
 lookupInvitation t r = fmap toInvitation <$>
     retry x1 (query1 cqlInvitation (params Quorum (t, r)))
   where
-    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Permissions, InvitationId, Email, UTCTimeMillis, Maybe UserId)
-    cqlInvitation = "SELECT team, perms, id, email, created_at, created_by FROM team_invitation WHERE team = ? AND id = ?"
+    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId)
+    cqlInvitation = "SELECT team, role, id, email, created_at, created_by FROM team_invitation WHERE team = ? AND id = ?"
 
 lookupInvitationByCode :: MonadClient m => InvitationCode -> m (Maybe Invitation)
 lookupInvitationByCode i = lookupInvitationInfo i >>= \case
@@ -111,11 +111,11 @@ lookupInvitations team start (fromRange -> size) = do
     toResult more invs = cassandraResultPage $ emptyPage { result  = invs
                                                          , hasMore = more
                                                          }
-    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Permissions, InvitationId, Email, UTCTimeMillis, Maybe UserId)
-    cqlSelect = "SELECT team, perms, id, email, created_at, created_by FROM team_invitation WHERE team = ? ORDER BY id ASC"
+    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId)
+    cqlSelect = "SELECT team, role, id, email, created_at, created_by FROM team_invitation WHERE team = ? ORDER BY id ASC"
 
-    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Permissions, InvitationId, Email, UTCTimeMillis, Maybe UserId)
-    cqlSelectFrom = "SELECT team, perms, id, email, created_at, created_by FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
+    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId)
+    cqlSelectFrom = "SELECT team, role, id, email, created_at, created_by FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
 
 deleteInvitation :: MonadClient m => TeamId -> InvitationId -> m ()
 deleteInvitation t i = do
@@ -162,5 +162,5 @@ countInvitations t = fromMaybe 0 . fmap runIdentity <$>
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity Int64)
     cqlSelect = "SELECT count(*) FROM team_invitation WHERE team = ?"
 
-toInvitation :: (TeamId, Permissions, InvitationId, Email, UTCTimeMillis, Maybe UserId) -> Invitation
-toInvitation (t, p, i, e, tm, minviter) = Invitation t p i e tm minviter
+toInvitation :: (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId) -> Invitation
+toInvitation (t, r, i, e, tm, minviter) = Invitation t r i e tm minviter

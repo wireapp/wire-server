@@ -529,21 +529,22 @@ rmClient u c = do
 -------------------------------------------------------------------------------
 -- Team Management
 
-addTeamMember :: UserId -> TeamId -> (Maybe (UserId, UTCTimeMillis), Team.Permissions) -> AppIO Bool
-addTeamMember u tid (minvmeta, permissions) = do
+addTeamMember :: UserId -> TeamId -> (Maybe (UserId, UTCTimeMillis), Maybe Team.Role) -> AppIO Bool
+addTeamMember u tid (minvmeta, mrole) = do
     debug $ remote "galley"
             . msg (val "Adding member to team")
-    rs <- galleyRequest POST (req permissions)
+    rs <- galleyRequest POST req
     return $ case Bilge.statusCode rs of
         200 -> True
         _   -> False
   where
-    t prm = Team.newNewTeamMember $ Team.newTeamMember u prm minvmeta
-    req p = paths ["i", "teams", toByteString' tid, "members"]
+    prm   = Team.rolePermissions $ fromMaybe Team.RoleMember mrole
+    bdy   = Team.newNewTeamMember $ Team.newTeamMember u prm minvmeta
+    req   = paths ["i", "teams", toByteString' tid, "members"]
           . header "Content-Type" "application/json"
           . zUser u
           . expect [status200, status403]
-          . lbytes (encode $ t p)
+          . lbytes (encode bdy)
 
 createTeam :: UserId -> Team.BindingNewTeam -> TeamId -> AppIO CreateUserTeam
 createTeam u t@(Team.BindingNewTeam bt) teamid = do

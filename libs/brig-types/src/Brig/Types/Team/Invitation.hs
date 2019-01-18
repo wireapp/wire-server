@@ -7,7 +7,7 @@ import Brig.Types.Common
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
-import Galley.Types.Teams (Role, Permissions)
+import Galley.Types.Teams (Role)
 
 data InvitationRequest = InvitationRequest
     { irEmail    :: !Email
@@ -18,7 +18,7 @@ data InvitationRequest = InvitationRequest
 
 data Invitation = Invitation
     { inTeam       :: !TeamId
-    , inPerms      :: !Permissions
+    , inRole       :: !(Maybe Role)
     , inInvitation :: !InvitationId
     , inIdentity   :: !Email
     , inCreatedAt  :: !UTCTimeMillis
@@ -48,7 +48,7 @@ instance ToJSON InvitationRequest where
 instance FromJSON Invitation where
     parseJSON = withObject "invitation" $ \o ->
         Invitation <$> o .: "team"
-                   <*> o .: "perms"
+                   <*> o .: "role"
                    <*> o .: "id"
                    <*> o .: "email"
                    <*> o .: "created_at"
@@ -57,7 +57,7 @@ instance FromJSON Invitation where
 instance ToJSON Invitation where
     toJSON i = object $
         [ "team"       .= inTeam i
-        , "perms"      .= inPerms i
+        , "role"       .= inRole i
         , "id"         .= inInvitation i
         , "email"      .= inIdentity i
         , "created_at" .= inCreatedAt i

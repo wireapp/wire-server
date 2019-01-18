@@ -725,6 +725,22 @@ instance ToJSON TeamDeleteData where
         ]
 
 #ifdef WITH_CQL
+instance Cql.Cql Role where
+    ctype = Cql.Tagged Cql.IntColumn
+
+    toCql RoleOwner        = Cql.CqlInt 1
+    toCql RoleAdmin        = Cql.CqlInt 2
+    toCql RoleMember       = Cql.CqlInt 3
+    toCql RoleCollaborator = Cql.CqlInt 4
+
+    fromCql (Cql.CqlInt i) = case i of
+        1 -> return RoleOwner
+        2 -> return RoleAdmin
+        3 -> return RoleMember
+        4 -> return RoleCollaborator
+        n -> fail $ "Unexpected Role value: " ++ show n
+    fromCql _ = fail "Role value: int expected"
+
 instance Cql.Cql Permissions where
     ctype = Cql.Tagged $ Cql.UdtColumn "permissions" [("self", Cql.BigIntColumn), ("copy", Cql.BigIntColumn)]
 

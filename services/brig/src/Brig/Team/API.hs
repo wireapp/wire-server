@@ -180,12 +180,12 @@ createInvitation (_ ::: uid ::: tid ::: req) = do
     user <- lift $ Data.lookupKey uk
     case user of
         Just _  -> throwStd emailExists
-        Nothing -> doInvite inviteePerms email from (irLocale body)
+        Nothing -> doInvite (irRole body) email from (irLocale body)
   where
-    doInvite perms to from lc = lift $ do
+    doInvite role to from lc = lift $ do
         now     <- liftIO =<< view currentTime
         timeout <- setTeamInvitationTimeout <$> view settings
-        (newInv, code) <- DB.insertInvitation tid perms to now (Just uid) timeout
+        (newInv, code) <- DB.insertInvitation tid role to now (Just uid) timeout
         void $ sendInvitationMail to tid from code lc
         return . setStatus status201 . loc (inInvitation newInv) $ json newInv
 
