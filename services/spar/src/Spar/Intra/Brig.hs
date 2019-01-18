@@ -158,7 +158,6 @@ getUserByHandle handle = do
   parse (x:[]) = Just $ accountUser x
   parse _      = Nothing -- TODO: What if more accounts get returned?
 
--- | Set user's name.
 setName :: (HasCallStack, MonadSparToBrig m) => UserId -> Name -> m ()
 setName buid name = void $ call
     $ method PUT
@@ -173,7 +172,6 @@ setName buid name = void $ call
                , uupAccentId = Nothing
                }
 
--- | Set user's name.
 setHandle :: (HasCallStack, MonadSparToBrig m) => UserId -> Handle -> m ()
 setHandle buid (Handle handle) = void $ call
     $ method PUT
