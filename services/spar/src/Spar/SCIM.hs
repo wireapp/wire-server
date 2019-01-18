@@ -268,7 +268,8 @@ toSCIMStoredUser uid usr = do
   pure $ toSCIMStoredUser' now baseuri uid usr
 
 toSCIMStoredUser'
-  :: SAML.Time -> URIBS.URI -> UserId -> SCIM.User.User -> SCIM.Class.User.StoredUser
+  :: HasCallStack
+  => SAML.Time -> URIBS.URI -> UserId -> SCIM.User.User -> SCIM.Class.User.StoredUser
 toSCIMStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr = SCIM.WithMeta meta thing
   where
     mkLocation :: String -> URI
