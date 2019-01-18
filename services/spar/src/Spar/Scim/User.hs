@@ -525,7 +525,7 @@ toScimEmail (Email eLocal eDomain) =
 -- Note [error handling]
 -- ~~~~~~~~~~~~~~~~~
 --
--- There are two problems with error handling here:
+-- FUTUREWORK: There are two problems with error handling here:
 --
 -- 1. We want all errors originating from SCIM handlers to be thrown as SCIM
 --    errors, not as Spar errors. Currently errors thrown from things like
@@ -534,4 +534,5 @@ toScimEmail (Email eLocal eDomain) =
 --    on what is expected by apps that use the SCIM interface.
 --
 -- 2. We want generic error descriptions in response bodies, while still
---    logging nice error messages internally.
+--    logging nice error messages internally. The current messages might
+--    be giving too many internal details away.
