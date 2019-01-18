@@ -41,6 +41,7 @@ import Bilge.Retry
 import Galley.App
 import Galley.Options
 import Galley.Types
+import Gundeck.Types.Push.V2 (RecipientClients(..))
 import Control.Lens (makeLenses, set, view, (.~), (&), (^.))
 import Control.Monad.Catch
 import Control.Retry
@@ -73,16 +74,16 @@ pushEventJson (TeamEvent e) = toJSONObject e
 
 data Recipient = Recipient
     { _recipientUserId  :: UserId
-    , _recipientClients :: [ClientId]
+    , _recipientClients :: RecipientClients
     }
 
 makeLenses ''Recipient
 
 recipient :: Member -> Recipient
-recipient m = Recipient (memId m) []
+recipient m = Recipient (memId m) RecipientClientsAll
 
 userRecipient :: UserId -> Recipient
-userRecipient u = Recipient u []
+userRecipient u = Recipient u RecipientClientsAll
 
 data Push = Push
     { _pushConn           :: Maybe ConnId
@@ -158,7 +159,7 @@ push ps = do
 
     toRecipient p r =
           Gundeck.recipient (_recipientUserId r) (_pushRoute p)
-        & Gundeck.recipientClients  .~ _recipientClients r
+        & Gundeck.recipientClients .~ _recipientClients r
 
 -----------------------------------------------------------------------------
 -- Helpers

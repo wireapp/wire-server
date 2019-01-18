@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module API.Teams (tests) where
 
@@ -62,6 +63,8 @@ tests s = testGroup "Teams API"
     , test s "add managed conversation through public endpoint (fail)" testAddManagedConv
     , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
     , test s "add team member to conversation without connection" testAddTeamMemberToConv
+    , test s "update conversation as member" (testUpdateTeamConv RoleMember)
+    , test s "update conversation as collaborator" (testUpdateTeamConv RoleCollaborator)
     , test s "delete non-binding team" testDeleteTeam
     , test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True)
     , test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False)
@@ -128,9 +131,9 @@ testCreateTeamWithMembers g b c _ = do
     owner <- Util.randomUser b
     user1 <- Util.randomUser b
     user2 <- Util.randomUser b
-    let pp = Util.symmPermissions [CreateConversation, AddConversationMember]
-    let m1 = newTeamMember user1 pp
-    let m2 = newTeamMember user2 pp
+    let pp = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
+    let m1 = newTeamMember' pp user1
+    let m2 = newTeamMember' pp user2
     Util.connectUsers b owner (list1 user1 [user2])
     WS.bracketR3 c owner user1 user2 $ \(wsOwner, wsUser1, wsUser2) -> do
         tid  <- Util.createTeam g "foo" owner [m1, m2]
@@ -138,7 +141,7 @@ testCreateTeamWithMembers g b c _ = do
         mem  <- Util.getTeamMembers g owner tid
         liftIO $ do
             assertEqual "members"
-                (Set.fromList [newTeamMember owner fullPermissions, m1, m2])
+                (Set.fromList [newTeamMember' fullPermissions owner, m1, m2])
                 (Set.fromList (mem^.teamMembers))
             void $ mapConcurrently (checkCreateEvent team) [wsOwner, wsUser1, wsUser2]
   where
@@ -152,10 +155,10 @@ testCreateTeamWithMembers g b c _ = do
 testCreateOne2OneFailNonBindingTeamMembers :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testCreateOne2OneFailNonBindingTeamMembers g b _ a = do
     owner <- Util.randomUser b
-    let p1 = Util.symmPermissions [CreateConversation, AddConversationMember]
-    let p2 = Util.symmPermissions [CreateConversation, AddConversationMember, AddTeamMember]
-    mem1 <- flip newTeamMember p1 <$> Util.randomUser b
-    mem2 <- flip newTeamMember p2 <$> Util.randomUser b
+    let p1 = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
+    let p2 = Util.symmPermissions [CreateConversation, AddRemoveConvMember, AddTeamMember]
+    mem1 <- newTeamMember' p1 <$> Util.randomUser b
+    mem2 <- newTeamMember' p2 <$> Util.randomUser b
     Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId])
     tid <- Util.createTeam g "foo" owner [mem1, mem2]
     -- Cannot create a 1-1 conversation, not connected and in the same team but not binding
@@ -179,7 +182,7 @@ testCreateOne2OneWithMembers g b c a = do
     tid   <- Util.createTeamInternal g "foo" owner
     assertQueue "create team" a tActivate
     let p1 = Util.symmPermissions [CreateConversation]
-    mem1 <- flip newTeamMember p1 <$> Util.randomUser b
+    mem1 <- newTeamMember' p1 <$> Util.randomUser b
 
     WS.bracketR c (mem1^.userId) $ \wsMem1 -> do
         Util.addTeamMemberInternal g tid mem1
@@ -197,15 +200,15 @@ testCreateOne2OneWithMembers g b c a = do
 testAddTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testAddTeamMember g b c _ = do
     owner <- Util.randomUser b
-    let p1 = Util.symmPermissions [CreateConversation, AddConversationMember]
-    let p2 = Util.symmPermissions [CreateConversation, AddConversationMember, AddTeamMember]
-    mem1 <- flip newTeamMember p1 <$> Util.randomUser b
-    mem2 <- flip newTeamMember p2 <$> Util.randomUser b
+    let p1 = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
+    let p2 = Util.symmPermissions [CreateConversation, AddRemoveConvMember, AddTeamMember]
+    mem1 <- newTeamMember' p1 <$> Util.randomUser b
+    mem2 <- newTeamMember' p2 <$> Util.randomUser b
     Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId])
     Util.connectUsers b (mem1^.userId) (list1 (mem2^.userId) [])
     tid <- Util.createTeam g "foo" owner [mem1, mem2]
 
-    mem3 <- flip newTeamMember p1 <$> Util.randomUser b
+    mem3 <- newTeamMember' p1 <$> Util.randomUser b
     let payload = json (newNewTeamMember mem3)
     Util.connectUsers b (mem1^.userId) (list1 (mem3^.userId) [])
     Util.connectUsers b (mem2^.userId) (list1 (mem3^.userId) [])
@@ -225,7 +228,7 @@ testAddTeamMemberCheckBound g b _ a = do
     tidBound   <- Util.createTeamInternal g "foo" ownerBound
     assertQueue "create team" a tActivate
 
-    rndMem <- flip newTeamMember (Util.symmPermissions []) <$> Util.randomUser b
+    rndMem <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser b
     -- Cannot add any users to bound teams
     post (g . paths ["teams", toByteString' tidBound, "members"] . zUser ownerBound . zConn "conn" . json (newNewTeamMember rndMem)) !!!
         const 403 === statusCode
@@ -233,7 +236,7 @@ testAddTeamMemberCheckBound g b _ a = do
     owner <- Util.randomUser b
     tid   <- Util.createTeam g "foo" owner []
     -- Cannot add bound users to any teams
-    let boundMem = newTeamMember ownerBound (Util.symmPermissions [])
+    let boundMem = newTeamMember' (Util.symmPermissions []) ownerBound
     post (g . paths ["teams", toByteString' tid, "members"] . zUser owner . zConn "conn" . json (newNewTeamMember boundMem)) !!!
         const 403 === statusCode
 
@@ -242,7 +245,7 @@ testAddTeamMemberInternal g b c a = do
     owner <- Util.randomUser b
     tid <- Util.createTeam g "foo" owner []
     let p1 = Util.symmPermissions [GetBilling] -- permissions are irrelevant on internal endpoint
-    mem1 <- flip newTeamMember p1 <$> Util.randomUser b
+    mem1 <- newTeamMember' p1 <$> Util.randomUser b
 
     WS.bracketRN c [owner, mem1^.userId] $ \[wsOwner, wsMem1] -> do
         Util.addTeamMemberInternal g tid mem1
@@ -260,10 +263,10 @@ testAddTeamMemberInternal g b c a = do
 testRemoveTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testRemoveTeamMember g b c _ = do
     owner <- Util.randomUser b
-    let p1 = Util.symmPermissions [AddConversationMember]
-    let p2 = Util.symmPermissions [AddConversationMember, RemoveTeamMember]
-    mem1 <- flip newTeamMember p1 <$> Util.randomUser b
-    mem2 <- flip newTeamMember p2 <$> Util.randomUser b
+    let p1 = Util.symmPermissions [AddRemoveConvMember]
+    let p2 = Util.symmPermissions [AddRemoveConvMember, RemoveTeamMember]
+    mem1 <- newTeamMember' p1 <$> Util.randomUser b
+    mem2 <- newTeamMember' p2 <$> Util.randomUser b
     mext1 <- Util.randomUser b
     mext2 <- Util.randomUser b
     mext3 <- Util.randomUser b
@@ -308,8 +311,8 @@ testRemoveBindingTeamMember ownerHasPassword g b c a = do
     tid   <- Util.createTeamInternal g "foo" owner
     assertQueue "create team" a tActivate
     mext  <- Util.randomUser b
-    let p1 = Util.symmPermissions [AddConversationMember]
-    mem1 <- flip newTeamMember p1 <$> Util.randomUser b
+    let p1 = Util.symmPermissions [AddRemoveConvMember]
+    mem1 <- newTeamMember' p1 <$> Util.randomUser b
     Util.addTeamMemberInternal g tid mem1
     assertQueue "team member join" a $ tUpdate 2 [owner]
     Util.connectUsers b owner (singleton mext)
@@ -377,9 +380,9 @@ testAddTeamConv g b c _ = do
     owner  <- Util.randomUser b
     extern <- Util.randomUser b
 
-    let p = Util.symmPermissions [CreateConversation, AddConversationMember]
-    mem1 <- flip newTeamMember p <$> Util.randomUser b
-    mem2 <- flip newTeamMember p <$> Util.randomUser b
+    let p = Util.symmPermissions [CreateConversation, AddRemoveConvMember]
+    mem1 <- newTeamMember' p <$> Util.randomUser b
+    mem2 <- newTeamMember' p <$> Util.randomUser b
 
     Util.connectUsers b owner (list1 (mem1^.userId) [extern, mem2^.userId])
     tid <- Util.createTeam g "foo" owner [mem2]
@@ -456,10 +459,10 @@ testAddTeamConvWithUsers g b _ _ = do
 testAddTeamMemberToConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testAddTeamMemberToConv g b _ _ = do
     owner <- Util.randomUser b
-    let p = Util.symmPermissions [AddConversationMember]
-    mem1 <- flip newTeamMember p <$> Util.randomUser b
-    mem2 <- flip newTeamMember p <$> Util.randomUser b
-    mem3 <- flip newTeamMember (Util.symmPermissions []) <$> Util.randomUser b
+    let p = Util.symmPermissions [AddRemoveConvMember]
+    mem1 <- newTeamMember' p <$> Util.randomUser b
+    mem2 <- newTeamMember' p <$> Util.randomUser b
+    mem3 <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser b
 
     Util.connectUsers b owner (list1 (mem1^.userId) [mem2^.userId, mem3^.userId])
     tid <- Util.createTeam g "foo" owner [mem1, mem2, mem3]
@@ -470,7 +473,7 @@ testAddTeamMemberToConv g b _ _ = do
     -- Team member 1 (who is *not* a member of the new conversation)
     -- can add other team members without requiring a user connection
     -- thanks to both being team members and member 1 having the permission
-    -- `AddConversationMember`.
+    -- `AddRemoveConvMember`.
     Util.assertNotConvMember g (mem1^.userId) cid
     Util.postMembers g (mem1^.userId) (list1 (mem2^.userId) []) cid !!! const 200 === statusCode
     Util.assertConvMember g (mem2^.userId) cid
@@ -482,11 +485,23 @@ testAddTeamMemberToConv g b _ _ = do
         const 403                === statusCode
         const "operation-denied" === (Error.label . Util.decodeBody' "error label")
 
+testUpdateTeamConv :: Role -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testUpdateTeamConv (rolePermissions -> perms) g b _ _ = do
+    owner  <- Util.randomUser b
+    member <- Util.randomUser b
+    Util.connectUsers b owner (list1 member [])
+    tid <- Util.createTeam g "foo" owner [newTeamMember member perms Nothing]
+    cid <- Util.createTeamConv g owner tid [member] (Just "gossip") Nothing Nothing
+    resp <- updateTeamConv g member cid (ConversationRename "not gossip")
+    liftIO $ assertEqual "status"
+        (if ModifyConvMetadata `elem` (perms ^. self) then 200 else 403)
+        (statusCode resp)
+
 testDeleteTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testDeleteTeam g b c a = do
     owner <- Util.randomUser b
-    let p = Util.symmPermissions [AddConversationMember]
-    member <- flip newTeamMember p <$> Util.randomUser b
+    let p = Util.symmPermissions [AddRemoveConvMember]
+    member <- newTeamMember' p <$> Util.randomUser b
     extern <- Util.randomUser b
     Util.connectUsers b owner (list1 (member^.userId) [extern])
 
@@ -535,12 +550,12 @@ testDeleteBindingTeam ownerHasPassword g b c a = do
     owner  <- Util.randomUser' ownerHasPassword b
     tid    <- Util.createTeamInternal g "foo" owner
     assertQueue "create team" a tActivate
-    let p1 = Util.symmPermissions [AddConversationMember]
-    mem1 <- flip newTeamMember p1 <$> Util.randomUser b
-    let p2 = Util.symmPermissions [AddConversationMember]
-    mem2 <- flip newTeamMember p2 <$> Util.randomUser b
-    let p3 = Util.symmPermissions [AddConversationMember]
-    mem3 <- flip newTeamMember p3 <$> Util.randomUser b
+    let p1 = Util.symmPermissions [AddRemoveConvMember]
+    mem1 <- newTeamMember' p1 <$> Util.randomUser b
+    let p2 = Util.symmPermissions [AddRemoveConvMember]
+    mem2 <- newTeamMember' p2 <$> Util.randomUser b
+    let p3 = Util.symmPermissions [AddRemoveConvMember]
+    mem3 <- newTeamMember' p3 <$> Util.randomUser b
     Util.addTeamMemberInternal g tid mem1
     assertQueue "team member join 2" a $ tUpdate 2 [owner]
     Util.addTeamMemberInternal g tid mem2
@@ -603,7 +618,7 @@ testDeleteTeamConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testDeleteTeamConv g b c _ = do
     owner <- Util.randomUser b
     let p = Util.symmPermissions [DeleteConversation]
-    member <- flip newTeamMember p <$> Util.randomUser b
+    member <- newTeamMember' p <$> Util.randomUser b
     extern <- Util.randomUser b
     Util.connectUsers b owner (list1 (member^.userId) [extern])
 
@@ -666,7 +681,7 @@ testUpdateTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testUpdateTeam g b c _ = do
     owner <- Util.randomUser b
     let p = Util.symmPermissions [DeleteConversation]
-    member <- flip newTeamMember p <$> Util.randomUser b
+    member <- newTeamMember' p <$> Util.randomUser b
     Util.connectUsers b owner (list1 (member^.userId) [])
     tid <- Util.createTeam g "foo" owner [member]
     let bad = object ["name" .= T.replicate 100 "too large"]
@@ -703,11 +718,11 @@ testUpdateTeamMember :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testUpdateTeamMember g b c a = do
     owner <- Util.randomUser b
     let p = Util.symmPermissions [SetMemberPermissions]
-    member <- flip newTeamMember p <$> Util.randomUser b
+    member <- newTeamMember' p <$> Util.randomUser b
     Util.connectUsers b owner (list1 (member^.userId) [])
     tid <- Util.createTeam g "foo" owner [member]
     -- Must have at least 1 member with full permissions
-    let changeOwner = newNewTeamMember (newTeamMember owner p)
+    let changeOwner = newNewTeamMember (newTeamMember' p owner)
     put ( g
         . paths ["teams", toByteString' tid, "members"]
         . zUser (member^.userId)
@@ -739,8 +754,8 @@ testUpdateTeamMember g b c a = do
             ) !!! const 200 === statusCode
         owner' <- Util.getTeamMember g (member^.userId) tid owner
         liftIO $ assertEqual "permissions" (owner'^.permissions) (changeOwner^.ntmNewTeamMember.permissions)
-        -- owner no longer has GetPermissions so can't see actual update
-        checkTeamMemberUpdateEvent tid owner wsOwner Nothing
+        -- owner no longer has GetPermissions, but she can still see the update because it's about her!
+        checkTeamMemberUpdateEvent tid owner wsOwner (pure p)
         checkTeamMemberUpdateEvent tid owner wsMember (pure p)
         WS.assertNoEvent timeout [wsOwner, wsMember]
     assertQueueEmpty a
@@ -853,7 +868,7 @@ postCryptoBroadcastMessageJson g b c a = do
     connectUsers b alice (list1 charlie [dan])
     tid1 <- createTeamInternal g "foo" alice
     assertQueue "" a tActivate
-    addTeamMemberInternal g tid1 $ newTeamMember bob (symmPermissions [])
+    addTeamMemberInternal g tid1 $ newTeamMember' (symmPermissions []) bob
     assertQueue "" a $ tUpdate 2 [alice]
     _ <- createTeamInternal g "foo" charlie
     assertQueue "" a tActivate
@@ -889,7 +904,7 @@ postCryptoBroadcastMessageJson2 g b c a = do
     connectUsers b alice (list1 charlie [])
     tid1 <- createTeamInternal g "foo" alice
     assertQueue "" a tActivate
-    addTeamMemberInternal g tid1 $ newTeamMember bob (symmPermissions [])
+    addTeamMemberInternal g tid1 $ newTeamMember' (symmPermissions []) bob
     assertQueue "" a $ tUpdate 2 [alice]
 
     let t = 3 # Second -- WS receive timeout
@@ -942,7 +957,7 @@ postCryptoBroadcastMessageProto g b c a = do
     connectUsers b alice (list1 charlie [dan])
     tid1 <- createTeamInternal g "foo" alice
     assertQueue "" a tActivate
-    addTeamMemberInternal g tid1 $ newTeamMember bob (symmPermissions [])
+    addTeamMemberInternal g tid1 $ newTeamMember' (symmPermissions []) bob
     assertQueue "" a $ tUpdate 2 [alice]
     _ <- createTeamInternal g "foo" charlie
     assertQueue "" a tActivate
@@ -999,3 +1014,6 @@ postCryptoBroadcastMessage100OrMaxConns g b c a = do
             (403, 403, _, []    ) -> error "Need to connect with at least 1 user"
             (403, 403, _, (x:xs)) -> return (x, xs)
             (xxx, yyy, _, _     ) -> error ("Unexpected while connecting users: " ++ show xxx ++ " and " ++ show yyy)
+
+newTeamMember' :: Permissions -> UserId -> TeamMember
+newTeamMember' perms uid = newTeamMember uid perms Nothing

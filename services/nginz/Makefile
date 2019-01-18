@@ -11,6 +11,8 @@ DEB            := $(NAME)_$(NGINZ_VERSION)_amd64.deb
 ifeq ($(DEBUG), 1)
 WITH_DEBUG      = --with-debug
 endif
+DOCKER_USER    ?= quay.io/wire
+DOCKER_TAG     ?= local
 
 DEST_PATH      ?= /opt/nginz
 # Use a folder that can be written to since errors during startup do not respect
@@ -117,7 +119,9 @@ $(NGINX_BUNDLE):
 .PHONY: docker
 docker:
 	git submodule update --init
-	docker build -f Dockerfile -t nginz ../..
+	docker build -t $(DOCKER_USER)/nginz:$(DOCKER_TAG) -f Dockerfile ../..
+	docker tag $(DOCKER_USER)/nginz:$(DOCKER_TAG) $(DOCKER_USER)/nginz:latest
+	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/nginz:$(DOCKER_TAG); docker push $(DOCKER_USER)/nginz:latest; fi;
 
 .PHONY: libzauth
 libzauth:

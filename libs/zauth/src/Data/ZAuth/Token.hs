@@ -80,7 +80,7 @@ data Header = Header
 
 data Access = Access
     { _userId     :: !UUID
-    , _connection :: !Word64
+    , _connection :: !Word64  -- ^ 'ConnId' is derived from this.
     } deriving (Eq, Show)
 
 data User = User

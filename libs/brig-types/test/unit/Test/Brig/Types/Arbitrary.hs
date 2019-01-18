@@ -19,6 +19,7 @@ import Brig.Types.Activation
 import Brig.Types.Code
 import Brig.Types.Intra
 import Brig.Types.Provider (UpdateServiceWhitelist(..))
+import Brig.Types.Team.Invitation
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
 import Brig.Types.User
@@ -42,7 +43,7 @@ import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Text.Hostname
 
-
+import qualified Data.Set as Set
 import qualified Data.Text as ST
 import qualified System.Random
 
@@ -334,6 +335,26 @@ instance Arbitrary Country where
 instance Arbitrary UpdateServiceWhitelist where
     arbitrary = UpdateServiceWhitelist <$> arbitrary <*> arbitrary <*> arbitrary
 
+instance Arbitrary InvitationList where
+    arbitrary = InvitationList <$> listOf arbitrary <*> arbitrary
+
+instance Arbitrary Invitation where
+    arbitrary = Invitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary Permissions where
+    arbitrary = maybe (error "instance Arbitrary Permissions") pure =<< do
+        selfperms <- arbitrary
+        copyperms <- Set.intersection selfperms <$> arbitrary
+        pure $ newPermissions selfperms copyperms
+
+instance Arbitrary Perm where
+    arbitrary = elements [minBound..]
+
+instance Arbitrary InvitationRequest where
+    arbitrary = InvitationRequest <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary Role where
+    arbitrary = elements [minBound..]
 
 ----------------------------------------------------------------------
 -- utilities

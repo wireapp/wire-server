@@ -22,12 +22,10 @@ library
     ghc-options:        -Wall -O2 -fwarn-tabs
 
     exposed-modules:
-        UnliftIO.Async.Extended
         Options.Applicative.Extended
 
     build-depends:
         base
-      , async-pool
       , extra
       , imports
       , optparse-applicative
