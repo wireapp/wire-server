@@ -247,7 +247,7 @@ updateValidSCIMUser tokinfo uidText newScimUser = do
         lift . wrapMonadClient $ Data.insertUser uref uid  -- on spar
         bindok <- lift $ Intra.Brig.bindUser uid uref  -- on brig
         unless bindok . SCIM.throwSCIM $
-          SCIM.serverError "The UserId to be updated was not found on brig"
+          SCIM.serverError "Failed to update SAML UserRef (no such UserId? duplicate Handle?)"
 
         maybe (pure ()) (lift . Intra.Brig.setName uid) $ newScimUser ^. vsuName
         lift . Intra.Brig.setHandle uid $ newScimUser ^. vsuHandle
