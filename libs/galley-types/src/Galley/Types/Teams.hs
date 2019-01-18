@@ -58,7 +58,7 @@ module Galley.Types.Teams
     , noPermissions
     , serviceWhitelistPermissions
     , hasPermission
-    , hasCopyPermission
+    , mayGrantPermission
     , isTeamOwner
     , self
     , copy
@@ -395,8 +395,8 @@ serviceWhitelistPermissions = Set.fromList
 hasPermission :: TeamMember -> Perm -> Bool
 hasPermission tm p = p `Set.member` (tm^.permissions.self)
 
-hasCopyPermission :: TeamMember -> Perm -> Bool
-hasCopyPermission tm p = p `Set.member` (tm^.permissions.copy)
+mayGrantPermission :: TeamMember -> Perm -> Bool
+mayGrantPermission tm p = p `Set.member` (tm^.permissions.copy)
 
 -- Note [team roles]
 -- ~~~~~~~~~~~~
