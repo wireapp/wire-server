@@ -49,5 +49,5 @@ ensurePermissionToAddUser u t inviteePerms = do
     check :: Maybe TeamMember -> Bool
     check (Just inviter) =
         hasPermission inviter AddTeamMember &&
-        and (mayGrantPermision inviter <$> Set.toList (inviteePerms ^. self))
+        and (mayGrantPermission inviter <$> Set.toList (inviteePerms ^. self))
     check Nothing  = False
