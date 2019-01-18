@@ -1,6 +1,8 @@
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE StrictData                 #-}
@@ -31,6 +33,7 @@ module Galley.Types.Teams
     , permissions
     , invitation
     , teamMemberJson
+    , canSeePermsOf
 
     , TeamMemberList
     , notTeamMember
@@ -55,6 +58,7 @@ module Galley.Types.Teams
     , noPermissions
     , serviceWhitelistPermissions
     , hasPermission
+    , mayGrantPermission
     , isTeamOwner
     , self
     , copy
@@ -64,6 +68,9 @@ module Galley.Types.Teams
     , permsToInt
     , intToPerm
     , intToPerms
+
+    , Role (..)
+    , rolePermissions
 
     , BindingNewTeam (..)
     , NonBindingNewTeam (..)
@@ -118,6 +125,10 @@ import Galley.Types.Teams.Internal
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Set as Set
+#ifdef WITH_CQL
+import qualified Control.Error.Util as Err
+import qualified Database.CQL.Protocol as Cql
+#endif
 
 data Event = Event
     { _eventType :: EventType
@@ -235,6 +246,35 @@ data Perm =
     -- If you ever think about adding a new permission flag,
     -- read Note [team roles] first.
     deriving (Eq, Ord, Show, Enum, Bounded)
+
+data Role = RoleOwner | RoleAdmin | RoleMember | RoleCollaborator
+    deriving (Eq, Ord, Show, Enum, Bounded)
+
+rolePermissions :: Role -> Permissions
+rolePermissions role = Permissions p p  where p = rolePerms role
+
+rolePerms :: Role -> Set Perm
+rolePerms RoleOwner = rolePerms RoleAdmin <> Set.fromList
+    [ GetBilling
+    , SetBilling
+    , DeleteTeam
+    ]
+rolePerms RoleAdmin = rolePerms RoleMember <> Set.fromList
+    [ AddTeamMember
+    , RemoveTeamMember
+    , SetTeamData
+    , SetMemberPermissions
+    ]
+rolePerms RoleMember = rolePerms RoleCollaborator <> Set.fromList
+    [ DeleteConversation
+    , AddRemoveConvMember
+    , ModifyConvMetadata
+    , GetMemberPermissions
+    ]
+rolePerms RoleCollaborator = Set.fromList
+    [ CreateConversation
+    , GetTeamConversations
+    ]
 
 newtype BindingNewTeam = BindingNewTeam (NewTeam ())
     deriving (Eq, Show)
@@ -355,6 +395,9 @@ serviceWhitelistPermissions = Set.fromList
 hasPermission :: TeamMember -> Perm -> Bool
 hasPermission tm p = p `Set.member` (tm^.permissions.self)
 
+mayGrantPermission :: TeamMember -> Perm -> Bool
+mayGrantPermission tm p = p `Set.member` (tm^.permissions.copy)
+
 -- Note [team roles]
 -- ~~~~~~~~~~~~
 --
@@ -445,14 +488,24 @@ instance FromJSON TeamList where
         TeamList <$> o .: "teams"
                  <*> o .: "has_more"
 
-teamMemberJson :: Bool -> TeamMember -> Value
+instance ToJSON TeamMember where
+    toJSON = teamMemberJson (const True)
+
+-- | Show 'Permissions' conditionally.  The condition takes the member that will receive the result
+-- into account.  See 'canSeePermsOf'.
+teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
 teamMemberJson withPerms m = object $
     [ "user" .= _userId m ] <>
-    [ "permissions" .= _permissions m | withPerms ] <>
-    (maybe [] (\inv -> ["invited" .= invJson inv]) (_invitation m))
+    [ "permissions" .= _permissions m | withPerms m ] <>
+    [ "invited" .= (invmetaJson <$> _invitation m) ]
   where
-    invJson :: (UserId, UTCTimeMillis) -> Value
-    invJson (by, at) = object [ "by" .= by, "at" .= at ]
+    invmetaJson :: (UserId, UTCTimeMillis) -> Value
+    invmetaJson (by, at) = object [ "by" .= by, "at" .= at ]
+
+-- | Use this to construct the condition expected by 'teamMemberJson', 'teamMemberListJson'
+canSeePermsOf :: TeamMember -> TeamMember -> Bool
+canSeePermsOf seeer seeee =
+    seeer `hasPermission` GetMemberPermissions || seeer == seeee
 
 parseTeamMember :: Value -> Parser TeamMember
 parseTeamMember = withObject "team-member" $ \o ->
@@ -466,9 +519,13 @@ parseTeamMember = withObject "team-member" $ \o ->
     parseInv' = withObject "team-member invitation metadata" $ \o ->
         (,) <$> (o .: "by") <*> (o .: "at")
 
-teamMemberListJson :: Bool -> TeamMemberList -> Value
-teamMemberListJson withPerm l =
-    object [ "members" .= map (teamMemberJson withPerm) (_teamMembers l) ]
+instance ToJSON TeamMemberList where
+    toJSON = teamMemberListJson (const True)
+
+-- | Show a list of team members using 'teamMemberJson'.
+teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
+teamMemberListJson withPerms l =
+    object [ "members" .= map (teamMemberJson withPerms) (_teamMembers l) ]
 
 instance FromJSON TeamMember where
     parseJSON = parseTeamMember
@@ -508,6 +565,20 @@ instance FromJSON Permissions where
             Nothing -> fail "invalid permissions"
             Just ps -> pure ps
 
+instance ToJSON Role where
+    toJSON RoleOwner        = "owner"
+    toJSON RoleAdmin        = "admin"
+    toJSON RoleMember       = "member"
+    toJSON RoleCollaborator = "collaborator"
+
+instance FromJSON Role where
+    parseJSON = withText "Role" $ \case
+        "owner"        -> pure RoleOwner
+        "admin"        -> pure RoleAdmin
+        "member"       -> pure RoleMember
+        "collaborator" -> pure RoleCollaborator
+        bad            -> fail $ "not a role: " <> show bad
+
 newTeamJson :: NewTeam a -> [Pair]
 newTeamJson (NewTeam n i ik _) =
           "name"     .= fromRange n
@@ -521,14 +592,14 @@ instance ToJSON BindingNewTeam where
 instance ToJSON NonBindingNewTeam where
     toJSON (NonBindingNewTeam t) =
         object
-        $ "members" .= (map (teamMemberJson True) . fromRange <$> _newTeamMembers t)
+        $ "members" .= (fromRange <$> _newTeamMembers t)
         # newTeamJson t
 
 deriving instance FromJSON BindingNewTeam
 deriving instance FromJSON NonBindingNewTeam
 
 instance ToJSON NewTeamMember where
-    toJSON t = object ["member" .= teamMemberJson True (_ntmNewTeamMember t)]
+    toJSON t = object ["member" .= _ntmNewTeamMember t]
 
 instance FromJSON NewTeamMember where
     parseJSON = withObject "add team member" $ \o ->
@@ -655,3 +726,36 @@ instance ToJSON TeamDeleteData where
     toJSON tdd = object
         [ "password" .= _tdAuthPassword tdd
         ]
+
+#ifdef WITH_CQL
+instance Cql.Cql Role where
+    ctype = Cql.Tagged Cql.IntColumn
+
+    toCql RoleOwner        = Cql.CqlInt 1
+    toCql RoleAdmin        = Cql.CqlInt 2
+    toCql RoleMember       = Cql.CqlInt 3
+    toCql RoleCollaborator = Cql.CqlInt 4
+
+    fromCql (Cql.CqlInt i) = case i of
+        1 -> return RoleOwner
+        2 -> return RoleAdmin
+        3 -> return RoleMember
+        4 -> return RoleCollaborator
+        n -> fail $ "Unexpected Role value: " ++ show n
+    fromCql _ = fail "Role value: int expected"
+
+instance Cql.Cql Permissions where
+    ctype = Cql.Tagged $ Cql.UdtColumn "permissions" [("self", Cql.BigIntColumn), ("copy", Cql.BigIntColumn)]
+
+    toCql p =
+        let f = Cql.CqlBigInt . fromIntegral . permsToInt in
+        Cql.CqlUdt [("self", f (p^.self)), ("copy", f (p^.copy))]
+
+    fromCql (Cql.CqlUdt p) = do
+        let f = intToPerms . fromIntegral :: Int64 -> Set.Set Perm
+        s <- Err.note "missing 'self' permissions" ("self" `lookup` p) >>= Cql.fromCql
+        d <- Err.note "missing 'copy' permissions" ("copy" `lookup` p) >>= Cql.fromCql
+        r <- Err.note "invalid permissions" (newPermissions (f s) (f d))
+        pure r
+    fromCql _ = fail "permissions: udt expected"
+#endif

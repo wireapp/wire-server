@@ -36,3 +36,18 @@ ensurePermissions u t perms = do
     check :: Maybe TeamMember -> Bool
     check (Just m) = and $ hasPermission m <$> perms
     check Nothing  = False
+
+-- | Privilege escalation detection (make sure no `RoleMember` user creates a `RoleOwner`).
+--
+-- There is some code duplication with 'Galley.API.Teams.ensureNotElevated'.
+ensurePermissionToAddUser :: UserId -> TeamId -> Permissions -> ExceptT Error AppIO ()
+ensurePermissionToAddUser u t inviteePerms = do
+    minviter <- lift $ Intra.getTeamMember u t
+    unless (check minviter) $
+        throwStd insufficientTeamPermissions
+  where
+    check :: Maybe TeamMember -> Bool
+    check (Just inviter) =
+        hasPermission inviter AddTeamMember &&
+        and (mayGrantPermission inviter <$> Set.toList (inviteePerms ^. self))
+    check Nothing  = False

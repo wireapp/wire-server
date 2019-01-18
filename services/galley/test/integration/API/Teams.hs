@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module API.Teams (tests) where
 
@@ -62,8 +63,8 @@ tests s = testGroup "Teams API"
     , test s "add managed conversation through public endpoint (fail)" testAddManagedConv
     , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
     , test s "add team member to conversation without connection" testAddTeamMemberToConv
-    , test s "update conversation as member" (testUpdateTeamConv True)
-    , test s "update conversation as collaborator" (testUpdateTeamConv False)
+    , test s "update conversation as member" (testUpdateTeamConv RoleMember)
+    , test s "update conversation as collaborator" (testUpdateTeamConv RoleCollaborator)
     , test s "delete non-binding team" testDeleteTeam
     , test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True)
     , test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False)
@@ -484,26 +485,17 @@ testAddTeamMemberToConv g b _ _ = do
         const 403                === statusCode
         const "operation-denied" === (Error.label . Util.decodeBody' "error label")
 
-testUpdateTeamConv :: Bool -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testUpdateTeamConv roleIsMember g b _ _ = do
+testUpdateTeamConv :: Role -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testUpdateTeamConv (rolePermissions -> perms) g b _ _ = do
     owner  <- Util.randomUser b
     member <- Util.randomUser b
-    let perms = Util.symmPermissions $ if roleIsMember then permsMember else permsCollaborator
-        permsCollaborator =
-            [ CreateConversation
-            , GetTeamConversations
-            ]
-        permsMember = permsCollaborator <>
-            [ DeleteConversation
-            , AddRemoveConvMember
-            , ModifyConvMetadata
-            , GetMemberPermissions
-            ]
     Util.connectUsers b owner (list1 member [])
     tid <- Util.createTeam g "foo" owner [newTeamMember member perms Nothing]
     cid <- Util.createTeamConv g owner tid [member] (Just "gossip") Nothing Nothing
     resp <- updateTeamConv g member cid (ConversationRename "not gossip")
-    liftIO $ assertEqual "status" (if roleIsMember then 200 else 403) (statusCode resp)
+    liftIO $ assertEqual "status"
+        (if ModifyConvMetadata `elem` (perms ^. self) then 200 else 403)
+        (statusCode resp)
 
 testDeleteTeam :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testDeleteTeam g b c a = do
@@ -762,8 +754,8 @@ testUpdateTeamMember g b c a = do
             ) !!! const 200 === statusCode
         owner' <- Util.getTeamMember g (member^.userId) tid owner
         liftIO $ assertEqual "permissions" (owner'^.permissions) (changeOwner^.ntmNewTeamMember.permissions)
-        -- owner no longer has GetPermissions so can't see actual update
-        checkTeamMemberUpdateEvent tid owner wsOwner Nothing
+        -- owner no longer has GetPermissions, but she can still see the update because it's about her!
+        checkTeamMemberUpdateEvent tid owner wsOwner (pure p)
         checkTeamMemberUpdateEvent tid owner wsMember (pure p)
         WS.assertNoEvent timeout [wsOwner, wsMember]
     assertQueueEmpty a
