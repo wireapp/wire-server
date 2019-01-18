@@ -128,7 +128,7 @@ validateSCIMUser ScimTokenInfo{stiIdP} user = do
     idp <- case stiIdP of
         Nothing -> SCIM.throwSCIM $
           SCIM.serverError "No IdP configured for the provisioning token"
-        (Just idp) -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
+        Just idp -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
             Nothing -> SCIM.throwSCIM $
               SCIM.serverError "The IdP corresponding to the provisioning token \
                                \was not found"
