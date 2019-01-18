@@ -492,6 +492,8 @@ instance FromJSON TeamList where
 instance ToJSON TeamMember where
     toJSON = teamMemberJson (const True)
 
+-- | Show 'Permissions' conditionally.  The condition takes the member that will receive the result
+-- into account.  See 'canSeePermsOf'.
 teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
 teamMemberJson withPerms m = object $
     [ "user" .= _userId m ] <>
@@ -501,6 +503,7 @@ teamMemberJson withPerms m = object $
     invJson :: (UserId, UTCTimeMillis) -> Value
     invJson (by, at) = object [ "by" .= by, "at" .= at ]
 
+-- | Use this to construct the condition expected by 'teamMemberJson', 'teamMemberListJson'
 canSeePermsOf :: TeamMember -> TeamMember -> Bool
 canSeePermsOf seeer seeee =
     seeer `hasPermission` GetMemberPermissions || seeer == seeee
@@ -520,6 +523,7 @@ parseTeamMember = withObject "team-member" $ \o ->
 instance ToJSON TeamMemberList where
     toJSON = teamMemberListJson (const True)
 
+-- | Show a list of team members using 'teamMemberJson'.
 teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
 teamMemberListJson withPerms l =
     object [ "members" .= map (teamMemberJson withPerms) (_teamMembers l) ]

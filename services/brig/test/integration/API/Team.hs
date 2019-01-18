@@ -154,7 +154,7 @@ testInvitationRoles brig galley = do
             let Just invitee = userId <$> decodeBody rsp
             pure invitee
 
-    alice <- do
+    alice :: UserId <- do
         aliceEmail <- randomEmail
         let invite = InvitationRequest aliceEmail (Name "Alice") Nothing (Just Team.RoleAdmin)
         inv <- decodeBody =<< postInvitation brig tid owner invite
