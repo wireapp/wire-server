@@ -142,7 +142,7 @@ specUsers = describe "operations with users" $ do
             user <- randomSCIMUser
             (tok, _) <- registerIdPAndSCIMToken
             putUser_ (Just tok) Nothing user (env ^. teSpar)
-                !!! assertTrue_ ((>= 400) . statusCode)
+                !!! assertTrue_ (inRange (400, 499) . statusCode)
 
     describe "PUT /Users/:id" $ do
         it "updates the user attributes in scim_user" $ do
