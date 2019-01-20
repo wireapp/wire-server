@@ -30,18 +30,15 @@ module CargoHold.AWS
 
     ) where
 
+import Imports
 import Blaze.ByteString.Builder (toLazyByteString)
 import CargoHold.CloudFront
 import CargoHold.Error
 import CargoHold.Options
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch
-import Control.Monad.IO.Unlift
-import Control.Monad.Reader
 import Control.Monad.Trans.Resource
 import Control.Retry
-import Data.Monoid
-import Data.Text (Text)
 import Network.AWS (AWSRequest, Rs)
 import Network.HTTP.Client (Manager, HttpException (..), HttpExceptionContent (..))
 import System.Logger.Class

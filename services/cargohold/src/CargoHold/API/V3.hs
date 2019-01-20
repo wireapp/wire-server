@@ -22,6 +22,7 @@ import CargoHold.Util
 import Control.Applicative (optional)
 import Control.Error
 import Control.Lens (view, (^.), set)
+import Control.Monad.Trans.Resource
 import Crypto.Hash
 import Crypto.Random (getRandomBytes)
 import Data.Aeson (eitherDecodeStrict')

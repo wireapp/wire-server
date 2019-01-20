@@ -3,8 +3,7 @@
 
 module CargoHold.Error where
 
-import Control.Monad.Catch
-import Data.Typeable
+import Imports
 import qualified Crypto.PubKey.RSA.Types as RSA
 import qualified Network.AWS             as AWS
 
