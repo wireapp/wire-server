@@ -12,7 +12,7 @@ module API (TestSetup(..), tests) where
 import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async       (Async, async, wait, forConcurrently_)
+import Control.Concurrent.Async       (Async, async, wait, concurrently_, forConcurrently_)
 import Control.Lens                   ((.~), (^.), (^?), view, (<&>), _2, (%~))
 import Control.Retry                  (retrying, constantDelay, limitRetries)
 import Data.Aeson              hiding (json)
@@ -888,12 +888,9 @@ wsCloser :: MVar () -> WS.ClientApp ()
 wsCloser m conn = takeMVar m >> WS.sendClose conn C.empty >> putMVar m ()
 
 wsReaderWriter :: TChan ByteString -> TChan ByteString -> WS.ClientApp ()
-wsReaderWriter chread chwrite conn = do
-    h1 <- async . forever $ do
-        WS.receiveData conn >>= atomically . writeTChan chread
-    h2 <- async . forever $ do
-        WS.sendTextData conn =<< atomically (readTChan chwrite)
-    wait h1 >> wait h2  -- one way of saying "don't die!"
+wsReaderWriter chread chwrite conn = concurrently_
+    (forever $ WS.receiveData conn >>= atomically . writeTChan chread)
+    (forever $ WS.sendTextData conn =<< atomically (readTChan chwrite))
 
 retryWhile :: (MonadIO m) => (a -> Bool) -> m a -> m a
 retryWhile = retryWhileN 10
