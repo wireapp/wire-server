@@ -2,15 +2,15 @@
 
 module Main where
 
-import           Web.SCIM.Server
-import           Web.SCIM.Server.Mock
-import           Web.SCIM.Schema.Meta hiding (meta)
-import           Web.SCIM.Schema.Common as Common
-import           Web.SCIM.Schema.ResourceType hiding (name)
-import           Web.SCIM.Schema.User as User
-import           Web.SCIM.Schema.User.Name
-import           Web.SCIM.Schema.User.Email as E
-import           Web.SCIM.Capabilities.MetaSchema as MetaSchema
+import           Web.Scim.Server
+import           Web.Scim.Server.Mock
+import           Web.Scim.Schema.Meta hiding (meta)
+import           Web.Scim.Schema.Common as Common
+import           Web.Scim.Schema.ResourceType hiding (name)
+import           Web.Scim.Schema.User as User
+import           Web.Scim.Schema.User.Name
+import           Web.Scim.Schema.User.Email as E
+import           Web.Scim.Capabilities.MetaSchema as MetaSchema
 
 import           Data.Time
 import           Network.Wai.Handler.Warp

@@ -2,9 +2,9 @@
 
 module Test.Class.AuthSpec (spec) where
 
-import           Web.SCIM.Server (app)
-import           Web.SCIM.Server.Mock
-import           Web.SCIM.Capabilities.MetaSchema (empty)
+import           Web.Scim.Server (app)
+import           Web.Scim.Server.Mock
+import           Web.Scim.Capabilities.MetaSchema (empty)
 import           Data.Text (Text)
 import           Data.Text.Encoding
 import           Test.Hspec

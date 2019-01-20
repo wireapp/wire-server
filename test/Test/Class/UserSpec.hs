@@ -4,8 +4,8 @@ module Test.Class.UserSpec (spec) where
 
 import           Test.Util
 
-import           Web.SCIM.Server (mkapp, UserAPI, userServer)
-import           Web.SCIM.Server.Mock
+import           Web.Scim.Server (mkapp, UserAPI, userServer)
+import           Web.Scim.Server.Mock
 import           Test.Hspec
 import           Test.Hspec.Wai      hiding (post, put, patch)
 import           Data.ByteString.Lazy (ByteString)

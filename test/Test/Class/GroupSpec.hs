@@ -6,8 +6,8 @@ import           Test.Util
 
 import           Network.Wai (Application)
 import           Servant (Proxy(Proxy))
-import           Web.SCIM.Server (mkapp, GroupAPI, groupServer)
-import           Web.SCIM.Server.Mock
+import           Web.Scim.Server (mkapp, GroupAPI, groupServer)
+import           Web.Scim.Server.Mock
 import           Data.ByteString.Lazy (ByteString)
 import           Test.Hspec hiding (shouldSatisfy)
 import           Test.Hspec.Wai      hiding (post, put, patch)

@@ -8,9 +8,9 @@ import qualified Data.List as List
 import           Data.Aeson
 import           Data.Text (Text)
 import           Data.Coerce
-import           Web.SCIM.Capabilities.MetaSchema
-import           Web.SCIM.Server (ConfigAPI, mkapp)
-import           Web.SCIM.Server.Mock
+import           Web.Scim.Capabilities.MetaSchema
+import           Web.Scim.Server (ConfigAPI, mkapp)
+import           Web.Scim.Server.Mock
 import           Network.Wai.Test (SResponse (..))
 import           Servant
 import           Servant.API.Generic

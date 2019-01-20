@@ -2,7 +2,7 @@
 
 module Test.FilterSpec (spec) where
 
-import           Web.SCIM.Filter
+import           Web.Scim.Filter
 
 import           Test.Hspec
 import           HaskellWorks.Hspec.Hedgehog
