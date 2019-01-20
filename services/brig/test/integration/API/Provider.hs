@@ -9,6 +9,7 @@
 
 module API.Provider (tests, Config) where
 
+import Imports hiding (threadDelay)
 import Bilge hiding (accept, timeout, head)
 import Bilge.Assert
 import Brig.Types hiding (NewPasswordReset (..), CompletePasswordReset(..), EmailUpdate (..), PasswordReset (..), PasswordChange (..))
@@ -16,23 +17,16 @@ import Brig.Types.Provider
 import Brig.Types.Provider.Tag
 import Control.Arrow ((&&&))
 import Control.Concurrent.Chan
-import Control.Concurrent.Timeout
+import Control.Concurrent.Timeout (timeout, threadDelay)
 import Control.Lens ((^.))
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.ByteString.Conversion
-import Data.Foldable (toList)
 import Data.Id hiding (client)
 import Data.List1 (List1)
-import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
-import Data.Monoid ((<>))
 import Data.PEM
 import Data.Range
-import Data.Set (Set)
-import Data.Text (Text, isPrefixOf, toLower)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
@@ -42,15 +36,11 @@ import Galley.Types (
 import Galley.Types (ConvMembers (..), OtherMember (..))
 import Galley.Types (Event (..), EventType (..), EventData (..), OtrMessage (..))
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
-import GHC.Generics hiding (to, from)
-import GHC.Stack (HasCallStack)
 import Gundeck.Types.Notification
 import Network.HTTP.Types.Status (status200, status201, status400)
 import Network.Wai (Application, responseLBS, strictRequestBody)
 import OpenSSL.PEM (writePublicKey)
 import OpenSSL.RSA (generateRSAKey')
-import System.Environment (getEnv)
-import System.IO (hClose)
 import System.IO.Temp (withSystemTempFile)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
@@ -70,6 +60,7 @@ import qualified Data.HashMap.Strict               as HashMap
 import qualified Data.List1                        as List1
 import qualified Data.Set                          as Set
 import qualified Data.Text.Ascii                   as Ascii
+import qualified Data.Text                         as Text
 import qualified Data.Text.Encoding                as Text
 import qualified Data.UUID                         as UUID
 import qualified Data.ZAuth.Token                  as ZAuth
@@ -240,7 +231,7 @@ testPasswordResetProvider db brig = do
 
 testPasswordResetAfterEmailUpdateProvider :: DB.ClientState -> Brig -> Http ()
 testPasswordResetAfterEmailUpdateProvider db brig = do
-    newEmail <- mkSimulatorEmail "success"
+    newEmail <- randomEmail
     prv <- randomProvider db brig
     let pid = providerId prv
     let origEmail = providerEmail prv
@@ -470,7 +461,7 @@ testListServices config db brig = do
     mkNew new (n, t) = new { newServiceName = n
                            , newServiceTags = unsafeRange (Set.fromList t)
                            }
-    select (Name prefix) = filter (isPrefixOf (toLower prefix) . toLower . fromName . snd)
+    select (Name prefix) = filter (Text.isPrefixOf (Text.toLower prefix) . Text.toLower . fromName . snd)
 
 testDeleteService :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
 testDeleteService config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
@@ -478,8 +469,8 @@ testDeleteService config db brig galley cannon = withTestService config db brig 
     let sid = sref^.serviceRefId
 
     -- Create a conversation
-    u1 <- createUser "Ernie" "success@simulator.amazonses.com" brig
-    u2 <- createUser "Bert"  "success@simulator.amazonses.com" brig
+    u1 <- createUser "Ernie" brig
+    u2 <- createUser "Bert"  brig
     let uid1 = userId u1
     let uid2 = userId u2
     postConnection brig uid1 uid2 !!! const 201 === statusCode
@@ -517,8 +508,8 @@ testAddRemoveBot config db brig galley cannon = withTestService config db brig d
     let sid = sref^.serviceRefId
 
     -- Prepare users
-    u1 <- createUser "Ernie" "success@simulator.amazonses.com" brig
-    u2 <- createUser "Bert"  "success@simulator.amazonses.com" brig
+    u1 <- createUser "Ernie" brig
+    u2 <- createUser "Bert"  brig
     let uid1 = userId u1
     let uid2 = userId u2
     h <- randomHandle
@@ -540,7 +531,7 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
     let sid = sref^.serviceRefId
 
     -- Prepare user with client
-    usr <- createUser "User" "success@simulator.amazonses.com" brig
+    usr <- createUser "User" brig
     let uid = userId usr
     let new = defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0)
     _rs <- addClient brig uid new <!! const 201 === statusCode
@@ -564,7 +555,7 @@ testBadFingerprint config db brig galley _cannon = do
         let pid = sref^.serviceRefProvider
         let sid = sref^.serviceRefId
         -- Prepare user with client
-        usr <- createUser "User" "success@simulator.amazonses.com" brig
+        usr <- createUser "User" brig
         let uid = userId usr
         let new = defNewClient PermanentClient [somePrekeys !! 0] (someLastPrekeys !! 0)
         _rs <- addClient brig uid new <!! const 201 === statusCode
@@ -803,7 +794,7 @@ testSearchWhitelist config db brig galley = do
     mkNew new (n, t) = new { newServiceName = n
                            , newServiceTags = unsafeRange (Set.fromList t)
                            }
-    select prefix = filter (isPrefixOf (toLower prefix) . toLower . fromName . snd)
+    select prefix = filter (Text.isPrefixOf (Text.toLower prefix) . Text.toLower . fromName . snd)
 
 testSearchWhitelistHonorUpdates :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
 testSearchWhitelistHonorUpdates config db brig galley = do
@@ -1215,7 +1206,7 @@ createConv g u us = post $ g
     . contentJson
     . body (RequestBodyLBS (encode (NewConvUnmanaged conv)))
   where
-    conv = NewConv us Nothing Set.empty Nothing Nothing Nothing
+    conv = NewConv us Nothing Set.empty Nothing Nothing Nothing Nothing
 
 postMessage
     :: Galley
@@ -1291,7 +1282,7 @@ lookupCode db gen = liftIO . DB.runClient db . Code.lookup (Code.genKey gen)
 -- an internal endpoint
 testRegisterProvider :: Maybe DB.ClientState -> Brig -> Http ()
 testRegisterProvider db' brig = do
-    email <- mkSimulatorEmail "success"
+    email <- randomEmail
 
     let new = defNewProvider email
 
@@ -1352,7 +1343,7 @@ testRegisterProvider db' brig = do
 
 randomProvider :: HasCallStack => DB.ClientState -> Brig -> Http Provider
 randomProvider db brig = do
-    email <- mkSimulatorEmail "success"
+    email <- randomEmail
     gen   <- Code.mkGen (Code.ForEmail email)
     -- Register
     let new = defNewProvider email

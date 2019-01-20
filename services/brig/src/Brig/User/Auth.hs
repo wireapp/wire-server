@@ -18,6 +18,7 @@ module Brig.User.Auth
     , listCookies
     ) where
 
+import Imports
 import Brig.App
 import Brig.API.Types
 import Brig.Email
@@ -31,8 +32,6 @@ import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth hiding (user)
 import Control.Error
-import Control.Monad
-import Control.Monad.Trans.Class
 import Data.Id
 import Data.Misc (PlainTextPassword (..))
 
@@ -138,9 +137,9 @@ resolveLoginId li = do
 
 validateLoginId :: LoginId -> ExceptT LoginError AppIO (Either UserKey Handle)
 validateLoginId (LoginByEmail email) =
-    maybe (throwE LoginFailed)
-          (return . Left . userEmailKey)
-          (validateEmail email)
+    either (const $ throwE LoginFailed)
+           (return . Left . userEmailKey)
+           (validateEmail email)
 validateLoginId (LoginByPhone phone) =
     maybe (throwE LoginFailed)
           (return . Left . userPhoneKey)

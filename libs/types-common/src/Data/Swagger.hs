@@ -2,6 +2,7 @@
 
 module Data.Swagger where
 
+import Imports
 import Data.Swagger.Build.Api
 
 errorModel :: Model

@@ -12,18 +12,16 @@ module Bonanza.Streaming.Snappy
     )
 where
 
+import           Imports
 import           Bonanza.Streaming.Binary         (ParseError (..))
 import qualified Bonanza.Streaming.Binary         as SB
 import qualified Codec.Compression.Snappy         as Snappy
 import           Codec.Compression.Snappy.Framing (Chunk (..))
 import qualified Codec.Compression.Snappy.Framing as Framing
-import           Control.Monad                    (void)
 import           Control.Monad.Catch
 import           Data.Binary                      (get)
 import           Data.Bitraversable
-import           Data.ByteString                  (ByteString)
 import           Data.Conduit
-import           Data.Typeable
 
 
 data SnappyError

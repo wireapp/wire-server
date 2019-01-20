@@ -13,31 +13,26 @@ module CargoHold.API.V3
     , randToken
     ) where
 
+import Imports hiding (take)
 import CargoHold.App
 import CargoHold.API.Error
 import CargoHold.Options
 import CargoHold.Types.V3
 import CargoHold.Util
-import Control.Applicative
+import Control.Applicative (optional)
 import Control.Error
-import Control.Lens (view, (^.), set, (&))
-import Control.Monad
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Resource
+import Control.Lens (view, (^.), set)
 import Crypto.Hash
 import Crypto.Random (getRandomBytes)
 import Data.Aeson (eitherDecodeStrict')
 import Data.Attoparsec.ByteString.Char8
-import Data.ByteString (ByteString)
 import Data.Conduit
 import Data.Id
-import Data.List (intercalate)
 import Data.Text.Encoding (decodeLatin1)
 import Data.Time.Clock
 import Data.UUID.V4
 import Network.HTTP.Types.Header
 import Network.Wai.Utilities (Error (..))
-import Prelude hiding (take)
 import URI.ByteString
 
 import qualified CargoHold.Metrics       as Metrics

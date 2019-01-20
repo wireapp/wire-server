@@ -2,11 +2,9 @@
 
 module ZAuth (tests) where
 
+import Imports
 import Arbitraries ()
-import Control.Concurrent (threadDelay)
-import Control.Error
 import Control.Lens
-import Control.Monad.IO.Class
 import Data.ByteString.Conversion
 import Data.UUID.V4
 import Data.ZAuth.Token

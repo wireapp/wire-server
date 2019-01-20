@@ -8,10 +8,10 @@ module Bonanza.Parser.Nginz
     )
 where
 
+import Imports
 import Bonanza.Parser.CommonLog         as CommonLog
 import Bonanza.Types
 import Data.Attoparsec.ByteString.Char8
-import Data.Text                        (Text)
 
 
 newtype NginzLogRecord = NginzLogRecord { fromNginzLogRecord :: CommonLogRecord }

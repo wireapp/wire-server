@@ -1,7 +1,6 @@
 module Data.Proto where
 
-import Control.Monad.IO.Class
-import Data.Int
+import Imports
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.Clock.POSIX
 

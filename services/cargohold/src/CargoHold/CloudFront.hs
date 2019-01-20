@@ -13,23 +13,19 @@ module CargoHold.CloudFront
     , signedURL
     ) where
 
+import Imports
 import Control.AutoUpdate
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Crypto.Hash.Algorithms (SHA1 (..))
 import Crypto.PubKey.RSA
-import Data.ByteString (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Lazy (toStrict)
 import Data.ByteString.Conversion
-import Data.Monoid
-import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock.POSIX
 import Data.X509 (PrivKey (..))
 import Data.X509.File
 import Data.Yaml (FromJSON)
-import GHC.Generics
 import URI.ByteString
 
 import qualified CargoHold.Error          as AWS

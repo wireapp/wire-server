@@ -6,6 +6,8 @@ module Bilge.Request
       -- * Builders
     , empty
     , accept
+    , acceptJson
+    , acceptProtobuf
     , body
     , bytes
     , lbytes
@@ -44,14 +46,12 @@ module Bilge.Request
     , Rq.getUri
     ) where
 
+import Imports hiding (intercalate)
 import Control.Exception
 import Data.Aeson (ToJSON, encode)
-import Data.ByteString (ByteString, intercalate)
+import Data.ByteString (intercalate)
 import Data.CaseInsensitive (original)
 import Data.Id (RequestId (..))
-import Data.List (foldl')
-import Data.Monoid
-import Data.Word
 import Network.HTTP.Client (Request, RequestBody (..), Cookie)
 import Network.HTTP.Client.Internal (CookieJar (..), brReadSome, throwHttp)
 import Network.HTTP.Types
@@ -174,6 +174,12 @@ json a = contentJson . lbytes (encode a)
 
 accept :: ByteString -> Request -> Request
 accept = header hAccept
+
+acceptJson :: Request -> Request
+acceptJson = accept "application/json"
+
+acceptProtobuf :: Request -> Request
+acceptProtobuf = accept "application/x-protobuf"
 
 content :: ByteString -> Request -> Request
 content = header hContentType

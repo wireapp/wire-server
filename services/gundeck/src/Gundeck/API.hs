@@ -4,18 +4,17 @@
 
 module Gundeck.API where
 
+import Imports hiding (head)
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import Control.Exception (finally)
 import Control.Lens hiding (enum)
-import Control.Monad
 import Data.Aeson (encode)
-import Data.ByteString (ByteString)
 import Data.Metrics.Middleware
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response)
-import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
+import Data.Text (unpack)
 import Gundeck.API.Error
 import Gundeck.Env
 import Gundeck.Monad
@@ -28,17 +27,14 @@ import Network.Wai.Routing hiding (route)
 import Network.Wai.Utilities
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.Server hiding (serverPort)
-import Prelude hiding (head)
 import Util.Options
 
 import qualified Control.Concurrent.Async as Async
-import qualified Data.Metrics as Metrics
 import qualified Data.Swagger.Build.Api as Swagger
 import qualified Gundeck.Aws as Aws
 import qualified Gundeck.Client as Client
 import qualified Gundeck.Notification as Notification
 import qualified Gundeck.Push as Push
-import qualified Gundeck.Push.Native.Fallback.Queue as Fallback
 import qualified Gundeck.Presence as Presence
 import qualified Gundeck.Types.Swagger as Model
 import qualified Network.Wai.Middleware.Gzip as GZip
@@ -56,8 +52,6 @@ runServer o = do
     app <- pipeline e
     lst <- Async.async $ Aws.execute (e^.awsEnv) (Aws.listen (runDirect e . onEvent))
     runSettingsWithShutdown s app 5 `finally` do
-        Log.info l $ Log.msg (Log.val "Draining fallback queue ...")
-        Fallback.drainQueue (e^.fbQueue) (fromIntegral (o^.optFallback.fbQueueDelay) + 1)
         Log.info l $ Log.msg (Log.val "Shutting down ...")
         shutdown (e^.cstate)
         Async.cancel lst
@@ -102,16 +96,6 @@ sitemap = do
         response 204 "Push token unregistered" end
         response 404 "Push token does not exist" end
 
-    post "/push/fallback/:notif/cancel" (continue Push.cancelFallback) $
-        header "Z-User"
-        .&. capture "notif"
-
-    document "POST" "cancelFallback" $ do
-        summary "Cancel a pending fallback notification."
-        parameter Path "notif" bytes' $
-            description "The notification ID"
-        response 200 "Pending fallback notification cancelled" end
-
     get "/push/tokens" (continue Push.listTokens) $
         header "Z-User"
         .&. accept "application" "json"
@@ -123,6 +107,8 @@ sitemap = do
 
     post "/i/push" (continue Push.push) $
         request .&. accept "application" "json"
+        -- TODO: REFACTOR: this end-point is probably noise, and should be dropped.  @/i/push/v2@ does exactly
+        -- the same thing.
 
     post "/i/push/v2" (continue Push.push) $
         request .&. accept "application" "json"
@@ -135,7 +121,6 @@ sitemap = do
         .&. opt (query "since")
         .&. opt (query "client")
         .&. def (unsafeRange 1000) (query "size")
-        .&. opt (query "cancel_fallback")
 
     document "GET" "fetchNotifications" $ do
         summary "Fetch notifications"
@@ -148,9 +133,6 @@ sitemap = do
         parameter Query "size" (int32 (Swagger.def 1000)) $ do
             optional
             description "Maximum number of notifications to return."
-        parameter Query "cancel_fallback" bytes' $ do
-            optional
-            description "Cancel pending fallback notifications for the given ID, if any."
         returns (ref Model.notificationList)
         response 200 "Notification list" end
         errorResponse' notificationNotFound Model.notificationList
@@ -160,7 +142,6 @@ sitemap = do
         .&. header "Z-User"
         .&. capture "id"
         .&. opt (query "client")
-        .&. def False (query "cancel_fallback")
 
     document "GET" "getNotification" $ do
         summary "Fetch a notification by ID."
@@ -169,9 +150,6 @@ sitemap = do
         parameter Query "client" bytes' $ do
             optional
             description "Only return notifications targeted at the given client."
-        parameter Query "cancel_fallback" (bool (Swagger.def False)) $ do
-            optional
-            description "Whether to cancel pending fallback notifications, if any."
         returns (ref Model.notification)
         response 200 "Notification found" end
         errorResponse notificationNotFound
@@ -206,6 +184,8 @@ sitemap = do
 
     -- User-Client API -------------------------------------------------------
 
+    -- DEPRECATED: this is deprecated as of https://github.com/wireapp/wire-server/pull/549 (can be
+    -- removed once brig is deployed everywhere and won't trip over this missing any more.)
     put "/i/clients/:cid" (continue Client.register) $
         header "Z-User"
         .&. param "cid"
@@ -240,9 +220,8 @@ docs (url ::: _) =
     let doc = encode $ mkSwaggerApi (decodeLatin1 url) Model.gundeckModels sitemap in
     return $ responseLBS status200 [jsonContent] doc
 
+-- REFACTOR: what does this function still do, after the fallback queue is gone?
 monitoring :: JSON -> Gundeck Response
 monitoring = const $ do
     m  <- view monitor
-    ql <- Fallback.queueLength =<< view fbQueue
-    Metrics.gaugeSet ql (Metrics.path "push.fallback.queue_length") m
     json <$> render m

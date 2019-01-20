@@ -31,6 +31,7 @@ module Brig.Data.User
     , updateUser
     , updateEmail
     , updatePhone
+    , updateSSOId
     , activateUser
     , deactivateUser
     , updateLocale
@@ -45,6 +46,7 @@ module Brig.Data.User
     , updateHandle
     ) where
 
+import Imports
 import Brig.App (AppIO, settings, zauthEnv, currentTime)
 import Brig.Data.Instances ()
 import Brig.Options
@@ -55,10 +57,6 @@ import Brig.Types.User (newUserExpiresIn)
 import Cassandra
 import Control.Error
 import Control.Lens hiding (from)
-import Control.Monad
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
-import Data.Foldable (for_)
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Misc (PlainTextPassword (..))
@@ -199,6 +197,15 @@ updateEmail u e = retry x5 $ write userEmailUpdate (params Quorum (e, u))
 
 updatePhone :: UserId -> Phone -> AppIO ()
 updatePhone u p = retry x5 $ write userPhoneUpdate (params Quorum (p, u))
+
+updateSSOId :: UserId -> UserSSOId -> AppIO Bool
+updateSSOId u ssoid = do
+  mteamid <- lookupUserTeam u
+  case mteamid of
+    Just _ -> do
+      retry x5 $ write userSSOIdUpdate (params Quorum (ssoid, u))
+      pure True
+    Nothing -> pure False
 
 updateHandle :: UserId -> Handle -> AppIO ()
 updateHandle u h = retry x5 $ write userHandleUpdate (params Quorum (h, u))
@@ -415,6 +422,9 @@ userEmailUpdate = "UPDATE user SET email = ? WHERE id = ?"
 
 userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
 userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ?"
+
+userSSOIdUpdate :: PrepQuery W (UserSSOId, UserId) ()
+userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
 
 userHandleUpdate :: PrepQuery W (Handle, UserId) ()
 userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"

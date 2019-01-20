@@ -5,6 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TupleSections              #-}
@@ -15,15 +16,14 @@ module Util.Types
   ( BrigReq
   , GalleyReq
   , SparReq
+  , TestSpar
   , TestEnv(..)
   , teMgr
   , teCql
   , teBrig
   , teGalley
   , teSpar
-  , teUserId
-  , teTeamId
-  , teIdP
+  , teSparEnv
   , teOpts
   , teTstOpts
   , Select
@@ -32,29 +32,28 @@ module Util.Types
   , TestErrorLabel(..)
   ) where
 
+import Imports
 import Bilge
 import Cassandra as Cas
 import Control.Exception
-import Control.Monad
+import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Aeson.TH
-import Data.Id
-import Data.String
 import Data.String.Conversions
-import GHC.Generics (Generic)
-import Lens.Micro.TH
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Spar.API ()
-import Spar.Options as Options
 import Spar.Types
 import Util.Options
 
 import qualified Data.Aeson as Aeson
+import qualified Spar.App as Spar
 
 
 type BrigReq   = Request -> Request
 type GalleyReq = Request -> Request
 type SparReq   = Request -> Request
+
+type TestSpar = ReaderT TestEnv IO
 
 -- | See 'mkEnv' about what's in here.
 data TestEnv = TestEnv
@@ -63,13 +62,9 @@ data TestEnv = TestEnv
   , _teBrig        :: BrigReq
   , _teGalley      :: GalleyReq
   , _teSpar        :: SparReq
+  , _teSparEnv     :: Spar.Env
   , _teOpts        :: Opts               -- ^ spar config
   , _teTstOpts     :: IntegrationConfig  -- ^ integration test config
-
-    -- user, team, idp details created on spar:
-  , _teUserId      :: UserId             -- ^ owner of the idp's home team
-  , _teTeamId      :: TeamId             -- ^ home team of the idp
-  , _teIdP         :: IdP                -- ^ details of the idp
   }
 
 type Select = TestEnv -> (Request -> Request)

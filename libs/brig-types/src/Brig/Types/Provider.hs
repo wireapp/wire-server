@@ -17,6 +17,7 @@ module Brig.Types.Provider
     , ServiceTag (..)
     ) where
 
+import Imports
 import Brig.Types.Client.Prekey
 import Brig.Types.Code as Code
 import Brig.Types.Common as Common
@@ -25,15 +26,12 @@ import Data.Aeson
 import Data.Aeson.TH
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Int
 import Data.Json.Util
 import Data.List1 (List1)
 import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
 import Data.PEM
 import Data.Range
-import Data.Set (Set)
 import Data.Singletons.TypeLits
-import Data.Text (Text)
 import Galley.Types (Event)
 import Galley.Types.Bot (ServiceToken (..))
 

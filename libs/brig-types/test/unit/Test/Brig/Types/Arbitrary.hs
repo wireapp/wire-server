@@ -14,38 +14,36 @@
 
 module Test.Brig.Types.Arbitrary where
 
+import Imports
 import Brig.Types.Activation
 import Brig.Types.Code
+import Brig.Types.Intra
 import Brig.Types.Provider (UpdateServiceWhitelist(..))
+import Brig.Types.Team.Invitation
 import Brig.Types.TURN
 import Brig.Types.TURN.Internal
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Control.Lens hiding (elements)
-import Control.Monad
 import Data.Currency
 import Data.IP
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LanguageCodes
-import Data.Maybe
 import Data.Misc
-import Data.Monoid
+import Data.Proxy
 import Data.Range
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
-import Data.Typeable
 import Data.UUID (nil)
-import Data.Word
 import Galley.Types.Bot.Service.Internal
 import Galley.Types.Teams
 import Galley.Types.Teams.Internal
-import GHC.Stack
 import GHC.TypeLits
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Text.Hostname
 
-
+import qualified Data.Set as Set
 import qualified Data.Text as ST
 import qualified System.Random
 
@@ -107,9 +105,9 @@ instance Arbitrary ColourId where
 
 instance Arbitrary Email where
   arbitrary = do
-      local  <- ST.filter (/= '@') <$> arbitrary
+      localPart <- ST.filter (/= '@') <$> arbitrary
       domain <- ST.filter (/= '@') <$> arbitrary
-      pure $ Email local domain
+      pure $ Email localPart domain
 
 instance Arbitrary Phone where
   arbitrary = Phone . ST.pack <$> do
@@ -173,6 +171,9 @@ instance Arbitrary AsciiBase64Url where
 
 instance Arbitrary PlainTextPassword where
     arbitrary = PlainTextPassword . fromRange <$> genRangeText @6 @1024 arbitrary
+
+instance Arbitrary ReAuthUser where
+    arbitrary = ReAuthUser <$> arbitrary
 
 instance Arbitrary DeleteUser where
     arbitrary = DeleteUser <$> arbitrary
@@ -334,6 +335,26 @@ instance Arbitrary Country where
 instance Arbitrary UpdateServiceWhitelist where
     arbitrary = UpdateServiceWhitelist <$> arbitrary <*> arbitrary <*> arbitrary
 
+instance Arbitrary InvitationList where
+    arbitrary = InvitationList <$> listOf arbitrary <*> arbitrary
+
+instance Arbitrary Invitation where
+    arbitrary = Invitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary Permissions where
+    arbitrary = maybe (error "instance Arbitrary Permissions") pure =<< do
+        selfperms <- arbitrary
+        copyperms <- Set.intersection selfperms <$> arbitrary
+        pure $ newPermissions selfperms copyperms
+
+instance Arbitrary Perm where
+    arbitrary = elements [minBound..]
+
+instance Arbitrary InvitationRequest where
+    arbitrary = InvitationRequest <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+
+instance Arbitrary Role where
+    arbitrary = elements [minBound..]
 
 ----------------------------------------------------------------------
 -- utilities

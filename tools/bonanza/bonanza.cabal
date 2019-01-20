@@ -58,6 +58,7 @@ library
     , hs-GeoIP              == 0.3.*
     , http-client
     , http-types
+    , imports
     , lens
     , lens-aeson
     , mtl
@@ -68,7 +69,7 @@ library
     , snappy
     , snappy-framing
     , text
-    , time                   < 1.9
+    , time                  >= 1.5 && < 1.9
     , types-common          >= 0.14.1
     , unordered-containers
     , vector
@@ -82,7 +83,8 @@ library
     -funbox-small-strict-fields
     -fno-warn-unused-do-bind
 
-  default-language:  Haskell2010
+  default-language:   Haskell2010
+  default-extensions: NoImplicitPrelude
 
 
 executable bonanza
@@ -92,6 +94,7 @@ executable bonanza
   build-depends:
       base                  == 4.*
     , bonanza
+    , imports
 
   ghc-options:
     -Wall
@@ -104,6 +107,8 @@ executable bonanza
 
   default-language:
     Haskell2010
+  default-extensions:
+    NoImplicitPrelude
 
 
 executable kibanana
@@ -124,6 +129,7 @@ executable kibanana
     , http-client          >= 0.4.18 && < 5
     , http-conduit
     , http-client-tls
+    , imports
     , optparse-applicative
     , stm
 
@@ -138,6 +144,8 @@ executable kibanana
 
   default-language:
     Haskell2010
+  default-extensions:
+    NoImplicitPrelude
 
 
 executable kibana-raw
@@ -155,6 +163,7 @@ executable kibana-raw
     , conduit
     , conduit-extra
     , cryptonite
+    , imports
     , optparse-applicative
     , text
     , time
@@ -167,6 +176,8 @@ executable kibana-raw
 
   default-language:
     Haskell2010
+  default-extensions:
+    NoImplicitPrelude
 
 
 test-suite bonanza-tests
@@ -191,8 +202,8 @@ test-suite bonanza-tests
     , conduit
     , conduit-extra
     , http-types
+    , imports
     , lens
-    , old-locale
     , QuickCheck
     , scientific
     , tasty
@@ -208,3 +219,5 @@ test-suite bonanza-tests
 
   default-language:
     Haskell2010
+  default-extensions:
+    NoImplicitPrelude

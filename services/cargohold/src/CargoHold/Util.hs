@@ -2,6 +2,7 @@
 
 module CargoHold.Util where
 
+import Imports
 import CargoHold.App
 import CargoHold.AWS
 import Control.Lens

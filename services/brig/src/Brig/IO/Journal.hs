@@ -10,11 +10,10 @@ module Brig.IO.Journal
     , userEmailRemove
     ) where
 
+import Imports
 import Brig.App
 import Brig.Types
 import Control.Lens
-import Control.Monad.IO.Class
-import Data.Foldable (for_)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)

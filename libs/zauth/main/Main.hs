@@ -3,16 +3,11 @@
 
 module Main (main) where
 
+import Imports
 import Control.Error
 import Control.Lens
-import Control.Monad (when)
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
-import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Base64.URL
 import Data.ByteString.Conversion
-import Data.Monoid
-import Data.String
 import Data.UUID (fromASCIIBytes, UUID)
 import Data.ZAuth.Token
 import Data.ZAuth.Creation as C
@@ -23,7 +18,6 @@ import Sodium.Crypto.Sign
 import System.Exit
 
 import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.ByteString            as Strict
 import qualified Options.Applicative        as O
 
 data Mode
@@ -41,10 +35,10 @@ data Mode
 
 data ZOpts = ZOpts
     { _dur  :: !Integer
-    , _skey :: !Strict.ByteString
+    , _skey :: !ByteString
     , _idx  :: !Int
     , _mode :: !Mode
-    , _dat  :: [Strict.ByteString]
+    , _dat  :: [ByteString]
     } deriving (Eq, Show)
 
 makeLenses ''ZOpts
@@ -102,19 +96,19 @@ go GenKeyPair _ = do
     putStrLn $ "public: " <> show p
     putStrLn $ "secret: " <> show s
 
-tkn :: [Strict.ByteString] -> (Strict.ByteString -> Maybe (Token a)) -> Token a
+tkn :: [ByteString] -> (ByteString -> Maybe (Token a)) -> Token a
 tkn xs f = fromMaybe (error "Failed to read token") . f $ headDef "missing token data" xs
 
-uuid :: Strict.ByteString -> UUID
+uuid :: ByteString -> UUID
 uuid s = fromMaybe (error $ "Invalid UUID: " ++ show s) $ fromASCIIBytes s
 
-check' :: ToByteString a => Strict.ByteString -> Token a -> IO ()
+check' :: ToByteString a => ByteString -> Token a -> IO ()
 check' k t = exceptT (\e -> putStrLn e >> exitFailure) (const $ return ()) $ do
     p <- hoistEither $ PublicKey <$> decode k
     e <- liftIO $ runValidate (V.mkEnv p (replicate (t^.header.key) p)) (check t)
     hoistEither $ fmapL show e
 
-runCreate' :: ZOpts -> Create ByteString -> IO ()
+runCreate' :: ZOpts -> Create LByteString -> IO ()
 runCreate' o m = exceptT putStrLn L.putStrLn $ do
     s <- hoistEither $ SecretKey <$> decode (o^.skey)
     z <- lift $ C.mkEnv s (replicate (o^.idx) s)

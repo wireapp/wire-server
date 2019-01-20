@@ -23,13 +23,12 @@ module Brig.Provider.DB.Tag
     , nonEmptyTags
     ) where
 
+import Imports
 import Brig.Types.Provider.Tag
 import Cassandra (Cql)
 import Data.Bits
-import Data.Int
 import Data.List (foldl')
 import Data.Range
-import Data.Set (Set)
 
 import qualified Data.Set as Set
 
@@ -137,4 +136,3 @@ intToTag 0b10000000000000000000000000000 = pure TutorialTag
 intToTag 0b100000000000000000000000000000 = pure VideoTag
 intToTag 0b1000000000000000000000000000000 = pure WeatherTag
 intToTag _ = Nothing
-

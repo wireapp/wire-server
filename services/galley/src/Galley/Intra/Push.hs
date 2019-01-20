@@ -28,43 +28,36 @@ module Galley.Intra.Push
     , userRecipient
     , recipientUserId
     , recipientClients
-    , recipientMuted
 
       -- * Re-Exports
     , Gundeck.Route    (..)
     , Gundeck.Priority (..)
     ) where
 
+import Imports
 import Bilge hiding (options)
 import Bilge.RPC
 import Bilge.Retry
 import Galley.App
 import Galley.Options
 import Galley.Types
-import Control.Applicative
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
-import Control.Concurrent.Lifted (fork)
+import Gundeck.Types.Push.V2 (RecipientClients(..))
 import Control.Lens (makeLenses, set, view, (.~), (&), (^.))
 import Control.Monad.Catch
-import Control.Monad (void, (>=>))
 import Control.Retry
 import Data.Aeson (Object)
-import Data.ByteString.Lazy (ByteString)
-import Data.Foldable (toList, forM_, foldr)
 import Data.Id
-import Data.List (partition)
 import Data.List.Extra (chunksOf)
 import Data.List1
 import Data.Json.Util
 import Data.Misc
-import Data.Monoid
 import Data.Range
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types.Method
 import Safe (headDef, tailDef)
 import System.Logger.Class hiding (new)
-import Prelude hiding (mapM_, foldr)
 import Util.Options
+import UnliftIO (mapConcurrently)
 
 import qualified Data.Set               as Set
 import qualified Data.Text.Lazy         as LT
@@ -81,17 +74,16 @@ pushEventJson (TeamEvent e) = toJSONObject e
 
 data Recipient = Recipient
     { _recipientUserId  :: UserId
-    , _recipientMuted   :: Bool
-    , _recipientClients :: [ClientId]
+    , _recipientClients :: RecipientClients
     }
 
 makeLenses ''Recipient
 
 recipient :: Member -> Recipient
-recipient m = Recipient (memId m) (memOtrMuted m) []
+recipient m = Recipient (memId m) RecipientClientsAll
 
 userRecipient :: UserId -> Recipient
-userRecipient u = Recipient u False []
+userRecipient u = Recipient u RecipientClientsAll
 
 data Push = Push
     { _pushConn           :: Maybe ConnId
@@ -167,14 +159,8 @@ push ps = do
 
     toRecipient p r =
           Gundeck.recipient (_recipientUserId r) (_pushRoute p)
-        & Gundeck.recipientClients  .~ _recipientClients r
-        & Gundeck.recipientFallback .~ not (_recipientMuted r)
+        & Gundeck.recipientClients .~ _recipientClients r
 
-    -- TODO: ^ memOtrMuted/recipientMuted is now deprecated. Thus,
-    --         we should remove the usage of recipientFallback, which
-    --         is already irrelevant since gundeck _never_ send fallbacks.
-    --         Removing this logic both on galley and gundeck should be
-    --         done in a (single) separate PR.
 -----------------------------------------------------------------------------
 -- Helpers
 
@@ -190,16 +176,15 @@ gundeckReq ps = do
         . expect2xx
 
 callAsync :: LT.Text -> (Request -> Request) -> Galley ()
-callAsync n r = void . fork $ void (call n r) `catches` handlers
+callAsync n r = void . forkIO $ void (call n r) `catches` handlers
   where
     handlers =
         [ Handler $ \(x :: RPCException)  -> err (rpcExceptionMsg x)
         , Handler $ \(x :: SomeException) -> err $ "remote" .= n ~~ msg (show x)
         ]
 
-call :: LT.Text -> (Request -> Request) -> Galley (Response (Maybe ByteString))
+call :: LT.Text -> (Request -> Request) -> Galley (Response (Maybe LByteString))
 call n r = recovering x3 rpcHandlers (const (rpc n r))
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
-

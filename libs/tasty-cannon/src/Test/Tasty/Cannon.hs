@@ -44,30 +44,19 @@ module Test.Tasty.Cannon
     , (#)
     ) where
 
-import Control.Concurrent
+import Imports
 import Control.Concurrent.Async
-import Control.Concurrent.STM
 import Control.Concurrent.Timeout hiding (threadDelay)
 import Control.Exception (SomeAsyncException, asyncExceptionFromException, throwIO)
-import Control.Monad (void, forever, unless)
 import Control.Monad.Catch hiding (bracket)
-import Control.Monad.IO.Class
 import Data.Aeson (decodeStrict', FromJSON, fromJSON, Value (..))
-import Data.ByteString.Char8 (ByteString)
 import Data.ByteString.Conversion
-import Data.Foldable (mapM_, for_)
 import Data.Id
 import Data.List1
-import Data.Maybe
-import Data.Monoid
 import Data.Timeout (Timeout, TimeoutUnit (..), (#))
-import Data.Typeable
-import Data.Word
-import GHC.Stack
 import Gundeck.Types
 import Network.HTTP.Client
 import Network.HTTP.Types.Status
-import Prelude hiding (mapM_)
 import System.Random (randomIO)
 import Test.Tasty.HUnit
 

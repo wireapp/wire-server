@@ -19,6 +19,7 @@ module Cannon.Types
     , wsenv
     ) where
 
+import Imports
 import Bilge (Manager, RequestId (..), requestIdName)
 import Bilge.RPC (HasRequestId (..))
 import Cannon.Dict (Dict)
@@ -26,11 +27,8 @@ import Cannon.WS (Key, Websocket, Clock)
 import Cannon.Options
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Reader
-import Control.Monad.Reader (runReaderT)
 import Control.Lens
-import Data.ByteString (ByteString)
+import Data.Default (def)
 import Data.Metrics.Middleware
 import Data.Text.Encoding
 import Network.Wai
@@ -85,7 +83,7 @@ mkEnv :: Metrics
       -> GenIO
       -> Clock
       -> Env
-mkEnv m external o l d p g t = Env m o l d mempty $
+mkEnv m external o l d p g t = Env m o l d def $
     WS.env external (o^.cannon.port) (encodeUtf8 $ o^.gundeck.host) (o^.gundeck.port) l p d g t
 
 runCannon :: Env -> Cannon a -> Request -> IO a
@@ -93,7 +91,7 @@ runCannon e c r = let e' = e { reqId = lookupReqId r } in
     runReaderT (unCannon c) e'
 
 lookupReqId :: Request -> RequestId
-lookupReqId = maybe mempty RequestId . lookup requestIdName . requestHeaders
+lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 {-# INLINE lookupReqId #-}
 
 options :: Cannon Opts

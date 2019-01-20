@@ -3,31 +3,22 @@
 
 module API.User.Auth (tests) where
 
+import Imports
 import Bilge hiding (body)
 import Bilge.Assert hiding (assert)
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth
 import Brig.ZAuth (ZAuth, runZAuth)
-import Control.Concurrent
-import Control.Concurrent.Async.Lifted.Safe.Extended hiding (wait)
+import UnliftIO.Async hiding (wait)
 import Control.Lens ((^?), set)
-import Control.Monad
-import Control.Monad.IO.Class
 import Data.Aeson
 import Data.Aeson.Lens
-import Data.ByteString (intercalate)
 import Data.ByteString.Conversion
 import Data.Id
-import Data.List (sort, partition)
-import Data.Maybe
 import Data.Misc (PlainTextPassword(..))
-import Data.Monoid
-import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
-import GHC.Stack (HasCallStack)
-import System.Random (randomIO)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
@@ -37,6 +28,7 @@ import qualified Brig.Options         as Opts
 import qualified Brig.Types.User.Auth as Auth
 import qualified Brig.Types.Code      as Code
 import qualified Bilge                as Http
+import qualified Data.ByteString      as BS
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.Text.Lazy       as Lazy
 import qualified Brig.ZAuth           as ZAuth
@@ -77,7 +69,7 @@ tests conf m z b = testGroup "auth"
             , test m "logout" (testLogout b)
             ]
         , testGroup "reauth"
-            [ test m "reauthorisation" (testReauthorisation b)
+            [ test m "reauthentication" (testReauthentication b)
             ]
         ]
 
@@ -138,12 +130,11 @@ testHandleLogin brig = do
     let l = PasswordLogin (LoginByHandle (Handle hdl)) defPassword Nothing
     login brig l PersistentCookie !!! const 200 === statusCode
 
+-- | Check that local part after @+@ is ignored by equality on email addresses if the domain is
+-- untrusted.
 testLoginUntrustedDomain :: Brig -> Http ()
 testLoginUntrustedDomain brig = do
-    -- NOTE: local part cannot be longer than 64 octets
-    rd <- liftIO (randomIO :: IO Integer)
-    let email = (Text.pack $ show rd) <> "@zinfra.io"
-    Just (Email loc dom) <- userEmail <$> createUser "Homer" email brig
+    Just (Email loc dom) <- userEmail <$> createUserUntrustedEmail "Homer" brig
     -- login without "+" suffix
     let email' = Email (Text.takeWhile (/= '+') loc) dom
     login brig (defEmailLogin email') PersistentCookie !!!
@@ -228,7 +219,8 @@ testThrottleLogins conf b = do
     u <- randomUser b
     let Just e = userEmail u
     -- Login exactly that amount of times, as fast as possible
-    void $ replicatePooled 8 l (login b (defEmailLogin e) SessionCookie)
+    pooledForConcurrentlyN_ 8 [1..l] $ \_ ->
+        login b (defEmailLogin e) SessionCookie
     -- Login once more. This should fail!
     x <- login b (defEmailLogin e) SessionCookie <!!
         const 429 === statusCode
@@ -516,24 +508,26 @@ testLogout b = do
     post (b . path "/access" . cookie c) !!!
         const 403 === statusCode
 
-testReauthorisation :: Brig -> Http ()
-testReauthorisation b = do
+testReauthentication :: Brig -> Http ()
+testReauthentication b = do
     u <- userId <$> randomUser b
 
     let js = Http.body . RequestBodyLBS . encode $ object ["foo" .= ("bar" :: Text) ]
     get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . js) !!! do
-        const 400 === statusCode
+        const 403 === statusCode
+        -- it's ok to not give a password in the request body, but if the user has a password set,
+        -- response will be `forbidden`.
 
-    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (PlainTextPassword "123456")) !!! do
+    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just $ PlainTextPassword "123456")) !!! do
         const 403 === statusCode
         const (Just "invalid-credentials") === errorLabel
 
-    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload defPassword) !!! do
+    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just defPassword)) !!! do
         const 200 === statusCode
 
     setStatus b u Suspended
 
-    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload defPassword) !!! do
+    get (b . paths [ "/i/users", toByteString' u, "reauthenticate"] . contentJson . payload (Just defPassword)) !!! do
         const 403 === statusCode
         const (Just "suspended") === errorLabel
   where
@@ -568,7 +562,7 @@ listCookiesWithLabel b u l = do
     let Just cs = cookieList <$> decodeBody rs
     return cs
   where
-    labels = intercalate "," $ map toByteString' l
+    labels = BS.intercalate "," $ map toByteString' l
 
 -- | Check that the cookie returned after login is sane.
 --

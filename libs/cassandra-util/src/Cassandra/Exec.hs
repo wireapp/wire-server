@@ -1,8 +1,6 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-{-# OPTIONS_GHC -Wno-orphans #-} -- for MonadUnliftIO Client
-
 module Cassandra.Exec
     ( Client
     , MonadClient    (..)
@@ -44,45 +42,44 @@ module Cassandra.Exec
 
       -- * Retry Settings
     , RetrySettings
-    , noRetry
-    , retryForever
-    , maxRetries
     , adjustConsistency
-    , constDelay
-    , expBackoff
-    , fibBackoff
     , adjustSendTimeout
     , adjustResponseTimeout
     , retry
     ) where
 
+import Imports
 import Cassandra.CQL
-import Control.Exception (IOException)
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
-import Control.Monad.IO.Unlift
-import Control.Monad.Reader
-import Data.Int
-import Data.Text (Text)
-import Database.CQL.IO
 import Data.Conduit
+import Database.CQL.IO
 
 params :: Tuple a => Consistency -> a -> QueryParams a
-params c p = QueryParams c False p Nothing Nothing Nothing
+params c p = QueryParams c False p Nothing Nothing Nothing Nothing
 {-# INLINE params #-}
 
 paramsP :: Consistency -> a -> Int32 -> QueryParams a
-paramsP c p n = QueryParams c False p (Just n) Nothing Nothing
+paramsP c p n = QueryParams c False p (Just n) Nothing Nothing Nothing
 {-# INLINE paramsP #-}
 
+-- | 'x5' must only be used for idempotent queries, or for cases
+-- when a duplicate write has no severe consequences in
+-- the context of the application's data model.
+-- For more info see e.g.
+-- https://docs.datastax.com/en/developer/java-driver//3.6/manual/idempotence/
+--
+-- The eager retry policy permits 5 retries with exponential
+-- backoff (base-2) with an initial delay of 100ms, i.e. the
+-- retries will be performed with 100ms, 200ms, 400ms, 800ms
+-- and 1.6s delay, respectively, for a maximum delay of ~3s.
 x5 :: RetrySettings
-x5 = maxRetries 5 . expBackoff 0.1 5 $ retryForever
+x5 = eagerRetrySettings
 {-# INLINE x5 #-}
 
+-- | Single, immediate retry, always safe.
+-- The 'defRetryHandlers' used are safe also with non-idempotent queries.
 x1 :: RetrySettings
-x1 = maxRetries 1 retryForever
+x1 = defRetrySettings
 {-# INLINE x1 #-}
 
 data CassandraError
@@ -111,8 +108,3 @@ paginateC q p r = go =<< lift (retry r (paginate q p))
             yield (result page)
         when (hasMore page) $
             go =<< lift (retry r (liftClient (nextPage page)))
-
-instance MonadUnliftIO Client where
-    askUnliftIO = do
-        env <- ask
-        pure $ UnliftIO (runClient env)

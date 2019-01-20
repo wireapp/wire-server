@@ -3,31 +3,24 @@
 
 module Native where
 
+import Imports
+
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
 import Data.Aeson
-import Data.ByteString (ByteString)
 import Data.Id (UserId, randomId, ConnId (..), ClientId (..))
-import Data.Text (Text)
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
-import Gundeck.Push.Native.Crypto
 import Gundeck.Push.Native.Serialise
 import Gundeck.Push.Native.Types
 import Network.AWS (Region (Ireland))
-import OpenSSL.Cipher
 
-import qualified Data.ByteString         as BS
-import qualified Data.ByteString.Base64  as B64
-import qualified Data.ByteString.Char8   as C
 import qualified Data.HashMap.Strict     as HashMap
 import qualified Data.List1              as List1
 import qualified Data.Text               as T
 import qualified Data.Text.Encoding      as T
 import qualified Data.Text.Lazy.Encoding as LT
-import qualified OpenSSL.EVP.Cipher      as EVP
-import qualified OpenSSL.EVP.Digest      as EVP
 
 tests :: TestTree
 tests = testGroup "Native"
@@ -35,86 +28,21 @@ tests = testGroup "Native"
         -- this may fail sporadically, but that's not a production issue.
         -- see <https://github.com/wireapp/wire-server/issues/341>.
         forAll genTransport serialiseOkProp
-    , testProperty "serialise/size-limit" $
-        forAll genTransport sizeLimitProp
-    , testProperty "crypto/block-size-16" $
-        forAll ((,) <$> genKeys <*> genPlaintext) blockSizeProp
-    , testProperty "crypto/aes-decrypt" $
-        forAll ((,) <$> genKeys <*> genPlaintext) decryptProp
-    , testProperty "crypto/encrypt-then-mac" $
-        forAll ((,) <$> genKeys <*> genPlaintext) macProp
     ]
 
 serialiseOkProp :: Transport -> Property
 serialiseOkProp t = ioProperty $ do
     a <- mkAddress t
     n <- randNotif (0, 1280)
-    c <- aes256
-    d <- sha256
-    m <- randMessage n c d
+    m <- randMessage n
     r <- serialise m a
     let sn = either (const Nothing) Just r >>= decode' . LT.encodeUtf8
     let equalTransport = fmap snsNotifTransport sn == Just t
     equalNotif <- case snsNotifBundle <$> sn of
         Nothing                -> return False
         Just (NoticeBundle n') -> return $ ntfId n == n'
-        Just (PlainBundle   p) -> return $ n == plainNotif p
-        Just (CipherBundle  p) -> do
-            let (iv, dat') = BS.splitAt 16 (cipherData p)
-            let mac = EVP.hmacBS d (macKeyBytes macKey) (cipherData p)
-            plain <- EVP.cipherBS c (encKeyBytes encKey) iv EVP.Decrypt dat'
-            let n' = plainNotif <$> decodeStrict' plain
-            return $ n' == Just n && mac == cipherMac p
-    let debugInfo = (t, a, n, {- c, d, m, -} r, sn, equalTransport, equalNotif)
+    let debugInfo = (t, a, n, r, sn, equalTransport, equalNotif)
     return . counterexample (show debugInfo) $ equalTransport && equalNotif
-
-sizeLimitProp :: Transport -> Property
-sizeLimitProp t = ioProperty $ do
-    a <- mkAddress t
-    let lim = fromIntegral (maxPayloadSize t)
-    c <- aes256
-    d <- sha256
-    n <- randNotif (lim + 1, lim + 10000)
-    m <- randMessage n c d
-    r <- serialise m a
-    return $ case (m, r) of
-        (Notice {}, Left PayloadTooLarge) -> False
-        (Notice {}, Right              _) -> True
-        (        _, Left PayloadTooLarge) -> True
-        (        _,                    _) -> False
-
-blockSizeProp :: (TestKeys, ByteString) -> Property
-blockSizeProp (TestKeys keys, input) = ioProperty $ do
-    sha <- sha256
-    aes <- aes256
-    cipher <- encrypt input keys aes sha
-    return $ BS.length (cipherData cipher) `mod` 16 == 0
-
-decryptProp :: (TestKeys, ByteString) -> Property
-decryptProp (TestKeys keys, input) = ioProperty $ do
-    sha <- sha256
-    aes <- aes256
-    cipher <- encrypt input keys aes sha
-    let (iv, ciphertext) = BS.splitAt 16 (cipherData cipher)
-    ctx    <- newAESCtx Decrypt (encKeyBytes (sigEncKey keys)) iv
-    padded <- aesCBC ctx ciphertext
-    let (plain, pad) = BS.splitAt (fromIntegral (BS.length input)) padded
-    let expected     = BS.replicate (BS.length pad) (fromIntegral (BS.length pad))
-    return $ conjoin
-        [ counterexample ("Actual padding: " ++ C.unpack pad) $
-          counterexample ("Expected padding: " ++ C.unpack expected) $
-            pad == expected
-        , counterexample ("Actual plaintext: " ++ C.unpack plain) $
-            plain == input
-        ]
-
-macProp :: (TestKeys, ByteString) -> Property
-macProp (TestKeys keys, input) = ioProperty $ do
-    sha    <- sha256
-    aes    <- aes256
-    cipher <- encrypt input keys aes sha
-    let mac = EVP.hmacBS sha (macKeyBytes (sigMacKey keys)) (cipherData cipher)
-    return $ mac == cipherMac cipher
 
 -----------------------------------------------------------------------------
 -- Types
@@ -170,20 +98,12 @@ instance FromJSON ApnsData where
         ApnsData <$> o .: "aps"
                  <*> o .: "data"
 
-data Bundle
-    = PlainBundle  !PlainData
-    | CipherBundle !CipherData
-    | NoticeBundle !NotificationId
+newtype Bundle = NoticeBundle NotificationId
     deriving (Eq, Show)
 
 instance FromJSON Bundle where
     parseJSON = withObject "Bundle" $ \o ->
         case HashMap.lookup "type" o of
-            Just (String  "plain") -> PlainBundle <$> parseJSON (Object o)
-            Just (String "cipher") -> do
-                mac <- B64.decodeLenient . T.encodeUtf8 <$> o .: "mac"
-                dat <- B64.decodeLenient . T.encodeUtf8 <$> o .: "data"
-                return $! CipherBundle $! CipherData mac dat
             Just (String "notice") -> case HashMap.lookup "data" o of
                 Just (Object o') -> NoticeBundle <$> o' .: "id"
                 _                -> mempty
@@ -213,27 +133,8 @@ randNotif size = do
         let pload = List1.singleton (HashMap.fromList ["data" .= v])
         Notification i <$> arbitrary <*> pure pload
 
-randMessage :: Notification -> EVP.Cipher -> EVP.Digest -> IO (Message "keys")
-randMessage n c d = generate (elements [plaintext, ciphertext, notice])
-  where
-    plaintext  = Plaintext n HighPriority Nothing
-    ciphertext = Ciphertext n c d HighPriority Nothing
-    notice     = Notice (ntfId n) HighPriority Nothing
-
-genKeys :: Gen TestKeys
-genKeys = TestKeys <$> (SignalingKeys <$> (EncKey <$> genKey) <*> (MacKey <$> genKey))
-
-genPlaintext :: Gen ByteString
-genPlaintext = BS.pack <$> arbitrary
-
-genKey :: Gen BS.ByteString
-genKey = BS.pack . take 32 <$> arbitrary `suchThat` ((>= 32) . length)
-
-newtype TestKeys = TestKeys SignalingKeys
-
-instance Show TestKeys where
-    show (TestKeys (SignalingKeys (EncKey ek) (MacKey mk))) =
-        show ek ++ ":" ++ show mk
+randMessage :: Notification -> IO (Message "keys")
+randMessage n = pure $ Notice (ntfId n) HighPriority Nothing
 
 -----------------------------------------------------------------------------
 -- Utilities
@@ -247,24 +148,8 @@ mkAddress t = Address
     <*> pure (mkEndpoint t (AppName "test"))
     <*> pure (ConnId "conn")
     <*> pure (ClientId "client")
-    <*> pure (Just (SignalingKeys encKey macKey))
-    <*> pure Nothing
 
 mkEndpoint :: Transport -> AppName -> EndpointArn
 mkEndpoint t a = mkSnsArn Ireland (Account "test") topic
   where
     topic = mkEndpointTopic (ArnEnv "test") t a (EndpointId "test")
-
-encKey :: EncKey
-encKey = EncKey (BS.replicate 32 0)
-
-macKey :: MacKey
-macKey = MacKey (BS.replicate 32 0)
-
-sha256 :: IO EVP.Digest
-sha256 = maybe (error "SHA256 not found") return
-     =<< EVP.getDigestByName "SHA256"
-
-aes256 :: IO EVP.Cipher
-aes256 = maybe (error "AES256 not found") return
-     =<< EVP.getCipherByName "AES-256-CBC"

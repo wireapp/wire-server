@@ -8,9 +8,7 @@ module Galley.Queue
     , len
     ) where
 
-import Control.Concurrent.STM (atomically)
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad (unless)
+import Imports
 import qualified Control.Concurrent.STM as Stm
 
 data Queue a = Queue

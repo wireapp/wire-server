@@ -2,9 +2,9 @@
 
 module Gundeck.Types.Event where
 
+import Imports
 import Data.Aeson
 import Data.Json.Util
-import Data.Text
 import Gundeck.Types.Push
 
 import qualified Data.HashMap.Strict as M

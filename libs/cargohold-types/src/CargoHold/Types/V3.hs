@@ -42,18 +42,16 @@ module CargoHold.Types.V3
     , Principal (..)
     ) where
 
+import Imports
 import Control.Lens (makeLenses)
 import Crypto.Hash (Digest, MD5, hashlazy)
 import Data.Aeson
 import Data.Attoparsec.ByteString.Char8
-import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#), toUTCTimeMillis)
-import Data.Monoid
 import Data.Time.Clock
-import Data.Text (Text)
 import Data.Text.Ascii (AsciiBase64Url)
 
 import qualified Codec.MIME.Type        as MIME
@@ -68,7 +66,7 @@ import qualified Data.UUID              as UUID
 
 -- | Build a complete @multipart/mixed@ request body for a one-shot,
 -- non-resumable asset upload.
-buildMultipartBody :: AssetSettings -> MIME.Type -> ByteString -> Builder
+buildMultipartBody :: AssetSettings -> MIME.Type -> LByteString -> Builder
 buildMultipartBody sets typ bs = let hdrs = mkHeaders typ bs in
     beginMultipartBody sets hdrs <> lazyByteString bs <> endMultipartBody
 
@@ -103,7 +101,7 @@ data AssetHeaders = AssetHeaders
     , hdrMD5    :: Digest MD5
     }
 
-mkHeaders :: MIME.Type -> ByteString -> AssetHeaders
+mkHeaders :: MIME.Type -> LByteString -> AssetHeaders
 mkHeaders t b = AssetHeaders t (fromIntegral (LBS.length b)) (hashlazy b)
 
 --------------------------------------------------------------------------------

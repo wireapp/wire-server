@@ -3,6 +3,7 @@
 
 module V21 (migration) where
 
+import Imports
 import Cassandra.Schema
 import Text.RawString.QQ
 
@@ -56,4 +57,3 @@ migration = Migration 21 "Add teams" $ do
 
     schema' [r| ALTER TABLE conversation ADD team uuid; |]
     schema' [r| ALTER TABLE conversation ADD deleted boolean; |]
-

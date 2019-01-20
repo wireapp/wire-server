@@ -5,19 +5,15 @@
 
 module Brig.Types.User.Auth where
 
+import Imports
 import Brig.Types.Code
 import Brig.Types.Common
-import Control.Applicative
 import Data.Aeson
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy (ByteString)
 import Data.Id (UserId)
 import Data.Misc (PlainTextPassword (..))
-import Data.String (IsString)
-import Data.Text (Text)
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
-import Data.Word
 
 import qualified Data.Aeson.Types as Aeson
 
@@ -146,14 +142,14 @@ instance ToJSON LoginCodeTimeout where
 -- | A temporary API access token.
 data AccessToken = AccessToken
     { user      :: !UserId
-    , access    :: !ByteString -- accessTokenValue
-    , tokenType :: !TokenType  -- accessTokenType
-    , expiresIn :: !Integer    -- accessTokenExpiresIn
+    , access    :: !LByteString -- accessTokenValue
+    , tokenType :: !TokenType   -- accessTokenType
+    , expiresIn :: !Integer     -- accessTokenExpiresIn
     }
 
 data TokenType = Bearer deriving Show
 
-bearerToken :: UserId -> ByteString -> Integer -> AccessToken
+bearerToken :: UserId -> LByteString -> Integer -> AccessToken
 bearerToken u a = AccessToken u a Bearer
 
 data RemoveCookies = RemoveCookies

@@ -15,15 +15,11 @@ module Bilge.Assert
     , assert_
     ) where
 
-import Control.Monad
-import Control.Monad.IO.Class
+import Imports
 import Control.Monad.Catch
 import Control.Monad.Writer.Class
 import Control.Monad.Writer.Strict
-import Data.ByteString              (ByteString)
 import Data.List                    (intersperse, isInfixOf)
-import Data.Maybe
-import GHC.Stack (HasCallStack)
 import Network.HTTP.Client
 import System.Console.ANSI
 import Text.Printf

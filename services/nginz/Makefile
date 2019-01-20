@@ -1,7 +1,7 @@
-LANG := en_US.UTF-8
+LANG           := en_US.UTF-8
 SHELL          := /usr/bin/env bash
 NAME           := nginz
-NGINX_VERSION   = 1.12.2
+NGINX_VERSION   = 1.14.2
 NGINZ_VERSION  ?=
 SWAGGER_VERSION:= 2.2.10
 SHELL          := /usr/bin/env bash
@@ -11,6 +11,8 @@ DEB            := $(NAME)_$(NGINZ_VERSION)_amd64.deb
 ifeq ($(DEBUG), 1)
 WITH_DEBUG      = --with-debug
 endif
+DOCKER_USER    ?= quay.io/wire
+DOCKER_TAG     ?= local
 
 DEST_PATH      ?= /opt/nginz
 # Use a folder that can be written to since errors during startup do not respect
@@ -104,12 +106,10 @@ zwagger-ui/swagger-ui: $(SWAGGER_BUNDLE)
 $(SWAGGER_BUNDLE):
 	curl -L https://github.com/swagger-api/swagger-ui/archive/v$(SWAGGER_VERSION).tar.gz -o $(SWAGGER_BUNDLE)
 
-src: $(NGINX_BUNDLE) gcc8.patch
+src: $(NGINX_BUNDLE)
 	#Find keys on https://nginx.org/en/pgp_keys.html
 	gpg --verify $(NGINX_BUNDLE).asc $(NGINX_BUNDLE)
 	tar zxf $(NGINX_BUNDLE)
-	# Fix compilation with GCC 8; see https://github.com/wireapp/wire-server/issues/320
-	(cd nginx-$(NGINX_VERSION); patch -p1 -i ../gcc8.patch)
 	rm -rf src && mv nginx-$(NGINX_VERSION) src
 
 $(NGINX_BUNDLE):
@@ -119,7 +119,9 @@ $(NGINX_BUNDLE):
 .PHONY: docker
 docker:
 	git submodule update --init
-	docker build -f Dockerfile -t nginz ../..
+	docker build -t $(DOCKER_USER)/nginz:$(DOCKER_TAG) -f Dockerfile ../..
+	docker tag $(DOCKER_USER)/nginz:$(DOCKER_TAG) $(DOCKER_USER)/nginz:latest
+	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/nginz:$(DOCKER_TAG); docker push $(DOCKER_USER)/nginz:latest; fi;
 
 .PHONY: libzauth
 libzauth:

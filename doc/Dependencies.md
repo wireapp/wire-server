@@ -12,13 +12,15 @@ In addition to the information below, you can also consult the Dockerfiles for A
 #### Fedora:
 
 ```bash
-sudo yum install pkgconfig haskell-platform libstdc++-devel libstdc++-static gcc-c++ libtool automake openssl-devel libsodium-devel ncurses-compat-libs libicu-devel -y
+sudo dnf install -y pkgconfig haskell-platform libstdc++-devel libstdc++-static gcc-c++ libtool automake openssl-devel libsodium-devel ncurses-compat-libs libicu-devel GeoIP-devel libxml2-devel snappy-devel protobuf-compiler
 ```
 
 #### Debian:
 
+*Note: Debian is not recommended due to this issue when running local integration tests: [#327](https://github.com/wireapp/wire-server/issues/327)*
+
 ```bash
-sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler -y
+sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler libxml2-dev -y
 ```
 
 If `openssl-dev` does not work for you, try `libssl-dev`.
@@ -79,24 +81,30 @@ source $HOME/.cargo/env
 ### cryptobox-c
 
 ```bash
+export TARGET_LIB="$HOME/.wire-dev/lib"
+export TARGET_INCLUDE="$HOME/.wire-dev/include"
+mkdir -p "$TARGET_LIB"
+mkdir -p "$TARGET_INCLUDE"
 git clone https://github.com/wireapp/cryptobox-c && cd cryptobox-c
-make
 make install
-# in case `make install` fails due to permissions, edit the Makefile to prepend 'sudo' before the 'cp ... /usr/local...' lines
 
 # Add cryptobox-c to ldconfig
-sudo echo '/usr/local/lib' > /etc/ld.so.conf.d/cryptobox.conf
+sudo bash -c "echo \"${TARGET_LIB}\" > /etc/ld.so.conf.d/cryptobox.conf"
 sudo ldconfig
 ```
 
 Make sure stack knows where to find it. In `~/.stack/config.yaml` add:
 
+(using `~` or `$HOME` doesn't work, needs full paths)
+
 ```yaml
 extra-include-dirs:
 - /usr/local/include
+- <YOUR_HOME_DIR>/.wire-dev/include
 
 extra-lib-dirs:
 - /usr/local/lib
+- <YOUR_HOME_DIR>/.wire-dev/lib
 ```
 
 ### makedeb

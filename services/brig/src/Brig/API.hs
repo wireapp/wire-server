@@ -8,8 +8,9 @@
 {-# LANGUAGE TypeOperators     #-}
 {-# LANGUAGE NamedFieldPuns    #-}
 
-module Brig.API (runServer, parseOptions) where
+module Brig.API (runServer) where
 
+import Imports hiding (head)
 import Brig.App
 import Brig.AWS (sesQueue)
 import Brig.API.Error
@@ -22,23 +23,16 @@ import Brig.Types.User (NewUserNoSSO(NewUserNoSSO))
 import Brig.Types.User.Auth
 import Brig.User.Email
 import Brig.User.Phone
-import Control.Error
+import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
-import Control.Monad (liftM2, liftM3, unless, void, when)
 import Control.Monad.Catch (finally)
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import Data.Foldable (for_)
-import Data.Traversable (for)
 import Data.Id
-import Data.Int
 import Data.Metrics.Middleware hiding (metrics)
 import Data.Misc (IpAddr (..))
-import Data.Monoid ((<>))
 import Data.Range
-import Data.Text (Text, unpack)
+import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import Galley.Types (UserClients (..))
@@ -46,10 +40,9 @@ import Network.HTTP.Types.Status
 import Network.Wai (Request, Response, responseLBS, lazyRequestBody)
 import Network.Wai.Predicate hiding (setStatus, result)
 import Network.Wai.Routing
-import Network.Wai.Utilities hiding (parseJsonBody)
+import Network.Wai.Utilities
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
-import Prelude hiding (head)
 import Util.Options
 
 import qualified Data.Text.Ascii               as Ascii
@@ -59,6 +52,7 @@ import qualified Brig.API.Client               as API
 import qualified Brig.API.Connection           as API
 import qualified Brig.API.Properties           as API
 import qualified Brig.API.User                 as API
+import qualified Brig.Data.User                as Data
 import qualified Brig.Queue                    as Queue
 import qualified Brig.Team.Util                as Team
 import qualified Brig.User.API.Auth            as Auth
@@ -205,6 +199,12 @@ sitemap o = do
     get "/i/users/:uid/is-team-owner/:tid" (continue isTeamOwner) $
       capture "uid"
       .&. capture "tid"
+
+    put "/i/users/:uid/sso-id" (continue updateSSOId) $
+      capture "uid"
+      .&. accept "application" "json"
+      .&. contentType "application" "json"
+      .&. request
 
     post "/i/clients" (continue internalListClients) $
       accept "application" "json"
@@ -816,6 +816,17 @@ sitemap o = do
         Doc.returns (Doc.array Doc.string')
         Doc.response 200 "List of property keys." Doc.end
 
+    ---
+
+    get "/properties-values" (continue listPropertyKeysAndValues) $
+        header "Z-User"
+        .&. accept "application" "json"
+
+    document "GET" "listPropertyKeysAndValues" $ do
+        Doc.summary "List all properties with key and value."
+        Doc.returns (Doc.ref Doc.propertyDictionary)
+        Doc.response 200 "Object with properties as attributes." Doc.end
+
     -- /register, /activate, /password-reset ----------------------------------
 
     post "/register" (continue createUser) $
@@ -989,6 +1000,9 @@ getProperty (u ::: k ::: _) = do
 
 listPropertyKeys :: UserId ::: JSON -> Handler Response
 listPropertyKeys (u ::: _) = json <$> lift (API.lookupPropertyKeys u)
+
+listPropertyKeysAndValues :: UserId ::: JSON -> Handler Response
+listPropertyKeysAndValues (u ::: _) = json <$> lift (API.lookupPropertyKeysAndValues u)
 
 getPrekey :: UserId ::: ClientId ::: JSON -> Handler Response
 getPrekey (u ::: c ::: _) = do
@@ -1407,6 +1421,14 @@ isTeamOwner (uid ::: tid) = do
        Team.IsNotTeamOwner        -> throwStd insufficientTeamPermissions
        Team.NoTeamOwnersAreLeft   -> throwStd insufficientTeamPermissions
     return empty
+
+updateSSOId :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
+updateSSOId (uid ::: _ ::: _ ::: req) = do
+    ssoid :: UserSSOId <- parseJsonBody req
+    success <- lift $ Data.updateSSOId uid ssoid
+    if success
+      then return empty
+      else return . setStatus status404 $ plain "User does not exist or has no team."
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response
 deleteUser (u ::: r ::: _ ::: _) = do

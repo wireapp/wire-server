@@ -18,6 +18,10 @@ brig:
   host: 127.0.0.1
   port: 8082
 
+galley:
+  host: 127.0.0.1
+  port: 8085
+
 cassandra:
   endpoint:
     host: 127.0.0.1
@@ -29,5 +33,7 @@ cassandra:
 
 maxttlAuthreq: 5  # seconds.  don't set this too large, it is also the run time of one TTL test.
 maxttlAuthresp: 7200  # seconds.  do not set this to 1h or less, as that is what the mock idp wants.
+
+maxScimTokens: 2
 
 logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)

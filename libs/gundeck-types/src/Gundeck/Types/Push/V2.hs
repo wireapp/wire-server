@@ -3,9 +3,10 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeApplications           #-}
 
 module Gundeck.Types.Push.V2
-    ( Push
+    ( Push (..)
     , newPush
     , pushRecipients
     , pushOrigin
@@ -20,12 +21,12 @@ module Gundeck.Types.Push.V2
     , singletonRecipient
     , singletonPayload
 
-    , Recipient
+    , Recipient (..)
+    , RecipientClients (..)
     , recipient
     , recipientId
     , recipientRoute
     , recipientClients
-    , recipientFallback
 
     , Priority  (..)
     , Route     (..)
@@ -49,33 +50,21 @@ module Gundeck.Types.Push.V2
     , tokenTransport
     , tokenApp
     , tokenClient
-    , tokenFallback
     , token
 
     , PushTokenList (..)
-
-    , EncKey        (..)
-    , MacKey        (..)
-    , SignalingKeys (..)
     ) where
 
+import Imports
 import Control.Lens (makeLenses)
-import Control.Monad
 import Data.Aeson
 import Data.Attoparsec.ByteString (takeByteString)
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util
-import Data.Monoid
 import Data.List1
 import Data.Range
-import Data.Set (Set)
-import Data.String
-import Data.Text (Text)
-import Data.Text.Encoding
 
-import qualified Data.ByteString.Base64 as B64
 import qualified Data.List1             as List1
 import qualified Data.Range             as Range
 import qualified Data.Set               as Set
@@ -85,8 +74,10 @@ import qualified Data.Set               as Set
 
 data Route
     = RouteAny
-    | RouteDirect
-    | RouteNative
+    | RouteDirect  -- ^ 'RouteDirect' messages are different from transient messages: they do not
+                   -- trigger native pushes if the web socket is unavaiable, but they are stored in
+                   -- cassandra for later pickup.
+    | RouteNative  -- ^ REFACTOR: this can probably be removed.
     deriving (Eq, Ord, Show)
 
 instance FromJSON Route where
@@ -106,35 +97,48 @@ instance ToJSON Route where
 data Recipient = Recipient
     { _recipientId        :: !UserId
     , _recipientRoute     :: !Route
-    , _recipientClients   :: ![ClientId]
-    , _recipientFallback  :: !Bool
+    , _recipientClients   :: !RecipientClients
     } deriving (Show)
 
 instance Eq Recipient where
-    (Recipient uid1 _ _ _) == (Recipient uid2 _ _ _) = uid1 == uid2
+    (Recipient uid1 _ _) == (Recipient uid2 _ _) = uid1 == uid2
 
 instance Ord Recipient where
     compare r r' = compare (_recipientId r) (_recipientId r')
 
+data RecipientClients
+    = RecipientClientsAll                    -- ^ All clients of some user
+    | RecipientClientsSome (List1 ClientId)  -- ^ An explicit list of clients
+    deriving (Eq, Show)
+
 makeLenses ''Recipient
 
 recipient :: UserId -> Route -> Recipient
-recipient u r = Recipient u r [] True
+recipient u r = Recipient u r RecipientClientsAll
 
 instance FromJSON Recipient where
     parseJSON = withObject "Recipient" $ \p ->
       Recipient <$> p .:  "user_id"
                 <*> p .:  "route"
-                <*> p .:? "clients" .!= []
-                <*> p .:? "fallback" .!= True
+                <*> p .:? "clients" .!= RecipientClientsAll
 
 instance ToJSON Recipient where
-    toJSON (Recipient u r c f) = object
+    toJSON (Recipient u r c) = object
         $ "user_id"   .= u
         # "route"     .= r
-        # "clients"   .= (if null c then Nothing else Just c)
-        # "fallback"  .= (if not f then Just False else Nothing)
+        # "clients"   .= c
         # []
+
+-- "All clients" is encoded in the API as an empty list.
+instance FromJSON RecipientClients where
+    parseJSON x = parseJSON @[ClientId] x >>= \case
+        [] -> pure RecipientClientsAll
+        c:cs -> pure (RecipientClientsSome (list1 c cs))
+
+instance ToJSON RecipientClients where
+    toJSON = toJSON . \case
+        RecipientClientsAll -> []
+        RecipientClientsSome cs -> toList cs
 
 -----------------------------------------------------------------------------
 -- ApsData
@@ -193,6 +197,17 @@ instance FromJSON ApsData where
 -----------------------------------------------------------------------------
 -- Priority
 
+-- | REFACTOR: do we ever use LowPriority?  to test, (a) remove the constructor and see what goes
+-- wrong; (b) log use of 'LowPriority' by clients in production and watch it a few days.  if it is
+-- not used anywhere, consider removing the entire type, or just the unused constructor.
+--
+-- @neongreen writes: [...] nobody seems to ever set `native_priority` in the client code. Exhibits
+-- A1 and A2:
+--
+-- * <https://github.com/search?q=org%3Awireapp+native_priority&type=Code>
+-- * <https://sourcegraph.com/search?q=native_priority+repo:^github\.com/wireapp/+#1>
+--
+-- see also: 'Galley.Types.Proto.Priority'.
 data Priority = LowPriority | HighPriority
     deriving (Eq, Show, Ord, Enum)
 
@@ -212,10 +227,21 @@ instance FromJSON Priority where
 data Push = Push
     { _pushRecipients :: Range 1 1024 (Set Recipient)
       -- ^ Recipients
+      --
+      -- REFACTOR: '_pushRecipients' should be @Set (Recipient, Maybe (NonEmptySet ConnId))@, and
+      -- '_pushConnections' should go away.  Rationale: the current setup only works under the
+      -- assumption that no 'ConnId' is used by two 'Recipient's.  This is *probably* correct, but
+      -- not in any contract.  (Changing this may require a new version module, since we need to
+      -- support both the old and the new data type simultaneously during upgrade.)
     , _pushOrigin :: !UserId
       -- ^ Originating user
+      --
+      -- REFACTOR: where is this required, and for what?  or can it be removed?  (see also: #531)
     , _pushConnections :: !(Set ConnId)
-      -- ^ Destination connections, if a directed push is desired.
+      -- ^ Destination connections.  If empty, ignore.  Otherwise, filter the connections derived
+      -- from '_pushRecipients' and only push to those contained in this set.
+      --
+      -- REFACTOR: change this to @_pushConnectionWhitelist :: Maybe (Set ConnId)@.
     , _pushOriginConnection :: !(Maybe ConnId)
       -- ^ Originating connection, if any.
     , _pushTransient :: !Bool
@@ -225,8 +251,11 @@ data Push = Push
       -- of the originating user, if he is among the recipients.
     , _pushNativeEncrypt :: !Bool
       -- ^ Should native push payloads be encrypted?
+      --
+      -- REFACTOR: this make no sense any more since native push notifications have no more payload.
+      -- https://github.com/wireapp/wire-server/pull/546
     , _pushNativeAps :: !(Maybe ApsData)
-      -- ^ APNs-specific metadata.
+      -- ^ APNs-specific metadata.  REFACTOR: can this be removed?
     , _pushNativePriority :: !Priority
       -- ^ Native push priority.
     , _pushPayload :: !(List1 Object)
@@ -336,13 +365,12 @@ data PushToken = PushToken
     , _tokenApp       :: !AppName
     , _token          :: !Token
     , _tokenClient    :: !ClientId
-    , _tokenFallback  :: !(Maybe Transport)
     } deriving (Eq, Ord, Show)
 
 makeLenses ''PushToken
 
 pushToken :: Transport -> AppName -> Token -> ClientId -> PushToken
-pushToken tp an tk cl = PushToken tp an tk cl Nothing
+pushToken tp an tk cl = PushToken tp an tk cl
 
 instance ToJSON PushToken where
     toJSON p = object
@@ -350,7 +378,6 @@ instance ToJSON PushToken where
         # "app"       .= _tokenApp p
         # "token"     .= _token p
         # "client"    .= _tokenClient p
-        # "fallback"  .= _tokenFallback p
         # []
 
 instance FromJSON PushToken where
@@ -359,7 +386,6 @@ instance FromJSON PushToken where
                   <*> p .:  "app"
                   <*> p .:  "token"
                   <*> p .:  "client"
-                  <*> p .:? "fallback"
 
 newtype PushTokenList = PushTokenList
     { pushTokens :: [PushToken]
@@ -371,50 +397,3 @@ instance FromJSON PushTokenList where
 
 instance ToJSON PushTokenList where
     toJSON (PushTokenList t) = object ["tokens" .= t]
-
------------------------------------------------------------------------------
--- Native Push Encryption
-
-checkKeyLen :: ByteString -> Either String (Range 32 32 ByteString)
-checkKeyLen = Range.checkedEither
-
--- | Symmetric encryption key of a specific client for native push notifications.
-newtype EncKey = EncKey
-    { encKeyBytes :: ByteString
-    } deriving Eq
-
--- | MAC key of a specific client for native push notifications.
-newtype MacKey = MacKey
-    { macKeyBytes :: ByteString
-    } deriving Eq
-
-data SignalingKeys = SignalingKeys
-    { sigEncKey :: !EncKey
-    , sigMacKey :: !MacKey
-    }
-
-instance FromJSON EncKey where
-    parseJSON = withText "EncKey" $
-          either fail (return . EncKey . fromRange)
-        . (checkKeyLen <=< B64.decode)
-        . encodeUtf8
-
-instance ToJSON EncKey where
-    toJSON = String . decodeLatin1 . B64.encode . encKeyBytes
-
-instance FromJSON MacKey where
-    parseJSON = withText "MacKey" $
-          either fail (return . MacKey . fromRange)
-        . (checkKeyLen <=< B64.decode)
-        . encodeUtf8
-
-instance ToJSON MacKey where
-    toJSON = String . decodeLatin1 . B64.encode . macKeyBytes
-
-instance FromJSON SignalingKeys where
-    parseJSON = withObject "signaling-keys" $ \o ->
-        SignalingKeys <$> o .: "enckey" <*> o .: "mackey"
-
-instance ToJSON SignalingKeys where
-    toJSON (SignalingKeys ek mk) = object
-        [ "enckey" .= ek, "mackey" .= mk ]

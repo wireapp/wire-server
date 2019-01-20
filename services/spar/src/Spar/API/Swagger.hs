@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedLists            #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PackageImports             #-}
 {-# LANGUAGE QuasiQuotes                #-}
@@ -18,6 +19,8 @@
 
 module Spar.API.Swagger where
 
+import Imports
+import Control.Lens
 import Data.Id
 import Data.Proxy
 import Data.UUID (UUID)
@@ -26,10 +29,9 @@ import Data.String.Interpolate as QQ
 import "swagger2" Data.Swagger hiding (Header(..))
   -- NB: this package depends on both types-common, swagger2, so there is no away around this name
   -- clash other than -XPackageImports.
-import Lens.Micro
 import Servant
 import Servant.Swagger
-import Spar.API.Instances ()
+import Spar.Orphans ()
 import Spar.Types
 
 import qualified Data.Swagger.SchemaOptions as Swagger
@@ -43,10 +45,6 @@ import qualified URI.ByteString as URI
 -- FUTUREWORK: push orphans upstream to saml2-web-sso, servant-multipart
 
 -- TODO: steal from https://github.com/haskell-servant/servant-swagger/blob/master/example/src/Todo.hs
-
-instance ToSchema Swagger where
-  declareNamedSchema _proxy = genericDeclareNamedSchema defaultSchemaOptions (Proxy @())
-    & mapped . schema . description ?~ "The swagger docs you are looking at (all details hidden)."
 
 instance HasSwagger route => HasSwagger (SM.MultipartForm SM.Mem resp :> route) where
   toSwagger _proxy = toSwagger (Proxy @route)
@@ -88,19 +86,15 @@ Centrify allows you to upload the metadata xml document that you get from the `/
 samlSchemaOptions :: SchemaOptions
 samlSchemaOptions = Swagger.fromAesonOptions SAML.deriveJSONOptions
 
-instance ToParamSchema TeamId where
-  toParamSchema _ = toParamSchema (Proxy @UUID)
-
-instance ToParamSchema UserId where
+instance ToParamSchema (Id a) where
   toParamSchema _ = toParamSchema (Proxy @UUID)
 
 instance ToParamSchema SAML.IdPId where
   toParamSchema _ = toParamSchema (Proxy @UUID)
 
-instance ToSchema TeamId where
+instance ToSchema (Id a) where
   declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
-instance ToSchema UserId where
-  declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
+
 instance ToSchema SAML.IdPId where
   declareNamedSchema _ = declareNamedSchema (Proxy @UUID)
 
@@ -135,9 +129,6 @@ instance ToSchema SAML.Issuer where
 instance ToSchema SAML.Time where
   declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
-instance ToSchema SAML.Version where
-  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
-
 instance ToSchema X509.SignedCertificate where
   declareNamedSchema _ = declareNamedSchema (Proxy @String)
 
@@ -150,5 +141,11 @@ instance ToSchema URI.URI where
 instance ToParamSchema URI.URI where
   toParamSchema _ = toParamSchema (Proxy @String)
 
-instance ToParamSchema SAML.SetSAMLCookie where
-  toParamSchema _ = toParamSchema (Proxy @Bool)
+instance ToParamSchema SetBindCookie where
+  toParamSchema _ = toParamSchema (Proxy @String)
+
+instance ToParamSchema BindCookie where
+  toParamSchema _ = toParamSchema (Proxy @String)
+
+instance ToSchema Void where
+  declareNamedSchema _ = declareNamedSchema (Proxy @String)

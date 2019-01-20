@@ -3,6 +3,7 @@
 
 module Brig.Whitelist (Whitelist (..), verify) where
 
+import Imports
 import Data.Aeson
 import Bilge.IO
 import Bilge.Request
@@ -10,18 +11,16 @@ import Bilge.Response
 import Bilge.Retry
 import Brig.Types
 import Control.Monad.Catch (MonadMask, throwM)
-import Control.Monad.IO.Class
 import Control.Retry
-import Data.Monoid
 import Data.Text
 import Data.Text.Encoding (encodeUtf8)
-import GHC.Generics
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), parseRequest)
 
+-- | A service providing a whitelist of allowed email addresses and phone numbers
 data Whitelist = Whitelist
-    { whitelistUrl  :: !Text
-    , whitelistUser :: !Text
-    , whitelistPass :: !Text
+    { whitelistUrl  :: !Text     -- ^ Service URL
+    , whitelistUser :: !Text     -- ^ Username
+    , whitelistPass :: !Text     -- ^ Password
     } deriving (Show, Generic)
 
 instance FromJSON Whitelist

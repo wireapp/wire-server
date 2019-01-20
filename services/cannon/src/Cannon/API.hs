@@ -8,37 +8,34 @@
 
 module Cannon.API (run) where
 
+import Imports hiding (head)
 import Bilge (newManager, defaultManagerSettings, ManagerSettings (..))
 import Cannon.App
 import Cannon.Types
 import Cannon.Options
 import Cannon.WS hiding (env)
-import Control.Applicative hiding (empty, optional)
 import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.Aeson (encode)
-import Data.ByteString (ByteString)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
-import Data.Monoid
 import Data.Swagger.Build.Api hiding (def, Response)
-import Data.Text (Text, strip, pack)
+import Data.Text (strip, pack)
 import Data.Text.Encoding (encodeUtf8)
 import Network.HTTP.Types
-import Data.Maybe
 import Gundeck.Types
 import Gundeck.Types.BulkPush
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)
 import Network.Wai.Utilities hiding (message)
-import Network.Wai.Utilities.Request (parseJsonBody)
+import Network.Wai.Utilities.Request (parseBody')
 import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Handler.WebSockets
-import Prelude hiding (head)
-import System.Logger.Class hiding (Error)
+import System.Logger (msg, val)
+import System.Logger.Class (Logger)
 import System.Random.MWC (createSystemRandom)
 
 import qualified Cannon.Dict                 as D
@@ -46,14 +43,21 @@ import qualified Data.ByteString.Lazy        as L
 import qualified Data.Metrics.Middleware     as Metrics
 import qualified Network.Wai.Middleware.Gzip as Gzip
 import qualified Network.WebSockets          as Ws
-import qualified System.Logger               as Logger
+import qualified System.Logger.Class         as Logger
 import qualified System.IO.Strict            as Strict
+
+mkLogger :: Opts -> IO Logger
+mkLogger o = Logger.new $ Logger.defSettings
+    & Logger.setLogLevel (o^.logLevel)
+    & Logger.setOutput Logger.StdOut
+    & Logger.setFormat Nothing
+    & Logger.setNetStrings (o^.logNetStrings)
 
 run :: Opts -> IO ()
 run o = do
     ext <- loadExternal
     m <- metrics
-    g <- new (setOutput StdOut . setFormat Nothing $ defSettings)
+    g <- mkLogger o
     e <- mkEnv <$> pure m
                <*> pure ext
                <*> pure o
@@ -143,7 +147,7 @@ push (user ::: conn ::: req) =
 -- | Parse the entire list of notifcations and targets, then call 'singlePush' on the each of them
 -- in order.
 bulkpush :: Request -> Cannon Response
-bulkpush req = json <$> (parseJsonBody req >>= bulkpush')
+bulkpush req = json <$> (parseBody' req >>= bulkpush')
 
 -- | The typed part of 'bulkpush'.
 bulkpush' :: BulkPushRequest -> Cannon BulkPushResponse
@@ -163,11 +167,11 @@ singlePush :: Cannon L.ByteString -> PushTarget -> Cannon PushStatus
 singlePush notification (PushTarget usrid conid) = do
     let k = mkKey usrid conid
     d <- clients
-    debug $ client (key2bytes k) . msg (val "push")
+    Logger.debug $ client (key2bytes k) . msg (val "push")
     c <- D.lookup k d
     case c of
         Nothing -> do
-            debug $ client (key2bytes k) . msg (val "push: client gone")
+            Logger.debug $ client (key2bytes k) . msg (val "push: client gone")
             return PushStatusGone
         Just x -> do
             e <- wsenv

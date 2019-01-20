@@ -2,31 +2,23 @@
 
 module API.V3 where
 
+import Imports hiding (head)
 import Bilge hiding (body)
 import Bilge.Assert
-import Control.Applicative
-import Control.Concurrent (threadDelay)
 import Control.Lens hiding (sets)
-import Control.Monad
-import Control.Monad.IO.Class
 import Data.Aeson hiding (json)
-import Data.ByteString (ByteString)
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Maybe
-import Data.Monoid
 import Data.Text.Encoding (decodeLatin1)
 import Data.Time.Clock
 import Data.Time.Format
 import Data.UUID.V4
-import GHC.Stack (HasCallStack)
 import Network.HTTP.Client (parseUrlThrow)
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status (status200, status204)
 import Network.Wai.Utilities (Error (label))
-import Prelude hiding (head)
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -391,4 +383,3 @@ zConn = header "Z-Connection"
 
 decodeBody :: FromJSON a => Response (Maybe Lazy.ByteString) -> Maybe a
 decodeBody = responseBody >=> decode
-

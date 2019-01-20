@@ -4,20 +4,16 @@
 
 module Cannon.App (wsapp, terminate, maxPingInterval) where
 
+import Imports hiding (threadDelay)
 import Cannon.WS
 import Control.Concurrent.Async
 import Control.Concurrent.Timeout
-import Control.Exception (IOException)
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Data.Aeson hiding (Error, (.=))
 import Data.ByteString.Conversion
-import Data.ByteString.Lazy (ByteString, toStrict)
+import Data.ByteString.Lazy (toStrict)
 import Data.Id (ClientId)
-import Data.IORef
 import Data.Timeout
-import Data.Word
 import Lens.Family hiding (set)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
@@ -144,7 +140,7 @@ ioErrors l k = let f s = Logger.err l $ client (key2bytes k) . msg s in
 ping :: Message
 ping = ControlMessage (Ping "ping")
 
-pong :: ByteString -> Message
+pong :: LByteString -> Message
 pong = ControlMessage . Pong
 
 set :: ASetter' a b -> IORef a -> (b -> b) -> IO ()

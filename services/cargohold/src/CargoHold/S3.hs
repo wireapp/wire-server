@@ -43,29 +43,20 @@ module CargoHold.S3
     , getOtrMetadata
     ) where
 
+import Imports
 import CargoHold.App hiding (Env, Handler)
-import Control.Applicative ((<|>))
 import CargoHold.API.Error
 import CargoHold.Options
 import Control.Error (ExceptT, throwE)
 import Control.Lens hiding ((.=), (:<), (:>), parts)
-import Control.Monad
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
 import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.Binary.Builder (toLazyByteString)
-import Data.ByteString (ByteString)
 import Data.ByteString.Conversion
 import Data.Conduit
-import Data.Foldable (toList)
 import Data.Id
-import Data.List (foldl')
-import Data.Maybe
-import Data.Monoid ((<>))
 import Data.Sequence (Seq, ViewR (..), ViewL (..))
 import Data.Time.Clock
-import Data.Text (Text)
 import Data.Text.Encoding (encodeUtf8, decodeLatin1)
 import Network.AWS hiding (Error)
 import Network.AWS.S3

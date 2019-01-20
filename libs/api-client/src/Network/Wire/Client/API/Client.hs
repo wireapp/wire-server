@@ -7,24 +7,21 @@ module Network.Wire.Client.API.Client
     , getUserPrekeys
     , getPrekey
     , getClients
-    , SignalingKeys (..)
-    , EncKey        (..)
-    , MacKey        (..)
     , module M
     ) where
 
+import Imports
 import Bilge
 import Brig.Types.Client as M
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty
-import Gundeck.Types.Push
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Session
 
-registerClient :: MonadSession m => NewClient SignalingKeys -> m M.Client
+registerClient :: MonadSession m => NewClient -> m M.Client
 registerClient a = sessionRequest req rsc readBody
   where
     req = method POST
@@ -53,7 +50,7 @@ getClients = sessionRequest req rsc readBody
         $ empty
     rsc = status200 :| []
 
-updateClient :: MonadSession m => ClientId -> UpdateClient SignalingKeys -> m ()
+updateClient :: MonadSession m => ClientId -> UpdateClient -> m ()
 updateClient cid r = sessionRequest req rsc (const $ return ())
   where
     req = method PUT

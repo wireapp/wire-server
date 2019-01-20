@@ -3,11 +3,11 @@
 
 module Tests.Ropes.Aws.Ses (tests) where
 
+import Imports
 import Aws
 import Aws.Ses
 import Control.Error
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Control.Monad.Trans.Resource
 import Network.Mail.Mime
 import Ropes.Aws

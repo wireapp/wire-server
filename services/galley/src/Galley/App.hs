@@ -37,23 +37,20 @@ module Galley.App
     , fromProtoBody
     ) where
 
+import Imports
 import Bilge hiding (Request, header, statusCode, options)
 import Bilge.RPC
 import Cassandra hiding (Error, Set)
 import Control.Error
 import Control.Lens hiding ((.=))
-import Control.Monad.Base
 import Control.Monad.Catch hiding (tryJust)
-import Control.Monad.IO.Class
-import Control.Monad.Reader
-import Control.Monad.Trans.Control
 import Data.Aeson (FromJSON)
 import Data.ByteString.Conversion (toByteString')
+import Data.Default (def)
 import Data.Id (TeamId, UserId, ConnId)
 import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
 import Data.Serialize.Get (runGetLazy)
-import Data.String (fromString)
 import Data.Text (unpack)
 import Galley.Options
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -114,13 +111,11 @@ newtype Galley a = Galley
                , MonadClient
                )
 
-instance MonadBase IO Galley where
-    liftBase = liftIO
-
-instance MonadBaseControl IO Galley where
-    type StM Galley a = StM (ReaderT Env Client) a
-    liftBaseWith f    = Galley $ liftBaseWith $ \run -> f (run . unGalley)
-    restoreM          = Galley . restoreM
+instance MonadUnliftIO Galley where
+    askUnliftIO =
+        Galley $ ReaderT $ \r ->
+        withUnliftIO $ \u ->
+        return (UnliftIO (unliftIO u . flip runReaderT r . unGalley))
 
 instance MonadLogger Galley where
     log l m = do
@@ -133,18 +128,25 @@ instance MonadHttp Galley where
 instance HasRequestId Galley where
     getRequestId = view reqId
 
+mkLogger :: Opts -> IO Logger
+mkLogger opts = Logger.new $ Logger.defSettings
+    & Logger.setLogLevel (opts ^. optLogLevel)
+    & Logger.setOutput Logger.StdOut
+    & Logger.setFormat Nothing
+    & Logger.setNetStrings (opts ^. optLogNetStrings)
+
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do
-    l   <- new $ setOutput StdOut . setFormat Nothing $ defSettings
+    l   <- mkLogger o
     mgr <- initHttpManager o
-    Env mempty m o l mgr <$> initCassandra o l
-                         <*> Q.new 16000
-                         <*> initExtEnv
-                         <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o^.optJournal)
+    Env def m o l mgr <$> initCassandra o l
+                      <*> Q.new 16000
+                      <*> initExtEnv
+                      <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o^.optJournal)
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
-    c <- maybe (C.initialContactsDNS (o^.optCassandra.casEndpoint.epHost))
+    c <- maybe (C.initialContactsPlain (o^.optCassandra.casEndpoint.epHost))
                (C.initialContactsDisco "cassandra_galley")
                (unpack <$> o^.optDiscoUrl)
     C.init (Logger.clone (Just "cassandra.galley") l) $
@@ -204,7 +206,7 @@ evalGalley :: Env -> Galley a -> IO a
 evalGalley e m = runClient (e^.cstate) (runReaderT (unGalley m) e)
 
 lookupReqId :: Request -> RequestId
-lookupReqId = maybe mempty RequestId . lookup requestIdName . requestHeaders
+lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
 
 reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId

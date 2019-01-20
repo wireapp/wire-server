@@ -5,14 +5,10 @@
 
 module Gundeck.Options where
 
+import Imports
 import Control.Lens
 import Data.Aeson.TH
-import Data.Monoid
-import Data.String
-import Data.Text (Text)
-import Data.Word
 import Data.Yaml (FromJSON)
-import GHC.Generics
 import Gundeck.Aws.Arn
 import Options.Applicative
 import Options.Applicative.Types
@@ -35,17 +31,6 @@ data AWSOpts = AWSOpts
 deriveFromJSON toOptionFieldName ''AWSOpts
 makeLenses ''AWSOpts
 
-data FallbackOpts = FallbackOpts
-    { _fbSkipFallbacks :: !Bool
-    , _fbPreferNotice  :: !Bool
-    , _fbQueueDelay    :: !Word64
-    , _fbQueueLimit    :: !Int
-    , _fbQueueBurst    :: !Word16
-    } deriving (Show, Generic)
-
-deriveFromJSON toOptionFieldName ''FallbackOpts
-makeLenses ''FallbackOpts
-
 data Settings = Settings
     { _setHttpPoolSize    :: !Int
     , _setNotificationTTL :: !NotificationTTL
@@ -61,7 +46,6 @@ data Opts = Opts
     , _optRedis     :: !Endpoint
     , _optAws       :: !AWSOpts
     , _optDiscoUrl  :: !(Maybe Text)
-    , _optFallback  :: !FallbackOpts
     , _optSettings  :: !Settings
     } deriving (Show, Generic)
 
@@ -92,7 +76,6 @@ optsParser = Opts <$>
   <*> redisParser
   <*> awsParser
   <*> optional discoUrlParser
-  <*> fallbackParser
   <*> settingsParser
   where
     redisParser :: Parser Endpoint
@@ -142,46 +125,6 @@ optsParser = Opts <$>
             <> value (AWSEndpoint "sns.eu-west-1.amazonaws.com" True 443)
             <> showDefault
             <> help "aws SNS endpoint")
-
-    fallbackParser :: Parser FallbackOpts
-    fallbackParser = FallbackOpts <$>
-        -- NOTE: If set, notifications are still queued to be sent, etc. but never actually
-        -- end up getting sent out. This allows us to still keep track of how successful
-        -- we are with cancelling the fallback notifications and thus get a feeling of
-        --  where we stand today.
-        (switch $
-            long "skip-fallbacks"
-            <> help "Use this option if you wish to never send delayed fallback notifications.")
-
-        <*> (switch $
-                long "prefer-notice"
-                <> help "Use this option if you always wish to send notifications of type notice.")
-
-        <*> (delayOption $
-                long "fallback-queue-delay"
-                <> metavar "SIZE"
-                <> showDefault
-                <> help "Delay (seconds) of notifications before sending a fallback. \
-                   \MUST be higher than 30 seconds."
-                <> value 300)
-
-        <*> (option auto $
-                long "fallback-queue-limit"
-                <> metavar "SIZE"
-                <> showDefault
-                <> help "Max. size of the notification fallback queue."
-                <> value 30000)
-
-        <*> (option auto $
-                long "fallback-queue-burst"
-                <> metavar "SIZE"
-                <> showDefault
-                <> help "Max. number of delayed notifications to fire in a row (i.e. per second)."
-                <> value 100)
-
-    delayOption = fmap check . option auto
-      where
-        check x = if x < 30 then error "Delay must > 30" else x
 
     settingsParser :: Parser Settings
     settingsParser = Settings <$>

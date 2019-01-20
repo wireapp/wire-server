@@ -2,10 +2,11 @@
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-{-# OPTIONS_GHC -fno-warn-orphans #-}  -- FUTUREWORK: get rid of this
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Spar.Data.Instances where
 
+import Imports
 import Cassandra as Cas
 import Data.String.Conversions
 import Data.X509 (SignedCertificate)
@@ -19,7 +20,7 @@ import qualified SAML2.WebSSO as SAML
 
 instance Cql (SignedCertificate) where
     ctype = Tagged BlobColumn
-    toCql = CqlText . cs . renderKeyInfo
+    toCql = CqlBlob . cs . renderKeyInfo
 
     fromCql (CqlBlob t) = parseKeyInfo (cs t)
     fromCql _           = fail "SignedCertificate: expected CqlBlob"
@@ -65,3 +66,5 @@ toVerdictFormat :: VerdictFormatRow -> Maybe VerdictFormat
 toVerdictFormat (VerdictFormatConWeb, Nothing, Nothing)                 = Just VerdictFormatWeb
 toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir) = Just $ VerdictFormatMobile succredir errredir
 toVerdictFormat _                                                       = Nothing
+
+deriving instance Cql ScimToken

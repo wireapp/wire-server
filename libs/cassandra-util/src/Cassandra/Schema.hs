@@ -18,32 +18,21 @@ module Cassandra.Schema
     , schema'
     ) where
 
+import Imports hiding (intercalate, fromString, log, All)
 import Cassandra
 import Cassandra.Settings
-import Control.Applicative
-import Control.Error
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
 import Control.Retry
 import Data.Aeson
-import Data.Int
-import Data.IORef
-import Data.Functor.Identity
-import Data.List (sortBy)
 import Data.List.Split (splitOn)
-import Data.Monoid ((<>))
-import Data.Text (Text, pack, intercalate)
+import Data.Text (pack, intercalate)
 import Data.Text.Lazy (fromStrict)
 import Data.Text.Lazy.Builder (fromText, fromString, toLazyText)
 import Data.Time.Clock
 import Data.UUID (UUID)
-import Data.Word
 import Database.CQL.IO
-import Database.CQL.Protocol (Request (..), Query (..), Response(..), Result (..))
-import GHC.Generics hiding (to, from, S, R)
+import Database.CQL.Protocol (Request (..), Query (..))
 import Options.Applicative hiding (info)
-import Prelude hiding (log)
 import System.Logger (Logger, Level (..), log, msg)
 
 import qualified Data.Text.Lazy as LT
@@ -133,21 +122,15 @@ createKeyspace (Keyspace k) rs = void $ schema (cql rs) (params All ())
     pair (dc, ReplicationFactor n) = "'" <> dc <> "': " <> pack (show n)
 
 useKeyspace :: Keyspace -> Client ()
-useKeyspace (Keyspace k) = do
-    r <- qry
-    case r of
-        RsResult _ (SetKeyspaceResult _) -> return ()
-        RsError _ e                      -> throwM e
-        _                                -> throwM (UnexpectedResponse' r)
+useKeyspace (Keyspace k) = void . getResult =<< qry
   where
-    qry  = request (RqQuery (Query cql prms)) :: Client (Response () () ())
-    prms = QueryParams One False () Nothing Nothing Nothing
+    qry  = request (RqQuery (Query cql prms)) :: Client (HostResponse () () ())
+    prms = QueryParams One False () Nothing Nothing Nothing Nothing
     cql  = QueryString $ "use \"" <> fromStrict k <> "\""
 
 migrateSchema :: Logger -> MigrationOpts -> [Migration] -> IO ()
 migrateSchema l o ms = do
-    -- if migHost is a DNS name, resolve it and connect to all nodes
-    hosts <- initialContactsDNS $ pack (migHost o)
+    hosts <- initialContactsPlain $ pack (migHost o)
     p <- Database.CQL.IO.init l $
             setContacts (NonEmpty.head hosts) (NonEmpty.tail hosts)
           . setPortNumber (fromIntegral $ migPort o)
@@ -213,9 +196,9 @@ waitForSchemaConsistency = do
         -- These two sub-queries must be made to the same node.
         -- (comparing local from node A and peers from node B wouldn't be correct)
         -- using the custom 'migrationPolicy' when connecting to cassandra ensures this.
-        local <- systemLocalVersion
+        mbLocalVersion <- systemLocalVersion
         peers <- systemPeerVersions
-        case local of
+        case mbLocalVersion of
             Just localVersion -> return $ (localVersion, peers)
             Nothing           -> error "No system_version in system.local (should never happen)"
 

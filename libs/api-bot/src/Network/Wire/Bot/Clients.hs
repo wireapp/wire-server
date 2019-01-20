@@ -7,12 +7,8 @@ module Network.Wire.Bot.Clients
     , lookupSession
     ) where
 
-import Control.Monad.IO.Class
-import Control.Concurrent.STM
-import Data.Foldable (foldrM)
+import Imports
 import Data.Id
-import Data.Map.Strict (Map)
-import Data.Set (Set)
 import System.CryptoBox (Session)
 
 import qualified Data.Map.Strict as Map

@@ -41,25 +41,16 @@ module Gundeck.Aws
     , listen
     ) where
 
+import Imports
 import Blaze.ByteString.Builder (toLazyByteString)
-import Control.Applicative
-import Control.Error hiding (err)
+import Control.Error hiding (err, isRight)
 import Control.Lens hiding ((.=))
-import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.Reader
 import Control.Monad.Trans.Resource
-import Control.Monad.IO.Unlift
 import Control.Retry (retrying, limitRetries)
 import Data.Aeson (decodeStrict)
 import Data.Attoparsec.Text
-import Data.Foldable (for_)
-import Data.HashMap.Strict (HashMap)
 import Data.Id
-import Data.Monoid
-import Data.Set (Set)
-import Data.Text (Text)
-import Data.Typeable
 import Gundeck.Aws.Arn
 import Gundeck.Aws.Sns (Event, evType, evEndpoint)
 import Gundeck.Instances ()
@@ -74,7 +65,6 @@ import Network.HTTP.Types
 import System.Logger.Class
 import UnliftIO.Async
 import UnliftIO.Exception
-import UnliftIO.Concurrent
 import Util.Options
 
 import qualified Control.Monad.Trans.AWS as AWST
@@ -343,7 +333,7 @@ data PublishError
 
 newtype Attributes = Attributes
     { setAttributes :: Endo (HashMap Text SNS.MessageAttributeValue)
-    } deriving Monoid
+    } deriving (Semigroup, Monoid)
 
 -- Note [VoIP TTLs]
 -- ~~~~~~~~~~~~~~~~
@@ -477,4 +467,3 @@ isTimeout (Right _) = pure False
 isTimeout (Left  e) = case e of
     AWS.TransportError (HttpExceptionRequest _ ResponseTimeout) -> pure True
     _                                                           -> pure False
-

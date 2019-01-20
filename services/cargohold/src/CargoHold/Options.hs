@@ -5,12 +5,10 @@
 
 module CargoHold.Options where
 
+import Imports
 import CargoHold.CloudFront (Domain (..), KeyPairId (..))
 import Control.Lens
 import Data.Aeson.TH
-import Data.Monoid
-import Data.Text (Text)
-import GHC.Generics
 import Options.Applicative
 import Util.Options
 import Util.Options.Common

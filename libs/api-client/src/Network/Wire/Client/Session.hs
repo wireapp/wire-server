@@ -10,12 +10,10 @@ module Network.Wire.Client.Session
     , sessionRequest
     ) where
 
+import Imports hiding (log)
 import Bilge
-import Control.Applicative
 import Control.Concurrent.Async
 import Control.Exception (throwIO)
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Class
 import Control.Monad.Trans.State.Strict
 import Data.List.NonEmpty
 import Network.HTTP.Types.Status
@@ -23,7 +21,6 @@ import Network.Wire.Client.API.Auth
 import Network.Wire.Client.HTTP
 import Network.Wire.Client.Monad
 import System.Logger.Class
-import Prelude hiding (log)
 
 import qualified Control.Monad.Trans.State.Strict as State
 

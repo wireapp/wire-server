@@ -13,6 +13,7 @@ module Brig.API.Handler
     , checkWhitelist
     ) where
 
+import Imports
 import Bilge (RequestId (..))
 import Brig.App (Env, AppIO, runAppT, requestId, applog, settings)
 import Brig.Options (setWhitelist)
@@ -21,11 +22,9 @@ import Brig.Email (Email)
 import Brig.Phone (Phone, PhoneException (..))
 import Control.Error
 import Control.Lens (set, view)
-import Control.Monad
 import Control.Monad.Catch (catches, throwM)
-import Control.Monad.Trans.Class
 import Data.Aeson (FromJSON)
-import Data.Monoid
+import Data.Default (def)
 import Network.Wai.Predicate (Media)
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Routing (Continue)
@@ -47,7 +46,7 @@ type Handler = ExceptT Error AppIO
 
 runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO ResponseReceived
 runHandler e r h k = do
-    let e' = set requestId (maybe mempty RequestId (lookupRequestId r)) e
+    let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
     a <- runAppT e' (runExceptT h) `catches` errors
     either (onError (view applog e') r k) return a
   where
@@ -78,7 +77,7 @@ onError g r k e = do
 -- TODO: move to libs/wai-utilities?
 type JSON = Media "application" "json"
 
--- TODO: move to libs/wai-utilities?  there is a parseJsonBody in "Network.Wai.Utilities.Request",
+-- TODO: move to libs/wai-utilities?  there is a parseJson' in "Network.Wai.Utilities.Request",
 -- but adjusting its signature to this here would require to move more code out of brig (at least
 -- badRequest and probably all the other errors).
 parseJsonBody :: FromJSON a => Request -> Handler a
@@ -93,4 +92,3 @@ checkWhitelist key = do
         Just  b -> do
             ok <- lift $ Whitelist.verify b key
             unless ok (throwStd whitelistError)
-

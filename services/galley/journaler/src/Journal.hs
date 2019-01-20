@@ -5,21 +5,18 @@
 
 module Journal where
 
+import Imports
 import Cassandra as C
-import Control.Concurrent.Async.Lifted.Safe (mapConcurrently)
 import Control.Lens
-import Control.Monad.Except
 import Data.Id
 import Data.ByteString.Conversion
-import Data.Monoid ((<>))
-import Data.Int
-import Data.Maybe (fromMaybe)
 import Data.Proto
 import Data.Proto.Id as Proto
 import Proto.TeamEvents
 import Galley.Types.Teams (TeamCreationTime (..), tcTime)
 import Galley.Types.Teams.Intra
 import System.Logger (Logger)
+import UnliftIO (mapConcurrently)
 
 import qualified System.Logger        as Log
 import qualified Galley.Data          as Data
@@ -38,7 +35,7 @@ runCommand l env c start = void $ C.runClient c $ do
     scan acc page = do
         let boundTeams = filterBinding (result page)
         void $ mapConcurrently journal boundTeams
-        let count = acc + Prelude.length boundTeams
+        let count = acc + length boundTeams
         Log.info l . Log.msg $ Log.val ("Processed " <> toByteString' count <> " bound teams so far")
         when (hasMore page) $
             retry x5 (liftClient (nextPage page)) >>= scan count

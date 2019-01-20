@@ -25,15 +25,15 @@ init:
 
 .PHONY: install
 install: init
-	stack install . --pedantic --test --local-bin-path=dist
+	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
 .PHONY: fast
 fast: init
-	stack install . --pedantic --test --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
+	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: compile
 compile:
-	stack build . --pedantic --test --no-copy-bins
+	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
 .PHONY: clean
 clean: init
@@ -62,14 +62,18 @@ $(DEB_IT):
 
 .PHONY: i
 i:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
+
+.PHONY: i-aws
+i-aws:
+	INTEGRATION_USE_REAL_AWS=1 ../integration.sh $(EXE_IT) -s $(NAME).integration-aws.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: i-list
 i-list:
 	$(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -l
 
 i-%:
-	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*"
+	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml -p "$*" $(WIRE_INTEGRATION_TEST_OPTIONS)
 
 .PHONY: integration
 integration: fast i
@@ -78,7 +82,7 @@ integration: fast i
 integration-list: fast i-list
 
 integration-%: fast
-	make i-"$*"
+	make "i-$*"
 
 .metadata:
 	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
@@ -88,8 +92,7 @@ integration-%: fast
 docker:
 	$(foreach executable,$(EXECUTABLES),\
 	docker build -t $(executable) \
-	-f ../../build/alpine/Dockerfile \
-	--build-arg service=$(NAME) \
+	-f ../../build/alpine/Dockerfile.executable \
 	--build-arg executable=$(executable) \
 	../.. \
 	;)

@@ -3,30 +3,21 @@
 
 module API (tests) where
 
+import Imports
 import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
-import Control.Applicative hiding (empty)
-import Control.Error
 import Control.Lens ((^.))
-import Control.Monad hiding (mapM_)
-import Control.Monad.IO.Class
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
-import Data.Foldable (mapM_)
 import Data.Id
-import Data.Int
-import Data.List ((\\), find)
 import Data.List1
 import Data.Misc
-import Data.Maybe
-import Data.Monoid
 import Data.Range
 import Galley.Types
 import Gundeck.Types.Notification
 import Network.Wai.Utilities.Error
-import Prelude hiding (head, mapM_)
 import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
@@ -96,6 +87,7 @@ tests s = testGroup "Galley integration tests"
         , test s "member update (otr archive)" putMemberOtrArchiveOk
         , test s "member update (hidden)" putMemberHiddenOk
         , test s "member update (everything b)" putMemberAllOk
+        , test s "conversation receipt mode update" putReceiptModeOk
         , test s "send typing indicators" postTypingIndicators
         , test s "leave connect conversation" leaveConnectConversation
         , test s "post cryptomessage 1" postCryptoMessage1
@@ -427,12 +419,12 @@ postConvertTeamConv g b c setup = do
     alice <- randomUser b
     tid   <- createTeamInternal g "foo" alice
     assertQueue "create team" a tActivate
-    let p1 = symmPermissions [Teams.AddConversationMember]
-    bobMem <- flip Teams.newTeamMember p1 <$> randomUser b
+    let p1 = symmPermissions [Teams.AddRemoveConvMember]
+    bobMem <- (\u -> Teams.newTeamMember u p1 Nothing) <$> randomUser b
     addTeamMemberInternal g tid bobMem
     let bob = bobMem^.Teams.userId
     assertQueue "team member (bob) join" a $ tUpdate 2 [alice]
-    daveMem <- flip Teams.newTeamMember p1 <$> randomUser b
+    daveMem <- (\u -> Teams.newTeamMember u p1 Nothing) <$> randomUser b
     addTeamMemberInternal g tid daveMem
     let dave = daveMem^.Teams.userId
     assertQueue "team member (dave) join" a $ tUpdate 3 [alice]
@@ -631,7 +623,7 @@ postO2OConvOk g b _ _ = do
 postConvO2OFailWithSelf :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postConvO2OFailWithSelf g b _ _ = do
     alice <- randomUser b
-    let inv = NewConvUnmanaged (NewConv [alice] Nothing mempty Nothing Nothing Nothing)
+    let inv = NewConvUnmanaged (NewConv [alice] Nothing mempty Nothing Nothing Nothing Nothing)
     post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
         const 403 === statusCode
         const (Just "invalid-op") === fmap label . decodeBody
@@ -808,7 +800,7 @@ accessConvMeta g b _ _ = do
     chuck <- randomUser b
     connectUsers b alice (list1 bob [chuck])
     conv  <- decodeConvId <$> postConv g alice [bob, chuck] (Just "gossip") [] Nothing Nothing
-    let meta = ConversationMeta conv RegularConv alice [InviteAccess] ActivatedAccessRole (Just "gossip") Nothing Nothing
+    let meta = ConversationMeta conv RegularConv alice [InviteAccess] ActivatedAccessRole (Just "gossip") Nothing Nothing Nothing
     get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
         const 200         === statusCode
         const (Just meta) === (decode <=< responseBody)
@@ -1034,6 +1026,67 @@ putMemberOk update g b ca = do
         assertEqual  "otr_archived_ref" (memOtrArchivedRef memberBob) (memOtrArchivedRef newBob)
         assertEqual  "hidden"           (memHidden memberBob)         (memHidden newBob)
         assertEqual  "hidden__ref"      (memHiddenRef memberBob)      (memHiddenRef newBob)
+
+putReceiptModeOk :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
+putReceiptModeOk g b c _ = do
+    alice <- randomUser b
+    bob   <- randomUser b
+    jane  <- randomUser b
+    connectUsers b alice (list1 bob [jane])
+    cnv <- decodeConvId <$> postConv g alice [bob, jane] (Just "gossip") [] Nothing Nothing
+    WS.bracketR3 c alice bob jane $ \(_wsA, wsB, _wsJ) -> do
+        -- By default, nothing is set
+        getConv g alice cnv !!! do
+            const 200 === statusCode
+            const (Just Nothing) === fmap cnvReceiptMode . decodeBody
+
+        -- Set receipt mode
+        put ( g
+         . paths ["conversations", toByteString' cnv, "receipt-mode"]
+         . zUser alice
+         . zConn "conn"
+         . zType "access"
+         . json (ConversationReceiptModeUpdate $ ReceiptMode 0)
+         ) !!! const 200 === statusCode
+
+        -- Ensure the field is properly set
+        getConv g alice cnv !!! do
+            const 200 === statusCode
+            const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . decodeBody
+
+        void . liftIO $ checkWs alice (cnv, wsB)
+
+        -- No changes
+        put ( g
+         . paths ["conversations", toByteString' cnv, "receipt-mode"]
+         . zUser alice
+         . zConn "conn"
+         . zType "access"
+         . json (ConversationReceiptModeUpdate $ ReceiptMode 0)
+         ) !!! const 204 === statusCode
+        -- No event should have been generated
+        WS.assertNoEvent (1 # Second) [wsB]
+
+        -- Ensure that the new field remains unchanged
+        getConv g alice cnv !!! do
+            const 200 === statusCode
+            const (Just $ Just (ReceiptMode 0)) === fmap cnvReceiptMode . decodeBody
+
+    cnv' <- decodeConvId <$> postConvWithReceipt g alice [bob, jane] (Just "gossip") [] Nothing Nothing (ReceiptMode 0)
+    getConv g alice cnv' !!! do
+        const 200 === statusCode
+        const (Just (Just (ReceiptMode 0))) === fmap cnvReceiptMode . decodeBody
+  where
+    checkWs alice (cnv, ws) = WS.awaitMatch (5 # Second) ws $ \n -> do
+        ntfTransient n @?= False
+        let e = List1.head (WS.unpackPayload n)
+        evtConv e @?= cnv
+        evtType e @?= ConvReceiptModeUpdate
+        evtFrom e @?= alice
+        case evtData e of
+            Just (EdConvReceiptModeUpdate (ConversationReceiptModeUpdate (ReceiptMode mode)))
+                -> assertEqual "modes should match" mode 0
+            _   -> assertFailure "Unexpected event data"
 
 postTypingIndicators :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 postTypingIndicators g b _ _ = do

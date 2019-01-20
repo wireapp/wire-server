@@ -2,9 +2,7 @@
 
 module System.MakeDeb.FileUtils where
 
-import Control.Monad
-import Control.Monad.IO.Class
-import System.Directory
+import Imports
 import System.FilePath
 
 foldFiles :: (Functor m, MonadIO m) => (a -> FilePath -> m a) -> a -> FilePath -> m a

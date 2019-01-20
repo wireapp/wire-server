@@ -14,22 +14,27 @@ No license is granted to the Wire trademark and its associated logos, all of whi
 
 This repository contains the source code for the Wire server. It contains all libraries and services necessary to run Wire.
 
-Documentation on how to self host your own Wire-Server is not yet available but is planned. Federation is on our long term roadmap.
+For documentation on how to self host your own Wire-Server see [this section](#how-to-install-and-run-wire-server). Federation is on our long term roadmap.
 
 See more in "[Open sourcing Wire server code](https://medium.com/@wireapp/open-sourcing-wire-server-code-ef7866a731d5)".
 
 ## Table of contents
 
--   [Content of the repository](#content-of-the-repository)
--   [Architecture Overview](#architecture-overview)
--   [Development setup](#development-setup)
-    -   [How to build `wire-server` binaries](#how-to-build-wire-server-binaries)
-    -   [How to run integration tests](#how-to-run-integration-tests)
--   [How to run `wire-server` with "fake" external dependencies](#how-to-run-wire-server-with-fake-external-dependencies)
--   [How to run `wire-server` with real AWS services](#how-to-run-wire-server-with-real-aws-services)
--   [Roadmap](#roadmap)
+<!-- vim-markdown-toc GFM -->
 
-## Content of the repository
+* [Contents of this repository](#contents-of-this-repository)
+* [Architecture Overview](#architecture-overview)
+* [Development setup](#development-setup)
+    * [How to build `wire-server` binaries](#how-to-build-wire-server-binaries)
+        * [1. Compile sources natively.](#1-compile-sources-natively)
+        * [2. Use docker](#2-use-docker)
+    * [How to run integration tests](#how-to-run-integration-tests)
+    * [when you need more fine-grained control over your build-test loops](#when-you-need-more-fine-grained-control-over-your-build-test-loops)
+* [How to install and run `wire-server`](#how-to-install-and-run-wire-server)
+
+<!-- vim-markdown-toc -->
+
+## Contents of this repository
 
 This repository contains the following source code:
 
@@ -42,6 +47,7 @@ This repository contains the following source code:
    - **cargohold**: Asset (image, file, ...) Storage
    - **proxy**: 3rd Party API Integration
    - **restund**: STUN/TURN server for use in Audio/Video calls
+   - **spar**: Single-Sign-On (SSO)
 
 - **tools**
    - **api-simulations**: Run automated smoke and load tests
@@ -104,14 +110,21 @@ For building nginz, see [services/nginz/README.md](services/nginz/README.md)
 If you wish to build your own docker images, you need [docker version >= 17.05](https://www.docker.com/) and [`make`](https://www.gnu.org/software/make/). Then,
 
 ```bash
-make docker-services
+# optionally:
+# make docker-builder # if you don't run this, it pulls the alpine-builder image from quay.io
+make docker-deps docker-intermediate docker-services
+
+# subsequent times, after changing code, if you wish to re-create docker images, it's sufficient to
+make docker-intermediate docker-services
 ```
 
-will, eventually, have built a range of docker images. See the `Makefile`s and `Dockerfile`s, as well as [build/alpine/README.md](build/alpine/README.md) for details.
+will, eventually, have built a range of docker images. Make sure to [give Docker enough RAM](https://github.com/wireapp/wire-server/issues/562); if you see `make: *** [builder] Error 137`, it might be a sign that the build ran out of memory. You can also mix and match – e.g. pull the [`alpine-builder`](https://quay.io/repository/wire/alpine-builder?tab=tags) image and build the rest locally.
+
+See the `Makefile`s and `Dockerfile`s, as well as [build/alpine/README.md](build/alpine/README.md) for details.
 
 ### How to run integration tests
 
-Integration tests require all of the haskell services (brig,galley,cannon,gundeck,proxy,cargohold) to be correctly configured and running, before being able to execute e.g. the `brig-integration` binary. This requires most of the deployment dependencies as seen in the architecture diagram to also be available:
+Integration tests require all of the haskell services (brig, galley, cannon, gundeck, proxy, cargohold, spar) to be correctly configured and running, before being able to execute e.g. the `brig-integration` binary. This requires most of the deployment dependencies as seen in the architecture diagram to also be available:
 
 - Required internal dependencies:
     - cassandra (with the correct schema)
@@ -122,7 +135,6 @@ Integration tests require all of the haskell services (brig,galley,cannon,gundec
     - SQS
     - SNS
     - S3
-    - Cloudfront
     - DynamoDB
 
 Setting up these real, but in-memory internal and "fake" external dependencies is done easiest using [`docker-compose`](https://docs.docker.com/compose/install/). Run the following in a separate terminal (it will block that terminal, C-c to shut all these docker images down again):
@@ -139,39 +151,26 @@ make integration
 
 Or, alternatively, `make` on the top-level directory (to produce all the service's binaries) followed by e.g `cd services/brig && make integration` to run one service's integration tests only.
 
-You can use `$WIRE_STACK_OPTIONS` to pass arguments to stack through the `Makefile`s.  This is useful to e.g. pass arguments to tasty or temporarily disable `-Werror` without the risk of accidentally committing anything, like this:
+### when you need more fine-grained control over your build-test loops
+
+You can use `$WIRE_STACK_OPTIONS` to pass arguments to stack through the `Makefile`s.  This is useful to e.g. pass arguments to a unit test suite or temporarily disable `-Werror` without the risk of accidentally committing anything, like this:
 
 ```bash
-WIRE_STACK_OPTIONS='--ghc-options=-Wwarn --test-arguments="--quickcheck-tests=19919 --quickcheck-replay=651712"' make integration
+WIRE_STACK_OPTIONS='--ghc-options=-Wwarn --test-arguments="--quickcheck-tests=19919 --quickcheck-replay=651712"' make -C services/gundeck
 ```
 
-Note that [tasty supports passing arguments vie shell variables directly](https://github.com/feuerbach/tasty#runtime).
+Integration tests are run via `/services/integration.sh`, which does not know about stack or `$WIRE_STACK_OPTIONS`.  Here you can use `$WIRE_INTEGRATION_TEST_OPTIONS`:
 
-## How to run `wire-server` with "fake" external dependencies
+```bash
+cd services/spar
+WIRE_INTEGRATION_TEST_OPTIONS="--match='POST /identity-providers'" make i
+```
 
-See [this README](deploy/services-demo/README.md)
+Alternatively, you can use [tasty's support for passing arguments vie shell variables directly](https://github.com/feuerbach/tasty#runtime).  Or, in the case of spar, the [hspec equivalent](https://hspec.github.io/options.html#specifying-options-through-an-environment-variable), which [is less helpful at times](https://github.com/hspec/hspec/issues/335).
 
-## How to run `wire-server` with real AWS services
+## How to install and run `wire-server`
 
-Documentation, configuration, and code for this is **not fully ready yet** (please do not open an issue to ask about this!). More information on how to run `wire-server` will be available here in the near future.
+You have two options:
 
-As a brief overview, it requires setting up
-
-* database clusters (cassandra, redis, elasticsearch)
-* external dependencies
-    * Amazon account with access to
-      * SES
-      * SQS
-      * SNS
-      * S3
-      * Cloudfront
-      * DynamoDB
-    * Nexmo/Twilio accounts (if you want to send out SMSes)
-    * Giphy/Google/Spotify/Soundcloud API keys (if you want to support previews by proxying these services)
-    * TURN servers (if you want to support Voice/Video calls)
-* production-ready configuration for all services
-* additional infrastructure configuration (DNS, SSL certificates, metrics, logging, etc)
-
-## Roadmap
-
-- Deployment options
+* Option 1. (recommended) Install wire-server on kubernetes using the configuration and instructions provided in [wire-server-deploy](https://github.com/wireapp/wire-server-deploy). This is the best option to run it on a server and recommended if you want to self-host wire-server.
+* Option 2. Compile everything in this repo, then you can use the [docker-compose based demo](deploy/services-demo/README.md). This option is intended as a way to try out wire-server on your local development machine and is less suited when you want to install wire-server on a server.

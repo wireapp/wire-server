@@ -7,19 +7,16 @@
 
 module Data.Id where
 
-import Control.DeepSeq (NFData (..))
-import Control.Monad (unless)
-import Control.Monad.IO.Class
+import Imports
 import Data.Aeson
 import Data.Aeson.Encoding (text)
 import Data.Aeson.Types (Parser)
 import Data.Attoparsec.ByteString (takeByteString)
-import Data.ByteString (ByteString)
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion
-import Data.Char (isHexDigit)
+import Data.Default (Default(..))
 import Data.Hashable (Hashable)
-import Data.Text (Text)
+import Data.String.Conversions (cs)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder
@@ -29,8 +26,6 @@ import Data.UUID.V4
 #ifdef WITH_CQL
 import Database.CQL.Protocol hiding (S)
 #endif
-import Data.Word
-import GHC.Generics (Generic)
 #ifdef WITH_ARBITRARY
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
@@ -40,7 +35,6 @@ import qualified Data.ByteString.Lazy as L
 import Data.ProtocolBuffers.Internal
 #endif
 
-import qualified Data.ByteString.Char8 as B
 import qualified Data.Text             as T
 import qualified Data.UUID             as UUID
 
@@ -51,6 +45,7 @@ data U
 data P
 data S
 data T
+data STo
 
 type AssetId      = Id A
 type ConvId       = Id C
@@ -59,6 +54,7 @@ type UserId       = Id U
 type ProviderId   = Id P
 type ServiceId    = Id S
 type TeamId       = Id T
+type ScimTokenId  = Id STo
 
 -- Id -------------------------------------------------------------------------
 
@@ -70,6 +66,8 @@ newtype Id a = Id
     { toUUID :: UUID
     } deriving (Eq, Ord, Generic, NFData)
 
+-- REFACTOR: non-derived, custom show instances break pretty-show and violate the law
+-- that @show . read == id@.  can we derive Show here?
 instance Show (Id a) where
     show = toString . toUUID
 
@@ -139,10 +137,11 @@ instance Arbitrary (Id a) where
 
 -- ConnId ----------------------------------------------------------------------
 
--- | Handle for a device.  Used mostly by Cannon and Gundeck to identify a websocket connection.
--- Historically, it is older than 'ClientId' and precedes end-to-end encryption, but it may be
--- replaced by 'ClientId' at some point in the future.  Unique only together with a 'UserId', stored
--- in Redis, lives as long as the device is connected.
+-- | Handle for a device.  Derived from the access token (see 'Data.ZAuth.Token.Access').  Unique
+-- only together with a 'UserId'.  Historically, it is older than 'ClientId' and precedes end-to-end
+-- encryption, but there are still situations in which 'ClientId' is not applicable (See also:
+-- 'Presence').  Used by Cannon and Gundeck to identify a websocket connection, but also in other
+-- places.
 newtype ConnId = ConnId
     { fromConnId :: ByteString
     } deriving ( Eq
@@ -169,23 +168,26 @@ instance FromJSON ConnId where
 -- lives as long as the device is registered.  See also: 'ConnId'.
 newtype ClientId = ClientId
     { client :: Text
-    } deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, ToJSON)
-
-instance FromByteString ClientId where
-    parser = do
-        x <- takeByteString
-        unless (B.length x <= 20 && B.all isHexDigit x) $
-            fail "Invalid client ID"
-        either fail (return . ClientId) (runParser parser x)
+    } deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, ToJSON, ToJSONKey)
 
 newClientId :: Word64 -> ClientId
 newClientId = ClientId . toStrict . toLazyText . hexadecimal
 
+clientIdFromByteString :: Text -> Either String ClientId
+clientIdFromByteString txt = if T.length txt <= 20 && T.all isHexDigit txt
+   then Right $ ClientId txt
+   else Left "Invalid ClientId"
+
+instance FromByteString ClientId where
+    parser = do
+        bs <- takeByteString
+        either fail pure $ clientIdFromByteString (cs bs)
+
 instance FromJSON ClientId where
-    parseJSON = withText "ClientId" $ \x -> do
-        unless (T.length x <= 20 && T.all isHexDigit x) $
-            fail "Invalid ClientId"
-        return (ClientId x)
+    parseJSON = withText "ClientId" $ either fail pure . clientIdFromByteString
+
+instance FromJSONKey ClientId where
+    fromJSONKey = FromJSONKeyTextParser $ either fail pure . clientIdFromByteString
 
 #ifdef WITH_CQL
 deriving instance Cql ClientId
@@ -248,11 +250,9 @@ newtype RequestId = RequestId
                , NFData
                )
 
-instance Monoid RequestId where
-    mempty = RequestId "N/A"
-    mappend a b
-        | a == mempty = b
-        | otherwise   = a
+-- | Returns "N/A"
+instance Default RequestId where
+    def = RequestId "N/A"
 
 instance ToJSON RequestId where
     toJSON (RequestId r) = String (decodeUtf8 r)

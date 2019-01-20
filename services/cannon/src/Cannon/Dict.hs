@@ -12,13 +12,8 @@ module Cannon.Dict
     )
 where
 
-import Prelude hiding (lookup, mapM, sum)
-import Control.Monad.IO.Class
-import Data.Foldable (sum)
-import Data.HashMap.Strict (HashMap)
+import Imports hiding (lookup)
 import Data.Hashable (hash, Hashable)
-import Data.IORef
-import Data.Traversable
 import Data.Vector (Vector, (!))
 
 import qualified Data.HashMap.Strict as M

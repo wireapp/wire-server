@@ -2,13 +2,9 @@
 
 module Network.Wai.Utilities.Swagger where
 
-import Control.Monad
-import Data.Function (on)
-import Data.List (groupBy)
-import Data.Monoid
+import Imports
 import Data.Swagger
 import Data.Swagger.Build.Api
-import Data.Text (Text)
 import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder
 import Data.Text.Encoding (decodeUtf8)

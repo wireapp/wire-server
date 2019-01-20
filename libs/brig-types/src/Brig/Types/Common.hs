@@ -8,20 +8,17 @@
 -- Brig.Types.Account?
 module Brig.Types.Common where
 
-import Control.Applicative
-import Control.Error (hush, readMay)
+import Imports
+import Control.Applicative (optional)
+import Control.Error (hush)
 import Data.Aeson
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
-import Data.Char (isLower, toUpper, isUpper)
 import Data.Hashable (Hashable)
-import Data.Int (Int32)
 import Data.Json.Util ((#))
 import Data.ISO3166_CountryCodes
 import Data.LanguageCodes
-import Data.Monoid ((<>))
 import Data.Range
-import Data.Text (Text, toLower)
 import Data.Time.Clock
 
 import qualified Data.Aeson.Types as Json
@@ -106,8 +103,8 @@ fromEmail (Email loc dom) = loc <> "@" <> dom
 -- | Parses an email address of the form <local-part>@<domain>.
 parseEmail :: Text -> Maybe Email
 parseEmail t = case Text.split (=='@') t of
-    [local, domain] -> Just $! Email local domain
-    _               -> Nothing
+    [localPart, domain] -> Just $! Email localPart domain
+    _                   -> Nothing
 
 -----------------------------------------------------------------------------
 -- Phone
@@ -209,10 +206,22 @@ ssoIdentity :: UserIdentity -> Maybe UserSSOId
 ssoIdentity (SSOIdentity ssoid _ _) = Just ssoid
 ssoIdentity _ = Nothing
 
--- | TODO: once we have @/libs/spar-types@ for the wire-sso-sp-server called spar, this type should
+-- | User's external identity.
+--
+-- Morally this is the same thing as 'SAML.UserRef', but we forget the
+-- structure -- i.e. we just store XML-encoded SAML blobs. If the structure
+-- of those blobs changes, Brig won't have to deal with it, only Spar will.
+--
+-- TODO: once we have @/libs/spar-types@ for the wire-sso-sp-server called spar, this type should
 -- move there.
-data UserSSOId = UserSSOId { userSSOIdTenant :: Text, userSSOIdSubject :: Text }
-    deriving (Eq, Show)
+data UserSSOId = UserSSOId
+    {
+    -- | An XML blob pointing to the identity provider that can confirm
+    -- user's identity.
+      userSSOIdTenant :: Text
+    -- | An XML blob specifying the user's ID on the identity provider's side.
+    , userSSOIdSubject :: Text
+    } deriving (Eq, Show)
 
 instance FromJSON UserSSOId where
     parseJSON = withObject "UserSSOId" $ \obj -> UserSSOId
@@ -270,7 +279,7 @@ languageParser :: Parser Language
 languageParser = codeParser "language" $ fmap Language . checkAndConvert isLower
 
 lan2Text :: Language -> Text
-lan2Text = toLower . Text.pack . show . fromLanguage
+lan2Text = Text.toLower . Text.pack . show . fromLanguage
 
 parseLanguage :: Text -> Maybe Language
 parseLanguage = hush . parseOnly languageParser
@@ -321,7 +330,7 @@ parseLocale = hush . parseOnly localeParser
 -- Common language / country functions
 checkAndConvert :: (Read a) => (Char -> Bool) -> String -> Maybe a
 checkAndConvert f t = if all f t
-    then readMay (map toUpper t)
+    then readMaybe (map toUpper t)
     else fail "Format not supported."
 
 codeParser :: String -> (String -> Maybe a) -> Parser a

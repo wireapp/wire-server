@@ -16,6 +16,7 @@ dependencies:
   - aeson-pretty
   - aeson-qq
   - base
+  - base64-bytestring
   - bilge
   - binary
   - brig-types
@@ -26,20 +27,24 @@ dependencies:
   - containers
   - cookie
   - cryptonite
+  - data-default
   - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
+  - galley-types
   - ghc-prim
+  - HsOpenSSL
   - http-client
   - http-client-tls
   - http-types
+  - imports
   - interpolate
+  - lens
   - metrics-core
-  - microlens
-  - microlens-th
   - mtl
   - optparse-applicative
   - raw-strings-qq
-  - saml2-web-sso >= 0.17
+  - retry
+  - saml2-web-sso >= 0.18
   - scientific
   - servant
   - servant-multipart
@@ -55,11 +60,18 @@ dependencies:
   - uri-bytestring
   - uuid
   - wai
+  - wai-middleware-prometheus
   - wai-utilities
   - warp
   - x509
   - xml-conduit
   - yaml
+  - hscim
+  - email-validate
+  - http-api-data
+
+default-extensions:
+  - NoImplicitPrelude
 
 library:
   source-dirs:
@@ -100,13 +112,11 @@ executables:
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
       - async
-      - base64-bytestring
       - galley-types
       - hspec
       - hspec-discover
       - lens-aeson
       - random
-      - retry
       - servant-client
       - spar
       - stm
@@ -115,3 +125,4 @@ executables:
       - xml-conduit
       - xml-hamlet
       - xml-lens
+      - zauth

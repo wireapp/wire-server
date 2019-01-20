@@ -3,17 +3,14 @@
 
 module API.MessageTimer (tests) where
 
+import Imports hiding (head)
 import API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
-import Control.Monad hiding (mapM_)
-import Control.Monad.IO.Class
 import Data.List1
 import Data.Misc
-import Data.Maybe
 import Galley.Types
 import Network.Wai.Utilities.Error
-import Prelude hiding (head, mapM_)
 import Test.Tasty
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
@@ -87,7 +84,7 @@ messageTimerChangeGuest g b _ca _ = do
     -- Create a team and a guest user
     [owner, member, guest] <- randomUsers b 3
     connectUsers b owner (list1 member [guest])
-    tid <- createTeam g "team" owner [Teams.newTeamMember member Teams.fullPermissions]
+    tid <- createTeam g "team" owner [Teams.newTeamMember member Teams.fullPermissions Nothing]
     -- Create a conversation
     cid <- createTeamConv g owner tid [member, guest] Nothing Nothing Nothing
     -- Try to change the timer (as the guest user) and observe failure

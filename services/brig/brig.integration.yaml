@@ -57,10 +57,13 @@ emailSMS:
     # and set the correct credentials.
     # NOTE: In case a user tries to supply config values for both SES and SMTP,
     #       SES takes precedence and gets used instead
-    # smtpEndpoint: <hostname>
-    # smtpUsername: <username>
-    # smtpPassword: test/resources/smtp-secret.txt
-    # smtpConnType: tls
+    # smtpEndpoint:
+    #   host: localhost
+    #   port: 2500
+    # smtpCredentials:
+    #   username: <username>
+    #   password: test/resources/smtp-secret.txt
+    # smtpConnType: plain
     # ^ NOTE: blacklisting of emails (processing of bounces and complaints)  is only done
     #         automatically IF sesQueue/sesEndpoint are used. If SMTP is used directly, the
     #         operator must handle these notifications "manually" (there are internal endpoints)
@@ -127,3 +130,6 @@ optSettings:
   setDefaultLocale: en
   setMaxTeamSize: 32
   setMaxConvSize: 16
+
+logLevel: Warn
+logNetStrings: false

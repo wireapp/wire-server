@@ -25,7 +25,8 @@ module Data.ETag
     )
 where
 
-import           Control.Applicative
+import           Imports                          hiding (takeWhile)
+import           Control.Applicative              (optional)
 import           Control.Lens
 -- TODO: These package imports are only needed due to the
 -- use of GHCI. They should be removed by moving everything
@@ -36,8 +37,6 @@ import           Data.Attoparsec.ByteString.Char8
 import qualified Data.ByteString.Base16           as Hex
 import           Data.ByteString.Builder          (byteString)
 import           Data.ByteString.Conversion
-import           Data.Semigroup
-import           Prelude                          hiding (takeWhile)
 
 
 data Digest = MD5 | SHA1

@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP               #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -6,6 +5,7 @@
 
 module Test.Bonanza.Arbitrary where
 
+import           Imports
 import           Bonanza.Parser.CommonLog
 import           Bonanza.Parser.Internal           hiding (quoted)
 import           Bonanza.Parser.IP                 (mkIPv4, showIPv4Text)
@@ -15,20 +15,14 @@ import           Bonanza.Parser.Svlogd             (SvLogRecord (..))
 import           Bonanza.Parser.Tinylog            (TinyLogRecord (..))
 import           Bonanza.Types
 import           Control.Arrow                     ((***))
-import           Control.Lens                      ((%~), (&))
+import           Control.Lens                      ((%~))
 import           Data.Aeson
 import           Data.Bits                         ((.&.))
-import           Data.ByteString                   (ByteString)
 import qualified Data.ByteString                   as B
 import qualified Data.ByteString.Builder           as B
 import qualified Data.ByteString.Char8             as BC
 import qualified Data.ByteString.Lazy              as BL
-import           Data.Char
-import           Data.List                         (intersperse)
-import           Data.Maybe
-import           Data.Monoid
 import           Data.Scientific
-import           Data.Text                         (Text)
 import qualified Data.Text                         as T
 import           Data.Text.Encoding
 import           Data.Text.Lazy                    (toStrict)
@@ -38,15 +32,9 @@ import           Data.Text.Lazy.Builder.Scientific
 import           Data.Time
 import           Data.Time.Clock.POSIX
 import qualified Data.Vector                       as V
-import           Data.Word
 import           Network.HTTP.Types.Method
 import           Test.QuickCheck                   hiding ((.&.))
 
-
-#if MIN_VERSION_time(1,5,0)
-#else
-import System.Locale (defaultTimeLocale)
-#endif
 
 --------------------------------------------------------------------------------
 -- Text

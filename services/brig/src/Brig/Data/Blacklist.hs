@@ -2,11 +2,9 @@
 
 module Brig.Data.Blacklist where
 
+import Imports
 import Brig.Data.UserKey
 import Cassandra
-import Data.Functor.Identity
-import Data.Maybe (isJust)
-import Data.Text (Text)
 
 insert :: MonadClient m => UserKey -> m ()
 insert uk = retry x5 $ write keyInsert (params Quorum (Identity $ keyText uk))

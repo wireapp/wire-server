@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeOperators     #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -47,8 +48,10 @@ module Galley.Data
     , isConvAlive
     , updateConversation
     , updateConversationAccess
+    , updateConversationReceiptMode
     , updateConversationMessageTimer
     , deleteConversation
+    , lookupReceiptMode
 
     -- * Conversation Members
     , addMember
@@ -78,26 +81,20 @@ module Galley.Data
     , defRegularConvAccess
     ) where
 
+import Imports hiding (max, Set)
 import Brig.Types.Code
 import Cassandra
 import Cassandra.Util
-import Control.Applicative
 import Control.Arrow (second)
-import Control.Concurrent.Async.Lifted.Safe
 import Control.Lens hiding ((<|))
-import Control.Monad (join, forM)
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Control
+import Control.Monad.Catch (MonadThrow)
 import Data.ByteString.Conversion hiding (parser)
-import Data.Foldable (toList, foldrM, for_)
 import Data.Id
-import Data.Range
-import Data.List.Split (chunksOf)
+import Data.Json.Util (UTCTimeMillis(..))
 import Data.List1 (List1, list1, singleton)
-import Data.Int
-import Data.Maybe (fromMaybe)
+import Data.List.Split (chunksOf)
 import Data.Misc (Milliseconds)
-import Data.Text (Text)
+import Data.Range
 import Data.Time.Clock
 import Data.UUID.V4 (nextRandom)
 import Galley.App
@@ -109,9 +106,9 @@ import Galley.Types.Clients (Clients)
 import Galley.Types.Teams hiding (teamMembers, teamConversations, Event, EventType (..))
 import Galley.Types.Teams.Intra
 import Galley.Validation
-import Prelude hiding (max)
 import System.Logger.Class (MonadLogger)
 import System.Logger.Message (msg, (+++), val)
+import UnliftIO (mapConcurrently, async, wait)
 
 import qualified Data.Map.Strict      as Map
 import qualified Data.Set
@@ -131,7 +128,7 @@ import qualified System.Logger.Class  as Log
 newtype ResultSet a = ResultSet { page :: Page a }
 
 schemaVersion :: Int32
-schemaVersion = 28
+schemaVersion = 30
 
 -- | Insert a conversation code
 insertCode :: MonadClient m => Code -> m ()
@@ -187,13 +184,21 @@ teamConversations :: MonadClient m => TeamId -> m [TeamConversation]
 teamConversations t = map (uncurry newTeamConversation) <$>
     retry x1 (query Cql.selectTeamConvs (params Quorum (Identity t)))
 
-teamMembers :: MonadClient m => TeamId -> m [TeamMember]
-teamMembers t = map (uncurry newTeamMember) <$>
+teamMembers :: forall m. (MonadThrow m, MonadClient m) => TeamId -> m [TeamMember]
+teamMembers t = mapM newTeamMember' =<<
     retry x1 (query Cql.selectTeamMembers (params Quorum (Identity t)))
+  where
+    newTeamMember' :: (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis) -> m TeamMember
+    newTeamMember' (uid, perms, minvu, minvt) =
+        newTeamMemberRaw uid perms minvu minvt
 
-teamMember :: MonadClient m => TeamId -> UserId -> m (Maybe TeamMember)
-teamMember t u = fmap (newTeamMember u . runIdentity) <$>
-    retry x1 (query1 Cql.selectTeamMember (params Quorum (t, u)))
+teamMember :: forall m. (MonadThrow m, MonadClient m) => TeamId -> UserId -> m (Maybe TeamMember)
+teamMember t u = newTeamMember' u =<< retry x1 (query1 Cql.selectTeamMember (params Quorum (t, u)))
+  where
+    newTeamMember' :: UserId -> Maybe (Permissions, Maybe UserId, Maybe UTCTimeMillis) -> m (Maybe TeamMember)
+    newTeamMember' _ Nothing = pure Nothing
+    newTeamMember' uid (Just (perms, minvu, minvt)) =
+        Just <$> newTeamMemberRaw uid perms minvu minvt
 
 userTeams :: MonadClient m => UserId -> m [TeamId]
 userTeams u = map runIdentity <$>
@@ -250,7 +255,12 @@ addTeamMember t m =
     retry x5 $ batch $ do
         setType BatchLogged
         setConsistency Quorum
-        addPrepQuery Cql.insertTeamMember (t, m^.userId, m^.permissions)
+        addPrepQuery Cql.insertTeamMember ( t
+                                          , m ^. userId
+                                          , m ^. permissions
+                                          , m ^? invitation . _Just . _1
+                                          , m ^? invitation . _Just . _2
+                                          )
         addPrepQuery Cql.insertUserTeam   (m^.userId, t)
 
 updateTeamMember :: MonadClient m => TeamId -> UserId -> Permissions -> m ()
@@ -298,7 +308,7 @@ isConvAlive cid = do
         Just (Just True)  -> pure False
         Just (Just False) -> pure True
 
-conversation :: (MonadBaseControl IO m, MonadClient m, Forall (Pure m))
+conversation :: (MonadUnliftIO m, MonadClient m)
              => ConvId
              -> m (Maybe Conversation)
 conversation conv = do
@@ -316,7 +326,7 @@ conversationGC conv = case join (convDeleted <$> conv) of
         return Nothing
     _           -> return conv
 
-conversations :: (MonadLogger m, MonadBaseControl IO m, MonadClient m, Forall (Pure m))
+conversations :: (MonadLogger m, MonadUnliftIO m, MonadClient m)
               => [ConvId]
               -> m [Conversation]
 conversations []  = return []
@@ -328,7 +338,7 @@ conversations ids = do
   where
     fetchConvs = do
         cs <- retry x1 $ query Cql.selectConvs (params Quorum (Identity ids))
-        let m = Map.fromList $ map (\(c,t,u,n,a,r,i,d,mt) -> (c, (t,u,n,a,r,i,d,mt))) cs
+        let m = Map.fromList $ map (\(c,t,u,n,a,r,i,d,mt,rm) -> (c, (t,u,n,a,r,i,d,mt,rm))) cs
         return $ map (`Map.lookup` m) ids
 
     flatten (i, c) cc = case c of
@@ -339,18 +349,18 @@ conversations ids = do
 
 toConv :: ConvId
        -> [Member]
-       -> Maybe (ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds)
+       -> Maybe (ConvType, UserId, Maybe (Set Access), Maybe AccessRole, Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode)
        -> Maybe Conversation
 toConv cid mms conv =
     f mms <$> conv
   where
-    f ms (cty, uid, acc, role, nme, ti, del, timer) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms ti del timer
+    f ms (cty, uid, acc, role, nme, ti, del, timer, rm) = Conversation cid cty uid nme (defAccess cty acc) (maybeRole cty role) ms ti del timer rm
 
 conversationMeta :: MonadClient m => ConvId -> m (Maybe ConversationMeta)
 conversationMeta conv = fmap toConvMeta <$>
     retry x1 (query1 Cql.selectConv (params Quorum (Identity conv)))
   where
-    toConvMeta (t, c, a, r, n, i, _, mt) = ConversationMeta conv t c (defAccess t a) (maybeRole t r) n i mt
+    toConvMeta (t, c, a, r, n, i, _, mt, rm) = ConversationMeta conv t c (defAccess t a) (maybeRole t r) n i mt rm
 
 conversationIdsFrom :: MonadClient m => UserId -> Maybe ConvId -> Range 1 1000 Int32 -> m (ResultSet ConvId)
 conversationIdsFrom usr range (fromRange -> max) =
@@ -371,28 +381,29 @@ createConversation :: UserId
                    -> ConvSizeChecked [UserId]
                    -> Maybe ConvTeamInfo
                    -> Maybe Milliseconds                  -- ^ Message timer
+                   -> Maybe ReceiptMode
                    -> Galley Conversation
-createConversation usr name acc role others tinfo mtimer = do
+createConversation usr name acc role others tinfo mtimer recpt = do
     conv <- Id <$> liftIO nextRandom
     now  <- liftIO getCurrentTime
     retry x5 $ case tinfo of
-        Nothing -> write Cql.insertConv (params Quorum (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Nothing, mtimer))
+        Nothing -> write Cql.insertConv (params Quorum (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Nothing, mtimer, recpt))
         Just ti -> batch $ do
             setType BatchLogged
             setConsistency Quorum
-            addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer)
+            addPrepQuery Cql.insertConv (conv, RegularConv, usr, Set (toList acc), role, fromRange <$> name, Just (cnvTeamId ti), mtimer, recpt)
             addPrepQuery Cql.insertTeamConv (cnvTeamId ti, conv, cnvManaged ti)
     mems <- snd <$> addMembersUnchecked now conv usr (list1 usr $ fromConvSize others)
-    return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer
+    return $ newConv conv RegularConv usr (toList mems) acc role name (cnvTeamId <$> tinfo) mtimer recpt
 
 createSelfConversation :: MonadClient m => UserId -> Maybe (Range 1 256 Text) -> m Conversation
 createSelfConversation usr name = do
     let conv = selfConv usr
     now <- liftIO getCurrentTime
     retry x5 $
-        write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing))
+        write Cql.insertConv (params Quorum (conv, SelfConv, usr, privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
     mems <- snd <$> addMembersUnchecked now conv usr (singleton usr)
-    return $ newConv conv SelfConv usr (toList mems) [PrivateAccess] privateRole name Nothing Nothing
+    return $ newConv conv SelfConv usr (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing
 
 createConnectConversation :: MonadClient m
                           => U.UUID U.V4
@@ -405,12 +416,12 @@ createConnectConversation a b name conn = do
         a'   = Id . U.unpack $ a
     now <- liftIO getCurrentTime
     retry x5 $
-        write Cql.insertConv (params Quorum (conv, ConnectConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing))
+        write Cql.insertConv (params Quorum (conv, ConnectConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
     -- We add only one member, second one gets added later,
     -- when the other user accepts the connection request.
     mems <- snd <$> addMembersUnchecked now conv a' (singleton a')
     let e = Event ConvConnect conv a' now (Just $ EdConnect conn)
-    return (newConv conv ConnectConv a' (toList mems) [PrivateAccess] privateRole name Nothing Nothing, e)
+    return (newConv conv ConnectConv a' (toList mems) [PrivateAccess] privateRole name Nothing Nothing Nothing, e)
 
 createOne2OneConversation :: U.UUID U.V4
                           -> U.UUID U.V4
@@ -423,20 +434,26 @@ createOne2OneConversation a b name ti = do
         b'   = Id (U.unpack b)
     now <- liftIO getCurrentTime
     retry x5 $ case ti of
-        Nothing  -> write Cql.insertConv (params Quorum (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing))
+        Nothing  -> write Cql.insertConv (params Quorum (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Nothing, Nothing, Nothing))
         Just tid -> batch $ do
             setType BatchLogged
             setConsistency Quorum
-            addPrepQuery Cql.insertConv (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Just tid, Nothing)
+            addPrepQuery Cql.insertConv (conv, One2OneConv, a', privateOnly, privateRole, fromRange <$> name, Just tid, Nothing, Nothing)
             addPrepQuery Cql.insertTeamConv (tid, conv, False)
     mems <- snd <$> addMembersUnchecked now conv a' (list1 a' [b'])
-    return $ newConv conv One2OneConv a' (toList mems) [PrivateAccess] privateRole name ti Nothing
+    return $ newConv conv One2OneConv a' (toList mems) [PrivateAccess] privateRole name ti Nothing Nothing
 
 updateConversation :: MonadClient m => ConvId -> Range 1 256 Text -> m ()
 updateConversation cid name = retry x5 $ write Cql.updateConvName (params Quorum (fromRange name, cid))
 
 updateConversationAccess :: MonadClient m => ConvId -> Data.Set.Set Access -> AccessRole -> m ()
 updateConversationAccess cid acc role = retry x5 $ write Cql.updateConvAccess (params Quorum (Set (toList acc), role, cid))
+
+updateConversationReceiptMode :: MonadClient m => ConvId -> ReceiptMode -> m ()
+updateConversationReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMode (params Quorum (receiptMode, cid))
+
+lookupReceiptMode :: MonadClient m => ConvId -> m (Maybe ReceiptMode)
+lookupReceiptMode cid = join . fmap runIdentity <$> retry x1 (query1 Cql.selectReceiptMode (params Quorum (Identity cid)))
 
 updateConversationMessageTimer :: MonadClient m => ConvId -> Maybe Milliseconds -> m ()
 updateConversationMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params Quorum (mtimer, cid))
@@ -463,8 +480,9 @@ newConv :: ConvId
         -> Maybe (Range 1 256 Text)
         -> Maybe TeamId
         -> Maybe Milliseconds
+        -> Maybe ReceiptMode
         -> Conversation
-newConv cid ct usr mems acc role name tid mtimer = Conversation
+newConv cid ct usr mems acc role name tid mtimer rMode = Conversation
     { convId      = cid
     , convType    = ct
     , convCreator = usr
@@ -475,6 +493,7 @@ newConv cid ct usr mems acc role name tid mtimer = Conversation
     , convTeam    = tid
     , convDeleted = Nothing
     , convMessageTimer = mtimer
+    , convReceiptMode  = rMode
     }
 
 defAccess :: ConvType -> Maybe (Set Access) -> [Access]
@@ -629,7 +648,7 @@ updateClient add usr cls = do
     retry x5 $ write (q cls) (params Quorum (Identity usr))
 
 -- Do, at most, 16 parallel lookups of up to 128 users each
-lookupClients :: (MonadClient m, MonadBaseControl IO m, Forall (Pure m))
+lookupClients :: (MonadClient m, MonadUnliftIO m)
               => [UserId] -> m Clients
 lookupClients users = Clients.fromList . concat . concat <$>
     forM (chunksOf 2048 users) (mapConcurrently getClients . chunksOf 128)

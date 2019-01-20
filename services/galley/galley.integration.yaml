@@ -16,12 +16,19 @@ gundeck:
   host: 127.0.0.1
   port: 8086
 
+spar:
+  host: 127.0.0.1
+  port: 8088
+
 settings:
   httpPoolSize: 128
   maxTeamSize: 32
   maxConvSize: 16
   intraListing: false
   conversationCodeURI: https://app.wire.com/join/
+
+logLevel: Info
+logNetStrings: false
 
 ### Journaling of team events
 #
@@ -32,6 +39,5 @@ settings:
 #
 #journal: # if set, journals; if not set, disables journaling
 #  queueName: integration-team-events.fifo
-#   endpoint: https://sqs.eu-west-1.amazonaws.com
-#  endpoint: http://localhost:4568
+#  endpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
 #  region: eu-west-1

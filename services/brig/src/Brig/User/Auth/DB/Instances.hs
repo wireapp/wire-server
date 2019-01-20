@@ -6,6 +6,7 @@
 
 module Brig.User.Auth.DB.Instances () where
 
+import Imports
 import Brig.Types.User.Auth
 import Cassandra.CQL
 import Data.Id()
@@ -32,4 +33,3 @@ instance Cql CookieType where
     fromCql (CqlInt 0) = return SessionCookie
     fromCql (CqlInt 1) = return PersistentCookie
     fromCql _          = fail "fromCql: invalid cookie type"
-

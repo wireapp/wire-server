@@ -31,19 +31,16 @@ module CargoHold.App
     , runHandler
     ) where
 
+import Imports hiding (log)
 import Bilge (MonadHttp, Manager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import CargoHold.Options as Opt
-import Control.Applicative
 import Control.Error (ExceptT, exceptT)
 import Control.Lens (view, makeLenses, set, (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow, MonadMask)
-import Control.Monad.Reader
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, transResourceT)
 import Data.Default
 import Data.Metrics.Middleware (Metrics)
-import Data.Maybe
-import Data.Monoid
 import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
 import Network.HTTP.Client.TLS
 import Network.Connection as NC
@@ -52,7 +49,6 @@ import Network.Wai.Routing (Continue)
 import Network.Wai.Utilities (Error (..), lookupRequestId)
 import System.X509 (getSystemCertificateStore)
 import System.Logger.Class hiding (settings)
-import Prelude hiding (log)
 
 import qualified Bilge
 import qualified CargoHold.AWS                as AWS
@@ -84,7 +80,7 @@ newEnv o = do
                     $ Log.defSettings
     mgr  <- initHttpManager
     ama  <- initAws (o^.optAws) lgr mgr
-    return $ Env ama met lgr mgr mempty (o^.optSettings)
+    return $ Env ama met lgr mgr def (o^.optSettings)
 
 initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
 initAws o l m = AWS.mkEnv l
@@ -167,5 +163,5 @@ type Handler = ExceptT Error App
 
 runHandler :: Env -> Request -> Handler ResponseReceived -> Continue IO -> IO ResponseReceived
 runHandler e r h k =
-    let e' = set requestId (maybe mempty RequestId (lookupRequestId r)) e
+    let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
     in runAppT e' (exceptT (Server.onError (_appLogger e) (_metrics e) r k) return h)

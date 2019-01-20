@@ -2,46 +2,29 @@
 
 module API.Util where
 
+import Imports
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Brig.Types
-import Control.Applicative hiding (empty)
-import Control.Error
 import Control.Lens hiding ((.=), from, to, (#))
-import Control.Monad hiding (mapM_)
-import Control.Monad.IO.Class
 import Control.Retry (retrying, constantDelay, limitRetries)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key)
-import Data.ByteString.Char8 (pack, ByteString, intercalate)
 import Data.ByteString.Conversion
-import Data.Foldable (toList)
 import Data.Id
-import Data.Int
-import Data.List (sort)
 import Data.List1 as List1
-import Data.Maybe
 import Data.Misc
-import Data.Monoid
 import Data.ProtocolBuffers (encodeMessage)
 import Data.Range
-import Data.Set (Set)
 import Data.Serialize (runPut)
-import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V4
-import Data.Word
 import Galley.Types
 import Galley.Types.Teams hiding (EventType (..))
 import Galley.Types.Teams.Intra
-import GHC.Stack (HasCallStack)
 import Gundeck.Types.Notification
-import Gundeck.Types.Push
-import Prelude hiding (head, mapM_)
 import Test.Tasty.Cannon (Cannon, TimeoutUnit (..), (#))
 import Test.Tasty.HUnit
-
-import Debug.Trace (traceShow)
 
 import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8  as C
@@ -156,7 +139,7 @@ createTeamConvAccessRaw :: Galley -> UserId -> TeamId -> [UserId] -> Maybe Text 
 createTeamConvAccessRaw g u tid us name acc role mtimer = do
     let tinfo = ConvTeamInfo tid False
     let conv = NewConvUnmanaged $
-               NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer
+               NewConv us name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing
     post ( g
           . path "/conversations"
           . zUser u
@@ -165,11 +148,22 @@ createTeamConvAccessRaw g u tid us name acc role mtimer = do
           . json conv
           )
 
+updateTeamConv :: Galley -> UserId -> ConvId -> ConversationRename -> Http ResponseLBS
+updateTeamConv g zusr convid upd = do
+    put ( g
+         . paths ["/conversations", toByteString' convid]
+         . zUser zusr
+         . zConn "conn"
+         . zType "access"
+         . json upd
+         )
+
+-- | See Note [managed conversations]
 createManagedConv :: HasCallStack => Galley -> UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> Http ConvId
 createManagedConv g u tid us name acc mtimer = do
     let tinfo = ConvTeamInfo tid True
     let conv = NewConvManaged $
-               NewConv us name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer
+               NewConv us name (fromMaybe (Set.fromList []) acc) Nothing (Just tinfo) mtimer Nothing
     r <- post ( g
               . path "i/conversations/managed"
               . zUser u
@@ -183,12 +177,17 @@ createManagedConv g u tid us name acc mtimer = do
 createOne2OneTeamConv :: Galley -> UserId -> UserId -> Maybe Text -> TeamId -> Http ResponseLBS
 createOne2OneTeamConv g u1 u2 n tid = do
     let conv = NewConvUnmanaged $
-               NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing
+               NewConv [u2] n mempty Nothing (Just $ ConvTeamInfo tid False) Nothing Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> Http ResponseLBS
 postConv g u us name a r mtimer = do
-    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer
+    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer Nothing
+    post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
+
+postConvWithReceipt :: Galley -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe AccessRole -> Maybe Milliseconds -> ReceiptMode -> Http ResponseLBS
+postConvWithReceipt g u us name a r mtimer rcpt = do
+    let conv = NewConvUnmanaged $ NewConv us name (Set.fromList a) r Nothing mtimer (Just rcpt)
     post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: Galley -> UserId -> Http ResponseLBS
@@ -196,7 +195,7 @@ postSelfConv g u = post $ g . path "/conversations/self" . zUser u . zConn "conn
 
 postO2OConv :: Galley -> UserId -> UserId -> Maybe Text -> Http ResponseLBS
 postO2OConv g u1 u2 n = do
-    let conv = NewConvUnmanaged $ NewConv [u2] n mempty Nothing Nothing Nothing
+    let conv = NewConvUnmanaged $ NewConv [u2] n mempty Nothing Nothing Nothing Nothing
     post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: Galley -> UserId -> UserId -> Text -> Text -> Maybe Text -> Http ResponseLBS
@@ -209,7 +208,7 @@ postConnectConv g a b name msg email = post $ g
 
 putConvAccept :: Galley -> UserId -> ConvId -> Http ResponseLBS
 putConvAccept g invited cid = put $ g
-    . paths ["/i/conversations", pack $ show cid, "accept", "v2"]
+    . paths ["/i/conversations", C.pack $ show cid, "accept", "v2"]
     . zUser invited
     . zType "access"
     . zConn "conn"
@@ -598,9 +597,13 @@ randomUsers :: Brig -> Int -> Http [UserId]
 randomUsers b n = replicateM n (randomUser b)
 
 randomUser :: HasCallStack => Brig -> Http UserId
-randomUser b = do
+randomUser = randomUser' True
+
+randomUser' :: HasCallStack => Bool -> Brig -> Http UserId
+randomUser' hasPassword b = do
     e <- liftIO randomEmail
-    let p = object [ "name" .= fromEmail e, "email" .= fromEmail e, "password" .= defPassword ]
+    let p = object $ [ "name" .= fromEmail e, "email" .= fromEmail e]
+                  <> [ "password" .= defPassword | hasPassword]
     r <- post (b . path "/i/users" . json p) <!! const 201 === statusCode
     fromBS (getHeader' "Location" r)
 
@@ -618,11 +621,9 @@ randomClient b usr lk = do
             <!! const 201 === statusCode
     fromBS $ getHeader' "Location" q
   where
-    newClientBody =
-        let sig = SignalingKeys (EncKey (C.replicate 32 'a')) (MacKey (C.replicate 32 'b'))
-        in (newClient PermanentClient lk sig)
-            { newClientPassword = Just (PlainTextPassword defPassword)
-            }
+    newClientBody = (newClient PermanentClient lk)
+        { newClientPassword = Just (PlainTextPassword defPassword)
+        }
 
 ensureDeletedState :: HasCallStack => Brig -> Bool -> UserId -> UserId -> Http ()
 ensureDeletedState b check from u =
@@ -708,9 +709,9 @@ fromBS = maybe (fail "fromBS: no parse") return . fromByteString
 
 convRange :: Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Request -> Request
 convRange range size =
-      maybe id (queryItem "size" . pack . show) size
+      maybe id (queryItem "size" . C.pack . show) size
     . case range of
-        Just (Left  l) -> queryItem "ids" (intercalate "," $ map toByteString' l)
+        Just (Left  l) -> queryItem "ids" (C.intercalate "," $ map toByteString' l)
         Just (Right c) -> queryItem "start" (toByteString' c)
         Nothing        -> id
 

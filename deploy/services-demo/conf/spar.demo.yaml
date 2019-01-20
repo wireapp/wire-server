@@ -5,7 +5,7 @@ saml:
   spHost:    127.0.0.1
   spPort:    8088
   spAppUri:  http://localhost:8080/ # <--- change this to point to a reachable web app
-  spSsoUri:  http://localhost:8080/
+  spSsoUri:  http://localhost:8080/sso # <--- change this to the URL by which spar can be reached from an external IdP
 
   contacts:
     - type: ContactBilling
@@ -18,6 +18,10 @@ brig:
   host: 127.0.0.1
   port: 8082
 
+galley:
+  host: 127.0.0.1
+  port: 8085
+
 cassandra:
   endpoint:
     host: 127.0.0.1
@@ -27,8 +31,6 @@ cassandra:
 maxttlAuthreq: 28800 # 8h
 maxttlAuthresp: 28800 # 8h
 
-logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)
+maxScimTokens: 16
 
-spInfo:
-  metaURI:  http://localhost:8088/sso/metadata
-  loginURI: http://localhost:8088/sso/initiate-login/
+logNetStrings: False # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)

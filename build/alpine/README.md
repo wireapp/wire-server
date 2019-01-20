@@ -7,23 +7,28 @@ To create docker images, you need to install [docker version >= 17.05](https://w
 
 Both of the above need to be built first (only once) to be able to actually build a service docker image.
 
-* `Dockerfile` depends on the two images above to compile code inside the `builder` image and then copy the resulting binary into the `deps` image to finally construct a service (e.g. `brig`) docker image that can be used for testing or deployment. The final image is ~30MB (compressed) in size.
+* `Dockerfile.intermediate` - based on `Dockerfile.deps`/`Dockerfile.builder`, this is an intermediate image compiling all dynamically linked binaries (obtained when running `make install` in the top-level directory).
+* `Dockerfile.executable` - based on `Dockerfile.deps`/`Dockerfile.intermediate`, this extracts a single executable from the intermediate image, yielding a small image (~30MB compressed) with a single dynamically linked binary.
+
 
 ### Build the `builder` and `deps` docker images locally
 
+(from within the `wire-server` directory)
 ```bash
-cd build/alpine && make
+make docker-builder
+make docker-deps
 ```
 
-### Build a service, e.g. brig:
+### Build a service docker image, e.g. brig:
 
 ```bash
-cd services/brig && make docker
+make docker-intermediate # recompiles all the haskell code
+make docker-exe-brig # this only extracts one binary from the intermediate image above and makes it the default entrypoint. Nothing gets recompiled
 ```
 
 ## Other dockerfiles
 
-* `Dockerfile.intermediate` - based on `Dockerfile.deps`/`Dockerfile.builder`, this is an intermediate image compiling all dynamically linked binaries (obtained when running `make install` in the top-level directory).
-* `Dockerfile.executable` - based on `Dockerfile.deps`/`Dockerfile.intermediate`, this extracts a single executable from the intermediate image, yielding a small image with a single dynamically linked binary.
 * `Dockerfile.migrations` - same as `Dockerfile.executable`, with a fixed set of database migration binaries.
-* `Dockerfile.prebuilder` - dependencies of `Dockerfile.builder` that are expected to change very rarely (GHC, system libraries).
+* `Dockerfile.prebuilder` - dependencies of `Dockerfile.builder` that are expected to change very rarely (GHC, system libraries). Currently we're able to use system GHC, but if we require a newer version of GHC than the one provided by Alpine, we could build GHC in `Dockerfile.prebuilder` (as it has been [done before][2018-11-28]).
+
+[2018-11-28]: https://github.com/wireapp/wire-server/releases/tag/v2018-11-28

@@ -1,9 +1,9 @@
 module System.Metrics.Collectd.Json where
 
+import Imports hiding (ap)
 import Data.Aeson
 import Data.Scientific
 import Data.Sequence hiding (reverse)
-import Data.Text (Text)
 import System.Metrics.Collectd.Json.Path
 
 import qualified Data.HashMap.Strict as Map
@@ -13,9 +13,11 @@ data Selection = Selection
     , errors :: Seq [Text]
     }
 
+instance Semigroup Selection where
+    a <> b = Selection (values a >< values b) (errors a >< errors b)
+
 instance Monoid Selection where
-    mempty        = Selection empty empty
-    a `mappend` b = Selection (values a >< values b) (errors a >< errors b)
+    mempty = Selection empty empty
 
 select :: Path -> Value -> Selection
 select p v = go (path p) [] v

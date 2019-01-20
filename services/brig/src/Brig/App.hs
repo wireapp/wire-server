@@ -53,6 +53,7 @@ module Brig.App
     , locationOf
     ) where
 
+import Imports
 import Bilge (MonadHttp, Manager, newManager, RequestId (..))
 import Bilge.RPC (HasRequestId (..))
 import Brig.Options (Opts, Settings)
@@ -67,25 +68,18 @@ import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import Cassandra (MonadClient (..), Keyspace (..), runClient)
 import Cassandra.Schema (versionCheck)
 import Control.AutoUpdate
-import Control.Concurrent (forkIO)
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding ((.=), index)
-import Control.Monad (void, (>=>))
 import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
-import Control.Monad.IO.Class
-import Control.Monad.Reader.Class
-import Control.Monad.Trans.Class
-import Control.Monad.Trans.Reader (ReaderT (..), runReaderT)
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
+import Data.Default (def)
 import Data.Id (UserId)
 import Data.IP
 import Data.List1 (list1, List1)
 import Data.Metrics (Metrics)
 import Data.Misc
-import Data.Int (Int32)
-import Data.IORef
 import Data.Text (unpack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
@@ -95,9 +89,7 @@ import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (getDigestByName, Digest)
 import OpenSSL.Session (SSLOption (..))
 import Ssl.Util
-import System.Directory (canonicalizePath)
 import System.Logger.Class hiding (Settings, settings)
-import UnliftIO (MonadUnliftIO (..))
 import Util.Options
 
 import qualified Bilge                    as RPC
@@ -126,7 +118,7 @@ import qualified System.Logger            as Log
 import qualified System.Logger.Class      as LC
 
 schemaVersion :: Int32
-schemaVersion = 53
+schemaVersion = 55
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -164,13 +156,20 @@ data Env = Env
 
 makeLenses ''Env
 
+mkLogger :: Opts -> IO Logger
+mkLogger opts = Log.new $ Log.defSettings
+  & Log.setLogLevel (Opt.logLevel opts)
+  & Log.setOutput Log.StdOut
+  & Log.setFormat Nothing
+  & Log.setNetStrings (Opt.logNetStrings opts)
+
 newEnv :: Opts -> IO Env
 newEnv o = do
     Just md5 <- getDigestByName "MD5"
     Just sha256 <- getDigestByName "SHA256"
     Just sha512 <- getDigestByName "SHA512"
     mtr <- Metrics.metrics
-    lgr <- Log.new $ defSettings & setOutput StdOut . setFormat Nothing
+    lgr <- mkLogger o
     cas <- initCassandra o lgr
     mgr <- initHttpManager
     ext <- initExtGetManager
@@ -209,7 +208,7 @@ newEnv o = do
         , _metrics       = mtr
         , _applog        = lgr
         , _internalEvents = eventsQueue
-        , _requestId     = mempty
+        , _requestId     = def
         , _usrTemplates  = utp
         , _provTemplates = ptp
         , _tmTemplates   = ttp
@@ -231,10 +230,15 @@ newEnv o = do
   where
     emailConn _   (Opt.EmailAWS aws) = return (Just aws, Nothing)
     emailConn lgr (Opt.EmailSMTP  s) = do
-        let host = Opt.smtpEndpoint s
-            user = SMTP.Username (Opt.smtpUsername s)
-        pass <- initCredentials (Opt.smtpPassword s)
-        smtp <- SMTP.initSMTP lgr host user (SMTP.Password pass) (Opt.smtpConnType s)
+        let host = (Opt.smtpEndpoint s)^.epHost
+            port = Just $ fromInteger $ toInteger $ (Opt.smtpEndpoint s)^.epPort
+
+        smtpCredentials <- case Opt.smtpCredentials s of
+            Just (Opt.EmailSMTPCredentials u p) -> do
+                pass <- initCredentials p
+                return $ Just (SMTP.Username u, SMTP.Password pass)
+            _                                   -> return Nothing
+        smtp <- SMTP.initSMTP lgr host port smtpCredentials (Opt.smtpConnType s)
         return (Nothing, Just smtp)
 
     mkEndpoint service = RPC.host (encodeUtf8 (service^.epHost)) . RPC.port (service^.epPort) $ RPC.empty
@@ -270,9 +274,10 @@ turnSetup lgr w dig o = do
 startWatching :: FS.WatchManager -> FilePath -> FS.Action -> IO ()
 startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
   where
-    predicate (FS.Added f _)    = Path.equalFilePath f p
-    predicate (FS.Modified f _) = Path.equalFilePath f p
-    predicate (FS.Removed _ _)  = False
+    predicate (FS.Added f _ _)    = Path.equalFilePath f p
+    predicate (FS.Modified f _ _) = Path.equalFilePath f p
+    predicate (FS.Removed _ _ _)  = False
+    predicate (FS.Unknown _ _ _)  = False
 
 replaceGeoDb :: Logger -> IORef GeoIp.GeoDB -> FS.Event -> IO ()
 replaceGeoDb g ref e = do
@@ -355,7 +360,7 @@ initExtGetManager = do
 
 initCassandra :: Opts -> Logger -> IO Cas.ClientState
 initCassandra o g = do
-    c <- maybe (Cas.initialContactsDNS ((Opt.cassandra o)^.casEndpoint.epHost))
+    c <- maybe (Cas.initialContactsPlain ((Opt.cassandra o)^.casEndpoint.epHost))
                (Cas.initialContactsDisco "cassandra_brig")
                (unpack <$> Opt.discoUrl o)
     p <- Cas.init (Log.clone (Just "cassandra.brig") g)
@@ -374,7 +379,7 @@ initCassandra o g = do
 initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
 initCredentials secretFile = do
     dat <- loadSecret secretFile
-    return $ fromMaybe (error $ "Could not load secrets from " ++ show secretFile) dat
+    return $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
 
 userTemplates :: Monad m => Maybe Locale -> AppT m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
