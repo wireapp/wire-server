@@ -12,8 +12,8 @@ module API (TestSetup(..), tests) where
 import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
-import Control.Concurrent.Async       (Async, async, wait, forConcurrently_)
-import Control.Lens                   ((.~), (^.), (^?), view, (<&>))
+import Control.Concurrent.Async       (Async, async, wait, concurrently_, forConcurrently_)
+import Control.Lens                   ((.~), (^.), (^?), view, (<&>), _2, (%~))
 import Control.Retry                  (retrying, constantDelay, limitRetries)
 import Data.Aeson              hiding (json)
 import Data.Aeson.Lens
@@ -111,6 +111,10 @@ tests s = testGroup "Gundeck integration tests" [
     testGroup "Tokens"
         [ test s "register a push token"     $ testRegisterPushToken
         , test s "unregister a push token"   $ testUnregisterPushToken
+        ],
+    testGroup "Websocket pingpong"
+        [ test s "pings produce pongs"       $ testPingPong
+        , test s "non-pings are ignored"     $ testNoPingNoPong
         ],
     -- TODO: The following tests require (at the moment), the usage real AWS
     --       services so they are kept in a separate group to simplify testing
@@ -719,6 +723,28 @@ testUnregisterPushToken g _ b _ = do
     void $ retryWhileN 12 (not . null) (listPushTokens uid g)
     unregisterPushToken uid (tkn^.token) g !!! const 404 === statusCode
 
+testPingPong :: TestSignature ()
+testPingPong gu ca _ _ = do
+    uid :: UserId <- randomId
+    connid :: ConnId <- randomConnId
+    [(_, [(chread, chwrite)] :: [(TChan ByteString, TChan ByteString)])]
+      <- connectUsersAndDevicesWithSendingClients gu ca [(uid, [connid])]
+    liftIO $ do
+        atomically $ writeTChan chwrite "ping"
+        msg <- waitForMessage chread
+        assertBool "no pong" $ msg == Just "pong"
+
+testNoPingNoPong :: TestSignature ()
+testNoPingNoPong gu ca _ _ = do
+    uid :: UserId <- randomId
+    connid :: ConnId <- randomConnId
+    [(_, [(chread, chwrite)] :: [(TChan ByteString, TChan ByteString)])]
+      <- connectUsersAndDevicesWithSendingClients gu ca [(uid, [connid])]
+    liftIO $ do
+        atomically $ writeTChan chwrite "Wire is so much nicer with internet!"
+        msg <- waitForMessage chread
+        assertBool "unexpected response on non-ping" $ isNothing msg
+
 testSharePushToken :: TestSignature ()
 testSharePushToken g _ b _ = do
     gcmTok <- Token . T.decodeUtf8 . toByteString' <$> randomId
@@ -816,13 +842,25 @@ connectUser gu ca uid con = do
     [(_, [ch])] <- connectUsersAndDevices gu ca [(uid, [con])]
     return ch
 
-connectUsersAndDevices :: HasCallStack => Gundeck -> Cannon -> [(UserId, [ConnId])] -> Http [(UserId, [TChan ByteString])]
-connectUsersAndDevices gu ca uidsAndConnIds = do
+connectUsersAndDevices
+  :: HasCallStack
+  => Gundeck -> Cannon -> [(UserId, [ConnId])]
+  -> Http [(UserId, [TChan ByteString])]
+connectUsersAndDevices gu ca uidsAndConnIds =
+    strip <$> connectUsersAndDevicesWithSendingClients gu ca uidsAndConnIds
+  where strip = fmap (_2 %~ fmap fst)
+
+connectUsersAndDevicesWithSendingClients
+  :: HasCallStack
+  => Gundeck -> Cannon -> [(UserId, [ConnId])]
+  -> Http [(UserId, [(TChan ByteString, TChan ByteString)])]
+connectUsersAndDevicesWithSendingClients gu ca uidsAndConnIds = do
     chs <- forM uidsAndConnIds $ \(uid, conns) -> (uid,) <$> do
         forM conns $ \conn -> do
-            ch <- liftIO $ atomically newTChan
-            _ <- wsRun ca uid conn (wsReader ch)
-            pure ch
+            chread  <- liftIO $ atomically newTChan
+            chwrite <- liftIO $ atomically newTChan
+            _ <- wsRun ca uid conn (wsReaderWriter chread chwrite)
+            pure (chread, chwrite)
     (\(uid, conns) -> wsAssertPresences gu uid (length conns)) `mapM_` uidsAndConnIds
     pure chs
 
@@ -849,8 +887,10 @@ wsAssertPresences gu uid numPres = do
 wsCloser :: MVar () -> WS.ClientApp ()
 wsCloser m conn = takeMVar m >> WS.sendClose conn C.empty >> putMVar m ()
 
-wsReader :: TChan ByteString -> WS.ClientApp ()
-wsReader ch conn = forever $ WS.receiveData conn >>= atomically . writeTChan ch
+wsReaderWriter :: TChan ByteString -> TChan ByteString -> WS.ClientApp ()
+wsReaderWriter chread chwrite conn = concurrently_
+    (forever $ WS.receiveData conn >>= atomically . writeTChan chread)
+    (forever $ WS.sendTextData conn =<< atomically (readTChan chwrite))
 
 retryWhile :: (MonadIO m) => (a -> Bool) -> m a -> m a
 retryWhile = retryWhileN 10
