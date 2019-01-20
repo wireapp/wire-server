@@ -224,9 +224,14 @@ updateValidSCIMUser
   => ScimTokenInfo -> Text -> ValidSCIMUser -> m SCIM.Class.User.StoredUser
 updateValidSCIMUser tokinfo uidText newScimUser = do
 
-    -- TODO: it's weird that uidText is not connected by code to any part of newScimUser (this is a
-    -- problem also outside of the 'update' method here.  shouldn't there be a function @getScimUid ::
-    -- SCIM.User.User -> Text@?  or, preferably @... -> UserId@?
+    -- TODO: currently the types in @hscim@ are constructed in such a way that
+    -- 'SCIM.User.User' doesn't contain an ID, only 'SCIM.Class.User.StoredUser'
+    -- does. @fisx believes that this situation could be improved (see
+    -- <https://github.com/wireapp/wire-server/pull/559#discussion_r247392882>).
+    --
+    -- If 'SCIM.User.User' and 'ValidSCIMUser' did contain the user ID, we
+    -- wouldn't need 'uidText' in this function -- or we could at least check in
+    -- hscim that the ID in the user object matches the ID in the path.
 
     -- TODO: how do we get this safe w.r.t. race conditions / crashes?
 
