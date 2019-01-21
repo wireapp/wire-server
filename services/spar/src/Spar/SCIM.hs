@@ -291,9 +291,11 @@ toSCIMStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr = SCIM.WithMeta 
       , SCIM.created = now
       , SCIM.lastModified = now
       , SCIM.version = SCIM.Strong (Text.pack (show thingHash))
-        -- TODO: it looks like (a) we need to add this to the HTTP header, and (b) this should be a
-        -- version (which is increasing over time), not a hash (which is not).
+        -- TODO: replace SCIM.Strong with SCIM.Weak
+        -- TODO: it looks like (a) we need to add this to the HTTP header.
         -- https://tools.ietf.org/html/rfc7644#section-3.14
+        -- TODO: scim versions are called versions, but they aren't really monotonously
+        -- increasing.  add a note to hscim?
       , SCIM.location = SCIM.URI . mkLocation $ "/Users/" <> cs uid
       }
 
