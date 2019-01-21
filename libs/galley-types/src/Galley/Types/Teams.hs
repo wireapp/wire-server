@@ -70,6 +70,7 @@ module Galley.Types.Teams
     , intToPerms
 
     , Role (..)
+    , defaultRole
     , rolePermissions
 
     , BindingNewTeam (..)
@@ -249,6 +250,9 @@ data Perm =
 
 data Role = RoleOwner | RoleAdmin | RoleMember | RoleCollaborator
     deriving (Eq, Ord, Show, Enum, Bounded)
+
+defaultRole :: Role
+defaultRole = RoleMember
 
 rolePermissions :: Role -> Permissions
 rolePermissions role = Permissions p p  where p = rolePerms role

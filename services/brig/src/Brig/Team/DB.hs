@@ -58,7 +58,7 @@ data InvitationInfo = InvitationInfo
 
 insertInvitation :: MonadClient m
                  => TeamId
-                 -> Maybe Role
+                 -> Role
                  -> Email
                  -> UTCTime
                  -> Maybe UserId
@@ -78,14 +78,14 @@ insertInvitation t role email (toUTCTimeMillis -> now) minviter timeout = do
     cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
     cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?"
 
-    cqlInvitation :: PrepQuery W (TeamId, Maybe Role, InvitationId, InvitationCode, Email, UTCTimeMillis, Maybe UserId, Int32) ()
+    cqlInvitation :: PrepQuery W (TeamId, Role, InvitationId, InvitationCode, Email, UTCTimeMillis, Maybe UserId, Int32) ()
     cqlInvitation = "INSERT INTO team_invitation (team, role, id, code, email, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?) USING TTL ?"
 
 lookupInvitation :: MonadClient m => TeamId -> InvitationId -> m (Maybe Invitation)
 lookupInvitation t r = fmap toInvitation <$>
     retry x1 (query1 cqlInvitation (params Quorum (t, r)))
   where
-    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId)
+    cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Role, InvitationId, Email, UTCTimeMillis, Maybe UserId)
     cqlInvitation = "SELECT team, role, id, email, created_at, created_by FROM team_invitation WHERE team = ? AND id = ?"
 
 lookupInvitationByCode :: MonadClient m => InvitationCode -> m (Maybe Invitation)
@@ -111,10 +111,10 @@ lookupInvitations team start (fromRange -> size) = do
     toResult more invs = cassandraResultPage $ emptyPage { result  = invs
                                                          , hasMore = more
                                                          }
-    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId)
+    cqlSelect :: PrepQuery R (Identity TeamId) (TeamId, Role, InvitationId, Email, UTCTimeMillis, Maybe UserId)
     cqlSelect = "SELECT team, role, id, email, created_at, created_by FROM team_invitation WHERE team = ? ORDER BY id ASC"
 
-    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId)
+    cqlSelectFrom :: PrepQuery R (TeamId, InvitationId) (TeamId, Role, InvitationId, Email, UTCTimeMillis, Maybe UserId)
     cqlSelectFrom = "SELECT team, role, id, email, created_at, created_by FROM team_invitation WHERE team = ? AND id > ? ORDER BY id ASC"
 
 deleteInvitation :: MonadClient m => TeamId -> InvitationId -> m ()
@@ -162,5 +162,5 @@ countInvitations t = fromMaybe 0 . fmap runIdentity <$>
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity Int64)
     cqlSelect = "SELECT count(*) FROM team_invitation WHERE team = ?"
 
-toInvitation :: (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId) -> Invitation
+toInvitation :: (TeamId, Role, InvitationId, Email, UTCTimeMillis, Maybe UserId) -> Invitation
 toInvitation (t, r, i, e, tm, minviter) = Invitation t r i e tm minviter
