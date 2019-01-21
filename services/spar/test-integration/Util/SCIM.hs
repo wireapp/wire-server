@@ -123,6 +123,23 @@ createUser tok user = do
          <!! const 201 === statusCode
     pure (decodeBody' r)
 
+-- | Update a user.
+updateUser
+    :: HasCallStack
+    => ScimToken
+    -> UserId
+    -> SCIM.User.User
+    -> TestSpar SCIM.StoredUser
+updateUser tok userid user = do
+    env <- ask
+    r <- updateUser_
+             (Just tok)
+             (Just userid)
+             user
+             (env ^. teSpar)
+         <!! const 200 === statusCode
+    pure (decodeBody' r)
+
 -- | List all users.
 listUsers
     :: HasCallStack
@@ -225,14 +242,14 @@ createUser_ auth user spar_ = do
         . acceptScim
         )
 
--- | Create a user.
-putUser_
+-- | Update a user.
+updateUser_
     :: Maybe ScimToken          -- ^ Authentication
-    -> Maybe UserId             -- ^ if no Id is provided, this will return 4xx.
+    -> Maybe UserId             -- ^ User to update; when not provided, the request will return 4xx
     -> SCIM.User.User           -- ^ User data
     -> SparReq                  -- ^ Spar endpoint
     -> TestSpar ResponseLBS
-putUser_ auth muid user spar_ = do
+updateUser_ auth muid user spar_ = do
     call . put $
         ( spar_
         . paths (["scim", "v2", "Users"] <> maybeToList (toByteString' <$> muid))

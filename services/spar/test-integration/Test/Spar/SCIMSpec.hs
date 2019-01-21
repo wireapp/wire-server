@@ -17,13 +17,13 @@ import Bilge.Assert
 import Brig.Types.User as Brig
 import Control.Lens
 import Data.ByteString.Conversion
+import Data.Ix (inRange)
 import Spar.SCIM
 import Spar.SCIM.Types
 import Spar.Types (ScimTokenInfo(..))
 import Util
 
 import qualified Spar.Data                        as Data
-import qualified Web.SCIM.Class.User              as SCIM.Class.User
 import qualified Web.SCIM.Schema.Common           as SCIM
 import qualified Web.SCIM.Schema.Meta             as SCIM
 
@@ -141,56 +141,57 @@ specUsers = describe "operations with users" $ do
             env <- ask
             user <- randomSCIMUser
             (tok, _) <- registerIdPAndSCIMToken
-            putUser_ (Just tok) Nothing user (env ^. teSpar)
+            updateUser_ (Just tok) Nothing user (env ^. teSpar)
                 !!! assertTrue_ (inRange (400, 499) . statusCode)
 
     describe "PUT /Users/:id" $ do
         it "updates the user attributes in scim_user" $ do
-            env <- ask
+            -- Create a user via SCIM
             user <- randomSCIMUser
             (tok, _) <- registerIdPAndSCIMToken
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
+            -- Overwrite the user with another randomly-generated user
             user' <- randomSCIMUser
-            putUser_ (Just tok) (Just userid) user' (env ^. teSpar)
-                !!! const 200 === statusCode
-            getresp <- getUser_ (Just tok) userid (env ^. teSpar)
-                <!! const 200 === statusCode
-            let storedUser' :: SCIM.Class.User.StoredUser = decodeBody' getresp
+            updatedUser <- updateUser tok userid user'
+            -- Get the updated user and check that it matches the user returned
+            -- by 'updateUser'
+            storedUser' <- getUser tok userid
+            liftIO $ updatedUser `shouldBe` storedUser'
+            -- Check that the updated user also matches the data that we sent
+            -- with 'updateUser'
             liftIO $ do
-                SCIM.value (SCIM.thing storedUser) `shouldBe` user
                 SCIM.value (SCIM.thing storedUser') `shouldBe` user'
                 SCIM.id (SCIM.thing storedUser') `shouldBe` SCIM.id (SCIM.thing storedUser)
                 let meta  = SCIM.meta storedUser
                     meta' = SCIM.meta storedUser'
                 SCIM.resourceType meta `shouldBe` SCIM.resourceType meta'
-                SCIM.created  meta `shouldBe` SCIM.created  meta'
+                SCIM.created meta `shouldBe` SCIM.created meta'
+                -- FIXME: they actually *should not* match
                 SCIM.version meta `shouldBe` SCIM.version meta'
                 SCIM.location meta `shouldBe` SCIM.location meta'
 
         it "updates 'SAML.UserRef' in spar" $ do
-            env <- ask
+            -- Create a user via SCIM
             user <- randomSCIMUser
             (tok, (_, _, idp)) <- registerIdPAndSCIMToken
             storedUser <- createUser tok user
-            user' <- randomSCIMUser
             let userid = scimUserId storedUser
-            putUser_ (Just tok) (Just userid) user' (env ^. teSpar)
-                !!! const 200 === statusCode
+            -- Overwrite the user with another randomly-generated user
+            user' <- randomSCIMUser
+            _ <- updateUser tok userid user'
             vuser' <- either (error . show) pure $ validateSCIMUser' (Just idp) user'
             muserid' <- runSparCass $ Data.getUser (vuser' ^. vsuSAMLUserRef)
             liftIO $ do
                 muserid' `shouldBe` Just userid
 
-        it "maps ValidSCIMUser to Brig.User completely and correctly (including 'SAML.UserRef')." $ do
-            env <- ask
+        it "creates a matching Brig user (with 'SSOIdentity' correctly set)" $ do
             user <- randomSCIMUser
             (tok, (_, _, idp)) <- registerIdPAndSCIMToken
             storedUser <- createUser tok user
             user' <- randomSCIMUser
             let userid = scimUserId storedUser
-            putUser_ (Just tok) (Just userid) user' (env ^. teSpar)
-                !!! const 200 === statusCode
+            _ <- updateUser tok userid user'
             validSCIMUser <- either (error . show) pure $ validateSCIMUser' (Just idp) user'
             brigUser      <- maybe (error "no brig user") pure =<< getSelf userid
             brigUser `userShouldMatch` validSCIMUser
