@@ -32,8 +32,8 @@ import Util.Core
 import Util.Types
 
 import qualified Data.ByteString.Builder as LB
+import qualified Data.Role as Role
 import qualified Data.ZAuth.Token as ZAuth
-import qualified Galley.Types.Teams as Galley
 import qualified Spar.Intra.Brig as Intra
 import qualified Util.SCIM as SCIMT
 import qualified Web.Cookie as Cky
@@ -406,7 +406,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
           env <- ask
           (uid, teamid, idp) <- registerTestIdP
           (subj, _, _)       <- initialBind uid idp
-          uid'               <- let Just perms = Galley.newPermissions mempty mempty
+          uid'               <- let Just perms = Role.newPermissions mempty mempty
                                 in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
           (_, sparresp)      <- reBindSame uid' idp subj
           checkDenyingAuthnResp sparresp "subject-id-taken"
@@ -500,7 +500,7 @@ specCRUDIdentityProvider = do
             it "responds with 'insufficient-permissions' and a helpful message" $ do
               env <- ask
               (_, teamid, (^. idpId) -> idpid) <- registerTestIdP
-              newmember <- let Just perms = Galley.newPermissions mempty mempty
+              newmember <- let Just perms = Role.newPermissions mempty mempty
                         in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
               whichone (env ^. teSpar) (Just newmember) idpid
                 `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
@@ -524,7 +524,7 @@ specCRUDIdentityProvider = do
           (_owner :: UserId, teamid :: TeamId)
             <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
           member :: UserId
-            <- let Just perms = Galley.newPermissions mempty mempty
+            <- let Just perms = Role.newPermissions mempty mempty
                in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
           callIdpGetAll' (env ^. teSpar) (Just member)
             `shouldRespondWith` ((== 403) . statusCode)
@@ -596,7 +596,7 @@ specCRUDIdentityProvider = do
         it "responds with 'insufficient-permissions' and a helpful message" $ do
           env <- ask
           (_owner, tid, idp) <- registerTestIdP
-          newmember <- let Just perms = Galley.newPermissions mempty mempty
+          newmember <- let Just perms = Role.newPermissions mempty mempty
                        in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
           callIdpCreate' (env ^. teSpar) (Just newmember) (idp ^. idpMetadata)
             `shouldRespondWith` checkErr (== 403) "insufficient-permissions"
@@ -712,10 +712,10 @@ specAux = do
                 parsedResp <- either (error . show) pure $ selfUser <$> Intra.parseResponse @SelfProfile rawResp
                 liftIO $ userTeam parsedResp `shouldSatisfy` isJust
 
-            permses :: [Galley.Permissions]
+            permses :: [Role.Permissions]
             permses = fromJust <$>
-              [ Just Galley.fullPermissions
-              , Galley.newPermissions mempty mempty
+              [ Just Role.fullPermissions
+              , Role.newPermissions mempty mempty
               ]
 
         sequence_ [ check tryowner perms | tryowner <- [minBound..], perms <- [0.. (length permses - 1)] ]

@@ -119,6 +119,7 @@ import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64.Lazy as EL
+import qualified Data.Role as Role
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Yaml as Yaml
 import qualified Galley.Types.Teams as Galley
@@ -237,7 +238,7 @@ createUserWithTeam brg gly = do
 -- inconsistency does not affect the tests we're running with this.  to resolve it, we could add an
 -- internal end-point to spar that allows us to create users without idp response verification.
 createTeamMember :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m)
-                 => BrigReq -> GalleyReq -> TeamId -> Galley.Permissions -> m UserId
+                 => BrigReq -> GalleyReq -> TeamId -> Role.Permissions -> m UserId
 createTeamMember brigreq galleyreq teamid perms = do
   let randomtxt = liftIO $ UUID.toText <$> UUID.nextRandom
       randomssoid = Brig.UserSSOId <$> randomtxt <*> randomtxt

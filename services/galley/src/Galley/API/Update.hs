@@ -53,6 +53,7 @@ import Control.Monad.State
 import Data.Code
 import Data.Id
 import Data.List1
+import Data.Role
 import Data.Time
 import Galley.App
 import Galley.API.Error

@@ -15,6 +15,7 @@ import Data.Id
 import Data.List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
+import Data.Role
 import Galley.Types hiding (EventType (..), EventData (..), MemberUpdate (..))
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra

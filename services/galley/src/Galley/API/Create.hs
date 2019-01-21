@@ -18,6 +18,7 @@ import Control.Monad.Catch
 import Data.Id
 import Data.List1 (list1)
 import Data.Range
+import Data.Role
 import Data.Set ((\\))
 import Data.Time
 import Galley.App

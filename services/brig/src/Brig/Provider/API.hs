@@ -43,6 +43,7 @@ import Data.List.NonEmpty (nonEmpty)
 import Data.Misc (Fingerprint (..), Rsa)
 import Data.Predicate
 import Data.Range
+import Data.Role
 import Galley.Types (Conversation (..), ConvType (..), ConvMembers (..), AccessRole (..))
 import Galley.Types (OtherMember (..))
 import Galley.Types (Event, userClients)
@@ -683,7 +684,7 @@ updateServiceWhitelist (uid ::: con ::: tid ::: req) = do
         newWhitelisted = updateServiceWhitelistStatus upd
 
     -- Preconditions
-    ensurePermissions uid tid (Set.toList Teams.serviceWhitelistPermissions)
+    ensurePermissions uid tid (Set.toList serviceWhitelistPermissions)
     _ <- DB.lookupService pid sid >>= maybeServiceNotFound
 
     -- Add to various tables

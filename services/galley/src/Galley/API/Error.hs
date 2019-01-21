@@ -3,8 +3,8 @@
 module Galley.API.Error where
 
 import Imports
+import Data.Role (Perm)
 import Data.Text.Lazy (pack)
-import Galley.Types.Teams (Perm)
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 

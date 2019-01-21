@@ -38,8 +38,9 @@ import Data.ByteString.Conversion hiding (fromList)
 import Data.Id
 import Data.List1 (list1)
 import Data.Range
-import Data.Time.Clock (getCurrentTime, UTCTime (..))
+import Data.Role
 import Data.Set (fromList)
+import Data.Time.Clock (getCurrentTime, UTCTime (..))
 import Galley.App
 import Galley.API.Error
 import Galley.API.Util

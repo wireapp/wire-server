@@ -15,6 +15,7 @@ import Data.Id (UserId, ConvId)
 import Data.Metrics.Middleware as Metrics
 import Data.Misc
 import Data.Range
+import Data.Role (Perm (..))
 import Data.Swagger.Build.Api hiding (def, min, Response)
 import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
@@ -26,7 +27,6 @@ import Galley.API.Teams
 import Galley.API.Query
 import Galley.Options
 import Galley.Types (OtrFilterMissing (..))
-import Galley.Types.Teams (Perm (..))
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate

@@ -30,20 +30,19 @@ import Brig.Options
 import Brig.Types.Common
 import Brig.Types.User
 import Brig.Types.Team.Invitation
-import Galley.Types.Teams (Role)
 import Cassandra
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Data.Id
 import Data.Conduit ((.|), runConduit)
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Range
+import Data.Role
 import Data.Text.Ascii (encodeBase64Url)
 import Data.UUID.V4
 import Data.Time.Clock
 import OpenSSL.Random (randBytes)
 
 import qualified Data.Conduit.List as C
-import qualified Galley.Types.Teams as Team
 
 mkInvitationCode :: IO InvitationCode
 mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24
@@ -167,4 +166,4 @@ countInvitations t = fromMaybe 0 . fmap runIdentity <$>
 -- deployed, we won't find any `Nothing` role values any more; then it will be safe to change the
 -- type here from @Maybe Role@ into @Role@.
 toInvitation :: (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId) -> Invitation
-toInvitation (t, r, i, e, tm, minviter) = Invitation t (fromMaybe Team.defaultRole r) i e tm minviter
+toInvitation (t, r, i, e, tm, minviter) = Invitation t (fromMaybe defaultRole r) i e tm minviter

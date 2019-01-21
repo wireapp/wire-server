@@ -26,6 +26,7 @@ import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Range
+import Data.Role
 import Network.HTTP.Types.Status
 import Network.Wai (Request, Response)
 import Network.Wai.Predicate hiding (setStatus, result, and)
@@ -166,8 +167,8 @@ createInvitation (_ ::: uid ::: tid ::: req) = do
     body :: InvitationRequest <- parseJsonBody req
     idt  <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail)    return (emailIdentity idt)
-    let inviteePerms = Team.rolePermissions inviteeRole
-        inviteeRole  = fromMaybe Team.RoleMember . irRole $ body
+    let inviteePerms = rolePermissions inviteeRole
+        inviteeRole  = fromMaybe RoleMember . irRole $ body
     ensurePermissionToAddUser uid tid inviteePerms
     email <- either (const $ throwStd invalidEmail) return (validateEmail (irEmail body))
     let uk = userEmailKey email
@@ -195,19 +196,19 @@ createInvitation (_ ::: uid ::: tid ::: req) = do
 
 deleteInvitation :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
 deleteInvitation (_ ::: uid ::: tid ::: iid) = do
-    ensurePermissions uid tid [Team.AddTeamMember]
+    ensurePermissions uid tid [AddTeamMember]
     lift $ DB.deleteInvitation tid iid
     return empty
 
 listInvitations :: JSON ::: UserId ::: TeamId ::: Maybe InvitationId ::: Range 1 500 Int32 -> Handler Response
 listInvitations (_ ::: uid ::: tid ::: start ::: size) = do
-    ensurePermissions uid tid [Team.AddTeamMember]
+    ensurePermissions uid tid [AddTeamMember]
     rs <- lift $ DB.lookupInvitations tid start size
     return . json $! InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
 getInvitation :: JSON ::: UserId ::: TeamId ::: InvitationId -> Handler Response
 getInvitation (_ ::: uid ::: tid ::: iid) = do
-    ensurePermissions uid tid [Team.AddTeamMember]
+    ensurePermissions uid tid [AddTeamMember]
     inv <- lift $ DB.lookupInvitation tid iid
     return $ case inv of
         Just i  -> json i

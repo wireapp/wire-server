@@ -27,10 +27,10 @@ import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.List1 (singleton)
 import Data.Misc (PlainTextPassword(..))
+import Data.Role
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Clock (diffUTCTime)
 import Data.Vector (Vector)
-import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
@@ -209,8 +209,8 @@ testCreateUserPending brig = do
     get (brig . path "/self" . zUser uid) !!! do
         const 200  === statusCode
         const (Just True) === \rs' -> do
-            self <- decodeBody rs'
-            return $! isNothing (userIdentity (selfUser self))
+            self_ <- decodeBody rs'
+            return $! isNothing (userIdentity (selfUser self_))
 
     -- should not appear in search
     suid <- userId <$> randomUser brig

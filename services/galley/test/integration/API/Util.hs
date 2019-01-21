@@ -16,6 +16,7 @@ import Data.List1 as List1
 import Data.Misc
 import Data.ProtocolBuffers (encodeMessage)
 import Data.Range
+import Data.Role
 import Data.Serialize (runPut)
 import Data.Text.Encoding (decodeUtf8)
 import Data.UUID.V4

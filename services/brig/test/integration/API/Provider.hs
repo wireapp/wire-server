@@ -27,6 +27,7 @@ import Data.List1 (List1)
 import Data.Misc (PlainTextPassword(..))
 import Data.PEM
 import Data.Range
+import Data.Role
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Clock
 import Data.Timeout (Timeout, TimeoutUnit (..), (#), TimedOut (..))
@@ -684,7 +685,7 @@ testWhitelistSearchPermissions _config _db brig galley = do
         const 403 === statusCode
         const (Just "insufficient-permissions") === fmap Error.label . decodeBody
     -- Check that team members with no permissions can search
-    member <- userId <$> Team.createTeamMember brig galley owner tid Team.noPermissions
+    member <- userId <$> Team.createTeamMember brig galley owner tid noPermissions
     listTeamServiceProfilesByPrefix brig member tid Nothing True 20 !!!
         const 200 === statusCode
 
@@ -693,7 +694,7 @@ testWhitelistUpdatePermissions config db brig galley = do
     -- Create a team
     (owner, tid) <- Team.createUserWithTeam brig galley
     -- Create a team admin
-    let Just adminPermissions = Team.newPermissions Team.serviceWhitelistPermissions mempty
+    let Just adminPermissions = newPermissions serviceWhitelistPermissions mempty
     admin <- userId <$> Team.createTeamMember brig galley owner tid adminPermissions
     -- Create a service
     pid <- providerId <$> randomProvider db brig
@@ -706,7 +707,7 @@ testWhitelistUpdatePermissions config db brig galley = do
         const 403 === statusCode
         const (Just "insufficient-permissions") === fmap Error.label . decodeBody
     -- Check that a member who's not a team admin also can't add it to the whitelist
-    _uid <- userId <$> Team.createTeamMember brig galley owner tid Team.noPermissions
+    _uid <- userId <$> Team.createTeamMember brig galley owner tid noPermissions
     updateServiceWhitelist brig _uid tid (UpdateServiceWhitelist pid sid True) !!! do
         const 403 === statusCode
         const (Just "insufficient-permissions") === fmap Error.label . decodeBody
@@ -718,7 +719,7 @@ testSearchWhitelist :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
 testSearchWhitelist config db brig galley = do
     -- Create a team, a team owner, and a team member with no permissions
     (owner, tid) <- Team.createUserWithTeam brig galley
-    uid <- userId <$> Team.createTeamMember brig galley owner tid Team.noPermissions
+    uid <- userId <$> Team.createTeamMember brig galley owner tid noPermissions
 
     -- Create services and add them all to the whitelist
     pid  <- providerId <$> randomProvider db brig
@@ -1900,7 +1901,7 @@ prepareBotUsersTeam brig galley sref = do
     -- Prepare users
     (uid1, tid) <- Team.createUserWithTeam brig galley
     u1 <- selfUser <$> getSelfProfile brig uid1
-    u2 <- Team.createTeamMember brig galley uid1 tid Team.fullPermissions
+    u2 <- Team.createTeamMember brig galley uid1 tid fullPermissions
     let uid2 = userId u2
     h <- randomHandle
     putHandle brig uid1 h !!! const 200 === statusCode

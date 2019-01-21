@@ -90,6 +90,7 @@ import Data.Id
 import Data.Json.Util
 import Data.List1 (List1)
 import Data.Misc (PlainTextPassword (..))
+import Data.Role
 import Data.Time.Clock (diffUTCTime)
 import Data.UUID.V4 (nextRandom)
 import Network.Wai.Utilities
@@ -257,7 +258,7 @@ createUser new@NewUser{..} = do
         ok <- lift $ Data.claimKey uk uid
         unless ok $
             throwE $ DuplicateUserKey uk
-        let minvmeta :: (Maybe (UserId, UTCTimeMillis), Team.Role)
+        let minvmeta :: (Maybe (UserId, UTCTimeMillis), Role)
             minvmeta = ((, inCreatedAt inv) <$> inCreatedBy inv, Team.inRole inv)
         added <- lift $ Intra.addTeamMember uid (Team.iiTeam ii) minvmeta
         unless added $
@@ -273,7 +274,7 @@ createUser new@NewUser{..} = do
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO CreateUserTeam
     addUserToTeamSSO account tid ident = do
         let uid = userId (accountUser account)
-        added <- lift $ Intra.addTeamMember uid tid (Nothing, Team.defaultRole)
+        added <- lift $ Intra.addTeamMember uid tid (Nothing, defaultRole)
         unless added $
             throwE TooManyTeamMembers
         lift $ do
@@ -809,7 +810,7 @@ userGC u = case (userExpire u) of
             return u
 
 lookupProfile :: UserId -> UserId -> AppIO (Maybe UserProfile)
-lookupProfile self other = listToMaybe <$> lookupProfiles self [other]
+lookupProfile self_ other_ = listToMaybe <$> lookupProfiles self_ [other_]
 
 -- | Obtain user profiles for a list of users as they can be seen by
 -- a given user 'A'. User 'A' can see the 'FullProfile' of any other user 'B',
@@ -818,15 +819,15 @@ lookupProfile self other = listToMaybe <$> lookupProfiles self [other]
 lookupProfiles :: UserId   -- ^ User 'A' on whose behalf the profiles are requested.
                -> [UserId] -- ^ The users ('B's) for which to obtain the profiles.
                -> AppIO [UserProfile]
-lookupProfiles self others = do
-    users <- Data.lookupUsers others >>= mapM userGC
-    css   <- toMap <$> Data.lookupConnectionStatus (map userId users) [self]
+lookupProfiles self_ others_ = do
+    users <- Data.lookupUsers others_ >>= mapM userGC
+    css   <- toMap <$> Data.lookupConnectionStatus (map userId users) [self_]
     return $ map (toProfile css) users
   where
     toMap = Map.fromList . map (csFrom &&& csStatus)
     toProfile css u =
         let cs = Map.lookup (userId u) css
-        in if userId u == self || cs == Just Accepted || cs == Just Sent
+        in if userId u == self_ || cs == Just Accepted || cs == Just Sent
             then connectedProfile u
             else publicProfile u
 

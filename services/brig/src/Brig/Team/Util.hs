@@ -6,6 +6,7 @@ import Imports
 import Brig.App
 import Control.Lens
 import Data.Id
+import Data.Role
 import Galley.Types.Teams
 import Brig.API.Error
 import Control.Error

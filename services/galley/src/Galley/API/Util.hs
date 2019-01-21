@@ -14,6 +14,7 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Misc (PlainTextPassword (..))
+import Data.Role
 import Data.Time
 import Galley.App
 import Galley.API.Error

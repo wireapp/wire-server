@@ -95,6 +95,7 @@ import Data.List1 (List1, list1, singleton)
 import Data.List.Split (chunksOf)
 import Data.Misc (Milliseconds)
 import Data.Range
+import Data.Role
 import Data.Time.Clock
 import Data.UUID.V4 (nextRandom)
 import Galley.App

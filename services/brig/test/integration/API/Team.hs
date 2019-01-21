@@ -24,6 +24,7 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Data.Json.Util (toUTCTimeMillis)
+import Data.Role
 import Data.Time (getCurrentTime, addUTCTime)
 import Network.HTTP.Client             (Manager)
 import Test.Tasty hiding (Timeout)
@@ -157,26 +158,26 @@ testInvitationRoles brig galley = do
     -- owner creates a member alice.
     alice :: UserId <- do
         aliceEmail <- randomEmail
-        let invite = InvitationRequest aliceEmail (Name "Alice") Nothing (Just Team.RoleAdmin)
+        let invite = InvitationRequest aliceEmail (Name "Alice") Nothing (Just RoleAdmin)
         inv :: Invitation <- decodeBody =<< postInvitation brig tid owner invite
         registerInvite inv aliceEmail
 
     -- alice creates a collaborator bob.  success!  bob only has collaborator perms.
     do
         bobEmail <- randomEmail
-        let invite = InvitationRequest bobEmail (Name "Bob") Nothing (Just Team.RoleCollaborator)
+        let invite = InvitationRequest bobEmail (Name "Bob") Nothing (Just RoleCollaborator)
         inv :: Invitation <- decodeBody =<< (postInvitation brig tid alice invite <!! do
             const 201 === statusCode)
         uid <- registerInvite inv bobEmail
         let memreq = galley . zUser owner . zConn "c" .
               paths ["teams", toByteString' tid, "members", toByteString' uid]
         mem :: Team.TeamMember <- decodeBody =<< (get memreq <!! const 200 === statusCode)
-        liftIO $ assertEqual "perms" (Team.rolePermissions Team.RoleCollaborator) (mem ^. Team.permissions)
+        liftIO $ assertEqual "perms" (rolePermissions RoleCollaborator) (mem ^. Team.permissions)
 
     -- alice creates an owner charly.  failure!
     do
         charlyEmail <- randomEmail
-        let invite = InvitationRequest charlyEmail (Name "Charly") Nothing (Just Team.RoleOwner)
+        let invite = InvitationRequest charlyEmail (Name "Charly") Nothing (Just RoleOwner)
         postInvitation brig tid alice invite !!! do
             const 403 === statusCode
             const (Just "insufficient-permissions") === fmap Error.label . decodeBody
@@ -364,7 +365,7 @@ testInvitationTooManyMembers :: Brig -> Galley -> TeamSizeLimit -> Http ()
 testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
     (creator, tid) <- createUserWithTeam brig galley
     pooledForConcurrentlyN_ 16 [1..limit-1] $ \_ ->
-        createTeamMember brig galley creator tid Team.fullPermissions
+        createTeamMember brig galley creator tid fullPermissions
 
     em <- randomEmail
     let invite = InvitationRequest em (Name "Bob") Nothing Nothing
@@ -512,14 +513,14 @@ testDeleteTeamUser brig galley = do
         const 403 === statusCode
         const (Just "no-other-owner") === fmap Error.label . decodeBody
     -- Let's promote the other user
-    updatePermissions creator tid (invitee, Team.fullPermissions) galley
+    updatePermissions creator tid (invitee, fullPermissions) galley
     -- Now the creator can delete the account
     deleteUser creator (Just defPassword) brig !!! const 200 === statusCode
     -- The new full permission member cannot
     deleteUser invitee (Just defPassword) brig !!! const 403 === statusCode
     -- We can still invite new users who can delete their account, regardless of status
     inviteeFull <- userId <$> inviteAndRegisterUser invitee tid brig
-    updatePermissions invitee tid (inviteeFull, Team.fullPermissions) galley
+    updatePermissions invitee tid (inviteeFull, fullPermissions) galley
     deleteUser inviteeFull (Just defPassword) brig !!! const 200 === statusCode
 
     inviteeMember <- userId <$> inviteAndRegisterUser invitee tid brig
@@ -546,7 +547,7 @@ testSSOIsTeamOwner brig galley = do
     check expect2xx creator
     check expect4xx stranger
     check expect4xx invitee
-    updatePermissions creator tid (invitee, Team.fullPermissions) galley
+    updatePermissions creator tid (invitee, fullPermissions) galley
     check expect2xx invitee
 
 testConnectionSameTeam :: Brig -> Galley -> Http ()
@@ -660,13 +661,13 @@ testDeleteUserSSO brig galley = do
 
     -- create sso user with email, delete owner, delete user
     Just (userId -> creator') <- mkuser True
-    updatePermissions creator tid (creator', Team.fullPermissions) galley
+    updatePermissions creator tid (creator', fullPermissions) galley
     deleteUser creator (Just defPassword) brig !!! const 200 === statusCode
     deleteUser creator' (Just defPassword) brig !!! const 403 === statusCode
 
     -- create sso user without email, delete owner
     Just (userId -> user3) <- mkuser False
-    updatePermissions creator' tid (user3, Team.fullPermissions) galley
+    updatePermissions creator' tid (user3, fullPermissions) galley
     deleteUser creator' (Just defPassword) brig !!! const 403 === statusCode
 
     -- TODO:

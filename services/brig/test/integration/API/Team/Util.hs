@@ -19,6 +19,7 @@ import Data.ByteString.Conversion
 import Data.Id hiding (client)
 import Data.Misc (Milliseconds)
 import Data.Range
+import Data.Role
 import Galley.Types (ConvTeamInfo (..), NewConv (..), NewConvUnmanaged (..), NewConvManaged (..))
 import Test.Tasty.HUnit
 import Util
@@ -67,7 +68,7 @@ createTeamMember
     -> Galley
     -> UserId            -- ^ Team owner
     -> TeamId            -- ^ Team where the new user will be created
-    -> Team.Permissions  -- ^ Permissions that the new user will have
+    -> Permissions       -- ^ Permissions that the new user will have
     -> Http User
 createTeamMember brig galley owner tid perm = do
     user <- inviteAndRegisterUser owner tid brig
@@ -90,7 +91,7 @@ inviteAndRegisterUser u tid brig = do
     liftIO $ assertEqual "Team ID in self profile and team table do not match" selfTeam (Just tid)
     return invitee
 
-updatePermissions :: UserId -> TeamId -> (UserId, Team.Permissions) -> Galley -> Http ()
+updatePermissions :: UserId -> TeamId -> (UserId, Permissions) -> Galley -> Http ()
 updatePermissions from tid (to, perm) galley =
     put ( galley
         . paths ["teams", toByteString' tid, "members"]

@@ -32,6 +32,7 @@ import Data.LanguageCodes
 import Data.Misc
 import Data.Proxy
 import Data.Range
+import Data.Role
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (nil)

@@ -15,6 +15,7 @@ import Data.Id
 import Data.List1
 import Data.Misc
 import Data.Range
+import Data.Role
 import Galley.Types
 import Gundeck.Types.Notification
 import Network.Wai.Utilities.Error
@@ -419,7 +420,7 @@ postConvertTeamConv g b c setup = do
     alice <- randomUser b
     tid   <- createTeamInternal g "foo" alice
     assertQueue "create team" a tActivate
-    let p1 = symmPermissions [Teams.AddRemoveConvMember]
+    let p1 = symmPermissions [AddRemoveConvMember]
     bobMem <- (\u -> Teams.newTeamMember u p1 Nothing) <$> randomUser b
     addTeamMemberInternal g tid bobMem
     let bob = bobMem^.Teams.userId
@@ -912,8 +913,8 @@ deleteMembersOk g b _ _ = do
 deleteMembersFailSelf :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 deleteMembersFailSelf g b _ _ = do
     alice <- randomUser b
-    self  <- decodeConvId <$> postSelfConv g alice
-    deleteMember g alice alice self !!! const 403 === statusCode
+    self_ <- decodeConvId <$> postSelfConv g alice
+    deleteMember g alice alice self_ !!! const 403 === statusCode
 
 deleteMembersFailO2O :: Galley -> Brig -> Cannon -> TestSetup -> Http ()
 deleteMembersFailO2O g b _ _ = do

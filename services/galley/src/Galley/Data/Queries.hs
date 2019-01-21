@@ -12,6 +12,7 @@ import Cassandra.Util
 import Data.Id
 import Data.Json.Util
 import Data.Misc
+import Data.Role
 import Galley.Data.Types
 import Galley.Types hiding (Conversation)
 import Galley.Types.Bot

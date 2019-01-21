@@ -13,11 +13,12 @@ module Galley.Intra.Journal
 import Imports hiding (head)
 import Control.Lens
 import Data.Id
-import Data.Text (pack)
-import Galley.Types.Teams
 import Data.Proto
 import Data.Proto.Id
+import Data.Role
+import Data.Text (pack)
 import Galley.App
+import Galley.Types.Teams
 import Proto.TeamEvents
 
 import qualified Data.Currency as Currency
