@@ -7,7 +7,7 @@ import Brig.Types.Common
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
-import Galley.Types.Teams (Role)
+import Galley.Types.Teams
 
 data InvitationRequest = InvitationRequest
     { irEmail    :: !Email
