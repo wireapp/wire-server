@@ -49,7 +49,8 @@ instance ToJSON InvitationRequest where
 instance FromJSON Invitation where
     parseJSON = withObject "invitation" $ \o ->
         Invitation <$> o .: "team"
-                   <*> o .: "role"
+                       -- clients don't can leave the default role choice to us:
+                   <*> (fromMaybe defaultRole <$> (o .:? "role"))
                    <*> o .: "id"
                    <*> o .: "email"
                    <*> o .: "created_at"
