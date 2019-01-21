@@ -1,0 +1,31 @@
+galley:
+  host: galley
+  port: 8085
+
+cassandra:
+  endpoint:
+    host: cassandra
+    port: 9042
+  keyspace: galley_test
+
+brig:
+  host: brig
+  port: 8082
+
+gundeck:
+  host: gundeck
+  port: 8086
+
+spar:
+  host: spar
+  port: 8088
+
+settings:
+  httpPoolSize: 1024
+  maxTeamSize: 128
+  maxConvSize: 128
+  intraListing: false
+  conversationCodeURI: https://cannon/join/
+
+logLevel: Info
+logNetStrings: false
