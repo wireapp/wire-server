@@ -2,10 +2,11 @@ LANG := en_US.UTF-8
 SHELL        := /usr/bin/env bash
 NAME         := makedeb
 VERSION      ?=
+ARCH  	     := $(shell [ -f "`which dpkg-architecture`" ]  && dpkg-architecture -qDEB_HOST_ARCH )
 BUILD_NUMBER ?= 0
 BUILD_LABEL  ?= local
 BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
+DEB          := $(NAME)_$(VERSION)+$(BUILD)_$(ARCH).deb
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -31,7 +32,7 @@ clean:
 install: init
 	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
-.PHONY:
+.PHONY: compile
 compile:
 	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
@@ -43,7 +44,7 @@ $(DEB):
 	cp -R -L deb $($@_DIR)
 	sed -i "s/<<VERSION_NUMBER>>/$(VERSION)/g" $($@_DIR)/deb/DEBIAN/control
 	sed -i "s/<<BUILD_NUMBER>>/$(BUILD)/g" $($@_DIR)/deb/DEBIAN/control
-	sed -i "s/<<ARCHITECTURE>>/amd64/g" $($@_DIR)/deb/DEBIAN/control
+	sed -i "s/<<ARCHITECTURE>>/$(ARCH)/g" $($@_DIR)/deb/DEBIAN/control
 	dpkg-deb -b $($@_DIR)/deb ../../dist/$(DEB)
 	rm -rf $($@_DIR)
 
