@@ -17,7 +17,7 @@ sudo dnf install -y pkgconfig haskell-platform libstdc++-devel libstdc++-static 
 
 ### Ubuntu / Debian:
 
-_Note_: Debian is not recommended due to this issue when running local integration tests: [#327](https://github.com/wireapp/wire-server/issues/327)*. This issue does not occur with ubuntu.
+_Note_: Debian is not recommended due to this issue when running local integration tests: [#327](https://github.com/wireapp/wire-server/issues/327)*. This issue does not occur with Ubuntu.
 
 ```bash
 sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler libxml2-dev zlib1g-dev-y
