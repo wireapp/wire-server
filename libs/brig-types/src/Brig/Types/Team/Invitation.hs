@@ -49,7 +49,7 @@ instance ToJSON InvitationRequest where
 instance FromJSON Invitation where
     parseJSON = withObject "invitation" $ \o ->
         Invitation <$> o .: "team"
-                       -- clients don't can leave the default role choice to us:
+                       -- clients, when leaving "role" empty, can leave the default role choice to us
                    <*> (fromMaybe defaultRole <$> (o .:? "role"))
                    <*> o .: "id"
                    <*> o .: "email"
