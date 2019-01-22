@@ -7,29 +7,25 @@ In addition to the information below, you can also consult the Dockerfiles for A
 * [alpine setup for Haskell services](../build/alpine/Dockerfile.builder)
 * [alpine setup for nginz](../services/nginz/Dockerfile)
 
-### General Package dependencies (needed to compile Haskell services)
+## General package dependencies (needed to compile Haskell services)
 
-#### Fedora:
+### Fedora:
 
 ```bash
 sudo dnf install -y pkgconfig haskell-platform libstdc++-devel libstdc++-static gcc-c++ libtool automake openssl-devel libsodium-devel ncurses-compat-libs libicu-devel GeoIP-devel libxml2-devel snappy-devel protobuf-compiler
 ```
 
-#### Debian:
+### Ubuntu / Debian:
 
-*Note: Debian is not recommended due to this issue when running local integration tests: [#327](https://github.com/wireapp/wire-server/issues/327)*
+_Note_: Debian is not recommended due to this issue when running local integration tests: [#327](https://github.com/wireapp/wire-server/issues/327)*. This issue does not occur with Ubuntu.
 
 ```bash
-sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler libxml2-dev -y
+sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler libxml2-dev zlib1g-dev -y
 ```
 
 If `openssl-dev` does not work for you, try `libssl-dev`.
 
-#### Ubuntu:
-
-Hopefully almost like Debian.
-
-#### Arch:
+### Arch:
 
 ```
 # You might also need 'sudo pacman -S base-devel' if you haven't
@@ -37,7 +33,7 @@ Hopefully almost like Debian.
 sudo pacman -S geoip snappy icu openssl
 ```
 
-#### macOS:
+### macOS:
 
 ```bash
 brew install pkg-config libsodium openssl automake icu4c geoip snappy protobuf
@@ -55,15 +51,9 @@ extra-lib-dirs:
 - /usr/local/opt/icu4c/lib
 ```
 
-### Haskell Stack
+## Haskell Stack
 
-```bash
-curl -sSL https://get.haskellstack.org/ | sh
-# or
-wget -qO- https://get.haskellstack.org/ | sh
-```
-
-Ensure `stack --version` is >= 1.6.5
+When you're done, ensure `stack --version` is >= 1.6.5
 
 You may wish to make executables installed by stack available, by e.g. adding the following to your shell profile:
 
@@ -71,15 +61,58 @@ You may wish to make executables installed by stack available, by e.g. adding th
 export PATH=~/.local/bin:$PATH
 ```
 
-### Rust
+### Ubuntu / Debian Unstable
+_Note_: Debian stretch packages too old of a version of haskell-stack. It is recommended to retrieve the version available from testing, or unstable, or to use stack to update stack.(https://github.com/commercialhaskell/stack/issues/3686)*
+
+```bash
+sudo apt install haskell-stack -y
+```
+
+### Generic
+
+```bash
+curl -sSL https://get.haskellstack.org/ | sh
+# or
+wget -qO- https://get.haskellstack.org/ | sh
+```
+
+## Rust
+
+### Ubuntu / Debian
+```bash
+sudo apt install rustc cargo -y
+```
+
+### Generic
 
 ```bash
 curl https://sh.rustup.rs -sSf | sh
 source $HOME/.cargo/env
 ```
+## makedeb
 
-### cryptobox-c
+This is a tool to create debian-style binary packages. It is optional, and is only used if you want to install debian-style packages on your debian or ubuntu system.
 
+_Note_: If you want to build debian-style packages of cryptobox-c and other wire utilities, execute this step. otherwise, make sure to execute the 'Generic' version of the cryptobox-c step.
+
+```bash
+git clone https://github.com/wireapp/wire-server && cd wire-server/tools/makedeb
+export VERSION=0
+make dist
+dpkg -i ../../dist/makedeb*.deb
+```
+
+## cryptobox-c
+
+### Ubuntu / Debian
+
+```bash
+git clone https://github.com/wireapp/cryptobox-c && cd cryptobox-c
+make dist
+dpkg -i target/release/cryptobox*.deb
+```
+
+### Generic
 ```bash
 export TARGET_LIB="$HOME/.wire-dev/lib"
 export TARGET_INCLUDE="$HOME/.wire-dev/include"
@@ -107,16 +140,16 @@ extra-lib-dirs:
 - <YOUR_HOME_DIR>/.wire-dev/lib
 ```
 
-### makedeb
+## Docker
 
-Create debian packages, optional, only used in `make dist`
+_Note_: While it is possible to use non-docker solutions to set up and configure this software, we recommend using docker and our provided docker images to configure dependent services rapidly, and ensure a consistent environment for all potential developers.
 
+### Ubuntu / Debian Testing/Unstable:
 ```bash
-git clone https://github.com/wireapp/wire-server && cd wire-server/tools/makedeb
-stack install
+sudo apt install docker.io docker-compose
 ```
 
-### Docker
+### Generic:
 
 * [Install docker](https://docker.com)
 * [Install docker-compose](https://docs.docker.com/compose/install/)
