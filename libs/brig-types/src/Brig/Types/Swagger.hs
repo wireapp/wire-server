@@ -391,10 +391,10 @@ invitation = defineModel "Invitation" $ do
     property "inviter" bytes' $
         description "User ID of the inviter"
     property "role" role $ do
-        description "User ID of the inviter"
+        description "Role of the invited user"
         optional
     property "id" bytes' $
-        description "UUID used to refer the invitation"
+        description "UUID used to refer to the invitation"
     property "email" string' $ do
         description "Email of the invitee"
         optional
