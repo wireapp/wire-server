@@ -301,14 +301,18 @@ updSCIMStoredUser usr storedusr = do
   now <- SAML.getNow
   pure $ updSCIMStoredUser' now usr storedusr
 
--- TODO: recalculate the 'version', too
 updSCIMStoredUser'
   :: SAML.Time
   -> SCIM.User.User
   -> SCIM.Class.User.StoredUser
   -> SCIM.Class.User.StoredUser
 updSCIMStoredUser' (SAML.Time moddate) usr (SCIM.WithMeta meta (SCIM.WithId scimuid _)) =
-  SCIM.WithMeta (meta { SCIM.lastModified = moddate }) (SCIM.WithId scimuid usr)
+    SCIM.WithMeta meta' (SCIM.WithId scimuid usr)
+  where
+    meta' = meta
+      { SCIM.lastModified = moddate
+      , SCIM.version = calculateVersion scimuid usr
+      }
 
 parseUid
   :: forall m m'. (m ~ SCIM.SCIMHandler m', Monad m')
