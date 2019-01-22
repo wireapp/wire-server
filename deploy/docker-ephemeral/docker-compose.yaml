@@ -1,16 +1,27 @@
 version: '2'
+networks:
+  demo_wire:
+    external: false
+
 services:
   fake_dynamodb:
+    container_name: demo_wire_dynamodb
     image: cnadiminti/dynamodb-local:2018-04-11
     ports:
       - 127.0.0.1:4567:8000
+    networks:
+      - demo_wire
 
   fake_sqs:
+    container_name: demo_wire_sqs
     image: airdock/fake-sqs:0.3.1
     ports:
       - 127.0.0.1:4568:4568
+    networks:
+      - demo_wire
 
   fake_localstack:
+    container_name: demo_wire_localstack
     image: localstack/localstack:0.8.0  # NB: this is younger than 0.8.6!
     ports:
       - 127.0.0.1:4569:4579 # ses # needed for local integration tests
@@ -19,14 +30,20 @@ services:
       - DEBUG=1
       - DEFAULT_REGION=eu-west-1
       - SERVICES=ses,sns
+    networks:
+      - demo_wire
 
   basic_smtp: # needed for demo setup
+    container_name: demo_wire_smtp
     # https://github.com/namshi/docker-smtp
     image: namshi/smtp
     ports:
         - 127.0.0.1:2500:25
+    networks:
+      - demo_wire
 
   fake_s3:
+    container_name: demo_wire_s3
     image: minio/minio:RELEASE.2018-05-25T19-49-13Z
     ports:
      - "127.0.0.1:4570:9000"
@@ -34,6 +51,8 @@ services:
       MINIO_ACCESS_KEY: dummykey
       MINIO_SECRET_KEY: dummysecret # minio requires a secret of at least 8 chars
     command: server /tmp
+    networks:
+      - demo_wire
 
   # activemq:
   #   image: rmohr/activemq:5.15.4
@@ -41,22 +60,31 @@ services:
   #     - "61613:61613"
 
   redis:
+    container_name: demo_wire_redis
     image: redis:3.0.7-alpine
     ports:
       - "127.0.0.1:6379:6379"
+    networks:
+      - demo_wire
 
   elasticsearch:
+    container_name: demo_wire_elasticsearch
     image: elasticsearch:5.6
     # https://hub.docker.com/_/elastic is deprecated, but 6.2.4 did not work without further changes.
     # image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
     ports:
       - "127.0.0.1:9200:9200"
       - "127.0.0.1:9300:9300"
+    networks:
+      - demo_wire
 
   cassandra:
+    container_name: demo_wire_cassandra
     image: cassandra:3.11.2
     ports:
       - "127.0.0.1:9042:9042"
+    networks:
+      - demo_wire
 
   db_migrations_brig_schema:
     image: quay.io/wire/brig-schema
@@ -67,6 +95,8 @@ services:
       - ./:/scripts
     links:
       - cassandra
+    networks:
+      - demo_wire
 
   db_migrations_brig_index:
     image: quay.io/wire/brig-index
@@ -77,6 +107,8 @@ services:
       - ./:/scripts
     links:
       - elasticsearch
+    networks:
+      - demo_wire
 
   db_migrations_galley:
     image: quay.io/wire/galley-schema
@@ -87,6 +119,8 @@ services:
       - ./:/scripts
     links:
       - cassandra
+    networks:
+      - demo_wire
 
   db_migrations_gundeck:
     image: quay.io/wire/gundeck-schema
@@ -97,6 +131,8 @@ services:
       - ./:/scripts
     links:
       - cassandra
+    networks:
+      - demo_wire
 
   db_migrations_spar:
     image: quay.io/wire/spar-schema
@@ -107,6 +143,8 @@ services:
       - ./:/scripts
     links:
       - cassandra
+    networks:
+      - demo_wire
 
   aws_cli:
     image: mesosphere/aws-cli:1.14.5
@@ -124,3 +162,5 @@ services:
     entrypoint: /scripts/init.sh
     volumes:
       - ./:/scripts
+    networks:
+      - demo_wire

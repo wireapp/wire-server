@@ -14,7 +14,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-module Util.SCIM where
+module Util.Scim where
 
 import Imports
 import Bilge
@@ -51,16 +51,16 @@ import qualified Web.SCIM.Schema.User             as SCIM.User
 import qualified Web.SCIM.Schema.User.Email       as Email
 
 
--- | Call 'registerTestIdP', then 'registerSCIMToken'.  The user returned is the owner of the team;
+-- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
-registerIdPAndSCIMToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP))
-registerIdPAndSCIMToken = do
+registerIdPAndScimToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP))
+registerIdPAndScimToken = do
   team@(_owner, teamid, idp) <- registerTestIdP
-  (, team) <$> registerSCIMToken teamid (Just (idp ^. idpId))
+  (, team) <$> registerScimToken teamid (Just (idp ^. idpId))
 
 -- | Create a fresh SCIM token and register it for the team.
-registerSCIMToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
-registerSCIMToken teamid midpid = do
+registerScimToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
+registerScimToken teamid midpid = do
   env <- ask
   tok <- ScimToken <$> do
     code <- liftIO UUID.nextRandom
@@ -112,8 +112,8 @@ randomSCIMEmail = do
 createUser
     :: HasCallStack
     => ScimToken
-    -> SCIM.User.User
-    -> TestSpar SCIM.StoredUser
+    -> Scim.User.User
+    -> TestSpar Scim.StoredUser
 createUser tok user = do
     env <- ask
     r <- createUser_
@@ -144,8 +144,8 @@ updateUser tok userid user = do
 listUsers
     :: HasCallStack
     => ScimToken
-    -> Maybe SCIM.Filter
-    -> TestSpar [SCIM.StoredUser]
+    -> Maybe Scim.Filter
+    -> TestSpar [Scim.StoredUser]
 listUsers tok mbFilter = do
     env <- ask
     r <- listUsers_
@@ -154,17 +154,17 @@ listUsers tok mbFilter = do
              (env ^. teSpar)
          <!! const 200 === statusCode
     let r' = decodeBody' r
-    when (SCIM.totalResults r' /= length (SCIM.resources r')) $
+    when (Scim.totalResults r' /= length (Scim.resources r')) $
         error "listUsers: got a paginated result, but pagination \
               \is not supported yet"
-    pure (SCIM.resources r')
+    pure (Scim.resources r')
 
 -- | Get a user.
 getUser
     :: HasCallStack
     => ScimToken
     -> UserId
-    -> TestSpar SCIM.StoredUser
+    -> TestSpar Scim.StoredUser
 getUser tok userid = do
     env <- ask
     r <- getUser_
@@ -222,7 +222,7 @@ listTokens zusr = do
 -- | Create a user.
 createUser_
     :: Maybe ScimToken          -- ^ Authentication
-    -> SCIM.User.User           -- ^ User data
+    -> Scim.User.User           -- ^ User data
     -> SparReq                  -- ^ Spar endpoint
     -> TestSpar ResponseLBS
 createUser_ auth user spar_ = do
@@ -262,14 +262,14 @@ updateUser_ auth muid user spar_ = do
 -- | List all users.
 listUsers_
     :: Maybe ScimToken          -- ^ Authentication
-    -> Maybe SCIM.Filter        -- ^ Predicate to filter the results
+    -> Maybe Scim.Filter        -- ^ Predicate to filter the results
     -> SparReq                  -- ^ Spar endpoint
     -> TestSpar ResponseLBS
 listUsers_ auth mbFilter spar_ = do
     call . get $
         ( spar_
         . paths ["scim", "v2", "Users"]
-        . queryItem' "filter" (toByteString' . SCIM.renderFilter <$> mbFilter)
+        . queryItem' "filter" (toByteString' . Scim.renderFilter <$> mbFilter)
         . scimAuth auth
         . acceptScim
         )
@@ -347,7 +347,7 @@ acceptScim :: Request -> Request
 acceptScim = accept "application/scim+json"
 
 -- | Get ID of a user returned from SCIM.
-scimUserId :: SCIM.StoredUser -> UserId
+scimUserId :: Scim.StoredUser -> UserId
 scimUserId storedUser = either err id (readEither id_)
   where
     id_ = cs (SCIM.id (SCIM.thing storedUser))

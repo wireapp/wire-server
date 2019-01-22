@@ -20,7 +20,7 @@ import qualified Test.Spar.APISpec
 import qualified Test.Spar.AppSpec
 import qualified Test.Spar.DataSpec
 import qualified Test.Spar.Intra.BrigSpec
-import qualified Test.Spar.SCIMSpec
+import qualified Test.Spar.ScimSpec
 
 
 main :: IO ()
@@ -43,4 +43,4 @@ mkspec = do
     describe "Test.Spar.App" Test.Spar.AppSpec.spec
     describe "Test.Spar.Data" Test.Spar.DataSpec.spec
     describe "Test.Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
-    describe "Test.Spar.SCIM" Test.Spar.SCIMSpec.spec
+    describe "Test.Spar.Scim" Test.Spar.ScimSpec.spec

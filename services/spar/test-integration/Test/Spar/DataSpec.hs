@@ -25,9 +25,9 @@ import Spar.Types
 import URI.ByteString.QQ (uri)
 import Util.Core
 import Util.Types
-import Util.SCIM
-import Web.SCIM.Schema.Meta as SCIM.Meta
-import Web.SCIM.Schema.Common as SCIM.Common
+import Util.Scim
+import Web.Scim.Schema.Meta as Scim.Meta
+import Web.Scim.Schema.Common as Scim.Common
 
 
 spec :: SpecWith TestEnv
@@ -233,13 +233,13 @@ testSPStoreID store unstore isalive = do
 testDeleteTeam :: SpecWith TestEnv
 testDeleteTeam = it "cleans up all the right tables after deletion" $ do
     -- Create a team with two users and a SCIM token
-    (tok, (_uid, tid, idp)) <- registerIdPAndSCIMToken
-    user1 <- randomSCIMUser
-    user2 <- randomSCIMUser
+    (tok, (_uid, tid, idp)) <- registerIdPAndScimToken
+    user1 <- randomScimUser
+    user2 <- randomScimUser
     storedUser1 <- createUser tok user1
     storedUser2 <- createUser tok user2
     -- Resolve the users' SSO ids
-    let getUid = read . unpack . SCIM.Common.id . SCIM.Meta.thing
+    let getUid = read . unpack . Scim.Common.id . Scim.Meta.thing
     ssoid1 <- getSsoidViaSelf (getUid storedUser1)
     ssoid2 <- getSsoidViaSelf (getUid storedUser2)
     -- Delete the team
