@@ -84,6 +84,8 @@ createTeamGroupConv zusr zcon tinfo body = do
             let uu = filter (/= zusr) $ map (view userId) mems
             checkedConvSize uu
         else do
+            when (length mems > 1) $ do
+                void $ permissionCheck zusr AddRemoveConvMember mems
             uu <- checkedConvSize (newConvUsers body)
             ensureConnected zusr (notTeamMember (fromConvSize uu) mems)
             pure uu
