@@ -15,7 +15,7 @@ In addition to the information below, you can also consult the Dockerfiles for A
 sudo dnf install -y pkgconfig haskell-platform libstdc++-devel libstdc++-static gcc-c++ libtool automake openssl-devel libsodium-devel ncurses-compat-libs libicu-devel GeoIP-devel libxml2-devel snappy-devel protobuf-compiler
 ```
 
-### Debian/Ubuntu:
+### Ubuntu/Debian:
 
 _Note_: Debian is not recommended due to this issue when running local integration tests: [#327](https://github.com/wireapp/wire-server/issues/327)*. This issue does not occur with ubuntu.
 
@@ -144,7 +144,7 @@ extra-lib-dirs:
 
 _Note_: While it is possible to use non-docker solutions to set up and configure this software, we recommend using docker and our provided docker images to configure dependent services rapidly, and ensure a consistent environment for all potential developers.
 
-### Debian Testing/Unstable:
+### Ubuntu / Debian Testing/Unstable:
 ```bash
 sudo apt install docker.io docker-compose
 ```
