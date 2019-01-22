@@ -18,6 +18,7 @@ sudo dnf install -y pkgconfig haskell-platform libstdc++-devel libstdc++-static 
 ### Debian/Ubuntu:
 
 _Note_: Debian is not recommended due to this issue when running local integration tests: [#327](https://github.com/wireapp/wire-server/issues/327)*. This issue does not occur with ubuntu.
+
 _Note_: If you want to build debian-style packages, skip to the 'makedeb' section of the instructions, and complete them, before continuing with the below steps.
 
 ```bash
