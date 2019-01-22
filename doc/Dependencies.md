@@ -15,7 +15,7 @@ In addition to the information below, you can also consult the Dockerfiles for A
 sudo dnf install -y pkgconfig haskell-platform libstdc++-devel libstdc++-static gcc-c++ libtool automake openssl-devel libsodium-devel ncurses-compat-libs libicu-devel GeoIP-devel libxml2-devel snappy-devel protobuf-compiler
 ```
 
-### Ubuntu/Debian:
+### Ubuntu / Debian:
 
 _Note_: Debian is not recommended due to this issue when running local integration tests: [#327](https://github.com/wireapp/wire-server/issues/327)*. This issue does not occur with ubuntu.
 
