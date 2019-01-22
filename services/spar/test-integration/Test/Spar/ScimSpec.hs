@@ -9,14 +9,14 @@
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE LambdaCase          #-}
 
-module Test.Spar.SCIMSpec where
+module Test.Spar.ScimSpec where
 
 import Imports
 import Bilge
 import Bilge.Assert
 import Control.Lens
 import Data.ByteString.Conversion
-import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
+import Spar.Scim (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
 import Spar.Types (ScimTokenInfo(..))
 import Util
 
@@ -32,8 +32,8 @@ specUsers = describe "operations with users" $ do
         it "creates a user in an existing team" $ do
             env <- ask
             -- Create a user via SCIM
-            user <- randomSCIMUser
-            (tok, _) <- registerIdPAndSCIMToken
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
             scimStoredUser <- createUser tok user
             let userid = scimUserId scimStoredUser
             -- Check that this user is present in Brig and that Brig's view
@@ -49,8 +49,8 @@ specUsers = describe "operations with users" $ do
     describe "GET /Users" $ do
         it "lists all users in a team" $ do
             -- Create a user via SCIM
-            user <- randomSCIMUser
-            (tok, (owner, _, _)) <- registerIdPAndSCIMToken
+            user <- randomScimUser
+            (tok, (owner, _, _)) <- registerIdPAndScimToken
             storedUser <- createUser tok user
             -- Get all users via SCIM
             users <- listUsers tok Nothing
@@ -66,8 +66,8 @@ specUsers = describe "operations with users" $ do
         it "doesn't list deleted users" $ do
             env <- ask
             -- Create a user via SCIM
-            user <- randomSCIMUser
-            (tok, _) <- registerIdPAndSCIMToken
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
             -- Delete the user (TODO: do it via SCIM)
@@ -80,8 +80,8 @@ specUsers = describe "operations with users" $ do
     describe "GET /Users/:id" $ do
         it "finds a SCIM-provisioned user" $ do
             -- Create a user via SCIM
-            user <- randomSCIMUser
-            (tok, _) <- registerIdPAndSCIMToken
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
             storedUser <- createUser tok user
             -- Check that the SCIM-provisioned user can be fetched
             storedUser' <- getUser tok (scimUserId storedUser)
@@ -108,8 +108,8 @@ specUsers = describe "operations with users" $ do
         it "doesn't find a deleted user" $ do
             env <- ask
             -- Create a user via SCIM
-            user <- randomSCIMUser
-            (tok, _) <- registerIdPAndSCIMToken
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
             -- Delete the user (TODO: do it via SCIM)

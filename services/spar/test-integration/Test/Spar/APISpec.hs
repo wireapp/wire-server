@@ -35,10 +35,10 @@ import qualified Data.ByteString.Builder as LB
 import qualified Data.ZAuth.Token as ZAuth
 import qualified Galley.Types.Teams as Galley
 import qualified Spar.Intra.Brig as Intra
-import qualified Util.SCIM as SCIMT
+import qualified Util.Scim as ScimT
 import qualified Web.Cookie as Cky
-import qualified Web.SCIM.Class.User as SCIM
-import qualified Web.SCIM.Schema.User as SCIM
+import qualified Web.Scim.Class.User as Scim
+import qualified Web.Scim.Schema.User as Scim
 
 
 spec :: SpecWith TestEnv
@@ -49,7 +49,7 @@ spec = do
   specFinalizeLogin
   specBindingUsers
   specCRUDIdentityProvider
-  specSCIMAndSAML
+  specScimAndSAML
   specAux
 
 
@@ -631,19 +631,19 @@ specCRUDIdentityProvider = do
           liftIO $ idp `shouldBe` idp'
 
 
-specSCIMAndSAML :: SpecWith TestEnv
-specSCIMAndSAML = do
+specScimAndSAML :: SpecWith TestEnv
+specScimAndSAML = do
     it "SCIM and SAML work together and SCIM-created users can login" $ do
       env <- ask
 
       -- create a user via scim
-      (tok, (_, _, idp))                <- SCIMT.registerIdPAndSCIMToken
-      usr            :: SCIM.User       <- SCIMT.randomSCIMUser
-      scimStoredUser :: SCIM.StoredUser <- SCIMT.createUser tok usr
-      let userid     :: UserId           = SCIMT.scimUserId scimStoredUser
+      (tok, (_, _, idp))                <- ScimT.registerIdPAndScimToken
+      usr            :: Scim.User       <- ScimT.randomScimUser
+      scimStoredUser :: Scim.StoredUser <- ScimT.createUser tok usr
+      let userid     :: UserId           = ScimT.scimUserId scimStoredUser
           userref    :: UserRef          = UserRef tenant subject
           tenant     :: Issuer           = idp ^. idpMetadata . edIssuer
-          subject    :: NameID           = opaqueNameID . fromMaybe (error "no external id") . SCIM.externalId $ usr
+          subject    :: NameID           = opaqueNameID . fromMaybe (error "no external id") . Scim.externalId $ usr
 
       -- UserRef maps onto correct UserId in spar (and back).
       userid' <- getUserIdViaRef' userref
