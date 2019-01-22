@@ -38,8 +38,8 @@ module Spar.Scim
   , ScimTokenList(..)
 
   -- * testing
-  , validateSCIMUser'
-  , toSCIMStoredUser'
+  , validateScimUser'
+  , toScimStoredUser'
   ) where
 
 import Imports
@@ -120,24 +120,24 @@ apiScim = hoistScim (toServant (Scim.siteServer configuration))
 ----------------------------------------------------------------------------
 -- UserDB
 
--- | Retrieve 'IdP' from 'ScimTokenInfo' and call 'validateSCIMUser''.
-validateSCIMUser
-  :: forall m. (m ~ SCIM.SCIMHandler Spar)
-  => ScimTokenInfo -> SCIM.User.User -> m ValidSCIMUser
-validateSCIMUser ScimTokenInfo{stiIdP} user = do
+-- | Retrieve 'IdP' from 'ScimTokenInfo' and call 'validateScimUser''.
+validateScimUser
+  :: forall m. (m ~ Scim.ScimHandler Spar)
+  => ScimTokenInfo -> Scim.User.User -> m ValidScimUser
+validateScimUser ScimTokenInfo{stiIdP} user = do
     idp <- case stiIdP of
-        Nothing -> SCIM.throwSCIM $
-          SCIM.serverError "No IdP configured for the provisioning token"
+        Nothing -> Scim.throwScim $
+          Scim.serverError "No IdP configured for the provisioning token"
         Just idp -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
-            Nothing -> SCIM.throwSCIM $
-              SCIM.serverError "The IdP corresponding to the provisioning token \
+            Nothing -> Scim.throwScim $
+              Scim.serverError "The IdP corresponding to the provisioning token \
                                \was not found"
             Just idpConfig -> pure idpConfig
-    validateSCIMUser' (Just idp) user
+    validateScimUser' (Just idp) user
 
 -- | Map the SCIM data on the spar and brig schemata, and throw errors if
 -- the SCIM data does not comply with the standard / our constraints.
--- See also: 'ValidSCIMUser'.
+-- See also: 'ValidScimUser'.
 --
 --   * @userName@ is mapped to our 'userHandle'. If there is no handle, we
 --     use 'userId', because having some unique @userName@ is a SCIM
@@ -148,7 +148,7 @@ validateSCIMUser ScimTokenInfo{stiIdP} user = do
 --
 --   * @displayName@ is mapped to our 'userName'.
 --
---   * A mandatory @SAML.UserRef@ is derived from 'SCIM.User.externalId'
+--   * A mandatory @SAML.UserRef@ is derived from 'Scim.User.externalId'
 --     and the 'idpId' (retrieved via SCIM token).  FUTUREWORK: We may
 --     need to make the SAML NameID type derived from the available SCIM
 --     data configurable on a per-team basis in the future, to accomodate
@@ -164,53 +164,53 @@ validateSCIMUser ScimTokenInfo{stiIdP} user = do
 -- other apps also ignore this model. Leaving @name@ empty will prevent the
 -- confusion that might appear when somebody tries to set @name@ to some
 -- value and the @displayName@ won't be affected by that change.
-validateSCIMUser'
-  :: forall m. (MonadError SCIM.SCIMError m)
-  => Maybe IdP -> SCIM.User.User -> m ValidSCIMUser
-validateSCIMUser' Nothing _ =
-    throwError $ SCIM.serverError "SCIM users without SAML SSO are not supported"
-validateSCIMUser' (Just idp) user = do
+validateScimUser'
+  :: forall m. (MonadError Scim.ScimError m)
+  => Maybe IdP -> Scim.User.User -> m ValidScimUser
+validateScimUser' Nothing _ =
+    throwError $ Scim.serverError "SCIM users without SAML SSO are not supported"
+validateScimUser' (Just idp) user = do
     let validateNameOrExtId :: Maybe Text -> m (Maybe Text)
         validateNameOrExtId mtxt = forM mtxt $ \txt ->
           case checkedEitherMsg @_ @1 @128 "displayName" txt of
             Right rtxt -> pure $ fromRange rtxt
-            Left err -> throwError $ SCIM.badRequest SCIM.InvalidValue
+            Left err -> throwError $ Scim.badRequest Scim.InvalidValue
               (Just ("displayName is not compliant: " <> Text.pack err))
 
     uref :: SAML.UserRef <- do
       msubjid <- SAML.opaqueNameID <$$>
-        validateNameOrExtId (SCIM.User.externalId user)
+        validateNameOrExtId (Scim.User.externalId user)
 
       case msubjid of
         Just subj -> do
             pure $ SAML.UserRef (idp ^. SAML.idpMetadata . SAML.edIssuer) subj
         Nothing -> throwError $
-            SCIM.badRequest SCIM.InvalidValue (Just "externalId is required for SAML users")
+            Scim.badRequest Scim.InvalidValue (Just "externalId is required for SAML users")
 
-    handl <- case parseHandle (SCIM.User.userName user) of
+    handl <- case parseHandle (Scim.User.userName user) of
       Just x -> pure x
       Nothing -> throwError $
-        SCIM.badRequest SCIM.InvalidValue (Just "userName is not compliant")
+        Scim.badRequest Scim.InvalidValue (Just "userName is not compliant")
 
     -- We check the name for validity, but only if it's present
-    mbName <- Name <$$> validateNameOrExtId (SCIM.User.displayName user)
+    mbName <- Name <$$> validateNameOrExtId (Scim.User.displayName user)
 
     -- NB: We assume that checking that the user does _not_ exist has
     -- already been done before -- the hscim library check does a 'get'
     -- before a 'create'
 
-    pure $ ValidSCIMUser user uref handl mbName
+    pure $ ValidScimUser user uref handl mbName
 
 -- | We only allow SCIM users that authenticate via SAML.  (This is by no means necessary, though.
 -- It can be relaxed to allow creating users with password authentication if that is a requirement.)
-createValidSCIMUser
-  :: forall m. (m ~ SCIM.SCIMHandler Spar)
-  => ValidSCIMUser -> m SCIM.Class.User.StoredUser
-createValidSCIMUser (ValidSCIMUser user uref handl mbName) = do
+createValidScimUser
+  :: forall m. (m ~ Scim.ScimHandler Spar)
+  => ValidScimUser -> m Scim.Class.User.StoredUser
+createValidScimUser (ValidScimUser user uref handl mbName) = do
     -- This UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
     -- Create SCIM user here in spar.
-    storedUser <- lift $ toSCIMStoredUser buid user
+    storedUser <- lift $ toScimStoredUser buid user
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
     -- Create SAML user here in spar, which in turn creates a brig user.
     lift $ createUser_ buid uref mbName
@@ -219,17 +219,17 @@ createValidSCIMUser (ValidSCIMUser user uref handl mbName) = do
 
     pure storedUser
 
-updateValidSCIMUser
-  :: forall m. (m ~ SCIM.SCIMHandler Spar)
-  => ScimTokenInfo -> Text -> ValidSCIMUser -> m SCIM.Class.User.StoredUser
-updateValidSCIMUser tokinfo uidText newScimUser = do
+updateValidScimUser
+  :: forall m. (m ~ Scim.ScimHandler Spar)
+  => ScimTokenInfo -> Text -> ValidScimUser -> m Scim.Class.User.StoredUser
+updateValidScimUser tokinfo uidText newScimUser = do
 
     -- TODO: currently the types in @hscim@ are constructed in such a way that
-    -- 'SCIM.User.User' doesn't contain an ID, only 'SCIM.Class.User.StoredUser'
+    -- 'Scim.User.User' doesn't contain an ID, only 'Scim.Class.User.StoredUser'
     -- does. @fisx believes that this situation could be improved (see
     -- <https://github.com/wireapp/wire-server/pull/559#discussion_r247392882>).
     --
-    -- If 'SCIM.User.User' and 'ValidSCIMUser' did contain the user ID, we
+    -- If 'Scim.User.User' and 'ValidScimUser' did contain the user ID, we
     -- wouldn't need 'uidText' in this function -- or we could at least check in
     -- hscim that the ID in the user object matches the ID in the path.
 
@@ -237,22 +237,22 @@ updateValidSCIMUser tokinfo uidText newScimUser = do
 
     -- construct old and new user values with metadata.
     uid :: UserId <- parseUid uidText
-    oldScimStoredUser :: SCIM.Class.User.StoredUser
-      <- let err = SCIM.throwSCIM $ SCIM.notFound "user" uidText
-         in maybe err pure =<< SCIM.Class.User.get tokinfo uidText
+    oldScimStoredUser :: Scim.Class.User.StoredUser
+      <- let err = Scim.throwScim $ Scim.notFound "user" uidText
+         in maybe err pure =<< Scim.Class.User.get tokinfo uidText
 
-    if SCIM.value (SCIM.thing oldScimStoredUser) == (newScimUser ^. vsuUser)
+    if Scim.value (Scim.thing oldScimStoredUser) == (newScimUser ^. vsuUser)
       then pure oldScimStoredUser
       else do
-        newScimStoredUser :: SCIM.Class.User.StoredUser
-          <- lift $ updSCIMStoredUser (newScimUser ^. vsuUser) oldScimStoredUser
+        newScimStoredUser :: Scim.Class.User.StoredUser
+          <- lift $ updScimStoredUser (newScimUser ^. vsuUser) oldScimStoredUser
 
         -- update 'SAML.UserRef'
         let uref = newScimUser ^. vsuSAMLUserRef
         lift . wrapMonadClient $ Data.insertUser uref uid  -- on spar
         bindok <- lift $ Intra.Brig.bindUser uid uref  -- on brig
-        unless bindok . SCIM.throwSCIM $
-          SCIM.serverError "Failed to update SAML UserRef (no such UserId? duplicate Handle?)"
+        unless bindok . Scim.throwScim $
+          Scim.serverError "Failed to update SAML UserRef (no such UserId? duplicate Handle?)"
 
         maybe (pure ()) (lift . Intra.Brig.setName uid) $ newScimUser ^. vsuName
         lift . Intra.Brig.setHandle uid $ newScimUser ^. vsuHandle
@@ -264,19 +264,19 @@ updateValidSCIMUser tokinfo uidText newScimUser = do
         pure newScimStoredUser
 
 
-toSCIMStoredUser
+toScimStoredUser
   :: forall m. (SAML.HasNow m, MonadReader Env m)
-  => UserId -> SCIM.User.User -> m SCIM.Class.User.StoredUser
-toSCIMStoredUser uid usr = do
+  => UserId -> Scim.User.User -> m Scim.Class.User.StoredUser
+toScimStoredUser uid usr = do
   now <- SAML.getNow
   baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
-  pure $ toSCIMStoredUser' now baseuri uid usr
+  pure $ toScimStoredUser' now baseuri uid usr
 
-toSCIMStoredUser'
+toScimStoredUser'
   :: HasCallStack
-  => SAML.Time -> URIBS.URI -> UserId -> SCIM.User.User -> SCIM.Class.User.StoredUser
-toSCIMStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr =
-    SCIM.WithMeta meta (SCIM.WithId uid usr)
+  => SAML.Time -> URIBS.URI -> UserId -> Scim.User.User -> Scim.Class.User.StoredUser
+toScimStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr =
+    Scim.WithMeta meta (Scim.WithId uid usr)
   where
     mkLocation :: String -> URI
     mkLocation pathSuffix = convURI $ baseuri SAML.=/ cs pathSuffix
@@ -284,43 +284,43 @@ toSCIMStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr =
         convURI uri = fromMaybe err . parseURI . cs . URIBS.serializeURIRef' $ uri
           where err = error $ "internal error: " <> show uri
 
-    meta = SCIM.Meta
-      { SCIM.resourceType = SCIM.UserResource
-      , SCIM.created = now
-      , SCIM.lastModified = now
-      , SCIM.version = calculateVersion uid usr
+    meta = Scim.Meta
+      { Scim.resourceType = Scim.UserResource
+      , Scim.created = now
+      , Scim.lastModified = now
+      , Scim.version = calculateVersion uid usr
         -- TODO: it looks like we need to add this to the HTTP header.
         -- https://tools.ietf.org/html/rfc7644#section-3.14
-      , SCIM.location = SCIM.URI . mkLocation $ "/Users/" <> cs uid
+      , Scim.location = Scim.URI . mkLocation $ "/Users/" <> cs uid
       }
 
-updSCIMStoredUser
+updScimStoredUser
   :: forall m. (SAML.HasNow m)
-  => SCIM.User.User -> SCIM.Class.User.StoredUser -> m SCIM.Class.User.StoredUser
-updSCIMStoredUser usr storedusr = do
+  => Scim.User.User -> Scim.Class.User.StoredUser -> m Scim.Class.User.StoredUser
+updScimStoredUser usr storedusr = do
   now <- SAML.getNow
-  pure $ updSCIMStoredUser' now usr storedusr
+  pure $ updScimStoredUser' now usr storedusr
 
-updSCIMStoredUser'
+updScimStoredUser'
   :: SAML.Time
-  -> SCIM.User.User
-  -> SCIM.Class.User.StoredUser
-  -> SCIM.Class.User.StoredUser
-updSCIMStoredUser' (SAML.Time moddate) usr (SCIM.WithMeta meta (SCIM.WithId scimuid _)) =
-    SCIM.WithMeta meta' (SCIM.WithId scimuid usr)
+  -> Scim.User.User
+  -> Scim.Class.User.StoredUser
+  -> Scim.Class.User.StoredUser
+updScimStoredUser' (SAML.Time moddate) usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
+    Scim.WithMeta meta' (Scim.WithId scimuid usr)
   where
     meta' = meta
-      { SCIM.lastModified = moddate
-      , SCIM.version = calculateVersion scimuid usr
+      { Scim.lastModified = moddate
+      , Scim.version = calculateVersion scimuid usr
       }
 
 parseUid
-  :: forall m m'. (m ~ SCIM.SCIMHandler m', Monad m')
+  :: forall m m'. (m ~ Scim.ScimHandler m', Monad m')
   => Text -> m UserId
 parseUid uidText = maybe err pure $ readMaybe (Text.unpack uidText)
-  where err = SCIM.throwSCIM $ SCIM.notFound "user" uidText
+  where err = Scim.throwScim $ Scim.notFound "user" uidText
 
--- | Calculate resource version (currently only for 'SCIM.User.User's).
+-- | Calculate resource version (currently only for 'Scim.User.User's).
 --
 -- Spec: <https://tools.ietf.org/html/rfc7644#section-3.14>.
 --
@@ -334,12 +334,12 @@ parseUid uidText = maybe err pure $ readMaybe (Text.unpack uidText)
 -- have the same version").
 calculateVersion
   :: Text               -- ^ User ID
-  -> SCIM.User.User
-  -> SCIM.ETag
-calculateVersion uidText usr = SCIM.Weak (Text.pack (show h))
+  -> Scim.User.User
+  -> Scim.ETag
+calculateVersion uidText usr = Scim.Weak (Text.pack (show h))
   where
     h :: Digest SHA256
-    h = hashlazy (Aeson.encode (SCIM.WithId uidText usr))
+    h = hashlazy (Aeson.encode (Scim.WithId uidText usr))
 
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -395,17 +395,17 @@ toScimEmail (Email eLocal eDomain) =
 -- 2. We want generic error descriptions in response bodies, while still
 --    logging nice error messages internally.
 
-instance SCIM.Class.User.UserDB Spar where
+instance Scim.Class.User.UserDB Spar where
   -- | List all users, possibly filtered by some predicate.
   list :: ScimTokenInfo
-       -> Maybe SCIM.Filter
-       -> SCIM.SCIMHandler Spar (SCIM.ListResponse SCIM.Class.User.StoredUser)
+       -> Maybe Scim.Filter
+       -> Scim.ScimHandler Spar (Scim.ListResponse Scim.Class.User.StoredUser)
   list ScimTokenInfo{stiTeam} mbFilter = do
     members <- lift $ getTeamMembers stiTeam
     brigusers :: [User]
       <- filter (not . userDeleted) <$>
          lift (Intra.Brig.getUsers ((^. Galley.userId) <$> members))
-    scimusers :: [SCIM.Class.User.StoredUser]
+    scimusers :: [Scim.Class.User.StoredUser]
       <- lift . wrapMonadClient . Data.getScimUsers $ Brig.userId <$> brigusers
     let check user = case mbFilter of
           Nothing -> pure True
@@ -413,15 +413,15 @@ instance SCIM.Class.User.UserDB Spar where
             let user' = Scim.Common.value (Scim.thing user)
             in case Scim.filterUser filter_ user' of
                  Right res -> pure res
-                 Left err  -> SCIM.throwSCIM $
-                   SCIM.badRequest SCIM.InvalidFilter (Just err)
+                 Left err  -> Scim.throwScim $
+                   Scim.badRequest Scim.InvalidFilter (Just err)
     -- FUTUREWORK: once bigger teams arrive, we should have pagination here.
-    SCIM.fromList <$> filterM check scimusers
+    Scim.fromList <$> filterM check scimusers
 
   -- | Get a single user by its ID.
   get :: ScimTokenInfo
       -> Text
-      -> SCIM.SCIMHandler Spar (Maybe SCIM.Class.User.StoredUser)
+      -> Scim.ScimHandler Spar (Maybe Scim.Class.User.StoredUser)
   get ScimTokenInfo{stiTeam} uidText = do
     uid <- parseUid uidText
     briguser <- lift $ Intra.Brig.getUser uid
@@ -436,36 +436,36 @@ instance SCIM.Class.User.UserDB Spar where
 
   -- | Create a new user.
   create :: ScimTokenInfo
-         -> SCIM.User.User
-         -> SCIM.SCIMHandler Spar SCIM.Class.User.StoredUser
+         -> Scim.User.User
+         -> Scim.ScimHandler Spar Scim.Class.User.StoredUser
   create tokinfo user =
-    createValidSCIMUser =<< validateSCIMUser tokinfo user
+    createValidScimUser =<< validateScimUser tokinfo user
 
   update :: ScimTokenInfo
          -> Text
-         -> SCIM.User.User
-         -> SCIM.SCIMHandler Spar SCIM.Class.User.StoredUser
+         -> Scim.User.User
+         -> Scim.ScimHandler Spar Scim.Class.User.StoredUser
   update tokinfo uidText newScimUser =
-    updateValidSCIMUser tokinfo uidText =<< validateSCIMUser tokinfo newScimUser
+    updateValidScimUser tokinfo uidText =<< validateScimUser tokinfo newScimUser
 
   delete :: ScimTokenInfo -> Text -> Scim.ScimHandler Spar Bool
   delete _ _ =
-      SCIM.throwSCIM $ SCIM.serverError "User delete is not implemented yet"  -- TODO
+      Scim.throwScim $ Scim.serverError "User delete is not implemented yet"  -- TODO
 
   getMeta :: ScimTokenInfo -> Scim.ScimHandler Spar Scim.Meta
   getMeta _ =
-      SCIM.throwSCIM $ SCIM.serverError "User getMeta is not implemented yet"  -- TODO
+      Scim.throwScim $ Scim.serverError "User getMeta is not implemented yet"  -- TODO
 
 ----------------------------------------------------------------------------
 -- GroupDB
 
-instance SCIM.Class.Group.GroupDB Spar where
+instance Scim.Class.Group.GroupDB Spar where
   -- TODO
 
 ----------------------------------------------------------------------------
 -- AuthDB
 
-instance SCIM.Class.Auth.AuthDB Spar where
+instance Scim.Class.Auth.AuthDB Spar where
   type AuthData Spar = ScimToken
   type AuthInfo Spar = ScimTokenInfo
 

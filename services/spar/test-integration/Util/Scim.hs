@@ -31,8 +31,8 @@ import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import SAML2.WebSSO.Types (IdPId, idpId)
 import Spar.Data as Data
-import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
-import Spar.SCIM.Types
+import Spar.Scim (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
+import Spar.Scim.Types
 import Spar.Types (ScimToken(..), ScimTokenInfo(..), IdP)
 import Util.Core
 import Util.Types
@@ -42,13 +42,13 @@ import qualified Data.Aeson                       as Aeson
 import qualified SAML2.WebSSO                     as SAML
 import qualified Spar.Intra.Brig                  as Intra
 import qualified Text.Email.Parser                as Email
-import qualified Web.SCIM.Class.User              as SCIM
-import qualified Web.SCIM.Filter                  as SCIM
-import qualified Web.SCIM.Schema.Common           as SCIM
-import qualified Web.SCIM.Schema.ListResponse     as SCIM
-import qualified Web.SCIM.Schema.Meta             as SCIM
-import qualified Web.SCIM.Schema.User             as SCIM.User
-import qualified Web.SCIM.Schema.User.Email       as Email
+import qualified Web.Scim.Class.User              as Scim
+import qualified Web.Scim.Filter                  as Scim
+import qualified Web.Scim.Schema.Common           as Scim
+import qualified Web.Scim.Schema.ListResponse     as Scim
+import qualified Web.Scim.Schema.Meta             as Scim
+import qualified Web.Scim.Schema.User             as Scim.User
+import qualified Web.Scim.Schema.User.Email       as Email
 
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
@@ -79,22 +79,22 @@ registerScimToken teamid midpid = do
   pure tok
 
 -- | Generate a SCIM user with a random name and handle.  At the very least, everything considered
--- in @instance UserShouldMatch SCIM.User.User User@ and @validateSCIMUser@ must be random here.
+-- in @instance UserShouldMatch Scim.User.User User@ and @validateScimUser@ must be random here.
 -- FUTUREWORK: make this more exhaustive.  change everything that can be changed!  move this to the
 -- hspec package when done.
-randomSCIMUser :: MonadRandom m => m SCIM.User.User
-randomSCIMUser = do
+randomScimUser :: MonadRandom m => m Scim.User.User
+randomScimUser = do
     suffix <- cs <$> replicateM 5 (getRandomR ('0', '9'))
-    emails <- replicateM 3 randomSCIMEmail
-    pure $ SCIM.User.empty
-        { SCIM.User.userName    = "scimuser_" <> suffix
-        , SCIM.User.displayName = Just ("Scim User #" <> suffix)
-        , SCIM.User.externalId  = Just ("scimuser_extid_" <> suffix)
-        , SCIM.User.emails      = Just emails
+    emails <- replicateM 3 randomScimEmail
+    pure $ Scim.User.empty
+        { Scim.User.userName    = "scimuser_" <> suffix
+        , Scim.User.displayName = Just ("Scim User #" <> suffix)
+        , Scim.User.externalId  = Just ("scimuser_extid_" <> suffix)
+        , Scim.User.emails      = Just emails
         }
 
-randomSCIMEmail :: MonadRandom m => m Email.Email
-randomSCIMEmail = do
+randomScimEmail :: MonadRandom m => m Email.Email
+randomScimEmail = do
     let typ     :: Maybe Text = Nothing
         primary :: Maybe Bool = Nothing  -- TODO: where should we catch users with more than one
                                          -- primary email?
@@ -128,8 +128,8 @@ updateUser
     :: HasCallStack
     => ScimToken
     -> UserId
-    -> SCIM.User.User
-    -> TestSpar SCIM.StoredUser
+    -> Scim.User.User
+    -> TestSpar Scim.StoredUser
 updateUser tok userid user = do
     env <- ask
     r <- updateUser_
@@ -246,7 +246,7 @@ createUser_ auth user spar_ = do
 updateUser_
     :: Maybe ScimToken          -- ^ Authentication
     -> Maybe UserId             -- ^ User to update; when not provided, the request will return 4xx
-    -> SCIM.User.User           -- ^ User data
+    -> Scim.User.User           -- ^ User data
     -> SparReq                  -- ^ Spar endpoint
     -> TestSpar ResponseLBS
 updateUser_ auth muid user spar_ = do
@@ -350,7 +350,7 @@ acceptScim = accept "application/scim+json"
 scimUserId :: Scim.StoredUser -> UserId
 scimUserId storedUser = either err id (readEither id_)
   where
-    id_ = cs (SCIM.id (SCIM.thing storedUser))
+    id_ = cs (Scim.id (Scim.thing storedUser))
     err e = error $ "scimUserId: couldn't parse ID " ++ id_ ++ ": " ++ e
 
 -- | There are a number of user types that all partially map on each other.  This class provides a
@@ -362,28 +362,28 @@ class IsUser u where
   maybeTenant :: u -> Maybe (Maybe SAML.Issuer)
   maybeSubject :: u -> Maybe (Maybe SAML.NameID)
 
--- | 'ValidSCIMUser' is tested in SCIMSpec.hs exhaustively with literal inputs, so here we assume it
+-- | 'ValidScimUser' is tested in ScimSpec.hs exhaustively with literal inputs, so here we assume it
 -- is correct and don't aim to verify that name, handle, etc correspond to ones in 'vsuUser'.
-instance IsUser ValidSCIMUser where
+instance IsUser ValidScimUser where
     maybeUserId = const Nothing
     maybeHandle = Just . Just . view vsuHandle
     maybeName = Just . view vsuName
     maybeTenant = Just . Just . view (vsuSAMLUserRef . SAML.uidTenant)
     maybeSubject = Just . Just . view (vsuSAMLUserRef . SAML.uidSubject)
 
-instance IsUser SCIM.StoredUser where
+instance IsUser Scim.StoredUser where
     maybeUserId = Just . scimUserId
-    maybeHandle = maybeHandle . SCIM.value . SCIM.thing
-    maybeName = maybeName . SCIM.value . SCIM.thing
-    maybeTenant = maybeTenant . SCIM.value . SCIM.thing
-    maybeSubject = maybeSubject . SCIM.value . SCIM.thing
+    maybeHandle = maybeHandle . Scim.value . Scim.thing
+    maybeName = maybeName . Scim.value . Scim.thing
+    maybeTenant = maybeTenant . Scim.value . Scim.thing
+    maybeSubject = maybeSubject . Scim.value . Scim.thing
 
-instance IsUser SCIM.User.User where
+instance IsUser Scim.User.User where
     maybeUserId = const Nothing
-    maybeHandle = Just . Just . Handle . SCIM.User.userName
-    maybeName = Just . fmap Name . SCIM.User.displayName
+    maybeHandle = Just . Just . Handle . Scim.User.userName
+    maybeName = Just . fmap Name . Scim.User.displayName
     maybeTenant = const Nothing
-    maybeSubject = Just . fmap SAML.opaqueNameID . SCIM.User.externalId
+    maybeSubject = Just . fmap SAML.opaqueNameID . Scim.User.externalId
 
 instance IsUser User where
     maybeUserId = Just . userId

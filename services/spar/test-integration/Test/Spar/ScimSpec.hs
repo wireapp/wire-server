@@ -24,9 +24,9 @@ import Spar.Types (ScimTokenInfo(..))
 import Util
 
 import qualified Spar.Data                        as Data
-import qualified Web.SCIM.Schema.Common           as SCIM
-import qualified Web.SCIM.Schema.Meta             as SCIM
-import qualified Web.SCIM.Schema.User             as SCIM.User
+import qualified Web.Scim.Schema.Common           as Scim
+import qualified Web.Scim.Schema.Meta             as Scim
+import qualified Web.Scim.Schema.User             as Scim.User
 
 
 spec :: SpecWith TestEnv
@@ -140,20 +140,20 @@ specUsers = describe "operations with users" $ do
     describe "PUT /Users" $ do
         it "responds with 4xx (just making sure...)" $ do
             env <- ask
-            user <- randomSCIMUser
-            (tok, _) <- registerIdPAndSCIMToken
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
             updateUser_ (Just tok) Nothing user (env ^. teSpar)
                 !!! assertTrue_ (inRange (400, 499) . statusCode)
 
     describe "PUT /Users/:id" $ do
         it "updates the user attributes in scim_user" $ do
             -- Create a user via SCIM
-            user <- randomSCIMUser
-            (tok, _) <- registerIdPAndSCIMToken
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
             -- Overwrite the user with another randomly-generated user
-            user' <- randomSCIMUser
+            user' <- randomScimUser
             updatedUser <- updateUser tok userid user'
             -- Get the updated user and check that it matches the user returned
             -- by 'updateUser'
@@ -162,15 +162,15 @@ specUsers = describe "operations with users" $ do
             -- Check that the updated user also matches the data that we sent
             -- with 'updateUser'
             liftIO $ do
-                SCIM.value (SCIM.thing storedUser') `shouldBe` user'
-                SCIM.id (SCIM.thing storedUser') `shouldBe` SCIM.id (SCIM.thing storedUser)
-                let meta  = SCIM.meta storedUser
-                    meta' = SCIM.meta storedUser'
-                SCIM.resourceType meta `shouldBe` SCIM.resourceType meta'
-                SCIM.created meta `shouldBe` SCIM.created meta'
+                Scim.value (Scim.thing storedUser') `shouldBe` user'
+                Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
+                let meta  = Scim.meta storedUser
+                    meta' = Scim.meta storedUser'
+                Scim.resourceType meta `shouldBe` Scim.resourceType meta'
+                Scim.created meta `shouldBe` Scim.created meta'
                 -- FIXME: they actually *should not* match
-                SCIM.version meta `shouldBe` SCIM.version meta'
-                SCIM.location meta `shouldBe` SCIM.location meta'
+                Scim.version meta `shouldBe` Scim.version meta'
+                Scim.location meta `shouldBe` Scim.location meta'
 
         it "works fine when neither name nor handle are changed" $ do
             -- NB: this test is needed because if PUT /Users is implemented in
@@ -178,15 +178,15 @@ specUsers = describe "operations with users" $ do
             -- might fail because e.g. the handle is "already claimed".
             --
             -- Create a user via SCIM
-            user <- randomSCIMUser
-            (tok, _) <- registerIdPAndSCIMToken
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
             -- Overwrite the user with another randomly-generated user who has
             -- the same name and handle
-            user' <- randomSCIMUser <&> \u ->
-                u { SCIM.User.userName = SCIM.User.userName user
-                  , SCIM.User.displayName = SCIM.User.displayName user
+            user' <- randomScimUser <&> \u ->
+                u { Scim.User.userName = Scim.User.userName user
+                  , Scim.User.displayName = Scim.User.displayName user
                   }
             updatedUser <- updateUser tok userid user'
             -- Get the updated user and check that it matches the user returned
@@ -196,40 +196,40 @@ specUsers = describe "operations with users" $ do
             -- Check that the updated user also matches the data that we sent
             -- with 'updateUser'
             liftIO $ do
-                SCIM.value (SCIM.thing storedUser') `shouldBe` user'
-                SCIM.id (SCIM.thing storedUser') `shouldBe` SCIM.id (SCIM.thing storedUser)
-                let meta  = SCIM.meta storedUser
-                    meta' = SCIM.meta storedUser'
-                SCIM.resourceType meta `shouldBe` SCIM.resourceType meta'
-                SCIM.created meta `shouldBe` SCIM.created meta'
+                Scim.value (Scim.thing storedUser') `shouldBe` user'
+                Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
+                let meta  = Scim.meta storedUser
+                    meta' = Scim.meta storedUser'
+                Scim.resourceType meta `shouldBe` Scim.resourceType meta'
+                Scim.created meta `shouldBe` Scim.created meta'
                 -- FIXME: they actually *should not* match
-                SCIM.version meta `shouldBe` SCIM.version meta'
-                SCIM.location meta `shouldBe` SCIM.location meta'
+                Scim.version meta `shouldBe` Scim.version meta'
+                Scim.location meta `shouldBe` Scim.location meta'
 
         it "updates 'SAML.UserRef' in spar" $ do
             -- Create a user via SCIM
-            user <- randomSCIMUser
-            (tok, (_, _, idp)) <- registerIdPAndSCIMToken
+            user <- randomScimUser
+            (tok, (_, _, idp)) <- registerIdPAndScimToken
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
             -- Overwrite the user with another randomly-generated user
-            user' <- randomSCIMUser
+            user' <- randomScimUser
             _ <- updateUser tok userid user'
-            vuser' <- either (error . show) pure $ validateSCIMUser' (Just idp) user'
+            vuser' <- either (error . show) pure $ validateScimUser' (Just idp) user'
             muserid' <- runSparCass $ Data.getUser (vuser' ^. vsuSAMLUserRef)
             liftIO $ do
                 muserid' `shouldBe` Just userid
 
         it "creates a matching Brig user (with 'SSOIdentity' correctly set)" $ do
-            user <- randomSCIMUser
-            (tok, (_, _, idp)) <- registerIdPAndSCIMToken
+            user <- randomScimUser
+            (tok, (_, _, idp)) <- registerIdPAndScimToken
             storedUser <- createUser tok user
-            user' <- randomSCIMUser
+            user' <- randomScimUser
             let userid = scimUserId storedUser
             _ <- updateUser tok userid user'
-            validSCIMUser <- either (error . show) pure $ validateSCIMUser' (Just idp) user'
+            validScimUser <- either (error . show) pure $ validateScimUser' (Just idp) user'
             brigUser      <- maybe (error "no brig user") pure =<< getSelf userid
-            brigUser `userShouldMatch` validSCIMUser
+            brigUser `userShouldMatch` validScimUser
 
         context "scim_user has no entry with this id" $ do
             it "fails" $ do
@@ -344,6 +344,6 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
                liftIO $ map stiDescr list `shouldBe`
                    ["_teScimToken test token"]
 
-    describe "validateSCIMUser'" $ do
+    describe "validateScimUser'" $ do
         it "works" $ do
             pendingWith "write a list of unit tests here that make the mapping explicit, exhaustive, and easy to read."
