@@ -1,6 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Brig.Data.Blacklist where
+module Brig.Data.Blacklist
+    ( -- * UserKey blacklisting
+      insert
+    , exists
+    , delete
+      -- * PhonePrefix excluding
+    , insertPrefix
+    , deletePrefix
+    , existsPrefix
+    , existsAnyPrefix
+    ) where
 
 import Imports
 import Brig.Data.UserKey
@@ -33,20 +43,30 @@ keyDelete = "DELETE FROM blacklist WHERE key = ?"
 -- Excluded phone prefixes
 
 insertPrefix :: MonadClient m => PhonePrefix -> m ()
-insertPrefix p = retry x5 $ write prefixInsert (params Quorum (Identity $ fromPhonePrefix p))
+insertPrefix prefix = retry x5 $ write prefixInsert (params Quorum (Identity $ fromPhonePrefix prefix))
 
 deletePrefix :: MonadClient m => PhonePrefix -> m ()
-deletePrefix p = retry x5 $ write prefixDelete (params Quorum (Identity $ fromPhonePrefix p))
+deletePrefix prefix = retry x5 $ write prefixDelete (params Quorum (Identity $ fromPhonePrefix prefix))
 
 existsPrefix :: MonadClient m => PhonePrefix -> m Bool
-existsPrefix uk = return . isJust =<< fmap runIdentity <$>
-    retry x1 (query1 prefixSelect (params Quorum (Identity $ fromPhonePrefix uk)))
+existsPrefix prefix = return . isJust =<< fmap runIdentity <$>
+    retry x1 (query1 prefixSelect (params Quorum (Identity $ fromPhonePrefix prefix)))
+
+existsAnyPrefix :: MonadClient m => Phone -> m Bool
+existsAnyPrefix phone = do
+    let prefixes = fromPhonePrefix <$> phonePrefixes phone
+    results <- fmap runIdentity <$> retry x1 (query1 prefixSelectAll (params Quorum (Identity $ prefixes)))
+    return $ maybe False (not . null) results
 
 prefixInsert :: PrepQuery W (Identity Text) ()
 prefixInsert = "INSERT INTO excluded_phones (prefix) VALUES (?)"
 
+prefixDelete :: PrepQuery W (Identity Text) ()
+prefixDelete = "DELETE FROM excluded_phones WHERE prefix = ?"
+
 prefixSelect :: PrepQuery R (Identity Text) (Identity Text)
 prefixSelect = "SELECT prefix FROM excluded_phones WHERE prefix = ?"
 
-prefixDelete :: PrepQuery W (Identity Text) ()
-prefixDelete = "DELETE FROM excluded_phones WHERE prefix = ?"
+prefixSelectAll :: PrepQuery R (Identity [Text]) (Identity [Text])
+prefixSelectAll = "SELECT prefix FROM excluded_phones WHERE prefix IN ?"
+

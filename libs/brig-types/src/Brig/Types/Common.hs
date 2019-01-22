@@ -169,6 +169,11 @@ isValidPhonePrefix = either (const False) (const True) . parseOnly e164Prefix
   where
     e164Prefix = char '+' *> count 1 digit *> count 14 (optional digit) *> endOfInput
 
+
+phonePrefixes :: Phone -> [PhonePrefix]
+phonePrefixes p = catMaybes $ parsePhonePrefix <$> Text.inits (fromPhone p)
+
+
 instance FromJSON PhonePrefix where
     parseJSON (String s) = case parsePhonePrefix s of
         Just p  -> return p
