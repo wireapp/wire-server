@@ -79,7 +79,8 @@ registerScimToken teamid midpid = do
   pure tok
 
 -- | Generate a SCIM user with a random name and handle.  At the very least, everything considered
--- in @instance UserShouldMatch Scim.User.User User@ and @validateScimUser@ must be random here.
+-- in @instance IsUser Scim.User.User@ and @validateScimUser@ must be random here.
+--
 -- FUTUREWORK: make this more exhaustive.  change everything that can be changed!  move this to the
 -- hspec package when done.
 randomScimUser :: MonadRandom m => m Scim.User.User
