@@ -2,7 +2,7 @@ LANG := en_US.UTF-8
 SHELL        := /usr/bin/env bash
 NAME         := makedeb
 VERSION      ?=
-ARCH  	     := $(shell [ -f "`which dpkg-architecture`" ]  && dpkg-architecture -qDEB_HOST_ARCH )
+ARCH  	     := $(shell if [ -f "`which dpkg-architecture`" ]; then dpkg-architecture -qDEB_HOST_ARCH; else [ -f "`which dpkg`" ] && dpkg --print-architecture; fi )
 BUILD_NUMBER ?= 0
 BUILD_LABEL  ?= local
 BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
