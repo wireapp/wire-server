@@ -80,6 +80,7 @@ tests _ at _ p b c ch g aws = testGroup "account"
     , test' aws p "put /self/password - 200"                 $ testPasswordChange b
     , test' aws p "put /self/locale - 200"                   $ testUserLocaleUpdate b aws
     , test' aws p "post /activate/send - 200"                $ testSendActivationCode b
+    , test' aws p "post /activate/send - 403"                $ testSendActivationCodePrefixExcluded b
     , test' aws p "put /i/users/:id/status (suspend)"        $ testSuspendUser b
     , test' aws p "get /i/users?:(email|phone) - 200"        $ testGetByIdentity b
     , test' aws p "delete/phone-email"                       $ testEmailPhoneDelete b c
@@ -698,14 +699,25 @@ testPasswordChange brig = do
 testSendActivationCode :: Brig -> Http ()
 testSendActivationCode brig = do
     -- Code for phone pre-verification
-    requestActivationCode brig . Right =<< randomPhone
+    requestActivationCode brig 200 . Right =<< randomPhone
     -- Code for email pre-verification
-    requestActivationCode brig . Left =<< randomEmail
+    requestActivationCode brig 200 . Left =<< randomEmail
     -- Standard email registration flow
     r <- registerUser "Alice" brig <!! const 201 === statusCode
     let Just email = userEmail =<< decodeBody r
     -- Re-request existing activation code
-    requestActivationCode brig (Left email)
+    requestActivationCode brig 200 (Left email)
+
+testSendActivationCodePrefixExcluded :: Brig -> Http ()
+testSendActivationCodePrefixExcluded brig = do
+    p <- randomPhone
+    let prefix = PhonePrefix $ T.take 5 (fromPhone p)
+
+    -- expect activation to fail if it was excluded
+    requestActivationCode brig 403 (Right p)
+
+  where
+    insertPrefix = undefined
 
 testEmailPhoneDelete :: Brig -> Cannon -> Http ()
 testEmailPhoneDelete brig cannon = do
