@@ -19,8 +19,6 @@ sudo dnf install -y pkgconfig haskell-platform libstdc++-devel libstdc++-static 
 
 _Note_: Debian is not recommended due to this issue when running local integration tests: [#327](https://github.com/wireapp/wire-server/issues/327)*. This issue does not occur with ubuntu.
 
-_Note_: If you want to build debian-style packages, skip to the 'makedeb' section of the instructions, and complete them, before continuing with the below steps.
-
 ```bash
 sudo apt install pkg-config libsodium-dev openssl-dev libtool automake build-essential libicu-dev libsnappy-dev libgeoip-dev protobuf-compiler libxml2-dev zlib1g-dev-y
 ```
@@ -91,10 +89,23 @@ sudo apt install rustc cargo -y
 curl https://sh.rustup.rs -sSf | sh
 source $HOME/.cargo/env
 ```
+## makedeb
+
+This is a tool to create debian-style binary packages. It is optional, and is only used if you want to install debian-style packages on your debian or ubuntu system.
+
+_Note_: If you want to build debian-style packages of cryptobox-c and other wire utilities, execute this step. otherwise, make sure to execute the 'Generic' version of the cryptobox-c step.
+
+```bash
+git clone https://github.com/wireapp/wire-server && cd wire-server/tools/makedeb
+export VERSION=0
+make dist
+dpkg -i ../../dist/makedeb*.deb
+```
 
 ## cryptobox-c
 
 ### Ubuntu / Debian
+
 ```bash
 git clone https://github.com/wireapp/cryptobox-c && cd cryptobox-c
 make dist
@@ -127,15 +138,6 @@ extra-include-dirs:
 extra-lib-dirs:
 - /usr/local/lib
 - <YOUR_HOME_DIR>/.wire-dev/lib
-```
-
-## makedeb
-
-This is a tool to create debian binary packages. It is optional, and is only used if you want to install debian-style packages on your debian or ubuntu system.
-
-```bash
-git clone https://github.com/wireapp/wire-server && cd wire-server/tools/makedeb
-stack install
 ```
 
 ## Docker
