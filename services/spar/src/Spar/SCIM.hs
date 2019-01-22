@@ -275,7 +275,8 @@ toSCIMStoredUser uid usr = do
 toSCIMStoredUser'
   :: HasCallStack
   => SAML.Time -> URIBS.URI -> UserId -> SCIM.User.User -> SCIM.Class.User.StoredUser
-toSCIMStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr = SCIM.WithMeta meta thing
+toSCIMStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr =
+    SCIM.WithMeta meta (SCIM.WithId uid usr)
   where
     mkLocation :: String -> URI
     mkLocation pathSuffix = convURI $ baseuri SAML.=/ cs pathSuffix
@@ -283,19 +284,13 @@ toSCIMStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr = SCIM.WithMeta 
         convURI uri = fromMaybe err . parseURI . cs . URIBS.serializeURIRef' $ uri
           where err = error $ "internal error: " <> show uri
 
-    thing = SCIM.WithId uid usr
-    thingHash = hashlazy (Aeson.encode thing) :: Digest SHA256
-
     meta = SCIM.Meta
       { SCIM.resourceType = SCIM.UserResource
       , SCIM.created = now
       , SCIM.lastModified = now
-      , SCIM.version = SCIM.Strong (Text.pack (show thingHash))
-        -- TODO: replace SCIM.Strong with SCIM.Weak
-        -- TODO: it looks like (a) we need to add this to the HTTP header.
+      , SCIM.version = calculateVersion uid usr
+        -- TODO: it looks like we need to add this to the HTTP header.
         -- https://tools.ietf.org/html/rfc7644#section-3.14
-        -- TODO: scim versions are called versions, but they aren't really monotonously
-        -- increasing.  add a note to hscim?
       , SCIM.location = SCIM.URI . mkLocation $ "/Users/" <> cs uid
       }
 
@@ -308,7 +303,10 @@ updSCIMStoredUser usr storedusr = do
 
 -- TODO: recalculate the 'version', too
 updSCIMStoredUser'
-  :: SAML.Time -> SCIM.User.User -> SCIM.Class.User.StoredUser -> SCIM.Class.User.StoredUser
+  :: SAML.Time
+  -> SCIM.User.User
+  -> SCIM.Class.User.StoredUser
+  -> SCIM.Class.User.StoredUser
 updSCIMStoredUser' (SAML.Time moddate) usr (SCIM.WithMeta meta (SCIM.WithId scimuid _)) =
   SCIM.WithMeta (meta { SCIM.lastModified = moddate }) (SCIM.WithId scimuid usr)
 
@@ -318,6 +316,26 @@ parseUid
 parseUid uidText = maybe err pure $ readMaybe (Text.unpack uidText)
   where err = SCIM.throwSCIM $ SCIM.notFound "user" uidText
 
+-- | Calculate resource version (currently only for 'SCIM.User.User's).
+--
+-- Spec: <https://tools.ietf.org/html/rfc7644#section-3.14>.
+--
+-- A version is an /opaque/ string that doesn't need to conform to any format.
+-- The only guarantee we have to give is that different resources will have
+-- different versions.
+--
+-- Note: we use weak ETags for versions because we get no guarantees from
+-- @aeson@ that its JSON rendering will remain stable between releases, and
+-- therefore we can't satisfy the requirements of strong ETags ("same resources
+-- have the same version").
+calculateVersion
+  :: Text               -- ^ User ID
+  -> SCIM.User.User
+  -> SCIM.ETag
+calculateVersion uidText usr = SCIM.Weak (Text.pack (show h))
+  where
+    h :: Digest SHA256
+    h = hashlazy (Aeson.encode (SCIM.WithId uidText usr))
 
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~
