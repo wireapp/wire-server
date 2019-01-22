@@ -9,7 +9,7 @@
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE LambdaCase          #-}
 
-module Util.SCIM where
+module Util.Scim where
 
 import Imports
 import Bilge
@@ -25,7 +25,7 @@ import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import SAML2.WebSSO.Types (IdPId, idpId)
 import Spar.Data as Data
-import Spar.SCIM (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
+import Spar.Scim (CreateScimToken(..), CreateScimTokenResponse(..), ScimTokenList(..))
 import Spar.Types (ScimToken(..), ScimTokenInfo(..), IdP)
 import System.Random
 import Util.Core
@@ -33,24 +33,24 @@ import Util.Types
 import Web.HttpApiData (toHeader)
 
 import qualified Data.Aeson                       as Aeson
-import qualified Web.SCIM.Class.User              as SCIM
-import qualified Web.SCIM.Filter                  as SCIM
-import qualified Web.SCIM.Schema.Common           as SCIM
-import qualified Web.SCIM.Schema.ListResponse     as SCIM
-import qualified Web.SCIM.Schema.Meta             as SCIM
-import qualified Web.SCIM.Schema.User             as SCIM.User
+import qualified Web.Scim.Class.User              as Scim
+import qualified Web.Scim.Filter                  as Scim
+import qualified Web.Scim.Schema.Common           as Scim
+import qualified Web.Scim.Schema.ListResponse     as Scim
+import qualified Web.Scim.Schema.Meta             as Scim
+import qualified Web.Scim.Schema.User             as Scim.User
 
 
--- | Call 'registerTestIdP', then 'registerSCIMToken'.  The user returned is the owner of the team;
+-- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
 -- the IdP is registered with the team; the SCIM token can be used to manipulate the team.
-registerIdPAndSCIMToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP))
-registerIdPAndSCIMToken = do
+registerIdPAndScimToken :: HasCallStack => TestSpar (ScimToken, (UserId, TeamId, IdP))
+registerIdPAndScimToken = do
   team@(_owner, teamid, idp) <- registerTestIdP
-  (, team) <$> registerSCIMToken teamid (Just (idp ^. idpId))
+  (, team) <$> registerScimToken teamid (Just (idp ^. idpId))
 
 -- | Create a fresh SCIM token and register it for the team.
-registerSCIMToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
-registerSCIMToken teamid midpid = do
+registerScimToken :: HasCallStack => TeamId -> Maybe IdPId -> TestSpar ScimToken
+registerScimToken teamid midpid = do
   env <- ask
   tok <- ScimToken <$> do
     code <- liftIO UUID.nextRandom
@@ -69,13 +69,13 @@ registerSCIMToken teamid midpid = do
   pure tok
 
 -- | Generate a SCIM user with a random name and handle.
-randomSCIMUser :: TestSpar SCIM.User.User
-randomSCIMUser = do
+randomScimUser :: TestSpar Scim.User.User
+randomScimUser = do
     suffix <- pack <$> replicateM 5 (liftIO (randomRIO ('0', '9')))
-    pure $ SCIM.User.empty
-        { SCIM.User.userName    = "scimuser_" <> suffix
-        , SCIM.User.displayName = Just ("Scim User #" <> suffix)
-        , SCIM.User.externalId  = Just ("scimuser_extid_" <> suffix)
+    pure $ Scim.User.empty
+        { Scim.User.userName    = "scimuser_" <> suffix
+        , Scim.User.displayName = Just ("Scim User #" <> suffix)
+        , Scim.User.externalId  = Just ("scimuser_extid_" <> suffix)
         }
 
 ----------------------------------------------------------------------------
@@ -85,8 +85,8 @@ randomSCIMUser = do
 createUser
     :: HasCallStack
     => ScimToken
-    -> SCIM.User.User
-    -> TestSpar SCIM.StoredUser
+    -> Scim.User.User
+    -> TestSpar Scim.StoredUser
 createUser tok user = do
     env <- ask
     r <- createUser_
@@ -100,8 +100,8 @@ createUser tok user = do
 listUsers
     :: HasCallStack
     => ScimToken
-    -> Maybe SCIM.Filter
-    -> TestSpar [SCIM.StoredUser]
+    -> Maybe Scim.Filter
+    -> TestSpar [Scim.StoredUser]
 listUsers tok mbFilter = do
     env <- ask
     r <- listUsers_
@@ -110,17 +110,17 @@ listUsers tok mbFilter = do
              (env ^. teSpar)
          <!! const 200 === statusCode
     let r' = decodeBody' r
-    when (SCIM.totalResults r' /= length (SCIM.resources r')) $
+    when (Scim.totalResults r' /= length (Scim.resources r')) $
         error "listUsers: got a paginated result, but pagination \
               \is not supported yet"
-    pure (SCIM.resources r')
+    pure (Scim.resources r')
 
 -- | Get a user.
 getUser
     :: HasCallStack
     => ScimToken
     -> UserId
-    -> TestSpar SCIM.StoredUser
+    -> TestSpar Scim.StoredUser
 getUser tok userid = do
     env <- ask
     r <- getUser_
@@ -178,7 +178,7 @@ listTokens zusr = do
 -- | Create a user.
 createUser_
     :: Maybe ScimToken          -- ^ Authentication
-    -> SCIM.User.User           -- ^ User data
+    -> Scim.User.User           -- ^ User data
     -> SparReq                  -- ^ Spar endpoint
     -> TestSpar ResponseLBS
 createUser_ auth user spar_ = do
@@ -196,14 +196,14 @@ createUser_ auth user spar_ = do
 -- | List all users.
 listUsers_
     :: Maybe ScimToken          -- ^ Authentication
-    -> Maybe SCIM.Filter        -- ^ Predicate to filter the results
+    -> Maybe Scim.Filter        -- ^ Predicate to filter the results
     -> SparReq                  -- ^ Spar endpoint
     -> TestSpar ResponseLBS
 listUsers_ auth mbFilter spar_ = do
     call . get $
         ( spar_
         . paths ["scim", "v2", "Users"]
-        . queryItem' "filter" (toByteString' . SCIM.renderFilter <$> mbFilter)
+        . queryItem' "filter" (toByteString' . Scim.renderFilter <$> mbFilter)
         . scimAuth auth
         . acceptScim
         )
@@ -281,21 +281,21 @@ acceptScim :: Request -> Request
 acceptScim = accept "application/scim+json"
 
 -- | Get ID of a user returned from SCIM.
-scimUserId :: SCIM.StoredUser -> UserId
+scimUserId :: Scim.StoredUser -> UserId
 scimUserId storedUser = either err id (readEither id_)
   where
-    id_ = unpack (SCIM.id (SCIM.thing storedUser))
+    id_ = unpack (Scim.id (Scim.thing storedUser))
     err e = error $ "scimUserId: couldn't parse ID " ++ id_ ++ ": " ++ e
 
 -- | Check that some properties match between an SCIM user and a Brig user.
 userShouldMatch
     :: (HasCallStack, MonadIO m)
-    => SCIM.StoredUser -> User -> m ()
+    => Scim.StoredUser -> User -> m ()
 userShouldMatch scimStoredUser brigUser = liftIO $ do
-    let scimUser = SCIM.value (SCIM.thing scimStoredUser)
+    let scimUser = Scim.value (Scim.thing scimStoredUser)
     scimUserId scimStoredUser `shouldBe`
         userId brigUser
-    Just (Handle (SCIM.User.userName scimUser)) `shouldBe`
+    Just (Handle (Scim.User.userName scimUser)) `shouldBe`
         userHandle brigUser
-    fmap Name (SCIM.User.displayName scimUser) `shouldBe`
+    fmap Name (Scim.User.displayName scimUser) `shouldBe`
         Just (userName brigUser)
