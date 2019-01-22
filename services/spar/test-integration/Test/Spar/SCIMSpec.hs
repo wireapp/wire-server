@@ -26,6 +26,7 @@ import Util
 import qualified Spar.Data                        as Data
 import qualified Web.SCIM.Schema.Common           as SCIM
 import qualified Web.SCIM.Schema.Meta             as SCIM
+import qualified Web.SCIM.Schema.User             as SCIM.User
 
 
 spec :: SpecWith TestEnv
@@ -153,6 +154,40 @@ specUsers = describe "operations with users" $ do
             let userid = scimUserId storedUser
             -- Overwrite the user with another randomly-generated user
             user' <- randomSCIMUser
+            updatedUser <- updateUser tok userid user'
+            -- Get the updated user and check that it matches the user returned
+            -- by 'updateUser'
+            storedUser' <- getUser tok userid
+            liftIO $ updatedUser `shouldBe` storedUser'
+            -- Check that the updated user also matches the data that we sent
+            -- with 'updateUser'
+            liftIO $ do
+                SCIM.value (SCIM.thing storedUser') `shouldBe` user'
+                SCIM.id (SCIM.thing storedUser') `shouldBe` SCIM.id (SCIM.thing storedUser)
+                let meta  = SCIM.meta storedUser
+                    meta' = SCIM.meta storedUser'
+                SCIM.resourceType meta `shouldBe` SCIM.resourceType meta'
+                SCIM.created meta `shouldBe` SCIM.created meta'
+                -- FIXME: they actually *should not* match
+                SCIM.version meta `shouldBe` SCIM.version meta'
+                SCIM.location meta `shouldBe` SCIM.location meta'
+
+        it "works fine when neither name nor handle are changed" $ do
+            -- NB: this test is needed because if PUT /Users is implemented in
+            -- such a way that it always tries to set the name and handle, it
+            -- might fail because e.g. the handle is "already claimed".
+            --
+            -- Create a user via SCIM
+            user <- randomSCIMUser
+            (tok, _) <- registerIdPAndSCIMToken
+            storedUser <- createUser tok user
+            let userid = scimUserId storedUser
+            -- Overwrite the user with another randomly-generated user who has
+            -- the same name and handle
+            user' <- randomSCIMUser <&> \u ->
+                u { SCIM.User.userName = SCIM.User.userName user
+                  , SCIM.User.displayName = SCIM.User.displayName user
+                  }
             updatedUser <- updateUser tok userid user'
             -- Get the updated user and check that it matches the user returned
             -- by 'updateUser'
