@@ -39,7 +39,7 @@ compile:
 .PHONY: dist
 dist: guard-VERSION install $(DEB) .metadata
 
-$(DEB):
+$(DEB): guard-ARCH guard-VERSION
 	$(eval $@_DIR := $(shell mktemp -d -t makedeb.XXXXXXXXXX))
 	cp -R -L deb $($@_DIR)
 	sed -i "s/<<VERSION_NUMBER>>/$(VERSION)/g" $($@_DIR)/deb/DEBIAN/control
