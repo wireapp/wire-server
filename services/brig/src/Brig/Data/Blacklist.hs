@@ -55,8 +55,8 @@ existsPrefix prefix = return . isJust =<< fmap runIdentity <$>
 existsAnyPrefix :: MonadClient m => Phone -> m Bool
 existsAnyPrefix phone = do
     let prefixes = fromPhonePrefix <$> phonePrefixes phone
-    results <- fmap runIdentity <$> retry x1 (query1 prefixSelectAll (params Quorum (Identity $ prefixes)))
-    return $ maybe False (not . null) results
+    results <- fmap runIdentity <$> retry x1 (query prefixSelectAll (params Quorum (Identity $ prefixes)))
+    return $ (not . null) results
 
 prefixInsert :: PrepQuery W (Identity Text) ()
 prefixInsert = "INSERT INTO excluded_phones (prefix) VALUES (?)"
@@ -67,6 +67,6 @@ prefixDelete = "DELETE FROM excluded_phones WHERE prefix = ?"
 prefixSelect :: PrepQuery R (Identity Text) (Identity Text)
 prefixSelect = "SELECT prefix FROM excluded_phones WHERE prefix = ?"
 
-prefixSelectAll :: PrepQuery R (Identity [Text]) (Identity [Text])
+prefixSelectAll :: PrepQuery R (Identity [Text]) (Identity Text)
 prefixSelectAll = "SELECT prefix FROM excluded_phones WHERE prefix IN ?"
 
