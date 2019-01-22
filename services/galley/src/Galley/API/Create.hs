@@ -76,24 +76,24 @@ createRegularGroupConv zusr zcon (NewConvUnmanaged body) = do
 createTeamGroupConv :: UserId -> ConnId -> ConvTeamInfo -> NewConv -> Galley Response
 createTeamGroupConv zusr zcon tinfo body = do
     name <- rangeCheckedMaybe (newConvName body)
-    mems <- Data.teamMembers (cnvTeamId tinfo)
-    ensureAccessRole (accessRole body) (newConvUsers body) (Just mems)
-    void $ permissionCheck zusr CreateConversation mems
+    teamMems <- Data.teamMembers (cnvTeamId tinfo)
+    ensureAccessRole (accessRole body) (newConvUsers body) (Just teamMems)
+    void $ permissionCheck zusr CreateConversation teamMems
     otherConvMems <-
         if cnvManaged tinfo then do
-            let otherConvMems = filter (/= zusr) $ map (view userId) mems
+            let otherConvMems = filter (/= zusr) $ map (view userId) teamMems
             checkedConvSize otherConvMems
         else do
-            when (length mems > 1) $ do
-                void $ permissionCheck zusr AddRemoveConvMember mems
+            when (length teamMems > 1) $ do
+                void $ permissionCheck zusr AddRemoveConvMember teamMems
             otherConvMems <- checkedConvSize (newConvUsers body)
-            ensureConnected zusr (notTeamMember (fromConvSize otherConvMems) mems)
+            ensureConnected zusr (notTeamMember (fromConvSize otherConvMems) teamMems)
             pure otherConvMems
     conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body)
     now  <- liftIO getCurrentTime
     let d = Teams.EdConvCreate (Data.convId conv)
     let e = newEvent Teams.ConvCreate (cnvTeamId tinfo) now & eventData .~ Just d
-    let notInConv = Set.fromList (map (view userId) mems) \\ Set.fromList (zusr : fromConvSize otherConvMems)
+    let notInConv = Set.fromList (map (view userId) teamMems) \\ Set.fromList (zusr : fromConvSize otherConvMems)
     for_ (newPush zusr (TeamEvent e) (map userRecipient (Set.toList notInConv))) push1
     notifyCreatedConversation (Just now) zusr (Just zcon) conv
     conversationResponse status201 zusr conv
