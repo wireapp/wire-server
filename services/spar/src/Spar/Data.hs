@@ -64,7 +64,7 @@ import URI.ByteString
 import qualified Data.List.NonEmpty as NL
 import qualified SAML2.WebSSO as SAML
 import qualified Web.Cookie as Cky
-import qualified Web.SCIM.Class.User as SCIMC.User
+import qualified Web.Scim.Class.User as ScimC.User
 
 
 -- | A lower bound: @schemaVersion <= whatWeFoundOnCassandra@, not @==@.
@@ -478,37 +478,37 @@ deleteTeamScimTokens team = do
 ----------------------------------------------------------------------
 -- SCIM user records
 
--- | Store the scim user in its entirety and return the 'SCIM.StoredUser'.
+-- | Store the scim user in its entirety and return the 'Scim.StoredUser'.
 --
 -- NB: we can add optional columns in the future and extract parts of the json blob should the need
 -- arise.  For instance, if we want to support different versions of SCIM, we could extract
--- 'SCIM.User.schemas' and, throw an exception if the list of values is not supported, and store it
+-- 'Scim.User.schemas' and, throw an exception if the list of values is not supported, and store it
 -- in a separate column otherwise, allowing for fast version filtering on the database.
 insertScimUser
   :: (HasCallStack, MonadClient m)
-  => UserId -> SCIMC.User.StoredUser -> m ()
+  => UserId -> ScimC.User.StoredUser -> m ()
 insertScimUser uid usr = retry x5 . write ins $
   params Quorum (uid, usr)
   where
-    ins :: PrepQuery W (UserId, SCIMC.User.StoredUser) ()
+    ins :: PrepQuery W (UserId, ScimC.User.StoredUser) ()
     ins = "INSERT INTO scim_user (id, json) VALUES (?, ?)"
 
 getScimUser
   :: (HasCallStack, MonadClient m)
-  => UserId -> m (Maybe SCIMC.User.StoredUser)
+  => UserId -> m (Maybe ScimC.User.StoredUser)
 getScimUser uid = runIdentity <$$>
   (retry x1 . query1 sel $ params Quorum (Identity uid))
   where
-    sel :: PrepQuery R (Identity UserId) (Identity SCIMC.User.StoredUser)
+    sel :: PrepQuery R (Identity UserId) (Identity ScimC.User.StoredUser)
     sel = "SELECT json FROM scim_user WHERE id = ?"
 
 -- | Return all users that can be found under a given list of 'UserId's.  If some cannot be found,
 -- the output list will just be shorter (no errors).
 getScimUsers
   :: (HasCallStack, MonadClient m)
-  => [UserId] -> m [SCIMC.User.StoredUser]
+  => [UserId] -> m [ScimC.User.StoredUser]
 getScimUsers uids = runIdentity <$$>
   retry x1 (query sel (params Quorum (Identity uids)))
   where
-    sel :: PrepQuery R (Identity [UserId]) (Identity SCIMC.User.StoredUser)
+    sel :: PrepQuery R (Identity [UserId]) (Identity ScimC.User.StoredUser)
     sel = "SELECT json FROM scim_user WHERE id in ?"

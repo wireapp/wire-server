@@ -16,7 +16,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Spar.SCIM.Types where
+module Spar.Scim.Types where
 
 import Imports
 import Brig.Types.User       as Brig
@@ -28,13 +28,13 @@ import Spar.API.Util
 import Spar.Types
 
 import qualified SAML2.WebSSO as SAML
-import qualified Web.SCIM.Schema.User             as SCIM.User
-import qualified Web.SCIM.Server                  as SCIM
+import qualified Web.Scim.Schema.User             as Scim.User
+import qualified Web.Scim.Server                  as Scim
 
 
--- | SCIM user with 'SAML.UserRef' and mapping to 'Brig.User'.  Constructed by 'validateSCIMUser'.
-data ValidSCIMUser = ValidSCIMUser
-  { _vsuUser          :: SCIM.User.User
+-- | SCIM user with 'SAML.UserRef' and mapping to 'Brig.User'.  Constructed by 'validateScimUser'.
+data ValidScimUser = ValidScimUser
+  { _vsuUser          :: Scim.User.User
 
     -- SAML SSO
   , _vsuSAMLUserRef   :: SAML.UserRef
@@ -47,7 +47,7 @@ data ValidSCIMUser = ValidSCIMUser
   }
   deriving (Eq, Show)
 
-makeLenses ''ValidSCIMUser
+makeLenses ''ValidScimUser
 
 
 ----------------------------------------------------------------------------
@@ -110,7 +110,7 @@ instance ToJSON ScimTokenList where
 -- Servant APIs
 
 type APIScim
-     = OmitDocs :> "v2" :> SCIM.SiteAPI ScimToken
+     = OmitDocs :> "v2" :> Scim.SiteAPI ScimToken
   :<|> "auth-tokens" :> APIScimToken
 
 type APIScimToken

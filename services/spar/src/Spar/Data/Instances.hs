@@ -17,7 +17,7 @@ import URI.ByteString
 
 import qualified Data.Aeson as Aeson
 import qualified SAML2.WebSSO as SAML
-import qualified Web.SCIM.Class.User as SCIM
+import qualified Web.Scim.Class.User as Scim
 
 
 instance Cql (SignedCertificate) where
@@ -70,9 +70,9 @@ toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir) = Just $
 toVerdictFormat _                                                       = Nothing
 
 deriving instance Cql ScimToken
-instance Cql SCIM.StoredUser where
+instance Cql Scim.StoredUser where
     ctype = Tagged BlobColumn
     toCql = CqlBlob . Aeson.encode
 
     fromCql (CqlBlob t) = Aeson.eitherDecode t
-    fromCql _           = fail "SCIM.StoredUser: expected CqlBlob"
+    fromCql _           = fail "Scim.StoredUser: expected CqlBlob"
