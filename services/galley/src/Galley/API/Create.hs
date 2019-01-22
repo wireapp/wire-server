@@ -84,9 +84,9 @@ createTeamGroupConv zusr zcon tinfo body = do
             let otherConvMems = filter (/= zusr) $ map (view userId) teamMems
             checkedConvSize otherConvMems
         else do
-            when (length teamMems > 1) $ do
-                void $ permissionCheck zusr AddRemoveConvMember teamMems
             otherConvMems <- checkedConvSize (newConvUsers body)
+            when (length (fromConvSize otherConvMems) > 1) $ do
+                void $ permissionCheck zusr AddRemoveConvMember teamMems
             ensureConnected zusr (notTeamMember (fromConvSize otherConvMems) teamMems)
             pure otherConvMems
     conv <- Data.createConversation zusr name (access body) (accessRole body) otherConvMems (newConvTeam body) (newConvMessageTimer body) (newConvReceiptMode body)
