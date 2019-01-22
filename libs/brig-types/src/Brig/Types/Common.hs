@@ -151,6 +151,37 @@ instance ToJSON PhoneBudgetTimeout where
     toJSON (PhoneBudgetTimeout t) = object [ "expires_in" .= t ]
 
 -----------------------------------------------------------------------------
+-- PhonePrefix (for excluding from SMS/calling)
+
+newtype PhonePrefix = PhonePrefix { fromPhonePrefix :: Text } deriving (Eq, Show, ToJSON)
+
+-- | Parses a phone number prefix with a mandatory leading '+'.
+parsePhonePrefix :: Text -> Maybe PhonePrefix
+parsePhonePrefix p
+    | isValidPhonePrefix p = Just $! PhonePrefix p
+    | otherwise      = Nothing
+
+-- | Checks whether a phone number prefix is valid,
+-- i.e. it is like a E.164 format phone number, but shorter
+-- (with a mandatory leading '+', followed by 1-15 digits.)
+isValidPhonePrefix :: Text -> Bool
+isValidPhonePrefix = either (const False) (const True) . parseOnly e164Prefix
+  where
+    e164Prefix = char '+' *> count 1 digit *> count 14 (optional digit) *> endOfInput
+
+instance FromJSON PhonePrefix where
+    parseJSON (String s) = case parsePhonePrefix s of
+        Just p  -> return p
+        Nothing -> fail "Invalid phone number prefix. Expected E.164 format (with only one digit or more allowed after the +)."
+    parseJSON _          = mempty
+
+instance FromByteString PhonePrefix where
+    parser = parser >>= maybe (fail "Invalid phone") return . parsePhonePrefix
+
+instance ToByteString PhonePrefix where
+    builder = builder . fromPhonePrefix
+
+-----------------------------------------------------------------------------
 -- UserIdentity
 
 -- | The private unique user identity that is used for login and
