@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-{-# OPTIONS_GHC -Wno-deprecations #-}  -- for Network.BSD
+-- Network.BSD got deprecated in network-2.7; this line won't be needed once we
+-- move to network-3.0 because then we can use the network-bsd package
+{-# OPTIONS_GHC -Wno-deprecations #-}
 
 module Bonanza.Metrics
     ( Stats (..)
