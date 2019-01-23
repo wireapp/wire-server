@@ -1,7 +1,7 @@
 extern crate libc;
 extern crate zauth;
 
-use libc::{c_long, size_t, uint8_t};
+use libc::{size_t, uint8_t};
 use std::char;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
