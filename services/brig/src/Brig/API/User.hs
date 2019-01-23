@@ -257,7 +257,7 @@ createUser new@NewUser{..} = do
         ok <- lift $ Data.claimKey uk uid
         unless ok $
             throwE $ DuplicateUserKey uk
-        let minvmeta :: (Maybe (UserId, UTCTimeMillis), Maybe Team.Role)
+        let minvmeta :: (Maybe (UserId, UTCTimeMillis), Team.Role)
             minvmeta = ((, inCreatedAt inv) <$> inCreatedBy inv, Team.inRole inv)
         added <- lift $ Intra.addTeamMember uid (Team.iiTeam ii) minvmeta
         unless added $
@@ -273,7 +273,7 @@ createUser new@NewUser{..} = do
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO CreateUserTeam
     addUserToTeamSSO account tid ident = do
         let uid = userId (accountUser account)
-        added <- lift $ Intra.addTeamMember uid tid (Nothing, Nothing)
+        added <- lift $ Intra.addTeamMember uid tid (Nothing, Team.defaultRole)
         unless added $
             throwE TooManyTeamMembers
         lift $ do

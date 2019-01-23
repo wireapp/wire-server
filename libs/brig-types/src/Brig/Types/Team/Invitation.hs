@@ -7,7 +7,7 @@ import Brig.Types.Common
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
-import Galley.Types.Teams (Role)
+import Galley.Types.Teams
 
 data InvitationRequest = InvitationRequest
     { irEmail    :: !Email
@@ -18,7 +18,7 @@ data InvitationRequest = InvitationRequest
 
 data Invitation = Invitation
     { inTeam       :: !TeamId
-    , inRole       :: !(Maybe Role)
+    , inRole       :: !Role
     , inInvitation :: !InvitationId
     , inIdentity   :: !Email
     , inCreatedAt  :: !UTCTimeMillis
@@ -49,7 +49,8 @@ instance ToJSON InvitationRequest where
 instance FromJSON Invitation where
     parseJSON = withObject "invitation" $ \o ->
         Invitation <$> o .: "team"
-                   <*> o .:? "role"
+                       -- clients, when leaving "role" empty, can leave the default role choice to us
+                   <*> o .:? "role" .!= defaultRole
                    <*> o .: "id"
                    <*> o .: "email"
                    <*> o .: "created_at"

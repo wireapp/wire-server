@@ -166,7 +166,8 @@ createInvitation (_ ::: uid ::: tid ::: req) = do
     body :: InvitationRequest <- parseJsonBody req
     idt  <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail)    return (emailIdentity idt)
-    let inviteePerms = Team.rolePermissions . fromMaybe Team.RoleMember . irRole $ body
+    let inviteePerms = Team.rolePermissions inviteeRole
+        inviteeRole  = fromMaybe Team.defaultRole . irRole $ body
     ensurePermissionToAddUser uid tid inviteePerms
     email <- either (const $ throwStd invalidEmail) return (validateEmail (irEmail body))
     let uk = userEmailKey email
@@ -180,7 +181,7 @@ createInvitation (_ ::: uid ::: tid ::: req) = do
     user <- lift $ Data.lookupKey uk
     case user of
         Just _  -> throwStd emailExists
-        Nothing -> doInvite (irRole body) email from (irLocale body)
+        Nothing -> doInvite inviteeRole email from (irLocale body)
   where
     doInvite role to from lc = lift $ do
         now     <- liftIO =<< view currentTime

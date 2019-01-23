@@ -43,6 +43,7 @@ import Data.Time.Clock
 import OpenSSL.Random (randBytes)
 
 import qualified Data.Conduit.List as C
+import qualified Galley.Types.Teams as Team
 
 mkInvitationCode :: IO InvitationCode
 mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24
@@ -58,7 +59,7 @@ data InvitationInfo = InvitationInfo
 
 insertInvitation :: MonadClient m
                  => TeamId
-                 -> Maybe Role
+                 -> Role
                  -> Email
                  -> UTCTime
                  -> Maybe UserId
@@ -78,7 +79,7 @@ insertInvitation t role email (toUTCTimeMillis -> now) minviter timeout = do
     cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
     cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?"
 
-    cqlInvitation :: PrepQuery W (TeamId, Maybe Role, InvitationId, InvitationCode, Email, UTCTimeMillis, Maybe UserId, Int32) ()
+    cqlInvitation :: PrepQuery W (TeamId, Role, InvitationId, InvitationCode, Email, UTCTimeMillis, Maybe UserId, Int32) ()
     cqlInvitation = "INSERT INTO team_invitation (team, role, id, code, email, created_at, created_by) VALUES (?, ?, ?, ?, ?, ?, ?) USING TTL ?"
 
 lookupInvitation :: MonadClient m => TeamId -> InvitationId -> m (Maybe Invitation)
@@ -162,5 +163,7 @@ countInvitations t = fromMaybe 0 . fmap runIdentity <$>
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity Int64)
     cqlSelect = "SELECT count(*) FROM team_invitation WHERE team = ?"
 
+-- | brig used to not store the role, so for migration we allow this to be empty and fill in the
+-- default here.
 toInvitation :: (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId) -> Invitation
-toInvitation (t, r, i, e, tm, minviter) = Invitation t r i e tm minviter
+toInvitation (t, r, i, e, tm, minviter) = Invitation t (fromMaybe Team.defaultRole r) i e tm minviter

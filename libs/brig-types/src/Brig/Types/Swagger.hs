@@ -5,7 +5,9 @@ module Brig.Types.Swagger where
 import Imports
 import Data.Swagger
 import Data.Swagger.Build.Api
+import Galley.Types.Teams (defaultRole)
 
+import qualified Data.Swagger.Model.Api     as Model
 import qualified Galley.Types.Swagger       as Galley
 import qualified Galley.Types.Teams.Swagger as Galley
 
@@ -375,13 +377,25 @@ invitationRequest = defineModel "InvitationRequest" $ do
         description "Locale to use for the invitation."
         optional
 
+role :: DataType
+role = Model.Prim $ Model.Primitive
+    { Model.primType     = Model.PrimString
+    , Model.defaultValue = Just defaultRole
+    , Model.enum         = Just [minBound..]
+    , Model.minVal       = Just minBound
+    , Model.maxVal       = Just maxBound
+    }
+
 invitation :: Model
 invitation = defineModel "Invitation" $ do
     description "An invitation to join Wire"
     property "inviter" bytes' $
         description "User ID of the inviter"
+    property "role" role $ do
+        description "Role of the invited user"
+        optional
     property "id" bytes' $
-        description "UUID used to refer the invitation"
+        description "UUID used to refer to the invitation"
     property "email" string' $ do
         description "Email of the invitee"
         optional
