@@ -166,10 +166,9 @@ specUsers = describe "operations with users" $ do
                 Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
                 let meta  = Scim.meta storedUser
                     meta' = Scim.meta storedUser'
+                Scim.version meta `shouldNotBe` Scim.version meta'
                 Scim.resourceType meta `shouldBe` Scim.resourceType meta'
                 Scim.created meta `shouldBe` Scim.created meta'
-                -- FIXME: they actually *should not* match
-                Scim.version meta `shouldBe` Scim.version meta'
                 Scim.location meta `shouldBe` Scim.location meta'
 
         it "works fine when neither name nor handle are changed" $ do
@@ -200,10 +199,9 @@ specUsers = describe "operations with users" $ do
                 Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
                 let meta  = Scim.meta storedUser
                     meta' = Scim.meta storedUser'
+                Scim.version meta `shouldNotBe` Scim.version meta'
                 Scim.resourceType meta `shouldBe` Scim.resourceType meta'
                 Scim.created meta `shouldBe` Scim.created meta'
-                -- FIXME: they actually *should not* match
-                Scim.version meta `shouldBe` Scim.version meta'
                 Scim.location meta `shouldBe` Scim.location meta'
 
         it "updates 'SAML.UserRef' in spar" $ do
