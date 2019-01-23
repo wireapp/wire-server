@@ -1,7 +1,7 @@
 extern crate libc;
 extern crate zauth;
 
-use libc::{size_t, uint8_t};
+use libc::{c_long, size_t, uint8_t};
 use std::char;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
@@ -130,11 +130,10 @@ pub extern fn zauth_token_type(t: &ZauthToken) -> ZauthTokenType {
     From::from(t.0.token_type)
 }
 
-// Commented out, looks unused, and causing portability issues with ia32.
-//#[no_mangle]
-//pub extern fn zauth_token_time(t: &ZauthToken) -> c_long {
-//    t.0.timestamp
-//}
+#[no_mangle]
+pub extern fn zauth_token_time(t: &ZauthToken) -> c_long {
+    t.0.timestamp
+}
 
 #[no_mangle]
 pub extern fn zauth_token_version(t: &ZauthToken) -> uint8_t {

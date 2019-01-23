@@ -1,7 +1,7 @@
 LANG := en_US.UTF-8
 SHELL   := /usr/bin/env bash
 VERSION := "3.0.0"
-ARCH    := $(shell if [ -f "`which dpkg-architecture`" ]; then dpkg-architecture -qDEB_HOST_ARCH; else [ -f "`which dpkg`" ] && dpkg --print-architecture; fi )
+ARCH    := amd64
 BUILD   ?= 1
 OS      := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 # If we can install libzauth globally, we'll install it there, otherwise

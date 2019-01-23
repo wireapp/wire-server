@@ -1,5 +1,5 @@
 Package: libzauth
 Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
 Maintainer: Wire Swiss GmbH <backend@wire.com>
-Architecture: <<ARCHITECTURE>>
+Architecture: amd64
 Description: zauth token parsing and verification
