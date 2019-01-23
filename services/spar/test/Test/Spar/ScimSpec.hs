@@ -21,7 +21,6 @@ import qualified Data.UUID as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Web.Scim.Class.User as ScimC
 import qualified Web.Scim.Schema.Common as Scim
-import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as ScimR
 import qualified Web.Scim.Schema.User as Scim
@@ -33,8 +32,7 @@ spec = describe "toScimStoredUser'" $ do
   it "works" $ do
     let usr :: Scim.User
         usr = Scim.User
-          { Scim.schemas = [Scim.User20]
-          , Scim.userName = "02b35298-088f-11e9-b4a4-478635dd0d2b"
+          { Scim.userName = "02b35298-088f-11e9-b4a4-478635dd0d2b"
           , Scim.externalId = Just "c1704a48-0a1e-11e9-9186-9b185fe892e8"
           , Scim.name = Just (ScimN.Name { ScimN.formatted = Nothing
                                          , ScimN.familyName = Just ""
@@ -52,14 +50,14 @@ spec = describe "toScimStoredUser'" $ do
           , Scim.locale = Nothing
           , Scim.active = Nothing
           , Scim.password = Nothing
-          , Scim.emails = Nothing
-          , Scim.phoneNumbers = Nothing
-          , Scim.ims = Nothing
-          , Scim.photos = Nothing
-          , Scim.addresses = Nothing
-          , Scim.entitlements = Nothing
-          , Scim.roles = Nothing
-          , Scim.x509Certificates = Nothing
+          , Scim.emails = []
+          , Scim.phoneNumbers = []
+          , Scim.ims = []
+          , Scim.photos = []
+          , Scim.addresses = []
+          , Scim.entitlements = []
+          , Scim.roles = []
+          , Scim.x509Certificates = []
           }
 
         meta :: Scim.Meta

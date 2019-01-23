@@ -91,7 +91,7 @@ randomScimUser = do
         { Scim.User.userName    = "scimuser_" <> suffix
         , Scim.User.displayName = Just ("Scim User #" <> suffix)
         , Scim.User.externalId  = Just ("scimuser_extid_" <> suffix)
-        , Scim.User.emails      = Just emails
+        , Scim.User.emails      = emails
         }
 
 randomScimEmail :: MonadRandom m => m Email.Email
