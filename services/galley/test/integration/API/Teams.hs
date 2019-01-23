@@ -51,8 +51,9 @@ tests s = testGroup "Teams API"
     , test s "create multiple binding teams fail" testCreateMulitpleBindingTeams
     , test s "create binding team with currency" testCreateBindingTeamWithCurrency
     , test s "create team with members" testCreateTeamWithMembers
-    , test s "create 1-1 conversation between binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers
-    , test s "create 1-1 conversation between binding team members" testCreateOne2OneWithMembers
+    , test s "create 1-1 conversation between non-binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers
+    , test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember)
+    , test s "create 1-1 conversation between binding team members as collaborator" (testCreateOne2OneWithMembers RoleCollaborator)
     , test s "add new team member" testAddTeamMember
     , test s "add new team member binding teams" testAddTeamMemberCheckBound
     , test s "add new team member internal" testAddTeamMemberInternal
@@ -60,6 +61,7 @@ tests s = testGroup "Teams API"
     , test s "remove team member (binding, owner has passwd)" (testRemoveBindingTeamMember True)
     , test s "remove team member (binding, owner has no passwd)" (testRemoveBindingTeamMember False)
     , test s "add team conversation" testAddTeamConv
+    , test s "add team conversation as collaborator (fail)" testAddTeamConvAsCollaborator
     , test s "add managed conversation through public endpoint (fail)" testAddManagedConv
     , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
     , test s "add team member to conversation without connection" testAddTeamMemberToConv
@@ -176,13 +178,15 @@ testCreateOne2OneFailNonBindingTeamMembers g b _ a = do
         const 403 === statusCode
         const "non-binding-team-members" === (Error.label . Util.decodeBody' "error label")
 
-testCreateOne2OneWithMembers :: HasCallStack => Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testCreateOne2OneWithMembers g b c a = do
+testCreateOne2OneWithMembers
+    :: HasCallStack
+    => Role  -- ^ Role of the user who creates the conversation
+    -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testCreateOne2OneWithMembers (rolePermissions -> perms) g b c a = do
     owner <- Util.randomUser b
     tid   <- Util.createTeamInternal g "foo" owner
     assertQueue "create team" a tActivate
-    let p1 = Util.symmPermissions [CreateConversation]
-    mem1 <- newTeamMember' p1 <$> Util.randomUser b
+    mem1 <- newTeamMember' perms <$> Util.randomUser b
 
     WS.bracketR c (mem1^.userId) $ \wsMem1 -> do
         Util.addTeamMemberInternal g tid mem1
@@ -427,6 +431,27 @@ testAddTeamConv g b c _ = do
 
         WS.assertNoEvent timeout ws
 
+testAddTeamConvAsCollaborator :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testAddTeamConvAsCollaborator g b _ _ = do
+    owner <- Util.randomUser b
+    memMember1 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser b
+    memMember2 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser b
+    memCollaborator <- newTeamMember' (rolePermissions RoleCollaborator) <$> Util.randomUser b
+    Util.connectUsers b owner
+        (list1 (memMember1^.userId) [memCollaborator^.userId, memMember2^.userId])
+    tid <- Util.createTeamInternal g "foo" owner
+    forM_ [memMember1, memMember2, memCollaborator] $ \mem ->
+        Util.addTeamMemberInternal g tid mem
+    let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
+    Util.createTeamConvAccessRaw g
+        (memCollaborator^.userId)
+        tid
+        [memMember1^.userId, memMember2^.userId]
+        (Just "blaa") acc (Just TeamAccessRole) Nothing
+      !!! do
+        const 403 === statusCode
+        const "operation-denied" === (Error.label . Util.decodeBody' "error label")
+
 testAddManagedConv :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testAddManagedConv g b _c _ = do
     owner <- Util.randomUser b
@@ -485,7 +510,9 @@ testAddTeamMemberToConv g b _ _ = do
         const 403                === statusCode
         const "operation-denied" === (Error.label . Util.decodeBody' "error label")
 
-testUpdateTeamConv :: Role -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testUpdateTeamConv
+    :: Role  -- ^ Role of the user who creates the conversation
+    -> Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 testUpdateTeamConv (rolePermissions -> perms) g b _ _ = do
     owner  <- Util.randomUser b
     member <- Util.randomUser b
