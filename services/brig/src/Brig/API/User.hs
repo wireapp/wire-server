@@ -58,6 +58,11 @@ module Brig.API.User
     , blacklistDelete
     , blacklistInsert
 
+      -- * Phone Prefix blocking
+    , phonePrefixGet
+    , phonePrefixDelete
+    , phonePrefixInsert
+
       -- * Utilities
     , fetchUserIdentity
     ) where
@@ -867,6 +872,15 @@ blacklistDelete :: Either Email Phone -> AppIO ()
 blacklistDelete emailOrPhone = do
     let uk = either userEmailKey userPhoneKey emailOrPhone
     Blacklist.delete uk
+
+phonePrefixGet :: PhonePrefix -> AppIO [PhonePrefix]
+phonePrefixGet prefix = Blacklist.getAllPrefixes prefix
+
+phonePrefixDelete :: PhonePrefix -> AppIO ()
+phonePrefixDelete = Blacklist.deletePrefix
+
+phonePrefixInsert :: PhonePrefix -> AppIO ()
+phonePrefixInsert = Blacklist.insertPrefix
 
 -------------------------------------------------------------------------------
 -- Utilities

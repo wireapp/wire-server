@@ -712,12 +712,16 @@ testSendActivationCodePrefixExcluded :: Brig -> Http ()
 testSendActivationCodePrefixExcluded brig = do
     p <- randomPhone
     let prefix = PhonePrefix $ T.take 5 (fromPhone p)
-
+    insertPrefix prefix
     -- expect activation to fail if it was excluded
     requestActivationCode brig 403 (Right p)
-
+    deletePrefix prefix
+    -- expect activation to work again after removing block
+    requestActivationCode brig 200 (Right p)
   where
-    insertPrefix = undefined
+    --getPrefix prefix = delete ( brig . path "/i/users/phone-prefix" . queryItem "prefix" (toByteString' prefix)) !!! const 200 === statusCode
+    insertPrefix prefix = post ( brig . path "/i/users/phone-prefix" . queryItem "prefix" (toByteString' prefix)) !!! const 200 === statusCode
+    deletePrefix prefix = delete ( brig . path "/i/users/phone-prefix" . queryItem "prefix" (toByteString' prefix)) !!! const 200 === statusCode
 
 testEmailPhoneDelete :: Brig -> Cannon -> Http ()
 testEmailPhoneDelete brig cannon = do

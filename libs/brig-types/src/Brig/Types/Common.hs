@@ -170,7 +170,12 @@ isValidPhonePrefix = either (const False) (const True) . parseOnly e164Prefix
     e164Prefix = char '+' *> count 1 digit *> count 14 (optional digit) *> endOfInput
 
 phonePrefixes :: Phone -> [PhonePrefix]
-phonePrefixes p = catMaybes $ parsePhonePrefix <$> Text.inits (fromPhone p)
+phonePrefixes p = allPrefixes (fromPhone p)
+
+-- | get all valid prefixes of a phone number or phone number prefix
+-- e.g. from +123456789 get prefixes ["+1", "+12", "+123", ..., "+123456789" ]
+allPrefixes :: Text -> [PhonePrefix]
+allPrefixes t = catMaybes $ parsePhonePrefix <$> Text.inits t
 
 instance FromJSON PhonePrefix where
     parseJSON (String s) = case parsePhonePrefix s of

@@ -5,11 +5,13 @@ module Brig.Data.Blacklist
       insert
     , exists
     , delete
+
       -- * PhonePrefix excluding
     , insertPrefix
     , deletePrefix
     , existsPrefix
     , existsAnyPrefix
+    , getAllPrefixes
     ) where
 
 import Imports
@@ -51,6 +53,12 @@ deletePrefix prefix = retry x5 $ write prefixDelete (params Quorum (Identity $ f
 existsPrefix :: MonadClient m => PhonePrefix -> m Bool
 existsPrefix prefix = return . isJust =<< fmap runIdentity <$>
     retry x1 (query1 prefixSelect (params Quorum (Identity $ fromPhonePrefix prefix)))
+
+getAllPrefixes :: MonadClient m => PhonePrefix -> m [PhonePrefix]
+getAllPrefixes prefix = do
+    let prefixes = fromPhonePrefix <$> allPrefixes (fromPhonePrefix prefix)
+    results <- fmap runIdentity <$> retry x1 (query prefixSelectAll (params Quorum (Identity $ prefixes)))
+    return (PhonePrefix <$> results)
 
 existsAnyPrefix :: MonadClient m => Phone -> m Bool
 existsAnyPrefix phone = do
