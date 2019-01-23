@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
+{-# OPTIONS_GHC -Wno-deprecations #-}  -- for Network.BSD
+
 module Bonanza.Metrics
     ( Stats (..)
     , debugCollectd
