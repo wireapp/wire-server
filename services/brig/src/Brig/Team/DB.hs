@@ -163,8 +163,7 @@ countInvitations t = fromMaybe 0 . fmap runIdentity <$>
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity Int64)
     cqlSelect = "SELECT count(*) FROM team_invitation WHERE team = ?"
 
--- | FUTUREWORK: two weeks after https://github.com/wearezeta/backend-issues/issues/775 has been
--- deployed, we won't find any `Nothing` role values any more; then it will be safe to change the
--- type here from @Maybe Role@ into @Role@.
+-- | brig used to not store the role, so for migration we allow this to be empty and fill in the
+-- default here.
 toInvitation :: (TeamId, Maybe Role, InvitationId, Email, UTCTimeMillis, Maybe UserId) -> Invitation
 toInvitation (t, r, i, e, tm, minviter) = Invitation t (fromMaybe Team.defaultRole r) i e tm minviter

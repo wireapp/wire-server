@@ -167,7 +167,7 @@ createInvitation (_ ::: uid ::: tid ::: req) = do
     idt  <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail)    return (emailIdentity idt)
     let inviteePerms = Team.rolePermissions inviteeRole
-        inviteeRole  = fromMaybe Team.RoleMember . irRole $ body
+        inviteeRole  = fromMaybe Team.defaultRole . irRole $ body
     ensurePermissionToAddUser uid tid inviteePerms
     email <- either (const $ throwStd invalidEmail) return (validateEmail (irEmail body))
     let uk = userEmailKey email
