@@ -19,6 +19,7 @@ import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
+import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Proxy
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
@@ -210,8 +211,49 @@ specFinalizeLogin = do
 
         context "user is created once, then deleted in team settings, then can login again." $ do
           it "responds with 'allowed'" $ do
-            pendingWith "this is a mutation of the test above, plus delete in team settings plus repeat login."
-            -- (from the report of a prospect, i suspect this will fail and need fixing.)
+            (ownerid, teamid, idp) <- registerTestIdP
+            spmeta <- getTestSPMetadata
+
+            -- first login
+            newUserAuthnResp :: SignedAuthnResponse <- do
+              (privcreds, authnreq) <- negotiateAuthnRequest idp
+              authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
+              loginSuccess =<< submitAuthnResponse authnresp
+              pure $ authnresp
+
+            let newUserRef@(UserRef _ subj) = either (error . show) (^. userRefL) $
+                  parseFromDocument (fromSignedAuthnResponse newUserAuthnResp)
+
+            -- remove user from team settings
+            do
+              env <- ask
+              newUserId <- getUserIdViaRef newUserRef
+              resp <- call . get $
+                ( (env ^. teGalley)
+                . header "Z-User" (toByteString' ownerid)
+                . header "Z-Connection" "fake"
+                . paths ["teams", toByteString' teamid, "members"]
+                . expect2xx
+                )
+              liftIO . print $ responseBody resp
+
+              void . call . delete $
+                ( (env ^. teGalley)
+                . header "Z-User" (toByteString' ownerid)
+                . header "Z-Connection" "fake"
+                . paths ["teams", toByteString' teamid, "members", toByteString' newUserId]
+                . Bilge.json (Galley.newTeamMemberDeleteData (Just defPassword))
+                . expect2xx
+                )
+
+            -- second login
+
+            liftIO $ threadDelay 1000000
+
+            do
+              (privcreds, authnreq) <- negotiateAuthnRequest idp
+              authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp spmeta authnreq True
+              loginSuccess =<< submitAuthnResponse authnresp
 
         context "unknown user" $ do
           it "creates the user" $ do
@@ -734,3 +776,19 @@ specAux = do
 -- TODO: go through DataSpec, APISpec and check that all the tests still make sense with the new implicit mock idp.
 -- TODO: what else needs to be tested, beyond the pending tests listed here?
 -- TODO: what tests can go to saml2-web-sso package?
+
+
+
+-- TODO: move these to saml2-web-sso, some test module exported with the library.  there are also a
+-- few more there in test/Util/Misc.hs, remove it from there.  (PR coming up.)
+_nlhead :: Lens' (NonEmpty a) a
+_nlhead f (a :| as) = (:| as) <$> f a
+
+assertionL :: Lens' AuthnResponse Assertion
+assertionL = rspPayload . _nlhead
+
+userRefL :: Getter AuthnResponse UserRef
+userRefL = to $ \aresp ->
+  let tenant  = aresp ^. assertionL . assIssuer
+      subject = aresp ^. assertionL . assContents . sasSubject . subjectID
+  in UserRef tenant subject

@@ -36,6 +36,7 @@ module Util.Core
   , decodeBody
   , decodeBody'
   -- * Other
+  , defPassword
   , createUserWithTeam
   , createTeamMember
   , deleteUser
