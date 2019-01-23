@@ -219,6 +219,10 @@ createValidScimUser (ValidScimUser user uref handl mbName) = do
 
     pure storedUser
 
+    -- FUTUREWORK: think about potential failure points in this function (SCIM
+    -- can succeed but SAML can fail, Brig user creation can succeed but
+    -- handle-setting can fail).
+
 updateValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ScimTokenInfo -> Text -> ValidScimUser -> m Scim.Class.User.StoredUser
