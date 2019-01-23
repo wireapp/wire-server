@@ -60,7 +60,7 @@ spec = beforeAll app $ do
       get "/0" `shouldRespondWith` barbara
 
   describe "PUT /Users/:id" $ do
-    it "updates mutable fields" $ do
+    it "overwrites the user" $ do
       put "/0" barbUpdate0 `shouldRespondWith` updatedBarb0
 
     it "does not create new user" $ do

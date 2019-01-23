@@ -61,7 +61,7 @@ mkUserDB = do
             , honorificSuffix = Nothing
             }
         , active = Just True
-        , emails = Just [email]
+        , emails = [email]
         }
   atomically $ STMMap.insert (WithMeta meta (WithId "elton" user)) "elton" db
   pure db

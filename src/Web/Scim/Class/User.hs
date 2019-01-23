@@ -5,11 +5,10 @@ module Web.Scim.Class.User
     , userServer
     ) where
 
-import           Control.Applicative ((<|>), Alternative)
 import           Control.Monad
 import           Data.Text
 import           GHC.Generics (Generic)
-import           Web.Scim.Schema.User hiding (schemas)
+import           Web.Scim.Schema.User
 import           Web.Scim.Schema.Meta
 import           Web.Scim.Schema.Common
 import           Web.Scim.Schema.Error
@@ -107,15 +106,22 @@ postUser' auth user = do
     throwScim conflict
   create auth user
 
+-- | Fully update a 'User'.
+--
+-- Spec: <https://tools.ietf.org/html/rfc7644#section-3.5.1>.
+--
+-- FUTUREWORK: according to the spec, we should handle cases where someone
+-- attempts to overwrite @readOnly@ and @immutable@ attributes. Currently we
+-- don't have any such attributes.
+--
+-- See <https://github.com/wireapp/hscim/issues/21>.
 putUser'
     :: UserDB m
     => AuthInfo m -> UserId -> User -> ScimHandler m StoredUser
-putUser' auth uid updatedUser = do
+putUser' auth uid user = do
   stored <- get auth uid
   case stored of
-    Just (WithMeta _meta (WithId _ existing)) -> do
-      let newUser = existing `overwriteWith` updatedUser
-      update auth uid newUser
+    Just _ -> update auth uid user
     Nothing -> throwScim (notFound "User" uid)
 
 deleteUser'
@@ -125,37 +131,3 @@ deleteUser' auth uid = do
   deleted <- delete auth uid
   unless deleted $ throwScim (notFound "User" uid)
   pure NoContent
-
-----------------------------------------------------------------------------
--- Utilities
-
-overwriteWith :: User -> User -> User
-overwriteWith old new = old
-  { --externalId :: Unsettable Text
-    name = merge name
-  , displayName = merge displayName
-  , nickName = merge nickName
-  , profileUrl = merge profileUrl
-  , title = merge title
-  , userType = merge userType
-  , preferredLanguage = merge preferredLanguage
-  , locale = merge locale
-  , active = merge active
-  , password = merge password
-  , emails = mergeList emails
-  , phoneNumbers = mergeList phoneNumbers
-  , ims = mergeList ims
-  , photos = mergeList photos
-  , addresses = mergeList addresses
-  , entitlements = mergeList entitlements
-  , roles = mergeList roles
-  , x509Certificates = mergeList x509Certificates
-  }
-  where
-    merge :: (Alternative f) => (User -> f a) -> f a
-    merge accessor = (accessor new) <|> (accessor old)
-
-    mergeList :: (User -> Maybe [a]) -> Maybe [a]
-    mergeList accessor = case accessor new of
-      Just [] -> accessor old
-      _ -> (accessor new) <|> (accessor old)

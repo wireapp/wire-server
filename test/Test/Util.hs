@@ -73,6 +73,9 @@ equalsJSON expected = MatchBody matcher
 instance FromValue L.ByteString where
   fromValue = encode
 
+instance FromValue Value where
+  fromValue = id
+
 ----------------------------------------------------------------------------
 -- Ad-hoc JSON parsing
 
