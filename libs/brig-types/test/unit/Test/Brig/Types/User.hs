@@ -6,6 +6,8 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE ViewPatterns        #-}
 
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Test.Brig.Types.User where
 
 import Imports
@@ -18,6 +20,7 @@ import Data.Aeson
 import Data.Aeson.Types
 import Data.Proxy
 import Data.Typeable (typeOf)
+import Galley.Types.Teams
 import Test.Brig.Types.Arbitrary ()
 import Test.QuickCheck
 import Test.Tasty
@@ -88,6 +91,7 @@ roundtripTests =
     , run @PhoneUpdate Proxy
     , run @ReAuthUser Proxy
     , run @SelfProfile Proxy
+    , run @TeamMember Proxy
     , run @UpdateServiceWhitelist Proxy
     , run @UserHandleInfo Proxy
     , run @UserIdentity Proxy

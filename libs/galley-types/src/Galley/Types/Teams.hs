@@ -499,12 +499,10 @@ instance ToJSON TeamMember where
 -- into account.  See 'canSeePermsOf'.
 teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
 teamMemberJson withPerms m = object $
-    [ "user" .= _userId m ] <>
+    [ "user"        .= _userId m ] <>
     [ "permissions" .= _permissions m | withPerms m ] <>
-    [ "invited" .= (invmetaJson <$> _invitation m) ]
-  where
-    invmetaJson :: (UserId, UTCTimeMillis) -> Value
-    invmetaJson (by, at) = object [ "by" .= by, "at" .= at ]
+    [ "created_by"  .= (fst <$> _invitation m) ] <>
+    [ "created_at"  .= (snd <$> _invitation m) ]
 
 -- | Use this to construct the condition expected by 'teamMemberJson', 'teamMemberListJson'
 canSeePermsOf :: TeamMember -> TeamMember -> Bool
@@ -515,13 +513,16 @@ parseTeamMember :: Value -> Parser TeamMember
 parseTeamMember = withObject "team-member" $ \o ->
     TeamMember <$> o .:  "user"
                <*> o .:  "permissions"
-               <*> (parseInv =<< (o .:? "invited"))
+               <*> parseInvited o
   where
-    parseInv Nothing = pure Nothing
-    parseInv (Just val) = Just <$> parseInv' val
-
-    parseInv' = withObject "team-member invitation metadata" $ \o ->
-        (,) <$> (o .: "by") <*> (o .: "at")
+    parseInvited :: Object -> Parser (Maybe (UserId, UTCTimeMillis))
+    parseInvited o = do
+        invby <- o .:? "created_by"
+        invat <- o .:? "created_at"
+        case (invby, invat) of
+          (Just b, Just a)   -> pure $ Just (b, a)
+          (Nothing, Nothing) -> pure $ Nothing
+          _                  -> fail "created_by, created_at"
 
 instance ToJSON TeamMemberList where
     toJSON = teamMemberListJson (const True)
