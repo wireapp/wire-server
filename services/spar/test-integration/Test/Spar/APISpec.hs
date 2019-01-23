@@ -190,20 +190,23 @@ specFinalizeLogin = do
             hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
 
       context "access granted" $ do
-        it "responds with a very peculiar 'allowed' HTTP response" $ do
-          (_, _, idp) <- registerTestIdP
-          (privcreds, authnreq) <- negotiateAuthnRequest idp
-          spmeta <- getTestSPMetadata
-          authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
-          sparresp <- submitAuthnResponse authnresp
-          liftIO $ do
-            statusCode sparresp `shouldBe` 200
-            let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
-            bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-            bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-            bdy `shouldContain` "<title>wire:sso:success</title>"
-            bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
-            hasPersistentCookieHeader sparresp `shouldBe` Right ()
+        let loginSuccess :: HasCallStack => ResponseLBS -> TestSpar ()
+            loginSuccess sparresp = liftIO $ do
+              statusCode sparresp `shouldBe` 200
+              let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+              bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+              bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+              bdy `shouldContain` "<title>wire:sso:success</title>"
+              bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
+              hasPersistentCookieHeader sparresp `shouldBe` Right ()
+
+        context "happy flow" $ do
+          it "responds with a very peculiar 'allowed' HTTP response" $ do
+            (_, _, idp) <- registerTestIdP
+            spmeta <- getTestSPMetadata
+            (privcreds, authnreq) <- negotiateAuthnRequest idp
+            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
+            loginSuccess =<< submitAuthnResponse authnresp
 
         context "user is created once, then deleted in team settings, then can login again." $ do
           it "responds with 'allowed'" $ do
