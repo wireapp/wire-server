@@ -582,6 +582,10 @@ instance FromJSON Role where
         "admin"        -> pure RoleAdmin
         "member"       -> pure RoleMember
         "partner"      -> pure RoleExternalPartner
+        "collaborator" -> pure RoleExternalPartner
+          -- 'collaborator' was used for a short period of time on staging.  if you are
+          -- wondering about this, it's probably safe to remove.
+          -- ~fisx, Wed Jan 23 16:38:52 CET 2019
         bad            -> fail $ "not a role: " <> show bad
 
 newTeamJson :: NewTeam a -> [Pair]
