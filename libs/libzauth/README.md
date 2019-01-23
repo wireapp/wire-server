@@ -4,9 +4,9 @@
 
 To build libzauth natively, you will need to have the usual C compiler toolchains installed.
 
-## Ubuntu / Debian
+### Ubuntu / Debian
 
-### Building / Installing
+#### Building / Installing
 
 ```bash
 make dist
@@ -14,9 +14,9 @@ sudo dpkg -i libzauth*.deb
 sudo ldconfig
 ```
 
-## Generic
+### Generic
 
-### Building / Installing
+#### Building / Installing
 
 ```bash
 make install
