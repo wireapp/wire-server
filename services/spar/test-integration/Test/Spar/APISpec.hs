@@ -205,6 +205,11 @@ specFinalizeLogin = do
             bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
             hasPersistentCookieHeader sparresp `shouldBe` Right ()
 
+        context "user is created once, then deleted in team settings, then can login again." $ do
+          it "responds with 'allowed'" $ do
+            pendingWith "this is a mutation of the test above, plus delete in team settings plus repeat login."
+            -- (from the report of a prospect, i suspect this will fail and need fixing.)
+
         context "unknown user" $ do
           it "creates the user" $ do
             pending
