@@ -248,7 +248,7 @@ data Perm =
     -- read Note [team roles] first.
     deriving (Eq, Ord, Show, Enum, Bounded)
 
-data Role = RoleOwner | RoleAdmin | RoleMember | RoleCollaborator
+data Role = RoleOwner | RoleAdmin | RoleMember | RoleExternalPartner
     deriving (Eq, Ord, Show, Enum, Bounded)
 
 defaultRole :: Role
@@ -269,13 +269,13 @@ rolePerms RoleAdmin = rolePerms RoleMember <> Set.fromList
     , SetTeamData
     , SetMemberPermissions
     ]
-rolePerms RoleMember = rolePerms RoleCollaborator <> Set.fromList
+rolePerms RoleMember = rolePerms RoleExternalPartner <> Set.fromList
     [ DeleteConversation
     , AddRemoveConvMember
     , ModifyConvMetadata
     , GetMemberPermissions
     ]
-rolePerms RoleCollaborator = Set.fromList
+rolePerms RoleExternalPartner = Set.fromList
     [ CreateConversation
     , GetTeamConversations
     ]
@@ -574,14 +574,14 @@ instance ToJSON Role where
     toJSON RoleOwner        = "owner"
     toJSON RoleAdmin        = "admin"
     toJSON RoleMember       = "member"
-    toJSON RoleCollaborator = "collaborator"
+    toJSON RoleExternalPartner = "partner"
 
 instance FromJSON Role where
     parseJSON = withText "Role" $ \case
         "owner"        -> pure RoleOwner
         "admin"        -> pure RoleAdmin
         "member"       -> pure RoleMember
-        "collaborator" -> pure RoleCollaborator
+        "partner"      -> pure RoleExternalPartner
         bad            -> fail $ "not a role: " <> show bad
 
 newTeamJson :: NewTeam a -> [Pair]
@@ -739,13 +739,13 @@ instance Cql.Cql Role where
     toCql RoleOwner        = Cql.CqlInt 1
     toCql RoleAdmin        = Cql.CqlInt 2
     toCql RoleMember       = Cql.CqlInt 3
-    toCql RoleCollaborator = Cql.CqlInt 4
+    toCql RoleExternalPartner = Cql.CqlInt 4
 
     fromCql (Cql.CqlInt i) = case i of
         1 -> return RoleOwner
         2 -> return RoleAdmin
         3 -> return RoleMember
-        4 -> return RoleCollaborator
+        4 -> return RoleExternalPartner
         n -> fail $ "Unexpected Role value: " ++ show n
     fromCql _ = fail "Role value: int expected"
 

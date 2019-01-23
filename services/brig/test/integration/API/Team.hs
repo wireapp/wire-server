@@ -139,7 +139,7 @@ testInvitationTooManyPending brig galley (TeamSizeLimit limit) = do
         const 403 === statusCode
         const (Just "too-many-team-invitations") === fmap Error.label . decodeBody
 
--- | Admins can invite collaborators, but not owners.
+-- | Admins can invite external partners, but not owners.
 testInvitationRoles :: HasCallStack => Brig -> Galley -> Http ()
 testInvitationRoles brig galley = do
     (owner, tid) <- createUserWithTeam brig galley
@@ -161,17 +161,17 @@ testInvitationRoles brig galley = do
         inv :: Invitation <- decodeBody =<< postInvitation brig tid owner invite
         registerInvite inv aliceEmail
 
-    -- alice creates a collaborator bob.  success!  bob only has collaborator perms.
+    -- alice creates a external partner bob.  success!  bob only has externalPartner perms.
     do
         bobEmail <- randomEmail
-        let invite = InvitationRequest bobEmail (Name "Bob") Nothing (Just Team.RoleCollaborator)
+        let invite = InvitationRequest bobEmail (Name "Bob") Nothing (Just Team.RoleExternalPartner)
         inv :: Invitation <- decodeBody =<< (postInvitation brig tid alice invite <!! do
             const 201 === statusCode)
         uid <- registerInvite inv bobEmail
         let memreq = galley . zUser owner . zConn "c" .
               paths ["teams", toByteString' tid, "members", toByteString' uid]
         mem :: Team.TeamMember <- decodeBody =<< (get memreq <!! const 200 === statusCode)
-        liftIO $ assertEqual "perms" (Team.rolePermissions Team.RoleCollaborator) (mem ^. Team.permissions)
+        liftIO $ assertEqual "perms" (Team.rolePermissions Team.RoleExternalPartner) (mem ^. Team.permissions)
 
     -- alice creates an owner charly.  failure!
     do

@@ -53,7 +53,7 @@ tests s = testGroup "Teams API"
     , test s "create team with members" testCreateTeamWithMembers
     , test s "create 1-1 conversation between non-binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers
     , test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember)
-    , test s "create 1-1 conversation between binding team members as collaborator" (testCreateOne2OneWithMembers RoleCollaborator)
+    , test s "create 1-1 conversation between binding team members as partner" (testCreateOne2OneWithMembers RoleExternalPartner)
     , test s "add new team member" testAddTeamMember
     , test s "add new team member binding teams" testAddTeamMemberCheckBound
     , test s "add new team member internal" testAddTeamMemberInternal
@@ -61,12 +61,12 @@ tests s = testGroup "Teams API"
     , test s "remove team member (binding, owner has passwd)" (testRemoveBindingTeamMember True)
     , test s "remove team member (binding, owner has no passwd)" (testRemoveBindingTeamMember False)
     , test s "add team conversation" testAddTeamConv
-    , test s "add team conversation as collaborator (fail)" testAddTeamConvAsCollaborator
+    , test s "add team conversation as partner (fail)" testAddTeamConvAsExternalPartner
     , test s "add managed conversation through public endpoint (fail)" testAddManagedConv
     , test s "add managed team conversation ignores given users" testAddTeamConvWithUsers
     , test s "add team member to conversation without connection" testAddTeamMemberToConv
     , test s "update conversation as member" (testUpdateTeamConv RoleMember)
-    , test s "update conversation as collaborator" (testUpdateTeamConv RoleCollaborator)
+    , test s "update conversation as partner" (testUpdateTeamConv RoleExternalPartner)
     , test s "delete non-binding team" testDeleteTeam
     , test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True)
     , test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False)
@@ -431,20 +431,20 @@ testAddTeamConv g b c _ = do
 
         WS.assertNoEvent timeout ws
 
-testAddTeamConvAsCollaborator :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testAddTeamConvAsCollaborator g b _ _ = do
+testAddTeamConvAsExternalPartner :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
+testAddTeamConvAsExternalPartner g b _ _ = do
     owner <- Util.randomUser b
     memMember1 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser b
     memMember2 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser b
-    memCollaborator <- newTeamMember' (rolePermissions RoleCollaborator) <$> Util.randomUser b
+    memExternalPartner <- newTeamMember' (rolePermissions RoleExternalPartner) <$> Util.randomUser b
     Util.connectUsers b owner
-        (list1 (memMember1^.userId) [memCollaborator^.userId, memMember2^.userId])
+        (list1 (memMember1^.userId) [memExternalPartner^.userId, memMember2^.userId])
     tid <- Util.createTeamInternal g "foo" owner
-    forM_ [memMember1, memMember2, memCollaborator] $ \mem ->
+    forM_ [memMember1, memMember2, memExternalPartner] $ \mem ->
         Util.addTeamMemberInternal g tid mem
     let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
     Util.createTeamConvAccessRaw g
-        (memCollaborator^.userId)
+        (memExternalPartner^.userId)
         tid
         [memMember1^.userId, memMember2^.userId]
         (Just "blaa") acc (Just TeamAccessRole) Nothing
