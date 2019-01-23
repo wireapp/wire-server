@@ -19,13 +19,13 @@ import Data.Aeson
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
 import Data.Id
-import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Proxy
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.MockResponse
+import SAML2.WebSSO.Test.Lenses
 import Spar.API.Types
 import Spar.Types
 import URI.ByteString.QQ (uri)
@@ -776,19 +776,3 @@ specAux = do
 -- TODO: go through DataSpec, APISpec and check that all the tests still make sense with the new implicit mock idp.
 -- TODO: what else needs to be tested, beyond the pending tests listed here?
 -- TODO: what tests can go to saml2-web-sso package?
-
-
-
--- TODO: move these to saml2-web-sso, some test module exported with the library.  there are also a
--- few more there in test/Util/Misc.hs, remove it from there.  (PR coming up.)
-_nlhead :: Lens' (NonEmpty a) a
-_nlhead f (a :| as) = (:| as) <$> f a
-
-assertionL :: Lens' AuthnResponse Assertion
-assertionL = rspPayload . _nlhead
-
-userRefL :: Getter AuthnResponse UserRef
-userRefL = to $ \aresp ->
-  let tenant  = aresp ^. assertionL . assIssuer
-      subject = aresp ^. assertionL . assContents . sasSubject . subjectID
-  in UserRef tenant subject
