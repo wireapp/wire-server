@@ -190,7 +190,7 @@ sitemap o = do
     post "/i/users/blacklist" (continue addBlacklist) $
         param "email" ||| param "phone"
 
-    head "/i/users/phone-prefix" (continue checkPhonePrefix) $
+    get "/i/users/phone-prefix" (continue getPhonePrefixes) $
         param "prefix"
 
     delete "/i/users/phone-prefix" (continue deleteFromPhonePrefix) $
@@ -1412,8 +1412,8 @@ addBlacklist emailOrPhone = do
 -- | check if any matching prefix exists which leads to blocked phone numbers
 -- Also try for shorter prefix matches,
 -- i.e. checking for +123456 also checks for +12345, +1234, ...
-checkPhonePrefix :: PhonePrefix -> Handler Response
-checkPhonePrefix prefix = do
+getPhonePrefixes :: PhonePrefix -> Handler Response
+getPhonePrefixes prefix = do
     results <- lift $ API.phonePrefixGet prefix
     return $ case results of
         []      -> setStatus status404 empty

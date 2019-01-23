@@ -81,6 +81,7 @@ tests _ at _ p b c ch g aws = testGroup "account"
     , test' aws p "put /self/locale - 200"                   $ testUserLocaleUpdate b aws
     , test' aws p "post /activate/send - 200"                $ testSendActivationCode b
     , test' aws p "post /activate/send - 403"                $ testSendActivationCodePrefixExcluded b
+    , test' aws p "post /i/users/phone-prefix"               $ testInternalPhonePrefixes b
     , test' aws p "put /i/users/:id/status (suspend)"        $ testSuspendUser b
     , test' aws p "get /i/users?:(email|phone) - 200"        $ testGetByIdentity b
     , test' aws p "delete/phone-email"                       $ testEmailPhoneDelete b c
@@ -712,16 +713,48 @@ testSendActivationCodePrefixExcluded :: Brig -> Http ()
 testSendActivationCodePrefixExcluded brig = do
     p <- randomPhone
     let prefix = PhonePrefix $ T.take 5 (fromPhone p)
-    insertPrefix prefix
-    -- expect activation to fail if it was excluded
+
+    -- expect activation to fail after it was excluded
+    insertPrefix brig prefix
     requestActivationCode brig 403 (Right p)
-    deletePrefix prefix
+
     -- expect activation to work again after removing block
+    deletePrefix brig prefix
     requestActivationCode brig 200 (Right p)
+
+testInternalPhonePrefixes :: Brig -> Http ()
+testInternalPhonePrefixes brig = do
+    -- prefix1 is a prefix of prefix2
+    let prefix1 = PhonePrefix "+5678"
+        prefix2 = PhonePrefix "+56789"
+
+    insertPrefix brig prefix1
+    insertPrefix brig prefix2
+
+    -- test getting prefixs
+    res <- getPrefixes prefix1
+    liftIO $ assertEqual "prefix match prefix" res [prefix1]
+
+    -- we expect both prefixes returned when searching for the longer one
+    res2 <- getPrefixes prefix2
+    liftIO $ assertEqual "prefix match phone number" res2 [prefix1, prefix2]
+
+    deletePrefix brig prefix1
+    deletePrefix brig prefix2
+
+    getPrefix prefix1 !!! const 404 === statusCode
   where
-    --getPrefix prefix = delete ( brig . path "/i/users/phone-prefix" . queryItem "prefix" (toByteString' prefix)) !!! const 200 === statusCode
-    insertPrefix prefix = post ( brig . path "/i/users/phone-prefix" . queryItem "prefix" (toByteString' prefix)) !!! const 200 === statusCode
-    deletePrefix prefix = delete ( brig . path "/i/users/phone-prefix" . queryItem "prefix" (toByteString' prefix)) !!! const 200 === statusCode
+    getPrefixes :: PhonePrefix -> Http [PhonePrefix]
+    getPrefixes prefix = decodeBody =<< getPrefix prefix
+
+    getPrefix :: PhonePrefix -> Http ResponseLBS
+    getPrefix prefix = get ( brig . path "/i/users/phone-prefix" . queryItem "prefix" (toByteString' prefix))
+
+insertPrefix :: Brig -> PhonePrefix -> Http ()
+insertPrefix brig prefix = post ( brig . path "/i/users/phone-prefix" . queryItem "prefix" (toByteString' prefix)) !!! const 200 === statusCode
+
+deletePrefix :: Brig -> PhonePrefix -> Http ()
+deletePrefix brig prefix = delete ( brig . path "/i/users/phone-prefix" . queryItem "prefix" (toByteString' prefix)) !!! const 200 === statusCode
 
 testEmailPhoneDelete :: Brig -> Cannon -> Http ()
 testEmailPhoneDelete brig cannon = do
