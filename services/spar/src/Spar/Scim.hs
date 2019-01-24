@@ -56,7 +56,7 @@ import Data.Range
 import Data.String.Conversions
 import Data.Text.Encoding
 import Data.Time
-import Data.UUID as UUID
+import Data.UUID as UUID hiding (null)
 import Galley.Types.Teams    as Galley
 import Network.URI
 import OpenSSL.Random (randBytes)
@@ -139,6 +139,8 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 -- the SCIM data does not comply with the standard / our constraints.
 -- See also: 'ValidScimUser'.
 --
+-- __Mapped fields:__
+--
 --   * @userName@ is mapped to our 'userHandle'. If there is no handle, we
 --     use 'userId', because having some unique @userName@ is a SCIM
 --     requirement.
@@ -149,21 +151,26 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 --   * @displayName@ is mapped to our 'userName'.
 --
 --   * A mandatory @SAML.UserRef@ is derived from 'Scim.User.externalId'
---     and the 'idpId' (retrieved via SCIM token).  FUTUREWORK: We may
---     need to make the SAML NameID type derived from the available SCIM
---     data configurable on a per-team basis in the future, to accomodate
---     different legal uses of externalId by different users.
+--     and the 'idpId' (retrieved via SCIM token).
 --
--- We don't handle emails and phone numbers for now, because we'd like to
--- ensure that only verified emails and phone numbers end up in our
--- database, and implementing verification requires design decisions that we
--- haven't made yet.
+-- FUTUREWORK: We may need to make the SAML NameID type derived from the
+-- available SCIM data configurable on a per-team basis in the future, to
+-- accomodate different legal uses of externalId by different users.
 --
--- Regarding names: some systems like Okta require given name and family
--- name to be present, but it's a poor model for names, and in practice many
--- other apps also ignore this model. Leaving @name@ empty will prevent the
--- confusion that might appear when somebody tries to set @name@ to some
--- value and the @displayName@ won't be affected by that change.
+-- __Emails and phone numbers:__ we prohibit emails and phone numbers for now,
+-- because we'd like to ensure that only verified emails and phone numbers end
+-- up in our database, and implementing verification requires design decisions
+-- that we haven't made yet.
+--
+-- If we allow unverified email addresses to be stored in the Spar database,
+-- later on they might leak into other places and somebody will forget that they
+-- should never be treated as verified. It's safer to prohibit them for now.
+--
+-- __Names:__ some systems like Okta require given name and family name to be
+-- present, but it's a poor model for names, and in practice many other apps
+-- also ignore this model. Leaving @name@ empty will prevent the confusion that
+-- might appear when somebody tries to set @name@ to some value and the
+-- @displayName@ won't be affected by that change.
 validateScimUser'
   :: forall m. (MonadError Scim.ScimError m)
   => Maybe IdP -> Scim.User.User -> m ValidScimUser
@@ -191,6 +198,12 @@ validateScimUser' (Just idp) user = do
       Just x -> pure x
       Nothing -> throwError $
         Scim.badRequest Scim.InvalidValue (Just "userName is not compliant")
+
+    -- See this function's documentation
+    unless (null (Scim.User.emails user)) $ throwError $
+      Scim.badRequest Scim.InvalidValue (Just "emails currently can not be set via SCIM")
+    unless (null (Scim.User.phoneNumbers user)) $ throwError $
+      Scim.badRequest Scim.InvalidValue (Just "phone numbers currently can not be set via SCIM")
 
     -- We check the name for validity, but only if it's present
     mbName <- Name <$$> validateNameOrExtId (Scim.User.displayName user)
