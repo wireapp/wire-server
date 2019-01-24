@@ -1,3 +1,30 @@
+# 2019-01-27 #596
+
+## API changes
+
+  * Track inviters of team members (#566)
+  * New partner role. (#569, #572, #573, #576, #579, #584, #577, #592)
+  * App-level websocket pongs. (#561)
+
+## Bug fixes
+
+  * Spar re-login deleted sso users; fix handling of brig errors. (#588)
+  * Gundeck: lost push notifications with push-all enabled.  (#554)
+  * Gundeck: do not push natively to devices if they are not on the whitelist.  (#554)
+  * Gundeck: link gundeck unit tests with -threaded.  (#554)
+
+## Internal changes
+
+  * Get rid of async-pool (unliftio now provides the same functionality) (#568)
+  * Fix: log multi-line error messages on one line. (#595)
+  * Whitelist all wire.com email addresses (#578)
+  * SCIM -> Scim (#581)
+  * Changes to make the demo runnable from Docker (#571)
+  * Feature/docker image consistency (#570)
+  * add a readme, for how to build libzauth. (#591)
+  * better support debian style machines of different architecturs (#582, #587, #583, #585, #590, #580)
+
+
 # 2019-01-10 #567
 
 ## API changes
