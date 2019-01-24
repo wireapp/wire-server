@@ -44,28 +44,31 @@ keyDelete = "DELETE FROM blacklist WHERE key = ?"
 -- Excluded phone prefixes
 
 insertPrefix :: MonadClient m => PhonePrefix -> m ()
-insertPrefix prefix = retry x5 $ write prefixInsert (params Quorum (Identity $ fromPhonePrefix prefix))
+insertPrefix prefix = retry x5 $ write ins (params Quorum (Identity $ fromPhonePrefix prefix))
+  where
+    ins :: PrepQuery W (Identity Text) ()
+    ins = "INSERT INTO excluded_phones (prefix) VALUES (?)"
 
 deletePrefix :: MonadClient m => PhonePrefix -> m ()
-deletePrefix prefix = retry x5 $ write prefixDelete (params Quorum (Identity $ fromPhonePrefix prefix))
+deletePrefix prefix = retry x5 $ write del (params Quorum (Identity $ fromPhonePrefix prefix))
+  where
+    del :: PrepQuery W (Identity Text) ()
+    del = "DELETE FROM excluded_phones WHERE prefix = ?"
 
 getAllPrefixes :: MonadClient m => PhonePrefix -> m [PhonePrefix]
 getAllPrefixes prefix = do
     let prefixes = fromPhonePrefix <$> allPrefixes (fromPhonePrefix prefix)
-    results <- fmap runIdentity <$> retry x1 (query prefixSelectAll (params Quorum (Identity $ prefixes)))
-    return (PhonePrefix <$> results)
+    selectPrefixes prefixes
 
 existsAnyPrefix :: MonadClient m => Phone -> m Bool
 existsAnyPrefix phone = do
     let prefixes = fromPhonePrefix <$> allPrefixes (fromPhone phone)
-    results <- fmap runIdentity <$> retry x1 (query prefixSelectAll (params Quorum (Identity $ prefixes)))
-    return $ (not . null) results
+    (not . null) <$> selectPrefixes prefixes
 
-prefixInsert :: PrepQuery W (Identity Text) ()
-prefixInsert = "INSERT INTO excluded_phones (prefix) VALUES (?)"
-
-prefixDelete :: PrepQuery W (Identity Text) ()
-prefixDelete = "DELETE FROM excluded_phones WHERE prefix = ?"
-
-prefixSelectAll :: PrepQuery R (Identity [Text]) (Identity Text)
-prefixSelectAll = "SELECT prefix FROM excluded_phones WHERE prefix IN ?"
+selectPrefixes :: MonadClient m => [Text] -> m [PhonePrefix]
+selectPrefixes prefixes = do
+    results <- fmap runIdentity <$> retry x1 (query sel (params Quorum (Identity $ prefixes)))
+    return (PhonePrefix <$> results)
+  where
+    sel :: PrepQuery R (Identity [Text]) (Identity Text)
+    sel = "SELECT prefix FROM excluded_phones WHERE prefix IN ?"

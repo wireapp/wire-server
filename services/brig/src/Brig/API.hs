@@ -190,6 +190,8 @@ sitemap o = do
     post "/i/users/blacklist" (continue addBlacklist) $
         param "email" ||| param "phone"
 
+    -- given a phone number (or phone number prefix), see whether
+    -- it is blocked via a prefix (and if so, via which specific prefix)
     get "/i/users/phone-prefix" (continue getPhonePrefixes) $
         param "prefix"
 
@@ -1409,8 +1411,7 @@ addBlacklist emailOrPhone = do
     void . lift $ API.blacklistInsert emailOrPhone
     return empty
 
--- | check if any matching prefix exists which leads to blocked phone numbers
--- Also try for shorter prefix matches,
+-- | Get any matching prefixes. Also try for shorter prefix matches,
 -- i.e. checking for +123456 also checks for +12345, +1234, ...
 getPhonePrefixes :: PhonePrefix -> Handler Response
 getPhonePrefixes prefix = do
@@ -1419,7 +1420,7 @@ getPhonePrefixes prefix = do
         []      -> setStatus status404 empty
         _       -> json results
 
--- | delete a phone prefix entry (must be an exact match)
+-- | Delete a phone prefix entry (must be an exact match)
 deleteFromPhonePrefix :: PhonePrefix -> Handler Response
 deleteFromPhonePrefix prefix = do
     void . lift $ API.phonePrefixDelete prefix

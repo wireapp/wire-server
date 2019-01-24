@@ -531,7 +531,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
     Right phone -> do
         -- validatePhone returns the canonical E.164 phone number format
         canonical <- maybe (throwE $ InvalidRecipient (userPhoneKey phone))
-                    (return)
+                    return
                     =<< lift (validatePhone phone)
         let pk = userPhoneKey canonical
         exists <- lift $ isJust <$> Data.lookupKey pk
@@ -542,7 +542,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
             throwE (ActivationBlacklistedUserKey pk)
 
         -- check if any prefixes of this phone number are blocked
-        prefixExcluded <- lift $ Blacklist.existsAnyPrefix (canonical)
+        prefixExcluded <- lift $ Blacklist.existsAnyPrefix canonical
         when prefixExcluded $
             throwE (ActivationBlacklistedUserKey pk)
 
