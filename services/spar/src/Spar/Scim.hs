@@ -227,7 +227,8 @@ createValidScimUser (ValidScimUser user uref handl mbName) = do
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
     -- Create SAML user here in spar, which in turn creates a brig user.
     lift $ createUser_ buid uref mbName
-    -- Set user handle on brig (which can't be done during user creation).
+    -- Set user handle on brig (which can't be done during user creation yet).
+    -- TODO: handle errors better here?
     lift $ Intra.Brig.setHandle buid handl
 
     pure storedUser

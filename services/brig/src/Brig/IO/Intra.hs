@@ -529,8 +529,8 @@ rmClient u c = do
 -------------------------------------------------------------------------------
 -- Team Management
 
-addTeamMember :: UserId -> TeamId -> (Maybe (UserId, UTCTimeMillis), Maybe Team.Role) -> AppIO Bool
-addTeamMember u tid (minvmeta, mrole) = do
+addTeamMember :: UserId -> TeamId -> (Maybe (UserId, UTCTimeMillis), Team.Role) -> AppIO Bool
+addTeamMember u tid (minvmeta, role) = do
     debug $ remote "galley"
             . msg (val "Adding member to team")
     rs <- galleyRequest POST req
@@ -538,7 +538,7 @@ addTeamMember u tid (minvmeta, mrole) = do
         200 -> True
         _   -> False
   where
-    prm   = Team.rolePermissions $ fromMaybe Team.RoleMember mrole
+    prm   = Team.rolePermissions role
     bdy   = Team.newNewTeamMember $ Team.newTeamMember u prm minvmeta
     req   = paths ["i", "teams", toByteString' tid, "members"]
           . header "Content-Type" "application/json"

@@ -257,6 +257,9 @@ instance Arbitrary NewTeamUser where
         , NewTeamMemberSSO <$> arbitrary
         ]
 
+instance Arbitrary TeamMember where
+    arbitrary = newTeamMember <$> arbitrary <*> arbitrary <*> arbitrary
+
 instance Arbitrary PasswordChange where
     arbitrary = PasswordChange <$> arbitrary <*> arbitrary
 

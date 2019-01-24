@@ -4,10 +4,11 @@ NAME           := nginz
 NGINX_VERSION   = 1.14.2
 NGINZ_VERSION  ?=
 SWAGGER_VERSION:= 2.2.10
+ARCH         := $(shell if [ -f "`which dpkg-architecture`" ]; then dpkg-architecture -qDEB_HOST_ARCH; else [ -f "`which dpkg`" ] && dpkg --print-architecture; fi )
 SHELL          := /usr/bin/env bash
 DIST           := build
 BIN            := src/objs/nginx
-DEB            := $(NAME)_$(NGINZ_VERSION)_amd64.deb
+DEB            := $(NAME)_$(NGINZ_VERSION)_$(ARCH).deb
 ifeq ($(DEBUG), 1)
 WITH_DEBUG      = --with-debug
 endif
@@ -67,10 +68,12 @@ default: compile
 clean:
 	-rm -rf src $(DIST) .metadata zwagger-ui/swagger-ui
 
+.PHONY: compile
 compile: $(BIN)
 	mkdir -p dist ../../dist
 	cp src/objs/nginx ../../dist/
 
+.PHONY: dist
 dist: guard-NGINZ_VERSION $(DIST)/$(DEB)
 
 $(BIN): src zwagger-ui/swagger-ui
@@ -79,11 +82,11 @@ $(BIN): src zwagger-ui/swagger-ui
 	(cd src; PKG_CONFIG_PATH=$(EXTRA_PKG_PATH) ./configure $(CONFIG_OPTIONS) $(ADDITIONAL_MODULES))
 	make -C src
 
-%.deb: $(BIN) $(DIST)
+%.deb: $(BIN) $(DIST) guard-ARCH
 	makedeb --name=$(NAME) \
 	 --version=$(NGINZ_VERSION) \
 	 --debian-dir=deb \
-	 --architecture=amd64 \
+	 --architecture=$(ARCH) \
 	 --output-dir=$(DIST)
 
 $(DIST):
