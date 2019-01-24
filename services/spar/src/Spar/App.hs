@@ -269,7 +269,7 @@ verdictHandlerResult bindCky = catchVerdictErrors . \case
           | uid == uid' -> pure uid                      -- redundant binding (no change to brig or spar)
           | otherwise -> throwSpar SparBindUserRefTaken  -- attempt to use ssoid for a second wire user
 
-    SAML.logger SAML.Debug (show uid)
+    SAML.logger SAML.Debug ("granting sso login for " <> show uid)
     mcky :: Maybe SetCookie <- Intra.ssoLogin uid
       -- (creating users is synchronous and does a quorum vote, so there is no race condition here.)
     case mcky of

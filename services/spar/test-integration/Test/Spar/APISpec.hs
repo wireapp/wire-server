@@ -245,11 +245,11 @@ specFinalizeLogin = do
                 . Bilge.json (Galley.newTeamMemberDeleteData (Just defPassword))
                 . expect2xx
                 )
+              liftIO $ threadDelay 100000  -- make sure deletion is done.  if we don't want to take
+                                           -- the time, we should find another way to robustly
+                                           -- confirm that deletion has compelted in the background.
 
             -- second login
-
-            liftIO $ threadDelay 1000000
-
             do
               (privcreds, authnreq) <- negotiateAuthnRequest idp
               authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp spmeta authnreq True
