@@ -442,15 +442,10 @@ instance Scim.Class.User.UserDB Spar where
       -> Scim.ScimHandler Spar (Maybe Scim.Class.User.StoredUser)
   get ScimTokenInfo{stiTeam} uidText = do
     uid <- parseUid uidText
-    briguser <- lift $ Intra.Brig.getUser uid
-    scimuser <- maybe (pure Nothing)
-                      (lift . wrapMonadClient . Data.getScimUser . Brig.userId)
-                      briguser
-    if ( userTeam (fromJust briguser) /= Just stiTeam ||
-         userDeleted (fromJust briguser)
-       )
-      then pure Nothing
-      else pure scimuser
+    mbBrigUser <- lift (Intra.Brig.getUser uid)
+    if isJust mbBrigUser && (userTeam =<< mbBrigUser) == Just stiTeam
+      then lift . wrapMonadClient . Data.getScimUser $ uid
+      else pure Nothing
 
   -- | Create a new user.
   create :: ScimTokenInfo
