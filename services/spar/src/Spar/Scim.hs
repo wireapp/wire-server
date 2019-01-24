@@ -314,7 +314,7 @@ instance Scim.UserDB Spar where
 
     -- TODO: Adding a handle should be done _DURING_ the creation
     buid <- lift $ createUser uref mbName
-    lift $ Intra.Brig.setHandle buid handl
+    lift $ Intra.Brig.setHandle buid handl  -- TODO: handle errors better here?
 
     maybe (Scim.throwScim (Scim.serverError "Scim.UserDB.create: user disappeared"))
           (pure . toScimUser) =<<
