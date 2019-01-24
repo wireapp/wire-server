@@ -30,6 +30,10 @@ sudo apt install libossp-uuid-dev libpcre3-dev libsodium23 runit
 make
 ```
 
+### Compile with docker
+
+`make docker`
+
 ### Generic
 If you're on another platform, the names of the dependencies might differ slightly.
 
@@ -63,10 +67,6 @@ with nginx by using --with-openssl=<path> option.
 openssl is required to compile nginx and it may be installed in a "non-standard" path in your system. Once you are sure you have installed it, look for `EXTRA_CC_INC` and `EXTRA_CC_LIB` in the `Makefile` and point them to the correct location in your system.
 
 If you are using macOS and you used `brew` to install openssl, the `Makefile` already contains the right paths so you should not be seeing that error.
-
-### Compile with docker
-
-`make docker`
 
 ## How to run it
 
