@@ -1,16 +1,38 @@
 # NGINX build with extra modules
 
-## Compile natively
+## Compile and Install natively
 
-To build nginz natively, ensure to have the usual C compiler toolchains installed, along with the following dependencies:
+To build nginz natively, you will need to have the usual C compiler toolchains installed, along with the following dependencies:
 
 * gpg (needed to verify nginx's signatures)
 * openssl
 * libossp-uuid
+* libpcre3
+* runit
 * [libzauth](../../libs/libzauth)
-    * depends on the rust compiler, libsodium, [makedeb](../../tools/makedeb)
+    * depends on the rust compiler, libsodium23
+* (optional) [makedeb](../../tools/makedeb)
 
-If you're on alpine, see the [Dockerfile](Dockerfile) for the precise dependency names. If you're on another platform, their names might differ slightly.
+## Alpine
+If you're on alpine, see the [Dockerfile](Dockerfile) for the precise dependency names.
+
+## Ubuntu / Debian (backports / testing / unstable)
+
+_Note_: Debian stable does not contain a new enough version of libsodium. you must get it from backports, testing, or unstable.
+
+### Dependencies
+```bash
+sudo apt install libossp-uuid-dev libpcre3-dev libsodium23 runit
+```
+
+### Building / Installing
+```bash
+make dist
+dpkg -i build/nginz*.deb
+```
+
+##Generic
+If you're on another platform, the names of the dependencies might differ slightly.
 
 Once you have all necessary dependencies, `make` in this directory should work.
 
