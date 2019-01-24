@@ -748,13 +748,13 @@ testInternalPhonePrefixes brig = do
     getPrefixes prefix = decodeBody =<< getPrefix prefix
 
     getPrefix :: PhonePrefix -> Http ResponseLBS
-    getPrefix prefix = get ( brig . path "/i/users/phone-prefix" . queryItem "prefix" (toByteString' prefix))
+    getPrefix prefix = get ( brig . paths ["/i/users/phone-prefixes", toByteString' prefix])
 
 insertPrefix :: Brig -> PhonePrefix -> Http ()
-insertPrefix brig prefix = post ( brig . path "/i/users/phone-prefix" . queryItem "prefix" (toByteString' prefix)) !!! const 200 === statusCode
+insertPrefix brig prefix = post ( brig . paths ["/i/users/phone-prefixes", toByteString' prefix]) !!! const 200 === statusCode
 
 deletePrefix :: Brig -> PhonePrefix -> Http ()
-deletePrefix brig prefix = delete ( brig . path "/i/users/phone-prefix" . queryItem "prefix" (toByteString' prefix)) !!! const 200 === statusCode
+deletePrefix brig prefix = delete ( brig . paths ["/i/users/phone-prefixes", toByteString' prefix]) !!! const 200 === statusCode
 
 testEmailPhoneDelete :: Brig -> Cannon -> Http ()
 testEmailPhoneDelete brig cannon = do

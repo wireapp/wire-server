@@ -192,14 +192,14 @@ sitemap o = do
 
     -- given a phone number (or phone number prefix), see whether
     -- it is blocked via a prefix (and if so, via which specific prefix)
-    get "/i/users/phone-prefix" (continue getPhonePrefixes) $
-        param "prefix"
+    get "/i/users/phone-prefixes/:prefix" (continue getPhonePrefixes) $
+        capture "prefix"
 
-    delete "/i/users/phone-prefix" (continue deleteFromPhonePrefix) $
-        param "prefix"
+    delete "/i/users/phone-prefixes/:prefix" (continue deleteFromPhonePrefix) $
+        capture "prefix"
 
-    post "/i/users/phone-prefix" (continue addPhonePrefix) $
-        param "prefix"
+    post "/i/users/phone-prefixes/:prefix" (continue addPhonePrefix) $
+        capture "prefix"
 
     -- is :uid not team owner, or there are other team owners?
     get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeleted) $
