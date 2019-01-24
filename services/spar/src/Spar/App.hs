@@ -269,9 +269,12 @@ verdictHandlerResult bindCky = catchVerdictErrors . \case
           | uid == uid' -> pure uid                      -- redundant binding (no change to brig or spar)
           | otherwise -> throwSpar SparBindUserRefTaken  -- attempt to use ssoid for a second wire user
 
-    cky :: SetCookie <- Intra.ssoLogin uid
+    SAML.logger SAML.Debug (show uid)
+    mcky :: Maybe SetCookie <- Intra.ssoLogin uid
       -- (creating users is synchronous and does a quorum vote, so there is no race condition here.)
-    pure $ VerifyHandlerGranted cky uid
+    case mcky of
+      Just cky -> pure $ VerifyHandlerGranted cky uid
+      Nothing -> throwSpar $ SparBrigError "sso-login failed (race condition?)"
 
 -- | If the client is web, it will be served with an HTML page that it can process to decide whether
 -- to log the user in or show an error.
