@@ -165,7 +165,7 @@ parsePhonePrefix p
 -- i.e. it is like a E.164 format phone number, but shorter
 -- (with a mandatory leading '+', followed by 1-15 digits.)
 isValidPhonePrefix :: Text -> Bool
-isValidPhonePrefix = either (const False) (const True) . parseOnly e164Prefix
+isValidPhonePrefix = isRight . parseOnly e164Prefix
   where
     e164Prefix = char '+' *> count 1 digit *> count 14 (optional digit) *> endOfInput
 
