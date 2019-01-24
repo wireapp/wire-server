@@ -158,8 +158,8 @@ newtype PhonePrefix = PhonePrefix { fromPhonePrefix :: Text } deriving (Eq, Show
 -- | Parses a phone number prefix with a mandatory leading '+'.
 parsePhonePrefix :: Text -> Maybe PhonePrefix
 parsePhonePrefix p
-    | isValidPhonePrefix p = Just $! PhonePrefix p
-    | otherwise      = Nothing
+    | isValidPhonePrefix p  = Just $ PhonePrefix p
+    | otherwise             = Nothing
 
 -- | Checks whether a phone number prefix is valid,
 -- i.e. it is like a E.164 format phone number, but shorter
@@ -169,19 +169,17 @@ isValidPhonePrefix = isRight . parseOnly e164Prefix
   where
     e164Prefix = char '+' *> count 1 digit *> count 14 (optional digit) *> endOfInput
 
-phonePrefixes :: Phone -> [PhonePrefix]
-phonePrefixes p = allPrefixes (fromPhone p)
-
 -- | get all valid prefixes of a phone number or phone number prefix
 -- e.g. from +123456789 get prefixes ["+1", "+12", "+123", ..., "+123456789" ]
 allPrefixes :: Text -> [PhonePrefix]
 allPrefixes t = catMaybes $ parsePhonePrefix <$> Text.inits t
 
 instance FromJSON PhonePrefix where
-    parseJSON (String s) = case parsePhonePrefix s of
-        Just p  -> return p
-        Nothing -> fail "Invalid phone number prefix. Expected E.164 format (with only one digit or more allowed after the +)."
-    parseJSON _          = mempty
+    parseJSON = withText "PhonePrefix" $ \s ->
+        case parsePhonePrefix s of
+            Just p  -> return p
+            Nothing -> fail $ "Invalid phone number prefix: [" ++ show s
+                            ++ "]. Expected format similar to E.164 (with 1-15 digits after the +)."
 
 instance FromByteString PhonePrefix where
     parser = parser >>= maybe (fail "Invalid phone") return . parsePhonePrefix

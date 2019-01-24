@@ -9,7 +9,6 @@ module Brig.Data.Blacklist
       -- * PhonePrefix excluding
     , insertPrefix
     , deletePrefix
-    , existsPrefix
     , existsAnyPrefix
     , getAllPrefixes
     ) where
@@ -50,10 +49,6 @@ insertPrefix prefix = retry x5 $ write prefixInsert (params Quorum (Identity $ f
 deletePrefix :: MonadClient m => PhonePrefix -> m ()
 deletePrefix prefix = retry x5 $ write prefixDelete (params Quorum (Identity $ fromPhonePrefix prefix))
 
-existsPrefix :: MonadClient m => PhonePrefix -> m Bool
-existsPrefix prefix = return . isJust =<< fmap runIdentity <$>
-    retry x1 (query1 prefixSelect (params Quorum (Identity $ fromPhonePrefix prefix)))
-
 getAllPrefixes :: MonadClient m => PhonePrefix -> m [PhonePrefix]
 getAllPrefixes prefix = do
     let prefixes = fromPhonePrefix <$> allPrefixes (fromPhonePrefix prefix)
@@ -62,7 +57,7 @@ getAllPrefixes prefix = do
 
 existsAnyPrefix :: MonadClient m => Phone -> m Bool
 existsAnyPrefix phone = do
-    let prefixes = fromPhonePrefix <$> phonePrefixes phone
+    let prefixes = fromPhonePrefix <$> allPrefixes (fromPhone phone)
     results <- fmap runIdentity <$> retry x1 (query prefixSelectAll (params Quorum (Identity $ prefixes)))
     return $ (not . null) results
 
@@ -72,9 +67,5 @@ prefixInsert = "INSERT INTO excluded_phones (prefix) VALUES (?)"
 prefixDelete :: PrepQuery W (Identity Text) ()
 prefixDelete = "DELETE FROM excluded_phones WHERE prefix = ?"
 
-prefixSelect :: PrepQuery R (Identity Text) (Identity Text)
-prefixSelect = "SELECT prefix FROM excluded_phones WHERE prefix = ?"
-
 prefixSelectAll :: PrepQuery R (Identity [Text]) (Identity Text)
 prefixSelectAll = "SELECT prefix FROM excluded_phones WHERE prefix IN ?"
-
