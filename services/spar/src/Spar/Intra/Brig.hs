@@ -120,7 +120,7 @@ createUser suid (Id buid) teamid mbName = do
   userId . selfUser <$> parseResponse @SelfProfile resp
 
 
--- | Get a user; returns 'Nothing' if the user was not found.
+-- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
 getUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m (Maybe User)
 getUser buid = do
   resp :: Response (Maybe LBS) <- call
@@ -128,7 +128,11 @@ getUser buid = do
     . path "/self"
     . header "Z-User" (toByteString' buid)
   case statusCode resp of
-    200 -> Just . selfUser <$> parseResponse @SelfProfile resp
+    200 -> do
+      user <- selfUser <$> parseResponse @SelfProfile resp
+      pure $ if (userDeleted user)
+        then Nothing
+        else Just user
     404 -> pure Nothing
     _   -> throwSpar (SparBrigError "Could not retrieve user")
 
