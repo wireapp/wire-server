@@ -171,7 +171,7 @@ getUserByHandle handle = do
 -- | Set user' name.  Fails with status <500 if brig fails with <500, and with 500 if brig
 -- fails with >= 500.
 setName :: (HasCallStack, MonadSparToBrig m) => UserId -> Name -> m ()
-setName buid name =
+setName buid name = do
   resp <- call
     $ method PUT
     . path "/self"
@@ -194,7 +194,7 @@ setName buid name =
 -- | Set user's handle.  Fails with status <500 if brig fails with <500, and with 500 if brig fails
 -- with >= 500.
 setHandle :: (HasCallStack, MonadSparToBrig m) => UserId -> Handle -> m ()
-setHandle buid (Handle handle) =
+setHandle buid (Handle handle) = do
   resp <- call
     $ method PUT
     . path "/self/handle"
