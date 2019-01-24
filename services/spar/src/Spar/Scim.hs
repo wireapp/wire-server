@@ -166,6 +166,8 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 -- later on they might leak into other places and somebody will forget that they
 -- should never be treated as verified. It's safer to prohibit them for now.
 --
+-- See <https://github.com/wireapp/wire-server/pull/559#discussion_r247466760>
+--
 -- __Names:__ some systems like Okta require given name and family name to be
 -- present, but it's a poor model for names, and in practice many other apps
 -- also ignore this model. Leaving @name@ empty will prevent the confusion that
