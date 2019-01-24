@@ -273,10 +273,6 @@ specUsers = describe "operations with users" $ do
         it "sets the 'deleted' flag in brig, and does nothing otherwise." $ do
             pendingWith "really?  how do we destroy the data then, and when?"
 
-    describe "GET /Meta" $ do  -- TODO: is that the end-point?  it's about the 'getMeta' method.
-        it "..." $ do
-            pending
-
     describe "CRUD operations maintain invariants in mapScimToBrig, mapBrigToScim." $ do
         it "..." $ do
             pendingWith "this is a job for quickcheck-state-machine"
