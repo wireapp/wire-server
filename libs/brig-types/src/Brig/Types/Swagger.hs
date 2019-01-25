@@ -34,10 +34,7 @@ brigModels =
     , connection
     , connectionRequest
     , connectionUpdate
-    , invitationRequest
-    , invitation
     , connectionList
-    , invitationList
 
       -- Account Activation
     , activate
@@ -358,24 +355,15 @@ connectionRequest = defineModel "ConnectionRequest" $ do
     property "message" string' $
         description "The initial message in the request (1 - 256 characters)."
 
-invitationRequest :: Model
-invitationRequest = defineModel "InvitationRequest" $ do
-    description "A request to join Wire. Note that either email or phone must be given."
-    property "inviter_name" string' $
-        description "Name of the inviter (1 - 128 characters)"
-    property "email" string' $ do
-        description "Email of the invitee"
-        optional
-    property "phone" string' $ do
-        description "Phone of the invitee"
-        optional
-    property "invitee_name" string' $
-        description "Name of the invitee (1 - 128 characters)"
-    property "message" string' $
-        description "Message (1 - 256 characters)"
-    property "locale" string' $ do
-        description "Locale to use for the invitation."
-        optional
+connectionList :: Model
+connectionList = defineModel "UserConnectionList" $ do
+    description "A list of user connections."
+    property "connections" (unique $ array (ref connection)) end
+    property "has_more" bool' $
+        description "Indicator that the server has more connections than returned."
+
+-------------------------------------------------------------------------------
+-- Team invitation Models
 
 role :: DataType
 role = Model.Prim $ Model.Primitive
@@ -385,44 +373,6 @@ role = Model.Prim $ Model.Primitive
     , Model.minVal       = Just minBound
     , Model.maxVal       = Just maxBound
     }
-
-invitation :: Model
-invitation = defineModel "Invitation" $ do
-    description "An invitation to join Wire"
-    property "inviter" bytes' $
-        description "User ID of the inviter"
-    property "role" role $ do
-        description "Role of the invited user"
-        optional
-    property "id" bytes' $
-        description "UUID used to refer to the invitation"
-    property "email" string' $ do
-        description "Email of the invitee"
-        optional
-    property "phone" string' $ do
-        description "Phone of the invitee"
-        optional
-    property "created_at" dateTime' $
-        description "Timestamp of invitation creation"
-    property "name" string' $
-        description "Name of the invitee"
-
-connectionList :: Model
-connectionList = defineModel "UserConnectionList" $ do
-    description "A list of user connections."
-    property "connections" (unique $ array (ref connection)) end
-    property "has_more" bool' $
-        description "Indicator that the server has more connections than returned."
-
-invitationList :: Model
-invitationList = defineModel "InvitationList" $ do
-    description "A list of sent invitations."
-    property "invitations" (unique $ array (ref invitation)) end
-    property "has_more" bool' $
-        description "Indicator that the server has more invitations than returned."
-
--------------------------------------------------------------------------------
--- Team invitation Models
 
 teamInvitationRequest :: Model
 teamInvitationRequest = defineModel "TeamInvitationRequest" $ do
@@ -434,25 +384,39 @@ teamInvitationRequest = defineModel "TeamInvitationRequest" $ do
     property "locale" string' $ do
         description "Locale to use for the invitation."
         optional
+    property "role" role $ do
+        description "Role of the invited user"
+        optional
 
+-- | This is *not* the swagger model for the 'TeamInvitation' type (which does not exist), but
+-- for the use of 'Invitation' under @/teams/{tid}/invitations@.
+--
+-- TODO: swagger should be replaced by something more type-safe at some point so this will be
+-- forcibly resolved and won't happen again.
 teamInvitation :: Model
 teamInvitation = defineModel "TeamInvitation" $ do
     description "An invitation to join a team on Wire"
     property "team" bytes' $
         description "Team ID of the inviting team"
+    property "role" role $ do
+        description "Role of the invited user"
+        optional
     property "id" bytes' $
         description "UUID used to refer the invitation"
     property "email" string' $
         description "Email of the invitee"
     property "created_at" dateTime' $
         description "Timestamp of invitation creation"
+    property "created_by" bytes' $ do
+        description "ID of the inviting user"
+        optional
     property "name" string' $
         description "Name of the invitee"
 
 teamInvitationList :: Model
 teamInvitationList = defineModel "TeamInvitationList" $ do
     description "A list of sent team invitations."
-    property "invitations" (unique $ array (ref invitation)) end
+    property "invitations" (unique $ array (ref teamInvitation)) end
     property "has_more" bool' $
         description "Indicator that the server has more invitations than returned."
 
