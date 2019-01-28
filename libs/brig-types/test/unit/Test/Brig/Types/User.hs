@@ -6,8 +6,6 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 module Test.Brig.Types.User where
 
 import Imports
