@@ -10,6 +10,7 @@ import Brig.Types.Code
 import Cassandra as C hiding (Value)
 import Cassandra.Util
 import Data.Id
+import Data.Json.Util
 import Data.Misc
 import Galley.Data.Types
 import Galley.Types hiding (Conversation)
@@ -39,11 +40,11 @@ selectTeamConv = "select managed from team_conv where team = ? and conv = ?"
 selectTeamConvs :: PrepQuery R (Identity TeamId) (ConvId, Bool)
 selectTeamConvs = "select conv, managed from team_conv where team = ? order by conv"
 
-selectTeamMember :: PrepQuery R (TeamId, UserId) (Identity Permissions)
-selectTeamMember = "select perms from team_member where team = ? and user = ?"
+selectTeamMember :: PrepQuery R (TeamId, UserId) (Permissions, Maybe UserId, Maybe UTCTimeMillis)
+selectTeamMember = "select perms, invited_by, invited_at from team_member where team = ? and user = ?"
 
-selectTeamMembers :: PrepQuery R (Identity TeamId) (UserId, Permissions)
-selectTeamMembers = "select user, perms from team_member where team = ? order by user"
+selectTeamMembers :: PrepQuery R (Identity TeamId) (UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis)
+selectTeamMembers = "select user, perms, invited_by, invited_at from team_member where team = ? order by user"
 
 selectUserTeams :: PrepQuery R (Identity UserId) (Identity TeamId)
 selectUserTeams = "select team from user_team where user = ? order by team"
@@ -66,8 +67,8 @@ insertTeamConv = "insert into team_conv (team, conv, managed) values (?, ?, ?)"
 deleteTeamConv :: PrepQuery W (TeamId, ConvId) ()
 deleteTeamConv = "delete from team_conv where team = ? and conv = ?"
 
-insertTeamMember :: PrepQuery W (TeamId, UserId, Permissions) ()
-insertTeamMember = "insert into team_member (team, user, perms) values (?, ?, ?)"
+insertTeamMember :: PrepQuery W (TeamId, UserId, Permissions, Maybe UserId, Maybe UTCTimeMillis) ()
+insertTeamMember = "insert into team_member (team, user, perms, invited_by, invited_at) values (?, ?, ?, ?, ?)"
 
 deleteTeamMember :: PrepQuery W (TeamId, UserId) ()
 deleteTeamMember = "delete from team_member where team = ? and user = ?"

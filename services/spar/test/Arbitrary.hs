@@ -19,7 +19,7 @@ import Data.Id ()
 import SAML2.WebSSO.Test.Arbitrary ()
 import Servant.API.ContentTypes
 import Spar.Types
-import Spar.SCIM
+import Spar.Scim
 import Test.QuickCheck
 
 

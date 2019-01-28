@@ -89,9 +89,13 @@ teamMember = defineModel "TeamMember" $ do
     description "team member data"
     property "user" bytes' $
         description "user ID"
-    property "permissions" (ref permissions) $
+    property "permissions" (ref permissions) $ do
         description "The permissions this user has in the given team \
             \ (only visible with permission `GetMemberPermissions`)."
+        optional  -- not optional in the type, but in the json instance.  (in
+                  -- servant, we could probably just add a helper type for this.)
+                  -- TODO: even without servant, it would be nicer to introduce
+                  -- a type with optional permissions.
 
 permissions :: Model
 permissions = defineModel "Permissions" $ do

@@ -10,6 +10,8 @@ EXE_SCHEMA    := ../../dist/$(NAME)-schema
 DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := dist/$(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema
+DOCKER_USER    ?= quay.io/wire
+DOCKER_TAG     ?= local
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
@@ -100,11 +102,12 @@ db-migrate: fast
 .PHONY: docker
 docker:
 	$(foreach executable,$(EXECUTABLES),\
-	docker build -t $(executable) \
-	-f ../../build/alpine/Dockerfile \
-	--build-arg service=$(NAME) \
+	docker build -t $(DOCKER_USER)/$(executable):$(DOCKER_TAG) \
+	-f ../../build/alpine/Dockerfile.executable \
 	--build-arg executable=$(executable) \
-	../.. \
+	../.. && \
+	docker tag $(DOCKER_USER)/$(executable):$(DOCKER_TAG) $(DOCKER_USER)/$(executable):latest && \
+	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/$(executable):$(DOCKER_TAG); docker push $(DOCKER_USER)/$(executable):latest; fi \
 	;)
 
 .PHONY: time

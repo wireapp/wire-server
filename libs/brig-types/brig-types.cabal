@@ -92,6 +92,7 @@ test-suite brig-types-tests
       , base
       , brig-types
       , bytestring
+      , containers
       , currency-codes
       , galley-types
       , hostname-validate

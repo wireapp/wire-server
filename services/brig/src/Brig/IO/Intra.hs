@@ -51,7 +51,6 @@ import Bilge.RPC
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
 import Brig.Data.User (lookupUsers)
-import Brig.API.Error (incorrectPermissions)
 import Brig.API.Types
 import Brig.RPC
 import Brig.Types
@@ -59,7 +58,6 @@ import Brig.Types.Intra
 import Brig.User.Event
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Lens.Prism (_Just)
-import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -68,6 +66,7 @@ import Data.Json.Util ((#))
 import Data.List1 (List1, list1, singleton)
 import Data.List.Split (chunksOf)
 import Data.Range
+import Data.Json.Util (UTCTimeMillis)
 import Galley.Types (Connect (..), Conversation)
 import Gundeck.Types.Push.V2
 import Network.HTTP.Types.Method
@@ -530,31 +529,22 @@ rmClient u c = do
 -------------------------------------------------------------------------------
 -- Team Management
 
-addTeamMember :: UserId -> TeamId -> AppIO Bool
-addTeamMember u tid = do
+addTeamMember :: UserId -> TeamId -> (Maybe (UserId, UTCTimeMillis), Team.Role) -> AppIO Bool
+addTeamMember u tid (minvmeta, role) = do
     debug $ remote "galley"
             . msg (val "Adding member to team")
-    permissions <- maybe (throwM incorrectPermissions)
-                         return
-                         (Team.newPermissions perms perms)
-    rs <- galleyRequest POST (req permissions)
+    rs <- galleyRequest POST req
     return $ case Bilge.statusCode rs of
         200 -> True
         _   -> False
   where
-    perms = Set.fromList [ Team.CreateConversation
-                         , Team.DeleteConversation
-                         , Team.AddConversationMember
-                         , Team.RemoveConversationMember
-                         , Team.GetTeamConversations
-                         , Team.GetMemberPermissions
-                         ]
-    t prm = Team.newNewTeamMember $ Team.newTeamMember u prm
-    req p = paths ["i", "teams", toByteString' tid, "members"]
+    prm   = Team.rolePermissions role
+    bdy   = Team.newNewTeamMember $ Team.newTeamMember u prm minvmeta
+    req   = paths ["i", "teams", toByteString' tid, "members"]
           . header "Content-Type" "application/json"
           . zUser u
           . expect [status200, status403]
-          . lbytes (encode $ t p)
+          . lbytes (encode bdy)
 
 createTeam :: UserId -> Team.BindingNewTeam -> TeamId -> AppIO CreateUserTeam
 createTeam u t@(Team.BindingNewTeam bt) teamid = do

@@ -6,7 +6,7 @@
 #   (from wire-server root directory)
 #   export EXECUTABLE=galley-schema; docker build -t $EXECUTABLE -f build/alpine/Dockerfile.executable --build-arg executable=$EXECUTABLE .
 
-ARG intermediate=quay.io/wire/intermediate
+ARG intermediate=quay.io/wire/alpine-intermediate
 ARG deps=quay.io/wire/alpine-deps
 
 #--- Intermediate stage ---

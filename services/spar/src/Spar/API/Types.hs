@@ -27,7 +27,7 @@ import Servant
 import Servant.Multipart
 import Spar.Types
 import Spar.API.Util
-import Spar.SCIM (APIScim)
+import Spar.Scim (APIScim)
 
 import qualified SAML2.WebSSO as SAML
 import qualified URI.ByteString as URI

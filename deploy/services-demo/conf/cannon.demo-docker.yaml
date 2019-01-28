@@ -1,0 +1,11 @@
+cannon:
+  host: cannon
+  port: 8083
+  externalHost: cannon
+
+gundeck:
+  host: gundeck
+  port: 8086
+
+logLevel: Info
+logNetStrings: false

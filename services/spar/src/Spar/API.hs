@@ -49,8 +49,8 @@ import Spar.API.Types
 import Spar.App
 import Spar.Error
 import Spar.Types
-import Spar.SCIM
-import Spar.SCIM.Swagger ()
+import Spar.Scim
+import Spar.Scim.Swagger ()
 
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64 as ES

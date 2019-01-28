@@ -12,7 +12,8 @@ deploy/docker-ephemeral/run.sh
 
 ```
 # On terminal 2, start the services
-deploy/services-demo/demo.sh
+deploy/services-demo/demo.sh  # if all services have been compiled natively
+deploy/services-demo/demo.sh docker # in case Docker images were built instead
 ```
 
 ### Structure of the services-demo folder

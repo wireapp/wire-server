@@ -1,7 +1,8 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE MultiWayIf        #-}
-{-# LANGUAGE ViewPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Galley.API.Util where
 
@@ -72,6 +73,9 @@ bindingTeamMembers tid = do
         Binding -> Data.teamMembers tid
         NonBinding -> throwM nonBindingTeam
 
+-- | Pick a team member with a given user id from some team members.  If the filter comes up empty,
+-- throw 'noTeamMember'; if the user is found and does not have the given permission, throw
+-- 'operationDenied'.  Otherwise, return the found user.
 permissionCheck :: Foldable m => UserId -> Perm -> m TeamMember -> Galley TeamMember
 permissionCheck u p t =
     case find ((u ==) . view userId) t of
@@ -80,6 +84,15 @@ permissionCheck u p t =
                 throwM (operationDenied p)
             pure m
         Nothing -> throwM noTeamMember
+
+-- | If the conversation is in a team, throw iff zusr is a team member and does not have named
+-- permission.  If the conversation is not in a team, do nothing (no error).
+permissionCheckTeamConv :: UserId -> ConvId -> Perm -> Galley ()
+permissionCheckTeamConv zusr cnv perm = Data.conversation cnv >>= \case
+    Just cnv' -> case Data.convTeam cnv' of
+        Just tid -> void $ permissionCheck zusr perm =<< Data.teamMembers tid
+        Nothing -> pure ()
+    Nothing -> throwM convNotFound
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One :: UserId -> Data.Conversation -> Maybe ConnId -> Galley Data.Conversation

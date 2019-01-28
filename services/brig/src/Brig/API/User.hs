@@ -73,6 +73,7 @@ import Brig.Password
 import Brig.Types
 import Brig.Types.Code (Timeout (..))
 import Brig.Types.Intra
+import Brig.Types.Team.Invitation (inCreatedAt, inCreatedBy)
 import Brig.User.Auth.Cookie (revokeAllCookies)
 import Brig.User.Email
 import Brig.User.Event
@@ -256,7 +257,9 @@ createUser new@NewUser{..} = do
         ok <- lift $ Data.claimKey uk uid
         unless ok $
             throwE $ DuplicateUserKey uk
-        added <- lift $ Intra.addTeamMember uid (Team.iiTeam ii)
+        let minvmeta :: (Maybe (UserId, UTCTimeMillis), Team.Role)
+            minvmeta = ((, inCreatedAt inv) <$> inCreatedBy inv, Team.inRole inv)
+        added <- lift $ Intra.addTeamMember uid (Team.iiTeam ii) minvmeta
         unless added $
             throwE TooManyTeamMembers
         lift $ do
@@ -270,7 +273,7 @@ createUser new@NewUser{..} = do
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT CreateUserError AppIO CreateUserTeam
     addUserToTeamSSO account tid ident = do
         let uid = userId (accountUser account)
-        added <- lift $ Intra.addTeamMember uid tid
+        added <- lift $ Intra.addTeamMember uid tid (Nothing, Team.defaultRole)
         unless added $
             throwE TooManyTeamMembers
         lift $ do

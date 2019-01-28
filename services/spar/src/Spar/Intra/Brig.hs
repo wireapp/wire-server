@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE MultiWayIf                 #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
@@ -27,6 +28,7 @@ import Control.Monad.Except
 import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Id (Id(Id), UserId, TeamId)
+import Data.Ix
 import Data.Range
 import Data.String.Conversions
 import Network.HTTP.Types.Method
@@ -116,11 +118,15 @@ createUser suid (Id buid) teamid mbName = do
     $ method POST
     . path "/i/users"
     . json newUser
-    . expect2xx
-  userId . selfUser <$> parseResponse @SelfProfile resp
+  if | statusCode resp < 300
+       -> userId . selfUser <$> parseResponse @SelfProfile resp
+     | inRange (400, 499) (statusCode resp)
+       -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "create user failed"
+     | otherwise
+       -> throwSpar . SparBrigError . cs $ "create user failed with status " <> show (statusCode resp)
 
 
--- | Get a user; returns 'Nothing' if the user was not found.
+-- | Get a user; returns 'Nothing' if the user was not found or has been deleted.
 getUser :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> m (Maybe User)
 getUser buid = do
   resp :: Response (Maybe LBS) <- call
@@ -128,7 +134,11 @@ getUser buid = do
     . path "/self"
     . header "Z-User" (toByteString' buid)
   case statusCode resp of
-    200 -> Just . selfUser <$> parseResponse @SelfProfile resp
+    200 -> do
+      user <- selfUser <$> parseResponse @SelfProfile resp
+      pure $ if (userDeleted user)
+        then Nothing
+        else Just user
     404 -> pure Nothing
     _   -> throwSpar (SparBrigError "Could not retrieve user")
 
@@ -152,15 +162,22 @@ getUserByHandle handle = do
   parse (x:[]) = Just $ accountUser x
   parse _      = Nothing -- TODO: What if more accounts get returned?
 
--- | Set user's handle.
+-- | Set user's handle.  Fails with status <500 if brig fails with <500, and with 500 if brig fails
+-- with >= 500.
 setHandle :: (HasCallStack, MonadError SparError m, MonadSparToBrig m) => UserId -> Handle -> m ()
-setHandle buid (Handle handle) = void $ call
+setHandle buid (Handle handle) = do
+  resp <- call
     $ method PUT
     . path "/self/handle"
     . header "Z-User" (toByteString' buid)
     . header "Z-Connection" ""
-    . expect2xx
     . json (HandleUpdate handle)
+  if | statusCode resp < 300
+       -> pure ()
+     | inRange (400, 499) (statusCode resp)
+       -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "set handle failed"
+     | otherwise
+       -> throwSpar . SparBrigError . cs $ "set handle failed with status " <> show (statusCode resp)
 
 -- | This works under the assumption that the user must exist on brig.  If it does not, brig
 -- responds with 404 and this function returns 'False'.
@@ -208,13 +225,19 @@ getZUsrOwnedTeam (Just uid) = do
 
 
 -- | Get persistent cookie from brig and redirect user past login process.
+--
+-- If brig responds with status >=400;<500, return Nothing.  Otherwise, crash (500).
 ssoLogin :: (HasCallStack, MonadError SparError m, SAML.HasConfig m, MonadSparToBrig m)
-         => UserId -> m SetCookie
+         => UserId -> m (Maybe SetCookie)
 ssoLogin buid = do
   resp :: Response (Maybe LBS) <- call
     $ method POST
     . path "/i/sso-login"
     . json (SsoLogin buid Nothing)
     . queryItem "persist" "true"
-    . expect2xx
-  respToCookie resp
+  if | statusCode resp < 300
+       -> Just <$> respToCookie resp
+     | inRange (400, 499) (statusCode resp)
+       -> pure Nothing
+     | otherwise
+       -> throwSpar . SparBrigError . cs $ "sso-login failed with status " <> show (statusCode resp)

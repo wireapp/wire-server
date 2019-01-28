@@ -61,8 +61,14 @@ serialiseOkProp r = property $
 genRecipient :: Gen Recipient
 genRecipient = do
     r <- recipient <$> arbitrary <*> elements [ RouteAny, RouteDirect, RouteNative ]
-    c <- arbitrary
+    c <- genRecipientClients
     return $ r & set recipientClients c
+
+genRecipientClients :: Gen RecipientClients
+genRecipientClients =
+    oneof [ pure RecipientClientsAll
+          , RecipientClientsSome . List1 <$> arbitrary
+          ]
 
 genBulkPushRequest :: Gen BulkPushRequest
 genBulkPushRequest = BulkPushRequest <$>

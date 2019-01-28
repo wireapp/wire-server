@@ -77,7 +77,7 @@ createTeamMember brig galley owner tid perm = do
 inviteAndRegisterUser :: UserId -> TeamId -> Brig -> Http User
 inviteAndRegisterUser u tid brig = do
     inviteeEmail <- randomEmail
-    let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing
+    let invite = InvitationRequest inviteeEmail (Name "Bob") Nothing Nothing
     inv <- decodeBody =<< postInvitation brig tid u invite
     Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
     rspInvitee <- post (brig . path "/register"
@@ -85,9 +85,9 @@ inviteAndRegisterUser u tid brig = do
                              . body (accept inviteeEmail inviteeCode)) <!! const 201 === statusCode
 
     let Just invitee = decodeBody rspInvitee
-    liftIO $ assertBool "Team ID in registration and team table do not match" (Just tid == userTeam invitee)
+    liftIO $ assertEqual "Team ID in registration and team table do not match" (Just tid) (userTeam invitee)
     selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId invitee)
-    liftIO $ assertBool "Team ID in self profile and team table do not match" (selfTeam == Just tid)
+    liftIO $ assertEqual "Team ID in self profile and team table do not match" selfTeam (Just tid)
     return invitee
 
 updatePermissions :: UserId -> TeamId -> (UserId, Team.Permissions) -> Galley -> Http ()
@@ -99,7 +99,7 @@ updatePermissions from tid (to, perm) galley =
         . Bilge.json changeMember
         ) !!! const 200 === statusCode
   where
-    changeMember = Team.newNewTeamMember $ Team.newTeamMember to perm
+    changeMember = Team.newNewTeamMember $ Team.newTeamMember to perm Nothing
 
 createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
 createTeamConv g tid u us mtimer = do

@@ -1,6 +1,6 @@
 SHELL            := /usr/bin/env bash
 LANG             := en_US.UTF-8
-DOCKER_USER      ?= wireserver
+DOCKER_USER      ?= quay.io/wire
 DOCKER_TAG       ?= local
 
 default: fast
@@ -89,33 +89,51 @@ i-%:
 
 .PHONY: docker-deps
 docker-deps:
+	# `docker-deps` needs to be built or pulled only once (unless native dependencies change)
 	$(MAKE) -C build/alpine deps
 
 .PHONY: docker-builder
 docker-builder:
+	# `docker-builder` needs to be built or pulled only once (unless native dependencies change)
 	$(MAKE) -C build/alpine builder
 
 .PHONY: docker-intermediate
 docker-intermediate:
-	docker build -t $(DOCKER_USER)/intermediate:$(DOCKER_TAG) -f build/alpine/Dockerfile.intermediate .;
-	docker tag $(DOCKER_USER)/intermediate:$(DOCKER_TAG) $(DOCKER_USER)/intermediate:latest;
-	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/intermediate:$(DOCKER_TAG); docker push $(DOCKER_USER)/intermediate:latest; fi;
+	# `docker-intermediate` needs to be built whenever code changes - this essentially runs `stack clean && stack install` on the whole repo
+	docker build -t $(DOCKER_USER)/alpine-intermediate:$(DOCKER_TAG) -f build/alpine/Dockerfile.intermediate --build-arg intermediate=$(DOCKER_USER)/alpine-intermediate --build-arg deps=$(DOCKER_USER)/alpine-deps .;
+	docker tag $(DOCKER_USER)/alpine-intermediate:$(DOCKER_TAG) $(DOCKER_USER)/alpine-intermediate:latest;
+	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/alpine-intermediate:$(DOCKER_TAG); docker push $(DOCKER_USER)/alpine-intermediate:latest; fi;
 
 .PHONY: docker-migrations
 docker-migrations:
-	docker build -t $(DOCKER_USER)/migrations:$(DOCKER_TAG) -f build/alpine/Dockerfile.migrations .
+	# `docker-migrations` needs to be built whenever docker-intermediate was rebuilt AND new schema migrations were added.
+	docker build -t $(DOCKER_USER)/migrations:$(DOCKER_TAG) -f build/alpine/Dockerfile.migrations --build-arg intermediate=$(DOCKER_USER)/alpine-intermediate --build-arg deps=$(DOCKER_USER)/alpine-deps .
 	docker tag $(DOCKER_USER)/migrations:$(DOCKER_TAG) $(DOCKER_USER)/migrations:latest
 	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/migrations:$(DOCKER_TAG); docker push $(DOCKER_USER)/migrations:latest; fi;
 
 .PHONY: docker-exe-%
 docker-exe-%:
-	docker build -t $(DOCKER_USER)/"$*":$(DOCKER_TAG) -f build/alpine/Dockerfile.executable --build-arg executable="$*" .
+	docker image ls | grep $(DOCKER_USER)/alpine-deps > /dev/null || (echo "'make docker-deps' required.", exit 1)
+	docker image ls | grep $(DOCKER_USER)/alpine-intermediate > /dev/null || (echo "'make docker-intermediate' required."; exit 1)
+	docker build -t $(DOCKER_USER)/"$*":$(DOCKER_TAG) -f build/alpine/Dockerfile.executable --build-arg executable="$*" --build-arg intermediate=$(DOCKER_USER)/alpine-intermediate --build-arg deps=$(DOCKER_USER)/alpine-deps .
 	docker tag $(DOCKER_USER)/"$*":$(DOCKER_TAG) $(DOCKER_USER)/"$*":latest
 	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/"$*":$(DOCKER_TAG); docker push $(DOCKER_USER)/"$*":latest; fi;
 
-.PHONY: docker-service-%
-docker-service-%:
-	$(MAKE) -C "services/$*" docker
+.PHONY: docker-services
+docker-services:
+	# make docker-services doesn't compile, only makes small images out of the `docker-intermediate` image
+	# to recompile, run `docker-intermediate` first.
+	docker image ls | grep $(DOCKER_USER)/alpine-deps > /dev/null || (echo "'make docker-deps' required.", exit 1)
+	docker image ls | grep $(DOCKER_USER)/alpine-intermediate > /dev/null || (echo "'make docker-intermediate' required."; exit 1)
+	# `make -C services/brig docker` == `make docker-exe-brig docker-exe-brig-integration docker-exe-brig-schema docker-exe-brig-index`
+	$(MAKE) -C services/brig docker
+	$(MAKE) -C services/gundeck docker
+	$(MAKE) -C services/galley docker
+	$(MAKE) -C services/cannon docker
+	$(MAKE) -C services/proxy docker
+	$(MAKE) -C services/spar docker
+	$(MAKE) docker-exe-zauth
+	$(MAKE) -C services/nginz docker
 
 DOCKER_DEV_NETWORK := --net=host
 DOCKER_DEV_VOLUMES := -v `pwd`:/src/wire-server

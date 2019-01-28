@@ -25,6 +25,7 @@ import Data.UUID as UUID hiding (null, fromByteString)
 import Data.UUID.V4 as UUID
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.MockResponse
+import SAML2.WebSSO.Test.Lenses
 import Spar.API.Types
 import Spar.Types
 import URI.ByteString.QQ (uri)
@@ -35,10 +36,10 @@ import qualified Data.ByteString.Builder as LB
 import qualified Data.ZAuth.Token as ZAuth
 import qualified Galley.Types.Teams as Galley
 import qualified Spar.Intra.Brig as Intra
-import qualified Util.SCIM as SCIMT
+import qualified Util.Scim as ScimT
 import qualified Web.Cookie as Cky
-import qualified Web.SCIM.Class.User as SCIM
-import qualified Web.SCIM.Schema.User as SCIM
+import qualified Web.Scim.Class.User as Scim
+import qualified Web.Scim.Schema.User as Scim
 
 
 spec :: SpecWith TestEnv
@@ -49,7 +50,7 @@ spec = do
   specFinalizeLogin
   specBindingUsers
   specCRUDIdentityProvider
-  specSCIMAndSAML
+  specScimAndSAML
   specAux
 
 
@@ -190,20 +191,69 @@ specFinalizeLogin = do
             hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
 
       context "access granted" $ do
-        it "responds with a very peculiar 'allowed' HTTP response" $ do
-          (_, _, idp) <- registerTestIdP
-          (privcreds, authnreq) <- negotiateAuthnRequest idp
-          spmeta <- getTestSPMetadata
-          authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
-          sparresp <- submitAuthnResponse authnresp
-          liftIO $ do
-            statusCode sparresp `shouldBe` 200
-            let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
-            bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-            bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-            bdy `shouldContain` "<title>wire:sso:success</title>"
-            bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
-            hasPersistentCookieHeader sparresp `shouldBe` Right ()
+        let loginSuccess :: HasCallStack => ResponseLBS -> TestSpar ()
+            loginSuccess sparresp = liftIO $ do
+              statusCode sparresp `shouldBe` 200
+              let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+              bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+              bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+              bdy `shouldContain` "<title>wire:sso:success</title>"
+              bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
+              hasPersistentCookieHeader sparresp `shouldBe` Right ()
+
+        context "happy flow" $ do
+          it "responds with a very peculiar 'allowed' HTTP response" $ do
+            (_, _, idp) <- registerTestIdP
+            spmeta <- getTestSPMetadata
+            (privcreds, authnreq) <- negotiateAuthnRequest idp
+            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
+            loginSuccess =<< submitAuthnResponse authnresp
+
+        context "user is created once, then deleted in team settings, then can login again." $ do
+          it "responds with 'allowed'" $ do
+            (ownerid, teamid, idp) <- registerTestIdP
+            spmeta <- getTestSPMetadata
+
+            -- first login
+            newUserAuthnResp :: SignedAuthnResponse <- do
+              (privcreds, authnreq) <- negotiateAuthnRequest idp
+              authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
+              loginSuccess =<< submitAuthnResponse authnresp
+              pure $ authnresp
+
+            let newUserRef@(UserRef _ subj) = either (error . show) (^. userRefL) $
+                  parseFromDocument (fromSignedAuthnResponse newUserAuthnResp)
+
+            -- remove user from team settings
+            do
+              env <- ask
+              newUserId <- getUserIdViaRef newUserRef
+              resp <- call . get $
+                ( (env ^. teGalley)
+                . header "Z-User" (toByteString' ownerid)
+                . header "Z-Connection" "fake"
+                . paths ["teams", toByteString' teamid, "members"]
+                . expect2xx
+                )
+              liftIO . print $ responseBody resp
+
+              void . call . delete $
+                ( (env ^. teGalley)
+                . header "Z-User" (toByteString' ownerid)
+                . header "Z-Connection" "fake"
+                . paths ["teams", toByteString' teamid, "members", toByteString' newUserId]
+                . Bilge.json (Galley.newTeamMemberDeleteData (Just defPassword))
+                . expect2xx
+                )
+              liftIO $ threadDelay 100000  -- make sure deletion is done.  if we don't want to take
+                                           -- the time, we should find another way to robustly
+                                           -- confirm that deletion has compelted in the background.
+
+            -- second login
+            do
+              (privcreds, authnreq) <- negotiateAuthnRequest idp
+              authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp spmeta authnreq True
+              loginSuccess =<< submitAuthnResponse authnresp
 
         context "unknown user" $ do
           it "creates the user" $ do
@@ -631,19 +681,19 @@ specCRUDIdentityProvider = do
           liftIO $ idp `shouldBe` idp'
 
 
-specSCIMAndSAML :: SpecWith TestEnv
-specSCIMAndSAML = do
+specScimAndSAML :: SpecWith TestEnv
+specScimAndSAML = do
     it "SCIM and SAML work together and SCIM-created users can login" $ do
       env <- ask
 
       -- create a user via scim
-      (tok, (_, _, idp))                <- SCIMT.registerIdPAndSCIMToken
-      usr            :: SCIM.User       <- SCIMT.randomSCIMUser
-      scimStoredUser :: SCIM.StoredUser <- SCIMT.createUser tok usr
-      let userid     :: UserId           = SCIMT.scimUserId scimStoredUser
+      (tok, (_, _, idp))                <- ScimT.registerIdPAndScimToken
+      usr            :: Scim.User       <- ScimT.randomScimUser
+      scimStoredUser :: Scim.StoredUser <- ScimT.createUser tok usr
+      let userid     :: UserId           = ScimT.scimUserId scimStoredUser
           userref    :: UserRef          = UserRef tenant subject
           tenant     :: Issuer           = idp ^. idpMetadata . edIssuer
-          subject    :: NameID           = opaqueNameID . fromMaybe (error "no external id") . SCIM.externalId $ usr
+          subject    :: NameID           = opaqueNameID . fromMaybe (error "no external id") . Scim.externalId $ usr
 
       -- UserRef maps onto correct UserId in spar (and back).
       userid' <- getUserIdViaRef' userref

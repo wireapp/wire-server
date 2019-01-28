@@ -1,8 +1,9 @@
-{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE MultiWayIf        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators     #-}
 
 module Brig.Team.API where
@@ -16,7 +17,7 @@ import Brig.Data.UserKey (userEmailKey)
 import Brig.Email
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import Brig.Team.Email
-import Brig.Team.Util (ensurePermissions)
+import Brig.Team.Util (ensurePermissions, ensurePermissionToAddUser)
 import Brig.Types.Team.Invitation
 import Brig.Types.User (InvitationCode, emailIdentity)
 import Brig.Types.Intra (AccountStatus (..))
@@ -162,10 +163,12 @@ getInvitationCode (_ ::: t ::: r) = do
 
 createInvitation :: JSON ::: UserId ::: TeamId ::: Request -> Handler Response
 createInvitation (_ ::: uid ::: tid ::: req) = do
-    body <- parseJsonBody req
+    body :: InvitationRequest <- parseJsonBody req
     idt  <- maybe (throwStd noIdentity) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail)    return (emailIdentity idt)
-    ensurePermissions uid tid [Team.AddTeamMember]
+    let inviteePerms = Team.rolePermissions inviteeRole
+        inviteeRole  = fromMaybe Team.defaultRole . irRole $ body
+    ensurePermissionToAddUser uid tid inviteePerms
     email <- either (const $ throwStd invalidEmail) return (validateEmail (irEmail body))
     let uk = userEmailKey email
     blacklisted <- lift $ Blacklist.exists uk
@@ -178,12 +181,12 @@ createInvitation (_ ::: uid ::: tid ::: req) = do
     user <- lift $ Data.lookupKey uk
     case user of
         Just _  -> throwStd emailExists
-        Nothing -> doInvite email from (irLocale body)
+        Nothing -> doInvite inviteeRole email from (irLocale body)
   where
-    doInvite to from lc = lift $ do
+    doInvite role to from lc = lift $ do
         now     <- liftIO =<< view currentTime
         timeout <- setTeamInvitationTimeout <$> view settings
-        (newInv, code) <- DB.insertInvitation tid to now timeout
+        (newInv, code) <- DB.insertInvitation tid role to now (Just uid) timeout
         void $ sendInvitationMail to tid from code lc
         return . setStatus status201 . loc (inInvitation newInv) $ json newInv
 

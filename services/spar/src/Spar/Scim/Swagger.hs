@@ -17,7 +17,7 @@
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Spar.SCIM.Swagger where
+module Spar.Scim.Swagger where
 
 import Imports
 import Control.Lens
@@ -29,7 +29,7 @@ import "swagger2" Data.Swagger hiding (Header(..))
   -- clash other than -XPackageImports.
 import Spar.Orphans ()
 import Spar.Types
-import Spar.SCIM
+import Spar.Scim
 
 import qualified SAML2.WebSSO as SAML
 
