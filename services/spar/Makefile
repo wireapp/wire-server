@@ -11,7 +11,7 @@ DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 DEB_SCHEMA    := dist/$(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema
 DOCKER_USER    ?= quay.io/wire
-DOCKER_TAG     ?= local
+DOCKER_TAG     ?= latest
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \

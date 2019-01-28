@@ -1,6 +1,6 @@
 LANG := en_US.UTF-8
 DOCKER_USER   ?= quay.io/wire
-DOCKER_TAG    ?= local
+DOCKER_TAG    ?= latest
 
 default: deps prebuilder builder
 

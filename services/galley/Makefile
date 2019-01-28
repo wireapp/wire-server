@@ -13,7 +13,7 @@ DEB_SCHEMA    := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
 DEB_JOURNALER := $(NAME)-journaler_$(VERSION)+$(BUILD)_amd64.deb
 EXECUTABLES   := $(NAME) $(NAME)-integration $(NAME)-schema $(NAME)-journaler
 DOCKER_USER    ?= quay.io/wire
-DOCKER_TAG     ?= local
+DOCKER_TAG     ?= latest
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \

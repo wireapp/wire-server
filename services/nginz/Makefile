@@ -13,7 +13,7 @@ ifeq ($(DEBUG), 1)
 WITH_DEBUG      = --with-debug
 endif
 DOCKER_USER    ?= quay.io/wire
-DOCKER_TAG     ?= local
+DOCKER_TAG     ?= latest
 
 DEST_PATH      ?= /opt/nginz
 # Use a folder that can be written to since errors during startup do not respect

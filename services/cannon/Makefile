@@ -8,7 +8,7 @@ BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || 
 DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 EXECUTABLES  := $(NAME)
 DOCKER_USER    ?= quay.io/wire
-DOCKER_TAG     ?= local
+DOCKER_TAG     ?= latest
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \
