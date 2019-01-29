@@ -49,6 +49,7 @@ import qualified Web.Scim.Schema.ListResponse     as Scim
 import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.User             as Scim.User
 import qualified Web.Scim.Schema.User.Email       as Email
+import qualified Web.Scim.Schema.User.Phone       as Phone
 
 
 -- | Call 'registerTestIdP', then 'registerScimToken'.  The user returned is the owner of the team;
@@ -86,12 +87,14 @@ registerScimToken teamid midpid = do
 randomScimUser :: MonadRandom m => m Scim.User.User
 randomScimUser = do
     suffix <- cs <$> replicateM 5 (getRandomR ('0', '9'))
-    emails <- replicateM 3 randomScimEmail
+    emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
+    phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
     pure $ Scim.User.empty
-        { Scim.User.userName    = "scimuser_" <> suffix
-        , Scim.User.displayName = Just ("Scim User #" <> suffix)
-        , Scim.User.externalId  = Just ("scimuser_extid_" <> suffix)
-        , Scim.User.emails      = emails
+        { Scim.User.userName     = "scimuser_" <> suffix
+        , Scim.User.displayName  = Just ("Scim User #" <> suffix)
+        , Scim.User.externalId   = Just ("scimuser_extid_" <> suffix)
+        , Scim.User.emails       = emails
+        , Scim.User.phoneNumbers = phones
         }
 
 randomScimEmail :: MonadRandom m => m Email.Email
@@ -105,6 +108,15 @@ randomScimEmail = do
       pure . Email.EmailAddress2 $ Email.unsafeEmailAddress localpart domainpart
     pure Email.Email{..}
 
+randomScimPhone :: MonadRandom m => m Phone.Phone
+randomScimPhone = do
+    let typ :: Maybe Text = Nothing
+    value :: Maybe Text <- do
+      let mkdigits n = replicateM n (getRandomR ('0', '9'))
+      mini <- mkdigits 8
+      maxi <- mkdigits =<< getRandomR (0, 7)
+      pure $ Just (cs ('+' : mini <> maxi))
+    pure Phone.Phone{..}
 
 ----------------------------------------------------------------------------
 -- API wrappers
