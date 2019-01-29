@@ -131,8 +131,8 @@ import qualified Web.Scim.Schema.Common           as Scim.Common
 
 -- | SCIM config for our server.
 --
--- TODO: the 'Scim.Meta.empty' configuration claims that we don't support
--- filters, but we actually do; it's a bug in hscim
+-- TODO: the 'Scim.Meta.empty' configuration claims that we don't support filters, but we
+-- actually do; it's a bug in hscim
 configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
 
@@ -162,44 +162,39 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
             Just idpConfig -> pure idpConfig
     validateScimUser' (Just idp) user
 
--- | Map the SCIM data on the spar and brig schemata, and throw errors if
--- the SCIM data does not comply with the standard / our constraints.
--- See also: 'ValidScimUser'.
+-- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does
+-- not comply with the standard / our constraints. See also: 'ValidScimUser'.
 --
 -- __Mapped fields:__
 --
---   * @userName@ is mapped to our 'userHandle'. If there is no handle, we
---     use 'userId', because having some unique @userName@ is a SCIM
---     requirement.
+--   * @userName@ is mapped to our 'userHandle'. If there is no handle, we use 'userId',
+--     because having some unique @userName@ is a SCIM requirement.
 --
---   * @name@ is left empty and is never stored, even when it's sent to us
---     via SCIM.
+--   * @name@ is left empty and is never stored, even when it's sent to us via SCIM.
 --
 --   * @displayName@ is mapped to our 'userName'.
 --
---   * A mandatory @SAML.UserRef@ is derived from 'Scim.User.externalId'
---     and the 'idpId' (retrieved via SCIM token).
+--   * A mandatory @SAML.UserRef@ is derived from 'Scim.User.externalId' and the 'idpId'
+--     (retrieved via SCIM token).
 --
--- FUTUREWORK: We may need to make the SAML NameID type derived from the
--- available SCIM data configurable on a per-team basis in the future, to
--- accomodate different legal uses of externalId by different users.
+-- FUTUREWORK: We may need to make the SAML NameID type derived from the available SCIM data
+-- configurable on a per-team basis in the future, to accomodate different legal uses of
+-- externalId by different users.
 --
--- __Emails and phone numbers:__ we prohibit emails and phone numbers for now,
--- because we'd like to ensure that only verified emails and phone numbers end
--- up in our database, and implementing verification requires design decisions
--- that we haven't made yet.
+-- __Emails and phone numbers:__ we prohibit emails and phone numbers for now, because we'd
+-- like to ensure that only verified emails and phone numbers end up in our database, and
+-- implementing verification requires design decisions that we haven't made yet.
 --
--- If we allow unverified email addresses to be stored in the Spar database,
--- later on they might leak into other places and somebody will forget that they
--- should never be treated as verified. It's safer to prohibit them for now.
+-- If we allow unverified email addresses to be stored in the Spar database, later on they
+-- might leak into other places and somebody will forget that they should never be treated as
+-- verified. It's safer to prohibit them for now.
 --
 -- See <https://github.com/wireapp/wire-server/pull/559#discussion_r247466760>
 --
--- __Names:__ some systems like Okta require given name and family name to be
--- present, but it's a poor model for names, and in practice many other apps
--- also ignore this model. Leaving @name@ empty will prevent the confusion that
--- might appear when somebody tries to set @name@ to some value and the
--- @displayName@ won't be affected by that change.
+-- __Names:__ some systems like Okta require given name and family name to be present, but
+-- it's a poor model for names, and in practice many other apps also ignore this model.
+-- Leaving @name@ empty will prevent the confusion that might appear when somebody tries to
+-- set @name@ to some value and the @displayName@ won't be affected by that change.
 validateScimUser'
   :: forall m. (MonadError Scim.ScimError m)
   => Maybe IdP -> Scim.User.User -> m ValidScimUser
@@ -243,8 +238,9 @@ validateScimUser' (Just idp) user = do
 
     pure $ ValidScimUser user uref handl mbName
 
--- | We only allow SCIM users that authenticate via SAML.  (This is by no means necessary, though.
--- It can be relaxed to allow creating users with password authentication if that is a requirement.)
+-- | We only allow SCIM users that authenticate via SAML. (This is by no means necessary,
+-- though. It can be relaxed to allow creating users with password authentication if that is a
+-- requirement.)
 createValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ValidScimUser -> m Scim.Class.User.StoredUser
@@ -262,9 +258,8 @@ createValidScimUser (ValidScimUser user uref handl mbName) = do
 
     pure storedUser
 
-    -- FUTUREWORK: think about potential failure points in this function (SCIM
-    -- can succeed but SAML can fail, Brig user creation can succeed but
-    -- handle-setting can fail).
+    -- FUTUREWORK: think about potential failure points in this function (SCIM can succeed but
+    -- SAML can fail, Brig user creation can succeed but handle-setting can fail).
 
 updateValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
@@ -276,9 +271,9 @@ updateValidScimUser tokinfo uidText newScimUser = do
     -- does. @fisx believes that this situation could be improved (see
     -- <https://github.com/wireapp/wire-server/pull/559#discussion_r247392882>).
     --
-    -- If 'Scim.User.User' and 'ValidScimUser' did contain the user ID, we
-    -- wouldn't need 'uidText' in this function -- or we could at least check in
-    -- hscim that the ID in the user object matches the ID in the path.
+    -- If 'Scim.User.User' and 'ValidScimUser' did contain the user ID, we wouldn't need
+    -- 'uidText' in this function -- or we could at least check in hscim that the ID in the
+    -- user object matches the ID in the path.
 
     -- TODO: how do we get this safe w.r.t. race conditions / crashes?
 
@@ -304,8 +299,8 @@ updateValidScimUser tokinfo uidText newScimUser = do
         maybe (pure ()) (lift . Intra.Brig.setName uid) $ newScimUser ^. vsuName
         lift . Intra.Brig.setHandle uid $ newScimUser ^. vsuHandle
 
-        -- store new user value to scim_user table (spar).  (this must happen last, so in case of
-        -- crash the client can repeat the operation and it won't be considered a noop.)
+        -- store new user value to scim_user table (spar). (this must happen last, so in case
+        -- of crash the client can repeat the operation and it won't be considered a noop.)
         lift . wrapMonadClient $ Data.insertScimUser uid newScimStoredUser
 
         pure newScimStoredUser
@@ -371,14 +366,12 @@ parseUid uidText = maybe err pure $ readMaybe (Text.unpack uidText)
 --
 -- Spec: <https://tools.ietf.org/html/rfc7644#section-3.14>.
 --
--- A version is an /opaque/ string that doesn't need to conform to any format.
--- The only guarantee we have to give is that different resources will have
--- different versions.
+-- A version is an /opaque/ string that doesn't need to conform to any format. The only
+-- guarantee we have to give is that different resources will have different versions.
 --
--- Note: we use weak ETags for versions because we get no guarantees from
--- @aeson@ that its JSON rendering will remain stable between releases, and
--- therefore we can't satisfy the requirements of strong ETags ("same resources
--- have the same version").
+-- Note: we use weak ETags for versions because we get no guarantees from @aeson@ that its
+-- JSON rendering will remain stable between releases, and therefore we can't satisfy the
+-- requirements of strong ETags ("same resources have the same version").
 calculateVersion
   :: Text               -- ^ User ID
   -> Scim.User.User
