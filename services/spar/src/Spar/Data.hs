@@ -481,7 +481,9 @@ deleteTeamScimTokens team = do
 -- | Store the scim user in its entirety and return the 'Scim.StoredUser'.
 --
 -- NB: we can add optional columns in the future and extract parts of the json blob should the need
--- arise.
+-- arise.  For instance, if we want to support different versions of SCIM, we could extract
+-- @schemas@ and, throw an exception if the list of values is not supported, and store it
+-- in a separate column otherwise, allowing for fast version filtering on the database.
 insertScimUser
   :: (HasCallStack, MonadClient m)
   => UserId -> ScimC.User.StoredUser -> m ()
