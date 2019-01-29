@@ -27,6 +27,33 @@
 -- | An implementation of the SCIM API for doing bulk operations with users.
 --
 -- See <https://en.wikipedia.org/wiki/System_for_Cross-domain_Identity_Management>
+--
+-- = SCIM user creation flow
+--
+-- When a user is created via SCIM, a SAML user identity has to be created with it. Currently
+-- we don't allow SCIM users without SAML user identities.
+--
+-- Creating these two user identities (SCIM and SAML) together requires constructing a
+-- 'UserRef' from the SCIM request, which is then stored by 'Spar.Data.insertUser'.
+--
+-- The 'UserRef' consists of:
+--
+--   * tenant (the url-shaped ID the IdP assigns to itself);
+--
+--   * subject (usually an email, or an unstructured nickname, or a few more obscure
+--     alternatives).
+--
+-- /Tenant:/ if there is only one IdP for the current team, the tenant can be found by calling
+-- 'getIdPConfigsByTeam' and looking up @^. idpMetadata . edIssuer@ on the result. If there is
+-- more than one IdP, we need a way to associate user creation requests with specific IdPs.
+-- Currently we disallow teams with more than one IdP.
+--
+-- /Subject:/ there are different reasonable ways to pick a subject for a user; this should be
+-- configurable in the team settings page (e.g. a choice of one field from the SCIM user
+-- schema, optionally transformed with one of a few hard-coded functions). A simple default
+-- could be "take the email address, and type it as an email address", or in saml2-web-sso
+-- pseudo-code: @\email -> entityNameID (parseURI ("email:" <> renderEmail email))@.
+
 module Spar.Scim
   (
   -- * The API
