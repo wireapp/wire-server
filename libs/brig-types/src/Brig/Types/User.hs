@@ -127,6 +127,9 @@ data User = User
         -- ^ Set if the user is ephemeral
     , userTeam     :: !(Maybe TeamId)
         -- ^ Set if the user is part of a binding team
+    , userManagedBy :: !ManagedBy
+        -- ^ How is the user profile managed (e.g. if it's via SCIM then the user profile
+        -- can't be edited via normal means)
     }
     deriving (Eq, Show)
 
@@ -139,8 +142,9 @@ userPhone = phoneIdentity <=< userIdentity
 userSSOId :: User -> Maybe UserSSOId
 userSSOId = ssoIdentity <=< userIdentity
 
--- | A subset of the data of an existing 'User'
--- that is returned on the API.
+-- | A subset of the data of an existing 'User' that is returned on the API and is visible to
+-- other users. Each user also has access to their own profile in a richer format --
+-- 'SelfProfile'.
 data UserProfile = UserProfile
     { profileId       :: !UserId
     , profileName     :: !Name
@@ -170,11 +174,12 @@ instance ToJSON User where
         # "accent_id"  .= userAccentId u
         # "deleted"    .= (if userDeleted u then Just True else Nothing)
         # "locale"     .= userLocale u
-        # "service"    .= userService u
-        # "handle"     .= userHandle u
+        # "service"    .= userService u
+        # "handle"     .= userHandle u
         # "expires_at" .= userExpire u
         # "team"       .= userTeam u
         # "sso_id"     .= userSSOId u
+        # "managed_by" .= userManagedBy u
         # []
 
 instance FromJSON User where
@@ -192,6 +197,7 @@ instance FromJSON User where
              <*> o .:? "handle"
              <*> o .:? "expires_at"
              <*> o .:? "team"
+             <*> o .:? "managed_by" .!= ManagedByWire
 
 instance FromJSON UserProfile where
     parseJSON = withObject "UserProfile" $ \o ->
@@ -215,8 +221,8 @@ instance ToJSON UserProfile where
         # "assets"     .= profileAssets u
         # "accent_id"  .= profileAccentId u
         # "deleted"    .= (if profileDeleted u then Just True else Nothing)
-        # "service"    .= profileService u
-        # "handle"     .= profileHandle u
+        # "service"    .= profileService u
+        # "handle"     .= profileHandle u
         # "locale"     .= profileLocale u
         # "expires_at" .= profileExpire u
         # "team"       .= profileTeam u

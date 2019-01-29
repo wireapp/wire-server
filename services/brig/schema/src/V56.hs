@@ -23,4 +23,3 @@ migration = Migration 56 "Add table to exclude phone number prefixes" $ do
             , primary key (prefix)
             )
     |]
-

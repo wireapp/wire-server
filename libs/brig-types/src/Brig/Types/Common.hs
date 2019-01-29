@@ -386,3 +386,25 @@ codeParser :: String -> (String -> Maybe a) -> Parser a
 codeParser err conv = do
     code <- count 2 anyChar
     maybe (fail err) return (conv code)
+
+-----------------------------------------------------------------------------
+-- ManagedBy
+
+-- | Who controls changes to the user profile.
+data ManagedBy
+    -- | The profile can be changed in-app; user doesn't show up via SCIM at all.
+    = ManagedByWire
+    -- | The profile can only be changed via SCIM.
+    | ManagedBySCIM
+    deriving (Eq, Show)
+
+instance FromJSON ManagedBy where
+    parseJSON = withText "ManagedBy" $ \case
+        "wire" -> pure ManagedByWire
+        "scim" -> pure ManagedBySCIM
+        other  -> fail $ "Invalid ManagedBy: " ++ show other
+
+instance ToJSON ManagedBy where
+    toJSON = String . \case
+        ManagedByWire -> "wire"
+        ManagedBySCIM -> "scim"

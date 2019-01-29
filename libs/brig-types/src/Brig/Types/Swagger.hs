@@ -127,6 +127,10 @@ self = defineModel "Self" $ do
     property "deleted" bool' $ do
         description "Whether the account has been deleted."
         optional
+    property "managed_by" managedBy $ do
+        description "What is the primary source of truth for this user; if it's SCIM \
+                    \then the profile can't be edited via normal means"
+        optional
 
 user :: Model
 user = defineModel "User" $ do
@@ -149,6 +153,12 @@ user = defineModel "User" $ do
     property "handle" string' $ do
         description "Unique user handle."
         optional
+
+managedBy :: DataType
+managedBy = string $ enum
+    [ "wire"
+    , "scim"
+    ]
 
 assetType :: DataType
 assetType = string $ enum
