@@ -312,9 +312,9 @@ newTeamList = TeamList
 newTeamMember :: UserId -> Permissions -> Maybe (UserId, UTCTimeMillis) -> TeamMember
 newTeamMember = TeamMember
 
--- | This is called in "Galley.Data".  It throws an exception if the input is inconsistent, meaning
--- that one of inviter and invitation timestamp is Nothing and the other is Just.  This is justified
--- because it can only be caused by
+-- | For being called in "Galley.Data".  Throws an exception if one of invitation timestamp
+-- and inviter is 'Nothing' and the other is 'Just', which can only be caused by inconsistent
+-- database content.
 newTeamMemberRaw :: MonadThrow m => UserId -> Permissions -> Maybe UserId -> Maybe UTCTimeMillis -> m TeamMember
 newTeamMemberRaw uid perms (Just invu) (Just invt) = pure $ TeamMember uid perms (Just (invu, invt))
 newTeamMemberRaw uid perms Nothing Nothing         = pure $ TeamMember uid perms Nothing
