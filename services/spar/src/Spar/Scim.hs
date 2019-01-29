@@ -15,8 +15,8 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 
--- TODO remove (orphans can be avoided by only implementing functions here, and gathering them in
--- the instance near the Spar type.)
+-- TODO remove (orphans can be avoided by only implementing functions here, and gathering them
+-- in the instance near the Spar type.)
 {-# OPTIONS_GHC
     -Wno-missing-methods
     -Wno-unused-imports
@@ -83,7 +83,7 @@ import Data.Range
 import Data.String.Conversions
 import Data.Text.Encoding
 import Data.Time
-import Data.UUID as UUID hiding (null)
+import Data.UUID as UUID
 import Galley.Types.Teams    as Galley
 import Network.URI
 import OpenSSL.Random (randBytes)
@@ -181,13 +181,10 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 -- configurable on a per-team basis in the future, to accomodate different legal uses of
 -- externalId by different users.
 --
--- __Emails and phone numbers:__ we prohibit emails and phone numbers for now, because we'd
--- like to ensure that only verified emails and phone numbers end up in our database, and
--- implementing verification requires design decisions that we haven't made yet.
---
--- If we allow unverified email addresses to be stored in the Spar database, later on they
--- might leak into other places and somebody will forget that they should never be treated as
--- verified. It's safer to prohibit them for now.
+-- __Emails and phone numbers:__ we'd like to ensure that only verified emails and phone
+-- numbers end up in our database, and implementing verification requires design decisions
+-- that we haven't made yet. We store them in our SCIM blobs, but don't syncronize them with
+-- Brig.
 --
 -- See <https://github.com/wireapp/wire-server/pull/559#discussion_r247466760>
 --
@@ -222,12 +219,6 @@ validateScimUser' (Just idp) user = do
       Just x -> pure x
       Nothing -> throwError $
         Scim.badRequest Scim.InvalidValue (Just "userName is not compliant")
-
-    -- See this function's documentation
-    unless (null (Scim.User.emails user)) $ throwError $
-      Scim.badRequest Scim.InvalidValue (Just "emails currently can not be set via SCIM")
-    unless (null (Scim.User.phoneNumbers user)) $ throwError $
-      Scim.badRequest Scim.InvalidValue (Just "phone numbers currently can not be set via SCIM")
 
     -- We check the name for validity, but only if it's present
     mbName <- Name <$$> validateNameOrExtId (Scim.User.displayName user)

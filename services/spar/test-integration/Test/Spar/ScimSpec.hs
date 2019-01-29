@@ -63,10 +63,6 @@ specUsers = describe "operations with users" $ do
         it "writes all the stuff to all the places" $ do
             pendingWith "factor this out of the PUT tests we already wrote."
 
-        -- See validateScimUser' for why we don't allow this
-        it "doesn't allow setting emails or phone numbers" $ do
-            pendingWith "factor this out of the PUT tests we already wrote."
-
     describe "GET /Users" $ do
         it "lists all users in a team" $ do
             -- Create a user via SCIM
@@ -221,25 +217,6 @@ specUsers = describe "operations with users" $ do
             muserid' <- runSparCass $ Data.getUser (vuser' ^. vsuSAMLUserRef)
             liftIO $ do
                 muserid' `shouldBe` Just userid
-
-        -- See validateScimUser' for why we don't allow this
-        it "doesn't allow setting emails or phone numbers" $ do
-            env <- ask
-            -- Create a user via SCIM
-            user <- randomScimUser
-            (tok, _) <- registerIdPAndScimToken
-            storedUser <- createUser tok user
-            let userid = scimUserId storedUser
-            -- Try to add an email and fail
-            email <- randomScimEmail
-            let userWithEmail = user { Scim.User.emails = [email] }
-            updateUser_ (Just tok) (Just userid) userWithEmail (env ^. teSpar)
-                !!! const 400 === statusCode
-            -- Try to add a phone number and fail
-            phone <- randomScimPhone
-            let userWithPhone = user { Scim.User.phoneNumbers = [phone] }
-            updateUser_ (Just tok) (Just userid) userWithPhone (env ^. teSpar)
-                !!! const 400 === statusCode
 
         it "creates a matching Brig user (with 'SSOIdentity' correctly set)" $ do
             user <- randomScimUser
