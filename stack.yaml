@@ -125,7 +125,7 @@ packages:
   extra-dep: true
 - location:
     git: https://github.com/wireapp/hscim
-    commit: 5306564bffeeb4ad7216481e6ba132dffb214213  # master (Jan 22, 2019)
+    commit: 53db8029e17e7085322e7055f71efb5e7058d4a5  # master (Jan 23, 2019)
   extra-dep: true
 
 extra-deps:

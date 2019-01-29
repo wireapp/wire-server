@@ -1,29 +1,59 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE PackageImports #-}
-{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ViewPatterns #-}
 
--- TODO remove
+-- TODO remove (orphans can be avoided by only implementing functions here, and gathering them
+-- in the instance near the Spar type.)
 {-# OPTIONS_GHC
     -Wno-missing-methods
     -Wno-unused-imports
     -Wno-orphans
-    -Wno-unused-top-binds
+    -Wunused-top-binds
   #-}
 
 -- | An implementation of the SCIM API for doing bulk operations with users.
 --
 -- See <https://en.wikipedia.org/wiki/System_for_Cross-domain_Identity_Management>
+--
+-- = SCIM user creation flow
+--
+-- When a user is created via SCIM, a SAML user identity has to be created with it. Currently
+-- we don't allow SCIM users without SAML user identities.
+--
+-- Creating these two user identities (SCIM and SAML) together requires constructing a
+-- 'UserRef' from the SCIM request, which is then stored by 'Spar.Data.insertUser'.
+--
+-- The 'UserRef' consists of:
+--
+--   * tenant (the url-shaped ID the IdP assigns to itself);
+--
+--   * subject (usually an email, or an unstructured nickname, or a few more obscure
+--     alternatives).
+--
+-- /Tenant:/ if there is only one IdP for the current team, the tenant can be found by calling
+-- 'getIdPConfigsByTeam' and looking up @^. idpMetadata . edIssuer@ on the result. If there is
+-- more than one IdP, we need a way to associate user creation requests with specific IdPs.
+-- Currently we disallow teams with more than one IdP.
+--
+-- /Subject:/ there are different reasonable ways to pick a subject for a user; this should be
+-- configurable in the team settings page (e.g. a choice of one field from the SCIM user
+-- schema, optionally transformed with one of a few hard-coded functions). A simple default
+-- could be "take the email address, and type it as an email address", or in saml2-web-sso
+-- pseudo-code: @\email -> entityNameID (parseURI ("email:" <> renderEmail email))@.
+
 module Spar.Scim
   (
   -- * The API
@@ -34,59 +64,66 @@ module Spar.Scim
   , CreateScimTokenResponse(..)
   , ScimTokenList(..)
 
-  -- * The mapping between Wire and SCIM users
-  -- $mapping
+  -- * testing
+  , validateScimUser'
+  , toScimStoredUser'
   ) where
 
 import Imports
 import Brig.Types.User       as Brig
-import Galley.Types.Teams    as Galley
-import Control.Monad.Except
-import Control.Monad.Catch
 import Control.Exception
 import Control.Lens hiding ((.=), Strict)
-import Data.Id
-import Data.Range
-import Servant
-import Spar.App (Spar, wrapMonadClient, sparCtxOpts, createUser)
-import Spar.API.Util
-import Spar.Error
-import Spar.Types
-import Spar.Intra.Galley
-import Data.UUID as UUID
+import Control.Monad.Catch
+import Control.Monad.Except
 import Crypto.Hash
-import Data.Time
-import Data.Text.Encoding
 import Data.Aeson as Aeson
-import Text.Email.Validate
-import Servant.API.Generic
-import OpenSSL.Random (randBytes)
+import Data.Id
+import Data.Misc ((<$$>))
+import Data.Range
 import Data.String.Conversions
+import Data.Text.Encoding
+import Data.Time
+import Data.UUID as UUID
+import Galley.Types.Teams    as Galley
+import Network.URI
+import OpenSSL.Random (randBytes)
 import SAML2.WebSSO (IdPId)
+import Servant
+import Servant.API.Generic
+import Spar.API.Util
+import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, createUser_, wrapMonadClient)
+import Spar.Error
+import Spar.Intra.Galley
+import Spar.Scim.Types
+import Spar.Types
+import Text.Email.Validate
 
+import qualified Data.ByteString.Base64 as ES
 import qualified Data.Text    as Text
 import qualified Data.UUID.V4 as UUID
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data    as Data
-import qualified Data.ByteString.Base64 as ES
 import qualified Spar.Intra.Brig as Intra.Brig
+import qualified URI.ByteString as URIBS
 
-import qualified Web.Scim.Class.User              as Scim
-import qualified Web.Scim.Class.Group             as Scim
-import qualified Web.Scim.Class.Auth              as Scim
-import qualified Web.Scim.Server                  as Scim
-import qualified Web.Scim.Handler                 as Scim
+-- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
+-- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
+import qualified Web.Scim.Class.Auth              as Scim.Class.Auth
+import qualified Web.Scim.Class.Group             as Scim.Class.Group
+import qualified Web.Scim.Class.User              as Scim.Class.User
 import qualified Web.Scim.Filter                  as Scim
+import qualified Web.Scim.Handler                 as Scim
 import qualified Web.Scim.Schema.Common           as Scim
+import qualified Web.Scim.Schema.Error            as Scim
+import qualified Web.Scim.Schema.ListResponse     as Scim
 import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.ResourceType     as Scim
-import qualified Web.Scim.Schema.ListResponse     as Scim
-import qualified Web.Scim.Schema.Error            as Scim
+import qualified Web.Scim.Server                  as Scim
 
 import qualified Web.Scim.Schema.User             as Scim.User
 import qualified Web.Scim.Schema.User.Email       as Scim.User
-import qualified Web.Scim.Schema.User.Phone       as Scim.User
 import qualified Web.Scim.Schema.User.Name        as Scim.User
+import qualified Web.Scim.Schema.User.Phone       as Scim.User
 
 import qualified Web.Scim.Capabilities.MetaSchema as Scim.Meta
 
@@ -94,14 +131,10 @@ import qualified Web.Scim.Schema.Common           as Scim.Common
 
 -- | SCIM config for our server.
 --
--- TODO: the 'Scim.Meta.empty' configuration claims that we don't support
--- filters, but we actually do; it's a bug in hscim
+-- TODO: the 'Scim.Meta.empty' configuration claims that we don't support filters, but we
+-- actually do; it's a bug in hscim
 configuration :: Scim.Meta.Configuration
 configuration = Scim.Meta.empty
-
-type APIScim
-     = OmitDocs :> "v2" :> Scim.SiteAPI ScimToken
-  :<|> "auth-tokens" :> APIScimToken
 
 apiScim :: ServerT APIScim Spar
 apiScim = hoistScim (toServant (Scim.siteServer configuration))
@@ -114,72 +147,230 @@ apiScim = hoistScim (toServant (Scim.siteServer configuration))
 ----------------------------------------------------------------------------
 -- UserDB
 
--- $mapping
+-- | Retrieve 'IdP' from 'ScimTokenInfo' and call 'validateScimUser''.
+validateScimUser
+  :: forall m. (m ~ Scim.ScimHandler Spar)
+  => ScimTokenInfo -> Scim.User.User -> m ValidScimUser
+validateScimUser ScimTokenInfo{stiIdP} user = do
+    idp <- case stiIdP of
+        Nothing -> Scim.throwScim $
+          Scim.serverError "No IdP configured for the provisioning token"
+        Just idp -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
+            Nothing -> Scim.throwScim $
+              Scim.serverError "The IdP corresponding to the provisioning token \
+                               \was not found"
+            Just idpConfig -> pure idpConfig
+    validateScimUser' (Just idp) user
+
+-- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does
+-- not comply with the standard / our constraints. See also: 'ValidScimUser'.
 --
---   * @userName@ is mapped to our 'userHandle'. If there is no handle, we
---     use 'userId', because having some unique @userName@ is a SCIM
---     requirement.
+-- __Mapped fields:__
 --
---   * @name@ is left empty and is never stored, even when it's sent to us
---     via SCIM.
+--   * @userName@ is mapped to our 'userHandle'. If there is no handle, we use 'userId',
+--     because having some unique @userName@ is a SCIM requirement.
+--
+--   * @name@ is left empty and is never stored, even when it's sent to us via SCIM.
 --
 --   * @displayName@ is mapped to our 'userName'.
 --
--- We don't handle emails and phone numbers for now, because we'd like to
--- ensure that only verified emails and phone numbers end up in our
--- database, and implementing verification requires design decisions that we
--- haven't made yet.
+--   * A mandatory @SAML.UserRef@ is derived from 'Scim.User.externalId' and the 'idpId'
+--     (retrieved via SCIM token).
 --
--- Regarding names: some systems like Okta require given name and family
--- name to be present, but it's a poor model for names, and in practice many
--- other apps also ignore this model. Leaving @name@ empty will prevent the
--- confusion that might appear when somebody tries to set @name@ to some
--- value and the @displayName@ won't be affected by that change.
+-- FUTUREWORK: We may need to make the SAML NameID type derived from the available SCIM data
+-- configurable on a per-team basis in the future, to accomodate different legal uses of
+-- externalId by different users.
+--
+-- __Emails and phone numbers:__ we'd like to ensure that only verified emails and phone
+-- numbers end up in our database, and implementing verification requires design decisions
+-- that we haven't made yet. We store them in our SCIM blobs, but don't syncronize them with
+-- Brig.
+--
+-- See <https://github.com/wireapp/wire-server/pull/559#discussion_r247466760>
+--
+-- __Names:__ some systems like Okta require given name and family name to be present, but
+-- it's a poor model for names, and in practice many other apps also ignore this model.
+-- Leaving @name@ empty will prevent the confusion that might appear when somebody tries to
+-- set @name@ to some value and the @displayName@ won't be affected by that change.
+validateScimUser'
+  :: forall m. (MonadError Scim.ScimError m)
+  => Maybe IdP -> Scim.User.User -> m ValidScimUser
+validateScimUser' Nothing _ =
+    throwError $ Scim.serverError "SCIM users without SAML SSO are not supported"
+validateScimUser' (Just idp) user = do
+    let validateNameOrExtId :: Maybe Text -> m (Maybe Text)
+        validateNameOrExtId mtxt = forM mtxt $ \txt ->
+          case checkedEitherMsg @_ @1 @128 "displayName" txt of
+            Right rtxt -> pure $ fromRange rtxt
+            Left err -> throwError $ Scim.badRequest Scim.InvalidValue
+              (Just ("displayName is not compliant: " <> Text.pack err))
 
--- | Expose a Wire user as an SCIM user.
-toScimUser :: User -> Scim.StoredUser
-toScimUser user = Scim.WithMeta meta thing
+    uref :: SAML.UserRef <- do
+      msubjid <- SAML.opaqueNameID <$$>
+        validateNameOrExtId (Scim.User.externalId user)
+
+      case msubjid of
+        Just subj -> do
+            pure $ SAML.UserRef (idp ^. SAML.idpMetadata . SAML.edIssuer) subj
+        Nothing -> throwError $
+            Scim.badRequest Scim.InvalidValue (Just "externalId is required for SAML users")
+
+    handl <- case parseHandle (Scim.User.userName user) of
+      Just x -> pure x
+      Nothing -> throwError $
+        Scim.badRequest Scim.InvalidValue (Just "userName is not compliant")
+
+    -- We check the name for validity, but only if it's present
+    mbName <- Name <$$> validateNameOrExtId (Scim.User.displayName user)
+
+    -- NB: We assume that checking that the user does _not_ exist has
+    -- already been done before -- the hscim library check does a 'get'
+    -- before a 'create'
+
+    pure $ ValidScimUser user uref handl mbName
+
+-- | We only allow SCIM users that authenticate via SAML. (This is by no means necessary,
+-- though. It can be relaxed to allow creating users with password authentication if that is a
+-- requirement.)
+createValidScimUser
+  :: forall m. (m ~ Scim.ScimHandler Spar)
+  => ValidScimUser -> m Scim.Class.User.StoredUser
+createValidScimUser (ValidScimUser user uref handl mbName) = do
+    -- This UserId will be used both for scim user in spar and for brig.
+    buid <- Id <$> liftIO UUID.nextRandom
+    -- Create SCIM user here in spar.
+    storedUser <- lift $ toScimStoredUser buid user
+    lift . wrapMonadClient $ Data.insertScimUser buid storedUser
+    -- Create SAML user here in spar, which in turn creates a brig user.
+    lift $ createUser_ buid uref mbName
+    -- Set user handle on brig (which can't be done during user creation yet).
+    -- TODO: handle errors better here?
+    lift $ Intra.Brig.setHandle buid handl
+
+    pure storedUser
+
+    -- FUTUREWORK: think about potential failure points in this function (SCIM can succeed but
+    -- SAML can fail, Brig user creation can succeed but handle-setting can fail).
+
+updateValidScimUser
+  :: forall m. (m ~ Scim.ScimHandler Spar)
+  => ScimTokenInfo -> Text -> ValidScimUser -> m Scim.Class.User.StoredUser
+updateValidScimUser tokinfo uidText newScimUser = do
+
+    -- TODO: currently the types in @hscim@ are constructed in such a way that
+    -- 'Scim.User.User' doesn't contain an ID, only 'Scim.Class.User.StoredUser'
+    -- does. @fisx believes that this situation could be improved (see
+    -- <https://github.com/wireapp/wire-server/pull/559#discussion_r247392882>).
+    --
+    -- If 'Scim.User.User' and 'ValidScimUser' did contain the user ID, we wouldn't need
+    -- 'uidText' in this function -- or we could at least check in hscim that the ID in the
+    -- user object matches the ID in the path.
+
+    -- TODO: how do we get this safe w.r.t. race conditions / crashes?
+
+    -- construct old and new user values with metadata.
+    uid :: UserId <- parseUid uidText
+    oldScimStoredUser :: Scim.Class.User.StoredUser
+      <- let err = Scim.throwScim $ Scim.notFound "user" uidText
+         in maybe err pure =<< Scim.Class.User.get tokinfo uidText
+
+    if Scim.value (Scim.thing oldScimStoredUser) == (newScimUser ^. vsuUser)
+      then pure oldScimStoredUser
+      else do
+        newScimStoredUser :: Scim.Class.User.StoredUser
+          <- lift $ updScimStoredUser (newScimUser ^. vsuUser) oldScimStoredUser
+
+        -- update 'SAML.UserRef'
+        let uref = newScimUser ^. vsuSAMLUserRef
+        lift . wrapMonadClient $ Data.insertUser uref uid  -- on spar
+        bindok <- lift $ Intra.Brig.bindUser uid uref  -- on brig
+        unless bindok . Scim.throwScim $
+          Scim.serverError "Failed to update SAML UserRef (no such UserId? duplicate Handle?)"
+
+        maybe (pure ()) (lift . Intra.Brig.setName uid) $ newScimUser ^. vsuName
+        lift . Intra.Brig.setHandle uid $ newScimUser ^. vsuHandle
+
+        -- store new user value to scim_user table (spar). (this must happen last, so in case
+        -- of crash the client can repeat the operation and it won't be considered a noop.)
+        lift . wrapMonadClient $ Data.insertScimUser uid newScimStoredUser
+
+        pure newScimStoredUser
+
+
+toScimStoredUser
+  :: forall m. (SAML.HasNow m, MonadReader Env m)
+  => UserId -> Scim.User.User -> m Scim.Class.User.StoredUser
+toScimStoredUser uid usr = do
+  now <- SAML.getNow
+  baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
+  pure $ toScimStoredUser' now baseuri uid usr
+
+toScimStoredUser'
+  :: HasCallStack
+  => SAML.Time -> URIBS.URI -> UserId -> Scim.User.User -> Scim.Class.User.StoredUser
+toScimStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr =
+    Scim.WithMeta meta (Scim.WithId uid usr)
   where
-    -- User ID in text format
-    idText = idToText (Brig.userId user)
-    -- The representation of the user, without the meta information
-    thing = Scim.WithId idText $ Scim.User.empty
-      { Scim.User.userName = maybe idText fromHandle (userHandle user)
-      , Scim.User.name = Just emptyScimName
-      , Scim.User.displayName = Just (fromName (userName user))
-      }
-    -- The hash of the user representation (used as a version, i.e. ETag)
-    thingHash = hashlazy (Aeson.encode thing) :: Digest SHA256
-    -- Meta-info about the user
+    mkLocation :: String -> URI
+    mkLocation pathSuffix = convURI $ baseuri SAML.=/ cs pathSuffix
+      where
+        convURI uri = fromMaybe err . parseURI . cs . URIBS.serializeURIRef' $ uri
+          where err = error $ "internal error: " <> show uri
+
     meta = Scim.Meta
       { Scim.resourceType = Scim.UserResource
-      , Scim.created = testDate
-      , Scim.lastModified = testDate
-      , Scim.version = Scim.Strong (Text.pack (show thingHash))
-      -- TODO: The location should be /Users/<uid>. It might also have to
-      -- include the baseurl of our server -- this has to be checked.
-      , Scim.location = Scim.URI $ URI "https://TODO" Nothing "" "" ""
+      , Scim.created = now
+      , Scim.lastModified = now
+      , Scim.version = calculateVersion uid usr
+        -- TODO: it looks like we need to add this to the HTTP header.
+        -- https://tools.ietf.org/html/rfc7644#section-3.14
+      , Scim.location = Scim.URI . mkLocation $ "/Users/" <> cs uid
       }
 
--- 2018-01-01 00:00
---
--- TODO: real dates!
-testDate :: UTCTime
-testDate = UTCTime
-  { utctDay = ModifiedJulianDay 58119
-  , utctDayTime = 0
-  }
+updScimStoredUser
+  :: forall m. (SAML.HasNow m)
+  => Scim.User.User -> Scim.Class.User.StoredUser -> m Scim.Class.User.StoredUser
+updScimStoredUser usr storedusr = do
+  now <- SAML.getNow
+  pure $ updScimStoredUser' now usr storedusr
 
-emptyScimName :: Scim.User.Name
-emptyScimName =
-  Scim.User.Name
-    { Scim.User.formatted = Nothing
-    , Scim.User.givenName = Just ""
-    , Scim.User.familyName = Just ""
-    , Scim.User.middleName = Nothing
-    , Scim.User.honorificPrefix = Nothing
-    , Scim.User.honorificSuffix = Nothing
-    }
+updScimStoredUser'
+  :: SAML.Time
+  -> Scim.User.User
+  -> Scim.Class.User.StoredUser
+  -> Scim.Class.User.StoredUser
+updScimStoredUser' (SAML.Time moddate) usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
+    Scim.WithMeta meta' (Scim.WithId scimuid usr)
+  where
+    meta' = meta
+      { Scim.lastModified = moddate
+      , Scim.version = calculateVersion scimuid usr
+      }
+
+parseUid
+  :: forall m m'. (m ~ Scim.ScimHandler m', Monad m')
+  => Text -> m UserId
+parseUid uidText = maybe err pure $ readMaybe (Text.unpack uidText)
+  where err = Scim.throwScim $ Scim.notFound "user" uidText
+
+-- | Calculate resource version (currently only for 'Scim.User.User's).
+--
+-- Spec: <https://tools.ietf.org/html/rfc7644#section-3.14>.
+--
+-- A version is an /opaque/ string that doesn't need to conform to any format. The only
+-- guarantee we have to give is that different resources will have different versions.
+--
+-- Note: we use weak ETags for versions because we get no guarantees from @aeson@ that its
+-- JSON rendering will remain stable between releases, and therefore we can't satisfy the
+-- requirements of strong ETags ("same resources have the same version").
+calculateVersion
+  :: Text               -- ^ User ID
+  -> Scim.User.User
+  -> Scim.ETag
+calculateVersion uidText usr = Scim.Weak (Text.pack (show h))
+  where
+    h :: Digest SHA256
+    h = hashlazy (Aeson.encode (Scim.WithId uidText usr))
 
 {- TODO: might be useful later.
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -235,20 +426,18 @@ toScimEmail (Email eLocal eDomain) =
 -- 2. We want generic error descriptions in response bodies, while still
 --    logging nice error messages internally.
 
-instance Scim.UserDB Spar where
+instance Scim.Class.User.UserDB Spar where
   -- | List all users, possibly filtered by some predicate.
   list :: ScimTokenInfo
        -> Maybe Scim.Filter
-       -> Scim.ScimHandler Spar (Scim.ListResponse Scim.StoredUser)
+       -> Scim.ScimHandler Spar (Scim.ListResponse Scim.Class.User.StoredUser)
   list ScimTokenInfo{stiTeam} mbFilter = do
     members <- lift $ getTeamMembers stiTeam
-    users <- fmap catMaybes $ forM members $ \member ->
-      lift (Intra.Brig.getUser (member ^. Galley.userId)) >>= \case
-        Just user
-          | userDeleted user -> pure Nothing
-          | otherwise        -> pure (Just (toScimUser user))
-        Nothing -> Scim.throwScim $
-          Scim.serverError "Scim.UserDB.list: couldn't fetch team member"
+    brigusers :: [User]
+      <- filter (not . userDeleted) <$>
+         lift (Intra.Brig.getUsers ((^. Galley.userId) <$> members))
+    scimusers :: [Scim.Class.User.StoredUser]
+      <- lift . wrapMonadClient . Data.getScimUsers $ Brig.userId <$> brigusers
     let check user = case mbFilter of
           Nothing -> pure True
           Just filter_ ->
@@ -257,94 +446,52 @@ instance Scim.UserDB Spar where
                  Right res -> pure res
                  Left err  -> Scim.throwScim $
                    Scim.badRequest Scim.InvalidFilter (Just err)
-    -- TODO: once bigger teams arrive, we should have pagination here.
-    Scim.fromList <$> filterM check users
+    -- FUTUREWORK: once bigger teams arrive, we should have pagination here.
+    Scim.fromList <$> filterM check scimusers
 
   -- | Get a single user by its ID.
   get :: ScimTokenInfo
       -> Text
-      -> Scim.ScimHandler Spar (Maybe Scim.StoredUser)
+      -> Scim.ScimHandler Spar (Maybe Scim.Class.User.StoredUser)
   get ScimTokenInfo{stiTeam} uidText = do
-    uid <- case readMaybe (Text.unpack uidText) of
-      Just u -> pure u
-      Nothing -> Scim.throwScim $
-        Scim.notFound "user" uidText
-    lift (Intra.Brig.getUser uid) >>= traverse (\user -> do
-      when (userTeam user /= Just stiTeam || userDeleted user) $
-        Scim.throwScim $ Scim.notFound "user" (idToText uid)
-      pure (toScimUser user))
+    uid <- parseUid uidText
+    mbBrigUser <- lift (Intra.Brig.getUser uid)
+    if isJust mbBrigUser && (userTeam =<< mbBrigUser) == Just stiTeam
+      then lift . wrapMonadClient . Data.getScimUser $ uid
+      else pure Nothing
 
   -- | Create a new user.
   create :: ScimTokenInfo
          -> Scim.User.User
-         -> Scim.ScimHandler Spar Scim.StoredUser
-  create ScimTokenInfo{stiIdP} user = do
-    extId <- case Scim.User.externalId user of
-      Just x -> pure x
-      Nothing -> Scim.throwScim $
-        Scim.badRequest Scim.InvalidValue (Just "externalId is required")
-    handl <- case parseHandle (Scim.User.userName user) of
-      Just x -> pure x
-      Nothing -> Scim.throwScim $
-        Scim.badRequest Scim.InvalidValue (Just "userName is not compliant")
-
-    -- We check the name for validity, but only if it's present
-    mbName <- forM (Scim.User.displayName user) $ \n ->
-      case checkedEitherMsg @_ @1 @128 "displayName" n of
-        Right x -> pure $ Name (fromRange x)
-        Left err -> Scim.throwScim $
-          Scim.badRequest
-            Scim.InvalidValue
-            (Just ("displayName is not compliant: " <> Text.pack err))
-    -- NB: We assume that checking that the user does _not_ exist has
-    -- already been done before -- the hscim library check does a 'get'
-    -- before a 'create'
-
-    -- TODO: Assume that externalID is the subjectID, let's figure out how
-    -- to extract that later
-    issuer <- case stiIdP of
-        Nothing -> Scim.throwScim $
-          Scim.serverError "No IdP configured for the provisioning token"
-        Just idp -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
-            Nothing -> Scim.throwScim $
-              Scim.serverError "The IdP corresponding to the provisioning token \
-                               \was not found"
-            Just idpConfig -> pure (idpConfig ^. SAML.idpMetadata . SAML.edIssuer)
-    let uref = SAML.UserRef issuer (SAML.opaqueNameID extId)
-
-    -- TODO: Adding a handle should be done _DURING_ the creation
-    buid <- lift $ createUser uref mbName
-    lift $ Intra.Brig.setHandle buid handl  -- TODO: handle errors better here?
-
-    maybe (Scim.throwScim (Scim.serverError "Scim.UserDB.create: user disappeared"))
-          (pure . toScimUser) =<<
-      lift (Intra.Brig.getUser buid)
+         -> Scim.ScimHandler Spar Scim.Class.User.StoredUser
+  create tokinfo user =
+    createValidScimUser =<< validateScimUser tokinfo user
 
   update :: ScimTokenInfo
          -> Text
          -> Scim.User.User
-         -> Scim.ScimHandler Spar Scim.StoredUser
-  update _ _ _ =
-      Scim.throwScim $ Scim.serverError "User update is not implemented yet"
+         -> Scim.ScimHandler Spar Scim.Class.User.StoredUser
+  update tokinfo uidText newScimUser =
+    updateValidScimUser tokinfo uidText =<< validateScimUser tokinfo newScimUser
 
   delete :: ScimTokenInfo -> Text -> Scim.ScimHandler Spar Bool
   delete _ _ =
-      Scim.throwScim $ Scim.serverError "User delete is not implemented yet"
+      Scim.throwScim $ Scim.serverError "User delete is not implemented yet"  -- TODO
 
   getMeta :: ScimTokenInfo -> Scim.ScimHandler Spar Scim.Meta
   getMeta _ =
-      Scim.throwScim $ Scim.serverError "User getMeta is not implemented yet"
+      Scim.throwScim $ Scim.serverError "User getMeta is not implemented yet"  -- TODO
 
 ----------------------------------------------------------------------------
 -- GroupDB
 
-instance Scim.GroupDB Spar where
+instance Scim.Class.Group.GroupDB Spar where
   -- TODO
 
 ----------------------------------------------------------------------------
 -- AuthDB
 
-instance Scim.AuthDB Spar where
+instance Scim.Class.Auth.AuthDB Spar where
   type AuthData Spar = ScimToken
   type AuthInfo Spar = ScimTokenInfo
 
@@ -359,82 +506,11 @@ instance Scim.AuthDB Spar where
 ----------------------------------------------------------------------------
 -- API for manipulating authentication tokens
 
-type APIScimToken
-     = Header "Z-User" UserId :> APIScimTokenCreate
-  :<|> Header "Z-User" UserId :> APIScimTokenDelete
-  :<|> Header "Z-User" UserId :> APIScimTokenList
-
-type APIScimTokenCreate
-     = ReqBody '[JSON] CreateScimToken
-    :> Post '[JSON] CreateScimTokenResponse
-
-type APIScimTokenDelete
-     = QueryParam' '[Required, Strict] "id" ScimTokenId
-    :> DeleteNoContent '[JSON] NoContent
-
-type APIScimTokenList
-     = Get '[JSON] ScimTokenList
-
 apiScimToken :: ServerT APIScimToken Spar
 apiScimToken
      = createScimToken
   :<|> deleteScimToken
   :<|> listScimTokens
-
-----------------------------------------------------------------------------
--- Request and response types
-
--- | Type used for request parameters to 'APIScimTokenCreate'.
-data CreateScimToken = CreateScimToken
-  { createScimTokenDescr :: Text
-  } deriving (Eq, Show)
-
-instance FromJSON CreateScimToken where
-  parseJSON = withObject "CreateScimToken" $ \o -> do
-    createScimTokenDescr <- o .: "description"
-    pure CreateScimToken{..}
-
-instance ToJSON CreateScimToken where
-  toJSON CreateScimToken{..} = object
-    [ "description" .= createScimTokenDescr
-    ]
-
--- | Type used for the response of 'APIScimTokenCreate'.
-data CreateScimTokenResponse = CreateScimTokenResponse
-  { createScimTokenResponseToken :: ScimToken
-  , createScimTokenResponseInfo  :: ScimTokenInfo
-  } deriving (Eq, Show)
-
-instance FromJSON CreateScimTokenResponse where
-  parseJSON = withObject "CreateScimTokenResponse" $ \o -> do
-    createScimTokenResponseToken <- o .: "token"
-    createScimTokenResponseInfo  <- o .: "info"
-    pure CreateScimTokenResponse{..}
-
-instance ToJSON CreateScimTokenResponse where
-  toJSON CreateScimTokenResponse{..} = object
-    [ "token" .= createScimTokenResponseToken
-    , "info"  .= createScimTokenResponseInfo
-    ]
-
--- | Type used for responses of endpoints that return a list of SCIM tokens.
--- Wrapped into an object to allow extensibility later on.
---
--- We don't show tokens once they have been created – only their metadata.
-data ScimTokenList = ScimTokenList
-  { scimTokenListTokens :: [ScimTokenInfo]
-  }
-  deriving (Eq, Show)
-
-instance FromJSON ScimTokenList where
-  parseJSON = withObject "ScimTokenList" $ \o -> do
-    scimTokenListTokens <- o .: "tokens"
-    pure ScimTokenList{..}
-
-instance ToJSON ScimTokenList where
-  toJSON ScimTokenList{..} = object
-    [ "tokens" .= scimTokenListTokens
-    ]
 
 ----------------------------------------------------------------------------
 -- Handlers

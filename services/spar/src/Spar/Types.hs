@@ -179,6 +179,7 @@ instance FromJSON (Opts' (Maybe ()))
 data DerivedOpts = DerivedOpts
     { derivedOptsBindCookiePath   :: !SBS
     , derivedOptsBindCookieDomain :: !SBS
+    , derivedOptsScimBaseURI      :: !URI
     }
   deriving (Show, Generic)
 

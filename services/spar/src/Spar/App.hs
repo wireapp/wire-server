@@ -18,7 +18,7 @@ module Spar.App
   , wrapMonadClient
   , verdictHandler
   , insertUser
-  , createUser
+  , createUser, createUser_
   ) where
 
 import Imports
@@ -170,10 +170,16 @@ getUser uref = do
 createUser :: SAML.UserRef -> Maybe Name -> Spar UserId
 createUser suid mbName = do
   buid <- Id <$> liftIO UUID.nextRandom
+  createUser_ buid suid mbName
+  pure buid
+
+-- | Like 'createUser', but doesn't return the 'UserId'.
+createUser_ :: UserId -> SAML.UserRef -> Maybe Name -> Spar ()
+createUser_ buid suid mbName = do
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
   buid' <- Intra.createUser suid buid teamid mbName
-  assert (buid == buid') $ pure buid
+  assert (buid == buid') $ pure ()
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
 -- 'UserRef' into the 'UserIdentity'.  Otherwise, throw an error.

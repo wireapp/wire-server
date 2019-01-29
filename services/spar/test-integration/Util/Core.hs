@@ -73,7 +73,7 @@ module Util.Core
   , runSparCass, runSparCassWithEnv
   , runSimpleSP
   , runSpar
-  , getSsoidViaSelf, getSsoidViaSelf'
+  , getSsoidViaSelf, getSsoidViaSelf', getSelf
   , getUserIdViaRef, getUserIdViaRef'
   ) where
 
@@ -81,7 +81,7 @@ import Imports hiding (head)
 import Bilge hiding (getCookie)  -- we use Web.Cookie instead of the http-client type
 import Bilge.Assert ((!!!), (===), (<!!))
 import Brig.Types.Common (UserSSOId(..), UserIdentity(..))
-import Brig.Types.User (userIdentity, selfUser)
+import Brig.Types.User (User(..), userIdentity, selfUser)
 import Cassandra as Cas
 import Control.Exception
 import Control.Lens hiding ((.=))
@@ -750,25 +750,30 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 
 getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
-  let probe :: HasCallStack => TestSpar (Maybe UserSSOId)
+  musr <- getSelf uid
+  pure $ case userIdentity =<< musr of
+            Just (SSOIdentity ssoid _ _) -> Just ssoid
+            Just (FullIdentity _ _)  -> Nothing
+            Just (EmailIdentity _)   -> Nothing
+            Just (PhoneIdentity _)   -> Nothing
+            Nothing                  -> Nothing
+
+getSelf :: HasCallStack => UserId -> TestSpar (Maybe User)
+getSelf uid = do
+  let probe :: HasCallStack => TestSpar (Maybe User)
       probe = do
         env <- ask
-        fmap getUserSSOId . call . get $
+        fmap selfToUser . call . get $
           ( (env ^. teBrig)
           . header "Z-User" (toByteString' uid)
           . path "/self"
           . expect2xx
           )
 
-      getUserSSOId :: HasCallStack => ResponseLBS -> Maybe UserSSOId
-      getUserSSOId (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
-        = case userIdentity $ selfUser selfprof of
-            Just (SSOIdentity ssoid _ _) -> Just ssoid
-            Just (FullIdentity _ _)  -> Nothing
-            Just (EmailIdentity _)   -> Nothing
-            Just (PhoneIdentity _)   -> Nothing
-            Nothing                  -> Nothing
-      getUserSSOId _ = Nothing
+      selfToUser :: HasCallStack => ResponseLBS -> Maybe User
+      selfToUser (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
+        = Just $ selfUser selfprof
+      selfToUser _ = Nothing
 
   env <- ask
   liftIO $ retrying
