@@ -392,9 +392,16 @@ codeParser err conv = do
 
 -- | Who controls changes to the user profile.
 data ManagedBy
-    -- | The profile can be changed in-app; user doesn't show up via SCIM at all.
+      -- | The profile can be changed in-app; user doesn't show up via SCIM at all.
     = ManagedByWire
-    -- | The profile can only be changed via SCIM.
+      -- | The profile can only be changed via SCIM, with several exceptions:
+      --
+      --  1. User properties can still be set (because they are used internally by clients).
+      --  2. Password can be changed by the user (SCIM doesn't support setting passwords yet).
+      --  3. The user can still be deleted normally (SCIM doesn't support deleting users yet).
+      --
+      -- There are some other things that SCIM can't do yet, like setting accent IDs, but they
+      -- are not essential, unlike e.g. passwords.
     | ManagedBySCIM
     deriving (Eq, Show, Bounded, Enum)
 
