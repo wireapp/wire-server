@@ -396,7 +396,7 @@ data ManagedBy
     = ManagedByWire
     -- | The profile can only be changed via SCIM.
     | ManagedBySCIM
-    deriving (Eq, Show)
+    deriving (Eq, Show, Bounded, Enum)
 
 instance FromJSON ManagedBy where
     parseJSON = withText "ManagedBy" $ \case
@@ -408,3 +408,5 @@ instance ToJSON ManagedBy where
     toJSON = String . \case
         ManagedByWire -> "wire"
         ManagedBySCIM -> "scim"
+
+-- NB: when adding new types, please add a roundtrip test to "Test.Brig.Types.Common"

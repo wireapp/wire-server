@@ -29,6 +29,7 @@ tests = testGroup "Common (types vs. aeson)"
     , run @AssetSize Proxy
     , run @Asset Proxy
     , run @ExcludedPrefix Proxy
+    , run @ManagedBy Proxy
     ]
   where
     run :: forall a. (Arbitrary a, Typeable a, ToJSON a, FromJSON a, Eq a, Show a)

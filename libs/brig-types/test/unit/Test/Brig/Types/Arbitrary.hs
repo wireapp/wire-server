@@ -323,6 +323,7 @@ instance Arbitrary User where
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
+        <*> arbitrary
 
 instance Arbitrary VerifyDeleteUser where
     arbitrary = VerifyDeleteUser <$> arbitrary <*> arbitrary
@@ -367,6 +368,9 @@ instance Arbitrary InvitationRequest where
     arbitrary = InvitationRequest <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary Role where
+    arbitrary = elements [minBound..]
+
+instance Arbitrary ManagedBy where
     arbitrary = elements [minBound..]
 
 ----------------------------------------------------------------------
