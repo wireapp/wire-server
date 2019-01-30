@@ -246,6 +246,8 @@ createValidScimUser (ValidScimUser user uref handl mbName) = do
     -- Set user handle on brig (which can't be done during user creation yet).
     -- TODO: handle errors better here?
     lift $ Intra.Brig.setHandle buid handl
+    -- Flag the user as SCIM-managed
+    lift $ Intra.Brig.setManagedBy buid ManagedBySCIM
 
     pure storedUser
 

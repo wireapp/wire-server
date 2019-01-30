@@ -128,7 +128,7 @@ self = defineModel "Self" $ do
         description "Whether the account has been deleted."
         optional
     property "managed_by" managedBy $ do
-        description "What is the primary source of truth for this user; if it's SCIM \
+        description "What is the source of truth for this user; if it's SCIM \
                     \then the profile can't be edited via normal means"
         optional
 

@@ -219,6 +219,12 @@ sitemap o = do
       .&. contentType "application" "json"
       .&. request
 
+    put "/i/users/:uid/managed-by" (continue updateManagedBy) $
+      capture "uid"
+      .&. accept "application" "json"
+      .&. contentType "application" "json"
+      .&. request
+
     post "/i/clients" (continue internalListClients) $
       accept "application" "json"
       .&. contentType "application" "json"
@@ -1463,6 +1469,12 @@ updateSSOId (uid ::: _ ::: _ ::: req) = do
     if success
       then return empty
       else return . setStatus status404 $ plain "User does not exist or has no team."
+
+updateManagedBy :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
+updateManagedBy (uid ::: _ ::: _ ::: req) = do
+    ManagedByUpdate managedBy <- parseJsonBody req
+    lift $ Data.updateManagedBy uid managedBy
+    return empty
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response
 deleteUser (u ::: r ::: _ ::: _) = do

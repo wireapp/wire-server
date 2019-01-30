@@ -411,12 +411,16 @@ data UserUpdate = UserUpdate
     } deriving (Eq, Show)
 
 newtype LocaleUpdate = LocaleUpdate { luLocale :: Locale } deriving (Eq, Show)
+newtype EmailUpdate = EmailUpdate { euEmail :: Email } deriving (Eq, Show)
+newtype PhoneUpdate = PhoneUpdate { puPhone :: Phone } deriving (Eq, Show)
+newtype HandleUpdate = HandleUpdate { huHandle :: Text } deriving (Eq, Show)
+newtype ManagedByUpdate = ManagedByUpdate { mbuManagedBy :: ManagedBy } deriving (Eq, Show)
 
-newtype EmailUpdate  = EmailUpdate  { euEmail  :: Email  } deriving (Eq, Show)
-newtype PhoneUpdate  = PhoneUpdate  { puPhone  :: Phone  } deriving (Eq, Show)
-newtype HandleUpdate = HandleUpdate { huHandle :: Text   } deriving (Eq, Show)
-newtype EmailRemove  = EmailRemove  { erEmail  :: Email  } deriving (Eq, Show)
-newtype PhoneRemove  = PhoneRemove  { prPhone  :: Phone  } deriving (Eq, Show)
+newtype EmailRemove = EmailRemove { erEmail :: Email } deriving (Eq, Show)
+newtype PhoneRemove = PhoneRemove { prPhone :: Phone } deriving (Eq, Show)
+
+-- NB: when adding new types, please also add roundtrip tests to
+-- 'Test.Brig.Types.User.roundtripTests'
 
 instance FromJSON UserUpdate where
     parseJSON = withObject "UserUpdate" $ \o ->
@@ -460,6 +464,13 @@ instance FromJSON HandleUpdate where
 
 instance ToJSON HandleUpdate where
     toJSON h = object ["handle" .= huHandle h]
+
+instance FromJSON ManagedByUpdate where
+    parseJSON = withObject "managed-by-update" $ \o ->
+        ManagedByUpdate <$> o .: "managed_by"
+
+instance ToJSON ManagedByUpdate where
+    toJSON m = object ["managed_by" .= mbuManagedBy m]
 
 instance FromJSON EmailRemove where
     parseJSON = withObject "email-remove" $ \o ->

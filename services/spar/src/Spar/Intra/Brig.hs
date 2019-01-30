@@ -208,6 +208,21 @@ setHandle buid (Handle handle) = do
      | otherwise
        -> throwSpar . SparBrigError . cs $ "set handle failed with status " <> show (statusCode resp)
 
+-- | Set user's managedBy. Fails with status <500 if brig fails with <500, and with 500 if
+-- brig fails with >= 500.
+setManagedBy :: (HasCallStack, MonadSparToBrig m) => UserId -> ManagedBy -> m ()
+setManagedBy buid managedBy = do
+  resp <- call
+    $ method PUT
+    . paths ["i", "users", toByteString' buid, "managed-by"]
+    . json (ManagedByUpdate managedBy)
+  if | statusCode resp < 300
+       -> pure ()
+     | inRange (400, 499) (statusCode resp)
+       -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "set managedBy failed"
+     | otherwise
+       -> throwSpar . SparBrigError . cs $ "set managedBy failed with status " <> show (statusCode resp)
+
 -- | This works under the assumption that the user must exist on brig.  If it does not, brig
 -- responds with 404 and this function returns 'False'.
 bindUser :: (HasCallStack, MonadSparToBrig m) => UserId -> SAML.UserRef -> m Bool

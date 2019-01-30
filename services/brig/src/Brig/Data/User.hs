@@ -32,6 +32,7 @@ module Brig.Data.User
     , updateEmail
     , updatePhone
     , updateSSOId
+    , updateManagedBy
     , activateUser
     , deactivateUser
     , updateLocale
@@ -207,6 +208,9 @@ updateSSOId u ssoid = do
       retry x5 $ write userSSOIdUpdate (params Quorum (ssoid, u))
       pure True
     Nothing -> pure False
+
+updateManagedBy :: UserId -> ManagedBy -> AppIO ()
+updateManagedBy u h = retry x5 $ write userManagedByUpdate (params Quorum (h, u))
 
 updateHandle :: UserId -> Handle -> AppIO ()
 updateHandle u h = retry x5 $ write userHandleUpdate (params Quorum (h, u))
@@ -429,6 +433,9 @@ userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ?"
 
 userSSOIdUpdate :: PrepQuery W (UserSSOId, UserId) ()
 userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
+
+userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
+userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ?"
 
 userHandleUpdate :: PrepQuery W (Handle, UserId) ()
 userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"

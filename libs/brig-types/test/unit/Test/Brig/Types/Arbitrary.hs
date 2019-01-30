@@ -206,6 +206,9 @@ instance Arbitrary HandleUpdate where
 instance Arbitrary LocaleUpdate where
     arbitrary = LocaleUpdate <$> arbitrary
 
+instance Arbitrary ManagedByUpdate where
+    arbitrary = ManagedByUpdate <$> arbitrary
+
 instance Arbitrary NewPasswordReset where
     arbitrary = NewPasswordReset <$> arbitrary
 
