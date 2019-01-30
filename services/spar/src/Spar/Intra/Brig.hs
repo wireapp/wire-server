@@ -177,7 +177,6 @@ setName buid name = do
     . path "/self"
     . header "Z-User" (toByteString' buid)
     . header "Z-Connection" ""
-    . expect2xx
     . json UserUpdate
                { uupName = Just name
                , uupPict = Nothing
