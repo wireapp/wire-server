@@ -480,7 +480,7 @@ sitemap o = do
         header "Z-User"
 
     document "HEAD" "checkPassword" $ do
-        Doc.summary "Check that your passowrd is set"
+        Doc.summary "Check that your password is set"
         Doc.response 200 "Password is set." Doc.end
         Doc.response 404 "Password is not set." Doc.end
 
