@@ -30,6 +30,7 @@ import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Metrics.Middleware hiding (metrics)
+import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Misc (IpAddr (..))
 import Data.Range
 import Data.Text (unpack)
@@ -98,7 +99,7 @@ runServer o = do
     rtree      = compile (sitemap o)
     endpoint   = brig o
     server   e = defaultServer (unpack $ endpoint^.epHost) (endpoint^.epPort) (e^.applog) (e^.metrics)
-    pipeline e = measureRequests (e^.metrics) rtree
+    pipeline e = measureRequests (e^.metrics) (treeToPaths rtree)
                . catchErrors (e^.applog) (e^.metrics)
                . GZip.gunzip . GZip.gzip GZip.def
                $ serve e

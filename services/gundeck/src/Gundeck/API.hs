@@ -11,6 +11,7 @@ import Control.Exception (finally)
 import Control.Lens hiding (enum)
 import Data.Aeson (encode)
 import Data.Metrics.Middleware
+import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response)
 import Data.Text.Encoding (decodeLatin1)
@@ -59,7 +60,7 @@ runServer o = do
   where
     pipeline e = do
         let routes = compile sitemap
-        return $ measureRequests (e^.monitor) routes
+        return $ measureRequests (e^.monitor) (treeToPaths routes)
                . catchErrors (e^.applog) (e^.monitor)
                . GZip.gunzip . GZip.gzip GZip.def
                $ \r k -> runGundeck e r (route routes r k)
