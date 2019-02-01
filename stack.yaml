@@ -149,6 +149,8 @@ extra-deps:
 - network-uri-static-0.1.1.0
 - list-t-1.0.1  # 1.0.0.1 doesn't build
 - unliftio-0.2.10  # for pooled concurrency utils in UnliftIO.Async
+- network-2.7.0.2  # to get nicer errors when connections fail
+- HaskellNet-SSL-0.3.4.1  # first version to support network-2.7
 
 # the following are just not on Stackage (and most of these were present in
 # LTS-11 but got evicted in LTS-12)
