@@ -43,19 +43,19 @@ keyDelete = "DELETE FROM blacklist WHERE key = ?"
 --------------------------------------------------------------------------------
 -- Excluded phone prefixes
 
-insertPrefix :: MonadClient m => PhonePrefix -> m ()
-insertPrefix prefix = retry x5 $ write ins (params Quorum (Identity $ fromPhonePrefix prefix))
+insertPrefix :: MonadClient m => ExcludedPrefix -> m ()
+insertPrefix prefix = retry x5 $ write ins (params Quorum (phonePrefix prefix, comment prefix))
   where
-    ins :: PrepQuery W (Identity Text) ()
-    ins = "INSERT INTO excluded_phones (prefix) VALUES (?)"
+    ins :: PrepQuery W (PhonePrefix, Text) ()
+    ins = "INSERT INTO excluded_phones (prefix, comment) VALUES (?, ?)"
 
 deletePrefix :: MonadClient m => PhonePrefix -> m ()
-deletePrefix prefix = retry x5 $ write del (params Quorum (Identity $ fromPhonePrefix prefix))
+deletePrefix prefix = retry x5 $ write del (params Quorum (Identity prefix))
   where
-    del :: PrepQuery W (Identity Text) ()
+    del :: PrepQuery W (Identity PhonePrefix) ()
     del = "DELETE FROM excluded_phones WHERE prefix = ?"
 
-getAllPrefixes :: MonadClient m => PhonePrefix -> m [PhonePrefix]
+getAllPrefixes :: MonadClient m => PhonePrefix -> m [ExcludedPrefix]
 getAllPrefixes prefix = do
     let prefixes = fromPhonePrefix <$> allPrefixes (fromPhonePrefix prefix)
     selectPrefixes prefixes
@@ -65,10 +65,10 @@ existsAnyPrefix phone = do
     let prefixes = fromPhonePrefix <$> allPrefixes (fromPhone phone)
     (not . null) <$> selectPrefixes prefixes
 
-selectPrefixes :: MonadClient m => [Text] -> m [PhonePrefix]
+selectPrefixes :: MonadClient m => [Text] -> m [ExcludedPrefix]
 selectPrefixes prefixes = do
-    results <- fmap runIdentity <$> retry x1 (query sel (params Quorum (Identity $ prefixes)))
-    return (PhonePrefix <$> results)
+    results <- retry x1 (query sel (params Quorum (Identity $ prefixes)))
+    return $ (\(p, c) -> ExcludedPrefix p c) <$> results
   where
-    sel :: PrepQuery R (Identity [Text]) (Identity Text)
-    sel = "SELECT prefix FROM excluded_phones WHERE prefix IN ?"
+    sel :: PrepQuery R (Identity [Text]) (PhonePrefix, Text)
+    sel = "SELECT prefix, comment FROM excluded_phones WHERE prefix IN ?"

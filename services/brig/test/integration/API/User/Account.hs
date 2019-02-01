@@ -712,21 +712,21 @@ testSendActivationCode brig = do
 testSendActivationCodePrefixExcluded :: Brig -> Http ()
 testSendActivationCodePrefixExcluded brig = do
     p <- randomPhone
-    let prefix = PhonePrefix $ T.take 5 (fromPhone p)
+    let prefix = mkPrefix $ T.take 5 (fromPhone p)
 
     -- expect activation to fail after it was excluded
     insertPrefix brig prefix
     requestActivationCode brig 403 (Right p)
 
     -- expect activation to work again after removing block
-    deletePrefix brig prefix
+    deletePrefix brig (phonePrefix prefix)
     requestActivationCode brig 200 (Right p)
 
 testInternalPhonePrefixes :: Brig -> Http ()
 testInternalPhonePrefixes brig = do
     -- prefix1 is a prefix of prefix2
-    let prefix1 = PhonePrefix "+5678"
-        prefix2 = PhonePrefix "+56789"
+    let prefix1 = mkPrefix "+5678"
+        prefix2 = mkPrefix "+56789"
 
     insertPrefix brig prefix1
     insertPrefix brig prefix2
@@ -739,19 +739,24 @@ testInternalPhonePrefixes brig = do
     res2 <- getPrefixes prefix2
     liftIO $ assertEqual "prefix match phone number" res2 [prefix1, prefix2]
 
-    deletePrefix brig prefix1
-    deletePrefix brig prefix2
+    deletePrefix brig (phonePrefix prefix1)
+    deletePrefix brig (phonePrefix prefix2)
 
-    getPrefix prefix1 !!! const 404 === statusCode
+    getPrefix (phonePrefix prefix1) !!! const 404 === statusCode
   where
-    getPrefixes :: PhonePrefix -> Http [PhonePrefix]
-    getPrefixes prefix = decodeBody =<< getPrefix prefix
+    getPrefixes :: ExcludedPrefix -> Http [ExcludedPrefix]
+    getPrefixes prefix = decodeBody =<< getPrefix (phonePrefix prefix)
 
     getPrefix :: PhonePrefix -> Http ResponseLBS
     getPrefix prefix = get ( brig . paths ["/i/users/phone-prefixes", toByteString' prefix])
 
-insertPrefix :: Brig -> PhonePrefix -> Http ()
-insertPrefix brig prefix = post ( brig . paths ["/i/users/phone-prefixes", toByteString' prefix]) !!! const 200 === statusCode
+mkPrefix :: Text -> ExcludedPrefix
+mkPrefix t = ExcludedPrefix (PhonePrefix t) "comment"
+
+insertPrefix :: Brig -> ExcludedPrefix -> Http ()
+insertPrefix brig prefix = do
+    let payload = body $ RequestBodyLBS (encode prefix)
+    post ( brig . path "/i/users/phone-prefixes" . contentJson . payload ) !!! const 200 === statusCode
 
 deletePrefix :: Brig -> PhonePrefix -> Http ()
 deletePrefix brig prefix = delete ( brig . paths ["/i/users/phone-prefixes", toByteString' prefix]) !!! const 200 === statusCode

@@ -873,13 +873,13 @@ blacklistDelete emailOrPhone = do
     let uk = either userEmailKey userPhoneKey emailOrPhone
     Blacklist.delete uk
 
-phonePrefixGet :: PhonePrefix -> AppIO [PhonePrefix]
+phonePrefixGet :: PhonePrefix -> AppIO [ExcludedPrefix]
 phonePrefixGet prefix = Blacklist.getAllPrefixes prefix
 
 phonePrefixDelete :: PhonePrefix -> AppIO ()
 phonePrefixDelete = Blacklist.deletePrefix
 
-phonePrefixInsert :: PhonePrefix -> AppIO ()
+phonePrefixInsert :: ExcludedPrefix -> AppIO ()
 phonePrefixInsert = Blacklist.insertPrefix
 
 -------------------------------------------------------------------------------

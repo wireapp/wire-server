@@ -198,8 +198,10 @@ sitemap o = do
     delete "/i/users/phone-prefixes/:prefix" (continue deleteFromPhonePrefix) $
         capture "prefix"
 
-    post "/i/users/phone-prefixes/:prefix" (continue addPhonePrefix) $
-        capture "prefix"
+    post "/i/users/phone-prefixes" (continue addPhonePrefix) $
+      accept "application" "json"
+      .&. contentType "application" "json"
+      .&. request
 
     -- is :uid not team owner, or there are other team owners?
     get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeleted) $
@@ -1426,8 +1428,9 @@ deleteFromPhonePrefix prefix = do
     void . lift $ API.phonePrefixDelete prefix
     return empty
 
-addPhonePrefix :: PhonePrefix -> Handler Response
-addPhonePrefix prefix = do
+addPhonePrefix :: JSON ::: JSON ::: Request -> Handler Response
+addPhonePrefix (_ ::: _ ::: req) = do
+    prefix :: ExcludedPrefix <- parseJsonBody req
     void . lift $ API.phonePrefixInsert prefix
     return empty
 

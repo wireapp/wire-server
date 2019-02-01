@@ -19,6 +19,7 @@ migration = Migration 56 "Add table to exclude phone number prefixes" $ do
     void $ schema' [r|
         create table if not exists excluded_phones
             ( prefix text
+            , comment text
             , primary key (prefix)
             )
     |]

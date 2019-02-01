@@ -187,6 +187,18 @@ instance FromByteString PhonePrefix where
 instance ToByteString PhonePrefix where
     builder = builder . fromPhonePrefix
 
+data ExcludedPrefix = ExcludedPrefix { phonePrefix :: PhonePrefix
+                                     , comment :: Text
+                                     } deriving (Eq, Show)
+
+instance FromJSON ExcludedPrefix where
+    parseJSON = withObject "ExcludedPrefix" $ \o -> ExcludedPrefix
+        <$> o .: "phone_prefix"
+        <*> o .: "comment"
+
+instance ToJSON ExcludedPrefix where
+    toJSON (ExcludedPrefix p c) = object ["phone_prefix" .= p, "comment" .= c]
+
 -----------------------------------------------------------------------------
 -- UserIdentity
 
