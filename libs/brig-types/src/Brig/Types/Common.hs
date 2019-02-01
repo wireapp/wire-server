@@ -151,6 +151,55 @@ instance ToJSON PhoneBudgetTimeout where
     toJSON (PhoneBudgetTimeout t) = object [ "expires_in" .= t ]
 
 -----------------------------------------------------------------------------
+-- PhonePrefix (for excluding from SMS/calling)
+
+newtype PhonePrefix = PhonePrefix { fromPhonePrefix :: Text } deriving (Eq, Show, ToJSON)
+
+-- | Parses a phone number prefix with a mandatory leading '+'.
+parsePhonePrefix :: Text -> Maybe PhonePrefix
+parsePhonePrefix p
+    | isValidPhonePrefix p  = Just $ PhonePrefix p
+    | otherwise             = Nothing
+
+-- | Checks whether a phone number prefix is valid,
+-- i.e. it is like a E.164 format phone number, but shorter
+-- (with a mandatory leading '+', followed by 1-15 digits.)
+isValidPhonePrefix :: Text -> Bool
+isValidPhonePrefix = isRight . parseOnly e164Prefix
+  where
+    e164Prefix = char '+' *> count 1 digit *> count 14 (optional digit) *> endOfInput
+
+-- | get all valid prefixes of a phone number or phone number prefix
+-- e.g. from +123456789 get prefixes ["+1", "+12", "+123", ..., "+123456789" ]
+allPrefixes :: Text -> [PhonePrefix]
+allPrefixes t = catMaybes $ parsePhonePrefix <$> Text.inits t
+
+instance FromJSON PhonePrefix where
+    parseJSON = withText "PhonePrefix" $ \s ->
+        case parsePhonePrefix s of
+            Just p  -> return p
+            Nothing -> fail $ "Invalid phone number prefix: [" ++ show s
+                            ++ "]. Expected format similar to E.164 (with 1-15 digits after the +)."
+
+instance FromByteString PhonePrefix where
+    parser = parser >>= maybe (fail "Invalid phone") return . parsePhonePrefix
+
+instance ToByteString PhonePrefix where
+    builder = builder . fromPhonePrefix
+
+data ExcludedPrefix = ExcludedPrefix { phonePrefix :: PhonePrefix
+                                     , comment :: Text
+                                     } deriving (Eq, Show)
+
+instance FromJSON ExcludedPrefix where
+    parseJSON = withObject "ExcludedPrefix" $ \o -> ExcludedPrefix
+        <$> o .: "phone_prefix"
+        <*> o .: "comment"
+
+instance ToJSON ExcludedPrefix where
+    toJSON (ExcludedPrefix p c) = object ["phone_prefix" .= p, "comment" .= c]
+
+-----------------------------------------------------------------------------
 -- UserIdentity
 
 -- | The private unique user identity that is used for login and

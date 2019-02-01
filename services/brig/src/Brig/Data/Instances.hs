@@ -36,6 +36,7 @@ deriving instance Cql ActivationKey
 deriving instance Cql ActivationCode
 deriving instance Cql PropertyKey
 deriving instance Cql SearchableStatus
+deriving instance Cql PhonePrefix
 
 instance Cql Email where
     ctype = Tagged TextColumn

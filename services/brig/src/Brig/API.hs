@@ -190,6 +190,19 @@ sitemap o = do
     post "/i/users/blacklist" (continue addBlacklist) $
         param "email" ||| param "phone"
 
+    -- given a phone number (or phone number prefix), see whether
+    -- it is blocked via a prefix (and if so, via which specific prefix)
+    get "/i/users/phone-prefixes/:prefix" (continue getPhonePrefixes) $
+        capture "prefix"
+
+    delete "/i/users/phone-prefixes/:prefix" (continue deleteFromPhonePrefix) $
+        capture "prefix"
+
+    post "/i/users/phone-prefixes" (continue addPhonePrefix) $
+      accept "application" "json"
+      .&. contentType "application" "json"
+      .&. request
+
     -- is :uid not team owner, or there are other team owners?
     get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeleted) $
       capture "uid"
@@ -1398,6 +1411,27 @@ deleteFromBlacklist emailOrPhone = do
 addBlacklist :: Either Email Phone -> Handler Response
 addBlacklist emailOrPhone = do
     void . lift $ API.blacklistInsert emailOrPhone
+    return empty
+
+-- | Get any matching prefixes. Also try for shorter prefix matches,
+-- i.e. checking for +123456 also checks for +12345, +1234, ...
+getPhonePrefixes :: PhonePrefix -> Handler Response
+getPhonePrefixes prefix = do
+    results <- lift $ API.phonePrefixGet prefix
+    return $ case results of
+        []      -> setStatus status404 empty
+        _       -> json results
+
+-- | Delete a phone prefix entry (must be an exact match)
+deleteFromPhonePrefix :: PhonePrefix -> Handler Response
+deleteFromPhonePrefix prefix = do
+    void . lift $ API.phonePrefixDelete prefix
+    return empty
+
+addPhonePrefix :: JSON ::: JSON ::: Request -> Handler Response
+addPhonePrefix (_ ::: _ ::: req) = do
+    prefix :: ExcludedPrefix <- parseJsonBody req
+    void . lift $ API.phonePrefixInsert prefix
     return empty
 
 canBeDeleted :: UserId ::: TeamId -> Handler Response
