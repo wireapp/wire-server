@@ -1,5 +1,23 @@
 # A custom Stack snapshot (https://docs.haskellstack.org/en/stable/custom_snapshot/) used for
-# Wire code. Should be never changed once pushed to develop.
+# Wire code.
+#
+# Should never be changed once pushed to develop, because in other repositories we refer to
+# snapshot definitions by URL. Stack only downloads snapshot definitions once and never checks
+# whether they have changed. So, when building code from other repositories, people would be
+# getting inconsistent results depending on whether they built that code before or not.
+#
+# To add, modify, or remove packages, a new snapshot should be created. It can be based on the
+# previous snapshot version (please read the docs above to learn what the syntax is). For
+# major changes, e.g. LTS bumps, it's better to create a snapshot from scratch.
+#
+# Some packages in this snapshot reference tar files instead of Git repos. This is due to
+# several issues in Stack that make working with big Git repositories unpleasant:
+#
+#   * https://github.com/commercialhaskell/stack/issues/4345
+#   * https://github.com/commercialhaskell/stack/issues/3551
+#
+# Unless the fixes to those are released, it's recommended to use Github's tar releases for
+# forks of big/old packages.
 
 resolver: lts-12.10
 name: wire-1.0
