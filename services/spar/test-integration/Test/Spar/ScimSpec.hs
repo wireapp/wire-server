@@ -256,7 +256,7 @@ specUsers = describe "operations with users" $ do
 
 
 specTokens :: SpecWith TestEnv
-specTokens = xdescribe "operations with provisioning tokens" $ do
+specTokens = describe "operations with provisioning tokens" $ do
     describe "POST /auth-tokens" $ do
         it "creates a usable token" $ do
             env <- ask
@@ -278,20 +278,21 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
 
         it "respects the token limit (2 for integration tests)" $ do
             env <- ask
-            -- Try to create two more tokens (in addition to the already
-            -- existing token that's created in 'mkEnv'). Creating the
-            -- second token should succeed, and creating the third token
-            -- should fail.
+            -- Try to create three tokens. Creating the first two tokens should succeed, and
+            -- creating the third token should fail.
             (owner, _, _) <- registerTestIdP
             CreateScimTokenResponse _ tokenInfo1 <-
                 createToken owner CreateScimToken
                     { createScimTokenDescr = "token limit test / #1" }
+            CreateScimTokenResponse _ tokenInfo2 <-
+                createToken owner CreateScimToken
+                    { createScimTokenDescr = "token limit test / #2" }
             createToken_ owner CreateScimToken
-                { createScimTokenDescr = "token limit test / #2" }
+                { createScimTokenDescr = "token limit test / #3" }
                 (env ^. teSpar)
                 !!! const 403 === statusCode
             -- Cleanup
-            deleteToken owner (stiId tokenInfo1)
+            mapM_ (deleteToken owner . stiId) [tokenInfo1, tokenInfo2]
 
         it "doesn't create a token for a team without IdP" $ do
             env <- ask
@@ -328,15 +329,13 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
             CreateScimTokenResponse _ tokenInfo <-
                 createToken owner CreateScimToken
                     { createScimTokenDescr = "token listing test" }
-            -- Both the default team token and this token should be present
+            -- The token should be listable
             do list <- scimTokenListTokens <$> listTokens owner
-               liftIO $ map stiDescr list `shouldBe`
-                   ["_teScimToken test token", "token listing test"]
+               liftIO $ map stiDescr list `shouldBe` ["token listing test"]
             -- Delete the token and now it shouldn't be on the list
             deleteToken owner (stiId tokenInfo)
             do list <- scimTokenListTokens <$> listTokens owner
-               liftIO $ map stiDescr list `shouldBe`
-                   ["_teScimToken test token"]
+               liftIO $ map stiDescr list `shouldBe` []
 
     describe "validateScimUser'" $ do
         it "works" $ do
