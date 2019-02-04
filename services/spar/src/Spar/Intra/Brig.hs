@@ -86,8 +86,9 @@ createUser
   -> UserId
   -> TeamId
   -> Maybe Name      -- ^ User name (if 'Nothing', the subject ID will be used)
+  -> ManagedBy       -- ^ Who should have control over the user
   -> m UserId
-createUser suid (Id buid) teamid mbName = do
+createUser suid (Id buid) teamid mbName managedBy = do
   uname :: Name <- case mbName of
     Just n -> pure n
     Nothing -> do
@@ -112,6 +113,7 @@ createUser suid (Id buid) teamid mbName = do
         , newUserLocale         = Nothing
         , newUserPassword       = Nothing
         , newUserExpiresIn      = Nothing
+        , newUserManagedBy      = Just managedBy
         }
 
   resp :: Response (Maybe LBS) <- call

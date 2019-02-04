@@ -19,7 +19,7 @@ import Brig.API.Types
 import Brig.Options hiding (sesQueue, internalEvents)
 import Brig.Types
 import Brig.Types.Intra
-import Brig.Types.User (NewUserNoSSO(NewUserNoSSO))
+import Brig.Types.User (NewUserPublic(NewUserPublic))
 import Brig.Types.User.Auth
 import Brig.User.Email
 import Brig.User.Phone
@@ -1104,7 +1104,7 @@ autoConnect(_ ::: _ ::: uid ::: conn ::: req) = do
 
 createUser :: JSON ::: JSON ::: Request -> Handler Response
 createUser (_ ::: _ ::: req) = do
-    NewUserNoSSO new <- parseJsonBody req
+    NewUserPublic new <- parseJsonBody req
     for_ (newUserEmail new) $ checkWhitelist . Left
     for_ (newUserPhone new) $ checkWhitelist . Right
     result <- API.createUser new !>> newUserError

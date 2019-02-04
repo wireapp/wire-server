@@ -416,4 +416,7 @@ instance ToJSON ManagedBy where
         ManagedByWire -> "wire"
         ManagedBySCIM -> "scim"
 
+defaultManagedBy :: ManagedBy
+defaultManagedBy = ManagedByWire
+
 -- NB: when adding new types, please add a roundtrip test to "Test.Brig.Types.Common"

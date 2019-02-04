@@ -252,6 +252,7 @@ data NewUser = NewUser
     , newUserLocale         :: !(Maybe Locale)
     , newUserPassword       :: !(Maybe PlainTextPassword)
     , newUserExpiresIn      :: !(Maybe ExpiresIn)
+    , newUserManagedBy      :: !(Maybe ManagedBy)
     }
     deriving (Eq, Show)
 
@@ -328,6 +329,7 @@ instance FromJSON NewUser where
           newUserExpiresIn <- case (newUserExpires, newUserIdentity) of
                 (Just _, Just _) -> fail "Only users without an identity can expire"
                 _                -> return newUserExpires
+          newUserManagedBy <- o .:? "managed_by"
           return NewUser{..}
 
 instance ToJSON NewUser where
@@ -347,6 +349,7 @@ instance ToJSON NewUser where
         # "password"        .= newUserPassword u
         # "expires_in"      .= newUserExpiresIn u
         # "sso_id"          .= newUserSSOId u
+        # "managed_by"      .= newUserManagedBy u
         # maybe [] jsonNewUserOrigin (newUserOrigin u)
 
 -- | Fails if email or phone or ssoid are present but invalid
@@ -385,19 +388,32 @@ data NewTeamUser = NewTeamMember    !InvitationCode      -- ^ requires email add
                  | NewTeamMemberSSO !TeamId
     deriving (Eq, Show)
 
--- | newtype for using in external end-points where setting 'SSOIdentity', 'UUID' is not allowed.
--- ('UUID' is only needed by spar for creating users that it can find again later, after a crash.
--- if there another use case arises, this newtype and the 'FromJSON' instance would have to be
--- refactored.)
-newtype NewUserNoSSO = NewUserNoSSO NewUser
+-- | We use the same 'NewUser' type for the @\/register@ and @\/i\/users@ endpoints. This
+-- newtype is used as request body type for the public @\/register@ endpoint, where only a
+-- subset of the 'NewUser' functionality should be allowed.
+--
+-- Specifically, we forbid the following:
+--
+--   * Setting 'SSOIdentity' (SSO users are created by Spar)
+--
+--   * Setting the UUID (only needed so that Spar can find the user if Spar crashes before it
+--     finishes creating the user).
+--
+--   * Setting 'ManagedBy' (it should be the default in all cases unless Spar creates a
+--     SCIM-managed user)
+newtype NewUserPublic = NewUserPublic NewUser
     deriving (Eq, Show)
 
-instance FromJSON NewUserNoSSO where
+instance FromJSON NewUserPublic where
     parseJSON val = do
         nu <- parseJSON val
-        when (isJust $ newUserSSOId nu) $ fail "SSO-managed users are not allowed here."
-        when (isJust $ newUserUUID nu)  $ fail "it is not allowed to provide a UUID for the users here."
-        pure $ NewUserNoSSO nu
+        when (isJust $ newUserSSOId nu) $
+            fail "SSO-managed users are not allowed here."
+        when (isJust $ newUserUUID nu) $
+            fail "it is not allowed to provide a UUID for the users here."
+        when (newUserManagedBy nu `notElem` [Nothing, Just ManagedByWire]) $
+            fail "only managed-by-Wire users can be created here."
+        pure $ NewUserPublic nu
 
 
 -----------------------------------------------------------------------------

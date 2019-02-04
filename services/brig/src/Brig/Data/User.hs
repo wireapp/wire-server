@@ -113,7 +113,8 @@ newAccount u inv tid = do
                         Just _  -> Active
     colour        = fromMaybe defaultAccentId (newUserAccentId u)
     locale defLoc = fromMaybe defLoc (newUserLocale u)
-    user  uid l e = User uid ident name pict assets colour False l Nothing Nothing e tid ManagedByWire
+    managedBy     = fromMaybe defaultManagedBy (newUserManagedBy u)
+    user  uid l e = User uid ident name pict assets colour False l Nothing Nothing e tid managedBy
 
 -- | Mandatory password authentication.
 authenticate :: UserId -> PlainTextPassword -> ExceptT AuthError AppIO ()

@@ -237,6 +237,7 @@ instance Arbitrary NewUser where
         newUserLocale     <- arbitrary
         newUserPassword   <- if isTeamUser && not hasSSOId then Just <$> arbitrary else arbitrary
         newUserExpiresIn  <- if isJust newUserIdentity then pure Nothing else arbitrary
+        newUserManagedBy  <- arbitrary
         pure NewUser{..}
 
 instance Arbitrary UTCTimeMillis where
