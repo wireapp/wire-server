@@ -1,11 +1,20 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE ViewPatterns        #-}
 
-module Data.Metrics.Types where
+module Data.Metrics.Types
+    ( PathTemplate(..)
+    , Paths(..)
+    , mkTree
+    , treeLookup
+    ) where
 
 import Imports
 import Data.Tree as Tree
 
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS
 
 
 newtype PathTemplate = PathTemplate Text
@@ -14,6 +23,27 @@ newtype PathTemplate = PathTemplate Text
 -- (e.g. user id).
 newtype Paths = Paths (Forest (Maybe ByteString))
   deriving (Eq, Show)
+
+-- | Turn a list of paths into a 'Paths' tree.  Treat all path segments that start with @':'@
+-- as equal and turn them into 'Nothing'.
+mkTree :: forall m. (m ~ Either String) => [[ByteString]] -> m Paths
+mkTree = fmap (Paths . melt) . mapM mkbranch . sortBy (flip compare) . fmap (fmap mknode)
+  where
+    mkbranch :: [Maybe ByteString] -> m (Tree (Maybe ByteString))
+    mkbranch (seg : segs@(_:_)) = Node seg . (:[]) <$> mkbranch segs
+    mkbranch (seg : [])         = Right $ Node seg []
+    mkbranch []                 = Left "internal error: path with on segments."
+
+    mknode :: ByteString -> Maybe ByteString
+    mknode seg = if BS.head seg /= ':' then Just seg else Nothing
+
+    melt :: Forest (Maybe ByteString) -> Forest (Maybe ByteString)
+    melt [] = []
+    melt (tree : []) = [tree]
+    melt (tree : tree' : trees) = if rootLabel tree == rootLabel tree'
+        then let tree'' = Node (rootLabel tree) (melt $ subForest tree <> subForest tree')
+             in melt (tree'' : trees)
+        else tree : melt (tree' : trees)
 
 -- | A variant of 'Network.Wai.Route.Tree.lookup'.  The segments contain values to be captured
 -- when running the 'App', but here we simply replace them with @"<>"@.
