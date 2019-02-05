@@ -44,8 +44,8 @@ specUsers = describe "operations with users" $ do
             (tok, _) <- registerIdPAndScimToken
             scimStoredUser <- createUser tok user
             let userid = scimUserId scimStoredUser
-            -- Check that this user is present in Brig and that Brig's view
-            -- of the user matches SCIM's view of the user
+            -- Check that this user is present in Brig and that Brig's view of the user
+            -- matches SCIM's view of the user
             brigUser :: User <- fmap decodeBody' . call . get $
                 ( (env ^. teBrig)
                 . header "Z-User" (toByteString' userid)
@@ -108,8 +108,8 @@ specUsers = describe "operations with users" $ do
                         \for the right reasons.)"
             {-
             env <- ask
-            -- Check that the (non-SCIM-provisioned) team owner can be fetched
-            -- and that the data from Brig matches
+            -- Check that the (non-SCIM-provisioned) team owner can be fetched and that the
+            -- data from Brig matches
             brigUser <- fmap decodeBody' . call . get $
                 ( (env ^. teBrig)
                 . header "Z-User" (toByteString' (env^.teUserId))
@@ -155,12 +155,12 @@ specUsers = describe "operations with users" $ do
             -- Overwrite the user with another randomly-generated user
             user' <- randomScimUser
             updatedUser <- updateUser tok userid user'
-            -- Get the updated user and check that it matches the user returned
-            -- by 'updateUser'
+            -- Get the updated user and check that it matches the user returned by
+            -- 'updateUser'
             storedUser' <- getUser tok userid
             liftIO $ updatedUser `shouldBe` storedUser'
-            -- Check that the updated user also matches the data that we sent
-            -- with 'updateUser'
+            -- Check that the updated user also matches the data that we sent with
+            -- 'updateUser'
             liftIO $ do
                 Scim.value (Scim.thing storedUser') `shouldBe` user'
                 Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
@@ -172,28 +172,28 @@ specUsers = describe "operations with users" $ do
                 Scim.location meta `shouldBe` Scim.location meta'
 
         it "works fine when neither name nor handle are changed" $ do
-            -- NB: this test is needed because if PUT /Users is implemented in
-            -- such a way that it always tries to set the name and handle, it
-            -- might fail because e.g. the handle is "already claimed".
+            -- NB: this test is needed because if PUT /Users is implemented in such a way that
+            -- it always tries to set the name and handle, it might fail because e.g. the
+            -- handle is "already claimed".
             --
             -- Create a user via SCIM
             user <- randomScimUser
             (tok, _) <- registerIdPAndScimToken
             storedUser <- createUser tok user
             let userid = scimUserId storedUser
-            -- Overwrite the user with another randomly-generated user who has
-            -- the same name and handle
+            -- Overwrite the user with another randomly-generated user who has the same name
+            -- and handle
             user' <- randomScimUser <&> \u ->
                 u { Scim.User.userName = Scim.User.userName user
                   , Scim.User.displayName = Scim.User.displayName user
                   }
             updatedUser <- updateUser tok userid user'
-            -- Get the updated user and check that it matches the user returned
-            -- by 'updateUser'
+            -- Get the updated user and check that it matches the user returned by
+            -- 'updateUser'
             storedUser' <- getUser tok userid
             liftIO $ updatedUser `shouldBe` storedUser'
-            -- Check that the updated user also matches the data that we sent
-            -- with 'updateUser'
+            -- Check that the updated user also matches the data that we sent with
+            -- 'updateUser'
             liftIO $ do
                 Scim.value (Scim.thing storedUser') `shouldBe` user'
                 Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
@@ -256,7 +256,7 @@ specUsers = describe "operations with users" $ do
 
 
 specTokens :: SpecWith TestEnv
-specTokens = xdescribe "operations with provisioning tokens" $ do
+specTokens = describe "operations with provisioning tokens" $ do
     describe "POST /auth-tokens" $ do
         it "creates a usable token" $ do
             env <- ask
@@ -265,12 +265,11 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
             CreateScimTokenResponse token tokenInfo <-
                 createToken owner CreateScimToken
                     { createScimTokenDescr = "token creation test" }
-            -- Try to execute a SCIM operation without a token and check
-            -- that it fails
+            -- Try to execute a SCIM operation without a token and check that it fails
             listUsers_ Nothing Nothing (env ^. teSpar)
                 !!! const 401 === statusCode
-            -- Try to execute the same SCIM operation with the generated
-            -- token; it should succeed now
+            -- Try to execute the same SCIM operation with the generated token; it should
+            -- succeed now
             listUsers_ (Just token) Nothing (env ^. teSpar)
                 !!! const 200 === statusCode
             -- Cleanup
@@ -278,20 +277,21 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
 
         it "respects the token limit (2 for integration tests)" $ do
             env <- ask
-            -- Try to create two more tokens (in addition to the already
-            -- existing token that's created in 'mkEnv'). Creating the
-            -- second token should succeed, and creating the third token
-            -- should fail.
+            -- Try to create three tokens. Creating the first two tokens should succeed, and
+            -- creating the third token should fail.
             (owner, _, _) <- registerTestIdP
             CreateScimTokenResponse _ tokenInfo1 <-
                 createToken owner CreateScimToken
                     { createScimTokenDescr = "token limit test / #1" }
+            CreateScimTokenResponse _ tokenInfo2 <-
+                createToken owner CreateScimToken
+                    { createScimTokenDescr = "token limit test / #2" }
             createToken_ owner CreateScimToken
-                { createScimTokenDescr = "token limit test / #2" }
+                { createScimTokenDescr = "token limit test / #3" }
                 (env ^. teSpar)
                 !!! const 403 === statusCode
             -- Cleanup
-            deleteToken owner (stiId tokenInfo1)
+            mapM_ (deleteToken owner . stiId) [tokenInfo1, tokenInfo2]
 
         it "doesn't create a token for a team without IdP" $ do
             env <- ask
@@ -328,15 +328,13 @@ specTokens = xdescribe "operations with provisioning tokens" $ do
             CreateScimTokenResponse _ tokenInfo <-
                 createToken owner CreateScimToken
                     { createScimTokenDescr = "token listing test" }
-            -- Both the default team token and this token should be present
+            -- The token should be listable
             do list <- scimTokenListTokens <$> listTokens owner
-               liftIO $ map stiDescr list `shouldBe`
-                   ["_teScimToken test token", "token listing test"]
+               liftIO $ map stiDescr list `shouldBe` ["token listing test"]
             -- Delete the token and now it shouldn't be on the list
             deleteToken owner (stiId tokenInfo)
             do list <- scimTokenListTokens <$> listTokens owner
-               liftIO $ map stiDescr list `shouldBe`
-                   ["_teScimToken test token"]
+               liftIO $ map stiDescr list `shouldBe` []
 
     describe "validateScimUser'" $ do
         it "works" $ do

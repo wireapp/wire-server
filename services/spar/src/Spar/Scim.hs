@@ -518,8 +518,6 @@ apiScimToken
 createScimToken :: Maybe UserId -> CreateScimToken -> Spar CreateScimTokenResponse
 createScimToken zusr CreateScimToken{..} = do
     let descr = createScimTokenDescr
-    -- Don't enable this endpoint until SCIM is ready.
-    _ <- error "Creating SCIM tokens is not supported yet."
     teamid <- Intra.Brig.getZUsrOwnedTeam zusr
     tokenNumber <- fmap length $ wrapMonadClient $ Data.getScimTokens teamid
     maxTokens <- asks (maxScimTokens . sparCtxOpts)
