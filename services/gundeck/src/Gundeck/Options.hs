@@ -22,6 +22,7 @@ data AWSOpts = AWSOpts
     , _awsQueueName   :: !Text          -- ^ SQS queue name
     , _awsSqsEndpoint :: !AWSEndpoint
     , _awsSnsEndpoint :: !AWSEndpoint
+    , _awsConnectionLimit :: !(Maybe Int)
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''AWSOpts

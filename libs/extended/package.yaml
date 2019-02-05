@@ -1,13 +1,12 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: extended
 version: '0.1.0'
 synopsis: Extended versions of common modules
-description: ! '.Extended versions of various libraries from Hackage. See
-
+description: |
+  .Extended versions of various libraries from Hackage. See
   https://jaspervdj.be/posts/2015-01-20-haskell-design-patterns-extended-modules.html
-
-  for a description of this design pattern.'
+  for a description of this design pattern.
 category: Utilities
 author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
@@ -15,12 +14,18 @@ copyright: (c) 2018 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - base
+- bytestring
 - extra
+- hashable
+- http-client
 - imports
+- lens
 - optparse-applicative
+- stm-containers
 - unliftio
 library:
   source-dirs: src
   exposed-modules:
+  - Network.HTTP.Client.Extended
   - Options.Applicative.Extended
 stability: experimental
