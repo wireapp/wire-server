@@ -32,6 +32,8 @@ library
         , imports
         , metrics-core >= 0.3
         , containers
+        , servant
+        , string-conversions
         , text         >= 0.11
         , transformers >= 0.3
         , wai          >= 3

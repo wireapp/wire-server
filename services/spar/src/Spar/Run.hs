@@ -28,10 +28,12 @@ import Control.Lens
 import Data.Default (def)
 import Data.List.NonEmpty as NE
 import Data.Metrics (metrics)
+import Data.Metrics.Servant (routesToPaths)
 import Data.String.Conversions
 import Network.Wai (Application)
 import Network.Wai.Utilities.Request (lookupRequestId)
-import Spar.API (app)
+import Network.Wai.Utilities.Server (measureRequests)
+import Spar.API (app, API)
 import Spar.API.Swagger ()
 import Spar.App
 import Spar.Data.Instances ()
@@ -43,7 +45,6 @@ import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 import qualified Cassandra.Schema as Cas
 import qualified Cassandra.Settings as Cas
 import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Network.Wai.Utilities.Server as WU
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
@@ -108,7 +109,7 @@ runServer sparCtxOpts = do
         $ Bilge.empty
   let wrappedApp
         = WU.catchErrors sparCtxLogger mx
-        . Promth.prometheus Promth.def
+        . measureRequests mx (routesToPaths @API)
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}

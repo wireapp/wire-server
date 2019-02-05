@@ -4,6 +4,7 @@
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
 
+-- | See also: services/spar/test-integration/Test/Spar/APISpec.hs
 module API.Metrics (tests) where
 
 import Imports

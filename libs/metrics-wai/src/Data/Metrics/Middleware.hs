@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | FUTUREWORK: use package wai-middleware-prometheus instead and deprecate collectd?
 module Data.Metrics.Middleware
     ( PathTemplate
     , Paths
