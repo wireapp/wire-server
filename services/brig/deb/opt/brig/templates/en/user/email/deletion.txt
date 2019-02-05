@@ -1,5 +1,9 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 DELETE YOUR ACCOUNT
-We’ve received a request to delete your Wire account. Click the button below
+We’ve received a request to delete your ${brand} account. Click the button below
 within 10 minutes to delete all your conversations, content and connections.
 
 Delete account [${url}]If you can’t click the button, copy and paste this link

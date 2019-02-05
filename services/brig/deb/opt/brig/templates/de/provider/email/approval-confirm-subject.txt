@@ -1,1 +1,1 @@
-Dein Wire Service-Provider-Konto
+Dein ${brand_service}-Benutzerkonto

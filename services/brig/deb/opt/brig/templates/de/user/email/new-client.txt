@@ -1,14 +1,18 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 NEUES GERÄT
-Ein neues Gerät wurde zu deinem Wire-Benutzerkonto hinzugefügt:
+Ein neues Gerät wurde zu deinem ${brand}-Benutzerkonto hinzugefügt:
 
 ${date}
 
 ${model}
 
-Du hast Wire vermutlich auf einem neuen Gerät installiert oder dich auf einem
-bestehenden Gerät erneut eingeloggt. Falls dies nicht der Fall ist, gehe in
-deine Wire Einstellungen, entferne das Gerät und setze dein Passwort zurück
-[https://account.wire.com/forgot/].
+Du hast ${brand} vermutlich auf einem neuen Gerät installiert oder dich auf
+einem bestehenden Gerät erneut eingeloggt. Falls dies nicht der Fall ist, gehe
+in deine ${brand} Einstellungen, entferne das Gerät und setze dein Passwort
+zurück [https://account.wire.com/forgot/].
 
 Wenn Du Fragen hast, bitte kontaktiere uns
 [https://support.wire.com/hc/de/requests/new].

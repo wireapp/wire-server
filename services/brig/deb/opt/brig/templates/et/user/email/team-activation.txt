@@ -1,6 +1,9 @@
-SINU UUS WIRE KONTO
-Meiliaadressiga ${email} loodi äsja Wire rakenduses uus tiimikonto. Palun
-kinnita oma meiliaadress.
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+YOUR NEW ACCOUNT ON ${brand}
+A new ${brand} team was created with ${email}. Palun kinnita oma meiliaadress.
 
 Kinnita [${url}]Kui sul pole võimalik nuppu klikkida, siis kopeeri allolev
 aadress veebibrauserisse:

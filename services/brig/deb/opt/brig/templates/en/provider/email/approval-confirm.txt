@@ -1,11 +1,15 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 Hello,
 
-We are happy to inform you that you are now an approved Wire Service Provider.
+We are happy to inform you that you are now an approved ${brand_service}.
 
 Please don’t reply to this message.
 
-If you didn’t register for a Wire Service Provider account using this e-mail
-address, please contact us [https://support.wire.com/hc/requests/new].
+If you didn’t register for a ${brand_service} account using this e-mail address,
+please contact us [https://support.wire.com/hc/requests/new].
 
 
 --------------------------------------------------------------------------------

@@ -1,6 +1,10 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 PATVIRTINKITE SAVO EL. PAŠTĄ
-${email} buvo panaudotas, registruojantis Wire.
-Norėdami patvirtinti savo adresą, spustelėkite mygtuką.
+${email} was used to register on ${brand}.
+Click the button to verify your address.
 
 Patvirtinti [${url}]Jeigu negalite spustelėti ant mygtuko, nukopijuokite ir
 įdėkite šią nuorodą į savo naršyklę:

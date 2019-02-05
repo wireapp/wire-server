@@ -1,5 +1,9 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 TEAM INVITATION
-${inviter} has invited you to join a team on Wire. Click the button below to
+${inviter} has invited you to join a team on ${brand}. Click the button below to
 accept the invitation.
 
 Accept invitation [${url}]If you can’t click the button, copy and paste this

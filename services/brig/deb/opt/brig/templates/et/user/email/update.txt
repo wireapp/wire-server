@@ -1,5 +1,9 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 KINNITA OMA E-POSTI AADRESS
-${email} on Wire'is nüüd registreeritud kui sinu uus meiliaadress. Aadressi
+${email} was registered as your new email address on ${brand}. Aadressi
 kinnitamiseks kliki alloleval lingil.
 
 Kinnita [${url}]Kui sul pole võimalik nuppu klikkida, siis kopeeri allolev

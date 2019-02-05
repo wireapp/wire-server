@@ -1,5 +1,9 @@
-YOUR NEW ACCOUNT ON WIRE
-A new Wire team was created with ${email}. Please verify your email.
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+YOUR NEW ACCOUNT ON ${brand}
+A new ${brand} team was created with ${email}. Please verify your email.
 
 Verify [${url}]If you can’t click the button, copy and paste this link to your
 browser:

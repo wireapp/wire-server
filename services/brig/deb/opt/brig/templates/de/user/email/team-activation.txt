@@ -1,5 +1,9 @@
-DEIN NEUES WIRE-BENUTZERKONTO
-Ein neues Wire Team wurde mit ${email} erstellt. Bitte verifiziere deine
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+DEIN NEUES ${brand}-BENUTZERKONTO
+Ein neues ${brand} Team wurde mit ${email} erstellt. Bitte verifiziere deine
 E-Mail-Adresse.
 
 Überprüfe [${url}]Falls du nicht auf den Button klicken kannst, kopiere den Link

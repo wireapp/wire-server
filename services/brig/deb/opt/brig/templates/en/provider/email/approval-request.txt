@@ -1,6 +1,10 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 APPROVAL REQUEST
-A new Wire Service Provider has registered and is awaiting approval. Please
-review the information provided below.
+A new ${brand_service} has registered and is awaiting approval. Please review
+the information provided below.
 
 Name: ${name}
 
@@ -12,7 +16,7 @@ Description: ${description}
 
 If the request seems genuine, you can approve the provider by clicking on the
 button below. Once approved, the provider will be able to sign in and start
-registering services that Wire users can add to their conversations.
+registering services that ${brand} users can add to their conversations.
 
 If the request seems dubious, please contact the provider for clarifications
 before proceeding.

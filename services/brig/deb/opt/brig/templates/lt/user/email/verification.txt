@@ -1,6 +1,10 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 PATVIRTINKITE SAVO EL. PAŠTĄ
-Registruojantis Wire, buvo panaudotas ${email}. Norėdami patvirtinti savo el.
-paštą ir susikurti paskyrą, įveskite šį kodą.
+${email} was used to register on ${brand}. Norėdami patvirtinti savo el. paštą
+ir susikurti paskyrą, įveskite šį kodą.
 
 ${code}
 

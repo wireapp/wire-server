@@ -1,6 +1,10 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 VERIFY YOUR EMAIL
-${email} was used to register on Wire. Enter this code to verify your email and
-create your account.
+${email} was used to register on ${brand}. Enter this code to verify your email
+and create your account.
 
 ${code}
 

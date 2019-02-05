@@ -1,6 +1,10 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 PATVIRTINKITE SAVO EL. PAŠTĄ
-${email} buvo užregistruotas kaip jūsų naujasis el. pašto adresas programoje
-Wire. Norėdami patvirtinti savo adresą, spustelėkite mygtuką žemiau.
+${email} was registered as your new email address on ${brand}. Norėdami
+patvirtinti savo adresą, spustelėkite mygtuką žemiau.
 
 Patvirtinti [${url}]Jeigu negalite spustelėti ant mygtuko, nukopijuokite ir
 įdėkite šią nuorodą į savo naršyklę:

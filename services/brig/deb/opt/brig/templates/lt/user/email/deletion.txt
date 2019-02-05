@@ -1,7 +1,11 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 IŠTRINTI JŪSŲ PASKYRĄ
-Mes gavome užklausą ištrinti jūsų Wire paskyrą. Norėdami ištrinti visus savo
-pokalbius, visą turinį ir ryšius, 10 minučių bėgyje spustelėkite žemiau esantį
-mygtuką.
+We’ve received a request to delete your ${brand} account. Norėdami ištrinti
+visus savo pokalbius, visą turinį ir ryšius, 10 minučių bėgyje spustelėkite
+žemiau esantį mygtuką.
 
 Ištrinti paskyrą [${url}]Jeigu negalite spustelėti ant mygtuko, nukopijuokite ir
 įdėkite šią nuorodą į savo naršyklę:

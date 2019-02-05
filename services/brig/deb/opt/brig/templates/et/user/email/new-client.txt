@@ -1,15 +1,17 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 WIRE UUEL SEADMEL
-Sinu Wire kontot kasutati:
+Your ${brand} account was used on:
 
 ${date}
 
 ${model}
 
-Võimalik põhjus – paigaldasid Wire uuele seadmele või paigaldasid selle
-seadmele, kus Wire on varem olnud, kuid siis eemaldatud. Kui see polnud sina,
-kes uuelt seadmelt sisse logis, siis ava Wire äpis Seaded > Seadmed ja kustuta
-tundmatu seade. Seejärel muuda oma parool ära.
-[https://account.wire.com/forgot/]
+You may have installed ${brand} on a new device or installed it again on an
+existing one. If that was not the case, go to ${brand} Settings, remove the
+device and reset your password [https://account.wire.com/forgot/].
 
 Küsimuste korral võtke ühendust [https://support.wire.com/hc/en-us/requests/new]
 .

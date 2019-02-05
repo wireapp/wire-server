@@ -1,6 +1,11 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 BESTÄTIGE DEINE E-MAIL-ADRESSE
-${email} wurde verwendet um ein Benutzerkonto auf Wire zu erstellen. Gib diesen
-Code ein, um deine E-Mail-Adresse zu verifizieren und dein Konto zu erstellen.
+${email} wurde verwendet um ein Benutzerkonto auf ${brand} zu erstellen. Gib
+diesen Code ein, um deine E-Mail-Adresse zu verifizieren und dein Konto zu
+erstellen.
 
 ${code}
 

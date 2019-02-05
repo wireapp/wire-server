@@ -1,5 +1,9 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 VERIFY YOUR EMAIL
-${email} was registered as your new email address on Wire. Click the button
+${email} was registered as your new email address on ${brand}. Click the button
 below to verify your address.
 
 Verify [${url}]If you can’t click the button, copy and paste this link to your

@@ -1,6 +1,9 @@
-JŪSŲ NAUJA PASKYRA PROGRAMOJE WIRE
-Naudojant ${email}, buvo sukurta nauja Wire komanda. Patvirtinkite savo el.
-paštą.
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+YOUR NEW ACCOUNT ON ${brand}
+A new ${brand} team was created with ${email}. Patvirtinkite savo el. paštą.
 
 Patvirtinti [${url}]Jeigu negalite spustelėti ant mygtuko, nukopijuokite ir
 įdėkite šią nuorodą į savo naršyklę:

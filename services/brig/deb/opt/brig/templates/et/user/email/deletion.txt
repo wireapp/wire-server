@@ -1,6 +1,10 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 KUSTUTA KONTO
-Saime päringu su Wire konto kustutada. Kogu kontoga seotud info kustutamise
-kinnitamiseks kliki kümne minuti jooksul alloleval lingil.
+We’ve received a request to delete your ${brand} account. Kogu kontoga seotud
+info kustutamise kinnitamiseks kliki kümne minuti jooksul alloleval lingil.
 
 Kustuta konto [${url}]Kui sul pole võimalik nuppu klikkida, siis kopeeri allolev
 aadress veebibrauserisse:

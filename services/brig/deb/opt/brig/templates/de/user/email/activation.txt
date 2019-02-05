@@ -1,5 +1,9 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 BESTÄTIGE DEINE E-MAIL-ADRESSE
-${email} wurde verwendet um ein Konto auf Wire zu erstellen.
+${email} wurde verwendet um ein Konto auf ${brand} zu erstellen.
 Klicke den folgenden Button um die E-Mail-Adresse zu bestätigen.
 
 Überprüfe [${url}]Falls du nicht auf den Button klicken kannst, kopiere den Link

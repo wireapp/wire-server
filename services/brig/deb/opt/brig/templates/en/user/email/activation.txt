@@ -1,5 +1,9 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 VERIFY YOUR EMAIL
-${email} was used to register on Wire.
+${email} was used to register on ${brand}.
 Click the button to verify your address.
 
 Verify [${url}]If you can’t click the button, copy and paste this link to your

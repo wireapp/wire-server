@@ -1,6 +1,10 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 KINNITA OMA E-POSTI AADRESS
-${email} meiliaadressi kasutatu Wire konto loomiseks.
-Kliki allolevat nuppu, et oma meiliaadress kinnitada.
+${email} was used to register on ${brand}.
+Click the button to verify your address.
 
 Kinnita [${url}]Kui sul pole võimalik nuppu klikkida, siis kopeeri allolev
 aadress veebibrauserisse:

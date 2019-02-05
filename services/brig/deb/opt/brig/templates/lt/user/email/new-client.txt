@@ -1,13 +1,17 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 NAUJAS ĮRENGINYS
-Jūsų Wire paskyra buvo naudota:
+Your ${brand} account was used on:
 
 ${date}
 
 ${model}
 
-Tikriausiai, įdiegėte Wire naujame įrenginyje arba iš naujo įdiegėte esamame
-įrenginyje. Jeigu to nedarėte, pereikite į Wire nustatymus, pašalinkite įrenginį
-ir atstatykite savo slaptažodį [https://account.wire.com/forgot/].
+You may have installed ${brand} on a new device or installed it again on an
+existing one. If that was not the case, go to ${brand} Settings, remove the
+device and reset your password [https://account.wire.com/forgot/].
 
 Jeigu turite kokių nors klausimų, susisiekite su mumis
 [https://support.wire.com/hc/en-us/requests/new].
