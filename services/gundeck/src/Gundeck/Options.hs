@@ -130,7 +130,7 @@ optsParser = Opts <$>
         (optional $ option auto $
             long "aws-connection-limit"
             <> metavar "SIZE"
-            <> help "maximum number of simultaneous connections to AWS")
+            <> help "maximum number of simultaneous connections to AWS (default = no limit)")
 
     settingsParser :: Parser Settings
     settingsParser = Settings <$>

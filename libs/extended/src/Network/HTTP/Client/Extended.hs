@@ -27,11 +27,19 @@ data Destination = Destination {-# UNPACK #-} !ShortByteString !Int
 instance Hashable Destination
 
 -- | Add a per-host hard connection limit. When there are more than N open connections to a
--- host, any new connection to that host will immediately fail with 'PerHostConnectionLimit'.
+-- host, any attempt to establish a new connection to that host will immediately fail with
+-- 'PerHostConnectionLimitReached'.
 --
 -- Existing limits in 'Manager' are more fine-grained: for instance, those limits apply to raw
 -- and TLS connections separately. The limit set by 'addHardConnectionLimit' applies to all
 -- connections to the host/port, regardless of their type.
+--
+-- Hosts are defined "whatever host is set in the 'Request'" so if there are several servers
+-- behind a load balancer, we're still going to count them as a single host.
+--
+-- /Note 2019-02-05:/ @http-client@ Github issue requesting this functionality:
+-- <https://github.com/snoyberg/http-client/issues/307>. We might try to upstream our
+-- implementation.
 addPerHostConnectionLimit :: MonadIO m => Int -> ManagerSettings -> m ManagerSettings
 addPerHostConnectionLimit limit managerSettings = liftIO $ do
     -- Create a map counting active connections per host.
