@@ -24,7 +24,7 @@ instance Cql (SignedCertificate) where
     ctype = Tagged BlobColumn
     toCql = CqlBlob . cs . renderKeyInfo
 
-    fromCql (CqlBlob t) = parseKeyInfo (cs t)
+    fromCql (CqlBlob t) = parseKeyInfo False (cs t)
     fromCql _           = fail "SignedCertificate: expected CqlBlob"
 
 instance Cql (URIRef Absolute) where
