@@ -22,11 +22,17 @@ library
     ghc-options:        -Wall -O2 -fwarn-tabs
 
     exposed-modules:
+        Network.HTTP.Client.Extended
         Options.Applicative.Extended
 
     build-depends:
         base
+      , bytestring
       , extra
+      , hashable
+      , http-client
       , imports
+      , lens
       , optparse-applicative
+      , stm-containers
       , unliftio

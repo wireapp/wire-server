@@ -112,6 +112,7 @@ library
         , wai-utilities         >= 0.16
         , warp                  >= 3.2
         , yaml                  >= 0.8
+        , extended
         , imports
 
 executable gundeck

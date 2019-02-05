@@ -60,7 +60,10 @@ import Network.AWS (AWSRequest, Rs)
 import Network.AWS (serviceCode, serviceMessage, serviceAbbrev, serviceStatus)
 import Network.AWS.SQS (rmrsMessages)
 import Network.AWS.SQS.Types hiding (sqs)
-import Network.HTTP.Client (Manager, HttpException (..), HttpExceptionContent (..))
+import Network.HTTP.Client.Extended
+    (newManager, ManagerSettings (..), HttpException (..), HttpExceptionContent (..),
+     responseTimeoutMicro, addPerHostConnectionLimit)
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Network.HTTP.Types
 import System.Logger.Class
 import UnliftIO.Async
@@ -137,21 +140,34 @@ instance MonadLogger Amazon where
 instance AWS.MonadAWS Amazon where
     liftAWS a = view awsEnv >>= \e -> AWS.runAWS e a
 
-mkEnv :: Logger -> Opts -> Manager -> IO Env
-mkEnv lgr opts mgr = do
+mkEnv :: Logger -> Opts -> IO Env
+mkEnv lgr opts = do
+    -- If SNS is down and/or throwing 500's, it causes Gundeck to pile up a lot of work
+    -- leading to very high memory/CPU usage and failure to handle more incoming pushes. Thus
+    -- we put a hard limit on the amount of connections per host. All further connections will
+    -- fail immediately.
+    mgrSettings <-
+        maybe pure addPerHostConnectionLimit (opts^.optAws.awsConnectionLimit) $
+        tlsManagerSettings
+            { managerConnCount           = opts^.optSettings.setHttpPoolSize
+            , managerIdleConnectionCount = 3 * (opts^.optSettings.setHttpPoolSize)
+            , managerResponseTimeout     = responseTimeoutMicro 5000000
+            }
+    mgr <- newManager mgrSettings
     let g = Logger.clone (Just "aws.gundeck") lgr
-    e <- mkAwsEnv g (mkEndpoint SQS.sqs (opts^.optAws.awsSqsEndpoint))
-                    (mkEndpoint SNS.sns (opts^.optAws.awsSnsEndpoint))
+    e <- mkAwsEnv g mgr (mkEndpoint SQS.sqs (opts^.optAws.awsSqsEndpoint))
+                        (mkEndpoint SNS.sns (opts^.optAws.awsSnsEndpoint))
     q <- getQueueUrl e (opts^.optAws.awsQueueName)
     return (Env e g q (opts^.optAws.awsRegion) (opts^.optAws.awsAccount))
   where
     mkEndpoint svc e = AWS.setEndpoint (e^.awsSecure) (e^.awsHost) (e^.awsPort) svc
-    mkAwsEnv g sqs sns =  set AWS.envLogger (awsLogger g)
-                       .  set AWS.envRegion (opts^.optAws.awsRegion)
-                       .  set AWS.envRetryCheck retryCheck
-                      <$> AWS.newEnvWith AWS.Discover Nothing mgr
-                      <&> AWS.configure sqs
-                      <&> AWS.configure (sns & set AWS.serviceTimeout (Just (AWS.Seconds 5)))
+    mkAwsEnv g mgr sqs sns =
+            set AWS.envLogger (awsLogger g)
+         .  set AWS.envRegion (opts^.optAws.awsRegion)
+         .  set AWS.envRetryCheck retryCheck
+        <$> AWS.newEnvWith AWS.Discover Nothing mgr
+        <&> AWS.configure sqs
+        <&> AWS.configure (sns & set AWS.serviceTimeout (Just (AWS.Seconds 5)))
 
     awsLogger g l = Logger.log g (mapLevel l) . Logger.msg . toLazyByteString
 

@@ -26,6 +26,7 @@ data AWSOpts = AWSOpts
     , _awsQueueName   :: !Text
     , _awsSqsEndpoint :: !AWSEndpoint
     , _awsSnsEndpoint :: !AWSEndpoint
+    , _awsConnectionLimit :: !(Maybe Int)
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''AWSOpts
@@ -125,6 +126,11 @@ optsParser = Opts <$>
             <> value (AWSEndpoint "sns.eu-west-1.amazonaws.com" True 443)
             <> showDefault
             <> help "aws SNS endpoint")
+        <*>
+        (optional $ option auto $
+            long "aws-connection-limit"
+            <> metavar "SIZE"
+            <> help "maximum number of simultaneous connections to AWS")
 
     settingsParser :: Parser Settings
     settingsParser = Settings <$>

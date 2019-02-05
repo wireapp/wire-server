@@ -73,7 +73,7 @@ createEnv m o = do
             . C.setResponseTimeout 10
             . C.setProtocolVersion C.V3
             $ C.defSettings
-    a <- Aws.mkEnv l o n
+    a <- Aws.mkEnv l o
     io <- mkAutoUpdate defaultUpdateSettings {
             updateAction = Ms . round . (* 1000) <$> getPOSIXTime
     }
