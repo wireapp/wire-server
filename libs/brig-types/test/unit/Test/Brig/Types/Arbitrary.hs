@@ -206,6 +206,9 @@ instance Arbitrary HandleUpdate where
 instance Arbitrary LocaleUpdate where
     arbitrary = LocaleUpdate <$> arbitrary
 
+instance Arbitrary ManagedByUpdate where
+    arbitrary = ManagedByUpdate <$> arbitrary
+
 instance Arbitrary NewPasswordReset where
     arbitrary = NewPasswordReset <$> arbitrary
 
@@ -234,6 +237,7 @@ instance Arbitrary NewUser where
         newUserLocale     <- arbitrary
         newUserPassword   <- if isTeamUser && not hasSSOId then Just <$> arbitrary else arbitrary
         newUserExpiresIn  <- if isJust newUserIdentity then pure Nothing else arbitrary
+        newUserManagedBy  <- arbitrary
         pure NewUser{..}
 
 instance Arbitrary UTCTimeMillis where
@@ -323,6 +327,7 @@ instance Arbitrary User where
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
+        <*> arbitrary
 
 instance Arbitrary VerifyDeleteUser where
     arbitrary = VerifyDeleteUser <$> arbitrary <*> arbitrary
@@ -367,6 +372,9 @@ instance Arbitrary InvitationRequest where
     arbitrary = InvitationRequest <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary Role where
+    arbitrary = elements [minBound..]
+
+instance Arbitrary ManagedBy where
     arbitrary = elements [minBound..]
 
 ----------------------------------------------------------------------

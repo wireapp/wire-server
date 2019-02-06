@@ -86,8 +86,9 @@ createUser
   -> UserId
   -> TeamId
   -> Maybe Name      -- ^ User name (if 'Nothing', the subject ID will be used)
+  -> ManagedBy       -- ^ Who should have control over the user
   -> m UserId
-createUser suid (Id buid) teamid mbName = do
+createUser suid (Id buid) teamid mbName managedBy = do
   uname :: Name <- case mbName of
     Just n -> pure n
     Nothing -> do
@@ -112,6 +113,7 @@ createUser suid (Id buid) teamid mbName = do
         , newUserLocale         = Nothing
         , newUserPassword       = Nothing
         , newUserExpiresIn      = Nothing
+        , newUserManagedBy      = Just managedBy
         }
 
   resp :: Response (Maybe LBS) <- call
@@ -177,7 +179,6 @@ setName buid name = do
     . path "/self"
     . header "Z-User" (toByteString' buid)
     . header "Z-Connection" ""
-    . expect2xx
     . json UserUpdate
                { uupName = Just name
                , uupPict = Nothing
@@ -207,6 +208,21 @@ setHandle buid (Handle handle) = do
        -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "set handle failed"
      | otherwise
        -> throwSpar . SparBrigError . cs $ "set handle failed with status " <> show (statusCode resp)
+
+-- | Set user's managedBy. Fails with status <500 if brig fails with <500, and with 500 if
+-- brig fails with >= 500.
+setManagedBy :: (HasCallStack, MonadSparToBrig m) => UserId -> ManagedBy -> m ()
+setManagedBy buid managedBy = do
+  resp <- call
+    $ method PUT
+    . paths ["i", "users", toByteString' buid, "managed-by"]
+    . json (ManagedByUpdate managedBy)
+  if | statusCode resp < 300
+       -> pure ()
+     | inRange (400, 499) (statusCode resp)
+       -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "set managedBy failed"
+     | otherwise
+       -> throwSpar . SparBrigError . cs $ "set managedBy failed with status " <> show (statusCode resp)
 
 -- | This works under the assumption that the user must exist on brig.  If it does not, brig
 -- responds with 404 and this function returns 'False'.

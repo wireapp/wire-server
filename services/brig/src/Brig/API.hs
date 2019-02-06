@@ -19,7 +19,7 @@ import Brig.API.Types
 import Brig.Options hiding (sesQueue, internalEvents)
 import Brig.Types
 import Brig.Types.Intra
-import Brig.Types.User (NewUserNoSSO(NewUserNoSSO))
+import Brig.Types.User (NewUserPublic(NewUserPublic))
 import Brig.Types.User.Auth
 import Brig.User.Email
 import Brig.User.Phone
@@ -214,6 +214,12 @@ sitemap o = do
       .&. capture "tid"
 
     put "/i/users/:uid/sso-id" (continue updateSSOId) $
+      capture "uid"
+      .&. accept "application" "json"
+      .&. contentType "application" "json"
+      .&. request
+
+    put "/i/users/:uid/managed-by" (continue updateManagedBy) $
       capture "uid"
       .&. accept "application" "json"
       .&. contentType "application" "json"
@@ -474,7 +480,7 @@ sitemap o = do
         header "Z-User"
 
     document "HEAD" "checkPassword" $ do
-        Doc.summary "Check that your passowrd is set"
+        Doc.summary "Check that your password is set"
         Doc.response 200 "Password is set." Doc.end
         Doc.response 404 "Password is not set." Doc.end
 
@@ -1098,7 +1104,7 @@ autoConnect(_ ::: _ ::: uid ::: conn ::: req) = do
 
 createUser :: JSON ::: JSON ::: Request -> Handler Response
 createUser (_ ::: _ ::: req) = do
-    NewUserNoSSO new <- parseJsonBody req
+    NewUserPublic new <- parseJsonBody req
     for_ (newUserEmail new) $ checkWhitelist . Left
     for_ (newUserPhone new) $ checkWhitelist . Right
     result <- API.createUser new !>> newUserError
@@ -1463,6 +1469,12 @@ updateSSOId (uid ::: _ ::: _ ::: req) = do
     if success
       then return empty
       else return . setStatus status404 $ plain "User does not exist or has no team."
+
+updateManagedBy :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
+updateManagedBy (uid ::: _ ::: _ ::: req) = do
+    ManagedByUpdate managedBy <- parseJsonBody req
+    lift $ Data.updateManagedBy uid managedBy
+    return empty
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response
 deleteUser (u ::: r ::: _ ::: _) = do
