@@ -13,6 +13,8 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 
+-- | A "default" module for types used in Spar, unless there's a better / more specific place
+-- for them.
 module Spar.Types where
 
 import Imports

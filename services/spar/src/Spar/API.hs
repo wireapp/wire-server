@@ -18,11 +18,17 @@
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE ViewPatterns               #-}
 
-{-# OPTIONS_GHC -Wno-orphans #-}
-
+-- | The API types, handlers, and WAI 'Application' for whole Spar.
+--
+-- Note: handlers are defined here, but API types are reexported from "Spar.API.Types". The
+-- SCIM branch of the API is fully defined in "Spar.Scim".
 module Spar.API
-  ( app, api
+  ( -- * Server
+    app, api
+
+    -- * API types
   , API, OutsideWorldAPI
+    -- ** Individual API pieces
   , APIMeta
   , APIAuthReqPrecheck
   , APIAuthReq

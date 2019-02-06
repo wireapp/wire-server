@@ -10,6 +10,9 @@
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 
+-- | Reading the Spar config.
+--
+-- The config type itself, 'Opts', is defined in "Spar.Types".
 module Spar.Options
   ( getOpts
   , deriveOpts

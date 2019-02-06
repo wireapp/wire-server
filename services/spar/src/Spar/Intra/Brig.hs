@@ -12,7 +12,7 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE ViewPatterns               #-}
 
--- | Spar talking to Brig.
+-- | Client functions for interacting with the Brig API.
 module Spar.Intra.Brig where
 
 -- TODO: when creating user, we need to be able to provide more

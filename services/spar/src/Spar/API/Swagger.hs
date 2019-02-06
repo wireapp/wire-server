@@ -7,7 +7,6 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PackageImports             #-}
 {-# LANGUAGE QuasiQuotes                #-}
-{-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
@@ -17,7 +16,9 @@
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Spar.API.Swagger where
+-- | Swagger instances for Spar types (as well as some types that are used in Spar but not
+-- defined in Spar).
+module Spar.API.Swagger () where
 
 import Imports
 import Control.Lens
