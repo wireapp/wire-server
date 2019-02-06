@@ -26,6 +26,7 @@ module Brig.App
     , userTemplates
     , providerTemplates
     , teamTemplates
+    , tplBranding
     , requestId
     , httpManager
     , extGetManager
@@ -138,6 +139,7 @@ data Env = Env
     , _usrTemplates  :: Localised UserTemplates
     , _provTemplates :: Localised ProviderTemplates
     , _tmTemplates   :: Localised TeamTemplates
+    , _tplBranding   :: (Text -> Text)
     , _httpManager   :: Manager
     , _extGetManager :: (Manager, [Fingerprint Rsa] -> SSL.SSL -> IO ())
     , _settings      :: Settings
@@ -176,6 +178,7 @@ newEnv o = do
     utp <- loadUserTemplates o
     ptp <- loadProviderTemplates o
     ttp <- loadTeamTemplates o
+    let tpb = loadTemplateBranding
     (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS o)
     aws <- AWS.mkEnv lgr (Opt.aws o) emailAWSOpts mgr
     zau <- initZAuth o
@@ -212,6 +215,7 @@ newEnv o = do
         , _usrTemplates  = utp
         , _provTemplates = ptp
         , _tmTemplates   = ttp
+        , _tplBranding   = tpb
         , _httpManager   = mgr
         , _extGetManager = ext
         , _settings      = sett
@@ -242,6 +246,10 @@ newEnv o = do
         return (Nothing, Just smtp)
 
     mkEndpoint service = RPC.host (encodeUtf8 (service^.epHost)) . RPC.port (service^.epPort) $ RPC.empty
+
+loadTemplateBranding :: Text -> Text
+loadTemplateBranding "misuse" = "GEIL!"
+loadTemplateBranding x        = x
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> IndexEnv
 mkIndexEnv o lgr mgr mtr =

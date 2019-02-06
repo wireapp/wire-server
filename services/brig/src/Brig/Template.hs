@@ -134,3 +134,7 @@ readWithDefault readFn baseDir defLoc typ prefix name = do
             <> unpack (locToText defLoc) <> "/"
             <> typ <> "/"
             <> name
+
+-- | Every email has some common generic header/footer/branding. This
+--   can be used in every place that we render emails to be sent out
+-- renderCommon :: Template ->

@@ -19,6 +19,7 @@ import Brig.Email
 import Brig.Locale (formatDateTime, timeLocale)
 import Brig.User.Template
 import Brig.Types
+import Control.Lens (view)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.Range
 import Data.Text.Lazy (toStrict)
@@ -37,7 +38,8 @@ sendActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Maybe U
 sendActivationMail to name pair loc ident = do
     tpl <- selectTemplate . snd <$> userTemplates loc
     let mail = ActivationEmail to name pair
-    Email.sendMail $ renderActivationMail mail tpl
+    def <- view tplBranding
+    Email.sendMail $ renderActivationMail mail tpl def
   where
     selectTemplate =
         if isNothing ident
@@ -53,12 +55,14 @@ sendPasswordResetMail to pair loc = do
 sendDeletionEmail :: Name -> Email -> Code.Key -> Code.Value -> Locale -> AppIO ()
 sendDeletionEmail name email key code locale = do
     tpl <- deletionEmail . snd <$> userTemplates (Just locale)
-    Email.sendMail $ renderDeletionEmail tpl (DeletionEmail email name key code)
+    let mail = (DeletionEmail email name key code)
+    Email.sendMail $ renderDeletionEmail mail tpl
 
 sendNewClientEmail :: Name -> Email -> Client -> Locale -> AppIO ()
 sendNewClientEmail name email client locale = do
     tpl <- newClientEmail . snd <$> userTemplates (Just locale)
-    Email.sendMail $ renderNewClientEmail tpl (NewClientEmail locale email name client)
+    let mail = (NewClientEmail locale email name client)
+    Email.sendMail $ renderNewClientEmail mail tpl
 
 sendTeamActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Text -> AppIO ()
 sendTeamActivationMail to name pair loc team = do
@@ -76,8 +80,8 @@ data NewClientEmail = NewClientEmail
     , nclClient :: !Client
     }
 
-renderNewClientEmail :: NewClientEmailTemplate -> NewClientEmail -> Mail
-renderNewClientEmail NewClientEmailTemplate{..} NewClientEmail{..} =
+renderNewClientEmail :: NewClientEmail -> NewClientEmailTemplate -> Mail
+renderNewClientEmail NewClientEmail{..} NewClientEmailTemplate{..} =
     (emptyMail from)
         { mailTo      = [ to ]
         , mailHeaders = [ ("Subject", toStrict subj)
@@ -110,8 +114,8 @@ data DeletionEmail = DeletionEmail
     , delCode :: !Code.Value
     }
 
-renderDeletionEmail :: DeletionEmailTemplate -> DeletionEmail -> Mail
-renderDeletionEmail DeletionEmailTemplate{..} DeletionEmail{..} =
+renderDeletionEmail :: DeletionEmail -> DeletionEmailTemplate -> Mail
+renderDeletionEmail DeletionEmail{..} DeletionEmailTemplate{..} =
     (emptyMail from)
         { mailTo      = [ to ]
         , mailHeaders = [ ("Subject", toStrict subj)
@@ -181,8 +185,8 @@ data ActivationEmail = ActivationEmail
     , acmPair :: !ActivationPair
     }
 
-renderActivationMail :: ActivationEmail -> ActivationEmailTemplate -> Mail
-renderActivationMail ActivationEmail{..} ActivationEmailTemplate{..} =
+renderActivationMail :: ActivationEmail -> ActivationEmailTemplate -> (Text -> Text) -> Mail
+renderActivationMail ActivationEmail{..} ActivationEmailTemplate{..} branding =
     (emptyMail from)
         { mailTo      = [ to ]
         , mailHeaders = [ ("Subject", toStrict subj)
@@ -204,7 +208,7 @@ renderActivationMail ActivationEmail{..} ActivationEmailTemplate{..} =
     replace "url"   = renderActivationUrl activationEmailUrl acmPair
     replace "email" = fromEmail acmTo
     replace "name"  = fromName acmName
-    replace x       = x
+    replace x       = branding x
 
 renderActivationUrl :: Template -> ActivationPair -> Text
 renderActivationUrl t (ActivationKey k, ActivationCode c) =
