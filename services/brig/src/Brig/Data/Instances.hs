@@ -203,8 +203,8 @@ instance Cql ManagedBy where
     ctype = Tagged IntColumn
 
     fromCql (CqlInt 0) = return ManagedByWire
-    fromCql (CqlInt 1) = return ManagedBySCIM
+    fromCql (CqlInt 1) = return ManagedByScim
     fromCql n = fail $ "Unexpected ManagedBy: " ++ show n
 
     toCql ManagedByWire = CqlInt 0
-    toCql ManagedBySCIM = CqlInt 1
+    toCql ManagedByScim = CqlInt 1

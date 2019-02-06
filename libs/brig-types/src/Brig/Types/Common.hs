@@ -409,19 +409,19 @@ data ManagedBy
       --
       -- There are some other things that SCIM can't do yet, like setting accent IDs, but they
       -- are not essential, unlike e.g. passwords.
-    | ManagedBySCIM
+    | ManagedByScim
     deriving (Eq, Show, Bounded, Enum)
 
 instance FromJSON ManagedBy where
     parseJSON = withText "ManagedBy" $ \case
         "wire" -> pure ManagedByWire
-        "scim" -> pure ManagedBySCIM
+        "scim" -> pure ManagedByScim
         other  -> fail $ "Invalid ManagedBy: " ++ show other
 
 instance ToJSON ManagedBy where
     toJSON = String . \case
         ManagedByWire -> "wire"
-        ManagedBySCIM -> "scim"
+        ManagedByScim -> "scim"
 
 defaultManagedBy :: ManagedBy
 defaultManagedBy = ManagedByWire
