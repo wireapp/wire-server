@@ -270,7 +270,7 @@ verdictHandlerResult bindCky = catchVerdictErrors . \case
       case (viaBindCookie, viaSparCass) of
         -- This is the first SSO authentication, so we auto-create a user. We know the user
         -- has not been created via SCIM because then we would've ended up in the
-        -- "reauthenciation" branch, so we pass 'ManagedByWire'.
+        -- "reauthentication" branch, so we pass 'ManagedByWire'.
         (Nothing,  Nothing) -> createUser userref Nothing ManagedByWire
         -- SSO reauthentication
         (Nothing,  Just uid)  -> pure uid
