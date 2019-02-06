@@ -155,7 +155,7 @@ renderApprovalConfirmMail ApprovalConfirmEmail{..} ApprovalConfirmEmailTemplate{
     html = renderHtml approvalConfirmEmailBodyHtml replace
     subj = renderText approvalConfirmEmailSubject  replace
 
-    replace "homeUrl" = pack $ show approvalConfirmEmailHomeUrl
+    replace "url"     = pack $ show approvalConfirmEmailHomeUrl
     replace "email"   = fromEmail apcTo
     replace "name"    = fromName apcName
     replace x         = x

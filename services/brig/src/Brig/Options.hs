@@ -112,7 +112,7 @@ instance FromJSON EmailUserOpts
 
 -- | Provider settings
 data ProviderOpts = ProviderOpts
-    { homeUrl               :: !Text   -- ^ Homepage URL
+    { homeUrl               :: !Text   -- ^ Provider Homepage URL
     , providerActivationUrl :: !Text   -- ^ Activation URL template
     , approvalUrl           :: !Text   -- ^ Approval URL template
     , approvalTo            :: !Email  -- ^ Approval email recipient
