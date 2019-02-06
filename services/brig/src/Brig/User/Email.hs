@@ -1,5 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Brig.User.Email
     ( sendActivationMail
@@ -28,6 +33,24 @@ import qualified Brig.Email      as Email
 import qualified Brig.Types.Code as Code
 import qualified Data.Text.Ascii as Ascii
 
+class Render a where
+    type TemplateFor a
+    type RenderResult a
+    select :: a -> Maybe Locale -> AppIO (TemplateFor a)
+    render :: a -> TemplateFor a -> (Text -> Text) -> RenderResult a
+
+sendEmail :: (Render a, RenderResult a ~ Mail) => a -> Maybe Locale -> AppIO ()
+sendEmail templateData loc = do
+    template <- select templateData loc
+    branding <- view tplBranding
+    Email.sendMail $ render templateData template branding
+
+instance Render ActivationEmail where
+    type TemplateFor ActivationEmail = ActivationEmailTemplate
+    type RenderResult ActivationEmail = Mail
+    select _ loc = activationEmail . snd <$> userTemplates loc
+    render = renderActivationMail
+
 sendVerificationMail :: Email -> ActivationPair -> Maybe Locale -> AppIO ()
 sendVerificationMail to pair loc = do
     tpl <- verificationEmail . snd <$> userTemplates loc
@@ -36,6 +59,18 @@ sendVerificationMail to pair loc = do
 
 sendActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Maybe UserIdentity -> AppIO ()
 sendActivationMail to name pair loc ident = do
+    tpl <- selectTemplate . snd <$> userTemplates loc
+    let mail = ActivationEmail to name pair
+    def <- view tplBranding
+    Email.sendMail $ renderActivationMail mail tpl def
+  where
+    selectTemplate =
+        if isNothing ident
+            then activationEmail
+            else activationEmailUpdate
+
+sendActivationUpdateMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Maybe UserIdentity -> AppIO ()
+sendActivationUpdateMail to name pair loc ident = do
     tpl <- selectTemplate . snd <$> userTemplates loc
     let mail = ActivationEmail to name pair
     def <- view tplBranding
@@ -186,7 +221,7 @@ data ActivationEmail = ActivationEmail
     }
 
 renderActivationMail :: ActivationEmail -> ActivationEmailTemplate -> (Text -> Text) -> Mail
-renderActivationMail ActivationEmail{..} ActivationEmailTemplate{..} branding =
+renderActivationMail ActivationEmail{..} ActivationEmailTemplate{..} replaceWithBranding =
     (emptyMail from)
         { mailTo      = [ to ]
         , mailHeaders = [ ("Subject", toStrict subj)
@@ -208,7 +243,7 @@ renderActivationMail ActivationEmail{..} ActivationEmailTemplate{..} branding =
     replace "url"   = renderActivationUrl activationEmailUrl acmPair
     replace "email" = fromEmail acmTo
     replace "name"  = fromName acmName
-    replace x       = branding x
+    replace x       = replaceWithBranding x
 
 renderActivationUrl :: Template -> ActivationPair -> Text
 renderActivationUrl t (ActivationKey k, ActivationCode c) =
