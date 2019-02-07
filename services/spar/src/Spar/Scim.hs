@@ -147,10 +147,12 @@ apiScim = hoistScim (toServant (Scim.siteServer configuration))
 ----------------------------------------------------------------------------
 -- UserDB
 
--- | Retrieve 'IdP' from 'ScimTokenInfo' and call 'validateScimUser''.
+-- | Validate a raw SCIM user record and extract data that we care about.
 validateScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
-  => ScimTokenInfo -> Scim.User.User -> m ValidScimUser
+  => ScimTokenInfo    -- ^ Used to decide what IdP to assign the user to
+  -> Scim.User.User
+  -> m ValidScimUser
 validateScimUser ScimTokenInfo{stiIdP} user = do
     idp <- case stiIdP of
         Nothing -> Scim.throwScim $
@@ -167,34 +169,26 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 --
 -- __Mapped fields:__
 --
---   * @userName@ is mapped to our 'userHandle'. If there is no handle, we use 'userId',
---     because having some unique @userName@ is a SCIM requirement.
+--   * @userName@ is mapped to our 'userHandle'.
 --
---   * @name@ is left empty and is never stored, even when it's sent to us via SCIM.
+--   * @displayName@ is mapped to our 'userName'. The @name@ field is unused completely, as it
+--     provides a rather poor model for names.
 --
---   * @displayName@ is mapped to our 'userName'.
---
---   * A mandatory @SAML.UserRef@ is derived from 'Scim.User.externalId' and the 'idpId'
---     (retrieved via SCIM token).
+--   * The @externalId@ is used to construct a 'SAML.UserRef'.
 --
 -- FUTUREWORK: We may need to make the SAML NameID type derived from the available SCIM data
 -- configurable on a per-team basis in the future, to accomodate different legal uses of
--- externalId by different users.
+-- @externalId@ by different users.
 --
 -- __Emails and phone numbers:__ we'd like to ensure that only verified emails and phone
 -- numbers end up in our database, and implementing verification requires design decisions
 -- that we haven't made yet. We store them in our SCIM blobs, but don't syncronize them with
--- Brig.
---
--- See <https://github.com/wireapp/wire-server/pull/559#discussion_r247466760>
---
--- __Names:__ some systems like Okta require given name and family name to be present, but
--- it's a poor model for names, and in practice many other apps also ignore this model.
--- Leaving @name@ empty will prevent the confusion that might appear when somebody tries to
--- set @name@ to some value and the @displayName@ won't be affected by that change.
+-- Brig. See <https://github.com/wireapp/wire-server/pull/559#discussion_r247466760>.
 validateScimUser'
   :: forall m. (MonadError Scim.ScimError m)
-  => Maybe IdP -> Scim.User.User -> m ValidScimUser
+  => Maybe IdP        -- ^ IdP that the resulting user will be assigned to
+  -> Scim.User.User
+  -> m ValidScimUser
 validateScimUser' Nothing _ =
     throwError $ Scim.serverError "SCIM users without SAML SSO are not supported"
 validateScimUser' (Just idp) user = do
