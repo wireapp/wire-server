@@ -19,8 +19,6 @@ import Control.Lens
 import Data.ByteString.Conversion
 import Data.Ix (inRange)
 import Spar.Scim
-import Spar.Scim.Types
-import Spar.Types (ScimTokenInfo(..))
 import Util
 
 import qualified Spar.Data                        as Data
@@ -32,7 +30,6 @@ import qualified Web.Scim.Schema.User             as Scim.User
 spec :: SpecWith TestEnv
 spec = do
     specUsers
-    specTokens
 
 specUsers :: SpecWith TestEnv
 specUsers = describe "operations with users" $ do
@@ -262,88 +259,6 @@ specUsers = describe "operations with users" $ do
     describe "CRUD operations maintain invariants in mapScimToBrig, mapBrigToScim." $ do
         it "..." $ do
             pendingWith "this is a job for quickcheck-state-machine"
-
-
-specTokens :: SpecWith TestEnv
-specTokens = describe "operations with provisioning tokens" $ do
-    describe "POST /auth-tokens" $ do
-        it "creates a usable token" $ do
-            env <- ask
-            -- Create a token
-            (owner, _, _) <- registerTestIdP
-            CreateScimTokenResponse token tokenInfo <-
-                createToken owner CreateScimToken
-                    { createScimTokenDescr = "token creation test" }
-            -- Try to execute a SCIM operation without a token and check that it fails
-            listUsers_ Nothing Nothing (env ^. teSpar)
-                !!! const 401 === statusCode
-            -- Try to execute the same SCIM operation with the generated token; it should
-            -- succeed now
-            listUsers_ (Just token) Nothing (env ^. teSpar)
-                !!! const 200 === statusCode
-            -- Cleanup
-            deleteToken owner (stiId tokenInfo)
-
-        it "respects the token limit (2 for integration tests)" $ do
-            env <- ask
-            -- Try to create three tokens. Creating the first two tokens should succeed, and
-            -- creating the third token should fail.
-            (owner, _, _) <- registerTestIdP
-            CreateScimTokenResponse _ tokenInfo1 <-
-                createToken owner CreateScimToken
-                    { createScimTokenDescr = "token limit test / #1" }
-            CreateScimTokenResponse _ tokenInfo2 <-
-                createToken owner CreateScimToken
-                    { createScimTokenDescr = "token limit test / #2" }
-            createToken_ owner CreateScimToken
-                { createScimTokenDescr = "token limit test / #3" }
-                (env ^. teSpar)
-                !!! const 403 === statusCode
-            -- Cleanup
-            mapM_ (deleteToken owner . stiId) [tokenInfo1, tokenInfo2]
-
-        it "doesn't create a token for a team without IdP" $ do
-            env <- ask
-            -- Create a new team and don't associate an IdP with it
-            (userid, _teamid) <- runHttpT (env ^. teMgr) $
-                createUserWithTeam (env ^. teBrig) (env ^. teGalley)
-            -- Creating a token should fail now
-            createToken_
-                userid
-                CreateScimToken { createScimTokenDescr = "IdP-less team test" }
-                (env ^. teSpar)
-                !!! const 400 === statusCode
-
-    describe "DELETE /auth-tokens/:id" $ do
-        it "makes the token unusable" $ do
-            env <- ask
-            -- Create a token
-            (owner, _, _) <- registerTestIdP
-            CreateScimTokenResponse token tokenInfo <-
-                createToken owner CreateScimToken
-                    { createScimTokenDescr = "token deletion test" }
-            -- An operation with the token should succeed
-            listUsers_ (Just token) Nothing (env ^. teSpar)
-                !!! const 200 === statusCode
-            -- Delete the token and now the operation should fail
-            deleteToken owner (stiId tokenInfo)
-            listUsers_ (Just token) Nothing (env ^. teSpar)
-                !!! const 401 === statusCode
-
-    describe "GET /auth-tokens" $ do
-        it "lists tokens" $ do
-            -- Create a token
-            (owner, _, _) <- registerTestIdP
-            CreateScimTokenResponse _ tokenInfo <-
-                createToken owner CreateScimToken
-                    { createScimTokenDescr = "token listing test" }
-            -- The token should be listable
-            do list <- scimTokenListTokens <$> listTokens owner
-               liftIO $ map stiDescr list `shouldBe` ["token listing test"]
-            -- Delete the token and now it shouldn't be on the list
-            deleteToken owner (stiId tokenInfo)
-            do list <- scimTokenListTokens <$> listTokens owner
-               liftIO $ map stiDescr list `shouldBe` []
 
     describe "validateScimUser'" $ do
         it "works" $ do

@@ -55,19 +55,18 @@
 -- pseudo-code: @\email -> entityNameID (parseURI ("email:" <> renderEmail email))@.
 
 module Spar.Scim
-  (
-  -- * The API
-    APIScim
-  , apiScim
-  -- ** Request and response types
-  , CreateScimToken(..)
-  , CreateScimTokenResponse(..)
-  , ScimTokenList(..)
+    (
+      -- * Reexports
+      module Spar.Scim.Types
+    , module Spar.Scim.Auth
 
-  -- * testing
-  , validateScimUser'
-  , toScimStoredUser'
-  ) where
+      -- * API implementation
+    , apiScim
+
+      -- * Internals (for testing)
+    , validateScimUser'
+    , toScimStoredUser'
+    ) where
 
 import Imports
 import Brig.Types.User       as Brig
@@ -95,6 +94,7 @@ import Spar.App (Spar, Env, wrapMonadClient, sparCtxOpts, createUser_, wrapMonad
 import Spar.Error
 import Spar.Intra.Galley
 import Spar.Scim.Types
+import Spar.Scim.Auth
 import Spar.Types
 import Text.Email.Validate
 
@@ -494,74 +494,3 @@ instance Scim.Class.User.UserDB Spar where
 
 instance Scim.Class.Group.GroupDB Spar where
   -- TODO
-
-----------------------------------------------------------------------------
--- AuthDB
-
-instance Scim.Class.Auth.AuthDB Spar where
-  type AuthData Spar = ScimToken
-  type AuthInfo Spar = ScimTokenInfo
-
-  authCheck Nothing =
-      Scim.throwScim (Scim.unauthorized "Token not provided")
-  authCheck (Just token) =
-      maybe (Scim.throwScim (Scim.unauthorized "Invalid token")) pure =<<
-      lift (wrapMonadClient (Data.lookupScimToken token))
-
--- TODO: don't forget to delete the tokens when the team is deleted
-
-----------------------------------------------------------------------------
--- API for manipulating authentication tokens
-
-apiScimToken :: ServerT APIScimToken Spar
-apiScimToken
-     = createScimToken
-  :<|> deleteScimToken
-  :<|> listScimTokens
-
-----------------------------------------------------------------------------
--- Handlers
-
-createScimToken :: Maybe UserId -> CreateScimToken -> Spar CreateScimTokenResponse
-createScimToken zusr CreateScimToken{..} = do
-    let descr = createScimTokenDescr
-    teamid <- Intra.Brig.getZUsrOwnedTeam zusr
-    tokenNumber <- fmap length $ wrapMonadClient $ Data.getScimTokens teamid
-    maxTokens <- asks (maxScimTokens . sparCtxOpts)
-    unless (tokenNumber < maxTokens) $
-        throwSpar SparProvisioningTokenLimitReached
-    idps <- wrapMonadClient $ Data.getIdPConfigsByTeam teamid
-    case idps of
-        [idp] -> do
-            -- TODO: sign tokens. Also, we might want to use zauth, if we can / if
-            -- it makes sense semantically
-            token <- ScimToken . cs . ES.encode <$> liftIO (randBytes 32)
-            tokenid <- randomId
-            now <- liftIO getCurrentTime
-            let idpid = idp ^. SAML.idpId
-                info = ScimTokenInfo
-                    { stiId        = tokenid
-                    , stiTeam      = teamid
-                    , stiCreatedAt = now
-                    , stiIdP       = Just idpid
-                    , stiDescr     = descr
-                    }
-            wrapMonadClient $ Data.insertScimToken token info
-            pure $ CreateScimTokenResponse token info
-        [] -> throwSpar $ SparProvisioningNoSingleIdP
-                "SCIM tokens can only be created for a team with an IdP, \
-                \but none are found"
-        _  -> throwSpar $ SparProvisioningNoSingleIdP
-                "SCIM tokens can only be created for a team with exactly one IdP, \
-                \but more are found"
-
-deleteScimToken :: Maybe UserId -> ScimTokenId -> Spar NoContent
-deleteScimToken zusr tokenid = do
-    teamid <- Intra.Brig.getZUsrOwnedTeam zusr
-    wrapMonadClient $ Data.deleteScimToken teamid tokenid
-    pure NoContent
-
-listScimTokens :: Maybe UserId -> Spar ScimTokenList
-listScimTokens zusr = do
-    teamid <- Intra.Brig.getZUsrOwnedTeam zusr
-    ScimTokenList <$> wrapMonadClient (Data.getScimTokens teamid)
