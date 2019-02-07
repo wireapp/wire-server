@@ -73,7 +73,17 @@ emailSMS:
     templateDir: deb/opt/brig/templates
     emailSender: backend-integration@wire.com
     smsSender: "<insert-sender-number-here>"
-
+    templateBranding:
+      brand: Wire
+      brandUrl: https://wire.com
+      brandLabel: wire.com
+      brandLabelUrl: https://wire.com
+      brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
+      copyright: © WIRE SWISS GmbH
+      misuse: misuse@wire.com
+      legal: https://wire.com/legal/
+      forgot: https://wire.com/forgot/
+      support: https://support.wire.com/
   user:
     activationUrl: http://127.0.0.1:8080/activate?key=${key}&code=${code}
     smsActivationUrl: http://127.0.0.1:8080/v/${code}

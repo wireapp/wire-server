@@ -17,7 +17,9 @@ import Brig.App
 import Brig.Email
 import Brig.Locale (formatDateTime, timeLocale)
 import Brig.User.Template
+import Brig.Template
 import Brig.Types
+import Control.Lens (view)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.Range
 import Data.Text.Lazy (toStrict)
@@ -29,8 +31,9 @@ import qualified Data.Text.Ascii as Ascii
 sendVerificationMail :: Email -> ActivationPair -> Maybe Locale -> AppIO ()
 sendVerificationMail to pair loc = do
     tpl <- verificationEmail . snd <$> userTemplates loc
+    branding <- view templateBrand
     let mail = VerificationEmail to pair
-    Email.sendMail $ renderVerificationMail mail tpl
+    Email.sendMail $ renderVerificationMail mail tpl branding
 
 sendActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Maybe UserIdentity -> AppIO ()
 sendActivationMail to name pair loc ident = do
@@ -148,8 +151,8 @@ data VerificationEmail = VerificationEmail
     , vfPair :: !ActivationPair
     }
 
-renderVerificationMail :: VerificationEmail -> VerificationEmailTemplate -> Mail
-renderVerificationMail VerificationEmail{..} VerificationEmailTemplate{..} =
+renderVerificationMail :: VerificationEmail -> VerificationEmailTemplate -> TemplateBranding -> Mail
+renderVerificationMail VerificationEmail{..} VerificationEmailTemplate{..} branding =
     (emptyMail from)
         { mailTo      = [ to ]
         , mailHeaders = [ ("Subject", toStrict subj)
@@ -163,9 +166,9 @@ renderVerificationMail VerificationEmail{..} VerificationEmailTemplate{..} =
 
     from = Address (Just verificationEmailSenderName) (fromEmail verificationEmailSender)
     to   = Address Nothing (fromEmail vfTo)
-    txt  = renderText verificationEmailBodyText replace
-    html = renderHtml verificationEmailBodyHtml replace
-    subj = renderText verificationEmailSubject  replace
+    txt  = renderTextWithBranding verificationEmailBodyText replace branding
+    html = renderHtmlWithBranding verificationEmailBodyHtml replace branding
+    subj = renderTextWithBranding verificationEmailSubject  replace branding
 
     replace "code"  = Ascii.toText code
     replace "email" = fromEmail vfTo
