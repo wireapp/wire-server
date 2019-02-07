@@ -17,6 +17,7 @@
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE ViewPatterns               #-}
 
+-- | Servant-based API description types for Spar.
 module Spar.API.Types where
 
 import Imports

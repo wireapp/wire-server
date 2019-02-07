@@ -16,6 +16,11 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 
+-- | This module contains several categories of SCIM-related types:
+--
+-- * Our wrappers over @hscim@ types (like 'ValidScimUser').
+-- * Servant-based API types.
+-- * Request and response types for SCIM-related endpoints.
 module Spar.Scim.Types where
 
 import Imports
