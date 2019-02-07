@@ -31,7 +31,7 @@ import qualified Data.Text.Ascii as Ascii
 sendVerificationMail :: Email -> ActivationPair -> Maybe Locale -> AppIO ()
 sendVerificationMail to pair loc = do
     tpl <- verificationEmail . snd <$> userTemplates loc
-    branding <- view templateBrand
+    branding <- view templateBranding
     let mail = VerificationEmail to pair
     Email.sendMail $ renderVerificationMail mail tpl branding
 

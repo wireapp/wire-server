@@ -112,17 +112,23 @@ readText f = catchJust (\e -> if isDoesNotExistError e then Just () else Nothing
                        (readFile f)
                        (\_ -> error $ "Missing file: '" ++ f)
 
+-- | Uses a replace and a branding function, to replaces all placeholders from the
+-- given template to produce a Text. To be used on plain text templates
 renderTextWithBranding :: Template -> (Text -> Text) -> TemplateBranding -> Lazy.Text
-renderTextWithBranding tpl f branding = renderText tpl (f . branding)
+renderTextWithBranding tpl replace branding = renderText tpl (replace . branding)
 
+-- | Uses a replace and a branding function, to replaces all placeholders from the
+-- given template to produce a Text. To be used on HTML templates
+renderHtmlWithBranding :: Template -> (Text -> Text) -> TemplateBranding -> Lazy.Text
+renderHtmlWithBranding tpl replace branding = renderHtml tpl (replace . branding)
+
+-- TODO: Do not export this function
 renderText :: Template -> (Text -> Text) -> Lazy.Text
 renderText = Template.render
 
-renderHtmlWithBranding :: Template -> (Text -> Text) -> TemplateBranding -> Lazy.Text
-renderHtmlWithBranding tpl f branding = renderHtml tpl (f . branding)
-
+-- TODO: Do not export this function
 renderHtml :: Template -> (Text -> Text) -> Lazy.Text
-renderHtml tpl f = renderText tpl (HTML.text . f)
+renderHtml tpl replace = renderText tpl (HTML.text . replace)
 
 readWithDefault :: (String -> IO a)
                 -> FilePath
@@ -145,6 +151,9 @@ readWithDefault readFn baseDir defLoc typ prefix name = do
             <> typ <> "/"
             <> name
 
+-- | Function to be applied everywhere where email/sms/call
+-- templating is used (ensures that placeholders are replaced
+-- by the appropriate branding, typically Wire)
 genTemplateBranding :: BrandingOpts -> TemplateBranding
 genTemplateBranding BrandingOpts{..} = fn
   where
