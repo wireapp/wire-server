@@ -167,11 +167,13 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 -- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does
 -- not comply with the standard / our constraints. See also: 'ValidScimUser'.
 --
+-- Checks like "is this handle claimed already?" are not performed. Only schema checks.
+--
 -- __Mapped fields:__
 --
 --   * @userName@ is mapped to our 'userHandle'.
 --
---   * @displayName@ is mapped to our 'userName'. The @name@ field is unused completely, as it
+--   * @displayName@ is mapped to our 'userName'. We don't use the @name@ field, as it
 --     provides a rather poor model for names.
 --
 --   * The @externalId@ is used to construct a 'SAML.UserRef'.
