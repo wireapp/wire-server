@@ -1,18 +1,20 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 ПОДТВЕРДИТЕ ВАШ EMAIL АДРЕС
-${email} был указан как ваш новый email адрес в Wire. Нажмите на кнопку ниже для
-подтверждения своего адреса.
+${email} был указан как ваш новый email адрес в ${brand}. Нажмите на кнопку ниже
+для подтверждения своего адреса.
 
 Подтвердить [${url}]Если вы не можете нажать на кнопку, скопируйте и вставьте
 эту ссылку в свой браузер:
 
 ${url}
 
-Если у вас есть вопросы, пожалуйста, свяжитесь с нами
-[https://support.wire.com/hc/en-us/requests/new].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Конфиденциальность [https://wire.com/legal/] · Сообщить о злоупотреблении
-[misuse@wire.com]
-© WIRE SWISS GmbH. ALL RIGHTS RESERVED.
+Privacy [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

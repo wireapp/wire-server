@@ -1,1 +1,1 @@
-Jūsų naujas el. pašto adresas programoje Wire
+Your new email address on ${brand}

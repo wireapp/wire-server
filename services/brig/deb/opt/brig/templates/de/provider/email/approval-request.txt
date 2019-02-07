@@ -1,6 +1,10 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 ANFRAGE GENEHMIGEN
-Ein neuer Wire Service-Provider hat sich registriert und erwartet deine
-Genehmigung. Bitte überprüfe die folgenden Informationen.
+Ein neuer ${brand_service} hat sich registriert und erwartet deine Genehmigung.
+Bitte überprüfe die folgenden Informationen.
 
 Name: ${name}
 
@@ -12,7 +16,7 @@ Beschreibung: ${description}
 
 Wenn die Anfrage echt scheint, kannst du den Service-Provider genehmigen, indem
 du auf den unteren Button klickst. Sobald genehmigt, kann der Service-Provider
-sich anmelden und anfangen Dienste zu registrieren, die Wire Nutzer zu ihren
+sich anmelden und anfangen Dienste zu registrieren, die ${brand} Nutzer zu ihren
 Unterhaltungen hinzufügen werden können.
 
 Falls die Anfrage zweifelhaft scheint, kontaktiere bitte den Service-Provider
@@ -28,5 +32,5 @@ Bitte antworte nicht auf diese E-Mail.
 
 --------------------------------------------------------------------------------
 
-Datenschutz [https://wire.com/legal/] · Missbrauch melden [misuse@wire.com]
-© WIRE SWISS GmbH. ALLE RECHTE VORBEHALTEN.
+Privacy [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

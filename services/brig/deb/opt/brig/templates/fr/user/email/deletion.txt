@@ -1,17 +1,23 @@
-Wire
+[${brand_logo}]
 
+${brand_label_url} [${brand_url}]
 
-Bonjour ${name},
+SUPPRIMER VOTRE COMPTE
+Nous avons reçu une demande de suppression de votre compte ${brand}. Cliquez sur
+le lien ci-dessous dans les 10 minutes pour supprimer toutes vos conversations,
+contenus et connexions.
 
-Nous avons reçu une demande de suppression de votre compte Wire. Cliquez sur le lien ci-dessous dans les 10 minutes pour supprimer toutes vos conversations, contenus et connexions.
+Supprimer le compte [${url}]Si vous ne pouvez pas cliquer sur le bouton, copiez
+et collez ce lien dans votre navigateur :
 
 ${url}
 
-Si vous n'êtes pas à l'origine de la demande, réinitialisez votre mot de passe.
+If you didn’t request this, reset your password [${forgot}].
 
-L'équipe Wire
+If you have any questions, please contact us [${support}].
 
 
-(c) Wire Swiss GmbH
+--------------------------------------------------------------------------------
 
-Politique de confidentialité |  Signaler un abus
+Privacy [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

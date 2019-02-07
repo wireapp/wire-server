@@ -1,18 +1,22 @@
-Wire
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+NOUVEL APPAREIL
+Votre compte ${brand} a été utilisé sur :
+
+${date}
+
+${model}
+
+Il se peut que vous ayez installé ${brand} sur un nouvel appareil ou réinstallé
+sur le même. If that was not the case, go to ${brand} Settings, remove the
+device and reset your password [${forgot}].
+
+If you have any questions, please contact us [${support}].
 
 
-Bonjour ${name},
+--------------------------------------------------------------------------------
 
-Votre compte Wire a été utilisé le :
-
-    ${date}
-    ${model}
-
-Il se peut que vous ayez installé Wire sur un nouvel appareil ou réinstallé sur le même. Si ce n'est pas le cas, allez dans les Paramètres de Wire, supprimez l'appareil et réinitialisez votre mot de passe.
-
-L'équipe Wire
-
-
-(c) Wire Swiss GmbH
-
-Politique de confidentialité |  Signaler un abus
+Privacy [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

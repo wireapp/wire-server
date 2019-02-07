@@ -1,21 +1,24 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 WELCOME TO ${team_name}.
-You have just joined a team called ${team_name} on Wire with ${email}.
+You have just joined a team called ${team_name} on ${brand} with ${email}.
 
-Wire combines strong encryption, a rich feature set and ease-of-use in one app
-like never before. Works on all popular platforms.
+${brand} combines strong encryption, a rich feature set and ease-of-use in one
+app like never before. Works on all popular platforms.
 
-Download Wire [${url}]If you can’t click the button, copy and paste this link to
-your browser:
+Download ${brand} [${url}]If you can’t click the button, copy and paste this
+link to your browser:
 
 ${url}
 
-If you have any questions, please contact us
-[https://support.wire.com/hc/en-us/requests/new].
+If you have any questions, please contact us [${support}].
 
 Team ID: ${team_id}
 
 
 --------------------------------------------------------------------------------
 
-Privacy [https://wire.com/legal/] · Report Misuse [misuse@wire.com]
-© WIRE SWISS GmbH. ALL RIGHTS RESERVED.
+Privacy [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

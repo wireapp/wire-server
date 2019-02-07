@@ -1,22 +1,20 @@
-Wire
+[${brand_logo}]
 
+${brand_label_url} [${brand_url}]
 
-Bonjour,
+VÉRIFICATION DE VOTRE ADRESSE EMAIL
+${email} a été utilisé pour s'enregistrer sur ${brand}.
+Cliquez sur le bouton ci-dessous pour vérifier votre adresse.
 
-Votre adresse email ${email} a été utilisée pour créer un compte Wire. Veuillez vérifier votre email s’il vous plaît.
-
-Suivez le lien ci-dessous afin de vérifier votre adresse. Vous ne pourrez pas utiliser Wire si vous ne le faîtes pas.
-
+Vérifier [${url}]Si vous ne pouvez pas cliquer sur le bouton, copiez et collez
+ce lien dans votre navigateur :
 
 ${url}
 
-Merci de ne pas répondre à ce message.
-
-Si vous n'avez pas créé de compte Wire en utilisant cette adresse email, merci de visiter https://support.wire.com
+If you have any questions, please contact us [${support}].
 
 
+--------------------------------------------------------------------------------
 
-
-(c) Wire Swiss GmbH
-
-Politique de confidentialité |  Signaler un abus
+Privacy [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

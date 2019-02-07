@@ -1,18 +1,17 @@
-Wire
+[${brand_logo}]
 
+${brand_label_url} [${brand_url}]
 
-Bonjour,
-
-${email} a été utilisée pour vous inscrire sur Wire. Entrez ce code afin de vérifier votre adresse email et créer votre compte.
+VÉRIFICATION DE VOTRE ADRESSE EMAIL
+L'adresse ${email} a été utilisée pour créer un compte sur ${brand}. Entrez ce
+code afin de vérifier votre adresse email et créer votre compte.
 
 ${code}
 
-Merci de ne pas répondre à ce message.
-
-Si vous n'avez pas créé de compte Wire en utilisant cette adresse email, merci de visiter https://support.wire.com
+If you have any questions, please contact us [${support}].
 
 
+--------------------------------------------------------------------------------
 
-(c) Wire Swiss GmbH
-
-Politique de confidentialité |  Signaler un abus
+Privacy [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

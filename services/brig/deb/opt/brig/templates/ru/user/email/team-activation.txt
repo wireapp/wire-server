@@ -1,5 +1,9 @@
-ВАША НОВАЯ УЧЕТНАЯ ЗАПИСЬ WIRE
-В Wire была создана новая команда с использованием email адреса ${email}.
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+ВАША НОВАЯ УЧЕТНАЯ ЗАПИСЬ ${brand}
+В ${brand} была создана новая команда с использованием email адреса ${email}.
 Подтвердите ваш email адрес.
 
 Подтвердить [${url}]Если вы не можете нажать на кнопку, скопируйте и вставьте
@@ -7,12 +11,10 @@
 
 ${url}
 
-Если у вас есть вопросы, пожалуйста, свяжитесь с нами
-[https://support.wire.com/hc/en-us/requests/new].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Конфиденциальность [https://wire.com/legal/] · Сообщить о злоупотреблении
-[misuse@wire.com]
-© WIRE SWISS GmbH. ALL RIGHTS RESERVED.
+Privacy [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

@@ -1,5 +1,9 @@
-DEIN NEUES WIRE-BENUTZERKONTO
-Ein neues Wire Team wurde mit ${email} erstellt. Bitte verifiziere deine
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+DEIN NEUES ${brand}-BENUTZERKONTO
+Ein neues ${brand} Team wurde mit ${email} erstellt. Bitte verifiziere deine
 E-Mail-Adresse.
 
 Überprüfe [${url}]Falls du nicht auf den Button klicken kannst, kopiere den Link
@@ -7,11 +11,10 @@ und füge ihn in deinem Browser ein:
 
 ${url}
 
-Wenn Du Fragen hast, bitte kontaktiere uns
-[https://support.wire.com/hc/de/requests/new].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Datenschutz [https://wire.com/legal/] · Missbrauch melden [misuse@wire.com]
-© WIRE SWISS GmbH. ALLE RECHTE VORBEHALTEN.
+Privacy [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

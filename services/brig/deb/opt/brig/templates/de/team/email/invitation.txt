@@ -1,5 +1,9 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 TEAM EINLADUNG
-${inviter} hat dich auf Wire zu einem Team eingeladen. Klicke auf den
+${inviter} hat dich auf ${brand} zu einem Team eingeladen. Klicke auf den
 nachstehenden Button um die Einladung zu akzeptieren.
 
 Einladung akzeptieren [${url}]Falls du nicht auf den Button klicken kannst,
@@ -7,11 +11,10 @@ kopiere den Link und füge ihn in deinem Browser ein:
 
 ${url}
 
-Wenn Du Fragen hast, bitte kontaktiere uns
-[https://support.wire.com/hc/de/requests/new].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Datenschutz [https://wire.com/legal/] · Missbrauch melden [misuse@wire.com]
-© WIRE SWISS GmbH. ALLE RECHTE VORBEHALTEN.
+Privacy [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

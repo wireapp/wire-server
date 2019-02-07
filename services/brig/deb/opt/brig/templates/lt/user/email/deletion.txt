@@ -1,22 +1,23 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 IŠTRINTI JŪSŲ PASKYRĄ
-Mes gavome užklausą ištrinti jūsų Wire paskyrą. Norėdami ištrinti visus savo
-pokalbius, visą turinį ir ryšius, 10 minučių bėgyje spustelėkite žemiau esantį
-mygtuką.
+We’ve received a request to delete your ${brand} account. Norėdami ištrinti
+visus savo pokalbius, visą turinį ir ryšius, 10 minučių bėgyje spustelėkite
+žemiau esantį mygtuką.
 
 Ištrinti paskyrą [${url}]Jeigu negalite spustelėti ant mygtuko, nukopijuokite ir
 įdėkite šią nuorodą į savo naršyklę:
 
 ${url}
 
-Jeigu jūs to neprašėte, tuomet atstatykite savo slaptažodį
-[https://account.wire.com/forgot/].
+If you didn’t request this, reset your password [${forgot}].
 
-Jeigu turite kokių nors klausimų, susisiekite su mumis
-[https://support.wire.com/hc/en-us/requests/new].
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privatumas [https://wire.com/legal/] · Pranešti apie piktnaudžiavimą
-[misuse@wire.com]
-© WIRE SWISS GmbH. VISOS TEISĖS SAUGOMOS.
+Privacy [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.
