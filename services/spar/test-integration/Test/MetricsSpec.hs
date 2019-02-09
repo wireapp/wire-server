@@ -11,9 +11,6 @@ import Imports
 import Bilge
 import Control.Lens
 import Data.String.Conversions (cs)
-import Data.Aeson
-import Data.Aeson.Lens
-import Data.Set as Set
 import Util
 
 
@@ -27,16 +24,58 @@ spec = describe "metrics" . it "works" $ do
   _ <- call $ get (spar . path (p2 "316f1c18-2980-11e9-ab0b-ef604d1791b2"))
   _ <- call $ get (spar . path (p2 "60a7dda8-2980-11e9-b359-fb5b41565453"))
 
-  resp :: Value <- call $ jsonBody <$> get (spar . path "i/monitoring")
-  let have :: Set Text = Set.fromList $ fst <$> (resp ^@.. key "net" . key "resources" . members)
-      want :: Set Text = Set.fromList $ cs <$> [p1, p2 "<>"]
-  liftIO $ have `shouldSatisfy` (want `Set.isSubsetOf`)
+  resp :: String <- call $ maybe mempty cs . responseBody <$> get (spar . path "i/metrics")
 
--- | Only for testing!  I've seen this in our code-base, but I can't find it any more.
-jsonBody :: HasCallStack => ResponseLBS -> Value
-jsonBody resp
-  = either (error . show) id
-  . eitherDecode
-  . fromMaybe (error $ "no body: " <> show resp)
-  . responseBody
-  $ resp
+  -- FUTUREWORK: here we could parse the prometheus 'RegistrySample' and inspect it more
+  -- thoroughly, but i'm not sure there is a parser.
+  liftIO $ do
+    resp `shouldContain` cs p1
+    resp `shouldContain` (p2 "<>")
+
+
+{- sample value:
+ # HELP http_request_duration_seconds The HTTP request latencies in seconds.
+ # TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket{handler="i/status",method="GET",status_code="200",le="0.005"} 2
+http_request_duration_seconds_bucket{handler="i/status",method="GET",status_code="200",le="0.01"} 2
+http_request_duration_seconds_bucket{handler="i/status",method="GET",status_code="200",le="0.025"} 2
+http_request_duration_seconds_bucket{handler="i/status",method="GET",status_code="200",le="0.05"} 2
+http_request_duration_seconds_bucket{handler="i/status",method="GET",status_code="200",le="0.1"} 2
+http_request_duration_seconds_bucket{handler="i/status",method="GET",status_code="200",le="0.25"} 2
+http_request_duration_seconds_bucket{handler="i/status",method="GET",status_code="200",le="0.5"} 2
+http_request_duration_seconds_bucket{handler="i/status",method="GET",status_code="200",le="1.0"} 2
+http_request_duration_seconds_bucket{handler="i/status",method="GET",status_code="200",le="2.5"} 2
+http_request_duration_seconds_bucket{handler="i/status",method="GET",status_code="200",le="5.0"} 2
+http_request_duration_seconds_bucket{handler="i/status",method="GET",status_code="200",le="10.0"} 2
+http_request_duration_seconds_bucket{handler="i/status",method="GET",status_code="200",le="+Inf"} 2
+http_request_duration_seconds_sum{handler="i/status",method="GET",status_code="200"} 1.75926e-4
+http_request_duration_seconds_count{handler="i/status",method="GET",status_code="200"} 2
+http_request_duration_seconds_bucket{handler="sso/initiate-login/<>",method="GET",status_code="404",le="0.005"} 2
+http_request_duration_seconds_bucket{handler="sso/initiate-login/<>",method="GET",status_code="404",le="0.01"} 2
+http_request_duration_seconds_bucket{handler="sso/initiate-login/<>",method="GET",status_code="404",le="0.025"} 2
+http_request_duration_seconds_bucket{handler="sso/initiate-login/<>",method="GET",status_code="404",le="0.05"} 2
+http_request_duration_seconds_bucket{handler="sso/initiate-login/<>",method="GET",status_code="404",le="0.1"} 2
+http_request_duration_seconds_bucket{handler="sso/initiate-login/<>",method="GET",status_code="404",le="0.25"} 2
+http_request_duration_seconds_bucket{handler="sso/initiate-login/<>",method="GET",status_code="404",le="0.5"} 2
+http_request_duration_seconds_bucket{handler="sso/initiate-login/<>",method="GET",status_code="404",le="1.0"} 2
+http_request_duration_seconds_bucket{handler="sso/initiate-login/<>",method="GET",status_code="404",le="2.5"} 2
+http_request_duration_seconds_bucket{handler="sso/initiate-login/<>",method="GET",status_code="404",le="5.0"} 2
+http_request_duration_seconds_bucket{handler="sso/initiate-login/<>",method="GET",status_code="404",le="10.0"} 2
+http_request_duration_seconds_bucket{handler="sso/initiate-login/<>",method="GET",status_code="404",le="+Inf"} 2
+http_request_duration_seconds_sum{handler="sso/initiate-login/<>",method="GET",status_code="404"} 5.37109e-3
+http_request_duration_seconds_count{handler="sso/initiate-login/<>",method="GET",status_code="404"} 2
+http_request_duration_seconds_bucket{handler="sso/metadata",method="GET",status_code="200",le="0.005"} 1
+http_request_duration_seconds_bucket{handler="sso/metadata",method="GET",status_code="200",le="0.01"} 1
+http_request_duration_seconds_bucket{handler="sso/metadata",method="GET",status_code="200",le="0.025"} 1
+http_request_duration_seconds_bucket{handler="sso/metadata",method="GET",status_code="200",le="0.05"} 1
+http_request_duration_seconds_bucket{handler="sso/metadata",method="GET",status_code="200",le="0.1"} 1
+http_request_duration_seconds_bucket{handler="sso/metadata",method="GET",status_code="200",le="0.25"} 1
+http_request_duration_seconds_bucket{handler="sso/metadata",method="GET",status_code="200",le="0.5"} 1
+http_request_duration_seconds_bucket{handler="sso/metadata",method="GET",status_code="200",le="1.0"} 1
+http_request_duration_seconds_bucket{handler="sso/metadata",method="GET",status_code="200",le="2.5"} 1
+http_request_duration_seconds_bucket{handler="sso/metadata",method="GET",status_code="200",le="5.0"} 1
+http_request_duration_seconds_bucket{handler="sso/metadata",method="GET",status_code="200",le="10.0"} 1
+http_request_duration_seconds_bucket{handler="sso/metadata",method="GET",status_code="200",le="+Inf"} 1
+http_request_duration_seconds_sum{handler="sso/metadata",method="GET",status_code="200"} 1.51973e-4
+http_request_duration_seconds_count{handler="sso/metadata",method="GET",status_code="200"} 1
+-}
