@@ -26,10 +26,10 @@ newtype Paths = Paths (Forest (Maybe ByteString))
 
 -- | Turn a list of paths into a 'Paths' tree.  Treat all path segments that start with @':'@
 -- as equal and turn them into 'Nothing'.
-mkTree :: forall m. (m ~ Either String) => [[ByteString]] -> m Paths
+mkTree :: [[ByteString]] -> Either String Paths
 mkTree = fmap (Paths . melt) . mapM mkbranch . sortBy (flip compare) . fmap (fmap mknode)
   where
-    mkbranch :: [Maybe ByteString] -> m (Tree (Maybe ByteString))
+    mkbranch :: [Maybe ByteString] -> Either String (Tree (Maybe ByteString))
     mkbranch (seg : segs@(_:_)) = Node seg . (:[]) <$> mkbranch segs
     mkbranch (seg : [])         = Right $ Node seg []
     mkbranch []                 = Left "internal error: path with on segments."
