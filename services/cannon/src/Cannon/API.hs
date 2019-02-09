@@ -21,12 +21,11 @@ import Data.Aeson (encode)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
 import Data.Swagger.Build.Api hiding (def, Response)
-import Data.Text (strip, pack)
 import Data.Text.Encoding (encodeUtf8)
+import Data.Text (strip, pack)
 import Data.Timeout
 import Network.HTTP.Types
 import Gundeck.Types
-import Gundeck.Types.BulkPush
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, (#))
 import Network.Wai.Routing hiding (route, path)

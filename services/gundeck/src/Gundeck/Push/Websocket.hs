@@ -24,8 +24,8 @@ import Data.List1
 import Data.Misc (Milliseconds (..))
 import Data.Time.Clock.POSIX
 import Gundeck.Monad
-import Gundeck.Types.Notification
 import Gundeck.Types.BulkPush
+import Gundeck.Types.Notification
 import Gundeck.Types.Presence
 import Gundeck.Types.Timeouts
 import Gundeck.Util
