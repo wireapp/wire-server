@@ -27,6 +27,7 @@ import Gundeck.Monad
 import Gundeck.Types.Notification
 import Gundeck.Types.BulkPush
 import Gundeck.Types.Presence
+import Gundeck.Types.Timeouts
 import Gundeck.Util
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..))
 import Network.HTTP.Types (StdMethod (POST), status200, status410)
@@ -147,7 +148,7 @@ bulkSend' uri (encode -> jsbody) = do
            . method POST
            . contentJson
            . lbytes jsbody
-           . timeout 3000 -- ms
+           . timeout gundeckToCannonReqTimeout
            ) <$> Http.setUri empty (fromURI uri)
     try (submit req) >>= \case
         Left  e -> throwM (e :: SomeException)
@@ -344,7 +345,7 @@ send n pp =
                 $ method POST
                 . contentJson
                 . lbytes js
-                . timeout 3000 -- ms
+                . timeout gundeckToCannonReqTimeout -- ms
 
     check r = r { Http.checkResponse = \rq rs ->
         when (responseStatus rs `notElem` [status200, status410]) $

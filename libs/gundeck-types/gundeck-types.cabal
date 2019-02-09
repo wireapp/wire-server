@@ -22,6 +22,7 @@ library
         , Gundeck.Types.Event
         , Gundeck.Types.Notification
         , Gundeck.Types.Presence
+        , Gundeck.Types.Timeouts
         , Gundeck.Types.Push
         , Gundeck.Types.Push.V2
         , Gundeck.Types.Swagger

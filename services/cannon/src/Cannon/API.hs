@@ -14,6 +14,7 @@ import Cannon.App
 import Cannon.Types
 import Cannon.Options
 import Cannon.WS hiding (env)
+import Control.Concurrent.Timeout (timeout)
 import Control.Lens ((^.))
 import Control.Monad.Catch
 import Data.Aeson (encode)
@@ -22,6 +23,7 @@ import Data.Metrics.Middleware
 import Data.Swagger.Build.Api hiding (def, Response)
 import Data.Text (strip, pack)
 import Data.Text.Encoding (encodeUtf8)
+import Data.Timeout
 import Network.HTTP.Types
 import Gundeck.Types
 import Gundeck.Types.BulkPush
@@ -176,10 +178,15 @@ singlePush notification (PushTarget usrid conid) = do
         Just x -> do
             e <- wsenv
             b <- notification
-            runWS e $
-                (sendMsg b k x >> return PushStatusOk)
+            (liftIO . timeoutWS sendWsMsgTimeout . runWS e $ sendMsg b k x)
                 `catchAll`
-                const (terminate k x >> return PushStatusGone)
+                const (runWS e (terminate k x) >> return PushStatusGone)
+                -- 'terminate' only clears an MVar in the stream; no need to fork or timeout.
+
+timeoutWS :: Int{- milliseconds -} -> IO () -> IO PushStatus
+timeoutWS ms action = timeout (fromIntegral ms # MilliSecond) action >>= \case
+    Nothing -> return PushStatusGone
+    Just () -> return PushStatusOk
 
 checkPresence :: UserId ::: ConnId -> Cannon Response
 checkPresence (u ::: c) = do
