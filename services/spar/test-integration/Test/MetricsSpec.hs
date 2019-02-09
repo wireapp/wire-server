@@ -17,7 +17,6 @@ import Data.Set as Set
 import Util
 
 
--- | path parsing works; http verb, captured variables are not distinguished in the metrics.
 spec :: HasCallStack => SpecWith TestEnv
 spec = describe "metrics" . it "works" $ do
   spar <- asks (^. teSpar)

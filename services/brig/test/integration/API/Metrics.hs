@@ -27,7 +27,6 @@ tests manager brig = do
         [ testCase "work" . void $ runHttpT manager (testMetricsWaiRoute brig)
         ]
 
--- | path parsing works; http verb, captured variables are not distinguished in the metrics.
 testMetricsWaiRoute :: Brig -> Http ()
 testMetricsWaiRoute brig = do
     let p1 = "self"
