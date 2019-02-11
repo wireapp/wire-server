@@ -92,7 +92,7 @@ randomScimUser = do
     pure $ Scim.User.empty
         { Scim.User.userName     = "scimuser_" <> suffix
         , Scim.User.displayName  = Just ("Scim User #" <> suffix)
-        , Scim.User.externalId   = Just ("scimuser_extid_" <> suffix)
+        , Scim.User.externalId   = Just ("scimuser_extid_" <> suffix <> "@wire.com")
         , Scim.User.emails       = emails
         , Scim.User.phoneNumbers = phones
         }
@@ -396,7 +396,9 @@ instance IsUser Scim.User.User where
     maybeHandle = Just . Just . Handle . Scim.User.userName
     maybeName = Just . fmap Name . Scim.User.displayName
     maybeTenant = const Nothing
-    maybeSubject = Just . fmap SAML.opaqueNameID . Scim.User.externalId
+    maybeSubject =
+        let emailNameID s = SAML.NameID (SAML.UNameIDEmail s) Nothing Nothing Nothing
+        in Just . fmap emailNameID . Scim.User.externalId
 
 instance IsUser User where
     maybeUserId = Just . userId

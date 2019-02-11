@@ -22,7 +22,6 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
-import Data.UUID.V4 as UUID
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Lenses
@@ -405,7 +404,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies)
             -> UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
           initialBind' tweakcookies uid idp = do
-            subj <- SAML.opaqueNameID . UUID.toText <$> liftIO UUID.nextRandom
+            subj <- nextSubject
             (authnResp, sparAuthnResp) <- reBindSame' tweakcookies uid idp subj
             pure (subj, authnResp, sparAuthnResp)
 
@@ -697,7 +696,10 @@ specScimAndSAML = do
       let userid     :: UserId           = ScimT.scimUserId scimStoredUser
           userref    :: UserRef          = UserRef tenant subject
           tenant     :: Issuer           = idp ^. idpMetadata . edIssuer
-          subject    :: NameID           = opaqueNameID . fromMaybe (error "no external id") . Scim.externalId $ usr
+          subjectTxt :: Text             =
+              fromMaybe (error "no external id") . Scim.externalId $ usr
+          subject    :: NameID           =
+              NameID (UNameIDEmail subjectTxt) Nothing Nothing Nothing
 
       -- UserRef maps onto correct UserId in spar (and back).
       userid' <- getUserIdViaRef' userref
