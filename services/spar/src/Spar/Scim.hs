@@ -176,7 +176,9 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 --   * @displayName@ is mapped to our 'userName'. We don't use the @name@ field, as it
 --     provides a rather poor model for names.
 --
---   * The @externalId@ is used to construct a 'SAML.UserRef'.
+--   * The @externalId@ is used to construct a 'SAML.UserRef'. If it looks like an email
+--     address, the constructed 'SAML.UserRef' will have @nameid-format:emailAddress@,
+--     otherwise the format will be @unspecified@.
 --
 -- FUTUREWORK: We may need to make the SAML NameID type derived from the available SCIM data
 -- configurable on a per-team basis in the future, to accomodate different legal uses of
@@ -194,36 +196,45 @@ validateScimUser'
 validateScimUser' Nothing _ =
     throwError $ Scim.serverError "SCIM users without SAML SSO are not supported"
 validateScimUser' (Just idp) user = do
-    let validateNameOrExtId :: Maybe Text -> m (Maybe Text)
-        validateNameOrExtId mtxt = forM mtxt $ \txt ->
-          case checkedEitherMsg @_ @1 @128 "displayName" txt of
-            Right rtxt -> pure $ fromRange rtxt
-            Left err -> throwError $ Scim.badRequest Scim.InvalidValue
-              (Just ("displayName is not compliant: " <> Text.pack err))
+    uref :: SAML.UserRef <- case Scim.User.externalId user of
+        Just subjectTxt -> do
+            let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+            subject <- validateSubject subjectTxt
+            pure $ SAML.UserRef issuer subject
+        Nothing -> throwError $ Scim.badRequest Scim.InvalidValue
+            (Just "externalId is required for SAML users")
+    handl <- validateHandle (Scim.User.userName user)
+    mbName <- mapM validateName (Scim.User.displayName user)
 
-    uref :: SAML.UserRef <- do
-      msubjid <- SAML.opaqueNameID <$$>
-        validateNameOrExtId (Scim.User.externalId user)
-
-      case msubjid of
-        Just subj -> do
-            pure $ SAML.UserRef (idp ^. SAML.idpMetadata . SAML.edIssuer) subj
-        Nothing -> throwError $
-            Scim.badRequest Scim.InvalidValue (Just "externalId is required for SAML users")
-
-    handl <- case parseHandle (Scim.User.userName user) of
-      Just x -> pure x
-      Nothing -> throwError $
-        Scim.badRequest Scim.InvalidValue (Just "userName is not compliant")
-
-    -- We check the name for validity, but only if it's present
-    mbName <- Name <$$> validateNameOrExtId (Scim.User.displayName user)
-
-    -- NB: We assume that checking that the user does _not_ exist has
-    -- already been done before -- the hscim library check does a 'get'
-    -- before a 'create'
-
+    -- NB: We assume that checking that the user does _not_ exist has already been done before;
+    -- the hscim library check does a 'get' before a 'create'.
     pure $ ValidScimUser user uref handl mbName
+
+  where
+    -- Validate a subject ID (@externalId@).
+    validateSubject :: Text -> m SAML.NameID
+    validateSubject txt = do
+        let unameId = case parseEmail txt of
+                Just _  -> SAML.UNameIDEmail txt
+                Nothing -> SAML.UNameIDUnspecified txt
+        case SAML.mkNameID unameId Nothing Nothing Nothing of
+            Right nameId -> pure nameId
+            Left err -> throwError $ Scim.serverError
+                ("Can't construct a subject ID from externalId: " <> Text.pack err)
+
+    -- Validate a handle (@userName@).
+    validateHandle :: Text -> m Handle
+    validateHandle txt = case parseHandle txt of
+        Just h -> pure h
+        Nothing -> throwError $ Scim.badRequest Scim.InvalidValue
+            (Just "userName must be a valid Wire handle")
+
+    -- Validate a name (@displayName@). It has to conform to standard Wire rules.
+    validateName :: Text -> m Name
+    validateName txt = case checkedEitherMsg @_ @1 @128 "displayName" txt of
+        Right rtxt -> pure $ Name (fromRange rtxt)
+        Left err -> throwError $ Scim.badRequest Scim.InvalidValue
+            (Just ("displayName must be a valid Wire name, but: " <> Text.pack err))
 
 -- | We only allow SCIM users that authenticate via SAML. (This is by no means necessary,
 -- though. It can be relaxed to allow creating users with password authentication if that is a

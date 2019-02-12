@@ -44,6 +44,7 @@ module Util.Core
   , getSelfProfile
   , nextWireId
   , nextSAMLID
+  , nextSubject
   , nextUserRef
   , createRandomPhoneUser
   , zUser
@@ -288,13 +289,22 @@ nextWireId = Id <$> liftIO UUID.nextRandom
 nextSAMLID :: MonadIO m => m (ID a)
 nextSAMLID = ID . UUID.toText <$> liftIO UUID.nextRandom
 
+-- | Generate a 'SAML.UserRef' subject.
+nextSubject :: MonadIO m => m NameID
+nextSubject = liftIO $ do
+  unameId <- randomRIO (0, 1::Int) >>= \case
+      0 -> SAML.UNameIDEmail . Brig.fromEmail <$> randomEmail
+      1 -> SAML.UNameIDUnspecified . UUID.toText <$> UUID.nextRandom
+      _ -> error "nextSubject: impossible"
+  pure $ SAML.NameID unameId Nothing Nothing Nothing
+
 nextUserRef :: MonadIO m => m SAML.UserRef
 nextUserRef = liftIO $ do
-  (UUID.toText -> tenant) <- UUID.nextRandom
-  (UUID.toText -> subject) <- UUID.nextRandom
+  tenant <- UUID.toText <$> UUID.nextRandom
+  subject <- nextSubject
   pure $ SAML.UserRef
     (SAML.Issuer $ SAML.unsafeParseURI ("http://" <> tenant))
-    (SAML.opaqueNameID subject)
+    subject
 
 createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Brig.Phone)
 createRandomPhoneUser brig_ = do
