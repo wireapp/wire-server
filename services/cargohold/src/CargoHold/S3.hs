@@ -44,16 +44,15 @@ module CargoHold.S3
     ) where
 
 import Imports
-import CargoHold.App hiding (Env, Handler)
 import CargoHold.API.Error
+import CargoHold.App hiding (Env, Handler)
 import CargoHold.Options
+import Conduit
 import Control.Error (ExceptT, throwE)
 import Control.Lens hiding ((.=), (:<), (:>), parts)
-import Control.Monad.Trans.Resource
 import Control.Retry
 import Data.Binary.Builder (toLazyByteString)
 import Data.ByteString.Conversion
-import Data.Conduit
 import Data.Id
 import Data.Sequence (Seq, ViewR (..), ViewL (..))
 import Data.Time.Clock
@@ -75,7 +74,6 @@ import qualified Codec.MIME.Parse             as MIME
 import qualified Data.ByteString.Char8        as C8
 import qualified Data.ByteString.Lazy         as LBS
 import qualified Data.CaseInsensitive         as CI
-import qualified Data.Conduit                 as Conduit
 import qualified Data.Conduit.Binary          as Conduit
 import qualified Data.List.NonEmpty           as NE
 import qualified Data.Sequence                as Seq
@@ -100,7 +98,7 @@ uploadV3 :: V3.Principal
          -> V3.AssetKey
          -> V3.AssetHeaders
          -> Maybe V3.AssetToken
-         -> ConduitM () ByteString (ResourceT IO) ()
+         -> Conduit.ConduitM () ByteString (ResourceT IO) ()
          -> ExceptT Error App ()
 uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
     Log.debug $ "remote" .= val "S3"
@@ -111,7 +109,13 @@ uploadV3 prc (s3Key . mkKey -> key) (V3.AssetHeaders ct cl md5) tok src = do
         ~~ msg (val "Uploading asset")
     void $ exec req
   where
-    reqBdy = ChunkedBody defaultChunkSize (fromIntegral cl) src
+    stream = src
+        -- Rechunk bytestream to ensure we satisfy AWS's minimum chunk size
+        -- on uploads
+        .| Conduit.chunksOfCE (fromIntegral defaultChunkSize) 
+        -- Ignore any 'junk' after the content; take only 'cl' bytes.
+        .| Conduit.isolate (fromIntegral cl)
+    reqBdy = ChunkedBody defaultChunkSize (fromIntegral cl) stream
     md5Res = Text.decodeLatin1 $ digestToBase Base64 md5
 
     req b = putObject (BucketName b) (ObjectKey key) (toBody reqBdy)
@@ -379,8 +383,8 @@ createResumable k p typ size tok = do
 uploadChunk
     :: S3Resumable
     -> V3.Offset
-    -> SealedConduitT () ByteString IO ()
-    -> ExceptT Error App (S3Resumable, SealedConduitT () ByteString IO ())
+    -> Conduit.SealedConduitT () ByteString IO ()
+    -> ExceptT Error App (S3Resumable, Conduit.SealedConduitT () ByteString IO ())
 uploadChunk r offset rsrc = do
     let chunkSize = fromIntegral (resumableChunkSize r)
     (rest, chunk) <- liftIO $ rsrc $$++ Conduit.take chunkSize
