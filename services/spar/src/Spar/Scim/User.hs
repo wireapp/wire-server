@@ -45,9 +45,7 @@ import qualified Spar.Data    as Data
 import qualified Spar.Intra.Brig as Intra.Brig
 import qualified URI.ByteString as URIBS
 
--- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
--- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
-import qualified Web.Scim.Class.User              as Scim.Class.User
+import qualified Web.Scim.Class.User              as Scim
 import qualified Web.Scim.Filter                  as Scim
 import qualified Web.Scim.Handler                 as Scim
 import qualified Web.Scim.Schema.Common           as Scim
@@ -55,30 +53,28 @@ import qualified Web.Scim.Schema.Error            as Scim
 import qualified Web.Scim.Schema.ListResponse     as Scim
 import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.ResourceType     as Scim
-
-import qualified Web.Scim.Schema.User             as Scim.User
-import qualified Web.Scim.Schema.Common           as Scim.Common
+import qualified Web.Scim.Schema.User             as Scim
 
 
 ----------------------------------------------------------------------------
 -- UserDB instance
 
-instance Scim.Class.User.UserDB Spar where
+instance Scim.UserDB Spar where
   -- | List all users, possibly filtered by some predicate.
   list :: ScimTokenInfo
        -> Maybe Scim.Filter
-       -> Scim.ScimHandler Spar (Scim.ListResponse Scim.Class.User.StoredUser)
+       -> Scim.ScimHandler Spar (Scim.ListResponse Scim.StoredUser)
   list ScimTokenInfo{stiTeam} mbFilter = do
     members <- lift $ getTeamMembers stiTeam
     brigusers :: [User]
       <- filter (not . userDeleted) <$>
          lift (Intra.Brig.getUsers ((^. Galley.userId) <$> members))
-    scimusers :: [Scim.Class.User.StoredUser]
+    scimusers :: [Scim.StoredUser]
       <- lift . wrapMonadClient . Data.getScimUsers $ Brig.userId <$> brigusers
     let check user = case mbFilter of
           Nothing -> pure True
           Just filter_ ->
-            let user' = Scim.Common.value (Scim.thing user)
+            let user' = Scim.value (Scim.thing user)
             in case Scim.filterUser filter_ user' of
                  Right res -> pure res
                  Left err  -> Scim.throwScim $
@@ -89,7 +85,7 @@ instance Scim.Class.User.UserDB Spar where
   -- | Get a single user by its ID.
   get :: ScimTokenInfo
       -> Text
-      -> Scim.ScimHandler Spar (Maybe Scim.Class.User.StoredUser)
+      -> Scim.ScimHandler Spar (Maybe Scim.StoredUser)
   get ScimTokenInfo{stiTeam} uidText = do
     uid <- parseUid uidText
     mbBrigUser <- lift (Intra.Brig.getUser uid)
@@ -99,15 +95,15 @@ instance Scim.Class.User.UserDB Spar where
 
   -- | Create a new user.
   create :: ScimTokenInfo
-         -> Scim.User.User
-         -> Scim.ScimHandler Spar Scim.Class.User.StoredUser
+         -> Scim.User
+         -> Scim.ScimHandler Spar Scim.StoredUser
   create tokinfo user =
     createValidScimUser =<< validateScimUser tokinfo user
 
   update :: ScimTokenInfo
          -> Text
-         -> Scim.User.User
-         -> Scim.ScimHandler Spar Scim.Class.User.StoredUser
+         -> Scim.User
+         -> Scim.ScimHandler Spar Scim.StoredUser
   update tokinfo uidText newScimUser =
     updateValidScimUser tokinfo uidText =<< validateScimUser tokinfo newScimUser
 
@@ -126,7 +122,7 @@ instance Scim.Class.User.UserDB Spar where
 validateScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ScimTokenInfo    -- ^ Used to decide what IdP to assign the user to
-  -> Scim.User.User
+  -> Scim.User
   -> m ValidScimUser
 validateScimUser ScimTokenInfo{stiIdP} user = do
     idp <- case stiIdP of
@@ -166,20 +162,20 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 validateScimUser'
   :: forall m. (MonadError Scim.ScimError m)
   => Maybe IdP        -- ^ IdP that the resulting user will be assigned to
-  -> Scim.User.User
+  -> Scim.User
   -> m ValidScimUser
 validateScimUser' Nothing _ =
     throwError $ Scim.serverError "SCIM users without SAML SSO are not supported"
 validateScimUser' (Just idp) user = do
-    uref :: SAML.UserRef <- case Scim.User.externalId user of
+    uref :: SAML.UserRef <- case Scim.externalId user of
         Just subjectTxt -> do
             let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
             subject <- validateSubject subjectTxt
             pure $ SAML.UserRef issuer subject
         Nothing -> throwError $ Scim.badRequest Scim.InvalidValue
             (Just "externalId is required for SAML users")
-    handl <- validateHandle (Scim.User.userName user)
-    mbName <- mapM validateName (Scim.User.displayName user)
+    handl <- validateHandle (Scim.userName user)
+    mbName <- mapM validateName (Scim.displayName user)
 
     -- NB: We assume that checking that the user does _not_ exist has already been done before;
     -- the hscim library check does a 'get' before a 'create'.
@@ -216,7 +212,7 @@ validateScimUser' (Just idp) user = do
 -- requirement.)
 createValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
-  => ValidScimUser -> m Scim.Class.User.StoredUser
+  => ValidScimUser -> m Scim.StoredUser
 createValidScimUser (ValidScimUser user uref handl mbName) = do
     -- This UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
@@ -236,11 +232,11 @@ createValidScimUser (ValidScimUser user uref handl mbName) = do
 
 updateValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
-  => ScimTokenInfo -> Text -> ValidScimUser -> m Scim.Class.User.StoredUser
+  => ScimTokenInfo -> Text -> ValidScimUser -> m Scim.StoredUser
 updateValidScimUser tokinfo uidText newScimUser = do
 
     -- TODO: currently the types in @hscim@ are constructed in such a way that
-    -- 'Scim.User.User' doesn't contain an ID, only 'Scim.Class.User.StoredUser'
+    -- 'Scim.User.User' doesn't contain an ID, only 'Scim.StoredUser'
     -- does. @fisx believes that this situation could be improved (see
     -- <https://github.com/wireapp/wire-server/pull/559#discussion_r247392882>).
     --
@@ -252,14 +248,14 @@ updateValidScimUser tokinfo uidText newScimUser = do
 
     -- construct old and new user values with metadata.
     uid :: UserId <- parseUid uidText
-    oldScimStoredUser :: Scim.Class.User.StoredUser
+    oldScimStoredUser :: Scim.StoredUser
       <- let err = Scim.throwScim $ Scim.notFound "user" uidText
-         in maybe err pure =<< Scim.Class.User.get tokinfo uidText
+         in maybe err pure =<< Scim.get tokinfo uidText
 
     if Scim.value (Scim.thing oldScimStoredUser) == (newScimUser ^. vsuUser)
       then pure oldScimStoredUser
       else do
-        newScimStoredUser :: Scim.Class.User.StoredUser
+        newScimStoredUser :: Scim.StoredUser
           <- lift $ updScimStoredUser (newScimUser ^. vsuUser) oldScimStoredUser
 
         -- update 'SAML.UserRef'
@@ -281,7 +277,7 @@ updateValidScimUser tokinfo uidText newScimUser = do
 
 toScimStoredUser
   :: forall m. (SAML.HasNow m, MonadReader Env m)
-  => UserId -> Scim.User.User -> m Scim.Class.User.StoredUser
+  => UserId -> Scim.User -> m Scim.StoredUser
 toScimStoredUser uid usr = do
   now <- SAML.getNow
   baseuri <- asks $ derivedOptsScimBaseURI . derivedOpts . sparCtxOpts
@@ -289,7 +285,7 @@ toScimStoredUser uid usr = do
 
 toScimStoredUser'
   :: HasCallStack
-  => SAML.Time -> URIBS.URI -> UserId -> Scim.User.User -> Scim.Class.User.StoredUser
+  => SAML.Time -> URIBS.URI -> UserId -> Scim.User -> Scim.StoredUser
 toScimStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr =
     Scim.WithMeta meta (Scim.WithId uid usr)
   where
@@ -311,16 +307,16 @@ toScimStoredUser' (SAML.Time now) baseuri (idToText -> uid) usr =
 
 updScimStoredUser
   :: forall m. (SAML.HasNow m)
-  => Scim.User.User -> Scim.Class.User.StoredUser -> m Scim.Class.User.StoredUser
+  => Scim.User -> Scim.StoredUser -> m Scim.StoredUser
 updScimStoredUser usr storedusr = do
   now <- SAML.getNow
   pure $ updScimStoredUser' now usr storedusr
 
 updScimStoredUser'
   :: SAML.Time
-  -> Scim.User.User
-  -> Scim.Class.User.StoredUser
-  -> Scim.Class.User.StoredUser
+  -> Scim.User
+  -> Scim.StoredUser
+  -> Scim.StoredUser
 updScimStoredUser' (SAML.Time moddate) usr (Scim.WithMeta meta (Scim.WithId scimuid _)) =
     Scim.WithMeta meta' (Scim.WithId scimuid usr)
   where
@@ -338,7 +334,7 @@ parseUid
 parseUid uidText = maybe err pure $ readMaybe (Text.unpack uidText)
   where err = Scim.throwScim $ Scim.notFound "user" uidText
 
--- | Calculate resource version (currently only for 'Scim.User.User's).
+-- | Calculate resource version (currently only for 'Scim.User's).
 --
 -- Spec: <https://tools.ietf.org/html/rfc7644#section-3.14>.
 --
@@ -350,7 +346,7 @@ parseUid uidText = maybe err pure $ readMaybe (Text.unpack uidText)
 -- requirements of strong ETags ("same resources have the same version").
 calculateVersion
   :: Text               -- ^ User ID
-  -> Scim.User.User
+  -> Scim.User
   -> Scim.ETag
 calculateVersion uidText usr = Scim.Weak (Text.pack (show h))
   where
@@ -364,35 +360,35 @@ calculateVersion uidText usr = Scim.Weak (Text.pack (show h))
 -- name and last name, so we break our names up to satisfy Okta).
 --
 -- TODO: use the same algorithm as Wire clients use.
-toScimName :: Name -> Scim.User.Name
+toScimName :: Name -> Scim.Name
 toScimName (Name name) =
-  Scim.User.Name
-    { Scim.User.formatted = Just name
-    , Scim.User.givenName = Just first
-    , Scim.User.familyName = if Text.null rest then Nothing else Just rest
-    , Scim.User.middleName = Nothing
-    , Scim.User.honorificPrefix = Nothing
-    , Scim.User.honorificSuffix = Nothing
+  Scim.Name
+    { Scim.formatted = Just name
+    , Scim.givenName = Just first
+    , Scim.familyName = if Text.null rest then Nothing else Just rest
+    , Scim.middleName = Nothing
+    , Scim.honorificPrefix = Nothing
+    , Scim.honorificSuffix = Nothing
     }
   where
     (first, Text.drop 1 -> rest) = Text.breakOn " " name
 
 -- | Convert from the Wire phone type to the SCIM phone type.
-toScimPhone :: Phone -> Scim.User.Phone
+toScimPhone :: Phone -> Scim.Phone
 toScimPhone (Phone phone) =
-  Scim.User.Phone
-    { Scim.User.typ = Nothing
-    , Scim.User.value = Just phone
+  Scim.Phone
+    { Scim.typ = Nothing
+    , Scim.value = Just phone
     }
 
 -- | Convert from the Wire email type to the SCIM email type.
-toScimEmail :: Email -> Scim.User.Email
+toScimEmail :: Email -> Scim.Email
 toScimEmail (Email eLocal eDomain) =
-  Scim.User.Email
-    { Scim.User.typ = Nothing
-    , Scim.User.value = Scim.User.EmailAddress2
+  Scim.Email
+    { Scim.typ = Nothing
+    , Scim.value = Scim.EmailAddress2
         (unsafeEmailAddress (encodeUtf8 eLocal) (encodeUtf8 eDomain))
-    , Scim.User.primary = Just True
+    , Scim.primary = Just True
     }
 
 -}

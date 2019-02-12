@@ -60,9 +60,7 @@ import Spar.Types
 
 import qualified SAML2.WebSSO as SAML
 
--- FUTUREWORK: these imports are not very handy.  split up Spar.Scim into
--- Spar.Scim.{Core,User,Group} to avoid at least some of the hscim name clashes?
-import qualified Web.Scim.Class.Group             as Scim.Class.Group
+import qualified Web.Scim.Class.Group             as Scim.Group
 import qualified Web.Scim.Handler                 as Scim
 import qualified Web.Scim.Schema.Error            as Scim
 import qualified Web.Scim.Server                  as Scim
@@ -84,5 +82,5 @@ apiScim = hoistScim (toServant (Scim.siteServer configuration))
                             (Scim.fromScimHandler fromError)
     fromError = throwError . SAML.CustomServant . Scim.scimToServantErr
 
-instance Scim.Class.Group.GroupDB Spar where
+instance Scim.Group.GroupDB Spar where
   -- TODO
