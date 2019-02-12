@@ -43,11 +43,12 @@ import qualified Codec.MIME.Type         as MIME
 import qualified Codec.MIME.Parse        as MIME
 import qualified Data.ByteString.Base64  as B64
 import qualified Data.CaseInsensitive    as CI
-import qualified Data.Conduit            as Conduit
+import qualified Conduit                 as Conduit
 import qualified Data.Conduit.Attoparsec as Conduit
 import qualified Data.Conduit.Binary     as Conduit
 import qualified Data.Text.Ascii         as Ascii
 import qualified Data.Text.Lazy          as LT
+import qualified Network.AWS.Data.Body as AWS
 
 upload :: V3.Principal -> ConduitM () ByteString (ResourceT IO) () -> Handler V3.Asset
 upload own bdy = do
@@ -56,10 +57,15 @@ upload own bdy = do
     let cl = fromIntegral $ hdrLength hdrs
     when (cl <= 0) $
         throwE invalidLength
+    let stream = src
+          -- Rechunk bytestream to ensure we satisfy AWS's minimum chunk size
+          -- on uploads
+          .| Conduit.chunksOfCE (fromIntegral AWS.defaultChunkSize) 
+          -- Ignore any 'junk' after the content; take only 'cl' bytes.
+          .| Conduit.isolate cl
     maxTotalBytes <- view (settings.setMaxTotalBytes)
     when (cl > maxTotalBytes) $
         throwE assetTooLarge
-    let stream = src .| Conduit.isolate cl
     ast <- liftIO $ Id <$> nextRandom
     tok <- if sets^.V3.setAssetPublic then return Nothing else Just <$> randToken
     let ret = fromMaybe V3.AssetPersistent (sets^.V3.setAssetRetention)
