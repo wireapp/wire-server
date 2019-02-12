@@ -21,7 +21,7 @@ import qualified Test.Spar.APISpec
 import qualified Test.Spar.AppSpec
 import qualified Test.Spar.DataSpec
 import qualified Test.Spar.Intra.BrigSpec
-import qualified Test.Spar.ScimSpec
+import qualified Test.Spar.Scim.UserSpec
 import qualified Test.Spar.Scim.AuthSpec
 
 
@@ -45,5 +45,5 @@ mkspec = do
     describe "Spar.App" Test.Spar.AppSpec.spec
     describe "Spar.Data" Test.Spar.DataSpec.spec
     describe "Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
-    describe "Spar.Scim" Test.Spar.ScimSpec.spec
     describe "Spar.Scim.Auth" Test.Spar.Scim.AuthSpec.spec
+    describe "Spar.Scim.User" Test.Spar.Scim.UserSpec.spec

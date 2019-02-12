@@ -9,11 +9,8 @@
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE LambdaCase          #-}
 
--- | Integration tests for the main SCIM API (@\/scim\/v2@).
---
--- Functionality that lives under @/scim@ but doesn't belong to the SCIM protocol should be
--- tested in separate modules.
-module Test.Spar.ScimSpec (spec) where
+-- | Integration tests for the branch of SCIM API that deals with users (@\/scim\/v2\/Users@).
+module Test.Spar.Scim.UserSpec (spec) where
 
 import Imports
 import Bilge
