@@ -9,7 +9,11 @@
 {-# LANGUAGE ViewPatterns        #-}
 {-# LANGUAGE LambdaCase          #-}
 
-module Test.Spar.ScimSpec where
+-- | Integration tests for the main SCIM API (@\/scim\/v2@).
+--
+-- Functionality that lives under @/scim@ but doesn't belong to the SCIM protocol should be
+-- tested in separate modules.
+module Test.Spar.ScimSpec (spec) where
 
 import Imports
 import Bilge
@@ -27,12 +31,14 @@ import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.User             as Scim.User
 
 
+-- | Testing the main SCIM API. Currently only 'specUsers'.
 spec :: SpecWith TestEnv
 spec = do
     specUsers
 
+-- | Tests for @\/scim\/v2\/Users@.
 specUsers :: SpecWith TestEnv
-specUsers = describe "operations with users" $ do
+specUsers = describe "/scim/v2/Users" $ do
     describe "POST /Users" $ do
         it "creates a user in an existing team" $ do
             env <- ask
