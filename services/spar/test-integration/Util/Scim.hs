@@ -92,7 +92,7 @@ randomScimUser = do
     pure $ Scim.User.empty
         { Scim.User.userName     = "scimuser_" <> suffix
         , Scim.User.displayName  = Just ("Scim User #" <> suffix)
-        , Scim.User.externalId   = Just ("scimuser_extid_" <> suffix <> "@wire.com")
+        , Scim.User.externalId   = Just ("scimuser_extid_" <> suffix <> "@example.com")
         , Scim.User.emails       = emails
         , Scim.User.phoneNumbers = phones
         }

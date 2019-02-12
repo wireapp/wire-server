@@ -33,7 +33,7 @@ spec = describe "toScimStoredUser'" $ do
     let usr :: Scim.User
         usr = Scim.User
           { Scim.userName = "02b35298-088f-11e9-b4a4-478635dd0d2b"
-          , Scim.externalId = Just "test@wire.com"
+          , Scim.externalId = Just "test@example.com"
           , Scim.name = Just (ScimN.Name { ScimN.formatted = Nothing
                                          , ScimN.familyName = Just ""
                                          , ScimN.givenName = Just ""
