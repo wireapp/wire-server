@@ -366,60 +366,79 @@ scimUserId storedUser = either err id (readEither id_)
     id_ = cs (Scim.id (Scim.thing storedUser))
     err e = error $ "scimUserId: couldn't parse ID " ++ id_ ++ ": " ++ e
 
--- | There are a number of user types that all partially map on each other.  This class provides a
--- uniform interface to data stored in those types.
+-- | There are a number of user types that all partially map on each other. This class
+-- provides a uniform interface to data stored in those types.
+--
+-- Each field might be present or not present. For each present field this class provides an
+-- accessor (if the field is not present in the type, the accessor will be 'Nothing').
+--
+-- In cases like 'maybeUserId' the accessor returns a raw value, because a user always has a
+-- 'UserId'. In cases like 'maybeHandle' the accessor returns a 'Maybe', because a user may or
+-- may not have a handle.
 class IsUser u where
-  maybeUserId :: u -> Maybe UserId
-  maybeHandle :: u -> Maybe (Maybe Handle)
-  maybeName :: u -> Maybe (Maybe Name)
-  maybeTenant :: u -> Maybe (Maybe SAML.Issuer)
-  maybeSubject :: u -> Maybe (Maybe SAML.NameID)
+    maybeUserId :: Maybe (u -> UserId)
+    maybeHandle :: Maybe (u -> Maybe Handle)
+    maybeName :: Maybe (u -> Maybe Name)
+    maybeTenant :: Maybe (u -> Maybe SAML.Issuer)
+    maybeSubject :: Maybe (u -> Maybe SAML.NameID)
 
 -- | 'ValidScimUser' is tested in ScimSpec.hs exhaustively with literal inputs, so here we assume it
 -- is correct and don't aim to verify that name, handle, etc correspond to ones in 'vsuUser'.
 instance IsUser ValidScimUser where
-    maybeUserId = const Nothing
-    maybeHandle = Just . Just . view vsuHandle
-    maybeName = Just . view vsuName
-    maybeTenant = Just . Just . view (vsuSAMLUserRef . SAML.uidTenant)
-    maybeSubject = Just . Just . view (vsuSAMLUserRef . SAML.uidSubject)
+    maybeUserId = Nothing
+    maybeHandle = Just (Just . view vsuHandle)
+    maybeName = Just (view vsuName)
+    maybeTenant = Just (Just . view (vsuSAMLUserRef . SAML.uidTenant))
+    maybeSubject = Just (Just . view (vsuSAMLUserRef . SAML.uidSubject))
 
 instance IsUser Scim.StoredUser where
-    maybeUserId = Just . scimUserId
-    maybeHandle = maybeHandle . Scim.value . Scim.thing
-    maybeName = maybeName . Scim.value . Scim.thing
-    maybeTenant = maybeTenant . Scim.value . Scim.thing
-    maybeSubject = maybeSubject . Scim.value . Scim.thing
+    maybeUserId = Just scimUserId
+    maybeHandle = maybeHandle <&> \f -> f . Scim.value . Scim.thing
+    maybeName = maybeName <&> \f -> f . Scim.value . Scim.thing
+    maybeTenant = maybeTenant <&> \f -> f . Scim.value . Scim.thing
+    maybeSubject = maybeSubject <&> \f -> f . Scim.value . Scim.thing
 
 instance IsUser Scim.User.User where
-    maybeUserId = const Nothing
-    maybeHandle = Just . Just . Handle . Scim.User.userName
-    maybeName = Just . fmap Name . Scim.User.displayName
-    maybeTenant = const Nothing
+    maybeUserId = Nothing
+    maybeHandle = Just (Just . Handle . Scim.User.userName)
+    maybeName = Just (fmap Name . Scim.User.displayName)
+    maybeTenant = Nothing
     maybeSubject =
         let emailNameID s = SAML.NameID (SAML.UNameIDEmail s) Nothing Nothing Nothing
-        in Just . fmap emailNameID . Scim.User.externalId
+        in Just (fmap emailNameID . Scim.User.externalId)
 
 instance IsUser User where
-    maybeUserId = Just . userId
-    maybeHandle = Just . userHandle
-    maybeName = Just . Just . userName
-    maybeTenant = Just . fmap (view SAML.uidTenant) . urefFromBrig
-    maybeSubject = Just . fmap (view SAML.uidSubject) . urefFromBrig
+    maybeUserId = Just userId
+    maybeHandle = Just userHandle
+    maybeName = Just (Just . userName)
+    maybeTenant = Just (fmap (view SAML.uidTenant) . urefFromBrig)
+    maybeSubject = Just (fmap (view SAML.uidSubject) . urefFromBrig)
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
+--
+-- Example:
+--
+--   * 'maybeHandle' is @Nothing@ for one type and @Just ...@ for the other type -> ok.
+--
+--   * 'maybeHandle' is @Just ...@ for both types, but one user has a handle and the other
+--     doesn't (or the handles are different) -> fail.
 userShouldMatch
     :: (HasCallStack, MonadIO m, IsUser u1, IsUser u2)
     => u1 -> u2 -> m ()
 userShouldMatch u1 u2 = liftIO $ do
-    check "userId" (maybeUserId u1) (maybeUserId u2)
-    check "handle" (maybeHandle u1) (maybeHandle u2)
-    check "name" (maybeName u1) (maybeName u2)
-    check "tenant" (maybeTenant u1) (maybeTenant u2)
-    check "subject" (maybeSubject u1) (maybeSubject u2)
+    check "userId" maybeUserId
+    check "handle" maybeHandle
+    check "name" maybeName
+    check "tenant" maybeTenant
+    check "subject" maybeSubject
   where
-    check field (Just a) (Just b) = (field :: String, a) `shouldBe` (field, b)
-    check _ _ _ = pure ()
+    check :: (Eq a, Show a)
+          => Text                                    -- field name
+          -> (forall u. IsUser u => Maybe (u -> a))  -- accessor (polymorphic)
+          -> IO ()
+    check field getField = case (getField <&> ($ u1), getField <&> ($ u2)) of
+        (Just a1, Just a2) -> (field, a1) `shouldBe` (field, a2)
+        _ -> pure ()
 
 urefFromBrig :: User -> Maybe SAML.UserRef
 urefFromBrig brigUser = case userIdentity brigUser of
