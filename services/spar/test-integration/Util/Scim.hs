@@ -85,17 +85,32 @@ registerScimToken teamid midpid = do
 -- FUTUREWORK: make this more exhaustive.  change everything that can be changed!  move this to the
 -- hspec package when done.
 randomScimUser :: MonadRandom m => m Scim.User.User
-randomScimUser = do
+randomScimUser = fst <$> randomScimUserWithSubject
+
+-- | Like 'randomScimUser', but also returns the intended subject ID that the user should
+-- have. It's already available as 'Scim.User.externalId' but it's not structured.
+randomScimUserWithSubject :: MonadRandom m => m (Scim.User.User, SAML.UnqualifiedNameID)
+randomScimUserWithSubject = do
     suffix <- cs <$> replicateM 5 (getRandomR ('0', '9'))
     emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
     phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
-    pure $ Scim.User.empty
-        { Scim.User.userName     = "scimuser_" <> suffix
-        , Scim.User.displayName  = Just ("Scim User #" <> suffix)
-        , Scim.User.externalId   = Just ("scimuser_extid_" <> suffix <> "@example.com")
-        , Scim.User.emails       = emails
-        , Scim.User.phoneNumbers = phones
-        }
+    (externalId, subj) <- getRandomR (0, 1::Int) <&> \case
+        0 -> ( "scimuser_extid_" <> suffix <> "@example.com"
+             , SAML.UNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
+             )
+        1 -> ( "scimuser_extid_" <> suffix
+             , SAML.UNameIDUnspecified ("scimuser_extid_" <> suffix)
+             )
+        _ -> error "randomScimUserWithSubject: impossible"
+    pure ( Scim.User.empty
+               { Scim.User.userName     = "scimuser_" <> suffix
+               , Scim.User.displayName  = Just ("Scim User #" <> suffix)
+               , Scim.User.externalId   = Just externalId
+               , Scim.User.emails       = emails
+               , Scim.User.phoneNumbers = phones
+               }
+         , subj
+         )
 
 randomScimEmail :: MonadRandom m => m Email.Email
 randomScimEmail = do
@@ -381,6 +396,9 @@ class IsUser u where
     maybeName :: Maybe (u -> Maybe Name)
     maybeTenant :: Maybe (u -> Maybe SAML.Issuer)
     maybeSubject :: Maybe (u -> Maybe SAML.NameID)
+    -- | Not all types have a 'SAML.NameID' but some of them have a subject ID anyway, just
+    -- not in a structured form.
+    maybeSubjectRaw :: Maybe (u -> Maybe Text)
 
 -- | 'ValidScimUser' is tested in ScimSpec.hs exhaustively with literal inputs, so here we assume it
 -- is correct and don't aim to verify that name, handle, etc correspond to ones in 'vsuUser'.
@@ -390,6 +408,7 @@ instance IsUser ValidScimUser where
     maybeName = Just (view vsuName)
     maybeTenant = Just (Just . view (vsuSAMLUserRef . SAML.uidTenant))
     maybeSubject = Just (Just . view (vsuSAMLUserRef . SAML.uidSubject))
+    maybeSubjectRaw = Just (SAML.shortShowNameID . view (vsuSAMLUserRef . SAML.uidSubject))
 
 instance IsUser Scim.StoredUser where
     maybeUserId = Just scimUserId
@@ -397,15 +416,15 @@ instance IsUser Scim.StoredUser where
     maybeName = maybeName <&> \f -> f . Scim.value . Scim.thing
     maybeTenant = maybeTenant <&> \f -> f . Scim.value . Scim.thing
     maybeSubject = maybeSubject <&> \f -> f . Scim.value . Scim.thing
+    maybeSubjectRaw = maybeSubjectRaw <&> \f -> f . Scim.value . Scim.thing
 
 instance IsUser Scim.User.User where
     maybeUserId = Nothing
     maybeHandle = Just (Just . Handle . Scim.User.userName)
     maybeName = Just (fmap Name . Scim.User.displayName)
     maybeTenant = Nothing
-    maybeSubject =
-        let emailNameID s = SAML.NameID (SAML.UNameIDEmail s) Nothing Nothing Nothing
-        in Just (fmap emailNameID . Scim.User.externalId)
+    maybeSubject = Nothing
+    maybeSubjectRaw = Just Scim.User.externalId
 
 instance IsUser User where
     maybeUserId = Just userId
@@ -413,6 +432,7 @@ instance IsUser User where
     maybeName = Just (Just . userName)
     maybeTenant = Just (fmap (view SAML.uidTenant) . urefFromBrig)
     maybeSubject = Just (fmap (view SAML.uidSubject) . urefFromBrig)
+    maybeSubjectRaw = Just (SAML.shortShowNameID . view SAML.uidSubject <=< urefFromBrig)
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
 --
@@ -431,6 +451,7 @@ userShouldMatch u1 u2 = liftIO $ do
     check "name" maybeName
     check "tenant" maybeTenant
     check "subject" maybeSubject
+    check "subject (raw)" maybeSubjectRaw
   where
     check :: (Eq a, Show a)
           => Text                                    -- field name

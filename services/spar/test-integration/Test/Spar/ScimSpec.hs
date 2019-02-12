@@ -63,15 +63,6 @@ specUsers = describe "operations with users" $ do
             createUser_ (Just tok) user' (env ^. teSpar)
                 !!! const 400 === statusCode
 
-        it "requires externalId to be an email" $ do
-            env <- ask
-            -- Create a user with a wrong @externalId@ and check that it fails
-            user <- randomScimUser
-            let user' = user { Scim.User.externalId = Just "not_email" }
-            (tok, _) <- registerIdPAndScimToken
-            createUser_ (Just tok) user' (env ^. teSpar)
-                !!! const 400 === statusCode
-
         it "gives created user a valid 'SAML.UserRef' for SSO." $ do
             pending
 

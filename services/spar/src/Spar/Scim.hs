@@ -176,8 +176,9 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 --   * @displayName@ is mapped to our 'userName'. We don't use the @name@ field, as it
 --     provides a rather poor model for names.
 --
---   * The @externalId@ is used to construct a 'SAML.UserRef'. It must be an email address.
---     The constructed 'SAML.UserRef' will have @nameid-format:emailAddress@.
+--   * The @externalId@ is used to construct a 'SAML.UserRef'. If it looks like an email
+--     address, the constructed 'SAML.UserRef' will have @nameid-format:emailAddress@,
+--     otherwise the format will be @unspecified@.
 --
 -- FUTUREWORK: We may need to make the SAML NameID type derived from the available SCIM data
 -- configurable on a per-team basis in the future, to accomodate different legal uses of
@@ -210,18 +211,16 @@ validateScimUser' (Just idp) user = do
     pure $ ValidScimUser user uref handl mbName
 
   where
-    -- Validate a subject ID (@externalId@). Right now we only support emails, but other
-    -- subject ID formats should be supported in the future.
+    -- Validate a subject ID (@externalId@).
     validateSubject :: Text -> m SAML.NameID
     validateSubject txt = do
-        unless (isJust (parseEmail txt)) $
-            throwError $ Scim.badRequest Scim.InvalidValue
-                (Just "externalId must be an email-shaped subject ID")
-        case SAML.mkNameID (SAML.UNameIDEmail txt) Nothing Nothing Nothing of
+        let unameId = case parseEmail txt of
+                Just _  -> SAML.UNameIDEmail txt
+                Nothing -> SAML.UNameIDUnspecified txt
+        case SAML.mkNameID unameId Nothing Nothing Nothing of
             Right nameId -> pure nameId
-            Left err -> throwError $ Scim.badRequest Scim.InvalidValue
-                (Just ("Can't construct a subject ID from externalId: " <>
-                       Text.pack err))
+            Left err -> throwError $ Scim.serverError
+                ("Can't construct a subject ID from externalId: " <> Text.pack err)
 
     -- Validate a handle (@userName@).
     validateHandle :: Text -> m Handle

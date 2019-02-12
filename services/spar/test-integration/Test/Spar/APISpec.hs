@@ -38,7 +38,6 @@ import qualified Spar.Intra.Brig as Intra
 import qualified Util.Scim as ScimT
 import qualified Web.Cookie as Cky
 import qualified Web.Scim.Class.User as Scim
-import qualified Web.Scim.Schema.User as Scim
 
 
 spec :: SpecWith TestEnv
@@ -691,15 +690,12 @@ specScimAndSAML = do
 
       -- create a user via scim
       (tok, (_, _, idp))                <- ScimT.registerIdPAndScimToken
-      usr            :: Scim.User       <- ScimT.randomScimUser
+      (usr, subj)                       <- ScimT.randomScimUserWithSubject
       scimStoredUser :: Scim.StoredUser <- ScimT.createUser tok usr
       let userid     :: UserId           = ScimT.scimUserId scimStoredUser
           userref    :: UserRef          = UserRef tenant subject
           tenant     :: Issuer           = idp ^. idpMetadata . edIssuer
-          subjectTxt :: Text             =
-              fromMaybe (error "no external id") . Scim.externalId $ usr
-          subject    :: NameID           =
-              NameID (UNameIDEmail subjectTxt) Nothing Nothing Nothing
+          subject    :: NameID           = NameID subj Nothing Nothing Nothing
 
       -- UserRef maps onto correct UserId in spar (and back).
       userid' <- getUserIdViaRef' userref

@@ -289,12 +289,14 @@ nextWireId = Id <$> liftIO UUID.nextRandom
 nextSAMLID :: MonadIO m => m (ID a)
 nextSAMLID = ID . UUID.toText <$> liftIO UUID.nextRandom
 
--- | Generate a 'SAML.UserRef' subject that should be fully acceptable by SAML and SCIM (i.e.
--- the only requirement is that it's a valid email).
+-- | Generate a 'SAML.UserRef' subject.
 nextSubject :: MonadIO m => m NameID
-nextSubject = do
-  email <- Brig.fromEmail <$> randomEmail
-  pure $ SAML.NameID (SAML.UNameIDEmail email) Nothing Nothing Nothing
+nextSubject = liftIO $ do
+  unameId <- randomRIO (0, 1::Int) >>= \case
+      0 -> SAML.UNameIDEmail . Brig.fromEmail <$> randomEmail
+      1 -> SAML.UNameIDUnspecified . UUID.toText <$> UUID.nextRandom
+      _ -> error "nextSubject: impossible"
+  pure $ SAML.NameID unameId Nothing Nothing Nothing
 
 nextUserRef :: MonadIO m => m SAML.UserRef
 nextUserRef = liftIO $ do
