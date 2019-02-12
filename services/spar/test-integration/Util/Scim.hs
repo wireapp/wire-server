@@ -94,6 +94,7 @@ randomScimUserWithSubject = do
     suffix <- cs <$> replicateM 5 (getRandomR ('0', '9'))
     emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
     phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
+    -- Related, but non-trivial to re-use here: 'nextSubject'
     (externalId, subj) <- getRandomR (0, 1::Int) <&> \case
         0 -> ( "scimuser_extid_" <> suffix <> "@example.com"
              , SAML.UNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
@@ -396,8 +397,10 @@ class IsUser u where
     maybeName :: Maybe (u -> Maybe Name)
     maybeTenant :: Maybe (u -> Maybe SAML.Issuer)
     maybeSubject :: Maybe (u -> Maybe SAML.NameID)
-    -- | Not all types have a 'SAML.NameID' but some of them have a subject ID anyway, just
-    -- not in a structured form.
+    -- | Some types (e.g. 'Scim.User.User') have a subject ID as a raw string, i.e. not in a
+    -- structured form. Having 'maybeSubjectRaw' available allows us to compare things like
+    -- SCIM 'Scim.User.User' and a Brig 'User', even though they store subject IDs in a
+    -- different way.
     maybeSubjectRaw :: Maybe (u -> Maybe Text)
 
 -- | 'ValidScimUser' is tested in ScimSpec.hs exhaustively with literal inputs, so here we assume it
