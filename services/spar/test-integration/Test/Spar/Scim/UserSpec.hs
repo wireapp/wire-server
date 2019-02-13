@@ -48,6 +48,7 @@ specCreateUser :: SpecWith TestEnv
 specCreateUser = describe "POST /Users" $ do
     it "creates a user in an existing team" $ testCreateUser
     it "requires externalId to be present" $ testExternalIdIsRequired
+    it "rejects invalid handle" $ testCreateRejectsInvalidHandle
     it "gives created user a valid 'SAML.UserRef' for SSO" $ pending
     it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
     it "writes all the stuff to all the places" $
@@ -82,6 +83,16 @@ testExternalIdIsRequired = do
     (tok, _) <- registerIdPAndScimToken
     createUser_ (Just tok) user' (env ^. teSpar)
         !!! const 400 === statusCode
+
+-- | Test that user creation fails if handle is invalid
+testCreateRejectsInvalidHandle :: TestSpar ()
+testCreateRejectsInvalidHandle = do
+    env <- ask
+    -- Create a user via SCIM
+    user <- randomScimUser
+    (tok, _) <- registerIdPAndScimToken
+    createUser_ (Just tok) (user{Scim.User.userName="#invalid name"}) (env ^. teSpar)
+      !!! const 400 === statusCode
 
 ----------------------------------------------------------------------------
 -- Listing users
@@ -196,7 +207,7 @@ specUpdateUser = describe "PUT /Users/:id" $ do
     it "updates the 'SAML.UserRef' index in Spar" $ testUpdateUserRefIndex
     it "updates the matching Brig user" $ testBrigSideIsUpdated
     context "user is from different team" $ do
-        it "### fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
+        it "fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
     context "scim_user has no entry with this id" $ do
         it "fails" $ pending
     context "brig user is updated" $ do
@@ -228,7 +239,7 @@ testUserUpdateFailsWithNotFoundIfOutsideTeam = do
     -- Overwrite the user with another randomly-generated user
     user' <- randomScimUser
     updateUser_ (Just tokTeamB) (Just userid) user' (env ^. teSpar)
-        !!! const 404 === statusCode 
+        !!! const 404 === statusCode
 
 -- | Test that @PUT@-ting the user and then @GET@-ting it returns the right thing.
 testScimSideIsUpdated :: TestSpar ()
