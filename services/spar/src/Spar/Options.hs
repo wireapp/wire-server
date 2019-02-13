@@ -63,7 +63,7 @@ deriveOpts raw = do
               ("sso" : path') -> compile path'
               path'           -> compile path'
 
-            compile path = "/" <> SBS.intercalate "/" (reverse ("scim" : path))
+            compile path = "/" <> SBS.intercalate "/" (reverse ("v2" : "scim" : path))
 
     pure DerivedOpts {..}
   pure $ derived <$ raw
