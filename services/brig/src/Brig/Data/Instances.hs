@@ -117,6 +117,7 @@ instance Cql Asset where
             0 -> return $! ImageAsset k s
             _ -> fail $ "unexpected user asset type: " ++ show t
       where
+        required :: Cql r => Text -> Either String r
         required f = maybe (fail ("Asset: Missing required field '" ++ show f ++ "'"))
                            fromCql
                            (lookup f fs)

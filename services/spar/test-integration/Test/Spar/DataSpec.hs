@@ -14,6 +14,7 @@ import Imports
 import Cassandra
 import Control.Lens
 import Control.Monad.Except
+import Data.Kind (Type)
 import Data.Text (unpack)
 import Data.Typeable
 import Data.UUID as UUID
@@ -195,7 +196,7 @@ spec = do
 
 
 testSPStoreID
-  :: forall m a. (m ~ ReaderT Data.Env (ExceptT TTLError Client), Typeable a)
+  :: forall m (a :: Type). (m ~ ReaderT Data.Env (ExceptT TTLError Client), Typeable a)
   => (SAML.ID a -> SAML.Time -> m ())
   -> (SAML.ID a -> m ())
   -> (SAML.ID a -> m Bool)

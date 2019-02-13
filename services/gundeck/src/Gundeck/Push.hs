@@ -344,7 +344,7 @@ addToken (uid ::: cid ::: req ::: _) = do
     continue t Nothing  = create (0 :: Int) t
     continue t (Just a) = update (0 :: Int) t (a^.addrEndpoint)
 
-    create :: Int -> PushToken -> Gundeck (Either Response (Address a))
+    create :: Int -> PushToken -> Gundeck (Either Response (Address "no-keys"))
     create n t = do
         let trp = t^.tokenTransport
         let app = t^.tokenApp
@@ -370,7 +370,7 @@ addToken (uid ::: cid ::: req ::: _) = do
                 Data.insert uid trp app tok arn cid (t^.tokenClient)
                 return (Right (mkAddr t arn))
 
-    update :: Int -> PushToken -> SnsArn EndpointTopic -> Gundeck (Either Response (Address a))
+    update :: Int -> PushToken -> SnsArn EndpointTopic -> Gundeck (Either Response (Address "no-keys"))
     update n t arn = do
         when (n >= 3) $ do
             Log.err $ msg (val "AWS SNS inconsistency w.r.t. " +++ toText arn)

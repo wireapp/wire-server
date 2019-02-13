@@ -43,7 +43,7 @@ newtype ConvMemberAddSizeChecked a = ConvMemberAddSizeChecked { fromMemberSize :
 checkedConvSize :: Bounds a => a -> Galley (ConvSizeChecked a)
 checkedConvSize x = do
     o <- view options
-    let minV  = 0
+    let minV :: Integer = 0
         limit = o^.optSettings.setMaxConvSize - 1
     if within x minV (fromIntegral limit)
         then return (ConvSizeChecked x)
@@ -53,7 +53,7 @@ checkedMemberAddSize :: [a] -> Galley (ConvMemberAddSizeChecked (List1 a))
 checkedMemberAddSize []       = throwErr "List must be of at least size 1"
 checkedMemberAddSize l@(x:xs) = do
     o <- view options
-    let minV  = 1
+    let minV :: Integer = 1
         limit = (o^.optSettings.setMaxConvSize)
     if within l minV (fromIntegral limit)
         then return (ConvMemberAddSizeChecked $ list1 x xs)

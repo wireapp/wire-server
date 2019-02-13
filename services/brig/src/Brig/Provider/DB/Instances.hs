@@ -53,6 +53,7 @@ instance Cql ServiceKey where
             0 -> return $! ServiceKey RsaServiceKey s p
             _ -> fail $ "Unexpected service key type: " ++ show t
       where
+        required :: Cql r => Text -> Either String r
         required f = maybe (fail ("ServiceKey: Missing required field '" ++ show f ++ "'"))
                            fromCql
                            (lookup f fs)
