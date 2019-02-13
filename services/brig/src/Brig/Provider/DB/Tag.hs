@@ -1,5 +1,4 @@
 {-# LANGUAGE BinaryLiterals             #-}
-{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | Service tags are intepreted as bitmasks. Any combination of

@@ -1,10 +1,3 @@
-{-# LANGUAGE TypeOperators         #-}
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE PolyKinds             #-}
 
 module Spar.API.Util where
 

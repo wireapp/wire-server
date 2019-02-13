@@ -1,5 +1,3 @@
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}

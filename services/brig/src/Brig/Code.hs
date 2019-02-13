@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
 
 -- | Random, time-limited codes for e-mail addresses and phone numbers
 -- for use in a variety of 'Scope's.

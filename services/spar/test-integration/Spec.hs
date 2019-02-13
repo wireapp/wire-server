@@ -1,4 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | It would be nice to use hspec-discover, which even has support for
 -- <https://hspec.github.io/hspec-discover.html#using-a-custom-main-function custom main functions>.

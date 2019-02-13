@@ -1,7 +1,3 @@
-{-# LANGUAGE LambdaCase           #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE TypeApplications     #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- for SES notifications
 
 module Util where
