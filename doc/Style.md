@@ -31,7 +31,6 @@
 - RankNTypes
 - ScopedTypeVariables
 - StandaloneDeriving
-- StandaloneDeriving
 - TemplateHaskell
 - TupleSections
 - TypeApplications
