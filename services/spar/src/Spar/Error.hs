@@ -3,6 +3,13 @@
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
+-- | Error reporting in Spar.
+--
+-- All errors we throw are 'SparError's.
+--
+-- FUTUREWORK: since SCIM errors have their own format, the whole SCIM API subtree just wraps
+-- errors into 'SAML.CustomServant'. This could be reworked by creating a new branch in
+-- 'SparCustomError'.
 module Spar.Error
   ( SparError
   , SparCustomError(..)

@@ -11,7 +11,8 @@
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Spar.Orphans where
+-- | Miscellaneous orphan instances needed for Spar.
+module Spar.Orphans () where
 
 import Imports
 import Data.Id

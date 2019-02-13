@@ -87,6 +87,7 @@ roundtripTests =
     , run @PasswordChange Proxy
     , run @PhoneRemove Proxy
     , run @PhoneUpdate Proxy
+    , run @ManagedByUpdate Proxy
     , run @ReAuthUser Proxy
     , run @SelfProfile Proxy
     , run @TeamMember Proxy

@@ -147,10 +147,12 @@ apiScim = hoistScim (toServant (Scim.siteServer configuration))
 ----------------------------------------------------------------------------
 -- UserDB
 
--- | Retrieve 'IdP' from 'ScimTokenInfo' and call 'validateScimUser''.
+-- | Validate a raw SCIM user record and extract data that we care about.
 validateScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
-  => ScimTokenInfo -> Scim.User.User -> m ValidScimUser
+  => ScimTokenInfo    -- ^ Used to decide what IdP to assign the user to
+  -> Scim.User.User
+  -> m ValidScimUser
 validateScimUser ScimTokenInfo{stiIdP} user = do
     idp <- case stiIdP of
         Nothing -> Scim.throwScim $
@@ -165,69 +167,74 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 -- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does
 -- not comply with the standard / our constraints. See also: 'ValidScimUser'.
 --
+-- Checks like "is this handle claimed already?" are not performed. Only schema checks.
+--
 -- __Mapped fields:__
 --
---   * @userName@ is mapped to our 'userHandle'. If there is no handle, we use 'userId',
---     because having some unique @userName@ is a SCIM requirement.
+--   * @userName@ is mapped to our 'userHandle'.
 --
---   * @name@ is left empty and is never stored, even when it's sent to us via SCIM.
+--   * @displayName@ is mapped to our 'userName'. We don't use the @name@ field, as it
+--     provides a rather poor model for names.
 --
---   * @displayName@ is mapped to our 'userName'.
---
---   * A mandatory @SAML.UserRef@ is derived from 'Scim.User.externalId' and the 'idpId'
---     (retrieved via SCIM token).
+--   * The @externalId@ is used to construct a 'SAML.UserRef'. If it looks like an email
+--     address, the constructed 'SAML.UserRef' will have @nameid-format:emailAddress@,
+--     otherwise the format will be @unspecified@.
 --
 -- FUTUREWORK: We may need to make the SAML NameID type derived from the available SCIM data
 -- configurable on a per-team basis in the future, to accomodate different legal uses of
--- externalId by different users.
+-- @externalId@ by different users.
 --
 -- __Emails and phone numbers:__ we'd like to ensure that only verified emails and phone
 -- numbers end up in our database, and implementing verification requires design decisions
 -- that we haven't made yet. We store them in our SCIM blobs, but don't syncronize them with
--- Brig.
---
--- See <https://github.com/wireapp/wire-server/pull/559#discussion_r247466760>
---
--- __Names:__ some systems like Okta require given name and family name to be present, but
--- it's a poor model for names, and in practice many other apps also ignore this model.
--- Leaving @name@ empty will prevent the confusion that might appear when somebody tries to
--- set @name@ to some value and the @displayName@ won't be affected by that change.
+-- Brig. See <https://github.com/wireapp/wire-server/pull/559#discussion_r247466760>.
 validateScimUser'
   :: forall m. (MonadError Scim.ScimError m)
-  => Maybe IdP -> Scim.User.User -> m ValidScimUser
+  => Maybe IdP        -- ^ IdP that the resulting user will be assigned to
+  -> Scim.User.User
+  -> m ValidScimUser
 validateScimUser' Nothing _ =
     throwError $ Scim.serverError "SCIM users without SAML SSO are not supported"
 validateScimUser' (Just idp) user = do
-    let validateNameOrExtId :: Maybe Text -> m (Maybe Text)
-        validateNameOrExtId mtxt = forM mtxt $ \txt ->
-          case checkedEitherMsg @_ @1 @128 "displayName" txt of
-            Right rtxt -> pure $ fromRange rtxt
-            Left err -> throwError $ Scim.badRequest Scim.InvalidValue
-              (Just ("displayName is not compliant: " <> Text.pack err))
+    uref :: SAML.UserRef <- case Scim.User.externalId user of
+        Just subjectTxt -> do
+            let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+            subject <- validateSubject subjectTxt
+            pure $ SAML.UserRef issuer subject
+        Nothing -> throwError $ Scim.badRequest Scim.InvalidValue
+            (Just "externalId is required for SAML users")
+    handl <- validateHandle (Scim.User.userName user)
+    mbName <- mapM validateName (Scim.User.displayName user)
 
-    uref :: SAML.UserRef <- do
-      msubjid <- SAML.opaqueNameID <$$>
-        validateNameOrExtId (Scim.User.externalId user)
-
-      case msubjid of
-        Just subj -> do
-            pure $ SAML.UserRef (idp ^. SAML.idpMetadata . SAML.edIssuer) subj
-        Nothing -> throwError $
-            Scim.badRequest Scim.InvalidValue (Just "externalId is required for SAML users")
-
-    handl <- case parseHandle (Scim.User.userName user) of
-      Just x -> pure x
-      Nothing -> throwError $
-        Scim.badRequest Scim.InvalidValue (Just "userName is not compliant")
-
-    -- We check the name for validity, but only if it's present
-    mbName <- Name <$$> validateNameOrExtId (Scim.User.displayName user)
-
-    -- NB: We assume that checking that the user does _not_ exist has
-    -- already been done before -- the hscim library check does a 'get'
-    -- before a 'create'
-
+    -- NB: We assume that checking that the user does _not_ exist has already been done before;
+    -- the hscim library check does a 'get' before a 'create'.
     pure $ ValidScimUser user uref handl mbName
+
+  where
+    -- Validate a subject ID (@externalId@).
+    validateSubject :: Text -> m SAML.NameID
+    validateSubject txt = do
+        let unameId = case parseEmail txt of
+                Just _  -> SAML.UNameIDEmail txt
+                Nothing -> SAML.UNameIDUnspecified txt
+        case SAML.mkNameID unameId Nothing Nothing Nothing of
+            Right nameId -> pure nameId
+            Left err -> throwError $ Scim.serverError
+                ("Can't construct a subject ID from externalId: " <> Text.pack err)
+
+    -- Validate a handle (@userName@).
+    validateHandle :: Text -> m Handle
+    validateHandle txt = case parseHandle txt of
+        Just h -> pure h
+        Nothing -> throwError $ Scim.badRequest Scim.InvalidValue
+            (Just "userName must be a valid Wire handle")
+
+    -- Validate a name (@displayName@). It has to conform to standard Wire rules.
+    validateName :: Text -> m Name
+    validateName txt = case checkedEitherMsg @_ @1 @128 "displayName" txt of
+        Right rtxt -> pure $ Name (fromRange rtxt)
+        Left err -> throwError $ Scim.badRequest Scim.InvalidValue
+            (Just ("displayName must be a valid Wire name, but: " <> Text.pack err))
 
 -- | We only allow SCIM users that authenticate via SAML. (This is by no means necessary,
 -- though. It can be relaxed to allow creating users with password authentication if that is a
@@ -242,7 +249,7 @@ createValidScimUser (ValidScimUser user uref handl mbName) = do
     storedUser <- lift $ toScimStoredUser buid user
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
     -- Create SAML user here in spar, which in turn creates a brig user.
-    lift $ createUser_ buid uref mbName
+    lift $ createUser_ buid uref mbName ManagedByScim
     -- Set user handle on brig (which can't be done during user creation yet).
     -- TODO: handle errors better here?
     lift $ Intra.Brig.setHandle buid handl

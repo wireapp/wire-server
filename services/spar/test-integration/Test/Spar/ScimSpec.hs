@@ -54,6 +54,15 @@ specUsers = describe "operations with users" $ do
                 )
             brigUser `userShouldMatch` scimStoredUser
 
+        it "requires externalId to be present" $ do
+            env <- ask
+            -- Create a user with a missing @externalId@ and check that it fails
+            user <- randomScimUser
+            let user' = user { Scim.User.externalId = Nothing }
+            (tok, _) <- registerIdPAndScimToken
+            createUser_ (Just tok) user' (env ^. teSpar)
+                !!! const 400 === statusCode
+
         it "gives created user a valid 'SAML.UserRef' for SSO." $ do
             pending
 

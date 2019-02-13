@@ -11,7 +11,7 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE ViewPatterns               #-}
 
--- | Spar talking to Galley.
+-- | Client functions for interacting with the Galley API.
 module Spar.Intra.Galley where
 
 import Imports

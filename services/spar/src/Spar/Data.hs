@@ -12,6 +12,7 @@
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE ViewPatterns               #-}
 
+-- | Manipulating Spar records in the database.
 module Spar.Data
   ( schemaVersion
   , Env(..)
