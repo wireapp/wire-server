@@ -48,5 +48,4 @@ mkspec = do
     describe "Spar.Data" Test.Spar.DataSpec.spec
     describe "Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
     describe "Spar.Scim.Auth" Test.Spar.Scim.AuthSpec.spec
-    describe "Spar.Scim" Test.Spar.ScimSpec.spec
     describe "Spar.Scim.User" Test.Spar.Scim.UserSpec.spec
