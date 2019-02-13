@@ -52,17 +52,20 @@ addPerHostConnectionLimit limit managerSettings = liftIO $ do
                 current <- fromMaybe 0 <$> STMMap.lookup dest connCount
                 when (current < limit) $ STMMap.insert (current + 1) dest connCount
                 pure (current < limit)
+            liftIO $ print (show success)
             unless success $ throwIO $
                 PerHostConnectionLimitReached (fromShort host_) port_
 
     -- When a connection is destroyed, which is something 'Manager' should always do,
     -- decrement the counter.
     let onDestroy :: Destination -> IO ()
-        onDestroy dest = atomically $ do
-            current <- fromMaybe 0 <$> STMMap.lookup dest connCount
-            if current <= 1
-                then STMMap.delete dest connCount
-                else STMMap.insert (current - 1) dest connCount
+        onDestroy dest = do
+            liftIO $ print "Destroying"
+            atomically $ do
+                current <- fromMaybe 0 <$> STMMap.lookup dest connCount
+                if current <= 1
+                    then STMMap.delete dest connCount
+                    else STMMap.insert (current - 1) dest connCount
 
     -- Modify all connection-creating functions in the 'Manager' to perform 'onCreate' and
     -- 'onDestroy'. Technically 'connectionClose' can be performed on an already closed
