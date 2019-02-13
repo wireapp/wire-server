@@ -29,8 +29,16 @@ spec = describe "metrics" . it "works" $ do
   -- FUTUREWORK: here we could parse the prometheus 'RegistrySample' and inspect it more
   -- thoroughly, but i'm not sure there is a parser.
   liftIO $ do
-    resp `shouldContain` cs p1
-    resp `shouldContain` (p2 "<>")
+    (resp `shouldContain`) `mapM_`
+      [ cs p1
+      , p2 "<>"
+      , "http_request_duration_seconds_bucket"
+      , "handler="
+      , "method="
+      , "status_code="
+      , "le="
+      ]
+
 
 
 {- sample value:
