@@ -48,6 +48,8 @@ specCreateUser :: SpecWith TestEnv
 specCreateUser = describe "POST /Users" $ do
     it "creates a user in an existing team" $ testCreateUser
     it "requires externalId to be present" $ testExternalIdIsRequired
+    it "rejects invalid handle" $ testCreateRejectsInvalidHandle
+    it "rejects occupied handle" $ testCreateRejectsTakenHandle
     it "gives created user a valid 'SAML.UserRef' for SSO" $ pending
     it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
     it "writes all the stuff to all the places" $
@@ -83,6 +85,39 @@ testExternalIdIsRequired = do
     createUser_ (Just tok) user' (env ^. teSpar)
         !!! const 400 === statusCode
 
+-- | Test that user creation fails if handle is invalid
+testCreateRejectsInvalidHandle :: TestSpar ()
+testCreateRejectsInvalidHandle = do
+    env <- ask
+    -- Create a user via SCIM
+    user <- randomScimUser
+    (tok, _) <- registerIdPAndScimToken
+    createUser_ (Just tok) (user{Scim.User.userName="#invalid name"}) (env ^. teSpar)
+      !!! const 400 === statusCode
+
+-- | Test that user creation fails if handle is already in use (even on different team).
+testCreateRejectsTakenHandle :: TestSpar ()
+testCreateRejectsTakenHandle = do
+    env <- ask
+
+    user1 <- randomScimUser
+    user2 <- randomScimUser
+    user3 <- randomScimUser
+    (tokTeamA, _) <- registerIdPAndScimToken
+    (tokTeamB, _) <- registerIdPAndScimToken
+
+    -- Create and add a first user: success!
+    createUser_ (Just tokTeamA) user1 (env ^. teSpar)
+      !!! const 201 === statusCode
+
+    -- Try to create different user with same handle in same team.
+    createUser_ (Just tokTeamA) (user2 { Scim.User.userName = Scim.User.userName user1 }) (env ^. teSpar)
+      !!! const 409 === statusCode
+
+    -- Try to create different user with same handle in different team.
+    createUser_ (Just tokTeamB) (user3 { Scim.User.userName = Scim.User.userName user1 }) (env ^. teSpar)
+      !!! const 409 === statusCode
+
 ----------------------------------------------------------------------------
 -- Listing users
 
@@ -93,6 +128,7 @@ specListUsers = describe "GET /Users" $ do
     it "finds a SCIM-provisioned user by username" $ pending
     it "finds a non-SCIM-provisioned user by username" $ pending
     it "doesn't list deleted users" $ testListNoDeletedUsers
+    it "doesn't find users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
 
 -- | Test that SCIM-provisioned team members are listed, and users that were not provisioned
 -- via SCIM are not listed.
@@ -125,6 +161,17 @@ testListNoDeletedUsers = do
     -- Check that the user is absent
     liftIO $ users `shouldSatisfy` all ((/= userid) . scimUserId)
 
+-- | Test that users are not listed if not in the team associated with the token.
+testUserListFailsWithNotFoundIfOutsideTeam :: TestSpar ()
+testUserListFailsWithNotFoundIfOutsideTeam = do
+    user <- randomScimUser
+    (tokTeamA, _) <- registerIdPAndScimToken
+    (tokTeamB, _) <- registerIdPAndScimToken
+    storedUser <- createUser tokTeamA user
+    let userid = scimUserId storedUser
+    users <- listUsers tokTeamB Nothing
+    liftIO $ users `shouldSatisfy` all ((/= userid) . scimUserId)
+
 ----------------------------------------------------------------------------
 -- Fetching a single user
 
@@ -141,6 +188,7 @@ specGetUser = describe "GET /Users/:id" $ do
         -- create another team and another user in it
         -- check that this user can not be found in the "wrong" team
     it "doesn't find a deleted user" $ testGetNoDeletedUsers
+    it "doesn't find users from other teams" $ testUserGetFailsWithNotFoundIfOutsideTeam
 
 -- | Test that a SCIM-provisioned user is fetchable.
 testGetUser :: TestSpar ()
@@ -169,6 +217,19 @@ testGetNoDeletedUsers = do
         !!! const 404 === statusCode
     pendingWith "TODO: delete via SCIM"
 
+-- | Test that gets are not allowed if token is not for the user's team
+testUserGetFailsWithNotFoundIfOutsideTeam :: TestSpar ()
+testUserGetFailsWithNotFoundIfOutsideTeam = do
+    env <- ask
+    user <- randomScimUser
+    (tokTeamA, _) <- registerIdPAndScimToken
+    (tokTeamB, _) <- registerIdPAndScimToken
+    storedUser <- createUser tokTeamA user
+    let userid = scimUserId storedUser
+    getUser_ (Just tokTeamB) userid (env ^. teSpar)
+        !!! const 404 === statusCode
+
+
 {- does not find a non-scim-provisioned user:
 
     env <- ask
@@ -195,6 +256,8 @@ specUpdateUser = describe "PUT /Users/:id" $ do
     it "works fine when neither name nor handle are changed" $ testUpdateSameHandle
     it "updates the 'SAML.UserRef' index in Spar" $ testUpdateUserRefIndex
     it "updates the matching Brig user" $ testBrigSideIsUpdated
+    context "user is from different team" $ do
+        it "fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
     context "scim_user has no entry with this id" $ do
         it "fails" $ pending
     context "brig user is updated" $ do
@@ -212,6 +275,21 @@ testUpdateRequiresUserId = do
     (tok, _) <- registerIdPAndScimToken
     updateUser_ (Just tok) Nothing user (env ^. teSpar)
         !!! assertTrue_ (inRange (400, 499) . statusCode)
+
+-- | Test that updates are not allowed if token is not for the user's team
+testUserUpdateFailsWithNotFoundIfOutsideTeam :: TestSpar ()
+testUserUpdateFailsWithNotFoundIfOutsideTeam = do
+    env <- ask
+    -- Create a user via SCIM
+    user <- randomScimUser
+    (tokTeamA, _) <- registerIdPAndScimToken
+    (tokTeamB, _) <- registerIdPAndScimToken
+    storedUser <- createUser tokTeamA user
+    let userid = scimUserId storedUser
+    -- Overwrite the user with another randomly-generated user
+    user' <- randomScimUser
+    updateUser_ (Just tokTeamB) (Just userid) user' (env ^. teSpar)
+        !!! const 404 === statusCode
 
 -- | Test that @PUT@-ting the user and then @GET@-ting it returns the right thing.
 testScimSideIsUpdated :: TestSpar ()

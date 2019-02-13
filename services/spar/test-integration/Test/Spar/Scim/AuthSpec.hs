@@ -13,6 +13,8 @@ import Spar.Scim
 import Spar.Types (ScimTokenInfo(..))
 import Util
 
+import qualified Galley.Types.Teams as Galley
+
 -- | Tests for authentication and operations with provisioning tokens ('ScimToken's).
 spec :: SpecWith TestEnv
 spec = do
@@ -31,6 +33,7 @@ specCreateToken = describe "POST /auth-tokens" $ do
     it "works" $ testCreateToken
     it "respects the token limit" $ testTokenLimit
     it "requires the team to have an IdP" $ testIdPIsNeeded
+    it "authorizes only team owner" $ testCreateTokenAuthorizesOnlyTeamOwner
 
 -- | Test that token creation is sane:
 --
@@ -81,6 +84,28 @@ testIdPIsNeeded = do
         CreateScimToken { createScimTokenDescr = "testIdPIsNeeded" }
         (env ^. teSpar)
         !!! const 400 === statusCode
+
+-- | Test that a token can only be created as a team owner
+testCreateTokenAuthorizesOnlyTeamOwner :: TestSpar ()
+testCreateTokenAuthorizesOnlyTeamOwner =
+  do
+    env <- ask
+    (_, teamId,_) <- registerTestIdP
+    teamMemberId <- runHttpT (env ^. teMgr)
+      $ createTeamMember
+        (env ^. teBrig)
+        (env ^. teGalley)
+        teamId
+        (Galley.rolePermissions Galley.RoleMember)
+    createToken_
+      teamMemberId
+      (CreateScimToken
+       { createScimTokenDescr = "testCreateToken"
+       })
+      (env ^. teSpar)
+      !!! const 403
+      === statusCode
+
 
 ----------------------------------------------------------------------------
 -- Token listing
