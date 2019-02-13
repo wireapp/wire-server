@@ -29,7 +29,7 @@ main :: IO ()
 main = do
   (wireArgs, hspecArgs) <- partitionArgs <$> getArgs
   env <- withArgs wireArgs mkEnvFromOptions
-  withArgs (hspecArgs <> ["-m", "###"]) . hspec . beforeAll (pure env) . afterAll destroyEnv $ mkspec
+  withArgs hspecArgs . hspec . beforeAll (pure env) . afterAll destroyEnv $ mkspec
 
 partitionArgs :: [String] -> ([String], [String])
 partitionArgs = go [] []

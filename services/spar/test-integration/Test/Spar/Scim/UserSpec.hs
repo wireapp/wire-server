@@ -49,7 +49,7 @@ specCreateUser = describe "POST /Users" $ do
     it "creates a user in an existing team" $ testCreateUser
     it "requires externalId to be present" $ testExternalIdIsRequired
     it "rejects invalid handle" $ testCreateRejectsInvalidHandle
-    it "### rejects occupied handle" $ testCreateRejectsTakenHandle
+    it "rejects occupied handle" $ testCreateRejectsTakenHandle
     it "gives created user a valid 'SAML.UserRef' for SSO" $ pending
     it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
     it "writes all the stuff to all the places" $
@@ -128,7 +128,7 @@ specListUsers = describe "GET /Users" $ do
     it "finds a SCIM-provisioned user by username" $ pending
     it "finds a non-SCIM-provisioned user by username" $ pending
     it "doesn't list deleted users" $ testListNoDeletedUsers
-    it "### doesn't find users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
+    it "doesn't find users from other teams" $ testUserListFailsWithNotFoundIfOutsideTeam
 
 -- | Test that SCIM-provisioned team members are listed, and users that were not provisioned
 -- via SCIM are not listed.
@@ -188,7 +188,7 @@ specGetUser = describe "GET /Users/:id" $ do
         -- create another team and another user in it
         -- check that this user can not be found in the "wrong" team
     it "doesn't find a deleted user" $ testGetNoDeletedUsers
-    it "### doesn't find users from other teams" $ testUserGetFailsWithNotFoundIfOutsideTeam
+    it "doesn't find users from other teams" $ testUserGetFailsWithNotFoundIfOutsideTeam
 
 -- | Test that a SCIM-provisioned user is fetchable.
 testGetUser :: TestSpar ()
