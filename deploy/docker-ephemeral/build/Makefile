@@ -35,7 +35,6 @@ NOMANIFEST    := airdock_rvm airdock_fakesqs localstack
 # these targets won't build on the system emulators for these arches. working with the qemu team to fix. they think it might be https://bugs.launchpad.net/qemu/+bug/1813398 .
 BADARCHSIM    := localstack-arm32v6 java_maven_node_python-arm32v6
 
-
 # set the targets, depending on the distro base specified. this is so that the debian images are built for all of the debian arches, and the alpine images for it's arches.
 ifeq ($(DIST),DEBIAN)
   ARCHES=$(DEBARCHES)
@@ -133,7 +132,6 @@ elasticsearch/Dockerfile:
 	cd elasticsearch-all && git reset --hard $(ELASTICSEARCH_COMMIT)
 	cp -R elasticsearch-all/5.6/ elasticsearch
 
-
 airdock_base/Dockerfile:
 	git clone git@github.com:airdock-io/docker-base.git airdock_base-all
 	cd airdock_base-all && git reset --hard $(AIRDOCKBASE_COMMIT)
@@ -193,11 +191,4 @@ cleandocker:
 	docker rm $$(docker ps -a -q) || true
 	docker rmi $$(docker images -q) --force || true
 
-
-# note: you must have dbus-launch on debian, which is in package dbus-x11
-# or, install pass?
-# note: also, add the user you are running as to the docker group, and restart X.
-
-# docker login --username=$(USERNAME)
-# start binfmt support for debian. note that amd support is broken.
 
