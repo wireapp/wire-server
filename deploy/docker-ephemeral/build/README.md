@@ -1,6 +1,6 @@
 A makefile that uses docker-io, and qemu-user-static to build dependencies for our integration tests.
 
-Builds docker images for multiple architectures.
+Builds docker images for multiple architectures. allows for -j to build multiple images at once.
 
 
 after installing docker-io, add the user you are running as to the docker group, and restart X.
