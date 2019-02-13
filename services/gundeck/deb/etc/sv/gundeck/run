@@ -27,12 +27,6 @@ else
     GUNDECK_CANNON_BULK_PUSH=""
 fi
 
-if [ -n "$GUNDECK_AWS_CONNECTION_LIMIT" ]; then
-    GUNDECK_AWS_CONNECTION_LIMIT="--aws-connection-limit=$GUNDECK_AWS_CONNECTION_LIMIT"
-else
-    GUNDECK_AWS_CONNECTION_LIMIT=""
-fi
-
 cd $HOME
 
 ulimit -n 65536
@@ -55,5 +49,5 @@ exec chpst -u $USER \
     --aws-arn-env=${KHAN_ENV?'unset'} \
     --aws-sqs-endpoint=${GUNDECK_AWS_SQS_ENDPOINT:-'https://sqs.eu-west-1.amazonaws.com'} \
     --aws-sns-endpoint=${GUNDECK_AWS_SNS_ENDPOINT:-'https://sns.eu-west-1.amazonaws.com'} \
-    ${GUNDECK_AWS_CONNECTION_LIMIT} \
+    --aws-connection-limit=${GUNDECK_AWS_CONNECTION_LIMIT:-256} \
     ${GUNDECK_CANNON_BULK_PUSH}
