@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
@@ -30,7 +31,7 @@ spec = describe "metrics" . it "works" $ do
   -- thoroughly, but i'm not sure there is a parser.
   liftIO $ do
     (resp `shouldContain`) `mapM_`
-      [ cs p1
+      [ p1
       , p2 "<>"
       , "http_request_duration_seconds_bucket"
       , "handler="
