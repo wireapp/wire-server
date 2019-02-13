@@ -10,8 +10,8 @@ DIST     ?= DEBIAN
 STRETCHARCHES := arm32v5 arm32v7 386 amd64 arm64v8 ppc64le s390x 
 JESSIEARCHES  := arm32v5 arm32v7 386 amd64
 # the arches that our images based on debian support.
-# note that qemu's x86_64 support is not strong enough to cross-build on i386. Also note that we only care about the pi, and the 386, for now.
-DEBARCHES     := arm32v5 arm32v7 386
+# note that we only care about the pi, the 386, and amd64 for now.
+DEBARCHES     := arm32v5 arm32v7 386 amd64
 
 # the names of the docker images we're building that are based on debian jessie.
 JESSIENAMES   := airdock_fakesqs airdock_rvm airdock_base smtp
@@ -21,7 +21,7 @@ STRETCHNAMES  := dynamodb_local
 DEBNAMES      :=  $(JESSIENAMES) $(STRETCHNAMES)
 
 # the arches that we build for alpine.
-ALPINEARCHES  ?= 386 arm32v6
+ALPINEARCHES  ?= amd64 386 arm32v6
 # images we build that are based on alpine.
 ALPINENAMES   := elasticsearch java_maven_node_python localstack minio
 
@@ -32,6 +32,16 @@ PREBUILDS     := airdock_rvm-airdock_base airdock_fakesqs-airdock_rvm localstack
 # by adding the name of the docker image here, we use the image:tag-<arch> format, instead of <arch>/image:tag.
 NOMANIFEST    := airdock_rvm airdock_fakesqs localstack
 
+# convert from debian architecture string to docker architecture string. 
+dockerarch=$(patsubst i%,%,$(patsubst armel,arm32v5,$(patsubst armhf,arm32v7,$(patsubst arm64,arm64v8,$(1)))))
+
+# the local architecture, in debian format. (i386, amd64, armel, armhf, arm64, ..)
+LOCALDEBARCH  := $(shell dpkg --print-architecture)
+# the local architecture, in docker format. (386, amd64, arm32v5, arm32v7, arm64v8, ...)
+LOCALARCH     ?= $(call dockerarch,$(LOCALDEBARCH))
+
+# FIXME: make this a section that depends on LOCALARCH, so we can allow these images to be built on native arm32.
+# note that qemu's x86_64 support is not strong enough to cross-build most things on i386.
 # these targets won't build on the system emulators for these arches. working with the qemu team to fix. they think it might be https://bugs.launchpad.net/qemu/+bug/1813398 .
 BADARCHSIM    := localstack-arm32v6 java_maven_node_python-arm32v6
 
@@ -67,16 +77,18 @@ goodarches=$(filter-out $(call snd,$(foreach arch,$(ARCHES),$(filter $(1)-$(arch
 .PHONY: manifest
 manifest: $(foreach name,$(NAMES),manifest-push-$(name))
 
+# manifests use a slightly different form of architecture name than docker itsself. arm instead of arm32, and a seperate variant field.
+maniarch=$(patsubst %32,%,$(call fst,$(subst v, ,$(1))))
+# seperate and use the variant, if it is part of the architecture name.
+manivariant=$(foreach variant,$(word 2, $(subst v, ,$(1))), --variant $(variant))
+
 # manifest-push-<name>
 manifest-push-%: $$(foreach arch,$$(call goodarches,%),manifest-annotate-$$(arch)-$$*)
 	docker manifest push $(USERNAME)/$*$(TAGNAME)
 
 #manifest-annotate-<arch>-<name>
 manifest-annotate-%: manifest-create-$$(call snd,%)
-	docker manifest annotate $(USERNAME)/$(call snd,$*)$(TAGNAME) $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) --arch $(call fst,$*)
-# special case for arm, which has bits and variant encoded in the arch name.
-manifest-annotate-arm%: manifest-create-$$(call snd,%)
-	docker manifest annotate $(USERNAME)/$(call snd,$*)$(TAGNAME) $(USERNAME)/$(call snd,$*)$(TAGNAME)-arm$(call fst,$*) --arch $(patsubst %32,%,$(call fst,$(subst v, ,arm$*))) --variant $(word 2, $(subst v, ,$(call fst,$*))) 
+	docker manifest annotate $(USERNAME)/$(call snd,$*)$(TAGNAME) $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) --arch $(call maniarch,$(call fst,$*)) $(call manivariant $(call fst,$*))
 
 #manifest-create-<name>
 manifest-create-%: $$(foreach arch,$$(call goodarches,%),upload-$$(arch)-$$*)
@@ -90,21 +102,21 @@ upload-%: build-%
 build-%: Dockerfile-$$(foreach target,$$(filter $$(call snd,$$*),$(NOMANIFEST)),NOMANIFEST-)$$* $$(foreach predep,$$(filter $$(call snd,%)-%,$(PREBUILDS)),manifest-push-$$(call snd,$$(predep)))
 	cd $(call snd,$*) && docker build -t $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) -f Dockerfile-$(call fst,$*) . | cat
 
+
+# with a broken manifest, we have to use a postfix to request docker images other than the one for our native architecture.
+archpostfix=$(foreach arch,$(filter-out $(LOCALARCH),$(1)),-$(arch))
+# with working manifest, we have to use a path when requesting docker images other than the one for our native architecture.
+archpath=$(foreach arch,$(patsubst 386,i386,$(filter-out $(LOCALARCH),$(1))),$(arch)/)
+
 # handle cases where a manifest file is not being respected, and we have to use <name>:<tag>-<arch> format.
-# Dockerfile-<arch>-<name>
-Dockerfile-NOMANIFEST-386-%: %/Dockerfile
-	cd $* && cat Dockerfile | sed "s/^\(MAINTAINER\).*/\1 $(REALNAME) \"$(EMAIL)\"/" | sed "s=^\(FROM .*\)$$=\1-386=" > Dockerfile-386
-# special case for arm.
-Dockerfile-NOMANIFEST-arm%: $$(call snd,$$*)/Dockerfile
-	cd $(call snd,$*) && cat Dockerfile | sed "s/^\(MAINTAINER\).*/\1 $(REALNAME) \"$(EMAIL)\"/" | sed "s=^\(FROM .*\)=\1-arm$(call fst,$*)=" > Dockerfile-arm$(call fst,$*)
+# Dockerfile-NOMANIFEST-<arch>-<name>
+Dockerfile-NOMANIFEST-%: $$(call snd,$$*)/Dockerfile
+	cd $(call snd,$*) && cat Dockerfile | sed "s/^\(MAINTAINER\).*/\1 $(REALNAME) \"$(EMAIL)\"/" | sed "s=^\(FROM \)\(.*\)$$=\1\2$(call archpostfix,(call fst,$*))=" > Dockerfile-$(call fst,$*)
 
 # handle situations where a manifest is present in upstream, and available as <arch>/<name>:<tag>
 # Dockerfile-<arch>-<name>
-Dockerfile-386-%: %/Dockerfile
-	cd $* && cat Dockerfile | sed "s/^\(MAINTAINER\).*/\1 $(REALNAME) \"$(EMAIL)\"/" | sed "s=^FROM =FROM i386/=" > Dockerfile-386
-# special case for arm.
-Dockerfile-arm%: $$(call snd,$$*)/Dockerfile
-	cd $(call snd,$*) && cat Dockerfile | sed "s/^\(MAINTAINER\).*/\1 $(REALNAME) \"$(EMAIL)\"/" | sed "s=^FROM =FROM arm$(call fst,$*)/=" > Dockerfile-arm$(call fst,$*)
+Dockerfile-%: $$(call snd,$$*)/Dockerfile
+	cd $(call snd,$*) && cat Dockerfile | sed "s/^\(MAINTAINER\).*/\1 $(REALNAME) \"$(EMAIL)\"/" | sed "s=^\(FROM \)\(.*\)$$=\1$(call archpath,$(call fst,$*))\2=" > Dockerfile-$(call fst,$*)
 
 # real files, finally!
 
