@@ -55,5 +55,5 @@ exec chpst -u $USER \
     --aws-arn-env=${KHAN_ENV?'unset'} \
     --aws-sqs-endpoint=${GUNDECK_AWS_SQS_ENDPOINT:-'https://sqs.eu-west-1.amazonaws.com'} \
     --aws-sns-endpoint=${GUNDECK_AWS_SNS_ENDPOINT:-'https://sns.eu-west-1.amazonaws.com'} \
-    ${GUNDECK_AWS_CONNECTION_LIMIT}
+    ${GUNDECK_AWS_CONNECTION_LIMIT} \
     ${GUNDECK_CANNON_BULK_PUSH}
