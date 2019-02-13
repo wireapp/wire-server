@@ -27,6 +27,7 @@ import qualified API.Search            as Search
 import qualified API.Team              as Team
 import qualified API.TURN              as TURN
 import qualified API.User              as User
+import qualified API.Metrics           as Metrics
 import qualified Brig.AWS              as AWS
 import qualified Brig.Options          as Opts
 import qualified Data.ByteString.Char8 as BS
@@ -69,6 +70,7 @@ runTests iConf bConf otherArgs = do
     searchApis  <- Search.tests mg b
     teamApis    <- Team.tests bConf mg b c g awsEnv
     turnApi     <- TURN.tests mg b turnFile turnFileV2
+    metricsApi  <- Metrics.tests mg b
 
     withArgs otherArgs . defaultMain $ testGroup "Brig API Integration"
         [ userApi
@@ -76,6 +78,7 @@ runTests iConf bConf otherArgs = do
         , searchApis
         , teamApis
         , turnApi
+        , metricsApi
         ]
   where
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p

@@ -17,6 +17,7 @@ import System.Environment (withArgs)
 import Test.Hspec
 import Util
 
+import qualified Test.MetricsSpec
 import qualified Test.Spar.APISpec
 import qualified Test.Spar.AppSpec
 import qualified Test.Spar.DataSpec
@@ -41,6 +42,7 @@ partitionArgs = go [] []
 
 mkspec :: SpecWith TestEnv
 mkspec = do
+    describe "Metrics" Test.MetricsSpec.spec
     describe "Spar.API" Test.Spar.APISpec.spec
     describe "Spar.App" Test.Spar.AppSpec.spec
     describe "Spar.Data" Test.Spar.DataSpec.spec

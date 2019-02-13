@@ -13,6 +13,7 @@ import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
 import Data.Id (UserId, ConvId)
 import Data.Metrics.Middleware as Metrics
+import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Misc
 import Data.Range
 import Data.Swagger.Build.Api hiding (def, min, Response)
@@ -65,7 +66,7 @@ run o = do
         versionCheck Data.schemaVersion
     d <- Async.async $ evalGalley e Internal.deleteLoop
     let rtree    = compile sitemap
-        measured = measureRequests m rtree
+        measured = measureRequests m (treeToPaths rtree)
         app r k  = runGalley e r (route rtree r k)
         start    = measured . catchErrors l m . GZip.gunzip . GZip.gzip GZip.def $ app
     runSettingsWithShutdown s start 5 `finally` do

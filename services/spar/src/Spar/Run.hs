@@ -30,10 +30,11 @@ import Control.Lens
 import Data.Default (def)
 import Data.List.NonEmpty as NE
 import Data.Metrics (metrics)
+import Data.Metrics.Servant (routesToPaths)
 import Data.String.Conversions
-import Network.Wai (Application)
+import Network.Wai (Application, Middleware)
 import Network.Wai.Utilities.Request (lookupRequestId)
-import Spar.API (app)
+import Spar.API (app, API)
 import Spar.API.Swagger ()
 import Spar.App
 import Spar.Data.Instances ()
@@ -44,6 +45,8 @@ import Util.Options (casEndpoint, casKeyspace, epHost, epPort)
 
 import qualified Cassandra.Schema as Cas
 import qualified Cassandra.Settings as Cas
+import qualified Data.Metrics.Types as Metrics
+import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Middleware.Prometheus as Promth
 import qualified Network.Wai.Utilities.Server as WU
@@ -110,7 +113,7 @@ runServer sparCtxOpts = do
         $ Bilge.empty
   let wrappedApp
         = WU.catchErrors sparCtxLogger mx
-        . Promth.prometheus Promth.def
+        . promthRun
         . SAML.setHttpCachePolicy
         . lookupRequestIdMiddleware
         $ \sparCtxRequestId -> app Env {..}
@@ -121,3 +124,17 @@ lookupRequestIdMiddleware :: (RequestId -> Application) -> Application
 lookupRequestIdMiddleware mkapp req cont = do
   let reqid = maybe def RequestId $ lookupRequestId req
   mkapp reqid req cont
+
+promthRun :: Middleware
+promthRun = Promth.prometheus conf . Promth.instrumentHandlerValue promthNormalize
+  where
+    conf = Promth.def
+      { Promth.prometheusEndPoint = ["i", "metrics"]
+      , Promth.prometheusInstrumentApp = False
+      }
+
+promthNormalize :: Wai.Request -> Text
+promthNormalize req = pathInfo
+  where
+    mPathInfo  = Metrics.treeLookup (routesToPaths @API) $ cs <$> Wai.pathInfo req
+    pathInfo   = cs $ fromMaybe "N/A" mPathInfo

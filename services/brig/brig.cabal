@@ -356,6 +356,7 @@ executable brig-integration
         API.Team
         API.Team.Util
         API.TURN
+        API.Metrics
         API.User
         API.User.Util
         API.User.Account
@@ -410,6 +411,7 @@ executable brig-integration
       , retry                 >= 0.6
       , safe                  >= 0.3
       , semigroups
+      , string-conversions
       , tasty                 >= 1.0
       , tasty-cannon          >= 0.3.4
       , tasty-hunit           >= 0.2
