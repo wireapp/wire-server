@@ -33,7 +33,7 @@ specCreateToken = describe "POST /auth-tokens" $ do
     it "works" $ testCreateToken
     it "respects the token limit" $ testTokenLimit
     it "requires the team to have an IdP" $ testIdPIsNeeded
-    it "### authorizes only team owner" $ testCreateTokenAuthorizesOnlyTeamOwner
+    it "authorizes only team owner" $ testCreateTokenAuthorizesOnlyTeamOwner
 
 -- | Test that token creation is sane:
 --

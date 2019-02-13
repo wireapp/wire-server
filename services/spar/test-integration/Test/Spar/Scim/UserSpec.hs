@@ -195,6 +195,8 @@ specUpdateUser = describe "PUT /Users/:id" $ do
     it "works fine when neither name nor handle are changed" $ testUpdateSameHandle
     it "updates the 'SAML.UserRef' index in Spar" $ testUpdateUserRefIndex
     it "updates the matching Brig user" $ testBrigSideIsUpdated
+    context "user is from different team" $ do
+        it "### fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
     context "scim_user has no entry with this id" $ do
         it "fails" $ pending
     context "brig user is updated" $ do
@@ -212,6 +214,21 @@ testUpdateRequiresUserId = do
     (tok, _) <- registerIdPAndScimToken
     updateUser_ (Just tok) Nothing user (env ^. teSpar)
         !!! assertTrue_ (inRange (400, 499) . statusCode)
+
+-- | Test that updates are not allowed if token is not for the user's team
+testUserUpdateFailsWithNotFoundIfOutsideTeam :: TestSpar ()
+testUserUpdateFailsWithNotFoundIfOutsideTeam = do
+    env <- ask
+    -- Create a user via SCIM
+    user <- randomScimUser
+    (tokTeamA, _) <- registerIdPAndScimToken
+    (tokTeamB, _) <- registerIdPAndScimToken
+    storedUser <- createUser tokTeamA user
+    let userid = scimUserId storedUser
+    -- Overwrite the user with another randomly-generated user
+    user' <- randomScimUser
+    updateUser_ (Just tokTeamB) (Just userid) user' (env ^. teSpar)
+        !!! const 404 === statusCode 
 
 -- | Test that @PUT@-ting the user and then @GET@-ting it returns the right thing.
 testScimSideIsUpdated :: TestSpar ()
