@@ -1,0 +1,42 @@
+# Style
+
+## Default Extensions
+
+- AllowAmbiguousTypes
+- BangPatterns
+- ConstraintKinds
+- DataKinds
+- DefaultSignatures
+- DeriveFunctor
+- DeriveGeneric
+- DeriveLift
+- DeriveTraversable
+- EmptyCase
+- FlexibleContexts
+- FlexibleInstances
+- FunctionalDependencies
+- GADTs
+- InstanceSigs
+- KindSignatures
+- LambdaCase
+- MultiParamTypeClasses
+- MultiWayIf
+- NamedFieldPuns
+- NoMonomorphismRestriction
+- OverloadedStrings
+- PackageImports
+- PatternSynonyms
+- PolyKinds
+- QuasiQuotes
+- RankNTypes
+- ScopedTypeVariables
+- StandaloneDeriving
+- StandaloneDeriving
+- TemplateHaskell
+- TupleSections
+- TypeApplications
+- TypeFamilies
+- TypeFamilyDependencies
+- TypeOperators
+- UndecidableInstances
+- ViewPatterns
