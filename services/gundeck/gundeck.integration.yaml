@@ -19,11 +19,12 @@ aws:
   arnEnv: integration
   sqsEndpoint: http://localhost:4568 # https://sqs.eu-west-1.amazonaws.com
   snsEndpoint: http://localhost:4575 # https://sns.eu-west-1.amazonaws.com
+  connectionLimit: 10
 
 settings:
   httpPoolSize: 1024
   notificationTTL: 24192200
-  bulkPush: true
+  bulkPush: false
 
 logLevel: Info
 logNetStrings: false
