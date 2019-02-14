@@ -149,6 +149,13 @@ _Note_: While it is possible to use non-docker solutions to set up and configure
 sudo apt install docker.io docker-compose
 ```
 
+After installing docker-io, add your user to the docker group, and restart your shell (usually involving a restart of your graphical environment).
+
+once you've logged in again,
+```bash
+docker login --username=<MY_DOCKER_USERNAME>
+````
+
 ### Generic:
 
 * [Install docker](https://docker.com)

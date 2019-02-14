@@ -1,10 +1,16 @@
-USERNAME ?= julialongtin
-REALNAME ?= Julia Longtin
-EMAIL    ?= julia.longtin@wire.com
-TAGNAME  ?= :0.0.7
+# use DOCKER_ so we allow users to pass in values without conflicting with USERNAME, EMAIL, or somesuch already in their environments.
+DOCKER_USERNAME ?= julialongtin
+DOCKER_REALNAME ?= Julia Longtin
+DOCKER_EMAIL    ?= julia.longtin@wire.com
+TAGNAME         ?= :0.0.7
+
+# shorten the variable names above, to make the make rules below a little clearer to read.
+USERNAME  := $(DOCKER_USERNAME)
+REALNAME  := $(DOCKER_REALNAME)
+EMAIL     := $(DOCKER_EMAIL)
 
 # the set of images we're going to build. DEBIAN, or ALPINE.
-DIST     ?= DEBIAN
+DIST            ?= DEBIAN
 
 # these are docker archetecture names, not debian.
 STRETCHARCHES := arm32v5 arm32v7 386 amd64 arm64v8 ppc64le s390x 
@@ -21,7 +27,7 @@ STRETCHNAMES  := dynamodb_local
 DEBNAMES      :=  $(JESSIENAMES) $(STRETCHNAMES)
 
 # the arches that we build for alpine.
-ALPINEARCHES  ?= amd64 386 arm32v6
+ALPINEARCHES  := amd64 386 arm32v6
 # images we build that are based on alpine.
 ALPINENAMES   := elasticsearch java_maven_node_python localstack minio
 
@@ -39,6 +45,10 @@ dockerarch=$(patsubst i%,%,$(patsubst armel,arm32v5,$(patsubst armhf,arm32v7,$(p
 LOCALDEBARCH  := $(shell dpkg --print-architecture)
 # the local architecture, in docker format. (386, amd64, arm32v5, arm32v7, arm64v8, ...)
 LOCALARCH     ?= $(call dockerarch,$(LOCALDEBARCH))
+
+ifeq ($(LOCALARCH),)
+  $(error LOCALARCH is empty, you may need to supply it.)
+endif
 
 # FIXME: make this a section that depends on LOCALARCH, so we can allow these images to be built on native arm32.
 # note that qemu's x86_64 support is not strong enough to cross-build most things on i386.

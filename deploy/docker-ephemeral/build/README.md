@@ -5,25 +5,31 @@ Builds docker images for multiple architectures. allows for -j to build multiple
 # Setup
 
 ## Docker
-docker.io is only available from debian testing or unstable.
-`apt-get install docker.io`
 
-after installing docker-io, add the user you are running as to the docker group, and restart X.
-
-once you've logged in again,
-# docker login --username=$(USERNAME)
+Follow the instructions in [our dependencies file](doc/Dependencies.md) to ensure you have docker installed, and logged in.
 
 ## qemu
+
+### Debian
 `apt-get install qemu-user-static`
 `sudo service binfmt-support start`
-`cat /proc/sys/fs/binfmt_misc/qemu-arm`
-make sure that you see 'flags: OCF'.
+
+### Fedora
+
+'sudo dnf install -y qemu-user-static'
 
 # Using
 
 At this point, you should be able to change the account info at the top of the makefile, and type 'make'.
 If you want it to go faster, but have more garbled output, type 'make -j 30'.
 
-make by default builds and uploads the debian based images. type 'make DIST=ALPINE' to build the alpine
-based images instead.
+By default this makefile builds and uploads the debian based images. Type 'make DIST=ALPINE' to build the alpine based images instead.
+
+# Troubleshooting:
+## binfmt support:
+
+examine the following file, and ensure the 'flags:' line has an "F" flag on it:
+cat /proc/sys/fs/binfmt_misc/qemu-arm | grep flags
+
+if it doesn't, try re-starting binfmt-support on debian.
 
