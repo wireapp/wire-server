@@ -155,7 +155,46 @@ library
 
 executable gundeck
     default-language:   Haskell2010
-    default-extensions: NoImplicitPrelude
+    default-extensions:
+        NoImplicitPrelude
+      , AllowAmbiguousTypes
+      , BangPatterns
+      , ConstraintKinds
+      , DataKinds
+      , DefaultSignatures
+      , DeriveFunctor
+      , DeriveGeneric
+      , DeriveLift
+      , DeriveTraversable
+      , EmptyCase
+      , FlexibleContexts
+      , FlexibleInstances
+      , FunctionalDependencies
+      , GADTs
+      , InstanceSigs
+      , KindSignatures
+      , LambdaCase
+      , MultiParamTypeClasses
+      , MultiWayIf
+      , NamedFieldPuns
+      , NoImplicitPrelude
+      , NoMonomorphismRestriction
+      , OverloadedStrings
+      , PackageImports
+      , PatternSynonyms
+      , PolyKinds
+      , QuasiQuotes
+      , RankNTypes
+      , ScopedTypeVariables
+      , StandaloneDeriving
+      , TemplateHaskell
+      , TupleSections
+      , TypeApplications
+      , TypeFamilies
+      , TypeFamilyDependencies
+      , TypeOperators
+      , UndecidableInstances
+      , ViewPatterns
     main-is:            src/Main.hs
     ghc-options:        -Wall -fwarn-tabs -O2 -threaded -rtsopts -with-rtsopts=-T
 
@@ -176,7 +215,46 @@ executable gundeck
 
 executable gundeck-schema
     default-language:   Haskell2010
-    default-extensions: NoImplicitPrelude
+    default-extensions:
+        NoImplicitPrelude
+      , AllowAmbiguousTypes
+      , BangPatterns
+      , ConstraintKinds
+      , DataKinds
+      , DefaultSignatures
+      , DeriveFunctor
+      , DeriveGeneric
+      , DeriveLift
+      , DeriveTraversable
+      , EmptyCase
+      , FlexibleContexts
+      , FlexibleInstances
+      , FunctionalDependencies
+      , GADTs
+      , InstanceSigs
+      , KindSignatures
+      , LambdaCase
+      , MultiParamTypeClasses
+      , MultiWayIf
+      , NamedFieldPuns
+      , NoImplicitPrelude
+      , NoMonomorphismRestriction
+      , OverloadedStrings
+      , PackageImports
+      , PatternSynonyms
+      , PolyKinds
+      , QuasiQuotes
+      , RankNTypes
+      , ScopedTypeVariables
+      , StandaloneDeriving
+      , TemplateHaskell
+      , TupleSections
+      , TypeApplications
+      , TypeFamilies
+      , TypeFamilyDependencies
+      , TypeOperators
+      , UndecidableInstances
+      , ViewPatterns
     hs-source-dirs:     schema/src
     main-is:            Main.hs
     ghc-options:        -Wall -fwarn-tabs -threaded
@@ -208,7 +286,46 @@ test-suite gundeck-tests
     main-is:            Main.hs
     ghc-options:        -Wall -fwarn-tabs -threaded
     default-language:   Haskell2010
-    default-extensions: NoImplicitPrelude
+    default-extensions:
+        NoImplicitPrelude
+      , AllowAmbiguousTypes
+      , BangPatterns
+      , ConstraintKinds
+      , DataKinds
+      , DefaultSignatures
+      , DeriveFunctor
+      , DeriveGeneric
+      , DeriveLift
+      , DeriveTraversable
+      , EmptyCase
+      , FlexibleContexts
+      , FlexibleInstances
+      , FunctionalDependencies
+      , GADTs
+      , InstanceSigs
+      , KindSignatures
+      , LambdaCase
+      , MultiParamTypeClasses
+      , MultiWayIf
+      , NamedFieldPuns
+      , NoImplicitPrelude
+      , NoMonomorphismRestriction
+      , OverloadedStrings
+      , PackageImports
+      , PatternSynonyms
+      , PolyKinds
+      , QuasiQuotes
+      , RankNTypes
+      , ScopedTypeVariables
+      , StandaloneDeriving
+      , TemplateHaskell
+      , TupleSections
+      , TypeApplications
+      , TypeFamilies
+      , TypeFamilyDependencies
+      , TypeOperators
+      , UndecidableInstances
+      , ViewPatterns
     hs-source-dirs:     test/unit
 
     other-modules:
@@ -258,7 +375,46 @@ benchmark gundeck-bench
     main-is:          Main.hs
     ghc-options:      -Wall
     default-language: Haskell2010
-    default-extensions: NoImplicitPrelude
+    default-extensions:
+        NoImplicitPrelude
+      , AllowAmbiguousTypes
+      , BangPatterns
+      , ConstraintKinds
+      , DataKinds
+      , DefaultSignatures
+      , DeriveFunctor
+      , DeriveGeneric
+      , DeriveLift
+      , DeriveTraversable
+      , EmptyCase
+      , FlexibleContexts
+      , FlexibleInstances
+      , FunctionalDependencies
+      , GADTs
+      , InstanceSigs
+      , KindSignatures
+      , LambdaCase
+      , MultiParamTypeClasses
+      , MultiWayIf
+      , NamedFieldPuns
+      , NoImplicitPrelude
+      , NoMonomorphismRestriction
+      , OverloadedStrings
+      , PackageImports
+      , PatternSynonyms
+      , PolyKinds
+      , QuasiQuotes
+      , RankNTypes
+      , ScopedTypeVariables
+      , StandaloneDeriving
+      , TemplateHaskell
+      , TupleSections
+      , TypeApplications
+      , TypeFamilies
+      , TypeFamilyDependencies
+      , TypeOperators
+      , UndecidableInstances
+      , ViewPatterns
     hs-source-dirs:   test/bench
     build-depends:
         base
@@ -276,7 +432,46 @@ benchmark gundeck-bench
 
 executable gundeck-integration
     default-language:   Haskell2010
-    default-extensions: NoImplicitPrelude
+    default-extensions:
+        NoImplicitPrelude
+      , AllowAmbiguousTypes
+      , BangPatterns
+      , ConstraintKinds
+      , DataKinds
+      , DefaultSignatures
+      , DeriveFunctor
+      , DeriveGeneric
+      , DeriveLift
+      , DeriveTraversable
+      , EmptyCase
+      , FlexibleContexts
+      , FlexibleInstances
+      , FunctionalDependencies
+      , GADTs
+      , InstanceSigs
+      , KindSignatures
+      , LambdaCase
+      , MultiParamTypeClasses
+      , MultiWayIf
+      , NamedFieldPuns
+      , NoImplicitPrelude
+      , NoMonomorphismRestriction
+      , OverloadedStrings
+      , PackageImports
+      , PatternSynonyms
+      , PolyKinds
+      , QuasiQuotes
+      , RankNTypes
+      , ScopedTypeVariables
+      , StandaloneDeriving
+      , TemplateHaskell
+      , TupleSections
+      , TypeApplications
+      , TypeFamilies
+      , TypeFamilyDependencies
+      , TypeOperators
+      , UndecidableInstances
+      , ViewPatterns
     main-is:            Main.hs
     hs-source-dirs:     test/integration
     ghc-options:        -threaded -Wall -fwarn-tabs

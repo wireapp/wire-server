@@ -108,7 +108,45 @@ executable bonanza
   default-language:
     Haskell2010
   default-extensions:
-    NoImplicitPrelude
+      NoImplicitPrelude
+    , AllowAmbiguousTypes
+    , BangPatterns
+    , ConstraintKinds
+    , DataKinds
+    , DefaultSignatures
+    , DeriveFunctor
+    , DeriveGeneric
+    , DeriveLift
+    , DeriveTraversable
+    , EmptyCase
+    , FlexibleContexts
+    , FlexibleInstances
+    , FunctionalDependencies
+    , GADTs
+    , InstanceSigs
+    , KindSignatures
+    , LambdaCase
+    , MultiParamTypeClasses
+    , MultiWayIf
+    , NamedFieldPuns
+    , NoImplicitPrelude
+    , NoMonomorphismRestriction
+    , OverloadedStrings
+    , PackageImports
+    , PatternSynonyms
+    , PolyKinds
+    , QuasiQuotes
+    , RankNTypes
+    , ScopedTypeVariables
+    , StandaloneDeriving
+    , TemplateHaskell
+    , TupleSections
+    , TypeApplications
+    , TypeFamilies
+    , TypeFamilyDependencies
+    , TypeOperators
+    , UndecidableInstances
+    , ViewPatterns
 
 
 executable kibanana
@@ -145,7 +183,45 @@ executable kibanana
   default-language:
     Haskell2010
   default-extensions:
-    NoImplicitPrelude
+      NoImplicitPrelude
+    , AllowAmbiguousTypes
+    , BangPatterns
+    , ConstraintKinds
+    , DataKinds
+    , DefaultSignatures
+    , DeriveFunctor
+    , DeriveGeneric
+    , DeriveLift
+    , DeriveTraversable
+    , EmptyCase
+    , FlexibleContexts
+    , FlexibleInstances
+    , FunctionalDependencies
+    , GADTs
+    , InstanceSigs
+    , KindSignatures
+    , LambdaCase
+    , MultiParamTypeClasses
+    , MultiWayIf
+    , NamedFieldPuns
+    , NoImplicitPrelude
+    , NoMonomorphismRestriction
+    , OverloadedStrings
+    , PackageImports
+    , PatternSynonyms
+    , PolyKinds
+    , QuasiQuotes
+    , RankNTypes
+    , ScopedTypeVariables
+    , StandaloneDeriving
+    , TemplateHaskell
+    , TupleSections
+    , TypeApplications
+    , TypeFamilies
+    , TypeFamilyDependencies
+    , TypeOperators
+    , UndecidableInstances
+    , ViewPatterns
 
 
 executable kibana-raw
@@ -177,7 +253,45 @@ executable kibana-raw
   default-language:
     Haskell2010
   default-extensions:
-    NoImplicitPrelude
+      NoImplicitPrelude
+    , AllowAmbiguousTypes
+    , BangPatterns
+    , ConstraintKinds
+    , DataKinds
+    , DefaultSignatures
+    , DeriveFunctor
+    , DeriveGeneric
+    , DeriveLift
+    , DeriveTraversable
+    , EmptyCase
+    , FlexibleContexts
+    , FlexibleInstances
+    , FunctionalDependencies
+    , GADTs
+    , InstanceSigs
+    , KindSignatures
+    , LambdaCase
+    , MultiParamTypeClasses
+    , MultiWayIf
+    , NamedFieldPuns
+    , NoImplicitPrelude
+    , NoMonomorphismRestriction
+    , OverloadedStrings
+    , PackageImports
+    , PatternSynonyms
+    , PolyKinds
+    , QuasiQuotes
+    , RankNTypes
+    , ScopedTypeVariables
+    , StandaloneDeriving
+    , TemplateHaskell
+    , TupleSections
+    , TypeApplications
+    , TypeFamilies
+    , TypeFamilyDependencies
+    , TypeOperators
+    , UndecidableInstances
+    , ViewPatterns
 
 
 test-suite bonanza-tests
@@ -220,4 +334,42 @@ test-suite bonanza-tests
   default-language:
     Haskell2010
   default-extensions:
-    NoImplicitPrelude
+      NoImplicitPrelude
+    , AllowAmbiguousTypes
+    , BangPatterns
+    , ConstraintKinds
+    , DataKinds
+    , DefaultSignatures
+    , DeriveFunctor
+    , DeriveGeneric
+    , DeriveLift
+    , DeriveTraversable
+    , EmptyCase
+    , FlexibleContexts
+    , FlexibleInstances
+    , FunctionalDependencies
+    , GADTs
+    , InstanceSigs
+    , KindSignatures
+    , LambdaCase
+    , MultiParamTypeClasses
+    , MultiWayIf
+    , NamedFieldPuns
+    , NoImplicitPrelude
+    , NoMonomorphismRestriction
+    , OverloadedStrings
+    , PackageImports
+    , PatternSynonyms
+    , PolyKinds
+    , QuasiQuotes
+    , RankNTypes
+    , ScopedTypeVariables
+    , StandaloneDeriving
+    , TemplateHaskell
+    , TupleSections
+    , TypeApplications
+    , TypeFamilies
+    , TypeFamilyDependencies
+    , TypeOperators
+    , UndecidableInstances
+    , ViewPatterns

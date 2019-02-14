@@ -20,7 +20,46 @@ library
       , Ropes.Twilio
 
     default-language:   Haskell2010
-    default-extensions: NoImplicitPrelude
+    default-extensions:
+        NoImplicitPrelude
+      , AllowAmbiguousTypes
+      , BangPatterns
+      , ConstraintKinds
+      , DataKinds
+      , DefaultSignatures
+      , DeriveFunctor
+      , DeriveGeneric
+      , DeriveLift
+      , DeriveTraversable
+      , EmptyCase
+      , FlexibleContexts
+      , FlexibleInstances
+      , FunctionalDependencies
+      , GADTs
+      , InstanceSigs
+      , KindSignatures
+      , LambdaCase
+      , MultiParamTypeClasses
+      , MultiWayIf
+      , NamedFieldPuns
+      , NoImplicitPrelude
+      , NoMonomorphismRestriction
+      , OverloadedStrings
+      , PackageImports
+      , PatternSynonyms
+      , PolyKinds
+      , QuasiQuotes
+      , RankNTypes
+      , ScopedTypeVariables
+      , StandaloneDeriving
+      , TemplateHaskell
+      , TupleSections
+      , TypeApplications
+      , TypeFamilies
+      , TypeFamilyDependencies
+      , TypeOperators
+      , UndecidableInstances
+      , ViewPatterns
 
     build-depends:
         aeson                 >= 0.6
@@ -49,7 +88,46 @@ library
 
 executable ropes-aws-test
     default-language:   Haskell2010
-    default-extensions: NoImplicitPrelude
+    default-extensions:
+        NoImplicitPrelude
+      , AllowAmbiguousTypes
+      , BangPatterns
+      , ConstraintKinds
+      , DataKinds
+      , DefaultSignatures
+      , DeriveFunctor
+      , DeriveGeneric
+      , DeriveLift
+      , DeriveTraversable
+      , EmptyCase
+      , FlexibleContexts
+      , FlexibleInstances
+      , FunctionalDependencies
+      , GADTs
+      , InstanceSigs
+      , KindSignatures
+      , LambdaCase
+      , MultiParamTypeClasses
+      , MultiWayIf
+      , NamedFieldPuns
+      , NoImplicitPrelude
+      , NoMonomorphismRestriction
+      , OverloadedStrings
+      , PackageImports
+      , PatternSynonyms
+      , PolyKinds
+      , QuasiQuotes
+      , RankNTypes
+      , ScopedTypeVariables
+      , StandaloneDeriving
+      , TemplateHaskell
+      , TupleSections
+      , TypeApplications
+      , TypeFamilies
+      , TypeFamilyDependencies
+      , TypeOperators
+      , UndecidableInstances
+      , ViewPatterns
     main-is:            Main.hs
     hs-source-dirs:     test/integration-aws
     other-modules:
@@ -80,7 +158,46 @@ executable ropes-aws-test
 -- Tiny test program that can be run on an AWS instance
 executable ropes-aws-auth-test
     default-language:   Haskell2010
-    default-extensions: NoImplicitPrelude
+    default-extensions:
+        NoImplicitPrelude
+      , AllowAmbiguousTypes
+      , BangPatterns
+      , ConstraintKinds
+      , DataKinds
+      , DefaultSignatures
+      , DeriveFunctor
+      , DeriveGeneric
+      , DeriveLift
+      , DeriveTraversable
+      , EmptyCase
+      , FlexibleContexts
+      , FlexibleInstances
+      , FunctionalDependencies
+      , GADTs
+      , InstanceSigs
+      , KindSignatures
+      , LambdaCase
+      , MultiParamTypeClasses
+      , MultiWayIf
+      , NamedFieldPuns
+      , NoImplicitPrelude
+      , NoMonomorphismRestriction
+      , OverloadedStrings
+      , PackageImports
+      , PatternSynonyms
+      , PolyKinds
+      , QuasiQuotes
+      , RankNTypes
+      , ScopedTypeVariables
+      , StandaloneDeriving
+      , TemplateHaskell
+      , TupleSections
+      , TypeApplications
+      , TypeFamilies
+      , TypeFamilyDependencies
+      , TypeOperators
+      , UndecidableInstances
+      , ViewPatterns
     main-is:            Main.hs
     hs-source-dirs:     test/integration-aws-auth
     ghc-options:

@@ -141,7 +141,46 @@ library
 executable cargohold
     main-is:            src/Main.hs
     default-language:   Haskell2010
-    default-extensions: NoImplicitPrelude
+    default-extensions:
+        NoImplicitPrelude
+      , AllowAmbiguousTypes
+      , BangPatterns
+      , ConstraintKinds
+      , DataKinds
+      , DefaultSignatures
+      , DeriveFunctor
+      , DeriveGeneric
+      , DeriveLift
+      , DeriveTraversable
+      , EmptyCase
+      , FlexibleContexts
+      , FlexibleInstances
+      , FunctionalDependencies
+      , GADTs
+      , InstanceSigs
+      , KindSignatures
+      , LambdaCase
+      , MultiParamTypeClasses
+      , MultiWayIf
+      , NamedFieldPuns
+      , NoImplicitPrelude
+      , NoMonomorphismRestriction
+      , OverloadedStrings
+      , PackageImports
+      , PatternSynonyms
+      , PolyKinds
+      , QuasiQuotes
+      , RankNTypes
+      , ScopedTypeVariables
+      , StandaloneDeriving
+      , TemplateHaskell
+      , TupleSections
+      , TypeApplications
+      , TypeFamilies
+      , TypeFamilyDependencies
+      , TypeOperators
+      , UndecidableInstances
+      , ViewPatterns
     ghc-options:
         -Wall
         -O2
@@ -162,7 +201,46 @@ executable cargohold
 
 executable cargohold-integration
     default-language:   Haskell2010
-    default-extensions: NoImplicitPrelude
+    default-extensions:
+        NoImplicitPrelude
+      , AllowAmbiguousTypes
+      , BangPatterns
+      , ConstraintKinds
+      , DataKinds
+      , DefaultSignatures
+      , DeriveFunctor
+      , DeriveGeneric
+      , DeriveLift
+      , DeriveTraversable
+      , EmptyCase
+      , FlexibleContexts
+      , FlexibleInstances
+      , FunctionalDependencies
+      , GADTs
+      , InstanceSigs
+      , KindSignatures
+      , LambdaCase
+      , MultiParamTypeClasses
+      , MultiWayIf
+      , NamedFieldPuns
+      , NoImplicitPrelude
+      , NoMonomorphismRestriction
+      , OverloadedStrings
+      , PackageImports
+      , PatternSynonyms
+      , PolyKinds
+      , QuasiQuotes
+      , RankNTypes
+      , ScopedTypeVariables
+      , StandaloneDeriving
+      , TemplateHaskell
+      , TupleSections
+      , TypeApplications
+      , TypeFamilies
+      , TypeFamilyDependencies
+      , TypeOperators
+      , UndecidableInstances
+      , ViewPatterns
     main-is:            Main.hs
     hs-source-dirs:     test/integration
 

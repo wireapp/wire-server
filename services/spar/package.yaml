@@ -70,7 +70,7 @@ dependencies:
   - email-validate
   - http-api-data
 
-default-extensions:
+default-extensions: &extension-list
   - NoImplicitPrelude
   - AllowAmbiguousTypes
   - BangPatterns
@@ -102,7 +102,6 @@ default-extensions:
   - RankNTypes
   - ScopedTypeVariables
   - StandaloneDeriving
-  - StandaloneDeriving
   - TemplateHaskell
   - TupleSections
   - TypeApplications
@@ -129,6 +128,8 @@ tests:
       - spar
       - uri-bytestring
 
+    default-extensions: *extension-list
+
 executables:
   spar:
     main: Main.hs
@@ -137,12 +138,16 @@ executables:
     dependencies:
       - spar
 
+    default-extensions:  *extension-list
+
   spar-schema:
     main: Main.hs
     source-dirs: schema/src
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
       - spar
+
+    default-extensions: *extension-list
 
   spar-integration:
     main: Spec.hs
@@ -165,3 +170,5 @@ executables:
       - xml-hamlet
       - xml-lens
       - zauth
+
+    default-extensions: *extension-list
