@@ -213,4 +213,5 @@ cleandocker:
 	docker rm $$(docker ps -a -q) || true
 	docker rmi $$(docker images -q) --force || true
 
-
+names:
+	@echo $(DEBNAMES) $(ALPINENAMES)

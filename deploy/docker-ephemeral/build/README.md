@@ -20,6 +20,8 @@ Follow the instructions in [our dependencies file](doc/Dependencies.md) to ensur
 
 # Using
 
+First, you must go to dockerhub, and create repositories under your user with the proper names. to get the list of names, type 'make names'.
+
 At this point, you should be able to change the account info at the top of the makefile, and type 'make'.
 If you want it to go faster, but have more garbled output, type 'make -j 30'.
 
