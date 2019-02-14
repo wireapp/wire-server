@@ -221,6 +221,7 @@ executables:
     - random >=1.0
     - retry >=0.6
     - semigroups
+    - string-conversions
     - tasty >=1.0
     - tasty-cannon >=0.3.4
     - tasty-hunit >=0.2

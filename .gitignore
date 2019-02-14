@@ -65,3 +65,8 @@ deploy/services-demo/conf/nginz/zwagger-ui/*
 
 # Ignore cabal files; use package.yaml instead
 *.cabal
+# The following are still on cabal
+# I spent a few minutes trying to get them to work as package.yaml without success
+# feel free to try again
+!/libs/sodium-crypto-sign/sodium-crypto-sign.cabal
+!/libs/zauth/zauth.cabal
