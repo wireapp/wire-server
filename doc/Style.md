@@ -1,5 +1,9 @@
 # Style
 
+## Module definitions
+
+Use package.yaml with hpack for all package definitions
+
 ## Default Extensions
 
 - AllowAmbiguousTypes
