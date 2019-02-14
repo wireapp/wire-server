@@ -86,7 +86,7 @@ push1 m a = do
         i <- mkNotificationId
         let c = a^.addrClient
         let r = singleton (target (a^.addrUser) & targetClients .~ [c])
-        let t = pushToken (a^.addrTransport) (a^.addrApp) (a^.addrToken) c
+        let t = a^.addrPushToken
         let p = singletonPayload (PushRemove t)
         Stream.add i r p =<< view (options.optSettings.setNotificationTTL)
 

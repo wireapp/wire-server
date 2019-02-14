@@ -12,6 +12,7 @@ module Gundeck.Push.Native.Types
     , addrConn
     , addrClient
     , addrEqualClient
+    , addrPushToken
 
       -- * Re-Exports
     , EndpointArn
@@ -23,30 +24,39 @@ module Gundeck.Push.Native.Types
     ) where
 
 import Imports
-import Control.Lens (makeLenses, (^.))
+import Control.Lens (makeLenses, (^.), view, Lens')
 import Data.Id (UserId, ConnId, ClientId)
 import Gundeck.Aws.Arn
 import Gundeck.Types
+import Gundeck.Types.Push.V2 (PushToken)
 
 -- | Native push address information of a device.
---
--- REFACTOR: PushToken is embedded in this type, that should probably become a tree?  especially since EnpointArn is also nested.
 data Address = Address
     { _addrUser      :: !UserId
-    , _addrTransport :: !Transport
-    , _addrApp       :: !AppName
-    , _addrToken     :: !Token
     , _addrEndpoint  :: !EndpointArn
     , _addrConn      :: !ConnId
-    , _addrClient    :: !ClientId
+    , _addrPushToken :: !PushToken
     }
   deriving (Eq, Ord)
 
 makeLenses ''Address
 
+addrTransport :: Lens' Address Transport
+addrTransport = addrPushToken . tokenTransport
+
+addrApp :: Lens' Address AppName
+addrApp = addrPushToken . tokenApp
+
+addrToken :: Lens' Address Token
+addrToken = addrPushToken . token
+
+addrClient :: Lens' Address ClientId
+addrClient = addrPushToken . tokenClient
+
+
 addrEqualClient :: Address -> Address -> Bool
-addrEqualClient a a' = _addrConn   a == _addrConn   a'
-                    || _addrClient a == _addrClient a'
+addrEqualClient a a' = view addrConn   a == view addrConn   a'
+                    || view addrClient a == view addrClient a'
 
 instance Show Address where
     show a = showString "Address"

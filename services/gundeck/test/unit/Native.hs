@@ -140,12 +140,9 @@ randMessage n = pure $ NativePush (ntfId n) HighPriority Nothing
 mkAddress :: Transport -> IO Address
 mkAddress t = Address
     <$> randomId
-    <*> pure t
-    <*> pure (AppName "test")
-    <*> pure (Token "test")
     <*> pure (mkEndpoint t (AppName "test"))
     <*> pure (ConnId "conn")
-    <*> pure (ClientId "client")
+    <*> pure (pushToken t (AppName "test") (Token "test") (ClientId "client"))
 
 mkEndpoint :: Transport -> AppName -> EndpointArn
 mkEndpoint t a = mkSnsArn Ireland (Account "test") topic

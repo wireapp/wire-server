@@ -42,7 +42,7 @@ mkAddress t = do
     let tok = Token "test"
     let con = ConnId "conn"
     let clt = ClientId "client"
-    return $! Address u t app tok ept con clt
+    return $! Address u ept con (pushToken t app tok clt)
 
 mkEndpoint :: Transport -> AppName -> EndpointArn
 mkEndpoint t a = mkSnsArn Ireland (Account "test") topic

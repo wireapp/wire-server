@@ -48,7 +48,7 @@ mkAddr :: (MonadClient m, MonadLogger m)
        => (UserId, Transport, AppName, Token, Maybe EndpointArn, ConnId, Maybe ClientId)
        -> m (Maybe Address)
 mkAddr (usr, trp, app, tok, arn, con, clt) = case (clt, arn) of
-    (Just c, Just a) -> return $! Just $! Address usr trp app tok a con c
+    (Just c, Just a) -> return $! Just $! Address usr a con (pushToken trp app tok c)
     _                -> do
         Log.info $ field "user" (toByteString usr)
             ~~ field "transport" (show trp)

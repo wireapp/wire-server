@@ -386,8 +386,8 @@ addToken (uid ::: cid ::: req ::: _) = do
                 Aws.InvalidCustomData {} -> return (Left metadataTooLong)
                 ex                       -> throwM ex
 
-    mkAddr t arn = Address uid (t^.tokenTransport) (t^.tokenApp) (t^.token)
-                           arn cid (t^.tokenClient)
+    mkAddr t arn = Address uid arn cid
+                       (pushToken (t^.tokenTransport) (t^.tokenApp) (t^.token) (t^.tokenClient))
 
 -- | Update an SNS endpoint with the given user and token.
 updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.SNSEndpoint -> Gundeck ()
@@ -439,7 +439,4 @@ notFound = empty & setStatus status404
 
 listTokens :: UserId ::: JSON -> Gundeck Response
 listTokens (uid ::: _) =
-    setStatus status200 . json . PushTokenList . map toToken <$> Data.lookup uid Data.Quorum
-  where
-    toToken :: Address -> PushToken
-    toToken a = pushToken (a^.addrTransport) (a^.addrApp) (a^.addrToken) (a^.addrClient)
+    setStatus status200 . json . PushTokenList . map (^.addrPushToken) <$> Data.lookup uid Data.Quorum
