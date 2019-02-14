@@ -30,6 +30,7 @@ dependencies:
   - data-default
   - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
+  - extra
   - galley-types
   - ghc-prim
   - HsOpenSSL

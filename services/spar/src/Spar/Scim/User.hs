@@ -25,6 +25,7 @@ import Imports
 import Brig.Types.User       as Brig
 import Control.Lens hiding ((.=), Strict)
 import Control.Monad.Except
+import Control.Monad.Extra (whenM)
 import Crypto.Hash
 import Data.Aeson as Aeson
 import Data.Id
@@ -214,7 +215,14 @@ createValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ValidScimUser -> m Scim.StoredUser
 createValidScimUser (ValidScimUser user uref handl mbName) = do
-    -- This UserId will be used both for scim user in spar and for brig.
+    -- FUTUREWORK: The @hscim@ library checks that the handle is not taken before 'create' is
+    -- even called. However, it does that in an inefficient manner. We should remove the check
+    -- from @hscim@ and do it here instead.
+
+    -- Check that the UserRef is not taken.
+    whenM (isJust <$> lift (wrapMonadClient (Data.getUser uref))) $
+        throwError Scim.conflict {Scim.detail = Just "externalId is already taken"}
+    -- Generate a UserId will be used both for scim user in spar and for brig.
     buid <- Id <$> liftIO UUID.nextRandom
     -- Create SCIM user here in spar.
     storedUser <- lift $ toScimStoredUser buid user
