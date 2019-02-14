@@ -258,9 +258,8 @@ genRecipient' env uid = do
     ]
   pure $ Recipient uid route cids
 
--- REFACTOR: see 'Route' type about missing 'RouteNative'.
 genRoute :: HasCallStack => Gen Route
-genRoute = QC.elements [RouteAny, RouteDirect]
+genRoute = QC.elements [minBound..]
 
 genId :: Gen (Id a)
 genId = do

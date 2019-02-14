@@ -78,7 +78,7 @@ data Route
                    -- trigger native pushes if the web socket is unavaiable, but they are stored in
                    -- cassandra for later pickup.
     | RouteNative  -- ^ REFACTOR: this can probably be removed.
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Enum, Bounded, Show)
 
 instance FromJSON Route where
     parseJSON (String "any")    = return RouteAny
