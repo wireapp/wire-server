@@ -27,7 +27,7 @@ notice :: IO Text
 notice = do
     i <- randomId
     a <- mkAddress GCM
-    let msg   = Notice i HighPriority Nothing
+    let msg   = NativePush i HighPriority Nothing
     Right txt <- serialise msg a
     return $! LT.toStrict txt
 

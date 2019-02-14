@@ -2,7 +2,7 @@
 module Gundeck.Push.Native.Types
     ( Result  (..)
     , Failure (..)
-    , Message (..)
+    , NativePush (..)
     , Address (..)
     , addrUser
     , addrTransport
@@ -71,9 +71,8 @@ data Failure
     | PushException !SomeException
     deriving (Show)
 
--- | REFACTOR: rename to @data NativePush (s :: Symbol) = NativePush { ntvpNotificationId :: ...@
-data Message (s :: Symbol) = Notice
-    { msgNotificationid :: NotificationId
-    , msgPriority       :: Priority
-    , msgApsData        :: Maybe ApsData
+data NativePush (s :: Symbol) = NativePush
+    { npNotificationid :: NotificationId
+    , npPriority       :: Priority
+    , npApsData        :: Maybe ApsData
     }
