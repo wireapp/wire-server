@@ -98,7 +98,7 @@ manifest-push-%: $$(foreach arch,$$(call goodarches,%),manifest-annotate-$$(arch
 
 #manifest-annotate-<arch>-<name>
 manifest-annotate-%: manifest-create-$$(call snd,%)
-	docker manifest annotate $(USERNAME)/$(call snd,$*)$(TAGNAME) $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) --arch $(call maniarch,$(call fst,$*)) $(call manivariant $(call fst,$*))
+	docker manifest annotate $(USERNAME)/$(call snd,$*)$(TAGNAME) $(USERNAME)/$(call snd,$*)$(TAGNAME)-$(call fst,$*) --arch $(call maniarch,$(call fst,$*)) $(call manivariant,$(call fst,$*))
 
 #manifest-create-<name>
 manifest-create-%: $$(foreach arch,$$(call goodarches,%),upload-$$(arch)-$$*)
