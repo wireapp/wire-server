@@ -1,4 +1,3 @@
-
 module Gundeck.Util.Redis where
 
 import Imports

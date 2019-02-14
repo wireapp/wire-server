@@ -1,4 +1,3 @@
-
 module Brig.User.API.Auth (routes) where
 
 import Imports

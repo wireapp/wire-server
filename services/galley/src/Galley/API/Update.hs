@@ -1,4 +1,3 @@
-
 module Galley.API.Update
     ( -- * Managing Conversations
       updateConversation

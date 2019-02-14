@@ -1,4 +1,3 @@
-
 module API.User.Auth (tests) where
 
 import Imports

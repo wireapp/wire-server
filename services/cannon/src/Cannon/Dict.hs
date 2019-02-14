@@ -1,4 +1,3 @@
-
 module Cannon.Dict
     ( Dict
     , empty

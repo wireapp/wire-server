@@ -1,4 +1,3 @@
-
 module Gundeck.Push.Websocket (push, bulkPush, MonadBulkPush(..)) where
 
 import Imports

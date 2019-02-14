@@ -1,4 +1,3 @@
-
 module Brig.AWS.Types
     ( -- * SES Notification
       SESNotification (..)

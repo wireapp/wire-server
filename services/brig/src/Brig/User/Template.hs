@@ -1,4 +1,3 @@
-
 module Brig.User.Template
     ( UserTemplates              (..)
     , ActivationSmsTemplate      (..)

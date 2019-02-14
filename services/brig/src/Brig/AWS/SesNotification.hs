@@ -1,4 +1,3 @@
-
 module Brig.AWS.SesNotification(onEvent) where
 
 import Imports

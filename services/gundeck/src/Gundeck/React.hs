@@ -1,4 +1,3 @@
-
 -- | Curate native push tokens based on provider feedback reported
 -- via SNS events.
 module Gundeck.React (onEvent) where

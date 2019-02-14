@@ -1,4 +1,3 @@
-
 module Galley.API.Error where
 
 import Imports

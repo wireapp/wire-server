@@ -1,4 +1,3 @@
-
 module Brig.Data.Properties
     ( PropertiesDataError (..)
     , insertProperty

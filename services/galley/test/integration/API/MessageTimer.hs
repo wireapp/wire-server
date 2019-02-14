@@ -1,4 +1,3 @@
-
 module API.MessageTimer (tests) where
 
 import Imports hiding (head)

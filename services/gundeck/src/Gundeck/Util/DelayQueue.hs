@@ -1,4 +1,3 @@
-
 module Gundeck.Util.DelayQueue
     ( DelayQueue
     , Clock (..)

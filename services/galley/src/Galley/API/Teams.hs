@@ -1,4 +1,3 @@
-
 module Galley.API.Teams
     ( createBindingTeam
     , createNonBindingTeam

@@ -1,4 +1,3 @@
-
 module Gundeck.Push.Native
     ( push
     , deleteTokens

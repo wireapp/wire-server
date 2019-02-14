@@ -1,4 +1,3 @@
-
 module Test.Spar.Intra.BrigSpec (spec) where
 
 import Imports hiding (head)

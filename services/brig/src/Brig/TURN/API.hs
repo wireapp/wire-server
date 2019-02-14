@@ -1,4 +1,3 @@
-
 module Brig.TURN.API (routes) where
 
 import Imports hiding (head)

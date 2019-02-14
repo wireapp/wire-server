@@ -1,4 +1,3 @@
-
 module API.Team.Util where
 
 import Imports

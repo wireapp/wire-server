@@ -1,4 +1,3 @@
-
 -- | Working with remote queues (like Amazon SQS).
 module Brig.Queue
     ( module Brig.Queue.Types

@@ -1,4 +1,3 @@
-
 module Brig.Queue.Types
     ( Queue (..)
     ) where

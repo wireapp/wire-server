@@ -1,4 +1,3 @@
-
 module Galley.API.Util where
 
 import Imports

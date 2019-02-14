@@ -1,4 +1,3 @@
-
 module Brig.Team.Util where  -- TODO: remove this module and move contents to Brig.IO.Intra?
 
 import Imports

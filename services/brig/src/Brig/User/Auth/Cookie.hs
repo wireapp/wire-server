@@ -1,4 +1,3 @@
-
 module Brig.User.Auth.Cookie
     ( -- * Cookie Essentials
       newCookie

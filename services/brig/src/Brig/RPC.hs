@@ -1,4 +1,3 @@
-
 -- | General RPC utilities.
 module Brig.RPC where
 
