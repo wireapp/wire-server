@@ -1,7 +1,7 @@
 # use DOCKER_ so we allow users to pass in values without conflicting with USERNAME, EMAIL, or somesuch already in their environments.
-DOCKER_USERNAME ?= julialongtin
-DOCKER_REALNAME ?= Julia Longtin
-DOCKER_EMAIL    ?= julia.longtin@wire.com
+DOCKER_USERNAME ?= wireserver
+DOCKER_REALNAME ?= Wire
+DOCKER_EMAIL    ?= backend@wire.com
 TAGNAME         ?= :0.0.7
 
 # shorten the variable names above, to make the make rules below a little clearer to read.
