@@ -34,7 +34,7 @@ notice = do
 -----------------------------------------------------------------------------
 -- Utilities
 
-mkAddress :: Transport -> IO (Address s)
+mkAddress :: Transport -> IO Address
 mkAddress t = do
     u <- randomId
     let app = AppName "test"

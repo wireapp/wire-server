@@ -131,13 +131,13 @@ randNotif size = do
         let pload = List1.singleton (HashMap.fromList ["data" .= v])
         Notification i <$> arbitrary <*> pure pload
 
-randMessage :: Notification -> IO (NativePush "keys")
+randMessage :: Notification -> IO NativePush
 randMessage n = pure $ NativePush (ntfId n) HighPriority Nothing
 
 -----------------------------------------------------------------------------
 -- Utilities
 
-mkAddress :: Transport -> IO (Address "keys")
+mkAddress :: Transport -> IO Address
 mkAddress t = Address
     <$> randomId
     <*> pure t

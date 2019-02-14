@@ -101,7 +101,7 @@ onUnhandledEventType ev = Log.warn $
 
 withEndpoint
     :: Event
-    -> (SNSEndpoint -> [Address "no-keys"] -> Gundeck ())
+    -> (SNSEndpoint -> [Address] -> Gundeck ())
     -> Gundeck ()
 withEndpoint ev f = do
     v <- view awsEnv

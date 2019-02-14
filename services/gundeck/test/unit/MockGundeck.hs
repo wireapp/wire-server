@@ -68,7 +68,7 @@ import qualified Network.URI as URI
 type Payload = List1 Aeson.Object
 
 data ClientInfo = ClientInfo
-    { _ciNativeAddress   :: Maybe (Address "no-keys", Bool{- reachable -})
+    { _ciNativeAddress   :: Maybe (Address, Bool{- reachable -})
     , _ciWSReachable     :: Bool
     }
   deriving (Eq, Show)
@@ -116,7 +116,7 @@ instance ToJSON ClientInfo where
     , "wsReachable" Aeson..= wsreach
     ]
 
-instance ToJSON (Address s) where
+instance ToJSON Address where
   toJSON adr = Aeson.object
     [ "user"      Aeson..= (adr ^. addrUser)
     , "transport" Aeson..= (adr ^. addrTransport)
@@ -143,7 +143,7 @@ instance FromJSON ClientInfo where
     <$> (cinfo Aeson..: "native")
     <*> (cinfo Aeson..: "wsReachable")
 
-instance FromJSON (Address s) where
+instance FromJSON Address where
   parseJSON = withObject "Address" $ \adr -> Address
     <$> (adr Aeson..: "user")
     <*> (adr Aeson..: "transport")
@@ -269,7 +269,7 @@ genId = do
 genClientId :: Gen ClientId
 genClientId = newClientId <$> arbitrary
 
-genProtoAddress :: HasCallStack => UserId -> ClientId -> Gen (Address "no-keys")
+genProtoAddress :: HasCallStack => UserId -> ClientId -> Gen Address
 genProtoAddress _addrUser _addrClient = do
   _addrTransport :: Transport <- QC.elements [minBound..]
   arnEpId :: Text <- arbitrary
@@ -555,7 +555,7 @@ mockStreamAdd _ (toList -> targets) pay _ =
 
 mockPushNative
   :: (HasCallStack, m ~ MockGundeck)
-  => Notification -> Push -> [Address "no-keys"] -> m ()
+  => Notification -> Push -> [Address] -> m ()
 mockPushNative _nid ((^. pushPayload) -> payload) addrs = do
   env <- ask
   forM_ addrs $ \addr -> do
@@ -564,7 +564,7 @@ mockPushNative _nid ((^. pushPayload) -> payload) addrs = do
 
 mockLookupAddresses
   :: (HasCallStack, m ~ MockGundeck)
-  => UserId -> m [Address "no-keys"]
+  => UserId -> m [Address]
 mockLookupAddresses uid = do
   cinfos :: [ClientInfo]
     <- Map.elems .
@@ -687,7 +687,7 @@ nativeReachable :: MockEnv -> (UserId, ClientId) -> Bool
 nativeReachable (MockEnv mp) (uid, cid) = maybe False (^. _2) $
   (Map.lookup uid >=> Map.lookup cid >=> (^. ciNativeAddress)) mp
 
-nativeReachableAddr :: MockEnv -> Address s -> Bool
+nativeReachableAddr :: MockEnv -> Address -> Bool
 nativeReachableAddr env addr = nativeReachable env (addr ^. addrUser, addr ^. addrClient)
 
 allUsers :: MockEnv -> [UserId]

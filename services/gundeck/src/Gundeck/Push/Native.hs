@@ -31,12 +31,12 @@ import qualified Gundeck.Notification.Data as Stream
 import qualified Gundeck.Push.Data         as Data
 import qualified System.Logger.Class       as Log
 
-push :: NativePush s -> [Address s] -> Gundeck [Result s]
+push :: NativePush -> [Address] -> Gundeck [Result]
 push _    [] = return []
 push m   [a] = pure <$> push1 m a
 push m addrs = mapConcurrently (push1 m) addrs
 
-push1 :: NativePush s -> Address s -> Gundeck (Result s)
+push1 :: NativePush -> Address -> Gundeck Result
 push1 m a = do
     e <- view awsEnv
     r <- Aws.execute e $ publish m a
@@ -90,7 +90,7 @@ push1 m a = do
         let p = singletonPayload (PushRemove t)
         Stream.add i r p =<< view (options.optSettings.setNotificationTTL)
 
-publish :: NativePush s -> Address s -> Aws.Amazon (Result s)
+publish :: NativePush -> Address -> Aws.Amazon Result
 publish m a = flip catches pushException $ do
     let ept = a^.addrEndpoint
     txt <- liftIO $ serialise m a
@@ -113,7 +113,7 @@ publish m a = flip catches pushException $ do
 -- a newly created address in the second argument. If such a new address
 -- is given, shared owners of the deleted tokens have their addresses
 -- migrated to the token and endpoint of the new address.
-deleteTokens :: [Address a] -> Maybe (Address a) -> Gundeck ()
+deleteTokens :: [Address] -> Maybe Address -> Gundeck ()
 deleteTokens tokens new = do
     aws <- view awsEnv
     forM_ tokens $ \a -> do
@@ -158,7 +158,7 @@ deleteTokens tokens new = do
                               (a^.addrConn) (a^.addrClient)
                 Data.delete u (a^.addrTransport) (a^.addrApp) oldTok
 
-logError :: (Exception e, MonadLogger m) => Address s -> Text -> e -> m ()
+logError :: (Exception e, MonadLogger m) => Address -> Text -> e -> m ()
 logError a m exn = Log.err $
        field "user" (toByteString (a^.addrUser))
     ~~ field "arn" (toText (a^.addrEndpoint))

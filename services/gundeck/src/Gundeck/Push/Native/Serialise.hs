@@ -17,7 +17,7 @@ import qualified Data.ByteString        as BS
 import qualified Data.Text.Lazy         as LT
 import qualified Data.Text.Lazy.Builder as LTB
 
-serialise :: NativePush s -> Address s -> IO (Either Failure LT.Text)
+serialise :: NativePush -> Address -> IO (Either Failure LT.Text)
 serialise m a = do
     rs <- prepare m a
     case rs of
@@ -26,7 +26,7 @@ serialise m a = do
             Nothing  -> return $ Left PayloadTooLarge
             Just txt -> return $ Right txt
 
-prepare :: NativePush s -> Address s -> IO (Either Failure (Value, Priority, Maybe ApsData))
+prepare :: NativePush -> Address -> IO (Either Failure (Value, Priority, Maybe ApsData))
 prepare m a = case m of
     NativePush nid prio aps ->
         let o = object
