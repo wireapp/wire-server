@@ -1,3 +1,29 @@
+# 2019-02-14 #629
+
+## API changes
+
+  * Support for SCIM (#559, #608, #602, #613, #617, #614, #620, #621, #627)
+  * Add support for excluding certain phone number prefixes (#593)
+  * Fix SAML2.0 compatibility issues in Spar (#607, #623)
+
+## Bug fixes
+
+  * update swagger docs (#598)
+
+## Internal changes
+
+  * architecture independance, better use of make features, more docs. (#594)
+  * Fix nginz docker image building (#605)
+  * Enable journaling locally and fix integration tests (#606)
+  * Use network-2.7 for more informative "connection failed" errors (#586)
+  * Use custom snapshots (#597)
+  * Add module documentation for all Spar modules (#611)
+  * Change the bot port in integration tests to something less common (#618)
+  * Spar metrics (#604)
+  * Extend the list of default language extensions (#619)
+  * Fix: do not have newlines in log messages. (#625)
+
+
 # 2019-01-27 #596
 
 ## API changes
