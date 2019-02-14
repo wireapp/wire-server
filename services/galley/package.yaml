@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../hpack-defaults.yaml
+  local: ../../module-defaults.yaml
 name: galley
 version: '0.83.0'
 synopsis: Conversations

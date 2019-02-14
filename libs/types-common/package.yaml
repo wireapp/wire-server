@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../hpack-defaults.yaml
+  local: ../../module-defaults.yaml
 name: types-common
 version: '0.16.0'
 synopsis: Shared type definitions.

@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../hpack-defaults.yaml
+  local: ../../module-defaults.yaml
 name: galley-types
 version: '0.81.0'
 description: API types of Galley.

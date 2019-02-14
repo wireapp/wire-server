@@ -1,5 +1,5 @@
 defaults:
-  local: ../../hpack-defaults.yaml
+  local: ../../module-defaults.yaml
 name:          spar
 version:       '0.1'
 synopsis:      'User Service for SSO (Single Sign-On) provisioning and authentication.'

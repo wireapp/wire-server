@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../hpack-defaults.yaml
+  local: ../../module-defaults.yaml
 name: gundeck
 version: '1.45.0'
 synopsis: Push Notification Hub

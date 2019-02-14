@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../hpack-defaults.yaml
+  local: ../../module-defaults.yaml
 name: bonanza
 version: '3.6.0'
 synopsis: Log Processing.

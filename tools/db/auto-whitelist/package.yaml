@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../../hpack-defaults.yaml
+  local: ../../../module-defaults.yaml
 name: auto-whitelist
 version: '1.0.0'
 synopsis: Backfill service tables

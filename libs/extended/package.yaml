@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../hpack-defaults.yaml
+  local: ../../module-defaults.yaml
 name: extended
 version: '0.1.0'
 synopsis: Extended versions of common modules
