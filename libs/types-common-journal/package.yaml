@@ -72,5 +72,6 @@ library:
   - Proto.TeamEvents_Fields
   - Proto.UserEvents
   - Proto.UserEvents_Fields
-verbatim:
-  cabal-version: 1.12
+verbatim: |
+  custom-setup
+      setup-depends: base, Cabal, proto-lens-protoc
