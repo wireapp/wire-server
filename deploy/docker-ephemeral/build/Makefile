@@ -111,7 +111,7 @@ archpath=$(foreach arch,$(patsubst 386,i386,$(filter-out $(LOCALARCH),$(1))),$(a
 # handle cases where a manifest file is not being respected, and we have to use <name>:<tag>-<arch> format.
 # Dockerfile-NOMANIFEST-<arch>-<name>
 Dockerfile-NOMANIFEST-%: $$(call snd,$$*)/Dockerfile
-	cd $(call snd,$*) && cat Dockerfile | sed "s/^\(MAINTAINER\).*/\1 $(REALNAME) \"$(EMAIL)\"/" | sed "s=^\(FROM \)\(.*\)$$=\1\2$(call archpostfix,(call fst,$*))=" > Dockerfile-$(call fst,$*)
+	cd $(call snd,$*) && cat Dockerfile | sed "s/^\(MAINTAINER\).*/\1 $(REALNAME) \"$(EMAIL)\"/" | sed "s=^\(FROM \)\(.*\)$$=\1\2$(call archpostfix,$(call fst,$*))=" > Dockerfile-$(call fst,$*)
 
 # handle situations where a manifest is present in upstream, and available as <arch>/<name>:<tag>
 # Dockerfile-<arch>-<name>
