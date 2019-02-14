@@ -1,8 +1,4 @@
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE DataKinds                  #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 

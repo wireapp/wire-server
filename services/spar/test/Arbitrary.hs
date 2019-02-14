@@ -1,10 +1,5 @@
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE PackageImports       #-}
 {-# LANGUAGE RecordWildCards      #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE TypeApplications     #-}
-{-# LANGUAGE StandaloneDeriving   #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}

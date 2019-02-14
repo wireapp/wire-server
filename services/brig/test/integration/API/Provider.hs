@@ -1,10 +1,4 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE MultiWayIf        #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE NondecreasingIndentation #-}
 
 module API.Provider (tests, Config) where

@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 
 module Brig.AWS.SesNotification(onEvent) where
 

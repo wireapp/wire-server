@@ -1,12 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE TypeFamilies      #-}
-{-# LANGUAGE TypeApplications  #-}
-{-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 module Brig.Provider.API
     ( -- * Main stuff

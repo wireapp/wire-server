@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell       #-}
 
 module Brig.TURN where
 

@@ -1,12 +1,6 @@
-{-# LANGUAGE BangPatterns               #-}
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE StrictData                 #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE ViewPatterns               #-}
 
 module CargoHold.App
     ( -- * Environment
@@ -102,7 +96,8 @@ initAws o l m = do
     let awsOpts = o^.optAws
     amz  <- Aws.newEnv l m $ liftM2 (,) (awsOpts^.awsKeyId) (awsOpts^.awsSecretKey)
     sig  <- newCloudFrontEnv (o^.optAws.awsCloudFront) (o^.optSettings.setDownloadLinkTTL)
-    let s3cfg         = endpointToConfig (awsOpts^.awsS3Endpoint)
+    let s3cfg :: Aws.S3Configuration queryType
+        s3cfg         = endpointToConfig (awsOpts^.awsS3Endpoint)
         s3cfgDownload = maybe s3cfg endpointToConfig (awsOpts^.awsS3DownloadEndpoint)
 
     return $! AwsEnv amz s3cfgDownload s3cfg (awsOpts^.awsS3Bucket) sig

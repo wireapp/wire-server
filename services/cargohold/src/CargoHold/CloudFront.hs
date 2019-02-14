@@ -1,8 +1,4 @@
-{-# LANGUAGE BangPatterns               #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StrictData                 #-}
 
 module CargoHold.CloudFront

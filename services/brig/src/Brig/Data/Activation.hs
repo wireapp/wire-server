@@ -1,7 +1,3 @@
-{-# LANGUAGE MultiWayIf          #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
 
 -- | Activation of 'Email' addresses and 'Phone' numbers.
 module Brig.Data.Activation

@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 -- | Working with remote queues (like Amazon SQS).
 module Brig.Queue

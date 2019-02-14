@@ -1,11 +1,4 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 module Galley.Data
     ( ResultSet (..)

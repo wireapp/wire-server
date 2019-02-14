@@ -1,6 +1,3 @@
-{-# LANGUAGE MultiWayIf        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
 
 -- | Persistent storage for password reset codes.
 -- TODO: Use Brig.Data.Codes

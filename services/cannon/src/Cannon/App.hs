@@ -1,7 +1,3 @@
-{-# LANGUAGE LambdaCase           #-}
-{-# LANGUAGE MultiWayIf           #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
 
 module Cannon.App (wsapp, terminate, maxPingInterval) where
 

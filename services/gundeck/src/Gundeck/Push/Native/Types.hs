@@ -1,7 +1,3 @@
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE GADTs           #-}
-{-# LANGUAGE KindSignatures  #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module Gundeck.Push.Native.Types
     ( Result  (..)

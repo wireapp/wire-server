@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE FlexibleContexts           #-}
 
 module API.User.Auth (tests) where
 
