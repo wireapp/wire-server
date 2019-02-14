@@ -75,3 +75,5 @@ executables:
     - base
     - makedeb
     - optparse-applicative
+verbatim:
+  cabal-version: 1.12

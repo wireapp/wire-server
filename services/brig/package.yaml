@@ -271,3 +271,5 @@ executables:
     - directory >=1.3
     - optparse-applicative >=0.10
     - types-common
+verbatim:
+  cabal-version: 1.12

@@ -64,3 +64,5 @@ library:
   source-dirs: src
   exposed-modules:
   - Sodium.Crypto.Sign
+verbatim:
+  cabal-version: 1.12

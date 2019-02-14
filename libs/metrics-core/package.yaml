@@ -80,3 +80,5 @@ benchmarks:
     - criterion
     - metrics-core
     - unordered-containers
+verbatim:
+  cabal-version: 1.12

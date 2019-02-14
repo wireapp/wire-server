@@ -107,3 +107,5 @@ executables:
     - text >=0.11.3
     - transformers
     - tinylog
+verbatim:
+  cabal-version: 1.12

@@ -289,3 +289,5 @@ tests:
     - tasty-quickcheck
     - time
     - vector
+verbatim:
+  cabal-version: 1.12

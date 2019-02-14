@@ -76,3 +76,5 @@ library:
   - CargoHold.Types
   - CargoHold.Types.V3
   - CargoHold.Types.V3.Resumable
+verbatim:
+  cabal-version: 1.12

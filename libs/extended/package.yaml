@@ -65,3 +65,5 @@ library:
   exposed-modules:
   - Options.Applicative.Extended
 stability: experimental
+verbatim:
+  cabal-version: 1.12

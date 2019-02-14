@@ -63,3 +63,5 @@ library:
   exposed-modules:
   - Ssl.Util
 stability: experimental
+verbatim:
+  cabal-version: 1.12

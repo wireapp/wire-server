@@ -71,3 +71,5 @@ library:
   source-dirs: src
   exposed-modules:
   - Test.Tasty.Cannon
+verbatim:
+  cabal-version: 1.12

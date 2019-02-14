@@ -85,3 +85,5 @@ library:
   - Bilge.Retry
   - Bilge.RPC
 stability: experimental
+verbatim:
+  cabal-version: 1.12

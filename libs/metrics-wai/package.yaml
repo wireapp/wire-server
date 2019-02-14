@@ -49,9 +49,6 @@ ghc-options:
 - -Wall
 - -O2
 - -fwarn-tabs
-ghc-prof-options:
-- -prof
-- -auto-all
 dependencies:
 - base ==4.*
 - bytestring >=0.10
@@ -60,11 +57,20 @@ dependencies:
 - http-types >=0.8
 - imports
 - metrics-core >=0.3
+- containers
+- servant
+- string-conversions
 - text >=0.11
 - transformers >=0.3
 - wai >=3
 - wai-route >=0.3
 library:
   source-dirs: src
+  ghc-prof-options: -auto-all
   exposed-modules:
   - Data.Metrics.Middleware
+  - Data.Metrics.Types
+  - Data.Metrics.WaiRoute
+  - Data.Metrics.Servant
+verbatim:
+  cabal-version: 1.12

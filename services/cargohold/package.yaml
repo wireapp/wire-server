@@ -152,3 +152,5 @@ flags:
     description: Enable static linking
     manual: false
     default: false
+verbatim:
+  cabal-version: 1.12
