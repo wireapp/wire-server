@@ -120,7 +120,8 @@ executables:
     - -fno-warn-unused-do-bind
     - -threaded
     - -rtsopts
-    - -with-rtsopts=-T -N
+    - -with-rtsopts=-T
+    - -with-rtsopts=-N
     dependencies:
     - base ==4.*
     - bonanza
@@ -219,7 +220,8 @@ executables:
     - -fno-warn-unused-do-bind
     - -threaded
     - -rtsopts
-    - -with-rtsopts=-T -N
+    - -with-rtsopts=-T
+    - -with-rtsopts=-N
     dependencies:
     - async
     - base
