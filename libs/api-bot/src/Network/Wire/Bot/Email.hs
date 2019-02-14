@@ -131,8 +131,8 @@ awaitMail :: Mailbox
           -> IO (NonEmpty MIMEValue)
 awaitMail mbox folders from to purpose = go 0
   where
-    sleep   = 5000000    -- every 5 seconds
-    timeout = sleep * 24 -- for up to 2 minutes
+    sleep   = 5000000 :: Int   -- every 5 seconds
+    timeout = sleep * 24   -- for up to 2 minutes
     go t = do
         msgs <- fetchMail mbox folders from to purpose -- TODO: Retry on (some?) exceptions
         case msgs of

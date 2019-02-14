@@ -47,7 +47,8 @@ instance MonadLogger Session where
 
 -- | Perform an HTTP request against the API in the context of a session,
 -- i.e. including an 'Authorization' header.
-sessionRequest :: MonadSession m
+sessionRequest :: forall m a
+                . MonadSession m
                => Request                       -- ^ The request to send.
                -> NonEmpty Status               -- ^ Expected response codes.
                -> (Response BodyReader -> IO a) -- ^ Handler function.
@@ -58,10 +59,12 @@ sessionRequest rq expected f =
             then Left  <$> mkErrorResponse rs
             else Right <$> f rs)
   where
+    exec :: (Response BodyReader -> IO b) -> m b
     exec h = do
         Auth _ t <- getAuth
         clientRequest (token t rq) (status401 <| expected) h
 
+    retry :: ClientException -> m a
     retry e = do
         a  <- getAuth >>= refreshAuth
         maybe (liftIO $ throwIO e) setAuth a
