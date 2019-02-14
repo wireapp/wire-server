@@ -1,3 +1,5 @@
+defaults: 
+  local: ../../hpack-defaults.yaml
 name: bonanza
 version: '3.6.0'
 synopsis: Log Processing.
@@ -6,8 +8,6 @@ category: Network
 author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 license: AGPL-3
-default-extensions:
-- NoImplicitPrelude
 ghc-options: -Wall
 dependencies:
 - bytestring
@@ -77,43 +77,6 @@ library:
 executables:
   bonanza:
     main: main/Main.hs
-    default-extensions:
-    - AllowAmbiguousTypes
-    - BangPatterns
-    - ConstraintKinds
-    - DataKinds
-    - DefaultSignatures
-    - DeriveFunctor
-    - DeriveGeneric
-    - DeriveLift
-    - DeriveTraversable
-    - EmptyCase
-    - FlexibleContexts
-    - FlexibleInstances
-    - FunctionalDependencies
-    - GADTs
-    - InstanceSigs
-    - KindSignatures
-    - LambdaCase
-    - MultiParamTypeClasses
-    - MultiWayIf
-    - NamedFieldPuns
-    - OverloadedStrings
-    - PackageImports
-    - PatternSynonyms
-    - PolyKinds
-    - QuasiQuotes
-    - RankNTypes
-    - ScopedTypeVariables
-    - StandaloneDeriving
-    - TemplateHaskell
-    - TupleSections
-    - TypeApplications
-    - TypeFamilies
-    - TypeFamilyDependencies
-    - TypeOperators
-    - UndecidableInstances
-    - ViewPatterns
     ghc-options:
     - -O2
     - -funbox-small-strict-fields
@@ -127,43 +90,6 @@ executables:
     - bonanza
   kibana-raw:
     main: main/KibanaRaw.hs
-    default-extensions:
-    - AllowAmbiguousTypes
-    - BangPatterns
-    - ConstraintKinds
-    - DataKinds
-    - DefaultSignatures
-    - DeriveFunctor
-    - DeriveGeneric
-    - DeriveLift
-    - DeriveTraversable
-    - EmptyCase
-    - FlexibleContexts
-    - FlexibleInstances
-    - FunctionalDependencies
-    - GADTs
-    - InstanceSigs
-    - KindSignatures
-    - LambdaCase
-    - MultiParamTypeClasses
-    - MultiWayIf
-    - NamedFieldPuns
-    - OverloadedStrings
-    - PackageImports
-    - PatternSynonyms
-    - PolyKinds
-    - QuasiQuotes
-    - RankNTypes
-    - ScopedTypeVariables
-    - StandaloneDeriving
-    - TemplateHaskell
-    - TupleSections
-    - TypeApplications
-    - TypeFamilies
-    - TypeFamilyDependencies
-    - TypeOperators
-    - UndecidableInstances
-    - ViewPatterns
     ghc-options:
     - -O2
     - -funbox-small-strict-fields
@@ -177,43 +103,6 @@ executables:
     - time
   kibanana:
     main: main/Kibanana.hs
-    default-extensions:
-    - AllowAmbiguousTypes
-    - BangPatterns
-    - ConstraintKinds
-    - DataKinds
-    - DefaultSignatures
-    - DeriveFunctor
-    - DeriveGeneric
-    - DeriveLift
-    - DeriveTraversable
-    - EmptyCase
-    - FlexibleContexts
-    - FlexibleInstances
-    - FunctionalDependencies
-    - GADTs
-    - InstanceSigs
-    - KindSignatures
-    - LambdaCase
-    - MultiParamTypeClasses
-    - MultiWayIf
-    - NamedFieldPuns
-    - OverloadedStrings
-    - PackageImports
-    - PatternSynonyms
-    - PolyKinds
-    - QuasiQuotes
-    - RankNTypes
-    - ScopedTypeVariables
-    - StandaloneDeriving
-    - TemplateHaskell
-    - TupleSections
-    - TypeApplications
-    - TypeFamilies
-    - TypeFamilyDependencies
-    - TypeOperators
-    - UndecidableInstances
-    - ViewPatterns
     ghc-options:
     - -O2
     - -funbox-small-strict-fields
@@ -236,43 +125,6 @@ tests:
   bonanza-tests:
     main: Main.hs
     source-dirs: test/unit
-    default-extensions:
-    - AllowAmbiguousTypes
-    - BangPatterns
-    - ConstraintKinds
-    - DataKinds
-    - DefaultSignatures
-    - DeriveFunctor
-    - DeriveGeneric
-    - DeriveLift
-    - DeriveTraversable
-    - EmptyCase
-    - FlexibleContexts
-    - FlexibleInstances
-    - FunctionalDependencies
-    - GADTs
-    - InstanceSigs
-    - KindSignatures
-    - LambdaCase
-    - MultiParamTypeClasses
-    - MultiWayIf
-    - NamedFieldPuns
-    - OverloadedStrings
-    - PackageImports
-    - PatternSynonyms
-    - PolyKinds
-    - QuasiQuotes
-    - RankNTypes
-    - ScopedTypeVariables
-    - StandaloneDeriving
-    - TemplateHaskell
-    - TupleSections
-    - TypeApplications
-    - TypeFamilies
-    - TypeFamilyDependencies
-    - TypeOperators
-    - UndecidableInstances
-    - ViewPatterns
     ghc-options:
     - -threaded
     - -with-rtsopts=-N

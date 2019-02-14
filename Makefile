@@ -10,11 +10,11 @@ init:
 
 .PHONY: install
 install: init
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --ghc-options=-optP-Wno-nonportable-include-path
+	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
 .PHONY: fast
 fast: init
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast --ghc-options=-optP-Wno-nonportable-include-path $(WIRE_STACK_OPTIONS)
+	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
 
 .PHONY: clean
 clean:

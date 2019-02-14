@@ -1,3 +1,5 @@
+defaults: 
+  local: ../../hpack-defaults.yaml
 name:          spar
 version:       '0.1'
 synopsis:      'User Service for SSO (Single Sign-On) provisioning and authentication.'
@@ -72,46 +74,6 @@ dependencies:
   - hscim
   - email-validate
   - http-api-data
-
-default-extensions:
-  - NoImplicitPrelude
-  - AllowAmbiguousTypes
-  - BangPatterns
-  - ConstraintKinds
-  - DataKinds
-  - DefaultSignatures
-  - DeriveFunctor
-  - DeriveGeneric
-  - DeriveLift
-  - DeriveTraversable
-  - EmptyCase
-  - FlexibleContexts
-  - FlexibleInstances
-  - FunctionalDependencies
-  - GADTs
-  - InstanceSigs
-  - KindSignatures
-  - LambdaCase
-  - MultiParamTypeClasses
-  - MultiWayIf
-  - NamedFieldPuns
-  - NoImplicitPrelude
-  - OverloadedStrings
-  - PackageImports
-  - PatternSynonyms
-  - PolyKinds
-  - QuasiQuotes
-  - RankNTypes
-  - ScopedTypeVariables
-  - StandaloneDeriving
-  - TemplateHaskell
-  - TupleSections
-  - TypeApplications
-  - TypeFamilies
-  - TypeFamilyDependencies
-  - TypeOperators
-  - UndecidableInstances
-  - ViewPatterns
 
 library:
   source-dirs:

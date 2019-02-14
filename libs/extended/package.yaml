@@ -1,3 +1,5 @@
+defaults: 
+  local: ../../hpack-defaults.yaml
 name: extended
 version: '0.1.0'
 synopsis: Extended versions of common modules
@@ -11,45 +13,6 @@ author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2018 Wire Swiss GmbH
 license: AGPL-3
-default-extensions:
-- NoImplicitPrelude
-- AllowAmbiguousTypes
-- BangPatterns
-- ConstraintKinds
-- DataKinds
-- DefaultSignatures
-- DeriveFunctor
-- DeriveGeneric
-- DeriveLift
-- DeriveTraversable
-- EmptyCase
-- FlexibleContexts
-- FlexibleInstances
-- FunctionalDependencies
-- GADTs
-- InstanceSigs
-- KindSignatures
-- LambdaCase
-- MultiParamTypeClasses
-- MultiWayIf
-- NamedFieldPuns
-- NoImplicitPrelude
-- OverloadedStrings
-- PackageImports
-- PatternSynonyms
-- PolyKinds
-- QuasiQuotes
-- RankNTypes
-- ScopedTypeVariables
-- StandaloneDeriving
-- TemplateHaskell
-- TupleSections
-- TypeApplications
-- TypeFamilies
-- TypeFamilyDependencies
-- TypeOperators
-- UndecidableInstances
-- ViewPatterns
 ghc-options:
 - -Wall
 - -O2

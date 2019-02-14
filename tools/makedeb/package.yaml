@@ -1,3 +1,5 @@
+defaults: 
+  local: ../../hpack-defaults.yaml
 name: makedeb
 version: '0.3.0'
 synopsis: Create debian archives with dpkg-deb.
@@ -7,9 +9,6 @@ author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
-default-extensions:
-- NoImplicitPrelude
-- NoImplicitPrelude
 ghc-options:
 - -Wall
 - -O2
@@ -18,43 +17,6 @@ dependencies:
 - imports
 library:
   source-dirs: src
-  default-extensions:
-  - AllowAmbiguousTypes
-  - BangPatterns
-  - ConstraintKinds
-  - DataKinds
-  - DefaultSignatures
-  - DeriveFunctor
-  - DeriveGeneric
-  - DeriveLift
-  - DeriveTraversable
-  - EmptyCase
-  - FlexibleContexts
-  - FlexibleInstances
-  - FunctionalDependencies
-  - GADTs
-  - InstanceSigs
-  - KindSignatures
-  - LambdaCase
-  - MultiParamTypeClasses
-  - MultiWayIf
-  - NamedFieldPuns
-  - OverloadedStrings
-  - PackageImports
-  - PatternSynonyms
-  - PolyKinds
-  - QuasiQuotes
-  - RankNTypes
-  - ScopedTypeVariables
-  - StandaloneDeriving
-  - TemplateHaskell
-  - TupleSections
-  - TypeApplications
-  - TypeFamilies
-  - TypeFamilyDependencies
-  - TypeOperators
-  - UndecidableInstances
-  - ViewPatterns
   exposed-modules:
   - System.MakeDeb
   dependencies:

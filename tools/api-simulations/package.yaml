@@ -1,3 +1,5 @@
+defaults: 
+  local: ../../hpack-defaults.yaml
 name: api-simulations
 version: '0.4.2'
 synopsis: (Internal) Wire API simulations
@@ -6,8 +8,6 @@ category: Network
 author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 license: AGPL-3
-default-extensions:
-- NoImplicitPrelude
 ghc-options:
 - -Wall
 - -O2

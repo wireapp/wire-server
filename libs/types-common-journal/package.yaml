@@ -1,3 +1,5 @@
+defaults: 
+  local: ../../hpack-defaults.yaml
 name: types-common-journal
 version: '0.1.0'
 synopsis: Shared protobuf type definitions.
@@ -10,45 +12,6 @@ license: AGPL-3
 extra-source-files:
 - proto/TeamEvents.proto
 - proto/UserEvents.proto
-default-extensions:
-- NoImplicitPrelude
-- AllowAmbiguousTypes
-- BangPatterns
-- ConstraintKinds
-- DataKinds
-- DefaultSignatures
-- DeriveFunctor
-- DeriveGeneric
-- DeriveLift
-- DeriveTraversable
-- EmptyCase
-- FlexibleContexts
-- FlexibleInstances
-- FunctionalDependencies
-- GADTs
-- InstanceSigs
-- KindSignatures
-- LambdaCase
-- MultiParamTypeClasses
-- MultiWayIf
-- NamedFieldPuns
-- NoImplicitPrelude
-- OverloadedStrings
-- PackageImports
-- PatternSynonyms
-- PolyKinds
-- QuasiQuotes
-- RankNTypes
-- ScopedTypeVariables
-- StandaloneDeriving
-- TemplateHaskell
-- TupleSections
-- TypeApplications
-- TypeFamilies
-- TypeFamilyDependencies
-- TypeOperators
-- UndecidableInstances
-- ViewPatterns
 ghc-options:
 - -Wall
 - -O2

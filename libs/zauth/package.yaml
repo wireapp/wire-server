@@ -1,3 +1,5 @@
+defaults: 
+  local: ../../hpack-defaults.yaml
 name: zauth
 version: '0.10.3'
 synopsis: Creation and validation of signed tokens.
@@ -9,45 +11,6 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 extra-source-files:
 - README.md
-default-extensions:
-- NoImplicitPrelude
-- AllowAmbiguousTypes
-- BangPatterns
-- ConstraintKinds
-- DataKinds
-- DefaultSignatures
-- DeriveFunctor
-- DeriveGeneric
-- DeriveLift
-- DeriveTraversable
-- EmptyCase
-- FlexibleContexts
-- FlexibleInstances
-- FunctionalDependencies
-- GADTs
-- InstanceSigs
-- KindSignatures
-- LambdaCase
-- MultiParamTypeClasses
-- MultiWayIf
-- NamedFieldPuns
-- NoImplicitPrelude
-- OverloadedStrings
-- PackageImports
-- PatternSynonyms
-- PolyKinds
-- QuasiQuotes
-- RankNTypes
-- ScopedTypeVariables
-- StandaloneDeriving
-- TemplateHaskell
-- TupleSections
-- TypeApplications
-- TypeFamilies
-- TypeFamilyDependencies
-- TypeOperators
-- UndecidableInstances
-- ViewPatterns
 ghc-options:
 - -Wall
 - -O2

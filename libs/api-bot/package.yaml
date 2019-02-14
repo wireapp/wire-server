@@ -1,3 +1,5 @@
+defaults: 
+  local: ../../hpack-defaults.yaml
 name: api-bot
 version: '0.4.2'
 synopsis: (Internal) API automation around wire-client
@@ -6,45 +8,6 @@ category: Network
 author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 license: AGPL-3
-default-extensions:
-- NoImplicitPrelude
-- AllowAmbiguousTypes
-- BangPatterns
-- ConstraintKinds
-- DataKinds
-- DefaultSignatures
-- DeriveFunctor
-- DeriveGeneric
-- DeriveLift
-- DeriveTraversable
-- EmptyCase
-- FlexibleContexts
-- FlexibleInstances
-- FunctionalDependencies
-- GADTs
-- InstanceSigs
-- KindSignatures
-- LambdaCase
-- MultiParamTypeClasses
-- MultiWayIf
-- NamedFieldPuns
-- NoImplicitPrelude
-- OverloadedStrings
-- PackageImports
-- PatternSynonyms
-- PolyKinds
-- QuasiQuotes
-- RankNTypes
-- ScopedTypeVariables
-- StandaloneDeriving
-- TemplateHaskell
-- TupleSections
-- TypeApplications
-- TypeFamilies
-- TypeFamilyDependencies
-- TypeOperators
-- UndecidableInstances
-- ViewPatterns
 ghc-options:
 - -Wall
 - -O2
