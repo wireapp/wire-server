@@ -1,0 +1,78 @@
+name: cargohold-types
+version: '1.5.0'
+synopsis: Asset Storage API Types
+description: API Types for the CargoHold service.
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2017 Wire Swiss GmbH
+license: AGPL-3
+default-extensions:
+- NoImplicitPrelude
+- AllowAmbiguousTypes
+- BangPatterns
+- ConstraintKinds
+- DataKinds
+- DefaultSignatures
+- DeriveFunctor
+- DeriveGeneric
+- DeriveLift
+- DeriveTraversable
+- EmptyCase
+- FlexibleContexts
+- FlexibleInstances
+- FunctionalDependencies
+- GADTs
+- InstanceSigs
+- KindSignatures
+- LambdaCase
+- MultiParamTypeClasses
+- MultiWayIf
+- NamedFieldPuns
+- NoImplicitPrelude
+- OverloadedStrings
+- PackageImports
+- PatternSynonyms
+- PolyKinds
+- QuasiQuotes
+- RankNTypes
+- ScopedTypeVariables
+- StandaloneDeriving
+- TemplateHaskell
+- TupleSections
+- TypeApplications
+- TypeFamilies
+- TypeFamilyDependencies
+- TypeOperators
+- UndecidableInstances
+- ViewPatterns
+ghc-options:
+- -Wall
+- -O2
+- -fwarn-tabs
+dependencies:
+- aeson >=0.6
+- attoparsec >=0.10
+- base ==4.*
+- byteable >=0.1
+- bytestring >=0.9
+- bytestring-conversion >=0.2
+- base16-bytestring >=0.1
+- base64-bytestring >=1.0
+- cryptonite >=0.11
+- containers >=0.5
+- data-default >=0.5
+- imports
+- lens >=4.13
+- memory >=0.11
+- mime >=0.4
+- text >=0.11
+- time >=1.5
+- types-common >=0.16
+- unordered-containers >=0.2
+- uuid >=1.2
+library:
+  source-dirs: src
+  exposed-modules:
+  - CargoHold.Types
+  - CargoHold.Types.V3
+  - CargoHold.Types.V3.Resumable

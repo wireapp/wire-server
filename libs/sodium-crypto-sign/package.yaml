@@ -1,0 +1,66 @@
+name: sodium-crypto-sign
+version: '0.1.2'
+synopsis: FFI to some of libsodium's crypto_sign_* functions.
+description: ! 'FFI bindings to some of libsodium''s cryptographic signature
+
+  functions which are based on Ed25519.'
+category: Cryptography
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2017 Wire Swiss GmbH
+license: AGPL-3
+default-extensions:
+- NoImplicitPrelude
+- AllowAmbiguousTypes
+- BangPatterns
+- ConstraintKinds
+- DataKinds
+- DefaultSignatures
+- DeriveFunctor
+- DeriveGeneric
+- DeriveLift
+- DeriveTraversable
+- EmptyCase
+- FlexibleContexts
+- FlexibleInstances
+- FunctionalDependencies
+- GADTs
+- InstanceSigs
+- KindSignatures
+- LambdaCase
+- MultiParamTypeClasses
+- MultiWayIf
+- NamedFieldPuns
+- NoImplicitPrelude
+- OverloadedStrings
+- PackageImports
+- PatternSynonyms
+- PolyKinds
+- QuasiQuotes
+- RankNTypes
+- ScopedTypeVariables
+- StandaloneDeriving
+- TemplateHaskell
+- TupleSections
+- TypeApplications
+- TypeFamilies
+- TypeFamilyDependencies
+- TypeOperators
+- UndecidableInstances
+- ViewPatterns
+ghc-options:
+- -Wall
+- -O2
+- -fwarn-tabs
+ghc-prof-options:
+- -prof
+- -auto-all
+dependencies:
+- base >=4.6 && <5
+- base64-bytestring >=1.0
+- bytestring >=0.10
+- imports
+library:
+  source-dirs: src
+  exposed-modules:
+  - Sodium.Crypto.Sign

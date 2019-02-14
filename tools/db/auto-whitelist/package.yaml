@@ -1,0 +1,80 @@
+name: auto-whitelist
+version: '1.0.0'
+synopsis: Backfill service tables
+category: Network
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2018 Wire Swiss GmbH
+license: UnspecifiedLicense
+default-extensions:
+- NoImplicitPrelude
+- AllowAmbiguousTypes
+- BangPatterns
+- ConstraintKinds
+- DataKinds
+- DefaultSignatures
+- DeriveFunctor
+- DeriveGeneric
+- DeriveLift
+- DeriveTraversable
+- EmptyCase
+- FlexibleContexts
+- FlexibleInstances
+- FunctionalDependencies
+- GADTs
+- InstanceSigs
+- KindSignatures
+- LambdaCase
+- MultiParamTypeClasses
+- MultiWayIf
+- NamedFieldPuns
+- NoImplicitPrelude
+- OverloadedStrings
+- PackageImports
+- PatternSynonyms
+- PolyKinds
+- QuasiQuotes
+- RankNTypes
+- ScopedTypeVariables
+- StandaloneDeriving
+- TemplateHaskell
+- TupleSections
+- TypeApplications
+- TypeFamilies
+- TypeFamilyDependencies
+- TypeOperators
+- UndecidableInstances
+- ViewPatterns
+ghc-options:
+- -Wall
+- -fwarn-tabs
+- -funbox-strict-fields
+- -threaded
+- -with-rtsopts=-N
+- -with-rtsopts=-T
+- -rtsopts
+dependencies:
+- base
+- attoparsec
+- brig-types
+- bytestring
+- bytestring
+- bytestring-conversion
+- cassandra-util
+- extended
+- extra
+- galley-types
+- imports
+- lens
+- mtl
+- optparse-applicative
+- text
+- time
+- tinylog
+- types-common
+- unliftio
+- uuid
+executables:
+  auto-whitelist:
+    main: Main.hs
+    source-dirs: src

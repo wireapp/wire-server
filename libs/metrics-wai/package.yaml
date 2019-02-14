@@ -1,0 +1,70 @@
+name: metrics-wai
+version: '0.5.7'
+synopsis: Metrics WAI integration
+category: Data
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2017 Wire Swiss GmbH
+license: AGPL-3
+default-extensions:
+- NoImplicitPrelude
+- AllowAmbiguousTypes
+- BangPatterns
+- ConstraintKinds
+- DataKinds
+- DefaultSignatures
+- DeriveFunctor
+- DeriveGeneric
+- DeriveLift
+- DeriveTraversable
+- EmptyCase
+- FlexibleContexts
+- FlexibleInstances
+- FunctionalDependencies
+- GADTs
+- InstanceSigs
+- KindSignatures
+- LambdaCase
+- MultiParamTypeClasses
+- MultiWayIf
+- NamedFieldPuns
+- NoImplicitPrelude
+- OverloadedStrings
+- PackageImports
+- PatternSynonyms
+- PolyKinds
+- QuasiQuotes
+- RankNTypes
+- ScopedTypeVariables
+- StandaloneDeriving
+- TemplateHaskell
+- TupleSections
+- TypeApplications
+- TypeFamilies
+- TypeFamilyDependencies
+- TypeOperators
+- UndecidableInstances
+- ViewPatterns
+ghc-options:
+- -Wall
+- -O2
+- -fwarn-tabs
+ghc-prof-options:
+- -prof
+- -auto-all
+dependencies:
+- base ==4.*
+- bytestring >=0.10
+- clock >=0.6
+- exceptions >=0.6
+- http-types >=0.8
+- imports
+- metrics-core >=0.3
+- text >=0.11
+- transformers >=0.3
+- wai >=3
+- wai-route >=0.3
+library:
+  source-dirs: src
+  exposed-modules:
+  - Data.Metrics.Middleware

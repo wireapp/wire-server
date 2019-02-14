@@ -1,0 +1,73 @@
+name: tasty-cannon
+version: '0.4.0'
+synopsis: Cannon Integration Testing Utilities
+category: Testing
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2017 Wire Swiss GmbH
+license: AGPL-3
+default-extensions:
+- NoImplicitPrelude
+- AllowAmbiguousTypes
+- BangPatterns
+- ConstraintKinds
+- DataKinds
+- DefaultSignatures
+- DeriveFunctor
+- DeriveGeneric
+- DeriveLift
+- DeriveTraversable
+- EmptyCase
+- FlexibleContexts
+- FlexibleInstances
+- FunctionalDependencies
+- GADTs
+- InstanceSigs
+- KindSignatures
+- LambdaCase
+- MultiParamTypeClasses
+- MultiWayIf
+- NamedFieldPuns
+- NoImplicitPrelude
+- OverloadedStrings
+- PackageImports
+- PatternSynonyms
+- PolyKinds
+- QuasiQuotes
+- RankNTypes
+- ScopedTypeVariables
+- StandaloneDeriving
+- TemplateHaskell
+- TupleSections
+- TypeApplications
+- TypeFamilies
+- TypeFamilyDependencies
+- TypeOperators
+- UndecidableInstances
+- ViewPatterns
+ghc-options:
+- -Wall
+- -fwarn-tabs
+dependencies:
+- aeson
+- async
+- base >=4.6 && <5
+- bytestring
+- bytestring-conversion
+- data-default-class
+- data-timeout
+- gundeck-types
+- exceptions
+- http-client >=0.5
+- http-types
+- imports
+- random
+- stm
+- transformers
+- tasty-hunit >=0.9
+- types-common >=0.16
+- websockets >=0.8
+library:
+  source-dirs: src
+  exposed-modules:
+  - Test.Tasty.Cannon
