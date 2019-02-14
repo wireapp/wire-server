@@ -396,7 +396,7 @@ instance MonadPushAll MockGundeck where
 
 instance MonadNativeTargets MockGundeck where
   mntgtLogErr _ = pure ()
-  mntgtLookupAddress = mockLookupAddress
+  mntgtLookupAddresses = mockLookupAddresses
   mntgtMapAsync f xs = Right <$$> mapM f xs  -- (no concurrency)
 
 instance MonadPushAny MockGundeck where
@@ -563,10 +563,10 @@ mockPushNative _nid ((^. pushPayload) -> payload) addrs = do
     when (nativeReachableAddr env addr) $ msNativeQueue %=
       deliver (addr ^. addrUser, addr ^. addrClient) payload
 
-mockLookupAddress
+mockLookupAddresses
   :: (HasCallStack, m ~ MockGundeck)
   => UserId -> m [Address "no-keys"]
-mockLookupAddress uid = do
+mockLookupAddresses uid = do
   cinfos :: [ClientInfo]
     <- Map.elems .
        fromMaybe (error $ "mockLookupAddress: unknown UserId: " <> show uid) .

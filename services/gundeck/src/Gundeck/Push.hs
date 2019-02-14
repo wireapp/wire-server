@@ -87,13 +87,13 @@ instance MonadPushAll Gundeck where
 
 -- | Abstract over all effects in 'nativeTargets' (for unit testing).
 class Monad m => MonadNativeTargets m where
-  mntgtLogErr        :: SomeException -> m ()
-  mntgtLookupAddress :: UserId -> m [Address "no-keys"]  -- ^ REFACTOR: rename to 'mntgtLookupAddresses'!
-  mntgtMapAsync      :: (a -> m b) -> [a] -> m [Either SomeException b]
+  mntgtLogErr          :: SomeException -> m ()
+  mntgtLookupAddresses :: UserId -> m [Address "no-keys"]
+  mntgtMapAsync        :: (a -> m b) -> [a] -> m [Either SomeException b]
 
 instance MonadNativeTargets Gundeck where
   mntgtLogErr e = Log.err (msg (val "Failed to get native push address: " +++ show e))
-  mntgtLookupAddress rcp = Data.lookup rcp Data.One
+  mntgtLookupAddresses rcp = Data.lookup rcp Data.One
   mntgtMapAsync = mapAsync
 
 -- | Abstract over all effects in 'pushAny' (for unit testing).
@@ -260,7 +260,7 @@ nativeTargets p pres =
 
     addresses :: Recipient -> m [Address "no-keys"]
     addresses u = do
-        addrs <- mntgtLookupAddress (u^.recipientId)
+        addrs <- mntgtLookupAddresses (u^.recipientId)
         return $ preference
                . filter (eligible u)
                $ addrs
