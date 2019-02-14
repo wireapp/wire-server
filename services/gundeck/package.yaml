@@ -13,9 +13,6 @@ dependencies:
 library:
   source-dirs: src
   ghc-options:
-  - -Wall
-  - -O2
-  - -fwarn-tabs
   - -fwarn-incomplete-uni-patterns
   exposed-modules:
   - Gundeck.API
@@ -114,8 +111,6 @@ executables:
     source-dirs: test/integration
     ghc-options:
     - -threaded
-    - -Wall
-    - -fwarn-tabs
     dependencies:
     - aeson
     - async
@@ -161,8 +156,6 @@ executables:
     main: Main.hs
     source-dirs: schema/src
     ghc-options:
-    - -Wall
-    - -fwarn-tabs
     - -threaded
     dependencies:
     - base
@@ -178,9 +171,6 @@ executables:
   gundeck:
     main: src/Main.hs
     ghc-options:
-    - -Wall
-    - -fwarn-tabs
-    - -O2
     - -threaded
     - -rtsopts
     - -with-rtsopts=-T
@@ -202,8 +192,6 @@ tests:
     main: Main.hs
     source-dirs: test/unit
     ghc-options:
-    - -Wall
-    - -fwarn-tabs
     - -threaded
     dependencies:
     - base
@@ -242,7 +230,6 @@ benchmarks:
   gundeck-bench:
     main: Main.hs
     source-dirs: test/bench
-    ghc-options: -Wall
     dependencies:
     - base
     - aeson

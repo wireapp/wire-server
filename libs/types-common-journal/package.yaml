@@ -13,9 +13,6 @@ extra-source-files:
 - proto/TeamEvents.proto
 - proto/UserEvents.proto
 ghc-options:
-- -Wall
-- -O2
-- -fwarn-tabs
 - -fno-warn-redundant-constraints
 dependencies:
 - base ==4.*

@@ -9,10 +9,6 @@ author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
-ghc-options:
-- -Wall
-- -fwarn-tabs
-- -O2
 dependencies:
 - aeson >=0.11
 - bilge >=0.21

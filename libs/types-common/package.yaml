@@ -13,10 +13,6 @@ dependencies:
 - imports
 library:
   source-dirs: src
-  ghc-options:
-  - -Wall
-  - -O2
-  - -fwarn-tabs
   ghc-prof-options: -fprof-auto-exported
   exposed-modules:
   - Data.Code

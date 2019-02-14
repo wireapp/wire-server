@@ -1,3 +1,5 @@
+defaults: 
+  local: ../../hpack-defaults.yaml
 name: proxy
 version: '0.9.0'
 description: 3rd party proxy
@@ -6,10 +8,6 @@ author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
-ghc-options:
-- -Wall
-- -O2
-- -fwarn-tabs
 dependencies:
 - imports
 library:

@@ -8,10 +8,6 @@ author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
-ghc-options:
-- -Wall
-- -O2
-- -fwarn-tabs
 ghc-prof-options:
 - -prof
 - -auto-all

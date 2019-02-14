@@ -1,4 +1,7 @@
 ghc-options:
+- -O2
+- -Wall
+- -fwarn-tabs
 # These errors pop up from time to time but haven't caused any serious trouble yet
 - -optP-Wno-nonportable-include-path
 

@@ -11,10 +11,6 @@ copyright: (c) 2017 Wire Swiss GmbH
 license: AGPL-3
 extra-source-files:
 - README.md
-ghc-options:
-- -Wall
-- -O2
-- -fwarn-tabs
 dependencies:
 - imports
 library:

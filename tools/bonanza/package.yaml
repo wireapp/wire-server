@@ -8,7 +8,6 @@ category: Network
 author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 license: AGPL-3
-ghc-options: -Wall
 dependencies:
 - bytestring
 - conduit
@@ -78,7 +77,6 @@ executables:
   bonanza:
     main: main/Main.hs
     ghc-options:
-    - -O2
     - -funbox-small-strict-fields
     - -fno-warn-unused-do-bind
     - -threaded
@@ -91,7 +89,6 @@ executables:
   kibana-raw:
     main: main/KibanaRaw.hs
     ghc-options:
-    - -O2
     - -funbox-small-strict-fields
     - -rtsopts
     dependencies:
@@ -104,7 +101,6 @@ executables:
   kibanana:
     main: main/Kibanana.hs
     ghc-options:
-    - -O2
     - -funbox-small-strict-fields
     - -fno-warn-unused-do-bind
     - -threaded
