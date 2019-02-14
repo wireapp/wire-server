@@ -113,5 +113,3 @@ tests:
     - uuid
     - zauth
 stability: experimental
-verbatim:
-  cabal-version: 1.12

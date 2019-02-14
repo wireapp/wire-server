@@ -85,5 +85,3 @@ library:
   - Network.Wai.Utilities.Server
   - Network.Wai.Utilities.Swagger
   - Network.Wai.Utilities.ZAuth
-verbatim:
-  cabal-version: 1.12

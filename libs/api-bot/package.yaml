@@ -111,5 +111,3 @@ library:
   - Network.Wire.Bot.Report.Text
   - Network.Wire.Bot.Settings
 stability: experimental
-verbatim:
-  cabal-version: 1.12

@@ -100,5 +100,3 @@ library:
   - Network.Wire.Client.Monad
   - Network.Wire.Client.Session
 stability: experimental
-verbatim:
-  cabal-version: 1.12

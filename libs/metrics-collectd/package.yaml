@@ -82,5 +82,3 @@ executables:
     source-dirs: main
     dependencies:
     - metrics-collectd
-verbatim:
-  cabal-version: 1.12

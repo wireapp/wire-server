@@ -78,5 +78,3 @@ executables:
   service-backfill:
     main: Main.hs
     source-dirs: src
-verbatim:
-  cabal-version: 1.12

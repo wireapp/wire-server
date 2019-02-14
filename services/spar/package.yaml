@@ -167,5 +167,3 @@ executables:
       - xml-hamlet
       - xml-lens
       - zauth
-verbatim:
-  cabal-version: 1.12

@@ -134,5 +134,3 @@ tests:
     - unordered-containers
     - uuid
     - vector
-verbatim:
-  cabal-version: 1.12

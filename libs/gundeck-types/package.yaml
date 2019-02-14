@@ -77,5 +77,3 @@ library:
   - Gundeck.Types.Push
   - Gundeck.Types.Push.V2
   - Gundeck.Types.Swagger
-verbatim:
-  cabal-version: 1.12

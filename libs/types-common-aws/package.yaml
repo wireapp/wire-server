@@ -99,5 +99,3 @@ flags:
     description: Enable protocol buffers instances
     manual: false
     default: false
-verbatim:
-  cabal-version: 1.12

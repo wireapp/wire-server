@@ -72,5 +72,3 @@ library:
   - Data.Metrics.Types
   - Data.Metrics.WaiRoute
   - Data.Metrics.Servant
-verbatim:
-  cabal-version: 1.12

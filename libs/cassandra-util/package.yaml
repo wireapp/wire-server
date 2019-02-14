@@ -82,5 +82,3 @@ library:
   - Cassandra.Schema
   - Cassandra.Settings
   - Cassandra.Util
-verbatim:
-  cabal-version: 1.12

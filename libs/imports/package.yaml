@@ -34,5 +34,3 @@ library:
   exposed-modules:
   - Imports
 stability: experimental
-verbatim:
-  cabal-version: 1.12

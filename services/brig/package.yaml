@@ -49,6 +49,7 @@ ghc-options:
 - -Wall
 - -fwarn-tabs
 - -funbox-strict-fields
+- -optP-Wno-nonportable-include-path
 dependencies:
 - aeson >=0.11
 - base ==4.*
@@ -272,5 +273,3 @@ executables:
     - directory >=1.3
     - optparse-applicative >=0.10
     - types-common
-verbatim:
-  cabal-version: 1.12
