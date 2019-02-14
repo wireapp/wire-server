@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 module Util.Scim where
 
 import Imports
