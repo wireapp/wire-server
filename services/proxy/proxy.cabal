@@ -39,7 +39,6 @@ library
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms
@@ -122,7 +121,6 @@ executable proxy
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms

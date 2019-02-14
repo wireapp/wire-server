@@ -39,7 +39,6 @@ library
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms
@@ -178,7 +177,6 @@ executable gundeck
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms
@@ -238,7 +236,6 @@ executable gundeck-schema
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms
@@ -309,7 +306,6 @@ test-suite gundeck-tests
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms
@@ -398,7 +394,6 @@ benchmark gundeck-bench
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms
@@ -455,7 +450,6 @@ executable gundeck-integration
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms

@@ -43,7 +43,6 @@ library
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms
@@ -111,7 +110,6 @@ executable ropes-aws-test
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms
@@ -181,7 +179,6 @@ executable ropes-aws-auth-test
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms

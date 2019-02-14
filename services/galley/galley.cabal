@@ -73,7 +73,6 @@ library
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms
@@ -193,7 +192,6 @@ executable galley
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms
@@ -254,7 +252,6 @@ executable galley-schema
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms
@@ -323,7 +320,6 @@ executable galley-integration
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms
@@ -440,7 +436,6 @@ executable galley-journaler
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms

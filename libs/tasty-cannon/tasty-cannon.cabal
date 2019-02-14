@@ -35,7 +35,6 @@ library
       , MultiWayIf
       , NamedFieldPuns
       , NoImplicitPrelude
-      , NoMonomorphismRestriction
       , OverloadedStrings
       , PackageImports
       , PatternSynonyms

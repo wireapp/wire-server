@@ -22,7 +22,6 @@
 - MultiParamTypeClasses
 - MultiWayIf
 - NamedFieldPuns
-- NoMonomorphismRestriction
 - OverloadedStrings
 - PackageImports
 - PatternSynonyms

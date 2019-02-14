@@ -95,7 +95,6 @@ default-extensions:
   - MultiWayIf
   - NamedFieldPuns
   - NoImplicitPrelude
-  - NoMonomorphismRestriction
   - OverloadedStrings
   - PackageImports
   - PatternSynonyms

@@ -130,7 +130,6 @@ executable bonanza
     , MultiWayIf
     , NamedFieldPuns
     , NoImplicitPrelude
-    , NoMonomorphismRestriction
     , OverloadedStrings
     , PackageImports
     , PatternSynonyms
@@ -205,7 +204,6 @@ executable kibanana
     , MultiWayIf
     , NamedFieldPuns
     , NoImplicitPrelude
-    , NoMonomorphismRestriction
     , OverloadedStrings
     , PackageImports
     , PatternSynonyms
@@ -275,7 +273,6 @@ executable kibana-raw
     , MultiWayIf
     , NamedFieldPuns
     , NoImplicitPrelude
-    , NoMonomorphismRestriction
     , OverloadedStrings
     , PackageImports
     , PatternSynonyms
@@ -356,7 +353,6 @@ test-suite bonanza-tests
     , MultiWayIf
     , NamedFieldPuns
     , NoImplicitPrelude
-    , NoMonomorphismRestriction
     , OverloadedStrings
     , PackageImports
     , PatternSynonyms
