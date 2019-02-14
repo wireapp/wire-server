@@ -64,5 +64,7 @@ library:
   source-dirs: src
   exposed-modules:
   - Sodium.Crypto.Sign
+  pkg-config-dependencies: 
+  - libsodium >= 0.4.5
 verbatim:
   cabal-version: 1.12
