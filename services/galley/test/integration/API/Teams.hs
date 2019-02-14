@@ -430,7 +430,7 @@ testAddTeamConv g b c _ = do
         WS.assertNoEvent timeout ws
 
 testAddTeamConvAsExternalPartner :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
-testAddTeamConvAsExternalPartner g b _ _ = do
+testAddTeamConvAsExternalPartner g b _ a = do
     owner <- Util.randomUser b
     memMember1 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser b
     memMember2 <- newTeamMember' (rolePermissions RoleMember) <$> Util.randomUser b
@@ -438,8 +438,10 @@ testAddTeamConvAsExternalPartner g b _ _ = do
     Util.connectUsers b owner
         (list1 (memMember1^.userId) [memExternalPartner^.userId, memMember2^.userId])
     tid <- Util.createTeamInternal g "foo" owner
-    forM_ [memMember1, memMember2, memExternalPartner] $ \mem ->
+    assertQueue "create team" a tActivate
+    forM_ [(2, memMember1), (3, memMember2), (4, memExternalPartner)] $ \(i, mem) -> do
         Util.addTeamMemberInternal g tid mem
+        assertQueue ("team member join #" ++ show i) a $ tUpdate i [owner]
     let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
     Util.createTeamConvAccessRaw g
         (memExternalPartner^.userId)

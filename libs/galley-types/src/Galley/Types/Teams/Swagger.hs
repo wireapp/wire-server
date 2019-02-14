@@ -96,6 +96,12 @@ teamMember = defineModel "TeamMember" $ do
                   -- servant, we could probably just add a helper type for this.)
                   -- TODO: even without servant, it would be nicer to introduce
                   -- a type with optional permissions.
+    property "created_at" dateTime' $ do
+        description "Timestamp of invitation creation.  Requires created_by."
+        optional
+    property "created_by" bytes' $ do
+        description "ID of the inviting user.  Requires created_at."
+        optional
 
 permissions :: Model
 permissions = defineModel "Permissions" $ do

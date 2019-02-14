@@ -32,6 +32,7 @@ deriving instance Cql ActivationKey
 deriving instance Cql ActivationCode
 deriving instance Cql PropertyKey
 deriving instance Cql SearchableStatus
+deriving instance Cql PhonePrefix
 
 instance Cql Email where
     ctype = Tagged TextColumn
@@ -194,3 +195,13 @@ instance Cql Language where
         Just l' -> return l'
         Nothing -> fail "Language: ISO 639-1 expected."
     fromCql _            = fail "Language: ASCII expected"
+
+instance Cql ManagedBy where
+    ctype = Tagged IntColumn
+
+    fromCql (CqlInt 0) = return ManagedByWire
+    fromCql (CqlInt 1) = return ManagedByScim
+    fromCql n = fail $ "Unexpected ManagedBy: " ++ show n
+
+    toCql ManagedByWire = CqlInt 0
+    toCql ManagedByScim = CqlInt 1

@@ -2,19 +2,44 @@
 
 ## Compile natively
 
-To build nginz natively, ensure to have the usual C compiler toolchains installed, along with the following dependencies:
+To build nginz natively, you will need to have the usual C compiler toolchains installed, along with the following dependencies:
 
 * gpg (needed to verify nginx's signatures)
 * openssl
 * libossp-uuid
+* libpcre3
 * [libzauth](../../libs/libzauth)
-    * depends on the rust compiler, libsodium, [makedeb](../../tools/makedeb)
+    * depends on the rust compiler, libsodium23
 
-If you're on alpine, see the [Dockerfile](Dockerfile) for the precise dependency names. If you're on another platform, their names might differ slightly.
+### Alpine
+If you're on alpine, see the [Dockerfile](Dockerfile) for the precise dependency names.
+
+### Ubuntu / Debian (backports / testing / unstable)
+
+_Note_: Debian packages are only used as part of wire's infrastructure, and as such, you do not need to install them to run the integration tests or the demo.
+
+_Note_: Debian stable does not contain a new enough version of libsodium. you must get it from backports, testing, or unstable.
+
+#### Build Dependencies:
+```bash
+sudo apt install libossp-uuid-dev libpcre3-dev libsodium23 runit
+```
+
+#### Building
+```bash
+make
+```
+
+### Compile with docker
+
+`make docker`
+
+### Generic
+If you're on another platform, the names of the dependencies might differ slightly.
 
 Once you have all necessary dependencies, `make` in this directory should work.
 
-### Common problems while compiling
+## Common problems while compiling
 
 ```
 gpg: Can't check signature: public key not found
@@ -42,10 +67,6 @@ with nginx by using --with-openssl=<path> option.
 openssl is required to compile nginx and it may be installed in a "non-standard" path in your system. Once you are sure you have installed it, look for `EXTRA_CC_INC` and `EXTRA_CC_LIB` in the `Makefile` and point them to the correct location in your system.
 
 If you are using macOS and you used `brew` to install openssl, the `Makefile` already contains the right paths so you should not be seeing that error.
-
-## Compile with docker
-
-`make docker`
 
 ## How to run it
 

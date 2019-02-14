@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+-- | The 'Spar' monad and a set of actions (e.g. 'createUser') that can be performed in it.
 module Spar.App
   ( Spar(..)
   , Env(..)
@@ -9,12 +10,12 @@ module Spar.App
   , wrapMonadClient
   , verdictHandler
   , insertUser
-  , createUser
+  , createUser, createUser_
   ) where
 
 import Imports
 import Bilge
-import Brig.Types (Name)
+import Brig.Types (Name, ManagedBy(..))
 import Cassandra
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
@@ -158,13 +159,19 @@ getUser uref = do
 -- FUTUREWORK: once we support <https://github.com/wireapp/hscim scim>, brig will refuse to delete
 -- users that have an sso id, unless the request comes from spar.  then we can make users
 -- undeletable in the team admin page, and ask admins to go talk to their IdP system.
-createUser :: SAML.UserRef -> Maybe Name -> Spar UserId
-createUser suid mbName = do
+createUser :: SAML.UserRef -> Maybe Name -> ManagedBy -> Spar UserId
+createUser suid mbName managedBy = do
   buid <- Id <$> liftIO UUID.nextRandom
+  createUser_ buid suid mbName managedBy
+  pure buid
+
+-- | Like 'createUser', but for an already existing 'UserId'.
+createUser_ :: UserId -> SAML.UserRef -> Maybe Name -> ManagedBy -> Spar ()
+createUser_ buid suid mbName managedBy = do
   teamid <- (^. idpExtraInfo) <$> getIdPConfigByIssuer (suid ^. uidTenant)
   insertUser suid buid
-  buid' <- Intra.createUser suid buid teamid mbName
-  assert (buid == buid') $ pure buid
+  buid' <- Intra.createUser suid buid teamid mbName managedBy
+  assert (buid == buid') $ pure ()
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so, write the
 -- 'UserRef' into the 'UserIdentity'.  Otherwise, throw an error.
@@ -253,12 +260,19 @@ verdictHandlerResult bindCky = catchVerdictErrors . \case
         -- idempotent.
 
       case (viaBindCookie, viaSparCass) of
-        (Nothing,  Nothing)   -> createUser userref Nothing  -- first sso authentication
-        (Nothing,  Just uid)  -> pure uid                -- sso re-authentication
-        (Just uid, Nothing)   -> bindUser uid userref    -- bind existing user (non-sso or sso) to ssoid
+        -- This is the first SSO authentication, so we auto-create a user. We know the user
+        -- has not been created via SCIM because then we would've ended up in the
+        -- "reauthentication" branch, so we pass 'ManagedByWire'.
+        (Nothing,  Nothing) -> createUser userref Nothing ManagedByWire
+        -- SSO reauthentication
+        (Nothing,  Just uid)  -> pure uid
+        -- Bind existing user (non-SSO or SSO) to ssoid
+        (Just uid, Nothing)   -> bindUser uid userref
         (Just uid, Just uid')
-          | uid == uid' -> pure uid                      -- redundant binding (no change to brig or spar)
-          | otherwise -> throwSpar SparBindUserRefTaken  -- attempt to use ssoid for a second wire user
+          -- Redundant binding (no change to Brig or Spar)
+          | uid == uid' -> pure uid
+          -- Attempt to use ssoid for a second Wire user
+          | otherwise -> throwSpar SparBindUserRefTaken
 
     SAML.logger SAML.Debug ("granting sso login for " <> show uid)
     mcky :: Maybe SetCookie <- Intra.ssoLogin uid

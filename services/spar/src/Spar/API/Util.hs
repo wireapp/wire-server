@@ -1,4 +1,5 @@
 
+-- | Swagger utilities.
 module Spar.API.Util where
 
 import Imports

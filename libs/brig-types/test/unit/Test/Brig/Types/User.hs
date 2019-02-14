@@ -6,8 +6,6 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE ViewPatterns        #-}
 
-{-# OPTIONS_GHC -Wno-orphans #-}
-
 module Test.Brig.Types.User where
 
 import Imports
@@ -89,6 +87,7 @@ roundtripTests =
     , run @PasswordChange Proxy
     , run @PhoneRemove Proxy
     , run @PhoneUpdate Proxy
+    , run @ManagedByUpdate Proxy
     , run @ReAuthUser Proxy
     , run @SelfProfile Proxy
     , run @TeamMember Proxy

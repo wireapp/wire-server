@@ -11,7 +11,7 @@ import Brig.API.Types
 import Brig.Options hiding (sesQueue, internalEvents)
 import Brig.Types
 import Brig.Types.Intra
-import Brig.Types.User (NewUserNoSSO(NewUserNoSSO))
+import Brig.Types.User (NewUserPublic(NewUserPublic))
 import Brig.Types.User.Auth
 import Brig.User.Email
 import Brig.User.Phone
@@ -182,6 +182,19 @@ sitemap o = do
     post "/i/users/blacklist" (continue addBlacklist) $
         param "email" ||| param "phone"
 
+    -- given a phone number (or phone number prefix), see whether
+    -- it is blocked via a prefix (and if so, via which specific prefix)
+    get "/i/users/phone-prefixes/:prefix" (continue getPhonePrefixes) $
+        capture "prefix"
+
+    delete "/i/users/phone-prefixes/:prefix" (continue deleteFromPhonePrefix) $
+        capture "prefix"
+
+    post "/i/users/phone-prefixes" (continue addPhonePrefix) $
+      accept "application" "json"
+      .&. contentType "application" "json"
+      .&. request
+
     -- is :uid not team owner, or there are other team owners?
     get "/i/users/:uid/can-be-deleted/:tid" (continue canBeDeleted) $
       capture "uid"
@@ -193,6 +206,12 @@ sitemap o = do
       .&. capture "tid"
 
     put "/i/users/:uid/sso-id" (continue updateSSOId) $
+      capture "uid"
+      .&. accept "application" "json"
+      .&. contentType "application" "json"
+      .&. request
+
+    put "/i/users/:uid/managed-by" (continue updateManagedBy) $
       capture "uid"
       .&. accept "application" "json"
       .&. contentType "application" "json"
@@ -453,7 +472,7 @@ sitemap o = do
         header "Z-User"
 
     document "HEAD" "checkPassword" $ do
-        Doc.summary "Check that your passowrd is set"
+        Doc.summary "Check that your password is set"
         Doc.response 200 "Password is set." Doc.end
         Doc.response 404 "Password is not set." Doc.end
 
@@ -1077,7 +1096,7 @@ autoConnect(_ ::: _ ::: uid ::: conn ::: req) = do
 
 createUser :: JSON ::: JSON ::: Request -> Handler Response
 createUser (_ ::: _ ::: req) = do
-    NewUserNoSSO new <- parseJsonBody req
+    NewUserPublic new <- parseJsonBody req
     for_ (newUserEmail new) $ checkWhitelist . Left
     for_ (newUserPhone new) $ checkWhitelist . Right
     result <- API.createUser new !>> newUserError
@@ -1392,6 +1411,27 @@ addBlacklist emailOrPhone = do
     void . lift $ API.blacklistInsert emailOrPhone
     return empty
 
+-- | Get any matching prefixes. Also try for shorter prefix matches,
+-- i.e. checking for +123456 also checks for +12345, +1234, ...
+getPhonePrefixes :: PhonePrefix -> Handler Response
+getPhonePrefixes prefix = do
+    results <- lift $ API.phonePrefixGet prefix
+    return $ case results of
+        []      -> setStatus status404 empty
+        _       -> json results
+
+-- | Delete a phone prefix entry (must be an exact match)
+deleteFromPhonePrefix :: PhonePrefix -> Handler Response
+deleteFromPhonePrefix prefix = do
+    void . lift $ API.phonePrefixDelete prefix
+    return empty
+
+addPhonePrefix :: JSON ::: JSON ::: Request -> Handler Response
+addPhonePrefix (_ ::: _ ::: req) = do
+    prefix :: ExcludedPrefix <- parseJsonBody req
+    void . lift $ API.phonePrefixInsert prefix
+    return empty
+
 canBeDeleted :: UserId ::: TeamId -> Handler Response
 canBeDeleted (uid ::: tid) = do
     onlyOwner <- lift (Team.teamOwnershipStatus uid tid)
@@ -1421,6 +1461,12 @@ updateSSOId (uid ::: _ ::: _ ::: req) = do
     if success
       then return empty
       else return . setStatus status404 $ plain "User does not exist or has no team."
+
+updateManagedBy :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
+updateManagedBy (uid ::: _ ::: _ ::: req) = do
+    ManagedByUpdate managedBy <- parseJsonBody req
+    lift $ Data.updateManagedBy uid managedBy
+    return empty
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response
 deleteUser (u ::: r ::: _ ::: _) = do

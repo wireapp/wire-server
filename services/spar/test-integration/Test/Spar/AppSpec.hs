@@ -2,13 +2,12 @@
 
 module Test.Spar.AppSpec (spec) where
 
+import Imports
+
 import Bilge
 import Control.Lens
 import Data.Id
 import Data.String.Conversions
-import Data.UUID as UUID
-import Data.UUID.V4 as UUID
-import Imports
 import SAML2.Util ((-/))
 import SAML2.WebSSO as SAML
 import Spar.Orphans ()
@@ -132,7 +131,7 @@ requestAccessVerdict :: HasCallStack
                                  , [(SBS, SBS)]                -- ^ query params
                                  )
 requestAccessVerdict idp isGranted mkAuthnReq = do
-  subject <- SAML.opaqueNameID . UUID.toText <$> liftIO UUID.nextRandom
+  subject <- nextSubject
   let uref   = SAML.UserRef tenant subject
       tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
   authnreq :: SAML.FormRedirect SAML.AuthnRequest <- do

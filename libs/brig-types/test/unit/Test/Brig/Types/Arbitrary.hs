@@ -116,6 +116,16 @@ instance Arbitrary Phone where
       maxi <- mkdigits =<< choose (0, 7)
       pure $ '+' : mini <> maxi
 
+instance Arbitrary PhonePrefix where
+  arbitrary = PhonePrefix . ST.pack <$> do
+      let mkdigits n = replicateM n (elements ['0'..'9'])
+      mini <- mkdigits 1
+      maxi <- mkdigits =<< choose (0, 14)
+      pure $ '+' : mini <> maxi
+
+instance Arbitrary ExcludedPrefix where
+    arbitrary = ExcludedPrefix <$> arbitrary <*> arbitrary
+
 instance Arbitrary UserIdentity where
   arbitrary = oneof
     [ FullIdentity  <$> arbitrary <*> arbitrary
@@ -196,6 +206,9 @@ instance Arbitrary HandleUpdate where
 instance Arbitrary LocaleUpdate where
     arbitrary = LocaleUpdate <$> arbitrary
 
+instance Arbitrary ManagedByUpdate where
+    arbitrary = ManagedByUpdate <$> arbitrary
+
 instance Arbitrary NewPasswordReset where
     arbitrary = NewPasswordReset <$> arbitrary
 
@@ -224,6 +237,7 @@ instance Arbitrary NewUser where
         newUserLocale     <- arbitrary
         newUserPassword   <- if isTeamUser && not hasSSOId then Just <$> arbitrary else arbitrary
         newUserExpiresIn  <- if isJust newUserIdentity then pure Nothing else arbitrary
+        newUserManagedBy  <- arbitrary
         pure NewUser{..}
 
 instance Arbitrary UTCTimeMillis where
@@ -313,6 +327,7 @@ instance Arbitrary User where
         <*> arbitrary
         <*> arbitrary
         <*> arbitrary
+        <*> arbitrary
 
 instance Arbitrary VerifyDeleteUser where
     arbitrary = VerifyDeleteUser <$> arbitrary <*> arbitrary
@@ -357,6 +372,9 @@ instance Arbitrary InvitationRequest where
     arbitrary = InvitationRequest <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary Role where
+    arbitrary = elements [minBound..]
+
+instance Arbitrary ManagedBy where
     arbitrary = elements [minBound..]
 
 ----------------------------------------------------------------------

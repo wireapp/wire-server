@@ -51,6 +51,8 @@ import qualified V52
 import qualified V53
 import qualified V54
 import qualified V55
+import qualified V56
+import qualified V57
 
 main :: IO ()
 main = do
@@ -103,4 +105,6 @@ main = do
         , V53.migration
         , V54.migration
         , V55.migration
+        , V56.migration
+        , V57.migration
         ] `finally` close l

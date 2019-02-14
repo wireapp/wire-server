@@ -122,7 +122,6 @@ updateSearchIndex :: UserId -> UserEvent -> AppIO ()
 updateSearchIndex orig e = case e of
     -- no-ops
     UserCreated{}         -> return ()
-    UserLocaleUpdated{}   -> return ()
     UserIdentityUpdated{} -> return ()
     UserIdentityRemoved{} -> return ()
 
@@ -141,8 +140,8 @@ updateSearchIndex orig e = case e of
 journalEvent :: UserId -> UserEvent -> AppIO ()
 journalEvent orig e = case e of
     UserActivated acc                   -> Journal.userActivate (accountUser acc)
-    UserLocaleUpdated _ loc             -> Journal.userUpdate orig Nothing (Just loc) Nothing
-    UserUpdated _ (Just name) _ _ _ _ _ -> Journal.userUpdate orig Nothing Nothing (Just name)
+    UserUpdated{ eupName = Just name }  -> Journal.userUpdate orig Nothing Nothing (Just name)
+    UserUpdated{ eupLocale = Just loc } -> Journal.userUpdate orig Nothing (Just loc) Nothing
     UserIdentityUpdated _ (Just em) _   -> Journal.userUpdate orig (Just em) Nothing Nothing
     UserIdentityRemoved _ (Just em) _   -> Journal.userEmailRemove orig em
     UserDeleted{}                       -> Journal.userDelete orig
@@ -160,11 +159,13 @@ dispatchNotifications orig conn e = case e of
     UserSuspended{}       -> return ()
     UserResumed{}         -> return ()
 
+    UserUpdated{..}
+        | isJust eupLocale -> notifySelf     event orig Push.RouteDirect conn
+        | otherwise        -> notifyContacts event orig Push.RouteDirect conn
+
     UserActivated{}       -> notifySelf event orig Push.RouteAny    conn
-    UserLocaleUpdated{}   -> notifySelf event orig Push.RouteDirect conn
     UserIdentityUpdated{} -> notifySelf event orig Push.RouteDirect conn
     UserIdentityRemoved{} -> notifySelf event orig Push.RouteDirect conn
-    UserUpdated{}         -> notifyContacts event orig Push.RouteDirect conn
     UserDeleted{}         -> do
         -- n.b. Synchronously fetch the contact list on the current thread.
         -- If done asynchronously, the connections may already have been deleted.
@@ -276,23 +277,17 @@ toPushFormat (UserEvent (UserActivated (UserAccount u _))) = Just $ M.fromList
     [ "type" .= ("user.activate" :: Text)
     , "user" .= SelfProfile u
     ]
-toPushFormat (UserEvent (UserLocaleUpdated i l)) = Just $ M.fromList
+toPushFormat (UserEvent (UserUpdated i n pic acc ass hdl loc mb _)) = Just $ M.fromList
     [ "type" .= ("user.update" :: Text)
     , "user" .= object
-        ( "id"     .= i
-        # "locale" .= l
-        # []
-        )
-    ]
-toPushFormat (UserEvent (UserUpdated i n pic acc ass hdl _)) = Just $ M.fromList
-    [ "type" .= ("user.update" :: Text)
-    , "user" .= object
-        ( "id"        .= i
-        # "name"      .= n
-        # "picture"   .= pic -- DEPRECATED
-        # "accent_id" .= acc
-        # "assets"    .= ass
-        # "handle"    .= hdl
+        ( "id"         .= i
+        # "name"       .= n
+        # "picture"    .= pic -- DEPRECATED
+        # "accent_id"  .= acc
+        # "assets"     .= ass
+        # "handle"     .= hdl
+        # "locale"     .= loc
+        # "managed_by" .= mb
         # []
         )
     ]

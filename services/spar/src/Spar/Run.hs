@@ -1,8 +1,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards            #-}
 
-{-# OPTIONS_GHC -Wno-orphans #-}
-
+-- | The entry point for Spar.
+--
+-- (Well, as close to the entry point as we can get. The executable is produced by
+-- @exec/Main.hs@, but it's just a wrapper over 'runServer'.)
 module Spar.Run
   ( initCassandra
   , mkLogger

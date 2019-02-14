@@ -1,6 +1,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards            #-}
 
+-- | Reading the Spar config.
+--
+-- The config type itself, 'Opts', is defined in "Spar.Types".
 module Spar.Options
   ( getOpts
   , deriveOpts
@@ -8,13 +11,16 @@ module Spar.Options
   ) where
 
 import Imports
+import Control.Lens
 import Control.Exception
 import Control.Monad.Catch
 import Options.Applicative
 import Spar.API.Types
 import Spar.Types
+import Text.Ascii (ascii)
 import URI.ByteString as URI
 
+import qualified Data.ByteString as SBS
 import qualified Data.Yaml as Yaml
 import qualified SAML2.WebSSO as SAML
 
@@ -36,6 +42,20 @@ deriveOpts raw = do
         derivedOptsBindCookiePath = URI.uriPath respuri
         unwrap = maybe (throwM $ ErrorCall "Bad server config: no domain in response URI") pure
     derivedOptsBindCookieDomain <- URI.hostBS . URI.authorityHost <$> unwrap (URI.uriAuthority respuri)
+
+    -- We could also make this selectable in the config file, but it seems easier to derive it from
+    -- the SAML base uri.
+    let derivedOptsScimBaseURI = (saml raw ^. SAML.cfgSPSsoURI) & pathL %~ derive
+          where
+            derive path = case reverse .
+                               filter (not . SBS.null) .
+                               SBS.split (ascii '/') $
+                               path of
+              ("sso" : path') -> compile path'
+              path'           -> compile path'
+
+            compile path = "/" <> SBS.intercalate "/" (reverse ("scim" : path))
+
     pure DerivedOpts {..}
   pure $ derived <$ raw
 

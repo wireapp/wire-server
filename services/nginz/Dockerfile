@@ -4,7 +4,6 @@ FROM alpine:3.8 as libzauth-builder
 # Compile libzauth
 COPY libs/libzauth /src/libzauth
 RUN cd /src/libzauth/libzauth-c \
-    && export PREFIX=/usr \
     && apk add --no-cache make bash cargo libsodium-dev \
     && make install
 
@@ -14,9 +13,9 @@ FROM alpine:3.8
 ENV NGINX_VERSION 1.14.2
 
 # Install libzauth
-COPY --from=libzauth-builder /usr/include/zauth.h /usr/include/zauth.h
-COPY --from=libzauth-builder /usr/lib/libzauth.so /usr/lib/libzauth.so
-COPY --from=libzauth-builder /usr/lib/pkgconfig/libzauth.pc /usr/lib/pkgconfig/libzauth.pc
+COPY --from=libzauth-builder /usr/local/include/zauth.h /usr/local/include/zauth.h
+COPY --from=libzauth-builder /usr/local/lib/libzauth.so /usr/local/lib/libzauth.so
+COPY --from=libzauth-builder /usr/local/lib/pkgconfig/libzauth.pc /usr/local/lib/pkgconfig/libzauth.pc
 
 COPY services/nginz/third_party /src/third_party
 

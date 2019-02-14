@@ -1,6 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards            #-}
 
+-- | A "default" module for types used in Spar, unless there's a better / more specific place
+-- for them.
 module Spar.Types where
 
 import Imports
@@ -167,6 +169,7 @@ instance FromJSON (Opts' (Maybe ()))
 data DerivedOpts = DerivedOpts
     { derivedOptsBindCookiePath   :: !SBS
     , derivedOptsBindCookieDomain :: !SBS
+    , derivedOptsScimBaseURI      :: !URI
     }
   deriving (Show, Generic)
 

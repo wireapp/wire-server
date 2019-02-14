@@ -1,10 +1,13 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists            #-}
+{-# LANGUAGE PackageImports             #-}
 {-# LANGUAGE RecordWildCards            #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Spar.API.Swagger where
+-- | Swagger instances for Spar types (as well as some types that are used in Spar but not
+-- defined in Spar).
+module Spar.API.Swagger () where
 
 import Imports
 import Control.Lens
