@@ -3,7 +3,10 @@
 ## API changes
 
   * Support for SCIM (#559, #608, #602, #613, #617, #614, #620, #621, #627)
+    - several new end-points under `/scim` (see hscim package or the standards for the details; no swagger docs).
+    - new end-point `put "/i/users/:uid/managed-by"` for marking scim-managed users (no swagger docs)
   * Add support for excluding certain phone number prefixes (#593)
+    - several new end-points under `/i/users/phone-prefixes/` (no swagger docs)
   * Fix SAML2.0 compatibility issues in Spar (#607, #623)
 
 ## Bug fixes
