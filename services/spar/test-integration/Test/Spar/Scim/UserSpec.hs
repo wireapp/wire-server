@@ -50,6 +50,9 @@ specCreateUser = describe "POST /Users" $ do
     it "requires externalId to be present" $ testExternalIdIsRequired
     it "rejects invalid handle" $ testCreateRejectsInvalidHandle
     it "rejects occupied handle" $ testCreateRejectsTakenHandle
+    it "rejects occupied externalId" $ testCreateRejectsTakenExternalId
+    it "allows an occupied externalId when the IdP is different" $
+        testCreateSameExternalIds
     it "provides a correct location in the 'meta' field" $ testLocation
     it "gives created user a valid 'SAML.UserRef' for SSO" $ pending
     it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
@@ -108,16 +111,42 @@ testCreateRejectsTakenHandle = do
     (tokTeamB, _) <- registerIdPAndScimToken
 
     -- Create and add a first user: success!
-    createUser_ (Just tokTeamA) user1 (env ^. teSpar)
-      !!! const 201 === statusCode
+    _ <- createUser tokTeamA user1
 
     -- Try to create different user with same handle in same team.
     createUser_ (Just tokTeamA) (user2 { Scim.User.userName = Scim.User.userName user1 }) (env ^. teSpar)
-      !!! const 409 === statusCode
+        !!! const 409 === statusCode
 
     -- Try to create different user with same handle in different team.
     createUser_ (Just tokTeamB) (user3 { Scim.User.userName = Scim.User.userName user1 }) (env ^. teSpar)
-      !!! const 409 === statusCode
+        !!! const 409 === statusCode
+
+-- | Test that user creation fails if the @externalId@ is already in use for given IdP.
+testCreateRejectsTakenExternalId :: TestSpar ()
+testCreateRejectsTakenExternalId = do
+    env <- ask
+    (tok, _) <- registerIdPAndScimToken
+    -- Create and add a first user: success!
+    user1 <- randomScimUser
+    _ <- createUser tok user1
+    -- Try to create different user with same @externalId@ in same team, and fail.
+    user2 <- randomScimUser
+    createUser_ (Just tok) (user2 { Scim.User.externalId = Scim.User.externalId user1 }) (env ^. teSpar)
+        !!! const 409 === statusCode
+
+-- | Test that it's fine to have same @externalId@s for two users belonging to different IdPs.
+testCreateSameExternalIds :: TestSpar ()
+testCreateSameExternalIds = do
+    -- Create and add a first user: success!
+    (tokTeamA, _) <- registerIdPAndScimToken
+    user1 <- randomScimUser
+    _ <- createUser tokTeamA user1
+    -- Create different user with same @externalId@ in a different team (which by necessity
+    -- has a different IdP)
+    (tokTeamB, _) <- registerIdPAndScimToken
+    user2 <- randomScimUser
+    _ <- createUser tokTeamB (user2 { Scim.User.externalId = Scim.User.externalId user1 })
+    pure ()
 
 -- | Test that the resource location returned for the user is correct and the user can be
 -- fetched by following that location.
