@@ -176,8 +176,8 @@ singlePush notification (PushTarget usrid conid) = do
                 const (runWS e (terminate k x) >> return PushStatusGone)
                 -- 'terminate' only clears an MVar in the stream; no need to fork or timeout.
 
-timeoutWS :: Int{- milliseconds -} -> IO () -> IO PushStatus
-timeoutWS ms action = timeout (fromIntegral ms # MilliSecond) action >>= \case
+timeoutWS :: Timeout -> IO () -> IO PushStatus
+timeoutWS nanoseconds action = timeout (fromIntegral nanoseconds * 1000) action >>= \case
     Nothing -> return PushStatusGone
     Just () -> return PushStatusOk
 

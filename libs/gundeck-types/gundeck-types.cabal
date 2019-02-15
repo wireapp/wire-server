@@ -78,6 +78,7 @@ library
         , network-uri           >= 2.6
         , text                  >= 0.11
         , time                  >= 1.5
+        , data-timeout
         , types-common          >= 0.16
         , swagger               >= 0.1
         , unordered-containers  >= 0.2
