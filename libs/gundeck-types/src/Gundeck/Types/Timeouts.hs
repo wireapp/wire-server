@@ -9,8 +9,8 @@ import Imports
 -- (this used to be 3000ms for single pushes, but bulk pushes, even though concurrent, should
 -- be given a bit more slack.)
 gundeckToCannonReqTimeout :: Int
-gundeckToCannonReqTimeout = 6000
+gundeckToCannonReqTimeout = 3000
 
 -- | milliseconds
 sendWsMsgTimeout :: Int
-sendWsMsgTimeout = 3000
+sendWsMsgTimeout = 2000
