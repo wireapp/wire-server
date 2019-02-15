@@ -29,8 +29,8 @@ tests manager brig = do
 
 testMetricsWaiRoute :: Brig -> Http ()
 testMetricsWaiRoute brig = do
-    let p1 = "self"
-        p2 uid = "users/" <> uid <> "/clients"
+    let p1 = "/self"
+        p2 uid = "/users/" <> uid <> "/clients"
 
     uid <- userId <$> randomUser brig
     uid' <- userId <$> randomUser brig

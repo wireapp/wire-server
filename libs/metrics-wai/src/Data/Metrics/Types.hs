@@ -54,7 +54,7 @@ treeLookup :: Paths -> [ByteString] -> Maybe ByteString
 treeLookup (Paths forest) = go [] forest
   where
     go :: [PathSegment] -> Forest PathSegment -> [ByteString] -> Maybe ByteString
-    go path _  [] = Just . BS.intercalate "/" . fmap (either id id) . reverse $ path
+    go path _  [] = Just . ("/" <>) . BS.intercalate "/" . fmap (either id id) . reverse $ path
     go _    [] _  = Nothing
 
     go path trees (seg : segs) =

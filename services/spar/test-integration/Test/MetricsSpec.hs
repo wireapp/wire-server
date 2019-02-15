@@ -18,8 +18,8 @@ import Util
 spec :: HasCallStack => SpecWith TestEnv
 spec = describe "metrics" . it "works" $ do
   spar <- asks (^. teSpar)
-  let p1 = "sso/metadata"
-      p2 idpid = "sso/initiate-login/" <> idpid
+  let p1 = "/sso/metadata"
+      p2 idpid = "/sso/initiate-login/" <> idpid
 
   _ <- call $ get (spar . path p1)
   _ <- call $ get (spar . path (p2 "316f1c18-2980-11e9-ab0b-ef604d1791b2"))
