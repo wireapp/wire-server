@@ -11,12 +11,14 @@ ${brand_label_url} [${brand_url}]
 
 ${url}
 
-If you didn’t request this, reset your password [${forgot}].
+Если вы не запрашивали удаление вашего аккаунта, то сбросьте ваш пароль
+[${forgot}].
 
-If you have any questions, please contact us [${support}].
+Если у вас возникли вопросы или нужна помощь, пожалуйста свяжитесь с нами
+[${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privacy [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Конфиденциальность [${legal}] · Сообщить о злоупотреблении [${misuse}]
+${copyright}. ВСЕ ПРАВА ЗАЩИЩЕНЫ.

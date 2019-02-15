@@ -12,12 +12,12 @@ Link und füge ihn in deinem Browser ein:
 
 ${url}
 
-If you didn’t request this, reset your password [${forgot}].
+Falls du dies nicht beantragt hast, setze dein Passwort zurück [${forgot}].
 
-If you have any questions, please contact us [${support}].
+Wenn du Fragen hast, dann kontaktiere uns [${support}] bitte.
 
 
 --------------------------------------------------------------------------------
 
-Privacy [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Datenschutz [${legal}] · Missbrauch melden [${misuse}]
+${copyright}. Alle Rechte vorbehalten.

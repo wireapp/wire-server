@@ -10,13 +10,14 @@ ${date}
 ${model}
 
 Du hast ${brand} vermutlich auf einem neuen Gerät installiert oder dich auf
-einem bestehenden Gerät erneut eingeloggt. If that was not the case, go to
-${brand} Settings, remove the device and reset your password [${forgot}].
+einem bestehenden Gerät erneut eingeloggt. Falls dies nicht der Fall ist, gehe
+in deine ${brand} Einstellungen, entferne das Gerät und setze dein Passwort
+zurück [${forgot}].
 
-If you have any questions, please contact us [${support}].
+Wenn du Fragen hast, dann kontaktiere uns [${support}] bitte.
 
 
 --------------------------------------------------------------------------------
 
-Privacy [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Datenschutz [${legal}] · Missbrauch melden [${misuse}]
+${copyright}. Alle Rechte vorbehalten.

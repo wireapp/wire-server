@@ -19,13 +19,14 @@ und füge ihn in deinem Browser ein:
 ${url}
 
 Solltest du dich nicht für eine ${brand} Service-Provider-Konto mit dieser
-E-Mail-Adresse registriert haben, kannst du diese Meldung ignorieren. If you
-want to report abuse of your e-mail address, please contact us. [${support}]
+E-Mail-Adresse registriert haben, kannst du diese Meldung ignorieren. Falls du
+einen Missbrauch deiner E-Mail-Adresse melden möchtest kontaktiere uns bitte.
+[${support}]
 
 Bitte antworte nicht auf diese E-Mail.
 
 
 --------------------------------------------------------------------------------
 
-Privacy [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Datenschutz [${legal}] · Missbrauch melden [${misuse}]
+${copyright}. Alle Rechte vorbehalten.

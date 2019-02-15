@@ -10,13 +10,14 @@ ${date}
 ${model}
 
 Возможно, вы установили ${brand} на новом устройстве или переустановили его на
-одном из уже используемых ранее. If that was not the case, go to ${brand}
-Settings, remove the device and reset your password [${forgot}].
+одном из уже используемых ранее. Если это не так, перейдите в настройки
+${brand}, удалите это устройство из списка и сбросьте ваш пароль [${forgot}].
 
-If you have any questions, please contact us [${support}].
+Если у вас возникли вопросы или нужна помощь, пожалуйста свяжитесь с нами
+[${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privacy [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Конфиденциальность [${legal}] · Сообщить о злоупотреблении [${misuse}]
+${copyright}. ВСЕ ПРАВА ЗАЩИЩЕНЫ.

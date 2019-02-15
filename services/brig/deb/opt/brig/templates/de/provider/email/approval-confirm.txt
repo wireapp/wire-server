@@ -9,11 +9,11 @@ bist.
 
 Bitte antworte nicht auf diese E-Mail.
 
-If you didn’t register for a ${brand_service} account using this e-mail address,
-please contact us [${support}].
+Wenn du dich nicht für ein ${brand_service}-Konto mit dieser E-Mail-Adresse
+registriert hast, bitte kontaktiere uns [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privacy [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Datenschutz [${legal}] · Missbrauch melden [${misuse}]
+${copyright}. Alle Rechte vorbehalten.
