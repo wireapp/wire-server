@@ -1,4 +1,4 @@
-defaults: 
+defaults:
   local: ../../package-defaults.yaml
 name: gundeck
 version: '1.45.0'
@@ -58,6 +58,7 @@ library:
   - conduit >=1.1
   - containers >=0.5
   - data-default >=0.5
+  - data-timeouts
   - enclosed-exceptions >=1.0
   - errors >=2.0
   - exceptions >=0.4
