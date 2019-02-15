@@ -187,6 +187,9 @@ validateScimUser' idp richInfoLimit user = do
     handl <- validateHandle (Scim.userName user)
     mbName <- mapM validateName (Scim.displayName user)
     richInfo <- validateRichInfo (Scim.extra user ^. sueRichInfo)
+
+    -- NB: We assume that checking that the user does _not_ exist has already been done before;
+    -- the hscim library check does a 'get' before a 'create'.
     pure $ ValidScimUser user uref handl mbName richInfo
 
   where

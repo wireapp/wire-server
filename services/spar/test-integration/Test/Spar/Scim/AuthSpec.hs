@@ -46,7 +46,8 @@ testCreateToken = do
     (owner, _, _) <- registerTestIdP
     CreateScimTokenResponse token _ <-
         createToken owner CreateScimToken
-            { createScimTokenDescr = "testCreateToken" }
+            { createScimTokenDescr = "testCreateToken"
+            , createScimTokenPassword = Just defPassword }
     -- Try to do @GET /Users@ and check that it succeeds
     listUsers_ (Just token) Nothing (env ^. teSpar)
         !!! const 200 === statusCode
@@ -60,12 +61,15 @@ testTokenLimit = do
     -- Create two tokens
     (owner, _, _) <- registerTestIdP
     _ <- createToken owner CreateScimToken
-             { createScimTokenDescr = "testTokenLimit / #1" }
+             { createScimTokenDescr = "testTokenLimit / #1"
+             , createScimTokenPassword = Just defPassword }
     _ <- createToken owner CreateScimToken
-             { createScimTokenDescr = "testTokenLimit / #2" }
+             { createScimTokenDescr = "testTokenLimit / #2"
+             , createScimTokenPassword = Just defPassword }
     -- Try to create the third token and see that it fails
     createToken_ owner CreateScimToken
-        { createScimTokenDescr = "testTokenLimit / #3" }
+        { createScimTokenDescr = "testTokenLimit / #3"
+        , createScimTokenPassword = Just defPassword }
         (env ^. teSpar)
         !!! const 403 === statusCode
 
@@ -81,7 +85,9 @@ testIdPIsNeeded = do
     -- Creating a token should fail now
     createToken_
         userid
-        CreateScimToken { createScimTokenDescr = "testIdPIsNeeded" }
+        CreateScimToken
+          { createScimTokenDescr = "testIdPIsNeeded"
+          , createScimTokenPassword = Just defPassword }
         (env ^. teSpar)
         !!! const 400 === statusCode
 
@@ -99,9 +105,9 @@ testCreateTokenAuthorizesOnlyTeamOwner =
         (Galley.rolePermissions Galley.RoleMember)
     createToken_
       teamMemberId
-      (CreateScimToken
-       { createScimTokenDescr = "testCreateToken"
-       })
+      CreateScimToken
+        { createScimTokenDescr = "testCreateToken"
+        , createScimTokenPassword = Just defPassword }
       (env ^. teSpar)
       !!! const 403
       === statusCode
@@ -121,9 +127,11 @@ testListTokens = do
    -- Create two tokens
    (owner, _, _) <- registerTestIdP
    _ <- createToken owner CreateScimToken
-            { createScimTokenDescr = "testListTokens / #1" }
+            { createScimTokenDescr = "testListTokens / #1"
+            , createScimTokenPassword = Just defPassword }
    _ <- createToken owner CreateScimToken
-            { createScimTokenDescr = "testListTokens / #2" }
+            { createScimTokenDescr = "testListTokens / #2"
+            , createScimTokenPassword = Just defPassword }
    -- Check that the token is on the list
    list <- scimTokenListTokens <$> listTokens owner
    liftIO $ map stiDescr list `shouldBe`
@@ -146,7 +154,8 @@ testDeletedTokensAreUnusable = do
     (owner, _, _) <- registerTestIdP
     CreateScimTokenResponse token tokenInfo <-
         createToken owner CreateScimToken
-            { createScimTokenDescr = "testDeletedTokensAreUnusable" }
+            { createScimTokenDescr = "testDeletedTokensAreUnusable"
+            , createScimTokenPassword = Just defPassword }
     -- An operation with the token should succeed
     listUsers_ (Just token) Nothing (env ^. teSpar)
         !!! const 200 === statusCode
@@ -163,7 +172,8 @@ testDeletedTokensAreUnlistable = do
    (owner, _, _) <- registerTestIdP
    CreateScimTokenResponse _ tokenInfo <-
        createToken owner CreateScimToken
-           { createScimTokenDescr = "testDeletedTokensAreUnlistable" }
+           { createScimTokenDescr = "testDeletedTokensAreUnlistable"
+           , createScimTokenPassword = Just defPassword }
    -- Delete the token
    deleteToken owner (stiId tokenInfo)
    -- Check that the token is not on the list

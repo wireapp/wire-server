@@ -17,6 +17,7 @@ import Data.Aeson (FromJSON, eitherDecode')
 import Data.ByteString.Conversion
 import Data.Id (Id(Id), UserId, TeamId)
 import Data.Ix
+import Data.Misc (PlainTextPassword)
 import Data.Range
 import Data.String.Conversions
 import Network.HTTP.Types.Method
@@ -262,7 +263,7 @@ assertIsTeamOwner buid tid = do
 --
 -- Called by post handler, and by 'authorizeIdP'.
 getZUsrOwnedTeam :: (HasCallStack, SAML.SP m, MonadSparToBrig m)
-            => Maybe UserId -> m TeamId
+                 => Maybe UserId -> m TeamId
 getZUsrOwnedTeam Nothing = throwSpar SparMissingZUsr
 getZUsrOwnedTeam (Just uid) = do
   usr <- getUser uid
@@ -270,6 +271,23 @@ getZUsrOwnedTeam (Just uid) = do
     Nothing -> throwSpar SparNotInTeam
     Just teamid -> teamid <$ assertIsTeamOwner uid teamid
 
+-- | Verify user's password (needed for certain powerful operations).
+ensureReAuthorised :: (HasCallStack, MonadSparToBrig m)
+                   => Maybe UserId -> Maybe PlainTextPassword -> m ()
+ensureReAuthorised Nothing _ = throwSpar SparMissingZUsr
+ensureReAuthorised (Just uid) secret = do
+  resp <- call
+    $ method GET
+    . paths ["/i/users", toByteString' uid, "reauthenticate"]
+    . json (ReAuthUser secret)
+  if | statusCode resp == 200
+       -> pure ()
+     | statusCode resp == 403
+       -> throwSpar SparReAuthRequired
+     | inRange (400, 499) (statusCode resp)
+       -> throwSpar . SparBrigErrorWith (responseStatus resp) $ "reauthentication failed"
+     | otherwise
+       -> throwSpar . SparBrigError . cs $ "reauthentication failed with status " <> show (statusCode resp)
 
 -- | Get persistent cookie from brig and redirect user past login process.
 --

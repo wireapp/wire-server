@@ -52,6 +52,7 @@ data SparCustomError
   | SparBadUserName LT
   | SparNoBodyInBrigResponse
   | SparCouldNotParseBrigResponse LT
+  | SparReAuthRequired
   | SparBrigError LT
   | SparBrigErrorWith Status LT
   | SparNoBodyInGalleyResponse
@@ -96,6 +97,7 @@ sparToWaiError (SAML.CustomError (SparBadUserName msg))                   = Righ
 -- Brig-specific errors
 sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)                = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
 sparToWaiError (SAML.CustomError (SparCouldNotParseBrigResponse msg))     = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
+sparToWaiError (SAML.CustomError SparReAuthRequired)                      = Right $ Wai.Error status403 "access-denied" "This operation requires reauthentication."
 sparToWaiError (SAML.CustomError (SparBrigError msg))                     = Right $ Wai.Error status500 "bad-upstream" msg
 sparToWaiError (SAML.CustomError (SparBrigErrorWith status msg))          = Right $ Wai.Error status "bad-upstream" msg
 -- Galley-specific errors
