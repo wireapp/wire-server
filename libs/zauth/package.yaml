@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../module-defaults.yaml
+  local: ../../package-defaults.yaml
 name: zauth
 version: '0.10.3'
 synopsis: Creation and validation of signed tokens.

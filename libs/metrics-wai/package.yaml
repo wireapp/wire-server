@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../module-defaults.yaml
+  local: ../../package-defaults.yaml
 name: metrics-wai
 version: '0.5.7'
 synopsis: Metrics WAI integration

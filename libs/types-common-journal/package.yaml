@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../module-defaults.yaml
+  local: ../../package-defaults.yaml
 name: types-common-journal
 version: '0.1.0'
 synopsis: Shared protobuf type definitions.

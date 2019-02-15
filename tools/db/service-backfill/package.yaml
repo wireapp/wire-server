@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../../module-defaults.yaml
+  local: ../../../package-defaults.yaml
 name: service-backfill
 version: '1.0.0'
 synopsis: Backfill service tables

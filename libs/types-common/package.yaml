@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../module-defaults.yaml
+  local: ../../package-defaults.yaml
 name: types-common
 version: '0.16.0'
 synopsis: Shared type definitions.

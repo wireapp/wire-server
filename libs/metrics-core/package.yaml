@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../module-defaults.yaml
+  local: ../../package-defaults.yaml
 name: metrics-core
 version: '0.3.2'
 synopsis: Metrics core

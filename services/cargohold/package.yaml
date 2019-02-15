@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../module-defaults.yaml
+  local: ../../package-defaults.yaml
 name: cargohold
 version: '1.5.0'
 synopsis: Asset Storage API

@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../module-defaults.yaml
+  local: ../../package-defaults.yaml
 name: wai-utilities
 version: '0.16.1'
 synopsis: Various helpers for WAI

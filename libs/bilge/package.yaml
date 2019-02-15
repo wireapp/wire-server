@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../module-defaults.yaml
+  local: ../../package-defaults.yaml
 name: bilge
 version: '0.22.0'
 synopsis: Library for composing HTTP requests.

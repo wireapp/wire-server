@@ -1,5 +1,5 @@
 defaults: 
-  local: ../../module-defaults.yaml
+  local: ../../package-defaults.yaml
 name: tasty-cannon
 version: '0.4.0'
 synopsis: Cannon Integration Testing Utilities
