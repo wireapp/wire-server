@@ -22,7 +22,7 @@ routesToPaths :: forall routes. RoutesToPaths routes => Paths
 routesToPaths = Paths (getRoutes @routes)
 
 class RoutesToPaths routes where
-  getRoutes :: Forest (Maybe ByteString)
+  getRoutes :: Forest PathSegment
 
 
 -- "seg" :> routes
@@ -30,14 +30,14 @@ instance {-# OVERLAPPING #-}
          ( KnownSymbol seg
          , RoutesToPaths segs
          ) => RoutesToPaths (seg :> segs) where
-  getRoutes = [Node (Just . cs $ symbolVal (Proxy @seg)) (getRoutes @segs)]
+  getRoutes = [Node (Right . cs $ symbolVal (Proxy @seg)) (getRoutes @segs)]
 
 -- <capture> <:> routes
 instance {-# OVERLAPPING #-}
          ( KnownSymbol capture
          , RoutesToPaths segs
          ) => RoutesToPaths (Capture' mods capture a :> segs) where
-  getRoutes = [Node Nothing (getRoutes @segs)]
+  getRoutes = [Node (Left ":_") (getRoutes @segs)]
 
 -- route <:> routes
 instance {-# OVERLAPPING #-}

@@ -29,8 +29,8 @@ tests manager brig = do
 
 testMetricsWaiRoute :: Brig -> Http ()
 testMetricsWaiRoute brig = do
-    let p1 = "self"
-        p2 uid = "users/" <> uid <> "/clients"
+    let p1 = "/self"
+        p2 uid = "/users/" <> uid <> "/clients"
 
     uid <- userId <$> randomUser brig
     uid' <- userId <$> randomUser brig
@@ -40,7 +40,7 @@ testMetricsWaiRoute brig = do
 
     resp :: Value <- jsonBody <$> get (brig . path "i/monitoring")
     let have :: Set Text = Set.fromList $ fst <$> (resp ^@.. key "net" . key "resources" . members)
-        want :: Set Text = Set.fromList $ cs <$> [p1, p2 "<>"]
+        want :: Set Text = Set.fromList $ cs <$> [p1, p2 ":user"]
         errmsg = "some of " <> show want <> " missing in metrics: " <> show have
     liftIO $ assertBool errmsg (want `Set.isSubsetOf` have)
 

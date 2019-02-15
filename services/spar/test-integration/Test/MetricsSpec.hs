@@ -18,8 +18,8 @@ import Util
 spec :: HasCallStack => SpecWith TestEnv
 spec = describe "metrics" . it "works" $ do
   spar <- asks (^. teSpar)
-  let p1 = "sso/metadata"
-      p2 idpid = "sso/initiate-login/" <> idpid
+  let p1 = "/sso/metadata"
+      p2 idpid = "/sso/initiate-login/" <> idpid
 
   _ <- call $ get (spar . path p1)
   _ <- call $ get (spar . path (p2 "316f1c18-2980-11e9-ab0b-ef604d1791b2"))
@@ -32,7 +32,7 @@ spec = describe "metrics" . it "works" $ do
   liftIO $ do
     (resp `shouldContain`) `mapM_`
       [ p1
-      , p2 "<>"
+      , p2 ":_"
       , "http_request_duration_seconds_bucket"
       , "handler="
       , "method="
