@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 module Brig.User.Event where
@@ -33,11 +32,9 @@ data UserEvent
         , eupAccentId   :: !(Maybe ColourId)
         , eupAssets     :: !(Maybe [Asset])
         , eupHandle     :: !(Maybe Handle)
+        , eupLocale     :: !(Maybe Locale)
+        , eupManagedBy  :: !(Maybe ManagedBy)
         , eupSearchable :: !(Maybe SearchableStatus)
-        }
-    | UserLocaleUpdated
-        { elcId     :: !UserId
-        , elcLocale :: !Locale
         }
     | UserIdentityUpdated
         { eiuId    :: !UserId
@@ -84,14 +81,17 @@ handleUpdated u h = (emptyUpdate u) { eupHandle = Just h }
 searchableStatusUpdated :: UserId -> SearchableStatus -> UserEvent
 searchableStatusUpdated u s = (emptyUpdate u) { eupSearchable = Just s }
 
+localeUpdate :: UserId -> Locale -> UserEvent
+localeUpdate u loc = (emptyUpdate u) { eupLocale = Just loc }
+
+managedByUpdate :: UserId -> ManagedBy -> UserEvent
+managedByUpdate u mb = (emptyUpdate u) { eupManagedBy = Just mb }
+
 profileUpdated :: UserId -> UserUpdate -> UserEvent
-profileUpdated u UserUpdate{..} = UserUpdated u uupName uupPict uupAccentId uupAssets Nothing Nothing
+profileUpdated u UserUpdate{..} = UserUpdated u uupName uupPict uupAccentId uupAssets Nothing Nothing Nothing Nothing
 
 emptyUpdate :: UserId -> UserEvent
-emptyUpdate u = UserUpdated u Nothing Nothing Nothing Nothing Nothing Nothing
-
-localeUpdate :: UserId -> Locale -> UserEvent
-localeUpdate = UserLocaleUpdated
+emptyUpdate u = UserUpdated u Nothing Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 connEventUserId :: ConnectionEvent -> UserId
 connEventUserId ConnectionUpdated{..} = ucFrom ucConn
@@ -103,7 +103,6 @@ userEventUserId (UserSuspended u)       = u
 userEventUserId (UserResumed u)         = u
 userEventUserId (UserDeleted u)         = u
 userEventUserId UserUpdated{..}         = eupId
-userEventUserId UserLocaleUpdated{..}   = elcId
 userEventUserId UserIdentityUpdated{..} = eiuId
 userEventUserId UserIdentityRemoved{..} = eirId
 

@@ -1,10 +1,18 @@
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Spar.Data.Instances where
+-- | 'Cql' instances for Spar types, as well as conversion functions used in "Spar.Data"
+-- (which does the actual database work).
+module Spar.Data.Instances
+    (
+      -- * Raw database types
+      VerdictFormatRow
+    , VerdictFormatCon(..)
+      -- ** Conversions
+    , fromVerdictFormat
+    , toVerdictFormat
+    ) where
 
 import Imports
 import Cassandra as Cas

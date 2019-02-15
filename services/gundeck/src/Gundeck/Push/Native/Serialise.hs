@@ -1,5 +1,3 @@
-{-# LANGUAGE GADTs             #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Gundeck.Push.Native.Serialise
     ( serialise

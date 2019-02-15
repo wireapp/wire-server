@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 
 module Brig.Data.Blacklist
     ( -- * UserKey blacklisting

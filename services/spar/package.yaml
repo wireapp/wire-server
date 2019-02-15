@@ -30,6 +30,7 @@ dependencies:
   - data-default
   - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
+  - extra
   - galley-types
   - ghc-prim
   - HsOpenSSL
@@ -40,6 +41,7 @@ dependencies:
   - interpolate
   - lens
   - metrics-core
+  - metrics-wai
   - mtl
   - network-uri
   - optparse-applicative
@@ -74,6 +76,43 @@ dependencies:
 
 default-extensions:
   - NoImplicitPrelude
+  - AllowAmbiguousTypes
+  - BangPatterns
+  - ConstraintKinds
+  - DataKinds
+  - DefaultSignatures
+  - DeriveFunctor
+  - DeriveGeneric
+  - DeriveLift
+  - DeriveTraversable
+  - EmptyCase
+  - FlexibleContexts
+  - FlexibleInstances
+  - FunctionalDependencies
+  - GADTs
+  - InstanceSigs
+  - KindSignatures
+  - LambdaCase
+  - MultiParamTypeClasses
+  - MultiWayIf
+  - NamedFieldPuns
+  - NoImplicitPrelude
+  - OverloadedStrings
+  - PackageImports
+  - PatternSynonyms
+  - PolyKinds
+  - QuasiQuotes
+  - RankNTypes
+  - ScopedTypeVariables
+  - StandaloneDeriving
+  - TemplateHaskell
+  - TupleSections
+  - TypeApplications
+  - TypeFamilies
+  - TypeFamilyDependencies
+  - TypeOperators
+  - UndecidableInstances
+  - ViewPatterns
 
 library:
   source-dirs:

@@ -1,8 +1,4 @@
-{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TypeApplications           #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -118,6 +114,7 @@ instance Cql Asset where
             0 -> return $! ImageAsset k s
             _ -> fail $ "unexpected user asset type: " ++ show t
       where
+        required :: Cql r => Text -> Either String r
         required f = maybe (fail ("Asset: Missing required field '" ++ show f ++ "'"))
                            fromCql
                            (lookup f fs)
@@ -198,3 +195,13 @@ instance Cql Language where
         Just l' -> return l'
         Nothing -> fail "Language: ISO 639-1 expected."
     fromCql _            = fail "Language: ASCII expected"
+
+instance Cql ManagedBy where
+    ctype = Tagged IntColumn
+
+    fromCql (CqlInt 0) = return ManagedByWire
+    fromCql (CqlInt 1) = return ManagedByScim
+    fromCql n = fail $ "Unexpected ManagedBy: " ++ show n
+
+    toCql ManagedByWire = CqlInt 0
+    toCql ManagedByScim = CqlInt 1

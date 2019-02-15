@@ -67,12 +67,12 @@ spec = describe "toScimStoredUser'" $ do
           , Scim.lastModified = now
           , Scim.version = Scim.Weak "e5442c575adce7a7affbb2f744ab0825c553c9e6ce5dafdee8789364d824614e"
           , Scim.location = Scim.URI . fromJust $ Network.URI.parseURI
-                            "https://127.0.0.1/scim/Users/90b5ee1c-088e-11e9-9a16-73f80f483813"
+                            "https://127.0.0.1/scim/v2/Users/90b5ee1c-088e-11e9-9a16-73f80f483813"
           }
 
         now'@(SAML.Time now) = SAML.unsafeReadTime "1918-04-14T09:58:58.457Z"
         baseuri :: URI = either (error . show) id $
-          URI.ByteString.parseURI laxURIParserOptions "https://127.0.0.1/scim/"
+          URI.ByteString.parseURI laxURIParserOptions "https://127.0.0.1/scim/v2/"
         uid = Id . fromJust . UUID.fromText $ "90b5ee1c-088e-11e9-9a16-73f80f483813"
 
         result :: ScimC.StoredUser

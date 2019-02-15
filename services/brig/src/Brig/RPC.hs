@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 
 -- | General RPC utilities.
 module Brig.RPC where

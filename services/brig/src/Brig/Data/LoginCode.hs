@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
 
 -- | Persistent storage for login codes.
 -- TODO: Use Brig.Data.Codes

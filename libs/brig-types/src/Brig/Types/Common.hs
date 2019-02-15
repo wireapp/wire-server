@@ -386,3 +386,44 @@ codeParser :: String -> (String -> Maybe a) -> Parser a
 codeParser err conv = do
     code <- count 2 anyChar
     maybe (fail err) return (conv code)
+
+-----------------------------------------------------------------------------
+-- ManagedBy
+
+-- | Who controls changes to the user profile (where the profile is defined as "all
+-- user-editable, user-visible attributes").
+data ManagedBy
+      -- | The profile can be changed in-app; user doesn't show up via SCIM at all.
+    = ManagedByWire
+      -- | The profile can only be changed via SCIM, with several exceptions:
+      --
+      --   1. User properties can still be set (because they are used internally by clients
+      --      and none of them can be modified via SCIM now or in the future).
+      --
+      --   2. Password can be changed by the user (SCIM doesn't support setting passwords yet,
+      --      but currently SCIM only works with SSO-users who don't even have passwords).
+      --
+      --   3. The user can still be deleted normally (SCIM doesn't support deleting users yet;
+      --      but it's questionable whether this should even count as a /change/ of a user
+      --      profile).
+      --
+      -- There are some other things that SCIM can't do yet, like setting accent IDs, but they
+      -- are not essential, unlike e.g. passwords.
+    | ManagedByScim
+    deriving (Eq, Show, Bounded, Enum)
+
+instance FromJSON ManagedBy where
+    parseJSON = withText "ManagedBy" $ \case
+        "wire" -> pure ManagedByWire
+        "scim" -> pure ManagedByScim
+        other  -> fail $ "Invalid ManagedBy: " ++ show other
+
+instance ToJSON ManagedBy where
+    toJSON = String . \case
+        ManagedByWire -> "wire"
+        ManagedByScim -> "scim"
+
+defaultManagedBy :: ManagedBy
+defaultManagedBy = ManagedByWire
+
+-- NB: when adding new types, please add a roundtrip test to "Test.Brig.Types.Common"

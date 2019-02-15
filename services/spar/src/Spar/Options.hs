@@ -1,15 +1,9 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DeriveFunctor              #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE KindSignatures             #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE TypeFamilies               #-}
 
+-- | Reading the Spar config.
+--
+-- The config type itself, 'Opts', is defined in "Spar.Types".
 module Spar.Options
   ( getOpts
   , deriveOpts
@@ -60,7 +54,7 @@ deriveOpts raw = do
               ("sso" : path') -> compile path'
               path'           -> compile path'
 
-            compile path = "/" <> SBS.intercalate "/" (reverse ("scim" : path))
+            compile path = "/" <> SBS.intercalate "/" (reverse ("v2" : "scim" : path))
 
     pure DerivedOpts {..}
   pure $ derived <$ raw

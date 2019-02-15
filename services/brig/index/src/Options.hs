@@ -1,7 +1,4 @@
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE QuasiQuotes           #-}
 {-# LANGUAGE StrictData            #-}
-{-# LANGUAGE TemplateHaskell       #-}
 
 module Options
     ( Command (..)

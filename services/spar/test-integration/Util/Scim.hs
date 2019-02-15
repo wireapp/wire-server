@@ -1,19 +1,4 @@
-{-# LANGUAGE ConstraintKinds     #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE QuasiQuotes         #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE ViewPatterns        #-}
-
+{-# LANGUAGE RecordWildCards #-}
 module Util.Scim where
 
 import Imports
@@ -85,17 +70,33 @@ registerScimToken teamid midpid = do
 -- FUTUREWORK: make this more exhaustive.  change everything that can be changed!  move this to the
 -- hspec package when done.
 randomScimUser :: MonadRandom m => m Scim.User.User
-randomScimUser = do
+randomScimUser = fst <$> randomScimUserWithSubject
+
+-- | Like 'randomScimUser', but also returns the intended subject ID that the user should
+-- have. It's already available as 'Scim.User.externalId' but it's not structured.
+randomScimUserWithSubject :: MonadRandom m => m (Scim.User.User, SAML.UnqualifiedNameID)
+randomScimUserWithSubject = do
     suffix <- cs <$> replicateM 5 (getRandomR ('0', '9'))
     emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
     phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
-    pure $ Scim.User.empty
-        { Scim.User.userName     = "scimuser_" <> suffix
-        , Scim.User.displayName  = Just ("Scim User #" <> suffix)
-        , Scim.User.externalId   = Just ("scimuser_extid_" <> suffix)
-        , Scim.User.emails       = emails
-        , Scim.User.phoneNumbers = phones
-        }
+    -- Related, but non-trivial to re-use here: 'nextSubject'
+    (externalId, subj) <- getRandomR (0, 1::Int) <&> \case
+        0 -> ( "scimuser_extid_" <> suffix <> "@example.com"
+             , SAML.UNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
+             )
+        1 -> ( "scimuser_extid_" <> suffix
+             , SAML.UNameIDUnspecified ("scimuser_extid_" <> suffix)
+             )
+        _ -> error "randomScimUserWithSubject: impossible"
+    pure ( Scim.User.empty
+               { Scim.User.userName     = "scimuser_" <> suffix
+               , Scim.User.displayName  = Just ("Scim User #" <> suffix)
+               , Scim.User.externalId   = Just externalId
+               , Scim.User.emails       = emails
+               , Scim.User.phoneNumbers = phones
+               }
+         , subj
+         )
 
 randomScimEmail :: MonadRandom m => m Email.Email
 randomScimEmail = do
@@ -366,58 +367,87 @@ scimUserId storedUser = either err id (readEither id_)
     id_ = cs (Scim.id (Scim.thing storedUser))
     err e = error $ "scimUserId: couldn't parse ID " ++ id_ ++ ": " ++ e
 
--- | There are a number of user types that all partially map on each other.  This class provides a
--- uniform interface to data stored in those types.
+-- | There are a number of user types that all partially map on each other. This class
+-- provides a uniform interface to data stored in those types.
+--
+-- Each field might be present or not present. For each present field this class provides an
+-- accessor (if the field is not present in the type, the accessor will be 'Nothing').
+--
+-- In cases like 'maybeUserId' the accessor returns a raw value, because a user always has a
+-- 'UserId'. In cases like 'maybeHandle' the accessor returns a 'Maybe', because a user may or
+-- may not have a handle.
 class IsUser u where
-  maybeUserId :: u -> Maybe UserId
-  maybeHandle :: u -> Maybe (Maybe Handle)
-  maybeName :: u -> Maybe (Maybe Name)
-  maybeTenant :: u -> Maybe (Maybe SAML.Issuer)
-  maybeSubject :: u -> Maybe (Maybe SAML.NameID)
+    maybeUserId :: Maybe (u -> UserId)
+    maybeHandle :: Maybe (u -> Maybe Handle)
+    maybeName :: Maybe (u -> Maybe Name)
+    maybeTenant :: Maybe (u -> Maybe SAML.Issuer)
+    maybeSubject :: Maybe (u -> Maybe SAML.NameID)
+    -- | Some types (e.g. 'Scim.User.User') have a subject ID as a raw string, i.e. not in a
+    -- structured form. Having 'maybeSubjectRaw' available allows us to compare things like
+    -- SCIM 'Scim.User.User' and a Brig 'User', even though they store subject IDs in a
+    -- different way.
+    maybeSubjectRaw :: Maybe (u -> Maybe Text)
 
 -- | 'ValidScimUser' is tested in ScimSpec.hs exhaustively with literal inputs, so here we assume it
 -- is correct and don't aim to verify that name, handle, etc correspond to ones in 'vsuUser'.
 instance IsUser ValidScimUser where
-    maybeUserId = const Nothing
-    maybeHandle = Just . Just . view vsuHandle
-    maybeName = Just . view vsuName
-    maybeTenant = Just . Just . view (vsuSAMLUserRef . SAML.uidTenant)
-    maybeSubject = Just . Just . view (vsuSAMLUserRef . SAML.uidSubject)
+    maybeUserId = Nothing
+    maybeHandle = Just (Just . view vsuHandle)
+    maybeName = Just (view vsuName)
+    maybeTenant = Just (Just . view (vsuSAMLUserRef . SAML.uidTenant))
+    maybeSubject = Just (Just . view (vsuSAMLUserRef . SAML.uidSubject))
+    maybeSubjectRaw = Just (SAML.shortShowNameID . view (vsuSAMLUserRef . SAML.uidSubject))
 
 instance IsUser Scim.StoredUser where
-    maybeUserId = Just . scimUserId
-    maybeHandle = maybeHandle . Scim.value . Scim.thing
-    maybeName = maybeName . Scim.value . Scim.thing
-    maybeTenant = maybeTenant . Scim.value . Scim.thing
-    maybeSubject = maybeSubject . Scim.value . Scim.thing
+    maybeUserId = Just scimUserId
+    maybeHandle = maybeHandle <&> \f -> f . Scim.value . Scim.thing
+    maybeName = maybeName <&> \f -> f . Scim.value . Scim.thing
+    maybeTenant = maybeTenant <&> \f -> f . Scim.value . Scim.thing
+    maybeSubject = maybeSubject <&> \f -> f . Scim.value . Scim.thing
+    maybeSubjectRaw = maybeSubjectRaw <&> \f -> f . Scim.value . Scim.thing
 
 instance IsUser Scim.User.User where
-    maybeUserId = const Nothing
-    maybeHandle = Just . Just . Handle . Scim.User.userName
-    maybeName = Just . fmap Name . Scim.User.displayName
-    maybeTenant = const Nothing
-    maybeSubject = Just . fmap SAML.opaqueNameID . Scim.User.externalId
+    maybeUserId = Nothing
+    maybeHandle = Just (Just . Handle . Scim.User.userName)
+    maybeName = Just (fmap Name . Scim.User.displayName)
+    maybeTenant = Nothing
+    maybeSubject = Nothing
+    maybeSubjectRaw = Just Scim.User.externalId
 
 instance IsUser User where
-    maybeUserId = Just . userId
-    maybeHandle = Just . userHandle
-    maybeName = Just . Just . userName
-    maybeTenant = Just . fmap (view SAML.uidTenant) . urefFromBrig
-    maybeSubject = Just . fmap (view SAML.uidSubject) . urefFromBrig
+    maybeUserId = Just userId
+    maybeHandle = Just userHandle
+    maybeName = Just (Just . userName)
+    maybeTenant = Just (fmap (view SAML.uidTenant) . urefFromBrig)
+    maybeSubject = Just (fmap (view SAML.uidSubject) . urefFromBrig)
+    maybeSubjectRaw = Just (SAML.shortShowNameID . view SAML.uidSubject <=< urefFromBrig)
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
+--
+-- Example:
+--
+--   * 'maybeHandle' is @Nothing@ for one type and @Just ...@ for the other type -> ok.
+--
+--   * 'maybeHandle' is @Just ...@ for both types, but one user has a handle and the other
+--     doesn't (or the handles are different) -> fail.
 userShouldMatch
     :: (HasCallStack, MonadIO m, IsUser u1, IsUser u2)
     => u1 -> u2 -> m ()
 userShouldMatch u1 u2 = liftIO $ do
-    check "userId" (maybeUserId u1) (maybeUserId u2)
-    check "handle" (maybeHandle u1) (maybeHandle u2)
-    check "name" (maybeName u1) (maybeName u2)
-    check "tenant" (maybeTenant u1) (maybeTenant u2)
-    check "subject" (maybeSubject u1) (maybeSubject u2)
+    check "userId" maybeUserId
+    check "handle" maybeHandle
+    check "name" maybeName
+    check "tenant" maybeTenant
+    check "subject" maybeSubject
+    check "subject (raw)" maybeSubjectRaw
   where
-    check field (Just a) (Just b) = (field :: String, a) `shouldBe` (field, b)
-    check _ _ _ = pure ()
+    check :: (Eq a, Show a)
+          => Text                                    -- field name
+          -> (forall u. IsUser u => Maybe (u -> a))  -- accessor (polymorphic)
+          -> IO ()
+    check field getField = case (getField <&> ($ u1), getField <&> ($ u2)) of
+        (Just a1, Just a2) -> (field, a1) `shouldBe` (field, a2)
+        _ -> pure ()
 
 urefFromBrig :: User -> Maybe SAML.UserRef
 urefFromBrig brigUser = case userIdentity brigUser of

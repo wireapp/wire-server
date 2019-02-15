@@ -12,13 +12,54 @@ cabal-version:  >= 1.10
 
 library
     default-language:   Haskell2010
-    default-extensions: NoImplicitPrelude
+    default-extensions:
+        NoImplicitPrelude
+      , AllowAmbiguousTypes
+      , BangPatterns
+      , ConstraintKinds
+      , DataKinds
+      , DefaultSignatures
+      , DeriveFunctor
+      , DeriveGeneric
+      , DeriveLift
+      , DeriveTraversable
+      , EmptyCase
+      , FlexibleContexts
+      , FlexibleInstances
+      , FunctionalDependencies
+      , GADTs
+      , InstanceSigs
+      , KindSignatures
+      , LambdaCase
+      , MultiParamTypeClasses
+      , MultiWayIf
+      , NamedFieldPuns
+      , NoImplicitPrelude
+      , OverloadedStrings
+      , PackageImports
+      , PatternSynonyms
+      , PolyKinds
+      , QuasiQuotes
+      , RankNTypes
+      , ScopedTypeVariables
+      , StandaloneDeriving
+      , TemplateHaskell
+      , TupleSections
+      , TypeApplications
+      , TypeFamilies
+      , TypeFamilyDependencies
+      , TypeOperators
+      , UndecidableInstances
+      , ViewPatterns
     hs-source-dirs:     src
     ghc-options:        -Wall -O2 -fwarn-tabs
-    ghc-prof-options:   -prof -auto-all
+    ghc-prof-options:   -auto-all
 
     exposed-modules:
         Data.Metrics.Middleware
+        Data.Metrics.Types
+        Data.Metrics.WaiRoute
+        Data.Metrics.Servant
 
     build-depends:
           base         == 4.*
@@ -28,6 +69,9 @@ library
         , http-types   >= 0.8
         , imports
         , metrics-core >= 0.3
+        , containers
+        , servant
+        , string-conversions
         , text         >= 0.11
         , transformers >= 0.3
         , wai          >= 3

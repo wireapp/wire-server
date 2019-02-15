@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 
 module V2 (migration) where
 

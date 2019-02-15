@@ -1,28 +1,17 @@
-{-# LANGUAGE ConstraintKinds            #-}
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE NamedFieldPuns             #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE PackageImports             #-}
-{-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TupleSections              #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE ViewPatterns               #-}
 
-{-# OPTIONS_GHC -Wno-orphans #-}
-
+-- | The API types, handlers, and WAI 'Application' for whole Spar.
+--
+-- Note: handlers are defined here, but API types are reexported from "Spar.API.Types". The
+-- SCIM branch of the API is fully defined in "Spar.Scim".
 module Spar.API
-  ( app, api
+  ( -- * Server
+    app, api
+
+    -- * API types
   , API, OutsideWorldAPI
+    -- ** Individual API pieces
   , APIMeta
   , APIAuthReqPrecheck
   , APIAuthReq

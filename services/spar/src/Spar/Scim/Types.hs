@@ -16,6 +16,11 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ViewPatterns #-}
 
+-- | This module contains several categories of SCIM-related types:
+--
+-- * Our wrappers over @hscim@ types (like 'ValidScimUser').
+-- * Servant-based API types.
+-- * Request and response types for SCIM-related endpoints.
 module Spar.Scim.Types where
 
 import Imports
@@ -33,6 +38,10 @@ import qualified Web.Scim.Server                  as Scim
 
 
 -- | SCIM user with 'SAML.UserRef' and mapping to 'Brig.User'.  Constructed by 'validateScimUser'.
+--
+-- Data contained in '_vsuHandle' and '_vsuName' is guaranteed to a) correspond to the data in
+-- the 'Scim.User.User' and b) be valid in regard to our own user schema requirements (only
+-- certain characters allowed in handles, etc).
 data ValidScimUser = ValidScimUser
   { _vsuUser          :: Scim.User.User
 

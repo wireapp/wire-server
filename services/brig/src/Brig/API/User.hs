@@ -1,11 +1,4 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE ViewPatterns        #-}
 
 -- TODO: Move to Brig.User.Account
 module Brig.API.User
@@ -17,6 +10,7 @@ module Brig.API.User
     , changePhone
     , changeHandle
     , lookupHandle
+    , changeManagedBy
     , changeAccountStatus
     , Data.lookupAccounts
     , Data.lookupAccount
@@ -305,6 +299,14 @@ changeLocale :: UserId -> ConnId -> LocaleUpdate -> AppIO ()
 changeLocale uid conn (LocaleUpdate loc) = do
     Data.updateLocale uid loc
     Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
+
+-------------------------------------------------------------------------------
+-- Update ManagedBy
+
+changeManagedBy :: UserId -> ConnId -> ManagedByUpdate -> AppIO ()
+changeManagedBy uid conn (ManagedByUpdate mb) = do
+    Data.updateManagedBy uid mb
+    Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
 
 --------------------------------------------------------------------------------
 -- Change Handle
