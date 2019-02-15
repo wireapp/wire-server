@@ -1,0 +1,40 @@
+defaults: 
+  local: ../../package-defaults.yaml
+name: metrics-core
+version: '0.3.2'
+synopsis: Metrics core
+category: Data
+author: Wire Swiss GmbH
+maintainer: Wire Swiss GmbH <backend@wire.com>
+copyright: (c) 2017 Wire Swiss GmbH
+license: AGPL-3
+dependencies:
+- imports
+library:
+  source-dirs: src
+  exposed-modules:
+  - Data.Metrics
+  - Data.Metrics.Buckets
+  dependencies:
+  - aeson >=0.6
+  - atomic-primops >=0.8
+  - base >=4.9
+  - hashable >=1.2
+  - unordered-containers >=0.2
+  - text >=0.11
+  - transformers >=0.3
+  - vector >=0.10
+benchmarks:
+  metrics-core-bench:
+    main: Main.hs
+    source-dirs: bench
+    ghc-options:
+    - -rtsopts
+    - -threaded
+    - -fno-ignore-asserts
+    dependencies:
+    - base
+    - async
+    - criterion
+    - metrics-core
+    - unordered-containers
