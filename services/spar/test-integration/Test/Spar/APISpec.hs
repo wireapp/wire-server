@@ -206,15 +206,13 @@ specFinalizeLogin = do
             do
               env <- ask
               newUserId <- getUserIdViaRef newUserRef
-              resp <- call . get $
+              _ <- call . get $
                 ( (env ^. teGalley)
                 . header "Z-User" (toByteString' ownerid)
                 . header "Z-Connection" "fake"
                 . paths ["teams", toByteString' teamid, "members"]
                 . expect2xx
                 )
-              liftIO . print $ responseBody resp
-
               void . call . delete $
                 ( (env ^. teGalley)
                 . header "Z-User" (toByteString' ownerid)
