@@ -100,7 +100,7 @@ logBadCannons (uri, (err, prcs)) = do
             ~~ Log.field "created_at" (ms $ createdAt prc)
             ~~ Log.field "cannon_uri" (show uri)
             ~~ Log.field "resource_target" (show $ resource prc)
-            ~~ Log.field "http_exception" (show $ show err)  -- (double-show to kill newlines)
+            ~~ Log.field "http_exception" (intercalate " | " . lines . show $ err)
             ~~ Log.msg (val "WebSocket presence unreachable: ")
 
 logPrcsGone :: Log.MonadLogger m => Presence -> m ()
