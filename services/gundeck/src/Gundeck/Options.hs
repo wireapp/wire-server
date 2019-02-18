@@ -3,12 +3,11 @@
 module Gundeck.Options where
 
 import Imports
-import Control.Lens
+import Control.Lens hiding (Level)
 import Data.Aeson.TH
 import Data.Yaml (FromJSON)
 import Gundeck.Aws.Arn
-import Options.Applicative
-import Options.Applicative.Types
+import System.Logger (Level)
 import Util.Options
 import Util.Options.Common
 
@@ -44,104 +43,11 @@ data Opts = Opts
     , _optAws       :: !AWSOpts
     , _optDiscoUrl  :: !(Maybe Text)
     , _optSettings  :: !Settings
+    -- Logging
+    , _optLogLevel      :: !Level       -- ^ Log level (Debug, Info, etc)
+    , _optLogNetStrings :: !Bool        -- ^ Use netstrings encoding:
+                                        --   <http://cr.yp.to/proto/netstrings.txt>
     } deriving (Show, Generic)
 
 deriveFromJSON toOptionFieldName ''Opts
 makeLenses ''Opts
-
-parseOptions :: IO Opts
-parseOptions = execParser (info (helper <*> optsParser) desc)
-  where
-    desc = header "Gundeck - Push Notifications" <> fullDesc
-
-optsParser :: Parser Opts
-optsParser = Opts <$>
-    (Endpoint <$>
-        (textOption $
-            long "host"
-            <> value "*4"
-            <> showDefault
-            <> metavar "HOSTNAME"
-            <> help "Hostname or address to bind to")
-        <*>
-        (option auto $
-            long "port"
-            <> short 'p'
-            <> metavar "PORT"
-            <> help "Port to listen on"))
-  <*> cassandraParser
-  <*> redisParser
-  <*> awsParser
-  <*> optional discoUrlParser
-  <*> settingsParser
-  where
-    redisParser :: Parser Endpoint
-    redisParser = Endpoint <$>
-        (textOption $
-            long "redis-host"
-            <> metavar "HOSTNAME"
-            <> help "Redis hostname")
-        <*>
-        (option auto $
-            long "redis-port"
-            <> metavar "PORT"
-            <> help "Redis port")
-
-    awsParser :: Parser AWSOpts
-    awsParser = AWSOpts <$>
-        (fmap Account . textOption $
-            long "aws-account"
-            <> metavar "STRING"
-            <> help "aws account")
-        <*>
-        (option parseRegion $
-            long "aws-region"
-            <> metavar "STRING"
-            <> help "aws region name")
-        <*>
-        (fmap ArnEnv . textOption $
-            long "aws-arn-env"
-            <> metavar "STRING"
-            <> help "environment name to scope ARNs to")
-        <*>
-        (textOption $
-            long "event-queue-name"
-            <> metavar "STRING"
-            <> help "sqs queue name")
-        <*>
-        (option parseAWSEndpoint $
-            long "aws-sqs-endpoint"
-            <> metavar "STRING"
-            <> value (AWSEndpoint "sqs.eu-west-1.amazonaws.com" True 443)
-            <> showDefault
-            <> help "aws SQS endpoint")
-        <*>
-        (option parseAWSEndpoint $
-            long "aws-sns-endpoint"
-            <> metavar "STRING"
-            <> value (AWSEndpoint "sns.eu-west-1.amazonaws.com" True 443)
-            <> showDefault
-            <> help "aws SNS endpoint")
-
-    settingsParser :: Parser Settings
-    settingsParser = Settings <$>
-        (option auto $
-            long "http-pool-size"
-            <> metavar "SIZE"
-            <> showDefault
-            <> help "number of connections for the http client pool"
-            <> value 128)
-        <*>
-        (fmap NotificationTTL . option auto $
-            long "notification-ttl"
-            <> metavar "SIZE"
-            <> showDefault
-            <> help "TTL (seconds) of stored notifications"
-            <> value 86400)
-        <*>
-        (switch $
-            long "bulk-push"
-            <> help ("Use this option to group push notifications and send them " <>
-                     "in bulk to Cannon, instead of in individual requests."))
-
-    parseRegion = readerAsk >>= either readerError return . fromText . fromString
