@@ -12,16 +12,15 @@ ARG deps=quay.io/wire/alpine-deps
 #--- Builder stage ---
 FROM ${builder} as builder
 
-# ensure no stale files remain if they get deleted from the branch.
-RUN find /src/wire-server/ -maxdepth 1 -mindepth 1 | grep -v .stack- | xargs rm -rf
+WORKDIR /wire-server/
 
-COPY . /src/wire-server/
+COPY . /wire-server/
 
-RUN cd /src/wire-server && make clean install
+RUN make clean install
 
 #--- Minified stage ---
 FROM ${deps}
 
-COPY --from=builder /src/wire-server/dist/ /dist/
+COPY --from=builder /wire-server/dist/ /dist/
 # brig also needs some templates.
-COPY --from=builder /src/wire-server/services/brig/deb/opt/brig/templates/ /dist/templates/
+COPY --from=builder /wire-server/services/brig/deb/opt/brig/templates/ /dist/templates/

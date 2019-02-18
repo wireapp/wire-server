@@ -136,7 +136,7 @@ docker-services:
 	$(MAKE) -C services/nginz docker
 
 DOCKER_DEV_NETWORK := --net=host
-DOCKER_DEV_VOLUMES := -v `pwd`:/src/wire-server
+DOCKER_DEV_VOLUMES := -v `pwd`:/wire-server
 DOCKER_DEV_IMAGE   := quay.io/wire/alpine-builder:$(DOCKER_TAG)
 .PHONY: run-docker-builder
 run-docker-builder:
