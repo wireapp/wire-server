@@ -16,7 +16,7 @@ import Data.Id
 import Data.List1
 import Data.Misc (Milliseconds (..))
 import Data.Time.Clock.POSIX
-import Data.Timeout (Timeout)
+import Data.Timeout (Timeout, (#>), TimeoutUnit(MilliSecond))
 import Gundeck.Monad
 import Gundeck.Types.BulkPush
 import Gundeck.Types.Notification
@@ -359,4 +359,4 @@ logPresence p =
     ~~ Log.field "zconn"  (toByteString (connId p))
 
 timeout' :: Timeout -> (Request -> Request)
-timeout' = timeout . (`div` 1000000) . fromIntegral{- yields nanoseconds -}
+timeout' = Bilge.timeout . fromIntegral . (#> MilliSecond)

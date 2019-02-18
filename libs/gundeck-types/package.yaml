@@ -37,3 +37,4 @@ library:
   - Gundeck.Types.Push
   - Gundeck.Types.Push.V2
   - Gundeck.Types.Swagger
+  - Gundeck.Types.Timeouts
