@@ -169,7 +169,7 @@ newEnv o = do
     utp <- loadUserTemplates o
     ptp <- loadProviderTemplates o
     ttp <- loadTeamTemplates o
-    let branding = genTemplateBranding $ Opt.templateBranding $ Opt.general (Opt.emailSMS o)
+    let branding = genTemplateBranding . Opt.templateBranding . Opt.general . Opt.emailSMS  $ o
     (emailAWSOpts, emailSMTP) <- emailConn lgr $ Opt.email (Opt.emailSMS o)
     aws <- AWS.mkEnv lgr (Opt.aws o) emailAWSOpts mgr
     zau <- initZAuth o

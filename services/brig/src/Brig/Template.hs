@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- | Common templating utilities.
 module Brig.Template
     ( -- * Reading templates
@@ -35,6 +37,8 @@ import qualified Data.Text.Lazy     as Lazy
 import qualified Data.Text.Template as Template
 import qualified HTMLEntities.Text  as HTML
 
+-- | Type alias for a (branding) templating function
+--   based on `template` package
 type TemplateBranding = Text -> Text
 
 -- | Localised templates.
