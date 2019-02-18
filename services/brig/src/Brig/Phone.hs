@@ -82,8 +82,10 @@ sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
                 _                   -> False
         ]
 
-    unreachable (toException -> ex) = warn ex >> throwM PhoneNumberUnreachable
-    barred      (toException -> ex) = warn ex >> throwM PhoneNumberBarred
+    unreachable :: Nexmo.CallErrorResponse -> AppT IO ()
+    unreachable ex = warn (toException ex) >> throwM PhoneNumberUnreachable
+    barred :: Nexmo.CallErrorResponse -> AppT IO ()
+    barred ex = warn (toException ex) >> throwM PhoneNumberBarred
 
     warn ex = Log.warn
          $ msg (val "Voice call failed.")

@@ -7,6 +7,7 @@
 module Data.Metrics.Types
     ( PathTemplate(..)
     , Paths(..)
+    , PathSegment
     , mkTree
     , treeLookup
     ) where
@@ -16,28 +17,30 @@ import Data.Tree as Tree
 
 import qualified Data.ByteString.Char8 as BS
 
-
 newtype PathTemplate = PathTemplate Text
 
--- | A 'Forest' of path segments.  A path segment is 'Nothing' if it captures a value
+-- | A 'Forest' of path segments.  A path segment is 'Left' if it captures a value
 -- (e.g. user id).
-newtype Paths = Paths (Forest (Maybe ByteString))
+newtype Paths = Paths (Forest PathSegment)
   deriving (Eq, Show)
+
+type PathSegment = Either ByteString ByteString
+
 
 -- | Turn a list of paths into a 'Paths' tree.  Treat all path segments that start with @':'@
 -- as equal and turn them into 'Nothing'.
 mkTree :: [[ByteString]] -> Either String Paths
 mkTree = fmap (Paths . melt) . mapM mkbranch . sortBy (flip compare) . fmap (fmap mknode)
   where
-    mkbranch :: [Maybe ByteString] -> Either String (Tree (Maybe ByteString))
+    mkbranch :: [PathSegment] -> Either String (Tree PathSegment)
     mkbranch (seg : segs@(_:_)) = Node seg . (:[]) <$> mkbranch segs
     mkbranch (seg : [])         = Right $ Node seg []
     mkbranch []                 = Left "internal error: path with on segments."
 
-    mknode :: ByteString -> Maybe ByteString
-    mknode seg = if BS.head seg /= ':' then Just seg else Nothing
+    mknode :: ByteString -> PathSegment
+    mknode seg = if BS.head seg /= ':' then Right seg else Left seg
 
-    melt :: Forest (Maybe ByteString) -> Forest (Maybe ByteString)
+    melt :: Forest PathSegment -> Forest PathSegment
     melt [] = []
     melt (tree : []) = [tree]
     melt (tree : tree' : trees) = if rootLabel tree == rootLabel tree'
@@ -50,13 +53,13 @@ mkTree = fmap (Paths . melt) . mapM mkbranch . sortBy (flip compare) . fmap (fma
 treeLookup :: Paths -> [ByteString] -> Maybe ByteString
 treeLookup (Paths forest) = go [] forest
   where
-    go :: [Maybe ByteString] -> Forest (Maybe ByteString) -> [ByteString] -> Maybe ByteString
-    go path _  [] = Just . BS.intercalate "/" . fmap (fromMaybe "<>") . reverse $ path
+    go :: [PathSegment] -> Forest PathSegment -> [ByteString] -> Maybe ByteString
+    go path _  [] = Just . ("/" <>) . BS.intercalate "/" . fmap (either id id) . reverse $ path
     go _    [] _  = Nothing
 
     go path trees (seg : segs) =
         find (seg `fits`) trees >>= \(Node root trees') -> go (root : path) trees' segs
 
-    fits :: ByteString -> Tree (Maybe ByteString) -> Bool
-    fits _ (Node Nothing _) = True
-    fits seg (Node (Just seg') _) = seg == seg'
+    fits :: ByteString -> Tree PathSegment -> Bool
+    fits _ (Node (Left _) _) = True
+    fits seg (Node (Right seg') _) = seg == seg'
