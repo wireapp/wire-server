@@ -1,10 +1,3 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE ViewPatterns        #-}
 
 module Cannon.API (run) where
 
@@ -19,6 +12,7 @@ import Control.Monad.Catch
 import Data.Aeson (encode)
 import Data.Id (ClientId, UserId, ConnId)
 import Data.Metrics.Middleware
+import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Swagger.Build.Api hiding (def, Response)
 import Data.Text (strip, pack)
 import Data.Text.Encoding (encodeUtf8)
@@ -68,7 +62,7 @@ run o = do
                <*> mkClock
     s <- newSettings $ Server (o^.cannon.host) (o^.cannon.port) (applog e) m (Just idleTimeout) [] []
     let rtree    = compile sitemap
-        measured = measureRequests m rtree
+        measured = measureRequests m (treeToPaths rtree)
         app  r k = runCannon e (route rtree r k) r
         start    = measured . catchErrors g m $ Gzip.gzip Gzip.def app
     runSettings s start `finally` Logger.close (applog e)

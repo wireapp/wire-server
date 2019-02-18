@@ -1,8 +1,4 @@
-{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE OverloadedStrings          #-}
 
 -- | 'zauth' token signing and verification.
 --

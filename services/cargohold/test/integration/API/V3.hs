@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 
 module API.V3 where
 

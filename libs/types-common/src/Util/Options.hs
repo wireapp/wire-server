@@ -108,6 +108,7 @@ getOptions desc pars defaultPath = do
         (False, Nothing) -> do
             die $ "Config file at " ++ path ++ " does not exist. \n"
   where
+    mkDesc :: InfoMod b
     mkDesc = header desc <> fullDesc
 
 parseConfigPath :: FilePath -> InfoMod String -> IO String

@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 
 module Brig.User.Auth.Cookie
     ( -- * Cookie Essentials

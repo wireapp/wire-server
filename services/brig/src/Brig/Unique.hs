@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 
 -- | Temporary exclusive claims on 'Text'ual values which may be subject
 -- to contention, i.e. where strong guarantees on uniqueness are desired.

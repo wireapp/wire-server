@@ -1,23 +1,15 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedLists            #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE PackageImports             #-}
-{-# LANGUAGE QuasiQuotes                #-}
-{-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE TypeOperators              #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Spar.Scim.Swagger where
+-- | Swagger instances for SCIM-related types that are defined in Spar.
+--
+-- /Note 2019-02-06:/ SCIM schema types from @hscim@ ('User', 'Group', etc) don't have Swagger
+-- instances yet and are unlikely to get them soon. For more details see
+-- <https://github.com/wireapp/hscim/pull/16>.
+module Spar.Scim.Swagger () where
 
 import Imports
 import Control.Lens

@@ -1,9 +1,4 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 -- TODO: Move to Brig.User.Connection (& split out Brig.User.Invitation?)
 module Brig.API.Connection

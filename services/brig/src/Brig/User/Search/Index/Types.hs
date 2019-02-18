@@ -1,6 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData        #-}
-{-# LANGUAGE TemplateHaskell   #-}
 
 module Brig.User.Search.Index.Types where
 

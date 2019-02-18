@@ -1,7 +1,3 @@
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
 
 module Journal where
 

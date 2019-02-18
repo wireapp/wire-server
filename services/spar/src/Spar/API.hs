@@ -1,28 +1,17 @@
-{-# LANGUAGE ConstraintKinds            #-}
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE NamedFieldPuns             #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE PackageImports             #-}
-{-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TupleSections              #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE ViewPatterns               #-}
 
-{-# OPTIONS_GHC -Wno-orphans #-}
-
+-- | The API types, handlers, and WAI 'Application' for whole Spar.
+--
+-- Note: handlers are defined here, but API types are reexported from "Spar.API.Types". The
+-- SCIM branch of the API is fully defined in "Spar.Scim".
 module Spar.API
-  ( app, api
+  ( -- * Server
+    app, api
+
+    -- * API types
   , API, OutsideWorldAPI
+    -- ** Individual API pieces
   , APIMeta
   , APIAuthReqPrecheck
   , APIAuthReq
@@ -122,12 +111,15 @@ authreq authreqttl _ zusr msucc merr idpid = do
 -- value that deletes any bind cookies on the client.
 initializeBindCookie :: Maybe UserId -> NominalDiffTime -> Spar SetBindCookie
 initializeBindCookie zusr authreqttl = do
-  DerivedOpts path domain <- asks (derivedOpts . sparCtxOpts)
+  DerivedOpts { derivedOptsBindCookiePath, derivedOptsBindCookieDomain }
+    <- asks (derivedOpts . sparCtxOpts)
   msecret <- if isJust zusr
              then liftIO $ Just . cs . ES.encode <$> randBytes 32
              else pure Nothing
-  let updSetCkyDom (SAML.SimpleSetCookie raw) = SAML.SimpleSetCookie raw { Cky.setCookieDomain = Just domain }
-  cky <- updSetCkyDom <$> (SAML.toggleCookie path $ (, authreqttl) <$> msecret :: Spar SetBindCookie)
+  let updSetCkyDom (SAML.SimpleSetCookie raw) = SAML.SimpleSetCookie raw
+        { Cky.setCookieDomain = Just derivedOptsBindCookieDomain }
+  cky <- updSetCkyDom <$> (SAML.toggleCookie derivedOptsBindCookiePath $
+                            (, authreqttl) <$> msecret :: Spar SetBindCookie)
   forM_ zusr $ \userid -> wrapMonadClientWithEnv $ Data.insertBindCookie cky userid authreqttl
   pure cky
 

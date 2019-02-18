@@ -1,3 +1,5 @@
+defaults:
+  local: ../../package-defaults.yaml
 name:          spar
 version:       '0.1'
 synopsis:      'User Service for SSO (Single Sign-On) provisioning and authentication.'
@@ -9,7 +11,10 @@ license-file:  LICENSE
 category:      System
 description:   'See README.md'
 
-ghc-options: -j -O2 -Wall -Wno-redundant-constraints -fwarn-tabs -Werror -optP-Wno-nonportable-include-path
+ghc-options:
+- -j
+- -Wno-redundant-constraints
+- -Werror
 
 dependencies:
   - aeson
@@ -30,6 +35,7 @@ dependencies:
   - data-default
   - errors
   - exceptions  # (for MonadClient, which in turn needs MonadCatch)
+  - extra
   - galley-types
   - ghc-prim
   - HsOpenSSL
@@ -40,7 +46,9 @@ dependencies:
   - interpolate
   - lens
   - metrics-core
+  - metrics-wai
   - mtl
+  - network-uri
   - optparse-applicative
   - raw-strings-qq
   - retry
@@ -53,6 +61,7 @@ dependencies:
   - string-conversions
   - swagger2
   - text
+  - text-latin1
   - time
   - tinylog
   - transformers
@@ -69,9 +78,6 @@ dependencies:
   - hscim
   - email-validate
   - http-api-data
-
-default-extensions:
-  - NoImplicitPrelude
 
 library:
   source-dirs:
@@ -116,6 +122,7 @@ executables:
       - hspec
       - hspec-discover
       - lens-aeson
+      - MonadRandom
       - random
       - servant-client
       - spar

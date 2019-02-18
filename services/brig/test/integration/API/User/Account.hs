@@ -1,8 +1,3 @@
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
 
 module API.User.Account (tests) where
 
@@ -80,6 +75,8 @@ tests _ at _ p b c ch g aws = testGroup "account"
     , test' aws p "put /self/password - 200"                 $ testPasswordChange b
     , test' aws p "put /self/locale - 200"                   $ testUserLocaleUpdate b aws
     , test' aws p "post /activate/send - 200"                $ testSendActivationCode b
+    , test' aws p "post /activate/send - 403"                $ testSendActivationCodePrefixExcluded b
+    , test' aws p "post /i/users/phone-prefix"               $ testInternalPhonePrefixes b
     , test' aws p "put /i/users/:id/status (suspend)"        $ testSuspendUser b
     , test' aws p "get /i/users?:(email|phone) - 200"        $ testGetByIdentity b
     , test' aws p "delete/phone-email"                       $ testEmailPhoneDelete b c
@@ -698,14 +695,66 @@ testPasswordChange brig = do
 testSendActivationCode :: Brig -> Http ()
 testSendActivationCode brig = do
     -- Code for phone pre-verification
-    requestActivationCode brig . Right =<< randomPhone
+    requestActivationCode brig 200 . Right =<< randomPhone
     -- Code for email pre-verification
-    requestActivationCode brig . Left =<< randomEmail
+    requestActivationCode brig 200 . Left =<< randomEmail
     -- Standard email registration flow
     r <- registerUser "Alice" brig <!! const 201 === statusCode
     let Just email = userEmail =<< decodeBody r
     -- Re-request existing activation code
-    requestActivationCode brig (Left email)
+    requestActivationCode brig 200 (Left email)
+
+testSendActivationCodePrefixExcluded :: Brig -> Http ()
+testSendActivationCodePrefixExcluded brig = do
+    p <- randomPhone
+    let prefix = mkPrefix $ T.take 5 (fromPhone p)
+
+    -- expect activation to fail after it was excluded
+    insertPrefix brig prefix
+    requestActivationCode brig 403 (Right p)
+
+    -- expect activation to work again after removing block
+    deletePrefix brig (phonePrefix prefix)
+    requestActivationCode brig 200 (Right p)
+
+testInternalPhonePrefixes :: Brig -> Http ()
+testInternalPhonePrefixes brig = do
+    -- prefix1 is a prefix of prefix2
+    let prefix1 = mkPrefix "+5678"
+        prefix2 = mkPrefix "+56789"
+
+    insertPrefix brig prefix1
+    insertPrefix brig prefix2
+
+    -- test getting prefixs
+    res <- getPrefixes prefix1
+    liftIO $ assertEqual "prefix match prefix" res [prefix1]
+
+    -- we expect both prefixes returned when searching for the longer one
+    res2 <- getPrefixes prefix2
+    liftIO $ assertEqual "prefix match phone number" res2 [prefix1, prefix2]
+
+    deletePrefix brig (phonePrefix prefix1)
+    deletePrefix brig (phonePrefix prefix2)
+
+    getPrefix (phonePrefix prefix1) !!! const 404 === statusCode
+  where
+    getPrefixes :: ExcludedPrefix -> Http [ExcludedPrefix]
+    getPrefixes prefix = decodeBody =<< getPrefix (phonePrefix prefix)
+
+    getPrefix :: PhonePrefix -> Http ResponseLBS
+    getPrefix prefix = get ( brig . paths ["/i/users/phone-prefixes", toByteString' prefix])
+
+mkPrefix :: Text -> ExcludedPrefix
+mkPrefix t = ExcludedPrefix (PhonePrefix t) "comment"
+
+insertPrefix :: Brig -> ExcludedPrefix -> Http ()
+insertPrefix brig prefix = do
+    let payload = body $ RequestBodyLBS (encode prefix)
+    post ( brig . path "/i/users/phone-prefixes" . contentJson . payload ) !!! const 200 === statusCode
+
+deletePrefix :: Brig -> PhonePrefix -> Http ()
+deletePrefix brig prefix = delete ( brig . paths ["/i/users/phone-prefixes", toByteString' prefix]) !!! const 200 === statusCode
 
 testEmailPhoneDelete :: Brig -> Cannon -> Http ()
 testEmailPhoneDelete brig cannon = do

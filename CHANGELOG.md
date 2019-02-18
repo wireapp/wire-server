@@ -1,3 +1,32 @@
+# 2019-02-18 #634
+
+## API changes
+
+  * Support for SCIM (#559, #608, #602, #613, #617, #614, #620, #621, #627)
+    - several new end-points under `/scim` (see hscim package or the standards for the details; no swagger docs).
+    - new end-point `put "/i/users/:uid/managed-by"` for marking scim-managed users (no swagger docs)
+  * Add support for excluding certain phone number prefixes (#593)
+    - several new end-points under `/i/users/phone-prefixes/` (no swagger docs)
+  * Fix SAML2.0 compatibility issues in Spar (#607, #623)
+
+## Bug fixes
+
+  * Update swagger docs (#598)
+
+## Internal changes
+
+  * Architecture independence, better use of make features, more docs. (#594)
+  * Fix nginz docker image building (#605)
+  * Enable journaling locally and fix integration tests (#606)
+  * Use network-2.7 for more informative "connection failed" errors (#586)
+  * Use custom snapshots (#597)
+  * Add module documentation for all Spar modules (#611)
+  * Change the bot port in integration tests to something less common (#618)
+  * Spar metrics (#604, #633)
+  * Extend the list of default language extensions (#619)
+  * Fix: do not have newlines in log messages. (#625)
+
+
 # 2019-01-27 #596
 
 ## API changes
@@ -31,20 +60,20 @@
 
   * `sigkeys` attribute on POST|PUT to `/clients` is now deprecated and ignored (clients can stop sending it)
   * `cancel_callback` parameter on GET `/notifications` is now deprecated and ignored (clients can stop sending it)
-  * deprecated `POST /push/fallback/<notif>/cancel` is removed
-  * deprecated `tokenFallback` field returned on `GET /push/tokens` is removed
+  * The deprecated `POST /push/fallback/<notif>/cancel` is now removed.
+  * The deprecated `tokenFallback` field returned on `GET /push/tokens` is now removed.
 
 ## Bug fixes
 
   * Size-restrict SSO subject identities (#557)
   * Propagate team deletions to spar (#519)
-  * allow using $arg_name in nginz (#538)
+  * Allow using `$arg_name` in nginz (#538)
 
 ## Internal changes
 
   * Version upgrades to GHC 8.4 (LTS-12), nginx 14.2, alpine 3.8 (#527, #540)
   * Code refactoring, consitency with Imports.hs (#543, #553, #552)
-  * improved test coverage on spar (#539)
+  * Improved test coverage on spar (#539)
   * Use yaml configuration in cannon (#555)
 
 ## Others
@@ -58,12 +87,12 @@
 
   * New API endpoint (`/properties-values`) to get all properties keys and values
 
-## Bug Fixes
+## Bug fixes
 
   * Proper JSON object encapsulation for `conversation.receipt-mode-update` events (#535)
   * Misc Makefile related changes to improve dev workflow
 
-## Internal Changes
+## Internal changes
 
   * Gundeck now pushes events asynchronously after writing to Cassandra (#530)
 
@@ -73,13 +102,13 @@
 
 # 2018-11-28 #527
 
-## Bug Fixes
+## Bug fixes
 
-  * spar now handles base64 input more leniently (#526)
+  * Spar now handles base64 input more leniently (#526)
 
   * More lenient IdP metadata parsing (#522)
 
-## Internal Changes
+## Internal changes
 
   * Refactor Haskell module imports (#524, #521, #520)
 
@@ -90,7 +119,7 @@
   * Fix: gundeck bulkpush option. (#511)
 
 
-# 2018-11-16  #515
+# 2018-11-16 #515
 
 ## Bug Fixes
 
@@ -113,7 +142,7 @@
   * update dependencies docs (#514)
 
 
-# 2018-10-25  #500
+# 2018-10-25 #500
 
 ## New Features
 
@@ -146,7 +175,7 @@
   * Allow easily running tests against AWS.  #482
 
 
-# 2018-10-04  #477
+# 2018-10-04 #477
 
 ## Highlights
 

@@ -102,18 +102,18 @@ errorMsg n m = showString "outside range ["
              . shows m
              . showString "]"
 
-checkedEitherMsg :: Within a n m => String -> a -> Either String (Range n m a)
+checkedEitherMsg :: forall a n m.  Within a n m => String -> a -> Either String (Range n m a)
 checkedEitherMsg msg x = do
-    let sn = sing
-        sm = sing
+    let sn = sing :: SNat n 
+        sm = sing :: SNat m
     case mk x sn sm of
         Nothing -> Left $ showString msg . showString ": " . errorMsg (fromSing sn) (fromSing sm) $ ""
         Just  r -> Right r
 
-checkedEither :: Within a n m => a -> Either String (Range n m a)
+checkedEither :: forall a n m . Within a n m => a -> Either String (Range n m a)
 checkedEither x = do
-    let sn = sing
-        sm = sing
+    let sn = sing :: SNat n
+        sm = sing :: SNat m
     case mk x sn sm of
         Nothing -> Left (errorMsg (fromSing sn) (fromSing sm) "")
         Just  r -> Right r
