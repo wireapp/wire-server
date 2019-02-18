@@ -28,6 +28,13 @@ import qualified SAML2.WebSSO as SAML
 import qualified Web.Scim.Class.User as Scim
 
 
+instance Cql SAML.XmlText where
+    ctype = Tagged TextColumn
+    toCql = CqlText . SAML.escapeXmlText
+
+    fromCql (CqlText t) = pure $ SAML.mkXmlText t
+    fromCql _           = fail "XmlText: expected CqlText"
+
 instance Cql (SignedCertificate) where
     ctype = Tagged BlobColumn
     toCql = CqlBlob . cs . renderKeyInfo

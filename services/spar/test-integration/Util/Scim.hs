@@ -74,7 +74,9 @@ randomScimUser = fst <$> randomScimUserWithSubject
 
 -- | Like 'randomScimUser', but also returns the intended subject ID that the user should
 -- have. It's already available as 'Scim.User.externalId' but it's not structured.
-randomScimUserWithSubject :: MonadRandom m => m (Scim.User.User, SAML.UnqualifiedNameID)
+randomScimUserWithSubject
+  :: (HasCallStack, MonadRandom m)
+  => m (Scim.User.User, SAML.UnqualifiedNameID)
 randomScimUserWithSubject = do
     suffix <- cs <$> replicateM 5 (getRandomR ('0', '9'))
     emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
@@ -82,10 +84,11 @@ randomScimUserWithSubject = do
     -- Related, but non-trivial to re-use here: 'nextSubject'
     (externalId, subj) <- getRandomR (0, 1::Int) <&> \case
         0 -> ( "scimuser_extid_" <> suffix <> "@example.com"
-             , SAML.UNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
+             , either (error . show) id $
+               SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
              )
         1 -> ( "scimuser_extid_" <> suffix
-             , SAML.UNameIDUnspecified ("scimuser_extid_" <> suffix)
+             , SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
              )
         _ -> error "randomScimUserWithSubject: impossible"
     pure ( Scim.User.empty

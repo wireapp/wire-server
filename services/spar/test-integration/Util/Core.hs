@@ -275,16 +275,16 @@ nextWireId :: MonadIO m => m (Id a)
 nextWireId = Id <$> liftIO UUID.nextRandom
 
 nextSAMLID :: MonadIO m => m (ID a)
-nextSAMLID = ID . UUID.toText <$> liftIO UUID.nextRandom
+nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom
 
 -- | Generate a 'SAML.UserRef' subject.
-nextSubject :: MonadIO m => m NameID
+nextSubject :: (HasCallStack, MonadIO m) => m NameID
 nextSubject = liftIO $ do
   unameId <- randomRIO (0, 1::Int) >>= \case
-      0 -> SAML.UNameIDEmail . Brig.fromEmail <$> randomEmail
-      1 -> SAML.UNameIDUnspecified . UUID.toText <$> UUID.nextRandom
+      0 -> either (error . show) id . SAML.mkUNameIDEmail . Brig.fromEmail <$> randomEmail
+      1 -> SAML.mkUNameIDUnspecified . UUID.toText <$> UUID.nextRandom
       _ -> error "nextSubject: impossible"
-  pure $ SAML.NameID unameId Nothing Nothing Nothing
+  either (error . show) pure $ SAML.mkNameID unameId Nothing Nothing Nothing
 
 nextUserRef :: MonadIO m => m SAML.UserRef
 nextUserRef = liftIO $ do
