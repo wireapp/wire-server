@@ -128,13 +128,12 @@ validateScimUser
 validateScimUser ScimTokenInfo{stiIdP} user = do
     idp <- case stiIdP of
         Nothing -> throwError $
-          Scim.serverError "No IdP configured for the provisioning token"
+            Scim.serverError "No IdP configured for the provisioning token"
         Just idp -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
             Nothing -> throwError $
-              Scim.serverError "The IdP corresponding to the provisioning token \
-                               \was not found"
+                Scim.serverError "The IdP configured for this provisioning token not found"
             Just idpConfig -> pure idpConfig
-    validateScimUser' (Just idp) user
+    validateScimUser' idp user
 
 -- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does
 -- not comply with the standard / our constraints. See also: 'ValidScimUser'.
@@ -162,12 +161,10 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 -- Brig. See <https://github.com/wireapp/wire-server/pull/559#discussion_r247466760>.
 validateScimUser'
   :: forall m. (MonadError Scim.ScimError m)
-  => Maybe IdP        -- ^ IdP that the resulting user will be assigned to
+  => IdP        -- ^ IdP that the resulting user will be assigned to
   -> Scim.User
   -> m ValidScimUser
-validateScimUser' Nothing _ =
-    throwError $ Scim.serverError "SCIM users without SAML SSO are not supported"
-validateScimUser' (Just idp) user = do
+validateScimUser' idp user = do
     uref :: SAML.UserRef <- case Scim.externalId user of
         Just subjectTxt -> do
             let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
