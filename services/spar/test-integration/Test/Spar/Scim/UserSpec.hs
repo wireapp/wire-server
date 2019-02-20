@@ -199,7 +199,7 @@ testListNoDeletedUsers = do
     storedUser <- createUser tok user
     let userid = scimUserId storedUser
     -- Delete the user (TODO: do it via SCIM)
-    call $ deleteUser (env ^. teBrig) userid
+    call $ deleteUserOnBrig (env ^. teBrig) userid
     -- Get all users
     users <- listUsers tok Nothing
     -- Check that the user is absent
@@ -255,7 +255,7 @@ testGetNoDeletedUsers = do
     storedUser <- createUser tok user
     let userid = scimUserId storedUser
     -- Delete the user
-    call $ deleteUser (env ^. teBrig) userid
+    call $ deleteUserOnBrig (env ^. teBrig) userid
     -- Try to find the user
     getUser_ (Just tok) userid (env ^. teSpar)
         !!! const 404 === statusCode
@@ -430,12 +430,20 @@ testBrigSideIsUpdated = do
 specDeleteUser :: SpecWith TestEnv
 specDeleteUser = do
     describe "DELETE /Users" $ do
-        it "responds with 404 (just making sure...)" $ do
-            pending
+        it "responds with 405 (just making sure...)" $ do
+            env <- ask
+            (tok, _) <- registerIdPAndScimToken
+            deleteUser_ (Just tok) Nothing (env ^. teSpar)
+                !!! const 405 === statusCode
 
     describe "DELETE /Users/:id" $ do
         it "whether implemented or not, does *NOT EVER* respond with 5xx!" $ do
-            pending
+            env <- ask
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
+            storedUser <- createUser tok user
+            deleteUser_ (Just tok) (Just $ scimUserId storedUser) (env ^. teSpar)
+                !!! assertTrue_ (inRange (200, 499) . statusCode)
 
         it "sets the 'deleted' flag in brig, and does nothing otherwise." $
             pendingWith "really?  how do we destroy the data then, and when?"
