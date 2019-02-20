@@ -37,8 +37,7 @@ import qualified Data.Text.Lazy     as Lazy
 import qualified Data.Text.Template as Template
 import qualified HTMLEntities.Text  as HTML
 
--- | Type alias for a (branding) templating function
---   based on `template` package
+-- | See 'genTemplateBranding'.
 type TemplateBranding = Text -> Text
 
 -- | Localised templates.
@@ -121,7 +120,7 @@ readText f = catchJust (\e -> if isDoesNotExistError e then Just () else Nothing
 renderTextWithBranding :: Template -> (Text -> Text) -> TemplateBranding -> Lazy.Text
 renderTextWithBranding tpl replace branding = renderText tpl (replace . branding)
 
--- | Uses a replace and a branding function, to replaces all placeholders from the
+-- | Uses a replace and a branding function to replace all placeholders from the
 -- given template to produce a Text. To be used on HTML templates
 renderHtmlWithBranding :: Template -> (Text -> Text) -> TemplateBranding -> Lazy.Text
 renderHtmlWithBranding tpl replace branding = renderHtml tpl (replace . branding)
