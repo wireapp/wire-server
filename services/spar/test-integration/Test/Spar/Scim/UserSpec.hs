@@ -27,12 +27,8 @@ spec = do
     specListUsers
     specGetUser
     specUpdateUser
+    specDeleteUser
 
-    describe "DELETE /Users" $ do
-        it "responds with 404 (just making sure...)" $ pending
-    describe "DELETE /Users/:id" $ do
-        it "sets the 'deleted' flag in brig, and does nothing otherwise." $
-            pendingWith "really?  how do we destroy the data then, and when?"
     describe "CRUD operations maintain invariants in mapScimToBrig, mapBrigToScim." $ do
         it "..." $ do
             pendingWith "this is a job for quickcheck-state-machine"
@@ -427,3 +423,19 @@ testBrigSideIsUpdated = do
     validScimUser <- either (error . show) pure $ validateScimUser' (Just idp) user'
     brigUser      <- maybe (error "no brig user") pure =<< getSelf userid
     brigUser `userShouldMatch` validScimUser
+
+----------------------------------------------------------------------------
+-- Deleting users
+
+specDeleteUser :: SpecWith TestEnv
+specDeleteUser = do
+    describe "DELETE /Users" $ do
+        it "responds with 404 (just making sure...)" $ do
+            pending
+
+    describe "DELETE /Users/:id" $ do
+        it "whether implemented or not, does *NOT EVER* respond with 5xx!" $ do
+            pending
+
+        it "sets the 'deleted' flag in brig, and does nothing otherwise." $
+            pendingWith "really?  how do we destroy the data then, and when?"
