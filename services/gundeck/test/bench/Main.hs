@@ -1,4 +1,3 @@
-
 module Main (main) where
 
 import Imports
@@ -27,14 +26,14 @@ notice :: IO Text
 notice = do
     i <- randomId
     a <- mkAddress GCM
-    let msg   = Notice i HighPriority Nothing
+    let msg   = NativePush i HighPriority Nothing
     Right txt <- serialise msg a
     return $! LT.toStrict txt
 
 -----------------------------------------------------------------------------
 -- Utilities
 
-mkAddress :: Transport -> IO (Address s)
+mkAddress :: Transport -> IO Address
 mkAddress t = do
     u <- randomId
     let app = AppName "test"
@@ -42,7 +41,7 @@ mkAddress t = do
     let tok = Token "test"
     let con = ConnId "conn"
     let clt = ClientId "client"
-    return $! Address u t app tok ept con clt
+    return $! Address u ept con (pushToken t app tok clt)
 
 mkEndpoint :: Transport -> AppName -> EndpointArn
 mkEndpoint t a = mkSnsArn Ireland (Account "test") topic

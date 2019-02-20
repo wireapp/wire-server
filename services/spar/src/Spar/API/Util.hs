@@ -1,4 +1,3 @@
-
 -- | Swagger utilities.
 module Spar.API.Util where
 

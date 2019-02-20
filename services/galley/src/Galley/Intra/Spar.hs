@@ -1,4 +1,3 @@
-
 module Galley.Intra.Spar
     ( deleteTeam
     ) where

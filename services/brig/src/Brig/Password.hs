@@ -1,4 +1,3 @@
-
 module Brig.Password
     ( Password
     , genPassword

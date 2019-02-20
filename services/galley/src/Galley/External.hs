@@ -1,4 +1,3 @@
-
 module Galley.External (deliver) where
 
 import Imports

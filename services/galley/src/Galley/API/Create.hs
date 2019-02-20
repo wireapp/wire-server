@@ -1,4 +1,3 @@
-
 module Galley.API.Create
     ( createGroupConversation
     , internalCreateManagedConversation

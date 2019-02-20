@@ -1,4 +1,3 @@
-
 module Brig.Provider.Template
     ( ProviderTemplates            (..)
     , ActivationEmailTemplate      (..)

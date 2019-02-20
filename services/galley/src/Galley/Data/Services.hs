@@ -1,4 +1,3 @@
-
 module Galley.Data.Services
     ( -- * BotMember
       BotMember

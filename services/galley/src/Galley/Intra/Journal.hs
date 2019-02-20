@@ -1,4 +1,3 @@
-
 module Galley.Intra.Journal
     ( teamActivate
     , teamUpdate

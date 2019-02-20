@@ -1,4 +1,3 @@
-
 module Gundeck.Presence.Data
     ( add
     , list

@@ -1,4 +1,3 @@
-
 module Galley.Options where
 
 import Imports

@@ -1,4 +1,3 @@
-
 module Gundeck.Push
     ( push
     , addToken
@@ -73,7 +72,7 @@ class MonadThrow m =>  MonadPushAll m where
   mpaListAllPresences :: [UserId] -> m [[Presence]]
   mpaBulkPush         :: [(Notification, [Presence])] -> m [(NotificationId, [Presence])]
   mpaStreamAdd        :: NotificationId -> List1 NotificationTarget -> List1 Aeson.Object -> NotificationTTL -> m ()
-  mpaPushNative       :: Notification -> Push -> [Address "no-keys"] -> m ()
+  mpaPushNative       :: Notification -> Push -> [Address] -> m ()
   mpaForkIO           :: m () -> m ()
 
 instance MonadPushAll Gundeck where
@@ -87,13 +86,13 @@ instance MonadPushAll Gundeck where
 
 -- | Abstract over all effects in 'nativeTargets' (for unit testing).
 class Monad m => MonadNativeTargets m where
-  mntgtLogErr        :: SomeException -> m ()
-  mntgtLookupAddress :: UserId -> m [Address "no-keys"]  -- ^ REFACTOR: rename to 'mntgtLookupAddresses'!
-  mntgtMapAsync      :: (a -> m b) -> [a] -> m [Either SomeException b]
+  mntgtLogErr          :: SomeException -> m ()
+  mntgtLookupAddresses :: UserId -> m [Address]
+  mntgtMapAsync        :: (a -> m b) -> [a] -> m [Either SomeException b]
 
 instance MonadNativeTargets Gundeck where
   mntgtLogErr e = Log.err (msg (val "Failed to get native push address: " +++ show e))
-  mntgtLookupAddress rcp = Data.lookup rcp Data.One
+  mntgtLookupAddresses rcp = Data.lookup rcp Data.One
   mntgtMapAsync = mapAsync
 
 -- | Abstract over all effects in 'pushAny' (for unit testing).
@@ -243,13 +242,13 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
 
 -- | Failures to push natively can be ignored.  Logging already happens in
 -- 'Gundeck.Push.Native.push1', and we cannot recover from any of the error cases.
-pushNative :: Notification -> Push -> [Address "no-keys"] -> Gundeck ()
+pushNative :: Notification -> Push -> [Address] -> Gundeck ()
 pushNative _ _ [] = return ()
 pushNative notif p rcps = do
     let prio = p^.pushNativePriority
-    void $ Native.push (Native.Notice (ntfId notif) prio Nothing) rcps
+    void $ Native.push (Native.NativePush (ntfId notif) prio Nothing) rcps
 
-nativeTargets :: forall m. MonadNativeTargets m => Push -> [Presence] -> m [Address "no-keys"]
+nativeTargets :: forall m. MonadNativeTargets m => Push -> [Presence] -> m [Address]
 nativeTargets p pres =
     let rcps' = filter routeNative (toList (fromRange (p^.pushRecipients)))
     in mntgtMapAsync addresses rcps' >>= fmap concat . mapM check
@@ -258,9 +257,9 @@ nativeTargets p pres =
     routeNative u = u^.recipientRoute /= RouteDirect
                  && (u^.recipientId /= p^.pushOrigin || p^.pushNativeIncludeOrigin)
 
-    addresses :: Recipient -> m [Address "no-keys"]
+    addresses :: Recipient -> m [Address]
     addresses u = do
-        addrs <- mntgtLookupAddress (u^.recipientId)
+        addrs <- mntgtLookupAddresses (u^.recipientId)
         return $ preference
                . filter (eligible u)
                $ addrs
@@ -335,7 +334,7 @@ addToken (uid ::: cid ::: req ::: _) = do
     continue t Nothing  = create (0 :: Int) t
     continue t (Just a) = update (0 :: Int) t (a^.addrEndpoint)
 
-    create :: Int -> PushToken -> Gundeck (Either Response (Address "no-keys"))
+    create :: Int -> PushToken -> Gundeck (Either Response Address)
     create n t = do
         let trp = t^.tokenTransport
         let app = t^.tokenApp
@@ -361,7 +360,7 @@ addToken (uid ::: cid ::: req ::: _) = do
                 Data.insert uid trp app tok arn cid (t^.tokenClient)
                 return (Right (mkAddr t arn))
 
-    update :: Int -> PushToken -> SnsArn EndpointTopic -> Gundeck (Either Response (Address "no-keys"))
+    update :: Int -> PushToken -> SnsArn EndpointTopic -> Gundeck (Either Response Address)
     update n t arn = do
         when (n >= 3) $ do
             Log.err $ msg (val "AWS SNS inconsistency w.r.t. " +++ toText arn)
@@ -386,8 +385,8 @@ addToken (uid ::: cid ::: req ::: _) = do
                 Aws.InvalidCustomData {} -> return (Left metadataTooLong)
                 ex                       -> throwM ex
 
-    mkAddr t arn = Address uid (t^.tokenTransport) (t^.tokenApp) (t^.token)
-                           arn cid (t^.tokenClient)
+    mkAddr t arn = Address uid arn cid
+                       (pushToken (t^.tokenTransport) (t^.tokenApp) (t^.token) (t^.tokenClient))
 
 -- | Update an SNS endpoint with the given user and token.
 updateEndpoint :: UserId -> PushToken -> EndpointArn -> Aws.SNSEndpoint -> Gundeck ()
@@ -439,7 +438,4 @@ notFound = empty & setStatus status404
 
 listTokens :: UserId ::: JSON -> Gundeck Response
 listTokens (uid ::: _) =
-    setStatus status200 . json . PushTokenList . map toToken <$> Data.lookup uid Data.Quorum
-  where
-    toToken :: Address s -> PushToken
-    toToken a = pushToken (a^.addrTransport) (a^.addrApp) (a^.addrToken) (a^.addrClient)
+    setStatus status200 . json . PushTokenList . map (^.addrPushToken) <$> Data.lookup uid Data.Quorum

@@ -1,4 +1,3 @@
-
 module Test.Spar.APISpec (spec) where
 
 import Imports hiding (head)

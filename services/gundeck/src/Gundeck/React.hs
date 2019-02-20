@@ -1,4 +1,3 @@
-
 -- | Curate native push tokens based on provider feedback reported
 -- via SNS events.
 module Gundeck.React (onEvent) where
@@ -101,7 +100,7 @@ onUnhandledEventType ev = Log.warn $
 
 withEndpoint
     :: Event
-    -> (SNSEndpoint -> [Address "no-keys"] -> Gundeck ())
+    -> (SNSEndpoint -> [Address] -> Gundeck ())
     -> Gundeck ()
 withEndpoint ev f = do
     v <- view awsEnv

@@ -1,4 +1,3 @@
-
 module Brig.Team.API where
 
 import Imports

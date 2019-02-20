@@ -1,4 +1,3 @@
-
 module Brig.Data.Client
     ( -- * Clients
       ClientDataError (..)

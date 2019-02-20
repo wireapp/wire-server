@@ -1,4 +1,3 @@
-
 module API.User.Property (tests) where
 
 import Imports

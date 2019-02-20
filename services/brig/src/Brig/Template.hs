@@ -1,4 +1,3 @@
-
 -- | Common templating utilities.
 module Brig.Template
     ( -- * Reading templates

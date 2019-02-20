@@ -1,4 +1,3 @@
-
 module API.User.Connection (tests) where
 
 import Imports

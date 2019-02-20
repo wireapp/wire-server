@@ -1,4 +1,3 @@
-
 module Galley.Intra.Util
     ( brigReq
     , sparReq

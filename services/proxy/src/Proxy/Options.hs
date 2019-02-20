@@ -1,4 +1,3 @@
-
 module Proxy.Options
     ( Opts
     , host

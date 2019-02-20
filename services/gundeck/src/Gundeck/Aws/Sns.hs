@@ -1,4 +1,3 @@
-
 module Gundeck.Aws.Sns
     ( Event
     , EventType (..)

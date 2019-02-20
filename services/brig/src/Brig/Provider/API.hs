@@ -1,4 +1,3 @@
-
 module Brig.Provider.API
     ( -- * Main stuff
       routes

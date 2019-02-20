@@ -1,4 +1,3 @@
-
 module API.User (tests, ConnectionLimit (..)) where
 
 import Imports

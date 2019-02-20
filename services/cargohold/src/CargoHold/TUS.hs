@@ -1,4 +1,3 @@
-
 module CargoHold.TUS
     ( createdResponse
     , headResponse

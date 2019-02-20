@@ -1,4 +1,3 @@
-
 module Proxy.Env
     ( Env
     , createEnv

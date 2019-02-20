@@ -1,4 +1,3 @@
-
 module Galley.API.Clients
     ( getClients
     , addClient

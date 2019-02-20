@@ -1,4 +1,3 @@
-
 module Brig.Team.Template
     ( TeamTemplates              (..)
     , InvitationEmailTemplate    (..)

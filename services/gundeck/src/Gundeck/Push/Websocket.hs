@@ -1,4 +1,3 @@
-
 module Gundeck.Push.Websocket (push, bulkPush, MonadBulkPush(..)) where
 
 import Imports
@@ -99,8 +98,10 @@ logBadCannons (uri, (err, prcs)) = do
     forM_ prcs $ \prc ->
         Log.warn $ logPresence prc
             ~~ Log.field "created_at" (ms $ createdAt prc)
-            ~~ Log.msg (val "WebSocket presence unreachable: " +++
-                        show (uri, resource prc, show err))
+            ~~ Log.field "cannon_uri" (show uri)
+            ~~ Log.field "resource_target" (show $ resource prc)
+            ~~ Log.field "http_exception" (intercalate " | " . lines . show $ err)
+            ~~ Log.msg (val "WebSocket presence unreachable: ")
 
 logPrcsGone :: Log.MonadLogger m => Presence -> m ()
 logPrcsGone prc = Log.debug $ logPresence prc ~~ Log.msg (val "WebSocket presence gone")
