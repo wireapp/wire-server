@@ -110,11 +110,19 @@ instance Scim.UserDB Spar where
 
   delete :: ScimTokenInfo -> Text -> Scim.ScimHandler Spar Bool
   delete _ _ =
-      throwError $ Scim.serverError "User delete is not implemented yet"  -- TODO
+      throwError $ Scim.ScimError
+          mempty
+          (Scim.Status 404)
+          Nothing
+          (Just "User delete is not implemented yet")  -- TODO
 
   getMeta :: ScimTokenInfo -> Scim.ScimHandler Spar Scim.Meta
   getMeta _ =
-      throwError $ Scim.serverError "User getMeta is not implemented yet"  -- TODO
+      throwError $ Scim.ScimError
+          mempty
+          (Scim.Status 404)
+          Nothing
+          (Just "User getMeta is not implemented yet")  -- TODO
 
 ----------------------------------------------------------------------------
 -- User creation and validation
@@ -185,8 +193,14 @@ validateScimUser' idp user = do
                 Nothing -> SAML.UNameIDUnspecified txt
         case SAML.mkNameID unameId Nothing Nothing Nothing of
             Right nameId -> pure nameId
-            Left err -> throwError $ Scim.serverError
-                ("Can't construct a subject ID from externalId: " <> Text.pack err)
+            Left err -> throwError $ Scim.ScimError
+                mempty
+                (Scim.Status 400)
+                Nothing
+                (Just $ "Can't construct a subject ID from externalId: " <> Text.pack err)
+                -- This cannot happen at the time of writing this comment, but there may be
+                -- valid scenarios in the future where this is not an internal error, eg. URI
+                -- too long.  See 'mkNameID' for all possible errors.
 
     -- Validate a handle (@userName@).
     validateHandle :: Text -> m Handle
@@ -265,7 +279,9 @@ updateValidScimUser tokinfo uidText newScimUser = do
         lift . wrapMonadClient $ Data.insertUser uref uid  -- on spar
         bindok <- lift $ Intra.Brig.bindUser uid uref  -- on brig
         unless bindok . throwError $
-          Scim.serverError "Failed to update SAML UserRef (no such UserId? duplicate Handle?)"
+            Scim.serverError "Failed to update SAML UserRef on brig."
+            -- this can only happen if user is found in spar.scim_user, but missing on brig.
+            -- (internal error?  race condition?)
 
         maybe (pure ()) (lift . Intra.Brig.setName uid) $ newScimUser ^. vsuName
         lift . Intra.Brig.setHandle uid $ newScimUser ^. vsuHandle
