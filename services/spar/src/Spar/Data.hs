@@ -117,7 +117,7 @@ storeAReqID (SAML.ID rid) (SAML.Time endOfLife) = do
     TTL ttl <- mkTTLAuthnRequests env endOfLife
     retry x5 . write ins $ params Quorum (rid, ttl)
   where
-    ins :: PrepQuery W (ST, Int32) ()
+    ins :: PrepQuery W (SAML.XmlText, Int32) ()
     ins = "INSERT INTO authreq (req) VALUES (?) USING TTL ?"
 
 unStoreAReqID
@@ -125,7 +125,7 @@ unStoreAReqID
   => AReqId -> m ()
 unStoreAReqID (SAML.ID rid) = retry x5 . write del . params Quorum $ Identity rid
   where
-    del :: PrepQuery W (Identity ST) ()
+    del :: PrepQuery W (Identity SAML.XmlText) ()
     del = "DELETE FROM authreq WHERE req = ?"
 
 isAliveAReqID
@@ -134,7 +134,7 @@ isAliveAReqID
 isAliveAReqID (SAML.ID rid) =
     (==) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity rid)
   where
-    sel :: PrepQuery R (Identity ST) (Identity Int64)
+    sel :: PrepQuery R (Identity SAML.XmlText) (Identity Int64)
     sel = "SELECT COUNT(*) FROM authreq WHERE req = ?"
 
 
@@ -146,7 +146,7 @@ storeAssID (SAML.ID aid) (SAML.Time endOfLife) = do
     TTL ttl <- mkTTLAssertions env endOfLife
     retry x5 . write ins $ params Quorum (aid, ttl)
   where
-    ins :: PrepQuery W (ST, Int32) ()
+    ins :: PrepQuery W (SAML.XmlText, Int32) ()
     ins = "INSERT INTO authresp (resp) VALUES (?) USING TTL ?"
 
 unStoreAssID
@@ -154,7 +154,7 @@ unStoreAssID
   => AssId -> m ()
 unStoreAssID (SAML.ID aid) = retry x5 . write del . params Quorum $ Identity aid
   where
-    del :: PrepQuery W (Identity ST) ()
+    del :: PrepQuery W (Identity SAML.XmlText) ()
     del = "DELETE FROM authresp WHERE resp = ?"
 
 isAliveAssID
@@ -163,7 +163,7 @@ isAliveAssID
 isAliveAssID (SAML.ID aid) =
     (==) (Just 1) <$> (retry x1 . query1 sel . params Quorum $ Identity aid)
   where
-    sel :: PrepQuery R (Identity ST) (Identity Int64)
+    sel :: PrepQuery R (Identity SAML.XmlText) (Identity Int64)
     sel = "SELECT COUNT(*) FROM authresp WHERE resp = ?"
 
 

@@ -188,9 +188,10 @@ validateScimUser' idp user = do
     -- Validate a subject ID (@externalId@).
     validateSubject :: Text -> m SAML.NameID
     validateSubject txt = do
-        let unameId = case parseEmail txt of
-                Just _  -> SAML.UNameIDEmail txt
-                Nothing -> SAML.UNameIDUnspecified txt
+        unameId :: SAML.UnqualifiedNameID <- do
+            let eEmail = SAML.mkUNameIDEmail txt
+                unspec = SAML.mkUNameIDUnspecified txt
+            pure . either (const unspec) id $ eEmail
         case SAML.mkNameID unameId Nothing Nothing Nothing of
             Right nameId -> pure nameId
             Left err -> throwError $ Scim.ScimError
