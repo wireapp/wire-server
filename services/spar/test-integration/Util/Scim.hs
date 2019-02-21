@@ -154,6 +154,21 @@ updateUser tok userid user = do
          <!! const 200 === statusCode
     pure (decodeBody' r)
 
+-- | Update a user.
+deleteUser
+    :: HasCallStack
+    => ScimToken
+    -> UserId
+    -> TestSpar Scim.StoredUser
+deleteUser tok userid = do
+    env <- ask
+    r <- deleteUser_
+             (Just tok)
+             (Just userid)
+             (env ^. teSpar)
+         <!! const 200 === statusCode  -- status code maybe some other 2xx?
+    pure (decodeBody' r)
+
 -- | List all users.
 listUsers
     :: HasCallStack
@@ -270,6 +285,21 @@ updateUser_ auth muid user spar_ = do
         . scimAuth auth
         . contentScim
         . body (RequestBodyLBS . Aeson.encode $ user)
+        . acceptScim
+        )
+
+-- | Update a user.
+deleteUser_
+    :: Maybe ScimToken          -- ^ Authentication
+    -> Maybe UserId             -- ^ User to update; when not provided, the request will return 4xx
+    -> SparReq                  -- ^ Spar endpoint
+    -> TestSpar ResponseLBS
+deleteUser_ auth uid spar_ = do
+    call . delete $
+        ( spar_
+        . paths (["scim", "v2", "Users"] <> (toByteString' <$> maybeToList uid))
+        . scimAuth auth
+        . contentScim
         . acceptScim
         )
 

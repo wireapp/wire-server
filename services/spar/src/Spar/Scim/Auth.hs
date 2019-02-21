@@ -95,6 +95,9 @@ createScimToken zusr CreateScimToken{..} = do
                     }
             wrapMonadClient $ Data.insertScimToken token info
             pure $ CreateScimTokenResponse token info
+
+        -- NB: if the two following cases do not result in errors, 'validateScimUser' needs to
+        -- be changed.  currently, it relies on the fact that there is always an IdP.
         [] -> throwSpar $ SparProvisioningNoSingleIdP
                 "SCIM tokens can only be created for a team with an IdP, \
                 \but none are found"

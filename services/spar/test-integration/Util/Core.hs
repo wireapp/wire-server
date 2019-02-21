@@ -27,7 +27,7 @@ module Util.Core
   , defPassword
   , createUserWithTeam
   , createTeamMember
-  , deleteUser
+  , deleteUserOnBrig
   , getTeams
   , getSelfProfile
   , nextWireId
@@ -252,9 +252,9 @@ addTeamMember galleyreq tid mem =
                 )
 
 -- | Delete a user from Brig and wait until it's gone.
-deleteUser :: (HasCallStack, MonadMask m, MonadCatch m, MonadIO m, MonadHttp m)
+deleteUserOnBrig :: (HasCallStack, MonadMask m, MonadCatch m, MonadIO m, MonadHttp m)
            => BrigReq -> UserId -> m ()
-deleteUser brigreq uid = do
+deleteUserOnBrig brigreq uid = do
     deleteUserNoWait brigreq uid
     recoverAll (exponentialBackoff 30000 <> limitRetries 5) $ \_ -> do
         profile <- getSelfProfile brigreq uid
