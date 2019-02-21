@@ -46,14 +46,14 @@ instance Cql (URIRef Absolute) where
     ctype = Tagged TextColumn
     toCql = CqlText . SAML.renderURI
 
-    fromCql (CqlText t) = parseURI' $ t
+    fromCql (CqlText t) = parseURI' t
     fromCql _           = fail "URI: expected CqlText"
 
 instance Cql SAML.NameID where
     ctype = Tagged TextColumn
     toCql = CqlText . cs . SAML.encodeElem
 
-    fromCql (CqlText t) = SAML.decodeElem . cs $ t
+    fromCql (CqlText t) = SAML.decodeElem (cs t)
     fromCql _           = fail "NameID: expected CqlText"
 
 deriving instance Cql SAML.Issuer
