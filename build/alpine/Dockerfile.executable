@@ -16,8 +16,10 @@ FROM ${intermediate} as intermediate
 FROM ${deps}
 
 ARG executable
+# Require that executable isn't empty; if it is we copy the whole dist/ directory and artificially inflate image size
+RUN test -n "$executable" # build-arg 'executable' is required
 
-COPY --from=intermediate /dist/${executable} /usr/bin/${executable}
+COPY --from=intermediate /dist/${executable} /usr/bin/${executable} || 
 
 # TODO: only if executable=brig, also copy templates. Docker image conditionals seem hacky:
 # https://stackoverflow.com/questions/31528384/conditional-copy-add-in-dockerfile
