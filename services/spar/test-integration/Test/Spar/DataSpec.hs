@@ -21,7 +21,6 @@ import Util.Types
 import Util.Scim
 import Web.Scim.Schema.Meta as Scim.Meta
 import Web.Scim.Schema.Common as Scim.Common
-import Data.Typeable
 
 
 spec :: SpecWith TestEnv

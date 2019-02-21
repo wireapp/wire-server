@@ -30,7 +30,7 @@ import qualified Web.Scim.Class.User as Scim
 
 instance Cql SAML.XmlText where
     ctype = Tagged TextColumn
-    toCql = CqlText . SAML.escapeXmlText
+    toCql = CqlText . SAML.unsafeFromXmlText
 
     fromCql (CqlText t) = pure $ SAML.mkXmlText t
     fromCql _           = fail "XmlText: expected CqlText"
