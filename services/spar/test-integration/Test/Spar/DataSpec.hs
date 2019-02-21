@@ -21,10 +21,21 @@ import Util.Types
 import Util.Scim
 import Web.Scim.Schema.Meta as Scim.Meta
 import Web.Scim.Schema.Common as Scim.Common
+import Data.Typeable
 
 
 spec :: SpecWith TestEnv
 spec = do
+  describe "Cql rountrip" $ do
+    let check
+          :: forall a. (Cql a, Typeable a, Show a, Eq a)
+          => a -> SpecWith TestEnv
+        check x = it (show . typeRep $ (Proxy @a)) . liftIO $ do
+          (fromCql . toCql) x `shouldBe` Right x
+
+    check (mkXmlText "<>%&'\"")
+    -- FUTUREWORK: collect all Cql instance, make them Arbitrary instances, and do this right.
+
   describe "TTL" $ do
     it "works in seconds" $ do
       env <- ask
