@@ -126,8 +126,10 @@ executables:
       - MonadRandom
       - random
       - servant-client
+      - silently
       - spar
       - stm
+      - tinylog
       - wai
       - warp-tls
       - xml-conduit

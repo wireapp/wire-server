@@ -150,11 +150,7 @@ data Env = Env
 makeLenses ''Env
 
 mkLogger :: Opts -> IO Logger
-mkLogger opts = Log.new $ Log.defSettings
-  & Log.setLogLevel (Opt.logLevel opts)
-  & Log.setOutput Log.StdOut
-  & Log.setFormat Nothing
-  & Log.setNetStrings (Opt.logNetStrings opts)
+mkLogger opts = Log.new $ Log.simpleDefSettings (Opt.logLevel opts) (Opt.logNetStrings opts)
 
 newEnv :: Opts -> IO Env
 newEnv o = do

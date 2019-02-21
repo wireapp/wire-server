@@ -124,11 +124,7 @@ instance HasRequestId Galley where
     getRequestId = view reqId
 
 mkLogger :: Opts -> IO Logger
-mkLogger opts = Logger.new $ Logger.defSettings
-    & Logger.setLogLevel (opts ^. optLogLevel)
-    & Logger.setOutput Logger.StdOut
-    & Logger.setFormat Nothing
-    & Logger.setNetStrings (opts ^. optLogNetStrings)
+mkLogger opts = Logger.new $ Logger.simpleDefSettings (opts ^. optLogLevel) (opts ^. optLogNetStrings)
 
 createEnv :: Metrics -> Opts -> IO Env
 createEnv m o = do

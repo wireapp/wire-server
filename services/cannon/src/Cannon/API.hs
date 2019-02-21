@@ -27,7 +27,7 @@ import Network.Wai.Utilities.Server
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Handler.Warp hiding (run)
 import Network.Wai.Handler.WebSockets
-import System.Logger (msg, val)
+import System.Logger (msg, val, simpleDefSettings)
 import System.Logger.Class (Logger)
 import System.Random.MWC (createSystemRandom)
 
@@ -40,11 +40,7 @@ import qualified System.Logger.Class         as Logger
 import qualified System.IO.Strict            as Strict
 
 mkLogger :: Opts -> IO Logger
-mkLogger o = Logger.new $ Logger.defSettings
-    & Logger.setLogLevel (o^.logLevel)
-    & Logger.setOutput Logger.StdOut
-    & Logger.setFormat Nothing
-    & Logger.setNetStrings (o^.logNetStrings)
+mkLogger o = Logger.new $ simpleDefSettings (o^.logLevel) (o^.logNetStrings)
 
 run :: Opts -> IO ()
 run o = do

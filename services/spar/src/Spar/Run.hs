@@ -70,11 +70,10 @@ initCassandra opts lgr = do
 -- logger
 
 mkLogger :: Opts -> IO Logger
-mkLogger opts = Log.new $ Log.defSettings
-  & Log.setLogLevel (toLevel $ saml opts ^. SAML.cfgLogLevel)
-  & Log.setOutput Log.StdOut
-  & Log.setFormat Nothing
-  & Log.setNetStrings (logNetStrings opts)
+mkLogger opts = Log.new $ Log.simpleDefSettings level netstr
+  where
+    level = toLevel $ saml opts ^. SAML.cfgLogLevel
+    netstr = logNetStrings opts
 
 
 ----------------------------------------------------------------------
