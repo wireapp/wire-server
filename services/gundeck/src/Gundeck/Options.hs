@@ -16,10 +16,10 @@ newtype NotificationTTL = NotificationTTL
     deriving (Eq, Ord, Show, Generic, FromJSON)
 
 data AWSOpts = AWSOpts
-    { _awsAccount     :: !Account
-    , _awsRegion      :: !Region
-    , _awsArnEnv      :: !ArnEnv
-    , _awsQueueName   :: !Text
+    { _awsAccount     :: !Account       -- ^ AWS account
+    , _awsRegion      :: !Region        -- ^ AWS region name
+    , _awsArnEnv      :: !ArnEnv        -- ^ Environment name to scope ARNs to
+    , _awsQueueName   :: !Text          -- ^ SQS queue name
     , _awsSqsEndpoint :: !AWSEndpoint
     , _awsSnsEndpoint :: !AWSEndpoint
     } deriving (Show, Generic)
@@ -28,8 +28,13 @@ deriveFromJSON toOptionFieldName ''AWSOpts
 makeLenses ''AWSOpts
 
 data Settings = Settings
-    { _setHttpPoolSize    :: !Int
+    {
+    -- | Number of connections to keep open in the http-client pool
+      _setHttpPoolSize    :: !Int
+    -- | TTL (seconds) of stored notifications
     , _setNotificationTTL :: !NotificationTTL
+    -- | Use this option to group push notifications and send them in bulk to Cannon, instead
+    -- of in individual requests
     , _setBulkPush        :: !Bool
     } deriving (Show, Generic)
 
@@ -37,7 +42,7 @@ deriveFromJSON toOptionFieldName ''Settings
 makeLenses ''Settings
 
 data Opts = Opts
-    { _optGundeck   :: !Endpoint
+    { _optGundeck   :: !Endpoint       -- ^ Hostname and port to bind to
     , _optCassandra :: !CassandraOpts
     , _optRedis     :: !Endpoint
     , _optAws       :: !AWSOpts
