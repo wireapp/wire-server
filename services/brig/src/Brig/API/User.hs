@@ -12,6 +12,7 @@ module Brig.API.User
     , lookupHandle
     , changeManagedBy
     , changeAccountStatus
+    , changeRichInfo
     , Data.lookupAccounts
     , Data.lookupAccount
     , Data.lookupStatus
@@ -22,6 +23,7 @@ module Brig.API.User
     , Data.lookupName
     , Data.lookupLocale
     , Data.lookupUser
+    , Data.lookupRichInfo
     , removeEmail
     , removePhone
     , revokeIdentity
@@ -327,6 +329,15 @@ changeHandle uid conn hdl = do
         unless claimed $
             throwE ChangeHandleExists
         lift $ Intra.onUserEvent uid (Just conn) (handleUpdated uid hdl)
+
+----------------------------------------------------------------------------
+-- Change Rich Info
+
+changeRichInfo :: UserId -> ConnId -> RichInfoUpdate -> AppIO ()
+changeRichInfo uid _conn (RichInfoUpdate ri) = do
+    Data.updateRichInfo uid ri
+    -- FUTUREWORK: send an event
+    -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
 
 --------------------------------------------------------------------------------
 -- Check Handles

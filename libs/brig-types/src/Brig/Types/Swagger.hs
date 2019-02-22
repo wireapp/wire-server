@@ -29,6 +29,8 @@ brigModels =
     , asset
     , userHandleInfo
     , checkHandles
+    , richInfo
+    , richField
 
       -- User Connections / Invitations
     , connection
@@ -180,6 +182,20 @@ asset = defineModel "UserAsset" $ do
         description "The asset type"
     property "size" assetSize $
         description "The asset size / format"
+
+richField :: Model
+richField = defineModel "RichField" $ do
+    description "RichInfo field"
+    property "type" string' $
+        description "Field name"
+    property "value" string' $
+        description "Field value"
+
+richInfo :: Model
+richInfo = defineModel "RichInfo" $ do
+    description "Rich info about the user"
+    property "fields" (array (ref richField)) $
+        description "List of fields"
 
 userName :: Model
 userName = defineModel "UserName" $ do

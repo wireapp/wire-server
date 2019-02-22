@@ -274,6 +274,12 @@ instance FromJSON RichField where
             <$> o .: "type"
             <*> o .: "value"
 
+-- | Empty rich info, returned for users who don't have rich info set.
+emptyRichInfo :: RichInfo
+emptyRichInfo = RichInfo
+    { richInfoFields = []
+    }
+
 -----------------------------------------------------------------------------
 -- New Users
 
@@ -470,6 +476,7 @@ newtype EmailUpdate = EmailUpdate { euEmail :: Email } deriving (Eq, Show)
 newtype PhoneUpdate = PhoneUpdate { puPhone :: Phone } deriving (Eq, Show)
 newtype HandleUpdate = HandleUpdate { huHandle :: Text } deriving (Eq, Show)
 newtype ManagedByUpdate = ManagedByUpdate { mbuManagedBy :: ManagedBy } deriving (Eq, Show)
+newtype RichInfoUpdate = RichInfoUpdate { riuRichInfo :: RichInfo } deriving (Eq, Show)
 
 newtype EmailRemove = EmailRemove { erEmail :: Email } deriving (Eq, Show)
 newtype PhoneRemove = PhoneRemove { prPhone :: Phone } deriving (Eq, Show)
@@ -526,6 +533,13 @@ instance FromJSON ManagedByUpdate where
 
 instance ToJSON ManagedByUpdate where
     toJSON m = object ["managed_by" .= mbuManagedBy m]
+
+instance FromJSON RichInfoUpdate where
+    parseJSON = withObject "rich-info-update" $ \o ->
+        RichInfoUpdate <$> o .: "rich_info"
+
+instance ToJSON RichInfoUpdate where
+    toJSON m = object ["rich_info" .= riuRichInfo m]
 
 instance FromJSON EmailRemove where
     parseJSON = withObject "email-remove" $ \o ->

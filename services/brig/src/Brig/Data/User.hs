@@ -313,6 +313,9 @@ lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params Quorum (Identity u
   where
     f (pw, st) = (pw, fromMaybe Active st)
 
+-- | Return users with given IDs.
+--
+-- Skips nonexistent users. /Does not/ skip users who have been deleted.
 lookupUsers :: [UserId] -> AppIO [User]
 lookupUsers usrs = do
     loc <- setDefaultLocale  <$> view settings

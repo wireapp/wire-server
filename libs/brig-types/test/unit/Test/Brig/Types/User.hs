@@ -98,6 +98,7 @@ roundtripTests =
     , run @User Proxy
     , run @RichInfo Proxy
     , run @UserUpdate Proxy
+    , run @RichInfoUpdate Proxy
     , run @VerifyDeleteUser Proxy
     ]
   where
