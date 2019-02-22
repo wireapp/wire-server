@@ -96,6 +96,7 @@ roundtripTests =
     , run @UserIdentity Proxy
     , run @UserProfile Proxy
     , run @User Proxy
+    , run @RichInfo Proxy
     , run @UserUpdate Proxy
     , run @VerifyDeleteUser Proxy
     ]

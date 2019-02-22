@@ -235,6 +235,45 @@ instance FromJSON SelfProfile where
 instance ToJSON SelfProfile where
     toJSON (SelfProfile u) = toJSON u
 
+----------------------------------------------------------------------------
+-- Rich info
+
+data RichInfo = RichInfo
+    { richInfoFields :: ![RichField]
+    }
+    deriving (Eq, Show)
+
+instance ToJSON RichInfo where
+    toJSON u = object
+        [ "fields" .= richInfoFields u
+        , "version" .= (0 :: Int)
+        ]
+
+instance FromJSON RichInfo where
+    parseJSON = withObject "RichInfo" $ \o -> do
+        o .:? "version" >>= \case
+            Nothing -> RichInfo <$> o .: "fields"
+            Just (0 :: Int) -> RichInfo <$> o .: "fields"
+            Just v -> fail ("unknown version: " <> show v)
+
+data RichField = RichField
+    { richFieldType  :: !Text
+    , richFieldValue :: !Text
+    }
+    deriving (Eq, Show)
+
+instance ToJSON RichField where
+    toJSON u = object
+        [ "type" .= richFieldType u
+        , "value" .= richFieldValue u
+        ]
+
+instance FromJSON RichField where
+    parseJSON = withObject "RichField" $ \o -> do
+        RichField
+            <$> o .: "type"
+            <*> o .: "value"
+
 -----------------------------------------------------------------------------
 -- New Users
 

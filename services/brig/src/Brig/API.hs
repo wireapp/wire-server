@@ -1085,7 +1085,7 @@ listPrekeyIds :: UserId ::: ClientId ::: JSON -> Handler Response
 listPrekeyIds (usr ::: clt ::: _) = json <$> lift (API.lookupPrekeyIds usr clt)
 
 autoConnect :: JSON ::: JSON ::: UserId ::: Maybe ConnId ::: Request -> Handler Response
-autoConnect(_ ::: _ ::: uid ::: conn ::: req) = do
+autoConnect (_ ::: _ ::: uid ::: conn ::: req) = do
     UserSet to <- parseJsonBody req
     let num = Set.size to
     when (num < 1) $
