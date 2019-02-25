@@ -60,8 +60,10 @@ import GHC.Generics (Generic)
 data User extra = User
   {
     schemas :: [Schema]
+
   -- Mandatory fields
   , userName :: Text
+
   -- Optional fields
   , externalId :: Maybe Text
   , name :: Maybe Name
@@ -74,6 +76,7 @@ data User extra = User
   , locale :: Maybe Text
   , active :: Maybe Bool
   , password :: Maybe Text
+
   -- Multi-valued fields
   , emails :: [Email]
   , phoneNumbers :: [Phone]
@@ -83,8 +86,18 @@ data User extra = User
   , entitlements :: [Text]
   , roles :: [Text]
   , x509Certificates :: [Certificate]
-  -- Extra data (merged with the main user object). Note that as per SCIM spec, the 'FromJSON'
-  -- parser has to accept lowercase fields.
+
+  -- Extra data.
+  --
+  -- During rendering, we'll convert it to JSON; if it's an object we'll merge it with the
+  -- main user object, if it's @null@ we'll do nothing, otherwise we'll add it under the
+  -- @"extra"@ field (though you should definitely not rely on this).
+  --
+  -- During parsing, we'll attempt to parse the /whole/ user object as @extra@, so your
+  -- 'FromJSON' instance should be prepared to ignore unrelated fields. Also keep in mind that
+  -- the SCIM spec requires field names to be case-insensitive, i.e. if you're looking for a
+  -- field "foo" you should also handle a field called "FOO". Look at the @FromJSON User@
+  -- instance to see how it can be done.
   --
   -- FUTUREWORK: make it easy for hscim users to implement a proper parser (with correct
   -- rendering of optional and multivalued fields, lowercase objects, etc).
@@ -147,7 +160,7 @@ instance FromJSON extra => FromJSON (User extra) where
     entitlements <- o .:? "entitlements" .!= []
     roles <- o .:? "roles" .!= []
     x509Certificates <- o .:? "x509certificates" .!= []
-    extra <- parseJSON (Object o)
+    extra <- parseJSON (Object obj)
     pure User{..}
 
 instance ToJSON extra => ToJSON (User extra) where
