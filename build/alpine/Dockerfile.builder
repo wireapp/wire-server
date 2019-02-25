@@ -16,7 +16,7 @@ WORKDIR /
 # to avoid a Haddock segfault. See https://github.com/haskell/haddock/issues/928
 
 RUN apk add --no-cache git ncurses && \
-    git clone -b develop https://github.com/wireapp/wire-server.git && \ # Clone into /wire-server
+    git clone -b develop https://github.com/wireapp/wire-server.git && \
     cd /wire-server && \
     stack update && \
     echo "allow-different-user: true" >> /root/.stack/config.yaml && \
