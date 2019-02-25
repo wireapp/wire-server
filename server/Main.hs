@@ -4,6 +4,7 @@ module Main where
 
 import           Web.Scim.Server
 import           Web.Scim.Server.Mock
+import           Web.Scim.Schema.Schema (Schema (User20))
 import           Web.Scim.Schema.Meta hiding (meta)
 import           Web.Scim.Schema.Common as Common
 import           Web.Scim.Schema.ResourceType hiding (name)
@@ -50,7 +51,7 @@ mkUserDB = do
                       (emailAddress "elton@wire.com")
         , E.primary = Nothing
         }
-  let user = User.empty
+  let user = (User.empty [User20] NoUserExtra)
         { userName = "elton"
         , name = Just Name
             { formatted = Just "Elton John"

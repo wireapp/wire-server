@@ -11,7 +11,7 @@ module Web.Scim.Server
   , GroupAPI, groupServer
   ) where
 
-import           Web.Scim.Class.User (UserSite (..), UserDB, userServer)
+import           Web.Scim.Class.User (UserSite (..), UserDB (..), userServer)
 import           Web.Scim.Class.Group (GroupSite (..), GroupDB, groupServer)
 import           Web.Scim.Class.Auth (AuthDB (..))
 import           Web.Scim.Capabilities.MetaSchema (ConfigSite, Configuration, configServer)
@@ -27,17 +27,17 @@ import           Servant.Server.Generic
 
 type DB m = (UserDB m, GroupDB m, AuthDB m)
 
-type ConfigAPI        = ToServantApi ConfigSite
-type UserAPI          = ToServantApi UserSite
-type GroupAPI         = ToServantApi GroupSite
-type SiteAPI authData = ToServantApi (Site authData)
+type ConfigAPI = ToServantApi ConfigSite
+type UserAPI userExtra = ToServantApi (UserSite userExtra)
+type GroupAPI = ToServantApi GroupSite
+type SiteAPI authData userExtra = ToServantApi (Site authData userExtra)
 
-data Site authData route = Site
+data Site authData userExtra route = Site
   { config :: route :-
       ConfigAPI
   , users :: route :-
       Header "Authorization" authData :>
-      "Users" :> UserAPI
+      "Users" :> UserAPI userExtra
   , groups :: route :-
       Header "Authorization" authData :>
       "Groups" :> GroupAPI
@@ -48,7 +48,7 @@ data Site authData route = Site
 
 siteServer ::
   forall m. DB m =>
-  Configuration -> Site (AuthData m) (AsServerT (ScimHandler m))
+  Configuration -> Site (AuthData m) (UserExtra m) (AsServerT (ScimHandler m))
 siteServer conf = Site
   { config = toServant $ configServer conf
   , users = \authData -> toServant (userServer authData)
@@ -73,8 +73,9 @@ mkapp proxy api nt =
   serve proxy $
     hoistServer proxy nt api
 
-app :: forall m. App m (SiteAPI (AuthData m))
+app :: forall m. App m (SiteAPI (AuthData m) (UserExtra m))
     => Configuration
     -> (forall a. ScimHandler m a -> Handler a)
     -> Application
-app c = mkapp (Proxy @(SiteAPI (AuthData m))) (toServant $ siteServer c)
+app c = mkapp (Proxy @(SiteAPI (AuthData m) (UserExtra m)))
+              (toServant $ siteServer c)

@@ -190,7 +190,7 @@ rAttribute = \case
 --
 -- Returns 'Left' if the filter is constructed incorrectly (e.g. tries to
 -- compare a username with a boolean).
-filterUser :: Filter -> User -> Either Text Bool
+filterUser :: Filter -> User extra -> Either Text Bool
 filterUser filter_ user = case filter_ of
   FilterAttrCompare AttrUserName op (ValString str) ->
     -- Comparing usernames has to be case-insensitive; look at the

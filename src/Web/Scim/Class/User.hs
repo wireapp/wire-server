@@ -24,21 +24,28 @@ import           Servant.Server.Generic
 ----------------------------------------------------------------------------
 -- /Users API
 
-type StoredUser = WithMeta (WithId User)
+type StoredUser extra = WithMeta (WithId (User extra))
 
-data UserSite route = UserSite
+data UserSite extra route = UserSite
   { getUsers :: route :-
-      QueryParam "filter" Filter :> Get '[SCIM] (ListResponse StoredUser)
+      QueryParam "filter" Filter :>
+      Get '[SCIM] (ListResponse (StoredUser extra))
   , getUser :: route :-
-      Capture "id" Text :> Get '[SCIM] StoredUser
+      Capture "id" Text :>
+      Get '[SCIM] (StoredUser extra)
   , postUser :: route :-
-      ReqBody '[SCIM] User :> PostCreated '[SCIM] StoredUser
+      ReqBody '[SCIM] (User extra) :>
+      PostCreated '[SCIM] (StoredUser extra)
   , putUser :: route :-
-      Capture "id" Text :> ReqBody '[SCIM] User :> Put '[SCIM] StoredUser
+      Capture "id" Text :>
+      ReqBody '[SCIM] (User extra) :>
+      Put '[SCIM] (StoredUser extra)
   , patchUser :: route :-
-      Capture "id" Text :> Patch '[SCIM] StoredUser
+      Capture "id" Text :>
+      Patch '[SCIM] (StoredUser extra)
   , deleteUser :: route :-
-      Capture "id" Text :> DeleteNoContent '[SCIM] NoContent
+      Capture "id" Text :>
+      DeleteNoContent '[SCIM] NoContent
   } deriving (Generic)
 
 ----------------------------------------------------------------------------
@@ -46,10 +53,11 @@ data UserSite route = UserSite
 
 -- TODO: parameterize UserId
 class (Monad m, AuthDB m) => UserDB m where
-  list :: AuthInfo m -> Maybe Filter -> ScimHandler m (ListResponse StoredUser)
-  get :: AuthInfo m -> UserId -> ScimHandler m (Maybe StoredUser)
-  create :: AuthInfo m -> User -> ScimHandler m StoredUser
-  update :: AuthInfo m -> UserId -> User -> ScimHandler m StoredUser
+  type UserExtra m
+  list :: AuthInfo m -> Maybe Filter -> ScimHandler m (ListResponse (StoredUser (UserExtra m)))
+  get :: AuthInfo m -> UserId -> ScimHandler m (Maybe (StoredUser (UserExtra m)))
+  create :: AuthInfo m -> User (UserExtra m) -> ScimHandler m (StoredUser (UserExtra m))
+  update :: AuthInfo m -> UserId -> User (UserExtra m) -> ScimHandler m (StoredUser (UserExtra m))
   delete :: AuthInfo m -> UserId -> ScimHandler m Bool  -- ^ Return 'False' if the user didn't exist
   getMeta :: AuthInfo m -> ScimHandler m Meta
 
@@ -58,7 +66,7 @@ class (Monad m, AuthDB m) => UserDB m where
 
 userServer
     :: UserDB m
-    => Maybe (AuthData m) -> UserSite (AsServerT (ScimHandler m))
+    => Maybe (AuthData m) -> UserSite (UserExtra m) (AsServerT (ScimHandler m))
 userServer authData = UserSite
   { getUsers = \mbFilter -> do
       auth <- authCheck authData
@@ -80,20 +88,26 @@ userServer authData = UserSite
 
 getUsers'
     :: UserDB m
-    => AuthInfo m -> Maybe Filter -> ScimHandler m (ListResponse StoredUser)
+    => AuthInfo m
+    -> Maybe Filter
+    -> ScimHandler m (ListResponse (StoredUser (UserExtra m)))
 getUsers' auth mbFilter = do
   list auth mbFilter
 
 getUser'
     :: UserDB m
-    => AuthInfo m -> UserId -> ScimHandler m StoredUser
+    => AuthInfo m
+    -> UserId
+    -> ScimHandler m (StoredUser (UserExtra m))
 getUser' auth uid = do
   maybeUser <- get auth uid
   maybe (throwScim (notFound "User" uid)) pure maybeUser
 
 postUser'
     :: UserDB m
-    => AuthInfo m -> User -> ScimHandler m StoredUser
+    => AuthInfo m
+    -> User (UserExtra m)
+    -> ScimHandler m (StoredUser (UserExtra m))
 postUser' auth user = do
   -- Find users with the same username (case-insensitive)
   --
@@ -117,7 +131,10 @@ postUser' auth user = do
 -- See <https://github.com/wireapp/hscim/issues/21>.
 putUser'
     :: UserDB m
-    => AuthInfo m -> UserId -> User -> ScimHandler m StoredUser
+    => AuthInfo m
+    -> UserId
+    -> User (UserExtra m)
+    -> ScimHandler m (StoredUser (UserExtra m))
 putUser' auth uid user = do
   stored <- get auth uid
   case stored of

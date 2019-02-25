@@ -57,10 +57,11 @@ import Web.Scim.Schema.User.Photo (Photo)
 import GHC.Generics (Generic)
 
 
-data User = User
+data User extra = User
   {
+    schemas :: [Schema]
   -- Mandatory fields
-    userName :: Text
+  , userName :: Text
   -- Optional fields
   , externalId :: Maybe Text
   , name :: Maybe Name
@@ -82,11 +83,21 @@ data User = User
   , entitlements :: [Text]
   , roles :: [Text]
   , x509Certificates :: [Certificate]
+  -- Extra data (merged with the main user object). Note that as per SCIM spec, the 'FromJSON'
+  -- parser has to accept lowercase fields.
+  --
+  -- FUTUREWORK: make it easy for hscim users to implement a proper parser (with correct
+  -- rendering of optional and multivalued fields, lowercase objects, etc).
+  , extra :: extra
   } deriving (Show, Eq, Generic)
 
-empty :: User
-empty = User
-  { userName = ""
+empty
+  :: [Schema]        -- ^ Schemas
+  -> extra           -- ^ Extra data
+  -> User extra
+empty schemas extra = User
+  { schemas = schemas
+  , userName = ""
   , externalId = Nothing
   , name = Nothing
   , displayName = Nothing
@@ -106,13 +117,16 @@ empty = User
   , entitlements = []
   , roles = []
   , x509Certificates = []
+  , extra = extra
   }
 
-instance FromJSON User where
+instance FromJSON extra => FromJSON (User extra) where
   parseJSON = withObject "User" $ \obj -> do
     -- Lowercase all fields
     let o = HM.fromList . map (over _1 toLower) . HM.toList $ obj
-
+    schemas <- o .:? "schemas" <&> \case
+        Nothing -> [User20]
+        Just xs -> if User20 `elem` xs then xs else User20 : xs
     userName <- o .: "username"
     externalId <- o .:? "externalid"
     name <- o .:? "name"
@@ -133,33 +147,40 @@ instance FromJSON User where
     entitlements <- o .:? "entitlements" .!= []
     roles <- o .:? "roles" .!= []
     x509Certificates <- o .:? "x509certificates" .!= []
-
+    extra <- parseJSON (Object o)
     pure User{..}
 
-instance ToJSON User where
-  toJSON User{..} = object $ concat
-    [ [ "schemas" .= [User20] ]
-    , [ "userName" .= userName ]
-    , optionalField "externalId" externalId
-    , optionalField "name" name
-    , optionalField "displayName" displayName
-    , optionalField "nickName" nickName
-    , optionalField "profileUrl" profileUrl
-    , optionalField "title" title
-    , optionalField "userType" userType
-    , optionalField "preferredLanguage" preferredLanguage
-    , optionalField "locale" locale
-    , optionalField "active" active
-    , optionalField "password" password
-    , multiValuedField "emails" emails
-    , multiValuedField "phoneNumbers" phoneNumbers
-    , multiValuedField "ims" ims
-    , multiValuedField "photos" photos
-    , multiValuedField "addresses" addresses
-    , multiValuedField "entitlements" entitlements
-    , multiValuedField "roles" roles
-    , multiValuedField "x509Certificates" x509Certificates
-    ]
+instance ToJSON extra => ToJSON (User extra) where
+  toJSON User{..} =
+    let mainObject = HM.fromList $ concat
+          [ [ "schemas" .= schemas ]
+          , [ "userName" .= userName ]
+          , optionalField "externalId" externalId
+          , optionalField "name" name
+          , optionalField "displayName" displayName
+          , optionalField "nickName" nickName
+          , optionalField "profileUrl" profileUrl
+          , optionalField "title" title
+          , optionalField "userType" userType
+          , optionalField "preferredLanguage" preferredLanguage
+          , optionalField "locale" locale
+          , optionalField "active" active
+          , optionalField "password" password
+          , multiValuedField "emails" emails
+          , multiValuedField "phoneNumbers" phoneNumbers
+          , multiValuedField "ims" ims
+          , multiValuedField "photos" photos
+          , multiValuedField "addresses" addresses
+          , multiValuedField "entitlements" entitlements
+          , multiValuedField "roles" roles
+          , multiValuedField "x509Certificates" x509Certificates
+          ]
+        extraObject = case toJSON extra of
+          Null -> mempty
+          Object x -> x
+          other -> HM.fromList ["extra" .= other]
+    in Object (HM.union mainObject extraObject)
+
     where
       -- Omit a field if it's Nothing
       optionalField fname = \case
@@ -171,3 +192,14 @@ instance ToJSON User where
         xs -> [fname .= xs]
 
 type UserId = Text
+
+-- | A type used to indicate that the SCIM record doesn't have any extra data. Encoded as an
+-- empty map.
+data NoUserExtra = NoUserExtra
+  deriving (Eq, Show)
+
+instance FromJSON NoUserExtra where
+  parseJSON = withObject "NoUserExtra" $ \_ -> pure NoUserExtra
+
+instance ToJSON NoUserExtra where
+  toJSON _ = object []

@@ -29,7 +29,7 @@ import           Web.Scim.Filter
 import           Web.Scim.Handler
 import           Servant
 
-type UserStorage  = STMMap.Map Text StoredUser
+type UserStorage  = STMMap.Map Text (StoredUser NoUserExtra)
 type GroupStorage = STMMap.Map Text StoredGroup
 
 data TestStorage = TestStorage
@@ -51,6 +51,7 @@ hoistSTM :: (MFunctor t, MonadIO m) => t STM a -> t m a
 hoistSTM = hoist liftSTM
 
 instance UserDB TestServer where
+  type UserExtra TestServer = NoUserExtra
   list () mbFilter = do
     -- Note: in production instances it would make sense to remove this code
     -- and let the implementor of the 'UserDB' instance do filtering (e.g.
@@ -132,7 +133,11 @@ updateGroup gid grp storage = do
       lift $ STMMap.insert newGroup gid storage
       pure newGroup
 
-updateUser :: UserId -> User -> UserStorage -> ScimHandler STM StoredUser
+updateUser
+  :: UserId
+  -> User NoUserExtra
+  -> UserStorage
+  -> ScimHandler STM (StoredUser NoUserExtra)
 updateUser uid user storage = do
   existing <- lift $ STMMap.lookup uid storage
   case existing of
@@ -144,7 +149,7 @@ updateUser uid user storage = do
       pure newUser
 
 -- (there seems to be no readOnly fields in User)
-assertMutability :: User -> StoredUser -> Bool
+assertMutability :: User NoUserExtra -> StoredUser NoUserExtra -> Bool
 assertMutability _newUser _stored = True
 
 delGroup :: GroupId -> GroupStorage -> ScimHandler STM Bool
@@ -179,7 +184,11 @@ createMeta rType = Meta
   }
 
 -- insert with a simple incrementing integer id (good for testing)
-insertUser :: User -> Meta -> UserStorage -> ScimHandler STM StoredUser
+insertUser
+  :: User NoUserExtra
+  -> Meta
+  -> UserStorage
+  -> ScimHandler STM (StoredUser NoUserExtra)
 insertUser user met storage = do
   size <- lift $ STMMap.size storage
   let uid = pack . show $ size

@@ -102,7 +102,7 @@ configServer config = ConfigSite
                             , metaSchema
                             , resourceSchema
                             ]
-  , schema = \uri -> case getSchema =<< fromSchemaUri uri of
+  , schema = \uri -> case getSchema (fromSchemaUri uri) of
       Nothing -> throwScim (notFound "Schema" uri)
       Just s  -> pure s
   , resourceTypes = pure $

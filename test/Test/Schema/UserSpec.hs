@@ -1,10 +1,12 @@
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Test.Schema.UserSpec (spec) where
 
 import           Test.Util
 
 import           Web.Scim.Schema.Common (URI(..))
+import           Web.Scim.Schema.Schema (Schema(..))
 import           Web.Scim.Schema.User
 import           Web.Scim.Schema.User.Address as Address
 import           Web.Scim.Schema.User.Certificate as Certificate
@@ -14,6 +16,9 @@ import           Web.Scim.Schema.User.Name as Name
 import           Web.Scim.Schema.User.Phone as Phone
 import           Web.Scim.Schema.User.Photo as Photo
 import           Data.Aeson
+import qualified Data.HashMap.Strict as HM
+import           Data.Text (Text, toLower)
+import           Lens.Micro
 import           Test.Hspec
 import           Text.Email.Validate (emailAddress)
 import           Network.URI.Static (uri)
@@ -35,10 +40,24 @@ spec = do
     it "allows casing variations in field names" $
       eitherDecode (encode minimalUserJsonNonCanonical) `shouldBe` Right minimalUser
 
+    it "doesn't require the 'schemas' field" $
+      eitherDecode (encode minimalUserJsonNoSchemas) `shouldBe` Right minimalUser
+
+    it "doesn't add 'extra' if it's an empty object" $ do
+      toJSON (extendedUser UserExtraEmpty) `shouldBe` extendedUserEmptyJson
+      eitherDecode (encode extendedUserEmptyJson) `shouldBe`
+        Right (extendedUser UserExtraEmpty)
+
+    it "encodes and decodes 'extra' correctly" $ do
+      toJSON (extendedUser (UserExtraObject "foo")) `shouldBe` extendedUserObjectJson
+      eitherDecode (encode extendedUserObjectJson) `shouldBe`
+        Right (extendedUser (UserExtraObject "foo"))
+
 -- | A 'User' with all attributes present.
-completeUser :: User
+completeUser :: User NoUserExtra
 completeUser = User
-  { userName = "sample userName"
+  { schemas = [User20]
+  , userName = "sample userName"
   , externalId = Just "sample externalId"
   , name = Just $ Name
       { Name.formatted = Just "sample formatted name"
@@ -91,6 +110,7 @@ completeUser = User
       Certificate { Certificate.typ = Just "sample certificate type"
                   , Certificate.value = Just "sample certificate" }
       ]
+  , extra = NoUserExtra
   }
 
 -- | Reference encoding of 'completeUser'.
@@ -161,8 +181,8 @@ completeUserJson = [scim|
 |]
 
 -- | A 'User' with all attributes empty (if possible).
-minimalUser :: User
-minimalUser = empty { userName = "sample userName" }
+minimalUser :: User NoUserExtra
+minimalUser = (empty [User20] NoUserExtra) { userName = "sample userName" }
 
 -- | Reference encoding of 'minimalUser'.
 minimalUserJson :: Value
@@ -180,6 +200,9 @@ minimalUserJson = [scim|
 minimalUserJsonRedundant :: Value
 minimalUserJsonRedundant = [scim|
 {
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User"
+  ],
   "roles": [],
   "x509Certificates": [],
   "locale": null,
@@ -207,6 +230,66 @@ minimalUserJsonRedundant = [scim|
 minimalUserJsonNonCanonical :: Value
 minimalUserJsonNonCanonical = [scim|
 {
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User"
+  ],
   "USERname": "sample userName"
+}
+|]
+
+-- | An encoding of 'minimalUser' without the @schemas@ field.
+minimalUserJsonNoSchemas :: Value
+minimalUserJsonNoSchemas = [scim|
+{
+  "userName": "sample userName"
+}
+|]
+
+data UserExtraTest = UserExtraEmpty | UserExtraObject { test :: Text }
+  deriving (Show, Eq)
+
+instance FromJSON UserExtraTest where
+  parseJSON = withObject "UserExtraObject" $ \(lowercase -> o) -> do
+    o .:? "urn:hscim:test" >>= \case
+      Nothing -> pure UserExtraEmpty
+      Just (lowercase -> o2) -> UserExtraObject <$> o2 .: "test"
+    where
+      lowercase = HM.fromList . map (over _1 toLower) . HM.toList
+
+instance ToJSON UserExtraTest where
+  toJSON UserExtraEmpty = object []
+  toJSON (UserExtraObject t) =
+    object ["urn:hscim:test" .= object ["test" .= t]]
+
+-- | A 'User' with extra fields present.
+extendedUser :: UserExtraTest -> User UserExtraTest
+extendedUser e =
+    (empty [User20, CustomSchema "urn:hscim:test"] e)
+    { userName = "sample userName" }
+
+-- | Encoding of @extendedUser UserExtraEmpty@.
+extendedUserEmptyJson :: Value
+extendedUserEmptyJson = [scim|
+{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:hscim:test"
+  ],
+  "userName": "sample userName"
+}
+|]
+
+-- | Encoding of @extendedUser (UserExtraObject "foo")@.
+extendedUserObjectJson :: Value
+extendedUserObjectJson = [scim|
+{
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:hscim:test"
+  ],
+  "userName": "sample userName",
+  "urn:hscim:test": {
+    "test": "foo"
+  }
 }
 |]
