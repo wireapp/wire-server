@@ -1,4 +1,3 @@
-
 module Journal where
 
 import Imports

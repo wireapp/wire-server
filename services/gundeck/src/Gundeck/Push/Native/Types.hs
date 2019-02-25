@@ -1,8 +1,7 @@
-
 module Gundeck.Push.Native.Types
     ( Result  (..)
     , Failure (..)
-    , Message (..)
+    , NativePush (..)
     , Address (..)
     , addrUser
     , addrTransport
@@ -12,6 +11,7 @@ module Gundeck.Push.Native.Types
     , addrConn
     , addrClient
     , addrEqualClient
+    , addrPushToken
 
       -- * Re-Exports
     , EndpointArn
@@ -23,34 +23,41 @@ module Gundeck.Push.Native.Types
     ) where
 
 import Imports
-import Control.Lens (makeLenses, (^.))
+import Control.Lens (makeLenses, (^.), view, Lens')
 import Data.Id (UserId, ConnId, ClientId)
-import Data.Singletons.TypeLits (Symbol)
 import Gundeck.Aws.Arn
 import Gundeck.Types
+import Gundeck.Types.Push.V2 (PushToken)
 
 -- | Native push address information of a device.
---
--- REFACTOR: the @s@ phantom type can probably go away, too!
--- REFACTOR: PushToken is embedded in this type, that should probably become a tree?  especially since EnpointArn is also nested.
-data Address (s :: Symbol) = Address
+data Address = Address
     { _addrUser      :: !UserId
-    , _addrTransport :: !Transport
-    , _addrApp       :: !AppName
-    , _addrToken     :: !Token
     , _addrEndpoint  :: !EndpointArn
     , _addrConn      :: !ConnId
-    , _addrClient    :: !ClientId
+    , _addrPushToken :: !PushToken
     }
   deriving (Eq, Ord)
 
 makeLenses ''Address
 
-addrEqualClient :: Address s -> Address s -> Bool
-addrEqualClient a a' = _addrConn   a == _addrConn   a'
-                    || _addrClient a == _addrClient a'
+addrTransport :: Lens' Address Transport
+addrTransport = addrPushToken . tokenTransport
 
-instance Show (Address s) where
+addrApp :: Lens' Address AppName
+addrApp = addrPushToken . tokenApp
+
+addrToken :: Lens' Address Token
+addrToken = addrPushToken . token
+
+addrClient :: Lens' Address ClientId
+addrClient = addrPushToken . tokenClient
+
+
+addrEqualClient :: Address -> Address -> Bool
+addrEqualClient a a' = view addrConn   a == view addrConn   a'
+                    || view addrClient a == view addrClient a'
+
+instance Show Address where
     show a = showString "Address"
            . showString "{ user = " . shows (a^.addrUser)
            . showString ", transport = " . shows (a^.addrTransport)
@@ -60,9 +67,9 @@ instance Show (Address s) where
            . showString ", client = " . shows (a^.addrClient)
            $ "}"
 
-data Result s
-    = Success !(Address s)
-    | Failure !Failure !(Address s)
+data Result
+    = Success !Address
+    | Failure !Failure !Address
 
 data Failure
     = PayloadTooLarge
@@ -71,9 +78,8 @@ data Failure
     | PushException !SomeException
     deriving (Show)
 
--- | REFACTOR: rename to @data NativePush (s :: Symbol) = NativePush { ntvpNotificationId :: ...@
-data Message (s :: Symbol) = Notice
-    { msgNotificationid :: NotificationId
-    , msgPriority       :: Priority
-    , msgApsData        :: Maybe ApsData
+data NativePush = NativePush
+    { npNotificationid :: NotificationId
+    , npPriority       :: Priority
+    , npApsData        :: Maybe ApsData
     }

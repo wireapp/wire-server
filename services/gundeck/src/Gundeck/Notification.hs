@@ -1,4 +1,3 @@
-
 module Gundeck.Notification
     ( paginate
     , getById

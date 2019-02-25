@@ -1,4 +1,3 @@
-
 module CargoHold.API.V3.Resumable
     ( create
     , status

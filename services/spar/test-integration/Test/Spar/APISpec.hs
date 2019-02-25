@@ -1,4 +1,3 @@
-
 module Test.Spar.APISpec (spec) where
 
 import Imports hiding (head)
@@ -670,7 +669,8 @@ specScimAndSAML = do
       let userid     :: UserId           = ScimT.scimUserId scimStoredUser
           userref    :: UserRef          = UserRef tenant subject
           tenant     :: Issuer           = idp ^. idpMetadata . edIssuer
-          subject    :: NameID           = NameID subj Nothing Nothing Nothing
+          subject    :: NameID           = either (error . show) id $
+                                           mkNameID subj Nothing Nothing Nothing
 
       -- UserRef maps onto correct UserId in spar (and back).
       userid' <- getUserIdViaRef' userref

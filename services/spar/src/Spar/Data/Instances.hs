@@ -28,6 +28,13 @@ import qualified SAML2.WebSSO as SAML
 import qualified Web.Scim.Class.User as Scim
 
 
+instance Cql SAML.XmlText where
+    ctype = Tagged TextColumn
+    toCql = CqlText . SAML.unsafeFromXmlText
+
+    fromCql (CqlText t) = pure $ SAML.mkXmlText t
+    fromCql _           = fail "XmlText: expected CqlText"
+
 instance Cql (SignedCertificate) where
     ctype = Tagged BlobColumn
     toCql = CqlBlob . cs . renderKeyInfo
@@ -39,14 +46,14 @@ instance Cql (URIRef Absolute) where
     ctype = Tagged TextColumn
     toCql = CqlText . SAML.renderURI
 
-    fromCql (CqlText t) = parseURI' $ t
+    fromCql (CqlText t) = parseURI' t
     fromCql _           = fail "URI: expected CqlText"
 
 instance Cql SAML.NameID where
     ctype = Tagged TextColumn
     toCql = CqlText . cs . SAML.encodeElem
 
-    fromCql (CqlText t) = SAML.decodeElem . cs $ t
+    fromCql (CqlText t) = SAML.decodeElem (cs t)
     fromCql _           = fail "NameID: expected CqlText"
 
 deriving instance Cql SAML.Issuer

@@ -1,4 +1,3 @@
-
 module Galley.API where
 
 import Imports hiding (head)

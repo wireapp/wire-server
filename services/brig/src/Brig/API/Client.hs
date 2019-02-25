@@ -1,4 +1,3 @@
-
 -- TODO: Move to Brig.User.Client
 module Brig.API.Client
     ( -- * Clients

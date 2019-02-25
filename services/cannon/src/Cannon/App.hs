@@ -1,4 +1,3 @@
-
 module Cannon.App (wsapp, terminate, maxPingInterval) where
 
 import Imports hiding (threadDelay)

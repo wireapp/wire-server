@@ -1,4 +1,3 @@
-
 module Gundeck.Push.Data
     ( insert
     , delete
@@ -18,7 +17,7 @@ import System.Logger.Class (MonadLogger, val, msg, field, (~~))
 
 import qualified System.Logger.Class as Log
 
-lookup :: (MonadClient m, MonadLogger m) => UserId -> Consistency -> m [Address "no-keys"]
+lookup :: (MonadClient m, MonadLogger m) => UserId -> Consistency -> m [Address]
 lookup u c = foldM mk [] =<< retry x1 (query q (params c (Identity u)))
   where
     q :: PrepQuery R (Identity UserId) (UserId, Transport, AppName, Token, Maybe EndpointArn, ConnId, Maybe ClientId)
@@ -46,9 +45,9 @@ erase u = retry x5 $ write q (params Quorum (Identity u))
 
 mkAddr :: (MonadClient m, MonadLogger m)
        => (UserId, Transport, AppName, Token, Maybe EndpointArn, ConnId, Maybe ClientId)
-       -> m (Maybe (Address "no-keys"))
+       -> m (Maybe Address)
 mkAddr (usr, trp, app, tok, arn, con, clt) = case (clt, arn) of
-    (Just c, Just a) -> return $! Just $! Address usr trp app tok a con c
+    (Just c, Just a) -> return $! Just $! Address usr a con (pushToken trp app tok c)
     _                -> do
         Log.info $ field "user" (toByteString usr)
             ~~ field "transport" (show trp)

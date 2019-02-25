@@ -1,4 +1,3 @@
-
 module Brig.API.Handler
     ( -- * Handler Monad
       Handler

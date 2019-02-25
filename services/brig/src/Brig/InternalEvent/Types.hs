@@ -1,4 +1,3 @@
-
 module Brig.InternalEvent.Types
     ( InternalNotification(..)
     ) where

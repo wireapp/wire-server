@@ -1,4 +1,3 @@
-
 module CargoHold.API.Error where
 
 import Imports

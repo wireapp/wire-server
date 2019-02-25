@@ -1,4 +1,3 @@
-
 -- | Persistent storage for password reset codes.
 -- TODO: Use Brig.Data.Codes
 module Brig.Data.PasswordReset

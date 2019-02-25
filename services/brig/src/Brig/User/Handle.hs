@@ -1,4 +1,3 @@
-
 -- | Ownership of unique user handles.
 module Brig.User.Handle
     ( claimHandle

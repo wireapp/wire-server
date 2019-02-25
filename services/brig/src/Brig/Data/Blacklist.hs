@@ -1,4 +1,3 @@
-
 module Brig.Data.Blacklist
     ( -- * UserKey blacklisting
       insert

@@ -1,4 +1,3 @@
-
 module Brig.API.Error where
 
 import Imports

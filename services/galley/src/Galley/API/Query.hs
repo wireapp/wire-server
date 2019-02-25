@@ -1,4 +1,3 @@
-
 module Galley.API.Query where
 
 import Imports

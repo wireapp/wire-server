@@ -1,4 +1,3 @@
-
 module API.Teams (tests) where
 
 import Imports

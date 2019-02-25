@@ -1,4 +1,3 @@
-
 module API.User.Account (tests) where
 
 import Imports

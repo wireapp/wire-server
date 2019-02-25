@@ -1,4 +1,3 @@
-
 module Brig.Provider.DB where
 
 import Imports

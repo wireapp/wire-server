@@ -1,4 +1,3 @@
-
 module Gundeck.API where
 
 import Imports hiding (head)

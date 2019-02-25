@@ -1,4 +1,3 @@
-
 -- | RPCs towards service providers.
 module Brig.Provider.RPC
     ( -- * External RPC

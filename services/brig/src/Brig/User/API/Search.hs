@@ -1,4 +1,3 @@
-
 module Brig.User.API.Search (routes) where
 
 import Imports

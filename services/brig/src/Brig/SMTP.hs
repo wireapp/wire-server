@@ -1,4 +1,3 @@
-
 module Brig.SMTP where
 
 import Imports

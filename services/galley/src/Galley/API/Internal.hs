@@ -1,4 +1,3 @@
-
 module Galley.API.Internal
     ( rmUser
     , deleteLoop

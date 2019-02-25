@@ -1,4 +1,3 @@
-
 module Brig.Email
     ( -- * Validation
       validateEmail

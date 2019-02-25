@@ -1,4 +1,3 @@
-
 module Galley.Intra.User
     ( getConnections
     , deleteBot

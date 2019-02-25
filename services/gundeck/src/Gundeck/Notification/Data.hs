@@ -1,4 +1,3 @@
-
 module Gundeck.Notification.Data
     ( ResultPage (..)
     , add

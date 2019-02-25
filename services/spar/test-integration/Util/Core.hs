@@ -27,7 +27,7 @@ module Util.Core
   , defPassword
   , createUserWithTeam
   , createTeamMember
-  , deleteUser
+  , deleteUserOnBrig
   , getTeams
   , getSelfProfile
   , nextWireId
@@ -252,9 +252,9 @@ addTeamMember galleyreq tid mem =
                 )
 
 -- | Delete a user from Brig and wait until it's gone.
-deleteUser :: (HasCallStack, MonadMask m, MonadCatch m, MonadIO m, MonadHttp m)
+deleteUserOnBrig :: (HasCallStack, MonadMask m, MonadCatch m, MonadIO m, MonadHttp m)
            => BrigReq -> UserId -> m ()
-deleteUser brigreq uid = do
+deleteUserOnBrig brigreq uid = do
     deleteUserNoWait brigreq uid
     recoverAll (exponentialBackoff 30000 <> limitRetries 5) $ \_ -> do
         profile <- getSelfProfile brigreq uid
@@ -275,16 +275,16 @@ nextWireId :: MonadIO m => m (Id a)
 nextWireId = Id <$> liftIO UUID.nextRandom
 
 nextSAMLID :: MonadIO m => m (ID a)
-nextSAMLID = ID . UUID.toText <$> liftIO UUID.nextRandom
+nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom
 
 -- | Generate a 'SAML.UserRef' subject.
-nextSubject :: MonadIO m => m NameID
+nextSubject :: (HasCallStack, MonadIO m) => m NameID
 nextSubject = liftIO $ do
   unameId <- randomRIO (0, 1::Int) >>= \case
-      0 -> SAML.UNameIDEmail . Brig.fromEmail <$> randomEmail
-      1 -> SAML.UNameIDUnspecified . UUID.toText <$> UUID.nextRandom
+      0 -> either (error . show) id . SAML.mkUNameIDEmail . Brig.fromEmail <$> randomEmail
+      1 -> SAML.mkUNameIDUnspecified . UUID.toText <$> UUID.nextRandom
       _ -> error "nextSubject: impossible"
-  pure $ SAML.NameID unameId Nothing Nothing Nothing
+  either (error . show) pure $ SAML.mkNameID unameId Nothing Nothing Nothing
 
 nextUserRef :: MonadIO m => m SAML.UserRef
 nextUserRef = liftIO $ do

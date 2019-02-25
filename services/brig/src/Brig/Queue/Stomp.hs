@@ -1,4 +1,3 @@
-
 -- | Working with STOMP queues (targeting ActiveMQ specifically).
 module Brig.Queue.Stomp
     ( Env(..)

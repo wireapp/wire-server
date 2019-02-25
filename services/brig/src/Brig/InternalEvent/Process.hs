@@ -1,4 +1,3 @@
-
 module Brig.InternalEvent.Process
     ( onEvent
     ) where

@@ -1,4 +1,3 @@
-
 module Cannon.API (run) where
 
 import Imports hiding (head)

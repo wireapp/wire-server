@@ -1,4 +1,3 @@
-
 module Bench (Bench.benchmark) where
 
 import Imports
