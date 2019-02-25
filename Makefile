@@ -141,7 +141,7 @@ DOCKER_DEV_IMAGE   := quay.io/wire/alpine-builder:$(DOCKER_TAG)
 .PHONY: run-docker-builder
 run-docker-builder:
 	@echo "if this does not work, consider 'docker pull', 'docker tag', or 'make -C build-alpine builder'."
-	docker run -it $(DOCKER_DEV_NETWORK) $(DOCKER_DEV_VOLUMES) --rm $(DOCKER_DEV_IMAGE) /bin/bash
+	docker run --workdir /wire-server -it $(DOCKER_DEV_NETWORK) $(DOCKER_DEV_VOLUMES) --rm $(DOCKER_DEV_IMAGE) /bin/bash
 
 #################################
 ## dependencies
