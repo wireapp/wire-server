@@ -40,7 +40,7 @@ extra-deps:
 - git: https://github.com/wireapp/saml2-web-sso
   commit: 04e0bef9e87853567b8e063f1dcf91e0dd097593    # master (Feb 13, 2019)
 - git: https://github.com/wireapp/hscim
-  commit: 53db8029e17e7085322e7055f71efb5e7058d4a5    # master (Jan 23, 2019)
+  commit: 42f6018812bf0f04741231b67b1f5e790ce0d489    # master (Feb 25, 2019)
 
 flags:
   types-common:

@@ -49,6 +49,7 @@ import Data.X509 (SignedCertificate)
 import GHC.TypeLits (KnownSymbol)
 import Spar.Data.Instances (VerdictFormatRow, VerdictFormatCon, fromVerdictFormat, toVerdictFormat)
 import Spar.Types
+import Spar.Scim.Types
 import URI.ByteString
 
 import qualified Data.List.NonEmpty as NL
@@ -476,29 +477,31 @@ deleteTeamScimTokens team = do
 -- in a separate column otherwise, allowing for fast version filtering on the database.
 insertScimUser
   :: (HasCallStack, MonadClient m)
-  => UserId -> ScimC.User.StoredUser -> m ()
+  => UserId -> ScimC.User.StoredUser ScimUserExtra -> m ()
 insertScimUser uid usr = retry x5 . write ins $
   params Quorum (uid, usr)
   where
-    ins :: PrepQuery W (UserId, ScimC.User.StoredUser) ()
+    ins :: PrepQuery W (UserId, ScimC.User.StoredUser ScimUserExtra) ()
     ins = "INSERT INTO scim_user (id, json) VALUES (?, ?)"
 
 getScimUser
   :: (HasCallStack, MonadClient m)
-  => UserId -> m (Maybe ScimC.User.StoredUser)
+  => UserId -> m (Maybe (ScimC.User.StoredUser ScimUserExtra))
 getScimUser uid = runIdentity <$$>
   (retry x1 . query1 sel $ params Quorum (Identity uid))
   where
-    sel :: PrepQuery R (Identity UserId) (Identity ScimC.User.StoredUser)
+    sel :: PrepQuery R (Identity UserId)
+                       (Identity (ScimC.User.StoredUser ScimUserExtra))
     sel = "SELECT json FROM scim_user WHERE id = ?"
 
 -- | Return all users that can be found under a given list of 'UserId's.  If some cannot be found,
 -- the output list will just be shorter (no errors).
 getScimUsers
   :: (HasCallStack, MonadClient m)
-  => [UserId] -> m [ScimC.User.StoredUser]
+  => [UserId] -> m [ScimC.User.StoredUser ScimUserExtra]
 getScimUsers uids = runIdentity <$$>
   retry x1 (query sel (params Quorum (Identity uids)))
   where
-    sel :: PrepQuery R (Identity [UserId]) (Identity ScimC.User.StoredUser)
+    sel :: PrepQuery R (Identity [UserId])
+                       (Identity (ScimC.User.StoredUser ScimUserExtra))
     sel = "SELECT json FROM scim_user WHERE id in ?"

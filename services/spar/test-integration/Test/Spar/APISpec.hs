@@ -26,7 +26,6 @@ import qualified Galley.Types.Teams as Galley
 import qualified Spar.Intra.Brig as Intra
 import qualified Util.Scim as ScimT
 import qualified Web.Cookie as Cky
-import qualified Web.Scim.Class.User as Scim
 
 
 spec :: SpecWith TestEnv
@@ -663,13 +662,13 @@ specScimAndSAML = do
       env <- ask
 
       -- create a user via scim
-      (tok, (_, _, idp))                <- ScimT.registerIdPAndScimToken
-      (usr, subj)                       <- ScimT.randomScimUserWithSubject
-      scimStoredUser :: Scim.StoredUser <- ScimT.createUser tok usr
-      let userid     :: UserId           = ScimT.scimUserId scimStoredUser
-          userref    :: UserRef          = UserRef tenant subject
-          tenant     :: Issuer           = idp ^. idpMetadata . edIssuer
-          subject    :: NameID           = NameID subj Nothing Nothing Nothing
+      (tok, (_, _, idp))         <- ScimT.registerIdPAndScimToken
+      (usr, subj)                <- ScimT.randomScimUserWithSubject
+      scimStoredUser             <- ScimT.createUser tok usr
+      let userid     :: UserId    = ScimT.scimUserId scimStoredUser
+          userref    :: UserRef   = UserRef tenant subject
+          tenant     :: Issuer    = idp ^. idpMetadata . edIssuer
+          subject    :: NameID    = NameID subj Nothing Nothing Nothing
 
       -- UserRef maps onto correct UserId in spar (and back).
       userid' <- getUserIdViaRef' userref

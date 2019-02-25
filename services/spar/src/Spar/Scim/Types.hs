@@ -5,7 +5,6 @@
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -18,6 +17,7 @@
 
 -- | This module contains several categories of SCIM-related types:
 --
+-- * Extensions for @hscim@ types (like 'ScimUserExtra').
 -- * Our wrappers over @hscim@ types (like 'ValidScimUser').
 -- * Servant-based API types.
 -- * Request and response types for SCIM-related endpoints.
@@ -27,15 +27,71 @@ import Imports
 import Brig.Types.User       as Brig
 import Control.Lens hiding ((.=), Strict)
 import Data.Aeson as Aeson
+import Data.Aeson.Types as Aeson
 import Data.Id
 import Servant
 import Spar.API.Util
 import Spar.Types
 
-import qualified SAML2.WebSSO as SAML
+import qualified Data.HashMap.Strict              as HM
+import qualified Data.Text                        as T
+import qualified SAML2.WebSSO                     as SAML
 import qualified Web.Scim.Schema.User             as Scim.User
+import qualified Web.Scim.Schema.Schema           as Scim
 import qualified Web.Scim.Server                  as Scim
 
+
+----------------------------------------------------------------------------
+-- Schemas
+
+userSchemas :: [Scim.Schema]
+userSchemas = [Scim.User20, Scim.CustomSchema userExtraURN]
+
+-- | Schema identifier for extra Wire data.
+userExtraURN :: Text
+userExtraURN = "urn:wire:scim:schemas:profile:1.0"
+
+----------------------------------------------------------------------------
+-- @hscim@ extensions and wrappers
+
+-- | Extra Wire-specific data contained in a SCIM user profile.
+data ScimUserExtra = ScimUserExtra
+  { _sueRichInfo :: RichInfo
+  }
+  deriving (Eq, Show)
+
+makeLenses ''ScimUserExtra
+
+instance FromJSON ScimUserExtra where
+  parseJSON = withObject "ScimUserExtra" $ \(lowercase -> o) -> do
+    o .:? T.toLower userExtraURN >>= \case
+      Nothing -> pure (ScimUserExtra emptyRichInfo)
+      Just (lowercase -> o2) -> do
+        _sueRichInfo <- parseRichInfo =<< o2 .: "richinfo"
+        pure ScimUserExtra{..}
+    where
+      lowercase = HM.fromList . map (over _1 T.toLower) . HM.toList
+
+instance ToJSON ScimUserExtra where
+  toJSON v = object
+    [ userExtraURN .= _sueRichInfo v
+    ]
+
+-- | Parse 'RichInfo', trying several formats in a row. We have to know how to parse different
+-- formats, because not all provisioning agents can send us information in the canonical
+-- @ToJSON RichInfo@ format.
+--
+-- FUTUREWORK: allow strings as well
+parseRichInfo :: Aeson.Value -> Aeson.Parser RichInfo
+parseRichInfo v =
+  asum [
+    -- Canonical format
+      parseJSON @RichInfo v
+    -- A list of {type, value} 'RichField's
+    , parseJSON @[RichField] v <&> \xs -> RichInfo { richInfoFields = xs }
+    -- Otherwise we fail
+    , fail "couldn't parse RichInfo"
+    ]
 
 -- | SCIM user with 'SAML.UserRef' and mapping to 'Brig.User'.  Constructed by 'validateScimUser'.
 --
@@ -43,7 +99,7 @@ import qualified Web.Scim.Server                  as Scim
 -- the 'Scim.User.User' and b) be valid in regard to our own user schema requirements (only
 -- certain characters allowed in handles, etc).
 data ValidScimUser = ValidScimUser
-  { _vsuUser          :: Scim.User.User
+  { _vsuUser          :: Scim.User.User ScimUserExtra
 
     -- SAML SSO
   , _vsuSAMLUserRef   :: SAML.UserRef
@@ -119,7 +175,7 @@ instance ToJSON ScimTokenList where
 -- Servant APIs
 
 type APIScim
-     = OmitDocs :> "v2" :> Scim.SiteAPI ScimToken
+     = OmitDocs :> "v2" :> Scim.SiteAPI ScimToken ScimUserExtra
   :<|> "auth-tokens" :> APIScimToken
 
 type APIScimToken
