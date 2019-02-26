@@ -74,7 +74,9 @@ instance FromJSON ScimUserExtra where
 
 instance ToJSON ScimUserExtra where
   toJSON v = object
-    [ userExtraURN .= _sueRichInfo v
+    [ userExtraURN .= object
+        [ "richInfo" .= _sueRichInfo v
+        ]
     ]
 
 -- | Parse 'RichInfo', trying several formats in a row. We have to know how to parse different
