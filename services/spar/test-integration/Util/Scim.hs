@@ -390,6 +390,9 @@ scimUserId storedUser = either err id (readEither id_)
 -- In cases like 'maybeUserId' the accessor returns a raw value, because a user always has a
 -- 'UserId'. In cases like 'maybeHandle' the accessor returns a 'Maybe', because a user may or
 -- may not have a handle.
+--
+-- Note: we don't compare rich info here, because 'User' doesn't contain it. However, we have
+-- separate tests for rich info that cover that.
 class IsUser u where
     maybeUserId :: Maybe (u -> UserId)
     maybeHandle :: Maybe (u -> Maybe Handle)
