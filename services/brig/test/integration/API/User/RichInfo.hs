@@ -11,16 +11,16 @@ import Test.Tasty.HUnit
 import Util
 
 import qualified Brig.Options                as Opt
+import qualified Data.List1                  as List1
 import qualified Galley.Types.Teams          as Team
 
 tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at _conf p b _c g = testGroup "rich info"
     [ test p "there is default empty rich info" $ testDefaultRichInfo b g
     , test p "non-team members don't have rich info" $ testNonTeamMembersDoNotHaveRichInfo b g
+    , test p "non-members / other membes / guests cannot see rich info" $ testGuestsCannotSeeRichInfo b g
     ]
 
--- TODO Guests can't see rich info
--- TODO Members of other teams can't see rich info
 -- TODO Empty fields are deleted
 
 -- | Test that for team members there is rich info set by default, and that it's empty.
@@ -52,3 +52,24 @@ testNonTeamMembersDoNotHaveRichInfo brig galley = do
     do (teamUser, _) <- createUserWithTeam brig galley
        richInfo <- getRichInfo brig teamUser targetUser
        liftIO $ assertEqual "rich info is present" richInfo Nothing
+
+testGuestsCannotSeeRichInfo :: Brig -> Galley -> Http ()
+testGuestsCannotSeeRichInfo brig galley = do
+    -- Create a team with two users
+    (owner, _) <- createUserWithTeam brig galley
+
+    -- A non-team user should get 'forbidden' when querying rich info for team user.
+    do nonTeamUser <- userId <$> randomUser brig
+       richInfo <- getRichInfo_ brig nonTeamUser owner
+       liftIO $ assertEqual "rich info status /= 403" richInfo (Left 403)
+
+    -- ...  even if she's a guest in the team...
+    do guest <- userId <$> randomUser brig
+       connectUsers brig owner (List1.singleton guest)
+       richInfo <- getRichInfo_ brig guest owner
+       liftIO $ assertEqual "rich info status /= 403" richInfo (Left 403)
+
+    -- ...  or if she's in another team.
+    do (otherOwner, _) <- createUserWithTeam brig galley
+       richInfo <- getRichInfo_ brig otherOwner owner
+       liftIO $ assertEqual "rich info status /= 403" richInfo (Left 403)
