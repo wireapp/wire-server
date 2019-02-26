@@ -78,8 +78,8 @@ randomScimUserWithSubject
     :: (HasCallStack, MonadRandom m)
     => m (Scim.User.User ScimUserExtra, SAML.UnqualifiedNameID)
 randomScimUserWithSubject = do
-    fieldNumber <- getRandomR (0, 3)
-    fields <- replicateM fieldNumber $
+    fieldCount <- getRandomR (0, 3)
+    fields <- replicateM fieldCount $
         RichField <$> (cs <$> replicateM 10 (getRandomR ('A', 'z')))
                   <*> (cs <$> replicateM 3 (getRandomR ('A', 'z')))
     randomScimUserWithSubjectAndRichInfo (RichInfo fields)
@@ -89,7 +89,7 @@ randomScimUserWithSubjectAndRichInfo
     :: MonadRandom m
     => RichInfo -> m (Scim.User.User ScimUserExtra, SAML.UnqualifiedNameID)
 randomScimUserWithSubjectAndRichInfo richInfo = do
-    suffix <- cs <$> replicateM 5 (getRandomR ('0', '9'))
+    suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
     emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
     phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
     -- Related, but non-trivial to re-use here: 'nextSubject'
