@@ -31,3 +31,16 @@ getRichInfo_ brig self uid = do
        | statusCode r `elem` [403, 404] -> pure . Left . statusCode $ r
        | otherwise -> error $
            "expected status code 200, 403, or 404, got: " <> show (statusCode r)
+
+putRichInfo
+    :: HasCallStack
+    => Brig
+    -> UserId            -- ^ The users whose rich info is being updated
+    -> RichInfo
+    -> Http ResponseLBS
+putRichInfo brig uid rinfo = undefined
+    put ( brig
+        . paths ["i", "users", toByteString' uid, "rich-info"]
+        . json rinfo
+        . expect2xx
+        )

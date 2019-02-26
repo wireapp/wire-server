@@ -5,6 +5,7 @@ import API.Team.Util (createUserWithTeam, createTeamMember)
 import API.User.Util
 import API.RichInfo.Util
 import Bilge hiding (accept, timeout)
+import Bilge.Assert
 import Brig.Types
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
@@ -17,11 +18,10 @@ import qualified Galley.Types.Teams          as Team
 tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at _conf p b _c g = testGroup "rich info"
     [ test p "there is default empty rich info" $ testDefaultRichInfo b g
+    , test p "empty fields are deleted" $ testDeleteEmptyFields b g
     , test p "non-team members don't have rich info" $ testNonTeamMembersDoNotHaveRichInfo b g
     , test p "non-members / other membes / guests cannot see rich info" $ testGuestsCannotSeeRichInfo b g
     ]
-
--- TODO Empty fields are deleted
 
 -- | Test that for team members there is rich info set by default, and that it's empty.
 testDefaultRichInfo :: Brig -> Galley -> Http ()
@@ -35,6 +35,23 @@ testDefaultRichInfo brig galley = do
     liftIO $ assertEqual "rich info is not empty, or not present"
         richInfo
         (Just (RichInfo {richInfoFields = []}))
+
+testDeleteEmptyFields :: Brig -> Galley -> Http ()
+testDeleteEmptyFields brig galley = do
+    (owner, tid) <- createUserWithTeam brig galley
+    member1 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
+    member2 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
+    let superset = RichInfo
+            [ RichField "department" "blue"
+            , RichField "relevance" "meh"
+            ]
+        subset = RichInfo
+            [ RichField "relevance" "meh"
+            ]
+    putRichInfo brig member2 superset !!! const 201 === statusCode
+    putRichInfo brig member2 subset   !!! const 201 === statusCode
+    subset' <- getRichInfo brig member1 member2
+    liftIO $ assertEqual "dangling rich info fields" subset' (Just subset)
 
 -- | Test that rich info of non-team members can not be queried.
 --
