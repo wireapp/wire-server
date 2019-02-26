@@ -25,7 +25,7 @@ import Imports
 import Brig.Types.User       as Brig
 import Control.Lens hiding ((.=), Strict)
 import Control.Monad.Except
-import Control.Monad.Extra (whenM, whenJust)
+import Control.Monad.Extra (whenM)
 import Crypto.Hash
 import Data.Aeson as Aeson
 import Data.Id
