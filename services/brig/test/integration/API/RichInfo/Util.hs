@@ -23,12 +23,12 @@ getRichInfo brig self uid = do
        | otherwise -> error $
            "expected status code 200, 403, or 404, got: " <> show (statusCode r)
 
--- | This contacts an internal end-point.  Note the assymetry between this and the external
+-- | This contacts an internal end-point.  Note the asymmetry between this and the external
 -- GET end-point in the body: here we need to wrap the 'RichInfo' in a 'RichInfoUpdate'.
 putRichInfo
     :: HasCallStack
     => Brig
-    -> UserId            -- ^ The users whose rich info is being updated
+    -> UserId            -- ^ The user whose rich info is being updated
     -> RichInfo
     -> Http ResponseLBS
 putRichInfo brig uid rinfo = do
