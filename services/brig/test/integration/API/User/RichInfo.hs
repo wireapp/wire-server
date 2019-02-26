@@ -7,19 +7,22 @@ import API.RichInfo.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Types
+import Brig.Options
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
 
 import qualified Brig.Options                as Opt
 import qualified Data.List1                  as List1
+import qualified Data.Text                   as Text
 import qualified Galley.Types.Teams          as Team
 
 tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
-tests _cl _at _conf p b _c g = testGroup "rich info"
+tests _cl _at conf p b _c g = testGroup "rich info"
     [ test p "there is default empty rich info" $ testDefaultRichInfo b g
     , test p "empty fields are deleted" $ testDeleteEmptyFields b g
     , test p "duplicate field names are forbidden" $ testForbidDuplicateFieldNames b g
+    , test p "exceeding rich info size limit is forbidden" $ testRichInfoSizeLimit b g conf
     , test p "non-team members don't have rich info" $ testNonTeamMembersDoNotHaveRichInfo b g
     , test p "non-members / other membes / guests cannot see rich info" $ testGuestsCannotSeeRichInfo b g
     ]
@@ -62,6 +65,19 @@ testForbidDuplicateFieldNames brig galley = do
             , RichField "department" "green"
             ]
     putRichInfo brig owner bad !!! const 400 === statusCode
+
+testRichInfoSizeLimit :: HasCallStack => Brig -> Galley -> Maybe Opt.Opts -> Http ()
+testRichInfoSizeLimit _ _ Nothing = error "this test needs a config file"
+testRichInfoSizeLimit brig galley (Just conf) = do
+    let maxSize :: Int = setRichInfoLimit $ optSettings conf
+    (owner, _) <- createUserWithTeam brig galley
+    let bad1 = RichInfo
+            [ RichField "department" (Text.replicate (fromIntegral maxSize) "#")
+            ]
+        bad2 = RichInfo $ [0 .. ((maxSize `div` 2))] <&>
+            \i -> RichField (Text.pack $ show i) "#"
+    putRichInfo brig owner bad1 !!! const 400 === statusCode
+    putRichInfo brig owner bad2 !!! const 400 === statusCode
 
 -- | Test that rich info of non-team members can not be queried.
 --

@@ -225,8 +225,9 @@ data Settings = Settings
                                             --   it is renewed during token refresh
     , setUserCookieLimit       :: !Int      -- ^ Max. # of cookies per user and cookie type
     , setUserCookieThrottle    :: !CookieThrottle -- ^ Throttling settings
-    , setRichInfoLimit         :: !Int     -- ^ Max size of rich info (field names and
-                                           --   values), should be in sync with Spar
+    , setRichInfoLimit         :: !Int     -- ^ Max size of rich info (number of chars in
+                                           --   field names and values), should be in sync
+                                           --   with Spar
     , setDefaultLocale         :: !Locale  -- ^ Default locale to use
                                            --   (e.g. when selecting templates)
     , setMaxTeamSize           :: !Word16  -- ^ Max. # of members in a team.
