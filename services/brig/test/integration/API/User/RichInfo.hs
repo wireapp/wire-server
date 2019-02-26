@@ -20,7 +20,8 @@ import qualified Galley.Types.Teams          as Team
 tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b _c g = testGroup "rich info"
     [ test p "there is default empty rich info" $ testDefaultRichInfo b g
-    , test p "empty fields are deleted" $ testDeleteEmptyFields b g
+    , test p "missing fields in an update are deleted" $ testDeleteMissingFieldsInUpdates b g
+    , test p "fields with empty strings are deleted" $ testDeleteEmptyFields b g
     , test p "duplicate field names are forbidden" $ testForbidDuplicateFieldNames b g
     , test p "exceeding rich info size limit is forbidden" $ testRichInfoSizeLimit b g conf
     , test p "non-team members don't have rich info" $ testNonTeamMembersDoNotHaveRichInfo b g
@@ -40,8 +41,8 @@ testDefaultRichInfo brig galley = do
         richInfo
         (Right (RichInfo {richInfoFields = []}))
 
-testDeleteEmptyFields :: Brig -> Galley -> Http ()
-testDeleteEmptyFields brig galley = do
+testDeleteMissingFieldsInUpdates :: Brig -> Galley -> Http ()
+testDeleteMissingFieldsInUpdates brig galley = do
     (owner, tid) <- createUserWithTeam brig galley
     member1 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
     member2 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
@@ -56,6 +57,18 @@ testDeleteEmptyFields brig galley = do
     putRichInfo brig member2 subset   !!! const 201 === statusCode
     subset' <- getRichInfo brig member1 member2
     liftIO $ assertEqual "dangling rich info fields" subset' (Right subset)
+
+testDeleteEmptyFields :: Brig -> Galley -> Http ()
+testDeleteEmptyFields brig galley = do
+    (owner, tid) <- createUserWithTeam brig galley
+    member1 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
+    member2 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
+    let withEmpty = RichInfo
+            [ RichField "department" ""
+            ]
+    putRichInfo brig member2 withEmpty !!! const 201 === statusCode
+    withoutEmpty <- getRichInfo brig member1 member2
+    liftIO $ assertEqual "dangling rich info fields" withoutEmpty (Right $ RichInfo [])
 
 testForbidDuplicateFieldNames :: Brig -> Galley -> Http ()
 testForbidDuplicateFieldNames brig galley = do
