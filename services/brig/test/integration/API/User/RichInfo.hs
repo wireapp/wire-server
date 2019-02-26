@@ -53,8 +53,8 @@ testDeleteMissingFieldsInUpdates brig galley = do
         subset = RichInfo
             [ RichField "relevance" "meh"
             ]
-    putRichInfo brig member2 superset !!! const 201 === statusCode
-    putRichInfo brig member2 subset   !!! const 201 === statusCode
+    putRichInfo brig member2 superset !!! const 200 === statusCode
+    putRichInfo brig member2 subset   !!! const 200 === statusCode
     subset' <- getRichInfo brig member1 member2
     liftIO $ assertEqual "dangling rich info fields" (Right subset) subset'
 
@@ -66,7 +66,7 @@ testDeleteEmptyFields brig galley = do
     let withEmpty = RichInfo
             [ RichField "department" ""
             ]
-    putRichInfo brig member2 withEmpty !!! const 201 === statusCode
+    putRichInfo brig member2 withEmpty !!! const 200 === statusCode
     withoutEmpty <- getRichInfo brig member1 member2
     liftIO $ assertEqual "dangling rich info fields" (Right $ RichInfo []) withoutEmpty
 
