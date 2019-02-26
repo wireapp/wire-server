@@ -144,7 +144,7 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
                 Scim.serverError "The IdP configured for this provisioning token not found"
             Just idpConfig -> pure idpConfig
     richInfoLimit <- lift $ asks (richInfoLimit . sparCtxOpts)
-    validateScimUser' idp (Just richInfoLimit) user
+    validateScimUser' idp richInfoLimit user
 
 -- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does
 -- not comply with the standard / our constraints. See also: 'ValidScimUser'.
@@ -173,10 +173,10 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 validateScimUser'
   :: forall m. (MonadError Scim.ScimError m)
   => IdP        -- ^ IdP that the resulting user will be assigned to
-  -> Maybe Int  -- ^ Rich info limit
+  -> Int        -- ^ Rich info limit
   -> Scim.User ScimUserExtra
   -> m ValidScimUser
-validateScimUser' idp mbRichInfoLimit user = do
+validateScimUser' idp richInfoLimit user = do
     uref :: SAML.UserRef <- case Scim.externalId user of
         Just subjectTxt -> do
             let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
@@ -225,14 +225,13 @@ validateScimUser' idp mbRichInfoLimit user = do
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
     validateRichInfo :: RichInfo -> m RichInfo
     validateRichInfo richInfo = do
-        whenJust mbRichInfoLimit $ \limit -> do
-            let size = richInfoSize richInfo
-            when (size > limit) $ throwError $
-                (Scim.badRequest Scim.InvalidValue
-                     (Just . cs $
-                          "richInfo exceeds the limit: max " <> show limit <>
-                          " characters, but got " <> show size))
-                { Scim.status = Scim.Status 413 }
+        let size = richInfoSize richInfo
+        when (size > richInfoLimit) $ throwError $
+            (Scim.badRequest Scim.InvalidValue
+                 (Just . cs $
+                      "richInfo exceeds the limit: max " <> show richInfoLimit <>
+                      " characters, but got " <> show size))
+            { Scim.status = Scim.Status 413 }
         pure richInfo
 
 -- | We only allow SCIM users that authenticate via SAML. (This is by no means necessary,

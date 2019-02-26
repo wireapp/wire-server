@@ -460,7 +460,7 @@ testUpdateUserRefIndex = do
     -- Overwrite the user with another randomly-generated user
     user' <- randomScimUser
     _ <- updateUser tok userid user'
-    vuser' <- either (error . show) pure $ validateScimUser' idp Nothing user'
+    vuser' <- either (error . show) pure $ validateScimUser' idp 50000 user'
     muserid' <- runSparCass $ Data.getUser (vuser' ^. vsuSAMLUserRef)
     liftIO $ do
         muserid' `shouldBe` Just userid
@@ -474,7 +474,7 @@ testBrigSideIsUpdated = do
     user' <- randomScimUser
     let userid = scimUserId storedUser
     _ <- updateUser tok userid user'
-    validScimUser <- either (error . show) pure $ validateScimUser' idp Nothing user'
+    validScimUser <- either (error . show) pure $ validateScimUser' idp 50000 user'
     brigUser      <- maybe (error "no brig user") pure =<< getSelf userid
     brigUser `userShouldMatch` validScimUser
 
