@@ -10,7 +10,7 @@ This page describes a part of the user profile called "Rich info". The correspon
 
 For every team user we can store a list of key-value pairs that are displayed in the user profile. This is similar to "custom profile fields" in Slack and other enterprise messengers.
 
-Different users can have different sets of fields; there is no team-wide schema for fields. All fields are strings.
+Different users can have different sets of fields; there is no team-wide schema for fields. All field values are strings. Fields are passed as an ordered list, and the order information is preserved when displaying fields in client apps.
 
 Only team members and partners can see the user's rich info.
 
@@ -38,7 +38,7 @@ Only team members and partners can see the user's rich info.
 
 If the requesting user is not allowed to see rich info, error code 403 is returned with the `"insufficient-permissions"` error label.
 
-If the rich info is missing, an empty field list is returned:
+Otherwise, if the rich info is missing, an empty field list is returned:
 
 ```json
 {
@@ -49,7 +49,7 @@ If the rich info is missing, an empty field list is returned:
 
 ### Setting rich info {#RefRichInfoPut}
 
-Not implemented yet.
+**Not implemented yet.** Currently the only way to set rich info is via SCIM.
 
 ### Events {#RefRichInfoEvents}
 
@@ -70,7 +70,7 @@ Connected users who are not members of user's team will not receive an event (no
 
 ## SCIM support {#RefRichInfoScim}
 
-Rich info can be pushed to Wire by setting the `"richInfo"` field belonging to the `"urn:wire:scim:schemas:profile:1.0"` extension. Both `PUT /scim/v2/Users/:id` and `PUT /scim/v2/Users/:id` are supported.
+Rich info can be pushed to Wire by setting the `"richInfo"` field belonging to the `"urn:wire:scim:schemas:profile:1.0"` extension. Both `PUT /scim/v2/Users/:id` and `POST /scim/v2/Users/:id` can contain rich info. Here is an example for `PUT`:
 
 ```javascript
 PUT /scim/v2/Users/:id

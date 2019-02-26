@@ -264,6 +264,10 @@ data RichField = RichField
     deriving (Eq, Show)
 
 instance ToJSON RichField where
+    -- NB: "name" would be a better name for 'richFieldType', but "type" is used because we
+    -- also have "type" in SCIM; and the reason we use "type" for SCIM is that @{"type": ...,
+    -- "value": ...}@ is how all other SCIM payloads are formatted, so it's quite possible
+    -- that some provisioning agent would support "type" but not "name".
     toJSON u = object
         [ "type" .= richFieldType u
         , "value" .= richFieldValue u
