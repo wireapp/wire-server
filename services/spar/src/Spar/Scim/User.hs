@@ -25,7 +25,7 @@ import Imports
 import Brig.Types.User       as Brig
 import Control.Lens hiding ((.=), Strict)
 import Control.Monad.Except
-import Control.Monad.Extra (whenM)
+import Control.Monad.Extra (whenM, whenJust)
 import Crypto.Hash
 import Data.Aeson as Aeson
 import Data.Id
@@ -136,7 +136,8 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
               Scim.serverError "The IdP corresponding to the provisioning token \
                                \was not found"
             Just idpConfig -> pure idpConfig
-    validateScimUser' (Just idp) user
+    richInfoLimit <- lift $ asks (richInfoLimit . sparCtxOpts)
+    validateScimUser' (Just idp) (Just richInfoLimit) user
 
 -- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does
 -- not comply with the standard / our constraints. See also: 'ValidScimUser'.
@@ -165,11 +166,12 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 validateScimUser'
   :: forall m. (MonadError Scim.ScimError m)
   => Maybe IdP        -- ^ IdP that the resulting user will be assigned to
+  -> Maybe Int        -- ^ Rich info limit
   -> Scim.User ScimUserExtra
   -> m ValidScimUser
-validateScimUser' Nothing _ =
+validateScimUser' Nothing _ _ =
     throwError $ Scim.serverError "SCIM users without SAML SSO are not supported"
-validateScimUser' (Just idp) user = do
+validateScimUser' (Just idp) mbRichInfoLimit user = do
     uref :: SAML.UserRef <- case Scim.externalId user of
         Just subjectTxt -> do
             let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
@@ -179,7 +181,8 @@ validateScimUser' (Just idp) user = do
             (Just "externalId is required for SAML users")
     handl <- validateHandle (Scim.userName user)
     mbName <- mapM validateName (Scim.displayName user)
-    pure $ ValidScimUser user uref handl mbName
+    richInfo <- validateRichInfo (Scim.extra user ^. sueRichInfo)
+    pure $ ValidScimUser user uref handl mbName richInfo
 
   where
     -- Validate a subject ID (@externalId@).
@@ -207,13 +210,26 @@ validateScimUser' (Just idp) user = do
         Left err -> throwError $ Scim.badRequest Scim.InvalidValue
             (Just ("displayName must be a valid Wire name, but: " <> Text.pack err))
 
+    -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
+    validateRichInfo :: RichInfo -> m RichInfo
+    validateRichInfo richInfo = do
+        whenJust mbRichInfoLimit $ \limit -> do
+            let size = richInfoSize richInfo
+            when (size > limit) $ throwError $
+                (Scim.badRequest Scim.InvalidValue
+                     (Just . cs $
+                          "richInfo exceeds the limit: max " <> show limit <>
+                          " characters, but got " <> show size))
+                { Scim.status = Scim.Status 413 }
+        pure richInfo
+
 -- | We only allow SCIM users that authenticate via SAML. (This is by no means necessary,
 -- though. It can be relaxed to allow creating users with password authentication if that is a
 -- requirement.)
 createValidScimUser
   :: forall m. (m ~ Scim.ScimHandler Spar)
   => ValidScimUser -> m (Scim.StoredUser ScimUserExtra)
-createValidScimUser (ValidScimUser user uref handl mbName) = do
+createValidScimUser (ValidScimUser user uref handl mbName richInfo) = do
     -- FUTUREWORK: The @hscim@ library checks that the handle is not taken before 'create' is
     -- even called. However, it does that in an inefficient manner. We should remove the check
     -- from @hscim@ and do it here instead.
@@ -227,10 +243,17 @@ createValidScimUser (ValidScimUser user uref handl mbName) = do
     storedUser <- lift $ toScimStoredUser buid user
     lift . wrapMonadClient $ Data.insertScimUser buid storedUser
     -- Create SAML user here in spar, which in turn creates a brig user.
+    --
+    -- FUTUREWORK: it's annoying that we have duplicate checks (handles, rich info, etc are
+    -- validated both by Spar and by Brig), and we should somehow get rid of them. We could do
+    -- that by switching the order of 'createUser_' and 'insertScimUser', but then if Spar
+    -- crashes after 'insertScimUser', we would never finish creating that user.
     lift $ createUser_ buid uref mbName ManagedByScim
     -- Set user handle on brig (which can't be done during user creation yet).
     -- TODO: handle errors better here?
     lift $ Intra.Brig.setHandle buid handl
+    -- Set rich info on brig
+    lift $ Intra.Brig.setRichInfo buid richInfo
 
     pure storedUser
 
