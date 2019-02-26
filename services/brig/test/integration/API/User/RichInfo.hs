@@ -38,8 +38,8 @@ testDefaultRichInfo brig galley = do
     -- The first user should see the second user's rich info and it should be empty
     richInfo <- getRichInfo brig member1 member2
     liftIO $ assertEqual "rich info is not empty, or not present"
-        richInfo
         (Right (RichInfo {richInfoFields = []}))
+        richInfo
 
 testDeleteMissingFieldsInUpdates :: Brig -> Galley -> Http ()
 testDeleteMissingFieldsInUpdates brig galley = do
@@ -56,7 +56,7 @@ testDeleteMissingFieldsInUpdates brig galley = do
     putRichInfo brig member2 superset !!! const 201 === statusCode
     putRichInfo brig member2 subset   !!! const 201 === statusCode
     subset' <- getRichInfo brig member1 member2
-    liftIO $ assertEqual "dangling rich info fields" subset' (Right subset)
+    liftIO $ assertEqual "dangling rich info fields" (Right subset) subset'
 
 testDeleteEmptyFields :: Brig -> Galley -> Http ()
 testDeleteEmptyFields brig galley = do
@@ -68,7 +68,7 @@ testDeleteEmptyFields brig galley = do
             ]
     putRichInfo brig member2 withEmpty !!! const 201 === statusCode
     withoutEmpty <- getRichInfo brig member1 member2
-    liftIO $ assertEqual "dangling rich info fields" withoutEmpty (Right $ RichInfo [])
+    liftIO $ assertEqual "dangling rich info fields" (Right $ RichInfo []) withoutEmpty
 
 testForbidDuplicateFieldNames :: Brig -> Galley -> Http ()
 testForbidDuplicateFieldNames brig galley = do
@@ -103,11 +103,11 @@ testNonTeamMembersDoNotHaveRichInfo brig galley = do
     -- Another user should get a 'Nothing' when querying their info
     do nonTeamUser <- userId <$> randomUser brig
        richInfo <- getRichInfo brig nonTeamUser targetUser
-       liftIO $ assertEqual "rich info is present" richInfo (Left 403)
+       liftIO $ assertEqual "rich info is present" (Left 403) richInfo
     -- A team member should also get a 'Nothing' when querying their info
     do (teamUser, _) <- createUserWithTeam brig galley
        richInfo <- getRichInfo brig teamUser targetUser
-       liftIO $ assertEqual "rich info is present" richInfo (Left 403)
+       liftIO $ assertEqual "rich info is present" (Left 403) richInfo
 
 testGuestsCannotSeeRichInfo :: Brig -> Galley -> Http ()
 testGuestsCannotSeeRichInfo brig galley = do
@@ -117,15 +117,15 @@ testGuestsCannotSeeRichInfo brig galley = do
     -- A non-team user should get 'forbidden' when querying rich info for team user.
     do nonTeamUser <- userId <$> randomUser brig
        richInfo <- getRichInfo brig nonTeamUser owner
-       liftIO $ assertEqual "rich info status /= 403" richInfo (Left 403)
+       liftIO $ assertEqual "rich info status /= 403" (Left 403) richInfo
 
     -- ...  even if she's a guest in the team...
     do guest <- userId <$> randomUser brig
        connectUsers brig owner (List1.singleton guest)
        richInfo <- getRichInfo brig guest owner
-       liftIO $ assertEqual "rich info status /= 403" richInfo (Left 403)
+       liftIO $ assertEqual "rich info status /= 403" (Left 403) richInfo
 
     -- ...  or if she's in another team.
     do (otherOwner, _) <- createUserWithTeam brig galley
        richInfo <- getRichInfo brig otherOwner owner
-       liftIO $ assertEqual "rich info status /= 403" richInfo (Left 403)
+       liftIO $ assertEqual "rich info status /= 403" (Left 403) richInfo
