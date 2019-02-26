@@ -1505,6 +1505,8 @@ updateManagedBy (uid ::: _ ::: _ ::: req) = do
 updateRichInfo :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
 updateRichInfo (uid ::: _ ::: _ ::: req) = do
     RichInfoUpdate richInfo <- parseJsonBody req
+    maxSize <- setRichInfoLimit <$> view settings
+    when (richInfoSize richInfo > maxSize) $ throwStd tooLargeRichInfo
     lift $ Data.updateRichInfo uid richInfo
     return empty
 

@@ -31,6 +31,7 @@ import Galley.Types.Teams hiding (userId)
 import qualified Brig.Types.Code     as Code
 import qualified Data.Currency       as Currency
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text           as Text
 
 -----------------------------------------------------------------------------
 -- User Attributes
@@ -279,6 +280,15 @@ emptyRichInfo :: RichInfo
 emptyRichInfo = RichInfo
     { richInfoFields = []
     }
+
+-- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
+-- 'setRichInfoLimit'
+--
+-- NB: we could just calculate the length of JSON-encoded payload, but it is fragile because
+-- if our JSON encoding changes, existing payloads might become unacceptable.
+richInfoSize :: RichInfo -> Int
+richInfoSize (RichInfo fields) =
+    sum [Text.length t + Text.length v | RichField t v <- fields]
 
 -----------------------------------------------------------------------------
 -- New Users

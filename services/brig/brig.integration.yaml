@@ -127,6 +127,7 @@ optSettings:
   setUserCookieThrottle:
     stdDev: 5
     retryAfter: 1
+  setRichInfoLimit: 5000
   setDefaultLocale: en
   setMaxTeamSize: 32
   setMaxConvSize: 16

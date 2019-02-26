@@ -367,6 +367,9 @@ tooManyTeamMembers = Wai.Error status403 "too-many-team-members" "Too many membe
 loginsTooFrequent :: Wai.Error
 loginsTooFrequent = Wai.Error status429 "client-error" "Logins too frequent"
 
+tooLargeRichInfo :: Wai.Error
+tooLargeRichInfo = Wai.Error status413 "too-large-rich-info" "Rich info has exceeded the limit"
+
 internalServerError :: Wai.Error
 internalServerError = Wai.Error status500 "internal-server-error" "Internal Server Error"
 

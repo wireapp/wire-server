@@ -100,4 +100,4 @@ Rich info can not be pulled from Wire and will not show up in SCIM queries.
 
 ## Limitations {#RefRichInfoLimitations}
 
-* JSON-encoded rich info cannot exceed 5000 characters in length. There are no limitations on the number of fields, or the length of field names or values.
+* The whole of user-submitted information (field names and values) cannot exceed 5000 characters in length. There are no limitations on the number of fields, or the length of field names or values.
