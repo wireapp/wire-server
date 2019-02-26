@@ -111,10 +111,10 @@ testNonTeamMembersDoNotHaveRichInfo brig galley = do
 
 testGuestsCannotSeeRichInfo :: Brig -> Galley -> Http ()
 testGuestsCannotSeeRichInfo brig galley = do
-    -- Create a team with two users
+    -- Create a team
     (owner, _) <- createUserWithTeam brig galley
 
-    -- A non-team user should get 'forbidden' when querying rich info for team user.
+    -- A non-team user should get "forbidden" when querying rich info for team user.
     do nonTeamUser <- userId <$> randomUser brig
        richInfo <- getRichInfo brig nonTeamUser owner
        liftIO $ assertEqual "rich info status /= 403" (Left 403) richInfo
