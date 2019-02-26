@@ -3,7 +3,6 @@ module API.RichInfo.Util where
 import Imports
 import Bilge
 import Brig.Types
-import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
 import Util
@@ -25,8 +24,7 @@ getRichInfo brig self uid = do
            "expected status code 200, 403, or 404, got: " <> show (statusCode r)
 
 -- | This contacts an internal end-point.  Note the assymetry between this and the external
--- GET end-point in the body: here we need to wrap the 'RichInfo' encoding in another object
--- with one attribute named `rich_info`.
+-- GET end-point in the body: here we need to wrap the 'RichInfo' in a 'RichInfoUpdate'.
 putRichInfo
     :: HasCallStack
     => Brig
@@ -36,5 +34,5 @@ putRichInfo
 putRichInfo brig uid rinfo = do
     put ( brig
         . paths ["i", "users", toByteString' uid, "rich-info"]
-        . json (object ["rich_info" .= rinfo])
+        . json (RichInfoUpdate rinfo)
         )
