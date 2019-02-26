@@ -83,7 +83,8 @@ instance ToJSON ScimUserExtra where
 -- formats, because not all provisioning agents can send us information in the canonical
 -- @ToJSON RichInfo@ format.
 --
--- FUTUREWORK: allow strings as well
+-- FUTUREWORK: allow more formats. In particular, something needs to be figured out for Okta,
+-- which can not send objects or lists of objects (as of Feb 26, 2019).
 parseRichInfo :: Aeson.Value -> Aeson.Parser RichInfo
 parseRichInfo v =
   normalizeRichInfo <$>
