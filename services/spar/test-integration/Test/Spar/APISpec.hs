@@ -662,13 +662,14 @@ specScimAndSAML = do
       env <- ask
 
       -- create a user via scim
-      (tok, (_, _, idp))         <- ScimT.registerIdPAndScimToken
-      (usr, subj)                <- ScimT.randomScimUserWithSubject
-      scimStoredUser             <- ScimT.createUser tok usr
-      let userid     :: UserId    = ScimT.scimUserId scimStoredUser
-          userref    :: UserRef   = UserRef tenant subject
-          tenant     :: Issuer    = idp ^. idpMetadata . edIssuer
-          subject    :: NameID    = NameID subj Nothing Nothing Nothing
+      (tok, (_, _, idp))                <- ScimT.registerIdPAndScimToken
+      (usr, subj)                       <- ScimT.randomScimUserWithSubject
+      scimStoredUser                    <- ScimT.createUser tok usr
+      let userid     :: UserId           = ScimT.scimUserId scimStoredUser
+          userref    :: UserRef          = UserRef tenant subject
+          tenant     :: Issuer           = idp ^. idpMetadata . edIssuer
+          subject    :: NameID           = either (error . show) id $
+                                           mkNameID subj Nothing Nothing Nothing
 
       -- UserRef maps onto correct UserId in spar (and back).
       userid' <- getUserIdViaRef' userref

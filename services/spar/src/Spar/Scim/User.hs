@@ -112,11 +112,19 @@ instance Scim.UserDB Spar where
 
   delete :: ScimTokenInfo -> Text -> Scim.ScimHandler Spar Bool
   delete _ _ =
-      throwError $ Scim.serverError "User delete is not implemented yet"  -- TODO
+      throwError $ Scim.ScimError
+          mempty
+          (Scim.Status 404)
+          Nothing
+          (Just "User delete is not implemented yet")  -- TODO
 
   getMeta :: ScimTokenInfo -> Scim.ScimHandler Spar Scim.Meta
   getMeta _ =
-      throwError $ Scim.serverError "User getMeta is not implemented yet"  -- TODO
+      throwError $ Scim.ScimError
+          mempty
+          (Scim.Status 404)
+          Nothing
+          (Just "User getMeta is not implemented yet")  -- TODO
 
 ----------------------------------------------------------------------------
 -- User creation and validation
@@ -130,14 +138,13 @@ validateScimUser
 validateScimUser ScimTokenInfo{stiIdP} user = do
     idp <- case stiIdP of
         Nothing -> throwError $
-          Scim.serverError "No IdP configured for the provisioning token"
+            Scim.serverError "No IdP configured for the provisioning token"
         Just idp -> lift (wrapMonadClient (Data.getIdPConfig idp)) >>= \case
             Nothing -> throwError $
-              Scim.serverError "The IdP corresponding to the provisioning token \
-                               \was not found"
+                Scim.serverError "The IdP configured for this provisioning token not found"
             Just idpConfig -> pure idpConfig
     richInfoLimit <- lift $ asks (richInfoLimit . sparCtxOpts)
-    validateScimUser' (Just idp) (Just richInfoLimit) user
+    validateScimUser' idp (Just richInfoLimit) user
 
 -- | Map the SCIM data on the spar and brig schemata, and throw errors if the SCIM data does
 -- not comply with the standard / our constraints. See also: 'ValidScimUser'.
@@ -165,13 +172,11 @@ validateScimUser ScimTokenInfo{stiIdP} user = do
 -- Brig. See <https://github.com/wireapp/wire-server/pull/559#discussion_r247466760>.
 validateScimUser'
   :: forall m. (MonadError Scim.ScimError m)
-  => Maybe IdP        -- ^ IdP that the resulting user will be assigned to
-  -> Maybe Int        -- ^ Rich info limit
+  => IdP        -- ^ IdP that the resulting user will be assigned to
+  -> Maybe Int  -- ^ Rich info limit
   -> Scim.User ScimUserExtra
   -> m ValidScimUser
-validateScimUser' Nothing _ _ =
-    throwError $ Scim.serverError "SCIM users without SAML SSO are not supported"
-validateScimUser' (Just idp) mbRichInfoLimit user = do
+validateScimUser' idp mbRichInfoLimit user = do
     uref :: SAML.UserRef <- case Scim.externalId user of
         Just subjectTxt -> do
             let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
@@ -188,13 +193,20 @@ validateScimUser' (Just idp) mbRichInfoLimit user = do
     -- Validate a subject ID (@externalId@).
     validateSubject :: Text -> m SAML.NameID
     validateSubject txt = do
-        let unameId = case parseEmail txt of
-                Just _  -> SAML.UNameIDEmail txt
-                Nothing -> SAML.UNameIDUnspecified txt
+        unameId :: SAML.UnqualifiedNameID <- do
+            let eEmail = SAML.mkUNameIDEmail txt
+                unspec = SAML.mkUNameIDUnspecified txt
+            pure . either (const unspec) id $ eEmail
         case SAML.mkNameID unameId Nothing Nothing Nothing of
             Right nameId -> pure nameId
-            Left err -> throwError $ Scim.serverError
-                ("Can't construct a subject ID from externalId: " <> Text.pack err)
+            Left err -> throwError $ Scim.ScimError
+                mempty
+                (Scim.Status 400)
+                Nothing
+                (Just $ "Can't construct a subject ID from externalId: " <> Text.pack err)
+                -- This cannot happen at the time of writing this comment, but there may be
+                -- valid scenarios in the future where this is not an internal error, eg. URI
+                -- too long.  See 'mkNameID' for all possible errors.
 
     -- Validate a handle (@userName@).
     validateHandle :: Text -> m Handle
@@ -293,7 +305,9 @@ updateValidScimUser tokinfo uidText newScimUser = do
         lift . wrapMonadClient $ Data.insertUser uref uid  -- on spar
         bindok <- lift $ Intra.Brig.bindUser uid uref  -- on brig
         unless bindok . throwError $
-          Scim.serverError "Failed to update SAML UserRef (no such UserId? duplicate Handle?)"
+            Scim.serverError "Failed to update SAML UserRef on brig."
+            -- this can only happen if user is found in spar.scim_user, but missing on brig.
+            -- (internal error?  race condition?)
 
         maybe (pure ()) (lift . Intra.Brig.setName uid) $ newScimUser ^. vsuName
         lift . Intra.Brig.setHandle uid $ newScimUser ^. vsuHandle

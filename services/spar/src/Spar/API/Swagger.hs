@@ -76,6 +76,9 @@ Centrify allows you to upload the metadata xml document that you get from the `/
 samlSchemaOptions :: SchemaOptions
 samlSchemaOptions = Swagger.fromAesonOptions SAML.deriveJSONOptions
 
+instance ToSchema SAML.XmlText where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
+
 instance ToParamSchema (Id a) where
   toParamSchema _ = toParamSchema (Proxy @UUID)
 

@@ -1,3 +1,20 @@
+# 2019-02-18 #646
+
+## API changes
+
+  * n/a
+
+## Bug fixes
+
+  * SAML input sanitization (#636)
+
+## Internal changes
+
+  * helper script for starting services only without integration tests (#641)
+  * Scim error handling (#640)
+  * Gundeck: cleanup, improve logging (#628)
+
+
 # 2019-02-18 #634
 
 ## API changes

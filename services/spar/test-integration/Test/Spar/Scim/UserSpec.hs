@@ -28,12 +28,8 @@ spec = do
     specListUsers
     specGetUser
     specUpdateUser
+    specDeleteUser
 
-    describe "DELETE /Users" $ do
-        it "responds with 404 (just making sure...)" $ pending
-    describe "DELETE /Users/:id" $ do
-        it "sets the 'deleted' flag in brig, and does nothing otherwise." $
-            pendingWith "really?  how do we destroy the data then, and when?"
     describe "CRUD operations maintain invariants in mapScimToBrig, mapBrigToScim." $ do
         it "..." $ do
             pendingWith "this is a job for quickcheck-state-machine"
@@ -257,7 +253,7 @@ testListNoDeletedUsers = do
     storedUser <- createUser tok user
     let userid = scimUserId storedUser
     -- Delete the user (TODO: do it via SCIM)
-    call $ deleteUser (env ^. teBrig) userid
+    call $ deleteUserOnBrig (env ^. teBrig) userid
     -- Get all users
     users <- listUsers tok Nothing
     -- Check that the user is absent
@@ -313,7 +309,7 @@ testGetNoDeletedUsers = do
     storedUser <- createUser tok user
     let userid = scimUserId storedUser
     -- Delete the user
-    call $ deleteUser (env ^. teBrig) userid
+    call $ deleteUserOnBrig (env ^. teBrig) userid
     -- Try to find the user
     getUser_ (Just tok) userid (env ^. teSpar)
         !!! const 404 === statusCode
@@ -464,7 +460,7 @@ testUpdateUserRefIndex = do
     -- Overwrite the user with another randomly-generated user
     user' <- randomScimUser
     _ <- updateUser tok userid user'
-    vuser' <- either (error . show) pure $ validateScimUser' (Just idp) Nothing user'
+    vuser' <- either (error . show) pure $ validateScimUser' idp Nothing user'
     muserid' <- runSparCass $ Data.getUser (vuser' ^. vsuSAMLUserRef)
     liftIO $ do
         muserid' `shouldBe` Just userid
@@ -478,7 +474,30 @@ testBrigSideIsUpdated = do
     user' <- randomScimUser
     let userid = scimUserId storedUser
     _ <- updateUser tok userid user'
-    validScimUser <- either (error . show) pure $
-        validateScimUser' (Just idp) Nothing user'
+    validScimUser <- either (error . show) pure $ validateScimUser' idp Nothing user'
     brigUser      <- maybe (error "no brig user") pure =<< getSelf userid
     brigUser `userShouldMatch` validScimUser
+
+----------------------------------------------------------------------------
+-- Deleting users
+
+specDeleteUser :: SpecWith TestEnv
+specDeleteUser = do
+    describe "DELETE /Users" $ do
+        it "responds with 405 (just making sure...)" $ do
+            env <- ask
+            (tok, _) <- registerIdPAndScimToken
+            deleteUser_ (Just tok) Nothing (env ^. teSpar)
+                !!! const 405 === statusCode
+
+    describe "DELETE /Users/:id" $ do
+        it "whether implemented or not, does *NOT EVER* respond with 5xx!" $ do
+            env <- ask
+            user <- randomScimUser
+            (tok, _) <- registerIdPAndScimToken
+            storedUser <- createUser tok user
+            deleteUser_ (Just tok) (Just $ scimUserId storedUser) (env ^. teSpar)
+                !!! assertTrue_ (inRange (200, 499) . statusCode)
+
+        it "sets the 'deleted' flag in brig, and does nothing otherwise." $
+            pendingWith "really?  how do we destroy the data then, and when?"

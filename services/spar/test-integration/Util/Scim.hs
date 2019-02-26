@@ -75,7 +75,7 @@ randomScimUser = fst <$> randomScimUserWithSubject
 -- | Like 'randomScimUser', but also returns the intended subject ID that the user should
 -- have. It's already available as 'Scim.User.externalId' but it's not structured.
 randomScimUserWithSubject
-    :: MonadRandom m
+    :: (HasCallStack, MonadRandom m)
     => m (Scim.User.User ScimUserExtra, SAML.UnqualifiedNameID)
 randomScimUserWithSubject = do
     fieldNumber <- getRandomR (0, 3)
@@ -95,10 +95,11 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
     -- Related, but non-trivial to re-use here: 'nextSubject'
     (externalId, subj) <- getRandomR (0, 1::Int) <&> \case
         0 -> ( "scimuser_extid_" <> suffix <> "@example.com"
-             , SAML.UNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
+             , either (error . show) id $
+               SAML.mkUNameIDEmail ("scimuser_extid_" <> suffix <> "@example.com")
              )
         1 -> ( "scimuser_extid_" <> suffix
-             , SAML.UNameIDUnspecified ("scimuser_extid_" <> suffix)
+             , SAML.mkUNameIDUnspecified ("scimuser_extid_" <> suffix)
              )
         _ -> error "randomScimUserWithSubject: impossible"
     pure ( (Scim.User.empty userSchemas (ScimUserExtra richInfo))
@@ -165,6 +166,21 @@ updateUser tok userid user = do
              user
              (env ^. teSpar)
          <!! const 200 === statusCode
+    pure (decodeBody' r)
+
+-- | Update a user.
+deleteUser
+    :: HasCallStack
+    => ScimToken
+    -> UserId
+    -> TestSpar (Scim.StoredUser ScimUserExtra)
+deleteUser tok userid = do
+    env <- ask
+    r <- deleteUser_
+             (Just tok)
+             (Just userid)
+             (env ^. teSpar)
+         <!! const 200 === statusCode  -- status code maybe some other 2xx?
     pure (decodeBody' r)
 
 -- | List all users.
@@ -284,6 +300,21 @@ updateUser_ auth muid user spar_ = do
         . scimAuth auth
         . contentScim
         . body (RequestBodyLBS . Aeson.encode $ user)
+        . acceptScim
+        )
+
+-- | Update a user.
+deleteUser_
+    :: Maybe ScimToken          -- ^ Authentication
+    -> Maybe UserId             -- ^ User to update; when not provided, the request will return 4xx
+    -> SparReq                  -- ^ Spar endpoint
+    -> TestSpar ResponseLBS
+deleteUser_ auth uid spar_ = do
+    call . delete $
+        ( spar_
+        . paths (["scim", "v2", "Users"] <> (toByteString' <$> maybeToList uid))
+        . scimAuth auth
+        . contentScim
         . acceptScim
         )
 
