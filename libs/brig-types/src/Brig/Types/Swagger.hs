@@ -196,6 +196,8 @@ richInfo = defineModel "RichInfo" $ do
     description "Rich info about the user"
     property "fields" (array (ref richField)) $
         description "List of fields"
+    property "version" int32' $
+        description "Format version (the current version is 0)"
 
 userName :: Model
 userName = defineModel "UserName" $ do

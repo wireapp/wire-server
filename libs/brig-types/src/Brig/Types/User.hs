@@ -240,7 +240,7 @@ instance ToJSON SelfProfile where
 -- Rich info
 
 data RichInfo = RichInfo
-    { richInfoFields :: ![RichField]
+    { richInfoFields :: ![RichField]  -- ^ An ordered list of fields
     }
     deriving (Eq, Show)
 
@@ -252,10 +252,10 @@ instance ToJSON RichInfo where
 
 instance FromJSON RichInfo where
     parseJSON = withObject "RichInfo" $ \o -> do
-        o .:? "version" >>= \case
-            Nothing -> RichInfo <$> o .: "fields"
-            Just (0 :: Int) -> RichInfo <$> o .: "fields"
-            Just v -> fail ("unknown version: " <> show v)
+        version :: Int <- o .: "version"
+        case version of
+            0 -> RichInfo <$> o .: "fields"
+            _ -> fail ("unknown version: " <> show version)
 
 data RichField = RichField
     { richFieldType  :: !Text

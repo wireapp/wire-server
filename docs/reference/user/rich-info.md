@@ -22,6 +22,7 @@ Only team members and partners can see the user's rich info.
 
 ```json
 {
+    "version": 0,
     "fields": [
         {
             "type": "Department",
@@ -41,6 +42,7 @@ If the rich info is missing, an empty field list is returned:
 
 ```json
 {
+    "version": 0,
     "fields": []
 }
 ```
