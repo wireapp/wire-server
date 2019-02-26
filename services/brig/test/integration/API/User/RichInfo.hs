@@ -89,8 +89,8 @@ testRichInfoSizeLimit brig galley (Just conf) = do
             ]
         bad2 = RichInfo $ [0 .. ((maxSize `div` 2))] <&>
             \i -> RichField (Text.pack $ show i) "#"
-    putRichInfo brig owner bad1 !!! const 400 === statusCode
-    putRichInfo brig owner bad2 !!! const 400 === statusCode
+    putRichInfo brig owner bad1 !!! const 413 === statusCode
+    putRichInfo brig owner bad2 !!! const 413 === statusCode
 
 -- | Test that rich info of non-team members can not be queried.
 --
