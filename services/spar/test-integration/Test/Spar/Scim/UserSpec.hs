@@ -10,15 +10,16 @@ import Bilge.Assert
 import Brig.Types.User as Brig
 import Control.Lens
 import Data.ByteString.Conversion
+import Data.Id (UserId)
 import Data.Ix (inRange)
 import Spar.Scim
 import Util
 
 import qualified Spar.Data                        as Data
+import qualified Web.Scim.Class.User              as Scim.UserC
 import qualified Web.Scim.Schema.Common           as Scim
 import qualified Web.Scim.Schema.Meta             as Scim
 import qualified Web.Scim.Schema.User             as Scim.User
-
 
 -- | Tests for @\/scim\/v2\/Users@.
 spec :: SpecWith TestEnv
@@ -54,6 +55,7 @@ specCreateUser = describe "POST /Users" $ do
     it "allows an occupied externalId when the IdP is different" $
         testCreateSameExternalIds
     it "provides a correct location in the 'meta' field" $ testLocation
+    it "handles rich info correctly (this also tests put, get)" $ testRichInfo
     it "gives created user a valid 'SAML.UserRef' for SSO" $ pending
     it "attributes of {brig, scim, saml} user are mapped as documented" $ pending
     it "writes all the stuff to all the places" $
@@ -165,6 +167,58 @@ testLocation = do
                <&> scimAuth (Just tok) . acceptScim
     r <- call (get (const req)) <!! const 200 === statusCode
     liftIO $ decodeBody' r `shouldBe` scimStoredUser
+
+testRichInfo :: TestSpar ()
+testRichInfo = do
+    brig <- asks (view teBrig)
+
+    -- set things up
+    let richInfo  = RichInfo [RichField "platforms" "OpenBSD; Plan9"]
+        richInfo' = RichInfo [RichField "platforms" "Windows10"]
+    (user, _)  <- randomScimUserWithSubjectAndRichInfo richInfo
+    (user', _) <- randomScimUserWithSubjectAndRichInfo richInfo'
+    (tok, (owner, _, _)) <- registerIdPAndScimToken
+
+    let -- validate response
+        checkStoredUser
+            :: HasCallStack
+            => Scim.UserC.StoredUser ScimUserExtra -> RichInfo -> TestSpar ()
+        checkStoredUser storedUser rinf = liftIO $ do
+            (Scim.User.extra . Scim.value . Scim.thing) storedUser
+                `shouldBe` (ScimUserExtra rinf)
+
+        -- validate server state after the fact
+        probeUser
+            :: HasCallStack
+            => UserId -> RichInfo -> TestSpar ()
+        probeUser uid rinf = do
+            -- get scim user yields correct rich info.
+            scimStoredUser' <- getUser tok uid
+            checkStoredUser scimStoredUser' rinf
+
+            -- get rich info end-point on brig yields correct rich info.
+            resp <- call $ get ( brig
+                               . paths ["users", toByteString' uid, "rich-info"]
+                               . zUser owner
+                               )
+            liftIO $ do
+                statusCode resp `shouldBe` 200
+                decodeBody resp `shouldBe` Right rinf
+
+    -- post response contains correct rich info.
+    scimStoredUser <- createUser tok user
+    checkStoredUser scimStoredUser richInfo
+
+    -- post updates the backend as expected.
+    probeUser (scimUserId scimStoredUser) richInfo
+
+    -- put response contains correct rich info.
+    scimStoredUser' <- updateUser tok (scimUserId scimStoredUser) user'
+    checkStoredUser scimStoredUser' richInfo'
+
+    -- post updates the backend as expected.
+    liftIO $ scimUserId scimStoredUser' `shouldBe` scimUserId scimStoredUser
+    probeUser (scimUserId scimStoredUser) richInfo'
 
 ----------------------------------------------------------------------------
 -- Listing users

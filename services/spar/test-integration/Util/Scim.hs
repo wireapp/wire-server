@@ -78,6 +78,17 @@ randomScimUserWithSubject
     :: MonadRandom m
     => m (Scim.User.User ScimUserExtra, SAML.UnqualifiedNameID)
 randomScimUserWithSubject = do
+    fieldNumber <- getRandomR (0, 3)
+    fields <- replicateM fieldNumber $
+        RichField <$> (cs <$> replicateM 10 (getRandomR ('A', 'z')))
+                  <*> (cs <$> replicateM 3 (getRandomR ('A', 'z')))
+    randomScimUserWithSubjectAndRichInfo (RichInfo fields)
+
+-- | See 'randomScimUser', 'randomScimUserWithSubject'.
+randomScimUserWithSubjectAndRichInfo
+    :: MonadRandom m
+    => RichInfo -> m (Scim.User.User ScimUserExtra, SAML.UnqualifiedNameID)
+randomScimUserWithSubjectAndRichInfo richInfo = do
     suffix <- cs <$> replicateM 5 (getRandomR ('0', '9'))
     emails <- getRandomR (0, 3) >>= \n -> replicateM n randomScimEmail
     phones <- getRandomR (0, 3) >>= \n -> replicateM n randomScimPhone
@@ -90,13 +101,7 @@ randomScimUserWithSubject = do
              , SAML.UNameIDUnspecified ("scimuser_extid_" <> suffix)
              )
         _ -> error "randomScimUserWithSubject: impossible"
-    extra <- do
-      fieldNumber <- getRandomR (0, 3)
-      fields <- replicateM fieldNumber $
-        RichField <$> (cs <$> replicateM 10 (getRandomR ('A', 'z')))
-                  <*> (cs <$> replicateM 3 (getRandomR ('A', 'z')))
-      pure $ ScimUserExtra (RichInfo fields)
-    pure ( (Scim.User.empty userSchemas extra)
+    pure ( (Scim.User.empty userSchemas (ScimUserExtra richInfo))
                { Scim.User.userName     = "scimuser_" <> suffix
                , Scim.User.displayName  = Just ("Scim User #" <> suffix)
                , Scim.User.externalId   = Just externalId
