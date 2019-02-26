@@ -19,6 +19,7 @@ tests :: ConnectionLimit -> Opt.Timeout -> Maybe Opt.Opts -> Manager -> Brig -> 
 tests _cl _at _conf p b _c g = testGroup "rich info"
     [ test p "there is default empty rich info" $ testDefaultRichInfo b g
     , test p "empty fields are deleted" $ testDeleteEmptyFields b g
+    , test p "duplicate field names are forbidden" $ testForbidDuplicateFieldNames b g
     , test p "non-team members don't have rich info" $ testNonTeamMembersDoNotHaveRichInfo b g
     , test p "non-members / other membes / guests cannot see rich info" $ testGuestsCannotSeeRichInfo b g
     ]
@@ -52,6 +53,15 @@ testDeleteEmptyFields brig galley = do
     putRichInfo brig member2 subset   !!! const 201 === statusCode
     subset' <- getRichInfo brig member1 member2
     liftIO $ assertEqual "dangling rich info fields" subset' (Just subset)
+
+testForbidDuplicateFieldNames :: Brig -> Galley -> Http ()
+testForbidDuplicateFieldNames brig galley = do
+    (owner, _) <- createUserWithTeam brig galley
+    let bad = RichInfo
+            [ RichField "department" "blue"
+            , RichField "department" "green"
+            ]
+    putRichInfo brig owner bad !!! const 400 === statusCode
 
 -- | Test that rich info of non-team members can not be queried.
 --
