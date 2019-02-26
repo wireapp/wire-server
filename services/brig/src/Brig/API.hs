@@ -1504,10 +1504,12 @@ updateManagedBy (uid ::: _ ::: _ ::: req) = do
 
 updateRichInfo :: UserId ::: JSON ::: JSON ::: Request -> Handler Response
 updateRichInfo (uid ::: _ ::: _ ::: req) = do
-    RichInfoUpdate richInfo <- parseJsonBody req
+    richInfo <- normalizeRichInfo . riuRichInfo <$> parseJsonBody req
     maxSize <- setRichInfoLimit <$> view settings
     when (richInfoSize richInfo > maxSize) $ throwStd tooLargeRichInfo
     lift $ Data.updateRichInfo uid richInfo
+    -- FUTUREWORK: send an event
+    -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
     return empty
 
 deleteUser :: UserId ::: Request ::: JSON ::: JSON -> Handler Response

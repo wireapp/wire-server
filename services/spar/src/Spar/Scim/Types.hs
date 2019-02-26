@@ -86,6 +86,7 @@ instance ToJSON ScimUserExtra where
 -- FUTUREWORK: allow strings as well
 parseRichInfo :: Aeson.Value -> Aeson.Parser RichInfo
 parseRichInfo v =
+  normalizeRichInfo <$>
   asum [
     -- Canonical format
       parseJSON @RichInfo v

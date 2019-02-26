@@ -303,6 +303,12 @@ richInfoSize :: RichInfo -> Int
 richInfoSize (RichInfo fields) =
     sum [Text.length t + Text.length v | RichField t v <- fields]
 
+-- | Remove fields with @""@ values.
+normalizeRichInfo :: RichInfo -> RichInfo
+normalizeRichInfo RichInfo{..} = RichInfo
+    { richInfoFields = filter (not . Text.null . richFieldValue) richInfoFields
+    }
+
 -----------------------------------------------------------------------------
 -- New Users
 
