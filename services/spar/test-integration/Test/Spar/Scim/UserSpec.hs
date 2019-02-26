@@ -173,8 +173,8 @@ testRichInfo = do
     brig <- asks (view teBrig)
 
     -- set things up
-    let richInfo  = RichInfo [RichField "platforms" "OpenBSD; Plan9"]
-        richInfo' = RichInfo [RichField "platforms" "Windows10"]
+    let richInfo  = RichInfo [RichField "Platforms" "OpenBSD; Plan9"]
+        richInfo' = RichInfo [RichField "Platforms" "Windows10"]
     (user, _)  <- randomScimUserWithSubjectAndRichInfo richInfo
     (user', _) <- randomScimUserWithSubjectAndRichInfo richInfo'
     (tok, (owner, _, _)) <- registerIdPAndScimToken
