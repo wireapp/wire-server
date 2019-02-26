@@ -92,7 +92,7 @@ PUT /scim/v2/Users/:id
 }
 ```
 
-Rich info can not be pulled from Wire and will not show up in SCIM queries.
+Rich info set via SCIM can be queried by doing a `GET /scim/v2/Users` or `GET /scim/v2/Users/:id` query.
 
 ### SCIM provisioning agent support {#RefRichInfoScimAgents}
 
