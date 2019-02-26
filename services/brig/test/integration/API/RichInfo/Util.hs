@@ -12,17 +12,8 @@ getRichInfo
     => Brig
     -> UserId            -- ^ The user who is performing the query
     -> UserId            -- ^ The users whose rich info is being queried
-    -> Http (Maybe RichInfo)
-getRichInfo brig self uid = do
-    getRichInfo_ brig self uid <&> either (const Nothing) Just
-
-getRichInfo_
-    :: HasCallStack
-    => Brig
-    -> UserId            -- ^ The user who is performing the query
-    -> UserId            -- ^ The users whose rich info is being queried
     -> Http (Either Int RichInfo)
-getRichInfo_ brig self uid = do
+getRichInfo brig self uid = do
     r <- get ( brig
              . paths ["users", toByteString' uid, "rich-info"]
              . zUser self
