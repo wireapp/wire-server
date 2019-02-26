@@ -29,6 +29,7 @@ import Data.Currency
 import Data.IP
 import Data.Json.Util (UTCTimeMillis (..), toUTCTimeMillis)
 import Data.LanguageCodes
+import Data.List.Extra (nubOn)
 import Data.Misc
 import Data.Proxy
 import Data.Range
@@ -307,7 +308,9 @@ instance Arbitrary RichField where
     arbitrary = RichField <$> arbitrary <*> arbitrary
 
 instance Arbitrary RichInfo where
-    arbitrary = RichInfo <$> arbitrary
+    arbitrary = do
+        richInfoFields <- nubOn richFieldType <$> arbitrary
+        pure RichInfo{..}
 
 instance Arbitrary RichInfoUpdate where
     arbitrary = RichInfoUpdate <$> arbitrary

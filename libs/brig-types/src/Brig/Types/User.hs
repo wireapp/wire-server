@@ -17,7 +17,6 @@ import Brig.Types.Activation (ActivationCode)
 import Brig.Types.Common as C
 import Brig.Types.User.Auth (CookieLabel)
 import Data.Aeson
-import Data.Aeson.Types (Parser, Pair)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#), UTCTimeMillis)
@@ -29,6 +28,7 @@ import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
 
 import qualified Brig.Types.Code     as Code
+import qualified Data.Aeson.Types    as Aeson
 import qualified Data.Currency       as Currency
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text           as Text
@@ -41,7 +41,7 @@ newtype Pict = Pict { fromPict :: [Object] }
     deriving (Eq, Show, ToJSON)
 
 instance FromJSON Pict where
-    parseJSON x = Pict . fromRange <$> (parseJSON x :: Parser (Range 0 10 [Object]))
+    parseJSON x = Pict . fromRange @0 @10 <$> parseJSON x
 
 noPict :: Pict
 noPict = Pict []
@@ -254,8 +254,17 @@ instance FromJSON RichInfo where
     parseJSON = withObject "RichInfo" $ \o -> do
         version :: Int <- o .: "version"
         case version of
-            0 -> RichInfo <$> o .: "fields"
+            0 -> do
+                fields <- o .: "fields"
+                checkDuplicates (map richFieldType fields)
+                pure (RichInfo fields)
             _ -> fail ("unknown version: " <> show version)
+      where
+        checkDuplicates :: [Text] -> Aeson.Parser ()
+        checkDuplicates xs =
+            case filter ((> 1) . length) . group . sort $ xs of
+                [] -> pure ()
+                ds -> fail ("duplicate fields: " <> show (map head ds))
 
 data RichField = RichField
     { richFieldType  :: !Text
@@ -324,7 +333,7 @@ data NewUserOrigin =
   deriving (Eq, Show)
 
 parseNewUserOrigin :: Maybe PlainTextPassword -> Maybe UserIdentity -> Maybe UserSSOId
-                   -> Object -> Parser (Maybe NewUserOrigin)
+                   -> Object -> Aeson.Parser (Maybe NewUserOrigin)
 parseNewUserOrigin pass uid ssoid o = do
     invcode  <- o .:? "invitation_code"
     teamcode <- o .:? "team_code"
@@ -343,7 +352,7 @@ parseNewUserOrigin pass uid ssoid o = do
         (Just (NewUserOriginTeamUser _), Nothing, _) -> fail "all team users must set a password on creation"
         _ -> pure result
 
-jsonNewUserOrigin :: NewUserOrigin -> [Pair]
+jsonNewUserOrigin :: NewUserOrigin -> [Aeson.Pair]
 jsonNewUserOrigin = \case
     NewUserOriginInvitationCode inv             -> ["invitation_code" .= inv]
     NewUserOriginTeamUser (NewTeamMember tc)    -> ["team_code" .= tc]
@@ -412,7 +421,7 @@ instance ToJSON NewUser where
         # maybe [] jsonNewUserOrigin (newUserOrigin u)
 
 -- | Fails if email or phone or ssoid are present but invalid
-parseIdentity :: Maybe UserSSOId -> Object -> Parser (Maybe UserIdentity)
+parseIdentity :: Maybe UserSSOId -> Object -> Aeson.Parser (Maybe UserIdentity)
 parseIdentity ssoid o = if isJust (HashMap.lookup "email" o <|> HashMap.lookup "phone" o) || isJust ssoid
     then Just <$> parseJSON (Object o)
     else pure Nothing
