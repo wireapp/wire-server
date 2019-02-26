@@ -103,11 +103,11 @@ testNonTeamMembersDoNotHaveRichInfo brig galley = do
     -- Another user should get a 'Nothing' when querying their info
     do nonTeamUser <- userId <$> randomUser brig
        richInfo <- getRichInfo brig nonTeamUser targetUser
-       liftIO $ assertEqual "rich info is present" richInfo (Left 404)
+       liftIO $ assertEqual "rich info is present" richInfo (Left 403)
     -- A team member should also get a 'Nothing' when querying their info
     do (teamUser, _) <- createUserWithTeam brig galley
        richInfo <- getRichInfo brig teamUser targetUser
-       liftIO $ assertEqual "rich info is present" richInfo (Left 404)
+       liftIO $ assertEqual "rich info is present" richInfo (Left 403)
 
 testGuestsCannotSeeRichInfo :: Brig -> Galley -> Http ()
 testGuestsCannotSeeRichInfo brig galley = do
