@@ -38,9 +38,8 @@ putRichInfo
     -> UserId            -- ^ The users whose rich info is being updated
     -> RichInfo
     -> Http ResponseLBS
-putRichInfo brig uid rinfo = undefined
+putRichInfo brig uid rinfo = do
     put ( brig
         . paths ["i", "users", toByteString' uid, "rich-info"]
         . json rinfo
-        . expect2xx
         )
