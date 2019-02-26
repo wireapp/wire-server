@@ -102,6 +102,6 @@ Rich info set via SCIM can be queried by doing a `GET /scim/v2/Users` or `GET /s
 
 ## Limitations {#RefRichInfoLimitations}
 
-* The whole of user-submitted information (field names and values) cannot exceed 5000 characters in length. There are no limitations on the number of fields, or the maximum of field names or values.
+* The whole of user-submitted information (field names and values) cannot exceed 5000 characters in length. There are no limitations on the number of fields, or the maximum of individual field names or values.
 
 * Field values can not be empty (`""`). If they are empty, the corresponding field will be removed.
