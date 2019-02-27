@@ -67,22 +67,35 @@ services:
     networks:
       - demo_wire
 
+  # requires you to run: "sudo sysctl -w vm.max_map_count=262144". see: https://github.com/docker-library/elasticsearch/issues/98
   elasticsearch:
     container_name: demo_wire_elasticsearch
-    image: elasticsearch:5.6
+    #image: elasticsearch:5.6
+    image: julialongtin/elasticsearch:0.0.9-amd64
     # https://hub.docker.com/_/elastic is deprecated, but 6.2.4 did not work without further changes.
     # image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
     ports:
       - "127.0.0.1:9200:9200"
       - "127.0.0.1:9300:9300"
+    environment:
+      - "bootstrap.system_call_filter=false"
+# ES_JVM_OPTIONS is reserved, so...
+# what's present in the jvm.options file by default.
+#      - "JVM_OPTIONS_ES=-Xmx2g -Xms2g"
+      - "JVM_OPTIONS_ES=-Xmx512m -Xms512m"
     networks:
       - demo_wire
 
   cassandra:
     container_name: demo_wire_cassandra
-    image: cassandra:3.11.2
+    #image: cassandra:3.11.2
+    image: julialongtin/cassandra:0.0.9-amd64
     ports:
       - "127.0.0.1:9042:9042"
+    environment:
+# what's present in the jvm.options file by default.
+#      - "CS_JAVA_OPTIONS=-Xmx1024M -Xms1024M -Xmn200M"
+      - "CS_JVM_OPTIONS=-Xmx128M -Xms128M -Xmn50M"
     networks:
       - demo_wire
 
