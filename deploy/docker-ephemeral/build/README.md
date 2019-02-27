@@ -1,6 +1,6 @@
 A makefile that uses docker.io, and qemu-user-static to build dependencies for our integration tests.
 
-Builds docker images for multiple architectures. allows for -j to build multiple images at once.
+Builds and uploadsdocker images for multiple architectures. Allows for '-j' to build multiple images at once. Uploads assume the hub.docker.com docker registry.
 
 # Setup
 
@@ -11,8 +11,12 @@ Follow the instructions in [our dependencies file](doc/Dependencies.md) to ensur
 ## qemu
 
 ### Debian
-`apt-get install qemu-user-static`
-`sudo service binfmt-support start`
+
+
+```bash
+apt-get install qemu-user-static
+sudo service binfmt-support start
+```
 
 ### Fedora
 
@@ -20,12 +24,25 @@ Follow the instructions in [our dependencies file](doc/Dependencies.md) to ensur
 
 # Using
 
-First, you must go to dockerhub, and create repositories under your user with the proper names. to get the list of names, type 'make names'.
+Assuming you have docker, and have followed the above instructions, "make build-all" should work. This builds all of the images, and places them in docker on the local machine.
+to build an individual image (and it's dependent images), run "make-<imagename>". to see a list of images that are buildable, run "make names".
 
-At this point, you should be able to change the account info at the top of the makefile, and type 'make'.
-If you want it to go faster, but have more garbled output, type 'make -j 30'.
+## Using with Dockerhub
 
-By default this makefile builds and uploads the debian based images. Type 'make DIST=ALPINE' to build the alpine based images instead.
+If you want to upload images to dockerhub, you must go to dockerhub, and create repositories under your user with the names of the images you want to upload. Again, to get the list of names buildable with this Makefile, type 'make names'.
+
+If you don't want to change the Makefile, add the DOCKER_USERNAME, DOCKER_EMAIL, and DOCKER_REALNAME environment variables.
+
+For instance, when I want to build all debian images, and upload them to dockerhub, i use:
+```bash
+make DIST=DEBIAN DOCKER_USERNAME=julialongtin DOCKER_EMAIL=julia.longtin@wire.com DOCKER_REALNAME='Julia Longtin' push-all
+```
+
+You can also push a single image (and it's dependencies) with "make push-<imagename>".
+
+If you want your builds to go faster, and are good with having more garbled output, use the '-j' argument to make, to parallize the builds.
+
+By default this makefile builds and uploads the debian based images. Use the 'DIST=ALPINE' environment variable to build the alpine based images instead.
 
 # Troubleshooting:
 ## binfmt support:
