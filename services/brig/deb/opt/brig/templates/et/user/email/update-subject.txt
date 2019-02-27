@@ -1,1 +1,1 @@
-Uus Wire&#x27;ga seotud meiliaadress
+Your new email address on ${brand}

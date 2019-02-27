@@ -1,2 +1,2 @@
-Klicke den Link, dein Wire-Benutzerkonto zu löschen.
-${url} 
+Klicke den Link, dein ${brand}-Benutzerkonto zu löschen.
+${url}

@@ -1,2 +1,2 @@
-Tappez afin de supprimer votre compte Wire.
-${url} 
+Cliquez pour supprimer votre compte ${brand}.
+${url}

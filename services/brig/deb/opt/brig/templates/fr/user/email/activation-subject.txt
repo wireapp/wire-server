@@ -1,1 +1,1 @@
-Votre compte Wire
+Votre Compte ${brand}
