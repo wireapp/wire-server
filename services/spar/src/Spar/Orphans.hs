@@ -1,17 +1,10 @@
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RecordWildCards       #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE StandaloneDeriving    #-}
-{-# LANGUAGE TemplateHaskell       #-}
-{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Spar.Orphans where
+-- | Miscellaneous orphan instances needed for Spar.
+module Spar.Orphans () where
 
 import Imports
 import Data.Id

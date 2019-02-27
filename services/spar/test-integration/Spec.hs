@@ -1,14 +1,13 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-
 -- | It would be nice to use hspec-discover, which even has support for
 -- <https://hspec.github.io/hspec-discover.html#using-a-custom-main-function custom main functions>.
 --
--- This is trickier than expected, though: hspec-discover expects the modules to export 'spec ::
--- Spec', but we would need that to be 'spec :: SpecWith TestEnv'.  On the other hand, we cannot
--- easily 'mkEnvFromOptions' inside each module, since it requires '-s', '-i' command line modules,
--- which will make 'hspec' choke.
+-- This is trickier than expected, though: hspec-discover expects the modules to export @spec
+-- :: Spec@, but we would need that to be @spec :: SpecWith TestEnv@. See
+-- <https://github.com/hspec/hspec/issues/404>.
 --
--- Related, but not the solution: https://github.com/hspec/hspec/pull/397
+-- On the other hand, we cannot easily 'mkEnvFromOptions' inside each module, since it
+-- requires @-s@, @-i@ command line modules, which will make 'hspec' choke. Related, but not
+-- the solution: https://github.com/hspec/hspec/pull/397.
 module Main where
 
 import Imports
@@ -16,11 +15,13 @@ import System.Environment (withArgs)
 import Test.Hspec
 import Util
 
+import qualified Test.MetricsSpec
 import qualified Test.Spar.APISpec
 import qualified Test.Spar.AppSpec
 import qualified Test.Spar.DataSpec
 import qualified Test.Spar.Intra.BrigSpec
-import qualified Test.Spar.ScimSpec
+import qualified Test.Spar.Scim.UserSpec
+import qualified Test.Spar.Scim.AuthSpec
 
 
 main :: IO ()
@@ -39,8 +40,10 @@ partitionArgs = go [] []
 
 mkspec :: SpecWith TestEnv
 mkspec = do
-    describe "Test.Spar.API" Test.Spar.APISpec.spec
-    describe "Test.Spar.App" Test.Spar.AppSpec.spec
-    describe "Test.Spar.Data" Test.Spar.DataSpec.spec
-    describe "Test.Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
-    describe "Test.Spar.Scim" Test.Spar.ScimSpec.spec
+    describe "Metrics" Test.MetricsSpec.spec
+    describe "Spar.API" Test.Spar.APISpec.spec
+    describe "Spar.App" Test.Spar.AppSpec.spec
+    describe "Spar.Data" Test.Spar.DataSpec.spec
+    describe "Spar.Intra.Brig" Test.Spar.Intra.BrigSpec.spec
+    describe "Spar.Scim.Auth" Test.Spar.Scim.AuthSpec.spec
+    describe "Spar.Scim.User" Test.Spar.Scim.UserSpec.spec

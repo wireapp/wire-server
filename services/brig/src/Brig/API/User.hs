@@ -1,11 +1,4 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE ViewPatterns        #-}
 
 -- TODO: Move to Brig.User.Account
 module Brig.API.User
@@ -17,6 +10,7 @@ module Brig.API.User
     , changePhone
     , changeHandle
     , lookupHandle
+    , changeManagedBy
     , changeAccountStatus
     , Data.lookupAccounts
     , Data.lookupAccount
@@ -57,6 +51,11 @@ module Brig.API.User
     , isBlacklisted
     , blacklistDelete
     , blacklistInsert
+
+      -- * Phone Prefix blocking
+    , phonePrefixGet
+    , phonePrefixDelete
+    , phonePrefixInsert
 
       -- * Utilities
     , fetchUserIdentity
@@ -301,6 +300,14 @@ changeLocale uid conn (LocaleUpdate loc) = do
     Data.updateLocale uid loc
     Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
 
+-------------------------------------------------------------------------------
+-- Update ManagedBy
+
+changeManagedBy :: UserId -> ConnId -> ManagedByUpdate -> AppIO ()
+changeManagedBy uid conn (ManagedByUpdate mb) = do
+    Data.updateManagedBy uid mb
+    Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
+
 --------------------------------------------------------------------------------
 -- Change Handle
 
@@ -524,15 +531,23 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
             Just (Just uid, c) -> sendActivationEmail   ek c        uid -- User re-requesting activation
 
     Right phone -> do
-        pk <- maybe (throwE $ InvalidRecipient (userPhoneKey phone))
-                    (return . userPhoneKey)
+        -- validatePhone returns the canonical E.164 phone number format
+        canonical <- maybe (throwE $ InvalidRecipient (userPhoneKey phone))
+                    return
                     =<< lift (validatePhone phone)
+        let pk = userPhoneKey canonical
         exists <- lift $ isJust <$> Data.lookupKey pk
         when exists $
             throwE $ UserKeyInUse pk
         blacklisted <- lift $ Blacklist.exists pk
         when blacklisted $
             throwE (ActivationBlacklistedUserKey pk)
+
+        -- check if any prefixes of this phone number are blocked
+        prefixExcluded <- lift $ Blacklist.existsAnyPrefix canonical
+        when prefixExcluded $
+            throwE (ActivationBlacklistedUserKey pk)
+
         c <- lift $ fmap snd <$> Data.lookupActivationCode pk
         p <- mkPair pk c Nothing
         void . forPhoneKey pk $ \ph -> lift $
@@ -859,6 +874,15 @@ blacklistDelete :: Either Email Phone -> AppIO ()
 blacklistDelete emailOrPhone = do
     let uk = either userEmailKey userPhoneKey emailOrPhone
     Blacklist.delete uk
+
+phonePrefixGet :: PhonePrefix -> AppIO [ExcludedPrefix]
+phonePrefixGet prefix = Blacklist.getAllPrefixes prefix
+
+phonePrefixDelete :: PhonePrefix -> AppIO ()
+phonePrefixDelete = Blacklist.deletePrefix
+
+phonePrefixInsert :: ExcludedPrefix -> AppIO ()
+phonePrefixInsert = Blacklist.insertPrefix
 
 -------------------------------------------------------------------------------
 -- Utilities

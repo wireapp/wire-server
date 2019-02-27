@@ -1,7 +1,4 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData        #-}
-{-# LANGUAGE TemplateHaskell   #-}
 
 module CargoHold.Options where
 

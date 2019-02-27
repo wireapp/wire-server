@@ -1,6 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Json where
 
 import Imports

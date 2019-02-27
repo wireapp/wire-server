@@ -1,7 +1,3 @@
-{-# LANGUAGE LambdaCase           #-}
-{-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE TypeApplications     #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-} -- for SES notifications
 
 module Util where
@@ -119,10 +115,10 @@ createAnonUserExpiry expires name brig = do
     r <- post (brig . path "/register" . contentJson . body p) <!! const 201 === statusCode
     decodeBody r
 
-requestActivationCode :: HasCallStack => Brig -> Either Email Phone -> Http ()
-requestActivationCode brig ep =
+requestActivationCode :: HasCallStack => Brig -> Int -> Either Email Phone -> Http ()
+requestActivationCode brig expectedStatus ep =
     post (brig . path "/activate/send" . contentJson . body (RequestBodyLBS . encode $ bdy ep)) !!!
-        const 200 === statusCode
+        const expectedStatus === statusCode
   where
     bdy (Left e)  = object [ "email" .= fromEmail e ]
     bdy (Right p) = object [ "phone" .= fromPhone p ]

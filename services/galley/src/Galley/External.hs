@@ -1,7 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
-
 module Galley.External (deliver) where
 
 import Imports

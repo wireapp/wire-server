@@ -1,16 +1,4 @@
-{-# LANGUAGE ConstraintKinds     #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns        #-}
 
 -- | Two (weak) reasons why I implemented the clients without the help of servant-client: (1) I
 -- wanted smooth integration in 'HttpMonad'; (2) I wanted the choice of receiving the unparsed
@@ -36,13 +24,15 @@ module Util.Core
   , decodeBody
   , decodeBody'
   -- * Other
+  , defPassword
   , createUserWithTeam
   , createTeamMember
-  , deleteUser
+  , deleteUserOnBrig
   , getTeams
   , getSelfProfile
   , nextWireId
   , nextSAMLID
+  , nextSubject
   , nextUserRef
   , createRandomPhoneUser
   , zUser
@@ -72,7 +62,7 @@ module Util.Core
   , runSparCass, runSparCassWithEnv
   , runSimpleSP
   , runSpar
-  , getSsoidViaSelf, getSsoidViaSelf'
+  , getSsoidViaSelf, getSsoidViaSelf', getSelf
   , getUserIdViaRef, getUserIdViaRef'
   ) where
 
@@ -80,7 +70,7 @@ import Imports hiding (head)
 import Bilge hiding (getCookie)  -- we use Web.Cookie instead of the http-client type
 import Bilge.Assert ((!!!), (===), (<!!))
 import Brig.Types.Common (UserSSOId(..), UserIdentity(..))
-import Brig.Types.User (userIdentity, selfUser)
+import Brig.Types.User (User(..), userIdentity, selfUser)
 import Cassandra as Cas
 import Control.Exception
 import Control.Lens hiding ((.=))
@@ -262,9 +252,9 @@ addTeamMember galleyreq tid mem =
                 )
 
 -- | Delete a user from Brig and wait until it's gone.
-deleteUser :: (HasCallStack, MonadMask m, MonadCatch m, MonadIO m, MonadHttp m)
+deleteUserOnBrig :: (HasCallStack, MonadMask m, MonadCatch m, MonadIO m, MonadHttp m)
            => BrigReq -> UserId -> m ()
-deleteUser brigreq uid = do
+deleteUserOnBrig brigreq uid = do
     deleteUserNoWait brigreq uid
     recoverAll (exponentialBackoff 30000 <> limitRetries 5) $ \_ -> do
         profile <- getSelfProfile brigreq uid
@@ -285,15 +275,24 @@ nextWireId :: MonadIO m => m (Id a)
 nextWireId = Id <$> liftIO UUID.nextRandom
 
 nextSAMLID :: MonadIO m => m (ID a)
-nextSAMLID = ID . UUID.toText <$> liftIO UUID.nextRandom
+nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom
+
+-- | Generate a 'SAML.UserRef' subject.
+nextSubject :: (HasCallStack, MonadIO m) => m NameID
+nextSubject = liftIO $ do
+  unameId <- randomRIO (0, 1::Int) >>= \case
+      0 -> either (error . show) id . SAML.mkUNameIDEmail . Brig.fromEmail <$> randomEmail
+      1 -> SAML.mkUNameIDUnspecified . UUID.toText <$> UUID.nextRandom
+      _ -> error "nextSubject: impossible"
+  either (error . show) pure $ SAML.mkNameID unameId Nothing Nothing Nothing
 
 nextUserRef :: MonadIO m => m SAML.UserRef
 nextUserRef = liftIO $ do
-  (UUID.toText -> tenant) <- UUID.nextRandom
-  (UUID.toText -> subject) <- UUID.nextRandom
+  tenant <- UUID.toText <$> UUID.nextRandom
+  subject <- nextSubject
   pure $ SAML.UserRef
     (SAML.Issuer $ SAML.unsafeParseURI ("http://" <> tenant))
-    (SAML.opaqueNameID subject)
+    subject
 
 createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Brig.Phone)
 createRandomPhoneUser brig_ = do
@@ -749,25 +748,30 @@ getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
 
 getSsoidViaSelf' :: HasCallStack => UserId -> TestSpar (Maybe UserSSOId)
 getSsoidViaSelf' uid = do
-  let probe :: HasCallStack => TestSpar (Maybe UserSSOId)
+  musr <- getSelf uid
+  pure $ case userIdentity =<< musr of
+            Just (SSOIdentity ssoid _ _) -> Just ssoid
+            Just (FullIdentity _ _)  -> Nothing
+            Just (EmailIdentity _)   -> Nothing
+            Just (PhoneIdentity _)   -> Nothing
+            Nothing                  -> Nothing
+
+getSelf :: HasCallStack => UserId -> TestSpar (Maybe User)
+getSelf uid = do
+  let probe :: HasCallStack => TestSpar (Maybe User)
       probe = do
         env <- ask
-        fmap getUserSSOId . call . get $
+        fmap selfToUser . call . get $
           ( (env ^. teBrig)
           . header "Z-User" (toByteString' uid)
           . path "/self"
           . expect2xx
           )
 
-      getUserSSOId :: HasCallStack => ResponseLBS -> Maybe UserSSOId
-      getUserSSOId (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
-        = case userIdentity $ selfUser selfprof of
-            Just (SSOIdentity ssoid _ _) -> Just ssoid
-            Just (FullIdentity _ _)  -> Nothing
-            Just (EmailIdentity _)   -> Nothing
-            Just (PhoneIdentity _)   -> Nothing
-            Nothing                  -> Nothing
-      getUserSSOId _ = Nothing
+      selfToUser :: HasCallStack => ResponseLBS -> Maybe User
+      selfToUser (fmap Aeson.eitherDecode . responseBody -> Just (Right selfprof))
+        = Just $ selfUser selfprof
+      selfToUser _ = Nothing
 
   env <- ask
   liftIO $ retrying

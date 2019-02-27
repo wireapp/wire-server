@@ -113,7 +113,7 @@ publicProfile u = (connectedProfile u)
 data User = User
     { userId       :: !UserId
     , userIdentity :: !(Maybe UserIdentity)
-    , userName     :: !Name
+    , userName     :: !Name  -- ^ required; non-unique
     , userPict     :: !Pict -- ^ DEPRECATED
     , userAssets   :: [Asset]
     , userAccentId :: !ColourId
@@ -122,11 +122,14 @@ data User = User
     , userService  :: !(Maybe ServiceRef)
         -- ^ Set if the user represents an external service,
         -- i.e. it is a "bot".
-    , userHandle   :: !(Maybe Handle)
+    , userHandle   :: !(Maybe Handle)  -- ^ not required; must be unique if present
     , userExpire   :: !(Maybe UTCTimeMillis)
         -- ^ Set if the user is ephemeral
     , userTeam     :: !(Maybe TeamId)
         -- ^ Set if the user is part of a binding team
+    , userManagedBy :: !ManagedBy
+        -- ^ How is the user profile managed (e.g. if it's via SCIM then the user profile
+        -- can't be edited via normal means)
     }
     deriving (Eq, Show)
 
@@ -139,8 +142,9 @@ userPhone = phoneIdentity <=< userIdentity
 userSSOId :: User -> Maybe UserSSOId
 userSSOId = ssoIdentity <=< userIdentity
 
--- | A subset of the data of an existing 'User'
--- that is returned on the API.
+-- | A subset of the data of an existing 'User' that is returned on the API and is visible to
+-- other users. Each user also has access to their own profile in a richer format --
+-- 'SelfProfile'.
 data UserProfile = UserProfile
     { profileId       :: !UserId
     , profileName     :: !Name
@@ -170,11 +174,12 @@ instance ToJSON User where
         # "accent_id"  .= userAccentId u
         # "deleted"    .= (if userDeleted u then Just True else Nothing)
         # "locale"     .= userLocale u
-        # "service"    .= userService u
-        # "handle"     .= userHandle u
+        # "service"    .= userService u
+        # "handle"     .= userHandle u
         # "expires_at" .= userExpire u
         # "team"       .= userTeam u
         # "sso_id"     .= userSSOId u
+        # "managed_by" .= userManagedBy u
         # []
 
 instance FromJSON User where
@@ -192,6 +197,7 @@ instance FromJSON User where
              <*> o .:? "handle"
              <*> o .:? "expires_at"
              <*> o .:? "team"
+             <*> o .:? "managed_by" .!= ManagedByWire
 
 instance FromJSON UserProfile where
     parseJSON = withObject "UserProfile" $ \o ->
@@ -215,8 +221,8 @@ instance ToJSON UserProfile where
         # "assets"     .= profileAssets u
         # "accent_id"  .= profileAccentId u
         # "deleted"    .= (if profileDeleted u then Just True else Nothing)
-        # "service"    .= profileService u
-        # "handle"     .= profileHandle u
+        # "service"    .= profileService u
+        # "handle"     .= profileHandle u
         # "locale"     .= profileLocale u
         # "expires_at" .= profileExpire u
         # "team"       .= profileTeam u
@@ -246,6 +252,7 @@ data NewUser = NewUser
     , newUserLocale         :: !(Maybe Locale)
     , newUserPassword       :: !(Maybe PlainTextPassword)
     , newUserExpiresIn      :: !(Maybe ExpiresIn)
+    , newUserManagedBy      :: !(Maybe ManagedBy)
     }
     deriving (Eq, Show)
 
@@ -322,6 +329,7 @@ instance FromJSON NewUser where
           newUserExpiresIn <- case (newUserExpires, newUserIdentity) of
                 (Just _, Just _) -> fail "Only users without an identity can expire"
                 _                -> return newUserExpires
+          newUserManagedBy <- o .:? "managed_by"
           return NewUser{..}
 
 instance ToJSON NewUser where
@@ -341,6 +349,7 @@ instance ToJSON NewUser where
         # "password"        .= newUserPassword u
         # "expires_in"      .= newUserExpiresIn u
         # "sso_id"          .= newUserSSOId u
+        # "managed_by"      .= newUserManagedBy u
         # maybe [] jsonNewUserOrigin (newUserOrigin u)
 
 -- | Fails if email or phone or ssoid are present but invalid
@@ -379,19 +388,32 @@ data NewTeamUser = NewTeamMember    !InvitationCode      -- ^ requires email add
                  | NewTeamMemberSSO !TeamId
     deriving (Eq, Show)
 
--- | newtype for using in external end-points where setting 'SSOIdentity', 'UUID' is not allowed.
--- ('UUID' is only needed by spar for creating users that it can find again later, after a crash.
--- if there another use case arises, this newtype and the 'FromJSON' instance would have to be
--- refactored.)
-newtype NewUserNoSSO = NewUserNoSSO NewUser
+-- | We use the same 'NewUser' type for the @\/register@ and @\/i\/users@ endpoints. This
+-- newtype is used as request body type for the public @\/register@ endpoint, where only a
+-- subset of the 'NewUser' functionality should be allowed.
+--
+-- Specifically, we forbid the following:
+--
+--   * Setting 'SSOIdentity' (SSO users are created by Spar)
+--
+--   * Setting the UUID (only needed so that Spar can find the user if Spar crashes before it
+--     finishes creating the user).
+--
+--   * Setting 'ManagedBy' (it should be the default in all cases unless Spar creates a
+--     SCIM-managed user)
+newtype NewUserPublic = NewUserPublic NewUser
     deriving (Eq, Show)
 
-instance FromJSON NewUserNoSSO where
+instance FromJSON NewUserPublic where
     parseJSON val = do
         nu <- parseJSON val
-        when (isJust $ newUserSSOId nu) $ fail "SSO-managed users are not allowed here."
-        when (isJust $ newUserUUID nu)  $ fail "it is not allowed to provide a UUID for the users here."
-        pure $ NewUserNoSSO nu
+        when (isJust $ newUserSSOId nu) $
+            fail "SSO-managed users are not allowed here."
+        when (isJust $ newUserUUID nu) $
+            fail "it is not allowed to provide a UUID for the users here."
+        when (newUserManagedBy nu `notElem` [Nothing, Just ManagedByWire]) $
+            fail "only managed-by-Wire users can be created here."
+        pure $ NewUserPublic nu
 
 
 -----------------------------------------------------------------------------
@@ -405,12 +427,16 @@ data UserUpdate = UserUpdate
     } deriving (Eq, Show)
 
 newtype LocaleUpdate = LocaleUpdate { luLocale :: Locale } deriving (Eq, Show)
+newtype EmailUpdate = EmailUpdate { euEmail :: Email } deriving (Eq, Show)
+newtype PhoneUpdate = PhoneUpdate { puPhone :: Phone } deriving (Eq, Show)
+newtype HandleUpdate = HandleUpdate { huHandle :: Text } deriving (Eq, Show)
+newtype ManagedByUpdate = ManagedByUpdate { mbuManagedBy :: ManagedBy } deriving (Eq, Show)
 
-newtype EmailUpdate  = EmailUpdate  { euEmail  :: Email  } deriving (Eq, Show)
-newtype PhoneUpdate  = PhoneUpdate  { puPhone  :: Phone  } deriving (Eq, Show)
-newtype HandleUpdate = HandleUpdate { huHandle :: Text   } deriving (Eq, Show)
-newtype EmailRemove  = EmailRemove  { erEmail  :: Email  } deriving (Eq, Show)
-newtype PhoneRemove  = PhoneRemove  { prPhone  :: Phone  } deriving (Eq, Show)
+newtype EmailRemove = EmailRemove { erEmail :: Email } deriving (Eq, Show)
+newtype PhoneRemove = PhoneRemove { prPhone :: Phone } deriving (Eq, Show)
+
+-- NB: when adding new types, please also add roundtrip tests to
+-- 'Test.Brig.Types.User.roundtripTests'
 
 instance FromJSON UserUpdate where
     parseJSON = withObject "UserUpdate" $ \o ->
@@ -454,6 +480,13 @@ instance FromJSON HandleUpdate where
 
 instance ToJSON HandleUpdate where
     toJSON h = object ["handle" .= huHandle h]
+
+instance FromJSON ManagedByUpdate where
+    parseJSON = withObject "managed-by-update" $ \o ->
+        ManagedByUpdate <$> o .: "managed_by"
+
+instance ToJSON ManagedByUpdate where
+    toJSON m = object ["managed_by" .= mbuManagedBy m]
 
 instance FromJSON EmailRemove where
     parseJSON = withObject "email-remove" $ \o ->

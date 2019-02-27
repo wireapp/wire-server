@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
-
 module Brig.Provider.Template
     ( ProviderTemplates            (..)
     , ActivationEmailTemplate      (..)

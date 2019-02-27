@@ -1,18 +1,8 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DeriveFunctor              #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE TypeOperators              #-}
 
+-- | A "default" module for types used in Spar, unless there's a better / more specific place
+-- for them.
 module Spar.Types where
 
 import Imports
@@ -179,6 +169,7 @@ instance FromJSON (Opts' (Maybe ()))
 data DerivedOpts = DerivedOpts
     { derivedOptsBindCookiePath   :: !SBS
     , derivedOptsBindCookieDomain :: !SBS
+    , derivedOptsScimBaseURI      :: !URI
     }
   deriving (Show, Generic)
 

@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Cannon.Types

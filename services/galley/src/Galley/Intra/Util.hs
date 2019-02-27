@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Galley.Intra.Util
     ( brigReq
     , sparReq

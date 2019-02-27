@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
-
 module Brig.Team.Template
     ( TeamTemplates              (..)
     , InvitationEmailTemplate    (..)

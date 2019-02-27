@@ -1,8 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
-
 module Galley.Data.Queries where
 
 import Imports

@@ -1,6 +1,3 @@
-{-# LANGUAGE BangPatterns      #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module API (tests) where
 
 import Imports

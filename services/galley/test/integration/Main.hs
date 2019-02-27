@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric     #-}
-
 module Main (main) where
 
 import Imports hiding (local)

@@ -1,7 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
-
 module Galley.API.Query where
 
 import Imports

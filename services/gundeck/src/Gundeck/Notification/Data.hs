@@ -1,8 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns      #-}
-
 module Gundeck.Notification.Data
     ( ResultPage (..)
     , add

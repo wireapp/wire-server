@@ -1,16 +1,4 @@
-{-# LANGUAGE ConstraintKinds            #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE QuasiQuotes                #-}
-{-# LANGUAGE RankNTypes                 #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TupleSections              #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE ViewPatterns               #-}
 
 module Util.Types
   ( BrigReq

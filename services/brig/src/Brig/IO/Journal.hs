@@ -1,6 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
 {-# LANGUAGE RecordWildCards   #-}
 
 module Brig.IO.Journal

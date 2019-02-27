@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Gundeck.Util.Redis where
 
 import Imports

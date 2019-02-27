@@ -40,7 +40,7 @@ module Bilge.Request
     , Cookie      (..)
     , CookieJar
     , RequestBody (..)
-    , Rq.parseUrl
+    , Rq.parseRequest
     , Rq.applyBasicAuth
     , Rq.urlEncodedBody
     , Rq.getUri

@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
-
 module Brig.User.Template
     ( UserTemplates              (..)
     , ActivationSmsTemplate      (..)

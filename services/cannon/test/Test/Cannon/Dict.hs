@@ -1,5 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Test.Cannon.Dict where

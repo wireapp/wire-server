@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Brig.User.Handle.Blacklist (isBlacklistedHandle) where
 
 import Imports

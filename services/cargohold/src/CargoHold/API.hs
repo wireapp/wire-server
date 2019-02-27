@@ -1,7 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
-
 module CargoHold.API (runServer, parseOptions) where
 
 import Imports hiding (head)
@@ -14,6 +10,7 @@ import Data.Aeson (encode)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Metrics.Middleware hiding (metrics)
+import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Predicate
 import Data.Text (unpack)
 import Data.Text.Encoding (decodeLatin1)
@@ -50,7 +47,7 @@ runServer o = do
   where
     rtree      = compile sitemap
     server   e = defaultServer (unpack $ o^.optCargohold.epHost) (o^.optCargohold.epPort) (e^.appLogger) (e^.metrics)
-    pipeline e = measureRequests (e^.metrics) rtree
+    pipeline e = measureRequests (e^.metrics) (treeToPaths rtree)
                . catchErrors (e^.appLogger) (e^.metrics)
                . GZip.gzip GZip.def
                $ serve e
@@ -349,4 +346,3 @@ legacyDownloadPlain (usr ::: cnv ::: ast) = LegacyAPI.download usr cnv ast >>= r
 
 legacyDownloadOtr :: UserId ::: ConvId ::: AssetId -> Handler Response
 legacyDownloadOtr (usr ::: cnv ::: ast) = LegacyAPI.downloadOtr usr cnv ast >>= redirect
-

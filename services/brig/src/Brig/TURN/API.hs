@@ -1,10 +1,3 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE MultiWayIf        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
-
 module Brig.TURN.API (routes) where
 
 import Imports hiding (head)

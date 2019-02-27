@@ -1,12 +1,4 @@
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE QuasiQuotes         #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns        #-}
 
 module Test.Spar.DataSpec (spec) where
 
@@ -14,6 +6,7 @@ import Imports
 import Cassandra
 import Control.Lens
 import Control.Monad.Except
+import Data.Kind (Type)
 import Data.Text (unpack)
 import Data.Typeable
 import Data.UUID as UUID
@@ -32,6 +25,16 @@ import Web.Scim.Schema.Common as Scim.Common
 
 spec :: SpecWith TestEnv
 spec = do
+  describe "Cql rountrip" $ do
+    let check
+          :: forall a. (Cql a, Typeable a, Show a, Eq a)
+          => a -> SpecWith TestEnv
+        check x = it (show . typeRep $ (Proxy @a)) . liftIO $ do
+          (fromCql . toCql) x `shouldBe` Right x
+
+    check (mkXmlText "<>%&'\"")
+    -- FUTUREWORK: collect all Cql instance, make them Arbitrary instances, and do this right.
+
   describe "TTL" $ do
     it "works in seconds" $ do
       env <- ask
@@ -195,7 +198,7 @@ spec = do
 
 
 testSPStoreID
-  :: forall m a. (m ~ ReaderT Data.Env (ExceptT TTLError Client), Typeable a)
+  :: forall m (a :: Type). (m ~ ReaderT Data.Env (ExceptT TTLError Client), Typeable a)
   => (SAML.ID a -> SAML.Time -> m ())
   -> (SAML.ID a -> m ())
   -> (SAML.ID a -> m Bool)

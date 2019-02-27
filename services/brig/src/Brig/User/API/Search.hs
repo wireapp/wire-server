@@ -1,7 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
-
 module Brig.User.API.Search (routes) where
 
 import Imports

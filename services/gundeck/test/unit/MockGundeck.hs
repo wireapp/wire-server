@@ -1,18 +1,6 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase                 #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE TupleSections              #-}
-{-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
-{-# LANGUAGE ViewPatterns               #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -80,7 +68,7 @@ import qualified Network.URI as URI
 type Payload = List1 Aeson.Object
 
 data ClientInfo = ClientInfo
-    { _ciNativeAddress   :: Maybe (Address "no-keys", Bool{- reachable -})
+    { _ciNativeAddress   :: Maybe (Address, Bool{- reachable -})
     , _ciWSReachable     :: Bool
     }
   deriving (Eq, Show)
@@ -128,7 +116,7 @@ instance ToJSON ClientInfo where
     , "wsReachable" Aeson..= wsreach
     ]
 
-instance ToJSON (Address s) where
+instance ToJSON Address where
   toJSON adr = Aeson.object
     [ "user"      Aeson..= (adr ^. addrUser)
     , "transport" Aeson..= (adr ^. addrTransport)
@@ -155,15 +143,16 @@ instance FromJSON ClientInfo where
     <$> (cinfo Aeson..: "native")
     <*> (cinfo Aeson..: "wsReachable")
 
-instance FromJSON (Address s) where
+instance FromJSON Address where
   parseJSON = withObject "Address" $ \adr -> Address
     <$> (adr Aeson..: "user")
-    <*> (adr Aeson..: "transport")
-    <*> (adr Aeson..: "app")
-    <*> (adr Aeson..: "token")
     <*> (mkFakeAddrEndpoint <$> adr Aeson..: "endpoint")
     <*> (adr Aeson..: "conn")
-    <*> (adr Aeson..: "client")
+    <*> (pushToken
+          <$> (adr Aeson..: "transport")
+          <*> (adr Aeson..: "app")
+          <*> (adr Aeson..: "token")
+          <*> (adr Aeson..: "client"))
 
 mkFakeAddrEndpoint :: (Text, Transport, AppName) -> EndpointArn
 mkFakeAddrEndpoint (epid, transport, app) = Aws.mkSnsArn Tokyo (Account "acc") eptopic
@@ -270,9 +259,8 @@ genRecipient' env uid = do
     ]
   pure $ Recipient uid route cids
 
--- REFACTOR: see 'Route' type about missing 'RouteNative'.
 genRoute :: HasCallStack => Gen Route
-genRoute = QC.elements [RouteAny, RouteDirect]
+genRoute = QC.elements [minBound..]
 
 genId :: Gen (Id a)
 genId = do
@@ -282,14 +270,14 @@ genId = do
 genClientId :: Gen ClientId
 genClientId = newClientId <$> arbitrary
 
-genProtoAddress :: HasCallStack => UserId -> ClientId -> Gen (Address "no-keys")
+genProtoAddress :: HasCallStack => UserId -> ClientId -> Gen Address
 genProtoAddress _addrUser _addrClient = do
   _addrTransport :: Transport <- QC.elements [minBound..]
   arnEpId :: Text <- arbitrary
   let _addrApp = "AppName"
-      _addrToken = Token "tok"
       _addrEndpoint = mkFakeAddrEndpoint (arnEpId, _addrTransport, _addrApp)
       _addrConn = fakeConnId _addrClient
+      _addrPushToken = pushToken _addrTransport _addrApp (Token "tok") _addrClient
   pure Address {..}
 
 genPushes :: MockEnv -> Gen [Push]
@@ -408,7 +396,7 @@ instance MonadPushAll MockGundeck where
 
 instance MonadNativeTargets MockGundeck where
   mntgtLogErr _ = pure ()
-  mntgtLookupAddress = mockLookupAddress
+  mntgtLookupAddresses = mockLookupAddresses
   mntgtMapAsync f xs = Right <$$> mapM f xs  -- (no concurrency)
 
 instance MonadPushAny MockGundeck where
@@ -568,17 +556,17 @@ mockStreamAdd _ (toList -> targets) pay _ =
 
 mockPushNative
   :: (HasCallStack, m ~ MockGundeck)
-  => Notification -> Push -> [Address "no-keys"] -> m ()
+  => Notification -> Push -> [Address] -> m ()
 mockPushNative _nid ((^. pushPayload) -> payload) addrs = do
   env <- ask
   forM_ addrs $ \addr -> do
     when (nativeReachableAddr env addr) $ msNativeQueue %=
       deliver (addr ^. addrUser, addr ^. addrClient) payload
 
-mockLookupAddress
+mockLookupAddresses
   :: (HasCallStack, m ~ MockGundeck)
-  => UserId -> m [Address "no-keys"]
-mockLookupAddress uid = do
+  => UserId -> m [Address]
+mockLookupAddresses uid = do
   cinfos :: [ClientInfo]
     <- Map.elems .
        fromMaybe (error $ "mockLookupAddress: unknown UserId: " <> show uid) .
@@ -700,7 +688,7 @@ nativeReachable :: MockEnv -> (UserId, ClientId) -> Bool
 nativeReachable (MockEnv mp) (uid, cid) = maybe False (^. _2) $
   (Map.lookup uid >=> Map.lookup cid >=> (^. ciNativeAddress)) mp
 
-nativeReachableAddr :: MockEnv -> Address s -> Bool
+nativeReachableAddr :: MockEnv -> Address -> Bool
 nativeReachableAddr env addr = nativeReachable env (addr ^. addrUser, addr ^. addrClient)
 
 allUsers :: MockEnv -> [UserId]

@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module CargoHold.API.Error where
 
 import Imports

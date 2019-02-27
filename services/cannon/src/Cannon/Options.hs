@@ -1,11 +1,5 @@
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell            #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
-{-# LANGUAGE FlexibleInstances          #-}
 
 module Cannon.Options
     ( host

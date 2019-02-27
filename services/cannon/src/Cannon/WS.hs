@@ -1,6 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
 
 module Cannon.WS
     ( Env

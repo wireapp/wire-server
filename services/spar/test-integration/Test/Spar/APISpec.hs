@@ -1,14 +1,3 @@
-{-# LANGUAGE ConstraintKinds     #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE GADTs               #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE QuasiQuotes         #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns        #-}
-
 module Test.Spar.APISpec (spec) where
 
 import Imports hiding (head)
@@ -22,9 +11,9 @@ import Data.Id
 import Data.Proxy
 import Data.String.Conversions
 import Data.UUID as UUID hiding (null, fromByteString)
-import Data.UUID.V4 as UUID
 import SAML2.WebSSO as SAML
 import SAML2.WebSSO.Test.MockResponse
+import SAML2.WebSSO.Test.Lenses
 import Spar.API.Types
 import Spar.Types
 import URI.ByteString.QQ (uri)
@@ -38,7 +27,6 @@ import qualified Spar.Intra.Brig as Intra
 import qualified Util.Scim as ScimT
 import qualified Web.Cookie as Cky
 import qualified Web.Scim.Class.User as Scim
-import qualified Web.Scim.Schema.User as Scim
 
 
 spec :: SpecWith TestEnv
@@ -74,19 +62,6 @@ specMisc = do
       it "spar /i/status" $ do
         env <- ask
         ping (env ^. teSpar) `shouldRespondWith` (== ())
-
-
-    describe "metrics" $ do
-      it "spar /i/monitoring" $ do
-        env <- ask
-        get ((env ^. teSpar) . path "/metrics")
-          `shouldRespondWith` (\(responseBody -> Just (cs -> bdy)) -> all (`isInfixOf` bdy)
-                                [ "http_request_duration_seconds_bucket"
-                                , "handler="
-                                , "method="
-                                , "status_code="
-                                , "le="
-                                ])
 
 
     describe "rule do disallow http idp urls." $ do
@@ -189,21 +164,72 @@ specFinalizeLogin = do
             bdy `shouldContain` "}, receiverOrigin)"
             hasPersistentCookieHeader sparresp `shouldBe` Left "no set-cookie header"
 
+        context "user has been deleted" $ do
+          it "responds with 'forbidden'" $ do
+            pendingWith "or do we want to un-delete the user?  or create a new one?"
+
       context "access granted" $ do
-        it "responds with a very peculiar 'allowed' HTTP response" $ do
-          (_, _, idp) <- registerTestIdP
-          (privcreds, authnreq) <- negotiateAuthnRequest idp
-          spmeta <- getTestSPMetadata
-          authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
-          sparresp <- submitAuthnResponse authnresp
-          liftIO $ do
-            statusCode sparresp `shouldBe` 200
-            let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
-            bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-            bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
-            bdy `shouldContain` "<title>wire:sso:success</title>"
-            bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
-            hasPersistentCookieHeader sparresp `shouldBe` Right ()
+        let loginSuccess :: HasCallStack => ResponseLBS -> TestSpar ()
+            loginSuccess sparresp = liftIO $ do
+              statusCode sparresp `shouldBe` 200
+              let bdy = maybe "" (cs @LBS @String) (responseBody sparresp)
+              bdy `shouldContain` "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+              bdy `shouldContain` "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\" \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">"
+              bdy `shouldContain` "<title>wire:sso:success</title>"
+              bdy `shouldContain` "window.opener.postMessage({type: 'AUTH_SUCCESS'}, receiverOrigin)"
+              hasPersistentCookieHeader sparresp `shouldBe` Right ()
+
+        context "happy flow" $ do
+          it "responds with a very peculiar 'allowed' HTTP response" $ do
+            (_, _, idp) <- registerTestIdP
+            spmeta <- getTestSPMetadata
+            (privcreds, authnreq) <- negotiateAuthnRequest idp
+            authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
+            loginSuccess =<< submitAuthnResponse authnresp
+
+        context "user is created once, then deleted in team settings, then can login again." $ do
+          it "responds with 'allowed'" $ do
+            (ownerid, teamid, idp) <- registerTestIdP
+            spmeta <- getTestSPMetadata
+
+            -- first login
+            newUserAuthnResp :: SignedAuthnResponse <- do
+              (privcreds, authnreq) <- negotiateAuthnRequest idp
+              authnresp <- runSimpleSP $ mkAuthnResponse privcreds idp spmeta authnreq True
+              loginSuccess =<< submitAuthnResponse authnresp
+              pure $ authnresp
+
+            let newUserRef@(UserRef _ subj) = either (error . show) (^. userRefL) $
+                  parseFromDocument (fromSignedAuthnResponse newUserAuthnResp)
+
+            -- remove user from team settings
+            do
+              env <- ask
+              newUserId <- getUserIdViaRef newUserRef
+              _ <- call . get $
+                ( (env ^. teGalley)
+                . header "Z-User" (toByteString' ownerid)
+                . header "Z-Connection" "fake"
+                . paths ["teams", toByteString' teamid, "members"]
+                . expect2xx
+                )
+              void . call . delete $
+                ( (env ^. teGalley)
+                . header "Z-User" (toByteString' ownerid)
+                . header "Z-Connection" "fake"
+                . paths ["teams", toByteString' teamid, "members", toByteString' newUserId]
+                . Bilge.json (Galley.newTeamMemberDeleteData (Just defPassword))
+                . expect2xx
+                )
+              liftIO $ threadDelay 100000  -- make sure deletion is done.  if we don't want to take
+                                           -- the time, we should find another way to robustly
+                                           -- confirm that deletion has compelted in the background.
+
+            -- second login
+            do
+              (privcreds, authnreq) <- negotiateAuthnRequest idp
+              authnresp <- runSimpleSP $ mkAuthnResponseWithSubj subj privcreds idp spmeta authnreq True
+              loginSuccess =<< submitAuthnResponse authnresp
 
         context "unknown user" $ do
           it "creates the user" $ do
@@ -351,7 +377,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
             :: HasCallStack => (Cky.Cookies -> Maybe Cky.Cookies)
             -> UserId -> IdP -> TestSpar (NameID, SignedAuthnResponse, ResponseLBS)
           initialBind' tweakcookies uid idp = do
-            subj <- SAML.opaqueNameID . UUID.toText <$> liftIO UUID.nextRandom
+            subj <- nextSubject
             (authnResp, sparAuthnResp) <- reBindSame' tweakcookies uid idp subj
             pure (subj, authnResp, sparAuthnResp)
 
@@ -638,12 +664,13 @@ specScimAndSAML = do
 
       -- create a user via scim
       (tok, (_, _, idp))                <- ScimT.registerIdPAndScimToken
-      usr            :: Scim.User       <- ScimT.randomScimUser
+      (usr, subj)                       <- ScimT.randomScimUserWithSubject
       scimStoredUser :: Scim.StoredUser <- ScimT.createUser tok usr
       let userid     :: UserId           = ScimT.scimUserId scimStoredUser
           userref    :: UserRef          = UserRef tenant subject
           tenant     :: Issuer           = idp ^. idpMetadata . edIssuer
-          subject    :: NameID           = opaqueNameID . fromMaybe (error "no external id") . Scim.externalId $ usr
+          subject    :: NameID           = either (error . show) id $
+                                           mkNameID subj Nothing Nothing Nothing
 
       -- UserRef maps onto correct UserId in spar (and back).
       userid' <- getUserIdViaRef' userref

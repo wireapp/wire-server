@@ -1,6 +1,3 @@
-{-# LANGUAGE BangPatterns      #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module API.MessageTimer (tests) where
 
 import Imports hiding (head)

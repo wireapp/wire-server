@@ -1,14 +1,3 @@
-{-# LANGUAGE ConstraintKinds   #-}
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE MultiWayIf        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE TypeFamilies      #-}
-{-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE ViewPatterns      #-}
-
 module Galley.API.Update
     ( -- * Managing Conversations
       updateConversation

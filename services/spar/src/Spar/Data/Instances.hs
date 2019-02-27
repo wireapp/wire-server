@@ -1,10 +1,18 @@
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Spar.Data.Instances where
+-- | 'Cql' instances for Spar types, as well as conversion functions used in "Spar.Data"
+-- (which does the actual database work).
+module Spar.Data.Instances
+    (
+      -- * Raw database types
+      VerdictFormatRow
+    , VerdictFormatCon(..)
+      -- ** Conversions
+    , fromVerdictFormat
+    , toVerdictFormat
+    ) where
 
 import Imports
 import Cassandra as Cas
@@ -15,28 +23,37 @@ import Spar.Types
 import Text.XML.DSig (renderKeyInfo, parseKeyInfo)
 import URI.ByteString
 
+import qualified Data.Aeson as Aeson
 import qualified SAML2.WebSSO as SAML
+import qualified Web.Scim.Class.User as Scim
 
+
+instance Cql SAML.XmlText where
+    ctype = Tagged TextColumn
+    toCql = CqlText . SAML.unsafeFromXmlText
+
+    fromCql (CqlText t) = pure $ SAML.mkXmlText t
+    fromCql _           = fail "XmlText: expected CqlText"
 
 instance Cql (SignedCertificate) where
     ctype = Tagged BlobColumn
     toCql = CqlBlob . cs . renderKeyInfo
 
-    fromCql (CqlBlob t) = parseKeyInfo (cs t)
+    fromCql (CqlBlob t) = parseKeyInfo False (cs t)
     fromCql _           = fail "SignedCertificate: expected CqlBlob"
 
 instance Cql (URIRef Absolute) where
     ctype = Tagged TextColumn
     toCql = CqlText . SAML.renderURI
 
-    fromCql (CqlText t) = parseURI' $ t
+    fromCql (CqlText t) = parseURI' t
     fromCql _           = fail "URI: expected CqlText"
 
 instance Cql SAML.NameID where
     ctype = Tagged TextColumn
     toCql = CqlText . cs . SAML.encodeElem
 
-    fromCql (CqlText t) = SAML.decodeElem . cs $ t
+    fromCql (CqlText t) = SAML.decodeElem (cs t)
     fromCql _           = fail "NameID: expected CqlText"
 
 deriving instance Cql SAML.Issuer
@@ -68,3 +85,9 @@ toVerdictFormat (VerdictFormatConMobile, Just succredir, Just errredir) = Just $
 toVerdictFormat _                                                       = Nothing
 
 deriving instance Cql ScimToken
+instance Cql Scim.StoredUser where
+    ctype = Tagged BlobColumn
+    toCql = CqlBlob . Aeson.encode
+
+    fromCql (CqlBlob t) = Aeson.eitherDecode t
+    fromCql _           = fail "Scim.StoredUser: expected CqlBlob"

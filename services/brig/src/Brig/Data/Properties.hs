@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Brig.Data.Properties
     ( PropertiesDataError (..)
     , insertProperty

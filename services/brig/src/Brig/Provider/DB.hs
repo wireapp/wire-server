@@ -1,6 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Brig.Provider.DB where
 
 import Imports

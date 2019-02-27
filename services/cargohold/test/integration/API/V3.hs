@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module API.V3 where
 
 import Imports hiding (head)

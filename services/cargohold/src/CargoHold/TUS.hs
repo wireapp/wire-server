@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module CargoHold.TUS
     ( createdResponse
     , headResponse

@@ -1,7 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE LambdaCase   #-}
-{-# LANGUAGE ViewPatterns #-}
-
 module Gundeck.Util.DelayQueue
     ( DelayQueue
     , Clock (..)

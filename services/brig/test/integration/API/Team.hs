@@ -1,10 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections     #-}
-{-# LANGUAGE TypeApplications  #-}
-{-# LANGUAGE ViewPatterns      #-}
-
 module API.Team (tests) where
 
 import Imports
@@ -237,7 +230,7 @@ testCreateTeam brig galley aws = do
 testCreateTeamPreverified :: Brig -> Galley -> AWS.Env -> Http ()
 testCreateTeamPreverified brig galley aws = do
     email <- randomEmail
-    requestActivationCode brig (Left email)
+    requestActivationCode brig 200 (Left email)
     act <- getActivationCode brig (Left email)
     case act of
         Nothing     -> liftIO $ assertFailure "activation key/code not found"

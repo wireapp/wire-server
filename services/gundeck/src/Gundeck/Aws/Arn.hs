@@ -1,6 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE TemplateHaskell            #-}
 
 module Gundeck.Aws.Arn
     ( ArnEnv     (..)

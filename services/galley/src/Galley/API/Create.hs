@@ -1,9 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE MultiWayIf        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Galley.API.Create
     ( createGroupConversation
     , internalCreateManagedConversation

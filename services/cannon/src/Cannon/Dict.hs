@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Cannon.Dict
     ( Dict
     , empty

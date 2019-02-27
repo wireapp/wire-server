@@ -1,6 +1,3 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Native where
 
 import Imports
@@ -133,21 +130,18 @@ randNotif size = do
         let pload = List1.singleton (HashMap.fromList ["data" .= v])
         Notification i <$> arbitrary <*> pure pload
 
-randMessage :: Notification -> IO (Message "keys")
-randMessage n = pure $ Notice (ntfId n) HighPriority Nothing
+randMessage :: Notification -> IO NativePush
+randMessage n = pure $ NativePush (ntfId n) HighPriority Nothing
 
 -----------------------------------------------------------------------------
 -- Utilities
 
-mkAddress :: Transport -> IO (Address "keys")
+mkAddress :: Transport -> IO Address
 mkAddress t = Address
     <$> randomId
-    <*> pure t
-    <*> pure (AppName "test")
-    <*> pure (Token "test")
     <*> pure (mkEndpoint t (AppName "test"))
     <*> pure (ConnId "conn")
-    <*> pure (ClientId "client")
+    <*> pure (pushToken t (AppName "test") (Token "test") (ClientId "client"))
 
 mkEndpoint :: Transport -> AppName -> EndpointArn
 mkEndpoint t a = mkSnsArn Ireland (Account "test") topic

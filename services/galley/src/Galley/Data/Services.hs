@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Galley.Data.Services
     ( -- * BotMember
       BotMember

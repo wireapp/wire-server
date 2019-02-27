@@ -1,23 +1,13 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedLists            #-}
-{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PackageImports             #-}
-{-# LANGUAGE QuasiQuotes                #-}
-{-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE RecordWildCards            #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE StandaloneDeriving         #-}
-{-# LANGUAGE TypeApplications           #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE TypeOperators              #-}
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-module Spar.API.Swagger where
+-- | Swagger instances for Spar types (as well as some types that are used in Spar but not
+-- defined in Spar).
+module Spar.API.Swagger () where
 
 import Imports
 import Control.Lens
@@ -85,6 +75,9 @@ Centrify allows you to upload the metadata xml document that you get from the `/
 -- for 'ToJSON' instances elsewhere.
 samlSchemaOptions :: SchemaOptions
 samlSchemaOptions = Swagger.fromAesonOptions SAML.deriveJSONOptions
+
+instance ToSchema SAML.XmlText where
+  declareNamedSchema = genericDeclareNamedSchema samlSchemaOptions
 
 instance ToParamSchema (Id a) where
   toParamSchema _ = toParamSchema (Proxy @UUID)

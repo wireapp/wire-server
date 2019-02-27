@@ -1,10 +1,4 @@
-{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE UndecidableInstances       #-}
 
 module Gundeck.Monad
     ( -- * Environment

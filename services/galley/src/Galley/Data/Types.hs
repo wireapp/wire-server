@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData        #-}
 
 module Galley.Data.Types

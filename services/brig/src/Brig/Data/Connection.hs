@@ -1,7 +1,4 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 module Brig.Data.Connection
     ( module T

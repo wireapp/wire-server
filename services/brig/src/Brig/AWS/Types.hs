@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
-
 module Brig.AWS.Types
     ( -- * SES Notification
       SESNotification (..)

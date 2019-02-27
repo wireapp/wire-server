@@ -1,10 +1,3 @@
-{-# LANGUAGE BangPatterns        #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns        #-}
-
 module Proxy.API (Proxy.API.run) where
 
 import Imports hiding (head)
@@ -14,6 +7,7 @@ import Control.Retry
 import Data.ByteString (breakSubstring)
 import Data.CaseInsensitive (CI)
 import Data.Metrics.Middleware hiding (path)
+import Data.Metrics.WaiRoute (treeToPaths)
 import Network.HTTP.ReverseProxy
 import Network.HTTP.Types
 import Network.Wai
@@ -45,7 +39,7 @@ run o = do
     e <- createEnv m o
     s <- newSettings $ defaultServer (o^.host) (o^.port) (e^.applog) m
     let rtree    = compile (sitemap e)
-    let measured = measureRequests m rtree
+    let measured = measureRequests m (treeToPaths rtree)
     let app r k  = runProxy e r (route rtree r k)
     let start    = measured . catchErrors (e^.applog) m $ app
     runSettings s start `finally` destroyEnv e

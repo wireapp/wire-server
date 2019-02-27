@@ -1,9 +1,3 @@
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE MultiWayIf        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes        #-}
-{-# LANGUAGE TupleSections     #-}
-
 module CargoHold.API.V3
     ( upload
     , download

@@ -1,6 +1,4 @@
-{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 module Brig.User.Phone
     ( ActivationSms (..)

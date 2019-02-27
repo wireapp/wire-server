@@ -1,7 +1,3 @@
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Brig.API.Handler
     ( -- * Handler Monad
       Handler

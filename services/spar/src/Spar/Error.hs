@@ -1,8 +1,12 @@
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
+-- | Error reporting in Spar.
+--
+-- All errors we throw are 'SparError's.
+--
+-- FUTUREWORK: since SCIM errors have their own format, the whole SCIM API subtree just wraps
+-- errors into 'SAML.CustomServant'. This could be reworked by creating a new branch in
+-- 'SparCustomError'.
 module Spar.Error
   ( SparError
   , SparCustomError(..)
@@ -49,6 +53,7 @@ data SparCustomError
   | SparNoBodyInBrigResponse
   | SparCouldNotParseBrigResponse LT
   | SparBrigError LT
+  | SparBrigErrorWith Status LT
   | SparNoBodyInGalleyResponse
   | SparCouldNotParseGalleyResponse LT
   | SparGalleyError LT
@@ -92,6 +97,7 @@ sparToWaiError (SAML.CustomError (SparBadUserName msg))                   = Righ
 sparToWaiError (SAML.CustomError SparNoBodyInBrigResponse)                = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
 sparToWaiError (SAML.CustomError (SparCouldNotParseBrigResponse msg))     = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)
 sparToWaiError (SAML.CustomError (SparBrigError msg))                     = Right $ Wai.Error status500 "bad-upstream" msg
+sparToWaiError (SAML.CustomError (SparBrigErrorWith status msg))          = Right $ Wai.Error status "bad-upstream" msg
 -- Galley-specific errors
 sparToWaiError (SAML.CustomError SparNoBodyInGalleyResponse)              = Right $ Wai.Error status502 "bad-upstream" "Failed to get a response from an upstream server."
 sparToWaiError (SAML.CustomError (SparCouldNotParseGalleyResponse msg))   = Right $ Wai.Error status502 "bad-upstream" ("Could not parse response body: " <> msg)

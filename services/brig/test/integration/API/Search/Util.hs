@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module API.Search.Util where
 
 import Imports

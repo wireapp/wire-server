@@ -1,8 +1,4 @@
-{-# LANGUAGE FunctionalDependencies     #-}
-{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE OverloadedStrings          #-}
 
 module Brig.Options where
 

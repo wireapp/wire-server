@@ -1,8 +1,3 @@
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE TupleSections       #-}
-
 module API.User.Onboarding (tests) where
 
 import Imports

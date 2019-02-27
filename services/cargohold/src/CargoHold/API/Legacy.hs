@@ -1,6 +1,3 @@
-{-# LANGUAGE FlexibleContexts  #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 -- Legacy:
 module CargoHold.API.Legacy
     ( download

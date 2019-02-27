@@ -1,6 +1,3 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
-
 module Gundeck.Notification
     ( paginate
     , getById
