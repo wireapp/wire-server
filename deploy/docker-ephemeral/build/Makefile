@@ -55,7 +55,7 @@ endif
 # these targets won't build on the system emulators for these arches. working with the qemu team to fix. they think it might be https://bugs.launchpad.net/qemu/+bug/1813398 .
 BADARCHSIM    := localstack-arm32v6 java_maven_node_python-arm32v6
 
-# set the targets, depending on the distro base specified. this is so that the debian images are built for all of the debian arches, and the alpine images for it's arches.
+# set the targets, depending on the distro base specified. this is so that the debian images are built for all of the debian arches, and the alpine images for its arches.
 ifeq ($(DIST),DEBIAN)
   ARCHES=$(DEBARCHES)
   NAMES=$(DEBNAMES)
