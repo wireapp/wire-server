@@ -76,8 +76,7 @@ emailSMS:
     templateBranding:
       brand: Wire
       brandUrl: https://wire.com
-      brandLabel: wire.com
-      brandLabelUrl: https://wire.com
+      brandLabelUrl: wire.com # This is the text in the label for the above URL
       brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
       brandService: Wire Service Provider
       copyright: © WIRE SWISS GmbH
