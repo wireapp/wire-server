@@ -80,7 +80,7 @@ apiScim :: ServerT APIScim Spar
 apiScim = hoistScim (toServant (Scim.siteServer configuration))
      :<|> apiScimToken
   where
-    hoistScim = hoistServer (Proxy @(Scim.SiteAPI ScimToken))
+    hoistScim = hoistServer (Proxy @(Scim.SiteAPI ScimToken ScimUserExtra))
                             (Scim.fromScimHandler fromError)
     fromError = throwError . SAML.CustomServant . Scim.scimToServantErr
 

@@ -155,6 +155,8 @@ data Opts' a = Opts
     , maxttlAuthresp :: !(TTL "authresp")
     -- | The maximum number of SCIM tokens that we will allow teams to have.
     , maxScimTokens  :: !Int
+    -- | The maximum size of rich info. Should be in sync with 'Brig.Types.richInfoLimit'.
+    , richInfoLimit  :: !Int
     -- | Wire/AWS specific; optional; used to discover Cassandra instance
     -- IPs using describe-instances.
     , discoUrl       :: !(Maybe Text)
