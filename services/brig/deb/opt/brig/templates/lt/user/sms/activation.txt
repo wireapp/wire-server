@@ -1,3 +1,3 @@
-Your ${brand} code is ${code}.
+Jūsų ${brand} kodas yra ${code}.
 
-Atvėrę ${url} galėsite patvirtinti savo numerį.
+Atverkite ${url} norėdami patvirtinti savo numerį.

@@ -3,21 +3,21 @@
 ${brand_label_url} [${brand_url}]
 
 IŠTRINTI JŪSŲ PASKYRĄ
-We’ve received a request to delete your ${brand} account. Norėdami ištrinti
-visus savo pokalbius, visą turinį ir ryšius, 10 minučių bėgyje spustelėkite
-žemiau esantį mygtuką.
+Mes gavome užklausą ištrinti jūsų ${brand} paskyrą. Norėdami ištrinti visus savo
+pokalbius, visą turinį ir ryšius, 10 minučių bėgyje spustelėkite žemiau esantį
+mygtuką.
 
 Ištrinti paskyrą [${url}]Jeigu negalite spustelėti ant mygtuko, nukopijuokite ir
 įdėkite šią nuorodą į savo naršyklę:
 
 ${url}
 
-If you didn’t request this, reset your password [${forgot}].
+Jeigu jūs nebuvote to užklausę, atstatykite savo slaptažodį [${forgot}].
 
 If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privacy [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Privatumas [${legal}] · Pranešti apie piktnaudžiavimą [${misuse}]
+${copyright}. VISOS TEISĖS SAUGOMOS.

@@ -12,12 +12,13 @@ et collez ce lien dans votre navigateur :
 
 ${url}
 
-If you didn’t request this, reset your password [${forgot}].
+Si vous n'êtes pas à l'origine de cette demande, réinitialisez votre mot de
+passe [${forgot}].
 
-If you have any questions, please contact us [${support}].
+Si vous avez des questions, veuillez contactez-nous [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privacy [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Confidentialité [${legal}] · Report Misuse [${misuse}]
+${copyright}. TOUTES DROITS RESERVED.

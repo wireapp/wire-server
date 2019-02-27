@@ -10,13 +10,13 @@ ${date}
 ${model}
 
 Il se peut que vous ayez installé ${brand} sur un nouvel appareil ou réinstallé
-sur le même. If that was not the case, go to ${brand} Settings, remove the
-device and reset your password [${forgot}].
+sur le même. Si ce n'était pas le cas, allez dans les paramètres de ${brand},
+retirez cet appareil et réinitialisez votre mot de passe [${forgot}].
 
-If you have any questions, please contact us [${support}].
+Si vous avez des questions, veuillez contactez-nous [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privacy [${legal}] · Report Misuse [${misuse}]
-${copyright}. ALL RIGHTS RESERVED.
+Confidentialité [${legal}] · Report Misuse [${misuse}]
+${copyright}. TOUTES DROITS RESERVED.
