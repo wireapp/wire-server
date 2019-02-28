@@ -1,1 +1,1 @@
-Du bist einem Team auf Wire beigetreten
+Du bist einem Team auf ${brand} beigetreten

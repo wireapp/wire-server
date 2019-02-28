@@ -142,7 +142,7 @@ copy_nginz_configs
 if [ "$docker_deployment" = "false" ]; then
     run_haskell_service brig ${green}
     run_haskell_service galley ${yellow}
-    run_haskell_service gundeck ${blue} Info
+    run_haskell_service gundeck ${blue}
     run_haskell_service cannon ${orange}
     run_haskell_service cargohold ${purpleish} Info
     run_haskell_service proxy ${redish} Info

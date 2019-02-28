@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 -- | Common templating utilities.
 module Brig.Template
     ( -- * Reading templates
@@ -10,6 +12,10 @@ module Brig.Template
       -- * Rendering templates
     , renderText
     , renderHtml
+    , renderTextWithBranding
+    , renderHtmlWithBranding
+    , genTemplateBranding
+    , TemplateBranding
 
       -- * Re-exports
     , Template
@@ -17,6 +23,7 @@ module Brig.Template
     ) where
 
 import Imports hiding (readFile)
+import Brig.Options
 import Brig.Types (Locale (..), parseLocale, locToText)
 import Control.Exception (catchJust)
 import Data.Text (pack, unpack)
@@ -29,6 +36,9 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy     as Lazy
 import qualified Data.Text.Template as Template
 import qualified HTMLEntities.Text  as HTML
+
+-- | See 'genTemplateBranding'.
+type TemplateBranding = Text -> Text
 
 -- | Localised templates.
 data Localised a = Localised
@@ -105,11 +115,23 @@ readText f = catchJust (\e -> if isDoesNotExistError e then Just () else Nothing
                        (readFile f)
                        (\_ -> error $ "Missing file: '" ++ f)
 
+-- | Uses a replace and a branding function, to replaces all placeholders from the
+-- given template to produce a Text. To be used on plain text templates
+renderTextWithBranding :: Template -> (Text -> Text) -> TemplateBranding -> Lazy.Text
+renderTextWithBranding tpl replace branding = renderText tpl (replace . branding)
+
+-- | Uses a replace and a branding function to replace all placeholders from the
+-- given template to produce a Text. To be used on HTML templates
+renderHtmlWithBranding :: Template -> (Text -> Text) -> TemplateBranding -> Lazy.Text
+renderHtmlWithBranding tpl replace branding = renderHtml tpl (replace . branding)
+
+-- TODO: Do not export this function
 renderText :: Template -> (Text -> Text) -> Lazy.Text
 renderText = Template.render
 
+-- TODO: Do not export this function
 renderHtml :: Template -> (Text -> Text) -> Lazy.Text
-renderHtml tpl f = renderText tpl (HTML.text . f)
+renderHtml tpl replace = renderText tpl (HTML.text . replace)
 
 readWithDefault :: (String -> IO a)
                 -> FilePath
@@ -131,3 +153,21 @@ readWithDefault readFn baseDir defLoc typ prefix name = do
             <> unpack (locToText defLoc) <> "/"
             <> typ <> "/"
             <> name
+
+-- | Function to be applied everywhere where email/sms/call
+-- templating is used (ensures that placeholders are replaced
+-- by the appropriate branding, typically Wire)
+genTemplateBranding :: BrandingOpts -> TemplateBranding
+genTemplateBranding BrandingOpts{..} = fn
+  where
+    fn "brand"           = brand
+    fn "brand_url"       = brandUrl
+    fn "brand_label_url" = brandLabelUrl
+    fn "brand_logo"      = brandLogoUrl
+    fn "brand_service"   = brandService
+    fn "copyright"       = copyright
+    fn "misuse"          = misuse
+    fn "legal"           = legal
+    fn "forgot"          = forgot
+    fn "support"         = support
+    fn other             = other

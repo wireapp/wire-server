@@ -1,1 +1,1 @@
-Dein Wire-Benutzerkonto
+Dein ${brand}-Benutzerkonto

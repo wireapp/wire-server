@@ -1,20 +1,22 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
 KUSTUTA KONTO
-Saime päringu su Wire konto kustutada. Kogu kontoga seotud info kustutamise
-kinnitamiseks kliki kümne minuti jooksul alloleval lingil.
+We’ve received a request to delete your ${brand} account. Kogu kontoga seotud
+info kustutamise kinnitamiseks kliki kümne minuti jooksul alloleval lingil.
 
 Kustuta konto [${url}]Kui sul pole võimalik nuppu klikkida, siis kopeeri allolev
 aadress veebibrauserisse:
 
 ${url}
 
-Kui see polnud sina, kes konto kustutamise tellis, siis soovitame kindlasti 
-parooli ära muuta [https://account.wire.com/forgot/].
+If you didn’t request this, reset your password [${forgot}].
 
-Küsimuste korral võtke ühendust [https://support.wire.com/hc/en-us/requests/new]
-.
+If you have any questions, please contact us [${support}].
 
 
 --------------------------------------------------------------------------------
 
-Privaatsus [https://wire.com/legal/] · Klienditugi [misuse@wire.com]
-© WIRE SWISS GmbH. Kõik õigused kaitstud.
+Privacy [${legal}] · Report Misuse [${misuse}]
+${copyright}. ALL RIGHTS RESERVED.

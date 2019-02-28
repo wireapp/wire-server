@@ -17,8 +17,6 @@ import Data.String.Conversions (cs, LBS, ST)
 import Data.Text.Ascii()
 
 import qualified Data.Aeson                      as JSON
-import qualified Data.Aeson.Parser               as JSON
-import qualified Data.Attoparsec.ByteString.Lazy as P
 
 deriving instance Cql Name
 deriving instance Cql Handle
@@ -175,7 +173,9 @@ instance Cql PrekeyId where
 instance Cql PropertyValue where
     ctype = Tagged BlobColumn
     toCql = toCql . Blob . JSON.encode . propertyValueJson
-    fromCql (CqlBlob v)  = note "Failed to read property value" $ fmap PropertyValue (P.maybeResult (P.parse JSON.value v))
+    fromCql (CqlBlob v)  = case JSON.eitherDecode v of
+        Left e -> fail ("Failed to read property value: " <> e)
+        Right x -> pure (PropertyValue x)
     fromCql _            = fail "PropertyValue: Blob expected"
 
 instance Cql Country where
@@ -205,3 +205,9 @@ instance Cql ManagedBy where
 
     toCql ManagedByWire = CqlInt 0
     toCql ManagedByScim = CqlInt 1
+
+instance Cql RichInfo where
+    ctype = Tagged BlobColumn
+    toCql = toCql . Blob . JSON.encode
+    fromCql (CqlBlob v) = JSON.eitherDecode v
+    fromCql _           = fail "RichInfo: Blob expected"

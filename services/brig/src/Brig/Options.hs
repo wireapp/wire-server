@@ -89,13 +89,30 @@ instance FromJSON InternalEventsOpts where
         InternalEventsOpts <$> parseJSON (Y.Object o)
 
 data EmailSMSGeneralOpts = EmailSMSGeneralOpts
-    { templateDir :: !FilePath  -- ^ Email, SMS, ... template directory
-    , emailSender :: !Email     -- ^ Email sender address
-    , smsSender   :: !Text      -- ^ Twilio sender identifier (number or
-                                --   messaging service ID)
+    { templateDir      :: !FilePath     -- ^ Email, SMS, ... template directory
+    , emailSender      :: !Email        -- ^ Email sender address
+    , smsSender        :: !Text         -- ^ Twilio sender identifier (number or
+                                        --   messaging service ID)
+    , templateBranding :: !BrandingOpts -- ^ Customizable branding text for
+                                        --   emails/sms/calls
     } deriving (Show, Generic)
 
 instance FromJSON EmailSMSGeneralOpts
+
+data BrandingOpts = BrandingOpts
+    { brand         :: !Text
+    , brandUrl      :: !Text
+    , brandLabelUrl :: !Text
+    , brandLogoUrl  :: !Text
+    , brandService  :: !Text
+    , copyright     :: !Text
+    , misuse        :: !Text
+    , legal         :: !Text
+    , forgot        :: !Text
+    , support       :: !Text
+    } deriving (Show, Generic)
+
+instance FromJSON BrandingOpts
 
 data EmailUserOpts = EmailUserOpts
     { activationUrl     :: !Text  -- ^ Activation URL template
@@ -225,6 +242,9 @@ data Settings = Settings
                                             --   it is renewed during token refresh
     , setUserCookieLimit       :: !Int      -- ^ Max. # of cookies per user and cookie type
     , setUserCookieThrottle    :: !CookieThrottle -- ^ Throttling settings
+    , setRichInfoLimit         :: !Int     -- ^ Max size of rich info (number of chars in
+                                           --   field names and values), should be in sync
+                                           --   with Spar
     , setDefaultLocale         :: !Locale  -- ^ Default locale to use
                                            --   (e.g. when selecting templates)
     , setMaxTeamSize           :: !Word16  -- ^ Max. # of members in a team.

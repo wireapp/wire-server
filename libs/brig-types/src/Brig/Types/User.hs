@@ -17,7 +17,6 @@ import Brig.Types.Activation (ActivationCode)
 import Brig.Types.Common as C
 import Brig.Types.User.Auth (CookieLabel)
 import Data.Aeson
-import Data.Aeson.Types (Parser, Pair)
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Json.Util ((#), UTCTimeMillis)
@@ -29,8 +28,10 @@ import Galley.Types.Bot (ServiceRef)
 import Galley.Types.Teams hiding (userId)
 
 import qualified Brig.Types.Code     as Code
+import qualified Data.Aeson.Types    as Aeson
 import qualified Data.Currency       as Currency
 import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Text           as Text
 
 -----------------------------------------------------------------------------
 -- User Attributes
@@ -40,7 +41,7 @@ newtype Pict = Pict { fromPict :: [Object] }
     deriving (Eq, Show, ToJSON)
 
 instance FromJSON Pict where
-    parseJSON x = Pict . fromRange <$> (parseJSON x :: Parser (Range 0 10 [Object]))
+    parseJSON x = Pict . fromRange @0 @10 <$> parseJSON x
 
 noPict :: Pict
 noPict = Pict []
@@ -235,6 +236,79 @@ instance FromJSON SelfProfile where
 instance ToJSON SelfProfile where
     toJSON (SelfProfile u) = toJSON u
 
+----------------------------------------------------------------------------
+-- Rich info
+
+data RichInfo = RichInfo
+    { richInfoFields :: ![RichField]  -- ^ An ordered list of fields
+    }
+    deriving (Eq, Show)
+
+instance ToJSON RichInfo where
+    toJSON u = object
+        [ "fields" .= richInfoFields u
+        , "version" .= (0 :: Int)
+        ]
+
+instance FromJSON RichInfo where
+    parseJSON = withObject "RichInfo" $ \o -> do
+        version :: Int <- o .: "version"
+        case version of
+            0 -> do
+                fields <- o .: "fields"
+                checkDuplicates (map richFieldType fields)
+                pure (RichInfo fields)
+            _ -> fail ("unknown version: " <> show version)
+      where
+        checkDuplicates :: [Text] -> Aeson.Parser ()
+        checkDuplicates xs =
+            case filter ((> 1) . length) . group . sort $ xs of
+                [] -> pure ()
+                ds -> fail ("duplicate fields: " <> show (map head ds))
+
+data RichField = RichField
+    { richFieldType  :: !Text
+    , richFieldValue :: !Text
+    }
+    deriving (Eq, Show)
+
+instance ToJSON RichField where
+    -- NB: "name" would be a better name for 'richFieldType', but "type" is used because we
+    -- also have "type" in SCIM; and the reason we use "type" for SCIM is that @{"type": ...,
+    -- "value": ...}@ is how all other SCIM payloads are formatted, so it's quite possible
+    -- that some provisioning agent would support "type" but not "name".
+    toJSON u = object
+        [ "type" .= richFieldType u
+        , "value" .= richFieldValue u
+        ]
+
+instance FromJSON RichField where
+    parseJSON = withObject "RichField" $ \o -> do
+        RichField
+            <$> o .: "type"
+            <*> o .: "value"
+
+-- | Empty rich info, returned for users who don't have rich info set.
+emptyRichInfo :: RichInfo
+emptyRichInfo = RichInfo
+    { richInfoFields = []
+    }
+
+-- | Calculate the length of user-supplied data in 'RichInfo'. Used for enforcing
+-- 'setRichInfoLimit'
+--
+-- NB: we could just calculate the length of JSON-encoded payload, but it is fragile because
+-- if our JSON encoding changes, existing payloads might become unacceptable.
+richInfoSize :: RichInfo -> Int
+richInfoSize (RichInfo fields) =
+    sum [Text.length t + Text.length v | RichField t v <- fields]
+
+-- | Remove fields with @""@ values.
+normalizeRichInfo :: RichInfo -> RichInfo
+normalizeRichInfo RichInfo{..} = RichInfo
+    { richInfoFields = filter (not . Text.null . richFieldValue) richInfoFields
+    }
+
 -----------------------------------------------------------------------------
 -- New Users
 
@@ -265,7 +339,7 @@ data NewUserOrigin =
   deriving (Eq, Show)
 
 parseNewUserOrigin :: Maybe PlainTextPassword -> Maybe UserIdentity -> Maybe UserSSOId
-                   -> Object -> Parser (Maybe NewUserOrigin)
+                   -> Object -> Aeson.Parser (Maybe NewUserOrigin)
 parseNewUserOrigin pass uid ssoid o = do
     invcode  <- o .:? "invitation_code"
     teamcode <- o .:? "team_code"
@@ -284,7 +358,7 @@ parseNewUserOrigin pass uid ssoid o = do
         (Just (NewUserOriginTeamUser _), Nothing, _) -> fail "all team users must set a password on creation"
         _ -> pure result
 
-jsonNewUserOrigin :: NewUserOrigin -> [Pair]
+jsonNewUserOrigin :: NewUserOrigin -> [Aeson.Pair]
 jsonNewUserOrigin = \case
     NewUserOriginInvitationCode inv             -> ["invitation_code" .= inv]
     NewUserOriginTeamUser (NewTeamMember tc)    -> ["team_code" .= tc]
@@ -353,7 +427,7 @@ instance ToJSON NewUser where
         # maybe [] jsonNewUserOrigin (newUserOrigin u)
 
 -- | Fails if email or phone or ssoid are present but invalid
-parseIdentity :: Maybe UserSSOId -> Object -> Parser (Maybe UserIdentity)
+parseIdentity :: Maybe UserSSOId -> Object -> Aeson.Parser (Maybe UserIdentity)
 parseIdentity ssoid o = if isJust (HashMap.lookup "email" o <|> HashMap.lookup "phone" o) || isJust ssoid
     then Just <$> parseJSON (Object o)
     else pure Nothing
@@ -431,6 +505,7 @@ newtype EmailUpdate = EmailUpdate { euEmail :: Email } deriving (Eq, Show)
 newtype PhoneUpdate = PhoneUpdate { puPhone :: Phone } deriving (Eq, Show)
 newtype HandleUpdate = HandleUpdate { huHandle :: Text } deriving (Eq, Show)
 newtype ManagedByUpdate = ManagedByUpdate { mbuManagedBy :: ManagedBy } deriving (Eq, Show)
+newtype RichInfoUpdate = RichInfoUpdate { riuRichInfo :: RichInfo } deriving (Eq, Show)
 
 newtype EmailRemove = EmailRemove { erEmail :: Email } deriving (Eq, Show)
 newtype PhoneRemove = PhoneRemove { prPhone :: Phone } deriving (Eq, Show)
@@ -487,6 +562,13 @@ instance FromJSON ManagedByUpdate where
 
 instance ToJSON ManagedByUpdate where
     toJSON m = object ["managed_by" .= mbuManagedBy m]
+
+instance FromJSON RichInfoUpdate where
+    parseJSON = withObject "rich-info-update" $ \o ->
+        RichInfoUpdate <$> o .: "rich_info"
+
+instance ToJSON RichInfoUpdate where
+    toJSON m = object ["rich_info" .= riuRichInfo m]
 
 instance FromJSON EmailRemove where
     parseJSON = withObject "email-remove" $ \o ->

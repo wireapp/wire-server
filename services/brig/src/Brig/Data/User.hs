@@ -7,10 +7,13 @@ module Brig.Data.User
     ( AuthError (..)
     , ReAuthError (..)
     , newAccount
+    , insertAccount
     , authenticate
     , reauthenticate
     , filterActive
     , isActivated
+
+    -- * Lookups
     , lookupAccount
     , lookupAccounts
     , lookupUser
@@ -19,8 +22,12 @@ module Brig.Data.User
     , lookupLocale
     , lookupPassword
     , lookupStatus
+    , lookupRichInfo
     , lookupUserTeam
-    , insertAccount
+    , lookupServiceUsers
+    , lookupServiceUsersForTeam
+
+    -- * Updates
     , updateUser
     , updateEmail
     , updatePhone
@@ -32,12 +39,13 @@ module Brig.Data.User
     , updatePassword
     , updateStatus
     , updateSearchableStatus
+    , updateHandle
+    , updateRichInfo
+
+    -- * Deletions
     , deleteEmail
     , deletePhone
     , deleteServiceUser
-    , lookupServiceUsers
-    , lookupServiceUsersForTeam
-    , updateHandle
     ) where
 
 import Imports
@@ -214,6 +222,9 @@ updatePassword u t = do
     p <- liftIO $ mkSafePassword t
     retry x5 $ write userPasswordUpdate (params Quorum (p, u))
 
+updateRichInfo :: UserId -> RichInfo -> AppIO ()
+updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params Quorum (ri, u))
+
 deleteEmail :: UserId -> AppIO ()
 deleteEmail u = retry x5 $ write userEmailDelete (params Quorum (Identity u))
 
@@ -289,6 +300,10 @@ lookupStatus :: UserId -> AppIO (Maybe AccountStatus)
 lookupStatus u = join . fmap runIdentity <$>
     retry x1 (query1 statusSelect (params Quorum (Identity u)))
 
+lookupRichInfo :: UserId -> AppIO (Maybe RichInfo)
+lookupRichInfo u = fmap runIdentity <$>
+    retry x1 (query1 richInfoSelect (params Quorum (Identity u)))
+
 lookupUserTeam :: UserId -> AppIO (Maybe TeamId)
 lookupUserTeam u = join . fmap runIdentity <$>
     retry x1 (query1 teamSelect (params Quorum (Identity u)))
@@ -298,6 +313,9 @@ lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params Quorum (Identity u
   where
     f (pw, st) = (pw, fromMaybe Active st)
 
+-- | Return users with given IDs.
+--
+-- Skips nonexistent users. /Does not/ skip users who have been deleted.
 lookupUsers :: [UserId] -> AppIO [User]
 lookupUsers usrs = do
     loc <- setDefaultLocale  <$> view settings
@@ -392,6 +410,9 @@ accountStateSelectAll = "SELECT id, activated, status FROM user WHERE id IN ?"
 statusSelect :: PrepQuery R (Identity UserId) (Identity (Maybe AccountStatus))
 statusSelect = "SELECT status FROM user WHERE id = ?"
 
+richInfoSelect :: PrepQuery R (Identity UserId) (Identity RichInfo)
+richInfoSelect = "SELECT json FROM rich_info WHERE user = ?"
+
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
 teamSelect = "SELECT team FROM user WHERE id = ?"
 
@@ -457,6 +478,9 @@ userEmailDelete = "UPDATE user SET email = null WHERE id = ?"
 
 userPhoneDelete :: PrepQuery W (Identity UserId) ()
 userPhoneDelete = "UPDATE user SET phone = null WHERE id = ?"
+
+userRichInfoUpdate :: PrepQuery W (RichInfo, UserId) ()
+userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ?"
 
 -------------------------------------------------------------------------------
 -- Conversions

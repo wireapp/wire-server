@@ -337,6 +337,14 @@ authTokenInvalid = Wai.Error status403 "invalid-credentials" "Invalid token"
 incorrectPermissions :: Wai.Error
 incorrectPermissions = Wai.Error status403 "invalid-permissions" "Copy permissions must be a subset of self permissions"
 
+-- | User's relation to the team is not what we expect it to be. Examples:
+--
+-- * Requested action requires the user to be a team member, but the user doesn't belong to
+--   the team.
+--
+-- * Requested action requires the user to be a team owner.
+--
+-- * Requested action can't be performed if the user is the only team owner left in the team.
 insufficientTeamPermissions :: Wai.Error
 insufficientTeamPermissions = Wai.Error status403 "insufficient-permissions" "Insufficient team permissions"
 
@@ -358,6 +366,9 @@ tooManyTeamMembers = Wai.Error status403 "too-many-team-members" "Too many membe
 
 loginsTooFrequent :: Wai.Error
 loginsTooFrequent = Wai.Error status429 "client-error" "Logins too frequent"
+
+tooLargeRichInfo :: Wai.Error
+tooLargeRichInfo = Wai.Error status413 "too-large-rich-info" "Rich info has exceeded the limit"
 
 internalServerError :: Wai.Error
 internalServerError = Wai.Error status500 "internal-server-error" "Internal Server Error"

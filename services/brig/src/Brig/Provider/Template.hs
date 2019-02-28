@@ -35,6 +35,7 @@ data ActivationEmailTemplate = ActivationEmailTemplate
     , activationEmailBodyText   :: !Template
     , activationEmailBodyHtml   :: !Template
     , activationEmailSender     :: !Email
+    , activationEmailSenderName :: !Text
     }
 
 data ApprovalRequestEmailTemplate = ApprovalRequestEmailTemplate
@@ -43,6 +44,7 @@ data ApprovalRequestEmailTemplate = ApprovalRequestEmailTemplate
     , approvalRequestEmailBodyText   :: !Template
     , approvalRequestEmailBodyHtml   :: !Template
     , approvalRequestEmailSender     :: !Email
+    , approvalRequestEmailSenderName :: !Text
     , approvalRequestEmailTo         :: !Email
     }
 
@@ -51,6 +53,7 @@ data ApprovalConfirmEmailTemplate = ApprovalConfirmEmailTemplate
     , approvalConfirmEmailBodyText   :: !Template
     , approvalConfirmEmailBodyHtml   :: !Template
     , approvalConfirmEmailSender     :: !Email
+    , approvalConfirmEmailSenderName :: !Text
     , approvalConfirmEmailHomeUrl    :: !HttpsUrl
     }
 
@@ -60,6 +63,7 @@ data PasswordResetEmailTemplate = PasswordResetEmailTemplate
     , passwordResetEmailBodyText   :: !Template
     , passwordResetEmailBodyHtml   :: !Template
     , passwordResetEmailSender     :: !Email
+    , passwordResetEmailSenderName :: !Text
     }
 
 -- TODO
@@ -78,35 +82,41 @@ loadProviderTemplates o = readLocalesDir defLocale (templateDir gOptions) "provi
                 <$> readTemplate fp "email/activation-subject.txt"
                 <*> readTemplate fp "email/activation.txt"
                 <*> readTemplate fp "email/activation.html"
-                <*> pure (emailSender gOptions))
+                <*> pure (emailSender gOptions)
+                <*> readText fp "email/sender.txt")
         <*> (ActivationEmailTemplate activationUrl'
                 <$> readTemplate fp "email/update-subject.txt"
                 <*> readTemplate fp "email/update.txt"
                 <*> readTemplate fp "email/update.html"
-                <*> pure (emailSender gOptions))
+                <*> pure (emailSender gOptions)
+                <*> readText fp "email/sender.txt")
         <*> (ApprovalRequestEmailTemplate approvalUrl'
                 <$> readTemplate fp "email/approval-request-subject.txt"
                 <*> readTemplate fp "email/approval-request.txt"
                 <*> readTemplate fp "email/approval-request.html"
                 <*> pure (emailSender gOptions)
+                <*> readText fp "email/sender.txt"
                 <*> pure (approvalTo pOptions))
         <*> (ApprovalConfirmEmailTemplate
                 <$> readTemplate fp "email/approval-confirm-subject.txt"
                 <*> readTemplate fp "email/approval-confirm.txt"
                 <*> readTemplate fp "email/approval-confirm.html"
                 <*> pure (emailSender gOptions)
+                <*> readText fp "email/sender.txt"
                 <*> pure (fromMaybe (error "Invalid HTTPS URL") maybeUrl))
         <*> (PasswordResetEmailTemplate pwResetUrl'
                 <$> readTemplate fp "email/password-reset-subject.txt"
                 <*> readTemplate fp "email/password-reset.txt"
                 <*> readTemplate fp "email/password-reset.html"
-                <*> pure (emailSender gOptions))
+                <*> pure (emailSender gOptions)
+                <*> readText fp "email/sender.txt")
   where
     maybeUrl  = fromByteString $ encodeUtf8 $ homeUrl pOptions
     gOptions  = general $ emailSMS o
     pOptions  = provider $ emailSMS o
     defLocale = setDefaultLocale (optSettings o)
     readTemplate = readTemplateWithDefault (templateDir gOptions) defLocale "provider"
+    readText = readTextWithDefault (templateDir gOptions) defLocale "provider"
 
     -- URL templates
     activationUrl' = template $ providerActivationUrl pOptions
