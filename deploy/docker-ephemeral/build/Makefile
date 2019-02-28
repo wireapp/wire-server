@@ -182,15 +182,15 @@ MINIO_COMMIT               ?= 118270d76fc90f1e54cd9510cee9688bd717250b
 CASSANDRA_COMMIT           ?= 064fb4e2682bf9c1909e4cb27225fa74862c9086
 
 smtp/Dockerfile:
-	git clone git@github.com:namshi/docker-smtp.git smtp
+	git clone https://github.com/namshi/docker-smtp.git smtp
 	cd smtp && git reset --hard $(SMTP_COMMIT)
 
 dynamodb_local/Dockerfile:
-	git clone git@github.com:cnadiminti/docker-dynamodb-local.git dynamodb_local
+	git clone https://github.com/cnadiminti/docker-dynamodb-local.git dynamodb_local
 	cd dynamodb_local && git reset --hard $(DYNAMODB_COMMIT)
 
 elasticsearch/Dockerfile:
-	git clone git@github.com:blacktop/docker-elasticsearch-alpine.git elasticsearch-all
+	git clone https://github.com/blacktop/docker-elasticsearch-alpine.git elasticsearch-all
 	cd elasticsearch-all && git reset --hard $(ELASTICSEARCH_COMMIT)
 	cp -R elasticsearch-all/5.6/ elasticsearch
 	 # add a block to the entrypoint script to interpret CS_JVM_OPTIONS, modifying the jvm.options before launching elasticsearch.
@@ -204,7 +204,7 @@ elasticsearch/Dockerfile:
 	sed -i.bak 's@REPLACEME@@' elasticsearch/elastic-entrypoint.sh
 
 airdock_base/Dockerfile:
-	git clone git@github.com:airdock-io/docker-base.git airdock_base-all
+	git clone https://github.com/airdock-io/docker-base.git airdock_base-all
 	cd airdock_base-all && git reset --hard $(AIRDOCKBASE_COMMIT)
 	cp -R airdock_base-all/jessie airdock_base
 # work around go compiler bug by using newer version of GOSU. https://bugs.launchpad.net/qemu/+bug/1696353
@@ -215,7 +215,7 @@ airdock_base/Dockerfile:
 	sed -i.bak 's/tini\(.asc\|\)"/tini-\$$dpkgArch\1"/' $@
 
 airdock_rvm/Dockerfile:
-	git clone git@github.com:airdock-io/docker-rvm.git airdock_rvm-all
+	git clone https://github.com/airdock-io/docker-rvm.git airdock_rvm-all
 	cd airdock_rvm-all && git reset --hard $(AIRDOCKRVM_COMMIT)
 	cp -R airdock_rvm-all/jessie-rvm airdock_rvm
 	sed -i.bak "s=airdock/base:jessie=$(USERNAME)/airdock_base$(TAGNAME)=" $@
@@ -223,7 +223,7 @@ airdock_rvm/Dockerfile:
 	sed -i.bak "s=\(409B6B1796C275462A1703113804BB82D39DC0E3\)=\1 7D2BAF1CF37B13E2069D6956105BD0E739499BDB=" $@
 
 airdock_fakesqs/Dockerfile:
-	git clone git@github.com:airdock-io/docker-fake-sqs.git airdock_fakesqs-all
+	git clone https://github.com/airdock-io/docker-fake-sqs.git airdock_fakesqs-all
 	cd airdock_fakesqs-all && git reset --hard $(AIRDOCKFAKESQS_COMMIT)
 	cp -R airdock_fakesqs-all/0.3.1 airdock_fakesqs
 	sed -i.bak "s=airdock/rvm:latest=$(USERNAME)/airdock_rvm$(TAGNAME)=" $@
@@ -234,14 +234,14 @@ airdock_fakesqs/Dockerfile:
 	sed -i.bak "s=cd /srv/ruby/fake-sqs.*=chown ruby.ruby /srv/ruby/fake-sqs\nUSER ruby\nWORKDIR /srv/ruby/fake-sqs\nRUN cd /srv/ruby/fake-sqs \&\& \\\\=" $@
 
 java_maven_node_python/Dockerfile:
-	git clone git@github.com:localstack/localstack.git java_maven_node_python
+	git clone https://github.com/localstack/localstack.git java_maven_node_python
 	cd java_maven_node_python && git reset --hard $(JAVAMAVENNODEPYTHON_COMMIT)
 	cd java_maven_node_python && mv bin/Dockerfile.base Dockerfile
 # disable installing docker-ce. not available on many architectures in binary form.
 	sed -i.bak "/.*install Docker.*/{N;N;N;N;N;d}" $@
 
 localstack/Dockerfile:
-	git clone git@github.com:localstack/localstack.git localstack
+	git clone https://github.com/localstack/localstack.git localstack
 	cd localstack && git reset --hard $(LOCALSTACK_COMMIT)
 	sed -i.bak "s=localstack/java-maven-node-python=$(USERNAME)/java_maven_node_python$(TAGNAME)=" $@
 # skip tests. they take too long.
@@ -249,11 +249,11 @@ localstack/Dockerfile:
 	sed -i.bak "s=\(.*lambda.*\)=#\1=" localstack/Makefile
 
 minio/Dockerfile:
-	git clone git@github.com:minio/minio.git minio
+	git clone https://github.com/minio/minio.git minio
 	cd minio && git reset --hard $(MINIO_COMMIT)
 
 cassandra/Dockerfile:
-	git clone git@github.com:docker-library/cassandra.git cassandra-all
+	git clone https://github.com/docker-library/cassandra.git cassandra-all
 	cd cassandra-all && git reset --hard $(CASSANDRA_COMMIT)
 	cp -R cassandra-all/3.11 cassandra
 	 # work around go compiler bug by using newer version of GOSU. https://bugs.launchpad.net/qemu/+bug/1696353
