@@ -58,12 +58,12 @@ BADARCHSIM    := localstack-arm32v6 java_maven_node_python-arm32v6 dynamodb_loca
 
 # set the targets, depending on the distro base specified. this is so that the debian images are built for all of the debian arches, and the alpine images for its arches.
 ifeq ($(DIST),DEBIAN)
-  ARCHES=$(DEBARCHES)
-  NAMES=$(DEBNAMES)
+  ARCHES ?= $(DEBARCHES)
+  NAMES  ?= $(DEBNAMES)
 endif
 ifeq ($(DIST),ALPINE)
-  ARCHES=$(ALPINEARCHES)
-  NAMES=$(ALPINENAMES)
+  ARCHES ?= $(ALPINEARCHES)
+  NAMES  ?= $(ALPINENAMES)
 endif
 
 # turn on experimental features in docker.
