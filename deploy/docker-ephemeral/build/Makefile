@@ -198,58 +198,58 @@ elasticsearch/Dockerfile:
 	cp -R elasticsearch-all/5.6/ elasticsearch
 	 # add a block to the entrypoint script to interpret CS_JVM_OPTIONS, modifying the jvm.options before launching elasticsearch.
 	 # first, add a marker to be replaced before the last if.
-	${SED}  -r ':a;$$!{N;ba};s/^(.*)(\n?)fi/\2\1fi\nREPLACEME/' elasticsearch/elastic-entrypoint.sh
+	${SED} -i.bak  -r ':a;$$!{N;ba};s/^(.*)(\n?)fi/\2\1fi\nREPLACEME/' elasticsearch/elastic-entrypoint.sh
 	 # next, load our variables.
-	${SED}  's@REPLACEME@MY_APP_CONFIG="/usr/share/elasticsearch/config/"\n&@' elasticsearch/elastic-entrypoint.sh
+	${SED} -i.bak  's@REPLACEME@MY_APP_CONFIG="/usr/share/elasticsearch/config/"\n&@' elasticsearch/elastic-entrypoint.sh
 	 # add our parser and replacer.
-	${SED}  $$'s@REPLACEME@if [ ! -z "$${JVM_OPTIONS_ES}" ]; then\\nfor x in $${JVM_OPTIONS_ES}; do { l="$${x%%=*}"; r=""; e=""; [ "$$x" != "$${x/=//}" ] \&\& e="=" \&\& r="$${x##*=}"; [ "$$x" != "$${x##-Xm?}" ] \&\& r="$${x##-Xm?}" \&\& l="$${x%%$$r}"; echo $$l $$e $$r; sed -i.bak -r \'s/^[# ]?(\'"$$l$$e"\').*/\\\\1\'"$$r"\'/\' "$$MY_APP_CONFIG/jvm.options"; diff "$$MY_APP_CONFIG/jvm.options.bak" "$$MY_APP_CONFIG/jvm.options" \&\& echo "no difference"; } done;\\nfi\\n&@' elasticsearch/elastic-entrypoint.sh
+	${SED} -i.bak  $$'s@REPLACEME@if [ ! -z "$${JVM_OPTIONS_ES}" ]; then\\nfor x in $${JVM_OPTIONS_ES}; do { l="$${x%%=*}"; r=""; e=""; [ "$$x" != "$${x/=//}" ] \&\& e="=" \&\& r="$${x##*=}"; [ "$$x" != "$${x##-Xm?}" ] \&\& r="$${x##-Xm?}" \&\& l="$${x%%$$r}"; echo $$l $$e $$r; sed -i.bak -r \'s/^[# ]?(\'"$$l$$e"\').*/\\\\1\'"$$r"\'/\' "$$MY_APP_CONFIG/jvm.options"; diff "$$MY_APP_CONFIG/jvm.options.bak" "$$MY_APP_CONFIG/jvm.options" \&\& echo "no difference"; } done;\\nfi\\n&@' elasticsearch/elastic-entrypoint.sh
 	 # remove the marker we added earlier.
-	${SED}  's@REPLACEME@@' elasticsearch/elastic-entrypoint.sh
+	${SED} -i.bak  's@REPLACEME@@' elasticsearch/elastic-entrypoint.sh
 
 airdock_base/Dockerfile:
 	git clone https://github.com/airdock-io/docker-base.git airdock_base-all
 	cd airdock_base-all && git reset --hard $(AIRDOCKBASE_COMMIT)
 	cp -R airdock_base-all/jessie airdock_base
 # work around go compiler bug by using newer version of GOSU. https://bugs.launchpad.net/qemu/+bug/1696353
-	${SED}  "s/GOSU_VERSION=.* /GOSU_VERSION=1.11 /" $@
+	${SED} -i.bak  "s/GOSU_VERSION=.* /GOSU_VERSION=1.11 /" $@
 # work around missing architecture specific binaries in earlier versions of tini.
-	${SED}  "s/TINI_VERSION=.*/TINI_VERSION=v0.16.1/" $@
+	${SED} -i.bak  "s/TINI_VERSION=.*/TINI_VERSION=v0.16.1/" $@
 # work around the lack of architecture usage when downloading tini binaries. https://github.com/airdock-io/docker-base/issues/8
-	${SED}  's/tini\(.asc\|\)"/tini-\$$dpkgArch\1"/' $@
+	${SED} -i.bak  's/tini\(.asc\|\)"/tini-\$$dpkgArch\1"/' $@
 
 airdock_rvm/Dockerfile:
 	git clone https://github.com/airdock-io/docker-rvm.git airdock_rvm-all
 	cd airdock_rvm-all && git reset --hard $(AIRDOCKRVM_COMMIT)
 	cp -R airdock_rvm-all/jessie-rvm airdock_rvm
-	${SED}  "s=airdock/base:jessie=$(USERNAME)/airdock_base$(TAGNAME)=" $@
+	${SED} -i.bak  "s=airdock/base:jessie=$(USERNAME)/airdock_base$(TAGNAME)=" $@
 # add a second key used to sign ruby to the dockerfile. https://github.com/airdock-io/docker-rvm/issues/1
-	${SED}  "s=\(409B6B1796C275462A1703113804BB82D39DC0E3\)=\1 7D2BAF1CF37B13E2069D6956105BD0E739499BDB=" $@
+	${SED} -i.bak  "s=\(409B6B1796C275462A1703113804BB82D39DC0E3\)=\1 7D2BAF1CF37B13E2069D6956105BD0E739499BDB=" $@
 
 airdock_fakesqs/Dockerfile:
 	git clone https://github.com/airdock-io/docker-fake-sqs.git airdock_fakesqs-all
 	cd airdock_fakesqs-all && git reset --hard $(AIRDOCKFAKESQS_COMMIT)
 	cp -R airdock_fakesqs-all/0.3.1 airdock_fakesqs
-	${SED}  "s=airdock/rvm:latest=$(USERNAME)/airdock_rvm$(TAGNAME)=" $@
+	${SED} -i.bak  "s=airdock/rvm:latest=$(USERNAME)/airdock_rvm$(TAGNAME)=" $@
 # add a workdir declaration to the final switch to root.
-	${SED}  "s=^USER root=USER root\nWORKDIR /=" $@
+	${SED} -i.bak  "s=^USER root=USER root\nWORKDIR /=" $@
 # break directory creation into two pieces, one run by root.
-	${SED}  "s=^USER ruby=USER root=" $@
-	${SED}  "s=cd /srv/ruby/fake-sqs.*=chown ruby.ruby /srv/ruby/fake-sqs\nUSER ruby\nWORKDIR /srv/ruby/fake-sqs\nRUN cd /srv/ruby/fake-sqs \&\& \\\\=" $@
+	${SED} -i.bak  "s=^USER ruby=USER root=" $@
+	${SED} -i.bak  "s=cd /srv/ruby/fake-sqs.*=chown ruby.ruby /srv/ruby/fake-sqs\nUSER ruby\nWORKDIR /srv/ruby/fake-sqs\nRUN cd /srv/ruby/fake-sqs \&\& \\\\=" $@
 
 java_maven_node_python/Dockerfile:
 	git clone https://github.com/localstack/localstack.git java_maven_node_python
 	cd java_maven_node_python && git reset --hard $(JAVAMAVENNODEPYTHON_COMMIT)
 	cd java_maven_node_python && mv bin/Dockerfile.base Dockerfile
 # disable installing docker-ce. not available on many architectures in binary form.
-	${SED}  "/.*install Docker.*/{N;N;N;N;N;d}" $@
+	${SED} -i.bak  "/.*install Docker.*/{N;N;N;N;N;d}" $@
 
 localstack/Dockerfile:
 	git clone https://github.com/localstack/localstack.git localstack
 	cd localstack && git reset --hard $(LOCALSTACK_COMMIT)
-	${SED}  "s=localstack/java-maven-node-python=$(USERNAME)/java_maven_node_python$(TAGNAME)=" $@
+	${SED} -i.bak  "s=localstack/java-maven-node-python=$(USERNAME)/java_maven_node_python$(TAGNAME)=" $@
 # skip tests. they take too long.
-	${SED}  "s=make lint.*=make lint=" localstack/Makefile
-	${SED}  "s=\(.*lambda.*\)=#\1=" localstack/Makefile
+	${SED} -i.bak  "s=make lint.*=make lint=" localstack/Makefile
+	${SED} -i.bak  "s=\(.*lambda.*\)=#\1=" localstack/Makefile
 
 minio/Dockerfile:
 	git clone https://github.com/minio/minio.git minio
@@ -260,17 +260,17 @@ cassandra/Dockerfile:
 	cd cassandra-all && git reset --hard $(CASSANDRA_COMMIT)
 	cp -R cassandra-all/3.11 cassandra
 	 # work around go compiler bug by using newer version of GOSU. https://bugs.launchpad.net/qemu/+bug/1696353
-	${SED}  "s/GOSU_VERSION .*/GOSU_VERSION 1.11/" $@
+	${SED} -i.bak  "s/GOSU_VERSION .*/GOSU_VERSION 1.11/" $@
 	 # add a block to the entrypoint script to interpret CS_JVM_OPTIONS, modifying the jvm.options before launching cassandra.
 	 # first, add a marker to be replaced before the last if.
-	${SED}  -r ':a;$$!{N;ba};s/^(.*)(\n?)fi/\2\1REPLACEME\nfi/' cassandra/docker-entrypoint.sh
+	${SED} -i.bak  -r ':a;$$!{N;ba};s/^(.*)(\n?)fi/\2\1REPLACEME\nfi/' cassandra/docker-entrypoint.sh
 	 # next, load our variables.
-	${SED}  's/REPLACEME/\nAPP_CONFIG="$$CASSANDRA_CONFIG"\n&/' cassandra/docker-entrypoint.sh
-	${SED}  's/REPLACEME/JVM_OPTIONS="$$CS_JVM_OPTIONS"\n&/' cassandra/docker-entrypoint.sh
+	${SED} -i.bak  's/REPLACEME/\nAPP_CONFIG="$$CASSANDRA_CONFIG"\n&/' cassandra/docker-entrypoint.sh
+	${SED} -i.bak  's/REPLACEME/JVM_OPTIONS="$$CS_JVM_OPTIONS"\n&/' cassandra/docker-entrypoint.sh
 	 # add our parser and replacer.
-	${SED}  $$'s@REPLACEME@if [ ! -z "$${JVM_OPTIONS}" ]; then\\nfor x in $${JVM_OPTIONS}; do { l="$${x%%=*}"; r=""; e=""; [ "$$x" != "$${x/=//}" ] \&\& e="=" \&\& r="$${x##*=}"; [ "$$x" != "$${x##-Xm?}" ] \&\& r="$${x##-Xm?}" \&\& l="$${x%%$$r}"; echo $$l $$e $$r; _sed-in-place "$$APP_CONFIG/jvm.options" -r \'s/^[# ]*(\'"$$l$$e"\').*/\\\\1\'"$$r"\'/\'; } done\\nfi\\n&@' cassandra/docker-entrypoint.sh
+	${SED} -i.bak  $$'s@REPLACEME@if [ ! -z "$${JVM_OPTIONS}" ]; then\\nfor x in $${JVM_OPTIONS}; do { l="$${x%%=*}"; r=""; e=""; [ "$$x" != "$${x/=//}" ] \&\& e="=" \&\& r="$${x##*=}"; [ "$$x" != "$${x##-Xm?}" ] \&\& r="$${x##-Xm?}" \&\& l="$${x%%$$r}"; echo $$l $$e $$r; _sed-in-place "$$APP_CONFIG/jvm.options" -r \'s/^[# ]*(\'"$$l$$e"\').*/\\\\1\'"$$r"\'/\'; } done\\nfi\\n&@' cassandra/docker-entrypoint.sh
 	 # remove the marker we added earlier.
-	${SED}  's@REPLACEME@@' cassandra/docker-entrypoint.sh
+	${SED} -i.bak  's@REPLACEME@@' cassandra/docker-entrypoint.sh
 
 # cleanup. remove the directories we set up for building, as well as the git repos we download. 
 .PHONY: clean
