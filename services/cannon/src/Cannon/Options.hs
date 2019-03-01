@@ -8,9 +8,11 @@ module Cannon.Options
     , gundeck
     , externalHost
     , externalHostFile
+    , kubernetesServiceAddress
     , logLevel
     , logNetStrings
     , Opts
+    , hostnameEnvKey
     )
 where
 
@@ -19,12 +21,19 @@ import Control.Lens (makeFields)
 import Data.Aeson.APIFieldJsonTH
 import System.Logger (Level)
 
+-- | The key to check for the current cannon's hostname
+-- This CANNOT be changed, as it's set by kubernetes itself when using stateful
+-- sets.
+hostnameEnvKey :: String
+hostnameEnvKey = "HOSTNAME"
 
 data Cannon = Cannon
-    { _cannonHost             :: !String
-    , _cannonPort             :: !Word16
-    , _cannonExternalHost     :: !(Maybe Text)
-    , _cannonExternalHostFile :: !(Maybe FilePath)
+    { _cannonHost                       :: !String
+    , _cannonPort                       :: !Word16
+    , _cannonExternalHost               :: !(Maybe Text)
+    , _cannonExternalHostFile           :: !(Maybe FilePath)
+    , _cannonKubernetesServiceAddress   :: !(Maybe Text)
+    -- ^ Address of the kubernetes service which routes to cannons if running on k8s
     } deriving (Eq, Show, Generic)
 
 makeFields ''Cannon

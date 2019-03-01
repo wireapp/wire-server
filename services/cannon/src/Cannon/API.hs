@@ -69,15 +69,29 @@ run o = do
     idleTimeout = fromIntegral $ maxPingInterval + 3
 
     -- Each cannon instance advertises its own location (ip or dns name) to gundeck.
-    -- Either externalHost or externalHostFile must be set (externalHost takes precedence if both are defined)
+    -- One of externalHost, externalHostFile, or  kubernetesServiceAddress
+    -- must be set. (they're checked in that order)
     loadExternal :: IO ByteString
-    loadExternal = do
-      let extFile = fromMaybe (error "One of externalHost or externalHostFile must be defined") (o^.cannon.externalHostFile)
-      fromMaybe (readExternal extFile) (return . encodeUtf8 <$> o^.cannon.externalHost)
+    loadExternal =
+      do
+        case ( o^.cannon.externalHost
+             , o^.cannon.externalHostFile
+             , o^.cannon.kubernetesServiceAddress
+             ) of
+          (Just extHost, _, _)           -> pure.encodeUtf8 $ extHost
+          (_, Just extHostFile, _)       -> readExternal extHostFile
+          (_, _, Just k8sServiceAddress) -> buildExtHostOnKubernetes k8sServiceAddress
+          (Nothing, Nothing, Nothing)    -> error
+            $ "One of externalHost, externalHostFile, or "
+            <> "kubernetesServiceAddress must be defined"
 
     readExternal :: FilePath -> IO ByteString
     readExternal f = encodeUtf8 . strip . pack <$> Strict.readFile f
 
+    buildExtHostOnKubernetes :: Text -> IO ByteString
+    buildExtHostOnKubernetes k8sServiceAddress = do
+      hostname <- getEnv hostnameEnvKey
+      pure . encodeUtf8 $ pack hostname <> "." <> k8sServiceAddress
 
 sitemap :: Routes ApiBuilder Cannon ()
 sitemap = do
