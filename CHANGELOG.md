@@ -1,3 +1,18 @@
+# 2019-02-28
+
+## API changes
+
+  * Support for SCIM based rich profiles (#645)
+    * `PUT /scim/v2/Users/:id` supports rich profile
+    * `GET /users/:id/rich-info` to get the rich profile id
+
+## Internal changes
+
+  * Gundeck now uses YAML based config
+  * Brig templates can now be easily customized and have been updated too
+  * Misc improvements to our docs and build processes
+
+
 # 2019-02-18 #646
 
 ## API changes
