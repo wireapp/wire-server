@@ -1,4 +1,4 @@
-module CargoHold.API (runServer, parseOptions) where
+module CargoHold.API (runServer) where
 
 import Imports hiding (head)
 import CargoHold.App
