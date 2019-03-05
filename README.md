@@ -1,23 +1,18 @@
-# Wire™
+# Qtune™
 
-[![Wire logo](https://github.com/wireapp/wire/blob/master/assets/header-small.png?raw=true)](https://wire.com/jobs/)
+This repository is part of the source code of Qtune. You can find more information at [qtune.com](https://qtune.com) or by contacting code@qtune.com.
 
-This repository is part of the source code of Wire. You can find more information at [wire.com](https://wire.com) or by contacting opensource@wire.com.
+You can find the published source code at [github.com/FIhlaTV/wire](https://github.com/FihlaTV/wire).
 
-You can find the published source code at [github.com/wireapp/wire](https://github.com/wireapp/wire).
-
-For licensing information, see the attached LICENSE file and the list of third-party licenses at [wire.com/legal/licenses/](https://wire.com/legal/licenses/).
+For licensing information, see the attached LICENSE file and the list of third-party licenses at [qtune.com/legal/licenses/](https://qtune.com/legal/licenses/).
 
 No license is granted to the Wire trademark and its associated logos, all of which will continue to be owned exclusively by Wire Swiss GmbH. Any use of the Wire trademark and/or its associated logos is expressly prohibited without the express prior written consent of Wire Swiss GmbH.
 
-## Wire server
+## Qtune WebRTC server
 
-This repository contains the source code for the Wire server. It contains all libraries and services necessary to run Wire.
+This repository contains the source code for the Qtune server. It contains all libraries and services necessary to run Qtune BackEnd Services
 
-For documentation on how to self host your own Wire-Server see [this section](#how-to-install-and-run-wire-server). Federation is on our long term roadmap.
-
-See more in "[Open sourcing Wire server code](https://medium.com/@wireapp/open-sourcing-wire-server-code-ef7866a731d5)".
-
+F
 ## Table of contents
 
 <!-- vim-markdown-toc GFM -->
@@ -69,7 +64,6 @@ The following diagram gives a high-level outline of the (deployment) architectur
 of the components that make up a Wire Server as well as the main internal and
 external dependencies between components.
 
-![wire-arch](docs/developer/architecture/wire-arch-2.png)
 
 Communication between internal components is currently not guarded by
 dedicated authentication or encryption and is assumed to be confined to a
@@ -77,7 +71,7 @@ private network.
 
 ## Development setup
 
-### How to build `wire-server` binaries
+### How to build `Qtune-server` binaries
 
 There are two options:
 
