@@ -10,7 +10,7 @@ import Util
 
 spec :: HasCallStack => SpecWith TestEnv
 spec = describe "logging" $ do
-  it "does not log newlines" $ do
+  it "does not log newlines (see haddocks of simpleDefSettings)" $ do
     logger <- asks (^. teSparEnv . to sparCtxLogger)
     liftIO $ do
       (out, _) <- capture $ Log.fatal logger $ Log.msg ("hrgh\n\nwoaa" :: Text)
